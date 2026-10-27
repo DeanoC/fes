@@ -36,12 +36,17 @@ Outside agent sessions have ignored these rules. Obey them.
 2. Kits A and B are both designated test kits. They are interchangeable.
 3. When a task installs a bundle, install that PR bundle on the kit's
    running image. A core-only run that does not change the bundle does not
-   install one. After use, restore the designated baseline image and bundle
-   the status file names, and log that restore. Activating the baseline
-   bundle does not change the booted image. If the booted image is not the
-   named baseline, restore that image, verify the boot, then activate a
-   compatible baseline bundle and verify it before logging the kit
-   restored. Confirm the kit is idle and lease-free before you release it.
+   install one. Software goes before the image: before an image change,
+   activate a bundle the new image accepts (`fes-update` refuses an image
+   whose menu interfaces the selected bundle lacks). After use, restore the
+   designated baseline image and bundle the status file names, and log that
+   restore. Activating the baseline bundle does not change the booted image.
+   If the booted image is not the named baseline, first activate the
+   baseline bundle if the running image accepts it, then restore that image
+   and verify the boot; otherwise restore and verify the image, then
+   activate the baseline bundle. Verify the active bundle before logging the
+   kit restored. Confirm the kit is idle and lease-free before you release
+   it.
 4. MUST keep Kit B's `u-boot.txt` line `usb-storage.quirks=152d:0583:i`.
 5. Destructive actions need Deano's explicit OK: reimage, an image or
    boot-config change, killing other people's processes, and closing PRs.
@@ -61,15 +66,16 @@ these rules do not require keeping those artifacts on a host or Powerboat.
 
 GPU jobs follow the [Shared GPUs](AGENTS.md#shared-gpus) section.
 
-nextpnr routing on HIP, CUDA and CPU gives bit-identical route outcomes. HIP and CUDA
-timing and route evidence are interchangeable: references, pins, seed results and
-replays from either backend remain valid on the other. This is route-result
+nextpnr routing on HIP, CUDA, Metal and CPU gives bit-identical route outcomes. HIP,
+CUDA and Metal timing and route evidence are interchangeable: references, pins, seed
+results and replays from any of them remain valid on the others. This is route-result
 equivalence only; production builds, promotion and seal evidence still require an
-authenticated live HIP or CUDA backend as producer validators require. Registered
-producers reject CPU-reference fallback (`NEXTPNR_REQUIRE_GPU=1`), so CPU replays
-can inform experiments only. HIP and CUDA builds keep distinct `BUILD_ID`s and
-artifact identities because backend is part of functional execution identity, even
-though their timing and route evidence is interchangeable. Among current core
+authenticated live HIP or CUDA backend as producer validators require, and they do
+not accept Metal yet. Registered producers reject CPU-reference fallback
+(`NEXTPNR_REQUIRE_GPU=1`), so CPU replays can inform experiments only. HIP, CUDA
+and Metal builds keep distinct `BUILD_ID`s and artifact identities because backend
+is part of functional execution identity, even though their timing and route
+evidence is interchangeable. Among current core
 package producers, Apple II, Atari ST, C64, Coleco socket-v2, SG-1000, SMS,
 Spectrum and ZX81 accept `--gpu-router {HIP,CUDA}`. Catch, Menu, Pong, RAM Tester
 and RISC-V accept only `--gpu-device`; their authenticated toolchain determines
@@ -77,7 +83,7 @@ the backend. On a CUDA host, select CUDA and its matching toolchain for a
 router-selectable producer; a device-only producer can use CUDA only with an
 authenticated CUDA-built toolchain. `gpu-run` leases a device, not a backend;
 record the backend in the build record. Never require a separate HIP run or
-discount CUDA evidence. Never set `GPU_LEASE_IDS` per job (it is a box inventory
-override).
+discount CUDA or Metal evidence. Never set `GPU_LEASE_IDS` per job (it is a box
+inventory override).
 
 Read [AGENTS.md](AGENTS.md) for every other working rule.

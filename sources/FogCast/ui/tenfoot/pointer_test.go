@@ -362,3 +362,12 @@ func TestHitTestCatalogMatchesCellRect(t *testing.T) {
 		t.Fatalf("empty = %s", HitTest(snap, 2, 2).Kind)
 	}
 }
+
+func TestMediaReturnDoesNotExposeHiddenRoomTargets(t *testing.T) {
+	snap := Snapshot{Grid: testDrawGrid(), Room: RoomSnapshot{Open: true}, Session: SessionSnapshot{State: "active", MediaSelector: true, ControlsOpen: true}}
+	for _, point := range [][2]int{{10, 10}, {640, 360}, {1270, 710}} {
+		if hit := HitTest(snap, point[0], point[1]); hit.Kind != PointerNone {
+			t.Fatalf("hidden UI received pointer: %+v", hit)
+		}
+	}
+}

@@ -163,6 +163,36 @@ Error ReadMenuRects(const json::Value& value,std::vector<MenuRect>* output)
  *output=std::move(rects);return {};
 }
 
+// {"first":f,"count":n}: n commands from f, inside the list region.
+Error ReadMenuList(const json::Value& value,MenuDraw* output)
+{
+ const char* const fields[]={"first","count"};Error error;
+ if(value.type!=json::Type::object||!HasOnly(value,fields,2,&error))return Invalid("menu list is {first,count}");
+ const std::int64_t commands=native::generated::FesApplicationMenuBlitCommandCount;
+ const auto* first=Find(value,"first");const auto* count=Find(value,"count");
+ if(!BoundedInteger(first,0,commands-1)||!BoundedInteger(count,1,commands-first->integer_value))
+  return Invalid("menu list is outside the list region");
+ output->blit=true;output->first=std::uint32_t(first->integer_value);output->count=std::uint32_t(count->integer_value);
+ return {};
+}
+
+// [[offset,bytes],...]: 1..16 window byte ranges inside the texture heap.
+Error ReadMenuSpans(const json::Value& value,std::vector<MenuSpan>* output)
+{
+ if(value.type!=json::Type::array||value.array.empty()||value.array.size()>kMenuUploadedMaxSpans)
+  return Invalid("menu uploads are 1 to 16 spans");
+ const std::int64_t heap=native::generated::FesApplicationMenuBlitHeapOffset,end=heap+native::generated::FesApplicationMenuBlitHeapBytes;
+ std::vector<MenuSpan> spans;
+ for(const auto& span:value.array) {
+  if(span.type!=json::Type::array||span.array.size()!=2||span.array[0].type!=json::Type::integer||
+   span.array[1].type!=json::Type::integer)return Invalid("menu upload is [offset,bytes]");
+  const std::int64_t offset=span.array[0].integer_value,bytes=span.array[1].integer_value;
+  if(offset<heap||offset>=end||bytes<1||bytes>end-offset)return Invalid("menu upload is outside the texture heap");
+  spans.push_back({std::uint32_t(offset),std::uint32_t(bytes)});
+ }
+ *output=std::move(spans);return {};
+}
+
 // Closed video/CPU role list, shared by parts inspection and ROM activation.
 Error ReadPartsComposition(const json::Value& root, const std::string& package_id,
     CoreCompositionRequest* result)
@@ -687,6 +717,7 @@ bool TryEncodeV2Response(bool ok, const Status& status, const std::string& versi
   output.Append(",\"package_id\":");AppendIdentity(&output,menu.package_id);
   if(menu.session) {
    output.Append(",\"session\":true,\"core_generation\":");output.Append(std::to_string(menu.core_generation));
+   output.Append(",\"focus\":");output.Append(menu.launcher_focus?"\"launcher\"":"\"machine\"");
    const auto& picture=menu.picture;
    output.Append(",\"picture\":[");output.Append(std::to_string(picture.x));output.Append(",");
    output.Append(std::to_string(picture.y));output.Append(",");output.Append(std::to_string(picture.w));
@@ -709,13 +740,26 @@ bool TryEncodeV2Response(bool ok, const Status& status, const std::string& versi
   if(menu_frame->kind==Kind::granted) {
    output.Append(",\"format\":\"bgrx8888\",\"slots\":");output.Append(std::to_string(native::generated::FesApplicationMenuSlotCount));
    output.Append(",\"slot_bytes\":");output.Append(std::to_string(native::generated::FesApplicationMenuSlotBytes));
+   if(menu_frame->blitter) {
+    output.Append(",\"blitter\":{\"minor\":");output.Append(std::to_string(menu_frame->blitter_minor));
+    output.Append(",\"list_offset\":");output.Append(std::to_string(native::generated::FesApplicationMenuBlitListOffset));
+    output.Append(",\"commands\":");output.Append(std::to_string(native::generated::FesApplicationMenuBlitCommandCount));
+    output.Append(",\"command_bytes\":");output.Append(std::to_string(native::generated::FesApplicationMenuBlitCommandBytes));
+    output.Append(",\"heap_offset\":");output.Append(std::to_string(native::generated::FesApplicationMenuBlitHeapOffset));
+    output.Append(",\"heap_bytes\":");output.Append(std::to_string(native::generated::FesApplicationMenuBlitHeapBytes));
+    output.Append("}");
+   }
   } else {
    output.Append(",\"slot\":");output.Append(std::to_string(menu_frame->slot));
+   if(menu_frame->kind==Kind::prepared) {
+    output.Append(",\"preparation\":");output.Append(std::to_string(menu_frame->preparation));
+   }
   }
   if(menu_frame->kind==Kind::presented) {
    output.Append(",\"displayed_sequence\":");output.Append(std::to_string(menu_frame->displayed_sequence));
    output.Append(",\"underflows\":");output.Append(std::to_string(menu_frame->underflows));
    output.Append(",\"timing\":{\"clean_us\":");output.Append(std::to_string(menu_frame->clean_us));
+   output.Append(",\"blit_us\":");output.Append(std::to_string(menu_frame->blit_us));
    output.Append(",\"submit_us\":");output.Append(std::to_string(menu_frame->submit_us));
    output.Append(",\"scanout_wait_us\":");output.Append(std::to_string(menu_frame->scanout_wait_us));output.Append("}");
   }
@@ -799,13 +843,17 @@ Error ParseRequest(const std::string& line, Request* request)
    if(!Path(*path)||!PackageID(*id))return Invalid("invalid menu package request");
    parsed.operation=Operation::configure_menu;parsed.package_path=*path;parsed.package_id=*id;
   } else if(operation->string_value=="session_display") {
-   const char* const fields[]={"protocol","operation","expected_package_id","expected_generation","visible"};
-   if(!HasOnly(root,fields,5,&error))return error;
-   const std::string* id=nullptr;const auto* visible=Find(root,"visible");
-   if(!StringMember(root,"expected_package_id",&id,&error))return error;
+   const char* const fields[]={"protocol","operation","expected_package_id","expected_generation","visible","focus"};
+   if(!HasOnly(root,fields,6,&error))return error;
+   const std::string *id=nullptr,*focus=nullptr;const auto* visible=Find(root,"visible");
+   if(!StringMember(root,"expected_package_id",&id,&error)||!StringMember(root,"focus",&focus,&error))return error;
+   // A closed plane always leaves input with the machine.
    if(!PackageID(*id)||!Generation(Find(root,"expected_generation"),&parsed.expected_generation)||
-    !visible||visible->type!=json::Type::boolean)return Invalid("invalid session display binding or visibility");
-   parsed.operation=Operation::session_display;parsed.expected_package_id=*id;parsed.visible=visible->boolean_value;
+    !visible||visible->type!=json::Type::boolean||(*focus!="machine"&&*focus!="launcher")||
+    (*focus=="launcher"&&!visible->boolean_value))
+    return Invalid("invalid session display binding, visibility or focus");
+   parsed.operation=Operation::session_display;parsed.expected_package_id=*id;
+   parsed.visible=visible->boolean_value;parsed.launcher_focus=*focus=="launcher";
   } else if(operation->string_value=="menu_frame_grant"||operation->string_value=="menu_frame_begin") {
    const char* const fields[]={"protocol","operation","expected_generation"};
    if(!HasOnly(root,fields,3,&error))return error;
@@ -813,16 +861,20 @@ Error ParseRequest(const std::string& line, Request* request)
     return Invalid("menu frame needs a nonzero generation");
    parsed.operation=operation->string_value=="menu_frame_grant"?Operation::menu_frame_grant:Operation::menu_frame_begin;
   } else if(operation->string_value=="menu_frame_commit") {
-   const char* const fields[]={"protocol","operation","generation","slot","written"};
-   if(!HasOnly(root,fields,5,&error))return error;
+   const char* const fields[]={"protocol","operation","generation","slot","written","list","uploaded"};
+   if(!HasOnly(root,fields,7,&error))return error;
    const auto* slot=Find(root,"slot");
    if(!Generation(Find(root,"generation"),&parsed.expected_generation)||
     !BoundedInteger(slot,0,native::generated::FesApplicationMenuSlotCount-1))
     return Invalid("menu commit needs a nonzero generation and a slot");
    parsed.menu_slot=std::uint8_t(slot->integer_value);
-   if(const auto* written=Find(root,"written")) {
-    error=ReadMenuRects(*written,&parsed.menu_written);if(!error.ok())return error;
-   }
+   const auto* written=Find(root,"written");const auto* list=Find(root,"list");const auto* uploaded=Find(root,"uploaded");
+   // The blitter draws a list frame's slot, so it has no CPU-written regions.
+   if(list&&written)return Invalid("menu commit names written regions or a list, not both");
+   if(uploaded&&!list)return Invalid("menu uploads need a list");
+   if(written){error=ReadMenuRects(*written,&parsed.menu_draw.written);if(!error.ok())return error;}
+   if(list){error=ReadMenuList(*list,&parsed.menu_draw);if(!error.ok())return error;}
+   if(uploaded){error=ReadMenuSpans(*uploaded,&parsed.menu_draw.uploaded);if(!error.ok())return error;}
    parsed.operation=Operation::menu_frame_commit;
   } else if (operation->string_value == "status" || operation->string_value == "stop" ||
 			operation->string_value == "recover_idle") {
@@ -1222,6 +1274,31 @@ Error ParseRequest(const std::string& line, Request* request)
 				return Invalid("invalid keyboard HID snapshot");
 			parsed.operation = Operation::set_keyboard_hid;
 			parsed.package_id = *package;
+		} else if (operation->string_value == "acknowledge_zx81_tape") {
+			const char* const fields[] = {"protocol", "operation",
+				"expected_package_id", "expected_generation"};
+			if (!HasOnly(root, fields, 4, &error)) return error;
+			const std::string* package = nullptr;
+			if (!StringMember(root, "expected_package_id", &package, &error)) return error;
+			if (!PackageID(*package) ||
+				!Generation(Find(root, "expected_generation"), &parsed.expected_generation))
+				return Invalid("invalid ZX81 tape acknowledgement");
+			parsed.operation = Operation::acknowledge_zx81_tape;
+			parsed.expected_package_id = *package;
+		} else if (operation->string_value == "capture_zx81_tape") {
+			const char* const fields[] = {"protocol", "operation", "path",
+				"expected_package_id", "expected_generation"};
+			if (!HasOnly(root, fields, 5, &error)) return error;
+			const std::string* path = nullptr;
+			const std::string* package = nullptr;
+			if (!StringMember(root, "path", &path, &error) ||
+				!StringMember(root, "expected_package_id", &package, &error)) return error;
+			if (!Path(*path) || !PackageID(*package) ||
+				!Generation(Find(root, "expected_generation"), &parsed.expected_generation))
+				return Invalid("invalid ZX81 tape capture");
+			parsed.operation = Operation::capture_zx81_tape;
+			parsed.media_path = *path;
+			parsed.expected_package_id = *package;
 		} else if (operation->string_value == "insert_media" ||
 			operation->string_value == "eject_media" || operation->string_value == "insert_library_media" ||
             operation->string_value == "save_media") {

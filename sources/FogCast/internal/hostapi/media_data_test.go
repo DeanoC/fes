@@ -12,7 +12,7 @@ import (
 )
 
 type diskDataService struct {
-	fakeService
+	liveMediaService
 	inserts, saves int
 	binding        protocol.LibraryMediaBinding
 	err            error
@@ -29,7 +29,7 @@ func (s *diskDataService) SaveMedia(_ context.Context, b protocol.MediaUnitBindi
 }
 func TestDiskDataHostRoutesKeepSessionAndRejectStaleBinding(t *testing.T) {
 	b := protocol.LibraryMediaBinding{MediaUnitBinding: protocol.MediaUnitBinding{PackageID: strings.Repeat("a", 64), Generation: 9, Target: "dev"}, GameID: "st-desktop", BaseMediaID: strings.Repeat("b", 64)}
-	s := &diskDataService{fakeService: fakeService{sessionTarget: "dev", status: protocol.Status{State: protocol.StateActive, Development: true, CorePackage: &protocol.CorePackageStatus{PackageID: b.PackageID, Generation: b.Generation, ABI: protocol.RuntimeContract{ID: "fes.computer", Major: 1}}}}}
+	s := &diskDataService{liveMediaService: liveMediaService{fakeService: fakeService{sessionTarget: "dev", status: protocol.Status{State: protocol.StateActive, Development: true, CorePackage: &protocol.CorePackageStatus{PackageID: b.PackageID, Generation: b.Generation, ABI: protocol.RuntimeContract{ID: "fes.computer", Major: 1}}}}}}
 	handler := hostapi.New(s)
 	before := serve(t, handler, "GET", "/api/v1/session")
 	var session struct {
@@ -38,7 +38,7 @@ func TestDiskDataHostRoutesKeepSessionAndRejectStaleBinding(t *testing.T) {
 	if json.Unmarshal(before.Body.Bytes(), &session) != nil || session.ID == "" {
 		t.Fatal(before.Body)
 	}
-	send := func(path, body string, change func(*http.Request)) int {
+	send := func(path, body string, change func(*http.Request)) *httptest.ResponseRecorder {
 		r := httptest.NewRequest("POST", path, strings.NewReader(body))
 		r.Host = "127.0.0.1"
 		b.SetHeaders(r.Header)
@@ -51,29 +51,61 @@ func TestDiskDataHostRoutesKeepSessionAndRejectStaleBinding(t *testing.T) {
 		}
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, r)
-		return w.Code
+		return w
+	}
+	liveInsert := func(name string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest("POST", "/api/v1/session/live-media", strings.NewReader(`{"media_id":"`+strings.Repeat("c", 64)+`","name":"`+name+`"}`))
+		r.Host = "127.0.0.1"
+		r.Header.Set("Content-Type", "application/json")
+		r.Header.Set(protocol.HostSessionIDHeader, session.ID)
+		protocol.DevelopmentMediaBinding{PackageID: b.PackageID, Generation: b.Generation, Target: b.Target}.SetHeaders(r.Header)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, r)
+		return w
 	}
 	body := `{"game_id":"st-desktop","base_media_id":"` + b.BaseMediaID + `"}`
-	if send("/api/v1/session/disk/insert", body, nil) != 200 || s.inserts != 1 || s.binding != b {
+	if live := liveInsert("old.d64"); live.Code != http.StatusOK || !strings.Contains(live.Body.String(), `"media_name":"old.d64"`) {
+		t.Fatalf("live insert status=%d body=%s", live.Code, live.Body)
+	}
+	for _, rejection := range []error{
+		protocol.LiveMediaBusyError(),
+		&protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "completed insert rejection", Phase: "input", NoChange: true},
+	} {
+		s.err = rejection
+		if rejected := send("/api/v1/session/disk/insert", body, nil); rejected.Code == http.StatusOK || !strings.Contains(rejected.Body.String(), `"no_change":true`) {
+			t.Fatalf("rejected library insert = %d %s", rejected.Code, rejected.Body.String())
+		}
+		if current := serve(t, handler, "GET", "/api/v1/session"); !strings.Contains(current.Body.String(), `"media_name":"old.d64"`) {
+			t.Fatalf("rejected library insert lost prior filename: %s", current.Body.String())
+		}
+	}
+	s.err = nil
+	if inserted := send("/api/v1/session/disk/insert", body, nil); inserted.Code != http.StatusOK || s.inserts != 3 || s.binding != b {
 		t.Fatal("insert")
 	}
-	if send("/api/v1/session/disk/save", "", nil) != 200 || s.saves != 1 {
+	if strings.Contains(serve(t, handler, "GET", "/api/v1/session").Body.String(), `"media_name"`) {
+		t.Fatal("library disk insertion retained the live-media filename")
+	}
+	if live := liveInsert("saved.d64"); live.Code != http.StatusOK || !strings.Contains(live.Body.String(), `"media_name":"saved.d64"`) {
+		t.Fatalf("second live insert status=%d body=%s", live.Code, live.Body)
+	}
+	if saved := send("/api/v1/session/disk/save", "", nil); saved.Code != http.StatusOK || s.saves != 1 || !strings.Contains(saved.Body.String(), `"media_name":"saved.d64"`) {
 		t.Fatal("save")
 	}
-	if send("/api/v1/session/disk/insert", strings.TrimSuffix(body, "}")+`,"extra":1}`, nil) == 200 {
+	if send("/api/v1/session/disk/insert", strings.TrimSuffix(body, "}")+`,"extra":1}`, nil).Code == http.StatusOK {
 		t.Fatal("unknown field")
 	}
-	if send("/api/v1/session/disk/save", "", func(r *http.Request) { r.Header.Set(protocol.HostSessionIDHeader, "stale") }) == 200 {
+	if send("/api/v1/session/disk/save", "", func(r *http.Request) { r.Header.Set(protocol.HostSessionIDHeader, "stale") }).Code == http.StatusOK {
 		t.Fatal("stale session")
 	}
-	if s.inserts != 1 || s.saves != 1 {
+	if s.inserts != 3 || s.saves != 1 || s.replaceCalls != 2 {
 		t.Fatal("invalid request dispatched")
 	}
 	s.err = &protocol.APIError{Code: protocol.CodeSaveFailed, Message: "publish failed", Phase: "save"}
-	if send("/api/v1/session/disk/save", "", nil) == 200 {
+	if send("/api/v1/session/disk/save", "", nil).Code == http.StatusOK {
 		t.Fatal("failed save accepted")
 	}
-	if after := serve(t, handler, "GET", "/api/v1/session"); !strings.Contains(after.Body.String(), session.ID) {
-		t.Fatal("save failure lost session")
+	if after := serve(t, handler, "GET", "/api/v1/session"); !strings.Contains(after.Body.String(), session.ID) || !strings.Contains(after.Body.String(), `"media_name":"saved.d64"`) {
+		t.Fatalf("save failure changed the session or mounted media name: %s", after.Body)
 	}
 }

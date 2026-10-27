@@ -19,8 +19,15 @@ The client reads `~/.config/fogcast/config.toml`. `--config` selects another pri
 host configuration; `--target` selects a named enabled target with recorded
 `target_id`. Tokens are never command-line arguments. A release directory contains
 `release.json` and `rootfs.img`; the client verifies the complete local digest
-before claiming the kit or uploading. Keep the client running through reboot and
-confirmation. The default update deadline is eight minutes plus six seconds per
+before claiming the kit or uploading. Update then reads the image's
+`/etc/fes/software-base.json` straight from `rootfs.img` and, after verifying the
+target, compares it with the kit's selected software bundle. It refuses the image
+when that bundle does not accept every menu interface the image requires: install
+and activate a bundle that does, then update. A bundle built for another base
+contract cannot go first; the client logs that the image will hold it back and
+run its own factory software, and continues
+([kit software releases](../../../docs/kit-software-releases.md#image-compatibility)).
+Keep the client running through reboot and confirmation. The default update deadline is eight minutes plus six seconds per
 MiB of the release image, rounded up to a minute (21 minutes for 128 MiB).
 `--timeout` overrides it. The client logs transfer and confirmation progress to
 stderr. If it exits during reboot or trial, rerun with `--action confirm` and

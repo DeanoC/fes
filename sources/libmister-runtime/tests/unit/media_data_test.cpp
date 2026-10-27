@@ -167,4 +167,17 @@ int main()
     file.reset(); reopened.reset();
     assert(rmdir((std::string(root)+"/"+MediaDataNamespace(id)).c_str())==0);
     assert(rmdir(root)==0);
+    MediaDiskRecord tape; tape.identity=id; tape.layout=MediaDataLayout::zx81_tape;
+    tape.bytes={0x00,0x0a,0x03,0x00,0xea,0x26,0x76};
+    std::vector<unsigned char> tape_wire;
+    assert(EncodeMediaData(tape,&tape_wire).ok());
+    assert(tape_wire.size()==167+tape.bytes.size());
+    assert(tape_wire[0]=='F' && tape_wire[1]=='E' && tape_wire[7]=='1');
+    MediaDiskRecord tape_back;
+    assert(DecodeMediaData(tape_wire,id,&tape_back).ok());
+    assert(tape_back.layout==MediaDataLayout::zx81_tape && tape_back.bytes==tape.bytes);
+    tape.bytes.clear();
+    assert(!EncodeMediaData(tape,&tape_wire).ok());
+    auto odd=tape; odd.bytes.assign(125,0x5a); odd.layout=MediaDataLayout::zx81_tape;
+    assert(EncodeMediaData(odd,&tape_wire).ok() && DecodeMediaData(tape_wire,id,&tape_back).ok() && tape_back.bytes==odd.bytes);
 }

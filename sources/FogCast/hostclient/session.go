@@ -99,6 +99,8 @@ type SessionResult struct {
 	System                  string
 	Execution               string
 	Media                   string
+	MediaName               string
+	MediaEjected            bool
 	Progress                *SessionProgress
 	Input                   *SessionInput
 	Development             bool
@@ -113,6 +115,8 @@ type SessionResult struct {
 	HPSFramebuffer *bool
 	ErrorCode      string
 	ErrorMessage   string
+	ErrorPhase     string
+	ErrorNoChange  bool
 	// StopStage is the host stop_stage on an error. lease_release means
 	// cleanup reached idle and the kit grant is still renewing.
 	StopStage string
@@ -201,6 +205,8 @@ func DecodeSession(status int, body []byte) (SessionResult, error) {
 		System                  *string             `json:"system"`
 		Execution               string              `json:"execution"`
 		Media                   string              `json:"media"`
+		MediaName               string              `json:"media_name"`
+		MediaEjected            bool                `json:"media_ejected"`
 		Progress                *SessionProgress    `json:"progress"`
 		Input                   *SessionInput       `json:"input"`
 		FlightID                string              `json:"flight_id"`
@@ -212,6 +218,8 @@ func DecodeSession(status int, body []byte) (SessionResult, error) {
 		Error                   *struct {
 			Code      string `json:"code"`
 			Message   string `json:"message"`
+			Phase     string `json:"phase"`
+			NoChange  bool   `json:"no_change"`
 			StopStage string `json:"stop_stage"`
 		} `json:"error"`
 	}
@@ -230,6 +238,8 @@ func DecodeSession(status int, body []byte) (SessionResult, error) {
 	}
 	result.Execution = strings.TrimSpace(wire.Execution)
 	result.Media = strings.TrimSpace(wire.Media)
+	result.MediaName = wire.MediaName
+	result.MediaEjected = wire.MediaEjected
 	result.FlightID = strings.TrimSpace(wire.FlightID)
 	result.Progress = wire.Progress
 	result.Input = wire.Input
@@ -267,6 +277,8 @@ func DecodeSession(status int, body []byte) (SessionResult, error) {
 	if wire.Error != nil {
 		result.ErrorCode = wire.Error.Code
 		result.ErrorMessage = wire.Error.Message
+		result.ErrorPhase = wire.Error.Phase
+		result.ErrorNoChange = wire.Error.NoChange
 		result.StopStage = strings.TrimSpace(wire.Error.StopStage)
 		return result, nil
 	}

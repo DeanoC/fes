@@ -97,14 +97,16 @@ def main(argv=None):
     root = Path(__file__).resolve().parents[1]
     sys.path.insert(0, str(root))
     suite = unittest.defaultTestLoader.discover(str(root / 'tests'))
-    groups = None if args.full else parent_affected.select_groups(paths, video=video, media=media)
+    groups = None if args.full else parent_affected.select_groups(paths, video=video, media=media, root=root)
     modules = parent_affected.selected_modules(
-        groups, [path.stem for path in (root / 'tests').glob('test_*.py')])
+        groups, [path.stem for path in (root / 'tests').glob('test_*.py')], paths)
     selected, selected_ids, omitted_ids = filter_suite(
         suite, video=video, media=media, modules=modules if groups is not None else None)
     report = {'format': 1, 'video': video, 'media': media,
               'selected': selected_ids, 'omitted': omitted_ids,
               'groups': sorted(groups) if groups is not None else 'all',
+              'documentation_modules': sorted(parent_affected.DOCUMENTATION_MODULES)
+                  if paths and any(parent_affected.documentation(path) for path in paths) else [],
               'selection_reason': ('reviewed input integration groups' if groups is not None else
                                    'full run, shared/unknown inputs or no path list')}
     if args.plan_only:

@@ -197,3 +197,17 @@ tests/native_save_adapter_test.cpp
 tests/native_snes_content_test.cpp
 tests/native_spi_bus_test.cpp
 ```
+
+## Routine and exhaustive checks
+
+`make test-routine` runs every native test once, verifies header dependency
+edges with Make queries, runs the version-rebuild regression, and keeps the
+active-tree and hardware-support guards. The query fails if a binary is stale
+before the check or the representative header changes would not rebuild it.
+It does not touch headers or perform a second test compilation.
+
+`make test` remains exhaustive: it also touches the representative headers,
+actually rebuilds every test binary and verifies its new timestamp. The full
+functional suite runs once, before those timestamp-only header changes.
+FES CI and `test-changed` select this mode for build-system, dependency, policy and uncertain inputs,
+and for scheduled/manual/full runs. Ordinary C/C++ edits use the routine target.

@@ -26,25 +26,32 @@ ENV = {
 # Each registered core's own toolchain.lock. A per-core bump changes only its
 # core's entry here, plus that core's recipe and argv goldens.
 LOCK_SHA256 = {
-    "fes.menu": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
+    "fes.menu": "2adfe0457b7d90debb76f52593c5101a88171a9c0b37ca3c2b2146c199ae0df0",
     "fes.catch": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
     "fes.pong": "e9c28e573a5037cc7a3acef7637097691bf5bfac6f1a0cdca3bace84b9383edc",
     "fes.zx81": "27ceca798d9e7b24c8c770cba7b54794276398095c552217936d84c1a3c5312a",
-    "fes.coleco": "ba411cc51b40cf31a606762253d5e121bf16486e293276d06c84ca5702693a7f",
+    "fes.zx80": "27ceca798d9e7b24c8c770cba7b54794276398095c552217936d84c1a3c5312a",
+    "fes.ts1000": "27ceca798d9e7b24c8c770cba7b54794276398095c552217936d84c1a3c5312a",
+    "fes.ts1500": "27ceca798d9e7b24c8c770cba7b54794276398095c552217936d84c1a3c5312a",
+    "fes.coleco": "cb2c2809dd1b9687fbb1f50d3c6ea3a8e01ebf328b1ea29c8d567854c93d0fdb",
     "fes.sms": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
     "fes.sg1000": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
-    "fes.apple2": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
-    "fes.c64": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
-    "fes.spectrum": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
+    "fes.apple2": "bd19d80345cae5f8cc106a9128b2ff71e2ec3711de968341cedfec721ff7f675",
+    "fes.c64": "bd19d80345cae5f8cc106a9128b2ff71e2ec3711de968341cedfec721ff7f675",
+    "fes.spectrum": "213604b82009022085ea1bc504207da3c5b56db044d2e836fce8688d246afec3",
+    "fes.spectrum128": "213604b82009022085ea1bc504207da3c5b56db044d2e836fce8688d246afec3",
+    "fes.spectrum-plus3": "213604b82009022085ea1bc504207da3c5b56db044d2e836fce8688d246afec3",
+    "fes.pentagon": "213604b82009022085ea1bc504207da3c5b56db044d2e836fce8688d246afec3",
     "fes.riscv": "2669044d4d481c94cf6ba7127614077480fd65ba730a784ac26f747764e472cf",
     "fes.ramtest": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
-    "fes.atari-st": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
+    "fes.atari-st": "e4a11eac287674e473ab33ae356595245d564d32623be5b90472740d02aaecdb",
 }
 # Source-derived hashes of the complete CLI option-name sets from nextpnr's
 # add_options() declarations. Schemas are indexed by the set itself, not pins.
 SOURCE_OPTION_SET_SHA256 = {
     96: "e23f3850fe127f9694053f5d0c8700fff655ec1b9e3504cb3f9da779d0446432",
     105: "45926822f5e796342c3b60958db24c586273432fe6f07b9c319b4031745d784d",
+    107: "05aa13ab70d4fa57a517b2df56f2aa45ac1d1de6a1a7f3e53dc1ba6080982e77",
 }
 SOURCE_OPTION_SETS = {
     len(option_names): option_names
@@ -57,8 +64,10 @@ SCHEMAS_BY_OPTION_COUNT = {
 FLAGS_SHA256 = {
     56: "6d60ed8e921f893f4fc3db7faf7c71473e493c99fee7f503c6f96cc38fd20c3f",
     65: "38d02f4b8db3804837214ed9227bbac0b2b92f4687a3bb31a9d88d48d30ba5e6",
+    67: "1a6b1280f5a3303b8ac0447b56e9af53d606633ec29ae9c4004ca700bf9d82b2",
 }
 ZX81_FLAGS_SHA256 = "0d8e2411d19f74c2af22177bb9c5836ab7cb0e7713e5931f0eca7b0b11914d7e"
+ZX81_FAMILY = {"fes.zx81", "fes.zx80", "fes.ts1000", "fes.ts1500"}
 
 # The source-declared additions to the 105-option set, independently checked
 # against the pinned nextpnr declarations.
@@ -66,6 +75,9 @@ ADDED_0A253257 = {
     "arrival_pin_assignment", "isolated_lut_placement", "critical_cohort_budget",
     "critical_cohort_report", "critical_cohort_model_out", "gpu_required",
     "mistral_dsp_signed_lanes", "router2_profile", "set",
+}
+ADDED_BEC82E36 = {
+    "phase_related_harmonic_clocks", "mistral_ff_reset_reference",
 }
 NO_PYTHON_GUI_OPTIONS = {
     "gui", "gui_no_aa", "on_failure", "post_route", "pre_pack", "pre_place",
@@ -81,15 +93,21 @@ GOLDENS = {
     "fes.catch": ("2ca8900a129a4b954198e400c5939b8ff28ec3043302ce111f5fabfc9b5c5431", "2e741531aae85de2e7a8796342603dd261b4a025ae564f0575ef1b9caa1dd863"),
     "fes.pong": ("c7be1fd18e5fea4deb93dc7247e759409c802db3073e11659ac591ddb68b589b", "213407fd4fd731c94a022df86b5460388dd691a54d5f7cb390cd2e5c0e80126a"),
     "fes.zx81": ("9bc04386391dad1f1991315d44866f283758dfe5fe1d421af5eab848832c8340", "1a99f0e9f4026971913ec926e4836f3ed84f5cd1de3bc55e233beb3c677f0d95"),
-    "fes.coleco": ("36aea678cbf9d9df26f0b7bfd6dc409c96c36c7c7c740d737c50b49688819c90", "93de0822ff64f833c8e571cf08b0b7d312f005bde176ad43d308c3f7ec2142af"),
+    "fes.zx80": ("9bc04386391dad1f1991315d44866f283758dfe5fe1d421af5eab848832c8340", "1a99f0e9f4026971913ec926e4836f3ed84f5cd1de3bc55e233beb3c677f0d95"),
+    "fes.ts1000": ("9bc04386391dad1f1991315d44866f283758dfe5fe1d421af5eab848832c8340", "1a99f0e9f4026971913ec926e4836f3ed84f5cd1de3bc55e233beb3c677f0d95"),
+    "fes.ts1500": ("9bc04386391dad1f1991315d44866f283758dfe5fe1d421af5eab848832c8340", "1a99f0e9f4026971913ec926e4836f3ed84f5cd1de3bc55e233beb3c677f0d95"),
+    "fes.coleco": ("5a6fccb367857e0282be870b60298989f1d845023f9198e79d979e06755c927d", "93de0822ff64f833c8e571cf08b0b7d312f005bde176ad43d308c3f7ec2142af"),
     "fes.sms": ("aaa419748321cab16db125a53dd74b54c0240bb5a021b32a3db417b56543bfe5", "9f5b6f7ee3c682d7927ee0ceb03bd307f891431c209d88aa12ac20004cf97126"),
     "fes.sg1000": ("0faae72f9ba02b06832ddf7b537823c87bc61acf31672e43bb9da36a6abd66e1", "abe6012bd8052f8814e813182b95509c08ff3c906e3f926a1c0edb49f4982b85"),
     "fes.apple2": ("57406311d69ef2e121f002c7cf0afbbbfb7b1c26d114acf88e1664a4b482ddd3", "66f49fb8cf973ded993aff3540cba1c3dc01c5d58c2e1c8353eb10003aaee65b"),
     "fes.c64": ("6373cfbc3a68996ad89efbba3af45fcf0d477466e1b4a45eca5b8c38ebd5ff37", "86b9d7ef13b01b2ff5c1f2cc2e979d117e8e1470aeaf88ce85483163048b6134"),
-    "fes.spectrum": ("780de931801b08dcc4df525763a573165a6baf3a3241c6161fd8cdc6d312938a", "df1e8572d39b1baa8febcd96bee550765c2d5451b27baea60682e52a5d87f21d"),
+    "fes.spectrum": ("09c8a0e75e87113ac9cfd5a05071d62431ce8427b4d7b95c38897d5e95305c29", "df1e8572d39b1baa8febcd96bee550765c2d5451b27baea60682e52a5d87f21d"),
+    "fes.spectrum128": ("09c8a0e75e87113ac9cfd5a05071d62431ce8427b4d7b95c38897d5e95305c29", "df1e8572d39b1baa8febcd96bee550765c2d5451b27baea60682e52a5d87f21d"),
+    "fes.spectrum-plus3": ("09c8a0e75e87113ac9cfd5a05071d62431ce8427b4d7b95c38897d5e95305c29", "df1e8572d39b1baa8febcd96bee550765c2d5451b27baea60682e52a5d87f21d"),
+    "fes.pentagon": ("09c8a0e75e87113ac9cfd5a05071d62431ce8427b4d7b95c38897d5e95305c29", "df1e8572d39b1baa8febcd96bee550765c2d5451b27baea60682e52a5d87f21d"),
     "fes.riscv": ("c7be1fd18e5fea4deb93dc7247e759409c802db3073e11659ac591ddb68b589b", "213407fd4fd731c94a022df86b5460388dd691a54d5f7cb390cd2e5c0e80126a"),
     "fes.ramtest": ("ede6474bf85ce45e0631d4edb375bc37ab9c1161aae0a265f3c5c34920947781", "ded346bda6c66889e7f08e994eb82964871784b747cbc24159782b25406da42e"),
-    "fes.atari-st": ("fb2168507f5b08a1112ad6f5e90fd48b6ea2b69273073f7f7c32ef882133d05a", "31597590be7e868a81521a62ceaa190e7af72dfffc106b9c5898646ea56e040a"),
+    "fes.atari-st": ("024942708300607968eb887324d48912d50c96634fe7ea0cd1a74d16776dbfd0", "31597590be7e868a81521a62ceaa190e7af72dfffc106b9c5898646ea56e040a"),
 }
 
 # Hashes of the frozen legacy producer argv matrix for every registered
@@ -100,12 +118,18 @@ ARGV_MATRIX_GOLDENS = {
     "fes.catch": "79b8ac93741f11b180132307a0b3261e6e41839e89240c6363f0087e03e75bc4",
     "fes.pong": "177f0476e55e89727fd172de68e2a08b4c684e2a0c99184e4330acfaa4efa85c",
     "fes.zx81": "949fc3d65ea57966453b12b924c229f30974afb83311d95e0d1cdd544d529a16",
+    "fes.zx80": "949fc3d65ea57966453b12b924c229f30974afb83311d95e0d1cdd544d529a16",
+    "fes.ts1000": "949fc3d65ea57966453b12b924c229f30974afb83311d95e0d1cdd544d529a16",
+    "fes.ts1500": "949fc3d65ea57966453b12b924c229f30974afb83311d95e0d1cdd544d529a16",
     "fes.coleco": "7bde18f0254f40a680638a4476839141eaf65ffbf2a0bf7069cec059332f9439",
     "fes.sms": "f1c5c9118f716306b8493bccb3d24c1bec6ce5d20ea4c942b618c7aa728499bb",
     "fes.sg1000": "e67b5e8e63cf0c3ba560d58c04167361d95e2cf3d653d1d1ff42524fdea9d7fb",
     "fes.apple2": "9810f5f4a5870d854ad0e9c5d364d587e95f75ae9d7316f2772683ee1f8395fb",
     "fes.c64": "ed1c7847679e3d9d18654e7e32892c2e585cc1317dd058a865668bb8860223f1",
     "fes.spectrum": "e3836e041f0ebefcf4eeff1c8969849321ce5f9ada1ed30e499cc2064febe060",
+    "fes.spectrum128": "e3836e041f0ebefcf4eeff1c8969849321ce5f9ada1ed30e499cc2064febe060",
+    "fes.spectrum-plus3": "e3836e041f0ebefcf4eeff1c8969849321ce5f9ada1ed30e499cc2064febe060",
+    "fes.pentagon": "e3836e041f0ebefcf4eeff1c8969849321ce5f9ada1ed30e499cc2064febe060",
     "fes.riscv": "177f0476e55e89727fd172de68e2a08b4c684e2a0c99184e4330acfaa4efa85c",
     "fes.ramtest": "159f755b9a023c72346c869160555cb102132b77c7ca714bd0b52980be3d4079",
     "fes.atari-st": "36c86eaedd189ac95d79f18c08cd140d6def21d83613e863d6dae20567ab6d84",
@@ -144,7 +168,7 @@ def _legacy_argv(core_id, recipe, *, slot=SLOT, synth=SYNTH, output=OUTPUT,
                         "--detailed-timing-report"))
         if recipe["gpu_device"] == "lease":
             command.extend(("--gpu-device", "0"))
-    if core_id == "fes.zx81":
+    if core_id in ZX81_FAMILY:
         command.append("--arrival-pin-assignment")
     return command
 
@@ -219,24 +243,34 @@ class PnrRecipeTests(unittest.TestCase):
                 self.assertEqual(hashlib.sha256(lock.read_bytes()).hexdigest(), LOCK_SHA256[core_id])
                 pin = load_lock(lock)["nextpnr"].commit
                 self.assertEqual(pnr_recipe.nextpnr_pin(core_id), pin)
-                option_count = 105 if core_id in {"fes.pong", "fes.riscv", "fes.zx81"} else 96
+                if core_id == "fes.coleco":
+                    option_count = 107
+                elif core_id in {"fes.pong", "fes.riscv", "fes.atari-st"} | ZX81_FAMILY:
+                    option_count = 105
+                else:
+                    option_count = 96
+                pnr_recipe.validate_option_names(core_id, SOURCE_OPTION_SETS[option_count])
                 self.assertEqual(set(pnr_recipe.recipe_for(core_id)["flags"]),
                                  set(SCHEMAS_BY_OPTION_COUNT[option_count]))
 
     def test_source_option_sets_select_exact_schemas_and_shared_defaults(self):
-        self.assertEqual(set(SOURCE_OPTION_SETS), {96, 105})
-        self.assertEqual(set(SCHEMAS_BY_OPTION_COUNT), {96, 105})
+        self.assertEqual(set(SOURCE_OPTION_SETS), {96, 105, 107})
+        self.assertEqual(set(SCHEMAS_BY_OPTION_COUNT), {96, 105, 107})
         for count, option_names in SOURCE_OPTION_SETS.items():
             digest = hashlib.sha256(json.dumps(
                 sorted(option_names), separators=(",", ":")).encode()).hexdigest()
             self.assertEqual(digest, SOURCE_OPTION_SET_SHA256[count])
         old = SCHEMAS_BY_OPTION_COUNT[96]
         new = SCHEMAS_BY_OPTION_COUNT[105]
+        newest = SCHEMAS_BY_OPTION_COUNT[107]
         self.assertEqual(set(new) - set(old), ADDED_0A253257)
+        self.assertEqual(set(newest) - set(new), ADDED_BEC82E36)
         self.assertEqual({name: new[name] for name in old}, dict(old))
+        self.assertEqual({name: newest[name] for name in new}, dict(new))
         self.assertEqual(len(old), 56)
         self.assertEqual(len(new), 65)
-        for schema in (old, new):
+        self.assertEqual(len(newest), 67)
+        for schema in (old, new, newest):
             self.assertEqual(hashlib.sha256(json.dumps(
                 dict(schema), sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
                 FLAGS_SHA256[len(schema)])
@@ -246,6 +280,7 @@ class PnrRecipeTests(unittest.TestCase):
         pins = {
             96: "9128800fa6e77c4138088a7107a95376ba47ff15",
             105: "f485b5857affc377199af1b5bfcd63d31330b50b",
+            107: "bec82e36d436acec7cbeb248725acfde72b8f220",
         }
         for count, classified_options in SOURCE_OPTION_SETS.items():
             with self.subTest(option_count=count), tempfile.TemporaryDirectory() as directory, \
@@ -264,6 +299,7 @@ class PnrRecipeTests(unittest.TestCase):
         pins = {
             96: "9128800fa6e77c4138088a7107a95376ba47ff15",
             105: "f485b5857affc377199af1b5bfcd63d31330b50b",
+            107: "bec82e36d436acec7cbeb248725acfde72b8f220",
         }
         for count, classified_options in SOURCE_OPTION_SETS.items():
             mismatches = {
@@ -305,6 +341,23 @@ class PnrRecipeTests(unittest.TestCase):
                 expected = _legacy_argv("fes.menu", recipe, slot=str(binary),
                                         seed=recipe["seeds"][0])
                 self.assertEqual(list(command), expected)
+
+    def test_coleco_bec82e36_schema_keeps_default_argv_unchanged(self):
+        pin = "bec82e36d436acec7cbeb248725acfde72b8f220"
+        with tempfile.TemporaryDirectory() as directory, \
+                _core_on_nextpnr(directory, "fes.coleco", pin):
+            binary = Path(directory) / "nextpnr-mistral"
+            _fake_nextpnr_help(binary, SOURCE_OPTION_SETS[107])
+            schema = pnr_recipe.validate_nextpnr_tool("fes.coleco", binary)
+            recipe = pnr_recipe.recipe_for("fes.coleco", binary)
+            self.assertEqual(pnr_recipe.nextpnr_pin("fes.coleco"), pin)
+            self.assertEqual(dict(recipe["flags"]), dict(schema))
+            self.assertEqual({name: recipe["flags"][name] for name in ADDED_BEC82E36},
+                             {name: False for name in ADDED_BEC82E36})
+            command = pnr_recipe.argv(
+                "fes.coleco", binary, SYNTH, recipe["seeds"][0], 0, output=OUTPUT)
+            self.assertEqual(list(command), _legacy_argv(
+                "fes.coleco", recipe, slot=str(binary), seed=recipe["seeds"][0]))
 
     def test_runtime_recipe_schema_is_selected_by_binary_identity(self):
         pin = pnr_recipe.nextpnr_pin("fes.menu")
@@ -449,7 +502,7 @@ class PnrRecipeTests(unittest.TestCase):
                 self.assertEqual(pnr_recipe.recipe_digest(core_id), recipe_sha)
                 flags_sha = hashlib.sha256(json.dumps(
                     recipe["flags"], sort_keys=True, separators=(",", ":")).encode()).hexdigest()
-                self.assertEqual(flags_sha, ZX81_FLAGS_SHA256 if core_id == "fes.zx81" else FLAGS_SHA256[len(recipe["flags"])])
+                self.assertEqual(flags_sha, ZX81_FLAGS_SHA256 if core_id in ZX81_FAMILY else FLAGS_SHA256[len(recipe["flags"])])
                 weights = tuple(dict.fromkeys((*recipe["timing_weights"], *recipe["search_weights"])))
                 optional_env = {**ENV, **recipe["optional_env"]}
                 self.assertEqual(pnr_recipe.environment(core_id, optional_env), optional_env)
@@ -681,10 +734,19 @@ class PnrRecipeTests(unittest.TestCase):
                      if isinstance(node, ast.Call)
                      and isinstance(node.func, ast.Name)
                      and node.func.id == "route_after_synth"]
-            ids = [ast.literal_eval(keyword.value) for call in calls
-                   for keyword in call.keywords if keyword.arg == "core_id"]
+            values = [keyword.value for call in calls
+                      for keyword in call.keywords if keyword.arg == "core_id"]
             self.assertTrue(calls, entry["producer_script"])
-            self.assertEqual(ids, [entry["core_id"]] * len(calls), entry["producer_script"])
+            self.assertEqual(len(values), len(calls), entry["producer_script"])
+            if all(isinstance(value, ast.Constant) for value in values):
+                self.assertEqual([value.value for value in values], [entry["core_id"]] * len(calls),
+                                 entry["producer_script"])
+            else:
+                # A producer shared by several cores selects the core with a
+                # recipe option and names each core it builds.
+                self.assertIn("producer_options", entry, entry["producer_script"])
+                self.assertIn(entry["core_id"], {node.value for node in ast.walk(tree)
+                                                 if isinstance(node, ast.Constant)}, entry["producer_script"])
             for call in calls:
                 env_kw = next((keyword for keyword in call.keywords if keyword.arg == "env"), None)
                 env_dict = any(keyword.arg is None and isinstance(keyword.value, ast.Dict)

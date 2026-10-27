@@ -1,0 +1,18 @@
+0.17 0.25 0.24 1/101 2800
+Mem: 487140K used, 16956K free, 62460K shrd, 8488K buff, 400956K cached
+CPU:   8% usr   4% sys   0% nic  86% idle   0% io   0% irq   0% sirq
+Load average: 0.17 0.25 0.24 4/102 2803
+  PID  PPID USER     STAT   VSZ %VSZ %CPU COMMAND
+28247   740 root     S     654m 133%   4% /run/fogcast/fesdata3/software-releases/releases/35d584898755b4c84b68cccf2e08838b4a371cbe550b5af457481f3d5e776f9b/bin/fogcast-tenfoot -config /media/fat/fogcast/launcher.json -catalog-config /run/fogcast/fesdata3/software-releases/releases/35d584898755b4c84b68cccf2e08838b4a371cbe550b5af457481f3d5e776f9b/share/fogcast/config.toml -gfx menu-display -menu-socket /run/mister-runtime.sock -input auto -home
+ 2801  2799 root     R     2604   1%   4% top -b -n 1
+   11     2 root     IW       0   0%   4% [rcu_sched]
+28246   740 root     S     562m 114%   0% /run/fogcast/fesdata3/software-releases/releases/35d584898755b4c84b68cccf2e08838b4a371cbe550b5af457481f3d5e776f9b/bin/mister-agent --config /media/fat/fogcast/agent.toml
+  740     1 root     S     559m 114%   0% /usr/sbin/fes-kit-software run
+28243   740 root     S    31644   6%   0% /run/fogcast/fesdata3/software-releases/releases/35d584898755b4c84b68cccf2e08838b4a371cbe550b5af457481f3d5e776f9b/bin/mister-runtime --menu-package /usr/share/mister-runtime/core-packages/f4fb04e2e47e17366e15d706c2b5e5e1c5837402543aac47e80a41f813e61cdf f4fb04e2e47e17366e15d706c2b5e5e1c5837402543aac47e80a41f813e61cdf
+  682     1 root     S     2732   1%   0% /sbin/mdev -df
+ 2797   760 root     S     2612   1%   0% /usr/sbin/dropbear -R
+    1     0 root     S     2604   1%   0% init
+  663     1 root     S     2604   1%   0% /sbin/syslogd -n
+  670     1 root     S     2604   1%   0% /sbin/klogd -n
+
+exit 0

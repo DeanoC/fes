@@ -157,12 +157,14 @@ if st:
     mapping={'format':1,'device':'5CSEBA6U23I7','encoding':'m10k-1024x10-v1','base_sha256':sha(base_bytes),'source_size':1024,'blocks':[{'bel':'fixture','source_offset':0,'word_bits':[[32*7605+w*40+i for i in range(40)] for w in range(256)]}]}
     rom_id,rom_role,rom_size='fes.atari-st.firmware','firmware',1024
 else:
-    mapping={'format':1,'device':'5CSEBA6U23I7','encoding':'m10k-1024x10-v1','base_sha256':sha(base_bytes),'source_size':16384,'blocks':[{'bel':f'fixture-{block}','source_offset':block*1024,'word_bits':[[32*7605+(block*256+w)*40+i for i in range(40)] for w in range(256)]} for block in range(16)]}
-    rom_id,rom_role,rom_size='cartridge-rom','cartridge',16384
+    mapping={'format':1,'device':'5CSEBA6U23I7','encoding':'m10k-1024x10-v1','base_sha256':sha(base_bytes),'source_size':24576,'blocks':[{'bel':f'fixture-{block}','source_offset':block*1024,'word_bits':[[32*7605+(block*256+w)*40+i for i in range(40)] for w in range(256)]} for block in range(24)]}
 rom_map=enc(mapping)+b'\n'
-evidence['rom']={'id':rom_id,'role':rom_role,'source_size':rom_size,'file':'rom-map.json','size':len(rom_map),'sha256':sha(rom_map)}
+if st:
+    evidence['rom']={'id':rom_id,'role':rom_role,'source_size':rom_size,'file':'rom-map.json','size':len(rom_map),'sha256':sha(rom_map)}
+else:
+    evidence['rom_map']={'file':'rom-map.json','size':len(rom_map),'sha256':sha(rom_map)}
 manifest=(shell_producer._manifest(record,evidence,'https://github.com/DeanoC/fes.git',revision,current['tools']) if st else shell_producer.manifest(record,evidence,'https://github.com/DeanoC/fes.git',revision,current['tools'],**options))
-package_id=package_identity(manifest,base_bytes,rom_map)
+package_id=package_identity(manifest,base_bytes,rom_map,format_version=3 if st else 4)
 package=output/package_id; package.mkdir()
 for name,value in [('manifest.toml',manifest),('core.rbf',base_bytes)]: (package/name).write_bytes(value)
 shell=output/'shell'; shell.mkdir()
@@ -288,6 +290,23 @@ class RealProducerEvidenceTests(unittest.TestCase):
             finally:
                 path.write_bytes(before)
 
+    def test_session_display_resource_cannot_be_owned_by_video_part(self):
+        if self.lane != "raster":
+            self.skipTest("Coleco raster fixture isolates the part ownership check")
+        directory = Path(self.cases["direct"]["directory"])
+        path = directory / "cart.json"
+        before = path.read_bytes()
+        try:
+            prepared = json.loads(before)
+            prepared["modules"]["cart"]["cells"]["session_display"] = {
+                "type": "cyclonev_hps_interface_fpga2sdram"
+            }
+            path.write_bytes(video.canonical(prepared))
+            with self.assertRaisesRegex(ValueError, "video part owns a forbidden resource"):
+                self.inspect("direct")
+        finally:
+            path.write_bytes(before)
+
 
 class NativeProducerEvidenceTests(RealProducerEvidenceTests):
     lane = "native"
@@ -347,6 +366,21 @@ class STProducerEvidenceTests(RealProducerEvidenceTests):
         finally:
             prepared.write_bytes(before)
 
+    def test_raster_part_cannot_own_dsp_or_mlab(self):
+        directory = Path(self.cases["direct"]["directory"])
+        prepared = directory / "cart.json"
+        before = prepared.read_bytes()
+        try:
+            for kind in ("MISTRAL_MLAB", "MISTRAL_MUL9X9", "MISTRAL_MUL18X18", "MISTRAL_MUL18X19",
+                         "MISTRAL_MUL18X19_COMBINED", "MISTRAL_MUL27X27"):
+                changed = json.loads(before)
+                changed["modules"]["cart"]["cells"]["owned"] = {"type": kind}
+                prepared.write_bytes(video.canonical(changed))
+                with self.subTest(kind=kind), self.assertRaisesRegex(ValueError, "owns a forbidden resource"):
+                    self.inspect("direct")
+        finally:
+            prepared.write_bytes(before)
+
     def test_firmware_map_and_seed_are_bound_to_exact_recipe(self):
         shell = Path(self.cases["direct"]["shell"])
         mapping = shell / "rom-map.json"
@@ -397,16 +431,20 @@ class VideoShellAdmissionTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     video.video_shell_profile(descriptor)
 
-    def test_coleco_admits_format2_and_exact_format3_cartridge(self):
+    def test_coleco_admits_format2_and_exact_format4_bios_and_cartridge(self):
         original = self.descriptor("fes.fabric.video.native-pixels")
         self.assertEqual(video.video_shell_profile(original), video.NATIVE_MAP)
-        cartridge = original | {"format": 3, "rom": {"role": "cartridge", "source_size": 16384}}
-        self.assertEqual(video.video_shell_profile(cartridge), video.NATIVE_MAP)
+        bios = {"id": "coleco-bios", "role": "firmware", "source_size": 8192, "source_offset": 0}
+        cart = {"id": "coleco-cart", "role": "cartridge", "source_size": 16384, "source_offset": 8192}
+        linked = original | {"format": 4, "roms": [bios, cart]}
+        self.assertEqual(video.video_shell_profile(linked), video.NATIVE_MAP)
         for changed in ({"format": 3}, {"format": 2.0}, {"format": 4},
                         {"core": {"id": "fes.pong"}},
                         {"abi": {"id": "fes.application", "major": 2, "minor": 0}},
-                        {"format": 3, "rom": {"role": "firmware", "source_size": 16384}},
-                        {"format": 3, "rom": {"role": "cartridge", "source_size": 8192}}):
+                        {"format": 3, "rom": {"role": "cartridge", "source_size": 16384}},
+                        {"format": 4, "roms": [cart, bios]},
+                        {"format": 4, "roms": [bios, cart | {"source_size": 131072}]},
+                        {"format": 4, "roms": [bios]}):
             with self.assertRaises(ValueError):
                 video.video_shell_profile(original | changed)
 

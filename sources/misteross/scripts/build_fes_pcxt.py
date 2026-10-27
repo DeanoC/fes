@@ -23,7 +23,7 @@ from fes_build_common import (
     _authenticate_tools, _require_gpu_backend, _run_command,
     cuda_toolchain_configuration, gpu_backend_for_router,
 )
-from sim_fes_pcxt import SYSTEM_SOURCES, CPU_MUX_MAP, board_inputs, verify_vendor
+from sim_fes_pcxt import SYSTEM_SOURCES, CPU_MUX_MAP, board_inputs, verify_vendor, vendor_dir, CHIP_VENDORS, SHARED_VENDORS
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLCHAIN_LOCK = 'cores/fes-pcxt/toolchain.lock'
@@ -49,7 +49,7 @@ def synthesis_command():
 def yosys_program(output, mda, scanlines, synthesis, half_rate_board=False):
     """Complete board Yosys script; run with cwd=output after board_inputs(output)."""
     return ('read_verilog -sv -I ' + str(ROOT / 'cores/fes-common/generated') + ' -I ' + str(output) + ' ' +
-            ' '.join('-I ' + str(ROOT / 'cores/fes-pcxt/vendor' / n) for n in ('kf8259','kf8253','kf8255')) + ' ' +
+            ' '.join('-I ' + str(vendor_dir(n)) for n in CHIP_VENDORS) + ' ' +
             ' '.join(str(ROOT / s) for s in RTL) + '; ' +
             f'chparam -set MDA {int(mda)} -set SCANLINES {int(scanlines)}' +
             (' -set HALF_RATE_BOARD 1' if half_rate_board else '') + ' top; ' +
@@ -111,7 +111,7 @@ def main():
     qsf = BOARD50_QSF if args.half_rate_board else QSF
     tools = authenticate_tools(ROOT, args.cache_root, args.gpu_router)
     gpu_backend, _architectures, _configuration = gpu_choice(args.gpu_router)
-    for name in ('kf8259', 'kf8253', 'kf8255'):
+    for name in CHIP_VENDORS:
         verify_vendor(name)
     stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ') + '-' + uuid.uuid4().hex[:8]
     output = ROOT / 'build/diagnostic/fes-pcxt' / ('mda' if args.mda else 'cga') / ('scanlines' if args.scanlines else 'direct') / stamp
@@ -121,8 +121,8 @@ def main():
     inputs = sorted(set(RTL) | {qsf, SDC, ROM_CLOCK_MAP, CPU_MUX_MAP, TOOLCHAIN_LOCK, 'scripts/build_fes_pcxt.py',
                     'scripts/sim_fes_pcxt.py', 'cores/fes-pcxt/firmware/diagnostic.S'} |
                     {str(p.relative_to(ROOT)) for p in (ROOT / 'cores/fes-common/generated').glob('*.vh')} |
-                    {str(p.relative_to(ROOT)) for p in (ROOT / 'cores/fes-pcxt/vendor').rglob('*')
-                     if p.suffix in ('.svh', '.mem', '.json')})
+                    {str(p.relative_to(ROOT)) for d in (ROOT / 'cores/fes-pcxt/vendor', *map(vendor_dir, SHARED_VENDORS))
+                     for p in d.rglob('*') if p.suffix in ('.svh', '.mem', '.json')})
     def hashes():
         return {s: hashlib.sha256((ROOT / s).read_bytes()).hexdigest() for s in inputs}
     sources = hashes()

@@ -1329,8 +1329,9 @@ func processStartTime(pid int) (string, error) {
 	return fields[19], nil
 }
 
-// CheckNoManagedProcesses is a final read-only confirmation after the supervisor
-// exits. A failed stop cannot be disguised by deleting its PID file.
+// CheckNoManagedProcesses is a read-only confirmation that no supervised process
+// runs: after the supervisor exits, and before factory selection. A failed stop
+// cannot be disguised by deleting its PID file.
 func CheckNoManagedProcesses() error {
 	entries, err := os.ReadDir("/proc")
 	if err != nil {
@@ -1350,7 +1351,7 @@ func CheckNoManagedProcesses() error {
 		}
 		for _, value := range strings.Split(string(environ), "\x00") {
 			if value == "FES_SOFTWARE_MANAGED=1" {
-				return fmt.Errorf("managed software process %d survived shutdown", pid)
+				return fmt.Errorf("managed software process %d is still running", pid)
 			}
 		}
 	}

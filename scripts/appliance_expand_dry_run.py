@@ -3,8 +3,10 @@
 
 Regular files remain the dry-run path. Physical operations are deliberately
 narrower: only the exact removable USB-by-id recorded for the spare-card HIL
-is admitted, and ``WRITE_GO=1`` is required. A physical apply creates p3 and
-formats it as ext4; it never grows FAT or moves the A2 boot partition.
+is admitted, and ``WRITE_GO=1`` is required. The card in that reader is sized
+from what the kernel reports; ``--card-bytes``, when given, must match it. A
+physical apply creates p3 and formats it as ext4; it never grows FAT or moves
+the A2 boot partition.
 """
 from __future__ import annotations
 
@@ -45,10 +47,9 @@ USB_BY_ID = '/dev/disk/by-id/usb-Generic_STORAGE_DEVICE_000000000819-0:0'
 USB_VENDOR = 'Generic'
 USB_MODEL = 'STORAGE_DEVICE'
 USB_SERIAL = '000000000819'
-# Read from /sys/class/block/sda/size on the designated spare. Keep this
-# exact: a human-readable lsblk value such as 58.2G is not a safe identity.
-USB_SIZE_SECTORS = 122138624
-USB_SIZE_BYTES = USB_SIZE_SECTORS * SECTOR
+# Capacity belongs to the card in the reader, not to the reader's identity. It
+# is the exact sector count sysfs reports, never a rounded lsblk value.
+SYS_CLASS_BLOCK = Path('/sys/class/block')
 EXT4_LABEL = 'FESDATA3'
 PARTITION_RESCAN_TIMEOUT = 15
 # Raw node names are never admitted. USB-by-id may resolve to /dev/sdX or
@@ -341,8 +342,12 @@ def _udev_properties(path):
     return properties
 
 
-def verify_usb_device(path, write=False):
-    """Return the identity of the one physical device admitted for this HIL."""
+def verify_usb_device(path, write=False, card_bytes=None):
+    """Return the identity of the one physical device admitted for this HIL.
+
+    The expected card size is ``card_bytes`` when given, otherwise the size
+    the kernel reports for the card. A ``card_bytes`` that disagrees is refused.
+    """
 
     path = str(path)
     if path != USB_BY_ID:
@@ -355,7 +360,7 @@ def verify_usb_device(path, write=False):
     if is_system_disk(path) or is_system_disk(resolved):
         raise ExpandError('USB target resolves to a denied system disk')
     device_name = Path(resolved).name
-    sysfs = Path('/sys/class/block') / device_name
+    sysfs = SYS_CLASS_BLOCK / device_name
     if (sysfs / 'partition').exists():
         raise ExpandError('USB target is a partition, not a whole removable disk')
     try:
@@ -363,10 +368,10 @@ def verify_usb_device(path, write=False):
         removable = (sysfs / 'removable').read_text().strip()
     except (OSError, ValueError) as error:
         raise ExpandError(f'cannot verify USB capacity/removability: {error}') from error
-    if sectors != USB_SIZE_SECTORS:
+    if card_bytes is not None and card_bytes != sectors * SECTOR:
         raise ExpandError(
-            f'USB size mismatch: expected {USB_SIZE_SECTORS} sectors ({USB_SIZE_BYTES} bytes), '
-            f'got {sectors} sectors')
+            f'USB size mismatch: expected {card_bytes} bytes, '
+            f'got {sectors} sectors ({sectors * SECTOR} bytes)')
     if removable != '1':
         raise ExpandError('USB target is not marked removable')
     skip = reason_for(resolved)
@@ -400,7 +405,7 @@ def verify_usb_device(path, write=False):
     }
 
 
-def require_regular_or_gated_usb(path, env, write):
+def require_regular_or_gated_usb(path, env, write, card_bytes=None):
     path = str(path)
     if is_raw_block_path(path) and not path.startswith(USB_BY_ID_PREFIX):
         raise ExpandError('refusing raw block node; USB admission is /dev/disk/by-id/usb-* only')
@@ -408,14 +413,14 @@ def require_regular_or_gated_usb(path, env, write):
         raise ExpandError('refusing system disk (NVMe/internal/mmc/mapper)')
     if not write:
         if path == USB_BY_ID:
-            return verify_usb_device(path, write=False)
+            return verify_usb_device(path, write=False, card_bytes=card_bytes)
         if Path(path).exists() and is_block_device(path):
-            return verify_usb_device(path, write=False)
+            return verify_usb_device(path, write=False, card_bytes=card_bytes)
         return
     if path == USB_BY_ID:
         if env.get('WRITE_GO') != '1':
             raise ExpandError('block-device apply requires WRITE_GO=1')
-        return verify_usb_device(path, write=True)
+        return verify_usb_device(path, write=True, card_bytes=card_bytes)
     if Path(path).is_symlink() and not path.startswith(USB_BY_ID_PREFIX):
         raise ExpandError('refusing symlink apply target')
     if not is_block_device(path):
@@ -429,7 +434,7 @@ def require_regular_or_gated_usb(path, env, write):
         raise ExpandError('WRITE_GO apply is limited to /dev/disk/by-id/usb-*')
     if is_system_disk(path):
         raise ExpandError('WRITE_GO target resolved to a denied system disk')
-    return verify_usb_device(path, write=True)
+    return verify_usb_device(path, write=True, card_bytes=card_bytes)
 
 
 def _sha256_stream(stream, length=None, offset=0):
@@ -535,7 +540,7 @@ def require_partition_device(device, number, sector_count):
     deadline = time.monotonic() + PARTITION_RESCAN_TIMEOUT
     while time.monotonic() < deadline:
         if Path(partition).exists() and is_block_device(partition):
-            sysfs = Path('/sys/class/block') / Path(partition).name
+            sysfs = SYS_CLASS_BLOCK / Path(partition).name
             try:
                 actual_sectors = int((sysfs / 'size').read_text().strip())
             except (OSError, ValueError):
@@ -600,13 +605,17 @@ def require_expanded_table(mbr, layout, card_bytes):
     return plan
 
 
-def write_base_image(path, layout, base_image, expected_sha256=None, env=None):
+def write_base_image(path, layout, base_image, expected_sha256=None, env=None, card_bytes=None):
     """Write and read-back the fixed appliance image on the admitted USB only."""
 
     env = os.environ if env is None else env
     target = str(path)
-    target_info = require_regular_or_gated_usb(target, env, write=True)
+    target_info = require_regular_or_gated_usb(target, env, write=True, card_bytes=card_bytes)
+    card_bytes = target_info['size_bytes']
     require_unmounted(target_info['resolved_path'])
+    image_bytes = layout.total_sectors * SECTOR
+    if card_bytes < image_bytes:
+        raise ExpandError(f'USB card has {card_bytes} bytes; the appliance image needs {image_bytes}')
     base = Path(base_image)
     try:
         base_stat = base.lstat()
@@ -614,7 +623,6 @@ def write_base_image(path, layout, base_image, expected_sha256=None, env=None):
         raise ExpandError(f'base image is unavailable: {error}') from error
     if not stat.S_ISREG(base_stat.st_mode):
         raise ExpandError('base image must be a regular file')
-    image_bytes = layout.total_sectors * SECTOR
     if base_stat.st_size != image_bytes:
         raise ExpandError(f'base image size must be exactly {image_bytes} bytes')
     base_mbr = read_mbr(base)
@@ -625,7 +633,7 @@ def write_base_image(path, layout, base_image, expected_sha256=None, env=None):
 
     # Reconfirm identity immediately before opening the raw target. Compare
     # the open fd's device number with the by-id path to catch a relink race.
-    target_info = verify_usb_device(target, write=True)
+    target_info = verify_usb_device(target, write=True, card_bytes=card_bytes)
     require_unmounted(target_info['resolved_path'])
     try:
         require(target)
@@ -659,7 +667,7 @@ def write_base_image(path, layout, base_image, expected_sha256=None, env=None):
         os.fsync(fd)
     finally:
         os.close(fd)
-    target_info = verify_usb_device(target, write=True)
+    target_info = verify_usb_device(target, write=True, card_bytes=card_bytes)
     target_sha256 = sha256_region(target, image_bytes)
     if target_sha256 != source_sha256:
         raise ExpandError('read-back SHA-256 differs from the appliance base image')
@@ -675,38 +683,39 @@ def write_base_image(path, layout, base_image, expected_sha256=None, env=None):
     }
 
 
-def apply_physical_extra_partition(path, layout, env=None):
+def apply_physical_extra_partition(path, layout, card_bytes=None, env=None):
     """Add and format p3 on the already-written, exact spare USB card."""
 
     env = os.environ if env is None else env
     target = str(path)
-    target_info = require_regular_or_gated_usb(target, env, write=True)
+    target_info = require_regular_or_gated_usb(target, env, write=True, card_bytes=card_bytes)
+    card_bytes = target_info['size_bytes']
     resolved = target_info['resolved_path']
     require_unmounted(resolved)
     before = read_mbr(target)
     require_appliance_table(before, layout)
-    plan = plan_extra_partition(layout, target_info['size_bytes'])
+    plan = plan_extra_partition(layout, card_bytes)
     a2_offset = layout.partition_2.start_sector * SECTOR
     a2_bytes = layout.partition_2.sector_count * SECTOR
     a2_sha256_before = sha256_region(target, a2_bytes, a2_offset)
 
     # The identity check is repeated after all read-only validation and just
     # before the first metadata write.
-    target_info = verify_usb_device(target, write=True)
+    target_info = verify_usb_device(target, write=True, card_bytes=card_bytes)
     require_unmounted(resolved)
     write_mbr(target, layout.disk_id, expected_image_partitions(layout) + [plan['partition_3']])
-    require_expanded_table(read_mbr(target), layout, target_info['size_bytes'])
+    require_expanded_table(read_mbr(target), layout, card_bytes)
     rescan_partition_table(resolved)
     partition = require_partition_device(resolved, 3, plan['partition_3']['sector_count'])
     require_unmounted(resolved)
     format_ext4(partition)
     os.sync()
-    target_info = verify_usb_device(target, write=False)
+    target_info = verify_usb_device(target, write=False, card_bytes=card_bytes)
     if target_info['resolved_path'] != resolved:
         raise ExpandError('USB by-id changed after p3 format')
     ext4 = read_ext4_superblock(partition)
     after = read_mbr(target)
-    require_expanded_table(after, layout, target_info['size_bytes'])
+    require_expanded_table(after, layout, card_bytes)
     a2_sha256_after = sha256_region(target, a2_bytes, a2_offset)
     if a2_sha256_before != a2_sha256_after:
         raise ExpandError('A2 boot partition changed during p3 apply')
@@ -725,10 +734,10 @@ def apply_physical_extra_partition(path, layout, env=None):
     }
 
 
-def verify_expanded_media(path, layout, env=None):
+def verify_expanded_media(path, layout, env=None, card_bytes=None):
     env = os.environ if env is None else env
     target = str(path)
-    target_info = require_regular_or_gated_usb(target, env, write=False)
+    target_info = require_regular_or_gated_usb(target, env, write=False, card_bytes=card_bytes)
     plan = require_expanded_table(read_mbr(target), layout, target_info['size_bytes'])
     partition = require_partition_device(target_info['resolved_path'], 3,
                                          plan['partition_3']['sector_count'])
@@ -750,10 +759,8 @@ def apply_plan(path, layout, mode, card_bytes=None, env=None):
     if str(path) == USB_BY_ID:
         if mode != 'extra-partition':
             raise ExpandError('physical apply only supports the recommended extra-partition mode')
-        target_info = require_regular_or_gated_usb(path, env, write=True)
-        if card_bytes is not None and card_bytes != target_info['size_bytes']:
-            raise ExpandError('physical --card-bytes does not match the verified USB capacity')
-        return apply_physical_extra_partition(path, layout, env=env)
+        target_info = require_regular_or_gated_usb(path, env, write=True, card_bytes=card_bytes)
+        return apply_physical_extra_partition(path, layout, card_bytes=target_info['size_bytes'], env=env)
     require_regular_or_gated_usb(path, env, write=True)
     card_bytes = SYNTHETIC_CARD_BYTES if card_bytes is None else card_bytes
     size = Path(path).stat().st_size
@@ -828,7 +835,8 @@ def main(argv=None):
     parser.add_argument('--lock', type=Path, default=default_lock_path())
     parser.add_argument('--mode', choices=('extra-partition', 'grow-fat'), default='extra-partition')
     parser.add_argument('--card-bytes', type=int, default=None,
-                        help='regular-file model size; physical apply derives the verified USB size')
+                        help='card size; regular files default to the 28.8 GiB model, the admitted '
+                             'USB uses its reported size and refuses a different value')
     args = parser.parse_args(argv)
     try:
         layout = load_layout(args.lock)
@@ -840,7 +848,8 @@ def main(argv=None):
         elif args.command == 'inspect':
             if args.image is None:
                 raise ExpandError('--image is required for inspect')
-            target_info = require_regular_or_gated_usb(args.image, os.environ, write=False)
+            target_info = require_regular_or_gated_usb(args.image, os.environ, write=False,
+                                                       card_bytes=args.card_bytes)
             card_bytes = modeled_card_bytes if target_info is None else target_info['size_bytes']
             result = inspect_image(args.image, layout, card_bytes)
             if target_info is not None:
@@ -854,21 +863,24 @@ def main(argv=None):
             if args.image is None or args.base_image is None:
                 raise ExpandError('--image and --base-image are required for write-base')
             result = write_base_image(args.image, layout, args.base_image,
-                                      expected_sha256=args.base_sha256)
+                                      expected_sha256=args.base_sha256, card_bytes=args.card_bytes)
         elif args.command == 'verify':
             if args.image is None:
                 raise ExpandError('--image is required for verify')
-            result = verify_expanded_media(args.image, layout)
+            result = verify_expanded_media(args.image, layout, card_bytes=args.card_bytes)
         else:
             if args.image is None:
                 raise ExpandError('--image is required for apply')
             if args.base_sha256 is not None and args.base_image is None:
                 raise ExpandError('--base-sha256 requires --base-image')
             base_result = None
+            card_bytes = args.card_bytes
             if args.base_image is not None:
                 base_result = write_base_image(args.image, layout, args.base_image,
-                                               expected_sha256=args.base_sha256)
-            expanded = apply_plan(args.image, layout, args.mode, args.card_bytes)
+                                               expected_sha256=args.base_sha256, card_bytes=card_bytes)
+                # The expand must see the same card the base write verified.
+                card_bytes = base_result['target']['size_bytes']
+            expanded = apply_plan(args.image, layout, args.mode, card_bytes)
             result = expanded if base_result is None else {'base': base_result, 'expand': expanded}
         print(json.dumps(result, sort_keys=True, indent=2))
     except (OSError, ExpandError, ValueError, TypeError) as error:

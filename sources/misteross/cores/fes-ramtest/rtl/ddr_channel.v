@@ -16,6 +16,12 @@
 // failing bit positions. No progress for TIMEOUT cycles is NACK and ends the
 // scan. stop ends it after the current burst. The last write and read
 // passes report their length in cycles (ddr_rates turns them into MB/s).
+//
+// After the last pass each lat_start reads one 32-byte line (2 beats on a
+// 128-bit port, 4 on a 64-bit one) at a pseudo-random line of the span.
+// lat_sample then carries the cycles from the edge the read is taken to
+// the edges its first and last beats arrive. The beats are checked against
+// the ADDR pattern still in memory, like a scan read.
 module ddr_channel #(
     parameter integer DATA_W = 64,
     parameter integer ADDR_W = 29,
@@ -49,7 +55,13 @@ module ddr_channel #(
     output reg               nack,
     output reg               stopped,
     output reg  [31:0]       write_cycles,
-    output reg  [31:0]       read_cycles
+    output reg  [31:0]       read_cycles,
+    // Latency reads, one per lat_start while lat_ready.
+    input  wire              lat_start,
+    output wire              lat_ready,
+    output reg               lat_sample,
+    output reg  [13:0]       lat_first,
+    output reg  [13:0]       lat_last
 );
     localparam integer LANES = DATA_W / 64;
     localparam integer STEP = DATA_W / 8;
@@ -59,15 +71,30 @@ module ddr_channel #(
     localparam [31:0] LAST = BASE + BYTES - STEP;
     // Read beats in flight. The controller holds 14 transactions itself.
     localparam [11:0] READ_LIMIT = 12'd512;
+    localparam [7:0] LINE_BEATS = 8'd32 >> SHIFT;
 
-    localparam [2:0] ST_WRITE_START = 3'd0;
-    localparam [2:0] ST_WRITE = 3'd1;
-    localparam [2:0] ST_READ_START = 3'd2;
-    localparam [2:0] ST_READ = 3'd3;
-    localparam [2:0] ST_DRAIN = 3'd4;
-    localparam [2:0] ST_DONE = 3'd5;
-    localparam [2:0] ST_STOP = 3'd6;
-    localparam [2:0] ST_NACK = 3'd7;
+    function integer log2;
+        input [31:0] v;
+        integer i;
+        begin
+            log2 = 0;
+            for (i = 0; i < 32; i = i + 1)
+                if ((v >> i) != 32'd0)
+                    log2 = i;
+        end
+    endfunction
+    // Latency reads need a span of at least two 32-byte lines.
+    localparam integer LINE_BITS = log2(BYTES) > 5 ? log2(BYTES) - 5 : 1;
+
+    localparam [3:0] ST_WRITE_START = 4'd0;
+    localparam [3:0] ST_WRITE = 4'd1;
+    localparam [3:0] ST_READ_START = 4'd2;
+    localparam [3:0] ST_READ = 4'd3;
+    localparam [3:0] ST_DRAIN = 4'd4;
+    localparam [3:0] ST_DONE = 4'd5;
+    localparam [3:0] ST_STOP = 4'd6;
+    localparam [3:0] ST_NACK = 4'd7;
+    localparam [3:0] ST_LAT = 4'd8;
 
     function [7:0] burst_of;
         input [2:0] which;
@@ -132,7 +159,7 @@ module ddr_channel #(
         end
     endfunction
 
-    reg [2:0]  state = ST_DONE;
+    reg [3:0]  state = ST_DONE;
     reg [31:0] beat_addr;     // byte address of the beat being written
     reg [31:0] next_addr;     // beat_addr + STEP
     reg [7:0]  beats_left;    // write beats left in this burst, this one included
@@ -148,6 +175,15 @@ module ddr_channel #(
     reg [23:0] idle;
     reg [31:0] pass_cycles;
     reg [2:0]  drain;
+    // Latency read: the line, its beats still due, and the count, which is
+    // zero until the read is taken.
+    reg [31:0] lat_lfsr = BASE | 32'd1;
+    reg        lat_prime = 1'b0;
+    reg [2:0]  lat_beats;
+    reg [13:0] lat_count;
+    // Spans are aligned to their size, so the line ORs into the base.
+    wire [31:0] lat_line = BASE | {{(27 - LINE_BITS){1'b0}}, lat_lfsr[LINE_BITS-1:0], 5'd0};
+    assign lat_ready = state == ST_DONE && !stopped && !stop;
 
     // Compare pipeline: difference, grouped OR, then count.
     reg              diff_valid = 1'b0;
@@ -178,6 +214,10 @@ module ddr_channel #(
     integer g;
     always @(posedge clk) begin
         read_room_limit <= READ_LIMIT - {3'd0, burst, 1'b0};
+        // Free running: x^32 + x^22 + x^2 + x + 1.
+        lat_lfsr <= {1'b0, lat_lfsr[31:1]} ^ (lat_lfsr[0] ? 32'h80200003 : 32'd0);
+        lat_sample <= 1'b0;
+        lat_prime <= 1'b0;
         if (reset) begin
             state <= ST_WRITE_START;
             phase <= 3'd0;
@@ -207,9 +247,10 @@ module ddr_channel #(
                 idle <= idle + 24'd1;
 
             // Returned beats: compare against the expected value, then
-            // reduce the difference in groups of eight bits.
+            // reduce the difference in groups of eight bits. A latency read
+            // first primes the expected value of its line.
             diff_valid <= readdatavalid;
-            if (readdatavalid) begin
+            if (readdatavalid || lat_prime) begin
                 diff <= readdata ^ expected;
                 diff_addr <= read_addr;
                 read_addr <= read_next;
@@ -343,11 +384,47 @@ module ddr_channel #(
                         end
                     end
                 end
+                ST_DONE: begin
+                    if (stop) begin
+                        stopped <= 1'b1;
+                    end else if (lat_start) begin
+                        read <= 1'b1;
+                        address <= lat_line[31:SHIFT];
+                        burstcount <= LINE_BEATS;
+                        read_next <= lat_line;
+                        lat_prime <= 1'b1;
+                        lat_beats <= LINE_BEATS[2:0];
+                        lat_count <= 14'd0;
+                        state <= ST_LAT;
+                    end
+                end
+                ST_LAT: begin
+                    if (idle == TIMEOUT) begin
+                        read <= 1'b0;
+                        nack <= 1'b1;
+                        state <= ST_NACK;
+                    end else begin
+                        if (read_taken) begin
+                            read <= 1'b0;
+                            lat_count <= 14'd1;
+                        end else if (lat_count != 14'd0 && lat_count != 14'h3FFF) begin
+                            lat_count <= lat_count + 14'd1;
+                        end
+                        if (readdatavalid) begin
+                            lat_beats <= lat_beats - 3'd1;
+                            if (lat_beats == LINE_BEATS[2:0])
+                                lat_first <= lat_count;
+                            if (lat_beats == 3'd1) begin
+                                lat_last <= lat_count;
+                                lat_sample <= 1'b1;
+                                state <= ST_DONE;
+                            end
+                        end
+                    end
+                end
                 default: begin
                     write <= 1'b0;
                     read <= 1'b0;
-                    if (stop && state == ST_DONE)
-                        stopped <= 1'b1;
                 end
             endcase
             // A stop seen mid-read ends the pass once its data is back.

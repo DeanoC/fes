@@ -38,6 +38,7 @@ const (
 	OpDestroyTexture Op = 0x12
 	OpDebugText      Op = 0x20
 	OpDrawText       Op = 0x21
+	OpDrawMask       Op = 0x22
 	OpClose          Op = 0xFF
 )
 
@@ -65,6 +66,8 @@ func (op Op) String() string {
 		return "DebugText"
 	case OpDrawText:
 		return "DrawText"
+	case OpDrawMask:
+		return "DrawMask"
 	case OpClose:
 		return "Close"
 	default:
@@ -277,6 +280,9 @@ func replayOne(d Device, ids map[uint32]Texture, c Command) error {
 		d.DebugText(c.X, c.Y, c.Text, c.Scale)
 	case OpDrawText:
 		d.DrawTextWeight(c.X, c.Y, c.Text, c.SizePx, c.Weight, c.Color)
+	case OpDrawMask:
+		m := &Mask{W: c.Width, H: c.Height, Pix: c.Pixels}
+		d.DrawMask(m, m.Bounds(), c.X, c.Y, c.Color)
 	case OpClose:
 		d.Close()
 	default:
@@ -371,6 +377,18 @@ func encodePayload(c Command) ([]byte, byte, error) {
 		p = append(p, c.Color.R, c.Color.G, c.Color.B, c.Color.A)
 		p = append(p, []byte(c.Text)...)
 		return p, 0, nil
+	case OpDrawMask:
+		if c.Width < 0 || c.Height < 0 || c.Width > 65535 || c.Height > 65535 || len(c.Pixels) != c.Width*c.Height {
+			return nil, 0, fmt.Errorf("fc2d: DrawMask %dx%d with %d coverage bytes", c.Width, c.Height, len(c.Pixels))
+		}
+		p := make([]byte, 0, 16+len(c.Pixels))
+		p = appendI32(p, int32(c.X))
+		p = appendI32(p, int32(c.Y))
+		p = appendU16(p, uint16(c.Width))
+		p = appendU16(p, uint16(c.Height))
+		p = append(p, c.Color.R, c.Color.G, c.Color.B, c.Color.A)
+		p = append(p, c.Pixels...)
+		return p, 0, nil
 	default:
 		return nil, 0, fmt.Errorf("unknown op 0x%02x", uint8(c.Op))
 	}
@@ -459,6 +477,19 @@ func decodePayload(op Op, flags byte, p []byte) (Command, error) {
 		c.Weight = NormalizeWeight(Weight(p[10]))
 		c.Color = Color{R: p[12], G: p[13], B: p[14], A: p[15]}
 		c.Text = string(p[16:])
+	case OpDrawMask:
+		if err := need(16); err != nil {
+			return Command{}, err
+		}
+		c.X = int(int32(binary.LittleEndian.Uint32(p[0:4])))
+		c.Y = int(int32(binary.LittleEndian.Uint32(p[4:8])))
+		c.Width = int(binary.LittleEndian.Uint16(p[8:10]))
+		c.Height = int(binary.LittleEndian.Uint16(p[10:12]))
+		c.Color = Color{R: p[12], G: p[13], B: p[14], A: p[15]}
+		c.Pixels = append([]byte(nil), p[16:]...)
+		if len(c.Pixels) != c.Width*c.Height {
+			return Command{}, fmt.Errorf("fc2d: %s coverage %d want %d", op, len(c.Pixels), c.Width*c.Height)
+		}
 	default:
 		return Command{}, fmt.Errorf("fc2d: unknown op 0x%02x", uint8(op))
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/protocol"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -305,6 +306,69 @@ func TestCoreLibraryRequiresStartupBlob(t *testing.T) {
 	a.createCoreLibraryGameLocked()
 	if a.coreLibrary.Busy || a.coreLibrary.Status != "Choose required blob media." {
 		t.Fatalf("required blob not blocked: %#v", a.coreLibrary)
+	}
+}
+
+func TestCoreLibraryCreatesDefaultBlankAtariStDisk(t *testing.T) {
+	const pid = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	const mid = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	var mu sync.Mutex
+	var posted map[string]any
+	var created hostclient.CoreSetupRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		mu.Lock()
+		defer mu.Unlock()
+		switch r.URL.Path {
+		case "/api/v1/library/atari-st-disks":
+			if err := json.NewDecoder(r.Body).Decode(&posted); err != nil {
+				t.Error(err)
+			}
+			w.WriteHeader(http.StatusCreated)
+			json.NewEncoder(w).Encode(map[string]any{"media_id": mid, "size": 737280, "name": "WORK", "tracks": 80, "heads": 2, "sectors": 9, "created": true})
+		case "/api/v1/core-catalog/entries":
+			json.NewDecoder(r.Body).Decode(&created)
+			json.NewEncoder(w).Encode(map[string]any{"source_id": "library", "publication_source_id": "pub", "entry": map[string]any{"game_id": "atari-desk", "core_id": "fes.atari-st", "package_id": pid, "title": "Desk"}})
+		case "/api/v1/games":
+			json.NewEncoder(w).Encode(map[string]any{"games": []any{}})
+		default:
+			t.Errorf("unexpected request %s", r.URL.Path)
+			http.Error(w, "unexpected", 500)
+		}
+	}))
+	defer server.Close()
+	a := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
+	a.ctx = context.Background()
+	ref := hostclient.CoreReference{LibrarySourceID: "library", SourceID: "pub", CoreID: "fes.atari-st", PackageID: pid}
+	a.coreLibrary = coreLibraryState{Open: true, Online: true, Ref: &ref, Title: "Desk", ROMs: map[string]string{}, Setup: &hostclient.CoreSetup{CoreReference: ref, Capabilities: protocol.CoreMediaCapabilities{PackageID: pid, Media: []protocol.CoreMediaCapability{{
+		Role: "disk", Format: "atari-st-floppy", MinBytes: 737280, MaxBytes: 737280,
+	}}}}}
+	a.mu.Lock()
+	rows := a.coreLibraryRowsLocked()
+	index := -1
+	for i, row := range rows {
+		if row.Kind == "blank-disk" {
+			index = i
+		}
+	}
+	if index < 0 {
+		t.Fatal("blank disk row missing")
+	}
+	a.coreLibrary.Index = index
+	a.handleCoreLibraryLocked(CmdSelect)
+	a.mu.Unlock()
+	waitCoreLibrary(t, a)
+	a.mu.Lock()
+	if a.coreLibrary.MediaRole != "disk" || a.coreLibrary.MediaID != mid {
+		t.Fatalf("disk not selected: %+v", a.coreLibrary)
+	}
+	a.createCoreLibraryGameLocked()
+	a.mu.Unlock()
+	waitCoreLibrary(t, a)
+	mu.Lock()
+	defer mu.Unlock()
+	if posted["name"] != "WORK" || posted["tracks"] != float64(80) || posted["bind"] != nil || created.MediaRole != "disk" || created.MediaID != mid || created.Title != "Desk" {
+		t.Fatalf("posted %#v created %+v", posted, created)
 	}
 }
 

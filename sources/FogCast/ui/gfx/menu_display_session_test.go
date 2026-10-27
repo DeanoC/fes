@@ -3,6 +3,7 @@ package gfx
 import (
 	"context"
 	"errors"
+	"image"
 	"strings"
 	"testing"
 	"time"
@@ -109,5 +110,40 @@ func TestSessionProbeNeverReplaysFrameOnReplacement(t *testing.T) {
 	settleSessionFrame(t, d)
 	if client.snapshotCalls() != 1 || !errors.Is(d.LastError(), ErrSessionDisplayChanged) {
 		t.Fatal("change-driven probe redrew a captured frame on another session")
+	}
+}
+
+// The bound session's picture comes from the runtime status its frames were
+// accepted under. A rebind forgets it, and an out-of-frame picture is unknown.
+func TestSessionPictureFollowsTheBoundPlane(t *testing.T) {
+	pkg := strings.Repeat("a", 64)
+	client := &testMenuClient{generation: 5, session: true, packageID: pkg, coreGeneration: 9, picture: []int{312, 90, 656, 540}}
+	d, err := newMenuDisplayWithClient(client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	d.Present()
+	settleSessionFrame(t, d)
+	if got := d.SessionPicture(); !got.Empty() {
+		t.Fatalf("idle presenter reported a session picture: %v", got)
+	}
+	d.BindSession(pkg, 9)
+	d.Present()
+	settleSessionFrame(t, d)
+	if got := d.SessionPicture(); got != image.Rect(312, 90, 968, 630) {
+		t.Fatalf("picture = %v", got)
+	}
+	d.BindSession(pkg, 9)
+	if got := d.SessionPicture(); !got.Empty() {
+		t.Fatalf("rebind kept the old picture: %v", got)
+	}
+	client.mu.Lock()
+	client.picture = []int{1000, 90, 656, 540}
+	client.mu.Unlock()
+	d.Present()
+	settleSessionFrame(t, d)
+	if got := d.SessionPicture(); !got.Empty() {
+		t.Fatalf("out-of-frame picture accepted: %v", got)
 	}
 }

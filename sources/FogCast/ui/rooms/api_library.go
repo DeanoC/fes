@@ -61,13 +61,14 @@ func optInt64(t *lua.LTable, key string) int64 {
 	return 0
 }
 
-// library.query({platform, collection, q, sort, genre, year, region,
+// library.query({platform, core_ids, collection, q, sort, genre, year, region,
 // hide_prerelease, hide_hacks, limit}, function(games, err) end)
 func (r *Instance) libraryQuery(L *lua.LState) int {
 	opts := L.OptTable(1, nil)
 	cb := L.CheckFunction(2)
 	q := hostclient.GameListQuery{
 		Platform:       optString(opts, "platform"),
+		CoreIDs:        optStrings(opts, "core_ids"),
 		Collection:     optString(opts, "collection"),
 		Q:              optString(opts, "q"),
 		Sort:           optString(opts, "sort"),
@@ -93,6 +94,25 @@ func (r *Instance) libraryQuery(L *lua.LState) int {
 		r.deliver(asyncResult{cb: cb, games: games, err: err})
 	}()
 	return 0
+}
+
+func optStrings(t *lua.LTable, key string) []string {
+	if t == nil {
+		return nil
+	}
+	values, ok := t.RawGetString(key).(*lua.LTable)
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, values.Len())
+	for i := 1; i <= values.Len(); i++ {
+		if value, ok := values.RawGetInt(i).(lua.LString); ok {
+			if text := strings.TrimSpace(string(value)); text != "" {
+				out = append(out, text)
+			}
+		}
+	}
+	return out
 }
 
 func (r *Instance) libraryPlatforms(L *lua.LState) int {
@@ -133,7 +153,9 @@ func (r *Instance) libraryGame(L *lua.LState) int {
 	if id == "" {
 		L.ArgError(1, "game id required")
 	}
-	if g, ok := r.games[id]; ok {
+	// A list row caches the representative. When variant_count says grouped
+	// editions exist and this cache has none, load the detail row.
+	if g, ok := r.games[id]; ok && (g.VariantCount <= 1 || len(g.Variants) > 0 || len(g.Editions) > 0) {
 		r.deliver(asyncResult{cb: cb, game: &g})
 		return 0
 	}
@@ -162,19 +184,42 @@ func (r *Instance) gamesTable(games []hostclient.Game) *lua.LTable {
 }
 
 func (r *Instance) gameTable(g hostclient.Game) *lua.LTable {
+	return r.gameRow(g, true)
+}
+
+func (r *Instance) gameRow(g hostclient.Game, withVariants bool) *lua.LTable {
 	L := r.L
 	t := L.NewTable()
 	t.RawSetString("id", lua.LString(g.ID))
 	t.RawSetString("title", lua.LString(g.Title))
 	t.RawSetString("system", lua.LString(g.System))
+	if coreID := strings.TrimSpace(g.CoreID); coreID != "" {
+		t.RawSetString("core_id", lua.LString(coreID))
+	}
+	if packageID := strings.TrimSpace(g.PackageID); packageID != "" {
+		t.RawSetString("package_id", lua.LString(packageID))
+	}
+	if mediaID := strings.TrimSpace(g.MediaID); mediaID != "" {
+		t.RawSetString("media_id", lua.LString(mediaID))
+		t.RawSetString("media_role", lua.LString(strings.TrimSpace(g.MediaRole)))
+	}
 	t.RawSetString("genre", lua.LString(g.Genre))
 	t.RawSetString("year", lua.LString(g.Year))
 	t.RawSetString("region", lua.LString(g.Region))
 	t.RawSetString("state", lua.LString(g.State))
 	t.RawSetString("series", lua.LString(g.Series))
+	if g.VariantCount > 0 {
+		t.RawSetString("variant_count", lua.LNumber(g.VariantCount))
+	}
 	t.RawSetString("launchable", lua.LBool(g.LaunchEligible()))
 	t.RawSetString("firmware_required", lua.LBool(g.FirmwareRequired))
 	t.RawSetString("firmware_ready", lua.LBool(g.FirmwareReady))
+	t.RawSetString("rom_required", lua.LBool(g.ROMRequired))
+	t.RawSetString("rom_ready", lua.LBool(g.ROMReady))
+	t.RawSetString("rom_id", lua.LString(g.ROMID))
+	t.RawSetString("rom_media_id", lua.LString(g.ROMMediaID))
+	t.RawSetString("rom_role", lua.LString(g.ROMRole))
+	t.RawSetString("rom_source_size", lua.LNumber(g.ROMSourceSize))
 	if exec := strings.TrimSpace(g.Execution); exec != "" {
 		t.RawSetString("execution", lua.LString(exec))
 	}
@@ -200,6 +245,36 @@ func (r *Instance) gameTable(g hostclient.Game) *lua.LTable {
 		cols.Append(lua.LString(c))
 	}
 	t.RawSetString("collections", cols)
+	if expansionID := strings.TrimSpace(g.ExpansionID); expansionID != "" {
+		t.RawSetString("expansion_id", lua.LString(expansionID))
+		t.RawSetString("expansion_ready", lua.LBool(g.ExpansionReady))
+	}
+	if len(g.SlotExpansions) > 0 {
+		slots := L.NewTable()
+		for _, slot := range g.SlotExpansions {
+			row := L.NewTable()
+			row.RawSetString("slot", lua.LNumber(slot.Slot))
+			row.RawSetString("expansion_id", lua.LString(slot.ExpansionID))
+			row.RawSetString("ready", lua.LBool(slot.Ready))
+			slots.Append(row)
+		}
+		t.RawSetString("slot_expansions", slots)
+	}
+	if withVariants {
+		variants := g.Variants
+		if len(variants) == 0 {
+			variants = g.Editions
+		}
+		if len(variants) > 0 {
+			listed := L.NewTable()
+			for _, variant := range variants {
+				variant.Variants = nil
+				variant.Editions = nil
+				listed.Append(r.gameRow(variant, false))
+			}
+			t.RawSetString("variants", listed)
+		}
+	}
 	return t
 }
 

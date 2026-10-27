@@ -111,7 +111,9 @@ port release and video setup through the runtime. The diagnostic alone is not
 hardware-qualified by the earlier test-pattern captures.
 
 The shared wrapper's compile-time specialization disables port-0 writes and
-ports 1/2 at the hard-block command pins. Its default read/write behavior and
+ports 1/2 at the hard-block command pins for the diagnostic; the described
+package enables port 1 and port-2 reads for the blitter and keeps port-2
+writes disabled. Its default read/write behavior and
 boot layout remain unchanged for the RAM tester and other consumers. The
 producer recognizes routed constant-zero drivers as well as synthesized zeros.
 The DDR recipe defaults to seed 4; `--seed 1..8` selects a bounded alternate
@@ -121,8 +123,9 @@ and records it in the closed build inputs. Failed routes publish no RBF.
 
 `make build-fes-menu-package` builds separate format-2 `fes.menu` 1.0.0
 firmware under `build/oss/fes-menu-package`, exporting the closed package to
-`build/packages`. It requires application fixed video, HPS DDR and menu-display
-1.0. It has no playable system identity and does not change factory selection.
+`build/packages`. It requires application fixed video, HPS DDR, menu-display
+1.0 and menu-blitter 1.1. It has no playable system identity and does not
+change factory selection.
 The qualified RAM-test lock now includes the congestion fix from FES #266.
 GPU 0 and bounded explicit seeds retain the normal provenance/evidence gates.
 The described package tries seed 5 first, then 1, 2, 3, 4, 6, 7, 8, and keeps
@@ -135,11 +138,43 @@ frame-boundary completion. Quiesce waits for the reader to drain before ACK;
 execution hold during enabled scanout rejects without abandoning responses.
 The GP and reader use the same pixel clock.
 
-`python3 scripts/sim_fes_menu.py --case gp` replays the shared golden wire
-fixture through actual GP/control/DDR RTL and verifies stalls, drain, restart,
-sequence exhaustion and coherent snapshots. `--case gp-board` checks the
-production board top, modeled GP/DDR atoms, PLL gating and explicit enable.
-These and the seven existing cases are included in `--case all`.
+`fes_menu_blitter` runs `fes.video.menu-blitter` command lists into a menu
+slot (`sources/mister-packages/docs/application-io.md`). MenuBlit goes to
+`fes_menu_blit_control`; the blitter reads destinations and writes results on
+port 1, so a blend reads what earlier commands wrote, and reads commands and
+sources on port 2. Each row is read, then goes through a three-clock alpha
+stage (EXPAND's `A·m/255`), a four-clock blend and a sixteen-beat FIFO into
+the write burst: 2 pixels a clock for fills, 1 for the other ops. Every op
+takes the same pipeline, so beats stay in order. EXPAND's coverage can start
+at any byte, so a second copy of the source row buffer reads the beat before.
+The menu builds with DSPs: the blend's and the alpha stage's unsigned 8x8
+products each map to one 9x9 multiplier, eight in all. Their operands are
+zero-extended, so the multiplier's signedness cannot change them. The package
+producer's evidence requires exactly those eight unsigned `MISTRAL_MUL9X9`
+cells inside the blitter, in both netlists and the timing report, and still
+forbids every other DSP; the diagnostics, which have no blitter, forbid DSPs
+entirely. A run
+reports idle and counts only once port 1's guard has drained its last write
+beats, so a submitted slot never has writes in flight. Quiesce stops a
+run at the next row and waits for both ports to drain; the drained proof is
+registered, because the f2sdram responses are too far from the GP control
+for one clock.
+The diagnostic DDR wrapper leaves the blitter and ports 1/2 out. The package
+producer's netlist evidence allows exactly that: port 0 and port 2 commands
+must have their write bit tied low, write FIFOs 0, 1 and 3 and ports 3 to 5
+tied low, so only port 1 can write. The diagnostic still requires every write
+and ports 1 to 5 tied low.
+
+`python3 scripts/sim_fes_menu.py --case gp` replays the shared golden blitter
+wire fixture through actual GP/control/DDR/blitter RTL on a memory-backed
+hard-block model. It verifies stalls, drain, restart, sequence exhaustion and
+coherent snapshots; the fixture's run against the gfx reference byte for byte
+and a whole scanned-out frame of the result; and quiesce during a blit and
+fault containment. `--case blitter` checks every op, width, alignment, fault,
+halt and full-frame throughput against the reference with randomly stalling
+ports, and `--case blend` every source, destination and alpha byte.
+`--case gp-board` checks the production board top, modeled GP/DDR atoms, PLL
+gating and explicit enable. `--case all` runs every case.
 
 Runtime presentation is implemented and has exact-artifact kit diagnostic
 evidence in `docs/validation/2026-09-28-native-menu-kit-presentation.md`.

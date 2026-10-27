@@ -1,7 +1,11 @@
 """Host-side leftover-capacity expand dry-run; never writes a block device."""
+import contextlib
+from io import StringIO
+import json
 from pathlib import Path
 import os
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest import mock
 
@@ -11,6 +15,21 @@ from scripts.media_inputs import MediaLock
 
 ROOT = Path(__file__).resolve().parents[1]
 LOCK = ROOT / 'boot-media.lock.toml'
+# Sizes the kernel reports for cards in the admitted reader, and the p3 each
+# gets: Kit B's 32 GB card (lsblk 28.8G) and the 64 GB spare from the
+# 2026-09-10 HIL (lsblk 58.2G).
+CARDS = {
+    '32GB': SimpleNamespace(bytes=30953963520, sectors=60456960, p3_sectors=58355712),
+    '64GB': SimpleNamespace(bytes=62534975488, sectors=122138624, p3_sectors=120037376),
+}
+
+
+def other_card(name):
+    return CARDS['64GB' if name == '32GB' else '32GB']
+
+
+def populated(mbr):
+    return [part for part in mbr['partitions'] if part['sector_count']]
 
 
 class ApplianceExpandDryRunTests(unittest.TestCase):
@@ -21,6 +40,59 @@ class ApplianceExpandDryRunTests(unittest.TestCase):
 
     def tearDown(self):
         self.temporary.cleanup()
+
+    @contextlib.contextmanager
+    def fake_usb(self, card_bytes):
+        """Admit a sparse appliance file as the exact USB by-id.
+
+        The by-id link, sysfs and udev answers all live in the temporary
+        directory, so nothing here opens, probes or writes a real device.
+        """
+        root = Path(tempfile.mkdtemp(dir=self.root))
+        disk = root / 'dev' / 'sdz'
+        disk.parent.mkdir()
+        expand.synthesize_image(disk, self.layout, card_bytes)
+        by_id = root / 'usb-Generic_STORAGE_DEVICE_000000000819-0:0'
+        by_id.symlink_to(disk)
+        sysfs = root / 'sys' / 'sdz'
+        sysfs.mkdir(parents=True)
+        (sysfs / 'size').write_text(f'{card_bytes // 512}\n')
+        (sysfs / 'removable').write_text('1\n')
+        udev = {
+            'DEVNAME': os.path.realpath(disk),
+            'ID_BUS': 'usb',
+            'ID_TYPE': 'disk',
+            'ID_VENDOR': expand.USB_VENDOR,
+            'ID_MODEL': expand.USB_MODEL,
+            'ID_SERIAL_SHORT': expand.USB_SERIAL,
+        }
+        with mock.patch.object(expand, 'USB_BY_ID', str(by_id)), \
+                mock.patch.object(expand, 'SYS_CLASS_BLOCK', root / 'sys'), \
+                mock.patch.object(expand, 'is_block_device', return_value=True), \
+                mock.patch.object(expand, '_udev_properties', return_value=udev):
+            yield SimpleNamespace(by_id=str(by_id), disk=disk, resolved=os.path.realpath(disk),
+                                  sysfs=sysfs, udev=udev)
+
+    @contextlib.contextmanager
+    def kernel_steps(self):
+        """Stub the mount check, partition rescan and mkfs of a physical apply."""
+        with mock.patch.object(expand, 'require_unmounted') as unmounted, \
+                mock.patch.object(expand, 'rescan_partition_table'), \
+                mock.patch.object(expand, 'require_partition_device',
+                                  side_effect=lambda device, number, _: f'{device}{number}') as partition, \
+                mock.patch.object(expand, 'format_ext4') as mkfs, \
+                mock.patch.object(expand, 'read_ext4_superblock', return_value={'label': expand.EXT4_LABEL}), \
+                mock.patch.object(expand.os, 'sync'):
+            yield SimpleNamespace(unmounted=unmounted, partition=partition, mkfs=mkfs)
+
+    def run_cli(self, *argv):
+        stdout, stderr = StringIO(), StringIO()
+        with mock.patch('sys.stdout', new=stdout), mock.patch('sys.stderr', new=stderr):
+            try:
+                expand.main([*argv, '--lock', str(LOCK)])
+            except SystemExit as stop:
+                return stop.code, stdout.getvalue(), stderr.getvalue()
+        return 0, stdout.getvalue(), stderr.getvalue()
 
     def test_synthetic_inspect_matches_locked_1g_layout(self):
         image = self.root / 'card.img'
@@ -114,8 +186,8 @@ class ApplianceExpandDryRunTests(unittest.TestCase):
         identity = {
             'by_id': usb,
             'resolved_path': '/dev/sda',
-            'size_sectors': expand.USB_SIZE_SECTORS,
-            'size_bytes': expand.USB_SIZE_BYTES,
+            'size_sectors': CARDS['64GB'].sectors,
+            'size_bytes': CARDS['64GB'].bytes,
             'serial': expand.USB_SERIAL,
             'verified': True,
         }
@@ -123,7 +195,7 @@ class ApplianceExpandDryRunTests(unittest.TestCase):
                 mock.patch.object(expand, 'is_system_disk', return_value=False), \
                 mock.patch.object(expand, 'verify_usb_device', return_value=identity) as verify:
             self.assertEqual(expand.require_regular_or_gated_usb(usb, {'WRITE_GO': '1'}, write=True), identity)
-            verify.assert_called_once_with(usb, write=True)
+            verify.assert_called_once_with(usb, write=True, card_bytes=None)
         with mock.patch.object(expand, 'is_block_device', return_value=True):
             with self.assertRaisesRegex(expand.ExpandError, 'WRITE_GO=1'):
                 expand.require_regular_or_gated_usb(usb, {}, write=True)
@@ -132,7 +204,7 @@ class ApplianceExpandDryRunTests(unittest.TestCase):
         identity = {
             'by_id': expand.USB_BY_ID,
             'resolved_path': '/dev/sda',
-            'size_bytes': expand.USB_SIZE_BYTES,
+            'size_bytes': CARDS['64GB'].bytes,
             'verified': True,
         }
         with mock.patch.object(expand, 'require_regular_or_gated_usb', return_value=identity), \
@@ -140,19 +212,140 @@ class ApplianceExpandDryRunTests(unittest.TestCase):
             result = expand.apply_plan(expand.USB_BY_ID, self.layout, 'extra-partition',
                                        env={'WRITE_GO': '1'})
         self.assertEqual(result, {'verified': True})
-        apply.assert_called_once_with(expand.USB_BY_ID, self.layout, env={'WRITE_GO': '1'})
+        apply.assert_called_once_with(expand.USB_BY_ID, self.layout, card_bytes=CARDS['64GB'].bytes,
+                                      env={'WRITE_GO': '1'})
         with self.assertRaisesRegex(expand.ExpandError, 'recommended extra-partition'):
             expand.apply_plan(expand.USB_BY_ID, self.layout, 'grow-fat', env={'WRITE_GO': '1'})
 
-    def test_expanded_table_uses_verified_58g_card_capacity(self):
-        image = self.root / 'card.img'
-        expand.synthesize_image(image, self.layout, expand.USB_SIZE_BYTES)
-        plan = expand.plan_extra_partition(self.layout, expand.USB_SIZE_BYTES)
-        expand.write_mbr(image, self.layout.disk_id,
-                          expand.expected_image_partitions(self.layout) + [plan['partition_3']])
-        self.assertEqual(expand.require_expanded_table(expand.read_mbr(image), self.layout,
-                                                        expand.USB_SIZE_BYTES), plan)
-        self.assertGreater(plan['partition_3']['bytes'], 50 << 30)
+    def test_expanded_table_fits_each_card(self):
+        for name, card in CARDS.items():
+            with self.subTest(card=name):
+                image = self.root / f'{name}.img'
+                expand.synthesize_image(image, self.layout, card.bytes)
+                plan = expand.apply_plan(image, self.layout, 'extra-partition', card.bytes, env={})['plan']
+                p3 = plan['partition_3']
+                self.assertEqual((p3['start_sector'], p3['sector_count']), (2101248, card.p3_sectors))
+                self.assertLessEqual(p3['start_sector'] + p3['sector_count'], card.sectors)
+                mbr = expand.read_mbr(image)
+                self.assertEqual(expand.require_expanded_table(mbr, self.layout, card.bytes), plan)
+                with self.assertRaisesRegex(expand.ExpandError, 'expanded MBR does not match'):
+                    expand.require_expanded_table(mbr, self.layout, other_card(name).bytes)
+
+    def test_admitted_usb_takes_its_size_from_the_card(self):
+        for name, card in CARDS.items():
+            with self.subTest(card=name), self.fake_usb(card.bytes) as usb:
+                for card_bytes in (None, card.bytes):
+                    identity = expand.verify_usb_device(usb.by_id, card_bytes=card_bytes)
+                    self.assertEqual((identity['size_sectors'], identity['size_bytes']),
+                                     (card.sectors, card.bytes))
+                    self.assertEqual(identity['serial'], expand.USB_SERIAL)
+                with self.assertRaisesRegex(expand.ExpandError, 'USB size mismatch'):
+                    expand.verify_usb_device(usb.by_id, card_bytes=other_card(name).bytes)
+
+    def test_card_size_does_not_replace_the_usb_identity_checks(self):
+        card = CARDS['32GB']
+        with self.fake_usb(card.bytes) as usb:
+            with self.assertRaisesRegex(expand.ExpandError, 'exact spare USB by-id'):
+                expand.verify_usb_device(str(usb.disk), card_bytes=card.bytes)
+            usb.udev['ID_SERIAL_SHORT'] = '000000000820'
+            with self.assertRaisesRegex(expand.ExpandError, 'ID_SERIAL_SHORT'):
+                expand.verify_usb_device(usb.by_id, card_bytes=card.bytes)
+            usb.udev['ID_SERIAL_SHORT'] = expand.USB_SERIAL
+            (usb.sysfs / 'removable').write_text('0\n')
+            with self.assertRaisesRegex(expand.ExpandError, 'not marked removable'):
+                expand.verify_usb_device(usb.by_id, card_bytes=card.bytes)
+            (usb.sysfs / 'removable').write_text('1\n')
+            (usb.sysfs / 'partition').write_text('1\n')
+            with self.assertRaisesRegex(expand.ExpandError, 'is a partition'):
+                expand.verify_usb_device(usb.by_id, card_bytes=card.bytes)
+
+    def test_cli_inspect_reports_the_card_in_the_reader(self):
+        for name, card in CARDS.items():
+            with self.subTest(card=name), self.fake_usb(card.bytes) as usb:
+                for given in ([], ['--card-bytes', str(card.bytes)]):
+                    code, out, err = self.run_cli('inspect', '--image', usb.by_id, *given)
+                    self.assertEqual(code, 0, err)
+                    body = json.loads(out)
+                    self.assertEqual(body['target']['size_sectors'], card.sectors)
+                    self.assertEqual(body['synthetic_card_bytes'], card.bytes)
+                    self.assertEqual(body['unpartitioned_if_written_to_synthetic_card'],
+                                     card.bytes - 1075838976)
+                code, _, err = self.run_cli('inspect', '--image', usb.by_id,
+                                            '--card-bytes', str(other_card(name).bytes))
+                self.assertEqual(code, 1)
+                self.assertIn('USB size mismatch', err)
+
+    def test_cli_apply_accepts_card_bytes_that_match_the_card(self):
+        for name, card in CARDS.items():
+            with self.subTest(card=name), self.fake_usb(card.bytes) as usb, self.kernel_steps(), \
+                    mock.patch.dict(os.environ, {'WRITE_GO': '1'}):
+                code, out, err = self.run_cli('apply', '--image', usb.by_id, '--card-bytes', str(card.bytes))
+                self.assertEqual(code, 0, err)
+                body = json.loads(out)
+                self.assertEqual(body['target']['size_sectors'], card.sectors)
+                self.assertEqual(body['plan']['partition_3']['sector_count'], card.p3_sectors)
+
+    def test_physical_apply_sizes_p3_to_the_card_in_the_reader(self):
+        for name, card in CARDS.items():
+            with self.subTest(card=name), self.fake_usb(card.bytes) as usb, self.kernel_steps() as kernel:
+                before = populated(expand.read_mbr(usb.disk))
+                result = expand.apply_plan(usb.by_id, self.layout, 'extra-partition', env={'WRITE_GO': '1'})
+                self.assertEqual(result['target']['size_bytes'], card.bytes)
+                p3 = result['plan']['partition_3']
+                self.assertEqual((p3['start_sector'], p3['sector_count']), (2101248, card.p3_sectors))
+                after = populated(expand.read_mbr(usb.disk))
+                self.assertEqual(after[:2], before)
+                self.assertEqual((after[2]['start_sector'], after[2]['sector_count']),
+                                 (p3['start_sector'], p3['sector_count']))
+                self.assertGreaterEqual(p3['start_sector'], 2099200 + 2048)
+                self.assertLessEqual(p3['start_sector'] + p3['sector_count'], card.sectors)
+                with usb.disk.open('rb') as stream:
+                    stream.seek(2099200 * 512)
+                    self.assertEqual(stream.read(12), b'A2-SPL-UBOOT')
+                kernel.unmounted.assert_called_with(usb.resolved)
+                kernel.partition.assert_called_once_with(usb.resolved, 3, card.p3_sectors)
+                kernel.mkfs.assert_called_once_with(usb.resolved + '3')
+
+    def test_physical_apply_refuses_card_bytes_that_disagree_before_writing(self):
+        for name, card in CARDS.items():
+            with self.subTest(card=name), self.fake_usb(card.bytes) as usb, self.kernel_steps() as kernel:
+                mbr = expand.read_mbr(usb.disk)['raw']
+                with self.assertRaisesRegex(expand.ExpandError, 'WRITE_GO=1'):
+                    expand.apply_plan(usb.by_id, self.layout, 'extra-partition', card_bytes=card.bytes, env={})
+                with self.assertRaisesRegex(expand.ExpandError, 'USB size mismatch'):
+                    expand.apply_plan(usb.by_id, self.layout, 'extra-partition',
+                                      card_bytes=other_card(name).bytes, env={'WRITE_GO': '1'})
+                self.assertEqual(expand.read_mbr(usb.disk)['raw'], mbr)
+                kernel.mkfs.assert_not_called()
+
+    def test_physical_apply_refuses_a_card_swapped_mid_run(self):
+        with self.fake_usb(CARDS['32GB'].bytes) as usb, self.kernel_steps() as kernel:
+            mbr = expand.read_mbr(usb.disk)['raw']
+            hash_region = expand.sha256_region
+
+            def swap_card(*args, **kwargs):
+                (usb.sysfs / 'size').write_text(f'{CARDS["64GB"].sectors}\n')
+                return hash_region(*args, **kwargs)
+
+            with mock.patch.object(expand, 'sha256_region', side_effect=swap_card), \
+                    self.assertRaisesRegex(expand.ExpandError, 'USB size mismatch'):
+                expand.apply_plan(usb.by_id, self.layout, 'extra-partition', env={'WRITE_GO': '1'})
+            self.assertEqual(expand.read_mbr(usb.disk)['raw'], mbr)
+            kernel.mkfs.assert_not_called()
+
+    def test_write_base_refuses_a_card_of_the_wrong_size_before_writing(self):
+        base = self.root / 'base.img'
+        expand.synthesize_image(base, self.layout, self.layout.total_sectors * 512, a2_marker=b'NEW-BASE')
+        with self.fake_usb(CARDS['32GB'].bytes) as usb, mock.patch.object(expand, 'require_unmounted'):
+            with self.assertRaisesRegex(expand.ExpandError, 'USB size mismatch'):
+                expand.write_base_image(usb.by_id, self.layout, base, env={'WRITE_GO': '1'},
+                                        card_bytes=CARDS['64GB'].bytes)
+            (usb.sysfs / 'size').write_text(f'{(512 << 20) // 512}\n')
+            with self.assertRaisesRegex(expand.ExpandError, 'appliance image needs'):
+                expand.write_base_image(usb.by_id, self.layout, base, env={'WRITE_GO': '1'})
+            with usb.disk.open('rb') as stream:
+                stream.seek(2099200 * 512)
+                self.assertEqual(stream.read(12), b'A2-SPL-UBOOT')
 
     def test_write_go_usb_that_resolves_to_nvme_is_denied(self):
         usb = '/dev/disk/by-id/usb-forged'

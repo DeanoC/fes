@@ -24,11 +24,13 @@ public:
  virtual Error Duplicate(int fd,int* copy)=0;
  virtual void Close(int fd)=0;
 };
-// Both menu slots, granted to one menu or session-plane activation. The
-// client draws into the slot it is given and cleans what it wrote; the
-// runtime never copies a frame. Revoke ends the grant for every process
-// before the window stops being the menu's, so nothing writes it, or evicts
-// a dirty line into it, once a core owns it.
+// Both menu slots, granted to one menu or session-plane activation, and for
+// a menu with a blitter its command lists and texture heap too. The client
+// draws into the slot it is given, or writes lists and textures that the
+// blitter draws from; the runtime writes back what the client wrote and
+// never copies a frame. Revoke ends the grant for every process before the
+// window stops being the menu's, so nothing writes it, or evicts a dirty
+// line into it, once a core owns it.
 class MenuWindow final {
 public:
  MenuWindow();
@@ -36,9 +38,11 @@ public:
  ~MenuWindow();
  MenuWindow(const MenuWindow&)=delete;
  MenuWindow& operator=(const MenuWindow&)=delete;
- // Revokes any earlier grant and grants both slots. clear fills them black;
- // a re-shown session plane keeps the pixels it was hidden with.
- Error Activate(bool clear);
+ // Revokes any earlier grant and grants both slots, plus the lists and heap
+ // with blitter. clear fills the slots black; a re-shown session plane keeps
+ // the pixels it was hidden with. No slot line stays in the CPU caches, so
+ // a later CPU write cannot carry stale bytes over what the blitter drew.
+ Error Activate(bool clear,bool blitter);
  // Idempotent. The window has no grant until the next Activate.
  void Revoke();
  // A new descriptor for the current grant, owned by the caller.
@@ -46,10 +50,14 @@ public:
  // Writes back what the client drew in slot (empty: the whole frame), so
  // fpga2sdram reads see it.
  Error Clean(std::uint8_t slot,const std::vector<MenuRect>& rects) const;
+ // Writes back count commands from first in the list region and the
+ // uploaded heap spans, so the blitter reads them.
+ Error CleanBlit(std::uint32_t first,std::uint32_t count,const std::vector<MenuSpan>& uploaded) const;
 private:
  std::unique_ptr<MenuWindowOperations> owned_;
  MenuWindowOperations* operations_;
  mutable std::mutex mutex_;
  int grant_=-1;
+ bool blitter_=false;
 };
 } }

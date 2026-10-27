@@ -136,6 +136,65 @@ busybox devmem 0x3FFFFFF8 32   # 0x3FFFFFF8
 busybox devmem 0x3FFFFFFC 32   # 0xC0000007
 ```
 
+## Latency
+
+When every scan has ended, the tester measures read latency on DDR ports
+0, 1 and 2 and on the SDRAM addon, one memory at a time. Each window is
+32768 single reads of one 32-byte line at pseudo-random line addresses in
+that memory's span. Only one read is in flight, and nothing else touches
+that memory or the other DDR ports during the window.
+
+| Memory | One line read |
+| --- | --- |
+| DDR port 0 | burst of 2 128-bit beats |
+| DDR ports 1 and 2 | burst of 4 64-bit beats |
+| SDRAM addon | 16 back-to-back single-halfword reads |
+
+Each read gives two counts, in memory-clock cycles:
+
+- **First data:** from the edge the read is taken to the edge its first
+  data arrives.
+- **Last data:** from the same edge to the edge its last data arrives.
+
+How the counts are taken:
+
+- **DDR.** The counts are taken at the core side of `fes_hps_ddr`. They
+  include the guard's command register and its two read-data registers,
+  which a core using the port also sees.
+- **SDRAM.** The read starts on the first edge the controller samples the
+  request. Data counts at each `done`. The controller is single-word with
+  auto-precharge, so a line is 16 complete accesses, not one burst. Its
+  `done` follows the data capture by two cycles.
+- **Data check.** Every read checks its data against the last scan pattern
+  still in memory (`ADDR` on DDR, `INVR` on SDRAM). A mismatch or a missing
+  reply fails that memory, as in a scan.
+
+The `LAT` rows sit under the `MB/S` row:
+
+- Each row shows one memory. `F` is followed by first-data minimum, median,
+  99th percentile and maximum. `L` is followed by the same four for the last
+  data.
+- The minimum and maximum are exact.
+- The percentiles come from a histogram of cycles above a base. The base is
+  that memory's minimum from its previous window.
+  - Bins are one cycle wide up to base+31, then eight per doubling up to
+    base+1023, then one more bin above that.
+  - A percentile shows the top of its bin, capped at the maximum. It is
+    exact within 31 cycles of the base and never low.
+  - The first window of each memory has a base of zero.
+- The minimum, median and p99 saturate at 999; the maximum at 9999.
+- Windows repeat, so the rows always show each memory's latest window.
+- A button stop ends the windows and leaves the last results on screen.
+- A memory whose scan failed is not measured, and its row stays blank.
+
+`make sim-fes-ramtest` checks the statistics against a reference model of
+the bins. Beside the core, the bench recounts every latency read from the
+memory handshakes and compares that count with what the core reports.
+
+The [2026-10-25 latency record](../../../../docs/validation/2026-10-25-hps-ddr-latency.md)
+has the measured latencies at 100 MHz on Kits A and B, with Linux idle and
+under HPS CPU and memory load.
+
 ## Builds
 
 The [2026-09-27 timing investigation](../../docs/validation/2026-09-27-ramtest-timing.md)

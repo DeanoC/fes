@@ -33,15 +33,15 @@ CPU_SOURCES = (
 CPU_MUX_MAP = 'cores/fes-pcxt/synth/logic_operand1_map.v'
 
 CHIPSET_SOURCES = (
-    'cores/fes-pcxt/vendor/kf8259/KF8259.sv',
-    'cores/fes-pcxt/vendor/kf8259/KF8259_Bus_Control_Logic.sv',
-    'cores/fes-pcxt/vendor/kf8259/KF8259_Control_Logic.sv',
-    'cores/fes-pcxt/vendor/kf8259/KF8259_In_Service.sv',
-    'cores/fes-pcxt/vendor/kf8259/KF8259_Interrupt_Request.sv',
-    'cores/fes-pcxt/vendor/kf8259/KF8259_Priority_Resolver.sv',
-    'cores/fes-pcxt/vendor/kf8253/KF8253.sv',
-    'cores/fes-pcxt/vendor/kf8253/KF8253_Control_Logic.sv',
-    'cores/fes-pcxt/vendor/kf8253/KF8253_Counter.sv',
+    'cores/fes-common/vendor/kf8259/KF8259.sv',
+    'cores/fes-common/vendor/kf8259/KF8259_Bus_Control_Logic.sv',
+    'cores/fes-common/vendor/kf8259/KF8259_Control_Logic.sv',
+    'cores/fes-common/vendor/kf8259/KF8259_In_Service.sv',
+    'cores/fes-common/vendor/kf8259/KF8259_Interrupt_Request.sv',
+    'cores/fes-common/vendor/kf8259/KF8259_Priority_Resolver.sv',
+    'cores/fes-common/vendor/kf8253/KF8253.sv',
+    'cores/fes-common/vendor/kf8253/KF8253_Control_Logic.sv',
+    'cores/fes-common/vendor/kf8253/KF8253_Counter.sv',
     'cores/fes-pcxt/vendor/kf8255/KF8255.sv',
     'cores/fes-pcxt/vendor/kf8255/KF8255_Control_Logic.sv',
     'cores/fes-pcxt/vendor/kf8255/KF8255_Group.sv',
@@ -50,7 +50,7 @@ CHIPSET_SOURCES = (
     'cores/fes-pcxt/rtl/pcxt_xtio.sv',
     'cores/fes-pcxt/rtl/pcxt_xt_keyboard.sv',
     'cores/fes-pcxt/rtl/pcxt_speaker.sv',
-    'cores/fes-pcxt/rtl/pcxt_dma.sv',
+    'cores/fes-common/rtl/fes_dma8237.sv',
     'cores/fes-pcxt/rtl/pcxt_motherboard.sv',
     'cores/fes-pcxt/sim/motherboard_top.sv',
 )
@@ -105,8 +105,18 @@ def board_inputs(output):
     boot_roms(output, (output / 'diagnostic.bin').read_bytes())
 
 
+# The PIC and PIT imports are shared with pc386 in fes-common; the rest are
+# the PC/XT's own.
+CHIP_VENDORS = ('kf8259', 'kf8253', 'kf8255')
+SHARED_VENDORS = ('kf8259', 'kf8253')
+
+
+def vendor_dir(name):
+    return ROOT / ('cores/fes-common/vendor' if name in SHARED_VENDORS else 'cores/fes-pcxt/vendor') / name
+
+
 def verify_vendor(name):
-    vendor = ROOT / 'cores/fes-pcxt/vendor' / name
+    vendor = vendor_dir(name)
     manifest = json.loads((vendor / 'source.json').read_text())
     for item in manifest['files']:
         if hashlib.sha256((vendor / item['path']).read_bytes()).hexdigest() != item['sha256']:
@@ -194,7 +204,7 @@ def main():
         if suite == 'keyboard':
             sources = ('cores/fes-pcxt/rtl/pcxt_xt_keyboard.sv', 'cores/fes-pcxt/sim/keyboard_tb.cpp')
         if suite in ('motherboard', 'dma', 'machine'):
-            for name in ('kf8259', 'kf8253', 'kf8255'):
+            for name in CHIP_VENDORS:
                 verify_vendor(name)
             sources = (tuple(s for s in SOURCES if s.endswith('.sv')) + CHIPSET_SOURCES +
                        ('cores/fes-pcxt/sim/motherboard_tb.cpp',))
@@ -206,7 +216,7 @@ def main():
                              if s.endswith('.sv') and not s.endswith('/cpu_top.sv')) +
                        ('cores/fes-pcxt/sim/machine_top.sv', 'cores/fes-pcxt/sim/machine_tb.cpp'))
         if suite in ('display-machine', 'video-machine', 'memory-machine'):
-            for name in ('kf8259', 'kf8253', 'kf8255'):
+            for name in CHIP_VENDORS:
                 verify_vendor(name)
             sources = (SOURCES[:3] + DISPLAY_SOURCES + CHIPSET_SOURCES[:-1] +
                        tuple(s for s in CPU_SOURCES if s.endswith('.sv') and not s.endswith('/cpu_top.sv')) +
@@ -218,7 +228,7 @@ def main():
         if suite in ('cpu', 'cpu-timing', 'machine', 'display-machine', 'video-machine', 'memory-machine'):
             cpu_inputs(build, 'display' if suite in ('display-machine', 'video-machine', 'memory-machine') else 'motherboard' if suite == 'machine' else 'eu_timing' if suite == 'cpu-timing' else 'diagnostic')
         if suite in ('system', 'system-mda', 'system-board50', 'system-board50-mda'):
-            for name in ('kf8259', 'kf8253', 'kf8255'):
+            for name in CHIP_VENDORS:
                 verify_vendor(name)
             board_inputs(build)
             sources = SYSTEM_SOURCES + (MEMORY_SOURCES[-1], 'cores/fes-pcxt/sim/system_top.sv', 'cores/fes-pcxt/sim/system_tb.cpp')
@@ -227,9 +237,7 @@ def main():
                         *(['--timescale-override', '1ns/1ps',
                            str(ROOT / 'cores/fes-pcxt/sim/cpu.vlt')] if suite != 'isa' else []),
                         *([str(ROOT / 'cores/fes-pcxt/sim/chipset.vlt')] if suite in ('motherboard', 'dma', 'machine', 'display-machine', 'video-machine', 'memory-machine', 'system', 'system-mda', 'system-board50', 'system-board50-mda') else []),
-                        '-I' + str(ROOT / 'cores/fes-pcxt/vendor/kf8259'),
-                        '-I' + str(ROOT / 'cores/fes-pcxt/vendor/kf8253'),
-                        '-I' + str(ROOT / 'cores/fes-pcxt/vendor/kf8255'),
+                        *('-I' + str(vendor_dir(name)) for name in CHIP_VENDORS),
                         *(["-GMDA=1'b1"] if suite in ('video-mda', 'system-mda', 'system-board50-mda') else []),
                         *(["-GSCANLINES=1'b1"] if suite in ('system-mda', 'system-board50-mda') else []),
                         *(["-GHALF_RATE_BOARD=1'b1"] if suite in ('system-board50', 'system-board50-mda') else []),

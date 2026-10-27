@@ -90,6 +90,7 @@ func TestLiveDiskInsertAndEjectUseTheFloppyUnit(t *testing.T) {
 		size  int64
 		name  string
 	}{{protocol.Apple2FloppyInterface(), protocol.Apple2FloppyBytes, "DOS33.DSK"},
+		{protocol.C64DiskInterface(), protocol.C64DiskBytes, "GAME.D64"},
 		{protocol.AtariStFloppyInterface(), protocol.AtariStFloppyBytes, "GAME.ST"}} {
 		t.Run(disk.name, func(t *testing.T) { testLiveDiskInsertAndEject(t, disk.iface, disk.size, disk.name) })
 	}

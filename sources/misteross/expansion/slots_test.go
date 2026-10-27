@@ -38,21 +38,16 @@ func apple2Card(t *testing.T, shell Shell, slot int, points ...cramCoordinate) A
 	return asset
 }
 
-func TestSpectrumSocketsAreDisjoint(t *testing.T) {
+func TestSpectrumHasOneSocket(t *testing.T) {
 	sockets := SlotSockets(SpectrumSlot, SpectrumMap)
-	if len(sockets) != 4 || sockets[0] != 1 || sockets[1] != 2 || sockets[2] != 3 || sockets[3] != 4 {
+	if len(sockets) != 1 || sockets[0] != 1 {
 		t.Fatalf("sockets = %v", sockets)
 	}
 	if mapping, ok := SlotMap(SpectrumSlot, 1); !ok || mapping != SpectrumMap {
 		t.Fatalf("layout = %q %v", mapping, ok)
 	}
-	for _, a := range sockets {
-		for _, b := range sockets {
-			pa, pb := spectrumSockets[a], spectrumSockets[b]
-			if a != b && pa.x0 < pb.x1 && pb.x0 < pa.x1 && pa.y0 < pb.y1 && pb.y0 < pa.y1 {
-				t.Fatalf("socket %d and %d CRAM rectangles overlap", a, b)
-			}
-		}
+	if _, ok := SlotMap(SpectrumSlot, 2); ok {
+		t.Fatal("socket 2 has a layout")
 	}
 	shell := apple2Shell(t)
 	shell.Slot = SpectrumSlot

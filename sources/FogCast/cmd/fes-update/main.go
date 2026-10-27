@@ -18,8 +18,11 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/appliance"
+	"github.com/DeanoC/FogCast/appliance/software"
+	"github.com/DeanoC/FogCast/appliance/softwarecontrol"
 	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/internal/discovery"
+	"github.com/DeanoC/FogCast/internal/ext4image"
 	"github.com/DeanoC/FogCast/targetclient"
 )
 
@@ -65,12 +68,16 @@ func run(ctx context.Context, args []string, out, log io.Writer) error {
 	}
 	var manifest appliance.Manifest
 	var image *os.File
+	var imageBase software.Compatibility
 	if *action == "update" {
 		manifest, image, err = openRelease(*releaseDir, log)
 		if err != nil {
 			return err
 		}
 		defer image.Close()
+		if imageBase, err = imageSoftwareBase(image); err != nil {
+			return err
+		}
 	} else if *action == "confirm" && *releaseDir != "" {
 		manifest, err = readReleaseManifest(*releaseDir, log)
 		if err != nil {
@@ -121,7 +128,9 @@ func run(ctx context.Context, args []string, out, log io.Writer) error {
 	case "status":
 		result, err = client.InspectAppliance(ctx, target.TargetID, discovery.Resolve)
 	case "update":
-		result, err = client.UpdateAppliance(ctx, target.TargetID, manifest, image, discovery.Resolve)
+		if err = requireSelectedSoftware(ctx, client, target.TargetID, imageBase, log); err == nil {
+			result, err = client.UpdateAppliance(ctx, target.TargetID, manifest, image, discovery.Resolve)
+		}
 	case "rollback":
 		result, err = client.RollbackAppliance(ctx, target.TargetID, discovery.Resolve)
 	case "confirm":
@@ -134,6 +143,71 @@ func run(ctx context.Context, args []string, out, log io.Writer) error {
 		return err
 	}
 	return json.NewEncoder(out).Encode(result)
+}
+
+// imageSoftwareBase reads the software base record the image's supervisor
+// enforces. openRelease has already matched the image to its manifest.
+func imageSoftwareBase(image io.ReaderAt) (software.Compatibility, error) {
+	var base software.Compatibility
+	raw, err := ext4image.ReadFile(image, "/etc/fes/software-base.json", 64<<10)
+	if err == nil {
+		err = json.Unmarshal(raw, &base)
+	}
+	if err != nil {
+		return base, fmt.Errorf("release image software base: %w", err)
+	}
+	return base, nil
+}
+
+// requireSelectedSoftware refuses, before anything is uploaded, an image whose
+// menu interfaces the kit's selected software bundle does not accept. The
+// image would hold that bundle back and run its own factory software, so a
+// bundle that accepts them has to go first.
+func requireSelectedSoftware(ctx context.Context, client *targetclient.Client, targetID string, base software.Compatibility, log io.Writer) error {
+	if _, err := client.InspectAppliance(ctx, targetID, discovery.Resolve); err != nil {
+		return err
+	}
+	status, err := client.KitSoftwareStatus(ctx)
+	if err != nil {
+		return fmt.Errorf("read the kit's selected software: %w", err)
+	}
+	releases, err := client.KitSoftwareReleases(ctx)
+	if err != nil {
+		return fmt.Errorf("read the kit's software releases: %w", err)
+	}
+	notice, err := selectedSoftwareRuns(base, status, releases)
+	if notice != "" {
+		fmt.Fprintf(log, "%s %s\n", time.Now().Local().Format(time.RFC3339), notice)
+	}
+	return err
+}
+
+// selectedSoftwareRuns checks the selected bundle against the image's base
+// record. A bundle built for another base cannot be activated before the
+// image, so that update proceeds with a notice and the image runs its factory
+// software until a bundle built for it is activated.
+func selectedSoftwareRuns(base software.Compatibility, status softwarecontrol.Status, releases []software.Release) (string, error) {
+	if status.Selected == "" {
+		return "kit reports no software selection; the image runs its own factory software", nil
+	}
+	for _, release := range releases {
+		if release.ID != status.Selected {
+			continue
+		}
+		contract := base
+		contract.Requires = nil
+		if err := release.Manifest.Compatible(contract); err != nil {
+			if !errors.Is(err, software.ErrIncompatible) {
+				return "", err
+			}
+			return fmt.Sprintf("selected kit software %s was built for another base (%v); the image holds it back and runs its own factory software until a bundle built for the image is activated", status.Selected, err), nil
+		}
+		if err := release.Manifest.Accepts(base.Requires); err != nil {
+			return "", fmt.Errorf("selected kit software %s cannot run this image (%w); install and activate a bundle that accepts it, then update the image", status.Selected, err)
+		}
+		return "", nil
+	}
+	return "", fmt.Errorf("selected kit software %s is not in the kit's release inventory", status.Selected)
 }
 
 func validateActionFlags(action, releaseDir, imageSHA string) error {

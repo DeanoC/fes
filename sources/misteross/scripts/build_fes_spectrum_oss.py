@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""Build and seal the OSS HIP nextpnr/Mistral FES ZX Spectrum package.
+"""Build and seal an OSS HIP nextpnr/Mistral FES ZX Spectrum model package.
 
-The package is format 3: the sixteen blank 1024x10 firmware lanes (column 5,
-rows 32-47) are described by a sealed ROM map for the 16,384-byte
-`spectrum-firmware` image that FogCast links at download time. The shell
-reserves the four named socket rectangles of `fes.spectrum-bus.sockets/1`
-and pins each socket's boundary flip-flops and their verified route-throughs; no other shell cell may sit in a
-socket and no firmware destination may fall in a socket's CRAM rectangle.
+One shell builds four packages, chosen by --model: the 48K (fes.spectrum),
+128K/+2 (fes.spectrum128), +2A/+3 (fes.spectrum-plus3) and Pentagon 128
+(fes.pentagon). Each is format 3: blank 1024x10 firmware lanes (16, 32, 48 or 64)
+are described by a sealed ROM map for the model's firmware image that
+FogCast links at download time. The shell reserves the edge socket's named
+rectangle of `fes.spectrum-bus.sockets/2` and pins its boundary flip-flops and
+their verified route-throughs; no other shell cell may sit in the socket and no
+firmware destination may fall in its CRAM rectangle.
 """
 
 from __future__ import annotations
@@ -17,6 +19,7 @@ import math
 import re
 import sys
 from pathlib import Path
+from dataclasses import dataclass
 from typing import Mapping, Sequence
 
 if __package__ in (None, ""):
@@ -24,6 +27,8 @@ if __package__ in (None, ""):
 
 from scripts import spectrum_slots, rom_map, coleco_expansion
 from scripts.compiler_read_audit import guard_functional_source
+from scripts import fes_de10nano_evidence
+from scripts.fes_de10nano_evidence import PLANE_DSP, plane_dsp_evidence as _plane_dsp_evidence
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
 from scripts.export_core_package import (
     build_identity, encode_build_record, export_package, functional_record_fields,
@@ -42,11 +47,7 @@ from scripts import pnr_recipe
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = "5CSEBA6U23I7"
 TOP = "top"
-PNR = pnr_recipe.recipe_for("fes.spectrum")
-ROUTER = PNR["router"]
 RECIPE = "scripts/build_fes_spectrum_oss.py"
-OUTPUT_RELATIVE = Path("build/fes-spectrum-oss")
-FAST_OUTPUT_RELATIVE = Path("build/fes-spectrum-fast-oss")
 SPECTRUM_TOOLCHAIN_LOCK = "cores/fes-spectrum/toolchain.lock"
 SPECTRUM_TOOLCHAIN_ROOT = "build/toolchain/fes-spectrum"
 SPECTRUM_GPU_BACKEND = "hip"
@@ -55,55 +56,116 @@ SPECTRUM_GPU_ARCHITECTURES = "gfx1100;gfx1201"
 SPECTRUM_TOOLCHAIN_CONFIGURATION = (
     f"gpu-router={SPECTRUM_GPU_ROUTER}; hip-architectures={SPECTRUM_GPU_ARCHITECTURES}"
 )
-# First passing route wins; the order is part of the build identity. This is
-# the same first-pass order as the Apple II shell until a Spectrum seal
-# records its own.
-PLACER_SEEDS = tuple(PNR["seeds"])
-PLACER_WEIGHT = PNR["timing_weights"][0]
-PLACER_CRITICALITY_EXPONENT = PNR["critexp"]
-PLACER_QOR_CLOCKS = pnr_recipe.required_clocks("fes.spectrum")
-ROUTE_TIMEOUT_SECONDS = PNR["timeout_s"]
 ROM_DATABASE_SHA256 = {
     "data/m10k-mux.txt": "22bb99e4b9f2bbe6b8dc7122d8ebf212a8b5610d46e59ce72d5b58b4b05631fe",
     "libmistral/cvd-sx120f.cc": "e3be2df0ff77a628a7b31447897488bfb2bb70fbaa0f1ef550bc36c32094faf7",
     "libmistral/cyclonev.h": "185c24e2b75385d8e62a7144f12488eb68f7d8159af0a8a603cc4a3de1749ee9",
 }
-FIRMWARE_LANE_ROWS = tuple(range(32, 48))
-FIRMWARE_ID = "spectrum-firmware"
-FIRMWARE_BYTES = 16384
+# Firmware lanes in ROM-page order, as placed in spectrum_rom.v.
+FIRMWARE_LANES = (tuple((5, row) for row in range(32, 56)) + tuple((5, row) for row in range(73, 81)) +
+                  tuple((14, row) for row in range(32, 64)))
+
+
+@dataclass(frozen=True)
+class Model:
+    key: str
+    core_id: str
+    name: str
+    description: str
+    version: str
+    define: str | None
+    rom_id: str
+    rom_lanes: int
+    cpu_clock_hz: int
+    frame_tstates: int
+    ram_banks: int
+    output: Path
+
+    @property
+    def lanes(self) -> tuple[tuple[int, int], ...]:
+        return FIRMWARE_LANES[:self.rom_lanes]
+
+    @property
+    def rom_bytes(self) -> int:
+        return 1024 * self.rom_lanes
+
+
+MODELS = {model.key: model for model in (
+    Model("48", "fes.spectrum", "FES ZX Spectrum 48K",
+          "ZX Spectrum 48K: NMOS Z80 with ULA contention, linked 16 KiB firmware",
+          "0.6.0", None, "spectrum-firmware", 16, 3_500_000, 69_888, 3,
+          Path("build/fes-spectrum-oss")),
+    Model("128", "fes.spectrum128", "FES ZX Spectrum 128K",
+          "ZX Spectrum 128K/+2: NMOS Z80, ULA contention, AY-3-8912, 128 KiB paged RAM, "
+          "linked 32 KiB firmware", "0.4.0", "SPECTRUM_MODEL_128K", "spectrum128-firmware", 32,
+          3_546_900, 70_908, 8, Path("build/fes-spectrum128-oss")),
+    Model("plus3", "fes.spectrum-plus3", "FES ZX Spectrum +2A/+3",
+          "ZX Spectrum +2A/+3: gate-array contention, all-RAM paging, AY-3-8912, "
+          "uPD765A +3 disk drive, linked 64 KiB firmware", "0.5.0", "SPECTRUM_MODEL_PLUS3",
+          "spectrum-plus3-firmware", 64, 3_546_900, 70_908, 8, Path("build/fes-spectrum-plus3-oss")),
+    Model("pentagon", "fes.pentagon", "FES Pentagon 128",
+          "Pentagon 128: uncontended 71,680 T-state frame, AY-3-8912, 128 KiB paged RAM, "
+          "Beta 128 TR-DOS drive, linked 48 KiB firmware", "0.5.0", "SPECTRUM_MODEL_PENTAGON",
+          "pentagon-firmware", 48,
+          3_500_000, 71_680, 8, Path("build/fes-pentagon-oss")),
+)}
+# Exact synthesized block counts: (MISTRAL_M10K, MISTRAL_M10K_TDP). M10K is the
+# firmware lanes, the three 320x240 frame banks, the display-plane FIFO, the
+# tape store's prefetch ring and the deck's pulse tables; TDP is the CPU/ULA
+# RAM. The tape image and the Pentagon's and +2A/+3's disk images are in HPS DDR.
+# The models with a unit-1 disk: their controller sub-interface and media.
+DISK_MODELS = {"pentagon": ("fes.media.spectrum-disk-trdos", ".trd/.scl TR-DOS disk"),
+               "plus3": ("fes.media.spectrum-disk-plus3", ".dsk +3 disk")}
+EXPECTED_M10K = {"48": (113, 16), "128": (193, 32), "plus3": (225, 32), "pentagon": (209, 32)}
 ABI_DEFINITION = "cores/fes-common/generated/fes_computer.vh"
+DDR_ATOM = "cores/fes-common/rtl/fes_hps_ddr_atom.v"
 QSF = "cores/fes-spectrum/constraints-oss.qsf"
 SDC = "cores/fes-spectrum/clocks-oss.sdc"
 RTL_INCLUDES = (
     "cores/fes-spectrum/rtl/spectrum_bus.vh",
+    "cores/fes-spectrum/rtl/spectrum_model.vh",
+    "cores/fes-common/generated/fes_application.vh",
+    "cores/fes-common/generated/fes_display_plane.vh",
 )
 RTL_SOURCES = (
     "cores/fes-spectrum/rtl/top.v",
     "cores/fes-spectrum/rtl/spectrum_system_pll.v",
-    "cores/fes-common/rtl/pixel_pll.v",
     "cores/fes-common/rtl/fes_computer_mailbox.v",
     "cores/fes-common/rtl/fes_audio_output.v",
     "cores/fes-common/rtl/fes_audio_i2s.v",
+    "cores/fes-common/rtl/fes_display_cdc.v",
+    "cores/fes-common/rtl/fes_display_plane.v",
+    "cores/fes-menu/rtl/fes_menu_control.v",
+    "cores/fes-menu/rtl/fes_menu_video.v",
+    "cores/fes-menu/rtl/fes_menu_reader.v",
+    "cores/fes-common/rtl/fes_hps_ddr.v",
+    "cores/fes-common/rtl/fes_hps_ddr_guard.v",
+    "cores/fes-common/rtl/fes_media_ddr.v",
     "cores/fes-spectrum/rtl/spectrum_machine.sv",
+    "cores/fes-spectrum/rtl/spectrum_ula.sv",
+    "cores/fes-spectrum/rtl/spectrum_contention.sv",
     "cores/fes-spectrum/rtl/spectrum_ram.v",
     "cores/fes-spectrum/rtl/spectrum_rom.v",
     "cores/fes-spectrum/rtl/spectrum_video.v",
     "cores/fes-spectrum/rtl/spectrum_tape.v",
+    "cores/fes-spectrum/rtl/spectrum_snapshot.v",
+    "cores/fes-spectrum/rtl/spectrum_beta.sv",
+    "cores/fes-spectrum/rtl/spectrum_fdd.sv",
+    "cores/fes-spectrum/rtl/spectrum_upd765.sv",
     "cores/fes-spectrum/rtl/spectrum_keyboard.v",
     "cores/fes-spectrum/rtl/spectrum_audio.v",
     "cores/fes-spectrum/rtl/spectrum_slot_sockets.v",
-    "cores/fes-spectrum/rtl/spectrum_fast_bus.sv",
-    "cores/fes-spectrum/rtl/spectrum_fast_audio.sv",
+    "cores/fes-zx81/expansions/zonx_ay.v",
     "cores/fes-common/rtl/z80/fes_z80_alu.sv",
     "cores/fes-common/rtl/z80/fes_z80_engine.sv",
     "cores/fes-common/rtl/z80/fes_z80_bus.sv",
     "cores/fes-common/rtl/z80/fes_z80_nmos.sv",
-    "cores/fes-common/rtl/z80/fes_z80_fast.sv",
 )
 PINNED_INPUTS = (
     RECIPE, "scripts/spectrum_slots.py", "scripts/coleco_expansion.py", "scripts/compiler_read_audit.py",
     "scripts/source_repository.py", "scripts/fes_build_common.py", "scripts/rom_map.py",
-    "scripts/cyclonev_rbf.py", "scripts/search_placer_qor.py",
+    "scripts/cyclonev_rbf.py", "scripts/search_placer_qor.py", "scripts/fes_de10nano_evidence.py",
+    DDR_ATOM,
     ABI_DEFINITION, SPECTRUM_TOOLCHAIN_LOCK, "scripts/pnr_recipe.py", QSF, SDC, *RTL_INCLUDES, *RTL_SOURCES,
 )
 BUILD_OUTPUTS = (
@@ -111,30 +173,37 @@ BUILD_OUTPUTS = (
     "build-inputs.json", "build-summary.json", "manifest.toml", "rom-map.json",
     "socket.qsf", "qor-ranking.json",
 )
+DSP_RESOURCES = frozenset({PLANE_DSP})
 ORDINARY_RESOURCES = frozenset({
     "MISTRAL_BUF", "MISTRAL_CLKENA", "MISTRAL_COMB", "MISTRAL_FF", "MISTRAL_IO",
     "MISTRAL_M10K", "MISTRAL_M10K_TDP",
-})
+}) | DSP_RESOURCES
 REQUIRED_RESOURCES = {
     "altera_pll": 2,
     "cyclonev_hps_interface_mpu_general_purpose": 1,
     "cyclonev_hps_interface_peripheral_i2c": 1,
+    "cyclonev_hps_interface_fpga2sdram": 1,
 }
 FORBIDDEN_RESOURCES = frozenset({
-    "MISTRAL_MLAB", "MISTRAL_MUL9X9", "MISTRAL_MUL18X18", "MISTRAL_MUL18X19",
+    "MISTRAL_MLAB", "MISTRAL_MUL18X18", "MISTRAL_MUL18X19",
     "MISTRAL_MUL18X19_COMBINED", "MISTRAL_MUL27X27",
 })
 REQUIRED_ZERO_RESOURCES = frozenset({"cyclonev_oscillator"})
 HEX32_RE = re.compile(r"[0-9a-f]{32}\Z")
 BEL_RE = re.compile(r"[A-Z0-9_]+\.(\d+)\.(\d+)\.")
+LANE_RE = re.compile(r"machine\.rom\.lane(\d+)")
 
 
-def _cpu_parameters(cpu: str) -> tuple[Path, float, int]:
-    if cpu == "nmos":
-        return OUTPUT_RELATIVE, 52.224, 2
-    if cpu == "fast":
-        return FAST_OUTPUT_RELATIVE, 56.0, 2
-    raise BuildError("CPU must be nmos or fast")
+def model_for(key: str) -> Model:
+    try:
+        return MODELS[key]
+    except KeyError:
+        raise BuildError(f"Spectrum model must be one of {', '.join(MODELS)}") from None
+
+
+def pnr_for(model: Model) -> dict:
+    """The model's FES recipe row: seed order, weights, clocks and timeout."""
+    return pnr_recipe.recipe_for(model.core_id)
 
 
 def gpu_choice(gpu_router: str) -> tuple[str, str, str]:
@@ -147,10 +216,11 @@ def gpu_choice(gpu_router: str) -> tuple[str, str, str]:
 
 def _authenticate_spectrum_tools(root: Path, cache_root: Path | None = None,
                                  toolchain_root: Path | None = None,
-                                 gpu_router: str = SPECTRUM_GPU_ROUTER):
+                                 gpu_router: str = SPECTRUM_GPU_ROUTER,
+                                 core_id: str | None = None):
     _backend, architectures, configuration = gpu_choice(gpu_router)
     root_path = root / SPECTRUM_TOOLCHAIN_ROOT if toolchain_root is None else Path(toolchain_root)
-    return _authenticate_tools(
+    authenticated = _authenticate_tools(
         root,
         lock_path=root / SPECTRUM_TOOLCHAIN_LOCK,
         toolchain_root=root_path,
@@ -159,11 +229,18 @@ def _authenticate_spectrum_tools(root: Path, cache_root: Path | None = None,
         hip_architectures=architectures,
         cache_root=cache_root,
     )
+    if core_id is not None:
+        try:
+            pnr_recipe.validate_nextpnr_tool(core_id, authenticated["nextpnr-mistral"].path)
+        except pnr_recipe.RecipeError as exc:
+            raise BuildError(f"nextpnr recipe option validation failed: {exc}") from exc
+    return authenticated
 
 
-def _require_clean_source(root: Path, *, identity_version: int = 2) -> tuple[str, str]:
+def _require_clean_source(root: Path, *, identity_version: int = 2, model: str = "48") -> tuple[str, str]:
     if identity_version != 2:
         raise BuildError("unsupported build identity version")
+    model_for(model)
     return require_clean_source(root, pinned_inputs=PINNED_INPUTS, identity_version=identity_version)
 
 
@@ -176,14 +253,15 @@ def create_build_record(
     *,
     identity_version: int = 2,
     execution: dict | None = None,
-    cpu: str = "nmos",
+    model: str = "48",
     max_aluts: int | None = None,
     gpu_backend: str = SPECTRUM_GPU_BACKEND,
     gpu_architectures: str = SPECTRUM_GPU_ARCHITECTURES,
 ) -> bytes:
     if identity_version != 2:
         raise BuildError("unsupported build identity version")
-    output_relative, sys_mhz, pll_count = _cpu_parameters(cpu)
+    machine = model_for(model)
+    pnr = pnr_for(machine)
     fields = {
         "format": 1,
         "repository": repository,
@@ -195,44 +273,43 @@ def create_build_record(
         "dependencies": {},
         "tools": dict(tool_identities),
         "parameters": {
+            "core_id": machine.core_id,
+            "model": machine.key,
+            "model_define": machine.define or "none",
             "device": TARGET,
             "top": TOP,
-            "router": ROUTER,
+            "router": pnr["router"],
             "gpu_backend": gpu_backend,
             "gpu_architectures": gpu_architectures,
-            "sys_clock_hz": int(sys_mhz * 1_000_000),
-            "cpu": cpu,
-            "cpu_implementation": "fes_z80_nmos" if cpu == "nmos" else "fes_z80_fast",
-            "peripheral_clock_hz": 3_500_000,
-            "pll_count": pll_count,
-            "output_relative": output_relative.as_posix(),
+            "sys_clock_hz": 52_224_000,
+            "cpu_implementation": "fes_z80_nmos",
+            "cpu_clock_hz": machine.cpu_clock_hz,
+            "frame_tstates": machine.frame_tstates,
+            "ram_banks": machine.ram_banks,
+            "pll_count": 2,
+            "output_relative": machine.output.as_posix(),
             "pixel_clock_hz": 74_250_000,
-            "audio_clock_hz": 12_288_000 if cpu == "nmos" else 56_000_000,
-            "audio_serializer": "fes_audio_output" if cpu == "nmos" else "spectrum_fast_audio",
-            "audio_mclk_average_hz": 12_288_000,
-            "audio_mclk_source": "pll" if cpu == "nmos" else "system-clock-rational-enable",
-            "audio_mclk_toggle_numerator": 1 if cpu == "nmos" else 384,
-            "audio_mclk_toggle_denominator": 1 if cpu == "nmos" else 875,
-            "audio_mclk_half_period_min_system_ticks": 0 if cpu == "nmos" else 2,
-            "audio_mclk_half_period_max_system_ticks": 0 if cpu == "nmos" else 3,
+            "audio_clock_hz": 12_288_000,
+            "audio_serializer": "fes_audio_output",
             "audio_sample_hz": 48_000,
             "reference_clock_hz": 50_000_000,
-            "seed": PLACER_SEEDS[0],
-            "seed_order": ",".join(str(seed) for seed in PLACER_SEEDS),
-            "placer_heap_timingweight": PLACER_WEIGHT,
-            "placer_heap_critexp": PLACER_CRITICALITY_EXPONENT,
+            "seed": pnr["seeds"][0],
+            "seed_order": ",".join(str(seed) for seed in pnr["seeds"]),
+            "placer_heap_timingweight": pnr["timing_weights"][0],
+            "placer_heap_critexp": pnr["critexp"],
             "toolchain_lock": SPECTRUM_TOOLCHAIN_LOCK,
             "toolchain_lock_sha256": _sha256(_regular_input(root, SPECTRUM_TOOLCHAIN_LOCK)),
             "package_format": 3,
-            "rom_id": FIRMWARE_ID,
+            "rom_id": machine.rom_id,
             "rom_role": "firmware",
-            "rom_source_size": FIRMWARE_BYTES,
+            "rom_source_size": machine.rom_bytes,
             "rom_encoding": "m10k-1024x10-v1",
             "rom_read_mode": "registered",
             "rom_read_latency_system_ticks": 2,
             "rom_database_sha256": json.dumps(ROM_DATABASE_SHA256, sort_keys=True, separators=(",", ":")),
             "expansion_layout": spectrum_slots.LAYOUT,
             "expansion_sockets": ",".join(s.placement for s in spectrum_slots.SOCKETS),
+            "video": "session-display-plane-3x-320x240",
         },
     }
     if max_aluts is not None:
@@ -253,37 +330,45 @@ def socket_qsf(base: str) -> str:
 
 
 def build_commands(root: Path, output: Path, build_id: str,
-                   tools: Mapping[str, Path], seed: int = PLACER_SEEDS[0], *, cpu: str = "nmos") -> tuple[tuple[str, ...], tuple[str, ...]]:
-    output_relative, _sys_mhz, _pll_count = _cpu_parameters(cpu)
-    if output != root / output_relative:
-        raise BuildError(f"FES ZX Spectrum OSS output must be {root / output_relative}")
+                   tools: Mapping[str, Path], seed: int | None = None, *,
+                   model: str = "48") -> tuple[tuple[str, ...], tuple[str, ...]]:
+    machine = model_for(model)
+    pnr = pnr_for(machine)
+    seed = pnr["seeds"][0] if seed is None else seed
+    relative = machine.output.as_posix()
+    if output != root / machine.output:
+        raise BuildError(f"{machine.name} OSS output must be {root / machine.output}")
     if HEX32_RE.fullmatch(build_id) is None:
         raise BuildError("build ID must be 32 lowercase hexadecimal characters")
     if set(tools) != {"yosys", "nextpnr-mistral"}:
         raise BuildError("build commands require authenticated Yosys and nextpnr-mistral paths")
+    define = f"-D{machine.define} " if machine.define else ""
     program = (
-        "read_verilog -sv -I cores/fes-spectrum/rtl -I cores/fes-common/generated "
+        f"read_verilog -lib {DDR_ATOM}; "
+        f"read_verilog -sv {define}-I cores/fes-spectrum/rtl -I cores/fes-common/generated "
         f"{' '.join(RTL_SOURCES)}; "
-        f"chparam -set BUILD_ID 128'h{build_id} -set FAST_CPU {int(cpu == 'fast')} {TOP}; "
-        f"synth_intel_alm -nolutram -nodsp -top {TOP}; stat; "
-        f"write_json {output_relative.as_posix()}/synth.json"
+        f"chparam -set BUILD_ID 128'h{build_id} {TOP}; "
+        f"synth_intel_alm -nolutram -top {TOP}; stat; "
+        f"write_json {relative}/synth.json"
     )
     yosys = (str(tools["yosys"]), "-p", program)
     route = (
-        str(tools["nextpnr-mistral"]), "--json", f"{output_relative.as_posix()}/synth.json",
-        "--device", TARGET, "--qsf", f"{output_relative.as_posix()}/socket.qsf",
+        str(tools["nextpnr-mistral"]), "--json", f"{relative}/synth.json",
+        "--device", TARGET, "--qsf", f"{relative}/socket.qsf",
         "--sdc", SDC, "--freq", "74.25", "--seed", str(seed),
-        "--placer-heap-timingweight", str(PLACER_WEIGHT),
-        "--placer-heap-critexp", str(PLACER_CRITICALITY_EXPONENT),
-        "--router", ROUTER, "--timing-allow-fail",
-        "--rbf", f"{output_relative.as_posix()}/core.rbf", "--compress-rbf",
-        "--write", f"{output_relative.as_posix()}/routed.json",
-        "--report", f"{output_relative.as_posix()}/timing.json", "--detailed-timing-report",
+        "--placer-heap-timingweight", str(pnr["timing_weights"][0]),
+        "--placer-heap-critexp", str(pnr["critexp"]),
+        "--router", pnr["router"], "--timing-allow-fail",
+        "--rbf", f"{relative}/core.rbf", "--compress-rbf",
+        "--write", f"{relative}/routed.json",
+        "--report", f"{relative}/timing.json", "--detailed-timing-report",
     )
     return yosys, route
 
 
-def validate_routed_shell(routed: dict) -> dict:
+def validate_routed_shell(
+    routed: dict, *, nextpnr_commit: str = pnr_recipe.nextpnr_pin("fes.spectrum")
+) -> dict:
     """Every socket holds only pinned boundary FFs and verified paired buffers."""
     top = routed.get("modules", {}).get(TOP, {})
     cells = top.get("cells", {})
@@ -297,9 +382,11 @@ def validate_routed_shell(routed: dict) -> dict:
                 cell.get("attributes", {}).get("NEXTPNR_BEL") != bel:
             raise BuildError(f"slot boundary cell {name} is not at {bel}")
     try:
-        route_through = coleco_expansion.boundary_route_through_cells(top, expected)
+        route_through = coleco_expansion.boundary_route_through_cells(
+            top, expected, nextpnr_commit=nextpnr_commit)
         coleco_expansion.validate_clock_anchors(top, {
-            name: bel for name, bel in expected.items() if ".clock_coverage_ff_" in name})
+            name: bel for name, bel in expected.items() if ".clock_coverage_ff_" in name},
+            nextpnr_commit=nextpnr_commit)
     except ValueError as exc:
         raise BuildError(str(exc)) from exc
     drivers = {}
@@ -361,10 +448,10 @@ def _frequency_row(fmax: object, expected: float, label: str) -> tuple[str, floa
     return name, constraint, achieved
 
 
-def validate_firmware_ports(cells: dict) -> None:
+def validate_firmware_ports(cells: dict, lanes: int) -> None:
     """Require a shared live read clock, enabled reads and disabled ROM writes."""
     clocks = set()
-    for lane in range(len(FIRMWARE_LANE_ROWS)):
+    for lane in range(lanes):
         name = f"machine.rom.lane{lane}"
         pins = cells.get(name, {}).get("connections", {})
         clock = pins.get("CLK1")
@@ -377,70 +464,98 @@ def validate_firmware_ports(cells: dict) -> None:
         clocks.add(clock[0])
     if len(clocks) != 1:
         raise BuildError("firmware lanes must share the system read clock")
+    extra = [name for name in cells
+             if (match := LANE_RE.fullmatch(name)) and int(match.group(1)) >= lanes]
+    if extra:
+        raise BuildError(f"unexpected firmware lanes {sorted(extra)}")
 
 
-def validate_synth_evidence(output: Path, *, cpu: str = "nmos") -> dict:
-    _output, _sys_mhz, pll_count = _cpu_parameters(cpu)
+def _hps_ddr_evidence(design: dict, label: str, source_root: Path, disk: bool) -> dict:
+    """The plane reads launcher frames on fpga2sdram port 0 and the tape store
+    reads and writes port 1; port 0 never writes. The Pentagon's and the
+    +2A/+3's disk store reads and writes port 2; elsewhere it is unused."""
+    normalized = fes_de10nano_evidence.layout_graph_with_constants(design)
+    evidence = fes_de10nano_evidence.hps_ddr_layout_evidence(normalized, label, source_root, idle=False)
+    cells = normalized["modules"][TOP].get("cells", {})
+    memory = next(cell for cell in cells.values()
+                  if cell.get("type") == "cyclonev_hps_interface_fpga2sdram")
+    ports = memory.get("connections", {})
+    # Command 1 and write FIFO 2 are port 1's; FIFOs 0 and 1 are port 0's;
+    # command 2 and write FIFO 3 are port 2's.
+    unused = tuple(f"cmd_valid_{port}" for port in range(3 if disk else 2, 6)) + \
+        ("wr_valid_0", "wr_valid_1") + (() if disk else ("wr_valid_3",))
+    grounds = [["0"]] + [cell.get("connections", {}).get("Q") for cell in cells.values()
+        if cell.get("type") == "MISTRAL_CONST"
+        and set(str(cell.get("parameters", {}).get("LUT", ""))) == {"0"}
+        and isinstance(cell.get("connections", {}).get("Q"), list)
+        and len(cell["connections"]["Q"]) == 1]
+    if any(ports.get(port) not in grounds for port in unused) or ports.get("cmd_data_0", [])[1:2] not in grounds:
+        raise BuildError("session display DDR writes and unused ports must be tied low")
+    if any(ports.get(port) in grounds for port in ("cmd_valid_1", "wr_valid_2")):
+        raise BuildError("the tape store must drive fpga2sdram port 1")
+    if disk and any(ports.get(port) in grounds for port in ("cmd_valid_2", "wr_valid_3")):
+        raise BuildError("the disk store must drive fpga2sdram port 2")
+    for name, cell in cells.items():
+        if (name.startswith("display.scanout.reader.") and cell.get("type") == "MISTRAL_M10K"
+                and int(str(cell.get("parameters", {}).get("CFG_ASYNC_READ", "0")), 2)):
+            raise BuildError("session display FIFO requires synchronous M10K reads")
+    return {**evidence, "plane_port": 0, "tape_port": 1, **({"disk_port": 2} if disk else {}),
+            "unused_ports_disabled": True}
+def validate_synth_evidence(output: Path, *, model: str = "48", source_root: Path = ROOT) -> dict:
+    machine = model_for(model)
     synthesis = _read_json(output / "synth.json", "synthesis evidence")
     reject_async_m10k_reads(synthesis)
     _i2c_evidence(synthesis, "synthesized")
     counts = _cell_counts(synthesis)
-    for name, expected in (REQUIRED_RESOURCES | {"altera_pll": pll_count}).items():
+    for name, expected in REQUIRED_RESOURCES.items():
         if counts.get(name, 0) != expected:
             raise BuildError(f"synthesis must contain exactly {expected} {name}, got {counts.get(name, 0)}")
-    # Sixteen firmware lanes are explicit M10Ks. The 64 KiB CPU/video RAM and
-    # the 64 KiB tape image are 1024x8 TDP blocks: 64 + 64.
-    if counts.get("MISTRAL_M10K", 0) != 16 or counts.get("MISTRAL_M10K_TDP", 0) != 128:
+    m10k, tdp = EXPECTED_M10K[machine.key]
+    if counts.get("MISTRAL_M10K", 0) != m10k or counts.get("MISTRAL_M10K_TDP", 0) != tdp:
         raise BuildError(
-            "synthesis must keep 16 firmware M10K lanes and 128 RAM/tape TDP blocks, "
+            f"synthesis must keep {m10k} M10K (firmware lanes, frame banks, plane FIFO, CPU-only "
+            f"RAM banks, tape ring and pulse tables) and {tdp} screen-bank TDP blocks, "
             f"got M10K={counts.get('MISTRAL_M10K', 0)} "
             f"TDP={counts.get('MISTRAL_M10K_TDP', 0)}")
-    validate_firmware_ports(synthesis["modules"][TOP]["cells"])
+    validate_firmware_ports(synthesis["modules"][TOP]["cells"], machine.rom_lanes)
+    _plane_dsp_evidence(synthesis)
+    display = _hps_ddr_evidence(synthesis, "synthesized", source_root, machine.key in DISK_MODELS)
     for name in FORBIDDEN_RESOURCES:
         if counts.get(name, 0):
             raise BuildError(f"forbidden synthesis cell {name} is in use")
-    return {"status": "pass", "synthesis_cells": {name: counts[name] for name in sorted(counts)}}
+    return {"status": "pass", "synthesis_cells": {name: counts[name] for name in sorted(counts)},
+            "session_display": display}
 
 
-def validate_build_evidence(output: Path, *, cpu: str = "nmos",
-                            gpu_backend: str = SPECTRUM_GPU_BACKEND) -> dict:
-    _output, sys_mhz, _pll_count = _cpu_parameters(cpu)
+def validate_build_evidence(output: Path, *, model: str = "48",
+                            gpu_backend: str = SPECTRUM_GPU_BACKEND, source_root: Path = ROOT) -> dict:
     routed = _read_json(output / "routed.json", "routed design")
     if not isinstance(routed.get("modules"), dict) or not isinstance(routed["modules"].get(TOP), dict):
         raise BuildError("routed design does not contain the top module")
-    synth = validate_synth_evidence(output, cpu=cpu)
+    synth = validate_synth_evidence(output, model=model, source_root=source_root)
     reject_async_m10k_reads(routed)
     _i2c_evidence(routed, "routed")
+    display = _hps_ddr_evidence(routed, "routed", source_root, model_for(model).key in DISK_MODELS)
     sockets = validate_routed_shell(routed)
     route_text = (output / "nextpnr.log").read_text(encoding="utf-8", errors="replace")
     if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
         raise BuildError("route log does not prove a complete routed design")
     gpu_backend = _require_gpu_backend(route_text, gpu_backend)
-    requested = int(sys_mhz * 1_000_000)
-    direct = f"50 MHz -> {sys_mhz:g} MHz" in route_text
-
-    def fractional_system(name: str) -> bool:
-        # A reference-to-VCO line names the PLL. Output 0 must still request
-        # the sealed system frequency, matching the NMOS fractional-N gate.
-        return bool(re.search(
-            rf"Info: PLL '{re.escape(name)}': 50\.000000 MHz -> VCO [0-9.]+ MHz, fractional-N,",
-            route_text) and re.search(
-            rf"Info: PLL '{re.escape(name)}': fractional-N requested {requested}\.000000 Hz \(output 0\)",
-            route_text))
-
-    if cpu == "nmos" and not (direct or fractional_system("system_clock.faithful.pll")):
-        raise BuildError(f"route log does not contain the 50-to-{sys_mhz:g} MHz system PLL")
-    if cpu != "nmos" and not (direct or fractional_system("system_clock.fast.system_pll")):
-        raise BuildError(f"route log does not contain the 50-to-{sys_mhz:g} MHz system PLL")
-    audio_pll = re.search(r"PLL 'system_clock.faithful.pll': second output 12\.288 MHz", route_text) or re.search(
-        r"Info: PLL 'system_clock\.faithful\.pll': fractional-N requested 12288000\.000000 Hz \(output 1\)", route_text)
-    if cpu == "nmos" and not audio_pll:
+    direct = "50 MHz -> 52.224 MHz" in route_text
+    fractional = bool(re.search(
+        r"Info: PLL 'system_clock\.pll': 50\.000000 MHz -> VCO [0-9.]+ MHz, fractional-N,",
+        route_text) and re.search(
+        r"Info: PLL 'system_clock\.pll': fractional-N requested 52224000\.000000 Hz \(output 0\)",
+        route_text))
+    if not (direct or fractional):
+        raise BuildError("route log does not contain the 50-to-52.224 MHz system PLL")
+    audio_pll = re.search(r"PLL 'system_clock\.pll': second output 12\.288 MHz", route_text) or re.search(
+        r"Info: PLL 'system_clock\.pll': fractional-N requested 12288000\.000000 Hz \(output 1\)", route_text)
+    if not audio_pll:
         raise BuildError("route log must prove the selected 12.288 MHz audio PLL")
     timing = _read_json(output / "timing.json", "timing report")
-    clocks = (("system", sys_mhz), ("pixel", 74.25))
-    if cpu == "nmos":
-        clocks += (("audio", 12.288),)
-    rows = {label: _frequency_row(timing.get("fmax"), mhz, label) for label, mhz in clocks}
+    rows = {label: _frequency_row(timing.get("fmax"), mhz, label)
+            for label, mhz in (("system", 52.224), ("pixel", 74.25), ("audio", 12.288))}
     known = ORDINARY_RESOURCES | set(REQUIRED_RESOURCES) | FORBIDDEN_RESOURCES | REQUIRED_ZERO_RESOURCES
     resources = validate_timing_resources(timing.get("utilization"), known)
     rbf = output / "core.rbf"
@@ -452,9 +567,8 @@ def validate_build_evidence(output: Path, *, cpu: str = "nmos",
         "timing": {label: {"clock": row[0], "constraint_mhz": row[1], "achieved_mhz": row[2],
                            "status": "pass"} for label, row in rows.items()} | {"status": "pass"},
         "resources": resources,
-        "audio": {"sample_average_hz": 48_000, "mclk_average_hz": 12_288_000,
-                  "clock_domain_mhz": 12.288 if cpu == "nmos" else 56.0,
-                  "mclk_source": "pll" if cpu == "nmos" else "system-clock-rational-enable"},
+        "audio": {"sample_average_hz": 48_000, "mclk_average_hz": 12_288_000, "mclk_source": "pll"},
+        "session_display": display,
         "sockets": sockets,
         "synthesis_cells": synth["synthesis_cells"],
         "rbf": {"sha256": _sha256(rbf), "size": rbf.stat().st_size},
@@ -491,28 +605,42 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str,
               tools: Mapping[str, str]) -> bytes:
     rbf = evidence["rbf"]
     record_fields = json.loads(record)
-    cpu = record_fields["parameters"]["cpu"]
-    _cpu_parameters(cpu)
+    machine = model_for(record_fields["parameters"]["model"])
     toolchain = "; ".join(f"{name} {tools[name]}" for name in sorted(tools))
     required = [
-        "fes.video.fixed-720p60", "fes.keyboard.hid", "fes.gamepad.ports",
-        "fes.audio.pcm-s16-stereo-48k", "fes.media.spectrum-tape",
+        ("fes.video.fixed-720p60", 1), ("fes.keyboard.hid", 1), ("fes.gamepad.ports", 1),
+        ("fes.audio.pcm-s16-stereo-48k", 1), ("fes.media.spectrum-tape", 2),
+        ("fes.memory.hps-ddr", 1), ("fes.video.session-display", 1), ("fes.fabric.video.display-plane", 1),
     ]
+    # The cassette unit also runs snapshot restore streams: 48K ones on every
+    # model, 128K ones on the paged models and +2A/+3 ones on the +2A/+3.
+    snapshots = ["fes.media.spectrum-snapshot"]
+    if machine.ram_banks == 8:
+        snapshots.append("fes.media.spectrum-snapshot-128")
+    if machine.key == "plus3":
+        snapshots.append("fes.media.spectrum-snapshot-plus3")
+    # The Pentagon's Beta 128 reads the unit-1 raw track disk under TR-DOS,
+    # and the +2A/+3's uPD765A reads it under +3DOS.
+    media = ".tzx/.tap/.pzx cassette with turbo loading, .z80/.sna snapshots"
+    if machine.key in DISK_MODELS:
+        required.append(("fes.media.spectrum-disk", 1))
+        snapshots.append(DISK_MODELS[machine.key][0])
+        media += ", " + DISK_MODELS[machine.key][1]
     fields = {
         "format": 3,
         "core": {
-            "id": "fes.spectrum",
-            "name": "FES ZX Spectrum",
-            "description": ("ZX Spectrum 48K with native NMOS Z80" if cpu == "nmos" else
-                            "Development ZX Spectrum 48K with documented-only Z80 at 56 MHz") +
-                           ", linked 16 KiB firmware, .tap cassette and four edge sockets",
-            "version": "0.2.0",
+            "id": machine.core_id,
+            "name": machine.name,
+            "description": machine.description + ", " + media + " and an edge socket",
+            "version": machine.version,
         },
         "target": {"platform": "de10_nano", "device": TARGET, "programming_profile": "fes-gp-v1"},
         "payload": {"file": "core.rbf", "size": rbf["size"], "sha256": rbf["sha256"]},
         "abi": {"id": "fes.computer", "major": 1, "minor": 0},
-        "interfaces": [{"id": interface, "major": 1, "minor": 0, "required": True} for interface in required] +
-                      [{"id": spectrum_slots.INTERFACE, "major": 1, "minor": 0, "required": False}],
+        "interfaces": [{"id": interface, "major": major, "minor": 0, "required": True}
+                       for interface, major in required] +
+                      [{"id": spectrum_slots.INTERFACE, "major": 1, "minor": 0, "required": False}] +
+                      [{"id": interface, "major": 1, "minor": 0, "required": False} for interface in snapshots],
         "build": {
             "id": evidence["build_id"],
             "repository": repository,
@@ -527,55 +655,57 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str,
 
 @guard_functional_source
 def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: Path | None = None,
-          identity_version: int = 2, gpu_device: int = 0, cpu: str = "nmos",
+          identity_version: int = 2, gpu_device: int = 0, model: str = "48",
           max_aluts: int | None = None, gpu_router: str = SPECTRUM_GPU_ROUTER,
           toolchain_root: Path | None = None) -> Path:
     _area_budget({}, max_aluts)
-    output_relative, sys_mhz, _pll_count = _cpu_parameters(cpu)
+    machine = model_for(model)
     root = Path(root).resolve()
     package_store = (root / "build/packages" if package_store is None else Path(package_store)).resolve()
     if package_store != root / "build/packages":
-        raise BuildError(f"FES ZX Spectrum package store must be {root / 'build/packages'}")
-    repository, revision = _require_clean_source(root, identity_version=identity_version)
+        raise BuildError(f"{machine.name} package store must be {root / 'build/packages'}")
+    repository, revision = _require_clean_source(root, identity_version=identity_version, model=model)
     backend, architectures, _configuration = gpu_choice(gpu_router)
     authenticated = _authenticate_spectrum_tools(
-        root, cache_root=cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router)
+        root, cache_root=cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router,
+        core_id=machine.core_id)
+    pnr = pnr_for(machine)
     identities = {name: tool.identity for name, tool in authenticated.items()}
     database_root = authenticated["mistral"].path.parents[2] / "src/mistral"
     database = rom_map.read_database(database_root, ROM_DATABASE_SHA256)
     extra_env = {"CUDA_DEVICE_ORDER": "PCI_BUS_ID"} if gpu_router == "CUDA" else None
     invocation = FunctionalInvocation(authenticated, gpu_device, extra_env=extra_env)
     record = create_build_record(root, repository, revision, identities,
-                                 identity_version=identity_version, execution=invocation.inputs, cpu=cpu,
+                                 identity_version=identity_version, execution=invocation.inputs, model=model,
                                  max_aluts=max_aluts, gpu_backend=backend, gpu_architectures=architectures)
-    output = _prepare_output(root, relative=output_relative, build_outputs=BUILD_OUTPUTS)
+    output = _prepare_output(root, relative=machine.output, build_outputs=BUILD_OUTPUTS)
     _write_atomic(output / "build-inputs.json", record)
     _write_atomic(output / "socket.qsf", socket_qsf((root / QSF).read_text()).encode())
     try:
         build_id = build_identity(record)
         yosys, _route = build_commands(root, output, build_id, {
-            name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")}, cpu=cpu)
+            name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")}, model=model)
         _run_tool(yosys, root, output / "yosys.log", env=invocation.env,
-                  audit_source_root=root, output_relative=output_relative)
+                  audit_source_root=root, output_relative=machine.output)
         if not (output / "synth.json").is_file():
             raise BuildError("Yosys did not produce synthesis evidence")
-        synth_evidence = validate_synth_evidence(output, cpu=cpu)
+        synth_evidence = validate_synth_evidence(output, model=model, source_root=root)
         area = _area_budget(synth_evidence["synthesis_cells"], max_aluts)
         try:
             winner = route_after_synth(
                 nextpnr=authenticated["nextpnr-mistral"].path,
                 fixture=output / "synth.json", dest=output, device=TARGET,
                 qsf=output / "socket.qsf", sdc=root / SDC, freq="74.25",
-                seeds=PLACER_SEEDS, weights=(PLACER_WEIGHT,),
-                critexp=PLACER_CRITICALITY_EXPONENT, budget=len(PLACER_SEEDS),
-                mode="first-pass", extra=(), timeout=ROUTE_TIMEOUT_SECONDS,
-                required=((None, sys_mhz), (None, 74.25)) + (((None, 12.288),) if cpu == "nmos" else ()),
+                seeds=tuple(pnr["seeds"]), weights=(pnr["timing_weights"][0],),
+                critexp=pnr["critexp"], budget=len(pnr["seeds"]),
+                mode="first-pass", extra=(), timeout=pnr["timeout_s"],
+                required=pnr_recipe.required_clocks(machine.core_id),
                 gpu_devices=(gpu_device,),
-                env=invocation.env, audit_source_root=root, core_id="fes.spectrum",
+                env=invocation.env, audit_source_root=root, core_id=machine.core_id,
             )
         except SearchError as exc:
             raise BuildError(str(exc)) from exc
-        evidence = validate_build_evidence(output, cpu=cpu, gpu_backend=backend)
+        evidence = validate_build_evidence(output, model=model, gpu_backend=backend, source_root=root)
         evidence["area_budget"] = {"synthesis": area, "routed": _area_budget(
             {name: values["used"] for name, values in evidence["resources"].items()}, max_aluts,
             require_comb=True)}
@@ -584,18 +714,19 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
         mapping, map_evidence = rom_map.build_rom_map(
             database, (output / "core.rbf").read_bytes(),
             routed=_read_json(output / "routed.json", "routed firmware design"),
-            lane_rows=FIRMWARE_LANE_ROWS, expected_async_read=0,
+            lane_rows=machine.lanes, expected_async_read=0,
         )
         check_firmware_outside_sockets(mapping)
         map_bytes = (json.dumps(mapping, sort_keys=True, separators=(",", ":")) + "\n").encode()
         _write_atomic(output / "rom-map.json", map_bytes)
-        evidence["rom"] = {"id": FIRMWARE_ID, "role": "firmware", "source_size": FIRMWARE_BYTES,
+        evidence["rom"] = {"id": machine.rom_id, "role": "firmware", "source_size": machine.rom_bytes,
                            "file": "rom-map.json", "size": len(map_bytes),
                            "sha256": _sha256(output / "rom-map.json")}
         evidence["rom_map"] = map_evidence
         evidence["execution"] = invocation.inputs
         evidence.update({
-            "build_id": build_id, "cpu": cpu, "device": TARGET, "top": TOP, "tools": identities,
+            "build_id": build_id, "model": machine.key, "core_id": machine.core_id, "device": TARGET,
+            "top": TOP, "tools": identities,
             "inputs": {relative: _sha256(root / relative) for relative in sorted(PINNED_INPUTS)},
         })
         _write_atomic(output / "build-summary.json",
@@ -603,16 +734,17 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
         manifest = _manifest(record, evidence, repository, revision, identities)
         _write_atomic(output / "manifest.toml", manifest)
         final_tools = _authenticate_spectrum_tools(
-            root, cache_root=cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router)
+            root, cache_root=cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router,
+            core_id=machine.core_id)
         if {name: tool.identity for name, tool in final_tools.items()} != identities:
             raise BuildError("authenticated tool identity changed during build")
-        if _require_clean_source(root, identity_version=identity_version) != (repository, revision):
+        if _require_clean_source(root, identity_version=identity_version, model=model) != (repository, revision):
             raise BuildError("source identity changed during build")
         invocation.verify()
         if rom_map.read_database(database_root, ROM_DATABASE_SHA256) != database:
             raise BuildError("ROM database changed during build")
         if create_build_record(root, repository, revision, identities,
-                               identity_version=identity_version, execution=invocation.inputs, cpu=cpu,
+                               identity_version=identity_version, execution=invocation.inputs, model=model,
                                max_aluts=max_aluts, gpu_backend=backend, gpu_architectures=architectures) != record:
             raise BuildError("functional source inputs changed during build")
         return export_package(manifest, output / "core.rbf", package_store,
@@ -627,24 +759,25 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
         invocation.close()
 
 
-def synth(root: Path = ROOT, *, cache_root: Path | None = None, cpu: str = "nmos",
+def synth(root: Path = ROOT, *, cache_root: Path | None = None, model: str = "48",
           gpu_router: str = SPECTRUM_GPU_ROUTER,
           toolchain_root: Path | None = None) -> dict:
     """Run Yosys only. Does not require a clean tree and does not seal a package."""
-    output_relative, _sys_mhz, _pll_count = _cpu_parameters(cpu)
+    machine = model_for(model)
     root = Path(root).resolve()
     for relative in PINNED_INPUTS:
         _regular_input(root, relative)
     authenticated = _authenticate_spectrum_tools(
-        root, cache_root=cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router)
-    output = _prepare_output(root, relative=output_relative, build_outputs=BUILD_OUTPUTS)
+        root, cache_root=cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router,
+        core_id=machine.core_id)
+    output = _prepare_output(root, relative=machine.output, build_outputs=BUILD_OUTPUTS)
     yosys, _route = build_commands(root, output, "0" * 32, {
-        name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")}, cpu=cpu)
-    _run_tool(yosys, root, output / "yosys.log", output_relative=output_relative)
+        name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")}, model=model)
+    _run_tool(yosys, root, output / "yosys.log", output_relative=machine.output)
     if not (output / "synth.json").is_file():
         raise BuildError("Yosys did not produce synthesis evidence")
-    evidence = validate_synth_evidence(output, cpu=cpu)
-    evidence.update({"build_id": "0" * 32, "sealed": False, "cpu": cpu,
+    evidence = validate_synth_evidence(output, model=model, source_root=root)
+    evidence.update({"build_id": "0" * 32, "sealed": False, "model": machine.key,
                      "tools": {name: tool.identity for name, tool in authenticated.items()}})
     _write_atomic(output / "build-summary.json",
                   (json.dumps(evidence, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode())
@@ -660,8 +793,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--gpu-device", type=int, default=0)
     parser.add_argument("--gpu-router", choices=("HIP", "CUDA"), default=SPECTRUM_GPU_ROUTER)
     parser.add_argument("--toolchain-root", type=Path)
-    parser.add_argument("--cpu", choices=("nmos", "fast"), default="nmos",
-                        help="native NMOS default or documented-only 56 MHz development variant")
+    parser.add_argument("--model", choices=tuple(MODELS), default="48",
+                        help="48K, 128K/+2, +2A/+3 or Pentagon 128")
     parser.add_argument("--max-aluts", type=int, help="production area cap; reject before routing and sealing")
     parser.add_argument("--synth-only", action="store_true",
                         help="run Yosys only; skip the clean-tree seal and nextpnr")
@@ -670,7 +803,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if arguments.synth_only:
             if arguments.max_aluts is not None:
                 raise BuildError("--max-aluts requires the full production build")
-            cells = synth(arguments.root, cache_root=arguments.cache_root, cpu=arguments.cpu,
+            cells = synth(arguments.root, cache_root=arguments.cache_root, model=arguments.model,
                           gpu_router=arguments.gpu_router,
                           toolchain_root=arguments.toolchain_root)["synthesis_cells"]
             print(f"synth-only MISTRAL_M10K={cells.get('MISTRAL_M10K', 0)} "
@@ -678,8 +811,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                   f"MISTRAL_FF={cells.get('MISTRAL_FF', 0)}")
             return 0
         print(build(arguments.root, arguments.package_output, cache_root=arguments.cache_root,
-                    identity_version=arguments.identity_version, gpu_device=arguments.gpu_device, cpu=arguments.cpu,
-                    max_aluts=arguments.max_aluts, gpu_router=arguments.gpu_router,
+                    identity_version=arguments.identity_version, gpu_device=arguments.gpu_device,
+                    model=arguments.model, max_aluts=arguments.max_aluts, gpu_router=arguments.gpu_router,
                     toolchain_root=arguments.toolchain_root))
     except (BuildError, OSError, ValueError) as exc:
         print(f"build-fes-spectrum-oss: {exc}", file=sys.stderr)

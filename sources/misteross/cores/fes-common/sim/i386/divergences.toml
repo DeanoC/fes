@@ -1,0 +1,530 @@
+# Divergence list for the i386 lockstep oracle (Bochs at CPU level 3, see
+# scripts/fes_i386_oracle.py). Every case where the oracle disagrees with a
+# corpus, or the two corpora disagree with each other, has an entry here naming
+# the case that decides it. The FES CPU follows the side named by `follow`;
+# results the 386 manual leaves undefined follow the corpora. The runners fail
+# on a failure no entry covers and on an entry that no longer matches.
+#
+# [[vectors]]  SingleStepTests/80386 (scripts/test_fes_i386_vectors.py).
+#   opcodes  MOO stems without 66/67 prefixes ("*" for any), with optional
+#   when     predicates on the instruction (see PREDICATES in the runner);
+#   files    exact MOO stems; or
+#   cases    named tests, as [<file>#<index>, <hash>] pairs.
+#   fields   the failing keys the entry accounts for ("*" for any). A failure is
+#            covered when the applicable entries together account for every key.
+#   deciding_case / deciding_hash  the test that decides the entry.
+#   oracle / corpus  what each side does.
+#
+# [[test386]]  test386.asm (scripts/test_fes_i386_test386.py). A "branch" or
+#   "fault" entry names a failed check by the linear address and listing text of
+#   its instruction; the runner steps over exactly that check. An "ee" entry
+#   names a POST EEh line of test386-EE-reference.txt.
+#
+# [[corpora]]  test386 TEST_UNDEF cases that SingleStepTests states with the same
+#   inputs contradict.
+
+[[vectors]]
+id = "bit-test-of"
+title = "BT, BTS, BTR and BTC write OF"
+opcodes = [
+    "0FA3", "0FAB", "0FB3", "0FBB", "0FBA.4", "0FBA.5", "0FBA.6", "0FBA.7",
+]
+fields = ["eflags.OF", "stack.flags.OF"]
+deciding_case = "0FA3#0"
+deciding_hash = "bd8740ce8a64fa6f38aaf6e12cae59a245097f2c"
+oracle = "Bochs leaves OF unchanged."
+corpus = "The 386EX changes OF (test386 documents it as the RCR result with CF=0). Undefined in the 386 manual; the 386EX result decides."
+follow = "corpus"
+# 35960 failures; deciding case 'bt [ss:bp+di],dx'
+
+[[vectors]]
+id = "mul-flags"
+title = "MUL's undefined SF, ZF, AF and PF"
+opcodes = ["F6.4", "F7.4"]
+fields = [
+    "eflags.SF", "eflags.ZF", "eflags.AF", "eflags.PF", "stack.flags.SF", "stack.flags.ZF",
+    "stack.flags.AF", "stack.flags.PF",
+]
+deciding_case = "66F7.4#0"
+deciding_hash = "04b53e743435f93006e57e05393eca4c68a6836c"
+oracle = "Bochs sets SF, ZF and PF from the low half of the product and clears AF."
+corpus = "The 386EX produces other values, including on a faulting memory operand, where they reach the pushed FLAGS. Undefined in the 386 manual; the 386EX result decides."
+follow = "corpus"
+# 11375 failures; deciding case 'mul dword [ss:bp+di+24h]'
+
+[[vectors]]
+id = "imul-flags"
+title = "IMUL's undefined SF, ZF, AF and PF"
+opcodes = ["0FAF", "69", "6B", "F6.5", "F7.5"]
+fields = [
+    "eflags.SF", "eflags.ZF", "eflags.AF", "eflags.PF", "stack.flags.SF", "stack.flags.ZF",
+    "stack.flags.AF", "stack.flags.PF",
+]
+deciding_case = "0FAF#0"
+deciding_hash = "f1fcfd3b77802ef13a83b9c6d6bb31f5ee547010"
+oracle = "Bochs sets SF, ZF and PF from the low half of the product and clears AF."
+corpus = "The 386EX produces other values, including on a faulting memory operand. Undefined in the 386 manual; the 386EX result decides."
+follow = "corpus"
+# 33722 failures; deciding case 'imul si,[ds:bx+di+127Ah]'
+
+[[vectors]]
+id = "div-flags"
+title = "DIV and IDIV change all six arithmetic flags"
+opcodes = ["F6.6", "F6.7", "F7.6", "F7.7"]
+fields = [
+    "eflags.CF", "eflags.PF", "eflags.AF", "eflags.ZF", "eflags.SF", "eflags.OF",
+    "stack.flags.CF", "stack.flags.PF", "stack.flags.AF", "stack.flags.ZF", "stack.flags.SF", "stack.flags.OF",
+]
+deciding_case = "66F7.6#0"
+deciding_hash = "80aa01b69b161fad5eabba1db056b657384846a8"
+oracle = "Bochs leaves the flags unchanged, so a divide error pushes the original FLAGS."
+corpus = "The 386EX changes them, and a divide error pushes the changed FLAGS. Undefined in the 386 manual; the 386EX result decides."
+follow = "corpus"
+# 27997 failures; deciding case 'div esp'
+
+[[vectors]]
+id = "bsf-bsr-flags"
+title = "BSF and BSR flags other than ZF"
+opcodes = ["0FBC", "0FBD"]
+fields = [
+    "eflags.CF", "eflags.PF", "eflags.AF", "eflags.SF", "eflags.OF", "stack.flags.CF",
+    "stack.flags.PF", "stack.flags.AF", "stack.flags.SF", "stack.flags.OF",
+]
+deciding_case = "0FBC#0"
+deciding_hash = "0d4b254243091943ebb5b5792fb76951865c72b2"
+oracle = "Bochs sets CF, OF and AF to 0 and SF and PF as for a logical result."
+corpus = "The 386EX produces other values. Undefined in the 386 manual; the 386EX result decides."
+follow = "corpus"
+# 13734 failures; deciding case 'bsf ax,[ss:bp-3D51h]'
+
+[[vectors]]
+id = "aaa-aas-flags"
+title = "AAA and AAS SF, ZF, PF and OF"
+opcodes = ["37", "3F"]
+fields = [
+    "eflags.SF", "eflags.ZF", "eflags.PF", "eflags.OF", "stack.flags.SF", "stack.flags.ZF",
+    "stack.flags.PF", "stack.flags.OF",
+]
+deciding_case = "37#2"
+deciding_hash = "a8d535df04481c786619947e24e9f677c40c5428"
+oracle = "Bochs computes them from the adjusted AL."
+corpus = "The 386EX follows the i386 formulas test386 documents (SF and OF from the unadjusted AL). Undefined in the 386 manual; the 386EX result decides."
+follow = "corpus"
+# 3362 failures; deciding case 'aaa'
+
+[[vectors]]
+id = "daa-das-of"
+title = "DAA and DAS OF"
+opcodes = ["27", "2F"]
+fields = ["eflags.OF", "stack.flags.OF"]
+deciding_case = "27#2"
+deciding_hash = "5372de9ec0f21f7ac2b535e97e3cdcfbe8d326b2"
+oracle = "Bochs clears OF."
+corpus = "The 386EX sets OF from the result, as test386 documents. Undefined in the 386 manual; the 386EX result decides."
+follow = "corpus"
+# 1086 failures; deciding case 'daa'
+
+[[vectors]]
+id = "aad-flags"
+title = "AAD CF, OF and AF"
+opcodes = ["D5"]
+fields = [
+    "eflags.CF", "eflags.OF", "eflags.AF", "stack.flags.CF", "stack.flags.OF", "stack.flags.AF",
+]
+deciding_case = "D5#0"
+deciding_hash = "9c52a2e0e9e838d55f08f56ba0141af5b9e07806"
+oracle = "Bochs clears CF, OF and AF."
+corpus = "The 386EX sets them as for the 8-bit ADD that forms AL, as test386 documents. Undefined in the 386 manual; the 386EX result decides."
+follow = "corpus"
+# 1711 failures; deciding case 'aad 32h'
+
+[[vectors]]
+id = "aam-zero-flags"
+title = "AAM 0 changes the flags before its divide error"
+opcodes = ["D4"]
+when = ["imm8=0"]
+fields = [
+    "eflags.CF", "eflags.PF", "eflags.AF", "eflags.ZF", "eflags.SF", "eflags.OF",
+    "stack.flags.CF", "stack.flags.PF", "stack.flags.AF", "stack.flags.ZF", "stack.flags.SF", "stack.flags.OF",
+]
+deciding_case = "D4#56"
+deciding_hash = "6b00e0df24d4e7b0ce6ed4f679ff281d79a956f9"
+oracle = "Bochs raises the divide error with the flags unchanged."
+corpus = "The 386EX changes SF, ZF, PF (and others) first, and the divide error pushes the changed FLAGS. Undefined in the 386 manual; the 386EX result decides."
+follow = "corpus"
+# 12 failures; deciding case 'aam 0'
+
+[[vectors]]
+id = "shift-af"
+title = "Shifts with a nonzero count write AF"
+opcodes = [
+    "C0.4", "C0.5", "C0.6", "C0.7", "C1.4", "C1.5", "C1.6", "C1.7",
+    "D0.4", "D0.5", "D0.6", "D0.7", "D1.4", "D1.5", "D1.6", "D1.7",
+    "D2.4", "D2.5", "D2.6", "D2.7", "D3.4", "D3.5", "D3.6", "D3.7",
+    "0FA4", "0FA5", "0FAC", "0FAD",
+]
+when = ["count>0"]
+fields = ["eflags.AF", "stack.flags.AF"]
+deciding_case = "0FA4#0"
+deciding_hash = "93383b21bd45da0ab6d7446656b8c8a1c3c79257"
+oracle = "Bochs clears AF."
+corpus = "The 386EX sets AF to 1 (test386 documents this for SHL and SHR), including on a faulting memory operand. Undefined in the 386 manual; the 386EX result decides."
+follow = "corpus"
+# 187784 failures; deciding case 'shld [ss:bp+si+1Bh],ax,A4h'
+
+[[vectors]]
+id = "shift-rotate-of"
+title = "Shifts and rotates by more than one write OF"
+opcodes = [
+    "C0.4", "C0.5", "C0.6", "C0.7", "C1.4", "C1.5", "C1.6", "C1.7",
+    "D0.4", "D0.5", "D0.6", "D0.7", "D1.4", "D1.5", "D1.6", "D1.7",
+    "D2.4", "D2.5", "D2.6", "D2.7", "D3.4", "D3.5", "D3.6", "D3.7",
+    "C0.0", "C0.1", "C0.2", "C0.3", "C1.0", "C1.1", "C1.2", "C1.3",
+    "D0.0", "D0.1", "D0.2", "D0.3", "D1.0", "D1.1", "D1.2", "D1.3",
+    "D2.0", "D2.1", "D2.2", "D2.3", "D3.0", "D3.1", "D3.2", "D3.3",
+    "0FA4", "0FA5", "0FAC", "0FAD",
+]
+when = ["count>1"]
+fields = ["eflags.OF", "stack.flags.OF"]
+deciding_case = "67C0.2#13"
+deciding_hash = "3d8c3c96a30f8a6208071337b2c082dd4d2f5cda"
+oracle = "Bochs computes OF with the count-of-one rule (the result MSB XOR CF)."
+corpus = "The 386EX produces OF from the result as test386 documents (RCL and RCR set it at counts 9 and 17). Undefined in the 386 manual; the 386EX result decides."
+follow = "corpus"
+# 3894 failures; deciding case 'rcl byte [ds:edi+ecx*1+4A1Ah],5Bh'
+
+[[vectors]]
+id = "shift-cf-wide-count"
+title = "Shifts by at least the operand width write CF"
+opcodes = [
+    "C0.4", "C0.5", "C0.6", "C0.7", "C1.4", "C1.5", "C1.6", "C1.7",
+    "D0.4", "D0.5", "D0.6", "D0.7", "D1.4", "D1.5", "D1.6", "D1.7",
+    "D2.4", "D2.5", "D2.6", "D2.7", "D3.4", "D3.5", "D3.6", "D3.7",
+]
+when = ["count>=width"]
+fields = ["eflags.CF", "stack.flags.CF"]
+deciding_case = "67C0.4#2"
+deciding_hash = "409a8086b60bc776b6aca0e5795707be4b97bdc2"
+oracle = "Bochs computes CF as the last bit shifted out."
+corpus = "The 386EX produces the CF test386 documents (the operand bit at counts 8, 16 and 24 for bytes, 0 beyond): for a byte SHL or SAL, bit 0 at 16 and 24; for SHR, bit 7. Undefined in the 386 manual; the 386EX result decides."
+follow = "corpus"
+# 853 failures; deciding case 'shl bl,B0h'
+
+[[vectors]]
+id = "double-shift-wide-count"
+title = "16-bit SHLD and SHRD by more than 16"
+opcodes = ["0FA4", "0FA5", "0FAC", "0FAD"]
+when = ["count>width"]
+fields = ["*"]
+deciding_case = "0FA4#1"
+deciding_hash = "d517c0305c853613ebdc8dc01d68f24e35eee37e"
+oracle = "Bochs shifts the 32-bit concatenation and keeps the low word."
+corpus = "The 386EX shifts the 48-bit dst:src:src left (SHLD) or src:src:dst right (SHRD) and keeps the top or bottom 16 bits, with CF the last bit shifted out, OF by the same rule as at smaller counts and AF set (fes_i386_shift). The 386 manual leaves both undefined; the 386EX result decides."
+follow = "corpus"
+# 8231 failures; deciding case 'shld [ss:bp+36DCh],bp,94h'
+
+[[vectors]]
+id = "invalid-sib-scales-base"
+title = "SIB index 100b with a nonzero scale scales the base"
+opcodes = ["*"]
+when = ["invalid-sib"]
+fields = ["*"]
+deciding_case = "6700#20"
+deciding_hash = "898259a6c7d2c4bf8a7ad58f8a5b7c7cdd5ea1c3"
+oracle = "Bochs ignores the scale when the SIB index field is 100b (no index)."
+corpus = "The 386EX applies the scale to the base register, as the corpus README and test386 document, so the access, its fault and every result that depends on it differ. The 386 manual lists these SIB rows without comment."
+follow = "corpus"
+# 6874 failures; deciding case 'add [ds:eax-183Bh],bl'
+
+[[vectors]]
+id = "popad-esp-high-word"
+title = "POPAD with a 16-bit stack loads the high word of ESP"
+files = ["6661"]
+fields = ["esp"]
+deciding_case = "6661#0"
+deciding_hash = "2c2b3ccba3ae932b8ae842cf03537265b1954ce8"
+oracle = "Bochs discards the popped ESP image."
+corpus = "The 386EX loads ESP from the popped image and then replaces the low word with SP, as test386 documents. The 386 manual says the value is discarded; the 386EX result decides."
+follow = "corpus"
+# 2205 failures; deciding case 'popad'
+
+[[vectors]]
+id = "stack-wrap-partial-transfer"
+title = "PUSHAD and POPA/POPAD that wrap the stack fault part way"
+cases = [
+    ["6660#302", "cfa9a2b884f6d4818ad75098bddab2a79e85cbb3"],
+    ["6660#704", "368405bf0153cdf2ab72e4e214c3fc3d53e7fe28"],
+    ["6660#875", "e3dba2cf41260e669633a369786d07647fc9cf5b"],
+    ["6660#949", "0157f9b6874d8e3ac951f2d9c15e5c7a25bf4626"],
+    ["6660#956", "dcdccc3287fe549d424a362423e24537e7846921"],
+    ["6660#1205", "3235953e3b82fe31dbda4b77b0d08d50395ffbc1"],
+    ["6660#1847", "d3644a7421a5c95621496fd6a5fbfd1a04203b64"],
+    ["6660#1900", "9e91448ef2fda3ec92132d7dc4a96a32588d8603"],
+    ["61#681", "b5ba6eb2b4fbce54a1c8cc367a1635a6228e24b7"],
+    ["6661#681", "af594cf83f0969a083096b6c1a38102363c18a8e"],
+    ["6661#1181", "dfa50db2235a7fdc8579ab9de69b96183e4c01b7"],
+]
+fields = ["*"]
+deciding_case = "61#681"
+deciding_hash = "b5ba6eb2b4fbce54a1c8cc367a1635a6228e24b7"
+oracle = "Bochs raises #SS before transferring anything (POPA) or after pushing from the top down (PUSHAD)."
+corpus = "The 386EX transfers from the lowest stack address upward until a slot crosses the segment limit, then raises #SS: PUSHAD has stored EDI and ESI, POPA/POPAD has loaded DI, SI and BP."
+follow = "corpus"
+# 11 failures; deciding case 'popa'
+
+[[vectors]]
+id = "interrupt-vector-before-push"
+title = "A real-mode interrupt reads its vector before pushing"
+cases = [
+    ["62#1752", "a19a3795eb2ce05998222f3d573de35023293c0b"],
+    ["6662#1752", "05367456ff18b99bd3721744b91397d6c6c21b32"],
+    ["6762#1752", "cc2a29147c4a39015af6a5afdfcbaa16aa1f6929"],
+    ["F6.6#1403", "9324b97e69a76c93ecf0d3b2575e55fe7676a46e"],
+    ["F7.6#701", "64ac534a31921ec2dc9ab15f564d3bbcfe9972ec"],
+]
+fields = ["*"]
+deciding_case = "62#1752"
+deciding_hash = "a19a3795eb2ce05998222f3d573de35023293c0b"
+oracle = "Bochs pushes FLAGS, CS and IP first, so a stack that overlaps the vector table corrupts the vector it then reads."
+corpus = "The 386EX reads the vector first. Each case has SP so low that the frame overwrites the vector."
+follow = "corpus"
+# 5 failures; deciding case 'bound bx,[fs:bx-48h]'
+
+[[vectors]]
+id = "idiv8-overflow-returns-80h"
+title = "Some 8-bit IDIV overflows return 80h instead of #DE"
+cases = [
+    ["F6.7#469", "8813025dcf45588bd5141eb4d7081c67d6cf3ec3"],
+    ["F6.7#516", "c6d731127bec724d40594edc28a6ad8fdf14acbc"],
+    ["F6.7#850", "c1392c8316c2d0532d80fb1fcb78832533093e4e"],
+    ["F6.7#1265", "b674afe8d525fdf51217456b4a3f0b9102350cc4"],
+    ["F6.7#1754", "13e7537c7cd00f676d17da613b4289afb93b338d"],
+    ["F6.7#2348", "a4a926d8bbca1f281b0a479fd8c79fe3231bad34"],
+    ["67F6.7#375", "c30147a2fb7f67459cb7a1a4c888b670edd838f5"],
+    ["67F6.7#460", "8bddec44e46b709759d5d1550cd9fa16ab8e89fc"],
+    ["67F6.7#516", "a06745936bac371e6afb861b5bc87be4b2dd676e"],
+]
+fields = ["*"]
+deciding_case = "67F6.7#375"
+deciding_hash = "c30147a2fb7f67459cb7a1a4c888b670edd838f5"
+oracle = "Bochs raises #DE for every quotient outside -128..127."
+corpus = "The 386EX completes without #DE, AL=80h and AH = the sign of AX over the low seven bits of AL. 48 other overflowing register-form cases in F6.7 do raise #DE; the rule that separates them is not yet derived."
+follow = "corpus"
+# 9 failures; deciding case 'idiv cl'
+
+[[vectors]]
+id = "lock-ud-before-length-gp"
+title = "An invalid LOCK raises #UD before the 15-byte limit"
+cases = [
+    ["676669#893", "da646bc2f54b486322e87289c404b7c18576804b"],
+    ["676669#1641", "482c1191d94cc642f3a876213a2513e233b52429"],
+    ["676681.7#302", "0a2f398f90e9c619e30d35ac2fb985083d100779"],
+    ["676681.7#1082", "2f61ea81af106722fa9c8b442d21bb090c466308"],
+    ["676681.7#2365", "40f7cc9a28386ee8a34b335e19c6d351a5fe0e9e"],
+    ["6766C7#252", "3da336203fcba052ec3663c743dc4058a2287bde"],
+    ["6766F7.0#665", "1863b2c5c5ae2186cf7456fb8fac534ddd43125d"],
+    ["6766F7.0#1933", "225744781a91884ddc8c01be919d9713f7176bf4"],
+    ["6766F7.1#664", "0acf0b182bf2d9db70393f86bc91e47474a660b3"],
+    ["6766F7.1#1932", "f3aa99637b5f6368936546fba0bde6ba95b28df0"],
+]
+fields = ["*"]
+deciding_case = "676681.7#302"
+deciding_hash = "0a2f398f90e9c619e30d35ac2fb985083d100779"
+oracle = "Bochs raises #GP for an instruction longer than 15 bytes."
+corpus = "The 386EX raises #UD (invalid LOCK) for these 16- and 17-byte instructions. No corpus test is longer than 15 bytes with a valid LOCK."
+follow = "corpus"
+# 10 failures; deciding case '(bad) lock cmp dword [fs:esi+76E01AA1h],C4A3A217h'
+
+[[vectors]]
+id = "rep-overwrites-own-encoding"
+title = "A REP string store over its own encoding"
+cases = [
+    ["67A5#442", "d8b3564f727b41848d9e0e243363bf05a45cf078"],
+    ["6766A5#442", "83e700d32ec2f8b24b2d6868508f6f035622497a"],
+    ["67AB#458", "82e4dc7d0031b8d567e3146c754acbad3287c3de"],
+    ["6766AB#458", "6b2abc067357767515f08c87818ee8164e3110b7"],
+]
+fields = ["*"]
+deciding_case = "6766A5#442"
+deciding_hash = "83e700d32ec2f8b24b2d6868508f6f035622497a"
+oracle = "Bochs restarts the REP after storing over its decoded bytes and re-decodes them."
+corpus = "The 386EX completes the instruction it decoded, as both FES self-modifying-code profiles require for the current instruction."
+follow = "corpus"
+# 4 failures; deciding case 'a32 es rep movsd'
+
+[[vectors]]
+id = "386ex-port-22h"
+title = "Port 22h is a 386EX on-chip register"
+cases = [
+    ["66E5#190", "29c9c6b39824411334d44d57db62504bb4807fc6"],
+    ["66E5#254", "ab010dbcc86182e4ce40933f61f0864ddfd38bab"],
+    ["66E5#340", "f9d9686381f6845b06163938406074037c1768a2"],
+    ["66E5#348", "c923d58b0eca0d62696e03e56c9fd46ae645bee6"],
+    ["66E5#422", "62f9cffa058135d552793d2e2505fc93e353ffad"],
+    ["E5#422", "4fb5d80f331625dd650d55e8a1ab9d1da3b38784"],
+]
+fields = ["eax"]
+deciding_case = "66E5#190"
+deciding_hash = "29c9c6b39824411334d44d57db62504bb4807fc6"
+oracle = "Bochs reads all ones (the test bus answers no port)."
+corpus = "The 386EX returns 7Fh from its on-chip REMAPCFG register at port 22h. That is a 386EX peripheral, not CPU behaviour; the FES machine owns its I/O map."
+follow = "oracle"
+# 6 failures; deciding case 'in eax,1Fh'
+
+[[test386]]
+id = "popad-esp-high-word"
+title = "POPAD with a 16-bit stack loads the high word of ESP"
+post = 0x09
+kind = "branch"
+listing = "jne error"
+address = 0xF380B
+deciding_case = "POST 09 testPushPopAll32 16: cmp esp, 0xDEAD0000 after POPAD"
+oracle = "Bochs keeps the high word of ESP."
+corpus = "test386 expects the high word from the popped ESP image, as the 386EX does; see vectors entry popad-esp-high-word."
+follow = "corpus"
+
+[[test386]]
+id = "invalid-sib-scales-base"
+title = "LEA with SIB index 100b and a nonzero scale scales the base"
+post = 0x0E
+kind = "branch"
+listing = "call C_SEG_PROT32:error"
+address = 0x2604D
+bytes = "9abbff0000d000"
+deciding_case = "POST 0E LEA with SIB bytes 60-67, A0-A7 and E0-E7 (tests/lea_p.asm copies its check routine to RAM)"
+oracle = "Bochs ignores the scale when the SIB index field is 100b."
+corpus = "test386 expects the scaled base, as the 386EX does; see vectors entry invalid-sib-scales-base."
+follow = "corpus"
+
+[[test386]]
+id = "arpl-no-write-no-fault"
+title = "ARPL that needs no adjustment neither writes nor faults"
+post = 0x17
+kind = "fault"
+listing = "arpl [0x20000], bx"
+address = 0xFB655
+deciding_case = "POST 17 arpl [0x20000], bx with DS read-only and the RPL already large enough"
+oracle = "Bochs raises #GP because the destination segment is read-only, before deciding whether to write."
+corpus = "test386 expects no write and no fault: the 386 manual writes the destination only when it raises the RPL. ARPL is protected-mode only, so SingleStepTests (real mode) has no case; test386 decides."
+follow = "corpus"
+
+[[test386]]
+id = "aaa-aas-flags"
+title = "AAA and AAS SF, ZF, PF and OF"
+post = 0xE0
+kind = "branch"
+listing = "jne error"
+origins = [
+    "testBCDflags   aaa, 0x007A, 0,           PS_CF|PS_AF|PS_SF|PS_OF",
+    "testBCDflags   aaa, 0x007B, PS_AF,       PS_CF|PS_PF|PS_AF|PS_SF|PS_OF",
+    "testBCDflags   aas, 0x0000, PS_AF,       PS_CF|PS_PF|PS_AF|PS_SF",
+    "testBCDflags   aas, 0x0680, PS_AF,       PS_CF|PS_AF|PS_OF",
+]
+deciding_case = "testBCDflags   aaa, 0x007A, 0,           PS_CF|PS_AF|PS_SF|PS_OF"
+oracle = "Bochs computes them from the adjusted AL."
+corpus = "test386 TEST_UNDEF expects the i386 result (its README cites a 386SX check); SingleStepTests agrees wherever the two overlap; see vectors entry aaa-aas-flags."
+follow = "corpus"
+
+[[test386]]
+id = "aad-flags"
+title = "AAD CF, OF and AF"
+post = 0xE0
+kind = "branch"
+listing = "jne error"
+origins = [
+    "testBCDflags   aad, 0x0D8E, 0,           PS_CAO",
+    "testBCDflags   aad, 0x0106, 0,           PS_AF",
+    "testBCDflags   aad, 0x01F7, 0,           PS_CF|PS_AF",
+]
+deciding_case = "testBCDflags   aad, 0x0D8E, 0,           PS_CAO"
+oracle = "Bochs clears CF, OF and AF."
+corpus = "test386 TEST_UNDEF expects the flags of the 8-bit ADD that forms AL; SingleStepTests has no AAD state with these inputs. See vectors entry aad-flags."
+follow = "corpus"
+
+[[test386]]
+id = "daa-das-of"
+title = "DAA and DAS OF"
+post = 0xE0
+kind = "branch"
+listing = "jne error"
+origins = [
+    "testBCDflags   daa, 0x001A, PS_CF,       PS_CF|PS_AF|PS_SF|PS_OF",
+    "testBCDflags   das, 0x0080, PS_AF,       PS_AF|PS_OF",
+]
+deciding_case = "testBCDflags   daa, 0x001A, PS_CF,       PS_CF|PS_AF|PS_SF|PS_OF"
+oracle = "Bochs clears OF."
+corpus = "test386 TEST_UNDEF expects the i386 result (its README cites a 386SX check); SingleStepTests agrees wherever the two overlap; see vectors entry daa-das-of."
+follow = "corpus"
+
+[[test386]]
+id = "shl-shr-flags"
+title = "SHL and SHR AF, OF and wide-count CF"
+post = 0xE0
+kind = "branch"
+listing = "jne error"
+origins = [
+    "testShiftBFlags   shr, 0x81,   1,  0,     PS_CF|PS_AF|PS_OF",
+    "testShiftBFlags   shr, 0x82,   2,  0,     PS_CF|PS_AF",
+    "testShiftBFlags   shr, 0x80,   8,  0,     PS_CF|PS_PF|PS_AF|PS_ZF",
+    "testShiftBFlags   shr, 0x00,   8,  PS_CF, PS_PF|PS_AF|PS_ZF",
+    "testShiftBFlags   shr, 0x80,   16, 0,     PS_CF|PS_PF|PS_AF|PS_ZF",
+    "testShiftBFlags   shr, 0x00,   16, PS_CF, PS_PF|PS_AF|PS_ZF",
+    "testShiftBFlags   shr, 0x80,   24, 0,     PS_CF|PS_PF|PS_AF|PS_ZF",
+    "testShiftBFlags   shr, 0x00,   24, PS_CF, PS_PF|PS_AF|PS_ZF",
+    "testShiftWFlags   shr, 0x8000, 16, 0,     PS_CF|PS_PF|PS_AF|PS_ZF",
+    "testShiftWFlags   shr, 0x0000, 16, PS_CF, PS_PF|PS_AF|PS_ZF",
+    "testShiftBFlags   shl, 0x81, 1,  0,     PS_CF|PS_AF|PS_OF",
+    "testShiftBFlags   shl, 0x41, 2,  0,     PS_CF|PS_AF|PS_OF",
+    "testShiftBFlags   shl, 0x01, 8,  0,     PS_CF|PS_PF|PS_AF|PS_ZF|PS_OF",
+    "testShiftBFlags   shl, 0x00, 8,  PS_CF, PS_PF|PS_AF|PS_ZF",
+    "testShiftBFlags   shl, 0x01, 16, 0,     PS_CF|PS_PF|PS_AF|PS_ZF|PS_OF",
+    "testShiftBFlags   shl, 0x00, 16, PS_CF, PS_PF|PS_AF|PS_ZF",
+    "testShiftBFlags   shl, 0x01, 24, 0,     PS_CF|PS_PF|PS_AF|PS_ZF|PS_OF",
+    "testShiftBFlags   shl, 0x00, 24, PS_CF, PS_PF|PS_AF|PS_ZF",
+    "testShiftWFlags   shl, 0x01, 16, 0,     PS_CF|PS_PF|PS_AF|PS_ZF|PS_OF",
+    "testShiftWFlags   shl, 0x00, 16, PS_CF, PS_PF|PS_AF|PS_ZF",
+]
+deciding_case = "testShiftBFlags   shr, 0x81,   1,  0,     PS_CF|PS_AF|PS_OF"
+oracle = "Bochs clears AF, computes OF with the count-of-one rule and CF as the last bit out."
+corpus = "test386 TEST_UNDEF expects the i386 result (its README cites a 386SX check); SingleStepTests agrees wherever the two overlap; see vectors entries shift-af, shift-rotate-of and shift-cf-wide-count."
+follow = "corpus"
+
+[[test386]]
+id = "bit-test-of"
+title = "BT, BTS, BTR and BTC write OF"
+post = 0xE0
+kind = "branch"
+listing = "jne error"
+origins = [
+    "testBittestFlags   0x01, 1, 0,     PS_OF",
+    "testBittestFlags   0x01, 1, PS_CF, PS_OF",
+    "testBittestFlags   0x01, 2, 0,     PS_OF",
+    "testBittestFlags   0x01, 2, PS_CF, PS_OF",
+]
+deciding_case = "testBittestFlags   0x01, 1, 0,     PS_OF"
+oracle = "Bochs leaves OF unchanged."
+corpus = "test386 TEST_UNDEF expects the i386 result (its README cites a 386SX check); SingleStepTests agrees wherever the two overlap; see vectors entry bit-test-of."
+follow = "corpus"
+
+[[test386]]
+id = "rcl-rcr-count-9-17"
+title = "RCL and RCR set OF at counts 9 and 17"
+post = 0xE0
+kind = "branch"
+listing = "jne error"
+origins = [
+    "testShiftBFlags   rcr, 0,    9, PS_CF|PS_OF, PS_CF",
+    "testShiftBFlags   rcr, 0x40, 9, 0,           PS_OF",
+    "testShiftWFlags   rcr, 0,      17, PS_CF|PS_OF, PS_CF",
+    "testShiftWFlags   rcr, 0x4000, 17, 0,           PS_OF",
+    "testShiftBFlags   rcl, 0x80, 9, 0,           PS_OF",
+    "testShiftBFlags   rcl, 0x80, 9, PS_CF|PS_OF, PS_CF",
+    "testShiftWFlags   rcl, 0x8000, 17, 0,           PS_OF",
+    "testShiftWFlags   rcl, 0x8000, 17, PS_CF|PS_OF, PS_CF",
+]
+deciding_case = "testShiftBFlags   rcr, 0,    9, PS_CF|PS_OF, PS_CF"
+oracle = "Bochs computes OF with the count-of-one rule."
+corpus = "test386 TEST_UNDEF expects the i386 result (its README cites a 386SX check); SingleStepTests agrees wherever the two overlap; see vectors entry shift-rotate-of."
+follow = "corpus"
+# [[corpora]] has no entries: wherever a SingleStepTests state has the inputs
+# of a test386 TEST_UNDEF case, the two agree.

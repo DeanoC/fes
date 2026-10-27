@@ -23,8 +23,9 @@ Each JSON line has `kind`:
   - queue wait
   - status round trip
   - the client's `menu_frame_begin` (with a new generation's grant), writing the granted slot (`stage_us`) and commit round trip
-  - from the runtime's commit reply: the write-back of the client's lines (`runtime_clean_us`), slot submit and scanout wait (`libmister-runtime/docs/menu-display.md`)
+  - from the runtime's commit reply: the write-back of the client's lines (`runtime_clean_us`), the blitter's run for a list frame (`runtime_blit_us`), slot submit and scanout wait (`libmister-runtime/docs/menu-display.md`)
   - `staged_pixels`: pixels the client wrote into the slot
+  - `blitted`, `commands` and `upload_bytes` for a frame the menu blitter drew: its list length and the texture bytes uploaded into the grant's heap. On such a frame `stage_us` is writing the list and uploads, and render time is recording commands rather than drawing
   - `damage_rects` for a damaged present, `status_skipped` when an attempt trusted cached status (a refused shortcut still counts), and `retried` when a shortcut was refused and the frame went again whole
 
 The ring holds 16,384 records, which is several minutes at the 30 Hz loop. Each
@@ -65,7 +66,7 @@ include only commands appended since the earlier dump.
 It joins each tick that queued a frame with that frame's present and reports
 p50/p95/max and the mean share per stage. The stages are `lua`, `tick_other`,
 `snapshot`, `raster`, `frame_copy`, `queue`, `status`, `begin`, `stage`,
-`rt_copy`, `rt_clean`, `rt_submit`, `rt_scanout` and `commit_io`. `rt_copy`
+`rt_copy`, `rt_clean`, `rt_blit`, `rt_submit`, `rt_scanout` and `commit_io`. `rt_copy`
 is only in traces from before the fes-window grants, when the runtime copied
 each frame; since then the client writes the slot (`stage`) and the runtime
 only writes back its lines (`rt_clean`). Those changed-frame
@@ -75,7 +76,9 @@ breakdown, so menu failures do not move the averages. It also reports each
 view's displayed-frame total and input→picture latency per command. Latency
 uses the first present that reached the screen. A `transport` line counts
 damaged, status-skipped and retried presents and the mean pixels staged per
-displayed frame (and, in older traces, stored by the runtime).
+displayed frame (and, in older traces, stored by the runtime). A `blitter`
+line counts the frames the blitter drew, with their mean list length and heap
+upload.
 
 ## Kit measurement run
 
@@ -114,9 +117,12 @@ image or boot file.
   Lua VM, or less per-frame script work.
 - **`rt_copy`, `rt_clean`, `stage` or `frame_copy` dominate:** moving pixels is the cost.
   Check `transport`: if few presents are damaged, find why the shortcut is
-  refused; if most are, the remaining step is the FPGA blitter drawing into
-  the slot ([#949](https://github.com/DeanoC/fes/issues/949) step 2).
-- **`raster` dominates and stays over budget after that:** that is the case for
-  FPGA 2D acceleration.
+  refused. With the menu blitter
+  ([#949](https://github.com/DeanoC/fes/issues/949) step 2) the CPU writes no
+  slot pixels; check the `blitter` line for how many frames it drew.
+- **`raster` dominates:** the CPU is drawing. On a blitter grant it only
+  records commands, so check that the frames were `blitted`.
+- **`rt_blit` dominates:** the fabric is drawing. It fills about 2 pixels and
+  blends about 1 pixel per 74.25 MHz clock, so overdraw sets its time.
 - **`rt_scanout` is the remainder:** the wait for the next vsync after submit.
   It is bounded by the display rate rather than the CPU.

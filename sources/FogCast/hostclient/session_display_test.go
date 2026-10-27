@@ -27,7 +27,7 @@ func TestSessionDisplayCapabilityNeedsObservedVersionAndIdentity(t *testing.T) {
 		name string
 		edit func(*SessionCorePackage)
 	}{
-		{"ABI", func(p *SessionCorePackage) { p.ABI.ID = "fes.application" }},
+		{"ABI", func(p *SessionCorePackage) { p.ABI.ID = "fes.simple-game" }},
 		{"display version", func(p *SessionCorePackage) { p.ActiveInterfaces[0].Minor = 1 }},
 		{"DDR version", func(p *SessionCorePackage) { p.ActiveInterfaces[1].Major = 2 }},
 		{"missing DDR", func(p *SessionCorePackage) { p.ActiveInterfaces = p.ActiveInterfaces[:1] }},
@@ -49,7 +49,7 @@ func TestSessionDisplayCapabilityNeedsObservedVersionAndIdentity(t *testing.T) {
 
 func TestCapturedDisplayOpUsesOriginalTargetAndLosslessGeneration(t *testing.T) {
 	prior := displaySessionFixture()
-	var visible []bool
+	var sent []protocol.SessionDisplayRequest
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost || r.URL.Path != "/api/v1/session/display" {
 			t.Error("display request reread foreground or changed endpoint")
@@ -58,25 +58,38 @@ func TestCapturedDisplayOpUsesOriginalTargetAndLosslessGeneration(t *testing.T) 
 		if !ok || binding.PackageID != prior.CorePackage.PackageID || binding.Generation != prior.CorePackage.Generation || binding.Target != prior.Target || binding.TargetID != prior.TargetID || r.Header.Get(protocol.HostSessionIDHeader) != prior.ID {
 			t.Errorf("captured display binding lost: %+v, %v", binding, ok)
 		}
-		var request struct {
-			Visible *bool `json:"visible"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&request); err != nil || request.Visible == nil {
+		var request protocol.SessionDisplayRequest
+		decoder := json.NewDecoder(r.Body)
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&request); err != nil || request.Visible == nil {
 			t.Error("display request did not carry an explicit visible boolean")
 			return
 		}
-		visible = append(visible, *request.Visible)
+		// Only a surround names focus, so an older host still decodes the rest.
+		if (request.Focus != "") != (*request.Visible && request.Focus == protocol.SessionFocusMachine) {
+			t.Errorf("display request focus %q for visible %v", request.Focus, *request.Visible)
+		}
+		sent = append(sent, request)
 		json.NewEncoder(w).Encode(displaySessionJSON(prior))
 	}))
 	defer server.Close()
 	client := NewClient(server.URL, server.Client())
-	for _, show := range []bool{true, false} {
-		if _, err := client.SetSessionDisplayForSession(context.Background(), prior, show); err != nil {
+	want := []protocol.SessionDisplay{protocol.SessionDisplayShown, protocol.SessionDisplayFocused, protocol.SessionDisplayClosed}
+	for _, display := range want {
+		if _, err := client.SetSessionDisplayForSession(context.Background(), prior, display); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if len(visible) != 2 || !visible[0] || visible[1] {
-		t.Fatalf("display mutations: %v", visible)
+	if _, err := client.SetSessionDisplayForSession(context.Background(), prior, protocol.SessionDisplay{Focus: protocol.SessionFocusLauncher}); err == nil {
+		t.Fatal("closed display with launcher focus was sent")
+	}
+	if len(sent) != len(want) {
+		t.Fatalf("display mutations: %+v", sent)
+	}
+	for i, request := range sent {
+		if got, ok := request.Display(); !ok || got != want[i] {
+			t.Fatalf("display mutation %d: %+v", i, request)
+		}
 	}
 }
 
@@ -96,7 +109,7 @@ func TestDisplayResponseCannotFollowReplacementOrOtherKit(t *testing.T) {
 			tc.edit(&next)
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { json.NewEncoder(w).Encode(displaySessionJSON(next)) }))
 			defer server.Close()
-			if _, err := NewClient(server.URL, server.Client()).SetSessionDisplayForSession(context.Background(), prior, true); err == nil {
+			if _, err := NewClient(server.URL, server.Client()).SetSessionDisplayForSession(context.Background(), prior, protocol.SessionDisplayFocused); err == nil {
 				t.Fatal("display mutation accepted a replacement machine")
 			}
 		})

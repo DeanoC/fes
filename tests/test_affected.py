@@ -99,6 +99,33 @@ class AffectedTests(unittest.TestCase):
                          {'parent', 'fpga'})
         self.assertEqual(result['cores'], ['atari-st'])
 
+    def test_runtime_test_sources_do_not_select_host_consumers(self):
+        root = MODULE_ROOTS['runtime']
+        for path in ('tests/unit/native_hardware_test.cpp',
+                     'tests/integration/daemon_server_test.cpp',
+                     'tests/support/fake_input.cpp', 'tests/support/fake_input.hpp',
+                     'tests/support/new_helper.h'):
+            with self.subTest(path=path):
+                result = plan([root + '/' + path, 'docs/development.md'])
+                self.assertEqual({k for k, v in result['lanes'].items() if v},
+                                 {'parent', 'runtime'})
+                self.assertEqual(result['cores'], [])
+                self.assertFalse(any(result['test_modes'].values()))
+
+    def test_runtime_test_exception_preserves_other_consumer_inputs(self):
+        test = MODULE_ROOTS['runtime'] + '/tests/unit/input_test.cpp'
+        for path in ('src/native/input.cpp', 'src/daemon/protocol.hpp',
+                     'include/libmister-runtime/runtime.h', 'Makefile',
+                     'tests/incremental_build_test.sh', 'tests/fixtures/input.bin',
+                     'tests/unit-other/helper.cpp', 'tests/unreviewed/helper.cpp',
+                     'tests/unit/../../src/native/input.cpp', 'tests/unit/new.py'):
+            with self.subTest(path=path):
+                self.assertTrue(plan([test, MODULE_ROOTS['runtime'] + '/' + path])['lanes']['host'])
+        for other in ('sources/FogCast/internal/misterruntime/client.go',
+                      '.github/workflows/check.yml', 'unknown/new.bin', '<new-branch>'):
+            with self.subTest(other=other):
+                self.assertTrue(plan([test, other])['lanes']['host'])
+
     def test_module_roots_and_gitlinks(self):
         for module in ('host', 'runtime'):
             for path in (MODULE_ROOTS[module], MODULE_ROOTS[module] + '/src/main.cpp'):
@@ -119,6 +146,7 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-common/generated/fes_native_video.vh': {'coleco'},
             'scripts/sim_fes_native_video.py': {'coleco'},
             'scripts/sim_fes_coleco_native.py': {'coleco'},
+            'scripts/sim_fes_coleco_session.py': {'coleco'},
             'scripts/sim_fes_native_socket.py': {'coleco'},
             'cores/fes-common/rtl/coleco_vdp.sv': {'coleco', 'sg1000', 'sms'},
             'cores/fes-common/rtl/tv80/tv80_core.v': {'coleco', 'sms'},
@@ -138,18 +166,18 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-sg1000/diagnostic/generate.py': {'sg1000'},
             'cores/fes-sms/rtl/new_unit.sv': {'sms'},
             'scripts/sim_fes_demo.py': {'demo'},
-            'cores/fes-menu/rtl/fes_menu_reader.v': {'menu', 'zx81'},
-            'cores/fes-menu/rtl/fes_menu_control.v': {'menu', 'zx81'},
-            'cores/fes-menu/rtl/fes_menu_video.v': {'menu', 'zx81'},
+            'cores/fes-menu/rtl/fes_menu_reader.v': {'menu', 'zx81', 'spectrum', 'c64', 'coleco', 'pc386'},
+            'cores/fes-menu/rtl/fes_menu_control.v': {'menu', 'zx81', 'spectrum', 'c64', 'coleco', 'pc386'},
+            'cores/fes-menu/rtl/fes_menu_video.v': {'menu', 'zx81', 'spectrum', 'c64', 'coleco', 'pc386'},
             'cores/fes-menu/rtl/fes_menu_ddr.v': {'menu'},
-            'cores/fes-menu/sim/ddr_model.v': {'menu', 'zx81'},
+            'cores/fes-menu/sim/ddr_model.v': {'menu', 'zx81', 'spectrum', 'c64', 'coleco'},
             'scripts/sim_fes_menu.py': {'menu'},
             'scripts/sim_fes_zx81_session.py': {'zx81'},
             'scripts/sim_fes_display_plane.py': {'zx81'},
-            'cores/fes-common/rtl/fes_display_plane.v': {'zx81'},
-            'cores/fes-common/rtl/fes_display_cdc.v': {'zx81'},
+            'cores/fes-common/rtl/fes_display_plane.v': {'zx81', 'spectrum', 'c64', 'coleco', 'pc386'},
+            'cores/fes-common/rtl/fes_display_cdc.v': {'zx81', 'spectrum', 'c64', 'coleco', 'pc386'},
             'cores/fes-common/sim/display_plane_tb.cpp': {'zx81'},
-            'cores/fes-common/generated/fes_display_plane.vh': {'menu', 'zx81'},
+            'cores/fes-common/generated/fes_display_plane.vh': {'menu', 'zx81', 'spectrum', 'c64', 'coleco', 'pc386'},
             'cores/fes-apple2/rtl/apple2_machine.sv': {'apple2'},
             'cores/fes-c64/rtl/c64_machine.sv': {'c64'},
             'cores/fes-common/rtl/cpu6502/cpu6502.v': {'apple2', 'c64'},
@@ -172,13 +200,21 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-atari-st/rtl/st_machine.sv': {'atari-st'},
             'cores/fes-atari-st/sim/machine_tb.cpp': {'atari-st'},
             'cores/fes-c64/rtl/c64_system_pll.v': {'c64', 'atari-st'},
-            'cores/fes-zx81/expansions/zonx_ay.v': {'zx81', 'atari-st'},
+            'cores/fes-zx81/expansions/zonx_ay.v': {'zx81', 'atari-st', 'spectrum'},
             'cores/fes-ramtest/rtl/sdram_addon_port.v': {'ramtest', 'atari-st', 'pcxt'},
             'cores/fes-pong/rtl/pixel_pll.v': {'demo', 'pong', 'ramtest', 'riscv'},
             'cores/fes-common/rtl/riscv/fes_rv32_cpu.sv': {'riscv'},
             'cores/fes-pcxt/rtl/pcxt_isa_bridge.sv': {'pcxt'},
             'cores/fes-common/generated/fes_pcxt_isa.vh': {'pcxt'},
             'scripts/sim_fes_pcxt.py': {'pcxt'},
+            'cores/fes-common/vendor/kf8259/KF8259.sv': {'pcxt', 'pc386'},
+            'cores/fes-common/vendor/kf8253/read_back.patch': {'pcxt', 'pc386'},
+            'cores/fes-common/rtl/fes_dma8237.sv': {'pcxt', 'pc386'},
+            'cores/fes-pc386/rtl/pc386_at_core.sv': {'pc386'},
+            'cores/fes-pc386/firmware/rombios/rombios.c': {'pc386'},
+            'scripts/sim_fes_pc386.py': {'pc386'},
+            'scripts/build_pc386_firmware.py': {'pc386'},
+            'scripts/build_pc386_freedos_image.py': {'pc386'},
             'cores/fes-common/sim/riscv/rv32_model.h': {'riscv'},
             'cores/fes-riscv/firmware/firmware.S': {'riscv'},
             'scripts/sim_fes_riscv.py': {'riscv'},
@@ -190,7 +226,7 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-common/rtl/fes_video_part_direct.v': {'coleco', 'atari-st', 'pcxt'},
             'cores/fes-common/rtl/fes_video_part_scanlines.v': {'coleco', 'atari-st', 'pcxt'},
             'scripts/test_fes_z80_pin_trace.py': {'z80'},
-            'scripts/sim_fes_spectrum_turbo.py': {'spectrum'},
+            'scripts/sim_fes_spectrum.py': {'spectrum'},
         }
         for path, consumers in cases.items():
             with self.subTest(path=path):
@@ -213,6 +249,23 @@ class AffectedTests(unittest.TestCase):
                 self.assertTrue(result['lanes']['parent'])
                 self.assertEqual(result['cores'], [])
 
+    def test_i386_runs_software_tests_without_simulations(self):
+        for path in ('cores/fes-common/sim/i386/bochs_oracle.cpp', 'cores/fes-common/sim/i386/divergences.toml',
+                     'cores/fes-common/sim/i386/bochs/instrument.h', 'cores/fes-common/sim/i386/frontend_tb.cpp',
+                     'cores/fes-common/sim/i386/spike/spike_ag.sv', 'cores/fes-common/rtl/i386/fes_i386_qalign.sv',
+                     'cores/fes-common/sim/i386/lockstep_tb.cpp', 'cores/fes-common/rtl/i386/fes_i386_cpu.sv',
+                     'cores/fes-common/rtl/i386/toolchain.lock',
+                     'scripts/fes_i386_oracle.py', 'scripts/test_fes_i386_vectors.py',
+                     'scripts/test_fes_i386_test386.py', 'scripts/test_fes_i386_frontend.py',
+                     'scripts/test_fes_i386_lockstep.py', 'scripts/quartus_fes_i386.py',
+                     'scripts/benchmark_fes_i386.py'):
+            with self.subTest(path=path):
+                result = plan(['sources/misteross/' + path])
+                self.assertEqual(result['cores'], [])
+                self.assertTrue(result['lanes']['fpga'])
+        # The rule is the i386 directory only: a new shared RTL unit still fails broad.
+        self.assertEqual(set(plan(['sources/misteross/cores/fes-common/rtl/fes_i386.sv'])['cores']), set(CORES))
+
     def test_unclassified_fpga_inputs_fail_broad(self):
         for path in ('', 'Makefile', 'toolchain.lock',
                      'toolchains/zx81-expansion.lock', 'scripts/new_helper.py',
@@ -225,9 +278,11 @@ class AffectedTests(unittest.TestCase):
                 self.assertTrue(result['lanes']['fpga'])
 
     def test_pcxt_cdc_audit_runs_host_checks_without_rtl(self):
-        selected = plan(['sources/misteross/scripts/audit_fes_pcxt_cdc.py'])
-        self.assertTrue(selected['lanes']['fpga'])
-        self.assertEqual(selected['cores'], [])
+        for name in ('audit_fes_pcxt_cdc.py', 'quartus_fes_pcxt.py', 'pcxt_quartus_mailbox.py'):
+            with self.subTest(script=name):
+                selected = plan(['sources/misteross/scripts/' + name])
+                self.assertTrue(selected['lanes']['fpga'])
+                self.assertEqual(selected['cores'], [])
 
     def test_misteross_tests_run_software_without_simulations(self):
         for path in ('tests/test_new_behavior.py', 'tests/producer_fixture.py',
@@ -267,7 +322,7 @@ class AffectedTests(unittest.TestCase):
             producer_name = core.replace('-', '_')
             sources = [root / 'scripts' / ('build_fes_' + producer_name + '.py'),
                        root / 'scripts' / ('build_fes_' + producer_name + '_oss.py')]
-            if core in ('demo', 'menu', 'z80', 'riscv', 'pcxt'):
+            if core in ('demo', 'menu', 'z80', 'riscv', 'pcxt', 'pc386'):
                 sources.append(root / ('scripts/sim_fes_' + core + '.py'))
             if core == 'zx81':
                 sources.append(root / 'scripts/sim_fes_zx81_session.py')

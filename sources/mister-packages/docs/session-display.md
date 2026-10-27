@@ -2,8 +2,9 @@
 
 `fes.simple-computer` 1.0 packages can declare required `fes.memory.hps-ddr`
 1.0 (capability bit 8) and `fes.video.session-display` 1.0 (bit 9);
-`fes.computer` 1.0 packages use bits 12 and 13. The display requires DDR and
-the ABI's existing fixed video interface. These capabilities do not change the
+`fes.computer` 1.0 packages use bits 12 and 13, and `fes.application` 1.0
+machines, such as the Coleco native shell, use bits 8 and 11. The display
+requires DDR and the ABI's existing fixed video interface. These capabilities do not change the
 ABI version, tag, transport, keyboard or media contracts of packages that omit
 them. A declared operational capability must be required at exactly version
 1.0. Live identity must match the declared bits before the runtime releases
@@ -13,7 +14,15 @@ The DDR window and boot-latched port layout are identical to the application
 ABI. The display uses the same GP opcodes 18 through 21, `Menu*` indices and
 state bits, fixed 1280×720 layout and two 4 MiB slots. The application
 `fes.video.menu-display` interface remains an idle-firmware contract; this
-interface belongs to the active machine.
+interface belongs to the active machine, and no package declares both.
+
+When the launcher takes focus on a shown plane, the runtime neutralizes the
+machine's keyboard and releases every controller port. For a declared single
+`fes.gamepad`, it sends a zero button snapshot and gates the input worker's
+nonzero snapshots until focus returns. While the launcher has focus, FogCast
+drops controller presses and consumes controller releases into the retained
+source snapshot without publishing them. A release therefore cannot replay as
+a held button after focus returns.
 
 ## Blending and picture rectangle
 
@@ -66,9 +75,11 @@ changing execution reset, CPU, RAM, ROM, cassette state or expansion state.
 Display faults return machine pixels and permit drained quiescence even when
 the reader's fault bit is sticky. The runtime retains the error and disables
 frame admission; it never recovers a session display by reprogramming the
-machine or activating idle firmware. Input focus belongs to FogCast; the
-runtime additionally neutralizes the matrix on open and suppresses navigation
-keys while the plane owns focus. Stop and replacement drain the display before
+machine or activating idle firmware. Input focus belongs to FogCast and is
+separate from visibility: a shown plane can leave input with the machine, as a
+surround does. The runtime additionally neutralizes the matrix when the
+launcher takes focus and suppresses navigation keys while the launcher holds
+it. Stop and replacement drain the display before
 their ordinary execution hold and programming. A sticky display fault does not
 prove drain: the guard must report no queued commands or outstanding/returned
 DDR responses before Close or execution Hold acknowledges. If the pixel clock
@@ -76,7 +87,9 @@ stops permanently, GP completion and this drain proof are unavailable; the
 runtime reports failure and retains focus rather than replacing the core.
 
 The runtime's local `session_display` operation binds the active package and
-core generation. Each opening grants a separate nonzero display generation;
+core generation, and names both `visible` and `focus` (`machine` or
+`launcher`). Each opening grants a separate nonzero display generation, which
+focus changes on the shown plane keep;
 close, Stop, replacement and display failure revoke old preparations. Existing
 immutable `menu_frame_begin` / `menu_frame_commit` descriptors carry that display
 generation. Closed active-core status retains its package and core generation,

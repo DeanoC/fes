@@ -14,12 +14,17 @@ Outside agent sessions have ignored these rules. Obey them.
 2. Kits A and B are both designated test kits. They are interchangeable.
 3. When a task installs a bundle, install that PR bundle on the kit's
    running image. A core-only run that does not change the bundle does not
-   install one. After use, restore the designated baseline image and bundle
-   the status file names, and log that restore. Activating the baseline
-   bundle does not change the booted image. If the booted image is not the
-   named baseline, restore that image, verify the boot, then activate a
-   compatible baseline bundle and verify it before logging the kit
-   restored. Confirm the kit is idle and lease-free before you release it.
+   install one. Software goes before the image: before an image change,
+   activate a bundle the new image accepts (`fes-update` refuses an image
+   whose menu interfaces the selected bundle lacks). After use, restore the
+   designated baseline image and bundle the status file names, and log that
+   restore. Activating the baseline bundle does not change the booted image.
+   If the booted image is not the named baseline, first activate the
+   baseline bundle if the running image accepts it, then restore that image
+   and verify the boot; otherwise restore and verify the image, then
+   activate the baseline bundle. Verify the active bundle before logging the
+   kit restored. Confirm the kit is idle and lease-free before you release
+   it.
 4. MUST keep Kit B's `u-boot.txt` line `usb-storage.quirks=152d:0583:i`.
 5. Destructive actions need Deano's explicit OK: reimage, an image or
    boot-config change, killing other people's processes, and closing PRs.
@@ -67,6 +72,10 @@ Each changed path gets a class and a component:
 - `full`: image, boot media, platform, profile, splash, video-part or kit
   software-format changes. The decision is `FULL_IMAGE`: stop and build a
   full image. A full image swap or reimage still needs Deano's explicit OK.
+  On a shared kit, software goes first: install and activate a bundle the
+  new image accepts, normally the PR's own bundle, before the image update.
+  `fes-update` refuses an image whose menu interfaces the selected bundle
+  lacks (see [image compatibility](kit-software-releases.md#image-compatibility)).
   Trial, confirm, boot-ticket and storage-gate code is full too. On a trial
   boot `fes-kit-software` starts only the image's built-in software (it does
   not open the bundle store) and the storage gate runs as the image's
@@ -107,6 +116,8 @@ Each changed path gets a class and a component:
   `platform/internal/kitsoftware`), trial boot (`platform/cmd/fes-boot`,
   `platform/internal/applianceboot`) and the `fes-update` and `fes-kit-data`
   commands are already full through the platform and unmapped-command rules.
+  `sources/FogCast/internal/ext4image/**`, which only `fes-update` imports, is
+  full with them.
 
 A changed file under `cores/<name>/` also requires every `build_fes_*`
 producer that names the file or one of its directories, either in its own

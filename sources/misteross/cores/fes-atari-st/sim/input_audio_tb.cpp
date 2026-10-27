@@ -78,6 +78,9 @@ struct Test {
         dut.ik_response_ready=1; tick(); dut.ik_response_ready=0; tick(); return result;
     }
     void expect(std::initializer_list<int> values, const std::string &message) {
+        expect_bytes(values, message);
+    }
+    void expect_bytes(const std::vector<int> &values, const std::string &message) {
         for (int value: values) {
             const int actual=response();
             require(actual==value,message+" expected="+std::to_string(value)+" actual="+std::to_string(actual));
@@ -197,6 +200,98 @@ static void ikbd(Test &t) {
     t.require(drained>=56 && last==0xae,"backpressure preserves final released key state");
     t.run(3); while (t.dut.ik_response_valid) t.response();
     t.require(t.dut.ik_command_ready,"draining restores command readiness");
+}
+
+// 0x08 zeros the accumulators before 0x0b changes the threshold, so a lower
+// threshold cannot emit the residue still queued from the previous sample.
+static void clear_motion(Test &t, int tx, int ty) {
+    t.commands({0x08, 0x0b, tx, ty});
+}
+static std::vector<int> swap_mouse_axes(std::vector<int> bytes) {
+    for (size_t i=0; i+2<bytes.size(); i+=3) std::swap(bytes[i+1], bytes[i+2]);
+    return bytes;
+}
+static void expect_motion(Test &t, const std::vector<int> &bytes, const std::string &message) {
+    if (bytes.empty()) {
+        t.run(10);
+        t.require(!t.dut.ik_response_valid, message);
+        return;
+    }
+    t.expect_bytes(bytes, message);
+    t.run(4);
+    t.require(!t.dut.ik_response_valid, message+" residue stays inside the threshold");
+}
+// Drive one axis from a zeroed accumulator. x_bytes is the X packet stream
+// (Y report bytes are 0); the Y case swaps those motion bytes.
+static void one_axis(Test &t, int threshold, int delta, const std::vector<int> &x_bytes, const std::string &message) {
+    clear_motion(t, threshold, threshold);
+    t.mouse(delta, 0, 0);
+    expect_motion(t, x_bytes, message+" on X");
+    clear_motion(t, threshold, threshold);
+    t.mouse(0, delta, 0);
+    expect_motion(t, swap_mouse_axes(x_bytes), message+" on Y");
+}
+static void accumulate_axis(Test &t, int first, int second, const std::vector<int> &x_bytes, const std::string &message) {
+    clear_motion(t, 255, 255);
+    t.mouse(first, 0, 0); t.run(10);
+    t.require(!t.dut.ik_response_valid, message+" X stays inside");
+    t.mouse(second, 0, 0);
+    expect_motion(t, x_bytes, message+" X");
+    clear_motion(t, 255, 255);
+    t.mouse(0, first, 0); t.run(10);
+    t.require(!t.dut.ik_response_valid, message+" Y stays inside");
+    t.mouse(0, second, 0);
+    expect_motion(t, swap_mouse_axes(x_bytes), message+" Y");
+}
+
+// Directed beyond_threshold cases. A byte threshold reports when
+// |delta| >= threshold. -256 is the negative value whose low byte is 0;
+// -255 is the neighbour on the zero side of that cut; +256 is the first
+// positive value carried by the upper bits. Packets clamp each axis to
+// -128..127 and leave any remainder that is still inside the threshold.
+static void mouse_thresholds(Test &t) {
+    t.reset();
+    clear_motion(t, 1, 1);
+    t.mouse(0, 0, 0);
+    expect_motion(t, {}, "threshold 1 zero stays inside");
+    one_axis(t, 1, 1, {0xf8,1,0}, "threshold 1 positive boundary");
+    one_axis(t, 1, -1, {0xf8,255,0}, "threshold 1 negative boundary");
+    one_axis(t, 1, 256, {0xf8,127,0, 0xf8,127,0, 0xf8,2,0}, "threshold 1 positive 256 upper bits");
+    one_axis(t, 1, -256, {0xf8,128,0, 0xf8,128,0}, "threshold 1 negative 256 low byte");
+
+    one_axis(t, 255, 254, {}, "threshold 255 inside +254");
+    one_axis(t, 255, 255, {0xf8,127,0}, "threshold 255 boundary +255");
+    one_axis(t, 255, 256, {0xf8,127,0}, "threshold 255 positive 256 upper bits");
+    one_axis(t, 255, -254, {}, "threshold 255 inside -254");
+    one_axis(t, 255, -255, {0xf8,128,0}, "threshold 255 boundary -255");
+    one_axis(t, 255, -256, {0xf8,128,0}, "threshold 255 special case -256");
+    one_axis(t, 255, -257, {0xf8,128,0}, "threshold 255 beyond -257 upper bits");
+
+    accumulate_axis(t, 254, 1, {0xf8,127,0}, "threshold 255 accumulates to +255");
+    accumulate_axis(t, -254, -1, {0xf8,128,0}, "threshold 255 accumulates to -255");
+    accumulate_axis(t, -254, -2, {0xf8,128,0}, "threshold 255 accumulates to -256");
+
+    clear_motion(t, 255, 255);
+    t.mouse(254, -254, 0); t.run(10);
+    t.require(!t.dut.ik_response_valid, "threshold 255 accumulates inside both axes");
+    t.mouse(1, -2, 0);
+    expect_motion(t, {0xf8,127,128}, "threshold 255 reaches +255 and -256 together");
+    clear_motion(t, 255, 255);
+    t.mouse(-254, 254, 0); t.run(10);
+    t.require(!t.dut.ik_response_valid, "threshold 255 accumulates inside both axes swapped");
+    t.mouse(-2, 1, 0);
+    expect_motion(t, {0xf8,128,127}, "threshold 255 reaches -256 and +255 together");
+
+    clear_motion(t, 255, 1);
+    t.mouse(254, 0, 0); t.run(10);
+    t.require(!t.dut.ik_response_valid, "X threshold 255 holds +254");
+    t.mouse(0, 1, 0);
+    expect_motion(t, {0xf8,127,1}, "Y threshold 1 reports the held X count");
+    clear_motion(t, 1, 255);
+    t.mouse(0, -254, 0); t.run(10);
+    t.require(!t.dut.ik_response_valid, "Y threshold 255 holds -254");
+    t.mouse(-1, 0, 0);
+    expect_motion(t, {0xf8,255,128}, "X threshold 1 reports the held Y count");
 }
 
 static void keyboard_priority(Test &t) {
@@ -542,6 +637,6 @@ static void ym(Test &t) {
 
 int main(int argc,char **argv) {
     Verilated::commandArgs(argc,argv); Test test;
-    acia(test); ikbd(test); keyboard_priority(test); fifo_packets(test); two_joysticks(test); calendar(test); ym(test);
-    std::cout << "ST input/audio: ACIA timing/errors/IRQ, IKBD key priority/aliases, FIFO packets/all tails/wrap/pop-push/reset and shared YM2149 sound passed\n";
+    acia(test); ikbd(test); mouse_thresholds(test); keyboard_priority(test); fifo_packets(test); two_joysticks(test); calendar(test); ym(test);
+    std::cout << "ST input/audio: ACIA timing/errors/IRQ, IKBD key priority/aliases, mouse threshold boundaries, FIFO packets/all tails/wrap/pop-push/reset and shared YM2149 sound passed\n";
 }

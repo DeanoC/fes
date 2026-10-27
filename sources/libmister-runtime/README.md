@@ -27,15 +27,18 @@ execution running. Optional `fes.expansion.atari-st-bus` 1.0 composes one card
 in physical socket 1 through the existing slot-composition path. These paths
 have host test coverage; Atari ST hardware acceptance is pending.
 
-Menu-display GP and granted-slot presentation through the fes-window driver
-have host test coverage. Explicit idle-menu activation and generation-bound
-presentation use the existing local socket, which hands the client one
-descriptor for the granted slots; the runtime copies no frame.
-Required simple-computer session-display and HPS DDR capabilities reuse that
-frame path with a separate display generation. Opening/closing controls the
-plane without resetting the machine; a session frame fault disables the plane
-and retains the active core instead of loading idle. This has host coverage;
-combined ZX81 exact-artifact hardware acceptance remains pending.
+Menu-display GP, CPU granted-slot presentation, and blitter command-list
+presentation through the fes-window driver have host software coverage;
+exact-artifact hardware acceptance is pending. Explicit idle-menu activation
+and generation-bound presentation use the existing local socket, which hands
+the client one descriptor for the granted slots; the runtime copies no frame.
+Required simple-computer, computer and application session-display plus HPS
+DDR capabilities reuse that frame path with a separate display generation.
+Opening/closing controls the plane without resetting the machine; a session
+frame fault disables the plane and retains the active core instead of loading
+idle. Launcher focus releases controller ports and neutralizes/gates a required
+single-gamepad worker. These paths have host coverage; combined ZX81 and
+application exact-artifact hardware acceptance remain pending.
 Default startup remains splash unless the image passes an explicitly selected
 menu package to the daemon. That menu returns after Stop with a fresh
 presentation generation.

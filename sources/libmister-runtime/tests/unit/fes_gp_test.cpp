@@ -1333,6 +1333,26 @@ void TestApplicationMenuRequiresExactLiveCapability()
   assert(error.ok()==(declared==live));
   if(!error.ok())assert(error.code==mister::ErrorCode::core_mismatch);
  }
+ // The blitter bit is registered: declared and live must agree as well.
+ for(const bool declared : {false,true}) for(const bool live : {false,true}) {
+  StreamFixture f;
+  f.descriptor.abi={FesApplicationABIID,1,0};
+  f.descriptor.interfaces={{FesApplicationInterfaceVideoFixed720p60ID,1,0,true},{FesApplicationInterfaceMemoryHpsDdrID,1,0,true},{FesApplicationInterfaceVideoMenuDisplayID,1,0,true}};
+  if(declared)f.descriptor.interfaces.push_back({FesApplicationInterfaceVideoMenuBlitterID,1,0,true});
+  auto error=f.Identify(1,32768,512,770|(live?1024:0));
+  assert(error.ok()==(declared==live));
+  if(!error.ok())assert(error.code==mister::ErrorCode::core_mismatch);
+ }
+ // A running machine's session plane is bit 11, never the menu's bit 9.
+ for(const bool declared : {false,true}) for(const bool live : {false,true}) {
+  StreamFixture f;
+  f.descriptor.abi={FesApplicationABIID,1,0};
+  f.descriptor.interfaces={{FesApplicationInterfaceVideoFixed720p60ID,1,0,true},{FesApplicationInterfaceMemoryHpsDdrID,1,0,true}};
+  if(declared)f.descriptor.interfaces.push_back({FesApplicationInterfaceVideoSessionDisplayID,1,0,true});
+  auto error=f.Identify(1,32768,512,258|(live?2048:0));
+  assert(error.ok()==(declared==live));
+  if(!error.ok())assert(error.code==mister::ErrorCode::core_mismatch);
+ }
 }
 
 void TestMenuQuiesceDrainsBeforeExecutionHold()
@@ -1352,6 +1372,25 @@ void TestMenuQuiesceDrainsBeforeExecutionHold()
   assert(((second>>24)&127)==18&&((second>>16)&255)==9);
   assert(f.mmio.writes.size()==before+(drained?6:4));
   if(drained){const auto last=f.mmio.writes.back().value;assert(((last>>24)&127)==2&&(last&65535)==0);}
+ }
+}
+
+// A session plane's quiesce drains the plane the same way. A plane fault is
+// sticky and never stops the machine, so it does not block the hold.
+void TestApplicationSessionPlaneQuiesceToleratesAFault()
+{
+ for(bool faulted : {false,true}) {
+  StreamFixture f;
+  f.descriptor.abi={FesApplicationABIID,1,0};
+  f.descriptor.interfaces={{FesApplicationInterfaceVideoFixed720p60ID,1,0,true},{FesApplicationInterfaceMemoryHpsDdrID,1,0,true},{FesApplicationInterfaceVideoSessionDisplayID,1,0,true}};
+  assert(f.Identify(1,32768,512,258|2048).ok());
+  const auto before=f.mmio.writes.size();
+  f.Reply();f.Reply(std::uint16_t(9|(faulted?FesApplicationMenuStateFaulted:0)));f.Reply();
+  const auto result=f.driver.Quiesce(f.context,1000000);
+  assert(result.error.ok());
+  const auto first=f.mmio.writes[before+1].value;
+  assert(((first>>24)&127)==20&&(first&65535)==0);
+  assert(f.mmio.writes.size()==before+6);
  }
 }
 
@@ -1728,15 +1767,16 @@ void TestClearMediaDistinguishesBusyFromUnavailable()
 	}
 	{
 		ComputerClearFixture f;
-		// Launch release leaves the host toggle true, so eject waits for ack 0.
-		const std::uint32_t settled = FesGpSignature;
-		f.mmio.PushRead(kSpiGpiAddress, settled | FesGpAckMask);
-		f.mmio.PushRead(kSpiGpiAddress, settled);
-		f.mmio.PushRead(kSpiGpiAddress, settled + 1u);
+		const std::size_t start = f.mmio.writes.size();
+		// The direct eject index was sent, but its response becomes ambiguous.
+		// Preserve that outcome instead of reporting a definite no-op busy.
+		f.mmio.PushReadError(kSpiGpiAddress,
+			{mister::ErrorCode::io_failed, "FES GP exchange state is ambiguous"});
 		const auto error = f.driver.ClearMedia(100000);
-		assert(error.code == mister::ErrorCode::busy);
-		assert(error.message == "tape loader is busy");
+		assert(error.code == mister::ErrorCode::io_failed);
+		assert(error.message == "FES GP exchange state is ambiguous");
 		assert(error.phase == "input");
+		assert(f.mmio.writes.size() == start + 2);
 	}
 	{
 		ComputerClearFixture f;
@@ -1776,6 +1816,22 @@ void TestClearMediaDistinguishesBusyFromUnavailable()
 		PushCompleted(&f.mmio, true, 0);
 		const auto error = f.driver.ClearMedia(100000);
 		assert(error.ok());
+		assert(f.mmio.writes.size() == start + 4);
+		assert((f.mmio.writes[start].value & 0x7fffffff) == 0x04010000);
+		assert((f.mmio.writes[start + 2].value & 0x7fffffff) == 0x04000000);
+	}
+	{
+		// A legacy core rejects MediaEjectIndex with invalid-index, then its
+		// control-index eject is sent once. An unusable response on that
+		// fallback is uncertain too.
+		ComputerClearFixture f;
+		const std::size_t start = f.mmio.writes.size();
+		PushCompleted(&f.mmio, false,
+			static_cast<std::uint16_t>(FesSimpleComputerErrorInvalidIndex), true);
+		const auto error = f.driver.ClearMedia(100000);
+		assert(error.code == mister::ErrorCode::io_failed);
+		assert(error.message.find("invalid FES GP response signature") != std::string::npos);
+		assert(error.phase == "input");
 		assert(f.mmio.writes.size() == start + 4);
 		assert((f.mmio.writes[start].value & 0x7fffffff) == 0x04010000);
 		assert((f.mmio.writes[start + 2].value & 0x7fffffff) == 0x04000000);
@@ -2349,14 +2405,15 @@ void TestComputerIdentityCapabilitiesAndDiscovery()
 	const auto full = ComputerDescriptor({FesComputerInterfaceVideoFixed720p60ID,
 		FesComputerInterfaceKeyboardHidID, FesComputerInterfaceGamepadPortsID,
 		FesComputerInterfaceAudioPcmS16Stereo48kID, FesComputerInterfaceMediaApple2FloppyID});
-	// Registered live bits must equal the declared set; unregistered bits are ignored.
-	// Bit 5 is the Spectrum tape and bit 6 is the C64 disk. This Apple II shell
-	// declares neither, so a live word with either bit set does not match.
+	// Registered live bits must equal the declared set. Bit 5 is the Spectrum
+	// tape, bit 6 the C64 disk and bit 15 the Spectrum disk. This Apple II
+	// shell declares none of them, so a live word with any of them set does
+	// not match.
 	const unsigned registered = FesComputerCapabilityVideoFixed720p60 |
 		FesComputerCapabilityKeyboardHid | FesComputerCapabilityGamepadPorts |
 		FesComputerCapabilityAudioPcmS16Stereo48k | FesComputerCapabilityMediaApple2Floppy |
 		FesComputerCapabilityMediaSpectrumTape | FesComputerCapabilityMediaC64Disk |
-		FesComputerCapabilityMediaAtariStFloppy;
+		FesComputerCapabilityMediaAtariStFloppy | FesComputerCapabilityMediaSpectrumDisk;
 	for (const unsigned live : {31u, 15u, 23u, 30u, 63u, 0x801fu, 31u | 64u, 31u | 128u}) {
 		ComputerFixture f(static_cast<std::uint16_t>(live), {{0, {143360, 143360}}}, full);
 		const auto result = f.driver.Identify(f.context, kComputerDeadline);
@@ -2390,6 +2447,65 @@ void TestComputerIdentityCapabilitiesAndDiscovery()
 		ComputerFixture f(31u, {{0, {FesComputerC64DiskBytes, FesComputerC64DiskBytes}}}, c64);
 		const auto result = f.driver.Identify(f.context, kComputerDeadline);
 		assert(!result.error.ok() && result.error.code == mister::ErrorCode::core_mismatch);
+	}
+	// The Spectrum tape is fes.media.spectrum-tape 2.0: its bit and unit 0 come
+	// from the 2.0 declaration, and a 1.0 declaration grants neither.
+	auto spectrum = ComputerDescriptor({FesComputerInterfaceVideoFixed720p60ID,
+		FesComputerInterfaceKeyboardHidID, FesComputerInterfaceGamepadPortsID,
+		FesComputerInterfaceAudioPcmS16Stereo48kID, FesComputerInterfaceMediaSpectrumTapeID});
+	spectrum.interfaces[4].major = FesComputerInterfaceMediaSpectrumTapeMajor;
+	const auto spectrum_live = static_cast<std::uint16_t>(
+		FesComputerCapabilityVideoFixed720p60 | FesComputerCapabilityKeyboardHid |
+		FesComputerCapabilityGamepadPorts | FesComputerCapabilityAudioPcmS16Stereo48k |
+		FesComputerCapabilityMediaSpectrumTape);
+	const std::map<unsigned, std::pair<std::uint32_t, std::uint32_t>> spectrum_units = {
+		{0, {FesComputerSpectrumTapeMinBytes, FesComputerSpectrumTapeMaxBytes}}};
+	{
+		ComputerFixture f(spectrum_live, spectrum_units, spectrum);
+		assert(f.driver.Identify(f.context, kComputerDeadline).error.ok());
+		assert(f.driver.media_units().size() == 1);
+		const auto& unit = f.driver.media_units()[0];
+		assert(unit.interface.id == FesComputerInterfaceMediaSpectrumTapeID &&
+			unit.interface.major == 2 && unit.interface.minor == 0);
+		assert(unit.min_bytes == FesComputerSpectrumTapeMinBytes &&
+			unit.max_bytes == FesComputerSpectrumTapeMaxBytes);
+	}
+	// The Pentagon's disk sits on unit 1 beside the tape, and an insert
+	// addresses it in every Begin, Chunk and Commit.
+	{
+		auto pentagon = spectrum;
+		pentagon.interfaces.push_back({FesComputerInterfaceMediaSpectrumDiskID,
+			FesComputerInterfaceMediaSpectrumDiskMajor, FesComputerInterfaceMediaSpectrumDiskMinor, true});
+		auto units = spectrum_units;
+		units[1] = {FesComputerSpectrumDiskMinBytes, FesComputerSpectrumDiskMaxBytes};
+		ComputerFixture f(static_cast<std::uint16_t>(spectrum_live | FesComputerCapabilityMediaSpectrumDisk),
+			units, pentagon);
+		assert(f.driver.Identify(f.context, kComputerDeadline).error.ok());
+		assert(f.driver.media_units().size() == 2);
+		const auto& tape = f.driver.media_units()[0];
+		const auto& disk = f.driver.media_units()[1];
+		assert(tape.unit == 0 && tape.interface.id == FesComputerInterfaceMediaSpectrumTapeID);
+		assert(disk.unit == 1 && disk.interface.id == FesComputerInterfaceMediaSpectrumDiskID &&
+			disk.min_bytes == FesComputerSpectrumDiskMinBytes &&
+			disk.max_bytes == FesComputerSpectrumDiskMaxBytes);
+		const std::size_t start = f.endpoint.requests.size();
+		const std::string image(FesComputerSpectrumDiskMinBytes, '\x5a');
+		assert(f.Insert(image, 1, FesComputerSpectrumDiskMaxBytes).ok());
+		assert(f.endpoint.unit(1).state == 3 && f.endpoint.unit(1).data.size() == image.size());
+		assert(f.endpoint.unit(0).state == 1);
+		for (const auto& request : f.Since(start)) {
+			if (request.opcode == FesComputerOpcodeMediaBegin || request.opcode == FesComputerOpcodeMediaChunk)
+				assert(request.index / FesComputerMediaHeaderStride == 1);
+			if (request.opcode == FesComputerOpcodeMediaCommit) assert(request.index == 1);
+		}
+	}
+	{
+		auto tape_v1 = spectrum;
+		tape_v1.interfaces[4].major = 1;
+		ComputerFixture f(spectrum_live, spectrum_units, tape_v1);
+		const auto result = f.driver.Identify(f.context, kComputerDeadline);
+		assert(!result.error.ok() && result.error.code == mister::ErrorCode::core_mismatch);
+		assert(f.driver.media_units().empty());
 	}
 	// Another ABI tag is a different contract.
 	{
@@ -2441,6 +2557,44 @@ void TestComputerIdentityCapabilitiesAndDiscovery()
 			assert(driver.media_units().empty());
 		}
 	}
+}
+
+void TestZx81SaveStaysDirtyUntilAcknowledged()
+{
+	const auto capabilities = static_cast<std::uint16_t>(
+		FesComputerCapabilityVideoFixed720p60 |
+		FesComputerCapabilityMediaZx81Tape |
+		FesComputerCapabilityMediaZx81TapeWrite);
+	const auto descriptor = ComputerDescriptor({FesComputerInterfaceVideoFixed720p60ID,
+		FesComputerInterfaceMediaZx81TapeID, FesComputerInterfaceMediaZx81TapeWriteID});
+	ComputerFixture f(capabilities, {{0, {1, FesComputerZx81TapeMaxBytes}}}, descriptor);
+	f.endpoint.SetZx81Snapshot({0x00, 0x0a, 0x76});
+	assert(f.driver.Identify(f.context, kComputerDeadline).error.ok());
+	assert(f.driver.TapeWriteCapable());
+	std::vector<unsigned char> bytes;
+	assert(f.driver.CaptureZx81Tape(f.clock, kComputerDeadline, &bytes).ok());
+	assert(bytes == std::vector<unsigned char>({0x00, 0x0a, 0x76}));
+	assert(f.endpoint.dirty && f.endpoint.frozen);
+	assert(f.driver.EnsureZx81TapeSaved(kComputerDeadline).code == mister::ErrorCode::save_failed);
+	assert(f.endpoint.dirty && f.endpoint.frozen);
+	assert(f.driver.AcknowledgeZx81Tape(kComputerDeadline).ok());
+	assert(!f.endpoint.dirty && f.endpoint.frozen && f.endpoint.saved);
+	assert(f.driver.EnsureZx81TapeSaved(kComputerDeadline).ok());
+
+	ComputerFixture empty(capabilities, {{0, {1, FesComputerZx81TapeMaxBytes}}}, descriptor);
+	empty.endpoint.SetZx81Snapshot({}, false);
+	assert(empty.driver.Identify(empty.context, kComputerDeadline).error.ok());
+	bytes = {0xff};
+	assert(empty.driver.CaptureZx81Tape(empty.clock, kComputerDeadline, &bytes).ok());
+	assert(bytes.empty() && !empty.endpoint.frozen);
+
+	ComputerFixture clean(capabilities, {{0, {1, FesComputerZx81TapeMaxBytes}}}, descriptor);
+	assert(clean.driver.Identify(clean.context, kComputerDeadline).error.ok());
+	bytes = {0xff};
+	assert(clean.driver.CaptureZx81Tape(clean.clock, kComputerDeadline, &bytes).ok());
+	assert(bytes.empty() && !clean.endpoint.frozen);
+	assert(clean.driver.EnsureZx81TapeSaved(kComputerDeadline).ok());
+	assert(!clean.endpoint.frozen);
 }
 
 void TestAtariStFloppyDiscoveryAndLiveInsert()
@@ -2723,6 +2877,35 @@ void TestComputerMediaFailuresEjectOnceAndStayReleased()
 	}
 }
 
+void TestComputerEjectSeparatesBusyRejectionFromPostEjectReadFailure()
+{
+	const auto descriptor = ComputerDescriptor({FesComputerInterfaceVideoFixed720p60ID,
+		FesComputerInterfaceMediaApple2FloppyID});
+	ComputerFixture f(17, {{0, {1, 1030}}}, descriptor);
+	assert(f.driver.Identify(f.context, kComputerDeadline).error.ok());
+	assert(f.driver.Start(f.context, kComputerDeadline).error.ok());
+	assert(f.Insert(ComputerPayload(1030)).ok());
+
+	// Invalid state on MediaEject is the known completed no-change result.
+	f.endpoint.write_busy = true;
+	const auto busy = f.driver.EjectMedia(0, kComputerDeadline);
+	assert(busy.code == mister::ErrorCode::busy && busy.phase == "input");
+	assert(f.endpoint.unit(0).state == FesComputerMediaStateReady);
+	f.endpoint.write_busy = false;
+
+	// The same numeric code from the state read happens after the eject took
+	// effect, so it must stay an uncertain io_failed result.
+	f.endpoint.reject_request = [](const mister_test::ComputerEndpoint::Request& request) {
+		return request.opcode == FesComputerOpcodeMediaInfo && request.index ==
+			FesComputerMediaInfoStateField ? FesSimpleComputerErrorInvalidState : 0;
+	};
+	const auto rejected_state = f.driver.EjectMedia(0, kComputerDeadline);
+	assert(rejected_state.code == mister::ErrorCode::io_failed &&
+		rejected_state.message == "FES GP command rejected with response 4" &&
+		rejected_state.phase == "input");
+	assert(f.endpoint.unit(0).state == FesComputerMediaStateEmpty);
+}
+
 void TestMediaSnapshotFrozenCaptureAndRecovery()
 {
  const auto descriptor=ComputerDescriptor({FesComputerInterfaceVideoFixed720p60ID,FesComputerInterfaceMediaAtariStFloppyID,FesComputerInterfaceMediaAtariStFloppyWriteID});
@@ -2806,6 +2989,7 @@ int main()
 	TestApplicationHpsDdrRequiresExactLiveCapability();
 	TestApplicationMenuRequiresExactLiveCapability();
 	TestMenuQuiesceDrainsBeforeExecutionHold();
+	TestApplicationSessionPlaneQuiesceToleratesAFault();
 	TestSharedStreamWireFixtures();
 	TestStreamIdentityRequiresObservedCapacityAndDeclaration();
 	TestStreamTransferBoundariesAndCRC();
@@ -2829,8 +3013,10 @@ int main()
 	TestCoreDriverRoutesGeneratedControlsAndChecksResponses();
 	TestComputerReplaysSharedWireFixturesThroughDriver();
 	TestComputerIdentityCapabilitiesAndDiscovery();
+	TestZx81SaveStaysDirtyUntilAcknowledged();
 	TestComputerInputValidationAndPartialRows();
 	TestComputerMediaFailuresEjectOnceAndStayReleased();
+	TestComputerEjectSeparatesBusyRejectionFromPostEjectReadFailure();
 	puts("fes_gp_test: all groups passed");
 	return 0;
 }

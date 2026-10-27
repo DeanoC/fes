@@ -1,0 +1,10 @@
+id = "example.computers"
+title = "Computers"
+author = "FogCast"
+description = "Prepared ZX81 and Commodore 64 library entries."
+version = 1
+main = "main.lua"
+
+[theme]
+background = "#141916"
+accent = "#B6E2A1"

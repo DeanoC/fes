@@ -23,7 +23,9 @@ SOURCES = ('cores/fes-splash/rtl/pixel_pll.v', 'cores/fes-menu/rtl/fes_menu_read
            'cores/fes-menu/rtl/top.v')
 DDR_SOURCES = ('cores/fes-common/rtl/fes_hps_ddr.v',
                'cores/fes-common/rtl/fes_hps_ddr_guard.v',
-               'cores/fes-menu/rtl/fes_menu_ddr.v')
+               'cores/fes-menu/rtl/fes_menu_blend.v', 'cores/fes-menu/rtl/fes_menu_blit_alpha.v',
+               'cores/fes-menu/rtl/fes_menu_blit_read.v',
+               'cores/fes-menu/rtl/fes_menu_blitter.v', 'cores/fes-menu/rtl/fes_menu_ddr.v')
 DDR_GENERATED = 'cores/fes-common/generated/fes_application.vh'
 TOOLCHAIN_LOCK = 'cores/fes-menu/toolchain.lock'
 TOOLCHAIN_ROOT = 'build/toolchain/fes-menu'
@@ -38,6 +40,12 @@ FORBIDDEN = frozenset({'MISTRAL_MLAB','MISTRAL_MUL9X9','MISTRAL_MUL18X18',
                        'MISTRAL_MUL18X19','MISTRAL_MUL18X19_COMBINED','MISTRAL_MUL27X27',
                        'cyclonev_hps_interface_fpga2sdram',
                        'cyclonev_hps_interface_mpu_general_purpose'})
+# Only the GP package has the blitter. Each of its two lanes has one alpha and
+# three blend products, each an unsigned 8x8 product on a DSP 9x9 multiplier.
+# The diagnostics have no blitter and keep every DSP forbidden.
+BLITTER_DSP = 'MISTRAL_MUL9X9'
+BLITTER_PRODUCTS = 8
+BLITTER_CELLS = 'endpoint.scanout.blit.blitter.'
 
 
 def output_for(mode):
@@ -77,7 +85,7 @@ def build_commands(tools, *, mode='test-pattern', seed=None):
     sources = SOURCES + (DDR_SOURCES if mode == 'ddr' else ())
     select = 'chparam -set TEST_PATTERN 0 top; ' if mode == 'ddr' else ''
     program = (f"read_verilog -sv -I cores/fes-common/generated {' '.join(sources)}; {select}"
-               f"synth_intel_alm -nolutram -nodsp -top top; stat; write_json {output}/synth.json")
+               f"synth_intel_alm -nolutram -top top; stat; write_json {output}/synth.json")
     return ((str(tools['yosys']), '-p', program),
             (str(tools['nextpnr-mistral']), '--json', f'{output}/synth.json',
              '--device', board.TARGET, '--qsf', QSF, '--sdc', evidence.SDC,
@@ -87,32 +95,16 @@ def build_commands(tools, *, mode='test-pattern', seed=None):
              '--detailed-timing-report'))
 
 
-def layout_graph_with_constants(graph):
-    # nextpnr packs static cfg bits onto MISTRAL_CONST nets. Resolve only its
-    # explicit zero/one cells; arbitrary signals remain nonconstant and fail.
+def blitter_dsp_evidence(graph, filename):
     cells = graph['modules']['top']['cells']
-    constants = {}
-    for cell in cells.values():
-        lut = cell.get('parameters', {}).get('LUT')
-        q = cell.get('connections', {}).get('Q')
-        if (cell.get('type') == 'MISTRAL_CONST' and type(lut) is str
-                and len(lut) == 32 and set(lut) <= {'0','1'}
-                and int(lut,2) in (0,1) and type(q) is list and len(q) == 1
-                and type(q[0]) is int):
-            if q[0] in constants:
-                raise board.BuildError('multiple constant drivers on DDR configuration net')
-            constants[q[0]] = str(int(lut,2))
-    normalized = dict(cells)
-    for name, cell in cells.items():
-        if cell.get('type') != 'cyclonev_hps_interface_fpga2sdram':
-            continue
-        connections = dict(cell.get('connections', {}))
-        for port in evidence.HPS_DDR_CFG_PORTS:
-            bits = connections.get(port)
-            if isinstance(bits,list):
-                connections[port] = [constants.get(bit,bit) if type(bit) is int else bit for bit in bits]
-        normalized[name] = {**cell, 'connections':connections}
-    return {'modules':{'top':{**graph['modules']['top'], 'cells':normalized}}}
+    products = {name:cell for name,cell in cells.items() if cell.get('type') == BLITTER_DSP}
+    if len(products) != BLITTER_PRODUCTS or not all(name.startswith(BLITTER_CELLS) for name in products):
+        raise board.BuildError(f'{filename} must contain exactly {BLITTER_PRODUCTS} blitter {BLITTER_DSP} products')
+    for name, cell in products.items():
+        for sign in ('A_SIGNED', 'B_SIGNED'):
+            text = str(cell.get('parameters', {}).get(sign, '')).strip()
+            if not text or set(text) - {'0','1'} or int(text,2) != 0:
+                raise board.BuildError(f'blitter product {name} must be unsigned ({sign}={text!r})')
 
 
 def validate_build_evidence(output, root, *, mode='test-pattern', menu_gp=False):
@@ -135,15 +127,18 @@ def validate_build_evidence(output, root, *, mode='test-pattern', menu_gp=False)
         forbidden = forbidden - {'cyclonev_hps_interface_fpga2sdram'}
     if menu_gp:
         required['cyclonev_hps_interface_mpu_general_purpose'] = 1
-        forbidden = forbidden - {'cyclonev_hps_interface_mpu_general_purpose'}
+        required[BLITTER_DSP] = BLITTER_PRODUCTS
+        forbidden = forbidden - {'cyclonev_hps_interface_mpu_general_purpose', BLITTER_DSP}
     result = evidence.validate_build_evidence(output, root, ordinary_resources=ORDINARY,
         required_resources=required, forbidden_resources=forbidden,
         required_zero_resources=frozenset({'cyclonev_oscillator'}))
     if mode == 'ddr':
         for filename in ('synth.json','routed.json'):
             graph = board._read_json(Path(output)/filename,filename)
+            if menu_gp:
+                blitter_dsp_evidence(graph, filename)
             result['hps_ddr'] = evidence.hps_ddr_layout_evidence(
-                layout_graph_with_constants(graph),filename,Path(root),idle=False)
+                evidence.layout_graph_with_constants(graph),filename,Path(root),idle=False)
             cells = list(graph['modules']['top']['cells'].values())
             grounds = [['0']]
             if filename == 'routed.json':
@@ -154,11 +149,19 @@ def validate_build_evidence(output, root, *, mode='test-pattern', menu_gp=False)
                     and len(c['connections']['Q']) == 1]
             connections = next(c['connections'] for c in cells
                 if c.get('type') == 'cyclonev_hps_interface_fpga2sdram')
-            inactive = tuple(f'cmd_valid_{port}' for port in range(1,6)) + tuple(
-                f'wr_valid_{port}' for port in range(4))
+            if menu_gp:
+                # Scanout reads port 0; the blitter reads and writes port 1
+                # (write FIFO 2) and only reads port 2.
+                inactive = tuple(f'cmd_valid_{port}' for port in range(3,6)) + (
+                    'wr_valid_0', 'wr_valid_1', 'wr_valid_3')
+                read_only = ('cmd_data_0', 'cmd_data_2')
+            else:
+                inactive = tuple(f'cmd_valid_{port}' for port in range(1,6)) + tuple(
+                    f'wr_valid_{port}' for port in range(4))
+                read_only = ('cmd_data_0',)
             if any(connections.get(port) not in grounds for port in inactive):
                 raise board.BuildError('menu DDR writes and unused ports must be tied low')
-            if connections.get('cmd_data_0', [])[1:2] not in grounds:
+            if any(connections.get(port, [])[1:2] not in grounds for port in read_only):
                 raise board.BuildError('menu DDR command write bit must be tied low')
     return result
 

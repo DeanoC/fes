@@ -8,7 +8,7 @@ import (
 )
 
 type sessionDisplayService interface {
-	SetSessionDisplay(context.Context, bool, protocol.DevelopmentMediaBinding) (protocol.Status, error)
+	SetSessionDisplay(context.Context, protocol.SessionDisplay, protocol.DevelopmentMediaBinding) (protocol.Status, error)
 }
 
 func registerSessionDisplayRoute(mux *http.ServeMux, s *sessionCoordinator) {
@@ -25,12 +25,13 @@ func registerSessionDisplayRoute(mux *http.ServeMux, s *sessionCoordinator) {
 		if decodeSingleJSON(w, r, &request) != nil {
 			return
 		}
-		if request.Visible == nil {
+		display, ok := request.Display()
+		if !ok {
 			writeError(w, http.StatusBadRequest, "BAD_REQUEST", protocol.SessionDisplayRequestError().Message)
 			return
 		}
 		coordinator := s.forSessionID(ids[0])
-		result, err := coordinator.setSessionDisplay(r.Context(), ids[0], *request.Visible, b)
+		result, err := coordinator.setSessionDisplay(r.Context(), ids[0], display, b)
 		if err != nil {
 			writeSessionError(w, err)
 			return
@@ -61,7 +62,7 @@ func (s *sessionCoordinator) matchesSessionTargetBinding(ctx context.Context, b 
 	return paired == "" || paired == target
 }
 
-func (s *sessionCoordinator) setSessionDisplay(ctx context.Context, id string, visible bool, b protocol.DevelopmentMediaBinding) (sessionResult, error) {
+func (s *sessionCoordinator) setSessionDisplay(ctx context.Context, id string, display protocol.SessionDisplay, b protocol.DevelopmentMediaBinding) (sessionResult, error) {
 	if !s.matchesSessionTargetBinding(ctx, b) {
 		return sessionResult{}, protocol.SessionDisplayIdentityError()
 	}
@@ -75,11 +76,11 @@ func (s *sessionCoordinator) setSessionDisplay(ctx context.Context, id string, v
 	if id != s.id {
 		return sessionResult{}, protocol.SessionDisplayIdentityError()
 	}
-	display, ok := s.service.(sessionDisplayService)
+	service, ok := s.service.(sessionDisplayService)
 	if !ok {
 		return sessionResult{}, &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"}
 	}
-	status, err := display.SetSessionDisplay(ctx, visible, b)
+	status, err := service.SetSessionDisplay(ctx, display, b)
 	if err != nil {
 		return sessionResult{}, err
 	}

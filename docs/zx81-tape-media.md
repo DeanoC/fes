@@ -97,7 +97,10 @@ is retired for day-to-day.
   and size; hold-reset **aborts an open** media transfer (`media_open <= 0`)
   and clears keyboard; it does not by itself clear a committed blob’s
   interpretation beyond the next begin.
-- misteross `zx81_machine.sv`: always intercepts LOAD at `$0347`. A committed
+- misteross `zx81_machine.sv`: the ZX81 compile intercepts LOAD at `$0347` and
+  stores the image at `tape_addr` plus eight. The ZX80 compile intercepts
+  `$0207` and stores the raw image at `tape_addr` with no +8. FES does not
+  admit `.o` files as a separate format. A committed
   mailbox blob is copied into RAM; with no blob, SCF so BASIC returns `0/0`
   instead of the original cassette waiter (black screen until BREAK). Raw
   `.p` bytes only — **no audio / TZX decode**.
@@ -153,11 +156,12 @@ Concrete living-room loop:
    the blob committed (`media_ready`). Arming is allowed anytime the session
    is `active` and the tape-loader is not already copying (Decision 8).
 5. When the user wants BASIC load, **they type `LOAD ""` on the ZX81
-   keyboard** after the overlay reports armed. No host matrix inject for v1
+   keyboard** after the overlay reports armed. No host matrix inject
    (Decision 8). Arming is not LOAD-only: the same mid-session media path may
-   later feed an already-running program that loads data without BASIC
-   `LOAD ""`, and may later support SAVE — those are adjacent/future uses of
-   the armed deck, not a v1 SAVE product claim (Decision 6).
+   feed an already-running program that loads data without BASIC `LOAD ""`.
+   `SAVE "NAME"` is a separate product: the ROM save is captured into the
+   host library and listed in the cassette picker. It does not become ear-bit
+   audio and it does not inject keys.
 6. For the BASIC `LOAD ""` case, the existing `$0347` loader patch copies
    mailbox bytes into RAM. Session, expansion composition, and spliced
    machine ROM remain. Cart-composed sessions use this same tape path; the
@@ -253,12 +257,11 @@ When a new tape is selected mid-session:
 Selecting a tape is **not** a new library launch and **not** a persistence
 bind. Development loads stay volatile; library context stays explicit.
 
-### 6. Non-goals for v1
+### 6. Non-goals
 
-- SAVE to tape / write-back from ZX81 to household media as a **v1 product
-  deliverable** (the mid-session arm path may later support SAVE and
-  in-program loads that are not BASIC `LOAD ""`; that future use must not be
-  read as shipping SAVE in this slice — Decision 8)
+- Analog ear-out of `SAVE`, and writing a `.p` by sampling cassette audio.
+  The product save is the ROM image from `$4009` through the byte before
+  `E_LINE`, stored in the host library when the session stops.
 - Multi-tape changers, playlists, or auto-next
 - Analog ear-in, microphone, or real cassette audio
 - TZX / TAP / pulse-level playback
@@ -295,11 +298,11 @@ All former open product picks. Locked.
 
 - **Who types `LOAD ""`.** The user types it on the ZX81 keyboard after the
   overlay reports armed. **No host matrix inject for v1.**
-- **Arming is not LOAD-only.** Per Deano: the same mid-session media path
-  may later be used when a running program loads data without BASIC
-  `LOAD ""`, and for future SAVE. Sofa chrome arms the deck / mailbox; it
-  must not assume every consumption is BASIC `LOAD ""`. SAVE and non-LOAD
-  consumers remain non-goals for the v1 product deliverable (Decision 6).
+- **Arming is not LOAD-only.** The same mid-session media path may be used
+  when a running program loads data without BASIC `LOAD ""`. Sofa chrome
+  arms the deck / mailbox; it must not assume every consumption is BASIC
+  `LOAD ""`. `SAVE "NAME"` stores a library `.p` and does not arm the deck
+  by itself (Decision 6).
 - **CLI.** Once slice 2 exists, `fogcast` session media change is an
   operator/diagnostics path. Sofa rooms/tenfoot remains the living-room
   surface.
@@ -339,8 +342,8 @@ spirit to idle rooms Phase 2 splash slices.
 | **0 — this document** | Locked journey, artifact class, selection surface, transport/timing, lifecycle, session rules, non-goals | Code, ABI bytes, UI, kit time |
 | **1 — ABI / runtime mid-session blob** | Runtime path to begin/data/commit on an **active** ZX81 generation **without** hold-reset soft-reboot; generation checks; eject/clear; busy-while-LOAD policy | Sofa UI; TZX; stream ABI on ZX81 |
 | **2 — host / agent session API** | Session-scoped change-tape (and eject) over existing core-media ids; development CLI/API enough to prove the wire | Rooms chrome; kit HIL |
-| **3 — sofa / tenfoot picker** | In-session chrome that **arms** a `.p` on active ZX81; import-or-pick; honest armed/ready errors. Does not host-inject `LOAD ""` | Kit catalog; SAVE; multi-tape; auto-LOAD |
-| **4 — HIL / acceptance** | Leased designated-kit proof: BASIC → arm tape → user types `LOAD ""` → program runs; RAM/expansion preserved; Stop restore | Claiming all profiles/images; ear-in; SAVE |
+| **3 — sofa / tenfoot picker** | In-session chrome that **arms** a `.p` on active ZX81; import-or-pick; honest armed/ready errors. Does not host-inject `LOAD ""`. Saved programs from `SAVE` appear in the same picker. | Kit catalog; multi-tape; auto-LOAD |
+| **4 — HIL / acceptance** | Leased designated-kit proof: BASIC → arm tape → user types `LOAD ""` → program runs; RAM/expansion preserved; Stop restore. A typed program, `SAVE`, Stop, cold start, pick, `LOAD ""`, `RUN` restores that program. | Claiming all profiles/images; ear-in |
 
 Slice 1 may clarify mister-packages prose or add a narrow opcode if Deano
 rejects silent driver divergence from the launch hold-reset policy. Prefer
@@ -362,7 +365,7 @@ are not open product picks.
 | [`sources/FogCast/docs/launch-composition.md`](../sources/FogCast/docs/launch-composition.md) | Phase 3 removable media vocabulary |
 | [`docs/core-media-evolution.md`](core-media-evolution.md) | Blob vs blob-stream; capacity |
 | [`docs/idle-menu-rooms.md`](idle-menu-rooms.md) | One sofa renderer; no kit catalog growth |
-| [`sources/misteross/cores/fes-zx81/rtl/zx81_machine.sv`](../sources/misteross/cores/fes-zx81/rtl/zx81_machine.sv) | `$0347` LOAD intercept / `0/0` |
+| [`sources/misteross/cores/fes-zx81/rtl/zx81_machine.sv`](../sources/misteross/cores/fes-zx81/rtl/zx81_machine.sv) | ZX81 `$0347` LOAD intercept; ZX80 `$0207` stores at `tape_addr` with no +8 |
 | [`sources/libmister-runtime/src/native/fes_gp.cpp`](../sources/libmister-runtime/src/native/fes_gp.cpp) | Today’s hold-reset `LoadMedia` |
 | [`sources/FogCast/fogcast/zx81_rom.go`](../sources/FogCast/fogcast/zx81_rom.go) | Launch-time ROM splice (not tape) |
 

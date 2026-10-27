@@ -1,0 +1,125 @@
+{
+  "source_commit": "0f3b35c95249aef16cf1403ab91e0b2939220af6",
+  "evidence_class": "exact-artifact hardware diagnostic",
+  "kit": "A",
+  "host_sha256": "e52b68f252654a4dc2567ca45b2b06b5ed107ce5994c46d71dce5e9774f37a81",
+  "bundle_id": "2042b540a43fed43ec0a70b8a3dbff255245e9f2b70b39a58a5be52c926fbaf3",
+  "launcher_sha256": "e02f16dd490a1c9e8edd10eab632e6c45932a53d12eba43d2c8b5d4589d0503c",
+  "active_software_generation": 446,
+  "base_image_sha256": "4db7486452057d8a77479125c8ee8e9a27db4f378a9d9735900e90f6f3fe7a26",
+  "core_fixture": {
+    "package_id": "713b811056616b153683a5f1c7e924c290bd6cdc0008c3cf69d7c27448f5af93",
+    "archive_sha256": "99d9df20547c1dfee02504ec393a32481067f9dcbe90f679c65ed6a13fa43e51",
+    "rom_sha256": "8cc3c2e86ed6ef24842dd67704f8a30280aabd48f1242c3ca17dc609cd0cc2ec",
+    "rom_size": 36864
+  },
+  "media": [
+    {
+      "filename": "01-first.d64",
+      "size": 174848,
+      "sha256": "2ba3d30f6384121156d2b429ab8d464f437b6524fd0e459135e458dda41756a0"
+    },
+    {
+      "filename": "02-second.d64",
+      "size": 174848,
+      "sha256": "63f1dcc3a44bef40fddda6d73a357d778c1392ce6168f61cf9bf95c374b592f0"
+    },
+    {
+      "filename": "03-wrong.tap",
+      "size": 12,
+      "sha256": "b8cfad33aa6b2d71a940cec2f5e19edc022a8e046d465aff055dfaced466f3ae"
+    },
+    {
+      "filename": "04-short.d64",
+      "size": 11,
+      "sha256": "3189586d920944b045bc99423a5f42ae6802a7a8c96872a99960c1b556811b70"
+    }
+  ],
+  "observations": [
+    {
+      "step": "after-browse",
+      "state": "active",
+      "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+      "session_id": "4a8ec1ad-65dc-48b8-969f-5bb2f39d52d0",
+      "game_id": "fpga-c64-merged-host-media-diagnostic-4e0735a2d5a6",
+      "package_id": "713b811056616b153683a5f1c7e924c290bd6cdc0008c3cf69d7c27448f5af93",
+      "generation": 1,
+      "media_state": "empty",
+      "media_name": ""
+    },
+    {
+      "step": "after-browse-cancel",
+      "state": "active",
+      "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+      "session_id": "4a8ec1ad-65dc-48b8-969f-5bb2f39d52d0",
+      "game_id": "fpga-c64-merged-host-media-diagnostic-4e0735a2d5a6",
+      "package_id": "713b811056616b153683a5f1c7e924c290bd6cdc0008c3cf69d7c27448f5af93",
+      "generation": 1,
+      "media_state": "empty",
+      "media_name": ""
+    },
+    {
+      "step": "after-first-insert",
+      "state": "active",
+      "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+      "session_id": "4a8ec1ad-65dc-48b8-969f-5bb2f39d52d0",
+      "game_id": "fpga-c64-merged-host-media-diagnostic-4e0735a2d5a6",
+      "package_id": "713b811056616b153683a5f1c7e924c290bd6cdc0008c3cf69d7c27448f5af93",
+      "generation": 1,
+      "media_state": "ready",
+      "media_name": "01-first.d64"
+    },
+    {
+      "step": "after-second-swap",
+      "state": "active",
+      "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+      "session_id": "4a8ec1ad-65dc-48b8-969f-5bb2f39d52d0",
+      "game_id": "fpga-c64-merged-host-media-diagnostic-4e0735a2d5a6",
+      "package_id": "713b811056616b153683a5f1c7e924c290bd6cdc0008c3cf69d7c27448f5af93",
+      "generation": 1,
+      "media_state": "ready",
+      "media_name": "02-second.d64"
+    },
+    {
+      "step": "after-second-reopen",
+      "state": "active",
+      "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+      "session_id": "4a8ec1ad-65dc-48b8-969f-5bb2f39d52d0",
+      "game_id": "fpga-c64-merged-host-media-diagnostic-4e0735a2d5a6",
+      "package_id": "713b811056616b153683a5f1c7e924c290bd6cdc0008c3cf69d7c27448f5af93",
+      "generation": 1,
+      "media_state": "ready",
+      "media_name": "02-second.d64"
+    },
+    {
+      "step": "after-eject",
+      "state": "active",
+      "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+      "session_id": "4a8ec1ad-65dc-48b8-969f-5bb2f39d52d0",
+      "game_id": "fpga-c64-merged-host-media-diagnostic-4e0735a2d5a6",
+      "package_id": "713b811056616b153683a5f1c7e924c290bd6cdc0008c3cf69d7c27448f5af93",
+      "generation": 1,
+      "media_state": "empty",
+      "media_name": ""
+    }
+  ],
+  "ci": {
+    "result": "success",
+    "url": "https://github.com/DeanoC/fes/actions/runs/40154944142"
+  },
+  "restoration": {
+    "bundle": "35d584898755b4c84b68cccf2e08838b4a371cbe550b5af457481f3d5e776f9b",
+    "generation": 447,
+    "boot": {
+      "boot_id": "5c42f5bc-bef0-4b51-8d55-c9913e19c25c",
+      "image_sha256": "4db7486452057d8a77479125c8ee8e9a27db4f378a9d9735900e90f6f3fe7a26",
+      "trial": false
+    },
+    "runtime": "idle",
+    "lease": "free",
+    "hashes": "64f1f16daedba4ed19179bd5d7c6f3eb3058a688d15441c8c8d89e113060f182  /media/fat/idle.rbf\ndbbb3ba7e175334ba814851f91604daf78f022d651976093bb35822fd1d73e8f  /media/fat/fogcast/launcher.json",
+    "kit_fixtures_removed": true,
+    "smb_port_closed": true,
+    "host_container_removed": true
+  }
+}

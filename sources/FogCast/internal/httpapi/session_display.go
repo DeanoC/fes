@@ -10,7 +10,7 @@ import (
 )
 
 type sessionDisplayController interface {
-	SetSessionDisplay(context.Context, bool, protocol.DevelopmentMediaBinding) (protocol.Status, *protocol.APIError)
+	SetSessionDisplay(context.Context, protocol.SessionDisplay, protocol.DevelopmentMediaBinding) (protocol.Status, *protocol.APIError)
 }
 
 func sessionDisplayHandler(controller DevelopmentController) http.Handler {
@@ -20,8 +20,13 @@ func sessionDisplayHandler(controller DevelopmentController) http.Handler {
 		decoder := json.NewDecoder(r.Body)
 		decoder.DisallowUnknownFields()
 		var request protocol.SessionDisplayRequest
-		if !valid || !exactContentType(r, "application/json") || len(r.TransferEncoding) != 0 ||
-			decoder.Decode(&request) != nil || request.Visible == nil || decoder.Decode(&struct{}{}) != io.EOF {
+		var requested protocol.SessionDisplay
+		var displayValid bool
+		if valid && exactContentType(r, "application/json") && len(r.TransferEncoding) == 0 &&
+			decoder.Decode(&request) == nil && decoder.Decode(&struct{}{}) == io.EOF {
+			requested, displayValid = request.Display()
+		}
+		if !displayValid {
 			writeBadRequest(w, r, protocol.SessionDisplayRequestError().Message)
 			return
 		}
@@ -30,7 +35,7 @@ func sessionDisplayHandler(controller DevelopmentController) http.Handler {
 			writeAPIError(w, http.StatusBadRequest, &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"})
 			return
 		}
-		status, apiErr := display.SetSessionDisplay(r.Context(), *request.Visible, b)
+		status, apiErr := display.SetSessionDisplay(r.Context(), requested, b)
 		setRequestState(r, status)
 		if apiErr != nil {
 			setRequestError(r, apiErr.Code)

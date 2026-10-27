@@ -62,7 +62,7 @@ func TestSessionDisplayFenceKeepsLifecycleAndSuppressesNavigation(t *testing.T) 
 	pads := &recordingSink{}
 	ports := &controllerPortsSink{keys: keys, fallback: muxSink{keys: keys, pads: pads}}
 	c := &TargetController{ports: ports, keyboard: keys}
-	finish, err := c.BeginSessionDisplay(context.Background())
+	finish, err := c.BeginSessionDisplay(context.Background(), true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,13 +82,55 @@ func TestSessionDisplayFenceKeepsLifecycleAndSuppressesNavigation(t *testing.T) 
 	if err := ports.Apply(frame); err != nil || len(pads.frames) != 0 {
 		t.Fatal("failed close restored machine input")
 	}
-	finish, err = c.BeginSessionDisplay(context.Background())
+	finish, err = c.BeginSessionDisplay(context.Background(), false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	finish(false)
 	if err := ports.Apply(frame); err != nil || len(pads.frames) != 1 {
 		t.Fatal("confirmed close did not restore delivery")
+	}
+}
+
+// Showing or closing a surround under machine focus fences delivery for the
+// transition only. A key held across it stays pressed and its release posts.
+func TestMachineFocusFenceKeepsHeldMachineKeys(t *testing.T) {
+	keys := NewKeyboardSink()
+	var matrix uint64
+	posts := 0
+	keys.SetPoster(func(_ context.Context, value uint64) error { posts++; matrix = value; return nil })
+	ports := &controllerPortsSink{keys: keys, fallback: muxSink{keys: keys}}
+	c := &TargetController{ports: ports, keyboard: keys}
+	frame := protocol.InputFrame{Device: uint8(remoteinput.DeviceKeyboard), Kind: uint8(remoteinput.KindKey),
+		Action: uint8(remoteinput.ActionPress), Code: uint16(zx81keys.Letter('J'))}
+	if err := keys.ApplyFrom(context.Background(), sourceLocal, frame); err != nil || matrix == zx81keys.Neutral {
+		t.Fatal("machine key was not pressed")
+	}
+	finish, err := c.BeginSessionDisplay(context.Background(), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.lifecycle.TryLock() {
+		c.lifecycle.Unlock()
+		t.Fatal("surround transition did not fence delivery")
+	}
+	finish(false)
+	// J is still held, so pressing K must post both, not K alone.
+	onlyK := NewKeyboardSink()
+	var kMatrix uint64
+	onlyK.SetPoster(func(_ context.Context, value uint64) error { kMatrix = value; return nil })
+	k := frame
+	k.Code = uint16(zx81keys.Letter('K'))
+	if err := onlyK.ApplyFrom(context.Background(), sourceLocal, k); err != nil {
+		t.Fatal(err)
+	}
+	if err := keys.ApplyFrom(context.Background(), sourceLocal, k); err != nil || matrix == kMatrix || matrix == zx81keys.Neutral {
+		t.Fatalf("surround transition forgot a held machine key: matrix %#x, K alone %#x", matrix, kMatrix)
+	}
+	frame.Action = uint8(remoteinput.ActionRelease)
+	before := posts
+	if err := keys.ApplyFrom(context.Background(), sourceLocal, frame); err != nil || posts != before+1 || matrix != kMatrix {
+		t.Fatal("releasing the held key did not leave K alone")
 	}
 }
 

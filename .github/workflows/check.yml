@@ -152,16 +152,17 @@ jobs:
           cache-dependency-path: |
             sources/FogCast/go.sum
             platform/go.sum
+      - name: UI boundary dependency
+        if: matrix.shard == 3
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
       - env:
           TEST_FULL_RACE: ${{ fromJSON(needs.plan.outputs.test_modes).full_race }}
           SHARD: ${{ matrix.shard }}
           CHANGED_PATHS: ${{ needs.plan.outputs.paths }}
         run: |
-          if [ "$SHARD" = 1 ]; then make host; fi
-          flags=(--shard "$SHARD/3" --paths-json "$CHANGED_PATHS")
+          flags=(--shard "$SHARD/3" --paths-json "$CHANGED_PATHS" --build-host-if-needed --ui-if-needed)
           if [ "$TEST_FULL_RACE" = true ]; then flags+=(--full); fi
           python3 scripts/host_tests.py "${flags[@]}"
-          if [ "$SHARD" = 3 ]; then make -C sources/FogCast test-ui; fi
   runtime:
     needs: plan
     if: fromJSON(needs.plan.outputs.lanes).runtime
@@ -171,8 +172,10 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
-      - run: |
-          make -C sources/libmister-runtime -j2 test
+      - env:
+          CHANGED_PATHS: ${{ needs.plan.outputs.paths }}
+        run: |
+          python3 scripts/runtime_tests.py --paths-json "$CHANGED_PATHS"
   contracts:
     needs: plan
     if: fromJSON(needs.plan.outputs.lanes).contracts

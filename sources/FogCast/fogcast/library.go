@@ -277,6 +277,10 @@ func (s *Service) queryContinue(ctx context.Context, query catalog.Query) (catal
 		return catalog.Page{}, canonicalError(protocol.CodeBadRequest, nil)
 	}
 	query = normalized
+	coreEntryGameIDs, err := s.matchingCoreEntryGameIDs(ctx, query.CoreIDs)
+	if err != nil {
+		return catalog.Page{}, canonicalError(protocol.CodeInternal, safeContextError(err))
+	}
 	ids, err := s.users.RecentIDs(ctx, 0)
 	if err != nil {
 		return catalog.Page{}, canonicalError(protocol.CodeInternal, safeContextError(err))
@@ -289,12 +293,15 @@ func (s *Service) queryContinue(ctx context.Context, query catalog.Query) (catal
 		GamesInGroup(context.Context, string, int) ([]catalog.Game, error)
 	})
 	for _, game := range games {
+		if !matchesCoreEntryGameID(game, coreEntryGameIDs) {
+			continue
+		}
 		if hasGroup && query.Grouped && game.GroupKey != "" {
 			variants, err := grouped.GamesInGroup(ctx, game.GroupKey, catalog.UnboundedVariantLimit)
 			if err != nil {
 				return catalog.Page{}, canonicalError(protocol.CodeInternal, safeContextError(err))
 			}
-			if picked, ok := preferredSurvivingDump(variants, query); ok {
+			if picked, ok := preferredSurvivingDump(variants, query, coreEntryGameIDs); ok {
 				return catalog.Page{Games: []catalog.Game{picked}}, nil
 			}
 			continue
@@ -310,10 +317,45 @@ func (s *Service) queryContinue(ctx context.Context, query catalog.Query) (catal
 	return catalog.Page{}, nil
 }
 
-func preferredSurvivingDump(games []catalog.Game, query catalog.Query) (catalog.Game, bool) {
+func (s *Service) matchingCoreEntryGameIDs(ctx context.Context, coreIDs []string) (map[string]struct{}, error) {
+	if len(coreIDs) == 0 {
+		return nil, nil
+	}
+	reader, ok := s.catalog.(interface {
+		CoreEntries(context.Context) ([]catalog.CoreEntry, error)
+	})
+	if !ok {
+		return map[string]struct{}{}, nil
+	}
+	entries, err := reader.CoreEntries(ctx)
+	if err != nil {
+		return nil, err
+	}
+	selectedCoreIDs := make(map[string]struct{}, len(coreIDs))
+	for _, coreID := range coreIDs {
+		selectedCoreIDs[coreID] = struct{}{}
+	}
+	gameIDs := make(map[string]struct{})
+	for _, entry := range entries {
+		if _, selected := selectedCoreIDs[entry.CoreID]; selected {
+			gameIDs[entry.GameID] = struct{}{}
+		}
+	}
+	return gameIDs, nil
+}
+
+func matchesCoreEntryGameID(game catalog.Game, coreEntryGameIDs map[string]struct{}) bool {
+	if coreEntryGameIDs == nil {
+		return true
+	}
+	_, ok := coreEntryGameIDs[game.ID]
+	return ok
+}
+
+func preferredSurvivingDump(games []catalog.Game, query catalog.Query, coreEntryGameIDs map[string]struct{}) (catalog.Game, bool) {
 	surviving := make([]catalog.Game, 0, len(games))
 	for _, game := range games {
-		if catalog.MatchesQueryFilters(game, query) {
+		if matchesCoreEntryGameID(game, coreEntryGameIDs) && catalog.MatchesQueryFilters(game, query) {
 			surviving = append(surviving, game)
 		}
 	}
@@ -445,6 +487,10 @@ func (s *Service) queryRecents(ctx context.Context, query catalog.Query) (catalo
 		return catalog.Page{}, canonicalError(protocol.CodeBadRequest, nil)
 	}
 	query = normalized
+	coreEntryGameIDs, err := s.matchingCoreEntryGameIDs(ctx, query.CoreIDs)
+	if err != nil {
+		return catalog.Page{}, canonicalError(protocol.CodeInternal, safeContextError(err))
+	}
 	limit := query.Limit
 	ids, err := s.users.RecentIDs(ctx, 0)
 	if err != nil {
@@ -460,6 +506,9 @@ func (s *Service) queryRecents(ctx context.Context, query catalog.Query) (catalo
 	filtered := make([]catalog.Game, 0, len(games))
 	seenGroups := map[string]struct{}{}
 	for _, game := range games {
+		if !matchesCoreEntryGameID(game, coreEntryGameIDs) {
+			continue
+		}
 		if hasGroup && query.Grouped && game.GroupKey != "" {
 			if _, seen := seenGroups[game.GroupKey]; seen {
 				continue
@@ -468,7 +517,7 @@ func (s *Service) queryRecents(ctx context.Context, query catalog.Query) (catalo
 			if err != nil {
 				return catalog.Page{}, canonicalError(protocol.CodeInternal, safeContextError(err))
 			}
-			picked, ok := preferredSurvivingDump(variants, query)
+			picked, ok := preferredSurvivingDump(variants, query, coreEntryGameIDs)
 			if !ok {
 				continue
 			}

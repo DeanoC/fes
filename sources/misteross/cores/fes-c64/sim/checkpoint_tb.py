@@ -12,6 +12,10 @@ MODULE=Path(__file__).resolve().parents[3]
 sys.path.insert(0,str(MODULE))
 from scripts import c64_gcr
 
+# The active-first CTA raster raises VS after its active 720 lines. Run for two
+# full raster periods so the first VS edge is followed by a complete frame.
+SYS_CYCLES=1740800  # 2 * 1650 * 750 pixels at 74.25/52.224 MHz.
+
 
 def check_sid_stores(stores):
     # Independent expectations from the fixture's 6502 instruction stream.
@@ -23,7 +27,7 @@ def check_sid_stores(stores):
     assert [r['delta_phi'] for r in stores[:12]]==[-1,6,6,6,6,6,4,22,5,1,6,12]
     assert all(r['delta_phi']==15 for r in stores[12:])
     # Eleven setup stores, then the 15-cycle loop beginning at Phi135.
-    last_phi=(1566720-26)*985248//52224000
+    last_phi=(SYS_CYCLES-26)*985248//52224000
     assert len(stores)==11+(last_phi-135)//15+1, 'accepted store count differs from the program'
     for index,row in enumerate(stores,1):
         assert row['store_index']==index and row['register']==row['address']%32
@@ -72,7 +76,7 @@ def main():
         identity=hashlib.sha256(binary.read_bytes()).hexdigest()
         base=[str(binary),f'+C64_STATE_ID={identity}',f'+C64_FIRMWARE_HEX={output}/firmware.hex',
               f'+C64_DISK_HEX={output}/disk.hex',f'+C64_KEY_EVENTS={output}/keys.txt',
-              '+C64_SYS_CYCLES=1566720']
+              f'+C64_SYS_CYCLES={SYS_CYCLES}']
         suffix='g64' if mode=='oracle' else 'd64'
         (output/'library.txt').write_text(''.join('"'+str(output/(name+'.'+suffix))+'"\n'
                                                for name in ('disk','second')))
@@ -121,9 +125,9 @@ def main():
         check_sid_stores(stores)
         assert (paths['captured']/'boot-ram.bin').read_bytes()[0xd400]==0x55, 'hidden I/O write missed RAM'
         samples=(paths['captured']/'audio.pcm').read_bytes()
-        assert len(samples)==2*(1566720//1088)
+        assert len(samples)==2*(SYS_CYCLES//1088)
         assert len(set(samples[i:i+2] for i in range(0,len(samples),2)))>20, 'audio fixture is constant'
-        for phase,start,end in [('captured',0,1566720),('split',0,731119),('restored',731119,1566720)]:
+        for phase,start,end in [('captured',0,SYS_CYCLES),('split',0,731119),('restored',731119,SYS_CYCLES)]:
             capture=json.loads((paths[phase]/'capture.json').read_text())
             assert capture['start_cycle_inclusive']==start and capture['end_cycle_exclusive']==end
             assert capture['audio_samples']==end//1088-start//1088

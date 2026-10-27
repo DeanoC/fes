@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"math"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -114,6 +115,84 @@ func TestHardwareRoomSavesDraftWithoutChangingActiveMachine(t *testing.T) {
 	r.Activate("power")
 	if acts := r.TakeActions(); len(acts) != 1 || acts[0].Kind != ActionStop {
 		t.Fatalf("Stop action: %+v", acts)
+	}
+}
+
+func TestHardwareRoomUsesInitialGameIDInsteadOfSavedNavigation(t *testing.T) {
+	s := hardwareData(false)
+	s.lock.Lock()
+	second := s.value.Machines[0]
+	second.GameID = "zx81-second"
+	second.Title = "Selected ZX81"
+	s.value.Machines = append(s.value.Machines, second)
+	s.lock.Unlock()
+	storePath := filepath.Join(t.TempDir(), "room.json")
+	if err := os.WriteFile(storePath, []byte(`{"navigation":{"game_id":"zx81-workbench"}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	r := newRoom(t, examplePack(t, "example.hardware"), Options{
+		Services: s, Width: 1280, Height: 720, StorePath: storePath, InitialGameID: "zx81-second",
+	})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	frame := stepUntil(t, r, func(f Frame) bool { return frameHas(f, "Selected ZX81") })
+	if frameHas(frame, "My ZX81") {
+		t.Fatalf("workbench ignored the selected entry\n%s", frameText(frame))
+	}
+}
+
+func TestHardwareRoomFallsBackWhenInitialGameIDIsUnavailable(t *testing.T) {
+	s := hardwareData(false)
+	s.lock.Lock()
+	s.value.Machines[0].GameID = "zx81-remaining"
+	s.value.Machines[0].Title = "Remaining ZX81"
+	s.lock.Unlock()
+	r := newRoom(t, examplePack(t, "example.hardware"), Options{
+		Services: s, Width: 1280, Height: 720, StorePath: filepath.Join(t.TempDir(), "room.json"), InitialGameID: "zx81-missing",
+	})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	frame := stepUntil(t, r, func(f Frame) bool { return frameHas(f, "Remaining ZX81") && frameHas(f, "Start machine") })
+	if frameHas(frame, "selected ZX81 setup is no longer available") || !frameHas(frame, "Next start: Empty socket") {
+		t.Fatalf("remaining setup was not selected after the requested entry disappeared\n%s", frameText(frame))
+	}
+	r.Activate("power")
+	if acts := r.TakeActions(); len(acts) != 1 || acts[0].Kind != ActionLaunch || acts[0].GameID != "zx81-remaining" {
+		t.Fatalf("remaining setup could not start: %+v", acts)
+	}
+}
+
+func TestHardwareRoomFallsBackWhenSelectedMachineDisappears(t *testing.T) {
+	s := hardwareData(false)
+	s.lock.Lock()
+	second := s.value.Machines[0]
+	second.GameID = "zx81-second"
+	second.Title = "Selected ZX81"
+	s.value.Machines = append(s.value.Machines, second)
+	s.lock.Unlock()
+	r := newRoom(t, examplePack(t, "example.hardware"), Options{
+		Services: s, Width: 1280, Height: 720, StorePath: filepath.Join(t.TempDir(), "room.json"), InitialGameID: "zx81-second",
+	})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	stepUntil(t, r, func(f Frame) bool { return frameHas(f, "Selected ZX81") && frameHas(f, "Next setup") })
+	r.Activate("setup")
+	stepUntil(t, r, func(f Frame) bool { return frameHas(f, "My ZX81") && frameHas(f, "Next setup") })
+
+	s.lock.Lock()
+	s.value.Machines = []hostclient.HardwareMachine{second}
+	s.lock.Unlock()
+	r.Activate("refresh")
+	frame := stepUntil(t, r, func(f Frame) bool { return frameHas(f, "Selected ZX81") && frameHas(f, "Start machine") })
+	if frameHas(frame, "My ZX81") || frameHas(frame, "selected ZX81 setup is no longer available") {
+		t.Fatalf("workbench did not fall back to the remaining setup\n%s", frameText(frame))
+	}
+	r.Activate("power")
+	if acts := r.TakeActions(); len(acts) != 1 || acts[0].Kind != ActionLaunch || acts[0].GameID != "zx81-second" {
+		t.Fatalf("remaining setup could not start: %+v", acts)
 	}
 }
 
@@ -323,7 +402,7 @@ func TestHardwareRoomSelectsCassetteBeforeLaunchAndGatesLiveHDMIControls(t *test
 	r := loadHardware(t, s, examplePack(t, "example.hardware"))
 	r.Activate("tape")
 	acts := r.TakeActions()
-	if len(acts) != 1 || acts[0].Kind != ActionHardwareTapes || acts[0].GameID != "zx81-workbench" || acts[0].PackageID != strings.Repeat("a", 64) {
+	if len(acts) != 1 || acts[0].Kind != ActionHardwareTapes || acts[0].GameID != "zx81-workbench" || acts[0].CoreID != "fes.zx81" || acts[0].PackageID != strings.Repeat("a", 64) {
 		t.Fatalf("pre-launch tape binding: %+v", acts)
 	}
 	r.Activate("setup_library")
@@ -1063,6 +1142,150 @@ func BenchmarkHardwareRoomRedraw(b *testing.B) {
 		r.Step(now)
 		if r.Err() != nil {
 			b.Fatal(r.Err())
+		}
+	}
+}
+
+// Colours the light appearance owns and the overlay must not draw: dark ink
+// and green on a dimmed machine would be near 1:1 contrast.
+var lightOnlyColours = map[gfx.Color]string{
+	gfx.RGB(244, 240, 232): "paper", gfx.RGB(255, 252, 245): "panel", gfx.RGB(233, 230, 220): "raised",
+	gfx.RGB(36, 54, 49): "ink", gfx.RGB(83, 98, 90): "muted", gfx.RGB(206, 207, 192): "line",
+	gfx.RGB(35, 90, 70): "accent", gfx.RGB(246, 235, 203): "warm",
+}
+
+func overlayScrim(f Frame) bool {
+	return f.HasClear && f.Clear == gfx.RGBA(20, 25, 24, 200)
+}
+
+// Over a running machine on the kit plane the workshop clears to a
+// translucent scrim, draws the dark roles, and leaves the machine visible
+// where the illustration was. Turning the flag off restores the opaque room.
+func TestHardwareRoomOverlayDrawsOverTheRunningMachine(t *testing.T) {
+	w, h := workshopKitSize(1280, 720)
+	r := openWorkshop(t, w, h, true)
+	// The artwork decodes asynchronously; openWorkshop does not insist on it.
+	opaque := stepUntil(t, r, func(f Frame) bool {
+		for _, op := range f.Ops {
+			if op.Kind == OpImage {
+				return true
+			}
+		}
+		return false
+	})
+	now := time.Unix(5000, 0)
+	if !opaque.HasClear || opaque.Clear != gfx.RGB(244, 240, 232) {
+		t.Fatalf("host room clear = %+v", opaque.Clear)
+	}
+	r.SetOverlay(true)
+	now = now.Add(16 * time.Millisecond)
+	f := r.Step(now)
+	if r.Err() != nil {
+		t.Fatal(r.Err())
+	}
+	if !overlayScrim(f) || !frameHas(f, "Import expansion") || !frameHas(f, "Running:") {
+		t.Fatalf("overlay did not repaint the workshop over a scrim: clear %+v", f.Clear)
+	}
+	for _, op := range f.Ops {
+		if op.Kind == OpImage {
+			t.Fatalf("overlay drew artwork %q over the machine", op.Image)
+		}
+		if name, light := lightOnlyColours[op.Color]; light && (op.Kind == OpRect || op.Kind == OpText) {
+			t.Fatalf("overlay drew the light %s colour: %+v", name, op)
+		}
+	}
+	if len(f.Ops) > len(opaque.Ops) {
+		t.Fatalf("overlay costs more ops than the opaque room: %d > %d", len(f.Ops), len(opaque.Ops))
+	}
+	running := workshopText(t, f, "Running: Empty socket")
+	if running.Color != gfx.RGB(237, 243, 233) {
+		t.Fatalf("overlay text colour %+v", running.Color)
+	}
+	// The settled overlay reuses its picture like the opaque room.
+	before := r.measures
+	allocs := testing.AllocsPerRun(30, func() {
+		now = now.Add(16 * time.Millisecond)
+		if g := r.Step(now); !overlayScrim(g) {
+			t.Fatal("settled overlay lost its scrim")
+		}
+	})
+	if allocs > 80 || r.measures != before {
+		t.Fatalf("settled overlay allocs/step %.1f measures %d", allocs, r.measures-before)
+	}
+	r.SetOverlay(false)
+	back := r.Step(now.Add(16 * time.Millisecond))
+	if !back.HasClear || back.Clear != gfx.RGB(244, 240, 232) {
+		t.Fatalf("leaving the overlay kept clear %+v", back.Clear)
+	}
+	var art bool
+	for _, op := range back.Ops {
+		art = art || op.Kind == OpImage
+	}
+	if !art {
+		t.Fatal("opaque room lost its illustration")
+	}
+}
+
+// A cold open over a running machine never flashes the opaque paper.
+func TestHardwareRoomColdOpenOverlayStartsOnTheScrim(t *testing.T) {
+	w, h := workshopKitSize(1280, 720)
+	r := newRoom(t, examplePack(t, "example.hardware"), Options{
+		Width: w, Height: h, Services: hardwareData(true),
+		StorePath: filepath.Join(t.TempDir(), "room.json"),
+		Budget:    Budget{Load: 2 * time.Second, Frame: 2 * time.Second, Input: 2 * time.Second},
+	})
+	r.SetOverlay(true)
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Unix(5100, 0)
+	for steps := 0; steps < 24; steps++ {
+		now = now.Add(16 * time.Millisecond)
+		f := r.Step(now)
+		if r.Err() != nil {
+			t.Fatal(r.Err())
+		}
+		if !overlayScrim(f) {
+			t.Fatalf("draw %d cleared to %+v over the running machine", steps, f.Clear)
+		}
+		if frameHas(f, "Import expansion") {
+			return
+		}
+	}
+	t.Fatal("overlay workshop did not finish staging")
+}
+
+// A flip of room.overlay during the staged cold open never keeps presenting
+// the opening painted in the other appearance.
+func TestHardwareRoomColdOpenFollowsAnOverlayFlip(t *testing.T) {
+	for _, start := range []bool{true, false} {
+		for flipAt := 1; flipAt <= 15; flipAt++ {
+			w, h := workshopKitSize(1280, 720)
+			r := newRoom(t, examplePack(t, "example.hardware"), Options{
+				Width: w, Height: h, Services: hardwareData(true),
+				StorePath: filepath.Join(t.TempDir(), "room.json"),
+				Budget:    Budget{Load: 2 * time.Second, Frame: 2 * time.Second, Input: 2 * time.Second},
+			})
+			r.SetOverlay(start)
+			if err := r.Load(); err != nil {
+				t.Fatal(err)
+			}
+			now := time.Unix(5200, 0)
+			for step := 0; step < 30; step++ {
+				overlay := start
+				if step >= flipAt {
+					overlay = !start
+				}
+				r.SetOverlay(overlay)
+				now = now.Add(16 * time.Millisecond)
+				f := r.Step(now)
+				if r.Err() != nil {
+					t.Fatal(r.Err())
+				}
+				if overlayScrim(f) != overlay {
+					t.Fatalf("start %v flip at %d: draw %d presented clear %+v with overlay %v", start, flipAt, step, f.Clear, overlay)
+				}
+			}
 		}
 	}
 }

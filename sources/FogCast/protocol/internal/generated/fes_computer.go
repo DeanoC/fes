@@ -117,13 +117,19 @@ const (
 	FesComputerApple2FloppyUnit                         uint32 = 0x0
 	FesComputerApple2FloppyBytes                        uint32 = 0x23000
 	FesComputerSpectrumTapeUnit                         uint32 = 0x0
-	FesComputerSpectrumTapeMinBytes                     uint32 = 0x1
-	FesComputerSpectrumTapeMaxBytes                     uint32 = 0x10000
+	FesComputerSpectrumTapeMinBytes                     uint32 = 0xa
+	FesComputerSpectrumTapeMaxBytes                     uint32 = 0x1000000
 	FesComputerZx81TapeUnit                             uint32 = 0x0
 	FesComputerZx81TapeMinBytes                         uint32 = 0x1
 	FesComputerZx81TapeMaxBytes                         uint32 = 0x4000
+	FesComputerZx81TapeLayoutTag                        uint32 = 0x2
+	FesComputerZx81TapeLayoutMajor                      uint32 = 0x1
+	FesComputerZx81TapeLayoutMinor                      uint32 = 0x0
 	FesComputerC64DiskUnit                              uint32 = 0x0
 	FesComputerC64DiskBytes                             uint32 = 0x2ab00
+	FesComputerSpectrumDiskUnit                         uint32 = 0x1
+	FesComputerSpectrumDiskMinBytes                     uint32 = 0x2000
+	FesComputerSpectrumDiskMaxBytes                     uint32 = 0x2b4000
 	FesComputerAtariStFloppyUnit                        uint32 = 0x0
 	FesComputerAtariStFloppyBytes                       uint32 = 0xb4000
 	FesComputerAtariStFloppyGeometryMinBytes            uint32 = 0x5a000
@@ -157,7 +163,7 @@ const (
 	FesComputerInterfaceMediaApple2FloppyMinor          uint16 = 0
 	FesComputerCapabilityMediaApple2Floppy              uint32 = 0x10
 	FesComputerInterfaceMediaSpectrumTapeID                    = "fes.media.spectrum-tape"
-	FesComputerInterfaceMediaSpectrumTapeMajor          uint16 = 1
+	FesComputerInterfaceMediaSpectrumTapeMajor          uint16 = 2
 	FesComputerInterfaceMediaSpectrumTapeMinor          uint16 = 0
 	FesComputerCapabilityMediaSpectrumTape              uint32 = 0x20
 	FesComputerInterfaceMediaC64DiskID                         = "fes.media.c64-disk"
@@ -192,4 +198,12 @@ const (
 	FesComputerInterfaceVideoSessionDisplayMajor        uint16 = 1
 	FesComputerInterfaceVideoSessionDisplayMinor        uint16 = 0
 	FesComputerCapabilityVideoSessionDisplay            uint32 = 0x2000
+	FesComputerInterfaceMediaZx81TapeWriteID                   = "fes.media.zx81-tape-write"
+	FesComputerInterfaceMediaZx81TapeWriteMajor         uint16 = 1
+	FesComputerInterfaceMediaZx81TapeWriteMinor         uint16 = 0
+	FesComputerCapabilityMediaZx81TapeWrite             uint32 = 0x4000
+	FesComputerInterfaceMediaSpectrumDiskID                    = "fes.media.spectrum-disk"
+	FesComputerInterfaceMediaSpectrumDiskMajor          uint16 = 1
+	FesComputerInterfaceMediaSpectrumDiskMinor          uint16 = 0
+	FesComputerCapabilityMediaSpectrumDisk              uint32 = 0x8000
 )

@@ -34,10 +34,30 @@ def pattern_counts() -> None:
     subprocess.run([str(output / "sim")], check=True)
 
 
+def latency_stats() -> None:
+    """Latency percentiles match a reference model of the histogram."""
+    output = ROOT / "build" / "fes-ramtest-latency-stats"
+    output.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        [
+            "verilator", "--cc", "--exe", "--build", "--top-module", "lat_stats",
+            "-GSAMPLES=16'd100",
+            "-Wall", "-Wno-DECLFILENAME", "-Wno-PINCONNECTEMPTY",
+            "-Wno-UNUSEDSIGNAL", "-Wno-UNUSEDPARAM", "-Wno-BLKSEQ",
+            "-Mdir", str(output),
+            "-o", "sim",
+            str(CORE / "rtl" / "lat_stats.v"), str(CORE / "sim" / "lat_stats_tb.cpp"),
+        ],
+        check=True,
+    )
+    subprocess.run([str(output / "sim")], check=True)
+
+
 def main() -> None:
     if os.environ.get("FES_TOOLCHAIN_CACHE_ROOT"):
         raise SystemExit("simulation refuses a shared toolchain cache")
     pattern_counts()
+    latency_stats()
     output = ROOT / "build" / "fes-ramtest-sim"
     output.mkdir(parents=True, exist_ok=True)
     byte_output = output / "byte"
@@ -61,6 +81,8 @@ def main() -> None:
         CORE / "rtl" / "sdram_addon_port.v",
         CORE / "rtl" / "ddr_channel.v",
         CORE / "rtl" / "ddr_rates.v",
+        CORE / "rtl" / "lat_stats.v",
+        CORE / "rtl" / "lat_monitor.v",
         COMMON / "rtl" / "fes_hps_ddr.v",
         COMMON / "rtl" / "fes_hps_ddr_guard.v",
         COMMON / "rtl" / "fes_application_gp.v",

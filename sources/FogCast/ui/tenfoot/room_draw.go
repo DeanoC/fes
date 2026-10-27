@@ -2,6 +2,8 @@ package tenfoot
 
 import (
 	"fmt"
+	"image"
+	"math"
 	"strings"
 	"time"
 
@@ -105,36 +107,49 @@ func drawClipped(dev gfx.Device, tex gpuTexture, src *gfx.Rect, dst, clip gfx.Re
 	dev.Draw(tex.tex, &gfx.Rect{X: sx, Y: sy, W: sw, H: sh}, visible)
 }
 
+// roomTextKey names a string's mask, which draws in any colour.
 func roomTextKey(op rooms.Op) string {
 	weight := "r"
 	if op.Bold {
 		weight = "b"
 	}
-	return fmt.Sprintf("room-text|%s|%d|%s|%02x%02x%02x%02x|%d", op.Text, op.Size, weight, op.Color.R, op.Color.G, op.Color.B, op.Color.A, op.MaxW)
+	return fmt.Sprintf("room-text|%s|%d|%s|%d", op.Text, op.Size, weight, op.MaxW)
 }
 
-func roomTextTexture(dev gfx.Device, labels map[string]gpuTexture, used map[string]struct{}, op rooms.Op) (gpuTexture, bool) {
+// roomText is op's text as a mask. Its box starts at the ink's left edge
+// and reaches the pen's advance, at most MaxW wide; alignment uses it.
+func roomText(labels map[string]gpuTexture, used map[string]struct{}, op rooms.Op) (gpuTexture, bool) {
 	key := roomTextKey(op)
 	used[key] = struct{}{}
-	if tex, ok := labels[key]; ok {
-		return tex, true
+	if text, ok := labels[key]; ok {
+		return text, true
 	}
 	weight := gfx.WeightRegular
 	if op.Bold {
 		weight = gfx.WeightBold
 	}
-	img := gfx.RasterizeTextWeight(op.Text, op.Size, weight, op.Color, op.MaxW)
-	if img == nil {
+	mask, src, width := gfx.UIText(op.Text, op.Size, weight, op.MaxW)
+	if mask == nil {
 		delete(used, key)
 		return gpuTexture{}, false
 	}
-	tex, err := uploadTexture(dev, img)
-	if err != nil {
-		delete(used, key)
-		return gpuTexture{}, false
+	text := gpuTexture{w: width, h: src.Dy(), mask: mask, maskSrc: src}
+	labels[key] = text
+	return text, true
+}
+
+// drawTextClipped draws a text entry at x, y in c, inside clip. Like a
+// clipped Draw, it keeps every pixel clip touches.
+func drawTextClipped(dev gfx.Device, text gpuTexture, x, y int, clip gfx.Rect, c gfx.Color) {
+	keep := image.Rect(int(math.Floor(float64(clip.X))), int(math.Floor(float64(clip.Y))),
+		int(math.Ceil(float64(clip.X+clip.W))), int(math.Ceil(float64(clip.Y+clip.H))))
+	at := image.Pt(x, y).Add(text.maskAt)
+	visible := text.maskSrc.Add(at.Sub(text.maskSrc.Min)).Intersect(keep)
+	if visible.Empty() {
+		return
 	}
-	labels[key] = tex
-	return tex, true
+	src := visible.Sub(at.Sub(text.maskSrc.Min))
+	dev.DrawMask(text.mask, src, visible.Min.X, visible.Min.Y, c)
 }
 
 // drawRoom replays the room's display list inside the safe content area.
@@ -169,7 +184,7 @@ func drawRoom(dev gfx.Device, snap Snapshot, textures, labels map[string]gpuText
 			}
 			drawClipped(dev, tex, op.Src, gfx.Rect{X: ox + op.X, Y: oy + op.Y, W: op.W, H: op.H}, clip)
 		case rooms.OpText:
-			tex, ok := roomTextTexture(dev, labels, used, op)
+			text, ok := roomText(labels, used, op)
 			if !ok {
 				continue
 			}
@@ -177,18 +192,18 @@ func drawRoom(dev gfx.Device, snap Snapshot, textures, labels map[string]gpuText
 			switch op.Align {
 			case "center":
 				if op.MaxW > 0 {
-					x += (float32(op.MaxW) - float32(tex.w)) / 2
+					x += (float32(op.MaxW) - float32(text.w)) / 2
 				} else {
-					x -= float32(tex.w) / 2
+					x -= float32(text.w) / 2
 				}
 			case "right":
 				if op.MaxW > 0 {
-					x += float32(op.MaxW) - float32(tex.w)
+					x += float32(op.MaxW) - float32(text.w)
 				} else {
-					x -= float32(tex.w)
+					x -= float32(text.w)
 				}
 			}
-			drawClipped(dev, tex, nil, gfx.Rect{X: x, Y: oy + op.Y, W: float32(tex.w), H: float32(tex.h)}, clip)
+			drawTextClipped(dev, text, int(math.Round(float64(x))), int(math.Round(float64(oy+op.Y))), clip, op.Color)
 		case rooms.OpClipPush:
 			next, ok := intersectRect(gfx.Rect{X: ox + op.X, Y: oy + op.Y, W: op.W, H: op.H}, clip)
 			if !ok {
@@ -375,6 +390,7 @@ func drawTapePicker(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 		title = tapePickerTitle
 	}
 	drawLabel(dev, labels, used, "tape-title", x+16, y+12, panelW-32, 18, title)
+	drawLabel(dev, labels, used, "tape-current", x+16, y+34, panelW-32, 14, snap.TapePicker.Current)
 	for i := 0; i < panel.Visible; i++ {
 		idx := panel.Start + i
 		if idx >= len(rows) {

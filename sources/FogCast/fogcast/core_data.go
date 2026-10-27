@@ -76,14 +76,14 @@ func (s *Service) inspectInstalledCoreData(ctx context.Context, id string, u *pr
 	if err != nil {
 		return CoreDataResult{}, err
 	}
-	if s.protocolAdmissionEnabled() {
+	if SessionTargetFromContext(ctx) != "" || s.protocolAdmissionEnabled() {
 		if _, err = s.refreshTargetAdmission(ctx); err != nil {
 			return CoreDataResult{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
 		}
 	}
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
-	client, ok := s.selectedClientLocked()
+	client, ok := s.clientForSessionContextLocked(ctx)
 	if !ok {
 		return CoreDataResult{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
 	}
@@ -107,7 +107,11 @@ func (s *Service) inspectInstalledCoreData(ctx context.Context, id string, u *pr
 	if !result.Valid() || result.PackageID != value.PackageID || !reflect.DeepEqual(result.Descriptor, value.Descriptor) || (result.Mode == "persistent" && health.TargetID == "") {
 		return CoreDataResult{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
 	}
-	return CoreDataResult{CoreDataInspection: result, Target: s.selectedTarget, TargetID: health.TargetID}, nil
+	target := SessionTargetFromContext(ctx)
+	if target == "" {
+		target = s.selectedTarget
+	}
+	return CoreDataResult{CoreDataInspection: result, Target: target, TargetID: health.TargetID}, nil
 }
 func validPersistenceLayout(descriptor corepackage.Descriptor, layout *protocol.RuntimeContract) bool {
 	if layout == nil {

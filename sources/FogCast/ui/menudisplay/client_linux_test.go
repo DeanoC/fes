@@ -17,20 +17,34 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// fakeRuntime answers status, grants an ordinary 8 MiB file as the window,
-// and alternates slots the way scanout does.
+// fakeRuntime answers status, grants an ordinary file as the window, and
+// alternates slots the way scanout does. With blitter set it grants the
+// blitter's layout and runs list commits through blitReference, reading the
+// list and heap from ddr: only what a commit names is written back there,
+// as FES_WINDOW_CLEAN does on the kit.
 type fakeRuntime struct {
 	t          *testing.T
 	listener   *net.UnixListener
 	generation uint64
 	underflows uint64
 	window     int
+	mapping    []byte
 	mu         sync.Mutex
 	grants     int
 	shown      int
 	sequence   uint64
 	commits    []map[string]any
 	done       chan struct{}
+	blitter    bool
+	// blitterMinor is the menu-blitter minor a blitter grant declares.
+	blitterMinor int
+	// listedGen is the generation whose grant took a list.
+	listedGen uint64
+	ddr       []byte
+	// refuse fails the next commit with this message.
+	refuse string
+	// preparations counts begins on preparedGen.
+	preparedGen, preparations uint64
 }
 
 func newFakeRuntime(t *testing.T) (*fakeRuntime, string) {
@@ -44,14 +58,19 @@ func newFakeRuntime(t *testing.T) (*fakeRuntime, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := unix.Ftruncate(window, Slots*SlotBytes); err != nil {
+	if err := unix.Ftruncate(window, BlitWindowBytes); err != nil {
 		t.Fatal(err)
 	}
-	f := &fakeRuntime{t: t, listener: listener, generation: 7, window: window, done: make(chan struct{})}
+	mapping, err := unix.Mmap(window, 0, BlitWindowBytes, unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := &fakeRuntime{t: t, listener: listener, generation: 7, window: window, mapping: mapping, done: make(chan struct{}), ddr: make([]byte, BlitWindowBytes)}
 	go f.serve()
 	t.Cleanup(func() {
 		listener.Close()
 		<-f.done
+		unix.Munmap(mapping)
 		unix.Close(window)
 	})
 	return f, path
@@ -96,10 +115,18 @@ func (f *fakeRuntime) handle(conn *net.UnixConn) {
 			return
 		}
 		f.grants++
-		write(fmt.Sprintf(`{"protocol":2,"ok":true,"menu_frame":{"generation":%d,"format":"bgrx8888","slots":2,"slot_bytes":4194304}}`, f.generation), f.window)
+		blitter := ""
+		if f.blitter {
+			blitter = fmt.Sprintf(`,"blitter":{"minor":%d,"list_offset":8388608,"commands":32768,"command_bytes":32,"heap_offset":16777216,"heap_bytes":67108864}`, f.blitterMinor)
+		}
+		write(fmt.Sprintf(`{"protocol":2,"ok":true,"menu_frame":{"generation":%d,"format":"bgrx8888","slots":2,"slot_bytes":4194304%s}}`, f.generation, blitter), f.window)
 	case "menu_frame_begin":
 		slot := f.shown ^ 1
-		write(fmt.Sprintf(`{"protocol":2,"ok":true,"menu_frame":{"generation":%d,"slot":%d}}`, f.generation, slot), -1)
+		if f.preparedGen != f.generation {
+			f.preparedGen, f.preparations = f.generation, 0
+		}
+		f.preparations++
+		write(fmt.Sprintf(`{"protocol":2,"ok":true,"menu_frame":{"generation":%d,"slot":%d,"preparation":%d}}`, f.generation, slot, f.preparations), -1)
 		line, fds, err := readLine(conn)
 		if err != nil || len(fds) != 0 || json.Unmarshal(line, &request) != nil ||
 			request["operation"] != "menu_frame_commit" || request["slot"] != float64(slot) {
@@ -107,10 +134,60 @@ func (f *fakeRuntime) handle(conn *net.UnixConn) {
 			return
 		}
 		f.commits = append(f.commits, request)
+		if message := f.commitError(request, slot); message != "" {
+			write(fmt.Sprintf(`{"protocol":2,"ok":false,"error":{"code":"invalid_request","message":%q}}`, message), -1)
+			return
+		}
 		f.shown = slot
 		f.sequence++
 		write(fmt.Sprintf(`{"protocol":2,"ok":true,"menu_frame":{"generation":%d,"slot":%d,"displayed_sequence":%d,"underflows":%d,"timing":{"clean_us":700,"submit_us":12,"scanout_wait_us":9000}}}`, f.generation, slot, f.sequence, f.underflows), -1)
 	}
+}
+
+// commitError applies the runtime's commit rules and runs a list.
+func (f *fakeRuntime) commitError(request map[string]any, slot int) string {
+	if f.refuse != "" {
+		message := f.refuse
+		f.refuse = ""
+		return message
+	}
+	list, isList := request["list"].(map[string]any)
+	if !isList {
+		if f.blitter && f.listedGen == f.generation {
+			return "menu grant takes only lists after its first list"
+		}
+		return ""
+	}
+	if !f.blitter {
+		return "menu grant has no blitter"
+	}
+	if _, written := request["written"]; written {
+		return "menu commit names written regions or a list, not both"
+	}
+	first, count := int(list["first"].(float64)), int(list["count"].(float64))
+	if first < 0 || count < 1 || first+count > ListCommands {
+		return "menu list is outside the list region"
+	}
+	at := ListOffset + first*CommandBytes
+	copy(f.ddr[at:at+count*CommandBytes], f.mapping[at:at+count*CommandBytes])
+	if uploaded, ok := request["uploaded"].([]any); ok {
+		if len(uploaded) < 1 || len(uploaded) > MaxUploadSpans {
+			return "menu uploads are 1 to 16 spans"
+		}
+		for _, raw := range uploaded {
+			span := raw.([]any)
+			offset, bytes := int(span[0].(float64)), int(span[1].(float64))
+			if offset < HeapOffset || bytes < 1 || offset+bytes > BlitWindowBytes {
+				return "menu upload is outside the texture heap"
+			}
+			copy(f.ddr[offset:offset+bytes], f.mapping[offset:offset+bytes])
+		}
+	}
+	if err := blitReference(f.ddr[at:at+count*CommandBytes], f.ddr, f.mapping[slot*SlotBytes:slot*SlotBytes+FrameBytes], f.blitterMinor); err != nil {
+		return "menu blitter fault: " + err.Error()
+	}
+	f.listedGen = f.generation
+	return ""
 }
 
 func (f *fakeRuntime) grantCount() int {

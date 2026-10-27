@@ -14,8 +14,9 @@ MODULE_ROOTS = {'host': 'sources/FogCast', 'runtime': 'sources/libmister-runtime
                 'contracts': 'sources/mister-packages', 'fpga': 'sources/misteross'}
 LANES = ('parent', 'host', 'runtime', 'contracts', 'fpga')
 # Simulation families include the standalone CPU; it has no play-package recipe.
-CORES = ('demo', 'pong', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'menu', 'z80', 'atari-st', 'ramtest', 'riscv', 'pcxt')
-SIMULATION_ONLY_CORES = frozenset({'z80', 'pcxt'})
+CORES = ('demo', 'pong', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'menu', 'z80', 'atari-st', 'ramtest', 'riscv', 'pcxt',
+         'pc386')
+SIMULATION_ONLY_CORES = frozenset({'z80', 'pcxt', 'pc386'})
 EXPANSION_ROOT = 'sources/misteross/expansion'
 # Parent-owned orchestration, test and assembly roots contain no component
 # sources, so their changes select only the parent lane. Matching is the exact
@@ -37,7 +38,7 @@ SOFTWARE_CI_INPUTS = frozenset({
 # misteross unittest suite runs (about two minutes); tool-dependent cases skip.
 FPGA_SOFTWARE_TESTS = ('test_*.py',)
 FPGA_PRODUCER_HELPERS = {
-    'bootstrap.sh', 'audit_fes_pcxt_cdc.py',
+    'bootstrap.sh', 'audit_fes_pcxt_cdc.py', 'quartus_fes_pcxt.py', 'pcxt_quartus_mailbox.py',
     'synth_fes_native_video.py', 'synth_fes_pcxt.py', 'build_fes_pcxt.py', 'build_fes_coleco_socket_v2.py',
     'build_video_part.py', 'video_parts.py', 'native_video_parts.py', 'native_video_clock.py',
     'build_fes_catch.py', 'rom_map.py', 'rom_map_oracle.py',
@@ -54,7 +55,7 @@ CORE_DIRECTORIES = {
     'fes-zx81': ('zx81',), 'fes-coleco': COLECO_CONSUMERS,
     'fes-menu': ('menu',), 'fes-sg1000': ('sg1000',), 'fes-sms': ('sms',), 'fes-apple2': ('apple2',),
     'fes-c64': ('c64',), 'fes-spectrum': ('spectrum',), 'fes-atari-st': ('atari-st',),
-    'fes-ramtest': ('ramtest',), 'fes-riscv': ('riscv',), 'fes-pcxt': ('pcxt',),
+    'fes-ramtest': ('ramtest',), 'fes-riscv': ('riscv',), 'fes-pcxt': ('pcxt',), 'fes-pc386': ('pc386',),
 }
 # The shared session-display plane reuses these MENU scanout units and DDR model.
 # Other MENU implementation files remain owned solely by the idle core.
@@ -89,8 +90,9 @@ SHARED_RTL = {
     't80pa.v': ('coleco', 'sms'),
     'fes_video_part_direct.v': ('coleco', 'atari-st', 'pcxt'),
     'fes_video_part_scanlines.v': ('coleco', 'atari-st', 'pcxt'),
-    'fes_display_plane.v': ('zx81',),
-    'fes_display_cdc.v': ('zx81',),
+    'fes_display_plane.v': ('zx81', 'spectrum', 'c64', 'coleco', 'pc386'),
+    'fes_dma8237.sv': ('pcxt', 'pc386'),
+    'fes_display_cdc.v': ('zx81', 'spectrum', 'c64', 'coleco', 'pc386'),
 }
 # Apple II socket generator and card producer regenerate or build its RTL.
 APPLE2_SCRIPTS = frozenset({'apple2_slots.py', 'build_apple2_slot_card.py'})
@@ -98,6 +100,12 @@ C64_SCRIPTS = frozenset({'c64_slots.py', 'build_c64_slot_card.py'})
 SPECTRUM_SCRIPTS = frozenset({'spectrum_slots.py'})
 ATARI_ST_SCRIPTS = frozenset({'atari_st_slot.py', 'build_atari_st_slot_card.py',
                              'fetch_atari_st_emutos.py'})
+# The i386 CPU has no core or package consumer yet. Its oracle, corpus runners,
+# RTL checks and timing harness are test-only software; their unit tests run in
+# the FPGA software lane.
+I386_SCRIPTS = frozenset({'fes_i386_oracle.py', 'test_fes_i386_vectors.py', 'test_fes_i386_test386.py',
+                          'test_fes_i386_frontend.py', 'test_fes_i386_lockstep.py', 'benchmark_fes_i386.py',
+                          'quartus_fes_i386.py'})
 
 
 def fpga_cores(path):
@@ -116,6 +124,8 @@ def fpga_cores(path):
         return ('demo', 'pong', 'ramtest', 'riscv'), 'shared fixed-raster clock consumers'
     if relative.as_posix() == 'cores/fes-ramtest/rtl/sdram_addon_port.v':
         return ('ramtest', 'atari-st', 'pcxt'), 'shared SDRAM controller consumers'
+    if relative.as_posix() == 'cores/fes-zx81/expansions/zonx_ay.v':
+        return ('zx81', 'atari-st', 'spectrum'), 'shared AY/YM sound engine consumers'
     if relative.as_posix() in ATARI_ST_SHARED_INPUTS:
         original = CORE_DIRECTORIES.get(parts[1], CORES)
         return tuple(dict.fromkeys((*original, 'atari-st'))), 'shared ST motherboard input'
@@ -124,7 +134,7 @@ def fpga_cores(path):
     if relative.as_posix() == 'cores/fes-common/generated/fes_pcxt_isa.vh':
         return ('pcxt',), 'PC/XT ISA fabric consumer'
     if relative.as_posix() == 'cores/fes-common/generated/fes_display_plane.vh':
-        return ('menu', 'zx81'), 'display-plane fabric consumers'
+        return ('menu', 'zx81', 'spectrum', 'c64', 'coleco', 'pc386'), 'display-plane fabric consumers'
     if len(parts) >= 3 and parts[0] == 'cores':
         if parts[1] == 'fes-common' and '/'.join(parts[2:]) in (
                 'sim/native_video_top.v', 'sim/native_video_tb.cpp',
@@ -142,8 +152,16 @@ def fpga_cores(path):
         if (len(parts) >= 4 and parts[1] == 'fes-common'
                 and parts[2] in ('rtl', 'sim') and parts[3] == 'riscv'):
             return ('riscv',), 'original RV32I CPU and its fes.riscv consumer'
+        if len(parts) >= 4 and parts[1:3] == ('fes-common', 'vendor'):
+            return ('pcxt', 'pc386'), 'shared PIC and PIT imports'
+        if len(parts) >= 5 and parts[1:4] == ('fes-common', 'sim', 'i386'):
+            return (), 'i386 oracle adapter, testbenches, timing spikes and divergence list; no core consumer'
+        if len(parts) >= 5 and parts[1:4] == ('fes-common', 'rtl', 'i386'):
+            return (), 'i386 CPU RTL, checked by its software-lane tests; no core consumer yet'
         if parts[1] == 'fes-menu' and '/'.join(parts[2:]) in MENU_SESSION_INPUTS:
-            return ('menu', 'zx81'), 'idle and running-session display consumers'
+            # pc386 uses the plane's RTL with its own DDR model.
+            pc386 = ('pc386',) if parts[2] == 'rtl' else ()
+            return ('menu', 'zx81', 'spectrum', 'c64', 'coleco', *pc386), 'idle and running-session display consumers'
         if parts[1] in CORE_DIRECTORIES:
             return CORE_DIRECTORIES[parts[1]], 'core family and dependent consumers'
         if parts[1:3] == ('fes-common', 'rtl'):
@@ -156,14 +174,16 @@ def fpga_cores(path):
             if len(parts) == 4 and parts[3] in SHARED_RTL:
                 return SHARED_RTL[parts[3]], 'shared RTL consumers'
     if len(parts) == 2 and parts[0] == 'scripts':
-        if parts[1] in ('sim_fes_native_video.py', 'sim_fes_coleco_native.py', 'sim_fes_native_socket.py'):
+        if parts[1] in ('sim_fes_native_video.py', 'sim_fes_coleco_native.py', 'sim_fes_native_socket.py',
+                        'sim_fes_coleco_session.py'):
             return ('coleco',), 'native pixel/frame and Coleco source simulation recipes'
         producer = any(parts[1] == f'build_fes_{core.replace("-", "_")}{suffix}.py'
                        for core in CORES if core not in SIMULATION_ONLY_CORES
                        for suffix in ('', '_oss'))
         if producer or parts[1] in FPGA_PRODUCER_HELPERS:
             return (), 'FPGA producer/package software tests; RTL unchanged'
-        if parts[1] in ('sim_fes_demo.py', 'sim_fes_menu.py', 'sim_fes_z80.py', 'sim_fes_riscv.py', 'sim_fes_pcxt.py'):
+        if parts[1] in ('sim_fes_demo.py', 'sim_fes_menu.py', 'sim_fes_z80.py', 'sim_fes_riscv.py', 'sim_fes_pcxt.py',
+                        'sim_fes_pc386.py'):
             core = parts[1][len('sim_fes_'):-len('.py')]
             return (core,), core + ' simulation recipe'
         if parts[1] in ('benchmark_fes_z80.py', 'test_fes_z80_vectors.py', 'test_fes_z80_pin_trace.py'):
@@ -174,12 +194,18 @@ def fpga_cores(path):
             return ('apple2',), 'Apple II socket/card recipe'
         if parts[1] in C64_SCRIPTS:
             return ('c64',), 'Commodore 64 socket/card recipe'
-        if parts[1] == 'sim_fes_spectrum_turbo.py':
-            return ('spectrum',), 'Spectrum turbo simulation and performance recipe'
+        if parts[1] == 'sim_fes_spectrum.py':
+            return ('spectrum',), 'Spectrum model simulation recipe'
         if parts[1] in SPECTRUM_SCRIPTS:
             return ('spectrum',), 'Spectrum socket recipe'
         if parts[1] in ATARI_ST_SCRIPTS:
             return ('atari-st',), 'Atari ST socket/card/ROM test recipe'
+        if parts[1] in ('build_pc386_firmware.py', 'build_pc386_freedos_image.py'):
+            return ('pc386',), 'pc386 firmware and simulation disk recipes'
+        if parts[1] == 'synth_fes_pc386.py':
+            return (), 'pc386 diagnostic synthesis recipe; no simulation reads it'
+        if parts[1] in I386_SCRIPTS:
+            return (), 'i386 oracle, corpus runners, RTL checks and timing harness; no core consumer'
     if parts and parts[0] == 'tests':
         # No simulation recipe reads misteross tests or their fixtures.
         return (), 'FPGA producer/package software tests; RTL unchanged'
@@ -193,6 +219,14 @@ def changed_paths(root, base, head='HEAD'):
     # No rename detection: both old and new ownership must be considered.
     paths = git('diff', '--name-only', '--no-renames', '-z', ancestor, head)
     return sorted(set(p.decode('utf-8', 'surrogateescape') for p in paths.split(b'\0') if p))
+
+
+def runtime_test_source(path):
+    """Reviewed native-test sources have no deployed host/protocol consumers."""
+    return (Path(path).as_posix() == path and '..' not in Path(path).parts and
+            path.endswith(('.cpp', '.hpp', '.h')) and
+            any(path.startswith(MODULE_ROOTS['runtime'] + '/tests/' + area + '/')
+                for area in ('unit', 'integration', 'support')))
 
 
 def documentation(path):
@@ -215,6 +249,10 @@ def plan(paths):
         if path in SOFTWARE_CI_INPUTS:
             selected.update(LANES)
             reasons.append(f'{path}: software CI infrastructure; RTL unchanged')
+            continue
+        if path in ('scripts/runtime_tests.py', 'tests/test_runtime_tests.py'):
+            selected.update(('parent', 'runtime'))
+            reasons.append(f'{path}: runtime check selection and its regressions')
             continue
         if path == 'scripts/host_tests.py':
             selected.update(('parent', 'host'))
@@ -251,6 +289,9 @@ def plan(paths):
             consumers, reason = fpga_cores(path)
             cores.update(consumers)
             reasons.append(f'{path}: {reason}')
+        elif owner == 'runtime' and runtime_test_source(path):
+            selected.update(('parent', 'runtime'))
+            reasons.append(f'{path}: native runtime tests and parent integration; host inputs unchanged')
         else:
             selected.update(('parent', owner))
             if owner == 'runtime':

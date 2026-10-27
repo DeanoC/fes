@@ -3,14 +3,15 @@ package tenfoot
 import (
 	"context"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
-	"syscall"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/zx81family"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/storage"
 	"github.com/DeanoC/FogCast/ui/rooms"
+	"github.com/DeanoC/misteross/expansion"
 )
 
 type hardwareExpansionFamily struct {
@@ -54,11 +55,23 @@ func (a *App) openHardwarePickerLocked(action rooms.Action) {
 		return
 	}
 	s.HardwareMode = "tapes"
-	s.Status = "Loading starter cassettes…"
+	if !zx81family.Known(action.CoreID) {
+		s.Status = "Choose a cassette for the next start."
+		return
+	}
+	s.Status = "Loading cassettes…"
+	done := "Choose a cassette for the next start. After starting, type LOAD \"\", then RUN."
+	if action.CoreID == "fes.zx81" {
+		done += " Each starter tape shows its recommended RAM."
+	}
 	var tapes []hostclient.HardwareTape
-	a.coreLibraryAsyncLocked(func(ctx context.Context) error { var err error; tapes, err = a.client.ZX81Tapes(ctx); return err }, func() {
+	a.coreLibraryAsyncLocked(func(ctx context.Context) error {
+		var err error
+		tapes, err = a.client.ZX81TapesForGame(ctx, action.GameID)
+		return err
+	}, func() {
 		s.Tapes = tapes
-		s.Status = "Choose a cassette for the next start. After starting, type LOAD \"\", then RUN. Each starter tape shows its recommended RAM."
+		s.Status = done
 	})
 }
 
@@ -109,8 +122,8 @@ func (a *App) handleHardwarePickerLocked(row FirmwarePickerRow) {
 	} else {
 		return
 	}
-	home, _ := os.UserHomeDir()
-	s.Files = firmwarePickerRoots(home, a.hostSettings.Libraries)
+	s.Files = a.storagePickerRootsLocked("media")
+	a.refreshStorageRootsLocked()
 	s.Path = ""
 	s.Index = 0
 }
@@ -126,15 +139,23 @@ func (a *App) selectHardwareTapeLocked(tape *hostclient.HardwareTape) {
 	a.coreLibraryAsyncLocked(func(ctx context.Context) error {
 		role, id := "", ""
 		if tape != nil {
-			media, err := a.client.ImportZX81Tape(ctx, *tape)
-			if err != nil {
-				return err
-			}
+			var err error
 			role, err = a.zx81HardwareTapeRole(ctx, pkg)
 			if err != nil {
 				return err
 			}
-			id = media.MediaID
+			if tape.MediaID != "" {
+				if protocol.ValidateDigest(tape.MediaID) != nil {
+					return fmt.Errorf("invalid saved cassette")
+				}
+				id = tape.MediaID
+			} else {
+				media, err := a.client.ImportZX81Tape(ctx, *tape)
+				if err != nil {
+					return err
+				}
+				id = media.MediaID
+			}
 		}
 		var err error
 		selected, err = a.client.SelectCoreEntryMedia(ctx, game, pkg, expected, role, id)
@@ -152,22 +173,20 @@ func (a *App) importHardwareFileLocked(path string) {
 	s := &a.coreLibrary
 	mode, game, pkg, expected := s.HardwareMode, s.HardwareGameID, s.HardwarePackageID, s.ExpectedMediaID
 	family := hardwareExpansionFamilies[s.ExpansionFamily]
+	manager := a.driveManagerLocked()
 	var selected hostclient.CoreEntry
 	a.coreLibraryAsyncLocked(func(ctx context.Context) error {
-		f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK, 0)
+		maxBytes := storage.MaxFileBytes
+		if mode == "expansions" {
+			maxBytes = int64(expansion.MaxArchiveBytes)
+		}
+		f, size, name, err := openPickerFile(ctx, manager, a.client, path, maxBytes)
 		if err != nil {
 			return err
 		}
 		defer f.Close()
-		info, err := f.Stat()
-		if err != nil {
-			return err
-		}
-		if !info.Mode().IsRegular() {
-			return fmt.Errorf("choose a regular file")
-		}
 		if mode == "expansions" {
-			asset, err := a.client.ImportCoreExpansion(ctx, info.Size(), f)
+			asset, err := a.client.ImportCoreExpansion(ctx, size, f)
 			if err != nil {
 				return err
 			}
@@ -176,10 +195,10 @@ func (a *App) importHardwareFileLocked(path string) {
 			}
 			return a.client.DescribeCoreExpansion(ctx, asset.ExpansionID, family.label, family.description, family.inProgress)
 		}
-		if !protocol.AdmitTapeMediaName(info.Name()) || !protocol.AdmitTapeMediaSize(info.Size()) {
+		if !protocol.AdmitTapeMediaName(name) || !protocol.AdmitTapeMediaSize(size) {
 			return fmt.Errorf("choose a .p / .P cassette of 1–16384 bytes")
 		}
-		media, err := a.client.ImportCoreMedia(ctx, info.Size(), f)
+		media, err := a.client.ImportCoreMedia(ctx, size, f)
 		if err != nil {
 			return err
 		}
@@ -225,40 +244,49 @@ func (a *App) openZX81SetupLocked() {
 	}
 	a.resetCoreLibraryLocked()
 	a.coreLibrary.InstalledSetup = true
-	a.coreLibrary.FilterCoreID = "fes.zx81"
-	a.refreshInstalledZX81Locked()
+	a.coreLibrary.FilterCoreID = ""
+	a.coreLibrary.Online = true
+	a.coreLibrary.Status = "Choose a ZX81-family machine…"
 }
 
 func (a *App) refreshInstalledZX81Locked() {
 	s := &a.coreLibrary
+	variant, ok := zx81family.ByID(s.FilterCoreID)
+	if !ok {
+		return
+	}
 	s.Online = false
 	s.Ref = nil
 	s.Setup = nil
 	s.Index = 0
-	s.Status = "Finding installed Sinclair ZX81 packages…"
+	s.Status = "Finding installed " + variant.Label + " packages…"
 	var cores []hostclient.AvailableCore
+	standing := "experimental"
+	if variant.CoreID == "fes.zx81" {
+		standing = "supported"
+	}
 	a.coreLibraryAsyncLocked(func(ctx context.Context) error {
 		library, err := a.client.CoreLibrary(ctx)
 		if err != nil {
 			return err
 		}
 		for _, p := range library.Packages {
-			if p.CoreID != "fes.zx81" {
+			if p.CoreID != variant.CoreID {
 				continue
 			}
 			setup, err := a.client.InstalledZX81Setup(ctx, p.PackageID)
 			if err != nil {
 				continue
 			}
-			cores = append(cores, hostclient.AvailableCore{CoreReference: setup.CoreReference, Label: "Sinclair ZX81 " + p.Version + " · " + p.PackageID[:8], Standing: "supported", ArtifactState: "installed"})
+			cores = append(cores, hostclient.AvailableCore{CoreReference: setup.CoreReference, Label: variant.Label + " " + p.Version + " · " + p.PackageID[:8], Standing: standing, ArtifactState: "installed"})
 		}
 		return nil
 	}, func() {
 		s.Cores = cores
 		s.Online = true
-		s.Status = "Choose an installed Sinclair ZX81 and its BASIC ROM. Adding a setup does not start it."
+		s.Status = "Choose an installed " + variant.Label + " and its BASIC ROM. Adding a setup does not start it."
 		if len(cores) == 0 {
-			s.Status = "No Sinclair ZX81 with a sealed ROM requirement is installed. Browse published systems to install one."
+			s.Status = "No " + variant.Label + " with a sealed ROM requirement is installed. Browse published systems to install one."
 		}
 	})
 }

@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/rooms"
 )
@@ -36,6 +37,13 @@ func libraryBlockTag(block hostclient.LaunchBlock) string {
 	default:
 		return "Can't play here"
 	}
+}
+
+func libraryGameBlockTag(game hostclient.Game) string {
+	if game.LaunchBlock() == hostclient.LaunchMissingFirmware && game.ROMRole == protocol.FirmwareRole {
+		return "Needs firmware"
+	}
+	return libraryBlockTag(game.LaunchBlock())
 }
 
 // readinessCopy is the readiness row of Details: the state name, a short
@@ -95,7 +103,11 @@ func detailReadiness(d rooms.Destination) readinessCopy {
 			if len(d.Matches) > 0 {
 				block = d.Matches[0].LaunchBlock()
 			}
-			c.Headline = libraryBlockTag(block)
+			if len(d.Matches) > 0 {
+				c.Headline = libraryGameBlockTag(d.Matches[0])
+			} else {
+				c.Headline = libraryBlockTag(block)
+			}
 			if c.Headline == "" {
 				c.Headline = "Can't play here"
 			}
@@ -139,7 +151,7 @@ func drawDetailReadiness(dev gfx.Device, labels map[string]gpuTexture, used map[
 // holds the lease, uses the Details headline.
 func libraryCellTag(game hostclient.Game, k kitPlayState) string {
 	d := classifyLibraryGame(game, k)
-	if tag := libraryBlockTag(game.LaunchBlock()); tag != "" {
+	if tag := libraryGameBlockTag(game); tag != "" {
 		return tag
 	}
 	switch d.Availability {

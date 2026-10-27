@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DeanoC/FogCast/atarist"
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/protocol"
@@ -20,7 +21,7 @@ import (
 
 func coreLibraryCommand(name string) bool {
 	switch name {
-	case "video-parts", "video-part-install", "video-profile", "core-video", "core-media-capabilities", "core-media-install", "core-media-select", "core-settings", "core-progress", "core-settings-set", "core-install", "core-list", "core-check", "core-entry", "core-select", "core-firmware-select":
+	case "video-parts", "video-part-install", "video-profile", "core-video", "core-media-capabilities", "core-media-install", "core-media-select", "core-settings", "core-progress", "core-settings-set", "core-install", "core-list", "core-check", "core-entry", "core-select", "core-firmware-select", "create-blank-st-disk":
 		return true
 	}
 	return false
@@ -36,6 +37,7 @@ func runCoreLibraryCommand(ctx context.Context, origin string, args []string) (r
 	var mediaSnapshot *coreMediaSnapshot
 	var expectedVideoPart *catalog.CoreVideoPart
 	expectedVideoProfile := ""
+	var blankDisk *blankAtariStCommand
 	switch args[0] {
 	case "video-parts":
 		path = "/api/v1/library/video-parts"
@@ -150,6 +152,14 @@ func runCoreLibraryCommand(ctx context.Context, origin string, args []string) (r
 	case "core-select":
 		method, path = http.MethodPut, "/api/v1/library/core-entries/"+url.PathEscape(args[1])
 		data, _ = json.Marshal(map[string]string{"expected_package_id": args[2], "package_id": args[3]})
+	case "create-blank-st-disk":
+		parsed, err := parseBlankAtariSt(args[1:])
+		if err != nil {
+			return commandResult{err: err, exit: 1}
+		}
+		blankDisk = &parsed
+		method, path = http.MethodPost, "/api/v1/library/atari-st-disks"
+		data = parsed.payload()
 	}
 	var requestBody io.Reader = bytes.NewReader(data)
 	if mediaSnapshot != nil {
@@ -213,6 +223,11 @@ func runCoreLibraryCommand(ctx context.Context, origin string, args []string) (r
 			return commandResult{err: &protocol.APIError{Code: protocol.CodeInternal, Phase: "video-change-outcome"}, exit: 1}
 		}
 	}
+	if blankDisk != nil {
+		if err := blankDisk.matches(body); err != nil {
+			return commandResult{err: err, exit: 1}
+		}
+	}
 	if expectedMediaID != "" {
 		var result struct {
 			MediaID string `json:"media_id"`
@@ -232,4 +247,90 @@ func runCoreLibraryCommand(ctx context.Context, origin string, args []string) (r
 		_, err := output.Write(pretty.Bytes())
 		return err
 	}}
+}
+
+type blankAtariStCommand struct {
+	Name, GameID, PackageID, ExpectedMedia string
+	Tracks, Heads, Sectors                 int
+	Bind                                   bool
+}
+
+func parseBlankAtariSt(args []string) (blankAtariStCommand, error) {
+	bad := &protocol.APIError{Code: protocol.CodeBadRequest, Message: "blank ST disk is a name, optional tracks heads sectors, and optional bind game package expected-media", Phase: "request"}
+	if len(args) == 0 {
+		return blankAtariStCommand{}, bad
+	}
+	cmd := blankAtariStCommand{Name: args[0]}
+	rest := args[1:]
+	if len(rest) >= 3 && rest[0] != "bind" {
+		tracks, err1 := strconv.Atoi(rest[0])
+		heads, err2 := strconv.Atoi(rest[1])
+		sectors, err3 := strconv.Atoi(rest[2])
+		if err1 != nil || err2 != nil || err3 != nil {
+			return blankAtariStCommand{}, bad
+		}
+		cmd.Tracks, cmd.Heads, cmd.Sectors = tracks, heads, sectors
+		rest = rest[3:]
+	}
+	if _, ok := atarist.Geometry(cmd.Tracks, cmd.Heads, cmd.Sectors); !ok {
+		return blankAtariStCommand{}, bad
+	}
+	if len(rest) == 0 {
+		return cmd, nil
+	}
+	if len(rest) != 4 || rest[0] != "bind" {
+		return blankAtariStCommand{}, bad
+	}
+	expected := rest[3]
+	if expected == "none" {
+		expected = ""
+	}
+	if protocol.ValidateGameID(rest[1]) != nil || protocol.ValidateDigest(rest[2]) != nil || (expected != "" && protocol.ValidateDigest(expected) != nil) {
+		return blankAtariStCommand{}, bad
+	}
+	cmd.Bind, cmd.GameID, cmd.PackageID, cmd.ExpectedMedia = true, rest[1], rest[2], expected
+	return cmd, nil
+}
+
+func (cmd blankAtariStCommand) payload() []byte {
+	geometry, _ := atarist.Geometry(cmd.Tracks, cmd.Heads, cmd.Sectors)
+	body := map[string]any{"name": cmd.Name, "tracks": geometry.Tracks, "heads": geometry.Heads, "sectors": geometry.Sectors}
+	if cmd.Bind {
+		body["bind"] = true
+		body["game_id"] = cmd.GameID
+		body["expected_package_id"] = cmd.PackageID
+		body["expected_media_id"] = cmd.ExpectedMedia
+	}
+	data, _ := json.Marshal(body)
+	return data
+}
+
+func (cmd blankAtariStCommand) matches(body []byte) error {
+	geometry, _ := atarist.Geometry(cmd.Tracks, cmd.Heads, cmd.Sectors)
+	var result struct {
+		MediaID string `json:"media_id"`
+		Size    int64  `json:"size"`
+		Name    string `json:"name"`
+		Tracks  int    `json:"tracks"`
+		Heads   int    `json:"heads"`
+		Sectors int    `json:"sectors"`
+		Entry   *struct {
+			GameID    string `json:"game_id"`
+			PackageID string `json:"package_id"`
+			MediaID   string `json:"media_id"`
+			MediaRole string `json:"media_role"`
+		} `json:"entry"`
+	}
+	want := int64(geometry.Tracks) * int64(geometry.Heads) * int64(geometry.Sectors) * 512
+	if json.Unmarshal(body, &result) != nil || protocol.ValidateDigest(result.MediaID) != nil || result.Size != want || result.Tracks != geometry.Tracks || result.Heads != geometry.Heads || result.Sectors != geometry.Sectors || result.Name == "" {
+		return &protocol.APIError{Code: protocol.CodeInternal, Message: "blank ST disk response does not match the request"}
+	}
+	if cmd.Bind {
+		if result.Entry == nil || result.Entry.GameID != cmd.GameID || result.Entry.PackageID != cmd.PackageID || result.Entry.MediaRole != protocol.DiskRole || result.Entry.MediaID != result.MediaID {
+			return &protocol.APIError{Code: protocol.CodeInternal, Message: "blank ST disk response does not match the request"}
+		}
+	} else if result.Entry != nil {
+		return &protocol.APIError{Code: protocol.CodeInternal, Message: "blank ST disk response does not match the request"}
+	}
+	return nil
 }

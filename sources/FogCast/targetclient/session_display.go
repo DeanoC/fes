@@ -9,14 +9,14 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
-func (c *Client) SetSessionDisplay(ctx context.Context, visible bool, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
-	if !b.Valid() || b.Stream || b.Role == protocol.FirmwareRole {
+func (c *Client) SetSessionDisplay(ctx context.Context, display protocol.SessionDisplay, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
+	if !b.Valid() || b.Stream || b.Role == protocol.FirmwareRole || !display.Valid() {
 		return protocol.Status{}, protocol.SessionDisplayRequestError()
 	}
 	if c.kitLease == nil {
 		return protocol.Status{}, ErrKitLeaseLost
 	}
-	body, _ := json.Marshal(protocol.SessionDisplayRequest{Visible: &visible})
+	body, _ := json.Marshal(protocol.NewSessionDisplayRequest(display))
 	r, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint("/v1/session/display", nil).String(), bytes.NewReader(body))
 	if err != nil {
 		return protocol.Status{}, err

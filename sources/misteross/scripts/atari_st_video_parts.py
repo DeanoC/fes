@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from scripts import coleco_expansion, atari_st_slot
+from scripts import coleco_expansion, atari_st_slot, pnr_recipe
 
 INTERFACE = "fes.fabric.video.raster-rgb888"
 MAP = "fes.atari-st-video.socket/1"
@@ -98,7 +98,8 @@ def _net_bits(netnames: dict, name: str, width: int, *, wires=False) -> list:
     return _bits(alias.get("bits"), width, f"net {name}", wires=wires)
 
 
-def validate_boundary(top: dict, *, routed: bool) -> None:
+def validate_boundary(top: dict, *, routed: bool,
+                      nextpnr_commit: str = pnr_recipe.nextpnr_pin("fes.atari-st")) -> None:
     top = _object(top, "top module")
     cells = _object(top.get("cells"), "cells")
     netnames = _object(top.get("netnames"), "netnames")
@@ -145,9 +146,11 @@ def validate_boundary(top: dict, *, routed: bool) -> None:
     if routed:
         boundary = {PREFIX + name: bel for name, bel in boundary_bels().items()}
         allowed = (set(boundary) | {PREFIX + name for name in request_egress_bels()} |
-                   coleco_expansion.boundary_route_through_cells(top, boundary))
+                   coleco_expansion.boundary_route_through_cells(
+                       top, boundary, nextpnr_commit=nextpnr_commit))
         coleco_expansion.validate_clock_anchors(top, {
-            name: bel for name, bel in boundary.items() if name.startswith(PREFIX + "clock_coverage_ff_")})
+            name: bel for name, bel in boundary.items() if name.startswith(PREFIX + "clock_coverage_ff_")},
+            nextpnr_commit=nextpnr_commit)
         for name, cell in cells.items():
             cell = _object(cell, f"shell cell: {name}")
             attributes = _object(cell.get("attributes", {}), f"shell attributes: {name}")
@@ -160,12 +163,13 @@ def validate_boundary(top: dict, *, routed: bool) -> None:
                 raise ValueError(f"video reservation contains shell cell: {name}")
 
 
-def prepare_scaffold(source: bytes) -> bytes:
+def prepare_scaffold(source: bytes, *,
+                     nextpnr_commit: str = pnr_recipe.nextpnr_pin("fes.atari-st")) -> bytes:
     """Expose only video under the compiler's packed-port adapter names."""
     design = json.loads(source)
     modules = _object(_object(design, "scaffold design").get("modules"), "scaffold modules")
     top = _object(modules.get("top"), "scaffold top module")
-    validate_boundary(top, routed=True)
+    validate_boundary(top, routed=True, nextpnr_commit=nextpnr_commit)
     cells = top["cells"]
     if any(name.startswith(("plug_addr_ff_", "plug_rdata_ff_")) for name in cells):
         raise ValueError("frozen ST shell already exposes canonical plug cells")

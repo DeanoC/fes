@@ -17,6 +17,9 @@ import (
 )
 
 func TestKitMutationMatchesAMeshPrefixOnly(t *testing.T) {
+	if gated, acquire := kitMutation("/v1/zx81-tape/acknowledge"); !gated || acquire {
+		t.Fatalf("ZX81 SAVE acknowledgement gated %v acquire %v", gated, acquire)
+	}
 	if gated, acquire := kitMutation("/agent/v1/mesh/content/pull"); !gated || !acquire {
 		t.Fatalf("pull gated %v acquire %v", gated, acquire)
 	}

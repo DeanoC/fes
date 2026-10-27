@@ -2,8 +2,8 @@
 
 Two synthesizable Z80 variants written from published behavior specifications.
 The new RTL does not instantiate, translate or include T80, TV80 or an emulator.
-SG-1000, ZX81 and Spectrum select the NMOS variant at native cadence. Spectrum also
-has a documented-only 56 MHz development build. Coleco and SMS still
+SG-1000, ZX81 and the Spectrum models select the NMOS variant at native
+cadence. No product core selects `fes_z80_fast`. Coleco and SMS still
 instantiate TV80/T80. That is the remaining divergence, not a second product
 CPU. The retirement order is
 [core alignment](../../../../../../docs/core-alignment.md). Each consumer
@@ -11,7 +11,7 @@ requires its own full-system timing and hardware qualification.
 
 | Entry point | Behavior | Interface |
 | --- | --- | --- |
-| `fes_z80_nmos` | Original Zilog NMOS instruction behavior, undocumented operations and flags, original machine-cycle timing | Active-low Z80 strobes; alternating `ce_p`/`ce_n` in one system clock domain |
+| `fes_z80_nmos` | Original Zilog NMOS instruction behavior, undocumented operations and flags, original machine-cycle timing | Active-low Z80 strobes; alternating `ce_p`/`ce_n` in one system clock domain, at least two clocks apart |
 | `fes_z80_fast` | Zilog UM008011-0816 documented instruction set; unsupported encodings trap | Request/completion transactions; no original T-state padding or physical refresh pulses |
 
 The shared `fes_z80_engine` handles base, CB, ED, DD, FD, DDCB and FDCB
@@ -32,7 +32,13 @@ maskable-interrupt parity behavior in `LD A,I` and `LD A,R`
 bits of R increment; DDCB/FDCB operations have two M1 fetches.
 
 The NMOS instruction controller uses explicit one-hot state bits to shorten
-control paths at the consumer system clock. The fast variant keeps its compact
+control paths at the consumer system clock. Its ALU result and extra T states
+are registered one clock after their inputs, and `fes_z80_nmos` registers its
+pins and presented cycle one clock after the bus unit. Every engine input
+settles at least half a T state before the commit that reads it, so with
+enables at least two clocks apart these registers change no T-state
+behaviour; Verilator builds stop if a consumer drives enables on consecutive
+clocks. The fast variant keeps its compact
 binary state encoding; this choice does not change instruction or pin timing.
 
 Register reads and ALU input/operation selection use parallel decoded terms.
@@ -59,8 +65,16 @@ independent corpus's cycle observations. The INI timing tuple on p298 lists
 resolve that subcycle discrepancy. Primary physical traces for block-input
 subcycles and prefixed/multi-byte IM0 remain qualification requirements.
 
-`ce_p` and `ce_n` must alternate and must never coincide. All storage uses
-`posedge clk`; there are no generated clocks. `reset` is an active-high,
+`ce_p` and `ce_n` must alternate and must never coincide. Holding both off
+stretches the current half-cycle with all state preserved. `cycle_present`,
+`cycle_kind` (the `bus_kind` numbering below) and `cycle_t` observe the
+presented bus cycle and its T state, from T1's high half onward, so a shell
+can stretch particular T states the way the ZX Spectrum ULA holds the clock
+high for contention. During internal T states the address bus keeps the
+cycle's address: the refresh address after an M1, the transfer address of a
+read or write extension, or the idle address of an internal cycle (DE during
+the LDIR/LDDR repeat, HL for CPIR and INIR, BC for OTIR, as the chip does).
+All storage uses `posedge clk`; there are no generated clocks. `reset` is an active-high,
 system-clock synchronous integration reset. It does not emulate the physical
 chip's analog RESET input or its phase-dependent release delay. The enclosing
 bus mux must disconnect address/data while `busak_n` is low: FPGA fabric
@@ -214,24 +228,10 @@ python3 scripts/benchmark_fes_z80.py --variant fast \
   --target-mhz 100 --seed 1 --seed 2 --seed 3
 ```
 
-For the selected 56 MHz fast-core route:
-
-```sh
-python3 scripts/benchmark_fes_z80.py --variant fast \
-  --yosys /absolute/path/to/yosys \
-  --nextpnr /absolute/path/to/nextpnr-mistral \
-  --target-mhz 56 --seed 3
-```
-
 `--require-target` returns a failure if any selected seed misses the requested
 clock, after saving the complete reports. Without it the command records a
 diagnostic even when timing misses its target.
 
-56 MHz is 16 times the Spectrum 48K's nominal 3.5 MHz clock. This describes a clock ratio;
-shorter instruction cycles and memory latency make program speed workload
-dependent. Coleco/Sega's 3.579545 MHz baseline needs 57.272720 MHz for the same
-clock ratio. Seed selection is part of the contained recipe, and console
-integration needs a fresh timing check.
 The benchmark drives the CPU with changing inputs and observes register/bus
 state through a small registered signature harness. It targets `5CSEBA6U23I7`
 with the native Yosys/nextpnr ALM flow. Its fingerprinted output records exact
@@ -250,16 +250,13 @@ Before the parallel selection and separate fast PC changes, Yosys
 produced a contained fast envelope of
 46.221–54.404 MHz across seeds 1–10 at a 56 MHz target. Seed 6 reaches
 49.818 MHz. Those placements do not pass `--require-target`; the range does
-not establish a CPU frequency ceiling. The full Spectrum fast producer uses
-its selected system toolchain, memory/socket schedule and placement search,
-and refuses sealing unless the actual system closes 56 MHz. Console recipes
-qualify the CPU together with their memory and peripheral logic.
+not establish a CPU frequency ceiling. Console recipes qualify the CPU
+together with their memory and peripheral logic.
 
 Complete physical-chip equivalence, edge-coincident interrupt apertures,
 all unstrobed pin traces, firmware/game compatibility and exact-artifact
-hardware acceptance remain separate qualification. SG-1000 and Spectrum now
-select the native first-party CPU; their package/interface contracts remain
-unchanged apart from the core version and functional build identity.
+hardware acceptance remain separate qualification. SG-1000, ZX81 and the
+Spectrum models select the native first-party CPU.
 
 ## Behavior sources and provenance
 

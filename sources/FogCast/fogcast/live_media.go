@@ -17,12 +17,19 @@ type liveMediaClient interface {
 // ReplaceLiveMedia arms a household core-media id into the active generation
 // via the mid-session live path. It does not inject LOAD "" keys.
 // A .dsk/.do, .d64 or .st name selects the fes.computer disk unit instead; see
-// replaceLiveDisk.
+// replaceLiveDisk. A .trd or .scl name, or a .dsk on a package with a
+// Spectrum disk drive, selects the Spectrum disk unit; see
+// replaceLiveSpectrumDisk. A Spectrum tape or snapshot name selects the
+// cassette unit; see replaceLiveCassette. So does no name: a Spectrum cassette
+// inserted by digest, whose content decides between tape and snapshot.
 func (s *Service) ReplaceLiveMedia(parent context.Context, mediaID, name string, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
+	if protocol.AdmitSpectrumDiskName(name) && (!protocol.AdmitComputerDiskName(name) || s.spectrumDiskPackage(parent, b)) {
+		return s.replaceLiveSpectrumDisk(parent, mediaID, name, b)
+	}
 	if protocol.AdmitComputerDiskName(name) {
 		return s.replaceLiveDisk(parent, mediaID, name, b)
 	}
-	if protocol.AdmitSpectrumTapeName(name) {
+	if name == "" || protocol.AdmitSpectrumCassetteName(name) {
 		return s.replaceLiveCassette(parent, mediaID, name, b)
 	}
 	if !b.Valid() || b.Target == "" || protocol.ValidateDigest(mediaID) != nil || !protocol.AdmitTapeMediaName(name) {
@@ -205,6 +212,7 @@ func (s *Service) clearLiveMediaLocked(ctx, owner context.Context, b protocol.De
 func clearLiveMediaRetry(ctx context.Context, loader liveMediaClient, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
 	var status protocol.Status
 	var err error
+	uncertain := false
 	waits := []time.Duration{0, 20 * time.Millisecond, 40 * time.Millisecond, 80 * time.Millisecond}
 	for attempt, wait := range waits {
 		if wait > 0 {
@@ -213,20 +221,23 @@ func clearLiveMediaRetry(ctx context.Context, loader liveMediaClient, b protocol
 			case <-ctx.Done():
 				timer.Stop()
 				if err != nil {
-					return status, err
+					return status, protocol.LiveMediaRetryError(err, uncertain)
 				}
 				return status, ctx.Err()
 			case <-timer.C:
 			}
 		}
 		status, err = loader.ClearLiveMedia(ctx, b)
+		if err != nil && !protocol.LiveMediaNoChange(err) {
+			uncertain = true
+		}
 		// Retry loader busy and transport glitches only. A hard input-phase
 		// unavailable report is the link, not loader contention.
 		if err == nil || !ejectRetryable(err) || attempt == len(waits)-1 {
-			return status, err
+			return status, protocol.LiveMediaRetryError(err, uncertain)
 		}
 	}
-	return status, err
+	return status, protocol.LiveMediaRetryError(err, uncertain)
 }
 
 func ejectRetryable(err error) bool {
@@ -274,4 +285,20 @@ func (s *Service) retainLiveSessionIdentity(status protocol.Status, b protocol.D
 		status.System = systemPtr(play.system)
 	}
 	return status
+}
+
+// spectrumDiskPackage reports whether the bound package has a Spectrum disk
+// drive, which takes a .dsk name that would otherwise be an Apple II disk.
+func (s *Service) spectrumDiskPackage(parent context.Context, b protocol.DevelopmentMediaBinding) bool {
+	if !b.Valid() {
+		return false
+	}
+	ctx, cancel := serviceTimeout(parent, s.uploadTimeout)
+	defer cancel()
+	inspection, err := s.installedCoreInspection(ctx, b.PackageID)
+	if err != nil {
+		return false
+	}
+	_, ok := protocol.SpectrumDiskSystem(inspection.Descriptor)
+	return ok
 }

@@ -32,12 +32,17 @@ func TestApplicationContractAndLegacyConstants(t *testing.T) {
 			}
 		}
 	}
-	want := []string{"fes.gamepad", "fes.video.fixed-720p60", "fes.media.blob", "fes.media.blob-stream", "fes.audio.pcm-s16-stereo-48k", "fes.gamepad.ports", "fes.keypad.ports", "fes.firmware.blob", "fes.memory.hps-ddr", "fes.video.menu-display"}
+	want := []string{"fes.gamepad", "fes.video.fixed-720p60", "fes.media.blob", "fes.media.blob-stream", "fes.audio.pcm-s16-stereo-48k", "fes.gamepad.ports", "fes.keypad.ports", "fes.firmware.blob", "fes.memory.hps-ddr", "fes.video.menu-display", "fes.video.menu-blitter", "fes.video.session-display"}
 	if len(app.Interfaces) != len(want) {
 		t.Fatal("interface count")
 	}
 	for i, iface := range app.Interfaces {
-		if iface.ID != want[i] || iface.CapabilityBit != uint8(i) || iface.Major != 1 || iface.Minor != 0 {
+		// The menu blitter is at 1.1: minor 1 added EXPAND.
+		minor := uint16(0)
+		if iface.ID == "fes.video.menu-blitter" {
+			minor = 1
+		}
+		if iface.ID != want[i] || iface.CapabilityBit != uint8(i) || iface.Major != 1 || iface.Minor != minor {
 			t.Fatalf("interface %d: %#v", i, iface)
 		}
 	}

@@ -32,10 +32,13 @@ type Server struct {
 	// until ReconcileExecutionFence makes the durable and volatile records match.
 	ExecutionFenced bool
 	Gate            func() error
+	// HeldBack and HeldBackReason report the selection this image cannot run.
+	// The supervisor copies them from its Engine before publishing status.
+	HeldBack, HeldBackReason string
 }
 
 func (s *Server) PublishStatus() {
-	snapshot := &Server{Repository: s.Repository, Controller: s.Controller, BaseIdentity: s.BaseIdentity, StorageError: s.StorageError}
+	snapshot := &Server{Repository: s.Repository, Controller: s.Controller, BaseIdentity: s.BaseIdentity, StorageError: s.StorageError, HeldBack: s.HeldBack, HeldBackReason: s.HeldBackReason}
 	s.snapshot.Store(snapshot)
 }
 
@@ -86,7 +89,7 @@ func (s *Server) finishFence(ctx context.Context) {
 }
 
 func (s *Server) status() (softwarecontrol.Status, error) {
-	out := softwarecontrol.Status{BaseIdentity: s.BaseIdentity, StorageError: s.StorageError}
+	out := softwarecontrol.Status{BaseIdentity: s.BaseIdentity, StorageError: s.StorageError, HeldBack: s.HeldBack, HeldBackReason: s.HeldBackReason}
 	if s.Controller != nil {
 		out.ActiveBundle = s.Controller.Active()
 		out.ServiceFault = s.Controller.ServiceFault()

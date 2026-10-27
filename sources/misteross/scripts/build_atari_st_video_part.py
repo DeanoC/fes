@@ -27,13 +27,16 @@ SOURCES = ("cores/fes-common/rtl/fes_video_part_cart.v",
            "cores/fes-common/rtl/fes_video_part_scanlines.v")
 INPUTS = (*SOURCES, "cores/fes-common/generated/fes_video_part.vh",
           "scripts/build_atari_st_video_part.py", "scripts/atari_st_video_parts.py",
-          "scripts/coleco_expansion.py", "scripts/functional_execution.py",
+          "scripts/coleco_expansion.py", "scripts/pnr_recipe.py", "scripts/functional_execution.py",
           "scripts/export_core_package.py", "scripts/compiler_read_audit.py",
           *slot_recipe.TOOL_INPUTS)
 PLACER_SEED = 4
 OUTPUTS = ("cart.json", "cart-synth.json", "cart.rbf", "cart-routed.json", "timing.json", "linked.rbf",
            "build-summary.json", "synthesis.log", "route.log", "clocks.sdc",
            "scaffold.json", "cart.qsf", "cram-diff.json")
+# The shell may use DSP blocks; a video part never does. The factory video
+# inspector re-checks sealed parts against this same set.
+FORBIDDEN_RESOURCES = shell_recipe.FORBIDDEN_RESOURCES | shell_recipe.DSP_RESOURCES
 
 
 def write_cram_report(output: Path, cart: bytes, changes: dict, *, part_id: str | None = None, layout=video_parts) -> Path:
@@ -197,7 +200,7 @@ def build(root: Path, shell: Path, package_path: Path, variant: str, *,
             factory.ORDINARY_RESOURCES | set(factory.REQUIRED_RESOURCES) |
             factory.FORBIDDEN_RESOURCES | factory.REQUIRED_ZERO_RESOURCES)
         synthesis_counts = _cell_counts(json.loads((output / "cart.json").read_bytes()))
-        if any(synthesis_counts.get(name, 0) for name in factory.FORBIDDEN_RESOURCES | set(factory.REQUIRED_RESOURCES)):
+        if any(synthesis_counts.get(name, 0) for name in FORBIDDEN_RESOURCES | set(factory.REQUIRED_RESOURCES)):
             raise ValueError("video part must not own DSP, PLL or HPS resources")
         checked_clocks = validate_clocks(json.loads((output / "cart-routed.json").read_bytes()), layout=layout)
         if variant == "scanlines" and not checked_clocks:

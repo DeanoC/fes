@@ -6,6 +6,18 @@ lock=${TARGET_IMAGE_LOCK:-$repo_root/build/target-image.sources.lock.toml}
 lock_bin=${TARGET_IMAGE_LOCK_BIN:-$repo_root/bin/target-image-lock-linux-amd64}
 cache=${TARGET_IMAGE_CACHE:-$repo_root/build/cache/target-image}
 test_mode=${TARGET_IMAGE_TEST_MODE:-0}
+fetch_mode=${1:-all}
+case "$fetch_mode" in
+  all|buildroot|kit-sdk) ;;
+  *)
+    printf 'usage: fetch-target-image-sources.sh [all|buildroot|kit-sdk]\n' >&2
+    exit 2
+    ;;
+esac
+if [ "$#" -gt 1 ]; then
+  printf 'usage: fetch-target-image-sources.sh [all|buildroot|kit-sdk]\n' >&2
+  exit 2
+fi
 
 read_key() {
   read_section=$1
@@ -38,10 +50,12 @@ require_commit() {
   printf 'fetch-target-image-sources: lock does not exist: %s\n' "$lock" >&2
   exit 2
 }
-[ -x "$lock_bin" ] || {
-  printf 'fetch-target-image-sources: lock verifier is not executable: %s\n' "$lock_bin" >&2
-  exit 2
-}
+if [ "$fetch_mode" = all ]; then
+  [ -x "$lock_bin" ] || {
+    printf 'fetch-target-image-sources: lock verifier is not executable: %s\n' "$lock_bin" >&2
+    exit 2
+  }
+fi
 
 buildroot_commit=$(read_key buildroot commit)
 creator_commit=$(read_key image_creator commit)
@@ -56,8 +70,12 @@ kernel_repo=https://github.com/MiSTer-devel/Linux-Kernel_MiSTer.git
 
 if [ "$test_mode" = 1 ]; then
   buildroot_repo=${TARGET_IMAGE_BUILDROOT_REPO:?TARGET_IMAGE_BUILDROOT_REPO is required in test mode}
-  creator_repo=${TARGET_IMAGE_IMAGE_CREATOR_REPO:?TARGET_IMAGE_IMAGE_CREATOR_REPO is required in test mode}
-  kernel_repo=${TARGET_IMAGE_KERNEL_REPO:?TARGET_IMAGE_KERNEL_REPO is required in test mode}
+  if [ "$fetch_mode" = all ]; then
+    creator_repo=${TARGET_IMAGE_IMAGE_CREATOR_REPO:?TARGET_IMAGE_IMAGE_CREATOR_REPO is required in test mode}
+  fi
+  if [ "$fetch_mode" = all ] || [ "$fetch_mode" = kit-sdk ]; then
+    kernel_repo=${TARGET_IMAGE_KERNEL_REPO:?TARGET_IMAGE_KERNEL_REPO is required in test mode}
+  fi
 else
   test "$buildroot_commit" = 004a792dcf10e6c474070c9571f7504411e786cc
   test "$creator_commit" = 8aba321b2162e54b56522aa30758b22d97eec8da
@@ -112,6 +130,15 @@ fetch_bare_repo() {
 
 mkdir -p "$cache"
 fetch_repo buildroot "$buildroot_repo" "$buildroot_commit"
+if [ "$fetch_mode" = buildroot ]; then
+  printf 'target image buildroot source fetched in %s\n' "$cache"
+  exit 0
+fi
+if [ "$fetch_mode" = kit-sdk ]; then
+  fetch_bare_repo linux-kernel "$kernel_repo" "$kernel_commit"
+  printf 'target image kit-sdk sources fetched in %s\n' "$cache"
+  exit 0
+fi
 fetch_repo image-creator "$creator_repo" "$creator_commit"
 fetch_bare_repo linux-kernel "$kernel_repo" "$kernel_commit"
 

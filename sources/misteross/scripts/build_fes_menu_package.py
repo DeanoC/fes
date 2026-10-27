@@ -23,6 +23,7 @@ MENU_TOOLCHAIN_LOCK = 'cores/fes-menu/toolchain.lock'
 CONTRACT = 'cores/fes-common/generated/fes_application.vh'
 SOURCES = tuple(p for p in menu.SOURCES if not p.endswith('/top.v')) + menu.DDR_SOURCES + (
     'cores/fes-common/rtl/fes_application_gp.v', 'cores/fes-menu/rtl/fes_menu_control.v',
+    'cores/fes-menu/rtl/fes_menu_blit_control.v',
     'cores/fes-menu/rtl/fes_menu_endpoint.v', 'cores/fes-menu/rtl/menu_top.v')
 INPUTS = tuple(dict.fromkeys(tuple(p for p in menu.inputs_for('ddr') if p not in (
     menu.RECIPE, 'cores/fes-menu/rtl/top.v')) + (RECIPE, menu.RECIPE,
@@ -61,7 +62,7 @@ def build_commands(build_id, tools, *, seed=5, gpu_device=0, env=None):
         raise board.BuildError('menu package requires authenticated tools')
     program = (f"read_verilog -sv -I cores/fes-common/generated {' '.join(SOURCES)}; "
         f"chparam -set BUILD_ID 128'h{build_id} top; "
-        f"synth_intel_alm -nolutram -nodsp -top top; stat; write_json {OUTPUT}/synth.json")
+        f"synth_intel_alm -nolutram -top top; stat; write_json {OUTPUT}/synth.json")
     builder = pnr_recipe.argv if env is None else pnr_recipe.build
     built = builder('fes.menu', tools['nextpnr-mistral'], f'{OUTPUT}/synth.json', seed,
         gpu_device, output=OUTPUT, qsf=menu.QSF, sdc=menu.evidence.SDC,
@@ -80,8 +81,8 @@ def create_manifest(root, repository, revision, record):
         'target':{'platform':'de10_nano','device':board.TARGET,'programming_profile':'fes-gp-v1'},
         'payload':{'file':'core.rbf','size':payload.stat().st_size,'sha256':board._sha256(payload)},
         'abi':{'id':'fes.application','major':1,'minor':0},
-        'interfaces':[{'id':name,'major':1,'minor':0,'required':True} for name in (
-            'fes.video.fixed-720p60','fes.memory.hps-ddr','fes.video.menu-display')],
+        'interfaces':[{'id':name,'major':1,'minor':minor,'required':True} for name,minor in (
+            ('fes.video.fixed-720p60',0),('fes.memory.hps-ddr',0),('fes.video.menu-display',0),('fes.video.menu-blitter',1))],
         'build':{'id':build_identity(record),'repository':repository,'revision':revision,
             'recipe_sha256':fields['recipe_sha256'],
             'toolchain':'; '.join(f'{name} {identity}' for name,identity in sorted(fields['tools'].items()))}})

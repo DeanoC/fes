@@ -1,0 +1,9 @@
+=== RUN   TestHomeWatchdogDiagnostic
+    home_watchdog_diagnostic_test.go:52: cycle=0 frames=100 max_draw=20.50067ms
+    home_watchdog_diagnostic_test.go:52: cycle=1 frames=100 max_draw=20.50067ms
+    home_watchdog_diagnostic_test.go:52: cycle=2 frames=100 max_draw=20.50067ms
+    home_watchdog_diagnostic_test.go:52: cycle=3 frames=100 max_draw=20.50067ms
+    home_watchdog_diagnostic_test.go:52: cycle=4 frames=100 max_draw=20.64393ms
+    home_watchdog_diagnostic_test.go:41: cycle=5 frame=78 timing={Async:7.46µs Update:237.1µs Draw:13.82736ms Total:14.87716ms}: room example.fes-cores: draw callback: script exceeded 12ms soft callback budget (elapsed 13.7ms; script run 13.62ms: thread cpu 13.3ms, 0 voluntary/6 involuntary switches) (after 8 consecutive overruns; elapsed 15.3ms (script run 15.23ms: thread cpu 10.5ms, 0 voluntary/6 involuntary switches), 14.8ms (script run 14.78ms: thread cpu 10.63ms, 0 voluntary/4 involuntary switches), 13ms (script run 12.9ms: thread cpu 12.48ms, 0 voluntary/7 involuntary switches), 12.5ms (script run 12.48ms: thread cpu 10.53ms, 0 voluntary/10 involuntary switches), 30.5ms (script run 30.43ms: thread cpu 14.83ms, 0 voluntary/21 involuntary switches), 12.5ms (script run 12.46ms: thread cpu 10.88ms, 0 voluntary/9 involuntary switches), 15.9ms (script run 15.8ms: thread cpu 13.83ms, 0 voluntary/10 involuntary switches), 13.7ms (script run 13.62ms: thread cpu 13.3ms, 0 voluntary/6 involuntary switches); 0 process-wide GC cycles; up to 0 images loading)
+--- FAIL: TestHomeWatchdogDiagnostic (15.86s)
+FAIL

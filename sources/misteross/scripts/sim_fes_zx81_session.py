@@ -39,6 +39,7 @@ def main():
         '--public-flat-rw', '-Wall',
         *('-Wno-'+name for name in waivers),
         '-I'+str(ROOT/'cores/fes-zx81/generated'), '-I'+str(ROOT/'cores/fes-common/generated'),
+        '-I'+str(ROOT/'cores/fes-zx81/rtl'),
         '-I'+str(ROOT/'cores/fes-common/rtl/z80'),
         '--Mdir', str(output), *(str(ROOT / p) for p in sources),
         str(ROOT / 'cores/fes-zx81/sim/session_tb.cpp')], cwd=ROOT, check=True)

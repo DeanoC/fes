@@ -16,30 +16,36 @@ they were written. They are not the schedule for this tree.
 
 ## Current cores
 
-Parent recipe rows live in FES `config/core-recipes.toml`. The factory image
-installs the idle display `fes.menu`, playable `fes.pong`, `fes.zx81`,
-`fes.coleco`, `fes.sms`, `fes.sg1000` and `fes.spectrum`, and the OSS 100 MHz
-`fes.ramtest` utility and `fes.atari-st`: nine packages. `fes.coleco` and
-`fes.atari-st` are video-socket shells; the image also carries sealed Direct and
-Scanlines parts for each exact shell. ST firmware remains a separate user input.
-A producer in this module does not put a package on that image.
+Parent recipe rows live in FES `config/core-recipes.toml`. The bootstrap
+image installs the idle display `fes.menu` only (fes#919); every playable
+package is a core-library installation with a standing in
+`config/core-library.toml`. `fes.coleco` and `fes.atari-st` are video-socket
+shells whose sealed Direct and Scanlines parts install alongside them. ST
+firmware remains a separate user input. A producer in this module registers
+nothing by itself.
 
-| Package | Tree | Mailbox | Lock | OSS seal | In factory image |
+| Package | Tree | Mailbox | Lock | OSS seal | Library standing |
 | --- | --- | --- | --- | --- | --- |
-| `fes.menu` | `cores/fes-menu` | `fes.application` with menu display and HPS DDR | `cores/fes-menu/toolchain.lock` | `make build-fes-menu-package` | yes; idle display, not playable |
-| `fes.pong` | `cores/fes-pong` | `fes.simple-game` | `cores/fes-pong/toolchain.lock` | `make build-fes-pong` | yes |
-| `fes.zx81` | `cores/fes-zx81` | `fes.computer` with session display and HPS DDR; `fes_z80_nmos` | `cores/fes-zx81/toolchain.lock` | `make build-fes-zx81` | yes |
-| `fes.coleco` | `cores/fes-coleco` | `fes.application` | `cores/fes-coleco/toolchain.lock` | `make build-fes-coleco-native-video` (FES selects the native variant) | yes; optional Coleco bus 2.0 and mandatory linked native video; Direct and Scanlines parts ship alongside |
-| `fes.sms` | `cores/fes-sms` | `fes.simple-computer` | `cores/fes-sms/toolchain.lock` | `make build-fes-sms` | yes |
-| `fes.sg1000` | `cores/fes-sg1000` | `fes.simple-computer` | `cores/fes-sg1000/toolchain.lock` | `make build-fes-sg1000` | yes |
-| `fes.catch` | `cores/fes-demo` | `fes.application` | `cores/fes-catch/toolchain.lock` | `python3 scripts/build_fes_catch.py` | no; registered |
-| `fes.apple2` | `cores/fes-apple2` | `fes.computer` | `cores/fes-apple2/toolchain.lock` | `make build-fes-apple2` (HIP default; shared-pin seal still open) | no; package-only recipe; per-slot cards via `scripts/build_apple2_slot_card.py` |
-| `fes.c64` | `cores/fes-c64` | `fes.computer` | `cores/fes-c64/toolchain.lock` | `make build-fes-c64` (shared-pin CUDA seal recorded) | no; package-only recipe; cartridge cards via `scripts/build_c64_slot_card.py` |
-| `fes.spectrum` | `cores/fes-spectrum` | `fes.computer` | `cores/fes-spectrum/toolchain.lock` | `make build-fes-spectrum` | yes; four edge sockets |
+| `fes.menu` | `cores/fes-menu` | `fes.application` with menu display and HPS DDR | `cores/fes-menu/toolchain.lock` | `make build-fes-menu-package` | bootstrap image; idle display, not playable |
+| `fes.pong` | `cores/fes-pong` | `fes.simple-game` | `cores/fes-pong/toolchain.lock` | `make build-fes-pong` | supported |
+| `fes.zx81` | `cores/fes-zx81` | `fes.computer` with session display and HPS DDR; `fes_z80_nmos` | `cores/fes-zx81/toolchain.lock` | `make build-fes-zx81` | supported |
+| `fes.zx80` | `cores/fes-zx81` | `fes.computer` with session display and HPS DDR; `fes_z80_nmos` | `cores/fes-zx81/toolchain.lock` | `make build-fes-zx80` | experimental; PAL, 4 KiB ROM, 1 KiB RAM, no NMI |
+| `fes.ts1000` | `cores/fes-zx81` | `fes.computer` with session display and HPS DDR; `fes_z80_nmos` | `cores/fes-zx81/toolchain.lock` | `make build-fes-ts1000` | experimental; NTSC, 8 KiB ROM, 2 KiB RAM |
+| `fes.ts1500` | `cores/fes-zx81` | `fes.computer` with session display and HPS DDR; `fes_z80_nmos` | `cores/fes-zx81/toolchain.lock` | `make build-fes-ts1500` | experimental; NTSC, 8 KiB ROM, 16 KiB RAM |
+| `fes.coleco` | `cores/fes-coleco` | `fes.application` with session display and HPS DDR | `cores/fes-coleco/toolchain.lock` | `make build-fes-coleco-native-video` (FES selects the native variant) | supported; optional Coleco bus 2.0 and mandatory linked native video; Direct and Scanlines parts ship alongside |
+| `fes.sms` | `cores/fes-sms` | `fes.simple-computer` | `cores/fes-sms/toolchain.lock` | `make build-fes-sms` | supported |
+| `fes.sg1000` | `cores/fes-sg1000` | `fes.simple-computer` | `cores/fes-sg1000/toolchain.lock` | `make build-fes-sg1000` | supported |
+| `fes.catch` | `cores/fes-demo` | `fes.application` | `cores/fes-catch/toolchain.lock` | `python3 scripts/build_fes_catch.py` | demo |
+| `fes.apple2` | `cores/fes-apple2` | `fes.computer` | `cores/fes-apple2/toolchain.lock` | `make build-fes-apple2` (HIP default; shared-pin seal still open) | experimental; per-slot cards via `scripts/build_apple2_slot_card.py` |
+| `fes.c64` | `cores/fes-c64` | `fes.computer` with session display and HPS DDR | `cores/fes-c64/toolchain.lock` | `make build-fes-c64` (shared-pin CUDA seal recorded) | experimental; cartridge cards via `scripts/build_c64_slot_card.py` |
+| `fes.spectrum` | `cores/fes-spectrum` | `fes.computer` with session display and HPS DDR; `fes_z80_nmos` | `cores/fes-spectrum/toolchain.lock` | `make build-fes-spectrum` | experimental; four edge sockets |
+| `fes.spectrum128` | `cores/fes-spectrum` | `fes.computer` with session display and HPS DDR; `fes_z80_nmos` | `cores/fes-spectrum/toolchain.lock` | `make build-fes-spectrum128` | experimental; four edge sockets |
+| `fes.spectrum-plus3` | `cores/fes-spectrum` | `fes.computer` with session display and HPS DDR; `fes_z80_nmos` | `cores/fes-spectrum/toolchain.lock` | `make build-fes-spectrum-plus3` | experimental; four edge sockets |
+| `fes.pentagon` | `cores/fes-spectrum` | `fes.computer` with session display and HPS DDR; `fes_z80_nmos` | `cores/fes-spectrum/toolchain.lock` | `make build-fes-pentagon` | experimental; four edge sockets |
 | `fes.demo`, `fes.demo-media`, `fes.demo-audio` | `cores/fes-demo` | `fes.application` | `toolchain.lock` | `make build-fes-demo`, `build-fes-demo-media`, `build-fes-demo-audio` | no; not registered |
-| `fes.ramtest` | `cores/fes-ramtest` | `fes.application` with `fes.memory.hps-ddr` | `cores/fes-ramtest/toolchain.lock` (100 and 130 MHz) | `make build-fes-ramtest-100` (factory), `make build-fes-ramtest-130` (explicit) | yes; OSS 100 MHz utility |
-| `fes.atari-st` | `cores/fes-atari-st` | `fes.computer` | `cores/fes-atari-st/toolchain.lock` | `make build-fes-atari-st` | yes; Atari 520ST firmware shell and Direct/Scanlines parts |
-| `fes.riscv` | `cores/fes-riscv` | `fes.application` with `fes.gamepad` | `cores/fes-riscv/toolchain.lock` | `make build-fes-riscv` | no; package-only recipe; original RV32I CPU from `cores/fes-common/rtl/riscv` |
+| `fes.ramtest` | `cores/fes-ramtest` | `fes.application` with `fes.memory.hps-ddr` | `cores/fes-ramtest/toolchain.lock` (100 and 130 MHz) | `make build-fes-ramtest-100` (100 MHz), `make build-fes-ramtest-130` (explicit) | supported; 100 MHz catalog utility, not in the bootstrap image |
+| `fes.atari-st` | `cores/fes-atari-st` | `fes.computer` | `cores/fes-atari-st/toolchain.lock` | `make build-fes-atari-st` | experimental; Atari 520ST firmware shell and Direct/Scanlines parts |
+| `fes.riscv` | `cores/fes-riscv` | `fes.application` with `fes.gamepad` | `cores/fes-riscv/toolchain.lock` | `make build-fes-riscv` | experimental; original RV32I CPU from `cores/fes-common/rtl/riscv` |
 | splash / idle | `cores/fes-splash` | none | generic `toolchain.lock`, GPU router off | `make build-fes-splash` | not a play package; pinned as `sealed/fes-splash.rbf` |
 
 `cores/pong` is the standalone Pong game module (`make sim-pong`). It is not
@@ -212,10 +218,9 @@ editing `firmware.S`, because the producer rejects stale images.
 `cores/fes-common/rtl/z80`. This is a shared CPU development lane, not a play
 package. The [CPU contract](../cores/fes-common/rtl/z80/README.md) lists the
 interfaces, published behavior sources, tests and contained Cyclone V timing
-diagnostic. SG-1000, ZX81 and the default Spectrum producer select the NMOS CPU.
-`make build-fes-spectrum-fast` selects the documented-only 56 MHz development
-shell, with separate native peripheral timing. Each full shell must pass its
-clock constraints before sealing; CPU-only timing does not establish that.
+diagnostic. SG-1000, ZX81 and the Spectrum models select the NMOS CPU. Each
+full shell must pass its clock constraints before sealing; CPU-only timing
+does not establish that.
 Optimizer handoffs can pass `--max-aluts` to `scripts/build_fes_spectrum_oss.py`
 with a per-design area budget. The cap is recorded in the functional build
 identity and checked on the production synthesis before any route, then on
@@ -258,9 +263,13 @@ path.
 Each registered package authenticates the lock named by its `lock_path` in
 `config/core-recipes.toml`. A lock can move to another nextpnr that
 `scripts/pnr_recipe.py` classifies; that core then gets its own slot. Pong's
-lock has moved to nextpnr `552ba246`, and Coleco's pins Yosys `5391eeb1`, so
-each has its own slot. The other per-core lock files still contain the same
-bytes as `toolchain.lock` and therefore share one cached compiler slot. Use the
+lock has moved to nextpnr `552ba246`, ZX81's to `1eecf877` and RISC-V's to
+`8f453ebc`, and Coleco's pins Yosys `5391eeb1`, so each has its own slot.
+Apple II, Atari ST, C64, Coleco and Spectrum have moved to nextpnr `5fe55f3d`
+for its F0/F1 boundary `$ROUTETHRU` map; the Apple II, C64 and Spectrum locks
+are identical and share one slot, and the Atari ST lock has its own. The other
+five per-core lock files still contain the same bytes as `toolchain.lock` and
+therefore share one cached compiler slot. Use the
 matching `make toolchain-fes-<core>` target to provision a local toolchain.
 The unregistered demos and splash continue to select the repository-level
 `toolchain.lock`.
@@ -279,7 +288,8 @@ search from a clean tree. It exports a
 blank 16 KiB cartridge ROM and authenticated map for download-time linking.
 The 2026-09-16 gap ladder records a HIP route of the earlier synth-only
 netlist (`BUILD_ID` all zeros), not acceptance of the new sealed bitstream.
-The recipe is registered in `config/core-recipes.toml` and is in the factory image.
+The recipe is registered in `config/core-recipes.toml`; the package installs
+through the core library.
 
 5. Stop at the RBF unless the task also includes a parent change. Registering
    a recipe, preparing a package, and kit use are FES steps:
@@ -367,10 +377,10 @@ framebuffer `0x002f`. Idle handling must not send those commands.
 
 ## Status that is easy to get wrong
 
-- `fes.sms` is in the factory image. Historical parent pins and launch/Stop
+- `fes.sms` is a supported library package. Historical parent pins and launch/Stop
   records do not accept HDMI audio on a bitstream built later. Kit HDMI-audio
   acceptance of the current tree is not recorded here.
-- `fes.sg1000` is in the factory image. A historical launch/Stop note does not
+- `fes.sg1000` is a supported library package. A historical launch/Stop note does not
   accept the current bitstream.
 - Coleco audio is in the core (`make sim-fes-coleco-audio`, shared SN76489
   and 48 kHz I2S). It is not an unimplemented slice.

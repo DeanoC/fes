@@ -1,0 +1,15 @@
+{
+  "source": {
+    "repository": "DeanoC/fes",
+    "commit": "736e77c061f189f03a6e9911a2636ea10671630c",
+    "file": "sources/libmister-runtime/src/native/generated/fes_application.hpp",
+    "note": "Generated FesApplication session-display capability consumed by the in-tree runtime. Software contract evidence, not hardware acceptance."
+  },
+  "interface": {
+    "id": "fes.video.session-display",
+    "major": 1,
+    "minor": 0,
+    "capability_bit": 11,
+    "capability_mask": 2048
+  }
+}

@@ -30,6 +30,8 @@ func TestUICoreLibraryManagementIsEmbeddedAndExplicit(t *testing.T) {
 		"id=\"core-library\"", "id=\"core-package-file\"", "id=\"core-media-file\"",
 		"id=\"core-entry-title\"", "id=\"core-entry-package-save\"",
 		"id=\"core-entry-media-save\"", "id=\"core-entry-media-clear\"",
+		"id=\"core-blank-disk\"", "id=\"core-blank-disk-name\"", "Create blank formatted disk",
+		"/api/v1/library/atari-st-disks",
 		"/api/v1/core-packages", "/api/v1/core-media", "/api/v1/library/core-entries",
 		"expected_package_id", "expected_media_id", "coreLibraryIsOpen()",
 		"Change may already be saved. Refresh to confirm",

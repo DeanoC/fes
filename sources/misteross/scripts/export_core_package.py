@@ -356,7 +356,8 @@ def functional_record_fields(root: Path, fields: dict, roots: list[str], executi
     result = dict(fields, format=2, source_path=Path(root).resolve().relative_to(git_root).as_posix(),
                   source_roots=sorted(roots), source_inputs=source_input_closure(root, sorted(roots), policy=POLICY))
     from scripts import pnr_recipe
-    core_id = pnr_recipe.core_for_producer(fields.get("recipe", ""))
+    # A producer shared by several cores names the one it is building.
+    core_id = fields["parameters"].get("core_id") or pnr_recipe.core_for_producer(fields.get("recipe", ""))
     parameters = dict(fields["parameters"])
     if core_id is not None:
         parameters["pnr_recipe_sha256"] = pnr_recipe.recipe_digest(core_id)

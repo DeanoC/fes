@@ -336,8 +336,13 @@ void TestDeveloperVideoSocketCompatibility() {
  auto changed=d;changed.core.id="fes.other";assert(!mister::native::CheckCoreCompatibility(changed).ok());
  changed=d;changed.format=3;assert(!mister::native::CheckCoreCompatibility(changed).ok());
  changed.rom.role="cartridge";changed.rom.source_size=16384;
+ assert(!mister::native::CheckCoreCompatibility(changed).ok());
+ changed=d;changed.format=4;assert(!mister::native::CheckCoreCompatibility(changed).ok());
+ changed.roms={{"coleco-bios","firmware",8192,0},{"coleco-cart","cartridge",16384,8192}};
  assert(mister::native::CheckCoreCompatibility(changed).ok());
- changed.rom.source_size=8192;assert(!mister::native::CheckCoreCompatibility(changed).ok());
+ changed.roms[1].source_size=131072;assert(!mister::native::CheckCoreCompatibility(changed).ok());
+ changed.roms[1].source_size=16384;changed.roms[0].role="cartridge";
+ assert(!mister::native::CheckCoreCompatibility(changed).ok());
  changed=d;changed.interfaces.back().required=true;assert(!mister::native::CheckCoreCompatibility(changed).ok());
  changed=d;changed.interfaces.back().minor=1;assert(!mister::native::CheckCoreCompatibility(changed).ok());
  changed=d;changed.interfaces.back().major=2;assert(!mister::native::CheckCoreCompatibility(changed).ok());
@@ -352,6 +357,30 @@ void TestDeveloperVideoSocketCompatibility() {
   changed=d;changed.abi={"fes.simple-game",1,0};assert(!mister::native::CheckCoreCompatibility(changed).ok());
  }
  }
+}
+
+// A running application machine, such as the Coleco native shell, may carry
+// the shared session plane. It needs HPS DDR and the display plane, and it is
+// never also the idle MENU's display.
+void TestApplicationSessionDisplayCompatibility()
+{
+ mister::CoreDescriptor d;
+ d.format=4;d.roms={{"coleco-bios","firmware",8192,0},{"coleco-cart","cartridge",16384,8192}};d.core.id="fes.coleco";
+ d.target={"de10_nano","5CSEBA6U23I7","fes-gp-v1"};d.abi={"fes.application",1,0};
+ d.interfaces={{"fes.video.fixed-720p60",1,0,true},{"fes.expansion.coleco-bus",2,0,false},
+  {"fes.fabric.video.native-pixels",1,0,false},{"fes.memory.hps-ddr",1,0,true},
+  {"fes.video.session-display",1,0,true},{"fes.fabric.video.display-plane",1,0,true}};
+ assert(mister::native::CheckCoreCompatibility(d).ok());
+ for(std::size_t i=3;i<6;++i) {
+  auto changed=d;changed.interfaces.erase(changed.interfaces.begin()+i);
+  assert(mister::native::CheckCoreCompatibility(changed).code==mister::ErrorCode::unsupported_interface);
+  changed=d;changed.interfaces[i].required=false;
+  assert(mister::native::CheckCoreCompatibility(changed).code==mister::ErrorCode::unsupported_interface);
+  changed=d;changed.interfaces[i].minor=1;
+  assert(mister::native::CheckCoreCompatibility(changed).code==mister::ErrorCode::unsupported_interface);
+ }
+ auto menu=d;menu.interfaces.push_back({"fes.video.menu-display",1,0,true});
+ assert(mister::native::CheckCoreCompatibility(menu).code==mister::ErrorCode::unsupported_interface);
 }
 
 void TestApplicationCompatibilityComposesInterfaces()
@@ -371,6 +400,20 @@ void TestApplicationCompatibilityComposesInterfaces()
 		menu.interfaces.back().required=false;
 		assert(!mister::native::CheckCoreCompatibility(menu).ok());
 		menu.interfaces.back().required=true;
+		auto blitter = menu;
+		blitter.interfaces.push_back({"fes.video.menu-blitter",1,0,true});
+		assert(mister::native::CheckCoreCompatibility(blitter).ok());
+		// Firmware may declare any blitter minor up to the runtime's.
+		blitter.interfaces.back().minor=1;
+		assert(mister::native::CheckCoreCompatibility(blitter).ok());
+		blitter.interfaces.back().minor=2;
+		assert(!mister::native::CheckCoreCompatibility(blitter).ok());
+		blitter.interfaces.back().minor=0;
+		blitter.interfaces.back().required=false;
+		assert(!mister::native::CheckCoreCompatibility(blitter).ok());
+		blitter.interfaces.back().required=true;
+		blitter.interfaces.erase(blitter.interfaces.begin()+2);
+		assert(!mister::native::CheckCoreCompatibility(blitter).ok());
 		menu.interfaces.erase(menu.interfaces.begin()+1);
 		assert(!mister::native::CheckCoreCompatibility(menu).ok());
 	}
@@ -852,6 +895,57 @@ void TestComputerCompatibilityComposesRecognizedInterfaces()
 	zx81.interfaces.push_back({"fes.fabric.video.display-plane", 1, 0, true});
 	zx81.interfaces.push_back({"fes.expansion.zx81-bus", 2, 0, false});
 	assert(check(zx81).ok());
+	// Sealed Spectrum producer manifest: its tape is the 2.0 PZX deck, so the
+	// 1.0 .tap unit, or a newer minor, is refused.
+	auto spectrum = video;
+	for (const char* id : {"fes.keyboard.hid", "fes.gamepad.ports", "fes.audio.pcm-s16-stereo-48k",
+		"fes.memory.hps-ddr", "fes.video.session-display", "fes.fabric.video.display-plane"})
+		spectrum.interfaces.push_back({id, 1, 0, true});
+	spectrum.interfaces.push_back({"fes.media.spectrum-tape", 2, 0, true});
+	spectrum.interfaces.push_back({"fes.expansion.spectrum-bus", 1, 0, false});
+	assert(check(spectrum).ok());
+	auto spectrum_tape = spectrum;
+	spectrum_tape.interfaces[spectrum_tape.interfaces.size() - 2].major = 1;
+	assert(check(spectrum_tape).code == mister::ErrorCode::unsupported_interface);
+	spectrum_tape = spectrum;
+	spectrum_tape.interfaces[spectrum_tape.interfaces.size() - 2].minor = 1;
+	assert(check(spectrum_tape).code == mister::ErrorCode::unsupported_interface);
+	// The Pentagon adds the unit-1 disk; it needs the cassette and HPS DDR and
+	// must be required. Its controller sub-interfaces are optional host data.
+	auto pentagon = spectrum;
+	pentagon.interfaces.push_back({"fes.media.spectrum-disk", 1, 0, true});
+	pentagon.interfaces.push_back({"fes.media.spectrum-disk-trdos", 1, 0, false});
+	assert(check(pentagon).ok());
+	auto disk_optional = pentagon;
+	disk_optional.interfaces[disk_optional.interfaces.size() - 2].required = false;
+	assert(check(disk_optional).code == mister::ErrorCode::unsupported_interface);
+	for (const char* removed : {"fes.media.spectrum-tape", "fes.memory.hps-ddr"}) {
+		auto lone = pentagon;
+		for (auto it = lone.interfaces.begin(); it != lone.interfaces.end(); ++it)
+			if (it->id == removed) {
+				lone.interfaces.erase(it);
+				break;
+			}
+		if (std::string(removed) == "fes.memory.hps-ddr")
+			for (auto it = lone.interfaces.begin(); it != lone.interfaces.end(); ++it)
+				if (it->id == "fes.video.session-display") {
+					lone.interfaces.erase(it);
+					break;
+				}
+		const auto result = check(lone);
+		assert(result.code == mister::ErrorCode::unsupported_interface);
+	}
+	auto zx81_write = zx81;
+	zx81_write.interfaces.push_back({"fes.media.zx81-tape-write", 1, 0, true});
+	assert(check(zx81_write).ok());
+	auto write_without_tape = zx81_write;
+	for (auto it = write_without_tape.interfaces.begin(); it != write_without_tape.interfaces.end(); ++it) {
+		if (it->id == "fes.media.zx81-tape") {
+			write_without_tape.interfaces.erase(it);
+			break;
+		}
+	}
+	assert(check(write_without_tape).code == mister::ErrorCode::unsupported_interface);
 	auto plane_only = zx81;
 	plane_only.interfaces.erase(plane_only.interfaces.end() - 4);
 	assert(check(plane_only).code == mister::ErrorCode::unsupported_interface);
@@ -865,7 +959,7 @@ void TestComputerCompatibilityComposesRecognizedInterfaces()
 	}
 	for (const char* medium : {"fes.media.apple2-floppy", "fes.media.c64-disk", "fes.media.spectrum-tape", "fes.media.zx81-tape"}) {
 		auto mixed = atari;
-		mixed.interfaces.push_back({medium, 1, 0, true});
+		mixed.interfaces.push_back({medium, static_cast<std::uint16_t>(std::string(medium) == "fes.media.spectrum-tape" ? 2 : 1), 0, true});
 		assert(check(mixed).code == mister::ErrorCode::unsupported_interface);
 	}
 	auto atari_optional = atari;
@@ -973,6 +1067,7 @@ int main()
 	TestLinkedCartridgeRejectsResetHeldMediaContracts();
 	TestDeveloperVideoSocketCompatibility();
 	TestApplicationCompatibilityComposesInterfaces();
+	TestApplicationSessionDisplayCompatibility();
 	TestSha256StandardVectorsAndStreaming();
 	TestAllSharedFixturesAndExactIdentity();
 	TestDescriptorFieldsAndCompatibilityAreSeparate();

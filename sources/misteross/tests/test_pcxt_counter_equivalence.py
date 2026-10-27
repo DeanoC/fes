@@ -9,6 +9,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 CORE = ROOT / 'cores/fes-pcxt'
+KF8253 = ROOT / 'cores/fes-common/vendor/kf8253'
 YOSYS = os.environ.get('YOSYS') or shutil.which('yosys')
 
 # Original nested-borrow equations from the MIT-licensed KF8253 import.
@@ -97,7 +98,7 @@ class CounterEquivalenceTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_saturating_binary_and_bcd_one_and_two_steps(self):
-        source = (CORE / 'vendor/kf8253/KF8253_Counter.sv').read_text()
+        source = (KF8253 / 'KF8253_Counter.sv').read_text()
         start = source.index('    function automatic logic [16:0] decrement(')
         function = source[start:source.index('    endfunction', start) + len('    endfunction')]
         fixture = 'module proof(input [16:0] count, input bcd, output ok);\n' + REFERENCE + function + r"""
@@ -134,7 +135,7 @@ class CounterEquivalenceTest(unittest.TestCase):
                     self.prove(fixture, f'chparam -set MDA {mda} -set CLOCK_HZ {clock_hz} proof; ')
 
     def test_precomputed_decrements_are_current_at_every_count_edge(self):
-        vendor = CORE / 'vendor/kf8253'
+        vendor = KF8253
         source = (vendor / 'KF8253_Counter.sv').read_text()
         assertions = r"""
           always @(posedge clock) begin
@@ -163,7 +164,7 @@ class CounterEquivalenceTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_terminal_flags_preserve_next_count_period_and_mode2_output(self):
-        vendor = CORE / 'vendor/kf8253'
+        vendor = KF8253
         source = (vendor / 'KF8253_Counter.sv').read_text()
         logic = source[source.index('    wire preset_zero ='):source.index('    // Update Count')]
         # Freshness at consumption is proved separately above. Here supply

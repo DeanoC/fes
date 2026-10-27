@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 
-from scripts import coleco_expansion
+from scripts import coleco_expansion, pnr_recipe
 
 INTERFACE = "fes.fabric.video.native-pixels"
 MAP = "fes.coleco-native-video.socket/1"
@@ -20,6 +20,10 @@ REGION = "video"
 PLACEMENT = "video 5 23 38 38"
 CRAM = (124, 1800, 3906, 3442)
 CLOCK = "pixel_clk"
+# On the valid-bit final shell, the completed Direct/Scanlines sweep selects
+# seed 13 for the highest shared pixel_clk result: 77.616/76.400 MHz. Seed 1
+# misses Scanlines at 71.129 MHz. See the dated host-route campaign record.
+PLACER_SEED = 13
 PREFIX = "video_socket."
 REQUEST_BITS = 32
 RESPONSE_BITS = 28
@@ -61,7 +65,8 @@ def _bus(top: dict, name: str, width: int) -> list:
     return bits
 
 
-def validate_boundary(top: dict, *, routed: bool) -> None:
+def validate_boundary(top: dict, *, routed: bool,
+                      nextpnr_commit: str = pnr_recipe.nextpnr_pin("fes.coleco")) -> None:
     key = "NEXTPNR_BEL" if routed else "BEL"
     clock = _bus(top, CLOCK, 1)
     cells = top.get("cells", {})
@@ -111,9 +116,11 @@ def validate_boundary(top: dict, *, routed: bool) -> None:
 
     if routed:
         boundary = {PREFIX + name: bel for name, bel in boundary_bels().items()}
-        allowed = set(boundary) | coleco_expansion.boundary_route_through_cells(top, boundary)
+        allowed = set(boundary) | coleco_expansion.boundary_route_through_cells(
+            top, boundary, nextpnr_commit=nextpnr_commit)
         coleco_expansion.validate_clock_anchors(top, {
-            name: bel for name, bel in boundary.items() if name.startswith(PREFIX + "clock_coverage_ff_")})
+            name: bel for name, bel in boundary.items() if name.startswith(PREFIX + "clock_coverage_ff_")},
+            nextpnr_commit=nextpnr_commit)
         for name, cell in cells.items():
             pieces = cell.get("attributes", {}).get(key, "").split(".")
             if len(pieces) >= 3 and pieces[1].isdigit() and pieces[2].isdigit() and \
@@ -121,11 +128,12 @@ def validate_boundary(top: dict, *, routed: bool) -> None:
                 raise ValueError(f"native video reservation contains shell cell: {name}")
 
 
-def prepare_scaffold(source: bytes) -> bytes:
+def prepare_scaffold(source: bytes, *,
+                     nextpnr_commit: str = pnr_recipe.nextpnr_pin("fes.coleco")) -> bytes:
     """Expose native video under the compiler's one packed-port adapter."""
     design = json.loads(source)
     top = design["modules"]["top"]
-    validate_boundary(top, routed=True)
+    validate_boundary(top, routed=True, nextpnr_commit=nextpnr_commit)
     cells = top["cells"]
     for name in list(cells):
         if name.startswith(("plug_addr_ff_", "plug_rdata_ff_")):

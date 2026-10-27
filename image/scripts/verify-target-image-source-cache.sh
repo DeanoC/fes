@@ -1,13 +1,21 @@
 #!/bin/sh
 set -eu
 
-[ "$#" -eq 2 ] || {
-  printf 'usage: verify-target-image-source-cache.sh LOCK CACHE\n' >&2
+[ "$#" -eq 2 ] || [ "$#" -eq 3 ] || {
+  printf 'usage: verify-target-image-source-cache.sh LOCK CACHE [all|buildroot|kit-sdk]\n' >&2
   exit 2
 }
 
 lock=$1
 cache=$2
+scope=${3:-all}
+case "$scope" in
+  all|buildroot|kit-sdk) ;;
+  *)
+    printf 'usage: verify-target-image-source-cache.sh LOCK CACHE [all|buildroot|kit-sdk]\n' >&2
+    exit 2
+    ;;
+esac
 test -f "$lock"
 cache=$(CDPATH='' cd -- "$cache" && pwd -P)
 
@@ -84,6 +92,10 @@ verify_bare_repo() {
 }
 
 verify_repo buildroot buildroot
-verify_repo image_creator image-creator
-verify_bare_repo kernel linux-kernel
+if [ "$scope" = all ]; then
+  verify_repo image_creator image-creator
+fi
+if [ "$scope" = all ] || [ "$scope" = kit-sdk ]; then
+  verify_bare_repo kernel linux-kernel
+fi
 printf '%s\n' 'target image source cache provenance verified'

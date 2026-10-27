@@ -5,6 +5,8 @@ import (
 	"image"
 	"math"
 	"runtime"
+
+	"github.com/DeanoC/FogCast/ui/menudisplay"
 )
 
 // Software is a CGO-free Device with portable Go and an optional ARM NEON alpha
@@ -13,7 +15,10 @@ import (
 // Cover, screenshot, and still downscale uses Catmull–Rom once at decode
 // (ui/shared.DecodeCover and siblings), not here. FillRect honors
 // BlendNone and BlendAlpha. Textured Draw always uses source-over alpha,
-// matching the SDL backend's texture blend mode.
+// matching the SDL backend's texture blend mode. Colors are straight alpha
+// and the framebuffer is premultiplied, which the kit's session plane blends
+// over the running machine: Clear and replacing fills premultiply a
+// translucent color, and the blending paths composite onto it.
 //
 // Present is a no-op: the framebuffer is already current. Snapshot copies
 // it for golden tests. Loops are stride-aware and do not allocate per pixel.
@@ -41,6 +46,8 @@ type swBitmap struct {
 	opaque                       bool
 	resizeHintSrc, resizeHintDst Rect
 	resizeHintValid              bool
+	// blit is this bitmap as a menu blitter source, made on first use.
+	blit *menudisplay.BlitSource
 }
 
 const scaledBitmapBudget = 8 << 20
@@ -125,7 +132,17 @@ func (s *Software) BeginFrame() {}
 
 func (s *Software) Clear(c Color) {
 	s.previous = nil
+	c = premultiplied(c)
 	fillRows(s.pix, s.stride, 0, 0, s.w, s.h, c.R, c.G, c.B, c.A)
+}
+
+// premultiplied is the framebuffer form of a straight color.
+func premultiplied(c Color) Color {
+	if c.A == 255 {
+		return c
+	}
+	a := uint32(c.A)
+	return Color{R: uint8(uint32(c.R) * a / 255), G: uint8(uint32(c.G) * a / 255), B: uint8(uint32(c.B) * a / 255), A: c.A}
 }
 
 func (s *Software) Present() {}
@@ -222,6 +239,7 @@ func (s *Software) FillRect(rect Rect, c Color) {
 		}
 		return
 	}
+	c = premultiplied(c)
 	fillRows(s.pix, s.stride, x0, y0, x1, y1, c.R, c.G, c.B, c.A)
 }
 
@@ -315,8 +333,17 @@ func (s *Software) DrawText(x, y int, text string, sizePx int, c Color) {
 }
 
 func (s *Software) DrawTextWeight(x, y int, text string, sizePx int, w Weight, c Color) {
+	m, src, _ := UIText(text, sizePx, w, 0)
+	s.DrawMask(m, src, x, y, c)
+}
+
+func (s *Software) DrawMask(m *Mask, src image.Rectangle, x, y int, c Color) {
 	s.restorePrevious()
-	blitText(s, x, y, RasterizeTextWeight(text, sizePx, w, c, 0))
+	src, at, ok := clipMask(m, src, x, y, s.w, s.h)
+	if !ok || c.A == 0 {
+		return
+	}
+	expandRows(s.pix, s.stride, m.Pix, m.W, src, at, c)
 }
 
 func (s *Software) Close() {

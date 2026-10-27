@@ -41,7 +41,8 @@ class MenuDDRProducerTests(unittest.TestCase):
         with self.assertRaises(ValueError):menu.inputs_for('other')
 
     def test_writes_or_unused_ports_rejected(self):
-        for port in ('wr_valid_0','cmd_valid_1'):
+        # The diagnostic has no blitter: ports 1 and 2 stay off too.
+        for port in ('wr_valid_0','cmd_valid_1','cmd_valid_2','wr_valid_2','wr_valid_3'):
             with self.subTest(port=port),tempfile.TemporaryDirectory() as d:
                 output=Path(d);self.outputs(output)
                 p=output/'routed.json';data=json.loads(p.read_text())

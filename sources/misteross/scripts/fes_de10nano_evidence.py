@@ -110,6 +110,87 @@ def hps_ddr_layout_evidence(design: dict, label: str, source_root: Path, *, idle
     return {"interface": "fes.memory.hps-ddr", "major": 1, "minor": 0, "cfg": observed, "idle": idle}
 
 
+def layout_graph_with_constants(graph: dict) -> dict:
+    # nextpnr packs static cfg bits onto MISTRAL_CONST nets. Resolve only its
+    # explicit zero/one cells; arbitrary signals remain nonconstant and fail.
+    cells = graph["modules"]["top"]["cells"]
+    constants = {}
+    for cell in cells.values():
+        lut = cell.get("parameters", {}).get("LUT")
+        q = cell.get("connections", {}).get("Q")
+        if (cell.get("type") == "MISTRAL_CONST" and type(lut) is str
+                and len(lut) == 32 and set(lut) <= {"0", "1"}
+                and int(lut, 2) in (0, 1) and type(q) is list and len(q) == 1
+                and type(q[0]) is int):
+            if q[0] in constants:
+                raise BuildError("multiple constant drivers on DDR configuration net")
+            constants[q[0]] = str(int(lut, 2))
+    normalized = dict(cells)
+    for name, cell in cells.items():
+        if cell.get("type") != "cyclonev_hps_interface_fpga2sdram":
+            continue
+        connections = dict(cell.get("connections", {}))
+        for port in HPS_DDR_CFG_PORTS:
+            bits = connections.get(port)
+            if isinstance(bits, list):
+                connections[port] = [constants.get(bit, bit) if type(bit) is int else bit for bit in bits]
+        normalized[name] = {**cell, "connections": connections}
+    return {"modules": {"top": {**graph["modules"]["top"], "cells": normalized}}}
+
+
+def session_display_evidence(design: dict, label: str, source_root: Path) -> dict:
+    """The session-display plane reads launcher frames through one read-only fpga2sdram port."""
+    normalized = layout_graph_with_constants(design)
+    evidence = hps_ddr_layout_evidence(normalized, label, source_root, idle=False)
+    cells = normalized["modules"][TOP].get("cells", {})
+    memory = next(cell for cell in cells.values()
+                  if cell.get("type") == "cyclonev_hps_interface_fpga2sdram")
+    ports = memory.get("connections", {})
+    unused = tuple(f"cmd_valid_{port}" for port in range(1, 6)) + tuple(
+        f"wr_valid_{port}" for port in range(4))
+    grounds = [["0"]] + [cell.get("connections", {}).get("Q") for cell in cells.values()
+        if cell.get("type") == "MISTRAL_CONST"
+        and set(str(cell.get("parameters", {}).get("LUT", ""))) == {"0"}
+        and isinstance(cell.get("connections", {}).get("Q"), list)
+        and len(cell["connections"]["Q"]) == 1]
+    if any(ports.get(port) not in grounds for port in unused) or ports.get("cmd_data_0", [])[1:2] not in grounds:
+        raise BuildError("session display DDR writes and unused ports must be tied low")
+    for name, cell in cells.items():
+        if (name.startswith("display.scanout.reader.") and cell.get("type") == "MISTRAL_M10K"
+                and int(str(cell.get("parameters", {}).get("CFG_ASYNC_READ", "0")), 2)):
+            raise BuildError("session display FIFO requires synchronous M10K reads")
+    return {**evidence, "read_only": True, "unused_ports_disabled": True}
+
+
+# The session-display plane blends with three unsigned 9x9 products. Unsigned
+# 9x9 sets no DSP sign bits, so it does not depend on DeanoC/nextpnr#219.
+PLANE_DSP = "MISTRAL_MUL9X9"
+PLANE_PRODUCTS = 3
+
+
+def plane_dsp_evidence(design: dict, *, sign_parameters: bool = True) -> None:
+    """Require exactly the plane's three unsigned display.* products.
+
+    sign_parameters is False for a Yosys from before A_SIGNED/B_SIGNED on
+    MISTRAL_MUL (DeanoC/yosys#25): its products carry neither parameter and
+    are unsigned. Either parameter appearing there means the toolchain moved.
+    """
+    products = [(name, cell) for name, cell in design["modules"][TOP].get("cells", {}).items()
+                if cell.get("type") == PLANE_DSP]
+    if len(products) != PLANE_PRODUCTS or not all(name.startswith("display.") for name, _ in products):
+        raise BuildError(f"synthesis must contain exactly {PLANE_PRODUCTS} display-plane {PLANE_DSP} products")
+    for name, cell in products:
+        parameters = cell.get("parameters", {})
+        for sign in ("A_SIGNED", "B_SIGNED"):
+            if not sign_parameters:
+                if sign in parameters:
+                    raise BuildError(f"display-plane product {name} has {sign}, which this Yosys never emits")
+                continue
+            text = str(parameters.get(sign, "")).strip()
+            if not text or set(text) - {"0", "1"} or int(text, 2) != 0:
+                raise BuildError(f"display-plane product {name} must be unsigned ({sign}={text!r})")
+
+
 def _frequency_rows(fmax: object, expected: float, label: str, *, clock_name: str | None = None) -> tuple[str, float, float]:
     if not isinstance(fmax, dict):
         raise BuildError("timing report has no structured fmax data")

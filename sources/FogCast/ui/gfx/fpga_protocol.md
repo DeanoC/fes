@@ -91,6 +91,7 @@ Texture ids are `u32` and match the Device handle the encoder assigned.
 | `0x12` | DestroyTexture | `tex_id u32` |
 | `0x20` | DebugText | `x i32`, `y i32`, `scale u8`, `pad[3]`, UTF-8 bytes |
 | `0x21` | DrawText | `x i32`, `y i32`, `size_px u16`, `weight u8`, `pad u8`, `rgba[4]`, UTF-8 bytes |
+| `0x22` | DrawMask | `x i32`, `y i32`, `w u16`, `h u16`, `rgba[4]`, `coverage[w*h]` |
 | `0xFF` | Close | empty |
 
 `format` `0` is RGBA8. `crc32` is IEEE CRC of the tightly packed pixel bytes.
@@ -105,10 +106,18 @@ RGBA). `weight` `0` is Regular (the former `pad[2]` first byte, so existing
 v1 streams stay Regular); `1` is Bold. Unknown weight bytes decode as Regular.
 It is recorded for software replay. It is not a hardware text accelerator; a
 programmed 2D core may raster it through Software until a later opcode exists.
-`DebugText` stays the 8×8 HUD path.
+`DebugText` stays the 8×8 HUD path. Its ink is placed with its top-left at
+`x`, `y`.
+
+`DrawMask` draws inline coverage, one byte a pixel, with its top-left at
+`x`, `y`: each pixel is the colour source-over with alpha `A·m/255`, using
+integer division. The stream carries only the part of the mask drawn.
 
 `FillRect` honours the last `SetBlend`. Textured `Draw` uses source-over of
-the texture's alpha, matching Software and SDL today.
+the texture's alpha, matching Software and SDL today. `rgba` payloads are
+straight alpha. The framebuffer is premultiplied, so `Clear` and replacing
+fills write `r*a/255, g*a/255, b*a/255, a`, the form the kit's session plane
+blends over a running machine.
 
 ## Device mapping
 
@@ -125,6 +134,7 @@ the texture's alpha, matching Software and SDL today.
 | `Destroy` | `DestroyTexture` |
 | `DebugText` | `DebugText` |
 | `DrawText` / `DrawTextWeight` | `DrawText` |
+| `DrawMask` | `DrawMask` |
 | `Close` | `Close` |
 
 `gfx.Replay` / `ReplayBytes` apply a decoded stream to any Device (Software

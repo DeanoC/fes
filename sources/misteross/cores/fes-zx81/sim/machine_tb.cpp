@@ -138,6 +138,7 @@ int main(int argc, char **argv) {
     dut.bus_romcs = 0;
     dut.bus_wait = 0;
     dut.bus_ram_present = 0;
+    dut.save_addr = 0;
     dut.eval();
     for (int i = 0; i != 2048; ++i) tick(dut);
     dut.reset = 0;

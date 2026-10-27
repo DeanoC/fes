@@ -343,6 +343,65 @@ func TestInstalledPackageSelectionAndLibraryLaunch(t *testing.T) {
 
 }
 
+func TestSelectCoreEntryInspectsThePairedKitWhileAnotherKitIsForeground(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	store, err := catalog.OpenContext(ctx, filepath.Join(root, "catalog.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	packages, err := corepackage.NewStore(filepath.Join(root, "packages"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	foreground := &packageLibraryClient{fakeServiceClient: &fakeServiceClient{healthErr: errors.New("foreground kit is offline")}}
+	paired := &packageLibraryClient{fakeServiceClient: &fakeServiceClient{healthResult: protocol.Health{APIVersion: "v1", TargetID: "kit-b-id"}}}
+	s := newService(Config{
+		Targets: []TargetConfig{
+			{Name: "kit-a", TargetID: "kit-a-id", Enabled: true},
+			{Name: "kit-b", TargetID: "kit-b-id", Enabled: true},
+		},
+		SelectedTarget: "kit-a", RequestTimeout: time.Second, UploadTimeout: time.Second,
+	}, Paths{}, store, &fakeServiceScanner{}, &fakeServicePreparer{}, foreground)
+	s.targetClients["kit-b"] = paired
+	s.corePackages = packages
+
+	oldRaw := libraryPackageFixture(t, "0.1.0")
+	old, _, err := s.ImportCorePackage(ctx, int64(len(oldRaw)), bytes.NewReader(oldRaw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	nextRaw := libraryPackageFixture(t, "0.2.0")
+	next, _, err := s.ImportCorePackage(ctx, int64(len(nextRaw)), bytes.NewReader(nextRaw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	entry, err := store.CreateCoreEntry(ctx, "ZX81 workshop", old.Descriptor.Core.ID, old.PackageID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	selected, err := s.SelectCoreEntry(WithSessionTarget(ctx, "kit-b"), entry.GameID, old.PackageID, next.PackageID)
+	if err != nil || selected.PackageID != next.PackageID {
+		t.Fatalf("paired selection = %+v err=%v", selected, err)
+	}
+	if s.selectedTarget != "kit-a" {
+		t.Fatalf("paired selection changed foreground target to %q", s.selectedTarget)
+	}
+	if foreground.healthCalls != 0 || foreground.inspections != 0 {
+		t.Fatalf("foreground kit was consulted: health=%d inspections=%d", foreground.healthCalls, foreground.inspections)
+	}
+	if paired.healthCalls == 0 || paired.inspections < 2 {
+		t.Fatalf("paired kit was not used for compatibility and persistence: health=%d inspections=%d", paired.healthCalls, paired.inspections)
+	}
+	stored, err := s.CoreEntry(ctx, entry.GameID)
+	if err != nil || stored.PackageID != next.PackageID {
+		t.Fatalf("saved selection = %+v err=%v", stored, err)
+	}
+}
+
 func TestPackageRejectionClearsOnNewRawOwnership(t *testing.T) {
 	core := "dev.rbf"
 	active := protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &core}

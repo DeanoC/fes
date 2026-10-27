@@ -1,0 +1,56 @@
+Simulation evidence for the Atari ST timing-path changes (Verilator 5.032, the CI pin)
+
+1. Head-bypass probe on the original st_native_border (dcfa92c9, scratch copy, never committed)
+   Counts consumes that needed the event RAM output directly (held_valid clear).
+   The probe logs consume 1 and every 4096th consume of each simulator run.
+   sim-fes-atari-st-native-border: 1 runs with consumes, largest logged consume 1 (fewer than 4096 per run); bypass consumes 8 (log capped at 8)
+   sim-fes-atari-st-native-video: 1 runs with consumes, largest logged consume 57344; bypass consumes 0
+   sim-fes-atari-st-cache-write-coherence: 34 runs with consumes, largest logged consume 57344; bypass consumes 0
+   sim-fes-atari-st-shifter-output: 1 runs with consumes, largest logged consume 1 (fewer than 4096 per run); bypass consumes 0
+   sim-fes-atari-st-short-line-video: 2 runs with consumes, largest logged consume 1 (fewer than 4096 per run); bypass consumes 0
+   Only the unit bench's old stimulus (consume on the edge after line start/SOF, and one
+   native pixel per output edge in the arena replay) used the bypass.
+
+2. Result lines, bf1281a0 (border change) vs dcfa92c9
+   DIFF sim-fes-atari-st-native-border: 1 result lines
+      before: Native border PASS: 15398 checks, PAL/NTSC porches, within-line colours, consecutive runs, full arena, repeated rows, banks and overflow
+      after:  Native border PASS: 15814 checks, PAL/NTSC porches, within-line colours, consecutive runs, full arena, repeated rows, banks and overflow
+   SAME sim-fes-atari-st-video-adapter: 14 result lines
+   SAME sim-fes-atari-st-native-video: 1 result lines
+   SAME sim-fes-atari-st-cache-write-coherence: 34 result lines
+   SAME sim-fes-atari-st-shifter-output: 6 result lines
+   SAME sim-fes-atari-st-short-line-video: 6 result lines
+
+2. Result lines, b72c1756 (plus frame read groups) vs bf1281a0
+   SAME sim-fes-atari-st-native-border: 1 result lines
+   SAME sim-fes-atari-st-video-adapter: 14 result lines
+   SAME sim-fes-atari-st-native-video: 1 result lines
+   SAME sim-fes-atari-st-cache-write-coherence: 34 result lines
+   SAME sim-fes-atari-st-shifter-output: 6 result lines
+   SAME sim-fes-atari-st-short-line-video: 6 result lines
+
+3. make -k sim-fes-atari-st at bf1281a0: rc=0, 65 PASS lines, 0 FAIL/%Error lines
+3. make -k sim-fes-atari-st at b72c1756: rc=0, 65 PASS lines, 0 FAIL/%Error lines
+
+4. make test-changed (--base origin/main) at bf1281a0:
+   always  test_affected.py: returncode 0
+   always  test_test_changed.py: returncode 0
+   always  committed whitespace: returncode 0
+   always  working whitespace: returncode 0
+   parent  parent Python regressions: returncode 0
+   parent  working-tree generated consumer consistency: returncode 0
+   fpga    test_*.py: returncode 0
+   fpga    atari-st RTL simulation: returncode 0
+4. make test-changed (--base origin/main) at 11c2b225 (b72c1756 plus README):
+   always  test_affected.py: returncode 0
+   always  test_test_changed.py: returncode 0
+   always  committed whitespace: returncode 0
+   always  working whitespace: returncode 0
+   parent  parent Python regressions: returncode 1
+   not started after that failure: working-tree generated consumer consistency, test_*.py, atari-st RTL simulation
+   The parent failure was two kit-software acceptance tests,
+   test_reboot_attempt_directory_entry_is_durable_before_command and
+   test_reboot_spawn_failure_retains_grant_without_cleanup_mutations, at host
+   load average ~9. Both passed three consecutive reruns at the same head, and
+   tests.test_kit_software_acceptance passed 27/27 alone. This change touches
+   only ST RTL, its bench and README. The PR head's full run is in the PR.

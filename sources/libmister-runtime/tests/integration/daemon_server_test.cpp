@@ -1269,13 +1269,61 @@ void TestMenuGrantAndSlotExchange()
   if(test==2)Contains(Exchange(path,kStop),"\"ok\":true");
  }
  assert(fixture.hardware.menu_present_calls==1);
- assert(fixture.hardware.menu_present_written.back().size()==1&&fixture.hardware.menu_present_written.back()[0].x==8&&
-  fixture.hardware.menu_present_written.back()[0].h==3);
+ assert(fixture.hardware.menu_present_draws.back().written.size()==1&&fixture.hardware.menu_present_draws.back().written[0].x==8&&
+  fixture.hardware.menu_present_draws.back().written[0].h==3);
  // Descriptors on ordinary operations are rejected before their mutation.
  const int socket=Connect(path);const int fd=open("/dev/null",O_RDONLY);assert(fd>=0);
  const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(2);
  assert(SendFrame(socket,kLoad,fd,deadline).ok());close(fd);ReceivedFrame rejected;assert(ReceiveFrame(socket,deadline,&rejected).ok());
  Contains(rejected.line,"\"ok\":false");close(socket);assert(fixture.hardware.core_calls==1);
+}
+
+// A blitter grant names its firmware's minor, its lists and heap, and covers
+// them. Until its first list it takes CPU commits, as tenfoot sends them;
+// after that a CPU commit is refused before any hardware access.
+void TestMenuBlitterGrantTakesCpuCommitsUntilAList()
+{
+ using namespace mister::daemon;
+ TempDirectory temporary;Fixture fixture;fixture.Start();fixture.hardware.menu_status.blitter=true;fixture.hardware.menu_status.blitter_minor=1;
+ const auto path=temporary.Entry("runtime.sock");RunningServer server(fixture.runtime,path);
+ Contains(Exchange(path,std::string("{\"protocol\":2,\"operation\":\"configure_menu\",\"package_path\":\"/menu\",\"package_id\":\"")+kPackageId+"\"}"),"\"ok\":true");
+ const auto generation=fixture.runtime.status().menu_display.generation;
+ {
+  const int socket=Connect(path);const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(2);
+  assert(SendFrame(socket,MenuRequest("menu_frame_grant",generation),-1,deadline).ok());
+  ReceivedFrame granted;assert(ReceiveFrame(socket,deadline,&granted).ok());
+  Contains(granted.line,"\"slot_bytes\":4194304,\"blitter\":{\"minor\":1,\"list_offset\":8388608,\"commands\":32768,"
+   "\"command_bytes\":32,\"heap_offset\":16777216,\"heap_bytes\":67108864}");
+  assert(granted.fds.size()==1u);struct stat info{};assert(fstat(granted.fds[0],&info)==0&&info.st_size==83886080);
+  assert(close(granted.fds[0])==0);assert(close(socket)==0);
+ }
+ // One frame on its own connection: begin, then commit the slot it names.
+ const auto frame=[&](const auto& commit){
+  const int socket=Connect(path);const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(7);
+  assert(SendFrame(socket,MenuRequest("menu_frame_begin",generation),-1,deadline).ok());
+  ReceivedFrame begun;assert(ReceiveFrame(socket,deadline,&begun).ok());Contains(begun.line,"\"ok\":true");
+  assert(SendFrame(socket,commit(SlotOf(begun.line)),-1,deadline).ok());
+  ReceivedFrame done;assert(ReceiveFrame(socket,deadline,&done).ok());close(socket);
+  return done.line;
+ };
+ const auto whole=[&](unsigned slot){return MenuCommit(generation,slot);};
+ const auto damage=[&](unsigned slot){return MenuCommit(generation,slot,"[[8,2,16,3]]");};
+ const auto listed=[&](unsigned slot){
+  return std::string("{\"protocol\":2,\"operation\":\"menu_frame_commit\",\"generation\":")+std::to_string(generation)+
+   ",\"slot\":"+std::to_string(slot)+",\"list\":{\"first\":4,\"count\":12},\"uploaded\":[[16777216,1024]]}";
+ };
+ Contains(frame(whole),"\"ok\":true");Contains(frame(damage),"\"ok\":true");
+ assert(fixture.hardware.menu_present_calls==2&&!fixture.hardware.menu_present_draws[0].blit&&
+  fixture.hardware.menu_present_draws[1].written.size()==1&&fixture.hardware.menu_present_draws[1].written[0].x==8);
+ const auto blitted=frame(listed);
+ Contains(blitted,"\"ok\":true");Contains(blitted,"\"timing\":{\"clean_us\":0,\"blit_us\":0,");
+ const auto& draw=fixture.hardware.menu_present_draws.back();
+ assert(fixture.hardware.menu_present_calls==3&&draw.blit&&draw.first==4&&draw.count==12&&draw.written.empty()&&
+  draw.uploaded.size()==1&&draw.uploaded[0].offset==16777216&&draw.uploaded[0].bytes==1024);
+ for(const auto& refused:{frame(whole),frame(damage)}) {
+  Contains(refused,"\"ok\":false");Contains(refused,"\"message\":\"menu grant takes only lists after its first list\"");
+ }
+ assert(fixture.hardware.menu_present_calls==3&&fixture.runtime.status().menu_display.available);
 }
 
 void TestSessionDescriptorExchangeDoesNotFollowReopenedPlane()
@@ -1294,27 +1342,37 @@ void TestSessionDescriptorExchangeDoesNotFollowReopenedPlane()
  fixture.Start();const auto path=temporary.Entry("runtime.sock");RunningServer server(fixture.runtime,path);
  Contains(Exchange(path,kLoad),"\"ok\":true");
  const auto generation=fixture.runtime.status().generation;
- const auto control=[&](bool visible) {
+ const auto control=[&](bool visible,const char* focus) {
   return std::string("{\"protocol\":2,\"operation\":\"session_display\",\"expected_package_id\":\"")+kPackageId+
-   "\",\"expected_generation\":"+std::to_string(generation)+",\"visible\":"+(visible?"true":"false")+"}";
+   "\",\"expected_generation\":"+std::to_string(generation)+",\"visible\":"+(visible?"true":"false")+
+   ",\"focus\":\""+focus+"\"}";
  };
- Contains(Exchange(path,kStatus),"\"session\":true");
+ Contains(Exchange(path,kStatus),"\"session\":true,\"core_generation\":"+std::to_string(generation)+",\"focus\":\"machine\"");
  assert(!fixture.runtime.status().menu_display.available);
- Contains(Exchange(path,control(true)),"\"ok\":true");
+ Contains(Exchange(path,control(false,"launcher")),"\"ok\":false");
+ // A surround shows the plane with the machine keeping input. Taking and
+ // returning focus keeps the display generation that frames bind.
+ Contains(Exchange(path,control(true,"machine")),"\"focus\":\"machine\"");
+ const auto surround=fixture.runtime.status().menu_display;assert(surround.available&&surround.generation);
+ Contains(Exchange(path,control(true,"launcher")),"\"focus\":\"launcher\"");
+ assert(fixture.runtime.status().menu_display.generation==surround.generation);
+ Contains(Exchange(path,control(true,"machine")),"\"focus\":\"machine\"");
+ Contains(Exchange(path,control(true,"launcher")),"\"ok\":true");
+ assert(fixture.runtime.status().menu_display.generation==surround.generation);
  for(bool revoked:{true,false}) {
   const auto display=fixture.runtime.status().menu_display.generation;
   const int socket=Connect(path);const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(7);
   assert(SendFrame(socket,MenuRequest("menu_frame_begin",display),-1,deadline).ok());ReceivedFrame prepared;
   assert(ReceiveFrame(socket,deadline,&prepared).ok());Contains(prepared.line,"\"ok\":true");assert(prepared.fds.empty());
   // Hiding waits out the preparation for its bound, then revokes the window.
-  if(revoked){Contains(Exchange(path,control(false)),"\"ok\":true");Contains(Exchange(path,control(true)),"\"ok\":true");}
+  if(revoked){Contains(Exchange(path,control(false,"machine")),"\"ok\":true");Contains(Exchange(path,control(true,"launcher")),"\"ok\":true");}
   assert(SendFrame(socket,MenuCommit(display,SlotOf(prepared.line)),-1,deadline).ok());ReceivedFrame completed;
   assert(ReceiveFrame(socket,deadline,&completed).ok());Contains(completed.line,revoked?"\"ok\":false":"\"ok\":true");
   assert(completed.fds.empty());assert(ReadToEof(socket).empty());assert(close(socket)==0);
  }
  assert(fixture.hardware.menu_present_calls==1&&fixture.hardware.idle_calls==1&&fixture.hardware.core_calls==1);
  assert(fixture.runtime.status().generation==generation);
- Contains(Exchange(path,control(false)),"\"ok\":true");Contains(Exchange(path,kStop),"\"ok\":true");
+ Contains(Exchange(path,control(false,"machine")),"\"ok\":true");Contains(Exchange(path,kStop),"\"ok\":true");
  assert(fixture.runtime.status().state==mister::State::idle&&!fixture.runtime.status().menu_display.session);
 }
 
@@ -1399,6 +1457,7 @@ int main()
  TestMenuPatternClientAgainstDaemon();
  TestMenuMultipleAndTruncatedDescriptorsClose();
  TestMenuGrantAndSlotExchange();
+ TestMenuBlitterGrantTakesCpuCommitsUntilAList();
  TestMenuPreparationDeadlineAndCommitDisconnect();
 	TestIdleStopAcknowledgesSaveAdmissionFailure();
 	TestStartupStatusReturnsIdle();

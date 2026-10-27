@@ -209,6 +209,10 @@ func (a *App) roomStorePathLocked(id string) string {
 // are opened by pushing the live parent instance onto roomStack first
 // (see applyRoomActionsLocked) so its state survives until Back.
 func (a *App) openRoomLocked(id string) {
+	a.openRoomWithSelectionLocked(id, "")
+}
+
+func (a *App) openRoomWithSelectionLocked(id, initialGameID string) {
 	pack, ok := a.roomsIndex.Find(id)
 	if !ok || !pack.Valid() {
 		a.roomErr = fmt.Sprintf("room %s is not installed", id)
@@ -216,23 +220,23 @@ func (a *App) openRoomLocked(id string) {
 		return
 	}
 	if pack.Revision != "" {
-		a.openInstalledRoomLocked(pack, false)
+		a.openInstalledRoomLocked(pack, false, initialGameID)
 		return
 	}
-	a.openValidRoomLocked(pack)
+	a.openValidRoomLocked(pack, initialGameID)
 }
 
 // openValidRoomLocked replaces the current room with pack. It reports
 // false only when rooms.New fails; a script error still leaves the
 // instance up so the existing error panel can show it.
-func (a *App) openValidRoomLocked(pack rooms.Pack) bool {
+func (a *App) openValidRoomLocked(pack rooms.Pack, initialGameID string) bool {
 	a.discardLibraryOriginLocked()
 	a.closeRoomLocked()
 	a.closeRoomOverlaysLocked()
 	a.closeFiltersLocked()
 	a.closeCollectionOverlaysLocked()
 	a.searchOpen = false
-	inst, err := a.newRoomInstanceLocked(pack)
+	inst, err := a.newRoomInstanceLocked(pack, initialGameID)
 	if err != nil {
 		a.roomErr = err.Error()
 		a.status = a.roomErr
@@ -243,6 +247,7 @@ func (a *App) openValidRoomLocked(pack rooms.Pack) bool {
 	a.roomWasParked = a.gpuParked
 	inst.SetSessionState(a.session.State)
 	inst.SetLiveControls(a.liveControlsOfferedLocked())
+	inst.SetOverlay(a.roomOverlayLocked())
 	a.postUIEventLocked("ui.nav", map[string]string{"reason": "room", "view": "room:" + pack.ID})
 	if err := inst.Load(); err != nil {
 		a.roomErr = err.Error()
@@ -289,7 +294,7 @@ func (a *App) openHomeRoomAsRootLocked() bool {
 		return true
 	}
 	if pack.Revision != "" {
-		if a.openInstalledRoomLocked(pack, true) {
+		if a.openInstalledRoomLocked(pack, true, "") {
 			// The room may have opened a nested child during load. Its trial
 			// committed, so preserve that navigation and stack as-is.
 			return true
@@ -306,7 +311,7 @@ func (a *App) openHomeRoomAsRootLocked() bool {
 	prevStatus := a.status
 	a.closeAllRoomsLocked()
 	a.roomPickerOpen = false
-	if a.openValidRoomLocked(pack) {
+	if a.openValidRoomLocked(pack, "") {
 		return true
 	}
 	a.closeRoomLocked()
@@ -463,7 +468,7 @@ func (a *App) applyRoomActionsLocked() {
 		case rooms.ActionHardwareTapes, rooms.ActionHardwareImportExpansion:
 			a.openHardwarePickerLocked(act)
 		case rooms.ActionLaunch:
-			a.launchFromRoomLocked(act.GameID)
+			a.launchFromRoomWithPackageLocked(act.GameID, act.PackageID, act.ExpectedPackageID)
 		case rooms.ActionStop:
 			if a.roomSessionMatchesLocked(act) {
 				a.startStopLocked()
@@ -480,7 +485,7 @@ func (a *App) applyRoomActionsLocked() {
 			}
 			return
 		case rooms.ActionOpenRoom:
-			a.openNestedRoomLocked(act.RoomID)
+			a.openNestedRoomLocked(act.RoomID, act.InitialGameID)
 			return
 		case rooms.ActionBack:
 			if a.roomDuringPlay {
@@ -529,6 +534,10 @@ func (a *App) openLibraryFromRoomLocked(act rooms.Action) {
 }
 
 func (a *App) launchFromRoomLocked(gameID string) {
+	a.launchFromRoomWithPackageLocked(gameID, "", "")
+}
+
+func (a *App) launchFromRoomWithPackageLocked(gameID, packageID, expectedPackageID string) {
 	gameID = strings.TrimSpace(gameID)
 	if gameID == "" {
 		return
@@ -542,28 +551,30 @@ func (a *App) launchFromRoomLocked(gameID string) {
 		return
 	}
 	if game, ok := a.room.CachedGame(gameID); ok {
-		a.startLaunchGameLocked(game)
+		a.startLaunchGameWithPackageLocked(game, packageID, expectedPackageID)
 		return
 	}
 	for _, game := range a.games {
 		if game.ID == gameID {
-			a.startLaunchGameLocked(game)
+			a.startLaunchGameWithPackageLocked(game, packageID, expectedPackageID)
 			return
 		}
 	}
 	if a.launch.Phase == "launching" || a.sessionStopOfferedLocked() {
 		return
 	}
+	a.launchPackageID = packageID
+	a.launchExpectedPackageID = expectedPackageID
 	a.launchLeaseRefusal = false
 	a.launch = LaunchSnapshot{GameID: gameID, Phase: "launching", Message: "resolving " + gameID}
 	ctx := a.ctx
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	go a.resolveRoomLaunch(ctx, gameID)
+	go a.resolveRoomLaunch(ctx, gameID, packageID, expectedPackageID)
 }
 
-func (a *App) resolveRoomLaunch(ctx context.Context, gameID string) {
+func (a *App) resolveRoomLaunch(ctx context.Context, gameID, packageID, expectedPackageID string) {
 	game, err := a.client.Game(ctx, gameID)
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -577,7 +588,7 @@ func (a *App) resolveRoomLaunch(ctx context.Context, gameID string) {
 	}
 	a.launchLeaseRefusal = false
 	a.launch = LaunchSnapshot{Phase: "idle"}
-	a.startLaunchGameLocked(game)
+	a.startLaunchGameWithPackageLocked(game, packageID, expectedPackageID)
 }
 
 // tickRoomLocked advances the open room: session state, resume after play,
@@ -588,6 +599,7 @@ func (a *App) tickRoomLocked(now time.Time) {
 	}
 	a.room.SetSessionState(a.session.State)
 	a.room.SetLiveControls(a.liveControlsOfferedLocked())
+	a.room.SetOverlay(a.roomOverlayLocked())
 	if a.gpuParked || a.localPresentsPaused {
 		a.roomWasParked = true
 		return
@@ -745,7 +757,7 @@ func roomPickerHint(kind InputKind) string {
 	return selectWord(kind) + " open  " + detailsWord(kind) + " pin  " + backWord(kind) + " close  " + settingsWord(kind) + " settings"
 }
 
-func (a *App) newRoomInstanceLocked(pack rooms.Pack) (*rooms.Instance, error) {
+func (a *App) newRoomInstanceLocked(pack rooms.Pack, initialGameID string) (*rooms.Instance, error) {
 	w, h := a.roomContentSizeLocked(pack.ID)
 	return rooms.New(pack, rooms.Options{
 		Width:                  w,
@@ -754,6 +766,7 @@ func (a *App) newRoomInstanceLocked(pack rooms.Pack) (*rooms.Instance, error) {
 		Index:                  a.roomsIndex,
 		Theme:                  a.theme,
 		ReducedMotion:          a.reducedMotion,
+		InitialGameID:          initialGameID,
 		SessionDisplayRequired: a.needsSessionDisplayLocked(),
 		StorePath:              a.roomStorePathLocked(pack.ID),
 		Local:                  a.localCores,

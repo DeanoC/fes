@@ -46,7 +46,7 @@ struct Bench {
         t.reset_hold = 0;
     }
     uint8_t &model_alpha() {
-        return t.rootp->display_plane_top__DOT__plane__DOT__memory__DOT__f2sdram__DOT__alpha;
+        return t.rootp->display_plane_top__DOT__memory__DOT__f2sdram__DOT__alpha;
     }
     void tick() {
         // Unrelated 52.224/74.25 MHz clocks.
@@ -58,7 +58,7 @@ struct Bench {
         history.push_back({t.machine, t.machine_h, t.machine_v});
         if (history.size() > 3) history.pop_front();
         t.pixel_clk = 0; t.eval(); t.pixel_clk = 1; t.eval();
-        check(!t.rootp->display_plane_top__DOT__plane__DOT__memory__DOT__f2sdram__DOT__violation,
+        check(!t.rootp->display_plane_top__DOT__memory__DOT__f2sdram__DOT__violation,
               "DDR bounds, writes or unused-port violation");
         if (history.size() < 3) return;
         // The word captured two edges ago is on the output now: three clocks.

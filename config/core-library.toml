@@ -14,6 +14,24 @@ system = "zx81"
 standing = "supported"
 
 [[cores]]
+core_id = "fes.zx80"
+label = "Sinclair ZX80"
+system = "zx81"
+standing = "experimental"
+
+[[cores]]
+core_id = "fes.ts1000"
+label = "Timex Sinclair 1000"
+system = "zx81"
+standing = "experimental"
+
+[[cores]]
+core_id = "fes.ts1500"
+label = "Timex Sinclair 1500"
+system = "zx81"
+standing = "experimental"
+
+[[cores]]
 core_id = "fes.coleco"
 label = "ColecoVision"
 system = "coleco"
@@ -52,6 +70,24 @@ standing = "experimental"
 [[cores]]
 core_id = "fes.spectrum"
 label = "ZX Spectrum 48K"
+system = "spectrum"
+standing = "experimental"
+
+[[cores]]
+core_id = "fes.spectrum128"
+label = "ZX Spectrum 128K/+2"
+system = "spectrum"
+standing = "experimental"
+
+[[cores]]
+core_id = "fes.spectrum-plus3"
+label = "ZX Spectrum +2A/+3"
+system = "spectrum"
+standing = "experimental"
+
+[[cores]]
+core_id = "fes.pentagon"
+label = "Pentagon 128"
 system = "spectrum"
 standing = "experimental"
 

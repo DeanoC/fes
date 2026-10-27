@@ -337,13 +337,10 @@ var apple2Sockets = map[int]socketPolicy{
 	7: {Apple2Slot, Apple2Map, 1769, 5162, 2806, 6882},
 }
 
-// spectrumSockets is fes.spectrum-bus.sockets/1. The four rectangles are the
-// same column-24 bands as the Apple II sockets, indexed 1..4.
+// spectrumSockets is fes.spectrum-bus.sockets/2: the one edge socket, in
+// the Apple II slot 2 rectangle.
 var spectrumSockets = map[int]socketPolicy{
 	1: {SpectrumSlot, SpectrumMap, 1769, 32, 2806, 1722},
-	2: {SpectrumSlot, SpectrumMap, 1769, 1722, 2806, 3442},
-	3: {SpectrumSlot, SpectrumMap, 1769, 3442, 2806, 5162},
-	4: {SpectrumSlot, SpectrumMap, 1769, 5162, 2806, 6882},
 }
 
 // c64Sockets is fes.c64-bus.sockets/1. The rectangles are the Apple II slot 2

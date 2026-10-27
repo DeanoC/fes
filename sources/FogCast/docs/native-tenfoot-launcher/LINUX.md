@@ -206,12 +206,16 @@ exit or handled interrupt; abrupt process termination cannot restore them.
 keyboard or supported gamepad. No supported node at startup is not an error:
 the UI paints immediately, and automatic mode rescans `/dev/input/event*`
 about once a second with that same classifier. A hotplugged keyboard or
-gamepad is opened without restarting the process. Select a keyboard and
+gamepad is opened without restarting the process. A paired Bluetooth HID or
+HoG pad is one of those evdev nodes. Hold the controller pair button; BlueZ
+link keys live on the FESDATA3 ext4 partition at
+`/run/fogcast/fesdata3/bluetooth`, not on FAT, and persist across reboots.
+Select a keyboard and
 controller explicitly with `-input /dev/input/event3,/dev/input/event5`.
 Keyboard navigation uses the usual tenfoot shortcuts (`o` for Settings,
 `q` to quit); alphanumeric entry uses a US key layout, including Shift.
 Gamepad face/shoulder/Start/Back/Guide buttons and digital hat or button D-pads
-use the shared remapper, merged held state, and short/long press behavior.
+use each pad's saved profile, merged held state, and short/long press behavior.
 Guide opens Settings. Analog sticks, pointer input, and keyboard layout
 discovery are not read.
 In automatic mode, a disconnected device or lost evdev events drop that

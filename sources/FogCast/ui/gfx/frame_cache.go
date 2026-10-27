@@ -42,6 +42,8 @@ type frameCommand struct {
 	text       string
 	x, y, size int
 	weight     Weight
+	mask       *Mask
+	maskSrc    image.Rectangle
 }
 
 // NewFrameCache wraps an exclusively owned painter. The caller closes device.
@@ -100,8 +102,14 @@ func (c *FrameCache) DrawTextWeight(x, y int, text string, size int, weight Weig
 	c.record(frameCommand{op: OpDrawText, x: x, y: y, text: text, size: size, weight: NormalizeWeight(weight), color: color})
 }
 
+func (c *FrameCache) DrawMask(m *Mask, src image.Rectangle, x, y int, color Color) {
+	c.painted = true
+	c.record(frameCommand{op: OpDrawMask, x: x, y: y, color: color, mask: m, maskSrc: src})
+}
+
 // CacheBackdrop marks one reusable command prefix in a complete frame. CPU
-// painters keep one framebuffer copy; unsupported painters replay normally.
+// painters keep one framebuffer copy; unsupported painters, and a menu
+// display frame the blitter draws, replay normally.
 // The checkpoint is deferred so identical whole frames still do no raster work.
 func (c *FrameCache) CacheBackdrop() {
 	if !c.active || !c.clear || c.checkpoint >= 0 {
@@ -125,6 +133,11 @@ func (c *FrameCache) captureBackdrop() {
 		}
 	}
 	fb := c.device.(interface{ frameSurface() *image.RGBA }).frameSurface()
+	if fb == nil {
+		// The blitter draws this frame; there are no CPU pixels to keep.
+		c.backdropValid = false
+		return
+	}
 	if cap(c.backdropPixels) < len(fb.Pix) {
 		c.backdropPixels = make([]byte, len(fb.Pix))
 	}
@@ -146,6 +159,11 @@ func backdropDamage(commands []frameCommand, bounds image.Rectangle) image.Recta
 			x0, y0, x1, y1, ok := clipRect(command.dst, bounds.Dx(), bounds.Dy())
 			if ok {
 				damage = damage.Union(image.Rect(x0, y0, x1, y1).Add(bounds.Min))
+			}
+		case OpDrawMask:
+			src, at, ok := clipMask(command.mask, command.maskSrc, command.x, command.y, bounds.Dx(), bounds.Dy())
+			if ok {
+				damage = damage.Union(image.Rectangle{at, at.Add(src.Size())}.Add(bounds.Min))
 			}
 		default:
 			return bounds
@@ -178,7 +196,7 @@ func (c *FrameCache) flush() {
 	start := 0
 	if c.checkpoint >= 0 {
 		fb := c.device.(interface{ frameSurface() *image.RGBA }).frameSurface()
-		if c.backdropValid && fb.Rect == c.backdropBounds && fb.Stride == c.backdropStride && len(fb.Pix) == len(c.backdropPixels) && slices.Equal(c.current[:c.checkpoint], c.backdropCommands) {
+		if fb != nil && c.backdropValid && fb.Rect == c.backdropBounds && fb.Stride == c.backdropStride && len(fb.Pix) == len(c.backdropPixels) && slices.Equal(c.current[:c.checkpoint], c.backdropCommands) {
 			c.restoreBackdrop(fb)
 			c.device.SetBlend(c.backdropBlend)
 		} else {
@@ -212,6 +230,8 @@ func (c *FrameCache) execute(command frameCommand) {
 		c.device.DebugText(command.x, command.y, command.text, command.size)
 	case OpDrawText:
 		c.device.DrawTextWeight(command.x, command.y, command.text, command.size, command.weight, command.color)
+	case OpDrawMask:
+		c.device.DrawMask(command.mask, command.maskSrc, command.x, command.y, command.color)
 	}
 }
 

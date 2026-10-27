@@ -97,6 +97,9 @@ type Options struct {
 	// drifting art). The launcher owns the preference; scripts read
 	// room.reduced_motion.
 	ReducedMotion bool
+	// InitialGameID carries the selected library entry into a nested setup
+	// room. Direct room opens leave it empty and use saved room navigation.
+	InitialGameID string
 	// SessionDisplayRequired means this physical display needs an observed
 	// session-display contract before it can show controls during play.
 	SessionDisplayRequired bool
@@ -636,6 +639,15 @@ func (r *Instance) SetSessionState(state string) { r.sessionState = state }
 func (r *Instance) SetLiveControls(on bool) {
 	if r != nil && r.roomTable != nil {
 		r.roomTable.RawSetString("live_controls", lua.LBool(on))
+	}
+}
+
+// SetOverlay sets room.overlay: the room is drawn over a running machine on
+// the kit's session plane, so its clear may be translucent and the machine
+// shows through it. Host windows never set it.
+func (r *Instance) SetOverlay(on bool) {
+	if r != nil && r.roomTable != nil {
+		r.roomTable.RawSetString("overlay", lua.LBool(on))
 	}
 }
 

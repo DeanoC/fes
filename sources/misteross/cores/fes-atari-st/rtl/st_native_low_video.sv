@@ -42,13 +42,14 @@ module st_native_low_video (
     wire [8:0] chunk_read0 [0:FRAME_CHUNKS-1];
     wire [8:0] chunk_read1 [0:FRAME_CHUNKS-1];
     wire [8:0] chunk_read2 [0:FRAME_CHUNKS-1];
-    reg [6:0] read_chunk;
-    // Register local 16-chunk groups before the final group/bank mux.
+    reg [1:0] front_bank;
+    // Register local 16-chunk groups before the final OR. With the RAM read,
+    // each bank's group registers its own hit and loads its own chunk index
+    // only when it is the addressed group, so no one index register drives
+    // all fifteen selections. A miss, a chunk past the frame and reset clear
+    // a group's word; only the addressed group of the front bank is nonzero.
     // These are pixel registers; all 234 synchronous RAM ports stay unchanged.
     wire [8:0] group_read0 [0:4], group_read1 [0:4], group_read2 [0:4];
-    reg [2:0] read_group;
-    reg [1:0] read_bank_ram, read_bank;
-    reg read_valid;
     generate for (genvar g = 0; g < 5; g = g + 1) begin : read_groups
         wire [8:0] words0 [0:15], words1 [0:15], words2 [0:15];
         for (genvar k = 0; k < 16; k = k + 1) begin : words
@@ -62,20 +63,26 @@ module st_native_low_video (
                 assign words2[k] = 9'd0;
             end
         end
+        wire group_hit = output_address[16:14] == 3'(g);
+        wire hit_next0 = group_hit && front_bank == 2'd0;
+        wire hit_next1 = group_hit && front_bank == 2'd1;
+        wire hit_next2 = group_hit && front_bank[1];
+        reg hit0, hit1, hit2;
+        reg [3:0] index0, index1, index2;
         reg [8:0] selected0, selected1, selected2;
         always @(posedge clk_pixel) begin
-            selected0 <= words0[read_chunk[3:0]];
-            selected1 <= words1[read_chunk[3:0]];
-            selected2 <= words2[read_chunk[3:0]];
+            hit0 <= hit_next0; hit1 <= hit_next1; hit2 <= hit_next2;
+            if (hit_next0) index0 <= output_address[13:10];
+            if (hit_next1) index1 <= output_address[13:10];
+            if (hit_next2) index2 <= output_address[13:10];
+            selected0 <= reset_pixel || !hit0 ? 9'd0 : words0[index0];
+            selected1 <= reset_pixel || !hit1 ? 9'd0 : words1[index1];
+            selected2 <= reset_pixel || !hit2 ? 9'd0 : words2[index2];
         end
         assign group_read0[g] = selected0;
         assign group_read1[g] = selected1;
         assign group_read2[g] = selected2;
     end endgenerate
-    wire [8:0] read0 = read_valid ? group_read0[read_group] : 9'd0;
-    wire [8:0] read1 = read_valid ? group_read1[read_group] : 9'd0;
-    wire [8:0] read2 = read_valid ? group_read2[read_group] : 9'd0;
-    reg [1:0] front_bank;
     reg [2:0] published, released, seen;
     (* async_reg = "true" *) reg [2:0] pub_meta, pub_sync, release_meta, release_sync;
     reg [31:0] sequence_number [0:2];
@@ -91,17 +98,13 @@ module st_native_low_video (
     wire border_overflow;
     reg [31:0] front_sequence;
     reg [8:0] front_border;
-    assign output_rgb = read_bank == 2'd0 ? read0 : read_bank == 2'd1 ? read1 : read2;
+    // One RAM edge and one grouped-selection edge. Hits tag their words with
+    // the bank at the RAM edge, including the old bank for a read in flight
+    // when SOF selects anew.
+    assign output_rgb = group_read0[0] | group_read0[1] | group_read0[2] | group_read0[3] | group_read0[4] |
+                        group_read1[0] | group_read1[1] | group_read1[2] | group_read1[3] | group_read1[4] |
+                        group_read2[0] | group_read2[1] | group_read2[2] | group_read2[3] | group_read2[4];
     assign output_border = front_border;
-    // One RAM edge and one grouped-selection edge. Capture tags with their
-    // words, including the old bank for a read in flight when SOF selects anew.
-    always @(posedge clk_pixel) begin
-        read_chunk <= output_address[16:10];
-        read_group <= read_chunk[6:4];
-        read_bank_ram <= front_bank;
-        read_bank <= read_bank_ram;
-        read_valid <= !reset_pixel && read_chunk < 7'd78;
-    end
     integer candidate;
     wire choose_valid;
     wire [1:0] choose_bank;
@@ -309,15 +312,25 @@ module st_native_low_video (
         resolved_token.index = color_index;
     end
     reg output_tick;
+    // Phase 2, palette and hold cross from the machine. Register them together so
+    // lookup reads phase-2 values one edge later, on the registered native pulse;
+    // the retained token cannot change before that edge.
+    reg lookup_ce, lookup_hold;
+    reg [143:0] lookup_palette;
+    always @(posedge clk_sys) begin
+        lookup_ce <= native_lookup_ce;
+        lookup_hold <= hold;
+        lookup_palette <= palette;
+    end
     wire prepared_visible = native_line >= (frame_pal ? 9'd34 : 9'd5) &&
         native_line < (frame_pal ? 9'd310 : 9'd260) &&
         native_cycle >= (frame_pal ? 9'd8 : 9'd4) &&
         native_cycle < (frame_pal ? 9'd424 : 9'd420);
-    wire lookup_due = native_lookup_ce && output_tick;
-    wire write_pixel = lookup_due && output_token.pixel && !hold;
+    wire lookup_due = lookup_ce && output_tick;
+    wire write_pixel = lookup_due && output_token.pixel && !lookup_hold;
     wire [8:0] output_x = output_token.x;
     wire [8:0] output_row = output_token.row_number;
-    wire [8:0] pixel_rgb = output_token.blank ? 9'd0 : palette[output_token.index * 9 +: 9];
+    wire [8:0] pixel_rgb = output_token.blank ? 9'd0 : lookup_palette[output_token.index * 9 +: 9];
     wire [8:0] sample_rgb = output_token.valid ? pixel_rgb : 9'd0;
     reg output_pending;
     always @* begin
@@ -341,7 +354,7 @@ module st_native_low_video (
             frame_write <= 1'b0; frame_write_black <= 1'b1;
             frame_write_bank <= 2'd0; frame_write_address <= 17'd0; frame_write_rgb <= 9'd0;
         end else begin
-            if (native_lookup_ce) output_tick <= 1'b0;
+            if (lookup_ce) output_tick <= 1'b0;
             if (pixel_due) begin
                 output_tick <= 1'b1;
                 output_pipe[0] <= {prepare_pixel, owned && border_enabled && prepared_visible,
@@ -376,7 +389,7 @@ module st_native_low_video (
             word2 <= frame2[output_address[9:0]];
         end
         always @(posedge clk_sys) begin
-            if (frame_write && !reset_sys && !hold && frame_write_address[16:10] == 7'(chunk)) begin
+            if (frame_write && !reset_sys && !lookup_hold && frame_write_address[16:10] == 7'(chunk)) begin
                 case (frame_write_bank)
                     2'd0: frame0[frame_write_address[9:0]] <= frame_write_black ? 9'd0 : frame_write_rgb;
                     2'd1: frame1[frame_write_address[9:0]] <= frame_write_black ? 9'd0 : frame_write_rgb;
@@ -444,10 +457,10 @@ module st_native_low_video (
     wire border_failed = border_overflow && !border_overflow_reported;
     st_native_border borders (
         .clk_sys(clk_sys), .clk_pixel(clk_pixel), .reset_sys(reset_sys), .reset_pixel(reset_pixel),
-        .capture_start(border_start), .capture_active(output_token.visible && !hold),
+        .capture_start(border_start), .capture_active(output_token.visible && !lookup_hold),
         .capture_pal(output_token.pal), .capture_tick(lookup_due), .capture_display(output_token.active),
         .capture_bank(border_start ? free_bank : output_token.bank), .native_line(output_token.line_number),
-        .native_cycle(output_token.cycle_number), .palette_zero(output_token.blank ? 9'd0 : palette[8:0]),
+        .native_cycle(output_token.cycle_number), .palette_zero(output_token.blank ? 9'd0 : lookup_palette[8:0]),
         .capture_overflow(border_overflow), .raster_banks(raster_banks),
         .output_bank(output_sof && choose_valid ? choose_bank : front_bank),
         .output_consume_bank(front_bank),

@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/DeanoC/FogCast/appliance/software"
 )
 
 const testFactoryID = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
@@ -18,9 +20,17 @@ type fakeControl struct {
 	active        string
 	fail          map[string]bool
 	stopErr       bool
+	// incompatible names releases this base cannot run.
+	incompatible map[string]bool
 }
 
-func (f *fakeControl) Verify(context.Context, string) error { return nil }
+func (f *fakeControl) Verify(_ context.Context, id string) error {
+	if f.incompatible[id] {
+		return fmt.Errorf("%w: release does not accept required interface menu.fes.video.menu-blitter 1.0", software.ErrIncompatible)
+	}
+	return nil
+}
+func (f *fakeControl) Active() string { return f.active }
 func (f *fakeControl) Stop(context.Context) error {
 	f.stops++
 	if f.stopErr {
@@ -449,5 +459,238 @@ func TestFactoryPreparationUsesSharedStartupDeadlineWithoutAdmission(t *testing.
 				}
 			}
 		})
+	}
+}
+
+const testSelectedID = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+
+// selectRelease commits id as the selection, as an earlier image accepted it.
+func selectRelease(t *testing.T, r *FileRepository, id string) {
+	t.Helper()
+	if err := r.Update(func(s *State) error { s.Previous, s.Selected = s.Selected, id; s.Generation++; return nil }); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestBootHoldsBackSelectionThisImageCannotRun(t *testing.T) {
+	r, e, c, a := setup(t)
+	selectRelease(t, r, testSelectedID)
+	c.incompatible = map[string]bool{testSelectedID: true}
+	if err := e.Boot(context.Background(), req()); err == nil || !errors.Is(err, software.ErrIncompatible) {
+		t.Fatal("without a factory the incompatible selection must keep its error", err)
+	}
+	if c.starts != 0 {
+		t.Fatal("incompatible selection started", c)
+	}
+	e.Factory = testFactoryID
+	if err := e.Boot(context.Background(), req()); err != nil {
+		t.Fatal(err)
+	}
+	s, _ := r.Read()
+	if c.active != testFactoryID || c.starts != 1 || s.Selected != testSelectedID || a.releases != 1 {
+		t.Fatal("factory software did not replace the held-back selection", c, s, a)
+	}
+	if e.HeldBack != testSelectedID || !strings.Contains(e.HeldBackReason, "menu.fes.video.menu-blitter") {
+		t.Fatal("held-back selection not reported", e.HeldBack, e.HeldBackReason)
+	}
+	c.incompatible = nil
+	if err := e.Boot(context.Background(), req()); err != nil {
+		t.Fatal(err)
+	}
+	if c.active != testSelectedID || e.HeldBack != "" || e.HeldBackReason != "" {
+		t.Fatal("a runnable selection stayed held back", c, e.HeldBack)
+	}
+}
+
+func TestQueuedCandidateThisImageCannotRunIsHeldBack(t *testing.T) {
+	r, e, c, a := setup(t)
+	e.Factory = testFactoryID
+	if err := e.Boot(context.Background(), req()); err != nil {
+		t.Fatal(err)
+	}
+	starts, stops, releases := c.starts, c.stops, a.releases
+	c.incompatible = map[string]bool{testCandidateID: true}
+	if err := Queue(r, req()); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.Run(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	s, _ := r.Read()
+	receipt := s.Receipts[req().ID]
+	if receipt.Result != "recovered" || !strings.HasPrefix(receipt.Reason, "held back: ") || !strings.Contains(receipt.Reason, "menu.fes.video.menu-blitter 1.0") {
+		t.Fatal("held-back candidate not recorded", receipt)
+	}
+	if s.Pending != nil || s.Unreleased != nil || s.Selected != testFactoryID || s.Generation != 0 {
+		t.Fatal("held-back candidate changed the selection or kept the request", s)
+	}
+	if c.starts != starts || c.stops != stops || a.releases != releases+1 {
+		t.Fatal("held-back candidate touched services or kept its reservation", c, a)
+	}
+	if e.HeldBack != "" {
+		t.Fatal("a refused candidate is not a held-back selection", e.HeldBack)
+	}
+}
+
+func TestRestoreAfterImageChangeKeepsFactoryForHeldBackSelection(t *testing.T) {
+	r, e, c, a := setup(t)
+	e.Factory = testFactoryID
+	selectRelease(t, r, testSelectedID)
+	// The trial boot ran the factory software. Confirmation queues the
+	// committed selection again, which the new image cannot run.
+	c.active = testFactoryID
+	c.incompatible = map[string]bool{testSelectedID: true}
+	state, _ := r.Read()
+	restore := Request{ID: strings.Repeat("b", 64), Candidate: testSelectedID, Requester: "kit-software-supervisor", Generation: state.Generation}
+	if err := Queue(r, restore); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.Run(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	s, _ := r.Read()
+	if c.starts != 0 || c.stops != 0 || c.active != testFactoryID || s.Selected != testSelectedID || a.releases != 1 {
+		t.Fatal("restore of a held-back selection replaced the factory software", c, s, a)
+	}
+	if s.Receipts[restore.ID].Result != "recovered" || e.HeldBack != testSelectedID {
+		t.Fatal("held-back restore not recorded", s.Receipts[restore.ID], e.HeldBack)
+	}
+}
+
+func TestHeldBackCandidateAfterImageChangeStartsRunnableSelection(t *testing.T) {
+	r, e, c, a := setup(t)
+	e.Factory = testFactoryID
+	selectRelease(t, r, testSelectedID)
+	c.active = testFactoryID
+	c.incompatible = map[string]bool{testCandidateID: true}
+	state, _ := r.Read()
+	queued := req()
+	queued.Generation = state.Generation
+	if err := Queue(r, queued); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.Run(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	s, _ := r.Read()
+	if c.active != testSelectedID || c.starts != 1 || s.Selected != testSelectedID || a.releases != 1 {
+		t.Fatal("the runnable selection did not replace the factory software", c, s, a)
+	}
+	if receipt := s.Receipts[queued.ID]; receipt.Result != "recovered" || !strings.HasPrefix(receipt.Reason, "held back: ") {
+		t.Fatal("held-back candidate not recorded", receipt)
+	}
+}
+
+func TestRecoveryRunsFactoryWhenSelectionIsHeldBack(t *testing.T) {
+	r, e, c, a := setup(t)
+	e.Factory = testFactoryID
+	selectRelease(t, r, testSelectedID)
+	c.incompatible = map[string]bool{testSelectedID: true}
+	if err := e.Boot(context.Background(), req()); err != nil {
+		t.Fatal(err)
+	}
+	state, _ := r.Read()
+	queued := req()
+	queued.Generation = state.Generation
+	if err := Queue(r, queued); err != nil {
+		t.Fatal(err)
+	}
+	c.fail[testCandidateID] = true
+	if err := e.Run(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	s, _ := r.Read()
+	if c.active != testFactoryID || s.Selected != testSelectedID || s.Receipts[queued.ID].Result != "recovered" || a.releases != 2 {
+		t.Fatal("failed candidate did not recover to the factory software", c, s, a)
+	}
+	if e.HeldBack != testSelectedID {
+		t.Fatal("held-back selection not reported after recovery", e.HeldBack)
+	}
+}
+
+func TestAcceptedCandidateEndsHoldBack(t *testing.T) {
+	r, e, c, _ := setup(t)
+	e.Factory = testFactoryID
+	selectRelease(t, r, testSelectedID)
+	c.incompatible = map[string]bool{testSelectedID: true}
+	if err := e.Boot(context.Background(), req()); err != nil {
+		t.Fatal(err)
+	}
+	state, _ := r.Read()
+	queued := req()
+	queued.Generation = state.Generation
+	if err := Queue(r, queued); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.Run(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	s, _ := r.Read()
+	if c.active != testCandidateID || s.Selected != testCandidateID || e.HeldBack != "" || e.HeldBackReason != "" {
+		t.Fatal("accepted candidate left the old selection held back", c, s, e.HeldBack)
+	}
+}
+
+func TestHeldBackCandidateInterruptedWhileSelectionStartsStaysQueued(t *testing.T) {
+	r, e, c, a := setup(t)
+	e.Factory = testFactoryID
+	selectRelease(t, r, testSelectedID)
+	c.active = testFactoryID
+	c.incompatible = map[string]bool{testCandidateID: true}
+	state, _ := r.Read()
+	queued := req()
+	queued.Generation = state.Generation
+	if err := Queue(r, queued); err != nil {
+		t.Fatal(err)
+	}
+	// Shutdown arrives while the selection replaces the factory software.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	e.Controller = &cancellingControl{fakeControl: c, cancel: cancel}
+	if !errors.Is(e.Run(ctx), context.Canceled) {
+		t.Fatal("shutdown cancellation lost")
+	}
+	s, _ := r.Read()
+	if s.Pending == nil || s.Pending.Phase != "queued" {
+		t.Fatal("an interrupted hold-back spent recovery", s.Pending)
+	}
+	// The next boot starts the selection, as it would anyway, and the request
+	// then completes without touching services again.
+	e.Controller = c
+	if err := e.Boot(context.Background(), Request{ID: strings.Repeat("9", 64), Candidate: testFactoryID, Requester: "kit-software-supervisor"}); err != nil {
+		t.Fatal(err)
+	}
+	if c.active != testSelectedID {
+		t.Fatal("boot did not start the selection", c)
+	}
+	starts := c.starts
+	if err := e.Run(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	s, _ = r.Read()
+	if s.Pending != nil || s.Receipts[queued.ID].Result != "recovered" || c.starts != starts || c.active != testSelectedID || a.releases == 0 {
+		t.Fatal("held-back request did not complete after the reboot", s, c, a)
+	}
+}
+
+func TestHeldBackCandidateBlocksOnlyWhenSelectionFailsToStart(t *testing.T) {
+	r, e, c, _ := setup(t)
+	e.Factory = testFactoryID
+	selectRelease(t, r, testSelectedID)
+	c.active = testFactoryID
+	c.incompatible = map[string]bool{testCandidateID: true}
+	c.fail[testSelectedID] = true
+	state, _ := r.Read()
+	queued := req()
+	queued.Generation = state.Generation
+	if err := Queue(r, queued); err != nil {
+		t.Fatal(err)
+	}
+	if e.Run(context.Background()) == nil {
+		t.Fatal("a selection that never became ready was accepted")
+	}
+	s, _ := r.Read()
+	if s.Pending == nil || s.Pending.Phase != "blocked" || !strings.HasPrefix(s.Pending.Reason, "held back: ") || !strings.Contains(s.Pending.Reason, "starting the selection failed") {
+		t.Fatal("failed selection start not recorded", s.Pending)
 	}
 }

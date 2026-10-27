@@ -15,6 +15,9 @@ func TestOnlyPhysicalGamepadEligible(t *testing.T) {
 	if !eligible(3, "USB gamepad", true) {
 		t.Fatal("physical pad rejected")
 	}
+	if !eligible(5, "Bluetooth gamepad", true) {
+		t.Fatal("bluetooth pad rejected")
+	}
 }
 
 func TestPhysicalKeyboardEligibleForPlayHID(t *testing.T) {
@@ -41,5 +44,21 @@ func TestDecodeArchitectureAndDroppedEvents(t *testing.T) {
 	}
 	if _, _, _, err := decode(make([]byte, 15)); err == nil {
 		t.Fatal("short event accepted")
+	}
+}
+
+// SDL_CreateJoystickGUID: bus, CRC-16/ARC of the evdev name, then vendor,
+// product and version. Without a vendor, the name follows the CRC.
+func TestGUIDIsSDLs(t *testing.T) {
+	pad := Device{Name: "123456789", Bus: 3, Vendor: 0x045e, Product: 0x028e, Version: 0x0114}
+	if got := pad.GUID(); got != "03003dbb5e0400008e02000014010000" {
+		t.Fatalf("guid %s", got)
+	}
+	if got := (Device{Name: "123456789", Bus: 5}).GUID(); got != "05003dbb313233343536373839000000" {
+		t.Fatalf("vendorless guid %s", got)
+	}
+	long := Device{Name: "Arcade Stick Deluxe", Bus: 5}
+	if got := long.GUID(); got[8:] != "417263616465205374696300" {
+		t.Fatalf("vendorless guid keeps more than 11 name bytes: %s", got)
 	}
 }

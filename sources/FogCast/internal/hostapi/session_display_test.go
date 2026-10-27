@@ -19,6 +19,7 @@ type displayHostService struct {
 	mediaCalls int
 	settings   fogcast.LibraryConfig
 	target     string
+	display    protocol.SessionDisplay
 }
 
 func (s *displayHostService) LibrarySettings() fogcast.LibraryConfig { return s.settings }
@@ -37,9 +38,10 @@ func (s *displayHostService) StatusTarget(_ context.Context, target string) (pro
 	s.target = target
 	return s.status, nil
 }
-func (s *displayHostService) SetSessionDisplay(ctx context.Context, visible bool, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
+func (s *displayHostService) SetSessionDisplay(ctx context.Context, display protocol.SessionDisplay, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
 	s.calls++
 	s.target = fogcast.SessionTargetFromContext(ctx)
+	s.display = display
 	if !b.MatchesSessionDisplay(s.status) {
 		return s.status, protocol.SessionDisplayIdentityError()
 	}
@@ -77,8 +79,8 @@ func TestPublicCapturedMutationRejectsAnotherTargetsSessionID(t *testing.T) {
 		sessions[target] = observed.ID
 	}
 	for _, tc := range []struct{ path, body string }{
-		{"/api/v1/session/display", `{"visible":true}`},
-		{"/api/v1/session/display", `{"visible":false}`},
+		{"/api/v1/session/display", `{"visible":true,"focus":"launcher"}`},
+		{"/api/v1/session/display", `{"visible":false,"focus":"machine"}`},
 		{"/api/v1/session/live-media", `{"media_id":"` + strings.Repeat("b", 64) + `","name":"second.p"}`},
 		{"/api/v1/session/live-media/clear", ""},
 	} {
@@ -139,8 +141,8 @@ func TestPublicCapturedMutationRejectsReboundTargetID(t *testing.T) {
 				s.sessionTargetID = tc.current
 				s.settings.Targets[0].TargetID = tc.current
 				for _, mutation := range []struct{ path, body string }{
-					{"/api/v1/session/display", `{"visible":true}`},
-					{"/api/v1/session/display", `{"visible":false}`},
+					{"/api/v1/session/display", `{"visible":true,"focus":"launcher"}`},
+					{"/api/v1/session/display", `{"visible":false,"focus":"machine"}`},
 					{"/api/v1/session/live-media", `{"media_id":"` + strings.Repeat("b", 64) + `","name":"second.p"}`},
 					{"/api/v1/session/live-media/clear", ""},
 				} {
@@ -208,11 +210,15 @@ func TestPairedDisplayKeepsFullObservedBindingAndRejectsForeignSession(t *testin
 		body    string
 		want    int
 	}{
-		{observed.ID, b, `{"visible":true}`, 200}, {observed.ID, b, `{"visible":false}`, 200},
-		{other.ID, b, `{"visible":true}`, 409}, {"stale-session", b, `{"visible":true}`, 409},
-		{observed.ID, protocol.DevelopmentMediaBinding{PackageID: id, Generation: 10, Target: "kit-a", TargetID: launcherID}, `{"visible":true}`, 409},
-		{observed.ID, protocol.DevelopmentMediaBinding{PackageID: id, Generation: 9, Target: "kit-b", TargetID: launcherID}, `{"visible":true}`, 403},
-		{observed.ID, b, `{"visible":null}`, 400}, {observed.ID, b, `{"visible":true} {}`, 400},
+		{observed.ID, b, `{"visible":true,"focus":"launcher"}`, 200}, {observed.ID, b, `{"visible":false,"focus":"machine"}`, 200},
+		{other.ID, b, `{"visible":true,"focus":"launcher"}`, 409}, {"stale-session", b, `{"visible":true,"focus":"launcher"}`, 409},
+		{observed.ID, protocol.DevelopmentMediaBinding{PackageID: id, Generation: 10, Target: "kit-a", TargetID: launcherID}, `{"visible":true,"focus":"launcher"}`, 409},
+		{observed.ID, protocol.DevelopmentMediaBinding{PackageID: id, Generation: 9, Target: "kit-b", TargetID: launcherID}, `{"visible":true,"focus":"launcher"}`, 403},
+		{observed.ID, b, `{"visible":null}`, 400}, {observed.ID, b, `{"visible":true,"focus":"launcher"} {}`, 400},
+		{observed.ID, b, `{"visible":false,"focus":"launcher"}`, 400},
+		{observed.ID, b, `{"visible":true,"focus":null}`, 400}, {observed.ID, b, `{"visible":true,"focus":""}`, 400},
+		{observed.ID, b, `{"visible":true,"focus":"menu"}`, 400}, {observed.ID, b, `{"visible":true}`, 200},
+		{observed.ID, b, `{"visible":true,"focus":"machine"}`, 200},
 	} {
 		r := launcherRequest(http.MethodPost, "http://192.0.2.1:8789/api/v1/session/display", strings.NewReader(tc.body))
 		r.Header.Set("Content-Type", "application/json")
@@ -224,21 +230,27 @@ func TestPairedDisplayKeepsFullObservedBindingAndRejectsForeignSession(t *testin
 			t.Fatalf("session=%s status=%d want=%d body=%s", tc.session, out.Code, tc.want, out.Body)
 		}
 	}
-	if s.calls != 3 {
-		t.Fatalf("foreign or malformed request dispatched: %d", s.calls)
+	if s.calls != 5 || s.display != protocol.SessionDisplayShown {
+		t.Fatalf("foreign or malformed request dispatched: %d %+v", s.calls, s.display)
 	}
 }
 
-func TestPairedTapeImportBoundLeavesNextStartManagementProtected(t *testing.T) {
+// The paired kit imports any tape or disk its media selector inserts, up to
+// the largest unit image and no further.
+func TestPairedMediaImportBoundLeavesNextStartManagementProtected(t *testing.T) {
 	s := &coreMediaAPIService{}
 	handler, err := hostapi.NewLauncherHandler(hostapi.New(s), hostapi.LauncherConfig{Token: launcherToken, TargetID: launcherID})
 	if err != nil {
 		t.Fatal(err)
 	}
+	largest := int(protocol.MaxRemovableMediaBytes)
+	if largest != int(protocol.SpectrumTapeImageMaxBytes) {
+		t.Fatalf("largest selector image = %d", largest)
+	}
 	for _, tc := range []struct {
 		bytes int
 		want  int
-	}{{1, 200}, {16384, 200}, {16385, 400}, {0, 400}} {
+	}{{1, 200}, {16384, 200}, {int(protocol.SpectrumTapeMaxBytes), 200}, {int(protocol.C64DiskBytes), 200}, {largest, 200}, {largest + 1, 400}, {0, 400}} {
 		r := launcherRequest(http.MethodPost, "http://192.0.2.1:8789/api/v1/core-media", strings.NewReader(strings.Repeat("x", tc.bytes)))
 		r.Header.Set("Content-Type", "application/octet-stream")
 		w := httptest.NewRecorder()
@@ -247,7 +259,7 @@ func TestPairedTapeImportBoundLeavesNextStartManagementProtected(t *testing.T) {
 			t.Fatalf("bytes=%d status=%d body=%s", tc.bytes, w.Code, w.Body)
 		}
 	}
-	if s.calls != 2 {
-		t.Fatalf("unbounded tape imported: %d", s.calls)
+	if s.calls != 5 {
+		t.Fatalf("unbounded media imported: %d", s.calls)
 	}
 }

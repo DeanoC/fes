@@ -39,6 +39,7 @@ const (
 type Query struct {
 	Text             string
 	Platform         protocol.System
+	CoreIDs          []string
 	Collection       string
 	Region           string
 	Genre            string
@@ -86,6 +87,13 @@ type cursorKey struct {
 func NormalizeQuery(query Query) (Query, error) {
 	query.Text = strings.TrimSpace(query.Text)
 	query.Platform = protocol.System(strings.TrimSpace(string(query.Platform)))
+	coreIDs := make([]string, 0, len(query.CoreIDs))
+	for _, coreID := range query.CoreIDs {
+		if coreID = strings.TrimSpace(coreID); coreID != "" {
+			coreIDs = append(coreIDs, coreID)
+		}
+	}
+	query.CoreIDs = coreIDs
 	rawRegion := strings.TrimSpace(query.Region)
 	query.Region = mapDumpRegion(foldDumpToken(rawRegion))
 	if query.Region == "" && strings.EqualFold(rawRegion, "other") {

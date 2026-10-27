@@ -10,6 +10,10 @@
 // sync stay aligned. Alpha 0, a closed or faulted plane, or an unlocked raster
 // returns the machine word unchanged. The plane has its own control, reset and
 // drain; opening or closing never changes sync or machine execution.
+//
+// The plane reads through fes.memory.hps-ddr port 0 in pixel_clk. The shell
+// owns fes_hps_ddr, so its other ports stay free for the core: it passes
+// ddr_hold as that wrapper's hold and returns port 0's reset and drained.
 module fes_display_plane #(
     parameter [31:0] WINDOW_BASE = `FES_APPLICATION_HPS_DDR_WINDOW_BASE,
     // Where the machine picture lands in the 1280x720 raster, for surrounds.
@@ -31,7 +35,15 @@ module fes_display_plane #(
     output reg ui_active = 1'b0,
     output reg locked = 1'b0,
     output wire [31:0] displayed_sequence, underflows,
-    output wire faulted
+    output wire faulted,
+    output wire ddr_hold,
+    input wire ddr_reset, ddr_drained,
+    output wire [27:0] ddr_address,
+    output wire [7:0] ddr_burstcount,
+    output wire ddr_read,
+    input wire ddr_waitrequest,
+    input wire [127:0] ddr_readdata,
+    input wire ddr_readdatavalid
 );
     localparam [10:0] H_LAST = 11'd1649;
     localparam [9:0] V_LAST = 10'd749;
@@ -85,7 +97,8 @@ module fes_display_plane #(
     (* async_reg = "true" *) reg [1:0] quiesced_sync = 2'b11;
     wire enable, quiesce, submit_valid, submit_slot, submit_ready, drained;
     wire [31:0] submit_sequence;
-    wire port_reset, port_drained;
+    wire port_reset = ddr_reset;
+    wire port_drained = ddr_drained;
     reg started = 1'b0, hard_fault = 1'b0, scanout_fault = 1'b0;
     // On a hard hold the reader cannot see responses and must never restart.
     // Only the guard can prove its accepted/queued traffic has actually drained.
@@ -111,10 +124,6 @@ module fes_display_plane #(
 
     wire [23:0] launcher_rgb;
     wire [7:0] launcher_alpha;
-    wire [27:0] address;
-    wire [7:0] burstcount;
-    wire read, waitrequest, readdatavalid;
-    wire [127:0] readdata;
     reg was_enabled = 1'b0;
     reg [31:0] opening_sequence = 32'd0, opening_underflows = 32'd0;
     wire frame_end = raster_h == H_LAST && raster_v == V_LAST;
@@ -149,22 +158,11 @@ module fes_display_plane #(
         .submit_ready(submit_ready), .displayed_sequence(displayed_sequence),
         .underflows(underflows), .quiesced(drained), .rgb(launcher_rgb), .alpha(launcher_alpha),
         .de(), .hs(), .vs(),
-        .address(address), .burstcount(burstcount), .read(read), .waitrequest(waitrequest),
-        .readdata(readdata), .readdatavalid(readdatavalid)
+        .address(ddr_address), .burstcount(ddr_burstcount), .read(ddr_read),
+        .waitrequest(ddr_waitrequest), .readdata(ddr_readdata), .readdatavalid(ddr_readdatavalid)
     );
     // No execution hold: physical machine reset and display drain are separate.
-    fes_hps_ddr #(.P0_WRITE_ENABLE(1'b0), .P1_ENABLE(1'b0), .P2_ENABLE(1'b0)) memory (
-        .hold(reset_hold || hard_fault),
-        .p0_clk(pixel_clk), .p0_reset(port_reset), .p0_drained(port_drained), .p0_address(address), .p0_burstcount(burstcount),
-        .p0_waitrequest(waitrequest), .p0_readdata(readdata), .p0_readdatavalid(readdatavalid),
-        .p0_read(read), .p0_writedata(128'd0), .p0_byteenable(16'd0), .p0_write(1'b0),
-        .p1_clk(pixel_clk), .p1_reset(), .p1_drained(), .p1_address(29'd0), .p1_burstcount(8'd0),
-        .p1_waitrequest(), .p1_readdata(), .p1_readdatavalid(), .p1_read(1'b0),
-        .p1_writedata(64'd0), .p1_byteenable(8'd0), .p1_write(1'b0),
-        .p2_clk(pixel_clk), .p2_reset(), .p2_drained(), .p2_address(29'd0), .p2_burstcount(8'd0),
-        .p2_waitrequest(), .p2_readdata(), .p2_readdatavalid(), .p2_read(1'b0),
-        .p2_writedata(64'd0), .p2_byteenable(8'd0), .p2_write(1'b0)
-    );
+    assign ddr_hold = reset_hold || hard_fault;
 
     // Stage 2 selects the plane pixel and the machine weight. Premultiplied
     // "over" is out = P + M * (255 - a) / 255; 256 - a - a[7] maps alpha 0 to

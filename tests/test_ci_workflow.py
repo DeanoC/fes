@@ -13,6 +13,35 @@ from scripts.affected import plan
 
 
 class ParentWorkflowTests(unittest.TestCase):
+    def test_host_workflow_delegates_build_and_ui_selection_and_keeps_test_shards(self):
+        workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/check.yml').read_text()
+        host = workflow.split('  host:\n', 1)[1].split('  runtime:\n', 1)[0]
+        self.assertIn('if: matrix.shard == 3\n        run: sudo apt-get update && sudo apt-get install -y ripgrep', host)
+        script = textwrap.dedent(re.search(r'        run: \|\n(.*)', host, re.S).group(1))
+        for full in (False, True):
+            for shard in range(1, 4):
+                with self.subTest(full=full, shard=shard), tempfile.TemporaryDirectory() as temporary:
+                    root = Path(temporary)
+                    for command in ('make', 'python3'):
+                        stub = root / command
+                        stub.write_text('#!/bin/sh\nprintf "%s\\n" "' + command +
+                                        ' $*" >> "$COMMAND_LOG"\n')
+                        stub.chmod(0o755)
+                    paths = '["sources/FogCast/ui/tenfoot/library_retry_test.go"]'
+                    subprocess.run(['bash', '-e', '-c', script], check=True, env={**os.environ,
+                        'PATH': str(root) + os.pathsep + os.environ['PATH'],
+                        'COMMAND_LOG': str(root / 'commands'), 'SHARD': str(shard),
+                        'CHANGED_PATHS': paths, 'TEST_FULL_RACE': str(full).lower()})
+                    commands = (root / 'commands').read_text().splitlines()
+                    runner = next(c for c in commands if c.startswith('python3 scripts/host_tests.py '))
+                    self.assertIn('--build-host-if-needed', runner)
+                    self.assertIn('--ui-if-needed', runner)
+                    self.assertIn(f'--shard {shard}/3', runner)
+                    self.assertIn('--paths-json ' + paths, runner)
+                    self.assertEqual('--full' in runner, full)
+                    self.assertNotIn('make host', commands)
+                    self.assertFalse(any(c.startswith('make ') for c in commands))
+
     def test_deadcode_step_forwards_paths_to_real_selector(self):
         repository = Path(__file__).resolve().parents[1]
         workflow = (repository / '.github/workflows/check.yml').read_text()

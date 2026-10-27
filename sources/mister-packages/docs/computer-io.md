@@ -23,7 +23,7 @@ removable media by unit.
 | fes.gamepad.ports | 2 | Two eight-button controller ports, as in `fes.application` |
 | fes.audio.pcm-s16-stereo-48k | 3 | Fixed 48 kHz stereo PCM over I2S, as in `fes.application` |
 | fes.media.apple2-floppy | 4 | Media unit 0: one Apple II 5.25-inch DOS 3.3 order disk image |
-| fes.media.spectrum-tape | 5 | Media unit 0: one ZX Spectrum `.tap` image, 1..65536 bytes |
+| fes.media.spectrum-tape 2.0 | 5 | Media unit 0: one ZX Spectrum tape as a PZX 1.0 stream, 10..16777216 bytes |
 | fes.media.c64-disk | 6 | Media unit 0: one Commodore 1541 D64 disk image |
 | fes.media.atari-st-floppy | 7 | Media unit 0: one read-only 720 KiB raw ST disk image |
 | fes.mouse.relative | 8 | Relative signed movement and two mouse buttons |
@@ -32,6 +32,8 @@ removable media by unit.
 | fes.media.zx81-tape | 11 | Media unit 0: one ZX81 `.p` image, 1..16384 bytes |
 | fes.memory.hps-ddr | 12 | Reserved DDR window for launcher frames. Advertised only when the boot DDR layout and menu adapters exist |
 | fes.video.session-display | 13 | In-session HDMI plane. Reuses menu opcodes 18–21. Advertised with the DDR window, and only on a computer that implements the plane |
+| fes.media.zx81-tape-write | 14 | Writable extension to the ZX81 tape. Captures the BASIC SAVE image; it does not require a loaded cassette |
+| fes.media.spectrum-disk | 15 | Media unit 1, beside the Spectrum tape: one raw track disk image, 8192..2834432 bytes |
 
 A session display is also declared with the manifest-only
 `fes.fabric.video.display-plane` 1.0, which has no capability bit; see
@@ -44,7 +46,8 @@ Each recognized operational interface a core implements must be declared
 required by the manifest and advertised in live identity; live capabilities
 must equal the declared registered set. Unknown required interfaces and
 unsupported versions fail admission; unknown optional interfaces are ignored
-and grant nothing. A shell declares at most one unit-0 media interface.
+and grant nothing. A shell declares at most one unit-0 media interface, and
+the Spectrum disk on unit 1 only beside the Spectrum tape and HPS DDR.
 Expansion interfaces such as `fes.expansion.apple2-bus`,
 `fes.expansion.spectrum-bus`, `fes.expansion.c64-bus` and
 `fes.expansion.atari-st-bus` are manifest-only
@@ -224,23 +227,114 @@ only: the drive reports write protect and writes are not returned to the host.
 ProDOS order (`.po`) and nibble (`.nib`) images are different formats; a host
 may convert `.po` to DOS order before transfer, but must not send it as is.
 
-### fes.media.spectrum-tape 1.0
+### fes.media.spectrum-tape 2.0
 
-Unit 0. The unit accepts 1..65,536 bytes: a `.tap` image, a sequence of
-blocks each stored as a little-endian uint16 length followed by that many
-payload bytes. The core plays complete blocks into the EAR bit while the
-machine runs (header pilot 8063 edges, data pilot 3223, sync 667/735, bit
-pulses 855 or 1710 T-states, then a one-second pause). A trailing partial
-block is not played. Version 1.0 does not return MIC writes to the host.
+Unit 0. The unit accepts 10..16,777,216 bytes: a
+[PZX 1.0](http://zxds.raxoft.cz/docs/pzx.txt) stream, starting with its
+PZXT block. The core keeps the stream in its HPS DDR window and plays it into
+the EAR bit while the machine runs. PULS, DATA, PAUS and STOP blocks play;
+every other block is skipped. Durations are T states of the machine, as PZX
+allows for the 128K. A pulse holds its level for its duration and the next
+pulse starts toggled. PULS starts low; DATA and PAUS start at the level in
+bit 31 of their first word. Zero-length pulses only move the level, so EAR
+never shows an intermediate level. STOP stops the tape (flag 1 only on a 48K)
+and leaves EAR at the level the next pulse would start at; the end of the
+stream does the same and rewinds to the first block. Ejecting drops EAR low.
+
+The tape starts and stops itself, as Fuse 1.6.0's loader detection does.
+After each read of a ULA port the core compares the T states since the
+previous read and the change in register B. While the tape is stopped, 10
+successive reads at most 500 T apart, each with B one up or one down, start
+it. While it plays, 2 successive reads more than 1000 T apart, or with B
+changed by more than one, stop it. Version 2.0 does not return MIC writes to
+the host.
+
+Hosts convert `.tzx`, `.tap`, `.csw` and `.pzx` images to this stream so that
+it plays as libspectrum 1.5 plays the original: the same levels for the same T
+states, and the same stops. FogCast's `internal/spectrumtapes` package does
+this and is checked against libspectrum on fixtures of every block type.
+Version 1.0 (a `.tap` image of at most 64 KiB held in M10K) is withdrawn; a
+1.0 package is refused at compatibility.
+
+A Spectrum package may also declare the optional interfaces
+`fes.media.spectrum-snapshot` 1.0, `fes.media.spectrum-snapshot-128` 1.0 and
+`fes.media.spectrum-snapshot-plus3` 1.0. They add no unit and no capability
+bit: they say that this unit also runs restore streams for 48K, 128K and
++2A/+3 snapshots. A restore stream starts with `ZXRS`, version 1, its class
+(0, 1 or 2) and two zero bytes; the core resets the machine and serves every
+CPU memory read from the stream's following bytes until the last one, then
+fetches from real memory. FogCast's `internal/spectrumsnapshots` writes it
+from `.z80`, `.sna` and `.szx` snapshots; the FES Spectrum README describes the code.
+
 A shell declares this unit, the Apple II floppy, the C64 disk, the Atari ST
 floppy, or the ZX81 tape, and only one unit-0 media interface.
+
+### fes.media.spectrum-disk 1.0
+
+Unit 1, beside a `fes.media.spectrum-tape` cassette on unit 0; the shell
+must also declare `fes.memory.hps-ddr`, and keeps the image there. The unit
+accepts 8,192..2,834,432 bytes: a raw track image of 8 or 16 KiB slots, read
+by the core's floppy controller as a drive reads the disk under its head.
+Slot 0 is the header: `ZXDK`, version 1, cylinders (1..86), sides (1 or 2), a
+flags byte (bit 0 write protect, bit 1 boot) and the slot size as a power of
+two (13 or 14), zero to the end of the slot. Cylinder `c`, side `s` is slot
+`1 + 2c + s`. A track slot holds the track's length in bytes (little endian;
+1..6912 in an 8 KiB slot, 1..15104 in a 16 KiB one; 0 is unformatted) in
+bytes 0-1, a flags byte 2 (bit 0: an FM track), a mark bitmap from byte 16
+(bit `i & 7` of byte `16 + i / 8` flags track byte `i`: in MFM the A1 sync
+bytes of every address mark, which lack a clock; in FM every mark byte, which
+has its special clock) and the track's bytes from an eighth of the slot,
+starting at the index hole. Just below the bytes, at an eighth of the slot
+less 144, are up to eight weak ranges, each a little-endian start and length
+of track bytes that read back differently each time (length 0 ends the list).
+An image may end after its last formatted slot; a slot past the end is
+unformatted.
+
+A host sets the boot flag on the image it inserts for a launch: a core that
+finds it when the disk becomes ready resets the machine into its disk system
+and boots the disk. A disk inserted while the machine runs leaves it clear and
+is only a new medium. FogCast's `internal/spectrumdisks` writes the image
+from `.trd` and `.scl` TR-DOS disks and standard and extended `.dsk` disks,
+building their tracks as Fuse 1.6.0's `disk.c` does.
+
+The interface says nothing about the controller. A package declares its
+controller with an optional interface that adds no unit and no capability
+bit: `fes.media.spectrum-disk-trdos` 1.0 for a Beta 128 running TR-DOS,
+which hosts feed `.trd` and `.scl` images, or `fes.media.spectrum-disk-plus3`
+1.0 for the +3's uPD765A, which hosts feed `.dsk` images. A package declares
+exactly one.
+
+Begin, Chunk, Commit and Eject name the unit as for unit 0, and Info index
+`8..13` reports it. One transfer runs at a time: Begin is refused while a
+transfer to either unit is open, Chunk and Commit must name the unit of the
+open transfer, and Begin words may not change unit. Ejecting one unit leaves
+the other unit's image and open transfer alone.
 
 ### fes.media.zx81-tape 1.0
 
 Unit 0. The unit accepts 1..16,384 bytes: a ZX81 `.p` memory image. The core
 copies a ready image into RAM when BASIC reaches `LOAD` at `$0347`. An empty
 unit makes that load return `0/0` instead of waiting on an analog cassette.
-Version 1.0 does not play audio tape and does not return saves to the host.
+Version 1.0 does not play audio tape. Saves return to the host only when the
+shell also implements `fes.media.zx81-tape-write` 1.0 (capability bit 14,
+`0x4000`).
+
+### fes.media.zx81-tape-write 1.0
+
+This extension occupies the same unit 0 as `fes.media.zx81-tape` and reuses
+snapshot opcodes 12–15. The captured image is the program the ROM SAVE
+routine emits, from `$4009` through the byte before `E_LINE`. It is
+independent of the cassette loaded for `LOAD`: Freeze is ready when that
+save image is ready, including when unit 0 is empty. Begin and Eject of the
+load cassette do not clear the save image or its dirty bit.
+
+SnapshotInfo layout tag is 2, major 1, minor 0. Size is the captured byte
+count, 1..16384. Chunks are 2..512 bytes and even, except a final chunk of
+length 1 when the image size is odd. That chunk's data word is the byte in
+the low half and zero in the high half. The change epoch advances once per
+completed SAVE. Flags use the same ready, dirty, frozen and busy bits as the
+ST snapshot. Busy covers the SAVE emitter as well as an in-progress `LOAD`
+copy. Dirty clears on Saved, not on cassette replacement or eject.
 
 ### fes.media.c64-disk 1.0
 

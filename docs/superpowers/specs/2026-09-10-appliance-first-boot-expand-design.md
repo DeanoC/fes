@@ -104,7 +104,7 @@ HIL rules for any later physical step:
 1. Live `.4` stays in the kit. Use spare media in `/dev/disk/by-id/usb-*` only (historical writer: `usb-Generic_STORAGE_DEVICE_000000000819-0:0`).
 2. If the kit is up, `python3 sources/misteross/scripts/kit.py --config … status` must be `free`. Claim `owner=bob@ai-dev-mac` (or the authorized operator) with purpose `appliance-expand-dry-run` or `appliance-expand-WRITE_GO`. Do not takeover a foreign owner. Do not expand during trial/update.
 3. Host-side USB writes happen with the spare card in the reader, not the booted kit card. `kit.py` cannot lease a powered-off board; the operator still follows kit-sharing so nobody reseats `.4` into the writer.
-4. `WRITE_GO=1` is required for physical `write-base` and `apply`. The tool admits only the exact spare by-id after udev/sysfs checks for USB bus, model, serial, removable flag and capacity; regular-file dry-runs remain available without the gate.
+4. `WRITE_GO=1` is required for physical `write-base` and `apply`. The tool admits only the exact spare by-id after udev/sysfs checks for USB bus, model, serial and removable flag; regular-file dry-runs remain available without the gate. Capacity belongs to the card in the reader, not to that identity. The expected size is `--card-bytes` when given, otherwise the exact sector count sysfs reports for the card. A `--card-bytes` that disagrees is refused, every later check in the same run requires the same size, and `write-base` refuses a card smaller than the image.
 5. Denied regardless of `WRITE_GO`: `/dev/disk0`, NVMe, `mmcblk`, mapper, md, raw `/dev/sdX`, raw `/dev/diskN`.
 6. No `@codex` on host/frontend for this work. Quiet toward Deano unless HARD_NEED.
 
@@ -118,14 +118,15 @@ python3 scripts/appliance_expand_dry_run.py inspect --image /tmp/fes-expand-spar
 python3 scripts/appliance_expand_dry_run.py plan --mode extra-partition
 python3 scripts/appliance_expand_dry_run.py plan --mode grow-fat
 python3 scripts/appliance_expand_dry_run.py apply --mode extra-partition --image /tmp/fes-expand-sparse.img
+sudo -n python3 scripts/appliance_expand_dry_run.py inspect --image /dev/disk/by-id/usb-Generic_STORAGE_DEVICE_000000000819-0:0
 sudo -n env WRITE_GO=1 python3 scripts/appliance_expand_dry_run.py write-base --image /dev/disk/by-id/usb-Generic_STORAGE_DEVICE_000000000819-0:0 --base-image /path/to/card.img --base-sha256 <sha256>
 sudo -n env WRITE_GO=1 python3 scripts/appliance_expand_dry_run.py apply --mode extra-partition --image /dev/disk/by-id/usb-Generic_STORAGE_DEVICE_000000000819-0:0
 sudo -n python3 scripts/appliance_expand_dry_run.py verify --image /dev/disk/by-id/usb-Generic_STORAGE_DEVICE_000000000819-0:0
 ```
 
-`synthesize` / regular-file `apply` operate on a sparse file sized to the 28.8 GiB model (30,923,764,224 bytes). Physical `write-base` writes and reads back the fixed image only on the exact admitted USB. Physical `apply --mode extra-partition` writes the MBR p3 entry, rescans the table and formats p3 with ext4; it proves p1/A2 unchanged. Physical `grow-fat` is rejected. Regular-file `apply --mode grow-fat` copies the 1 MiB A2 region and rewrites the MBR; it does **not** run `fatresize`.
+`synthesize` / regular-file `apply` operate on a sparse file sized to the 28.8 GiB model (30,923,764,224 bytes); `--card-bytes` models another card. Physical commands use the size of the card in the reader. Add `--card-bytes` with the size you expect (for example from `blockdev --getsize64`) to refuse any other card. Physical `write-base` writes and reads back the fixed image only on the exact admitted USB. Physical `apply --mode extra-partition` writes the MBR p3 entry, rescans the table and formats p3 with ext4; it proves p1/A2 unchanged. Physical `grow-fat` is rejected. Regular-file `apply --mode grow-fat` copies the 1 MiB A2 region and rewrites the MBR; it does **not** run `fatresize`.
 
-The exercised 58.2G spare produced p3 at sector 2,101,248 with 120,037,376 sectors. Exact commands and read-back hashes are in the [physical HIL record](../../validation/2026-09-10-appliance-first-boot-expand-hil.md).
+The exercised 58.2G spare produced p3 at sector 2,101,248 with 120,037,376 sectors. Kit B's 28.8G card (30,953,963,520 bytes, 60,456,960 sectors) plans p3 at the same start with 58,355,712 sectors. Exact commands and read-back hashes are in the [physical HIL record](../../validation/2026-09-10-appliance-first-boot-expand-hil.md).
 
 ## Implementation status and follow-up
 

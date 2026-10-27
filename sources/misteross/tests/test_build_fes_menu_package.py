@@ -6,9 +6,36 @@ import tomllib
 import unittest
 from pathlib import Path
 
+# The blitter's eight DSP products as Yosys 3a5accbd names them: each lane's
+# alpha product and its three blend channel products.
+BLITTER_PRODUCTS = tuple(f'endpoint.scanout.blit.blitter.{cell}' for lane in (0,1) for cell in (
+    f'a{lane}.coverage1_MISTRAL_MUL9X9_B',
+    *(f'b{lane}.channel[{c}].difference_MISTRAL_MUL9X9_A' for c in range(3))))
+
+def unsigned_product():
+    return {'type':'MISTRAL_MUL9X9','parameters':{'A_SIGNED':'0'*32,'B_SIGNED':'0'*32}}
+
+def edit(output, name, change):
+    path = output/name; data = json.loads(path.read_text()); change(data); path.write_text(json.dumps(data))
+
 class MenuPackageProducerTest(unittest.TestCase):
     def setUp(self):
         self.producer = importlib.import_module('scripts.build_fes_menu_package')
+
+    def gp_outputs(self, output):
+        """Passing package evidence: the DDR diagnostic's plus GP, port 2 reads and the blitter DSPs."""
+        from tests import test_fes_menu as ddr
+        ddr.MenuDDRProducerTests().outputs(output)
+        for name in ('synth.json','routed.json'):
+            path = output/name; data = json.loads(path.read_text())
+            data['modules']['top']['cells']['gp'] = {'type':'cyclonev_hps_interface_mpu_general_purpose'}
+            data['modules']['top']['cells']['ddr']['connections']['cmd_data_2'] = ['0']*60
+            data['modules']['top']['cells'].update({product:unsigned_product() for product in BLITTER_PRODUCTS})
+            path.write_text(json.dumps(data))
+        path = output/'timing.json'; data = json.loads(path.read_text())
+        data['utilization']['cyclonev_hps_interface_mpu_general_purpose']['used'] = 1
+        data['utilization']['MISTRAL_MUL9X9']['used'] = len(BLITTER_PRODUCTS)
+        path.write_text(json.dumps(data))
 
     def test_commands_select_controlled_top_and_qualified_tools(self):
         p = self.producer
@@ -18,6 +45,8 @@ class MenuPackageProducerTest(unittest.TestCase):
         self.assertNotIn('cores/fes-menu/rtl/top.v',synth)
         self.assertIn('fes_application_gp.v',synth)
         self.assertIn('fes_menu_control.v',synth)
+        for blitter in ('fes_menu_blit_control.v','fes_menu_blitter.v','fes_menu_blit_read.v','fes_menu_blend.v','fes_menu_blit_alpha.v'):
+            self.assertIn(blitter,synth)
         self.assertIn("BUILD_ID 128'h0123456789abcdef0123456789abcdef",synth)
         self.assertIn(p.MENU_TOOLCHAIN_LOCK, p.INPUTS)
         self.assertIn('--gpu-device',commands[1]); self.assertEqual(commands[1][commands[1].index('--gpu-device')+1],'0')
@@ -43,7 +72,7 @@ class MenuPackageProducerTest(unittest.TestCase):
         self.assertNotIn('system',fields['core'])
         self.assertEqual(fields['abi']['id'],'fes.application')
         self.assertEqual(fields['target']['programming_profile'],'fes-gp-v1')
-        self.assertEqual({i['id'] for i in fields['interfaces'] if i['required']},{'fes.video.fixed-720p60','fes.memory.hps-ddr','fes.video.menu-display'})
+        self.assertEqual({i['id'] for i in fields['interfaces'] if i['required']},{'fes.video.fixed-720p60','fes.memory.hps-ddr','fes.video.menu-display','fes.video.menu-blitter'})
         self.assertTrue(all(i['required'] for i in fields['interfaces']))
 
     def test_package_routes_first_pass_ladder(self):
@@ -68,19 +97,64 @@ class MenuPackageProducerTest(unittest.TestCase):
             ddr.MenuDDRProducerTests().outputs(output)
             with self.assertRaises(BuildError):
                 menu.validate_build_evidence(output,self.producer.ROOT,mode='ddr',menu_gp=True)
-            for name in ('synth.json','routed.json'):
-                path = output/name; data = json.loads(path.read_text())
-                data['modules']['top']['cells']['gp'] = {'type':'cyclonev_hps_interface_mpu_general_purpose'}
-                path.write_text(json.dumps(data))
-            path = output/'timing.json'; data = json.loads(path.read_text())
-            data['utilization']['cyclonev_hps_interface_mpu_general_purpose']['used'] = 1
-            path.write_text(json.dumps(data))
+            self.gp_outputs(output)
             menu.validate_build_evidence(output,self.producer.ROOT,mode='ddr',menu_gp=True)
             with self.assertRaises(BuildError): menu.validate_build_evidence(output,self.producer.ROOT,mode='ddr')
+            # The blitter may read and write port 1 and read port 2; nothing else.
             path = output/'routed.json'; data = json.loads(path.read_text())
-            data['modules']['top']['cells']['ddr']['connections']['wr_valid_0'] = ['1']
+            connections = data['modules']['top']['cells']['ddr']['connections']
+            connections.update(cmd_valid_1=['1'], wr_valid_2=['1'], cmd_valid_2=['1'],
+                               cmd_data_1=['1','1']+['0']*58, cmd_data_2=['1','0']+['0']*58)
             path.write_text(json.dumps(data))
-            with self.assertRaises(BuildError): menu.validate_build_evidence(output,self.producer.ROOT,mode='ddr',menu_gp=True)
+            menu.validate_build_evidence(output,self.producer.ROOT,mode='ddr',menu_gp=True)
+            for port, value in (('wr_valid_0',['1']),('wr_valid_1',['1']),('wr_valid_3',['1']),('cmd_valid_3',['1']),
+                                ('cmd_data_2',['1','1']+['0']*58),('cmd_data_0',['1','1']+['0']*58)):
+                with self.subTest(port=port):
+                    changed = json.loads(json.dumps(data))
+                    changed['modules']['top']['cells']['ddr']['connections'][port] = value
+                    path.write_text(json.dumps(changed))
+                    with self.assertRaisesRegex(BuildError,'tied low'):
+                        menu.validate_build_evidence(output,self.producer.ROOT,mode='ddr',menu_gp=True)
+
+    def test_package_requires_exactly_the_unsigned_blitter_dsps(self):
+        from scripts import build_fes_menu as menu
+        from scripts.fes_build_common import BuildError
+        from tests import test_build_fes_menu as pattern
+        from tests import test_fes_menu as ddr
+        def cells(data): return data['modules']['top']['cells']
+        def move(data, old, new): cells(data)[new] = cells(data).pop(old)
+        cases = (
+            ('synth.json', lambda d: cells(d).pop(BLITTER_PRODUCTS[0]), 'exactly 8 MISTRAL_MUL9X9, got 7'),
+            ('routed.json', lambda d: cells(d).pop(BLITTER_PRODUCTS[7]), 'routed.json must contain exactly 8 blitter'),
+            ('timing.json', lambda d: d['utilization']['MISTRAL_MUL9X9'].update(used=9), 'MISTRAL_MUL9X9 must be exactly 8, got 9'),
+            ('synth.json', lambda d: cells(d).update({'endpoint.control.mul':unsigned_product()}), 'exactly 8 MISTRAL_MUL9X9, got 9'),
+            ('synth.json', lambda d: move(d, BLITTER_PRODUCTS[3], 'endpoint.control.mul'), 'synth.json must contain exactly 8 blitter'),
+            ('routed.json', lambda d: move(d, BLITTER_PRODUCTS[4], 'endpoint.scanout.mul'), 'routed.json must contain exactly 8 blitter'),
+            ('synth.json', lambda d: cells(d).update({'endpoint.scanout.blit.blitter.wide':{'type':'MISTRAL_MUL18X18'}}),
+             'forbidden synthesis cell MISTRAL_MUL18X18'),
+            ('synth.json', lambda d: cells(d)[BLITTER_PRODUCTS[1]]['parameters'].update(A_SIGNED='1'), 'unsigned'),
+            ('routed.json', lambda d: cells(d)[BLITTER_PRODUCTS[5]]['parameters'].update(B_SIGNED='0'*31+'1'), 'unsigned'),
+            ('routed.json', lambda d: cells(d)[BLITTER_PRODUCTS[6]]['parameters'].pop('A_SIGNED'), 'unsigned'))
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            self.gp_outputs(output)
+            result = menu.validate_build_evidence(output,self.producer.ROOT,mode='ddr',menu_gp=True)
+            self.assertEqual(result['synthesis_cells']['MISTRAL_MUL9X9'], 8)
+            self.assertEqual(result['resources']['MISTRAL_MUL9X9']['used'], 8)
+            for name, change, message in cases:
+                with self.subTest(name=name, message=message):
+                    self.gp_outputs(output); edit(output, name, change)
+                    with self.assertRaisesRegex(BuildError, message):
+                        menu.validate_build_evidence(output,self.producer.ROOT,mode='ddr',menu_gp=True)
+        # The diagnostics have no blitter, so any DSP still fails them.
+        for mode, outputs in (('test-pattern', pattern.MenuPatternProducerTests().outputs),
+                              ('ddr', ddr.MenuDDRProducerTests().outputs)):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory:
+                output = Path(directory); outputs(output)
+                menu.validate_build_evidence(output,self.producer.ROOT,mode=mode)
+                edit(output, 'synth.json', lambda d: cells(d).update({BLITTER_PRODUCTS[0]:unsigned_product()}))
+                with self.assertRaisesRegex(BuildError, 'forbidden synthesis cell MISTRAL_MUL9X9'):
+                    menu.validate_build_evidence(output,self.producer.ROOT,mode=mode)
 
     def test_build_rejects_excluded_markdown_read(self):
         from scripts.compiler_read_audit import ReadAuditError

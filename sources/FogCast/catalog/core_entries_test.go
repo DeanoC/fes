@@ -3,6 +3,7 @@ package catalog_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -74,6 +75,34 @@ func TestCoreEntryCreateBrowseAndReopen(t *testing.T) {
 	if loaded, err := reopened.CoreEntry(ctx, entry.GameID); err != nil || loaded != entry {
 		t.Fatalf("reopened CoreEntry = %+v, %v", loaded, err)
 	}
+}
+
+func TestQueryGamesFiltersCoreEntriesBeforeApplyingPageLimit(t *testing.T) {
+	ctx := context.Background()
+	store := openStore(t)
+	packageID := strings.Repeat("a", 64)
+	for i := 0; i < 3; i++ {
+		if _, err := store.CreateCoreEntry(ctx, fmt.Sprintf("000 unrelated %d", i), "fes.other", packageID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	zx, err := store.CreateCoreEntry(ctx, "ZX81 target", "fes.zx81", packageID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c64, err := store.CreateCoreEntry(ctx, "C64 target", "fes.c64", packageID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, err := store.QueryGames(ctx, catalog.Query{
+		Platform: catalog.CorePlatform,
+		CoreIDs:  []string{" fes.zx81 ", "fes.c64", ""},
+		Limit:    2,
+	})
+	if err != nil || len(page.Games) != 2 || page.NextCursor != "" {
+		t.Fatalf("filtered page = %+v, %v", page, err)
+	}
+	assertGameIDs(t, page.Games, []string{c64.GameID, zx.GameID})
 }
 
 func TestCoreEntryCreateConflictsAndSelectionIsCAS(t *testing.T) {

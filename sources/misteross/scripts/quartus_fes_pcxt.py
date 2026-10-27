@@ -30,7 +30,7 @@ if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.quartus_tools import locate_quartus, quartus_version_line
-from scripts.sim_fes_pcxt import SYSTEM_SOURCES
+from scripts.sim_fes_pcxt import CHIP_VENDORS, SHARED_VENDORS, SYSTEM_SOURCES
 from scripts.pcxt_quartus_mailbox import validate_mailbox
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -52,8 +52,9 @@ def sha(path: Path) -> str:
 def input_paths(root: Path) -> list[Path]:
     # The vendor manifests validate files beyond the RTL list, including ROMs
     # and licenses. Capture those too, without copying generated build trees.
+    vendor_roots = [Path('cores/fes-common/vendor') / name for name in SHARED_VENDORS]
     tracked = subprocess.check_output(
-        ['git', 'ls-files', '--', str(CORE)], cwd=root, text=True).splitlines()
+        ['git', 'ls-files', '--', str(CORE), *map(str, vendor_roots)], cwd=root, text=True).splitlines()
     paths = set(map(Path, tracked)) | set(map(Path, RTL))
     paths.update((ADAPTERS, AUDIT, MAILBOX, PINS, Path('scripts/sim_fes_pcxt.py'),
                   Path('scripts/quartus_fes_pcxt.py'), Path('scripts/quartus_tools.py'),
@@ -77,7 +78,8 @@ def capture_sources(root: Path, output: Path) -> tuple[Path, dict[str, str]]:
 
 def elaboration(source: Path, work: Path, library: Path) -> str:
     includes = [source / 'cores/fes-common/generated', work]
-    includes += [source / CORE / 'vendor' / name for name in ('kf8259', 'kf8253', 'kf8255')]
+    includes += [source / ('cores/fes-common/vendor' if name in SHARED_VENDORS else CORE / 'vendor') / name
+                 for name in CHIP_VENDORS]
     # Yosys unquotes filename arguments, but preserves quotes in -I values.
     # Refuse ambiguous include tokens rather than silently losing the headers.
     if any(any(c.isspace() or c in '\\";' for c in str(p)) for p in includes):

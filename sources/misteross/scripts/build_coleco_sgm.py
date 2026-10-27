@@ -30,7 +30,7 @@ from scripts.cyclonev_rbf import (
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES = ("cores/fes-coleco/expansions/sgm.v", "cores/fes-coleco/expansions/sgm_control.v", "cores/fes-coleco/expansions/sgm_ay.v")
-INPUTS = SOURCES + ("cores/fes-coleco/rtl/coleco_bus_v2_pack.vh", "scripts/build_coleco_sgm.py", "toolchain.lock", "scripts/coleco_expansion.py", "scripts/cyclonev_rbf.py", "scripts/core_package.py", "scripts/rom_map.py", "scripts/fes_build_common.py", "scripts/build_fes_coleco_socket_v2.py", factory.SDC)
+INPUTS = SOURCES + ("cores/fes-coleco/rtl/coleco_bus_v2_pack.vh", "scripts/build_coleco_sgm.py", "toolchain.lock", "scripts/coleco_expansion.py", "scripts/cyclonev_rbf.py", "scripts/core_package.py", "scripts/rom_map.py", "scripts/fes_build_common.py", "scripts/pnr_recipe.py", "scripts/build_fes_coleco_socket_v2.py", factory.SDC)
 BUILD_OUTPUTS = ("cart.json", "cart.rbf", "cart-routed.json", "timing.json",
                  "linked.rbf", "build-summary.json", "synthesis.log", "route.log",
                  "clocks.sdc", "scaffold.json", "cart.qsf", "cram-diff.json")
@@ -106,7 +106,8 @@ def prepare_scaffold(source: Path, destination: Path) -> bytes:
         raise ValueError("Coleco frozen clock coverage anchor changed")
     coleco_expansion.validate_v2_clock_coverage_route(top)
     coleco_expansion.validate_clock_anchors(
-        top, {coverage_name: coleco_expansion.SOCKET_CLOCK_COVERAGE_BEL})
+        top, {coverage_name: coleco_expansion.SOCKET_CLOCK_COVERAGE_BEL},
+        nextpnr_commit=shell_recipe.pnr_recipe.nextpnr_pin("fes.coleco"))
     encoded = (json.dumps(design, separators=(",", ":")) + "\n").encode()
     destination.write_bytes(encoded)
     return encoded

@@ -82,8 +82,14 @@ module st_floppy #(
     wire busy = state != IDLE || media_write_busy;
     wire index_pulse = motor_on && media_ready && drive_a &&
                        index_count == INDEX_BITS'(INDEX_PERIOD_CYCLES - 1);
-    wire dma_address_valid = !dma_cursor[0] && dma_cursor >= 24'd8 &&
-                             dma_cursor < 24'h07ffff;
+    // Even byte addresses 8-7fffe, tested on the bits those bounds depend on.
+    /* verilator lint_off UNUSEDSIGNAL */
+    function automatic bit dma_word_valid(input [23:0] address);
+    /* verilator lint_on UNUSEDSIGNAL */
+        dma_word_valid = !address[0] && ~|address[23:19] && |address[18:3];
+    endfunction
+    // Loaded with every dma_cursor update, so the DMA request needs no compare.
+    reg dma_address_valid;
     // Ordinary IRQ clears on status/new-command. A D8 immediate IRQ remains
     // latched until D0, as specified for WD1772 Type IV commands.
     wire [7:0] fdc_status = {
@@ -227,6 +233,7 @@ module st_floppy #(
             dma_mode <= 9'd0;
             dma_base <= 24'd0;
             dma_cursor <= 24'd0;
+            dma_address_valid <= 1'b0;
             sector_count <= 8'd0;
             track_reg <= 8'd0;
             sector_reg <= 8'd1;
@@ -321,6 +328,7 @@ module st_floppy #(
                         irq <= 1'b1;
                     end else if (dma_ready) begin
                         dma_cursor <= dma_cursor + 24'd2;
+                        dma_address_valid <= dma_word_valid(dma_cursor + 24'd2);
                         dma_base <= dma_cursor + 24'd2;
                         drq <= 1'b0;
                         state <= DMA_GAP;
@@ -357,6 +365,7 @@ module st_floppy #(
                             state <= IDLE; dma_error <= 1; lost_data <= 1; irq <= 1;
                         end else begin
                             dma_cursor <= dma_cursor + 24'd512;
+                            dma_address_valid <= dma_word_valid(dma_cursor + 24'd512);
                             dma_base <= dma_cursor + 24'd512;
                             sector_count <= sector_count - 1'b1;
                             if (!multi_sector) begin state <= IDLE; irq <= 1; end
@@ -466,6 +475,7 @@ module st_floppy #(
                     multi_sector <= mmio_wdata[4];
                     writing <= 0;
                     dma_cursor <= dma_base;
+                    dma_address_valid <= dma_word_valid(dma_base);
                     sector_word <= 8'd0;
                     if (!drive_a || !media_ready || !geometry_valid || track_reg >= media_tracks ||
                         track_reg != head_track || sector_reg < 8'd1 || sector_reg > last_sector) begin
@@ -482,6 +492,7 @@ module st_floppy #(
                 end else if (mmio_wdata[7:5] == 3'b101 && ENABLE_WRITE) begin
                     multi_sector <= mmio_wdata[4]; writing <= 1;
                     dma_cursor <= dma_base; media_cursor <= sector_offset;
+                    dma_address_valid <= dma_word_valid(dma_base);
                     if (!drive_a || !media_ready || !geometry_valid || track_reg >= media_tracks ||
                         track_reg != head_track || sector_reg < 1 || sector_reg > last_sector || mmio_wdata[0]) begin
                         record_error <= 1; irq <= 1;

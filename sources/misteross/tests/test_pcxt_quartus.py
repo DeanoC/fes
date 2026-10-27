@@ -80,6 +80,9 @@ class MailboxBindingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='pcxt-quartus-inputs-') as directory:
             source, identities = builder.capture_sources(builder.ROOT, Path(directory))
             for name in ('cores/fes-common/generated/fes_pcxt_isa.vh',
+                         'cores/fes-common/vendor/kf8259/source.json',
+                         'cores/fes-common/vendor/kf8253/source.json',
+                         'cores/fes-common/vendor/kf8253/KF8253_Definitions.svh',
                          'tests/test_pcxt_video_mailbox.py', 'cores/fes-pcxt/quartus/mailbox.sdc',
                          'scripts/pcxt_quartus_mailbox.py'):
                 self.assertEqual(builder.sha(source / name), identities[name])

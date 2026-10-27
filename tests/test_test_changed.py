@@ -56,8 +56,9 @@ class TestChangedTest(unittest.TestCase):
     def test_shared_menu_scanout_selects_idle_and_session_simulations(self):
         self.change("sources/misteross/cores/fes-menu/rtl/fes_menu_video.v")
         result = self.plan()
-        self.assertEqual(result["impact"]["cores"], ["menu", "zx81"])
-        for target in ("sim-fes-menu", "sim-fes-zx81"):
+        self.assertEqual(result["impact"]["cores"], ["c64", "coleco", "menu", "pc386", "spectrum", "zx81"])
+        for target in ("sim-fes-c64", "sim-fes-menu", "sim-fes-spectrum", "sim-fes-zx81", "sim-fes-coleco-session",
+                       "sim-fes-pc386"):
             self.assertTrue(any(target in c["argv"] for c in result["commands"]))
 
     def setUp(self):
@@ -85,23 +86,70 @@ class TestChangedTest(unittest.TestCase):
 
     def test_host_edits_run_shared_go_runner_and_ui_tests(self):
         self.change("sources/FogCast/fogcast/service.go", commit=True)
-        result = self.plan()
+        browser_plan = {
+            "required": True, "scheduled": True, "boundary_scheduled": False,
+            "command_scheduled": True, "target": "test-ui", "reason": "UI/API changes",
+        }
+        with patch.object(test_changed.host_tests, "plan_ui", return_value=browser_plan):
+            result = self.plan()
         host = [c for c in result["commands"] if c["lane"] == "host"]
         self.assertEqual([c["argv"] for c in host],
-                         [[sys.executable, "scripts/host_tests.py", "--paths-json",
-                           json.dumps(result["impact"]["paths"])], ["make", "test-ui"]])
-        self.assertEqual([c["cwd"] for c in host], [".", "sources/FogCast"])
+                         [[sys.executable, "scripts/host_tests.py", "--ui-if-needed", "--paths-json",
+                           json.dumps(result["impact"]["paths"])]])
+        self.assertEqual([c["cwd"] for c in host], ["."])
         self.assertEqual(set(result["impact"]["skipped"]), {"runtime", "contracts", "fpga"})
+        self.assertEqual(host[0]["host_ui"]["target"], "test-ui")
+        self.assertIn("node", host[0]["tools"])
+
+    def test_verified_unrelated_go_tests_skip_node_and_show_boundary_target(self):
+        self.change("sources/FogCast/fogcast/service_test.go", commit=True)
+        boundary_plan = {
+            "required": False, "scheduled": False, "boundary_scheduled": True,
+            "command_scheduled": True, "target": "test-ui-boundary",
+            "reason": "only verified unrelated Go tests and guides changed; boundary retained",
+        }
+        with patch.object(test_changed.host_tests, "plan_ui", return_value=boundary_plan):
+            result = self.plan()
+        host = next(command for command in result["commands"] if command["lane"] == "host")
+        self.assertEqual(host["host_ui"]["target"], "test-ui-boundary")
+        self.assertNotIn("node", host["tools"])
+
+        for path in host["files"]:
+            target = self.root / path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.touch()
+        with patch.object(test_changed.shutil, "which",
+                          side_effect=lambda name: None if name == "node" else "/usr/bin/" + name):
+            test_changed.preflight({"root": str(self.root), "commands": [host]})
+
+        browser_plan = {
+            "required": True, "scheduled": True, "boundary_scheduled": False,
+            "command_scheduled": True, "target": "test-ui", "reason": "UI/API changes",
+        }
+        with patch.object(test_changed.host_tests, "plan_ui", return_value=browser_plan):
+            result = self.plan()
+        host = next(command for command in result["commands"] if command["lane"] == "host")
+        self.assertEqual(host["host_ui"]["target"], "test-ui")
+        self.assertIn("node", host["tools"])
+        with patch.object(test_changed.shutil, "which",
+                          side_effect=lambda name: None if name == "node" else "/usr/bin/" + name):
+            with self.assertRaisesRegex(ValueError, "command node"):
+                test_changed.preflight({"root": str(self.root), "commands": [host]})
 
     def test_expansion_changes_test_linker_and_downstream_host_without_rtl(self):
         self.change("sources/misteross/expansion/rbf.go", commit=True)
-        result = self.plan()
+        browser_plan = {
+            "required": True, "scheduled": True, "boundary_scheduled": False,
+            "command_scheduled": True, "target": "test-ui", "reason": "production Go changes",
+        }
+        with patch.object(test_changed.host_tests, "plan_ui", return_value=browser_plan):
+            result = self.plan()
         self.assertEqual(result["impact"]["cores"], [])
         self.assertFalse(result["impact"]["lanes"]["fpga"])
         self.assertTrue(result["impact"]["lanes"]["host"])
         commands = [c for c in result["commands"] if c["lane"] == "host" and c["argv"][0] == sys.executable]
         self.assertEqual([c["argv"] for c in commands],
-                         [[sys.executable, "scripts/host_tests.py", "--paths-json",
+                         [[sys.executable, "scripts/host_tests.py", "--ui-if-needed", "--paths-json",
                            json.dumps(result["impact"]["paths"])]])
 
     def test_parent_owned_paths_select_parent_and_always_commands_only(self):
@@ -148,11 +196,52 @@ class TestChangedTest(unittest.TestCase):
         result = test_changed.plan(self.root, self.base, full=True)
         self.assertEqual(result["impact"]["test_modes"],
                          {"video": True, "media": True, "full_race": True})
-        self.assertIn([sys.executable, "scripts/host_tests.py", "--full"],
+        self.assertIn([sys.executable, "scripts/host_tests.py", "--ui-if-needed", "--full"],
                       [c["argv"] for c in result["commands"]])
         self.assertIn([sys.executable, "scripts/parent_tests.py",
                        "--video", "true", "--media", "true", "--full"],
                       [c["argv"] for c in result["commands"]])
+
+    def test_runtime_routine_and_full_use_shared_targets(self):
+        self.change("sources/libmister-runtime/src/native/hardware.cpp")
+        for full, target in ((False, 'test-routine'), (True, 'test')):
+            result = test_changed.plan(self.root, self.base, full=full)
+            runtime = next(c for c in result['commands'] if c['lane'] == 'runtime')
+            self.assertEqual(runtime['argv'], ['make', '-j2', target])
+
+    def test_runtime_test_edits_keep_runtime_and_parent_commands_without_host(self):
+        self.change('sources/libmister-runtime/tests/unit/native_hardware_test.cpp')
+        self.change('docs/development.md')
+        for full in (False, True):
+            result = test_changed.plan(self.root, self.base, full=full)
+            lanes = {c['lane'] for c in result['commands']}
+            self.assertEqual(lanes, {'always', 'parent', 'runtime'})
+            runtime = next(c for c in result['commands'] if c['lane'] == 'runtime')
+            self.assertEqual(runtime['argv'], ['make', '-j2', 'test' if full else 'test-routine'])
+        self.change('sources/libmister-runtime/src/daemon/protocol.cpp')
+        self.assertTrue(self.plan()['impact']['lanes']['host'])
+
+    def test_runtime_production_to_test_rename_keeps_host(self):
+        old = 'sources/libmister-runtime/src/native/example.cpp'
+        new = 'sources/libmister-runtime/tests/unit/example_test.cpp'
+        self.change(old, commit=True)
+        self.base = git(self.root, 'rev-parse', 'HEAD')
+        (self.root / new).parent.mkdir(parents=True)
+        git(self.root, 'mv', old, new)
+        git(self.root, 'commit', '-qm', 'move production source into tests')
+        result = self.plan()
+        self.assertIn(old, result['impact']['paths'])
+        self.assertIn(new, result['impact']['paths'])
+        self.assertTrue(result['impact']['lanes']['host'])
+
+    def test_deleted_runtime_test_stays_runtime_only(self):
+        path = 'sources/libmister-runtime/tests/unit/deleted_test.cpp'
+        self.change(path, commit=True)
+        self.base = git(self.root, 'rev-parse', 'HEAD')
+        (self.root / path).unlink()
+        result = self.plan()
+        self.assertEqual({k for k, v in result['impact']['lanes'].items() if v},
+                         {'parent', 'runtime'})
 
     def test_runtime_changes_include_host_protocol_consumers(self):
         self.change("sources/libmister-runtime/src/protocol.cpp")
@@ -199,7 +288,7 @@ class TestChangedTest(unittest.TestCase):
                    if c["lane"] == "fpga" and c["argv"][0] == "make"]
         self.assertEqual(set(targets), {"sim-fes-coleco", "sim-fes-sg1000",
                                       "sim-fes-native-video", "sim-fes-coleco-native",
-                                      "sim-fes-native-socket",
+                                      "sim-fes-native-socket", "sim-fes-coleco-session",
                                       "sim-fes-sg1000-oss", "sim-fes-sg1000-rom-link",
                                       "sim-fes-sg1000-gp-audio",
                                       "sim-fes-sms", "sim-fes-sms-oss"})

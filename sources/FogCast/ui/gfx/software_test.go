@@ -46,9 +46,53 @@ func TestSoftwareFillAlpha(t *testing.T) {
 	if got.R != 128 || got.G != 0 || got.B != 0 || got.A != 255 {
 		t.Fatalf("blended %+v", got)
 	}
+	// A replacing fill stores the premultiplied form the session plane blends.
 	got = snap.RGBAAt(1, 0)
-	if got != (color.RGBA{0, 255, 0, 128}) {
+	if got != (color.RGBA{0, 128, 0, 128}) {
 		t.Fatalf("replace %+v", got)
+	}
+}
+
+// The kit's session plane blends the framebuffer as premultiplied alpha over
+// the running machine, so a pixel with a colour channel above its alpha adds
+// light. Every primitive must keep r,g,b <= a over a clear or dimmed frame.
+func TestSoftwareKeepsPremultipliedPixelsOverTranslucentFrames(t *testing.T) {
+	img := image.NewRGBA(image.Rect(0, 0, 8, 8))
+	for i := 0; i < len(img.Pix); i += 4 {
+		img.Pix[i], img.Pix[i+1], img.Pix[i+2], img.Pix[i+3] = 120, 200, 40, uint8(i*7%256)
+		if img.Pix[i+3] < 200 {
+			img.Pix[i], img.Pix[i+1], img.Pix[i+2] = img.Pix[i+3]/2, img.Pix[i+3], img.Pix[i+3]/3
+		}
+	}
+	for _, base := range []Color{{}, RGBA(0, 0, 0, 160), RGBA(244, 240, 232, 200), RGBA(20, 25, 24, 200)} {
+		s, err := NewSoftware(96, 48)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s.Clear(base)
+		tex, err := s.CreateRGBA(img)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s.SetBlend(BlendAlpha)
+		s.FillRect(Rect{X: 2, Y: 2, W: 40, H: 20}, RGBA(237, 243, 233, 96))
+		s.FillRect(Rect{X: 4, Y: 4, W: 6, H: 6}, RGBA(255, 255, 255, 64))
+		s.FillRect(Rect{X: 50, Y: 2, W: 10, H: 10}, RGB(200, 227, 172))
+		s.SetBlend(BlendNone)
+		s.FillRect(Rect{X: 62, Y: 2, W: 10, H: 10}, RGBA(255, 255, 255, 64))
+		s.FillRect(Rect{X: 74, Y: 2, W: 10, H: 10}, RGBA(0, 0, 0, 0))
+		s.Draw(tex, nil, Rect{X: 2, Y: 26, W: 8, H: 8})
+		s.Draw(tex, nil, Rect{X: 12, Y: 26, W: 19, H: 13})
+		s.DrawText(34, 26, "Ag", 14, RGB(237, 243, 233))
+		s.DrawTextWeight(60, 26, "Ag", 14, WeightBold, RGBA(181, 195, 185, 180))
+		s.DebugText(2, 40, "OK", 1)
+		snap := s.Snapshot()
+		for i := 0; i < len(snap.Pix); i += 4 {
+			r, g, b, a := snap.Pix[i], snap.Pix[i+1], snap.Pix[i+2], snap.Pix[i+3]
+			if r > a || g > a || b > a {
+				t.Fatalf("base %+v: pixel %d is not premultiplied: %d,%d,%d,%d", base, i/4, r, g, b, a)
+			}
+		}
 	}
 }
 

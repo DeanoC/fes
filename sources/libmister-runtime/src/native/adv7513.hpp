@@ -184,8 +184,14 @@ constexpr std::uint8_t kHdmiMode = 1u << 1;
 constexpr std::uint8_t kHdcpHdmiFixed = 1u << 2;
 constexpr std::uint8_t kHdmiNoHdcp = kHdcpHdmiFixed | kHdmiMode; // 0x06
 
-// 0xBA [7:5] input clock delay: 011 = none.
-constexpr std::uint8_t kClockDelayNone = 3u << 5; // 0x60
+// 0xBA [7:5] input clock delay, 0.4 ns steps: 000 = -1.2 ns, 011 = none,
+// 111 = +1.6 ns. Cores forward HDMI_TX_CLK on the same edge that launches the
+// pixel bus, so the bus changes 1.45-3.3 ns after the clock at the pads and
+// with no delay the transmitter samples at the edge of its window: a sealed
+// Spectrum +2A/+3 lost the link about once a second on kit A, and held it at
+// every delay from -1.2 to +0.8 ns (#1003). -0.8 ns samples earlier, away
+// from the bus transition.
+constexpr std::uint8_t kClockDelayMinus0p8ns = 1u << 5; // 0x20
 
 // 0xE2 CEC: bit 0 = CEC power-down.
 constexpr std::uint8_t kCecPowerDown = 1u << 0;
@@ -341,7 +347,7 @@ inline std::vector<RegisterWrite> Menu720p60Initialization()
 		Wr(adi_required::kRegAb, adi_required::kValAb),
 		Wr(reg::kHdcpHdmiCfg, kHdmiNoHdcp),
 		Wr(adi_required::kRegB9, adi_required::kValB9),
-		Wr(reg::kClockDelay, kClockDelayNone),
+		Wr(reg::kClockDelay, kClockDelayMinus0p8ns),
 		Wr(adi_required::kRegBb, adi_required::kValBb),
 		Wr(reg::kTmdsClockInv, adi_required::kValDe),
 		Wr(reg::kCecCtrl, kCecPowerDown),

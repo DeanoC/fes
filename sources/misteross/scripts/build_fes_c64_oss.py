@@ -25,7 +25,7 @@ from typing import Mapping, Sequence
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts import c64_slots, coleco_expansion, rom_map
+from scripts import c64_slots, coleco_expansion, rom_map, fes_de10nano_evidence
 from scripts.compiler_read_audit import guard_functional_source
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
 from scripts.export_core_package import (
@@ -88,9 +88,12 @@ CHARACTER_ROM_LANES = tuple(range(16, 20))
 FIRMWARE_ID = "c64-firmware"
 FIRMWARE_BYTES = 36864
 ABI_DEFINITION = "cores/fes-common/generated/fes_computer.vh"
+DDR_ATOM = "cores/fes-common/rtl/fes_hps_ddr_atom.v"
 QSF = "cores/fes-c64/constraints-oss.qsf"
 SDC = "cores/fes-c64/clocks-oss.sdc"
 RTL_INCLUDES = (
+    "cores/fes-common/generated/fes_application.vh",
+    "cores/fes-common/generated/fes_display_plane.vh",
     "cores/fes-c64/rtl/c64_sid_filter_coefficients.vh",
     "cores/fes-c64/rtl/c64_sid_filter_pages.vh",
     "cores/fes-c64/rtl/c64_sid_vcr_data.vh",
@@ -99,6 +102,13 @@ RTL_INCLUDES = (
     "cores/fes-c64/rtl/c64_bus.vh",
 )
 RTL_SOURCES = (
+    "cores/fes-common/rtl/fes_display_cdc.v",
+    "cores/fes-common/rtl/fes_display_plane.v",
+    "cores/fes-menu/rtl/fes_menu_control.v",
+    "cores/fes-menu/rtl/fes_menu_video.v",
+    "cores/fes-menu/rtl/fes_menu_reader.v",
+    "cores/fes-common/rtl/fes_hps_ddr.v",
+    "cores/fes-common/rtl/fes_hps_ddr_guard.v",
     "cores/fes-c64/rtl/c64_sid_filter_rom.sv",
     "cores/fes-c64/rtl/c64_sid_filter_table.sv",
     "cores/fes-c64/rtl/c64_sid_vcr_shared.sv",
@@ -110,7 +120,7 @@ RTL_SOURCES = (
     "cores/fes-c64/rtl/c64_sid_svf.sv",
     "cores/fes-c64/rtl/top.v",
     "cores/fes-c64/rtl/c64_system_pll.v",
-    "cores/fes-common/rtl/pixel_pll.v",
+    "cores/fes-c64/rtl/c64_pixel_pll.v",
     "cores/fes-common/rtl/fes_computer_mailbox.v",
     "cores/fes-common/rtl/fes_audio_output.v",
     "cores/fes-common/rtl/fes_audio_i2s.v",
@@ -144,6 +154,7 @@ PINNED_INPUTS = (
     RECIPE, "scripts/c64_slots.py", "scripts/coleco_expansion.py", "scripts/compiler_read_audit.py",
     "scripts/source_repository.py", "scripts/fes_build_common.py", "scripts/rom_map.py",
     "scripts/cyclonev_rbf.py", "scripts/search_placer_qor.py",
+    "scripts/fes_de10nano_evidence.py", DDR_ATOM,
     ABI_DEFINITION, C64_TOOLCHAIN_LOCK, "scripts/pnr_recipe.py", QSF, SDC, *RTL_INCLUDES, *RTL_SOURCES,
     "cores/fes-c64/rtl/c64_cia.COPYING",
     "cores/fes-c64/rtl/c64_sid.COPYING",
@@ -153,17 +164,20 @@ BUILD_OUTPUTS = (
     "build-inputs.json", "build-summary.json", "manifest.toml", "rom-map.json",
     "socket.qsf", "qor-ranking.json",
 )
+DSP_RESOURCES = frozenset({"MISTRAL_MUL9X9"})
+PLANE_PRODUCTS = 3
 ORDINARY_RESOURCES = frozenset({
     "MISTRAL_BUF", "MISTRAL_CLKENA", "MISTRAL_COMB", "MISTRAL_FF", "MISTRAL_IO",
     "MISTRAL_M10K", "MISTRAL_M10K_TDP",
-})
+}) | DSP_RESOURCES
 REQUIRED_RESOURCES = {
     "altera_pll": 2,
     "cyclonev_hps_interface_mpu_general_purpose": 1,
     "cyclonev_hps_interface_peripheral_i2c": 1,
+    "cyclonev_hps_interface_fpga2sdram": 1,
 }
 FORBIDDEN_RESOURCES = frozenset({
-    "MISTRAL_MLAB", "MISTRAL_MUL9X9", "MISTRAL_MUL18X18", "MISTRAL_MUL18X19",
+    "MISTRAL_MLAB", "MISTRAL_MUL18X18", "MISTRAL_MUL18X19",
     "MISTRAL_MUL18X19_COMBINED", "MISTRAL_MUL27X27",
 })
 REQUIRED_ZERO_RESOURCES = frozenset({"cyclonev_oscillator"})
@@ -259,6 +273,7 @@ def create_build_record(
             "gpu_architectures": gpu_architectures,
             "sys_clock_hz": 52_224_000,
             "pixel_clock_hz": 74_250_000,
+            "video": "session-display-plane-960x720",
             "audio_clock_hz": 12_288_000,
             "audio_sample_hz": 48_000,
             "reference_clock_hz": 50_000_000,
@@ -302,10 +317,19 @@ def build_commands(root: Path, output: Path, build_id: str,
     if set(tools) != {"yosys", "nextpnr-mistral"}:
         raise BuildError("build commands require authenticated Yosys and nextpnr-mistral paths")
     program = (
+        f"read_verilog -lib {DDR_ATOM}; "
         "read_verilog -sv -I cores/fes-c64/rtl -I cores/fes-common/generated "
         f"{' '.join(RTL_SOURCES)}; "
         f"chparam -set BUILD_ID 128'h{build_id} {TOP}; "
-        f"synth_intel_alm -nolutram -nodsp -top {TOP}; stat; "
+        # Map only the plane products before coarse flattening. The C64
+        # machine keeps the existing -nodsp implementation and resource budget.
+        f"synth_intel_alm -nolutram -nodsp -top {TOP} -run begin:begin; "
+        "wreduce t:$mul a:src=cores/fes-common/rtl/fes_display_plane.v:* %i; "
+        "techmap -map +/mul2dsp.v -D DSP_A_MAXWIDTH=9 -D DSP_B_MAXWIDTH=9 "
+        "-D DSP_A_MINWIDTH=4 -D DSP_B_MINWIDTH=4 -D DSP_NAME=__MUL9X9 "
+        "t:$mul a:src=cores/fes-common/rtl/fes_display_plane.v:* %i; "
+        "chtype -set $mul t:$__soft_mul; "
+        f"synth_intel_alm -nolutram -nodsp -top {TOP} -run coarse:; stat; "
         f"write_json {OUTPUT_RELATIVE.as_posix()}/synth.json"
     )
     yosys = (str(tools["yosys"]), "-p", program)
@@ -323,7 +347,9 @@ def build_commands(root: Path, output: Path, build_id: str,
     return yosys, route
 
 
-def validate_routed_shell(routed: dict) -> dict:
+def validate_routed_shell(
+    routed: dict, *, nextpnr_commit: str = pnr_recipe.nextpnr_pin("fes.c64")
+) -> dict:
     """Every socket holds only pinned boundary FFs and verified paired buffers."""
     top = routed.get("modules", {}).get(TOP, {})
     cells = top.get("cells", {})
@@ -337,9 +363,11 @@ def validate_routed_shell(routed: dict) -> dict:
                 cell.get("attributes", {}).get("NEXTPNR_BEL") != bel:
             raise BuildError(f"slot boundary cell {name} is not at {bel}")
     try:
-        route_through = coleco_expansion.boundary_route_through_cells(top, expected)
+        route_through = coleco_expansion.boundary_route_through_cells(
+            top, expected, nextpnr_commit=nextpnr_commit)
         coleco_expansion.validate_clock_anchors(top, {
-            name: bel for name, bel in expected.items() if ".clock_coverage_ff_" in name})
+            name: bel for name, bel in expected.items() if ".clock_coverage_ff_" in name},
+            nextpnr_commit=nextpnr_commit)
     except ValueError as exc:
         raise BuildError(str(exc)) from exc
     drivers = {}
@@ -483,7 +511,44 @@ def validate_frame_store(cells: dict) -> None:
         raise BuildError("native frame banks must share one HDMI read clock")
 
 
-def validate_synth_evidence(output: Path) -> dict:
+def _session_display_evidence(design: dict, label: str, source_root: Path) -> dict:
+    """The plane reads launcher frames through one read-only fpga2sdram port."""
+    normalized = fes_de10nano_evidence.layout_graph_with_constants(design)
+    evidence = fes_de10nano_evidence.hps_ddr_layout_evidence(normalized, label, source_root, idle=False)
+    cells = normalized["modules"][TOP].get("cells", {})
+    memory = next(cell for cell in cells.values()
+                  if cell.get("type") == "cyclonev_hps_interface_fpga2sdram")
+    ports = memory.get("connections", {})
+    unused = tuple(f"cmd_valid_{port}" for port in range(1, 6)) + tuple(
+        f"wr_valid_{port}" for port in range(4))
+    grounds = [["0"]] + [cell.get("connections", {}).get("Q") for cell in cells.values()
+        if cell.get("type") == "MISTRAL_CONST"
+        and set(str(cell.get("parameters", {}).get("LUT", ""))) == {"0"}
+        and isinstance(cell.get("connections", {}).get("Q"), list)
+        and len(cell["connections"]["Q"]) == 1]
+    if any(ports.get(port) not in grounds for port in unused) or ports.get("cmd_data_0", [])[1:2] not in grounds:
+        raise BuildError("session display DDR writes and unused ports must be tied low")
+    for name, cell in cells.items():
+        if (name.startswith("display.scanout.reader.") and cell.get("type") == "MISTRAL_M10K"
+                and int(str(cell.get("parameters", {}).get("CFG_ASYNC_READ", "0")), 2)):
+            raise BuildError("session display FIFO requires synchronous M10K reads")
+    return {**evidence, "read_only": True, "unused_ports_disabled": True}
+
+
+def _plane_dsp_evidence(design: dict) -> None:
+    products = [(name, cell) for name, cell in design["modules"][TOP].get("cells", {}).items()
+                if cell.get("type") in DSP_RESOURCES]
+    if len(products) != PLANE_PRODUCTS or not all(name.startswith("display.") for name, _ in products):
+        raise BuildError(f"synthesis must contain exactly {PLANE_PRODUCTS} display-plane MISTRAL_MUL9X9 products")
+    for name, cell in products:
+        parameters = cell.get("parameters", {})
+        for sign in ("A_SIGNED", "B_SIGNED"):
+            text = str(parameters.get(sign, "")).strip()
+            if not text or set(text) - {"0", "1"} or int(text, 2) != 0:
+                raise BuildError(f"display-plane product {name} must be unsigned ({sign}={text!r})")
+
+
+def validate_synth_evidence(output: Path, *, source_root: Path = ROOT) -> dict:
     synthesis = _read_json(output / "synth.json", "synthesis evidence")
     reject_async_m10k_reads(synthesis)
     cells = synthesis["modules"][TOP]["cells"]
@@ -492,6 +557,8 @@ def validate_synth_evidence(output: Path) -> dict:
     validate_color_ram(cells)
     validate_frame_store(cells)
     _i2c_evidence(synthesis, "synthesized")
+    _plane_dsp_evidence(synthesis)
+    display = _session_display_evidence(synthesis, "synthesized", source_root)
     counts = _cell_counts(synthesis)
     for name, expected in REQUIRED_RESOURCES.items():
         if counts.get(name, 0) != expected:
@@ -501,7 +568,8 @@ def validate_synth_evidence(output: Path) -> dict:
     for name in FORBIDDEN_RESOURCES:
         if counts.get(name, 0):
             raise BuildError(f"forbidden synthesis cell {name} is in use")
-    return {"status": "pass", "synthesis_cells": {name: counts[name] for name in sorted(counts)}}
+    return {"status": "pass", "synthesis_cells": {name: counts[name] for name in sorted(counts)},
+            "session_display": display}
 
 
 def _pll_achieved(route_text: str, pattern: str, target_hz: float, missing: str) -> None:
@@ -521,13 +589,14 @@ def validate_pll_outputs(route_text: str) -> None:
     _pll_achieved(route_text, AUDIO_PLL_OUTPUT_RE, 12288000.0, "route log must prove the 12.288 MHz audio PLL")
 
 
-def validate_build_evidence(output: Path, *, gpu_backend: str = C64_GPU_BACKEND) -> dict:
+def validate_build_evidence(output: Path, *, gpu_backend: str = C64_GPU_BACKEND, source_root: Path = ROOT) -> dict:
     routed = _read_json(output / "routed.json", "routed design")
     if not isinstance(routed.get("modules"), dict) or not isinstance(routed["modules"].get(TOP), dict):
         raise BuildError("routed design does not contain the top module")
-    synth = validate_synth_evidence(output)
+    synth = validate_synth_evidence(output, source_root=source_root)
     reject_async_m10k_reads(routed)
     _i2c_evidence(routed, "routed")
+    display = _session_display_evidence(routed, "routed", source_root)
     sockets = validate_routed_shell(routed)
     route_text = (output / "nextpnr.log").read_text(encoding="utf-8", errors="replace")
     if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
@@ -550,6 +619,7 @@ def validate_build_evidence(output: Path, *, gpu_backend: str = C64_GPU_BACKEND)
         "resources": resources,
         "sockets": sockets,
         "synthesis_cells": synth["synthesis_cells"],
+        "session_display": display,
         "rbf": {"sha256": _sha256(rbf), "size": rbf.stat().st_size},
     }
 
@@ -574,6 +644,7 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str,
     required = [
         "fes.video.fixed-720p60", "fes.keyboard.hid", "fes.gamepad.ports",
         "fes.audio.pcm-s16-stereo-48k", "fes.media.c64-disk",
+        "fes.memory.hps-ddr", "fes.video.session-display", "fes.fabric.video.display-plane",
     ]
     fields = {
         "format": 3,
@@ -582,7 +653,7 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str,
             "name": "FES Commodore 64",
             "description": "Commodore 64 pathfinder with a linked 36 KiB C64/1541 firmware image, "
                            "a read-only 1541 and two cartridge sockets",
-            "version": "0.4.0",
+            "version": "0.5.0",
         },
         "target": {"platform": "de10_nano", "device": TARGET, "programming_profile": "fes-gp-v1"},
         "payload": {"file": "core.rbf", "size": rbf["size"], "sha256": rbf["sha256"]},
@@ -632,7 +703,7 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
                   audit_source_root=root, output_relative=OUTPUT_RELATIVE)
         if not (output / "synth.json").is_file():
             raise BuildError("Yosys did not produce synthesis evidence")
-        validate_synth_evidence(output)
+        validate_synth_evidence(output, source_root=root)
         try:
             winner = route_after_synth(
                 nextpnr=authenticated["nextpnr-mistral"].path,
@@ -646,7 +717,7 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
             )
         except SearchError as exc:
             raise BuildError(str(exc)) from exc
-        evidence = validate_build_evidence(output, gpu_backend=backend)
+        evidence = validate_build_evidence(output, gpu_backend=backend, source_root=root)
         evidence["route"].update(placer_seed=winner.seed, placer_heap_timingweight=winner.weight,
                                  placer_qor_mode="first-pass")
         mapping, map_evidence = rom_map.build_rom_map(
@@ -708,7 +779,7 @@ def synth(root: Path = ROOT, *, cache_root: Path | None = None) -> dict:
     _run_tool(yosys, root, output / "yosys.log", output_relative=OUTPUT_RELATIVE)
     if not (output / "synth.json").is_file():
         raise BuildError("Yosys did not produce synthesis evidence")
-    evidence = validate_synth_evidence(output)
+    evidence = validate_synth_evidence(output, source_root=root)
     evidence.update({"build_id": "0" * 32, "sealed": False,
                      "tools": {name: tool.identity for name, tool in authenticated.items()}})
     _write_atomic(output / "build-summary.json",

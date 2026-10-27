@@ -176,7 +176,8 @@ def build(root: Path = ROOT, *, cache_root: Path | None = None) -> Path:
             )
         except SearchError as exc:
             raise BuildError(str(exc)) from exc
-        coleco_expansion.validate_routed_shell(output / "routed.json")
+        coleco_expansion.validate_routed_shell(
+            output / "routed.json", nextpnr_commit=TOOL_COMMITS["nextpnr"])
         evidence = factory.validate_build_evidence(output, root)
         evidence["route"].update(placer_seed=winner.seed,
                                  placer_heap_timingweight=winner.weight,

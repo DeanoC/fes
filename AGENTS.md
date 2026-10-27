@@ -32,12 +32,17 @@ Outside agent sessions have ignored these rules. Obey them.
 2. Kits A and B are both designated test kits. They are interchangeable.
 3. When a task installs a bundle, install that PR bundle on the kit's
    running image. A core-only run that does not change the bundle does not
-   install one. After use, restore the designated baseline image and bundle
-   the status file names, and log that restore. Activating the baseline
-   bundle does not change the booted image. If the booted image is not the
-   named baseline, restore that image, verify the boot, then activate a
-   compatible baseline bundle and verify it before logging the kit
-   restored. Confirm the kit is idle and lease-free before you release it.
+   install one. Software goes before the image: before an image change,
+   activate a bundle the new image accepts (`fes-update` refuses an image
+   whose menu interfaces the selected bundle lacks). After use, restore the
+   designated baseline image and bundle the status file names, and log that
+   restore. Activating the baseline bundle does not change the booted image.
+   If the booted image is not the named baseline, first activate the
+   baseline bundle if the running image accepts it, then restore that image
+   and verify the boot; otherwise restore and verify the image, then
+   activate the baseline bundle. Verify the active bundle before logging the
+   kit restored. Confirm the kit is idle and lease-free before you release
+   it.
 4. MUST keep Kit B's `u-boot.txt` line `usb-storage.quirks=152d:0583:i`.
 5. Destructive actions need Deano's explicit OK: reimage, an image or
    boot-config change, killing other people's processes, and closing PRs.
@@ -147,11 +152,15 @@ remaining OS, software and room installer separation.
   free lease boundary; see [kit software releases](docs/kit-software-releases.md).
   When the task installs a bundle, install that PR bundle on the kit's running
   image. A core-only run that does not change the bundle does not install one.
+  Software goes before the image: before an image change, activate a bundle
+  the new image accepts ([image compatibility](docs/kit-software-releases.md#image-compatibility)).
   After use, restore the designated baseline image and bundle named in the
   status file and log that restore. Activating the baseline bundle does not
   change the booted image. If the booted image is not the named baseline,
-  restore that image and verify the boot first, then activate a compatible
-  baseline bundle and verify it before logging the kit restored.
+  first activate the baseline bundle if the running image accepts it, then
+  restore that image and verify the boot; otherwise restore and verify the
+  image, then activate the baseline bundle. Verify the active bundle before
+  logging the kit restored.
   Bundle install-then-restore is pre-approved. A successful selection stays
   installed, and nothing restores a stock bundle automatically; the return to
   the baseline bundle is an explicit activation of the ID in the status file.
@@ -182,16 +191,19 @@ first come, first served, and `gpu-status` shows the holders.
 Lander uses `--owner lander` and `GPU_LEASE_MAX_PER_OWNER=2`, so Lander holds
 at most 2 GPUs at once. Nobody kills a GPU job. Deano's Codex harness jobs
 are legitimate and must not be killed; they wait their turn like everyone else.
+GPU work on an Apple silicon Mac (nextpnr built with `-DGPU_ROUTER=METAL`) goes
+through the same `gpu-run`, which leases its one Metal GPU as id 0.
 
-nextpnr routing on HIP, CUDA and CPU gives bit-identical route outcomes. HIP and CUDA
-timing and route evidence are interchangeable: references, pins, seed results and
-replays from either backend remain valid on the other. This is route-result
+nextpnr routing on HIP, CUDA, Metal and CPU gives bit-identical route outcomes. HIP,
+CUDA and Metal timing and route evidence are interchangeable: references, pins, seed
+results and replays from any of them remain valid on the others. This is route-result
 equivalence only; production builds, promotion and seal evidence still require an
-authenticated live HIP or CUDA backend as producer validators require. Registered
-producers reject CPU-reference fallback (`NEXTPNR_REQUIRE_GPU=1`), so CPU replays
-can inform experiments only. HIP and CUDA builds keep distinct `BUILD_ID`s and
-artifact identities because backend is part of functional execution identity, even
-though their timing and route evidence is interchangeable. Among current core
+authenticated live HIP or CUDA backend as producer validators require, and they do
+not accept Metal yet. Registered producers reject CPU-reference fallback
+(`NEXTPNR_REQUIRE_GPU=1`), so CPU replays can inform experiments only. HIP, CUDA
+and Metal builds keep distinct `BUILD_ID`s and artifact identities because backend
+is part of functional execution identity, even though their timing and route
+evidence is interchangeable. Among current core
 package producers, Apple II, Atari ST, C64, Coleco socket-v2, SG-1000, SMS,
 Spectrum and ZX81 accept `--gpu-router {HIP,CUDA}`. Catch, Menu, Pong, RAM Tester
 and RISC-V accept only `--gpu-device`; their authenticated toolchain determines
@@ -199,8 +211,8 @@ the backend. On a CUDA host, select CUDA and its matching toolchain for a
 router-selectable producer; a device-only producer can use CUDA only with an
 authenticated CUDA-built toolchain. `gpu-run` leases a device, not a backend;
 record the backend in the build record. Never require a separate HIP run or
-discount CUDA evidence. Never set `GPU_LEASE_IDS` per job (it is a box inventory
-override).
+discount CUDA or Metal evidence. Never set `GPU_LEASE_IDS` per job (it is a box
+inventory override).
 
 `scripts/gpu-run` holds one flock per GPU in the wrapper and runs the command
 as a child. That child does not inherit the lock, so the lease ends when the
@@ -212,6 +224,17 @@ in `/var/tmp/gpu-leases` (directory mode `0700`, files mode `0600`) unless
 is admitted under the cap it started with, so a capped waiter already at its
 allowance does not block another job from taking a free GPU.
 
+On macOS `gpu-run` reads process identity from libproc instead of `/proc` and
+checks the lease directory with `statfs(2)`. The Metal GPU comes from ioreg:
+a Mac with one Metal device (every Apple silicon Mac) leases it as id 0, which
+is also nextpnr's Metal device index; a Mac with several needs `GPU_LEASE_IDS`
+and `GPU_LEASE_VENDOR=apple`. Metal has no visibility mask, so a grant exports
+no mask and `GPU_RUN_DEVICE` is the physical id. Metal has no device nodes
+either. A GPU route proves it used the leased GPU when ioreg shows a Metal user
+client that nextpnr opened on it, or when nextpnr logs
+`backend metal:<registry id>:... ready` with the leased GPU's registry id. CPU
+fallback output fails the route, as on Linux.
+
 Install on a host by symlinking the scripts into `~/bin` (the link target is
 the checkout, so the scripts keep finding each other):
 
@@ -219,6 +242,17 @@ the checkout, so the scripts keep finding each other):
 mkdir -p "$HOME/bin"
 ln -sfn "$HOME/fes/scripts/gpu-run" "$HOME/bin/gpu-run"
 ln -sfn "$HOME/fes/scripts/gpu-status" "$HOME/bin/gpu-status"
+```
+
+A Mac installs the same links from its checkout. macOS does not put `~/bin`
+on `PATH`, so add it to the login shell too:
+
+```sh
+FES="$HOME/Projects/fes"   # the main checkout, not a task worktree
+mkdir -p "$HOME/bin"
+ln -sfn "$FES/scripts/gpu-run" "$HOME/bin/gpu-run"
+ln -sfn "$FES/scripts/gpu-status" "$HOME/bin/gpu-status"
+grep -qs 'HOME/bin' "$HOME/.zprofile" || echo 'export PATH="$HOME/bin:$PATH"' >> "$HOME/.zprofile"
 ```
 
 `gpu-run --help` lists the flags. Waiting is the default; `--no-wait` exits 75
@@ -240,9 +274,9 @@ A job must never patch a shared script or repro directory in place; each job wor
    - **Seeds:** use the production seed + 2 per combination, unless the recipe says otherwise.
 4. **Budget:** at most 6 GPU-hours per core per incident (ST: 10). Route everything
    through `gpu-run`, at most 2 GPUs per owner, FIFO, never preempting anyone else's
-   job. Heavy sweeps and confirmation can use whichever GPU is free; HIP, CUDA and
-   CPU have interchangeable route outcomes, subject to the live-GPU production
-   evidence requirement above.
+   job. Heavy sweeps and confirmation can use whichever GPU is free; HIP, CUDA,
+   Metal and CPU have interchangeable route outcomes, subject to the live-GPU
+   production evidence requirement above.
 5. **Record every run**: core, fes SHA, synth hash, toolchain slot, full argv, env, seed, GPU, contended or not, per-clock fmax, route time. Keep it in `docs/validation/<date>-<core>-timing-playbook/` as `runs.jsonl` plus a summary table.
 6. **If a combination closes** on at least 2 of 3 seeds, treat it as a candidate, not promotion evidence. Before promotion, rerun the full production build with the proposed recipe and require fresh timing evidence from that build, with its embedded `BUILD_ID` reflecting the new recipe; a frozen-`synth.json` sweep alone is insufficient. Record this build in the campaign evidence. The recipe-change PR contains only that core's recipe change plus the campaign evidence files: `runs.jsonl` and the summary table under `docs/validation/<date>-<core>-timing-playbook/`. Include the run table and before/after per-clock fmax in the PR body as well. A recipe change follows the normal merge bar, including HIL for cores that ship in the image. A flag that helps one core is never made a global default.
 7. **If nothing closes within budget**, the core stays on its current pin and recipe. File or update the core's timing issue with the run table and stop. Don't keep sweeping without Deano's OK.

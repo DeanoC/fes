@@ -9,8 +9,11 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from scripts import coleco_expansion
+from scripts import build_fes_coleco_oss as factory
 from scripts import build_fes_coleco_socket_v2 as shell
 from scripts import build_coleco_sgm as sgm
+from scripts import fes_de10nano_evidence
+from scripts.fes_build_common import BuildError
 
 
 def clock_coverage_route_fixture():
@@ -28,7 +31,7 @@ def clock_coverage_route_fixture():
 
 
 def route_through_fixture(name="anchor", *, ff_bel="MISTRAL_FF.24.4.56",
-                          buffer_bel="MISTRAL_COMB.24.4.54", pin="C"):
+                          buffer_bel="MISTRAL_COMB.24.4.54", pin="F0"):
     return {"cells": {
         name: {"type": "MISTRAL_FF", "attributes": {"NEXTPNR_BEL": ff_bel},
                "connections": {"CLK": [2107], "DATAIN": [10002], "Q": [10003]}},
@@ -52,13 +55,44 @@ def route_through_fixture(name="anchor", *, ff_bel="MISTRAL_FF.24.4.56",
 class BoundaryRouteThroughTest(unittest.TestCase):
     def test_matching_comb_halves_and_mlab_buffers(self):
         for ff_bel, buffer_bel, pin in (
-                ("MISTRAL_FF.24.4.56", "MISTRAL_COMB.24.4.54", "C"),
-                ("MISTRAL_FF.24.4.58", "MISTRAL_COMB.24.4.55", "D"),
-                ("MISTRAL_FF.28.23.56", "MISTRAL_MCOMB.28.23.54", "C")):
+                ("MISTRAL_FF.24.4.56", "MISTRAL_COMB.24.4.54", "F0"),
+                ("MISTRAL_FF.24.4.58", "MISTRAL_COMB.24.4.55", "F1"),
+                ("MISTRAL_FF.28.23.56", "MISTRAL_MCOMB.28.23.54", "F0")):
             with self.subTest(ff_bel=ff_bel):
                 top = route_through_fixture(ff_bel=ff_bel, buffer_bel=buffer_bel, pin=pin)
                 self.assertEqual(coleco_expansion.boundary_route_through_cells(
                     top, {"anchor": ff_bel}), {"anchor$ROUTETHRU"})
+
+    def test_compiler_pin_selects_the_exact_legacy_or_remapped_input(self):
+        cases = (
+            (coleco_expansion.NEXTPNR_PRE_ROUTETHRU_REMAP,
+             "MISTRAL_FF.24.4.56", "C", coleco_expansion.NEXTPNR_ROUTETHRU_REMAP),
+            (coleco_expansion.NEXTPNR_PRE_ROUTETHRU_REMAP,
+             "MISTRAL_FF.24.4.58", "D", coleco_expansion.NEXTPNR_ROUTETHRU_REMAP),
+            (coleco_expansion.NEXTPNR_ROUTETHRU_REMAP,
+             "MISTRAL_FF.24.4.56", "F0", coleco_expansion.NEXTPNR_PRE_ROUTETHRU_REMAP),
+            (coleco_expansion.NEXTPNR_ROUTETHRU_REMAP,
+             "MISTRAL_FF.24.4.58", "F1", coleco_expansion.NEXTPNR_PRE_ROUTETHRU_REMAP),
+            (coleco_expansion.NEXTPNR_CARRY_PINS,
+             "MISTRAL_FF.24.4.56", "F0", coleco_expansion.NEXTPNR_PRE_ROUTETHRU_REMAP),
+            (coleco_expansion.NEXTPNR_CARRY_PINS,
+             "MISTRAL_FF.24.4.58", "F1", coleco_expansion.NEXTPNR_PRE_ROUTETHRU_REMAP),
+            (coleco_expansion.NEXTPNR_MAIN_BEC82E36,
+             "MISTRAL_FF.24.4.56", "F0", coleco_expansion.NEXTPNR_PRE_ROUTETHRU_REMAP),
+            (coleco_expansion.NEXTPNR_MAIN_BEC82E36,
+             "MISTRAL_FF.24.4.58", "F1", coleco_expansion.NEXTPNR_PRE_ROUTETHRU_REMAP),
+        )
+        for commit, ff_bel, input_pin, wrong_commit in cases:
+            with self.subTest(commit=commit, ff_bel=ff_bel):
+                half = 0 if ff_bel.endswith(".56") else 1
+                buffer_bel = "MISTRAL_COMB.24.4." + ("54" if half == 0 else "55")
+                top = route_through_fixture(ff_bel=ff_bel, buffer_bel=buffer_bel,
+                                            pin=input_pin)
+                self.assertEqual(coleco_expansion.boundary_route_through_cells(
+                    top, {"anchor": ff_bel}, nextpnr_commit=commit), {"anchor$ROUTETHRU"})
+                with self.assertRaisesRegex(ValueError, "pin map changed"):
+                    coleco_expansion.boundary_route_through_cells(
+                        top, {"anchor": ff_bel}, nextpnr_commit=wrong_commit)
 
     def test_older_snapshot_without_buffer_is_accepted(self):
         top = route_through_fixture()
@@ -103,11 +137,12 @@ class BoundaryRouteThroughTest(unittest.TestCase):
 
     def test_route_through_rejects_changed_pin_map(self):
         for mapping in (
+                {"count": 2, "pins": {"A": [0, "C"], "Q": [0, "COMBOUT"]}},
                 {"count": 2, "pins": {"A": [0, "D"], "Q": [0, "COMBOUT"]}},
-                {"count": 2, "pins": {"A": [False, "C"], "Q": [0, "COMBOUT"]}},
-                {"count": 2, "pins": {"A": [0, "C"], "Q": [0, "Q"]}},
-                {"count": 3, "pins": {"A": [0, "C"], "Q": [0, "COMBOUT"]}},
-                {"count": 2, "pins": {"A": [0, "C"], "Q": [0, "COMBOUT"]}, "extra": 1}):
+                {"count": 2, "pins": {"A": [False, "F0"], "Q": [0, "COMBOUT"]}},
+                {"count": 2, "pins": {"A": [0, "F0"], "Q": [0, "Q"]}},
+                {"count": 3, "pins": {"A": [0, "F0"], "Q": [0, "COMBOUT"]}},
+                {"count": 2, "pins": {"A": [0, "F0"], "Q": [0, "COMBOUT"]}, "extra": 1}):
             with self.subTest(mapping=mapping):
                 top = route_through_fixture()
                 top["cells"]["anchor$ROUTETHRU"]["attributes"]["FES_PINMAP_V1"] = \
@@ -181,6 +216,9 @@ class ColecoSgmBuildTest(unittest.TestCase):
         self.assertEqual(pnr_recipe.lock_path(shell.ROOT, "fes.coleco"), shell.ROOT / shell.TOOLCHAIN_LOCK)
         lock = tomllib.loads((shell.ROOT / shell.TOOLCHAIN_LOCK).read_text())
         self.assertEqual(lock["tool"]["nextpnr"]["commit"], pnr_recipe.nextpnr_pin("fes.coleco"))
+        self.assertEqual(pnr_recipe.nextpnr_pin("fes.coleco"), coleco_expansion.NEXTPNR_MAIN_BEC82E36)
+        self.assertEqual(coleco_expansion.ROUTETHROUGH_INPUT_PINS[coleco_expansion.NEXTPNR_MAIN_BEC82E36],
+                         ("F0", "F1"))
         with patch.object(shell, "functional_record_fields",
                           side_effect=lambda root, fields, *args, **kwargs: fields), \
              patch.object(shell, "encode_build_record", side_effect=lambda fields: fields):
@@ -397,6 +435,69 @@ class ColecoSgmBuildTest(unittest.TestCase):
                     sgm.build(root, producer, root / "package", 0)
                 compiler.assert_not_called()
 
+
+class NativeSessionDisplayTest(unittest.TestCase):
+    def test_native_shell_reads_the_plane_sources(self):
+        tools = {"yosys": Path("/bin/true"), "nextpnr-mistral": Path("/bin/true")}
+        native, _route = shell.build_commands(
+            shell.ROOT, shell.ROOT / shell.NATIVE_VIDEO_OUTPUT_RELATIVE, "a" * 32,
+            tools, native_video=True)
+        program = native[-1]
+        for source in ("fes_display_plane.v", "fes_display_cdc.v", "fes_menu_video.v", "fes_hps_ddr.v"):
+            self.assertIn(source, program)
+        self.assertIn("-DFES_COLECO_NATIVE_VIDEO_PART_DEV=1", program)
+        plain = shell.build_commands(
+            shell.ROOT, shell.ROOT / shell.OUTPUT_RELATIVE, "a" * 32, tools)[0][-1]
+        self.assertNotIn("fes_display_plane.v", plain)
+
+    def test_picture_rectangle_is_the_native_window(self):
+        top = (shell.ROOT / "cores/fes-coleco/rtl/top.v").read_text()
+        self.assertIn(".PICTURE_LEFT(16'd384), .PICTURE_TOP(16'd168)", top)
+        self.assertIn(".PICTURE_WIDTH(16'd512), .PICTURE_HEIGHT(16'd384)", top)
+
+    def test_native_manifest_requires_the_plane_and_keeps_the_part_optional(self):
+        record = b'{"format":1,"parameters":{},"recipe_sha256":"' + b"a" * 64 + b'"}'
+        evidence = {
+            "rbf": {"size": 100, "sha256": "b" * 64},
+            "build_id": "c" * 32,
+            "rom_map": {"file": "rom-map.json", "size": 10, "sha256": "d" * 64},
+        }
+        tools = {"yosys": "fixture", "nextpnr-mistral": "fixture", "mistral": "fixture"}
+        native = tomllib.loads(shell.manifest(
+            record, evidence, "https://example.invalid/fes.git", "e" * 40, tools,
+            native_video=True).decode())
+        plain = tomllib.loads(shell.manifest(
+            record, evidence, "https://example.invalid/fes.git", "e" * 40, tools).decode())
+        self.assertEqual(native["core"]["version"], "1.5.0")
+        self.assertEqual(plain["core"]["version"], "1.5.0")
+        required = {row["id"]: row["required"] for row in native["interfaces"]}
+        self.assertTrue(required["fes.memory.hps-ddr"])
+        self.assertTrue(required["fes.video.session-display"])
+        self.assertTrue(required["fes.fabric.video.display-plane"])
+        self.assertFalse(required["fes.fabric.video.native-pixels"])
+        self.assertNotIn("fes.media.blob", required)
+        self.assertNotIn("fes.firmware.blob", required)
+        plain_ids = {row["id"] for row in plain["interfaces"]}
+        self.assertNotIn("fes.video.session-display", plain_ids)
+
+    def test_plane_products_are_three_unsigned_display_products(self):
+        # Coleco's Yosys 5391eeb1 predates A_SIGNED/B_SIGNED on MISTRAL_MUL.
+        unsigned = {"type": "MISTRAL_MUL9X9", "parameters": {}}
+        def graph(cells):
+            return {"modules": {"top": {"cells": cells}}}
+        fes_de10nano_evidence.plane_dsp_evidence(
+            graph({f"display.product{i}": unsigned for i in range(3)}), sign_parameters=False)
+        bad = (
+            {f"display.product{i}": unsigned for i in range(2)},
+            {**{f"display.product{i}": unsigned for i in range(3)}, "machine.extra": unsigned},
+            {"machine.product0": unsigned, **{f"display.product{i}": unsigned for i in range(1, 3)}},
+            {**{f"display.product{i}": unsigned for i in range(3)},
+             "display.product0": {"type": "MISTRAL_MUL9X9", "parameters": {"A_SIGNED": "0"}}},
+        )
+        for cells in bad:
+            with self.assertRaises(BuildError):
+                fes_de10nano_evidence.plane_dsp_evidence(graph(cells), sign_parameters=False)
+        self.assertEqual(factory.SESSION_DISPLAY_RESOURCES, {"cyclonev_hps_interface_fpga2sdram": 1})
 
 if __name__ == "__main__":
     unittest.main()

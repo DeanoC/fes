@@ -235,15 +235,15 @@ constants:
     value: 0
   - name: FesComputerApple2FloppyBytes
     value: 143360
-  # fes.media.spectrum-tape 1.0: unit 0, one .tap image.
-  # A shell declares one unit-0 medium. Capability bit 5 matches the sealed
-  # Spectrum bitstream.
+  # fes.media.spectrum-tape 2.0: unit 0, one PZX 1.0 image of up to 16 MiB,
+  # at least its 10-byte PZXT header. A shell declares one unit-0 medium.
+  # Capability bit 5 is unchanged from 1.0.
   - name: FesComputerSpectrumTapeUnit
     value: 0
   - name: FesComputerSpectrumTapeMinBytes
-    value: 1
+    value: 10
   - name: FesComputerSpectrumTapeMaxBytes
-    value: 65536
+    value: 16777216
   # fes.media.zx81-tape 1.0: unit 0, one .p memory image.
   # Capability bit 11. A shell still declares only one unit-0 medium.
   - name: FesComputerZx81TapeUnit
@@ -252,12 +252,30 @@ constants:
     value: 1
   - name: FesComputerZx81TapeMaxBytes
     value: 16384
+  # fes.media.zx81-tape-write 1.0 snapshot identity. Tag 2 is not the ST disk.
+  - name: FesComputerZx81TapeLayoutTag
+    value: 2
+  - name: FesComputerZx81TapeLayoutMajor
+    value: 1
+  - name: FesComputerZx81TapeLayoutMinor
+    value: 0
   # fes.media.c64-disk 1.0: unit 0, exactly one 35-track D64 image.
   # Capability bit 6. Bit 5 is the Spectrum tape.
   - name: FesComputerC64DiskUnit
     value: 0
   - name: FesComputerC64DiskBytes
     value: 174848
+  # fes.media.spectrum-disk 1.0: unit 1, a raw track image (FogCast
+  # internal/spectrumdisks): 8 or 16 KiB slots, a header and at most 86
+  # cylinders of two sides. Capability bit 15. A Spectrum shell may declare it beside
+  # its unit-0 cassette; the package's optional sub-interfaces name the
+  # controller.
+  - name: FesComputerSpectrumDiskUnit
+    value: 1
+  - name: FesComputerSpectrumDiskMinBytes
+    value: 8192
+  - name: FesComputerSpectrumDiskMaxBytes
+    value: 2834432
   # fes.media.atari-st-floppy 1.0: unit 0, read-only 80x2x9x512 .st image.
   - name: FesComputerAtariStFloppyUnit
     value: 0
@@ -305,7 +323,7 @@ interfaces:
     minor: 0
     capability_bit: 4
   - id: fes.media.spectrum-tape
-    major: 1
+    major: 2
     minor: 0
     capability_bit: 5
   - id: fes.media.c64-disk
@@ -344,3 +362,14 @@ interfaces:
     major: 1
     minor: 0
     capability_bit: 13
+  # Whole-image capture of a BASIC SAVE. Requires fes.media.zx81-tape.
+  # The saved bytes are independent of the loaded cassette.
+  - id: fes.media.zx81-tape-write
+    major: 1
+    minor: 0
+    capability_bit: 14
+  # Removable disk on unit 1, beside a unit-0 cassette.
+  - id: fes.media.spectrum-disk
+    major: 1
+    minor: 0
+    capability_bit: 15

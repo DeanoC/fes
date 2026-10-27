@@ -1,5 +1,6 @@
 """Development caches must survive app edits but reject base changes."""
 import hashlib
+import fcntl
 import json
 from pathlib import Path
 import subprocess
@@ -240,6 +241,7 @@ class NativeDevTest(unittest.TestCase):
             shared_env = None
             native_boundary_envs = []
             shared_cache_envs = []
+            locked_fetches = []
 
             def record_run(args, **kwargs):
                 nonlocal shared_env
@@ -249,6 +251,15 @@ class NativeDevTest(unittest.TestCase):
                 is_native_container = (len(args) >= 2 and
                                        str(args[0]).endswith('target-image-container.sh') and
                                        args[1] == 'run')
+                is_source_fetch = (len(args) >= 3 and
+                                   str(args[0]).endswith('target-image-container.sh') and
+                                   args[1:3] == ['fetch', '/work/scripts/fetch-target-image-sources.sh'])
+                if is_source_fetch:
+                    lock_path = image / 'build/cache/.kit-sdk-sources.lock'
+                    with lock_path.open('a') as competing_lock:
+                        with self.assertRaises(BlockingIOError):
+                            fcntl.flock(competing_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    locked_fetches.append(lock_path)
                 is_native_verifier = str(args[0]).endswith('verify-target-image.sh')
                 if is_native_container or is_native_verifier:
                     native_boundary_envs.append(
@@ -275,6 +286,7 @@ class NativeDevTest(unittest.TestCase):
             self.assertEqual(native_boundary_envs,
                              [(True, 'package-only'), (True, 'package-only')])
             self.assertEqual(shared_cache_envs, ['/external/shared-cache', '/external/shared-cache'])
+            self.assertEqual(locked_fetches, [image / 'build/cache/.kit-sdk-sources.lock'])
             self.assertTrue(any('target-image-native-fetch' in call for call in calls))
             self.assertTrue(any('NATIVE_RUNTIME_MODE=package-only' in call for call in calls))
             self.assertTrue(any('FES_PONG_PACKAGE_DIR=' + str(package_source) in call

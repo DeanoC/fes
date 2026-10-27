@@ -62,6 +62,8 @@ RTL_SOURCES = (
     "cores/fes-ramtest/rtl/sdram_addon_port.v",
     "cores/fes-ramtest/rtl/ddr_rates.v",
     "cores/fes-ramtest/rtl/ddr_channel.v",
+    "cores/fes-ramtest/rtl/lat_stats.v",
+    "cores/fes-ramtest/rtl/lat_monitor.v",
     "cores/fes-ramtest/rtl/top.v",
 )
 RAM_PLL = "cores/fes-ramtest/rtl/ram_pll.v"

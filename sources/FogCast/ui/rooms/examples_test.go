@@ -168,6 +168,123 @@ func TestFesCoresRoomRendersTilesAndSkipsBlockedLaunch(t *testing.T) {
 	}
 }
 
+const coreC64ShelfID = "2222222222222222222222222222222222222222222222222222222222222222"
+
+type homeComputerServices struct {
+	fakeServices
+	computers     []hostclient.ShelfComputer
+	hardwareReads int
+}
+
+func (s *homeComputerServices) Hardware(context.Context) (hostclient.HardwareSnapshot, error) {
+	s.hardwareReads++
+	return hostclient.HardwareSnapshot{Computers: append([]hostclient.ShelfComputer(nil), s.computers...)}, nil
+}
+
+func (s *homeComputerServices) SelectCoreEntryExpansion(context.Context, string, string, string, string) (hostclient.CoreEntryExpansion, error) {
+	return hostclient.CoreEntryExpansion{}, errors.New("not used")
+}
+
+func TestHomeListsHostComputersBesideUnavailableColeco(t *testing.T) {
+	pack := examplePack(t, "example.fes-cores")
+	local := &fakeLocalCores{cores: []localcores.Core{
+		{PackageID: coreColecoID, CoreID: "fes.coleco", Name: "FES ColecoVision", Needs: "parts", Launchable: false, Block: "Needs a video part"},
+		{PackageID: coreZXID, CoreID: "fes.zx81", Name: "ZX81", Needs: "firmware", Launchable: false, Block: "Needs machine ROM", Inputs: []string{"keyboard"}},
+	}}
+	svc := &homeComputerServices{computers: []hostclient.ShelfComputer{
+		{GameID: "fpga-c64", Title: "Commodore 64", CoreID: "fes.c64", PackageID: coreC64ShelfID, Ready: true},
+		{GameID: "fpga-zx81", Title: "ZX81", CoreID: "fes.zx81", PackageID: coreZXID, Ready: true},
+	}}
+	r := newRoom(t, pack, Options{Local: local, Services: svc, Width: 1280, Height: 720, Budget: DefaultBudget()})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	f := stepUntil(t, r, func(f Frame) bool {
+		text := frameText(f)
+		return strings.Contains(text, "FES ColecoVision\n") && strings.Contains(text, "Display setup incomplete\n") && strings.Contains(text, "Commodore 64\n") && strings.Contains(text, "ZX81\n")
+	})
+	if r.Err() != nil {
+		t.Fatal(r.Err())
+	}
+	if strings.Contains(frameText(f), "Keyboard") {
+		t.Fatalf("host computer drew a keyboard motif:\n%s", frameText(f))
+	}
+	if got := r.Destination(); got.Label != "FES ColecoVision" || got.Kind != KindCore || got.CoreNeeds != "parts" || got.CoreLaunchable || got.Confirm() != ConfirmExplain {
+		t.Fatalf("coleco dest %+v confirm %v", got, got.Confirm())
+	}
+	if !r.Input("right") {
+		t.Fatal("right to zx81")
+	}
+	if got := r.Destination(); got.Kind != KindGame || got.Label != "ZX81" || got.GameID != "fpga-zx81" || got.Confirm() != ConfirmLaunch || len(got.Inputs) != 0 {
+		t.Fatalf("zx81 dest %+v confirm %v", got, got.Confirm())
+	}
+	if err := r.ActivateDestination(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !r.Input("right") {
+		t.Fatal("right to c64")
+	}
+	if got := r.Destination(); got.Kind != KindGame || got.Label != "Commodore 64" || got.GameID != "fpga-c64" || got.Confirm() != ConfirmLaunch {
+		t.Fatalf("c64 dest %+v confirm %v", got, got.Confirm())
+	}
+	if err := r.ActivateDestination(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := local.launchedIDs(); len(got) != 0 {
+		t.Fatalf("host cards used local launch %v", got)
+	}
+	if r.Err() != nil {
+		t.Fatal(r.Err())
+	}
+
+	kept := &fakeLocalCores{cores: []localcores.Core{
+		{PackageID: coreZXID, CoreID: "fes.zx81", Name: "ZX81", Needs: "none", Launchable: true, Inputs: []string{"keyboard"}},
+	}}
+	keptRoom := newRoom(t, pack, Options{Local: kept, Services: svc, Width: 1280, Height: 720, Budget: DefaultBudget()})
+	if err := keptRoom.Load(); err != nil {
+		t.Fatal(err)
+	}
+	stepUntil(t, keptRoom, func(f Frame) bool {
+		return strings.Contains(frameText(f), "ZX81\n") && strings.Contains(frameText(f), "Keyboard\n")
+	})
+	if got := keptRoom.Destination(); got.Kind != KindCore || got.Confirm() != ConfirmLaunchCore || got.PackageID != coreZXID {
+		t.Fatalf("launchable local zx81 was replaced: %+v confirm %v", got, got.Confirm())
+	}
+	if keptRoom.Err() != nil {
+		t.Fatal(keptRoom.Err())
+	}
+}
+
+func TestHomeListsHostComputersWhenKitListingFails(t *testing.T) {
+	pack := examplePack(t, "example.fes-cores")
+	local := &fakeLocalCores{listErr: errors.New("invalid catalog response")}
+	services := &homeComputerServices{computers: []hostclient.ShelfComputer{
+		{GameID: "fpga-c64", Title: "Commodore 64", CoreID: "fes.c64", PackageID: coreC64ShelfID, Ready: true},
+	}}
+	r := newRoom(t, pack, Options{Local: local, Services: services, Width: 1280, Height: 720, Budget: DefaultBudget()})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	stepUntil(t, r, func(f Frame) bool {
+		return strings.Contains(frameText(f), "Commodore 64\n")
+	})
+	if r.Err() != nil {
+		t.Fatal(r.Err())
+	}
+	if services.hardwareReads != 1 {
+		t.Fatalf("host shelf read %d times after kit listing failure", services.hardwareReads)
+	}
+	if got := r.Destination(); got.Kind != KindGame || got.GameID != "fpga-c64" || got.Confirm() != ConfirmLaunch {
+		t.Fatalf("host card unavailable after kit listing failure: %+v confirm=%v", got, got.Confirm())
+	}
+	if err := r.ActivateDestination(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := local.launchedIDs(); len(got) != 0 {
+		t.Fatalf("host card used kit-local launch: %v", got)
+	}
+}
+
 // blockingLocalCores holds List until released, like a warming catalog.
 type blockingLocalCores struct {
 	*fakeLocalCores
@@ -1029,5 +1146,47 @@ func BenchmarkInstalledCoreRoomOneTile(b *testing.B) {
 		if r.Err() != nil {
 			b.Fatal(r.Err())
 		}
+	}
+}
+
+// Filesystem-location tests save on shutdown. Keep the live Home debounce
+// covered here with the room fixture's scheduling-tolerant callback budgets.
+func TestHomeSavesSelectionWhileOpen(t *testing.T) {
+	path := writeRoomPackage(t, corePongID)
+	r := newRoom(t, examplePack(t, "example.fes-cores"), Options{
+		Local: &fakeLocalCores{cores: []localcores.Core{
+			{PackageID: corePongID, CoreID: "fes.pong", Name: "FES Pong", Needs: "none", Launchable: true},
+			{PackageID: coreZXID, CoreID: "fes.zx81", Name: "ZX81", Needs: "none", Launchable: true},
+		}},
+		StorePath: path,
+	})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	stepUntil(t, r, func(Frame) bool { return r.Destination().Label == "FES Pong" })
+	if !r.Input("right") || r.Destination().PackageID != coreZXID {
+		t.Fatalf("selection did not move: %+v", r.Destination())
+	}
+	read := func() string {
+		t.Helper()
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(data)
+	}
+	if got := read(); !strings.Contains(got, corePongID) || strings.Contains(got, coreZXID) {
+		t.Fatalf("selection was saved before browsing settled: %s", got)
+	}
+	now := time.Now()
+	for i := 0; i < 25; i++ {
+		now = now.Add(100 * time.Millisecond)
+		r.Step(now)
+		if err := r.Err(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := read(); !strings.Contains(got, coreZXID) {
+		t.Fatalf("selection was not saved while Home remained open: %s", got)
 	}
 }

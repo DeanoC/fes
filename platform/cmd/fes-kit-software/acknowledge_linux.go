@@ -40,6 +40,20 @@ func preparePowerCycle(args []string) error {
 	return json.NewEncoder(os.Stdout).Encode(result)
 }
 
+func selectFactory(args []string) error {
+	request, err := operatorRequest("select-factory", args)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	result, err := kitsoftware.SelectFactory(ctx, request)
+	if err != nil {
+		return err
+	}
+	return json.NewEncoder(os.Stdout).Encode(result)
+}
+
 func operatorRequest(command string, args []string) (kitsoftware.AcknowledgeRequest, error) {
 	var request kitsoftware.AcknowledgeRequest
 	flags := flag.NewFlagSet(command, flag.ContinueOnError)

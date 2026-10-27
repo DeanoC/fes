@@ -1,0 +1,30 @@
+design -reset
+log === ENABLE_WRITE=1 ===
+read_slang --single-unit --ignore-timing --empty-blackboxes --top floppy_gold --top floppy_gate -G ENABLE_WRITE=1 floppy-equivalence.sv
+proc
+opt_clean
+memory
+async2sync
+setundef -undriven -zero
+setundef -init -zero floppy_gold floppy_gate
+# The sector words are compared through their shared write port.
+expose -shared floppy_gold/w:* floppy_gate/w:* %u w:*sector* %d
+miter -equiv -flatten -make_outputs floppy_gold floppy_gate miter
+hierarchy -top miter
+sat -verify -seq 4 -set-init-def -set-def-inputs -prove trigger 0 miter
+
+design -reset
+log === ENABLE_WRITE=0 ===
+read_slang --single-unit --ignore-timing --empty-blackboxes --top floppy_gold --top floppy_gate -G ENABLE_WRITE=0 floppy-equivalence.sv
+proc
+opt_clean
+memory
+async2sync
+setundef -undriven -zero
+setundef -init -zero floppy_gold floppy_gate
+# The sector words are compared through their shared write port.
+expose -shared floppy_gold/w:* floppy_gate/w:* %u w:*sector* %d
+miter -equiv -flatten -make_outputs floppy_gold floppy_gate miter
+hierarchy -top miter
+sat -verify -seq 4 -set-init-def -set-def-inputs -prove trigger 0 miter
+

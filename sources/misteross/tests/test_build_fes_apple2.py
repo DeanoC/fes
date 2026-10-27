@@ -97,7 +97,7 @@ class BuildFesApple2Tests(unittest.TestCase):
                 "NEXTPNR_BEL": paired if bel is None else bel,
                 "FES_PINMAP_V1": json.dumps({
                     "count": 2,
-                    "pins": {"A": [0, ("C" if half == 0 else "D") if pin is None else pin],
+                    "pins": {"A": [0, ("F0" if half == 0 else "F1") if pin is None else pin],
                              "Q": [0, "COMBOUT"]},
                 }).encode().hex(),
             },

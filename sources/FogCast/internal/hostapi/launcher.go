@@ -7,6 +7,7 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -262,8 +263,9 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 		pairedStop := r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/stop"
 		pairedLaunch := r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/launch"
 		pairedMedia := launcherLiveMutation(r.Method, r.URL.Path)
+		pairedStorage := storageOperation(r.Method, r.URL.Path) || r.Method == http.MethodPut && r.URL.Path == "/api/v1/library/firmware"
 		pairedImport := r.Method == http.MethodPost && (r.URL.Path == "/api/v1/core-media" || launcherTapeImportPath(r.URL.Path))
-		if !pairedRead && !pairedStop && !pairedLaunch && !pairedMedia && !pairedImport {
+		if !pairedRead && !pairedStop && !pairedLaunch && !pairedMedia && !pairedImport && !pairedStorage {
 			a.targetMu.Lock()
 			defer a.targetMu.Unlock()
 		}
@@ -280,6 +282,10 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 			writeError(w, http.StatusNotFound, "NOT_FOUND", "launcher operation is unavailable")
 			return
 		}
+		if pairedStorage {
+			a.routes.ServeHTTP(w, r)
+			return
+		}
 		if pairedMedia {
 			binding, valid := protocol.DevelopmentMediaHeaders(r.Header)
 			if !valid || name == "" || binding.Target != name || binding.TargetID != headerID || len(r.Header.Values(protocol.HostTargetIDHeader)) != 1 {
@@ -291,15 +297,16 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 			return
 		}
 		if pairedImport {
-			if r.URL.Path == "/api/v1/core-media" && (!protocol.AdmitTapeMediaSize(r.ContentLength) || len(r.TransferEncoding) != 0) {
-				writeError(w, http.StatusBadRequest, "BAD_REQUEST", protocol.LiveMediaRequestError().Message)
+			// The kit's media selector imports any tape or disk it can insert.
+			if r.URL.Path == "/api/v1/core-media" && (!protocol.AdmitRemovableMediaSize(r.ContentLength) || len(r.TransferEncoding) != 0) {
+				writeError(w, http.StatusBadRequest, "BAD_REQUEST", fmt.Sprintf("launcher media import requires 1..%d bytes", protocol.MaxRemovableMediaBytes))
 				return
 			}
 			a.routes.ServeHTTP(w, r)
 			return
 		}
 		if pairedRead {
-			if r.URL.Path == "/api/v1/health" || r.URL.Path == "/api/v1/status" || r.URL.Path == "/api/v1/session/input" || r.URL.Path == "/api/v1/games" || launcherGamePath(r.URL.Path) || r.URL.Path == "/api/v1/library/cache" || r.URL.Path == "/api/v1/kit/software/releases" {
+			if r.URL.Path == "/api/v1/health" || r.URL.Path == "/api/v1/status" || r.URL.Path == "/api/v1/session/input" || r.URL.Path == "/api/v1/games" || launcherGamePath(r.URL.Path) || launcherCoreEntryPath(r.URL.Path) || r.URL.Path == "/api/v1/library/cache" || r.URL.Path == "/api/v1/kit/software/releases" {
 				r = r.WithContext(fogcast.WithPairedTarget(r.Context(), headerID))
 			}
 			r = r.WithContext(withLauncherTarget(r.Context(), name))
@@ -315,6 +322,34 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 		if r.Method == http.MethodPut && launcherExpansionSelectionPath(r.URL.Path) {
 			// The body stays the caller's exact selection. This does not
 			// rewrite a target or move the foreground host selection.
+			a.routes.ServeHTTP(w, r)
+			return
+		}
+		if r.Method == http.MethodPut && launcherROMSelectionPath(r.URL.Path) {
+			// The body stays the caller's exact named-ROM selection. This does
+			// not rewrite a target or move the foreground host selection.
+			a.routes.ServeHTTP(w, r)
+			return
+		}
+		if r.Method == http.MethodPut && launcherCoreMediaSelectionPath(r.URL.Path) {
+			// The body stays the caller's exact next-start media selection. This
+			// does not rewrite a target or move the foreground host selection.
+			a.routes.ServeHTTP(w, r)
+			return
+		}
+		if r.Method == http.MethodPut && launcherCoreEntryPath(r.URL.Path) {
+			// The body stays the caller's exact package selection. Compatibility
+			// and persistence checks must use this kit, even when another target
+			// remains foreground.
+			r = r.WithContext(fogcast.WithSessionTarget(r.Context(), name))
+			a.routes.ServeHTTP(w, r)
+			return
+		}
+		if r.Method == http.MethodPost && r.URL.Path == "/api/v1/library/core-entries" {
+			// Setup-room Add game creates one entry. The body stays the
+			// caller's title and package. Compatibility checks must use this
+			// kit, even when another target remains foreground.
+			r = r.WithContext(fogcast.WithSessionTarget(r.Context(), name))
 			a.routes.ServeHTTP(w, r)
 			return
 		}
@@ -387,17 +422,17 @@ func (a *applicationHandler) launcherMeshContentTarget(headerID string, paired m
 	return false
 }
 
-// launcherPairedRead is a catalogue or presentation GET any enabled paired
-// kit may perform, whether or not that kit is the selected target.
+// launcherPairedRead is a catalogue, presentation, or core-entry GET any
+// enabled paired kit may perform, whether or not that kit is the selected target.
 func launcherPairedRead(method, path string) bool {
 	if method != http.MethodGet {
 		return false
 	}
 	switch path {
-	case "/api/v1/kit/software/releases", "/api/v1/games", "/api/v1/platforms", "/api/v1/health", "/api/v1/status", "/api/v1/session/input", "/api/v1/launcher/kit-lease", "/api/v1/library/attract", "/api/v1/library/cache", "/api/v1/library/collections", "/api/v1/library/facets", "/api/v1/library/hardware", "/api/v1/library/titles", "/api/v1/library/zx81-tapes":
+	case "/api/v1/kit/software/releases", "/api/v1/games", "/api/v1/platforms", "/api/v1/health", "/api/v1/status", "/api/v1/session/input", "/api/v1/launcher/kit-lease", "/api/v1/library/attract", "/api/v1/library/cache", "/api/v1/library/collections", "/api/v1/library/core-entries", "/api/v1/library/facets", "/api/v1/library/hardware", "/api/v1/library/titles", "/api/v1/library/zx81-tapes", "/api/v1/core-packages":
 		return true
 	}
-	return launcherArtworkPath(path) || launcherPresentationGamePath(path) || launcherGamePath(path)
+	return launcherArtworkPath(path) || launcherPresentationGamePath(path) || launcherGamePath(path) || launcherCoreEntryPath(path) || launcherCorePackageReadPath(path) || launcherROMSelectionPath(path)
 }
 
 func launcherGamePath(path string) bool {
@@ -527,17 +562,79 @@ func rewriteLauncherLaunch(w http.ResponseWriter, r *http.Request, name string) 
 }
 
 func launcherOperation(method, path string) bool {
+	if storageOperation(method, path) || method == http.MethodPut && path == "/api/v1/library/firmware" {
+		return true
+	}
 	if launcherLiveMutation(method, path) || method == http.MethodPost && launcherTapeImportPath(path) {
 		return true
 	}
 	if method == http.MethodPut && launcherExpansionSelectionPath(path) {
 		return true
 	}
-	switch method + " " + path {
-	case "GET /api/v1/kit/software/releases", "GET /api/v1/games", "GET /api/v1/platforms", "GET /api/v1/health", "GET /api/v1/launcher/kit-lease", "GET /api/v1/status", "GET /api/v1/session", "GET /api/v1/session/input", "GET /api/v1/library/attract", "GET /api/v1/library/cache", "GET /api/v1/library/collections", "GET /api/v1/library/facets", "GET /api/v1/library/hardware", "GET /api/v1/library/titles", "GET /api/v1/library/zx81-tapes", "GET /api/v1/mesh/content/source", "GET /api/v1/mesh/content/object", "POST /api/v1/session/launch", "POST /api/v1/session/stop", "POST /api/v1/core-media":
+	if method == http.MethodPut && launcherROMSelectionPath(path) {
 		return true
 	}
-	return method == http.MethodGet && (launcherArtworkPath(path) || launcherPresentationGamePath(path) || launcherGamePath(path))
+	if method == http.MethodPut && launcherCoreMediaSelectionPath(path) {
+		return true
+	}
+	if method == http.MethodPut && launcherCoreEntryPath(path) {
+		return true
+	}
+	switch method + " " + path {
+	case "GET /api/v1/kit/software/releases", "GET /api/v1/games", "GET /api/v1/platforms", "GET /api/v1/health", "GET /api/v1/launcher/kit-lease", "GET /api/v1/status", "GET /api/v1/session", "GET /api/v1/session/input", "GET /api/v1/library/attract", "GET /api/v1/library/cache", "GET /api/v1/library/collections", "GET /api/v1/library/core-entries", "GET /api/v1/library/facets", "GET /api/v1/library/hardware", "GET /api/v1/library/titles", "GET /api/v1/library/zx81-tapes", "GET /api/v1/core-packages", "GET /api/v1/mesh/content/source", "GET /api/v1/mesh/content/object", "POST /api/v1/session/launch", "POST /api/v1/session/stop", "POST /api/v1/core-media", "POST /api/v1/library/core-entries":
+		return true
+	}
+	return method == http.MethodGet && (launcherArtworkPath(path) || launcherPresentationGamePath(path) || launcherGamePath(path) || launcherCoreEntryPath(path) || launcherCorePackageReadPath(path) || launcherROMSelectionPath(path))
+}
+
+func launcherCoreEntryPath(path string) bool {
+	const prefix = "/api/v1/library/core-entries/"
+	if !strings.HasPrefix(path, prefix) {
+		return false
+	}
+	game := path[len(prefix):]
+	return game != "" && !strings.Contains(game, "/") && protocol.ValidateGameID(game) == nil
+}
+
+// launcherCorePackageReadPath admits only the installed package descriptor and
+// its declared media-capability projection. It does not expose package upload,
+// compatibility mutation, or arbitrary package subroutes on the kit listener.
+func launcherCorePackageReadPath(path string) bool {
+	const prefix, mediaSuffix = "/api/v1/core-packages/", "/media-capabilities"
+	if !strings.HasPrefix(path, prefix) {
+		return false
+	}
+	id := strings.TrimPrefix(path, prefix)
+	if strings.HasSuffix(id, mediaSuffix) {
+		id = strings.TrimSuffix(id, mediaSuffix)
+	}
+	if len(id) != 64 {
+		return false
+	}
+	for _, ch := range id {
+		if (ch < '0' || ch > '9') && (ch < 'a' || ch > 'f') {
+			return false
+		}
+	}
+	return true
+}
+
+func launcherROMSelectionPath(path string) bool {
+	const prefix, suffix = "/api/v1/library/core-entries/", "/rom"
+	if !strings.HasPrefix(path, prefix) || !strings.HasSuffix(path, suffix) {
+		return false
+	}
+	game := path[len(prefix) : len(path)-len(suffix)]
+	return game != "" && !strings.Contains(game, "/") && protocol.ValidateGameID(game) == nil
+}
+
+func launcherCoreMediaSelectionPath(path string) bool {
+	const prefix, suffix = "/api/v1/library/core-entries/", "/media"
+	if !strings.HasPrefix(path, prefix) || !strings.HasSuffix(path, suffix) {
+		return false
+	}
+	game := path[len(prefix) : len(path)-len(suffix)]
+	return game != "" && !strings.Contains(game, "/") && protocol.ValidateGameID(game) == nil
 }
 
 // launcherExpansionSelectionPath admits one next-start write: the

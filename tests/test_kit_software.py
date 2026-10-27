@@ -176,7 +176,7 @@ class SoftwareWorkflowTests(unittest.TestCase):
         (snapshot / 'boot-media.lock.toml').write_text(f'[kernel]\npath = "zImage_dtb"\nsha256 = "{boot}"\n')
         return snapshot
 
-    def test_kernel_module_stages_pinned_source_and_refuses_other_commits(self):
+    def test_kernel_module_stages_pinned_source_from_shared_or_worktree_cache(self):
         git_env = dict(os.environ, GIT_AUTHOR_NAME='t', GIT_AUTHOR_EMAIL='t@t', GIT_COMMITTER_NAME='t',
                        GIT_COMMITTER_EMAIL='t@t')
         work = self.root / 'kernel-work'
@@ -223,6 +223,17 @@ class SoftwareWorkflowTests(unittest.TestCase):
         snapshot = self.kernel_snapshot('snapshot-local', commit)
         env = {k: v for k, v in os.environ.items() if k != 'FES_TARGET_IMAGE_SHARED_CACHE'}
         self.assertEqual(kit.prepare_kernel_module(self.root, snapshot, env)['kernel_commit'], commit)
+
+        # A cold shared cache has no kernel repo; kit-sdk leaves the pinned repo
+        # in the worktree cache, which kit-software must use after checking it.
+        shared = self.root / 'empty-shared-cache'
+        shared.mkdir()
+        snapshot = self.kernel_snapshot('snapshot-cold-shared', commit)
+        env = dict(os.environ, FES_TARGET_IMAGE_SHARED_CACHE=str(shared))
+        driver = kit.prepare_kernel_module(self.root, snapshot, env)
+        self.assertEqual(driver['kernel_commit'], commit)
+        self.assertEqual((snapshot / 'image/build/software/kernel-source/Makefile').read_text(), 'kernel')
+        self.assertFalse((shared / 'linux-kernel.git').exists())
 
     def test_kernel_module_targets_only_the_boot_media_kernel(self):
         # A base image holds no kernel: the module must target the kernel every

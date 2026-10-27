@@ -95,7 +95,8 @@ module fes_z80_engine #(
     wire [7:0] current_op = (state_matches(state,FETCH) || state_matches(state,IRQ_ACK)) ? bus_rdata : opcode;
     wire [2:0] x_z = current_op[2:0];
     logic [4:0] alu_op;
-    logic [7:0] alu_a, alu_b, alu_xy, alu_result, alu_flags;
+    logic [3:0] bus_extra_now;
+    logic [7:0] alu_a, alu_b, alu_xy, alu_result, alu_flags, alu_result_now, alu_flags_now;
     logic [2:0] alu_bit;
 
     // Documented indexed byte forms access real H/L; index-byte register
@@ -245,11 +246,25 @@ module fes_z80_engine #(
     fes_z80_alu #(.NMOS(NMOS)) alu (
         .op(alu_op), .a(alu_a), .b(alu_b), .flags_in(f_reg),
         .xy_source(alu_xy), .bit_index(alu_bit), .q(q),
-        .result(alu_result), .flags_out(alu_flags)
+        .result(alu_result_now), .flags_out(alu_flags_now)
     );
+    // NMOS: every ALU input is an engine register or the bus's sampled data,
+    // and both settle at least two clocks before the commit that reads them
+    // (fes_z80_nmos requires ce_p/ce_n at least two clocks apart). Registering
+    // the result every clock splits decode -> ALU -> writeback at the system
+    // clock without changing what any commit sees.
+    generate if (NMOS) begin : am_alu_stage
+        always_ff @(posedge clk) begin
+            alu_result<=alu_result_now;
+            alu_flags<=alu_flags_now;
+        end
+    end else begin : am_alu_direct
+        assign alu_result=alu_result_now;
+        assign alu_flags=alu_flags_now;
+    end endgenerate
 
     always_comb begin
-        bus_req=!illegal; bus_kind=1; bus_extra=0; bus_delay=delay_count; bus_addr=ea; bus_wdata=write_data;
+        bus_req=!illegal; bus_kind=1; bus_extra_now=0; bus_delay=delay_count; bus_addr=ea; bus_wdata=write_data;
         (* parallel_case *) case(NMOS ? STATE_WIDTH'(1) : state)
             (NMOS ? STATE_WIDTH'(state_matches(state,FETCH)) : FETCH): begin bus_kind=0; bus_addr=pc; end
             (NMOS ? STATE_WIDTH'(state_matches(state,IMM8)) : IMM8), (NMOS ? STATE_WIDTH'(state_matches(state,IMM_LO)) : IMM_LO), (NMOS ? STATE_WIDTH'(state_matches(state,IMM_HI)) : IMM_HI), (NMOS ? STATE_WIDTH'(state_matches(state,DISP)) : DISP), (NMOS ? STATE_WIDTH'(state_matches(state,INDEX_CB)) : INDEX_CB): bus_addr=pc;
@@ -278,35 +293,43 @@ module fes_z80_engine #(
         // than emitting dummy bus cycles (e.g. DJNZ's first M1 is five T).
         if((state_matches(state,FETCH) && !halted) || state_matches(state,IRQ_ACK)) begin
             if(group_sel==0) begin
-                if(current_op[7:6]==0 && current_op[2:0]==3) bus_extra=2;
-                if(current_op==8'hf9) bus_extra=2;
+                if(current_op[7:6]==0 && current_op[2:0]==3) bus_extra_now=2;
+                if(current_op==8'hf9) bus_extra_now=2;
                 if(current_op==8'h10 || (current_op[7:6]==3 && current_op[2:0]==0) ||
                    (current_op[7:6]==3 && current_op[2:0]==5 && !current_op[3]) ||
-                   (current_op[7:6]==3 && current_op[2:0]==7)) bus_extra=1;
+                   (current_op[7:6]==3 && current_op[2:0]==7)) bus_extra_now=1;
             end else if(group_sel==2) begin
                 if(current_op==8'h47 || current_op==8'h4f || current_op==8'h57 || current_op==8'h5f ||
-                   (current_op[7:5]==3'b101 && current_op[2:1]==1)) bus_extra=1;
+                   (current_op[7:5]==3'b101 && current_op[2:1]==1)) bus_extra_now=1;
             end
         end
-        if(state_matches(state,IRQ_ACK) && im!=0) bus_extra=1;
+        if(state_matches(state,IRQ_ACK) && im!=0) bus_extra_now=1;
         (* parallel_case *) case(NMOS ? STATE_WIDTH'(1) : state)
-            (NMOS ? STATE_WIDTH'(state_matches(state,INDEX_CB)) : INDEX_CB): bus_extra=2;
-            (NMOS ? STATE_WIDTH'(state_matches(state,IMM8)) : IMM8): if(action==LD8 && dest==6 && index_sel!=0) bus_extra=2;
-            (NMOS ? STATE_WIDTH'(state_matches(state,IMM_HI)) : IMM_HI): if(action==CALL && branch_taken) bus_extra=1;
-            (NMOS ? STATE_WIDTH'(state_matches(state,READ8)) : READ8): if(action==INC8 || action==DEC8 || action==CB8) bus_extra=1;
-            (NMOS ? STATE_WIDTH'(state_matches(state,EX_READ_HI)) : EX_READ_HI): bus_extra=1;
-            (NMOS ? STATE_WIDTH'(state_matches(state,EX_WRITE_LO)) : EX_WRITE_LO): bus_extra=2;
-            (NMOS ? STATE_WIDTH'(state_matches(state,BLOCK_WRITE)) : BLOCK_WRITE): bus_extra=2;
+            (NMOS ? STATE_WIDTH'(state_matches(state,INDEX_CB)) : INDEX_CB): bus_extra_now=2;
+            (NMOS ? STATE_WIDTH'(state_matches(state,IMM8)) : IMM8): if(action==LD8 && dest==6 && index_sel!=0) bus_extra_now=2;
+            (NMOS ? STATE_WIDTH'(state_matches(state,IMM_HI)) : IMM_HI): if(action==CALL && branch_taken) bus_extra_now=1;
+            (NMOS ? STATE_WIDTH'(state_matches(state,READ8)) : READ8): if(action==INC8 || action==DEC8 || action==CB8) bus_extra_now=1;
+            (NMOS ? STATE_WIDTH'(state_matches(state,EX_READ_HI)) : EX_READ_HI): bus_extra_now=1;
+            (NMOS ? STATE_WIDTH'(state_matches(state,EX_WRITE_LO)) : EX_WRITE_LO): bus_extra_now=2;
+            (NMOS ? STATE_WIDTH'(state_matches(state,BLOCK_WRITE)) : BLOCK_WRITE): bus_extra_now=2;
             default: ;
         endcase
         // Refresh exposes R before the M1's increment commits.
         refresh_addr={i_reg,r_reg};
-        if(!NMOS) begin bus_extra=0; bus_delay=0; end
+        if(!NMOS) begin bus_extra_now=0; bus_delay=0; end
         retire_pc=instruction_pc;
         debug_pc=pc; debug_sp=sp; debug_af={a_reg,f_reg}; debug_bc=bc;
         debug_de=de; debug_hl=hl; debug_ix=ix; debug_iy=iy;
         debug_ir={i_reg,r_reg}; debug_iff={iff2,iff1,ei_delay};
     end
+    // NMOS: the fetched byte and the engine state behind the extra T states
+    // settle at least two clocks before the bus captures or completes a cycle
+    // with them, so the bus reads a registered copy.
+    generate if (NMOS) begin : am_extra_stage
+        always_ff @(posedge clk) bus_extra<=bus_extra_now;
+    end else begin : am_extra_direct
+        assign bus_extra=bus_extra_now;
+    end endgenerate
 
     function automatic logic documented_index(input logic [7:0] op);
         logic mem_form;
@@ -592,7 +615,9 @@ module fes_z80_engine #(
                 end
             end
             after_delay<=FETCH;
-            if(NMOS && opcode[4] && again) begin idle_addr<=ea; state<=DELAY; end else finish(1);
+            // The five repeat T states keep the last transfer address on the bus:
+            // DE for LDIR/LDDR, otherwise HL (CPIR, INIR) or BC (OTIR).
+            if(NMOS && opcode[4] && again) begin idle_addr<=action==BLOCK_LD ? de : ea; state<=DELAY; end else finish(1);
         end
     endtask
 

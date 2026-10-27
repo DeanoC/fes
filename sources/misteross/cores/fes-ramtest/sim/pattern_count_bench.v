@@ -36,7 +36,8 @@ module pattern_count_bench (
         .phase(phase), .reading(reading), .shown_addr(shown_addr),
         .fault_addr(fault_addr), .last_addr(last_addr), .fault_got(fault_got),
         .errors(errors), .pattern_errors(live),
-        .shown_expect(shown_expect), .shown_got(shown_got)
+        .shown_expect(shown_expect), .shown_got(shown_got),
+        .lat_start(1'b0), .lat_ready(), .lat_sample(), .lat_first(), .lat_last()
     );
     pattern_latch snap (
         .clk(clk), .reset(reset), .rate(rate),

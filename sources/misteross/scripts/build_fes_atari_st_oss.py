@@ -79,6 +79,17 @@ CACHE_BELS = {"video.cache0.0.0.0": "MISTRAL_M10K.26.20.0",
               "video.cache1.0.0.0": "MISTRAL_M10K.26.21.0"}
 RAM_GUARD_RESERVATION = "ram_guard 26 19 26 19"
 VIDEO_RAM_GUARD_RESERVATIONS = ("video_ram_low 26 40 26 40", "video_ram_high 26 59 26 59")
+# HeAP lets the native-capture frame buffer drift toward the CPU's snoop
+# nets (DeanoC/nextpnr#247). Fence it right of x=20; its output pipeline
+# feeds the HDMI side near x=6, so it keeps the whole device. The renderer
+# and the adapter's colour select drive the video socket plug at x=24,
+# y=41-43; unfenced they spread far enough to miss the pixel clock.
+VIDEO_PLACE_REGIONS = (
+    ("X20 Y0 X89 Y81", "video.native_capture.capture"),
+    ("X0 Y0 X89 Y81", '"video.native_capture.capture.output_pipe*"'),
+    ("X10 Y28 X38 Y56", "video.renderer"),
+    ("X10 Y28 X38 Y56", '"video_request*"'),
+)
 RAM_CONFIG_POLICY = "m10k-bmux-configuration-bounds-v1"
 ABI_DEFINITION = "cores/fes-common/generated/fes_computer.vh"
 QSF = "cores/fes-atari-st/constraints/constraints-oss.qsf"
@@ -118,18 +129,21 @@ BUILD_OUTPUTS = (
     "build-inputs.json", "build-summary.json", "manifest.toml", "rom-map.json",
     "socket.qsf", "qor-ranking.json", "fx68k-slang.sv", "microrom.mem", "nanorom.mem",
 )
+# DSP modes whose signedness configuration matches Quartus (DeanoC/yosys#25,
+# DeanoC/nextpnr#219). The 18x19 modes stay forbidden: their sign-bit mapping
+# has no Quartus reference yet.
+DSP_RESOURCES = frozenset({"MISTRAL_MUL9X9", "MISTRAL_MUL18X18", "MISTRAL_MUL27X27"})
 ORDINARY_RESOURCES = frozenset({
     "MISTRAL_BUF", "MISTRAL_CLKENA", "MISTRAL_COMB", "MISTRAL_FF", "MISTRAL_IO",
     "MISTRAL_M10K", "MISTRAL_M10K_TDP", "altiobuf_bidir",
-})
+}) | DSP_RESOURCES
 REQUIRED_RESOURCES = {
     "altera_pll": 2,
     "cyclonev_hps_interface_mpu_general_purpose": 1,
     "cyclonev_hps_interface_peripheral_i2c": 1,
 }
 FORBIDDEN_RESOURCES = frozenset({
-    "MISTRAL_MLAB", "MISTRAL_MUL9X9", "MISTRAL_MUL18X18", "MISTRAL_MUL18X19",
-    "MISTRAL_MUL18X19_COMBINED", "MISTRAL_MUL27X27",
+    "MISTRAL_MLAB", "MISTRAL_MUL18X19", "MISTRAL_MUL18X19_COMBINED",
 })
 REQUIRED_ZERO_RESOURCES = frozenset({"cyclonev_oscillator"})
 HEX32_RE = re.compile(r"[0-9a-f]{32}\Z")
@@ -316,6 +330,8 @@ def socket_qsf(base: str) -> str:
     lines.append(f'set_global_assignment -name FES_RESERVED_RECT "{RAM_GUARD_RESERVATION}"')
     for rectangle in VIDEO_RAM_GUARD_RESERVATIONS:
         lines.append(f'set_global_assignment -name FES_RESERVED_RECT "{rectangle}"')
+    for rectangle, target in VIDEO_PLACE_REGIONS:
+        lines.append(f'set_instance_assignment -name PLACE_REGION "{rectangle}" -to {target}')
     return atari_st_video_parts.shell_qsf("\n".join(lines) + "\n")
 
 
@@ -356,7 +372,7 @@ def build_commands(root: Path, output: Path, build_id: str,
         "-G SINGLE_RANK_REFRESH=1 -G SLOT_REFRESH=1 "
         f"--top st_video_adapter --top st_media_writer {megafunctions} {sources}; "
         f"chparam -set BUILD_ID 128'h{build_id} -set VIDEO_SCANLINES {int(video_output == 'scanlines')} {TOP}; "
-        f"synth_intel_alm -nolutram -nodsp -top {TOP}; {cache_constraints} stat; write_json synth.json"
+        f"synth_intel_alm -nolutram -top {TOP}; {cache_constraints} stat; write_json synth.json"
     )
     yosys = (str(tools["yosys"]), "-p", program)
     route = (

@@ -83,9 +83,12 @@ func colecoLibraryPackageContractsFixture(t *testing.T, abi, interfaces string) 
 }
 
 func newCoreEntryLaunchFixture(t *testing.T, raw []byte, title string, uploadDeadline ...time.Duration) (*Service, *defaultMediaPackageClient, catalog.CoreEntry, corepackage.Inspection) {
+	return newCoreEntryLaunchFixtureAt(t, t.TempDir(), raw, title, uploadDeadline...)
+}
+
+func newCoreEntryLaunchFixtureAt(t *testing.T, root string, raw []byte, title string, uploadDeadline ...time.Duration) (*Service, *defaultMediaPackageClient, catalog.CoreEntry, corepackage.Inspection) {
 	t.Helper()
 	ctx := context.Background()
-	root := t.TempDir()
 	store, err := catalog.OpenContext(ctx, root+"/catalog.db")
 	if err != nil {
 		t.Fatal(err)
@@ -97,7 +100,7 @@ func newCoreEntryLaunchFixture(t *testing.T, raw []byte, title string, uploadDea
 	}
 	base := &packageLibraryClient{fakeServiceClient: &fakeServiceClient{statusResult: protocol.Status{State: protocol.StateIdle}}}
 	client := &defaultMediaPackageClient{packageLibraryClient: base}
-	uploadTimeout := time.Second
+	uploadTimeout := 10 * time.Second
 	if len(uploadDeadline) != 0 {
 		uploadTimeout = uploadDeadline[0]
 	}

@@ -7,6 +7,9 @@ import (
 	"strings"
 
 	"github.com/DeanoC/FogCast/corepackage"
+	"github.com/DeanoC/FogCast/internal/spectrumdisks"
+	"github.com/DeanoC/FogCast/internal/spectrumsnapshots"
+	"github.com/DeanoC/FogCast/internal/spectrumtapes"
 	"github.com/DeanoC/FogCast/protocol/internal/generated"
 )
 
@@ -28,14 +31,27 @@ const (
 	Apple2FloppyBytes int64 = int64(generated.FesComputerApple2FloppyBytes)
 	// Apple2FloppyUnit is the media unit fes.media.apple2-floppy occupies.
 	Apple2FloppyUnit uint8 = uint8(generated.FesComputerApple2FloppyUnit)
-	// CassetteRole is the library media role of a Spectrum .tap or ZX81 .p image.
+	// CassetteRole is the library media role of a Spectrum tape or ZX81 .p image.
 	CassetteRole = "cassette"
-	// SpectrumTapeMinBytes is the smallest fes.media.spectrum-tape image.
+	// SpectrumTapeMinBytes is the smallest fes.media.spectrum-tape PZX stream.
 	SpectrumTapeMinBytes int64 = int64(generated.FesComputerSpectrumTapeMinBytes)
-	// SpectrumTapeMaxBytes is the largest fes.media.spectrum-tape image.
+	// SpectrumTapeMaxBytes is the largest fes.media.spectrum-tape PZX stream.
 	SpectrumTapeMaxBytes int64 = int64(generated.FesComputerSpectrumTapeMaxBytes)
+	// SpectrumTapeImageMaxBytes is the largest .tzx, .tap, .pzx or .csw image
+	// the host converts into that stream.
+	SpectrumTapeImageMaxBytes int64 = spectrumtapes.MaxInputBytes
 	// SpectrumTapeUnit is the media unit fes.media.spectrum-tape occupies.
 	SpectrumTapeUnit uint8 = uint8(generated.FesComputerSpectrumTapeUnit)
+	// SpectrumDiskUnit is the media unit fes.media.spectrum-disk occupies,
+	// beside the unit-0 cassette.
+	SpectrumDiskUnit uint8 = uint8(generated.FesComputerSpectrumDiskUnit)
+	// SpectrumDiskMinBytes and MaxBytes bound the raw track image the unit
+	// holds (internal/spectrumdisks).
+	SpectrumDiskMinBytes int64 = int64(generated.FesComputerSpectrumDiskMinBytes)
+	SpectrumDiskMaxBytes int64 = int64(generated.FesComputerSpectrumDiskMaxBytes)
+	// SpectrumDiskImageMaxBytes is the largest .trd or .scl image the host
+	// converts into that raw track image.
+	SpectrumDiskImageMaxBytes int64 = spectrumdisks.MaxInputBytes
 	// Zx81TapeMinBytes is the smallest fes.media.zx81-tape image.
 	Zx81TapeMinBytes int64 = int64(generated.FesComputerZx81TapeMinBytes)
 	// Zx81TapeMaxBytes is the largest fes.media.zx81-tape image.
@@ -81,9 +97,101 @@ func SpectrumTapeInterface() RuntimeContract {
 	return RuntimeContract{ID: generated.FesComputerInterfaceMediaSpectrumTapeID, Major: generated.FesComputerInterfaceMediaSpectrumTapeMajor, Minor: generated.FesComputerInterfaceMediaSpectrumTapeMinor}
 }
 
+// Spectrum snapshot interfaces. A package whose cassette unit also runs
+// restore streams (internal/spectrumsnapshots) declares them as optional
+// interfaces: fes.media.spectrum-snapshot 1.0 for 48K snapshots, plus
+// -128 1.0 for 128K ones and -plus3 1.0 for +2A/+3 ones. They add no unit
+// and no capability bit; the unit still carries fes.media.spectrum-tape.
+const (
+	SpectrumSnapshotInterfaceID      = "fes.media.spectrum-snapshot"
+	SpectrumSnapshot128InterfaceID   = "fes.media.spectrum-snapshot-128"
+	SpectrumSnapshotPlus3InterfaceID = "fes.media.spectrum-snapshot-plus3"
+)
+
+// SpectrumSnapshotRuns reports whether the descriptor's Spectrum cassette
+// unit runs restore streams of machine.
+func SpectrumSnapshotRuns(descriptor corepackage.Descriptor, machine spectrumsnapshots.Machine) bool {
+	if !DeclaresSpectrumTape(descriptor) {
+		return false
+	}
+	declared := func(id string) bool {
+		for _, i := range descriptor.Interfaces {
+			if i.ID == id && i.Major == 1 && i.Minor == 0 {
+				return true
+			}
+		}
+		return false
+	}
+	switch machine {
+	case spectrumsnapshots.Machine48K:
+		return declared(SpectrumSnapshotInterfaceID)
+	case spectrumsnapshots.Machine128K:
+		return declared(SpectrumSnapshotInterfaceID) && declared(SpectrumSnapshot128InterfaceID)
+	case spectrumsnapshots.MachinePlus3:
+		return declared(SpectrumSnapshotInterfaceID) && declared(SpectrumSnapshot128InterfaceID) &&
+			declared(SpectrumSnapshotPlus3InterfaceID)
+	}
+	return false
+}
+
+// SpectrumDiskInterface is the unit-1 Spectrum raw track disk contract.
+func SpectrumDiskInterface() RuntimeContract {
+	return RuntimeContract{ID: generated.FesComputerInterfaceMediaSpectrumDiskID, Major: generated.FesComputerInterfaceMediaSpectrumDiskMajor, Minor: generated.FesComputerInterfaceMediaSpectrumDiskMinor}
+}
+
+// SpectrumDiskTrdosInterfaceID and SpectrumDiskPlus3InterfaceID name the
+// disk unit's controller: a package whose unit-1 disk is a Beta 128 running
+// TR-DOS, or the +3's uPD765A, declares one as an optional 1.0 interface, and
+// the host then converts .trd and .scl, or .dsk, images for it. They add no
+// unit and no capability bit.
+const (
+	SpectrumDiskTrdosInterfaceID = "fes.media.spectrum-disk-trdos"
+	SpectrumDiskPlus3InterfaceID = "fes.media.spectrum-disk-plus3"
+)
+
+// SpectrumDiskSystem reports the disk system of the descriptor's unit-1
+// Spectrum disk: the one controller it declares beside the cassette.
+func SpectrumDiskSystem(descriptor corepackage.Descriptor) (spectrumdisks.System, bool) {
+	if !ComputerABI(descriptor.ABI.ID, descriptor.ABI.Major, descriptor.ABI.Minor) {
+		return 0, false
+	}
+	tape, disk, trdos, plus3 := false, false, false, false
+	wantTape, wantDisk := SpectrumTapeInterface(), SpectrumDiskInterface()
+	for _, i := range descriptor.Interfaces {
+		if i.ID == wantTape.ID && i.Major == int64(wantTape.Major) && i.Minor == int64(wantTape.Minor) {
+			tape = true
+		}
+		if i.ID == wantDisk.ID && i.Major == int64(wantDisk.Major) && i.Minor == int64(wantDisk.Minor) && i.Required {
+			disk = true
+		}
+		if i.Major == 1 && i.Minor == 0 {
+			trdos = trdos || i.ID == SpectrumDiskTrdosInterfaceID
+			plus3 = plus3 || i.ID == SpectrumDiskPlus3InterfaceID
+		}
+	}
+	if !tape || !disk || trdos == plus3 {
+		return 0, false
+	}
+	if plus3 {
+		return spectrumdisks.Plus3, true
+	}
+	return spectrumdisks.TRDOS, true
+}
+
 // Zx81TapeInterface is the unit-0 ZX81 .p contract.
 func Zx81TapeInterface() RuntimeContract {
 	return RuntimeContract{ID: generated.FesComputerInterfaceMediaZx81TapeID, Major: generated.FesComputerInterfaceMediaZx81TapeMajor, Minor: generated.FesComputerInterfaceMediaZx81TapeMinor}
+}
+
+// Zx81TapeWriteInterface is the snapshot contract for a ROM SAVE .p.
+func Zx81TapeWriteInterface() RuntimeContract {
+	return RuntimeContract{ID: generated.FesComputerInterfaceMediaZx81TapeWriteID, Major: generated.FesComputerInterfaceMediaZx81TapeWriteMajor, Minor: generated.FesComputerInterfaceMediaZx81TapeWriteMinor}
+}
+
+// Zx81TapeWriteCapable reports an active computer that can publish a SAVE image
+// even when the cassette unit itself is empty.
+func Zx81TapeWriteCapable(p *CorePackageStatus) bool {
+	return activeComputer(p) && activeInterface(p, Zx81TapeInterface()) && activeInterface(p, Zx81TapeWriteInterface())
 }
 
 // C64DiskInterface is the unit-0 Commodore D64 contract.
@@ -191,6 +299,10 @@ func (u MediaUnitStatus) Valid() bool {
 		return u.Interface == Zx81TapeInterface() && u.Unit == Zx81TapeUnit &&
 			int64(u.MinBytes) == Zx81TapeMinBytes && int64(u.MaxBytes) == Zx81TapeMaxBytes
 	}
+	if u.Interface.ID == SpectrumDiskInterface().ID {
+		return u.Interface == SpectrumDiskInterface() && u.Unit == SpectrumDiskUnit &&
+			int64(u.MinBytes) == SpectrumDiskMinBytes && int64(u.MaxBytes) == SpectrumDiskMaxBytes
+	}
 	return true
 }
 
@@ -245,10 +357,33 @@ func declaredComputerMedia(descriptor corepackage.Descriptor) []CoreMediaCapabil
 				Transport: ComputerMediaTransport, Unit: &unit, Extensions: []string{".st"}})
 		}
 		if contract.ID == tape.ID && contract.Major == int64(tape.Major) && contract.Minor == int64(tape.Minor) {
+			// The library holds tape images, and snapshots where the package
+			// runs them; the host converts one to the unit's PZX or restore
+			// stream when it is inserted.
 			unit := SpectrumTapeUnit
-			result = append(result, CoreMediaCapability{Role: CassetteRole, Format: "spectrum-tap",
-				MinBytes: SpectrumTapeMinBytes, MaxBytes: SpectrumTapeMaxBytes, Interface: tape,
-				Transport: ComputerMediaTransport, Unit: &unit, Extensions: []string{".tap"}})
+			extensions := append([]string(nil), spectrumtapes.Extensions...)
+			if declaresSpectrumSnapshots(descriptor) {
+				extensions = append(extensions, spectrumsnapshots.Extensions...)
+			}
+			result = append(result, CoreMediaCapability{Role: CassetteRole, Format: "spectrum-tape",
+				MinBytes: 1, MaxBytes: SpectrumTapeImageMaxBytes, Interface: tape,
+				Transport: ComputerMediaTransport, Unit: &unit, Extensions: extensions})
+		}
+		spectrumDisk := SpectrumDiskInterface()
+		system, declared := SpectrumDiskSystem(descriptor)
+		if contract.ID == spectrumDisk.ID && contract.Major == int64(spectrumDisk.Major) &&
+			contract.Minor == int64(spectrumDisk.Minor) && declared {
+			// The library holds the system's .trd and .scl, or .dsk, images;
+			// the host converts one to the unit's raw track image when it is
+			// inserted.
+			unit := SpectrumDiskUnit
+			format := "spectrum-disk-trdos"
+			if system == spectrumdisks.Plus3 {
+				format = "spectrum-disk-plus3"
+			}
+			result = append(result, CoreMediaCapability{Role: DiskRole, Format: format,
+				MinBytes: 1, MaxBytes: SpectrumDiskImageMaxBytes, Interface: spectrumDisk,
+				Transport: ComputerMediaTransport, Unit: &unit, Extensions: system.Extensions()})
 		}
 		zx81 := Zx81TapeInterface()
 		if contract.ID == zx81.ID && contract.Major == int64(zx81.Major) && contract.Minor == int64(zx81.Minor) {
@@ -261,8 +396,17 @@ func declaredComputerMedia(descriptor corepackage.Descriptor) []CoreMediaCapabil
 	return result
 }
 
-// DeclaresDiskMedia reports whether the descriptor has a unit-0 disk
-// (Apple II floppy, C64 D64 or Atari ST floppy).
+func declaresSpectrumSnapshots(descriptor corepackage.Descriptor) bool {
+	for _, i := range descriptor.Interfaces {
+		if i.ID == SpectrumSnapshotInterfaceID && i.Major == 1 && i.Minor == 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// DeclaresDiskMedia reports whether the descriptor has a disk unit (Apple II
+// floppy, C64 D64 or Atari ST floppy on unit 0, or a TR-DOS disk on unit 1).
 func DeclaresDiskMedia(descriptor corepackage.Descriptor) bool {
 	for _, capability := range declaredComputerMedia(descriptor) {
 		if capability.Role == DiskRole {
@@ -275,7 +419,7 @@ func DeclaresDiskMedia(descriptor corepackage.Descriptor) bool {
 // DeclaresSpectrumTape reports whether the descriptor has the Spectrum cassette unit.
 func DeclaresSpectrumTape(descriptor corepackage.Descriptor) bool {
 	for _, capability := range declaredComputerMedia(descriptor) {
-		if capability.Format == "spectrum-tap" {
+		if capability.Format == "spectrum-tape" {
 			return true
 		}
 	}
@@ -326,17 +470,50 @@ func AdmitDiskMediaName(name string) bool {
 	}
 }
 
-// AdmitSpectrumTapeName accepts a ZX Spectrum .tap basename.
+// AdmitSpectrumTapeName accepts a ZX Spectrum .tzx, .tap, .pzx or .csw
+// basename.
 func AdmitSpectrumTapeName(name string) bool {
 	if name == "" || strings.ContainsAny(name, `/\`) || name != filepath.Base(name) {
 		return false
 	}
-	return strings.ToLower(filepath.Ext(name)) == ".tap"
+	return spectrumtapes.Admit(name)
 }
 
-// AdmitSpectrumTapeSize reports whether a .tap image fits the unit.
+// AdmitSpectrumSnapshotName accepts a Spectrum .z80, .sna or .szx snapshot basename.
+func AdmitSpectrumSnapshotName(name string) bool {
+	if name == "" || strings.ContainsAny(name, "/\\") || name != filepath.Base(name) {
+		return false
+	}
+	return spectrumsnapshots.Admit(name)
+}
+
+// AdmitSpectrumCassetteName accepts a Spectrum tape image or a .z80, .sna or .szx
+// snapshot basename; the active package decides whether it runs snapshots.
+func AdmitSpectrumCassetteName(name string) bool {
+	if name == "" || strings.ContainsAny(name, `/\`) || name != filepath.Base(name) {
+		return false
+	}
+	return spectrumtapes.Admit(name) || spectrumsnapshots.Admit(name)
+}
+
+// AdmitSpectrumDiskName accepts a TR-DOS .trd or .scl, or +3 .dsk, basename.
+// A .dsk is also an Apple II disk name; the active package decides which.
+func AdmitSpectrumDiskName(name string) bool {
+	if name == "" || strings.ContainsAny(name, `/\`) || name != filepath.Base(name) {
+		return false
+	}
+	return spectrumdisks.Admit(name)
+}
+
+// AdmitSpectrumDiskSize reports whether a Spectrum disk image may be converted.
+func AdmitSpectrumDiskSize(size int64) bool {
+	return size >= 1 && size <= SpectrumDiskImageMaxBytes
+}
+
+// AdmitSpectrumTapeSize reports whether a Spectrum tape image may be
+// converted; the converted stream must then fit the unit.
 func AdmitSpectrumTapeSize(size int64) bool {
-	return size >= SpectrumTapeMinBytes && size <= SpectrumTapeMaxBytes
+	return spectrumtapes.AdmitSize(size)
 }
 
 // AdmitZx81TapeSize reports whether a .p image fits the ZX81 tape unit.
@@ -366,10 +543,11 @@ func AdmitComputerDiskName(name string) bool {
 }
 
 // AdmitLiveMediaName accepts the names of every live media form: ZX81 tapes,
-// home-computer disks and Spectrum cassettes. The active package then chooses
-// the exact contract.
+// home-computer disks, Spectrum cassettes and snapshots, and TR-DOS disks.
+// The active package then chooses the exact contract.
 func AdmitLiveMediaName(name string) bool {
-	return AdmitTapeMediaName(name) || AdmitComputerDiskName(name) || AdmitSpectrumTapeName(name)
+	return AdmitTapeMediaName(name) || AdmitComputerDiskName(name) || AdmitSpectrumCassetteName(name) ||
+		AdmitSpectrumDiskName(name)
 }
 
 // MediaUnitBinding names one unit of the already active target package
@@ -437,7 +615,30 @@ func DiskMediaRequestError() *APIError {
 	return &APIError{Code: CodeBadRequest, Message: "live disk media requires .dsk/.do (143360 bytes), .d64 (174848 bytes), or raw .st (720 KiB, or a declared 80..82-track, 1..2-head, 9..10-sector layout)", Phase: "request"}
 }
 
-// CassetteMediaRequestError is the live-media refusal for Spectrum .tap images.
+// CassetteMediaRequestError is the live-media refusal for Spectrum tapes.
 func CassetteMediaRequestError() *APIError {
-	return &APIError{Code: CodeBadRequest, Message: "live cassette media requires a .tap image of 1..65536 bytes", Phase: "request"}
+	return &APIError{Code: CodeBadRequest, Message: "live cassette media requires a .tzx, .tap, .pzx or .csw image of at most 32 MiB, or a .z80, .sna or .szx snapshot", Phase: "request"}
+}
+
+// CassetteConversionError reports a Spectrum tape image the host could not
+// convert to the unit's PZX stream.
+func CassetteConversionError(err error) *APIError {
+	return &APIError{Code: CodeBadRequest, Message: "Spectrum tape image: " + err.Error(), Phase: "request"}
+}
+
+// SpectrumDiskRequestError is the live-media refusal for Spectrum disks.
+func SpectrumDiskRequestError() *APIError {
+	return &APIError{Code: CodeBadRequest, Message: "live Spectrum disk media requires a .trd or .scl image on a package with a TR-DOS drive, or a .dsk image on one with a +3 drive, of at most 1 MiB", Phase: "request"}
+}
+
+// SpectrumDiskConversionError reports a disk image the host could not
+// convert to the unit's raw track image.
+func SpectrumDiskConversionError(err error) *APIError {
+	return &APIError{Code: CodeBadRequest, Message: "Spectrum disk image: " + err.Error(), Phase: "request"}
+}
+
+// SnapshotConversionError reports a Spectrum snapshot the host could not
+// convert to a restore stream, or one the active package does not run.
+func SnapshotConversionError(err error) *APIError {
+	return &APIError{Code: CodeBadRequest, Message: "Spectrum snapshot: " + err.Error(), Phase: "request"}
 }

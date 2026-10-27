@@ -97,22 +97,27 @@ public:
 			return {0, 0};
 		}
 		if (op >= FesComputerOpcodeMediaSnapshotInfo && op <= FesComputerOpcodeMediaSnapshotData) {
-			if (!(capabilities_ & FesComputerCapabilityMediaAtariStFloppyWrite)) return {opcode_error, 0};
+			const bool zx81 = (capabilities_ & FesComputerCapabilityMediaZx81TapeWrite) != 0;
+			if (!(capabilities_ & (FesComputerCapabilityMediaAtariStFloppyWrite |
+				FesComputerCapabilityMediaZx81TapeWrite))) return {opcode_error, 0};
 			Unit& u = units_.at(0);
 			if (op == FesComputerOpcodeMediaSnapshotInfo) {
 				if (index > 7) return {index_error, 0};
 				if (arg) return {argument_error, 0};
+				const std::vector<std::uint8_t>& snapshot = zx81 ? zx81_snapshot_ : u.data;
 				const std::uint16_t info[8] = {
-					static_cast<std::uint16_t>((u.state == 3 ? 1 : 0) | (dirty ? 2 : 0) | (frozen ? 4 : 0) | (write_busy ? 8 : 0)),
-					1, 1, static_cast<std::uint16_t>(u.data.size() == FesComputerAtariStFloppyBytes ? 0 : 1), static_cast<std::uint16_t>(u.data.size()),
-					static_cast<std::uint16_t>(u.data.size() >> 16), 512, epoch};
+					static_cast<std::uint16_t>(((zx81 ? save_ready : u.state == 3) ? 1 : 0) | (dirty ? 2 : 0) | (frozen ? 4 : 0) | (write_busy ? 8 : 0)),
+					static_cast<std::uint16_t>(zx81 ? FesComputerZx81TapeLayoutTag : 1), 1,
+					static_cast<std::uint16_t>(zx81 ? FesComputerZx81TapeLayoutMinor : (u.data.size() == FesComputerAtariStFloppyBytes ? 0 : 1)),
+					static_cast<std::uint16_t>(snapshot.size()),
+					static_cast<std::uint16_t>(snapshot.size() >> 16), 512, epoch};
 				return {0, info[index]};
 			}
 			if (op == FesComputerOpcodeMediaSnapshotControl) {
 				if (index) return {index_error, 0};
 				if (arg > 2) return {argument_error, 0};
 				if (arg == 0) {
-					if (u.state != 3) return {state_error, 0};
+					if ((zx81 && (!save_ready || write_busy)) || (!zx81 && u.state != 3)) return {state_error, 0};
 					frozen = true; saved = false;
 					snapshot_words.clear(); snapshot_at = 0;
 					snapshot_remaining = 0; snapshot_ordinal = 0;
@@ -124,13 +129,15 @@ public:
 				}
 				return {0, 0};
 			}
-			if (!frozen || u.state != 3) return {state_error, 0};
+			if (!frozen || (!zx81 && u.state != 3)) return {state_error, 0};
 			if (op == FesComputerOpcodeMediaSnapshotChunk) {
 				if (snapshot_remaining) return {state_error, 0};
 				if (index != snapshot_words.size() || index > 2) return {index_error, 0};
 				if (index == 2) {
 					const unsigned offset = snapshot_words[0] | (snapshot_words[1] << 16);
-					if (offset != snapshot_at || !arg || (arg & 1) || arg > 512 || arg > u.data.size() - snapshot_at)
+					const std::vector<std::uint8_t>& snapshot = zx81 ? zx81_snapshot_ : u.data;
+					if (offset != snapshot_at || !arg || ((arg & 1) && !(zx81 && arg == 1)) ||
+						arg > 512 || arg > snapshot.size() - snapshot_at)
 						return {argument_error, 0};
 					snapshot_words.clear(); snapshot_remaining = arg; snapshot_ordinal = 0;
 				} else {
@@ -141,14 +148,18 @@ public:
 			if (!snapshot_remaining) return {state_error, 0};
 			if (index != snapshot_ordinal) return {index_error, 0};
 			if (arg) return {argument_error, 0};
-			const unsigned pair = u.data.at(snapshot_at) | (u.data.at(snapshot_at + 1) << 8);
-			snapshot_at += 2; snapshot_remaining -= 2; ++snapshot_ordinal;
+			const std::vector<std::uint8_t>& snapshot = zx81 ? zx81_snapshot_ : u.data;
+			const unsigned count = snapshot_remaining == 1 ? 1 : 2;
+			const unsigned pair = snapshot.at(snapshot_at) |
+				(count == 2 ? (snapshot.at(snapshot_at + 1) << 8) : 0);
+			snapshot_at += count; snapshot_remaining -= count; ++snapshot_ordinal;
 			return {0, static_cast<std::uint16_t>(pair)};
 		}
 		const bool media_opcode = op >= FesComputerOpcodeMediaInfo && op <= FesComputerOpcodeMediaEject;
 		const unsigned media_bits = FesComputerCapabilityMediaApple2Floppy |
 			FesComputerCapabilityMediaC64Disk | FesComputerCapabilityMediaSpectrumTape |
-			FesComputerCapabilityMediaAtariStFloppy;
+			FesComputerCapabilityMediaAtariStFloppy | FesComputerCapabilityMediaZx81Tape |
+			FesComputerCapabilityMediaSpectrumDisk;
 		if (media_opcode && !(capabilities_ & media_bits))
 			return {opcode_error, 0};
 		if (op == FesComputerOpcodeMediaInfo) {
@@ -272,7 +283,9 @@ public:
 		if (lose_request && lose_request(request)) return {};
 		requests.push_back(request);
 		toggle_ = toggle;
-		const auto result = Handle(request.opcode, request.index, request.argument);
+		const unsigned rejected = reject_request ? reject_request(request) : 0;
+		const auto result = rejected == 0 ? Handle(request.opcode, request.index, request.argument) :
+			std::make_pair(rejected, static_cast<std::uint16_t>(0));
 		error_ = result.first != 0;
 		response_ = error_ ? static_cast<std::uint16_t>(result.first) : result.second;
         if (fail_after_request && fail_after_request(request))
@@ -293,7 +306,7 @@ public:
 	void Reset()
 	{
         mouse_x = 0; mouse_y = 0; mouse_buttons = 0;
-        frozen = false; saved = false; dirty = false; write_busy = false; epoch = 0;
+		frozen = false; saved = false; dirty = false; write_busy = false; save_ready = false; epoch = 0;
         snapshot_at = 0; snapshot_remaining = 0; snapshot_ordinal = 0;
         snapshot_words.clear();
 		held = true;
@@ -303,10 +316,24 @@ public:
 			unit.second.state = 1;
 			unit.second.data.clear();
 		}
+		zx81_snapshot_.clear();
 		ClearTransfer();
 		toggle_ = false;
 		error_ = false;
 		response_ = 0;
+	}
+
+	void SetZx81Snapshot(const std::vector<std::uint8_t>& bytes, bool is_dirty = true)
+	{
+		zx81_snapshot_ = bytes;
+		save_ready = true;
+		dirty = is_dirty;
+		frozen = false;
+		saved = false;
+		snapshot_at = 0;
+		snapshot_remaining = 0;
+		snapshot_ordinal = 0;
+		snapshot_words.clear();
 	}
 
 	const Unit& unit(unsigned index) const { return units_.at(index); }
@@ -328,17 +355,20 @@ public:
 	std::vector<std::uint16_t> rows = std::vector<std::uint16_t>(9, 0);
 	std::vector<std::uint16_t> ports = {0, 0};
 	bool corrupt_next_data = false;
-    bool frozen=false,saved=false,dirty=false,write_busy=false;
+	bool frozen=false,saved=false,dirty=false,write_busy=false,save_ready=false;
     std::uint16_t epoch=0;
     unsigned snapshot_at=0,snapshot_remaining=0,snapshot_ordinal=0;
     std::vector<unsigned> snapshot_words;
 	// Returning true drops that request before the endpoint sees it: no ACK.
 	std::function<bool(const Request&)> lose_request;
+	// Return a GP error code to model an acknowledged command rejection.
+	std::function<unsigned(const Request&)> reject_request;
     std::function<bool(const Request&)> fail_after_request;
 	std::vector<std::uint32_t> writes;
 	std::vector<Request> requests;
 
 private:
+	std::vector<std::uint8_t> zx81_snapshot_;
 	void ClearTransfer()
 	{
 		begin_unit_ = -1;

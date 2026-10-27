@@ -1,10 +1,12 @@
-"""ZX Spectrum edge sockets (`fes.spectrum-bus.sockets/1`).
+"""ZX Spectrum edge socket (`fes.spectrum-bus.sockets/2`).
 
-One table describes the four physical sockets: their indexes, placement
-rectangles, CRAM rectangles and pinned boundary flip-flops. The expansion Go
-linker keeps the same CRAM rectangles in its closed layout table. The
-rectangles are the Apple II slot geometry (column 24, the same row bands),
-which already routes both horizontal clock segments into every socket row.
+The Spectrum has one rear edge connector, so the shell has one socket. This
+table gives its index, placement rectangle, CRAM rectangle and pinned
+boundary flip-flops. The expansion Go linker keeps the same CRAM rectangle in
+its closed layout table. The rectangle is Apple II slot 2's geometry (column
+24, rows 1-18), which already routes both horizontal clock segments into
+every socket row. Four sockets down column 24 left the shell three two-row
+gaps to route between the HPS edge and the rest of the device.
 `--write-rtl` regenerates `cores/fes-spectrum/rtl/spectrum_slot_sockets.v`.
 """
 
@@ -16,7 +18,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 RTL = ROOT / 'cores' / 'fes-spectrum' / 'rtl' / 'spectrum_slot_sockets.v'
-LAYOUT = 'fes.spectrum-bus.sockets/1'
+LAYOUT = 'fes.spectrum-bus.sockets/2'
 INTERFACE = 'fes.expansion.spectrum-bus'
 REQUEST_BITS = 32
 RESPONSE_BITS = 28
@@ -46,9 +48,6 @@ class Socket:
 
 SOCKETS = (
     Socket(1, 1, 18, (1769, 32, 2806, 1722)),
-    Socket(2, 21, 38, (1769, 1722, 2806, 3442)),
-    Socket(3, 41, 58, (1769, 3442, 2806, 5162)),
-    Socket(4, 61, 78, (1769, 5162, 2806, 6882)),
 )
 
 
@@ -87,8 +86,8 @@ def boundary_bels(socket: Socket) -> dict[str, str]:
 
 def socket_rtl() -> str:
     out = ['''// SPDX-License-Identifier: GPL-2.0-or-later
-// Registered boundaries of the four physical ZX Spectrum edge sockets
-// (fes.spectrum-bus.sockets/1). Each socket pins its 32 request and 28
+// Registered boundary of the ZX Spectrum edge socket
+// (fes.spectrum-bus.sockets/2). The socket pins its 32 request and 28
 // response flip-flops in the first three LABs of column 24 of its placement
 // rectangle, plus one clock-coverage flip-flop per socket row in columns 24
 // and 28 so the frozen shell routes both horizontal clock segments into every

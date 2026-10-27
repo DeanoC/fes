@@ -345,6 +345,10 @@
     if (source.firmware_ready === true || source.firmware_ready === false) record.firmware_ready = source.firmware_ready;
     if (source.rom_required === true || source.rom_required === false) record.rom_required = source.rom_required;
     if (source.rom_ready === true || source.rom_ready === false) record.rom_ready = source.rom_ready;
+    if (typeof source.rom_id === 'string' && source.rom_id.trim()) record.rom_id = source.rom_id.trim();
+    if (typeof source.rom_media_id === 'string' && source.rom_media_id.trim()) record.rom_media_id = source.rom_media_id.trim();
+    if (typeof source.rom_role === 'string' && source.rom_role.trim()) record.rom_role = source.rom_role.trim();
+    if (Number.isSafeInteger(source.rom_source_size) && source.rom_source_size > 0) record.rom_source_size = source.rom_source_size;
     if (source.ready_here === true || source.ready_here === false) record.ready_here = source.ready_here;
     const readyBlock = optionalCatalogText(source.ready_block);
     if (readyBlock) record.ready_block = readyBlock;
@@ -862,7 +866,11 @@
     if (game.state === 'missing' || game.root_online !== true) return 'This game’s source is offline.';
     if (game.state === 'invalid') return 'This ROM can’t be read.';
     if (game.state !== 'available') return 'This game isn’t ready to launch.';
-    if (game.firmware_required === true && game.firmware_ready !== true) return 'Coleco BIOS required. Import household firmware before Play.';
+    if (game.firmware_required === true && game.firmware_ready !== true) {
+      return game.rom_role === 'firmware'
+        ? 'Required machine firmware is missing. Import it before Play.'
+        : 'Coleco BIOS required. Import household firmware before Play.';
+    }
     if (game.rom_required === true && game.rom_ready !== true) return 'Needs a cartridge';
     if (game.placement === 'unresolved' || game.placement === 'fail_closed') {
       return 'This title cannot play on the current setup.';
@@ -6708,6 +6716,7 @@
     nodes.attract.addEventListener('click', exitAttract);
   }
   if (nodes.settings) nodes.settings.hidden = true;
+  if (root.FogCastStorage) root.FogCastStorage.mount(document,root.fetch.bind(root));
   if (root.FogCastCoreLibrary) {
     root.FogCastCoreLibrary.mount(document, root.FogCastCoreLibrary.createController({
       fetchImpl: root.fetch.bind(root),

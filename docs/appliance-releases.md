@@ -93,8 +93,10 @@ and places the unchanged A2 boot partition immediately after it. FAT starts at
 sector 2048; A2 starts at sector 2099200. The disk file is 1,075,838,976 bytes.
 The assembler still emits that fixed image. Leftover capacity on a larger card
 is a live mutation: `scripts/appliance_expand_dry_run.py` can add aligned p3
-ext4 labelled `FESDATA3` without moving A2 or rewriting FAT. FogCast bind-mounts
-cache, saves, core-data, launcher-cache and evidence from that partition. The
+ext4 labelled `FESDATA3` without moving A2 or rewriting FAT. It sizes p3 to the
+card in the admitted reader; `--card-bytes`, if given, must match that card.
+FogCast bind-mounts cache, saves, core-data, launcher-cache and evidence from
+that partition. The
 bootloader, kernel and boot environment retain their locked bytes. The
 kernel mounts `/linux/linux.img`, now the small stable bootstrap. Factory system
 bytes live at `/fogcast/releases/images/<sha256>.img`; the corresponding manifest
@@ -143,6 +145,14 @@ make -C /absolute/path/to/FogCast build-fes-update
   --release /absolute/path/to/release-directory
 /absolute/path/to/FogCast/bin/fes-update --action rollback
 ```
+
+Software goes before the image. Before uploading, `update` reads the image's
+`/etc/fes/software-base.json` and refuses an image whose menu interfaces the
+kit's selected software bundle does not accept; install and activate a bundle
+that accepts them first. A bundle built for another base contract cannot go
+first, so that update proceeds with a notice and the image runs its factory
+software until a bundle built for it is activated
+([image compatibility](kit-software-releases.md#image-compatibility)).
 
 The client acquires and renews the existing lease. Activation stops the runtime,
 persists supported saves, neutralizes input/cast and records the pending image

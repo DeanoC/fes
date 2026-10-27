@@ -633,3 +633,8 @@ img.cover-art { display: block; width: 100%; object-fit: contain; object-positio
 #core-library .button { margin: .25rem; }
 #core-library-message { min-height: 1.5em; }
 #core-library button:disabled { opacity: .5; cursor: wait; }
+
+#storage-dialog:not([open]) { display: none; }
+#storage-dialog::backdrop { background: #000b; }
+#storage-dialog button { margin: .25rem; }
+#storage-dialog p { overflow-wrap: anywhere; }

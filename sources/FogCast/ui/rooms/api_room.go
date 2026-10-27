@@ -37,6 +37,8 @@ func (r *Instance) installRoom() *lua.LTable {
 	t.RawSetString("time", lua.LNumber(0))
 	t.RawSetString("reduced_motion", lua.LBool(r.opts.ReducedMotion))
 	t.RawSetString("live_controls", lua.LBool(!r.opts.SessionDisplayRequired))
+	t.RawSetString("overlay", lua.LBool(false))
+	t.RawSetString("initial_game_id", lua.LString(r.opts.InitialGameID))
 	th := r.opts.Theme
 	colors := L.NewTable()
 	background := FormatHexColor(th.SofaBackground)
@@ -82,7 +84,8 @@ func (r *Instance) installRooms() *lua.LTable {
 					L.RaiseError("rooms.open: unknown room %q", id)
 				}
 			}
-			r.actions = append(r.actions, Action{Kind: ActionOpenRoom, RoomID: id})
+			initialGameID := strings.TrimSpace(optString(L.OptTable(2, nil), "game_id"))
+			r.actions = append(r.actions, Action{Kind: ActionOpenRoom, RoomID: id, InitialGameID: initialGameID})
 			return 0
 		},
 		"back": func(L *lua.LState) int {
@@ -142,7 +145,11 @@ func (r *Instance) installSession() *lua.LTable {
 			if id == "" {
 				L.ArgError(1, "game id required")
 			}
-			r.actions = append(r.actions, Action{Kind: ActionLaunch, GameID: id})
+			packageID, expectedPackageID := strings.TrimSpace(L.OptString(2, "")), strings.TrimSpace(L.OptString(3, ""))
+			if (packageID == "") != (expectedPackageID == "") || (packageID != "" && (protocol.ValidateDigest(packageID) != nil || protocol.ValidateDigest(expectedPackageID) != nil)) {
+				L.ArgError(2, "package and expected package IDs must both be valid digests")
+			}
+			r.actions = append(r.actions, Action{Kind: ActionLaunch, GameID: id, PackageID: packageID, ExpectedPackageID: expectedPackageID})
 			return 0
 		},
 		"state": func(L *lua.LState) int {

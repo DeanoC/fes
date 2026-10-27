@@ -282,6 +282,61 @@ constants:
     value: 12
   - name: FesApplicationMenuInfoUnderflowsHiIndex
     value: 13
+  # fes.video.menu-blitter 1.1: the menu firmware runs command lists from the
+  # window into a menu slot. Lists and the texture heap are window offsets.
+  # 1.1 adds EXPAND.
+  - name: FesApplicationOpcodeMenuBlit
+    value: 22
+  - name: FesApplicationMenuBlitFirstIndex
+    value: 0
+  - name: FesApplicationMenuBlitCountIndex
+    value: 1
+  - name: FesApplicationMenuBlitRunIndex
+    value: 2
+  - name: FesApplicationMenuBlitStateIndex
+    value: 3
+  - name: FesApplicationMenuBlitCompletedIndex
+    value: 4
+  - name: FesApplicationMenuBlitListOffset
+    value: 0x00800000
+  - name: FesApplicationMenuBlitListBytes
+    value: 0x00100000
+  - name: FesApplicationMenuBlitCommandBytes
+    value: 32
+  - name: FesApplicationMenuBlitCommandCount
+    value: 32768
+  - name: FesApplicationMenuBlitHeapOffset
+    value: 0x01000000
+  - name: FesApplicationMenuBlitHeapBytes
+    value: 0x04000000
+  - name: FesApplicationMenuBlitOpEnd
+    value: 0
+  - name: FesApplicationMenuBlitOpFill
+    value: 1
+  - name: FesApplicationMenuBlitOpFillBlend
+    value: 2
+  - name: FesApplicationMenuBlitOpCopy
+    value: 3
+  - name: FesApplicationMenuBlitOpBlend
+    value: 4
+  - name: FesApplicationMenuBlitOpExpand
+    value: 5
+  - name: FesApplicationMenuBlitStateBusy
+    value: 1
+  - name: FesApplicationMenuBlitStateFaulted
+    value: 2
+  - name: FesApplicationMenuBlitStateFaultShift
+    value: 8
+  - name: FesApplicationMenuBlitFaultList
+    value: 1
+  - name: FesApplicationMenuBlitFaultOp
+    value: 2
+  - name: FesApplicationMenuBlitFaultRect
+    value: 3
+  - name: FesApplicationMenuBlitFaultSource
+    value: 4
+  - name: FesApplicationMenuBlitFaultReserved
+    value: 5
 interfaces:
   - id: fes.gamepad
     major: 1
@@ -323,3 +378,15 @@ interfaces:
     major: 1
     minor: 0
     capability_bit: 9
+  - id: fes.video.menu-blitter
+    major: 1
+    minor: 1
+    capability_bit: 10
+  # fes.video.session-display 1.0 is the in-session plane a running
+  # application machine blends launcher frames through, as on fes.computer.
+  # It reuses the menu opcodes 18-21 and needs fes.memory.hps-ddr. It is not
+  # fes.video.menu-display, which stays the idle MENU firmware's contract.
+  - id: fes.video.session-display
+    major: 1
+    minor: 0
+    capability_bit: 11

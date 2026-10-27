@@ -36,6 +36,20 @@ func TestHardwareClientDecodesExpansionSelection(t *testing.T) {
 	}
 }
 
+func TestHardwareClientDecodesShelfComputers(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"machines":[],"computers":[{"game_id":"fpga-zx81","title":"ZX81","core_id":"fes.zx81","package_id":"`+strings.Repeat("a", 64)+`","ready":true}]}`)
+	}))
+	defer server.Close()
+	view, err := NewClient(server.URL, server.Client()).Hardware(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(view.Computers) != 1 || view.Computers[0].GameID != "fpga-zx81" || view.Computers[0].CoreID != "fes.zx81" || !view.Computers[0].Ready {
+		t.Fatalf("computers %+v", view.Computers)
+	}
+}
+
 func TestHardwareClientRefusesMalformedSession(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, `{"machines":[],"session":{"state":"maybe"}}`)

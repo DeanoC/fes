@@ -54,7 +54,7 @@ func TestHardwareCassetteSelectsNextLaunchAndKeepsExpectedBinding(t *testing.T) 
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
 	app.ctx = context.Background()
 	app.mu.Lock()
-	app.openHardwarePickerLocked(rooms.Action{Kind: rooms.ActionHardwareTapes, GameID: "test-zx81", PackageID: pkg, ExpectedMediaID: expected})
+	app.openHardwarePickerLocked(rooms.Action{Kind: rooms.ActionHardwareTapes, GameID: "test-zx81", CoreID: "fes.zx81", PackageID: pkg, ExpectedMediaID: expected})
 	app.mu.Unlock()
 	waitCoreLibrary(t, app)
 	app.mu.Lock()
@@ -122,7 +122,7 @@ func TestHardwareTapeRoleFollowsDeclaredPackage(t *testing.T) {
 			app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
 			app.ctx = context.Background()
 			app.mu.Lock()
-			app.openHardwarePickerLocked(rooms.Action{Kind: rooms.ActionHardwareTapes, GameID: "test-zx81", PackageID: pkg, ExpectedMediaID: ""})
+			app.openHardwarePickerLocked(rooms.Action{Kind: rooms.ActionHardwareTapes, GameID: "test-zx81", CoreID: "fes.zx81", PackageID: pkg, ExpectedMediaID: ""})
 			app.mu.Unlock()
 			waitCoreLibrary(t, app)
 			if tc.starter {
@@ -154,13 +154,91 @@ func TestHardwareTapeRoleFollowsDeclaredPackage(t *testing.T) {
 	}
 }
 
+func TestHardwarePickerOmitsZX81StartersForZX80(t *testing.T) {
+	var mu sync.Mutex
+	var requests int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/library/zx81-tapes" {
+			mu.Lock()
+			requests++
+			mu.Unlock()
+			if r.URL.Query().Get("game_id") != "test-zx80" {
+				t.Errorf("game_id = %q", r.URL.Query().Get("game_id"))
+			}
+		}
+		json.NewEncoder(w).Encode(map[string]any{"tapes": []hostclient.HardwareTape{}})
+	}))
+	defer server.Close()
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
+	app.ctx = context.Background()
+	app.mu.Lock()
+	app.openHardwarePickerLocked(rooms.Action{Kind: rooms.ActionHardwareTapes, GameID: "test-zx80", CoreID: "fes.zx80", PackageID: strings.Repeat("a", 64), ExpectedMediaID: ""})
+	app.mu.Unlock()
+	waitCoreLibrary(t, app)
+	app.mu.Lock()
+	rows := app.hardwarePickerRowsLocked()
+	app.mu.Unlock()
+	mu.Lock()
+	got := requests
+	mu.Unlock()
+	if got != 1 {
+		t.Fatalf("ZX80 setup tape requests = %d, want the saved-program shelf", got)
+	}
+	if len(rows) != 2 || rows[0].Kind != "empty-tape" || rows[1].Kind != "import-tape" {
+		t.Fatalf("ZX80 cassette picker rows = %+v", rows)
+	}
+}
+
+func TestHardwarePickerShowsSavedTimexPrograms(t *testing.T) {
+	mediaID := strings.Repeat("ab", 32)
+	saved := hostclient.HardwareTape{
+		ID: "saved-" + mediaID, Name: "Saved program", Filename: "saved.p",
+		License: "Saved", Controls: `After LOAD "", enter RUN.`,
+		SHA256: mediaID, RAMKB: 1, MediaID: mediaID,
+	}
+	for _, coreID := range []string{"fes.ts1000", "fes.ts1500"} {
+		t.Run(coreID, func(t *testing.T) {
+			gameID := "test-" + strings.TrimPrefix(coreID, "fes.")
+			var mu sync.Mutex
+			var gameQuery string
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/api/v1/library/zx81-tapes" {
+					mu.Lock()
+					gameQuery = r.URL.Query().Get("game_id")
+					mu.Unlock()
+				}
+				json.NewEncoder(w).Encode(map[string]any{"tapes": []hostclient.HardwareTape{saved}})
+			}))
+			defer server.Close()
+			app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
+			app.ctx = context.Background()
+			app.mu.Lock()
+			app.openHardwarePickerLocked(rooms.Action{Kind: rooms.ActionHardwareTapes, GameID: gameID, CoreID: coreID, PackageID: strings.Repeat("a", 64), ExpectedMediaID: ""})
+			app.mu.Unlock()
+			waitCoreLibrary(t, app)
+			app.mu.Lock()
+			rows := app.hardwarePickerRowsLocked()
+			app.mu.Unlock()
+			mu.Lock()
+			gotGame := gameQuery
+			mu.Unlock()
+			if gotGame != gameID {
+				t.Fatalf("game_id = %q, want %s", gotGame, gameID)
+			}
+			if len(rows) != 3 || rows[2].Kind != "tape:"+saved.ID || rows[2].Name != "Saved program · 1K RAM · Saved" {
+				t.Fatalf("Timex cassette picker rows = %+v", rows)
+			}
+		})
+	}
+}
+
 func TestHardwarePickerDoesNotOpenDuringPlay(t *testing.T) {
 	app := NewApp(NewClient("http://127.0.0.1:1", nil), 1280, 720, 10)
 	app.session = hostclient.SessionResult{State: "active"}
 	app.roomsIndex = rooms.NewIndex(rooms.Examples())
 	app.mu.Lock()
 	defer app.mu.Unlock()
-	app.openHardwarePickerLocked(rooms.Action{Kind: rooms.ActionHardwareTapes, GameID: "test-zx81", PackageID: strings.Repeat("a", 64)})
+	app.openHardwarePickerLocked(rooms.Action{Kind: rooms.ActionHardwareTapes, GameID: "test-zx81", CoreID: "fes.zx81", PackageID: strings.Repeat("a", 64)})
 	if app.coreLibrary.Open {
 		t.Fatal("opened pre-launch picker during play")
 	}

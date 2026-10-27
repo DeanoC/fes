@@ -266,7 +266,13 @@ func (r *Runtime) insertMedia(ctx, owner context.Context, size int64, body io.Re
 		return nil, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "media unit insert is unconfirmed; inspect the session before retrying", Phase: "transfer"}
 	}
 	if !response.OK || response.Error != nil {
-		return nil, mapProtocol2Error(response.Error)
+		apiErr := mapProtocol2Error(response.Error)
+		if response.Error != nil && response.Error.Code == "busy" {
+			// The runtime rejected the insert before media changed; the mounted
+			// unit and its confirmed host filename remain valid.
+			apiErr.NoChange = true
+		}
+		return nil, apiErr
 	}
 	state, ok := computerMediaUnitState(response, b)
 	if !ok || state != protocol.MediaUnitReady {
@@ -282,7 +288,13 @@ func (r *Runtime) insertMedia(ctx, owner context.Context, size int64, body io.Re
 }
 
 // EjectMedia empties one unit of the exact generation and returns the units.
-func (r *Runtime) EjectMedia(ctx context.Context, b protocol.MediaUnitBinding) ([]protocol.MediaUnitStatus, *protocol.APIError) {
+func (r *Runtime) EjectMedia(ctx context.Context, b protocol.MediaUnitBinding) (units []protocol.MediaUnitStatus, apiErr *protocol.APIError) {
+	dispatched := false
+	defer func() {
+		if apiErr != nil && !dispatched {
+			apiErr.NoChange = true
+		}
+	}()
 	if !b.Valid() {
 		return nil, protocol.MediaUnitRequestError()
 	}
@@ -299,13 +311,18 @@ func (r *Runtime) EjectMedia(ctx context.Context, b protocol.MediaUnitBinding) (
 	if _, ok := computerMediaUnitState(before, b); !ok {
 		return nil, protocol.MediaUnitIdentityError()
 	}
+	dispatched = true
 	response, err := control.EjectMedia(ctx, b.PackageID, b.Generation, b.Unit)
 	r.noteDispatch("eject_media", err == nil)
 	if err != nil {
 		return nil, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "media unit eject is unconfirmed; inspect the session before retrying", Phase: "transfer"}
 	}
 	if !response.OK || response.Error != nil {
-		return nil, mapProtocol2Error(response.Error)
+		apiErr := mapProtocol2Error(response.Error)
+		if response.Error != nil && response.Error.Code == "busy" {
+			apiErr.NoChange = true
+		}
+		return nil, apiErr
 	}
 	state, ok := computerMediaUnitState(response, b)
 	if !ok || state != protocol.MediaUnitEmpty {

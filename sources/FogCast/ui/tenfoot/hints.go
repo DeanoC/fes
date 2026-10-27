@@ -216,9 +216,16 @@ func (s Snapshot) HeaderHint() string {
 			return tapePickerHint(kind)
 		}
 		hint := sessionChromeHint(kind, s.Session.RetryStop, s.Session.LoadTape)
+		if s.Session.MediaSelector {
+			hint = strings.ReplaceAll(hint, "load tape", "change media")
+		}
 		if s.Session.HardwareRoom {
 			hint = strings.Replace(hint, "  "+layoutWord(kind)+" layout", "", 1)
-			hint += "  " + hardwareRoomWord(kind) + " hardware room"
+			label := "hardware room"
+			if s.Session.MediaSelector {
+				label = "change media"
+			}
+			hint += "  " + hardwareRoomWord(kind) + " " + label
 		}
 		if h := strings.TrimSpace(s.Session.InputHint); h != "" {
 			return hint + "  " + h

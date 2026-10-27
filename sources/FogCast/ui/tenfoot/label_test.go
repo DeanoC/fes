@@ -2,7 +2,8 @@ package tenfoot
 
 import (
 	"bytes"
-	"image"
+	"slices"
+	"strings"
 	"testing"
 
 	"golang.org/x/image/font"
@@ -31,33 +32,61 @@ func goRegularFace(t *testing.T, sizePx int) font.Face {
 	return face
 }
 
-func TestRasterizeLabelUTF8(t *testing.T) {
+// testLabel lays text out as drawLabel does.
+func testLabel(face font.Face, text string, maxWidth, sizePx int) (gpuTexture, bool) {
+	labelMu.Lock()
+	defer labelMu.Unlock()
+	if face == nil {
+		face = labelFace(sizePx)
+	}
+	return layoutLabel(face, fitLabel(face, strings.TrimSpace(text), maxWidth), maxWidth, sizePx)
+}
+
+// labelPixels is the coverage a label draws, row by row of its box.
+func labelPixels(l gpuTexture) []byte {
+	out := make([]byte, l.w*l.h)
+	if l.mask == nil {
+		return out
+	}
+	for y := 0; y < l.maskSrc.Dy(); y++ {
+		for x := 0; x < l.maskSrc.Dx(); x++ {
+			out[(l.maskAt.Y+y)*l.w+l.maskAt.X+x] = l.mask.Pix[(l.maskSrc.Min.Y+y)*l.mask.W+l.maskSrc.Min.X+x]
+		}
+	}
+	return out
+}
+
+func labelHasInk(l gpuTexture) bool {
+	return slices.ContainsFunc(labelPixels(l), func(m byte) bool { return m != 0 })
+}
+
+func TestLayoutLabelUTF8(t *testing.T) {
 	t.Parallel()
-	accented := rasterizeLabel("Éclair", 200, 16)
+	accented, _ := testLabel(nil, "Éclair", 200, 16)
 	if !labelHasInk(accented) {
 		t.Fatal("Éclair produced no glyphs")
 	}
-	ascii := rasterizeLabel("Eclair", 200, 16)
+	ascii, _ := testLabel(nil, "Eclair", 200, 16)
 	if !labelHasInk(ascii) {
 		t.Fatal("Eclair produced no glyphs")
 	}
-	if accented.Bounds().Eq(ascii.Bounds()) && bytes.Equal(accented.Pix, ascii.Pix) {
-		t.Fatal("Éclair rasterized identically to Eclair")
+	if accented.w == ascii.w && bytes.Equal(labelPixels(accented), labelPixels(ascii)) {
+		t.Fatal("Éclair laid out identically to Eclair")
 	}
-	combining := rasterizeLabel("E\u0301clair", 200, 16)
+	combining, _ := testLabel(nil, "E\u0301clair", 200, 16)
 	if !labelHasInk(combining) {
 		t.Fatal("combining-accent title produced no glyphs")
 	}
-	if rasterizeLabel("", 200, 16) != nil {
+	if _, ok := testLabel(nil, "", 200, 16); ok {
 		t.Fatal("empty label")
 	}
-	clipped := rasterizeLabel("Éclair Super Nintendo Entertainment System", 40, 16)
-	if clipped == nil || clipped.Bounds().Dx() > 40 {
-		t.Fatalf("clipped width = %v", clipped)
+	clipped, ok := testLabel(nil, "Éclair Super Nintendo Entertainment System", 40, 16)
+	if !ok || clipped.w > 40 || clipped.maskAt.X+clipped.maskSrc.Dx() > 40 {
+		t.Fatalf("clipped label %+v", clipped)
 	}
 }
 
-func TestRasterizeLabelCJKFallback(t *testing.T) {
+func TestLayoutLabelCJKFallback(t *testing.T) {
 	t.Parallel()
 	primary := goRegularFace(t, 16)
 	if _, ok := primary.GlyphAdvance('日'); ok {
@@ -65,16 +94,16 @@ func TestRasterizeLabelCJKFallback(t *testing.T) {
 	}
 	titles := []string{"日本語", "中文", "한글", "ファイナルファンタジー VII"}
 	for _, title := range titles {
-		got := rasterizeLabel(title, 800, 16)
+		got, _ := testLabel(nil, title, 800, 16)
 		if !labelHasInk(got) {
 			t.Fatalf("%q produced no glyphs", title)
 		}
-		tofu := rasterizeLabelWithFace(primary, title, 800, 16)
-		if tofu != nil && got.Bounds().Eq(tofu.Bounds()) && bytes.Equal(got.Pix, tofu.Pix) {
+		tofu, ok := testLabel(primary, title, 800, 16)
+		if ok && got.w == tofu.w && got.h == tofu.h && bytes.Equal(labelPixels(got), labelPixels(tofu)) {
 			if !labelHasRealGlyph('日') {
 				t.Skip("no system fallback font with CJK glyphs")
 			}
-			t.Fatalf("%q rasterized as Go Regular .notdef boxes", title)
+			t.Fatalf("%q laid out as Go Regular .notdef boxes", title)
 		}
 	}
 }
@@ -98,21 +127,5 @@ func TestLabelCacheKeyIncludesRenderedText(t *testing.T) {
 	sum1 := labelCacheKey("d-sum-0", "Gotta go fast.", 800, 16)
 	if sum0 == sum1 {
 		t.Fatal("summary line key reused across different text")
-	}
-}
-
-func TestUnpremultiplyRGBAStraightensEdges(t *testing.T) {
-	t.Parallel()
-	img := image.NewRGBA(image.Rect(0, 0, 1, 1))
-	img.Pix[0], img.Pix[1], img.Pix[2], img.Pix[3] = 118, 120, 124, 128
-	unpremultiplyRGBA(img)
-	if img.Pix[0] < 220 || img.Pix[1] < 220 || img.Pix[2] < 230 || img.Pix[3] != 128 {
-		t.Fatalf("straight alpha = %v", img.Pix)
-	}
-	opaque := image.NewRGBA(image.Rect(0, 0, 1, 1))
-	opaque.Pix[0], opaque.Pix[1], opaque.Pix[2], opaque.Pix[3] = 236, 240, 248, 255
-	unpremultiplyRGBA(opaque)
-	if opaque.Pix[0] != 236 || opaque.Pix[3] != 255 {
-		t.Fatalf("opaque changed = %v", opaque.Pix)
 	}
 }

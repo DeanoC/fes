@@ -45,11 +45,12 @@ MEDIA_RECIPE_FILES = tuple(ROOT / name for name in (
     "scripts/appliance_media.py", "scripts/appliance_media_inside.py",
     "containers/boot-media/Dockerfile", "containers/boot-media/create-builder-user.sh",
     "containers/boot-media/packages.sha256"))
-# The standalone bundle producer consumes an existing verified OS image; the
-# cold image build never consumes its implementation.
+# Media-owned scripts stay out of the generic build fingerprint. Cold-image
+# consumers are bound separately by image_recipe_files below.
 BUILD_RECIPE_FILES = tuple(path for path in sorted((ROOT / "scripts").glob("*.py"))
                            if path not in MEDIA_RECIPE_FILES and not is_diagnostic_recipe_file(path)
                            and path != ROOT / "scripts/kit_software.py") + (REGISTRY_PATH,)
+IMAGE_RECIPE_SOURCE_FILES = ("scripts/platform.py",)
 IMAGE_RECIPE_NAMES = (
     "Makefile",
     "build/target-image.sources.lock.toml",
@@ -57,7 +58,7 @@ IMAGE_RECIPE_NAMES = (
     "build/target-image-container-packages.sha256",
     "build/target-image-kernel-defconfig.sha256",
 )
-IMAGE_RECIPE_DIRS = ("buildroot", "containers/target-image", "scripts", "licenses")
+IMAGE_RECIPE_DIRS = ("buildroot", "containers/target-image", "scripts", "licenses", "firmware/rtl_bt")
 HOST_RECIPE_FILES = tuple(ROOT / name for name in (
     "scripts/build.py", "scripts/environment.py"))
 
@@ -65,12 +66,25 @@ HOST_RECIPE_FILES = tuple(ROOT / name for name in (
 def image_recipe_files(root=ROOT):
     image = root / "image"
     paths = [image / name for name in IMAGE_RECIPE_NAMES if (image / name).is_file()]
+    paths.extend(root / name for name in IMAGE_RECIPE_SOURCE_FILES if (root / name).is_file())
     for directory in IMAGE_RECIPE_DIRS:
         base = image / directory
         if not base.is_dir():
             continue
         paths.extend(path for path in sorted(base.rglob("*")) if path.is_file()
                      and "tests" not in path.parts)
+    # scripts/platform.py builds target binaries from this Go module, including
+    # the Bluetooth agent; bind its implementation, compiled sources and module
+    # lock files to the image receipt alongside the Buildroot recipe.
+    platform = root / "platform"
+    if platform.is_dir():
+        paths.extend(
+            path for path in sorted(platform.rglob("*"))
+            if path.is_file() and (
+                path.name in {"go.mod", "go.sum"}
+                or (path.suffix == ".go" and not path.name.endswith("_test.go"))
+            )
+        )
     return tuple(path for path in paths if not is_diagnostic_recipe_file(path, root))
 
 def run(args, **kwargs):
@@ -83,6 +97,24 @@ def run_stage(diagnostics, name, args, **kwargs):
         return run(args, **kwargs)
     with diagnostics.measure(name):
         return run(args, **kwargs)
+
+
+def target_image_source_cache_lock_path(image):
+    """Return the host path shared with the target image container recipe."""
+    return Path(image) / "build/cache/.kit-sdk-sources.lock"
+
+
+@contextmanager
+def target_image_source_cache_lock(image):
+    """Serialize host source fetches with image and kit SDK cache operations."""
+    lock_path = target_image_source_cache_lock_path(image)
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock, fcntl.LOCK_UN)
 
 
 def digest(path):
@@ -1877,14 +1909,17 @@ def main():
                     if staged != artifacts:
                         raise ValueError('bootstrap artifacts changed before staging')
                     env['FES_PREBUILT_RUNTIME_SHA256'] = artifacts['binaries']['mister-runtime']
+                    # The pairing agent is base-image software, not a staged bundle binary.
+                    platform.build_bluetooth(ROOT, fogcast, env)
                 else:
                     run_stage(diagnostics, "image subprocess", fogcast_make + ["build-agent", "build-fogcast-kit"], env=env)
                     platform.build_kit_software(ROOT, fogcast, env)
                 run_stage(diagnostics, "image subprocess", image_make + ["build-target-image-lock-container"], env=env)
                 fetch_env = dict(env)
                 fetch_env.update(dict(argument.split("=", 1) for argument in package_args))
-                run_stage(diagnostics, "image subprocess", [IMAGE / "scripts/target-image-container.sh", "fetch",
-                     "/work/scripts/fetch-target-image-sources.sh"], env=fetch_env)
+                with target_image_source_cache_lock(IMAGE):
+                    run_stage(diagnostics, "image subprocess", [IMAGE / "scripts/target-image-container.sh", "fetch",
+                         "/work/scripts/fetch-target-image-sources.sh"], env=fetch_env)
                 run_stage(diagnostics, "image subprocess", image_make + ["target-image-native",
                     "LIBMISTER_RUNTIME_DIR=" + (str(runtime) if runtime else ""), *package_args], env=env)
                 # Verification reads the runtime commit from the image/lock; no source mount required.

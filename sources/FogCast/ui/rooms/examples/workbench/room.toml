@@ -1,4 +1,4 @@
-id = "workbench"
+id = "example.workbench"
 title = "Workbench"
 author = "FogCast"
 description = "An AmigaOS-style desktop of strategy games in a drawer window."

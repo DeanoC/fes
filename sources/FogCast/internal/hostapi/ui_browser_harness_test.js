@@ -9,7 +9,8 @@ test('video fixture routes require explicit closed-profile declarations', () => 
   const reply = fixture('catalog-empty.json', 200, {override:[]});
   for (const route of ['GET /api/v1/library/video-parts',
     'POST /api/v1/library/video-parts/direct', 'POST /api/v1/library/video-parts/scanlines',
-    'GET /api/v1/library/core-entries/browser-title/video']) {
+    'GET /api/v1/library/core-entries/browser-title/video',
+    'POST /api/v1/library/atari-st-disks']) {
     assert.equal(normalizePlan({coreRoutes:{[route]:reply}}).coreRoutes.has(route), true);
   }
   for (const route of ['GET /api/v1/library/video-parts/*',

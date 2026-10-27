@@ -1,0 +1,145 @@
+{
+  "direct.tzx": {
+    "image": "3cd3949a6b6dbde10b7c5c077668445b04df8618f371d694b63679dce240e39d",
+    "runs": {
+      "128": {
+        "lines": 20,
+        "sha256": "632e0037eea54e2875671e29f8df9644f983f1df343f6bd2b962f499d6a51806"
+      },
+      "48": {
+        "lines": 20,
+        "sha256": "632e0037eea54e2875671e29f8df9644f983f1df343f6bd2b962f499d6a51806"
+      }
+    }
+  },
+  "flow.tzx": {
+    "image": "82d28a47aa7763f83d28eccbdd9137441ce7387a9a32e44486da5cadfd0db829",
+    "runs": {
+      "128": {
+        "lines": 39,
+        "sha256": "f499f54cfc19c9ef903f2b31f8f6d2c9f162c8463aa32ca54e11d909e3b31c04"
+      },
+      "48": {
+        "lines": 40,
+        "sha256": "10bcb42e51c4d4668682ecc040f25ebb937704656fe865e5c159c0882e2f6a1d"
+      }
+    }
+  },
+  "generalised.tzx": {
+    "image": "1f81267c1f0e57e9de279d9ec7b0ad5e17e42f12d9a4ae07b1882eee9f541273",
+    "runs": {
+      "128": {
+        "lines": 112,
+        "sha256": "8ce1ede7fbe661b43340c7424c44fa5258f3eec67bdfc1c5d327e0f7cb4b1cc1"
+      },
+      "48": {
+        "lines": 112,
+        "sha256": "8ce1ede7fbe661b43340c7424c44fa5258f3eec67bdfc1c5d327e0f7cb4b1cc1"
+      }
+    }
+  },
+  "mixed.pzx": {
+    "image": "7401965255b4c681e32bac9764abd08e10c7f8df2fed95d94f107a8c1619d54a",
+    "runs": {
+      "128": {
+        "lines": 40,
+        "sha256": "1108fde766deb8824f26762ca4d84866d007f27e81a06966255396279a671aac"
+      },
+      "48": {
+        "lines": 42,
+        "sha256": "bb5e7bd57185577ba0fe6cfc3a056566295179fc9cf4cd0987be187b0b4b56c6"
+      }
+    }
+  },
+  "pure.tzx": {
+    "image": "8fb8d5bf027652614c9e4de7b8b86293bfbf905880c03b90a31f84399d44ee37",
+    "runs": {
+      "128": {
+        "lines": 280,
+        "sha256": "d4197ea51d4f51a8402057fe44c8534b45c6c3992e0670c815dbf7a3395391c2"
+      },
+      "48": {
+        "lines": 280,
+        "sha256": "d4197ea51d4f51a8402057fe44c8534b45c6c3992e0670c815dbf7a3395391c2"
+      }
+    }
+  },
+  "rom.tap": {
+    "image": "5812b07f55c50c41fd17f13820aa0c14c1d5b733f97a2a7f30b4867453f48814",
+    "runs": {
+      "128": {
+        "lines": 15974,
+        "sha256": "38e0dbd38a4d7affc0d38dd13f8368c201c1bf7ec5d4c2bf9fde63f927c6a452"
+      },
+      "48": {
+        "lines": 15974,
+        "sha256": "38e0dbd38a4d7affc0d38dd13f8368c201c1bf7ec5d4c2bf9fde63f927c6a452"
+      }
+    }
+  },
+  "standard.tzx": {
+    "image": "53febe94aa889a54ad26c52b46de4a93959a40dd9ffe53cdfd1ffbbf73a57599",
+    "runs": {
+      "128": {
+        "lines": 15621,
+        "sha256": "c23f811fada3b74b99ed376efcbae5136a9cd4846c2f664dc4b274d7d6950f43"
+      },
+      "48": {
+        "lines": 15621,
+        "sha256": "c23f811fada3b74b99ed376efcbae5136a9cd4846c2f664dc4b274d7d6950f43"
+      }
+    }
+  },
+  "tones.tzx": {
+    "image": "b4377a49755d9227b60a87343accc1f53f27919c147ac302ec9b5943028d759b",
+    "runs": {
+      "128": {
+        "lines": 56,
+        "sha256": "5e02a468ab6e7ede4538a32154f133a9c5c6ef17013d1af702c77d0f8cabf5ab"
+      },
+      "48": {
+        "lines": 56,
+        "sha256": "5e02a468ab6e7ede4538a32154f133a9c5c6ef17013d1af702c77d0f8cabf5ab"
+      }
+    }
+  },
+  "turbo.tzx": {
+    "image": "6dd16aba85bb37b1ad21f3a23c5f7ed01d67e10bf36c4da78b4c45aae8560f77",
+    "runs": {
+      "128": {
+        "lines": 667,
+        "sha256": "0438179559702702083d04a86d3c92aab197edb0475fab233111a5f6e1208fe6"
+      },
+      "48": {
+        "lines": 667,
+        "sha256": "0438179559702702083d04a86d3c92aab197edb0475fab233111a5f6e1208fe6"
+      }
+    }
+  },
+  "v1.csw": {
+    "image": "aa22a0057c06f9ab677ab6a0337ae82e98af3422a55925ada5b589c1482099fd",
+    "runs": {
+      "128": {
+        "lines": 204,
+        "sha256": "51569a43e5bf6ed0feae57fd21adfd88b88a436cea6c63f4966a5a01b15b498a"
+      },
+      "48": {
+        "lines": 204,
+        "sha256": "51569a43e5bf6ed0feae57fd21adfd88b88a436cea6c63f4966a5a01b15b498a"
+      }
+    }
+  },
+  "v2.csw": {
+    "image": "0d732f2037bf563518a623b4b6368ae7c93352c0a36f2b649d954c17abb9cb2e",
+    "runs": {
+      "128": {
+        "lines": 204,
+        "sha256": "0d2510c4240422430fb9d0430962c752f98a9658bc30426eca5c27ace3be904b"
+      },
+      "48": {
+        "lines": 204,
+        "sha256": "0d2510c4240422430fb9d0430962c752f98a9658bc30426eca5c27ace3be904b"
+      }
+    }
+  }
+}

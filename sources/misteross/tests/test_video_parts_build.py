@@ -78,7 +78,9 @@ def routed_shell_fixture():
     return {"modules": {"top": top}}
 
 
-def add_boundary_route_throughs(top):
+def add_boundary_route_throughs(
+    top, *, nextpnr_commit=coleco_expansion.NEXTPNR_ROUTETHRU_REMAP
+):
     """Add the compiler's paired buffers, including private routed aliases."""
     ground = 19000
     top["cells"]["$PACKER_GND"] = {
@@ -103,7 +105,8 @@ def add_boundary_route_throughs(top):
             "attributes": {
                 "NEXTPNR_BEL": f"{comb}.{column}.{row}.{6 * alm + half}",
                 "FES_PINMAP_V1": json.dumps({"count": 2, "pins": {
-                    "A": [0, "D" if half else "C"], "Q": [0, "COMBOUT"]}}).encode().hex()},
+                    "A": [0, coleco_expansion.ROUTETHROUGH_INPUT_PINS[nextpnr_commit][half]],
+                    "Q": [0, "COMBOUT"]}}).encode().hex()},
             "port_directions": {"A": "input", "Q": "output"},
             "connections": {"A": source, "Q": [stub]},
         }
@@ -293,8 +296,7 @@ class VideoPartsProducerTest(unittest.TestCase):
                                  "a" * 32, tools, video_socket=True)
         record = b'{"format":2,"parameters":{},"recipe_sha256":"' + b'a' * 64 + b'"}'
         evidence = {"rbf": {"size": 100, "sha256": "b" * 64}, "build_id": "c" * 32,
-                    "rom": {"id": "cartridge-rom", "role": "cartridge", "source_size": 16384,
-                            "file": "rom-map.json", "size": 32, "sha256": "e" * 64}}
+                    "rom_map": {"file": "rom-map.json", "size": 32, "sha256": "e" * 64}}
         identities = {"yosys": "fixture", "nextpnr-mistral": "fixture", "mistral": "fixture"}
         arguments = (record, evidence, "https://example.invalid/fes.git", "d" * 40, identities)
         baseline = shell.manifest(*arguments)
@@ -307,9 +309,9 @@ class VideoPartsProducerTest(unittest.TestCase):
         self.assertIn(marker, video_fields["interfaces"])
         self.assertIn(cpu, base_fields["interfaces"])
         self.assertIn(cpu, video_fields["interfaces"])
-        self.assertEqual(base_fields["format"], 3)
-        self.assertEqual(video_fields["format"], 3)
-        self.assertEqual(base_fields["rom"]["source_size"], 16384)
+        self.assertEqual(base_fields["format"], 4)
+        self.assertEqual(video_fields["format"], 4)
+        self.assertEqual([rom["source_size"] for rom in base_fields["roms"]], [8192, 16384])
 
     def test_compiler_output_requires_nonempty_bounded_regular_bytes(self):
         with tempfile.TemporaryDirectory() as temporary:

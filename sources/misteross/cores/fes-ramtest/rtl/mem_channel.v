@@ -2,6 +2,14 @@
 // Write a span, then read it back, for six patterns. A missing acknowledge
 // stops the channel. A data mismatch is counted and the scan continues.
 // stop freezes the counters where they are.
+//
+// After a pass each lat_start reads one 32-byte line, sixteen halfwords at
+// a pseudo-random line of the span, back to back: start drops for the one
+// cycle the controller needs to rearm. lat_sample carries the cycles from
+// the edge the controller first samples the first request to the edges the
+// first and the sixteenth done are seen. Each word is checked against the
+// INVR pattern still in memory; a mismatch or a missing done is an error
+// and fails the channel.
 module mem_channel #(
     parameter integer ADDR_W = 32,
     parameter [31:0] WORDS = 32'd128,
@@ -30,7 +38,12 @@ module mem_channel #(
     // One count per pattern, in pattern order: 0000 FFFF 5555 AAAA ADDR INVR.
     output reg [191:0] pattern_errors,
     output reg [15:0] shown_expect,
-    output reg [15:0] shown_got
+    output reg [15:0] shown_got,
+    input wire lat_start,
+    output wire lat_ready,
+    output reg lat_sample,
+    output reg [13:0] lat_first,
+    output reg [13:0] lat_last
 );
     localparam [2:0] ST_RESET = 3'd0;
     localparam [2:0] ST_SETUP = 3'd1;
@@ -38,8 +51,24 @@ module mem_channel #(
     localparam [2:0] ST_GAP = 3'd3;
     localparam [2:0] ST_DONE = 3'd4;
     localparam [2:0] ST_STOP = 3'd5;
+    localparam [2:0] ST_LAT_NEXT = 3'd6;
+    localparam [2:0] ST_LAT_WAIT = 3'd7;
     localparam [2:0] PHASES = 3'd6;
     localparam [15:0] TIMEOUT = 16'd20000;
+
+    function integer log2;
+        input [31:0] v;
+        integer i;
+        begin
+            log2 = 0;
+            for (i = 0; i < 32; i = i + 1)
+                if ((v >> i) != 32'd0)
+                    log2 = i;
+        end
+    endfunction
+    // Lines of sixteen words in the largest power of two inside the span.
+    // Latency reads need a span of at least two lines.
+    localparam integer LINE_BITS = log2(WORDS) > 4 ? log2(WORDS) - 4 : 1;
 
     reg [2:0] state = ST_RESET;
     reg [31:0] index = 32'd0;
@@ -50,6 +79,12 @@ module mem_channel #(
     reg faulted = 1'b0;
     reg pattern_bump = 1'b0;
     reg [2:0] pattern_bump_phase = 3'd0;
+    reg [31:0] lat_lfsr = 32'h1;
+    reg [3:0] lat_left = 4'd0;
+    reg [13:0] lat_count = 14'd0;
+    reg lat_check = 1'b0;
+    reg [31:0] lat_addr = 32'd0;
+    assign lat_ready = state == ST_DONE && pass && !stopped && !stop;
 
     function [15:0] expect_of;
         input [2:0] which;
@@ -72,6 +107,14 @@ module mem_channel #(
     wire [15:0] expected = expect_of(phase, location);
 
     always @(posedge clk) begin
+        // Free running: x^32 + x^22 + x^2 + x + 1.
+        lat_lfsr <= {1'b0, lat_lfsr[31:1]} ^ (lat_lfsr[0] ? 32'h80200003 : 32'd0);
+        lat_sample <= 1'b0;
+        lat_check <= 1'b0;
+        if (state == ST_LAT_NEXT && lat_left == 4'd15)
+            lat_count <= 14'd0;
+        else if (lat_count != 14'h3FFF)
+            lat_count <= lat_count + 14'd1;
         if (reset) begin
             start <= 1'b0;
             write <= 1'b0;
@@ -99,7 +142,7 @@ module mem_channel #(
             mismatch <= 1'b0;
             pattern_bump <= 1'b0;
         end else begin
-            timed_out <= state == ST_WAIT && !done && timer == TIMEOUT - 16'd1;
+            timed_out <= (state == ST_WAIT || state == ST_LAT_WAIT) && !done && timer == TIMEOUT - 16'd1;
             // Count a mismatch on the following edge. The large counter bank
             // sees registered phase and enable instead of the scan state and
             // data comparison on the same timing path. pass, fail and the
@@ -121,6 +164,19 @@ module mem_channel #(
                     default: if (pattern_errors[191:160] != 32'hFFFFFFFF)
                         pattern_errors[191:160] <= pattern_errors[191:160] + 32'd1;
                 endcase
+            end
+            // A latency read's word, compared on the done edge.
+            if (lat_check && mismatch) begin
+                if (!faulted) begin
+                    fault_addr <= lat_addr;
+                    fault_got <= captured;
+                end
+                last_addr <= lat_addr;
+                faulted <= 1'b1;
+                if (errors != 32'hFFFFFFFF)
+                    errors <= errors + 32'd1;
+                pass <= 1'b0;
+                fail <= 1'b1;
             end
             case (state)
                 ST_RESET: begin
@@ -227,10 +283,58 @@ module mem_channel #(
                     busy <= 1'b0;
                     stopped <= 1'b1;
                 end
+                ST_LAT_NEXT: begin
+                    start <= 1'b1;
+                    write <= 1'b0;
+                    addr <= location[ADDR_W-1:0];
+                    lat_addr <= location;
+                    shown_expect <= expected;
+                    timer <= 16'd0;
+                    state <= ST_LAT_WAIT;
+                end
+                ST_LAT_WAIT: begin
+                    if (done) begin
+                        start <= 1'b0;
+                        captured <= rdata;
+                        mismatch <= rdata != shown_expect;
+                        lat_check <= 1'b1;
+                        if (lat_left == 4'd15)
+                            lat_first <= lat_count;
+                        if (lat_left == 4'd0) begin
+                            lat_last <= lat_count;
+                            lat_sample <= 1'b1;
+                            state <= ST_DONE;
+                        end else begin
+                            lat_left <= lat_left - 4'd1;
+                            index <= index + 32'd1;
+                            state <= ST_LAT_NEXT;
+                        end
+                    end else if (timed_out) begin
+                        start <= 1'b0;
+                        pass <= 1'b0;
+                        fail <= 1'b1;
+                        if (!faulted) begin
+                            fault_addr <= lat_addr;
+                            fault_got <= captured;
+                        end
+                        last_addr <= lat_addr;
+                        faulted <= 1'b1;
+                        if (errors != 32'hFFFFFFFF)
+                            errors <= errors + 32'd1;
+                        state <= ST_DONE;
+                    end else begin
+                        timer <= timer + 16'd1;
+                    end
+                end
                 default: begin
                     start <= 1'b0;
-                    if (stop)
+                    if (stop) begin
                         stopped <= 1'b1;
+                    end else if (lat_start && pass) begin
+                        index <= {{(28 - LINE_BITS){1'b0}}, lat_lfsr[LINE_BITS-1:0], 4'd0};
+                        lat_left <= 4'd15;
+                        state <= ST_LAT_NEXT;
+                    end
                 end
             endcase
         end

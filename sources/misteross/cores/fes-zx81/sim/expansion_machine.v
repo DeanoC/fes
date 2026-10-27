@@ -38,6 +38,8 @@ module expansion_machine #(
         .clk_sys(clk_sys), .reset(reset), .keyboard(keyboard),
         .tape_ready(tape_ready), .tape_size(tape_size), .tape_data(tape_data),
         .tape_addr_out(tape_addr_out), .tape_busy(tape_busy),
+        .save_ready(), .save_busy(), .save_changed(), .save_size(),
+        .save_addr(14'd0), .save_q(),
         .ce_6m5(ce_6m5), .video_pixel(video_pixel),
         .hblank(hblank), .vblank(vblank), .hsync_out(hsync_out), .vsync_out(vsync_out),
         .halt_n(halt_n), .cpu_addr(cpu_addr), .peek_addr(peek_addr), .peek_data(peek_data),

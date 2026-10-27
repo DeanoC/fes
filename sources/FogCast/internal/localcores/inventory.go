@@ -394,6 +394,12 @@ func descriptorNeeds(d corepackage.Descriptor) (needs, block string, launchable 
 			return "parts", "Needs a video part", false
 		}
 	}
+	// The format-2 ZX81 package leaves its machine-ROM lanes empty. The host
+	// library path splices the machine ROM after package identity is fixed, but
+	// the local path only loads the installed archive.
+	if d.Format == 2 && d.Core.ID == "fes.zx81" {
+		return "firmware", "Needs machine ROM", false
+	}
 	if d.Format == 4 || len(d.ROMs) != 0 || (d.ROM != nil && d.ROM.Role == "firmware") {
 		return "firmware", "Needs firmware", false
 	}
@@ -433,6 +439,7 @@ func computerEmptyStartup(d corepackage.Descriptor, iface corepackage.Interface)
 	for _, contract := range []protocol.RuntimeContract{
 		protocol.Apple2FloppyInterface(),
 		protocol.SpectrumTapeInterface(),
+		protocol.Zx81TapeInterface(),
 		protocol.C64DiskInterface(),
 		protocol.AtariStFloppyInterface(),
 		protocol.AtariStFloppyWriteInterface(),

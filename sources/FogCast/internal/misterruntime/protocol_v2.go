@@ -41,6 +41,9 @@ type Protocol2MenuDisplay struct {
 	Available      bool   `json:"available"`
 	Session        bool   `json:"session,omitempty"`
 	CoreGeneration uint64 `json:"core_generation,omitempty"`
+	// Focus is who receives input on a session plane. A shown plane with
+	// machine focus composites while the machine keeps its input.
+	Focus protocol.SessionFocus `json:"focus,omitempty"`
 	// Picture is a session plane's machine picture as [x, y, width, height]
 	// inside the launcher frame, for drawing a surround around it.
 	Picture    *[4]uint16 `json:"picture,omitempty"`
@@ -251,12 +254,11 @@ func (client *Client) LoadROMLinkedCoreWithInitialMedia(ctx context.Context, pat
 	return response, nil
 }
 
-// LoadROMLinksLinkedCore uses the same physical operation with a distinct
-// two-source identity. An older daemon rejects the unknown field before load.
-func (client *Client) LoadROMLinksLinkedCore(ctx context.Context, path, packageID, root, expansionPath, payloadPath string, composition *expansion.Composition, programmedPath string, identity corepackage.ROMLinksIdentity) (Protocol2Response, error) {
-	if !validRuntimePath(path) || !validRuntimePath(programmedPath) || !protocol2Hex64.MatchString(packageID) ||
-		len(identity.Sources) != 2 || !protocol2Hex64.MatchString(identity.MapSHA256) || !protocol2Hex64.MatchString(identity.ProgrammedSHA256) || identity.ProgrammedSize < 1 || identity.ProgrammedSize > corepackage.MaxPayloadSize {
-		return Protocol2Response{}, errInvalidRuntimeRequest
+// validROMLinksRequest checks the syntax of a two-source receipt; the daemon
+// binds it to the sealed package.
+func validROMLinksRequest(identity corepackage.ROMLinksIdentity) bool {
+	if len(identity.Sources) != 2 || !protocol2Hex64.MatchString(identity.MapSHA256) || !protocol2Hex64.MatchString(identity.ProgrammedSHA256) || identity.ProgrammedSize < 1 || identity.ProgrammedSize > corepackage.MaxPayloadSize {
+		return false
 	}
 	for index, source := range identity.Sources {
 		role := "firmware"
@@ -264,10 +266,16 @@ func (client *Client) LoadROMLinksLinkedCore(ctx context.Context, path, packageI
 			role = "cartridge"
 		}
 		if !protocol2Identifier.MatchString(source.ID) || source.Role != role || !protocol2Hex64.MatchString(source.SourceSHA256) || source.SourceSize < 1024 || source.SourceSize > 262144 || source.SourceSize%1024 != 0 {
-			return Protocol2Response{}, errInvalidRuntimeRequest
+			return false
 		}
 	}
-	if identity.Sources[0].ID == identity.Sources[1].ID || identity.Sources[0].SourceSize+identity.Sources[1].SourceSize > 262144 {
+	return identity.Sources[0].ID != identity.Sources[1].ID && identity.Sources[0].SourceSize+identity.Sources[1].SourceSize <= 262144
+}
+
+// LoadROMLinksLinkedCore uses the same physical operation with a distinct
+// two-source identity. An older daemon rejects the unknown field before load.
+func (client *Client) LoadROMLinksLinkedCore(ctx context.Context, path, packageID, root, expansionPath, payloadPath string, composition *expansion.Composition, programmedPath string, identity corepackage.ROMLinksIdentity) (Protocol2Response, error) {
+	if !validRuntimePath(path) || !validRuntimePath(programmedPath) || !protocol2Hex64.MatchString(packageID) || !validROMLinksRequest(identity) {
 		return Protocol2Response{}, errInvalidRuntimeRequest
 	}
 	if root != "" && !validRuntimePath(root) {
@@ -629,7 +637,7 @@ func validateProtocol2Shape(line []byte) error {
 }
 
 func validateMenuDisplayShape(raw json.RawMessage) error {
-	menu, err := exactRawObject(raw, []string{"available", "package_id", "generation", "width", "height", "stride", "byte_count", "slot_bytes", "slots", "format", "displayed_sequence", "underflows", "error"}, []string{"session", "core_generation", "picture"})
+	menu, err := exactRawObject(raw, []string{"available", "package_id", "generation", "width", "height", "stride", "byte_count", "slot_bytes", "slots", "format", "displayed_sequence", "underflows", "error"}, []string{"session", "core_generation", "focus", "picture"})
 	if err != nil {
 		return err
 	}
@@ -643,17 +651,21 @@ func validateMenuDisplayShape(raw json.RawMessage) error {
 		return err
 	}
 	if session, present := menu["session"]; present {
-		if !bytes.Equal(bytes.TrimSpace(session), []byte("true")) || requireRawKinds(menu, map[string]rawKind{"core_generation": rawUnsigned}) != nil {
+		if !bytes.Equal(bytes.TrimSpace(session), []byte("true")) || requireRawKinds(menu, map[string]rawKind{"core_generation": rawUnsigned, "focus": rawString}) != nil {
 			return errInvalidRuntimeResponse
 		}
 		var generation uint64
-		if json.Unmarshal(menu["core_generation"], &generation) != nil || generation == 0 || isNull(menu["package_id"]) {
+		var focus protocol.SessionFocus
+		if json.Unmarshal(menu["core_generation"], &generation) != nil || generation == 0 || isNull(menu["package_id"]) ||
+			json.Unmarshal(menu["focus"], &focus) != nil || focus != protocol.SessionFocusMachine && focus != protocol.SessionFocusLauncher {
 			return errInvalidRuntimeResponse
 		}
-	} else if _, present := menu["core_generation"]; present {
-		return errInvalidRuntimeResponse
-	} else if _, present := menu["picture"]; present {
-		return errInvalidRuntimeResponse
+	} else {
+		for _, field := range []string{"core_generation", "focus", "picture"} {
+			if _, present := menu[field]; present {
+				return errInvalidRuntimeResponse
+			}
+		}
 	}
 	if raw, present := menu["picture"]; present {
 		// A slice, not [4]uint16: decoding into an array silently drops

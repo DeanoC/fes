@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/DeanoC/FogCast/ui/inputmap"
 	"github.com/DeanoC/FogCast/ui/rooms"
 	"golang.org/x/sys/unix"
 )
@@ -116,8 +117,14 @@ type tenfootPrefs struct {
 	PinnedRooms []string `json:"pinned_rooms,omitempty"`
 	// ReducedMotion skips decorative room animation.
 	ReducedMotion bool `json:"reduced_motion,omitempty"`
+	// Surround draws the TV surround around a running machine on kit HDMI.
+	// Unset is on.
+	Surround *bool `json:"surround,omitempty"`
 	// RoomsDir overrides the room pack directory.
 	RoomsDir string `json:"rooms_dir,omitempty"`
+	// Controllers holds kit pads' saved profiles, keyed by the GUID tenfoot
+	// logs when a pad attaches.
+	Controllers map[string]inputmap.Profile `json:"controllers,omitempty"`
 }
 
 func homePrefValue(rooms bool) string {

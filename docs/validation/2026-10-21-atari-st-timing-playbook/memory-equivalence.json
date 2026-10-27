@@ -1,0 +1,69 @@
+{
+  "gold_revision": "3dd3f857d3ce05d662deaa110bfac5fbc89b157f",
+  "gate_revision": "2b79837a23a765c57817ab094338cb6809a55c61",
+  "hardware_execution": false,
+  "yosys_binary_sha256": "39dd0b44cc74b7148048faee7cfd470572223b16fea8ba436889d38393b17382",
+  "source_path": "sources/misteross/cores/fes-atari-st/rtl/st_memory.sv",
+  "gold_sha256": "e080f1dee64f633df7692c0297e7f8ca90a37b06ddd511ac822215e206286ed0",
+  "gate_sha256": "c0f9a0d6a8346710c4221ad9aa9a4c31f58ac4a321a0e05d42fec0b22ad0c61f",
+  "controller_path": "sources/misteross/cores/fes-ramtest/rtl/sdram_addon_port.v",
+  "controller_sha256": "f8ede141bc455ec2cc6020c2157088da59a1f91f66f678a4c069d1b582b5cd9d",
+  "combined_formal_input_sha256": "a2dc08a7466be886599ef0a3322f79809eb107caf80f9c657ac72f8ad0634034",
+  "configurations": [
+    {
+      "name": "production",
+      "parameters": {
+        "PHASE_SLOTS": 1,
+        "POSTED_CPU_WRITES": 1,
+        "SINGLE_RANK_REFRESH": 1,
+        "SLOT_REFRESH": 1
+      },
+      "proven_points": 592,
+      "unproven_points": 0,
+      "base_case_cycles": 8,
+      "base_case": "SUCCESS"
+    },
+    {
+      "name": "default",
+      "parameters": {
+        "EARLY_COMPLETION": 1
+      },
+      "proven_points": 583,
+      "unproven_points": 0,
+      "base_case_cycles": 8,
+      "base_case": "SUCCESS"
+    },
+    {
+      "name": "late-completion",
+      "parameters": {
+        "EARLY_COMPLETION": 0
+      },
+      "proven_points": 583,
+      "unproven_points": 0,
+      "base_case_cycles": 8,
+      "base_case": "SUCCESS"
+    },
+    {
+      "name": "legacy-refresh",
+      "parameters": {
+        "EARLY_COMPLETION": 0,
+        "REFRESH_WAIT_CYCLES": 16
+      },
+      "proven_points": 583,
+      "unproven_points": 0,
+      "base_case_cycles": 8,
+      "base_case": "SUCCESS"
+    },
+    {
+      "name": "registered-input",
+      "parameters": {
+        "REGISTERED_READ_INPUT": 1
+      },
+      "proven_points": 599,
+      "unproven_points": 0,
+      "base_case_cycles": 8,
+      "base_case": "SUCCESS"
+    }
+  ],
+  "scope": "st_memory with its shared SDRAM controller inlined, all state and outputs (including the SDRAM pins), same clock/reset/request sequences. Step: equiv_simple over three time steps from any equal matched state, empty blacklist. Base case: every shared internal signal and output for eight cycles from power-up, initial values zeroed, inputs free; the SDRAM clock DDR primitive is the same black box in both and is removed."
+}

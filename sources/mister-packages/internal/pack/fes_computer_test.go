@@ -39,8 +39,8 @@ func TestFesComputerContract(t *testing.T) {
 		"FesComputerMediaHeaderStride": 4, "FesComputerMediaChunkMaxBytes": 512,
 		"FesComputerMediaMaxBytes": 33554432, "FesComputerMediaCRC32Polynomial": 0xedb88320,
 		"FesComputerApple2FloppyUnit": 0, "FesComputerApple2FloppyBytes": 143360,
-		"FesComputerSpectrumTapeUnit": 0, "FesComputerSpectrumTapeMinBytes": 1,
-		"FesComputerSpectrumTapeMaxBytes": 65536,
+		"FesComputerSpectrumTapeUnit": 0, "FesComputerSpectrumTapeMinBytes": 10,
+		"FesComputerSpectrumTapeMaxBytes": 16777216,
 		"FesComputerC64DiskUnit":          0, "FesComputerC64DiskBytes": 174848,
 		"FesComputerAtariStFloppyUnit": 0, "FesComputerAtariStFloppyBytes": 737280,
 		"FesComputerAtariStFloppyGeometryMinBytes": 368640, "FesComputerAtariStFloppyGeometryMaxBytes": 839680,
@@ -54,25 +54,28 @@ func TestFesComputerContract(t *testing.T) {
 			t.Errorf("%s = %d (%v), want %d", name, got, ok, want)
 		}
 	}
+	// The Spectrum tape is 2.0 (a PZX stream); every other interface is 1.0.
 	want := []struct {
-		id  string
-		bit uint8
+		id    string
+		bit   uint8
+		major int64
 	}{
-		{"fes.video.fixed-720p60", 0}, {"fes.keyboard.hid", 1}, {"fes.gamepad.ports", 2},
-		{"fes.audio.pcm-s16-stereo-48k", 3}, {"fes.media.apple2-floppy", 4},
-		{"fes.media.spectrum-tape", 5}, {"fes.media.c64-disk", 6},
-		{"fes.media.atari-st-floppy", 7},
-		{"fes.mouse.relative", 8}, {"fes.media.atari-st-floppy-write", 9},
-		{"fes.media.atari-st-floppy-geometry", 10}, {"fes.media.zx81-tape", 11},
-		{"fes.memory.hps-ddr", 12}, {"fes.video.session-display", 13},
+		{"fes.video.fixed-720p60", 0, 1}, {"fes.keyboard.hid", 1, 1}, {"fes.gamepad.ports", 2, 1},
+		{"fes.audio.pcm-s16-stereo-48k", 3, 1}, {"fes.media.apple2-floppy", 4, 1},
+		{"fes.media.spectrum-tape", 5, 2}, {"fes.media.c64-disk", 6, 1},
+		{"fes.media.atari-st-floppy", 7, 1},
+		{"fes.mouse.relative", 8, 1}, {"fes.media.atari-st-floppy-write", 9, 1},
+		{"fes.media.atari-st-floppy-geometry", 10, 1}, {"fes.media.zx81-tape", 11, 1},
+		{"fes.memory.hps-ddr", 12, 1}, {"fes.video.session-display", 13, 1},
+		{"fes.media.zx81-tape-write", 14, 1}, {"fes.media.spectrum-disk", 15, 1},
 	}
 	if len(abi.Interfaces) != len(want) {
 		t.Fatalf("interfaces = %+v", abi.Interfaces)
 	}
 	for i, w := range want {
 		got := abi.Interfaces[i]
-		if got.ID != w.id || got.CapabilityBit != w.bit || got.Major != 1 || got.Minor != 0 {
-			t.Errorf("interface %d = %+v, want %s bit %d", i, got, w.id, w.bit)
+		if got.ID != w.id || got.CapabilityBit != w.bit || int64(got.Major) != w.major || got.Minor != 0 {
+			t.Errorf("interface %d = %+v, want %s %d.0 bit %d", i, got, w.id, w.major, w.bit)
 		}
 	}
 }

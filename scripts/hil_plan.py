@@ -48,11 +48,19 @@ RULES = [
     ('sources/FogCast/cmd/fogcast-tenfoot/**', 'overlay', 'fogcast-tenfoot'),
     ('sources/FogCast/cmd/fogcast-api/**', 'overlay', 'host:fogcast-api'),
     ('sources/FogCast/cmd/fogcast/**', 'overlay', 'host:fogcast'),
+    # The Spectrum simulations' restore-stream and disk-image writers; no
+    # image, bundle or package ships them, and the host converts snapshots and
+    # disks in fogcast-api.
+    ('sources/FogCast/cmd/fes-spectrum-restore/**', 'none', None),
+    ('sources/FogCast/cmd/fes-spectrum-disk/**', 'none', None),
     ('sources/FogCast/cmd/*/**', 'full', 'fogcast-unmapped-command'),
     # ui/** is compiled into fogcast-kit, fogcast-tenfoot and fogcast-api, so it
     # falls through to kit-go+host below.
     # Imported only by cmd/target-image-lock, which no overlay artifact runs.
     ('sources/FogCast/internal/targetimage/**', 'full', 'image-selector'),
+    # Imported only by cmd/fes-update, the host appliance update client, to read
+    # a release image's software base record. No overlay artifact runs it.
+    ('sources/FogCast/internal/ext4image/**', 'full', 'fogcast-unmapped-command'),
     # The immutable bundle producer and stable base supervisor share this code;
     # replacing the Go kit services cannot validate or replace those consumers.
     ('sources/FogCast/appliance/software/**', 'full', 'kit-software'),

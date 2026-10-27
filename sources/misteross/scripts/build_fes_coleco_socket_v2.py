@@ -62,12 +62,27 @@ PINNED_INPUTS = tuple(dict.fromkeys((
 )))
 VIDEO_INPUTS = (*PINNED_INPUTS, "scripts/video_parts.py", video_parts.RTL,
                 "cores/fes-common/generated/fes_video_part.vh")
+# The native shell's HDMI word passes through the shared session-display
+# plane, which reads launcher frames from HPS DDR.
+DISPLAY_PLANE_SOURCES = (
+    "cores/fes-common/rtl/fes_display_cdc.v", "cores/fes-common/rtl/fes_display_plane.v",
+    "cores/fes-menu/rtl/fes_menu_control.v", "cores/fes-menu/rtl/fes_menu_video.v",
+    "cores/fes-menu/rtl/fes_menu_reader.v", "cores/fes-common/rtl/fes_hps_ddr.v",
+    "cores/fes-common/rtl/fes_hps_ddr_guard.v",
+)
 NATIVE_VIDEO_SOURCES = (
     "cores/fes-common/rtl/coleco_native_video.v",
     "cores/fes-common/rtl/fes_native_cdc.v", native_video_parts.RTL,
+    *DISPLAY_PLANE_SOURCES,
 )
 NATIVE_VIDEO_INPUTS = (*PINNED_INPUTS, *NATIVE_VIDEO_SOURCES,
-    "scripts/native_video_parts.py", "cores/fes-common/generated/fes_native_video.vh")
+    "scripts/native_video_parts.py", "cores/fes-common/generated/fes_native_video.vh",
+    "cores/fes-common/generated/fes_display_plane.vh")
+# The kit links its stored BIOS and the selected cartridge at load time.
+ROMS = (
+    {"id": "coleco-bios", "role": "firmware", "source_size": 8192, "source_offset": 0},
+    {"id": "coleco-cart", "role": "cartridge", "source_size": 16384, "source_offset": 8192},
+)
 BUILD_OUTPUTS = (
     "synth.json", "routed.json", "core.rbf", "timing.json", "yosys.log",
     "nextpnr.log", "build-inputs.json", "build-summary.json", "manifest.toml",
@@ -209,7 +224,8 @@ def build_commands(root: Path, output: Path, build_id: str,
         "-DFES_COLECO_EXPANSION_V2_DEV=1 "
         f"{video_define}-I cores/fes-common/generated -I cores/fes-coleco/rtl {' '.join(sources)}; "
         f"chparam -set BUILD_ID 128'h{build_id} top; "
-        "synth_intel_alm -nolutram -nodsp -top top; stat; "
+        # The native shell's plane blends with exactly three DSP products.
+        f"synth_intel_alm -nolutram {'' if native_video else '-nodsp '}-top top; stat; "
         f"write_json {relative.as_posix()}/synth.json"
     )
     yosys = (str(tools["yosys"]), "-p", program)
@@ -230,16 +246,17 @@ def build_commands(root: Path, output: Path, build_id: str,
 
 def manifest(record: bytes, evidence: dict, repository: str, revision: str,
              identities: Mapping[str, str], *, video_socket: bool = False, native_video: bool = False) -> bytes:
-    rom = evidence.get("rom")
-    if not isinstance(rom, dict) or rom.get("id") != "cartridge-rom" or rom.get("role") != "cartridge" or rom.get("source_size") != 16384:
-        raise BuildError("Coleco format 3 requires one 16384-byte cartridge ROM map")
+    rom_map_entry = evidence.get("rom_map")
+    if not isinstance(rom_map_entry, dict) or set(rom_map_entry) != {"file", "size", "sha256"} or rom_map_entry["file"] != "rom-map.json":
+        raise BuildError("Coleco format 4 requires one BIOS and cartridge ROM map")
     fields = tomllib.loads(factory._manifest(
         record, evidence, repository, revision, identities).decode())
-    fields["format"] = 3
-    fields["rom"] = dict(rom)
+    fields["format"] = 4
+    fields["roms"] = [dict(row) for row in ROMS]
+    fields["rom_map"] = dict(rom_map_entry)
     fields["interfaces"] = [row for row in fields["interfaces"]
                             if not row["id"].startswith("fes.media.blob") and row["id"] != "fes.firmware.blob"]
-    fields["core"]["version"] = "1.2.0"
+    fields["core"]["version"] = "1.5.0"
     fields["core"]["description"] = "ColecoVision with optional SGM expansion socket"
     fields["interfaces"].append({
         "id": "fes.expansion.coleco-bus", "major": 2, "minor": 0,
@@ -251,7 +268,13 @@ def manifest(record: bytes, evidence: dict, repository: str, revision: str,
         fields["interfaces"].append({"id": profile.INTERFACE, "major": 1,
                                      "minor": 0, "required": False})
     if native_video:
+        fields["core"]["version"] = "1.5.0"
         fields["core"]["description"] = "ColecoVision native-pixel shell requiring a linked video part"
+        # The session plane after the part; software without it refuses the
+        # package before programming.
+        fields["interfaces"].extend({"id": interface, "major": 1, "minor": 0, "required": True}
+            for interface in ("fes.memory.hps-ddr", "fes.video.session-display",
+                              "fes.fabric.video.display-plane"))
     return encode_manifest(fields)
 
 
@@ -288,7 +311,9 @@ def build(root: Path = ROOT, package_store: Path | None = None, *,
                   audit_source_root=root, output_relative=relative)
         coleco_expansion.prepare_shell_netlist(output / "synth.json", version=2)
         if profile:
-            profile.validate_boundary(json.loads((output / "synth.json").read_bytes())["modules"]["top"], routed=False)
+            profile.validate_boundary(
+                json.loads((output / "synth.json").read_bytes())["modules"]["top"],
+                routed=False, nextpnr_commit=pnr_recipe.nextpnr_pin("fes.coleco"))
         try:
             winner = _route_placement(
                 root, output, tools["nextpnr-mistral"].path,
@@ -296,10 +321,15 @@ def build(root: Path = ROOT, package_store: Path | None = None, *,
             )
         except SearchError as exc:
             raise BuildError(str(exc)) from exc
-        coleco_expansion.validate_routed_shell(output / "routed.json", version=2)
+        coleco_expansion.validate_routed_shell(
+            output / "routed.json", version=2,
+            nextpnr_commit=pnr_recipe.nextpnr_pin("fes.coleco"))
         if profile:
-            profile.validate_boundary(json.loads((output / "routed.json").read_bytes())["modules"]["top"], routed=True)
-        evidence = factory.validate_build_evidence(output, root, gpu_backend=backend)
+            profile.validate_boundary(
+                json.loads((output / "routed.json").read_bytes())["modules"]["top"],
+                routed=True, nextpnr_commit=pnr_recipe.nextpnr_pin("fes.coleco"))
+        evidence = factory.validate_build_evidence(output, root, gpu_backend=backend,
+                                                   session_display=native_video)
         database_root = tools["mistral"].path.parents[2] / "src/mistral"
         database = rom_map.read_database(database_root, ROM_DATABASE_SHA256)
         mapping, map_evidence = rom_map.build_rom_map(
@@ -310,10 +340,9 @@ def build(root: Path = ROOT, package_store: Path | None = None, *,
         )
         map_bytes = (json.dumps(mapping, sort_keys=True, separators=(",", ":")) + "\n").encode()
         _write_atomic(output / "rom-map.json", map_bytes)
-        evidence["rom"] = {"id": "cartridge-rom", "role": "cartridge", "source_size": 16384,
-                           "file": "rom-map.json", "size": len(map_bytes),
-                           "sha256": _sha256(output / "rom-map.json")}
-        evidence["rom_map"] = map_evidence
+        evidence["rom_map"] = {"file": "rom-map.json", "size": len(map_bytes),
+                               "sha256": _sha256(output / "rom-map.json")}
+        evidence["rom_map_database"] = map_evidence
         evidence["route"].update(placer_seed=winner.seed,
                                  placer_heap_timingweight=winner.weight,
                                  placer_qor_mode=PLACER_QOR_MODE)

@@ -4,8 +4,14 @@
 
 set -euo pipefail
 
+check_only=false
+if [[ ${1:-} == --check-only ]]; then
+	check_only=true
+	shift
+fi
+
 if [[ $# -lt 2 ]]; then
-	echo "usage: incremental_build_test.sh ROOT TEST_BINARY..." >&2
+	echo "usage: incremental_build_test.sh [--check-only] ROOT TEST_BINARY..." >&2
 	exit 2
 fi
 
@@ -38,6 +44,29 @@ for binary in "$@"; do
 		exit 1
 	}
 done
+if $check_only; then
+	assumed=()
+	for header in "${headers[@]}"; do
+		assumed+=(-W "$header")
+	done
+	for binary in "$@"; do
+		# Establish a clean baseline so an unrelated stale input cannot make
+		# a missing header dependency appear to pass.
+		MAKEFLAGS= make -C "$root" -q "$binary" || {
+			echo "test binary is stale before dependency check: $binary" >&2
+			exit 1
+		}
+		status=0
+		MAKEFLAGS= make -C "$root" -q "${assumed[@]}" "$binary" || status=$?
+		[[ $status == 1 ]] || {
+			echo "header dependency check expected rebuild (status $status): $binary" >&2
+			exit 1
+		}
+	done
+	echo "incremental_build_test: all test binaries would rebuild (no compilation)"
+	exit 0
+fi
+
 for header in "${headers[@]}"; do
 	touch -r "$root/$header" "$temporary/${header//\//_}"
 done
@@ -48,7 +77,10 @@ for header in "${headers[@]}"; do
 	touch "$root/$header"
 done
 
-MAKEFLAGS= make -C "$root" -j16 run-tests >/dev/null
+# The initial run-tests prerequisite already executed every functional case.
+# Header contents are unchanged here: rebuild every binary to exercise the
+# dependency edges, without running the same functional cases a second time.
+MAKEFLAGS= make -C "$root" -j16 "$@" >/dev/null
 for binary in "$@"; do
 	[[ "$root/$binary" -nt "$temporary/rebuild-marker" ]] || {
 		echo "relevant headers did not rebuild test binary: $binary" >&2

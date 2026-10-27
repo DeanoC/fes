@@ -1,5 +1,7 @@
 # M1 two-node integration evidence (#363)
 
+**Context (22 October 2026):** this is evidence for the host-local RetroArch executor and the paired-kit path. The kit is now its own FogCast host ([#863](https://github.com/DeanoC/fes/issues/863)) and the paired-kit path is retired; this evidence does not transfer to the kit profile. See [mesh under kit-as-host](mesh-kit-host.md).
+
 M1 has two execution nodes: an FPGA kit target running its agent and kit
 launcher, and the host-local RetroArch `host_only` executor. Kit mutations use
 the target's existing lease, per-kit bearer and `X-FogCast-Target-ID`. The

@@ -415,7 +415,7 @@ func (a *App) applyRoomDestinationConfirmLocked() bool {
 		return true
 	case rooms.ConfirmEnterRoom:
 		if dest.RoomID != "" {
-			a.openNestedRoomLocked(dest.RoomID)
+			a.openNestedRoomLocked(dest.RoomID, "")
 			return true
 		}
 		return false
@@ -529,7 +529,7 @@ func (a *App) openRoomDetailsForLocked(game hostclient.Game) {
 	a.carouselIndex = skipFailedCarousel(a.focusDetailLocked().ScreenshotIDs, a.shotFailedLocked, a.carouselIndex)
 }
 
-func (a *App) openNestedRoomLocked(id string) {
+func (a *App) openNestedRoomLocked(id, initialGameID string) {
 	if a.room == nil {
 		return
 	}
@@ -542,7 +542,7 @@ func (a *App) openNestedRoomLocked(id string) {
 	a.closeRoomOverlaysLocked()
 	a.room = nil
 	a.roomStack = append(a.roomStack, parent)
-	a.openRoomLocked(id)
+	a.openRoomWithSelectionLocked(id, initialGameID)
 	if a.room == nil {
 		a.roomStack = a.roomStack[:len(a.roomStack)-1]
 		a.room = parent

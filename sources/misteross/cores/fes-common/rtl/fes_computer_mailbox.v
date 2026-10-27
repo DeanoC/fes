@@ -10,6 +10,9 @@
 // presented to the machine. Media requests are valid while execution runs.
 // ENABLE_APPLE2_FLOPPY, ENABLE_C64_DISK, ENABLE_SPECTRUM_TAPE and
 // ENABLE_ZX81_TAPE each occupy unit 0; a core sets one of them. UNIT0_MIN/MAX must match that interface.
+// ENABLE_SPECTRUM_DISK adds unit 1 beside a unit-0 medium. One transfer runs
+// at a time: media_write_unit names the unit its writes belong to, and
+// unit1_state/unit1_size report unit 1 as unit0_* report unit 0.
 // Shells that leave the session-display plane off instantiate fes_computer_mailbox,
 // which ties these response inputs idle. Verilator rejects ranged input defaults,
 // so the idle tie lives in that wrapper. ZX81 instantiates this module and
@@ -29,6 +32,8 @@ module fes_computer_mailbox_core #(
     parameter bit ENABLE_ATARI_ST_FLOPPY = 0,
     parameter bit ENABLE_ATARI_ST_FLOPPY_WRITE = 0,
     parameter bit ENABLE_ATARI_ST_FLOPPY_GEOMETRY = 0,
+    parameter bit ENABLE_ZX81_TAPE_WRITE = 0,
+    parameter bit ENABLE_SPECTRUM_DISK = 0,
     parameter bit ENABLE_MEDIA_BACKPRESSURE = 0,
     parameter integer MEDIA_AW = 18,
     parameter [31:0] UNIT0_MIN = `FES_COMPUTER_APPLE2_FLOPPY_BYTES,
@@ -49,6 +54,7 @@ module fes_computer_mailbox_core #(
     output wire [MEDIA_AW-1:0] media_write_addr,
     output wire [15:0]  media_write_data,
     output wire [1:0]   media_write_enable,
+    output wire         media_write_unit,
     input  wire        media_write_ready,
     input  wire        media_write_busy,
     input  wire        media_changed,
@@ -57,8 +63,15 @@ module fes_computer_mailbox_core #(
     output wire [19:0] media_read_addr,
     input  wire        media_read_ready,
     input  wire [7:0]  media_read_data,
+    // BASIC SAVE image. Unused unless ENABLE_ZX81_TAPE_WRITE. Tied off by
+    // fes_computer_mailbox; the ZX81 shell connects the machine save buffer.
+    input  wire        save_ready,
+    input  wire        save_busy,
+    input  wire [14:0] save_size,
     output reg  [1:0]   unit0_state,
     output reg  [31:0]  unit0_size,
+    output reg  [1:0]   unit1_state,
+    output reg  [31:0]  unit1_size,
     // In-session launcher plane (fes.memory.hps-ddr and
     // fes.video.session-display). A request is held until the pixel-domain reply.
     output reg          display_request,
@@ -73,7 +86,12 @@ module fes_computer_mailbox_core #(
     // Unit 0 is one drive. A shell enables one of the three media parameters.
     localparam bit MEDIA = ENABLE_APPLE2_FLOPPY | ENABLE_C64_DISK | ENABLE_SPECTRUM_TAPE | ENABLE_ZX81_TAPE | ENABLE_ATARI_ST_FLOPPY;
     localparam bit WRITABLE = ENABLE_ATARI_ST_FLOPPY_WRITE && ENABLE_ATARI_ST_FLOPPY;
+    localparam bit ZX81_WRITE = ENABLE_ZX81_TAPE && ENABLE_ZX81_TAPE_WRITE;
+    localparam bit SNAPSHOT = WRITABLE || ZX81_WRITE;
     localparam bit GEOMETRY = ENABLE_ATARI_ST_FLOPPY && ENABLE_ATARI_ST_FLOPPY_GEOMETRY;
+    localparam bit UNIT1 = MEDIA && ENABLE_SPECTRUM_DISK;
+    localparam [31:0] UNIT1_MIN = `FES_COMPUTER_SPECTRUM_DISK_MIN_BYTES;
+    localparam [31:0] UNIT1_MAX = `FES_COMPUTER_SPECTRUM_DISK_MAX_BYTES;
     localparam [15:0] CAPABILITIES =
         16'(`FES_COMPUTER_INTERFACE_VIDEO_FIXED_720P60_CAPABILITY_MASK) |
         (ENABLE_KEYBOARD ? 16'(`FES_COMPUTER_INTERFACE_KEYBOARD_HID_CAPABILITY_MASK) : 16'd0) |
@@ -87,6 +105,8 @@ module fes_computer_mailbox_core #(
         (ENABLE_ATARI_ST_FLOPPY ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_ATARI_ST_FLOPPY_CAPABILITY_MASK) : 16'd0) |
         (GEOMETRY ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_ATARI_ST_FLOPPY_GEOMETRY_CAPABILITY_MASK) : 16'd0) |
         (WRITABLE ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_ATARI_ST_FLOPPY_WRITE_CAPABILITY_MASK) : 16'd0) |
+        (ZX81_WRITE ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_ZX81_TAPE_WRITE_CAPABILITY_MASK) : 16'd0) |
+        (UNIT1 ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_SPECTRUM_DISK_CAPABILITY_MASK) : 16'd0) |
         (ENABLE_SESSION_DISPLAY ? 16'(`FES_COMPUTER_INTERFACE_MEMORY_HPS_DDR_CAPABILITY_MASK) : 16'd0) |
         (ENABLE_SESSION_DISPLAY ? 16'(`FES_COMPUTER_INTERFACE_VIDEO_SESSION_DISPLAY_CAPABILITY_MASK) : 16'd0);
     localparam [15:0] E_OPCODE = 16'(`FES_COMPUTER_ERROR_INVALID_OPCODE);
@@ -135,20 +155,27 @@ module fes_computer_mailbox_core #(
     reg [31:0] snapshot_received;
     reg [9:0] snapshot_length, snapshot_cursor;
     reg [7:0] snapshot_ordinal, read_low;
-    wire freeze_ok = request && WRITABLE && opcode == 7'(`FES_COMPUTER_OPCODE_MEDIA_SNAPSHOT_CONTROL) &&
-                     index == 8'd0 && argument == 16'd0 && unit0_state == READY;
-    wire snapshot_data_ok = request && WRITABLE && opcode == 7'(`FES_COMPUTER_OPCODE_MEDIA_SNAPSHOT_DATA) &&
+    // ZX81 SAVE is ready without a loaded cassette. ST still keys off unit 0.
+    wire snap_ready = ZX81_WRITE ? save_ready : unit0_state == READY;
+    wire snap_busy = ZX81_WRITE ? (save_busy || media_write_busy) : media_write_busy;
+    wire [31:0] snap_size = ZX81_WRITE ? {17'd0, save_size} : unit0_size;
+    wire snapshot_one = snapshot_length == 10'd1;
+    wire freeze_ok = request && SNAPSHOT && opcode == 7'(`FES_COMPUTER_OPCODE_MEDIA_SNAPSHOT_CONTROL) &&
+                     index == 8'd0 && argument == 16'd0 && snap_ready && !(ZX81_WRITE && save_busy);
+    wire snapshot_data_ok = request && SNAPSHOT && opcode == 7'(`FES_COMPUTER_OPCODE_MEDIA_SNAPSHOT_DATA) &&
                             argument == 16'd0 && index == snapshot_ordinal && media_frozen &&
-                            unit0_state == READY && snapshot_length != 10'd0;
-    wire snapshot_complete = snapshot_data_ok && read_phase == 2'd1 && media_read_ready;
-    assign media_read_req = snapshot_data_ok && read_phase != 2'd2;
+                            snap_ready && !(ZX81_WRITE && save_busy) && snapshot_length != 10'd0;
+    wire snapshot_complete = snapshot_data_ok &&
+                             (snapshot_one ? read_phase == 2'd3 : read_phase == 2'd1 && media_read_ready);
+    assign media_read_req = snapshot_data_ok && (snapshot_one ? read_phase == 2'd0 : read_phase != 2'd2);
     wire [19:0] snapshot_address = snapshot_received[19:0] + {10'd0,snapshot_cursor} + (read_phase == 2'd1 ? 20'd1 : 20'd0);
     assign media_read_addr = snapshot_address;
     wire [31:0] snapshot_offset = {snapshot1,snapshot0};
-    wire [15:0] snapshot_flags = {12'd0,media_write_busy,media_frozen,snapshot_dirty,unit0_state == READY};
+    wire [15:0] snapshot_flags = {12'd0,snap_busy,media_frozen,snapshot_dirty,snap_ready};
 
-    // Unit 0 transfer state.
+    // Transfer state, for unit 0 or (UNIT1) unit 1.
     reg begin_staged;
+    reg begin_unit, active_unit;
     reg [1:0] begin_next;
     reg [15:0] begin0, begin1, begin2;
     reg active;
@@ -167,6 +194,9 @@ module fes_computer_mailbox_core #(
     wire [2:0] field = index[2:0];
     wire [5:0] unit4 = index[7:2];
     wire [1:0] word = index[1:0];
+    // unit4 names a unit this endpoint implements.
+    wire unit4_ok = unit4 == 6'd0 || (UNIT1 && unit4 == 6'd1);
+    wire unit_index_ok = index == 8'd0 || (UNIT1 && index == 8'd1);
     wire [31:0] begin_total = {begin1, begin0};
     wire [31:0] chunk_offset = {chunk1, chunk0};
     wire [9:0] remaining = chunk_length - chunk_received;
@@ -175,6 +205,7 @@ module fes_computer_mailbox_core #(
                    !(remaining == 10'd1 && argument[15:8] != 8'h00);
 
     assign media_write_addr = received[MEDIA_AW-1:0];
+    assign media_write_unit = UNIT1 && active_unit;
     assign media_write_data = argument;
     assign media_write_enable = {data_ok && remaining != 10'd1, data_ok};
 
@@ -260,6 +291,10 @@ module fes_computer_mailbox_core #(
         controller_buttons = 16'd0;
         unit0_state = EMPTY;
         unit0_size = 32'd0;
+        unit1_state = EMPTY;
+        unit1_size = 32'd0;
+        begin_unit = 1'b0;
+        active_unit = 1'b0;
         begin_staged = 1'b0;
         begin_next = 2'd0;
         begin0 = 16'd0;
@@ -286,13 +321,16 @@ module fes_computer_mailbox_core #(
     always @(posedge clk) begin
         request_meta <= request_toggle;
         request_sync <= request_meta;
-        if (WRITABLE && media_changed) begin
+        if (SNAPSHOT && media_changed) begin
             snapshot_dirty <= 1'b1;
             saved_authorized <= 1'b0;
             snapshot_epoch <= snapshot_epoch + 16'd1;
         end
         if (freeze_ok) media_frozen <= 1'b1;
-        if (snapshot_data_ok && read_phase == 2'd0 && media_read_ready) begin
+        if (snapshot_data_ok && snapshot_one && read_phase == 2'd0 && media_read_ready) begin
+            read_low <= media_read_data;
+            read_phase <= 2'd3; // one-byte tail: no second read
+        end else if (snapshot_data_ok && !snapshot_one && read_phase == 2'd0 && media_read_ready) begin
             read_low <= media_read_data;
             read_phase <= 2'd2; // electrical gap before the second byte request
         end else if (snapshot_data_ok && read_phase == 2'd2) read_phase <= 2'd1;
@@ -305,7 +343,7 @@ module fes_computer_mailbox_core #(
                 display_wait <= 1'b0;
             end
         end else if (request && (!ENABLE_MEDIA_BACKPRESSURE || !data_ok || media_write_ready) &&
-            (!mouse_ok || mouse_ready) && (!freeze_ok || (media_frozen && !media_write_busy)) &&
+            (!mouse_ok || mouse_ready) && (!freeze_ok || (media_frozen && !snap_busy)) &&
             (!snapshot_data_ok || snapshot_complete)) begin
             response_error <= 1'b0;
             response_data <= 16'h0000;
@@ -363,20 +401,46 @@ module fes_computer_mailbox_core #(
                             3'd4: response_data <= CHUNK_MAX[15:0];
                             default: response_data <= {14'd0, unit0_state};
                         endcase
+                    end else if (UNIT1 && unit8 == 5'd1) begin
+                        case (field)
+                            3'd0: response_data <= UNIT1_MIN[15:0];
+                            3'd1: response_data <= UNIT1_MIN[31:16];
+                            3'd2: response_data <= UNIT1_MAX[15:0];
+                            3'd3: response_data <= UNIT1_MAX[31:16];
+                            3'd4: response_data <= CHUNK_MAX[15:0];
+                            default: response_data <= {14'd0, unit1_state};
+                        endcase
                     end
                 end
                 7'(`FES_COMPUTER_OPCODE_MEDIA_BEGIN): begin
                     if (!MEDIA) reject(E_OPCODE);
-                    else if (unit4 != 6'd0) reject(E_INDEX);
+                    else if (!unit4_ok || (begin_staged && unit4[0] != begin_unit)) reject(E_INDEX);
                     // Collection and accepted sector commits retain the old
                     // image even for volatile loads. Never overlap a new host
                     // upload with a writer draining through job withdrawal.
                     // Writable disks and an active ZX81 LOAD both hold this input.
-                    else if ((WRITABLE || ENABLE_ZX81_TAPE) && media_write_busy) reject(E_STATE);
-                    else if (media_frozen && !saved_authorized) reject(E_STATE);
+                    else if (unit4 == 6'd0 && (WRITABLE || ENABLE_ZX81_TAPE) && media_write_busy) reject(E_STATE);
+                    else if (unit4 == 6'd0 && ZX81_WRITE && save_busy) reject(E_STATE);
+                    else if (unit4 == 6'd0 && media_frozen && !saved_authorized) reject(E_STATE);
                     else if (active) reject(E_STATE);
                     else if (!begin_staged ? word != 2'd0 : word != begin_next) reject(E_INDEX);
-                    else if (word == 2'd3) begin
+                    else if (word == 2'd3 && begin_unit) begin
+                        if (begin_total < UNIT1_MIN || begin_total > UNIT1_MAX) reject(E_ARGUMENT);
+                        else begin
+                            active <= 1'b1;
+                            active_unit <= 1'b1;
+                            total <= begin_total;
+                            expected_crc <= {argument, begin2};
+                            received <= 32'd0;
+                            crc <= CRC_INIT;
+                            begin_staged <= 1'b0;
+                            begin_next <= 2'd0;
+                            chunk_next <= 2'd0;
+                            chunk_length <= 10'd0;
+                            chunk_received <= 10'd0;
+                            ordinal <= 8'd0;
+                        end
+                    end else if (word == 2'd3) begin
                         if (begin_total < UNIT0_MIN || begin_total > UNIT0_MAX ||
                             (GEOMETRY && begin_total != 32'd368640 &&
                             begin_total != 32'd409600 &&
@@ -392,6 +456,7 @@ module fes_computer_mailbox_core #(
                             begin_total != 32'd839680)) reject(E_ARGUMENT);
                         else begin
                             active <= 1'b1;
+                            active_unit <= 1'b0;
                             total <= begin_total;
                             expected_crc <= {argument, begin2};
                             received <= 32'd0;
@@ -409,11 +474,15 @@ module fes_computer_mailbox_core #(
                             2'd0: begin
                                 begin0 <= argument;
                                 begin_staged <= 1'b1;
-                                unit0_state <= LOADING;
-                                media_frozen <= 1'b0;
-                                saved_authorized <= 1'b0;
-                                snapshot_dirty <= 1'b0;
-                                snapshot_length <= 10'd0;
+                                begin_unit <= UNIT1 && unit4[0];
+                                if (UNIT1 && unit4[0]) unit1_state <= LOADING;
+                                else begin
+                                    unit0_state <= LOADING;
+                                    media_frozen <= 1'b0;
+                                    saved_authorized <= 1'b0;
+                                    if (!ZX81_WRITE) snapshot_dirty <= 1'b0;
+                                    snapshot_length <= 10'd0;
+                                end
                             end
                             2'd1: begin1 <= argument;
                             default: begin2 <= argument;
@@ -423,7 +492,7 @@ module fes_computer_mailbox_core #(
                 7'(`FES_COMPUTER_OPCODE_MEDIA_CHUNK): begin
                     if (!MEDIA) reject(E_OPCODE);
                     else if (!active) reject(E_STATE);
-                    else if (unit4 != 6'd0 || word != chunk_next || word == 2'd3) reject(E_INDEX);
+                    else if (unit4 != {5'd0, UNIT1 && active_unit} || word != chunk_next || word == 2'd3) reject(E_INDEX);
                     else if (chunk_length != 10'd0) reject(E_STATE);
                     else if (word == 2'd2) begin
                         if (chunk_offset != received || argument == 16'd0 ||
@@ -467,53 +536,68 @@ module fes_computer_mailbox_core #(
                 end
                 7'(`FES_COMPUTER_OPCODE_MEDIA_COMMIT): begin
                     if (!MEDIA) reject(E_OPCODE);
-                    else if (index != 8'd0) reject(E_INDEX);
+                    else if (!unit_index_ok) reject(E_INDEX);
                     else if (argument != 16'd0) reject(E_ARGUMENT);
-                    else if (!active || begin_staged) reject(E_STATE);
+                    else if (!active || begin_staged || index[0] != (UNIT1 && active_unit)) reject(E_STATE);
                     else if (chunk_length != 10'd0 || received != total) reject(E_STATE);
                     else if ((crc ^ CRC_XOR) != expected_crc) reject(E_ARGUMENT);
                     else begin
-                        unit0_state <= READY;
-                        unit0_size <= total;
+                        if (UNIT1 && active_unit) begin
+                            unit1_state <= READY;
+                            unit1_size <= total;
+                        end else begin
+                            unit0_state <= READY;
+                            unit0_size <= total;
+                        end
                         cancel_transfer;
                     end
                 end
                 7'(`FES_COMPUTER_OPCODE_MEDIA_EJECT): begin
                     if (!MEDIA) reject(E_OPCODE);
-                    else if (index != 8'd0) reject(E_INDEX);
+                    else if (!unit_index_ok) reject(E_INDEX);
                     else if (argument != 16'd0) reject(E_ARGUMENT);
+                    else if (UNIT1 && index[0]) begin
+                        // Unit 1 ejects without touching unit 0's transfer.
+                        if ((begin_staged && begin_unit) || (active && active_unit)) cancel_transfer;
+                        unit1_state <= EMPTY;
+                        unit1_size <= 32'd0;
+                    end
                     else if ((WRITABLE || ENABLE_ZX81_TAPE) && media_write_busy) reject(E_STATE);
+                    else if (ZX81_WRITE && save_busy) reject(E_STATE);
                     else if (media_frozen && !saved_authorized) reject(E_STATE);
                     else begin
-                        cancel_transfer;
+                        if (!(UNIT1 && ((begin_staged && begin_unit) || (active && active_unit))))
+                            cancel_transfer;
                         unit0_state <= EMPTY;
                         media_frozen <= 1'b0;
                         saved_authorized <= 1'b0;
-                        snapshot_dirty <= 1'b0;
+                        if (!ZX81_WRITE) snapshot_dirty <= 1'b0;
                         snapshot_length <= 10'd0;
                         unit0_size <= 32'd0;
                     end
                 end
                 7'(`FES_COMPUTER_OPCODE_MEDIA_SNAPSHOT_INFO): begin
-                    if (!WRITABLE) reject(E_OPCODE);
+                    if (!SNAPSHOT) reject(E_OPCODE);
                     else if (unit8 != 5'd0) reject(E_INDEX);
                     else if (argument != 16'd0) reject(E_ARGUMENT);
                     else case (field)
                         3'd0: response_data <= snapshot_flags;
-                        3'd1, 3'd2: response_data <= 16'd1;
-                        3'd3: response_data <= GEOMETRY && unit0_size != 32'd737280 ? 16'd1 : 16'd0;
-                        3'd4: response_data <= unit0_size[15:0];
-                        3'd5: response_data <= unit0_size[31:16];
+                        3'd1: response_data <= ZX81_WRITE ? 16'(`FES_COMPUTER_ZX81_TAPE_LAYOUT_TAG) : 16'd1;
+                        3'd2: response_data <= 16'd1;
+                        3'd3: response_data <= ZX81_WRITE ? 16'd0 :
+                            (GEOMETRY && unit0_size != 32'd737280 ? 16'd1 : 16'd0);
+                        3'd4: response_data <= snap_size[15:0];
+                        3'd5: response_data <= snap_size[31:16];
                         3'd6: response_data <= 16'd512;
                         default: response_data <= snapshot_epoch;
                     endcase
                 end
                 7'(`FES_COMPUTER_OPCODE_MEDIA_SNAPSHOT_CONTROL): begin
-                    if (!WRITABLE) reject(E_OPCODE);
+                    if (!SNAPSHOT) reject(E_OPCODE);
                     else if (index != 8'd0) reject(E_INDEX);
                     else if (argument > 16'd2) reject(E_ARGUMENT);
                     else if (argument == 16'd0) begin
-                        if (unit0_state != READY) reject(E_STATE);
+                        if (!snap_ready || (ZX81_WRITE && save_busy)) reject(E_STATE);
                         else begin
                             media_frozen <= 1'b1;
                             saved_authorized <= 1'b0;
@@ -530,19 +614,20 @@ module fes_computer_mailbox_core #(
                         snapshot_length <= 10'd0;
                         snapshot_next <= 2'd0;
                         read_phase <= 2'd0;
-                    end else if (!media_frozen || media_write_busy || media_changed) reject(E_STATE);
+                    end else if (!media_frozen || snap_busy || media_changed) reject(E_STATE);
                     else begin
                         snapshot_dirty <= 1'b0;
                         saved_authorized <= 1'b1;
                     end
                 end
                 7'(`FES_COMPUTER_OPCODE_MEDIA_SNAPSHOT_CHUNK): begin
-                    if (!WRITABLE) reject(E_OPCODE);
-                    else if (!media_frozen || unit0_state != READY || snapshot_length != 10'd0) reject(E_STATE);
+                    if (!SNAPSHOT) reject(E_OPCODE);
+                    else if (!media_frozen || !snap_ready || (ZX81_WRITE && save_busy) || snapshot_length != 10'd0) reject(E_STATE);
                     else if (unit4 != 6'd0 || word != snapshot_next || word == 2'd3) reject(E_INDEX);
                     else if (word == 2'd2) begin
-                        if (snapshot_offset != snapshot_received || argument == 16'd0 || argument[0] ||
-                            argument > 16'd512 || {16'd0,argument} > unit0_size - snapshot_received) reject(E_ARGUMENT);
+                        if (snapshot_offset != snapshot_received || argument == 16'd0 ||
+                            (argument[0] && !(ZX81_WRITE && argument == 16'd1)) ||
+                            argument > 16'd512 || {16'd0,argument} > snap_size - snapshot_received) reject(E_ARGUMENT);
                         else begin
                             snapshot_length <= argument[9:0];
                             snapshot_cursor <= 10'd0;
@@ -557,15 +642,15 @@ module fes_computer_mailbox_core #(
                     end
                 end
                 7'(`FES_COMPUTER_OPCODE_MEDIA_SNAPSHOT_DATA): begin
-                    if (!WRITABLE) reject(E_OPCODE);
-                    else if (!media_frozen || unit0_state != READY || snapshot_length == 10'd0) reject(E_STATE);
+                    if (!SNAPSHOT) reject(E_OPCODE);
+                    else if (!media_frozen || !snap_ready || (ZX81_WRITE && save_busy) || snapshot_length == 10'd0) reject(E_STATE);
                     else if (index != snapshot_ordinal) reject(E_INDEX);
                     else if (argument != 16'd0) reject(E_ARGUMENT);
                     else begin
-                        response_data <= {media_read_data,read_low};
+                        response_data <= snapshot_one ? {8'h00, read_low} : {media_read_data, read_low};
                         read_phase <= 2'd0;
-                        if (snapshot_cursor + 10'd2 == snapshot_length) begin
-                            snapshot_received <= snapshot_received + {22'd0,snapshot_length};
+                        if (snapshot_one || snapshot_cursor + 10'd2 == snapshot_length) begin
+                            snapshot_received <= snapshot_received + (snapshot_one ? 32'd1 : {22'd0,snapshot_length});
                             snapshot_length <= 10'd0;
                             snapshot_cursor <= 10'd0;
                             snapshot_ordinal <= 8'd0;
@@ -615,6 +700,7 @@ module fes_computer_mailbox #(
     parameter bit ENABLE_ATARI_ST_FLOPPY = 0,
     parameter bit ENABLE_ATARI_ST_FLOPPY_WRITE = 0,
     parameter bit ENABLE_ATARI_ST_FLOPPY_GEOMETRY = 0,
+    parameter bit ENABLE_ZX81_TAPE_WRITE = 0,
     parameter bit ENABLE_MEDIA_BACKPRESSURE = 0,
     parameter integer MEDIA_AW = 18,
     parameter [31:0] UNIT0_MIN = `FES_COMPUTER_APPLE2_FLOPPY_BYTES,
@@ -651,6 +737,9 @@ module fes_computer_mailbox #(
     wire [6:0] unused_display_opcode;
     wire [7:0] unused_display_index;
     wire [15:0] unused_display_argument;
+    wire unused_write_unit;
+    wire [1:0] unused_unit1_state;
+    wire [31:0] unused_unit1_size;
     /* verilator lint_on UNUSEDSIGNAL */
     fes_computer_mailbox_core #(
         .ENABLE_KEYBOARD(ENABLE_KEYBOARD),
@@ -665,6 +754,7 @@ module fes_computer_mailbox #(
         .ENABLE_ATARI_ST_FLOPPY(ENABLE_ATARI_ST_FLOPPY),
         .ENABLE_ATARI_ST_FLOPPY_WRITE(ENABLE_ATARI_ST_FLOPPY_WRITE),
         .ENABLE_ATARI_ST_FLOPPY_GEOMETRY(ENABLE_ATARI_ST_FLOPPY_GEOMETRY),
+        .ENABLE_ZX81_TAPE_WRITE(ENABLE_ZX81_TAPE_WRITE),
         .ENABLE_MEDIA_BACKPRESSURE(ENABLE_MEDIA_BACKPRESSURE),
         .MEDIA_AW(MEDIA_AW),
         .UNIT0_MIN(UNIT0_MIN),
@@ -676,12 +766,15 @@ module fes_computer_mailbox #(
         .mouse_valid(mouse_valid), .mouse_dx(mouse_dx), .mouse_dy(mouse_dy),
         .mouse_buttons(mouse_buttons), .mouse_ready(mouse_ready),
         .media_write_addr(media_write_addr), .media_write_data(media_write_data),
-        .media_write_enable(media_write_enable), .media_write_ready(media_write_ready),
+        .media_write_enable(media_write_enable), .media_write_unit(unused_write_unit),
+        .media_write_ready(media_write_ready),
         .media_write_busy(media_write_busy), .media_changed(media_changed),
         .media_frozen(media_frozen),
         .media_read_req(media_read_req), .media_read_addr(media_read_addr),
         .media_read_ready(media_read_ready), .media_read_data(media_read_data),
+        .save_ready(1'b0), .save_busy(1'b0), .save_size(15'd0),
         .unit0_state(unit0_state), .unit0_size(unit0_size),
+        .unit1_state(unused_unit1_state), .unit1_size(unused_unit1_size),
         .display_request(unused_display_request), .display_opcode(unused_display_opcode),
         .display_index(unused_display_index), .display_argument(unused_display_argument),
         .display_response_valid(1'b0), .display_response_error(1'b0),

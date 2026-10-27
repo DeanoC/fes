@@ -325,6 +325,12 @@ func (c *Client) mutateJSON(ctx context.Context, method, path string, dest any) 
 }
 
 func (c *Client) doJSON(ctx context.Context, method, path string, payload any, dest any) error {
+	return c.doJSONStatuses(ctx, method, path, payload, dest, http.StatusOK)
+}
+
+// doJSONStatuses is doJSON for a route whose success is 200 or another
+// explicit status. Callers list only the statuses that route documents.
+func (c *Client) doJSONStatuses(ctx context.Context, method, path string, payload any, dest any, statuses ...int) error {
 	var bodyReader io.Reader = http.NoBody
 	if payload != nil {
 		data, err := json.Marshal(payload)
@@ -350,7 +356,14 @@ func (c *Client) doJSON(ctx context.Context, method, path string, payload any, d
 	if err != nil {
 		return err
 	}
-	if resp.StatusCode != http.StatusOK {
+	allowed := false
+	for _, status := range statuses {
+		if resp.StatusCode == status {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
 		return APIStatusError(resp.StatusCode, body)
 	}
 	if dest == nil || len(bytes.TrimSpace(body)) == 0 {

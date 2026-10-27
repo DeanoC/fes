@@ -1,11 +1,12 @@
-"""Shared GPU leases for Powerboat and the CUDA box.
+"""Shared GPU leases for Powerboat, the CUDA box and Apple silicon Macs.
 
 One flock file per GPU. gpu-run keeps those descriptors in this process and
 runs the command as a child that does not inherit them, so the lease ends
 when that command exits even if it backgrounded other processes. The kernel
 also drops the flock if gpu-run itself exits or crashes. This module never
-terminates another process. Liveness of a waiter is read from /proc, checking
-both PID and start time. Tickets record their eligible physical GPU ids and
+terminates another process. Liveness of a waiter is read from /proc on Linux
+and from libproc on macOS, checking both PID and start time. Tickets record
+their eligible physical GPU ids and
 vendor mask variable. FIFO applies to overlapping eligible GPU sets; later
 tickets may backfill on disjoint GPUs. On grant, the mask value is rebuilt
 from the exact GPU ids locked for that command.
@@ -23,6 +24,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import plistlib
 import re
 import select
 import selectors
@@ -42,6 +44,15 @@ POLL_INITIAL = 0.05
 POLL_MAX = 0.5
 GPU_MONITOR_INTERVAL = 0.05
 PROC_ROOT = Path('/proc')
+# macOS has no procfs: process identity, ancestry and argv come from libproc
+# and sysctl, and the lease directory's filesystem from statfs(2).
+DARWIN = sys.platform == 'darwin'
+VENDORS = ('amd', 'nvidia', 'apple')
+# Normal ioreg refresh interval after the initial Metal client discovery window.
+APPLE_CLIENT_POLL = 0.5
+# Force scans briefly after launch/grant so short redirected routes can prove
+# Metal use even when inventory detection cached a pre-launch snapshot.
+APPLE_CLIENT_DISCOVERY_WINDOW = 0.5
 METADATA_LIMIT = 65536
 QUEUE = 'queue'
 # Phase tickets of these owners wait here and are served only after every
@@ -60,34 +71,45 @@ RUN_HELP = """\
 Hold a shared GPU lease and exec a command.
 
 Powerboat (AMD, HIP; GPU0 and GPU1) and chip-30x0-ai-dev (NVIDIA RTX 3070
-and RTX 3090) share GPUs through this tool. One flock file per GPU lives in
-GPU_LEASE_DIR (default /var/tmp/gpu-leases). The directory is created mode
-0700 and the files mode 0600, which is enough for the one Unix user these
-agents share. The directory must be on a local filesystem. gpu-run holds the
-flock itself and does not pass that descriptor to CMD, so the lease ends
-when CMD exits even if CMD backgrounded other processes, and also if gpu-run
-exits or crashes. This tool never terminates another process.
+and RTX 3090) share GPUs through this tool, as does an Apple silicon Mac
+(one Metal GPU, id 0). One flock file per GPU lives in GPU_LEASE_DIR
+(default /var/tmp/gpu-leases). The directory is created mode 0700 and the
+files mode 0600, which is enough for the one Unix user these agents share.
+The directory must be on a local filesystem; on macOS statfs(2) must mark
+it local. gpu-run holds the flock itself and does not pass that descriptor
+to CMD, so the lease ends when CMD exits even if CMD backgrounded other
+processes, and also if gpu-run exits or crashes. This tool never terminates another process.
 
 Device ids come from nvidia-smi -L or rocm-smi. If rocm-smi returns nothing,
 AMD ids are the HIP order of GPU nodes in KFD topology (simd_count > 0).
-DRM render minors are not HIP indices. GPU_LEASE_IDS overrides host inventory
-detection; it is not a per-job pin. Queue tickets record this eligible id set
-and the vendor visibility variable that the grant will set. A later waiter
-may backfill only on GPUs disjoint from earlier eligible waiters, preserving
-FIFO for jobs that can use the same GPU. On grant the visibility mask is
+DRM render minors are not HIP indices. On macOS the Metal GPU comes from
+ioreg's IOAccelerator services; a Mac with exactly one (every Apple silicon
+Mac) has id 0, the index nextpnr's Metal backend uses. A Mac with several
+has no reliable Metal device order and needs GPU_LEASE_IDS.
+GPU_LEASE_IDS overrides host inventory detection; it is not a per-job pin.
+Queue tickets record this eligible id set and the vendor visibility
+variable that the grant will set. A later waiter may backfill only on GPUs
+disjoint from earlier eligible waiters, preserving FIFO for jobs that can
+use the same GPU. On grant the visibility mask is
 rebuilt from exactly the leased ids, overriding inherited CUDA/HIP masks.
-GPU_LEASE_VENDOR=amd|nvidia selects the variables exported to CMD:
+GPU_LEASE_VENDOR=amd|nvidia|apple selects the variables exported to CMD:
   amd:     ROCR_VISIBLE_DEVICES, FES_GPU_IDS
-  nvidia:  CUDA_VISIBLE_DEVICES, FES_GPU_IDS
-FES_GPU_IDS retains the physical leased ids. GPU_RUN_DEVICE is the logical
-index to pass to nextpnr (0 after masking), and GPU_RUN_EXPECTED_DEVICE names
-the selected device node when it can be mapped. NEXTPNR_REQUIRE_GPU=1 requests
-strict GPU routing from newer nextpnr builds. For nextpnr GPU routes, this
-wrapper checks the process tree for the leased device nodes and accepts
-nextpnr's backend-ready log when a short route closes those nodes between
-polls. It rejects explicit CPU-reference fallback output. CPU-only and help
-invocations do not require GPU access. If AMD KFD topology cannot map a render
-node, the wrapper checks for /dev/kfd and an open DRM render node.
+  nvidia:  CUDA_VISIBLE_DEVICES, CUDA_DEVICE_ORDER=PCI_BUS_ID, FES_GPU_IDS
+  apple:   FES_GPU_IDS (Metal has no visibility mask)
+FES_GPU_IDS retains the physical leased ids. GPU_RUN_DEVICE is the index to
+pass to nextpnr: 0 after masking on AMD and NVIDIA, the physical id on Apple,
+where nothing is masked or renumbered. GPU_RUN_EXPECTED_DEVICE names the
+selected device node, or metal:<registry id> on Apple, when it can be mapped.
+NEXTPNR_REQUIRE_GPU=1 requests strict GPU routing from newer nextpnr builds.
+For nextpnr GPU routes, this wrapper checks the process tree for the leased
+device nodes and accepts nextpnr's backend-ready log when a short route closes
+those nodes between polls. It rejects explicit CPU-reference fallback output.
+CPU-only and help invocations do not require GPU access. If AMD KFD topology
+cannot map a render node, the wrapper checks for /dev/kfd and an open DRM
+render node. Metal has no device nodes: on Apple the wrapper instead looks
+for a Metal user client that nextpnr opened on the leased GPU (ioreg's
+IOUserClientCreator) or nextpnr's "backend metal:<registry id>:... ready"
+line naming the leased GPU.
 
 --wait (the default) queues first come, first served. A later waiter may
 backfill on GPUs outside the eligible sets of earlier runnable tickets;
@@ -115,9 +137,10 @@ apply to each GPU phase. GPU_LEASE_MAX_PER_OWNER then counts only GPUs held
 by active phases. A grant is released when the socket closes (CMD exited or
 crashed) and when gpu-run exits. On NVIDIA, CMD also gets
 CUDA_DEVICE_ORDER=PCI_BUS_ID so CUDA device numbers match the granted
-nvidia-smi ids. Phase requests from owner lander wait in a separate queue:
-whenever a GPU frees, every runnable ticket in the main queue (other owners
-and whole-command leases) is served first. A phase in progress is never
+nvidia-smi ids. On Apple the granted id is the Metal device index.
+Phase requests from owner lander wait in a separate queue: whenever a GPU
+frees, every runnable ticket in the main queue (other owners and
+whole-command leases) is served first. A phase in progress is never
 interrupted. --phase-lease requires --gpus 1, decimal GPU ids, and waiting
 without --timeout.
 """
@@ -309,11 +332,235 @@ def gpu_device_path(vendor, gpu_id):
         minor = render_nodes_from_kfd_sysfs().get(gpu_id)
         if minor is not None:
             return '/dev/dri/renderD' + minor
+    if vendor == 'apple':
+        return apple_device_names(apple_accelerators()).get(gpu_id)
     return None
 
 
+IOUSERCLIENT_CREATOR_RE = re.compile(r'pid (\d+),')
+
+
+def parse_ioreg_accelerators(text):
+    """Return (registry id, user-client creator pids) per Metal accelerator.
+
+    text is the plist from ioreg -l -r -c IOAccelerator -d 2 -a. Only
+    services with a MetalPluginName are Metal devices. Their children are the
+    user clients that processes opened on that GPU; IOUserClientCreator names
+    the opening process as "pid N, name". An entry without an integer
+    IORegistryEntryID makes the list incomplete, so this returns no devices
+    rather than renumbering the rest.
+    """
+    if not text:
+        return []
+    try:
+        entries = plistlib.loads(text.encode('utf-8'))
+    except Exception:
+        return []
+    if not isinstance(entries, list):
+        return []
+    accelerators = []
+    for entry in entries:
+        if not isinstance(entry, dict) or not entry.get('MetalPluginName'):
+            continue
+        registry_id = entry.get('IORegistryEntryID')
+        if type(registry_id) is not int or registry_id < 0:
+            return []
+        creators = set()
+        children = entry.get('IORegistryEntryChildren')
+        for child in children if isinstance(children, list) else ():
+            creator = child.get('IOUserClientCreator') if isinstance(child, dict) else None
+            match = IOUSERCLIENT_CREATOR_RE.match(creator) if isinstance(creator, str) else None
+            if match is not None:
+                creators.add(int(match.group(1)))
+        accelerators.append((registry_id, creators))
+    return accelerators
+
+
+_apple_accelerator_cache = {'checked': None, 'accelerators': []}
+
+
+def apple_accelerators(refresh=False):
+    """Metal accelerators and their user-client pids from ioreg.
+
+    Normal callers reuse the snapshot for APPLE_CLIENT_POLL. Active route
+    monitoring can refresh it to avoid reusing a pre-launch inventory result.
+    """
+    now = time.monotonic()
+    checked = _apple_accelerator_cache['checked']
+    if refresh or checked is None or now - checked >= APPLE_CLIENT_POLL:
+        _apple_accelerator_cache['accelerators'] = parse_ioreg_accelerators(
+            run_tool(['ioreg', '-l', '-r', '-c', 'IOAccelerator', '-d', '2', '-a']))
+        _apple_accelerator_cache['checked'] = now
+    return _apple_accelerator_cache['accelerators']
+
+
+def metal_device_name(registry_id):
+    """The device token nextpnr's Metal backend logs: metal:<16 hex digits>."""
+    return 'metal:%016x' % registry_id
+
+
+def apple_device_names(accelerators):
+    """Map lease ids to Metal device names when the mapping is certain.
+
+    Metal numbers devices in MTLCopyAllDevices() order, which ioreg cannot
+    reproduce for several GPUs. Every Apple silicon Mac has one, Metal device
+    0, so only that case maps.
+    """
+    if len(accelerators) != 1:
+        return {}
+    return {'0': metal_device_name(accelerators[0][0])}
+
+
+def apple_gpu_clients(refresh=False):
+    """Map each Metal device name to the pids with a user client open on it."""
+    return {metal_device_name(registry_id): creators
+            for registry_id, creators in apple_accelerators(refresh=refresh)}
+
+
+_darwin_libc = None
+
+
+def darwin_libc():
+    """libSystem through ctypes, loaded on first use on macOS only."""
+    global _darwin_libc
+    if _darwin_libc is None:
+        import ctypes
+        _darwin_libc = ctypes.CDLL(None, use_errno=True)
+    return _darwin_libc
+
+
+PROC_PIDTBSDINFO = 3
+PROC_PPID_ONLY = 6
+CTL_KERN = 1
+KERN_ARGMAX = 8
+KERN_PROCARGS2 = 49
+MNT_LOCAL = 0x00001000
+MAXCOMLEN = 16
+MFSTYPENAMELEN = 16
+MAXPATHLEN = 1024
+
+
+def darwin_bsdinfo(pid):
+    """struct proc_bsdinfo for a live, non-zombie pid, or None."""
+    import ctypes
+    u32 = ctypes.c_uint32
+
+    class ProcBsdInfo(ctypes.Structure):
+        _fields_ = [
+            ('pbi_flags', u32), ('pbi_status', u32), ('pbi_xstatus', u32),
+            ('pbi_pid', u32), ('pbi_ppid', u32), ('pbi_uid', u32), ('pbi_gid', u32),
+            ('pbi_ruid', u32), ('pbi_rgid', u32), ('pbi_svuid', u32), ('pbi_svgid', u32),
+            ('rfu_1', u32), ('pbi_comm', ctypes.c_char * MAXCOMLEN),
+            ('pbi_name', ctypes.c_char * (2 * MAXCOMLEN)), ('pbi_nfiles', u32),
+            ('pbi_pgid', u32), ('pbi_pjobc', u32), ('e_tdev', u32), ('e_tpgid', u32),
+            ('pbi_nice', ctypes.c_int32), ('pbi_start_tvsec', ctypes.c_uint64),
+            ('pbi_start_tvusec', ctypes.c_uint64),
+        ]
+
+    if pid <= 0 or pid > 0x7fffffff:
+        return None
+    info = ProcBsdInfo()
+    size = ctypes.sizeof(info)
+    # proc_pidinfo fails with ESRCH for a zombie, as for a pid that is gone.
+    filled = darwin_libc().proc_pidinfo(ctypes.c_int(pid), ctypes.c_int(PROC_PIDTBSDINFO),
+                                        ctypes.c_uint64(0), ctypes.byref(info), ctypes.c_int(size))
+    if filled != size or info.pbi_pid != pid:
+        return None
+    return info
+
+
+def darwin_process_starttime(pid):
+    """Start time in microseconds since the epoch as a digit string, or None."""
+    info = darwin_bsdinfo(pid)
+    if info is None:
+        return None
+    return '%d%06d' % (info.pbi_start_tvsec, info.pbi_start_tvusec)
+
+
+def darwin_child_pids(pid):
+    import ctypes
+    libc = darwin_libc()
+    count = 256
+    while True:
+        buffer = (ctypes.c_int * count)()
+        filled = libc.proc_listpids(ctypes.c_uint32(PROC_PPID_ONLY), ctypes.c_uint32(pid),
+                                    buffer, ctypes.c_int(ctypes.sizeof(buffer)))
+        if filled <= 0:
+            return []
+        found = filled // ctypes.sizeof(ctypes.c_int)
+        if found < count:
+            return [child for child in buffer[:found] if child > 0]
+        count *= 4
+
+
+def darwin_process_args(pid):
+    """argv of pid from sysctl KERN_PROCARGS2, or [] when it cannot be read."""
+    import ctypes
+    import struct
+    libc = darwin_libc()
+    argmax = ctypes.c_int(0)
+    size = ctypes.c_size_t(ctypes.sizeof(argmax))
+    mib = (ctypes.c_int * 2)(CTL_KERN, KERN_ARGMAX)
+    if libc.sysctl(mib, 2, ctypes.byref(argmax), ctypes.byref(size), None, ctypes.c_size_t(0)) != 0:
+        return []
+    if argmax.value <= 0:
+        return []
+    buffer = ctypes.create_string_buffer(argmax.value)
+    size = ctypes.c_size_t(argmax.value)
+    mib = (ctypes.c_int * 3)(CTL_KERN, KERN_PROCARGS2, pid)
+    if libc.sysctl(mib, 3, buffer, ctypes.byref(size), None, ctypes.c_size_t(0)) != 0:
+        return []
+    raw = buffer.raw[:size.value]
+    if len(raw) < 4:
+        return []
+    argc = struct.unpack('=i', raw[:4])[0]
+    # argc, the executable path, NUL padding, then argv strings.
+    rest = raw[4:]
+    end = rest.find(b'\0')
+    if argc <= 0 or end < 0:
+        return []
+    parts = rest[end:].lstrip(b'\0').split(b'\0')
+    return [part.decode('utf-8', errors='replace') for part in parts[:argc]]
+
+
+def darwin_statfs(path):
+    """(filesystem type name, MNT_LOCAL) for path from statfs(2), or None."""
+    import ctypes
+    u32 = ctypes.c_uint32
+    u64 = ctypes.c_uint64
+
+    class StatFs(ctypes.Structure):
+        # The 64-bit inode layout, the only one on arm64 and the default since
+        # macOS 10.6 on x86_64.
+        _fields_ = [
+            ('f_bsize', u32), ('f_iosize', ctypes.c_int32), ('f_blocks', u64),
+            ('f_bfree', u64), ('f_bavail', u64), ('f_files', u64), ('f_ffree', u64),
+            ('f_fsid', ctypes.c_int32 * 2), ('f_owner', u32), ('f_type', u32),
+            ('f_flags', u32), ('f_fssubtype', u32),
+            ('f_fstypename', ctypes.c_char * MFSTYPENAMELEN),
+            ('f_mntonname', ctypes.c_char * MAXPATHLEN),
+            ('f_mntfromname', ctypes.c_char * MAXPATHLEN),
+            ('f_flags_ext', u32), ('f_reserved', u32 * 7),
+        ]
+
+    result = StatFs()
+    try:
+        encoded = os.fsencode(str(path))
+    except (TypeError, ValueError):
+        return None
+    if darwin_libc().statfs(encoded, ctypes.byref(result)) != 0:
+        return None
+    name = result.f_fstypename.decode('utf-8', errors='replace')
+    return name, bool(result.f_flags & MNT_LOCAL)
+
+
 def process_tree_pids(root_pid, proc_root=None):
-    """Yield root_pid and its live descendants using procfs task children."""
+    """Yield root_pid and its live descendants.
+
+    Linux reads procfs task children; macOS asks libproc for each pid's
+    children. A test passes proc_root to read a fake procfs on either.
+    """
+    darwin = proc_root is None and DARWIN
     proc_root = Path(proc_root) if proc_root is not None else PROC_ROOT
     pending = [int(root_pid)]
     visited = set()
@@ -323,6 +570,9 @@ def process_tree_pids(root_pid, proc_root=None):
             continue
         visited.add(pid)
         yield pid
+        if darwin:
+            pending.extend(darwin_child_pids(pid))
+            continue
         tasks = proc_root / str(pid) / 'task'
         try:
             task_entries = list(tasks.iterdir())
@@ -337,6 +587,8 @@ def process_tree_pids(root_pid, proc_root=None):
 
 
 def process_cmdline(pid, proc_root=None):
+    if proc_root is None and DARWIN:
+        return ' '.join(darwin_process_args(pid))
     proc_root = Path(proc_root) if proc_root is not None else PROC_ROOT
     try:
         return (proc_root / str(pid) / 'cmdline').read_bytes().replace(b'\0', b' ').decode(
@@ -346,6 +598,8 @@ def process_cmdline(pid, proc_root=None):
 
 
 def process_cmdline_args(pid, proc_root=None):
+    if proc_root is None and DARWIN:
+        return darwin_process_args(pid)
     proc_root = Path(proc_root) if proc_root is not None else PROC_ROOT
     try:
         raw = (proc_root / str(pid) / 'cmdline').read_bytes()
@@ -417,9 +671,13 @@ def process_tree_nextpnr_fd_targets(root_pid, proc_root=None):
     return targets
 
 
-def process_tree_uses_gpu(root_pid, vendor, device_nodes, proc_root=None):
-    """Check that nextpnr itself opened a leased hardware node."""
-    targets = process_tree_nextpnr_fd_targets(root_pid, proc_root)
+def process_tree_uses_gpu(root_pid, vendor, device_nodes, proc_root=None,
+                          refresh_apple_clients=False):
+    """Check that nextpnr itself opened a leased hardware node.
+
+    Metal has no device nodes. On Apple the evidence is a user client of the
+    leased GPU whose creator is a nextpnr process in the tree.
+    """
     if device_nodes is None:
         expected_nodes = []
     elif isinstance(device_nodes, str):
@@ -428,6 +686,16 @@ def process_tree_uses_gpu(root_pid, vendor, device_nodes, proc_root=None):
         expected_nodes = list(device_nodes)
     mapped_nodes = {node for node in expected_nodes if isinstance(node, str)}
     first_node = expected_nodes[0] if expected_nodes else None
+    if vendor == 'apple':
+        nextpnr_pids = {pid for pid in process_tree_pids(root_pid, proc_root)
+                        if 'nextpnr-mistral' in process_cmdline(pid, proc_root)}
+        if not nextpnr_pids:
+            return False
+        return any(creators & nextpnr_pids
+                   for device, creators in apple_gpu_clients(
+                       refresh=refresh_apple_clients).items()
+                   if first_node is None or device in mapped_nodes)
+    targets = process_tree_nextpnr_fd_targets(root_pid, proc_root)
     if vendor == 'amd':
         render_nodes = {target for target in targets
                         if re.fullmatch(r'/dev/dri/renderD\d+', target)}
@@ -460,6 +728,10 @@ def detect_amd_ids():
     return ids_from_kfd_sysfs()
 
 
+def detect_apple_ids():
+    return list(apple_device_names(apple_accelerators()))
+
+
 def owner_cap():
     raw = os.environ.get('GPU_LEASE_MAX_PER_OWNER')
     if raw is None or raw.strip() == '':
@@ -481,8 +753,8 @@ def job_slot_cap():
 
 def resolve_inventory():
     vendor = os.environ.get('GPU_LEASE_VENDOR', '').strip().lower() or None
-    if vendor not in (None, 'amd', 'nvidia'):
-        raise LeaseError('GPU_LEASE_VENDOR must be amd or nvidia')
+    if vendor is not None and vendor not in VENDORS:
+        raise LeaseError('GPU_LEASE_VENDOR must be amd, nvidia or apple')
     raw_ids = os.environ.get('GPU_LEASE_IDS')
     if raw_ids is not None and raw_ids.strip() != '':
         ids = parse_id_list(raw_ids)
@@ -493,6 +765,8 @@ def resolve_inventory():
                 vendor = 'nvidia'
             elif detect_amd_ids():
                 vendor = 'amd'
+            elif detect_apple_ids():
+                vendor = 'apple'
             else:
                 raise LeaseError('set GPU_LEASE_VENDOR when GPU ids are overridden and no GPU vendor is detectable')
         return vendor, sorted(ids, key=id_key)
@@ -500,18 +774,26 @@ def resolve_inventory():
         ids = detect_nvidia_ids()
     elif vendor == 'amd':
         ids = detect_amd_ids()
+    elif vendor == 'apple':
+        ids = detect_apple_ids()
     else:
         ids = detect_nvidia_ids()
         vendor = 'nvidia' if ids else None
         if not ids:
             ids = detect_amd_ids()
             vendor = 'amd' if ids else None
+        if not ids:
+            ids = detect_apple_ids()
+            vendor = 'apple' if ids else None
     if not ids:
         raise LeaseError('no GPUs detected; set GPU_LEASE_IDS and GPU_LEASE_VENDOR')
     return vendor, sorted(ids, key=id_key)
 
 
 def vendor_mask_variable(vendor):
+    """The visibility mask a grant sets, or None for Metal, which has none."""
+    if vendor == 'apple':
+        return None
     return 'ROCR_VISIBLE_DEVICES' if vendor == 'amd' else 'CUDA_VISIBLE_DEVICES'
 
 
@@ -520,7 +802,13 @@ def iso(timestamp):
 
 
 def process_starttime(pid):
-    """Boot-relative start ticks from /proc, or None when pid is gone or a zombie."""
+    """Process start identity as a digit string, or None when pid is gone or a zombie.
+
+    Linux: boot-relative start ticks from /proc. macOS: start time in
+    microseconds from libproc.
+    """
+    if DARWIN:
+        return darwin_process_starttime(pid)
     try:
         raw = Path('/proc/' + str(pid) + '/stat').read_text()
     except OSError:
@@ -636,8 +924,18 @@ def assert_local_filesystem(path, mounts_text=None):
     """Best-effort rejection of a lease directory on a network mount.
 
     An unreadable mount table does not block a lease: the check is only as
-    strong as /proc/self/mounts. Unknown filesystem types are allowed.
+    strong as /proc/self/mounts. Unknown filesystem types are allowed. macOS
+    has no mount table file; statfs(2) reports the filesystem holding the
+    directory, and one the kernel does not mark local (MNT_LOCAL) is refused.
     """
+    if mounts_text is None and DARWIN:
+        found = darwin_statfs(existing_ancestor(path))
+        if found is None:
+            return
+        fstype, local = found
+        if not local or fstype in REMOTE_FILESYSTEMS:
+            raise LeaseError('%s is on %s, which is not a local filesystem' % (path, fstype))
+        return
     if mounts_text is None:
         mounts_text = read_mounts()
     if mounts_text is None:
@@ -1158,7 +1456,7 @@ def acquire(directory, ids, count, vendor, owner, label, command, cap, wait, tim
 def child_env(vendor, ids, device_node=None):
     env = os.environ.copy()
     joined = ','.join(ids)
-    for key in ('HIP_VISIBLE_DEVICES', 'ROCR_VISIBLE_DEVICES', 'CUDA_VISIBLE_DEVICES'):
+    for key in ('HIP_VISIBLE_DEVICES', 'ROCR_VISIBLE_DEVICES', 'CUDA_VISIBLE_DEVICES', 'CUDA_DEVICE_ORDER'):
         env.pop(key, None)
     env['FES_GPU_IDS'] = joined
     env['GPU_RUN_DEVICE'] = '0'
@@ -1166,8 +1464,16 @@ def child_env(vendor, ids, device_node=None):
     env['NEXTPNR_REQUIRE_GPU'] = '1'
     if vendor == 'amd':
         env['ROCR_VISIBLE_DEVICES'] = joined
+    elif vendor == 'apple':
+        # Metal cannot hide devices, so nothing is renumbered: nextpnr
+        # selects the physical leased id itself.
+        env['GPU_RUN_DEVICE'] = ids[0]
     else:
         env['CUDA_VISIBLE_DEVICES'] = joined
+        # Granted ids are nvidia-smi indices, which follow PCI bus order. CUDA's
+        # default order is fastest first, under which the mask selects another
+        # GPU on a box whose fastest device is not at the lowest bus address.
+        env['CUDA_DEVICE_ORDER'] = 'PCI_BUS_ID'
     return env
 
 
@@ -1213,6 +1519,7 @@ def public_ticket(ticket):
         'host': ticket['host'],
         'gpus': ticket['gpus'],
         'eligible_ids': eligible,
+        'vendor': ticket.get('vendor') if isinstance(ticket.get('vendor'), str) else None,
         'vendor_mask': ticket.get('vendor_mask') if isinstance(ticket.get('vendor_mask'), str) else None,
         'enqueued': ticket.get('enqueued') if isinstance(ticket.get('enqueued'), str) else None,
         'age_seconds': age,
@@ -1301,9 +1608,10 @@ def format_status(payload):
     for item in payload['queue']:
         command = shlex.join(item['command']) if item.get('command') else '-'
         eligible = ','.join(item['eligible_ids']) if item.get('eligible_ids') else '?'
+        mask = item.get('vendor_mask') or ('none' if item.get('vendor') == 'apple' else '?')
         lines.append('waiting %s  owner=%s%s gpus=%s eligible=%s mask=%s label=%s owner_pid=%s host=%s age=%s command=%s' % (
             item['ticket'], item['owner'], ' yields' if item.get('yields') else '', item['gpus'], eligible,
-            item.get('vendor_mask') or '?', item.get('label') or '-', item['pid'], item['host'],
+            mask, item.get('label') or '-', item['pid'], item['host'],
             format_age(item['age_seconds']), command))
     for job in payload.get('jobs', ()):
         command = shlex.join(job['command']) if job.get('command') else '-'
@@ -1382,7 +1690,8 @@ def exec_command(chosen, command, env):
     os._exit(127)
 
 
-GPU_BACKEND_READY_RE = re.compile(rb'\bbackend\s+(hip|cuda):[^\n]*\bready\b', re.I)
+GPU_BACKEND_READY_RE = re.compile(rb'\bbackend\s+(hip|cuda|metal):([^\s:]*)[^\n]*\bready\b', re.I)
+EXPECTED_BACKEND = {'amd': 'hip', 'nvidia': 'cuda', 'apple': 'metal'}
 GPU_CPU_FALLBACK_MARKERS = (
     b'falling back to the cpu reference backend',
     b'backend cpu-reference',
@@ -1393,9 +1702,12 @@ class GpuRouteOutput:
     """Track nextpnr backend evidence while forwarding output unchanged."""
 
     def __init__(self, vendor):
-        self.expected_backend = 'hip' if vendor == 'amd' else 'cuda'
+        self.expected_backend = EXPECTED_BACKEND.get(vendor, 'cuda')
         self.tail = b''
         self.backend = None
+        # The first field after the backend name. Metal logs its registry id
+        # there, which names the GPU the backend initialised.
+        self.device = None
         self.cpu_fallback = False
 
     def consume(self, chunk):
@@ -1406,6 +1718,7 @@ class GpuRouteOutput:
             match = GPU_BACKEND_READY_RE.search(combined)
             if match is not None:
                 self.backend = match.group(1).decode('ascii').lower()
+                self.device = match.group(2).decode('ascii', errors='replace').lower()
         self.tail = combined[-8192:]
 
 
@@ -1477,6 +1790,7 @@ def execute(vendor, chosen, command):
             os.close(stdout_write)
             os.close(stderr_write)
         exec_command(chosen, command, env)
+    apple_discovery_deadline = time.monotonic() + APPLE_CLIENT_DISCOVERY_WINDOW
     selector = selectors.DefaultSelector()
     evidence = GpuRouteOutput(vendor)
     if output_pipes is not None:
@@ -1491,7 +1805,11 @@ def execute(vendor, chosen, command):
             if not requires_gpu:
                 requires_gpu = process_tree_requires_gpu(pid)
             if requires_gpu and not opened_gpu:
-                opened_gpu = process_tree_uses_gpu(pid, vendor, device_nodes)
+                opened_gpu = process_tree_uses_gpu(
+                    pid, vendor, device_nodes,
+                    refresh_apple_clients=(vendor == 'apple' and evidence.backend is None
+                                           and not evidence.cpu_fallback
+                                           and time.monotonic() < apple_discovery_deadline))
             if output_pipes is not None:
                 selector.select(GPU_MONITOR_INTERVAL)
                 drain_route_output(selector, evidence)
@@ -1540,12 +1858,17 @@ def route_status(vendor, gpu_ids, device_nodes, requires_gpu, opened_gpu, eviden
         and evidence.backend == evidence.expected_backend
         and not evidence.cpu_fallback
     )
+    mapped_nodes = [node for node in device_nodes if node]
+    if vendor == 'apple' and backend_evidence and mapped_nodes:
+        # nextpnr's Metal backend logs "backend metal:<registry id>:<name>
+        # ready" only after it initialised that MTLDevice. It must be the
+        # leased one.
+        backend_evidence = 'metal:' + (evidence.device or '') in mapped_nodes
     if requires_gpu and (evidence.cpu_fallback or not (opened_gpu or backend_evidence)):
         if evidence.cpu_fallback:
             print('gpu-run: nextpnr reported the CPU reference backend; refusing silent CPU fallback',
                   file=sys.stderr)
         else:
-            mapped_nodes = [node for node in device_nodes if node]
             if mapped_nodes:
                 expected = (mapped_nodes[0] if len(mapped_nodes) == 1 else
                             'one of %s' % ', '.join(mapped_nodes))
@@ -1553,6 +1876,8 @@ def route_status(vendor, gpu_ids, device_nodes, requires_gpu, opened_gpu, eviden
                 expected = 'a device node for %s GPU %s (mapping unavailable)' % (vendor, gpu_ids[0])
             if vendor == 'amd':
                 opened = '/dev/kfd and %s' % expected
+            elif vendor == 'apple':
+                opened = 'Metal GPU %s' % expected
             else:
                 opened = expected
             print('gpu-run: nextpnr never opened leased GPU device %s and did not prove a live backend; refusing silent CPU fallback' % opened,
@@ -1594,7 +1919,7 @@ def phase_child_env(vendor, lease_fd):
     """Environment for a --phase-lease command, which starts without a grant."""
     env = os.environ.copy()
     for key in ('HIP_VISIBLE_DEVICES', 'ROCR_VISIBLE_DEVICES', 'CUDA_VISIBLE_DEVICES',
-                'FES_GPU_IDS', 'GPU_RUN_DEVICE', 'GPU_RUN_EXPECTED_DEVICE'):
+                'CUDA_DEVICE_ORDER', 'FES_GPU_IDS', 'GPU_RUN_DEVICE', 'GPU_RUN_EXPECTED_DEVICE'):
         env.pop(key, None)
     env['GPU_LEASE_FD'] = str(lease_fd)
     env['NEXTPNR_REQUIRE_GPU'] = '1'
@@ -1751,6 +2076,7 @@ def execute_phase_lease(directory, ids, vendor, owner, label, command, cap, slot
     chosen = None
     granted_ids = []
     opened_gpu = False
+    apple_discovery_deadline = None
     status = None
 
     def reap():
@@ -1788,12 +2114,13 @@ def execute_phase_lease(directory, ids, vendor, owner, label, command, cap, slot
                 return False
 
     def answer(request):
-        nonlocal chosen
+        nonlocal chosen, apple_discovery_deadline
         if request == 'RELEASE':
             if chosen is None:
                 return 'ERR not-held'
             release(chosen)
             chosen = None
+            apple_discovery_deadline = None
             return 'OK'
         match = ACQUIRE_RE.fullmatch(request)
         if match is None:
@@ -1811,6 +2138,7 @@ def execute_phase_lease(directory, ids, vendor, owner, label, command, cap, slot
         if got is None:
             return None
         chosen = got
+        apple_discovery_deadline = time.monotonic() + APPLE_CLIENT_DISCOVERY_WINDOW
         granted_ids.extend(gpu_id for gpu_id, _ in got if gpu_id not in granted_ids)
         return 'GRANT ' + got[0][0]
 
@@ -1818,9 +2146,13 @@ def execute_phase_lease(directory, ids, vendor, owner, label, command, cap, slot
         while True:
             if not requires_gpu:
                 requires_gpu = process_tree_requires_gpu(pid)
-            if requires_gpu and granted_ids and not opened_gpu:
+            if requires_gpu and chosen is not None and granted_ids and not opened_gpu:
                 opened_gpu = process_tree_uses_gpu(
-                    pid, vendor, [gpu_device_path(vendor, gpu_id) for gpu_id in granted_ids])
+                    pid, vendor, [gpu_device_path(vendor, gpu_id) for gpu_id in granted_ids],
+                    refresh_apple_clients=(vendor == 'apple' and evidence.backend is None
+                                           and not evidence.cpu_fallback
+                                           and apple_discovery_deadline is not None
+                                           and time.monotonic() < apple_discovery_deadline))
             wait_for_input(GPU_MONITOR_INTERVAL)
             for request in connection.requests():
                 reply = answer(request)

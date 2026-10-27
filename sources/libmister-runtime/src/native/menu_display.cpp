@@ -84,6 +84,35 @@ Error MenuDisplayDriver::Submit(std::uint8_t slot,std::uint32_t sequence,std::ui
  if(error.ok())error=Command(FesApplicationOpcodeMenuSubmit,FesApplicationMenuSubmitCommitIndex,slot,deadline);
  return error;
 }
+Error MenuDisplayDriver::RunBlit(std::uint32_t first,std::uint32_t count,std::uint8_t slot,std::uint64_t deadline)
+{
+ if(slot>=FesApplicationMenuSlotCount||!count||first>=FesApplicationMenuBlitCommandCount||
+  count>FesApplicationMenuBlitCommandCount-first)return Invalid("invalid menu blit list or slot");
+ Error error=Command(FesApplicationOpcodeMenuBlit,FesApplicationMenuBlitFirstIndex,std::uint16_t(first),deadline);
+ if(error.ok())error=Command(FesApplicationOpcodeMenuBlit,FesApplicationMenuBlitCountIndex,std::uint16_t(count),deadline);
+ if(error.ok())error=Command(FesApplicationOpcodeMenuBlit,FesApplicationMenuBlitRunIndex,slot,deadline);
+ return error;
+}
+Error MenuDisplayDriver::ReadBlit(std::uint64_t deadline,MenuBlitState* output)
+{
+ if(!output)return Invalid("missing menu blit state output");
+ // The count advances in the same clock the run goes idle, so reading it
+ // first means a new count is never paired with a stale busy.
+ std::uint16_t state=0,completed=0;
+ Error error=gp_.Exchange(FesApplicationOpcodeMenuBlit,FesApplicationMenuBlitCompletedIndex,0,deadline,&completed);
+ if(error.ok())error=gp_.Exchange(FesApplicationOpcodeMenuBlit,FesApplicationMenuBlitStateIndex,0,deadline,&state);
+ if(!error.ok())return error;
+ constexpr std::uint16_t known=FesApplicationMenuBlitStateBusy|FesApplicationMenuBlitStateFaulted|
+  (7u<<FesApplicationMenuBlitStateFaultShift);
+ const std::uint8_t fault=std::uint8_t((state>>FesApplicationMenuBlitStateFaultShift)&7u);
+ // A fault code appears exactly when the blitter is faulted.
+ if((state&~known)||bool(state&FesApplicationMenuBlitStateFaulted)!=(fault!=0))
+  return Invalid("menu blit state does not match the blitter contract");
+ MenuBlitState blit;
+ blit.busy=state&FesApplicationMenuBlitStateBusy;blit.faulted=state&FesApplicationMenuBlitStateFaulted;
+ blit.fault=fault;blit.completed=completed;
+ *output=blit;return {};
+}
 Error MenuDisplayDriver::Quiesce(std::uint64_t deadline,const CoreDescriptor* identity,MenuDisplayInfo* output)
 {
  // An ambiguous frame submission is never repeated. Sample the live ACK and

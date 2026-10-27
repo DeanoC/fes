@@ -11,12 +11,14 @@ import (
 	"strings"
 
 	"github.com/DeanoC/FogCast/corepackage"
+	"github.com/DeanoC/FogCast/internal/zx81family"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/misteross/expansion"
 )
 
-// HardwareTape is an attributed default tape, served by the host. Its bytes are
-// imported on explicit selection; simply opening the shelf changes nothing.
+// HardwareTape is an attributed starter cassette or a saved program. Starter
+// bytes are imported on explicit selection; saved programs already have a
+// MediaID. Simply opening the shelf changes nothing.
 type HardwareTape struct {
 	ID        string `json:"id"`
 	Name      string `json:"name"`
@@ -26,16 +28,34 @@ type HardwareTape struct {
 	Controls  string `json:"controls"`
 	SHA256    string `json:"sha256"`
 	RAMKB     int    `json:"ram_kb"`
+	// MediaID is set when the tape is already stored. Selection must not import it again.
+	MediaID string `json:"media_id,omitempty"`
 }
 
 func (c *Client) ZX81Tapes(ctx context.Context) ([]HardwareTape, error) {
+	return c.ZX81TapesForGame(ctx, "")
+}
+
+// ZX81TapesForGame returns compatible starter cassettes plus programs saved by
+// this machine. The host filters starters against the catalogued core ID.
+func (c *Client) ZX81TapesForGame(ctx context.Context, gameID string) ([]HardwareTape, error) {
+	path := "/api/v1/library/zx81-tapes"
+	if gameID != "" {
+		if protocol.ValidateGameID(gameID) != nil {
+			return nil, fmt.Errorf("invalid tape game")
+		}
+		path += "?game_id=" + url.QueryEscape(gameID)
+	}
 	var result struct {
 		Tapes []HardwareTape `json:"tapes"`
 	}
-	err := c.getJSON(ctx, "/api/v1/library/zx81-tapes", &result)
+	err := c.getJSON(ctx, path, &result)
 	return result.Tapes, err
 }
 
+// ImportZX81Tape copies the host's embedded starter into its media store. It
+// uses the ordinary bounded client: it does not fetch SourceURL or touch the
+// FPGA. The later media insert owns the longer physical-operation deadline.
 func (c *Client) ImportZX81Tape(ctx context.Context, tape HardwareTape) (CoreMedia, error) {
 	if tape.ID == "" || protocol.ValidateDigest(tape.SHA256) != nil {
 		return CoreMedia{}, fmt.Errorf("invalid tape identity")
@@ -73,6 +93,56 @@ func (c *Client) SelectCoreEntryMedia(ctx context.Context, game, pkg, expected, 
 		err = fmt.Errorf("host returned a different tape selection")
 	}
 	return result, err
+}
+
+func (c *Client) CoreEntry(ctx context.Context, game string) (CoreEntry, error) {
+	if protocol.ValidateGameID(game) != nil {
+		return CoreEntry{}, fmt.Errorf("invalid core entry identity")
+	}
+	var result CoreEntry
+	err := c.getJSON(ctx, "/api/v1/library/core-entries/"+url.PathEscape(game), &result)
+	if err == nil && (result.GameID != game || protocol.ValidateDigest(result.PackageID) != nil) {
+		err = fmt.Errorf("core entry identity mismatch")
+	}
+	return result, err
+}
+
+// SelectCoreEntryPackage changes the saved package only if it still matches
+// the package shown to the user. The host rechecks core, media and persistence
+// compatibility before saving the selection.
+func (c *Client) SelectCoreEntryPackage(ctx context.Context, game, expected, pkg string) (CoreEntry, error) {
+	if protocol.ValidateGameID(game) != nil || protocol.ValidateDigest(expected) != nil || protocol.ValidateDigest(pkg) != nil {
+		return CoreEntry{}, fmt.Errorf("invalid package selection identity")
+	}
+	var result CoreEntry
+	err := c.doJSON(ctx, http.MethodPut, "/api/v1/library/core-entries/"+url.PathEscape(game), map[string]string{
+		"expected_package_id": expected, "package_id": pkg,
+	}, &result)
+	if err == nil && (result.GameID != game || result.PackageID != pkg) {
+		err = fmt.Errorf("host returned a different package selection")
+	}
+	return result, err
+}
+
+func (c *Client) SelectCoreEntryROM(ctx context.Context, game, pkg, rom, expected, id string) (CoreEntryROMSelection, error) {
+	if protocol.ValidateGameID(game) != nil || protocol.ValidateDigest(pkg) != nil || strings.TrimSpace(rom) == "" || expected != "" && protocol.ValidateDigest(expected) != nil || id != "" && protocol.ValidateDigest(id) != nil {
+		return CoreEntryROMSelection{}, fmt.Errorf("invalid ROM selection identity")
+	}
+	var result CoreEntryROMSelection
+	err := c.doJSON(ctx, http.MethodPut, "/api/v1/library/core-entries/"+url.PathEscape(game)+"/rom", map[string]string{
+		"package_id": pkg, "rom_id": rom, "expected_media_id": expected, "media_id": id,
+	}, &result)
+	if err == nil && (result.GameID != game || result.PackageID != pkg || result.ROMID != rom || result.MediaID != id) {
+		err = fmt.Errorf("selected ROM identity mismatch")
+	}
+	return result, err
+}
+
+type CoreEntryROMSelection struct {
+	GameID    string `json:"game_id"`
+	PackageID string `json:"package_id"`
+	ROMID     string `json:"rom_id"`
+	MediaID   string `json:"media_id"`
 }
 
 func (c *Client) ImportCoreExpansion(ctx context.Context, size int64, content io.Reader) (CoreEntryExpansionAsset, error) {
@@ -149,17 +219,18 @@ func (c *Client) InstalledZX81Setup(ctx context.Context, pkg string) (CoreSetup,
 	if err := c.getJSON(ctx, "/api/v1/core-packages/"+pkg, &installed); err != nil {
 		return CoreSetup{}, err
 	}
-	if installed.PackageID != pkg || installed.Descriptor.Core.ID != "fes.zx81" || installed.Descriptor.ROM == nil {
-		return CoreSetup{}, fmt.Errorf("choose a Sinclair ZX81 package with a sealed machine ROM requirement")
+	coreID := installed.Descriptor.Core.ID
+	if installed.PackageID != pkg || !zx81family.Known(coreID) || installed.Descriptor.ROM == nil {
+		return CoreSetup{}, fmt.Errorf("choose a ZX81-family package with a sealed machine ROM requirement")
 	}
 	r := installed.Descriptor.ROM
 	library, err := c.CoreLibrary(ctx)
 	if err != nil {
 		return CoreSetup{}, err
 	}
-	result := CoreSetup{CoreReference: CoreReference{CoreID: "fes.zx81", PackageID: pkg}, Descriptor: installed.Descriptor, ROMs: []SetupROM{{ID: r.ID, Role: r.Role, SourceSize: r.SourceSize, Binding: "entry"}}}
+	result := CoreSetup{CoreReference: CoreReference{CoreID: coreID, PackageID: pkg}, Descriptor: installed.Descriptor, ROMs: []SetupROM{{ID: r.ID, Role: r.Role, SourceSize: r.SourceSize, Binding: "entry"}}}
 	for _, entry := range library.Entries {
-		if entry.CoreID == "fes.zx81" {
+		if entry.CoreID == coreID {
 			result.Entries = append(result.Entries, entry)
 		}
 	}
@@ -170,8 +241,8 @@ func (c *Client) InstalledZX81Setup(ctx context.Context, pkg string) (CoreSetup,
 // CreateInstalledZX81Entry preserves an existing title's package/media/ROM
 // selections. Explicit retries can finish an empty ROM binding, never replace it.
 func (c *Client) CreateInstalledZX81Entry(ctx context.Context, setup CoreSetup, title string, roms map[string]string) (CoreEntry, error) {
-	if setup.CoreID != "fes.zx81" || len(setup.ROMs) != 1 || protocol.ValidateDigest(setup.PackageID) != nil {
-		return CoreEntry{}, fmt.Errorf("invalid Sinclair ZX81 setup")
+	if !zx81family.Known(setup.CoreID) || len(setup.ROMs) != 1 || protocol.ValidateDigest(setup.PackageID) != nil {
+		return CoreEntry{}, fmt.Errorf("invalid ZX81-family setup")
 	}
 	rom := setup.ROMs[0]
 	mediaID := roms[rom.ID]
@@ -193,7 +264,8 @@ func (c *Client) CreateInstalledZX81Entry(ctx context.Context, setup CoreSetup, 
 		}
 	}
 	if entry.GameID == "" {
-		err = c.doJSON(ctx, http.MethodPost, "/api/v1/library/core-entries", map[string]string{"title": title, "package_id": setup.PackageID}, &entry)
+		// The library route returns 201. 200 remains success.
+		err = c.doJSONStatuses(ctx, http.MethodPost, "/api/v1/library/core-entries", map[string]string{"title": title, "package_id": setup.PackageID}, &entry, http.StatusOK, http.StatusCreated)
 		if err != nil {
 			return entry, err
 		}

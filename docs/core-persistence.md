@@ -77,6 +77,15 @@ plus speed and best rally. The selected target must be available. Each operation
 admits exact archive bytes; the UI never supplies target filesystem paths.
 See the [component API guide](../sources/FogCast/docs/core-package-library.md).
 
+## Atari ST saved disks
+
+A blank formatted `.st` is created in the host library and bound as the title's
+drive A. GEMDOS writes then use the existing durable disk record: Stop and the
+next library launch restore that record. The catalog copy stays the formatted
+base and is not overwritten. Development insertion remains volatile. The action
+is `POST /api/v1/library/atari-st-disks`; see the
+[package library guide](../sources/FogCast/docs/core-package-library.md).
+
 ## Ownership and extension
 
 mister-packages defines the required `fes.persistence.words` and

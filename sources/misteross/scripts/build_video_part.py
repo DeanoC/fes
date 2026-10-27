@@ -27,7 +27,8 @@ SOURCES = ("cores/fes-common/rtl/fes_video_part_cart.v",
            "cores/fes-common/rtl/fes_video_part_direct.v",
            "cores/fes-common/rtl/fes_video_part_scanlines.v")
 INPUTS = (*SOURCES, "cores/fes-common/generated/fes_video_part.vh",
-          "scripts/build_video_part.py", "scripts/video_parts.py", *sgm.INPUTS)
+          "scripts/build_video_part.py", "scripts/video_parts.py",
+          "scripts/pnr_recipe.py", *sgm.INPUTS)
 NATIVE_SOURCES = ("cores/fes-common/rtl/fes_native_video_cart.v",
                   "cores/fes-common/rtl/fes_native_video.v",
                   "cores/fes-common/rtl/coleco_video_dpram.v")
@@ -112,8 +113,8 @@ def package_profile(package):
                 in package.fields["interfaces"]]
     video_markers = [row for row in package.fields["interfaces"]
                      if row["id"] in (video_parts.INTERFACE, native_video_parts.INTERFACE)]
-    if package.fields["format"] not in (2, 3) or len(profiles) != 1 or len(video_markers) != 1:
-        raise ValueError("video parts require one exact sealed format-2 or format-3 video shell profile")
+    if package.fields["format"] not in (2, 4) or len(profiles) != 1 or len(video_markers) != 1:
+        raise ValueError("video parts require one exact sealed format-2 or format-4 video shell profile")
     return profiles[0]
 
 
@@ -170,7 +171,7 @@ def build(root: Path, shell: Path, package_path: Path, variant: str, *,
              "--fes-scaffold", "--fes-cart", str(output / "cart.json"),
              "--fes-cart-region", layout.REGION, "--fes-slot-clock", layout.CLOCK,
              "--fes-cram-region", ",".join(map(str, layout.CRAM)), "--no-pack",
-             "--seed", "3", "--router", "gpu", "--gpu-device", str(gpu),
+             "--seed", str(layout.PLACER_SEED), "--router", "gpu", "--gpu-device", str(gpu),
              "--placer-heap-timingweight", "300",
              "--rbf", str(output / "cart.rbf"), "--compress-rbf",
              "--write", str(output / "cart-routed.json"), "--report", str(output / "timing.json")),
@@ -198,13 +199,16 @@ def build(root: Path, shell: Path, package_path: Path, variant: str, *,
         timing = json.loads((output / "timing.json").read_bytes())
         sgm.validate_cart_timing(timing)
         factory = shell_recipe.factory
+        # The native shell's session plane owns the DDR port beside the part.
         resources = validate_timing_resources(timing.get("utilization"),
             factory.ORDINARY_RESOURCES | set(factory.REQUIRED_RESOURCES) |
-            factory.FORBIDDEN_RESOURCES | factory.REQUIRED_ZERO_RESOURCES)
+            factory.FORBIDDEN_RESOURCES | factory.REQUIRED_ZERO_RESOURCES |
+            set(factory.SESSION_DISPLAY_RESOURCES))
         measured = {name: factory._frequency_row(timing["fmax"], frequency, name, name)
                     for name, frequency in sgm.REQUIRED_CLOCKS_MHZ.items()}
         synthesis_counts = _cell_counts(json.loads((output / "cart.json").read_bytes()))
-        if any(synthesis_counts.get(name, 0) for name in factory.FORBIDDEN_RESOURCES | set(factory.REQUIRED_RESOURCES)):
+        if any(synthesis_counts.get(name, 0) for name in
+               factory.FORBIDDEN_RESOURCES | set(factory.REQUIRED_RESOURCES) | set(factory.SESSION_DISPLAY_RESOURCES)):
             raise ValueError("video part must not own DSP, PLL or HPS resources")
         checked_clocks = validate_clocks(json.loads((output / "cart-routed.json").read_bytes()), layout=layout)
         if (native or variant == "scanlines") and not checked_clocks:

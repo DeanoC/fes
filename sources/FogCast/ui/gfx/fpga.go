@@ -68,6 +68,10 @@ func (f *FPGAStub) DrawTextWeight(x, y int, text string, sizePx int, w Weight, c
 	f.sw.DrawTextWeight(x, y, text, sizePx, w, c)
 }
 
+func (f *FPGAStub) DrawMask(m *Mask, src image.Rectangle, x, y int, c Color) {
+	f.sw.DrawMask(m, src, x, y, c)
+}
+
 func (f *FPGAStub) Close() { f.sw.Close() }
 
 var _ Device = (*FPGAStub)(nil)

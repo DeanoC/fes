@@ -71,3 +71,28 @@ identity or checksum. Endpoint admission still requires the extension and
 restores reject saved/base length mismatch before hardware transfer. Saved BPB
 edits do not change physical geometry. `atari-st-geometry.json` independently
 fixes the 839680-byte patterned header, checksum, revision and namespace.
+
+## ZX81 tape capture
+
+`fes.zx81-tape.image` 1.0 is the `.p` captured by `fes.media.zx81-tape-write`.
+The envelope matches the ST record field order with a different magic and
+layout id, so an ST decoder rejects it. Payload length is 1..16384. Layout
+minor is 0. The namespace uses the same `fes-media-data-v1` binding. Record
+length is the payload length plus 167 bytes (116-byte prefix, 19-byte layout
+id `fes.zx81-tape.image`, 32-byte checksum).
+
+| Offset | Size | Bytes |
+| --- | --- | --- |
+| 0 | 8 | ASCII `FESTAPE1` |
+| 8 | 96 | Core, game and base-image SHA256, as in the ST record |
+| 104 | 2 | Little-endian unit (0) |
+| 106 | 2 | Little-endian layout major (1) |
+| 108 | 2 | Little-endian layout minor (0) |
+| 110 | 2 | Little-endian layout ID byte length (19) |
+| 112 | 4 | Little-endian payload byte length |
+| 116 | 19 | UTF-8 `fes.zx81-tape.image` |
+| 135 | N | Raw `.p` image |
+| 135+N | 32 | SHA256 of every preceding record byte |
+
+The interim host library stores that raw `.p` as core media so the Workshop
+cassette picker can select it. The kit-as-host store is a separate change.

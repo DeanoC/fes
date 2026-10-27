@@ -292,6 +292,10 @@ class Simulation {
         const bool flush_pipeline = dut.reset_pixel || position == Frame - 1;
         uint16_t expected_word = 0;
         if (!dut.reset_pixel) {
+            for (unsigned bank = 0; bank < 2; ++bank)
+                if (((dut.bank_current >> bank) & 1) !=
+                    ((bank ? dut.bank1_frame : dut.bank0_frame) == dut.debug_frame))
+                    fail("bank current-frame flag disagrees with its frame tag");
             if (dut.raster_row != row_at(position / Width) ||
                 dut.raster_next_row != row_at((position / Width + 1) % Height))
                 fail("incremental native row/repetition lost raster alignment");

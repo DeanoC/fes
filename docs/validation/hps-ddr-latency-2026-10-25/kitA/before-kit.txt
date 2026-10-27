@@ -1,0 +1,20 @@
+latched
+
+0x00003FFF
+ 12:58:14 up 12:58,  load average: 1.92, 1.77, 1.28
+              total        used        free      shared  buff/cache   available
+Mem:         504096       69284       61420         636      373392      422836
+Swap:             0           0           0
+2
+Filesystem                Size      Used Available Use% Mounted on
+tmpfs                   246.1M      4.0K    246.1M   0% /tmp
+cat
+dd
+setsid
+top
+processor	: 0
+model name	: ARMv7 Processor rev 0 (v7l)
+processor	: 1
+model name	: ARMv7 Processor rev 0 (v7l)
+
+exit 0

@@ -10,6 +10,15 @@ and content selection; the MiSTer is a small, directly controlled target.
 
 ## What works now
 
+- **Settings → BIOS & media drives** remembers USB volumes and SMB shares on
+  either the kit/launcher device or the FogCast host, with separate BIOS and
+  media folders. Saved drives appear in BIOS, core setup and live-media
+  pickers and reconnect when opened. Browser Settings manages host drives;
+  **From host drive** imports their files in FPGA library setup. See
+  [BIOS and media drives](docs/ARCHITECTURE.md#bios-and-media-drives). USB
+  discovery and mounting require Linux; non-Linux Tenfoot builds can still use
+  SMB shares.
+
 - Household video preference selects **Direct** or **Scanlines** for the next
   library launch. Browser Settings saves the preference; **Manage FPGA library**
   imports video parts and shows the resolved choice for the exact package.
@@ -21,8 +30,8 @@ and content selection; the MiSTer is a small, directly controlled target.
   A missing Scanlines part falls back to a matching Direct part. Native pixel
   shells require a linked video part; raster shells retain built-in Direct as
   their final fallback. An installed selected part that fails admission
-  requires repair. Marked Coleco shells, including a format-3 16 KiB cartridge, link
-  one video part with an optional CPU expansion, retaining the shell identity
+  requires repair. Marked Coleco shells, including the format-4 BIOS and 16 KiB
+  cartridge shell, link one video part with an optional CPU expansion, retaining the shell identity
   and fixed 720p output. The target independently links the selected bytes.
   The separate `go run ./cmd/fes-parts` developer path remains volatile. See
   [library video preferences](docs/ARCHITECTURE.md#library-video-preferences) and
@@ -55,10 +64,11 @@ and content selection; the MiSTer is a small, directly controlled target.
   exact 174,848-byte `.d64`, Atari ST uses raw `.st` disks (legacy 737,280 bytes;
   packages requiring `fes.media.atari-st-floppy-geometry` also admit
   80..82 tracks, 1..2 heads and 9..10 sectors of 512 bytes), and
-  ZX Spectrum 48K is a 1..65,536-byte `.tap`.
+  the ZX Spectrum models take a `.tzx`, `.tap`, `.pzx` or `.csw` tape of up to
+  32 MiB, which the host converts to the unit's PZX stream.
   `POST /api/v1/session/live-media` swaps or ejects that unit while the
   machine runs. Apple II, Commodore 64 and Atari ST use `fogcast change-disk` and
-  `fogcast eject-disk`. ZX Spectrum 48K uses `fogcast change-cassette` and
+  `fogcast eject-disk`. The ZX Spectrum models use `fogcast change-cassette` and
   `fogcast eject-cassette`. A stored media ID follows the active unit's
   size. See
   [removable disks](docs/ARCHITECTURE.md#removable-disks-fescomputer-media-units).
@@ -72,9 +82,9 @@ and content selection; the MiSTer is a small, directly controlled target.
 - Described `fes.application` packages may negotiate `fes.gamepad.ports` 1.0
   for two independent digital controllers and optional `fes.keypad.ports` 1.0
   for two twelve-key keypads. The existing session input event accepts
-  zero-based `Player` (default 0). The kit's physical-controller hub assigns
-  stable ports, releases only an unplugged controller, and keeps the surviving
-  controller's port. Stop releases both. These interfaces use full snapshots
+  zero-based `Player` (default 0). On the kit, tenfoot gives the first two
+  pads it opens ports 1 and 2, releases only an unplugged pad, and keeps the
+  surviving pad's port. Stop releases both. These interfaces use full snapshots
   bound to the active package generation through the native runtime; legacy
   single-pad cores retain their existing uinput path. See
   [shared controller ports](docs/ARCHITECTURE.md#shared-controller-ports).
@@ -99,8 +109,10 @@ and content selection; the MiSTer is a small, directly controlled target.
   entry (`fes.keyboard.hid`, `fes.media.zx81-tape`). A selected `.p` uses the
   role that package declares: `cassette` on the tape unit, inserted into unit 0
   after Start, or `blob` on an installed `fes.simple-computer` package. On a
-  menu-display kit, ZX81 HDMI controls use `fes.video.session-display` and
-  restore machine video on return. A setup
+  menu-display kit, Home or Select/View opens **Change media** over the running
+  machine through `fes.video.session-display`. The selector inserts or ejects
+  the active core's supported tape or disk format and returns directly to play.
+  The emulator picture remains visible outside the picker. A setup
   saved earlier as `blob` still launches on the tape unit when the current
   package declares only cassette. `POST /api/v1/session/launch` with its
   `game_id` programs the package and attaches keyboard input. Library FES
@@ -212,7 +224,11 @@ and content selection; the MiSTer is a small, directly controlled target.
   press and return to centre share one poll; d-pad input reaches a running
   local core while the menu is suppressed. Automatic gamepad discovery requires
   a readable physical bus and device name; it rejects unknown and virtual
-  gamepad identities. Build using
+  gamepad identities. A paired Bluetooth HID or HoG pad is an evdev node on
+  that bus: hold the controller pair button and the kit initiates pairing,
+  while its adapter stays non-pairable and non-discoverable to nearby devices.
+  BlueZ link keys live on the FESDATA3 ext4 partition at
+  `/run/fogcast/fesdata3/bluetooth`, not on FAT. Build using
   `CGO_ENABLED=0 go build ./cmd/fogcast-tenfoot`; see the
   [Linux framebuffer guide](docs/native-tenfoot-launcher/LINUX.md#framebuffer-without-sdl).
   `fogcast-tenfoot -gfx menu-display` runs that same app and evdev input through
@@ -352,9 +368,9 @@ The kit UI is `fogcast-tenfoot -gfx menu-display`, started by the base-image
 supervisor. It uses an explicitly paired host listener and the existing
 session/input ownership path, or the kit-local catalog and local-control
 socket when the kit has its own playable shelf. Select + Start held for one
-second requests Stop. Kit input applies a JSON remap profile from
-`ui/inputmap` (default **identity** preserves A=launch and
-Select+Start=stop). `cmd/fogcast-kit` is only a stub that answers
+second requests Stop. Each kit pad applies the profile `tenfoot.json` saves
+under its GUID (`ui/inputmap`: the `swap-ab` preset and single-control
+bindings). `cmd/fogcast-kit` is only a stub that answers
 `--print-kit-ui` with `tenfoot` for bases whose supervisor still probes it.
 See [kit launcher](docs/kit-launcher.md). Exact image and hardware evidence
 belong to FES.
@@ -394,8 +410,10 @@ the gamepad OSK and POSTs the file bytes.
 
 ## Repository boundaries
 
-These are modules in the FES repository. Quartus Lite 17.0.2 is an oracle
-check, not the product FPGA route. The product route is HIP/nextpnr.
+These are modules in the FES repository. Quartus Lite 17.0.2 remains an
+explicit oracle/check in the current recipes. Accepted FES policy also allows
+a labelled Quartus-built variant after recipe and package-selection support
+lands; the current normal product route uses HIP/nextpnr.
 
 | Module | Owns |
 | --- | --- |
@@ -443,7 +461,7 @@ is in [docs/launch-composition.md](docs/launch-composition.md), with the
 ZX81/Coleco expansions, Apple II slot cards and the Apple II removable disk.
 
 The [Sinclair ZX81 workbench](../../docs/hardware-rooms.md) adds local installed-package
-setup, compatible expansion import with progress labels, and cassettes selected
+setup for ZX81, ZX80, TS1000 and TS1500, compatible expansion import with progress labels, and cassettes selected
 before Start. Its three starter programs retain their source and licences in
 [`internal/zx81tapes`](internal/zx81tapes/README.md). The kit's single HDMI menu
 uses MENU while idle. A display-capable ZX81 shell also offers visible live
@@ -464,3 +482,27 @@ Writable disks use explicit library bindings and runtime-owned complete-image
 saves. Format-3 Play can select firmware, an ST Direct/Scanlines video archive
 and the optional slot-1 CPU expansion together; every part binds the exact
 shell package. These extensions do not add Atari ST to the factory image.
+
+### Independent room updates
+
+First-party room directories use their public `example.*` identities directly.
+The existing `fogcast-tenfoot room-install PACK_DIRECTORY` command installs Lua,
+metadata and artwork under the same identity as the built-in room. Reopen Rooms
+and select it to trial the update in the running launcher, without rebuilding
+Go or restarting the agent. `room-rollback example.fes-cores` restores the
+previous selection; a first-install rollback reveals the built-in default.
+See [room delivery](docs/rooms.md#installing-and-opening-rooms). The binary's
+embedded snapshots remain offline recovery defaults, rather than a required
+route for delivering ordinary room updates.
+
+Portable room files use the same installer and rollback path:
+`fogcast-tenfoot room-export --output home.room.zip PACK_DIRECTORY`, then
+`fogcast-tenfoot room-install home.room.zip` on the launcher's machine. Export
+validates before publishing; import checks the bounded archive privately before
+changing the selected snapshot. No source checkout is needed to install it.
+See [room installation](docs/rooms.md#installing-and-opening-rooms).
+
+Tenfoot synchronizes held-direction repeat state between frame-loop input and
+asynchronous session-display handoffs. A failed surround transition can clear
+pending repeats without racing the frame tick; repeat delay and cadence are
+unchanged. The input helper releases its lock before command dispatch.

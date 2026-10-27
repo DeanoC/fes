@@ -1,5 +1,6 @@
 """The selected profile controls the complete installed FPGA core set."""
 from contextlib import ExitStack, contextmanager
+import fcntl
 import json
 import os
 from pathlib import Path
@@ -587,6 +588,7 @@ class CoreBuildTest(unittest.TestCase):
                     patch.object(build.subprocess, 'run', side_effect=fake_run),
                     patch.object(build.platform, 'system', return_value='Linux'),
                     patch.object(build.platform, 'machine', return_value='x86_64'),
+                    patch.object(build.platform, 'build_bluetooth'),
                     patch.object(build, 'build_environment', return_value={}),
                     patch.object(build.shutil, 'which', return_value='/usr/bin/tool'),
                     patch.object(build, 'locked_diagnostics', no_diagnostics),
@@ -661,6 +663,14 @@ class CoreBuildTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
+            image = root / 'image'
+            (image / 'build').mkdir(parents=True)
+            shutil.copyfile(build.IMAGE / 'build/native-inputs.toml',
+                            image / 'build/native-inputs.toml')
+            (image / 'build/target-image.sources.lock.toml').write_text(
+                '[container]\nimage = "docker.io/library/debian:12.11-slim"\n'
+                'platform = "linux/amd64"\n' +
+                'digest = "sha256:' + 'a' * 64 + '"\n')
             fogcast = root / 'FogCast'
             (fogcast / 'build').mkdir(parents=True)
             (fogcast / 'build/native-runtime.inputs.lock.toml').write_text('lock')
@@ -677,6 +687,13 @@ class CoreBuildTest(unittest.TestCase):
                     parsed.pop('check_packages', None)
                 return parsed
 
+            bluetooth_calls = []
+
+            def fake_bluetooth(*args, **kwargs):
+                if not artifacts:
+                    raise AssertionError('bluetooth agent is built with kit software')
+                bluetooth_calls.append(args)
+
             def fake_run(args, **kwargs):
                 if artifacts:
                     self.assertNotIn('build-agent', args)
@@ -684,6 +701,9 @@ class CoreBuildTest(unittest.TestCase):
                 if (len(args) >= 3 and
                         Path(args[0]).name == 'target-image-container.sh' and
                         args[1:3] == ['fetch', '/work/scripts/fetch-target-image-sources.sh']):
+                    with (image / 'build/cache/.kit-sdk-sources.lock').open('a') as competing_lock:
+                        with self.assertRaises(BlockingIOError):
+                            fcntl.flock(competing_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
                     captured['env'] = kwargs['env']
                     captured['assembly_lock'] = real_tomllib_loads(
                         (fogcast / 'build/native-runtime.inputs.lock.toml').read_text())
@@ -712,6 +732,7 @@ class CoreBuildTest(unittest.TestCase):
                     patch.object(build.sys, 'argv',
                                  ['build.py', 'image' if artifacts else 'build', '--profile', 'native-integration-dev'] +
                                  (['--artifacts', '/explicit-artifacts'] if artifacts else [])),
+                    patch.object(build, 'IMAGE', image),
                     patch('image_artifacts.load', return_value=(artifact_manifest, packages)),
                     patch('image_artifacts.stage', return_value=(artifact_manifest, packages)),
                     patch.object(build, 'validate', return_value=revisions),
@@ -729,6 +750,7 @@ class CoreBuildTest(unittest.TestCase):
                     patch.object(build.platform, 'machine', return_value='x86_64'),
                     patch.object(build.platform, 'build_kit_software',
                                  side_effect=AssertionError('must not compile') if artifacts else None),
+                    patch.object(build.platform, 'build_bluetooth', side_effect=fake_bluetooth),
                     patch.object(build, 'write_receipt'),
                     patch.object(build, 'publish_host_inputs'),
                     patch.object(build.shutil, 'which', return_value='/usr/bin/tool'),
@@ -752,6 +774,7 @@ class CoreBuildTest(unittest.TestCase):
                 with self.assertRaises(StopAfterFetch):
                     build.main()
 
+        self.assertEqual(len(bluetooth_calls), 1 if artifacts else 0)
         self.assertEqual(captured['assembly_lock']['mister_runtime']['commit'], ('5' if artifacts else '2') * 40)
         self.assertEqual(captured['assembly_lock']['idle_rbf'],
                          tomllib.loads((build.IMAGE / 'build/native-inputs.toml').read_text())['idle_rbf'])

@@ -78,17 +78,26 @@ func (s *Service) CoreCompositions(ctx context.Context, ids []string) (map[strin
 			comp.FirmwareRequired = true
 			comp.ROMRequired = true
 			comp.ROMID = inspection.Descriptor.ROMs[1].ID
+			comp.ROMRole = inspection.Descriptor.ROMs[1].Role
+			comp.ROMSourceSize = inspection.Descriptor.ROMs[1].SourceSize
 			selected, _, romErr := s.readCoreEntryROM(ctx, entry, inspection.Descriptor)
 			comp.ROMMediaID = selected.MediaID
 			comp.ROMReady = romErr == nil
 			_, _, biosErr := s.readTwoROMFirmware(ctx, inspection.Descriptor)
 			comp.FirmwareReady = biosErr == nil
 		} else if inspectErr == nil && inspection.Descriptor.ROM != nil {
-			comp.ROMRequired = true
 			comp.ROMID = inspection.Descriptor.ROM.ID
+			comp.ROMRole = inspection.Descriptor.ROM.Role
+			comp.ROMSourceSize = inspection.Descriptor.ROM.SourceSize
 			selected, _, romErr := s.readCoreEntryROM(ctx, entry, inspection.Descriptor)
 			comp.ROMMediaID = selected.MediaID
-			comp.ROMReady = romErr == nil
+			if inspection.Descriptor.ROM.Role == protocol.FirmwareRole {
+				comp.FirmwareRequired = true
+				comp.FirmwareReady = romErr == nil
+			} else {
+				comp.ROMRequired = true
+				comp.ROMReady = romErr == nil
+			}
 		}
 		if expansions, ok := s.catalog.(coreExpansionCatalog); ok {
 			selected, err := expansions.CoreEntryExpansion(ctx, id)
@@ -113,6 +122,10 @@ func (s *Service) CoreCompositions(ctx context.Context, ids []string) (map[strin
 			comp.SlotExpansions = slots
 		}
 		if inspection.Descriptor.Format == 4 && inspectErr == nil {
+			out[id] = comp
+			continue
+		}
+		if inspectErr == nil && inspection.Descriptor.ROM != nil && inspection.Descriptor.ROM.Role == protocol.FirmwareRole {
 			out[id] = comp
 			continue
 		}

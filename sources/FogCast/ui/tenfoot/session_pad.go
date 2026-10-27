@@ -14,10 +14,10 @@ func (a *App) coreOwnsPadInput() bool {
 
 func (a *App) suppressHeldSessionPadLocked() {
 	if a.playPadSuppressed == nil {
-		a.playPadSuppressed = make(map[remoteinput.Code]bool)
+		a.playPadSuppressed = make(map[padKey]bool)
 	}
-	for code := range a.playPadHeld {
-		a.playPadSuppressed[code] = true
+	for key := range a.playPadHeld {
+		a.playPadSuppressed[key] = true
 	}
 }
 
@@ -29,42 +29,40 @@ func (a *App) sessionPadLocked(e remoteinput.Event, now time.Time) (bool, []remo
 		return false, nil
 	}
 	if a.playPadHeld == nil {
-		a.playPadHeld = make(map[remoteinput.Code]remoteinput.Event)
+		a.playPadHeld = make(map[padKey]remoteinput.Event)
 	}
+	key := padKey{e.Player, e.Code}
 	down := e.Action == remoteinput.ActionPress || e.Kind == remoteinput.KindAxis && e.Value != 0
 	if down {
-		a.playPadHeld[e.Code] = e
+		a.playPadHeld[key] = e
 	} else {
-		delete(a.playPadHeld, e.Code)
+		delete(a.playPadHeld, key)
 	}
 	// A failed Stop retains the display binding. B may return that plane
 	// while the retry-Stop lock continues to block other controller input.
 	if a.sessionDisplayUncertain && !a.sessionDisplayBusy && a.stopPhase != "stopping" && !a.playHIDFailClosedLocked() &&
-		e.Code == remoteinput.ButtonB && down && !a.playPadSuppressed[e.Code] {
-		a.beginSessionDisplayLocked(false, false)
+		e.Code == remoteinput.ButtonB && down && !a.playPadSuppressed[key] {
+		a.beginSessionDisplayLocked(a.sessionReturnDisplayLocked(), false)
 		return true, nil
 	}
 	if a.playHIDFailClosedLocked() || a.stopPhase == "stopping" || a.retryStopLock {
 		a.playPadChordSince = time.Time{}
 		a.suppressHeldSessionPadLocked()
 		if !down {
-			delete(a.playPadSuppressed, e.Code)
+			delete(a.playPadSuppressed, key)
+		}
+		// Each pad's Select and Start still follow the hardware, so a later
+		// lone press cannot complete a pair that was let go meanwhile.
+		if e.Kind == remoteinput.KindButton {
+			a.playPadPair.set(e.Player, e.Code, down)
 		}
 		return true, nil
 	}
 	pair := e.Kind == remoteinput.KindButton && (e.Code == remoteinput.ButtonSelect || e.Code == remoteinput.ButtonStart)
 	if pair {
-		wasChord := !a.playPadChordSince.IsZero() || a.playPadChordFired
-		if e.Code == remoteinput.ButtonSelect {
-			a.playPadSelectDown = down
-		} else {
-			a.playPadStartDown = down
-		}
-		if a.playPadSelectDown && a.playPadStartDown {
-			if a.playPadChordSince.IsZero() {
-				a.playPadChordSince = now
-			}
-			a.suppressHeldSessionPadLocked()
+		wasChord := a.playPadPair.at(e.Player).held() || a.playPadChordFired
+		if a.playPadPair.press(e.Player, e.Code, down, &a.playPadChordSince, now) {
+			a.suppressPadLocked(e.Player)
 			// Start may already have reached the core before Select. Release
 			// it now, and never replay a swallowed chord press.
 			return true, []remoteinput.Event{
@@ -72,27 +70,26 @@ func (a *App) sessionPadLocked(e remoteinput.Event, now time.Time) (bool, []remo
 				{Player: e.Player, Device: remoteinput.DeviceGamepad, Kind: remoteinput.KindButton, Code: remoteinput.ButtonSelect, Action: remoteinput.ActionRelease},
 			}
 		}
-		a.playPadChordSince = time.Time{}
-		if !a.playPadSelectDown && !a.playPadStartDown {
+		if !a.playPadPair.anyDown() {
 			a.playPadChordFired = false
 		}
 		if wasChord {
 			if !down {
-				delete(a.playPadSuppressed, e.Code)
+				delete(a.playPadSuppressed, key)
 			}
 			return true, nil
 		}
 		if e.Code == remoteinput.ButtonSelect {
 			if !a.liveControlsOfferedLocked() {
-				if a.playPadSuppressed[e.Code] {
+				if a.playPadSuppressed[key] {
 					if !down {
-						delete(a.playPadSuppressed, e.Code)
+						delete(a.playPadSuppressed, key)
 					}
 					return true, nil
 				}
 				return true, []remoteinput.Event{e}
 			}
-			if !down && !a.playPadSuppressed[e.Code] && !a.sessionDisplayBusy && a.stopPhase != "stopping" {
+			if !down && !a.playPadSuppressed[key] && !a.sessionDisplayBusy && a.stopPhase != "stopping" {
 				if a.roomDuringPlay {
 					a.resumeRoomSessionLocked()
 				} else {
@@ -100,23 +97,23 @@ func (a *App) sessionPadLocked(e remoteinput.Event, now time.Time) (bool, []remo
 				}
 			}
 			if !down {
-				delete(a.playPadSuppressed, e.Code)
+				delete(a.playPadSuppressed, key)
 			}
 			return true, nil
 		}
 	}
-	if a.playPadSuppressed[e.Code] {
+	if a.playPadSuppressed[key] {
 		if !down {
-			delete(a.playPadSuppressed, e.Code)
+			delete(a.playPadSuppressed, key)
 		}
 		return true, nil
 	}
 	if a.sessionDisplayBusy || a.sessionDisplayUncertain || a.stopPhase == "stopping" || a.retryStopLock || a.playHIDFailClosedLocked() {
 		if down {
 			if a.playPadSuppressed == nil {
-				a.playPadSuppressed = make(map[remoteinput.Code]bool)
+				a.playPadSuppressed = make(map[padKey]bool)
 			}
-			a.playPadSuppressed[e.Code] = true
+			a.playPadSuppressed[key] = true
 		}
 		return true, nil
 	}

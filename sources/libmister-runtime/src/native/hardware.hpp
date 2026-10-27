@@ -76,11 +76,13 @@ public:
 	void SetFaultSink(HardwareFaultSink*) override;
 	HardwareResult LoadIdle() override;
  HardwareResult ConfigureMenuPackage(const std::string&,const std::string&) override;
- MenuDisplayStatus menu_display() const override {return menu_status_;}
- Error SetSessionDisplay(bool visible) override;
+ MenuDisplayStatus menu_display() const override {
+  MenuDisplayStatus status=menu_status_;status.launcher_focus=session_display_focused_;return status;
+ }
+ Error SetSessionDisplay(bool visible,bool launcher_focus) override;
  Error ShareMenuWindow(int*) override;
  Error MenuBackSlot(std::uint8_t*) const override;
- Error PresentMenuSlot(std::uint8_t,const std::vector<MenuRect>&,MenuDisplayInfo*) override;
+ Error PresentMenuSlot(std::uint8_t,const MenuDraw&,MenuDisplayInfo*) override;
 	Error FlushSave() override;
 	Error FlushFaultSave() override;
 	Error RestoreInput(std::uint64_t generation) override;
@@ -123,6 +125,8 @@ public:
     Error InsertLibraryComputerMedia(std::uint8_t, const std::string&, std::uint32_t,
         const std::string&, const MediaDataBinding&) override;
 	Error EjectComputerMedia(std::uint8_t unit) override;
+	Error CaptureZx81Tape(const std::string& path) override;
+	Error AcknowledgeZx81Tape() override;
 
 private:
 	Error AdmitCorePackageInternal(const std::string&, const std::string&, bool,
@@ -130,8 +134,10 @@ private:
 	HardwareResult LoadCoreInternal(std::unique_ptr<AdmittedCorePackage>,std::uint64_t,bool);
  HardwareResult LoadSplashIdle();
  void RevokeMenuWindow();
+ void SetSessionDisplayInputFocus(bool launcher_focus);
  bool MenuReactivationAllowed();
  Error FailMenuPresent(const Error&);
+ Error ReleaseControllers();
  MenuDisplayDriver* menu_display_;
  MenuWindow* menu_window_;
  MenuDisplayStatus menu_status_;
@@ -170,6 +176,7 @@ private:
 	std::mutex fault_sink_mutex_;
 	HardwareFaultSink* fault_sink_;
 	bool input_open_;
+	std::shared_ptr<std::atomic<bool>> input_identity_verified_;
 	std::shared_ptr<std::atomic<bool>> input_delivery_enabled_;
 	InputRecipe active_input_recipe_;
 	bool has_active_input_recipe_ = false;

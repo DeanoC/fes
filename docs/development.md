@@ -52,6 +52,17 @@ AMD `ROCR_VISIBLE_DEVICES` or NVIDIA `CUDA_VISIBLE_DEVICES` mask. Status shows
 the waiter's id set and owner PID; tickets with a dead or reused local PID are
 ignored after checking the recorded process start time.
 
+On an Apple silicon Mac the vendor is `apple` and the inventory is its one
+Metal GPU, id 0, found through ioreg. Metal has no visibility mask: a grant sets
+`FES_GPU_IDS` and `GPU_RUN_DEVICE` to the physical id, which nextpnr's Metal
+backend uses as its device index. With no device nodes to check, a GPU route
+must show a Metal user client that nextpnr opened on the leased GPU, or log
+`backend metal:<registry id>:... ready` for it; CPU fallback output fails it.
+Process start times and ancestry come from libproc and the lease directory's
+filesystem from `statfs(2)`. Install the scripts as the
+[Shared GPUs](../AGENTS.md#shared-gpus) section describes, including its Mac
+`PATH` step.
+
 `gpu-run --phase-lease` holds no GPU up front. After it takes one of the
 owner's job slots (`GPU_LEASE_MAX_JOBS_PER_OWNER`, default 4), the command
 asks for a GPU on `GPU_LEASE_FD` at each GPU phase and releases it afterwards;
@@ -129,17 +140,23 @@ The default FES integration profile is `native-integration-dev`. It selects only
 run as part of this image. The clean, development, verification and media paths
 reuse the same closed package set. Install `fes.pong`, `fes.zx81`, `fes.coleco`
 and other systems independently through the [core catalog](core-packages.md).
-Individual packages use HIP/nextpnr; Quartus remains an explicit oracle where
-specified. Host builds and [kit software updates](kit-software-releases.md) do
-not build FPGA packages. Build and verify do not deploy.
+Individual packages currently use HIP/nextpnr; Quartus is an explicit oracle
+where specified. The accepted policy also permits labelled Quartus variants,
+but the current recipe and package resolver do not select them yet; see
+[Quartus-built cores](design/quartus-cores.md). Host builds and [kit software
+updates](kit-software-releases.md) do not build FPGA packages. Build and verify
+do not deploy.
 
 FES selects placement seed 5 for both Atari ST video parts. The selected seed
 is part of their canonical cache identity and archive verification; it does not
 change the sealed shell, clocks or socket containment requirements. Standalone
 misteross builds can still select other bounded seeds explicitly.
 Systems whose nextpnr route is not implemented yet use an explicit Quartus
-oracle/check documented by that system's recipe. Quartus is never an automatic
-fallback and never creates a legacy image bundle.
+oracle/check documented by that system's recipe. A future labelled Quartus
+variant follows the accepted
+[Quartus-built core design](design/quartus-cores.md) once recipe and package
+selection support lands. Quartus is never an automatic fallback and never
+creates a legacy image bundle.
 
 During component development, use the narrow relevant component tests and
 build only changed artifacts. For target diagnostics, follow the selected
@@ -405,9 +422,11 @@ to force a new SDK and bypass image receipt reuse; see
 [image assembly](image-assembly.md#buildroot-cross-toolchain).
 
 For cross-worktree image reuse, set
-`FES_TARGET_IMAGE_SHARED_CACHE=/absolute/host/path` on `make build`, `make image`
-or `make dev`. The external directory holds `dl/`, `toolchains/<key>/` and
-`ccache/`; it does not change the shared compiler and package cache below.
+`FES_TARGET_IMAGE_SHARED_CACHE=/absolute/host/path` on `make build`, `make image`,
+`make dev`, `make kit-sdk` or `make kit-software`. The external directory holds
+`dl/`, `toolchains/<key>/` and `ccache/`; it does not change the shared compiler
+and package cache below. `make kit-sdk` fills `toolchains/<key>/` for the current
+image key without building an image.
 The toolchain-only build never uses ccache. With `IMAGE_PASSES=2`, cold pass 2
 disables it so the two rootfs hashes still compare independent compiles. Stop
 builds before removing one of these cache directories; see
@@ -471,7 +490,9 @@ compiler overrides that FES normally removes for producer execution.
 
 ## Compatible kit software updates
 
-Use `make kit-software KIT_SOFTWARE_BASE=/absolute/linux.img
+Use `make kit-sdk` when the toolchain cache has no SDK for the current image
+key. It builds and publishes only that Buildroot SDK. Then use
+`make kit-software KIT_SOFTWARE_BASE=/absolute/linux.img
 KIT_SOFTWARE_BASE_SHA256=<reviewed-image-sha256> KIT_SOFTWARE_VERSION=<version>`
 to build the four kit executables and selected assets from committed HEAD using
 the retained base's pinned SDK. This publishes an immutable bundle plus receipt;

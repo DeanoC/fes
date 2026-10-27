@@ -454,6 +454,43 @@ class BuildFesZx81OssTests(unittest.TestCase):
         self.assertIn('.output_clock_frequency0("52.224 MHz")', sys_pll)
         self.assertNotIn('.output_clock_frequency0("50.0 MHz")', sys_pll)
 
+    def test_model_selects_family_core_rom_and_yosys(self) -> None:
+        tools = {"yosys": Path("/tmp/yosys"), "nextpnr-mistral": Path("/tmp/nextpnr-mistral")}
+        default_yosys = build_commands(ROOT, ROOT / OUTPUT_RELATIVE, "0" * 32, tools)[0][2]
+        self.assertIn("-DFES_ZX81_ROM_LINK=1 -I", default_yosys)
+        self.assertNotIn("ZX81_MODEL", default_yosys)
+        zx80 = build_fes_zx81_oss.model_for("zx80")
+        self.assertEqual(zx80.core_id, "fes.zx80")
+        self.assertEqual(zx80.rom_bytes, 4096)
+        self.assertEqual(zx80.lane_rows, tuple(range(73, 77)))
+        yosys = build_commands(
+            ROOT, ROOT / zx80.output, "0" * 32, tools, model="zx80"
+        )[0][2]
+        self.assertIn("-DZX81_MODEL_ZX80", yosys)
+        self.assertIn("-DFES_ZX81_ROM_LINK=1", yosys)
+        self.assertIn("build/fes-zx80-oss/synth.json", yosys)
+        with self.assertRaises(BuildError):
+            build_fes_zx81_oss.model_for("ts2068")
+        record = json.loads(build_fes_zx81_oss.create_build_record(
+            ROOT, "https://example.invalid/fes.git", "a" * 40, {"yosys": "test"},
+            execution=EXECUTION, model="zx80"))
+        parameters = record["parameters"]
+        self.assertEqual(parameters["core_id"], "fes.zx80")
+        self.assertEqual(parameters["model"], "zx80")
+        self.assertEqual(parameters["model_define"], "ZX81_MODEL_ZX80")
+        self.assertEqual(parameters["rom_id"], "zx80-rom")
+        self.assertEqual(parameters["rom_source_size"], 4096)
+        default = json.loads(build_fes_zx81_oss.create_build_record(
+            ROOT, "https://example.invalid/fes.git", "a" * 40, {"yosys": "test"},
+            execution=EXECUTION))
+        self.assertEqual(default["parameters"]["core_id"], "fes.zx81")
+        self.assertEqual(default["parameters"]["model"], "zx81")
+        self.assertEqual(default["parameters"]["model_define"], "none")
+        self.assertEqual(default["parameters"]["rom_source_size"], 8192)
+        top = (ROOT / "cores/fes-zx81/rtl/top.v").read_text(encoding="utf-8")
+        self.assertIn("`ifdef ZX81_MODEL_ZX80\n        .ENABLE_ZX81_TAPE_WRITE(0),", top)
+        self.assertIn(".ENABLE_ZX81_TAPE_WRITE(1),", top)
+
     def test_oss_rejects_wrong_output_directory(self) -> None:
         with self.assertRaises(BuildError):
             build_commands(
@@ -508,7 +545,7 @@ class BuildFesZx81OssTests(unittest.TestCase):
             {"mistral": "m", "nextpnr-mistral": "n", "yosys": "y"},
         )
         fields = tomllib.loads(manifest.decode())
-        self.assertEqual(fields["core"]["version"], "1.6.0")
+        self.assertEqual(fields["core"]["version"], "1.7.0")
         self.assertEqual(fields["format"], 3)
         self.assertEqual(fields["rom"]["id"], "machine-rom")
         self.assertEqual(fields["rom"]["source_size"], 8192)
@@ -521,6 +558,7 @@ class BuildFesZx81OssTests(unittest.TestCase):
         self.assertEqual(fields["abi"]["id"], "fes.computer")
         self.assertIn("fes.keyboard.hid", interfaces)
         self.assertIn("fes.media.zx81-tape", interfaces)
+        self.assertIn("fes.media.zx81-tape-write", interfaces)
         self.assertNotIn("fes.media.blob", interfaces)
         self.assertIn("fes.memory.hps-ddr", interfaces)
         self.assertIn("fes.video.session-display", interfaces)
@@ -535,6 +573,44 @@ class BuildFesZx81OssTests(unittest.TestCase):
         plane = [item for item in fields["interfaces"] if item["id"] == "fes.fabric.video.display-plane"]
         self.assertEqual(plane, [{"id": "fes.fabric.video.display-plane", "major": major,
                                   "minor": minor, "required": True}])
+
+    def test_family_manifest_save_follows_the_zx81_rom(self) -> None:
+        def manifest_for(model: str) -> dict:
+            record = (
+                b'{"format":1,"repository":"https://github.com/DeanoC/misteross.git",'
+                b'"revision":"' + (b"a" * 40) + b'","recipe":"scripts/build_fes_zx81_oss.py",'
+                b'"recipe_sha256":"' + (b"b" * 64) + b'","abi_definition":"x",'
+                b'"abi_definition_sha256":"' + (b"c" * 64) + b'","dependencies":{},'
+                b'"tools":{},"parameters":{"model":"' + model.encode() + b'"}}'
+            )
+            raw = _manifest(
+                record,
+                {"build_id": "d" * 32, "rbf": {"size": 16, "sha256": "e" * 64},
+                 "rom": dict(id="rom", role="firmware", source_size=8192, file="rom-map.json", size=100, sha256="f" * 64)},
+                "https://github.com/DeanoC/misteross.git", "a" * 40,
+                {"mistral": "m", "nextpnr-mistral": "n", "yosys": "y"},
+            )
+            return tomllib.loads(raw.decode())
+
+        zx81 = manifest_for("zx81")
+        self.assertEqual(zx81["core"], {
+            "id": "fes.zx81", "name": "Zx81",
+            "description": "ZX81 on the FES computer ABI", "version": "1.7.0",
+        })
+        zx81_ids = {item["id"] for item in zx81["interfaces"]}
+        self.assertIn("fes.media.zx81-tape-write", zx81_ids)
+        zx80 = manifest_for("zx80")
+        self.assertEqual(zx80["core"]["id"], "fes.zx80")
+        self.assertEqual(zx80["core"]["version"], "0.1.0")
+        zx80_ids = {item["id"] for item in zx80["interfaces"]}
+        self.assertIn("fes.media.zx81-tape", zx80_ids)
+        self.assertNotIn("fes.media.zx81-tape-write", zx80_ids)
+        for model, core_id in (("ts1000", "fes.ts1000"), ("ts1500", "fes.ts1500")):
+            fields = manifest_for(model)
+            self.assertEqual(fields["core"]["id"], core_id)
+            self.assertEqual(fields["core"]["version"], "0.1.0")
+            ids = {item["id"] for item in fields["interfaces"]}
+            self.assertIn("fes.media.zx81-tape-write", ids)
 
 
 class Zx81PlaneDspTests(unittest.TestCase):

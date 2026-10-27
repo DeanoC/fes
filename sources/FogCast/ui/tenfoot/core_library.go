@@ -6,11 +6,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/zx81family"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/storage"
 	"github.com/DeanoC/FogCast/ui/shared"
 )
 
@@ -45,6 +46,12 @@ func (a *App) coreLibraryRowsLocked() []FirmwarePickerRow {
 		rows = append(rows, FirmwarePickerRow{Name: name, Kind: kind, Selectable: true})
 	}
 	if s.Ref == nil {
+		if s.InstalledSetup && s.FilterCoreID == "" {
+			for _, variant := range zx81family.Variants() {
+				add(variant.Label+" · "+variant.Detail, "variant:"+variant.CoreID)
+			}
+			return rows
+		}
 		add("Refresh systems", "refresh")
 		if s.InstalledSetup {
 			add("Browse published systems", "published")
@@ -76,9 +83,18 @@ func (a *App) coreLibraryRowsLocked() []FirmwarePickerRow {
 			add("Use selected BIOS for household", "firmware:"+r.ID)
 		}
 	}
+	blankDisk := false
 	for _, m := range s.Setup.Capabilities.Media {
 		if s.InstalledSetup {
 			continue
+		}
+		if m.Role == protocol.DiskRole && m.Format == "atari-st-floppy" && !blankDisk {
+			blankDisk = true
+			status := "720 KiB"
+			if s.MediaRole == protocol.DiskRole && s.MediaID != "" {
+				status = "selected"
+			}
+			add("Blank disk · "+status, "blank-disk")
 		}
 		if m.Role == "blob" || m.Role == "disk" {
 			status := "choose file"
@@ -107,13 +123,20 @@ func (a *App) coreLibrarySnapshotLocked() FirmwarePickerSnapshot {
 	if s.HardwareMode == "expansions" {
 		title = "Import expansion"
 	}
+	if s.InstalledSetup && s.Ref == nil {
+		if s.FilterCoreID == "" {
+			title = "ZX81 family"
+		} else if variant, ok := zx81family.ByID(s.FilterCoreID); ok {
+			title = variant.Label
+		}
+	}
 	if s.Ref != nil {
 		title = "Set up " + s.Label
 	}
 	if s.PickID != "" {
 		title = "Choose " + strings.TrimPrefix(strings.TrimPrefix(s.PickID, "rom:"), "media:")
 	}
-	return FirmwarePickerSnapshot{Open: true, Title: title, Path: s.Path, Rows: a.coreLibraryRowsLocked(), Index: s.Index, Busy: s.Busy, Status: s.Status, Hint: selectWord(a.affinity.current.Kind) + " choose  " + backWord(a.affinity.current.Kind) + " back"}
+	return FirmwarePickerSnapshot{Open: true, Title: title, Path: a.pickerDisplayPathLocked(s.Path), Rows: a.coreLibraryRowsLocked(), Index: s.Index, Busy: s.Busy, Status: s.Status, Hint: selectWord(a.affinity.current.Kind) + " choose  " + backWord(a.affinity.current.Kind) + " back"}
 }
 func (a *App) openCoreLibraryLocked() {
 	a.resetCoreLibraryLocked()
@@ -252,6 +275,14 @@ func (a *App) handleCoreLibraryLocked(cmd Command) {
 			s.Index = 0
 			return
 		}
+		if s.InstalledSetup && s.FilterCoreID != "" {
+			s.FilterCoreID = ""
+			s.Index = 0
+			s.Online = true
+			s.Status = "Choose a ZX81-family machine…"
+			s.Cores = nil
+			return
+		}
 		s.Open = false
 		s.Gen++
 		if a.room != nil {
@@ -288,8 +319,21 @@ func (a *App) handleCoreLibraryLocked(cmd Command) {
 		return
 	}
 	if row.Kind == "published" {
+		variant := s.FilterCoreID
 		a.openCoreLibraryLocked()
-		a.coreLibrary.FilterCoreID = "fes.zx81"
+		if variant != "" {
+			a.coreLibrary.FilterCoreID = variant
+		}
+		return
+	}
+	if strings.HasPrefix(row.Kind, "variant:") {
+		id := strings.TrimPrefix(row.Kind, "variant:")
+		if _, ok := zx81family.ByID(id); !ok {
+			return
+		}
+		s.FilterCoreID = id
+		s.Index = 0
+		a.refreshInstalledZX81Locked()
 		return
 	}
 	if row.Kind == "refresh" {
@@ -339,8 +383,8 @@ func (a *App) handleCoreLibraryLocked(cmd Command) {
 	if strings.HasPrefix(row.Kind, "rom:") || strings.HasPrefix(row.Kind, "media:") {
 		s.PickID = row.Kind
 		s.Path = ""
-		home, _ := os.UserHomeDir()
-		s.Files = firmwarePickerRoots(home, a.hostSettings.Libraries)
+		s.Files = a.storagePickerRootsLocked(a.corePickerPurposeLocked())
+		a.refreshStorageRootsLocked()
 		s.Index = 0
 		return
 	}
@@ -348,6 +392,10 @@ func (a *App) handleCoreLibraryLocked(cmd Command) {
 		id := strings.TrimPrefix(row.Kind, "firmware:")
 		media := s.ROMs[id]
 		a.coreLibraryAsyncLocked(func(ctx context.Context) error { _, err := a.client.SelectHouseholdFirmware(ctx, media); return err }, func() { s.Setup.FirmwareMediaID = media; s.Status = "Household BIOS selected explicitly." })
+		return
+	}
+	if row.Kind == "blank-disk" {
+		a.createBlankAtariStDiskLocked()
 		return
 	}
 	if row.Kind == "title" {
@@ -378,6 +426,16 @@ func (a *App) coreLibraryFileLocked(row FirmwarePickerRow) {
 	}
 }
 func (a *App) coreLibraryDirLocked(path string) {
+	if path == "" {
+		a.coreLibrary.Path = ""
+		a.coreLibrary.Files = a.storagePickerRootsLocked(a.corePickerPurposeLocked())
+		a.coreLibrary.Index = 0
+		return
+	}
+	if _, _, _, ok := splitDrivePath(path); ok {
+		a.loadDrivePickerDirLocked(path, "core")
+		return
+	}
 	rows, err := listFirmwarePickerDir(path)
 	if err != nil {
 		a.coreLibrary.Status = err.Error()
@@ -437,21 +495,18 @@ func (a *App) importCoreLibraryFileLocked(path string) {
 		s.Status = "Unsupported media requirement"
 		return
 	}
+	manager := a.driveManagerLocked()
 	var media hostclient.CoreMedia
 	a.coreLibraryAsyncLocked(func(ctx context.Context) error {
-		f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK, 0)
+		f, size, _, err := openPickerFile(ctx, manager, a.client, path, storage.MaxFileBytes)
 		if err != nil {
 			return err
 		}
 		defer f.Close()
-		info, err := f.Stat()
-		if err != nil {
-			return err
-		}
-		if !info.Mode().IsRegular() || info.Size() < min || info.Size() > max {
+		if size < min || size > max {
 			return fmt.Errorf("Choose a regular file of %d–%d bytes", min, max)
 		}
-		media, err = a.client.ImportCoreMedia(ctx, info.Size(), f)
+		media, err = a.client.ImportCoreMedia(ctx, size, f)
 		return err
 	}, func() {
 		if strings.HasPrefix(pick, "rom:") {
@@ -465,6 +520,23 @@ func (a *App) importCoreLibraryFileLocked(path string) {
 		s.Index = 0
 		s.Files = nil
 		s.Status = "File imported. Review selections before adding the game."
+	})
+}
+func (a *App) createBlankAtariStDiskLocked() {
+	s := &a.coreLibrary
+	if !s.Online || s.Setup == nil {
+		s.Status = "Refresh and choose an installed system."
+		return
+	}
+	var media hostclient.BlankAtariStDisk
+	a.coreLibraryAsyncLocked(func(ctx context.Context) error {
+		var err error
+		media, err = a.client.CreateBlankAtariStDisk(ctx, hostclient.BlankAtariStRequest{Name: "WORK"})
+		return err
+	}, func() {
+		s.MediaRole = protocol.DiskRole
+		s.MediaID = media.MediaID
+		s.Status = "Blank 720 KiB disk stored. Review selections before adding the game."
 	})
 }
 func (a *App) createCoreLibraryGameLocked() {

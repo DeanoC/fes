@@ -13,7 +13,6 @@ import (
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/hostapi"
 	"github.com/DeanoC/FogCast/ui/gfx"
-	"github.com/DeanoC/FogCast/ui/inputmap"
 	"github.com/DeanoC/FogCast/ui/rooms"
 	"github.com/DeanoC/FogCast/ui/theme"
 )
@@ -57,9 +56,6 @@ type Options struct {
 	Framebuffer string
 	MenuSocket  string
 	Input       string
-	// InputProfile is a built-in name (identity, swap-ab) or a JSON file
-	// path. Empty is identity.
-	InputProfile string
 	// Theme is a built-in or pack name (default/classic, arcade/neon,
 	// night/sofa-dim) or a JSON/TOML
 	// file path. Empty is default.
@@ -95,6 +91,9 @@ type Options struct {
 	// tenfoot.json reduced_motion.
 	ReducedMotion    bool
 	ReducedMotionSet bool
+	// Surround draws the TV surround around a running machine on kit HDMI,
+	// from tenfoot.json surround. It defaults on.
+	Surround bool
 }
 
 // RoomInstallDirectory resolves the same room directory as the running launcher.
@@ -220,6 +219,7 @@ func (o Options) normalized() Options {
 	if !o.ReducedMotionSet && prefsErr == nil {
 		o.ReducedMotion = prefs.ReducedMotion
 	}
+	o.Surround = prefsErr != nil || prefs.Surround == nil || *prefs.Surround
 	return o
 }
 
@@ -297,17 +297,6 @@ func sizedOptions(opts Options, dev interface{ Config() gfx.FBConfig }) Options 
 // configuredApp keeps application setup identical across native display backends.
 func configuredApp(opts Options) (*App, error) {
 	app := NewApp(NewClient(opts.APIBase, launcherHTTPClient(opts.APIToken, opts.TargetID)).withAPIHost(opts.APIHost), opts.Width, opts.Height, opts.MaxGames)
-	if spec := strings.TrimSpace(opts.InputProfile); spec != "" {
-		profile, err := inputmap.Resolve(spec)
-		if err != nil {
-			return nil, fmt.Errorf("input profile: %w", err)
-		}
-		remap, err := inputmap.NewRemapper(profile)
-		if err != nil {
-			return nil, fmt.Errorf("input profile: %w", err)
-		}
-		app.SetRemapper(remap)
-	}
 	look, err := theme.Resolve(opts.Theme)
 	if err != nil {
 		return nil, fmt.Errorf("theme: %w", err)
@@ -329,6 +318,7 @@ func configuredApp(opts Options) (*App, error) {
 	app.SetLayout(parseLayout(opts.Layout))
 	app.SetSafeAreaPct(opts.SafeAreaPct)
 	app.SetReducedMotion(opts.ReducedMotion)
+	app.SetSurround(opts.Surround)
 	app.ConfigureAttract(opts.NoAttract, opts.attractForced())
 	// menu-display is the kit entry. Host SDL, software, and
 	// linuxfb leave the local-control client unset. A resolved catalog

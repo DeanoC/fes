@@ -317,7 +317,7 @@ func kitMutation(path string) (gated, acquire bool) {
 	switch path {
 	case "/v1/library/core/load", "/v1/library/core/compose", "/v1/library/core/parts", "/v1/library/core/settings", "/v1/launch", "/v2/launch", "/v1/development/rbf", "/v1/development/core", "/v1/cast/start", "/v1/update/stage", "/v1/update/rollback", "/v1/update/confirm", "/v1/mesh/content/pull":
 		return true, true
-	case "/v1/stop", "/v1/development/reboot", "/v1/cast/stop", "/v1/update/activate", "/v1/mesh/content/link":
+	case "/v1/stop", "/v1/zx81-tape/capture", "/v1/zx81-tape/acknowledge", "/v1/development/reboot", "/v1/cast/stop", "/v1/update/activate", "/v1/mesh/content/link":
 		return true, false
 	}
 	if strings.HasSuffix(path, "/v1/mesh/content/pull") {

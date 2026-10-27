@@ -106,7 +106,8 @@ class BuildFesC64Tests(unittest.TestCase):
         for source in producer.RTL_SOURCES:
             self.assertIn(source, program)
         self.assertIn("chparam -set BUILD_ID 128'h" + "0" * 32 + " top", program)
-        self.assertIn("synth_intel_alm -nolutram -nodsp -top top", program)
+        self.assertIn("synth_intel_alm -nolutram -nodsp -top top -run coarse:", program)
+        self.assertIn("t:$mul a:src=cores/fes-common/rtl/fes_display_plane.v:* %i", program)
         self.assertEqual(route[route.index("--qsf") + 1], "build/fes-c64-oss/socket.qsf")
         self.assertEqual(route[route.index("--seed") + 1], "4")
         self.assertEqual(route[route.index("--router") + 1], "gpu")
@@ -147,7 +148,7 @@ class BuildFesC64Tests(unittest.TestCase):
         cells[name + "$ROUTETHRU"] = {
             "type": "MISTRAL_BUF", "parameters": {},
             "attributes": {"NEXTPNR_BEL": bel, "FES_PINMAP_V1": json.dumps({
-                "count": 2, "pins": {"A": [0, "C" if half == 0 else "D"],
+                "count": 2, "pins": {"A": [0, "F0" if half == 0 else "F1"],
                                      "Q": [0, "COMBOUT"]}}).encode().hex()},
             "port_directions": {"A": "input", "Q": "output"},
             "connections": {"A": data, "Q": [bit]}}
@@ -249,9 +250,42 @@ class BuildFesC64Tests(unittest.TestCase):
             "fes.video.fixed-720p60": True, "fes.keyboard.hid": True, "fes.gamepad.ports": True,
             "fes.audio.pcm-s16-stereo-48k": True, "fes.media.c64-disk": True,
             "fes.expansion.c64-bus": False,
+            "fes.memory.hps-ddr": True, "fes.video.session-display": True,
+            "fes.fabric.video.display-plane": True,
         })
         self.assertEqual(manifest["rom"]["role"], "firmware")
         self.assertEqual(manifest["rom"]["source_size"], 36864)
+
+    def test_session_display_requires_read_only_boot_ddr_layout(self) -> None:
+        from scripts import fes_de10nano_evidence as board
+        ports = {name: [str((value >> bit) & 1) for bit in range(board.HPS_DDR_CFG_PORTS[name][1])]
+                 for name, value in board.hps_ddr_layout(ROOT).items()}
+        ports.update({name: ["0"] for name in board.HPS_DDR_COMMAND_INPUTS})
+        ports["cmd_data_0"] = [42, "0"] + ["0"] * 58
+        good = {"modules": {"top": {"cells": {"display.memory.f2sdram": {
+            "type": "cyclonev_hps_interface_fpga2sdram", "connections": ports}}}}}
+        self.assertTrue(producer._session_display_evidence(good, "fixture", ROOT)["read_only"])
+        for port, bits in (("wr_valid_0", [42]), ("cmd_valid_1", [42]),
+                           ("cmd_data_0", [42, "1"] + ["0"] * 58),
+                           ("cfg_port_width", ["x"] * 12)):
+            changed = json.loads(json.dumps(good))
+            changed["modules"]["top"]["cells"]["display.memory.f2sdram"]["connections"][port] = bits
+            with self.subTest(port=port), self.assertRaises(BuildError):
+                producer._session_display_evidence(changed, "fixture", ROOT)
+
+    def test_only_three_unsigned_plane_products_are_allowed(self) -> None:
+        good = {f"display.product{i}": {"type": "MISTRAL_MUL9X9",
+                    "parameters": {"A_SIGNED": "0", "B_SIGNED": "0"}} for i in range(3)}
+        def graph(cells):
+            return {"modules": {"top": {"cells": cells}}}
+        producer._plane_dsp_evidence(graph(good))
+        for cells in (dict(list(good.items())[:2]),
+                      {**good, "machine.extra": good["display.product0"]},
+                      {"machine.product0": good["display.product0"], **dict(list(good.items())[1:])},
+                      {**good, "display.product0": {**good["display.product0"],
+                          "parameters": {"A_SIGNED": "1", "B_SIGNED": "0"}}}):
+            with self.assertRaises(BuildError):
+                producer._plane_dsp_evidence(graph(cells))
 
     def test_firmware_lanes_match_the_rtl(self) -> None:
         rtl = (ROOT / "cores/fes-c64/rtl/c64_rom.v").read_text()
@@ -337,11 +371,10 @@ class C64YosysM10kTests(unittest.TestCase):
         yosys = _yosys_binary()
         assert yosys is not None
         sources = " ".join(producer.RTL_SOURCES)
-        program = (
-            "read_verilog -sv -I cores/fes-c64/rtl -I cores/fes-common/generated "
-            f"{sources}; "
-            "chparam -set BUILD_ID 128'h" + "0" * 32 + " top; "
-            "synth_intel_alm -nolutram -nodsp -top top -run :map_luts; "
+        program = producer.build_commands(ROOT, ROOT / producer.OUTPUT_RELATIVE, "0" * 32,
+            {"yosys": Path(yosys), "nextpnr-mistral": Path("/n")})[0][2]
+        program = program.split("stat; write_json", 1)[0].replace("-run coarse:;", "-run coarse:map_luts;")
+        program += (
             "autoname; select -module top; "
             "log ---SDP---; select -count t:MISTRAL_M10K; "
             "log ---TDP---; select -count t:MISTRAL_M10K_TDP; "
@@ -375,9 +408,13 @@ class C64YosysM10kTests(unittest.TestCase):
         self.assertEqual(async_cells, [])
         # The default SID audio stage keeps its tables in logic; the opt-in
         # reSID chain's VCR/cutoff/summer ROM lanes are not in the package.
-        self.assertEqual(objects("SDP"), "195 objects.")
+        # Plane FIFO banks may change shape with the memory mapper. Keep the
+        # firmware/frame-store contract exact and require a synchronous FIFO.
+        fifo = [name for name in lanes if name.startswith("display.scanout.reader.fifo")]
+        self.assertTrue(fifo, "session display FIFO did not map to synchronous M10K")
+        machine_lanes = [name for name in lanes if name not in fifo]
         self.assertEqual(objects("TDP"), "240 objects.")
-        self.assertEqual(lanes, sorted(
+        self.assertEqual(machine_lanes, sorted(
             [f"machine.rom.lane{index}" for index in range(36)] +
             [f"machine.vic.frame_store.pages[{page}].banks[{bank}].ram"
              for page in range(3) for bank in range(51)]))
@@ -394,13 +431,10 @@ class C64YosysM10kTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             synth = Path(directory) / "synth.json"
             log_path = Path(directory) / "yosys.log"
-            program = (
-                "read_verilog -sv -I cores/fes-c64/rtl -I cores/fes-common/generated "
-                f"{sources}; "
-                "chparam -set BUILD_ID 128'h" + "0" * 32 + " top; "
-                "synth_intel_alm -nolutram -nodsp -top top; "
-                f"write_json {synth}"
-            )
+            program = producer.build_commands(ROOT, ROOT / producer.OUTPUT_RELATIVE, "0" * 32,
+                {"yosys": Path(yosys), "nextpnr-mistral": Path("/n")})[0][2]
+            program = program.replace("write_json " + producer.OUTPUT_RELATIVE.as_posix() + "/synth.json",
+                                      "write_json " + str(synth))
             result = subprocess.run([yosys, "-l", str(log_path), "-p", program], cwd=ROOT,
                                     text=True, capture_output=True, check=False)
             log = log_path.read_text(encoding="utf-8", errors="replace")
@@ -412,6 +446,7 @@ class C64YosysM10kTests(unittest.TestCase):
                 if cell.get("type") == "MISTRAL_M10K" and cell.get("connections", {}).get("CLK1") == ["x"]
             )
             self.assertEqual(open_clocks, [])
+            producer.validate_synth_evidence(Path(directory))
             producer.validate_memory_clocks(cells)
             patched = cells
             producer.validate_firmware_ports(patched)

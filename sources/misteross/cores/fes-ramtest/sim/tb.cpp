@@ -71,6 +71,57 @@ static void require_signature(Vbench& top, uint32_t address) {
     require(top.peek_data == expected, "HPS DDR lane does not hold the ADDR signature");
 }
 
+// One latency result in decimal: target 0-2 is a DDR port, 3 the SDRAM;
+// slots 0-3 are first-data min, median, p99 and max, 4-7 the same for the
+// last data. Returns -1 when a digit is not decimal.
+static int latency_value(Vbench& top, int target, int slot) {
+    const unsigned field = static_cast<unsigned>(target * 8 + slot);
+    const uint32_t bcd = (top.bench->dut->lat_results[field / 2] >> ((field % 2) * 16)) & 0xffffu;
+    int value = 0;
+    for (int nibble = 3; nibble >= 0; --nibble) {
+        const uint32_t digit = (bcd >> (nibble * 4)) & 0xfu;
+        if (digit > 9)
+            return -1;
+        value = value * 10 + static_cast<int>(digit);
+    }
+    return value;
+}
+
+static bool latency_published(Vbench& top, uint32_t windows) {
+    for (int target = 0; target < 4; ++target)
+        if (top.lat_checked[target] < windows * 256u || latency_value(top, target, 3) <= 0)
+            return false;
+    return true;
+}
+
+// Every target publishes ordered values, and the core's counts agree with
+// the bench's recount of each read's handshakes.
+static void check_latency(Vbench& top) {
+    static const char* const names[4] = {"P0", "P1", "P2", "SD"};
+    for (int i = 0; i < 3000000 && !latency_published(top, 3); ++i)
+        tick(top);
+    require(latency_published(top, 3), "latency windows did not publish every target");
+    require(top.lat_mismatch == 0, "a reported latency differs from the handshake recount");
+    for (int target = 0; target < 4; ++target) {
+        int value[8];
+        for (int slot = 0; slot < 8; ++slot) {
+            value[slot] = latency_value(top, target, slot);
+            require(value[slot] > 0, "a latency value is empty or not decimal");
+        }
+        for (int group = 0; group < 8; group += 4)
+            require(value[group] <= value[group + 1] && value[group + 1] <= value[group + 2]
+                    && value[group + 2] <= value[group + 3], "latency min, median, p99 and max out of order");
+        require(value[4] >= value[0] && value[7] >= value[3], "last data came before first data");
+        std::cout << "latency " << names[target] << " first " << value[0] << ' ' << value[1] << ' '
+                  << value[2] << ' ' << value[3] << " last " << value[4] << ' ' << value[5] << ' '
+                  << value[6] << ' ' << value[7] << '\n';
+    }
+    auto* dut = top.bench->dut;
+    // The line reads check their data; every scan still passes.
+    require(dut->sdram_pass && !dut->sdram_fail && ddr_done(top) && ddr_clean(top),
+            "a latency read returned the wrong data");
+}
+
 static uint32_t byte_field(Vbench& top, unsigned first, unsigned width) {
     uint32_t result = 0;
     for (unsigned i = 0; i < width; ++i)
@@ -182,6 +233,29 @@ int main() {
         for (uint32_t offset : {0x0u, 0x8u, 0xff8u})
             require_signature(top, base + offset);
 
+    check_latency(top);
+    capture(top, "latency.ppm");
+    // A button stops the windows and the results stay on screen.
+    require(command(top, toggle, 3, 0, 0x10) == 0, "gamepad button was rejected");
+    bool halted = false;
+    for (int i = 0; i < 20000 && !halted; ++i) {
+        tick(top);
+        auto* dut = top.bench->dut;
+        halted = dut->sdram_stopped && dut->ddr0_stopped && dut->ddr1_stopped && dut->ddr2_stopped;
+    }
+    require(halted, "button did not stop the latency windows");
+    // The byte lane reports STOP at once; a line already started finishes.
+    for (int i = 0; i < 2000; ++i)
+        tick(top);
+    const auto held = top.bench->dut->lat_results;
+    const auto held_checked = top.lat_checked;
+    for (int i = 0; i < 200000; ++i)
+        tick(top);
+    for (int word = 0; word < 16; ++word)
+        require(top.bench->dut->lat_results[word] == held[word], "latency results changed after a stop");
+    for (int target = 0; target < 4; ++target)
+        require(top.lat_checked[target] == held_checked[target], "a latency read ran after a stop");
+
     // Hold execution mid-scan at varied points until a guard has finished a
     // write burst and drained reads issued before a hold. The restarted scan
     // must still pass with every burst complete.
@@ -218,7 +292,7 @@ int main() {
         stopped = dut->sdram_stopped && dut->ddr0_stopped && dut->ddr1_stopped && dut->ddr2_stopped;
     }
     require(stopped, "button did not stop the scan");
-    std::cout << "PASS: SDRAM and three HPS DDR port scans, signatures, holds, status text, button stop\n";
+    std::cout << "PASS: SDRAM and three HPS DDR port scans, signatures, latency windows, holds, status text, button stop\n";
     negative_byte_cases();
     return 0;
 }

@@ -1,0 +1,17 @@
+this shell 29650 session 719; dropbear 29634 719 ; load session 27748; asked: 27753 27754 27755
+    2     0 kthreadd
+  719   719 dropbear
+27753 27748 dd
+27754 27748 dd
+27755 27748 sh
+29634   719 dropbear
+29647   719 sh
+29650   719 sh
+29658 27748 cat
+kill 27753 (dd) pgrp 27748 session 27748
+kill 27754 (dd) pgrp 27748 session 27748
+kill 27755 (sh) pgrp 27748 session 27748
+left in load session: none
+4.77 2.96 1.88 4/98 29834
+
+exit 0

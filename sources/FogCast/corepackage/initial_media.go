@@ -44,8 +44,17 @@ func inspectInitialMedia(d Descriptor, media *InitialMedia) (*initialMediaReceip
 	if len(media.GameID) > 256 || !initialMediaGameID.MatchString(media.GameID) || media.Unit != 0 || !hex64RE.MatchString(media.BaseMediaID) || !ValidAtariStBase(media.Bytes, DeclaresAtariStGeometry(d)) || romDigest(media.Bytes) != media.BaseMediaID {
 		return nil, errors.New("initial disk requires exact immutable ST base bytes and library identity")
 	}
+	if err := ValidateWritableAtariStLibraryDiskPackage(d); err != nil {
+		return nil, err
+	}
+	return &initialMediaReceipt{GameID: media.GameID, BaseMediaID: media.BaseMediaID, Unit: media.Unit, Size: int64(len(media.Bytes))}, nil
+}
+
+// ValidateWritableAtariStLibraryDiskPackage checks the descriptor contract
+// required to bind and persist a library drive-A disk.
+func ValidateWritableAtariStLibraryDiskPackage(d Descriptor) error {
 	if d.Format != 3 || d.ROM == nil || d.ROM.Role != "firmware" || d.Core.ID != "fes.atari-st" || d.ABI != (Contract{ID: "fes.computer", Major: 1}) {
-		return nil, errors.New("initial disk requires a format-3 ST computer firmware package")
+		return errors.New("initial disk requires a format-3 ST computer firmware package")
 	}
 	base, write := false, false
 	for _, i := range d.Interfaces {
@@ -59,9 +68,9 @@ func inspectInitialMedia(d Descriptor, media *InitialMedia) (*initialMediaReceip
 		}
 	}
 	if !base || !write {
-		return nil, errors.New("initial library disk requires the writable ST floppy contract")
+		return errors.New("initial library disk requires the writable ST floppy contract")
 	}
-	return &initialMediaReceipt{GameID: media.GameID, BaseMediaID: media.BaseMediaID, Unit: media.Unit, Size: int64(len(media.Bytes))}, nil
+	return nil
 }
 
 func stagedInitialMedia(media *InitialMedia, path string) *StagedInitialMedia {

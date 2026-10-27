@@ -1,0 +1,22 @@
+design -reset
+log === ENABLE_WRITE=1 ===
+read_slang --single-unit --ignore-timing --empty-blackboxes --top floppy_gold --top floppy_gate -G ENABLE_WRITE=1 floppy-equivalence.sv
+proc
+opt_clean
+memory
+equiv_make floppy_gold floppy_gate equiv
+hierarchy -top equiv
+equiv_simple -seq 3
+equiv_status -assert
+
+design -reset
+log === ENABLE_WRITE=0 ===
+read_slang --single-unit --ignore-timing --empty-blackboxes --top floppy_gold --top floppy_gate -G ENABLE_WRITE=0 floppy-equivalence.sv
+proc
+opt_clean
+memory
+equiv_make floppy_gold floppy_gate equiv
+hierarchy -top equiv
+equiv_simple -seq 3
+equiv_status -assert
+

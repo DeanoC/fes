@@ -5,6 +5,8 @@ import (
 	"image/color"
 	"strings"
 	"testing"
+
+	"golang.org/x/image/font"
 )
 
 func TestScalePxMatchesFormerDebugGlyphHeight(t *testing.T) {
@@ -154,19 +156,77 @@ func TestFitTextTruncatesWithEllipsis(t *testing.T) {
 	}
 }
 
-func TestRasterizeTextHasInkAndRespectsMaxWidth(t *testing.T) {
+func TestUITextHasInkAndRespectsMaxWidth(t *testing.T) {
 	t.Parallel()
-	img := RasterizeText("TITLE", 16, RGB(255, 240, 220), 0)
-	if !textHasInk(img) {
-		t.Fatal("TITLE produced no glyphs")
+	m, src, _ := UIText("TITLE", 16, WeightRegular, 0)
+	if m == nil || src != m.Bounds() || !maskHasInk(m) {
+		t.Fatalf("TITLE mask %v %v", m, src)
 	}
-	clipped := RasterizeText("TITLE THAT WILL NOT FIT IN A NARROW CELL", 16, RGB(220, 230, 240), 32)
-	if clipped == nil || clipped.Bounds().Dx() > 32 {
-		t.Fatalf("clipped width = %v", clipped)
+	clipped, src, width := UIText("TITLE THAT WILL NOT FIT IN A NARROW CELL", 16, WeightRegular, 32)
+	if clipped == nil || src.Dx() > 32 || src.Min != (image.Point{}) || width > 32 || width < src.Dx() {
+		t.Fatalf("clipped part = %v, width %d", src, width)
 	}
-	if RasterizeText("", 16, RGB(255, 255, 255), 0) != nil {
+	// A trailing space widens the box alignment measures, not the ink.
+	spaced, spacedSrc, spacedWidth := UIText("TITLE ", 16, WeightRegular, 0)
+	plain, _, plainWidth := UIText("TITLE", 16, WeightRegular, 0)
+	if spacedSrc != spaced.Bounds() || spacedWidth <= plainWidth || plainWidth < plain.W {
+		t.Fatalf("widths %d and %d for ink %d", spacedWidth, plainWidth, plain.W)
+	}
+	if m, _, _ := UIText("", 16, WeightRegular, 0); m != nil {
 		t.Fatal("empty text")
 	}
+	if m, _, _ := UIText("   ", 16, WeightRegular, 0); m != nil {
+		t.Fatal("spaces have no ink")
+	}
+	again, _, _ := UIText("TITLE", 16, WeightRegular, 0)
+	if again != m {
+		t.Fatal("the same string laid out twice: its mask is not cached")
+	}
+}
+
+// TestLayoutTextMatchesTheDrawer checks the glyph-cache composition against
+// font.Drawer drawing the whole string from the same integer pen: within
+// one coverage step, where overlapping glyphs round differently.
+func TestLayoutTextMatchesTheDrawer(t *testing.T) {
+	t.Parallel()
+	for _, w := range []Weight{WeightRegular, WeightBold} {
+		for _, size := range []int{12, 16, 24, 40} {
+			for _, text := range []string{"Super Mario World", "AV Wolf Tay", "fi ffl ij", "Éclair · 1/2"} {
+				uiMu.Lock()
+				face := uiFaceLocked(size, w)
+				line := LayoutText(face, text)
+				adv := font.MeasureString(face, text)
+				want := image.NewAlpha(image.Rect(-8, -size*2, adv.Ceil()+8, size))
+				d := font.Drawer{Dst: want, Src: image.Opaque, Face: face}
+				d.DrawString(text)
+				uiMu.Unlock()
+				if line.Advance != adv.Round() {
+					t.Fatalf("%q %d: advance %d, want %d", text, size, line.Advance, adv.Round())
+				}
+				ink := line.Mask.Bounds().Add(line.Origin)
+				for y := want.Rect.Min.Y; y < want.Rect.Max.Y; y++ {
+					for x := want.Rect.Min.X; x < want.Rect.Max.X; x++ {
+						got := 0
+						if image.Pt(x, y).In(ink) {
+							got = int(line.Mask.Pix[(y-ink.Min.Y)*line.Mask.W+x-ink.Min.X])
+						}
+						if diff := got - int(want.AlphaAt(x, y).A); diff < -1 || diff > 1 {
+							t.Fatalf("%q %d %v: coverage at %d,%d = %d, drawer %d", text, size, w, x, y, got, want.AlphaAt(x, y).A)
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+func maskHasInk(m *Mask) bool {
+	for _, v := range m.Pix {
+		if v != 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func TestFPGADrawTextRecordsAndReplays(t *testing.T) {
@@ -191,6 +251,45 @@ func TestFPGADrawTextRecordsAndReplays(t *testing.T) {
 	}
 	if !saw {
 		t.Fatalf("missing OpDrawText in %v", f.Commands())
+	}
+	raw, err := f.Bytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sw, err := NewSoftware(64, 24)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ReplayBytes(sw, raw); err != nil {
+		t.Fatal(err)
+	}
+	if !sameOpaquePixels(f.Snapshot(), sw.Snapshot()) {
+		t.Fatal("replay pixels differ from FPGA software raster")
+	}
+}
+
+// The stream carries the drawn part of a mask, so a replay draws it alone.
+func TestFPGADrawMaskRecordsAndReplays(t *testing.T) {
+	t.Parallel()
+	f, err := NewFPGA(64, 24)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	m, all, _ := UIText("KIT", 16, WeightBold, 0)
+	src := image.Rect(2, -3, all.Max.X-1, all.Max.Y)
+	f.BeginFrame()
+	f.Clear(RGB(8, 8, 12))
+	f.DrawMask(m, src, -1, 4, RGBA(255, 0, 170, 200))
+	f.Present()
+	var drawn *Command
+	for _, c := range f.Commands() {
+		if c.Op == OpDrawMask {
+			drawn = &c
+		}
+	}
+	if drawn == nil || drawn.X != -1 || drawn.Y != 7 || drawn.Width != all.Max.X-3 || drawn.Height != all.Max.Y {
+		t.Fatalf("recorded %+v", drawn)
 	}
 	raw, err := f.Bytes()
 	if err != nil {
@@ -314,29 +413,27 @@ func sameOpaquePixels(a, b *image.RGBA) bool {
 	return true
 }
 
-func TestBlitTextBorrowsSubImageWithoutMutation(t *testing.T) {
-	parent := image.NewRGBA(image.Rect(-5, -3, 25, 20))
-	for i := 0; i < len(parent.Pix); i += 4 {
-		parent.Pix[i], parent.Pix[i+1], parent.Pix[i+2], parent.Pix[i+3] = 100, 50, 200, uint8((i/4)%256)
+// TestDrawMaskIsTheExpandedBlend draws a clipped part of a mask and
+// checks it against blending the equivalent straight-alpha RGBA texture.
+func TestDrawMaskIsTheExpandedBlend(t *testing.T) {
+	m := &Mask{W: 30, H: 17, Pix: make([]byte, 30*17)}
+	for i := range m.Pix {
+		m.Pix[i] = byte(i * 37)
 	}
-	before := append([]byte(nil), parent.Pix...)
-	img := parent.SubImage(image.Rect(-2, 0, 18, 12)).(*image.RGBA)
-	s, _ := NewSoftware(16, 14)
-	s.Clear(RGBA(30, 70, 150, 120))
-	want := s.Snapshot()
-	scalarTextureDraw(want, img, nil, Rect{X: -3, Y: 5, W: 20, H: 12})
-	blitText(s, -3, 5, img)
-	for i := range s.pix {
-		if s.pix[i] != want.Pix[i] {
-			t.Fatalf("blit differs at byte %d", i)
+	src := image.Rect(2, 1, 24, 14)
+	for _, c := range []Color{RGB(250, 20, 90), RGBA(10, 200, 160, 133), RGBA(1, 2, 3, 0)} {
+		s, _ := NewSoftware(16, 14)
+		s.Clear(RGBA(30, 70, 150, 120))
+		want := s.Snapshot()
+		scalarTextureDraw(want, ExpandMask(m, src, c), nil, Rect{X: -3, Y: 5, W: float32(src.Dx()), H: float32(src.Dy())})
+		s.DrawMask(m, src, -3, 5, c)
+		for i := range s.pix {
+			if s.pix[i] != want.Pix[i] {
+				t.Fatalf("%v: draw differs at byte %d", c, i)
+			}
 		}
-	}
-	for i := range before {
-		if parent.Pix[i] != before[i] {
-			t.Fatalf("text image mutated at byte %d", i)
+		if got := testing.AllocsPerRun(10, func() { s.DrawMask(m, src, -3, 5, c) }); got != 0 {
+			t.Fatalf("draw allocated %v times", got)
 		}
-	}
-	if got := testing.AllocsPerRun(10, func() { blitText(s, -3, 5, img) }); got != 0 {
-		t.Fatalf("blit allocated %v times", got)
 	}
 }

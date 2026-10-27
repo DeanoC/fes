@@ -23,7 +23,8 @@ def fixture(routed=False):
     with patch.object(shared,"video_parts",layout):
         top=shared.video_boundary_fixture(routed=routed)
     if routed:
-        shared.add_boundary_route_throughs(top)
+        shared.add_boundary_route_throughs(
+            top, nextpnr_commit=layout.pnr_recipe.nextpnr_pin("fes.atari-st"))
         cpu=frozen_shell()["modules"]["top"]
         for name,cell in cpu["cells"].items():
             if name=="machine.keep":continue
@@ -404,7 +405,7 @@ class FullProducer(unittest.TestCase):
                 self.assertEqual(summary['recipe']['execution']['gpu_device'], 1)
 
     def test_failures_never_publish_a_part(self):
-        for name in ('pixel timing','system timing','audio timing','wrong clock','RAM','header','outside strict column','source mutation','generated mutation','map mismatch'):
+        for name in ('pixel timing','system timing','audio timing','wrong clock','RAM','header','outside strict column','source mutation','generated mutation','map mismatch','DSP'):
             with self.subTest(name=name),tempfile.TemporaryDirectory() as tmp:
                 f=CompilerFixture(Path(tmp))
                 if name.endswith('timing'):
@@ -412,10 +413,22 @@ class FullProducer(unittest.TestCase):
                     f.timing['fmax'][clock]['achieved']=1
                 elif name=='wrong clock':f.clock=10
                 elif name=='RAM':f.synthesis['modules']['cart']['cells']['ram']={'type':'MISTRAL_M10K'}
+                elif name=='DSP':f.synthesis['modules']['cart']['cells']['mul']={'type':'MISTRAL_MUL9X9'}
                 elif name=='header':f.placed.header=b'changed-header'
                 elif name=='outside strict column':cram_set(f.placed.cram,f.placed.die,3921,3500,1)
                 elif name=='source mutation':f.after_route=lambda output:(f.root/producer.SOURCES[0]).write_bytes(b'changed-source')
                 elif name=='generated mutation':f.after_route=lambda output:(output/'scaffold.json').write_bytes(b'changed-scaffold')
                 elif name=='map mismatch':(f.shell/'rom-map.json').write_bytes(b'changed-map')
                 with self.assertRaises((ValueError,RuntimeError)):f.build()
+                self.assertFalse(list(f.root.glob('build/atari-st-video-parts/**/*.tar')))
+
+    def test_part_owns_no_dsp_even_where_the_shell_does(self):
+        for kind in ('MISTRAL_MLAB','MISTRAL_MUL9X9','MISTRAL_MUL18X18','MISTRAL_MUL18X19',
+                     'MISTRAL_MUL18X19_COMBINED','MISTRAL_MUL27X27','altera_pll',
+                     'cyclonev_hps_interface_mpu_general_purpose','cyclonev_hps_interface_peripheral_i2c'):
+            with self.subTest(kind=kind),tempfile.TemporaryDirectory() as tmp:
+                f=CompilerFixture(Path(tmp))
+                f.synthesis['modules']['cart']['cells']['owned']={'type':kind}
+                with self.assertRaisesRegex(ValueError,'must not own DSP, PLL or HPS'):f.build()
+                self.assertIn('synth_intel_alm -nolutram -nodsp -top cart;',f.commands[0][2])
                 self.assertFalse(list(f.root.glob('build/atari-st-video-parts/**/*.tar')))

@@ -16,6 +16,12 @@ namespace {
 using namespace generated;
 constexpr std::size_t kSlotBytes=FesApplicationMenuSlotBytes;
 constexpr std::size_t kGrantBytes=FesApplicationMenuSlotCount*kSlotBytes;
+// The blitter's lists and heap lie above the slots in the same window.
+constexpr std::size_t kBlitterGrantBytes=std::size_t(FesApplicationMenuBlitHeapOffset)+FesApplicationMenuBlitHeapBytes;
+static_assert(kGrantBytes<=FesApplicationMenuBlitListOffset&&
+ FesApplicationMenuBlitListOffset+FesApplicationMenuBlitListBytes<=FesApplicationMenuBlitHeapOffset&&
+ FesApplicationMenuBlitCommandCount*FesApplicationMenuBlitCommandBytes==FesApplicationMenuBlitListBytes,
+ "the blitter layout lies above the slots without overlap");
 Error Invalid(const char* text){return {ErrorCode::io_failed,text,"menu_window"};}
 Error Io(const char* text){return {ErrorCode::io_failed,std::string(text)+": "+std::strerror(errno),"menu_window"};}
 class DriverOperations final : public MenuWindowOperations {
@@ -64,27 +70,35 @@ public:
 MenuWindow::MenuWindow():owned_(new DriverOperations),operations_(owned_.get()){}
 MenuWindow::MenuWindow(MenuWindowOperations& operations):operations_(&operations){}
 MenuWindow::~MenuWindow(){Revoke();}
-Error MenuWindow::Activate(bool clear)
+Error MenuWindow::Activate(bool clear,bool blitter)
 {
  Revoke();
- int grant=-1;Error error=operations_->Grant(0,kGrantBytes,&grant);
- if(!error.ok())return error;
- void* mapping=nullptr;
- if(clear)error=operations_->Map(grant,kGrantBytes,&mapping);
- if(clear&&error.ok()) {
-  // Black is all-zero XRGB. The frame rows are contiguous within a slot.
-  for(unsigned slot=0;slot<FesApplicationMenuSlotCount;++slot)
-   std::memset(static_cast<unsigned char*>(mapping)+slot*kSlotBytes,0,FesApplicationMenuFrameBytes);
-  operations_->Unmap(mapping,kGrantBytes);
-  error=operations_->Clean(grant,0,FesApplicationMenuFrameBytes,FesApplicationMenuSlotCount,kSlotBytes);
+ Error error;
+ if(clear) {
+  // The fill has its own grant. Revoking it writes back and invalidates
+  // every slot line, which a clean would leave valid in the PL310.
+  int fill=-1;error=operations_->Grant(0,kGrantBytes,&fill);
+  if(!error.ok())return error;
+  void* mapping=nullptr;error=operations_->Map(fill,kGrantBytes,&mapping);
+  if(error.ok()) {
+   // Black is all-zero XRGB. The frame rows are contiguous within a slot.
+   for(unsigned slot=0;slot<FesApplicationMenuSlotCount;++slot)
+    std::memset(static_cast<unsigned char*>(mapping)+slot*kSlotBytes,0,FesApplicationMenuFrameBytes);
+   operations_->Unmap(mapping,kGrantBytes);
+  }
+  const Error revoked=operations_->Revoke(fill);
+  operations_->Close(fill);
+  if(error.ok())error=revoked;
+  if(!error.ok())return error;
  }
- if(!error.ok()){(void)operations_->Revoke(grant);operations_->Close(grant);return error;}
- std::lock_guard<std::mutex> lock(mutex_);grant_=grant;return {};
+ int grant=-1;error=operations_->Grant(0,blitter?kBlitterGrantBytes:kGrantBytes,&grant);
+ if(!error.ok())return error;
+ std::lock_guard<std::mutex> lock(mutex_);grant_=grant;blitter_=blitter;return {};
 }
 void MenuWindow::Revoke()
 {
  int grant;
- {std::lock_guard<std::mutex> lock(mutex_);grant=grant_;grant_=-1;}
+ {std::lock_guard<std::mutex> lock(mutex_);grant=grant_;grant_=-1;blitter_=false;}
  if(grant<0)return;
  // A failed revoke cannot be retried meaningfully; closing still drops
  // the runtime's reference, and the driver writes back on the last close.
@@ -103,6 +117,25 @@ Error MenuWindow::Clean(std::uint8_t slot,const std::vector<MenuRect>& rects) co
   if(!error.ok())return error;
  }
  return {};
+}
+Error MenuWindow::CleanBlit(std::uint32_t first,std::uint32_t count,const std::vector<MenuSpan>& uploaded) const
+{
+ std::lock_guard<std::mutex> lock(mutex_);
+ if(grant_<0)return {ErrorCode::busy,"menu window is not granted","menu_window"};
+ if(!blitter_)return Invalid("menu window grant has no blitter");
+ if(!count||first>=FesApplicationMenuBlitCommandCount||count>FesApplicationMenuBlitCommandCount-first)
+  return Invalid("menu blit list is outside the list region");
+ constexpr std::uint64_t heap_end=std::uint64_t(FesApplicationMenuBlitHeapOffset)+FesApplicationMenuBlitHeapBytes;
+ for(const auto& span:uploaded)
+  if(!span.bytes||span.offset<FesApplicationMenuBlitHeapOffset||span.bytes>heap_end-span.offset)
+   return Invalid("menu upload is outside the texture heap");
+ Error error=operations_->Clean(grant_,FesApplicationMenuBlitListOffset+std::uint64_t(first)*FesApplicationMenuBlitCommandBytes,
+  count*FesApplicationMenuBlitCommandBytes,1,0);
+ for(const auto& span:uploaded) {
+  if(!error.ok())break;
+  error=operations_->Clean(grant_,span.offset,span.bytes,1,0);
+ }
+ return error;
 }
 Error MenuWindow::Share(int* fd) const
 {

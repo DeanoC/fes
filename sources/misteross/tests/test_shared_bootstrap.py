@@ -24,6 +24,7 @@ def _prepare_fixture(
     log: Path,
     *,
     yosys_commit: str = "3a5accbd78c526ab7bae32640044a2e062a3cfc9",
+    nextpnr_commit: str = "9128800fa6e77c4138088a7107a95376ba47ff15",
 ) -> Path:
     scripts = root / "scripts"
     scripts.mkdir(parents=True)
@@ -78,7 +79,7 @@ EOF
         case "$(basename "$source_dir")" in
             yosys) echo __YOSYS_COMMIT__ ;;
             mistral) echo 8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f ;;
-            nextpnr) echo 9128800fa6e77c4138088a7107a95376ba47ff15 ;;
+            nextpnr) echo __NEXTPNR_COMMIT__ ;;
             verilator) echo 5e4151e3e0c8ecf11d9845a93495f37a31b2f667 ;;
             openfpgaloader) echo 0c5ebaab1fa63c9d9c684abc0b8e68546ea8ea86 ;;
             *) exit 1 ;;
@@ -86,7 +87,8 @@ EOF
         ;;
 esac
 '''
-        ).replace("__YOSYS_COMMIT__", yosys_commit),
+        ).replace("__YOSYS_COMMIT__", yosys_commit).replace(
+            "__NEXTPNR_COMMIT__", nextpnr_commit),
     )
 
     _write_executable(
@@ -359,13 +361,14 @@ class SharedBootstrapEnvironmentTests(unittest.TestCase):
             base = Path(directory)
             root = base / "checkout"
             log = base / "child-env.log"
-            fake_bin = _prepare_fixture(root, log, yosys_commit=coleco_commit)
+            fake_bin = _prepare_fixture(
+                root, log, yosys_commit=coleco_commit,
+                nextpnr_commit="bec82e36d436acec7cbeb248725acfde72b8f220")
             core_lock = root / "cores" / "fes-coleco" / "toolchain.lock"
             core_lock.parent.mkdir(parents=True)
             shutil.copy2(ROOT / "cores" / "fes-coleco" / "toolchain.lock", core_lock)
-            # On main the checked-in Coleco lock matches the shared lock, so
-            # the distinct-slot check below would not reach bootstrap. The
-            # temporary lock must name the fixture Yosys commit.
+            # The temporary lock names the fixture Yosys commit while keeping
+            # Coleco's distinct nextpnr pin from its checked-in lock.
             _set_yosys_commit(core_lock, coleco_commit)
             sibling_lock = root / "cores" / "fes-pong" / "toolchain.lock"
             sibling_lock.parent.mkdir(parents=True)

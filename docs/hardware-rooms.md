@@ -3,11 +3,17 @@
 The tenfoot Home screen includes **The Sinclair ZX81 workbench** (`example.hardware`).
 It shows the household's existing ZX81 core entries, the rear expansion
 connector, installed expansions admitted for the exact selected package, and
-prelaunch cassette selection. **Set up ZX81** creates a library entry from an
-installed sealed package and an explicitly selected household BASIC ROM. This
+prelaunch cassette selection. **Set up ZX81** first asks which machine — ZX81,
+ZX80, TS1000 or TS1500 — then lists installed packages of that core and creates
+a library entry from an installed sealed package and an explicitly selected
+household BASIC ROM. This
 uses the local library APIs even when the published-core catalogue is unavailable;
 published Systems remains an optional installation route. No hardware is fabricated when the
-library is empty. The Amiga-themed `example.workbench` remains a separate room.
+library is empty. The Amiga-themed `example.workbench` remains a separate room. **Computers** (`example.computers`) is a shelf of prepared ZX81 and Commodore 64 library entries. Confirm launches the focused row through `session.launch`. **Set up** opens that row's workbench: `example.hardware` for ZX81 and `example.c64` for Commodore 64.
+
+## Commodore 64 setup
+
+`example.c64` lists prepared `fes.c64` library entries. **Next machine** and **Next edition** choose among those entries and their grouped editions. Socket 1, socket 2, and any other saved expansion are shown from `slot_expansions` and `expansion_id` already on the entry. The saved disk is the entry's `media_id` when `media_role` is `disk`, shown as a short prefix. This core's media unit is a 1541 `.d64` on unit 0. `.tap`, `.t64`, and `.crt` are not offered. **Start machine** calls `session.launch`. While that entry is running and the session reports removable media, **Choose disk** calls `session.open_tape` for the live disk picker. **Stop machine** uses the ordinary stop path. The room does not invent an REU or another drive.
 
 ## Use the workbench
 
@@ -53,14 +59,23 @@ single HDMI output, a running ZX81 package that advertises
 cassette picker in its own shell. The launcher occupies the full screen while
 CPU execution, RAM, audio and the fitted expansion continue. A completed frame
 switches to the controls; closing them drains scanout and returns machine pixels.
-Older packages keep prelaunch selection. Idle rendering still uses MENU.
+When no compatible installed selector package is available, the workbench keeps
+prelaunch selection. Idle rendering still uses MENU.
+
+For a saved entry with no fitted expansion, Start uses an installed ZX81 package
+for the same target when it also declares session display, HPS DDR, the rear
+socket and live media. The host compares the saved package before changing it,
+then applies its ordinary media, firmware and persistence checks before launch.
+Entries with an exact-package expansion keep their selected package.
 
 On the capable kit display and on a separate host display, the live room is available. During play,
 the **Hardware room** button, keyboard **Home**, or a single controller
 **Select/View** press opens the room without stopping the machine. The letter
 H remains a computer key. Arrows/d-pad navigate; Enter/A confirms; Escape/B
-returns. **Return to play** or Back first closes the display plane before restoring
-machine input. Held keys are neutralized when the controls open and require a
+returns. On kit HDMI the room is a dark translucent overlay, so the machine
+stays visible, dimmed, behind it. **Return to play** or Back first closes the
+display plane, or with the TV surround keeps it shown with machine focus,
+before restoring machine input. Held keys are neutralized when the controls open and require a
 release and fresh press after return. Select+Start held for one second retains
 the ordinary Stop action. An unconfirmed close keeps input focused on the UI
 and offers retry; it never silently stops or restarts BASIC.
@@ -81,6 +96,11 @@ keeps the session and running machine. Enter `LOAD ""` on the ZX81 after
 arming a tape; there is no cassette transport, playhead or automatic LOAD.
 Busy, unavailable and failed operations retain their existing status and
 retry handling. Returning from the picker keeps the room and focus.
+
+In any browsed folder, including an empty one, **Eject media** and **Type a
+path** remain available. The list keeps directories and only shows files that
+match the active medium's format and size. Local mount roots appear only when
+they exist on the kit; saved FogCast host drives use the host's storage service.
 
 Pointer controls, directional keyboard/controller focus, Confirm, visible
 Back and Home all reach the same actions. Dragging, long presses and chords
@@ -147,7 +167,11 @@ inspected card, shelf page and focus. Physical transitions remain in runtime;
 the shared display contract is defined in
 [session display](../sources/mister-packages/docs/session-display.md).
 `POST /api/v1/session/display` carries an explicit `visible` boolean with the
-captured session/target/package/generation headers. The target operation requires
+captured session/target/package/generation headers. It names `focus`
+(`"launcher"` or `"machine"`) only when it differs from the default, which is
+launcher focus for a shown plane and machine focus for a closed one. The
+hardware room takes launcher focus, and a closed plane always returns focus to
+the machine. The target operation requires
 the existing kit lease. The runtime admits immutable full frames only while the
 plane is open and revokes their separate display generation on close, replacement
 or Stop. A display fault disables only that plane; idle recovery cannot replace

@@ -867,10 +867,16 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 		if (descriptor.abi.minor > FesApplicationABIMinor || !descriptor.core.system.empty())
 			return CompatibilityError(ErrorCode::unsupported_abi,
 				"unsupported FES application ABI or system declaration");
-		bool video = false, blob = false, stream = false, menu = false, ddr = false;
-		bool gamepad = false, ports = false, keypad = false;
+		bool video = false, blob = false, stream = false, menu = false, blitter = false, ddr = false;
+		bool gamepad = false, ports = false, keypad = false, display = false, plane = false;
 		bool video_socket = false, coleco_bus = false;
 		for (const auto& interface : descriptor.interfaces) {
+			if (interface.id == kDisplayPlaneInterfaceID) {
+				if (!interface.required || interface.major != 1 || interface.minor != 0)
+					return CompatibilityError(ErrorCode::unsupported_interface, "display plane must be required at version 1.0");
+				plane = true;
+				continue;
+			}
 			if (interface.id == "fes.fabric.video.raster-rgb888" ||
 				interface.id == "fes.fabric.video.native-pixels") {
 				if (interface.required || interface.major != 1 || interface.minor != 0)
@@ -890,8 +896,13 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 				interface.id == FesApplicationInterfaceAudioPcmS16Stereo48kID ||
 				interface.id == FesApplicationInterfaceMemoryHpsDdrID ||
 				interface.id == FesApplicationInterfaceVideoMenuDisplayID ||
+				interface.id == FesApplicationInterfaceVideoMenuBlitterID ||
+				interface.id == FesApplicationInterfaceVideoSessionDisplayID ||
 				firmware;
-			const bool supported = known && interface.major == 1 && interface.minor == 0;
+			// The blitter's minors add ops, so a menu may declare any of them.
+			const bool supported = known && interface.major == 1 && (interface.minor == 0 ||
+				(interface.id == FesApplicationInterfaceVideoMenuBlitterID &&
+				 interface.minor <= FesApplicationInterfaceVideoMenuBlitterMinor));
 			if (!supported && interface.required)
 				return CompatibilityError(ErrorCode::unsupported_interface,
 					"required application interface is unsupported");
@@ -903,6 +914,8 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 				video = interface.required;
 			if (interface.id == FesApplicationInterfaceMemoryHpsDdrID) ddr = true;
 			if (interface.id == FesApplicationInterfaceVideoMenuDisplayID) menu = true;
+			if (interface.id == FesApplicationInterfaceVideoMenuBlitterID) blitter = true;
+			if (interface.id == FesApplicationInterfaceVideoSessionDisplayID) display = true;
 			if (interface.id == FesApplicationInterfaceMediaBlobID) blob = true;
 			if (interface.id == FesApplicationInterfaceMediaBlobStreamID) stream = true;
 			if (interface.id == FesApplicationInterfaceGamepadID) gamepad = true;
@@ -911,9 +924,18 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 		}
 		if (video_socket && (!ColecoVideoShell(descriptor) || !coleco_bus))
 			return CompatibilityError(ErrorCode::unsupported_interface, "video fabric socket requires the Coleco bus-2 developer shell");
-		if (menu && (!ddr || descriptor.interfaces.size() != 3))
+		if (blitter && !menu)
+			return CompatibilityError(ErrorCode::unsupported_interface, "menu blitter requires the menu display");
+		// The idle MENU's display and a running machine's session plane are
+		// separate contracts; no package is both.
+		if (display && (!ddr || menu))
 			return CompatibilityError(ErrorCode::unsupported_interface,
-				"menu display requires exactly fixed video, HPS DDR and menu display");
+				"session display requires HPS DDR and excludes the menu display");
+		Error pairing = CheckDisplayPlanePairing(display, plane);
+		if (!pairing.ok()) return pairing;
+		if (menu && (!ddr || descriptor.interfaces.size() != (blitter ? 4u : 3u)))
+			return CompatibilityError(ErrorCode::unsupported_interface,
+				"menu display requires exactly fixed video, HPS DDR, menu display and optionally the menu blitter");
 		if ((gamepad && ports) || (keypad && !ports))
 			return CompatibilityError(ErrorCode::unsupported_interface,
 				"controller ports exclude single gamepad and keypad requires ports");
@@ -937,6 +959,10 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 		bool ddr = false;
 		bool display = false;
 		bool plane = false;
+		bool zx81_tape = false;
+		bool zx81_tape_write = false;
+		bool spectrum_tape = false;
+		bool spectrum_disk = false;
 		int media_units = 0;
 		int buses = 0;
 		for (const auto& interface : descriptor.interfaces) {
@@ -953,6 +979,8 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 				interface.id == FesComputerInterfaceKeyboardHidID ||
 				interface.id == FesComputerInterfaceMouseRelativeID ||
 				interface.id == FesComputerInterfaceMediaAtariStFloppyWriteID ||
+				interface.id == FesComputerInterfaceMediaZx81TapeWriteID ||
+				interface.id == FesComputerInterfaceMediaSpectrumDiskID ||
                 interface.id == FesComputerInterfaceMediaAtariStFloppyGeometryID ||
 				interface.id == FesComputerInterfaceGamepadPortsID ||
 				interface.id == FesComputerInterfaceAudioPcmS16Stereo48kID ||
@@ -960,7 +988,7 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 				interface.id == FesComputerInterfaceVideoSessionDisplayID ||
 				interface.id == kDisplayPlaneInterfaceID ||
 				media;
-			const bool supported = (known || bus) && interface.major == 1 && interface.minor == 0;
+			const bool supported = (known || bus) && ComputerInterfaceCurrent(interface);
 			if (!supported && interface.required)
 				return CompatibilityError(ErrorCode::unsupported_interface,
 					"required computer interface is unsupported");
@@ -980,6 +1008,10 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 			if (interface.id == FesComputerInterfaceVideoSessionDisplayID) display = true;
 			if (interface.id == kDisplayPlaneInterfaceID) plane = true;
 			if (media) media_units++;
+			if (interface.id == FesComputerInterfaceMediaZx81TapeID) zx81_tape = true;
+			if (interface.id == FesComputerInterfaceMediaZx81TapeWriteID) zx81_tape_write = true;
+			if (interface.id == FesComputerInterfaceMediaSpectrumTapeID) spectrum_tape = true;
+			if (interface.id == FesComputerInterfaceMediaSpectrumDiskID) spectrum_disk = true;
 		}
 		bool writable = false, geometry = false, st_medium = false;
 		for (const auto& interface : descriptor.interfaces) {
@@ -993,6 +1025,14 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 		Error pairing = CheckDisplayPlanePairing(display, plane);
 		if (!pairing.ok()) return pairing;
 		if ((writable || geometry) && !st_medium) return CompatibilityError(ErrorCode::unsupported_interface, "Atari ST media extensions require the base floppy interface");
+		if (zx81_tape_write && !zx81_tape)
+			return CompatibilityError(ErrorCode::unsupported_interface,
+				"ZX81 tape write requires the base tape interface");
+		// The unit-1 disk sits beside a Spectrum cassette and keeps its image
+		// in the core's HPS DDR window.
+		if (spectrum_disk && (!spectrum_tape || !ddr))
+			return CompatibilityError(ErrorCode::unsupported_interface,
+				"Spectrum disk requires the Spectrum tape and HPS DDR");
 		if (media_units > 1 || buses > 1)
 			return CompatibilityError(ErrorCode::unsupported_interface,
 				"computer declares more than one unit-0 medium or expansion bus");

@@ -150,6 +150,11 @@
     <div class="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settings-heading">
       <p class="eyebrow">Host</p>
       <h2 id="settings-heading">Settings</h2>
+      <section class="settings-group">
+        <h3>BIOS &amp; media drives</h3>
+        <button id="storage-manage" type="button" class="button secondary">Browse USB drives and SMB shares</button>
+        <p class="settings-help">Save drives and folders on the FogCast host. Manage kit-attached drives in the kit’s Settings → BIOS &amp; media drives.</p>
+      </section>
       <label class="filter-label" for="settings-attract-idle">Attract idle seconds
         <input id="settings-attract-idle" type="number" min="1" step="1" autocomplete="off">
       </label>
@@ -235,9 +240,16 @@
       <legend>Optional immutable media</legend>
       <label for="core-media-file">Media file (host storage up to 32 MiB; core limits may be smaller)</label>
       <input id="core-media-file" type="file">
+      <button id="core-media-drive" class="button secondary" type="button">From host drive</button>
       <button id="core-media-import" class="button" type="button">Import media</button>
       <button id="core-media-discard" class="button secondary" type="button">Use no media for new entry</button>
       <p id="core-media-status" role="status"></p>
+      <label for="core-blank-disk-name">Blank Atari ST disk name (1–11 letters, digits, spaces or hyphens)</label>
+      <input id="core-blank-disk-name" type="text" maxlength="11" autocomplete="off">
+      <label for="core-blank-disk-geometry">Blank disk size</label>
+      <select id="core-blank-disk-geometry"></select>
+      <button id="core-blank-disk" class="button" type="button">Create blank formatted disk</button>
+      <p id="core-blank-disk-status" role="status"></p>
       <button id="core-entry-media-save" class="button" type="button">Select imported media for entry</button>
       <button id="core-entry-media-clear" class="button secondary" type="button">Clear entry media</button>
     </fieldset>
@@ -250,6 +262,7 @@
     <p id="core-library-message" role="status" aria-live="polite"></p>
   </dialog>
   {{FOGCAST_METADATA}}
+  {{FOGCAST_STORAGE}}
   {{FOGCAST_CORE_LIBRARY}}
   {{FOGCAST_APP}}
 </body>

@@ -12,7 +12,12 @@ module fes_application_gp #(
     parameter bit ENABLE_FIRMWARE = 0,
     // The core drives the fes.memory.hps-ddr port layout (fes_hps_ddr).
     parameter bit ENABLE_HPS_DDR = 0,
-    parameter bit ENABLE_MENU = 0
+    parameter bit ENABLE_MENU = 0,
+    // The menu also runs the blitter's MenuBlit requests (requires ENABLE_MENU).
+    parameter bit ENABLE_MENU_BLITTER = 0,
+    // A running machine's fes.video.session-display plane on the same menu
+    // channel (requires ENABLE_HPS_DDR, excludes ENABLE_MENU).
+    parameter bit ENABLE_SESSION_DISPLAY = 0
 ) (
     input  wire         clk,
     input  wire [31:0]  gpo,
@@ -52,7 +57,11 @@ module fes_application_gp #(
         (ENABLE_AUDIO ? `FES_APPLICATION_INTERFACE_AUDIO_PCM_S16_STEREO_48K_CAPABILITY_MASK : 32'd0) |
         (ENABLE_FIRMWARE ? `FES_APPLICATION_INTERFACE_FIRMWARE_BLOB_CAPABILITY_MASK : 32'd0) |
         (ENABLE_HPS_DDR ? `FES_APPLICATION_INTERFACE_MEMORY_HPS_DDR_CAPABILITY_MASK : 32'd0) |
-        (ENABLE_MENU ? `FES_APPLICATION_INTERFACE_VIDEO_MENU_DISPLAY_CAPABILITY_MASK : 32'd0);
+        (ENABLE_MENU ? `FES_APPLICATION_INTERFACE_VIDEO_MENU_DISPLAY_CAPABILITY_MASK : 32'd0) |
+        (ENABLE_MENU && ENABLE_MENU_BLITTER ? `FES_APPLICATION_INTERFACE_VIDEO_MENU_BLITTER_CAPABILITY_MASK : 32'd0) |
+        (ENABLE_SESSION_DISPLAY ? `FES_APPLICATION_INTERFACE_VIDEO_SESSION_DISPLAY_CAPABILITY_MASK : 32'd0);
+    // The idle menu and a session plane share opcodes 18-21 and the quiesce gate.
+    localparam bit MENU_CHANNEL = ENABLE_MENU || ENABLE_SESSION_DISPLAY;
     localparam [31:0] ID_MAGIC0_INDEX = `FES_APPLICATION_IDENTITY_MAGIC0_INDEX;
     localparam [31:0] ID_MAGIC1_INDEX = `FES_APPLICATION_IDENTITY_MAGIC1_INDEX;
     localparam [31:0] ID_TRANSPORT_MAJOR_INDEX = `FES_APPLICATION_IDENTITY_TRANSPORT_MAJOR_INDEX;
@@ -307,7 +316,7 @@ module fes_application_gp #(
         request_meta <= request_toggle;
         request_sync <= request_meta;
 
-        if (ENABLE_MENU && menu_request) begin
+        if (MENU_CHANNEL && menu_request) begin
             if (menu_response_valid) begin
                 acknowledged_toggle <= request_sync;
                 response_error <= menu_response_error;
@@ -323,8 +332,9 @@ module fes_application_gp #(
                 `FES_APPLICATION_OPCODE_MENU_INFO,
                 `FES_APPLICATION_OPCODE_MENU_CONFIGURE,
                 `FES_APPLICATION_OPCODE_MENU_CONTROL,
-                `FES_APPLICATION_OPCODE_MENU_SUBMIT: begin
-                    if (!ENABLE_MENU)
+                `FES_APPLICATION_OPCODE_MENU_SUBMIT,
+                `FES_APPLICATION_OPCODE_MENU_BLIT: begin
+                    if (!MENU_CHANNEL || (command_opcode == `FES_APPLICATION_OPCODE_MENU_BLIT && !(ENABLE_MENU && ENABLE_MENU_BLITTER)))
                         reject_command(16'(`FES_APPLICATION_ERROR_INVALID_OPCODE));
                     else begin
                         // Keep the old ACK until the menu finishes this request.
@@ -347,7 +357,7 @@ module fes_application_gp #(
                     if (command_index != `FES_APPLICATION_CONTROL_INDEX)
                         reject_command(16'(`FES_APPLICATION_ERROR_INVALID_INDEX));
                     else if (command_argument == `FES_APPLICATION_EXECUTION_HOLD_RESET) begin
-                        if (ENABLE_MENU && !menu_quiesced)
+                        if (MENU_CHANNEL && !menu_quiesced)
                             reject_command(16'(`FES_APPLICATION_ERROR_INVALID_STATE));
                         else exec_reset <= 1'b1;
                         // HOLD preserves staged media; BEGIN replaces it.

@@ -80,10 +80,12 @@ one second** remains Stop, including while the workbench is open. Opening and
 returning release held input; gameplay resumes only after release and a fresh
 press. The existing kit-local input source carries the kit keyboard and pad.
 
-The live cassette picker offers the host's attributed starter tapes and local
-`.p` imports. It imports bytes and replaces/ejects media through the captured
-session, package, core generation and target; it preserves the library's **Next
-start** cassette. Menu frames also pin that captured package and core generation
+The live cassette picker offers the host's attributed starter tapes, programs
+saved by this library machine, and local `.p` imports. Saved programs already
+have a durable media ID; selecting one arms it without another import. It imports
+starter/local bytes and replaces/ejects media through the captured session,
+package, core generation and target; it preserves the library's **Next start**
+cassette. Menu frames also pin that captured package and core generation
 and reject changed display generations. A lost open response keeps Back/Esc/B
 available for a guarded return and Home/Select for retry. A failed return retains
 room input until another return succeeds. Shell exit attempts that return without
@@ -130,8 +132,6 @@ FOGCAST_API=http://127.0.0.1:8787 bin/fogcast-tenfoot
 FOGCAST_API_HOST=127.0.0.1:8787 bin/fogcast-tenfoot -api http://host.docker.internal:8787
 FOGCAST_TENFOOT_NO_ATTRACT=1 bin/fogcast-tenfoot
 FOGCAST_TENFOOT_SAFE_AREA=0 bin/fogcast-tenfoot
-bin/fogcast-tenfoot -input-profile identity
-FOGCAST_INPUT_PROFILE=swap-ab bin/fogcast-tenfoot
 bin/fogcast-tenfoot -theme arcade
 FOGCAST_THEME=night bin/fogcast-tenfoot
 bin/fogcast-tenfoot -debug-hud
@@ -213,10 +213,9 @@ lease fails closed.
 
 Gamepad remains a supported control path (d-pad / left stick to move, South/A to
 launch, East/B to back, Start to quit, Select/View to cycle layout, Guide to
-open the sofa settings overlay). `-input-profile identity|swap-ab|/path.json`
-applies the shared `ui/inputmap` remapper after SDL button
-normalization (`CommandFromLogical`); empty is identity. Kit multi-device
-merge is the HIL proof; sofa still opens every SDL gamepad. Down from the last row (or last shelf/list
+open the sofa settings overlay). Sofa opens every SDL gamepad and reads the
+positions SDL's mapping gives it; to remap a pad here, give SDL a mapping in
+`SDL_GAMECONTROLLERCONFIG`. Down from the last row (or last shelf/list
 page) opens the focused title's detail pane; Up or East/B returns to browse.
 Left/Right in the pane cycle screenshots. South/A still launches, East/B still
 stops a live session, Start still quits, Guide still opens settings, North/Y

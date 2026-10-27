@@ -72,12 +72,14 @@ const (
 )
 
 type APIError struct {
-	Cause    error     `json:"-"`
-	Code     ErrorCode `json:"code"`
-	Message  string    `json:"message"`
-	Phase    string    `json:"phase,omitempty"`
-	Expected string    `json:"expected,omitempty"`
-	Observed string    `json:"observed,omitempty"`
+	Cause   error     `json:"-"`
+	Code    ErrorCode `json:"code"`
+	Message string    `json:"message"`
+	Phase   string    `json:"phase,omitempty"`
+	// NoChange is true only when a failed media mutation guarantees no mount change.
+	NoChange bool   `json:"no_change,omitempty"`
+	Expected string `json:"expected,omitempty"`
+	Observed string `json:"observed,omitempty"`
 }
 
 func (e *APIError) Error() string {

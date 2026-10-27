@@ -25,7 +25,12 @@ module fes_z80_bus #(
     output logic [7:0]  rdata,
     output logic        m1_n, mreq_n, iorq_n, rd_n, wr_n, rfsh_n, busak_n,
     output logic [15:0] a,
-    output logic [7:0]  dout
+    output logic [7:0]  dout,
+    // Observation of the presented cycle for clock-stretching peripherals
+    // (e.g. ULA contention): its kind, T state and whether one is presented.
+    output logic        cycle_present,
+    output logic [2:0]  cycle_kind_out,
+    output logic [5:0]  cycle_t_out
 );
     localparam logic [2:0] FETCH = 3'd0, MEM_RD = 3'd1, MEM_WR = 3'd2,
         IO_RD = 3'd3, IO_WR = 3'd4, IRQ_ACK = 3'd5, NMI_ACK = 3'd6,
@@ -68,6 +73,9 @@ module fes_z80_bus #(
         cycle_half = active && half;
         presented = !reset && !granted &&
             (active || (req && (busrq_n || (!FAST && boundary_permit))));
+        cycle_present = presented;
+        cycle_kind_out = cycle_kind;
+        cycle_t_out = cycle_t;
         case (cycle_kind)
             FETCH, MEM_RD, MEM_WR, NMI_ACK: wait_t = 6'd2;
             IO_RD, IO_WR: wait_t = 6'd3; // The first Tw is mandatory.

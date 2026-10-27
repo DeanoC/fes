@@ -52,6 +52,8 @@ module top #(
         fes_menu_ddr scanout (
             .clk(pixel_clk), .reset_hold(!locked), .enable(locked && DIAGNOSTIC_ENABLE),
             .quiesce(1'b0), .submit_valid(1'b0), .submit_slot(1'b0), .submit_sequence(32'd0),
+            .blit_valid(1'b0), .blit_slot(1'b0), .blit_offset(32'd0), .blit_count(16'd0),
+            .blit_idle(), .blit_faulted(), .blit_fault_code(), .blit_completed(),
             .submit_ready(), .displayed_sequence(displayed_sequence), .underflows(underflows),
             .quiesced(), .faulted(), .rgb(rgb), .de(de), .hs(hs), .vs(vs)
         );

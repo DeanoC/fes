@@ -24,6 +24,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/version"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
+	"github.com/DeanoC/FogCast/storage"
 )
 
 // Service is the host operation surface used by the privacy-safe application API.
@@ -46,6 +47,10 @@ type gameResult struct {
 	ROMSHA256        string              `json:"rom_sha256,omitempty"`
 	Title            string              `json:"title"`
 	System           protocol.System     `json:"system"`
+	CoreID           string              `json:"core_id,omitempty"`
+	PackageID        string              `json:"package_id,omitempty"`
+	MediaID          string              `json:"media_id,omitempty"`
+	MediaRole        string              `json:"media_role,omitempty"`
 	Kind             catalog.SourceKind  `json:"kind"`
 	State            catalog.SourceState `json:"state"`
 	RootOnline       bool                `json:"root_online"`
@@ -74,6 +79,8 @@ type gameResult struct {
 	ROMReady         bool                `json:"rom_ready,omitempty"`
 	ROMID            string              `json:"rom_id,omitempty"`
 	ROMMediaID       string              `json:"rom_media_id,omitempty"`
+	ROMRole          string              `json:"rom_role,omitempty"`
+	ROMSourceSize    int64               `json:"rom_source_size,omitempty"`
 	ExpansionReady   bool                `json:"expansion_ready,omitempty"`
 	FirmwareReady    bool                `json:"firmware_ready,omitempty"`
 	// SlotExpansions lists a multi-socket title's selected cards and readiness.
@@ -189,11 +196,13 @@ type apiError struct {
 	Code      string `json:"code"`
 	Message   string `json:"message"`
 	Phase     string `json:"phase,omitempty"`
+	NoChange  bool   `json:"no_change,omitempty"`
 	Expected  string `json:"expected,omitempty"`
 	Observed  string `json:"observed,omitempty"`
 }
 
 type serverOptions struct {
+	storage            *storage.Manager
 	remoteInput        host.RemoteInputController
 	remoteInputFactory func(string) host.RemoteInputController
 	media              MediaSession
@@ -279,6 +288,7 @@ func New(service Service, options ...ServerOption) http.Handler {
 		}
 	}
 	mux := http.NewServeMux()
+	registerStorage(mux, config.storage)
 	registerCoreLibrary(mux, service)
 	registerKitSoftwareInventory(mux, service)
 	registerCoreData(mux, service)
@@ -1170,6 +1180,7 @@ func writeSessionError(w http.ResponseWriter, err error) {
 		writeJSON(w, status, map[string]any{"error": apiError{
 			StopStage: fogcast.StopStage(err),
 			Code:      string(apiErr.Code), Message: message, Phase: phase,
+			NoChange: apiErr.NoChange,
 			Expected: apiErr.Expected, Observed: apiErr.Observed,
 		}})
 		return

@@ -1,11 +1,16 @@
 # FES ZX81
 
 The standard core is a `fes.computer` 1.0 package (`fes.zx81`
-1.6.0) with 1 KiB internal RAM, original ROM, HID keyboard rows mapped to the
-40-key matrix, one `.p` tape unit, fixed 720p60 HDMI, the session-display
-plane for kit launcher frames, and a registered Z80-like expansion bus. There is no ZX80,
-colour, YM2149, turbo, joystick or SDRAM in this slice. The standard OSS
-package carries the vacant bus; carts are independent bus consumers.
+1.7.0) with 1 KiB internal RAM, original ROM, HID keyboard rows mapped to the
+40-key matrix, one `.p` tape unit with BASIC SAVE, fixed 720p60 HDMI, the session-display
+plane for kit launcher frames, and a registered Z80-like expansion bus. The
+same shell also builds experimental package-only models `fes.zx80` (PAL, 4 KiB
+ROM, 1 KiB internal RAM, no NMI), `fes.ts1000` (NTSC, 8 KiB ROM, 2 KiB internal
+RAM) and `fes.ts1500` (NTSC, 8 KiB ROM, 16 KiB internal RAM). They are not in
+the factory image. `fes.zx81` stays the PAL ZX81 with an 8 KiB `machine-rom`
+and 1 KiB internal RAM. This slice still has no colour, YM2149, turbo, joystick
+or SDRAM. The standard OSS package carries the vacant bus; carts are
+independent bus consumers.
 
 The native image selects this package. The
 [session-display validation](validation/2026-10-02-zx81-session-display.md)
@@ -25,12 +30,12 @@ the target links it through the package's sealed ROM map at download time. See
 | Core ID | `fes.zx81` |
 | ABI | `fes.computer` 1.0 |
 | Profile | `fes-gp-v1` |
-| Interfaces | `fes.keyboard.hid`, `fes.gamepad.ports`, `fes.media.zx81-tape`, `fes.video.fixed-720p60`, `fes.audio.pcm-s16-stereo-48k`, `fes.memory.hps-ddr`, `fes.video.session-display` (required); `fes.expansion.zx81-bus` (optional) |
+| Interfaces | `fes.keyboard.hid`, `fes.gamepad.ports`, `fes.media.zx81-tape`, `fes.media.zx81-tape-write`, `fes.video.fixed-720p60`, `fes.audio.pcm-s16-stereo-48k`, `fes.memory.hps-ddr`, `fes.video.session-display` (required); `fes.expansion.zx81-bus` (optional) |
 | Persistence | none (library launches are volatile) |
 | Input | HID keyboard rows mapped to the 40-key matrix |
 | Stop | ordinary session Stop; Select+Start held for one second on the kit |
 | Live controls | Home or Select opens the launcher plane; Escape/B or Return to play closes it and restores ZX81 video |
-| Tape | launch insert into unit 0, or mid-session tape insert/eject; empty `LOAD ""` reports `0/0` |
+| Tape | launch insert into unit 0, or mid-session tape insert/eject; empty `LOAD ""` reports `0/0`. BASIC SAVE on the ZX81 ROM stores a `.p` through `fes.media.zx81-tape-write` |
 
 Live tape arm/eject uses `fes.media.zx81-tape` unit 0 without a
 hold-reset reboot. The captured host/agent session operations are
@@ -49,7 +54,7 @@ reaches uinput.
 Quartus Prime Lite 17.0.2 (`make build-fes-zx81-quartus`) remains the legacy
 1.2 bring-up/oracle lane; it does not produce the standard socketed package.
 `make build-fes-zx81` is the standard Yosys/nextpnr-mistral producer for the
-1.6 socketed format-3 package. The package seals `rom-map.json` alongside
+1.7.0 socketed format-3 package. The package seals `rom-map.json` alongside
 the blank ROM RBF. The host sends the selected binary and optional expansion;
 the target Go linker composes the expansion and patches ROM INIT before loading.
 Python and Mistral remain producer/oracle tools, not kit dependencies. OSS uses the first-party NMOS Z80 (`fes_z80_nmos`), a 52.224 MHz system clock, registered M10K and

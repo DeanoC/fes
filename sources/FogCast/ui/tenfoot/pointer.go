@@ -23,6 +23,7 @@ const (
 	PointerRoomDestination
 	PointerLaunchOverlay
 	PointerFirmwarePicker
+	PointerStorage
 	PointerCoreLibrary
 	PointerTapePicker
 	PointerHardwareRoom
@@ -69,6 +70,8 @@ func (k PointerKind) String() string {
 		return "launch-overlay"
 	case PointerCoreLibrary:
 		return "core-library"
+	case PointerStorage:
+		return "storage"
 	case PointerFirmwarePicker:
 		return "firmware-picker"
 	case PointerTapePicker:
@@ -82,6 +85,12 @@ func (k PointerKind) String() string {
 
 // HitTest reports the topmost sofa widget at logical pixel (x, y).
 func HitTest(snap Snapshot, x, y int) PointerHit {
+	// A failed return may retain the plane after its selector has closed.
+	// Only explicit return/stop commands may act on that view.
+	if snap.Session.MediaSelector && snap.Session.ControlsOpen && !snap.TapePicker.Open {
+		return PointerHit{}
+	}
+
 	if snap.Attract.Active {
 		return PointerHit{Kind: PointerAttract}
 	}
@@ -95,6 +104,16 @@ func HitTest(snap Snapshot, x, y int) PointerHit {
 			}
 			if geom.contains(x, y) {
 				return PointerHit{}
+			}
+		}
+		return PointerHit{Kind: PointerBackdrop}
+	}
+	if snap.Storage.Open {
+		overlay := snap
+		overlay.FirmwarePicker = snap.Storage
+		if panel, ok := firmwarePickerPanel(overlay); ok {
+			if idx, hit := panel.rowAt(x, y); hit && idx >= 0 && idx < len(snap.Storage.Rows) {
+				return PointerHit{Kind: PointerStorage, Index: idx}
 			}
 		}
 		return PointerHit{Kind: PointerBackdrop}
@@ -347,6 +366,7 @@ func (a *App) pointerSnapshotLocked() Snapshot {
 		FocusDetail:     a.focusDetailLocked(),
 		Room:            a.roomSnapshotLocked(false),
 		RoomPicker:      a.roomPickerSnapshotLocked(),
+		Storage:         a.driveSettingsSnapshotLocked(),
 		CoreLibrary:     a.coreLibrarySnapshotLocked(),
 		FirmwarePicker:  a.firmwarePickerSnapshotLocked(),
 		TapePicker:      a.tapePickerSnapshotLocked(),
@@ -387,6 +407,10 @@ func (a *App) applyPointerFocusLocked(hit PointerHit) {
 	case PointerRoomPicker:
 		if hit.Index >= 0 {
 			a.roomPickerIndex = hit.Index
+		}
+	case PointerStorage:
+		if !a.driveSettings.Busy {
+			a.driveSettings.Index = hit.Index
 		}
 	case PointerCoreLibrary:
 		if !a.coreLibrary.Busy && hit.Index >= 0 && hit.Index < len(a.coreLibraryRowsLocked()) {
@@ -447,6 +471,8 @@ func (a *App) activatePointerHitLocked(hit PointerHit, now time.Time) {
 		a.handleViewPickerLocked(CmdSelect)
 	case PointerRoomPicker:
 		a.handleRoomPickerLocked(CmdSelect)
+	case PointerStorage:
+		a.handleDriveSettingsLocked(CmdSelect)
 	case PointerCoreLibrary:
 		a.handleCoreLibraryLocked(CmdSelect)
 	case PointerFirmwarePicker:
@@ -485,6 +511,8 @@ func (a *App) pointerBackdropLocked(now time.Time) {
 	switch {
 	case a.settingsOSKOpenLocked():
 		a.handleSettingsOSKLocked(CmdBack)
+	case a.driveSettings.Open:
+		a.handleDriveSettingsLocked(CmdBack)
 	case a.coreLibrary.Open:
 		a.handleCoreLibraryLocked(CmdBack)
 	case a.nameEntryOpenLocked():

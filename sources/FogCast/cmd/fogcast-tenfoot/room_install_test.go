@@ -99,3 +99,34 @@ func TestRoomInstallUsesLauncherPreferencesBeforeEnvironment(t *testing.T) {
 		t.Fatalf("environment room directory was used: %v, %v", packs, err)
 	}
 }
+
+func TestRoomCommandsExportAndInstallPortableArchive(t *testing.T) {
+	source, root := t.TempDir(), t.TempDir()
+	for name, data := range map[string]string{"room.toml": "id = 'portable.room'\ntitle = 'Portable'", "main.lua": "function draw() end"} {
+		if err := os.WriteFile(filepath.Join(source, name), []byte(data), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	archive := filepath.Join(t.TempDir(), "portable.room.zip")
+	invoke := func(args ...string) int {
+		var out, err bytes.Buffer
+		code := run(args, &out, &err)
+		if code != 0 {
+			t.Log(err.String())
+		}
+		return code
+	}
+	if code := invoke("room-export", source); code != 2 {
+		t.Fatalf("missing output: %d", code)
+	}
+	if code := invoke("room-export", "--output", archive, source); code != 0 {
+		t.Fatal(code)
+	}
+	if code := invoke("room-install", "--rooms", root, archive); code != 0 {
+		t.Fatal(code)
+	}
+	packs, err := rooms.LoadDir(root)
+	if err != nil || len(packs) != 1 || packs[0].ID != "portable.room" {
+		t.Fatalf("archive install: %v %v", packs, err)
+	}
+}

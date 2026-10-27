@@ -1,8 +1,0 @@
-{
-  "name": "b-launches",
-  "description": "B becomes confirm; A becomes Y.",
-  "bindings": {
-    "b": "a",
-    "a": "y"
-  }
-}

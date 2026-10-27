@@ -6,8 +6,19 @@ A missing or changed input stops assembly with an error. The artifact set contai
 no playable cores; install those through the existing core catalog.
 
 Start by exporting from a retained, receipt-checked image on Linux (`debugfs` from
-`e2fsprogs` is required). An older multi-core image is also suitable: the export
-selects only its MENU firmware and bootstrap software.
+`e2fsprogs` is required). An older multi-core image is also suitable if its
+runtime accepts its MENU: the export selects only its MENU firmware and bootstrap
+software.
+
+Every set must pass the menu check that image assembly applies
+([image compatibility](kit-software-releases.md#image-compatibility)). `export`,
+`pack`, `check` and `make image` read the interfaces the runtime declares in its
+`.fes_menu_interfaces` section (`readelf` from binutils is required) and refuse a
+set whose runtime does not accept every interface its MENU declares. A runtime
+built before that section existed declares none, so an image that carries one
+cannot seed a set. Exporting from an image that was itself assembled from a set
+selects the same binaries again; to follow current sources, export from a fresh
+`make build` output or pack newly built binaries.
 
 ```sh
 python3 scripts/image_artifacts.py export \
@@ -61,7 +72,8 @@ firmware. It does not claim a compiler-free OS build.
 they can run MENU, Go and runtime producers and provide a fresh image from which
 to export artifacts. `make dev` remains the incremental source integration path.
 Use `make kit-software` for routine agent/runtime/UI engine updates and the room
-installer for Lua/art changes; neither requires this OS assembly step.
+installer for Lua/art changes; neither requires this OS assembly step. When the
+toolchain cache has no SDK for the current image key, run `make kit-sdk` first.
 
 OS assembly defaults to one pass, including CI. Use `IMAGE_PASSES=2` for an
 explicit two-build reproducibility comparison and the same setting for verification

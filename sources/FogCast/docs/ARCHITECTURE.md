@@ -719,10 +719,38 @@ generation with `fes.media.blob` still uses `replace_live_media` /
 legacy blob interface. The host session projection keeps those active
 interfaces and media units, so the tape picker and `change-tape` form a
 binding for either generation. On a menu-display kit, both that tape unit
-and a legacy blob session open the hardware room and the tape picker only
+and a legacy blob session open the media selector only
 when the running package reports `fes.video.session-display` 1.0 and
 `fes.memory.hps-ddr` 1.0. Home posts `visible: true`, the runtime makes menu
 presentation available, and `BindSession` authorizes the launcher frames.
+On a kit, Home or Select/View opens **Change media** directly over the running
+machine, with transparent pixels outside the opaque picker. The launch room
+is not drawn behind it. The picker offers insert and eject for the observed
+unit-0 format: ZX81 `.p`, Spectrum `.tap`, Apple II `.dsk`/`.do`, C64 `.d64`
+or Atari ST `.st`. Spectrum `.z80`, `.sna` and `.szx` appear only when the
+active package reports `fes.media.spectrum-snapshot` 1.0, and TR-DOS `.trd` and
+`.scl` and +3 `.dsk` only while a unit-1 `fes.media.spectrum-disk` is active
+(without it, a `.dsk` is an Apple II disk); the host refuses a disk written
+for the other drive. The runtime
+reports the matching optional snapshot metadata as active; model-specific
+snapshot checks remain in the host converter. It applies the active
+interface and reported size limits before import; the host and runtime
+validate the object again. ZX81 also
+shows the existing starter-tape shelf only when its game entry identifies
+`fes.zx81`; saved programs remain scoped to that game. Files come from the launcher machine
+(home, mounted media and accessible library roots); saved FogCast host drives are browsed through drive-relative storage APIs. Import, insert and eject retain the session captured when
+the selector opened. Session-display admission checks the captured generation,
+observed DDR and display interfaces, and a supported observed unit 0 for disk
+or Spectrum media. The host, target agent and runtime adapter share that
+admission predicate; the native runtime already admits the observed display
+interface independently of media type. Insert and eject use a bounded
+450-second transport without the normal polling timeout and are never replayed
+after a lost response. Starter import uses the ordinary bounded HTTP client:
+it copies at most 16 KiB of embedded host bytes into the host media store,
+without fetching the attribution URL or contacting the FPGA. Only the later
+insert needs the physical-operation budget.
+Successful insert/eject and Back at the picker roots return directly to play.
+A failed display return retains the binding and Back retries that return.
 Back posts `visible: false`, which quiesces the plane and restores the
 machine's HDMI pixels. Library play is
 native, and `change-tape` accepts that execution. Both paths are distinct from
@@ -741,15 +769,21 @@ fogcast --api http://127.0.0.1:8787 --json eject-tape
 media id uses the already stored object. Admission requires 1..16384 bytes and
 a `.p` / `.P` name. The host call is `POST /api/v1/session/live-media` with JSON
 `{"media_id","name"}` and the same session/package/generation/target binding
-headers as development media. `eject-tape` posts
+headers as development media. The displayed filename is scoped to that launch
+flight as well as its target, package and generation, so a relaunch that reuses
+a package generation starts without the previous flight's name. `eject-tape` posts
 `POST /api/v1/session/live-media/clear` so the next empty `LOAD ""` is `0/0`.
 The CLI reads the session with a 30-second client. `change-tape` and
 `eject-tape` post through the mutation client, which does not impose that
 timeout, so an insert can finish inside the host's 150-second budget. A lost
 response is not replayed.
 The target agent uses `POST /v1/development/live-media` and
-`POST /v1/development/clear-media`. Busy-while-LOAD maps to retryable `BUSY`.
-A poisoned or unstable GP handshake is the same retryable `BUSY`. A hard MMIO
+`POST /v1/development/clear-media`. A confirmed loader rejection during eject
+maps to retryable `BUSY` with `no_change:true`. Numeric GP rejections during
+insert are treated as uncertain because `MediaBegin` may have succeeded and
+cleared readiness before a later data or commit rejection. An ambiguous or
+unstable GP handshake after eject dispatch maps to retryable `BUSY` without
+`no_change`, because the core may already have ejected the medium. A hard MMIO
 failure or an invalid clear acknowledgement stays `MISTER_UNAVAILABLE`, even
 when the runtime phase is `input`. The host retries phase-`input` busy and
 does not relabel that hard failure as loader contention. Unavailable eject
@@ -761,6 +795,13 @@ needed, then arms with `POST /api/v1/session/live-media`. The same overlay can
 eject through `POST /api/v1/session/live-media/clear`. It retries loader `BUSY`
 and leaves the session active when eject reports unavailable.
 
+Every browsed folder keeps its parent action and offers Eject and Type a path,
+including folders without matching media. Directories remain visible; files
+are listed only when their extension and size match the active unit. Local
+mount roots are added only when they exist on the launcher device. FogCast host
+drives are browsed through the host storage API, so host-only paths are never
+treated as kit paths.
+
 ### Removable disks (fes.computer media units)
 
 A `fes.computer` package projects media role `disk`
@@ -770,9 +811,33 @@ A `fes.computer` package projects media role `disk`
 `fes.media.c64-disk` 1.0 is format `c64-d64`, exactly 174,848 bytes, name
 `.d64`. `fes.media.atari-st-floppy` 1.0 is format `atari-st-floppy`, exactly
 737,280 bytes, name `.st`; the required geometry extension admits the bounded
-layouts described under [raw floppy geometry](#atari-st-raw-floppy-geometry). `fes.media.spectrum-tape` 1.0 is role `cassette`, format
-`spectrum-tap`, 1..65,536 bytes, name `.tap`, on the same unit 0. A shell
-declares one unit-0 medium. Library selection
+layouts described under [raw floppy geometry](#atari-st-raw-floppy-geometry). `fes.media.spectrum-tape` 2.0 is role `cassette`, format
+`spectrum-tape`, names `.tzx`, `.tap`, `.pzx` and `.csw` up to 32 MiB, on the
+same unit 0. The library keeps the image as imported; at insertion
+`internal/spectrumtapes` converts it to the unit's 10..16,777,216-byte PZX
+stream, which plays as libspectrum 1.5 (Fuse 1.6.0) plays the original. A
+package that declares `fes.media.spectrum-snapshot` 1.0 (with `-128` and
+`-plus3` 1.0 for 128K and +2A/+3 snapshots) also lists `.z80`, `.sna` and
+`.szx`; a live insert's tape or snapshot name says which it is. Library media
+and inserts by digest have no name. TZX, PZX and CSW signatures keep those
+images on the tape path before snapshot probing; TAP has no signature, so the
+host takes a valid snapshot as one unless every TAP block also passes the ROM
+loader's checksum. Any `ZXST` signature routes through snapshot conversion
+even when invalid so its snapshot error is preserved. The host converts a
+snapshot by `internal/spectrumsnapshots` to the core's restore stream and
+refuses a snapshot of a machine the package does not run. A shell
+declares one unit-0 medium. A Spectrum shell that also declares
+`fes.media.spectrum-disk` 1.0 and the optional `fes.media.spectrum-disk-trdos`
+1.0 (the Pentagon's Beta 128) has role `disk`, format `spectrum-disk-trdos`,
+names `.trd` and `.scl` up to 1 MiB, on unit 1 beside the cassette; with
+`fes.media.spectrum-disk-plus3` 1.0 (the +3's uPD765A) instead, format
+`spectrum-disk-plus3` names `.dsk` up to 1 MiB. `internal/spectrumdisks`
+converts the disk at insertion to the unit's raw track image, built as Fuse
+1.6.0's `disk.c` builds the disk, and refuses one for the other drive. A
+launch sets the image's boot flag, so the core resets and boots it (into
+TR-DOS, or through the +3 menu's Loader), and gives a TR-DOS disk without a
+`boot` program Fuse's autoload loader; a live insert does neither. A live
+`.dsk` goes to the Spectrum disk when the active package has one. Library selection
 (`PUT …/core-entries/{game_id}/media` with `media_role:"disk"`, catalog schema
 13) validates the size and source offline. Writable ST initial disks are
 restored and inserted before CPU release; other home computers program the
@@ -782,10 +847,13 @@ is a failed launch and follows existing library-slot Stop/recovery. The same ses
 household disk, and `…/live-media/clear` ejects the unit-0 medium the active
 generation declares (Apple II floppy, C64 disk, Atari ST floppy, Spectrum tape, or ZX81 tape). `.p` names
 insert `fes.media.zx81-tape` when that unit is active, and otherwise keep the
-legacy ZX81 blob path. A `.tap` name inserts the Spectrum cassette on unit 0.
+legacy ZX81 blob path. A `.tzx`, `.tap`, `.pzx`, `.csw`, `.z80`, `.sna` or
+`.szx` name, or no name, inserts the Spectrum cassette on unit 0, and a `.trd`
+or `.scl` name the TR-DOS disk on unit 1. Clear does not eject the TR-DOS
+disk, and the CLI's disk commands do not handle it; a live insert replaces it.
 The CLI equivalents are `fogcast change-disk MEDIA_ID_OR_DISK_PATH` and
 `fogcast eject-disk` for a disk, and `fogcast change-cassette` and
-`fogcast eject-cassette` for a Spectrum `.tap`. A stored
+`fogcast eject-cassette` for a Spectrum tape. A stored
 media ID is named `disk.dsk`, `disk.d64` or `disk.st` from the active unit,
 so the host checks the declared disk size or discrete ST geometry against that generation. A path is imported
 through `POST /api/v1/core-media` and keeps its basename.
@@ -885,6 +953,11 @@ mtime changed. Unchanged rows bump `seen_generation` and do not rebuild the
 search index. A long scan waits a full interval before the next poll, so the
 watcher cannot run back-to-back.
 
+The `core_ids` catalog filter resolves installed entries through their
+`core_entries` identities. Recents and continue apply it to play-history
+candidates and grouped editions before selecting a representative; recents
+also applies it before the page limit.
+
 The kit reconnects with the existing `launcher.json` API URL on that launcher
 listener. See [the host connection contract](launcher-host.md).
 
@@ -913,13 +986,20 @@ stall its menu poll. The host listener keeps selected-target health and cache
 semantics. Cache snapshots are isolated per target.
 
 The launcher allowlist also admits `GET /api/v1/games/{id}` for strict game
-IDs so uncached room selections can load their detail row. It admits one
-library write: `PUT /api/v1/library/core-entries/{game_id}/expansion` for a
-strict game ID. The body is the existing compare-and-swap selection and is
-forwarded unchanged; the foreground target is not replaced. Slot writes,
-presentation edits, other library PUTs and settings stay denied. It does not expose
-full `/api/v1/library/settings`, which contains host filesystem roots. Tenfoot
-uses `GET /api/v1/launcher/kit-lease` for an authenticated,
+IDs so uncached room selections can load their detail row. Setup-room Add game
+admits `POST /api/v1/library/core-entries` for one installed package and title.
+The listener forwards that body unchanged and pins the session target to the
+requesting kit so compatibility uses that kit. Other methods on that collection
+stay denied. For named ROM selection it admits
+`GET /api/v1/library/core-entries/{game_id}`,
+`GET /api/v1/library/core-entries/{game_id}/rom`, and
+`PUT /api/v1/library/core-entries/{game_id}/rom` for a strict game ID. It also
+admits `PUT /api/v1/library/core-entries/{game_id}/expansion` for the existing
+single-entry expansion selection. Selection bodies are forwarded unchanged
+after paired-target checks; none of these writes replaces the foreground
+target. Slot writes, presentation edits, other library PUTs and settings stay denied.
+It does not expose full `/api/v1/library/settings`, which contains host
+filesystem roots. Tenfoot uses `GET /api/v1/launcher/kit-lease` for an authenticated,
 target-ID-scoped status projection. It returns only that enabled kit's lease
 state, owner, purpose, generation, expiry, reachability, and readiness.
 Paired-kit lease and launch guards use this projection; selected-target host
@@ -933,7 +1013,9 @@ computer.
 ## Native 10-foot launcher
 
 The embedded **Sinclair ZX81 workbench** (`example.hardware`) reads host-owned hardware
-setups through `GET /api/v1/library/hardware`. Optional rear-socket bus 1.0 and
+setups through `GET /api/v1/library/hardware`. Set up ZX81 first asks which
+machine — ZX81, ZX80, TS1000 or TS1500 — then lists installed packages of that
+core. Optional rear-socket bus 1.0 and
 2.0 are supported; expansion readiness uses the same exact-package/version
 admission as library selection and launch. The projection validates each
 expansion against its exact installed shell, and includes ordinary session
@@ -954,6 +1036,35 @@ host snapshot. Failed saves and lost Stop responses retain their existing
 retry behavior.
 See [hardware rooms](../../../docs/hardware-rooms.md) for the complete scope.
 
+When an entry has no selected expansion and its package lacks session display,
+the hardware projection may offer another installed ZX81 package only when it
+targets the same board, supports the rear socket and live media, and declares
+session display plus HPS DDR. Start compares the entry's old package before
+saving that package selection and then uses the ordinary launch path. Package,
+firmware, media and persistence checks remain on the host; an exact-package
+expansion keeps the existing package selected.
+
+Paired package selection scopes compatibility and persistence checks to the kit
+making the request, even while another kit remains foreground. If the selection
+reply is ambiguous, Tenfoot reads the saved entry: the requested package
+confirms the selection, the old package keeps retry available, and a different
+package reports a conflict without overwriting it.
+
+The embedded **Computers** room (`example.computers`) lists prepared ZX81 (`fes.zx81`) and Commodore 64 (`fes.c64`) library entries and launches the focused row through `session.launch`. A row appears when that entry is already launch-eligible. Variant rows come from grouped editions. Expansion rows come from an existing `expansion_id` or `slot_expansions` value on that entry. The room adds no sockets, cards, or another machine family. The ZX81 workbench remains the ZX81 setup room. **Set up** opens `example.hardware` for a ZX81 row and `example.c64` for a
+Commodore 64 row, passing the selected game ID through `rooms.open` as the child
+room's `room.initial_game_id`. Each workbench selects that entry for the visit;
+the ZX81 workbench falls back to the active or first available setup if that
+entry is absent, and later refreshes fall back if its current setup disappears.
+Direct room opens continue to restore saved navigation. The Commodore 64 room
+queries up to 2,000 rows filtered to `fes.c64`; when the selected ID falls
+beyond that result it resolves the ID directly, and if the title is gone it
+keeps the other entries available. The room shows the entry's edition, saved
+sockets, and saved `.d64`. It starts through `session.launch` and opens the live
+disk picker only while that entry is running. A failed hardware refresh clears
+the observed live session and disables the session controls until a later read
+succeeds. Launcher session-state changes invalidate the cached hardware session,
+request a fresh hardware read, and force the controls and Running label to redraw.
+
 Rooms access this projection through optional typed `rooms.HardwareServices`
 and `hostclient`, without arbitrary Lua networking. A room visited while
 playing changes presentation only: it releases held computer keys, keeps the
@@ -961,6 +1072,13 @@ session/lease, and opens the existing tape picker. That overlay is drawn and
 hit-tested on both room and parked now-playing screens. Stop, failures and
 return still use the ordinary session lifecycle. Per-room state preserves
 focus and selection, not hardware configuration or running RAM.
+
+Kit Home reuses its presented display list while core-list identity, status,
+focus, shelf position, title and content size are unchanged. An asynchronous
+list result, pointer or direction focus change, resize, or unpresented frame
+forces a redraw. Its completed redraw uses `gfx.paint` for the background;
+a soft overrun can therefore present the finished picture for reuse on the
+next frame. State-save debounce continues in `update` during reused frames.
 
 Lua room callbacks run on the launcher thread under per-callback soft budgets.
 A slow update, or a slow draw that did not finish a `gfx.paint`, keeps the
@@ -989,7 +1107,7 @@ Native SDL3 UI
   -> GET /api/v1/platforms
   -> GET /api/v1/library/collections
   -> GET /api/v1/library/facets for genre and year lists
-  -> GET /api/v1/games (grouped=1, availability=ready, optional collection/platform/sort/q/genre/year/region/hide_prerelease/hide_hacks)
+  -> GET /api/v1/games (grouped=1, availability=ready, optional collection/platform/core_ids/sort/q/genre/year/region/hide_prerelease/hide_hacks)
   -> PUT or DELETE /api/v1/library/favorites/{id} for the focused title
   -> PUT or DELETE /api/v1/library/collections/{id}/{gameId} for custom-shelf membership
   -> PUT /api/v1/library/collections/{id}?name=... and DELETE /api/v1/library/collections/{id} for custom shelves
@@ -1070,8 +1188,11 @@ goroutine holds the stream.
 Source entry points are `ui/tenfoot/` and `cmd/fogcast-tenfoot`. UI draw
 helpers use `ui/gfx.Device` (begin/clear/present, RGBA8 textures,
 textured quads, fill rects, CGO-free `DrawText` / `DrawTextWeight` with
-embedded Go Regular and Go Bold, and
-`DebugText` for the 8×8 HUD / FC2D opcode). Window, events, gamepad, mouse, and text input remain
+embedded Go Regular and Go Bold, `DrawMask` for text coverage, and
+`DebugText` for the 8×8 HUD / FC2D opcode). Text is laid out as coverage
+masks, one byte a pixel (`gfx.LayoutText`): each glyph is rasterized once per
+face and copied into a mask per string, and a mask draws in any colour with
+alpha `A·m/255`. Room text, labels and `DrawText` share that path. Window, events, gamepad, mouse, and text input remain
 SDL in `ui/tenfoot/sdl.go`. USB keyboard is first-class browse/nav on that
 path (`CommandFromKey` in `ui/tenfoot/keyboard.go`): arrows, Enter, Esc, and
 Tab drive shelf, detail, and search without a gamepad. USB mouse/pointer is
@@ -1110,9 +1231,9 @@ dispatches to `ui/tenfoot/menudisplay_linux.go` the same way: it reuses that
 app, evdev input, and smoke loop, forces 1280×720, and submits through the
 runtime menu socket with change-driven presents. The direct CPU loop records
 complete scenes through `gfx.FrameCache`: identical draw commands and unchanged
-textures skip rasterization. Label textures are keyed by slot, width and font
+textures skip rasterization. Labels are keyed by slot, width and font
 size; unchanged source strings bypass fitting, and source changes reuse the
-texture when the fitted visible text is identical. A clipped lease countdown
+mask when the fitted visible text is identical. A clipped lease countdown
 therefore cannot invalidate a scene whose visible header has not changed.
 Texture mutations preserve draw order and invalidate
 reuse. Settings marks a backdrop checkpoint after dimming and painting its
@@ -1175,7 +1296,7 @@ Benchmark recipes and measurement limits are in
 
 The framebuffer shell reads native-width evdev records for US keyboard text
 and gamepad buttons plus range-normalized stick/hat axes, merges held commands across devices,
-and uses the shared remapper and hold gate. `nativeInputs.poll` takes those
+and applies each pad's saved profile and the shared hold gate. `nativeInputs.poll` takes those
 axes from `ui/controller.Mapper`. A held D-pad hat owns each shared
 left axis: stick reports on that axis are dropped until the hat returns to
 centre, which restores the stick's latest position. Automatic discovery filters keyboard
@@ -1196,8 +1317,8 @@ is separate from the broader SDL smoke.
 | Software | `gfx.NewSoftware` (`ui/gfx/software.go`) | CGO-free RGBA8 rasterizer with portable Go and an optional ARM NEON alpha-fill kernel (no SDL). Nearest blit, `Snapshot` for golden pixels. Cover/screenshot/still downscale is Catmull–Rom at decode. |
 | FPGA | `gfx.NewFPGA` (`ui/gfx/fpga_device.go`) | Records the versioned FC2D command stream (`ui/gfx/fpga_protocol.md`) and rasters through Software. `BackendName` is `fpga`. `IsStub` is true until a programmed 2D core exists; this slice has no mailbox/RBF and is not HDMI FPGA UI. |
 | FPGA stub | `gfx.NewFPGAStub` (`ui/gfx/fpga.go`) | Thin Software wrapper without a command stream, kept as `fpga-stub`. `IsStub` is true. Does not talk to kit, runtime, or RBF. |
-| linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`ui/gfx/linuxfb.go`) | Software rasterizer whose `Present` blits RGBA8 to a 32bpp Linux framebuffer (`/dev/fb0`) with destination stride and BGRX byte order. Used by `fogcast-tenfoot -gfx linuxfb`. Shared remap lives in `ui/inputmap`. Look tokens live in `ui/theme` and are consumed by the sofa `Clear` sites. Chrome uses typography roles `title_px` / `body_px` / `caption_px` / `status_px` through `Theme.TitlePx` and siblings; when a role is unset, `header_scale` / `label_scale` / `status_scale` still map to pixel size `8*scale`. Title and chrome header use Go Bold when `title_bold` / `header_bold` are set (built-ins default true); body, caption, and status stay Regular. `DebugText` stays the FPGA/debug path. |
-| menu-display | `gfx.NewMenuDisplay` (`ui/gfx/menu_display.go`) | Software rasterizer that submits full 1280×720 frames on the runtime menu socket. `fogcast-tenfoot` settings dims only the backdrop outside its opaque panel, avoiding hidden alpha overdraw. `fogcast-tenfoot -gfx menu-display` uses `FrameCache`, rendered revisions and `SetChangeDriven(true)`: an unchanged rendered revision that has not failed or been dropped is skipped. Callers without revisions compare framebuffer bytes. Once a second after a successful present, that skip still reads menu status. A new menu generation is submitted in full; the same generation presents nothing. The first frame is submitted because nothing has been queued yet. Status errors, scanout underflow, and present failures wait 250ms, doubling up to 5s. An unavailable menu uses that schedule but never waits longer than the 1s probe, so a Stop redraws within about a second. A generation mismatch does not start a new wait. The next present after a wait is submitted. The menu-display backend takes no kit lease and only talks to the runtime menu socket; the tenfoot app keeps its existing host session client and existing status reads (for example the kit-lease status read). The base-image supervisor starts `fogcast-tenfoot` on this socket. On this backend tenfoot submits one indeterminate loading frame with phase and elapsed time and waits until that frame has been presented. A failed or unpresented loading frame aborts dispatch. A presented frame pauses presents, then the launch is dispatched so the core owns HDMI. Late adoption of a core that already owns HDMI submits no loading frame: outstanding menu work is drained and presents pause, and an older menu failure does not block that pause. On the HPS framebuffer, loading overlays continue animating and show elapsed time. Launches return to the menu after the local 60 second load bound plus five seconds grace, without adopting a later same-package session after a lost launch reply. Select+Start, F12 or Guide during local loading defers stop until the exact launch reply supplies its claim generation. A capable library ZX81 can open a generation-bound full-screen launcher plane through the leased session display operation while execution continues. |
+| linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`ui/gfx/linuxfb.go`) | Software rasterizer whose `Present` blits RGBA8 to a 32bpp Linux framebuffer (`/dev/fb0`) with destination stride and BGRX byte order. Used by `fogcast-tenfoot -gfx linuxfb`. Look tokens live in `ui/theme` and are consumed by the sofa `Clear` sites. Chrome uses typography roles `title_px` / `body_px` / `caption_px` / `status_px` through `Theme.TitlePx` and siblings; when a role is unset, `header_scale` / `label_scale` / `status_scale` still map to pixel size `8*scale`. Title and chrome header use Go Bold when `title_bold` / `header_bold` are set (built-ins default true); body, caption, and status stay Regular. `DebugText` stays the FPGA/debug path. |
+| menu-display | `gfx.NewMenuDisplay` (`ui/gfx/menu_display.go`) | Software rasterizer that submits full 1280×720 frames on the runtime menu socket. `fogcast-tenfoot` settings dims only the backdrop outside its opaque panel, avoiding hidden alpha overdraw. `fogcast-tenfoot -gfx menu-display` uses `FrameCache`, rendered revisions and `SetChangeDriven(true)`: an unchanged rendered revision that has not failed or been dropped is skipped. Callers without revisions compare framebuffer bytes. Once a second after a successful present, that skip still reads menu status. A new menu generation is submitted in full; the same generation presents nothing. The first frame is submitted because nothing has been queued yet. Status errors, scanout underflow, and present failures wait 250ms, doubling up to 5s. An unavailable menu uses that schedule but never waits longer than the 1s probe, so a Stop redraws within about a second. A generation mismatch does not start a new wait. The next present after a wait is submitted. The menu-display backend takes no kit lease and only talks to the runtime menu socket; the tenfoot app keeps its existing host session client and existing status reads (for example the kit-lease status read). The base-image supervisor starts `fogcast-tenfoot` on this socket. On this backend tenfoot submits one indeterminate loading frame with phase and elapsed time and waits until that frame has been presented. A failed or unpresented loading frame aborts dispatch. A presented frame pauses presents, then the launch is dispatched so the core owns HDMI. Late adoption of a core that already owns HDMI submits no loading frame: outstanding menu work is drained and presents pause, and an older menu failure does not block that pause. On the HPS framebuffer, loading overlays continue animating and show elapsed time. Launches return to the menu after the local 60 second load bound plus five seconds grace, without adopting a later same-package session after a lost launch reply. Select+Start, F12 or Guide during local loading defers stop until the exact launch reply supplies its claim generation. A capable library computer opens a generation-bound media selector on the session plane while execution continues; pixels outside the selector remain transparent. |
 
 `gfx.Recorder` remains a call-order test double and does not draw pixels.
 `gfx.Replay` / `ReplayBytes` apply a decoded FC2D stream to any Device.
@@ -1217,6 +1338,19 @@ wrote and waits for displayed-sequence completion through protocol 2. The UI
 receives no DDR address or FPGA register access; stale generations and
 unavailable menu firmware reject frames at the runtime, and a fault from a
 grant revoked mid-frame fails that frame. Submission runs off the pad loop.
+When the idle menu's grant includes a minor 1 or later menu blitter,
+`MenuDisplay` records each frame as blitter commands instead of rastering it
+(`ui/gfx/menu_blit.go`): fills, copies, blends and text-mask expands that draw
+the pixels `Software` would, with scaled draws and debug glyphs made into
+cached bitmaps. The runtime does not issue a blitter grant below minor 1; an
+unexpected unsupported grant is rejected before any frame is submitted.
+The client uploads each bitmap or mask a frame reads into the grant's texture
+heap once, keeps it there while it is reachable and the heap has room, writes
+the list and commits it; the fabric draws the slot (`ui/menudisplay/blit.go`).
+A first frame drawn before the grant is known goes as one copy. A blitter
+grant accepts CPU frames only before its first list. A session plane or a menu
+without the selected blitter gets CPU pixels, rasterizing a list that reaches
+it; a list too large for the blitter is rasterized and copied whole.
 `fogcast-tenfoot -gfx menu-display` is the client of that socket and
 opts into change-driven presents. An unchanged frame reads menu status once
 a second and is submitted again when the generation changes. Status errors,
@@ -1284,7 +1418,11 @@ hold-reset `load_media`.
 
 FES owns compatible source selection, release/media assembly, and the fixed
 bootstrap. FogCast supplies the public appliance module, target update API, and
-`cmd/fes-update`. Online releases replace
+`cmd/fes-update`. Before uploading, `fes-update` reads the image's
+`/etc/fes/software-base.json` with `internal/ext4image` and refuses an image
+whose menu interfaces the kit's selected software bundle does not accept. A
+bundle built for another base contract cannot go first, so it only reports
+that the image will hold that bundle back. Online releases replace
 only a content-addressed read-only ext4 system image. The locked kernel, U-Boot,
 and fixed `/linux/linux.img` bootstrap stay outside that operation. Configurations,
 target identity, ROM cache, launcher catalog/cover cache, and SNES saves remain
@@ -2130,10 +2268,13 @@ for the session that owns the play. A missing stream is an error to that
 caller. The kit pad does not fall back onto the host route.
 
 Native input admits devices through `ui/controller` and maps them with
-`controller.Mapper`: left stick (`ABS_X`/`ABS_Y`) and D-pad hat
-(`ABS_HAT0X`/`ABS_HAT0Y`) share `left-x`/`left-y`, and a held hat owns that
-axis until it returns to centre. Logical codes are remapped with a JSON
-profile from `ui/inputmap` (default identity).
+`controller.Mapper`. The mapper identifies a pad by its evdev bus, vendor,
+product, version and name CRC, and reads it through the matching embedded SDL
+GameControllerDB Linux entry. If the DB does not list the pad, it uses the
+Linux gamepad-API codes plus a generic `BTN_TRIGGER`-range layout. Left stick
+and D-pad share `left-x`/`left-y`, and a held D-pad hat or D-pad axis owns
+that axis until it returns to centre. Logical codes are then remapped with the
+profile `tenfoot.json` saves under the pad's GUID (`ui/inputmap`).
 
 See [kit launcher](kit-launcher.md) and [host connection contract](launcher-host.md)
 for setup, controls, exact routes, timeouts and ownership. The existing browser
@@ -2144,7 +2285,12 @@ listener remains loopback-only.
 The FES base-image `fes-kit-software` supervisor owns the agent, native runtime
 and selected kit launcher as one userspace group. Immutable bundles declare the
 board, architecture, base-system contract, interfaces and executable/asset
-digests. Installation and selection live on verified FESDATA3 independently of
+digests. Their interfaces include `menu.<interface>` versions the runtime admits.
+The base image records the interfaces its sealed menu declares as `requires` in
+`/etc/fes/software-base.json`. Install and activation refuse a bundle that does
+not accept them or fits another base contract. At boot and in recovery the
+supervisor holds such a selection back and runs the image's factory software in
+its place; status reports `held_back`. Installation and selection live on verified FESDATA3 independently of
 core packages and the base appliance image. The existing service scripts are
 replaced by one supervisor entrypoint; physical transitions remain runtime-owned.
 
@@ -2336,6 +2482,20 @@ conflict responses, and unexpected storage failures remain internal errors.
 Malformed archives or incompatible compositions are rejected as admission
 errors.
 
+### FES Home computer shelf
+
+The embedded `example.fes-cores` Home room combines the kit-local package
+list from `kit.cores` with the host library's ZX81 and C64 entries from
+`hardware.read`. Each host card publishes its library `game_id` and launches
+through the library path; a ready host card replaces a blocked local row for
+the same core, while a launchable local row stays selected. Host readiness
+follows library launch admission, including selected video parts, required and
+selected removable media, package composition, and the format-2 ZX81 machine
+ROM linker. The format-2 ZX81 local row is blocked because local `LoadCore`
+loads only the installed archive and does not splice the machine ROM. If
+kit-local listing fails, Home still reads the host shelf and shows any
+available host cards; with no host cards, it shows the kit-listing error.
+
 ### Home-computer packages and slot cards
 
 `fes.computer` 1.0 (the Apple II pathfinder, `fes.apple2`) is a recognized
@@ -2482,10 +2642,20 @@ with `keypad:0`.
 
 ### Shared controller ports
 
-The kit input hub forwards physical keyboards on player 0 without reserving a
-gamepad port. Only physical gamepads occupy the two stable controller slots;
-keyboard connection or removal does not shift either controller. Keyboard
-disconnect releases its held keys independently.
+Tenfoot forwards physical keyboards on player 0 without reserving a gamepad
+port. Only physical gamepads occupy the two stable controller slots: the first
+two pads opened take ports 1 and 2 (pads present at startup in `/dev/input`
+order, later ones as they are plugged in, each taking the lowest free port) and
+keep them until unplugged, and a later pad that finds both taken never reaches a machine: it
+drives the menu where a pad with a port would, and its Guide button still stops
+a kit-local core. A `-input` node the classifier cannot place also takes a
+port. Keyboard
+connection or removal does not shift either controller. Keyboard disconnect
+releases its held keys independently.
+
+If an HDMI control transition leaves display ownership uncertain, a portless
+pad's B uses the same guarded return-to-play operation as a ported pad. Other
+menu commands stay blocked until display ownership is known.
 
 An observed `fes.gamepad.ports` 1.0 interface (under `fes.application` 1.0 or
 `fes.computer` 1.0) attaches the ordinary host session
@@ -2509,7 +2679,7 @@ carry the same event. For example, this presses player 2 Right; changing
 Gamepad codes 100–107 remain Up, Down, Left, Right, A, B, Start, Select.
 Keypad codes 120–129 mean digits 0–9; 130 means `*` and 131 means `#`.
 These are semantic gamepad-button events, independent of a keyboard layout.
-Input profiles can bind spare physical controls to `keypad-0` through
+A kit pad's saved profile can bind its spare buttons to `keypad-0` through
 `keypad-9`, `keypad-star`, and `keypad-hash`. Keypad events require the observed
 keypad interface. For packages advertising `fes.keypad.ports`, gamepad Start
 also asserts keypad `1` (the common one-player game-select key), and Select also
@@ -2519,13 +2689,22 @@ Host snapshots and reconnect replay retain each player's buttons and axes
 separately. Axis directions use an 8000 deadzone and combine with held digital
 directions, so centering a stick cannot release a held D-pad.
 
-On the local socket each player index is its own claim. A final departure event releases that player's claim without closing the shared feed or
-releasing the surviving pad. The departure marker is a gamepad button release
-with code and value zero; it is consumed only on the local route and rejected
-by the host stream. At most two pads contribute.
-The kit keeps Select+Start stop chords separate per controller. When the active
-core has only the legacy single-pad contract, the kit retains the prior merged
-port-0 behavior, including input from a surviving second physical pad. Browser
+On the local socket each player index is its own claim. When a pad is
+unplugged, tenfoot sends the releases for that pad's held buttons and then a
+departure event, which releases that player's claim without closing the shared
+feed or releasing the surviving pad. The departure marker is a gamepad button
+release with code and value zero; it is consumed only on the local route and
+rejected by the host stream. At most two pads contribute.
+The kit keeps Select+Start stop chords separate per controller: tenfoot tracks
+held and sent buttons per pad, and a chord needs both buttons on one pad. If
+the pad that started the one-second hold lets go while the other pad still
+holds its pair, the hold counts from when that other pad completed it. When the
+active core has only the legacy single-pad contract, the kit retains the prior
+merged port-0 behavior, including input from a surviving second physical pad:
+the agent's pad merge keeps each kit pad's holds separately and unions them, so
+one pad's release leaves the other's holds in place. A departure changes
+nothing there, because a keyboard shaped onto player 0 may still hold
+controls. Browser
 and SDL physical-device assignment are unchanged; clients can submit explicit
 players through the shared API without room or renderer changes.
 
@@ -3097,7 +3276,13 @@ Existing post-activation HostOnly cleanup recovery remains unchanged.
 
 A writable format-3 ST library launch may omit the disk and boot to GEM with
 an empty drive A. Required floppy interfaces declare hardware support, not a
-requirement to insert media. When a disk is selected, the launch includes its
+requirement to insert media. The library can also format a blank FAT12 `.st`
+(`POST /api/v1/library/atari-st-disks`) and bind it as that title's drive A.
+Binding requires a format-3 `fes.atari-st` firmware package with `fes.computer`
+1.0 and required base and writable floppy interfaces. Store-only creation does
+not inspect or require a package.
+The host stores the formatted bytes in the content-addressed media store; later
+GEMDOS writes stay on the existing durable drive-A record. When a disk is selected, the launch includes its
 exact admitted raw-ST source and explicit game/base-media binding in the closed ROM envelope. The
 host snapshots and hashes those immutable bytes before target mutation. The
 agent rejects initial disks on development routes, stages them privately and
@@ -3229,15 +3414,98 @@ package/library/ROM endpoints independently of publication. Media selection
 retains the captured package and previous media ID for compare-and-swap; expansion
 import does not fit the asset. Catalogue schema 16 adds optional `in_progress`
 presentation, without changing immutable admission or shared wire definitions.
+The hardware projection carries each setup's core ID through the tenfoot action;
+bundled starter cassettes appear only for `fes.zx81`. ZX80 and Timex setups still
+load their game-scoped saved programs and can import a selected `.p`. Machine-bound
+tape-shelf reads apply the same starter filter, including the live picker.
+The workbench may suggest a same-target ZX81 package with required
+session-display, HPS DDR and ABI-specific media interfaces when the selected
+package lacks them. Optional declarations count only when the exact package is
+confirmed active on the target; prelaunch candidates are not active, so their
+optional interfaces do not enable the selector. It checks each candidate's ABI,
+firmware and saved-media admission in package-ID order, continuing after an
+incompatible candidate. For format-3 packages, candidates must share the
+`machine-rom` firmware ID, role and source size; their sealed ROM-map digests may
+differ. A package-inventory error omits that optional suggestion;
+the selected package is inspected separately so an unrelated bad archive does not
+hide the saved setup.
+For the supported format-3 ZX81 package's 8 KiB `machine-rom` requirement, the
+host bundles the standard image from `misteross/cores/fes-zx81/rtl/zx8x.hex`
+with SHA-256 `14ad84f4243efcd41587ff46ab932d11087043e8d455a1ed2a227b9657828dfa`.
+When a matching library entry has no firmware selection, the first firmware
+read imports this verified image into the existing core-media store and binds
+it with the existing compare-and-swap selection API. An explicit selection is
+preserved. This lets the normal Workshop start path satisfy firmware admission
+without opening the import prompt.
+When a title switches between format-3 ZX81 packages that declare the same
+`machine-rom` firmware ID and exact source size, the host rebinds the existing
+media ID to the selected package with the media-ID compare-and-swap API. This
+preserves both the provisioned image and a user-selected image; a selection
+whose ROM ID or size differs remains stale and blocks launch until explicitly
+replaced. If stored bytes fail integrity checks during rebind, readiness stays
+false while the old media ID remains available as the firmware picker's
+compare-and-swap value, so the selection can be replaced.
 The attributed `internal/zx81tapes` assets enter the existing media store only
 after explicit selection. A menu-display kit enables live routes for a legacy
 `fes.simple-computer` package only when that package advertises
 `fes.video.session-display` 1.0 and `fes.memory.hps-ddr` 1.0. Home/Select first
-requests `POST /api/v1/session/display` with `visible: true`, the captured session ID and
-existing target/package/core-generation headers. The paired listener admits only
+requests `POST /api/v1/session/display` with `visible: true`, the captured
+session ID and existing target/package/core-generation headers. `visible`
+composites the plane over the machine picture, and `focus` says whether the
+launcher or the machine receives input. An omitted focus is the one
+visibility implies: launcher when shown, machine when closed. Requests name
+it only otherwise, so a host and a kit that ship separately still agree on
+opening and closing the room. A null or empty focus is refused, not
+defaulted. A shown plane with `focus: "machine"` keeps machine input, as a
+surround around the picture needs, and a peer that predates focus refuses
+it. A closed plane requires machine focus. Moving focus on a shown plane
+keeps its display generation. The same display route accepts a running
+`fes.application` machine, such as the Coleco native shell, when its active
+FPGA identity reports those two interfaces. Application machines have no
+removable-media unit, so this path needs no media-unit identity or selection;
+the computer path retains its existing media-unit checks. The agent's input
+fence holds delivery during each transition, but only a launcher-focus request
+retires held keys and neutralizes the mouse. Controller-port releases received
+while the launcher has focus clear their retained source snapshot without
+being sent to the core, so released buttons cannot replay when focus returns.
+The runtime also neutralizes the single `fes.gamepad` interface and gates its
+worker's nonzero snapshots during launcher focus. The fence ends focused when
+the runtime confirms launcher focus. After a refusal it follows the focus that
+the session's reply reports, and after an unconfirmed failure it stays focused.
+The paired listener admits only
 that kit's captured session, hardware/starter reads, exact starter imports,
-bounded 1..16384-byte tape imports and live replace/clear/display operations.
-These do not change the library's next-start media selection.
+media imports of at most the largest image the media selector inserts
+(839,680 bytes, a declared-geometry Atari ST floppy) and live
+replace/clear/display operations. The unit still checks its exact format and
+size on insert. These do not change the library's next-start media selection.
+The Change media selector header shows `media_name` from the last confirmed
+live-media insert, retained by the target's session coordinator for that package
+generation. Eject, library disk insertion, and development-media loading clear
+it because they can replace unit 0 without providing a live-media filename; disk
+save preserves it. Preflight failures and explicit no-change rejections retain
+the confirmed name; an uncertain reply after dispatch clears the cached name
+and prior confirmed-eject marker rather than reporting old media state as
+current. Status clears the cached name and binding after
+it observes an inactive or changed session, preventing a restarted runtime from
+reviving a filename when it reuses a package generation. Existing launch
+selections and adopted sessions have no recorded original filename and display
+that the name is unavailable. A confirmed eject also carries `media_ejected` in
+the session projection for legacy `fes.simple-computer` media, so tenfoot can
+show no media without treating an unknown launch filename as an empty unit.
+Empty and loading units show their observed state. Numeric GP rejections from a
+dispatched insert do not retain the prior filename: the runtime cannot
+distinguish a `MediaBegin` rejection from a later data or commit rejection.
+Completed busy rejections from media-unit insert or eject retain the prior
+filename; a confirmed eject clears it.
+The name is presentation only; admission continues to use the captured session, target,
+package and generation.
+
+It also admits the core-entry list, exact single-entry reads, and exact
+package, ROM, expansion and media selection routes used by setup. Core-entry
+routes require one validated game ID and the expected path suffix. Installed
+core-package inventory and exact descriptor/media-capability reads are
+available; package import and compatibility mutation remain outside the paired
+listener.
 Public and paired display/live-media mutations compare the captured target name
 and ID with the coordinator's current target before service dispatch. Rebinding
 a configured name to another kit rejects the old binding even if that kit has
@@ -3254,7 +3522,27 @@ package, core and display generations instead of following a replacement;
 idle presenters cannot acquire an active session plane. ZX81 selects launcher
 pixels only after a full completed frame on its shared 720p raster. CPU, RAM,
 audio and the expansion socket continue. Back/Return closes and drains the plane
-before input resumes. UI navigation is suppressed at both launcher and target;
+before input resumes, unless the TV surround keeps it shown.
+
+With the **TV surround** setting on (`surround` in `tenfoot.json`, the
+default), tenfoot opens a capable session's plane with machine focus as soon as
+the session is active. The parked frame becomes `drawSurround`:
+
+- an opaque cabinet and bezel;
+- the title, system and room hint;
+- a clear window over the runtime's `menu_display.picture`, which
+  `gfx.MenuDisplay.SessionPicture` reports, with shaded edges.
+
+Until the picture is known, the frame is fully clear. While the hardware
+room holds launcher focus on that plane, tenfoot sets `room.overlay`. The room
+then clears to a premultiplied dark scrim and switches to light text on dark
+surfaces, so the machine stays visible behind it. `gfx.Color` is straight
+alpha, and `Software.Clear` and replacing fills store the premultiplied form
+that the plane blends. Home/Select and Back move
+focus on that shown plane without pausing or rebinding the presenter. Input
+handoff (releasing held keys and closing the local feed) happens only when
+focus moves. A refused surround closes the plane, and the setting stays off
+for that session. UI navigation is suppressed at both launcher and target;
 held keys and controller buttons require release and a fresh press, including B
 when Stop fails. Button releases still clear suppression while Stop is pending
 or retryable. Failed close retains
@@ -3263,6 +3551,17 @@ reply until idle or a replacement session is confirmed. If Stop fails, Back,
 controller B and shell exit can return the captured plane; a late open does not
 reopen the room or implicitly close the plane. Display faults cannot invoke MENU
 reload or Stop.
+
+F12 opens **Change media** during an active session when the package offers
+removable media and the hardware controls are available. If the kit's
+session-display plane is required and launcher focus is not active, tenfoot
+focuses the plane first, then opens the selector after that transition succeeds.
+The core keeps running, and the evdev F12 route consumes the key instead of
+forwarding it as HID. On a host display, tenfoot opens the existing hardware
+room on the host window and uses the host live-media route without a kit
+session-display transition. When a kit-local core owns input, F12 requests
+local Stop instead. F12 on the idle menu does nothing.
+
 Media delivery can briefly reject a concurrent launcher frame as busy. A healthy
 probe clears that presentation error and its retry delay; the room removes the
 temporary HDMI notice while retaining the cassette operation's status.
@@ -3283,6 +3582,28 @@ replace it in non-cast mode, and kit-local cores execute directly on the kit.
 Scoped Stop and status use the corresponding kit record. Library firmware and
 media bindings, including post-Start delivery, use the selected kit's play
 context so an independent local host game cannot redirect them to another target.
+
+On Stop of a running library ZX81 package that requires
+`fes.media.zx81-tape-write` 1.0, FogCast captures a completed BASIC SAVE for the
+captured game and package generation, imports its `.p` bytes into core media,
+and inserts the idempotent game/media catalog row before acknowledging the
+snapshot. Capture keeps the FPGA snapshot frozen and dirty until that
+generation-bound acknowledgement succeeds. Capture, import, catalog, or
+acknowledgement failure returns `save_failed` and leaves the play active so Stop
+can be retried; the runtime independently refuses Stop while an unacknowledged
+SAVE remains. The selected core ID is retained with the launched play, so a
+known non-ZX81 library core skips this bookkeeping without another catalog read.
+For a bound ZX81 play, status, package, generation, or required tape-write
+capability mismatches return `save_failed` with structured expected and observed
+values in the host log. An empty capture means no SAVE is pending. When the
+active package or game binding is unidentified, catalog and status lookup
+failures are logged; Stop proceeds unless an active writable package yields
+captured bytes that cannot be attached to a game. The runtime still refuses to
+retire an unacknowledged SAVE. The running cassette picker adds that game's
+saved programs alongside the attributed starters. A
+saved row already names durable core media, so selecting it arms the existing
+media ID without importing the bytes again. This is software coverage; exact
+artifact hardware acceptance remains separate.
 
 The configured host capture sender is one physical pipeline with one RTP
 destination and sender token. Only its managed sender plus target cast path
@@ -3315,19 +3636,27 @@ unit 0 retains the base floppy interface and advertises 368,640..839,680 bytes
 only when the required geometry extension is also active; admission checks
 the discrete supported lengths rather than accepting every value in that
 range. Disk replacement, save and restore use the existing library binding
-and package-generation checks.
+and package-generation checks. A blank disk from the library uses one of these
+twelve layouts, defaulting to 80 tracks, 2 heads and 9 sectors.
 
 
 ### Independently installed rooms
 
-`fogcast-tenfoot room-install [--rooms DIRECTORY] PACK_DIRECTORY` snapshots a
-room's `room.toml`, Lua and artwork into the local launcher's room directory.
-The default resolves `tenfoot.json` `rooms_dir` before `FOGCAST_ROOMS`, then
-uses the persistent config location shared with the launcher. Use `--rooms`
-when the running launcher uses a custom room directory. A loose pack inside the
-rooms directory can be installed directly; a source that contains the
+`fogcast-tenfoot room-install [--rooms DIRECTORY] PACK_DIRECTORY_OR_ARCHIVE`
+snapshots a room's `room.toml`, Lua and artwork into the local launcher's room
+directory. It accepts either a source directory or a portable ZIP. The default
+resolves `tenfoot.json` `rooms_dir` before `FOGCAST_ROOMS`, then uses the
+persistent config location shared with the launcher. Use `--rooms` when the
+running launcher uses a custom room directory. A loose pack inside the rooms
+directory can be installed directly; a directory source that contains the
 installation directory is rejected. Installation uses POSIX file locking on
 Linux/macOS. This is local installation, not a host-to-kit transfer API.
+
+`fogcast-tenfoot room-export --output FILE PACK_DIRECTORY` validates a source
+directory and atomically publishes a portable ZIP. The ZIP stores the pack
+files at its root. Import extracts and validates the archive privately before
+the ordinary installer changes the selected snapshot; no source checkout is
+needed on the launcher's machine.
 
 Installation checks the manifest, main script, icon presence and syntax of all
 Lua files before atomically selecting the snapshot. Packs are limited to 64 MiB,
@@ -3368,4 +3697,81 @@ fogcast-tenfoot room-install --rooms /path/to/rooms /path/to/my-room
 fogcast-tenfoot room-install --rooms /path/to/rooms /path/to/my-room
 # To recover an update that fails only during a later interaction:
 fogcast-tenfoot room-rollback --rooms /path/to/rooms my.room
+```
+
+## BIOS and media drives
+
+**Settings → BIOS & media drives** in tenfoot selects either **This device**
+(the kit or computer running tenfoot) or **FogCast host** (the API server).
+Both locations can discover USB filesystems, remember a drive by filesystem
+UUID, and add an SMB share as `//server/share` (also `smb://server/share`).
+SMB accepts an optional username, domain and password; an empty username uses
+Guest. A nonstandard SMB port can be included as `//server:port/share`.
+Connections and separate BIOS/media start folders are saved on the machine
+that owns the drive. They survive launcher and host restarts. The kit keeps
+local SMB passwords in memory because its `drives.json` is on FAT; after
+tenfoot restarts, enter those passwords again. Host-side SMB passwords remain
+in the host's private configuration directory. Disconnected saved drives
+remain listed; opening them again reconnects or reports an error.
+
+The browser's Settings has the host drive manager. **From host drive** in
+FPGA library setup and media import browses those same host drives. A browser
+cannot inspect a kit's locally attached USB devices; use the kit's tenfoot
+settings for those. Tenfoot's BIOS, Systems ROM/media, expansion, next-start
+cassette and live tape/disk selectors all include saved local and host drives.
+USB discovery and mounting use Linux block-device tools and are available on
+Linux kits and hosts. Other Tenfoot platforms can use SMB shares but do not
+discover or mount local USB volumes. Import continues through the existing
+media store and explicit BIOS/media selection APIs. Selecting a drive or
+folder never changes a running core. Drive inventory refreshes can arrive while
+a root picker is open; they preserve the highlighted row so a pending Select
+cannot be redirected to another action.
+
+`storage` owns connection settings, USB discovery, rooted enumeration and
+bounded regular-file reads. SMB2/3 is read directly with the Go SMB client;
+it needs neither a kernel mount nor root privileges. Each operation owns its
+connection, and cancellation closes the socket. USB discovery filters sysfs
+through `appliance/blockprobe` before querying only usable USB devices with
+`lsblk`; internal SD/system disks and optical or not-ready devices are excluded.
+An existing USB mount is reused only when its current block-device identity
+matches the discovered volume. A stale kit mount is unmounted before the
+reconnected volume is mounted read-only with `nosuid,nodev,noexec`; desktop
+users use `udisksctl` without interactive authorization. FAT, exFAT and ext4
+use the kit kernel; NTFS uses `ntfs-3g`. Desktop Linux hosts need `lsblk` and
+an existing mount or desktop device permission.
+
+The host composes `storage.Manager` with `host-drives.json` beside its canonical
+configuration; tenfoot keeps its local `drives.json` beside `tenfoot.json` in
+its existing persistent configuration directory. Host drives are household
+resources shared by browser Settings and authenticated paired launchers; they
+are not private to one kit. Every paired operation still requires the
+configured bearer and matching target identity. The host atomically replaces a
+0600 file that includes credentials; inventory and save responses expose only
+`password_set`. Blank password plus `password_set:true` preserves a stored
+password only while the SMB destination and account stay unchanged; clearing
+it is explicit. Tenfoot writes local drive metadata without passwords and holds
+local SMB passwords only for its process lifetime. When it reads an older
+`drives.json` containing a password, it removes that field atomically and keeps
+the value only in memory until tenfoot exits. This protects the secret from
+plain FAT file access but requires re-entry after a restart. The local and host
+stores remain independent of library settings and target selection.
+
+The paired launcher admits only the explicit `/api/v1/storage/drives` CRUD,
+drive-relative `entries`/`file` operations, and the existing explicit household
+firmware selection. A paired launcher may manage and browse these household
+host drives by design; it cannot address another kit's private local storage.
+The Coleco firmware selection is likewise a single household slot, updated
+only through the explicit BIOS selection flow, not a per-target setting. API
+reads cannot address arbitrary host paths: USB reads use `os.Root`, reject
+escaping paths and nonregular files, and ordinary reads are limited to 32 MiB.
+Expansion archive reads use their declared archive bound. SMB reads stay
+relative to the selected share. Directory and connection work runs outside the
+tenfoot app lock. Existing game/session/package admission and captured
+live-media identity checks remain in force after import.
+To transfer a pack as one file, export it on the source machine and install the
+archive on the launcher's machine:
+
+```sh
+fogcast-tenfoot room-export --output my-room.room.zip /path/to/my-room
+fogcast-tenfoot room-install --rooms /path/to/rooms my-room.room.zip
 ```

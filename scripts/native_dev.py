@@ -14,7 +14,8 @@ from build import (digest, output_volume, publish_file, reusable, run, write_rec
                    package_selection_names,
                    publish_package_state, recorded_image_fingerprint,
                    reuse_status, verify_package_outputs, native_image_mode,
-                   verify_package_only_outputs, remove_stale_parent_outputs)
+                   verify_package_only_outputs, remove_stale_parent_outputs,
+                   target_image_source_cache_lock)
 import optional_cores
 from build_diagnostics import BuildDiagnostics
 from inputs import git
@@ -153,8 +154,9 @@ def build_development(root, image, fogcast, runtime, profile_name, profile, info
     run_stage(diagnostics, 'target subprocess', fogcast_make + ['build-agent', 'build-fogcast-kit'], env=env)
     platform.build_kit_software(root, fogcast, env)
     run_stage(diagnostics, 'target subprocess', image_make + ['build-target-image-lock-container'], env=env)
-    run_stage(diagnostics, 'target subprocess', [image / 'scripts/target-image-container.sh', 'fetch',
-         '/work/scripts/fetch-target-image-sources.sh'], env=selection_env)
+    with target_image_source_cache_lock(image):
+        run_stage(diagnostics, 'target subprocess', [image / 'scripts/target-image-container.sh', 'fetch',
+             '/work/scripts/fetch-target-image-sources.sh'], env=selection_env)
     run_stage(diagnostics, 'target subprocess', image_make + ['target-image-native-fetch', 'LIBMISTER_RUNTIME_DIR=' + str(runtime),
                      *selection_args], env=env)
     env.update(dict(argument.split('=', 1) for argument in selection_args))

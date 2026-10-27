@@ -10,6 +10,8 @@ import subprocess
 import sys
 
 import affected
+import host_tests
+import runtime_tests
 
 
 def git(root, *args):
@@ -66,19 +68,24 @@ def plan(root, base, head="HEAD", jobs=2, full=False):
             [sys.executable, "-c", "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"],
             tools=["go"], files=["scripts/consistency.py"])
     if impact["lanes"]["host"]:
-        host = affected.MODULE_ROOTS["host"]
-        host_run = [sys.executable, "scripts/host_tests.py"]
+        host_run = [sys.executable, "scripts/host_tests.py", "--ui-if-needed"]
         if impact["test_modes"]["full_race"]:
             host_run.append("--full")
         else:
             host_run.extend(["--paths-json", json.dumps(impact["paths"])])
-        add("host", "host Go tests", ".", host_run, tools=["go", "cc"],
-            files=["scripts/host_tests.py", "sources/FogCast/go.mod",
+        ui = host_tests.plan_ui(root, impact["paths"],
+                                full=impact["test_modes"]["full_race"])
+        host_tools = ["go", "cc", "make", "sh", "rg"]
+        if ui["required"]:
+            host_tools.append("node")
+        add("host", "host Go and UI tests", ".", host_run, tools=host_tools,
+            files=["scripts/host_tests.py", "sources/FogCast/Makefile", "sources/FogCast/go.mod",
                    "sources/FogCast/appliance/go.mod", "sources/misteross/expansion/go.mod"])
-        add("host", "host UI tests", host, ["make", "test-ui"], tools=["node", "sh", "rg"], files=["Makefile"])
+        commands[-1]["host_ui"] = ui
     if impact["lanes"]["runtime"]:
-        add("runtime", "runtime software tests", affected.MODULE_ROOTS["runtime"],
-            ["make", "-j" + str(jobs), "test"], tools=["c++", "ar", "nm", "c++filt", "sh", "rg"], files=["Makefile"])
+        runtime = runtime_tests.command(impact["paths"], jobs, full)
+        add("runtime", "runtime software tests", runtime["cwd"],
+            runtime["argv"], tools=["c++", "ar", "nm", "c++filt", "sh", "rg"], files=["Makefile"])
     if impact["lanes"]["contracts"]:
         add("contracts", "contract schemas and generated fixtures", affected.MODULE_ROOTS["contracts"],
             ["make", "test", "PYTHON=" + sys.executable], tools=["go"], files=["Makefile"])
@@ -87,7 +94,8 @@ def plan(root, base, head="HEAD", jobs=2, full=False):
         # Shared native contract/transport changes need their frame and CDC
         # oracle even before the experimental path becomes a factory recipe.
         if "coleco" in impact["cores"]:
-            for target in ("sim-fes-native-video", "sim-fes-coleco-native", "sim-fes-native-socket"):
+            for target in ("sim-fes-native-video", "sim-fes-coleco-native", "sim-fes-native-socket",
+                           "sim-fes-coleco-session"):
                 add("fpga", target + " RTL simulation", fpga,
                     ["make", target, "PYTHON=" + sys.executable],
                     tools=["verilator", "c++"], files=["Makefile"])

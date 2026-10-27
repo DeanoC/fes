@@ -28,6 +28,7 @@ type Status struct {
 	Slots                                       int
 	Format                                      string
 	DisplayedSequence, Underflows               uint64
+	Picture                                     []int
 }
 type Result struct {
 	Generation, DisplayedSequence, Underflows uint64
@@ -42,6 +43,12 @@ func (*Client) Present(context.Context, uint64, []byte) (Result, error) {
 	return Result{}, errors.New("native menu requires Linux")
 }
 func (*Client) PresentDamage(context.Context, uint64, []byte, Damage) (Result, error) {
+	return Result{}, errors.New("native menu requires Linux")
+}
+func (*Client) Grant(context.Context, uint64) (Grant, error) {
+	return Grant{}, errors.New("native menu requires Linux")
+}
+func (*Client) PresentBlit(context.Context, uint64, BlitFrame) (Result, error) {
 	return Result{}, errors.New("native menu requires Linux")
 }
 func (*Client) Close() error { return nil }

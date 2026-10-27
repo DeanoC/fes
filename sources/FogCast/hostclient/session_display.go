@@ -11,9 +11,9 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
-// SessionDisplayCapable recognizes an active simple-computer or fes.computer
-// generation that reports the session-display plane and HPS DDR. A package
-// name alone cannot grant HDMI controls.
+// SessionDisplayCapable recognizes an active simple-computer, fes.computer or
+// fes.application generation that reports the session-display plane and HPS
+// DDR. A package name alone cannot grant HDMI controls.
 func SessionDisplayCapable(p *SessionCorePackage) bool {
 	if p == nil || p.Generation == 0 || protocol.ValidateDigest(p.PackageID) != nil {
 		return false
@@ -25,19 +25,18 @@ func SessionDisplayCapable(p *SessionCorePackage) bool {
 	return protocol.SessionDisplayCapable(status)
 }
 
-// SetSessionDisplayForSession opens or returns the kit display for the captured
-// session. It does not look up a new foreground session or start/stop a core.
-func (c *Client) SetSessionDisplayForSession(ctx context.Context, prior SessionResult, visible bool) (SessionResult, error) {
-	if prior.State != "active" || strings.TrimSpace(prior.ID) == "" || strings.TrimSpace(prior.Target) == "" || !SessionDisplayCapable(prior.CorePackage) {
+// SetSessionDisplayForSession shows, focuses or closes the kit display plane for
+// the captured session. It does not look up a new foreground session or
+// start/stop a core.
+func (c *Client) SetSessionDisplayForSession(ctx context.Context, prior SessionResult, display protocol.SessionDisplay) (SessionResult, error) {
+	if !display.Valid() || prior.State != "active" || strings.TrimSpace(prior.ID) == "" || strings.TrimSpace(prior.Target) == "" || !SessionDisplayCapable(prior.CorePackage) {
 		return SessionResult{}, fmt.Errorf("session HDMI controls are unavailable")
 	}
 	binding := protocol.DevelopmentMediaBinding{PackageID: prior.CorePackage.PackageID, Generation: prior.CorePackage.Generation, Target: prior.Target, TargetID: prior.TargetID}
 	if !binding.Valid() {
 		return SessionResult{}, fmt.Errorf("session HDMI display identity is invalid")
 	}
-	payload, err := json.Marshal(struct {
-		Visible bool `json:"visible"`
-	}{visible})
+	payload, err := json.Marshal(protocol.NewSessionDisplayRequest(display))
 	if err != nil {
 		return SessionResult{}, err
 	}

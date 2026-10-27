@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,6 +18,8 @@ import (
 
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
+	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/zx81machine"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/misteross/expansion"
 )
@@ -253,8 +256,15 @@ func TestLibraryROMLaunchSendsSourceInputs(t *testing.T) {
 				t.Fatal(err)
 			}
 			readiness, err := s.CoreCompositions(ctx, []string{entry.GameID})
-			if err != nil || !readiness[entry.GameID].ROMRequired || readiness[entry.GameID].ROMReady {
+			initial := readiness[entry.GameID]
+			if err != nil || role == "cartridge" && (!initial.ROMRequired || initial.ROMReady) || role == "firmware" && (!initial.FirmwareRequired || initial.FirmwareReady || initial.ROMRequired || initial.ROMRole != protocol.FirmwareRole || initial.ROMSourceSize != 1024) {
 				t.Fatalf("missing readiness %+v %v", readiness, err)
+			}
+			if role == "firmware" {
+				game := hostclient.Game{State: "available", RootOnline: true, Launchable: true, FirmwareRequired: initial.FirmwareRequired, FirmwareReady: initial.FirmwareReady, ROMRole: initial.ROMRole}
+				if game.LaunchBlock() != hostclient.LaunchMissingFirmware {
+					t.Fatalf("unbound firmware should open firmware picker, got %s", game.LaunchBlock())
+				}
 			}
 			if _, err = s.Launch(ctx, entry.GameID, nil); err == nil {
 				t.Fatal("missing ROM launched")
@@ -281,8 +291,17 @@ func TestLibraryROMLaunchSendsSourceInputs(t *testing.T) {
 				t.Fatal(err)
 			}
 			readiness, err = s.CoreCompositions(ctx, []string{entry.GameID})
-			if err != nil || !readiness[entry.GameID].ROMReady || readiness[entry.GameID].ROMMediaID != media.MediaID {
+			selected := readiness[entry.GameID]
+			if err != nil {
 				t.Fatalf("selected readiness %+v %v", readiness, err)
+			}
+			if role == "firmware" {
+				game := hostclient.Game{State: "available", RootOnline: true, Launchable: true, FirmwareRequired: selected.FirmwareRequired, FirmwareReady: selected.FirmwareReady, ROMRole: selected.ROMRole, ROMID: selected.ROMID, ROMSourceSize: selected.ROMSourceSize, ROMMediaID: selected.ROMMediaID}
+				if !selected.FirmwareReady || selected.ROMRequired || selected.ROMMediaID != media.MediaID || game.LaunchBlock() != "" {
+					t.Fatalf("selected firmware readiness %+v game=%+v", selected, game)
+				}
+			} else if !selected.ROMRequired || !selected.ROMReady || selected.ROMMediaID != media.MediaID {
+				t.Fatalf("selected cartridge readiness %+v", selected)
 			}
 			if role == "cartridge" {
 				if _, err = store.SelectCoreEntryMedia(ctx, entry.GameID, entry.PackageID, "", "blob", media.MediaID); err != nil {
@@ -354,6 +373,171 @@ func TestLibraryROMLaunchSendsSourceInputs(t *testing.T) {
 				t.Fatal("stale package ROM binding accepted")
 			}
 		})
+	}
+}
+
+func TestZX81FirmwareSelectionRebindsAcrossCompatiblePackageSwitch(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		custom bool
+	}{{name: "bundled"}, {name: "custom", custom: true}} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			firstArchive, _ := hardwareZX81ContractFixtureWithROMMapAndImage(t, true, false, "fes.computer", "fes.media.zx81-tape", strings.Repeat("1", 40), nil, bytes.Repeat([]byte{0x21}, zx81machine.MachineROMBytes))
+			s, client, entry, first := newCoreEntryLaunchFixture(t, firstArchive, "Workshop ZX81")
+
+			var mediaID string
+			var firmware []byte
+			if tc.custom {
+				firmware = bytes.Repeat([]byte{0x5a}, zx81machine.MachineROMBytes)
+				media, _, err := s.ImportCoreMedia(ctx, int64(len(firmware)), bytes.NewReader(firmware))
+				if err != nil {
+					t.Fatal(err)
+				}
+				selected, err := s.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, "machine-rom", "", media.MediaID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				mediaID = selected.MediaID
+			} else {
+				compositions, err := s.CoreCompositions(ctx, []string{entry.GameID})
+				if err != nil || !compositions[entry.GameID].FirmwareReady {
+					t.Fatalf("initial bundled firmware readiness: %+v %v", compositions[entry.GameID], err)
+				}
+				firmware, err = zx81machine.MachineROM()
+				if err != nil {
+					t.Fatal(err)
+				}
+				selected, err := s.CoreEntryROM(ctx, entry.GameID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				mediaID = selected.MediaID
+			}
+			if mediaID == "" {
+				t.Fatal("firmware selection is empty before package switch")
+			}
+
+			nextArchive, _ := hardwareZX81ContractFixtureWithROMMapAndImage(t, true, true, "fes.computer", "fes.media.zx81-tape", strings.Repeat("2", 40), nil, bytes.Repeat([]byte{0x31}, zx81machine.MachineROMBytes))
+			next, created, err := s.ImportCorePackage(ctx, int64(len(nextArchive)), bytes.NewReader(nextArchive))
+			if err != nil || !created {
+				t.Fatalf("import session-display package: %v created=%v", err, created)
+			}
+			if next.PackageID == first.PackageID {
+				t.Fatal("package fixture did not produce a distinct package identity")
+			}
+			if _, err := s.SelectCoreEntry(ctx, entry.GameID, first.PackageID, next.PackageID); err != nil {
+				t.Fatalf("switch package: %v", err)
+			}
+
+			compositions, err := s.CoreCompositions(ctx, []string{entry.GameID})
+			if err != nil || !compositions[entry.GameID].FirmwareReady || compositions[entry.GameID].ROMMediaID != mediaID {
+				t.Fatalf("switched package firmware readiness: %+v %v", compositions[entry.GameID], err)
+			}
+			selected, err := s.CoreEntryROM(ctx, entry.GameID)
+			if err != nil || selected.PackageID != next.PackageID || selected.ROMID != "machine-rom" || selected.SourceSize != zx81machine.MachineROMBytes || selected.MediaID != mediaID {
+				t.Fatalf("firmware selection after switch: %+v err=%v", selected, err)
+			}
+
+			active := coreEntryActiveStatus(next, 7, false)
+			active.CorePackage.ROMLink = &corepackage.ROMLinkIdentity{
+				ROMID: "machine-rom", MapSHA256: next.Descriptor.ROM.SHA256,
+				SourceSHA256: mediaID, SourceSize: zx81machine.MachineROMBytes,
+				ProgrammedSHA256: fmt.Sprintf("%x", sha256.Sum256([]byte("linked"))), ProgrammedSize: 6,
+			}
+			client.coreLoad = func(_ context.Context, size int64, reader io.Reader) (protocol.Status, error) {
+				body, err := io.ReadAll(reader)
+				if err != nil || int64(len(body)) != size {
+					t.Fatalf("read linked package: size=%d body=%d err=%v", size, len(body), err)
+				}
+				foundPackage, foundFirmware := false, false
+				tr := tar.NewReader(bytes.NewReader(body))
+				for {
+					_, err := tr.Next()
+					if err == io.EOF {
+						break
+					}
+					if err != nil {
+						t.Fatal(err)
+					}
+					member, err := io.ReadAll(tr)
+					if err != nil {
+						t.Fatal(err)
+					}
+					foundPackage = foundPackage || bytes.Equal(member, nextArchive)
+					foundFirmware = foundFirmware || bytes.Equal(member, firmware)
+				}
+				if !foundPackage || !foundFirmware {
+					t.Fatalf("launch omitted selected package or firmware: package=%t firmware=%t", foundPackage, foundFirmware)
+				}
+				client.statusResult = active
+				return active, nil
+			}
+			response, err := s.Launch(ctx, entry.GameID, nil)
+			if err != nil || response.Status.GameID == nil || *response.Status.GameID != entry.GameID {
+				t.Fatalf("launch after package switch: %+v %v", response, err)
+			}
+			if client.coreCalls != 1 {
+				t.Fatalf("target core loads=%d, want 1", client.coreCalls)
+			}
+		})
+	}
+}
+
+func TestZX81DamagedFirmwareSelectionCanBeReplacedAfterPackageSwitch(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	firstArchive, _ := hardwareZX81ContractFixtureWithROMMapAndImage(t, true, false, "fes.computer", "fes.media.zx81-tape", strings.Repeat("1", 40), nil, bytes.Repeat([]byte{0x21}, zx81machine.MachineROMBytes))
+	s, _, entry, first := newCoreEntryLaunchFixtureAt(t, root, firstArchive, "Workshop ZX81")
+
+	initial, err := s.CoreCompositions(ctx, []string{entry.GameID})
+	if err != nil || !initial[entry.GameID].FirmwareReady || initial[entry.GameID].ROMMediaID == "" {
+		t.Fatalf("initial firmware readiness: %+v %v", initial[entry.GameID], err)
+	}
+	damagedMediaID := initial[entry.GameID].ROMMediaID
+
+	db, err := sql.Open("sqlite", filepath.Join(root, "catalog.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = db.ExecContext(ctx, `UPDATE core_media_chunks SET data=? WHERE media_id=? AND chunk_index=0`, bytes.Repeat([]byte{0xff}, zx81machine.MachineROMBytes), damagedMediaID)
+	closeErr := db.Close()
+	if err != nil || closeErr != nil {
+		t.Fatalf("damage selected firmware: update=%v close=%v", err, closeErr)
+	}
+
+	nextArchive, _ := hardwareZX81ContractFixtureWithROMMapAndImage(t, true, true, "fes.computer", "fes.media.zx81-tape", strings.Repeat("2", 40), nil, bytes.Repeat([]byte{0x31}, zx81machine.MachineROMBytes))
+	next, created, err := s.ImportCorePackage(ctx, int64(len(nextArchive)), bytes.NewReader(nextArchive))
+	if err != nil || !created {
+		t.Fatalf("import compatible package: %v created=%v", err, created)
+	}
+	if next.PackageID == first.PackageID {
+		t.Fatal("package fixture did not produce a distinct package identity")
+	}
+	if _, err := s.SelectCoreEntry(ctx, entry.GameID, first.PackageID, next.PackageID); err != nil {
+		t.Fatalf("switch package: %v", err)
+	}
+
+	afterSwitch, err := s.CoreCompositions(ctx, []string{entry.GameID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	composition := afterSwitch[entry.GameID]
+	if composition.FirmwareReady || composition.ROMMediaID != damagedMediaID {
+		t.Fatalf("damaged selection should stay unready and retain its replacement CAS ID: %+v", composition)
+	}
+
+	replacementBytes := bytes.Repeat([]byte{0x5a}, zx81machine.MachineROMBytes)
+	replacement, _, err := s.ImportCoreMedia(ctx, int64(len(replacementBytes)), bytes.NewReader(replacementBytes))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SelectCoreEntryROM(ctx, entry.GameID, next.PackageID, "machine-rom", composition.ROMMediaID, replacement.MediaID); err != nil {
+		t.Fatalf("replace damaged firmware using retained selection ID: %v", err)
+	}
+	afterReplacement, err := s.CoreCompositions(ctx, []string{entry.GameID})
+	if err != nil || !afterReplacement[entry.GameID].FirmwareReady || afterReplacement[entry.GameID].ROMMediaID != replacement.MediaID {
+		t.Fatalf("replacement firmware readiness: %+v %v", afterReplacement[entry.GameID], err)
 	}
 }
 

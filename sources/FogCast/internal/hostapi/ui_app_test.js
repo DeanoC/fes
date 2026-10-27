@@ -12422,6 +12422,8 @@ test('launchBlockReason requires selected ROM readiness', () => {
   const ready = { launchable: true, state: 'available', root_online: true };
   assert.equal(launchBlockReason({ ...ready, firmware_required: true, rom_required: true, rom_ready: true }), 'Coleco BIOS required. Import household firmware before Play.');
   assert.equal(launchBlockReason({ ...ready, firmware_required: true, firmware_ready: true, rom_required: true, rom_ready: true }), '');
+  assert.equal(launchBlockReason({ ...ready, firmware_required: true, firmware_ready: false, rom_role: 'firmware' }), 'Required machine firmware is missing. Import it before Play.');
+  assert.equal(launchBlockReason({ ...ready, firmware_required: true, firmware_ready: true, rom_role: 'firmware' }), '');
   assert.equal(launchBlockReason({ ...ready, rom_required: true }), 'Needs a cartridge');
   assert.equal(launchBlockReason({ ...ready, rom_required: true, rom_ready: false }), 'Needs a cartridge');
   assert.equal(launchBlockReason({ ...ready, rom_required: true, rom_ready: true }), '');

@@ -21,6 +21,8 @@ const (
 	settingsRowPrepareTarget
 	settingsRowHome
 	settingsRowReducedMotion
+	settingsRowSurround
+	settingsRowDrives
 	settingsRowFixedCount
 )
 
@@ -61,6 +63,7 @@ const (
 	settingsOSKTapePath
 	settingsOSKCorePath
 	settingsOSKCoreTitle
+	settingsOSKDriveField
 )
 
 type settingsTargetDraft struct {
@@ -166,6 +169,10 @@ func (a *App) settingsRowsLocked() []SettingsRow {
 	if a.reducedMotion {
 		motion = "On"
 	}
+	surround := "Off"
+	if a.surround {
+		surround = "On"
+	}
 	idle := "—"
 	if a.settingsHydrated {
 		idle = fmt.Sprintf("%ds", a.settingsDraftIdle)
@@ -195,6 +202,8 @@ func (a *App) settingsRowsLocked() []SettingsRow {
 		{ID: "prepare-target", Label: "Prepare target", Value: "A generate identity"},
 		{ID: "home", Label: "Home", Value: a.settingsHomeValueLocked()},
 		{ID: "reduced-motion", Label: "Reduced motion", Value: motion},
+		{ID: "surround", Label: "TV surround · kit HDMI", Value: surround},
+		{ID: "drives", Label: "BIOS & media drives", Value: "Browse USB and SMB · kit or host"},
 	}
 	for i, draft := range a.settingsDraftTargets {
 		name := strings.TrimSpace(draft.Name)
@@ -469,6 +478,15 @@ func (a *App) handleSettingsLocked(cmd Command) {
 		switch cmd {
 		case CmdLeft, CmdRight, CmdSelect:
 			a.toggleReducedMotionLocked()
+		}
+	case settingsRowSurround:
+		switch cmd {
+		case CmdLeft, CmdRight, CmdSelect:
+			a.setSurroundLocked(!a.surround, true)
+		}
+	case settingsRowDrives:
+		if cmd == CmdSelect {
+			a.openDriveSettingsLocked()
 		}
 	case settingsRowIdle:
 		if !a.settingsHydrated {
@@ -1142,6 +1160,8 @@ func (a *App) handleSettingsOSKLocked(cmd Command) {
 
 func (a *App) submitSettingsOSKLocked() {
 	switch a.settingsOSKKind {
+	case settingsOSKDriveField:
+		a.submitDriveFieldLocked()
 	case settingsOSKCorePath, settingsOSKCoreTitle:
 		a.submitCoreLibraryOSKLocked()
 	case settingsOSKLibraryPath:
@@ -1571,7 +1591,7 @@ func (a *App) settingsHintLocked() string {
 	if a.settingsIndex == settingsRowHome {
 		return settingsActionHint(kind, "go home", "Left/Right start screen")
 	}
-	if a.settingsIndex == settingsRowReducedMotion {
+	if a.settingsIndex == settingsRowReducedMotion || a.settingsIndex == settingsRowSurround {
 		return settingsActionHint(kind, "toggle", "Left/Right")
 	}
 	targetKind, targetIndex, field := a.settingsTargetRowLocked()
@@ -1810,6 +1830,27 @@ func (a *App) setReducedMotionLocked(on bool, persist bool) {
 		return
 	}
 	a.status = "reduced motion off"
+}
+
+// setSurroundLocked changes the TV surround drawn around a running machine
+// on kit HDMI. A running session follows it once the machine has input.
+func (a *App) setSurroundLocked(on bool, persist bool) {
+	a.surround = on
+	if !persist {
+		return
+	}
+	a.persistPrefsLocked("surround")
+	if on {
+		a.status = "TV surround on"
+		return
+	}
+	a.status = "TV surround off"
+}
+
+func (a *App) SetSurround(on bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.setSurroundLocked(on, false)
 }
 
 func (a *App) SetReducedMotion(on bool) {

@@ -76,6 +76,45 @@ func TestCorePackageImportAndSelectionAPI(t *testing.T) {
 	}
 }
 
+type pairedPackageSelectionAPIService struct {
+	coreLibraryAPIService
+	settings fogcast.LibraryConfig
+	target   string
+}
+
+func (s *pairedPackageSelectionAPIService) LibrarySettings() fogcast.LibraryConfig { return s.settings }
+func (s *pairedPackageSelectionAPIService) SelectCoreEntry(ctx context.Context, game, expected, id string) (catalog.CoreEntry, error) {
+	s.target = fogcast.SessionTargetFromContext(ctx)
+	return catalog.CoreEntry{GameID: game, PackageID: id}, nil
+}
+
+func TestPairedLauncherPackageSelectionCarriesItsKitTarget(t *testing.T) {
+	packageID := strings.Repeat("a", 64)
+	service := &pairedPackageSelectionAPIService{
+		settings: fogcast.LibraryConfig{SelectedTarget: "kit-a", Targets: []fogcast.TargetConfig{
+			{Name: "kit-a", Enabled: true, TargetID: launcherID},
+			{Name: "kit-b", Enabled: true, TargetID: launcherIDB},
+		}},
+	}
+	handler, err := hostapi.NewLauncherHandler(hostapi.New(service), hostapi.LauncherConfig{Pairings: []hostapi.LauncherPairing{
+		{Token: launcherToken, TargetID: launcherID},
+		{Token: launcherTokenB, TargetID: launcherIDB},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := launcherRequest(http.MethodPut, "http://192.0.2.1:8789/api/v1/library/core-entries/fpga-zx81",
+		strings.NewReader(`{"package_id":"`+packageID+`","expected_package_id":"`+strings.Repeat("b", 64)+`"}`))
+	request.Header.Set("Authorization", "Bearer "+launcherTokenB)
+	request.Header.Set("X-FogCast-Target-ID", launcherIDB)
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK || service.target != "kit-b" {
+		t.Fatalf("paired selection: status=%d target=%q body=%s", response.Code, service.target, response.Body.String())
+	}
+}
+
 func TestCorePackageReadRoutesRejectBodies(t *testing.T) {
 	s := &coreLibraryAPIService{}
 	handler := hostapi.New(s)

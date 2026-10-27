@@ -13,7 +13,8 @@ module benchmark_top #(
     logic key_meta = 1'b1, key_reset = 1'b1;
     logic [31:0] stimulus = 32'h675a12e9;
     logic [11:0] restart_count = 0;
-    logic phase = 0;
+    // ce_p, idle, ce_n, idle: the NMOS core needs an idle clock between enables.
+    logic [1:0] phase = 0;
     wire reset = key_reset || restart_count == 0;
     wire int_n = |stimulus[11:8];
     wire nmi_n = |stimulus[15:12];
@@ -36,14 +37,14 @@ module benchmark_top #(
             // Fibonacci x^32 + x^22 + x^2 + x + 1 sequence.
             stimulus <= {stimulus[30:0], stimulus[31] ^ stimulus[21] ^ stimulus[1] ^ stimulus[0]};
             restart_count <= restart_count + 12'd1;
-            phase <= !phase;
+            phase <= phase + 2'd1;
         end
     end
 
     generate if (NMOS) begin : faithful
         wire m1_n, mreq_n, iorq_n, rd_n, wr_n, rfsh_n, halt_n, busak_n;
         fes_z80_nmos cpu (
-            .clk(clk), .reset(reset), .ce_p(phase), .ce_n(!phase),
+            .clk(clk), .reset(reset), .ce_p(phase == 2'd0), .ce_n(phase == 2'd2),
             .wait_n(|stimulus[18:16]), .int_n(int_n), .nmi_n(nmi_n),
             .busrq_n(|stimulus[23:19]), .din(stimulus[7:0]),
             .m1_n(m1_n), .mreq_n(mreq_n), .iorq_n(iorq_n), .rd_n(rd_n),

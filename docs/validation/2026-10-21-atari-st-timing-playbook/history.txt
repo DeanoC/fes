@@ -1,0 +1,57 @@
+Historical Atari ST route logs on Powerboat, re-read for fes#910 on 2026-10-21
+
+Columns (pixel_clk / system_clock.clocks[0] MHz; targets 74.25 / 52.22):
+  place-est  nextpnr's post-placement estimate (the values quoted in #910's body)
+  sta-main   table-model STA after the main GPU route
+  ana0       first analogue signoff check after the main route
+  final      signoff timing analysis (the producer's pass/fail gate)
+  main-s     GPU main-route seconds; iters/overused = main-route iterations and
+             overused wires at iterations 1, 10, 20 and the last one
+  TIMEOUT    the 1800 s route timeout fired
+
+All runs: weight 2000, critexp 5, --router gpu, nextpnr 9128800f, mistral 8fcc4cb4.
+cf6987bb/507dc554/adbe6298: yosys 5391eeb1 (slots 1015e4eb/9e819bba). a5f002c9/e0e910f1/811a5a34: yosys 3a5accbd
+(slots 64efd8e9/fac97e97). Production BUILD_IDs.
+
+The cf6987bb (~/tmp/b760), 507dc554 (~/tmp/k791-6fb7/main-wt) and adbe6298 (~/tmp/kfix) logs were deleted
+from Powerboat by a later disk cleanup; their rows below were extracted from those logs at 09:40-09:55 EEST,
+before deletion. a5f002c9 (~/tmp/k913), e0e910f1 (~/tmp/k913r) and 811a5a34 (~/tmp/k913i) were present
+when this record was written.
+
+run        seed   place-est     sta-main      ana0          final         main-s  main iters/overused@it1,10,20,last
+cf6987bb   s2     65.38/42.49   79.92/51.74   75.19/47.31   76.02/51.09   664     n=117 42280/14211/2425/0
+cf6987bb   s4     58.61/38.47   80.23/47.92   72.35/46.96   66.06/46.96   547     n=100 41419/13911/2735/0
+cf6987bb   s5     66.76/40.06   80.05/47.77   78.14/47.76   76.79/47.76   955     n=121 42573/15485/2491/0
+507dc554   s4     58.88/41.36   74.92/51.53   67.06/49.41   72.77/52.82   801     n=132 39535/10871/2018/0
+507dc554   s5     62.74/42.37   77.70/51.68   70.55/52.83   73.65/53.23   654     n=65 41825/15246/2510/0
+adbe6298   s1     66.04/41.23        -/-            -/-            -/-    -       n=37 43332/18004/5400/2775 TIMEOUT
+adbe6298   s2     65.59/40.04        -/-            -/-            -/-    -       n=49 43615/18224/4063/1495 TIMEOUT
+adbe6298   s3     59.66/42.18        -/-            -/-            -/-    -       n=28 44328/19441/6770/4008 TIMEOUT
+adbe6298   s4     55.90/41.02        -/-            -/-            -/-    -       n=26 43905/17352/5483/4610 TIMEOUT
+adbe6298   s5     60.95/38.74        -/-            -/-            -/-    -       n=51 42226/15886/4129/1692 TIMEOUT
+adbe6298   s6     60.85/41.99        -/-            -/-            -/-    -       n=46 40700/14001/3537/1441 TIMEOUT
+adbe6298   s7     64.15/40.83        -/-            -/-            -/-    -       n=37 43695/16636/5084/3228 TIMEOUT
+adbe6298   s8     60.63/43.43   77.36/46.03   66.33/49.49        -/-    1570    n=82 42813/15640/3140/0 TIMEOUT (in repair)
+adbe6298   s9     65.03/41.12        -/-            -/-            -/-    -       n=45 43064/16521/3999/1813 TIMEOUT
+adbe6298   s10    60.40/40.37        -/-            -/-            -/-    -       n=42 41372/14584/4108/2591 TIMEOUT
+a5f002c9   s1     66.22/43.58        -/-            -/-            -/-      -         n=61 41799/14693/2641/583 TIMEOUT
+a5f002c9   s2     57.24/35.49        -/-            -/-            -/-      -         n=47 42063/15876/3559/1270 TIMEOUT
+a5f002c9   s3     63.95/46.97        -/-            -/-            -/-      -         n=41 43456/16260/4253/3087 TIMEOUT
+a5f002c9   s4     65.42/39.11        -/-            -/-            -/-      -         n=50 42240/14971/3228/1491 TIMEOUT
+a5f002c9   s5     61.27/35.16        -/-            -/-            -/-      -         n=25 45679/21027/6032/5803 TIMEOUT
+a5f002c9   s6     60.55/44.77   76.85/48.85   70.93/51.02   74.17/51.97  229       n=66 40561/12653/1384/0 
+a5f002c9   s7     56.87/37.82        -/-            -/-            -/-      -         n=57 41202/14694/3376/1490 TIMEOUT
+a5f002c9   s8     64.40/39.93        -/-            -/-            -/-      -         n=53 43703/16073/3074/749 TIMEOUT
+a5f002c9   s9     62.29/40.89        -/-            -/-            -/-      -         n=42 40545/13440/3550/2004 TIMEOUT
+a5f002c9   s10     56.54/42.23        -/-            -/-            -/-      -         n=51 42409/15771/3706/1483 TIMEOUT
+e0e910f1   s4     64.72/46.26   81.20/54.11   77.24/54.15   77.24/54.15  928       n=93 41561/12106/2109/0 
+811a5a34   s1     57.45/41.56        -/-            -/-            -/-      -         n=88 43388/17042/3050/246 TIMEOUT
+811a5a34   s2     57.72/43.35   75.67/53.35   69.47/51.74   67.44/51.74  693       n=122 41524/14101/2551/0 
+811a5a34   s3     52.68/44.60   71.64/58.29   74.12/58.00   69.77/57.17  1120      n=82 39656/12746/2377/0 
+811a5a34   s4     51.63/40.70   81.63/55.12   73.00/55.13   68.74/50.18  1216      n=96 41246/13731/2594/0 
+811a5a34   s5     63.12/41.82   78.45/56.63   72.28/50.60   71.74/54.61  449       n=89 40944/13213/1810/0 
+811a5a34   s6     58.33/42.26   73.63/56.76   70.01/52.94   65.16/52.94  708       n=88 41880/13803/2217/0 
+811a5a34   s7     53.09/47.98   73.69/60.26   73.13/54.16   68.07/54.61  1106      n=105 41229/13534/2120/0 
+811a5a34   s8     59.23/44.25        -/-            -/-            -/-      -         n=76 41998/15286/2655/494 TIMEOUT
+811a5a34   s9     65.74/40.58        -/-            -/-            -/-      -         n=50 43795/17444/3740/1923 TIMEOUT
+811a5a34   s10    49.16/46.66   72.82/59.86   70.60/58.01   64.24/58.01  386       n=67 40707/13269/1897/0 

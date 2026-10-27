@@ -2,7 +2,6 @@ package tenfoot
 
 import (
 	"image"
-	"image/color"
 	"os"
 	"strconv"
 	"strings"
@@ -12,6 +11,8 @@ import (
 	"golang.org/x/image/font/gofont/goregular"
 	"golang.org/x/image/font/opentype"
 	"golang.org/x/image/math/fixed"
+
+	"github.com/DeanoC/FogCast/ui/gfx"
 )
 
 var (
@@ -249,64 +250,35 @@ func measureLabel(text string, sizePx int) int {
 	return font.MeasureString(face, text).Ceil()
 }
 
-func rasterizeLabel(text string, maxWidth, sizePx int) *image.RGBA {
-	text = strings.TrimSpace(text)
-	if text == "" || maxWidth < 1 || sizePx < 1 {
-		return nil
-	}
-	labelMu.Lock()
-	defer labelMu.Unlock()
-	return rasterizeLabelWithFace(labelFace(sizePx), text, maxWidth, sizePx)
-}
+// labelColor is the colour labels draw in.
+var labelColor = gfx.RGB(236, 240, 248)
 
-func rasterizeLabelWithFace(face font.Face, text string, maxWidth, sizePx int) *image.RGBA {
-	if face == nil {
-		return nil
+// layoutLabel lays display out in face as a label: a box at most maxWidth
+// wide and one line tall, with the baseline at the ascent. Ink outside the
+// box is clipped. It reports false for an empty string.
+func layoutLabel(face font.Face, display string, maxWidth, sizePx int) (gpuTexture, bool) {
+	if face == nil || display == "" {
+		return gpuTexture{}, false
 	}
-	display := fitLabel(face, text, maxWidth)
-	if display == "" {
-		return nil
-	}
-	w := font.MeasureString(face, display).Ceil()
-	if w < 1 {
-		w = 1
-	}
-	if w > maxWidth {
-		w = maxWidth
-	}
+	w := min(max(font.MeasureString(face, display).Ceil(), 1), maxWidth)
 	metrics := face.Metrics()
 	h := (metrics.Ascent + metrics.Descent).Ceil()
 	if h < 1 {
 		h = sizePx
 	}
-	img := image.NewRGBA(image.Rect(0, 0, w, h))
-	d := font.Drawer{
-		Dst:  img,
-		Src:  image.NewUniform(color.RGBA{R: 236, G: 240, B: 248, A: 255}),
-		Face: face,
-		Dot:  fixed.Point26_6{X: 0, Y: metrics.Ascent},
+	label := gpuTexture{w: w, h: h}
+	line := gfx.LayoutText(face, display)
+	if line.Mask == nil {
+		return label, true
 	}
-	d.DrawString(display)
-	unpremultiplyRGBA(img)
-	return img
-}
-
-// unpremultiplyRGBA converts Go image.RGBA (premultiplied) to straight alpha
-// for SDL_BLENDMODE_BLEND. Anti-aliased edges otherwise composite too dark.
-func unpremultiplyRGBA(img *image.RGBA) {
-	if img == nil {
-		return
+	ink := line.Mask.Bounds().Add(line.Origin).Add(image.Pt(0, metrics.Ascent.Round()))
+	visible := ink.Intersect(image.Rect(0, 0, w, h))
+	if visible.Empty() {
+		return label, true
 	}
-	pix := img.Pix
-	for i := 0; i+3 < len(pix); i += 4 {
-		a := pix[i+3]
-		if a == 0 || a == 255 {
-			continue
-		}
-		pix[i+0] = uint8((int(pix[i+0])*255 + int(a)/2) / int(a))
-		pix[i+1] = uint8((int(pix[i+1])*255 + int(a)/2) / int(a))
-		pix[i+2] = uint8((int(pix[i+2])*255 + int(a)/2) / int(a))
-	}
+	label.mask, label.maskAt = line.Mask, visible.Min
+	label.maskSrc = visible.Sub(ink.Min)
+	return label, true
 }
 
 func fitLabel(face font.Face, text string, maxWidth int) string {
@@ -337,16 +309,4 @@ func labelHasRealGlyph(r rune) bool {
 	}
 	_, ok := face.GlyphAdvance(r)
 	return ok
-}
-
-func labelHasInk(img *image.RGBA) bool {
-	if img == nil {
-		return false
-	}
-	for i := 3; i < len(img.Pix); i += 4 {
-		if img.Pix[i] != 0 {
-			return true
-		}
-	}
-	return false
 }

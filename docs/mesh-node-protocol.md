@@ -1,5 +1,7 @@
 # Mesh node protocol (design draft)
 
+**Superseded (22 October 2026):** the kit is its own FogCast host ([#863](https://github.com/DeanoC/fes/issues/863)). The kit-side placement, pairing and paired-listener material on this page is historical; the current design is [mesh under kit-as-host](mesh-kit-host.md), which also lists what from here stays in use.
+
 **Status:** merged as #131. Phase 1 closed on main `3d34b6e0`. Phase 2
 execution is [`mesh-phase2.md`](mesh-phase2.md). Bob coordinates; Deano
 merges parents. Still edit strawmen in place. Caster's cast/kit

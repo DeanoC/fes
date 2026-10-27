@@ -36,19 +36,44 @@ func TestNativeDisconnectReleasesOnlyLostDeviceHolds(t *testing.T) {
 		return remoteinput.Event{Device: remoteinput.DeviceGamepad, Kind: remoteinput.KindButton, Code: code, Action: remoteinput.ActionPress}
 	}
 	a, b := press(remoteinput.ButtonA), press(remoteinput.ButtonB)
+	otherA := a
+	otherA.Player = 1
 	app.HandleLocalPad(a, now)
 	app.HandleLocalPad(b, now)
+	app.HandleLocalPad(otherA, now)
 	app.HandlePlayHIDKey("a", true, now)
 	app.HandlePlayHIDKey("q", true, now)
 	drainLocalKeyQueue(t, app)
-	lost := &nativeInput{padHeld: map[remoteinput.Code]remoteinput.Event{a.Code: a, b.Code: b}, keysHeld: map[uint16]string{30: "a", 16: "q"}}
-	other := &nativeInput{padHeld: map[remoteinput.Code]remoteinput.Event{a.Code: a}, keysHeld: map[uint16]string{30: "a"}}
+	lost := &nativeInput{kind: InputGamepad, player: 0, padHeld: map[padKey]remoteinput.Event{{0, a.Code}: a, {0, b.Code}: b}, keysHeld: map[uint16]string{30: "a", 16: "q"}}
+	other := &nativeInput{kind: InputGamepad, player: 1, padHeld: map[padKey]remoteinput.Event{{1, a.Code}: otherA}, keysHeld: map[uint16]string{30: "a"}}
 	inputs := &nativeInputs{devices: []*nativeInput{other}}
 	inputs.releaseLostPlayInput(app, lost)
 	drainLocalKeyQueue(t, app)
-	if !feed.saw(remoteinput.ButtonB, remoteinput.ActionRelease) || !feed.saw(zx81keys.Letter('Q'), remoteinput.ActionRelease) ||
-		feed.saw(remoteinput.ButtonA, remoteinput.ActionRelease) || feed.saw(zx81keys.Letter('A'), remoteinput.ActionRelease) {
-		t.Fatalf("disconnect released a surviving source or left lost keys held: %+v", feed.snapshot())
+	events := feed.snapshot()
+	released := func(player uint8, code remoteinput.Code) bool {
+		for _, e := range playerEvents(events, player) {
+			if e.Code == code && e.Action == remoteinput.ActionRelease && e.Kind == remoteinput.KindButton {
+				return true
+			}
+		}
+		return false
+	}
+	if !released(0, remoteinput.ButtonA) || !released(0, remoteinput.ButtonB) || !feed.saw(zx81keys.Letter('Q'), remoteinput.ActionRelease) ||
+		released(1, remoteinput.ButtonA) || feed.saw(zx81keys.Letter('A'), remoteinput.ActionRelease) {
+		t.Fatalf("disconnect released a surviving source or left lost input held: %+v", events)
+	}
+	// The port goes back after the lost pad's releases; keyboard releases
+	// queue separately and may follow it.
+	departed := false
+	for _, e := range events {
+		if remoteinput.IsLocalPlayerDeparture(e) && e.Player == 0 {
+			departed = true
+		} else if departed && e.Device == remoteinput.DeviceGamepad && e.Player == 0 {
+			t.Fatalf("pad release after its departure: %+v", events)
+		}
+	}
+	if !departed {
+		t.Fatalf("lost pad did not give its port back: %+v", events)
 	}
 	app.mu.Lock()
 	defer app.mu.Unlock()
@@ -76,12 +101,12 @@ func TestKitKeyboardIsNeutralBeforeOpeningAndNeedsNewPress(t *testing.T) {
 	now := time.Now()
 	app.HandlePlayHIDKey("a", true, now)
 	app.HandlePlayHIDKey("home", true, now)
-	waitFor(t, app, "keyboard room", func(s Snapshot) bool { return s.Room.DuringPlay })
+	waitFor(t, app, "keyboard room", func(s Snapshot) bool { return s.Session.ControlsOpen })
 	if !app.HandlePlayHIDKey("a", true, now) {
 		t.Fatal("held gameplay key became navigation")
 	}
 	app.HandleCommand(CmdBack, now)
-	waitFor(t, app, "keyboard return", func(s Snapshot) bool { return !s.Room.DuringPlay && app.ForwardsPlayHID() })
+	waitFor(t, app, "keyboard return", func(s Snapshot) bool { return !s.Session.ControlsOpen && app.ForwardsPlayHID() })
 	before := len(feed.snapshot())
 	app.HandlePlayHIDKey("a", true, now)
 	drainLocalKeyQueue(t, app)

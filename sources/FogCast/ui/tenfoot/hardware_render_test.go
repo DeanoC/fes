@@ -3,6 +3,8 @@ package tenfoot
 import (
 	"context"
 	"fmt"
+	"image"
+	"image/color"
 	"image/png"
 	"io/fs"
 	"os"
@@ -12,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/rooms"
 )
@@ -88,11 +91,11 @@ func TestHardwareRoomNativeRender(t *testing.T) {
 		Session: &hostclient.SessionResult{State: "idle"},
 	}
 	for _, size := range []struct{ w, h int }{{1280, 720}, {1024, 600}} {
-		for _, scene := range []string{"idle", "running", "no-artwork", "preview"} {
+		for _, scene := range []string{"idle", "running", "no-artwork", "preview", "overlay"} {
 			t.Run(fmt.Sprintf("%s-%dx%d", scene, size.w, size.h), func(t *testing.T) {
 				data := snapshot
 				selectedPack := pack
-				if scene == "running" {
+				if scene == "running" || scene == "overlay" {
 					data.Session = &hostclient.SessionResult{
 						ID: "fixture-session", Target: "dev", State: "active", GameID: "fpga-zx81",
 						CorePackage: &hostclient.SessionCorePackage{
@@ -107,7 +110,16 @@ func TestHardwareRoomNativeRender(t *testing.T) {
 				}
 				app := NewApp(nil, size.w, size.h, 20)
 				app.session = *data.Session
-				app.roomDuringPlay = scene == "running"
+				app.roomDuringPlay = scene == "running" || scene == "overlay"
+				if scene == "overlay" {
+					// The kit session plane with launcher focus over a live machine.
+					display, err := gfx.NewMenuDisplayWithPresenter(&countingSessionMenu{})
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer display.Close()
+					app.menuDisplay, app.sessionDisplay = display, protocol.SessionDisplayFocused
+				}
 				w, h := app.roomContentSizeLocked(hardwareRoomID)
 				inst, err := rooms.New(selectedPack, rooms.Options{Width: w, Height: h, Services: hardwareRenderServices{snapshot: data}, Index: index, Budget: hardwareRenderTestBudget()})
 				if err != nil {
@@ -184,6 +196,7 @@ func TestHardwareRoomNativeRender(t *testing.T) {
 					t.Fatal(err)
 				}
 				presentFrame(dev, snap, map[string]gpuTexture{}, map[string]gpuTexture{}, false)
+				assertRoomPlanePixels(t, dev.Snapshot(), snap.Room, scene == "overlay")
 				if output := strings.TrimSpace(os.Getenv("FES_ROOM_SCREENSHOT_DIR")); output != "" {
 					if err := os.MkdirAll(output, 0o755); err != nil {
 						t.Fatal(err)
@@ -263,5 +276,54 @@ func TestHardwareRoomReturnRefreshesProductionLua(t *testing.T) {
 	waitFor(t, app, "fresh running Stop", func(s Snapshot) bool { return hasText(s, "Stop machine") && !hasText(s, "Start machine") })
 	if services.calls < 2 {
 		t.Fatal("return reused pre-launch hardware data")
+	}
+}
+
+// assertRoomPlanePixels checks what the kit plane receives. Every pixel must
+// be premultiplied (r,g,b <= a), or the FPGA blend adds light to the machine.
+// An opaque room covers the machine everywhere. An overlay stores the scrim
+// premultiplied, leaves the machine card area clear of surfaces, and draws
+// its controls as solid surfaces.
+func assertRoomPlanePixels(t *testing.T, img *image.RGBA, room RoomSnapshot, overlay bool) {
+	t.Helper()
+	var opaque, translucent int
+	for i := 0; i < len(img.Pix); i += 4 {
+		r, g, b, a := img.Pix[i], img.Pix[i+1], img.Pix[i+2], img.Pix[i+3]
+		if r > a || g > a || b > a {
+			t.Fatalf("pixel %d is not premultiplied: %d,%d,%d,%d", i/4, r, g, b, a)
+		}
+		if a == 255 {
+			opaque++
+		} else {
+			translucent++
+		}
+	}
+	total := opaque + translucent
+	if !overlay {
+		if translucent != 0 {
+			t.Fatalf("opaque room left %d translucent pixels", translucent)
+		}
+		return
+	}
+	if translucent < total/2 || opaque < total/20 {
+		t.Fatalf("overlay coverage: %d translucent, %d opaque of %d", translucent, opaque, total)
+	}
+	// The workshop's 1120x630 layout, scaled into the room content box.
+	scale := min(float64(room.Width)/1120, float64(room.Height)/630)
+	at := func(x, y float64) color.RGBA {
+		px := float64(room.OffsetX) + (float64(room.Width)-1120*scale)/2 + x*scale
+		py := float64(room.OffsetY) + (float64(room.Height)-630*scale)/2 + y*scale
+		return img.RGBAAt(int(px), int(py))
+	}
+	scrim := color.RGBA{15, 19, 18, 200} // #141918 at alpha 200, premultiplied
+	if got := img.RGBAAt(2, 2); got != scrim {
+		t.Fatalf("margin pixel %+v, want premultiplied scrim %+v", got, scrim)
+	}
+	if got := at(100, 300); got != scrim {
+		t.Fatalf("machine card area %+v, want the scrim over the machine", got)
+	}
+	// A shelf card's fill sits directly on the scrim.
+	if got := at(240, 538); got.A != 255 {
+		t.Fatalf("shelf card surface %+v is not solid", got)
 	}
 }

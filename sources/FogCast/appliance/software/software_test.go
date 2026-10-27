@@ -35,8 +35,12 @@ func privateRoot(t *testing.T) string {
 }
 func fixture(t *testing.T) (Manifest, []byte) {
 	t.Helper()
+	return fixtureWith(t, map[string]string{"runtime": "2"})
+}
+func fixtureWith(t *testing.T, interfaces map[string]string) (Manifest, []byte) {
+	t.Helper()
 	files := fstest.MapFS{}
-	m := Manifest{Format: 1, Board: "de10-nano", Architecture: "armv7", BaseContract: "fes-base-v1", Version: "1.0", Interfaces: map[string]string{"runtime": "2"}, Provenance: map[string]string{"fes": "different-from-host"}}
+	m := Manifest{Format: 1, Board: "de10-nano", Architecture: "armv7", BaseContract: "fes-base-v1", Version: "1.0", Interfaces: interfaces, Provenance: map[string]string{"fes": "different-from-host"}}
 	for _, p := range append(append([]string{}, RequiredExecutables...), "share/fogcast/assets/test.txt") {
 		data := []byte(p)
 		h := sha256.Sum256(data)
@@ -54,7 +58,7 @@ func fixture(t *testing.T) (Manifest, []byte) {
 	return m, b.Bytes()
 }
 func compatibility(m Manifest) Compatibility {
-	return Compatibility{m.Board, m.Architecture, m.BaseContract, map[string]string{"runtime": "2"}}
+	return Compatibility{Board: m.Board, Architecture: m.Architecture, BaseContract: m.BaseContract, Interfaces: map[string]string{"runtime": "2"}}
 }
 func TestDeterministicIdentity(t *testing.T) {
 	m, b := fixture(t)
@@ -336,6 +340,79 @@ func TestRetainedIncompatibleReleaseRemainsInspectable(t *testing.T) {
 	}
 	if _, _, e = reopened.Install(context.Background(), bytes.NewReader(b)); e == nil {
 		t.Fatal("incompatible install admitted")
+	}
+	if _, e = reopened.Path(context.Background(), r.ID); !errors.Is(e, ErrIncompatible) {
+		t.Fatal("base contract mismatch is not an incompatibility", e)
+	}
+}
+
+func TestReleaseAcceptsRequiredVersions(t *testing.T) {
+	for _, tc := range []struct {
+		provided, required string
+		ok                 bool
+	}{
+		{"1.0", "1.0", true},
+		{"1.2", "1.1", true},
+		{"1.10", "1.9", true},
+		{"1.0", "1.1", false},
+		{"2.0", "1.0", false},
+		{"10.0", "1.0", false},
+		{"", "1.0", false},
+		{"01.0", "1.0", false},
+		{"1.0", "1", false},
+		{"1.0", "1.0.0", false},
+	} {
+		m := Manifest{Interfaces: map[string]string{"runtime": "2"}}
+		if tc.provided != "" {
+			m.Interfaces["menu.fes.video.menu-display"] = tc.provided
+		}
+		e := m.Accepts(map[string]string{"menu.fes.video.menu-display": tc.required})
+		if (e == nil) != tc.ok || (e != nil && !errors.Is(e, ErrIncompatible)) {
+			t.Errorf("provided %q required %q: %v", tc.provided, tc.required, e)
+		}
+	}
+	m := Manifest{Interfaces: map[string]string{"menu.a": "1.0", "menu.b": "1.0"}}
+	if e := m.Accepts(map[string]string{"menu.a": "1.0", "menu.c": "1.0", "menu.d": "1.0"}); e == nil || !strings.Contains(e.Error(), "menu.c 1.0") {
+		t.Fatal("first missing interface not reported in key order", e)
+	}
+}
+
+func TestRequiredInterfacesGateInstallAndPath(t *testing.T) {
+	menu := map[string]string{"runtime": "2", "menu.fes.video.fixed-720p60": "1.0", "menu.fes.video.menu-display": "1.0"}
+	m, b := fixtureWith(t, menu)
+	base := compatibility(m)
+	// A base that requires nothing, such as one whose supervisor predates
+	// Requires, matches only its own interfaces and ignores the menu keys.
+	if e := m.Compatible(base); e != nil {
+		t.Fatal("menu interfaces broke the base interface match", e)
+	}
+	base.Requires = map[string]string{"menu.fes.video.fixed-720p60": "1.0", "menu.fes.video.menu-display": "1.0"}
+	if e := m.Compatible(base); e != nil {
+		t.Fatal("accepted requirements refused", e)
+	}
+	root := privateRoot(t)
+	s, e := New(root, base)
+	if e != nil {
+		t.Fatal(e)
+	}
+	r, _, e := s.Install(context.Background(), bytes.NewReader(b))
+	if e != nil {
+		t.Fatal(e)
+	}
+	base.Requires["menu.fes.video.menu-blitter"] = "1.0"
+	newer, e := New(root, base)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if _, e = newer.Path(context.Background(), r.ID); !errors.Is(e, ErrIncompatible) || !strings.Contains(e.Error(), "menu.fes.video.menu-blitter 1.0") {
+		t.Fatal("release lacking a required interface admitted", e)
+	}
+	if _, e = newer.Read(context.Background(), r.ID); e != nil {
+		t.Fatal("held-back release cannot be inspected", e)
+	}
+	_, older := fixture(t)
+	if _, _, e = newer.Install(context.Background(), bytes.NewReader(older)); !errors.Is(e, ErrIncompatible) {
+		t.Fatal("release without menu interfaces installed on a base that requires them", e)
 	}
 }
 

@@ -1,0 +1,36 @@
+{
+  "gold_revision": "3dd3f857d3ce05d662deaa110bfac5fbc89b157f",
+  "gate_revision": "2b79837a23a765c57817ab094338cb6809a55c61",
+  "hardware_execution": false,
+  "yosys_binary_sha256": "39dd0b44cc74b7148048faee7cfd470572223b16fea8ba436889d38393b17382",
+  "source_paths": [
+    "sources/misteross/cores/fes-atari-st/rtl/st_floppy.sv",
+    "sources/misteross/cores/fes-atari-st/rtl/st_floppy_writer.sv"
+  ],
+  "gold_sha256": [
+    "cc9982f03e9a9b0e0497d25f5d26b4aa9c5da74ec7d2e3740fd33d58eace864b",
+    "a3b85a83e26b8e9dc55ca2c6179fed593cacd876a4b0c925785003eeafab48d4"
+  ],
+  "gate_sha256": [
+    "d69be01bcfffdb3cde4f9d6bd92f78ce037cb93e19daa3489978d785e6d7f3d2",
+    "4fc3b9e4a63f317b0b1a9bd40be6fbacfdd1ad4094f9c2d34083b6925c0a6680"
+  ],
+  "combined_formal_input_sha256": "da3997f2d8b6daf3a258ab0126e38d7fa2e881e991d82bb0b7eb323da24a643d",
+  "configurations": [
+    {
+      "ENABLE_WRITE": 1,
+      "proven_points": 4823,
+      "unproven_points": 0,
+      "base_case_cycles": 4,
+      "base_case": "SUCCESS"
+    },
+    {
+      "ENABLE_WRITE": 0,
+      "proven_points": 4823,
+      "unproven_points": 0,
+      "base_case_cycles": 4,
+      "base_case": "SUCCESS"
+    }
+  ],
+  "scope": "st_floppy with st_floppy_writer, all state and outputs, same clock/reset/input sequences. Step: equiv_simple over three time steps from any equal matched state, empty blacklist; the new registers (dma_address_valid, the writer's dma_addr) match the gold wires of the same name. Base case: every shared signal except the sector words, whose write port is compared instead, for four cycles from power-up, initial values zeroed, inputs free."
+}

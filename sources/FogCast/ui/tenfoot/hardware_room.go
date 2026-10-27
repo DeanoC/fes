@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/rooms"
@@ -41,23 +42,36 @@ func (s roomServices) SelectCoreEntryExpansion(ctx context.Context, gameID, pack
 }
 
 func (a *App) playingHardwareRoomAvailableLocked() bool {
-	if !a.liveControlsOfferedLocked() || a.session.State != "active" || a.sessionDisplayBusy || a.stopPhase == "stopping" || a.retryStopLock || a.roomsIndex == nil {
+	if !a.liveControlsOfferedLocked() || a.session.State != "active" || a.sessionDisplayBusy || a.stopPhase == "stopping" || a.retryStopLock {
+		return false
+	}
+	if a.needsSessionDisplayLocked() && a.sessionLiveMediaOfferedLocked() {
+		return true
+	}
+	if a.roomsIndex == nil {
 		return false
 	}
 	pack, ok := a.roomsIndex.Find(hardwareRoomID)
 	return ok && pack.Valid()
 }
 
-// openPlayingHardwareRoomLocked changes only launcher presentation. The live
-// room instance, session and kit lease survive both visits and tape changes.
+// On a kit, open the active machine's media selector directly. A host window
+// retains its hardware room. Both preserve the running session and kit lease.
 const playingHardwareRoomStatus = "Hardware room · the machine is still running"
 
 func (a *App) openPlayingHardwareRoomLocked() {
 	if !a.playingHardwareRoomAvailableLocked() {
 		return
 	}
-	if a.kitSessionDisplayPlaneLocked() && !a.sessionDisplayVisible {
-		a.beginSessionDisplayLocked(true, false)
+	if a.kitSessionDisplayPlaneLocked() && !a.launcherDisplayFocusedLocked() {
+		a.beginSessionDisplayLocked(protocol.SessionDisplayFocused, false)
+		return
+	}
+	if a.needsSessionDisplayLocked() && a.sessionLiveMediaOfferedLocked() {
+		a.roomDuringPlay = true
+		a.mediaControlsDirect = true
+		a.syncGPUParkLocked()
+		a.openTapePickerLocked()
 		return
 	}
 	a.releasePlayHIDLocked()
@@ -67,9 +81,10 @@ func (a *App) openPlayingHardwareRoomLocked() {
 	if a.room == nil {
 		a.openRoomLocked(hardwareRoomID)
 	} else if a.room.ID() != hardwareRoomID {
-		a.openNestedRoomLocked(hardwareRoomID)
+		a.openNestedRoomLocked(hardwareRoomID, "")
 	} else {
 		// Reused rooms retain focus but must refresh their pre-launch snapshot.
+		a.room.SetOverlay(a.roomOverlayLocked())
 		a.room.Resume()
 		a.dropRoomNavActionsLocked()
 	}
@@ -87,8 +102,8 @@ func (a *App) resumeRoomSessionLocked() {
 	if !a.roomDuringPlay || a.tapePickerBusy {
 		return
 	}
-	if a.kitSessionDisplayPlaneLocked() && a.sessionDisplayVisible {
-		a.beginSessionDisplayLocked(false, false)
+	if a.kitSessionDisplayPlaneLocked() && a.launcherDisplayFocusedLocked() {
+		a.beginSessionDisplayLocked(a.sessionReturnDisplayLocked(), false)
 		return
 	}
 	a.finishRoomSessionResumeLocked()
@@ -101,6 +116,7 @@ func (a *App) finishRoomSessionResumeLocked() {
 	a.closeRoomOverlaysLocked()
 	a.roomPickerOpen = false
 	a.roomDuringPlay = false
+	a.mediaControlsDirect = false
 	a.repeat.Clear()
 	a.hold.Clear()
 	a.syncGPUParkLocked()
@@ -268,7 +284,10 @@ func (a *App) releasePlayHIDLocked() {
 }
 
 func hardwareRoomWord(kind InputKind) string {
-	if kind == InputKeyboard || kind == InputMouse {
+	if kind == InputKeyboard {
+		return "Home or F12"
+	}
+	if kind == InputMouse {
 		return "Home"
 	}
 	return "SELECT"

@@ -172,7 +172,10 @@ class AtariSTProducerTests(unittest.TestCase):
             st.build_commands(ROOT, ROOT / st.OUTPUT_RELATIVE, '0' * 32, tools, video_output='scanlines')
         self.assertIn('fx68k-slang.sv', command[-1])
         self.assertNotIn('--ignore-initial', command[-1])
-        self.assertIn('-nolutram -nodsp', command[-1])
+        self.assertIn('synth_intel_alm -nolutram -top top;', command[-1])
+        self.assertNotIn('-nodsp', command[-1])
+        self.assertEqual(st.DSP_RESOURCES & st.FORBIDDEN_RESOURCES, frozenset())
+        self.assertIn('MISTRAL_MUL18X19', st.FORBIDDEN_RESOURCES)
         for name, bel in st.CACHE_BELS.items():
             self.assertIn(f'setattr -set BEL "{bel}" top/{name};', command[-1])
         qsf = st.socket_qsf('# physical board pins\n')
@@ -181,6 +184,10 @@ class AtariSTProducerTests(unittest.TestCase):
         for rectangle in st.VIDEO_RAM_GUARD_RESERVATIONS:
             self.assertEqual(qsf.count(f'FES_RESERVED_RECT "{rectangle}"'), 1)
         self.assertEqual(qsf.count(f'FES_RESERVED_RECT "{atari_st_video_parts.PLACEMENT}"'), 1)
+        self.assertEqual(qsf.count('-name PLACE_REGION "X20 Y0 X89 Y81" -to video.native_capture.capture\n'), 1)
+        self.assertEqual(qsf.count('-name PLACE_REGION "X0 Y0 X89 Y81" -to "video.native_capture.capture.output_pipe*"'), 1)
+        self.assertEqual(qsf.count('-name PLACE_REGION "X10 Y28 X38 Y56" -to video.renderer\n'), 1)
+        self.assertEqual(qsf.count('-name PLACE_REGION "X10 Y28 X38 Y56" -to "video_request*"'), 1)
         self.assertIn('--router', route)
         self.assertEqual(route[route.index('--router') + 1], 'gpu')
         self.assertEqual(route[route.index('--seed') + 1], '4')

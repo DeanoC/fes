@@ -717,9 +717,10 @@ one DONE response, with stable address/data until completion. Reset cancels
 pending work and must also reset the downstream storage and ISA participants.
 The optional `pcxt_memory.sv` backend above connects this port to SDRAM.
 
-The MIT-licensed [KF8259](vendor/kf8259/README.md) and
-[KF8253](vendor/kf8253/README.md) and [KF8255](vendor/kf8255/README.md) imports are pinned to the same upstream commit
-as the CPU. PIC ports `20–3F` use A0; PIT ports `40–5F` and PPI ports `60–7F`
+The MIT-licensed [KF8259](../fes-common/vendor/kf8259/README.md) and
+[KF8253](../fes-common/vendor/kf8253/README.md) and [KF8255](vendor/kf8255/README.md) imports are pinned to the same upstream commit
+as the CPU. The PIC and PIT live in `fes-common` because pc386 shares them; the
+PC/XT instantiates the KF8253 as an 8253 (`READ_BACK = 0`). PIC ports `20–3F` use A0; PIT ports `40–5F` and PPI ports `60–7F`
 use A1:0. All ignore
 A15:10, matching the XT motherboard decode. INTA bypasses I/O decode and drives
 the real PIC's two-pulse sequence. IRQ0 comes from PIT channel 0, IRQ1 from the
@@ -782,7 +783,8 @@ adapter; they are not connected to the production audio shell. Fixed gain
 introduces at most four counts of window-length jitter. This development
 filter has no measured analog-speaker fidelity claim.
 
-`pcxt_dma.sv` is original transaction-native RTL implementing the XT subset
+[`fes_dma8237.sv`](../fes-common/rtl/fes_dma8237.sv), shared with pc386, is
+original transaction-native RTL; its default parameters implement the XT subset
 of the [Intel 8237A](https://read.seas.harvard.edu/~kohler/class/04f-aos/ref/hardware/8237A.pdf).
 Controller registers occupy `00–1F` (A3:0), with A15:10 ignored. `80–9F`
 (A1:0) selects write-only four-bit XT page latches; reads return `FF`.

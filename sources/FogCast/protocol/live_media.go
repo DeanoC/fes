@@ -1,6 +1,7 @@
 package protocol
 
 import (
+	"errors"
 	"path/filepath"
 	"strings"
 )
@@ -58,6 +59,18 @@ func AdmitTapeMediaSize(size int64) bool {
 	return size >= 1 && size <= MaxDevelopmentMediaBytes
 }
 
+// MaxRemovableMediaBytes bounds one image for every unit the running media
+// selector changes, including the legacy blob mailbox. A Spectrum tape image
+// is bounded before the host converts it to the unit's PZX stream.
+const MaxRemovableMediaBytes = max(MaxDevelopmentMediaBytes, Zx81TapeMaxBytes, SpectrumTapeImageMaxBytes,
+	Apple2FloppyBytes, C64DiskBytes, AtariStFloppyBytes, AtariStFloppyGeometryMaxBytes)
+
+// AdmitRemovableMediaSize bounds a kit launcher import. The running unit
+// still applies its own format and size limits on insert.
+func AdmitRemovableMediaSize(size int64) bool {
+	return size >= 1 && size <= MaxRemovableMediaBytes
+}
+
 // MatchesLive admits the legacy mailbox generation. A fes.computer ZX81 tape
 // insert uses the media unit and does not pass this mailbox check.
 func (b DevelopmentMediaBinding) MatchesLive(s Status) bool {
@@ -70,13 +83,41 @@ func (b DevelopmentMediaBinding) MatchesLive(s Status) bool {
 }
 
 func LiveMediaRequestError() *APIError {
-	return &APIError{Code: CodeBadRequest, Message: "live media requires a .p/.P tape of 1..16384 bytes and a package generation", Phase: "request"}
+	return &APIError{Code: CodeBadRequest, Message: "live media requires a .p/.P tape of 1..16384 bytes and a package generation", Phase: "request", NoChange: true}
 }
 
 func LiveMediaIdentityError() *APIError {
-	return &APIError{Code: CodeBusy, Message: "live media requires the current active simple-computer media-capable package generation", Phase: "admission"}
+	return &APIError{Code: CodeBusy, Message: "live media requires the current active simple-computer media-capable package generation", Phase: "admission", NoChange: true}
 }
 
 func LiveMediaBusyError() *APIError {
-	return &APIError{Code: CodeBusy, Message: "tape loader is busy; retry after LOAD finishes", Phase: "input"}
+	return &APIError{Code: CodeBusy, Message: "tape loader is busy; retry after LOAD finishes", Phase: "input", NoChange: true}
+}
+
+// LiveMediaInputUncertainError stays retryable but does not claim that the
+// current media survived an unstable input exchange.
+func LiveMediaInputUncertainError() *APIError {
+	return &APIError{Code: CodeBusy, Message: "live media input outcome is uncertain; retry after checking the machine", Phase: "input"}
+}
+
+// LiveMediaNoChange reports whether a failed live-media mutation explicitly
+// guarantees that the mounted medium was left alone.
+func LiveMediaNoChange(err error) bool {
+	var apiErr *APIError
+	return errors.As(err, &apiErr) && apiErr.NoChange
+}
+
+// LiveMediaRetryError preserves uncertainty from an earlier failed attempt
+// when a later retry returns a definite no-change rejection.
+func LiveMediaRetryError(err error, priorUncertain bool) error {
+	if !priorUncertain || !LiveMediaNoChange(err) {
+		return err
+	}
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		return err
+	}
+	copy := *apiErr
+	copy.NoChange = false
+	return &copy
 }

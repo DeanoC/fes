@@ -1,6 +1,7 @@
 package tenfoot
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -61,7 +62,7 @@ func TestInstalledRoomLiveUpdateAndFailedUpdateKeepWorkingInstance(t *testing.T)
 	}
 	second := installedTestRoom(t, root, "live", "Second", "function load() assert(store.get('keep') == 'v1'); store.set('keep', 'v2') end; function draw() gfx.text('new', 1, 1) end")
 	app.session.State = "active"
-	app.openInstalledRoomLocked(second, true)
+	app.openInstalledRoomLocked(second, true, "")
 	if app.room != original {
 		t.Fatal("room replacement disturbed active play")
 	}
@@ -136,7 +137,7 @@ func TestHomeRefreshesUpdatedRoomAndKeepsWorkingInstanceOnFailedTrial(t *testing
 		t.Fatalf("home did not load the changed selection: %s", app.status)
 	}
 	working := app.room
-	app.openNestedRoomLocked("home-child")
+	app.openNestedRoomLocked("home-child", "")
 	if app.room == nil || app.room.ID() != "home-child" || len(app.roomStack) != 1 || app.roomStack[0] != working {
 		t.Fatalf("nested room did not keep the current home: %s", app.status)
 	}
@@ -224,8 +225,104 @@ func TestInstalledNestedRoomKeepsParent(t *testing.T) {
 	defer app.closeAllRoomsLocked()
 	app.openRoomLocked("parent")
 	original := app.room
-	app.openNestedRoomLocked("child")
+	app.openNestedRoomLocked("child", "")
 	if app.room == nil || app.room.ID() != "child" || len(app.roomStack) != 1 || app.roomStack[0] != original {
 		t.Fatalf("nested room lost parent: %s", app.status)
 	}
+}
+
+func TestNestedRoomReceivesInitialGameID(t *testing.T) {
+	root := t.TempDir()
+	parent := installedTestRoom(t, root, "parent", "Parent", "function on_input(cmd) if cmd == 'select' then rooms.open('child', {game_id = 'c64-second'}) return true end return false end; function draw() end")
+	child := installedTestRoom(t, root, "child", "Child", "function draw() end")
+	h := newRoomHost(t)
+	app := NewApp(NewClient(h.server.URL, h.server.Client()), 1280, 720, 50)
+	app.SetRooms(rooms.NewIndex([]rooms.Pack{parent, child}), root)
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	defer app.closeAllRoomsLocked()
+	app.openRoomLocked("parent")
+	if app.room == nil || !app.room.Input("select") {
+		t.Fatal("parent did not handle selection")
+	}
+	app.applyRoomActionsLocked()
+	if app.room == nil || app.room.ID() != "child" {
+		t.Fatalf("child room did not open: %s", app.status)
+	}
+	if err := app.room.CheckGlobal("room.initial_game_id == 'c64-second'"); err != nil {
+		t.Fatalf("child did not receive its selected game: %v", err)
+	}
+}
+
+func TestFirstPartyHomeUpdatesLuaAndAssetsInTheSameLauncher(t *testing.T) {
+	root, source := t.TempDir(), t.TempDir()
+	manifest, err := os.ReadFile("../rooms/examples/fes-cores/room.toml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(source, "room.toml"), manifest, 0600); err != nil {
+		t.Fatal(err)
+	}
+	install := func(label string) rooms.Pack {
+		t.Helper()
+		script := "function draw() gfx.text('" + label + "', 1, 1) end"
+		for name, data := range map[string]string{"main.lua": script, "art.txt": label + " artwork"} {
+			if err := os.WriteFile(filepath.Join(source, name), []byte(data), 0600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		pack, err := rooms.Install(root, source)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return pack
+	}
+	h := newRoomHost(t)
+	app := NewApp(NewClient(h.server.URL, h.server.Client()), 1280, 720, 50)
+	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
+	app.SetRooms(rooms.NewIndex(rooms.Examples()), root)
+	app.SetHomeRooms(true)
+	app.SetHomeRoom("example.fes-cores")
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	defer app.closeAllRoomsLocked()
+	if !app.openHomeRoomAsRootLocked() || app.room == nil {
+		t.Fatalf("built-in Home: %s", app.status)
+	}
+	original := app.room
+	first := install("first")
+	if app.room != original {
+		t.Fatal("install replaced the running room before reopen")
+	}
+	reopen := func(want rooms.Pack, label string) {
+		t.Helper()
+		app.openRoomPickerLocked()
+		app.activateHomeRowLocked(RoomPickerRow{ID: "example.fes-cores", Kind: HomeKindRoom})
+		if app.room == nil || app.room.Revision() != want.Revision {
+			t.Fatalf("Home did not load installed snapshot: %s", app.status)
+		}
+		frame := app.room.Frame()
+		if len(frame.Ops) != 1 || frame.Ops[0].Text != label {
+			t.Fatalf("updated Lua did not render: %#v", frame.Ops)
+		}
+	}
+	reopen(first, "first")
+	working := app.room
+	second := install("second")
+	if app.room != working {
+		t.Fatal("asset update disturbed the working instance")
+	}
+	oldArt, err := fs.ReadFile(first.FS, "art.txt")
+	if err != nil || string(oldArt) != "first artwork" {
+		t.Fatalf("old asset changed: %q %v", oldArt, err)
+	}
+	newArt, err := fs.ReadFile(second.FS, "art.txt")
+	if err != nil || string(newArt) != "second artwork" {
+		t.Fatalf("new asset missing: %q %v", newArt, err)
+	}
+	reopen(second, "second")
+	if err := rooms.Rollback(root, "example.fes-cores", ""); err != nil {
+		t.Fatal(err)
+	}
+	reopen(first, "first")
 }

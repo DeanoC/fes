@@ -9,6 +9,7 @@ a dated record. A dated record is not the schedule.
 | --- | --- |
 | Design or implement the FES user experience | [FES UX design](ux/README.md), [native references and Library target](ux/references/README.md), [concepts](ux/concepts/README.md), [acceptance](ux/acceptance.md) |
 | See which cores exist, their ABI, interfaces and standing | [Core status](core-status.md) |
+| Read the accepted Quartus-built core policy and its implementation status (#1163) | [Quartus-built cores](design/quartus-cores.md) |
 | See whether cores match current FPGA choices, and the retirement order | [Core alignment](core-alignment.md) |
 | Set up a checkout and run the host | [Getting started](getting-started.md) |
 | Change code: worktree, builds, handoff | [Development](development.md), then [agent workflow](agent-workflow.md) |
@@ -53,7 +54,8 @@ Use these when the start-here page names the job and you need the steps.
 | Read source, CI, build and hardware evidence | [Status](status.md) |
 | Run only the tests a change affects | [Focused tests](test-changed.md) |
 | Rooms / Stop-idle design that is not built yet | [Idle MENU → rooms](idle-menu-rooms.md), [phase 2](idle-menu-rooms-phase2.md). Present tense on that page, outside “What is true now”, still describes the old MENU idle (`menu.rbf`, `mister_v1`). Current idle install paths are [image assembly](image-assembly.md) and `image/build/native-inputs.toml`. |
-| Mesh LAN product, node protocol, and phase execution | [Mesh LAN](mesh-lan.md), [node protocol](mesh-node-protocol.md), [phase 1](mesh-phase1.md), [phase 2](mesh-phase2.md), [phase 3](mesh-phase3.md), [v-next plan](mesh-vnext.md) |
+| The kit as its own host: sources, sessions, what the mesh drafts still mean | [Mesh under kit-as-host](mesh-kit-host.md) (22 Oct 2026 decisions, #863) |
+| Earlier mesh drafts, historical on the kit side | [Mesh LAN](mesh-lan.md), [node protocol](mesh-node-protocol.md), [phase 1](mesh-phase1.md), [phase 2](mesh-phase2.md), [phase 3](mesh-phase3.md), [v-next plan](mesh-vnext.md) |
 | See when a soft restart asks for a board reboot | [Soft-restart Path B](soft-restart-path-b.md). The kit check in that note is on hold. |
 
 ## Not current instructions
@@ -88,6 +90,18 @@ The [BIG loader diagnosis](validation/2026-10-08-atari-st-big-loader.md) records
 The [Atari ST interaction record](validation/2026-10-04-atari-st-interaction.md)
 binds mouse and writable-disk software checks, the original GEMDOS guest
 diagnostic, sealed video parts, and the unresolved physical byte-write failure.
+
+The [pc386 M2 record](validation/2026-10-26-pc386-m2-vga/summary.md) binds the
+RTL VGA, capture, 720p presenter and display plane on DDR port 2 in host
+simulation (VGA BIOS text, mode 13h and mode Y at 720p, the VGA trace replay
+against Bochs's VGA) and the first machine-only synthesis figures. Like the
+[M1 record](validation/2026-10-26-pc386-m1-freedos-boot/summary.md), it is
+host-only evidence: no routed result, package or kit.
+
+The [pc386 M3 audio record](validation/2026-10-26-pc386-m3-audio/summary.md)
+checks the OPL2 sample for sample against Nuked-OPL3, the Sound Blaster DSP's
+DMA and IRQ sequences, and start-up audio from the sound exercise and games
+on the oracle machine. It is host-only simulation evidence.
 
 Ownership that has already landed is [component boundaries](component-boundaries.md)
 and the [project map](project-map.md). [Structure](fes-structure.md) only
