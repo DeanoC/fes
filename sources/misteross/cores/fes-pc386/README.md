@@ -2,11 +2,12 @@
 
 The AT-class 386 PC of the [pc386 machine design](../../docs/pc386-machine-design.md),
 built around [`fes_i386_cpu`](../fes-common/rtl/i386/). This directory holds
-phases M1 and M2: the AT core, the firmware build, the register-level VGA with
+phases M1, M2 and M3: the AT core, the firmware build, the register-level VGA with
 its capture writer, the 720p presenter, the display plane on DDR port 2, and a
-simulation of the machine with the Bochs oracle standing in for the CPU. There
-is no audio, no shell, no package and no kit evidence. Everything here is a
-host-only check, plus diagnostic synthesis.
+simulation of the machine with the Bochs oracle standing in for the CPU. The
+speaker, OPL2, Sound Blaster 2.0 DSP and mixer are checked beside the AT core.
+There is no shell, package or kit evidence. Everything here is a host-only
+check, plus diagnostic synthesis.
 
 ## Layout
 
@@ -27,9 +28,20 @@ host-only check, plus diagnostic synthesis.
 | [`rtl/pc386_port2.sv`](rtl/pc386_port2.sv) | DDR port 2 arbiter: plane, presenter, capture |
 | [`rtl/pc386_machine.sv`](rtl/pc386_machine.sv) | The machine without the CPU: AT core, VGA, presenter, port 2, display plane |
 | [`rtl/pc386_ram.sv`](rtl/pc386_ram.sv) | Inferred RAMs and FIFOs: one clock, two clocks, show-ahead |
+| [`rtl/pc386_audio.sv`](rtl/pc386_audio.sv) | Audio beside the AT core: the OPL2 and DSP on its sound port, IRQ routing, the mixer |
+| [`rtl/pc386_opl2.sv`](rtl/pc386_opl2.sv) | OPL2: the [opl2_fpga import](vendor/opl2_fpga/README.md) behind the AdLib port, with status, timers and the 49,715.9 Hz enable |
+| [`rtl/pc386_sb.sv`](rtl/pc386_sb.sv) | Sound Blaster 2.0 DSP, version 2.01: commands, DMA on channel 1, IRQ |
+| [`rtl/pc386_mixer.sv`](rtl/pc386_mixer.sv) | Box-filter resampler of speaker, OPL2 and DSP to 48 kHz, gains, DC blocker |
+| [`vendor/opl2_fpga/`](vendor/opl2_fpga/README.md) | The YM3812 import (LGPL-3.0), with the local changes that make it sample-exact |
+| [`vendor/nuked-opl3/`](vendor/nuked-opl3/README.md) | Nuked-OPL3 (LGPL-2.1), the OPL2 reference in simulation only |
 | [`firmware/`](firmware/) | Bochs ROM BIOS and LGPL VGABios sources, `source.json` manifests, `firmware.lock` |
 | [`sim/machine_tb.cpp`](sim/machine_tb.cpp) | `pc386_machine` with the Bochs oracle as CPU, guest memory and DDR models; records VGA traces and frames |
 | [`sim/devices_tb.cpp`](sim/devices_tb.cpp) | Directed checks of the AT core through its I/O port |
+| [`sim/audio_tb.cpp`](sim/audio_tb.cpp) | Directed checks of the DSP, the OPL2's AdLib port and the mixer, through the AT core |
+| [`sim/opl2_tb.cpp`](sim/opl2_tb.cpp) | The OPL2 against Nuked-OPL3, sample for sample, on random programs and captured port logs |
+| [`sim/audio_link.h`](sim/audio_link.h), [`sim/opl2_reference.h`](sim/opl2_reference.h) | The AT core and audio models joined as wires; the Nuked-OPL3 stepper |
+| [`sim/sound.asm`](sim/sound.asm) | SOUND.COM, the start-up exercise the sound suite runs at the FreeDOS prompt |
+| [`sim/fixtures/`](sim/fixtures/) | The OPL2 port writes the sound suite captured, replayed by the opl2 suite |
 | [`sim/vga_replay_tb.cpp`](sim/vga_replay_tb.cpp), [`sim/vga_replay_top.sv`](sim/vga_replay_top.sv) | Replays a VGA trace into the RTL VGA and Bochs's VGA and compares reads, VRAM and frames |
 | [`sim/vga_reference.cpp`](sim/vga_reference.cpp), [`sim/vga_reference.h`](sim/vga_reference.h) | The reference: Bochs's `vgacore.cc` and GUI renderer behind a small interface |
 | [`sim/vga_divergences.toml`](sim/vga_divergences.toml) | Every Bochs-versus-RTL VGA divergence with its deciding case |
@@ -49,8 +61,11 @@ shared [`fes_dma8237.sv`](../fes-common/rtl/fes_dma8237.sv) with AT parameters.
 python3 scripts/build_pc386_firmware.py --download     # dev86, then both ROMs, checked against the lock
 python3 scripts/build_pc386_freedos_image.py --download  # the FreeDOS fixture in build/
 python3 scripts/sim_fes_pc386.py --suite devices        # directed device checks, about 10 s
+python3 scripts/sim_fes_pc386.py --suite audio          # DSP, OPL2 timers, mixer, about 1 min
+python3 scripts/sim_fes_pc386.py --suite opl2           # OPL2 against Nuked-OPL3, about 30 s
 python3 scripts/sim_fes_pc386.py --suite benches        # presenter, capture overflow recovery and display plane on port 2
 python3 scripts/sim_fes_pc386.py --suite boot --download  # BIOS POST to the FreeDOS prompt and its VGA replay
+python3 scripts/sim_fes_pc386.py --suite sound --download  # boot, then SOUND.COM; writes sound.wav
 python3 scripts/sim_fes_pc386.py --suite vga              # presenter, capture and plane benches, VGA test disk, replay
 python3 scripts/synth_fes_pc386.py --cache-root /abs/out/cache/misteross-toolchains  # machine-only synthesis
 ```
@@ -67,6 +82,15 @@ suite writes the marked captures and 720p frames as PPM files in `frames/`.
 The boot takes about 7 minutes of wall time and its replay one more; the vga
 suite about 6 minutes in all. `PC386_TRACE_IO=1` makes `machine_tb` print every I/O but port
 80h.
+
+`make sim-fes-pc386` runs the directed device, audio and OPL2 checks plus the
+presenter, capture and display-plane benches. The sound suite boots the same
+FreeDOS fixture, runs SOUND.COM, checks the OPL2 samples against Nuked-OPL3,
+and checks the speaker and DSP tones in the 48 kHz output. It writes
+`build/sim/fes-pc386/sound/sound.wav`, section measurements and the captured
+OPL2 port log. The game suite starts Wolfenstein 3D or Ultima VI from
+`$FES_PC386_GAMES` and reports its audio activity; the supplied game files and
+captures stay outside the repository.
 
 ## Simulation model
 
@@ -93,6 +117,37 @@ suite about 6 minutes in all. `PC386_TRACE_IO=1` makes `machine_tb` print every 
   in the next clock. The geometry is inferred from the first partition entry's
   end CHS, as FogCast will.
 - **Clock.** 100 MHz; every guest rate is a rational enable of it.
+
+## Audio
+
+[`pc386_audio`](rtl/pc386_audio.sv) sits beside the AT core, as the design's
+block diagram has it: the AT core decodes the Sound Blaster's base range and
+388h-389h onto a sound port (isa8 cycles), takes DREQ1 into its 8237 and the
+DSP's IRQ into its PICs, and hands out the speaker level. The benches Verilate
+the two as separate models and join them in [`audio_link.h`](sim/audio_link.h)
+as wires would; the machine top level will instantiate both.
+
+- **OPL2.** Sample-exact against Nuked-OPL3's default build in OPL2 mode; the
+  [import README](vendor/opl2_fpga/README.md) lists the local changes. Register
+  writes reach the import only between samples (it computes for 72 clocks of
+  each 2,011); one that arrives meanwhile waits in a four-entry queue. Timer 1
+  counts every 4 samples (80.5 us) and timer 2 every 16 (321.8 us). Status
+  reads {IRQ, T1, T2, 00110b}; the data port reads FFh. Register 01h bit 5 and
+  CSM mode are not modelled, as in Nuked-OPL3.
+- **DSP.** The commands and behaviour of the
+  [design's table](../../docs/pc386-machine-design.md#sound-blaster-20-dsp),
+  plus 80h, E4h and E8h. Reset completes 20 us after release; F2h's IRQ comes
+  10 us after the command; the status ports read AAh and 2Ah; odd ports alias
+  the even one below. The DSP's settings after reset: time constant D3h
+  (22.2 kHz), block size 2048, speaker off.
+- **Mixer.** OPL2 and DSP at half scale, speaker at 16384 when on, integrated
+  per 48 kHz period at system-clock resolution and divided by the period's
+  length, then a DC blocker near 30 Hz and saturation. The benches make the
+  48 kHz request from a rational enable; the shell will take it from the I2S
+  output's frame request.
+- **Reset.** The import's registers and register memories start at their
+  declared initial values; only the machine reset (a launch)
+  restarts the audio, as the AdLib's IC pin did. A CPU reset does not.
 
 ## Recorded behaviour and deviations
 
@@ -159,5 +214,5 @@ suite about 6 minutes in all. `PC386_TRACE_IO=1` makes `machine_tb` print every 
 The HID nine-row keyboard model and typematic repeat; the `fes.mouse.relative`
 and `fes.computer` mailbox wiring (disk prepare, commit with CRC, freeze,
 DiskDirty read-out, persistence, wall clock, display plane commands); the ATA
-image on DDR port 2 (it keeps its own 64-bit image port); the shell, audio and
-the producer (phases M3-M5).
+image on DDR port 2 (it keeps its own 64-bit image port); the shell and the
+producer (phases M4-M5).

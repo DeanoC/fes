@@ -1,0 +1,186 @@
+{
+  "post": [
+    {
+      "code": "00",
+      "cycle": 11397
+    },
+    {
+      "code": "21",
+      "cycle": 2470979
+    },
+    {
+      "code": "31",
+      "cycle": 2571175
+    },
+    {
+      "code": "41",
+      "cycle": 2971375
+    },
+    {
+      "code": "71",
+      "cycle": 3072483
+    },
+    {
+      "code": "77",
+      "cycle": 3172509
+    }
+  ],
+  "debug": [
+    {
+      "port": "402",
+      "text": "BIOS BUILD DATE: 10/26/26"
+    },
+    {
+      "port": "500",
+      "text": "VGABios ID: vgabios.c 2026-08-07"
+    },
+    {
+      "port": "402",
+      "text": "ata0-0: PCHS=65/16/63 translation=none LCHS=65/16/63"
+    },
+    {
+      "port": "402",
+      "text": "IDE time out"
+    },
+    {
+      "port": "402",
+      "text": "Booting from 0000:7c00"
+    }
+  ],
+  "panic": [],
+  "io": {
+    "isa16 2": {
+      "38": 361472
+    },
+    "isa8 1": {
+      "74": 827617
+    },
+    "vga 1": {
+      "3": 31076216
+    },
+    "vga 2": {
+      "5": 109899
+    }
+  },
+  "inta": {
+    "146": 15047
+  },
+  "screen": [
+    "Bochs VGABios 0.9d 26 Oct 2026                                                  ",
+    "This VGA/VBE Bios is released under the GNU LGPL                                ",
+    "                                                                                ",
+    "Please visit :                                                                  ",
+    " . https://bochs.sourceforge.io                                                 ",
+    " . https://www.nongnu.org/vgabios                                               ",
+    "                                                                                ",
+    "Bochs 3.1 BIOS - build: 10/26/26                                                ",
+    "Options: eltorito                                                               ",
+    "                                                                                ",
+    "ata0 master: FES pc386 ATA disk ATA-4 Hard-Disk (  31 MBytes)                   ",
+    "ata0  slave: Unknown device                                                     ",
+    "                                                                                ",
+    "Booting from Hard Disk...                                                       ",
+    "................................................................................",
+    "FreeDOS kernel 2043 (build 2043 OEM:0xfd) [compiled May 14 2021]                ",
+    "Kernel compatibility 7.10 - WATCOMC - 80386 CPU required - FAT32 support        ",
+    "                                                                                ",
+    "(C) Copyright 1995-2012 Pasquale J. Villani and The FreeDOS Project.            ",
+    "All Rights Reserved. This is free software and comes with ABSOLUTELY NO         ",
+    "WARRANTY; you can redistribute it and/or modify it under the terms of the       ",
+    "GNU General Public License as published by the Free Software Foundation;        ",
+    "either version 2, or (at your option) any later version.                        ",
+    "C: HD1, Pri[ 1], CHS=    0-1-1, start=     0 MB, size=    31 MB                 ",
+    "                                                                                "
+  ],
+  "end": {
+    "reason": "limit",
+    "steps": 557261033,
+    "cycles": 2400000001,
+    "seconds": 24.0
+  },
+  "prompt_cycle": null,
+  "cpu_resets": 0,
+  "marks": {},
+  "opl2": {
+    "samples": 1193181,
+    "exact": 1193181,
+    "nonzero": 985658,
+    "writes": 4803
+  },
+  "opl2_mismatch": null,
+  "audio_samples": 1151999,
+  "sb": {
+    "resets": 1,
+    "commands": 48,
+    "dma": 30821,
+    "irqs": 7
+  },
+  "command": [
+    "build/sim/fes-pc386/machine/obj/Vpc386_at_core",
+    "--bios",
+    "build/firmware/pc386/pc386-bios.bin",
+    "--vgabios",
+    "build/firmware/pc386/pc386-vgabios.bin",
+    "--disk",
+    "/tmp/fes-pc386-games/wolf3d/disk.img",
+    "--limit-seconds",
+    "24.0",
+    "--type",
+    "",
+    "--expect",
+    "",
+    "--wav",
+    "/tmp/fes-pc386-games/wolf3d/wolf3d.wav",
+    "--opl2-log",
+    "/tmp/fes-pc386-games/wolf3d/wolf3d-opl2.log",
+    "--keys",
+    "4.0:|",
+    "--keys",
+    "5.5:|",
+    "--keys",
+    "7.0:|",
+    "--keys",
+    "8.5:|",
+    "--keys",
+    "10.0:|",
+    "--keys",
+    "11.5:|",
+    "--keys",
+    "13.0:|",
+    "--keys",
+    "14.5:|",
+    "--keys",
+    "16.0:|",
+    "--keys",
+    "17.5:^ ",
+    "--keys",
+    "18.3:^ ",
+    "--keys",
+    "19.1:^ ",
+    "--keys",
+    "19.9:^ ",
+    "--keys",
+    "20.7:^ ",
+    "--keys",
+    "21.5:^ ",
+    "--keys",
+    "22.3:^ ",
+    "--keys",
+    "23.1:^ "
+  ],
+  "exit": 1,
+  "failures": [],
+  "game": {
+    "name": "wolf3d",
+    "zip": "/mnt/emuhd/Games/PC DOS/Collections/eXoDOS 6.04 Full/eXoDOS/eXo/eXoDOS/Wolfenstein 3D (1992).zip",
+    "sha256": "f451d8538266fb9f12a4fa8909a671b37d354de388a9b76d1c1033a6a541ed37",
+    "files": 11
+  },
+  "work": "/tmp/fes-pc386-games/wolf3d",
+  "audio": {
+    "hz": 2557.56,
+    "rms": 728.6,
+    "peak": 9220,
+    "samples": 1151999
+  }
+}

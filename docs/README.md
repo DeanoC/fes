@@ -97,6 +97,11 @@ against Bochs's VGA) and the first machine-only synthesis figures. Like the
 [M1 record](validation/2026-10-26-pc386-m1-freedos-boot/summary.md), it is
 host-only evidence: no routed result, package or kit.
 
+The [pc386 M3 audio record](validation/2026-10-26-pc386-m3-audio/summary.md)
+checks the OPL2 sample for sample against Nuked-OPL3, the Sound Blaster DSP's
+DMA and IRQ sequences, and start-up audio from the sound exercise and games
+on the oracle machine. It is host-only simulation evidence.
+
 Ownership that has already landed is [component boundaries](component-boundaries.md)
 and the [project map](project-map.md). [Structure](fes-structure.md) only
 points at those. It is not a second roadmap.
