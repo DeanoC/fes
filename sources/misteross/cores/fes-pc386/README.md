@@ -91,7 +91,8 @@ presenter, capture and display-plane benches. The sound suite boots the same
 FreeDOS fixture, runs SOUND.COM, checks the OPL2 samples against Nuked-OPL3,
 and checks the speaker and DSP tones in the 48 kHz output. It writes
 `build/sim/fes-pc386/sound/sound.wav`, section measurements and the captured
-OPL2 port log. The game suite starts Wolfenstein 3D or Ultima VI from
+OPL2 port log; `--update-fixture` copies that log to `sim/fixtures/` for the
+opl2 suite. The game suite starts Wolfenstein 3D or Ultima VI from
 `$FES_PC386_GAMES` and reports its audio activity; the supplied game files and
 captures stay outside the repository.
 
