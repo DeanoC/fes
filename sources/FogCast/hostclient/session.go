@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/misteross/expansion"
 )
 
 // SessionKitLocal reports that the kit is running a core outside the host
@@ -71,14 +72,15 @@ type SessionCoreABI struct {
 // PackageID and ABI are present on the host wire for live-media binding;
 // older fixture bodies may omit them.
 type SessionCorePackage struct {
-	PackageID        string                     `json:"package_id,omitempty"`
-	MediaUnits       []protocol.MediaUnitStatus `json:"media_units,omitempty"`
-	PersistenceMode  string                     `json:"persistence_mode,omitempty"`
-	Composition      *SessionComposition        `json:"composition,omitempty"`
-	Generation       uint64                     `json:"generation"`
-	Gamepad          bool                       `json:"gamepad"`
-	ABI              SessionCoreABI             `json:"abi"`
-	ActiveInterfaces []SessionCoreInterface     `json:"active_interfaces"`
+	PackageID        string                      `json:"package_id,omitempty"`
+	MediaUnits       []protocol.MediaUnitStatus  `json:"media_units,omitempty"`
+	PersistenceMode  string                      `json:"persistence_mode,omitempty"`
+	Composition      *SessionComposition         `json:"composition,omitempty"`
+	PartsComposition *expansion.PartsComposition `json:"parts_composition,omitempty"`
+	Generation       uint64                      `json:"generation"`
+	Gamepad          bool                        `json:"gamepad"`
+	ABI              SessionCoreABI              `json:"abi"`
+	ActiveInterfaces []SessionCoreInterface      `json:"active_interfaces"`
 	// ROMLink is the single ROM linked into this load, such as a cartridge.
 	ROMLink *SessionROMLink `json:"rom_link,omitempty"`
 	// ROMLinks are the two sources of a format-4 load: BIOS, then cartridge.

@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
+	"github.com/DeanoC/misteross/expansion"
 )
 
 // colecoKitSession is a running Coleco native shell: controller and keypad
@@ -41,6 +43,17 @@ func colecoBIOSKitSession() hostclient.SessionResult {
 	s.CorePackage.ROMLinks = &hostclient.SessionROMLinks{Sources: []hostclient.SessionROMSource{
 		{ID: "coleco-bios", Role: "firmware", SourceSize: 8192},
 		{ID: "coleco-cart", Role: "cartridge", SourceSize: 16384}}}
+	composition := expansion.PartsComposition{
+		PackageID: s.CorePackage.PackageID, Layout: expansion.ColecoNativeVideoLayout,
+		Parts:       []expansion.PartSelection{{Role: "video", PartID: strings.Repeat("b", 64)}},
+		ShellSHA256: strings.Repeat("c", 64), PayloadSHA256: strings.Repeat("d", 64), PayloadSize: 40408,
+	}
+	var err error
+	composition.ID, err = expansion.PartsCompositionID(composition.PackageID, composition.Layout, composition.Parts, composition.PayloadSHA256)
+	if err != nil {
+		panic(err)
+	}
+	s.CorePackage.PartsComposition = &composition
 	return s
 }
 
@@ -107,6 +120,17 @@ func testCartridgeSwapOverPlay(t *testing.T, session func() hostclient.SessionRe
 	waitFor(t, app, "cartridge selector over play", func(s Snapshot) bool {
 		return s.Session.ControlsOpen && !s.GPUParked && s.TapePicker.Open && s.Status == "Choose a cartridge for the running machine."
 	})
+	app.mu.Lock()
+	var gotCompositionID, gotLayout string
+	if app.session.CorePackage != nil && app.session.CorePackage.PartsComposition != nil {
+		gotCompositionID = app.session.CorePackage.PartsComposition.ID
+		gotLayout = app.session.CorePackage.PartsComposition.Layout
+	}
+	app.mu.Unlock()
+	if expected := prior.CorePackage.PartsComposition; expected != nil &&
+		(gotCompositionID != expected.ID || gotLayout != expansion.ColecoNativeVideoLayout) {
+		t.Fatalf("format-4 video-part identity was lost from the display response: id=%q layout=%q", gotCompositionID, gotLayout)
+	}
 	for _, row := range app.Snapshot().TapePicker.Rows {
 		if row.Kind == tapePickerKindEject {
 			t.Fatal("a linked cartridge offered eject")
