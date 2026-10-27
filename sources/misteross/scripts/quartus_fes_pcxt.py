@@ -31,12 +31,14 @@ if __package__ in (None, ''):
 
 from scripts.quartus_tools import locate_quartus, quartus_version_line
 from scripts.sim_fes_pcxt import SYSTEM_SOURCES
+from scripts.pcxt_quartus_mailbox import validate_mailbox
 
 ROOT = Path(__file__).resolve().parents[1]
 CORE = Path('cores/fes-pcxt')
 RTL = SYSTEM_SOURCES + (str(CORE / 'rtl/fes_pcxt_top.sv'),)
 ADAPTERS = CORE / 'quartus/adapters.v'
 AUDIT = CORE / 'quartus/audit.tcl'
+MAILBOX = CORE / 'quartus/mailbox.sdc'
 PINS = CORE / 'constraints-board50.qsf'
 DEVICE = '5CSEBA6U23I7'
 SDC = ('create_clock -name FPGA_CLK1_50 -period 20.000 [get_ports {FPGA_CLK1_50}]\n'
@@ -53,8 +55,10 @@ def input_paths(root: Path) -> list[Path]:
     tracked = subprocess.check_output(
         ['git', 'ls-files', '--', str(CORE)], cwd=root, text=True).splitlines()
     paths = set(map(Path, tracked)) | set(map(Path, RTL))
-    paths.update((ADAPTERS, AUDIT, PINS, Path('scripts/sim_fes_pcxt.py'),
-                  Path('scripts/quartus_fes_pcxt.py'), Path('scripts/quartus_tools.py')))
+    paths.update((ADAPTERS, AUDIT, MAILBOX, PINS, Path('scripts/sim_fes_pcxt.py'),
+                  Path('scripts/quartus_fes_pcxt.py'), Path('scripts/quartus_tools.py'),
+                  Path('scripts/pcxt_quartus_mailbox.py'), Path('tests/__init__.py'),
+                  Path('tests/test_pcxt_video_mailbox.py')))
     paths.update(p.relative_to(root) for p in (root / 'cores/fes-common/generated').glob('*.vh'))
     return sorted(paths)
 
@@ -161,7 +165,7 @@ def project_qsf(source: Path, seed: int, threads: int) -> str:
     return '\n'.join(lines) + '\n'
 
 
-def timing_summary(work: Path) -> dict:
+def timing_summary(work: Path, mailbox_contract: bool = False) -> dict:
     if 'PCXT_AUDIT_CAPTURE_COMPLETE' not in (work / 'audit.log').read_text():
         raise ValueError('TimeQuest capture did not complete')
     with (work / 'audit/endpoints.tsv').open() as stream:
@@ -228,23 +232,35 @@ def timing_summary(work: Path) -> dict:
                          'restricted_fmax_mhz': float(fields[3]), 'restriction': '\t'.join(fields[4:])})
     if not fmax or {r['corner'] for r in fmax} != corners:
         raise ValueError('missing Fmax observations')
+    interstage = []
+    if mailbox_contract:
+        with (work / 'audit/mailbox-interstage.tsv').open() as stream:
+            interstage = list(csv.DictReader(stream, delimiter='\t'))
+        expected = {(c, k, 'system_video_adapter_' + r + '_meta', 'system_video_adapter_' + r + '_sync')
+                    for c in corners for k in ('setup', 'hold') for r in ('ack', 'sent', 'hold')}
+        observed = [(r['corner'], r['kind'], r['from'], r['to']) for r in interstage]
+        if len(observed) != 24 or set(observed) != expected:
+            raise ValueError('missing or duplicated mailbox interstage checks')
+        if not all(math.isfinite(float(r['slack_ns'])) for r in interstage):
+            raise ValueError('invalid mailbox interstage slack')
     return {'capture_complete': True, 'by_corner_and_check': by_corner,
             'reported_endpoint_checks_pass': not any(r['failures'] for r in by_corner.values()),
             'minimum_pulse_width': pulse_width, 'timing_coverage_issues': issues,
             'clocks': clock_records, 'fmax': fmax,
+            'mailbox_interstage': interstage,
             'whole_board_qualified': False,
             'qualification_limits': ['no external IO delay contract',
                                      'no validated asynchronous source/reset contract',
                                      'no repeated-build or hardware acceptance']}
 
 
-def run(command: list[str], work: Path, log: str, record: dict) -> None:
+def run(command: list[str], work: Path, log: str, record: dict, env: dict | None = None) -> None:
     operation = {'command': command, 'cwd': str(work), 'log': log,
                  'started_utc': datetime.now(timezone.utc).isoformat()}
     record['operations'].append(operation)
     print(work.name + ': ' + log, flush=True)
     with (work / log).open('w') as stream:
-        result = subprocess.run(command, cwd=work, stdout=stream, stderr=subprocess.STDOUT)
+        result = subprocess.run(command, cwd=work, stdout=stream, stderr=subprocess.STDOUT, env=env)
     operation.update(returncode=result.returncode, completed_utc=datetime.now(timezone.utc).isoformat())
     if result.returncode:
         raise RuntimeError(f'{command[0]} failed ({result.returncode}); see {work / log}')
@@ -256,6 +272,8 @@ def main() -> int:
     parser.add_argument('--quartus-root', default=os.environ.get('QUARTUS_ROOTDIR', ''))
     parser.add_argument('--seed', type=int, action='append', help='repeat; default 1, 2, 3')
     parser.add_argument('--threads', type=int, default=2)
+    parser.add_argument('--video-mailbox-contract', action='store_true',
+                        help='prove and bind the held video mailbox before applying its scoped diagnostic SDC')
     parser.add_argument('--output', type=Path, help='new output directory; existing evidence is never overwritten')
     args = parser.parse_args()
     seeds = args.seed or [1, 2, 3]
@@ -264,6 +282,7 @@ def main() -> int:
     if args.threads < 1:
         parser.error('--threads must be positive')
     record = {'classification': 'whole-board Quartus diagnostic; not physical acceptance',
+              'toolchain': 'quartus', 'video_mailbox_contract': args.video_mailbox_contract,
               'whole_board_qualified': False, 'device': DEVICE, 'seeds': seeds,
               'profile': {'MDA': 0, 'SCANLINES': 0, 'HALF_RATE_BOARD': 1},
               'clock_targets_mhz': {'cpu': 100, 'board': 50, 'pixel': 74.25},
@@ -300,6 +319,18 @@ def main() -> int:
         record['selected_working_tree_changes'] = subprocess.check_output(
             ['git', 'status', '--porcelain', '--', *selected], cwd=ROOT, text=True).splitlines()
         source, record['sources'] = capture_sources(ROOT, output)
+        if args.video_mailbox_contract:
+            abc = yosys.with_name('yosys-abc')
+            if not abc.is_file():
+                raise ValueError('mailbox contract requires the selected Yosys installation\'s yosys-abc')
+            record['mailbox_proof_abc'] = {'path': str(abc), 'sha256': sha(abc)}
+            run([sys.executable, '-m', 'unittest', 'tests.test_pcxt_video_mailbox', '-v'],
+                source, 'mailbox-proofs.log', record,
+                dict(os.environ, YOSYS=str(yosys), YOSYS_ABC=str(abc)))
+            proof = (source / 'mailbox-proofs.log').read_text()
+            if 'Ran 4 tests' not in proof or 'skipped' in proof or '\nOK\n' not in proof:
+                raise ValueError('the complete mailbox proof did not run')
+            record['mailbox_proof_log_sha256'] = sha(source / 'mailbox-proofs.log')
         work = output / 'elaboration'
         work.mkdir()
         spec = importlib.util.spec_from_file_location('pcxt_frozen_inputs', source / 'scripts/sim_fes_pcxt.py')
@@ -311,6 +342,10 @@ def main() -> int:
         (work / 'elaborate.ys').write_text(elaboration(source, work, library))
         run([str(yosys), '-s', 'elaborate.ys'], work, 'elaborate.log', record)
         record['elaboration'] = validate_renaming(work)
+        if args.video_mailbox_contract:
+            record['mailbox_binding'] = validate_mailbox(
+                json.loads((work / 'before-names.json').read_text())['modules']['top'],
+                json.loads((work / 'elaborated.json').read_text())['modules']['top'])
         record['generated'] = {p.name: sha(p) for p in work.iterdir() if p.suffix in ('.mem', '.hex', '.vh')}
         record['elaborated_verilog_sha256'] = sha(work / 'elaborated.v')
         for seed in seeds:
@@ -321,14 +356,21 @@ def main() -> int:
             (fit / 'top.qpf').write_text('QUARTUS_VERSION = "17.0";\nPROJECT_REVISION = "top";\n')
             (fit / 'top.qsf').write_text(project_qsf(source, seed, args.threads))
             (fit / 'clocks.sdc').write_text(SDC)
+            if args.video_mailbox_contract:
+                shutil.copy2(source / MAILBOX, fit / 'mailbox.sdc')
+                (fit / 'clocks.sdc').write_text(SDC + '\nsource mailbox.sdc\n')
             receipt = {'seed': seed, 'qsf_sha256': sha(fit / 'top.qsf'),
                        'sdc_sha256': sha(fit / 'clocks.sdc'), 'status': 'building'}
             record['runs'].append(receipt)
             run([str(quartus_sh), '--flow', 'compile', 'top'], fit, 'compile.log', record)
             run([str(bin_dir / 'quartus_sta'), '-t', 'audit.tcl'], fit, 'audit.log', record)
-            receipt.update(timing_summary(fit))
+            if sha(fit / 'clocks.sdc') != receipt['sdc_sha256']:
+                raise ValueError('timing constraints changed during the fit')
+            receipt.update(timing_summary(fit, mailbox_contract=args.video_mailbox_contract))
             receipt['rbf_sha256'] = sha(fit / 'output_files/top.rbf')
             captures = [fit / name for name in ('top.qsf', 'clocks.sdc', 'audit.tcl', 'compile.log', 'audit.log')]
+            if args.video_mailbox_contract:
+                captures.append(fit / 'mailbox.sdc')
             captures += list((fit / 'audit').rglob('*'))
             captures += [p for p in (fit / 'output_files').iterdir() if p.suffix in ('.rpt', '.summary')]
             receipt['captures_sha256'] = {str(p.relative_to(fit)): sha(p)

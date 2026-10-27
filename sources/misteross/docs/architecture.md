@@ -2882,6 +2882,12 @@ endpoint counts, setup/hold, recovery/removal, pulse widths and uncovered
 interfaces. Its initial SDC derives PLL clocks and uncertainty without timing
 exceptions or external budgets. A complete diagnostic capture can contain
 timing failures; it neither seals a package nor supplies physical acceptance.
+Its default-off `--video-mailbox-contract` mode additionally runs the captured
+ownership proof, verifies the declared chains and common reset assertion, and
+checks direct interstage paths at every corner. Its SDC cuts only three
+first-stage asynchronous source pairs and bounds the held bank bits to one
+pixel period within the proved two-sample window. It adds no clock-group
+exception or physical acceptance.
 
 ### Machine partition and timing
 

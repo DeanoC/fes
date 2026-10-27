@@ -25,6 +25,11 @@ set intervals [open audit/endpoints.tsv w]
 puts $intervals "corner\tkind\tfrom_clock\tto_clock\tfrom_inverted\tto_inverted\tfrom\tto\tslack_ns\trelationship_ns\tdata_delay_ns"
 set fm [open audit/fmax.tsv w]
 puts $fm "corner\tclock\tfmax_mhz\trestricted_fmax_mhz"
+set mailbox_contract [file exists mailbox.sdc]
+if {$mailbox_contract} {
+ set interstage [open audit/mailbox-interstage.tsv w]
+ puts $interstage "corner\tkind\tfrom_clock\tto_clock\tfrom_inverted\tto_inverted\tfrom\tto\tslack_ns\trelationship_ns\tdata_delay_ns"
+}
 set limit 100000
 proc emit_paths {paths corner kind stream} {
  foreach_in_collection p $paths {
@@ -64,10 +69,20 @@ foreach corner [get_available_operating_conditions] {
    emit_paths $paths $corner $kind $intervals
   }
  }
+ if {$mailbox_contract} {
+  foreach role {ack sent hold} {
+   foreach kind {setup hold} {
+    set paths [get_timing_paths -$kind -from system_video_adapter_${role}_meta -to system_video_adapter_${role}_sync -npaths 16 -nworst 1]
+    if {[get_collection_size $paths] != 1} {error "Missing or duplicated mailbox interstage path: $role $kind"}
+    emit_paths $paths $corner $kind $interstage
+   }
+  }
+ }
 }
 close $counts
 close $intervals
 close $fm
+if {$mailbox_contract} {close $interstage}
 puts "PCXT_AUDIT_CAPTURE_COMPLETE"
 delete_timing_netlist
 project_close

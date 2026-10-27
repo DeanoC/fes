@@ -118,6 +118,17 @@ physical board timing or authorize programming a kit. A product variant still
 needs the FES recipe/package rollout, complete timing and reproducibility
 checks, and hardware acceptance of its own bytes.
 
+`--video-mailbox-contract` is a separate diagnostic opt-in. It runs the real
+CGA/MDA ownership proofs from the captured sources, binds the declarations
+through portable naming, checks the three exclusive two-stage chains and
+their common PLL-lock reset assertion, then applies `quartus/mailbox.sdc`.
+Only each foreign-domain source-to-first-stage pair is cut. The two bank bits
+retain a max-delay check of one fitted pixel period, inside the proof's two
+stable pixel samples before adoption; no clock group is cut. Every fit must
+also capture all 24 direct interstage setup/hold checks across four corners.
+Reset pulse width, metastability, external IO and HPS timing remain open.
+The ordinary invocation keeps its original constraints.
+
 ### Physical timing inputs
 
 The diagnostic's synthetic IO constraints exercise compiler coverage. They

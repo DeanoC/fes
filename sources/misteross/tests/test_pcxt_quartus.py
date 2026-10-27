@@ -1,5 +1,7 @@
 """Whole-board diagnostic capture must retain failures and reject missing data."""
 import csv
+import copy
+import gzip
 import io
 import json
 import os
@@ -12,8 +14,67 @@ import unittest
 from unittest import mock
 
 from scripts import quartus_fes_pcxt as builder
+from scripts.pcxt_quartus_mailbox import validate_mailbox
 
 YOSYS = os.environ.get('YOSYS') or shutil.which('yosys')
+
+
+class MailboxBindingTests(unittest.TestCase):
+    def setUp(self):
+        path = Path(__file__).parent / 'fixtures/pcxt_quartus_mailbox.json.gz'
+        fixture = json.loads(gzip.decompress(path.read_bytes()))
+        self.before, self.after = fixture['before'], fixture['after']
+
+    def flop(self, name):
+        bits = self.after['netnames'][name]['bits']
+        return next(c for c in self.after['cells'].values() if c['connections'].get('Q') == bits)
+
+    def test_real_generic_declaration_and_chain_binding(self):
+        result = validate_mailbox(self.before, self.after)
+        self.assertEqual(len(result['chains']), 3)
+        self.assertTrue(result['common_reset_assertion_verified'])
+        self.assertEqual(result['held_data_stable_pixel_samples'], 2)
+        self.assertFalse(result['physical_reset_and_metastability_qualified'])
+
+    def test_missing_intent_or_ambiguous_declaration_rejects(self):
+        self.before['netnames']['system.video.adapter.ack_meta']['attributes'].pop('async_reg')
+        self.after['netnames']['system_video_adapter_ack_meta']['attributes'].pop('async_reg')
+        with self.assertRaisesRegex(ValueError, 'missing synchronizer intent'):
+            validate_mailbox(self.before, self.after)
+
+    def test_ambiguous_declaration_rejects(self):
+        self.after['netnames']['unowned_alias'] = copy.deepcopy(self.after['netnames']['system_video_adapter_sent'])
+        with self.assertRaisesRegex(ValueError, 'ambiguous declaration'):
+            validate_mailbox(self.before, self.after)
+
+    def test_bypassed_stage_rejects(self):
+        self.flop('system_video_adapter_sent_sync')['connections']['D'] = self.after['netnames']['system_video_adapter_sent']['bits']
+        with self.assertRaisesRegex(ValueError, 'changed synchronizer connectivity'):
+            validate_mailbox(self.before, self.after)
+
+    def test_interstage_fanout_rejects(self):
+        self.after['cells']['extra_consumer'] = {'type': '$not', 'parameters': {},
+            'port_directions': {'A': 'input', 'Y': 'output'},
+            'connections': {'A': self.after['netnames']['system_video_adapter_ack_meta']['bits'], 'Y': [999999]}}
+        with self.assertRaisesRegex(ValueError, 'interstage logic or fanout'):
+            validate_mailbox(self.before, self.after)
+
+    def test_wrong_payload_clock_rejects(self):
+        self.flop('system_video_adapter_front')['connections']['CLK'] = self.after['cells']['memory_clock']['connections']['outclk'][2:3]
+        with self.assertRaisesRegex(ValueError, 'wrong launch/capture register front'):
+            validate_mailbox(self.before, self.after)
+
+    def test_independent_reset_or_changed_lock_logic_rejects(self):
+        self.flop('board_reset_domain_board_reset')['connections']['ARST'] = [999999]
+        with self.assertRaisesRegex(ValueError, 'independent reset assertion'):
+            validate_mailbox(self.before, self.after)
+
+    def test_changed_lock_logic_rejects(self):
+        rst = self.flop('pixel_reset')['connections']['ARST']
+        gate = next(c for c in self.after['cells'].values() if c['connections'].get('Y') == rst)
+        gate['type'] = '$logic_or'
+        with self.assertRaisesRegex(ValueError, 'changed common PLL-lock assertion'):
+            validate_mailbox(self.before, self.after)
 
 
 @unittest.skipUnless(YOSYS, 'requires Yosys for the real elaboration path')
@@ -199,6 +260,22 @@ class QuartusCaptureTests(unittest.TestCase):
             self.assertEqual(builder.main(), 1)
             self.assertIn('File exists', err.getvalue())
         self.assertEqual(summary.read_bytes(), original)
+
+    def test_selected_contract_requires_direct_interstage_capture(self):
+        with (self.audit / 'mailbox-interstage.tsv').open('w') as stream:
+            out = csv.writer(stream, delimiter='\t')
+            out.writerow(['corner', 'kind', 'from', 'to', 'slack_ns'])
+            for corner in self.corners:
+                for kind in ('setup', 'hold'):
+                    for role in ('ack', 'sent', 'hold'):
+                        out.writerow([corner, kind, 'system_video_adapter_' + role + '_meta',
+                                      'system_video_adapter_' + role + '_sync', '0.2'])
+        result = builder.timing_summary(self.work, mailbox_contract=True)
+        self.assertEqual(len(result['mailbox_interstage']), 24)
+        lines = (self.audit / 'mailbox-interstage.tsv').read_text().splitlines()
+        (self.audit / 'mailbox-interstage.tsv').write_text('\n'.join(lines[:-1]) + '\n')
+        with self.assertRaisesRegex(ValueError, 'interstage checks'):
+            builder.timing_summary(self.work, mailbox_contract=True)
 
 
 if __name__ == '__main__':
