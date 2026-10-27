@@ -550,14 +550,17 @@ make sim-fes-coleco VERILATOR=/absolute/path/to/verilator
 make toolchain-fes-coleco
 make build-fes-coleco-quartus
 make build-fes-coleco
+make build-fes-coleco-native-video
 ```
 
-The Quartus recipe requires authenticated Quartus Prime Lite 17.0.2. The OSS
-recipe authenticates the repository-local Yosys, nextpnr-mistral, and Mistral
-tools, routes `5CSEBA6U23I7`, and seals a format-2 package only after the
-timing/resource checks pass. The registered v2 OSS recipe authenticates
-`cores/fes-coleco/toolchain.lock`. `make toolchain-fes-coleco` provisions that
-per-core lock into `build/toolchain/fes-coleco-socket-v2`. The
+The Quartus recipe requires authenticated Quartus Prime Lite 17.0.2 and seals
+a format-2 package. `make build-fes-coleco` runs the registered v2 OSS recipe
+with the CPU-only socket and seals a format-4 package. The factory native-video
+shell is sealed by `make build-fes-coleco-native-video`. Both OSS commands
+authenticate the repository-local Yosys, nextpnr-mistral, and Mistral tools,
+route `5CSEBA6U23I7`, and require the timing/resource checks to pass. They
+authenticate `cores/fes-coleco/toolchain.lock`. `make toolchain-fes-coleco`
+provisions that per-core lock into `build/toolchain/fes-coleco-socket-v2`. The
 recipe default remains HIP; a CUDA install of the same commits can seal it.
 The former `toolchains/coleco-sgm.lock` and `toolchains/coleco-expansion.lock`
 pins are not selected. The sealed search still uses

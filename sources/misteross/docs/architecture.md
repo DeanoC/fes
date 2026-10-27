@@ -1002,15 +1002,15 @@ second from each core's configured system clock; 256 samples × 262 lines gives
 a nominal 60 Hz frame cadence independent of CPU and HDMI pixel clocks. This
 models frame/line pacing, not composite sync, half-lines or cycle-perfect raster
 effects. The factory v2 Coleco shell includes the optional
-`fes.expansion.coleco-bus` interface. A separate expansion diagnostic retains
-an inactive vacant response and masks expansion read claims to `0x2000–0x5fff`
-or unclaimed I/O. Its physical socket is behind
-`FES_COLECO_EXPANSION_DEV`; that development producer authenticates
-`toolchain.lock` and seals a timed shell with a reserved `24 1 28 11` placement
-region containing only pinned boundary FFs. The diagnostic module uses the
-frozen shell and restores the system PLL's second output from exact routed
-metadata. The integrated shell/cart has no outside CRAM changes. Its producer
-permits only the two fixed response-stub changes declared by
+`fes.expansion.coleco-bus` interface and masks expansion read claims to
+`0x2000–0x5fff`. The separate v1 expansion diagnostic retains an inactive
+vacant response and, behind `FES_COLECO_EXPANSION_DEV`, claims reads below
+`0x8000` (`0x0000–0x7fff`) or unclaimed I/O. Its development producer
+authenticates `toolchain.lock` and seals a timed shell with a reserved
+`24 1 28 11` placement region containing only pinned boundary FFs. The
+diagnostic module uses the frozen shell and restores the system PLL's second
+output from exact routed metadata. The integrated shell/cart has no outside
+CRAM changes. Its producer permits only the two fixed response-stub changes declared by
 `fes.coleco.response-boundary/4` if a route needs them, alongside the CPU-bus
 rectangle; the linker rejects every other outside change. External bus
 mastering, video/audio takeover, bank switching and retail-cartridge
@@ -1037,7 +1037,8 @@ than the previous address or a same-port read-during-write result.
 The tracked reset image used by host simulations is an open `JP 0x8000` shim,
 not a Coleco BIOS. The factory format-4 package instead seals a ROM map with an
 exact 8192-byte `coleco-bios` source at `0x0000–0x1fff` and an exact 16384-byte
-`coleco-cart` source at `0x8000–0xffff`; the target links both before download.
+`coleco-cart` source mapped to `0x8000–0xbfff` and mirrored at
+`0xc000–0xffff`; the target links both before download.
 The package removes the firmware and media-mailbox interfaces. Quartus and
 mailbox simulations retain the `ENABLE_FIRMWARE` overlay for diagnostics, with
 an exact 8192-byte begin/data/commit while reset is held; it is not cartridge
@@ -1081,10 +1082,11 @@ pack feature is implied.
 
 The open diagnostics and focused simulations exercise CPU-driven VDP writes,
 controller modes, sprite status and the exact 720p frame in both conditional
-lanes. The Quartus oracle seals a format-2 package; `make build-fes-coleco`
-seals the selected format-4 package. Both require a clean checkout and neither
-programs hardware. Parent selection and exact-kit acceptance are recorded in
-the FES validation documents.
+lanes. The Quartus oracle seals a format-2 package. `make build-fes-coleco`
+seals a format-4 package with the CPU-only socket; the factory format-4 shell
+is sealed by `make build-fes-coleco-native-video`. These targets
+require a clean checkout and do not program hardware. Parent selection and
+exact-kit acceptance are recorded in the FES validation documents.
 
 ### OSS/Yosys/nextpnr workarounds
 
@@ -1108,11 +1110,12 @@ marked as path-specific are not requirements of the other lane.
 | Constraints | OSS uses only its accepted pin QSF and 50 MHz `clocks-oss.sdc`; nextpnr derives PLL clocks. Quartus retains `HPS_LOCATION`, clock groups and the full SDC. |
 | Route pressure | The OSS reproduction is `5CSEBA6U23I7`, nextpnr `a93fe013`, `--router gpu`, seed 5 first (order 5, 4, 1, 2, 3, 12, 7, 10), HeAP timing weight 100 before 300 and 1000, criticality exponent 5, `--timing-allow-fail`, no `--tmg-ripup`, at 74.25 MHz. The embedded `BUILD_ID` makes the seed part of the route recipe. The GPU router can report a provisional timing shortfall before final repair; the allowance only permits that intermediate result, while the recipe requires final structured `clk_sys` and `pixel_clk` timing to pass. The sealed recipe requires `backend hip:<device> ready` and rejects CPU-reference fallback; no missing BEL or pack feature was identified. |
 
-The concrete build entry points are `make build-fes-coleco-quartus` and
-`make build-fes-coleco`. The Quartus oracle seals format 2; the selected v2 OSS
-producer seals the factory format-4 package. Both require a clean source
-checkout and never program hardware. Exact-artifact kit acceptance remains a
-separate FES integration step.
+The concrete build entry points are `make build-fes-coleco-quartus`,
+`make build-fes-coleco` and `make build-fes-coleco-native-video`. The Quartus
+oracle seals format 2; the v2 OSS target seals a format-4 CPU-only socket
+package, while the native-video target seals the factory format-4 package.
+These targets require a clean source checkout and never program hardware.
+Exact-artifact kit acceptance remains a separate FES integration step.
 
 The Opcode SGM candidate uses a separate development shell with a 31-bit
 request and 28-bit registered response. The response carries direct data,
