@@ -45,7 +45,12 @@ module fes_i386_decode (
     output logic [2:0]             stk,         // a stack operation (fes_i386_pkg STK_*)
     output logic                   push_eip,    // src2 is the next instruction's EIP
     output logic                   cs_base,     // src1 is CS's base (EX adds the target)
-    output logic                   two_uops     // D issues JMP rel after this uop
+    output logic [2:0]             seq,         // a fixed uop sequence (fes_i386_pkg SEQ_*, fes_i386_seq)
+    output logic                   sel_part,    // the uop reads a far pointer's selector
+    output logic                   far_jmp,     // a far jump by far_sel:imm
+    output logic                   far_chk,     // ... whose offset (imm) D checks against CS's limit
+    output logic [15:0]            far_sel,
+    output logic [5:0]             wseg         // the segment registers the uop writes, one-hot
 );
     typedef fes_i386_pkg::uop_t uop_t;
 
@@ -119,12 +124,17 @@ module fes_i386_decode (
     logic [4:0]  op;
     logic [1:0]  size, src_size;
     logic        count_cl;
-    logic        s1_valid, s1_hi8, s2_valid, s2_hi8, d_valid, d_seg, d_hi8;
+    logic        s1_valid, s1_hi8, s2_valid, s2_hi8, d_valid, d_seg, d_temp, d_hi8;
+    logic        seg2, seg2_t;
+    logic [2:0]  seg2_idx;  // a far pointer's segment register, or CS
     logic [2:0]  s1_idx, s2_idx, d_idx;
     logic [31:0] imm;
     logic [3:0]  cond;
     logic        rd_cf, rd_oszap, wr_cf, wr_oszap;
     logic        known, undefined;
+    logic        lptr;      // LES and its kin (SEQ_LPTR)
+    logic        fptr;      // JMP and CALL m16:16/32 (SEQ_JMPFM, SEQ_CALLFM)
+    logic        d_t1;      // the destination is T1, not T0
     logic        eoi;       // the uop ends the instruction
     logic [1:0]  mkind;     // a mem_kind_e
     logic        m_in_a;    // the memory operand stands for src1 (and the destination), else src2
@@ -147,6 +157,16 @@ module fes_i386_decode (
         s2_hi8 = 1'b0;
         d_valid = 1'b0;
         d_seg = 1'b0;
+        d_temp = 1'b0;
+        seg2 = 1'b0;
+        seg2_t = 1'b1;
+        seg2_idx = 3'd0;
+        sel_part = 1'b0;
+        far_jmp = 1'b0;
+        far_chk = 1'b0;
+        lptr = 1'b0;
+        fptr = 1'b0;
+        d_t1 = 1'b0;
         d_idx = 3'd0;
         d_hi8 = 1'b0;
         imm = 32'd0;
@@ -168,7 +188,7 @@ module fes_i386_decode (
         stk = fes_i386_pkg::STK_NONE;
         push_eip = 1'b0;
         cs_base = 1'b0;
-        two_uops = 1'b0;
+        seq = fes_i386_pkg::SEQ_NONE;
         eoi = 1'b1;
 
         if (!two) begin
@@ -502,7 +522,7 @@ module fes_i386_decode (
                 end
                 8'he8, 8'he9, 8'heb: begin
                     // JMP rel16/32, rel8; CALL rel16/32, which pushes the
-                    // next EIP, then D issues JMP rel by imm
+                    // next EIP, then JMP rel by imm (SEQ_CALL)
                     imm = b0[1] ? rel8 : relz1;
                     if (b0[0]) begin
                         cls = C_BRANCH;
@@ -514,9 +534,60 @@ module fes_i386_decode (
                         mkind = 2'd2;
                         push_eip = 1'b1;
                         stk = fes_i386_pkg::STK_PUSH;
-                        two_uops = 1'b1;
+                        seq = fes_i386_pkg::SEQ_CALL;
                         eoi = 1'b0;
                     end
+                end
+                8'hea: begin
+                    // JMP ptr16:16 or ptr16:32: CS from c (far_sel)
+                    cls = C_BRANCH;
+                    op = 5'd1;  // BR_JMP
+                    imm = relz1;
+                    far_jmp = 1'b1;
+                    far_chk = 1'b1;
+                    seg2 = 1'b1;
+                    seg2_idx = 3'd1;
+                    seg2_t = 1'b0;
+                end
+                8'h9a: begin
+                    // CALL ptr16:16 or ptr16:32 (SEQ_CALLF): a read of the
+                    // return address's lower slot, which checks the offset and
+                    // that slot's limit before anything is written, then push
+                    // CS (an operand-sized slot, zero-extended), push the next
+                    // EIP, and JMP.
+                    op = 5'd9;  // ALU_MOV
+                    mkind = 2'd1;
+                    stk = fes_i386_pkg::STK_PROBE;
+                    imm = relz1;
+                    far_chk = 1'b1;
+                    seg2_idx = 3'd1;
+                    seg2_t = 1'b0;
+                    seq = fes_i386_pkg::SEQ_CALLF;
+                    eoi = 1'b0;
+                end
+                8'b1100101?: begin
+                    // RETF imm16 (CAh), RETF (CBh) (SEQ_RETF): the offset into
+                    // T1 and the selector into T0, ESP unmoved, then JMP. A
+                    // temporary's load is 32-bit, so nothing merges into it.
+                    op = 5'd9;  // ALU_MOV
+                    size = 2'd2;
+                    mbytes = opsize32 ? 3'd4 : 3'd2;
+                    mkind = 2'd1;
+                    stk = fes_i386_pkg::STK_PEEK;
+                    imm = b0[0] ? 32'd0 : {16'b0, by[2], by[1]};
+                    d_valid = 1'b1;
+                    d_temp = 1'b1;
+                    d_t1 = 1'b1;
+                    seg2_idx = 3'd1;
+                    seg2_t = 1'b0;
+                    seq = fes_i386_pkg::SEQ_RETF;
+                    eoi = 1'b0;
+                end
+                8'b1100010?: begin
+                    // LES (C4h), LDS (C5h): SEQ_LPTR
+                    undefined = reg_form;
+                    seg2_idx = b0[0] ? 3'd3 : 3'd0;
+                    lptr = 1'b1;
                 end
                 8'hf4: begin
                     cls = C_SPECIAL;
@@ -564,6 +635,14 @@ module fes_i386_decode (
                         s2_idx = rm;
                         mkind = reg_form ? 2'd0 : 2'd1;
                         cs_base = 1'b1;
+                    end else if (b0[0] && (reg_f == 3'd3 || reg_f == 3'd5)) begin
+                        // FFh /3, /5: CALL and JMP m16:16/32 (SEQ_CALLFM, SEQ_JMPFM)
+                        undefined = reg_form;
+                        fptr = 1'b1;
+                        size = 2'd2;  // the temporaries' loads, unmerged
+                        seg2_idx = 3'd1;
+                        seg2_t = 1'b0;
+                        seq = reg_f[2] ? fes_i386_pkg::SEQ_JMPFM : fes_i386_pkg::SEQ_CALLFM;
                     end else begin
                         // FEh /0 /1: INC, DEC r/m8; FFh /0 /1: INC, DEC r/m16/32
                         known = reg_f[2:1] == 2'b00;
@@ -652,6 +731,12 @@ module fes_i386_decode (
                     count_cl = op2[0];
                     imm = imm8_m;
                 end
+                8'b10110010, 8'b1011010?: begin
+                    // LSS (B2h), LFS (B4h), LGS (B5h): SEQ_LPTR
+                    undefined = reg_form;
+                    seg2_idx = op2[2] ? (op2[0] ? 3'd5 : 3'd4) : 3'd2;
+                    lptr = 1'b1;
+                end
                 8'b1011?11?: begin
                     // MOVZX (B6h, B7h), MOVSX (BEh, BFh)
                     op = op2[3] ? 5'd16 : 5'd15;
@@ -668,6 +753,22 @@ module fes_i386_decode (
                 end
                 default: known = 1'b0;
             endcase
+        end
+
+        // A far pointer's first uop: the selector's word into T0. LES and
+        // its kin keep the register as the destination for the second.
+        if (lptr || fptr) begin
+            op = 5'd9;  // ALU_MOV
+            mkind = reg_form ? 2'd0 : 2'd1;
+            mbytes = 3'd2;
+            s1_valid = lptr;
+            s1_idx = reg_f;
+            d_valid = 1'b1;
+            d_temp = 1'b1;
+            d_idx = lptr ? reg_f : 3'd0;
+            sel_part = 1'b1;
+            if (lptr) seq = fes_i386_pkg::SEQ_LPTR;
+            eoi = 1'b0;
         end
 
         // The memory operand replaces the register it stands for.
@@ -709,7 +810,14 @@ module fes_i386_decode (
     assign stop = fault != 3'd0 || (cls == C_SPECIAL && op == 5'd1);
 
     uop_t u;
-    assign u.sp_write = stk != fes_i386_pkg::STK_NONE;
+    assign u.seg2 = seg2 && fault == 3'd0;
+    assign u.seg2_idx = seg2_idx;
+    assign u.seg2_t = seg2_t;
+    assign wseg = (u.dst.valid && d_seg ? 6'(1) << d_idx : 6'd0) | (u.seg2 ? 6'(1) << seg2_idx : 6'd0);
+    // A far pointer's selector follows its offset.
+    assign far_sel = opsize32 ? {by[6], by[5]} : {by[4], by[3]};
+    assign u.sp_add = 1'b0;
+    assign u.sp_write = stk != fes_i386_pkg::STK_NONE && stk != fes_i386_pkg::STK_PEEK && stk != fes_i386_pkg::STK_PROBE;
     assign u.cls = fes_i386_pkg::uop_class_e'(cls);
     assign u.op = op;
     assign u.src1.valid = s1_valid;
@@ -721,8 +829,8 @@ module fes_i386_decode (
     assign u.src2.index = {1'b0, s2_idx};
     assign u.src2.hi8 = s2_hi8;
     assign u.dst.valid = d_valid && fault == 3'd0;
-    assign u.dst.space = d_seg ? fes_i386_pkg::RS_SEG : fes_i386_pkg::RS_GPR;
-    assign u.dst.index = {1'b0, d_idx};
+    assign u.dst.space = d_seg ? fes_i386_pkg::RS_SEG : d_temp ? fes_i386_pkg::RS_TEMP : fes_i386_pkg::RS_GPR;
+    assign u.dst.index = {d_t1, d_idx};
     assign u.dst.hi8 = d_hi8;
     assign u.size = fes_i386_pkg::size_e'(size);
     assign u.src_size = fes_i386_pkg::size_e'(src_size);

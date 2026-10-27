@@ -491,9 +491,9 @@ struct Summary {
     // instruction that writes it (store_load: D holds it at least a cycle),
     // or closely follows a segment load (it waits for the base). A push or
     // pop right after one is stack_stack: one cycle, as its ESP is early
-    // from AG. Left out: CALL (two uops), LEAVE (on a 16-bit stack it waits
-    // for ESP's high half), PUSH and POP of (E)SP, which read ESP as data,
-    // and anything after POP (E)SP, which loads ESP.
+    // from AG. Left out: CALL rel and ptr and RETF (several uops), LEAVE (on
+    // a 16-bit stack it waits for ESP's high half), PUSH and POP of (E)SP,
+    // which read ESP as data, and anything after POP (E)SP, which loads ESP.
     // Any other instruction right after a push or pop is after_stack: it
     // waits in D if it reads ESP. Any other after a store, not after a shift, is
     // after_store: one cycle, as D's store hold must not catch it.
@@ -520,8 +520,8 @@ struct MemUse {
     bool any() const { return reads || writes; }
 };
 
-// A push (PUSH r, imm or Sreg, CALL rel) or a pop (POP r or Sreg, RET,
-// LEAVE): the forms without a ModRM.
+// A push (PUSH r, imm or Sreg, CALL rel or ptr) or a pop (POP r or Sreg,
+// RET, RETF, LEAVE): the forms without a ModRM.
 MemUse stack_use(const uint8_t *code) {
     unsigned i = 0;
     while (i < 15 && is_prefix(code[i])) ++i;
@@ -532,9 +532,9 @@ MemUse stack_use(const uint8_t *code) {
         m.reads = code[i + 1] == 0xa1 || code[i + 1] == 0xa9;
     } else {
         m.writes = (op >= 0x50 && op < 0x58) || op == 0x68 || op == 0x6a || op == 0x06 || op == 0x0e ||
-                   op == 0x16 || op == 0x1e || op == 0xe8;
+                   op == 0x16 || op == 0x1e || op == 0xe8 || op == 0x9a;
         m.reads = (op >= 0x58 && op < 0x60) || op == 0x07 || op == 0x17 || op == 0x1f || op == 0xc2 ||
-                  op == 0xc3 || op == 0xc9;
+                  op == 0xc3 || op == 0xc9 || op == 0xca || op == 0xcb;
     }
     return m;
 }
@@ -552,7 +552,8 @@ MemUse mem_use(const uint8_t *code) {
     if (two) {
         if ((op & 0xf0) == 0x90) m.writes = true;
         else if (op == 0xa4 || op == 0xa5 || op == 0xac || op == 0xad) m.reads = m.writes = true;
-        else if (op == 0xb6 || op == 0xb7 || op == 0xbe || op == 0xbf) m.reads = true;
+        else if (op == 0xb6 || op == 0xb7 || op == 0xbe || op == 0xbf || op == 0xb2 || op == 0xb4 || op == 0xb5)
+            m.reads = true;
         return m;
     }
     if (op < 0x40 && (op & 7) < 4) {
@@ -561,12 +562,14 @@ MemUse mem_use(const uint8_t *code) {
     } else if (op >= 0x80 && op <= 0x83) {
         m.reads = true;
         m.writes = reg != 7;
-    } else if (op == 0x84 || op == 0x85 || op == 0x8a || op == 0x8b || op == 0x8e) {
+    } else if (op == 0x84 || op == 0x85 || op == 0x8a || op == 0x8b || op == 0x8e || op == 0xc4 || op == 0xc5) {
         m.reads = true;
     } else if (op == 0x88 || op == 0x89 || op == 0x8c || op == 0xc6 || op == 0xc7) {
         m.writes = true;
-    } else if (op == 0xff && reg == 4) {  // JMP r/m
+    } else if (op == 0xff && (reg == 4 || reg == 5)) {  // JMP r/m, JMP m16:16/32
         m.reads = true;
+    } else if (op == 0xff && reg == 3) {  // CALL m16:16/32: the pointer, then the stack
+        m.reads = m.writes = true;
     } else if (op == 0xc0 || op == 0xc1 || (op >= 0xd0 && op <= 0xd3) || op == 0xfe || op == 0xff) {
         m.reads = m.writes = true;
     } else if (op == 0xf6 || op == 0xf7) {
@@ -576,12 +579,16 @@ MemUse mem_use(const uint8_t *code) {
     return m;
 }
 
-// A segment load (MOV Sreg, r/m or POP Sreg).
+// A segment load (MOV Sreg, r/m, POP Sreg, or a far pointer's: LES and its
+// kin).
 bool loads_segment(const uint8_t *code) {
     unsigned i = 0;
     while (i < 15 && is_prefix(code[i])) ++i;
-    if (code[i] == 0x0f) return code[i + 1] == 0xa1 || code[i + 1] == 0xa9;
-    return code[i] == 0x8e || code[i] == 0x07 || code[i] == 0x17 || code[i] == 0x1f;
+    if (code[i] == 0x0f)
+        return code[i + 1] == 0xa1 || code[i + 1] == 0xa9 || code[i + 1] == 0xb2 || code[i + 1] == 0xb4 ||
+               code[i + 1] == 0xb5;
+    return code[i] == 0x8e || code[i] == 0x07 || code[i] == 0x17 || code[i] == 0x1f || code[i] == 0xc4 ||
+           code[i] == 0xc5;
 }
 
 // A shift or rotate: group 2, SHLD or SHRD.
@@ -608,7 +615,7 @@ bool consumes_flags(const uint8_t *code) {
 
 // A branch's opcode and whether it is taken from this state, as the 386
 // decides: Jcc by its condition, LOOPcc and JCXZ by CX or ECX (address size).
-// CALL, RET and JMP r/m are always taken.
+// CALL, RET, JMP r/m and the far transfers are always taken.
 bool branch_taken(const uint8_t *code, const State &s, bool code32, bool &taken) {
     unsigned i = 0;
     bool as32 = code32;
@@ -637,8 +644,10 @@ bool branch_taken(const uint8_t *code, const State &s, bool code32, bool &taken)
     const bool zf = s.eflags & 0x40;
     if (op >= 0x70 && op < 0x80) taken = cond(op & 15);
     else if (op == 0x0f && code[i + 1] >= 0x80 && code[i + 1] < 0x90) taken = cond(code[i + 1] & 15);
-    else if (op == 0xe9 || op == 0xeb || op == 0xe8 || op == 0xc2 || op == 0xc3) taken = true;
-    else if (op == 0xff && ((code[i + 1] >> 3) & 7) == 4) taken = true;
+    else if (op == 0xe9 || op == 0xeb || op == 0xe8 || op == 0xc2 || op == 0xc3 || op == 0xea || op == 0x9a ||
+             op == 0xca || op == 0xcb)
+        taken = true;
+    else if (op == 0xff && ((code[i + 1] >> 3) & 7) >= 3 && ((code[i + 1] >> 3) & 7) <= 5) taken = true;
     else if (op == 0xe2) taken = count != 1;
     else if (op == 0xe1) taken = count != 1 && zf;
     else if (op == 0xe0) taken = count != 1 && !zf;
@@ -745,8 +754,9 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                            : use.any() && since_segment < 6 ? summary.gap_after_segment
                            : op == 0x8c ? summary.gap_selector
                            : use.reads && store_before ? summary.gap_store_load
-                           : stack_before && !pop_sp_before && stack_use(code).any() && op != 0xe8 && op != 0xc9 &&
-                                     op != 0x54 && op != 0x5c ? summary.gap_stack_stack
+                           : stack_before && !pop_sp_before && stack_use(code).any() && op != 0xe8 && op != 0x9a &&
+                                     op != 0xca && op != 0xcb && op != 0xc9 && op != 0x54 && op != 0x5c
+                               ? summary.gap_stack_stack
                            : op == 0x8d || use.any() ? summary.gap_address
                            : stack_before ? summary.gap_after_stack
                            : shift_before ? (consumes_flags(code) ? summary.gap_shift_consumer : summary.gap_after_shift)
@@ -1070,11 +1080,17 @@ public:
         int target = -1;     // branch: the item it jumps to
         unsigned rel_at = 0;  // where the displacement starts
         unsigned rel_size = 0;
+        // A far transfer to target: rel_at holds a far pointer (its offset,
+        // rel_size bytes, then the selector), or the offset or selector a
+        // MOV stores for an indirect one.
+        enum { NEAR, FAR_PTR, FAR_OFF, FAR_SEL } far = NEAR;
     };
 
-    std::vector<uint8_t> program(unsigned count) {
+    // base: the program's linear address, which far targets need.
+    std::vector<uint8_t> program(unsigned count, uint32_t base) {
         items.clear();
         fence = 0;
+        program_base = base;
         while (items.size() < count) {
             const unsigned kind = pick(100);
             if (kind < 6) forward_branch();
@@ -1083,6 +1099,7 @@ public:
             else if (kind < 16) items.push_back(Item{stack_op(pick(2), pick(3) == 0, false), -1, 0, 0});
             else if (kind < 19) call_block(0);
             else if (kind < 21) frame_block();
+            else if (kind < 22) far_jump();
             else items.push_back(Item{instruction(false), -1, 0, 0});
         }
         items.push_back(Item{{0xf4}, -1, 0, 0});
@@ -1093,6 +1110,7 @@ private:
     std::mt19937_64 &rng;
     std::vector<Item> items;
     int fence = 0;  // no backward jump lands before here: inside a subroutine
+    uint32_t program_base = 0;
 
     unsigned pick(unsigned n) { return unsigned(rng() % n); }
     uint8_t byte() { return uint8_t(rng()); }
@@ -1122,7 +1140,8 @@ private:
             bool os32;
             prefixes(out, os32);
             const unsigned z = os32 ? 4 : 2;
-            const unsigned form = pick(20);
+            const unsigned form = pick(21);
+            bool memory = pick(3) == 0;  // the r/m operand becomes a memory one
             unsigned dst = 8;  // the GPR it writes (8: none or checked below)
             bool dst_byte = false;
             switch (form) {
@@ -1284,6 +1303,20 @@ private:
                 out.push_back(ops[pick(8)]);
                 break;
             }
+            case 18: {  // LES, LDS, LSS, LFS, LGS: memory only
+                static const uint8_t two_byte[] = {0xb2, 0xb4, 0xb5};
+                const unsigned which = pick(5);
+                if (which < 2) {
+                    out.push_back(uint8_t(0xc4 + which));
+                } else {
+                    out.push_back(0x0f);
+                    out.push_back(two_byte[which - 2]);
+                }
+                dst = pick(8);
+                out.push_back(uint8_t(0xc0 | (dst << 3)));
+                memory = true;
+                break;
+            }
             default: {  // MOV r, imm32 keeps values wide
                 out.push_back(uint8_t(0xb8 + pick(8)));
                 dst = out.back() & 7;
@@ -1291,13 +1324,13 @@ private:
                 break;
             }
             }
-            if (pick(3) == 0) to_memory(out, dst);
+            if (memory) to_memory(out, dst);
             if (keep_ecx && dst != 8 && (dst_byte ? (dst & 3) == 1 : dst == 1)) continue;
             if (keep_stack) {
                 unsigned i = 0;
                 while (i < out.size() && is_prefix(out[i])) ++i;
                 if ((!dst_byte && dst == 4) || mem_use(out.data()).writes ||
-                    (out[i] == 0x8e && ((out[i + 1] >> 3) & 7) == 2))
+                    (out[i] == 0x8e && ((out[i + 1] >> 3) & 7) == 2) || (out[i] == 0x0f && out[i + 1] == 0xb2))
                     continue;
             }
             return out;
@@ -1365,17 +1398,23 @@ private:
     }
 
     // CALL a subroutine laid out past a JMP over it: CALL L; JMP over; L:
-    // body; RET or RET imm16; over:. The body leaves ESP, SS and the return
+    // body; RET or RET imm16 (RETF or RETF imm16 after a far CALL); over:. The body leaves ESP, SS and the return
     // address alone, or pushes and pops the same size back; it may call
     // another, two deep, which returns with a plain RET so the outer return
     // address stays where its RET pops.
+    // A third are far: CALL ptr, or CALL m16:16/32 through a pointer stored
+    // just before, returning with RETF or RETF imm16.
     void call_block(unsigned depth) {
         const bool os32 = pick(4) == 0;
-        const int call = int(items.size());
-        items.push_back(rel_item(os32, 0xe8));
+        const unsigned far = pick(9);  // 0-5 near, 6-7 ptr, 8 indirect
+        const int call = far < 8 ? int(items.size()) : store_pointer(os32);
+        if (far < 6) items.push_back(rel_item(os32, 0xe8));
+        else if (far < 8) items.push_back(ptr_item(os32, 0x9a));
+        else items.push_back(indirect_item(os32, 0x1e));
         const int jump = int(items.size());
         items.push_back(rel_item(pick(4) == 0, 0xe9));
-        items[size_t(call)].target = int(items.size());
+        if (far < 6) items[size_t(call)].target = int(items.size());
+        else set_far_target(call, int(items.size()));
         const unsigned length = pick(5);
         for (unsigned n = 0; n < length; ++n) {
             const unsigned kind = pick(8);
@@ -1392,11 +1431,12 @@ private:
         }
         Item ret;
         if (os32) ret.bytes.push_back(0x66);
+        const uint8_t ret_op = far >= 6 ? 0xca : 0xc2;
         if (depth == 0 && pick(3) == 0) {
             const uint16_t n = pick(4) ? uint16_t(2 * pick(5)) : uint16_t(rng());
-            ret.bytes.insert(ret.bytes.end(), {0xc2, uint8_t(n), uint8_t(n >> 8)});
+            ret.bytes.insert(ret.bytes.end(), {ret_op, uint8_t(n), uint8_t(n >> 8)});
         } else {
-            ret.bytes.push_back(0xc3);
+            ret.bytes.push_back(uint8_t(ret_op + 1));
         }
         items.push_back(ret);
         items[size_t(jump)].target = int(items.size());
@@ -1417,6 +1457,77 @@ private:
         for (unsigned n = 0; n < length; ++n)
             items.push_back(Item{pick(3) == 0 ? stack_op(true, pick(3) == 0, false) : instruction(false), -1, 0, 0});
         add({0xc9});
+    }
+
+    // A far JMP over 0-3 instructions: JMP ptr, or JMP m16:16/32 through a
+    // pointer stored just before. Code after it runs with the new CS.
+    void far_jump() {
+        const bool os32 = pick(4) == 0;
+        const bool indirect = pick(3) == 0;
+        const int at = indirect ? store_pointer(os32) : int(items.size());
+        if (indirect) items.push_back(indirect_item(os32, 0x2e));
+        else items.push_back(ptr_item(os32, 0xea));
+        const unsigned skip = pick(4);
+        for (unsigned n = 0; n < skip; ++n) items.push_back(Item{instruction(false), -1, 0, 0});
+        set_far_target(at, int(items.size()));
+    }
+
+    // JMP or CALL ptr16:16/32, its pointer filled in at layout.
+    Item ptr_item(bool os32, uint8_t op) {
+        Item item;
+        if (os32) item.bytes.push_back(0x66);
+        item.bytes.push_back(op);
+        item.rel_at = unsigned(item.bytes.size());
+        item.rel_size = os32 ? 4 : 2;
+        item.bytes.insert(item.bytes.end(), item.rel_size + 2, 0);
+        item.far = Item::FAR_PTR;
+        return item;
+    }
+    // JMP or CALL m16:16/32 (modrm 2Eh or 1Eh: [disp16], DS) at the pointer
+    // store_pointer chose.
+    Item indirect_item(bool os32, uint8_t modrm) {
+        Item item;
+        if (os32) item.bytes.push_back(0x66);
+        item.bytes.insert(item.bytes.end(), {0xff, modrm, uint8_t(pointer), uint8_t(pointer >> 8)});
+        return item;
+    }
+    // MOV [disp16], offset; MOV [disp16 + size], selector: the pointer an
+    // indirect far transfer reads, at a random DS offset. Returns the first
+    // MOV's item, whose target set_far_target sets for both.
+    int store_pointer(bool os32) {
+        pointer = uint16_t(rng());
+        const int at = int(items.size());
+        Item off;
+        if (os32) off.bytes.push_back(0x66);
+        off.bytes.insert(off.bytes.end(), {0xc7, 0x06, uint8_t(pointer), uint8_t(pointer >> 8)});
+        off.rel_at = unsigned(off.bytes.size());
+        off.rel_size = os32 ? 4 : 2;
+        off.bytes.insert(off.bytes.end(), off.rel_size, 0);
+        off.far = Item::FAR_OFF;
+        items.push_back(off);
+        const uint16_t at_sel = uint16_t(pointer + (os32 ? 4 : 2));
+        Item sel;
+        sel.bytes = {0xc7, 0x06, uint8_t(at_sel), uint8_t(at_sel >> 8), 0, 0};
+        sel.rel_at = 4;
+        sel.rel_size = 2;
+        sel.far = Item::FAR_SEL;
+        items.push_back(sel);
+        return at;
+    }
+    uint16_t pointer = 0;
+    // The far transfer at items[at] (or the pointer stored there and the
+    // transfer after it) goes to items[target].
+    void set_far_target(int at, int target) {
+        for (int n = at; n < int(items.size()) && items[size_t(n)].far != Item::NEAR; ++n)
+            items[size_t(n)].target = target;
+    }
+    // A CS:IP for a linear address: the selector 2000h below its paragraph,
+    // so the offset stays near 8000h and the code after it well inside CS.
+    static void far_point(uint32_t linear, uint16_t &sel, uint32_t &off) {
+        const uint32_t para = linear >> 4;
+        const uint32_t s = para > 0x800 ? std::min<uint32_t>(para - 0x800, 0xffff) : 0;
+        sel = uint16_t(s);
+        off = linear - (s << 4);
     }
 
     // CALL or JMP rel16/32 (rel32 with 66h).
@@ -1509,7 +1620,17 @@ private:
         std::vector<uint8_t> out;
         for (size_t n = 0; n < items.size(); ++n) {
             Item &item = items[n];
-            if (item.target >= 0) {
+            if (item.target >= 0 && item.far != Item::NEAR) {
+                uint16_t sel;
+                uint32_t off;
+                far_point(program_base + offset[size_t(item.target)], sel, off);
+                const uint32_t value = item.far == Item::FAR_SEL ? sel : off;
+                for (unsigned i = 0; i < item.rel_size; ++i) item.bytes[item.rel_at + i] = uint8_t(value >> (8 * i));
+                if (item.far == Item::FAR_PTR) {
+                    item.bytes[item.rel_at + item.rel_size] = uint8_t(sel);
+                    item.bytes[item.rel_at + item.rel_size + 1] = uint8_t(sel >> 8);
+                }
+            } else if (item.target >= 0) {
                 int64_t rel = int64_t(offset[size_t(item.target)]) - int64_t(offset[n + 1]);
                 if (item.rel_size == 1 && (rel < -128 || rel > 127)) rel = 0;  // falls through
                 for (unsigned i = 0; i < item.rel_size; ++i) item.bytes[item.rel_at + i] = uint8_t(uint64_t(rel) >> (8 * i));
@@ -1525,7 +1646,6 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
     std::mt19937_64 random(seed);
     Generator generator(random);
     for (uint64_t n = 0; n < programs; ++n) {
-        const std::vector<uint8_t> code = generator.program(20 + unsigned(random() % 180));
         State state;
         for (auto &r : state.gpr) r = uint32_t(random());
         // Every arithmetic flag, IF and DF at random; TF stays clear.
@@ -1533,6 +1653,7 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
         for (int k = 0; k < 6; ++k) state.seg[k] = fes_i386::real_mode_segment(uint16_t(random()));
         state.eip = 0x100 + uint32_t(random() % 0xd000);
         const uint32_t base = state.seg[fes_i386::SEG_CS].base + state.eip;
+        const std::vector<uint8_t> code = generator.program(20 + unsigned(random() % 180), base);
         for (size_t i = 0; i < code.size(); ++i) bus.ram[base + i] = rtl.ram[base + i] = code[i];
         oracle.invalidate(base, uint32_t(code.size()));
         oracle.set_state(state);

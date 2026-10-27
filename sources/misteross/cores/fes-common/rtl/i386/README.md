@@ -158,8 +158,8 @@ ESP (EBP for LEAVE) for a stack operation.
 segment register, CALL rel, RET and RET imm16, LEAVE and JMP r/m. Each is one
 uop with a memory operand at SS:ESP (SS:EBP for LEAVE) at the stack's width
 (SS.B), except CALL rel, which is two: the push of the next EIP, then JMP rel
-by the displacement the push carries in its unused immediate, which D builds
-as it issues the second. A stack operation also writes ESP: AG has a third
+by the displacement the push carries in its unused immediate. A stack
+operation also writes ESP: AG has a third
 adder for it (ESP less the size for a push, plus it for a pop, plus imm16 for
 RET imm16, EBP plus it for LEAVE), and WB writes it beside the main
 destination, which wins when it is ESP too (POP ESP). A 32-bit PUSH or POP of
@@ -167,7 +167,42 @@ a segment register moves ESP by 4 and transfers the selector's word only, as
 the 386EX does. RET and JMP r/m take their target from EX's adder (CS's base
 plus the EIP) and redirect from WB like any taken branch; in 16-bit code a
 target past FFFFh raises #GP(0) at the branch. CALL r/m, PUSH and POP r/m,
-far transfers, ENTER, PUSHA and POPA come later.
+ENTER, PUSHA and POPA come later.
+
+**Fixed sequences.** An instruction of several uops, decoded without the
+microcode ROM, keeps its place in `dc` while they issue: as D issues each but
+the last, `dc` takes the next from `fes_i386_seq`, worked out from `dc`
+itself, so every field D reads is a register at every step and the uops
+issue one per cycle. Each step changes only the fields that differ, and sets
+its one-bit controls outright, so DC's input select absorbs the rest. WB
+moves EIP only at an instruction's last uop, so a sequence that faults part
+way leaves EIP at the instruction. Two temporaries, T0 (16 bits) and T1
+(32), are destinations in RS_TEMP: WB writes them and no forwarding sees
+them, so a uop reads one at WB, or waits in D until its writers retire.
+
+**Far pointer loads and far transfers** (real mode):
+- LES, LDS, LSS, LFS and LGS load the selector's word, past the offset by
+  the operand size, into T0, then the offset into the register; WB writes
+  the segment from T0 as a second destination (`seg2`), which D's
+  segment-busy vector follows. Each part is checked against the limit on its
+  own, the selector's offset wrapped by address size, as the 386EX does.
+- A far jump is one uop: AG computes its target as the new CS's base,
+  selector * 16, plus the offset, and WB writes CS, the selector reaching it
+  in `c`. JMP ptr16:16/32 is that alone. JMP m16:16/32 first loads the
+  selector into T0 and the offset into T1, and the jump takes them once
+  those have retired.
+- CALL ptr and CALL m16:16/32 (after the same two loads) read the return
+  address's lower slot first, a probe that checks its limit, then push CS
+  in an operand-sized slot, zero-extended, and the next EIP, then jump. A
+  push that would cross the stack's limit so faults before anything is
+  written.
+- RETF and RETF imm16 load the offset into T1 and the selector into T0
+  without moving ESP; the jump steps ESP at WB, as it flushes every younger
+  uop and nothing needs the new ESP sooner.
+- In 16-bit code an offset past FFFFh raises #GP(0) at the first uop that
+  could write anything: the far jump, or a far call's probe.
+- Far transfers are taken branches, with no prediction yet: each redirects
+  from WB.
 
 **D** keeps the instruction's EIP with an incrementer. In 16-bit code EIP is
 not cut to 16 bits, as on the 386: an instruction that ends at offset FFFFh
