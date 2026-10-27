@@ -28,6 +28,7 @@
 // usage: machine_tb --bios F --vgabios F --disk F [--disk-out F] [--limit-seconds S]
 //        [--cycles-per-instruction N] [--prompt TEXT] [--type TEXT] [--expect TEXT]
 //        [--trace F] [--frames DIR] [--pixel-from S] [--until-debug TEXT]
+//        [--type-at S] [--key-gap S]
 // A program on the disk marks a picture by writing "SNAP <name>" and a newline
 // to port E9h, then holding it; the bench takes the second capture after the
 // marker, runs the pixel clock for two 720p frames and compares the second
@@ -35,6 +36,9 @@
 // after it (a blinking cursor changes the picture while it holds); it must
 // equal one of them exactly. --frames writes the capture and the 720p frame. --until-debug ends the run when a debug line
 // contains the text.
+// --type-at types the --type text at that simulated time instead of at the
+// prompt (for a program that runs as the shell); --key-gap is the time from
+// one key to the next (default 0.03 s).
 // PC386_TRACE_IO=1 prints every I/O but port 80h to stderr.
 #include "Vpc386_machine.h"
 #include "i386_oracle.h"
@@ -421,7 +425,7 @@ public:
 
 struct Options {
     std::string bios, vgabios, disk, disk_out, prompt = "C:\\>", type, expect, trace, frames, until_debug;
-    double limit_seconds = 120, pixel_from = -1;
+    double limit_seconds = 120, pixel_from = -1, type_at = -1, key_gap = 0.03;
     unsigned cycles_per_instruction = 4;
 };
 
@@ -444,6 +448,8 @@ Options parse(int argc, char **argv) {
         else if (flag == "--frames") options.frames = value;
         else if (flag == "--pixel-from") options.pixel_from = std::stod(value);
         else if (flag == "--until-debug") options.until_debug = value;
+        else if (flag == "--type-at") options.type_at = std::stod(value);
+        else if (flag == "--key-gap") options.key_gap = std::stod(value);
         else throw std::runtime_error("unknown option " + flag);
     }
     if (options.bios.empty() || options.vgabios.empty() || options.disk.empty())
@@ -561,7 +567,7 @@ int main(int argc, char **argv) {
                 machine.clock();
                 machine.top.key_valid = 0;
                 key_bytes.erase(key_bytes.begin());
-                if (key_bytes.empty() || key_bytes.front() != 0xf0) next_key = machine.cycles + uint64_t(0.03 * CLOCK_HZ);
+                if (key_bytes.empty() || key_bytes.front() != 0xf0) next_key = machine.cycles + uint64_t(options.key_gap * CLOCK_HZ);
             }
 
             if (options.until_debug.empty() && machine.cycles - screen_checked >= uint64_t(0.05 * CLOCK_HZ)) {
@@ -573,7 +579,9 @@ int main(int argc, char **argv) {
                 }
                 if (now != last_screen) { last_screen = now; settled_at = machine.cycles; }
                 bool settled = machine.cycles - settled_at >= uint64_t(0.5 * CLOCK_HZ);
-                if (prompt_at && settled && typed < options.type.size() && key_bytes.empty()) {
+                bool type_now = options.type_at >= 0 ? machine.cycles >= uint64_t(options.type_at * CLOCK_HZ)
+                                                     : prompt_at && settled;
+                if (type_now && typed < options.type.size() && key_bytes.empty()) {
                     // Queue the rest of the text.
                     for (; typed < options.type.size(); ++typed) {
                         uint8_t code; bool shift;

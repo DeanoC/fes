@@ -23,7 +23,9 @@
 // character and cursor phases differ, since Bochs blinks both together
 // (frames-blink-phase), and text frames before the
 // CRTC is programmed, which Bochs draws as a default 80 x 25 screen
-// (frames-divergence-reference-unprogrammed). Any other difference fails.
+// (frames-divergence-reference-unprogrammed). DAC reads where Bochs returns
+// bits 7:6 it was written with and the RTL's 6-bit DAC does not are counted
+// as reads-divergence-dac-width. Any other difference fails.
 //
 // Prints REPLAY, READ-MISMATCH, FRAME, VRAM-MISMATCH and SUMMARY lines; exit 0
 // when everything matched.
@@ -232,6 +234,8 @@ int main(int argc, char **argv) {
         };
         auto read_check = [&](const char *what, uint32_t address, uint8_t rtl, uint8_t ref) {
             if (rtl == ref) return;
+            // The DAC keeps 6 bits; Bochs keeps what was written.
+            if (address == 0x3c9 && rtl == (ref & 0x3f)) { ++counts["reads-divergence-dac-width"]; return; }
             ++read_mismatches;
             if (read_mismatches <= 20)
                 std::printf("READ-MISMATCH %s %05x rtl=%02x reference=%02x cycle=%llu\n", what, address, rtl, ref,

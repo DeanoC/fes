@@ -109,8 +109,8 @@ id = "register-readback"
 title = "Register reads Bochs answers differently"
 replay = "unclassified"
 exercised = false
-reference = "3C0h reads 0 when the flip-flop is in the data state; 3B4h reads 0 in mono mode; DAC entries keep 8 bits and change a component at a time; 3C3h bit 0 clear leaves memory and registers working."
-rtl = "3C0h always reads the index and PAS; 3B4h reads the CRTC index; DAC entries are 6 bits and change when the blue component is written; with 3C3h bit 0 clear, memory reads FFh and ignores writes and only 3C3h answers."
+reference = "3C0h reads 0 when the flip-flop is in the data state; 3B4h reads 0 in mono mode; DAC entries change a component at a time; 3C3h bit 0 clear leaves memory and registers working."
+rtl = "3C0h always reads the index and PAS; 3B4h reads the CRTC index; DAC entries change when the blue component is written; with 3C3h bit 0 clear, memory reads FFh and ignores writes and only 3C3h answers."
 deciding = "IBM VGA Technical Reference register descriptions; docs/pc386-machine-design.md for 3C3h."
 follow = "rtl"
 
@@ -123,4 +123,15 @@ exercised = true
 reference = "Set during horizontal blanking and vertical blanking, from timers in microseconds."
 rtl = "Set whenever the raster is outside the display area (the inverse of display enable), from the CRTC counters."
 deciding = "IBM VGA Technical Reference, input status register 1: display enable. Status timing is the RTL's own raster in any case."
+follow = "rtl"
+
+[[divergence]]
+id = "dac-width"
+title = "DAC readback width"
+replay = "skip"
+counter = "reads-divergence-dac-width"
+exercised = true
+reference = "DAC entries keep the 8 bits written, and 3C9h reads them back (the display then shifts them left by 2, wrapping)."
+rtl = "DAC entries are 6 bits; 3C9h reads them back with bits 7:6 clear."
+deciding = "IBM VGA Technical Reference, video DAC: 6-bit colour registers. Wolfenstein 3D's VL_TestPaletteSet (ID_VL.C) writes every byte value through the DAC and compares the readback to choose its palette routine; on a VGA, and on the RTL, the comparison fails. The replay follows the RTL's run and counts each such read."
 follow = "rtl"
