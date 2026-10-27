@@ -157,6 +157,73 @@ for core_id, module_name, options in json.loads(sys.argv[1]):
                     module.resolve_core_package(source, 'd' * 40, selection_path,
                         recipe=module.recipe_for('fes.pong'))
 
+    def test_package_resolution_records_rom_map_digest_for_format_3_and_4(self):
+        module = self.module()
+        for manifest_format in (3, 4):
+            with self.subTest(format=manifest_format), tempfile.TemporaryDirectory() as temporary:
+                source = Path(temporary)
+                store = source / 'build/packages'
+                store.mkdir(parents=True)
+                identity = 'a' * 64
+                record = b'{"format":2,"repository":"https://github.com/DeanoC/fes.git","revision":"cccccccccccccccccccccccccccccccccccccccc","source_inputs":{"x":"y"},"source_path":"sources/misteross"}\n'
+                sidecar = store / f'{identity}.build-inputs.json'
+                sidecar.write_bytes(record)
+                sidecar.chmod(0o444)
+                package = store / identity
+                package.mkdir()
+                (package / 'manifest.toml').write_bytes(b'manifest')
+                (package / 'core.rbf').write_bytes(b'payload')
+                (package / 'rom-map.json').write_bytes(b'rom-map')
+                payload_sha = hashlib.sha256(b'payload').hexdigest()
+                rom_map_sha = hashlib.sha256(b'rom-map').hexdigest()
+                inspected = {
+                    'package_id': identity,
+                    'manifest': {'core': {'id': 'fes.coleco'}, 'format': manifest_format,
+                                 'payload': {'sha256': payload_sha},
+                                 'build': {'revision': 'c' * 40}},
+                    'manifest_sha256': hashlib.sha256(b'manifest').hexdigest(),
+                    'core_rbf_sha256': payload_sha,
+                    'rom_map_sha256': rom_map_sha,
+                }
+                with patch.object(module, 'canonical_package_record', return_value=record), \
+                     patch.object(module, '_inspect_package_candidate', return_value=inspected), \
+                     patch.object(module, '_build_package', side_effect=AssertionError('unexpected build')):
+                    resolved = module.resolve_core_package(source, 'd' * 40, source / 'selection.toml',
+                        recipe=module.recipe_for('fes.coleco'))
+                self.assertEqual(resolved['inputs']['rom_map_sha256'], rom_map_sha)
+
+    def test_package_inspection_requires_rom_map_digest_for_format_3_and_4(self):
+        module = self.module()
+        base = {'package_id': 'a' * 64, 'manifest_sha256': 'b' * 64, 'core_rbf_sha256': 'c' * 64}
+        recipe = module.recipe_for('fes.coleco')
+        for manifest_format in (3, 4):
+            for with_digest in (True, False):
+                with self.subTest(format=manifest_format, rom_map_sha256=with_digest), \
+                     tempfile.TemporaryDirectory() as temporary:
+                    package = Path(temporary) / ('a' * 64)
+                    package.mkdir()
+                    for name in ('manifest.toml', 'core.rbf', 'rom-map.json'):
+                        (package / name).write_bytes(b'x')
+                        (package / name).chmod(0o444)
+                    package.chmod(0o555)
+                    (Path(temporary) / 'record.json').write_bytes(b'{}')
+                    (Path(temporary) / 'record.json').chmod(0o444)
+                    inspected = dict(base, manifest={'format': manifest_format})
+                    if with_digest:
+                        inspected['rom_map_sha256'] = 'd' * 64
+                    completed = subprocess.CompletedProcess([], 0, stdout=json.dumps(inspected), stderr='')
+                    try:
+                        with patch.object(module.subprocess, 'run', return_value=completed):
+                            call = lambda: module._inspect_package_candidate(
+                                Path(temporary), package, Path(temporary) / 'record.json', recipe=recipe)
+                            if with_digest:
+                                self.assertEqual(call(), inspected)
+                            else:
+                                with self.assertRaisesRegex(ValueError, 'unexpected result'):
+                                    call()
+                    finally:
+                        package.chmod(0o755)
+
     def test_package_resolution_builds_once_when_no_canonical_candidate_exists(self):
         module = self.module()
         with tempfile.TemporaryDirectory() as temporary:
