@@ -42,12 +42,14 @@ tree. See [FES ZX81](fes-zx81.md) for the ZX81 machine contract.
 The default `native-integration-dev` profile installs the locked idle RBF and
 `fes.menu`. Playable cores are separate installations.
 
-The FES image route is package-only. Quartus is reserved for a documented bring-up or
-oracle/check when a system is not yet supported by nextpnr; the package-only
-route does not invoke it.
-Each package can be installed on the host and given an explicit library entry;
-the package route does not infer ROM or media inputs or replace the existing
-catalog system.
+The FES image route is package-only. The accepted product policy allows a
+labelled `quartus` variant alongside an `oss` (HIP/nextpnr) build; see
+[Quartus-built cores](design/quartus-cores.md). The current recipe registry
+and package resolver still produce and select only OSS packages. Quartus is
+used only for a documented bring-up or oracle/check while that rollout is
+pending. There is no `FES_OSS_ONLY` control in this tree. Each package can be
+installed on the host and given an explicit library entry; the package route
+does not infer ROM or media inputs or replace the existing catalog system.
 
 ## ROM linking transition
 
