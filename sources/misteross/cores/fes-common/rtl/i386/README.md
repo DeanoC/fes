@@ -273,10 +273,10 @@ every field and routine.
 **Multiply and divide** (`fes_i386_muldiv`) work in EX while D to WB
 freeze, from EX's operands, which stay put meanwhile. Only registers lie
 between the unit and EX:
-- in its first cycle it copies the uop's decode and imm, and what EX makes
-  its operands of (EX's src1 and y registers, WB's result, the load, the
-  bypass selects), and applies the bypasses itself; nothing of EX's logic
-  drives it;
+- in its first cycle it makes its operands from what EX makes them of
+  (EX's src1 and y registers, WB's result, the load, the bypass selects),
+  bypassed and at the uop's size, and registers them with the uop's decode,
+  so nothing of EX's logic drives it and the DSPs start from registers;
 - in its last cycle it writes its result, merged into the destination's old
   value and registered by the cycle before, into the uop's record, which EX
   passes through LEA's select, and a divide error into the record's fault;
@@ -291,9 +291,10 @@ between the unit and EX:
   a fault on it comes before anything is written; then the divide writes
   EAX and HI the remainder into EDX (`SEQ_DIV`). HI takes the kept half
   into its record as it leaves M2, and EX's lanes merge it.
-- **Multiply.** The operands' copy (E0), four 18x18 DSP products of the
-  33-bit operands (E1), their sum as a 3:2 row and one carry chain (E2), the
-  result halves and CF/OF (E3), and the undefined flags (E4): 5 cycles.
+- **Multiply.** The operands, registered (E0), four 18x18 DSP products of
+  the 33-bit operands (E1), their sum as a 3:2 row and one carry chain
+  (E2), the result halves and CF/OF (E3), and the undefined flags (E4): 5
+  cycles.
   The 386EX multiplies a bit per cycle, right to left, and stops once the
   multiplier's remaining bits are all zeros, or all ones for a negative
   IMUL multiplier; SF, ZF, AF and PF are its last step's, which come out of
