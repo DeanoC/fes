@@ -8,14 +8,13 @@
 // its flags; the uop leaves on the cycle after with them, so EX's result and
 // fault logic gain nothing.
 //
-// The uop's operands are EX's, which stay put while frozen. The unit makes
-// them itself from what EX makes them of, copied in its first cycle (E0)
-// with the uop's decode and imm, so nothing of EX's logic drives it and the
-// uop's record drives only those copies: src1's whole value (EAX, the
-// destination register, which the result merges into) from ar and the WB
-// result (byp_a), and src2, or the loaded value, at the uop's size from yr,
-// wb, ld and the bypass selects yw. It works from its own registers after
-// that.
+// The uop's operands are EX's, which stay put while frozen. In its first
+// cycle (E0) the unit makes them itself from what EX makes them of, so
+// nothing of EX's logic drives it, and registers them with the uop's
+// decode: src1's whole value (EAX, the destination register, which the
+// result merges into) from ar and the WB result (byp_a), and src2, or the
+// loaded value, at the uop's size from yr, wb, ld and the bypass selects
+// yw. It works from its own registers after that; the DSPs take theirs.
 //
 // A 16- or 32-bit MUL or DIV has two destinations. Its uop writes EAX and
 // keeps the high half (EDX's product or remainder, hi), which a HI uop
@@ -24,7 +23,7 @@
 // EDX, its dividend's high half, from a LOAD uop (ld_en, while one is in EX).
 //
 // Multiply: four 18x18 signed DSP products of the 33-bit operands, signed
-// or zero-extended (E1), their sum P (E2), the result halves and CF and OF,
+// or zero-extended (E1, from E0's registers), their sum P (E2), the result halves and CF and OF,
 // which say the product does not fit the destination (E3), then the flags
 // (E4). The undefined SF, ZF, AF and PF follow the 386EX, whose microcode
 // multiplies a bit per cycle, right to left, and stops early once the
@@ -77,21 +76,25 @@ module fes_i386_muldiv (
     localparam int CF = 0, PF = 2, AF = 4, ZF = 6, SF = 7, OF = 11;
 
     // ---- The uop -------------------------------------------------------------
-    // E0 sets the op's last cycle from the uop and copies its decode and imm;
-    // the rest works from the copies.
-    logic [2:0] cls;
-    logic [4:0] op;
-    logic       u_mpath, u_idiv, u_n8, u_n16;
-    logic [5:0] u_n;
+    // E0 decodes the uop (u_*), for the op's last cycle and the operands it
+    // registers, and copies the decode; the rest works from the copies.
+    logic [2:0]  cls;
+    logic [4:0]  op;
+    logic        u_mpath, u_imul3, u_aad, u_idiv, u_aam, u_n8, u_n16;
+    logic [5:0]  u_n;
+    logic [31:0] u_mask;
     assign cls = 3'(u.cls);
     assign op = u.op;
     assign u_mpath = cls == 3'd2;
+    assign u_imul3 = u_mpath && op == 5'd6;
+    assign u_aad = u_mpath && op == 5'd3;
     assign u_idiv = cls == 3'd3 && op == 5'd1;
+    assign u_aam = cls == 3'd3 && op == 5'd2;
     assign u_n8 = u.size == fes_i386_pkg::SIZE_8;
     assign u_n16 = u.size == fes_i386_pkg::SIZE_16;
     assign u_n = u_n8 ? 6'd8 : u_n16 ? 6'd16 : 6'd32;
+    assign u_mask = u_n8 ? 32'h0000_00ff : u_n16 ? 32'h0000_ffff : 32'hffff_ffff;
     logic        imul, imul3, aad, idiv, aam, mpath, n8, n16;
-    logic [31:0] imm;
 
     logic [31:0] mask, top_bit;
     logic [5:0]  n;
@@ -132,52 +135,38 @@ module fes_i386_muldiv (
     logic [11:0] fl_q;
     always_ff @(posedge clk) if (ld_en) ld_hi <= byp_a ? wb : ar;
 
-    // E0: the uop's decode, src1's and y's sources. E1: src1 (af_q, the
-    // merge's base), y (yb), the multiply's multiplicand and multiplier at
-    // the size (ma, mq) and the divisor (y_q).
-    logic [31:0] af_q, c_a, c_y, c_wb, c_ld, yb, ys;
-    logic [4:0]  c_yw;
-    logic        c_byp;
+    // E0: src1 (af) and y (yb) bypassed as EX makes them; registered with
+    // the decode, src1 (af_q, the merge's base), the multiply's multiplicand
+    // and multiplier at the size (ma_q, mq) and the divisor (y_q).
+    logic [31:0] af, yb, ys, af_q, ma_q, mq, y_q;
+    logic        sgn;
+    assign af = byp_a ? wb : ar;
+    assign ys = yw[0] ? ld : wb;
+    assign yb = yr ^ {{16{yw[4]}} & ys[31:16], {8{yw[3]}} & ys[15:8],
+                      {8{yw[2]}} & ys[7:0] | {8{yw[1]}} & ys[15:8]};
     always_ff @(posedge clk) if (go && st == 6'd0) begin
         imul <= u_mpath && op == 5'd1;
-        imul3 <= u_mpath && op == 5'd6;
-        aad <= u_mpath && op == 5'd3;
+        imul3 <= u_imul3;
+        aad <= u_aad;
         idiv <= u_idiv;
-        aam <= cls == 3'd3 && op == 5'd2;
+        aam <= u_aam;
         mpath <= u_mpath;
         n8 <= u_n8;
         n16 <= u_n16;
-        imm <= u.imm;
-        c_a <= ar;
-        c_byp <= byp_a;
-        c_y <= yr;
-        c_wb <= wb;
-        c_ld <= ld;
-        c_yw <= yw;
+        af_q <= af;
+        ma_q <= (u_imul3 ? yb : u_aad ? {24'd0, af[15:8]} : af) & u_mask;
+        mq <= (u_imul3 ? u.imm : u_aad ? {24'd0, u.imm[7:0]} : yb) & u_mask;
+        y_q <= u_aam ? {24'd0, u.imm[7:0]} : yb & u_mask;
     end
-    assign af_q = c_byp ? c_wb : c_a;
-    assign ys = c_yw[0] ? c_ld : c_wb;
-    assign yb = c_y ^ {{16{c_yw[4]}} & ys[31:16], {8{c_yw[3]}} & ys[15:8],
-                       {8{c_yw[2]}} & ys[7:0] | {8{c_yw[1]}} & ys[15:8]};
-    logic [31:0] ma, mm, ma_q, mq, y_q;
-    logic        sgn;
-    assign ma = (imul3 ? yb : aad ? {24'd0, af_q[15:8]} : af_q) & mask;
-    assign mm = (imul3 ? imm : aad ? {24'd0, imm[7:0]} : yb) & mask;
     assign sgn = imul || imul3;
-    always_ff @(posedge clk) if (go && st == 6'd1) begin
-        ma_q <= ma;
-        mq <= mm;
-        y_q <= aam ? {24'd0, imm[7:0]} : yb & mask;
-    end
 
     // ---- Multiply ---------------------------------------------------------------
     logic [32:0] a33, b33;
-    logic        mq_neg, ma_neg, mm_neg;
+    logic        mq_neg, ma_neg;
     assign mq_neg = sgn && |(mq & top_bit);
-    assign ma_neg = sgn && |(ma & top_bit);
-    assign mm_neg = sgn && |(mm & top_bit);
-    assign a33 = {ma_neg, ma | (ma_neg ? ~mask : 32'd0)};
-    assign b33 = {mm_neg, mm | (mm_neg ? ~mask : 32'd0)};
+    assign ma_neg = sgn && |(ma_q & top_bit);
+    assign a33 = {ma_neg, ma_q | (ma_neg ? ~mask : 32'd0)};
+    assign b33 = {mq_neg, mq | (mq_neg ? ~mask : 32'd0)};
     logic signed [17:0] al, ah, bl, bh;
     assign al = {2'b00, a33[15:0]};
     assign ah = {a33[32], a33[32:16]};
@@ -306,7 +295,7 @@ module fes_i386_muldiv (
                 r <= d_hi;
                 l <= d_lo << (6'd32 - n);
             end
-            dm <= aam ? {24'd0, imm[7:0]} : yb & mask;
+            dm <= y_q;
             over <= 1'b0;
         end else if (go && st == 6'd2 && idiv) begin
             mn <= |(y_q & top_bit);
