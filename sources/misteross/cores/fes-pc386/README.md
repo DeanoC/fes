@@ -118,6 +118,37 @@ captures stay outside the repository.
   end CHS, as FogCast will.
 - **Clock.** 100 MHz; every guest rate is a rational enable of it.
 
+## Audio
+
+[`pc386_audio`](rtl/pc386_audio.sv) sits beside the AT core, as the design's
+block diagram has it: the AT core decodes the Sound Blaster's base range and
+388h-389h onto a sound port (isa8 cycles), takes DREQ1 into its 8237 and the
+DSP's IRQ into its PICs, and hands out the speaker level. The benches Verilate
+the two as separate models and join them in [`audio_link.h`](sim/audio_link.h)
+as wires would; the machine top level will instantiate both.
+
+- **OPL2.** Sample-exact against Nuked-OPL3's default build in OPL2 mode; the
+  [import README](vendor/opl2_fpga/README.md) lists the local changes. Register
+  writes reach the import only between samples (it computes for 72 clocks of
+  each 2,011); one that arrives meanwhile waits in a four-entry queue. Timer 1
+  counts every 4 samples (80.5 us) and timer 2 every 16 (321.8 us). Status
+  reads {IRQ, T1, T2, 00110b}; the data port reads FFh. Register 01h bit 5 and
+  CSM mode are not modelled, as in Nuked-OPL3.
+- **DSP.** The commands and behaviour of the
+  [design's table](../../docs/pc386-machine-design.md#sound-blaster-20-dsp),
+  plus 80h, E4h and E8h. Reset completes 20 us after release; F2h's IRQ comes
+  10 us after the command; the status ports read AAh and 2Ah; odd ports alias
+  the even one below. The DSP's settings after reset: time constant D3h
+  (22.2 kHz), block size 2048, speaker off.
+- **Mixer.** OPL2 and DSP at half scale, speaker at 16384 when on, integrated
+  per 48 kHz period at system-clock resolution and divided by the period's
+  length, then a DC blocker near 30 Hz and saturation. The benches make the
+  48 kHz request from a rational enable; the shell will take it from the I2S
+  output's frame request.
+- **Reset.** The import's registers and register memories start at their
+  declared initial values; only the machine reset (a launch)
+  restarts the audio, as the AdLib's IC pin did. A CPU reset does not.
+
 ## Recorded behaviour and deviations
 
 - **CMOS.** Besides the bytes the design lists, the machine writes what the
@@ -183,5 +214,5 @@ captures stay outside the repository.
 The HID nine-row keyboard model and typematic repeat; the `fes.mouse.relative`
 and `fes.computer` mailbox wiring (disk prepare, commit with CRC, freeze,
 DiskDirty read-out, persistence, wall clock, display plane commands); the ATA
-image on DDR port 2 (it keeps its own 64-bit image port); the shell, audio and
-the producer (phases M3-M5).
+image on DDR port 2 (it keeps its own 64-bit image port); the shell and the
+producer (phases M4-M5).

@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
-"""Simulate the pc386 machine: device/audio benches, the oracle-CPU boot and VGA.
+"""Simulate the pc386 machine through phases M1-M3.
 
 Host-only checks; no kit, package or routed result. See
-docs/pc386-machine-design.md, "Verification" and phases M1 and M2.
+docs/pc386-machine-design.md, "Verification" and phases M1-M3.
 
   devices  cores/fes-pc386/sim/devices_tb.cpp drives the AT core's I/O port
            directly: PIC cascade and acknowledge, 8254 rate and read-back,
            DMA registers, pages and a transfer, 8042 commands, A20 and reset,
            RTC update and interrupts, the ATA command set, and the I/O timing
            classes. Needs only Verilator.
+  audio    cores/fes-pc386/sim/audio_tb.cpp checks the speaker, Sound Blaster
+           DSP commands and DMA, OPL2 timers and the 48 kHz mixer.
+  opl2     cores/fes-pc386/sim/opl2_tb.cpp compares the OPL2 sample for sample
+           with Nuked-OPL3 on random programs and captured sound logs.
   benches  cores/fes-pc386/sim/presenter_tb.cpp and plane_tb.cpp: the presenter
            against its model, and the shared display plane through the port 2
            bridge and arbiter. Needs only Verilator; under a minute.
@@ -17,6 +21,10 @@ docs/pc386-machine-design.md, "Verification" and phases M1 and M2.
            the RTL VGA) with the Bochs oracle as the CPU, types a command at
            the prompt, checks the answer read from VRAM and the I/O completion
            times, and replays the boot's VGA trace against Bochs's VGA.
+  sound    boots FreeDOS and runs SOUND.COM; checks the speaker and DSP tones,
+           OPL2 output and DSP interrupts.
+  game     starts Wolfenstein 3D or Ultima VI from user-supplied eXoDOS files
+           and checks the game's OPL2 output. Supply the games outside the repo.
   vga      runs the benches, boots
            cores/fes-pc386/sim/vga_test.asm (VGA BIOS text, mode 13h, mode Y,
            mode 12h), checks every marked picture's 720p frame from the
@@ -30,7 +38,10 @@ build/sim/fes-pc386/<suite>/report.json; vga also writes the marked frames.
 
 Examples:
   python3 scripts/sim_fes_pc386.py --suite devices
+  python3 scripts/sim_fes_pc386.py --suite opl2
   python3 scripts/sim_fes_pc386.py --suite boot --download
+  python3 scripts/sim_fes_pc386.py --suite sound --download
+  python3 scripts/sim_fes_pc386.py --suite game --game ultima6
   python3 scripts/sim_fes_pc386.py --suite vga
 """
 from __future__ import annotations
@@ -638,7 +649,7 @@ def run_game(args, linked: list[Path]) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--suite', choices=('devices', 'audio', 'opl2', 'benches', 'boot', 'sound', 'game', 'vga',
-                                            'all'), default='all')
+                                            'all'), default='all', help='simulation suite to run')
     parser.add_argument('--download', action='store_true', help='fetch Bochs, dev86, FreeDOS and NASM if missing')
     parser.add_argument('--rebuild-image', action='store_true', help='rebuild the FreeDOS fixture')
     parser.add_argument('--limit-seconds', type=float, default=None, help='simulated seconds before giving up')
