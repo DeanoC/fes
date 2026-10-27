@@ -230,18 +230,20 @@ module fes_i386_cpu (
     assign dc_q.popad_esp = 1'b0;
     assign d_ready = !dc_skid_valid;
     // A fixed sequence's uops issue from dc in turn: as each but the last
-    // issues, dc takes the next (fes_i386_seq).
+    // issues, dc takes the next (fes_i386_seq), whose rewritten fields come
+    // from the instruction's first uop, which dc0 keeps, so none of dc's is
+    // held at some steps and not others.
     // A microcode routine's next uop is the ROM's word at dc.upc, read as an
     // M10K with a registered output: it is there the cycle after dc settles
     // (rom_ok: dc held over the last edge), so D waits a cycle for each
     // (uc_wait). Both are registers, off the M10K's pins.
-    decoded_t dc_next;
+    decoded_t dc_next, dc0;
     fes_i386_pkg::ucode_t rom_q;
     logic       rom_ok, uc_wait;
     fes_i386_ucode_rom ucode (.clk, .addr(dc.upc), .q(rom_q));
     always_ff @(posedge clk) rom_ok <= dc_valid && !issue;
     assign uc_wait = dc.seq == fes_i386_pkg::SEQ_UCODE && dc.more && !rom_ok;
-    fes_i386_seq seq (.d(dc), .w(rom_q), .n(dc_next));
+    fes_i386_seq seq (.d(dc), .d0(dc0), .w(rom_q), .n(dc_next));
     // An exception's entry: a NOP that starts the ROM's vector routine with
     // the fault's vector, at length 0, so the routine pushes D's EIP, the
     // faulting instruction's. It goes in through dc_skid the cycle after the
@@ -271,6 +273,7 @@ module fes_i386_cpu (
             end
         end
         if (!dc_valid || issue) dc <= dc_valid && dc.more ? dc_next : dc_skid_valid ? dc_skid : dc_q;
+        if (dc_load) dc0 <= dc_skid_valid ? dc_skid : dc_q;
         if (exc_inject) dc_skid <= dc_exc;
         else if (!dc_skid_valid) dc_skid <= dc_q;
     end
