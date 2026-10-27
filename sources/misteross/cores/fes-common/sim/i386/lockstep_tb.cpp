@@ -983,7 +983,8 @@ constexpr uint32_t HANDLER = 0x800;  // 0000:0800
 
 void run_fault_case(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, Summary &summary,
                     const std::string &label, const std::vector<uint8_t> &code, State state, bool nested,
-                    uint32_t stack_address = 0, const std::array<uint8_t, 4> *stack_value = nullptr) {
+                    uint32_t stack_address = 0, const std::array<uint8_t, 4> *stack_value = nullptr,
+                    unsigned vector = 13) {
     const uint32_t code_base = state.seg[fes_i386::SEG_CS].base + state.eip;
     std::vector<std::pair<uint32_t, uint8_t>> image;
     for (size_t i = 0; i < code.size(); ++i) image.emplace_back(code_base + uint32_t(i), code[i]);
@@ -1014,8 +1015,8 @@ void run_fault_case(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, Summary 
     if (nested) {
         if (!outcome.double_fault) out.add(label + ".double-fault", 1, 0);
     } else {
-        if (outcome.exception != 13)
-            out.add(label + ".exception", 13, outcome.exception < 0 ? 0xffu : uint32_t(outcome.exception));
+        if (outcome.exception != int(vector))
+            out.add(label + ".exception", vector, outcome.exception < 0 ? 0xffu : uint32_t(outcome.exception));
         if (!outcome.halted) out.add(label + ".halt", 1, 0);
         // The frame below the faulting instruction's SP: its IP, then CS.
         const uint32_t sp = (state.gpr[fes_i386::REG_ESP] - 6) & 0xffff;
@@ -1093,6 +1094,21 @@ void run_fault_regressions(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, S
     gp_wrap.gpr[fes_i386::REG_ESP] = 3;
     run_fault_case(oracle, bus, rtl, summary, "gp-stack-wrap",
                    {0x66, 0xe8, 0x00, 0x00, 0x01, 0x00}, gp_wrap, true);
+
+    // ENTER 10Fh, 0 with SP 110h: its push of BP passes, and the check of
+    // the final slot, at SP FFFFh, raises #SS with ESP and EBP unmoved.
+    State enter = call;
+    enter.gpr[fes_i386::REG_ESP] = 0x110;
+    enter.gpr[fes_i386::REG_EBP] = 0x400;
+    run_fault_case(oracle, bus, rtl, summary, "enter-final-slot", {0xc8, 0x0f, 0x01, 0x00, 0xf4}, enter, false,
+                   0, nullptr, 12);
+
+    // ENTER 0, 2 with SP 5: the pushes of BP and of the copied slot pass,
+    // the frame pointer's straddles the wrap, and the #SS delivery's
+    // probe faults the same way, the two pushes written.
+    State enter_wrap = enter;
+    enter_wrap.gpr[fes_i386::REG_ESP] = 5;
+    run_fault_case(oracle, bus, rtl, summary, "enter-stack-wrap", {0xc8, 0x00, 0x00, 0x02, 0xf4}, enter_wrap, true);
 }
 
 // ---- SingleStepTests mode ---------------------------------------------------------------
