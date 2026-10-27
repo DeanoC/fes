@@ -234,9 +234,12 @@ retired. Both deliver it, and the delivery is compared as a retirement, its
 frame included. A fault in a delivery, which the oracle shows as a second
 fault or a shutdown, must stop the RTL as not built (vector 8), with nothing
 of the instruction retired and nothing of the delivery written. What the
-instruction wrote before its fault stands: ENTER's pushes, or a REP string's
-elements with their steps of ESI, EDI and ECX. Those are the oracle's writes
-before its delivery began, which each oracle event counts. HLT ends a
+instruction wrote before its fault may stand: ENTER's pushes, or a REP
+string's elements with their steps of ESI, EDI and ECX. Each byte the RTL
+wrote must be one the oracle wrote before its delivery began (each oracle
+event counts the writes before it), with the oracle's value unless the
+oracle's partial frame wrote it again. The RTL may write less: its far CALL
+and INT check their slots before they push, as the 386EX does. HLT ends a
 run on both sides. Every byte either side writes is
 cleared after the run.
 

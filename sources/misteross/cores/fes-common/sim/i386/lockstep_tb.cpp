@@ -40,6 +40,8 @@
 //           backward jumps, pushes and pops, CALLs to subroutines that RET
 //           and PUSH BP / MOV BP, SP / LEAVE frames, so results forward
 //           between instructions and taken branches kill younger producers.
+//           FES_I386_FIRST skips the programs before it (they are still
+//           generated), to run one again.
 //           A run stops at its HLT, once it has delivered an exception,
 //           after FES_I386_RETIRE_LIMIT retirements, or at a store into its
 //           own code, which needs self-modifying-code detection the RTL does
@@ -803,26 +805,26 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             if (event != Rtl::Event::Unimplemented || rtl.top.trace_vector != 8)
                 out.add(at + "double-fault", 8, event == Rtl::Event::Unimplemented ? rtl.top.trace_vector : 0xffu);
             if (!skip.all) {
-                // What the instruction wrote before its fault stands (ENTER's
-                // pushes, a REP string's elements, with their steps of ESI,
-                // EDI and ECX): the oracle's writes before its first
-                // delivery, a fault's or an INT's, where the bytes it wrote
-                // after (the part of a frame it pushed) leave their values
-                // unseen. Nothing of a delivery is written.
+                // What the instruction wrote before its fault may stand
+                // (ENTER's pushes, a REP string's elements, with their steps
+                // of ESI, EDI and ECX): each byte the RTL wrote, the oracle
+                // wrote before its first delivery, a fault's or an INT's,
+                // and with the same value unless the oracle wrote it again
+                // after (the part of a frame it pushed). The RTL may write
+                // less: a far CALL or INT that checks its slots before its
+                // pushes, as the 386EX does, writes none of them. Nothing of
+                // a delivery is written.
                 const size_t own = result.events.empty() ? result.writes.size() : result.events[0].writes_before;
                 std::set<uint32_t> own_writes, later_writes;
                 for (size_t k = 0; k < result.writes.size(); ++k)
                     for (unsigned i = 0; i < result.writes[k].length; ++i)
                         (k < own ? own_writes : later_writes).insert(result.writes[k].physical + i);
-                if (own_writes != rtl.step_writes) {
-                    const uint32_t first = !own_writes.empty() ? *own_writes.begin() : 0;
-                    const uint32_t got = !rtl.step_writes.empty() ? *rtl.step_writes.begin() : 0;
-                    out.add(at + "fault-write", (uint64_t(own_writes.size()) << 32) | first,
-                            (uint64_t(rtl.step_writes.size()) << 32) | got);
-                }
-                for (uint32_t address : own_writes)
-                    if (!later_writes.count(address) && address < RAM_BYTES && bus.ram[address] != rtl.ram[address])
+                for (uint32_t address : rtl.step_writes) {
+                    if (!own_writes.count(address))
+                        out.add(at + "fault-write", address, address < RAM_BYTES ? rtl.ram[address] : 0);
+                    else if (!later_writes.count(address) && address < RAM_BYTES && bus.ram[address] != rtl.ram[address])
                         out.add(at + "fault-write." + hex(address), bus.ram[address], rtl.ram[address]);
+                }
                 State want = before;
                 const State oracle_now = oracle.get_state();
                 for (int r : {fes_i386::REG_ECX, fes_i386::REG_ESI, fes_i386::REG_EDI}) want.gpr[r] = oracle_now.gpr[r];
@@ -1730,8 +1732,13 @@ private:
     // CX (ECX) to 0-9 under REP, now and then CLD or STD, a source segment
     // override, and REP, REPE or REPNE. A quarter are a REP MOVS whose copy
     // overlaps: ES = DS and DI = SI - 4 to SI + 4, so one element can load
-    // what the element before it stores.
+    // what the element before it stores. No backward jump lands before the
+    // block's end, where a REP would run again with whatever CX holds.
     void string_block() {
+        string_items();
+        fence = int(items.size());
+    }
+    void string_items() {
         static const uint8_t segs[] = {0x26, 0x2e, 0x36, 0x3e, 0x64, 0x65};
         static const uint8_t ops[] = {0xa4, 0xa5, 0xa6, 0xa7, 0xaa, 0xab, 0xac, 0xad, 0xae, 0xaf};
         if (pick(4) == 0) {
@@ -2046,7 +2053,7 @@ private:
 };
 
 int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
-               Summary &summary, uint64_t seed, uint64_t programs, uint64_t retire_limit) {
+               Summary &summary, uint64_t seed, uint64_t programs, uint64_t retire_limit, uint64_t first) {
     std::mt19937_64 random(seed);
     Generator generator(random);
     for (uint64_t n = 0; n < programs; ++n) {
@@ -2058,6 +2065,7 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
         state.eip = 0x100 + uint32_t(random() % 0xd000);
         const uint32_t base = state.seg[fes_i386::SEG_CS].base + state.eip;
         const std::vector<uint8_t> code = generator.program(20 + unsigned(random() % 180), base, state.eip);
+        if (n < first) continue;
         for (size_t i = 0; i < code.size(); ++i) bus.ram[base + i] = rtl.ram[base + i] = code[i];
         oracle.invalidate(base, uint32_t(code.size()));
         oracle.set_state(state);
@@ -2177,7 +2185,7 @@ int main(int argc, char **argv) {
         run_unbuilt(rtl, summary);
     } else if (mode == "random") {
         run_random(*oracle, bus, rtl, entries, summary, seed, env("FES_I386_PROGRAMS", 1000),
-                   env("FES_I386_RETIRE_LIMIT", 2000));
+                   env("FES_I386_RETIRE_LIMIT", 2000), env("FES_I386_FIRST", 0));
     } else {
         run_corpus(*oracle, bus, rtl, entries, summary);
     }
