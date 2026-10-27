@@ -35,9 +35,9 @@
 // shifts and rotates set OF and CF as fes_i386_shflags says.
 //
 // MUL, IMUL, DIV, IDIV, AAM and AAD take their flags from the multiply and
-// divide unit (fes_i386_muldiv, md_flags), which reads EX's src1 (af);
-// their result comes through LEA's select, from the pipe record's result
-// field, which fes_i386_cpu fills from the unit.
+// divide unit (fes_i386_muldiv, md_flags); their result comes through LEA's
+// select, from the pipe record's result field, which fes_i386_cpu fills
+// from the unit.
 module fes_i386_ex (
     input  fes_i386_pkg::uop_t   u,
     input  fes_i386_pkg::exctl_t exc,
@@ -50,7 +50,6 @@ module fes_i386_ex (
     input  logic [17:0]          flags_in,
     input  logic [17:0]          flags_keep,
     input  logic [11:0]          md_flags,
-    output logic [31:0]          af,          // src1's whole value, bypassed
     output logic [31:0]          result,
     output logic [17:0]          flags_out,
     output logic                 taken,
@@ -81,7 +80,7 @@ module fes_i386_ex (
     endfunction
 
     // ---- Operands -----------------------------------------------------------------
-    logic [31:0] x, y, mask;
+    logic [31:0] af, x, y, mask;
     assign af = exc.byp_a ? wb : a;
     logic [31:0] xs, ys;  // what x and y take in: the WB result or the loaded value
     assign xs = exc.xl ? ld : wb;

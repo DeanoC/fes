@@ -817,13 +817,13 @@ module fes_i386_cpu (
     // end. A faulting uop changes nothing in EX (fes_i386_ex), so an
     // exception's delivery starts from the flags before it.
     logic [17:0] ex_flags, ex_flags_out, wb_flags, flags_keep;
-    logic [31:0] ex_result, ex_af;
+    logic [31:0] ex_result;
     logic [31:0] md_result, md_hi;
     logic [11:0] md_flags;
     logic        md_last, md_de, md_load;
     assign md_load = ex_s.valid && ex_s.exc.md && ex_s.uop.op == 5'd5;  // MULDIV_LOAD
     fes_i386_muldiv muldiv (
-        .clk, .go(md_busy), .u(ex_s.uop), .af(ex_af), .yr(ex_s.y), .wb(wb_s.result), .ld(ex_s.ld),
+        .clk, .go(md_busy), .u(ex_s.uop), .ar(ex_s.a), .byp_a(ex_s.exc.byp_a), .yr(ex_s.y), .wb(wb_s.result), .ld(ex_s.ld),
         .yw({ex_s.exc.yw32, ex_s.exc.yw16, ex_s.exc.yw_lo, ex_s.exc.yw_hi, ex_s.exc.yl}), .ld_en(md_load), .last(md_last), .result(md_result),
         .de(md_de), .flags(md_flags), .hi(md_hi)
     );
@@ -875,8 +875,8 @@ module fes_i386_cpu (
     // LEA's offset is its whole result, which EX's LEA select passes.
     fes_i386_ex ex (
         .u(ex_s.uop), .exc(ex_s.exc), .a(ex_s.a), .xr(ex_s.x), .yr(ex_s.y), .wb(wb_s.result), .ld(ex_s.ld),
-        .ag_result(ex_s.result), .flags_in(ex_flags), .flags_keep, .md_flags, .af(ex_af),
-        .result(ex_result), .flags_out(ex_flags_out),
+        .ag_result(ex_s.result), .flags_in(ex_flags), .flags_keep, .md_flags, .result(ex_result),
+        .flags_out(ex_flags_out),
 .taken(ex_taken), .ind_target(ex_ind_target), .ind_eip(ex_ind_eip), .sh_out0(ex_sh_out0), .sh_outn(ex_sh_outn), .sh_cfw(ex_sh_cfw), .sh_wide(ex_sh_wide),
         .def_co(ex_def_co), .def_szap(ex_def_szap)
     );
