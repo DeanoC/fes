@@ -58,10 +58,11 @@ The Coleco kit observation is the grounding case, not a one-off bug:
 
 - Commercial Frogger carries the stock ColecoVision `55aa` cartridge header
   and needs Coleco BIOS services at `0x0000`.
-- The default FES package is an open `JP 0x8000` reset shim. It does not
-  interpret that header and does not provide BIOS calls.
-- The same sealed package and runtime can pass the BIOS-free Graphics I /
-  graphics-i control and still leave Frogger on black HDMI.
+- The open `JP 0x8000` reset shim is used by host simulations and mailbox
+  diagnostics. The factory format-4 package links `coleco-bios` through its
+  ROM map.
+- The shim-based diagnostic package and runtime can pass the BIOS-free
+  Graphics I / graphics-i control and still leave Frogger on black HDMI.
 
 Core-present is not composition-ready. Launching a required-firmware title
 without firmware must not look like **Ready**. Silent black HDMI is a

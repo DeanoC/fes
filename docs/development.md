@@ -241,7 +241,7 @@ install the current agent, locked idle RBF, selected package set and build-input
 selection change retains the compiler/base volume but forces final image
 assembly. The development receipt binds the emitted package selection and the
 exact external `manifest.toml` and `core.rbf` bytes, plus `rom-map.json` when
-the selected package is format 3.
+the selected package is format 3 or 4.
 A failed build leaves no development success receipt; the next invocation can
 resume package compilation.
 

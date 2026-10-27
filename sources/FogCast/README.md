@@ -267,10 +267,11 @@ and content selection; the MiSTer is a small, directly controlled target.
   SSH and curl.
 - A separate reproducible `native-dev` image that packages the native runtime,
   native agent backend, one locked idle RBF and a selected set of validated
-  format-2/3 packages (`fes.menu`, `fes.pong`,
+  format-2, format-3, or format-4 packages (`fes.menu`, `fes.pong`,
   `fes.zx81`, `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.spectrum`, and
-  `fes.ramtest`, `fes.atari-st`) through the closed package selection described in [the
-  development guide](docs/DEVELOPMENT.md). The earlier Mega Drive image lane
+  `fes.ramtest`, `fes.atari-st`) through the closed package selection described
+  in [the development guide](docs/DEVELOPMENT.md). The factory `fes.coleco`
+  package uses format 4. The earlier Mega Drive image lane
   is retired; its dated hardware record is the
   [native Mega Drive baseline](docs/hardware/native-megadrive-baseline.md).
 
