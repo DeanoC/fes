@@ -181,3 +181,12 @@ These are in the design's audio section and the core README.
   SystemVerilog is phase M4's question.
 - The shell, the I2S frame request and `fes.audio.pcm-s16-stereo-48k`; the
   benches make the 48 kHz request from a rational enable.
+
+## Follow-up: DSP writes during busy, 27 October 2026
+
+At FES commit `9d34913cf78354497c786dd4dbb9f1702e0939f6`,
+`make sim-fes-pc386` passed the device, audio and OPL2 suites. The audio bench
+passed 88 directed checks with no failures. Its added check issues an unpolled
+speaker-on write less than 1 us after speaker-off and confirms D8h still reads
+00h, so the write during the busy window was dropped. All four OPL2 comparisons
+passed. This remains host-only simulation evidence.
