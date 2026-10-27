@@ -1735,9 +1735,11 @@ private:
     // A string instruction, or now and then two or three back to back, with
     // SI and DI (ESI and EDI under 67h) set first at random below 64 KiB,
     // CX (ECX) to 0-9 under REP, now and then CLD or STD, a source segment
-    // override, and REP, REPE or REPNE. A quarter are a REP MOVS whose copy
-    // overlaps: ES = DS and DI = SI - 4 to SI + 4, so one element can load
-    // what the element before it stores. No backward jump lands before the
+    // override, and REP, REPE or REPNE. A quarter are a REP MOVS or CMPS
+    // over two words of nonzero data at SI, whose copy overlaps: DI = SI - 4
+    // to SI + 4 and ES = DS, which PUSH DS and POP ES set just before it, so
+    // one element can load what the element before it stores, and the
+    // string's first uop waits for ES. No backward jump lands before the
     // block's end, where a REP would run again with whatever CX holds.
     void string_block() {
         string_items();
@@ -1747,16 +1749,18 @@ private:
         static const uint8_t segs[] = {0x26, 0x2e, 0x36, 0x3e, 0x64, 0x65};
         static const uint8_t ops[] = {0xa4, 0xa5, 0xa6, 0xa7, 0xaa, 0xab, 0xac, 0xad, 0xae, 0xaf};
         if (pick(4) == 0) {
-            const uint16_t si = uint16_t(rng());
+            const uint16_t si = uint16_t(rng()), w0 = uint16_t(rng() | 1), w1 = uint16_t(rng() | 1);
+            items.push_back(Item{{0xbe, uint8_t(si), uint8_t(si >> 8)}, -1, 0, 0});            // MOV SI, imm16
+            items.push_back(Item{{0xc7, 0x04, uint8_t(w0), uint8_t(w0 >> 8)}, -1, 0, 0});        // MOV [SI], imm16
+            items.push_back(Item{{0xc7, 0x44, 0x02, uint8_t(w1), uint8_t(w1 >> 8)}, -1, 0, 0});  // MOV [SI + 2], imm16
+            items.push_back(Item{{0x8d, 0x7c, uint8_t(int(pick(9)) - 4)}, -1, 0, 0});          // LEA DI, [SI + d8]
+            items.push_back(Item{{0xb9, uint8_t(pick(10)), 0}, -1, 0, 0});                       // MOV CX, imm16
+            if (pick(3) == 0) items.push_back(Item{{uint8_t(pick(2) ? 0xfc : 0xfd)}, -1, 0, 0});
             items.push_back(Item{{0x1e}, -1, 0, 0});  // PUSH DS
             items.push_back(Item{{0x07}, -1, 0, 0});  // POP ES
-            items.push_back(Item{{0xbe, uint8_t(si), uint8_t(si >> 8)}, -1, 0, 0});  // MOV SI, imm16
-            items.push_back(Item{{0x8d, 0x7c, uint8_t(int(pick(9)) - 4)}, -1, 0, 0});  // LEA DI, [SI + d8]
-            items.push_back(Item{{0xb9, uint8_t(pick(10)), 0}, -1, 0, 0});  // MOV CX, imm16
-            if (pick(3) == 0) items.push_back(Item{{uint8_t(pick(2) ? 0xfc : 0xfd)}, -1, 0, 0});
-            std::vector<uint8_t> bytes{0xf3};
+            std::vector<uint8_t> bytes{uint8_t(pick(2) ? 0xf3 : 0xf2)};
             if (pick(3) == 0) bytes.push_back(0x66);
-            bytes.push_back(uint8_t(0xa4 + pick(2)));
+            bytes.push_back(uint8_t((pick(3) ? 0xa4 : 0xa6) + pick(2)));
             items.push_back(Item{bytes, -1, 0, 0});
             return;
         }
