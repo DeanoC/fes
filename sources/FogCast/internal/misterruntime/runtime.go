@@ -376,6 +376,14 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 			return CoreActivation{}, false, unsupportedOperationError()
 		}
 	}
+	if staged.PartsComposition != nil && staged.ROMLinks != nil {
+		if _, ok := r.control.(protocol2ROMLinksPartsCompositionControl); !ok {
+			return CoreActivation{}, false, unsupportedOperationError()
+		}
+		if _, ok := r.control.(protocol2PartsControl); !ok {
+			return CoreActivation{}, false, unsupportedOperationError()
+		}
+	}
 	if staged.SlotComposition != nil && staged.ROMLink != nil {
 		if _, ok := r.control.(protocol2ROMSlotControl); !ok {
 			return CoreActivation{}, false, unsupportedOperationError()
@@ -470,6 +478,9 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 		response, callErr = r.loadInitialROMCore(operationOwner, staged)
 	} else if staged.PartsComposition != nil && staged.ROMLink != nil {
 		response, callErr = r.control.(protocol2ROMPartsCompositionControl).LoadROMPartsComposedCore(operationOwner, staged.Directory, staged.PackageID, partPaths(staged), staged.PayloadPath, *staged.PartsComposition, staged.ProgrammedPath, *staged.ROMLink)
+		r.noteDispatch("load_rom_composed_core", callErr == nil)
+	} else if staged.PartsComposition != nil && staged.ROMLinks != nil {
+		response, callErr = r.control.(protocol2ROMLinksPartsCompositionControl).LoadROMLinksPartsComposedCore(operationOwner, staged.Directory, staged.PackageID, partPaths(staged), staged.PayloadPath, *staged.PartsComposition, staged.ProgrammedPath, *staged.ROMLinks)
 		r.noteDispatch("load_rom_composed_core", callErr == nil)
 	} else if staged.PartsComposition != nil {
 		if libraryID != "" {

@@ -19,6 +19,12 @@
 // Dropping stream_enable empties the ring. Reads already issued are discarded
 // as they return, and the next enable starts again at byte 0. Writes take
 // the port first; a shell writes a unit only while its stream is disabled.
+// The fetch port reads single bytes anywhere in the unit. A request is held
+// with its address until fetch_ready, which is high for every clock the
+// address falls in the word last read; fetch_data is that byte. A miss reads
+// the word with one single-beat read. Dropping a request is harmless, and any
+// write discards the word. A shell uses either the stream or the fetch port
+// on one store, never both.
 // reset is the port's reset from fes_hps_ddr: the guard hides responses to
 // reads issued before a hold, so all state restarts.
 module fes_media_ddr #(
@@ -38,6 +44,10 @@ module fes_media_ddr #(
     output wire          stream_valid,
     output wire [7:0]    stream_data,
     input  wire          stream_take,
+    input  wire          fetch,
+    input  wire [AW-1:0] fetch_addr,
+    output wire          fetch_ready,
+    output wire [7:0]    fetch_data,
     output reg  [28:0]   address = 29'd0,
     output reg  [7:0]    burstcount = 8'd1,
     output reg           read = 1'b0,
@@ -119,7 +129,45 @@ module fes_media_ddr #(
     wire [8:0] burst = left < WW'(BURST) ? 9'(left) : 9'(BURST);
     wire room = fetch_word - take_word <= WW'(RING_WORDS - BURST);
     wire read_command = command_free && !write_command && wstate == W_IDLE &&
-                        stream_enable && !flushing && left != 0 && room;
+                        stream_enable && !flushing && left != 0 && room && !fetch;
+
+    // ------------------------------------------------------------------- fetch
+    reg [AW-4:0] cache_word = 0;
+    reg [63:0] cache_q = 64'd0;
+    reg cache_ok = 1'b0;
+    reg fetch_waiting = 1'b0;       // a fetch read has not returned
+    reg fetch_stale = 1'b0;         // a write landed since it was issued
+    reg [AW-4:0] pending_word = 0;
+    wire fetch_hit = cache_ok && cache_word == fetch_addr[AW-1:3];
+    assign fetch_ready = fetch && fetch_hit;
+    assign fetch_data = cache_q[{fetch_addr[2:0], 3'd0} +: 8];
+    wire fetch_command = command_free && !write_command && wstate == W_IDLE &&
+                         fetch && !fetch_hit && !fetch_waiting;
+
+    always @(posedge clk) begin
+        if (reset) begin
+            cache_ok <= 1'b0;
+            fetch_waiting <= 1'b0;
+            fetch_stale <= 1'b0;
+        end else begin
+            if (wstate == W_FIRST) begin
+                cache_ok <= 1'b0;
+                fetch_stale <= fetch_waiting;
+            end
+            if (fetch_command) begin
+                fetch_waiting <= 1'b1;
+                fetch_stale <= 1'b0;
+                pending_word <= fetch_addr[AW-1:3];
+            end else if (fetch_waiting && readdatavalid) begin
+                fetch_waiting <= 1'b0;
+                if (!fetch_stale && wstate != W_FIRST) begin
+                    cache_q <= readdata;
+                    cache_word <= pending_word;
+                    cache_ok <= 1'b1;
+                end
+            end
+        end
+    end
     wire store = readdatavalid && stream_enable && !flushing;
     wire [8:0] outstanding_next = outstanding + (read && accept ? {1'b0, burstcount} : 9'd0) -
                                   (readdatavalid ? 9'd1 : 9'd0);
@@ -184,6 +232,10 @@ module fes_media_ddr #(
                 byteenable <= wstate == W_SECOND ? 8'd1 : w_enable;
                 writedata <= wstate == W_SECOND ? {8{w_high}} : w_data;
                 address <= BASE_WORD + 29'(w_word) + (wstate == W_SECOND ? 29'd1 : 29'd0);
+            end else if (fetch_command) begin
+                read <= 1'b1;
+                burstcount <= 8'd1;
+                address <= BASE_WORD + 29'(fetch_addr[AW-1:3]);
             end else if (read_command) begin
                 read <= 1'b1;
                 burstcount <= burst[7:0];

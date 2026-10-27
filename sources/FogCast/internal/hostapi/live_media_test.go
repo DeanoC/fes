@@ -559,3 +559,40 @@ func TestLiveMediaHostAcceptsDiskNamesForComputerSessions(t *testing.T) {
 		t.Fatalf("replace calls %d", service.replaceCalls)
 	}
 }
+
+// A Spectrum cassette inserted by digest has no name; the service reads the
+// media to tell a tape from a snapshot.
+func TestLiveMediaPassesANamelessInsert(t *testing.T) {
+	status := protocol.Status{State: protocol.StateActive, Development: true, CorePackage: &protocol.CorePackageStatus{
+		PackageID: strings.Repeat("a", 64), Generation: 9,
+		ABI:              protocol.RuntimeContract{ID: "fes.computer", Major: 1},
+		ActiveInterfaces: []protocol.RuntimeInterface{{ID: "fes.media.spectrum-tape", Major: 2}},
+	}}
+	service := &liveMediaService{fakeService: fakeService{status: status, sessionTarget: "dev"}}
+	handler := hostapi.New(service)
+	var session struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(serve(t, handler, http.MethodGet, "/api/v1/session").Body.Bytes(), &session); err != nil || session.ID == "" {
+		t.Fatalf("session: %v", err)
+	}
+	for body, want := range map[string]int{
+		`{"media_id":"` + strings.Repeat("b", 64) + `"}`:                      200,
+		`{"media_id":"` + strings.Repeat("b", 64) + `","name":"game"}`:        400,
+		`{"media_id":"` + strings.Repeat("b", 64) + `","name":"../game.z80"}`: 400,
+	} {
+		r := httptest.NewRequest(http.MethodPost, "/api/v1/session/live-media", strings.NewReader(body))
+		r.Host = "127.0.0.1"
+		r.Header.Set("Content-Type", "application/json")
+		r.Header.Set("X-FogCast-Session-ID", session.ID)
+		protocol.DevelopmentMediaBinding{PackageID: strings.Repeat("a", 64), Generation: 9, Target: "dev"}.SetHeaders(r.Header)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, r)
+		if w.Code != want {
+			t.Errorf("%s: status %d, want %d: %s", body, w.Code, want, w.Body)
+		}
+	}
+	if service.replaceCalls != 1 || service.name != "" {
+		t.Fatalf("calls=%d name=%q", service.replaceCalls, service.name)
+	}
+}

@@ -103,15 +103,16 @@ class NativeVideoProducerTest(unittest.TestCase):
     def test_native_manifest_selects_exact_part_profile(self):
         record = b'{"format":2,"parameters":{},"recipe_sha256":"' + b'a' * 64 + b'"}'
         evidence = {"rbf": {"size": 100, "sha256": "b" * 64}, "build_id": "c" * 32,
-                    "rom": {"id": "cartridge-rom", "role": "cartridge", "source_size": 16384,
-                            "file": "rom-map.json", "size": 32, "sha256": "e" * 64}}
+                    "rom_map": {"file": "rom-map.json", "size": 32, "sha256": "e" * 64}}
         identities = {name: "fixture" for name in ("yosys", "nextpnr-mistral", "mistral")}
         arguments = (record, evidence, "https://example.invalid/fes.git", "d" * 40, identities)
         for layout, flags in ((native, {"native_video": True}), (raster, {"video_socket": True})):
             fields = tomllib.loads(shell.manifest(*arguments, **flags).decode())
-            self.assertEqual(fields["format"], 3)
-            self.assertEqual(fields["rom"]["source_size"], 16384)
-            self.assertEqual(fields["rom"]["role"], "cartridge")
+            self.assertEqual(fields["format"], 4)
+            self.assertEqual(fields["roms"], [
+                {"id": "coleco-bios", "role": "firmware", "source_size": 8192, "source_offset": 0},
+                {"id": "coleco-cart", "role": "cartridge", "source_size": 16384, "source_offset": 8192}])
+            self.assertEqual(fields["rom_map"], evidence["rom_map"])
             self.assertFalse(any(row["id"].startswith("fes.media.blob") or row["id"] == "fes.firmware.blob"
                                  for row in fields["interfaces"]))
             self.assertEqual(fields["core"]["id"], "fes.coleco")
@@ -129,6 +130,7 @@ class NativeVideoProducerTest(unittest.TestCase):
                 altered["interfaces"].append({"id": marker, "major": 1, "minor": 0, "required": False})
                 invalid.append(altered)
             invalid.append({**fields, "format": 1})
+            invalid.append({**fields, "format": 3})
             invalid.append({**fields, "interfaces": []})
             for bad in invalid:
                 with self.subTest(fields=bad), self.assertRaisesRegex(ValueError, "one exact sealed"):
@@ -137,15 +139,14 @@ class NativeVideoProducerTest(unittest.TestCase):
     def test_native_shell_carries_the_session_plane(self):
         record = b'{"format":2,"parameters":{},"recipe_sha256":"' + b'a' * 64 + b'"}'
         evidence = {"rbf": {"size": 100, "sha256": "b" * 64}, "build_id": "c" * 32,
-                    "rom": {"id": "cartridge-rom", "role": "cartridge", "source_size": 16384,
-                            "file": "rom-map.json", "size": 32, "sha256": "e" * 64}}
+                    "rom_map": {"file": "rom-map.json", "size": 32, "sha256": "e" * 64}}
         identities = {name: "fixture" for name in ("yosys", "nextpnr-mistral", "mistral")}
         arguments = (record, evidence, "https://example.invalid/fes.git", "d" * 40, identities)
         plane = [{"id": interface, "major": 1, "minor": 0, "required": True}
                  for interface in ("fes.memory.hps-ddr", "fes.video.session-display",
                                    "fes.fabric.video.display-plane")]
         fields = tomllib.loads(shell.manifest(*arguments, native_video=True).decode())
-        self.assertEqual(fields["core"]["version"], "1.4.0")
+        self.assertEqual(fields["core"]["version"], "1.5.0")
         for row in plane:
             self.assertIn(row, fields["interfaces"])
         raster_fields = tomllib.loads(shell.manifest(*arguments, video_socket=True).decode())

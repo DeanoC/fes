@@ -17,12 +17,19 @@ type liveMediaClient interface {
 // ReplaceLiveMedia arms a household core-media id into the active generation
 // via the mid-session live path. It does not inject LOAD "" keys.
 // A .dsk/.do, .d64 or .st name selects the fes.computer disk unit instead; see
-// replaceLiveDisk.
+// replaceLiveDisk. A .trd or .scl name, or a .dsk on a package with a
+// Spectrum disk drive, selects the Spectrum disk unit; see
+// replaceLiveSpectrumDisk. A Spectrum tape or snapshot name selects the
+// cassette unit; see replaceLiveCassette. So does no name: a Spectrum cassette
+// inserted by digest, whose content decides between tape and snapshot.
 func (s *Service) ReplaceLiveMedia(parent context.Context, mediaID, name string, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
+	if protocol.AdmitSpectrumDiskName(name) && (!protocol.AdmitComputerDiskName(name) || s.spectrumDiskPackage(parent, b)) {
+		return s.replaceLiveSpectrumDisk(parent, mediaID, name, b)
+	}
 	if protocol.AdmitComputerDiskName(name) {
 		return s.replaceLiveDisk(parent, mediaID, name, b)
 	}
-	if protocol.AdmitSpectrumTapeName(name) {
+	if name == "" || protocol.AdmitSpectrumCassetteName(name) {
 		return s.replaceLiveCassette(parent, mediaID, name, b)
 	}
 	if !b.Valid() || b.Target == "" || protocol.ValidateDigest(mediaID) != nil || !protocol.AdmitTapeMediaName(name) {
@@ -278,4 +285,20 @@ func (s *Service) retainLiveSessionIdentity(status protocol.Status, b protocol.D
 		status.System = systemPtr(play.system)
 	}
 	return status
+}
+
+// spectrumDiskPackage reports whether the bound package has a Spectrum disk
+// drive, which takes a .dsk name that would otherwise be an Apple II disk.
+func (s *Service) spectrumDiskPackage(parent context.Context, b protocol.DevelopmentMediaBinding) bool {
+	if !b.Valid() {
+		return false
+	}
+	ctx, cancel := serviceTimeout(parent, s.uploadTimeout)
+	defer cancel()
+	inspection, err := s.installedCoreInspection(ctx, b.PackageID)
+	if err != nil {
+		return false
+	}
+	_, ok := protocol.SpectrumDiskSystem(inspection.Descriptor)
+	return ok
 }

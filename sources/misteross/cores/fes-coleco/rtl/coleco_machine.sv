@@ -329,9 +329,11 @@ module coleco_machine (
     wire [7:0] reset_rom_read;
     wire [7:0] reset_rom_peek;
     coleco_rom_link rom (
-        .clk(clk_sys), .address(cpu_addr[13:0]), .data(cartridge_read),
-        .peek_address(peek_addr[13:0]), .peek_data(cartridge_peek)
+        .clk(clk_sys), .address(cpu_addr), .data(cartridge_read),
+        .peek_address(peek_addr), .peek_data(cartridge_peek)
     );
+    assign reset_rom_read = cartridge_read;
+    assign reset_rom_peek = cartridge_peek;
 `else
 `ifdef FES_COLECO_REGISTERED_MEDIA
     // Both compiler RAMs have a one-clock read result. media_addr requests
@@ -385,6 +387,7 @@ module coleco_machine (
     );
 
 `ifndef FES_COLECO_MEGACART_LINK
+`ifndef FES_COLECO_ROM_LINK
 `ifdef QUARTUS
     localparam RESET_ROM_INIT = "cores/fes-coleco/rtl/coleco_reset_rom.mif";
 `elsif FES_COLECO_PRIVATE_BIOS
@@ -408,6 +411,7 @@ module coleco_machine (
         .wren_b(firmware_we_b),
         .q_b(reset_rom_peek)
     );
+`endif
 `endif
 
     reg [7:0] io_read_data;

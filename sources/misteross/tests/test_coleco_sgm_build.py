@@ -460,8 +460,7 @@ class NativeSessionDisplayTest(unittest.TestCase):
         evidence = {
             "rbf": {"size": 100, "sha256": "b" * 64},
             "build_id": "c" * 32,
-            "rom": {"id": "cartridge-rom", "role": "cartridge", "source_size": 16384,
-                    "file": "rom-map.json", "size": 10, "sha256": "d" * 64},
+            "rom_map": {"file": "rom-map.json", "size": 10, "sha256": "d" * 64},
         }
         tools = {"yosys": "fixture", "nextpnr-mistral": "fixture", "mistral": "fixture"}
         native = tomllib.loads(shell.manifest(
@@ -469,8 +468,8 @@ class NativeSessionDisplayTest(unittest.TestCase):
             native_video=True).decode())
         plain = tomllib.loads(shell.manifest(
             record, evidence, "https://example.invalid/fes.git", "e" * 40, tools).decode())
-        self.assertEqual(native["core"]["version"], "1.4.0")
-        self.assertEqual(plain["core"]["version"], "1.2.0")
+        self.assertEqual(native["core"]["version"], "1.5.0")
+        self.assertEqual(plain["core"]["version"], "1.5.0")
         required = {row["id"]: row["required"] for row in native["interfaces"]}
         self.assertTrue(required["fes.memory.hps-ddr"])
         self.assertTrue(required["fes.video.session-display"])
