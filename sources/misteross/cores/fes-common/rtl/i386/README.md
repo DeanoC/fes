@@ -5,7 +5,8 @@ The first-party 386-compatible CPU proposed in
 holds Phase 1's slices so far: the uop format, the front end from F1 to Q,
 and `fes_i386_cpu`, which runs the real-mode instructions `fes_i386_decode`
 lists from D to WB, with their memory forms on a data port, fixed uop
-sequences, the microcode ROM and exception delivery. There is no cache yet.
+sequences, the string instructions and ENTER, the microcode ROM and exception
+delivery. There is no cache yet.
 
 | File | Stage | Content |
 | --- | --- | --- |
@@ -143,8 +144,9 @@ DC decodes the instruction to one uop (`fes_i386_decode`): group 1, INC,
 DEC, NEG, NOT, TEST, MOV (to and from a segment register in real mode, and
 immediates), LEA, the shifts and rotates, SHLD and SHRD, SETcc, MOVZX and
 MOVSX, CBW/CWDE, CWD/CDQ, SAHF, LAHF, the flag set and clear instructions,
-NOP, HLT, the near JMP, Jcc, LOOP, LOOPE, LOOPNE and JCXZ, and the stack
-operations below, with a ModRM memory operand wherever they take one. A memory operand is a load, a store,
+NOP, HLT, the near JMP, Jcc, LOOP, LOOPE, LOOPNE and JCXZ, the stack
+operations below, and the first uops of the string instructions and ENTER,
+with a ModRM memory operand wherever they take one. A memory operand is a load, a store,
 or both in one uop (read-modify-write), and stands for the register it
 replaces: no GPR is read or written for it. Its segment is the override, else
 SS for a BP-, EBP- or ESP-based address, else DS. LOCK on anything but a
@@ -169,8 +171,8 @@ destination, which wins when it is ESP too (POP ESP). A 32-bit PUSH or POP of
 a segment register moves ESP by 4 and transfers the selector's word only, as
 the 386EX does. RET and JMP r/m take their target from EX's adder (CS's base
 plus the EIP) and redirect from WB like any taken branch; in 16-bit code a
-target past FFFFh raises #GP(0) at the branch. CALL r/m, PUSH and POP r/m,
-ENTER, PUSHA and POPA come later.
+target past FFFFh raises #GP(0) at the branch. ENTER runs on the string
+engine (below).
 
 **Fixed sequences.** An instruction of several uops, decoded without the
 microcode ROM, keeps its place in `dc` while they issue: as D issues each but
@@ -226,6 +228,53 @@ them, so a uop reads one at WB, or waits in D until its writers retire.
   the operand, whose address registers DC kept beside the stack uop's
   (`m_*`), then pops into nothing to step ESP, so a store that faults leaves
   ESP as the 386EX does. POP m with 32-bit addressing is not built.
+
+**Strings and ENTER** run on the string engine, as the design's string
+sequencer describes. While one runs, D keeps copies of the next source and
+destination offsets and of the count. Each step's address is a copy, which
+the step moves on, so the uops issue from `dc` without waiting on
+forwarding, and an offset wraps at its address's width.
+- **The first uop** of MOVS, CMPS, STOS, LODS or SCAS is a NOP that loads the
+  copies from ESI, EDI and ECX (CX by address size). It waits until they are
+  in registers, until no older uop that writes DF is in AG to EX, and until
+  neither its segment nor ES is being written. Then the string runs:
+  - one element per count under REP (F2h or F3h), else one;
+  - a REP with a count of 0 is a NOP that ends the instruction;
+  - each element steps by its bytes, down when DF is set.
+- **The elements.**
+  - STOS is a store of eAX at ES:EDI, LODS a load of eAX from seg:ESI, and
+    SCAS a compare of eAX with ES:EDI.
+  - MOVS is one uop. It loads seg:ESI, then stores the value at ES:EDI, an
+    address D computes and checks against ES's limit (`st2`). M1 raises that
+    fault after the load's own.
+  - CMPS is two: seg:ESI's value as a uop's result, then its compare with
+    ES:EDI. The compare takes that result one stage ahead, since D issues
+    it in the next cycle: nothing it waits on can change in between.
+- **Each element's last uop** steps ESI, EDI and ECX at WB. A fault part way
+  leaves them at the elements done, with EIP at the instruction, so no
+  forwarding sees the steps. A uop that reads ESI, EDI or ECX waits in D
+  while a string element that steps it is in AG to WB.
+- **REPE and REPNE** (F3h and F2h) CMPS and SCAS issue elements ahead of the
+  flag result. An element but the last ends the instruction when its
+  compare's ZF says so. It does that as a taken branch to the next
+  instruction, whose address the first uop keeps, so WB flushes the
+  elements behind it.
+- **ENTER** uses the same copies.
+  - Its first uop is the push of EBP at SS:ESP less the size, ESP unmoved.
+    It loads the source copy (EBP less the size), the destination copy (ESP
+    less twice the size) and the frame pointer (ESP less the size, its high
+    half ESP's on a 16-bit stack).
+  - Then come the level's (mod 32) less one copies of a slot below EBP to the
+    next push slot, each one uop as a MOVS element, and the push of the
+    frame pointer unless the level is 0.
+  - The last uop writes EBP from the frame pointer and ESP from the next
+    push slot plus the size less imm16, and checks the slot at that ESP, as
+    the 386EX does.
+  - ESP and EBP change only there, so a fault before it leaves them, with
+    the pushes before it written.
+- **Rates, without latency:** REP MOVS, STOS, LODS and SCAS issue an element
+  a cycle, and REP CMPS one in two. ENTER takes its level plus 3 uops (level
+  0: 3).
 
 **Microcode.** Longer routines come from an M10K ROM
 (`fes_i386_ucode_rom`). `scripts/fes_i386_ucode.py` builds it from
@@ -302,6 +351,8 @@ the segments in flight makes each wait one select. A load waits one cycle
 behind a store, whose data EX computes in the cycle the load would be in M2.
 The waits behind the uop in AG (behind a store, a shift, a stack operation
 that writes ESP) read what that uop is from bits registered as it enters AG.
+A MOVS element's store does not hold the load behind it: its data is its own
+load, which is in EX when that load is in M2.
 
 **AG** runs `fes_i386_agu` for a memory operand's linear address and offset,
 for LEA's offset, or for a branch's target: CS.base + EIP + length +
@@ -314,8 +365,9 @@ WB, which have not written when the port reads: the one in EX will be in WB
 when the load is in M2, and the one in WB writes on the edge the port reads.
 
 **M2** aligns the 8 loaded bytes to the access and takes each byte an older
-store writes from that store: the store in WB first, then the one that
-retired on the read edge. EX takes the value through its bypass selects, the
+store writes from that store: a MOVS element's store in EX first (its loaded
+value, `pipe_t` ld), then the store in WB, then the one that retired on the
+read edge. EX takes the value through its bypass selects, the
 ones a WB result uses, so EX's front stays one LUT level.
 
 **EX** (`fes_i386_ex`) takes its selects registered: M2 decodes them from
@@ -359,7 +411,7 @@ retires and stops it. A fault is delivered:
 - The delivery's last uop retires with `trace_exception`.
 
 **WB** commits in order: the GPR file and segment registers in flip-flops,
-EFLAGS, EIP and stores, the result's low bytes moved to the address's place
+a string element's steps of ESI, EDI and ECX, EFLAGS, EIP and stores, the result's low bytes moved to the address's place
 in its dword and the next. A real-mode segment load sets the base to selector * 16 and
 keeps the limit and attributes.
 

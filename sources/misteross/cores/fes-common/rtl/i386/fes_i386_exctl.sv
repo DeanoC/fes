@@ -159,6 +159,8 @@ module fes_i386_exctl (
     assign c.b_loope = cls == C_BRANCH && op == 5'd7;
     assign c.b_loopne = cls == C_BRANCH && op == 5'd8;
     assign c.b_jcxz = cls == C_BRANCH && op == 5'd9;
+    assign c.b_rpe = u.rep_stop[0];
+    assign c.b_rpne = u.rep_stop[1];
     assign c.b_ind = ind;
 
     // The shifter's selects (fes_i386_shift): direction, size and fill.

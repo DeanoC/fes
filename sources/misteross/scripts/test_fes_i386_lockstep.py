@@ -102,6 +102,8 @@ SCOPE: frozenset[str] = frozenset([
     # XCHG, MOV with a direct offset, SALC, XLAT; CALL, PUSH and POP of r/m.
     '86', '87', *(f'{opcode:02X}' for opcode in range(0x91, 0x98)), 'A0', 'A1', 'A2', 'A3', 'D6', 'D7',
     'FF.2', 'FF.6', '8F',
+    # The string instructions, with every REP prefix; ENTER.
+    'A4', 'A5', 'A6', 'A7', 'AA', 'AB', 'AC', 'AD', 'AE', 'AF', 'C8',
 ])
 # Files of an in-scope opcode whose forms are not built yet: POP m with
 # 32-bit addressing, whose ESP base would read ESP after the pop.
@@ -388,7 +390,7 @@ def main() -> int:
                                   for result in steady_results), Counter()).items()))
             for key in ('sequential', 'prefixed', 'lea', 'selector', 'after_taken', 'after_not_taken',
                         'shift_consumer', 'after_shift', 'store_load', 'after_store', 'address', 'after_segment',
-                        'after_stack', 'stack_stack', 'several')}
+                        'after_stack', 'stack_stack', 'several', 'after_string')}
     held = hold_failures(gaps)
     unbuilt_failures = [line for result in unbuilt_results for line in result['failures']]
     unbuilt_runs = sum(result['summary']['runs'] for result in unbuilt_results)
