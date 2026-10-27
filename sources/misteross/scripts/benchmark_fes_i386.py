@@ -103,7 +103,7 @@ STAGES = {
         # D writes AG's operands, the producer entering AG, and the forwarding
         # table for the next uop.
         ('D', r'(.*\.)?ag_|agu\.(row|last|disp|late|late_hi|seg_term|seg_hi|seg_hi_plus1|addr32)$'
-              r'|dfwd\.(ready|late_now|wait_now|source_now|in_ag|left|\w+_next)$|(.*\.)?prod_\w+$'),
+              r'|dfwd\.(ready|lt|wt|src|\w+_next)$|(.*\.)?prod_\w+$'),
         ('AG', r'(.*\.)?(m1_valid|m1_linear|m1_offset|m1_result|late_m1)$'),
     ),
     'm2': (('M2', r'(.*\.)?load_'),),
@@ -123,8 +123,9 @@ STAGES = {
         ('WB', r'(.*\.)?(gpr|eflags|eip|seg_\w+|halted|t0|t1|trace_\w+|start|start_linear|arch_\w+|rt_\w+|exc_\w+)$'),
         # A stage's output record passes most fields through, so they name
         # the register feeding it: ag_out's are ag_s (D), m1_out's m1_s (AG),
-        # ex_out's ex_s (M2). ex.flags_in is EX's ex_flags.
-        ('EX', r'(.*\.)?(wb_s|ex_flags)$|(.*\.)?ex\.(flags_in|shifter\.cf_in)$'),
+        # ex_out's ex_s (M2). ex.flags_in is EX's ex_flags. WB's decisions
+        # load with wb_s.
+        ('EX', r'(.*\.)?(wb_s|wb_flushes|wb_redir|wb_deliver|ex_flags)$|(.*\.)?ex\.(flags_in|shifter\.cf_in)$'),
         ('M2', r'(.*\.)?(ex_s|ex_in|ex_out)$|(.*\.)?ex\.u$'),
         # M1 also writes the L1D model's address registers and the store
         # distances M2 decodes.
