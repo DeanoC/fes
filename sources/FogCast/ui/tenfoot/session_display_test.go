@@ -25,6 +25,7 @@ import (
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/menudisplay"
 	"github.com/DeanoC/FogCast/ui/rooms"
+	"github.com/DeanoC/misteross/expansion"
 )
 
 func kitDisplaySession() hostclient.SessionResult {
@@ -216,6 +217,55 @@ func TestKitComputerMediaPresentsFramesAndRestoresVideo(t *testing.T) {
 			prior.CorePackage.MediaUnits[0] = protocol.MediaUnitStatus{Unit: 0, Interface: tc.contract, MinBytes: tc.minBytes, MaxBytes: tc.maxBytes, ChunkBytes: 512, State: "empty"}
 			testKitComputerMediaDisplay(t, prior)
 		})
+	}
+}
+
+func TestFormat4ColecoSelectorSubmitsACompositedFrame(t *testing.T) {
+	prior := colecoBIOSKitSession()
+	presenter := &countingSessionMenu{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/session/display" {
+			http.NotFound(w, r)
+			return
+		}
+		visible := decodeSessionDisplay(t, r)
+		presenter.set(menudisplay.Status{
+			Available: visible, Session: visible, Generation: 4,
+			PackageID: prior.CorePackage.PackageID, CoreGeneration: prior.CorePackage.Generation,
+			Width: 1280, Height: 720, Stride: 5120, ByteCount: menudisplay.FrameBytes,
+		})
+		writeKitDisplaySession(w, prior)
+	}))
+	t.Cleanup(server.Close)
+	app, _ := kitDisplayApp(t, server)
+	display, err := gfx.NewMenuDisplayWithPresenter(presenter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(display.Close)
+	app.SetMenuDisplay(display)
+	app.mu.Lock()
+	app.session = prior
+	app.syncGPUParkLocked()
+	app.mu.Unlock()
+
+	app.HandleCommand(CmdHome, time.Now())
+	waitFor(t, app, "format-4 Coleco selector", func(s Snapshot) bool {
+		return s.Session.ControlsOpen && s.TapePicker.Open && !s.GPUParked
+	})
+	drawFrame(display, app.Snapshot(), map[string]gpuTexture{}, map[string]gpuTexture{})
+	waitSessionMenuFrame(t, display)
+	if calls, n := presenter.snapshot(); calls != 1 || n != menudisplay.FrameBytes {
+		t.Fatalf("format-4 selector frame was not submitted: calls=%d bytes=%d", calls, n)
+	}
+	if !presenter.visible() {
+		t.Fatal("format-4 selector frame was fully transparent")
+	}
+	app.mu.Lock()
+	composition := app.session.CorePackage.PartsComposition
+	app.mu.Unlock()
+	if composition == nil || composition.Layout != expansion.ColecoNativeVideoLayout {
+		t.Fatalf("format-4 video part identity was not retained: %+v", composition)
 	}
 }
 
@@ -874,10 +924,11 @@ func TestKitTapePickerArmsSavedZX81ProgramWithoutReimport(t *testing.T) {
 }
 
 type countingSessionMenu struct {
-	mu     sync.Mutex
-	status menudisplay.Status
-	calls  int
-	lastN  int
+	mu               sync.Mutex
+	status           menudisplay.Status
+	calls            int
+	lastN            int
+	lastFrameVisible bool
 }
 
 func (c *countingSessionMenu) set(status menudisplay.Status) {
@@ -892,6 +943,12 @@ func (c *countingSessionMenu) snapshot() (int, int) {
 	return c.calls, c.lastN
 }
 
+func (c *countingSessionMenu) visible() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.lastFrameVisible
+}
+
 func (c *countingSessionMenu) Status(context.Context) (menudisplay.Status, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -903,6 +960,13 @@ func (c *countingSessionMenu) Present(_ context.Context, generation uint64, pixe
 	defer c.mu.Unlock()
 	c.calls++
 	c.lastN = len(pixels)
+	c.lastFrameVisible = false
+	for i := 3; i < len(pixels); i += 4 {
+		if pixels[i] != 0 {
+			c.lastFrameVisible = true
+			break
+		}
+	}
 	return menudisplay.Result{Generation: generation}, nil
 }
 
