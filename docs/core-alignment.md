@@ -21,7 +21,9 @@ consumers onto it. Do not keep the earlier mechanism and call it a variant.
 A second mechanism is allowed only when it does a different job, and the
 owning README names that job. `fes_z80_fast` is a documented-only development
 build. Splash is board firmware. ZX81 session-display is an in-session plane.
-Quartus is an oracle. None of those is a second product path.
+Quartus is a labelled second toolchain ([Quartus-built cores](design/quartus-cores.md)),
+or an oracle where a recipe says so. None of those is a second path for the
+same build.
 
 Do not add a core by copying the historical path of an older sibling. A new
 core uses the standards below.
@@ -30,9 +32,14 @@ core uses the standards below.
 
 These are the choices already in the tree at `6d9939c2`.
 
-1. The product path is HIP/nextpnr. Quartus is an oracle only where the recipe
-   says so. A failed HIP route does not fall back to Quartus. Quartus never
-   programs a kit.
+1. The default product path is HIP/nextpnr (`oss`). Quartus-built cores are
+   allowed as a labelled `quartus` variant (policy accepted in #1163, see
+   [Quartus-built cores](design/quartus-cores.md)). A variant is an explicit
+   selection, built on a licensed, pinned host with the same timing and seal
+   checks, and is excluded by `FES_OSS_ONLY=1`. A failed HIP route does not
+   fall back to Quartus. Where a recipe still says only oracle, the Quartus
+   output is a check and does not program a kit. Until the rollout in the
+   design lands, no recipe selects a Quartus variant.
 2. Registered producers use per-core locks named by `lock_path` in
    `config/core-recipes.toml`. Five locks match the repository-level
    `sources/misteross/toolchain.lock`: Yosys `3a5accbd`, Mistral `8fcc4cb4`,
@@ -200,8 +207,8 @@ Preserve each machine's existing cadence and interrupt wiring. Do not switch
 a product recipe to `fes_z80_fast` to make timing easier.
 
 When the last TV80 consumer is gone, delete the per-core TV80/T80 copies from
-the product producers. A Quartus oracle for that core builds the same CPU, or
-it stops being called an oracle of the product.
+the product producers. A Quartus oracle or variant for that core builds the
+same CPU, or it stops being called an oracle or variant of the product.
 
 ### 4. Display end state
 

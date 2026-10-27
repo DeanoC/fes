@@ -18,7 +18,8 @@ make verify-media
 
 The normal FES package route uses the authenticated HIP/nextpnr producers for
 Pong, ZX81 and Coleco. If a future system has no supported nextpnr route, its
-recipe documents an explicit Quartus oracle/check; do not set Quartus as an
+recipe documents an explicit Quartus oracle/check or a labelled Quartus variant
+([Quartus-built cores](design/quartus-cores.md)); do not set Quartus as an
 automatic fallback for the integration build.
 
 `make media` requires intact current `host.json`, `image.json`,

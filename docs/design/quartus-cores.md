@@ -1,9 +1,11 @@
 # Quartus-built cores
 
-Status: proposed design for issue #1163. Deano approved the policy on
-27 October 2026. No build, recipe, manifest or UI behavior in this tree changes
-until the steps under [Rollout](#rollout) land. Until then
-[core alignment](../core-alignment.md) and the current tree stay the standard.
+Status: accepted (issue #1163, Deano, 27 October 2026), including the
+15% threshold under [What "significantly" means](#what-significantly-means).
+The superseded statements in the docs listed below are updated (rollout
+step 1). No build, recipe, manifest or UI behavior in this tree changes until
+steps 2-6 of the [Rollout](#rollout) land: no recipe selects a Quartus variant
+and the default route stays HIP/nextpnr.
 
 ## Decision
 
@@ -28,10 +30,10 @@ Two reasons:
 
 ## What this replaces
 
-Today the tree says the opposite in several places. When this design is
-accepted, these change in the same commit as the first implementation step:
+Before this design the tree said the opposite in several places. These were
+updated together with the acceptance of the design:
 
-| Where | Today | After |
+| Where | Was | Now |
 | --- | --- | --- |
 | `docs/core-alignment.md`, standard 1 | "Quartus is an oracle only where the recipe says so... Quartus never programs a kit." | Quartus builds may be sealed packages and may program a kit. Standard 1 names the two toolchains and the labelling rule below. |
 | `docs/core-alignment.md`, Rule | Quartus is listed as "an oracle", not a second product path. | Quartus is a second product toolchain with its own label. The rule against a second *mechanism for the same job* still applies to each variant's own build path. |
@@ -64,15 +66,15 @@ the build does after OSS fails.
 
 ### What "significantly" means
 
-Proposed rule, to confirm in review: a core gets a Quartus variant alongside
-its OSS build when, on the same RTL and the same target clocks, either
+Decided: a core ships a Quartus variant alongside its OSS build when, on the
+same RTL and the same target clocks, either
 
-- the OSS lane misses a clock in the recipe's `clocks` list that Quartus
-  closes, or
-- Quartus closes the limiting clock at 15% or more above the OSS best seed,
-  and a user-visible feature needs that margin.
+- Quartus closes a clock in the recipe's `clocks` list that the OSS lane
+  misses, or
+- the limiting clock's Fmax differs by 15% or more between the two flows
+  (Quartus against the OSS best seed).
 
-i386 is the example: about 70 MHz OSS against about 100 MHz Quartus is 40%
+Otherwise the core ships OSS only. i386 is the example: about 70 MHz OSS against about 100 MHz Quartus is 40%
 more. A core where the gap is 3% ships OSS only. The result for each
 candidate goes in a dated note under `docs/validation/`, with both flows' seeds
 and clock figures, like the i386 oracle note.
@@ -245,7 +247,7 @@ is Cyclone V only. That means:
 Each step is one scope, one PR.
 
 1. Docs: update `core-alignment.md`, `README.md` and the `package-only` text
-   to match the accepted policy (the table above).
+   to match the accepted policy (the table above). Done with this design.
 2. Recipe and manifest: `toolchains`, `[recipes.quartus]`, `toolchain` in the
    manifest and the functional key. OSS packages read as `oss`; no existing
    key changes.
@@ -264,9 +266,7 @@ Each step is one scope, one PR.
    sealed packages only.
 3. **Manifest and UI labelling:** wording, and the default variant for a core
    that ships both.
-4. **The "significantly" threshold:** 15% and a closed-versus-missed clock is
-   a starting point.
-5. **DE25-Nano:** Quartus Pro front end and whether the Yosys-elaborated
+4. **DE25-Nano:** Quartus Pro front end and whether the Yosys-elaborated
    netlist route is still needed, and where the HPS and image work is tracked.
-6. **License binding:** how the board license ties to a host and what happens
+5. **License binding:** how the board license ties to a host and what happens
    if a build host is replaced.

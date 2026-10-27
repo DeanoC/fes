@@ -140,8 +140,9 @@ The default FES integration profile is `native-integration-dev`. It selects only
 run as part of this image. The clean, development, verification and media paths
 reuse the same closed package set. Install `fes.pong`, `fes.zx81`, `fes.coleco`
 and other systems independently through the [core catalog](core-packages.md).
-Individual packages use HIP/nextpnr; Quartus remains an explicit oracle where
-specified. Host builds and [kit software updates](kit-software-releases.md) do
+Individual packages use HIP/nextpnr by default; Quartus is an explicit oracle
+where specified, or a labelled variant under
+[Quartus-built cores](design/quartus-cores.md). Host builds and [kit software updates](kit-software-releases.md) do
 not build FPGA packages. Build and verify do not deploy.
 
 FES selects placement seed 5 for both Atari ST video parts. The selected seed
@@ -149,7 +150,8 @@ is part of their canonical cache identity and archive verification; it does not
 change the sealed shell, clocks or socket containment requirements. Standalone
 misteross builds can still select other bounded seeds explicitly.
 Systems whose nextpnr route is not implemented yet use an explicit Quartus
-oracle/check documented by that system's recipe. Quartus is never an automatic
+oracle/check documented by that system's recipe, or a labelled Quartus variant
+([Quartus-built cores](design/quartus-cores.md)). Quartus is never an automatic
 fallback and never creates a legacy image bundle.
 
 During component development, use the narrow relevant component tests and
