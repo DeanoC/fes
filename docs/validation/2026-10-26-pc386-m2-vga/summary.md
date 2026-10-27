@@ -148,7 +148,8 @@ measurements.
   `SHELL=C:\WOLF3D.EXE`. Run from FreeCom, the game quits with "You do not
   have enough memory": the fixture loads no HIMEM, so the kernel and FreeCom
   stay in conventional memory; as the shell it has room.
-- Run (`machine_tb` at `8d790c5cc4`): `--limit-seconds 32 --type '||||||||'
+- Run (`machine_tb` at `8d790c5cc4`, before the capture drop-recovery fix
+  `86cd58ea`; the run dropped no capture beat, so the fix does not touch it): `--limit-seconds 32 --type '||||||||'
   --type-at 4.0 --key-gap 2.0 --trace … --frames …`: Enter every 2 s from
   4.0 s takes it through the signon screen, PG-13, the title, the main menu,
   episode 1 and "Bring 'em on" to "Get Psyched!" and the first level, which is
