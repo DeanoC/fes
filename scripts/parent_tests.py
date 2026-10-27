@@ -97,7 +97,7 @@ def main(argv=None):
     root = Path(__file__).resolve().parents[1]
     sys.path.insert(0, str(root))
     suite = unittest.defaultTestLoader.discover(str(root / 'tests'))
-    groups = None if args.full else parent_affected.select_groups(paths, video=video, media=media)
+    groups = None if args.full else parent_affected.select_groups(paths, video=video, media=media, root=root)
     modules = parent_affected.selected_modules(
         groups, [path.stem for path in (root / 'tests').glob('test_*.py')], paths)
     selected, selected_ids, omitted_ids = filter_suite(

@@ -29,7 +29,8 @@ module fes_i386_agu (
     input  logic [31:0] late_ex,
     input  logic [31:0] late_wb,
     output logic [31:0] linear,
-    output logic [31:0] offset
+    output logic [31:0] offset,
+    output logic [31:0] base_op             // the last-row operand: last, or the late value
 );
     logic [31:0] x;
     logic [31:0] sum_a, carry_a, sum_l, carry_l, sum_o, carry_o;
@@ -49,6 +50,7 @@ module fes_i386_agu (
     assign x = {pick(late_hi, last[31:16], late_m1[31:16], late_ex[31:16], late_wb[31:16]),
                 pick(late, last[15:0], late_m1[15:0], late_ex[15:0], late_wb[15:0])};
 
+    assign base_op = x;
     // First row from registers only: seg_term + row + disp.
     assign sum_a = seg_term ^ row ^ disp;
     assign carry_a = ((seg_term & row) | (seg_term & disp) | (row & disp)) << 1;

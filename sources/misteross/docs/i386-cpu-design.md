@@ -163,16 +163,67 @@ Programmer's Reference Manual (1986):
   implemented. This is a recorded deviation; no target software is known to
   use it.
 
-Hidden descriptor caches behave as on a 386. A segment load in real or V86 mode
-sets the base to selector × 16, the limit to FFFFh, and the attributes to their
-real-mode values; it does not preserve an extended limit. Unreal mode instead
-loads a larger descriptor in protected mode and then clears PE without reloading
-that segment register. Its cached descriptor survives until that register is
-loaded again in real or V86 mode. Every data access is checked against the
-cached limit in every mode: with a normal real-mode segment, a word access at
-offset FFFFh raises #GP (#SS for a stack access), while an unreal-mode segment
-uses its cached extended limit ([Intel 80386 Programmer's Reference Manual,
-§2.3.5](https://read.seas.harvard.edu/~kohler/class/aosref/i386.pdf)).
+The segment-cache contract for the completed CPU follows the 386:
+
+- The Phase 1 RTL implements real-mode `MOV Sreg, r/m16` loads for DS, ES, FS,
+  GS and SS. It updates the selector and sets the base to selector × 16; the
+  cached limit and attributes stay as they were. Real-mode far JMP, CALL and
+  RETF now write CS through `seg_w`, which has the same behavior: the selector
+  and base (selector × 16) change, while the cached limit and attributes stay
+  as they were, matching Bochs 3.1. Interrupt entry is still absent from this
+  slice ([RTL source](../cores/fes-common/rtl/i386/fes_i386_cpu.sv)).
+- The completed CPU must make a real-mode CS load set the base to selector ×
+  16, the limit to FFFFh, D/B=0 and G=0, and access-rights byte 93h (P=1,
+  DPL=0, S=1, read/write, expand-up, accessed data segment). This is the 386
+  rule described by Collins; the current RTL and Bochs 3.1 retain CS's cached
+  limit and access-right attributes on a real-mode load.
+- In V86 mode every segment load sets the base to selector × 16, the limit to
+  FFFFh and the attributes to V86 values.
+- A protected-mode load replaces the whole cache from the descriptor.
+
+So unreal mode works for DS, ES, FS, GS and SS. Software loads one of those
+segments with a large limit in protected mode and clears PE; its cached limit
+and attributes survive every later real-mode reload of that register. They
+are replaced when the register is loaded in protected or V86 mode. Under the
+386 contract, a real-mode CS load resets CS to limit FFFFh and the access-rights
+byte 93h (read/write, expand-up, accessed data segment). DOS
+reloads DS and ES on every call, so unreal-mode programs that call DOS depend
+on the data-segment behavior, and Ultima VII's Voodoo memory manager runs in
+unreal mode. Every data access is checked against the cached limit in every
+mode: with a normal real-mode segment, a word access at offset FFFFh raises
+#GP (#SS for a stack access), while an unreal-mode data segment uses its cached
+extended limit.
+
+The evidence:
+
+- The 386 manual's procedure for returning to real mode
+  ([§14.5](https://courses.cs.washington.edu/courses/cse451/25wi/documentation/i386/s14_05.htm))
+  first loads CS with a 64K limit before PE is cleared. Its step 3 loads SS,
+  DS, ES, FS and GS with 64K-limit, byte-granular (G=0), expand-up (E=0),
+  writable (W=1), present (P=1) descriptors. Those descriptors establish the
+  limit and data/stack attributes retained by later real-mode loads of those
+  registers. Step 6 says the far jump sets CS access rights to appropriate
+  values; the manual does not say that a later real-mode CS load preserves an
+  extended limit.
+- Robert Collins's [segment-cache analysis](https://www.rcollins.org/ddj/Aug98/Aug98.html),
+  also cited in Bochs's source comment as an x86.org finding, says that on the
+  286, 386 and 486 a real-mode CS load receives fixed real-mode values, while
+  other segment registers retain their cached limit and access rights. This
+  design follows that 386-specific rule for CS: access-rights byte 93h (P=1,
+  DPL=0, S=1, read/write, expand-up, accessed data segment), 16-bit default
+  size (D/B=0), byte-granular limit (G=0) and limit FFFFh.
+- Bochs 3.1, the lockstep oracle (`REL_3_1_FINAL`, `cpu/segment_ctrl_pro.cc`,
+  `load_seg_reg`), keeps limit and access-right attributes on every real-mode
+  load, including CS; its real-mode far-transfer path uses that loader. It
+  agrees with the design for DS, ES, FS, GS and SS, but differs for CS. It sets
+  FFFFh and V86 attributes in V86 mode.
+- Neither corpus observes hidden CS limit or access-right state:
+  SingleStepTests/80386 has no unreal-mode set yet, and test386.asm has no
+  unreal-mode test. This oracle difference is a known limit, not an
+  oracle-versus-corpus divergence; the planned directed unreal-mode test in
+  the general verification plan will check the RTL's 386 CS rule. It is not
+  currently listed as a Phase 2 exit criterion. See the simulation
+  [known-limits entry](../cores/fes-common/sim/i386/README.md#known-limits).
 
 ### The 386, not the 486
 
@@ -234,10 +285,24 @@ pull-up resistors on the data bus when no coprocessor is fitted, and a
 So:
 
 - CR0.ET is 0 after reset, and MOV to CR0 can change it, as on the 386DX.
-- EM, MP and TS act as architected. ESC raises #NM when EM is set or when MP
-  and TS are both set; TS alone is insufficient. WAIT raises #NM when MP and
-  TS are both set ([Intel 80386 Programmer's Reference Manual, §11.1.5.1](https://read.seas.harvard.edu/~kohler/class/aosref/i386.pdf)).
-  Software FPU emulators rely on this.
+- EM, MP and TS act as architected. ESC raises #NM when EM or TS is set. WAIT
+  raises #NM only when MP and TS are both set. Software FPU emulators and lazy
+  FPU context switching rely on this. The evidence:
+  - The 386 manual's
+    [§11.1](https://courses.cs.washington.edu/courses/cse451/25wi/documentation/i386/s11_01.htm)
+    says "If, when interpreting one of the ESC instructions, the CPU finds TS
+    already set, it causes exception 7", and its
+    [§4.1.3](https://courses.cs.washington.edu/courses/cse451/25wi/documentation/i386/s04_01.htm)
+    says the processor "tests TS when interpreting coprocessor instructions".
+  - The summary list in §11.1.5.1 names only EM, or MP and TS together, for
+    ESC. It is narrower than the section's own TS paragraph, and this design
+    follows the TS paragraph.
+  - Bochs, the lockstep oracle, does the same: `BxNoFPU` in
+    `cpu/proc_ctrl.cc` raises #NM on EM or TS, and WAIT in `cpu/fpu_emu.cc`
+    raises it only on TS with MP. Intel's later SDM table for EM, MP and TS
+    gives the same answer for TS alone: an FPU instruction raises #NM and WAIT
+    executes.
+  - Neither corpus covers it, since SingleStepTests/80386 leaves out D8–DF.
 - Otherwise ESC instructions complete without an FPU exception of their own and
   never raise IRQ13. WAIT does nothing.
 - On a tested 386DX-33 with an empty 387 socket, FNSTSW to memory and FNSTCW
@@ -359,8 +424,8 @@ flowchart LR
 | F2 | Compare L1I tags with the ITLB page, select a way, register 16 bytes into the fetch buffer. A BTB hit redirects F1. | M10K output, equality compares, way mux: M2's shape. No decode, no carry chain |
 | L | Run the 16 per-byte length decoders on the registered bytes, and precompute each byte's next start for every operand- and address-size variant. | About seven LUT levels from flip-flops; no M10K output, no carry chain |
 | Q | Pick the precomputed next start at the current start, strip the last prefix, rotate the instruction bytes. | 32:1 select of a next start; no add in the loop |
-| D | Decode to one uop or a microcode entry; extract immediate and displacement; read GPRs and the segment base; select forwarded operands and scale the index; governor gate; instruction-breakpoint and CS-limit checks. | Opcode tables, register and forwarding muxes, index scale; no carry chain |
-| AG | Take the operands registered by D plus at most one late operand; compute the linear address and offset; run the early ALU; resolve early branches; adjust ESP. | Last 3:2 row and compression, one carry chain, one select |
+| D | Decode to one uop or a microcode entry; extract immediate and displacement; read GPRs and the segment base; select forwarded operands and scale the index; governor gate; instruction-breakpoint and CS-limit checks. | Opcode tables, register and forwarding muxes, index scale, and 32-bit CALL target-limit check |
+| AG | Take the operands registered by D plus at most one late operand; compute the linear address and offset; run the early ALU; resolve early branches; adjust ESP. | Final 3:2 row and compression, parallel linear and offset carry chains, a third stack-pointer adder, and selects |
 | M1 | Read L1D data and tags (index from linear bits 11:5); look up the DTLB; check the segment limit; compare data breakpoints. | DTLB CAM; the limit compare is the only carry chain |
 | M2 | Compare L1D tags with the physical page; select the way; merge bytes from older in-flight stores; decide faults and the memory type. | M10K output, equality compares, muxes; no carry chain |
 | EX | Align and extend load data; late ALU, shifter and flags; issue multiply and divide; resolve branches; check descriptors. | Byte rotate, one carry chain, result mux |
@@ -380,6 +445,9 @@ flowchart LR
 | Any of the three results above used as a scaled index | +1 on its row |
 | Predicted taken branch | One fetch bubble, normally hidden by the fetch buffer |
 | Mispredict resolved at AG / at EX | +5 / +8 |
+| CALL rel | Two issue cycles: push the next EIP, then JMP rel |
+| ESP read as data immediately after a stack operation | +1 while the stack operation is in AG |
+| LEAVE with a 16-bit stack | Waits until the older ESP high half is in a register |
 | Access inside one 32-byte line, any alignment | 0 extra |
 | Access crossing a line / a page | +1 / +1 and a possible walk |
 | L1 miss that hits L2 | About 6–8 (estimate) |
@@ -576,10 +644,11 @@ descriptor-cache write retires.
 - **Address adders:** AG computes
   `linear = segment base + base + (index << scale) + displacement` with 4:2
   compression and one carry chain. In parallel it computes
-  `offset = base + (index << scale) + displacement` for the limit check. Phase
-  1's first AG put the five-way forwarding mux and the scaling in front of the
-  compression and routed at 77–81 MHz; that is why D now does both
-  ([rule 8](#platform-constraints)).
+  `offset = base + (index << scale) + displacement` for the limit check, with
+  its own carry chain. The third AG adder computes the stack operation's new
+  ESP/SP beside those address sums. Phase 1's first AG put the five-way
+  forwarding mux and the scaling in front of the compression and routed at
+  77–81 MHz; that is why D now does both ([rule 8](#platform-constraints)).
 - **16-bit wrap without a second chain.** With a 16-bit address size the offset
   wraps at 64 KiB but the linear sum must not carry the wrap. Correct and raw
   linear addresses differ only in bits 31:16. AG adds the base's low 16 bits to
@@ -590,8 +659,11 @@ descriptor-cache write retires.
   16-bit sums, so after the 32-bit chain AG adds just the address-size select.
   `[si+bx]` with BX = FFFFh then costs nothing.
 - **Stack:** PUSH, POP, CALL and RET compute the new ESP or SP at AG; SS.B
-  selects the width. ESP is an early result, so back-to-back pushes do not
-  stall.
+  selects the stack address width. The third adder produces ESP as an early
+  result for WB to write beside the main destination. A back-to-back push can
+  use it without a wait; ESP read as data stalls D for one cycle while the
+  producer is in AG. CALL rel uses two uops: push the next EIP, then issue JMP
+  rel. A 16-bit LEAVE waits until ESP's high half is in a register.
 - **Early ALU:** the register and immediate forms of ADD, ADC, SUB, SBB, AND,
   OR, XOR, CMP, TEST, INC, DEC, NEG, MOV and LEA execute at AG when their
   inputs are ready there. Otherwise they execute at EX. Results and flags move
@@ -907,7 +979,8 @@ for the complete CPU and machine.
    at random, and every memory, MMIO, I/O and DMA port gets random latency.
    Latency never changes a result.
 6. **Directed tests (planned):** both self-modifying-code profiles, A20 toggling,
-   DMA against CPU stores (randomised), unreal mode, 16-bit wrap cases, page
+   DMA against CPU stores (randomised), unreal mode (data-segment retention and
+   CS-cache reset on a real-mode CS load), 16-bit wrap cases, page
    faults inside REP, segment-limit edges, LOCK against DMA, governor pacing,
    every no-387 ESC form with the common FPU-detection routines, dirty L2 lines
    surviving a reset after shutdown, and FLUSH while running, halted, in

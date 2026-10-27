@@ -1,10 +1,23 @@
 # FES pc386 machine design
 
-**Status:** Proposal, with its design decisions settled on 2026-10-25
-([decisions](#decisions)). No RTL, simulation, routed result or kit evidence
-exists for this machine. Every clock, area, bandwidth and latency figure below
-is a budget or an estimate unless it names a measurement. The milestone that
-measures one replaces it.
+**Status:** Design decisions settled on 2026-10-25 ([decisions](#decisions)).
+Phases M1 and M2 exist as RTL and simulation in
+[`cores/fes-pc386/`](../cores/fes-pc386/README.md): the AT core boots the
+Bochs BIOS and FreeDOS to a prompt with the Bochs oracle as CPU
+([M1 record](../../../docs/validation/2026-10-26-pc386-m1-freedos-boot/summary.md)),
+and the VGA, its capture, the 720p presenter and the plane on DDR port 2 show
+the VGA BIOS text, mode 13h and mode Y pictures at 720p, with the VGA trace
+replay matching Bochs's VGA
+([M2 record](../../../docs/validation/2026-10-26-pc386-m2-vga/summary.md)).
+No routed result or kit evidence exists for this machine; M2's machine-only
+synthesis is the first area measurement ([budgets](#budgets)). Every other
+clock, area, bandwidth and latency figure below is a budget or an estimate
+unless it names a measurement. The milestone that measures one replaces it.
+
+Phase M3's audio exists beside the AT core: the OPL2 import, Sound Blaster 2.0
+DSP and mixer pass their host simulation checks, including OPL2 sample
+comparison with Nuked-OPL3 and game start-up audio
+([2026-10-26 record](../../../docs/validation/2026-10-26-pc386-m3-audio/summary.md)).
 
 **Builds on:** the [i386 CPU design](i386-cpu-design.md). This page designs
 everything behind that CPU's [machine interface](i386-cpu-design.md#machine-interface)
@@ -84,7 +97,7 @@ controller, not its bus.
 | --- | --- | --- |
 | KF8259 (MIT import) | Master at 20h and slave at A0h in cascade, slave INT on master IR2 | None to the import. New wrapper: the CPU's INTA request runs both acknowledge cycles inside the machine and returns the vector; the slave supplies it for IR2. |
 | KF8253 (MIT import) | 8254 at 40h | Add the 8254 read-back command (control word bits 7:6 = 11) and the status byte as a recorded local change, with an equivalence test of the unchanged paths, as the existing counter change has. Channel 0 drives IRQ0, channel 1 the refresh toggle on port 61h bit 4, channel 2 the speaker. |
-| [`pcxt_dma.sv`](../cores/fes-pcxt/rtl/pcxt_dma.sv) | Two 8237s: 8-bit channels 0–3 at 00h, 16-bit channels 4–7 at C0h | Keep the register model, priority, modes and auto-init. Replace the ISA memory half with the CPU's DMA port and the ISA peripheral half with direct on-board DREQ/DACK. Add AT page registers (81h–8Fh, eight bits, 24-bit addresses) and cascade on channel 4. The second controller keeps its registers, status and word-count semantics but no data path: no device in this scope uses channels 5–7. DMA0 refresh service goes away. |
+| [`fes_dma8237.sv`](../cores/fes-common/rtl/fes_dma8237.sv) (was `pcxt_dma.sv`) | Two 8237s: 8-bit channels 0–3 at 00h, 16-bit channels 4–7 at C0h | Keep the register model, priority, modes and auto-init. Replace the ISA memory half with the CPU's DMA port and the ISA peripheral half with direct on-board DREQ/DACK. Add AT page registers (81h–8Fh, eight bits, 24-bit addresses) and cascade on channel 4. The second controller keeps its registers, status and word-count semantics but no data path: no device in this scope uses channels 5–7. DMA0 refresh service goes away. |
 | [`pcxt_speaker.sv`](../cores/fes-pcxt/rtl/pcxt_speaker.sv) | PC speaker source in the mixer | Its 48 kHz window becomes a rational enable of the sealed clock instead of fixed 100 MHz constants. |
 | KF8255 PPI | Not used | The AT has no 8255. Port 61h is a small register (below). |
 | XT keyboard transport | Not used | The 8042 replaces it. |
@@ -290,13 +303,19 @@ cycles for 16-bit devices.
 | --- | --- | --- |
 | `isa8` | Every on-board chip, port 61h/92h/80h, ATA task file, Sound Blaster, OPL2 | 720 ns: six ISA clocks at 8.33 MHz |
 | `isa16` | ATA data port 1F0h | 360 ns: three ISA clocks |
-| `vga` | 3B0–3DF | Posted into the VGA FIFO; reads wait for the FIFO to drain |
+| `vga` | 3B0–3DF | Posted into the VGA FIFO (four clocks a byte at the CPU); reads wait for the FIFO to drain (six clocks a byte when it is empty) |
 
-The ISA figures are estimates from the AT bus's default wait states (four for
-8-bit cycles, one for 16-bit). Phase M1 checks them against published
-port-access timings and period benchmarks before the machine fixes them. They
-are why a port-80h write or six OPL status reads keep their delay at any CPU
-speed. The governor charges each I/O instruction's reference cost separately;
+The ISA figures come from the AT bus's default wait states: an ISA cycle is
+two bus clocks plus four wait states for 8-bit cycles and one for 16-bit
+cycles. Phase M1 checked them against published figures on 2026-10-26 and they
+stand ([record](../../../docs/validation/2026-10-26-pc386-m1-freedos-boot/summary.md#io-timing)):
+ISA bus references give 6 and 3 bus clocks (750 and 375 ns at 8 MHz), a
+period parallel-port measurement gives six bus clocks per I/O read, and the
+AdLib guide's six and 35 status reads for its 3.3 us and 23 us delays need at
+most 550 and 660 ns per read, which 720 ns exceeds. In the M1 simulation every
+CPU I/O completed at exactly its class time plus the two-clock handshake.
+They are why a port-80h write or six OPL status reads keep their delay at any
+CPU speed. The governor charges each I/O instruction's reference cost separately;
 it never changes device time.
 
 VGA ports get local-bus behaviour, matching VGA memory: Wolfenstein 3D writes
@@ -335,9 +354,9 @@ Bytes from the keyboard and aux devices are paced like a PS/2 link: after the
 guest reads 60h, the next device byte appears no sooner than one PS/2 byte
 time, about 1 ms (11 bits at 10–16.7 kHz; estimate). Controller responses
 (self-test, output port) are immediate. A keyboard reset reports its BAT
-completion (AAh) after a few milliseconds rather than the half second some
-keyboards took. That is a recorded deviation; Phase M1 checks the BIOS's
-keyboard initialisation against it.
+completion (AAh) 5 ms later rather than the half second some keyboards took.
+That is a recorded deviation; in M1 the Bochs BIOS's keyboard initialisation,
+which waits up to about 94 ms for each byte, passes with it.
 
 ### Keyboard model
 
@@ -432,11 +451,14 @@ bank Bochs BIOS uses), on a 32.768 kHz fractional enable.
 
 The machine owns the bytes that describe its hardware and writes them from its
 configuration at every Execution release: 10h (no floppy drives), 12h and
-19h–1Ah (disk type), 14h (equipment), 15h–18h and 30h–31h (memory), 34h–35h
-(memory above 16 MiB), 2Dh, 38h and 3Dh (boot from disk) and 39h–3Ah (ATA
-translation: none). It recomputes the checksum in 2Eh–2Fh over 10h–2Dh. The
-Bochs emulator writes these same bytes before its BIOS runs; the BIOS reads
-disk geometry from ATA IDENTIFY, not from CMOS.
+19h–1Ah (disk type), 14h (equipment: 04h, VGA and the PS/2 port, no x87 or
+floppy), 15h–18h and 30h–31h (memory), 1Bh–23h (the disk's cylinders, heads
+and sectors), 34h–35h (memory above 16 MiB), 2Dh, 38h and 3Dh (boot from disk),
+39h–3Ah (ATA translation: none) and 3Fh (bit 0: no F12 boot menu, which would
+wait three seconds for a key). It recomputes the checksum in 2Eh–2Fh over
+10h–2Dh. The Bochs emulator writes these same bytes before its BIOS runs; the
+BIOS's ATA driver reads disk geometry from ATA IDENTIFY, and its POST copies
+1Bh–23h into the INT 41h fixed-disk table.
 
 It also writes 60h–62h with the latched Sound Blaster setting: base port
 high byte (22h or 24h), IRQ (2, 3, 5 or 7) and DMA channel (1). The Bochs BIOS
@@ -515,11 +537,14 @@ VRAM is 256 KiB at window offset `0x00800000`: 65,536 words of 32 bits, one
 byte per plane, so the four planes at one planar offset are one word. DDR
 port 1 is 64 bits wide and carries two VRAM words per beat.
 
-Address translation follows the sequencer memory mode and graphics misc
-register. Chain-4 uses plane `A & 3` at planar offset `A >> 2`, which is what
-mode 13h's dword-mode scanout reads and what DOSBox does. Odd/even uses plane
-`A & 1` (plus the page bit for planes 2 and 3) at planar offset `A >> 1`.
-Otherwise the offset is `A` and the map mask selects planes. Games that switch
+Address translation follows the sequencer memory mode and the graphics
+controller's memory map. Chain-4 uses plane `A & 3` at planar offset `A >> 2`,
+which is what mode 13h's dword-mode scanout reads and what DOSBox and Bochs do.
+Odd/even uses planes 1 and 3 for odd `A`, 0 and 2 for even, at planar offset
+`A` with bit 0 cleared: text mode's word-mode scanout reads character `n` at
+offset `2n`, as on the IBM VGA and in Bochs. The page bit (misc output bit 5)
+is not modelled, as in Bochs and DOSBox. Otherwise the offset is `A` and every
+plane is addressed. The map mask gates planes in every mode. Games that switch
 chain-4 off and read mode 13h data back unchained depend on this mapping, so
 the VGA trace replay checks it against the reference.
 
@@ -561,11 +586,16 @@ are the benchmark).
 
 The CRTC runs the guest raster at the guest's own timing, from a 25.175 MHz or
 28.322 MHz dot-clock enable (misc output bits 3:2) and the sequencer's ÷2.
-Horizontal and vertical totals, display ends, blanking and retrace come from
-the CRTC registers, so 3DAh shows exactly the retrace the programmed mode
-produces: 70.09 Hz for 400-line modes, 59.94 Hz for 480-line modes, with
-31.47 kHz lines. Games that poll retrace or time page flips to it see what
-they would on a VGA.
+Horizontal and vertical totals, display ends, and vertical retrace start/end
+come from the CRTC registers. Input status 1 bit 3 follows that vertical
+retrace. Bit 0 is currently an approximation: it is set outside the CRTC
+display-end window (`hcount < CRTC 01h + 1`, `vcount < vertical display end`),
+and does not use horizontal blanking/retrace registers 02h-05h or vertical
+blanking registers 15h-16h. Those registers are stored but not connected to the
+raster yet. Modes whose blanking starts differ from display end can therefore
+report display enable incorrectly. For the standard 400- and 480-line modes,
+the generated raster remains about 70.09 Hz and 59.94 Hz with 31.47 kHz lines;
+status polling outside those programmed windows is not yet VGA-equivalent.
 
 - **Line prefetch.** During each scanline the scanout fetches the next line's
   VRAM words from port 1 into a two-line M10K buffer: character and attribute
@@ -590,10 +620,12 @@ picture goes through DDR.
 
 1. **Capture** writes the post-DAC active area of every guest frame into one
    of three buffers on port 2, one 32-bit word per pixel (B, G, R, 0; 6-bit
-   DAC values widened by bit replication). In 256-colour modes it stores the
-   attribute controller's pixels, half the dot rate. Buffers hold up to
-   800 × 600 so tweaked modes fit. The overscan border is not captured, a
-   recorded deviation.
+   DAC values widened by bit replication), 3,200 bytes a line. In 256-colour
+   modes it stores the attribute controller's pixels, half the dot rate. Every
+   scan line is captured, so mode 13h is 320 × 400; the area-weighted filter
+   gives the same picture as from 320 × 200, since doubled lines blend as one.
+   Buffers hold up to 800 × 600 so tweaked modes fit. The overscan border is
+   not captured, a recorded deviation.
 2. **Presenter.** At each 720p frame start it takes the newest complete
    buffer, never the one being written. A 70 Hz guest shows six of every seven
    frames; a 59.94 Hz guest repeats one frame about every 17 seconds. The
@@ -605,9 +637,12 @@ picture goes through DDR.
    3.6), so nearest-neighbour would give uneven rows. The presenter uses an
    area-weighted ("sharp bilinear") filter: each output pixel blends at most
    two source pixels per axis by their coverage, so most output pixels are
-   unblended and edges stay sharp. It reads source lines from DDR into
-   dual-clock line buffers and runs on the 74.25 MHz pixel clock. Underflow
-   pixels are black and counted.
+   unblended and edges stay sharp. The weights are 8-bit fractions from a
+   per-frame reciprocal; the arithmetic is in `pc386_presenter.sv` and, bit for
+   bit, in the simulation's presenter model. It reads source lines from DDR
+   into dual-clock line buffers (even and odd rows, two rows each, 18-bit
+   pixels: eight M10K) and runs on the 74.25 MHz pixel clock. Underflow rows
+   are black and counted.
 4. **Display plane.** The presenter's 720p raster is the plane's machine input.
    The plane reports the picture rectangle (160, 0, 960, 720), which FogCast
    uses to cut the surround's window
@@ -688,6 +723,35 @@ Verification compares the imported core sample-for-sample with Nuked-OPL3 in
 OPL2 mode on register-write logs captured from the three games in the
 simulated machine, before any resampling.
 
+**As built in M3** ([`pc386_opl2.sv`](../cores/fes-pc386/rtl/pc386_opl2.sv),
+[import README](../cores/fes-pc386/vendor/opl2_fpga/README.md)). The import is
+the MiSTer port of opl2_fpga, which has a flat source tree and explicit port
+connections; only its synthesis core is vendored, and the wrapper owns the
+status register and both timers. Upstream was not sample-exact: its envelope
+step table was packed in reverse, key-on lost a sample of phase, AM was read
+from the next operator, its LFOs and noise came from an older software model,
+and drum key-on ignored the channel key. Each is a recorded local change, and
+the core now matches Nuked-OPL3's default build sample for sample, including
+its one-sample delay on channels 6-8's second operators. Two more decisions
+follow from comparing at sample granularity:
+
+- **Writes land between samples.** Nuked-OPL3 applies a write before the next
+  sample; the import would apply one mid-computation to some operators and not
+  others. The wrapper queues a write that arrives while the operators compute
+  (72 clocks of the 2,011 in each sample at 100 MHz) and releases it afterwards.
+  Against the real chip this moves a write by less than one sample.
+- **The reference, not the YM3812, settles two edges.** Register 01h bit 5
+  (waveform-select enable) and CSM mode (08h bit 7) are not modelled, as in
+  Nuked-OPL3: E0h-F5h select waveforms whatever 01h holds. Games set 01h bit 5
+  before using waveforms; a title that relies on the chip ignoring them would
+  need the enable added to both.
+
+M3 compared every OPL2 sample online as Wolfenstein 3D and Ultima VI started
+in the simulated machine; their register logs are not committed, since they
+reproduce the games' music. The committed log comes from a start-up exercise
+program, and Ultima VII waits for a fixture with HIMEMX
+([2026-10-26 record](../../../docs/validation/2026-10-26-pc386-m3-audio/summary.md)).
+
 ### Sound Blaster 2.0 DSP
 
 An original RTL model of DSP version 2.01, written from Creative's hardware
@@ -696,7 +760,7 @@ cases the guide leaves open.
 
 | Command | Function |
 | --- | --- |
-| Reset (base+6: 1 then 0) | AAh in the read buffer about 100 µs later |
+| Reset (base+6: 1 then 0) | AAh in the read buffer 20 µs later, DOSBox-X's figure |
 | 10h | Direct 8-bit DAC |
 | 14h, 91h | Single-cycle 8-bit DMA playback, normal and high speed |
 | 1Ch, 90h, 48h | Auto-init 8-bit DMA, normal and high speed, block size |
@@ -705,17 +769,29 @@ cases the guide leaves open.
 | D1h, D3h, D8h | Speaker on, off, status |
 | 20h, 24h, 2Ch, 98h, 99h | Recording: returns silence (80h) at the programmed rate so DMA and IRQs complete |
 | E0h, E1h, E2h | DSP identification (inverted byte), version (02h 01h), DMA identification |
-| F2h | Force IRQ, which IRQ-probing detection code uses |
+| F2h | Force IRQ, 10 µs later as in DOSBox-X, which IRQ-probing detection code uses |
+| 80h | Silence for a sample count, then IRQ (some games time with it) |
+| E4h, E8h | Write and read the test register |
 
 - During a high-speed transfer the DSP ignores commands until the block ends,
   as the real DSP does.
-- Write-status bit 7 reads busy for about 1 µs after each command byte
-  (estimate), so detection code that waits for not-busy sees the edge.
+- Write-status bit 7 reads busy for 1-2 µs after each command byte
+  (estimate), so detection code that waits for not-busy sees the edge. The
+  status ports read AAh (busy or data ready) and 2Ah otherwise, the values
+  DOSBox-X records from a real SB 2.0; odd ports alias the even one below.
+- Reset completes 20 µs after release, not the guide's "about 100 µs":
+  detection loops that poll base+E a fixed number of times at 720 ns per read
+  give up before 100 µs, and DOSBox-X's 20 µs is what the game library has
+  been run against.
 - DREQ on channel 1 at the sample rate; the IRQ at block end on the set line,
   acknowledged by reading base+E.
 - The DAC holds the last sample, muted while the speaker is off.
 - ADPCM DMA (74h–77h, 16h–17h, 7Dh–7Fh, 1Fh) is deferred: none of the three
-  games is known to use it. Unknown commands are consumed and ignored.
+  games is known to use it. Unknown commands are consumed and ignored, with
+  the argument bytes DOSBox-X's command table gives them, so an ADPCM length
+  is not taken for a command.
+- E2h writes DOSBox-X's identification byte (a running sum seeded AAh with a
+  rotating XOR seeded 96h) by DMA; it raises no IRQ.
 
 Ultima VII also lists the Sound Blaster Pro. The acceptance setups choose SB
 2.0 (mono) settings in their install programs; Pro stereo comes with OPL3.
@@ -734,12 +810,23 @@ Fixed gains put the OPL2 and DSP at about −6 dBFS peak and the speaker at abou
 −12 dBFS, with saturation on the sum. The audio contract has no volume control;
 these are constants, tuned by ear against period recordings in Phase M3.
 
+**As built in M3** ([`pc386_mixer.sv`](../cores/fes-pc386/rtl/pc386_mixer.sv)):
+OPL2 and DSP at half scale, the speaker at 16384 when on, so a full speaker
+square wave swings ±8192 (−12 dBFS). The area of each period is divided by
+its length in clocks with a 33-clock serial divider. One DC blocker near 30 Hz
+follows the sum rather than the speaker alone; the OPL2 and an idle DSP are
+zero-mean, so it only removes static cone drive and DAC offsets. The gains are
+the design's starting values; tuning them by ear against period recordings
+needs a listener and stays open.
+
 ## Disk
 
 ### ATA device
 
 One ATA hard disk, master on the primary channel. Slave registers read as ATA
-requires of device 0 when device 1 is absent.
+requires of device 0 when device 1 is absent: with DEV set, status and
+alternate status read 00h and the other registers are shared, as in Bochs's
+drive model. The Bochs BIOS lists that slave as "Unknown device".
 
 - **Commands:** IDENTIFY DEVICE, READ and WRITE SECTORS (20h/21h, 30h/31h),
   READ and WRITE MULTIPLE with SET MULTIPLE MODE, READ VERIFY, INITIALIZE
@@ -751,7 +838,15 @@ requires of device 0 when device 1 is absent.
   `isa16` class a sector takes about 92 µs of guest I/O, roughly 5.6 MB/s,
   in the range of period ISA IDE disks.
 - **Timing:** no seek or rotation is modelled. BSY covers the DDR transfer
-  only. No target times its disk.
+  only, and for writes not even that: once a whole sector is in the buffer the
+  device reports it done and stores it behind, like a drive with its write
+  cache on, and the next command waits until the stores have landed. The Bochs
+  BIOS reads status right after `outsw` and requires DRDY with BSY clear. No
+  target times its disk.
+- **Prefetch:** reads keep the command's next sector fetched in the other
+  half of the buffer, so a READ MULTIPLE block streams without BSY between
+  sectors. This needs the image port to deliver a sector faster than the guest
+  reads one (about 92 us).
 - **Writes** stage a whole sector in the buffer before any byte reaches the
   image, so a captured image never holds a torn sector (as for the
   [ST disk](../../mister-packages/docs/media-data.md)).
@@ -980,17 +1075,20 @@ Alternatives not taken, kept as later options:
 | INT 13h | AH=00h–08h, 0Ah–0Dh, 10h, 11h, 15h; EDD 41h–48h, which FreeDOS uses for LBA | Present (`int13_harddisk`, EDD cases) |
 | INT 15h | 24h A20 (through port 92h), 87h block move and 88h extended size for HIMEM, E801h and E820h, C0h configuration, C2h PS/2 pointing device for CuteMouse, 86h wait (counts port 61h bit 4), 83h event wait (RTC periodic interrupt), 4Fh keyboard intercept | Present |
 | INT 16h | AH=00h–02h, 05h, 10h–12h | Present |
-| INT 16h AH=03h | Typematic rate (DOS `MODE CON RATE=`) | Missing; small local patch. No target needs it |
+| INT 16h AH=03h | Typematic rate (DOS `MODE CON RATE=`) | Local patch (M1). No target needs it |
 | INT 1Ah | RTC and tick count | Present |
 | INT 19h | Boot from the ATA disk's MBR | Present |
 | INT 09h, 74h | Keyboard (set 1, translated) and PS/2 mouse IRQ handlers | Present |
 | A20 | HIMEM's 8042 D1 and port 92h methods; unreal mode in Ultima VII | Hardware ([A20](#a20-and-cpu-reset)) |
 
-Expected local patches: INT 16h AH=03h; the boot order and disk-only boot
-defaults; the PCI BIOS, APM and PnP options off (the legacy build leaves
-`BX_PCIBIOS` on, and its probe of CF8h/CFCh would only find FFh); the floppy
-probe made harmless with no controller fitted (CMOS 10h already says none);
-and any POST step that assumes Bochs emulator ports.
+Local patches, as made in M1 ([firmware](../cores/fes-pc386/firmware/README.md)):
+INT 16h AH=03h; the PCI BIOS, APM and PnP options off (the legacy build leaves
+`BX_PCIBIOS` on, and its probe of CF8h/CFCh would only find FFh), which also
+needs the PAM-register call in POST built only with the PCI BIOS. The boot
+order and disk-only boot need no patch: the machine writes CMOS 2Dh, 38h, 3Dh
+and 3Fh. The floppy probe is already harmless with no controller fitted (CMOS
+10h says none and the ports read FFh), and no POST step needed a Bochs
+emulator port.
 Bochs's debug ports (400h–403h) and VGABIOS's (500h) stay as the machine's
 debug sink.
 
@@ -1050,6 +1148,16 @@ replaces each row.
 | Clocks, reset, HDMI output | 300 | 0 | 0 |
 | Machine total | about 16,100 | about 142 | about 16 |
 | Margin | about 2,800 | about 203 | about 83 |
+
+**Measured (M2, machine-only synthesis and packing, no placement;
+[record](../../../docs/validation/2026-10-26-pc386-m2-vga/summary.md#machine-only-synthesis)):**
+the VGA needs at least 1,891 ALMs and 16 M10K (its small FIFOs each take a
+block), the presenter 826 ALMs, 8 M10K and five DSP blocks, the port 2 arbiter
+and plane bridge 199 ALMs and 6 M10K, the display plane 624 ALMs, 4 M10K and
+one DSP block. The M1 AT core needs at least 16,526 ALMs, more than three
+times its rows, because its memories (the ATA sector buffer and dirty map,
+CMOS, the 8042's RAM and FIFOs, the DMA register files) synthesize to
+flip-flops; they must move to M10K before the machine can fit beside the CPU.
 
 The M10K margin leaves room for a VGA read cache or a larger L2 if profiles ask
 for either. The ALM margin is the tight one. With the CPU at 16,000 ALMs the
@@ -1261,8 +1369,9 @@ No decision is open.
 The machine RTL goes in `cores/fes-pc386/` with `fes_pc386_top` as the shell,
 beside the CPU in `cores/fes-common/rtl/i386/`. The opl2_fpga import goes in
 `cores/fes-pc386/vendor/`. The KF8259 and KF8253 imports and the DMA
-controller move from `cores/fes-pcxt/` to `cores/fes-common/` when pc386 first
-uses them, since two cores then share them; the PC/XT keeps no copy. The
+controller moved from `cores/fes-pcxt/` to `cores/fes-common/` with M1
+(`vendor/kf8259`, `vendor/kf8253`, `rtl/fes_dma8237.sv`), since two cores share
+them; the PC/XT keeps no copy. The
 firmware sources go in `cores/fes-pc386/firmware/`, their build script in
 `scripts/build_pc386_firmware.py`, and the producer in
 `scripts/build_fes_pc386_oss.py`. The FogCast disk builder and its FreeDOS

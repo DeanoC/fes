@@ -1,0 +1,3 @@
+# Preserve the pinned upstream bytes of the vendored firmware sources.
+rombios/** -whitespace
+vgabios/** -whitespace

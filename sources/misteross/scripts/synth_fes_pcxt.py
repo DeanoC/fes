@@ -7,7 +7,7 @@ from pathlib import Path
 import subprocess
 
 from build_fes_coleco_socket_v2 import authenticate_tools
-from sim_fes_pcxt import SOURCES, CPU_SOURCES, CPU_MUX_MAP, CHIPSET_SOURCES, DISPLAY_SOURCES, VIDEO_SOURCES, MEMORY_SOURCES, verify_cpu_sources, verify_vendor, cpu_roms
+from sim_fes_pcxt import SOURCES, CPU_SOURCES, CPU_MUX_MAP, CHIPSET_SOURCES, DISPLAY_SOURCES, VIDEO_SOURCES, MEMORY_SOURCES, verify_cpu_sources, verify_vendor, vendor_dir, CHIP_VENDORS, cpu_roms
 
 ROOT = Path(__file__).resolve().parents[1]
 RTL = tuple(source for source in SOURCES if source.endswith('.sv'))
@@ -29,7 +29,7 @@ def main():
         rtl += tuple(source for source in CPU_SOURCES if source.endswith('.sv') and
                      (args.suite == 'cpu' or not source.endswith('/cpu_top.sv')))
         if args.suite == 'machine':
-            for name in ('kf8259', 'kf8253', 'kf8255'):
+            for name in CHIP_VENDORS:
                 verify_vendor(name)
             rtl += CHIPSET_SOURCES + ('cores/fes-pcxt/sim/machine_top.sv',)
         inputs = (*rtl, 'cores/fes-common/generated/fes_pcxt_isa.vh',
@@ -38,8 +38,8 @@ def main():
                   'scripts/sim_fes_pcxt.py', 'scripts/synth_fes_pcxt.py', CPU_MUX_MAP)
         output /= args.suite
         if args.suite == 'machine':
-            inputs += tuple(str(p.relative_to(ROOT)) for name in ('kf8259', 'kf8253', 'kf8255')
-                            for p in sorted((ROOT / 'cores/fes-pcxt/vendor' / name).iterdir())
+            inputs += tuple(str(p.relative_to(ROOT)) for name in CHIP_VENDORS
+                            for p in sorted(vendor_dir(name).iterdir())
                             if p.suffix in ('.svh', '.json'))
     if args.suite == 'display':
         rtl = SOURCES[:3] + DISPLAY_SOURCES
@@ -64,9 +64,7 @@ def main():
     configure = ('chparam -set MDA ' + str(int(args.suite == 'video-mda')) + ' -set SCANLINES ' +
                  str(int(args.scanlines)) + ' pcxt_video_output; ') if args.suite.startswith('video-') else ''
     program = ('read_verilog -sv -I ' + str(ROOT / 'cores/fes-common/generated') + ' -I ' + str(output) + ' ' +
-               '-I ' + str(ROOT / 'cores/fes-pcxt/vendor/kf8259') + ' -I ' +
-               str(ROOT / 'cores/fes-pcxt/vendor/kf8253') + ' -I ' +
-               str(ROOT / 'cores/fes-pcxt/vendor/kf8255') + ' ' +
+               ''.join('-I ' + str(vendor_dir(name)) + ' ' for name in CHIP_VENDORS) +
                ' '.join(str(ROOT / source) for source in rtl) + '; '
                + configure + 'synth_intel_alm -nolutram -nodsp -top ' + top + '; ' +
                ('techmap -map ' + str(ROOT / CPU_MUX_MAP) + '; hierarchy -top ' + top + '; opt_clean; '

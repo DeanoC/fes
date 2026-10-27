@@ -14,8 +14,9 @@ MODULE_ROOTS = {'host': 'sources/FogCast', 'runtime': 'sources/libmister-runtime
                 'contracts': 'sources/mister-packages', 'fpga': 'sources/misteross'}
 LANES = ('parent', 'host', 'runtime', 'contracts', 'fpga')
 # Simulation families include the standalone CPU; it has no play-package recipe.
-CORES = ('demo', 'pong', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'menu', 'z80', 'atari-st', 'ramtest', 'riscv', 'pcxt')
-SIMULATION_ONLY_CORES = frozenset({'z80', 'pcxt'})
+CORES = ('demo', 'pong', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'menu', 'z80', 'atari-st', 'ramtest', 'riscv', 'pcxt',
+         'pc386')
+SIMULATION_ONLY_CORES = frozenset({'z80', 'pcxt', 'pc386'})
 EXPANSION_ROOT = 'sources/misteross/expansion'
 # Parent-owned orchestration, test and assembly roots contain no component
 # sources, so their changes select only the parent lane. Matching is the exact
@@ -54,7 +55,7 @@ CORE_DIRECTORIES = {
     'fes-zx81': ('zx81',), 'fes-coleco': COLECO_CONSUMERS,
     'fes-menu': ('menu',), 'fes-sg1000': ('sg1000',), 'fes-sms': ('sms',), 'fes-apple2': ('apple2',),
     'fes-c64': ('c64',), 'fes-spectrum': ('spectrum',), 'fes-atari-st': ('atari-st',),
-    'fes-ramtest': ('ramtest',), 'fes-riscv': ('riscv',), 'fes-pcxt': ('pcxt',),
+    'fes-ramtest': ('ramtest',), 'fes-riscv': ('riscv',), 'fes-pcxt': ('pcxt',), 'fes-pc386': ('pc386',),
 }
 # The shared session-display plane reuses these MENU scanout units and DDR model.
 # Other MENU implementation files remain owned solely by the idle core.
@@ -89,8 +90,9 @@ SHARED_RTL = {
     't80pa.v': ('coleco', 'sms'),
     'fes_video_part_direct.v': ('coleco', 'atari-st', 'pcxt'),
     'fes_video_part_scanlines.v': ('coleco', 'atari-st', 'pcxt'),
-    'fes_display_plane.v': ('zx81', 'spectrum', 'c64', 'coleco'),
-    'fes_display_cdc.v': ('zx81', 'spectrum', 'c64', 'coleco'),
+    'fes_display_plane.v': ('zx81', 'spectrum', 'c64', 'coleco', 'pc386'),
+    'fes_dma8237.sv': ('pcxt', 'pc386'),
+    'fes_display_cdc.v': ('zx81', 'spectrum', 'c64', 'coleco', 'pc386'),
 }
 # Apple II socket generator and card producer regenerate or build its RTL.
 APPLE2_SCRIPTS = frozenset({'apple2_slots.py', 'build_apple2_slot_card.py'})
@@ -132,7 +134,7 @@ def fpga_cores(path):
     if relative.as_posix() == 'cores/fes-common/generated/fes_pcxt_isa.vh':
         return ('pcxt',), 'PC/XT ISA fabric consumer'
     if relative.as_posix() == 'cores/fes-common/generated/fes_display_plane.vh':
-        return ('menu', 'zx81', 'spectrum', 'c64', 'coleco'), 'display-plane fabric consumers'
+        return ('menu', 'zx81', 'spectrum', 'c64', 'coleco', 'pc386'), 'display-plane fabric consumers'
     if len(parts) >= 3 and parts[0] == 'cores':
         if parts[1] == 'fes-common' and '/'.join(parts[2:]) in (
                 'sim/native_video_top.v', 'sim/native_video_tb.cpp',
@@ -150,12 +152,16 @@ def fpga_cores(path):
         if (len(parts) >= 4 and parts[1] == 'fes-common'
                 and parts[2] in ('rtl', 'sim') and parts[3] == 'riscv'):
             return ('riscv',), 'original RV32I CPU and its fes.riscv consumer'
+        if len(parts) >= 4 and parts[1:3] == ('fes-common', 'vendor'):
+            return ('pcxt', 'pc386'), 'shared PIC and PIT imports'
         if len(parts) >= 5 and parts[1:4] == ('fes-common', 'sim', 'i386'):
             return (), 'i386 oracle adapter, testbenches, timing spikes and divergence list; no core consumer'
         if len(parts) >= 5 and parts[1:4] == ('fes-common', 'rtl', 'i386'):
             return (), 'i386 CPU RTL, checked by its software-lane tests; no core consumer yet'
         if parts[1] == 'fes-menu' and '/'.join(parts[2:]) in MENU_SESSION_INPUTS:
-            return ('menu', 'zx81', 'spectrum', 'c64', 'coleco'), 'idle and running-session display consumers'
+            # pc386 uses the plane's RTL with its own DDR model.
+            pc386 = ('pc386',) if parts[2] == 'rtl' else ()
+            return ('menu', 'zx81', 'spectrum', 'c64', 'coleco', *pc386), 'idle and running-session display consumers'
         if parts[1] in CORE_DIRECTORIES:
             return CORE_DIRECTORIES[parts[1]], 'core family and dependent consumers'
         if parts[1:3] == ('fes-common', 'rtl'):
@@ -176,7 +182,8 @@ def fpga_cores(path):
                        for suffix in ('', '_oss'))
         if producer or parts[1] in FPGA_PRODUCER_HELPERS:
             return (), 'FPGA producer/package software tests; RTL unchanged'
-        if parts[1] in ('sim_fes_demo.py', 'sim_fes_menu.py', 'sim_fes_z80.py', 'sim_fes_riscv.py', 'sim_fes_pcxt.py'):
+        if parts[1] in ('sim_fes_demo.py', 'sim_fes_menu.py', 'sim_fes_z80.py', 'sim_fes_riscv.py', 'sim_fes_pcxt.py',
+                        'sim_fes_pc386.py'):
             core = parts[1][len('sim_fes_'):-len('.py')]
             return (core,), core + ' simulation recipe'
         if parts[1] in ('benchmark_fes_z80.py', 'test_fes_z80_vectors.py', 'test_fes_z80_pin_trace.py'):
@@ -193,6 +200,10 @@ def fpga_cores(path):
             return ('spectrum',), 'Spectrum socket recipe'
         if parts[1] in ATARI_ST_SCRIPTS:
             return ('atari-st',), 'Atari ST socket/card/ROM test recipe'
+        if parts[1] in ('build_pc386_firmware.py', 'build_pc386_freedos_image.py'):
+            return ('pc386',), 'pc386 firmware and simulation disk recipes'
+        if parts[1] == 'synth_fes_pc386.py':
+            return (), 'pc386 diagnostic synthesis recipe; no simulation reads it'
         if parts[1] in I386_SCRIPTS:
             return (), 'i386 oracle, corpus runners, RTL checks and timing harness; no core consumer'
     if parts and parts[0] == 'tests':

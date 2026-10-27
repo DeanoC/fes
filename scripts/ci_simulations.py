@@ -24,6 +24,7 @@ TARGETS = {
     'ramtest': ('sim-fes-ramtest',),
     'riscv': ('sim-fes-riscv',),
     'pcxt': ('sim-fes-pcxt',),
+    'pc386': ('sim-fes-pc386',),
 }
 
 
