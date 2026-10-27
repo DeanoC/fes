@@ -1670,3 +1670,45 @@ path checks and the failed ramp hypothesis. This remains host-only evidence
 for one output path. Whole-board and hardware acceptance, production locks,
 RTL, actual board clocks/phases, native routes and shared contracts are
 unchanged. The native-search journal remains 133 entries.
+
+### RAM and flip-flop early routing controls (27 October)
+
+[Mistral #26](https://github.com/DeanoC/mistral/issues/26) now tracks the
+missing RAM-data and PLL-lock source waveforms. Per-hop measurements show
+that the rejected RAM ramp also exposes a broader early-routing discrepancy.
+The same fitted Quartus design supplies an independent control using the
+existing native LAB flip-flop source waveform:
+
+`LAB.029.002.0:FFT0 -> H6.024.002.0033 -> TD.028.002.0006 -> MLAB.028.002.9:D`.
+
+Actual net ownership binds the control to `launch_0|q` at `FF_X29_Y2_N1`
+and `target|datac` at `MLABCELL_X28_Y2_N57`; decoded routing binds those
+logical pins to the physical path. The control and RAM branch yield sixteen
+direct IC intervals and thirty-two independent full setup/hold reports,
+agreeing within the printed 1 ps precision. The flip-flop IC edge includes
+an additional source-output prefix that is retained separately; it must
+not be silently added to or removed from a native routing-hop observation.
+
+Each routing hop is compared using the earliest native value across both
+physical source polarities and both slew estimates against the earliest
+Quartus value across both reported transitions. All forty hop/corner
+comparisons still have native minimum delay too late by 2.989--25.687 ps,
+including all sixteen flip-flop-control comparisons. This conclusion does
+not depend on an assumed logical-to-physical RF correspondence. The capture
+retains all 160 reference hop samples and 96 native RAM hop samples; the
+RAM traces are byte-identical between reference and native RBFs.
+
+The reference's SDC report has no explicit timing-derate assignment. The
+cause of the early discrepancy remains unestablished; these measurements
+do not justify fitting a global multiplier or changing source slew until
+the numbers agree. The next compiler prerequisite is to identify and
+validate the native early-routing calculation with these controls, then
+characterize RAM source modes/loads and PLL-lock excitation separately.
+
+[The control record](board50-route-early-controls.json) and
+[its probe, fitted RBF, inputs and reports](board50-route-early-controls-harness.json.gz)
+retain the exact comparison and source-output/residual boundaries, including
+negative report-rounding residuals. This is host-only characterization.
+No waveform or derating repair, whole-board timing qualification, producer
+seal, hardware acceptance, clock/constraint change or production-lock
+change follows from it. The timing PR remains draft.
