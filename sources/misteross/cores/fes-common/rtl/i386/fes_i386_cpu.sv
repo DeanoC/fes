@@ -149,15 +149,15 @@ module fes_i386_cpu (
     // waits too, then faults). WB waits as well, so a taken branch or a fault
     // there takes effect, and flushes, once the bytes arrive, even when the
     // load is on the wrong path. So does a multiply or divide while it works
-    // in EX (md_busy, registered as it enters EX; see EX), and an I/O access
-    // in WB until the machine has completed it (io_wb, registered as the uop
-    // enters WB; io_done, registered from the completing edge; see WB), and
-    // an INTR being taken until the machine has returned its vector (int_take,
-    // registered at the boundary; inta_done, from the returning edge; see
-    // Interrupts).
-    logic freeze, m2_load, md_busy, io_wb, io_done, int_take, int_nmi, inta_done;
+    // in EX (md_busy, registered as it enters EX; see EX), an I/O access in
+    // WB until the machine has completed it (io_wait, set as the uop enters
+    // WB and cleared on the completing edge; see WB), and an INTR being taken
+    // until the machine has returned its vector (int_wait, set at the
+    // boundary and cleared on the returning edge; see Interrupts). Each wait
+    // is one register, so the freeze stays one LUT of five.
+    logic freeze, m2_load, md_busy, io_wait, int_take, int_nmi, int_wait;
     logic int_next;  // an interrupt is taken on this edge (see Interrupts)
-    assign freeze = m2_load && !dmem_valid || md_busy || io_wb && !io_done || int_take && !int_nmi && !inta_done;
+    assign freeze = m2_load && !dmem_valid || md_busy || io_wait || int_wait;
 
     // A fault in WB is delivered (exc_take): WB flushes, the front end and DC
     // restart, and DC takes the exception's entry the cycle after
@@ -1185,10 +1185,12 @@ module fes_i386_cpu (
         end
         if (reset || wb_flush) begin
             wb_s.valid <= 1'b0;
-            io_wb <= 1'b0;
+            io_wait <= 1'b0;
         end else if (!freeze) begin
             wb_s <= ex_out;
-            io_wb <= ex_s.valid && ex_out.uop.io != 2'd0 && ex_out.uop.ctl.fault == fes_i386_pkg::FAULT_NONE && !int_next;
+            io_wait <= ex_s.valid && ex_out.uop.io != 2'd0 && ex_out.uop.ctl.fault == fes_i386_pkg::FAULT_NONE && !int_next;
+        end else if (io_wait && io_ack) begin
+            io_wait <= 1'b0;
         end
     end
 
@@ -1214,19 +1216,12 @@ module fes_i386_cpu (
     // data from io_data. The port is DX or imm8, OUT's data eAX (a) or, for
     // OUTS, the loaded value (its result).
     logic [31:0] io_data;
-    assign io_req = io_wb && !io_done;
+    assign io_req = io_wait;
     assign io_write = wb_s.uop.io == 2'(fes_i386_pkg::IO_OUT);
     assign io_port = wb_s.uop.src2.valid ? wb_s.b[15:0] : wb_s.uop.imm[15:0];
     assign io_size = 2'(wb_s.uop.size);
     assign io_wdata = wb_s.uop.mem.kind == fes_i386_pkg::MEM_LOAD ? wb_s.result : wb_s.a;
-    always_ff @(posedge clk) begin
-        if (reset || !freeze) begin
-            io_done <= 1'b0;
-        end else if (io_req && io_ack) begin
-            io_done <= 1'b1;
-            io_data <= io_rdata;
-        end
-    end
+    always_ff @(posedge clk) if (io_wait && io_ack) io_data <= io_rdata;
     // IN's data: merged into eAX's old value by size, or stored (INS).
     logic [31:0] wb_in, wb_sdata;
     assign wb_in = wb_s.uop.size == fes_i386_pkg::SIZE_8 ? {wb_s.a[31:8], io_data[7:0]}
@@ -1305,7 +1300,7 @@ module fes_i386_cpu (
     assign nmi_ok = (nmi_pend || nmi_edge) && (!nmi_block || at_boundary && wb_s.uop.iret);
     assign int_if = at_boundary ? wb_flags[9] : eflags[9];
     assign int_next = (at_boundary && !int_shadow || in_hlt) && (nmi_ok || intr && int_if);
-    assign inta_req = int_take && !int_nmi && !inta_done;
+    assign inta_req = int_wait;
     always_ff @(posedge clk) begin
         nmi_q <= nmi;
         if (reset) begin
@@ -1314,7 +1309,7 @@ module fes_i386_cpu (
             movss_sh <= 1'b0;
             int_take <= 1'b0;
             int_nmi <= 1'b0;
-            inta_done <= 1'b0;
+            int_wait <= 1'b0;
         end else begin
             if (at_boundary) movss_sh <= sh_ss;
             if (at_boundary && wb_s.uop.iret) nmi_block <= 1'b0;
@@ -1325,13 +1320,13 @@ module fes_i386_cpu (
             if (int_next) begin
                 int_take <= 1'b1;
                 int_nmi <= nmi_ok;
+                int_wait <= !nmi_ok;
                 if (nmi_ok) nmi_block <= 1'b1;
             end else if (int_go) begin
                 int_take <= 1'b0;
-                inta_done <= 1'b0;
             end
-            if (inta_req && inta_ack) begin
-                inta_done <= 1'b1;
+            if (int_wait && inta_ack) begin
+                int_wait <= 1'b0;
                 int_vec <= inta_vector;
             end
         end

@@ -135,9 +135,11 @@ a taken branch or a fault in WB wait out a wrong-path load. A multiply or
 divide freezes them the same way while it works in EX (`md_busy`, a register
 set as the uop enters EX), and so the freeze has one more registered input
 and D's issue no new term. So does an I/O access in WB, until the machine
-completes it (`io_wb` and `io_done`, both registers; see I/O), and an INTR
-being taken, until the machine returns its vector (`int_take` and
-`inta_done`; see Interrupts). What WB does with
+completes it (`io_wait`, set as the uop enters WB and cleared on the
+completing edge; see I/O), and an INTR being taken, until the machine returns
+its vector (`int_wait`, likewise; see Interrupts). Each wait is one register,
+so the freeze stays one LUT of five inputs, which every stage's enable takes.
+What WB does with
 its uop (flush, redirect, deliver a fault) is decided as the uop enters WB, so
 each of those is one gate from the freeze too.
 
