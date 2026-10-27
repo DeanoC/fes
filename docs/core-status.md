@@ -59,9 +59,11 @@ package `3678ad9e7135e327…` and needs hardware acceptance. The original firmwa
 used nextpnr `0c5ed400` and does not accept those bytes, and there is no
 factory-image acceptance or promotion. Keyboard transposition
 ([#750](https://github.com/DeanoC/fes/issues/750)) is unrelated. The factory
-packages, Apple II and Catch seal with
-HIP/nextpnr. Quartus is an oracle where the recipe says so. It is not the product
-path and not a fallback.
+packages, Apple II and Catch seal with HIP/nextpnr. The accepted policy allows
+labelled Quartus product variants alongside OSS builds; current registered
+recipes and package selection still use HIP/nextpnr only. Quartus remains an
+oracle where a recipe says so until variant support lands. A failed OSS route
+never falls back to Quartus.
 
 ## Matrix
 

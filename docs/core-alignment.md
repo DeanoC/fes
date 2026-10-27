@@ -15,15 +15,17 @@ same commit. A dated note under
 
 ## Rule
 
-When two mechanisms do the same job, the later choice is the standard. Move
-consumers onto it. Do not keep the earlier mechanism and call it a variant.
+For an alternate implementation of the same core, the later choice is the
+standard. Move consumers onto it. Do not keep an obsolete mechanism and call
+it a variant. The accepted Quartus policy is different: it allows a core to
+have a labelled build-toolchain variant, without changing its core ABI or
+silently replacing another build.
 
-A second mechanism is allowed only when it does a different job, and the
-owning README names that job. `fes_z80_fast` is a documented-only development
-build. Splash is board firmware. ZX81 session-display is an in-session plane.
-Quartus is a labelled second toolchain ([Quartus-built cores](design/quartus-cores.md)),
-or an oracle where a recipe says so. None of those is a second path for the
-same build.
+`fes_z80_fast` is a documented-only development build. Splash is board
+firmware. ZX81 session-display is an in-session plane. Quartus may be a
+labelled product toolchain variant under the accepted
+[Quartus-built cores policy](design/quartus-cores.md), or an oracle where a
+recipe says so.
 
 Do not add a core by copying the historical path of an older sibling. A new
 core uses the standards below.
@@ -32,14 +34,15 @@ core uses the standards below.
 
 These are the choices already in the tree at `6d9939c2`.
 
-1. The default product path is HIP/nextpnr (`oss`). Quartus-built cores are
-   allowed as a labelled `quartus` variant (policy accepted in #1163, see
-   [Quartus-built cores](design/quartus-cores.md)). A variant is an explicit
-   selection, built on a licensed, pinned host with the same timing and seal
-   checks, and is excluded by `FES_OSS_ONLY=1`. A failed HIP route does not
-   fall back to Quartus. Where a recipe still says only oracle, the Quartus
-   output is a check and does not program a kit. Until the rollout in the
-   design lands, no recipe selects a Quartus variant.
+1. FES allows both OSS (`oss`) and Quartus (`quartus`) as product toolchains
+   (policy accepted in #1163; see
+   [Quartus-built cores](design/quartus-cores.md)). Current registered recipes
+   and package selection still build only the HIP/nextpnr OSS lane. A recipe
+   that later offers both lanes must select one explicitly, use a licensed,
+   pinned Quartus host, and pass the same timing and seal checks. A failed HIP
+   route never falls back to Quartus. Where a recipe still says oracle only,
+   Quartus remains a check and does not produce the installed package.
+   `FES_OSS_ONLY` is a proposed rollout option, not a control in this tree.
 2. Registered producers use per-core locks named by `lock_path` in
    `config/core-recipes.toml`. Five locks match the repository-level
    `sources/misteross/toolchain.lock`: Yosys `3a5accbd`, Mistral `8fcc4cb4`,

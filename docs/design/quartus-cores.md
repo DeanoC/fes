@@ -1,17 +1,19 @@
 # Quartus-built cores
 
-Status: accepted (issue #1163, Deano, 27 October 2026), including the
+Status: accepted policy (issue #1163, Deano, 27 October 2026), including the
 15% threshold under [What "significantly" means](#what-significantly-means).
-The superseded statements in the docs listed below are updated (rollout
-step 1). No build, recipe, manifest or UI behavior in this tree changes until
-steps 2-6 of the [Rollout](#rollout) land: no recipe selects a Quartus variant
-and the default route stays HIP/nextpnr.
+The documentation updates are rollout step 1. Product support is not
+implemented yet: current registered recipes and package selection support
+HIP/nextpnr only, and `FES_OSS_ONLY` is not a live control. Until the remaining
+[Rollout](#rollout) steps land, Quartus is used only as an explicit
+recipe-documented oracle/check.
 
 ## Decision
 
 FES allows cores built with Quartus alongside cores built with the OSS flow
-(Yosys + nextpnr-mistral). Both ship. A core build says which toolchain made
-it, and an image can exclude every Quartus build.
+(Yosys + nextpnr-mistral). The policy allows both labelled variants to ship
+when the selection rule below requires them. A core build says which toolchain
+made it, and the planned OSS-only image option excludes every Quartus build.
 
 Two reasons:
 
@@ -23,10 +25,10 @@ Two reasons:
   (#1112) put most of that gap in place and route. #264 records the same split
   for `fes.ramtest` at 130 MHz.
 - **DE25-Nano.** Two Terasic DE25-Nano boards are on order for FES bring-up.
-  The board has an Agilex 5 FPGA, which the OSS flow does not target. Each
-  board ships with its own Quartus Pro license, so two machines can be
-  authorized as build hosts when the boards are set up. Quartus Pro 24.1 or
-  later is the first release that supports Agilex 5.
+  The board has an Agilex 5 FPGA, which the OSS flow does not target. The
+  board-associated Quartus Pro entitlement and its host/concurrency terms must
+  be confirmed during setup. Quartus Pro 24.1 or later is the first release
+  that supports Agilex 5.
 
 ## What this replaces
 
@@ -35,11 +37,12 @@ updated together with the acceptance of the design:
 
 | Where | Was | Now |
 | --- | --- | --- |
-| `docs/core-alignment.md`, standard 1 | "Quartus is an oracle only where the recipe says so... Quartus never programs a kit." | Quartus builds may be sealed packages and may program a kit. Standard 1 names the two toolchains and the labelling rule below. |
-| `docs/core-alignment.md`, Rule | Quartus is listed as "an oracle", not a second product path. | Quartus is a second product toolchain with its own label. The rule against a second *mechanism for the same job* still applies to each variant's own build path. |
-| `README.md` ("No Quartus!"), the HIP/nextpnr sentences | Quartus is a build-time oracle. | OSS is the default and first-class; Quartus is an opt-in labelled toolchain. |
-| `docs/core-packages.md`, `docs/core-development.md`, `docs/bootable-media.md`, `docs/component-boundaries.md`, `docs/development.md` | "package-only"; "never silently falls back to Quartus". | Keep "never silently falls back". Describe the explicit variant selection. |
-| `config/core-recipes.toml` `quartus_role` | Free text such as "bring-up/check oracle". | Stays for cores that remain oracle-only. A core with a Quartus variant gets a real toolchain entry (see below). |
+| `docs/core-alignment.md`, standard 1 | The active producers use HIP/nextpnr; Quartus is an oracle where named. | The accepted policy permits labelled Quartus product variants. The current registry still selects only OSS; this status is explicit. |
+| `docs/core-status.md` | The product path uses HIP/nextpnr; Quartus is an oracle, not a product path. | Quartus variants are allowed by policy; the current registered recipes and package selection still use HIP/nextpnr only. |
+| `docs/core-alignment.md`, Rule | Quartus is described as an oracle or a separate mechanism. | A Quartus build can be a labelled toolchain variant of the same logical core; it is never an automatic fallback. |
+| `README.md`, the HIP/nextpnr sentences | Quartus is a build-time oracle. | OSS is the current implementation; Quartus variants are accepted policy pending recipe and package-selection rollout. |
+| `docs/core-packages.md`, `docs/core-development.md`, `docs/bootable-media.md`, `docs/component-boundaries.md`, `docs/development.md`, `docs/getting-started.md` | Some wording could imply that variant selection or `FES_OSS_ONLY` already exists. | State the accepted policy, the current HIP-only resolver, and the pending implementation steps. Never silently fall back. |
+| `config/core-recipes.toml` `quartus_role` | Free text such as "bring-up/check oracle". | Stays for cores that remain oracle-only. A core with a Quartus product variant gets a declared toolchain entry (see below). |
 
 What does not change: **a failed OSS route never falls back to Quartus.** A
 Quartus variant is something a person or profile selects. It is never what
@@ -52,8 +55,9 @@ the build does after OSS fails.
 2. **Debian-style split.** `oss` is the "main" set: fully open toolchain.
    `quartus` is the "non-free" set: a proprietary toolchain. An image or
    catalog can be built with only the main set.
-3. **OSS-only option.** `FES_OSS_ONLY=1` builds and installs no `quartus`
-   core. See [OSS-only images](#oss-only-images).
+3. **OSS-only option.** The design calls for a future `FES_OSS_ONLY=1`
+   option that builds and installs no `quartus` core. It is not implemented
+   yet; see [OSS-only images](#oss-only-images).
 4. **Both variants only when they differ significantly.** If Quartus and OSS
    results are close, ship the OSS build only. Where they differ a lot
    (i386 today), ship both under one core ID, labelled.
@@ -69,15 +73,23 @@ the build does after OSS fails.
 Decided: a core ships a Quartus variant alongside its OSS build when, on the
 same RTL and the same target clocks, either
 
-- Quartus closes a clock in the recipe's `clocks` list that the OSS lane
-  misses, or
-- the limiting clock's Fmax differs by 15% or more between the two flows
-  (Quartus against the OSS best seed).
+- every Quartus sign-off seed closes a required clock that one or more OSS
+  sign-off seeds miss, or
+- the 15% test below is met for at least one required clock.
 
-Otherwise the core ships OSS only. i386 is the example: about 70 MHz OSS against about 100 MHz Quartus is 40%
-more. A core where the gap is 3% ships OSS only. The result for each
-candidate goes in a dated note under `docs/validation/`, with both flows' seeds
-and clock figures, like the i386 oracle note.
+For the 15% test, evaluate each recipe clock separately. Each flow must first
+pass every required clock on every declared sign-off seed. For a given clock,
+use the highest Fmax among those complete passing seeds for that flow; record
+the seed that produced it. The percentage is
+`100 × (Quartus best Fmax − OSS best Fmax) / OSS best Fmax`. Quartus qualifies
+when that value is at least 15% on any required clock. This defines both the
+numerator, denominator and Quartus seed; an exploratory or failing seed cannot
+be cherry-picked. This comparison rule does not waive the per-seed timing
+checks. Otherwise the core ships OSS only. i386 is the example: about 70 MHz
+OSS against about 100 MHz Quartus is about 40% more. A core where the gap is
+3% ships OSS only. The result for each candidate goes in a dated note under
+`docs/validation/`, with both flows' sign-off seed sets and per-clock figures,
+like the i386 oracle note.
 
 ## Toolchain label
 
@@ -112,20 +124,29 @@ is needed to land the label.
 ### Package manifest and identity
 
 The sealed package manifest records `toolchain = "oss" | "quartus"` and, for
-`quartus`, the Quartus version, edition and device family. The functional key
-(`artifact_cache.functional_key`, see [core-key narrowing](../core-key-narrowing.md))
-includes the toolchain, so an OSS package can never satisfy a Quartus lookup
-or the reverse. A cache hit is still only a package built from the same
-sources by the same toolchain.
+`quartus`, the Quartus version, edition and device family. Package identity
+includes the toolchain; both variants share the logical core ID and version
+but have distinct package IDs and payload digests.
 
-Both variants share the core ID and version. They differ in the package ID and
-payload digest. An older package with no `toolchain` field reads as `oss`, so
-existing sealed packages stay valid.
+The build-input JSON passed to `artifact_cache.functional_key` uses an
+asymmetric rule to preserve existing OSS cache keys. An absent `toolchain`
+field means `oss`. Keep the current OSS functional-input record unchanged and
+omit that field from it; adding `"toolchain": "oss"` would change every
+existing key because the cache hashes every field other than repository,
+revision and source path. A Quartus functional-input record must include
+`"toolchain": "quartus"`, so it has a different key from the OSS record.
+Newly produced manifests still write the explicit toolchain label. Readers
+interpret a missing label in a legacy manifest or cache record as `oss` and
+must reject a cache hit whose declared lane conflicts with its recipe or
+manifest. The `functional_key` hashing algorithm does not change. Tests for
+the implementation must prove that a legacy/current OSS record retains its
+key and that the Quartus record gets a distinct key.
 
 ## OSS-only images
 
-`FES_OSS_ONLY=1` follows the shape of the existing optional-core flags in
-`scripts/optional_cores.py`:
+This is proposed behavior for rollout step 3; `FES_OSS_ONLY` is not
+implemented in the current tree. It should follow the shape of the existing
+optional-core flags in `scripts/optional_cores.py`:
 
 - It resolves each selected core to its `oss` lane. A core with only a
   `quartus` lane (the DE25-Nano shells, at first) is an error if the profile
@@ -146,20 +167,23 @@ existing sealed packages stay valid.
 ## Build hosts
 
 Quartus Lite 17.0.2 (Cyclone V, DE10-Nano) is free and needs no license. The
-Quartus Pro builds for Agilex 5 need a license, and Altera ties it to the host
-it is acquired on. Each DE25-Nano gives one, so the first two Pro builds are
-two hosts. Confirm exactly how the license binds (host ID, no-cost flow or
-file) when the first board arrives.
+Quartus Pro builds for Agilex 5 require an authorized license. The DE25-Nano
+boards are expected to provide associated Pro entitlements, but the license
+binding and concurrent-use terms remain open. Check Altera's applicable
+no-cost and board-associated license terms before treating those as the only
+authorized hosts or imposing a global job cap.
 
-- Quartus runs only on named, pinned build hosts: today the development
-  machine for Lite, and the two machines authorized with the board
-  licenses for Pro. Each host's Quartus install is recorded by version,
-  edition and build number, and `make doctor` reports it.
+- Quartus runs only on named, pinned build hosts authorized by the applicable
+  license terms. The development machine can run Lite; Pro hosts are
+  determined by confirmed entitlements. Each host's Quartus install is
+  recorded by version, edition and build number, and `make doctor` reports it.
 - The license file and any token stay on the host. Nothing licensed goes in
   the repository, a package, a cache key or CI logs. A package records the
   edition and version, never a seat or host ID.
-- Two seats means two concurrent Pro jobs at most. Quartus jobs queue on the
-  build host. They do not use the GPU lease that the HIP router uses.
+- Quartus jobs are scheduled within the actual licenses and host
+  authorizations available. Do not assume a two-job global cap until the
+  license terms and binding are confirmed. They do not use the GPU lease that
+  the HIP router uses.
 - Quartus 17.0.2's SystemVerilog front end rejects some FES RTL (the i386
   CPU). Where that happens the existing route stays: Yosys elaborates the
   netlist and Quartus maps and fits it, as in `scripts/quartus_fes_i386.py`.
@@ -216,17 +240,38 @@ CI cannot assume a licensed runner.
   contributors, and whether the licensed runner is a third CI lane or a manual
   gate on the existing HIL step.
 
-## Manifest, library and UI
+## Catalog, library and image selection
 
-- The toolchain label shows wherever a core's identity shows: the catalog and
-  library entry, `unavailable-cores.json`, the kit's core list and the
-  update manifest. Proposed text is `OSS` or `Quartus`.
-- When a core has both variants the library lists one core and offers the
-  variant. Open: which one a kit launches by default. Proposal: the one the
-  recipe names in `default_toolchain`, and a kit built with `FES_OSS_ONLY=1`
-  only ever sees `oss`.
-- A person who wants no proprietary-built core can tell from the image
-  receipts. The factory image says whether it was built OSS-only.
+The current publisher and media selector accept one package per `core_id`:
+`scripts/core_catalog.py` rejects duplicate catalog IDs and stores one
+`package_id`, while `scripts/media.py` requires one package input for each
+selected core ID. The rollout must extend selection without putting two
+packages for one core into a single image.
+
+- A catalog has one logical entry per `core_id` and a `variants` map keyed by
+  toolchain. Each available variant names its distinct package ID, archive
+  identity and label. The catalog publisher accepts
+  more than one prepared package for a core and verifies each against its
+  manifest; it does not emit duplicate core rows.
+- The `toolchain` label is visible wherever package identity is presented:
+  package manifest, catalog and library entry, `unavailable-cores.json`,
+  `inputs.json` and package-selection record, kit core list and update
+  manifest. Use the labels `OSS` and `Quartus` consistently.
+- The library displays one logical core and its available variants. A user or
+  profile may select a toolchain explicitly; when omitted, selection resolves
+  to the recipe's `default_toolchain`, which defaults to `oss`. The chosen
+  package ID and toolchain are retained with the selection and launch.
+- Parent image selection resolves exactly one package variant for each
+  selected core ID before it creates `inputs.json` or calls the media
+  publisher. The image receipt records `core_id`, toolchain and `package_id`.
+  `scripts/media.py` receives that single resolved package per core ID and
+  verifies the receipt and package label. It must reject duplicate core IDs,
+  an unselected variant or a package whose toolchain differs from the
+  recorded selection. Two variants may be available in the catalog but are
+  never both included for one core ID in the same image.
+- The planned OSS-only option filters selection to `oss` and records whether
+  the image was built OSS-only. Until that option lands, receipts must not
+  claim OSS-only filtering.
 
 ## DE25-Nano bring-up
 
@@ -236,7 +281,7 @@ is Cyclone V only. That means:
 - a `boards/de25nano` shell beside `boards/de10nano` in `sources/misteross`,
   with its own constraints,
 - new cores or shells that have only a `quartus` lane at first, so they are
-  absent from any `FES_OSS_ONLY` image,
+  absent from an image selected with the planned OSS-only option,
 - an HPS and image story that is separate from this design: the DE25-Nano HPS
   is a different CPU from the DE10-Nano's, so the kit software, target image
   and `libmister-runtime` need their own plan. This document only covers how
@@ -246,17 +291,39 @@ is Cyclone V only. That means:
 
 Each step is one scope, one PR.
 
-1. Docs: update `core-alignment.md`, `README.md` and the `package-only` text
-   to match the accepted policy (the table above). Done with this design.
-2. Recipe and manifest: `toolchains`, `[recipes.quartus]`, `toolchain` in the
-   manifest and the functional key. OSS packages read as `oss`; no existing
-   key changes.
-3. `FES_OSS_ONLY` and the `toolchain-excluded` reason in `scripts/optional_cores.py`,
-   with tests like `tests/test_optional_cores.py`.
-4. First dual-variant core: i386 once its OSS and Quartus results are recorded
-   against the rule above.
-5. Licensed build host and runner, Pro install, `make doctor` report.
-6. DE25-Nano board shell and first Quartus-only bring-up core.
+1. Docs: state the accepted policy and accurately describe current
+   implementation status. Done with this design and its status-page updates.
+2. Recipe, manifest and cache identity: add declared `toolchains` (existing
+   recipes without this field resolve to `oss`) and
+   `[recipes.quartus]` while keeping existing OSS recipe fields and functional
+   records unchanged. Write the toolchain into new manifests. Preserve legacy
+   OSS keys by omitting `toolchain` from OSS functional-input JSON; include
+   `"toolchain": "quartus"` for Quartus. Interpret missing labels as OSS.
+   Update `scripts/recipes.py` so `gpu_router` and `hip_architectures` are
+   required and validated only when the recipe declares an OSS lane. A
+   Quartus-only recipe has no `gpu_router` or HIP architecture fields and must
+   provide its Quartus descriptor; never invent a HIP route to satisfy the
+   parser. Add tests for both lane shapes and key compatibility/separation.
+3. Implement `FES_OSS_ONLY` and the `toolchain-excluded` reason in
+   `scripts/optional_cores.py`, with tests like `tests/test_optional_cores.py`.
+   Until this step lands, the variable is not supported.
+4. Extend package preparation with an explicit `--toolchain` selector
+   (defaulting to the recipe's `default_toolchain`) and `scripts/core_catalog.py`
+   to publish one logical core entry with multiple toolchain variants, each
+   with a distinct package ID. Extend library
+   variant selection and parent profile/default resolution to choose exactly
+   one variant per core ID. Keep the
+   `scripts/media.py` input contract one package per selected core ID; have it
+   validate the resolved toolchain/package identity and reject duplicates or
+   mismatches. Test catalog grouping, explicit/default selection, image
+   receipts and media rejection paths.
+5. First dual-variant core: i386 once its OSS and Quartus results are recorded
+   against the rule above. Verify both cache keys and end-to-end catalog/image
+   selection.
+6. Licensed build host and runner, Pro install and `make doctor` report.
+   Schedule jobs against confirmed license entitlements and host permissions.
+7. DE25-Nano board shell and first Quartus-only bring-up core, using the
+   Quartus-only recipe shape from step 2.
 
 ## Open questions
 
@@ -264,9 +331,7 @@ Each step is one scope, one PR.
    identifies an install (version, build number, installer digest).
 2. **CI on unlicensed runners:** skip with a required licensed run, or cached
    sealed packages only.
-3. **Manifest and UI labelling:** wording, and the default variant for a core
-   that ships both.
-4. **DE25-Nano:** Quartus Pro front end and whether the Yosys-elaborated
+3. **DE25-Nano:** Quartus Pro front end and whether the Yosys-elaborated
    netlist route is still needed, and where the HPS and image work is tracked.
-5. **License binding:** how the board license ties to a host and what happens
+4. **License binding:** how the board license ties to a host and what happens
    if a build host is replaced.
