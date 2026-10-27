@@ -55,10 +55,11 @@
 //           hex bytes: each must stop the RTL with FAULT_UNIMPLEMENTED before
 //           anything retires. The RTL runs alone; the oracle is not stepped.
 //   reset-store a store waiting in WB must not write memory on a reset edge.
-//   directed  out-of-limit CALL rel and r/m, RET and JMP faults, and divide errors, delivered to a handler that
-//             HLTs, then a check that fetch, issue and data reads stay inactive
-//             after the HLT; and an INT and a fault whose delivery faults,
-//             which must stop the RTL with nothing written.
+//   directed  out-of-limit CALL rel and r/m, RET and JMP faults, divide errors,
+//             count-zero REP MOVS with expand-down DS or ES, and a check that
+//             fetch, issue and data reads stay inactive after a handler HLT;
+//             an INT and a fault whose delivery faults must stop with nothing
+//             written.
 // Output: "FAIL <label> <field> <expected> <actual>..." per failing run, then
 // one JSON summary line. Exit status 1 on any failure.
 #include "Vfes_i386_cpu.h"
@@ -1476,6 +1477,55 @@ void run_fault_case(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
     }
 }
 
+void run_nop_case(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
+                  Summary &summary, const std::string &label, std::vector<uint8_t> code, State state) {
+    code.push_back(0xf4);  // HLT after the instruction under test.
+    const uint32_t code_base = state.seg[fes_i386::SEG_CS].base + state.eip;
+    std::vector<std::pair<uint32_t, uint8_t>> image;
+    for (size_t i = 0; i < code.size(); ++i) image.emplace_back(code_base + uint32_t(i), code[i]);
+    for (auto [address, value] : image) {
+        bus.ram[address] = rtl.ram[address] = value;
+        oracle.invalidate(address, 1);
+    }
+    oracle.set_state(state);
+    rtl.start(state);
+
+    Mismatches out;
+    Outcome outcome;
+    try {
+        outcome = lockstep(oracle, bus, rtl, entries, Fields{}, 64, false, summary, out,
+                           code_base, code_base + uint32_t(code.size()));
+    } catch (const std::exception &error) {
+        out.add(label + ".oracle-error:" + error.what(), 0, 1);
+        oracle.reset();
+    }
+    if (!outcome.halted) out.add(label + ".halt", 1, 0);
+    if (outcome.exception >= 0) out.add(label + ".exception", 0xffffffffu, uint32_t(outcome.exception));
+    if (outcome.interrupt >= 0) out.add(label + ".interrupt", 0xffffffffu, uint32_t(outcome.interrupt));
+
+    summary.cycles += rtl.cycles;
+    rtl.cycles = 0;
+    rtl.load_waits = 0;
+    for (auto [address, value] : image) {
+        bus.ram[address] = rtl.ram[address] = 0;
+        oracle.invalidate(address, 1);
+    }
+    for (uint32_t address : rtl.written) {
+        if (address < RAM_BYTES) bus.ram[address] = rtl.ram[address] = 0;
+        oracle.invalidate(address, 1);
+    }
+    rtl.written.clear();
+    ++summary.runs;
+    if (out.items.empty()) {
+        ++summary.passed;
+    } else {
+        ++summary.failed;
+        std::cout << "FAIL directed:" << label;
+        for (const auto &item : out.items) std::cout << ' ' << item;
+        std::cout << '\n';
+    }
+}
+
 void run_fault_regressions(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
                            Summary &summary) {
     State call;
@@ -1563,6 +1613,22 @@ void run_fault_regressions(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, c
     enter_wrap.gpr[fes_i386::REG_ESP] = 5;
     run_fault_case(oracle, bus, rtl, entries, summary, "enter-stack-wrap", {0xc8, 0x00, 0x00, 0x02, 0xf4},
                    enter_wrap, true);
+
+    // A count-zero REP MOVS is a retired NOP even when either of its data
+    // segments has an expand-down cache: neither address is accessed.
+    State rep_zero_ds = call;
+    rep_zero_ds.gpr[fes_i386::REG_ECX] = 0;
+    rep_zero_ds.gpr[fes_i386::REG_ESI] = 0x100;
+    rep_zero_ds.gpr[fes_i386::REG_EDI] = 0x200;
+    rep_zero_ds.seg[fes_i386::SEG_DS].ar = 0x96;  // present, writable, expand-down data
+    rep_zero_ds.seg[fes_i386::SEG_DS].limit = 0x0f;
+    run_nop_case(oracle, bus, rtl, entries, summary, "rep-movs-zero-expand-down-ds", {0xf3, 0xa4}, rep_zero_ds);
+
+    State rep_zero_es = rep_zero_ds;
+    rep_zero_es.seg[fes_i386::SEG_DS] = fes_i386::real_mode_segment(0);
+    rep_zero_es.seg[fes_i386::SEG_ES].ar = 0x96;
+    rep_zero_es.seg[fes_i386::SEG_ES].limit = 0x0f;
+    run_nop_case(oracle, bus, rtl, entries, summary, "rep-movs-zero-expand-down-es", {0xf3, 0xa4}, rep_zero_es);
 }
 
 // ---- SingleStepTests mode ---------------------------------------------------------------

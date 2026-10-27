@@ -456,8 +456,10 @@ module fes_i386_cpu (
     assign str_ss = dc.seq == fes_i386_pkg::SEQ_ENTER;
     assign str_dseg = str_ss ? 3'(SEG_SS) : 3'(fes_i386_pkg::SEG_ES);
     assign str_expd = !seg_ar[str_dseg][3] && seg_ar[str_dseg][2];
-    assign d_unimpl = wrap16 || (mem && expand_down) || (dc.str_two && str_expd) || call_target_unimpl
-                   || (dc.uop.probe != fes_i386_pkg::PROBE_NONE && !seg_ss_ffff);
+    // A count-zero REP's first element is rewritten to a NOP below. Its
+    // unused addresses must not raise an unsupported-segment or wrap fault.
+    assign d_unimpl = !s_kill1 && (wrap16 || (mem && expand_down) || (dc.str_two && str_expd) || call_target_unimpl
+                   || (dc.uop.probe != fes_i386_pkg::PROBE_NONE && !seg_ss_ffff));
 
     // A far transfer's selector and offset, from the instruction or from T0
     // and T1. In 16-bit code an offset past CS's limit raises #GP(0) at the
@@ -475,10 +477,11 @@ module fes_i386_cpu (
         if (stk != fes_i386_pkg::STK_NONE) u.mem.addr32 = ss32;
         // POPAD's ESP image counts only on a 16-bit stack.
         if (dc.popad_esp && !(dc.opsize32 && !ss32)) u.dst.valid = 1'b0;
-        if (d_unimpl && dc.uop.ctl.fault == fes_i386_pkg::FAULT_NONE) u.ctl.fault = fes_i386_pkg::FAULT_UNIMPLEMENTED;
-        if (far_bad && dc.uop.ctl.fault == fes_i386_pkg::FAULT_NONE)
+        if (!s_kill1 && d_unimpl && dc.uop.ctl.fault == fes_i386_pkg::FAULT_NONE)
+            u.ctl.fault = fes_i386_pkg::FAULT_UNIMPLEMENTED;
+        if (!s_kill1 && far_bad && dc.uop.ctl.fault == fes_i386_pkg::FAULT_NONE)
             u.ctl.fault = seg_cs_ffff ? fes_i386_pkg::FAULT_GP0 : fes_i386_pkg::FAULT_UNIMPLEMENTED;
-        if (cs_gp || call_target_gp) u.ctl.fault = fes_i386_pkg::FAULT_GP0;
+        if (!s_kill1 && (cs_gp || call_target_gp)) u.ctl.fault = fes_i386_pkg::FAULT_GP0;
         u.str_down = s_down;
     end
     assign opsize32 = dc.opsize32;
@@ -494,7 +497,7 @@ module fes_i386_cpu (
     assign consumes = dc.consumes;
     assign reads_seg = dc.reads_seg;
     assign seg_index = dc.seg_index;
-    assign stop = dc.stop || d_unimpl || cs_gp || far_bad || call_target_gp;
+    assign stop = !s_kill1 && (dc.stop || d_unimpl || cs_gp || far_bad || call_target_gp);
 
     // The producers in AG, M1, M2 and EX.
     logic [3:0]       prod_valid, prod_early, prod_sp;
@@ -807,6 +810,7 @@ module fes_i386_cpu (
         if (s_kill1) begin
             d_out.uop.cls = fes_i386_pkg::UOP_SPECIAL;  // SPECIAL_NOP
             d_out.uop.op = 5'd0;
+            d_out.uop.ctl.fault = fes_i386_pkg::FAULT_NONE;
             d_out.uop.mem.kind = fes_i386_pkg::MEM_NONE;
             d_out.uop.dst.valid = 1'b0;
             d_out.uop.flags = '0;

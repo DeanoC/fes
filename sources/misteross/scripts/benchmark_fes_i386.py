@@ -138,10 +138,10 @@ STAGES = {
         ('AG', r'(.*\.)?(m1_s|m1_out|late_m1)$'),
         # DC's buffer before D, since dfwd and dops take its fields as ports.
         ('DC', r'(.*\.)?(dc|dc0|dc_skid|dc_valid|dc_skid_valid|rom_ok)$'),
-        # D also keeps the string engine's copies, its count's predicates,
-        # its first element's flags and its waits.
-        ('D', r'(.*\.)?(d_eip|d_stop|d_seg_busy|t_busy|d_out|ag_\w+|r_src|r_dst|r_fp|r_cnt|r_c[0-2]|s_tgt|s_down'
-              r'|s_end1|s_kill1|str_busy|df_busy|io_busy)$|(.*\.)?(dops|dfwd)\.'),
+        # D also keeps the string engine's copies and waits.
+        ('D', r'(.*\.)?(d_eip|d_stop|d_seg_busy|t_busy|d_out|ag_\w+|r_src|r_dst|r_fp|r_cnt|r_c0|r_c1|r_c2'
+              r'|s_end1|s_kill1|s_tgt|s_down|str_busy'
+              r'|df_busy|io_busy)$|(.*\.)?(dops|dfwd)\.'),
     ),
     'rom': (('ROM', r'(.*\.)?q$'),),
 }
