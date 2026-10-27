@@ -11,7 +11,8 @@
 //   AG  a memory operand's or LEA's address, a branch's target (fes_i386_agu)
 //   M1  the segment limit check; the data port's address
 //   M2  the loaded bytes, aligned and merged with older stores not yet written
-//   EX  ALU, shifter, flags, branch resolution (fes_i386_ex)
+//   EX  ALU, shifter, flags, branch resolution (fes_i386_ex); multiply and
+//       divide (fes_i386_muldiv), over several cycles
 //   WB  in-order commit, stores included
 //
 // Branches are predicted not taken. EX resolves them; a taken one redirects
@@ -21,9 +22,10 @@
 // stage behind DC keeps its uop, and nothing retires, until they do (freeze).
 // Nothing moves relative to anything else, so the forwarding distances, AG's
 // late operands, the store merge and D's forwarding tables all hold as they
-// are; the tables only need clearing on a flush.
+// are; the tables only need clearing on a flush. A multiply or divide in EX
+// freezes them the same way while it works.
 //
-// A fault (#UD, #GP(0), #SS(0), #NM) is taken at WB with nothing of its
+// A fault (#UD, #GP(0), #SS(0), #NM, #DE) is taken at WB with nothing of its
 // instruction retired: WB flushes, and DC takes the exception's entry into
 // the microcode routine INT uses, which pushes FLAGS, CS and the faulting
 // instruction's IP and jumps through the vector table. An encoding this
@@ -72,6 +74,7 @@ module fes_i386_cpu (
     output logic             trace_unimplemented,  // ... an encoding not built yet, or a fault in a
                                                    // delivery (trace_vector 8: double fault)
     output logic             trace_issue,          // D issued this cycle (lockstep observability)
+    output logic             trace_md_wait,        // D to WB wait for a multiply or divide in EX (ditto)
     output logic [7:0][31:0] arch_gpr,
     output logic [31:0]      arch_eflags,
     output logic [31:0]      arch_eip,
@@ -116,9 +119,10 @@ module fes_i386_cpu (
     // load, registered as it enters; one that fails the limit check in M1
     // waits too, then faults). WB waits as well, so a taken branch or a fault
     // there takes effect, and flushes, once the bytes arrive, even when the
-    // load is on the wrong path.
-    logic freeze, m2_load;
-    assign freeze = m2_load && !dmem_valid;
+    // load is on the wrong path. So does a multiply or divide while it works
+    // in EX (md_busy, registered as it enters EX; see EX).
+    logic freeze, m2_load, md_busy;
+    assign freeze = m2_load && !dmem_valid || md_busy;
 
     // A fault in WB is delivered (exc_take): WB flushes, the front end and DC
     // restart, and DC takes the exception's entry the cycle after
@@ -523,6 +527,7 @@ module fes_i386_cpu (
                 && !store_hazard && !flag_hazard && !sp_hazard && !stack_wait && !t_wait && !uc_wait && !freeze
                 && !halted;
     assign trace_issue = issue;
+    assign trace_md_wait = md_busy;
 
     always_ff @(posedge clk) begin
         if (reset || wb_flush) begin
@@ -802,7 +807,7 @@ module fes_i386_cpu (
     // end. A faulting uop changes nothing in EX (fes_i386_ex), so an
     // exception's delivery starts from the flags before it.
     logic [17:0] ex_flags, ex_flags_out, wb_flags, flags_keep;
-    logic [31:0] ex_result;
+    logic [31:0] ex_result, ex_af, ex_y;
     logic        ex_taken, ex_sh_out0, ex_sh_outn, ex_sh_cfw, ex_sh_wide, ex_def_co, ex_def_szap;
     logic [31:0] ex_ind_target, ex_ind_eip;
     pipe_t       ex_out;
@@ -830,13 +835,35 @@ module fes_i386_cpu (
     end
     assign flags_keep = wb_s.valid && (wb_s.def_co || wb_s.def_szap) ? wb_flags : ex_flags;
 
+    // A multiply or divide works in EX over several cycles (fes_i386_muldiv),
+    // from EX's operands, which stay put while D to WB freeze. md_busy is set
+    // as the uop enters EX and holds until the unit's last cycle; the uop
+    // leaves on the cycle after, with the unit's result and flags. A flush
+    // waiting in WB cuts the wait short: the uop is on the wrong path.
+    // A 16- or 32-bit DIV's LOAD uop hands the unit EDX while it is in EX.
+    logic [31:0] md_result;
+    logic [11:0] md_flags;
+    logic        md_last, md_de, md_load;
+    assign md_load = ex_s.valid && ex_s.exc.md && ex_s.uop.op == 5'd5;  // MULDIV_LOAD
+    fes_i386_muldiv muldiv (
+        .clk, .go(md_busy), .u(ex_s.uop), .af(ex_af), .y(ex_y), .ld_en(md_load), .last(md_last), .result(md_result),
+        .flags(md_flags), .de(md_de)
+    );
+    always_ff @(posedge clk) begin
+        if (reset || wb_flush) md_busy <= 1'b0;
+        else if (md_busy) md_busy <= !md_last && !wb_flushes;
+        else if (!freeze)
+            md_busy <= m2_out.valid && m2_out.exc.md_wait && m2_out.uop.ctl.fault == fes_i386_pkg::FAULT_NONE;
+    end
+
     // An operand whose producer is one stage ahead (exc.byp_a, xw_*, yw_*,
     // byp_c) comes from the WB result register beside EX's operand, and a
     // memory operand from the loaded value (xl, yl). An early
     // LEA's offset is its whole result, which EX's LEA select passes.
     fes_i386_ex ex (
         .u(ex_s.uop), .exc(ex_s.exc), .a(ex_s.a), .xr(ex_s.x), .yr(ex_s.y), .wb(wb_s.result), .ld(ex_s.ld),
-        .ag_result(ex_s.result), .flags_in(ex_flags), .flags_keep, .result(ex_result), .flags_out(ex_flags_out),
+        .ag_result(ex_s.result), .flags_in(ex_flags), .flags_keep, .md_result, .md_flags, .af(ex_af), .y(ex_y),
+        .result(ex_result), .flags_out(ex_flags_out),
 .taken(ex_taken), .ind_target(ex_ind_target), .ind_eip(ex_ind_eip), .sh_out0(ex_sh_out0), .sh_outn(ex_sh_outn), .sh_cfw(ex_sh_cfw), .sh_wide(ex_sh_wide),
         .def_co(ex_def_co), .def_szap(ex_def_szap)
     );
@@ -855,6 +882,10 @@ module fes_i386_cpu (
         if (ex_s.exc.b_ind && !code32 && ex_ind_eip[31:16] != 16'd0
             && ex_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE)
             ex_out.uop.ctl.fault = seg_cs_ffff ? fes_i386_pkg::FAULT_GP0 : fes_i386_pkg::FAULT_UNIMPLEMENTED;
+        // A divide whose quotient overflows, or whose divisor is zero, raises
+        // #DE (fes_i386_muldiv), with the flags it has changed.
+        if (ex_s.exc.md_de && md_de && ex_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE)
+            ex_out.uop.ctl.fault = fes_i386_pkg::FAULT_DE;
         // A faulting branch terminates the pipeline without redirecting to its
         // rejected target. This also covers faults already found in M1.
         ex_out.taken = ex_taken && ex_out.uop.ctl.fault == fes_i386_pkg::FAULT_NONE;
@@ -965,7 +996,8 @@ module fes_i386_cpu (
         end else if (wb_s.valid && !halted && !freeze) begin
             if (exc_take) begin
                 exc_active <= 1'b1;
-                exc_vec <= wb_fault == 3'd1 ? 8'd6 : wb_fault == 3'd2 ? 8'd13 : wb_fault == 3'd3 ? 8'd7 : 8'd12;
+                exc_vec <= wb_fault == 3'd1 ? 8'd6 : wb_fault == 3'd2 ? 8'd13 : wb_fault == 3'd3 ? 8'd7
+                         : wb_fault == 3'd6 ? 8'd0 : 8'd12;
             end else if (wb_fault != 3'd0) begin
                 // An encoding not built, or a fault in a delivery.
                 halted <= 1'b1;

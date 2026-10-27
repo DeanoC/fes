@@ -20,7 +20,7 @@ module fes_i386_exctl (
     output logic [31:0]            y
 );
     typedef fes_i386_pkg::uop_t uop_t;
-    localparam logic [2:0] C_ALU = 3'd0, C_SHIFT = 3'd1, C_BRANCH = 3'd4, C_SEGMENT = 3'd5;
+    localparam logic [2:0] C_ALU = 3'd0, C_SHIFT = 3'd1, C_MUL = 3'd2, C_DIV = 3'd3, C_BRANCH = 3'd4, C_SEGMENT = 3'd5;
 
     function automatic logic [31:0] extract(input logic [31:0] v, input logic s8, input logic s16, input logic hi8);
         extract = s8 ? {24'b0, hi8 ? v[15:8] : v[7:0]} : s16 ? {16'b0, v[15:0]} : v;
@@ -99,12 +99,25 @@ module fes_i386_exctl (
     assign c.yw16 = yb && !(ya ? size8 : w8);
     assign c.yw32 = yb && !(ya ? size8 || size16 : w8 || w16);
 
+    // ---- The multiply and divide unit (fes_i386_muldiv) ------------------------
+    // Its uops take their whole result from the unit, already merged into the
+    // destination's old value, and their flags where they write any (not HI
+    // or LOAD). All but HI and LOAD work over several cycles.
+    logic md, md_step;
+    assign md = cls == C_MUL || cls == C_DIV;
+    assign md_step = op == 5'd4 || op == 5'd5;  // MULDIV_HI, MULDIV_LOAD
+    assign c.md = md;
+    assign c.md_fl = md && u.flags.write.oszap;
+    assign c.md_wait = md && !md_step;
+    assign c.md_de = cls == C_DIV && !md_step;
+
     // ---- The result's lanes -----------------------------------------------------
-    logic r_add, r_shift, r_other, dh8;
+    logic r_add, r_shift, r_other, dh8, whole;
     assign r_add = arith || incdec || cls == C_BRANCH;
     assign r_shift = cls == C_SHIFT;
     assign r_other = !r_add && !r_shift;
     assign dh8 = size8 && u.dst.hi8;
+    assign whole = !size8 && !size16 || md;
     assign c.add_lo = r_add && !dh8;
     assign c.add_mid = r_add && !size8;
     assign c.add_h8 = r_add && dh8;
@@ -114,12 +127,12 @@ module fes_i386_exctl (
     assign c.sh_h8 = r_shift && dh8;
     assign c.sh_hi = r_shift && !size8 && !size16;
     assign c.ot_lo = r_other && !dh8;
-    assign c.ot_mid = r_other && !size8;
+    assign c.ot_mid = r_other && (!size8 || md);
     assign c.ot_h8 = r_other && dh8;
-    assign c.ot_hi = r_other && !size8 && !size16;
+    assign c.ot_hi = r_other && whole;
     assign c.kp_lo = dh8;
-    assign c.kp_mid = size8 && !dh8;
-    assign c.kp_hi = size8 || size16;
+    assign c.kp_mid = size8 && !dh8 && !md;
+    assign c.kp_hi = !whole;
     assign c.r_logic = logic_op || lnot;
     assign c.r_lea = alu && op == 5'd14;
     assign c.r_y = (alu && (op == 5'd15 || op == 5'd9)) || cls == C_SEGMENT;
