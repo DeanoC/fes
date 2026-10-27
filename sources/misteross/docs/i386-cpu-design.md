@@ -6,10 +6,10 @@ are implemented. Phase 1 has built the twelve-stage F1–WB pipeline, with DC
 decode, D's address forwarding and the AG address unit. The current CPU slice
 executes register, immediate and memory-operand forms, models variable data
 port latency, and includes near stack and control-transfer operations (PUSH,
-POP, CALL rel, RET, LEAVE and JMP r/m). Its Verilator checks pass against Bochs
-on RTL and Yosys's netlist; the latest
-lockstep scope is 1,294,500 corpus states and 15,823,386 random retirements
-([stack record, review-fix run](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-stack.md#the-review-fix-routed-and-on-the-netlist)).
+POP, CALL rel, RET, LEAVE and JMP r/m), plus real-mode far JMP/CALL/RETF and
+LES, LDS, LSS, LFS and LGS. Its Verilator checks pass against Bochs on RTL and
+Yosys's netlist; the latest lockstep scope is 1,369,500 corpus states and
+15,321,783 random retirements ([far-transfer record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-far.md#checks)).
 The complete L1D/L2 cache and DDR integration are not present.
 
 Three rounds of four-seed routed spikes measured the front end, D+AG, and the
@@ -24,8 +24,8 @@ M2 model, with per-stage timing endpoints recorded: the
 78.7–82.5 MHz, but it predates DC and the data-port freeze. The #1115
 register-only whole-CPU route is also historical: 62.6–64.8 MHz in nextpnr,
 limited by D, and 96.3–100.8 MHz in Quartus. The latest whole-CPU record used
-here is the near-stack slice's review-fix route (`4e8eb2f7c4`): 68.02–74.12
-MHz in nextpnr and 99.44–103.69 MHz in Quartus ([stack record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-stack.md#the-review-fix-routed-and-on-the-netlist)).
+here is the far-transfer slice: 69.43, 70.48, 74.40 and 70.34 MHz in nextpnr,
+and 103.73, 98.34, 100.78 and 104.47 MHz in Quartus ([far-transfer record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-far.md#result)).
 See [the clock table](#the-clock-on-each-flow).
 
 The first slice's front-end routes used pre-correction RTL whose synthesized
@@ -37,8 +37,8 @@ and performance figure below is a budget or estimate unless it names its
 measurement. Isolated spike results are not full-CPU timing or seal evidence.
 The whole-CPU Quartus oracle on the same Yosys netlist shows a
 place-and-route gap ([DeanoC/nextpnr#300](https://github.com/DeanoC/nextpnr/issues/300));
-the historical #1115 and current #1141 stack review-fix clocks on each flow
-are in [the clock table](#the-clock-on-each-flow).
+the historical #1115, earlier #1141 near-stack, and current #1143 far-transfer
+clocks on each flow are in [the clock table](#the-clock-on-each-flow).
 
 **Owners:** misteross for the CPU RTL, microcode, test harness and producer.
 The machine around the CPU (AT chipset, VGA, audio, storage, firmware) is a
@@ -74,10 +74,11 @@ performance (no-FPU)". It is a reference only; nothing here reuses its RTL.
 
 At about 80 MHz the estimate is about 50 million instructions per second on
 cache-resident integer code ([estimate](#performance-estimate)); on the latest
-68.02–74.12 MHz whole-CPU nextpnr routes, it is about 42–46 million. These
+69.43–74.40 MHz whole-CPU nextpnr routes, it is about 43–46 million. These
 cache-resident CPI estimates are not measurements on the verification
 benchmark set, so they establish neither gate below. The current Quartus
-range is 99.44–103.69 MHz, with two of four seeds above 100 MHz
+range is 98.34–104.47 MHz, with seed 2 below 100 MHz and the other three above
+100 MHz
 ([clock](#the-clock-on-each-flow)).
 
 Gates, measured on the benchmark set in [verification](#verification) against
@@ -290,11 +291,11 @@ PC/XT's FFh for unclaimed reads.
 | Item | Value | Source |
 | --- | --- | --- |
 | Device | 5CSEBA6U23I7: 41,910 ALMs (83,820 COMB cells), 553 M10K, 112 DSP blocks | [RISC-V QoR](../cores/fes-riscv/qor.md); DSP count from the Cyclone V SE A6 device table |
-| Compilers | Yosys and nextpnr-mistral with the GPU router, one lock per core. The i386 routes in #1115 and #1141 use Yosys `238eac9a49`, nextpnr `bd7a1c0d` and Mistral `8fcc4cb4`; the lock is a last known good and moves forward | [i386 lock on main](https://github.com/DeanoC/fes/blob/main/sources/misteross/cores/fes-common/rtl/i386/toolchain.lock), [Yosys pin record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-25-i386-yosys-238eac9a49.md) |
+| Compilers | Yosys and nextpnr-mistral with the GPU router, one lock per core. The i386 routes in #1115, #1141 and #1143 use Yosys `238eac9a49`, nextpnr `bd7a1c0d` and Mistral `8fcc4cb4`; the lock is a last known good and moves forward | [i386 lock on main](https://github.com/DeanoC/fes/blob/main/sources/misteross/cores/fes-common/rtl/i386/toolchain.lock), [Yosys pin record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-25-i386-yosys-238eac9a49.md) |
 | CPU clocks seen | Pipelined RV32I cores 79.7–83.6 MHz in the QoR harness; the sealed `fes.riscv` system 75–79 MHz | [RISC-V QoR](../cores/fes-riscv/qor.md) |
 | i386 Phase 1 spikes | Historical four-seed isolated endpoints, in MHz; F1–Q share the front-end route, D and AG share pre-DC D+AG, and M2 is separate. The #1095 ranges use the older Yosys `3a5accbd`. The later record-RTL reroute on Yosys `d4ac300d9d` measured F1 83.0–105.6, F2 82.6–87.8, L1 89.5–93.2, L2 89.2–94.5, Q 78.7–82.5, D 85.8–90.1 and AG 85.5–95.7. The M2 control spike is 97.8–106.5 MHz (one seed below 100); it was not re-routed for that RTL. These routes predate DC and the data-port freeze | [#1095](https://github.com/DeanoC/fes/pull/1095), [toolchain-lock record](validation/2026-10-25-i386-toolchain-lock.md) |
 | Memory clocks seen | HPS DDR and SDRAM domains ship at 100 MHz; RAM-test experiments reached about 117–118 MHz; 130 MHz is unresolved | [RAM tester](../cores/fes-ramtest/README.md), [dated records](README.md#dated-records) |
-| HPS DDR | 256 MiB core window at `0x30000000`; port 0 is 128-bit, ports 1 and 2 are 64-bit; about 1,570 MB/s measured on port 0 and 700 MB/s on each of the others at 100 MHz. Linear scaling gives about 1,250/560 MB/s at the 80 MHz target, 980–1,020/440–455 at the historical 62.6–64.8 MHz #1115 route, and 1,070–1,165/476–519 at the 68.02–74.12 MHz stack review-fix route | [HPS DDR](../../../docs/hps-ddr.md), [kit diagnostic](../../../docs/validation/2026-09-27-hps-ddr-kit-diagnostic.md), [stack record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-stack.md#the-review-fix-routed-and-on-the-netlist) |
+| HPS DDR | 256 MiB core window at `0x30000000`; port 0 is 128-bit, ports 1 and 2 are 64-bit; about 1,570 MB/s measured on port 0 and 700 MB/s on each of the others at 100 MHz. Linear scaling gives about 1,250/560 MB/s at the 80 MHz target, 980–1,020/440–455 at the historical 62.6–64.8 MHz #1115 route, and 1,090–1,170/486–521 at the current 69.43–74.40 MHz far-transfer route | [HPS DDR](../../../docs/hps-ddr.md), [kit diagnostic](../../../docs/validation/2026-09-27-hps-ddr-kit-diagnostic.md), [far-transfer record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-far.md#result) |
 | RAM rules | M10K reads are synchronous (producers reject asynchronous M10K); current producers forbid MLAB | [Architecture](architecture.md) |
 | DSP | A recipe may permit DSP cells, as the [Atari ST shell](../scripts/build_fes_atari_st_oss.py) does; the RISC-V recipe forbids them. This CPU's recipe permits them | Producer scripts |
 
@@ -308,7 +309,7 @@ Rules that follow, checked in review and against every routed critical path:
    one cycle of read latency. No LUT RAM.
 4. One clock drives the CPU, its caches and the DDR port. About 80 MHz is the
    target suggested by the isolated front-end spikes; the latest whole-CPU
-   nextpnr routes used here are 68.02–74.12 MHz, with AG, DC, Q and Q limiting
+   nextpnr routes used here are 69.43–74.40 MHz, with D, Q, DC and DC limiting
    seeds 1–4. The sealed clock is whatever routes. The machine derives every
    guest time base (PIT, VGA dot clocks, governor reference) from fractional
    enables parameterised by the sealed frequency, so the clock is a speed
@@ -329,13 +330,16 @@ Rules that follow, checked in review and against every routed critical path:
    two after, routed at 77–81 MHz.
 9. Each cut is re-measured with the spike harness before the next one is made.
    The 78.7–82.5 MHz isolated Q range is historical and predates DC and the
-   data-port freeze. The latest whole-CPU route used here, the stack slice's
-   review-fix run, is 68.89, 70.38, 74.12 and 68.02 MHz: AG limits seed 1, DC
-   seed 2, and Q seeds 3 and 4. Its average is 70.4 MHz; about 80 MHz remains
-   a target, not the measured clock. D is no longer the sole next limiter. The
+   data-port freeze. The latest whole-CPU route used here, the far-transfer
+   slice, is 69.43, 70.48, 74.40 and 70.34 MHz: D limits seed 1, Q seed 2, and
+   DC seeds 3 and 4. Its average is 71.2 MHz; about 80 MHz remains a target,
+   not the measured clock. Seed 1's D path is the far-pointer selector
+   displacement (`dc` → `ag_disp`), a 32-bit carry chain; seeds 3 and 4 are
+   D's issue into `dc` through the sequencer's three-way input select. Moving
+   the selector displacement sum into DC or AG's rows is the next cut. The
    start-after-next idea for Q ([#1097](https://github.com/DeanoC/fes/issues/1097))
    can be reconsidered if Q continues to limit after these measured cuts
-   ([stack record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-stack.md#the-review-fix-routed-and-on-the-netlist)).
+   ([far-transfer record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-far.md#result)).
 10. A Quartus 17.0.2 fit of the same Yosys netlist is the check that separates
     RTL limits from OSS-flow limits. It is an oracle only, never the product
     path ([#1112](https://github.com/DeanoC/fes/pull/1112)). An RTL cut is
@@ -345,7 +349,7 @@ Rules that follow, checked in review and against every routed critical path:
 ### The clock on each flow
 
 Whole-CPU routes, seeds 1–4. The nextpnr and Quartus results in each row use
-the same RTL input; #1115's whole-CPU routes use Yosys `238eac9a49`.
+the same RTL input; #1115, #1141 and #1143 use Yosys `238eac9a49`.
 
 | Round | nextpnr `bd7a1c0d` | Quartus 17.0.2 (oracle) | Limiter |
 | --- | --- | --- | --- |
@@ -353,14 +357,14 @@ the same RTL input; #1115's whole-CPU routes use Yosys `238eac9a49`.
 | After the EX cut ([#1115](https://github.com/DeanoC/fes/pull/1115), historical) | 62.6–64.8 MHz | 96.3–100.8 MHz | D on nextpnr; Q, D and EX within 4 MHz on Quartus |
 | After the D cut ([#1124](https://github.com/DeanoC/fes/pull/1124), [record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-25-i386-d-cut.md)) | 68.6–74.6 MHz | 100.4–103.3 MHz | EX on nextpnr; Q on Quartus |
 | After the second EX cut ([#1127](https://github.com/DeanoC/fes/pull/1127), [record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-ex-cut2.md)) | 71.8–83.3 MHz | 102.8–106.1 MHz | D or Q on nextpnr; Q on Quartus |
-| Current Phase 1 slice, including near stack operations ([#1141](https://github.com/DeanoC/fes/pull/1141), [review-fix record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-stack.md#the-review-fix-routed-and-on-the-netlist)) | 68.89, 70.38, 74.12, 68.02 MHz | 103.69, 99.80, 99.44, 102.13 MHz | AG, DC, Q, Q on nextpnr; Q on every Quartus seed |
+| Earlier near-stack slice after its review fix ([#1141](https://github.com/DeanoC/fes/pull/1141), [record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-stack.md#the-review-fix-routed-and-on-the-netlist)) | 68.89, 70.38, 74.12, 68.02 MHz | 103.69, 99.80, 99.44, 102.13 MHz | AG, DC, Q, Q on nextpnr; Q on every Quartus seed |
+| Current far-transfer slice ([#1143](https://github.com/DeanoC/fes/pull/1143), [record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-far.md#result)) | 69.43, 70.48, 74.40, 70.34 MHz | 103.73, 98.34, 100.78, 104.47 MHz | D, Q, DC, DC on nextpnr; Q on every Quartus seed |
 
-- **Current nextpnr result:** the four seeds average 70.4 MHz, against 71.0
-  MHz before the stack slice. AG limits seed 1, DC seed 2, and Q seeds 3 and 4.
-- **Current Quartus result:** the four seeds average 101.3 MHz; every seed is
-  Q-limited. Two are above 100 MHz. The seed-2 and seed-3 results are 99.80
-  and 99.44 MHz.
-- **The current routed clock** is 68.02–74.12 MHz on nextpnr, not the
+- **Current nextpnr result:** the four seeds average 71.2 MHz. D limits seed 1,
+  Q seed 2, and DC seeds 3 and 4.
+- **Current Quartus result:** the four seeds average 101.8 MHz; every seed is
+  Q-limited. Seed 2 is 98.34 MHz and the other three are above 100 MHz.
+- **The current routed clock** is 69.43–74.40 MHz on nextpnr, not the
   historical 62.6–64.8 MHz #1115 result. About 80 MHz remains a target. The
   place-and-route gap remains tracked as
   [DeanoC/nextpnr#300](https://github.com/DeanoC/nextpnr/issues/300).
@@ -417,8 +421,8 @@ are implemented. Most endpoint ranges are from historical four-seed isolated
 spikes: F1–Q share each front-end route, D and AG share a pre-DC D+AG route,
 and M2 is a separate control route. They are not independently routed stages
 and do not include DC or the data-port freeze. The current whole-CPU clock is
-in [the clock table](#the-clock-on-each-flow); its stage endpoints are recorded
-in the [stack record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-stack.md).
+in [the clock table](#the-clock-on-each-flow); the latest D and DC stage
+endpoints are recorded in the [far-transfer record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-far.md#result).
 
 | Stage | Work | Timing budget | Per-stage endpoint fmax (historical isolated spikes unless noted) |
 | --- | --- | --- | --- |
@@ -427,8 +431,8 @@ in the [stack record](https://github.com/DeanoC/fes/blob/main/sources/misteross/
 | L1 | Run the 16 per-byte length decoders on F2's register and register each byte's length classes. | Decoder logic from flip-flops; no M10K output, no carry chain | 89.5–93.2 MHz |
 | L2 | Sum each byte's classes, for every 66h/67h accumulator variant, into its length, end and next-half bit; write the fetch buffer. | Small sums built from LUTs; no carry chain | 89.2–94.5 MHz |
 | Q | Pick the stored end at the current start by the accumulator's flags, check availability, strip the last prefix, rotate the instruction bytes. | 32:1 select of a stored end; no add in the loop | 78.7–82.5 MHz, slowest isolated front-end endpoint |
-| DC | Decode Q's instruction and address mode into a `decoded_t` record, including immediate, displacement, memory and segment controls; hold it in the two-entry `dc`/`dc_skid` buffer. | Opcode and address-mode logic; no carry chain | 70.4–77.9 MHz in the stack review-fix whole-CPU stage report |
-| D | Read GPRs and segment bases, select forwarded operands from a per-GPR table, scale the index, check hazards and issue the decoded uop; governor gate, instruction-breakpoint and CS-limit checks. | Register and forwarding muxes, index scale; no carry chain in the near-stack slice | 71.4–75.4 MHz in the stack review-fix whole-CPU stage report; 85.8–90.1 MHz in the historical pre-DC D+AG route |
+| DC | Decode Q's instruction and address mode into a `decoded_t` record, including immediate, displacement, memory and segment controls; hold it in the two-entry `dc`/`dc_skid` buffer. | Opcode and address-mode logic; no carry chain | 70.0–75.8 MHz in the latest far-transfer whole-CPU stage report |
+| D | Read GPRs and segment bases, select forwarded operands from a per-GPR table, scale the index, check hazards and issue the decoded uop; governor gate, instruction-breakpoint and CS-limit checks. | Register and forwarding muxes, index scale, and the far-selector displacement add; one 32-bit carry chain from `dc` to `ag_disp` | 69.4–77.4 MHz in the latest far-transfer whole-CPU stage report; 85.8–90.1 MHz in the historical pre-DC D+AG route |
 | AG | Take the operands registered by D plus at most one late operand; compute the linear address and offset; run the early ALU; resolve early branches; adjust ESP. | Last 3:2 row and compression, one carry chain, one select | 85.5–95.7 MHz (address unit, D+AG route) |
 | M1 | Read L1D data and tags (index from linear bits 11:5); look up the DTLB; check the segment limit; compare data breakpoints. | DTLB CAM; the limit compare is the only carry chain | — |
 | M2 | Compare L1D tags with the physical page; select the way; merge bytes from older in-flight stores; decide faults and the memory type. | M10K output, equality compares, muxes; no carry chain | 97.8–106.5 MHz (control spike; fixes RTL, not re-routed for record RTL) |
@@ -446,6 +450,7 @@ with those stages. WB flushes and redirects wait for this freeze too.
 | One-uop instruction | 1 |
 | Prefixes (66, 67, segment, REP, LOCK) | The last before the opcode is free; each earlier one costs 1. The 0F escape is part of the opcode. |
 | Load-op (`ADD r, [m]`) or read-modify-write (`ADD [m], r`) | 1 |
+| LES, LDS, LSS, LFS or LGS | 1 extra cycle vs MOV r, m in the current fixed sequence ([far-transfer record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-far.md#cycle-costs)) |
 | Load result into the next instruction's ALU | 0 extra after the bytes arrive |
 | Load result into the next instruction's address | +2 after the bytes arrive |
 | Early-ALU result into an address | 0 extra |
@@ -482,8 +487,8 @@ row once the RTL runs games.
 | Total | about 1.61 |
 
 At 80 MHz, 80 / 1.61 is about 50 million instructions per second; at the
-current 68.02–74.12 MHz nextpnr range, with a 400 ns L2 miss taking about
-28–30 cycles, the estimate is about 42–46 million.
+current 69.43–74.40 MHz nextpnr range, with a 400 ns L2 miss taking about
+28–30 cycles, the estimate is about 43–46 million.
 Taking about 2 CPI for a 486 on the same code, which is also an estimate, a
 486DX2-66 retires about 33 million. These are cache-resident model estimates,
 not results on the verification benchmark set, so they establish neither the
@@ -506,7 +511,7 @@ through L2 is still to measure.
 | Virtually tagged L1D | EMM386 maps one physical page at several linear addresses, and the aliases would go stale. |
 | Lengths predecoded into the L1I's spare bits | Two spare bits per byte cannot hold a length for every operand- and address-size variant, and fills would need the decoders anyway. A separate stage would add one cycle to recovery. The L split moved AG/EX mispredict penalties from +4/+7 to +6/+9; adding DC makes the current penalties +7/+10, about 0.054 CPI or 3% at the estimate's branch rate. |
 | Splitting AG into two stages | Every address-forwarding penalty would grow by a cycle, and the early ALU's zero-cycle forward into the next address would be lost. Moving forwarding and scaling into D keeps both. |
-| More front-end cuts toward 100 MHz now | The three early rounds measured 69.74–74.35 MHz for the pre-correction first-slice front end, 61.43–67.54 MHz after the cuts, and 76.1–86.0 MHz after the front-end fixes on an older Yosys lock. The current full-CPU stack review-fix route has AG limiting seed 1, DC seed 2, and Q seeds 3 and 4 at 68.02–74.12 MHz. The start-after-next idea for Q ([#1097](https://github.com/DeanoC/fes/issues/1097)) can be reconsidered if Q continues to limit after the measured D and EX cuts ([rule 9](#platform-constraints)). |
+| More front-end cuts toward 100 MHz now | The three early rounds measured 69.74–74.35 MHz for the pre-correction first-slice front end, 61.43–67.54 MHz after the cuts, and 76.1–86.0 MHz after the front-end fixes on an older Yosys lock. The current far-transfer whole-CPU route is 69.43–74.40 MHz, with D limiting seed 1, Q seed 2, and DC seeds 3 and 4; D's seed-1 path includes the far-pointer selector displacement carry chain. The start-after-next idea for Q ([#1097](https://github.com/DeanoC/fes/issues/1097)) can be reconsidered if Q continues to limit after the measured D and EX cuts ([rule 9](#platform-constraints)). |
 | Translation on the HPS | Not a CPU core, and capped by the Cortex-A9. |
 
 ## Front end
@@ -550,10 +555,12 @@ the self-modifying-code snoop and L2 back-invalidation.
 - **Indirect** JMP and CALL use the BTB's last target.
 - **Real-mode and V86 far transfers are branches.** Fetch is linear, and in
   these modes a far CALL, JMP or RETF sets the CS base to selector × 16 with no
-  descriptor read. The BTB and return stack predict the linear target; the CS
-  update travels with the uop and is verified at EX. Large-model 16-bit code
-  then takes no pipeline flush for a far call or return. Protected-mode far
-  transfers run microcode and serialize.
+  descriptor read. In the current Phase 1 slice, far transfers are plain taken
+  branches without BTB or return-stack prediction, so they pay the normal
+  redirect cost. In the proposed full design, the BTB and return stack predict
+  the linear target; the CS update travels with the uop and is verified at EX.
+  Large-model 16-bit code can then take no pipeline flush for a far call or
+  return. Protected-mode far transfers run microcode and serialize.
 - A change of default operand size (CS.D) flushes the front end.
 - Later, if measured counters are poor: a gshare direction table.
 
@@ -636,9 +643,16 @@ MOVSX; shifts and rotates, SHLD and SHRD included; BT with a register bit
 offset; CBW, CWDE, CWD, CDQ; the flag set and clear instructions; real-mode
 and V86 segment loads from a register.
 
-**Fixed sequences of two or three uops,** decoded without the microcode ROM: POP
-to memory, XCHG, LES/LDS/LFS/LGS/LSS in real mode and V86, real-mode far
-CALL, JMP and RETF, and LEAVE.
+**Fixed sequences,** decoded without the microcode ROM, include POP to memory,
+XCHG, LES/LDS/LFS/LGS/LSS in real mode and V86, real-mode far JMP/CALL/RETF,
+and LEAVE. A far pointer in memory loads its selector into T0 and offset into
+T1 in separate uops before the transfer. A direct far CALL's first uop is a
+stack probe; a memory far CALL loads the pointer first, then probes. After the
+probe, the call pushes CS, pushes the next EIP, then performs the far jump. The
+probe reads and checks the lower return-address slot before either push; the
+later CS push checks the higher slot as the first write. If the stack cannot
+hold the full return address, the call faults without writing anything
+([far-transfer record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-far.md#what-the-386ex-does)).
 
 **Microcode routines:** PUSHA and POPA; ENTER; MUL and DIV, which issue to their
 units; the string instructions, one uop per element; INT, INTO, BOUND and IRET;
@@ -735,7 +749,12 @@ descriptor-cache write retires.
 16 KiB, 4-way, 32-byte lines, virtually indexed (linear bits 11:5) and
 physically tagged. The data is two 32-bit banks, even and odd dwords, so any
 access of up to four bytes inside a line takes one cycle at any alignment.
-Six- and eight-byte accesses (far pointers, descriptors) take two. A
+Six- and eight-byte accesses (far pointers, descriptors) take two. A far
+pointer uses two uops through T0 and T1: its offset and selector are separate
+accesses, and each part is checked on its own. RETF checks the selector stack
+slot using the operand size
+([far-transfer record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-far.md#what-the-386ex-does)). A later one-load 16-bit LES-family form could
+read all four bytes in one access, with the high half from `pipe.ld`. A
 line-crossing access takes two passes; a page-crossing access translates both
 pages.
 
@@ -835,14 +854,14 @@ updates hold the L2's DMA port between their read and their write.
   qualified SDRAM pad timing; the [PC/XT notes](../cores/fes-pcxt/README.md)
   list it as open. Port 0 measured about 1,570 MB/s at 100 MHz (about
   1,250 MB/s at 80 MHz, 980–1,020 MB/s at the historical #1115 route's
-  62.6–64.8 MHz, and 1,070–1,165 MB/s at the stack review-fix route's
-  68.02–74.12 MHz); the addon's 16-bit bus at 100 MHz peaks at 200 MB/s. DDR
+  62.6–64.8 MHz, and 1,090–1,170 MB/s at the current 69.43–74.40 MHz
+  far-transfer route); the addon's 16-bit bus at 100 MHz peaks at 200 MB/s. DDR
   returns a 32-byte line in two beats once data
   starts, where the SDRAM needs 16 beats plus row opening, about 22 cycles. No
   addon is needed.
 - The check: if DDR's first data takes much more than about 400 ns (40 cycles
   at 100 MHz, 32 at 80 MHz, 25–26 at the historical #1115 route's 62.6–64.8
-  MHz, and 28–30 at the stack review-fix route's 68.02–74.12 MHz), or Linux
+  MHz, and 28–30 at the current 69.43–74.40 MHz far-transfer route), or Linux
   activity makes it erratic, revisit the choice. The RAM tester measured the
   bare ports on Kit A at 100 MHz
   ([#1076](https://github.com/DeanoC/fes/pull/1076)):
@@ -999,9 +1018,10 @@ A later milestone adds a 387-compatible unit and an `i386dx+387` identity:
 ## Budgets
 
 These are budgets for the planned full CPU, not measured totals. The current
-Phase 1 slice has been synthesized and routed: #1141 reports 13,527 ALUTs and
-8,040 flip-flops in Yosys and 7,826–7,862 ALMs in Quartus. The earlier
-register-only pre-EX-cut fit in [#1112](https://github.com/DeanoC/fes/pull/1112)
+Phase 1 slice has been synthesized and routed: the far-transfer record reports
+14,097 ALUTs and 8,266 flip-flops in Yosys and 8,131–8,157 ALMs in Quartus
+([far-transfer record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-far.md#size)).
+The earlier register-only pre-EX-cut fit in [#1112](https://github.com/DeanoC/fes/pull/1112)
 used about 6,220 ALMs. Neither includes the full L1D/L2 cache and DDR
 integration budgeted below, so full-CPU area remains unmeasured. Isolated
 front-end, D+AG and M2 spike counts and timing are recorded in the [first
@@ -1025,12 +1045,12 @@ records; those routed harnesses do not replace the CPU budgets below.
 
 ## Verification
 
-Current evidence includes host-only lockstep through memory operands and near
-stack operations, isolated routed diagnostics and a four-seed whole-CPU route
-for that Phase 1 slice. The stack record's review-fix run reports 1,294,500
-corpus states and 15,823,386 random retirements. No package, RBF or kit
-acceptance exists. The remaining checks below are the plan for the complete
-CPU and machine.
+Current evidence includes host-only lockstep through memory operands, near
+stack operations, real-mode far transfers and far pointer loads, isolated
+routed diagnostics and a four-seed whole-CPU route for that Phase 1 slice. The
+far-transfer record reports 1,369,500 corpus states and 15,321,783 random
+retirements. No package, RBF or kit acceptance exists; the remaining checks
+below are the plan for the complete CPU and machine.
 
 1. **Oracle and corpus runners (implemented).** Phase 0 pins Bochs 3.1 at CPU
    level 3 behind a thin adapter. It was selected over MAME's i386 core because
@@ -1061,14 +1081,14 @@ CPU and machine.
    [cuts](validation/2026-10-25-i386-phase1-cuts.md) and
    [front-end fixes](validation/2026-10-25-i386-phase1-front-end-fixes.md)
    records. The current Phase 1 slice also has whole-CPU route results in the
-   [stack record's review-fix run](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-stack.md#the-review-fix-routed-and-on-the-netlist); neither isolated spikes
+   [far-transfer record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-far.md#result); neither isolated spikes
    nor these slice routes are a package seal or hardware result.
 5. **Whole-CPU RTL lockstep (implemented for the current instruction subset;
    extend as the CPU grows).** Verilator runs the RTL beside Bochs and compares
    each retirement's EIP, GPRs, EFLAGS, segment registers and caches, memory
-   writes and exceptions. The current scope passes 1,294,500 corpus states and
-   15,823,386 random retirements, also on the Yosys `238eac9a49` netlist
-   ([stack record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-stack.md#checks)). The complete cache,
+   writes and exceptions. The current scope passes 1,369,500 corpus states and
+   15,321,783 random retirements, also on the Yosys `238eac9a49` netlist
+   ([far-transfer record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-far.md#checks)). The complete cache,
    interrupt, I/O and protected-mode cases remain as those paths are built.
 6. **Directed tests (planned):** both self-modifying-code profiles, A20 toggling,
    DMA against CPU stores (randomised), unreal mode, 16-bit wrap cases, page
@@ -1099,7 +1119,7 @@ CPU and machine.
 | Milestone | Content | Exit |
 | --- | --- | --- |
 | Phase 0 | Oracle adapter and corpus runners | **Complete:** Bochs is selected; both corpora run against it and known divergences have deciding cases |
-| Phase 1 | Real-mode pipeline: twelve stages, data-port latency model, static not-taken prediction and real-mode microcode | **In progress:** DC decodes ahead of D; the current slice includes register, immediate and memory-operand forms, a D–WB load freeze, and near stack operations. Its lockstep passes 1,294,500 corpus states and 15,823,386 random retirements. The latest whole-CPU record used here is the stack slice's review-fix run: nextpnr routes are 68.89, 70.38, 74.12 and 68.02 MHz (AG, DC, Q, Q); Quartus routes are 103.69, 99.80, 99.44 and 102.13 MHz (Q on every seed). The complete L1D/L2 caches, DDR integration and real-mode microcode remain. Extend lockstep and route coverage as slices land. Exit requires full real-mode lockstep, whole-CPU routed fmax and area, and DDR and SDRAM line-fill measurements through the CPU path against the [DDR check](#l2-and-coherence) ([stack record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-stack.md#the-review-fix-routed-and-on-the-netlist)) |
+| Phase 1 | Real-mode pipeline: twelve stages, data-port latency model, static not-taken prediction and real-mode microcode | **In progress:** DC decodes ahead of D; the current slice includes register, immediate and memory-operand forms, a D–WB load freeze, near stack operations, real-mode far JMP/CALL/RETF and LES/LDS/LSS/LFS/LGS. Its lockstep passes 1,369,500 corpus states and 15,321,783 random retirements. The latest whole-CPU record is the far-transfer slice: nextpnr routes are 69.43, 70.48, 74.40 and 70.34 MHz (D, Q, DC, DC); Quartus routes are 103.73, 98.34, 100.78 and 104.47 MHz (Q on every seed). The complete L1D/L2 caches, DDR integration and real-mode microcode remain. Extend lockstep and route coverage as slices land. Exit requires full real-mode lockstep, whole-CPU routed fmax and area, and DDR and SDRAM line-fill measurements through the CPU path against the [DDR check](#l2-and-coherence) ([far-transfer record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-far.md#result)) |
 | Phase 2 | Protected mode without V86 or paging: descriptor loads, privilege, gates, exceptions, debug registers. Enough for unreal mode and DOS extenders | test386.asm's real- and protected-mode parts pass in RTL; random protected-mode lockstep clean |
 | Phase 3 | First playable: the CPU in `fes.pc386` with the scope the acceptance games set, L2 on DDR, the open BIOS, the governor | FreeDOS boots in simulation; first sealed package; Wolfenstein 3D, Ultima VI and both Ultima VII games play on a kit, with the two presets recorded |
 | Phase 4 | Speed: BTB, return stack, early ALU, real-mode far-branch prediction | Each feature with its microbenchmark and period-benchmark change, and the Wolfenstein 3D frame rate from captured frames before and after |
@@ -1135,10 +1155,10 @@ Settled through 2026-10-26:
 - A late load freezes D through WB until its bytes arrive. Both forwarding
   tables hold during the freeze; WB flushes and redirects wait for it
   ([data-latency record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-data-latency.md)).
-- The latest whole-CPU stack review-fix route used here is 68.02–74.12 MHz in
-  nextpnr, limited by AG on seed 1, DC on seed 2, and Q on seeds 3 and 4. The
-  Quartus oracle is 99.44–103.69 MHz and Q-limited on every seed, with two
-  seeds below 100 MHz. About 80 MHz remains a target;
+- The latest whole-CPU far-transfer route used here is 69.43, 70.48, 74.40
+  and 70.34 MHz in nextpnr, limited by D on seed 1, Q on seed 2, and DC on
+  seeds 3 and 4. The Quartus oracle is 103.73, 98.34, 100.78 and 104.47 MHz,
+  Q-limited on every seed with seed 2 below 100 MHz. About 80 MHz remains a target;
   the route gap remains tracked in
   [DeanoC/nextpnr#300](https://github.com/DeanoC/nextpnr/issues/300).
 - The start-after-next idea for Q
@@ -1146,8 +1166,10 @@ Settled through 2026-10-26:
   Q continues to limit after the measured D and EX cuts.
 - Shift and rotate flags apply a cycle late, from WB; a flag reader right after
   one waits one cycle at D ([#1115](https://github.com/DeanoC/fes/pull/1115)).
-- Near PUSH, POP, CALL rel, RET, LEAVE and JMP r/m operations are implemented;
-  both forwarding tables track the early ESP result ([#1141](https://github.com/DeanoC/fes/pull/1141)).
+- Near PUSH, POP, CALL rel, RET, LEAVE and JMP r/m operations, plus real-mode
+  far JMP/CALL/RETF and LES/LDS/LSS/LFS/LGS, are implemented. Both forwarding
+  tables track the early ESP result; a far CALL probes the stack before its
+  writes ([#1141](https://github.com/DeanoC/fes/pull/1141), [#1143](https://github.com/DeanoC/fes/pull/1143)).
 - A CPU reset keeps the L2's contents, and FLUSH completes in every CPU state
   ([commit](#commit-exceptions-and-interrupts)).
 
