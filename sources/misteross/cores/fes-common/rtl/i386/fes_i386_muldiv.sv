@@ -39,9 +39,11 @@
 // dividend's one's complement when it is negative, by the divisor's
 // magnitude, with no bit out at the top; the remainder is then one more,
 // and a remainder equal to the divisor is zero with the quotient one more.
-// It overflows when the quotient before that fix is too big for its sign,
-// which lets a few overflows through as the 386EX does (8-bit quotients of
-// 80h). Its flags are those of the remainder's sign fix: x = the remainder,
+// It overflows when that quotient is too big for its sign. On an
+// overflowing dividend the steps leave a garbage quotient, which now and
+// then passes, as the 386EX's does (8-bit quotients of 80h); no corpus case
+// says whether the 386EX checks before or after the one more, and after it
+// agrees with the oracle. Its flags are those of the remainder's sign fix: x = the remainder,
 // or its complement for a negative dividend, then SUB of the divisor from x
 // when dividend and divisor have the same sign, else ADD. AAM divides AL by
 // imm, its flags those of AL plus 0; AAM 0 raises #DE with the divide's.
@@ -237,8 +239,10 @@ module fes_i386_muldiv (
     // IDIV's fixes after the steps (Q1, then Q2).
     logic [31:0] q1_x, q1_q, q1_r, q;
     logic        q1_over, q1_eq;
+    logic [32:0] q_fix;  // the quotient with the one more, unwrapped
     assign q = l & mask;
     assign q1_eq = r == dm1;
+    assign q_fix = {1'b0, q} + {32'd0, dn && q1_eq};
     always_ff @(posedge clk) begin
         if (go && st == 6'd0 && !mpath) begin
             dy <= aam ? {24'd0, u.imm[7:0]} : y & mask;
@@ -274,7 +278,7 @@ module fes_i386_muldiv (
             q1_x <= (dn ? ~r : r) & mask;
             q1_q <= dn && q1_eq ? (q + 32'd1) & mask : q;
             q1_r <= dn ? (q1_eq ? 32'd0 : (r + 32'd1) & mask) : r;
-            q1_over <= dm == 32'd0 || (dn != mn ? q > top_bit : q >= top_bit);
+            q1_over <= dm == 32'd0 || (dn != mn ? q_fix > {1'b0, top_bit} : q_fix >= {1'b0, top_bit});
         end
     end
     // stop: E3 for a multiply; after E1 and the steps, one cycle more for

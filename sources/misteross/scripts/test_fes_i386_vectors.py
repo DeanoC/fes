@@ -266,7 +266,8 @@ def idiv386_faults(dividend: int, divisor: int, n: int) -> bool:
     """Whether the 386EX raises #DE for IDIV of the 2n-bit dividend by the
     n-bit divisor (fes_i386_muldiv): it divides a negative dividend's one's
     complement by the divisor's magnitude, a bit per step with no bit out at
-    the top, and checks the quotient before the one more the complement owes."""
+    the top, and checks the quotient, with the one more the complement owes,
+    for its sign's range. An overflowing dividend leaves a garbage quotient."""
     mask = (1 << n) - 1
     negative, divisor_negative = dividend >> (2 * n - 1) & 1, divisor >> (n - 1) & 1
     magnitude = -divisor & mask if divisor_negative else divisor
@@ -279,6 +280,8 @@ def idiv386_faults(dividend: int, divisor: int, n: int) -> bool:
         quotient = quotient << 1 | bit
         if bit:
             remainder = (remainder - magnitude) & mask
+    if negative and (remainder + 1) & mask == magnitude:
+        quotient += 1
     half = 1 << (n - 1)
     return magnitude == 0 or (quotient > half if negative != divisor_negative else quotient >= half)
 

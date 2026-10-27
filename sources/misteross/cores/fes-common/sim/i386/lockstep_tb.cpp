@@ -332,7 +332,8 @@ struct Facts {
 // Whether the 386EX raises #DE for IDIV of the 2n-bit dividend d by the
 // n-bit divisor m (fes_i386_muldiv): it divides a negative dividend's one's
 // complement by the divisor's magnitude, a bit per step with no bit out at
-// the top, and checks the quotient before the one more the complement owes.
+// the top, and checks the quotient, with the one more the complement owes,
+// for its sign's range. An overflowing dividend leaves a garbage quotient.
 bool idiv386_faults(uint64_t d, uint32_t m, unsigned n) {
     const uint64_t mask = n == 32 ? 0xffffffffull : (1ull << n) - 1;
     const bool dn = d >> (2 * n - 1) & 1, mn = m >> (n - 1) & 1;
@@ -346,6 +347,7 @@ bool idiv386_faults(uint64_t d, uint32_t m, unsigned n) {
         q = (q << 1) | big;
         if (big) r = (r - am) & mask;
     }
+    if (dn && ((r + 1) & mask) == am) ++q;
     const uint64_t half = 1ull << (n - 1);
     return am == 0 || (dn != mn ? q > half : q >= half);
 }

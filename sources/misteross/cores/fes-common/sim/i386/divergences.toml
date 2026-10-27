@@ -284,7 +284,7 @@ fields = ["*"]
 deciding_case = "67F6.7#375"
 deciding_hash = "c30147a2fb7f67459cb7a1a4c888b670edd838f5"
 oracle = "Bochs raises #DE for every quotient outside the signed range."
-corpus = "The 386EX divides a negative dividend's one's complement by the divisor's magnitude, a bit per step, and checks the quotient for its sign's range before adding the one the complement owes. On an overflowing dividend the steps leave a garbage quotient, and where it passes (80h for an 8-bit divide with the signs differing) the instruction completes without #DE: AL=80h and AH = the sign of AX over the low seven bits of AL (fes_i386_muldiv)."
+corpus = "The 386EX divides a negative dividend's one's complement by the divisor's magnitude, a bit per step, and checks the quotient, with the one more the complement owes, for its sign's range. On an overflowing dividend the steps leave a garbage quotient, and where it passes (80h for an 8-bit divide with the signs differing) the instruction completes without #DE: AL=80h and AH = the sign of AX over the low seven bits of AL (fes_i386_muldiv). No corpus case says whether the check comes before or after the one more; FES takes after, where Bochs agrees."
 follow = "corpus"
 # 9 failures; deciding case 'idiv cl'
 
