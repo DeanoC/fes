@@ -64,9 +64,10 @@ the build does after OSS fails.
 5. **OSS stays first-class.** The Quartus figure for a core is the reference
    target for nextpnr. The recipe keeps the OSS lane and its timing record
    current. A Quartus build never lets the OSS lane go stale.
-6. **Quartus builds run on licensed, pinned hosts**, with their own timing and
-   seal checks. Those checks are never relaxed (see
-   [Timing and seals](#timing-and-seals)).
+6. **Quartus builds run on pinned hosts authorized for their edition and
+   device**, with their own timing and seal checks. Lite does not require a
+   license; Pro builds use the applicable entitlement. Those checks are never
+   relaxed (see [Timing and seals](#timing-and-seals)).
 
 ### What "significantly" means
 
@@ -166,10 +167,15 @@ is needed to land the label.
 
 ### Package manifest and identity
 
-The sealed package manifest records `toolchain = "oss" | "quartus"` and, for
-`quartus`, the Quartus version, edition and device family. Package identity
-includes the toolchain; both variants share the logical core ID and version
-but have distinct package IDs and payload digests.
+The sealed package manifest records the lane in a dedicated
+`build.variant = "oss" | "quartus"` field. Keep the existing required
+`build.toolchain` field as the descriptive compiler/tool string; it is not the
+lane label. Quartus version, edition and device family use separate manifest
+fields. Existing manifests have no `build.variant`, so readers interpret its
+absence as `oss`; new manifests write it explicitly. Package identity includes
+the lane; both variants share the logical core ID and version but have distinct
+package IDs and payload digests. The strict manifest schema and its readers
+must admit the new fields without making legacy manifests invalid.
 
 The build-input JSON passed to `artifact_cache.functional_key` uses an
 asymmetric rule to preserve existing OSS cache keys. An absent `toolchain`
@@ -178,12 +184,13 @@ omit that field from it; adding `"toolchain": "oss"` would change every
 existing key because the cache hashes every field other than repository,
 revision and source path. A Quartus functional-input record must include
 `"toolchain": "quartus"`, so it has a different key from the OSS record.
-Newly produced manifests still write the explicit toolchain label. Readers
-interpret a missing label in a legacy manifest or cache record as `oss` and
-must reject a cache hit whose declared lane conflicts with its recipe or
-manifest. The `functional_key` hashing algorithm does not change. Tests for
-the implementation must prove that a legacy/current OSS record retains its
-key and that the Quartus record gets a distinct key.
+Newly produced manifests write `build.variant` explicitly. Readers interpret
+an absent `build.variant` in an existing manifest and an absent `toolchain`
+field in an existing functional-input record as `oss`. They must reject a
+cache hit whose declared lane conflicts with its recipe or manifest. The
+`functional_key` hashing algorithm does not change. Tests for the implementation
+must prove that a legacy/current OSS record retains its key and that the
+Quartus record gets a distinct key.
 
 ## OSS-only images
 
@@ -217,9 +224,9 @@ binding and concurrent-use terms remain open. Check Altera's applicable
 no-cost and board-associated license terms before treating those as the only
 authorized hosts or imposing a global job cap.
 
-- Quartus runs only on named, pinned build hosts authorized by the applicable
-  license terms. The development machine can run Lite; Pro hosts are
-  determined by confirmed entitlements. Each host's Quartus install is
+- Quartus runs only on named, pinned build hosts authorized for the selected
+  edition and device. Lite needs no license; Pro hosts are determined by
+  confirmed entitlements. Each host's Quartus install is
   recorded by version, edition and build number. A future `make doctor` report
   is rollout step 6; the current command does not check Quartus availability.
 - The license file and any token stay on the host. Nothing licensed goes in
@@ -286,9 +293,9 @@ CI cannot assume a Quartus-ready host.
   evidence is handled. The
   functional key makes this precise: an unchanged key reuses the cached sealed
   package and needs no run.
-- Open: whether a cache of sealed packages is enough for unlicensed
-  contributors, and whether the licensed runner is a third CI lane or a manual
-  gate on the existing HIL step.
+- Open: whether a cache of sealed packages is enough for contributors without
+  the required edition/device entitlement, and whether an authorized Quartus
+  runner is a third CI lane or a manual gate on the existing HIL step.
 
 ## Catalog, library and image selection
 
@@ -346,9 +353,16 @@ Each step is one scope, one PR.
 2. Recipe, manifest and cache identity: add declared `toolchains` (existing
    recipes without this field resolve to `oss`) and
    `[recipes.quartus]` while keeping existing OSS recipe fields and functional
-   records unchanged. Write the toolchain into new manifests. Preserve legacy
-   OSS keys by omitting `toolchain` from OSS functional-input JSON; include
-   `"toolchain": "quartus"` for Quartus. Interpret missing labels as OSS.
+   records unchanged. Extend the format-2 build-record schema, validator and
+   encoder in `sources/misteross/scripts/export_core_package.py` to accept the
+   Quartus functional-input field before it reaches
+   `artifact_cache.functional_key`.
+   Preserve legacy OSS keys by omitting `toolchain` from OSS functional-input
+   JSON; include `"toolchain": "quartus"` for Quartus. Keep the `build.variant`
+   lane field separate from the required descriptive `build.toolchain` field;
+   add the lane and Quartus metadata fields to the strict manifest schema,
+   writer, readers and consumers while treating a missing `build.variant` in an
+   existing manifest as `oss`. New manifests write the variant explicitly.
    Extend `Format2Recipe` and `scripts/recipes.py` to select an exact recipe
    field set by declared lane. An OSS lane keeps the current required
    `lock_path`, `gpu_router`, `hip_architectures` and complete `[recipes.pnr]`
@@ -359,8 +373,8 @@ Each step is one scope, one PR.
    `detailed_timing_report` and `flags`), with `router = "gpu"` and
    `backend = "HIP"`. A Quartus-only row omits those OSS fields and provides
    its Quartus descriptor; do not populate a dummy HIP route to satisfy the
-   current parser. Add tests for both lane shapes and key
-   compatibility/separation.
+   current parser. Add tests for both recipe lane shapes, build-record
+   validation, legacy manifest interpretation, and key compatibility/separation.
 3. Implement `FES_OSS_ONLY` and the `toolchain-excluded` reason in
    `scripts/optional_cores.py`, with tests like `tests/test_optional_cores.py`.
    Until this step lands, the variable is not supported.
@@ -377,8 +391,9 @@ Each step is one scope, one PR.
 5. First dual-variant core: i386 once its OSS and Quartus results are recorded
    against the rule above. Verify both cache keys and end-to-end catalog/image
    selection.
-6. Licensed build host and runner, Pro install and `make doctor` report.
-   Schedule jobs against confirmed license entitlements and host permissions.
+6. Authorized Quartus build host and runner, Pro setup and `make doctor`
+   report. Schedule each edition/device against confirmed entitlements and
+   host permissions; Lite does not require a license.
 7. DE25-Nano board shell and first Quartus-only bring-up core, using the
    Quartus-only recipe shape only after step 2's schema and parser change lands.
 
@@ -386,8 +401,8 @@ Each step is one scope, one PR.
 
 1. **Version and lock pinning** for Quartus: per-core or shared lock, and what
    identifies an install (version, build number, installer digest).
-2. **CI on unlicensed runners:** skip with a required licensed run, or cached
-   sealed packages only.
+2. **CI without the required edition/device entitlement:** skip and require an
+   authorized Quartus run, or accept cached sealed packages only.
 3. **DE25-Nano:** Quartus Pro front end and whether the Yosys-elaborated
    netlist route is still needed, and where the HPS and image work is tracked.
 4. **License binding:** how the board license ties to a host and what happens

@@ -107,9 +107,10 @@ timing diagnostic use `sources/misteross/cores/fes-ramtest/toolchain.lock`;
 these per-core locks currently select the same compiler pins.
 Quartus Lite 17.0.2 is available as an explicit bring-up/oracle check where a
 recipe documents one. The [Quartus-built cores](docs/design/quartus-cores.md)
-policy also allows a labelled Quartus variant of a core, built on a licensed,
-pinned host. The current integrated recipe and package-selection path does not
-yet select such variants, and a failed HIP route never falls back to Quartus.
+policy also allows a labelled Quartus variant of a core, built on a pinned host
+authorized for its edition and device, with a license when required. The
+current integrated recipe and package-selection path does not
+yet select such variants; a failed HIP route never falls back to Quartus.
 Downloads are checked against component locks; image compilation runs twice in
 independent build roots with networking disabled.
 

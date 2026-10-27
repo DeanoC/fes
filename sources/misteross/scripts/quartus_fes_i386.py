@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Route the i386 timing spikes through Quartus 17.0.2, as an oracle.
+"""Route the i386 timing spikes through Quartus 17.0.2 for oracle evidence.
 
-A diagnostic only: Quartus never becomes the i386 product path. It answers
-whether the OSS flow's timing on fes_i386_cpu (Yosys and nextpnr, see
-scripts/benchmark_fes_i386.py) is the RTL's or the flow's. The whole-CPU spike
-is the question; the isolated spikes (m2, dag, frontend) calibrate the two
-flows' timing on logic that is the same on both sides.
+This script emits diagnostic timing evidence; it does not create a sealed,
+labelled Quartus package. It answers whether the OSS flow's timing on
+fes_i386_cpu (Yosys and nextpnr, see scripts/benchmark_fes_i386.py) is the
+RTL's or the flow's. The whole-CPU spike is the question; the isolated spikes
+(m2, dag, frontend) calibrate the two flows' timing on logic that is the same
+on both sides.
 
 Quartus 17.0.2's SystemVerilog front end rejects the i386 RTL (generate loops
 must declare their genvar outside the loop and sit in generate/endgenerate,
@@ -285,7 +286,7 @@ def main() -> int:
 
         with ThreadPoolExecutor(max_workers=args.jobs) as executor:
             runs = list(executor.map(fit, seeds))
-        summary = {'classification': 'i386 Quartus oracle: diagnostic only, never the product path',
+        summary = {'classification': 'i386 Quartus oracle: diagnostic only, not a sealed labelled package',
                    'created_utc': datetime.now(timezone.utc).isoformat(), 'quartus': version,
                    'spike': args.spike, 'yosys': args.yosys,
                    'netlist': NETLIST.format(files='<spike sources>', top=TOP, out=f'{TOP}.v'),

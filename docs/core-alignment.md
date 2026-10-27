@@ -39,8 +39,9 @@ of the current tree.
    (policy accepted in #1163; see
    [Quartus-built cores](design/quartus-cores.md)). Current registered recipes
    and package selection still build only the HIP/nextpnr OSS lane. A recipe
-   that later offers both lanes must select one explicitly, use a licensed,
-   pinned Quartus host, and pass the same timing and seal checks. A failed HIP
+   that later offers both lanes must select one explicitly, use a pinned host
+   authorized for the Quartus edition and device (with a license when required),
+   and pass the same timing and seal checks. A failed HIP
    route never falls back to Quartus. Where a recipe still says oracle only,
    Quartus remains a check and does not produce the installed package.
    `FES_OSS_ONLY` is a proposed rollout option, not a control in this tree.
