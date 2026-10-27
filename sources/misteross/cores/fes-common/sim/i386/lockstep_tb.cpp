@@ -805,15 +805,16 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             if (event != Rtl::Event::Unimplemented || rtl.top.trace_vector != 8)
                 out.add(at + "double-fault", 8, event == Rtl::Event::Unimplemented ? rtl.top.trace_vector : 0xffu);
             if (!skip.all) {
-                // What the instruction wrote before its fault may stand
-                // (ENTER's pushes, a REP string's elements, with their steps
-                // of ESI, EDI and ECX): each byte the RTL wrote, the oracle
-                // wrote before its first delivery, a fault's or an INT's,
-                // and with the same value unless the oracle wrote it again
-                // after (the part of a frame it pushed). The RTL may write
-                // less: a far CALL or INT that checks its slots before its
-                // pushes, as the 386EX does, writes none of them. Nothing of
-                // a delivery is written.
+                // What the instruction did before its fault may stand:
+                // ENTER's pushes, a REP string's elements with their steps of
+                // ESI, EDI and ECX, LODS's eAX and CMPS's and SCAS's flags,
+                // which the oracle's state shows. Each byte the RTL wrote,
+                // the oracle wrote before its first delivery, a fault's or an
+                // INT's, and with the same value unless the oracle wrote it
+                // again after (the part of a frame it pushed). The RTL may
+                // write less: a far CALL or INT that checks its slots before
+                // its pushes, as the 386EX does, writes none of them. Nothing
+                // of a delivery is written.
                 const size_t own = result.events.empty() ? result.writes.size() : result.events[0].writes_before;
                 std::set<uint32_t> own_writes, later_writes;
                 for (size_t k = 0; k < result.writes.size(); ++k)
@@ -827,7 +828,11 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                 }
                 State want = before;
                 const State oracle_now = oracle.get_state();
-                for (int r : {fes_i386::REG_ECX, fes_i386::REG_ESI, fes_i386::REG_EDI}) want.gpr[r] = oracle_now.gpr[r];
+                for (int r : {fes_i386::REG_EAX, fes_i386::REG_ECX, fes_i386::REG_ESI, fes_i386::REG_EDI})
+                    want.gpr[r] = oracle_now.gpr[r];
+                // The arithmetic flags: the oracle's delivery sets RF and
+                // clears IF before its second fault.
+                want.eflags = (before.eflags & ~0x8d5u) | (oracle_now.eflags & 0x8d5u);
                 compare(want, rtl.state(), Fields{}, at, out);
             }
             outcome.double_fault = true;
