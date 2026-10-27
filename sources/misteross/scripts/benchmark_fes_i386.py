@@ -124,8 +124,10 @@ STAGES = {
         # A stage's output record passes most fields through, so they name
         # the register feeding it: ag_out's are ag_s (D), m1_out's m1_s (AG),
         # ex_out's ex_s (M2). ex.flags_in is EX's ex_flags. WB's decisions
-        # load with wb_s.
-        ('EX', r'(.*\.)?(wb_s|wb_flushes|wb_redir|wb_deliver|ex_flags)$|(.*\.)?ex\.(flags_in|shifter\.cf_in)$'),
+        # load with wb_s. The multiply and divide unit works in EX, and
+        # md_busy is its wait; its outputs may keep only EX's port names.
+        ('EX', r'(.*\.)?(wb_s|wb_flushes|wb_redir|wb_deliver|ex_flags|md_busy|md_de)$'
+               r'|(.*\.)?ex\.(flags_in|shifter\.cf_in|md_\w+)$|(.*\.)?muldiv\.'),
         ('M2', r'(.*\.)?(ex_s|ex_in|ex_out)$|(.*\.)?ex\.u$'),
         # M1 also writes the L1D model's address registers and the store
         # distances M2 decodes.

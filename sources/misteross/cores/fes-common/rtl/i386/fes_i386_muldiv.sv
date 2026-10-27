@@ -140,9 +140,11 @@ module fes_i386_muldiv (
         p_hh <= ah * bh;
     end
 
-    // The multiplier's steps (k), from mm while E1 sums the products: the
-    // shift that gives W (k - 1) and the step's addend: none, +a or -a, and
-    // which carry AF is (c4: of the low nibbles' sum; else W's below a's).
+    // The multiplier's steps (k), from mm (kept as mq at E0) while E1 sums
+    // the products: the shift that gives W (k - 1) and the step's addend:
+    // none, +a or -a, and which carry AF is (c4: of the low nibbles' sum;
+    // else W's below a's). For a negative multiplier the step's bit is
+    // clear when k is bits(~m), else set (k from the trailing zeros, or n).
     function automatic logic [5:0] bits(input logic [31:0] v);
         bits = 6'd0;
         for (int i = 0; i < 32; i++) if (v[i]) bits = 6'(i + 1);
@@ -151,34 +153,45 @@ module fes_i386_muldiv (
         zeros = w;
         for (int i = 31; i >= 0; i--) if (v[i]) zeros = 6'(i);
     endfunction
-    logic [5:0] k_pos, k_neg, k_tz, k_top;
-    logic       neg, most;
-    assign neg = sgn && |(mm & top_bit);
-    assign most = mm == top_bit;
-    assign k_pos = bits(mm) < 6'd3 ? 6'd3 : bits(mm);
-    assign k_tz = zeros(mm, n) + 6'd4;
-    assign k_top = bits(~mm & mask) > k_tz ? bits(~mm & mask) : k_tz;
-    assign k_neg = k_top > n ? n : k_top;
+    // The products' sum, as one 3:2 row then one carry chain: P is p_ll +
+    // (p_lh + p_hl) << 16 + p_hh << 32, and p_ll fits its 32 bits.
+    logic [63:0] p_x, p_y, p_z, p_cy;
+    assign p_x = {p_hh[31:0], p_ll[31:0]};
+    assign p_y = {{12{p_lh[35]}}, p_lh, 16'd0};
+    assign p_z = {{12{p_hl[35]}}, p_hl, 16'd0};
+    assign p_cy = (p_x & p_y | p_x & p_z | p_y & p_z) << 1;
+    logic [31:0] mq;
+    logic        mq_neg;
+    always_ff @(posedge clk) if (go && st == 6'd0) begin
+        mq <= mm;
+        mq_neg <= sgn && |(mm & top_bit);
+    end
+    logic [5:0] b_pos, b_inv, k_tz;
+    logic       inv_wins;
+    assign b_pos = bits(mq);
+    assign b_inv = bits(~mq & mask);
+    assign k_tz = zeros(mq, n) + 6'd4;
+    assign inv_wins = b_inv >= k_tz;
     logic [4:0] sh;
     logic       w_zero, c4_sel;
     logic [1:0] add_sel;  // 0: W, 1: W + a, 2: W - a
     always_ff @(posedge clk) if (go && st == 6'd1) begin
-        p <= 64'(66'(p_ll) + (66'(p_lh + p_hl) <<< 16) + (66'(p_hh) <<< 32));
+        p <= (p_x ^ p_y ^ p_z) + p_cy;
         if (aad) begin
             sh <= 5'd0;
             w_zero <= 1'b0;
             add_sel <= 2'd1;
             c4_sel <= 1'b1;
-        end else if (!neg) begin
-            sh <= 5'(k_pos - 6'd1);
+        end else if (!mq_neg) begin
+            sh <= b_pos < 6'd3 ? 5'd2 : 5'(b_pos - 6'd1);
             w_zero <= 1'b0;
-            add_sel <= bits(mm) < 6'd3 ? 2'd1 : 2'd0;
-            c4_sel <= bits(mm) < 6'd3;
+            add_sel <= b_pos < 6'd3 ? 2'd1 : 2'd0;
+            c4_sel <= b_pos < 6'd3;
         end else begin
-            sh <= 5'(k_neg - 6'd1);
-            w_zero <= most;
-            add_sel <= most || mm[5'(k_neg - 6'd1)] ? 2'd2 : 2'd0;
-            c4_sel <= !most && !mm[5'(k_neg - 6'd1)];
+            sh <= inv_wins ? 5'(b_inv - 6'd1) : k_tz > n ? 5'(n - 6'd1) : 5'(k_tz - 6'd1);
+            w_zero <= mq == top_bit;
+            add_sel <= mq == top_bit || !inv_wins ? 2'd2 : 2'd0;
+            c4_sel <= mq != top_bit && inv_wins;
         end
     end
     // E2: W, the product's result halves and CF/OF; E3: the step's flags.
