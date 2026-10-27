@@ -53,70 +53,139 @@
       "38": 361472
     },
     "isa8 1": {
-      "74": 827617
+      "74": 826427
     },
-    "vga 1": {
-      "3": 31076216
+    "vga-in 1": {
+      "6": 25386786,
+      "26": 1
     },
-    "vga 2": {
-      "5": 109899
+    "vga-out 1": {
+      "4": 512162
+    },
+    "vga-out 2": {
+      "7": 109898
+    }
+  },
+  "io_wait": {
+    "vga-out 1": {
+      "2": 1,
+      "3": 1,
+      "5": 1,
+      "14": 1,
+      "15": 2,
+      "17": 2,
+      "18": 2,
+      "22": 2,
+      "23": 1,
+      "25": 2,
+      "26": 3,
+      "29": 3,
+      "30": 1,
+      "31": 2,
+      "42": 1,
+      "45": 1,
+      "52": 1,
+      "91": 1
+    },
+    "vga-out 2": {
+      "4": 2,
+      "6": 1,
+      "8": 1,
+      "11": 1,
+      "14": 1,
+      "16": 1,
+      "18": 1,
+      "22": 2,
+      "23": 1,
+      "24": 1,
+      "26": 1,
+      "33": 1,
+      "38": 1,
+      "43": 1,
+      "45": 2,
+      "46": 1,
+      "47": 1,
+      "68": 1,
+      "77": 2,
+      "82": 1,
+      "91": 1,
+      "97": 2,
+      "100": 1,
+      "101": 3,
+      "102": 1,
+      "103": 1,
+      "105": 1,
+      "109": 1,
+      "110": 1
     }
   },
   "inta": {
-    "146": 15047
+    "146": 15046
   },
   "screen": [
-    "Bochs VGABios 0.9d 26 Oct 2026                                                  ",
-    "This VGA/VBE Bios is released under the GNU LGPL                                ",
     "                                                                                ",
-    "Please visit :                                                                  ",
-    " . https://bochs.sourceforge.io                                                 ",
-    " . https://www.nongnu.org/vgabios                                               ",
-    "                                                                                ",
-    "Bochs 3.1 BIOS - build: 10/26/26                                                ",
-    "Options: eltorito                                                               ",
-    "                                                                                ",
-    "ata0 master: FES pc386 ATA disk ATA-4 Hard-Disk (  31 MBytes)                   ",
-    "ata0  slave: Unknown device                                                     ",
-    "                                                                                ",
-    "Booting from Hard Disk...                                                       ",
-    "................................................................................",
-    "FreeDOS kernel 2043 (build 2043 OEM:0xfd) [compiled May 14 2021]                ",
-    "Kernel compatibility 7.10 - WATCOMC - 80386 CPU required - FAT32 support        ",
-    "                                                                                ",
-    "(C) Copyright 1995-2012 Pasquale J. Villani and The FreeDOS Project.            ",
-    "All Rights Reserved. This is free software and comes with ABSOLUTELY NO         ",
-    "WARRANTY; you can redistribute it and/or modify it under the terms of the       ",
-    "GNU General Public License as published by the Free Software Foundation;        ",
-    "either version 2, or (at your option) any later version.                        ",
-    "C: HD1, Pri[ 1], CHS=    0-1-1, start=     0 MB, size=    31 MB                 ",
-    "                                                                                "
+    "                                                                               }",
+    "                                       }                                       }",
+    "                                       }                                       }",
+    "                                       }                                       }",
+    "                                       }                                       }",
+    "                                       }                                       }",
+    "                                       }                                       }",
+    "                                       }                                       }",
+    "                                       }                                       }",
+    "                                       }                                       }",
+    "                                       }                                       }",
+    "                                       }                                       }",
+    "                                       }                                       }",
+    "                                       }                                       }",
+    "                                       }                                       }",
+    "                                       }                                       }",
+    "                                       }                                       }",
+    "                                       }                                       }",
+    "                                       }                                       }",
+    "                                       }                                       }",
+    "                                       }                                       }",
+    "                                       }                                       }",
+    "                                       }                                       }",
+    "                                       }                                       }"
   ],
   "end": {
     "reason": "limit",
-    "steps": 557261033,
-    "cycles": 2400000001,
+    "steps": 532715552,
+    "cycles": 2400000002,
     "seconds": 24.0
   },
   "prompt_cycle": null,
   "cpu_resets": 0,
+  "snaps": {},
+  "present": {},
+  "vga": {
+    "frames": 11693,
+    "scanout_underflows": 0,
+    "capture_drops": 0,
+    "present_underflows": 0,
+    "plane_underflows": 0,
+    "frames_shown": 0,
+    "port1_commands": 76910267,
+    "port2_commands": 7593774
+  },
   "marks": {},
   "opl2": {
     "samples": 1193181,
     "exact": 1193181,
-    "nonzero": 985658,
-    "writes": 4803
+    "nonzero": 986226,
+    "writes": 4802
   },
   "opl2_mismatch": null,
   "audio_samples": 1151999,
   "sb": {
     "resets": 1,
     "commands": 48,
-    "dma": 30821,
+    "dma": 27848,
     "irqs": 7
   },
   "command": [
-    "build/sim/fes-pc386/machine/obj/Vpc386_at_core",
+    "build/sim/fes-pc386/machine/obj/Vpc386_machine",
     "--bios",
     "build/firmware/pc386/pc386-bios.bin",
     "--vgabios",
@@ -178,9 +247,9 @@
   },
   "work": "/tmp/fes-pc386-games/wolf3d",
   "audio": {
-    "hz": 2557.56,
-    "rms": 728.6,
-    "peak": 9220,
+    "hz": 2581.61,
+    "rms": 724.4,
+    "peak": 9050,
     "samples": 1151999
   }
 }

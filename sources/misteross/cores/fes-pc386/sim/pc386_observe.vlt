@@ -1,0 +1,10 @@
+`verilator_config
+// Observation points for the machine benches.
+// The OPL2 reference check (sim/opl2_reference.h): the register write the
+// wrapper hands the import and its sample enable.
+public_flat_rd -module "pc386_opl2" -var "opl2_reg_wr"
+public_flat_rd -module "pc386_opl2" -var "sample_tick"
+// VGA port writes that wait behind a full FIFO (sim/machine_tb.cpp).
+public_flat_rd -module "pc386_vga" -var "io_new"
+public_flat_rd -module "pc386_vga" -var "io_write"
+public_flat_rd -module "pc386_vga" -var "fifo_full"

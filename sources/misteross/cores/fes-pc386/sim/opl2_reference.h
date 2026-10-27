@@ -4,7 +4,7 @@
 // between samples, so the reference applies every write the RTL released
 // before a sample tick, generates that sample, and expects the RTL's next
 // sample to equal it. Call clock() after each RTL clock edge with the
-// wrapper's observation points (sim/pc386_audio.vlt makes them public).
+// wrapper's observation points (sim/pc386_observe.vlt makes them public).
 #pragma once
 
 #include "opl3.h"

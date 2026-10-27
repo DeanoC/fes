@@ -73,7 +73,10 @@ python3 scripts/synth_fes_pc386.py --cache-root /abs/out/cache/misteross-toolcha
 The boot suite runs the locked BIOS and VGA BIOS on `pc386_machine`, boots the
 FreeDOS disk, types `dir` at the prompt and requires its listing in VRAM, then
 checks that every CPU I/O completed at its class time and replays the boot's
-VGA trace against Bochs's VGA. The vga suite runs the presenter and port 2
+VGA trace against Bochs's VGA. A VGA port write that finds the VGA FIFO full
+waits until it has room, as a card holds the bus; the bench counts those
+clocks (`io_wait` in the report) and the rest of the write must still take
+exactly its class time. The vga suite runs the presenter and port 2
 benches, boots the VGA test disk, compares each marked picture's 720p frame
 (presenter and closed plane) with the presenter model, and replays that trace.
 Each writes `build/sim/fes-pc386/<suite>/report.json` (POST codes, debug-port

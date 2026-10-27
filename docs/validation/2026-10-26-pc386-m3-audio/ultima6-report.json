@@ -53,13 +53,16 @@
       "38": 270336
     },
     "isa8 1": {
-      "74": 233884
+      "74": 233881
     },
-    "vga 1": {
-      "3": 50484486
+    "vga-in 1": {
+      "6": 41245631
     },
-    "vga 2": {
-      "5": 2763
+    "vga-out 1": {
+      "4": 62541
+    },
+    "vga-out 2": {
+      "7": 2763
     }
   },
   "inta": {
@@ -67,44 +70,56 @@
   },
   "screen": [
     "                                                                                ",
-    "Bochs 3.1 BIOS - build: 10/26/26                                                ",
-    "Options: eltorito                                                               ",
     "                                                                                ",
-    "ata0 master: FES pc386 ATA disk ATA-4 Hard-Disk (  31 MBytes)                   ",
-    "ata0  slave: Unknown device                                                     ",
     "                                                                                ",
-    "Booting from Hard Disk...                                                       ",
-    "................................................................................",
-    "FreeDOS kernel 2043 (build 2043 OEM:0xfd) [compiled May 14 2021]                ",
-    "Kernel compatibility 7.10 - WATCOMC - 80386 CPU required - FAT32 support        ",
     "                                                                                ",
-    "(C) Copyright 1995-2012 Pasquale J. Villani and The FreeDOS Project.            ",
-    "All Rights Reserved. This is free software and comes with ABSOLUTELY NO         ",
-    "WARRANTY; you can redistribute it and/or modify it under the terms of the       ",
-    "GNU General Public License as published by the Free Software Foundation;        ",
-    "either version 2, or (at your option) any later version.                        ",
-    "C: HD1, Pri[ 1], CHS=    0-1-1, start=     0 MB, size=    31 MB                 ",
     "                                                                                ",
-    "FreeCom version 0.86 - WATCOMC - XMS_Swap [Dec 30 2024 22:10:51]                ",
-    "                                                                                ",
-    "FreeCom version 0.86 - WATCOMC - XMS_Swap [Dec 30 2024 22:10:51]                ",
-    "C:\\>cd ultima6                                                                  ",
-    "C:\\ULTIMA6>ultima6                                                              ",
-    "                                                                                "
+    "         655789DE                                535679:E                       ",
+    "         635689DE                                535679:E                       ",
+    "         655789DE                                635689:E                       ",
+    "         655789DE                                655679:E                       ",
+    "         656789DE                                655689:E             l         ",
+    "         666789DE            j                   656789:E                       ",
+    "         76678:DE                                666789DE               Z8      ",
+    "         76678:DE            j                   666`89DE                       ",
+    "         777t9:DE                                767x8:DE                       ",
+    "         777x9:D                                 77st8:DE                       ",
+    "         87| 9:E                                 87| 9:DE                       ",
+    "         88w@9:E                                 877 9:DF                       ",
+    "         88s :DE                                  8w 9:D                        ",
+    "       2098|  DE                                 882| :E                        ",
+    "         99sw:DE                                 99ww:DE                        ",
+    "         A9w :DE                                 A9||:DE                        ",
+    "         B:| DE                                  A9||:DE                        ",
+    "         B:| DE                                  B9|wDDF                        ",
+    "         B::wDE                                  B:: DE                         ",
+    "         BBD DE                                  BB  DE                         "
   ],
   "end": {
     "reason": "limit",
-    "steps": 355210047,
-    "cycles": 1600000003,
+    "steps": 307160725,
+    "cycles": 1600000002,
     "seconds": 16.0
   },
-  "prompt_cycle": 240007401,
+  "prompt_cycle": 240003760,
   "cpu_resets": 0,
+  "snaps": {},
+  "present": {},
+  "vga": {
+    "frames": 11132,
+    "scanout_underflows": 0,
+    "capture_drops": 0,
+    "present_underflows": 0,
+    "plane_underflows": 0,
+    "frames_shown": 0,
+    "port1_commands": 50417915,
+    "port2_commands": 5970819
+  },
   "marks": {},
   "opl2": {
     "samples": 795454,
     "exact": 795454,
-    "nonzero": 513707,
+    "nonzero": 513701,
     "writes": 3813
   },
   "opl2_mismatch": null,
@@ -116,7 +131,7 @@
     "irqs": 0
   },
   "command": [
-    "build/sim/fes-pc386/machine/obj/Vpc386_at_core",
+    "build/sim/fes-pc386/machine/obj/Vpc386_machine",
     "--bios",
     "build/firmware/pc386/pc386-bios.bin",
     "--vgabios",
@@ -144,7 +159,7 @@
   },
   "work": "/tmp/fes-pc386-games/ultima6",
   "audio": {
-    "hz": 1600.33,
+    "hz": 1600.42,
     "rms": 345.3,
     "peak": 1443,
     "samples": 767999

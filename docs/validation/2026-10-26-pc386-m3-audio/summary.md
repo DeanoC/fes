@@ -98,11 +98,11 @@ and `SOUND DONE`, and the prompt returned at 6.87 simulated seconds.
 
 | Section | Measured in the 48 kHz output | Expected |
 | --- | --- | --- |
-| PIT channel 2 speaker, divisor 1356 | 879.94 Hz, peak 9760 | 880 Hz |
-| Speaker toggled by a CPU loop | 3090 Hz | set by the instruction rate |
-| OPL2 phrase, drums, tremolo and vibrato | RMS 1262, peak 12602; every sample exact (341,375 of them over the whole run) | Nuked-OPL3 |
-| DSP single-cycle DMA, 4000 bytes at 8 kHz | 1000.0 Hz, RMS 9022 | 1 kHz |
-| DSP auto-init, 1000-byte blocks, then DAh | 1000.0 Hz, RMS 9012 | 1 kHz |
+| PIT channel 2 speaker, divisor 1356 | 879.94 Hz, peak 9728 | 880 Hz |
+| Speaker toggled by a CPU loop | 3091 Hz | set by the instruction rate |
+| OPL2 phrase, drums, tremolo and vibrato | RMS 1269, peak 12457; every sample exact (341,375 of them over the whole run) | Nuked-OPL3 |
+| DSP single-cycle DMA, 4000 bytes at 8 kHz | 1000.0 Hz, RMS 8986 | 1 kHz |
+| DSP auto-init, 1000-byte blocks, then DAh | 1000.0 Hz, RMS 9066 | 1 kHz |
 
 The DSP saw one reset and 13 command bytes, moved 9,000 bytes by DMA and
 raised 6 IRQs. Every CPU I/O completed at exactly its timing class, as in M1
@@ -122,7 +122,7 @@ directory. `python3 scripts/sim_fes_pc386.py --suite game --game <name>`.
 SHA-256 `5ec54a04…881cb9`, 324 files; its own `CONFIG.U6` (`vma388`: VGA,
 AdLib at 388h). `cd ultima6`, `ultima6`, no keys, 16 simulated seconds. The
 intro's music wrote 3,813 OPL2 registers; all 795,454 OPL2 samples of the run
-equal Nuked-OPL3's (513,707 non-zero). It does not use the Sound Blaster.
+equal Nuked-OPL3's (513,701 non-zero). It does not use the Sound Blaster.
 Every I/O completed at its class time.
 
 **Wolfenstein 3D** ([`wolf3d-report.json`](wolf3d-report.json)): `Wolfenstein 3D (1992).zip`
@@ -138,9 +138,9 @@ title screens and the menus into E1M1, then Ctrl and space every 0.8 s from
 
 | | |
 | --- | --- |
-| OPL2 | 4,803 register writes; all 1,193,181 samples equal Nuked-OPL3's, 985,658 non-zero |
-| Sound Blaster | 1 reset, 48 command bytes, 30,821 bytes by DMA, 7 IRQs |
-| I/O | every access at its class time; 31 million VGA port bytes |
+| OPL2 | 4,802 register writes; all 1,193,181 samples equal Nuked-OPL3's, 986,226 non-zero |
+| Sound Blaster | 1 reset, 48 command bytes, 27,848 bytes by DMA, 7 IRQs |
+| I/O | every access at its class time, after 28 byte and 36 word VGA port writes waited behind a full VGA FIFO (up to 91 and 110 clocks); 26 million VGA port accesses |
 
 The DMA and IRQs are the game's digitized sounds playing through the DSP.
 Nobody has yet listened to either game's capture and judged it against a
@@ -190,3 +190,21 @@ passed 88 directed checks with no failures. Its added check issues an unpolled
 speaker-on write less than 1 us after speaker-off and confirms D8h still reads
 00h, so the write during the busy window was dropped. All four OPL2 comparisons
 passed. This remains host-only simulation evidence.
+
+## Follow-up: the M2 VGA beside the audio, 27 October 2026
+
+With main merged in (M2's RTL VGA, [#1149](https://github.com/DeanoC/fes/pull/1149))
+and the busy-write change above, the sound suite, both games, the vga suite
+and the boot suite were run again; the reports and the numbers above are from
+those runs. SOUND.COM, Ultima VI and the audio of Wolfenstein 3D behave as
+before. Wolfenstein 3D's timing moved slightly with the RTL VGA, so it moved
+27,848 bytes by DMA in the 24 s instead of 30,821, still with 7 IRQs.
+
+Wolfenstein 3D fills the VGA FIFO now and then, as the
+[M2 record](../2026-10-26-pc386-m2-vga/summary.md) found. A card with a full
+write FIFO holds the bus until it has room, and the RTL VGA does the same. The
+machine bench now counts the clocks a VGA port write is refused for a full
+FIFO (`io_wait` in the reports) and takes them out of its time; what remains
+must still be exactly the class time. 28 byte writes and 36 word writes
+waited, and every VGA port write then took 4 or 7 clocks. The vga and boot
+suites never filled the FIFO and pass unchanged.

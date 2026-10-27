@@ -118,7 +118,9 @@ MACHINE_RTL = AT_RTL + (
 # one to report it. 1F0h with a dword is one word cycle and two byte cycles
 # (1F2h, 1F3h), as the AT's bus sizing does. A VGA port byte is presented a
 # clock after the request; a write is in the VGA FIFO a clock later and the
-# decoder leaves a clock between bytes. A read waits until the FIFO has
+# decoder leaves a clock between bytes. A write that finds the FIFO full waits
+# until it has room, as a card holds the bus; the bench counts those clocks
+# (IOWAIT) and takes them out, and what remains must still be exact. A read waits until the FIFO has
 # drained and takes two clocks more, so it takes at least VGA_READ_MINIMUM
 # and at most VGA_READ_BOUND.
 ISA8, ISA16, OVERHEAD = 72, 36, 2
@@ -169,7 +171,7 @@ def verilate(verilator: str, name: str, top: str, rtl: tuple[Path, ...], testben
     includes = ' '.join(f'-I{path}' for path in (COMMON / 'sim/i386', CORE / 'sim', NUKED, *include))
     command = [verilator, '--cc', *(['--exe'] if testbench else []), '--build', '-j', str(jobs), '-O3', '--top-module', top,
                '-Wall', '-Wno-UNUSEDSIGNAL', '-Wno-DECLFILENAME',
-               str(CORE / 'sim/pc386.vlt'), str(CORE / 'sim/pc386_audio.vlt'),
+               str(CORE / 'sim/pc386.vlt'), str(CORE / 'sim/pc386_observe.vlt'),
                f'-I{COMMON / "vendor/kf8259"}', f'-I{COMMON / "vendor/kf8253"}', f'-I{COMMON / "generated"}',
                *(f'-G{key}={value}' for key, value in (parameters or {}).items()),
                '--Mdir', str(output), '-MAKEFLAGS', 'OPT_FAST=-O3',
@@ -184,7 +186,7 @@ def verilate(verilator: str, name: str, top: str, rtl: tuple[Path, ...], testben
 
 
 def parse_boot(text: str) -> dict:
-    report = {'post': [], 'debug': [], 'panic': [], 'io': {}, 'inta': {}, 'screen': [], 'end': None,
+    report = {'post': [], 'debug': [], 'panic': [], 'io': {}, 'io_wait': {}, 'inta': {}, 'screen': [], 'end': None,
               'prompt_cycle': None, 'cpu_resets': 0, 'snaps': {}, 'present': {}, 'vga': {}, 'marks': {},
               'opl2': None, 'opl2_mismatch': None, 'audio_samples': None, 'sb': None}
     for line in text.splitlines():
@@ -200,6 +202,9 @@ def parse_boot(text: str) -> dict:
         elif kind == 'IO':
             klass, size, cycles, count = rest.split()
             report['io'].setdefault(f'{klass} {size}', {})[cycles] = int(count)
+        elif kind == 'IOWAIT':
+            klass, size, cycles, count = rest.split()
+            report['io_wait'].setdefault(f'{klass} {size}', {})[cycles] = int(count)
         elif kind == 'INTA':
             cycles, count = rest.split()
             report['inta'][cycles] = int(count)

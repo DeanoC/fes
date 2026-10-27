@@ -19,6 +19,8 @@
 //   DEBUG <port> <text>                     a line on a debug port (402h BIOS, 500h VGA BIOS, E9h)
 //   PANIC <port> <value>                    a write to the BIOS panic ports 400h/401h
 //   IO <class> <size> <cycles> <count>      completion-time histogram of CPU I/O (VGA ports by direction)
+//   IOWAIT <class> <size> <cycles> <count>  clocks a VGA port write waited behind a full VGA FIFO,
+//                                           already taken out of its IO time
 //   INTA <cycles> <count>
 //   SNAP <name> <width> <height> <file>     a captured frame written at a marker
 //   PRESENT <name> <file> <mismatches>      the 720p frame at a marker against the presenter model
@@ -41,6 +43,7 @@
 // each byte unless the next byte is the 0xf0 break prefix (default 0.03 s).
 // PC386_TRACE_IO=1 prints every I/O but port 80h to stderr.
 #include "Vpc386_machine.h"
+#include "Vpc386_machine___024root.h"
 #include "Vpc386_audio___024root.h"
 #include "audio_link.h"
 #include "i386_oracle.h"
@@ -160,6 +163,7 @@ public:
     uint64_t cycles = 0;
     bool cpu_reset_seen = false;
     std::map<std::tuple<std::string, unsigned, uint64_t>, uint64_t> io_times;
+    std::map<std::tuple<std::string, unsigned, uint64_t>, uint64_t> io_waits;
     std::map<uint64_t, uint64_t> inta_times;
     std::string debug_line[0x600];
     std::vector<std::string> debug_lines;
@@ -381,14 +385,20 @@ public:
         top.io_port = port;
         top.io_size = length == 1 ? 0 : length == 2 ? 1 : 2;
         top.io_wdata = value;
-        uint64_t start = cycles;
+        uint64_t start = cycles, full = 0;
         clock();
         top.io_valid = 0;
         while (!top.io_done) {
+            // The VGA refuses a port write at this edge only for a full FIFO.
+            auto *vga = top.rootp;
+            if (vga->pc386_machine__DOT__vga__DOT__io_new && vga->pc386_machine__DOT__vga__DOT__io_write &&
+                vga->pc386_machine__DOT__vga__DOT__fifo_full)
+                ++full;
             clock();
             if (cycles - start > 1000000) throw std::runtime_error("I/O did not complete");
         }
-        ++io_times[{io_class(port, write), length, cycles - start}];
+        ++io_times[{io_class(port, write), length, cycles - start - full}];
+        if (full) ++io_waits[{io_class(port, write), length, full}];
         uint32_t result = top.io_rdata;
         if (trace && port >= 0x3b0 && port <= 0x3df)
             std::fprintf(trace, "%c %llu %03x %u %08x\n", write ? 'O' : 'I', (unsigned long long)start, port, length,
@@ -682,6 +692,9 @@ int main(int argc, char **argv) {
         double seconds = double(machine.cycles) / CLOCK_HZ;
         for (const auto &[key, count] : machine.io_times)
             std::printf("IO %s %u %llu %llu\n", std::get<0>(key).c_str(), std::get<1>(key),
+                        (unsigned long long)std::get<2>(key), (unsigned long long)count);
+        for (const auto &[key, count] : machine.io_waits)
+            std::printf("IOWAIT %s %u %llu %llu\n", std::get<0>(key).c_str(), std::get<1>(key),
                         (unsigned long long)std::get<2>(key), (unsigned long long)count);
         for (const auto &[time, count] : machine.inta_times)
             std::printf("INTA %llu %llu\n", (unsigned long long)time, (unsigned long long)count);
