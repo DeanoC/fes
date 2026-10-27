@@ -9,8 +9,8 @@ return that bank's byte on the selecting read. `make sim-fes-coleco-megacart`
 uses only original synthetic bytes. The sealed lane passed route, timing,
 exact-shell SGM and [two-ROM kit diagnostics](../../../../docs/validation/2026-09-26-coleco-megacart-two-rom-hil.md),
 including Stop/relaunch and retained selections after host restart. This is
-synthetic diagnostic acceptance; the factory format-2 producer and recipe
-remain selected.
+synthetic diagnostic acceptance. The factory recipe selects the format-4 v2
+producer and requires an exact BIOS and cartridge ROM map.
 
 This directory is a described FES core, not an `experiments/` place-and-route
 test. The core lane is [docs/cores.md](../../docs/cores.md).
@@ -32,9 +32,10 @@ retail-game compatibility.
   8192; a shorter cart is padded with `0xff` before import. The cartridge map
   is mirrored at `0x8000–0xffff`.
   The factory shell does not advertise `fes.media.blob` or `fes.media.blob-stream`.
-- Open 8 KiB reset shim at `0x0000–0x1fff`; its vector is `JP 0x8000`, so no
-  proprietary ColecoVision BIOS is embedded. The factory shell does not
-  advertise `fes.firmware.blob`.
+- The open 8 KiB reset shim at `0x0000–0x1fff` is used by host simulations and
+  mailbox diagnostics. The factory format-4 package instead links its required
+  `coleco-bios` source through the ROM map and does not advertise
+  `fes.firmware.blob`.
 - 1 KiB CPU RAM at `0x6000–0x63ff`, mirrored through `0x7fff`.
 - TMS9918-style VDP ports `0xbe` (data) and `0xbf` (control/status), 16 KiB
   VRAM, Graphics I, Graphics II, Text and Multicolor rendering on a fixed
@@ -161,15 +162,15 @@ color blocks per character and keeps sprites active. Unsupported mode selectors
 render the R7 backdrop. The bounded sprite path includes
 normal 8x8/16x16 sprites, magnification, early-clock positioning,
 clipping, transparency/priority, four visible sprites per line, collision and
-fifth-sprite status. The raw media limit and reset shim are deliberate
-compatibility boundaries.
+fifth-sprite status. The mailbox-diagnostic raw-media limit and reset shim are
+deliberate compatibility boundaries.
 
 ## Private BIOS bring-up
 
-The default package retains the open reset shim. It starts execution at
-`0x8000` and does not boot a conventional Coleco cartridge header or provide
-Coleco BIOS services. A successful cartridge transfer therefore does not prove
-that a retail game can run.
+The open reset shim remains in host simulations and mailbox diagnostics. The
+factory format-4 package instead links its required `coleco-bios` and
+`coleco-cart` sources through the sealed ROM map. BIOS boot still does not prove
+that a retail game can run; compatibility requires per-game validation.
 
 The OSS producer accepts an explicit private 8192-byte BIOS for bring-up:
 
@@ -187,6 +188,10 @@ existing cartridge media interface does not load a BIOS at runtime.
 
 ## Runtime firmware overlay
 
+The RTL retains this overlay for Quartus and mailbox diagnostics. It is not the
+selected factory package contract: the format-4 package requires `coleco-bios`
+through its sealed ROM map and removes `fes.firmware.blob` from its manifest.
+
 Quartus and OSS producers set `ENABLE_FIRMWARE=1` on `coleco_application_gp`.
 The shared mailbox then advertises capability bit 7 and accepts opcodes 15–17
 for an exact 8192-byte overlay while reset is held. Writes land in the machine's
@@ -198,21 +203,21 @@ enable the production endpoint and connect it to the real machine RAM/CPU.
 They check every uploaded byte, malformed and incomplete transfers, reset
 ordering, and execution of an open test firmware that writes CPU RAM and
 halts. Both run with the normal Coleco unit suites; they use no private BIOS.
-The default package declares `fes.firmware.blob` 1.0
-optional so BIOS-free Graphics I titles share the firmware-capable bitstream.
-Household firmware binds at launch through FogCast/runtime; BIOS bytes stay
-out of git. Firmware mailbox behavior is software-tested; hardware acceptance
-is pending. `--bios` remains the separate private build-time embed path above.
+The factory format-4 package requires an exact 8 KiB BIOS source and does not
+declare `fes.firmware.blob`. Firmware mailbox behavior is software-tested but
+does not qualify the factory package; `--bios` remains the separate private
+build-time embed path above.
 
-Use the BIOS-free diagnostic as a hardware control before diagnosing a retail
-cartridge. Private BIOS boot and per-game rendering/input checks are separate
-from that control and from general ColecoVision compatibility.
+For mailbox diagnostics, use the BIOS-free diagnostic as a hardware control
+before diagnosing a retail cartridge. Private BIOS boot and per-game
+rendering/input checks are separate from that control and from general
+ColecoVision compatibility.
 
 ## Memory and host interfaces
 
 | Address or port | Function |
 | --- | --- |
-| `0x0000–0x1fff` | default open reset ROM (reset to `0x8000`, NMI to `0x8066`); synthesized packages may overlay this from `fes.firmware.blob`, or an explicitly supplied private BIOS |
+| `0x0000–0x1fff` | open reset image in host simulation and mailbox diagnostics; the factory format-4 package links the required `coleco-bios` through its ROM map |
 | `0x6000–0x7fff` | mirrored 1 KiB CPU RAM |
 | `0x8000–0xffff` | fixed 32 KiB cartridge aperture; images up to 16 KiB mirror at C000 |
 | I/O `0xbe` | VDP data |
@@ -220,8 +225,11 @@ from that control and from general ColecoVision compatibility.
 | I/O writes `0x80–0x9f` / `0xc0–0xdf` | select keypad / joystick mode for both players |
 | I/O reads `0xe0–0xff` | controller 1 when A1=0, controller 2 when A1=1 (including FC/FF) |
 
-The application mailbox advertises fixed video, blob media, blob-stream media, `fes.gamepad.ports`
-1.0, `fes.keypad.ports` 1.0 and optional `fes.firmware.blob` 1.0. It does not advertise keyboard or legacy gamepad.
+The older Quartus and mailbox-diagnostic manifest advertises fixed video, blob
+media, blob-stream media, `fes.gamepad.ports` 1.0, `fes.keypad.ports` 1.0 and
+optional `fes.firmware.blob` 1.0. The selected factory manifest removes blob
+media and firmware, adds the sealed format-4 ROM map, and requires the linked
+native video interfaces. Neither manifest advertises keyboard or legacy gamepad.
 The common endpoint supplies accepted writes to a console-owned 32 KiB staging
 RAM; `coleco_application_gp` preserves the machine's registered cartridge-copy path.
 The host holds execution reset while uploading and commits media before
