@@ -491,12 +491,13 @@ module fes_i386_cpu (
     logic [31:0] a_val, b_val, c_val;
     logic        a_pend, b_pend, c_pend;
     logic [7:0]  d_pend;
+    logic [7:0][31:0] d_value;
     logic [2:0]  a_dist, b_dist, c_dist;
     fes_i386_dops dops (
         .clk, .reset(reset || wb_flush), .a_reg(u.src1.index[2:0]), .b_reg(u.src2.index[2:0]), .d_writes,
         .d_dst(u.dst.index[2:0]), .d_early(lea && lea_early), .advance(issue), .hold(freeze), .prod_valid, .prod_dst,
         .prod_early, .prod_sp, .gpr, .stage_value, .wb_sp(wb_s.sp_new), .a(a_val), .b(b_val), .c(c_val), .pend_a(a_pend), .pend_b(b_pend),
-        .pend_c(c_pend), .dist_a(a_dist), .dist_b(b_dist), .dist_c(c_dist), .pend_all(d_pend)
+        .pend_c(c_pend), .dist_a(a_dist), .dist_b(b_dist), .dist_c(c_dist), .pend_all(d_pend), .value_all(d_value)
     );
 
     // A memory operand's or LEA's address; a stack operation's is ESP or EBP.
@@ -554,19 +555,21 @@ module fes_i386_cpu (
     // nothing (s_kill1: 0). D then issues that element as the instruction's
     // last, or as a NOP that ends it, in the cycle it would anyway.
     logic r_c0, r_c1, r_c2;
-    assign c_count = dc.uop.mem.addr32 ? c_val : {16'b0, c_val[15:0]};
+    assign c_count = dc.uop.mem.addr32 ? d_value[1] : {16'b0, d_value[1][15:0]};
     assign str_cnt3 = dc.str_load && str_ss ? {dc.ecnt == 5'd2, dc.ecnt == 5'd1, dc.ecnt == 5'd0} : {r_c2, r_c1, r_c0};
     always_ff @(posedge clk) begin
+        // The copies come from their registers' values, which are fixed:
+        // ESP and EBP, or ESI and EDI, with no select by register number.
         if (issue && dc.str_load && str_ss) begin
-            r_src <= keep_hi(b_val, b_val - st_size, ss32);
-            r_dst <= keep_hi(a_val, a_val - (st_size << 1), ss32);
-            r_fp <= keep_hi(a_val, a_val - st_size, ss32);
+            r_src <= keep_hi(d_value[5], d_value[5] - st_size, ss32);
+            r_dst <= keep_hi(d_value[4], d_value[4] - (st_size << 1), ss32);
+            r_fp <= keep_hi(d_value[4], d_value[4] - st_size, ss32);
             r_cnt <= {27'd0, dc.ecnt} - 32'd1;
             {r_c2, r_c1, r_c0} <= {dc.ecnt == 5'd3, dc.ecnt == 5'd2, dc.ecnt == 5'd1};
             s_down <= 1'b1;
         end else if (issue && dc.str_load) begin
-            r_src <= dc.uop.mem.addr32 ? a_val : {16'b0, a_val[15:0]};
-            r_dst <= dc.uop.mem.addr32 ? b_val : {16'b0, b_val[15:0]};
+            r_src <= dc.uop.mem.addr32 ? d_value[6] : {16'b0, d_value[6][15:0]};
+            r_dst <= dc.uop.mem.addr32 ? d_value[7] : {16'b0, d_value[7][15:0]};
             r_cnt <= c_count;
             {r_c2, r_c1, r_c0} <= {c_count == 32'd2, c_count == 32'd1, c_count == 32'd0};
             s_down <= ex_flags[10];
