@@ -173,10 +173,11 @@ differs. Directed tests in later phases decide these, not the oracle:
 - MOV to or from TR6 and TR7 (0F 24, 0F 26) raises #UD in Bochs; the design
   accepts them.
 - A real-mode CS load follows the 386 rule described by Collins: the design
-  contract resets CS's limit and access rights to real-mode values, while
-  Bochs 3.1 preserves them. Neither corpus exposes the hidden CS cache, so
-  this has no deciding oracle-versus-corpus case. It is a known limit for the
-  planned directed unreal-mode test, not a `divergences.toml` entry; see the
+  contract resets CS's limit to FFFFh and its access-rights byte to 93h (P=1,
+  DPL=0, S=1, read/write, expand-up, accessed data segment), while Bochs 3.1
+  preserves them. Neither corpus exposes the hidden CS cache, so this has no
+  deciding oracle-versus-corpus case. It is a known limit for the planned
+  directed unreal-mode test, not a `divergences.toml` entry; see the
   [design contract](../../../../docs/i386-cpu-design.md#compatibility-contract).
 - LOADALL is not modelled.
 - Bochs below CPU level 6 keeps the 0F 38 and 0F 3A three-byte escapes in its

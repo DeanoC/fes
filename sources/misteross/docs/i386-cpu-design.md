@@ -170,10 +170,10 @@ The segment-cache contract for the completed CPU follows the 386:
   cached limit and attributes stay as they were. The real-mode CS load from a
   far transfer or interrupt is not implemented in this slice ([RTL source](../cores/fes-common/rtl/i386/fes_i386_cpu.sv)).
 - When that CS path is implemented, a real-mode CS load sets the base to
-  selector × 16, the limit to FFFFh, and the 16-bit real-mode code attributes:
-  P=1, DPL=0, S=1, type=executable, readable, nonconforming code, D/B=0 and
-  G=0. This is the 386 rule described by Collins; Bochs 3.1 differs by
-  retaining CS's cached limit and access-right attributes on a real-mode load.
+  selector × 16, the limit to FFFFh, D/B=0 and G=0, and access-rights byte
+  93h (P=1, DPL=0, S=1, read/write, expand-up, accessed data segment). This is
+  the 386 rule described by Collins; Bochs 3.1 differs by retaining CS's
+  cached limit and access-right attributes on a real-mode load.
 - In V86 mode every segment load sets the base to selector × 16, the limit to
   FFFFh and the attributes to V86 values.
 - A protected-mode load replaces the whole cache from the descriptor.
@@ -182,13 +182,14 @@ So unreal mode works for DS, ES, FS, GS and SS. Software loads one of those
 segments with a large limit in protected mode and clears PE; its cached limit
 and attributes survive every later real-mode reload of that register. They
 are replaced when the register is loaded in protected or V86 mode. A real-mode
-CS load is the 386-specific exception: it resets CS to the real-mode limit and
-code attributes. DOS reloads DS and ES on every call, so unreal-mode programs
-that call DOS depend on the data-segment behavior, and Ultima VII's Voodoo
-memory manager runs in unreal mode. Every data access is checked against the
-cached limit in every mode: with a normal real-mode segment, a word access at
-offset FFFFh raises #GP (#SS for a stack access), while an unreal-mode data
-segment uses its cached extended limit.
+CS load is the 386-specific exception: it resets CS to limit FFFFh and the
+access-rights byte 93h (read/write, expand-up, accessed data segment). DOS
+reloads DS and ES on every call, so unreal-mode programs that call DOS depend
+on the data-segment behavior, and Ultima VII's Voodoo memory manager runs in
+unreal mode. Every data access is checked against the cached limit in every
+mode: with a normal real-mode segment, a word access at offset FFFFh raises
+#GP (#SS for a stack access), while an unreal-mode data segment uses its cached
+extended limit.
 
 The evidence:
 
@@ -205,9 +206,9 @@ The evidence:
   also cited in Bochs's source comment as an x86.org finding, says that on the
   286, 386 and 486 a real-mode CS load receives fixed real-mode values, while
   other segment registers retain their cached limit and access rights. This
-  design follows that 386-specific rule for CS. Its code attributes are
-  present (P=1), ring 0 (DPL=0), a code segment (S=1 and executable/readable
-  type), 16-bit default size (D/B=0) and byte-granular limit (G=0).
+  design follows that 386-specific rule for CS: access-rights byte 93h (P=1,
+  DPL=0, S=1, read/write, expand-up, accessed data segment), 16-bit default
+  size (D/B=0), byte-granular limit (G=0) and limit FFFFh.
 - Bochs 3.1, the lockstep oracle (`REL_3_1_FINAL`, `cpu/segment_ctrl_pro.cc`,
   `load_seg_reg`), keeps limit and access-right attributes on every real-mode
   load, including CS; its real-mode far-transfer path uses that loader. It
