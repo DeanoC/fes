@@ -336,8 +336,13 @@ void TestDeveloperVideoSocketCompatibility() {
  auto changed=d;changed.core.id="fes.other";assert(!mister::native::CheckCoreCompatibility(changed).ok());
  changed=d;changed.format=3;assert(!mister::native::CheckCoreCompatibility(changed).ok());
  changed.rom.role="cartridge";changed.rom.source_size=16384;
+ assert(!mister::native::CheckCoreCompatibility(changed).ok());
+ changed=d;changed.format=4;assert(!mister::native::CheckCoreCompatibility(changed).ok());
+ changed.roms={{"coleco-bios","firmware",8192,0},{"coleco-cart","cartridge",16384,8192}};
  assert(mister::native::CheckCoreCompatibility(changed).ok());
- changed.rom.source_size=8192;assert(!mister::native::CheckCoreCompatibility(changed).ok());
+ changed.roms[1].source_size=131072;assert(!mister::native::CheckCoreCompatibility(changed).ok());
+ changed.roms[1].source_size=16384;changed.roms[0].role="cartridge";
+ assert(!mister::native::CheckCoreCompatibility(changed).ok());
  changed=d;changed.interfaces.back().required=true;assert(!mister::native::CheckCoreCompatibility(changed).ok());
  changed=d;changed.interfaces.back().minor=1;assert(!mister::native::CheckCoreCompatibility(changed).ok());
  changed=d;changed.interfaces.back().major=2;assert(!mister::native::CheckCoreCompatibility(changed).ok());
@@ -360,7 +365,7 @@ void TestDeveloperVideoSocketCompatibility() {
 void TestApplicationSessionDisplayCompatibility()
 {
  mister::CoreDescriptor d;
- d.format=3;d.rom.role="cartridge";d.rom.source_size=16384;d.core.id="fes.coleco";
+ d.format=4;d.roms={{"coleco-bios","firmware",8192,0},{"coleco-cart","cartridge",16384,8192}};d.core.id="fes.coleco";
  d.target={"de10_nano","5CSEBA6U23I7","fes-gp-v1"};d.abi={"fes.application",1,0};
  d.interfaces={{"fes.video.fixed-720p60",1,0,true},{"fes.expansion.coleco-bus",2,0,false},
   {"fes.fabric.video.native-pixels",1,0,false},{"fes.memory.hps-ddr",1,0,true},
