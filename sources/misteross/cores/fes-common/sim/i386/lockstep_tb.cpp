@@ -1216,6 +1216,14 @@ void run_fault_regressions(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, c
                    nullptr, 0);
     // AAM 0.
     run_fault_case(oracle, bus, rtl, entries, summary, "aam-zero", {0xd4, 0x00, 0xf4}, de, false, 0, nullptr, 0);
+    // IDIV BL: AX -129 by 1. The 386EX divides AX's one's complement, 128,
+    // so the quotient is 80h until the one the complement owes is added; it
+    // overflows only when checked after that.
+    State exact = de;
+    exact.gpr[fes_i386::REG_EAX] = 0xff7f;
+    exact.gpr[fes_i386::REG_EBX] = 0x0001;
+    run_fault_case(oracle, bus, rtl, entries, summary, "idiv8-exact-overflow", {0xf6, 0xfb, 0xf4}, exact, false, 0,
+                   nullptr, 0);
 }
 
 // ---- SingleStepTests mode ---------------------------------------------------------------

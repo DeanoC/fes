@@ -5,7 +5,8 @@ The first-party 386-compatible CPU proposed in
 holds Phase 1's slices so far: the uop format, the front end from F1 to Q,
 and `fes_i386_cpu`, which runs the real-mode instructions `fes_i386_decode`
 lists from D to WB, with their memory forms on a data port, fixed uop
-sequences, the microcode ROM and exception delivery. There is no cache yet.
+sequences, the microcode ROM, exception delivery and the multiply and divide
+unit. There is no cache yet.
 
 | File | Stage | Content |
 | --- | --- | --- |
@@ -24,6 +25,7 @@ sequences, the microcode ROM and exception delivery. There is no cache yet.
 | `fes_i386_shflags.sv` | WB | The 386EX's shift CF and OF, from the result and the shifter bits EX keeps |
 | `fes_i386_exctl.sv` | M2 | EX's controls, decoded a stage ahead into registered one-hot selects, and its operands cut to size |
 | `fes_i386_ex.sv` | EX | The late ALU (one adder, a second chain for OF and SF, ZF from the operands), the result's merge into its register, flags and branch resolution |
+| `fes_i386_muldiv.sv` | EX | MUL, IMUL, DIV, IDIV, AAM and AAD over several cycles: four DSP products and a restoring divider, with the 386EX's flags and its divide error |
 | `fes_i386_cpu.sv` | F1-WB | The top: front end, DC's decoded buffer, D, AG, M1, M2, EX, WB, the register file, segment registers, reset state and retirement trace |
 
 ## Front end
@@ -128,7 +130,10 @@ they do. Nothing moves relative to anything else, so the forwarding
 distances, AG's late operands, the store merge and D's forwarding tables all
 hold as they are. Whether M2 holds a load is a register set as it enters, so
 the freeze is one gate on `dmem_valid`; WB's flush waits for it, which makes
-a taken branch or a fault in WB wait out a wrong-path load. What WB does with
+a taken branch or a fault in WB wait out a wrong-path load. A multiply or
+divide freezes them the same way while it works in EX (`md_busy`, a register
+set as the uop enters EX), and so the freeze has one more registered input
+and D's issue no new term. What WB does with
 its uop (flush, redirect, deliver a fault) is decided as the uop enters WB, so
 each of those is one gate from the freeze too.
 
@@ -143,8 +148,9 @@ DC decodes the instruction to one uop (`fes_i386_decode`): group 1, INC,
 DEC, NEG, NOT, TEST, MOV (to and from a segment register in real mode, and
 immediates), LEA, the shifts and rotates, SHLD and SHRD, SETcc, MOVZX and
 MOVSX, CBW/CWDE, CWD/CDQ, SAHF, LAHF, the flag set and clear instructions,
-NOP, HLT, the near JMP, Jcc, LOOP, LOOPE, LOOPNE and JCXZ, and the stack
-operations below, with a ModRM memory operand wherever they take one. A memory operand is a load, a store,
+NOP, HLT, the near JMP, Jcc, LOOP, LOOPE, LOOPNE and JCXZ, MUL, IMUL (all
+three forms), DIV, IDIV, AAM and AAD, and the stack operations below, with
+a ModRM memory operand wherever they take one. A memory operand is a load, a store,
 or both in one uop (read-modify-write), and stands for the register it
 replaces: no GPR is read or written for it. Its segment is the override, else
 SS for a BP-, EBP- or ESP-based address, else DS. LOCK on anything but a
@@ -264,6 +270,55 @@ every field and routine.
   FLAGS' image and load the writable real-mode flags in its running copy, as
   INT's and IRET's do.
 
+**Multiply and divide** (`fes_i386_muldiv`) work in EX while D to WB
+freeze, from EX's operands, which stay put meanwhile. The unit touches EX
+only through registers:
+- it copies what EX makes its operand y of (EX's y register, WB's result,
+  the load, the bypass selects) in its first cycle and applies the bypass
+  itself; of EX's logic it reads only src1's bypassed value, which feeds
+  EX's keep lanes;
+- in its last cycle it writes its result, merged into the destination's old
+  value, into the uop's record, which EX passes through LEA's select, and a
+  divide error into the record's fault;
+- the uop leaves on the cycle after with the unit's flags, which EX's flag
+  logic takes off the adder's path.
+- **Forms.** MUL and IMUL of AL or eAX by r/m, IMUL r, r/m and r, r/m, imm
+  (whose multiplicand is src2 and multiplier imm), DIV and IDIV of AX,
+  DX:AX or EDX:EAX by r/m, AAM and AAD. A 16- or 32-bit MUL writes EAX and
+  keeps the high half, which a HI uop after it writes into EDX
+  (`SEQ_MUL`). A 16- or 32-bit DIV first hands the unit EDX in a LOAD uop,
+  which carries the divide's op in imm and reads the memory operand too, so
+  a fault on it comes before anything is written; then the divide writes
+  EAX and HI the remainder into EDX (`SEQ_DIV`). HI takes the kept half
+  into its record as it leaves M2, and EX's lanes merge it.
+- **Multiply.** The operands' copy (E0), four 18x18 DSP products of the
+  33-bit operands (E1), their sum as a 3:2 row and one carry chain (E2), the
+  result halves and CF/OF (E3), and the undefined flags (E4): 5 cycles.
+  The 386EX multiplies a bit per cycle, right to left, and stops once the
+  multiplier's remaining bits are all zeros, or all ones for a negative
+  IMUL multiplier; SF, ZF, AF and PF are its last step's, which come out of
+  the product shifted right by that step. AAD multiplies AH by imm, then
+  adds AL with the ADD's flags.
+- **Divide.** Restoring, a bit per cycle, as the 386EX's microcode, whose
+  flags are its last step's trial subtract at the operand size. DIV first
+  compares the dividend's high half with the divisor; if it is not below,
+  the quotient overflows, and the 386EX keeps the subtract and takes one
+  step fewer, so the flags a divide error pushes are those steps'. IDIV
+  divides a negative dividend's one's complement by the divisor's magnitude,
+  adds the one the complement owes and checks the quotient for its sign's
+  range. On an overflowing dividend the steps leave a garbage quotient that
+  now and then passes, as the 386EX's does (8-bit quotients of 80h).
+  Its flags are those of the remainder's sign fix. The unit works 36 cycles
+  on DIV r/m32 and 37 on IDIV r/m32, 12 and 13 on a byte (one fewer for a
+  DIV that overflows). AAM divides AL by imm.
+- **#DE.** A divisor of zero or an overflowing quotient raises `FAULT_DE`
+  in EX, delivered at WB as vector 0 like any other fault, with the flags
+  the divide changed.
+- **The wait.** `md_busy` is set as the uop enters EX and clears in the
+  unit's last cycle. A flush waiting in WB cuts it after a cycle, since the
+  uop behind it is on the wrong path. The uop in WB waits out a multiply or
+  divide too, so its retirement shows the wait.
+
 **D** keeps the instruction's EIP with an incrementer. In 16-bit code EIP is
 not cut to 16 bits, as on the 386: an instruction that ends at offset FFFFh
 leaves EIP 10000h. Real-mode CS loads leave CS's limit at FFFFh, and an
@@ -339,9 +394,11 @@ F1 from WB, where every younger uop is flushed, and clears D's forwarding
 tables. A fault, an unimplemented encoding or HLT stops D issuing after it.
 At WB an unimplemented encoding stops the CPU with nothing retired, and HLT
 retires and stops it. A fault is delivered:
-- **Entry.** WB flushes everything younger, restores EX's running flags from
-  EFLAGS (the faulting uop has passed EX, but its flags never retire), and
-  restarts the front end and DC. The cycle after, DC's skid takes the
+- **Entry.** WB flushes everything younger and restarts the front end and
+  DC. A uop that faults before EX changes nothing there, so the delivery
+  starts from EX's running flags as they were before it. A divide raises #DE
+  in EX itself, after its flags reach that copy, so its delivery pushes them,
+  as the 386EX does. The cycle after, DC's skid takes the
   exception's entry (`dc_exc`): a NOP, at length 0, that starts the ROM's
   `vector` routine with the fault's vector, the one INTO enters.
 - **The frame.** D's EIP is the faulting instruction's, cut to 16 bits, so
