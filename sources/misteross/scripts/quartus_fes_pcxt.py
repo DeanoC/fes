@@ -75,10 +75,14 @@ def capture_sources(root: Path, output: Path) -> tuple[Path, dict[str, str]]:
 def elaboration(source: Path, work: Path, library: Path) -> str:
     includes = [source / 'cores/fes-common/generated', work]
     includes += [source / CORE / 'vendor' / name for name in ('kf8259', 'kf8253', 'kf8255')]
+    # Yosys unquotes filename arguments, but preserves quotes in -I values.
+    # Refuse ambiguous include tokens rather than silently losing the headers.
+    if any(any(c.isspace() or c in '\\";' for c in str(p)) for p in includes):
+        raise ValueError('Yosys include directories must not contain whitespace, quotes or semicolons')
     quote = lambda p: '"' + str(p).replace('\\', '\\\\').replace('"', '\\"') + '"'
     return (
         f'read_verilog -lib {quote(library)}; read_verilog -sv '
-        + ' '.join('-I ' + quote(p) for p in includes) + ' '
+        + ' '.join('-I ' + str(p) for p in includes) + ' '
         + ' '.join(quote(source / p) for p in (str(ADAPTERS), *RTL))
         + '; chparam -set MDA 0 -set SCANLINES 0 -set HALF_RATE_BOARD 1 top; '
         # Both libraries spell disabled bus hold differently: OFF is the

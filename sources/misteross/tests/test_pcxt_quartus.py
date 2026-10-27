@@ -2,13 +2,70 @@
 import csv
 import io
 import json
+import os
 from pathlib import Path
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
 from unittest import mock
 
 from scripts import quartus_fes_pcxt as builder
+
+YOSYS = os.environ.get('YOSYS') or shutil.which('yosys')
+
+
+@unittest.skipUnless(YOSYS, 'requires Yosys for the real elaboration path')
+class QuartusElaborationTests(unittest.TestCase):
+    def test_headers_byte_write_memory_and_signed_pll_parameters_survive(self):
+        with tempfile.TemporaryDirectory(prefix='pcxt-quartus-elaborate-') as directory:
+            base = Path(directory)
+            source, work = base / 'source', base / 'work'
+            includes = source / 'cores/fes-common/generated'
+            includes.mkdir(parents=True)
+            work.mkdir()
+            (includes / 'fixture.vh').write_text('`define WORDS 8192\n')
+            (source / 'adapter.v').write_text('// no boundary wrapper in this focused fixture\n')
+            (source / 'top.sv').write_text('''
+`include "fixture.vh"
+module top #(parameter MDA=0, SCANLINES=0, HALF_RATE_BOARD=0)(
+ input clk, we, high_byte, input [12:0] a,b, input[7:0] data,
+ output reg[15:0] q_a,q_b, output pll_clock, locked);
+reg[15:0] memory[0:`WORDS-1];
+always @(posedge clk) begin
+ q_a <= memory[a]; q_b <= memory[b];
+ if(we) begin
+  if(high_byte) memory[a][15:8] <= data;
+  else memory[a][7:0] <= data;
+ end
+end
+altera_pll #(.number_of_clocks(1),.duty_cycle0(50),
+ .reference_clock_frequency("50.0 MHz"),.output_clock_frequency0("100.0 MHz"))
+ pll(.refclk(clk),.rst(1'b0),.outclk(pll_clock),.locked(locked));
+endmodule
+''')
+            library = Path(YOSYS).resolve().parent.parent / 'share/yosys/intel_alm/common/megafunction_bb.v'
+            if not library.is_file():
+                self.skipTest('Yosys installation lacks Intel ALM blackboxes')
+            with mock.patch.object(builder, 'RTL', ('top.sv',)), \
+                    mock.patch.object(builder, 'ADAPTERS', Path('adapter.v')):
+                program = builder.elaboration(source, work, library)
+            result = subprocess.run([YOSYS, '-p', program], cwd=work, capture_output=True, text=True, timeout=30)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            model = json.loads((work / 'elaborated.json').read_text())['modules']['top']
+            memories = [c for c in model['cells'].values() if c['type'] == '$mem_v2']
+            self.assertEqual(len(memories), 1)
+            parameters = memories[0]['parameters']
+            self.assertEqual(int(parameters['SIZE'], 2), 8192)
+            self.assertEqual(int(parameters['RD_PORTS'], 2), 2)
+            self.assertEqual(int(parameters['WR_PORTS'], 2), 1)
+            self.assertEqual(int(parameters['RD_CLK_ENABLE'], 2), 3)
+            self.assertEqual(int(parameters['RD_TRANSPARENCY_MASK'], 2), 0)
+            self.assertEqual(int(parameters['RD_COLLISION_X_MASK'], 2), 0)
+            emitted = (work / 'elaborated.v').read_text()
+            self.assertIn(".duty_cycle0(32'sd50)", emitted)
+            self.assertIn(".number_of_clocks(32'sd1)", emitted)
 
 
 class QuartusCaptureTests(unittest.TestCase):
