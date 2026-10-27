@@ -88,15 +88,16 @@ register, scales the index and registers AG's operands.
 
 D's forwarding selects are worked out a cycle ahead, per GPR. Each cycle a
 table records, for every GPR, where its youngest value will be next cycle
-among the uops then in M1, M2, EX and WB: in a result register, late from EX
-or WB, further off, or only in the register file. It is written from the
-destination tags of the uops now in AG, M1, M2 and EX. Beside it go the GPR
-the uop in D writes, when that result is ready, and whether the uop left D:
-next cycle that uop is in AG, younger than everything in the table. D's cycle
-applies each GPR's registered select to the result registers beside the
-addressing decode and picks base and index by register number, with no tag
-compare. If the stages behind D ever hold, the table must be written from the
-held producers.
+among the uops then in M1, M2, EX and WB: in a result register, or only in the
+register file. It is written from the destination tags of the uops now in AG,
+M1, M2 and EX. Its state as an address operand, late from M1, EX or WB, or
+further off, also counts the uop now in D when it leaves D: next cycle that
+uop is in AG, younger than everything in the table, and what it writes is
+late from M1 if its result is early, else further off. D's cycle applies each
+GPR's registered select to the result registers beside the addressing decode
+and picks base and index, and whether each stalls, by register number, with
+no tag compare. If the stages behind D ever hold, the table must be written
+from the held producers.
 
 A value completing in the cycle the uop leaves D arrives late, from the
 register it lands in when the uop is in AG: the previous uop's early-ALU
@@ -127,7 +128,9 @@ they do. Nothing moves relative to anything else, so the forwarding
 distances, AG's late operands, the store merge and D's forwarding tables all
 hold as they are. Whether M2 holds a load is a register set as it enters, so
 the freeze is one gate on `dmem_valid`; WB's flush waits for it, which makes
-a taken branch or a fault in WB wait out a wrong-path load.
+a taken branch or a fault in WB wait out a wrong-path load. What WB does with
+its uop (flush, redirect, deliver a fault) is decided as the uop enters WB, so
+each of those is one gate from the freeze too.
 
 **DC** decodes Q's output register into a two-entry buffer of decoded
 instructions: `dc` holds the instruction D issues, and `dc_skid` takes Q's
@@ -293,6 +296,8 @@ selector read (MOV r/m, Sreg), and a memory operand for its segment's base,
 waits in D while an older uop writes that segment register; a register of
 the segments in flight makes each wait one select. A load waits one cycle
 behind a store, whose data EX computes in the cycle the load would be in M2.
+The waits behind the uop in AG (behind a store, a shift, a stack operation
+that writes ESP) read what that uop is from bits registered as it enters AG.
 
 **AG** runs `fes_i386_agu` for a memory operand's linear address and offset,
 for LEA's offset, or for a branch's target: CS.base + EIP + length +
