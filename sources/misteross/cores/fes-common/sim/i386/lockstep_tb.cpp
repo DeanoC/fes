@@ -5,7 +5,9 @@
 // two architectural states are compared: EIP, the GPRs, EFLAGS bits 0-17 and
 // the six segment registers (selector, base, limit, attributes). Memory writes
 // are compared as each side reports them: the bytes each instruction writes
-// must be the same bytes, with the same values, on both sides. An instruction
+// must be the same bytes, with the same values, on both sides. So are I/O
+// accesses: each instruction's, in order, with their ports, lengths and data,
+// on an I/O space each side keeps (IoSpace). An instruction
 // that faults in the oracle must fault in the RTL with the same vector, with
 // nothing of it retired; both deliver it, and the delivery, its frame
 // included, is compared as a retirement. A fault while an exception is
@@ -20,9 +22,9 @@
 // writes the opcode-class entries to FES_I386_DIVERGENCES, one per line:
 //   <id> <corpus|oracle> <stem,...|*> <predicate,...|-> <field,...>
 //
-// The memory model delays each fetch block, and each load's bytes, by a
-// random 0-12 cycles when FES_I386_LATENCY=1 (the default); latency must
-// never change a result. A load's bytes are memory as it was on the edge M1
+// The memory model delays each fetch block, each load's bytes and each I/O
+// access's completion by a random 0-12 cycles when FES_I386_LATENCY=1 (the
+// default); latency must never change a result. A load's bytes are memory as it was on the edge M1
 // sent the address, read before the store retiring on that edge writes.
 //
 // Modes (FES_I386_MODE):
@@ -38,8 +40,10 @@
 //           immediate and 16-bit-addressed memory forms of the slice's
 //           instructions with prefixes, forward branches, bounded LOOPs,
 //           backward jumps, pushes and pops, CALLs to subroutines that RET
-//           and PUSH BP / MOV BP, SP / LEAVE frames, so results forward
-//           between instructions and taken branches kill younger producers.
+//           and PUSH BP / MOV BP, SP / LEAVE frames, IN, OUT, INS and OUTS
+//           on a few ports, so results forward between instructions and
+//           taken branches kill younger producers. Each port holds a byte
+//           (IoSpace); in corpus mode every port reads all ones.
 //           FES_I386_FIRST skips the programs before it (they are still
 //           generated), to run one again.
 //           A run stops at its HLT, once it has delivered an exception,
@@ -94,22 +98,71 @@ std::string hex(uint64_t value) {
 
 // ---- Buses -------------------------------------------------------------------
 
-// The oracle's memory: 16 MiB of RAM, I/O reads all ones.
+// One I/O access: a write (OUT) or a read (IN), its port, its length in
+// bytes and its data.
+struct IoAccess {
+    bool write = false;
+    uint16_t port = 0;
+    unsigned length = 0;
+    uint32_t data = 0;
+    bool operator==(const IoAccess &o) const {
+        return write == o.write && port == o.port && length == o.length && data == o.data;
+    }
+    bool operator!=(const IoAccess &o) const { return !(*this == o); }
+    uint64_t key() const { return uint64_t(write) << 60 | uint64_t(length) << 52 | uint64_t(port) << 32 | data; }
+};
+
+// An I/O space, one per side. Open (corpus mode), every port reads all ones
+// and ignores writes, as the corpus's test bus did. Otherwise each port holds
+// a byte, which an OUT writes and an IN reads and then increments, so a
+// repeated IN reads a new value and an OUT's data reaches the INs after it. A
+// word or dword access is its bytes at port, port + 1, and on, wrapping at
+// 64K. Each side logs its accesses, and the lockstep compares each
+// instruction's, in order.
+struct IoSpace {
+    bool open = true;
+    std::vector<uint8_t> port = std::vector<uint8_t>(65536);
+    std::vector<IoAccess> log;
+    void reset(bool open_bus) {
+        open = open_bus;
+        for (uint32_t i = 0; i < 65536; ++i) port[i] = uint8_t(i * 37 + (i >> 8));
+        log.clear();
+    }
+    uint32_t in(uint16_t at, unsigned length) {
+        uint32_t value = 0;
+        for (unsigned i = 0; i < length; ++i) {
+            uint8_t &b = port[uint16_t(at + i)];
+            value |= uint32_t(open ? 0xff : b) << (8 * i);
+            if (!open) ++b;
+        }
+        log.push_back({false, at, length, value});
+        return value;
+    }
+    void out(uint16_t at, unsigned length, uint32_t value) {
+        if (length < 4) value &= (1u << (8 * length)) - 1;
+        if (!open)
+            for (unsigned i = 0; i < length; ++i) port[uint16_t(at + i)] = uint8_t(value >> (8 * i));
+        log.push_back({true, at, length, value});
+    }
+};
+
+// The oracle's memory: 16 MiB of RAM, and its I/O space.
 class OracleBus final : public fes_i386::Bus {
 public:
     fes_i386::PageMemory ram{RAM_BYTES};
+    IoSpace io;
     uint8_t *page(uint32_t paddr, bool) override { return paddr < RAM_BYTES ? &ram[paddr & ~0xfffu] : nullptr; }
     void read(uint32_t, unsigned length, uint8_t *data) override { std::memset(data, 0xff, length); }
     void write(uint32_t, unsigned, const uint8_t *) override {}
-    uint32_t in(uint16_t, unsigned length) override { return length == 4 ? ~0u : (1u << (8 * length)) - 1; }
-    void out(uint16_t, unsigned, uint32_t) override {}
+    uint32_t in(uint16_t port, unsigned length) override { return io.in(port, length); }
+    void out(uint16_t port, unsigned length, uint32_t value) override { io.out(port, length, value); }
     uint8_t interrupt_acknowledge() override { throw std::runtime_error("unexpected INTA"); }
 };
 
 // ---- The RTL and its memory model ------------------------------------------------
 
 // A memory port with random latency: a request made on one edge completes 0-12
-// cycles later. Each later slice's ports (data, MMIO, I/O) take one.
+// cycles later. The fetch, data and I/O ports take one each.
 struct Latency {
     std::mt19937_64 *random = nullptr;
     unsigned waiting = 0;
@@ -126,12 +179,14 @@ public:
 
     Vfes_i386_cpu top;
     std::vector<uint8_t> ram;
-    Latency fetch, data;
+    IoSpace io;
+    Latency fetch, data, port;
     uint64_t cycles = 0;
     uint64_t load_waits = 0;  // cycles a load's bytes were late
     uint64_t md_waits = 0;    // cycles D to WB waited for a multiply or divide, since the last retirement
     std::set<uint32_t> step_writes;  // bytes written since the last next()
     std::set<uint32_t> written;      // bytes either side wrote since the run began, to clear after it
+    uint64_t io_unstable = 0;        // I/O requests whose port, size or data changed before their ack
 
     // Reset with this architectural state.
     void start(const State &s) {
@@ -146,9 +201,13 @@ public:
         }
         fetch.waiting = 0;
         data.waiting = 0;
+        port.waiting = 0;
+        io_waiting = false;
         top.mem_valid = 1;
         top.dmem_valid = 1;
+        top.io_ack = 0;
         step_writes.clear();
+        io.log.clear();
         top.reset = 1;
         for (int n = 0; n < 3; ++n) clock();
         top.reset = 0;
@@ -164,6 +223,31 @@ public:
         const uint64_t wdata = top.dmem_wdata;
         const uint8_t wmask = top.dmem_wmask;
         md_waits += top.trace_md_wait;  // this cycle, before the edge that ends it
+        // The I/O port: a request completes after its latency, counted from
+        // the cycle it rises, the access made on this side's I/O space then,
+        // with io_ack (and IN's data) on this edge. The request must hold its
+        // port, size and data until then. Otherwise io_rdata is garbage.
+        top.io_ack = 0;
+        top.io_rdata = uint32_t(cycles * 0x9e3779b9u);
+        if (top.io_req) {
+            const IoAccess now{bool(top.io_write), uint16_t(top.io_port), 1u << top.io_size, top.io_wdata};
+            if (!io_waiting) {
+                io_waiting = true;
+                io_request = now;
+                port.request();
+            } else {
+                port.tick();
+                if (now != io_request) ++io_unstable;
+            }
+            if (port.ready()) {
+                io_waiting = false;
+                if (now.write) io.out(now.port, now.length, now.data);
+                else top.io_rdata = io.in(now.port, now.length);
+                top.io_ack = 1;
+            }
+        } else {
+            io_waiting = false;
+        }
         top.clk = 1;
         top.eval();
         // The data port reads, then the retiring store writes. Until a load's
@@ -221,6 +305,7 @@ public:
     // (trace_exception), or stop.
     Event next() {
         step_writes.clear();
+        io.log.clear();
         for (int n = 0; n < EVENT_CYCLES; ++n) {
             if (stopped()) break;
             clock();
@@ -250,6 +335,8 @@ public:
 private:
     uint32_t address = 0;
     uint64_t loaded = 0;  // the bytes the last load read
+    bool io_waiting = false;  // an I/O request is waiting for its ack
+    IoAccess io_request;      // ... as it was when it rose
 
     template <typename W> static void set16(W &wide, int n, uint16_t value) {
         uint32_t &word = wide[n / 2];
@@ -651,6 +738,9 @@ struct Summary {
     // retirement that waited for one (the uop in WB waits too). Any
     // instruction within five after a string is after_string: one that reads
     // ESI, EDI or ECX waits in D until the string's last element retires.
+    // IN and OUT wait in WB for their access, so are several; the instruction
+    // after an I/O one (a string's included) is after_io: it waits in D until
+    // that retires.
     // Any other instruction right after a push or pop is after_stack: it
     // waits in D if it reads ESP. Any other after a store, not after a shift,
     // is after_store: one cycle, as D's store hold must not catch it. A store
@@ -658,9 +748,11 @@ struct Summary {
     // not.
     std::map<uint64_t, uint64_t> gap_sequential, gap_prefixed, gap_lea, gap_selector, gap_after_taken,
         gap_after_not_taken, gap_shift_consumer, gap_after_shift, gap_store_load, gap_after_store,
-        gap_address, gap_after_segment, gap_after_stack, gap_stack_stack, gap_several, gap_after_string;
+        gap_address, gap_after_segment, gap_after_stack, gap_stack_stack, gap_several, gap_after_string,
+        gap_after_io;
     uint64_t smc = 0;  // runs stopped at a store into their own code
     uint64_t load_waits = 0;
+    uint64_t io_accesses = 0;  // I/O accesses compared
 };
 
 void hash_state(Summary &summary, const State &s) {
@@ -679,8 +771,11 @@ struct MemUse {
     bool any() const { return reads || writes; }
 };
 
-// MOVS, CMPS, STOS, LODS or SCAS.
-bool is_string(uint8_t op) { return (op >= 0xa4 && op <= 0xa7) || (op >= 0xaa && op <= 0xaf); }
+// MOVS, CMPS, STOS, LODS, SCAS, INS or OUTS.
+bool is_string(uint8_t op) { return (op >= 0xa4 && op <= 0xa7) || (op >= 0xaa && op <= 0xaf) || (op >= 0x6c && op <= 0x6f); }
+
+// IN, OUT, INS or OUTS.
+bool is_io(uint8_t op) { return (op >= 0xe4 && op <= 0xe7) || (op >= 0xec && op <= 0xef) || (op >= 0x6c && op <= 0x6f); }
 
 // A push (PUSH r, r/m, imm or Sreg, CALL rel, r/m or ptr) or a pop (POP r,
 // r/m or Sreg, RET, RETF, LEAVE).
@@ -726,9 +821,9 @@ MemUse mem_use(const uint8_t *code) {
         m.reads = true;
         return m;
     }
-    if (!two && is_string(op)) {  // MOVS, CMPS, STOS, LODS, SCAS
-        m.reads = op != 0xaa && op != 0xab;
-        m.writes = op <= 0xa5 || op == 0xaa || op == 0xab;
+    if (!two && is_string(op)) {  // MOVS, CMPS, STOS, LODS, SCAS, INS, OUTS
+        m.reads = op != 0xaa && op != 0xab && op != 0x6c && op != 0x6d;
+        m.writes = (op >= 0xa4 && op <= 0xa5) || op == 0xaa || op == 0xab || op == 0x6c || op == 0x6d;
         return m;
     }
     if ((modrm >> 6) == 3) return m;
@@ -877,6 +972,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
     bool store_before = false, stack_before = false, pop_sp_before = false;
     unsigned since_segment = 99;  // retirements since a segment load
     unsigned since_string = 99;   // ... since a string instruction
+    bool io_before = false;       // the last retirement was an I/O instruction
     for (uint64_t step = 0;; ++step) {
         if (step == retire_limit) {
             outcome.limit = true;
@@ -894,6 +990,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                          before.seg[fes_i386::SEG_SS].base);
         const bool code32 = before.seg[fes_i386::SEG_CS].ar & 0x4000;
 
+        bus.io.log.clear();
         fes_i386::StepResult result = oracle.step();
         const Rtl::Event event = rtl.next();
         const std::string at = "@" + hex(before.eip) + ".";
@@ -1005,6 +1102,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             const bool muldiv = is_muldiv(code);
             if (retired_before) {
                 auto &gaps = branch_before ? (taken_before ? summary.gap_after_taken : summary.gap_after_not_taken)
+                           : io_before ? summary.gap_after_io
                            : since_string < 6 ? summary.gap_after_string
                            : prefixes > 1 ? summary.gap_prefixed
                            : use.any() && since_segment < 6 ? summary.gap_after_segment
@@ -1016,7 +1114,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                                      op != 0x8f && op != 0xc8
                                ? summary.gap_stack_stack
                            : op == 0x8d || use.any() ? summary.gap_address
-                           : xchg || muldiv ? summary.gap_several
+                           : xchg || muldiv || is_io(op) ? summary.gap_several
                            : stack_before ? summary.gap_after_stack
                            : shift_before ? (consumes_flags(code) ? summary.gap_shift_consumer : summary.gap_after_shift)
                            : store_before ? summary.gap_after_store
@@ -1030,6 +1128,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             pop_sp_before = op == 0x5c || op == 0x61 || (op == 0x8f && code[prefixes + 1] == 0xc4);
             since_segment = loads_segment(code) ? 0 : since_segment + 1;
             since_string = is_string(op) ? 0 : since_string + 1;
+            io_before = is_io(op);
             retired_before = true;
             branch_before = branch_taken(code, before, code32, taken_before);
             shift_before = is_shift(code);
@@ -1078,6 +1177,18 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             }
             for (uint32_t address : oracle_writes)
                 if (address >= code_lo && address < code_hi) outcome.smc = true;
+        }
+        // The I/O accesses, in order; a request must hold until its ack.
+        summary.io_accesses += bus.io.log.size();
+        if (bus.io.log != rtl.io.log) {
+            size_t k = 0;
+            while (k < bus.io.log.size() && k < rtl.io.log.size() && bus.io.log[k] == rtl.io.log[k]) ++k;
+            out.add(at + "io." + std::to_string(k), k < bus.io.log.size() ? bus.io.log[k].key() : ~0ull,
+                    k < rtl.io.log.size() ? rtl.io.log[k].key() : ~0ull);
+        }
+        if (rtl.io_unstable) {
+            out.add(at + "io-unstable", 0, rtl.io_unstable);
+            rtl.io_unstable = 0;
         }
         State oracle_state = oracle.get_state();
         const State rtl_state = rtl.state();
@@ -1394,6 +1505,8 @@ int run_corpus(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
         const State initial = to_state(test.initial);
         oracle.set_state(initial);
         rtl.start(initial);
+        bus.io.reset(true);
+        rtl.io.reset(true);
 
         Mismatches out;
         Outcome outcome;
@@ -1488,6 +1601,7 @@ public:
             else if (kind < 27) items.push_back(Item{muldiv_pair(), -1, 0, 0});
             else if (kind < 31) string_block();
             else if (kind < 32) enter_block();
+            else if (kind < 34) io_block();
             else items.push_back(Item{instruction(false), -1, 0, 0});
         }
         items.push_back(Item{{0xf4}, -1, 0, 0});
@@ -2056,6 +2170,61 @@ private:
         }
     }
 
+    // One to three INs and OUTs, imm8 and DX forms, of a byte, word or
+    // dword, on a few ports, so the INs read what the OUTs wrote (and DX =
+    // FFFFh, whose word wraps to port 0). Now and then DX, AH or eAX is
+    // written just before, so the I/O uop takes its port, its merge or its
+    // data from the WB register. Or a REP INS or OUTS (or one without REP)
+    // of up to four elements, with ES = DS so OUTS can read what INS stored.
+    void io_block() {
+        static const uint16_t ports[] = {0x20, 0x21, 0x60, 0x80, 0xed, 0x3f8, 0xfffe, 0xffff};
+        auto port = [&]() { return pick(4) ? ports[pick(8)] : uint16_t(rng()); };
+        auto mov_dx = [&](uint16_t value) { items.push_back(Item{{0xba, uint8_t(value), uint8_t(value >> 8)}, -1, 0, 0}); };
+        if (pick(4) == 0) {
+            const bool as32 = pick(4) == 0;
+            auto mov = [&](unsigned r, uint32_t value) {
+                std::vector<uint8_t> bytes;
+                if (as32) bytes.push_back(0x66);
+                bytes.push_back(uint8_t(0xb8 + r));
+                for (unsigned i = 0; i < (as32 ? 4u : 2u); ++i) bytes.push_back(uint8_t(value >> (8 * i)));
+                items.push_back(Item{bytes, -1, 0, 0});
+            };
+            mov(6, uint16_t(rng()));
+            mov(7, uint16_t(rng()));
+            const bool rep = pick(4) != 0;
+            if (rep) mov(1, pick(5));
+            mov_dx(port());
+            if (pick(3) == 0) items.push_back(Item{{uint8_t(pick(2) ? 0xfc : 0xfd)}, -1, 0, 0});
+            items.push_back(Item{{0x1e}, -1, 0, 0});  // PUSH DS
+            items.push_back(Item{{0x07}, -1, 0, 0});  // POP ES
+            for (unsigned n = 0, count = 1 + pick(2); n < count; ++n) {
+                std::vector<uint8_t> bytes;
+                if (pick(4) == 0) bytes.push_back(uint8_t(0x26 + 8 * pick(4)));
+                if (rep) bytes.push_back(0xf3);
+                if (pick(3) == 0) bytes.push_back(0x66);
+                if (as32) bytes.push_back(0x67);
+                bytes.push_back(uint8_t(0x6c + pick(4)));
+                items.push_back(Item{bytes, -1, 0, 0});
+            }
+            fence = int(items.size());
+            return;
+        }
+        for (unsigned n = 0, count = 1 + pick(3); n < count; ++n) {
+            const bool dx = pick(2), out = pick(2), wide = pick(3) != 0, os32 = wide && pick(2);
+            if (dx && pick(2)) mov_dx(port());
+            const unsigned before = pick(6);
+            if (before == 0) items.push_back(Item{{0xb4, byte()}, -1, 0, 0});  // MOV AH, imm8
+            else if (before == 1) items.push_back(Item{{0xb0, byte()}, -1, 0, 0});  // MOV AL, imm8
+            else if (before == 2) items.push_back(Item{{0x66, 0x40}, -1, 0, 0});  // INC EAX
+            std::vector<uint8_t> bytes;
+            if (pick(5) == 0) bytes.push_back(pick(2) ? 0xf3 : 0x2e);
+            if (os32) bytes.push_back(0x66);
+            bytes.push_back(uint8_t((dx ? 0xec : 0xe4) | (out ? 2 : 0) | (wide ? 1 : 0)));
+            if (!dx) bytes.push_back(uint8_t(port()));
+            items.push_back(Item{bytes, -1, 0, 0});
+        }
+    }
+
     // ENTER imm16, level (mostly 0-4, now and then any byte); a body that
     // may push; LEAVE, all of one operand size.
     void enter_block() {
@@ -2346,6 +2515,8 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
         oracle.invalidate(base, uint32_t(code.size()));
         oracle.set_state(state);
         rtl.start(state);
+        bus.io.reset(false);
+        rtl.io.reset(false);
 
         Mismatches out;
         Outcome outcome;
@@ -2443,7 +2614,7 @@ int main(int argc, char **argv) {
     VerilatedContext context;
     Rtl rtl(context);
     std::mt19937_64 latency_random(seed * 7919 + 17);
-    if (env("FES_I386_LATENCY", 1)) rtl.fetch.random = rtl.data.random = &latency_random;
+    if (env("FES_I386_LATENCY", 1)) rtl.fetch.random = rtl.data.random = rtl.port.random = &latency_random;
 
     Summary summary;
     const std::vector<Entry> entries = load_entries(std::getenv("FES_I386_DIVERGENCES"));
@@ -2483,13 +2654,13 @@ int main(int argc, char **argv) {
     std::printf("{\"mode\": \"%s\", \"seed\": %llu, \"latency\": %s, \"runs\": %llu, \"passed\": %llu, \"failed\": %llu, "
                 "\"retirements\": %llu, \"cycles\": %llu, \"halts\": %llu, \"interrupts\": %llu, \"faults\": %llu, \"fault_vectors\": {%s}, "
                 "\"double_faults\": %llu, "
-                "\"retire_limits\": %llu, \"smc_stops\": %llu, \"load_wait_cycles\": %llu, "
+                "\"retire_limits\": %llu, \"smc_stops\": %llu, \"load_wait_cycles\": %llu, \"io_accesses\": %llu, "
                 "\"divergence_retirements\": {%s}, "
                 "\"trace_hash\": \"%016llx\", "
                 "\"gaps\": {\"sequential\": %s, \"prefixed\": %s, \"lea\": %s, \"selector\": %s, "
                 "\"after_taken\": %s, \"after_not_taken\": %s, \"shift_consumer\": %s, \"after_shift\": %s, "
                 "\"store_load\": %s, \"after_store\": %s, \"address\": %s, \"after_segment\": %s, \"after_stack\": %s, \"stack_stack\": %s, "
-                "\"several\": %s, \"after_string\": %s}}\n",
+                "\"several\": %s, \"after_string\": %s, \"after_io\": %s}}\n",
                 mode.c_str(), (unsigned long long)seed, rtl.fetch.random ? "true" : "false",
                 (unsigned long long)summary.runs, (unsigned long long)summary.passed,
                 (unsigned long long)summary.failed, (unsigned long long)summary.retirements,
@@ -2497,7 +2668,8 @@ int main(int argc, char **argv) {
                 (unsigned long long)summary.interrupts,
                 (unsigned long long)summary.faults, vectors.c_str(), (unsigned long long)summary.double_faults,
                 (unsigned long long)summary.limits,
-                (unsigned long long)summary.smc, (unsigned long long)summary.load_waits, divergences.c_str(),
+                (unsigned long long)summary.smc, (unsigned long long)summary.load_waits,
+                (unsigned long long)summary.io_accesses, divergences.c_str(),
                 (unsigned long long)summary.trace_hash, histogram(summary.gap_sequential).c_str(),
                 histogram(summary.gap_prefixed).c_str(), histogram(summary.gap_lea).c_str(),
                 histogram(summary.gap_selector).c_str(), histogram(summary.gap_after_taken).c_str(),
@@ -2506,6 +2678,6 @@ int main(int argc, char **argv) {
                 histogram(summary.gap_after_store).c_str(), histogram(summary.gap_address).c_str(),
                 histogram(summary.gap_after_segment).c_str(), histogram(summary.gap_after_stack).c_str(),
                 histogram(summary.gap_stack_stack).c_str(), histogram(summary.gap_several).c_str(),
-                histogram(summary.gap_after_string).c_str());
+                histogram(summary.gap_after_string).c_str(), histogram(summary.gap_after_io).c_str());
     return summary.failed ? 1 : 0;
 }

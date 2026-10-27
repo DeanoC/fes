@@ -13,7 +13,7 @@
 //   M2  the loaded bytes, aligned and merged with older stores not yet written
 //   EX  ALU, shifter, flags, branch resolution (fes_i386_ex); multiply and
 //       divide (fes_i386_muldiv), over several cycles
-//   WB  in-order commit, stores included
+//   WB  in-order commit, stores and I/O accesses included
 //
 // Branches are predicted not taken. EX resolves them; a taken one redirects
 // F1 from WB and flushes every younger uop, which costs 10 cycles.
@@ -23,7 +23,8 @@
 // Nothing moves relative to anything else, so the forwarding distances, AG's
 // late operands, the store merge and D's forwarding tables all hold as they
 // are; the tables only need clearing on a flush. A multiply or divide in EX
-// freezes them the same way while it works.
+// freezes them the same way while it works, and an I/O access in WB until
+// the machine completes it.
 //
 // A fault (#UD, #GP(0), #SS(0), #NM, #DE) is taken at WB with nothing of its
 // instruction retired: WB flushes, and DC takes the exception's entry into
@@ -67,6 +68,17 @@ module fes_i386_cpu (
     output logic [31:0]      dmem_waddr,
     output logic [7:0][7:0]  dmem_wdata,
     output logic [7:0]       dmem_wmask,
+    // I/O: the access of the uop in WB, at commit (io_req), held until the
+    // machine completes it (io_ack, IN's data in io_rdata on that edge). The
+    // port, the size (a byte, word or dword: 0, 1, 2) and OUT's data stay put
+    // while io_req is high; a request after an ack is the next access.
+    output logic             io_req,
+    output logic             io_write,
+    output logic [15:0]      io_port,
+    output logic [1:0]       io_size,
+    output logic [31:0]      io_wdata,
+    input  logic             io_ack,
+    input  logic [31:0]      io_rdata,
     output logic             trace_retire,
     output logic             trace_exception,      // the retirement delivered exception trace_vector
     output logic [7:0]       trace_vector,
@@ -122,9 +134,11 @@ module fes_i386_cpu (
     // waits too, then faults). WB waits as well, so a taken branch or a fault
     // there takes effect, and flushes, once the bytes arrive, even when the
     // load is on the wrong path. So does a multiply or divide while it works
-    // in EX (md_busy, registered as it enters EX; see EX).
-    logic freeze, m2_load, md_busy;
-    assign freeze = m2_load && !dmem_valid || md_busy;
+    // in EX (md_busy, registered as it enters EX; see EX), and an I/O access
+    // in WB until the machine has completed it (io_wb, registered as the uop
+    // enters WB; io_done, registered from the completing edge; see WB).
+    logic freeze, m2_load, md_busy, io_wb, io_done;
+    assign freeze = m2_load && !dmem_valid || md_busy || io_wb && !io_done;
 
     // A fault in WB is delivered (exc_take): WB flushes, the front end and DC
     // restart, and DC takes the exception's entry the cycle after
@@ -626,6 +640,17 @@ module fes_i386_cpu (
     logic str_hazard;
     assign str_hazard = |(dc.rd_str & str_busy);
 
+    // An I/O instruction's access is at WB, and IN's data reaches only WB, so
+    // nothing younger issues until it has retired (io_busy, as t_busy): no
+    // load reads memory an OUT may remap, and nothing reads IN's data before
+    // it is in the register file. A REP INS or OUTS's own elements stream;
+    // the next instruction's first uop, never an element, waits.
+    logic io_busy, io_hazard;
+    function automatic logic does_io(input pipe_t s);
+        does_io = s.valid && s.uop.io != 2'd0;
+    endfunction
+    assign io_hazard = io_busy && !(dc.str_a || dc.str_b);
+
     // What AG's uop is, for the holds below, registered as it enters AG: a
     // store, a shift or rotate, a stack operation that writes ESP.
     logic ag_store, ag_shift, ag_wsp;
@@ -675,7 +700,7 @@ module fes_i386_cpu (
     // the cycle the fault or HLT is in WB, its flush clears what D issues.
     assign issue = cur_valid && !(addr_use && lea_stall) && !(reads_seg && seg_hazard) && !(mem && mseg_hazard)
                 && !store_hazard && !flag_hazard && !sp_hazard && !stack_wait && !t_wait && !uc_wait && !str_wait
-                && !str_hazard && !freeze && !halted;
+                && !str_hazard && !io_hazard && !freeze && !halted;
     assign trace_issue = issue;
     assign trace_md_wait = md_busy;
 
@@ -685,7 +710,10 @@ module fes_i386_cpu (
             t_busy <= 1'b0;
             str_busy <= 3'd0;
             df_busy <= 1'b0;
+            io_busy <= 1'b0;
         end else if (!freeze) begin
+            io_busy <= issue && u.io != 2'd0 && !s_kill1 || does_io(ag_s) || does_io(m1_s) || does_io(m2_s)
+                    || does_io(ex_s);
             str_busy <= (issue && !s_kill1 ? {u.str_cx, u.str_di, u.str_si} : 3'd0) | str_steps(ag_s) | str_steps(m1_s) | str_steps(m2_s) | str_steps(ex_s);
             df_busy <= issue && writes_df(u) || ag_s.valid && writes_df(ag_s.uop) || m1_s.valid && writes_df(m1_s.uop)
                     || m2_s.valid && writes_df(m2_s.uop);
@@ -763,6 +791,7 @@ module fes_i386_cpu (
             d_out.uop.str_di = 1'b0;
             d_out.uop.str_cx = 1'b0;
             d_out.uop.st2 = 1'b0;
+            d_out.uop.io = 2'd0;
         end
     end
     always_ff @(posedge clk) begin
@@ -1090,6 +1119,13 @@ module fes_i386_cpu (
         ex_out = ex_s;
         ex_out.result = ex_result;
         ex_out.eflags = ex_flags_out;
+        // An I/O uop's port (b) and OUT's data or IN's merge (a) are used at
+        // WB, from its record: one its producer a stage ahead has just
+        // computed is taken from the WB register here, as EX's operands are.
+        if (ex_s.uop.io != 2'd0) begin
+            if (ex_s.pend_a && ex_s.dist_a == 3'd1) ex_out.a = wb_s.result;
+            if (ex_s.pend_b && ex_s.dist_b == 3'd1) ex_out.b = wb_s.result;
+        end
         // RET and JMP r/m: EX's adder gives the target.
         if (ex_s.exc.b_ind) begin
             ex_out.target = ex_ind_target;
@@ -1123,8 +1159,10 @@ module fes_i386_cpu (
         end
         if (reset || wb_flush) begin
             wb_s.valid <= 1'b0;
+            io_wb <= 1'b0;
         end else if (!freeze) begin
             wb_s <= ex_out;
+            io_wb <= ex_s.valid && ex_out.uop.io != 2'd0 && ex_out.uop.ctl.fault == fes_i386_pkg::FAULT_NONE;
         end
     end
 
@@ -1145,6 +1183,30 @@ module fes_i386_cpu (
 
     // A store writes its bytes on the edge it retires: the result's low
     // bytes, moved to the address's place in its dword and the next.
+    // The I/O access, while the uop that makes it is in WB and until the
+    // machine completes it; the uop retires on the edge after, with IN's
+    // data from io_data. The port is DX or imm8, OUT's data eAX (a) or, for
+    // OUTS, the loaded value (its result).
+    logic [31:0] io_data;
+    assign io_req = io_wb && !io_done;
+    assign io_write = wb_s.uop.io == 2'(fes_i386_pkg::IO_OUT);
+    assign io_port = wb_s.uop.src2.valid ? wb_s.b[15:0] : wb_s.uop.imm[15:0];
+    assign io_size = 2'(wb_s.uop.size);
+    assign io_wdata = wb_s.uop.mem.kind == fes_i386_pkg::MEM_LOAD ? wb_s.result : wb_s.a;
+    always_ff @(posedge clk) begin
+        if (reset || !freeze) begin
+            io_done <= 1'b0;
+        end else if (io_req && io_ack) begin
+            io_done <= 1'b1;
+            io_data <= io_rdata;
+        end
+    end
+    // IN's data: merged into eAX's old value by size, or stored (INS).
+    logic [31:0] wb_in, wb_sdata;
+    assign wb_in = wb_s.uop.size == fes_i386_pkg::SIZE_8 ? {wb_s.a[31:8], io_data[7:0]}
+                 : wb_s.uop.size == fes_i386_pkg::SIZE_16 ? {wb_s.a[31:16], io_data[15:0]} : io_data;
+    assign wb_sdata = wb_s.uop.io == 2'(fes_i386_pkg::IO_IN) ? io_data : wb_s.result;
+
     logic wb_store;
     assign wb_store = wb_s.valid && !reset && !freeze && !halted && wb_fault == 3'd0 && writes_mem(wb_s);
     logic [31:0] wb_saddr;
@@ -1152,12 +1214,12 @@ module fes_i386_cpu (
     assign dmem_write = wb_store;
     assign dmem_waddr = wb_saddr;
     always_comb begin
-        dmem_wdata = 64'(wb_s.result) << {wb_saddr[1:0], 3'b000};
+        dmem_wdata = 64'(wb_sdata) << {wb_saddr[1:0], 3'b000};
         dmem_wmask = (wb_s.uop.mem.bytes[2] ? 8'h0f : wb_s.uop.mem.bytes[1] ? 8'h03 : 8'h01) << wb_saddr[1:0];
     end
     always_ff @(posedge clk) if (reset || !freeze) begin
         rt_valid <= wb_store;
-        rt_data <= wb_s.result;
+        rt_data <= wb_sdata;
         rt_bytes <= wb_s.uop.mem.bytes;
     end
 
@@ -1242,7 +1304,7 @@ module fes_i386_cpu (
                 if (wb_s.uop.sp_add)
                     gpr[4] <= ss32 ? gpr[4] + wb_s.sp_new : {gpr[4][31:16], gpr[4][15:0] + wb_s.sp_new[15:0]};
                 if (wb_s.uop.dst.valid && wb_s.uop.dst.space == fes_i386_pkg::RS_GPR)
-                    gpr[wb_s.uop.dst.index[2:0]] <= wb_s.result;
+                    gpr[wb_s.uop.dst.index[2:0]] <= wb_s.uop.io == 2'(fes_i386_pkg::IO_IN) ? wb_in : wb_s.result;
                 // A string element's steps of ESI, EDI and ECX (CX by
                 // address size).
                 if (wb_s.uop.str_si) gpr[6] <= str_wb_step(gpr[6], wb_str_by, wb_s.uop.mem.addr32);

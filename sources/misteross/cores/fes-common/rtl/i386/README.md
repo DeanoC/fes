@@ -5,8 +5,9 @@ The first-party 386-compatible CPU proposed in
 holds Phase 1's slices so far: the uop format, the front end from F1 to Q,
 and `fes_i386_cpu`, which runs the real-mode instructions `fes_i386_decode`
 lists from D to WB, with their memory forms on a data port, fixed uop
-sequences, the string instructions and ENTER, the microcode ROM, exception
-delivery and the multiply and divide unit. There is no cache yet.
+sequences, the string instructions and ENTER, I/O on an I/O port, the
+microcode ROM, exception delivery and the multiply and divide unit. There is
+no cache yet.
 
 | File | Stage | Content |
 | --- | --- | --- |
@@ -133,7 +134,8 @@ the freeze is one gate on `dmem_valid`; WB's flush waits for it, which makes
 a taken branch or a fault in WB wait out a wrong-path load. A multiply or
 divide freezes them the same way while it works in EX (`md_busy`, a register
 set as the uop enters EX), and so the freeze has one more registered input
-and D's issue no new term. What WB does with
+and D's issue no new term. So does an I/O access in WB, until the machine
+completes it (`io_wb` and `io_done`, both registers; see I/O). What WB does with
 its uop (flush, redirect, deliver a fault) is decided as the uop enters WB, so
 each of those is one gate from the freeze too.
 
@@ -290,6 +292,29 @@ forwarding, and an offset wraps at its address's width.
   a cycle, and REP CMPS one in two. ENTER is 2 uops at level 0, 3 at level 1
   and the level plus 2 above, and a load waits a cycle behind its push of
   EBP and of the frame pointer.
+
+**I/O.** IN and OUT, with an imm8 or DX port, and INS and OUTS make their
+access at WB, never speculatively, on the I/O port.
+- **The access.** The uop in WB raises `io_req` with `io_port`, `io_size`
+  and, for OUT, `io_wdata`: eAX, or OUTS's loaded value. D to WB freeze until
+  the machine answers with `io_ack`, IN's data in `io_rdata`, and the uop
+  retires on the edge after. A uop that enters WB with a fault makes no
+  access, so INS's store and OUTS's load fault first, as on the 386.
+- **The data.** IN merges the port's data into eAX by size at WB. INS stores
+  it at ES:EDI as a STOS element would; OUTS loads seg:ESI as LODS does.
+- **What follows waits.** Nothing younger issues until an I/O instruction
+  has retired (`io_busy`, as `t_busy`): no load reads memory an OUT may
+  remap, and no uop reads IN's data before the register file holds it. A
+  REP INS or OUTS's own elements still issue back to back, each waiting in
+  WB for its access; the next instruction's first uop waits.
+- **The port and data registers** are used at WB, from the uop's record. EX
+  takes one that its producer, one stage ahead, has just computed from the
+  WB register into the record, as EX's own operands come.
+- Real mode has no I/O permission check, and there is no write buffer yet:
+  every older store has written when the access is made.
+- **Rates, without latency, with an ack in the cycle the request rises:**
+  REP INS and OUTS take 2 cycles an element. An IN or OUT takes 6 more
+  than a NOP, mostly the next instruction's wait to issue.
 
 **Microcode.** Longer routines come from an M10K ROM
 (`fes_i386_ucode_rom`). `scripts/fes_i386_ucode.py` builds it from
@@ -479,7 +504,7 @@ retires and stops it. A fault is delivered:
 
 **WB** commits in order: the GPR file and segment registers in flip-flops,
 a string element's steps of ESI, EDI and ECX, EFLAGS, EIP and stores, the result's low bytes moved to the address's place
-in its dword and the next. A real-mode segment load sets the base to selector * 16 and
+in its dword and the next (IN's data for INS), and I/O accesses. A real-mode segment load sets the base to selector * 16 and
 keeps the limit and attributes.
 
 **Reset and trace.** `init_*` is the architectural state reset loads; a
