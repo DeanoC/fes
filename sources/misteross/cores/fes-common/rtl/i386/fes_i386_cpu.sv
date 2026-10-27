@@ -785,6 +785,10 @@ module fes_i386_cpu (
         m2_out.x = m2_x;
         m2_out.y = m2_y;
         m2_out.ld = ld_bytes;
+        // A HI uop's result is the half the multiply and divide unit kept
+        // (fes_i386_muldiv), done before the HI leaves M2.
+        if (m2_cap.uop.op == 5'd4 && (m2_cap.uop.cls == fes_i386_pkg::UOP_MUL || m2_cap.uop.cls == fes_i386_pkg::UOP_DIV))
+            m2_out.result = md_hi;
         if (m2_cap.pbad && m2_cap.uop.ctl.fault == fes_i386_pkg::FAULT_NONE) m2_out.uop.ctl.fault = fes_i386_pkg::FAULT_SS0;
     end
     always_ff @(posedge clk) begin
@@ -796,6 +800,12 @@ module fes_i386_cpu (
             m2_s <= m1_out;
             m2_load <= m1_s.valid && reads_mem(m1_s) && m1_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE;
             ex_s <= m2_out;
+        end else if (md_last) begin
+            // The multiply's or divide's result, and #DE for a divide whose
+            // quotient overflows or whose divisor is zero, with the flags it
+            // has changed.
+            ex_s.result <= md_result;
+            if (ex_s.exc.md_de && md_de) ex_s.uop.ctl.fault <= fes_i386_pkg::FAULT_DE;
         end
     end
 
@@ -807,7 +817,16 @@ module fes_i386_cpu (
     // end. A faulting uop changes nothing in EX (fes_i386_ex), so an
     // exception's delivery starts from the flags before it.
     logic [17:0] ex_flags, ex_flags_out, wb_flags, flags_keep;
-    logic [31:0] ex_result, ex_af, ex_y;
+    logic [31:0] ex_result, ex_af;
+    logic [31:0] md_result, md_hi;
+    logic [11:0] md_flags;
+    logic        md_last, md_de, md_load;
+    assign md_load = ex_s.valid && ex_s.exc.md && ex_s.uop.op == 5'd5;  // MULDIV_LOAD
+    fes_i386_muldiv muldiv (
+        .clk, .go(md_busy), .u(ex_s.uop), .af(ex_af), .yr(ex_s.y), .wb(wb_s.result), .ld(ex_s.ld),
+        .yw({ex_s.exc.yw32, ex_s.exc.yw16, ex_s.exc.yw_lo, ex_s.exc.yw_hi, ex_s.exc.yl}), .ld_en(md_load), .last(md_last), .result(md_result),
+        .de(md_de), .flags(md_flags), .hi(md_hi)
+    );
     logic        ex_taken, ex_sh_out0, ex_sh_outn, ex_sh_cfw, ex_sh_wide, ex_def_co, ex_def_szap;
     logic [31:0] ex_ind_target, ex_ind_eip;
     pipe_t       ex_out;
@@ -837,18 +856,12 @@ module fes_i386_cpu (
 
     // A multiply or divide works in EX over several cycles (fes_i386_muldiv),
     // from EX's operands, which stay put while D to WB freeze. md_busy is set
-    // as the uop enters EX and holds until the unit's last cycle; the uop
-    // leaves on the cycle after, with the unit's result and flags. A flush
-    // waiting in WB cuts the wait short: the uop is on the wrong path.
-    // A 16- or 32-bit DIV's LOAD uop hands the unit EDX while it is in EX.
-    logic [31:0] md_result;
-    logic [11:0] md_flags;
-    logic        md_last, md_de, md_load;
-    assign md_load = ex_s.valid && ex_s.exc.md && ex_s.uop.op == 5'd5;  // MULDIV_LOAD
-    fes_i386_muldiv muldiv (
-        .clk, .go(md_busy), .u(ex_s.uop), .af(ex_af), .y(ex_y), .ld_en(md_load), .last(md_last), .result(md_result),
-        .flags(md_flags), .de(md_de)
-    );
+    // as the uop enters EX and holds until the unit's last cycle, which
+    // writes the unit's result into the uop's record (EX takes it through
+    // LEA's select) and #DE into its fault; the uop leaves on the cycle after,
+    // with the unit's flags. A flush waiting in WB cuts the wait short: the
+    // uop is on the wrong path. A 16- or 32-bit DIV's LOAD uop hands the unit
+    // EDX while it is in EX.
     always_ff @(posedge clk) begin
         if (reset || wb_flush) md_busy <= 1'b0;
         else if (md_busy) md_busy <= !md_last && !wb_flushes;
@@ -862,7 +875,7 @@ module fes_i386_cpu (
     // LEA's offset is its whole result, which EX's LEA select passes.
     fes_i386_ex ex (
         .u(ex_s.uop), .exc(ex_s.exc), .a(ex_s.a), .xr(ex_s.x), .yr(ex_s.y), .wb(wb_s.result), .ld(ex_s.ld),
-        .ag_result(ex_s.result), .flags_in(ex_flags), .flags_keep, .md_result, .md_flags, .af(ex_af), .y(ex_y),
+        .ag_result(ex_s.result), .flags_in(ex_flags), .flags_keep, .md_flags, .af(ex_af),
         .result(ex_result), .flags_out(ex_flags_out),
 .taken(ex_taken), .ind_target(ex_ind_target), .ind_eip(ex_ind_eip), .sh_out0(ex_sh_out0), .sh_outn(ex_sh_outn), .sh_cfw(ex_sh_cfw), .sh_wide(ex_sh_wide),
         .def_co(ex_def_co), .def_szap(ex_def_szap)
@@ -882,10 +895,6 @@ module fes_i386_cpu (
         if (ex_s.exc.b_ind && !code32 && ex_ind_eip[31:16] != 16'd0
             && ex_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE)
             ex_out.uop.ctl.fault = seg_cs_ffff ? fes_i386_pkg::FAULT_GP0 : fes_i386_pkg::FAULT_UNIMPLEMENTED;
-        // A divide whose quotient overflows, or whose divisor is zero, raises
-        // #DE (fes_i386_muldiv), with the flags it has changed.
-        if (ex_s.exc.md_de && md_de && ex_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE)
-            ex_out.uop.ctl.fault = fes_i386_pkg::FAULT_DE;
         // A faulting branch terminates the pipeline without redirecting to its
         // rejected target. This also covers faults already found in M1.
         ex_out.taken = ex_taken && ex_out.uop.ctl.fault == fes_i386_pkg::FAULT_NONE;

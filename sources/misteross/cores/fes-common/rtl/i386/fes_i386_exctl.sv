@@ -100,9 +100,12 @@ module fes_i386_exctl (
     assign c.yw32 = yb && !(ya ? size8 || size16 : w8 || w16);
 
     // ---- The multiply and divide unit (fes_i386_muldiv) ------------------------
-    // Its uops take their whole result from the unit, already merged into the
-    // destination's old value, and their flags where they write any (not HI
-    // or LOAD). All but HI and LOAD work over several cycles.
+    // Its uops take their whole result, already merged into the destination's
+    // old value, from the pipe record's result field, which fes_i386_cpu
+    // fills from the unit, through LEA's select; and their flags from the unit
+    // where they write any (not HI or LOAD). HI's result is the kept half,
+    // which the lanes merge into EDX by size as any other. All but HI and
+    // LOAD work over several cycles.
     logic md, md_step;
     assign md = cls == C_MUL || cls == C_DIV;
     assign md_step = op == 5'd4 || op == 5'd5;  // MULDIV_HI, MULDIV_LOAD
@@ -117,7 +120,7 @@ module fes_i386_exctl (
     assign r_shift = cls == C_SHIFT;
     assign r_other = !r_add && !r_shift;
     assign dh8 = size8 && u.dst.hi8;
-    assign whole = !size8 && !size16 || md;
+    assign whole = !size8 && !size16 || md && op != 5'd4;  // MULDIV_HI
     assign c.add_lo = r_add && !dh8;
     assign c.add_mid = r_add && !size8;
     assign c.add_h8 = r_add && dh8;
@@ -134,7 +137,7 @@ module fes_i386_exctl (
     assign c.kp_mid = size8 && !dh8 && !md;
     assign c.kp_hi = !whole;
     assign c.r_logic = logic_op || lnot;
-    assign c.r_lea = alu && op == 5'd14;
+    assign c.r_lea = alu && op == 5'd14 || md;
     assign c.r_y = (alu && (op == 5'd15 || op == 5'd9)) || cls == C_SEGMENT;
     assign c.r_movsx = alu && op == 5'd16;
     assign c.r_setcc = alu && op == 5'd17;

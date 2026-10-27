@@ -34,9 +34,10 @@
 // list): AND, OR, XOR and TEST clear AF; a shift by a nonzero count sets AF;
 // shifts and rotates set OF and CF as fes_i386_shflags says.
 //
-// MUL, IMUL, DIV, IDIV, AAM and AAD take their result and flags from the
-// multiply and divide unit (fes_i386_muldiv, md_*), which reads EX's src1
-// (af) and y as it works.
+// MUL, IMUL, DIV, IDIV, AAM and AAD take their flags from the multiply and
+// divide unit (fes_i386_muldiv, md_flags), which reads EX's src1 (af);
+// their result comes through LEA's select, from the pipe record's result
+// field, which fes_i386_cpu fills from the unit.
 module fes_i386_ex (
     input  fes_i386_pkg::uop_t   u,
     input  fes_i386_pkg::exctl_t exc,
@@ -45,13 +46,11 @@ module fes_i386_ex (
     input  logic [31:0]          yr,
     input  logic [31:0]          wb,          // the WB result register
     input  logic [31:0]          ld,          // the loaded value (M2)
-    input  logic [31:0]          ag_result,   // LEA's offset
+    input  logic [31:0]          ag_result,   // LEA's offset; a multiply's or divide's result
     input  logic [17:0]          flags_in,
     input  logic [17:0]          flags_keep,
-    input  logic [31:0]          md_result,
     input  logic [11:0]          md_flags,
     output logic [31:0]          af,          // src1's whole value, bypassed
-    output logic [31:0]          y,
     output logic [31:0]          result,
     output logic [17:0]          flags_out,
     output logic                 taken,
@@ -82,7 +81,7 @@ module fes_i386_ex (
     endfunction
 
     // ---- Operands -----------------------------------------------------------------
-    logic [31:0] x, mask;
+    logic [31:0] x, y, mask;
     assign af = exc.byp_a ? wb : a;
     logic [31:0] xs, ys;  // what x and y take in: the WB result or the loaded value
     assign xs = exc.xl ? ld : wb;
@@ -143,8 +142,7 @@ module fes_i386_ex (
                    | ({32{exc.r_setcc}} & {31'b0, cc_true})
                    | ({32{exc.r_lahf}} & {24'b0, flags_in[7:6], 1'b0, flags_in[4], 1'b0, flags_in[2], 1'b1, flags_in[0]})
                    | ({32{exc.r_sign}} & {32{exc.src8 ? y[7] : exc.src16 ? y[15] : y[31]}})
-                   | ({32{exc.r_flags}} & {16'b0, flags_in[15:0]})
-                   | ({32{exc.md}} & md_result);
+                   | ({32{exc.r_flags}} & {16'b0, flags_in[15:0]});
     assign r_shift = out[32:1];
     assign result[7:0] = ({8{exc.add_lo}} & sum[7:0]) | ({8{exc.sh_lo}} & r_shift[7:0])
                        | ({8{exc.ot_lo}} & r_other[7:0]) | ({8{exc.kp_lo}} & af[7:0]);
