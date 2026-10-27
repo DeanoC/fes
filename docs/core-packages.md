@@ -59,9 +59,11 @@ archive carries both original objects and an optional exact-shell SGM archive;
 the target verifies each digest, composes the expansion and patches the sealed
 139,264-byte ROM map before programming. Status exposes both source identities
 in `rom_links`. Format-3 `rom_link` keeps its one-source behavior. The factory
-Coleco cartridge is that format and does not keep blob, stream, or firmware
-mailboxes. This producer is imported explicitly for
-development because `config/core-recipes.toml` has one row per core ID.
+Coleco package is also format 4, with an exact 8,192-byte `coleco-bios` at
+source offset 0 and a 16,384-byte `coleco-cart` at offset 8,192. It does not
+keep blob, stream, or firmware mailboxes. The separate development MegaCart
+producer is imported explicitly because `config/core-recipes.toml` has one row
+per core ID.
 
 Format-3 packages seal one named ROM requirement and its CRAM map alongside the
 base RBF. Select an exact-size binary for the title using the
@@ -72,10 +74,13 @@ This path needs no Python on the kit and requires runtime capability
 `rom_linking: 1`. Status records the map, source ROM and programmed RBF digests;
 restart adoption independently reconstructs the retained programmed bytes.
 
-The ZX81, SMS, SG-1000, Apple II, Commodore 64, ZX Spectrum 48K and factory Coleco producers export format 3 when sealed.
+The ZX81, SMS, SG-1000, Apple II, Commodore 64, ZX Spectrum 48K and Atari ST
+producers export format 3 when sealed. The factory Coleco and development
+MegaCart producers export format 4.
 Other core producers retain format 2 and their current media/firmware paths
 until explicitly converted. SMS requires an exact 32 KiB `cartridge-rom`;
-SG-1000 and Coleco require an exact 16 KiB `cartridge-rom`. Pad a shorter fixed-map
+SG-1000 requires an exact 16 KiB `cartridge-rom`; factory Coleco requires an
+exact 8 KiB `coleco-bios` and 16 KiB `coleco-cart`. Pad a shorter fixed-map
 cartridge with `0xff` before import. Apple II requires an exact 16 KiB
 `apple2-firmware` image covering `$C000–$FFFF`; its slot cards and floppy
 media are separate inputs (see the
@@ -121,7 +126,7 @@ equivalents are `fogcast video-profile scanlines`,
 `fogcast video-part-install scanlines /absolute/path/part.tar`, and
 `fogcast core-video GAME_ID` to inspect the resolved choice.
 
-The factory Coleco recipe emits a format-3 native-pixel video shell. Its
+The factory Coleco recipe emits a format-4 native-pixel video shell. Its
 256×192 indexed source feeds a linked part that owns frame capture and 720p
 output. The earlier raster video shell remains supported with its own
 slot/map/layout. A part binds to one exact package and its frozen socket.
@@ -233,7 +238,7 @@ fes-spectrum.package-selection.toml
 fes-ramtest.package-selection.toml
 core-packages/<package-id>/manifest.toml
 core-packages/<package-id>/core.rbf
-core-packages/<package-id>/rom-map.json  # format 3 only
+core-packages/<package-id>/rom-map.json  # formats 3 and 4
 fes-core-video-parts.json                # selected video inventory
 core-video-parts/index.json
 core-video-parts/<shell-package-id>/<part-id>.tar
@@ -387,7 +392,7 @@ for response contracts, persistence and recovery behavior.
 `mister-packages` owns the format-2/3 schemas, FES GP ABI and DE10-Nano programming
 profiles. `misteross` owns package construction and build provenance. The
 package ID hashes the exact manifest and payload bytes, plus the sealed ROM map
-for format 3, so changing any member creates a different immutable identity.
+for formats 3 and 4, so changing any member creates a different immutable identity.
 Package `version` follows semantic
 version syntax and describes the packaged core release; it does not relax ABI
 checks.
