@@ -1625,3 +1625,48 @@ clock frequency/phase, physical route, runtime/shared contract, package, kit
 or hardware-acceptance change is made. CPU/board/pixel clocks remain
 100/50/74.25 MHz. The native-search journal remains 133 entries with digest
 `2e47287e09f7fcf7f4f82f81d434097ce15d0b340c7345971b12e15ec681a585`.
+
+### Matched M10K source-route reference (27 October)
+
+A small Quartus reference now reproduces the frozen seed-1 memory output
+`M10K.041.002:DATABOUT.5` through the exact six-node branch into
+`MLAB.028.002.9:B`. The 24 decoded source-configuration records, 256 initial
+RAM rows and the sink's native L6 mode agree. The reference uses separate 50 MHz write and
+74.25 MHz read clocks. Its driven read-clock enable preserves the native
+address/core enable selections; the board's corresponding enable is tied
+high. Full clock trees, other logic and the sink's Boolean function are
+outside this reference's scope.
+
+Eight direct IC intervals cover both transitions at all four corners.
+Another sixteen full setup/hold reports independently match the measured
+source-to-sink increments within the printed 1 ps precision. At slow100,
+the rising interval is 1089--1265 ps and falling is 1306--1663 ps; at
+fast/-40 C they are 558--651 ps and 735--914 ps. Source and sink cuts come
+from actual net/pin ownership and decoded RBF routing. Earlier fits retain
+selector mismatches or ignored RCF signals; Quartus reports an unmatched
+RCF signal as informational, so successful fitting alone is insufficient.
+
+A diagnostic tests the stored memory-edge ramp class against that route.
+Its reported intervals are identical with the native and reference RBFs.
+Even after combining both transition directions and both seed-speed
+estimates, its earliest delay is too late at every corner:
+
+| Corner | Reference earliest (ps) | Candidate earliest (ps) | Optimism (ps) |
+| --- | ---: | ---: | ---: |
+| Slow100 | 1089 | 1183.492 | 94.492 |
+| Slow/-40 C | 999 | 1090.902 | 91.902 |
+| Fast100 | 666 | 718.856 | 52.856 |
+| Fast/-40 C | 558 | 603.475 | 45.475 |
+
+This hypothesis fails the early-bound check. No source waveform or compiler
+timing change is promoted from it. The next investigation is the per-hop
+source/route boundary and early-delay behavior against these independent
+measurements, followed by wider source-mode/load coverage.
+
+[The M10K record](board50-m10k-source-route-reference.json) and
+[its reproducible inputs and reports](board50-m10k-source-route-reference-harness.json.gz)
+retain all seven fits, the selected branch/mode checks, sixteen independent
+path checks and the failed ramp hypothesis. This remains host-only evidence
+for one output path. Whole-board and hardware acceptance, production locks,
+RTL, actual board clocks/phases, native routes and shared contracts are
+unchanged. The native-search journal remains 133 entries.
