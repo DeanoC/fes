@@ -3087,8 +3087,8 @@ hardware acceptance claim.
 ## Developer video parts
 
 The separate developer parts path admits a format-2 `fes.coleco`
-`fes.application` 1.0 package, or a format-3 shell with one exact 16 KiB
-`cartridge` ROM, with optional `fes.expansion.coleco-bus` 2.0 and
+`fes.application` 1.0 package, or a format-4 shell with exact 8 KiB firmware
+and 16 KiB cartridge ROMs, with optional `fes.expansion.coleco-bus` 2.0 and
 exactly one optional video marker: `fes.fabric.video.raster-rgb888` 1.0 selects
 `fes.coleco-video.parts/1`, while `fes.fabric.video.native-pixels` 1.0 selects
 `fes.coleco-native-video.parts/1`. Native version 1 fixes the source at
@@ -3204,9 +3204,9 @@ map. A lost response is not replayed. Success requires the returned part
 identity, shell package and profile to match the snapshot.
 
 `fogcast/core_video.go` considers only parts for the entry's exact installed
-package and declared video socket. The closed Coleco shell contract, format 2
-or a format-3 16 KiB cartridge, rejects mixed markers and unsupported versions
-even without installed parts.
+package and declared video socket. The closed Coleco shell contract admits
+format 2 or format 4 with exact 8 KiB firmware and 16 KiB cartridge ROMs, and
+rejects mixed markers and unsupported versions even without installed parts.
 If the preferred Scanlines profile is absent, selection uses an installed Direct
 part for that same shell. A native shell without that fallback rejects launch;
 it cannot launch its vacant base. A valid selected Scanlines part works without
@@ -3232,7 +3232,7 @@ as `fpga_native` and binds the complete parts tuple, programmed digest and
 generation to the library session. The shell package, BUILD_ID, fixed video and
 audio/input contracts remain those of the sealed base. This selection path
 accepts the same two closed Coleco layouts as the developer path, including a
-format-3 16 KiB cartridge.
+format-4 layout with exact 8 KiB firmware and 16 KiB cartridge ROMs.
 
 ## Described-core persistent data
 

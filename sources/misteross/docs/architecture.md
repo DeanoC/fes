@@ -1057,25 +1057,15 @@ line banks, sequential clear and publication interlock are deliberate RTL
 scaling accommodations shared by both compiler lanes. The original procedural
 sprite loop expanded to roughly 42K mapped combinational cells; the registered
 one-column/repeat schedule fits the fixed system-clock budget. The Coleco OSS
-recipe uses its core-local lock with Yosys `e2d425de`, nextpnr-mistral
-`a93fe013` with `--router gpu`, HeAP timing weight 100, criticality
-exponent 5, and `--timing-allow-fail`, and Mistral
-`7ed06e21`; the selected toolchain enables the HIP device backend. Default
-place-and-route is first-to-pass: seeds 5, 4, 1, 2, 3, 12, 7 and 10 at
-weight 100, then the same seeds at weights 300 and 1000. nextpnr `a93fe013`
-times each GPU route with Mistral's analogue signoff model and re-routes
-near-critical nets when a clock misses, so the table-model and signoff
-results no longer diverge silently.
-`make build-fes-coleco BEST_FMAX=1` synthesizes once, then searches the
-weight list 10/100/300/1000/2000 and remaining seeds for the best Fmax on
-one HIP device (functional identity v2 rejects more than one);
-the winner is stored in route evidence, not written back into recipe
-constants (that would change `BUILD_ID`). Because the
-sealed build record changes the embedded `BUILD_ID`, the seed is part of the
-route recipe. The GPU router can report a provisional timing shortfall before
-its final repair/signoff pass; the allowance lets it complete, while the
-recipe's structured final `clk_sys` and `pixel_clk` evidence still has to meet
-the requested constraints. The Quartus wrapper retains the literal
+recipe uses its core-local lock: Yosys `5391eeb1`, nextpnr-mistral `bec82e36`
+with `--router gpu`, and Mistral `8fcc4cb4`. Its factory native-video
+first-pass search follows the configured seed order 3, 4, 5, 1, 2, 6, 7, 8,
+9 and 10 at HeAP timing weights 2000 then 1000, with criticality exponent 5
+and `--timing-allow-fail`; the CPU-only socket target uses weight 2000. The
+producer records the selected seed and weight in route evidence. The timing
+allowance permits route completion, while the recipe's structured final
+`clk_sys` and `pixel_clk` evidence still has to meet the requested constraints.
+The Quartus wrapper retains the literal
 `altsyncram` mode `NEW_DATA_NO_NBE_READ`; OSS preserves the registered
 semantic schedule rather than that vendor literal. No missing nextpnr BEL or
 pack feature is implied.
@@ -1108,7 +1098,7 @@ marked as path-specific are not requirements of the other lane.
 | Reset image | OSS consumes tracked byte-per-line `coleco_reset_rom.hex`; Quartus `altsyncram` consumes tracked range-form `coleco_reset_rom.mif`. This is a file-format split, not a different reset image. |
 | PLL and I²C | Both retain the two existing `altera_pll` wrappers. Quartus uses tri-state HDMI I²C; OSS uses `MISTRAL_IO` open-drain pads and the HPS I²C BEL `cyclonev_hps_interface_peripheral_i2c.52.60.0`. |
 | Constraints | OSS uses only its accepted pin QSF and 50 MHz `clocks-oss.sdc`; nextpnr derives PLL clocks. Quartus retains `HPS_LOCATION`, clock groups and the full SDC. |
-| Route pressure | The OSS reproduction is `5CSEBA6U23I7`, nextpnr `a93fe013`, `--router gpu`, seed 5 first (order 5, 4, 1, 2, 3, 12, 7, 10), HeAP timing weight 100 before 300 and 1000, criticality exponent 5, `--timing-allow-fail`, no `--tmg-ripup`, at 74.25 MHz. The embedded `BUILD_ID` makes the seed part of the route recipe. The GPU router can report a provisional timing shortfall before final repair; the allowance only permits that intermediate result, while the recipe requires final structured `clk_sys` and `pixel_clk` timing to pass. The sealed recipe requires `backend hip:<device> ready` and rejects CPU-reference fallback; no missing BEL or pack feature was identified. |
+| Route pressure | The OSS reproduction is `5CSEBA6U23I7`, nextpnr `bec82e36`, `--router gpu`, seed order 3, 4, 5, 1, 2, 6, 7, 8, 9, 10, HeAP timing weights 2000 then 1000 for the factory native-video shell (2000 for the CPU-only socket), criticality exponent 5, `--timing-allow-fail`, no `--tmg-ripup`, at 74.25 MHz. The route evidence records the selected seed and weight. The allowance permits route completion; final structured `clk_sys` and `pixel_clk` timing must still pass. The sealed producer requires its authenticated live GPU backend and rejects CPU-reference fallback; no missing BEL or pack feature was identified. |
 
 The concrete build entry points are `make build-fes-coleco-quartus`,
 `make build-fes-coleco` and `make build-fes-coleco-native-video`. The Quartus

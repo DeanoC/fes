@@ -392,7 +392,7 @@ for response contracts, persistence and recovery behavior.
 
 ## Package and ABI compatibility
 
-`mister-packages` owns the format-2/3 schemas, FES GP ABI and DE10-Nano programming
+`mister-packages` owns the format-2/3/4 schemas, FES GP ABI and DE10-Nano programming
 profiles. `misteross` owns package construction and build provenance. The
 package ID hashes the exact manifest and payload bytes, plus the sealed ROM map
 for formats 3 and 4, so changing any member creates a different immutable identity.
