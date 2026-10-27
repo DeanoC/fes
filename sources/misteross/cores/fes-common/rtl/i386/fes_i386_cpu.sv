@@ -137,8 +137,9 @@ module fes_i386_cpu (
 
     // ---- Pipeline registers -------------------------------------------------------
     pipe_t ag_s, m1_s, m2_s, ex_s, wb_s;
-    logic  wb_flush, wb_stop, halted, hlt, stopped;
-    assign halted = hlt || stopped;
+    // halted: in HLT (hlt) or stopped for good (trace_unimplemented), kept as a
+    // register of its own, which D's issue and the ports read.
+    logic  wb_flush, wb_stop, halted, hlt;
     // A uop that retires, faults or stops in WB this cycle, and whether it
     // flushes everything younger.
     assign wb_stop = wb_s.valid && (wb_s.uop.ctl.fault != fes_i386_pkg::FAULT_NONE
@@ -1361,7 +1362,7 @@ module fes_i386_cpu (
                 seg_tiny[k] <= {init_limit[k] < 32'd3, init_limit[k] < 32'd1, 1'b0};
             end
             hlt <= 1'b0;
-            stopped <= 1'b0;
+            halted <= 1'b0;
             trace_unimplemented <= 1'b0;
             exc_active <= 1'b0;
             exc_vec <= 8'd0;
@@ -1369,6 +1370,7 @@ module fes_i386_cpu (
             exc_active <= 1'b1;
             exc_vec <= int_nmi ? 8'd2 : int_vec;
             hlt <= 1'b0;
+            halted <= 1'b0;
         end else if (wb_s.valid && !halted && !freeze) begin
             if (exc_take) begin
                 exc_active <= 1'b1;
@@ -1376,7 +1378,7 @@ module fes_i386_cpu (
                          : wb_fault == 3'd6 ? 8'd0 : 8'd12;
             end else if (wb_fault != 3'd0) begin
                 // An encoding not built, or a fault in a delivery.
-                stopped <= 1'b1;
+                halted <= 1'b1;
                 trace_unimplemented <= 1'b1;
                 exc_vec <= wb_fault == 3'd4 ? 8'd0 : 8'd8;
             end else begin
@@ -1409,7 +1411,10 @@ module fes_i386_cpu (
                     seg_base[seg_w_idx] <= {12'd0, seg_w_sel, 4'd0};
                     seg_hi1[seg_w_idx] <= {11'd0, 5'(seg_w_sel[15:12]) + (* no_carry *) 5'd1};
                 end
-                if (wb_stop) hlt <= 1'b1;
+                if (wb_stop) begin
+                    hlt <= 1'b1;
+                    halted <= 1'b1;
+                end
             end
         end
     end
