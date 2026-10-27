@@ -1761,3 +1761,87 @@ acceptance remain open. The new CLI option also requires reviewed producer
 schema/default admission before production integration; existing recipes,
 locks, RTL, clocks, pad contracts and shared definitions are unchanged.
 The native-search journal remains 133 entries.
+
+### Whole-board Quartus fits and proof-gated mailbox contract, 27 October
+
+Base `1838db6d5d`. The accepted Quartus-variant policy
+([FES #1164](https://github.com/DeanoC/fes/pull/1164)) makes a separate Quartus
+delivery route possible after the recipe/package rollout. The work here is a
+host diagnostic, with no package or hardware promotion. Source `668c5ea8a3`
+adds the complete-board comparison; `fa18c8c0e6` adds its default-off
+`--video-mailbox-contract` mode. CPU/board/pixel targets remain
+100/50/74.25 MHz, with the existing CS and HDMI phases.
+
+`scripts/quartus_fes_pcxt.py` captures selected source bytes and generated
+ROMs, elaborates them with the PC/XT lock's Yosys `3a5accbd7`, and fits
+`5CSEBA6U23I7` using Quartus Lite 17.0.2 Build 602. The flow preserves large
+memories and their read-during-write behavior, maps small control arrays to
+FFs, preserves signed PLL integer parameters and checks portable naming
+against every original cell/net record. The default and selected-mode RTL
+and generated ROMs match. Their complete elaborated Verilog matches under
+the recorded raw/mangled source-prefix bijection only.
+
+All three default seeds fit. Every corner retains five setup failures: the
+three first-stage video synchronizer inputs and two held bank bits. These
+failed captures remain intact. The opt-in runs the captured CGA/MDA ownership
+proofs, verifies each exclusive two-stage chain and the common PLL-lock reset
+assertion, then cuts only the foreign-source-to-first-stage pairs. Bank data
+keeps a max-delay check of one fitted pixel period within the proof's two
+stable samples before adoption. No clock group is cut. Physical reset pulse
+width, relock and MTBF qualification remain separate.
+
+A fixed-route control retains identical clocks/RBF bytes. Exactly 24
+first-stage rows disappear over four corners and setup/hold; only eight
+bank-bit setup rows change. The full comparison union retains independently
+queried equal-slack launch alternatives and 24 directly queried interstage
+paths. Every other native path record is equal. This replay is separate from
+the fresh fits below.
+
+All three fresh selected-mode fits pass their reported setup, hold,
+recovery/removal and minimum-pulse-width checks at all four corners. Each fit
+retains its complete native inventory independently, including optimization
+duplicates; no intersection or cross-profile seed mixture is used. Every fit
+also retains 24 direct interstage setup/hold observations.
+
+| Seed | Slow100 CPU Fmax (MHz) | Board Fmax (MHz) | Pixel Fmax (MHz) | Minimum setup, four corners (ns) | Minimum hold, four corners (ns) |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 135.81 | 87.71 | 107.77 | +0.780 | +0.119 |
+| 2 | 143.49 | 87.75 | 107.22 | +1.119 | +0.121 |
+| 3 | 150.81 | 94.72 | 108.61 | +1.432 | +0.130 |
+
+A separate fresh Quartus map/fit/asm/STA rebuild of seed 1 uses identical
+elaborated inputs and reproduces RBF SHA256
+`11799cc3673c72a5675173f50f56162081915553235422bc1ff79eff0fec806f`.
+Clock/count/Fmax/interstage tables match byte for byte. One equal-slack
+worst-path launch choice changes; explicit queries of both alternatives
+produce identical complete native path unions. This repeats the Quartus
+portion; a sealed producer and independent source regeneration remain future
+integration work.
+
+The focused 25-test suite passes, including actual Yosys elaboration, memory
+collision/integer-parameter checks, source capture, unsafe-chain mutations and
+the ownership proofs. Parent consistency passes in a committed validation
+checkout: 21 generated consumers and 37 fixture copies match. The complete
+29-command affected-test plan passes at `fa18c8c0e6`: 843 parent tests,
+1,366 component passes with five optional checks skipped, all 21 PC/XT suites
+and the other queued core simulations. Results span retained invocations using
+Verilator 5.032, a neutral checkout path and host socket/ptrace permissions.
+The source revision and original test plan stay fixed; earlier environment
+failures and retry-driver preflights remain in the capture harness.
+
+[The complete record](board50-quartus-whole-board.json),
+[capture/checker harness](board50-quartus-whole-board-harness.json.gz) and
+[complete native endpoint captures](board50-quartus-whole-board-inventories.json.gz)
+bind all six fresh profile runs, the fixed-route control, repeat, tests and
+source/tool/input/artifact hashes. Large raw pulse traces remain on the build
+host with their hashes and native summaries retained. The native-search
+journal stays at 133 entries; these are separate Quartus runs.
+
+**Whole-board qualification remains open.** Every fresh fit still reports
+617 unclocked HPS registers, 18 input ports without external delays and 69
+output ports without external delays. The unclocked registers all belong to
+`hdmi_i2c`. SDRAM/HDMI board delays and loads, the HPS clock/interface contract,
+physical reset/MTBF and exact-artifact kit acceptance remain unqualified. No
+Quartus shipping eligibility, whole-board seal, package variant or kit baseline
+is accepted by these results. RTL, FES toolchain locks, shared contracts and
+hardware are unchanged.
