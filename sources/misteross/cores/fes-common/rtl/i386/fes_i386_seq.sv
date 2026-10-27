@@ -87,6 +87,14 @@
 //     EBP from the frame pointer, ESP from the destination copy plus imm,
 //     and a check of the slot there, as the 386EX makes. ESP and EBP change
 //     only there, so a fault before leaves them, the pushes already written.
+//
+// The multiply and divide unit's two-destination forms (fes_i386_muldiv):
+//   SEQ_MUL  (MUL, IMUL r/m16/32): the multiply into EAX; HI, the high half
+//            the unit kept, into EDX.
+//   SEQ_DIV  (DIV, IDIV r/m16/32): LOAD, EDX into the unit, carrying the
+//            divide's op in imm; the divide into EAX; HI, the remainder,
+//            into EDX. LOAD reads the memory operand too, unused, so a
+//            fault on it comes before anything is written.
 module fes_i386_seq (
     input  fes_i386_pkg::decoded_t d,   // the uop dc holds
     input  fes_i386_pkg::decoded_t d0,  // the instruction's first uop
@@ -130,6 +138,17 @@ module fes_i386_seq (
         q.base = 3'd4;
         q.has_index = 1'b0;
         q.scale = 2'd0;
+    endfunction
+    // HI: the multiply and divide unit's kept half into EDX, the instruction's
+    // last uop.
+    function automatic void to_md_hi(inout fes_i386_pkg::decoded_t q);
+        q.uop.op = 5'd4;  // MULDIV_HI
+        q.uop.src1 = '{valid: 1'b1, space: fes_i386_pkg::RS_GPR, index: 4'd2, hi8: 1'b0};
+        q.uop.src2.valid = 1'b0;
+        q.uop.dst = '{valid: 1'b1, space: fes_i386_pkg::RS_GPR, index: 4'd2, hi8: 1'b0};
+        q.uop.mem.kind = fes_i386_pkg::MEM_NONE;
+        q.uop.flags = '0;
+        q.uop.ctl.end_of_instruction = 1'b1;
     endfunction
     // The far jump that ends a far transfer, and its controls.
     function automatic void to_far_jump(inout fes_i386_pkg::decoded_t q);
@@ -564,6 +583,18 @@ module fes_i386_seq (
                     n.str_two = 1'b1;
                     n.str_cnt = 1'b1;
                     n.more = 1'b1;
+                end
+            end
+            fes_i386_pkg::SEQ_MUL: to_md_hi(n);
+            fes_i386_pkg::SEQ_DIV: begin
+                if (d.step == 3'd0) begin
+                    n.uop.op = {4'd0, d0.uop.imm[0]};  // MULDIV_UNSIGNED, MULDIV_SIGNED
+                    n.uop.src1 = '{valid: 1'b1, space: fes_i386_pkg::RS_GPR, index: 4'd0, hi8: 1'b0};
+                    n.uop.dst = '{valid: 1'b1, space: fes_i386_pkg::RS_GPR, index: 4'd0, hi8: 1'b0};
+                    n.uop.flags.write = '{oszap: 1'b1, cf: 1'b1};
+                    n.more = 1'b1;
+                end else begin
+                    to_md_hi(n);
                 end
             end
             fes_i386_pkg::SEQ_LPTR: begin
