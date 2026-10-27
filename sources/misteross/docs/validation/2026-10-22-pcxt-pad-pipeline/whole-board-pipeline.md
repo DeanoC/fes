@@ -1712,3 +1712,52 @@ negative report-rounding residuals. This is host-only characterization.
 No waveform or derating repair, whole-board timing qualification, producer
 seal, hardware acceptance, clock/constraint change or production-lock
 change follows from it. The timing PR remains draft.
+
+### Native minimum scale and guarded LUT-route correction (27 October)
+
+The additional early-routing stage is now identified. Quartus supplies a
+global minimum scale after the per-driver correlation factors used by the
+current Mistral circuit model. A read-only observer forwards the original
+native setup arguments unchanged and obtains their PVT names from the
+vendor's model getter. The measured data scales are 0.921478271 at slow100,
+0.919657171 at slow/-40 C and 0.930693090 at both fast corners. An independent
+FF-slot fit confirms the slow/fast 100 C factors. The observer preserves all
+sixteen direct IC intervals, thirty-two full-path timing tables and the
+fitted RBF; these coefficients were not fitted to path errors.
+
+[Nextpnr #319](https://github.com/DeanoC/nextpnr/pull/319), source
+`ad2b465c2566f9d8ef8d89de20981a56b8e78712`, adds default-off
+`--mistral-lut-route-min-reference`. It requires the existing Boolean LUT
+reference, routed delay ranges and the characterized device. It applies only
+the slow100 data factor to ordinary native LUT-input routing elements.
+Each hop encloses its old interval and minimum-scaled early value;
+outward ps rounding preserves the net/input-buffer boundary and its existing
+single-buffer accounting. Propagated voltage waves stay unchanged. Clock
+routing resources and missing observations reject; checkpoint acknowledgement
+and calibration identity bind the setting and reference digest.
+
+All twenty-nine focused C++ tests and six CTests pass. The fitted FF-route
+control exercises the actual backend path, including its virtual FF-output
+connection, and preserves serialized RBF bytes. All six frozen defaults
+(three seeds, native and full IO) reproduce their complete parent timing JSON
+and RBF bytes: native 17709 paired/nine unpaired, full IO 17806 paired/eleven
+unpaired. All six selected minimum profiles stop with error 125 at missing
+framebuffer M10K source observations; no complete profile inventory or
+qualified timing result is emitted.
+
+Applying the observed data factors to the retained all-corner hop envelopes
+still leaves twelve of forty earliest values more than the printed 1 ps
+resolution later than Quartus. That algebraic screen is separate from the
+runtime option's slow100 scope. RAM-source/PLL-lock excitation and the
+remaining route/source residuals still need characterization under
+[Mistral #26](https://github.com/DeanoC/mistral/issues/26). No missing waveform
+has been replaced or unsupported row waived.
+
+[The implementation and replay record](board50-native-minimum-reference.json)
+and [its retained checker, tests and stop logs](board50-native-minimum-reference-harness.json.gz)
+bind the committed compiler, native parameters, complete default comparisons
+and remaining failures. This is host-only evidence. Whole-board and hardware
+acceptance remain open. The new CLI option also requires reviewed producer
+schema/default admission before production integration; existing recipes,
+locks, RTL, clocks, pad contracts and shared definitions are unchanged.
+The native-search journal remains 133 entries.
