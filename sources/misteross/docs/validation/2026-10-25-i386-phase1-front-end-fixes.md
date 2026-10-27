@@ -21,8 +21,9 @@ retain their distinct meanings.
 | **F2's hit signals replicated.** Eight sets of the four way hits, one per two bytes, so no hit drives more than 16 way-select bits. Each set compares against its own copy of the ITLB page register, since Yosys merges identical logic even on kept wires ([DeanoC/yosys#51](https://github.com/DeanoC/yosys/issues/51)). | None | None |
 
 Two requirements the full CPU inherits:
-- **Availability with a missing fetch.** `mem_ready` holds F2 until the
-  response for its registered address is present. The directed `fetch-stalled`
+- **Availability with a missing fetch.** The fetch-response port is now named
+  `mem_valid`; this historical bench's `mem_ready` holds F2 until the response
+  for its registered address is present. The directed `fetch-stalled`
   bench delays block 2 while Q crosses from half 0 into half 1, then verifies
   that Q waits before issuing a 10-byte instruction that reaches back into the
   released half. This covers the case where L2 is empty at the half release.
@@ -108,8 +109,9 @@ slower than 118 MHz, so its stage figures stand.
 
 These are historical route results, not measurements of the current RTL. The
 final `now` columns use source `137aa86b41`, before the fetch-response
-`mem_ready` qualifier and the later packed per-byte `lclass_t`/`lbyte_t`
-change. Neither later RTL change was routed again at the current HEAD.
+`mem_ready` qualifier (the port is now named `mem_valid`) and the later packed
+per-byte `lclass_t`/`lbyte_t` change. Neither later RTL change was routed again
+at the current HEAD.
 
 Routed fmax in MHz, seeds 1, 2, 3, 4:
 
@@ -219,8 +221,8 @@ The checked-in route rows are emitted by the benchmark writer, including the
 tool, lock, source, synthesis, logic-depth and `cells_by_stage` fields. They
 retain the labels recorded at run time: `round 3`, `round 3, split L only`,
 and `round 3, split L and availability`. The `--version` argument labels new
-rows. The frontend spike ties `mem_ready` high, so these routes do not measure
-the later fetch-response qualifier.
+rows. The frontend spike ties `mem_ready` (now named `mem_valid`) high, so
+these routes do not measure the later fetch-response qualifier.
 
 ### Area
 
@@ -234,9 +236,10 @@ Earlier round in brackets.
 
 ### Sources
 
-The final routes are of `137aa86b41`. The fetch-response `mem_ready`
-qualifier and the later conversion to packed per-byte `lclass_t`/`lbyte_t`
-records followed those route inputs. Neither change was re-routed at the
+The final routes are of `137aa86b41`. The fetch-response `mem_ready` qualifier
+(the port is now named `mem_valid`) and the later conversion to packed per-byte
+`lclass_t`/`lbyte_t` records followed those route inputs. Neither change was
+re-routed at the
 current HEAD. The split-L-only routes are of `aab085bc97`'s RTL with L1 and
 L2's instances
 renamed as at `8cb56e7a6c`, so the stage labels find them; the

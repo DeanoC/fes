@@ -225,7 +225,9 @@ func (s *Service) provisionZX81MachineROM(ctx context.Context, entry catalog.Cor
 	return catalog.CoreEntryROM{}, romSelectionError(err)
 }
 func (s *Service) romLaunchSource(ctx context.Context, entry catalog.CoreEntry, descriptor corepackage.Descriptor, base []byte, initial *corepackage.InitialMedia) (coreLoadSource, error) {
-	if descriptor.Format == 4 && (descriptor.Core.ID != "fes.coleco" || len(descriptor.ROMs) != 2 || descriptor.ROMs[0].SourceSize != 8192 || descriptor.ROMs[1].SourceSize != 131072) {
+	// Format 4 is Coleco only: the 8 KiB BIOS with the 16 KiB cartridge
+	// shell or the 128 KiB MegaCart lane.
+	if descriptor.Format == 4 && (descriptor.Core.ID != "fes.coleco" || len(descriptor.ROMs) != 2 || descriptor.ROMs[0].SourceSize != 8192 || (descriptor.ROMs[1].SourceSize != 16384 && descriptor.ROMs[1].SourceSize != 131072)) {
 		return coreLoadSource{}, romAdmissionError()
 	}
 	selected, rom, err := s.readCoreEntryROM(ctx, entry, descriptor)
@@ -234,7 +236,7 @@ func (s *Service) romLaunchSource(ctx context.Context, entry catalog.CoreEntry, 
 	}
 	var videoParts []expansion.Asset
 	shell := corepackage.Inspection{PackageID: entry.PackageID, Descriptor: descriptor}
-	if descriptor.Format == 3 && hasVideoSocket(shell) {
+	if hasVideoSocket(shell) {
 		videoParts, err = s.videoEntryAssets(ctx, entry, shell, base)
 		if err != nil {
 			return coreLoadSource{}, err
@@ -276,7 +278,9 @@ func (s *Service) romLaunchSource(ctx context.Context, entry catalog.CoreEntry, 
 		if biosErr != nil {
 			return coreLoadSource{}, biosErr
 		}
-		data, err = corepackage.WriteROMInputV2(corepackage.ROMInputV2{Package: base, BIOS: bios, Cartridge: rom, Expansion: asset})
+		var transport corepackage.ROMTransport
+		transport, err = corepackage.PrepareROMInputV2(ctx, corepackage.ROMInputV2{Package: base, BIOS: bios, Cartridge: rom, Expansion: asset, Parts: videoParts})
+		data, partsComposition = transport.Data, transport.PartsComposition
 	} else {
 		var transport corepackage.ROMTransport
 		input := corepackage.ROMInput{Package: base, ROM: rom, Expansion: asset, SlotExpansions: slotCards}
@@ -287,11 +291,11 @@ func (s *Service) romLaunchSource(ctx context.Context, entry catalog.CoreEntry, 
 		if err != nil && len(slotCards) != 0 {
 			return coreLoadSource{}, slotExpansionUnavailable()
 		}
-		// A part that cannot link with the shell is a video part fault, not a ROM one.
-		if err != nil && len(videoParts) != 0 {
-			if _, composeErr := corepackage.ComposePartsArchive(ctx, base, videoParts); composeErr != nil {
-				return coreLoadSource{}, videoPartUnavailable()
-			}
+	}
+	// A part that cannot link with the shell is a video part fault, not a ROM one.
+	if err != nil && len(videoParts) != 0 {
+		if _, composeErr := corepackage.ComposePartsArchive(ctx, base, videoParts); composeErr != nil {
+			return coreLoadSource{}, videoPartUnavailable()
 		}
 	}
 	if err != nil {

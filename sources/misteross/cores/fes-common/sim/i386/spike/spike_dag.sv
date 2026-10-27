@@ -64,10 +64,15 @@ module spike_dag (
     logic [3:0][2:0] prod_dst;
     logic [3:0][1:0] prod_kind;
 
+    // Stack operations are not part of this spike.
+    logic [15:0] unused_sp_hi;
+    logic        unused_sp_wait;
+    logic [31:0] unused_base_op;
     fes_i386_dfwd dfwd (
         .clk, .reset, .has_base, .base, .has_index, .index, .scale, .addr32, .d_writes, .d_dst, .d_kind,
-        .advance(!stall), .prod_valid, .prod_dst, .prod_kind, .gpr,
-        .stage_value({wb_result, ex_result, m2_result, m1_result}), .row, .last, .late, .late_hi, .stall
+        .d_sp(1'b0), .advance(!stall), .hold(1'b0), .prod_valid, .prod_dst, .prod_kind, .prod_sp(4'b0), .gpr,
+        .stage_value({wb_result, ex_result, m2_result, m1_result}), .wb_sp(32'd0), .row, .last, .late, .late_hi,
+        .stall, .sp_hi(unused_sp_hi), .sp_wait(unused_sp_wait)
     );
 
     always_ff @(posedge clk) begin
@@ -106,7 +111,7 @@ module spike_dag (
     fes_i386_agu agu (
         .addr32(ag_addr32), .seg_term(ag_seg_term), .seg_hi(ag_seg_hi), .seg_hi_plus1(ag_seg_hi_plus1),
         .row(ag_row), .last(ag_last), .disp(ag_disp), .late(ag_late), .late_hi(ag_late_hi),
-        .late_m1(m1_result), .late_ex(ex_result), .late_wb(wb_result), .linear, .offset
+        .late_m1(m1_result), .late_ex(ex_result), .late_wb(wb_result), .linear, .offset, .base_op(unused_base_op)
     );
 
     logic        m1_valid;

@@ -14,6 +14,8 @@ each spike is a block of fes_i386_cpu inside a stimulus/signature envelope
             late operand, the 3:2 rows, the adders, the 16-bit-wrap select)
   m2        the M2 stage: M10K tag and data reads, four tag compares against
             a registered page number, way select
+  cpu       fes_i386_cpu as built so far, F1 to WB, behind the frontend
+            spike's L1I model: the register-only real-mode core
   rom       a registered case-table ROM synthesized without proc -norom, so
             it maps to an M10K: checks that it places and routes
 
@@ -66,10 +68,14 @@ LOCK = RTL / 'toolchain.lock'
 FRONTEND_RTL = ('fes_i386_pkg.sv', 'fes_i386_oplen.sv', 'fes_i386_lendec.sv', 'fes_i386_lstage.sv',
                 'fes_i386_fetchbuf.sv', 'fes_i386_qalign.sv', 'fes_i386_frontend.sv')
 DAG_RTL = ('fes_i386_pkg.sv', 'fes_i386_amode.sv', 'fes_i386_dfwd.sv', 'fes_i386_agu.sv')
+CPU_RTL = (*FRONTEND_RTL, 'fes_i386_amode.sv', 'fes_i386_dfwd.sv', 'fes_i386_agu.sv', 'fes_i386_decode.sv', 'fes_i386_seq.sv',
+           'fes_i386_dops.sv', 'fes_i386_shift.sv', 'fes_i386_shflags.sv', 'fes_i386_exctl.sv', 'fes_i386_ex.sv',
+           'fes_i386_cpu.sv')
 SPIKES = {
     'frontend': ('spike_frontend', FRONTEND_RTL),
     'dag': ('spike_dag', DAG_RTL),
     'm2': ('spike_m2', ()),
+    'cpu': ('spike_cpu', CPU_RTL),
     'rom': ('spike_rom', ()),
 }
 # Which stage writes each register, by the RTL signals around it. After
@@ -101,6 +107,33 @@ STAGES = {
         ('AG', r'(.*\.)?(m1_valid|m1_linear|m1_offset|m1_result|late_m1)$'),
     ),
     'm2': (('M2', r'(.*\.)?load_'),),
+    # The whole CPU: the front end's labels with any hierarchy prefix, then
+    # each pipeline register by its stage prefix. The architectural registers
+    # (WB) and the stage records come before D, whose forwarding tables take
+    # the register file and the records as ports.
+    'cpu': (
+        ('envelope', r'(.*\.)?(signature|observed|noise|LED0|mem_valid|init_\w+)$|stimulus\.'),
+        ('F1', r'(.*\.)?(f2_block|fetch_block|active|itlb_page)$|l1i_'),
+        ('F2', r'(.*\.)?(l1_valid|l1_block|l1_bytes|mem_data)$|.*\.oplen\.(one|two)_byte'),
+        ('L1', r'(.*\.)?(l2_\w+|half|fill_bytes|fill_data)$|(.*\.)?fetch\.sums\.'),
+        ('L2', r'(.*\.)?(bytes|half_block|dec|avail)$'),
+        # Q's output register may keep only the names of DC's inputs: the
+        # decoder's (decode.q in Yosys, decode.by in Quartus) or dc_q's.
+        ('Q', r'(.*\.)?(half_valid|tail_ok)$|(.*\.)?align\.(?!redirect_linear$)|(.*\.)?(decode\.(q|by)|dc_q)$'),
+        ('WB', r'(.*\.)?(gpr|eflags|eip|seg_\w+|halted|t0|t1|trace_\w+|start|start_linear|arch_\w+|rt_\w+)$'),
+        # A stage's output record passes most fields through, so they name
+        # the register feeding it: ag_out's are ag_s (D), m1_out's m1_s (AG),
+        # ex_out's ex_s (M2). ex.flags_in is EX's ex_flags.
+        ('EX', r'(.*\.)?(wb_s|ex_flags)$|(.*\.)?ex\.(flags_in|shifter\.cf_in)$'),
+        ('M2', r'(.*\.)?(ex_s|ex_in|ex_out)$|(.*\.)?ex\.u$'),
+        # M1 also writes the L1D model's address registers and the store
+        # distances M2 decodes.
+        ('M1', r'(.*\.)?(m2_s|m2_load|m2_dw|m2_dr|m2_vw|m2_vr|even_q|odd_q|odd_first)$|l1d_'),
+        ('AG', r'(.*\.)?(m1_s|m1_out|late_m1)$'),
+        # DC's buffer before D, since dfwd and dops take its fields as ports.
+        ('DC', r'(.*\.)?(dc|dc_skid|dc_valid|dc_skid_valid)$'),
+        ('D', r'(.*\.)?(d_eip|d_stop|d_seg_busy|t_busy|d_out|ag_\w+)$|(.*\.)?(dops|dfwd)\.'),
+    ),
     'rom': (('ROM', r'(.*\.)?q$'),),
 }
 # M10K and DSP allowed, LUT RAM forbidden (docs/i386-cpu-design.md, platform

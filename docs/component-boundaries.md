@@ -119,7 +119,9 @@ Go allowlist.
 ordered per-core selection records for its selected packages plus its sealed
 `core-packages/` directory. Systems whose nextpnr
 route is not implemented yet are checked explicitly with Quartus; that check
-is not an image production route.
+is not an image production route. The accepted Quartus policy allows labelled
+product variants, but current recipe and package-selection support does not
+select one yet; see [Quartus-built cores](design/quartus-cores.md).
 
 ## Keep, combine, split and add
 

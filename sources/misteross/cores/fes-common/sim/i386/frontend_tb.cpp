@@ -23,7 +23,12 @@
 // Timed streams also count the cycles from each run's redirect to its first
 // issue, the front end's share of a mispredict.
 // Random streams redirect to random addresses and, in half the runs, stall D
-// at random. Output: one JSON line per stream; exit status 1 on any failure.
+// at random. The *-fetch-latency streams delay each memory block by a random
+// 0-12 cycles, so fetch stalls and L2 can be empty as Q leaves a half; their
+// instructions are checked as above but not their timing, and each counts the
+// cycles in which Q left a half that L2 held no block for (the case Q's
+// next-half availability term decides). Output: one JSON line per stream;
+// exit status 1 on any failure.
 #include "Vfrontend_tb_top.h"
 #include "i386_oracle.h"
 #include "verilated.h"
@@ -99,6 +104,8 @@ public:
     std::vector<uint8_t> memory;
     uint64_t cycle = 0;
     bool code32 = false;
+    std::mt19937_64 *latency = nullptr;  // delays memory blocks when set
+    uint64_t l2_empty_releases = 0;
     uint64_t fetch_wait_cycles = 0;
     bool last_fetch_waiting = false;
 
@@ -107,13 +114,13 @@ public:
     void delay_block(uint32_t block, unsigned cycles) { response_stalls[block] = cycles; }
 
     void reset() {
-        fetch_wait_remaining = 0;
+        waiting = 0;
         fetch_wait_cycles = 0;
         address = 0;
         top.reset = 1;
         top.redirect = 0;
         top.d_ready = 1;
-        top.mem_ready = 1;
+        top.mem_valid = 1;
         for (int n = 0; n < 3; ++n) clock(false);
         top.reset = 0;
     }
@@ -124,27 +131,31 @@ public:
         top.redirect_linear = target;
         top.code32 = code32;
         top.d_ready = d_ready;
-        top.mem_ready = fetch_wait_remaining == 0;
         top.clk = 0;
         top.eval();
         const bool load = top.mem_load;
         const uint32_t block = top.mem_block;
-        last_fetch_waiting = !top.mem_ready;
+        last_fetch_waiting = !top.mem_valid;
         const bool handshake = top.q_valid && d_ready && !redirect;
         if (handshake && taken) capture(*taken);
+        l2_empty_releases += top.l2_empty_release;
         top.clk = 1;
         top.eval();
         if (load) {
             address = block;
-            fetch_wait_remaining = response_stalls.count(address) ? response_stalls[address] : 0;
-        } else if (fetch_wait_remaining) {
-            --fetch_wait_remaining;
+            waiting = 0;
+            if (response_stalls.count(address)) waiting = response_stalls[address];
+            else if (latency && (*latency)() % 2) waiting = unsigned((*latency)() % 12) + 1;
+        } else if (waiting) {
+            --waiting;
         }
+        top.mem_valid = waiting == 0;
         if (last_fetch_waiting) ++fetch_wait_cycles;
+        // Until the block arrives the port carries garbage.
         for (unsigned word = 0; word < 4; ++word) {
             uint32_t value = 0;
             for (unsigned i = 0; i < 4; ++i) value |= uint32_t(byte((address << 4) + 4 * word + i)) << (8 * i);
-            top.mem_data[word] = value;
+            top.mem_data[word] = waiting == 0 ? value : latency ? uint32_t((*latency)()) : ~value;
         }
         ++cycle;
         return handshake;
@@ -152,8 +163,8 @@ public:
 
 private:
     uint32_t address = 0;  // the memory model's registered block address
-    unsigned fetch_wait_remaining = 0;
-    std::map<uint32_t, unsigned> response_stalls;
+    unsigned waiting = 0;  // cycles until its block arrives
+    std::map<uint32_t, unsigned> response_stalls;  // fixed delays by block, ahead of latency
 
     void capture(Issued &out) {
         out.cycle = cycle;
@@ -204,7 +215,8 @@ Expected expect(const fes_i386::Oracle &oracle, const Bench &bench, uint32_t lin
 
 struct Report {
     std::string stream;
-    bool code32 = false;
+    bool code32 = false, fetch_latency = false;
+    uint64_t l2_empty_releases = 0;
     uint64_t instructions = 0, compared = 0, undefined = 0, too_long = 0, escape = 0;
     std::map<unsigned, uint64_t> by_prefixes;
     uint64_t failures = 0;
@@ -227,14 +239,16 @@ struct Report {
             return text;
         };
         std::string counts = histogram(by_prefixes), latency = histogram(redirect_to_issue);
-        std::printf("{\"stream\": \"%s\", \"default_size\": %d, \"instructions\": %llu, \"compared\": %llu, "
+        std::printf("{\"stream\": \"%s\", \"default_size\": %d, \"fetch_latency\": %s, "
+                    "\"l2_empty_releases\": %llu, \"instructions\": %llu, \"compared\": %llu, "
                     "\"oracle_undefined\": %llu, \"too_long\": %llu, \"two_byte_opcode\": %llu, "
                     "\"by_prefix_count\": {%s}, \"cycles\": %llu, \"issue_cycles\": %llu, "
                     "\"redirect_to_issue\": {%s}, \"timing_checked\": %llu, \"timing_failures\": %llu, "
                     "\"fetch_wait_cycles\": %llu, \"boundary_wait_cycles\": %llu, "
                     "\"cross_half_instructions\": %llu, "
                     "\"failures\": %llu}\n",
-                    stream.c_str(), code32 ? 32 : 16, (unsigned long long)instructions,
+                    stream.c_str(), code32 ? 32 : 16, fetch_latency ? "true" : "false",
+                    (unsigned long long)l2_empty_releases, (unsigned long long)instructions,
                     (unsigned long long)compared, (unsigned long long)undefined, (unsigned long long)too_long,
                     (unsigned long long)escape, counts.c_str(), (unsigned long long)cycles,
                     (unsigned long long)issue_cycles, latency.c_str(), (unsigned long long)timing_checked,
@@ -322,10 +336,11 @@ enum class Fill {
 
 // Random memory: follow Q's own stream, redirecting now and then.
 Report random_stream(const fes_i386::Oracle &oracle, Bench &bench, std::mt19937_64 &random, const char *name,
-                     Fill fill, uint64_t count, bool stall_d) {
+                     Fill fill, uint64_t count, bool stall_d, bool fetch_latency = false) {
     Report report;
     report.stream = name;
     report.code32 = bench.code32;
+    report.fetch_latency = fetch_latency;
     std::uniform_int_distribution<int> any(0, 255), which(0, int(kPrefixes.size()) - 1);
     std::uniform_int_distribution<unsigned> run_length(8, 20);
     std::bernoulli_distribution prefix(0.3), ready(stall_d ? 0.7 : 1.0), jump(1.0 / 300);
@@ -337,8 +352,9 @@ Report random_stream(const fes_i386::Oracle &oracle, Bench &bench, std::mt19937_
             bench.memory[at++] = fill == Fill::Prefixes && prefix(random) ? kPrefixes[size_t(which(random))] : uint8_t(any(random));
         }
     }
+    bench.latency = fetch_latency ? &random : nullptr;
     bench.reset();
-    const uint64_t begin = bench.cycle;
+    const uint64_t begin = bench.cycle, releases = bench.l2_empty_releases;
 
     uint32_t target = uint32_t(random()) % kMemoryBytes;
     bool redirect = true;
@@ -370,6 +386,7 @@ Report random_stream(const fes_i386::Oracle &oracle, Bench &bench, std::mt19937_
         }
     }
     report.cycles = bench.cycle - begin;
+    report.l2_empty_releases = bench.l2_empty_releases - releases;
     return report;
 }
 
@@ -393,16 +410,19 @@ std::vector<uint8_t> instruction(const fes_i386::Oracle &oracle, bool code32, st
     }
 }
 
-// Laid-out defined instructions, D always ready: exact issue timing.
+// Laid-out defined instructions, D always ready: exact issue timing, unless
+// fetch_latency delays memory, when only the instructions are checked.
 Report timed_stream(const fes_i386::Oracle &oracle, Bench &bench, std::mt19937_64 &random, const char *name,
-                    unsigned max_prefixes, unsigned min_length, uint64_t count) {
+                    unsigned max_prefixes, unsigned min_length, uint64_t count, bool fetch_latency = false) {
     Report report;
     report.stream = name;
     report.code32 = bench.code32;
+    report.fetch_latency = fetch_latency;
     std::uniform_int_distribution<unsigned> prefixes(0, max_prefixes);
     std::uniform_int_distribution<int> any(0, 255);
+    bench.latency = fetch_latency ? &random : nullptr;
     bench.reset();
-    const uint64_t begin = bench.cycle;
+    const uint64_t begin = bench.cycle, releases = bench.l2_empty_releases;
     while (report.instructions < count) {
         // A run of instructions from a random start, then random bytes after it.
         uint32_t start = uint32_t(random()) % (kMemoryBytes - 65536);
@@ -426,7 +446,7 @@ Report timed_stream(const fes_i386::Oracle &oracle, Bench &bench, std::mt19937_6
             bool taken = bench.clock(true, redirect, start, &got);
             redirect = false;
             if (!taken) {
-                if (bench.cycle - previous > 64) {
+                if (bench.cycle - previous > 256) {
                     report.fail("front end stopped issuing");
                     return report;
                 }
@@ -438,7 +458,7 @@ Report timed_stream(const fes_i386::Oracle &oracle, Bench &bench, std::mt19937_6
             }
             check(oracle, bench, got, report);
             unsigned k = expected_prefixes[index];
-            if (index > 0) {
+            if (index > 0 && !fetch_latency) {
                 ++report.timing_checked;
                 uint64_t gap = got.cycle - previous;
                 if (gap != std::max(1u, k)) {
@@ -451,15 +471,16 @@ Report timed_stream(const fes_i386::Oracle &oracle, Bench &bench, std::mt19937_6
             }
             if (index == 0) {
                 first = got.cycle;
-                ++report.redirect_to_issue[unsigned(got.cycle - redirected)];
+                if (!fetch_latency) ++report.redirect_to_issue[unsigned(got.cycle - redirected)];
             }
             previous = got.cycle;
             next = got.linear + got.length;
             ++index;
         }
-        report.issue_cycles += previous - first + 1;
+        if (!fetch_latency) report.issue_cycles += previous - first + 1;
     }
     report.cycles = bench.cycle - begin;
+    report.l2_empty_releases = bench.l2_empty_releases - releases;
     return report;
 }
 
@@ -479,6 +500,7 @@ Report stallable_fetch_stream(const fes_i386::Oracle &oracle, Bench &bench) {
     bench.memory[24] = 0x05;
     for (unsigned i = 0; i < 8; ++i) bench.memory[25 + i] = uint8_t(0x71 + i);
 
+    bench.latency = nullptr;
     bench.delay_block(2, 100);
     bench.reset();
     const uint64_t begin = bench.cycle;
@@ -551,6 +573,11 @@ int main(int argc, char **argv) {
         reports.push_back(timed_stream(*oracle, bench, random, "prefix-free", 0, 0, count));
         // Without prefixes no 16-bit instruction is longer than 6 bytes.
         reports.push_back(timed_stream(*oracle, bench, random, "prefix-free-long", 0, code32 ? 8 : 5, count / 4));
+        reports.push_back(random_stream(*oracle, bench, random, "random-bytes-fetch-latency", Fill::Uniform, count / 4,
+                                        true, true));
+        reports.push_back(timed_stream(*oracle, bench, random, "instructions-fetch-latency", 4, 0, count / 4, true));
+        reports.push_back(timed_stream(*oracle, bench, random, "prefix-free-long-fetch-latency", 0, code32 ? 8 : 5,
+                                       count / 4, true));
         if (code32) reports.push_back(stallable_fetch_stream(*oracle, bench));
         for (const Report &report : reports) {
             report.print();

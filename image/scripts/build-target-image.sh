@@ -212,6 +212,11 @@ inside_build() {
     return
   fi
 
+  if [ "$inside_variant" = native-dev ]; then
+    # The post-build installs btusb from the fetched image-creator archive.
+    # A production image fails closed when that archive is absent.
+    export FES_BLUETOOTH_MODULES_REQUIRED=1
+  fi
   make -C /work/build/cache/target-image/buildroot \
     O="$inside_output" \
     BR2_EXTERNAL=/work/buildroot \

@@ -138,6 +138,11 @@ help:
 		"  sim-fes-c64-sid  Check digital SID state and staged MOS6581 audio" \
 		"  sim-fes-c64-ba-timing  Check CPU retirement at VIC BA phase boundaries" \
 		"  sim-fes-pcxt  Test the PC/XT ISA fabric, waits, IRQ and DMA transactions" \
+		"  sim-fes-pc386  Check pc386 devices, audio, OPL2, presenter and display plane on port 2" \
+		"  sim-fes-pc386-boot  Boot the Bochs BIOS and FreeDOS on the pc386 machine with the oracle CPU; replay its VGA trace" \
+		"  sim-fes-pc386-sound  Boot FreeDOS and run the audio start-up exercise; writes sound.wav" \
+		"  sim-fes-pc386-vga  Check the pc386 presenter and plane, run the VGA test disk, replay its VGA trace against Bochs" \
+		"  synth-fes-pc386  Synthesize and pack the pc386 machine without the CPU (needs CACHE_ROOT)" \
 		"  build-fes-pcxt  Autonomous PC/XT board diagnostic (local toolchain-fes-pcxt, or CACHE_ROOT=)" \
 		"  sim-fes-atari-st  Test the Atari 520ST CPU, memory, peripherals, media and video" \
 		"  build-fes-atari-st  Seal the Atari 520ST with HIP nextpnr (ST_VIDEO_OUTPUT=direct|scanlines)" \
@@ -1043,7 +1048,10 @@ SPECTRUM_VERILATOR_FLAGS := -Wall -Wno-UNUSEDSIGNAL -Wno-DECLFILENAME -Wno-WIDTH
 SPECTRUM_RTL := cores/fes-spectrum/rtl/spectrum_machine.sv cores/fes-spectrum/rtl/spectrum_ula.sv \
 	cores/fes-spectrum/rtl/spectrum_contention.sv cores/fes-spectrum/rtl/spectrum_ram.v \
 	cores/fes-spectrum/rtl/spectrum_rom.v cores/fes-spectrum/rtl/spectrum_video.v \
-	cores/fes-spectrum/rtl/spectrum_tape.v cores/fes-spectrum/rtl/spectrum_keyboard.v \
+	cores/fes-spectrum/rtl/spectrum_tape.v cores/fes-spectrum/rtl/spectrum_snapshot.v \
+	cores/fes-spectrum/rtl/spectrum_beta.sv cores/fes-spectrum/rtl/spectrum_fdd.sv \
+	cores/fes-spectrum/rtl/spectrum_upd765.sv \
+	cores/fes-spectrum/rtl/spectrum_keyboard.v \
 	cores/fes-spectrum/rtl/spectrum_audio.v cores/fes-spectrum/rtl/spectrum_slot_sockets.v \
 	cores/fes-zx81/expansions/zonx_ay.v $(FES_Z80_NMOS_RTL)
 SPECTRUM_PLANE_RTL := cores/fes-common/rtl/fes_display_cdc.v cores/fes-common/rtl/fes_display_plane.v \
@@ -2632,6 +2640,30 @@ sim-fes-c64-sprite-pal:
 sim-fes-pcxt:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_pcxt.py --verilator "$(VERILATOR)"
+
+.PHONY: sim-fes-pc386 sim-fes-pc386-boot sim-fes-pc386-sound sim-fes-pc386-vga synth-fes-pc386
+sim-fes-pc386:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_pc386.py --suite devices --verilator "$(VERILATOR)"
+	$(PYTHON) scripts/sim_fes_pc386.py --suite audio --verilator "$(VERILATOR)"
+	$(PYTHON) scripts/sim_fes_pc386.py --suite opl2 --verilator "$(VERILATOR)"
+	$(PYTHON) scripts/sim_fes_pc386.py --suite benches --verilator "$(VERILATOR)"
+
+sim-fes-pc386-boot:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_pc386.py --suite boot --download --verilator "$(VERILATOR)"
+
+sim-fes-pc386-sound:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_pc386.py --suite sound --download --verilator "$(VERILATOR)"
+
+sim-fes-pc386-vga:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_pc386.py --suite vga --download --verilator "$(VERILATOR)"
+
+synth-fes-pc386:
+	@test -n "$(CACHE_ROOT)" || { echo 'Set CACHE_ROOT to the authenticated compiler cache'; exit 1; }
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/synth_fes_pc386.py --cache-root "$(CACHE_ROOT)"
 
 .PHONY: synth-fes-pcxt-isa
 synth-fes-pcxt-isa:
