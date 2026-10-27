@@ -205,7 +205,17 @@ package fes_i386_pkg;
     // shift count from CL, a third source. A stack operation also writes ESP
     // (sp_write), from the value AG computes (pipe_t sp_new): a second
     // destination, which the main one overrides when it is ESP too (POP ESP).
+    // A segment register can be a second destination too (seg2: LES and its
+    // kin), written at WB with the selector in T0 (seg2_t) or in c. A
+    // destination in RS_TEMP is T0 (16 bits), or T1 (32) with index bit 3,
+    // which WB writes and no forwarding sees.
+    // sp_add: WB adds sp_new to ESP (RETF, whose jump flushes every younger
+    // uop, so nothing needs the new ESP sooner).
     typedef struct packed {
+        logic        seg2;
+        logic [2:0]  seg2_idx;
+        logic        seg2_t;
+        logic        sp_add;
         logic        sp_write;
         uop_class_e  cls;
         logic [4:0]  op;
@@ -247,10 +257,34 @@ package fes_i386_pkg;
         logic [2:0]  stk;
         logic        push_eip;
         logic        cs_base;
-        logic        two;     // JMP rel by uop.imm follows (CALL rel)
+        // The uop reads a far pointer's selector, past its offset by the
+        // operand size. Each part is checked against the limit on its own,
+        // the selector's offset wrapped by address size, as the 386EX does.
+        logic        sel_part;
+        // A far transfer's selector and offset: far_sel and uop.imm, or T0
+        // and T1 (far_t, once the uops loading them have retired). far_jmp: the
+        // uop is the jump, whose target AG computes as the new CS's base
+        // plus the offset; far_chk: the uop checks the offset against CS's
+        // limit, before the transfer writes anything.
+        logic        far_jmp;
+        logic        far_chk;
+        logic        far_t;
+        logic [15:0] far_sel;
+        // The segment registers the uop writes, one-hot: its destination's
+        // or its second destination's (D's segment-busy update).
+        logic [5:0]  wseg;
+        // A fixed uop sequence (SEQ_*), the step dc holds, and whether
+        // another uop follows (fes_i386_seq).
+        logic [2:0]  seq;
+        logic [2:0]  step;
+        logic        more;
     } decoded_t;
 
-    typedef enum logic [2:0] { STK_NONE, STK_PUSH, STK_POP, STK_RET_IMM, STK_LEAVE } stk_e;
+    // STK_PEEK reads the stack without moving ESP (RETF's loads); STK_RETF
+    // is RETF's step of ESP, at its jump; STK_PROBE reads the lower slot of
+    // a far call's two pushes, only for its limit check.
+    typedef enum logic [2:0] { STK_NONE, STK_PUSH, STK_POP, STK_RET_IMM, STK_LEAVE, STK_PEEK, STK_RETF, STK_PROBE } stk_e;
+    typedef enum logic [2:0] { SEQ_NONE, SEQ_CALL, SEQ_LPTR, SEQ_CALLF, SEQ_RETF, SEQ_JMPFM, SEQ_CALLFM } seq_e;
 
     // The shifter's controls (fes_i386_shift), decoded in M2. sel gates
     // each candidate arrangement: sel[d * 15 + z * 5 + k] for direction d (0
