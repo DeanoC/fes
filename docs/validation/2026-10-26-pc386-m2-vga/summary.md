@@ -10,10 +10,11 @@ test disk with the Bochs oracle as CPU. Every picture the test disk marks, at
 model's scaling of its capture, pixel for pixel. Replaying each run's VGA
 trace into the RTL VGA and into Bochs's own VGA, every register and VRAM read
 agrees, VRAM agrees after every stable frame and at the end, and every stable
-captured frame that Bochs can show equals Bochs's display of it: 103 of the
-test disk's 10,197 captured frames and 131 of the boot's 10,279, nearly all
-the rest being the tiny frames of the unprogrammed CRTC in the first
-milliseconds. Opened on
+captured frame that Bochs can show equals Bochs's display of it. In the
+original 26 October run, 103 of the test disk's 10,197 captured frames and 131
+of the boot's 10,279 matched; nearly all the rest were tiny frames of the
+unprogrammed CRTC in the first milliseconds. The post-review rerun is recorded
+below. Opened on
 launcher frames, the plane blends exactly over the presenter while capture
 writes load port 2. Beyond the exit, Wolfenstein 3D (user-supplied, not committed)
 runs from its signon through the menus into the first level on the RTL VGA,
@@ -126,7 +127,8 @@ default 80 × 25 screen (about 10,000 tiny frames the zeroed CRTC produces in
 the first milliseconds), and text frames with blinking characters on where the
 RTL's character phase differs from its cursor phase (Bochs blinks both
 together; the adapter brings Bochs's phase to the RTL cursor's). Status reads
-(3BAh/3DAh) are not compared: their timing is the RTL's own raster. The list's
+(3BAh/3DAh) are not compared; bit 0 currently uses the display-end window,
+without programmed blanking windows, as documented below. The list's
 other entries (`exercised = false`) come from reading `vgacore.cc` against the
 IBM behaviour the RTL follows; no trace reaches them, so they are claims, not
 measurements.
@@ -256,6 +258,11 @@ the AT core, outside M2.
   is the same as from 320 × 200.
 - Not captured: the overscan border. Not modelled: VGA snow, the vertical
   retrace interrupt, graphics-mode blink, cursor and display enable skew.
+- Input status 1 bit 0 is set outside the display-end window from CRTC 01h and
+  the vertical display end. CRTC horizontal blank/retrace registers 02h-05h
+  and vertical blank registers 15h-16h are not wired into the raster, so this
+  is an approximation of VGA display enable for modes with different blanking
+  windows. The status-display-enable replay entry is not compared.
 - The ATA image stays on its own port; moving it onto port 2 is later work.
 - VGA port writes post at 4/7/13 clocks only while the FIFO has room; behind
   a burst of memory writes they wait (seen in the Wolfenstein 3D run).
@@ -279,3 +286,22 @@ ALMs and 3 M10K.
 A routed result or timing for any of this; the machine's place in the device
 with the CPU; the plane opened inside the oracle-driven machine (the plane
 bench covers it); kit HDMI captures (M4); audio (M3); the mailbox wiring.
+
+## Post-review verification, 27 October 2026
+
+The capture overflow and status-display-enable review fixes in commit
+`86cd58ea` were present in the source used for these runs. Both requested
+simulation targets passed:
+
+| Command | Result |
+| --- | --- |
+| `make -C sources/misteross sim-fes-pc386` | Device checks and presenter, capture, and plane benches passed. The capture bench forced one dropped beat, discarded that frame, and published the next frame (`dropped=1 published=1`). |
+| `make -C sources/misteross sim-fes-pc386-vga` | VGA disk and Bochs replay passed; all 11 marked 720p pictures had 0 differing pixels. |
+
+The post-fix VGA run published 10,194 captures with zero scanout underflows,
+capture drops, presenter underflows, or plane underflows. Its replay saw 10,196
+published frames, compared and matched 103 stable frames, and reported zero
+read, VRAM, replay, or frame mismatches. It published one fewer capture than
+the original run because the capture buffer is now reused only after the
+writer is idle at a frame boundary. The original source-tagged counts above
+remain the historical 26 October run. This is host-only simulation evidence.

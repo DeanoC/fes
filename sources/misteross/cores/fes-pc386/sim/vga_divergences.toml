@@ -121,8 +121,8 @@ replay = "skip"
 counter = "status reads are not compared"
 exercised = true
 reference = "Set during horizontal blanking and vertical blanking, from timers in microseconds."
-rtl = "Set whenever the raster is outside the display area (the inverse of display enable), from the CRTC counters."
-deciding = "IBM VGA Technical Reference, input status register 1: display enable. Status timing is the RTL's own raster in any case."
+rtl = "Set outside the display-end window (hcount < CRTC 01h + 1 and vcount < vertical display end); CRTC horizontal blank/retrace registers 02h-05h and vertical blank registers 15h-16h are not connected to the raster."
+deciding = "IBM VGA Technical Reference, input status register 1: bit 0 follows display enable/blanking. The current M2 raster uses display ends as an approximation and does not yet implement the programmed blanking windows; see docs/pc386-machine-design.md."
 follow = "rtl"
 
 [[divergence]]

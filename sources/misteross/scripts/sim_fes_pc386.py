@@ -118,6 +118,10 @@ VGA_RTL = (
     CORE / 'sim/vga_replay_top.sv',
 )
 PRESENTER_RTL = (CORE / 'rtl/pc386_ram.sv', CORE / 'rtl/pc386_presenter.sv')
+CAPTURE_RTL = (
+    CORE / 'rtl/pc386_rate.sv', CORE / 'rtl/pc386_ram.sv', CORE / 'rtl/pc386_vga_scanout.sv',
+    CORE / 'sim/vga_capture_top.sv',
+)
 PLANE_RTL = PRESENTER_RTL + (
     CORE / 'rtl/pc386_plane_bridge.sv',
     CORE / 'rtl/pc386_port2.sv',
@@ -338,6 +342,7 @@ def run_bench(args, name: str, top: str, rtl: tuple[Path, ...], testbench: Path)
 
 def run_benches(args) -> dict:
     benches = {'presenter': run_bench(args, 'presenter', 'pc386_presenter', PRESENTER_RTL, CORE / 'sim/presenter_tb.cpp'),
+               'capture': run_bench(args, 'capture', 'vga_capture_top', CAPTURE_RTL, CORE / 'sim/capture_tb.cpp'),
                'plane': run_bench(args, 'plane', 'plane_top', PLANE_RTL, CORE / 'sim/plane_tb.cpp')}
     return {'checks': [line for bench in benches.values() for line in bench['checks']],
             'failures': [line for bench in benches.values() for line in bench['failures']], 'benches': benches}
