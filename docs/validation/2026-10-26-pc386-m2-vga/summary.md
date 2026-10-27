@@ -15,7 +15,10 @@ test disk's 10,197 captured frames and 131 of the boot's 10,279, nearly all
 the rest being the tiny frames of the unprogrammed CRTC in the first
 milliseconds. Opened on
 launcher frames, the plane blends exactly over the presenter while capture
-writes load port 2. The first machine-only synthesis puts the M2 blocks
+writes load port 2. Beyond the exit, Wolfenstein 3D (user-supplied, not committed)
+runs from its signon through the menus into the first level on the RTL VGA,
+and its 32-million-event trace replays against Bochs with the same result.
+The first machine-only synthesis puts the M2 blocks
 inside their budgets and finds M1's AT core far over its own. This is a
 **host-only check** plus diagnostic synthesis: no route, package or kit. It
 meets the exit of phase M2 in the
@@ -128,6 +131,45 @@ other entries (`exercised = false`) come from reading `vgacore.cc` against the
 IBM behaviour the RTL follows; no trace reaches them, so they are claims, not
 measurements.
 
+## Wolfenstein 3D start-up and play (user-supplied game)
+
+A run beyond the M2 exit, with the commercial game from the host's eXoDOS
+6.04 collection, read in place and extracted to scratch outside the repository.
+Nothing from it is committed; this section records only paths, hashes and
+measurements.
+
+- Source: `/mnt/emuhd/Games/PC DOS/Collections/eXoDOS 6.04 Full/eXoDOS/eXo/eXoDOS/Wolfenstein 3D (1992).zip`,
+  SHA-256 `f451d8538266fb9f12a4fa8909a671b37d354de388a9b76d1c1033a6a541ed37`;
+  `WOLF3D.EXE` (108,779 bytes) `48d9594649f330956e86ea1892bab76b2d83cfd4038e262ff8f3383ba945ec09`.
+- Disk: a copy of the FreeDOS fixture with the game's `.WL6` files and
+  `WOLF3D.EXE` in the root and `FDCONFIG.SYS` set to `FILES=10`, `BUFFERS=10`,
+  `SHELL=C:\WOLF3D.EXE`. Run from FreeCom, the game quits with "You do not
+  have enough memory": the fixture loads no HIMEM, so the kernel and FreeCom
+  stay in conventional memory; as the shell it has room.
+- Run (`machine_tb` at `8d790c5cc4`): `--limit-seconds 32 --type '||||||||'
+  --type-at 4.0 --key-gap 2.0 --trace … --frames …`: Enter every 2 s from
+  4.0 s takes it through the signon screen, PG-13, the title, the main menu,
+  episode 1 and "Bring 'em on" to "Get Psyched!" and the first level, which is
+  drawn in play from about 27 s.
+- Machine: 32.0 simulated seconds, 719,150,482 instructions, 38 minutes of
+  wall time. No scanout underflow, capture drop, presenter or plane underflow.
+  The last capture shows the first level's view (walls, a door, the weapon,
+  the status bar) as the game draws it.
+- I/O: 364,722 VGA port byte writes and 74,373 word writes (the map mask per
+  wall post); all but 31 posted at 4 and 7 clocks. Those 31 waited behind a
+  full VGA FIFO, up to 113 clocks, which is the posting rule working. The
+  suites' exact write-time check holds for their own runs, which never fill
+  the FIFO. 25,488,591 port reads (retrace polling) at 6 clocks.
+- Replay (trace 907 MB, 9.7 minutes): 32,288,060 events, of them 6,154,537
+  memory writes and 205,836 memory reads (latch copies), all reads equal to
+  the recording and to Bochs's, VRAM equal after every stable frame and at
+  the end, 1,405 of 1,405 comparable frames equal (1,321 mode Y graphics,
+  84 text from the boot). 768 frames were not compared because the game wrote
+  VRAM during them: in play it draws the next page while one is shown, so
+  there VRAM equality is the check. 576 DAC reads differ only in bits 7:6:
+  `VL_TestPaletteSet` writes every byte value and reads it back, and the RTL
+  keeps a VGA's 6 bits (divergence `dac-width`, now named and counted).
+
 ## FreeDOS boot
 
 `python3 scripts/sim_fes_pc386.py --suite boot` ([`boot-report.json`](boot-report.json)):
@@ -215,6 +257,8 @@ the AT core, outside M2.
 - Not captured: the overscan border. Not modelled: VGA snow, the vertical
   retrace interrupt, graphics-mode blink, cursor and display enable skew.
 - The ATA image stays on its own port; moving it onto port 2 is later work.
+- VGA port writes post at 4/7/13 clocks only while the FIFO has room; behind
+  a burst of memory writes they wait (seen in the Wolfenstein 3D run).
 - Simulation speed: the FreeDOS boot now takes about 6.5 minutes of wall
   time on an idle 24-core host (M1: 2 min 20 s; several times longer under
   load), the VGA logic running on every system clock. The pixel clock
