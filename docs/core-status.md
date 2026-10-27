@@ -288,15 +288,22 @@ SDRAM pad qualification, physically linkable ISA cards, a runtime ABI/sealed pac
 BIOS/DOS/game compatibility and hardware acceptance remain open. See the
 [PC/XT diagnostic guide](../sources/misteross/cores/fes-pcxt/README.md#assembled-board-diagnostic).
 
-## pc386 machine, phase M1
+## pc386 machine, phases M1, M2 and M3
 
 pc386 is outside the factory/package set and has no shell or producer. Its AT
 core (PICs, 8254, DMA, 8042, RTC/CMOS, ATA) runs the Bochs BIOS, the LGPL
 VGABios and FreeDOS 1.4 to a working prompt in host simulation, with the Bochs
-oracle as CPU and a text VGA stand-in; `make sim-fes-pc386` runs its device
-checks. See the [pc386 README](../sources/misteross/cores/fes-pc386/README.md)
-and the [M1 record](validation/2026-10-26-pc386-m1-freedos-boot/summary.md).
-The RTL CPU in the machine, VGA, audio, the mailbox and hardware remain open.
+oracle as CPU; `make sim-fes-pc386` runs the device, DSP, OPL2, presenter and
+port 2 checks. The register-level
+VGA, its capture to DDR port 2, the 720p presenter and the display plane on
+port 2 show the VGA BIOS text, mode 13h and mode Y pictures at 720p in
+simulation, and the VGA trace replay matches Bochs's VGA
+(`make sim-fes-pc386-vga`); `make synth-fes-pc386` gives the machine-only
+synthesis figures. See the [pc386 README](../sources/misteross/cores/fes-pc386/README.md),
+the [M1 record](validation/2026-10-26-pc386-m1-freedos-boot/summary.md) and the
+[M2 record](validation/2026-10-26-pc386-m2-vga/summary.md) and the
+[M3 audio record](validation/2026-10-26-pc386-m3-audio/summary.md). The RTL CPU
+in the machine, mailbox, routed result and hardware remain open.
 
 ## Not implemented, or not this package
 

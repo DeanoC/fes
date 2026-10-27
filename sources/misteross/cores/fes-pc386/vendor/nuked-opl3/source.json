@@ -1,0 +1,24 @@
+{
+  "repository": "https://github.com/nukeykt/Nuked-OPL3",
+  "commit": "765ec962e473aeb767e4cba74ffdc8f588ffbfe8",
+  "license": "LGPL-2.1-or-later",
+  "use": "Simulation reference only: the host OPL2 checks link it; no RTL or package carries it.",
+  "local_changes": [],
+  "files": [
+    {
+      "path": "LICENSE",
+      "upstream_path": "LICENSE",
+      "sha256": "20c17d8b8c48a600800dfd14f95d5cb9ff47066a9641ddeab48dc54aec96e331"
+    },
+    {
+      "path": "opl3.c",
+      "upstream_path": "opl3.c",
+      "sha256": "59eb873fdb6d52bc7977a0fcbb97c1bae03dd71cc88e3acddbcc01b7121bfe03"
+    },
+    {
+      "path": "opl3.h",
+      "upstream_path": "opl3.h",
+      "sha256": "a84266b8d71a4929f15f573afbe407fd24310b77757d855835dacabf68763679"
+    }
+  ]
+}
