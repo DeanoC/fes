@@ -515,7 +515,7 @@ raw Pong product. Package persistence uses the described-core records below.
 
 ## Core package inspection and staging
 
-`corepackage` is the shared, hardware-independent format-2/3 reader. It
+`corepackage` is the shared, hardware-independent format-2/3/4 reader. It
 inspects closed directories or restricted uncompressed ustar archives,
 validates the closed typed manifest and payload bytes, and computes package
 identity from the original manifest and payload. Unknown but well-formed ABIs
@@ -525,9 +525,9 @@ from the same pinned read for identity-reporting consumers such as
 `core-inspect`; the smaller `Inspect` wrapper returns only the descriptor.
 
 `corepackage.Stage` accepts a caller-bounded archive stream and publishes only
-validated `manifest.toml`, `core.rbf` and, for format 3, `rom-map.json` bytes
-into a distinct sealed directory
-beneath an absolute private root. Cancellation or validation failure removes
+validated `manifest.toml`, `core.rbf` and, for format 3 or 4,
+`rom-map.json` bytes into a distinct sealed directory beneath an absolute
+private root. Cancellation or validation failure removes
 the incomplete directory, including cancellation observed after rename and
 before ownership handoff. The caller owns the returned directory lifetime and
 must release it with `Staged.Cleanup`, which reopens and verifies the retained
@@ -1559,8 +1559,8 @@ not a playable library entry. Image inclusion and selector admission do not
 establish playability; [core status](../../../docs/core-status.md) records the
 exact-artifact kit evidence.
 The image selector validates and copies the closed `manifest.toml` and
-`core.rbf` set, including `rom-map.json` for format 3, beneath exact package IDs. It
-separately retains factory video assets beneath
+`core.rbf` set, including `rom-map.json` for formats 3 and 4, beneath exact
+package IDs. It separately retains factory video assets beneath
 `/usr/share/mister-runtime/core-video-parts`. Its canonical `index.json` binds
 each marked shell to one direct and one scanlines archive by profile, exact part
 ID, relative path, size and digest. The selected `FES_VIDEO_PARTS_DIR` tree has
@@ -1580,9 +1580,9 @@ retains the external producer/package selections beside the image,
 has no Main startup or legacy Menu-configuration helper, has no
 `/dev/MiSTer_cmd` wait, and retains the same read-only root with volatile
 `/run`, `/tmp`, and `/var/log`. Its build-input record identifies the runtime
-commit, agent binary and idle RBF provenance. For each
-format-2/3 package selected, the record also identifies the exact selection
-digest, package and payload IDs, producer/schema revisions, and install path.
+commit, agent binary and idle RBF provenance. For each format-2, format-3, or
+format-4 package selected, the record identifies the exact selection digest,
+package and payload IDs, producer/schema revisions, and install path.
 The verifier reconstructs that projection from the installed package and
 external selection; it does not infer selection from cache or image contents.
 The per-filesystem Buildroot copy retains the installed 0555 package directory
@@ -3302,12 +3302,14 @@ identity imposed on later live media changes.
 
 ## ROM-bearing package inspection
 
-`corepackage` accepts closed format-2 and format-3 packages during the ROM
-transition. Format 3 carries exactly `manifest.toml`, `core.rbf`, and
-`rom-map.json`. The required `rom` manifest table names one ROM requirement
-(id, firmware/cartridge role and exact binary source size) and binds the map's
-length and SHA256. Package identity uses the format-3 domain and hashes all
-three exact members. The maximum archive/import size is 65 MiB; format-2
+`corepackage` accepts closed format-2, format-3, and format-4 packages. Formats
+3 and 4 carry exactly `manifest.toml`, `core.rbf`, and `rom-map.json`. The
+format-3 `rom` manifest table names one ROM requirement (id, firmware/cartridge
+role and exact binary source size) and binds the map's length and SHA256.
+Format-3 identity uses its own domain and hashes all three exact members.
+Format 4 binds its map and two ordered ROM requirements in the `rom_map` and
+`roms` manifest fields; format-4 identity also hashes all three exact members
+under its own domain. The maximum archive/import size is 65 MiB; format-2
 payload limits and identities remain unchanged.
 
 Import, private staging, inspection and restart adoption validate and preserve

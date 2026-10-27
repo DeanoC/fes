@@ -95,7 +95,7 @@ display name or file extension.
 
 | Slot | What it is | When it must be bound | First systems |
 | --- | --- | --- | --- |
-| **Core** | Format-2 FPGA package (sealed manifest + RBF) | Before boot | `fes.pong`, `fes.zx81`, `fes.coleco` |
+| **Core** | Sealed FPGA package (format declared in its manifest) | Before boot | `fes.pong`, `fes.zx81`, `fes.coleco` |
 | **Firmware** | BIOS / boot ROM the CPU fetches at reset | Before boot | Coleco 8 KiB BIOS (Phase 1) |
 | **Expansions** | Optional carts **linked at load** onto the core’s registered expansion bus | At load, before programming | ZX81 expansion-bus validation cart via the proven nextpnr CRAM linker (Phase 2) |
 | **Primary media** | Cart, ROM, or the media the machine is meant to start with | Before boot, unless the package allows a media-less start | Coleco cart, Mega Drive `cartridge`, ZX81 `.p` tape |
