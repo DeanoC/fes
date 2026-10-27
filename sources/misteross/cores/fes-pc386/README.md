@@ -2,10 +2,11 @@
 
 The AT-class 386 PC of the [pc386 machine design](../../docs/pc386-machine-design.md),
 built around [`fes_i386_cpu`](../fes-common/rtl/i386/). This directory holds
-phase M1: the AT core, the firmware build and a simulation of the machine with
-the Bochs oracle standing in for the CPU. There is no VGA beyond a text
-stand-in in the testbench, no audio, no shell, no package and no kit evidence.
-Everything here is a host-only check.
+phases M1 and M2: the AT core, the firmware build, the register-level VGA with
+its capture writer, the 720p presenter, the display plane on DDR port 2, and a
+simulation of the machine with the Bochs oracle standing in for the CPU. There
+is no audio, no shell, no package and no kit evidence. Everything here is a
+host-only check, plus diagnostic synthesis.
 
 ## Layout
 
@@ -19,9 +20,24 @@ Everything here is a host-only check.
 | [`rtl/pc386_rtc.sv`](rtl/pc386_rtc.sv) | MC146818A clock with 128 bytes of CMOS and the configuration bytes |
 | [`rtl/pc386_ata.sv`](rtl/pc386_ata.sv) | ATA disk with a two-sector buffer on a 64-bit image port and the dirty map |
 | [`rtl/pc386_rate.sv`](rtl/pc386_rate.sv) | Rational clock enable for every guest time base |
+| [`rtl/pc386_vga.sv`](rtl/pc386_vga.sv) | VGA registers, the port and MMIO FIFO, planar read and write logic, the write coalescer, the port 1 arbiter |
+| [`rtl/pc386_vga_scanout.sv`](rtl/pc386_vga_scanout.sv) | CRTC raster at the guest dot clock, line prefetch, attribute controller, DAC, capture writer |
+| [`rtl/pc386_presenter.sv`](rtl/pc386_presenter.sv) | Area-weighted scaling of the newest capture to 960 x 720 in the 720p raster |
+| [`rtl/pc386_plane_bridge.sv`](rtl/pc386_plane_bridge.sv) | The display plane's reads on port 2: clock crossing, 128-to-64-bit beats, the plane's port guard |
+| [`rtl/pc386_port2.sv`](rtl/pc386_port2.sv) | DDR port 2 arbiter: plane, presenter, capture |
+| [`rtl/pc386_machine.sv`](rtl/pc386_machine.sv) | The machine without the CPU: AT core, VGA, presenter, port 2, display plane |
+| [`rtl/pc386_ram.sv`](rtl/pc386_ram.sv) | Inferred RAMs and FIFOs: one clock, two clocks, show-ahead |
 | [`firmware/`](firmware/) | Bochs ROM BIOS and LGPL VGABios sources, `source.json` manifests, `firmware.lock` |
-| [`sim/machine_tb.cpp`](sim/machine_tb.cpp) | The machine with the Bochs oracle as CPU, guest memory and the text VGA stand-in |
+| [`sim/machine_tb.cpp`](sim/machine_tb.cpp) | `pc386_machine` with the Bochs oracle as CPU, guest memory and DDR models; records VGA traces and frames |
 | [`sim/devices_tb.cpp`](sim/devices_tb.cpp) | Directed checks of the AT core through its I/O port |
+| [`sim/vga_replay_tb.cpp`](sim/vga_replay_tb.cpp), [`sim/vga_replay_top.sv`](sim/vga_replay_top.sv) | Replays a VGA trace into the RTL VGA and Bochs's VGA and compares reads, VRAM and frames |
+| [`sim/vga_reference.cpp`](sim/vga_reference.cpp), [`sim/vga_reference.h`](sim/vga_reference.h) | The reference: Bochs's `vgacore.cc` and GUI renderer behind a small interface |
+| [`sim/vga_divergences.toml`](sim/vga_divergences.toml) | Every Bochs-versus-RTL VGA divergence with its deciding case |
+| [`sim/vga_test.asm`](sim/vga_test.asm) | The VGA test disk: VGA BIOS text, mode 13h, mode Y, mode 12h |
+| [`sim/presenter_tb.cpp`](sim/presenter_tb.cpp), [`sim/pc386_presenter_model.h`](sim/pc386_presenter_model.h) | The presenter against its bit-exact C++ model |
+| [`sim/capture_tb.cpp`](sim/capture_tb.cpp), [`sim/vga_capture_top.sv`](sim/vga_capture_top.sv) | Forces capture FIFO overflow and checks that the damaged frame is discarded and a later frame completes |
+| [`sim/plane_tb.cpp`](sim/plane_tb.cpp), [`sim/plane_top.sv`](sim/plane_top.sv) | The plane through the bridge and the port 2 arbiter beside the presenter and capture traffic |
+| [`sim/pc386_ddr_model.h`](sim/pc386_ddr_model.h) | The DDR window and 64-bit port model with the measured latency |
 | [`sim/freedos.lock`](sim/freedos.lock) | The FreeDOS 1.4 package commits and file hashes of the simulation disk |
 
 The 8254 is the shared KF8253 with `READ_BACK = 1`; the DMA controllers are the
@@ -33,15 +49,24 @@ shared [`fes_dma8237.sv`](../fes-common/rtl/fes_dma8237.sv) with AT parameters.
 python3 scripts/build_pc386_firmware.py --download     # dev86, then both ROMs, checked against the lock
 python3 scripts/build_pc386_freedos_image.py --download  # the FreeDOS fixture in build/
 python3 scripts/sim_fes_pc386.py --suite devices        # directed device checks, about 10 s
-python3 scripts/sim_fes_pc386.py --suite boot --download  # BIOS POST to the FreeDOS prompt, minutes
+python3 scripts/sim_fes_pc386.py --suite benches        # presenter, capture overflow recovery and display plane on port 2
+python3 scripts/sim_fes_pc386.py --suite boot --download  # BIOS POST to the FreeDOS prompt and its VGA replay
+python3 scripts/sim_fes_pc386.py --suite vga              # presenter, capture and plane benches, VGA test disk, replay
+python3 scripts/synth_fes_pc386.py --cache-root /abs/out/cache/misteross-toolchains  # machine-only synthesis
 ```
 
-The boot suite runs the locked BIOS and VGA BIOS on the RTL AT core, boots the
-FreeDOS disk, types `dir` at the prompt and requires its listing on screen,
-then checks that every CPU I/O completed at its class time. It writes
-`build/sim/fes-pc386/boot/report.json` (POST codes, debug-port text, I/O
-histogram, final screen) and `machine.log`. `PC386_TRACE_IO=1` makes
-`machine_tb` print every I/O but port 80h.
+The boot suite runs the locked BIOS and VGA BIOS on `pc386_machine`, boots the
+FreeDOS disk, types `dir` at the prompt and requires its listing in VRAM, then
+checks that every CPU I/O completed at its class time and replays the boot's
+VGA trace against Bochs's VGA. The vga suite runs the presenter and port 2
+benches, boots the VGA test disk, compares each marked picture's 720p frame
+(presenter and closed plane) with the presenter model, and replays that trace.
+Each writes `build/sim/fes-pc386/<suite>/report.json` (POST codes, debug-port
+text, I/O histogram, final screen, frames, replay counts) and logs; the vga
+suite writes the marked captures and 720p frames as PPM files in `frames/`.
+The boot takes about 7 minutes of wall time and its replay one more; the vga
+suite about 6 minutes in all. `PC386_TRACE_IO=1` makes `machine_tb` print every I/O but port
+80h.
 
 ## Simulation model
 
@@ -52,12 +77,18 @@ histogram, final screen) and `machine.log`. `PC386_TRACE_IO=1` makes
   run through the RTL inside the instruction and take its device time on top.
   A halted CPU lets the RTL run until INTR.
 - **Memory.** 16 MiB of host pages: the ROMs at F0000h (aliased at FFFF0000h)
-  and C0000h are read-only, C8000h-EFFFFh is RAM, and A0000h-BFFFFh is plain
-  RAM for the VGA stand-in. Above 16 MiB is a hole.
-- **VGA stand-in.** A register file for 3B0h-3DFh with a 70 Hz, 449-line
-  retrace on 3DAh. Each VGA port byte completes in the clock after it is
-  posted, as the design's `vga` class allows; there is no planar logic, so
-  fonts land in RAM at A0000h harmlessly and the screen is read from B8000h.
+  and C0000h are read-only, C8000h-EFFFFh is RAM. A0000h-BFFFFh is MMIO into
+  the RTL VGA: each access becomes dword requests with byte enables in address
+  order, writes posted, reads blocking. Above 16 MiB is a hole.
+- **DDR.** Ports 1 and 2 are `sim/pc386_ddr_model.h` ports on one 256 MiB
+  window: reads answer 17-18 clocks after the command, 32-51 for 1.5% and
+  54-79 for 0.1% (Kit B, [#1076](https://github.com/DeanoC/fes/pull/1076)),
+  commands are refused at random and while 14 reads wait, all from a seeded
+  generator so a replay sees the same timing. The screen text is read from
+  VRAM in the window.
+- **Pixel clock.** 74.25 MHz, interleaved with the system clock in time. It
+  runs only while a marked picture waits for its 720p frames (or from
+  `--pixel-from`), so the presenter and plane cost nothing otherwise.
 - **Disk.** The image file behind the ATA device's 64-bit image port, answered
   in the next clock. The geometry is inferred from the first partition entry's
   end CHS, as FogCast will.
@@ -86,9 +117,47 @@ histogram, final screen) and `machine.log`. `PC386_TRACE_IO=1` makes
 - **Keyboard input** is set 2 scan codes on `key_valid`/`key_code`. The HID
   row model and typematic repeat of the design are not built yet.
 
+## VGA
+
+- **Ports and FIFO.** VGA port writes and MMIO writes share a 16-entry FIFO
+  and are processed in order; a port write completes in four clocks (a clock
+  later than the M1 stand-in, as the byte is posted through a register), a
+  port read waits until the FIFO has drained. An MMIO read also drains the
+  write coalescer first.
+- **Planar logic.** One VRAM word write per clock: the bytes of a dword that
+  share a planar offset (a chain-4 dword, an odd/even pair) go together, each
+  plane taking its own byte. Chain-4 is plane A[1:0] at A >> 2; odd/even is
+  planes A[0] ? 1,3 : 0,2 at A with bit 0 cleared, as Bochs and the CRTC's
+  word mode (C << 1) have it. Reads use the sequencer's chain-4 and odd/even
+  bits for both directions, as Bochs does.
+- **Coalescer.** Four 32-byte lines in allocation order; a line drains when a
+  write needs its place, before any MMIO read, or after 64 idle clocks.
+- **Scanout.** Line N + 1 is fetched during line N, one single-beat read per
+  character column (two per column in text mode, the font byte read as each
+  character arrives), at most 12 outstanding. The start address, preset row
+  scan and byte panning latch at the start of vertical retrace; pixel panning
+  at each line start. Doubleword and byte mode address VRAM at C, word mode at
+  C << 1 with bit 0 from C[13] or C[15]. The system clock must be at least
+  twice the dot clock.
+- **Capture.** Up to 800 x 600 pixels a frame, every scan line (mode 13h is
+  captured as 320 x 400), 256-colour modes at half the dot rate, into three
+  2 MiB buffers on port 2. A beat-FIFO or line-descriptor overflow invalidates
+  the in-progress frame; the writer drains before a capture buffer is reused.
+  The overscan border is not captured.
+- **Presenter.** The newest complete capture at each 720p frame, scaled to
+  960 x 720 by the area-weighted filter in the RTL's header; DSP use is nine
+  9 x 9 multipliers for the blends and two 27 x 27 for the weights.
+- **Divergences from Bochs's VGA** are listed in
+  [`sim/vga_divergences.toml`](sim/vga_divergences.toml), including current
+  M2 limitations against IBM VGA behavior.
+- **Not built:** the vertical retrace interrupt (CRTC 11h bits 4-5), graphics
+  blink (attribute bit 3 in graphics modes), cursor skew, display enable skew,
+  9-dot 256-colour modes.
+
 ## Not built yet
 
 The HID nine-row keyboard model and typematic repeat; the `fes.mouse.relative`
 and `fes.computer` mailbox wiring (disk prepare, commit with CRC, freeze,
-DiskDirty read-out, persistence, wall clock); the shell, VGA, audio and the
-producer (phases M2-M4).
+DiskDirty read-out, persistence, wall clock, display plane commands); the ATA
+image on DDR port 2 (it keeps its own 64-bit image port); the shell, audio and
+the producer (phases M3-M5).

@@ -1,34 +1,56 @@
 // SPDX-License-Identifier: MIT
 // pc386 machine in simulation with the Bochs oracle as its CPU
-// (docs/pc386-machine-design.md, "Verification", item 2).
+// (docs/pc386-machine-design.md, "Verification", items 2 and 3).
 //
 // The oracle executes instructions against this harness's guest memory and
-// sends every IN, OUT and INTA through the Verilated AT core, which answers
-// after its device timing. Interrupts, A20M and CPU reset come back from the
-// RTL. Each retired instruction also advances the RTL by --cycles-per-instruction
-// system clocks, and a halted CPU lets the RTL run until INTR. The VGA is a
-// text stand-in in C++: A0000h-BFFFFh is plain RAM and its ports are a register
-// file with a retrace that follows a 70 Hz, 449-line frame.
+// sends every IN, OUT and INTA through the Verilated machine (pc386_machine),
+// which answers after its device timing; A0000h-BFFFFh is MMIO into the RTL
+// VGA, as dwords with byte enables. Interrupts, A20M and CPU reset come back
+// from the RTL. Each retired instruction also advances the RTL by
+// --cycles-per-instruction system clocks, and a halted CPU lets the RTL run
+// until INTR. DDR ports 1 (VRAM) and 2 (capture, presenter, plane) are
+// pc386_ddr_model.h ports on one simulated window. The 74.25 MHz pixel clock
+// runs from --pixel-from seconds on, and otherwise only while a marked picture
+// waits for its 720p frames, so the presenter and the plane cost nothing the
+// rest of the time; a stopped pixel clock freezes their state.
 //
 // Prints, one per line:
 //   POST <code> <cycle>                     each change of the POST code
 //   DEBUG <port> <text>                     a line on a debug port (402h BIOS, 500h VGA BIOS, E9h)
 //   PANIC <port> <value>                    a write to the BIOS panic ports 400h/401h
-//   IO <class> <size> <cycles> <count>      completion-time histogram of CPU I/O
+//   IO <class> <size> <cycles> <count>      completion-time histogram of CPU I/O (VGA ports by direction)
 //   INTA <cycles> <count>
-//   SCREEN <row> |<80 characters>|          the text screen at the end
+//   SNAP <name> <width> <height> <file>     a captured frame written at a marker
+//   PRESENT <name> <file> <mismatches>      the 720p frame at a marker against the presenter model
+//   VGA <counter> <value>                   scanout and capture counters at the end
+//   SCREEN <row> |<80 characters>|          the text screen at the end, read from VRAM
 //   END <reason> steps=<n> cycles=<n> seconds=<simulated>
 // usage: machine_tb --bios F --vgabios F --disk F [--disk-out F] [--limit-seconds S]
 //        [--cycles-per-instruction N] [--prompt TEXT] [--type TEXT] [--expect TEXT]
+//        [--trace F] [--frames DIR] [--pixel-from S] [--until-debug TEXT]
+//        [--type-at S] [--key-gap S]
+// A program on the disk marks a picture by writing "SNAP <name>" and a newline
+// to port E9h, then holding it; the bench takes the second capture after the
+// marker, runs the pixel clock for two 720p frames and compares the second
+// with the presenter model's scaling of that capture or of one published
+// after it (a blinking cursor changes the picture while it holds); it must
+// equal one of them exactly. --frames writes the capture and the 720p frame. --until-debug ends the run when a debug line
+// contains the text.
+// --type-at types the --type text at that simulated time instead of at the
+// prompt (for a program that runs as the shell); --key-gap is applied after
+// each byte unless the next byte is the 0xf0 break prefix (default 0.03 s).
 // PC386_TRACE_IO=1 prints every I/O but port 80h to stderr.
-#include "Vpc386_at_core.h"
+#include "Vpc386_machine.h"
 #include "i386_oracle.h"
+#include "pc386_ddr_model.h"
+#include "pc386_presenter_model.h"
 #include "verilated.h"
 
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <deque>
 #include <fstream>
 #include <iterator>
 #include <map>
@@ -41,6 +63,8 @@ namespace {
 
 constexpr uint32_t RAM_BYTES = 16u << 20;
 constexpr double CLOCK_HZ = 100e6;
+constexpr uint64_t SYS_PERIOD_PS = 10000;
+constexpr uint64_t PIXEL_HALF_PS = 6734;   // 74.25 MHz
 
 std::vector<uint8_t> read_file(const std::string &path) {
     std::ifstream input(path, std::ios::binary);
@@ -68,6 +92,15 @@ bool set2(char c, uint8_t &code, bool &shift) {
     return true;
 }
 
+pc386::PortSignals port1(Vpc386_machine &top) {
+    return {&top.p1_address, &top.p1_burstcount, &top.p1_read, &top.p1_write, &top.p1_writedata,
+            &top.p1_byteenable, &top.p1_waitrequest, &top.p1_readdata, &top.p1_readdatavalid};
+}
+pc386::PortSignals port2(Vpc386_machine &top) {
+    return {&top.p2_address, &top.p2_burstcount, &top.p2_read, &top.p2_write, &top.p2_writedata,
+            &top.p2_byteenable, &top.p2_waitrequest, &top.p2_readdata, &top.p2_readdatavalid};
+}
+
 class Machine final : public fes_i386::Bus {
 public:
     Machine(const std::vector<uint8_t> &bios, const std::vector<uint8_t> &vgabios, const std::string &disk)
@@ -80,6 +113,7 @@ public:
         std::memcpy(rom_vga.data(), vgabios.data(), vgabios.size());
         geometry();
         top.reset = 1;
+        top.pixel_locked = 0;
         top.disk_present = 1;
         top.disk_sectors = uint32_t(image.size() / 512);
         top.disk_cylinders = cylinders;
@@ -99,8 +133,12 @@ public:
         top.wall_valid = 1; clock(); top.wall_valid = 0;
         for (int n = 0; n < 1000; ++n) clock();
     }
+    ~Machine() override { if (trace) std::fclose(trace); }
 
-    Vpc386_at_core top;
+    Vpc386_machine top;
+    pc386::Window window;
+    pc386::Port ddr1{window, 0x5eed0001, "port 1"};
+    pc386::Port ddr2{window, 0x5eed0002, "port 2"};
     fes_i386::PageMemory ram{RAM_BYTES};
     fes_i386::PageMemory rom_bios{0x10000};
     fes_i386::PageMemory rom_vga{0x8000};
@@ -112,9 +150,11 @@ public:
     std::map<std::tuple<std::string, unsigned, uint64_t>, uint64_t> io_times;
     std::map<uint64_t, uint64_t> inta_times;
     std::string debug_line[0x600];
+    std::vector<std::string> debug_lines;
     int last_post = -1;
     bool disk_written = false;
     bool trace_io = std::getenv("PC386_TRACE_IO") != nullptr;
+    std::FILE *trace = nullptr;
 
     // The geometry the partition table was written with: the first entry's
     // end CHS, as FogCast infers it; 16 heads and 63 sectors otherwise.
@@ -128,10 +168,52 @@ public:
         cylinders = uint16_t(std::min<uint64_t>(image.size() / 512 / per_cylinder, 16383));
     }
 
-    // ---- RTL clock ------------------------------------------------------
+    // ---- Clocks ---------------------------------------------------------
+    // The pixel clock's edges run between system edges in time order while
+    // it is enabled.
+    bool pixel_running = false;
+    uint64_t now_ps = 0, pixel_edge_ps = 0;
     uint64_t pending_read_address = 0;
     bool pending_read = false;
-    bool vga_answered = false;
+    // Capture and 720p frame bookkeeping.
+    unsigned frames_done = 0;
+    // Captures published while a marked picture waits for its 720p frame.
+    bool keep_captures = false;
+    std::deque<pc386::Frame> recent;
+    pc386::Frame raster;            // 720p frame being assembled from the plane output
+    unsigned raster_x = 0, raster_y = 0;
+    bool raster_started = false, last_de = false, last_vs = false;
+    unsigned rasters_complete = 0;
+    pc386::Frame last_raster;
+
+    void start_pixel_clock() {
+        if (pixel_running) return;
+        pixel_running = true;
+        top.pixel_locked = 1;
+        pixel_edge_ps = now_ps;
+        raster.width = 1280; raster.height = 720; raster.pixels.assign(1280 * 720, 0);
+        raster_started = false;
+    }
+    void stop_pixel_clock() { pixel_running = false; }
+
+    void pixel_edge() {
+        top.pixel_clk = !top.pixel_clk;
+        top.eval();
+        if (!top.pixel_clk) return;
+        uint32_t word = top.video;
+        bool de = word & (1u << 24), vs = word & (1u << 26);
+        if (vs && !last_vs) {
+            if (raster_started && raster_y == 720) { last_raster = raster; ++rasters_complete; }
+            raster_started = true;
+            raster_y = 0;
+        }
+        if (de && !last_de) raster_x = 0;
+        if (de && raster_started && raster_y < 720 && raster_x < 1280) raster.pixels[raster_y * 1280 + raster_x] = word & 0xffffff;
+        if (de) ++raster_x;
+        if (!de && last_de) ++raster_y;
+        last_de = de;
+        last_vs = vs;
+    }
 
     void clock() {
         // Inputs for this edge, from the outputs after the previous one.
@@ -143,14 +225,14 @@ public:
             if (top.disk_write) store64(top.disk_address, top.disk_wdata);
             else { pending_read = true; pending_read_address = top.disk_address; }
         }
-        top.vga_done = 0;
-        if (top.vga_valid && !vga_answered) {
-            top.vga_done = 1;
-            top.vga_rdata = top.vga_write ? 0xff : vga_in(top.vga_port);
-            if (top.vga_write) vga_out(top.vga_port, top.vga_wdata);
-        }
-        vga_answered = top.vga_valid && top.vga_done;
+        ddr1.drive(port1(top), cycles);
+        ddr2.drive(port2(top), cycles);
         top.flush_done = top.flush_request;
+        now_ps += SYS_PERIOD_PS;
+        while (pixel_running && pixel_edge_ps <= now_ps) {
+            pixel_edge();
+            pixel_edge_ps += PIXEL_HALF_PS;
+        }
         top.clk = 1;
         top.eval();
         top.clk = 0;
@@ -162,6 +244,13 @@ public:
         }
         if (top.debug_valid) debug(top.debug_port, top.debug_byte);
         if (top.cpu_reset) cpu_reset_seen = true;
+        if (top.frame_done) {
+            ++frames_done;
+            if (keep_captures) {
+                recent.push_back(captured());
+                if (recent.size() > 4) recent.pop_front();
+            }
+        }
     }
 
     uint64_t word64(uint64_t index) const {
@@ -181,6 +270,7 @@ public:
         std::string &line = debug_line[port];
         if (value == '\n' || line.size() > 200) {
             std::printf("DEBUG %03x %s\n", port, line.c_str());
+            if (port == 0xe9) debug_lines.push_back(line);
             line.clear();
         } else if (value != '\r') line.push_back(char(value));
     }
@@ -190,14 +280,66 @@ public:
         if (paddr >= 0xffff0000u) return write ? nullptr : &rom_bios[paddr & 0xf000];
         if (paddr >= 0xf0000 && paddr < 0x100000) return write ? nullptr : &rom_bios[paddr & 0xf000];
         if (paddr >= 0xc0000 && paddr < 0xc8000) return write ? nullptr : &rom_vga[(paddr - 0xc0000) & ~0xfffu];
+        if (paddr >= 0xa0000 && paddr < 0xc0000) return nullptr;
         if (paddr < RAM_BYTES) return &ram[paddr & ~0xfffu];
         return nullptr;
     }
-    void read(uint32_t, unsigned length, uint8_t *data) override { std::memset(data, 0xff, length); }
-    void write(uint32_t, unsigned, const uint8_t *) override {}
+    // MMIO: each access becomes dword requests in address order.
+    void read(uint32_t paddr, unsigned length, uint8_t *data) override {
+        std::memset(data, 0xff, length);
+        if (paddr < 0xa0000 || paddr >= 0xc0000) return;
+        for (unsigned done = 0; done < length;) {
+            uint32_t address = paddr + done, dword = address & ~3u;
+            unsigned lane = address & 3, count = std::min(4 - lane, length - done);
+            uint8_t enables = uint8_t(((1u << count) - 1) << lane);
+            uint32_t value = mmio(false, dword, enables, 0);
+            for (unsigned n = 0; n < count; ++n) data[done + n] = uint8_t(value >> (8 * (lane + n)));
+            done += count;
+        }
+    }
+    void write(uint32_t paddr, unsigned length, const uint8_t *data) override {
+        if (paddr < 0xa0000 || paddr >= 0xc0000) return;
+        for (unsigned done = 0; done < length;) {
+            uint32_t address = paddr + done, dword = address & ~3u;
+            unsigned lane = address & 3, count = std::min(4 - lane, length - done);
+            uint8_t enables = uint8_t(((1u << count) - 1) << lane);
+            uint32_t value = 0;
+            for (unsigned n = 0; n < count; ++n) value |= uint32_t(data[done + n]) << (8 * (lane + n));
+            mmio(true, dword, enables, value);
+            done += count;
+        }
+    }
+    uint32_t mmio(bool write, uint32_t dword, uint8_t enables, uint32_t value) {
+        top.mem_valid = 1;
+        top.mem_write = write;
+        top.mem_address = (dword - 0xa0000) >> 2;
+        top.mem_byteenable = enables;
+        top.mem_wdata = value;
+        uint64_t start = cycles;
+        for (;;) {
+            top.eval();
+            bool taken = top.mem_ready;
+            clock();
+            if (taken) break;
+            if (cycles - start > 1000000) throw std::runtime_error("MMIO request not taken");
+        }
+        top.mem_valid = 0;
+        uint32_t result = 0;
+        if (!write) {
+            while (!top.mem_rvalid) {
+                clock();
+                if (cycles - start > 1000000) throw std::runtime_error("MMIO read not answered");
+            }
+            result = top.mem_rdata;
+        }
+        if (trace)
+            std::fprintf(trace, "%c %llu %05x %x %08x\n", write ? 'W' : 'R', (unsigned long long)start,
+                         dword - 0xa0000, enables, write ? value : result);
+        return result;
+    }
 
-    static const char *io_class(uint16_t port) {
-        if (port >= 0x3b0 && port <= 0x3df) return "vga";
+    static const char *io_class(uint16_t port, bool write) {
+        if (port >= 0x3b0 && port <= 0x3df) return write ? "vga-out" : "vga-in";
         if (port == 0x1f0) return "isa16";
         return "isa8";
     }
@@ -215,11 +357,15 @@ public:
             clock();
             if (cycles - start > 1000000) throw std::runtime_error("I/O did not complete");
         }
-        ++io_times[{io_class(port), length, cycles - start}];
+        ++io_times[{io_class(port, write), length, cycles - start}];
+        uint32_t result = top.io_rdata;
+        if (trace && port >= 0x3b0 && port <= 0x3df)
+            std::fprintf(trace, "%c %llu %03x %u %08x\n", write ? 'O' : 'I', (unsigned long long)start, port, length,
+                         write ? value : result);
         if (trace_io && port != 0x80)
             std::fprintf(stderr, "%llu %s %03x/%u %08x\n", (unsigned long long)cycles, write ? "OUT" : "IN ",
-                         port, length, write ? value : top.io_rdata);
-        return top.io_rdata;
+                         port, length, write ? value : result);
+        return result;
     }
     uint32_t in(uint16_t port, unsigned length) override {
         uint32_t value = request(false, port, length, 0);
@@ -237,83 +383,12 @@ public:
         return top.inta_vector;
     }
 
-    // ---- VGA stand-in -----------------------------------------------------
-    uint8_t misc = 0x67, sequencer_index = 0, graphics_index = 0, crtc_index = 0, attribute_index = 0;
-    uint8_t sequencer[8] = {}, graphics[16] = {}, crtc[32] = {}, attribute[32] = {}, feature = 0;
-    bool attribute_data = false;
-    uint8_t dac_read = 0, dac_write = 0, dac_state = 0, pel_mask = 0xff;
-    unsigned dac_component = 0;
-    uint8_t dac[256][3] = {};
-
-    uint8_t vga_status() const {
-        // 70 Hz, 449 lines of 800 dots at 25.175 MHz; 400 active lines,
-        // vertical retrace on lines 412-413, display disabled 20% of each line.
-        uint64_t frame = uint64_t(CLOCK_HZ / 70.086);
-        uint64_t line_clocks = frame / 449;
-        uint64_t at = cycles % frame;
-        uint64_t line = at / line_clocks, dot = at % line_clocks;
-        bool retrace = line >= 412 && line < 414;
-        bool blank = line >= 400 || dot >= line_clocks * 4 / 5;
-        return uint8_t((retrace ? 0x08 : 0) | (blank ? 0x01 : 0));
-    }
-    uint8_t vga_in(uint16_t port) {
-        bool mono = !(misc & 1);
-        switch (port) {
-        case 0x3c0: return attribute_index;
-        case 0x3c1: return attribute[attribute_index & 0x1f];
-        case 0x3c2: return 0x00;
-        case 0x3c4: return sequencer_index;
-        case 0x3c5: return sequencer[sequencer_index & 7];
-        case 0x3c6: return pel_mask;
-        case 0x3c7: return dac_state;
-        case 0x3c8: return dac_write;
-        case 0x3c9: {
-            uint8_t value = dac[dac_read][dac_component];
-            if (++dac_component == 3) { dac_component = 0; ++dac_read; }
-            return value;
-        }
-        case 0x3ca: return feature;
-        case 0x3cc: return misc;
-        case 0x3ce: return graphics_index;
-        case 0x3cf: return graphics[graphics_index & 15];
-        default: break;
-        }
-        if (port == (mono ? 0x3b4 : 0x3d4)) return crtc_index;
-        if (port == (mono ? 0x3b5 : 0x3d5)) return crtc[crtc_index & 31];
-        if (port == (mono ? 0x3ba : 0x3da)) { attribute_data = false; return vga_status(); }
-        return 0xff;
-    }
-    void vga_out(uint16_t port, uint8_t value) {
-        bool mono = !(misc & 1);
-        switch (port) {
-        case 0x3c0:
-            if (!attribute_data) attribute_index = value;
-            else attribute[attribute_index & 0x1f] = value;
-            attribute_data = !attribute_data;
-            return;
-        case 0x3c2: misc = value; return;
-        case 0x3c4: sequencer_index = value; return;
-        case 0x3c5: sequencer[sequencer_index & 7] = value; return;
-        case 0x3c6: pel_mask = value; return;
-        case 0x3c7: dac_read = value; dac_component = 0; dac_state = 0x03; return;
-        case 0x3c8: dac_write = value; dac_component = 0; dac_state = 0x00; return;
-        case 0x3c9:
-            dac[dac_write][dac_component] = value & 0x3f;
-            if (++dac_component == 3) { dac_component = 0; ++dac_write; }
-            return;
-        case 0x3ce: graphics_index = value; return;
-        case 0x3cf: graphics[graphics_index & 15] = value; return;
-        default: break;
-        }
-        if (port == (mono ? 0x3b4 : 0x3d4)) crtc_index = value;
-        else if (port == (mono ? 0x3b5 : 0x3d5)) crtc[crtc_index & 31] = value;
-        else if (port == (mono ? 0x3ba : 0x3da)) feature = value;
-    }
-
+    // ---- Screen and frames ------------------------------------------------
+    // Text mode: character n at planar offset 2n in plane 0.
     std::string screen_row(int row) {
         std::string text;
         for (int column = 0; column < 80; ++column) {
-            uint8_t c = ram[0xb8000 + 2 * (row * 80 + column)];
+            uint8_t c = pc386::vram_byte(window, 2 * (row * 80 + column), 0);
             text.push_back(c >= 0x20 && c < 0x7f ? char(c) : ' ');
         }
         return text;
@@ -332,11 +407,25 @@ public:
         for (int row = 0; row < 25; ++row) all += screen_row(row) + "\n";
         return all;
     }
+    pc386::Frame captured() {
+        pc386::Frame frame;
+        frame.width = top.frame_width;
+        frame.height = top.frame_height;
+        frame.pixels.resize(size_t(frame.width) * frame.height);
+        uint32_t base = pc386::CAPTURE_OFFSET + top.frame_buffer * pc386::CAPTURE_BYTES;
+        for (unsigned y = 0; y < frame.height; ++y)
+            for (unsigned x = 0; x < frame.width; ++x) {
+                uint32_t value;
+                std::memcpy(&value, window.at(base + y * pc386::CAPTURE_STRIDE + 4 * x), 4);
+                frame.pixels[size_t(y) * frame.width + x] = value & 0xffffff;
+            }
+        return frame;
+    }
 };
 
 struct Options {
-    std::string bios, vgabios, disk, disk_out, prompt = "C:\\>", type, expect;
-    double limit_seconds = 120;
+    std::string bios, vgabios, disk, disk_out, prompt = "C:\\>", type, expect, trace, frames, until_debug;
+    double limit_seconds = 120, pixel_from = -1, type_at = -1, key_gap = 0.03;
     unsigned cycles_per_instruction = 4;
 };
 
@@ -355,6 +444,12 @@ Options parse(int argc, char **argv) {
         else if (flag == "--prompt") options.prompt = value;
         else if (flag == "--type") options.type = value;
         else if (flag == "--expect") options.expect = value;
+        else if (flag == "--trace") options.trace = value;
+        else if (flag == "--frames") options.frames = value;
+        else if (flag == "--pixel-from") options.pixel_from = std::stod(value);
+        else if (flag == "--until-debug") options.until_debug = value;
+        else if (flag == "--type-at") options.type_at = std::stod(value);
+        else if (flag == "--key-gap") options.key_gap = std::stod(value);
         else throw std::runtime_error("unknown option " + flag);
     }
     if (options.bios.empty() || options.vgabios.empty() || options.disk.empty())
@@ -371,11 +466,17 @@ int main(int argc, char **argv) {
     try {
         Options options = parse(argc, argv);
         Machine machine(read_file(options.bios), read_file(options.vgabios), options.disk);
+        if (!options.trace.empty()) {
+            machine.trace = std::fopen(options.trace.c_str(), "w");
+            if (!machine.trace) throw std::runtime_error("cannot write " + options.trace);
+            std::fprintf(machine.trace, "# pc386 VGA trace: cycles from machine reset\n");
+        }
         auto oracle = fes_i386::make_oracle(machine);
         oracle->reset();
         bool intr = false, a20m = false;
         unsigned long long steps = 0;
         uint64_t limit = uint64_t(options.limit_seconds * CLOCK_HZ);
+        uint64_t pixel_from = options.pixel_from < 0 ? ~0ull : uint64_t(options.pixel_from * CLOCK_HZ);
         const char *reason = "limit";
         // After the prompt appears, wait for the screen to settle, then type.
         uint64_t prompt_at = 0, settled_at = 0;
@@ -384,11 +485,19 @@ int main(int argc, char **argv) {
         uint64_t next_key = 0;
         std::string last_screen;
         uint64_t screen_checked = 0;
+        // Snapshots: a marker, then the second capture and the second raster.
+        std::string snap_name;
+        unsigned snap_frames = 0, snap_rasters = 0;
+        pc386::Frame snap_frame;
+        bool snap_captured = false;
+        size_t debug_seen = 0;
+        unsigned snap_failures = 0;
 
         while (machine.cycles < limit) {
             fes_i386::StepResult result = oracle->step();
             ++steps;
             for (unsigned n = 0; n < options.cycles_per_instruction; ++n) machine.clock();
+            if (machine.cycles >= pixel_from) machine.start_pixel_clock();
             if (result.shutdown) machine.top.cpu_shutdown = 1;
             if (result.halted) {
                 fes_i386::State state = oracle->get_state();
@@ -406,17 +515,63 @@ int main(int argc, char **argv) {
             if (bool(machine.top.intr) != intr) { intr = machine.top.intr; oracle->set_intr(intr); }
             if (bool(machine.top.a20m) != a20m) { a20m = machine.top.a20m; oracle->set_a20(!a20m); }
 
-            // Keyboard: one set 2 byte when the keyboard can take it, keys 30 ms apart.
+            // Debug-port markers.
+            bool finished = false;
+            for (; debug_seen < machine.debug_lines.size(); ++debug_seen) {
+                const std::string &line = machine.debug_lines[debug_seen];
+                if (!options.until_debug.empty() && line.find(options.until_debug) != std::string::npos) finished = true;
+                if (line.rfind("SNAP ", 0) == 0) {
+                    snap_name = line.substr(5);
+                    if (machine.trace)
+                        std::fprintf(machine.trace, "M %llu %s\n", (unsigned long long)machine.cycles, snap_name.c_str());
+                    snap_frames = machine.frames_done;
+                    snap_captured = false;
+                }
+            }
+            if (!snap_name.empty() && !snap_captured && machine.frames_done >= snap_frames + 2) {
+                snap_frame = machine.captured();
+                snap_captured = true;
+                snap_rasters = machine.rasters_complete;
+                std::string file = options.frames.empty() ? "" : options.frames + "/" + snap_name + ".ppm";
+                if (!file.empty()) pc386::write_ppm(file, snap_frame);
+                std::printf("SNAP %s %u %u %s\n", snap_name.c_str(), snap_frame.width, snap_frame.height, file.c_str());
+                machine.recent.assign(1, snap_frame);
+                machine.keep_captures = true;
+                machine.start_pixel_clock();
+            }
+            if (!snap_name.empty() && snap_captured && machine.rasters_complete >= snap_rasters + 2) {
+                // The fewest differing pixels against any capture published
+                // since the marked one: 0 when the raster is exactly one.
+                unsigned mismatches = ~0u;
+                for (const pc386::Frame &capture : machine.recent) {
+                    pc386::Frame expected = pc386::present_720p(capture);
+                    unsigned differing = 0;
+                    for (size_t n = 0; n < expected.pixels.size(); ++n)
+                        differing += expected.pixels[n] != machine.last_raster.pixels[n];
+                    mismatches = std::min(mismatches, differing);
+                }
+                machine.keep_captures = false;
+                std::string file = options.frames.empty() ? "" : options.frames + "/" + snap_name + "-720p.ppm";
+                if (!file.empty()) pc386::write_ppm(file, machine.last_raster);
+                std::printf("PRESENT %s %s %u\n", snap_name.c_str(), file.c_str(), mismatches);
+                if (mismatches) ++snap_failures;
+                snap_name.clear();
+                if (machine.cycles < pixel_from) machine.stop_pixel_clock();
+            }
+            if (finished && snap_name.empty()) { reason = "debug-marker"; break; }
+
+            // Keyboard: one set 2 byte when ready; delay unless the next byte is 0xf0.
             if (key_bytes.size() && machine.cycles >= next_key && machine.top.key_ready) {
                 machine.top.key_valid = 1;
                 machine.top.key_code = key_bytes.front();
                 machine.clock();
                 machine.top.key_valid = 0;
                 key_bytes.erase(key_bytes.begin());
-                if (key_bytes.empty() || key_bytes.front() != 0xf0) next_key = machine.cycles + uint64_t(0.03 * CLOCK_HZ);
+                // Skip the gap before 0xf0; the gap after its prefix holds the key.
+                if (key_bytes.empty() || key_bytes.front() != 0xf0) next_key = machine.cycles + uint64_t(options.key_gap * CLOCK_HZ);
             }
 
-            if (machine.cycles - screen_checked >= uint64_t(0.05 * CLOCK_HZ)) {
+            if (options.until_debug.empty() && machine.cycles - screen_checked >= uint64_t(0.05 * CLOCK_HZ)) {
                 screen_checked = machine.cycles;
                 std::string now = machine.screen();
                 if (!prompt_at && now.find(options.prompt) != std::string::npos) {
@@ -425,7 +580,9 @@ int main(int argc, char **argv) {
                 }
                 if (now != last_screen) { last_screen = now; settled_at = machine.cycles; }
                 bool settled = machine.cycles - settled_at >= uint64_t(0.5 * CLOCK_HZ);
-                if (prompt_at && settled && typed < options.type.size() && key_bytes.empty()) {
+                bool type_now = options.type_at >= 0 ? machine.cycles >= uint64_t(options.type_at * CLOCK_HZ)
+                                                     : prompt_at && settled;
+                if (type_now && typed < options.type.size() && key_bytes.empty()) {
                     // Queue the rest of the text.
                     for (; typed < options.type.size(); ++typed) {
                         uint8_t code; bool shift;
@@ -453,15 +610,27 @@ int main(int argc, char **argv) {
                         (unsigned long long)std::get<2>(key), (unsigned long long)count);
         for (const auto &[time, count] : machine.inta_times)
             std::printf("INTA %llu %llu\n", (unsigned long long)time, (unsigned long long)count);
+        std::printf("VGA frames %u\nVGA scanout_underflows %u\nVGA capture_drops %u\nVGA present_underflows %u\n"
+                    "VGA plane_underflows %u\nVGA frames_shown %u\nVGA port1_commands %llu\nVGA port2_commands %llu\n",
+                    machine.frames_done, machine.top.scanout_underflows, machine.top.capture_drops,
+                    machine.top.present_underflows, machine.top.plane_underflows, machine.top.frames_shown,
+                    (unsigned long long)machine.ddr1.commands, (unsigned long long)machine.ddr2.commands);
         for (int row = 0; row < 25; ++row) std::printf("SCREEN %02d |%s|\n", row, machine.screen_row(row).c_str());
+        if (!options.frames.empty() && machine.frames_done) {
+            pc386::Frame last = machine.captured();
+            pc386::write_ppm(options.frames + "/final.ppm", last);
+            std::printf("SNAP final %u %u %s/final.ppm\n", last.width, last.height, options.frames.c_str());
+        }
         bool expected = options.expect.empty() || machine.screen().find(options.expect) != std::string::npos;
         if (!expected) reason = "expected-text-missing";
+        if (snap_failures) reason = "presenter-mismatch";
         std::printf("END %s steps=%llu cycles=%llu seconds=%.3f\n", reason, steps,
                     (unsigned long long)machine.cycles, seconds);
         if (!options.disk_out.empty())
             std::ofstream(options.disk_out, std::ios::binary)
                 .write(reinterpret_cast<const char *>(machine.image.data()), std::streamsize(machine.image.size()));
-        return std::string(reason) == "prompt" ? 0 : 1;
+        std::string done(reason);
+        return done == "prompt" || done == "debug-marker" ? 0 : 1;
     } catch (const std::exception &error) {
         std::fprintf(stderr, "machine_tb: %s\n", error.what());
         return 2;

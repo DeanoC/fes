@@ -7,3 +7,7 @@ lint_off -rule VARHIDDEN -file "*/vendor/kf8253/*.sv"
 // The imported chips assert reset asynchronously; the AT core drives the
 // machine reset synchronously and holds it for several clocks.
 lint_off -rule SYNCASYNCNET -file "*/rtl/pc386_at_core.sv" -match "*reset*"
+lint_off -rule SYNCASYNCNET -file "*/rtl/pc386_machine.sv" -match "*reset*"
+// The shared display plane leaves its scanout's own raster outputs open.
+lint_off -rule PINCONNECTEMPTY -file "*/fes-common/rtl/fes_display_plane.v"
+lint_off -rule PINCONNECTEMPTY -file "*/fes-menu/rtl/fes_menu_video.v"
