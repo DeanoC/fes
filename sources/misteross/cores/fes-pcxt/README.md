@@ -84,6 +84,40 @@ whole-system cases retain the real diagnostic ROM, both boots, three SDRAM
 mask-delay cases and pixel/DMA checks; they tighten the refresh bound to
 390 controller cycles at 50 MHz. Existing common-clock suites remain enabled.
 
+### Whole-board Quartus diagnostic
+
+`scripts/quartus_fes_pcxt.py` fits the complete CGA Direct CPU100/board50
+board on `5CSEBA6U23I7` with Quartus Lite 17.0.2. Select an installed Yosys
+from the PC/XT lock and an explicit Quartus installation:
+
+```sh
+python3 scripts/quartus_fes_pcxt.py \
+  --yosys /absolute/pcxt-locked/install/bin/yosys \
+  --quartus-root /absolute/quartus
+```
+
+The default seeds are 1, 2 and 3. Repeat `--seed` for a different declared
+set; `--output` must name a new directory. The command captures the selected
+sources, generated ROMs, compiler identities, pin constraints and SDC under
+`build/diagnostic/fes-pcxt-quartus/`, retaining failed attempts. Yosys
+elaborates the same RTL, combines memory write ports, lowers small control
+arrays to registers and preserves the large memories for Quartus inference.
+The clock/IO adapters preserve active-high pad enables and the explicit HDMI
+global buffer; disabled bus hold uses Quartus's `FALSE` spelling. Portable
+internal naming is checked against every original cell and net record before
+Quartus synthesizes, places and routes the elaborated Verilog.
+
+The four-corner capture records worst paths per endpoint and clock pair,
+setup/hold, recovery/removal, pulse widths, fitted clock waveforms, Fmax and
+unconstrained paths. Missing or truncated captures reject. The initial SDC
+derives PLL clocks and uncertainty without clock groups, false paths or
+external delay assumptions. An exit code of zero means the diagnostic was
+captured; negative slacks and uncovered interfaces remain explicit in
+`summary.json`. This does not implement a Quartus package variant, establish
+physical board timing or authorize programming a kit. A product variant still
+needs the FES recipe/package rollout, complete timing and reproducibility
+checks, and hardware acceptance of its own bytes.
+
 ### Physical timing inputs
 
 The diagnostic's synthetic IO constraints exercise compiler coverage. They

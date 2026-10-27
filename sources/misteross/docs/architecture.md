@@ -2874,6 +2874,15 @@ native source waveforms remain unknown, and the reference's own routes grant
 no native fast-corner, hard-IP, board or hardware qualification. Both commands
 are host diagnostics described in the core guide.
 
+The separate `scripts/quartus_fes_pcxt.py` whole-board diagnostic elaborates
+the CPU100/board50 CGA Direct RTL with the PC/XT lock's Yosys, preserving large
+memories for Quartus 17.0.2 synthesis and fitting. It captures isolated sources,
+three declared seeds by default, all four operating conditions, clock-pair
+endpoint counts, setup/hold, recovery/removal, pulse widths and uncovered
+interfaces. Its initial SDC derives PLL clocks and uncertainty without timing
+exceptions or external budgets. A complete diagnostic capture can contain
+timing failures; it neither seals a package nor supplies physical acceptance.
+
 ### Machine partition and timing
 
 ```mermaid
