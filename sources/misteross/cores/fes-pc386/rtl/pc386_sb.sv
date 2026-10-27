@@ -28,9 +28,9 @@
 //   E4 [d], E8  write and read the test register
 //   F2       IRQ 10 us later
 // Every other command is consumed with its argument bytes and ignored,
-// ADPCM (16, 17, 74-77, 1F, 7D-7F) included. During a high-speed transfer the
-// DSP reads busy and drops every byte written until the block ends; only a
-// reset stops high-speed auto-init.
+// ADPCM (16, 17, 74-77, 1F, 7D-7F) included. A write during the 2 us
+// write-busy interval or a high-speed transfer is dropped; only reset stops
+// high-speed auto-init.
 //
 // DMA: each sample period raises DREQ for one byte while a transfer runs and
 // is not halted; the acknowledge takes or supplies the byte and drops DREQ.
@@ -102,7 +102,7 @@ module pc386_sb #(
         endcase
     endfunction
 
-    wire command_write = access && write && pair == 3'd6 && state == RUNNING && !high_speed;
+    wire command_write = access && write && pair == 3'd6 && state == RUNNING && !write_busy;
     wire data_read = access && !write && pair == 3'd5;
     wire status_read = access && !write && pair == 3'd7;
     wire sample_event = us_tick && period_us == 9'd1;

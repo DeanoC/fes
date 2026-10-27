@@ -235,6 +235,16 @@ void commands() {
     b.dsp_write(0xe0); b.dsp_write(0x0f);
     int after = b.dsp_read();
     check("74h consumes its two argument bytes", after == 0xf0 && b.link.audio.dsp_dac == 0xf0, hex(after));
+
+    b.dsp_write(0xd1);
+    b.run(3 * US);
+    b.out(0x22c, 0xd3); // Turn the speaker off.
+    b.out(0x22c, 0xd1); // This unpolled OUT lands less than 1 us later, while busy.
+    b.run(3 * US);
+    b.dsp_write(0xd8);
+    int speaker_after_busy_write = b.dsp_read();
+    check("a command byte written during the 2 us busy window is dropped",
+          speaker_after_busy_write == 0x00, hex(speaker_after_busy_write));
 }
 
 // Single-cycle DMA playback, 14h: the bytes, their spacing and the IRQ.
