@@ -171,26 +171,37 @@ The sealed package manifest records the lane in a dedicated
 `build.variant = "oss" | "quartus"` field. Keep the existing required
 `build.toolchain` field as the descriptive compiler/tool string; it is not the
 lane label. Quartus version, edition and device family use separate manifest
-fields. Existing manifests have no `build.variant`, so readers interpret its
-absence as `oss`; new manifests write it explicitly. Package identity includes
+fields. Every manifest writer supplies `build.variant` explicitly: OSS producers
+write `oss`, and Quartus producers write `quartus`. The shared
+`encode_manifest` function must not default a missing variant to `oss`.
+
+For compatibility, readers may interpret a missing `build.variant` as `oss`
+only for a legacy package identified as the output of its registered OSS
+functional-cache producer and validated against that producer's functional
+input record. Absence alone does not identify a lane. The existing Quartus
+sealers in `build_fes_coleco.py`, `build_fes_sms.py`, `build_fes_sg1000.py`,
+`build_fes_zx81.py` and `build_fes_ramtest_quartus.py` emit manifests without
+the field and are not functional-cache outputs. The first four use format-1
+build-input records, which `artifact_cache.functional_key` does not hash; RAM
+Tester has a separate Quartus sealer. Their legacy manifests must not be
+classified as OSS just because the field is absent. Package identity includes
 the lane; both variants share the logical core ID and version but have distinct
 package IDs and payload digests. The strict manifest schema and its readers
 must admit the new fields without making legacy manifests invalid.
 
-The build-input JSON passed to `artifact_cache.functional_key` uses an
-asymmetric rule to preserve existing OSS cache keys. An absent `toolchain`
-field means `oss`. Keep the current OSS functional-input record unchanged and
-omit that field from it; adding `"toolchain": "oss"` would change every
-existing key because the cache hashes every field other than repository,
-revision and source path. A Quartus functional-input record must include
-`"toolchain": "quartus"`, so it has a different key from the OSS record.
-Newly produced manifests write `build.variant` explicitly. Readers interpret
-an absent `build.variant` in an existing manifest and an absent `toolchain`
-field in an existing functional-input record as `oss`. They must reject a
-cache hit whose declared lane conflicts with its recipe or manifest. The
-`functional_key` hashing algorithm does not change. Tests for the implementation
-must prove that a legacy/current OSS record retains its key and that the
-Quartus record gets a distinct key.
+The build-input JSON accepted by `artifact_cache.functional_key` uses an
+asymmetric rule to preserve existing OSS cache keys. Within that functional
+cache, an absent `toolchain` field means `oss`; this rule does not apply to
+arbitrary or format-1 build-input records. Keep the current OSS functional-input
+record unchanged and omit that field from it; adding `"toolchain": "oss"`
+would change every existing key because the cache hashes every field other than
+repository, revision and source path. A Quartus functional-input record must
+include `"toolchain": "quartus"`, so it has a different key from the OSS
+record. Readers must reject a cache hit whose declared lane conflicts with its
+recipe or manifest. The `functional_key` hashing algorithm does not change.
+Tests for the implementation must prove that a legacy/current OSS record
+retains its key, a Quartus record gets a distinct key, and a legacy Quartus
+manifest is not classified as OSS by the missing-field rule.
 
 ## OSS-only images
 
@@ -361,8 +372,18 @@ Each step is one scope, one PR.
    JSON; include `"toolchain": "quartus"` for Quartus. Keep the `build.variant`
    lane field separate from the required descriptive `build.toolchain` field;
    add the lane and Quartus metadata fields to the strict manifest schema,
-   writer, readers and consumers while treating a missing `build.variant` in an
-   existing manifest as `oss`. New manifests write the variant explicitly.
+   writer, readers and consumers. Require every `encode_manifest` caller to
+   supply the lane explicitly: OSS producers pass `oss`; the existing Quartus
+   sealers in `scripts/build_fes_coleco.py`, `scripts/build_fes_sms.py`,
+   `scripts/build_fes_sg1000.py`, `scripts/build_fes_zx81.py` and
+   `scripts/build_fes_ramtest_quartus.py` pass `quartus`. Do not default the
+   field to `oss` in the shared encoder. Interpret an absent variant as `oss`
+   only for a legacy package identified as the output of its registered OSS
+   functional-cache producer and validated against that producer's functional
+   input record. The existing Quartus sealers are not functional-cache outputs:
+   the Coleco, SMS, SG-1000 and ZX81 sealers use format-1 build-input records,
+   and RAM Tester has a separate Quartus sealer. Keep those legacy manifests
+   readable without treating absence as an OSS lane.
    Extend `Format2Recipe` and `scripts/recipes.py` to select an exact recipe
    field set by declared lane. An OSS lane keeps the current required
    `lock_path`, `gpu_router`, `hip_architectures` and complete `[recipes.pnr]`
@@ -374,7 +395,8 @@ Each step is one scope, one PR.
    `backend = "HIP"`. A Quartus-only row omits those OSS fields and provides
    its Quartus descriptor; do not populate a dummy HIP route to satisfy the
    current parser. Add tests for both recipe lane shapes, build-record
-   validation, legacy manifest interpretation, and key compatibility/separation.
+   validation, required explicit manifest lanes, legacy OSS versus Quartus
+   manifest interpretation, and key compatibility/separation.
 3. Implement `FES_OSS_ONLY` and the `toolchain-excluded` reason in
    `scripts/optional_cores.py`, with tests like `tests/test_optional_cores.py`.
    Until this step lands, the variable is not supported.
