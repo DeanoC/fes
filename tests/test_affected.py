@@ -166,18 +166,18 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-sg1000/diagnostic/generate.py': {'sg1000'},
             'cores/fes-sms/rtl/new_unit.sv': {'sms'},
             'scripts/sim_fes_demo.py': {'demo'},
-            'cores/fes-menu/rtl/fes_menu_reader.v': {'menu', 'zx81', 'spectrum', 'c64', 'coleco'},
-            'cores/fes-menu/rtl/fes_menu_control.v': {'menu', 'zx81', 'spectrum', 'c64', 'coleco'},
-            'cores/fes-menu/rtl/fes_menu_video.v': {'menu', 'zx81', 'spectrum', 'c64', 'coleco'},
+            'cores/fes-menu/rtl/fes_menu_reader.v': {'menu', 'zx81', 'spectrum', 'c64', 'coleco', 'pc386'},
+            'cores/fes-menu/rtl/fes_menu_control.v': {'menu', 'zx81', 'spectrum', 'c64', 'coleco', 'pc386'},
+            'cores/fes-menu/rtl/fes_menu_video.v': {'menu', 'zx81', 'spectrum', 'c64', 'coleco', 'pc386'},
             'cores/fes-menu/rtl/fes_menu_ddr.v': {'menu'},
             'cores/fes-menu/sim/ddr_model.v': {'menu', 'zx81', 'spectrum', 'c64', 'coleco'},
             'scripts/sim_fes_menu.py': {'menu'},
             'scripts/sim_fes_zx81_session.py': {'zx81'},
             'scripts/sim_fes_display_plane.py': {'zx81'},
-            'cores/fes-common/rtl/fes_display_plane.v': {'zx81', 'spectrum', 'c64', 'coleco'},
-            'cores/fes-common/rtl/fes_display_cdc.v': {'zx81', 'spectrum', 'c64', 'coleco'},
+            'cores/fes-common/rtl/fes_display_plane.v': {'zx81', 'spectrum', 'c64', 'coleco', 'pc386'},
+            'cores/fes-common/rtl/fes_display_cdc.v': {'zx81', 'spectrum', 'c64', 'coleco', 'pc386'},
             'cores/fes-common/sim/display_plane_tb.cpp': {'zx81'},
-            'cores/fes-common/generated/fes_display_plane.vh': {'menu', 'zx81', 'spectrum', 'c64', 'coleco'},
+            'cores/fes-common/generated/fes_display_plane.vh': {'menu', 'zx81', 'spectrum', 'c64', 'coleco', 'pc386'},
             'cores/fes-apple2/rtl/apple2_machine.sv': {'apple2'},
             'cores/fes-c64/rtl/c64_machine.sv': {'c64'},
             'cores/fes-common/rtl/cpu6502/cpu6502.v': {'apple2', 'c64'},
@@ -207,6 +207,14 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-pcxt/rtl/pcxt_isa_bridge.sv': {'pcxt'},
             'cores/fes-common/generated/fes_pcxt_isa.vh': {'pcxt'},
             'scripts/sim_fes_pcxt.py': {'pcxt'},
+            'cores/fes-common/vendor/kf8259/KF8259.sv': {'pcxt', 'pc386'},
+            'cores/fes-common/vendor/kf8253/read_back.patch': {'pcxt', 'pc386'},
+            'cores/fes-common/rtl/fes_dma8237.sv': {'pcxt', 'pc386'},
+            'cores/fes-pc386/rtl/pc386_at_core.sv': {'pc386'},
+            'cores/fes-pc386/firmware/rombios/rombios.c': {'pc386'},
+            'scripts/sim_fes_pc386.py': {'pc386'},
+            'scripts/build_pc386_firmware.py': {'pc386'},
+            'scripts/build_pc386_freedos_image.py': {'pc386'},
             'cores/fes-common/sim/riscv/rv32_model.h': {'riscv'},
             'cores/fes-riscv/firmware/firmware.S': {'riscv'},
             'scripts/sim_fes_riscv.py': {'riscv'},
@@ -245,9 +253,11 @@ class AffectedTests(unittest.TestCase):
         for path in ('cores/fes-common/sim/i386/bochs_oracle.cpp', 'cores/fes-common/sim/i386/divergences.toml',
                      'cores/fes-common/sim/i386/bochs/instrument.h', 'cores/fes-common/sim/i386/frontend_tb.cpp',
                      'cores/fes-common/sim/i386/spike/spike_ag.sv', 'cores/fes-common/rtl/i386/fes_i386_qalign.sv',
+                     'cores/fes-common/sim/i386/lockstep_tb.cpp', 'cores/fes-common/rtl/i386/fes_i386_cpu.sv',
                      'cores/fes-common/rtl/i386/toolchain.lock',
                      'scripts/fes_i386_oracle.py', 'scripts/test_fes_i386_vectors.py',
                      'scripts/test_fes_i386_test386.py', 'scripts/test_fes_i386_frontend.py',
+                     'scripts/test_fes_i386_lockstep.py', 'scripts/quartus_fes_i386.py',
                      'scripts/benchmark_fes_i386.py'):
             with self.subTest(path=path):
                 result = plan(['sources/misteross/' + path])
@@ -305,7 +315,7 @@ class AffectedTests(unittest.TestCase):
             producer_name = core.replace('-', '_')
             sources = [root / 'scripts' / ('build_fes_' + producer_name + '.py'),
                        root / 'scripts' / ('build_fes_' + producer_name + '_oss.py')]
-            if core in ('demo', 'menu', 'z80', 'riscv', 'pcxt'):
+            if core in ('demo', 'menu', 'z80', 'riscv', 'pcxt', 'pc386'):
                 sources.append(root / ('scripts/sim_fes_' + core + '.py'))
             if core == 'zx81':
                 sources.append(root / 'scripts/sim_fes_zx81_session.py')

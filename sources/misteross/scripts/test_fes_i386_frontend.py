@@ -15,7 +15,8 @@ Verilator testbenches in cores/fes-common/sim/i386:
   frontend_tb.cpp  The whole front end on sampled streams: random bytes,
                    prefix-heavy bytes, long prefix runs, and generated defined
                    instructions whose issue cycles are checked exactly (one per
-                   cycle, plus one cycle for each prefix before the last), plus
+                   cycle, plus one cycle for each prefix before the last);
+                   then the same with random fetch latency, untimed; and
                    a delayed fetch response while Q crosses buffer halves.
   dag_tb.cpp       D's address operands (the forwarding table, scaling, the
                    late operand and its stalls) and AG, cycle by cycle: every
@@ -27,7 +28,9 @@ Verilator testbenches in cores/fes-common/sim/i386:
 With --yosys, each bench first runs its RTL through that Yosys (read, proc,
 flatten, opt) and simulates the netlist Yosys wrote instead: the routed
 spikes are built from Yosys's reading of the SystemVerilog, and this shows
-it is the same design.
+it is the same design. The front-end bench also synthesizes Q's aligner on
+its own, as the spikes do, and fails if a multiplier or carry cell appears:
+Q has no wide sum (DeanoC/yosys#59).
 
 Example:
   python3 scripts/test_fes_i386_frontend.py --download
@@ -49,6 +52,7 @@ if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts import fes_i386_oracle as oracle
+from scripts.benchmark_fes_i386 import SYNTHESIS
 
 ROOT = Path(__file__).resolve().parents[1]
 RTL = ROOT / 'cores/fes-common/rtl/i386'
@@ -71,19 +75,42 @@ class FrontendError(RuntimeError):
     pass
 
 
-def yosys_netlist(yosys: str, name: str, output: Path) -> Path:
-    """Write Yosys's reading of a bench's RTL as a flat Verilog netlist."""
-    _, rtl, sim, _, _, synthesized = BENCHES[name]
-    sources = [*(RTL / path for path in rtl), *(SIM / path for path in sim if Path(path).stem == synthesized)]
-    netlist = output / f'{synthesized}.netlist.v'
-    script = (f'read_verilog -sv {" ".join(map(str, sources))}; hierarchy -top {synthesized}; '
+def synthesize_netlist(yosys: str, sources: list[Path], top: str, output: Path) -> Path:
+    """Write Yosys's reading of top, from sources, as a flat Verilog netlist."""
+    netlist = output / f'{top}.netlist.v'
+    script = (f'read_verilog -sv {" ".join(map(str, sources))}; hierarchy -top {top}; '
               f'proc -norom; flatten; opt -purge; write_verilog -noattr {netlist}')
     log = output / 'yosys.log'
     with log.open('w') as stream:
         result = subprocess.run([yosys, '-q', '-p', script], cwd=output, stdout=stream, stderr=subprocess.STDOUT)
     if result.returncode:
-        raise FrontendError(f'yosys failed for {name}; see {log}\n' + '\n'.join(log.read_text().splitlines()[-30:]))
+        raise FrontendError(f'yosys failed for {top}; see {log}\n' + '\n'.join(log.read_text().splitlines()[-30:]))
     return netlist
+
+
+def yosys_netlist(yosys: str, name: str, output: Path) -> Path:
+    """Write Yosys's reading of a bench's RTL as a flat Verilog netlist."""
+    _, rtl, sim, _, _, synthesized = BENCHES[name]
+    sources = [*(RTL / path for path in rtl), *(SIM / path for path in sim if Path(path).stem == synthesized)]
+    return synthesize_netlist(yosys, sources, synthesized, output)
+
+
+def qalign_synthesis(yosys: str) -> dict[str, int]:
+    """Synthesize Q's aligner on its own; count its multiplier and carry cells."""
+    output = OUTPUT / 'qalign-synthesis'
+    output.mkdir(parents=True, exist_ok=True)
+    sources = ' '.join(str(RTL / path) for path in ('fes_i386_pkg.sv', 'fes_i386_qalign.sv'))
+    netlist = output / 'synth.json'
+    script = f'read_verilog -sv {sources}; hierarchy -top fes_i386_qalign; {SYNTHESIS}; write_json {netlist}'
+    log = output / 'yosys.log'
+    with log.open('w') as stream:
+        result = subprocess.run([yosys, '-q', '-p', script], cwd=output, stdout=stream, stderr=subprocess.STDOUT)
+    if result.returncode:
+        raise FrontendError(f'yosys failed for qalign; see {log}\n' + '\n'.join(log.read_text().splitlines()[-30:]))
+    cells = json.loads(netlist.read_text())['modules']['fes_i386_qalign']['cells'].values()
+    types = [cell['type'] for cell in cells]
+    return {'cells': len(types), 'multipliers': sum(t.startswith('MISTRAL_MUL') for t in types),
+            'carry_cells': types.count('MISTRAL_ALUT_ARITH')}
 
 
 def verilate(verilator: str, name: str, linked: list[Path], jobs: int, yosys: str | None = None) -> Path:
@@ -96,7 +123,7 @@ def verilate(verilator: str, name: str, linked: list[Path], jobs: int, yosys: st
         # a wrapper left as SystemVerilog still needs the package's types.
         design = [yosys_netlist(yosys, name, output), RTL / 'fes_i386_pkg.sv',
                   *(SIM / path for path in sim if Path(path).stem != synthesized)]
-        warnings = ['-Wno-fatal']
+        warnings = ['-Wno-fatal', '+define+FES_I386_NETLIST']
     else:
         design = [*(RTL / path for path in rtl), *(SIM / path for path in sim)]
         warnings = []
@@ -148,6 +175,8 @@ def summary(lendec: list[dict], frontend: list[dict], dag: list[dict]) -> list[s
     for record in frontend:
         line = (f"front end {record['stream']}, {record['default_size']}-bit: {record['instructions']} instructions, "
                 f"{record['compared']} compared, {record['too_long']} too long, {record['failures']} failures")
+        if record.get('fetch_latency'):
+            line += f"; Q left a half L2 held no block for {record['l2_empty_releases']} times"
         if record['issue_cycles']:
             latency = ', '.join(f'{cycles} cycles x{count}' for cycles, count in record['redirect_to_issue'].items())
             line += (f"; {record['instructions']} issued in {record['issue_cycles']} cycles, "
@@ -220,6 +249,10 @@ def main() -> int:
             report[name] = {'records': records, 'failures': failures}
             if code or failures or failed(records):
                 exit_code = 1
+        if yosys and 'frontend' in selected:
+            report['qalign_synthesis'] = synthesis = qalign_synthesis(yosys)
+            if synthesis['multipliers'] or synthesis['carry_cells']:
+                exit_code = 1
     except (OSError, oracle.OracleError, FrontendError, json.JSONDecodeError) as error:
         print('i386 front-end check error:', error, file=sys.stderr)
         return 2
@@ -227,6 +260,10 @@ def main() -> int:
     (OUTPUT / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
     for line in summary(results.get('lendec', []), results.get('frontend', []), results.get('dag', [])):
         print(line)
+    if 'qalign_synthesis' in report:
+        synthesis = report['qalign_synthesis']
+        print(f"Q's aligner on its own: {synthesis['cells']} cells, {synthesis['multipliers']} multipliers, "
+              f"{synthesis['carry_cells']} carry cells")
     for name in results:
         for line in report[name]['failures'][:40]:
             print(line)

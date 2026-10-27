@@ -124,7 +124,7 @@ module pcxt_motherboard (
             if (cycle_done && kind == 2) inta_pending<=!inta_pending;
         end
     end
-    pcxt_dma dma_device (
+    fes_dma8237 dma_device (
         .clk(clk), .reset(reset), .guest_ce(guest_ce),
         .reg_read(local_active && select_dma && phase == 8 && !write_cycle),
         .reg_write(local_active && select_dma && phase == 8 && write_cycle),

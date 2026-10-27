@@ -1,0 +1,120 @@
+{
+  "post": [
+    {
+      "code": "00",
+      "cycle": 11397
+    },
+    {
+      "code": "21",
+      "cycle": 2470979
+    },
+    {
+      "code": "31",
+      "cycle": 2571175
+    },
+    {
+      "code": "41",
+      "cycle": 2971375
+    },
+    {
+      "code": "71",
+      "cycle": 3072483
+    },
+    {
+      "code": "77",
+      "cycle": 3172509
+    }
+  ],
+  "debug": [
+    {
+      "port": "402",
+      "text": "BIOS BUILD DATE: 10/26/26"
+    },
+    {
+      "port": "500",
+      "text": "VGABios ID: vgabios.c 2026-08-07"
+    },
+    {
+      "port": "402",
+      "text": "ata0-0: PCHS=65/16/63 translation=none LCHS=65/16/63"
+    },
+    {
+      "port": "402",
+      "text": "IDE time out"
+    },
+    {
+      "port": "402",
+      "text": "Booting from 0000:7c00"
+    }
+  ],
+  "panic": [],
+  "io": {
+    "isa16 2": {
+      "38": 209152
+    },
+    "isa8 1": {
+      "74": 75597
+    },
+    "vga 1": {
+      "3": 829
+    },
+    "vga 2": {
+      "5": 3381
+    }
+  },
+  "inta": {
+    "146": 86
+  },
+  "screen": [
+    "FreeDOS kernel 2043 (build 2043 OEM:0xfd) [compiled May 14 2021]                ",
+    "Kernel compatibility 7.10 - WATCOMC - 80386 CPU required - FAT32 support        ",
+    "                                                                                ",
+    "(C) Copyright 1995-2012 Pasquale J. Villani and The FreeDOS Project.            ",
+    "All Rights Reserved. This is free software and comes with ABSOLUTELY NO         ",
+    "WARRANTY; you can redistribute it and/or modify it under the terms of the       ",
+    "GNU General Public License as published by the Free Software Foundation;        ",
+    "either version 2, or (at your option) any later version.                        ",
+    "C: HD1, Pri[ 1], CHS=    0-1-1, start=     0 MB, size=    31 MB                 ",
+    "                                                                                ",
+    "FreeCom version 0.86 - WATCOMC - XMS_Swap [Dec 30 2024 22:10:51]                ",
+    "                                                                                ",
+    "FreeCom version 0.86 - WATCOMC - XMS_Swap [Dec 30 2024 22:10:51]                ",
+    "C:\\>dir                                                                         ",
+    " Volume in drive C is FREEDOS                                                   ",
+    " Volume Serial Number is 1386-0026                                              ",
+    " Directory of C:\\                                                               ",
+    "                                                                                ",
+    "KERNEL   SYS        46,256  10-26-26 12:00p                                     ",
+    "COMMAND  COM        87,772  10-26-26 12:00p                                     ",
+    "FDCONFIG SYS            75  10-26-26 12:00p                                     ",
+    "AUTOEXEC BAT            39  10-26-26 12:00p                                     ",
+    "         4 file(s)        134,142 bytes                                         ",
+    "         0 dir(s)      33,101,312 bytes free                                    ",
+    "C:\\>                                                                            "
+  ],
+  "end": {
+    "reason": "prompt",
+    "steps": 104108642,
+    "cycles": 430009677,
+    "seconds": 4.3
+  },
+  "prompt_cycle": 240007401,
+  "cpu_resets": 0,
+  "command": [
+    "build/sim/fes-pc386/boot/obj/Vpc386_at_core",
+    "--bios",
+    "build/firmware/pc386/pc386-bios.bin",
+    "--vgabios",
+    "build/firmware/pc386/pc386-vgabios.bin",
+    "--disk",
+    "build/sim/fes-pc386/freedos.img",
+    "--limit-seconds",
+    "8",
+    "--type",
+    "dir|",
+    "--expect",
+    "bytes free"
+  ],
+  "exit": 0,
+  "failures": []
+}
