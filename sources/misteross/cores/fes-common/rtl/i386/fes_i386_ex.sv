@@ -33,6 +33,11 @@
 // Results the manual leaves undefined follow the 386EX (Phase 0 divergence
 // list): AND, OR, XOR and TEST clear AF; a shift by a nonzero count sets AF;
 // shifts and rotates set OF and CF as fes_i386_shflags says.
+//
+// MUL, IMUL, DIV, IDIV, AAM and AAD take their flags from the multiply and
+// divide unit (fes_i386_muldiv, md_flags); their result comes through LEA's
+// select, from the pipe record's result field, which fes_i386_cpu fills
+// from the unit.
 module fes_i386_ex (
     input  fes_i386_pkg::uop_t   u,
     input  fes_i386_pkg::exctl_t exc,
@@ -41,9 +46,10 @@ module fes_i386_ex (
     input  logic [31:0]          yr,
     input  logic [31:0]          wb,          // the WB result register
     input  logic [31:0]          ld,          // the loaded value (M2)
-    input  logic [31:0]          ag_result,   // LEA's offset
+    input  logic [31:0]          ag_result,   // LEA's offset; a multiply's or divide's result
     input  logic [17:0]          flags_in,
     input  logic [17:0]          flags_keep,
+    input  logic [11:0]          md_flags,
     output logic [31:0]          result,
     output logic [17:0]          flags_out,
     output logic                 taken,
@@ -197,6 +203,14 @@ module fes_i386_ex (
             if (exc.f_clrit) begin
                 rest[IF] = 1'b0;
                 rest[TF] = 1'b0;
+            end
+            if (exc.md_fl) begin
+                rest[CF] = md_flags[CF];
+                rest[PF] = md_flags[PF];
+                rest[AF] = md_flags[AF];
+                rest[ZF] = md_flags[ZF];
+                rest[SF] = md_flags[SF];
+                rest[OF] = md_flags[OF];
             end
         end
     end

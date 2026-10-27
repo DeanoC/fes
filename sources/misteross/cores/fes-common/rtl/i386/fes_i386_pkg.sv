@@ -125,8 +125,14 @@ package fes_i386_pkg;
     // UOP_SPECIAL.
     typedef enum logic [4:0] { SPECIAL_NOP, SPECIAL_HLT } special_op_e;
 
-    // UOP_MUL and UOP_DIV.
-    typedef enum logic [4:0] { MULDIV_UNSIGNED, MULDIV_SIGNED, MULDIV_AAM, MULDIV_AAD } muldiv_op_e;
+    // UOP_MUL and UOP_DIV, in EX's multiply and divide unit (fes_i386_muldiv).
+    // HI writes the high half a two-destination MUL or DIV kept (EDX, DX);
+    // LOAD gives a 16- or 32-bit DIV its dividend's high half (EDX), and
+    // carries the divide's signedness in imm[0]; IMUL3 is IMUL r, r/m, imm,
+    // whose multiplier is imm and multiplicand src2.
+    typedef enum logic [4:0] {
+        MULDIV_UNSIGNED, MULDIV_SIGNED, MULDIV_AAM, MULDIV_AAD, MULDIV_HI, MULDIV_LOAD, MULDIV_IMUL3
+    } muldiv_op_e;
 
     // UOP_BRANCH.
     typedef enum logic [4:0] {
@@ -191,7 +197,8 @@ package fes_i386_pkg;
     // Faults decode finds; each travels with its uop and is taken at WB.
     // UNIMPLEMENTED is not architectural: an encoding this build does not
     // execute yet. WB stops on it, so a check never retires one silently.
-    typedef enum logic [2:0] { FAULT_NONE, FAULT_UD, FAULT_GP0, FAULT_NM, FAULT_UNIMPLEMENTED, FAULT_SS0 } fault_e;
+    // DE is the divide error EX finds (vector 0).
+    typedef enum logic [2:0] { FAULT_NONE, FAULT_UD, FAULT_GP0, FAULT_NM, FAULT_UNIMPLEMENTED, FAULT_SS0, FAULT_DE } fault_e;
 
     typedef struct packed {
         logic [3:0] cond;             // x86 condition code (tttn) for Jcc, SETcc
@@ -314,7 +321,7 @@ package fes_i386_pkg;
     typedef enum logic [2:0] { STK_NONE, STK_PUSH, STK_POP, STK_RET_IMM, STK_LEAVE, STK_PEEK, STK_RETF, STK_PROBE } stk_e;
     typedef enum logic [3:0] {
         SEQ_NONE, SEQ_CALL, SEQ_LPTR, SEQ_CALLF, SEQ_RETF, SEQ_JMPFM, SEQ_CALLFM, SEQ_UCODE,
-        SEQ_XCHG, SEQ_XCHGM, SEQ_CALLI, SEQ_PUSHM, SEQ_POPM
+        SEQ_XCHG, SEQ_XCHGM, SEQ_CALLI, SEQ_PUSHM, SEQ_POPM, SEQ_MUL, SEQ_DIV
     } seq_e;
     typedef enum logic { PROBE_NONE, PROBE_INT } probe_e;
 
@@ -409,6 +416,11 @@ package fes_i386_pkg;
         logic       fl_cf, fl_cmc, fl_set;
         logic       b_jcc, b_jmp, b_loop, b_loope, b_loopne, b_jcxz;
         logic       b_ind;                     // RET, JMP r/m: the target is x (CS's base) + y (the EIP)
+        // The result (md) and the flags (md_fl) come from the multiply and
+        // divide unit (fes_i386_muldiv); md_wait: it works over several
+        // cycles, while D to WB freeze; md_de: the uop is a divide, which may
+        // raise #DE.
+        logic       md, md_fl, md_wait, md_de;
         shctl_t     sh;
     } exctl_t;
 
