@@ -55,7 +55,8 @@ module fes_i386_dops (
     output logic             pend_c,
     output logic [2:0]       dist_a,
     output logic [2:0]       dist_b,
-    output logic [2:0]       dist_c
+    output logic [2:0]       dist_c,
+    output logic [7:0]       pend_all       // every GPR's pending bit (a string's or ENTER's first uop)
 );
     // ---- The table, for next cycle ----------------------------------------
     // Per GPR: which result register holds its value (one-hot M1, M2, EX, WB;
@@ -141,6 +142,7 @@ module fes_i386_dops (
         assign ahead[r] = left && in_ag[r] ? 3'd1 : dist_now[r];
     end
 
+    assign pend_all = pend;
     assign a = value[a_reg];
     assign b = value[b_reg];
     assign c = value[1];
