@@ -910,6 +910,31 @@ void TestComputerCompatibilityComposesRecognizedInterfaces()
 	spectrum_tape = spectrum;
 	spectrum_tape.interfaces[spectrum_tape.interfaces.size() - 2].minor = 1;
 	assert(check(spectrum_tape).code == mister::ErrorCode::unsupported_interface);
+	// The Pentagon adds the unit-1 disk; it needs the cassette and HPS DDR and
+	// must be required. Its controller sub-interfaces are optional host data.
+	auto pentagon = spectrum;
+	pentagon.interfaces.push_back({"fes.media.spectrum-disk", 1, 0, true});
+	pentagon.interfaces.push_back({"fes.media.spectrum-disk-trdos", 1, 0, false});
+	assert(check(pentagon).ok());
+	auto disk_optional = pentagon;
+	disk_optional.interfaces[disk_optional.interfaces.size() - 2].required = false;
+	assert(check(disk_optional).code == mister::ErrorCode::unsupported_interface);
+	for (const char* removed : {"fes.media.spectrum-tape", "fes.memory.hps-ddr"}) {
+		auto lone = pentagon;
+		for (auto it = lone.interfaces.begin(); it != lone.interfaces.end(); ++it)
+			if (it->id == removed) {
+				lone.interfaces.erase(it);
+				break;
+			}
+		if (std::string(removed) == "fes.memory.hps-ddr")
+			for (auto it = lone.interfaces.begin(); it != lone.interfaces.end(); ++it)
+				if (it->id == "fes.video.session-display") {
+					lone.interfaces.erase(it);
+					break;
+				}
+		const auto result = check(lone);
+		assert(result.code == mister::ErrorCode::unsupported_interface);
+	}
 	auto zx81_write = zx81;
 	zx81_write.interfaces.push_back({"fes.media.zx81-tape-write", 1, 0, true});
 	assert(check(zx81_write).ok());
