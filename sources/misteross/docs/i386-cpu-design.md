@@ -167,13 +167,16 @@ The segment-cache contract for the completed CPU follows the 386:
 
 - The Phase 1 RTL implements real-mode `MOV Sreg, r/m16` loads for DS, ES, FS,
   GS and SS. It updates the selector and sets the base to selector × 16; the
-  cached limit and attributes stay as they were. The real-mode CS load from a
-  far transfer or interrupt is not implemented in this slice ([RTL source](../cores/fes-common/rtl/i386/fes_i386_cpu.sv)).
-- When that CS path is implemented, a real-mode CS load sets the base to
-  selector × 16, the limit to FFFFh, D/B=0 and G=0, and access-rights byte
-  93h (P=1, DPL=0, S=1, read/write, expand-up, accessed data segment). This is
-  the 386 rule described by Collins; Bochs 3.1 differs by retaining CS's
-  cached limit and access-right attributes on a real-mode load.
+  cached limit and attributes stay as they were. Real-mode far JMP, CALL and
+  RETF now write CS through `seg_w`, which has the same behavior: the selector
+  and base (selector × 16) change, while the cached limit and attributes stay
+  as they were, matching Bochs 3.1. Interrupt entry is still absent from this
+  slice ([RTL source](../cores/fes-common/rtl/i386/fes_i386_cpu.sv)).
+- The completed CPU must make a real-mode CS load set the base to selector ×
+  16, the limit to FFFFh, D/B=0 and G=0, and access-rights byte 93h (P=1,
+  DPL=0, S=1, read/write, expand-up, accessed data segment). This is the 386
+  rule described by Collins; the current RTL and Bochs 3.1 retain CS's cached
+  limit and access-right attributes on a real-mode load.
 - In V86 mode every segment load sets the base to selector × 16, the limit to
   FFFFh and the attributes to V86 values.
 - A protected-mode load replaces the whole cache from the descriptor.
@@ -181,9 +184,9 @@ The segment-cache contract for the completed CPU follows the 386:
 So unreal mode works for DS, ES, FS, GS and SS. Software loads one of those
 segments with a large limit in protected mode and clears PE; its cached limit
 and attributes survive every later real-mode reload of that register. They
-are replaced when the register is loaded in protected or V86 mode. A real-mode
-CS load is the 386-specific exception: it resets CS to limit FFFFh and the
-access-rights byte 93h (read/write, expand-up, accessed data segment). DOS
+are replaced when the register is loaded in protected or V86 mode. Under the
+386 contract, a real-mode CS load resets CS to limit FFFFh and the access-rights
+byte 93h (read/write, expand-up, accessed data segment). DOS
 reloads DS and ES on every call, so unreal-mode programs that call DOS depend
 on the data-segment behavior, and Ultima VII's Voodoo memory manager runs in
 unreal mode. Every data access is checked against the cached limit in every
