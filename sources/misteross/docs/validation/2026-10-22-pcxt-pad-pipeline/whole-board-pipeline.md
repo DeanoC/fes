@@ -1845,3 +1845,63 @@ physical reset/MTBF and exact-artifact kit acceptance remain unqualified. No
 Quartus shipping eligibility, whole-board seal, package variant or kit baseline
 is accepted by these results. RTL, FES toolchain locks, shared contracts and
 hardware are unchanged.
+
+
+### Merge current main and prepare code review, 27 October
+
+Prior head `a951b7715e`; main `4bc2e7630e` is merged without rewriting
+published history. Merge `b33181445a` preserves XT mode predecode and grant
+snapshots in the shared `fes_dma8237`, the AT byte/word address geometry and
+the REFRESH-disabled mode guard. Simulation, proofs and Quartus capture follow
+main's shared PIC/PIT directories. Source `e0acc58c97` also classifies the
+PC/XT-only diagnostic helpers as software; changed RTL still selects Atari ST,
+RAM Tester, PC/XT and PC386.
+
+Seven DMA proof methods run six positive equivalence checks and fourteen
+negative controls across XT, AT byte and AT word configurations. Twenty
+focused Quartus tests pass, including shared-vendor source capture and actual
+Yosys elaboration. Parent consistency passes: 21 generated consumers and 37
+fixture copies match. The parent regression command passes with 906 tests,
+three skipped. All four affected RTL simulation targets pass, including all
+21 PC/XT suites. Moved-checkout Verilator dependency failures were retained;
+the affected generated caches were preserved and rebuilt before retrying.
+
+**The full affected-test invocation retains one known main failure.** Of
+1,465 component tests, 1,453 pass, eleven skip and the C64 partial-synthesis
+FIFO assertion fails. The same test fails identically on a clean archive of
+main `4bc2e7630e`, using the same Yosys. All 74 pinned C64 inputs and the test
+are byte-identical between main and this branch. The assertion says that the
+session display FIFO did not map to synchronous M10K. No C64 source or test is
+changed here. The original failed plan, isolated retry, clean-main control and
+successful remaining simulations are all retained; no all-green software
+result is claimed.
+
+Three fresh CGA Direct Quartus fits at `e0acc58c97` pass their reported internal
+setup, hold, recovery/removal and minimum-pulse-width checks at all four
+corners. Every seed retains its own complete native inventory and 24 direct
+interstage observations.
+
+| Seed | Slow100 CPU Fmax (MHz) | Board Fmax (MHz) | Pixel Fmax (MHz) | Minimum setup, four corners (ns) | Minimum hold, four corners (ns) |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 144.11 | 94.60 | 99.25 | +1.319 | +0.114 |
+| 2 | 140.96 | 90.49 | 108.19 | +1.572 | +0.109 |
+| 3 | 129.92 | 78.84 | 107.56 | +1.237 | +0.149 |
+
+[The merged-source record](board50-review-ready-20261027.json) and
+[capture/checker harness](board50-review-ready-20261027-harness.json.gz)
+bind source/tool/input/RBF hashes, complete per-seed endpoint inventories,
+tests, failed environment attempts and the C64 baseline control. Raw RBFs and
+large pulse traces remain on the build host at the recorded paths; pulse
+hashes and native summaries are retained. The byte-identical rebuild above
+belongs to historical source `fa18c8c0e6`; the merged source has no independent
+repeat or full-source regeneration qualification.
+
+Review readiness covers the implementation and its host evidence. **Issue
+#840 remains open.** The current fits still report 617 unclocked HPS registers,
+18 input ports and 69 output ports without external delay budgets. Physical
+SDRAM/HDMI loads and board delays, HPS timing, reset/relock/pulse/MTBF, a PC/XT
+package producer and exact-artifact hardware acceptance remain open. No kit
+was used and no production profile or shipping eligibility is accepted.
+After the timing and producer gates pass, the remaining hardware check is a
+leased exact-artifact CGA Direct load verifying diagnostic boot,
+SDRAM/DMA/refresh, complete HDMI output, Stop and baseline restoration.
