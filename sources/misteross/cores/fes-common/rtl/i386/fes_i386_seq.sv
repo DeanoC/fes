@@ -41,7 +41,10 @@
 //
 // SEQ_UCODE: a microcode routine. Its uops after the first come from the
 // ROM (fes_i386_ucode_rom, word w, at d.upc), each expanded here into dc
-// with the instruction's operand size, vector and memory operand kept.
+// with the instruction's operand size, vector and memory operand kept. A
+// word's memory operand is a stack slot, the vector's entry, or (rm) the
+// instruction's ModRM operand; its registers are GPRs, or (rg) the
+// instruction's register, which the first uop carries in src1.
 //
 // The moves through T1, each waiting for T1's load to retire (b_t1):
 //   SEQ_XCHGM  (XCHG r/m, r with a memory operand): the operand into T1;
@@ -233,6 +236,7 @@ module fes_i386_seq (
         n.uop.rep_stop = 2'd0;
         n.uop.io = 2'd0;
         n.uop.iret = 1'b0;
+        n.uop.bound = 1'b0;
         // The rewritten fields, from the first uop.
         n.uop.sp_write = d0.uop.sp_write;
         n.uop.cls = d0.uop.cls;
@@ -351,8 +355,10 @@ module fes_i386_seq (
                 n.uop.size = uc_size(w.size, d.opsize32);
                 n.uop.src_size = uc_size(w.src_size, d.opsize32);
                 n.uop.count_cl = 1'b0;
-                n.uop.src1 = '{valid: w.s1, space: fes_i386_pkg::RS_GPR, index: {1'b0, w.s1_idx}, hi8: 1'b0};
-                n.uop.src2 = '{valid: w.s2, space: fes_i386_pkg::RS_GPR, index: {1'b0, w.s2_idx}, hi8: 1'b0};
+                n.uop.src1 = '{valid: w.s1, space: fes_i386_pkg::RS_GPR,
+                               index: {1'b0, w.rg ? d0.uop.src1.index[2:0] : w.s1_idx}, hi8: 1'b0};
+                n.uop.src2 = '{valid: w.s2, space: fes_i386_pkg::RS_GPR,
+                               index: {1'b0, w.rg ? d0.uop.src1.index[2:0] : w.s2_idx}, hi8: 1'b0};
                 n.uop.dst = '{valid: w.d, space: fes_i386_pkg::reg_space_e'(w.d_space), index: w.d_idx, hi8: 1'b0};
                 n.uop.mem.kind = fes_i386_pkg::mem_kind_e'(w.mkind);
                 n.uop.mem.bytes = w.mbytes == 2'd0 ? (d.opsize32 ? 4'd4 : 4'd2)
@@ -372,17 +378,19 @@ module fes_i386_seq (
                 n.uop.ctl.end_of_instruction = w.last;
                 n.uop.ctl.fault = fes_i386_pkg::FAULT_NONE;
                 n.uop.iret = w.iret;
+                n.uop.bound = w.bound;
                 n.stk = w.stk;
                 n.slot = w.slot;
                 n.sel_part = w.sel_part;
                 n.consumes = w.rd_cf || w.rd_oszap;
                 n.lea = 1'b0;
                 // A stack operation's address is ESP; the vector's entry
-                // has neither base nor index.
-                n.has_base = w.stk != 3'd0;
-                n.base = 3'd4;
-                n.has_index = 1'b0;
-                n.scale = 2'd0;
+                // has neither base nor index; the ModRM operand (rm) has
+                // the first uop's.
+                n.has_base = w.stk != 3'd0 || w.rm && d0.has_base;
+                n.base = w.rm ? d0.base : 3'd4;
+                n.has_index = w.rm && d0.has_index;
+                n.scale = w.rm ? d0.scale : 2'd0;
                 n.push_eip = w.b == 2'd1;
                 n.a_t1 = w.a_t1;
                 n.popad_esp = w.popad_esp;

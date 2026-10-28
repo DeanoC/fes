@@ -50,6 +50,11 @@
 //     OF 1 at index 0, else the two bits below the index XORed. A source of
 //     0 clears CF, AF, SF and OF and sets PF.
 //
+// BOUND's compares subtract like CMP and write no flags. One raises #BR
+// (br) when x is below y, signed: when the carry out of the size, which is
+// not a borrow, differs from the top bits' propagate (y inverted), the SF
+// and OF a CMP would write differing.
+//
 // MUL, IMUL, DIV, IDIV, AAM and AAD take their flags from the multiply and
 // divide unit (fes_i386_muldiv, md_flags); their result comes through LEA's
 // select, from the pipe record's result field, which fes_i386_cpu fills
@@ -69,6 +74,7 @@ module fes_i386_ex (
     output logic [31:0]          result,
     output logic [17:0]          flags_out,
     output logic                 taken,
+    output logic                 br,          // BOUND's #BR
     output logic [31:0]          ind_target,  // RET, JMP r/m: the target's linear address and EIP
     output logic [31:0]          ind_eip,
     output logic                 sh_out0,
@@ -309,6 +315,8 @@ module fes_i386_ex (
         flags_out[ZF] = arith ? add_zf : rest[ZF];
         flags_out[PF] = arith ? ~^sum[7:0] : rest[PF];
     end
+
+    assign br = exc.ok && exc.bound && (sum[32] ^ p_top);
 
     // ---- Branches ---------------------------------------------------------------
     // LOOP's count reaches zero when it was one, so the decision needs no sum.

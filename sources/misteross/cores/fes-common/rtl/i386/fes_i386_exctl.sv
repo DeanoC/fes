@@ -195,6 +195,7 @@ module fes_i386_exctl (
     assign c.b_rpe = u.rep_stop[0];
     assign c.b_rpne = u.rep_stop[1];
     assign c.b_ind = ind;
+    assign c.bound = u.bound;
 
     // The shifter's selects (fes_i386_shift): direction, size and fill.
     localparam logic [4:0] ROL = 5'd0, ROR = 5'd1, RCL = 5'd2, RCR = 5'd3, SHL = 5'd4, SHR = 5'd5, SAL = 5'd6,

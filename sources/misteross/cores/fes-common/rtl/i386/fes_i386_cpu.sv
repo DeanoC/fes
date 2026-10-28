@@ -1090,7 +1090,7 @@ module fes_i386_cpu (
         .yw({ex_s.exc.yw32, ex_s.exc.yw16, ex_s.exc.yw_lo, ex_s.exc.yw_hi, ex_s.exc.yl}), .ld_en(md_load), .last(md_last), .result(md_result),
         .de(md_de), .flags(md_flags), .hi(md_hi)
     );
-    logic        ex_taken, ex_sh_out0, ex_sh_outn, ex_sh_cfw, ex_sh_wide, ex_def_co, ex_def_szap;
+    logic        ex_taken, ex_br, ex_sh_out0, ex_sh_outn, ex_sh_cfw, ex_sh_wide, ex_def_co, ex_def_szap;
     logic [31:0] ex_ind_target, ex_ind_eip;
     pipe_t       ex_out;
 
@@ -1140,7 +1140,7 @@ module fes_i386_cpu (
         .u(ex_s.uop), .exc(ex_s.exc), .a(ex_s.a), .xr(ex_s.x), .yr(ex_s.y), .wb(wb_s.result), .ld(ex_s.ld),
         .ag_result(ex_s.result), .flags_in(ex_flags), .flags_keep, .md_flags, .result(ex_result),
         .flags_out(ex_flags_out),
-.taken(ex_taken), .ind_target(ex_ind_target), .ind_eip(ex_ind_eip), .sh_out0(ex_sh_out0), .sh_outn(ex_sh_outn), .sh_cfw(ex_sh_cfw), .sh_wide(ex_sh_wide),
+.taken(ex_taken), .br(ex_br), .ind_target(ex_ind_target), .ind_eip(ex_ind_eip), .sh_out0(ex_sh_out0), .sh_outn(ex_sh_outn), .sh_cfw(ex_sh_cfw), .sh_wide(ex_sh_wide),
         .def_co(ex_def_co), .def_szap(ex_def_szap)
     );
     always_comb begin
@@ -1168,6 +1168,8 @@ module fes_i386_cpu (
         // A faulting branch terminates the pipeline without redirecting to its
         // rejected target. This also covers faults already found in M1.
         ex_out.taken = ex_taken && ex_out.uop.ctl.fault == fes_i386_pkg::FAULT_NONE;
+        // BOUND's #BR, after the taken select, which a compare never sets.
+        if (ex_br && ex_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE) ex_out.uop.ctl.fault = fes_i386_pkg::FAULT_BR;
         ex_out.sh_out0 = ex_sh_out0;
         ex_out.sh_outn = ex_sh_outn;
         ex_out.sh_cfw = ex_sh_cfw;
@@ -1379,7 +1381,7 @@ module fes_i386_cpu (
             if (exc_take) begin
                 exc_active <= 1'b1;
                 exc_vec <= wb_fault == 3'd1 ? 8'd6 : wb_fault == 3'd2 ? 8'd13 : wb_fault == 3'd3 ? 8'd7
-                         : wb_fault == 3'd6 ? 8'd0 : 8'd12;
+                         : wb_fault == 3'd6 ? 8'd0 : wb_fault == 3'd7 ? 8'd5 : 8'd12;
             end else if (wb_fault != 3'd0) begin
                 // An encoding not built, or a fault in a delivery.
                 halted <= 1'b1;

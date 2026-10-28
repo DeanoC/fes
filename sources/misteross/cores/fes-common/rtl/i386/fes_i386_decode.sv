@@ -12,7 +12,8 @@
 //   (all three forms), DIV, IDIV, AAM and AAD; IN and OUT; BT, BTS, BTR and
 //   BTC by an immediate, BSF and BSR; the first uops of
 //   MOVS, CMPS, STOS, LODS, SCAS, INS, OUTS and ENTER (fes_i386_seq builds
-//   the rest);
+//   the rest), and of the microcode routines (PUSHA, POPA, INT, INTO, IRET
+//   and BOUND);
 // with a ModRM memory operand where they take one. The memory operand is a
 // load (src2, or src1 for CMP and TEST), a store, or both in one uop
 // (read-modify-write), and replaces the register it stands for: no GPR is
@@ -864,6 +865,27 @@ module fes_i386_decode (
                     upc = fes_i386_ucode_pkg::UC_INT;
                     eoi = 1'b0;
                 end
+                8'h62: begin
+                    // BOUND r, m (SEQ_UCODE): the upper bound, past the lower
+                    // by the operand size, into T1, the register carried in
+                    // src1 for the ROM's compares. Both bounds load, and so
+                    // check their limits, before either compare can raise
+                    // #BR, as the 386EX does. A register operand is #UD.
+                    undefined = reg_form;
+                    op = 5'd9;  // ALU_MOV
+                    size = 2'd2;
+                    mbytes = osz32 ? 3'd4 : 3'd2;
+                    mkind = 2'd1;
+                    sel_part = 1'b1;
+                    s1_valid = 1'b1;
+                    s1_idx = reg_f;
+                    d_valid = 1'b1;
+                    d_temp = 1'b1;
+                    d_t1 = 1'b1;
+                    seq = fes_i386_pkg::SEQ_UCODE;
+                    upc = fes_i386_ucode_pkg::UC_BOUND;
+                    eoi = 1'b0;
+                end
                 8'hce: begin
                     // INTO (SEQ_UCODE): JNO to the next instruction, ending it
                     // if taken; else the ROM's INT routine, vector 4
@@ -1278,6 +1300,7 @@ module fes_i386_decode (
     assign u.rep_stop = 2'd0;
     assign u.io = io;
     assign u.iret = 1'b0;
+    assign u.bound = 1'b0;
     assign u.sp_add = 1'b0;
     assign u.sp_write = stk != fes_i386_pkg::STK_NONE && stk != fes_i386_pkg::STK_PEEK && stk != fes_i386_pkg::STK_PROBE;
     assign u.cls = fes_i386_pkg::uop_class_e'(cls);

@@ -920,7 +920,7 @@ MemUse mem_use(const uint8_t *code) {
         m.reads = true;
         m.writes = reg != 7;
     } else if (op == 0x84 || op == 0x85 || op == 0x8a || op == 0x8b || op == 0x8e || op == 0xc4 || op == 0xc5 ||
-               op == 0x69 || op == 0x6b) {
+               op == 0x69 || op == 0x6b || op == 0x62) {
         m.reads = true;
     } else if (op == 0x88 || op == 0x89 || op == 0x8c || op == 0xc6 || op == 0xc7) {
         m.writes = true;
@@ -2633,9 +2633,13 @@ private:
     // The microcode routines' instructions: PUSHA and POPA, alone or around
     // a body that leaves the stack alone; PUSHF and POPF only as such a pair
     // (a POPF of random data could set TF, and single-step traps are not
-    // built); or an interrupt block.
+    // built); an interrupt block; or BOUND.
     void ucode_block() {
-        const unsigned kind = pick(5);
+        const unsigned kind = pick(6);
+        if (kind == 5) {
+            items.push_back(Item{bound_block(), -1, 0, 0});
+            return;
+        }
         const bool os32 = pick(3) == 0;
         auto add = [&](std::vector<uint8_t> bytes) {
             if (os32) bytes.insert(bytes.begin(), 0x66);
@@ -2660,6 +2664,67 @@ private:
         } else {
             interrupt_block();
         }
+    }
+
+    // BOUND of a register a MOV sets, against bounds two MOVs store at a
+    // direct offset first: mostly around the register's value, at an edge
+    // now and then, and rarely past one (#BR, which ends the program). Now
+    // and then the register's MOV comes last, so the compares take it
+    // forwarded. Rarer still, a register operand (#UD). One item, so no
+    // branch lands between them.
+    std::vector<uint8_t> bound_block() {
+        std::vector<uint8_t> out;
+        const bool os32 = pick(3) == 0;
+        const unsigned z = os32 ? 4 : 2;
+        unsigned r = pick(8);
+        while (r == 4) r = pick(8);  // ESP stays the stack's
+        const uint16_t at = uint16_t(rng());
+        const uint32_t index = uint32_t(rng());
+        const int64_t i = os32 ? int64_t(int32_t(index)) : int64_t(int16_t(index));
+        const int64_t lowest = os32 ? INT32_MIN : INT16_MIN, highest = os32 ? INT32_MAX : INT16_MAX;
+        auto spread = [&]() -> int64_t {
+            return pick(4) == 0 ? 0 : pick(2) ? int64_t(pick(16)) : int64_t(rng() % (os32 ? 0x10000000u : 0x1000u));
+        };
+        int64_t lo = i - spread(), hi = i + spread();
+        const unsigned miss = pick(24);
+        if (miss == 0) {
+            lo = i + 1 + spread();
+            hi = lo + spread();
+        } else if (miss == 1) {
+            hi = i - 1 - spread();
+            lo = hi - spread();
+        }
+        lo = std::clamp(lo, lowest, highest);
+        hi = std::clamp(hi, lowest, highest);
+        auto size = [&]() {
+            if (os32) out.push_back(0x66);
+        };
+        auto value = [&](uint32_t v) {
+            for (unsigned n = 0; n < z; ++n) out.push_back(uint8_t(v >> (8 * n)));
+        };
+        auto set_index = [&]() {
+            size();
+            out.push_back(uint8_t(0xb8 + r));
+            value(index);
+        };
+        auto store = [&](uint16_t where, int64_t v) {
+            size();
+            out.insert(out.end(), {0xc7, 0x06, uint8_t(where), uint8_t(where >> 8)});
+            value(uint32_t(v));
+        };
+        const bool late = pick(4) == 0;
+        if (!late) set_index();
+        store(at, lo);
+        store(uint16_t(at + z), hi);
+        if (late) set_index();
+        size();
+        out.push_back(0x62);
+        if (pick(64) == 0) {
+            out.push_back(uint8_t(0xc0 | (r << 3) | pick(8)));
+        } else {
+            out.insert(out.end(), {uint8_t(0x06 | (r << 3)), uint8_t(at), uint8_t(at >> 8)});
+        }
+        return out;
     }
 
     // SS above the vector table, ES = 0, the vector's entry stored as the
