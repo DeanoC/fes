@@ -3000,7 +3000,7 @@ std::vector<Computer11Scenario> ReadComputer11Scenarios()
 	for (auto at = source.find("{\"abi_minor\":"); at != std::string::npos;
 		at = source.find("{\"abi_minor\":", at + 1))
 		starts.push_back(at);
-	assert(starts.size() == 3);
+	assert(starts.size() == 5);
 	starts.push_back(source.size());
 	const std::regex row("\\{\"argument\":([0-9]+),\"data\":([0-9]+),\"error\":([0-9]+),"
 		"\"gpi\":([0-9]+),\"gpo\":\\[([0-9]+),([0-9]+)\\],\"index\":([0-9]+),"
@@ -3044,6 +3044,7 @@ std::vector<Computer11Scenario> ReadComputer11Scenarios()
 	assert(result[0].name == "minor-0-endpoint" && result[0].abi_minor == 0);
 	assert(result[1].name == "pc386-persistence-and-wall-clock" && result[1].abi_minor == 1);
 	assert(result[2].name == "pc386-ata-disk");
+	assert(result[3].name == "persistence-without-layout" && result[4].name == "layout-without-persistence");
 	return result;
 }
 
