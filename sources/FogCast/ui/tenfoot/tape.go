@@ -707,14 +707,14 @@ func importAndArmTape(ctx context.Context, client *Client, prior hostclient.Sess
 	}
 	defer file.Close()
 	if !hostclient.AdmitRemovableMedia(prior.CorePackage, name, size) {
-		return hostclient.SessionResult{}, false, protocol.LiveMediaRequestError()
+		return hostclient.SessionResult{}, false, hostclient.RemovableMediaRequestError(prior.CorePackage, name)
 	}
 	media, err := client.ImportCoreMedia(ctx, size, io.LimitReader(file, size))
 	if err != nil {
 		return hostclient.SessionResult{}, false, err
 	}
 	if media.Size != size || !hostclient.AdmitRemovableMedia(prior.CorePackage, name, media.Size) {
-		return hostclient.SessionResult{}, false, protocol.LiveMediaRequestError()
+		return hostclient.SessionResult{}, false, hostclient.RemovableMediaRequestError(prior.CorePackage, name)
 	}
 	result, err := client.ReplaceRemovableMediaForSession(ctx, prior, media.MediaID, name)
 	return result, true, err
