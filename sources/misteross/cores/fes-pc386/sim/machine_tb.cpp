@@ -31,7 +31,7 @@
 //        [--cycles-per-instruction N] [--prompt TEXT] [--type TEXT] [--expect TEXT]
 //        [--trace F] [--frames DIR] [--pixel-from S] [--until-debug TEXT]
 //        [--type-at S] [--key-gap S] [--wav F] [--opl2-log F] [--keys S:TEXT]... [--cpu oracle|rtl]
-//        [--census F]
+//        [--census F] [--stop-history N]
 // A program on the disk marks a picture by writing "SNAP <name>" and a newline
 // to port E9h, then holding it; the bench takes the second capture after the
 // marker, runs the pixel clock for two 720p frames and compares the second
@@ -57,6 +57,12 @@
 //   UNRETIRED <why> <loads> <cs:eip> <stem> <first address> <first cycle>
 //                                               VGA loads whose uop never retired, by instruction
 //   RTL <counter>=<n> ...                       retirements, oracle steps, waits
+// and with --stop-history N, at the first stop of the run:
+//   HISTORY <cycle> <start> <bytes> <cs>:<eip> <ss>:<esp> <vector|->   each of the last N
+//                                               retirements: the linear address it started at, the
+//                                               bytes there at the stop, the state after it, and the
+//                                               vector it delivered
+//   STOPSTATE <register>=<value> ...            the RTL's registers at the stop
 // An unretired VGA load reached the VGA, which the oracle's never do: its
 // uop died on a wrong path behind a redirect that retired ("path"), in an
 // instruction a fault or an interrupt restarted ("restart"), or behind a stop.
@@ -543,6 +549,15 @@ public:
     std::vector<std::string> smc_sites;  // the first stores and executions
     std::function<unsigned(uint32_t linear)> length;  // an instruction's length, from memory
     std::vector<bool> dirty;     // pages stored to since the oracle last ran
+    // The last retirements (--stop-history), a ring: the path into a stop.
+    struct Retirement {
+        uint64_t cycle;
+        uint32_t start, eip, esp;
+        uint16_t cs, ss;
+        int vector;  // the exception or interrupt it delivered, or -1
+    };
+    std::vector<Retirement> history;
+    uint64_t history_count = 0;
 
     // A20 below the reset alias.
     static uint32_t physical(uint32_t linear, bool a20m) {
@@ -751,6 +766,11 @@ public:
             if (cpu.arch_eflags & 0x100) ++tf_retired;
             const uint32_t start = retire_next;
             retire_next = physical(cpu.arch_base[fes_i386::SEG_CS] + cpu.arch_eip, a20m);
+            if (!history.empty())
+                history[history_count++ % history.size()] = {
+                    m.cycles, start, cpu.arch_eip, cpu.arch_gpr[fes_i386::REG_ESP],
+                    get16(cpu.arch_sel, fes_i386::SEG_CS), get16(cpu.arch_sel, fes_i386::SEG_SS),
+                    cpu.trace_exception ? int(cpu.trace_vector) : -1};
             if (!stale.empty() && !cpu.trace_exception) {
                 auto byte = stale.lower_bound(start);
                 if (byte != stale.end() && *byte < start + 15 && *byte < start + length(start)) {
@@ -999,6 +1019,7 @@ struct Options {
     double limit_seconds = 120, pixel_from = -1, type_at = -1, key_gap = 0.03;
     std::vector<std::pair<double, std::string>> keys;
     unsigned cycles_per_instruction = 4;
+    unsigned stop_history = 0;
 };
 
 Options parse(int argc, char **argv) {
@@ -1026,6 +1047,7 @@ Options parse(int argc, char **argv) {
         else if (flag == "--opl2-log") options.opl2_log = value;
         else if (flag == "--cpu") options.cpu = value;
         else if (flag == "--census") options.census = value;
+        else if (flag == "--stop-history") options.stop_history = unsigned(std::stoul(value));
         else if (flag == "--keys") {
             size_t colon = value.find(':');
             if (colon == std::string::npos) throw std::runtime_error("--keys takes SECONDS:TEXT");
@@ -1069,6 +1091,7 @@ int main(int argc, char **argv) {
                 fes_i386::Decoded decoded = oracle->decode(bytes, 15, (rtl->cpu.arch_ar[0] >> 16) & 0x4000);  // CS.D
                 return decoded.complete ? unsigned(decoded.length) : 15u;
             };
+            rtl->history.resize(options.stop_history);
             rtl->start(oracle->get_state());
         }
         bool on_oracle = !rtl;
@@ -1095,6 +1118,30 @@ int main(int argc, char **argv) {
             fes_i386::Decoded decoded = oracle->decode(bytes, 15, s.seg[fes_i386::SEG_CS].ar & 0x4000);
             const unsigned length = decoded.complete ? decoded.length : 15;
             const std::string key = stem(bytes, length);
+            // --stop-history: the path into the run's first stop.
+            if (gaps.empty() && !rtl->history.empty()) {
+                const uint64_t total = rtl->history_count, size = rtl->history.size();
+                for (uint64_t n = total - std::min(total, size); n < total; ++n) {
+                    const RtlCpu::Retirement &r = rtl->history[n % size];
+                    char vector[4] = "-";
+                    if (r.vector >= 0) std::snprintf(vector, sizeof vector, "%02x", r.vector);
+                    std::string code;
+                    for (unsigned k = 0, end = rtl->length(r.start); k < end; ++k) {
+                        char text[4];
+                        std::snprintf(text, sizeof text, "%02x", rtl->read8(RtlCpu::physical(r.start + k, machine.top.a20m)));
+                        code += text;
+                    }
+                    std::printf("HISTORY %llu %08x %s %04x:%08x %04x:%08x %s\n", (unsigned long long)r.cycle, r.start,
+                                code.c_str(), r.cs, r.eip, r.ss, r.esp, vector);
+                }
+                static const char *const gprs[] = {"eax", "ecx", "edx", "ebx", "esp", "ebp", "esi", "edi"};
+                static const char *const segs[] = {"es", "cs", "ss", "ds", "fs", "gs"};
+                std::printf("STOPSTATE");
+                for (int n = 0; n < 8; ++n) std::printf(" %s=%08x", gprs[n], s.gpr[n]);
+                std::printf(" eflags=%08x", s.eflags);
+                for (int n = 0; n < 6; ++n) std::printf(" %s=%04x", segs[n], s.seg[n].selector);
+                std::printf("\n");
+            }
             Gap &gap = gaps[{kind, key}];
             if (!gap.stops) { gap.first_cycle = machine.cycles; gap.first_site = site(s); }
             if (gap.stops++ < 3) {
