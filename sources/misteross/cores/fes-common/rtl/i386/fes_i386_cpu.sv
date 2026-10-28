@@ -1280,8 +1280,9 @@ module fes_i386_cpu (
 
     // ---- Interrupts ---------------------------------------------------------------
     // INTR and NMI are taken at an instruction boundary: on the edge an
-    // instruction's last uop retires, a delivery's included, or while the
-    // CPU is in HLT. NMI comes first, unless one is being handled (blocked
+    // instruction's last uop retires, a delivery's included, or a REP
+    // string element's last uop (str_cx), or while the CPU is in HLT. NMI
+    // comes first, unless one is being handled (blocked
     // until IRET's last uop retires); INTR if IF is set after the
     // instruction. Neither is taken after MOV SS or POP SS, unless that one
     // follows another, nor after an STI that set IF: the shadow, as Bochs
@@ -1289,12 +1290,15 @@ module fes_i386_cpu (
     // INTR first asks the machine for its vector (inta_req), D to WB frozen
     // until it answers. Then WB flushes, as for a fault, with nothing of the
     // uop in it retired, and DC takes the vector routine's entry with D's EIP
-    // the next instruction's (int_go). An NMI's vector is 2.
+    // the next instruction's (int_go). Between a REP string's elements that
+    // is the string's own, since WB moves EIP only as an instruction ends:
+    // the elements done have stepped ESI, EDI and ECX, so IRET returns to
+    // the string, which runs on from there. An NMI's vector is 2.
     logic       nmi_q, nmi_pend, nmi_edge, nmi_block, movss_sh;
     logic [7:0] int_vec;
     logic       wb_commit, at_boundary, in_hlt, wb_ss_load, wb_sti, sh_ss, int_shadow, nmi_ok, int_if;
     assign wb_commit = wb_s.valid && !halted && !freeze && !int_take && wb_fault == 3'd0;
-    assign at_boundary = wb_commit && wb_eoi;
+    assign at_boundary = wb_commit && (wb_eoi || wb_s.uop.str_cx);
     assign in_hlt = hlt && !int_take;
     assign wb_ss_load = wb_s.uop.dst.valid && wb_s.uop.dst.space == fes_i386_pkg::RS_SEG
                      && wb_s.uop.dst.index[2:0] == 3'(SEG_SS);
