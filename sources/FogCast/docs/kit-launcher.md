@@ -94,7 +94,12 @@ back to the host.
 Tenfoot gives the first two gamepads it opens controller ports 1 and 2 and
 logs each assignment: pads present at startup in `/dev/input` order, then pads
 as they are plugged in, each taking the lowest free port. A pad keeps its port
-until it is unplugged. A pad that finds both ports taken never reaches a machine and does
+until it is unplugged. The exception is the kits' fixture pad, the generic
+`081f:e401` USB pad: it gives its port to any other pad that arrives, even
+one plugged in later, and moves to the port that pad would have taken, or
+goes menu only. Its held buttons come up first. So with the fixture and a
+DualSense attached, the DualSense is port 1, the pad a Coleco reads for its
+options keypad. A pad that finds both ports taken never reaches a machine and does
 not take a port that frees up later. It drives the menu wherever a pad with a
 port would, including the room shown during play, and its Guide button still
 stops a kit-local core like any pad's. Every pad event
