@@ -8,6 +8,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import threading
 from types import SimpleNamespace
 import unittest
 from unittest import mock
@@ -18,6 +19,29 @@ SPEC.loader.exec_module(BUILD)
 
 
 class HeadlessBuildTests(unittest.TestCase):
+    def test_different_caches_serialize_writes_to_one_output(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            output = root / "output"
+            output.mkdir()
+            waiting = threading.Event()
+            entered = threading.Event()
+
+            def second_writer():
+                with BUILD.build_lock(root / "cache-two"):
+                    waiting.set()
+                    with BUILD.output_lock(output):
+                        entered.set()
+
+            with BUILD.build_lock(root / "cache-one"), BUILD.output_lock(output):
+                worker = threading.Thread(target=second_writer)
+                worker.start()
+                self.assertTrue(waiting.wait(2))
+                self.assertFalse(entered.wait(0.05))
+            worker.join(2)
+            self.assertFalse(worker.is_alive())
+            self.assertTrue(entered.is_set())
+
     def test_output_rejects_symlinks_and_special_files_before_writing(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

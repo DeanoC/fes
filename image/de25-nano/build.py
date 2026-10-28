@@ -112,6 +112,16 @@ def build_lock(cache):
         yield
 
 
+@contextmanager
+def output_lock(output):
+    descriptor = os.open(output, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_EX)
+        yield
+    finally:
+        os.close(descriptor)
+
+
 def validate_output(output):
     output.mkdir(parents=True, exist_ok=True)
     for path in output.rglob("*"):
@@ -375,9 +385,13 @@ def main(argv=None):
     cache, output = args.cache.resolve(), args.output.resolve()
     cache.mkdir(parents=True, exist_ok=True)
     try:
-        validate_output(output)
+        output.mkdir(parents=True, exist_ok=True)
         import boot
-        with build_lock(cache):
+        # Capture the selected commit before waiting behind another build.
+        if args.action == "build":
+            revision, source = snapshot()
+        with build_lock(cache), output_lock(output):
+            validate_output(output)
             if args.action in ("verify", "smoke"):
                 (output / (args.action + ".json")).unlink(missing_ok=True)
                 record = verify_receipt(output)
@@ -385,7 +399,6 @@ def main(argv=None):
             elif args.action == "fetch":
                 source, record = ROOT, None
             else:
-                revision, source = snapshot()
                 record = None
             volume = "fes-de25-linux-" + hashlib.sha256((str(ROOT) + "\0" + str(cache)).encode()).hexdigest()[:16]
             image = ensure_builder(source, args.container_runtime, volume)
