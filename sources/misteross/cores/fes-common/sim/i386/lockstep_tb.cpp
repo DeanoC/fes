@@ -2777,6 +2777,9 @@ private:
         const unsigned skip = pick(4);
         for (unsigned n = 0; n < skip; ++n) items.push_back(Item{instruction(false), -1, 0, 0});
         set_far_target(at, int(items.size()));
+        // No backward jump runs the transfer again: an indirect one would
+        // read its pointer from a DS the skipped code may have moved.
+        fence = int(items.size());
     }
 
     // JMP or CALL ptr16:16/32, its pointer filled in at layout.
