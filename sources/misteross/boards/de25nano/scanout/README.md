@@ -100,6 +100,17 @@ relock behavior using digital PLL/I2C models. The generated-interconnect
 helper tests the actual two-clock bridges and width adapter after generation;
 none of these modeled checks establishes physical memory or HDMI operation.
 
+The generated-interconnect simulation uses an explicitly guarded M20K storage
+model because the installed vendor primitive models are protected or black
+boxes. Generated FIFO pointers, synchronizers, credits and routing remain
+unchanged. An elaborated inventory permits only the four reviewed storage
+instances, and a separate storage self-test checks the used clock, address,
+output-latency and enable behavior. Runtime guards reject unwritten RAM data
+at the actual FIFO transfer and collisions with its live unread head. The
+receipt labels this **WITH MODELED M20K STORAGE**; vendor primitive equivalence,
+undefined power-up data, mixed-port collision behavior and physical CDC remain
+unproven.
+
 Production binding remains closed. SID/firewall/SMMU and DMA backing,
 firmware/DT/boot pairing, global reset fencing, the vendor HDMI clock-voltage
 discrepancy and external IO timing, physical CDC/MTBF and exact-artifact board
