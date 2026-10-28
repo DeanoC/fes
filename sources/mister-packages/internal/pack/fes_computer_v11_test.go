@@ -3,11 +3,13 @@ package pack
 import (
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"hash/crc32"
 	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
+	"time"
 )
 
 // v11Model is an independent replay of the ABI 1.1 additions in
@@ -22,6 +24,8 @@ type v11Model struct {
 
 	disk, pending   uint16
 	frozen, saved   bool
+	writerBusy      bool
+	pendingSector   uint32
 	failed          bool
 	epoch           uint16
 	dirty           map[uint32]bool
@@ -39,6 +43,8 @@ type v11Model struct {
 
 const (
 	stateEmpty, stateLoading, stateReady, stateVerifying = 1, 2, 3, 4
+	capPersistence                                       = 1 << 17
+	capPC386Machine                                      = 1 << 19
 )
 
 func newV11Model(caps uint32, minor uint16, window []byte, verifyReads int) *v11Model {
@@ -60,6 +66,9 @@ func (m *v11Model) flags() uint16 {
 	if m.frozen {
 		f |= 2
 	}
+	if m.writerBusy {
+		f |= 4
+	}
 	if m.failed {
 		f |= 8
 	}
@@ -68,6 +77,7 @@ func (m *v11Model) flags() uint16 {
 
 func (m *v11Model) reset(state uint16) {
 	m.disk, m.frozen, m.saved, m.failed = state, false, false, false
+	m.writerBusy, m.pendingSector = false, 0
 	m.dirty, m.commitWords, m.geometry, m.verifyRemaining = map[uint32]bool{}, nil, nil, 0
 }
 
@@ -121,7 +131,8 @@ func (m *v11Model) step(op, index, arg uint32, identity []uint16) (uint16, uint1
 			return 1, 0
 		}
 	case 24, 25, 26, 27:
-		if m.caps&(1<<17) == 0 {
+		persistenceCaps := uint32(capPersistence | capPC386Machine)
+		if m.caps&persistenceCaps != persistenceCaps {
 			return 1, 0
 		}
 	case 28:
@@ -144,6 +155,7 @@ func (m *v11Model) step(op, index, arg uint32, identity []uint16) (uint16, uint1
 		if index&7 == 5 && m.disk == stateVerifying {
 			if m.verifyRemaining--; m.verifyRemaining == 0 {
 				m.disk = m.pending
+				m.failed = m.pending != stateReady
 			}
 		}
 		return 0, [8]uint16{0, 0x10, 0, 0x800, 128, state, m.flags(), m.epoch}[index&7]
@@ -171,7 +183,7 @@ func (m *v11Model) step(op, index, arg uint32, identity []uint16) (uint16, uint1
 			sectors := w[0] | w[1]<<16
 			ok := crc32.ChecksumIEEE(m.window[:sectors*512]) == w[5]|w[6]<<16
 			m.commitWords, m.disk, m.verifyRemaining = nil, stateVerifying, m.verifyReads
-			m.failed = !ok
+			m.failed = false
 			if ok {
 				m.pending, m.geometry = stateReady, []uint32{sectors, w[2], w[3], w[4]}
 			} else {
@@ -184,10 +196,15 @@ func (m *v11Model) step(op, index, arg uint32, identity []uint16) (uint16, uint1
 			if !m.frozen {
 				m.frozen, m.saved = true, false
 			}
+			if m.writerBusy {
+				if err := m.finishSectorWrite(); err != nil {
+					return 4, 0
+				}
+			}
 		case 4:
 			m.frozen, m.saved = false, false
 		case 5:
-			if !m.frozen {
+			if !m.frozen || m.writerBusy {
 				return 4, 0
 			}
 			m.dirty, m.saved = map[uint32]bool{}, true
@@ -319,7 +336,9 @@ func (m *v11Model) step(op, index, arg uint32, identity []uint16) (uint16, uint1
 	case 2:
 		ok = lo <= 23 && hi <= 59
 	case 3:
-		ok = lo <= 59 && hi >= 1 && hi <= 7
+		wantWeekday := uint32(time.Date(int(m.clockWords[0]), time.Month(m.clockWords[1]&0xff),
+			int(m.clockWords[1]>>8), 0, 0, 0, 0, time.UTC).Weekday()) + 1
+		ok = lo <= 59 && hi == wantWeekday
 	}
 	if !ok {
 		return 3, 0
@@ -337,16 +356,47 @@ func (m *v11Model) step(op, index, arg uint32, identity []uint16) (uint16, uint1
 	return 0, 0
 }
 
-func (m *v11Model) event(kind string, sector, byteIndex, value uint32) {
+func (m *v11Model) beginSectorWrite(sector uint32) error {
+	if m.disk != stateReady || m.legacy.held || m.frozen || m.writerBusy ||
+		len(m.geometry) == 0 || sector >= m.geometry[0] {
+		return fmt.Errorf("sector write is not accepted in the current machine state")
+	}
+	m.writerBusy, m.pendingSector = true, sector
+	return nil
+}
+
+func (m *v11Model) finishSectorWrite() error {
+	if !m.writerBusy {
+		return fmt.Errorf("no accepted sector write to finish")
+	}
+	m.dirty[m.pendingSector/128] = true
+	m.epoch++
+	m.writerBusy, m.pendingSector = false, 0
+	return nil
+}
+
+func (m *v11Model) event(kind string, sector, byteIndex, value uint32) error {
 	switch kind {
 	case "sector-write":
-		m.dirty[sector/128] = true
-		m.epoch++
+		if err := m.beginSectorWrite(sector); err != nil {
+			return err
+		}
+		return m.finishSectorWrite()
+	case "sector-write-begin":
+		return m.beginSectorWrite(sector)
+	case "sector-write-complete":
+		return m.finishSectorWrite()
 	case "cmos-write":
+		if m.legacy.held || byteIndex >= 128 || value > 0xff {
+			return fmt.Errorf("CMOS write is not accepted in the current machine state")
+		}
 		shift := 8 * (byteIndex & 1)
 		w := &m.words[8+byteIndex/2]
 		*w = *w&^(0xff<<shift) | uint16(value)<<shift
+	default:
+		return fmt.Errorf("unknown machine event %q", kind)
 	}
+	return nil
 }
 
 func TestFesComputer11GoldenExchanges(t *testing.T) {
@@ -396,7 +446,7 @@ func TestFesComputer11GoldenExchanges(t *testing.T) {
 		t.Fatal(err)
 	}
 	if fixture.ABI.ID != "fes.computer" || fixture.ABI.Tag != 4 || fixture.ABI.Major != 1 || fixture.ABI.Minor != 1 ||
-		len(fixture.Scenarios) != 3 {
+		len(fixture.Scenarios) != 5 {
 		t.Fatalf("fixture identity %+v", fixture.ABI)
 	}
 	for _, s := range fixture.Scenarios {
@@ -426,7 +476,9 @@ func TestFesComputer11GoldenExchanges(t *testing.T) {
 			for n, x := range s.Exchanges {
 				for ; next < len(s.Events) && s.Events[next].Before == n; next++ {
 					e := s.Events[next]
-					m.event(e.Kind, e.Sector, e.Byte, e.Value)
+					if err := m.event(e.Kind, e.Sector, e.Byte, e.Value); err != nil {
+						t.Fatalf("machine event %s: %v", e.Kind, err)
+					}
 				}
 				fields := x.Opcode<<24 | x.Index<<16 | x.Argument
 				old := fields
@@ -483,4 +535,51 @@ func TestFesComputer11GoldenExchanges(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestFesComputer11WriterBusyGuards(t *testing.T) {
+	newReadyDisk := func() *v11Model {
+		m := newV11Model(1<<16, 1, nil, 1)
+		m.legacy.held = false
+		m.disk = stateReady
+		m.geometry = []uint32{2048, 1, 1, 1}
+		return m
+	}
+
+	t.Run("freeze drains accepted write before ack", func(t *testing.T) {
+		m := newReadyDisk()
+		if err := m.event("sector-write-begin", 512, 0, 0); err != nil {
+			t.Fatal(err)
+		}
+		if got := m.flags(); got != 4 {
+			t.Fatalf("writer-busy flags %d, want 4", got)
+		}
+		if code, _ := m.step(17, 0, 3, nil); code != 0 {
+			t.Fatalf("freeze error %d, want success", code)
+		}
+		if !m.frozen || m.writerBusy || !m.dirty[4] || m.epoch != 1 || m.flags() != 3 {
+			t.Fatalf("freeze did not drain write: frozen=%t busy=%t dirty=%v epoch=%d flags=%d",
+				m.frozen, m.writerBusy, m.dirty, m.epoch, m.flags())
+		}
+	})
+
+	t.Run("saved rejects busy writer even when frozen", func(t *testing.T) {
+		m := newReadyDisk()
+		m.frozen, m.writerBusy, m.pendingSector = true, true, 512
+		m.dirty[1] = true
+		if code, _ := m.step(17, 0, 5, nil); code != 4 {
+			t.Fatalf("Saved error %d, want state error", code)
+		}
+		if m.saved || !m.writerBusy || !m.dirty[1] {
+			t.Fatalf("rejected Saved changed state: saved=%t busy=%t dirty=%v", m.saved, m.writerBusy, m.dirty)
+		}
+	})
+
+	t.Run("guest write event rejects frozen disk", func(t *testing.T) {
+		m := newReadyDisk()
+		m.frozen = true
+		if err := m.event("sector-write", 0, 0, 0); err == nil {
+			t.Fatal("frozen disk accepted guest sector write")
+		}
+	})
 }
