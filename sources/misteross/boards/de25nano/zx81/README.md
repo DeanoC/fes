@@ -55,3 +55,7 @@ session display or audio source. It does not preserve the Linux boot design
 or qualify a pairing with Terasic boot firmware. Initial physical testing
 requires the identified SCS board, this exact SOF and an HDMI capture; Linux
 serial/DHCP/SSH bring-up remains a separate target.
+
+The shared machine/scheduler changes also require current DE10 ZX81 consumer
+regression and package/HIL evidence before integration. Earlier sealed packages
+and board diagnostics do not accept these new source bytes.

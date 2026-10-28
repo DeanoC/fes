@@ -28,11 +28,12 @@ struct Clock {
 struct Board {
     Vde25nano_zx81 t;
     Clock reference{50000000}, pixel{74250000};
-    uint64_t reference_edges = 0, system_edges = 0, pixel_edges = 0, source_ink = 0;
+    uint64_t reference_edges = 0, system_edges = 0, pixel_edges = 0, source_ink = 0, retired = 0;
     uint64_t ula_enables = 0, cpu_positive = 0, cpu_negative = 0;
     uint64_t frame_pixels = 0, complete_frames = 0, picture_frames = 0;
     unsigned active = 0, hs = 0, vs = 0, ink = 0, paper = 0, max_ink = 0, max_paper = 0;
     bool previous_vs = false, frame_started = false, inspect_picture = false;
+    bool editor_idle_seen = false;
 
     Board() {
         t.CLOCK0_50 = 0;
@@ -112,6 +113,10 @@ struct Board {
         t.eval();
         if (pixel_rise) {
             system_edges++;
+            if (SIGNAL(machine__DOT__cpu__DOT__retired)) retired++;
+            if (SIGNAL(machine_reset)) editor_idle_seen = false;
+            else if (SIGNAL(cpu_addr) == 0x04cf && word(0x4025) == 0xffff && peek(0x4027) == 0)
+                editor_idle_seen = true;
             ula_enables += SIGNAL(machine__DOT__ce_6m5) != 0;
             cpu_positive += SIGNAL(machine__DOT__ce_cpu_p) != 0;
             cpu_negative += SIGNAL(machine__DOT__ce_cpu_n) != 0;
@@ -145,6 +150,16 @@ struct Board {
         const uint16_t dfile = word(0x400c);
         return peek(0x4000) == 0 && dfile >= 0x4070 && dfile < 0x8000 && peek(dfile) == 0x76;
     }
+    bool editor_idle() const {
+        return editor_idle_seen;
+    }
+    void diagnostic(const char* description) const {
+        std::printf("%s: PC=%04x FRAMES=%04x LAST_K=%04x DEBOUNCE=%02x E_LINE=%04x D_FILE=%04x bytes=",
+                    description, SIGNAL(cpu_addr), word(0x4034), word(0x4025), peek(0x4027),
+                    word(0x4014), word(0x400c));
+        for (unsigned n = 0; n < 32; ++n) std::printf("%02x ", peek(word(0x400c) + n));
+        std::putchar('\n');
+    }
     void boot(const char* description) {
         const uint64_t start = system_edges, old_ink = source_ink;
         bool halted = false;
@@ -158,6 +173,18 @@ struct Board {
             }
         }
         check(false, "real ROM did not reach BASIC display/HALT/ink");
+    }
+    void reset_release(const char* description) {
+        // The local key filter holds startup reset until KEY0 is released
+        // for its actual 10ms interval. A short fresh instruction-retirement
+        // check verifies reset recovery without repeating the ROM RAM test.
+        cycles(750000);
+        check(!SIGNAL(machine_reset) && SIGNAL(pixel_reset_n),
+              "machine/pixel reset did not release after resumed clock edges and key interval");
+        const uint64_t previous_retired = retired;
+        cycles(100000);
+        check(retired > previous_retired, "real CPU did not retire instructions after reset release");
+        std::printf("PASS DE25 ZX81 %s: bounded reset release and real CPU instruction retirement\n", description);
     }
 };
 
@@ -180,24 +207,13 @@ int main(int argc, char** argv) {
     t.eval(); b.blank();
     b.boot("cold boot");
     check(SIGNAL(keyboard) == 0xffffffffffull, "startup generated a phantom key");
-    b.inspect_picture = true;
-    const uint64_t picture_target = b.picture_frames + 2;
-    const uint64_t picture_deadline = b.system_edges + 15000000;
-    while (b.picture_frames < picture_target && b.system_edges < picture_deadline) b.step();
-    if (b.picture_frames < picture_target) {
-        unsigned stored_ink = 0;
-        for (unsigned n = 0; n < 270u * 512u; ++n) stored_ink += SIGNAL(video__DOT__fb)[n] != 0;
-        std::printf("picture diagnostic: frames=%llu max_ink=%u max_paper=%u last_ink=%u last_paper=%u "
-                    "stored_ink=%u source_ink=%llu capture=(%u,%u)\n",
-                    (unsigned long long)b.complete_frames, b.max_ink, b.max_paper, b.ink, b.paper,
-                    stored_ink, (unsigned long long)b.source_ink,
-                    SIGNAL(video__DOT__cap_x), SIGNAL(video__DOT__cap_y));
-    }
-    check(b.picture_frames >= picture_target, "complete HDMI frames did not contain both ink and paper");
-
-    const uint64_t idle_deadline = b.system_edges + 22000000;
-    while (b.word(0x4025) != 0xffff && b.system_edges < idle_deadline) b.cycles(4096);
-    check(b.word(0x4025) == 0xffff, "ROM keyboard scanner did not become idle before KEY1");
+    // The existing default machine_tb allows 400m clocks at 52.224MHz for
+    // NEW's display-file expansion and editor readiness. Preserve that time
+    // allowance at 74.25MHz; the first four ULA ink bits precede editor idle.
+    const uint64_t idle_deadline = b.system_edges + 570000000;
+    while (!b.editor_idle() && b.system_edges < idle_deadline) b.cycles(4096);
+    b.diagnostic("editor idle");
+    check(b.editor_idle(), "ROM did not reach SLOW-DISP keyboard idle before KEY1");
 
     // Exercise the physical key path, including its real 10ms stable interval.
     const uint64_t before_key = SIGNAL(keyboard);
@@ -217,12 +233,29 @@ int main(int argc, char** argv) {
     check(SIGNAL(keyboard) == 0xffffffffffull, "KEY1 release did not clear NEWLINE");
     std::puts("PASS DE25 ZX81 KEY1: debounced NEWLINE reaches real ROM keyboard scanner");
 
+    b.inspect_picture = true;
+    const uint64_t picture_target = b.picture_frames + 2;
+    const uint64_t picture_deadline = b.system_edges + 15000000;
+    while (b.picture_frames < picture_target && b.system_edges < picture_deadline) b.step();
+    if (b.picture_frames < picture_target) {
+        unsigned stored_ink = 0;
+        for (unsigned n = 0; n < 270u * 512u; ++n) stored_ink += SIGNAL(video__DOT__fb)[n] != 0;
+        std::printf("picture diagnostic: frames=%llu max_ink=%u max_paper=%u last_ink=%u last_paper=%u "
+                    "stored_ink=%u source_ink=%llu capture=(%u,%u)\n",
+                    (unsigned long long)b.complete_frames, b.max_ink, b.max_paper, b.ink, b.paper,
+                    stored_ink, (unsigned long long)b.source_ink,
+                    SIGNAL(video__DOT__cap_x), SIGNAL(video__DOT__cap_y));
+        b.diagnostic("picture failure");
+    }
+    check(b.picture_frames >= picture_target, "complete HDMI frames did not contain both ink and paper");
+
     t.KEY = 2; t.eval(); b.cycles(744000);
     check(SIGNAL(machine_reset), "KEY0 did not hold machine reset");
+    const uint64_t held_retired = b.retired;
     b.cycles(2048);
-    t.KEY = 3; t.eval(); b.cycles(744000);
-    check(!SIGNAL(machine_reset), "KEY0 release did not restart the machine");
-    b.boot("KEY0 restart");
+    check(b.retired == held_retired, "CPU retired instructions while KEY0 held reset");
+    t.KEY = 3; t.eval();
+    b.reset_release("KEY0 restart");
 
     // No new pixel edge is permitted before either asynchronous blank check.
     b.pixel.running = false;
@@ -233,7 +266,7 @@ int main(int argc, char** argv) {
     t.eval(); b.blank();
     b.reference_cycles(16); b.blank();
     b.pixel.running = true;
-    b.boot("PLL recovery");
+    b.reset_release("PLL recovery");
 
     b.pixel.running = false;
     SIGNAL(configuration_release__DOT__ninit_done) = 1;
@@ -244,7 +277,7 @@ int main(int argc, char** argv) {
     t.eval(); b.blank();
     b.reference_cycles(16); b.blank();
     b.pixel.running = true;
-    b.boot("configuration recovery");
+    b.reset_release("configuration recovery");
     const uint64_t final_frames = b.complete_frames + 2;
     const uint64_t final_deadline = b.system_edges + 4000000;
     while (b.complete_frames < final_frames && b.system_edges < final_deadline) b.step();

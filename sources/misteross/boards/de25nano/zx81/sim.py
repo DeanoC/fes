@@ -2,6 +2,7 @@
 """Boot the real ZX81 on the DE25 shell with digital board-boundary models."""
 from pathlib import Path
 import subprocess
+import time
 
 from build import retarget_ram, retarget_video
 
@@ -35,7 +36,9 @@ def main():
                     "-CFLAGS", "-O2", "--Mdir", str(output),
                     *map(str, sources), str(HERE / "board_tb.cpp")],
                    cwd=ROOT, check=True)
+    started = time.monotonic()
     subprocess.run([str(output / "Vde25nano_zx81")], cwd=output, check=True)
+    print(f"DE25 ZX81 board simulation elapsed: {time.monotonic() - started:.3f} seconds", flush=True)
 
 
 if __name__ == "__main__":

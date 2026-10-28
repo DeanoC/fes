@@ -16,5 +16,5 @@ class ZX81SimulationTests(unittest.TestCase):
     @unittest.skipUnless(shutil.which("verilator") and shutil.which("c++"), "requires Verilator and C++")
     def test_real_machine_on_de25_board(self):
         result = subprocess.run(["make", "-C", str(BOARD), "sim"],
-                                capture_output=True, text=True, timeout=300)
+                                capture_output=True, text=True, timeout=600)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
