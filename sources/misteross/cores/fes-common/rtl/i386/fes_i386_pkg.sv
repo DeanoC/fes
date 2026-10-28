@@ -125,6 +125,11 @@ package fes_i386_pkg;
     // UOP_SPECIAL.
     typedef enum logic [4:0] { SPECIAL_NOP, SPECIAL_HLT } special_op_e;
 
+    // UOP_SYSTEM. CLTS clears CR0.TS at WB. It is a jump to the next
+    // instruction (fes_i386_exctl b_jmp), so every instruction after it
+    // decodes once TS is clear.
+    typedef enum logic [4:0] { SYSOP_CLTS } system_op_e;
+
     // UOP_MUL and UOP_DIV, in EX's multiply and divide unit (fes_i386_muldiv).
     // HI writes the high half a two-destination MUL or DIV kept (EDX, DX);
     // LOAD gives a 16- or 32-bit DIV its dividend's high half (EDX), and

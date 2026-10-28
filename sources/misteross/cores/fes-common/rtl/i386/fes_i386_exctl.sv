@@ -20,7 +20,8 @@ module fes_i386_exctl (
     output logic [31:0]            y
 );
     typedef fes_i386_pkg::uop_t uop_t;
-    localparam logic [2:0] C_ALU = 3'd0, C_SHIFT = 3'd1, C_MUL = 3'd2, C_DIV = 3'd3, C_BRANCH = 3'd4, C_SEGMENT = 3'd5;
+    localparam logic [2:0] C_ALU = 3'd0, C_SHIFT = 3'd1, C_MUL = 3'd2, C_DIV = 3'd3, C_BRANCH = 3'd4, C_SEGMENT = 3'd5,
+                           C_SYSTEM = 3'd6;
 
     function automatic logic [31:0] extract(input logic [31:0] v, input logic s8, input logic s16, input logic hi8);
         extract = s8 ? {24'b0, hi8 ? v[15:8] : v[7:0]} : s16 ? {16'b0, v[15:0]} : v;
@@ -187,7 +188,8 @@ module fes_i386_exctl (
     assign c.bt_i2 = (bit_n - 5'd2) & {!size16, 4'hf};
 
     assign c.b_jcc = cls == C_BRANCH && op == 5'd0;
-    assign c.b_jmp = cls == C_BRANCH && op == 5'd1;
+    // CLTS (UOP_SYSTEM) jumps to the next instruction too.
+    assign c.b_jmp = cls == C_BRANCH && op == 5'd1 || cls == C_SYSTEM;
     assign c.b_loop = cls == C_BRANCH && op == 5'd6;
     assign c.b_loope = cls == C_BRANCH && op == 5'd7;
     assign c.b_loopne = cls == C_BRANCH && op == 5'd8;

@@ -48,6 +48,7 @@ module fes_i386_cpu (
     input  logic             reset,
     input  logic [7:0][31:0] init_gpr,
     input  logic [31:0]      init_eflags,
+    input  logic [31:0]      init_cr0,     // of which this build holds MP and TS
     input  logic [31:0]      init_eip,
     input  logic [5:0][15:0] init_sel,     // fes_i386_pkg::seg_e order
     input  logic [5:0][31:0] init_base,
@@ -103,6 +104,7 @@ module fes_i386_cpu (
     output logic             trace_md_wait,        // D to WB wait for a multiply or divide in EX (ditto)
     output logic [7:0][31:0] arch_gpr,
     output logic [31:0]      arch_eflags,
+    output logic [31:0]      arch_cr0,     // MP and TS; the other bits 0
     output logic [31:0]      arch_eip,
     output logic [5:0][15:0] arch_sel,
     output logic [5:0][31:0] arch_base,
@@ -125,6 +127,9 @@ module fes_i386_cpu (
     logic [5:0][31:0] seg_base, seg_limit;
     logic [15:0]      t0;  // microcode temporaries: a far transfer's selector and offset
     logic [31:0]      t1;
+    // CR0's MP and TS, all of CR0 this build holds: WAIT raises #NM when
+    // both are set, and CLTS clears TS. Nothing else writes them yet.
+    logic             cr0_mp, cr0_ts;
     // Each segment's limit less 0, 1 and 3, for 1-, 2- and 4-byte accesses,
     // and whether that is below zero, so the limit check is one compare.
     // Real-mode loads keep the limit, so only reset loads them.
@@ -236,7 +241,7 @@ module fes_i386_cpu (
     logic       q_lea, q_has_base, q_has_index;
     logic [2:0] q_base, q_index;
     fes_i386_decode decode (
-        .q, .code32, .stack(dc_stack), .uop(q_uop), .opsize32(dc_q.opsize32), .lea(q_lea), .lea_early(dc_q.lea_early),
+        .q, .code32, .stack(dc_stack), .wait_nm(cr0_mp && cr0_ts), .uop(q_uop), .opsize32(dc_q.opsize32), .lea(q_lea), .lea_early(dc_q.lea_early),
         .lea_disp(dc_q.lea_disp), .branch(dc_branch), .consumes(dc_q.consumes), .reads_seg(dc_q.reads_seg),
         .seg_index(dc_q.seg_index), .stop(dc_q.stop), .stk(q_stk), .push_eip(dc_q.push_eip),
         .cs_base(dc_q.cs_base), .seq(q_seq), .sel_part(dc_q.sel_part), .far_jmp(dc_q.far_jmp), .far_chk(dc_q.far_chk),
@@ -1354,6 +1359,8 @@ module fes_i386_cpu (
             gpr <= init_gpr;
             eflags <= {init_eflags[17:2], 1'b1, init_eflags[0]};
             eip <= init_eip;
+            cr0_mp <= init_cr0[1];
+            cr0_ts <= init_cr0[3];
             seg_sel <= init_sel;
             seg_base <= init_base;
             seg_limit <= init_limit;
@@ -1407,6 +1414,8 @@ module fes_i386_cpu (
                 if (wb_s.uop.str_si) gpr[6] <= str_wb_step(gpr[6], wb_str_by, wb_s.uop.mem.addr32);
                 if (wb_s.uop.str_di) gpr[7] <= str_wb_step(gpr[7], wb_str_by, wb_s.uop.mem.addr32);
                 if (wb_s.uop.str_cx) gpr[1] <= str_wb_step(gpr[1], 32'hffff_ffff, wb_s.uop.mem.addr32);
+                // CLTS, the one system uop.
+                if (wb_s.uop.cls == fes_i386_pkg::UOP_SYSTEM) cr0_ts <= 1'b0;
                 if (wb_s.uop.dst.valid && wb_s.uop.dst.space == fes_i386_pkg::RS_TEMP) begin
                     if (wb_s.uop.dst.index[3]) t1 <= wb_s.result;
                     else t0 <= wb_s.result[15:0];
@@ -1428,6 +1437,7 @@ module fes_i386_cpu (
 
     assign arch_gpr = gpr;
     assign arch_eflags = {14'd0, eflags};
+    assign arch_cr0 = {28'd0, cr0_ts, 1'b0, cr0_mp, 1'b0};
     assign arch_eip = eip;
     assign arch_sel = seg_sel;
     assign arch_base = seg_base;
