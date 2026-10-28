@@ -204,6 +204,22 @@ them, so a uop reads one at WB, or waits in D until its writers retire.
 - Far transfers are taken branches, with no prediction yet: each redirects
   from WB.
 
+**Small forms:**
+- XCHG of registers is three XORs that write no flags, each into the
+  register the one before read; EX's arithmetic and logic flag selects
+  follow the uop's flag-write bits. XCHG with memory loads the operand into
+  T1, stores the register, then moves T1 into the register.
+- MOV with a direct offset (A0h-A3h) is a memory operand with no base or
+  index (`direct`). XLAT's index is AL zero-extended, which D's address
+  forwarding masks (`index8`), holding the uop when AL would come late.
+  SALC is SBB AL, AL writing no flags.
+- CALL r/m near loads its target into T1, pushes the next EIP after checking
+  T1 against CS's limit, then jumps to T1. PUSH m loads into T1 and pushes
+  it. POP m reads the stack's slot into T1 without moving ESP, stores T1 to
+  the operand, whose address registers DC kept beside the stack uop's
+  (`m_*`), then pops into nothing to step ESP, so a store that faults leaves
+  ESP as the 386EX does. POP m with 32-bit addressing is not built.
+
 **Microcode.** Longer routines come from an M10K ROM
 (`fes_i386_ucode_rom`). `scripts/fes_i386_ucode.py` builds it from
 `ucode.toml`, with the entry addresses in `fes_i386_ucode_pkg`, checking
