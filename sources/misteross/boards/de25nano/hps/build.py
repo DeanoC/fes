@@ -27,7 +27,7 @@ BOARD_BUILD = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(BOARD_BUILD)
 SOURCES = ("build.py", "vendor.lock.toml", "integrate.tcl", "fes_de25_mailbox.v",
            "fes_de25_mailbox_hw.tcl", "generated/fes_de25_mailbox.vh",
-           "generated/fes_de25_mailbox.hpp")
+           "generated/fes_de25_mailbox.hpp", "fes_de25_top_reset.v", "fes_de25_top.sdc")
 EXCLUDED_DIRECTORIES = {"output_files", "dni", "db", "incremental_db", "greybox_tmp"}
 SOURCE_SUFFIXES = {".qsys", ".ip", ".qpf", ".qsf", ".v", ".sv", ".svh", ".sdc",
                    ".tcl", ".hex", ".mif", ".info", ".sh", ".s", ".md", ".bat"}
@@ -136,6 +136,15 @@ def correct_stale_constraints(project):
     automatic = {value for key, value in parameters.items() if key.rsplit("/", 1)[-1] == "PHY_REFCLK_FREQ_MHZ_AUTOSET_EN"}
     if frequencies != {"166.6666"} or automatic != {"false"}:
         raise ValueError("vendor EMIF reference frequency changed; review the clock contract")
+    # Generated IOPLL SDC already creates its 50 MHz reference clock on this
+    # input. A second MAIN_CLOCK is ignored by TimeQuest, not another clock.
+    main_clock = "create_clock -name MAIN_CLOCK -period 20 [get_ports CLOCK2_50]"
+    pll = module_parameters(project / "ip/pll.ip")
+    if (source.splitlines().count(main_clock) != 1 or
+            pll.get("gui_reference_clock_frequency") != "50.0" or
+            pll.get("gui_output_clock_frequency0") != "100.0" or
+            pll.get("gui_use_locked") != "true"):
+        raise ValueError("vendor PLL/reference clock contract changed; review it before building")
     # The copied top connects LPDDR4A_REFCLK_p directly to the HPS EMIF
     # reference input; the copied EMIF IP fixes PHY_REFCLK_FREQ_MHZ=166.6666.
     # Keep that frequency. Delete only obsolete exceptions whose names have
@@ -148,10 +157,64 @@ def correct_stale_constraints(project):
                ("CPU_RESET_n", "LEDR[*]", "fpga_reset_n_debounced")) and line.startswith("set_false_path")]
     if len(removed) != 4:
         raise ValueError("vendor obsolete constraint set changed; review it before building")
-    source = "\n".join(line for line in lines if line not in removed) + "\n"
+    source = "\n".join(line for line in lines if line not in removed and line != main_clock) + "\n"
     path.write_text(source)
     return {"emif_clock_port": {"before": "DDR4_REFCLK_p", "after": "LPDDR4A_REFCLK_p",
-                                "frequency_mhz": "166.6666"}, "removed_unmatched_exceptions": removed}
+                                "frequency_mhz": "166.6666"}, "removed_unmatched_exceptions": removed,
+            "removed_duplicate_reference_clock": main_clock,
+            "reference_clock_owner": "generated IOPLL SDC (50 MHz)"}
+
+
+def repair_top_reset(project):
+    """Patch only the reviewed vendor wrapper; preserve generated controllers."""
+    path = project / "golden_top.v"
+    source = path.read_text()
+    replacements = (
+        ("wire                   system_reset_n;",
+         "wire                   fpga_reset_n;\nwire                   pll_locked;\nwire                   top_reset_n;"),
+        ("assign                 system_reset_n = ~ninit_done;",
+         "assign                 fpga_reset_n = ~ninit_done & pll_locked;"),
+        (".locked   ()", ".locked   (pll_locked)"),
+        (".reset_reset_n                             (system_reset_n)",
+         ".reset_reset_n                             (fpga_reset_n)"),
+        (".reset_n                                   (system_reset_n)",
+         ".reset_n                                   (top_reset_n)"),
+        ("always @(posedge system_clk_100_internal or negedge system_reset_n) begin\n  if (~system_reset_n)",
+         "always @(posedge system_clk_100_internal or negedge top_reset_n) begin\n  if (~top_reset_n)"),
+        ("// Debounce logic to clean out glitches within 1ms",
+         "// Local logic uses synchronized release; subsystem controllers keep their own release.\n"
+         "fes_de25_top_reset fes_top_reset_inst (\n"
+         "  .clk (system_clk_100_internal),\n"
+         "  .async_reset_n (fpga_reset_n),\n"
+         "  .reset_n (top_reset_n)\n);\n\n"
+         "// Debounce logic to clean out glitches within 1ms"),
+    )
+    if source.count(".rst      (ninit_done)") != 1:
+        raise ValueError("vendor PLL reset connection changed; review the reset contract")
+    for before, after in replacements:
+        if source.count(before) != 1:
+            raise ValueError("vendor top reset patch target changed: " + before)
+        source = source.replace(before, after)
+    if "system_reset_n" in source:
+        raise ValueError("unreviewed vendor system_reset_n use remains")
+    # The active outputs are physical, human-visible LEDs, not a clocked
+    # receiver. Check the pinned locations/IO standard before selecting the
+    # narrow output-port timing exceptions; do not invent an output delay.
+    qsf = (project / "golden_top.qsf").read_text().splitlines()
+    pins = {"LED[0]": "DF35", "LED[1]": "DJ32", "LED[2]": "DN22", "LED[7]": "DP30"}
+    for port, pin in pins.items():
+        for expected in (f"set_location_assignment PIN_{pin} -to {port}",
+                         f'set_instance_assignment -name IO_STANDARD "1.1-V" -to {port}'):
+            if qsf.count(expected) != 1:
+                raise ValueError("vendor LED pin contract changed: " + expected)
+    path.write_text(source)
+    return {"asynchronous_source": "~ninit_done & pll_locked",
+            "pll_reset": "ninit_done (unchanged)",
+            "subsystem_reset": "combined asynchronous source; generated domain controllers unchanged",
+            "top_reset": "fes_top_reset_inst: two-stage 100 MHz synchronized release",
+            "top_reset_consumers": ["debounce_inst", "heartbeat_count"],
+            "asynchronous_led_output_pins": pins,
+            "patches": [{"before": before, "after": after} for before, after in replacements]}
 
 
 def module_parameters(path):
@@ -199,6 +262,7 @@ def prepare_project(archive, output=None, revision=None):
     if f"-name DEVICE {DEVICE}" not in (project / "golden_top.qsf").read_text():
         raise ValueError("vendor GHRD device differs from the selected board")
     constraints = correct_stale_constraints(project)
+    reset = repair_top_reset(project)
     local = project / "fes_mailbox"
     local.mkdir()
     for name, data in sources.items():
@@ -212,7 +276,9 @@ def prepare_project(archive, output=None, revision=None):
         source.write('\n# FES diagnostic compiler selection; hardware settings remain vendor-owned.\n'
                      f'set_global_assignment -name LAST_QUARTUS_VERSION "{BOARD_BUILD.QUARTUS_VERSION} Pro Edition"\n'
                      'set_global_assignment -name NUM_PARALLEL_PROCESSORS 2\n'
-                     'set_global_assignment -name IP_SEARCH_PATHS "custom_ip/**/*;fes_mailbox"\n')
+                     'set_global_assignment -name IP_SEARCH_PATHS "custom_ip/**/*;fes_mailbox"\n'
+                     'set_global_assignment -name VERILOG_FILE fes_mailbox/fes_de25_top_reset.v\n'
+                     'set_global_assignment -name SDC_FILE fes_mailbox/fes_de25_top.sdc\n')
     inputs = {"board": "de25_nano", "device": DEVICE, "diagnostic_only": True,
               **identity,
               "quartus_version": BOARD_BUILD.QUARTUS_VERSION,
@@ -220,6 +286,7 @@ def prepare_project(archive, output=None, revision=None):
               "source_sha256": {name: digest(local / name) for name in sources},
               "mailbox_peripheral_offset": offset,
               "reviewed_constraint_repairs": constraints,
+              "reviewed_top_reset_repairs": reset,
               "vendor_hps_emif_parameters": {
                   name: module_parameters(project / name) for name in vendor_files
                   if name.startswith("hps_subsys/") and name.endswith(".ip")},

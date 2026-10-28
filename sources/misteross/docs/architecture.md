@@ -37,6 +37,14 @@ constants generate the register values used by RTL and the Verilator bench.
 The recipe regenerates IP with Quartus 26.3, retains original source hashes
 and checks original HPS/EMIF parameters after generation. It creates no runtime
 profile, physical MMIO address, boot image or QSPI programming command.
+The copied top holds its debounce and heartbeat logic in reset until
+configuration is complete and the fabric PLL is locked, then synchronizes
+release to the 100 MHz clock. The generated subsystem reset controllers remain
+in place and also receive the configuration/PLL-lock reset source. The PLL
+owns the 50 MHz reference-clock constraint; the board's
+human-visible LED outputs have explicit asynchronous timing classification.
+Reset crossings inside the generated HPS/debug interconnect still require
+protocol review; compilation does not establish physical reset or MTBF acceptance.
 
 The clock/LED diagnostic has no HPS instance, MMIO map, GP endpoint, display or memory
 interface. It has no FES package producer or runtime programming profile.

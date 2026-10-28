@@ -28,6 +28,36 @@ ALTERA = "http://www.altera.com/XMLSchema/IPXact2014/extensions"
 HPS = "hps_subsys/ip/hps_subsys/agilex_hps.ip"
 EMIF = "hps_subsys/ip/qsys_top/emif_io96b_hps.ip"
 BOOT = "software/u-boot/spl/u-boot-spl-dtb.hex"
+PLL = "ip/pll.ip"
+TOP = b'''module golden_top(input CLOCK2_50, input LPDDR4A_REFCLK_p,
+input [1:0] KEY, input [3:0] SW, output [7:0] LED);
+wire                   system_reset_n;
+assign                 system_reset_n = ~ninit_done;
+pll pll_inst (
+.refclk   (system_clk_50),
+.locked   (),
+.rst      (ninit_done),
+.outclk_0 (system_clk_100_internal)
+);
+qsys_top soc_inst (
+.emif_hps_emif_ref_clk_0_clk (LPDDR4A_REFCLK_p),
+.reset_reset_n                             (system_reset_n)
+);
+// Debounce logic to clean out glitches within 1ms
+debounce debounce_inst (
+.clk                                       (system_clk_100_internal),
+.reset_n                                   (system_reset_n),
+.data_in                                   (fpga_button_pio),
+.data_out                                  (fpga_debounced_buttons)
+);
+always @(posedge system_clk_100_internal or negedge system_reset_n) begin
+  if (~system_reset_n)
+    heartbeat_count <= 25'd0;
+  else
+    heartbeat_count <= heartbeat_count + 25'd1;
+end
+endmodule
+'''
 
 
 def parameter(name, value):
@@ -57,13 +87,11 @@ def component_xml(root_parameters, nested_parameters=None):
 
 def vendor_files():
     return {
-        "golden_top.qsf": b'set_global_assignment -name DEVICE A5EB013BB23BE4SCS\n',
-        "golden_top.v": (
-            b'module golden_top(input CLOCK2_50, input LPDDR4A_REFCLK_p, '
-            b'input [1:0] KEY, input [3:0] SW, output [7:0] LED);\n'
-            b'wire system_reset_n;\n'
-            b'qsys_top soc_inst(.emif_hps_emif_ref_clk_0_clk (LPDDR4A_REFCLK_p));\n'
-            b'endmodule\n'),
+        "golden_top.qsf": ('set_global_assignment -name DEVICE A5EB013BB23BE4SCS\n' +
+            ''.join(f'set_location_assignment PIN_{pin} -to LED[{index}]\n'
+                    f'set_instance_assignment -name IO_STANDARD "1.1-V" -to LED[{index}]\n'
+                    for index, pin in ((0, "DF35"), (1, "DJ32"), (2, "DN22"), (7, "DP30")))).encode(),
+        "golden_top.v": TOP,
         "qsys_top.qsys": b'<system name="qsys_top"/>\n',
         "hps_subsys/hps_subsys.qsys": b'<system name="hps_subsys"/>\n',
         "peripheral_subsys/peripheral_subsys.qsys": b'<system name="peripheral_subsys"/>\n',
@@ -81,6 +109,8 @@ def vendor_files():
         "jtag.sdc": b'# Retained vendor JTAG timing contract.\n',
         HPS: component_xml((("device", BUILD.DEVICE), ("H2F_Width", "128"),
                             ("LWH2F_Width", "32"))),
+        PLL: component_xml((("gui_reference_clock_frequency", "50.0"),
+                           ("gui_output_clock_frequency0", "100.0"), ("gui_use_locked", "true"))),
         EMIF: component_xml((("SYSINFO_DEVICE", BUILD.DEVICE),), (
             ("PHY_REFCLK_FREQ_MHZ", "166.6666"),
             ("PHY_REFCLK_FREQ_MHZ_AUTOSET_EN", "false"),
@@ -192,7 +222,7 @@ class HpsBuildTests(unittest.TestCase):
         # Model source edits or a checkout advancing after the driver captures
         # its revision. Neither the lock, offset, script nor RTL may come from it.
         for name in ("fes_de25_mailbox.v", "generated/fes_de25_mailbox.vh",
-                     "integrate.tcl", "vendor.lock.toml"):
+                     "integrate.tcl", "vendor.lock.toml", "fes_de25_top_reset.v", "fes_de25_top.sdc"):
             (hps / name).write_text("later working-tree input; must never be selected\n")
         output = self.root / "frozen-project"
         with mock.patch.object(BUILD, "ROOT", repository), mock.patch.object(BUILD, "HERE", hps):
@@ -325,7 +355,7 @@ class HpsBuildTests(unittest.TestCase):
         archive, selected, files = self.archive()
         output = self.prepare(archive, selected)
         project = output / "project"
-        for name in (HPS, EMIF, BOOT, "software/hps_debug/hps_wipe.s", "jtag.sdc"):
+        for name in (HPS, EMIF, PLL, BOOT, "software/hps_debug/hps_wipe.s", "jtag.sdc"):
             self.assertEqual((project / name).read_bytes(), files[name], name)
         vendor = json.loads((output / "vendor-inputs.json").read_text())
         for name, data in files.items():
@@ -341,12 +371,12 @@ class HpsBuildTests(unittest.TestCase):
             self.prepare(archive, selected, output)
         self.assertEqual((output / "retained-sof").read_bytes(), b"previous artifact")
 
-    def test_constraint_repair_keeps_frequency_and_only_deletes_obsolete_exceptions(self):
+    def test_constraint_repair_keeps_emif_and_generated_pll_clock_ownership(self):
         archive, selected, files = self.archive()
         output = self.prepare(archive, selected)
         repaired = (output / "project/ghrd_timing.sdc").read_text()
         self.assertIn('-period "166.6666MHz" [get_ports LPDDR4A_REFCLK_p]', repaired)
-        self.assertIn('MAIN_CLOCK -period 20 [get_ports CLOCK2_50]', repaired)
+        self.assertNotIn('MAIN_CLOCK', repaired)
         original_exceptions = [line for line in files["ghrd_timing.sdc"].decode().splitlines()
                                if line.startswith("set_false_path")]
         surviving_exceptions = [line for line in repaired.splitlines()
@@ -357,6 +387,54 @@ class HpsBuildTests(unittest.TestCase):
         self.assertNotIn("set_false_path -from system_reset_n", repaired)
         inputs = json.loads((output / "inputs.json").read_text())
         self.assertEqual(len(inputs["reviewed_constraint_repairs"]["removed_unmatched_exceptions"]), 4)
+        self.assertIn("MAIN_CLOCK", inputs["reviewed_constraint_repairs"]["removed_duplicate_reference_clock"])
+
+    def test_top_reset_patch_preserves_generated_controllers_and_pll_reset(self):
+        archive, selected, files = self.archive()
+        output = self.prepare(archive, selected)
+        project = output / "project"
+        top = (project / "golden_top.v").read_text()
+        self.assertIn("fpga_reset_n = ~ninit_done & pll_locked;", top)
+        self.assertIn(".locked   (pll_locked)", top)
+        self.assertIn(".rst      (ninit_done)", top)
+        self.assertIn(".reset_reset_n                             (fpga_reset_n)", top)
+        self.assertIn(".reset_n                                   (top_reset_n)", top)
+        self.assertIn("negedge top_reset_n", top)
+        self.assertIn(".async_reset_n (fpga_reset_n)", top)
+        self.assertNotIn("system_reset_n", top)
+        for name in ("qsys_top.qsys", "peripheral_subsys/peripheral_subsys.qsys", HPS, EMIF, PLL, BOOT):
+            self.assertEqual((project / name).read_bytes(), files[name], name)
+        qsf = (project / "golden_top.qsf").read_text()
+        self.assertIn("VERILOG_FILE fes_mailbox/fes_de25_top_reset.v", qsf)
+        self.assertIn("SDC_FILE fes_mailbox/fes_de25_top.sdc", qsf)
+        inputs = json.loads((output / "inputs.json").read_text())
+        repair = inputs["reviewed_top_reset_repairs"]
+        self.assertEqual(repair["top_reset_consumers"], ["debounce_inst", "heartbeat_count"])
+        # The receipt must describe every actual vendor-top change.
+        original = files["golden_top.v"].decode()
+        for patch in repair["patches"]:
+            original = original.replace(patch["before"], patch["after"])
+        self.assertEqual(original, top)
+
+    def test_changed_top_pll_led_or_duplicate_clock_contract_fails_closed(self):
+        original = vendor_files()
+        cases = (
+            {"golden_top.v": TOP.replace(b".locked   ()", b".locked   (other_lock)")},
+            {"golden_top.v": TOP.replace(b".rst      (ninit_done)", b".rst      (other_reset)")},
+            {"golden_top.v": TOP.replace(b"if (~system_reset_n)", b"if (system_reset_n == 0)")},
+            {"golden_top.v": TOP.replace(b"endmodule", b"wire another_use = system_reset_n;\nendmodule")},
+            {PLL: original[PLL].replace(b">50.0<", b">48.0<")},
+            {PLL: original[PLL].replace(b">100.0<", b">125.0<")},
+            {PLL: original[PLL].replace(b">true<", b">false<")},
+            {"golden_top.qsf": original["golden_top.qsf"].replace(b"PIN_DF35", b"PIN_AB1")},
+            {"golden_top.qsf": original["golden_top.qsf"].replace(b'"1.1-V"', b'"1.2-V"')},
+            {"ghrd_timing.sdc": original["ghrd_timing.sdc"].replace(b"-name MAIN_CLOCK", b"-name OTHER_CLOCK")},
+        )
+        for index, changed in enumerate(cases):
+            with self.subTest(change=index):
+                archive, selected, _ = self.archive(changed=changed)
+                with self.assertRaisesRegex(ValueError, "contract changed|connection changed|patch target changed|unreviewed"):
+                    self.prepare(archive, selected, self.root / ("contract-change-" + str(index)))
 
     def test_changed_nested_emif_reference_frequency_or_top_connection_is_rejected(self):
         original = vendor_files()

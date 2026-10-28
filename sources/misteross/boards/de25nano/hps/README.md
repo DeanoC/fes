@@ -47,12 +47,35 @@ reads return zero, and writes to those addresses or read-only registers have
 no effect. A simultaneous scratch read/write returns the previous value.
 The Verilator bench exercises those behaviors through the real RTL, including
 every byte-enable combination and every byte address in the endpoint span.
+`make sim` also exercises the actual board-local reset RTL: asynchronous
+assertion at startup and with the clock stopped high or low, held reset,
+release on exactly the second rising edge, and interrupted release/relock.
 
-The copied vendor SDC has one reviewed clock-name repair: its unchanged
-166.6666 MHz EMIF clock now targets the top's `LPDDR4A_REFCLK_p`, matching the
-pinned EMIF parameter and top-level connection. Four obsolete exceptions
+The copied top combines configuration reset (`ninit_done`) and loss of PLL
+lock into the asynchronous FPGA reset source. It supplies this source directly
+to the existing generated subsystem reset controllers, which retain their
+own domain-specific synchronized release. The PLL reset remains `ninit_done`
+so waiting for lock cannot hold the PLL itself in reset. A separate preserved
+two-register release synchronizer at 100 MHz supplies only the top-level
+debounce and heartbeat reset. Its narrow SDC exception covers exactly the
+two synchronizer asynchronous clear pins; register D paths and the released
+reset's recovery/removal paths remain timed. A changed pin match count fails.
+
+The copied vendor SDC retains its unchanged 166.6666 MHz EMIF clock and now
+targets the top's `LPDDR4A_REFCLK_p`, matching the pinned EMIF parameter and
+top-level connection. The duplicate `MAIN_CLOCK` declaration is removed
+because the generated PLL SDC owns its 50 MHz reference clock. Preparation
+checks the pinned PLL's 50/100 MHz configuration and enabled lock output
+before making these changes. Four obsolete exceptions
 naming absent reset/LED nodes are removed; they are not retargeted onto active
-signals. Active KEY/SW and generated IP/JTAG constraints remain selected.
+signals. The four active outputs `LED[0]`, `LED[1]`, `LED[2]` and `LED[7]`
+are explicitly classified as asynchronous human-visible indicators using
+output-port-only exceptions. Their pinned locations and 1.1 V assignments are
+verified first; no synchronous output delay is invented. The SDC requires
+exactly four matched LED ports and reports both the LED and reset pin counts.
+Active KEY/SW and generated IP/JTAG constraints remain selected.
+Every reviewed top replacement and constraint repair is recorded in
+`inputs.json`; an unexpected vendor patch target aborts preparation.
 Original HPS/EMIF module parameters, including packaged LPDDR4 parameters,
 are compared after generation; changes fail with a retained review report.
 
@@ -72,3 +95,7 @@ can safely program or address this design. No Linux bridge window is guessed.
 The [2026-10-28 host compile record](../../../docs/validation/2026-10-28-de25-hps-mailbox/README.md)
 retains the successful committed-source Quartus build, constrained timing
 rows and explicit remaining reset, electrical, firmware and physical gates.
+Generated HPS/debug reset crossings still need their own protocol/release
+review; the local top reset repair does not qualify those crossings or physical
+metastability behavior. A new compile of the repaired source must retain its
+own source revision and reports; the earlier SOF does not contain this repair.

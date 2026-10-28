@@ -17,6 +17,13 @@ class HpsMailboxSimulationTests(unittest.TestCase):
     @unittest.skipUnless(shutil.which("verilator") and shutil.which("c++"),
                          "HPS mailbox RTL simulation requires Verilator and C++")
     def test_mailbox_transactions(self):
-        result = subprocess.run(["make", "-C", str(HPS), "sim"],
+        result = subprocess.run(["make", "-C", str(HPS), "sim-mailbox"],
+                                text=True, capture_output=True, timeout=120)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    @unittest.skipUnless(shutil.which("verilator") and shutil.which("c++"),
+                         "DE25 top reset RTL simulation requires Verilator and C++")
+    def test_top_reset_startup_loss_and_relock(self):
+        result = subprocess.run(["make", "-C", str(HPS), "sim-reset"],
                                 text=True, capture_output=True, timeout=120)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
