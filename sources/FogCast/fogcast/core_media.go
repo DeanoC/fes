@@ -9,6 +9,8 @@ import (
 
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
+	"github.com/DeanoC/FogCast/internal/spectrumdisks"
+	"github.com/DeanoC/FogCast/internal/spectrumsnapshots"
 	"github.com/DeanoC/FogCast/internal/spectrumtapes"
 	"github.com/DeanoC/FogCast/protocol"
 )
@@ -187,30 +189,81 @@ func (s *Service) readCoreEntryMedia(ctx context.Context, descriptor corepackage
 	}
 	size := media.Size
 	if capability.Interface == protocol.SpectrumTapeInterface() {
-		pzx, err := spectrumTapeStream(reader, media.Size)
+		stream, err := spectrumCassetteStream(descriptor, "", reader, media.Size)
 		if err != nil {
 			return nil, err
 		}
-		reader, size = io.NopCloser(bytes.NewReader(pzx)), int64(len(pzx))
+		reader, size = io.NopCloser(bytes.NewReader(stream)), int64(len(stream))
+	}
+	if capability.Interface == protocol.SpectrumDiskInterface() {
+		// A launch disk carries the boot flag: the core boots it once it is in.
+		system, _ := protocol.SpectrumDiskSystem(descriptor)
+		image, err := spectrumDiskImage(reader, media.Size, system, true)
+		if err != nil {
+			return nil, err
+		}
+		reader, size = io.NopCloser(bytes.NewReader(image)), int64(len(image))
 	}
 	// OpenCoreMedia returns a verified private snapshot, not a live SQL cursor.
 	return &coreEntryMedia{ReadCloser: reader, size: size, stream: capability.Interface == protocol.MediaStreamInterface(), unit: capability.Unit}, nil
 }
 
-// spectrumTapeStream reads a stored .tzx, .tap, .pzx or .csw image and
-// converts it to the PZX stream fes.media.spectrum-tape 2.0 plays. It closes
-// reader.
-func spectrumTapeStream(reader io.ReadCloser, size int64) ([]byte, error) {
+// spectrumCassetteStream reads a stored .tzx, .tap, .pzx or .csw image and
+// converts it to the PZX stream fes.media.spectrum-tape 2.0 plays, or a .z80,
+// .sna or .szx snapshot that descriptor runs to its restore stream. A tape or
+// snapshot name decides which it is. Library media and inserts by digest have
+// no name (""), and then the content decides: .tap has no signature, so a
+// snapshot's bytes can tile as .tap blocks and a .tap can be the size of a
+// snapshot. TZX, PZX and CSW signatures keep those images on the tape path
+// before snapshot probing. A file with a ZXST signature is a snapshot, and
+// another valid snapshot is taken as one unless every .tap block also passes
+// the ROM loader's checksum. It closes reader.
+func spectrumCassetteStream(descriptor corepackage.Descriptor, name string, reader io.ReadCloser, size int64) ([]byte, error) {
 	data, readErr := io.ReadAll(io.LimitReader(reader, size+1))
 	closeErr := reader.Close()
 	if readErr != nil || closeErr != nil || int64(len(data)) != size {
 		return nil, errors.Join(canonicalError(protocol.CodeInternal, nil), readErr, closeErr)
+	}
+	snapshot := spectrumsnapshots.Admit(name)
+	if name == "" {
+		snapshot = bytes.HasPrefix(data, []byte("ZXST")) ||
+			!spectrumtapes.HasSignature(data) && spectrumsnapshots.Recognize(data) && !spectrumtapes.CheckedTAP(data)
+	}
+	if snapshot {
+		machine, stream, err := spectrumsnapshots.Convert(data)
+		if err != nil {
+			return nil, protocol.SnapshotConversionError(err)
+		}
+		if !protocol.SpectrumSnapshotRuns(descriptor, machine) {
+			return nil, protocol.SnapshotConversionError(errors.New(snapshotMachineNames[machine] + " snapshots do not run on this package"))
+		}
+		return stream, nil
 	}
 	pzx, err := spectrumtapes.Convert(data)
 	if err != nil {
 		return nil, protocol.CassetteConversionError(err)
 	}
 	return pzx, nil
+}
+
+// spectrumDiskImage reads a stored disk image written for the package's disk
+// system and converts it to the raw track image fes.media.spectrum-disk 1.0
+// reads, flagged to boot when a launch inserts it. It closes reader.
+func spectrumDiskImage(reader io.ReadCloser, size int64, system spectrumdisks.System, boot bool) ([]byte, error) {
+	data, readErr := io.ReadAll(io.LimitReader(reader, size+1))
+	closeErr := reader.Close()
+	if readErr != nil || closeErr != nil || int64(len(data)) != size {
+		return nil, errors.Join(canonicalError(protocol.CodeInternal, nil), readErr, closeErr)
+	}
+	image, err := spectrumdisks.Convert(data, system, boot)
+	if err != nil {
+		return nil, protocol.SpectrumDiskConversionError(err)
+	}
+	return image, nil
+}
+
+var snapshotMachineNames = map[spectrumsnapshots.Machine]string{
+	spectrumsnapshots.Machine48K: "48K", spectrumsnapshots.Machine128K: "128K", spectrumsnapshots.MachinePlus3: "+2A/+3",
 }
 
 func mapCoreMediaError(err error) error {
