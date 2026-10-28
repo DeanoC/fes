@@ -106,6 +106,8 @@ SCOPE: frozenset[str] = frozenset([
     # The multiply and divide unit: MUL, IMUL, DIV and IDIV (F6h/F7h /4-/7
     # above), IMUL r, r/m and r, r/m, imm, AAM and AAD.
     '0FAF', '69', '6B', 'D4', 'D5',
+    # The string instructions, with every REP prefix; ENTER.
+    'A4', 'A5', 'A6', 'A7', 'AA', 'AB', 'AC', 'AD', 'AE', 'AF', 'C8',
 ])
 # Files of an in-scope opcode whose forms are not built yet: POP m with
 # 32-bit addressing, whose ESP base would read ESP after the pop.
@@ -174,8 +176,8 @@ def run_directed(testbench: str, env: dict) -> dict:
     if result.returncode not in (0, 1):
         raise LockstepError(f'directed faults: testbench exited with {result.returncode}\n{result.stderr[-4000:]}')
     summary, failures = parse_output(result.stdout)
-    if summary['runs'] != 12:
-        raise LockstepError(f'directed faults: testbench ran {summary["runs"]} of 12 cases')
+    if summary['runs'] != 14:
+        raise LockstepError(f'directed faults: testbench ran {summary["runs"]} of 14 cases')
     return {'summary': summary, 'failures': failures}
 
 
@@ -392,7 +394,7 @@ def main() -> int:
                                   for result in steady_results), Counter()).items()))
             for key in ('sequential', 'prefixed', 'lea', 'selector', 'after_taken', 'after_not_taken',
                         'shift_consumer', 'after_shift', 'store_load', 'after_store', 'address', 'after_segment',
-                        'after_stack', 'stack_stack', 'several')}
+                        'after_stack', 'stack_stack', 'several', 'after_string')}
     held = hold_failures(gaps)
     unbuilt_failures = [line for result in unbuilt_results for line in result['failures']]
     unbuilt_runs = sum(result['summary']['runs'] for result in unbuilt_results)

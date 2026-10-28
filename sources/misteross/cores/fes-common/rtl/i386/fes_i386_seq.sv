@@ -56,6 +56,35 @@
 // SEQ_XCHG (XCHG r, r): three XORs without flags, each into the register
 // the one before read.
 //
+// The string engine. D keeps copies of the next source and destination
+// offsets and of the count while the instruction runs (fes_i386_cpu): a
+// step's address is a copy (str_a, str_b), not a register D forwards, so its
+// uops issue one per cycle. cnt says whether the count is 0, 1 or 2: the
+// instruction's (ECX, or ENTER's level) at its first step, then the copy.
+//   SEQ_STRING: the first uop, which DC decodes, loads the copies (str_load).
+//     Then one element per count under REP, else one; a REP with a count of
+//     0 is a NOP that ends the instruction. An element's last uop steps ESI,
+//     EDI and ECX at WB (str_si, str_di, str_cx), so a fault part way
+//     leaves them at the elements done.
+//       STOS: store eAX at ES:EDI.     LODS: eAX from seg:ESI.
+//       SCAS: compare eAX with ES:EDI. MOVS: seg:ESI to ES:EDI, one uop
+//       (st2: its store goes to the destination copy's address).
+//       CMPS: seg:ESI's value as a uop's result (step 1), then its compare
+//       with ES:EDI (step 2), which takes that result one stage ahead
+//       (x_prev): D issues step 2 in the cycle after step 1, since nothing
+//       it waits on can change between them.
+//     Under REPE or REPNE a CMPS or SCAS element but the last ends the
+//     instruction when ZF says so (rep_stop), as a taken branch to the next
+//     one, which flushes the elements D has issued after it.
+//   SEQ_ENTER: the push of EBP (step 0, DC's), which loads the copies: the
+//     source is EBP less the size, the destination ESP less twice the size
+//     and the frame pointer ESP less the size. Then level - 1 copies of a
+//     slot below EBP to the next push slot (step 1), the push of the frame
+//     pointer (step 2) if the level is not 0, and the last uop (step 3):
+//     EBP from the frame pointer, ESP from the destination copy plus imm,
+//     and a check of the slot there, as the 386EX makes. ESP and EBP change
+//     only there, so a fault before leaves them, the pushes already written.
+//
 // The multiply and divide unit's two-destination forms (fes_i386_muldiv):
 //   SEQ_MUL  (MUL, IMUL r/m16/32): the multiply into EAX; HI, the high half
 //            the unit kept, into EDX.
@@ -67,6 +96,7 @@ module fes_i386_seq (
     input  fes_i386_pkg::decoded_t d,   // the uop dc holds
     input  fes_i386_pkg::decoded_t d0,  // the instruction's first uop
     input  fes_i386_pkg::ucode_t   w,
+    input  logic [2:0]             cnt, // the string engine's count is 2, 1, 0 (bits 2:0)
     output fes_i386_pkg::decoded_t n
 );
     // A ROM word's size: the operand size, 16, 32 or 8 bits (size_e).
@@ -129,6 +159,37 @@ module fes_i386_seq (
         q.wseg = 6'b000010;  // CS
         q.far_jmp = 1'b1;
     endfunction
+    // A GPR operand.
+    function automatic fes_i386_pkg::reg_ref_t gpr(input logic valid, input logic [2:0] index);
+        fes_i386_pkg::reg_ref_t r;
+        r.valid = valid;
+        r.space = fes_i386_pkg::RS_GPR;
+        r.index = {1'b0, index};
+        r.hi8 = 1'b0;
+        return r;
+    endfunction
+    // A string engine uop: no address registers, its offset from D's copies.
+    function automatic void engine(inout fes_i386_pkg::decoded_t q);
+        q.uop.cls = fes_i386_pkg::UOP_ALU;
+        q.uop.count_cl = 1'b0;
+        q.uop.src1 = gpr(1'b0, 3'd0);
+        q.uop.src2 = gpr(1'b0, 3'd0);
+        q.uop.dst = gpr(1'b0, 3'd0);
+        q.uop.mem.in_a = 1'b0;
+        q.has_base = 1'b0;
+        q.has_index = 1'b0;
+        q.scale = 2'd0;
+    endfunction
+
+    // SEQ_STRING: the instruction repeats (REP), and ends early by ZF
+    // (REPE and REPNE CMPS and SCAS); the next uop ends an element, and is
+    // the instruction's last.
+    logic s_rep, s_zrep, s_cmps, s_end, s_last;
+    assign s_rep = d0.str_rep != 2'd0;
+    assign s_cmps = d0.str_op == 3'(fes_i386_pkg::STR_CMPS);
+    assign s_zrep = s_rep && (s_cmps || d0.str_op == 3'(fes_i386_pkg::STR_SCAS));
+    assign s_end = !s_cmps || d.step == 3'd1;
+    assign s_last = !s_rep || (d.step == 3'd0 || s_cmps ? cnt[1] : cnt[2]);
 
     always_comb begin
         n = d;
@@ -151,6 +212,20 @@ module fes_i386_seq (
         n.a_t1 = 1'b0;
         n.b_t1 = 1'b0;
         n.popad_esp = 1'b0;
+        n.str_load = 1'b0;
+        n.str_a = 1'b0;
+        n.str_b = 1'b0;
+        n.str_two = 1'b0;
+        n.str_fin = 1'b0;
+        n.str_cnt = 1'b0;
+        n.b_fp = 1'b0;
+        n.x_prev = 1'b0;
+        n.uop.str_si = 1'b0;
+        n.uop.str_di = 1'b0;
+        n.uop.str_cx = 1'b0;
+        n.uop.str_down = 1'b0;
+        n.uop.st2 = 1'b0;
+        n.uop.rep_stop = 2'd0;
         // The rewritten fields, from the first uop.
         n.uop.sp_write = d0.uop.sp_write;
         n.uop.cls = d0.uop.cls;
@@ -409,6 +484,109 @@ module fes_i386_seq (
                     n.stk = fes_i386_pkg::STK_POP;
                     at_stack(n);
                     n.uop.ctl.end_of_instruction = 1'b1;
+                end
+            end
+            fes_i386_pkg::SEQ_STRING: begin
+                // Step 1 is an element, or CMPS's first load; step 2 CMPS's
+                // compare.
+                engine(n);
+                n.step = s_cmps && d.step == 3'd1 ? 3'd2 : 3'd1;
+                n.uop.op = 5'd9;  // ALU_MOV
+                n.uop.mem.kind = fes_i386_pkg::MEM_LOAD;
+                n.uop.flags = '0;
+                if (d.step == 3'd0 && s_rep && cnt[0]) begin
+                    n.uop.cls = fes_i386_pkg::UOP_SPECIAL;  // SPECIAL_NOP
+                    n.uop.op = 5'd0;
+                    n.uop.mem.kind = fes_i386_pkg::MEM_NONE;
+                    n.uop.ctl.end_of_instruction = 1'b1;
+                end else begin
+                    case (d0.str_op)
+                        3'(fes_i386_pkg::STR_STOS): begin
+                            n.uop.src2 = gpr(1'b1, 3'd0);
+                            n.uop.mem.kind = fes_i386_pkg::MEM_STORE;
+                            n.uop.mem.in_a = 1'b1;
+                            n.uop.mem.seg = fes_i386_pkg::SEG_ES;
+                            n.str_b = 1'b1;
+                        end
+                        3'(fes_i386_pkg::STR_LODS): begin
+                            n.uop.src1 = gpr(1'b1, 3'd0);
+                            n.uop.dst = gpr(1'b1, 3'd0);
+                            n.str_a = 1'b1;
+                        end
+                        3'(fes_i386_pkg::STR_SCAS): begin
+                            n.uop.op = 5'd7;  // ALU_CMP
+                            n.uop.src1 = gpr(1'b1, 3'd0);
+                            n.uop.mem.seg = fes_i386_pkg::SEG_ES;
+                            n.uop.flags.write.oszap = 1'b1;
+                            n.uop.flags.write.cf = 1'b1;
+                            n.str_b = 1'b1;
+                        end
+                        3'(fes_i386_pkg::STR_MOVS): begin
+                            n.uop.st2 = 1'b1;
+                            n.str_a = 1'b1;
+                            n.str_two = 1'b1;
+                        end
+                        default: begin  // STR_CMPS
+                            if (d.step == 3'd1) begin
+                                n.uop.op = 5'd7;  // ALU_CMP
+                                n.uop.mem.seg = fes_i386_pkg::SEG_ES;
+                                n.uop.flags.write.oszap = 1'b1;
+                                n.uop.flags.write.cf = 1'b1;
+                                n.x_prev = 1'b1;
+                                n.str_b = 1'b1;
+                            end else begin
+                                n.str_a = 1'b1;
+                            end
+                        end
+                    endcase
+                    if (s_end) begin
+                        n.uop.str_si = d0.str_op != 3'(fes_i386_pkg::STR_STOS)
+                                    && d0.str_op != 3'(fes_i386_pkg::STR_SCAS);
+                        n.uop.str_di = d0.str_op != 3'(fes_i386_pkg::STR_LODS);
+                        n.uop.str_cx = s_rep;
+                        n.str_cnt = s_rep;
+                        n.uop.ctl.end_of_instruction = s_last;
+                        n.more = !s_last;
+                        if (s_zrep && !s_last) begin
+                            n.uop.rep_stop = d0.str_rep == 2'(fes_i386_pkg::REP_E) ? 2'b01 : 2'b10;
+                            n.uop.eoi_taken = 1'b1;
+                        end
+                    end else begin
+                        n.more = 1'b1;
+                    end
+                end
+            end
+            fes_i386_pkg::SEQ_ENTER: begin
+                // Step 1 copies a slot, step 2 pushes the frame pointer,
+                // step 3 is the last.
+                engine(n);
+                n.uop.op = 5'd9;  // ALU_MOV
+                n.uop.flags = '0;
+                if (d.step == 3'd2 || d.step == 3'd0 && cnt[0]) begin
+                    n.step = 3'd3;
+                    n.uop.src1 = gpr(1'b1, 3'd5);
+                    n.uop.dst = gpr(1'b1, 3'd5);
+                    n.uop.mem.kind = fes_i386_pkg::MEM_LOAD;
+                    n.uop.mem.in_a = 1'b1;
+                    n.uop.sp_write = 1'b1;
+                    n.b_fp = 1'b1;
+                    n.str_fin = 1'b1;
+                    n.uop.ctl.end_of_instruction = 1'b1;
+                end else if (cnt[1]) begin
+                    n.step = 3'd2;
+                    n.uop.mem.kind = fes_i386_pkg::MEM_STORE;
+                    n.uop.mem.in_a = 1'b1;
+                    n.b_fp = 1'b1;
+                    n.str_b = 1'b1;
+                    n.more = 1'b1;
+                end else begin
+                    n.step = 3'd1;
+                    n.uop.mem.kind = fes_i386_pkg::MEM_LOAD;
+                    n.uop.st2 = 1'b1;
+                    n.str_a = 1'b1;
+                    n.str_two = 1'b1;
+                    n.str_cnt = 1'b1;
+                    n.more = 1'b1;
                 end
             end
             fes_i386_pkg::SEQ_MUL: to_md_hi(n);
