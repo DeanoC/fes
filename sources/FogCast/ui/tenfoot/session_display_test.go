@@ -83,6 +83,65 @@ func computerTapeDisplaySession() hostclient.SessionResult {
 	return s
 }
 
+func colecoNativeDisplaySession() hostclient.SessionResult {
+	s := hardwareBoundSession()
+	s.System = string(protocol.SystemColecoVision)
+	s.CorePackage.ABI = hostclient.SessionCoreABI{ID: "fes.application", Major: 1}
+	s.CorePackage.ActiveInterfaces = []hostclient.SessionCoreInterface{
+		{ID: "fes.expansion.coleco-bus", Major: 2},
+		{ID: "fes.memory.hps-ddr", Major: 1},
+		{ID: "fes.video.session-display", Major: 1},
+		{ID: "fes.fabric.video.display-plane", Major: 1},
+	}
+	return s
+}
+
+func TestColecoF12OpensTitleSelectorOnSessionDisplayPlane(t *testing.T) {
+	prior := colecoNativeDisplaySession()
+	running := protocol.Status{State: protocol.StateActive, Development: true, CorePackage: observedKitPackage(prior)}
+	var displayPosts atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/session/display" {
+			http.NotFound(w, r)
+			return
+		}
+		displayPosts.Add(1)
+		binding, valid := protocol.DevelopmentMediaHeaders(r.Header)
+		if !valid || !binding.MatchesSessionDisplay(running) {
+			http.Error(w, "session display identity rejected", http.StatusConflict)
+			return
+		}
+		if display := readSessionDisplay(t, r); display != protocol.SessionDisplayFocused {
+			http.Error(w, "Coleco selector must focus the session plane", http.StatusBadRequest)
+			return
+		}
+		writeKitDisplaySession(w, prior)
+	}))
+	t.Cleanup(server.Close)
+	app, _ := kitDisplayApp(t, server)
+	app.SetRooms(rooms.NewIndex([]rooms.Pack{
+		testRoomPack(t, hardwareRoomID, `function load() end; function draw() error("ZX81 workbench must not draw over Coleco") end`),
+		testRoomPack(t, colecoArcadeRoomID, `function load() end; function draw() gfx.clear("#101820") end`),
+	}), "")
+	app.mu.Lock()
+	app.session = prior
+	app.syncGPUParkLocked()
+	app.mu.Unlock()
+
+	if !app.HandlePlayHIDScancode("F12", hidKeyboardF12, true, time.Now()) {
+		t.Fatal("Coleco F12 key was not consumed")
+	}
+	snap := waitFor(t, app, "Coleco title selector on focused session plane", func(s Snapshot) bool {
+		return s.Session.State == "active" && s.Session.ControlsOpen && s.Room.DuringPlay && s.Room.ID == colecoArcadeRoomID
+	})
+	if snap.TapePicker.Open || displayPosts.Load() != 1 {
+		t.Fatalf("Coleco selector used live media or missed the display plane: picker=%v display POSTs=%d", snap.TapePicker.Open, displayPosts.Load())
+	}
+	if snap.Status != playingColecoSelectorStatus {
+		t.Fatalf("status = %q, want %q", snap.Status, playingColecoSelectorStatus)
+	}
+}
+
 func TestKitComputerTapeWithoutPlaneStaysHidden(t *testing.T) {
 	var displays atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

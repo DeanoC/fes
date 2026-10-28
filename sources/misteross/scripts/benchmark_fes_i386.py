@@ -112,7 +112,7 @@ STAGES = {
     # (WB) and the stage records come before D, whose forwarding tables take
     # the register file and the records as ports.
     'cpu': (
-        ('envelope', r'(.*\.)?(signature|observed|noise|LED0|mem_valid|init_\w+)$|stimulus\.'),
+        ('envelope', r'(.*\.)?(signature|observed|noise|LED0|mem_valid|io_ack|io_rdata|init_\w+)$|stimulus\.'),
         ('F1', r'(.*\.)?(f2_block|fetch_block|active|itlb_page)$|l1i_'),
         ('F2', r'(.*\.)?(l1_valid|l1_block|l1_bytes|mem_data)$|.*\.oplen\.(one|two)_byte'),
         ('L1', r'(.*\.)?(l2_\w+|half|fill_bytes|fill_data)$|(.*\.)?fetch\.sums\.'),
@@ -120,14 +120,14 @@ STAGES = {
         # Q's output register may keep only the names of DC's inputs: the
         # decoder's (decode.q in Yosys, decode.by in Quartus) or dc_q's.
         ('Q', r'(.*\.)?(half_valid|tail_ok)$|(.*\.)?align\.(?!redirect_linear$)|(.*\.)?(decode\.(q|by)|dc_q)$'),
-        ('WB', r'(.*\.)?(gpr|eflags|eip|seg_\w+|halted|t0|t1|trace_\w+|start|start_linear|arch_\w+|rt_\w+|exc_\w+)$'),
+        ('WB', r'(.*\.)?(gpr|eflags|eip|seg_\w+|halted|t0|t1|trace_\w+|start|start_linear|arch_\w+|rt_\w+|exc_\w+|io_done|io_data)$'),
         # A stage's output record passes most fields through, so they name
         # the register feeding it: ag_out's are ag_s (D), m1_out's m1_s (AG),
         # ex_out's ex_s (M2). ex.flags_in is EX's ex_flags. WB's decisions
         # load with wb_s. The multiply and divide unit works in EX, and
         # md_busy is its wait; its output registers may keep only the CPU's
         # net names (md_result, md_hi) or EX's port names.
-        ('EX', r'(.*\.)?(wb_s|wb_flushes|wb_redir|wb_deliver|ex_flags|md_busy|md_de|md_hi|md_result)$'
+        ('EX', r'(.*\.)?(wb_s|wb_flushes|wb_redir|wb_deliver|io_wb|ex_flags|md_busy|md_de|md_hi|md_result)$'
                r'|(.*\.)?ex\.(flags_in|shifter\.cf_in|md_\w+)$|(.*\.)?muldiv\.'),
         ('M2', r'(.*\.)?(ex_s|ex_in|ex_out)$|(.*\.)?ex\.u$'),
         # M1 also writes the L1D model's address registers and the store
@@ -139,7 +139,7 @@ STAGES = {
         # D also keeps the string engine's copies and waits.
         ('D', r'(.*\.)?(d_eip|d_stop|d_seg_busy|t_busy|d_out|ag_\w+|r_src|r_dst|r_fp|r_cnt|r_c0|r_c1|r_c2'
               r'|s_end1|s_kill1|s_tgt|s_down|str_busy'
-              r'|df_busy)$|(.*\.)?(dops|dfwd)\.'),
+              r'|df_busy|io_busy)$|(.*\.)?(dops|dfwd)\.'),
     ),
     'rom': (('ROM', r'(.*\.)?q$'),),
 }

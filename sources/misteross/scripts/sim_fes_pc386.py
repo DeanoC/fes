@@ -92,6 +92,7 @@ AT_RTL = (
     CORE / 'rtl/pc386_sysctl.sv',
     CORE / 'rtl/pc386_kbc.sv',
     CORE / 'rtl/pc386_rtc.sv',
+    CORE / 'rtl/pc386_ram.sv',
     CORE / 'rtl/pc386_ata.sv',
     CORE / 'rtl/pc386_at_core.sv',
 )
@@ -111,7 +112,6 @@ OPL2_SAMPLES = 20000
 # The machine without the CPU: the AT core, the VGA, the presenter, port 2
 # and the shared display plane.
 MACHINE_RTL = AT_RTL + (
-    CORE / 'rtl/pc386_ram.sv',
     CORE / 'rtl/pc386_vga.sv',
     CORE / 'rtl/pc386_vga_scanout.sv',
     CORE / 'rtl/pc386_presenter.sv',

@@ -857,7 +857,8 @@ drive model. The Bochs BIOS lists that slave as "Unknown device".
   image, so a captured image never holds a torn sector (as for the
   [ST disk](../../mister-packages/docs/media-data.md)).
 - **Dirty tracking:** one bit per 64 KiB chunk of the image (2,048 bits for
-  128 MiB) in an M10K, set when a sector write reaches DDR.
+  128 MiB) in an M10K, set when a sector write reaches DDR. A word of the map
+  reads out two clocks after its index; a reset clears the map in 128 clocks.
 - **IDENTIFY** reports the geometry the runtime committed (below), the LBA
   capacity, and PIO 16-bit only.
 
@@ -1160,10 +1161,12 @@ replaces each row.
 the VGA needs at least 1,891 ALMs and 16 M10K (its small FIFOs each take a
 block), the presenter 826 ALMs, 8 M10K and five DSP blocks, the port 2 arbiter
 and plane bridge 199 ALMs and 6 M10K, the display plane 624 ALMs, 4 M10K and
-one DSP block. The M1 AT core needs at least 16,526 ALMs, more than three
-times its rows, because its memories (the ATA sector buffer and dirty map,
-CMOS, the 8042's RAM and FIFOs, the DMA register files) synthesize to
-flip-flops; they must move to M10K before the machine can fit beside the CPU.
+one DSP block. The M1 AT core needed at least 16,526 ALMs, more than three
+times its rows, because its memories synthesized to flip-flops. With the ATA
+sector buffer, dirty map and CMOS in M10K it needs at least 3,799 ALMs and
+4 M10K, inside its rows, and the machine-only blocks together need 7,280 ALMs
+and 38 M10K
+([record](../../../docs/validation/2026-10-27-pc386-at-core-m10k/summary.md#machine-only-synthesis)).
 
 The M10K margin leaves room for a VGA read cache or a larger L2 if profiles ask
 for either. The ALM margin is the tight one. With the CPU at 16,000 ALMs the
