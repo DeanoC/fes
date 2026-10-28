@@ -249,7 +249,7 @@ MODRM_TWO = frozenset([0x00, 0x01, 0x02, 0x03, *range(0x20, 0x27), *range(0x90, 
 PREFIXES = frozenset([0x26, 0x2E, 0x36, 0x3E, 0x64, 0x65, 0xF0, 0xF2, 0xF3, 0x66, 0x67])
 SHIFT_GROUPS = frozenset(['C0', 'C1', 'D0', 'D1', 'D2', 'D3'])
 DOUBLE_SHIFTS = frozenset(['0FA4', '0FA5', '0FAC', '0FAD'])
-PREDICATES = ('invalid-sib', 'count>0', 'count>1', 'count>=width', 'count>width', 'imm8=0')
+PREDICATES = ('invalid-sib', 'count>0', 'count>1', 'count>=width', 'count>width', 'imm8=0', 'opsize32')
 
 
 def base_opcode(stem: str) -> str:
@@ -261,9 +261,10 @@ def base_opcode(stem: str) -> str:
 
 def predicates(stem: str, test: MooTest) -> set[str]:
     """Facts about a test's instruction that scope divergence entries."""
-    code, index, address32 = test.instruction, 0, False
+    code, index, address32, operand32 = test.instruction, 0, False, False
     while index < len(code) and code[index] in PREFIXES:
         address32 |= code[index] == 0x67
+        operand32 |= code[index] == 0x66
         index += 1
     two_byte = code[index] == 0x0F
     opcode = code[index + 1] if two_byte else code[index]
@@ -298,6 +299,9 @@ def predicates(stem: str, test: MooTest) -> set[str]:
                                                ('count>width', count > width)) if holds}
     elif not two_byte and opcode in (0xD4, 0xD5) and code[position] == 0:
         facts.add('imm8=0')
+    # The corpus runs in 16-bit code: a 32-bit operand size is a 66h prefix.
+    if operand32:
+        facts.add('opsize32')
     return facts
 
 

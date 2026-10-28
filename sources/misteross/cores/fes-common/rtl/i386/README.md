@@ -204,6 +204,42 @@ them, so a uop reads one at WB, or waits in D until its writers retire.
 - Far transfers are taken branches, with no prediction yet: each redirects
   from WB.
 
+**Microcode.** Longer routines come from an M10K ROM
+(`fes_i386_ucode_rom`). `scripts/fes_i386_ucode.py` builds it from
+`ucode.toml`, with the entry addresses in `fes_i386_ucode_pkg`, checking
+every field and routine.
+- **Words.** A word is a `ucode_t`: the uop fields a routine sets. The
+  operand size, the vector and the memory operand come from the instruction
+  in `dc`.
+- **Issue.** DC decodes a routine's first uop, and `dc.upc` addresses the
+  next word. Each later uop is a `SEQ_UCODE` step of the sequencer, so `dc`'s
+  input select keeps its three sources.
+  - The ROM's address is a register and its output is registered, so a word
+    is there the cycle after `dc` settles. D waits a cycle for each
+    (`rom_ok`, `uc_wait`), with `issue` kept off the M10K's pins.
+  - Routines are straight sequences. INTO's JNO, a branch that ends the
+    instruction only when taken, is the one microbranch, resolved at EX.
+- **Stack probe.** PUSHA, POPA and INT start with a probe of their stack
+  slots. Under SS's real-mode limit, FFFFh, a slot faults only by straddling
+  the 64 KiB wrap. Some slot does when the slots wrap and start misaligned
+  to their size. M1 flags that (`pbad`), and M2 raises #SS(0) from the
+  register, before the routine writes anything. Under any other SS limit the
+  routines are unimplemented. For PUSHA and POPA this differs from the
+  386EX, which moves the slots below the one that crosses first (divergence
+  `stack-wrap-partial-transfer`).
+- **The routines:**
+  - PUSHA and PUSHAD keep ESP in T1 for its push.
+  - POPA and POPAD read ESP's slot into T1. POPAD on a 16-bit stack takes
+    ESP's high word from it, as the 386EX does.
+  - INT n, INT3 and INTO read the vector's entry first, at linear vector × 4,
+    as the 386EX does. Then they push FLAGS, clearing IF and TF, CS and IP,
+    and jump.
+  - IRET reads its three slots, the FLAGS load checking the offset first,
+    then jumps, stepping ESP at WB.
+- **Flags in EX.** PUSHF and POPF are single uops. EX's flag operations give
+  FLAGS' image and load the writable real-mode flags in its running copy, as
+  INT's and IRET's do.
+
 **D** keeps the instruction's EIP with an incrementer. In 16-bit code EIP is
 not cut to 16 bits, as on the 386: an instruction that ends at offset FFFFh
 leaves EIP 10000h. Real-mode CS loads leave CS's limit at FFFFh, and an

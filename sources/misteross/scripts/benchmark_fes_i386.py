@@ -68,7 +68,7 @@ LOCK = RTL / 'toolchain.lock'
 FRONTEND_RTL = ('fes_i386_pkg.sv', 'fes_i386_oplen.sv', 'fes_i386_lendec.sv', 'fes_i386_lstage.sv',
                 'fes_i386_fetchbuf.sv', 'fes_i386_qalign.sv', 'fes_i386_frontend.sv')
 DAG_RTL = ('fes_i386_pkg.sv', 'fes_i386_amode.sv', 'fes_i386_dfwd.sv', 'fes_i386_agu.sv')
-CPU_RTL = (*FRONTEND_RTL, 'fes_i386_amode.sv', 'fes_i386_dfwd.sv', 'fes_i386_agu.sv', 'fes_i386_decode.sv', 'fes_i386_seq.sv',
+CPU_RTL = (*FRONTEND_RTL, 'fes_i386_amode.sv', 'fes_i386_dfwd.sv', 'fes_i386_agu.sv', 'fes_i386_ucode_pkg.sv', 'fes_i386_ucode_rom.sv', 'fes_i386_decode.sv', 'fes_i386_seq.sv',
            'fes_i386_dops.sv', 'fes_i386_shift.sv', 'fes_i386_shflags.sv', 'fes_i386_exctl.sv', 'fes_i386_ex.sv',
            'fes_i386_cpu.sv')
 SPIKES = {
@@ -131,7 +131,7 @@ STAGES = {
         ('M1', r'(.*\.)?(m2_s|m2_load|m2_dw|m2_dr|m2_vw|m2_vr|even_q|odd_q|odd_first)$|l1d_'),
         ('AG', r'(.*\.)?(m1_s|m1_out|late_m1)$'),
         # DC's buffer before D, since dfwd and dops take its fields as ports.
-        ('DC', r'(.*\.)?(dc|dc_skid|dc_valid|dc_skid_valid)$'),
+        ('DC', r'(.*\.)?(dc|dc_skid|dc_valid|dc_skid_valid|rom_ok)$'),
         ('D', r'(.*\.)?(d_eip|d_stop|d_seg_busy|t_busy|d_out|ag_\w+)$|(.*\.)?(dops|dfwd)\.'),
     ),
     'rom': (('ROM', r'(.*\.)?q$'),),
