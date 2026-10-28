@@ -269,6 +269,16 @@ def verify_rootfs(directory):
             "ssh": "dropbear", "hardware_acceptance": "not-run"}
 
 
+def read_ssh_banner(connection):
+    # Dropbear can send its binary key exchange in the same packet. Read only
+    # the bounded identification line, including when TCP splits that line.
+    with connection.makefile("rb") as stream:
+        banner = stream.readline(256)
+    if not banner.endswith(b"\n") or not banner.startswith(b"SSH-2.0-dropbear_"):
+        raise ValueError("QEMU Dropbear banner unavailable: " + repr(banner))
+    return banner.decode("ascii").rstrip("\r\n")
+
+
 def smoke_rootfs(directory):
     checks = verify_rootfs(directory)
     with tempfile.TemporaryDirectory(prefix="fes-de25-smoke-") as temporary:
@@ -291,15 +301,15 @@ def smoke_rootfs(directory):
                                   stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
         try:
             deadline = time.monotonic() + 10
-            banner = b""
+            banner = ""
             while time.monotonic() < deadline and server.poll() is None:
                 try:
                     with socket.create_connection(("127.0.0.1", 2222), timeout=1) as connection:
-                        banner = connection.recv(256)
+                        banner = read_ssh_banner(connection)
                     break
                 except OSError:
                     time.sleep(0.1)
-            if not banner.startswith(b"SSH-2.0-dropbear_"):
+            if not banner:
                 raise ValueError("QEMU Dropbear banner unavailable: " + repr(banner))
         finally:
             server.terminate()
@@ -309,7 +319,7 @@ def smoke_rootfs(directory):
                 server.kill()
                 server.communicate()
         checks.update(classification="userspace-only", qemu_architecture=arch,
-                      ssh_banner=banner.decode().strip(), ssh_authentication="not-tested",
+                      ssh_banner=banner, ssh_authentication="not-tested",
                       board_boot="not-run")
     return checks
 

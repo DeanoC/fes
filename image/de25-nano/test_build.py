@@ -5,6 +5,7 @@ import importlib.util
 import io
 import json
 from pathlib import Path
+import socket
 import subprocess
 import sys
 import tempfile
@@ -19,6 +20,26 @@ SPEC.loader.exec_module(BUILD)
 
 
 class HeadlessBuildTests(unittest.TestCase):
+    def test_ssh_banner_framing_handles_fragmentation_and_binary_key_exchange(self):
+        server, client = socket.socketpair()
+        with server, client:
+            client.settimeout(2)
+            server.sendall(b"SSH-2.0-drop")
+            sender = threading.Thread(target=server.sendall,
+                                      args=(b"bear_2020.81\r\n\x00\x00\x00\xbc\xffkey-exchange",))
+            sender.start()
+            self.assertEqual(BUILD.read_ssh_banner(client), "SSH-2.0-dropbear_2020.81")
+            sender.join(2)
+            self.assertFalse(sender.is_alive())
+        for payload in (b"not an SSH server\r\n", b"SSH-2.0-dropbear_incomplete",
+                        b"SSH-2.0-dropbear_" + b"x" * 256 + b"\r\n"):
+            server, client = socket.socketpair()
+            with self.subTest(payload=payload), server, client:
+                server.sendall(payload)
+                server.shutdown(socket.SHUT_WR)
+                with self.assertRaisesRegex(ValueError, "banner unavailable"):
+                    BUILD.read_ssh_banner(client)
+
     def test_different_caches_serialize_writes_to_one_output(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
