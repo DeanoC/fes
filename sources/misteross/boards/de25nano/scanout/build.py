@@ -163,6 +163,46 @@ def prepare(archive, output=None, revision=None):
     return output, combined, hps, display
 
 
+def referenced_parameters(project, module, hps):
+    # Generic-component SOPCINFO points to the real IP-XACT logical view; it
+    # does not duplicate the IP's module parameters as SOPCINFO parameters.
+    view = module.findtext("parameter[@name='logicalView']/value")
+    if not view or Path(view).is_absolute() or ".." in Path(view).parts or Path(view).suffix != ".ip":
+        raise ValueError("invalid generated component logical view")
+    matches = [path for path in project.rglob(Path(view).name) if path.is_file() and not path.is_symlink() and
+               (path.relative_to(project).as_posix() == view or path.relative_to(project).as_posix().endswith("/" + view))]
+    if len(matches) != 1:
+        raise ValueError("generated logical view is missing or ambiguous: " + view)
+    return hps.module_parameters(matches[0]), {"path": str(matches[0].relative_to(project)), "sha256": hps.digest(matches[0])}
+
+
+def require_parameters(actual, expected, name):
+    normalized = {key: "1" if value == "true" else "0" if value == "false" else value for key, value in actual.items()}
+    if any(normalized.get(key) != str(value) for key, value in expected.items()):
+        raise ValueError("generated component parameters differ: " + name + " " + str({key: actual.get(key) for key in expected}))
+    return {key: actual[key] for key in expected}
+
+
+def verify_reset_bridge(project, module, hps):
+    if module is None or module.get("kind") != "altera_reset_bridge" or module.get("version") != "19.2.0":
+        raise ValueError("generated scanout reset bridge version/kind differs")
+    actual, source = referenced_parameters(project, module, hps)
+    checked = require_parameters(actual, {"ACTIVE_LOW_RESET": 1, "SYNCHRONOUS_EDGES": "none",
+        "NUM_RESET_OUTPUTS": 1, "USE_RESET_REQUEST": 0}, module.get("path"))
+    definition = ET.fromstring(module.findtext("parameter[@name='componentDefinition']/value"))
+    for name, direction in (("in_reset", "Input"), ("out_reset", "Output")):
+        points = [item for item in definition.findall("boundary/interfaces/interface") if item.findtext("name") == name]
+        if len(points) != 1 or hps.component_ports(module, name) != {"reset_n": (direction, 1)}:
+            raise ValueError("generated scanout reset bridge polarity differs")
+        edges = points[0].findtext("parameters/parameterValueMap/entry[key='synchronousEdges']/value")
+        if edges != "NONE":
+            raise ValueError("generated scanout reset bridge synchronization differs")
+    # O_SYNCHRONOUS_EDGES is DERIVED (not stored in .ip). Verify the actual
+    # elaborated output interface rather than substituting a guessed default.
+    checked["O_SYNCHRONOUS_EDGES"] = "none (elaborated output synchronousEdges=NONE)"
+    return {"parameters": checked, "logical_view": source}
+
+
 def verify_handoff(project, hps):
     tree = ET.parse(project / "qsys_top/qsys_top.sopcinfo")
     modules = {m.get("path"): m for m in tree.findall("module")}
@@ -205,6 +245,8 @@ def verify_handoff(project, hps):
     if (reset_source is None or reset_source.get("kind") != "altera_reset_bridge" or
             ("reset", "fes_scanout_top_reset.out_reset", "subsys_periph_fes_scanout_reset.in_reset") not in connections):
         raise ValueError("generated top scanout interconnect reset source differs")
+    reset_bridges = {name: verify_reset_bridge(project, modules.get(name), hps)
+                     for name in ("fes_scanout_top_reset", "subsys_periph.fes_scanout_reset")}
     bridge_parameters = {}
     for name, width, address_bits, burst, depth in (("fes_ctrl_cdc", 32, 7, 1, 4), ("fes_mem_cdc", 128, 32, 16, 32)):
         module = modules.get("subsys_periph." + name)
@@ -214,11 +256,9 @@ def verify_handoff(project, hps):
                     "MAX_BURST_SIZE": burst, "COMMAND_FIFO_DEPTH": 4, "RESPONSE_FIFO_DEPTH": depth,
                     "MASTER_SYNC_DEPTH": 2, "SLAVE_SYNC_DEPTH": 2, "ENABLE_RESPONSE": 1,
                     "USE_AUTO_ADDRESS_WIDTH": 0, "SYNC_RESET": 0, "PIPELINE_ENABLE": 0}
-        actual = {key: module.findtext("parameter[@name='" + key + "']/value") for key in expected}
-        normalized = {key: "1" if value == "true" else "0" if value == "false" else value for key, value in actual.items()}
-        if any(normalized[key] != str(value) for key, value in expected.items()):
-            raise ValueError("generated response-preserving bridge parameters differ: " + name + " " + str(actual))
-        bridge_parameters[name] = actual
+        actual, source = referenced_parameters(project, module, hps)
+        checked = require_parameters(actual, expected, name)
+        bridge_parameters[name] = {"parameters": checked, "logical_view": source}
     # The inherited handoff check already validates all elaborated LW regions
     # pairwise for overlap. Require the actual scanout leaf region too.
     probe = hps.verify_probe_handoff(project)
@@ -230,16 +270,28 @@ def verify_handoff(project, hps):
         "read_only_master_ports": expected_master, "csr_write_completion": True,
         "peripheral_slave_map": probe["peripheral_slave_map"], "ddr_scanout": True,
         "top_reset_source": "fes_scanout_top_reset.out_reset -> subsys_periph_fes_scanout_reset.in_reset",
+        "reset_bridges": reset_bridges,
         "runtime_admission": "not-qualified", "global_reset_ownership": "not-qualified"}
 
 
 def generate(output, combined, hps, display, tool, version):
     combined.generate(output / "combined", hps, display, tool, version)
+    verify_generated(output, hps)
+
+
+def verify_generated(output, hps, verifier_revision=None):
     directory = output / "combined/hps"
     path = directory / "generation.json"
     generation = json.loads(path.read_text())
     generation["combined_display"]["ddr_scanout"] = True
     generation["scanout"] = verify_handoff(directory / "project", hps)
+    if verifier_revision is not None:
+        if not re.fullmatch(r"[0-9a-f]{40}", verifier_revision):
+            raise ValueError("enhanced verifier requires a full committed identity")
+        generation["post_generation_verifier"] = {"fes_revision": verifier_revision,
+            "build_py_sha256": hps.digest(HERE / "build.py"),
+            "producer_revision": json.loads((directory / "inputs.json").read_text())["fes_revision"],
+            "scope": "verification only; generated IP, HDL, constraints and producer inputs unchanged"}
     path.write_text(json.dumps(generation, indent=2, sort_keys=True) + "\n")
 
 

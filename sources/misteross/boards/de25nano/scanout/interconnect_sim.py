@@ -224,7 +224,10 @@ def wrapper(periph_source, memory_source, memory_module):
     for direction, width, name in mp:
         if name.startswith(MASTER):
             role = name.removeprefix(MASTER)
-            if role not in av or (direction, width) != ("input" if av[role][0] == "output" else "output", av[role][1]):
+            # The CCB exports a [0:0] writeresponsevalid vector; Pro's
+            # top-level interconnect flattens that one-bit response to scalar.
+            expected_width = "" if role == "writeresponsevalid" else av.get(role, (None, None))[1]
+            if role not in av or (direction, width) != ("input" if av[role][0] == "output" else "output", expected_width):
                 raise ValueError(f"generated memory master mismatch: {name}")
             value = "mem_" + role
         elif name.startswith(SLAVE) and name.removeprefix(SLAVE) in axi:

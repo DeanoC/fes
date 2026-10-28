@@ -79,8 +79,14 @@ struct Simulation {
         if (!holding_response && !hold_responses && !pending.empty() && mem_cycles % 11 != 0) {
             const auto& burst = pending.front();
             uint32_t address = burst.address + (burst.position << burst.size);
-            for (unsigned lane = 0; lane < 8; ++lane)
-                dut.rdata[lane] = memory_word((address & ~31U) + lane * 4);
+            for (unsigned lane = 0; lane < 8; ++lane) {
+                uint32_t lane_address = (address & ~31U) + lane * 4;
+                // Only the selected narrow-transfer lanes contain memory data.
+                // Poison others so a wrong AR lane cannot be hidden by filling
+                // unrelated bytes with otherwise plausible neighboring data.
+                dut.rdata[lane] = lane_address >= address && uint64_t(lane_address) < uint64_t(address) + 16U ?
+                    memory_word(lane_address) : (0xdeadbeefU ^ lane);
+            }
             dut.rid = burst.id;
             dut.rlast = burst.position + 1 == burst.beats;
             dut.rresp = axi_beats == 0 ? injected_response : 0;
@@ -105,6 +111,7 @@ struct Simulation {
             if (dut.rvalid && !dut.rready) ++r_stalls;
             if (ar_accepted) {
                 require(new_burst.size == 4 && dut.arburst == 1, "scanout must retain narrow 16-byte AXI reads");
+                require((new_burst.address & 15U) == 0, "unaligned AXI read changes the actual byte footprint");
                 uint64_t end = uint64_t(new_burst.address) + (uint64_t(new_burst.beats) << new_burst.size);
                 require(end <= (uint64_t(new_burst.address) & ~4095ULL) + 4096, "AXI burst crosses 4 KiB");
                 require(new_burst.address >= base && end <= uint64_t(base) + FES_DE25_SCANOUT_ALLOCATION_BYTES,

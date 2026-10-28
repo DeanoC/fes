@@ -5,6 +5,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest import mock
+import xml.etree.ElementTree as ET
 
 SPEC = importlib.util.spec_from_file_location("de25_scanout_builder_test", Path(__file__).with_name("build.py"))
 B = importlib.util.module_from_spec(SPEC)
@@ -116,6 +117,49 @@ class ScanoutBuildTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "changed pixel PLL"):
                 B.compile_project(output, hps, display, None)
         self.assertFalse(json.loads((directory / "build.json").read_text())["post_compile_pixel_pll_parameters_unchanged"])
+
+    def reset_fixture(self, parameters=None, output_edges="NONE", output_role="reset_n"):
+        expected = {"ACTIVE_LOW_RESET": "1", "SYNCHRONOUS_EDGES": "none", "NUM_RESET_OUTPUTS": "1", "USE_RESET_REQUEST": "0"}
+        expected.update(parameters or {})
+        source = self.root / "child/ip/reset.ip"
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_bytes(self.fixture.hps.component_xml(tuple(expected.items())))
+        module = ET.Element("module", {"path": "reset", "kind": "altera_reset_bridge", "version": "19.2.0"})
+        for name, value in (("logicalView", "ip/reset.ip"), ("componentDefinition", "<componentDefinition><boundary><interfaces>" +
+            ''.join(f'<interface><name>{name}</name><ports><port><role>{role}</role><direction>{direction}</direction><width>1</width></port></ports>'
+                    f'<parameters><parameterValueMap><entry><key>synchronousEdges</key><value>{edges}</value></entry></parameterValueMap></parameters></interface>'
+                    for name, direction, role, edges in (("in_reset", "Input", "reset_n", "NONE"),
+                                                        ("out_reset", "Output", output_role, output_edges))) +
+            "</interfaces></boundary></componentDefinition>")):
+            ET.SubElement(ET.SubElement(module, "parameter", {"name": name}), "value").text = value
+        return module
+
+    def test_actual_logical_view_parameters_and_derived_reset_polarity_edges_are_guarded(self):
+        hps = self.fixture.hps.BUILD
+        self.assertEqual(B.verify_reset_bridge(self.root, self.reset_fixture(), hps)["parameters"]["ACTIVE_LOW_RESET"], "1")
+        for name, value in (("ACTIVE_LOW_RESET", "0"), ("SYNCHRONOUS_EDGES", "deassert"),
+                            ("NUM_RESET_OUTPUTS", "2"), ("USE_RESET_REQUEST", "1")):
+            with self.subTest(name=name), self.assertRaisesRegex(ValueError, "parameters differ"):
+                B.verify_reset_bridge(self.root, self.reset_fixture({name: value}), hps)
+        with self.assertRaisesRegex(ValueError, "synchronization differs"):
+            B.verify_reset_bridge(self.root, self.reset_fixture(output_edges="DEASSERT"), hps)
+        with self.assertRaisesRegex(ValueError, "polarity differs"):
+            B.verify_reset_bridge(self.root, self.reset_fixture(output_role="reset"), hps)
+        module = self.reset_fixture()
+        module.set("version", "19.1.0")
+        with self.assertRaisesRegex(ValueError, "version/kind"):
+            B.verify_reset_bridge(self.root, module, hps)
+
+    def test_logical_view_resolution_rejects_duplicate_files_and_escaped_paths(self):
+        module = self.reset_fixture()
+        duplicate = self.root / "other/ip/reset.ip"
+        duplicate.parent.mkdir(parents=True)
+        duplicate.write_bytes((self.root / "child/ip/reset.ip").read_bytes())
+        with self.assertRaisesRegex(ValueError, "missing or ambiguous"):
+            B.referenced_parameters(self.root, module, self.fixture.hps.BUILD)
+        module.find("parameter[@name='logicalView']/value").text = "../reset.ip"
+        with self.assertRaisesRegex(ValueError, "invalid generated"):
+            B.referenced_parameters(self.root, module, self.fixture.hps.BUILD)
 
 
 if __name__ == "__main__": unittest.main()
