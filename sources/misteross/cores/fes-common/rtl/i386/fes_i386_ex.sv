@@ -14,7 +14,8 @@
 // SBB, RCL, RCR and LAHF read with no forwarding; flags_keep is EFLAGS after
 // every older uop, which a uop passes on where it writes no flag. They differ
 // only in the cycle after a shift or rotate, when D holds any flag reader
-// (fes_i386_cpu). A faulting uop changes nothing.
+// (fes_i386_cpu). A normal faulting uop changes nothing; a divide error
+// carries the flags that the multiply/divide unit has already produced.
 //
 // A shift's flags leave the shifter off the flag path: EX keeps the old flags
 // and hands WB the bits the shifter's CF and OF come from, and whether SF,
@@ -33,6 +34,11 @@
 // Results the manual leaves undefined follow the 386EX (Phase 0 divergence
 // list): AND, OR, XOR and TEST clear AF; a shift by a nonzero count sets AF;
 // shifts and rotates set OF and CF as fes_i386_shflags says.
+//
+// MUL, IMUL, DIV, IDIV, AAM and AAD take their flags from the multiply and
+// divide unit (fes_i386_muldiv, md_flags); their result comes through LEA's
+// select, from the pipe record's result field, which fes_i386_cpu fills
+// from the unit.
 module fes_i386_ex (
     input  fes_i386_pkg::uop_t   u,
     input  fes_i386_pkg::exctl_t exc,
@@ -41,9 +47,10 @@ module fes_i386_ex (
     input  logic [31:0]          yr,
     input  logic [31:0]          wb,          // the WB result register
     input  logic [31:0]          ld,          // the loaded value (M2)
-    input  logic [31:0]          ag_result,   // LEA's offset
+    input  logic [31:0]          ag_result,   // LEA's offset; a multiply's or divide's result
     input  logic [17:0]          flags_in,
     input  logic [17:0]          flags_keep,
+    input  logic [11:0]          md_flags,
     output logic [31:0]          result,
     output logic [17:0]          flags_out,
     output logic                 taken,
@@ -56,7 +63,7 @@ module fes_i386_ex (
     output logic                 def_co,      // CF and OF come from sh_* (fes_i386_shflags)
     output logic                 def_szap     // SF, ZF and PF follow the result; AF is set
 );
-    localparam int CF = 0, PF = 2, AF = 4, ZF = 6, SF = 7, IF = 9, DF = 10, OF = 11;
+    localparam int CF = 0, PF = 2, AF = 4, ZF = 6, SF = 7, TF = 8, IF = 9, DF = 10, OF = 11;
 
     function automatic logic cond(input logic [17:0] f, input logic [3:0] cc);
         logic t;
@@ -134,7 +141,8 @@ module fes_i386_ex (
                    | ({32{exc.r_movsx}} & (exc.src8 ? {{24{y[7]}}, y[7:0]} : {{16{y[15]}}, y[15:0]}))
                    | ({32{exc.r_setcc}} & {31'b0, cc_true})
                    | ({32{exc.r_lahf}} & {24'b0, flags_in[7:6], 1'b0, flags_in[4], 1'b0, flags_in[2], 1'b1, flags_in[0]})
-                   | ({32{exc.r_sign}} & {32{exc.src8 ? y[7] : exc.src16 ? y[15] : y[31]}});
+                   | ({32{exc.r_sign}} & {32{exc.src8 ? y[7] : exc.src16 ? y[15] : y[31]}})
+                   | ({32{exc.r_flags}} & {16'b0, flags_in[15:0]});
     assign r_shift = out[32:1];
     assign result[7:0] = ({8{exc.add_lo}} & sum[7:0]) | ({8{exc.sh_lo}} & r_shift[7:0])
                        | ({8{exc.ot_lo}} & r_other[7:0]) | ({8{exc.kp_lo}} & af[7:0]);
@@ -179,6 +187,32 @@ module fes_i386_ex (
             end
             if (exc.f_if) rest[IF] = exc.fl_set;
             if (exc.f_df) rest[DF] = exc.fl_set;
+            // POPF and IRET: every flag a real-mode load writes, bits 14:0
+            // but the reserved 1, 3 and 5; RF and VM stay.
+            if (exc.f_load) begin
+                rest[CF] = y[0];
+                rest[PF] = y[2];
+                rest[AF] = y[4];
+                rest[ZF] = y[6];
+                rest[SF] = y[7];
+                rest[TF] = y[8];
+                rest[IF] = y[9];
+                rest[DF] = y[10];
+                rest[OF] = y[11];
+                rest[14:12] = y[14:12];
+            end
+            if (exc.f_clrit) begin
+                rest[IF] = 1'b0;
+                rest[TF] = 1'b0;
+            end
+            if (exc.md_fl) begin
+                rest[CF] = md_flags[CF];
+                rest[PF] = md_flags[PF];
+                rest[AF] = md_flags[AF];
+                rest[ZF] = md_flags[ZF];
+                rest[SF] = md_flags[SF];
+                rest[OF] = md_flags[OF];
+            end
         end
     end
     always_comb begin
@@ -198,8 +232,11 @@ module fes_i386_ex (
     assign count_zero = x == 32'd0;
     assign ind_target = sum[31:0];
     assign ind_eip = y;
+    // A REPE or REPNE CMPS or SCAS element ends the instruction, branching
+    // to the next, when its own compare's ZF says so.
     assign taken = exc.ok && ((exc.b_jcc && cc_true) || exc.b_jmp || exc.b_ind
                               || ((exc.b_loop || (exc.b_loope && flags_in[ZF]) || (exc.b_loopne && !flags_in[ZF]))
                                   && !count_one)
-                              || (exc.b_jcxz && count_zero));
+                              || (exc.b_jcxz && count_zero)
+                              || (exc.b_rpe && !add_zf) || (exc.b_rpne && add_zf));
 endmodule

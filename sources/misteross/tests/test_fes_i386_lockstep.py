@@ -29,21 +29,26 @@ def moo_test(instruction: bytes, index: int = 0) -> vectors.MooTest:
 class ScopeTest(unittest.TestCase):
     def test_scope_takes_every_form_of_a_stem(self):
         for stem in ('00', '6601', '0FA4', '8D', '04', '8E', 'F6.3', 'FF.1', '0F95', '6650', '0FA9', 'C2', 'FF.4',
-                     'C4', '660FB2', 'EA', '669A', 'CB', 'FF.3', 'FF.5'):
+                     'C4', '660FB2', 'EA', '669A', 'CB', 'FF.3', 'FF.5', '60', '6661', '9C', '9D', 'CC', 'CD', 'CE',
+                     '66CF', '87', '6694', 'A0', '67A3', 'D6', 'D7', 'FF.2', 'FF.6', '8F', '668F',
+                     'F6.4', '66F7.5', '67F6.6', 'F7.7', '0FAF', '6669', '6B', 'D4', 'D5', 'A4', '67A5', '6766AF', 'C8',
+                     '66C8'):
             with self.subTest(stem=stem):
                 self.assertTrue(lockstep.in_scope(stem))
-        for stem in ('F6.4', 'A0', 'FF.2', 'FF.6', '8F', 'C8', '0FA3'):  # MUL, moffs, CALL r/m, PUSH and POP r/m, ENTER, BT
+        # IN, BT, DAA, BOUND, BSF; POP m with 32-bit addressing
+        for stem in ('E4', '0FA3', '27', '62', '0FBC', '678F', '67668F'):
             with self.subTest(stem=stem):
                 self.assertFalse(lockstep.in_scope(stem))
 
     def test_unbuilt_encodings_cover_what_scope_leaves_out(self):
         lines = lockstep.unbuilt_encodings()
         self.assertEqual(len(lines), len(set(lines)))
-        for encoding in ('c8c0', '27c0', 'ff30', '3fff', 'f6e0', 'a000', 'ff10', '0f0b00'):
+        for encoding in ('e4c0', '27c0', '3fff', '0f0b00', '0fa3c0', '6200', '0fbcc0'):
             with self.subTest(encoding=encoding):
                 self.assertIn(encoding, lines)
         for encoding in ('00c0', '0000', '04ff', '8d00', '0fa4c0', '0fa400', 'f4c0', '06c0', 'ff20', '0fa1c0',
-                         'c400', 'ea00', 'ff18', 'ff28', '0fb500'):
+                         'c400', 'ea00', 'ff18', 'ff28', '0fb500', 'ff30', 'a000', 'ff10', '8f00', '9200',
+                         'f6e0', 'f7f8', '0fafc0', '69c0', '6b00', 'd40a', 'd500', 'a400', 'afff', 'c800'):
             with self.subTest(encoding=encoding):
                 self.assertNotIn(encoding, lines)
 
@@ -121,7 +126,7 @@ class LockstepRunTest(unittest.TestCase):
                                 cwd=lockstep.ROOT, env=env, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn(', 0 fail;', result.stdout)
-        self.assertIn('directed faults: 3 pass, 0 fail', result.stdout)
+        self.assertIn('directed cases: 16 pass, 0 fail', result.stdout)
         self.assertIn('trace unchanged', result.stdout)
         return result.stdout
 

@@ -6,7 +6,8 @@
 local List = require "widgets.list"
 local color = require "util.color"
 
-local DEST = 130
+-- Leave room for Tenfoot's status row below the list viewport.
+local DEST = 180
 -- List colours match the other console rooms: a dark plate, light unfocused
 -- ink, and dark ink on the accent bar. Row text sets its own colour because
 -- the sofa label is meant for the dark shell.

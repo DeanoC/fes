@@ -13,8 +13,8 @@ func (a *App) coreOwnsPadInput() bool {
 }
 
 // sessionKeypadLocked is a running machine with keypad ports, such as the
-// Coleco. Its Select is the keypad * key, so Select stays with the machine
-// and Home or Guide opens the media selector.
+// Coleco. Its Select is the keypad * key, so Select stays with the machine.
+// Home/F12 opens the Coleco title room; Guide opens cartridge media controls.
 func (a *App) sessionKeypadLocked() bool {
 	p := a.session.CorePackage
 	if p == nil {

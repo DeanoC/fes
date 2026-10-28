@@ -230,6 +230,15 @@ func (a *App) sessionMediaOfferedLocked() bool {
 		(hostclient.RemovableMediaCapable(p) || hostclient.CartridgeSwapCapable(p))
 }
 
+func (a *App) sessionLiveMediaOfferedLocked() bool {
+	return a.session.State == "active" && hostclient.RemovableMediaCapable(a.session.CorePackage) && a.liveControlsOfferedLocked()
+}
+
+func (a *App) colecoCartridgeOfferedLocked() bool {
+	return a.session.State == "active" && a.colecoSessionLocked() && a.liveControlsOfferedLocked() &&
+		hostclient.CartridgeSwapCapable(a.session.CorePackage)
+}
+
 // sessionCartridgeLocked is a selector that changes the linked cartridge.
 func (a *App) sessionCartridgeLocked() bool {
 	return hostclient.CartridgeSwapCapable(a.tapePickerSession.CorePackage)

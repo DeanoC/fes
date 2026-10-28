@@ -239,7 +239,8 @@ follow = "corpus"
 [[vectors]]
 id = "popad-esp-high-word"
 title = "POPAD with a 16-bit stack loads the high word of ESP"
-files = ["6661"]
+opcodes = ["61"]
+when = ["opsize32"]
 fields = ["esp"]
 deciding_case = "6661#0"
 deciding_hash = "2c2b3ccba3ae932b8ae842cf03537265b1954ce8"
@@ -251,19 +252,8 @@ follow = "corpus"
 [[vectors]]
 id = "stack-wrap-partial-transfer"
 title = "PUSHAD and POPA/POPAD that wrap the stack fault part way"
-cases = [
-    ["6660#302", "cfa9a2b884f6d4818ad75098bddab2a79e85cbb3"],
-    ["6660#704", "368405bf0153cdf2ab72e4e214c3fc3d53e7fe28"],
-    ["6660#875", "e3dba2cf41260e669633a369786d07647fc9cf5b"],
-    ["6660#949", "0157f9b6874d8e3ac951f2d9c15e5c7a25bf4626"],
-    ["6660#956", "dcdccc3287fe549d424a362423e24537e7846921"],
-    ["6660#1205", "3235953e3b82fe31dbda4b77b0d08d50395ffbc1"],
-    ["6660#1847", "d3644a7421a5c95621496fd6a5fbfd1a04203b64"],
-    ["6660#1900", "9e91448ef2fda3ec92132d7dc4a96a32588d8603"],
-    ["61#681", "b5ba6eb2b4fbce54a1c8cc367a1635a6228e24b7"],
-    ["6661#681", "af594cf83f0969a083096b6c1a38102363c18a8e"],
-    ["6661#1181", "dfa50db2235a7fdc8579ab9de69b96183e4c01b7"],
-]
+opcodes = ["60", "61"]
+when = ["slot-straddles-wrap"]
 fields = ["*"]
 deciding_case = "61#681"
 deciding_hash = "b5ba6eb2b4fbce54a1c8cc367a1635a6228e24b7"
@@ -275,13 +265,8 @@ follow = "corpus"
 [[vectors]]
 id = "interrupt-vector-before-push"
 title = "A real-mode interrupt reads its vector before pushing"
-cases = [
-    ["62#1752", "a19a3795eb2ce05998222f3d573de35023293c0b"],
-    ["6662#1752", "05367456ff18b99bd3721744b91397d6c6c21b32"],
-    ["6762#1752", "cc2a29147c4a39015af6a5afdfcbaa16aa1f6929"],
-    ["F6.6#1403", "9324b97e69a76c93ecf0d3b2575e55fe7676a46e"],
-    ["F7.6#701", "64ac534a31921ec2dc9ab15f564d3bbcfe9972ec"],
-]
+opcodes = ["*"]
+when = ["frame-over-vector"]
 fields = ["*"]
 deciding_case = "62#1752"
 deciding_hash = "a19a3795eb2ce05998222f3d573de35023293c0b"
@@ -291,24 +276,15 @@ follow = "corpus"
 # 5 failures; deciding case 'bound bx,[fs:bx-48h]'
 
 [[vectors]]
-id = "idiv8-overflow-returns-80h"
-title = "Some 8-bit IDIV overflows return 80h instead of #DE"
-cases = [
-    ["F6.7#469", "8813025dcf45588bd5141eb4d7081c67d6cf3ec3"],
-    ["F6.7#516", "c6d731127bec724d40594edc28a6ad8fdf14acbc"],
-    ["F6.7#850", "c1392c8316c2d0532d80fb1fcb78832533093e4e"],
-    ["F6.7#1265", "b674afe8d525fdf51217456b4a3f0b9102350cc4"],
-    ["F6.7#1754", "13e7537c7cd00f676d17da613b4289afb93b338d"],
-    ["F6.7#2348", "a4a926d8bbca1f281b0a479fd8c79fe3231bad34"],
-    ["67F6.7#375", "c30147a2fb7f67459cb7a1a4c888b670edd838f5"],
-    ["67F6.7#460", "8bddec44e46b709759d5d1550cd9fa16ab8e89fc"],
-    ["67F6.7#516", "a06745936bac371e6afb861b5bc87be4b2dd676e"],
-]
+id = "idiv-unchecked-overflow"
+title = "IDIV overflows that the 386EX's check lets through"
+opcodes = ["F6.7", "F7.7"]
+when = ["idiv-unchecked-overflow"]
 fields = ["*"]
 deciding_case = "67F6.7#375"
 deciding_hash = "c30147a2fb7f67459cb7a1a4c888b670edd838f5"
-oracle = "Bochs raises #DE for every quotient outside -128..127."
-corpus = "The 386EX completes without #DE, AL=80h and AH = the sign of AX over the low seven bits of AL. 48 other overflowing register-form cases in F6.7 do raise #DE; the rule that separates them is not yet derived."
+oracle = "Bochs raises #DE for every quotient outside the signed range."
+corpus = "The 386EX divides a negative dividend's one's complement by the divisor's magnitude, a bit per step, and checks the quotient, with the one more the complement owes, for its sign's range. On an overflowing dividend the steps leave a garbage quotient, and where it passes (80h for an 8-bit divide with the signs differing) the instruction completes without #DE: AL=80h and AH = the sign of AX over the low seven bits of AL (fes_i386_muldiv). No corpus case says whether the check comes before or after the one more; FES takes after, where Bochs agrees."
 follow = "corpus"
 # 9 failures; deciding case 'idiv cl'
 

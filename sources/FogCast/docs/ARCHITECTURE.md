@@ -515,7 +515,7 @@ raw Pong product. Package persistence uses the described-core records below.
 
 ## Core package inspection and staging
 
-`corepackage` is the shared, hardware-independent format-2/3 reader. It
+`corepackage` is the shared, hardware-independent format-2/3/4 reader. It
 inspects closed directories or restricted uncompressed ustar archives,
 validates the closed typed manifest and payload bytes, and computes package
 identity from the original manifest and payload. Unknown but well-formed ABIs
@@ -525,9 +525,9 @@ from the same pinned read for identity-reporting consumers such as
 `core-inspect`; the smaller `Inspect` wrapper returns only the descriptor.
 
 `corepackage.Stage` accepts a caller-bounded archive stream and publishes only
-validated `manifest.toml`, `core.rbf` and, for format 3, `rom-map.json` bytes
-into a distinct sealed directory
-beneath an absolute private root. Cancellation or validation failure removes
+validated `manifest.toml`, `core.rbf` and, for format 3 or 4,
+`rom-map.json` bytes into a distinct sealed directory beneath an absolute
+private root. Cancellation or validation failure removes
 the incomplete directory, including cancellation observed after rename and
 before ownership handoff. The caller owns the returned directory lifetime and
 must release it with `Staged.Cleanup`, which reopens and verifies the retained
@@ -757,27 +757,45 @@ native, and `change-tape` accepts that execution. Both paths are distinct from
 launch-time `POST /api/v1/session/development-media` (`load_media`). See the FES lock
 [ZX81 tape media](../../../docs/zx81-tape-media.md).
 
-### Cartridge swap over play (Coleco)
+### Coleco title selector and cartridge swap
 
-A running `fes.application` machine with a linked cartridge and the kit
-session plane also opens **Change media** from Home or Guide, as a cartridge
-picker. The cartridge is the single `rom_link` on its session package, or the
-second `rom_links` source after a linked BIOS. A swap replaces only that
-cartridge source. Its Select stays the machine's
-keypad `*` while the machine owns input. When launcher controls or a picker
-have focus, Select goes to that UI and is not forwarded to the machine. The
-cartridge is linked into the bitstream, so there is no eject and no live
-insert. The picker admits `.col`, `.rom` or `.bin` files of
-exactly the running cartridge's size. Choosing one imports it and posts
-`POST /api/v1/session/cartridge {media_id, name}` with the captured session
-and package-generation binding. The host relaunches the same title on the
-same kit with that cartridge for this one launch, the same way any launch
-replaces the running core. The title's own cartridge binding is unchanged,
-so the next ordinary launch uses its own cartridge again. The reply is the
-new generation; it retires the old plane and its focus, the picker closes,
+Factory Coleco format-4 packages link the 8 KiB BIOS and 16 KiB cartridge into
+the RBF at launch and do not expose a live media unit. Home and F12 during
+Coleco play open the `example.coleco-arcade` title selector over the running
+session. A selected title says that the running cartridge is fixed and that
+Stop is required before choosing another; Confirm cannot launch over the active
+session. This catalog route remains the Home/F12 action and Coleco does not fall
+through to the ZX81-only `example.hardware` workbench. With the Coleco room
+closed, Guide opens **Change media** as a cartridge picker. The cartridge is
+the single `rom_link` on its session package, or the second `rom_links` source
+after the linked BIOS. A swap replaces only that cartridge source. Select stays
+the machine's keypad `*` while the machine owns input; when a picker has focus,
+Select confirms its focused row and is not forwarded to the machine. The picker
+admits `.col`, `.rom` or `.bin` files of exactly the running cartridge's size,
+with no eject or live insert. Choosing one imports it and posts
+`POST /api/v1/session/cartridge {media_id, name}` with the captured session and
+package-generation binding. The host relaunches the same title on the same kit
+with that cartridge for this one launch. The title's own cartridge binding is
+unchanged, so its next ordinary launch uses its own cartridge again. The reply
+is the new generation; it retires the old plane and its focus, the picker closes,
 and play continues on the new load. The host separately revalidates the saved
 package, firmware and cartridge snapshot, then checks the load against the
 explicit replacement ID; the temporary choice does not weaken those checks.
+
+The Coleco Arcade room also remains the catalog path. The target publishes the
+activated descriptor's `core.id` in cached `/v1/status`; host polling keeps that
+identity with the matching package generation and can restore it from the saved
+launch record when an older target omits it. Tenfoot therefore recognizes
+`fes.coleco` even when the runtime's supported-interface projection omits its
+optional bus 2.0 interface. The room resolves installed Coleco titles from the
+`fpga` catalog platform, constrained by `core_id=fes.coleco`; package-library
+entries are not indexed on the hardware platform named `coleco`. While idle,
+Tab/Search opens that same filtered platform shelf, including after Stop, so
+installed Coleco packages remain visible in the ordinary library browser. The
+native-pixel shell also requires its matching Direct or Scanlines video part.
+The ColecoVision tile on Home opens `example.coleco-arcade`, which launches
+through the library and composes the selected video part. Other local cores
+that need a part still report incomplete display setup there.
 
 Operator/diagnostics CLI:
 
@@ -1186,6 +1204,10 @@ write-only: GET exposes `agent_configured` only, the sofa never echoes a
 stored agent, and PATCH sends `agent` only when the operator edited or
 cleared it.
 
+The Home overlay's Library row clears any room-specific core filter and
+reloads the full title list for the selected platform. Cycling platforms also
+clears that filter before reloading the library.
+
 Attract prefers a playlist `video` handle when present. Darwin CGO builds
 decode with AVFoundation (`ui/tenfoot/attractvideo`) after streaming
 `Accept: video/*` to a temp file (128 MiB cap). Linux uses the same download
@@ -1581,8 +1603,8 @@ not a playable library entry. Image inclusion and selector admission do not
 establish playability; [core status](../../../docs/core-status.md) records the
 exact-artifact kit evidence.
 The image selector validates and copies the closed `manifest.toml` and
-`core.rbf` set, including `rom-map.json` for format 3, beneath exact package IDs. It
-separately retains factory video assets beneath
+`core.rbf` set, including `rom-map.json` for formats 3 and 4, beneath exact
+package IDs. It separately retains factory video assets beneath
 `/usr/share/mister-runtime/core-video-parts`. Its canonical `index.json` binds
 each marked shell to one direct and one scanlines archive by profile, exact part
 ID, relative path, size and digest. The selected `FES_VIDEO_PARTS_DIR` tree has
@@ -1602,9 +1624,9 @@ retains the external producer/package selections beside the image,
 has no Main startup or legacy Menu-configuration helper, has no
 `/dev/MiSTer_cmd` wait, and retains the same read-only root with volatile
 `/run`, `/tmp`, and `/var/log`. Its build-input record identifies the runtime
-commit, agent binary and idle RBF provenance. For each
-format-2/3 package selected, the record also identifies the exact selection
-digest, package and payload IDs, producer/schema revisions, and install path.
+commit, agent binary and idle RBF provenance. For each format-2, format-3, or
+format-4 package selected, the record identifies the exact selection digest,
+package and payload IDs, producer/schema revisions, and install path.
 The verifier reconstructs that projection from the installed package and
 external selection; it does not infer selection from cache or image contents.
 The per-filesystem Buildroot copy retains the installed 0555 package directory
@@ -2668,7 +2690,9 @@ Tenfoot forwards physical keyboards on player 0 without reserving a gamepad
 port. Only physical gamepads occupy the two stable controller slots: the first
 two pads opened take ports 1 and 2 (pads present at startup in `/dev/input`
 order, later ones as they are plugged in, each taking the lowest free port) and
-keep them until unplugged, and a later pad that finds both taken never reaches a machine: it
+keep them until unplugged. The kits' `081f:e401` fixture pad is the
+exception: it yields its port to any other pad that arrives, releasing what
+it held there, and takes the port that pad would have had. A later pad that finds both taken never reaches a machine: it
 drives the menu where a pad with a port would, and its Guide button still stops
 a kit-local core. A `-input` node the classifier cannot place also takes a
 port. Keyboard
@@ -3113,8 +3137,8 @@ hardware acceptance claim.
 ## Developer video parts
 
 The separate developer parts path admits a format-2 `fes.coleco`
-`fes.application` 1.0 package, or a format-3 shell with one exact 16 KiB
-`cartridge` ROM, with optional `fes.expansion.coleco-bus` 2.0 and
+`fes.application` 1.0 package, or a format-4 shell with exact 8 KiB firmware
+and 16 KiB cartridge ROMs, with optional `fes.expansion.coleco-bus` 2.0 and
 exactly one optional video marker: `fes.fabric.video.raster-rgb888` 1.0 selects
 `fes.coleco-video.parts/1`, while `fes.fabric.video.native-pixels` 1.0 selects
 `fes.coleco-native-video.parts/1`. Native version 1 fixes the source at
@@ -3230,9 +3254,9 @@ map. A lost response is not replayed. Success requires the returned part
 identity, shell package and profile to match the snapshot.
 
 `fogcast/core_video.go` considers only parts for the entry's exact installed
-package and declared video socket. The closed Coleco shell contract, format 2
-or a format-3 16 KiB cartridge, rejects mixed markers and unsupported versions
-even without installed parts.
+package and declared video socket. The closed Coleco shell contract admits
+format 2 or format 4 with exact 8 KiB firmware and 16 KiB cartridge ROMs, and
+rejects mixed markers and unsupported versions even without installed parts.
 If the preferred Scanlines profile is absent, selection uses an installed Direct
 part for that same shell. A native shell without that fallback rejects launch;
 it cannot launch its vacant base. A valid selected Scanlines part works without
@@ -3258,7 +3282,7 @@ as `fpga_native` and binds the complete parts tuple, programmed digest and
 generation to the library session. The shell package, BUILD_ID, fixed video and
 audio/input contracts remain those of the sealed base. This selection path
 accepts the same two closed Coleco layouts as the developer path, including a
-format-3 16 KiB cartridge.
+format-4 layout with exact 8 KiB firmware and 16 KiB cartridge ROMs.
 
 ## Described-core persistent data
 
@@ -3328,12 +3352,14 @@ identity imposed on later live media changes.
 
 ## ROM-bearing package inspection
 
-`corepackage` accepts closed format-2 and format-3 packages during the ROM
-transition. Format 3 carries exactly `manifest.toml`, `core.rbf`, and
-`rom-map.json`. The required `rom` manifest table names one ROM requirement
-(id, firmware/cartridge role and exact binary source size) and binds the map's
-length and SHA256. Package identity uses the format-3 domain and hashes all
-three exact members. The maximum archive/import size is 65 MiB; format-2
+`corepackage` accepts closed format-2, format-3, and format-4 packages. Formats
+3 and 4 carry exactly `manifest.toml`, `core.rbf`, and `rom-map.json`. The
+format-3 `rom` manifest table names one ROM requirement (id, firmware/cartridge
+role and exact binary source size) and binds the map's length and SHA256.
+Format-3 identity uses its own domain and hashes all three exact members.
+Format 4 binds its map and two ordered ROM requirements in the `rom_map` and
+`roms` manifest fields; format-4 identity also hashes all three exact members
+under its own domain. The maximum archive/import size is 65 MiB; format-2
 payload limits and identities remain unchanged.
 
 Import, private staging, inspection and restart adoption validate and preserve

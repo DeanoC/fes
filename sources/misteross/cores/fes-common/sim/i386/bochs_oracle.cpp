@@ -232,7 +232,8 @@ void fes_bx_after_execution(bxInstruction_c *) {
 
 void fes_bx_exception(unsigned vector, unsigned error_code) {
     if (!context.result) return;
-    context.result->events.push_back({fes_i386::EventKind::Exception, uint8_t(vector), error_code});
+    context.result->events.push_back({fes_i386::EventKind::Exception, uint8_t(vector), error_code,
+                                      uint32_t(context.result->writes.size())});
     context.delivery_pending = true;
     stop_at_next_boundary();
 }
@@ -242,7 +243,7 @@ void fes_bx_hwinterrupt(unsigned vector) {
     bool nmi = context.nmi_requested && vector == 2 && !bx_cpu.is_pending(BX_EVENT_NMI);
     if (nmi) context.nmi_requested = false;
     context.result->events.push_back({nmi ? fes_i386::EventKind::Nmi : fes_i386::EventKind::ExternalInterrupt,
-                                      uint8_t(vector), 0});
+                                      uint8_t(vector), 0, uint32_t(context.result->writes.size())});
     context.delivery_pending = true;
     context.boundary_event = true;
 }
@@ -253,7 +254,8 @@ void fes_bx_interrupt(unsigned vector) {
         context.delivery_pending = false;
         return;
     }
-    context.result->events.push_back({fes_i386::EventKind::SoftwareInterrupt, uint8_t(vector), 0});
+    context.result->events.push_back({fes_i386::EventKind::SoftwareInterrupt, uint8_t(vector), 0,
+                                      uint32_t(context.result->writes.size())});
 }
 
 void fes_bx_lin_access(bx_address lin, bx_address phy, unsigned len, unsigned rw) {

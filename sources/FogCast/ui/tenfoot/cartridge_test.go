@@ -18,6 +18,7 @@ import (
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
+	"github.com/DeanoC/FogCast/ui/rooms"
 	"github.com/DeanoC/misteross/expansion"
 )
 
@@ -26,7 +27,9 @@ import (
 func colecoKitSession() hostclient.SessionResult {
 	s := hardwareBoundSession()
 	s.GameID = "fpga-coleco"
+	s.System = string(protocol.SystemColecoVision)
 	s.Input = &hostclient.SessionInput{State: "attached", Ready: true}
+	s.CorePackage.CoreID = colecoCoreID
 	s.CorePackage.ABI = hostclient.SessionCoreABI{ID: "fes.application", Major: 1}
 	s.CorePackage.ActiveInterfaces = []hostclient.SessionCoreInterface{
 		{ID: "fes.gamepad.ports", Major: 1}, {ID: "fes.keypad.ports", Major: 1},
@@ -57,9 +60,9 @@ func colecoBIOSKitSession() hostclient.SessionResult {
 	return s
 }
 
-// Home over a running Coleco opens the media selector as a cartridge picker.
-// Choosing a cartridge imports it and relaunches the title through the
-// session-bound cartridge call; the selector closes on the new generation.
+// Guide/Search over a running Coleco opens the cartridge picker while Home/F12
+// retains the Coleco Arcade title room. Choosing a cartridge imports it and
+// relaunches the title through the session-bound cartridge call.
 func TestKitCartridgeMachineSwapsCartridgeOverPlay(t *testing.T) {
 	for name, session := range map[string]func() hostclient.SessionResult{
 		"cartridge": colecoKitSession, "bios-and-cartridge": colecoBIOSKitSession} {
@@ -111,12 +114,16 @@ func testCartridgeSwapOverPlay(t *testing.T, session func() hostclient.SessionRe
 	}))
 	t.Cleanup(server.Close)
 	app, _ := kitDisplayApp(t, server)
+	app.SetRooms(rooms.NewIndex([]rooms.Pack{
+		testRoomPack(t, hardwareRoomID, liveHardwareTestScript),
+		testRoomPack(t, colecoArcadeRoomID, `function load() end; function draw() gfx.clear("#101820") end`),
+	}), "")
 	app.mu.Lock()
 	app.session = prior
 	app.hostSettings.Libraries = []hostclient.LibraryRoot{{ID: "usb", System: "coleco", Root: dir}}
 	app.syncGPUParkLocked()
 	app.mu.Unlock()
-	app.HandleCommand(CmdHome, time.Now())
+	app.HandleCommand(CmdSearch, time.Now())
 	waitFor(t, app, "cartridge selector over play", func(s Snapshot) bool {
 		return s.Session.ControlsOpen && !s.GPUParked && s.TapePicker.Open && s.Status == "Choose a cartridge for the running machine."
 	})

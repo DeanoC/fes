@@ -72,6 +72,7 @@ type SessionCoreABI struct {
 // PackageID and ABI are present on the host wire for live-media binding;
 // older fixture bodies may omit them.
 type SessionCorePackage struct {
+	CoreID           string                      `json:"core_id,omitempty"`
 	PackageID        string                      `json:"package_id,omitempty"`
 	MediaUnits       []protocol.MediaUnitStatus  `json:"media_units,omitempty"`
 	PersistenceMode  string                      `json:"persistence_mode,omitempty"`
