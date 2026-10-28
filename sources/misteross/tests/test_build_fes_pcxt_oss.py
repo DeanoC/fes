@@ -3,11 +3,39 @@ import tempfile
 import tomllib
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
 
 from scripts import build_fes_pcxt_oss as producer
 
 
 class FesPcxtPackageRecipeTest(unittest.TestCase):
+    def test_build_prepares_output_with_shared_builder_helper(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            tools = {
+                "yosys": SimpleNamespace(identity="yosys-test"),
+                "nextpnr-mistral": SimpleNamespace(identity="nextpnr-test"),
+            }
+            invocation = SimpleNamespace(inputs={}, close=mock.Mock())
+            with (
+                mock.patch.object(producer, "_require_clean_source",
+                                  return_value=("https://github.com/DeanoC/fes", "a" * 40)),
+                mock.patch.object(producer, "authenticate_tools", return_value=tools),
+                mock.patch.object(producer, "FunctionalInvocation", return_value=invocation),
+                mock.patch.object(producer, "create_build_record", return_value=b"record"),
+                mock.patch.object(producer, "_prepare_output",
+                                  side_effect=producer.BuildError("stop after output preparation")) as prepare_output,
+            ):
+                with self.assertRaisesRegex(producer.BuildError, "stop after output preparation"):
+                    producer.build(root)
+
+            prepare_output.assert_called_once_with(
+                root, relative=producer.OUTPUT_RELATIVE,
+                build_outputs=producer.BUILD_OUTPUTS,
+            )
+            invocation.close.assert_called_once_with()
+
     def test_manifest_declares_only_fixed_video_for_the_diagnostic_mailbox(self):
         record = json.dumps({"recipe_sha256": "a" * 64}).encode()
         encoded = producer.manifest(

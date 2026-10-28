@@ -28,7 +28,7 @@ from scripts.export_core_package import (
     build_identity, encode_build_record, export_package, functional_record_fields,
 )
 from scripts.fes_build_common import (
-    BuildError, _invalidate_failed_artifact,
+    BuildError, _invalidate_failed_artifact, _prepare_output,
     _read_json, _require_clean_source as require_clean_source,
     _run_tool, _sha256, _write_atomic,
 )
@@ -221,8 +221,8 @@ def build(
         record = create_build_record(root, repository, revision, identities,
                                      identity_version=identity_version,
                                      execution=invocation.inputs)
-        output = board._prepare_output(root, relative=OUTPUT_RELATIVE,
-                                       build_outputs=BUILD_OUTPUTS)
+        output = _prepare_output(root, relative=OUTPUT_RELATIVE,
+                                 build_outputs=BUILD_OUTPUTS)
         _write_atomic(output / "build-inputs.json", record)
         for name in board.CHIP_VENDORS:
             board.verify_vendor(name)
