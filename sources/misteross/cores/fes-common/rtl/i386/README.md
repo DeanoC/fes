@@ -522,14 +522,14 @@ SF, ZF, AF and PF. LOCK is valid on BTS, BTR and BTC with a memory operand.
 - **By a register, with a memory operand** (`SEQ_BTM`), the address moves by
   the register: (n >> 4) * 2 or (n >> 5) * 4, signed, added to the operand's
   offset and wrapped by address size, as Bochs and the 386EX do. AG has no
-  fifth term for it, so three uops pass it through T1, which D reads with no
-  address register:
+  fifth term for it, so three uops fold it into the displacement through T1:
   - the displacement into T1, from the register (`ALU_BITDISP`, wiring in EX);
-  - T1 plus the operand's address into T1: AG adds T1 as the segment term,
-    which an address uop leaves 0, and M1 takes the linear sum, wrapped by
-    address size, as the result (`addr_t1`);
-  - the bit test at T1 as its displacement (`disp_t1`), in the operand's
-    segment.
+  - T1 plus the operand's displacement into T1, an ADD;
+  - the bit test at the operand's address with T1 as its displacement
+    (`disp_t1`), through `far_off`, which already takes a far jump's offset
+    from T1. AG wraps the offset by address size.
+  No other path from T1 into D's AG registers is added: two that a first
+  version had cost about 4 MHz on nextpnr.
   Each waits for the T1 before it to retire, behind one register (`t_rd`):
   about 12 cycles more than a bit test by an immediate, without latency, on
   a form game code rarely runs.
