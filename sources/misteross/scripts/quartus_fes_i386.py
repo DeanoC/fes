@@ -22,7 +22,8 @@ synth_intel_alm maps to DSP blocks. Constant multiplies, the packed-array
 strides the netlist still spells out (start*42 for dec[start]), it folds into
 logic, but Quartus would put the widest in a DSP block. So Quartus's
 DSP_BLOCK_BALANCING is logic elements, and each product of two signals is
-marked (* multstyle = "dsp" *), which Quartus takes over that setting.
+marked (* multstyle = "dsp" *), which Quartus takes over that setting. The
+marks are attributes only, so the logic is still the lockstep's netlist.
 --dsp-in-logic leaves the marks off, so every multiply is logic.
 
 Each seed fits the same synthesis. TimeQuest reports, at the slow corner
@@ -317,7 +318,7 @@ def main() -> int:
         summary = {'classification': 'i386 Quartus oracle: diagnostic only, never the product path',
                    'created_utc': datetime.now(timezone.utc).isoformat(), 'quartus': version,
                    'spike': args.spike, 'yosys': args.yosys,
-                   'netlist': NETLIST.format(files='<spike sources>', top=TOP, out=f'{TOP}.v'),
+                   'netlist': NETLIST.format(files='<spike sources>', top=TOP, out='yosys.v'),
                    'dsp_mode': dsp_mode, 'dsp_products': products, 'device': DEVICE, 'target_mhz': args.target_mhz,
                    'corner': 'slow 1100mV 100C (TimeQuest default)',
                    'sources': {path.relative_to(ROOT).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
