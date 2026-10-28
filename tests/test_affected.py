@@ -181,7 +181,7 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-apple2/rtl/apple2_machine.sv': {'apple2'},
             'cores/fes-c64/rtl/c64_machine.sv': {'c64'},
             'cores/fes-common/rtl/cpu6502/cpu6502.v': {'apple2', 'c64'},
-            'cores/fes-common/rtl/fes_computer_mailbox.v': {'apple2', 'c64', 'spectrum', 'atari-st', 'zx81'},
+            'cores/fes-common/rtl/fes_computer_mailbox.v': {'apple2', 'c64', 'spectrum', 'atari-st', 'zx81', 'pcxt'},
             'cores/fes-common/rtl/t80pa.v': {'coleco', 'sms'},
             'scripts/apple2_slots.py': {'apple2'},
             'scripts/build_apple2_slot_card.py': {'apple2'},

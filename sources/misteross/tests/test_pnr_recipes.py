@@ -43,6 +43,7 @@ LOCK_SHA256 = {
     "fes.spectrum-plus3": "213604b82009022085ea1bc504207da3c5b56db044d2e836fce8688d246afec3",
     "fes.pentagon": "213604b82009022085ea1bc504207da3c5b56db044d2e836fce8688d246afec3",
     "fes.riscv": "2669044d4d481c94cf6ba7127614077480fd65ba730a784ac26f747764e472cf",
+    "fes.pcxt": "526fae173ab429cfbe65dba15ad9422e408db27fc27117130926160fea60da4f",
     "fes.ramtest": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
     "fes.atari-st": "e4a11eac287674e473ab33ae356595245d564d32623be5b90472740d02aaecdb",
 }
@@ -66,6 +67,7 @@ FLAGS_SHA256 = {
     65: "38d02f4b8db3804837214ed9227bbac0b2b92f4687a3bb31a9d88d48d30ba5e6",
     67: "1a6b1280f5a3303b8ac0447b56e9af53d606633ec29ae9c4004ca700bf9d82b2",
 }
+PCXT_FLAGS_SHA256 = "1df45a51d1ebb46353c90454cf28986b9c565f05185a5a4adfc4fcaac9508b5a"
 ZX81_FLAGS_SHA256 = "0d8e2411d19f74c2af22177bb9c5836ab7cb0e7713e5931f0eca7b0b11914d7e"
 ZX81_FAMILY = {"fes.zx81", "fes.zx80", "fes.ts1000", "fes.ts1500"}
 
@@ -106,6 +108,7 @@ GOLDENS = {
     "fes.spectrum-plus3": ("09c8a0e75e87113ac9cfd5a05071d62431ce8427b4d7b95c38897d5e95305c29", "df1e8572d39b1baa8febcd96bee550765c2d5451b27baea60682e52a5d87f21d"),
     "fes.pentagon": ("09c8a0e75e87113ac9cfd5a05071d62431ce8427b4d7b95c38897d5e95305c29", "df1e8572d39b1baa8febcd96bee550765c2d5451b27baea60682e52a5d87f21d"),
     "fes.riscv": ("c7be1fd18e5fea4deb93dc7247e759409c802db3073e11659ac591ddb68b589b", "213407fd4fd731c94a022df86b5460388dd691a54d5f7cb390cd2e5c0e80126a"),
+    "fes.pcxt": ("d56ed213794d92ba21b7b111bc2ea31bd60e9d94f2388cfc494cc137296ac594", "2f0cff584410f19cddc5e1e75f645324a2f1922341e84817011ffe6698d391b4"),
     "fes.ramtest": ("ede6474bf85ce45e0631d4edb375bc37ab9c1161aae0a265f3c5c34920947781", "ded346bda6c66889e7f08e994eb82964871784b747cbc24159782b25406da42e"),
     "fes.atari-st": ("024942708300607968eb887324d48912d50c96634fe7ea0cd1a74d16776dbfd0", "31597590be7e868a81521a62ceaa190e7af72dfffc106b9c5898646ea56e040a"),
 }
@@ -131,6 +134,7 @@ ARGV_MATRIX_GOLDENS = {
     "fes.spectrum-plus3": "e3836e041f0ebefcf4eeff1c8969849321ce5f9ada1ed30e499cc2064febe060",
     "fes.pentagon": "e3836e041f0ebefcf4eeff1c8969849321ce5f9ada1ed30e499cc2064febe060",
     "fes.riscv": "177f0476e55e89727fd172de68e2a08b4c684e2a0c99184e4330acfaa4efa85c",
+    "fes.pcxt": "0c29ee23b9a1301052e549577005798822d5b00122e5c7e62a4b3b639ce20309",
     "fes.ramtest": "159f755b9a023c72346c869160555cb102132b77c7ca714bd0b52980be3d4079",
     "fes.atari-st": "36c86eaedd189ac95d79f18c08cd140d6def21d83613e863d6dae20567ab6d84",
 }
@@ -168,6 +172,8 @@ def _legacy_argv(core_id, recipe, *, slot=SLOT, synth=SYNTH, output=OUTPUT,
                         "--detailed-timing-report"))
         if recipe["gpu_device"] == "lease":
             command.extend(("--gpu-device", "0"))
+    if core_id == "fes.pcxt":
+        command.extend(("--timing-report-paths", str(recipe["flags"]["timing_report_paths"])))
     if core_id in ZX81_FAMILY:
         command.append("--arrival-pin-assignment")
     return command
@@ -243,7 +249,7 @@ class PnrRecipeTests(unittest.TestCase):
                 self.assertEqual(hashlib.sha256(lock.read_bytes()).hexdigest(), LOCK_SHA256[core_id])
                 pin = load_lock(lock)["nextpnr"].commit
                 self.assertEqual(pnr_recipe.nextpnr_pin(core_id), pin)
-                if core_id == "fes.coleco":
+                if core_id in {"fes.coleco", "fes.pcxt"}:
                     option_count = 107
                 elif core_id in {"fes.pong", "fes.riscv", "fes.atari-st"} | ZX81_FAMILY:
                     option_count = 105
@@ -502,7 +508,10 @@ class PnrRecipeTests(unittest.TestCase):
                 self.assertEqual(pnr_recipe.recipe_digest(core_id), recipe_sha)
                 flags_sha = hashlib.sha256(json.dumps(
                     recipe["flags"], sort_keys=True, separators=(",", ":")).encode()).hexdigest()
-                self.assertEqual(flags_sha, ZX81_FLAGS_SHA256 if core_id in ZX81_FAMILY else FLAGS_SHA256[len(recipe["flags"])])
+                expected_flags_sha = (PCXT_FLAGS_SHA256 if core_id == "fes.pcxt" else
+                                      ZX81_FLAGS_SHA256 if core_id in ZX81_FAMILY else
+                                      FLAGS_SHA256[len(recipe["flags"])])
+                self.assertEqual(flags_sha, expected_flags_sha)
                 weights = tuple(dict.fromkeys((*recipe["timing_weights"], *recipe["search_weights"])))
                 optional_env = {**ENV, **recipe["optional_env"]}
                 self.assertEqual(pnr_recipe.environment(core_id, optional_env), optional_env)
@@ -730,6 +739,17 @@ class PnrRecipeTests(unittest.TestCase):
                 continue
             source = ROOT / "sources/misteross" / entry["producer_script"]
             tree = ast.parse(source.read_text())
+            if entry["core_id"] == "fes.pcxt":
+                calls = [node for node in ast.walk(tree)
+                         if isinstance(node, ast.Call)
+                         and isinstance(node.func, ast.Attribute)
+                         and node.func.attr == "build"
+                         and isinstance(node.func.value, ast.Name)
+                         and node.func.value.id == "pnr_recipe"]
+                self.assertEqual(len(calls), 1, entry["producer_script"])
+                self.assertEqual(calls[0].args[0].value, entry["core_id"])
+                self.assertTrue(any(keyword.arg == "env" for keyword in calls[0].keywords))
+                continue
             calls = [node for node in ast.walk(tree)
                      if isinstance(node, ast.Call)
                      and isinstance(node.func, ast.Name)

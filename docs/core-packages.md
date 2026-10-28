@@ -11,13 +11,16 @@ The locked idle core is the in-tree misteross seal
 `/usr/share/mister-runtime/idle.rbf`, which the runtime loads for Stop. Attract and rooms are not that
 bitstream; see [Idle MENU → rooms](idle-menu-rooms.md).
 
-The recipe registry supports the described `fes.pong`, `fes.zx81`,
-`fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.apple2`, `fes.c64`, `fes.spectrum`, `fes.catch`, `fes.riscv` `fes.ramtest` and `fes.atari-st` HIP/nextpnr
+The recipe registry supports the described `fes.pong`, `fes.zx81`, `fes.pcxt`,
+`fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.apple2`, `fes.c64`, `fes.spectrum`,
+`fes.catch`, `fes.riscv`, `fes.ramtest` and `fes.atari-st` HIP/nextpnr
 producers. The default target-image selector installs the closed package set
 containing only `fes.menu` display firmware. All playable systems are installed
 independently through the core catalog. Coleco and Atari ST installations need
 their matching Direct/Scanlines video parts; firmware remains user-supplied.
 Their package builds and timing results no longer gate the default OS image.
+PC/XT is an installable diagnostic package; its timing remains unqualified
+under issue [#840](https://github.com/DeanoC/fes/issues/840).
 For a deliberately expanded image selection, optional-core omission still uses
 `unavailable-cores.json`; `FES_REQUIRE_ALL_CORES=1` requires every selected core.
 See [core status](core-status.md) for package evidence.

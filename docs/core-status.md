@@ -281,17 +281,19 @@ to ordinary 320×200, and later demo sections/audio fidelity remain unqualified.
 
 ## PC/XT development diagnostic
 
-PC/XT is outside the factory/package set. Its assembled 8088, motherboard,
+PC/XT is outside the factory image package set. Its assembled 8088, motherboard,
 SDRAM, ISA CGA/MDA and one Direct/Scanlines pipeline have host simulation
-coverage, including DMA and refresh. The autonomous diagnostic board builder
-supplies PLL/reset, SDRAM capture/pads and HDMI, with separate retained attempts
-under `sources/misteross/build/diagnostic/fes-pcxt/`. The CGA Direct diagnostic
-at `6df7e982` was rejected by the [Quartus cross-check](https://github.com/DeanoC/fes/pull/836#issuecomment-6261235615):
-system, pixel and ROM-phase paths miss the unchanged 100/74.25/100 MHz targets.
-Its old nextpnr-only pass does not establish timing closure; [#840](https://github.com/DeanoC/fes/issues/840)
-remains open. Other profiles,
-SDRAM pad qualification, physically linkable ISA cards, a runtime ABI/sealed package,
-BIOS/DOS/game compatibility and hardware acceptance remain open. See the
+coverage, including DMA and refresh. The diagnostic board builder supplies
+PLL/reset, SDRAM capture/pads and HDMI, with separate retained attempts under
+`sources/misteross/build/diagnostic/fes-pcxt/`. `fes.pcxt` now has an installable
+format-2 diagnostic package with a minimal `fes.computer` identity/execution
+mailbox and fixed CGA Direct video. The known OSS timing miss remains accepted
+for packaging: video 71.18/74.25 MHz and main 90.88/100 MHz. The CGA Direct
+diagnostic was rejected by the [Quartus cross-check](https://github.com/DeanoC/fes/pull/836#issuecomment-6261235615),
+and [#840](https://github.com/DeanoC/fes/issues/840) remains open. Package creation
+does not establish timing closure, SDRAM pad qualification, physical socket
+containment or hardware acceptance. BIOS/DOS/game compatibility, keyboard and
+other profiles remain open. See the
 [PC/XT diagnostic guide](../sources/misteross/cores/fes-pcxt/README.md#assembled-board-diagnostic).
 
 ## pc386 machine, phases M1, M2 and M3

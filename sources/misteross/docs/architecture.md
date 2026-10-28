@@ -2872,12 +2872,14 @@ its [wire contract](../../mister-packages/docs/pcxt-isa.md) defines handshakes,
 reset and side-effect ordering. The [core README](../cores/fes-pcxt/README.md)
 lists coverage and limitations.
 
-**The complete machine below remains a proposal.** `fes.pcxt` is the proposed
-package identity. The remaining HID keyboard frontend, disk
-controller, physical socket layout, package producer and sealed PC/XT package are not
-implemented yet. The fabric does not enable
-runtime activation or claim a linkable RBF. Existing linker layout admission
-remains closed until an exact shell and its physical sockets are qualified.
+**The full PC/XT product remains in development.** The registered `fes.pcxt`
+recipe now exports an installable format-2 diagnostic package with the standard
+identity/execution mailbox and fixed CGA Direct video. Keyboard, media and
+physical socket interfaces are not declared. The package carries the known
+71.18/74.25 MHz video and 90.88/100 MHz main-clock miss tracked by FES #840;
+it does not claim timing closure, physical socket qualification or hardware
+acceptance. Existing linker layout admission remains closed until an exact
+shell and its physical sockets are qualified.
 
 The target is software for an IBM 5160-class machine, including bootable
 floppy games and DOS games that access hardware directly. The baseline is an
@@ -3193,8 +3195,12 @@ I/O strobes and PIC/PIT/PPI chip selects are registered predictions of the
 existing state/phase decode, preserving every active/release cycle while
 removing that decode from the peripheral's same-cycle control path. Warm reset/HOLD
 preserve storage/refresh; HOLD resets the machine and mutes video.
-`make build-fes-pcxt CACHE_ROOT=/absolute/cache` retains each diagnostic
-synthesis/route attempt under `build/diagnostic/fes-pcxt/`; it exports no package.
+`make build-fes-pcxt CACHE_ROOT=/absolute/cache` retains each standalone
+diagnostic synthesis/route attempt under `build/diagnostic/fes-pcxt/`.
+`python3 scripts/core_dev.py prepare --core fes.pcxt --output out/pcxt-package`
+uses the registered producer to create an installable RBF and manifest under
+`build/packages/`; this diagnostic package records the timing miss as
+unqualified rather than blocking export.
 Its default seed-3 route uses fixed timing weight 2000 and criticality exponent 5,
 with unchanged 100/74.25 MHz constraints. An explicit unsigned 64-bit `--seed`
 selects a reproducible diagnostic run; it does not start a seed search. The
@@ -3204,8 +3210,9 @@ and visibility are recorded in the diagnostic receipt.
 The [board diagnostic guide](../cores/fes-pcxt/README.md#assembled-board-diagnostic)
 defines the firmware, clock/capture choices, profiles and test coverage.
 The existing Coleco/ST physical layouts are not admitted as PC/XT layouts.
-The new inline output changes neither linker/runtime policies nor the shared
-fabric definitions, and has no sealed RBF or hardware acceptance yet.
+The inline output changes neither linker/runtime policies nor the shared
+fabric definitions. The installable package is diagnostic and has no timing or
+hardware acceptance.
 
 ### Emulated ISA expansion ports
 

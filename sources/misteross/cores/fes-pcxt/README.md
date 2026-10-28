@@ -5,8 +5,10 @@ an eight-slot virtual ISA backplane. The [machine design](../../docs/architectur
 targets an 8088/8086 PC/XT with IBM graphics and extensions to the existing
 linkable-card mechanism. The motherboard slice adds memory decoding, an 8259A
 PIC, 8253 PIT, 8255 PPI, XT keyboard byte transport and speaker PCM, and a transaction-native 8237A DMA subset. Separate ISA CGA and MDA display cards add guest raster output. It has no
-HID keyboard frontend, disk controller, BIOS, physical socket map or package producer.
-It cannot boot DOS or PC/XT games yet. The storage lane connects conventional RAM and firmware to the existing
+HID keyboard frontend, disk controller, BIOS or physical socket map. The
+registered `fes.pcxt` recipe builds a diagnostic package with fixed CGA Direct
+video and the standard identity/execution mailbox; it can start the built-in
+diagnostic, but cannot boot DOS or PC/XT games yet. The storage lane connects conventional RAM and firmware to the existing
 addon SDRAM controller and boots the display diagnostic through its physical
 command interface in host simulation. The CGA Direct board diagnostic has no
 accepted timing result: the earlier native signoff was rejected by the
@@ -526,8 +528,11 @@ falling count-clock edges; induction checks freshness whenever a candidate is
 consumed. Scalar terminal-count flags are evaluated alongside data and selected
 in parallel with next-count data. Guest-visible count/output updates and bus
 timing are unchanged.
-HDMI transmitter I2C uses the existing HPS peripheral bridge. This autonomous
-power-on diagnostic has no runtime ABI, host session control or audio pins.
+HDMI transmitter I2C uses the existing HPS peripheral bridge. The standalone
+`build_fes_pcxt.py` profile remains an autonomous power-on diagnostic without
+a runtime ABI, host session control or audio pins. The registered OSS package
+producer enables only the standard execution mailbox and fixed video identity;
+keyboard and media interfaces remain disabled.
 
 ```sh
 # From sources/misteross; no shared compiler cache environment for simulations.
@@ -538,6 +543,8 @@ FES_GPU_LEASE_OWNER=pcxt-agent GPU_LEASE_MAX_PER_OWNER=2 make build-fes-pcxt CAC
 FES_GPU_LEASE_OWNER=pcxt-agent GPU_LEASE_MAX_PER_OWNER=2 make build-fes-pcxt CACHE_ROOT=/absolute/toolchain-cache PCXT_BUILD_ARGS='--mda --scanlines'
 # Optional frontend/resource probe; no route:
 make build-fes-pcxt CACHE_ROOT=/absolute/toolchain-cache PCXT_BUILD_ARGS='--synth-only'
+# From the FES repository root, prepare the installable diagnostic package:
+python3 scripts/core_dev.py prepare --core fes.pcxt --output out/pcxt-package
 ```
 
 The board producer authenticates `cores/fes-pcxt/toolchain.lock`, with reviewed
@@ -990,8 +997,8 @@ polls real status ports and verifies emitted frames with 0/137-clock storage wai
 The parent affected-test planner and
 CI simulation matrix include this simulation-only family. Passing these tests
 is host evidence only. Physical socket placement/routing, exact-shell archives,
-firmware composition and hardware acceptance remain required before a linkable
-PC/XT package can be published. The existing closed linker layouts are unchanged.
+firmware composition and hardware acceptance remain required before claiming a
+physically qualified PC/XT package. The existing closed linker layouts are unchanged.
 
 The optional diagnostic synthesis command uses the same authenticated toolchain
 as the existing Coleco producer:

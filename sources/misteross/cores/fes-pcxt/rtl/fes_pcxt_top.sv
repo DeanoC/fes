@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// Autonomous diagnostic board shell. No production runtime/firmware ABI.
-module top #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0) (
+// The default profile is autonomous. The package producer enables the minimal
+// runtime mailbox so the target can start the built-in diagnostic ROM.
+module top #(
+    parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0,
+    parameter bit ENABLE_FES_COMPUTER = 0,
+    parameter [127:0] BUILD_ID = 128'h00000000000000000000000000000000
+) (
     input wire FPGA_CLK1_50,
     output wire HDMI_TX_CLK, HDMI_TX_DE, HDMI_TX_HS, HDMI_TX_VS,
     output wire [23:0] HDMI_TX_D,
@@ -71,10 +76,27 @@ module top #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0) (
     end else begin: common_reset_domain
         assign board_reset_live = sys_reset[1];
     end endgenerate
+    wire exec_reset;
+    generate if (ENABLE_FES_COMPUTER) begin: fes_computer_runtime
+        wire [31:0] fpga_to_hps, hps_to_fpga;
+        cyclonev_hps_interface_mpu_general_purpose hps_gp (
+            .gp_in(fpga_to_hps), .gp_out(hps_to_fpga));
+        fes_computer_mailbox gp_mailbox (
+            .clk(clk), .gpo(hps_to_fpga), .build_id(BUILD_ID), .gpi(fpga_to_hps),
+            .exec_reset(exec_reset), .keyboard_rows(), .controller_buttons(),
+            .mouse_valid(), .mouse_dx(), .mouse_dy(), .mouse_buttons(), .mouse_ready(1'b0),
+            .media_write_addr(), .media_write_data(), .media_write_enable(),
+            .media_write_ready(1'b1), .media_write_busy(1'b0), .media_changed(1'b0),
+            .media_frozen(), .media_read_req(), .media_read_addr(),
+            .media_read_ready(1'b0), .media_read_data(8'd0),
+            .unit0_state(), .unit0_size());
+    end else begin: standalone_diagnostic
+        assign exec_reset = 1'b0;
+    end endgenerate
     wire firmware_valid, firmware_ready, firmware_done;
     wire [15:0] firmware_address;
     wire [7:0] firmware_data;
-    pcxt_boot boot (.clk(clk_memory), .cold_reset(board_reset_live), .enable(1'b1),
+    pcxt_boot boot (.clk(clk_memory), .cold_reset(board_reset_live), .enable(!exec_reset),
         .valid(firmware_valid), .ready(firmware_ready), .done(firmware_done),
         .address(firmware_address), .data(firmware_data));
     wire [31:0] video_request;
@@ -84,7 +106,7 @@ module top #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0) (
     /* verilator lint_off PINCONNECTEMPTY */
     pcxt_system #(.MDA(MDA), .SCANLINES(SCANLINES), .HALF_RATE_BOARD(HALF_RATE_BOARD), .EXTERNAL_CS_REGISTER(HALF_RATE_BOARD)) system (
         .clk(clk_memory), .clk_cpu(clk), .clk_pixel(clk_pixel), .clk_pin(clk_memory), .cold_reset(board_reset_live),
-        .reset_pixel(pixel_reset[1]), .warm_reset(1'b0), .hold(1'b0),
+        .reset_pixel(pixel_reset[1]), .warm_reset(exec_reset), .hold(1'b0),
         .firmware_valid(firmware_valid), .firmware_ready(firmware_ready),
         .firmware_done(firmware_done), .firmware_address(firmware_address), .firmware_data(firmware_data),
         .firmware_loaded(), .initialized(), .machine_reset(), .fault(), .halted(),

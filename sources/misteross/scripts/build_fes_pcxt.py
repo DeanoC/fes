@@ -27,7 +27,10 @@ from sim_fes_pcxt import SYSTEM_SOURCES, CPU_MUX_MAP, board_inputs, verify_vendo
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLCHAIN_LOCK = 'cores/fes-pcxt/toolchain.lock'
-RTL = SYSTEM_SOURCES + ('cores/fes-pcxt/rtl/fes_pcxt_top.sv',)
+TARGET = '5CSEBA6U23I7'
+TOP = 'top'
+RTL = SYSTEM_SOURCES + ('cores/fes-common/rtl/fes_computer_mailbox.v',
+                        'cores/fes-pcxt/rtl/fes_pcxt_top.sv')
 QSF = 'cores/fes-ramtest/constraints.qsf'
 BOARD50_QSF = 'cores/fes-pcxt/constraints-board50.qsf'
 SDC = 'boards/de10nano/clocks.sdc'
@@ -46,12 +49,19 @@ def synthesis_command():
             SYNTHESIS + ' -run map_ffs:')
 
 
-def yosys_program(output, mda, scanlines, synthesis, half_rate_board=False):
+def yosys_program(output, mda, scanlines, synthesis, half_rate_board=False,
+                  *, enable_fes_computer=False, build_id=None):
     """Complete board Yosys script; run with cwd=output after board_inputs(output)."""
+    if build_id is not None and re.fullmatch(r'[0-9a-f]{32}', build_id) is None:
+        raise ValueError('PC/XT BUILD_ID must be 32 lowercase hexadecimal characters')
+    package_parameters = (' -set ENABLE_FES_COMPUTER 1' if enable_fes_computer else '')
+    if build_id is not None:
+        package_parameters += f" -set BUILD_ID 128'h{build_id}"
     return ('read_verilog -sv -I ' + str(ROOT / 'cores/fes-common/generated') + ' -I ' + str(output) + ' ' +
             ' '.join('-I ' + str(vendor_dir(n)) for n in CHIP_VENDORS) + ' ' +
             ' '.join(str(ROOT / s) for s in RTL) + '; ' +
             f'chparam -set MDA {int(mda)} -set SCANLINES {int(scanlines)}' +
+            package_parameters +
             (' -set HALF_RATE_BOARD 1' if half_rate_board else '') + ' top; ' +
             synthesis + '; techmap -map ' + str(ROOT / CPU_MUX_MAP) +
             '; techmap -map ' + str(ROOT / ROM_CLOCK_MAP) + '; hierarchy -top top; opt_clean; check -assert; stat; write_json synth.json')

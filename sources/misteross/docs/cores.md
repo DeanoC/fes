@@ -189,6 +189,12 @@ cancellation, physical refresh and two 8088 ISA display boots without a second
 firmware load. `synth_fes_pcxt.py --suite memory --cache-root /absolute/cache`
 emits a diagnostic backend/controller netlist; capture/pads are external and
 its DDR clock primitive remains unmapped.
+The registered `fes.pcxt` recipe exports a format-2 package that starts this
+built-in CGA Direct diagnostic through the standard `fes.computer` identity and
+execution mailbox. It declares fixed 720p60 video only; keyboard and media
+remain unavailable. Its accepted timing miss is 71.18/74.25 MHz on video and
+90.88/100 MHz on the main clock, tracked by FES issue #840. The package is
+installable evidence, not timing or hardware acceptance.
 The `system` and `system-mda` suites assemble CPU, motherboard, real SDRAM,
 DMA/refresh and one Direct/Scanlines pipeline, using the original diagnostic
 firmware copied through a gated boot loader. `make build-fes-pcxt

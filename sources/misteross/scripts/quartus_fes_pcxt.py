@@ -35,7 +35,8 @@ from scripts.pcxt_quartus_mailbox import validate_mailbox
 
 ROOT = Path(__file__).resolve().parents[1]
 CORE = Path('cores/fes-pcxt')
-RTL = SYSTEM_SOURCES + (str(CORE / 'rtl/fes_pcxt_top.sv'),)
+RTL = SYSTEM_SOURCES + ('cores/fes-common/rtl/fes_computer_mailbox.v',
+                        str(CORE / 'rtl/fes_pcxt_top.sv'))
 ADAPTERS = CORE / 'quartus/adapters.v'
 AUDIT = CORE / 'quartus/audit.tcl'
 MAILBOX = CORE / 'quartus/mailbox.sdc'
