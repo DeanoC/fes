@@ -20,7 +20,7 @@ module fes_i386_exctl (
     output logic [31:0]            y
 );
     typedef fes_i386_pkg::uop_t uop_t;
-    localparam logic [2:0] C_ALU = 3'd0, C_SHIFT = 3'd1, C_BRANCH = 3'd4, C_SEGMENT = 3'd5;
+    localparam logic [2:0] C_ALU = 3'd0, C_SHIFT = 3'd1, C_MUL = 3'd2, C_DIV = 3'd3, C_BRANCH = 3'd4, C_SEGMENT = 3'd5;
 
     function automatic logic [31:0] extract(input logic [31:0] v, input logic s8, input logic s16, input logic hi8);
         extract = s8 ? {24'b0, hi8 ? v[15:8] : v[7:0]} : s16 ? {16'b0, v[15:0]} : v;
@@ -99,12 +99,28 @@ module fes_i386_exctl (
     assign c.yw16 = yb && !(ya ? size8 : w8);
     assign c.yw32 = yb && !(ya ? size8 || size16 : w8 || w16);
 
+    // ---- The multiply and divide unit (fes_i386_muldiv) ------------------------
+    // Its uops take their whole result, already merged into the destination's
+    // old value, from the pipe record's result field, which fes_i386_cpu
+    // fills from the unit, through LEA's select; and their flags from the unit
+    // where they write any (not HI or LOAD). HI's result is the kept half,
+    // which the lanes merge into EDX by size as any other. All but HI and
+    // LOAD work over several cycles.
+    logic md, md_step;
+    assign md = cls == C_MUL || cls == C_DIV;
+    assign md_step = op == 5'd4 || op == 5'd5;  // MULDIV_HI, MULDIV_LOAD
+    assign c.md = md;
+    assign c.md_fl = md && u.flags.write.oszap;
+    assign c.md_wait = md && !md_step;
+    assign c.md_de = cls == C_DIV && !md_step;
+
     // ---- The result's lanes -----------------------------------------------------
-    logic r_add, r_shift, r_other, dh8;
+    logic r_add, r_shift, r_other, dh8, whole;
     assign r_add = arith || incdec || cls == C_BRANCH;
     assign r_shift = cls == C_SHIFT;
     assign r_other = !r_add && !r_shift;
     assign dh8 = size8 && u.dst.hi8;
+    assign whole = !size8 && !size16 || md && op != 5'd4;  // MULDIV_HI
     assign c.add_lo = r_add && !dh8;
     assign c.add_mid = r_add && !size8;
     assign c.add_h8 = r_add && dh8;
@@ -114,18 +130,17 @@ module fes_i386_exctl (
     assign c.sh_h8 = r_shift && dh8;
     assign c.sh_hi = r_shift && !size8 && !size16;
     assign c.ot_lo = r_other && !dh8;
-    assign c.ot_mid = r_other && !size8;
+    assign c.ot_mid = r_other && (!size8 || md);
     assign c.ot_h8 = r_other && dh8;
-    assign c.ot_hi = r_other && !size8 && !size16;
+    assign c.ot_hi = r_other && whole;
     assign c.kp_lo = dh8;
-    assign c.kp_mid = size8 && !dh8;
-    assign c.kp_hi = size8 || size16;
+    assign c.kp_mid = size8 && !dh8 && !md;
+    assign c.kp_hi = !whole;
     assign c.r_logic = logic_op || lnot;
-    assign c.r_lea = alu && op == 5'd14;
+    assign c.r_lea = alu && op == 5'd14 || md;
     assign c.r_y = (alu && (op == 5'd15 || op == 5'd9)) || cls == C_SEGMENT;
     assign c.r_movsx = alu && op == 5'd16;
     assign c.r_setcc = alu && op == 5'd17;
-    assign c.r_lahf = alu && op == 5'd30;
     assign c.r_sign = alu && op == 5'd31;
     assign c.l_or = op == 5'd1;
     assign c.l_xor = op == 5'd6 || op == 5'd13;   // NOT is x XOR the size's ones
@@ -136,14 +151,20 @@ module fes_i386_exctl (
     logic [3:0] fop;
     assign flagop = alu && op == 5'd30;
     assign fop = u.imm[3:0];
-    assign c.f_add = arith;
-    assign c.f_arith = arith || incdec;
-    assign c.f_logic = logic_op;
+    assign c.r_lahf = flagop && fop == 4'd8;
+    assign c.r_flags = flagop && (fop == 4'd10 || fop == 4'd11);
+    // An arithmetic or logic op writes the flags its uop says it writes:
+    // XCHG's XORs and SALC's SBB write none.
+    assign c.f_add = arith && u.flags.write.cf;
+    assign c.f_arith = (arith || incdec) && u.flags.write.oszap;
+    assign c.f_logic = logic_op && u.flags.write.oszap;
     assign c.f_shift = cls == C_SHIFT;
     assign c.f_cf = flagop && (fop <= 4'd2 || fop == 4'd7);
     assign c.f_if = flagop && (fop == 4'd3 || fop == 4'd4);
     assign c.f_df = flagop && (fop == 4'd5 || fop == 4'd6);
     assign c.f_szap = flagop && fop == 4'd7;
+    assign c.f_load = flagop && fop == 4'd9;
+    assign c.f_clrit = flagop && fop == 4'd11;
     assign c.fl_cf = fop == 4'd1;
     assign c.fl_cmc = fop == 4'd2;
     assign c.fl_set = fop == 4'd4 || fop == 4'd6;
