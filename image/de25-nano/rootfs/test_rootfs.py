@@ -15,7 +15,8 @@ class RootfsTests(unittest.TestCase):
         selected = {line.split("=", 1)[0]: line.split("=", 1)[1]
                     for line in config if line.startswith("BR2_") and "=" in line}
         for option in ("BR2_aarch64", "BR2_cortex_a53", "BR2_TOOLCHAIN_BUILDROOT_GLIBC",
-                       "BR2_GCC_VERSION_9_X", "BR2_KERNEL_HEADERS_5_10", "BR2_INIT_BUSYBOX",
+                       "BR2_GCC_VERSION_9_X", "BR2_TOOLCHAIN_BUILDROOT_CXX",
+                       "BR2_KERNEL_HEADERS_5_10", "BR2_INIT_BUSYBOX",
                        "BR2_ROOTFS_DEVICE_CREATION_DYNAMIC_MDEV", "BR2_PACKAGE_DROPBEAR",
                        "BR2_TARGET_GENERIC_GETTY_BAUDRATE_115200",
                        "BR2_TARGET_GENERIC_REMOUNT_ROOTFS_RW", "BR2_TARGET_ROOTFS_EXT2_4",

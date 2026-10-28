@@ -211,6 +211,7 @@ def prepare_buildroot():
     run([*command, "defconfig"], env=environment)
     configured = (output / ".config").read_text()
     for option in ("BR2_aarch64=y", "BR2_cortex_a53=y", "BR2_TOOLCHAIN_BUILDROOT_GLIBC=y",
+                   "BR2_TOOLCHAIN_BUILDROOT_CXX=y",
                    "BR2_PACKAGE_DROPBEAR=y", 'BR2_TARGET_GENERIC_GETTY_PORT="ttyS0"'):
         if option not in configured.splitlines():
             raise ValueError("Buildroot configuration lost required selection " + option)

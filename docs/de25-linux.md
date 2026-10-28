@@ -32,7 +32,7 @@ diagnostic card under `out/de25-nano-linux/`.
 The lane reuses the existing pinned native-image builder container and selects
 Buildroot 2021.02.4 through its own
 [`buildroot.lock.toml`](../image/de25-nano/buildroot.lock.toml). Its AArch64
-configuration produces a separate glibc toolchain and SDK. Compiler outputs live
+configuration produces a separate glibc C/C++ toolchain and SDK. Compiler outputs live
 in a dedicated Docker volume with a cache key for the DE25 rootfs inputs;
 downloads stay in the explicit cache directory. This does not select the
 DE10-Nano SDK or rebuild its runtime. No Go host or target services are included:
