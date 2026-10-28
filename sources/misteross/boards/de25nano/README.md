@@ -14,15 +14,16 @@ Run from this directory:
 make sim
 make test
 make project
-make build QUARTUS_ROOTDIR=/absolute/path/to/quartus-pro-25.1.1
+make build QUARTUS_ROOTDIR=/absolute/path/to/quartus-pro-26.3
 ```
 
 `project` needs only Python and copies a self-contained project into a fresh
 directory beneath `../../build/diagnostic/de25nano/`. `OUTPUT=/new/directory`
 selects an explicit new destination. Existing outputs are never overwritten.
-`build` requires an explicit Quartus Prime **25.1.1 Pro Edition** installation
-with Agilex 5 device support and the required authorization. The version follows
-Terasic's rev. B golden project. It does not use the DE10-Nano's Quartus Lite
+`build` requires an explicit Quartus Prime **26.3.0 Pro Edition** installation
+with Agilex 5 device support and the required authorization. Device, pin and
+configuration settings follow Terasic's rev. B golden project. Compilation
+uses two CPU workers. It does not use the DE10-Nano's Quartus Lite
 17.0.2 oracle helper or the Cyclone V OSS toolchain. The project preserves
 the golden project's active-serial x4 scheme and 125 MHz `OSC_CLK_1`
 initialization clock. It generates the Reset Release IP with the same

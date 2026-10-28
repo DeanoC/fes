@@ -72,9 +72,9 @@ class DiagnosticBuildTests(unittest.TestCase):
     def test_reject_missing_or_wrong_compiler(self):
         with self.assertRaisesRegex(BUILD.BuildError, "explicit Quartus"):
             BUILD.locate_quartus("")
-        for version in ("Version 17.0.2 Lite Edition", "Version 25.1.1 Lite Edition",
-                        "Version 25.1.10 Pro Edition", "Version 25.1.1.2 Pro Edition",
-                        "Version 25.1.0 Pro Edition"):
+        for version in ("Version 17.0.2 Lite Edition", "Version 26.3.0 Lite Edition",
+                        "Version 26.3.00 Pro Edition", "Version 26.3.0.1 Pro Edition",
+                        "Version 26.3.1 Pro Edition", "Version 25.1.1 Pro Edition"):
             with self.subTest(version=version), tempfile.TemporaryDirectory() as temporary:
                 root = self.fake_tool(temporary, version)
                 with self.assertRaisesRegex(BUILD.BuildError, "requires Quartus"):
@@ -82,7 +82,7 @@ class DiagnosticBuildTests(unittest.TestCase):
 
     def test_compile_retains_logs_and_explicit_diagnostic_evidence(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = self.fake_tool(temporary, "Quartus Prime Version 25.1.1 Build 125 Pro Edition")
+            root = self.fake_tool(temporary, "Quartus Prime Version 26.3.0 Build 114 SC Pro Edition")
             result = subprocess.run(
                 ["python3", str(BOARD / "build.py"), "build", "--quartus-root", str(root),
                  "--output", str(Path(temporary) / "compiled project")],
@@ -101,7 +101,7 @@ class DiagnosticBuildTests(unittest.TestCase):
     def test_compile_fails_without_a_new_sof_and_retains_failed_log(self):
         for fail, artifact in ((True, True), (False, False)):
             with self.subTest(fail=fail), tempfile.TemporaryDirectory() as temporary:
-                root = self.fake_tool(temporary, "Version 25.1.1 Pro Edition",
+                root = self.fake_tool(temporary, "Version 26.3.0 Pro Edition",
                                       fail=fail, artifact=artifact)
                 tool, version = BUILD.locate_quartus(str(root))
                 output = BUILD.prepare_project(Path(temporary) / "project")
@@ -112,7 +112,7 @@ class DiagnosticBuildTests(unittest.TestCase):
 
     def test_ip_generation_failure_stops_before_compile(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = self.fake_tool(temporary, "Version 25.1.1 Pro Edition", ip_fail=True)
+            root = self.fake_tool(temporary, "Version 26.3.0 Pro Edition", ip_fail=True)
             tool, version = BUILD.locate_quartus(str(root))
             output = BUILD.prepare_project(Path(temporary) / "project")
             with self.assertRaisesRegex(BUILD.BuildError, "IP generation failed"):

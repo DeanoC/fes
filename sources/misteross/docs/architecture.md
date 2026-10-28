@@ -20,7 +20,7 @@ selection and transfer. libmister-runtime programs the FPGA.
 ## DE25-Nano board diagnostic
 
 `boards/de25nano/` is an independent FPGA-only bring-up project for
-`A5EB013BB23BE4SCS` with Quartus Prime Pro 25.1.1. Its 50 MHz input and
+`A5EB013BB23BE4SCS` with Quartus Prime Pro 26.3.0. Its 50 MHz input and
 active-low LED pins follow Terasic's revision B resource package; the shared
 descriptive definition is
 [`packages/board/de25_nano.yaml`](../../mister-packages/packages/board/de25_nano.yaml).

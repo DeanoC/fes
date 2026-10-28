@@ -16,7 +16,7 @@ BOARD = Path(__file__).resolve().parent
 DEFAULT_OUTPUT = BOARD.parents[1] / "build/diagnostic/de25nano"
 DEVICE = "A5EB013BB23BE4SCS"
 PROJECT = "de25nano_blinky"
-QUARTUS_VERSION = "25.1.1"
+QUARTUS_VERSION = "26.3.0"
 SOURCES = ("blinky.v", "pins.qsf", "clocks.sdc", "reset_release.ip", "build.py")
 
 
@@ -44,6 +44,7 @@ def prepare_project(output: Path | None = None) -> Path:
         'set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files\n'
         f'set_global_assignment -name LAST_QUARTUS_VERSION "{QUARTUS_VERSION} Pro Edition"\n'
         'set_global_assignment -name SEED 1\n'
+        'set_global_assignment -name NUM_PARALLEL_PROCESSORS 2\n'
         'set_global_assignment -name STRATIXV_CONFIGURATION_SCHEME "ACTIVE SERIAL X4"\n'
         'set_global_assignment -name ACTIVE_SERIAL_CLOCK AS_FREQ_125MHZ\n'
         'set_global_assignment -name DEVICE_INITIALIZATION_CLOCK OSC_CLK_1_125MHZ\n'
@@ -66,7 +67,7 @@ def prepare_project(output: Path | None = None) -> Path:
 
 def locate_quartus(root: str) -> tuple[Path, str]:
     if not root.strip():
-        raise BuildError("set QUARTUS_ROOTDIR to an explicit Quartus 25.1.1 Pro installation")
+        raise BuildError(f"set QUARTUS_ROOTDIR to an explicit Quartus {QUARTUS_VERSION} Pro installation")
     directory = Path(root).expanduser().resolve()
     candidates = (directory / "bin/quartus_sh", directory / "quartus/bin/quartus_sh")
     tool = next((path for path in candidates if path.is_file() and os.access(path, os.X_OK)), None)
@@ -75,7 +76,7 @@ def locate_quartus(root: str) -> tuple[Path, str]:
     result = subprocess.run([str(tool), "--version"], text=True, stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT, check=False)
     version = result.stdout.strip()
-    if (result.returncode or not re.search(r"\bVersion 25\.1\.1(?![0-9.])", version)
+    if (result.returncode or not re.search(r"\bVersion " + re.escape(QUARTUS_VERSION) + r"(?![0-9.])", version)
             or "Pro Edition" not in version):
         raise BuildError(f"requires Quartus {QUARTUS_VERSION} Pro Edition; reported: {version}")
     return tool, version

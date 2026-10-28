@@ -7,7 +7,7 @@ SIM_OUTPUT := $(MISTEROSS_ROOT)/build/sim/de25nano
 
 .PHONY: help project build sim test
 help:
-	@printf '%s\n' 'project: copy the standalone Quartus Pro project into a new build directory' 'build: compile a diagnostic SOF with explicit QUARTUS_ROOTDIR (25.1.1 Pro)' 'sim: test the unmodified 50 MHz LED divider with Verilator' 'test: test project preparation and compiler version gating without Quartus'
+	@printf '%s\n' 'project: copy the standalone Quartus Pro project into a new build directory' 'build: compile a diagnostic SOF with explicit QUARTUS_ROOTDIR (26.3.0 Pro)' 'sim: test the unmodified 50 MHz LED divider with Verilator' 'test: test project preparation and compiler version gating without Quartus'
 
 project:
 	$(PYTHON) build.py project $(if $(OUTPUT),--output "$(OUTPUT)")
