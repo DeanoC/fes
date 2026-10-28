@@ -992,16 +992,31 @@ void TestComputerCompatibilityComposesRecognizedInterfaces()
 	assert(check(bus).code == mister::ErrorCode::unsupported_interface);
 	// Unknown optional declarations are ignored; unknown required ones fail.
 	for (const auto* id : {"vendor.extension", "fes.gamepad", "fes.keyboard",
-		"fes.persistence.words", "fes.media.blob", "fes.expansion.coleco-bus"}) {
+		"fes.media.ata-disk", "fes.media.blob", "fes.expansion.coleco-bus"}) {
 		auto unknown = descriptor;
 		unknown.interfaces.push_back({id, 1, 0, false});
 		assert(check(unknown).ok());
 		unknown.interfaces.back().required = true;
 		assert(check(unknown).code == mister::ErrorCode::unsupported_interface);
 	}
+	// ABI 1.1 admits the 1.0 interfaces and adds identity word 16's bits;
+	// those bits need the 1.1 identity.
 	auto minor = descriptor;
 	minor.abi.minor = 1;
+	assert(check(minor).ok());
+	minor.abi.minor = 2;
 	assert(check(minor).code == mister::ErrorCode::unsupported_abi);
+	for (const auto* id : {"fes.persistence.words", "fes.pc386.machine", "fes.rtc.wall-clock"}) {
+		auto high = descriptor;
+		high.abi.minor = 1;
+		high.interfaces.push_back({id, 1, 0, true});
+		assert(check(high).ok());
+		high.interfaces.back().required = false;
+		assert(check(high).code == mister::ErrorCode::unsupported_interface);
+		high.interfaces.back().required = true;
+		high.abi.minor = 0;
+		assert(check(high).code == mister::ErrorCode::unsupported_abi);
+	}
 	auto system = descriptor;
 	system.core.system = "apple2";
 	assert(check(system).code == mister::ErrorCode::unsupported_abi);

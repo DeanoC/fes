@@ -71,6 +71,11 @@ public:
 		return static_cast<std::uint64_t>(stamp.tv_sec) * 1000u +
 			static_cast<std::uint64_t>(stamp.tv_nsec) / 1000000u;
 	}
+	bool LocalTime(std::tm* output) const override
+	{
+		const std::time_t now = std::time(nullptr);
+		return now != static_cast<std::time_t>(-1) && localtime_r(&now, output) != nullptr;
+	}
 };
 
 class ProductionHardware final : public Hardware {
@@ -125,10 +130,10 @@ public:
 	{
 		return hardware_.AdmitCoreComposition(directory, id, request, output);
 	}
-	Error PrepareCoreData(
-		AdmittedCorePackage* package, const std::string& root, CoreData* output) override
+	Error PrepareCoreData(AdmittedCorePackage* package, const std::string& root,
+		const std::string& game_id, CoreData* output) override
 	{
-		return hardware_.PrepareCoreData(package, root, output);
+		return hardware_.PrepareCoreData(package, root, game_id, output);
 	}
 	Error RefreshCoreData(AdmittedCorePackage* package, CoreData* output) override
 	{
@@ -144,15 +149,16 @@ public:
 		return hardware_.AttachProgrammedBitstream(package, path, sha256);
 	}
 	Error InspectCoreData(const std::string& directory, const std::string& expected_id,
-		const std::string& root, CoreData* output) override
+		const std::string& root, const std::string& game_id, CoreData* output) override
 	{
-		return hardware_.InspectCoreData(directory, expected_id, root, output);
+		return hardware_.InspectCoreData(directory, expected_id, root, game_id, output);
 	}
 	Error UpdateCoreSettings(const std::string& directory, const std::string& expected_id,
-		const std::string& root, const std::string& revision, std::uint16_t speed,
-		CoreData* output) override
+		const std::string& root, const std::string& game_id, const std::string& revision,
+		const CoreSettingsUpdate& update, CoreData* output) override
 	{
-		return hardware_.UpdateCoreSettings(directory, expected_id, root, revision, speed, output);
+		return hardware_.UpdateCoreSettings(directory, expected_id, root, game_id, revision,
+			update, output);
 	}
 	Error AttachROMBitstream(AdmittedCorePackage* package, const std::string& path,
 		const CoreROMLink& link) override

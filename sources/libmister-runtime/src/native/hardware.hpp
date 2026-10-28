@@ -10,6 +10,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <ctime>
 #include <mutex>
 #include <memory>
 #include <string>
@@ -31,6 +32,8 @@ class Clock {
 public:
 	virtual ~Clock() {}
 	virtual std::uint64_t NowMs() const = 0;
+	// The kit's local calendar time, for a core's wall clock.
+	virtual bool LocalTime(std::tm*) const { return false; }
 };
 
 struct NativeTimeouts {
@@ -94,14 +97,14 @@ public:
 		const std::string&) override;
 	Error InspectCorePackage(const std::string&, const std::string&,
 		CorePackageInspection*) override;
-	Error PrepareCoreData(AdmittedCorePackage*, const std::string&, CoreData*) override;
+	Error PrepareCoreData(AdmittedCorePackage*, const std::string&, const std::string&, CoreData*) override;
 	Error RefreshCoreData(AdmittedCorePackage*, CoreData*) override;
 	Error PrepareInitialComputerMedia(AdmittedCorePackage*, const InitialComputerMedia&) override;
 	Error RefreshInitialComputerMedia(AdmittedCorePackage*) override;
-	Error InspectCoreData(
-		const std::string&, const std::string&, const std::string&, CoreData*) override;
+	Error InspectCoreData(const std::string&, const std::string&, const std::string&,
+		const std::string&, CoreData*) override;
 	Error UpdateCoreSettings(const std::string&, const std::string&, const std::string&,
-		const std::string&, std::uint16_t, CoreData*) override;
+		const std::string&, const std::string&, const CoreSettingsUpdate&, CoreData*) override;
 	Error AttachROMBitstream(AdmittedCorePackage*, const std::string&, const CoreROMLink&) override;
 	Error AttachROMsBitstream(AdmittedCorePackage*, const std::string&, const CoreROMLinks&) override;
 	Error RecheckProgrammedBitstream(AdmittedCorePackage*) override;
@@ -148,7 +151,7 @@ private:
  unsigned menu_underflow_streak_=0;
  unsigned menu_reactivations_=0;
  std::uint64_t menu_reactivation_window_start_=0;
- Error PrepareCoreDataInternal(AdmittedCorePackage*, const std::string&, CoreData*, bool);
+ Error PrepareCoreDataInternal(AdmittedCorePackage*, const std::string&, const std::string&, CoreData*, bool);
 	Error StopInput(std::uint64_t absolute_deadline_ms);
 	HardwareResult QuiesceForReplacement(const char* operation,
 		const std::string& system, const std::string& core);

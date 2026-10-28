@@ -66,6 +66,12 @@ extern "C" int fsync(int descriptor)
 #endif
 
 namespace {
+mister::CoreSettingsUpdate PaddleSpeed(std::uint16_t speed)
+{
+	mister::CoreSettingsUpdate update;
+	update.paddle_speed = speed;
+	return update;
+}
 
 struct TempDirectory {
 	explicit TempDirectory(const std::string& parent = "/tmp")
@@ -111,7 +117,14 @@ class FixedClock final : public mister::native::Clock {
 public:
 	explicit FixedClock(std::uint64_t now) : now_(now) {}
 	std::uint64_t NowMs() const override { return now_; }
+	bool LocalTime(std::tm* output) const override
+	{
+		if (has_local) *output = local;
+		return has_local;
+	}
 	std::uint64_t now_;
+	bool has_local = false;
+	std::tm local {};
 };
 
 std::string BaseName(const std::string& path)
@@ -1315,7 +1328,7 @@ void TestInspectionReportsActualDriverCompatibilityWithoutMutation()
 	const mister::Capabilities capabilities = available.hardware.capabilities();
 	assert(capabilities.programming_profiles == std::vector<std::string>({
 		"development-contained-v1", "fes-gp-v1"}));
-	assert(capabilities.abis.size() == 4);
+	assert(capabilities.abis.size() == 5);
 	assert(capabilities.abis[0].id == "fes.application");
 	assert(capabilities.abis[0].interfaces.size() == 10);
 	assert(capabilities.abis[0].interfaces[1].id == "fes.expansion.coleco-bus");
@@ -1339,9 +1352,18 @@ void TestInspectionReportsActualDriverCompatibilityWithoutMutation()
 		"fes.gamepad.ports", "fes.keyboard.hid", "fes.media.apple2-floppy",
 		"fes.media.atari-st-floppy", "fes.media.atari-st-floppy-geometry", "fes.media.atari-st-floppy-write", "fes.media.c64-disk", "fes.media.spectrum-disk", "fes.media.spectrum-snapshot", "fes.media.spectrum-snapshot-128", "fes.media.spectrum-snapshot-plus3", "fes.media.spectrum-tape", "fes.media.zx81-tape", "fes.media.zx81-tape-write",
 		"fes.memory.hps-ddr", "fes.mouse.relative", "fes.video.fixed-720p60"}));
-	assert(capabilities.abis[2].id == "fes.simple-computer");
-	assert(capabilities.abis[2].interfaces[0].id == "fes.audio.pcm-s16-stereo-48k");
-	assert(capabilities.abis[3].id == "fes.simple-game");
+	// 1.1 is its own entry: the 1.0 interfaces and identity word 16's.
+	const auto& computer_11 = capabilities.abis[2];
+	assert(computer_11.id == "fes.computer" && computer_11.major == 1 && computer_11.minor == 1);
+	std::vector<std::string> computer_11_interfaces;
+	for (const auto& interface : computer_11.interfaces) computer_11_interfaces.push_back(interface.id);
+	std::vector<std::string> expected_11 = computer_interfaces;
+	expected_11.insert(expected_11.end(), {"fes.pc386.machine", "fes.persistence.words", "fes.rtc.wall-clock"});
+	std::sort(expected_11.begin(), expected_11.end());
+	assert(computer_11_interfaces == expected_11);
+	assert(capabilities.abis[3].id == "fes.simple-computer");
+	assert(capabilities.abis[3].interfaces[0].id == "fes.audio.pcm-s16-stereo-48k");
+	assert(capabilities.abis[4].id == "fes.simple-game");
 	assert(capabilities.media_units.empty());
 
 	Fixture unavailable;
@@ -2649,7 +2671,7 @@ void TestLibraryPartsChecksCoreNamespaceBeforeProgramming(bool native=false)
 		const auto calls = fixture.native.fpga.calls;
 		fixture.native.events.clear();
 		driver_events.clear();
-		const auto error = fixture.runtime.InspectCoreData(path, id, data.path, output);
+		const auto error = fixture.runtime.InspectCoreData(path, id, data.path, "", output);
 		const auto after = fixture.runtime.status();
 		assert(after.state == before.state && after.generation == before.generation);
 		assert(after.active_package.package_id == before.active_package.package_id &&
@@ -2772,13 +2794,13 @@ void TestProductionFactoryForwardsCoreDataWithoutHardwareMutation()
 		// Creation and data operations are lazy with respect to all physical devices.
 		// Do not call Start/LoadIdle/LoadCore: this exercises only production admission/storage.
 		mister::CoreData observed;
-		auto result = hardware->InspectCoreData(package.path, id, data.path, &observed);
+		auto result = hardware->InspectCoreData(package.path, id, data.path, "", &observed);
 		inspected = result.ok() && observed.package_id == id && observed.mode == "persistent" &&
 					observed.revision == "absent" && observed.paddle_speed == 1 &&
 					observed.best_rally == 0;
 		std::unique_ptr<mister::AdmittedCorePackage> admitted;
 		assert(hardware->AdmitCorePackage(package.path, id, &admitted).ok());
-		result = hardware->PrepareCoreData(admitted.get(), data.path, &observed);
+		result = hardware->PrepareCoreData(admitted.get(), data.path, "", &observed);
 		prepared = result.ok() && observed.package_id == id && observed.revision == "absent";
 		std::unique_ptr<mister::native::CoreDataFile> file;
 		assert(mister::native::CoreDataFile::Open(data.path, "fes.pong", &file).ok());
@@ -2794,7 +2816,7 @@ void TestProductionFactoryForwardsCoreDataWithoutHardwareMutation()
 					observed.revision == saved.revision && observed.paddle_speed == 2 &&
 					observed.best_rally == 17;
 		result =
-			hardware->UpdateCoreSettings(package.path, id, data.path, saved.revision, 0, &observed);
+			hardware->UpdateCoreSettings(package.path, id, data.path, "", saved.revision, PaddleSpeed(0), &observed);
 		mister::CoreData reread;
 		assert(file->Read(&reread).ok());
 		updated = result.ok() && observed.package_id == id && observed.revision != saved.revision &&
@@ -2856,6 +2878,108 @@ void TestProductionFactoryForwardsProgrammedBitstreamWithoutHardwareMutation()
 	assert(rejected && attached);
 }
 
+std::string Pc386Manifest()
+{
+	std::string manifest = ReadText("tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
+	ReplaceAll(&manifest, "fes.pong", "fes.pc386");
+	ReplaceAll(&manifest, "id = \"fes.simple-game\"\nmajor = 1\nminor = 0",
+		"id = \"fes.computer\"\nmajor = 1\nminor = 1");
+	ReplaceAll(&manifest, "id = \"fes.gamepad\"", "id = \"fes.keyboard.hid\"");
+	for (const auto* id : {"fes.audio.pcm-s16-stereo-48k", "fes.mouse.relative",
+		"fes.persistence.words", "fes.pc386.machine", "fes.rtc.wall-clock"})
+		manifest += std::string("\n[[interfaces]]\nid = \"") + id +
+			"\"\nmajor = 1\nminor = 0\nrequired = true\n";
+	return manifest;
+}
+
+// A pc386 library launch restores its game's machine record and seeds the
+// clock while held; Stop captures the record; each game has its own.
+void TestPc386LibraryRecordAndWallClock()
+{
+	using namespace mister::native;
+	using namespace mister::native::generated;
+	const std::uint32_t caps = FesComputerCapabilityVideoFixed720p60 | FesComputerCapabilityKeyboardHid |
+		FesComputerCapabilityAudioPcmS16Stereo48k | FesComputerCapabilityMouseRelative |
+		FesComputerCapabilityPersistenceWords | FesComputerCapabilityPc386Machine |
+		FesComputerCapabilityRtcWallClock;
+	mister_test::ComputerEndpoint endpoint(caps, {}, "0123456789abcdef0123456789abcdef");
+	endpoint.abi_minor = 1;
+	FixedClock clock(100);
+	FesGp transport(endpoint, clock);
+	FesGpCoreDriver driver(transport);
+	IntegratedFixture fixture(&driver);
+	fixture.native.clock.has_local = true;
+	fixture.native.clock.local.tm_year = 126;
+	fixture.native.clock.local.tm_mon = 9;
+	fixture.native.clock.local.tm_mday = 28;
+	fixture.native.clock.local.tm_hour = 14;
+	fixture.native.clock.local.tm_min = 5;
+	fixture.native.clock.local.tm_sec = 37;
+	fixture.native.clock.local.tm_wday = 3;
+	fixture.Start();
+	fixture.native.fpga.on_program = [&] { endpoint.Reset(); };
+	TempDirectory package, data;
+	package.File("manifest.toml", Pc386Manifest());
+	package.File("core.rbf", ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+	OpenedCorePackage opened;
+	assert(OpenCorePackage(package.path, "", &opened).ok());
+	const std::string id = opened.package_id;
+	// The record is per game: a pc386 package needs a game, Pong never takes one.
+	assert(fixture.runtime.LoadLibraryCore(package.path, id, data.path).code ==
+		mister::ErrorCode::invalid_request);
+	mister::CoreData inspected;
+	assert(fixture.runtime.InspectCoreData(package.path, id, data.path, "ultima-vi", &inspected).ok());
+	assert(inspected.revision == "absent" && inspected.words == Pc386MachineDefaults() &&
+		inspected.mode == "persistent" && inspected.game_id == "ultima-vi");
+	mister::CoreSettingsUpdate settings;
+	settings.pc386 = true;
+	settings.machine.preset = 1;
+	settings.machine.sb_base = 0x240;
+	settings.machine.sb_irq = 5;
+	assert(fixture.runtime.UpdateCoreSettings(package.path, id, data.path, "ultima-vi", "absent",
+		PaddleSpeed(1), &inspected).code == mister::ErrorCode::invalid_request);
+	auto invalid = settings;
+	invalid.machine.sb_irq = 9;
+	assert(fixture.runtime.UpdateCoreSettings(package.path, id, data.path, "ultima-vi", "absent",
+		invalid, &inspected).code == mister::ErrorCode::invalid_request);
+	assert(fixture.runtime.UpdateCoreSettings(package.path, id, data.path, "ultima-vi", "absent",
+		settings, &inspected).ok());
+	assert(inspected.words[0] == 1 && inspected.words[4] == 0x240 && inspected.words[5] == 5);
+
+	assert(fixture.runtime.LoadLibraryCore(package.path, id, data.path, "ultima-vi").ok());
+	assert(!endpoint.held && fixture.runtime.status().core_data.mode == "persistent");
+	assert(endpoint.machine_words == inspected.words);
+	assert(endpoint.clock == std::vector<unsigned>({2026, 10, 28, 14, 5, 37, 4}));
+	// Restore and the clock both precede release.
+	std::size_t commit = 0, clock_word = 0, release = 0;
+	for (std::size_t at = 0; at < endpoint.requests.size(); ++at) {
+		const auto& r = endpoint.requests[at];
+		if (r.opcode == FesComputerOpcodeDataControl && r.argument == FesComputerDataCommit) commit = at;
+		if (r.opcode == FesComputerOpcodeWallClock && r.index == 3) clock_word = at;
+		if (r.opcode == FesComputerOpcodeExecution && r.argument == FesComputerExecutionRelease) release = at;
+	}
+	assert(commit && commit < release && clock_word < release && clock_word);
+	assert(fixture.runtime.UpdateCoreSettings(package.path, id, data.path, "ultima-vi",
+		inspected.revision, settings, &inspected).code == mister::ErrorCode::busy);
+	endpoint.GuestCmosWrite(0x40, 0x5a);
+	assert(fixture.runtime.Stop().ok());
+	mister::CoreData saved;
+	assert(fixture.runtime.InspectCoreData(package.path, id, data.path, "ultima-vi", &saved).ok());
+	assert(saved.words[8 + 0x20] == 0x5a && saved.words[0] == 1 && saved.revision != inspected.revision);
+	// Another game of the same package starts from the defaults.
+	assert(fixture.runtime.InspectCoreData(package.path, id, data.path, "ultima-vii", &inspected).ok());
+	assert(inspected.revision == "absent" && inspected.words == Pc386MachineDefaults());
+	fixture.native.clock.has_local = false;
+	assert(fixture.runtime.LoadLibraryCore(package.path, id, data.path, "ultima-vi").code ==
+		mister::ErrorCode::io_failed);
+	fixture.native.clock.has_local = true;
+	const std::string games = data.path + "/games/";
+	const std::string first = games + GameDataNamespace("fes.pc386", "ultima-vi");
+	assert(unlink((first + "/record.bin").c_str()) == 0 && rmdir(first.c_str()) == 0);
+	assert(rmdir((games + GameDataNamespace("fes.pc386", "ultima-vii")).c_str()) == 0);
+	assert(rmdir(games.c_str()) == 0);
+}
+
 void TestPersistentReplacementRefreshAndSaveFailureResume()
 {
 	std::vector<std::string> events;
@@ -2866,7 +2990,7 @@ void TestPersistentReplacementRefreshAndSaveFailureResume()
 	auto aid = PersistentPackage(&a);
 	auto bid = PersistentPackage(&b, "# next compatible version\n");
 	mister::CoreData preflight;
-	assert(fixture.runtime.InspectCoreData(a.path, aid, data.path, &preflight).ok());
+	assert(fixture.runtime.InspectCoreData(a.path, aid, data.path, "", &preflight).ok());
 	const std::string namespace_path =
 		data.path + "/" + mister::native::CoreDataNamespace("fes.pong");
 	assert(chmod(namespace_path.c_str(), 0500) == 0);
@@ -2882,10 +3006,10 @@ void TestPersistentReplacementRefreshAndSaveFailureResume()
 	assert(gp.restored_data.back() == std::vector<std::uint16_t>({2, 17}));
 	assert(fixture.runtime.status().core_data.mode == "persistent");
 	mister::CoreData inspected;
-	assert(fixture.runtime.InspectCoreData(b.path, bid, data.path, &inspected).ok());
+	assert(fixture.runtime.InspectCoreData(b.path, bid, data.path, "", &inspected).ok());
 	assert(inspected.paddle_speed == 2 && inspected.best_rally == 17);
 	assert(fixture.runtime
-			   .UpdateCoreSettings(b.path, bid, data.path, inspected.revision, 0, &inspected)
+			   .UpdateCoreSettings(b.path, bid, data.path, "", inspected.revision, PaddleSpeed(0), &inspected)
 			   .code == mister::ErrorCode::busy);
 	const std::string dir = data.path + "/" + mister::native::CoreDataNamespace("fes.pong");
 	gp.on_capture = [&] { assert(chmod(dir.c_str(), 0500) == 0); };
@@ -2902,24 +3026,24 @@ void TestPersistentReplacementRefreshAndSaveFailureResume()
 	assert(Find(events, "driver.quiesce") == events.size());
 	assert(chmod(dir.c_str(), 0700) == 0);
 	gp.on_capture = {};
-	assert(fixture.runtime.InspectCoreData(b.path, bid, data.path, &inspected).ok() &&
+	assert(fixture.runtime.InspectCoreData(b.path, bid, data.path, "", &inspected).ok() &&
 		   inspected.best_rally == 17);
 	gp.live_data = {2, 25};
 	assert(fixture.runtime.Stop().ok());
-	assert(fixture.runtime.InspectCoreData(b.path, bid, data.path, &inspected).ok() &&
+	assert(fixture.runtime.InspectCoreData(b.path, bid, data.path, "", &inspected).ok() &&
 		   inspected.best_rally == 25);
 	assert(
-		fixture.runtime.UpdateCoreSettings(b.path, bid, data.path, "absent", 0, &inspected).code ==
+		fixture.runtime.UpdateCoreSettings(b.path, bid, data.path, "", "absent", PaddleSpeed(0), &inspected).code ==
 		mister::ErrorCode::stale_revision);
 	auto revision = inspected.revision;
 	assert(
-		fixture.runtime.UpdateCoreSettings(b.path, bid, data.path, revision, 0, &inspected).ok() &&
+		fixture.runtime.UpdateCoreSettings(b.path, bid, data.path, "", revision, PaddleSpeed(0), &inspected).ok() &&
 		inspected.best_rally == 25 && inspected.paddle_speed == 0);
 	TempDirectory old;
 	PopulateFesGpPackage(&old);
 	assert(fixture.runtime
 			   .InspectCoreData(old.path,
-				   "b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0", data.path,
+				   "b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0", data.path, "",
 				   &inspected)
 			   .code == mister::ErrorCode::incompatible_data);
 	assert(unlink((dir + "/record.bin").c_str()) == 0);
@@ -2950,7 +3074,7 @@ void TestPersistenceUnsafeResumeRetainsRecoveryOwnership()
 	assert(fixture.native.fpga.calls == programs && !fixture.native.input.HasActiveCallback());
 	assert(Find(events, "driver.quiesce") == events.size());
 	mister::CoreData inspected;
-	assert(fixture.runtime.UpdateCoreSettings(package.path, id, data.path, "absent", 0, &inspected)
+	assert(fixture.runtime.UpdateCoreSettings(package.path, id, data.path, "", "absent", PaddleSpeed(0), &inspected)
 			   .code == mister::ErrorCode::busy);
 	assert(chmod(dir.c_str(), 0700) == 0);
 	assert(rmdir(dir.c_str()) == 0);
@@ -2982,18 +3106,18 @@ void TestPersistenceContractAdmissionAndVolatileIsolation()
 	mister::CoreData inspected;
 	assert(fixture.runtime
 			   .InspectCoreData(old.path,
-				   "b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0", data.path,
+				   "b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0", data.path, "",
 				   &inspected)
 			   .code == mister::ErrorCode::incompatible_data);
 	gp.live_data = {2, 17};
 	assert(fixture.runtime.Stop().ok());
-	assert(fixture.runtime.InspectCoreData(package.path, id, data.path, &inspected).ok());
+	assert(fixture.runtime.InspectCoreData(package.path, id, data.path, "", &inspected).ok());
 	auto revision = inspected.revision;
 	assert(fixture.runtime.LoadCore(package.path, id).ok());
 	assert(fixture.runtime.status().core_data.mode == "volatile");
 	gp.live_data = {0, 99};
 	assert(fixture.runtime.Stop().ok());
-	assert(fixture.runtime.InspectCoreData(package.path, id, data.path, &inspected).ok() &&
+	assert(fixture.runtime.InspectCoreData(package.path, id, data.path, "", &inspected).ok() &&
 		   inspected.revision == revision && inspected.best_rally == 17);
 	const std::string dir = data.path + "/" + mister::native::CoreDataNamespace("fes.pong");
 	assert(unlink((dir + "/record.bin").c_str()) == 0);
@@ -4359,6 +4483,7 @@ int main()
 	TestNativeStreamSnapshotSizeCleanupAndObservedCapabilities();
 	TestProductionFactoryForwardsCoreDataWithoutHardwareMutation();
 	TestProductionFactoryForwardsProgrammedBitstreamWithoutHardwareMutation();
+	TestPc386LibraryRecordAndWallClock();
 	TestPersistentReplacementRefreshAndSaveFailureResume();
 	TestPersistenceUnsafeResumeRetainsRecoveryOwnership();
 	TestPersistenceContractAdmissionAndVolatileIsolation();

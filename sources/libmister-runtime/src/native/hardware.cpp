@@ -352,12 +352,18 @@ Error NativeHardware::FlushSave()
 		if (error.ok() && core_snapshot_.empty())
 			error = active_driver_->CaptureData(
 				active_context_, Deadline(clock_, timeouts_.core_io_ms), &core_snapshot_);
-		if (error.ok() && core_snapshot_.size() != generated::FesGpPongProgressWordCount)
+		const std::size_t words = durable_data_.game_id.empty() ?
+			generated::FesGpPongProgressWordCount : generated::FesComputerPc386MachineWordCount;
+		if (error.ok() && core_snapshot_.size() != words)
 			error = {ErrorCode::save_failed, "incomplete core-data snapshot", "core_data"};
 		if (error.ok()) {
 			CoreData snapshot = durable_data_;
-			snapshot.paddle_speed = core_snapshot_[generated::FesGpPongPaddleSpeedIndex];
-			snapshot.best_rally = core_snapshot_[generated::FesGpPongBestRallyIndex];
+			if (snapshot.game_id.empty()) {
+				snapshot.paddle_speed = core_snapshot_[generated::FesGpPongPaddleSpeedIndex];
+				snapshot.best_rally = core_snapshot_[generated::FesGpPongBestRallyIndex];
+			} else {
+				snapshot.words = core_snapshot_;
+			}
 			// Reopen after uncertain publication; never mistake a cached revision for
 			// the current complete record on retry.
 			CoreData current;
@@ -606,14 +612,14 @@ Error NativeHardware::InspectCorePackage(const std::string& directory,
 	return {};
 }
 
-Error NativeHardware::PrepareCoreData(
-	AdmittedCorePackage* package, const std::string& root, CoreData* output)
+Error NativeHardware::PrepareCoreData(AdmittedCorePackage* package, const std::string& root,
+	const std::string& game_id, CoreData* output)
 {
-	return PrepareCoreDataInternal(package, root, output, true);
+	return PrepareCoreDataInternal(package, root, game_id, output, true);
 }
 
-Error NativeHardware::PrepareCoreDataInternal(
-	AdmittedCorePackage* package, const std::string& root, CoreData* output, bool writable)
+Error NativeHardware::PrepareCoreDataInternal(AdmittedCorePackage* package,
+	const std::string& root, const std::string& game_id, CoreData* output, bool writable)
 {
 	auto admitted = dynamic_cast<NativeAdmittedCore*>(package);
 	if (!admitted || !output)
@@ -623,10 +629,16 @@ Error NativeHardware::PrepareCoreDataInternal(
 	if (!error.ok())
 		return error;
 	const std::string& id = admitted->opened_.descriptor.core.id;
+	// A fes.computer record belongs to one library game; Pong's to its core.
+	const bool per_game = !layout.id.empty() &&
+		admitted->opened_.descriptor.abi.id == generated::FesComputerABIID;
+	if (per_game ? !ValidLibraryGameID(game_id) : !game_id.empty())
+		return {ErrorCode::invalid_request, "core-data game identity does not fit the package", "core_data"};
 	if (core_data_file_ && durable_data_.core_id == id && layout.id.empty())
 		return {ErrorCode::incompatible_data, "active namespace requires persistence", "core_data"};
 	std::unique_ptr<CoreDataFile> file;
-	error = CoreDataFile::Open(root, id, &file);
+	error = per_game ? CoreDataFile::OpenGame(root, id, game_id, &file) :
+		CoreDataFile::Open(root, id, &file);
 	CoreData data;
 	if (error.ok())
 		error = file->Read(&data);
@@ -669,37 +681,51 @@ Error NativeHardware::RefreshCoreData(AdmittedCorePackage* package, CoreData* ou
 	*output = std::move(data);
 	return {};
 }
-Error NativeHardware::InspectCoreData(
-	const std::string& path, const std::string& id, const std::string& root, CoreData* output)
+Error NativeHardware::InspectCoreData(const std::string& path, const std::string& id,
+	const std::string& root, const std::string& game_id, CoreData* output)
 {
 	std::unique_ptr<AdmittedCorePackage> admitted;
 	// Library parts preflight inspects a native shell's namespace without
 	// activating it. Composition remains mandatory on every native load path.
 	Error error = AdmitCorePackageInternal(path, id, true, &admitted);
 	if (error.ok())
-		error = PrepareCoreDataInternal(admitted.get(), root, output, false);
+		error = PrepareCoreDataInternal(admitted.get(), root, game_id, output, false);
 	return error;
 }
 Error NativeHardware::UpdateCoreSettings(const std::string& path, const std::string& id,
-	const std::string& root, const std::string& revision, std::uint16_t speed, CoreData* output)
+	const std::string& root, const std::string& game_id, const std::string& revision,
+	const CoreSettingsUpdate& update, CoreData* output)
 {
-	if (speed > generated::FesGpPongPaddleSpeedFast)
+	if (!update.pc386 && update.paddle_speed > generated::FesGpPongPaddleSpeedFast)
 		return {ErrorCode::invalid_request, "invalid paddle speed", "request"};
 	std::unique_ptr<AdmittedCorePackage> package;
 	Error error = AdmitCorePackage(path, id, &package);
 	if (!error.ok())
 		return error;
-	if (active_package_ && active_package_->info().declared_core == package->info().declared_core)
+	if (active_package_ && active_package_->info().declared_core == package->info().declared_core &&
+		(game_id.empty() || durable_data_.game_id == game_id))
 		return {ErrorCode::busy, "core-data namespace is active", "core_data"};
 	CoreData data;
-	error = PrepareCoreData(package.get(), root, &data);
+	error = PrepareCoreData(package.get(), root, game_id, &data);
 	if (!error.ok())
 		return error;
 	auto admitted = dynamic_cast<NativeAdmittedCore*>(package.get());
 	if (!admitted->data_file_)
 		return {
 			ErrorCode::unsupported_interface, "package has no persistent settings", "core_data"};
-	data.paddle_speed = speed;
+	if (update.pc386 != !data.game_id.empty())
+		return {ErrorCode::invalid_request, "settings do not match the package's layout", "request"};
+	if (update.pc386) {
+		// Settings for the next launch; the machine's CMOS words stay.
+		const Pc386MachineSettings& m = update.machine;
+		const std::uint16_t settings[] = {m.preset, m.frequency, m.code_profile, m.turbo,
+			m.sb_base, m.sb_irq, m.sb_dma, 0};
+		std::copy(std::begin(settings), std::end(settings), data.words.begin());
+		if (!ValidPc386Machine(data.words))
+			return {ErrorCode::invalid_request, "invalid pc386 machine settings", "request"};
+	} else {
+		data.paddle_speed = update.paddle_speed;
+	}
 	CoreData published;
 	error = admitted->data_file_->Persist(data, revision, &published);
 	if (error.ok()) {
@@ -797,7 +823,6 @@ Capabilities NativeHardware::capabilities() const
 		SupportedABI computer_io;
 		computer_io.id = generated::FesComputerABIID;
 		computer_io.major = generated::FesComputerABIMajor;
-		// The driver reads the ABI 1.0 identity, words 0..15.
 		computer_io.minor = 0;
 		computer_io.interfaces = {
 			{kApple2ExpansionBusID, 1, 0},
@@ -861,9 +886,20 @@ Capabilities NativeHardware::capabilities() const
 		}
 		std::sort(computer_io.interfaces.begin(), computer_io.interfaces.end(),
 			[](const SupportedInterface& a, const SupportedInterface& b) { return a.id < b.id; });
+		// 1.1 adds identity word 16 and its interfaces. Each minor is its own
+		// entry, so a 1.0 package keeps matching its exact ABI.
+		SupportedABI computer_11 = computer_io;
+		computer_11.minor = generated::FesComputerABIMinor;
+		computer_11.interfaces.push_back({generated::FesComputerInterfacePersistenceWordsID, 1, 0});
+		computer_11.interfaces.push_back({generated::FesComputerInterfacePc386MachineID, 1, 0});
+		computer_11.interfaces.push_back({generated::FesComputerInterfaceRtcWallClockID, 1, 0});
+		std::sort(computer_11.interfaces.begin(), computer_11.interfaces.end(),
+			[](const SupportedInterface& a, const SupportedInterface& b) { return a.id < b.id; });
+		result.abis.insert(result.abis.begin(), std::move(computer_11));
 		result.abis.insert(result.abis.begin(), std::move(computer_io));
 		std::sort(result.abis.begin(), result.abis.end(),
-			[](const SupportedABI& a, const SupportedABI& b) { return a.id < b.id; });
+			[](const SupportedABI& a, const SupportedABI& b) {
+				return a.id != b.id ? a.id < b.id : a.minor < b.minor; });
 		if (active_driver_ == fes_gp_driver_) {
 			MediaStreamInfo info;
 			const auto* driver = dynamic_cast<FesGpCoreDriver*>(fes_gp_driver_);
@@ -1544,11 +1580,23 @@ HardwareResult NativeHardware::LoadCoreInternal(
   if(!error.ok()){menu_unsafe_=true;return {error,true,identified.observed_core};}
  }
 	if (admitted->data_file_) {
-		error = admitted->driver_->RestoreData(admitted->context_,
-			{admitted->data_.paddle_speed, admitted->data_.best_rally},
+		const std::vector<std::uint16_t> words = admitted->data_.game_id.empty() ?
+			std::vector<std::uint16_t>{admitted->data_.paddle_speed, admitted->data_.best_rally} :
+			admitted->data_.words;
+		error = admitted->driver_->RestoreData(admitted->context_, words,
 			Deadline(clock_, timeouts_.core_io_ms));
 		if (!error.ok())
 			return {WithPhase(error, "core_data"), true, identified.observed_core};
+	}
+	if (auto* driver = fes_gp ? dynamic_cast<FesGpCoreDriver*>(admitted->driver_) : nullptr) {
+		// The machine's clock starts from the kit's local time at every launch.
+		std::tm local {};
+		if (driver->WallClockCapable()) {
+			error = clock_.LocalTime(&local) ? driver->SetWallClock(local,
+				Deadline(clock_, timeouts_.core_io_ms)) :
+				Error{ErrorCode::io_failed, "kit local time is unavailable", "transport"};
+			if (!error.ok()) return {error, true, identified.observed_core};
+		}
 	}
 	if (admitted->initial_media_) {
 		auto* driver = dynamic_cast<FesGpCoreDriver*>(admitted->driver_);

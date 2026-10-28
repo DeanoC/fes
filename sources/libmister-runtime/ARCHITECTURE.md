@@ -349,6 +349,15 @@ against an independent reference endpoint. See
 [home-computer I/O](docs/computer-io.md) for the exact protocol shapes. This
 path has host software coverage only.
 
+`fes.computer` 1.1 is a second advertised ABI entry with identity word 16,
+the 17th identity word, compared like word 7 against the registered bits
+16..31. Its `fes.persistence.words` registry has one layout,
+`fes.pc386.machine` 1.0: the driver moves its 72 words on opcodes 24..27 with
+the `fes.simple-game` freeze, begin and commit rules, and the record is keyed
+by core and library game under `<data_root>/games/`. `fes.rtc.wall-clock` 1.0
+takes the kit's local time from the hardware clock while held, after the
+record restore and before Start. Host coverage only.
+
 `fes.media.atari-st-floppy` 1.0 uses capability bit 7 and unit 0. Discovery
 and every insertion without the geometry extension require live minimum and maximum sizes of 737,280 bytes,
 with 512-byte chunks. A changed limit is rejected before MediaBegin. The same

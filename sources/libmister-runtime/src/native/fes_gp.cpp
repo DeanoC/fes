@@ -6,6 +6,7 @@
 #include "native/fes_gp.hpp"
 #include "native/artifacts.hpp"
 
+#include "native/pc386_machine.hpp"
 #include "native/core_package.hpp"
 #include "native/generated/de10_nano.hpp"
 #include "native/generated/fes_gp.hpp"
@@ -123,6 +124,8 @@ static_assert(FesComputerSignature == FesGpSignature &&
 	FesComputerIdentityCapabilitiesIndex == FesGpIdentityCapabilitiesIndex &&
 	FesComputerIdentityBuildIDStartIndex == FesGpIdentityBuildIDStartIndex &&
 	FesComputerIdentityWordCount == FesGpIdentityWordCount &&
+	FesComputerIdentityCapabilitiesHighIndex == FesGpIdentityWordCount &&
+	FesComputerIdentityExtendedWordCount == FesGpIdentityWordCount + 1u &&
 	FesComputerOpcodeIdentity == FesGpOpcodeIdentity &&
 	FesComputerOpcodeExecution == FesGpOpcodeGameplay &&
 	FesComputerControlIndex == FesGpControlIndex &&
@@ -142,6 +145,10 @@ constexpr std::uint16_t kComputerCapabilityMask = static_cast<std::uint16_t>(
 	FesComputerCapabilityMediaZx81TapeWrite | FesComputerCapabilityMediaSpectrumDisk |
     FesComputerCapabilityMediaAtariStFloppyGeometry |
 	FesComputerCapabilityMemoryHpsDdr | FesComputerCapabilityVideoSessionDisplay);
+// Identity word 16 (ABI 1.1) carries capability bits 16..31.
+constexpr std::uint16_t kComputerHighCapabilityMask = static_cast<std::uint16_t>(
+	(FesComputerCapabilityPersistenceWords | FesComputerCapabilityRtcWallClock |
+	 FesComputerCapabilityPc386Machine) >> 16);
 
 std::uint64_t AddDeadline(std::uint64_t now, std::uint64_t duration)
 {
@@ -410,7 +417,7 @@ Error FesGp::Exchange(std::uint8_t opcode, std::uint8_t index,
 }
 
 Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
-	bool* safe_to_quiesce, std::uint16_t* observed_capabilities)
+	bool* safe_to_quiesce, std::uint32_t* observed_capabilities)
 {
 	if (observed_capabilities != nullptr) *observed_capabilities = 0;
 	if (safe_to_quiesce != nullptr) *safe_to_quiesce = false;
@@ -418,8 +425,13 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 	if (now >= deadline) return Io("FES GP discovery deadline exceeded");
 	const std::uint64_t discovery_deadline = std::min(deadline,
 		AddDeadline(now, kDiscoveryTimeoutMs));
+	// A fes.computer 1.1 package's identity has word 16, the second
+	// capability word; every other identity is words 0..15.
+	const bool extended = descriptor.abi.id == FesComputerABIID && descriptor.abi.minor >= 1;
+	const std::uint32_t word_count = extended ? FesComputerIdentityExtendedWordCount :
+		FesGpIdentityWordCount;
 	std::vector<std::uint16_t> observed;
-	for (std::uint32_t index = 0; index < FesGpIdentityWordCount; ++index) {
+	for (std::uint32_t index = 0; index < word_count; ++index) {
 		std::uint16_t word = 0;
 		const Error error = Exchange(static_cast<std::uint8_t>(FesGpOpcodeIdentity),
 			static_cast<std::uint8_t>(index), 0, discovery_deadline, &word);
@@ -427,7 +439,7 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 		observed.push_back(word);
 	}
 
-	std::vector<std::uint16_t> expected(FesGpIdentityWordCount);
+	std::vector<std::uint16_t> expected(word_count);
 	expected[FesGpIdentityMagic0Index] = static_cast<std::uint16_t>(FesGpIdentityMagic0);
 	expected[FesGpIdentityMagic1Index] = static_cast<std::uint16_t>(FesGpIdentityMagic1);
 	expected[FesGpIdentityTransportMajorIndex] =
@@ -442,7 +454,7 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 		computer ? FesSimpleComputerAbiTag : FesGpAbiTag);
 	expected[FesGpIdentityAbiMajorIndex] = static_cast<std::uint16_t>(descriptor.abi.major);
 	expected[FesGpIdentityAbiMinorIndex] = static_cast<std::uint16_t>(descriptor.abi.minor);
-	std::uint16_t capabilities = 0;
+	std::uint32_t capabilities = 0;
 	for (const CoreInterface& interface : descriptor.interfaces) {
 		if (home) {
 			// Admission requires every recognized operational interface to be
@@ -482,6 +494,12 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 			else if (interface.id == FesComputerInterfaceVideoSessionDisplayID &&
 				interface.required && interface.major == 1 && interface.minor == 0)
 				capabilities |= FesComputerCapabilityVideoSessionDisplay;
+			else if (interface.id == FesComputerInterfacePersistenceWordsID)
+				capabilities |= FesComputerCapabilityPersistenceWords;
+			else if (interface.id == FesComputerInterfacePc386MachineID)
+				capabilities |= FesComputerCapabilityPc386Machine;
+			else if (interface.id == FesComputerInterfaceRtcWallClockID)
+				capabilities |= FesComputerCapabilityRtcWallClock;
 			continue;
 		}
 		if (application) {
@@ -555,7 +573,10 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 			capabilities = static_cast<std::uint16_t>(capabilities |
 				FesGpCapabilityVideoFixed720p60);
 	}
-	expected[FesGpIdentityCapabilitiesIndex] = capabilities;
+	expected[FesGpIdentityCapabilitiesIndex] = static_cast<std::uint16_t>(capabilities);
+	if (extended)
+		expected[FesComputerIdentityCapabilitiesHighIndex] =
+			static_cast<std::uint16_t>(capabilities >> 16);
 	std::vector<std::uint16_t> build;
 	if (!BuildWords(descriptor.build.id, &build))
 		return Mismatch("package build ID is invalid for FES GP discovery",
@@ -563,6 +584,13 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 	for (std::size_t index = 0; index < build.size(); ++index)
 		expected[FesGpIdentityBuildIDStartIndex + index] = build[index];
 	for (std::size_t index = 0; index < expected.size(); ++index) {
+		if (extended && index == FesComputerIdentityCapabilitiesHighIndex) {
+			if ((observed[index] & kComputerHighCapabilityMask) != expected[index])
+				return Mismatch("live FES GP capabilities do not match package interfaces",
+					"capabilities_high=" + std::to_string(expected[index]),
+					"capabilities_high=" + std::to_string(observed[index]));
+			continue;
+		}
 		if (index == FesGpIdentityCapabilitiesIndex) {
 			const std::uint16_t application_mask = FesApplicationCapabilityGamepad |
 				FesApplicationCapabilityVideoFixed720p60 | FesApplicationCapabilityMediaBlob |
@@ -589,7 +617,8 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 		} else if (observed[index] != expected[index]) {
 			if (index >= FesGpIdentityBuildIDStartIndex)
 				return Mismatch("live FES GP build ID does not match package",
-					descriptor.build.id, BuildId(observed));
+					descriptor.build.id, BuildId(std::vector<std::uint16_t>(observed.begin(),
+						observed.begin() + FesGpIdentityWordCount)));
 			return Mismatch("live FES GP identity does not match package",
 				WordEvidence(index, expected[index]),
 				WordEvidence(index, observed[index]));
@@ -598,7 +627,8 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 			*safe_to_quiesce = true;
 	}
 	if (observed_capabilities != nullptr)
-		*observed_capabilities = observed[FesGpIdentityCapabilitiesIndex];
+		*observed_capabilities = observed[FesGpIdentityCapabilitiesIndex] |
+			(extended ? static_cast<std::uint32_t>(observed[FesComputerIdentityCapabilitiesHighIndex]) << 16 : 0u);
 	return {};
 }
 
@@ -706,6 +736,7 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 		}
 	}
 	home_computer_ = error.ok() && context.descriptor->abi.id == FesComputerABIID;
+	wall_clock_ = false;
 	keyboard_hid_ = false;
 	mouse_relative_ = false;
 	floppy_write_ = false;
@@ -723,6 +754,7 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 			if (interface.id == FesComputerInterfaceMediaAtariStFloppyWriteID) floppy_write_ = true;
 			if (interface.id == FesComputerInterfaceMediaZx81TapeWriteID) tape_write_ = true;
 			if (interface.id == FesComputerInterfaceGamepadPortsID) controller_ports_ = true;
+			if (interface.id == FesComputerInterfaceRtcWallClockID) wall_clock_ = true;
 			if (interface.id == FesComputerInterfaceMediaApple2FloppyID ||
 				interface.id == FesComputerInterfaceMediaSpectrumTapeID ||
 				interface.id == FesComputerInterfaceMediaSpectrumDiskID ||
@@ -783,7 +815,8 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 			keyboard_hid_ = false;
 			mouse_relative_ = false;
 			floppy_write_ = false;
-	tape_write_ = false;
+			tape_write_ = false;
+			wall_clock_ = false;
 			media_units_.clear();
 		}
 	}
@@ -819,25 +852,31 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 		}
 	}
 	if (error.ok()) {
-		bool words = false, pong = false;
+		// Pong's progress on fes.simple-game opcodes 4..7, or the pc386
+		// machine record on fes.computer opcodes 24..27.
+		data_ = home_computer_ ?
+			DataLayout{FesComputerOpcodeDataControl, FesComputerOpcodeDataRead,
+				FesComputerOpcodeDataWrite, FesComputerOpcodeDataInfo,
+				FesComputerPc386MachineWordCount, FesComputerPc386MachineTag,
+				FesComputerInterfacePc386MachineID} :
+			DataLayout{FesGpOpcodeDataControl, FesGpOpcodeDataRead, FesGpOpcodeDataWrite,
+				FesGpOpcodeDataInfo, FesGpPongProgressWordCount, FesGpPongProgressTag,
+				FesGpInterfacePongProgressID};
+		bool words = false, layout = false;
 		for (const auto& interface : context.descriptor->interfaces) {
 			if (interface.id == FesGpInterfacePersistenceWordsID)
-				words = interface.required &&
-						interface.major == FesGpInterfacePersistenceWordsMajor &&
-						interface.minor == FesGpInterfacePersistenceWordsMinor;
-			if (interface.id == FesGpInterfacePongProgressID)
-				pong = interface.required && interface.major == FesGpInterfacePongProgressMajor &&
-					   interface.minor == FesGpInterfacePongProgressMinor;
+				words = interface.required && interface.major == 1 && interface.minor == 0;
+			if (interface.id == data_.layout)
+				layout = interface.required && interface.major == 1 && interface.minor == 0;
 		}
-		if (words != pong)
+		if (words != layout)
 			error = {ErrorCode::unsupported_interface,
 				"persistence requires exactly one supported layout", "compatibility"};
 		if (error.ok() && words) {
-			const std::uint16_t expected[] = {FesGpPongProgressWordCount, FesGpPongProgressTag,
-				FesGpInterfacePongProgressMajor, FesGpInterfacePongProgressMinor};
+			const std::uint16_t expected[] = {data_.word_count, data_.tag, 1, 0};
 			for (std::uint8_t index = 0; index < 4 && error.ok(); ++index) {
 				std::uint16_t value = 0;
-				error = gp_.Exchange(FesGpOpcodeDataInfo, index, 0, deadline, &value);
+				error = gp_.Exchange(data_.info, index, 0, deadline, &value);
 				if (error.ok() && value != expected[index])
 					error = Mismatch("live persistence layout differs from package");
 			}
@@ -1820,7 +1859,7 @@ Error FesGpCoreDriver::DataControl(std::uint16_t argument, std::uint64_t deadlin
 {
 	std::uint16_t response = 0;
 	Error error =
-		gp_.Exchange(FesGpOpcodeDataControl, FesGpControlIndex, argument, deadline, &response);
+		gp_.Exchange(data_.control, FesGpControlIndex, argument, deadline, &response);
 	if (error.ok() && response != 0)
 		error = Io("invalid persistence control response");
 	return WithPhase(error, "core_data");
@@ -1833,14 +1872,14 @@ Error FesGpCoreDriver::CaptureData(
 	freeze_attempted_ = true;
 	Error error = DataControl(FesGpDataFreeze, deadline);
 	std::vector<std::uint16_t> snapshot;
-	for (std::uint16_t index = 0; index < FesGpPongProgressWordCount && error.ok(); ++index) {
+	for (std::uint16_t index = 0; index < data_.word_count && error.ok(); ++index) {
 		std::uint16_t value = 0;
 		error = gp_.Exchange(
-			FesGpOpcodeDataRead, static_cast<std::uint8_t>(index), 0, deadline, &value);
+			data_.read, static_cast<std::uint8_t>(index), 0, deadline, &value);
 		if (error.ok())
 			snapshot.push_back(value);
 	}
-	if (error.ok() && snapshot[FesGpPongPaddleSpeedIndex] > FesGpPongPaddleSpeedFast)
+	if (error.ok() && !ValidData(snapshot))
 		error = Io("invalid persistence snapshot setting");
 	if (error.ok())
 		*output = std::move(snapshot);
@@ -1849,13 +1888,12 @@ Error FesGpCoreDriver::CaptureData(
 Error FesGpCoreDriver::RestoreData(
 	const CoreDriverContext&, const std::vector<std::uint16_t>& words, std::uint64_t deadline)
 {
-	if (!persistence_verified_ || !reset_held_ || words.size() != FesGpPongProgressWordCount ||
-		words[FesGpPongPaddleSpeedIndex] > FesGpPongPaddleSpeedFast)
+	if (!persistence_verified_ || !reset_held_ || !ValidData(words))
 		return Io("persistence restore is unavailable or invalid");
 	Error error = DataControl(FesGpDataBegin, deadline);
 	for (std::size_t index = 0; index < words.size() && error.ok(); ++index) {
 		std::uint16_t response = 0;
-		error = gp_.Exchange(FesGpOpcodeDataWrite, static_cast<std::uint8_t>(index), words[index],
+		error = gp_.Exchange(data_.write, static_cast<std::uint8_t>(index), words[index],
 			deadline, &response);
 		if (error.ok() && response != 0)
 			error = Io("invalid persistence write response");
@@ -1864,6 +1902,38 @@ Error FesGpCoreDriver::RestoreData(
 		error = DataControl(FesGpDataCommit, deadline);
 	return WithPhase(error, "core_data");
 }
+bool FesGpCoreDriver::ValidData(const std::vector<std::uint16_t>& words) const
+{
+	if (words.size() != data_.word_count) return false;
+	return home_computer_ ? ValidPc386Machine(words) :
+		words[FesGpPongPaddleSpeedIndex] <= FesGpPongPaddleSpeedFast;
+}
+
+Error FesGpCoreDriver::SetWallClock(const std::tm& local, std::uint64_t deadline)
+{
+	if (!wall_clock_ || !reset_held_)
+		return {ErrorCode::unsupported_interface, "wall clock is unavailable", "transport"};
+	// The MC146818's range starts in 1980; a leap second is held at 59.
+	std::tm time = local;
+	if (time.tm_year + 1900 < static_cast<int>(FesComputerWallClockMinYear)) {
+		time = {};
+		time.tm_year = FesComputerWallClockMinYear - 1900;
+		time.tm_mday = 1;
+		time.tm_wday = 2;  // 1980-01-01 was a Tuesday
+	}
+	if (time.tm_year + 1900 > static_cast<int>(FesComputerWallClockMaxYear))
+		return {ErrorCode::invalid_request, "kit time is past the wall clock's range", "transport"};
+	const std::uint16_t words[] = {
+		static_cast<std::uint16_t>(time.tm_year + 1900),
+		static_cast<std::uint16_t>((time.tm_mon + 1) | (time.tm_mday << 8)),
+		static_cast<std::uint16_t>(time.tm_hour | (time.tm_min << 8)),
+		static_cast<std::uint16_t>(std::min(time.tm_sec, 59) | ((time.tm_wday + 1) << 8))};
+	Error error;
+	for (std::uint8_t index = 0; index < FesComputerWallClockWordCount && error.ok(); ++index)
+		error = ComputerCommand(FesComputerOpcodeWallClock, index, words[index], deadline);
+	return WithPhase(error, "transport");
+}
+
 Error FesGpCoreDriver::ResumeData(const CoreDriverContext&, std::uint64_t deadline)
 {
 	if (!persistence_verified_)

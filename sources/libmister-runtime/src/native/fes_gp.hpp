@@ -7,6 +7,7 @@
 #include "native/core_driver.hpp"
 
 #include <cstdint>
+#include <ctime>
 #include <mutex>
 #include <vector>
 
@@ -41,7 +42,7 @@ public:
 		std::uint16_t argument, std::uint64_t absolute_deadline_ms,
 		std::uint16_t* response);
 	Error Identify(const CoreDescriptor&, std::uint64_t absolute_deadline_ms,
-		bool* safe_to_quiesce = nullptr, std::uint16_t* observed_capabilities = nullptr);
+		bool* safe_to_quiesce = nullptr, std::uint32_t* observed_capabilities = nullptr);
 
 private:
 	// Caller holds mutex_. Read only; never reissues the outstanding request.
@@ -90,7 +91,8 @@ public:
 	Error StreamInfo(MediaStreamInfo*) const;
 	Error LoadMediaStream(const ComputerMediaSnapshot&, Clock&, std::uint64_t deadline);
 	Error AbortMediaStream(std::uint64_t deadline);
-	std::uint16_t observed_capabilities() const { return observed_capabilities_; }
+	// Word 7, and word 16 in bits 16..31 for a fes.computer 1.1 identity.
+	std::uint32_t observed_capabilities() const { return observed_capabilities_; }
 
 	// fes.computer 1.0. Rows that equal the last acknowledged state are not
 	// written; after Start every row is written once, in ascending order.
@@ -108,6 +110,9 @@ public:
 	bool TapeWriteCapable() const;
     bool MediaGeometryCapable(std::uint8_t unit) const;
 	bool home_computer() const { return home_computer_; }
+	// fes.rtc.wall-clock 1.0: the four words of a local time, while held.
+	bool WallClockCapable() const { return wall_clock_; }
+	Error SetWallClock(const std::tm& local, std::uint64_t deadline);
 	// Units of declared media interfaces with their last live MediaInfo state.
 	const std::vector<MediaUnitCapability>& media_units() const { return media_units_; }
 	// Live transfer while execution stays released: MediaInfo, Begin, 512-byte
@@ -123,6 +128,14 @@ private:
 	CoreDriverResult NeutralizeKeyboard(std::uint64_t deadline);
 	Error NeutralizeControllers(std::uint64_t deadline);
 	Error DataControl(std::uint16_t, std::uint64_t);
+	bool ValidData(const std::vector<std::uint16_t>&) const;
+	// The persistence opcodes and layout of the identified registry.
+	struct DataLayout {
+		std::uint8_t control, read, write, info;
+		std::uint16_t word_count, tag;
+		const char* layout;
+	};
+	DataLayout data_{};
 	Error StreamCommand(std::uint8_t opcode, std::uint8_t index,
 		std::uint16_t argument, std::uint64_t deadline);
 	Error TransferMediaBlob(const std::vector<std::uint8_t>& bytes,
@@ -157,7 +170,7 @@ private:
 	bool gamepad_ = false;
 	bool controller_ports_ = false;
 	bool keypad_ports_ = false;
-	std::uint16_t observed_capabilities_ = 0;
+	std::uint32_t observed_capabilities_ = 0;
 	MediaStreamInfo stream_info_;
 	bool stream_verified_ = false;
 	bool stream_pending_ = false;
@@ -166,6 +179,7 @@ private:
 	bool mouse_relative_ = false;
 	bool floppy_write_ = false;
 	bool tape_write_ = false;
+	bool wall_clock_ = false;
 	KeyboardHidRows hid_rows_{};
 	bool hid_rows_known_ = false;
 	std::vector<MediaUnitCapability> media_units_;

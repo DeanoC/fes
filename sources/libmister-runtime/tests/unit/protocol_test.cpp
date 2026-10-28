@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "daemon/json.hpp"
+#include "native/pc386_machine.hpp"
 #include "daemon/protocol.hpp"
 #include "native/core_package.hpp"
 #include "native/sha256.hpp"
@@ -280,6 +281,61 @@ void TestStatusErrorIsIndependentOfResponseOk()
 }
 
 
+// fes.pc386: a per-game record keyed by game_id, and machine settings in
+// place of Pong's paddle speed. The response lines are the agent's fixture.
+void TestPc386CoreDataProtocol()
+{
+	const std::string fields = "\"package_path\":\"/tmp/p\",\"package_id\":\"" +
+		std::string(64, 'a') + "\",\"data_root\":\"/tmp/data\"";
+	Request request;
+	for (const auto* operation : {"load_library_core", "inspect_core_data"}) {
+		assert(Parse("{\"protocol\":2,\"operation\":\"" + std::string(operation) + "\"," + fields +
+			",\"game_id\":\"ultima-vi\"}", &request).ok());
+		assert(request.game_id == "ultima-vi");
+		for (const auto* game : {"\"\"", "\"Ultima\"", "\"-vi\"", "\"a--b\"", "7"})
+			assert(!Parse("{\"protocol\":2,\"operation\":\"" + std::string(operation) + "\"," + fields +
+				",\"game_id\":" + game + "}", &request).ok());
+		assert(!Parse("{\"protocol\":2,\"operation\":\"" + std::string(operation) + "\"," + fields +
+			",\"machine\":{}}", &request).ok());
+	}
+	const std::string update = "{\"protocol\":2,\"operation\":\"update_core_settings\"," + fields +
+		",\"game_id\":\"ultima-vi\",\"expected_revision\":\"absent\",\"machine\":";
+	const std::string machine = "{\"preset\":3,\"frequency\":250,\"code_profile\":1,\"turbo\":0,"
+		"\"sb_base\":576,\"sb_irq\":5,\"sb_dma\":1}";
+	assert(Parse(update + machine + "}", &request).ok());
+	assert(request.operation == Operation::update_core_settings && request.settings.pc386 &&
+		request.game_id == "ultima-vi" && request.settings.machine.preset == 3 &&
+		request.settings.machine.frequency == 250 && request.settings.machine.sb_base == 576 &&
+		request.settings.machine.sb_irq == 5);
+	// The record checks value sets; the wire takes any 16-bit word, exact keys only.
+	assert(!Parse(update + "{\"preset\":3}}", &request).ok());
+	assert(!Parse(update + machine.substr(0, machine.size() - 1) + ",\"extra\":1}}", &request).ok());
+	assert(!Parse(update + "{\"preset\":65536,\"frequency\":0,\"code_profile\":0,\"turbo\":0,"
+		"\"sb_base\":544,\"sb_irq\":7,\"sb_dma\":1}}", &request).ok());
+	assert(!Parse(update + machine + ",\"paddle_speed\":1}", &request).ok());
+
+	const auto lines = ReadLines("tests/fixtures/protocol-v2-pc386-responses.jsonl");
+	assert(lines.size() == 2);
+	Status status;
+	status.state = State::idle;
+	status.capabilities = FixtureCapabilities();
+	mister::CoreData data;
+	data.package_id = std::string(64, 'a');
+	data.core_id = "fes.pc386";
+	data.game_id = "ultima-vi";
+	data.layout = {"fes.pc386.machine", 1, 0};
+	data.mode = "persistent";
+	data.words = mister::native::Pc386MachineDefaults();
+	assert(mister::daemon::EncodeResponse(2, true, status, "fixture", nullptr, &data) == lines[0]);
+	data.words[0] = 3;
+	data.words[1] = 250;
+	data.words[2] = 1;
+	data.words[4] = 576;
+	data.words[5] = 5;
+	data.revision = std::string(64, 'b');
+	assert(mister::daemon::EncodeResponse(2, true, status, "fixture", nullptr, &data) == lines[1]);
+}
+
 void TestPersistenceRequestsAndResponseFixtures()
 {
 	const auto lines = ReadLines("tests/fixtures/protocol-v2-persistence-responses.jsonl");
@@ -294,7 +350,7 @@ void TestPersistenceRequestsAndResponseFixtures()
 				   .ok());
 	const std::string update = "{\"protocol\":2,\"operation\":\"update_core_settings\"," + fields +
 							   ",\"expected_revision\":\"absent\",\"paddle_speed\":";
-	assert(Parse(update + "2}", &request).ok() && request.paddle_speed == 2 &&
+	assert(Parse(update + "2}", &request).ok() && request.settings.paddle_speed == 2 && !request.settings.pc386 &&
 		   request.expected_revision == "absent");
 	assert(Parse(R"({"protocol":2,"operation":"set_keyboard","matrix":1099511627775})",
 		&request)
@@ -1288,6 +1344,7 @@ int main(int argc, char** argv)
 			   .ok());
 
 	TestPersistenceRequestsAndResponseFixtures();
+	TestPc386CoreDataProtocol();
 	TestProtocol2GoldenRequestsAndResponses();
 	TestProtocolResponseEdgeFixtures();
 	TestProtocol2RequestBoundaries();

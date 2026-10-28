@@ -369,7 +369,8 @@ public:
 	Error LoadCore(const std::string& directory, const std::string& expected_package_id,
 		const std::string& data_root = "", const CoreCompositionRequest* composition = nullptr,
 		const std::string& programmed_path = "", const std::string& programmed_sha256 = "", const CoreROMLink* rom_link = nullptr,
-		const CoreROMLinks* rom_links = nullptr, const InitialComputerMedia* initial_media = nullptr)
+		const CoreROMLinks* rom_links = nullptr, const InitialComputerMedia* initial_media = nullptr,
+		const std::string& game_id = "")
 	{
 		LogRecord rejection;
 		bool rejected = false;
@@ -431,7 +432,7 @@ public:
 		data.package_id = package->info().package_id;
 		data.core_id = package->info().declared_core;
 		if (!data_root.empty()) {
-			const Error prepared = hardware_.PrepareCoreData(package.get(), data_root, &data);
+			const Error prepared = hardware_.PrepareCoreData(package.get(), data_root, game_id, &data);
 			if (!prepared.ok()) {
 				{
 					std::lock_guard<std::mutex> lock(mutex_);
@@ -588,12 +589,13 @@ public:
 	}
 
 	Error AccessCoreData(const std::string& directory, const std::string& package_id,
-		const std::string& data_root, const std::string& revision, std::uint16_t speed, bool update,
-		CoreData* output)
+		const std::string& data_root, const std::string& game_id, const std::string& revision,
+		const CoreSettingsUpdate* update, CoreData* output)
 	{
 		if (!output || !ValidAbsolutePath(directory) || !ValidAbsolutePath(data_root) ||
 			!ValidPackageId(package_id) ||
-			(update && (speed > 2 || (revision != "absent" && !ValidPackageId(revision)))))
+			(update && ((!update->pc386 && update->paddle_speed > 2) ||
+				(revision != "absent" && !ValidPackageId(revision)))))
 			return Invalid("invalid core-data request");
 		{
 			std::unique_lock<std::mutex> lock(mutex_);
@@ -605,8 +607,8 @@ public:
 		}
 		CoreData data;
 		Error error = update ? hardware_.UpdateCoreSettings(
-								   directory, package_id, data_root, revision, speed, &data)
-							 : hardware_.InspectCoreData(directory, package_id, data_root, &data);
+								   directory, package_id, data_root, game_id, revision, *update, &data)
+							 : hardware_.InspectCoreData(directory, package_id, data_root, game_id, &data);
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
 			busy_ = false;
@@ -1542,12 +1544,12 @@ Error Runtime::LoadComposedCore(const std::string& directory, const std::string&
 {
 	return impl_->LoadCore(directory, id, "", &request);
 }
-Error Runtime::LoadLibraryCore(
-	const std::string& directory, const std::string& id, const std::string& root)
+Error Runtime::LoadLibraryCore(const std::string& directory, const std::string& id,
+	const std::string& root, const std::string& game_id)
 {
 	if (!ValidAbsolutePath(root))
 		return Invalid("invalid core-data root");
-	return impl_->LoadCore(directory, id, root);
+	return impl_->LoadCore(directory, id, root, nullptr, "", "", nullptr, nullptr, nullptr, game_id);
 }
 Error Runtime::LoadLibraryPartsCore(const std::string& directory, const std::string& id,
 	const std::string& root, const CoreCompositionRequest& request)
@@ -1600,15 +1602,16 @@ Error Runtime::LoadInitializedComposedCore(const std::string& directory, const s
 {
 	return impl_->LoadCore(directory, id, "", &request, programmed_path, programmed_sha256);
 }
-Error Runtime::InspectCoreData(
-	const std::string& directory, const std::string& id, const std::string& root, CoreData* output)
+Error Runtime::InspectCoreData(const std::string& directory, const std::string& id,
+	const std::string& root, const std::string& game_id, CoreData* output)
 {
-	return impl_->AccessCoreData(directory, id, root, "", 0, false, output);
+	return impl_->AccessCoreData(directory, id, root, game_id, "", nullptr, output);
 }
 Error Runtime::UpdateCoreSettings(const std::string& directory, const std::string& id,
-	const std::string& root, const std::string& revision, std::uint16_t speed, CoreData* output)
+	const std::string& root, const std::string& game_id, const std::string& revision,
+	const CoreSettingsUpdate& update, CoreData* output)
 {
-	return impl_->AccessCoreData(directory, id, root, revision, speed, true, output);
+	return impl_->AccessCoreData(directory, id, root, game_id, revision, &update, output);
 }
 
 Error Runtime::InspectCore(const std::string& directory,
