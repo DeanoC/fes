@@ -125,8 +125,14 @@ package fes_i386_pkg;
     // UOP_SPECIAL.
     typedef enum logic [4:0] { SPECIAL_NOP, SPECIAL_HLT } special_op_e;
 
-    // UOP_MUL and UOP_DIV.
-    typedef enum logic [4:0] { MULDIV_UNSIGNED, MULDIV_SIGNED, MULDIV_AAM, MULDIV_AAD } muldiv_op_e;
+    // UOP_MUL and UOP_DIV, in EX's multiply and divide unit (fes_i386_muldiv).
+    // HI writes the high half a two-destination MUL or DIV kept (EDX, DX);
+    // LOAD gives a 16- or 32-bit DIV its dividend's high half (EDX), and
+    // carries the divide's signedness in imm[0]; IMUL3 is IMUL r, r/m, imm,
+    // whose multiplier is imm and multiplicand src2.
+    typedef enum logic [4:0] {
+        MULDIV_UNSIGNED, MULDIV_SIGNED, MULDIV_AAM, MULDIV_AAD, MULDIV_HI, MULDIV_LOAD, MULDIV_IMUL3
+    } muldiv_op_e;
 
     // UOP_BRANCH.
     typedef enum logic [4:0] {
@@ -191,7 +197,8 @@ package fes_i386_pkg;
     // Faults decode finds; each travels with its uop and is taken at WB.
     // UNIMPLEMENTED is not architectural: an encoding this build does not
     // execute yet. WB stops on it, so a check never retires one silently.
-    typedef enum logic [2:0] { FAULT_NONE, FAULT_UD, FAULT_GP0, FAULT_NM, FAULT_UNIMPLEMENTED, FAULT_SS0 } fault_e;
+    // DE is the divide error EX finds (vector 0).
+    typedef enum logic [2:0] { FAULT_NONE, FAULT_UD, FAULT_GP0, FAULT_NM, FAULT_UNIMPLEMENTED, FAULT_SS0, FAULT_DE } fault_e;
 
     typedef struct packed {
         logic [3:0] cond;             // x86 condition code (tttn) for Jcc, SETcc
@@ -213,14 +220,14 @@ package fes_i386_pkg;
     // which WB writes and no forwarding sees.
     // sp_add: WB adds sp_new to ESP (RETF, whose jump flushes every younger
     // uop, so nothing needs the new ESP sooner).
-    // probe: the uop reads the lowest slot of a routine's pushes or pops
-    // (PROBE_*), and M1 also faults when the slots cross the 64 KiB wrap
-    // misaligned, so a routine writes nothing before it can fault.
+    // probe: the uop reads the lowest slot of INT's three pushes, and M1
+    // also faults when they cross the 64 KiB wrap misaligned, so INT writes
+    // nothing before it can fault.
     // eoi_taken: the uop ends the instruction when it is a taken branch
     // (INTO's JNO, past which the rest of the routine is the interrupt).
     typedef struct packed {
         logic        eoi_taken;
-        logic [1:0]  probe;
+        logic        probe;
         logic        seg2;
         logic [2:0]  seg2_idx;
         logic        seg2_t;
@@ -282,27 +289,41 @@ package fes_i386_pkg;
         // The segment registers the uop writes, one-hot: its destination's
         // or its second destination's (D's segment-busy update).
         logic [5:0]  wseg;
-        // A stack read's slot past ESP, in operand-sized slots (STK_PEEK), and
-        // a push of the value in T1 (b_t1, which waits as far_t does).
-        logic [1:0]  slot;
-        logic        b_t1;
-        logic        a_t1;       // src1's value is T1's (POPAD's ESP), which waits as b_t1 does
+        // A stack slot at ESP plus slot operand-sized slots, -8 to 7, ESP
+        // unmoved (STK_PEEK).
+        logic [3:0]  slot;
+        logic        a_t1;       // src1's value is T1's (POPAD's ESP), which waits as far_t does
+        logic        b_t1;       // src2's value is T1's, which waits the same way
         logic        popad_esp;  // the uop counts only for POPAD on a 16-bit stack
+        // The ModRM memory operand's address registers and segment, kept
+        // while a stack uop holds the address fields (POP r/m's store).
+        logic        m_has_base;
+        logic [2:0]  m_base;
+        logic        m_has_index;
+        logic [1:0]  m_scale;
+        logic [2:0]  m_seg;
+        logic        index8;     // the index is its register's low byte, zero-extended (XLAT's AL)
         // A microcode routine (SEQ_UCODE): the ROM address of its next uop.
         logic [7:0]  upc;
         // A fixed uop sequence (SEQ_*), the step dc holds, and whether
         // another uop follows (fes_i386_seq).
-        logic [2:0]  seq;
+        logic [3:0]  seq;
         logic [2:0]  step;
         logic        more;
     } decoded_t;
 
-    // STK_PEEK reads the stack without moving ESP (RETF's loads); STK_RETF
-    // is RETF's step of ESP, at its jump; STK_PROBE reads the lower slot of
-    // a far call's two pushes, only for its limit check.
+    // STK_PEEK reads or writes a stack slot without moving ESP (RETF's
+    // loads, PUSHA's and POPA's slots); one that writes ESP (sp_write) steps
+    // it past eight slots, down from a slot below ESP, up from one above.
+    // STK_RETF is RETF's step of ESP, at its jump; STK_PROBE reads the lower
+    // slot of a far call's two pushes, or INT's three, only for its limit
+    // check.
     typedef enum logic [2:0] { STK_NONE, STK_PUSH, STK_POP, STK_RET_IMM, STK_LEAVE, STK_PEEK, STK_RETF, STK_PROBE } stk_e;
-    typedef enum logic [2:0] { SEQ_NONE, SEQ_CALL, SEQ_LPTR, SEQ_CALLF, SEQ_RETF, SEQ_JMPFM, SEQ_CALLFM, SEQ_UCODE } seq_e;
-    typedef enum logic [1:0] { PROBE_NONE, PROBE_INT, PROBE_PUSHA, PROBE_POPA } probe_e;
+    typedef enum logic [3:0] {
+        SEQ_NONE, SEQ_CALL, SEQ_LPTR, SEQ_CALLF, SEQ_RETF, SEQ_JMPFM, SEQ_CALLFM, SEQ_UCODE,
+        SEQ_XCHG, SEQ_XCHGM, SEQ_CALLI, SEQ_PUSHM, SEQ_POPM, SEQ_MUL, SEQ_DIV
+    } seq_e;
+    typedef enum logic { PROBE_NONE, PROBE_INT } probe_e;
 
     // A microcode ROM word (fes_i386_ucode_rom, built by
     // scripts/fes_i386_ucode.py from ucode.toml): the fields of one uop that
@@ -326,16 +347,17 @@ package fes_i386_pkg;
         logic [1:0]  mbytes;     // operand size, 2, 4, 1
         logic        in_a;
         logic [2:0]  stk;        // stk_e
-        logic [1:0]  slot;
+        logic [3:0]  slot;       // -8 to 7
         logic        ivt;        // the interrupt vector's entry, at linear vector * 4
         logic        sel_part;   // ... its selector, at + 2
-        logic [1:0]  probe;      // probe_e
-        logic [1:0]  b;          // UC_B: src2, the next EIP, T1, segment seg's selector
+        logic        probe;      // probe_e
+        logic [1:0]  b;          // UC_B: src2, the next EIP, segment seg's selector
         logic [2:0]  seg;
         logic        far_jmp;
         logic        far_chk;
         logic        far_t;
         logic        sp_add;
+        logic        sp_step;    // a STK_PEEK uop writes ESP, past its eight slots
         logic        a_t1;       // src1's value is T1's
         logic        popad_esp;  // kept only for POPAD on a 16-bit stack
         logic        rd_cf;
@@ -394,6 +416,11 @@ package fes_i386_pkg;
         logic       fl_cf, fl_cmc, fl_set;
         logic       b_jcc, b_jmp, b_loop, b_loope, b_loopne, b_jcxz;
         logic       b_ind;                     // RET, JMP r/m: the target is x (CS's base) + y (the EIP)
+        // The result (md) and the flags (md_fl) come from the multiply and
+        // divide unit (fes_i386_muldiv); md_wait: it works over several
+        // cycles, while D to WB freeze; md_de: the uop is a divide, which may
+        // raise #DE.
+        logic       md, md_fl, md_wait, md_de;
         shctl_t     sh;
     } exctl_t;
 

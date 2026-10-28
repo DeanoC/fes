@@ -103,6 +103,22 @@ Run the commands below from `sources/misteross/`. Preparing one registered
 package without an image rebuild is the FES
 [core developer workflow](../../docs/core-development.md).
 
+### DE25-Nano board bring-up
+
+The standalone [DE25-Nano diagnostic](boards/de25nano/README.md) exercises
+the 50 MHz clock and eight active-low LEDs on the Agilex 5
+`A5EB013BB23BE4SCS`. Run `make -C boards/de25nano sim` for host simulation
+and `make -C boards/de25nano project` to prepare a local Quartus project.
+The explicit Quartus Pro build produces a JTAG `.sof` diagnostic; it does
+not export a described package. Compiler fitting, timing and physical
+acceptance require the configured Pro installation and a DE25-Nano board.
+
+The board definition lives in
+[`mister-packages`](../mister-packages/packages/board/de25_nano.yaml).
+The existing DE10-Nano producers, package admission and Quartus 17.0.2
+oracles retain their current target. DE25-Nano HPS, boot media, runtime,
+HDMI and memory integration are not implemented by this diagnostic.
+
 The original RV32I CPU in `cores/fes-common/rtl/riscv` is the first-party
 RISC-V lane; `make sim-fes-riscv` checks it against an independent model and
 runs the [fes.riscv](cores/fes-riscv/README.md) system and board shell.

@@ -4,10 +4,12 @@ Fogger Expandable System is a OSS FPGA based on 'mister' (DE-10 Nano) that provi
 should be. Compared to mister it currently supports only a few system but builds them with a fully OSS toolchain by default (Yosys + nextpnr) and provide a
 closer analog to real expansion and cartridge buses that many system had.
 
-DE25-Nano Linux bring-up has a separate [headless AArch64 image lane](docs/de25-linux.md)
-for serial console, networking and SSH. It prepares a diagnostic SD-card image
-using the vendor boot artifacts. DE25-Nano runtime, display and playable-core
-support remain separate work.
+DE25-Nano bring-up includes a [headless AArch64 image](docs/de25-linux.md),
+[Quartus Pro clock/LED and HPS mailbox diagnostics](sources/misteross/boards/de25nano/README.md),
+and [off-board runtime software checks](docs/de25-linux.md#aarch64-runtime-and-agent-checks-without-a-board).
+These lanes build, simulate and retain diagnostic artifacts; DE25 physical
+boot, FPGA programming, display and playable-core acceptance remain open.
+The default appliance and playable packages target DE10-Nano.
 
 Agents: read [AGENTS.md](AGENTS.md), then the
 [development guide](docs/development.md) and the selected component's guidance.

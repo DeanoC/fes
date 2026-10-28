@@ -44,6 +44,15 @@ RULES = [
     ('sources/misteross/cores/*/sim/**', 'none', None),
     ('sources/libmister-runtime/tests/**', 'none', None),
     ('sources/misteross/scripts/sim_*', 'none', None),
+    # Standalone DE25-Nano bring-up has no image, bundle or package consumer.
+    # Its manual DE25 JTAG smoke check is separate from deployed DE10 kit HIL.
+    ('sources/mister-packages/packages/board/de25_nano.yaml', 'none', None),
+    ('sources/misteross/boards/de25nano/**', 'none', None),
+    # These exact validation/generation tools have no deployed binary consumer.
+    # A changed emitted artifact is classified through its actual consumer path.
+    ('sources/mister-packages/cmd/mister-packages/main.go', 'none', None),
+    ('sources/mister-packages/internal/pack/board.go', 'none', None),
+    ('sources/mister-packages/internal/pack/load.go', 'none', None),
     ('sources/mister-packages/**', 'full', 'package-format'),
     ('sources/libmister-runtime/**', 'overlay', 'mister-runtime'),
     ('sources/FogCast/cmd/mister-agent/**', 'overlay', 'mister-agent'),

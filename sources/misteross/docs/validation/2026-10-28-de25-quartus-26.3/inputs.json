@@ -1,0 +1,14 @@
+{
+  "board": "de25_nano",
+  "device": "A5EB013BB23BE4SCS",
+  "diagnostic_only": true,
+  "quartus_version": "26.3.0",
+  "quartus_edition": "Pro Edition",
+  "source_sha256": {
+    "blinky.v": "1490799d1ce52e7e5573bf3bb110ca30c33ce079f6cee48d111974421549000e",
+    "pins.qsf": "86cb666aa77ad5d5f535bd2a24edf1fb9e55137eec47069e55c5e0116c92a9f1",
+    "clocks.sdc": "c67636217cadeb7b247a883abe1093713dab30ee9c2f513af481d2fceb9d227f",
+    "reset_release.ip": "945363edeae029d7258228077d89ae5d4fde3c3e1f551d661f6ade4e04393d93",
+    "build.py": "104fc74e5bf448396e3e078535615efd9ac30ce6d47cc1e96cf98a5622211d6c"
+  }
+}
