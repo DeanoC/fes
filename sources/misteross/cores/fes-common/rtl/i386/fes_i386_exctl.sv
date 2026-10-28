@@ -125,7 +125,6 @@ module fes_i386_exctl (
     assign c.r_y = (alu && (op == 5'd15 || op == 5'd9)) || cls == C_SEGMENT;
     assign c.r_movsx = alu && op == 5'd16;
     assign c.r_setcc = alu && op == 5'd17;
-    assign c.r_lahf = alu && op == 5'd30;
     assign c.r_sign = alu && op == 5'd31;
     assign c.l_or = op == 5'd1;
     assign c.l_xor = op == 5'd6 || op == 5'd13;   // NOT is x XOR the size's ones
@@ -136,6 +135,8 @@ module fes_i386_exctl (
     logic [3:0] fop;
     assign flagop = alu && op == 5'd30;
     assign fop = u.imm[3:0];
+    assign c.r_lahf = flagop && fop == 4'd8;
+    assign c.r_flags = flagop && (fop == 4'd10 || fop == 4'd11);
     assign c.f_add = arith;
     assign c.f_arith = arith || incdec;
     assign c.f_logic = logic_op;
@@ -144,6 +145,8 @@ module fes_i386_exctl (
     assign c.f_if = flagop && (fop == 4'd3 || fop == 4'd4);
     assign c.f_df = flagop && (fop == 4'd5 || fop == 4'd6);
     assign c.f_szap = flagop && fop == 4'd7;
+    assign c.f_load = flagop && fop == 4'd9;
+    assign c.f_clrit = flagop && fop == 4'd11;
     assign c.fl_cf = fop == 4'd1;
     assign c.fl_cmc = fop == 4'd2;
     assign c.fl_set = fop == 4'd4 || fop == 4'd6;

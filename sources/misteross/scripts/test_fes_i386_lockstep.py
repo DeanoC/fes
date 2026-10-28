@@ -66,7 +66,7 @@ SIM = ROOT / 'cores/fes-common/sim/i386'
 OUTPUT = ROOT / 'build/sim/fes-i386-lockstep'
 CPU_RTL = ('fes_i386_pkg.sv', 'fes_i386_oplen.sv', 'fes_i386_lendec.sv', 'fes_i386_lstage.sv',
            'fes_i386_fetchbuf.sv', 'fes_i386_qalign.sv', 'fes_i386_frontend.sv', 'fes_i386_amode.sv',
-           'fes_i386_dfwd.sv', 'fes_i386_agu.sv', 'fes_i386_decode.sv', 'fes_i386_seq.sv', 'fes_i386_dops.sv',
+           'fes_i386_dfwd.sv', 'fes_i386_agu.sv', 'fes_i386_ucode_pkg.sv', 'fes_i386_ucode_rom.sv', 'fes_i386_decode.sv', 'fes_i386_seq.sv', 'fes_i386_dops.sv',
            'fes_i386_shift.sv', 'fes_i386_shflags.sv', 'fes_i386_exctl.sv', 'fes_i386_ex.sv', 'fes_i386_cpu.sv')
 TOP = 'fes_i386_cpu'
 
@@ -93,6 +93,8 @@ SCOPE: frozenset[str] = frozenset([
     '68', '6A', 'C2', 'C3', 'C9', 'E8', 'FF.4',
     # Far pointer loads: LES, LDS, LSS, LFS, LGS; far transfers.
     'C4', 'C5', '0FB2', '0FB4', '0FB5', 'EA', '9A', 'CA', 'CB', 'FF.3', 'FF.5',
+    # Microcode routines; PUSHF and POPF.
+    '60', '61', '9C', '9D', 'CC', 'CD', 'CE', 'CF',
 ])
 
 
@@ -355,7 +357,7 @@ def main() -> int:
         summary = result['summary']
         counts = by_opcode.setdefault(vectors.base_opcode(result['stem']), Counter())
         counts.update({'tests': result['tests'], 'passed': summary['passed'], 'failed': summary['failed'],
-                       'retired_to_hlt': summary['halts'], 'faults': summary['faults'],
+                       'retired_to_hlt': summary['halts'], 'interrupts': summary['interrupts'], 'faults': summary['faults'],
                        'retirements': summary['retirements']})
         corpus_failures += result['failures']
     totals = sum(by_opcode.values(), Counter())
@@ -400,7 +402,8 @@ def main() -> int:
     })
     (OUTPUT / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
     print(f"corpus: {len(corpus_results)} files, {len(by_opcode)} opcodes, {totals['tests']} tests: "
-          f"{totals['passed']} pass ({totals['retired_to_hlt']} to HLT, {totals['faults']} faulting "
+          f"{totals['passed']} pass ({totals['retired_to_hlt']} to HLT, {totals['interrupts']} of them in an "
+          f"interrupt's handler, {totals['faults']} faulting "
           f"{dict(fault_vectors)}), {totals['failed']} fail; {totals['retirements']} retirements compared")
     if random_results:
         print(f"random: {len(random_results)} seeds x {args.random_programs} programs, {random_totals['retirements']} "
