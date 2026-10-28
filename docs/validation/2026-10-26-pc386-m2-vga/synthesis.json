@@ -1,0 +1,698 @@
+{
+  "format": 1,
+  "classification": "diagnostic machine-only synthesis and packing; no route or timing",
+  "hardware_acceptance": false,
+  "device": "5CSEBA6U23I7",
+  "synthesis": "synth_intel_alm -family cyclonev -nolutram",
+  "lock": "cores/fes-common/rtl/i386/toolchain.lock",
+  "lock_sha256": "c7ba60d1a43b753538fafd2908861b4f487c079fd548c53b9fe523ad78c29786",
+  "tools": {
+    "mistral": "commit=8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f; sha256=2471f3bd5be1085b5455a1a53f296d284640436291745a5c45aece237e2509dd",
+    "nextpnr-mistral": "commit=bd7a1c0d2e1a36ff64ad303edffac87fdabd66bb; sha256=211ec86fa933f89687af4b885701775c6703008859ce7d6cc82a5efbc19e94e8; gpu-router=HIP; hip-architectures=gfx1100;gfx1201",
+    "yosys": "commit=238eac9a49002722cef800cacaa763911e01f240; sha256=771be6f583aab6ce380b9ec1dfae89252b4c989506cb1b7c7466b47968ab9f4d"
+  },
+  "created_utc": "2026-10-26T20:59:09.771741+00:00",
+  "blocks": {
+    "machine": {
+      "top": "pc386_machine",
+      "sources": {
+        "cores/fes-common/vendor/kf8259/KF8259.sv": "c5ee6e8ce7223204745370af7007541083da10e88974a3d3804c999914896f03",
+        "cores/fes-common/vendor/kf8259/KF8259_Bus_Control_Logic.sv": "8a79e4708b4f68da13626b8c88672978ba364ba548dfe2d54fad49412dfc8d1c",
+        "cores/fes-common/vendor/kf8259/KF8259_Control_Logic.sv": "257e2110516d89a3d2b0b6faf0b82ed7e08fc92e077f09439ef4e5a5e3a092b0",
+        "cores/fes-common/vendor/kf8259/KF8259_In_Service.sv": "c6991c3fea4647db02ad07e78ca4c7a99f0126c050137e8b624b663820b4ec92",
+        "cores/fes-common/vendor/kf8259/KF8259_Interrupt_Request.sv": "b4fb1634a6721b83a2dd926d102d943e0655cced14f960a73938f06ef3821cca",
+        "cores/fes-common/vendor/kf8259/KF8259_Priority_Resolver.sv": "e55c15c6aa487c6b0c69af72c767b1fd2bd10f498b6567f88de3120feef3c5d7",
+        "cores/fes-common/vendor/kf8253/KF8253.sv": "8eafce840403773204b3162317d6c773d7352daf2e994a7520161a611427c9e8",
+        "cores/fes-common/vendor/kf8253/KF8253_Control_Logic.sv": "db11635d34159622e43cd996c3ea101b84eb0e3abae4f8ccb9556cf4351a4837",
+        "cores/fes-common/vendor/kf8253/KF8253_Counter.sv": "87b3df9e59b75c0102aed1d592e6be23ba732e9d80c9c6f154355729b450dba8",
+        "cores/fes-common/rtl/fes_dma8237.sv": "14df115bcd43a3d65fe55a1f1209972c0fe68e4527cd67ba67b933b52fab8dae",
+        "cores/fes-pc386/rtl/pc386_rate.sv": "66b7dee8dc40c4fb0886f1c6ea623cda241275625823e3a7f48b8d122dd3b02e",
+        "cores/fes-pc386/rtl/pc386_io.sv": "4ae84cced9c83f8e13b8811a6fcd43130f23f10e38931214d9505b4f19296ece",
+        "cores/fes-pc386/rtl/pc386_pic.sv": "46ac29f0f685a4a02cf3eaa157d758ec195a07fccdbf4e0475968d518360bc7e",
+        "cores/fes-pc386/rtl/pc386_sysctl.sv": "02832baa8b7878fcdb448108060162034327a160f79868d2109dc5bf7e5047b2",
+        "cores/fes-pc386/rtl/pc386_kbc.sv": "72c209d8f40ee017784038ec36d73c1a51b0d333f993927daec40cfe660ca203",
+        "cores/fes-pc386/rtl/pc386_rtc.sv": "ed32b76655ff27c74064e45f4870589774ba2f18d04fcf2181823489187f0107",
+        "cores/fes-pc386/rtl/pc386_ata.sv": "f01a112c37a74ef5f22e962fb8585588b93bfd8d6fd24816ac16a67673fd4700",
+        "cores/fes-pc386/rtl/pc386_at_core.sv": "93794ae9124e239a9c1f0d3b9e4044ba6de55d22e475d045a1b26d9ccd733da1",
+        "cores/fes-pc386/rtl/pc386_ram.sv": "de9992221215721095f073a3960e14ae946b06c8e31d8b884f53dfe50bf16ef1",
+        "cores/fes-pc386/rtl/pc386_vga.sv": "d2435faa3c0132f11e4c1d8d931768edc494202262db83334d3d3468b51e13bf",
+        "cores/fes-pc386/rtl/pc386_vga_scanout.sv": "6502d3094eef941d149187b7f905fb5ca91f7aecab212763d6fc8d73a3ea002f",
+        "cores/fes-pc386/rtl/pc386_presenter.sv": "5030653faf54990bc37a66fbb6dd063ff80fa4c872f771dbc9184c7a180ddade",
+        "cores/fes-pc386/rtl/pc386_plane_bridge.sv": "1b9598fb76cfef94921abdffe1d3dc60964038c92d0fe3de07690f69949d86ad",
+        "cores/fes-pc386/rtl/pc386_port2.sv": "ce48b631f6a67f665cb51f8f224c84cab08128f62de9cc95c090d8fcb592d19b",
+        "cores/fes-pc386/rtl/pc386_machine.sv": "e6a03f5fc85b8ee30fc163a587f6e059191e5dc11b4d4fb09967d5db7b686c28",
+        "cores/fes-common/rtl/fes_display_plane.v": "d9c944e39786f96ac34ba183dc74b7086dbcd40a68a26821b1d9d053ed511525",
+        "cores/fes-common/rtl/fes_display_cdc.v": "8a0012f9a9ee44ffb890e290b6f6ec2451eee69311904d351fc113c1bd2333bf",
+        "cores/fes-menu/rtl/fes_menu_control.v": "cb34fde3607f1b63d9db3b1cc7eb6f3b721ddf46319de702e1ba1adce3bcf390",
+        "cores/fes-menu/rtl/fes_menu_video.v": "03e7bf254c1ecb58174d61fec01cf124a784b0c7b6867f043386d7c78d2b0c6b",
+        "cores/fes-menu/rtl/fes_menu_reader.v": "0bd4f7d897d0569d030a6fc8028a59300a55cc7435cd97da2cbb40f934fe97f6"
+      },
+      "cells": {
+        "MISTRAL_ALUT2": 7367,
+        "MISTRAL_ALUT3": 11976,
+        "MISTRAL_ALUT4": 2967,
+        "MISTRAL_ALUT5": 9626,
+        "MISTRAL_ALUT6": 4215,
+        "MISTRAL_ALUT_ARITH": 3763,
+        "MISTRAL_CLKBUF": 2,
+        "MISTRAL_FF": 18886,
+        "MISTRAL_IB": 2,
+        "MISTRAL_M10K": 34,
+        "MISTRAL_MUL27X27": 4,
+        "MISTRAL_MUL9X9": 12,
+        "MISTRAL_NOT": 176,
+        "MISTRAL_OB": 1
+      },
+      "utilisation": {
+        "MISTRAL_COMB": {
+          "used": 40034,
+          "available": 83820
+        },
+        "MISTRAL_FF": {
+          "used": 18886,
+          "available": 167640
+        },
+        "MISTRAL_MUL9X9": {
+          "used": 12,
+          "available": 336
+        },
+        "MISTRAL_MUL18X18": {
+          "used": 0,
+          "available": 112
+        },
+        "MISTRAL_MUL27X27": {
+          "used": 4,
+          "available": 112
+        },
+        "MISTRAL_MUL18X19": {
+          "used": 0,
+          "available": 112
+        },
+        "MISTRAL_MUL18X19_COMBINED": {
+          "used": 0,
+          "available": 112
+        },
+        "MISTRAL_IO": {
+          "used": 3,
+          "available": 472
+        },
+        "altera_pll": {
+          "used": 0,
+          "available": 6
+        },
+        "MISTRAL_CLKENA": {
+          "used": 2,
+          "available": 8
+        },
+        "MISTRAL_CLKENA_PLL": {
+          "used": 0,
+          "available": 8
+        },
+        "cyclonev_oscillator": {
+          "used": 0,
+          "available": 1
+        },
+        "cyclonev_hps_interface_mpu_general_purpose": {
+          "used": 0,
+          "available": 1
+        },
+        "cyclonev_hps_interface_peripheral_i2c": {
+          "used": 0,
+          "available": 4
+        },
+        "cyclonev_hps_interface_fpga2sdram": {
+          "used": 0,
+          "available": 1
+        },
+        "MISTRAL_M10K": {
+          "used": 34,
+          "available": 553
+        },
+        "cyclonev_chipidblock": {
+          "used": 0,
+          "available": 1
+        },
+        "cyclonev_crcblock": {
+          "used": 0,
+          "available": 1
+        },
+        "cyclonev_opregblock": {
+          "used": 0,
+          "available": 1
+        },
+        "cyclonev_jtag": {
+          "used": 0,
+          "available": 1
+        }
+      },
+      "synth_json_sha256": "9e1e5614e07b0dab87f34bbff6e675f64b587b49dae5fa4438938f8acd0cb79c"
+    },
+    "at-core": {
+      "top": "pc386_at_core",
+      "sources": {
+        "cores/fes-common/vendor/kf8259/KF8259.sv": "c5ee6e8ce7223204745370af7007541083da10e88974a3d3804c999914896f03",
+        "cores/fes-common/vendor/kf8259/KF8259_Bus_Control_Logic.sv": "8a79e4708b4f68da13626b8c88672978ba364ba548dfe2d54fad49412dfc8d1c",
+        "cores/fes-common/vendor/kf8259/KF8259_Control_Logic.sv": "257e2110516d89a3d2b0b6faf0b82ed7e08fc92e077f09439ef4e5a5e3a092b0",
+        "cores/fes-common/vendor/kf8259/KF8259_In_Service.sv": "c6991c3fea4647db02ad07e78ca4c7a99f0126c050137e8b624b663820b4ec92",
+        "cores/fes-common/vendor/kf8259/KF8259_Interrupt_Request.sv": "b4fb1634a6721b83a2dd926d102d943e0655cced14f960a73938f06ef3821cca",
+        "cores/fes-common/vendor/kf8259/KF8259_Priority_Resolver.sv": "e55c15c6aa487c6b0c69af72c767b1fd2bd10f498b6567f88de3120feef3c5d7",
+        "cores/fes-common/vendor/kf8253/KF8253.sv": "8eafce840403773204b3162317d6c773d7352daf2e994a7520161a611427c9e8",
+        "cores/fes-common/vendor/kf8253/KF8253_Control_Logic.sv": "db11635d34159622e43cd996c3ea101b84eb0e3abae4f8ccb9556cf4351a4837",
+        "cores/fes-common/vendor/kf8253/KF8253_Counter.sv": "87b3df9e59b75c0102aed1d592e6be23ba732e9d80c9c6f154355729b450dba8",
+        "cores/fes-common/rtl/fes_dma8237.sv": "14df115bcd43a3d65fe55a1f1209972c0fe68e4527cd67ba67b933b52fab8dae",
+        "cores/fes-pc386/rtl/pc386_rate.sv": "66b7dee8dc40c4fb0886f1c6ea623cda241275625823e3a7f48b8d122dd3b02e",
+        "cores/fes-pc386/rtl/pc386_io.sv": "4ae84cced9c83f8e13b8811a6fcd43130f23f10e38931214d9505b4f19296ece",
+        "cores/fes-pc386/rtl/pc386_pic.sv": "46ac29f0f685a4a02cf3eaa157d758ec195a07fccdbf4e0475968d518360bc7e",
+        "cores/fes-pc386/rtl/pc386_sysctl.sv": "02832baa8b7878fcdb448108060162034327a160f79868d2109dc5bf7e5047b2",
+        "cores/fes-pc386/rtl/pc386_kbc.sv": "72c209d8f40ee017784038ec36d73c1a51b0d333f993927daec40cfe660ca203",
+        "cores/fes-pc386/rtl/pc386_rtc.sv": "ed32b76655ff27c74064e45f4870589774ba2f18d04fcf2181823489187f0107",
+        "cores/fes-pc386/rtl/pc386_ata.sv": "f01a112c37a74ef5f22e962fb8585588b93bfd8d6fd24816ac16a67673fd4700",
+        "cores/fes-pc386/rtl/pc386_at_core.sv": "93794ae9124e239a9c1f0d3b9e4044ba6de55d22e475d045a1b26d9ccd733da1"
+      },
+      "cells": {
+        "MISTRAL_ALUT2": 6481,
+        "MISTRAL_ALUT3": 10660,
+        "MISTRAL_ALUT4": 2000,
+        "MISTRAL_ALUT5": 8471,
+        "MISTRAL_ALUT6": 3718,
+        "MISTRAL_ALUT_ARITH": 1667,
+        "MISTRAL_CLKBUF": 1,
+        "MISTRAL_FF": 14510,
+        "MISTRAL_IB": 2,
+        "MISTRAL_MUL27X27": 2,
+        "MISTRAL_MUL9X9": 1,
+        "MISTRAL_NOT": 74,
+        "MISTRAL_OB": 1
+      },
+      "utilisation": {
+        "MISTRAL_COMB": {
+          "used": 33053,
+          "available": 83820
+        },
+        "MISTRAL_FF": {
+          "used": 14510,
+          "available": 167640
+        },
+        "MISTRAL_MUL9X9": {
+          "used": 1,
+          "available": 336
+        },
+        "MISTRAL_MUL18X18": {
+          "used": 0,
+          "available": 112
+        },
+        "MISTRAL_MUL27X27": {
+          "used": 2,
+          "available": 112
+        },
+        "MISTRAL_MUL18X19": {
+          "used": 0,
+          "available": 112
+        },
+        "MISTRAL_MUL18X19_COMBINED": {
+          "used": 0,
+          "available": 112
+        },
+        "MISTRAL_IO": {
+          "used": 3,
+          "available": 472
+        },
+        "altera_pll": {
+          "used": 0,
+          "available": 6
+        },
+        "MISTRAL_CLKENA": {
+          "used": 1,
+          "available": 8
+        },
+        "MISTRAL_CLKENA_PLL": {
+          "used": 0,
+          "available": 8
+        },
+        "cyclonev_oscillator": {
+          "used": 0,
+          "available": 1
+        },
+        "cyclonev_hps_interface_mpu_general_purpose": {
+          "used": 0,
+          "available": 1
+        },
+        "cyclonev_hps_interface_peripheral_i2c": {
+          "used": 0,
+          "available": 4
+        },
+        "cyclonev_hps_interface_fpga2sdram": {
+          "used": 0,
+          "available": 1
+        },
+        "MISTRAL_M10K": {
+          "used": 0,
+          "available": 553
+        },
+        "cyclonev_chipidblock": {
+          "used": 0,
+          "available": 1
+        },
+        "cyclonev_crcblock": {
+          "used": 0,
+          "available": 1
+        },
+        "cyclonev_opregblock": {
+          "used": 0,
+          "available": 1
+        },
+        "cyclonev_jtag": {
+          "used": 0,
+          "available": 1
+        }
+      },
+      "synth_json_sha256": "2f5247cbd7fa398b12b816a5c6d26435c93fceed4101bf4891ae1974a36d573c"
+    },
+    "vga": {
+      "top": "pc386_vga",
+      "sources": {
+        "cores/fes-pc386/rtl/pc386_rate.sv": "66b7dee8dc40c4fb0886f1c6ea623cda241275625823e3a7f48b8d122dd3b02e",
+        "cores/fes-pc386/rtl/pc386_ram.sv": "de9992221215721095f073a3960e14ae946b06c8e31d8b884f53dfe50bf16ef1",
+        "cores/fes-pc386/rtl/pc386_vga.sv": "d2435faa3c0132f11e4c1d8d931768edc494202262db83334d3d3468b51e13bf",
+        "cores/fes-pc386/rtl/pc386_vga_scanout.sv": "6502d3094eef941d149187b7f905fb5ca91f7aecab212763d6fc8d73a3ea002f"
+      },
+      "cells": {
+        "MISTRAL_ALUT2": 498,
+        "MISTRAL_ALUT3": 811,
+        "MISTRAL_ALUT4": 546,
+        "MISTRAL_ALUT5": 784,
+        "MISTRAL_ALUT6": 420,
+        "MISTRAL_ALUT_ARITH": 685,
+        "MISTRAL_CLKBUF": 1,
+        "MISTRAL_FF": 2251,
+        "MISTRAL_IB": 2,
+        "MISTRAL_M10K": 16,
+        "MISTRAL_NOT": 46,
+        "MISTRAL_OB": 1
+      },
+      "utilisation": {
+        "MISTRAL_COMB": {
+          "used": 3783,
+          "available": 83820
+        },
+        "MISTRAL_FF": {
+          "used": 2251,
+          "available": 167640
+        },
+        "MISTRAL_MUL9X9": {
+          "used": 0,
+          "available": 336
+        },
+        "MISTRAL_MUL18X18": {
+          "used": 0,
+          "available": 112
+        },
+        "MISTRAL_MUL27X27": {
+          "used": 0,
+          "available": 112
+        },
+        "MISTRAL_MUL18X19": {
+          "used": 0,
+          "available": 112
+        },
+        "MISTRAL_MUL18X19_COMBINED": {
+          "used": 0,
+          "available": 112
+        },
+        "MISTRAL_IO": {
+          "used": 3,
+          "available": 472
+        },
+        "altera_pll": {
+          "used": 0,
+          "available": 6
+        },
+        "MISTRAL_CLKENA": {
+          "used": 1,
+          "available": 8
+        },
+        "MISTRAL_CLKENA_PLL": {
+          "used": 0,
+          "available": 8
+        },
+        "cyclonev_oscillator": {
+          "used": 0,
+          "available": 1
+        },
+        "cyclonev_hps_interface_mpu_general_purpose": {
+          "used": 0,
+          "available": 1
+        },
+        "cyclonev_hps_interface_peripheral_i2c": {
+          "used": 0,
+          "available": 4
+        },
+        "cyclonev_hps_interface_fpga2sdram": {
+          "used": 0,
+          "available": 1
+        },
+        "MISTRAL_M10K": {
+          "used": 16,
+          "available": 553
+        },
+        "cyclonev_chipidblock": {
+          "used": 0,
+          "available": 1
+        },
+        "cyclonev_crcblock": {
+          "used": 0,
+          "available": 1
+        },
+        "cyclonev_opregblock": {
+          "used": 0,
+          "available": 1
+        },
+        "cyclonev_jtag": {
+          "used": 0,
+          "available": 1
+        }
+      },
+      "synth_json_sha256": "fcb3c8498995a141a4f2916b3e252fc69c4d20c7987b5faec564e55d4920419b"
+    },
+    "presenter": {
+      "top": "pc386_presenter",
+      "sources": {
+        "cores/fes-pc386/rtl/pc386_ram.sv": "de9992221215721095f073a3960e14ae946b06c8e31d8b884f53dfe50bf16ef1",
+        "cores/fes-pc386/rtl/pc386_presenter.sv": "5030653faf54990bc37a66fbb6dd063ff80fa4c872f771dbc9184c7a180ddade"
+      },
+      "cells": {
+        "MISTRAL_ALUT2": 127,
+        "MISTRAL_ALUT3": 234,
+        "MISTRAL_ALUT4": 107,
+        "MISTRAL_ALUT5": 154,
+        "MISTRAL_ALUT6": 95,
+        "MISTRAL_ALUT_ARITH": 922,
+        "MISTRAL_CLKBUF": 2,
+        "MISTRAL_FF": 917,
+        "MISTRAL_IB": 2,
+        "MISTRAL_M10K": 8,
+        "MISTRAL_MUL27X27": 2,
+        "MISTRAL_MUL9X9": 9,
+        "MISTRAL_NOT": 20,
+        "MISTRAL_OB": 1
+      },
+      "utilisation": {
+        "MISTRAL_COMB": {
+          "used": 1653,
+          "available": 83820
+        },
+        "MISTRAL_FF": {
+          "used": 917,
+          "available": 167640
+        },
+        "MISTRAL_MUL9X9": {
+          "used": 9,
+          "available": 336
+        },
+        "MISTRAL_MUL18X18": {
+          "used": 0,
+          "available": 112
+        },
+        "MISTRAL_MUL27X27": {
+          "used": 2,
+          "available": 112
+        },
+        "MISTRAL_MUL18X19": {
+          "used": 0,
+          "available": 112
+        },
+        "MISTRAL_MUL18X19_COMBINED": {
+          "used": 0,
+          "available": 112
+        },
+        "MISTRAL_IO": {
+          "used": 3,
+          "available": 472
+        },
+        "altera_pll": {
+          "used": 0,
+          "available": 6
+        },
+        "MISTRAL_CLKENA": {
+          "used": 2,
+          "available": 8
+        },
+        "MISTRAL_CLKENA_PLL": {
+          "used": 0,
+          "available": 8
+        },
+        "cyclonev_oscillator": {
+          "used": 0,
+          "available": 1
+        },
+        "cyclonev_hps_interface_mpu_general_purpose": {
+          "used": 0,
+          "available": 1
+        },
+        "cyclonev_hps_interface_peripheral_i2c": {
+          "used": 0,
+          "available": 4
+        },
+        "cyclonev_hps_interface_fpga2sdram": {
+          "used": 0,
+          "available": 1
+        },
+        "MISTRAL_M10K": {
+          "used": 8,
+          "available": 553
+        },
+        "cyclonev_chipidblock": {
+          "used": 0,
+          "available": 1
+        },
+        "cyclonev_crcblock": {
+          "used": 0,
+          "available": 1
+        },
+        "cyclonev_opregblock": {
+          "used": 0,
+          "available": 1
+        },
+        "cyclonev_jtag": {
+          "used": 0,
+          "available": 1
+        }
+      },
+      "synth_json_sha256": "cc8769b6fbdf725ea147fd44f8ea36a1d70fe3add5e89c9a08251b32d3fffbc7"
+    },
+    "port2": {
+      "top": "pc386_port2_pair",
+      "sources": {
+        "cores/fes-pc386/rtl/pc386_ram.sv": "de9992221215721095f073a3960e14ae946b06c8e31d8b884f53dfe50bf16ef1",
+        "cores/fes-pc386/rtl/pc386_port2.sv": "ce48b631f6a67f665cb51f8f224c84cab08128f62de9cc95c090d8fcb592d19b",
+        "cores/fes-pc386/rtl/pc386_plane_bridge.sv": "1b9598fb76cfef94921abdffe1d3dc60964038c92d0fe3de07690f69949d86ad",
+        "build/synth/fes-pc386/pc386_port2_pair.v": "03146b81ea452520d1e21182b849b1292ad7304fc1711e2198429a9ebe95f9ad"
+      },
+      "cells": {
+        "MISTRAL_ALUT2": 41,
+        "MISTRAL_ALUT3": 69,
+        "MISTRAL_ALUT4": 55,
+        "MISTRAL_ALUT5": 98,
+        "MISTRAL_ALUT6": 18,
+        "MISTRAL_ALUT_ARITH": 105,
+        "MISTRAL_CLKBUF": 2,
+        "MISTRAL_FF": 462,
+        "MISTRAL_IB": 2,
+        "MISTRAL_M10K": 6,
+        "MISTRAL_NOT": 12,
+        "MISTRAL_OB": 1
+      },
+      "utilisation": {
+        "MISTRAL_COMB": {
+          "used": 399,
+          "available": 83820
+        },
+        "MISTRAL_FF": {
+          "used": 462,
+          "available": 167640
+        },
+        "MISTRAL_MUL9X9": {
+          "used": 0,
+          "available": 336
+        },
+        "MISTRAL_MUL18X18": {
+          "used": 0,
+          "available": 112
+        },
+        "MISTRAL_MUL27X27": {
+          "used": 0,
+          "available": 112
+        },
+        "MISTRAL_MUL18X19": {
+          "used": 0,
+          "available": 112
+        },
+        "MISTRAL_MUL18X19_COMBINED": {
+          "used": 0,
+          "available": 112
+        },
+        "MISTRAL_IO": {
+          "used": 3,
+          "available": 472
+        },
+        "altera_pll": {
+          "used": 0,
+          "available": 6
+        },
+        "MISTRAL_CLKENA": {
+          "used": 2,
+          "available": 8
+        },
+        "MISTRAL_CLKENA_PLL": {
+          "used": 0,
+          "available": 8
+        },
+        "cyclonev_oscillator": {
+          "used": 0,
+          "available": 1
+        },
+        "cyclonev_hps_interface_mpu_general_purpose": {
+          "used": 0,
+          "available": 1
+        },
+        "cyclonev_hps_interface_peripheral_i2c": {
+          "used": 0,
+          "available": 4
+        },
+        "cyclonev_hps_interface_fpga2sdram": {
+          "used": 0,
+          "available": 1
+        },
+        "MISTRAL_M10K": {
+          "used": 6,
+          "available": 553
+        },
+        "cyclonev_chipidblock": {
+          "used": 0,
+          "available": 1
+        },
+        "cyclonev_crcblock": {
+          "used": 0,
+          "available": 1
+        },
+        "cyclonev_opregblock": {
+          "used": 0,
+          "available": 1
+        },
+        "cyclonev_jtag": {
+          "used": 0,
+          "available": 1
+        }
+      },
+      "synth_json_sha256": "9d26cd9728490eff15eecd82ff85f06b9f76e211aa6094c21edd8bcf8a27b218"
+    },
+    "plane": {
+      "top": "fes_display_plane",
+      "sources": {
+        "cores/fes-common/rtl/fes_display_plane.v": "d9c944e39786f96ac34ba183dc74b7086dbcd40a68a26821b1d9d053ed511525",
+        "cores/fes-common/rtl/fes_display_cdc.v": "8a0012f9a9ee44ffb890e290b6f6ec2451eee69311904d351fc113c1bd2333bf",
+        "cores/fes-menu/rtl/fes_menu_control.v": "cb34fde3607f1b63d9db3b1cc7eb6f3b721ddf46319de702e1ba1adce3bcf390",
+        "cores/fes-menu/rtl/fes_menu_video.v": "03e7bf254c1ecb58174d61fec01cf124a784b0c7b6867f043386d7c78d2b0c6b",
+        "cores/fes-menu/rtl/fes_menu_reader.v": "0bd4f7d897d0569d030a6fc8028a59300a55cc7435cd97da2cbb40f934fe97f6"
+      },
+      "cells": {
+        "MISTRAL_ALUT2": 95,
+        "MISTRAL_ALUT3": 183,
+        "MISTRAL_ALUT4": 157,
+        "MISTRAL_ALUT5": 317,
+        "MISTRAL_ALUT6": 87,
+        "MISTRAL_ALUT_ARITH": 395,
+        "MISTRAL_CLKBUF": 2,
+        "MISTRAL_FF": 1075,
+        "MISTRAL_IB": 2,
+        "MISTRAL_M10K": 4,
+        "MISTRAL_MUL9X9": 3,
+        "MISTRAL_NOT": 33,
+        "MISTRAL_OB": 1
+      },
+      "utilisation": {
+        "MISTRAL_COMB": {
+          "used": 1248,
+          "available": 83820
+        },
+        "MISTRAL_FF": {
+          "used": 1075,
+          "available": 167640
+        },
+        "MISTRAL_MUL9X9": {
+          "used": 3,
+          "available": 336
+        },
+        "MISTRAL_MUL18X18": {
+          "used": 0,
+          "available": 112
+        },
+        "MISTRAL_MUL27X27": {
+          "used": 0,
+          "available": 112
+        },
+        "MISTRAL_MUL18X19": {
+          "used": 0,
+          "available": 112
+        },
+        "MISTRAL_MUL18X19_COMBINED": {
+          "used": 0,
+          "available": 112
+        },
+        "MISTRAL_IO": {
+          "used": 3,
+          "available": 472
+        },
+        "altera_pll": {
+          "used": 0,
+          "available": 6
+        },
+        "MISTRAL_CLKENA": {
+          "used": 2,
+          "available": 8
+        },
+        "MISTRAL_CLKENA_PLL": {
+          "used": 0,
+          "available": 8
+        },
+        "cyclonev_oscillator": {
+          "used": 0,
+          "available": 1
+        },
+        "cyclonev_hps_interface_mpu_general_purpose": {
+          "used": 0,
+          "available": 1
+        },
+        "cyclonev_hps_interface_peripheral_i2c": {
+          "used": 0,
+          "available": 4
+        },
+        "cyclonev_hps_interface_fpga2sdram": {
+          "used": 0,
+          "available": 1
+        },
+        "MISTRAL_M10K": {
+          "used": 4,
+          "available": 553
+        },
+        "cyclonev_chipidblock": {
+          "used": 0,
+          "available": 1
+        },
+        "cyclonev_crcblock": {
+          "used": 0,
+          "available": 1
+        },
+        "cyclonev_opregblock": {
+          "used": 0,
+          "available": 1
+        },
+        "cyclonev_jtag": {
+          "used": 0,
+          "available": 1
+        }
+      },
+      "synth_json_sha256": "d900c63f9cf93847c4d6faa9c281e5662892c7adf0022d4fedae6644a46d5d5a"
+    }
+  }
+}

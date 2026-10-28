@@ -170,6 +170,10 @@ func cassetteUnitBinding(b protocol.DevelopmentMediaBinding) protocol.MediaUnitB
 	return protocol.MediaUnitBinding{PackageID: b.PackageID, Generation: b.Generation, Unit: protocol.SpectrumTapeUnit, Target: b.Target, TargetID: b.TargetID}
 }
 
+func spectrumDiskUnitBinding(b protocol.DevelopmentMediaBinding) protocol.MediaUnitBinding {
+	return protocol.MediaUnitBinding{PackageID: b.PackageID, Generation: b.Generation, Unit: protocol.SpectrumDiskUnit, Target: b.Target, TargetID: b.TargetID}
+}
+
 func zx81TapeUnitBinding(b protocol.DevelopmentMediaBinding) protocol.MediaUnitBinding {
 	return protocol.MediaUnitBinding{PackageID: b.PackageID, Generation: b.Generation, Unit: protocol.Zx81TapeUnit, Target: b.Target, TargetID: b.TargetID}
 }
@@ -265,10 +269,65 @@ func (s *Service) replaceLiveZx81TapeLocked(ctx context.Context, mediaID string,
 	return s.retainMediaUnitSessionIdentity(status, unit), nil
 }
 
+// replaceLiveSpectrumDisk inserts a .trd or .scl image into the running
+// machine's TR-DOS drive, or a .dsk into its +3 drive, converted to the
+// unit's raw track image without the boot flag, so the running software sees
+// a changed disk.
+func (s *Service) replaceLiveSpectrumDisk(parent context.Context, mediaID, name string, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
+	if !b.Valid() || b.Target == "" || protocol.ValidateDigest(mediaID) != nil || !protocol.AdmitSpectrumDiskName(name) {
+		return protocol.Status{}, protocol.SpectrumDiskRequestError()
+	}
+	ctx, cancel := serviceTimeout(parent, max(s.uploadTimeout, 150*time.Second))
+	defer cancel()
+	release, err := s.acquireLifecycle(ctx)
+	if err != nil {
+		return protocol.Status{}, err
+	}
+	defer release()
+	store, ok := s.catalog.(coreMediaCatalog)
+	if !ok {
+		return protocol.Status{}, canonicalError(protocol.CodeUnsupportedOperation, nil)
+	}
+	info, err := store.CoreMediaInfo(ctx, mediaID)
+	if err != nil {
+		return protocol.Status{}, mapCoreMediaError(err)
+	}
+	if !protocol.AdmitSpectrumDiskSize(info.Size) {
+		return protocol.Status{}, protocol.SpectrumDiskRequestError()
+	}
+	inspection, err := s.installedCoreInspection(ctx, b.PackageID)
+	if err != nil {
+		return protocol.Status{}, err
+	}
+	system, ok := protocol.SpectrumDiskSystem(inspection.Descriptor)
+	if !ok || !system.Admit(name) {
+		return protocol.Status{}, protocol.SpectrumDiskRequestError()
+	}
+	opened, reader, err := store.OpenCoreMedia(ctx, mediaID)
+	if err != nil {
+		return protocol.Status{}, mapCoreMediaError(err)
+	}
+	if opened != info {
+		reader.Close()
+		return protocol.Status{}, canonicalError(protocol.CodeInternal, nil)
+	}
+	image, err := spectrumDiskImage(reader, info.Size, system, false)
+	if err != nil {
+		return protocol.Status{}, err
+	}
+	unit := spectrumDiskUnitBinding(b)
+	status, err := s.insertMediaUnitLocked(ctx, int64(len(image)), bytes.NewReader(image), unit)
+	if err != nil {
+		return status, err
+	}
+	return s.retainMediaUnitSessionIdentity(status, unit), nil
+}
+
 // replaceLiveCassette inserts a Spectrum tape image into the running
-// Spectrum, converted to the unit's PZX stream.
+// Spectrum, converted to the unit's PZX stream, or a snapshot the package
+// runs, converted to its restore stream.
 func (s *Service) replaceLiveCassette(parent context.Context, mediaID, name string, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
-	if !b.Valid() || b.Target == "" || protocol.ValidateDigest(mediaID) != nil || !protocol.AdmitSpectrumTapeName(name) {
+	if !b.Valid() || b.Target == "" || protocol.ValidateDigest(mediaID) != nil || name != "" && !protocol.AdmitSpectrumCassetteName(name) {
 		return protocol.Status{}, protocol.CassetteMediaRequestError()
 	}
 	ctx, cancel := serviceTimeout(parent, max(s.uploadTimeout, 150*time.Second))
@@ -297,12 +356,17 @@ func (s *Service) replaceLiveCassette(parent context.Context, mediaID, name stri
 		reader.Close()
 		return protocol.Status{}, canonicalError(protocol.CodeInternal, nil)
 	}
-	pzx, err := spectrumTapeStream(reader, info.Size)
+	inspection, err := s.installedCoreInspection(ctx, b.PackageID)
+	if err != nil {
+		reader.Close()
+		return protocol.Status{}, err
+	}
+	stream, err := spectrumCassetteStream(inspection.Descriptor, name, reader, info.Size)
 	if err != nil {
 		return protocol.Status{}, err
 	}
 	unit := cassetteUnitBinding(b)
-	status, err := s.insertMediaUnitLocked(ctx, int64(len(pzx)), bytes.NewReader(pzx), unit)
+	status, err := s.insertMediaUnitLocked(ctx, int64(len(stream)), bytes.NewReader(stream), unit)
 	if err != nil {
 		return status, err
 	}
