@@ -256,19 +256,45 @@ and INT check their slots before they push, as the 386EX does. HLT ends a
 run on both sides. Every byte either side writes is
 cleared after the run.
 
-The RTL starts each run from the state its `init_*` ports load at reset. Its
-memory model serves the fetch port with a random 0-12 cycle delay per block
-and garbage on the port until the block arrives
-(`FES_I386_LATENCY=1`, the default), and the data port the same per load:
-a load's bytes are memory as it was on the edge M1 sent the address, read
-before the store retiring on that edge writes, with garbage on the port until
-they arrive. The random runs report the cycles spent waiting for them. The
-I/O port takes the same delay: a request completes 0-12 cycles after it
+The RTL starts each run from the state its `init_*` ports load at reset,
+which also empties both L1s. It reaches memory through its own caches and
+bus interface: HPS DDR port 0 is the port-0 model of
+[`pc386_ddr_model.h`](../../../fes-pc386/sim/pc386_ddr_model.h) (`Port0`),
+serving the guest RAM behind the caches (`Rtl::ddr`) with the latency Kit A
+measured with Linux idle (`FES_I386_LATENCY=1`, the default) or a fixed 18
+clocks with no refusals or gaps. Each run starts cold, so fetches and loads
+miss. What the lockstep compares is memory as the retired stores leave it
+(`Rtl::ram`, from the CPU's store trace); after a run, once the CPU is held
+in reset until its write buffer has drained, DDR must hold the same bytes
+(`ddr.<address>`). The random runs report the cycles spent waiting for
+memory (a load in M2, a full write buffer, or F2 for the L1I). The I/O port
+takes a random 0-12 cycle delay: a request completes 0-12 cycles after it
 rises, the access made then on the RTL's I/O space, with `io_ack` and IN's
 data on that edge and garbage in `io_rdata` otherwise. The request must hold
 its port, size and data until then. The runs report how many I/O accesses
-they compared. The model's `Latency` port class is what a later slice's MMIO
-port takes.
+they compared.
+
+**MMIO window.** A0000h-BFFFFh is uncached MMIO in the CPU's attribute map
+for every corpus state whose code starts and ends 16 bytes clear of it, and
+every random program whose code does; the oracle's bus then routes the
+window through `read` and `write`. The device keeps bytes like RAM, answers
+a read after 0-12 cycles and refuses a request one cycle in four. Each side
+logs every byte it reads or writes there:
+- each instruction's reads must be the oracle's, as a set (an instruction's
+  loads come in its microcode's order), so a load on a wrong path or a load
+  made twice fails (`mmio-reads`). Bochs's INS reads its destination before
+  the port, which a 386 does not, so those reads are left out; an
+  instruction that faults may read less than Bochs; and where a divergence
+  leaves memory to the corpus, the oracle may read elsewhere;
+- every store must reach the device once, in the order it retired
+  (`mmio-wrong-write`), and before any read of a later instruction
+  (`mmio-early-read`); the stores themselves are compared with the
+  oracle's as any store is.
+
+A run whose code reaches the window stops (`window_code_stops`): neither side
+fetches from MMIO, and Bochs cannot. The runs report the runs with the
+window, the MMIO bytes compared and the instructions the RTL restarted for an
+uncached load (`replays`).
 
 Random programs also take interrupts, injected by the testbench:
 - **Each side has a PIC** (`Pic`): INTR, held until INTA returns the vector
@@ -349,7 +375,10 @@ Anything within five instructions after a string has a bucket of its own:
 one that reads ESI, EDI or ECX waits in D until the string's last element
 retires. IN and OUT, which wait in WB for their access, are with the
 several-uop instructions, and the instruction after an I/O one, a string's
-included, has a bucket of its own: it waits in D until that retires.
+included, has a bucket of its own: it waits in D until that retires. Any
+retirement within 16 cycles of a wait for memory (`trace_mem_wait`: a cache
+miss, an uncached access, a full write buffer) is memory's (`memory`), since
+the latency-free runs still miss in the caches.
 
 A fault or a software interrupt (INT n, INT3, INTO) is the corpus's
 exception: the run goes on into the handler, to its HLT, and the corpus's

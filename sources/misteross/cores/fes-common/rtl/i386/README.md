@@ -4,10 +4,12 @@ The first-party 386-compatible CPU proposed in
 [the i386 CPU design](../../../../docs/i386-cpu-design.md). This directory
 holds Phase 1's slices so far: the uop format, the front end from F1 to Q,
 and `fes_i386_cpu`, which runs the real-mode instructions `fes_i386_decode`
-lists from D to WB, with their memory forms on a data port, fixed uop
-sequences, the string instructions and ENTER, I/O on an I/O port, the
-microcode ROM, exception delivery, INTR and NMI, and the multiply and divide
-unit. There is no cache yet.
+lists from D to WB, with their memory forms, fixed uop sequences, the string
+instructions and ENTER, I/O on an I/O port, the microcode ROM, exception
+delivery, INTR and NMI, and the multiply and divide unit. It reaches guest
+memory through an L1I, an L1D and a bus interface on HPS DDR port 0, with an
+uncached path to MMIO (see [Memory](#memory)). There is no L2 or paging
+yet.
 
 | File | Stage | Content |
 | --- | --- | --- |
@@ -27,14 +29,18 @@ unit. There is no cache yet.
 | `fes_i386_exctl.sv` | M2 | EX's controls, decoded a stage ahead into registered one-hot selects, and its operands cut to size |
 | `fes_i386_ex.sv` | EX | The late ALU (one adder, a second chain for OF and SF, ZF from the operands), the result's merge into its register, flags and branch resolution |
 | `fes_i386_muldiv.sv` | EX | MUL, IMUL, DIV, IDIV, AAM and AAD over several cycles: four DSP products and a restoring divider, with the 386EX's flags and its divide error |
-| `fes_i386_cpu.sv` | F1-WB | The top: front end, DC's decoded buffer, D, AG, M1, M2, EX, WB, the register file, segment registers, reset state and retirement trace |
+| `fes_i386_l1i.sv` | F1, F2 | L1I: 16 KiB, 4 ways, fills from the bus interface, the self-modifying-code snoop of each store |
+| `fes_i386_l1d.sv` | M1, M2, WB | L1D: 16 KiB, 4 ways, two dword banks, write-through; the slow path for misses, line-crossing and uncached loads; each store's probe |
+| `fes_i386_biu.sv` | — | Bus interface: the write buffer, line reads and writes on DDR port 0, MMIO reads and writes, DMA, FLUSH |
+| `fes_i386_cpu.sv` | F1-WB | The top: front end, DC's decoded buffer, D, AG, M1, M2, EX, WB, the register file, segment registers, reset state, the memory system and retirement trace |
 
 ## Front end
 
-Fetch is sequential from the last redirect; there is no L1I or prediction yet.
-The memory port stands for the L1I's way-selected output, as an M10K with
-address stall: `mem_data` is the block at the address registered on the last
-edge with `mem_load`, and `mem_valid` says that response is available. F2
+Fetch is sequential from the last redirect; there is no prediction yet.
+The fetch port is the L1I's way-selected output (`fes_i386_l1i`), an M10K
+read with address stall: `mem_data` is the block at the address registered
+on the last edge with `mem_load`, and `mem_valid` says that response is
+available, which waits for a fill on a miss. F2
 holds its address and does not advance until `mem_valid`; it requests the next
 block on the edge that accepts the current response. Nothing decodes M10K data
 in F2 (design rule 7). A redirect flushes F2, L1, L2, the buffer and Q; a
@@ -118,12 +124,12 @@ removed, so only the address-size select follows the 32-bit chain.
 
 ## D to WB
 
-`fes_i386_cpu` puts DC, D, AG, M1, M2, EX and WB behind the front end, with a
-data port that stands for the L1D's output: M1 drives a load's address, the
-port registers it on the edge M1 advances, as an M10K does, and the 8 bytes
-from the address's dword, as memory held them on that edge, arrive in M2 once
+`fes_i386_cpu` puts DC, D, AG, M1, M2, EX and WB behind the front end, with
+the L1D's data port (`fes_i386_l1d`): M1 drives a load's address, the L1D
+registers it on the edge M1 advances, as an M10K does, and the 8 bytes from
+the address's dword, as memory held them on that edge, arrive in M2 once
 `dmem_valid` says so. A retiring store writes its bytes on the edge it
-retires, and the port reads before it writes on the same edge.
+retires, and the L1D reads before it writes on the same edge.
 
 **Freeze.** A load in M2 whose bytes have not arrived freezes D to WB: every
 stage behind DC keeps its uop, D issues nothing and nothing retires, until
@@ -137,8 +143,10 @@ set as the uop enters EX), and so the freeze has one more registered input
 and D's issue no new term. So does an I/O access in WB, until the machine
 completes it (`io_wait`, set as the uop enters WB and cleared on the
 completing edge; see I/O), and an INTR being taken, until the machine returns
-its vector (`int_wait`, likewise; see Interrupts). Each wait is one register,
-so the freeze stays one LUT of five inputs, which every stage's enable takes.
+its vector (`int_wait`, likewise; see Interrupts), and a store in WB while
+the write buffer will not have room for it (`st_wait`, set as the store enters
+WB or while it waits; see Memory). Each wait is one register, so the freeze
+stays one LUT of six inputs, which every stage's enable takes.
 What WB does with
 its uop (flush, redirect, deliver a fault) is decided as the uop enters WB, so
 each of those is one gate from the freeze too.
@@ -569,6 +577,90 @@ keeps the limit and attributes.
 **Reset and trace.** `init_*` is the architectural state reset loads; a
 machine ties it to the 386 reset state, and the lockstep harness to a test's
 state. `trace_*` and `arch_*` show each retirement.
+
+## Memory
+
+**Attributes.** Paging is not built, so a physical address is the linear one
+with A20M masking bit 20 and FFFF0000h-FFFFFFFFh read as the F0000h shadow
+(`fes_i386_pkg::phys`). Guest physical memory is 64 MiB at most (`PA`). The
+attribute map is an input: RAM below 640 KiB and from 1 MiB to `ram_top`;
+640 KiB to 1 MiB in 16 KiB slots (`attr_upper`) of RAM, read-only RAM,
+uncached MMIO or a hole; a hole above. Read-only RAM is cached and its stores
+are dropped. A hole reads FFh and drops stores. The bus interface reaches
+guest physical 0 at HPS address `RAM_BASE` (pc386: window offset 4000000h);
+the CPU never writes a read-only range, so a machine may back the ROMs with
+images in DDR or route those reads to an M10K.
+
+**L1I** (`fes_i386_l1i`): 16 KiB, 4 ways, 32-byte lines, indexed by linear
+bits 11:5 and tagged with the physical page. Its arrays re-read F2's block on
+every edge F1 does not load a new one, so a fill shows a cycle after it is
+written. F2 compares the tags in eight replicated hit sets with kept copies
+of the page register. Valid bits are flip-flops. A miss fills the line from
+the bus interface: the victim is invalidated, the beats written, then the
+tags, then the valid bit a cycle later. A fill ends only with no store in EX
+or WB, and a store WB commits into its line while it fills, a DMA write of
+it or FLUSH spoils it. Each store reads a snoop copy of the tags as it enters
+WB, and its commit clears a way that holds its line (self-modifying code; the
+instructions already past F2 are not checked yet). Fetches from MMIO or a
+hole read FFh.
+
+**L1D** (`fes_i386_l1d`): 16 KiB, 4 ways, 32-byte lines, two banks of even
+and odd dwords, write-through with no write allocate. M1 registers a load's
+index with its page and attribute; M2 compares the tags. A cacheable load
+that hits inside its line returns in M2. Anything else freezes D to WB for
+the slow path: a miss reads its line once no write-buffer entry holds bytes
+of it, returns the load's bytes and fills the line (victim invalidated, rows,
+tags, valid bit, then the probe re-read for the store waiting in WB); an
+access running into the next line reads each part on its own; MMIO is read
+as dwords with the access's byte enables once the write buffer is empty; a
+hole reads FFh. A store's line is looked up in a probe copy of the tags as it
+enters WB, and its commit writes its bytes into a way that holds it, through
+the arrays' write port; lanes running into the next line clear that line's
+set. Fills happen with D to WB frozen, so no store commits during one.
+
+**Uncached loads** read their device only as the oldest uop: nothing in EX or
+WB, or only earlier uops of the same instruction that neither store, end an
+instruction or REP element, branch, fault, multiply nor divide, and no
+interrupt being taken. Then nothing older can flush the load, and every older
+store has reached the device. A load that reaches M2 behind anything else
+takes no data: the L1D marks it `FAULT_REPLAY`, which EX treats as a fault
+(nothing changes) and WB as a restart: WB flushes everything younger, the
+front end restarts at the instruction through the reset path's `start`, once
+`start_linear` holds CS.base + EIP, and D issues that instruction one uop at
+a time (`serial`, until its last uop commits or anything else flushes), so
+its uncached loads reach M2 as the oldest. A CMPS element's second load still
+issues right behind its first (`x_prev`). Microcode writes nothing
+architectural before its last uop that can fault, so a restart is safe where
+a fault is; the one exception is ENTER with a nesting level, whose pushes
+come before its frame copies: a copy from MMIO that restarts ENTER repeats
+the pushes before it, with the same values. Loads whose data nothing uses
+(`pipe_t` `nodata`: INT's and a far CALL's probes, ENTER's last check, POP
+m's pop into nothing, the multiply and divide unit's LOAD and HI) touch
+nothing, so no device sees a read the instruction does not make.
+
+**Bus interface** (`fes_i386_biu`). The write buffer holds four 32-byte line
+entries with byte masks, in order. A committed store's RAM bytes coalesce
+into the newest entry for the same line unless it is being written, or take
+a new one; its MMIO bytes take an entry of their own, so the device sees each
+store as the instruction made it; its bytes in read-only RAM or a hole are
+dropped. A store needs two free entries (its lanes may run into the next
+line), so WB holds a store while the buffer will not have them (`st_wait`).
+The oldest entry is written once a newer one exists, once it is full, an MMIO
+store or two cycles old, or whenever something waits on the buffer: a RAM
+entry as one two-beat burst on port 0, an MMIO one as a write per dword with
+bytes, lowest first. Reads go one at a time, the L1D's first, then DMA's,
+then the L1I's: a line read once no entry holds its line, an MMIO read once
+the buffer is empty. I/O waits until the buffer is empty (`io_req`), so a DMA
+buffer written before the OUT that starts the DMA, or a VGA store before a VGA
+register write, is there first. DMA reads and writes a byte through port 0
+in the buffer's order; a DMA write then clears its line's set in both L1s.
+FLUSH empties the buffer and clears both L1s. A CPU reset clears both L1s'
+valid bits and leaves the buffer to drain and any read in flight to finish
+unseen; `cold_reset` also empties the buffer.
+
+Not built yet: the L2, the TLBs and paging, the self-modifying-code check of
+instructions in flight, critical-word-first fills, and forwarding from the
+write buffer to a load that misses (it waits for the entry to drain).
 
 ## Synthesis notes
 

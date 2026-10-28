@@ -612,7 +612,11 @@ execute. In 16-bit code D also handles EIP wrapping at 64 KiB by redirecting
 fetch.
 
 The L1I tags are a dual-port M10K. Port A serves fetch. Port B serves fills,
-the self-modifying-code snoop and L2 back-invalidation.
+the self-modifying-code snoop and L2 back-invalidation. The M10Ks Yosys maps
+have one read port, so the first memory slice keeps a second copy of the
+tags for the snoop, written with the first, and holds valid bits in
+flip-flops, which a store, DMA, FLUSH or reset clears at once. Until paging,
+the ITLB's page is the linear one with A20M applied.
 
 ### Prediction
 
@@ -859,7 +863,8 @@ already completes at commit.
   written the array; the youngest older store wins.
 - The write buffer holds four 32-byte line entries with byte masks and
   coalesces sequential stores, so REP STOSD fills whole lines. A load that
-  misses L1D checks it.
+  misses L1D checks it; in the first memory slice it waits for the entries
+  holding its line to drain.
 - I/O instructions, locked operations and uncached loads drain the write
   buffer first. A DMA buffer written before the OUT that starts the DMA is then
   visible to the device.
@@ -877,10 +882,22 @@ The machine programs a memory-attribute map:
 A hole reads FFh and drops writes.
 
 Uncached loads can have side effects (a VGA read loads the latches), so they
-never run speculatively. The uop waits at M2 until it is the oldest, drains the
-write buffer, issues and resumes. Uncached stores post in order at commit to
-the MMIO port, which accepts one store per cycle into a FIFO. Planar VGA logic
-sits behind it, in the machine.
+never run speculatively. An uncached load reads its device only as the oldest
+uop: EX and WB hold nothing, or only earlier uops of its own instruction that
+neither store, end an instruction or REP element, branch, fault, multiply nor
+divide, and no interrupt is being taken. Then nothing older can flush it, and
+once the write buffer has drained every older store has reached its device.
+D through WB only ever hold together, so a load cannot wait at M2 for older
+uops to retire: one that reaches M2 behind them takes no data and replays
+instead. WB restarts its instruction, as a fault would, and D issues that
+instruction one uop at a time until it ends, so the load comes back as the
+oldest. Microcode writes nothing architectural before its last uop that can
+fault, so a restart is safe wherever a fault is; ENTER with a nesting level,
+whose pushes precede its frame copies, repeats those pushes when a copy from
+MMIO restarts it. Loads that only check a slot (probes) or reload an operand
+(the multiply and divide unit's) read nothing. Uncached stores post in order
+at commit to the MMIO port, which accepts one store per cycle into a FIFO.
+Planar VGA logic sits behind it, in the machine.
 
 The machine's FLUSH request invalidates L1 and writes back and invalidates L2.
 The machine uses it when it changes the attribute map (shadow RAM control).
@@ -903,6 +920,10 @@ updates hold the L2's DMA port between their read and their write.
 
 ## L2 and coherence
 
+- The first memory slice has no L2 yet: the L1s fill straight from port 0,
+  the write buffer drains there, and the bus interface serves DMA in the
+  buffer's order and invalidates both L1s' sets on a DMA write
+  ([memory slices](#memory-slices)).
 - L2 is 128 KiB, 4-way, 32-byte lines, write-back, and inclusive of L1I and
   L1D. Tags and state are M10K. Data is 128 bits wide, two beats per line. A
   hit returns the first dword in about 4–6 cycles (estimate).
@@ -954,6 +975,24 @@ updates hold the L2's DMA port between their read and their write.
   younger instructions and refetches, except for bytes the `queue16` profile
   exempts. Fetch from the snooped set waits for the lookup. DMA writes into
   code take the same in-flight check and the L2 back-invalidation.
+
+### Memory slices
+
+Phase 1 builds the memory path in slices, each with its RTL and netlist
+lockstep, the FreeDOS boot on the RTL CPU and a routed record:
+
+1. **L1I, L1D and the bus interface on port 0**
+   ([record](validation/2026-10-28-i386-memory-path.md)): both L1s as above,
+   filled straight from port 0; the write buffer; uncached MMIO with replay;
+   read-only RAM and holes; DMA and FLUSH; the store snoop of the L1I.
+2. **Self-modifying code in flight**: each committed store against the lines
+   of the instructions from F2 to WB, the `coherent` and `queue16` profiles.
+3. **L2**: 128 KiB between the L1s and port 0, DMA and FLUSH through it, a
+   CPU reset that keeps it; write-buffer forwarding to a missing load.
+4. **The kit's line fills**: the DDR check above through the CPU path on
+   both kits, and whatever the routes then ask of F2's and M2's hit paths
+   (registered hits, critical word first).
+5. **TLBs and paging** come with Phase 5.
 
 ## Execute
 
@@ -1007,7 +1046,9 @@ updates hold the L2's DMA port between their read and their write.
 ## Machine interface
 
 The CPU is one module with these ports. The machine owns everything behind
-them.
+them. The first memory slice builds the memory, DMA, MMIO, A20M, FLUSH and
+attribute-map ports (`fes_i386_cpu`): its memory port is port 0 itself, with
+no L2 between, and `cold_reset` empties the write buffer.
 
 | Port | Direction | Contract |
 | --- | --- | --- |
@@ -1189,7 +1230,7 @@ below are the plan for the complete CPU and machine.
 | Milestone | Content | Exit |
 | --- | --- | --- |
 | Phase 0 | Oracle adapter and corpus runners | **Complete:** Bochs is selected; both corpora run against it and known divergences have deciding cases |
-| Phase 1 | Real-mode pipeline: twelve stages, data-port latency model, static not-taken prediction and real-mode microcode | **In progress:** DC decodes ahead of D; the current slice includes register, immediate and memory-operand forms, a D–WB load freeze, near stack operations, real-mode far JMP/CALL/RETF and LES/LDS/LSS/LFS/LGS. Its lockstep passes 1,369,500 corpus states and 15,321,783 random retirements. The latest whole-CPU record is the far-transfer slice: nextpnr routes are 69.43, 70.48, 74.40 and 70.34 MHz (D, Q, DC, DC); Quartus routes are 103.73, 98.34, 100.78 and 104.47 MHz (Q on every seed). The complete L1D/L2 caches, DDR integration and real-mode microcode remain. Extend lockstep and route coverage as slices land. Exit requires full real-mode lockstep, whole-CPU routed fmax and area, and DDR and SDRAM line-fill measurements through the CPU path against the [DDR check](#l2-and-coherence) ([far-transfer record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-far.md#result)) |
+| Phase 1 | Real-mode pipeline: twelve stages, data-port latency model, static not-taken prediction and real-mode microcode | **In progress:** the first [memory slice](#memory-slices) puts the L1I, the L1D and the bus interface on DDR port 0, with uncached MMIO, DMA and FLUSH ([record](validation/2026-10-28-i386-memory-path.md)). DC decodes ahead of D; the current slice includes register, immediate and memory-operand forms, a D–WB load freeze, near stack operations, real-mode far JMP/CALL/RETF and LES/LDS/LSS/LFS/LGS. Its lockstep passes 1,369,500 corpus states and 15,321,783 random retirements. The latest whole-CPU record is the far-transfer slice: nextpnr routes are 69.43, 70.48, 74.40 and 70.34 MHz (D, Q, DC, DC); Quartus routes are 103.73, 98.34, 100.78 and 104.47 MHz (Q on every seed). The complete L1D/L2 caches, DDR integration and real-mode microcode remain. Extend lockstep and route coverage as slices land. Exit requires full real-mode lockstep, whole-CPU routed fmax and area, and DDR and SDRAM line-fill measurements through the CPU path against the [DDR check](#l2-and-coherence) ([far-transfer record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-far.md#result)) |
 | Phase 2 | Protected mode without V86 or paging: descriptor loads, privilege, gates, exceptions, debug registers. Enough for unreal mode and DOS extenders | test386.asm's real- and protected-mode parts pass in RTL; random protected-mode lockstep clean |
 | Phase 3 | First playable: the CPU in `fes.pc386` with the scope the acceptance games set, L2 on DDR, the open BIOS, the governor | FreeDOS boots in simulation; first sealed package; Wolfenstein 3D, Ultima VI and both Ultima VII games play on a kit, with the two presets recorded |
 | Phase 4 | Speed: BTB, return stack, early ALU, real-mode far-branch prediction | Each feature with its microbenchmark and period-benchmark change, and the Wolfenstein 3D frame rate from captured frames before and after |
@@ -1242,6 +1283,13 @@ Settled through 2026-10-26:
   writes ([#1141](https://github.com/DeanoC/fes/pull/1141), [#1143](https://github.com/DeanoC/fes/pull/1143)).
 - A CPU reset keeps the L2's contents, and FLUSH completes in every CPU state
   ([commit](#commit-exceptions-and-interrupts)).
+
+Settled on 2026-10-28:
+
+- An uncached load that reaches M2 behind older uops replays: WB restarts its
+  instruction and D issues it one uop at a time, rather than M2 holding while
+  EX and WB drain, which D's forwarding tables and the freeze, built for D
+  to WB holding together, do not allow ([memory types](#memory-types)).
 
 No decision is open.
 

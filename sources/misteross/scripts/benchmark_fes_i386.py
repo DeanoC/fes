@@ -14,8 +14,8 @@ each spike is a block of fes_i386_cpu inside a stimulus/signature envelope
             late operand, the 3:2 rows, the adders, the 16-bit-wrap select)
   m2        the M2 stage: M10K tag and data reads, four tag compares against
             a registered page number, way select
-  cpu       fes_i386_cpu as built so far, F1 to WB, behind the frontend
-            spike's L1I model: the register-only real-mode core
+  cpu       fes_i386_cpu as built so far, F1 to WB with its L1I, L1D and
+            bus interface, the machine's ports answered by the stimulus
   rom       a registered case-table ROM synthesized without proc -norom, so
             it maps to an M10K: checks that it places and routes
 
@@ -70,7 +70,7 @@ FRONTEND_RTL = ('fes_i386_pkg.sv', 'fes_i386_oplen.sv', 'fes_i386_lendec.sv', 'f
 DAG_RTL = ('fes_i386_pkg.sv', 'fes_i386_amode.sv', 'fes_i386_dfwd.sv', 'fes_i386_agu.sv')
 CPU_RTL = (*FRONTEND_RTL, 'fes_i386_amode.sv', 'fes_i386_dfwd.sv', 'fes_i386_agu.sv', 'fes_i386_ucode_pkg.sv', 'fes_i386_ucode_rom.sv', 'fes_i386_decode.sv', 'fes_i386_seq.sv',
            'fes_i386_dops.sv', 'fes_i386_shift.sv', 'fes_i386_shflags.sv', 'fes_i386_exctl.sv', 'fes_i386_muldiv.sv',
-           'fes_i386_ex.sv', 'fes_i386_cpu.sv')
+           'fes_i386_ex.sv', 'fes_i386_l1i.sv', 'fes_i386_l1d.sv', 'fes_i386_biu.sv', 'fes_i386_cpu.sv')
 SPIKES = {
     'frontend': ('spike_frontend', FRONTEND_RTL),
     'dag': ('spike_dag', DAG_RTL),
@@ -112,9 +112,20 @@ STAGES = {
     # (WB) and the stage records come before D, whose forwarding tables take
     # the register file and the records as ports.
     'cpu': (
-        ('envelope', r'(.*\.)?(signature|observed|noise|LED0|mem_valid|io_ack|io_rdata|intr|nmi|inta_ack|inta_vector'
-                     r'|init_\w+)$|stimulus\.'),
-        ('F1', r'(.*\.)?(f2_block|fetch_block|active|itlb_page)$|l1i_'),
+        ('envelope', r'(.*\.)?(signature|observed|noise|LED0|io_ack|io_rdata|intr|nmi|inta_ack|inta_vector'
+                     r'|init_\w+|a20m|ddr_waitrequest|ddr_readdata|ddr_readdatavalid|mmio_ready|mmio_rvalid'
+                     r'|mmio_rdata|dma_valid|dma_write|dma_address|dma_wdata|flush_request)$|stimulus\.'),
+        # The memory system's own state: the bus interface, the fill and
+        # slow-path sequencers, and the valid bits fills, stores and DMA
+        # write. Each cache's arrays and read registers take the stage that
+        # loads their address: F1 for the L1I's, M1 for the L1D's, EX for the
+        # copies a store reads as it enters WB.
+        ('MEM', r'(.*\.)?biu\.|(.*\.)?l1i\.(fill|f_line|victim|rr|beat_n|spoilt|valid)$'
+                r'|(.*\.)?l1d\.(state|part|fill_it|beat_n|spoilt|rr|row|lbuf|sbuf|victim|d_mmio|d_addr|d_be'
+                r'|valid_bits)$'),
+        ('EX', r'(.*\.)?(st_wait|wb_p0|wb_p1)$|(.*\.)?l1i\.snoop|(.*\.)?l1d\.probe'),
+        ('M1', r'(.*\.)?l1d\.(q_\w+|ev_q|od_q|tag|ev\d|od\d|tag\d)$'),
+        ('F1', r'(.*\.)?(f2_block|fetch_block|active|itlb_page)$|l1i_|(.*\.)?l1i\.(blk|req|page|at|way|tag|data\d|tag\d)$'),
         ('F2', r'(.*\.)?(l1_valid|l1_block|l1_bytes|mem_data)$|.*\.oplen\.(one|two)_byte'),
         ('L1', r'(.*\.)?(l2_\w+|half|fill_bytes|fill_data)$|(.*\.)?fetch\.sums\.'),
         ('L2', r'(.*\.)?(bytes|half_block|dec|avail)$'),
@@ -122,7 +133,7 @@ STAGES = {
         # decoder's (decode.q in Yosys, decode.by in Quartus) or dc_q's.
         ('Q', r'(.*\.)?(half_valid|tail_ok)$|(.*\.)?align\.(?!redirect_linear$)|(.*\.)?(decode\.(q|by)|dc_q)$'),
         ('WB', r'(.*\.)?(gpr|eflags|eip|seg_\w+|halted|t0|t1|trace_\w+|start|start_linear|arch_\w+|rt_\w+|exc_\w+|io_data'
-               r'|hlt|int_take|int_nmi|int_vec|int_wait|nmi_q|nmi_pend|nmi_block|movss_sh)$'),
+               r'|hlt|int_take|int_nmi|int_vec|int_wait|nmi_q|nmi_pend|nmi_block|movss_sh|serial)$'),
         # A stage's output record passes most fields through, so they name
         # the register feeding it: ag_out's are ag_s (D), m1_out's m1_s (AG),
         # ex_out's ex_s (M2). ex.flags_in is EX's ex_flags. WB's decisions
@@ -141,7 +152,7 @@ STAGES = {
         # D also keeps the string engine's copies and waits.
         ('D', r'(.*\.)?(d_eip|d_stop|d_seg_busy|t_busy|d_out|ag_\w+|r_src|r_dst|r_fp|r_cnt|r_c0|r_c1|r_c2'
               r'|s_end1|s_kill1|s_tgt|s_down|str_busy'
-              r'|df_busy|io_busy)$|(.*\.)?(dops|dfwd)\.'),
+              r'|df_busy|io_busy|ser_wait)$|(.*\.)?(dops|dfwd)\.'),
     ),
     'rom': (('ROM', r'(.*\.)?q$'),),
 }
