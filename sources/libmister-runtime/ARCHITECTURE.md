@@ -435,17 +435,15 @@ uncertain durability and does not authorize removal.
 The shared `media-data-v1` fixture checks independent header, checksum,
 revision and namespace bytes.
 
-Stop, eject and replacement always Freeze/drain before capture, including when
-initial dirty flags are clear. Ordered snapshot chunks read committed disk RAM
-while CPU/video keep running. Publication precedes Saved; Saved authorizes the
-next destructive Begin/Eject while still frozen. There is no Resume gap before
-removal. `save_media` publishes a checkpoint and explicitly resumes. A save
-failure resumes the existing disk with its binding and generation; an
-unconfirmed Resume retains that ownership in reboot-required recovery. Failed
-ejects reobserve the live unit without replay: confirmed empty retires the
-binding, while ready retains it. Ambiguous failed replacement also compares a
-frozen capture with the saved old image before resuming its namespace; different
-or unresolved bytes require recovery.
+Stop and fault cleanup Freeze/drain the fixed ATA disk before capture, including
+when initial dirty flags are clear. Ordered snapshot chunks read committed disk
+RAM while CPU/video keep running. Publication precedes Saved; a failed capture
+keeps the disk frozen until the existing save-failure recovery resumes it.
+Insert, eject and explicit `save_media` reject the ATA unit while the computer
+runs. Status retains the disk's durable binding but reports `saveable:false`,
+so callers do not treat Stop-time persistence as a live checkpoint operation.
+Periodic checkpoints remain future work. Writable Atari ST media retains its
+separate eject/replacement and explicit checkpoint behavior.
 
 Successful FPGA programming retires the former disk binding, captured bytes
 and durable revision from memory. This includes Stop to the configured menu

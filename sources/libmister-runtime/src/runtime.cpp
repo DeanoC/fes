@@ -1015,8 +1015,13 @@ public:
 			const Error rejected = AdmitMediaUnit(package_id, generation, unit);
 			if (!rejected.ok()) return rejected;
 			bool persistent = false;
-			for (const auto& media : status_.capabilities.media_units)
-				if (media.unit == unit && media.persistence_mode == "persistent") persistent = true;
+			for (const auto& media : status_.capabilities.media_units) {
+				if (media.unit != unit) continue;
+				if (!media.saveable)
+					return {ErrorCode::unsupported_interface,
+						"media unit does not support an explicit save while the computer is running", "compatibility"};
+				if (media.persistence_mode == "persistent") persistent = true;
+			}
 			if (!persistent) return {ErrorCode::unsupported_interface,
 				"media has no library data binding", "compatibility"};
 			busy_ = true; system = status_.system; core = status_.core;

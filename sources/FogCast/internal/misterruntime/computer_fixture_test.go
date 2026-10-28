@@ -26,6 +26,9 @@ func TestComputerDecoderConsumesRuntimeSerializerFixtures(t *testing.T) {
 			if len(units) != 1 || units[0].Unit != 0 || units[0].State != want {
 				t.Fatalf("row %d media units %+v", row, units)
 			}
+			if units[0].CanSave() {
+				t.Fatalf("row %d should explicitly disable live saves", row)
+			}
 		default:
 			if len(units) != 0 {
 				t.Fatalf("row %d media units %+v", row, units)

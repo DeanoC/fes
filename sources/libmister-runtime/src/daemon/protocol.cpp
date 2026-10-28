@@ -624,6 +624,7 @@ bool TryEncodeV2Response(bool ok, const Status& status, const std::string& versi
 			output.Append(std::to_string(unit.chunk_bytes));
 			output.Append(",\"state\":");
 			AppendQuoted(&output, MediaUnitStateName(unit.state));
+			if (!unit.saveable) output.Append(",\"saveable\":false");
             if(unit.persistence_mode=="persistent") {
                 output.Append(",\"persistence\":{\"mode\":\"persistent\",\"game_id\":"); AppendQuoted(&output,unit.game_id);
                 output.Append(",\"base_media_id\":"); AppendQuoted(&output,unit.base_media_id);

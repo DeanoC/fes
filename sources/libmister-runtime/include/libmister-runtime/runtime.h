@@ -191,6 +191,8 @@ struct MediaUnitCapability {
 	std::uint32_t max_bytes = 0;
 	std::uint32_t chunk_bytes = 0;
 	MediaUnitState state = MediaUnitState::empty;
+	// Persistent bindings may exist without an in-session save operation.
+	bool saveable = true;
     // Explicit library binding only; ordinary development insertion omits it.
     std::string persistence_mode = "volatile", game_id, base_media_id, revision = "absent";
 };

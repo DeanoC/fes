@@ -3073,10 +3073,17 @@ void TestPc386AtaDiskLaunchSaveAndRestore()
 	assert(status.capabilities.media_units.size() == 1);
 	const auto& unit = status.capabilities.media_units[0];
 	assert(unit.interface.id == "fes.media.ata-disk" && unit.state == mister::MediaUnitState::ready &&
-		unit.chunk_bytes == 65536 && unit.persistence_mode == "persistent" && unit.revision == "absent");
+		unit.chunk_bytes == 65536 && !unit.saveable && unit.persistence_mode == "persistent" && unit.revision == "absent");
 	// Released: the disk is fixed while the machine runs.
 	assert(!endpoint.held && !fixture.runtime.InsertMedia(images.path + "/disk.img", opened.package_id,
 		status.generation, 0, size).ok());
+	const auto live_disk_request_count = endpoint.requests.size();
+	assert(fixture.runtime.SaveMedia(opened.package_id, status.generation, 0).code ==
+		mister::ErrorCode::unsupported_interface);
+	assert(endpoint.requests.size() == live_disk_request_count && !endpoint.disk_frozen);
+	assert(fixture.runtime.EjectMedia(opened.package_id, status.generation, 0).code ==
+		mister::ErrorCode::unsupported_interface);
+	assert(endpoint.requests.size() == live_disk_request_count && !endpoint.disk_frozen);
 	endpoint.GuestSectorWrite(0, 0x11);
 	endpoint.GuestSectorWrite(300, 0x22);
 	endpoint.GuestSectorWrite(size / 512 - 1, 0x33);  // in the 1536-byte tail chunk

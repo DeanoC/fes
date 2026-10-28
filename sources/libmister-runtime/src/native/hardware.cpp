@@ -929,6 +929,7 @@ Capabilities NativeHardware::capabilities() const
                 unit.max_bytes = generated::FesComputerAtaDiskMaxBytes;
                 unit.chunk_bytes = generated::FesComputerAtaDiskChunkBytes;
                 unit.state = ata_ready_ ? MediaUnitState::ready : MediaUnitState::empty;
+                unit.saveable = false;
                 if (ata_delta_file_) {
                     unit.persistence_mode = "persistent"; unit.game_id = ata_identity_.game_id;
                     unit.base_media_id = ata_identity_.base_media_id; unit.revision = ata_delta_.revision;

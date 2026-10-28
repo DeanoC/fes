@@ -913,9 +913,12 @@ binding and an empty body. Both retain the existing kit lease and update
 exclusion. The agent chooses the storage root; callers never send target paths.
 Live status exposes optional unit `persistence` with `mode:"persistent"`,
 `game_id`, `base_media_id`, and `revision` (`absent` before the first publication
-or the full-record SHA-256). Whole-package persistence mode is persistent only
-while such a binding exists. ST parts/ROM composition does not change this
-identity or weaken composition validation.
+or the full-record SHA-256). A unit may also report `saveable:false` when it has
+a durable binding but does not support an explicit in-session checkpoint;
+callers must preserve the binding identity while refusing the Save operation.
+Whole-package persistence mode is persistent only while such a binding exists.
+ST parts/ROM composition does not change this identity or weaken composition
+validation.
 
 The host routes `POST /api/v1/session/disk/insert` and `…/disk/save` retain the
 captured session ID and package/generation/target/unit binding. Insert takes

@@ -54,7 +54,7 @@ func (b MediaUnitBinding) MatchesForSave(s Status) bool {
 		return false
 	}
 	u, ok := MediaUnit(s.CorePackage, b.Unit)
-	return ok && u.State == MediaUnitReady && u.Persistence != nil && u.Persistence.Valid()
+	return ok && u.CanSave() && u.State == MediaUnitReady && u.Persistence != nil && u.Persistence.Valid()
 }
 
 // MatchesSaveResult requires a confirmed, error-free checkpoint for the same
@@ -101,6 +101,10 @@ func CloneMediaUnits(units []MediaUnitStatus) []MediaUnitStatus {
 	}
 	out := append([]MediaUnitStatus(nil), units...)
 	for i := range out {
+		if saveable := out[i].Saveable; saveable != nil {
+			copy := *saveable
+			out[i].Saveable = &copy
+		}
 		if p := out[i].Persistence; p != nil {
 			copy := *p
 			out[i].Persistence = &copy

@@ -301,6 +301,7 @@ mister::Status Pc386RunningStatus()
 	unit.max_bytes = 134217728;
 	unit.chunk_bytes = 65536;
 	unit.state = mister::MediaUnitState::ready;
+	unit.saveable = false;
 	unit.persistence_mode = "persistent";
 	unit.game_id = "ultima-vi";
 	unit.base_media_id = std::string(64, 'c');
@@ -382,6 +383,7 @@ void TestPc386CoreDataProtocol()
 
 	const auto lines = ReadLines("tests/fixtures/protocol-v2-pc386-responses.jsonl");
 	assert(lines.size() == 3);
+	assert(lines[2].find("\"saveable\":false") != std::string::npos);
 	Status status;
 	status.state = State::idle;
 	status.capabilities = FixtureCapabilities();
@@ -1078,6 +1080,7 @@ std::vector<std::string> ComputerResponseFixtures()
 	unit.max_bytes = 143360;
 	unit.chunk_bytes = 512;
 	unit.state = mister::MediaUnitState::empty;
+	unit.saveable = false;
 	status.capabilities.media_units = {unit};
 	lines.push_back(mister::daemon::EncodeResponse(2, true, status, "fixture"));
 
@@ -1149,7 +1152,7 @@ void TestComputerResponseFixtures()
 	assert(lines[0].find("\"media_units\"") == std::string::npos);
 	assert(lines[1].find("\"media_units\":[{\"unit\":0,\"interface\":{\"id\":\"fes.media.apple2-floppy\","
 		"\"major\":1,\"minor\":0},\"min_bytes\":143360,\"max_bytes\":143360,\"chunk_bytes\":512,"
-		"\"state\":\"empty\"}]") != std::string::npos);
+		"\"state\":\"empty\",\"saveable\":false}]") != std::string::npos);
 	assert(lines[2].find("\"state\":\"ready\"") != std::string::npos);
 	assert(lines[3].find("\"state\":\"loading\"") != std::string::npos);
 	assert(lines[4].find("\"expansions\":[{\"slot\":4,") != std::string::npos);

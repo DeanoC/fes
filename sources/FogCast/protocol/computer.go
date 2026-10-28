@@ -251,8 +251,8 @@ func KeyboardHIDCapable(p *CorePackageStatus) bool {
 	return activeComputer(p) && activeInterface(p, KeyboardHIDInterface())
 }
 
-// MediaUnitStatus is one runtime-reported removable-media drive. The runtime
-// reads it from live MediaInfo while a fes.computer generation is active.
+// MediaUnitStatus is one runtime-reported media unit. The runtime reads its
+// live state while a fes.computer generation is active.
 type MediaUnitStatus struct {
 	Unit        uint8            `json:"unit"`
 	Interface   RuntimeContract  `json:"interface"`
@@ -260,8 +260,13 @@ type MediaUnitStatus struct {
 	MaxBytes    uint32           `json:"max_bytes"`
 	ChunkBytes  uint32           `json:"chunk_bytes"`
 	State       string           `json:"state"`
+	Saveable    *bool            `json:"saveable,omitempty"`
 	Persistence *MediaDataStatus `json:"persistence,omitempty"`
 }
+
+// CanSave reports whether this unit supports an explicit in-session save.
+// Older status responses omit the field and retain their existing behavior.
+func (u MediaUnitStatus) CanSave() bool { return u.Saveable == nil || *u.Saveable }
 
 // Valid checks the unit against the ABI and, for known media interfaces, the
 // exact unit and size the interface defines.

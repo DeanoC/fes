@@ -430,6 +430,7 @@ public:
 	// Return a GP error code to model an acknowledged command rejection.
 	std::function<unsigned(const Request&)> reject_request;
     std::function<bool(const Request&)> fail_after_request;
+	std::function<void()> after_disk_commit;
 	std::vector<std::uint32_t> writes;
 	std::vector<Request> requests;
 	unsigned abi_minor = 0;
@@ -570,6 +571,7 @@ private:
 				verify_result = match ? 3 : 2;
 				if (verify_reads) { disk_state = 4; verify_left = verify_reads; }
 				else { disk_state = verify_result; disk_error = !match; }
+				if (after_disk_commit) after_disk_commit();
 				return {0, 0};
 			}
 			if (arg == 3) {

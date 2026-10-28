@@ -491,7 +491,7 @@ func validateProtocol2Shape(line []byte) error {
 			return err
 		}
 		if err := eachRaw(raw, func(item json.RawMessage) error {
-			unit, err := exactRawObject(item, []string{"unit", "interface", "min_bytes", "max_bytes", "chunk_bytes", "state"}, []string{"persistence"})
+			unit, err := exactRawObject(item, []string{"unit", "interface", "min_bytes", "max_bytes", "chunk_bytes", "state"}, []string{"persistence", "saveable"})
 			if err != nil {
 				return err
 			}
@@ -504,6 +504,11 @@ func validateProtocol2Shape(line []byte) error {
 					return err
 				}
 				if err = requireRawKinds(binding, map[string]rawKind{"mode": rawString, "game_id": rawString, "base_media_id": rawString, "revision": rawString}); err != nil {
+					return err
+				}
+			}
+			if raw, ok := unit["saveable"]; ok {
+				if err := requireRawKind(raw, rawBoolean); err != nil {
 					return err
 				}
 			}

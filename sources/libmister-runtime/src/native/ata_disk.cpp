@@ -268,9 +268,13 @@ Error AtaDeltaFile::CheckWritable() const
 {
     Lock lock(directory_, LOCK_EX);
     if (!lock.ok()) return Io("cannot lock media-data namespace");
+    static std::atomic<unsigned long> sequence{0};
+    const std::string probe_name = ".probe-" + std::to_string(getpid()) + "-" + std::to_string(++sequence);
     const unsigned char probe = 0;
-    Error error = Replace(directory_, ".probe-", ".probe-check", &probe, 1);
-    if (error.ok() && unlinkat(directory_, ".probe-check", 0) != 0) error = Io("media-data write check cleanup failed");
+    Error error = Replace(directory_, ".probe-", probe_name, &probe, 1);
+    if (error.ok() && unlinkat(directory_, probe_name.c_str(), 0) != 0)
+        error = Io("media-data write check cleanup failed");
+    if (!error.ok()) (void)unlinkat(directory_, probe_name.c_str(), 0);
     if (fsync(directory_) != 0 && error.ok()) error = Io("media-data namespace sync check failed");
     return error.ok() ? error : Error{ErrorCode::save_failed, "media-data namespace is not writable", "media_data"};
 }
