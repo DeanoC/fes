@@ -2,7 +2,9 @@ package tenfoot
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -269,6 +271,7 @@ func (a *App) refreshInstalledCoreSetupLocked() {
 	s.Index = 0
 	s.Status = "Finding installed " + label + " packages…"
 	var cores []hostclient.AvailableCore
+	skipped := 0
 	standing := "installed"
 	if variant, ok := zx81family.ByID(coreID); ok && variant.CoreID != "fes.zx81" {
 		standing = "experimental"
@@ -287,7 +290,15 @@ func (a *App) refreshInstalledCoreSetupLocked() {
 			}
 			setup, err := a.client.InstalledCoreSetup(ctx, p.PackageID)
 			if err != nil {
-				return err
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+				var requestErr *url.Error
+				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || errors.As(err, &requestErr) {
+					return err
+				}
+				skipped++
+				continue
 			}
 			packageLabel := p.Name
 			if zx81family.Known(coreID) {
@@ -305,6 +316,16 @@ func (a *App) refreshInstalledCoreSetupLocked() {
 		s.Status = "Choose an installed " + label + " and its required ROMs. Adding a setup does not start it."
 		if len(cores) == 0 {
 			s.Status = "No " + label + " package is installed. Browse published systems to install one."
+			if skipped > 0 {
+				s.Status = "No usable installed " + label + " package could be checked."
+			}
+		}
+		if skipped > 0 {
+			packages := "packages"
+			if skipped == 1 {
+				packages = "package"
+			}
+			s.Status += fmt.Sprintf(" Skipped %d %s that could not be checked. Refresh systems to retry.", skipped, packages)
 		}
 	})
 }

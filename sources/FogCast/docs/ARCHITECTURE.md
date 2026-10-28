@@ -1012,10 +1012,13 @@ computer.
 
 ## Native 10-foot launcher
 
-The embedded **Sinclair ZX81 workbench** (`example.hardware`) reads host-owned hardware
-setups through `GET /api/v1/library/hardware`. Set up ZX81 first asks which
-machine — ZX81, ZX80, TS1000 or TS1500 — then lists installed packages of that
-core. Optional rear-socket bus 1.0 and
+The embedded **Sinclair workbench** (`example.hardware`) reads host-owned hardware
+setups through `GET /api/v1/library/hardware`. Its title, missing-setup notices
+and setup action follow the selected ZX81, ZX80, TS1000 or TS1500 model.
+The setup action lists installed packages for that model. A failed package
+inspection is skipped with a notice while
+usable sibling packages remain selectable; inventory and connection failures
+still fail the refresh. Optional rear-socket bus 1.0 and
 2.0 are supported; expansion readiness uses the same exact-package/version
 admission as library selection and launch. The projection validates each
 expansion against its exact installed shell, and includes ordinary session
@@ -1053,7 +1056,8 @@ package reports a conflict without overwriting it.
 The embedded **Systems** room (`example.computers`) lists prepared playable
 library systems and their grouped editions. Confirm uses `session.launch`.
 **Set up** opens the selected entry's workbench with `room.initial_game_id`
-and `room.initial_core_id`; an empty library offers **Add system**. ZX81-family
+and `room.initial_core_id`; a loaded empty library offers **Add system**. Setup
+navigation stays unavailable while the shelf or its editions are loading. ZX81-family
 entries retain `example.hardware`; Commodore 64 uses `example.c64`, a configured
 entrypoint for the shared `widgets.system_workbench` implementation.
 `example.system` exposes that implementation for every registered playable
@@ -1073,6 +1077,9 @@ filtered library query. **Set up system** reads installed package versions and
 sealed ROM requirements without needing publication; the same overlay also
 links to published installation/setup. **Media for next start** reads package
 capabilities and saves the selected role with package/media compare-and-swap.
+Saved media labels name the selected role; package guidance still describes the
+model's full media support. Adding a setup confirms only the library entry;
+expansion fitting is a separate operation.
 **Expansion sockets** reads the package's declared physical topology and saved
 slot choices. Exact-package/socket archive import and fitting are separate;
 selection checks the previous card. Library metadata shows selected cards
@@ -1084,7 +1091,10 @@ below their Lua content, keeping that chrome clear of the action rows.
 Live media, Stop and Return to play use the captured active session. A failed
 hardware refresh disables live controls until a later read succeeds. The kit
 opens a supported live picker directly; a host window selects the active
-system's workbench. Active package interfaces determine which live media and
+system's workbench from the captured launch identity or a read of its exact
+active package, independently of the visible library shelf. A late package read
+can open controls only for the same session, target and package generation.
+Active package interfaces determine which live media and
 display controls are available. These host/UI paths do not rebuild or accept
 core artifacts on hardware.
 

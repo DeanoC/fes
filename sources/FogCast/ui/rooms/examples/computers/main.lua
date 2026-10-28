@@ -151,6 +151,7 @@ local function launch_selected()
 end
 
 local function open_setup()
+  if rows == nil then return false end
   if not list or not list:selected() then rooms.open("example.system") return true end
   local item = list:selected()
   if type(item) ~= "table" then return false end
@@ -187,7 +188,7 @@ function on_input(cmd)
     return false
   end
   if cmd == "right" then
-    focus = "setup"
+    if rows ~= nil then focus = "setup" end
     return true
   end
   if list and list:input(cmd) then return true end
@@ -196,12 +197,13 @@ function on_input(cmd)
 end
 
 function on_hover(id)
-  if id == "setup" then focus = "setup" return end
+  if id == "setup" and rows ~= nil then focus = "setup" return end
   if list and list:on_hover(id) then focus = "list" end
 end
 
 function on_activate(id)
   if id == "setup" then
+    if rows == nil then return end
     focus = "setup"
     open_setup()
     return
@@ -225,7 +227,7 @@ function draw()
     note = "Confirm starts. Set up opens its workbench."
   end
   gfx.text(note, 64, 76, { size = 16, color = STATUS })
-  do
+  if rows ~= nil then
     local x, y, w, h = 980, 24, 180, 48
     local fill = focus == "setup" and room.theme.accent or PLATE
     local ink = focus == "setup" and FOCUS_INK or INK

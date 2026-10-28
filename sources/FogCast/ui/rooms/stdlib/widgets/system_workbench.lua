@@ -291,7 +291,11 @@ local function extra_line(game)
 end
 local function disk_line(game)
   if game.media_id and game.media_id ~= "" then
-    return (game.media_role == "disk" and spec().media or (game.media_role or "Media")) .. "  ·  " .. short_id(game.media_id)
+    local label = "Media"
+    if game.media_role == "disk" then label = spec().disk or spec().media
+    elseif game.media_role == "cassette" then label = spec().cassette or spec().media
+    elseif game.media_role == "blob" then label = spec().media end
+    return label .. "  ·  " .. short_id(game.media_id)
   end
   return spec().media .. "  ·  none saved"
 end

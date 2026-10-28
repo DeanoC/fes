@@ -293,6 +293,7 @@ func TestHardwareRoomEntryReleasesHeldKeysBeforeMenu(t *testing.T) {
 	app.mu.Lock()
 	app.games = []hostclient.Game{{ID: "zx81-game", CoreID: "fes.zx81"}}
 	app.session = hostclient.SessionResult{GameID: "zx81-game", State: "active", CoreKeyboardHID: true, Input: &hostclient.SessionInput{State: "attached", Ready: true}}
+	app.rememberPlayingSetupLocked("fes.zx81")
 	app.syncGPUParkLocked()
 	app.mu.Unlock()
 	if !app.HandlePlayHIDScancode("a", 0x04, true, time.Now()) {

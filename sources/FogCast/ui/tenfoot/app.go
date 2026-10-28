@@ -416,6 +416,12 @@ type App struct {
 	favoriteBusy           bool
 	hold                   HoldGate
 	session                hostclient.SessionResult
+	playingSetupSession    hostclient.SessionResult
+	playingSetupCoreID     string
+	playingSetupPending    bool
+	playingSetupRequest    uint64
+	playingSetupCancel     context.CancelFunc
+	playingSetupRoom       *rooms.Instance
 	sessionTitle           string
 	// retainedIdleLease is set when this shell's Soft-stop kept an idle kit
 	// grant, and when a kit Select+Start release failed while that grant may
@@ -2489,6 +2495,17 @@ func (a *App) doLaunch(ctx context.Context, game hostclient.Game, stamp ClientSt
 	if a.session.State == "active" && a.session.GameID == "" {
 		a.session.GameID = game.ID
 	}
+	activePackage := ""
+	if a.session.CorePackage != nil {
+		activePackage = a.session.CorePackage.PackageID
+	}
+	expectedPackage := game.PackageID
+	if packageID != "" {
+		expectedPackage = packageID
+	}
+	if a.session.State == "active" && a.session.GameID == game.ID && game.CoreID != "" && activePackage == expectedPackage {
+		a.rememberPlayingSetupLocked(game.CoreID)
+	}
 	a.kickSessionPollLocked()
 }
 
@@ -3338,6 +3355,7 @@ func (a *App) applySessionLocked(result hostclient.SessionResult) {
 		return
 	}
 	if !samePlayHIDSession(a.session, result) {
+		a.clearPlayingSetupLocked()
 		a.cancelPlayHIDLocked()
 		a.invalidateSessionDisplayLocked()
 	}

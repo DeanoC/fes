@@ -1,6 +1,7 @@
 package rooms
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"strings"
@@ -10,6 +11,53 @@ import (
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/ui/gfx"
 )
+
+type loadingSystemsServices struct {
+	*fakeServices
+	ready <-chan struct{}
+}
+
+func (s loadingSystemsServices) QueryGames(ctx context.Context, q hostclient.GameListQuery, limit int) ([]hostclient.Game, error) {
+	select {
+	case <-s.ready:
+		return s.fakeServices.QueryGames(ctx, q, limit)
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+func TestSystemsSetupWaitsForLoadedShelf(t *testing.T) {
+	ready := make(chan struct{})
+	zx := preparedComputer("zx80-loaded", "My ZX80", "fes.zx80")
+	r := newRoom(t, examplePack(t, "example.computers"), Options{
+		Services: loadingSystemsServices{fakeServices: &fakeServices{games: []hostclient.Game{zx}}, ready: ready},
+		Width:    1280, Height: 720,
+	})
+	if err := r.Load(); err != nil {
+		close(ready)
+		t.Fatal(err)
+	}
+	frame := r.Step(time.Now())
+	if !frameHas(frame, "Looking for prepared computers") || frameHas(frame, "Add system") {
+		close(ready)
+		t.Fatalf("loading shelf offered setup:\n%s", frameText(frame))
+	}
+	r.Input("right")
+	r.Input("select")
+	r.Activate("setup")
+	acts := r.TakeActions()
+	close(ready)
+	if len(acts) != 0 {
+		t.Fatalf("loading shelf navigated away: %+v", acts)
+	}
+	stepUntil(t, r, func(f Frame) bool { return frameHas(f, "My ZX80") })
+	r.Input("right")
+	r.Input("select")
+	acts = r.TakeActions()
+	if len(acts) != 1 || acts[0].Kind != ActionOpenRoom || acts[0].RoomID != "example.hardware" || acts[0].InitialGameID != zx.ID || acts[0].InitialCoreID != zx.CoreID {
+		t.Fatalf("loaded shelf setup: %+v", acts)
+	}
+}
 
 func preparedComputer(id, title, coreID string) hostclient.Game {
 	return hostclient.Game{

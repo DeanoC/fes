@@ -57,7 +57,8 @@ Both affected runs pass: footer delta 439 parent regressions, final hint delta
 392; each also passes 21 planner, 31 runner, affected Go/race, 361 Node and 78 UI
 checks. `make check` and `make deadcode` pass, including 21 generated consumers and
 37 fixture copies. The hint has a focused saved-family regression. Independent
-reviews found no P1/P2 findings. Module/shared contracts are unchanged.
+reviews of those two kit-discovered fixes found no P1/P2 findings.
+Module/shared contracts are unchanged.
 
 This is an exact-artifact FPGA/HDMI diagnostic for this bundle and two retained
 Spectrum packages. Other families have navigation/render coverage. Physical
@@ -80,3 +81,11 @@ Kit A status file records restoration and release. Kit B was untouched.
 
 The next integration step is PR review. The coverage limits above remain explicit;
 this run does not establish that every core has hardware acceptance.
+
+## Subsequent review fixes
+
+Later review identified additional defects in session workbench routing, installed
+package inspection, setup confirmation, saved-media labels, shelf loading and
+Sinclair model branding. Their fixes have separate software checks and do not
+inherit this record's hardware acceptance. The tested bundle and executable
+source above remain the exact artifacts covered by these captures.

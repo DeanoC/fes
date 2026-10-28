@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/protocol"
@@ -178,18 +179,234 @@ func TestPlayingSystemRoomReplacesStaleWorkshopSelection(t *testing.T) {
 	app.openRoomLocked(hardwareRoomID)
 	app.session = hardwareBoundSession()
 	app.session.GameID = "coleco-game"
-	app.games = []hostclient.Game{{ID: "coleco-game", CoreID: "fes.coleco"}}
+	app.rememberPlayingSetupLocked("fes.coleco")
 	app.openPlayingHardwareRoomLocked()
 	if app.room == nil || app.room.ID() != systemRoomID || !app.roomDuringPlay || app.session.GameID != "coleco-game" || app.session.CorePackage.Generation != 9 {
 		t.Fatalf("wrong active room or changed session: room=%v session=%+v", app.room, app.session)
 	}
 	prior := app.room
 	app.session.GameID = "spectrum-game"
-	app.games = []hostclient.Game{{ID: "spectrum-game", CoreID: "fes.spectrum"}}
+	app.rememberPlayingSetupLocked("fes.spectrum")
 	app.roomDuringPlay = false
 	app.openPlayingHardwareRoomLocked()
 	if app.room == nil || app.room.ID() != systemRoomID || app.room == prior {
 		t.Fatal("reused the previous system selection")
 	}
 	app.closeAllRoomsLocked()
+}
+
+const activeSetupIdentityScript = `
+function load() end
+function draw()
+  gfx.clear("#122738")
+  gfx.text(room.initial_core_id or "missing core", 20, 20, {size=20})
+  gfx.text(room.initial_game_id or "missing game", 20, 50, {size=20})
+end
+`
+
+func TestActiveSinclairWorkbenchUsesCapturedLaunchOutsideFilteredShelf(t *testing.T) {
+	for _, coreID := range []string{"fes.zx80", "fes.ts1000", "fes.ts1500"} {
+		t.Run(coreID, func(t *testing.T) {
+			app := NewApp(nil, 1280, 720, 20)
+			app.roomsIndex = rooms.NewIndex([]rooms.Pack{
+				testRoomPack(t, hardwareRoomID, activeSetupIdentityScript),
+				testRoomPack(t, systemRoomID, activeSetupIdentityScript),
+			})
+			app.session = hardwareBoundSession()
+			app.session.GameID = "active-sinclair"
+			app.rememberPlayingSetupLocked(coreID)
+			app.games = []hostclient.Game{{ID: "filtered-spectrum", CoreID: "fes.spectrum"}}
+			app.loading = true
+			app.openPlayingHardwareRoomLocked()
+			if app.room == nil || app.room.ID() != hardwareRoomID || !app.roomDuringPlay {
+				t.Fatalf("filtered shelf selected another workbench: %+v", app.Snapshot().Room)
+			}
+			app.Tick(time.Now())
+			snap := app.Snapshot()
+			foundCore, foundGame := false, false
+			for _, op := range snap.Room.Frame.Ops {
+				foundCore = foundCore || op.Text == coreID
+				foundGame = foundGame || op.Text == app.session.GameID
+			}
+			if !foundCore || !foundGame || app.session.CorePackage.Generation != 9 {
+				t.Fatalf("workbench lost exact active selection: %+v", snap.Room)
+			}
+			app.closeAllRoomsLocked()
+		})
+	}
+}
+
+func TestAdoptedSinclairWorkbenchReadsActivePackageOutsideShelf(t *testing.T) {
+	for _, coreID := range []string{"fes.zx80", "fes.ts1000", "fes.ts1500"} {
+		t.Run(coreID, func(t *testing.T) {
+			prior := hardwareBoundSession()
+			reads := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/api/v1/debug/ui-events" {
+					w.WriteHeader(http.StatusNoContent)
+					return
+				}
+				if r.Method != http.MethodGet || r.URL.Path != "/api/v1/core-packages/"+prior.CorePackage.PackageID {
+					t.Errorf("unexpected lookup: %s %s", r.Method, r.URL.Path)
+					http.Error(w, "unexpected", http.StatusNotFound)
+					return
+				}
+				reads++
+				json.NewEncoder(w).Encode(map[string]any{"package_id": prior.CorePackage.PackageID, "descriptor": map[string]any{"core": map[string]string{"id": coreID}}})
+			}))
+			defer server.Close()
+			app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 20)
+			app.roomsIndex = rooms.NewIndex([]rooms.Pack{
+				testRoomPack(t, hardwareRoomID, activeSetupIdentityScript),
+				testRoomPack(t, systemRoomID, activeSetupIdentityScript),
+			})
+			app.session = prior
+			app.games = []hostclient.Game{{ID: prior.GameID, CoreID: "fes.spectrum", PackageID: strings.Repeat("b", 64)}}
+			app.mu.Lock()
+			app.openPlayingHardwareRoomLocked()
+			app.mu.Unlock()
+			waitFor(t, app, "exact active Sinclair package", func(s Snapshot) bool { return s.Room.DuringPlay })
+			app.mu.Lock()
+			resolved, unchanged := app.playingSetupCoreLocked(), samePlayHIDSession(prior, app.session)
+			app.mu.Unlock()
+			snap := app.Snapshot()
+			if snap.Room.ID != hardwareRoomID || resolved != coreID || !unchanged || reads != 1 {
+				t.Fatalf("wrong adopted workbench: room=%s core=%s unchanged=%t reads=%d", snap.Room.ID, resolved, unchanged, reads)
+			}
+			app.closeAllRoomsLocked()
+		})
+	}
+}
+
+type playingSetupLookupTransport struct {
+	base     http.RoundTripper
+	contexts chan context.Context
+}
+
+func (tr playingSetupLookupTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	tr.contexts <- r.Context()
+	return tr.base.RoundTrip(r)
+}
+
+func TestActiveWorkbenchDiscardsLookupAfterSessionReplacement(t *testing.T) {
+	for _, change := range []string{"target", "game", "package", "generation", "flight"} {
+		t.Run(change, func(t *testing.T) {
+			prior := hardwareBoundSession()
+			gate := make(chan struct{})
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				<-gate
+				json.NewEncoder(w).Encode(map[string]any{"package_id": prior.CorePackage.PackageID, "descriptor": map[string]any{"core": map[string]string{"id": "fes.zx80"}}})
+			}))
+			defer server.Close()
+			contexts := make(chan context.Context, 1)
+			httpClient := *server.Client()
+			httpClient.Transport = playingSetupLookupTransport{base: http.DefaultTransport, contexts: contexts}
+			app := NewApp(NewClient(server.URL, &httpClient), 1280, 720, 20)
+			app.roomsIndex = rooms.NewIndex(rooms.Examples())
+			app.session = prior
+			app.mu.Lock()
+			app.openPlayingHardwareRoomLocked()
+			if app.room != nil || app.roomDuringPlay || !samePlayHIDSession(prior, app.session) {
+				t.Fatal("lookup changed play before identifying the active package")
+			}
+			app.mu.Unlock()
+			ctx := <-contexts
+			next := hardwareBoundSession()
+			switch change {
+			case "target":
+				next.Target = "other"
+			case "game":
+				next.GameID = "other"
+			case "package":
+				next.CorePackage.PackageID = strings.Repeat("b", 64)
+			case "generation":
+				next.CorePackage.Generation++
+			case "flight":
+				next.FlightID = "other"
+			}
+			app.mu.Lock()
+			app.applySessionLocked(next)
+			app.mu.Unlock()
+			close(gate)
+			select {
+			case <-ctx.Done():
+			case <-time.After(time.Second):
+				t.Fatal("retired lookup did not finish")
+			}
+			app.mu.Lock()
+			defer app.mu.Unlock()
+			if app.room != nil || app.roomDuringPlay || app.playingSetupCoreLocked() != "" || !samePlayHIDSession(next, app.session) {
+				t.Fatal("retired lookup opened another session's workshop")
+			}
+		})
+	}
+}
+
+func TestActiveWorkbenchLookupDeadlineLeavesExplicitRetry(t *testing.T) {
+	prior := hardwareBoundSession()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/debug/ui-events" {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]any{"package_id": prior.CorePackage.PackageID, "descriptor": map[string]any{"core": map[string]string{"id": "fes.ts1000"}}})
+	}))
+	defer server.Close()
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 20)
+	app.roomsIndex = rooms.NewIndex([]rooms.Pack{testRoomPack(t, hardwareRoomID, activeSetupIdentityScript)})
+	app.session = prior
+	ctx, cancel := context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
+	defer cancel()
+	app.ctx = ctx
+	app.mu.Lock()
+	app.openPlayingHardwareRoomLocked()
+	app.mu.Unlock()
+	waitFor(t, app, "retryable package lookup", func(s Snapshot) bool { return strings.Contains(s.Status, "could not be read") })
+	app.mu.Lock()
+	if app.playingSetupPending || app.playingSetupCancel != nil || app.room != nil || !samePlayHIDSession(prior, app.session) {
+		app.mu.Unlock()
+		t.Fatal("failed lookup retained a busy request or changed play")
+	}
+	app.ctx = t.Context()
+	app.openPlayingHardwareRoomLocked()
+	app.mu.Unlock()
+	waitFor(t, app, "retried exact package lookup", func(s Snapshot) bool { return s.Room.DuringPlay })
+	if app.Snapshot().Room.ID != hardwareRoomID {
+		t.Fatal("retry did not choose the Sinclair workbench")
+	}
+	app.closeAllRoomsLocked()
+}
+
+func TestCapturedWorkbenchIdentityRequiresReturnedLaunchPackage(t *testing.T) {
+	for _, samePackage := range []bool{true, false} {
+		name := "matching-package"
+		if !samePackage {
+			name = "different-active-package"
+		}
+		t.Run(name, func(t *testing.T) {
+			active := hardwareBoundSession()
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/api/v1/session/launch" {
+					w.WriteHeader(http.StatusNoContent)
+					return
+				}
+				writeKitDisplaySession(w, active)
+			}))
+			defer server.Close()
+			app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 20)
+			game := hostclient.Game{ID: active.GameID, CoreID: "fes.zx80", PackageID: active.CorePackage.PackageID}
+			if !samePackage {
+				game.PackageID = strings.Repeat("b", 64)
+			}
+			app.launch.GameID = game.ID
+			app.launch.Phase = "launching"
+			app.doLaunch(t.Context(), game, ClientStampNow(), "", "")
+			app.mu.Lock()
+			defer app.mu.Unlock()
+			coreID := app.playingSetupCoreLocked()
+			if samePackage && coreID != game.CoreID || !samePackage && coreID != "" {
+				t.Fatalf("launch captured core %q from package %s while active package is %s", coreID, game.PackageID, active.CorePackage.PackageID)
+			}
+		})
+	}
 }

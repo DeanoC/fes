@@ -53,6 +53,16 @@ func (a *App) playingHardwareRoomAvailableLocked() bool {
 	if a.roomsIndex == nil {
 		return false
 	}
+	if a.playingSetupCoreLocked() == "" {
+		// The package lookup chooses the room on Confirm, without depending
+		// on a filtered shelf or disabling controls while metadata loads.
+		for _, id := range []string{hardwareRoomID, systemRoomID} {
+			if pack, ok := a.roomsIndex.Find(id); ok && pack.Valid() {
+				return true
+			}
+		}
+		return false
+	}
 	pack, ok := a.roomsIndex.Find(a.playingSetupRoomLocked())
 	return ok && pack.Valid()
 }
@@ -61,24 +71,94 @@ func (a *App) playingHardwareRoomAvailableLocked() bool {
 // retains its hardware room. Both preserve the running session and kit lease.
 const playingHardwareRoomStatus = "Hardware room · the machine is still running"
 
-// Use the specialist Sinclair workbench when the library identifies that
-// family. Other sessions resolve their selected system from the current game.
+// The captured launch or exact active package identifies the running model.
+// A filtered or reloading shelf is not a source of live session identity.
 func (a *App) playingSetupRoomLocked() string {
-	for _, game := range a.games {
-		if game.ID == a.session.GameID && zx81family.Known(game.CoreID) {
-			return hardwareRoomID
-		}
-		for _, variant := range game.Variants {
-			if variant.ID == a.session.GameID && zx81family.Known(variant.CoreID) {
-				return hardwareRoomID
-			}
-		}
+	if zx81family.Known(a.playingSetupCoreLocked()) {
+		return hardwareRoomID
 	}
 	return systemRoomID
 }
 
+func (a *App) playingSetupCoreLocked() string {
+	if samePlayHIDSession(a.playingSetupSession, a.session) {
+		return a.playingSetupCoreID
+	}
+	return ""
+}
+
+func (a *App) clearPlayingSetupLocked() {
+	a.playingSetupRequest++
+	if a.playingSetupCancel != nil {
+		a.playingSetupCancel()
+	}
+	a.playingSetupSession = hostclient.SessionResult{}
+	a.playingSetupCoreID, a.playingSetupPending, a.playingSetupCancel = "", false, nil
+	a.playingSetupRoom = nil
+}
+
+func (a *App) rememberPlayingSetupLocked(coreID string) {
+	a.clearPlayingSetupLocked()
+	a.playingSetupSession = a.session
+	if a.session.CorePackage != nil {
+		value := *a.session.CorePackage
+		a.playingSetupSession.CorePackage = &value
+	}
+	a.playingSetupCoreID = coreID
+	a.playingSetupRoom = a.room
+}
+
+// An adopted session may have no captured launch row. Read its exact active
+// package without changing input focus or display, and discard a stale reply.
+func (a *App) resolvePlayingSetupLocked() {
+	if a.playingSetupPending && samePlayHIDSession(a.playingSetupSession, a.session) {
+		return
+	}
+	if a.client == nil || a.session.CorePackage == nil || protocol.ValidateDigest(a.session.CorePackage.PackageID) != nil {
+		a.status = "The running machine's package is unavailable. Return to play and retry."
+		return
+	}
+	a.rememberPlayingSetupLocked("")
+	prior := a.playingSetupSession
+	request := a.playingSetupRequest
+	a.playingSetupPending = true
+	parent := a.ctx
+	if parent == nil {
+		parent = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(parent, 15*time.Second)
+	a.playingSetupCancel = cancel
+	client := a.client
+	a.status = "Reading the running machine's package…"
+	go func() {
+		defer cancel()
+		pkg, err := client.CorePackage(ctx, prior.CorePackage.PackageID)
+		a.mu.Lock()
+		defer a.mu.Unlock()
+		if request != a.playingSetupRequest || !samePlayHIDSession(prior, a.session) || !samePlayHIDSession(prior, a.playingSetupSession) {
+			return
+		}
+		a.playingSetupPending, a.playingSetupCancel = false, nil
+		if err == nil {
+			err = ctx.Err()
+		}
+		if err != nil {
+			a.status = "The running machine's package could not be read. Return to play and retry."
+			return
+		}
+		a.playingSetupCoreID = pkg.Descriptor.Core.ID
+		a.playingSetupRoom = nil
+		a.openPlayingHardwareRoomLocked()
+	}()
+}
+
 func (a *App) openPlayingHardwareRoomLocked() {
 	if !a.playingHardwareRoomAvailableLocked() {
+		return
+	}
+	directMedia := a.needsSessionDisplayLocked() && a.sessionLiveMediaOfferedLocked()
+	if !directMedia && a.playingSetupCoreLocked() == "" && a.session.CorePackage != nil {
+		a.resolvePlayingSetupLocked()
 		return
 	}
 	if a.kitSessionDisplayPlaneLocked() && !a.launcherDisplayFocusedLocked() {
@@ -97,12 +177,13 @@ func (a *App) openPlayingHardwareRoomLocked() {
 	a.repeat.Clear()
 	a.hold.Clear()
 	roomID := a.playingSetupRoomLocked()
+	coreID := a.playingSetupCoreLocked()
 	if a.room == nil {
-		a.openRoomWithSelectionLocked(roomID, a.session.GameID)
+		a.openRoomWithSelectionLocked(roomID, a.session.GameID, coreID)
 	} else if a.room.ID() != roomID {
-		a.openNestedRoomLocked(roomID, a.session.GameID)
-	} else if roomID == systemRoomID {
-		a.openRoomWithSelectionLocked(roomID, a.session.GameID)
+		a.openNestedRoomLocked(roomID, a.session.GameID, coreID)
+	} else if roomID == systemRoomID || a.playingSetupRoom != a.room {
+		a.openRoomWithSelectionLocked(roomID, a.session.GameID, coreID)
 	} else {
 		// Reused rooms retain focus but must refresh their pre-launch snapshot.
 		a.room.SetOverlay(a.roomOverlayLocked())
@@ -112,6 +193,7 @@ func (a *App) openPlayingHardwareRoomLocked() {
 	if a.room == nil || a.room.ID() != roomID {
 		return
 	}
+	a.playingSetupRoom = a.room
 	a.roomPickerOpen = false
 	a.roomDuringPlay = true
 	a.roomWasParked = false // This visit already loaded or resumed the room.

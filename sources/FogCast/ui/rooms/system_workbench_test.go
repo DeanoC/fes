@@ -98,6 +98,29 @@ func TestSystemWorkbenchSelectedModelMediaAndEditionKeepExactEntry(t *testing.T)
 	}
 }
 
+func TestSystemWorkbenchNamesSavedMediaByRole(t *testing.T) {
+	for _, tc := range []struct{ core, role, label string }{
+		{"fes.spectrum-plus3", "disk", "Disk .dsk"},
+		{"fes.pentagon", "disk", "Disk .trd"},
+		{"fes.c64", "disk", "Disk .d64"},
+		{"fes.spectrum", "cassette", "Tape or snapshot"},
+		{"fes.spectrum-plus3", "cassette", "Tape or snapshot"},
+		{"fes.zx81", "blob", "Cassette .p"},
+		{"fes.coleco", "blob", "Linked cartridge"},
+	} {
+		t.Run(tc.core+"/"+tc.role, func(t *testing.T) {
+			game := preparedComputer("saved-media", "Saved machine", tc.core)
+			game.PackageID, game.MediaID, game.MediaRole = strings.Repeat("a", 64), strings.Repeat("b", 64), tc.role
+			r := loadSystemWorkbench(t, &fakeServices{games: []hostclient.Game{game}}, game.ID, tc.core)
+			want := tc.label + "  ·  " + game.MediaID[:8]
+			frame := stepUntil(t, r, func(f Frame) bool { return frameHas(f, "Saved machine") && frameHas(f, "Set up system") })
+			if !frameHas(frame, want) {
+				t.Fatalf("saved %s media lacks its own label %q:\n%s", tc.role, want, frameText(frame))
+			}
+		})
+	}
+}
+
 func TestSystemWorkbenchKeepsRunningMachineForLiveMediaAndResume(t *testing.T) {
 	game := preparedComputer("c64-game", "C64 game", "fes.c64")
 	host := &c64Host{fakeServices: fakeServices{games: []hostclient.Game{game}}}

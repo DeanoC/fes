@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -17,6 +18,94 @@ import (
 	"github.com/DeanoC/FogCast/internal/zx81tapes"
 	"github.com/DeanoC/FogCast/ui/rooms"
 )
+
+func TestInstalledCoreSetupKeepsUsableSiblingPackages(t *testing.T) {
+	bad, good := strings.Repeat("a", 64), strings.Repeat("b", 64)
+	for _, mode := range []string{"bad sibling", "all failed", "inventory failed", "cancelled", "connection failed"} {
+		t.Run(mode, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			var goodReads atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				switch r.URL.Path {
+				case "/api/v1/library/core-entries":
+					if mode == "inventory failed" {
+						http.Error(w, "offline", http.StatusServiceUnavailable)
+						return
+					}
+					json.NewEncoder(w).Encode(map[string]any{"entries": []any{}})
+				case "/api/v1/core-packages":
+					json.NewEncoder(w).Encode(map[string]any{"packages": []any{
+						map[string]any{"package_id": bad, "descriptor": map[string]any{"core": map[string]string{"id": "fes.pong", "name": "Pong", "version": "1.0"}}},
+						map[string]any{"package_id": good, "descriptor": map[string]any{"core": map[string]string{"id": "fes.pong", "name": "Pong", "version": "2.0"}}},
+					}})
+				case "/api/v1/core-packages/" + bad, "/api/v1/core-packages/" + good:
+					pkg := strings.TrimPrefix(r.URL.Path, "/api/v1/core-packages/")
+					if pkg == good {
+						goodReads.Add(1)
+					} else if mode == "cancelled" {
+						cancel()
+						<-r.Context().Done()
+						return
+					}
+					json.NewEncoder(w).Encode(map[string]any{"package_id": pkg, "descriptor": map[string]any{
+						"core": map[string]string{"id": "fes.pong"}, "abi": map[string]any{"id": "fes.simple-game", "major": 1},
+					}})
+				case "/api/v1/core-packages/" + bad + "/media-capabilities", "/api/v1/core-packages/" + good + "/media-capabilities":
+					if strings.Contains(r.URL.Path, bad) || mode == "all failed" {
+						w.WriteHeader(http.StatusInternalServerError)
+						w.Write([]byte(`{"error":{"code":"BROKEN_PACKAGE","message":"private /srv/library/package path"}}`))
+						return
+					}
+					json.NewEncoder(w).Encode(map[string]any{"package_id": good, "media": []any{}})
+				default:
+					t.Errorf("unexpected request %s", r.URL.Path)
+					http.Error(w, "unexpected", http.StatusNotFound)
+				}
+			}))
+			defer server.Close()
+			httpClient := server.Client()
+			if mode == "connection failed" {
+				transport := httpClient.Transport
+				httpClient.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+					if r.URL.Path == "/api/v1/core-packages/"+bad {
+						return nil, io.ErrUnexpectedEOF
+					}
+					return transport.RoundTrip(r)
+				})
+			}
+			a := NewApp(NewClient(server.URL, httpClient), 1280, 720, 10)
+			a.ctx = ctx
+			a.coreLibrary.Cores = []hostclient.AvailableCore{{Label: "cached"}}
+			a.mu.Lock()
+			a.openInstalledCoreSetupLocked("fes.pong")
+			a.mu.Unlock()
+			waitCoreLibrary(t, a)
+			a.mu.Lock()
+			defer a.mu.Unlock()
+			s := &a.coreLibrary
+			switch mode {
+			case "bad sibling":
+				rows := a.coreLibraryRowsLocked()
+				if !s.Online || len(s.Cores) != 1 || s.Cores[0].PackageID != good || len(rows) != 3 || rows[2].Core == nil || rows[2].Core.PackageID != good || !strings.Contains(s.Status, "Skipped 1 package") {
+					t.Fatalf("healthy package hidden: state %+v rows %+v", s, rows)
+				}
+			case "all failed":
+				if !s.Online || len(s.Cores) != 0 || !strings.Contains(s.Status, "No usable installed") || !strings.Contains(s.Status, "Skipped 2 packages") {
+					t.Fatalf("failed packages were reported as absent: %+v", s)
+				}
+			default:
+				if s.Online || len(s.Cores) != 1 || s.Cores[0].Label != "cached" || strings.Contains(s.Status, "Skipped") || goodReads.Load() != 0 {
+					t.Fatalf("global failure became a successful partial refresh: %+v good reads=%d", s, goodReads.Load())
+				}
+			}
+			if strings.Contains(s.Status, "private") || strings.Contains(s.Status, "/srv/") {
+				t.Fatalf("skipped-package notice exposed error details: %q", s.Status)
+			}
+		})
+	}
+}
 
 func TestHardwareCassetteSelectsNextLaunchAndKeepsExpectedBinding(t *testing.T) {
 	pkg, expected := strings.Repeat("a", 64), strings.Repeat("b", 64)

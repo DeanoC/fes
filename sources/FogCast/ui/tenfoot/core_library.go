@@ -615,7 +615,7 @@ func (a *App) createCoreLibraryGameLocked() {
 	}, func() {
 		s.Status = "Game added to the library. Launch checks readiness and executor compatibility."
 		if installedSetup {
-			s.Status = "Setup added. Back returns to the room. Media and expansions are saved for the next start."
+			s.Status = "Setup added to the library."
 			if a.room != nil {
 				a.room.Resume()
 			}

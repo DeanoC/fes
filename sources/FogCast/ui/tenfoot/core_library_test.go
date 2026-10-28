@@ -3,6 +3,7 @@ package tenfoot
 import (
 	"context"
 	"encoding/json"
+	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/protocol"
 	"io"
@@ -12,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -227,6 +229,66 @@ func TestCoreLibraryBIOSNeedsExplicitHouseholdSelection(t *testing.T) {
 	rows := a.coreLibraryRowsLocked()
 	if len(rows) < 2 || rows[1].Kind != "firmware:bios" {
 		t.Fatal("no explicit BIOS action")
+	}
+}
+
+func TestCoreLibraryInstalledCreationReportsOnlyTheAddedSetup(t *testing.T) {
+	const pkg = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	for _, mediaID := range []string{"", strings.Repeat("b", 64)} {
+		name := "without media"
+		if mediaID != "" {
+			name = "with media"
+		}
+		t.Run(name, func(t *testing.T) {
+			var creates atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/api/v1/library/core-entries":
+					if r.Method == http.MethodGet {
+						json.NewEncoder(w).Encode(map[string]any{"entries": []any{}})
+						return
+					}
+					var entry hostclient.CoreEntry
+					if err := json.NewDecoder(r.Body).Decode(&entry); err != nil {
+						t.Error(err)
+					}
+					if entry.PackageID != pkg || entry.Title != "My setup" || entry.MediaID != mediaID || (entry.MediaRole == "") != (mediaID == "") {
+						t.Errorf("creation lost selections: %+v", entry)
+					}
+					creates.Add(1)
+					entry.GameID, entry.CoreID = "my-setup", "fes.pong"
+					w.WriteHeader(http.StatusCreated)
+					json.NewEncoder(w).Encode(entry)
+				case "/api/v1/core-packages":
+					json.NewEncoder(w).Encode(map[string]any{"packages": []any{}})
+				case "/api/v1/games":
+					json.NewEncoder(w).Encode(map[string]any{"games": []any{}})
+				default:
+					t.Errorf("unexpected setup mutation or launch: %s %s", r.Method, r.URL.Path)
+					http.Error(w, "unexpected", http.StatusNotFound)
+				}
+			}))
+			defer server.Close()
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			a := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
+			a.ctx = ctx
+			ref := hostclient.CoreReference{CoreID: "fes.pong", PackageID: pkg}
+			setup := hostclient.CoreSetup{CoreReference: ref, Descriptor: corepackage.Descriptor{ABI: corepackage.Contract{ID: "fes.simple-game", Major: 1}}}
+			a.coreLibrary = coreLibraryState{Open: true, Online: true, InstalledSetup: true, Ref: &ref, Setup: &setup, Title: "My setup", MediaID: mediaID}
+			if mediaID != "" {
+				a.coreLibrary.MediaRole = "blob"
+			}
+			a.mu.Lock()
+			a.createCoreLibraryGameLocked()
+			a.mu.Unlock()
+			waitCoreLibrary(t, a)
+			a.mu.Lock()
+			defer a.mu.Unlock()
+			if creates.Load() != 1 || a.coreLibrary.Status != "Setup added to the library." {
+				t.Fatalf("misleading creation result: creates=%d status=%q", creates.Load(), a.coreLibrary.Status)
+			}
+		})
 	}
 }
 

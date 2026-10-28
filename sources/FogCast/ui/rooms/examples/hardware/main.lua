@@ -32,13 +32,22 @@ local function same_appearance()
   return (room.overlay and true or false) == overlay
 end
 local data, machine, art
+local systems = require "systems"
+local initial_core_id = room.initial_core_id or "fes.zx81"
+local function model()
+  local id = machine and machine.core_id or initial_core_id
+  local family = systems.family_by_core[id]
+  return family and family.id == "zx81" and systems.by_id[id] or systems.by_id["fes.zx81"]
+end
+local function workshop_title() return model().mark .. " Workshop" end
+local opening_message = "Finding your " .. model().label .. " setups..."
 local initial_game_id = room.initial_game_id or ""
 local initial_selection_pending = false
 local chosen, inspected = "", ""
 local focus = "socket"
 local controls = {}
 local loading, saving, stale = false, false, true
-local message, read_error = "Finding your Sinclair ZX81 setups...", ""
+local message, read_error = opening_message, ""
 local last_read, page = 0, 1
 local scale, ox, oy = 1, 0, 0
 local cmds, pool = {}, {}
@@ -277,10 +286,10 @@ local function read()
       if not choice() then inspected=machine.draft_expansion_id end
       page=math.max(1,math.min(page,math.ceil(math.max(1,#machine.choices)/3)))
     elseif initial_selection_pending then
-      read_error="The selected ZX81 setup is no longer available."
+      read_error="The selected "..model().label.." setup is no longer available."
     end
     initial_selection_pending=false
-    if message == "Finding your Sinclair ZX81 setups..." then message="Choose a card to see what it adds." end
+    if message == opening_message then message="Choose a card to see what it adds." end
   end)
 end
 local function save(id)
@@ -418,7 +427,7 @@ local function paint_opening()
   clear_row(C.paper)
   rect(24,18,18,5,C.accent)
   text("FES",50,14,24,C.ink,80,true)
-  text("ZX81 Workshop",118,17,19,C.ink,400)
+  text(workshop_title(),118,17,19,C.ink,400)
   text("Opening the workshop…",24,84,22,C.muted,700)
   gfx.paint(cmds)
 end
@@ -443,13 +452,13 @@ local function picture(part)
   rect(24,18,18,5,C.accent) rect(24,26,18,5,C.accent) rect(24,34,10,5,C.accent)
   text("FES",50,14,24,C.ink,80,true)
   rect(104,16,2,26,C.line)
-  text("ZX81 Workshop",118,17,19,C.ink,300)
+  text(workshop_title(),118,17,19,C.ink,300)
   button("back","Back",892,10,96,38,true,function() rooms.back() end)
   button("home","Home",1000,10,96,38,true,function() rooms.home() end)
   rect(0,56,1120,2,C.line)
 
-  text("THE SINCLAIR ZX81 WORKBENCH",24,66,13,C.muted,600,true)
-  text(machine and machine.title or "Sinclair ZX81",24,84,30,C.ink,560,true)
+  text("THE "..string.upper(model().label).." WORKBENCH",24,66,13,C.muted,600,true)
+  text(machine and machine.title or model().label,24,84,30,C.ink,560,true)
   local info=read_error ~= "" and read_error or (data and data.session_error ~= "" and "Session unavailable. Refresh before controlling the machine." or message)
   if machine and not machine.ready and read_error == "" then info=machine.unavailable_reason end
   -- Status stays under the title so lifecycle consequences never disappear.
@@ -463,7 +472,7 @@ local function picture(part)
   text("1 rear connector",440,154,15,C.muted,144)
   if overlay then
     -- No artwork or silhouette: the running machine is behind the room.
-  elseif art and art.ready then
+  elseif model().id == "fes.zx81" and art and art.ready then
     blit(art,120,186,330,220)
   else
     -- A labelled machine silhouette keeps the room usable without artwork.
@@ -472,7 +481,7 @@ local function picture(part)
     rect(120,238,360,150,C.ink)
     rect(148,256,196,64,C.panel)
     rect(148,336,300,28,C.raised)
-    text("ZX81",360,268,24,C.light,100,true)
+    text(model().mark,360,268,24,C.light,100,true)
     text("Machine illustration unavailable",130,206,15,C.muted,400)
   end
   -- The ZX81 has one rear connector, not numbered internal slots.
@@ -503,7 +512,7 @@ local function picture(part)
   end
   button("socket","Rear expansion",372,182,200,40,machine and machine.socket.supported,function() focus="card:1" end)
   local readonly=data and data.expansion_selection == false
-  local save_guidance=readonly and "Open the ZX81 Workshop on the host computer to choose Fit & save." or "A saved setup remembers the machine, not its running memory."
+  local save_guidance=readonly and ("Open the "..workshop_title().." on the host computer to choose Fit & save.") or "A saved setup remembers the machine, not its running memory."
   text(save_guidance,40,412,15,C.muted,544)
 
   -- Setup column: the three states together, then the change and its cost.
@@ -569,7 +578,7 @@ local function picture(part)
     end
   end
   if #choices == 0 then
-    text(machine and "RAM, Zon X and QS expansions supported." or "Add a Sinclair ZX81 setup in the FPGA library to begin.",24,486,19,C.muted,720)
+    text(machine and "RAM, Zon X and QS expansions supported." or ("Add a "..model().label.." setup in the FPGA library to begin."),24,486,19,C.muted,720)
     text("Import a card archive to add it to this shelf.",24,512,15,C.muted,720)
   end
   -- Setup tools: two columns so Direction moves straight between them.
@@ -600,7 +609,7 @@ local function picture(part)
   end)
   button("resume","Return to play",430,576,164,48,running(),function() session.resume() end)
   button("setup","Next setup",606,576,128,48,data and #data.machines > 1,function() next_machine() end)
-  button("setup_library","Set up ZX81",746,576,170,48,not running(),function() hardware.setup() end)
+  button("setup_library","Set up "..model().mark,746,576,170,48,not running(),function() hardware.setup{core_id=model().id} end)
   button("library","Library",976,514,120,28,not running(),function() rooms.open_library{platform="zx81"} end)
   if part == "lower" then
     gfx.extend(sink)
