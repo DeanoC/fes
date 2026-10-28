@@ -149,6 +149,9 @@ keeps custom SOF/factory-firmware pairing unqualified. Preserved source
 parameters and matching archive identity do not replace that compatibility
 check. Inspection never executes the boot script or performs bridge/MMIO access.
 
+The [2026-10-28 boot-contract inspection](validation/2026-10-28-de25-boot-contract/README.md)
+retains the exact report, firmware-source review and remaining pairing gates.
+
 The serial console is `ttyS0` at 115200 baud. Ethernet requests an address by
 DHCP on `eth0`. The development login is `root` with password `1`, matching the
 existing FES development convention. Dropbear creates the board's SSH host keys
