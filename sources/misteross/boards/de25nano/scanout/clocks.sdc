@@ -15,7 +15,7 @@ post_message -type info "DE25 scanout qualifier clear pins: $scanout_clear_count
 # A monotonic 100 MHz fault level crosses through its dedicated two-flop chain.
 # Cut only asynchronous ingress to stage0 D. Stage0->1 and fanout stay timed.
 set scanout_fault_source [get_registers {fes_video_inst|fault}]
-set scanout_fault_head [get_pins -regexp -nocase {soc_inst\|subsys_periph\|fes_scanout\|clock_fault_sync\[0\]\|d}]
+set scanout_fault_head [get_pins -compatibility_mode -nocase {soc_inst|subsys_periph|fes_scanout|fes_scanout|clock_fault_sync[0]|d}]
 if {[get_collection_size $scanout_fault_source] != 1 || [get_collection_size $scanout_fault_head] != 1} {error "DE25 scanout fault synchronizer ingress changed"}
 set_false_path -from $scanout_fault_source -to $scanout_fault_head
 post_message -type info "DE25 scanout fault CDC ingress: one source and one stage0 D pin"
