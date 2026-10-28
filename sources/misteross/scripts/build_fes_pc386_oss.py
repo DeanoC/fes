@@ -163,7 +163,7 @@ def record_fields(root: Path, repository: str, revision: str, identities: dict[s
         "abi_definition_sha256": board._sha256(board._regular_input(root, ABI_DEFINITION)),
         "dependencies": {}, "tools": identities,
         "parameters": {
-            "core_id": CORE["id"], "device": board.TARGET, "top": board.TOP,
+            "device": board.TARGET, "top": board.TOP,
             "gpu_architectures": board.FES_GPU_ARCHITECTURES, "gpu_backend": "hip", "router": "gpu",
             "seed": seeds[0], "seed_order": ",".join(str(seed) for seed in seeds),
             "placer_heap_timingweight": PLACER_TIMING_WEIGHT,
