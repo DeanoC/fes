@@ -152,7 +152,12 @@ def handoff_tree():
     module("subsys_hps.f2sdram_adapter", "f2sdram_adapter", "axi4_sub", (
         ("araddr", "Input", 32), ("rdata", "Output", 256), ("rresp", "Output", 2)))
     identities = (
-        ("avalon", "subsys_hps_agilex_hps.lwhps2fpga", "subsys_periph_pb_cpu_0.s0", {}),
+        ("avalon", "subsys_hps_agilex_hps.lwhps2fpga", "subsys_periph_pb_cpu_0.s0", {
+            "addressMapSysInfo": '<address-map>' + ''.join(
+                f'<slave name="subsys_periph.{name}" start="{hex(base)}" end="{hex(base + span)}"/>'
+                for name, base, span in (("sysid.control_slave", 0x10000, 8), ("button_pio.s1", 0x10060, 16),
+                    ("dipsw_pio.s1", 0x10070, 16), ("led_pio.s1", 0x10080, 16),
+                    ("fes_mailbox.avs", BUILD.mailbox_base(), 32), ("fes_ddr_probe.avs", BUILD.probe_base(), 128))) + '</address-map>'}),
         ("avalon", "subsys_periph_pb_cpu_0.m0", "subsys_periph_fes_mailbox.avs",
          {"baseAddress": hex(BUILD.mailbox_base())}),
         ("clock", "subsys_periph_periph_clk.out_clk", "subsys_periph_fes_mailbox.clk",
@@ -500,10 +505,11 @@ class HpsBuildTests(unittest.TestCase):
         archive, selected, files = self.archive()
         output = self.prepare(archive, selected)
         inputs = json.loads((output / "inputs.json").read_text())
-        regions = inputs["peripheral_slave_map"]
-        self.assertEqual({r["name"] for r in regions}, {"sysid.control_slave", "button_pio.s1", "dipsw_pio.s1",
-                         "led_pio.s1", "fes_mailbox.avs", "fes_ddr_probe.avs"})
-        self.assertEqual(regions[-1], {"name": "fes_ddr_probe.avs", "base": 0x10100, "span": 128})
+        self.assertIn("pending", inputs["peripheral_slave_map"])
+        self.write_handoff(output / "project")
+        regions = BUILD.verify_probe_handoff(output / "project")["peripheral_slave_map"]
+        self.assertEqual(len(regions), 6)
+        self.assertEqual(regions[-1], {"name": "subsys_periph.fes_ddr_probe.avs", "base": 0x10100, "span": 128})
         script = (output / "project/integrate-mailbox.tcl").read_text()
         self.assertIn("baseAddress 0x10100", script)
         self.assertIn("EXPORT_OF fes_ddr_probe.avm", script)
@@ -512,10 +518,12 @@ class HpsBuildTests(unittest.TestCase):
         hw = (output / "project/fes_mailbox/fes_de25_ddr_probe_hw.tcl").read_text()
         self.assertIn("avm avm_response response Input 2", hw)
         self.assertNotIn("avm avm_write", hw)
-        qsys = files["peripheral_subsys/peripheral_subsys.qsys"].replace(b"0x10080", b"0x10100")
-        archive, selected, _ = self.archive(changed={"peripheral_subsys/peripheral_subsys.qsys": qsys})
+        tree = handoff_tree()
+        item = tree.getroot().find("connection/parameter[@name='addressMapSysInfo']/value")
+        item.text = item.text.replace('start="0x10080" end="0x10090"', 'start="0x10100" end="0x10110"')
+        self.write_handoff(output / "project", tree)
         with self.assertRaisesRegex(ValueError, "overlapping peripheral"):
-            self.prepare(archive, selected, self.root / "overlap")
+            BUILD.verify_probe_handoff(output / "project")
 
     def test_probe_handoff_requires_read_response_width_clock_and_preserved_jtag_route(self):
         project = self.root / "probe-handoff"

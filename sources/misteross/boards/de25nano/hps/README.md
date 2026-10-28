@@ -9,8 +9,9 @@ This is a diagnostic register interface; it does not declare a FES GP ABI,
 runtime programming profile or Linux physical MMIO address.
 
 The separate `fes.fabric.de25-ddr-probe` endpoint occupies 128 bytes at
-peripheral-relative offset `0x10100`. Preparation checks this range against
-every existing peripheral slave, including the mailbox. Its 32-bit control
+peripheral-relative offset `0x10100`. Elaborated handoff validation checks
+this range against every reachable peripheral slave, including the mailbox;
+project-only preparation records that check as pending. Its 32-bit control
 slave and 128-bit, byte-addressed read master share the existing 100 MHz
 clock. The master exports a two-bit Avalon response and connects through
 generated Platform Designer width/protocol adaptation to the unchanged

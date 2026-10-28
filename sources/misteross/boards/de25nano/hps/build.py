@@ -242,21 +242,18 @@ def module_parameters(path):
     return parameters
 
 
-def peripheral_slave_map(project, mailbox_offset, probe_offset):
-    namespace = {"ip": "http://www.accellera.org/XMLSchema/IPXACT/1685-2014"}
-    source = ET.parse(project / "peripheral_subsys/peripheral_subsys.qsys")
-    spaces = [s for s in source.findall(".//ip:addressSpace", namespace)
-              if s.findtext("ip:name", namespaces=namespace) == "pb_cpu_0.m0"]
-    if len(spaces) != 1:
-        raise ValueError("vendor peripheral master address map changed")
-    regions = [{"name": s.findtext("ip:name", namespaces=namespace),
-                "base": int(s.findtext("ip:addressOffset", namespaces=namespace), 0),
-                "span": int(s.findtext("ip:range", namespaces=namespace), 0)}
-               for s in spaces[0].findall("ip:segments/ip:segment", namespace)]
+def peripheral_slave_map(address_map, probe_offset):
+    # Source .qsys files do not necessarily materialize address spaces. Use
+    # the actual elaborated LW bridge map, including every reachable slave.
+    source = ET.fromstring(address_map)
+    regions = [{"name": s.get("name"), "base": int(s.get("start"), 0),
+                "span": int(s.get("end"), 0) - int(s.get("start"), 0)}
+               for s in source.findall("slave")]
     if not regions:
         raise ValueError("vendor peripheral slave map is empty")
-    regions += [{"name": "fes_mailbox.avs", "base": mailbox_offset, "span": 32},
-                {"name": "fes_ddr_probe.avs", "base": probe_offset, "span": 128}]
+    probes = [r for r in regions if r["name"] == "subsys_periph.fes_ddr_probe.avs"]
+    if len(probes) != 1 or probes[0]["base"] != probe_offset or probes[0]["span"] != 128:
+        raise ValueError("generated DDR probe slave region differs")
     regions.sort(key=lambda r: r["base"])
     for index, region in enumerate(regions):
         end = region["base"] + region["span"]
@@ -299,7 +296,6 @@ def prepare_project(archive, output=None, revision=None):
     # HPS, EMIF and boot data; compiler-generated products are never imported.
     if f"-name DEVICE {DEVICE}" not in (project / "golden_top.qsf").read_text():
         raise ValueError("vendor GHRD device differs from the selected board")
-    slave_map = peripheral_slave_map(project, offset, probe_offset)
     constraints = correct_stale_constraints(project)
     reset = repair_top_reset(project)
     local = project / "fes_mailbox"
@@ -327,7 +323,7 @@ def prepare_project(archive, output=None, revision=None):
               "source_sha256": {name: digest(local / name) for name in sources},
               "mailbox_peripheral_offset": offset,
               "probe_peripheral_offset": probe_offset,
-              "peripheral_slave_map": slave_map,
+              "peripheral_slave_map": "pending elaborated Platform Designer handoff validation",
               "probe_dma_admission": "descriptor-bounds-only; allocation/translation/lifetime not-qualified",
               "reviewed_constraint_repairs": constraints,
               "reviewed_top_reset_repairs": reset,
@@ -418,9 +414,15 @@ def verify_probe_handoff(project):
     target = component_ports(adapter, "axi4_sub")
     if target.get("rdata") != ("Output", 256) or target.get("araddr") != ("Input", 32) or target.get("rresp") != ("Output", 2):
         raise ValueError("generated vendor F2SDRAM width/address/response contract differs")
+    lw = connections.get(("avalon", "subsys_hps_agilex_hps.lwhps2fpga", "subsys_periph_pb_cpu_0.s0"))
+    address_map = lw.findtext("parameter[@name='addressMapSysInfo']/value") if lw is not None else None
+    if not address_map:
+        raise ValueError("generated DDR probe LW slave map missing")
+    slave_map = peripheral_slave_map(address_map, offset)
     return {"instance": probe.get("path"), "peripheral_offset": offset,
             "clock_hz": 100000000, "read_master_data_bits": 128, "dma_address_bits": 32,
             "response_bits": 2, "vendor_f2sdram_data_bits": 256,
+            "peripheral_slave_map": slave_map,
             "physical_ddr_address": "not-established", "dma_admission": "not-qualified"}
 
 
