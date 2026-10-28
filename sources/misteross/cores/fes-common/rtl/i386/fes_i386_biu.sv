@@ -139,6 +139,30 @@ module fes_i386_biu import fes_i386_pkg::*; #(
             if (3'(2'(k - h)) < n && !mmio[k] && lines[k] == line) held = 1'b1;
     endfunction
 
+    // Each entry takes the store's first part, its second, or the first's
+    // bytes merged in; written entry by entry with constant indices, which the
+    // locked Yosys reads right (a byte loop into e_data[tail] it does not).
+    logic [1:0] tail2;
+    assign tail2 = take0 ? tail1 + 2'd1 : tail1;
+    for (genvar k = 0; k < 4; k++) begin : g_entry
+        always_ff @(posedge clk) begin
+            if (!cold_reset && take1 && tail2 == 2'(k)) begin
+                e_mmio[k] <= st_attr1 == ATTR_MMIO;
+                e_line[k] <= st_line1;
+                e_mask[k] <= mask1;
+                e_data[k] <= data1;
+            end else if (!cold_reset && take0 && tail1 == 2'(k)) begin
+                e_mmio[k] <= st_attr0 == ATTR_MMIO;
+                e_line[k] <= st_line0;
+                e_mask[k] <= mask0;
+                e_data[k] <= data0;
+            end else if (!cold_reset && merge0 && tail == 2'(k)) begin
+                for (int b = 0; b < 32; b++) if (mask0[b]) e_data[k][b] <= data0[b];
+                e_mask[k] <= e_mask[k] | mask0;
+            end
+        end
+    end
+
     // ---- Requests -------------------------------------------------------------
     // DMA's request, latched while it is served.
     logic          dma_busy;
@@ -237,22 +261,6 @@ module fes_i386_biu import fes_i386_pkg::*; #(
             // The buffer: pops at the head, the store's entries at the tail.
             if (part0 || part1) age <= 2'd0;
             else if (age != 2'd2) age <= age + 2'd1;
-            if (merge0) begin
-                for (int b = 0; b < 32; b++) if (mask0[b]) e_data[tail][b] <= data0[b];
-                e_mask[tail] <= e_mask[tail] | mask0;
-            end
-            if (take0) begin
-                e_mmio[tail1] <= st_attr0 == ATTR_MMIO;
-                e_line[tail1] <= st_line0;
-                e_mask[tail1] <= mask0;
-                e_data[tail1] <= data0;
-            end
-            if (take1) begin
-                e_mmio[take0 ? tail1 + 2'd1 : tail1] <= st_attr1 == ATTR_MMIO;
-                e_line[take0 ? tail1 + 2'd1 : tail1] <= st_line1;
-                e_mask[take0 ? tail1 + 2'd1 : tail1] <= mask1;
-                e_data[take0 ? tail1 + 2'd1 : tail1] <= data1;
-            end
             count <= count - 3'(pop) + 3'(take0) + 3'(take1);
             if (pop) begin
                 head <= head + 2'd1;
