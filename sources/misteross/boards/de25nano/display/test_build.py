@@ -22,6 +22,11 @@ class DisplayBuildTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
         self.files = {name: b"vendor input\n" for name in B.VENDOR_FILES}
+        self.files['HDMI_I2C/I2C_HDMI_Config.v'] = b'''parameter CLK_Freq = 50000000;
+parameter I2C_Freq = 20000;
+if( mI2C_CLK_DIV < (CLK_Freq/I2C_Freq) ) mI2C_CLK_DIV <= mI2C_CLK_DIV+1;
+else begin mI2C_CLK_DIV <= 0; mI2C_CTRL_CLK <= ~mI2C_CTRL_CLK; end
+'''
         pins = '\n'.join(f'set_location_assignment PIN_TEST{n} -to {port}\n'
                          f'set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to {port}'
                          for n, port in enumerate(sorted(B.PORTS))) + '\n'
@@ -117,6 +122,11 @@ class DisplayBuildTests(unittest.TestCase):
     def test_changed_reset_release_family_is_rejected(self):
         self.files['agilex_reset_release.ip'] = self.files['agilex_reset_release.ip'].replace(b'Agilex 5', b'Cyclone V')
         with self.assertRaisesRegex(ValueError, 'reset-release device/family'):
+            self.prepare()
+
+    def test_changed_vendor_i2c_divider_is_rejected(self):
+        self.files['HDMI_I2C/I2C_HDMI_Config.v'] = self.files['HDMI_I2C/I2C_HDMI_Config.v'].replace(b'20000;', b'100000;')
+        with self.assertRaisesRegex(ValueError, 'I2C clock divider contract changed'):
             self.prepare()
 
     def test_captured_git_revision_ignores_later_working_tree_bytes(self):

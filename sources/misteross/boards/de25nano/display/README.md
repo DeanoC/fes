@@ -51,6 +51,9 @@ Reset release is synchronized separately in the reference and pixel domains;
 PLL loss/configuration reset blanks RGB and sync without another pixel edge.
 SDC exceptions cover only four dedicated reset synchronizer clear pins,
 leaving stage data and reset fanout timed. Generated PLL SDC owns its clocks.
+The preserved initializer's internal clock is explicitly derived from its
+50 MHz counter: it toggles after counting 0 through 2500, so a full period
+is 5002 reference cycles. Preparation checks that exact divider contract.
 
 `make sim` checks the actual wrapper, video cores and reset RTL with
 controllable digital models for the PLL, configuration endpoint and I2C

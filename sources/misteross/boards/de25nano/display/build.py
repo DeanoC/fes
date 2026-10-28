@@ -126,6 +126,12 @@ def prepare(archive, mode, output=None, revision=None):
         raise ValueError("HDMI reference pins differ from the SCS golden board")
     pll, repair = retarget_pll(vendor["sys_pll.ip"])
     reset, reset_repair = retarget_reset(vendor["agilex_reset_release.ip"])
+    config = vendor["HDMI_I2C/I2C_HDMI_Config.v"].decode()
+    expected_config = (r"parameter\s+CLK_Freq\s*=\s*50000000\s*;", r"parameter\s+I2C_Freq\s*=\s*20000\s*;",
+                       r"if\(\s*mI2C_CLK_DIV\s*<\s*\(CLK_Freq/I2C_Freq\)\s*\)",
+                       r"mI2C_CLK_DIV\s*<=\s*0\s*;\s*mI2C_CTRL_CLK\s*<=\s*~mI2C_CTRL_CLK")
+    if any(not re.search(pattern, config) for pattern in expected_config):
+        raise ValueError("vendor I2C clock divider contract changed")
     if output is None:
         directory = MISTEROSS / "build/diagnostic/de25nano-display"
         directory.mkdir(parents=True, exist_ok=True)
@@ -166,6 +172,8 @@ def prepare(archive, mode, output=None, revision=None):
         "vendor_archive": lock["archive"], "vendor_source_sha256": {name: sha(data) for name, data in vendor.items()},
         "reviewed_pll_device_repair": repair, "reviewed_reset_release_device_repair": reset_repair,
         "video": {"pixel_clock_hz": 74250000, "h_total": 1650, "v_total": 750},
+        "i2c_internal_clock": {"source_hz": 50000000, "divide_by": 5002,
+                               "derivation": "2 * (CLK_Freq / I2C_Freq + 1)"},
         "hps": False, "ddr": False, "gp": False, "runtime_menu": False,
         "boot_firmware_compatibility": "not-qualified", "hardware_acceptance": "not-run"}
     inputs["prepared_project_sha256"] = {str(path.relative_to(project)): sha(path.read_bytes()) for path in project.iterdir() if path.is_file()}

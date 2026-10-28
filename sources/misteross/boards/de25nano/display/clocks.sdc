@@ -1,4 +1,9 @@
 # The regenerated IOPLL SDC owns the 50 MHz reference and 74.25 MHz pixel clocks.
+# The pinned initializer increments through 0..2500 before toggling its clock:
+# 2 * (50000000 / 20000 + 1) reference edges, not a rounded 10 kHz assumption.
+set hdmi_config_clock [get_registers {hdmi_config|mI2C_CTRL_CLK}]
+if {[get_collection_size $hdmi_config_clock] != 1} {error "DE25 vendor I2C clock register changed"}
+create_generated_clock -name adv7513_config -source [get_ports CLOCK0_50] -divide_by 5002 $hdmi_config_clock
 # This only cuts asynchronous assertion into the two dedicated release chains.
 set display_aclr [get_pins -compatibility_mode -nocase -nowarn {config_reset|sync_regs*|aclr pixel_reset|sync_regs*|aclr}]
 set display_clrn [get_pins -compatibility_mode -nocase -nowarn {config_reset|sync_regs*|clrn pixel_reset|sync_regs*|clrn}]
