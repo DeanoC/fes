@@ -148,41 +148,55 @@ module fes_i386_ex (
     logic        bt_cf, bt_of;
     assign bt_cf = x[exc.bt_i0];
     assign bt_of = x[exc.bt_i1] ^ x[exc.bt_i2];
-    logic [4:0]  lo_n, hi_n, scan_n, sm, hi_1, hi_2;
-    logic        scan_z, y_top, dec_pf;
+    // The scan takes one-hot vectors of y's lowest and highest set bit, each
+    // from an OR of the bits on one side, so no index is decremented and no
+    // bit is selected by one: the index ORs out of the vector, and BSR's CF
+    // and OF are the vector ANDed with the bits below. y is 0 above its size.
+    logic [31:0] below, above, lo_one, hi_one;
+    always_comb
+        for (int i = 0; i < 32; i++) begin
+            below[i] = |(y & ((32'd1 << i) - 32'd1));
+            above[i] = |(y & ~((32'd2 << i) - 32'd1));
+        end
+    assign lo_one = y & ~below;
+    assign hi_one = y & ~above;
+    logic [4:0]  lo_n, hi_n, scan_n;
     always_comb begin
         lo_n = 5'd0;
-        for (int i = 31; i >= 0; i--)
-            if (y[i]) lo_n = 5'(i);
         hi_n = 5'd0;
-        for (int i = 0; i < 32; i++)
-            if (y[i]) hi_n = 5'(i);
+        for (int i = 0; i < 32; i++) begin
+            lo_n = lo_n | ({5{lo_one[i]}} & 5'(i));
+            hi_n = hi_n | ({5{hi_one[i]}} & 5'(i));
+        end
     end
     assign scan_n = exc.bsr ? hi_n : lo_n;
+    // The parity of BSF's index: whether its one-hot bit is one with an odd
+    // count of index bits.
+    localparam logic [31:0] ODD = 32'h9669_6996;
+    logic        scan_z, y_top, dec_pf, lo_odd, hi_cf, hi_of;
     assign scan_z = y == 32'd0;
-    assign sm = {!exc.size16, 4'hf};
     assign y_top = exc.size16 ? y[15] : y[31];
-    assign hi_1 = (hi_n - 5'd1) & sm;
-    assign hi_2 = (hi_n - 5'd2) & sm;
-    logic [7:0] y_dec;
-    assign y_dec = y[7:0] - 8'd1;
-    assign dec_pf = ~^y_dec;
+    assign dec_pf = ~^(y[7:0] - 8'd1);
+    assign lo_odd = |(lo_one & ODD);
+    // The bit below BSR's index, and the two below it XORed (bit -1 is 0).
+    assign hi_cf = |(hi_one[31:1] & y[30:0]);
+    assign hi_of = hi_one[0] || |(hi_one[31:1] & (y[30:0] ^ {y[29:0], 1'b0}));
     logic [17:0] scan_f;
     always_comb begin
         scan_f = flags_keep;
         scan_f[ZF] = scan_z;
         if (!exc.bsr) begin
             scan_f[CF] = y[0] && y[1];
-            scan_f[PF] = y[0] ? dec_pf : ~^scan_n;
+            scan_f[PF] = y[0] ? dec_pf : !lo_odd;
             scan_f[AF] = y[0];
             scan_f[SF] = y[0] && !y_top;
             scan_f[OF] = y[0] && y_top;
         end else begin
-            scan_f[CF] = !scan_z && y[hi_1];
+            scan_f[CF] = hi_cf;
             scan_f[PF] = dec_pf;
             scan_f[AF] = |y[3:0];
             scan_f[SF] = !scan_z && !(y_top && (exc.size16 ? |y[14:0] : |y[30:0]));
-            scan_f[OF] = !scan_z && (hi_n == 5'd0 || y[hi_1] ^ y[hi_2]);
+            scan_f[OF] = hi_of;
         end
     end
 
@@ -263,6 +277,15 @@ module fes_i386_ex (
                 rest[IF] = 1'b0;
                 rest[TF] = 1'b0;
             end
+            if (exc.md_fl) begin
+                rest[CF] = md_flags[CF];
+                rest[PF] = md_flags[PF];
+                rest[AF] = md_flags[AF];
+                rest[ZF] = md_flags[ZF];
+                rest[SF] = md_flags[SF];
+                rest[OF] = md_flags[OF];
+            end
+            // The bit test's and scan's flags come from y and x late, so last.
             if (exc.f_bt) begin
                 rest[CF] = bt_cf;
                 rest[OF] = bt_of;
@@ -274,14 +297,6 @@ module fes_i386_ex (
                 rest[ZF] = scan_f[ZF];
                 rest[SF] = scan_f[SF];
                 rest[OF] = scan_f[OF];
-            end
-            if (exc.md_fl) begin
-                rest[CF] = md_flags[CF];
-                rest[PF] = md_flags[PF];
-                rest[AF] = md_flags[AF];
-                rest[ZF] = md_flags[ZF];
-                rest[SF] = md_flags[SF];
-                rest[OF] = md_flags[OF];
             end
         end
     end

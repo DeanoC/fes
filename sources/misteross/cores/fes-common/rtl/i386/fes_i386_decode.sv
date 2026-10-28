@@ -1133,12 +1133,13 @@ module fes_i386_decode (
                 8'hba: begin
                     // BT, BTS, BTR, BTC r/m, imm8 (/4 to /7; /0 to /3 are not
                     // built). BT writes nothing but flags. LOCK is valid on
-                    // the others' memory form, as on the 386EX.
+                    // a read-modify-write: the others' memory form, as on the
+                    // 386EX.
                     known = reg_f[2];
                     op = 5'd19 + {3'd0, reg_f[1:0]};  // ALU_BT, ALU_BTS, ALU_BTR, ALU_BTC
                     m_in_a = 1'b1;
                     mkind = reg_form ? 2'd0 : reg_f[1:0] == 2'd0 ? 2'd1 : 2'd3;
-                    lockable = reg_f[1:0] != 2'd0;
+                    lockable = 1'b1;
                     wr_cf = 1'b1;
                     wr_oszap = 1'b1;
                     s1_valid = 1'b1;
