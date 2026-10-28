@@ -354,6 +354,9 @@ func libraryDetailHint(kind InputKind, count int, d rooms.Destination) string {
 		parts = append(parts, selectWord(kind)+" import BIOS")
 	}
 	parts = append(parts, backWord(kind)+" back")
+	if kind == InputGamepad {
+		parts = append(parts, "Y search")
+	}
 	if count > 1 {
 		switch kind {
 		case InputKeyboard, InputMouse:

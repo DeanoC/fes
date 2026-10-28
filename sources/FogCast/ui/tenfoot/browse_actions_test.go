@@ -93,6 +93,15 @@ func TestUnfocusedLibraryDetailsPromptMatchesItsShortcut(t *testing.T) {
 			if opened := app.Snapshot(); !opened.Detail.Open || opened.BrowseActions.Focused {
 				t.Fatalf("Details shortcut did not open the selected title: %+v", opened)
 			}
+			if tc.kind == InputGamepad {
+				if hint := app.Snapshot().HeaderHint(); !strings.Contains(hint, "Y search") {
+					t.Fatalf("Details does not advertise controller search: %q", hint)
+				}
+				app.HandleCommand(tc.cmd, time.Now())
+				if searched := app.Snapshot(); !searched.SearchOpen || searched.Detail.Open {
+					t.Fatalf("second Y did not reach Search from Details: detail=%+v search=%v", searched.Detail, searched.SearchOpen)
+				}
+			}
 		})
 	}
 }

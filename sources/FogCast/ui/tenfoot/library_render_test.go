@@ -453,7 +453,7 @@ func TestDetailsClassifyTheChosenEditionAndPairedLease(t *testing.T) {
 	if c := detailReadiness(d); c.Headline != "Browse only" {
 		t.Fatalf("edition Details described the room destination: %+v", c)
 	}
-	if leased.Availability != rooms.AvailUnavailable || !leased.LeaseHeld || libraryDetailHint(InputGamepad, 0, leased) != "B back  GUIDE settings" {
+	if leased.Availability != rooms.AvailUnavailable || !leased.LeaseHeld || libraryDetailHint(InputGamepad, 0, leased) != "B back  Y search  GUIDE settings" {
 		t.Fatalf("paired foreign lease left a host-only title Ready: %+v", leased)
 	}
 }
@@ -673,7 +673,7 @@ func TestUnknownKitStatusNamesTheHeadline(t *testing.T) {
 	if d.Status != machineStatusUnknown || c.Headline != machineStatusUnknown || c.Headline == "Can't play here" || !strings.Contains(c.Explain, "Wait for the kit") {
 		t.Fatalf("unknown headline dest=%+v readiness=%+v", d, c)
 	}
-	if libraryDetailHint(InputGamepad, 0, d) != "B back  GUIDE settings" {
+	if libraryDetailHint(InputGamepad, 0, d) != "B back  Y search  GUIDE settings" {
 		t.Fatalf("unknown status offers an action: %q", libraryDetailHint(InputGamepad, 0, d))
 	}
 }
