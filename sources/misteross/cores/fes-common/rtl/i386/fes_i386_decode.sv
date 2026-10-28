@@ -9,7 +9,8 @@
 //   and JCXZ; PUSH and POP of a register, an immediate or a segment register,
 //   RET and RET imm16, LEAVE, JMP r/m and CALL rel; XCHG, MOV to and from
 //   a direct offset, XLAT and SALC; PUSH, POP and CALL of r/m; MUL, IMUL
-//   (all three forms), DIV, IDIV, AAM and AAD; IN and OUT; the first uops of
+//   (all three forms), DIV, IDIV, AAM and AAD; IN and OUT; BT, BTS, BTR and
+//   BTC by an immediate, BSF and BSR; the first uops of
 //   MOVS, CMPS, STOS, LODS, SCAS, INS, OUTS and ENTER (fes_i386_seq builds
 //   the rest);
 // with a ModRM memory operand where they take one. The memory operand is a
@@ -1127,6 +1128,37 @@ module fes_i386_decode (
                     undefined = reg_form;
                     seg2_idx = op2[2] ? (op2[0] ? 3'd5 : 3'd4) : 3'd2;
                     lptr = 1'b1;
+                end
+                8'hba: begin
+                    // BT, BTS, BTR, BTC r/m, imm8 (/4 to /7; /0 to /3 are not
+                    // built). BT writes nothing but flags. LOCK is valid on
+                    // the others' memory form, as on the 386EX.
+                    known = reg_f[2];
+                    op = 5'd19 + {3'd0, reg_f[1:0]};  // ALU_BT, ALU_BTS, ALU_BTR, ALU_BTC
+                    m_in_a = 1'b1;
+                    mkind = reg_form ? 2'd0 : reg_f[1:0] == 2'd0 ? 2'd1 : 2'd3;
+                    lockable = reg_f[1:0] != 2'd0;
+                    wr_cf = 1'b1;
+                    wr_oszap = 1'b1;
+                    s1_valid = 1'b1;
+                    s1_idx = rm;
+                    d_valid = reg_f[1:0] != 2'd0;
+                    d_idx = rm;
+                    imm = imm8_m;
+                end
+                8'b1011110?: begin
+                    // BSF (BCh), BSR (BDh) r, r/m: src1 is the destination,
+                    // whose value a source of 0 keeps
+                    op = op2[0] ? 5'd24 : 5'd23;  // ALU_BSR, ALU_BSF
+                    mkind = reg_form ? 2'd0 : 2'd1;
+                    wr_cf = 1'b1;
+                    wr_oszap = 1'b1;
+                    s1_valid = 1'b1;
+                    s1_idx = reg_f;
+                    s2_valid = 1'b1;
+                    s2_idx = rm;
+                    d_valid = 1'b1;
+                    d_idx = reg_f;
                 end
                 8'haf: begin
                     // IMUL r, r/m: the register is src1 and the destination

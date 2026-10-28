@@ -34,6 +34,22 @@
 // list): AND, OR, XOR and TEST clear AF; a shift by a nonzero count sets AF;
 // shifts and rotates set OF and CF as fes_i386_shflags says.
 //
+// BT, BTS, BTR and BTC by an immediate take y as the bit's mask, and the
+// logic unit makes BTS's, BTR's and BTC's result. CF is the bit; OF, which
+// the manual leaves undefined, the two bits below it XORed (mod the size), as
+// the 386EX makes it (Phase 0 divergence bit-test-of); SF, ZF, AF and PF stay.
+//
+// BSF and BSR find y's lowest or highest set bit; a source of 0 sets ZF and
+// keeps the destination (a). Their other flags are the 386EX's (divergence
+// bsf-bsr-flags), which the manual leaves undefined:
+//   BSF: if bit 0 is set, CF is bit 1, PF the parity of y less 1, AF 1, SF
+//     the top bit's complement and OF the top bit; else PF is the index's
+//     parity and CF, AF, SF and OF are 0.
+//   BSR: CF is the bit below the index; PF the parity of y less 1; AF set
+//     when bits 3:0 are not all 0; SF the complement of y less 1's top bit;
+//     OF 1 at index 0, else the two bits below the index XORed. A source of
+//     0 clears CF, AF, SF and OF and sets PF.
+//
 // MUL, IMUL, DIV, IDIV, AAM and AAD take their flags from the multiply and
 // divide unit (fes_i386_muldiv, md_flags); their result comes through LEA's
 // select, from the pipe record's result field, which fes_i386_cpu fills
@@ -128,6 +144,48 @@ module fes_i386_ex (
     assign def_co = exc.ok && exc.f_shift && count != 5'd0;
     assign def_szap = def_co && exc.sh.szap;
 
+    // ---- Bit test and scan ----------------------------------------------------------
+    logic        bt_cf, bt_of;
+    assign bt_cf = x[exc.bt_i0];
+    assign bt_of = x[exc.bt_i1] ^ x[exc.bt_i2];
+    logic [4:0]  lo_n, hi_n, scan_n, sm, hi_1, hi_2;
+    logic        scan_z, y_top, dec_pf;
+    always_comb begin
+        lo_n = 5'd0;
+        for (int i = 31; i >= 0; i--)
+            if (y[i]) lo_n = 5'(i);
+        hi_n = 5'd0;
+        for (int i = 0; i < 32; i++)
+            if (y[i]) hi_n = 5'(i);
+    end
+    assign scan_n = exc.bsr ? hi_n : lo_n;
+    assign scan_z = y == 32'd0;
+    assign sm = {!exc.size16, 4'hf};
+    assign y_top = exc.size16 ? y[15] : y[31];
+    assign hi_1 = (hi_n - 5'd1) & sm;
+    assign hi_2 = (hi_n - 5'd2) & sm;
+    logic [7:0] y_dec;
+    assign y_dec = y[7:0] - 8'd1;
+    assign dec_pf = ~^y_dec;
+    logic [17:0] scan_f;
+    always_comb begin
+        scan_f = flags_keep;
+        scan_f[ZF] = scan_z;
+        if (!exc.bsr) begin
+            scan_f[CF] = y[0] && y[1];
+            scan_f[PF] = y[0] ? dec_pf : ~^scan_n;
+            scan_f[AF] = y[0];
+            scan_f[SF] = y[0] && !y_top;
+            scan_f[OF] = y[0] && y_top;
+        end else begin
+            scan_f[CF] = !scan_z && y[hi_1];
+            scan_f[PF] = dec_pf;
+            scan_f[AF] = |y[3:0];
+            scan_f[SF] = !scan_z && !(y_top && (exc.size16 ? |y[14:0] : |y[30:0]));
+            scan_f[OF] = !scan_z && (hi_n == 5'd0 || y[hi_1] ^ y[hi_2]);
+        end
+    end
+
     // ---- Result -------------------------------------------------------------------
     // Each lane ORs the sum, the shift and the other results, each gated by
     // its registered lane select, with the old value where the size leaves it.
@@ -141,7 +199,8 @@ module fes_i386_ex (
                    | ({32{exc.r_setcc}} & {31'b0, cc_true})
                    | ({32{exc.r_lahf}} & {24'b0, flags_in[7:6], 1'b0, flags_in[4], 1'b0, flags_in[2], 1'b1, flags_in[0]})
                    | ({32{exc.r_sign}} & {32{exc.src8 ? y[7] : exc.src16 ? y[15] : y[31]}})
-                   | ({32{exc.r_flags}} & {16'b0, flags_in[15:0]});
+                   | ({32{exc.r_flags}} & {16'b0, flags_in[15:0]})
+                   | ({32{exc.r_scan}} & (scan_z ? af : {27'b0, scan_n}));
     assign r_shift = out[32:1];
     assign result[7:0] = ({8{exc.add_lo}} & sum[7:0]) | ({8{exc.sh_lo}} & r_shift[7:0])
                        | ({8{exc.ot_lo}} & r_other[7:0]) | ({8{exc.kp_lo}} & af[7:0]);
@@ -203,6 +262,18 @@ module fes_i386_ex (
             if (exc.f_clrit) begin
                 rest[IF] = 1'b0;
                 rest[TF] = 1'b0;
+            end
+            if (exc.f_bt) begin
+                rest[CF] = bt_cf;
+                rest[OF] = bt_of;
+            end
+            if (exc.r_scan) begin
+                rest[CF] = scan_f[CF];
+                rest[PF] = scan_f[PF];
+                rest[AF] = scan_f[AF];
+                rest[ZF] = scan_f[ZF];
+                rest[SF] = scan_f[SF];
+                rest[OF] = scan_f[OF];
             end
             if (exc.md_fl) begin
                 rest[CF] = md_flags[CF];

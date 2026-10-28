@@ -478,6 +478,11 @@ package fes_i386_pkg;
         logic       f_load;                    // the writable flags from y (POPF, IRET)
         logic       f_clrit;                   // IF and TF cleared (INT)
         logic       fl_cf, fl_cmc, fl_set;
+        // BT, BTS, BTR and BTC by an immediate: CF is x's bit bt_i0, OF its
+        // bits bt_i1 and bt_i2 XORed (fes_i386_ex); y is the bit's mask.
+        logic       f_bt;
+        logic [4:0] bt_i0, bt_i1, bt_i2;
+        logic       r_scan, bsr;               // BSF, BSR: the result and flags of the scan of y
         logic       b_jcc, b_jmp, b_loop, b_loope, b_loopne, b_jcxz;
         logic       b_rpe, b_rpne;             // a string element ends REPE, REPNE (uop rep_stop)
         logic       b_ind;                     // RET, JMP r/m: the target is x (CS's base) + y (the EIP)
