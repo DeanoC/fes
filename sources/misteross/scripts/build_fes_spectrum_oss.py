@@ -3,7 +3,7 @@
 
 One shell builds four packages, chosen by --model: the 48K (fes.spectrum),
 128K/+2 (fes.spectrum128), +2A/+3 (fes.spectrum-plus3) and Pentagon 128
-(fes.pentagon). Each is format 3: blank 1024x10 firmware lanes (16, 32 or 64)
+(fes.pentagon). Each is format 3: blank 1024x10 firmware lanes (16, 32, 48 or 64)
 are described by a sealed ROM map for the model's firmware image that
 FogCast links at download time. The shell reserves the edge socket's named
 rectangle of `fes.spectrum-bus.sockets/2` and pins its boundary flip-flops and
@@ -93,26 +93,30 @@ class Model:
 MODELS = {model.key: model for model in (
     Model("48", "fes.spectrum", "FES ZX Spectrum 48K",
           "ZX Spectrum 48K: NMOS Z80 with ULA contention, linked 16 KiB firmware",
-          "0.4.0", None, "spectrum-firmware", 16, 3_500_000, 69_888, 3,
+          "0.6.0", None, "spectrum-firmware", 16, 3_500_000, 69_888, 3,
           Path("build/fes-spectrum-oss")),
     Model("128", "fes.spectrum128", "FES ZX Spectrum 128K",
           "ZX Spectrum 128K/+2: NMOS Z80, ULA contention, AY-3-8912, 128 KiB paged RAM, "
-          "linked 32 KiB firmware", "0.2.0", "SPECTRUM_MODEL_128K", "spectrum128-firmware", 32,
+          "linked 32 KiB firmware", "0.4.0", "SPECTRUM_MODEL_128K", "spectrum128-firmware", 32,
           3_546_900, 70_908, 8, Path("build/fes-spectrum128-oss")),
     Model("plus3", "fes.spectrum-plus3", "FES ZX Spectrum +2A/+3",
-          "ZX Spectrum +2A/+3 without a disk drive: gate-array contention, all-RAM paging, "
-          "AY-3-8912, linked 64 KiB firmware", "0.2.0", "SPECTRUM_MODEL_PLUS3",
+          "ZX Spectrum +2A/+3: gate-array contention, all-RAM paging, AY-3-8912, "
+          "uPD765A +3 disk drive, linked 64 KiB firmware", "0.5.0", "SPECTRUM_MODEL_PLUS3",
           "spectrum-plus3-firmware", 64, 3_546_900, 70_908, 8, Path("build/fes-spectrum-plus3-oss")),
     Model("pentagon", "fes.pentagon", "FES Pentagon 128",
           "Pentagon 128: uncontended 71,680 T-state frame, AY-3-8912, 128 KiB paged RAM, "
-          "linked 32 KiB firmware", "0.2.0", "SPECTRUM_MODEL_PENTAGON", "pentagon-firmware", 32,
+          "Beta 128 TR-DOS drive, linked 48 KiB firmware", "0.5.0", "SPECTRUM_MODEL_PENTAGON",
+          "pentagon-firmware", 48,
           3_500_000, 71_680, 8, Path("build/fes-pentagon-oss")),
 )}
 # Exact synthesized block counts: (MISTRAL_M10K, MISTRAL_M10K_TDP). M10K is the
 # firmware lanes, the three 320x240 frame banks, the display-plane FIFO, the
 # tape store's prefetch ring and the deck's pulse tables; TDP is the CPU/ULA
-# RAM. The tape image itself is in HPS DDR.
-EXPECTED_M10K = {"48": (113, 16), "128": (193, 32), "plus3": (225, 32), "pentagon": (193, 32)}
+# RAM. The tape image and the Pentagon's and +2A/+3's disk images are in HPS DDR.
+# The models with a unit-1 disk: their controller sub-interface and media.
+DISK_MODELS = {"pentagon": ("fes.media.spectrum-disk-trdos", ".trd/.scl TR-DOS disk"),
+               "plus3": ("fes.media.spectrum-disk-plus3", ".dsk +3 disk")}
+EXPECTED_M10K = {"48": (113, 16), "128": (193, 32), "plus3": (225, 32), "pentagon": (209, 32)}
 ABI_DEFINITION = "cores/fes-common/generated/fes_computer.vh"
 DDR_ATOM = "cores/fes-common/rtl/fes_hps_ddr_atom.v"
 QSF = "cores/fes-spectrum/constraints-oss.qsf"
@@ -144,6 +148,10 @@ RTL_SOURCES = (
     "cores/fes-spectrum/rtl/spectrum_rom.v",
     "cores/fes-spectrum/rtl/spectrum_video.v",
     "cores/fes-spectrum/rtl/spectrum_tape.v",
+    "cores/fes-spectrum/rtl/spectrum_snapshot.v",
+    "cores/fes-spectrum/rtl/spectrum_beta.sv",
+    "cores/fes-spectrum/rtl/spectrum_fdd.sv",
+    "cores/fes-spectrum/rtl/spectrum_upd765.sv",
     "cores/fes-spectrum/rtl/spectrum_keyboard.v",
     "cores/fes-spectrum/rtl/spectrum_audio.v",
     "cores/fes-spectrum/rtl/spectrum_slot_sockets.v",
@@ -462,17 +470,20 @@ def validate_firmware_ports(cells: dict, lanes: int) -> None:
         raise BuildError(f"unexpected firmware lanes {sorted(extra)}")
 
 
-def _hps_ddr_evidence(design: dict, label: str, source_root: Path) -> dict:
+def _hps_ddr_evidence(design: dict, label: str, source_root: Path, disk: bool) -> dict:
     """The plane reads launcher frames on fpga2sdram port 0 and the tape store
-    reads and writes port 1; port 0 never writes and port 2 is unused."""
+    reads and writes port 1; port 0 never writes. The Pentagon's and the
+    +2A/+3's disk store reads and writes port 2; elsewhere it is unused."""
     normalized = fes_de10nano_evidence.layout_graph_with_constants(design)
     evidence = fes_de10nano_evidence.hps_ddr_layout_evidence(normalized, label, source_root, idle=False)
     cells = normalized["modules"][TOP].get("cells", {})
     memory = next(cell for cell in cells.values()
                   if cell.get("type") == "cyclonev_hps_interface_fpga2sdram")
     ports = memory.get("connections", {})
-    # Command 1 and write FIFO 2 are port 1's; FIFOs 0 and 1 are port 0's.
-    unused = tuple(f"cmd_valid_{port}" for port in range(2, 6)) + ("wr_valid_0", "wr_valid_1", "wr_valid_3")
+    # Command 1 and write FIFO 2 are port 1's; FIFOs 0 and 1 are port 0's;
+    # command 2 and write FIFO 3 are port 2's.
+    unused = tuple(f"cmd_valid_{port}" for port in range(3 if disk else 2, 6)) + \
+        ("wr_valid_0", "wr_valid_1") + (() if disk else ("wr_valid_3",))
     grounds = [["0"]] + [cell.get("connections", {}).get("Q") for cell in cells.values()
         if cell.get("type") == "MISTRAL_CONST"
         and set(str(cell.get("parameters", {}).get("LUT", ""))) == {"0"}
@@ -482,11 +493,14 @@ def _hps_ddr_evidence(design: dict, label: str, source_root: Path) -> dict:
         raise BuildError("session display DDR writes and unused ports must be tied low")
     if any(ports.get(port) in grounds for port in ("cmd_valid_1", "wr_valid_2")):
         raise BuildError("the tape store must drive fpga2sdram port 1")
+    if disk and any(ports.get(port) in grounds for port in ("cmd_valid_2", "wr_valid_3")):
+        raise BuildError("the disk store must drive fpga2sdram port 2")
     for name, cell in cells.items():
         if (name.startswith("display.scanout.reader.") and cell.get("type") == "MISTRAL_M10K"
                 and int(str(cell.get("parameters", {}).get("CFG_ASYNC_READ", "0")), 2)):
             raise BuildError("session display FIFO requires synchronous M10K reads")
-    return {**evidence, "plane_port": 0, "tape_port": 1, "unused_ports_disabled": True}
+    return {**evidence, "plane_port": 0, "tape_port": 1, **({"disk_port": 2} if disk else {}),
+            "unused_ports_disabled": True}
 def validate_synth_evidence(output: Path, *, model: str = "48", source_root: Path = ROOT) -> dict:
     machine = model_for(model)
     synthesis = _read_json(output / "synth.json", "synthesis evidence")
@@ -505,7 +519,7 @@ def validate_synth_evidence(output: Path, *, model: str = "48", source_root: Pat
             f"TDP={counts.get('MISTRAL_M10K_TDP', 0)}")
     validate_firmware_ports(synthesis["modules"][TOP]["cells"], machine.rom_lanes)
     _plane_dsp_evidence(synthesis)
-    display = _hps_ddr_evidence(synthesis, "synthesized", source_root)
+    display = _hps_ddr_evidence(synthesis, "synthesized", source_root, machine.key in DISK_MODELS)
     for name in FORBIDDEN_RESOURCES:
         if counts.get(name, 0):
             raise BuildError(f"forbidden synthesis cell {name} is in use")
@@ -521,7 +535,7 @@ def validate_build_evidence(output: Path, *, model: str = "48",
     synth = validate_synth_evidence(output, model=model, source_root=source_root)
     reject_async_m10k_reads(routed)
     _i2c_evidence(routed, "routed")
-    display = _hps_ddr_evidence(routed, "routed", source_root)
+    display = _hps_ddr_evidence(routed, "routed", source_root, model_for(model).key in DISK_MODELS)
     sockets = validate_routed_shell(routed)
     route_text = (output / "nextpnr.log").read_text(encoding="utf-8", errors="replace")
     if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
@@ -598,12 +612,26 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str,
         ("fes.audio.pcm-s16-stereo-48k", 1), ("fes.media.spectrum-tape", 2),
         ("fes.memory.hps-ddr", 1), ("fes.video.session-display", 1), ("fes.fabric.video.display-plane", 1),
     ]
+    # The cassette unit also runs snapshot restore streams: 48K ones on every
+    # model, 128K ones on the paged models and +2A/+3 ones on the +2A/+3.
+    snapshots = ["fes.media.spectrum-snapshot"]
+    if machine.ram_banks == 8:
+        snapshots.append("fes.media.spectrum-snapshot-128")
+    if machine.key == "plus3":
+        snapshots.append("fes.media.spectrum-snapshot-plus3")
+    # The Pentagon's Beta 128 reads the unit-1 raw track disk under TR-DOS,
+    # and the +2A/+3's uPD765A reads it under +3DOS.
+    media = ".tzx/.tap/.pzx cassette with turbo loading, .z80/.sna snapshots"
+    if machine.key in DISK_MODELS:
+        required.append(("fes.media.spectrum-disk", 1))
+        snapshots.append(DISK_MODELS[machine.key][0])
+        media += ", " + DISK_MODELS[machine.key][1]
     fields = {
         "format": 3,
         "core": {
             "id": machine.core_id,
             "name": machine.name,
-            "description": machine.description + ", .tzx/.tap/.pzx cassette and an edge socket",
+            "description": machine.description + ", " + media + " and an edge socket",
             "version": machine.version,
         },
         "target": {"platform": "de10_nano", "device": TARGET, "programming_profile": "fes-gp-v1"},
@@ -611,7 +639,8 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str,
         "abi": {"id": "fes.computer", "major": 1, "minor": 0},
         "interfaces": [{"id": interface, "major": major, "minor": 0, "required": True}
                        for interface, major in required] +
-                      [{"id": spectrum_slots.INTERFACE, "major": 1, "minor": 0, "required": False}],
+                      [{"id": spectrum_slots.INTERFACE, "major": 1, "minor": 0, "required": False}] +
+                      [{"id": interface, "major": 1, "minor": 0, "required": False} for interface in snapshots],
         "build": {
             "id": evidence["build_id"],
             "repository": repository,
