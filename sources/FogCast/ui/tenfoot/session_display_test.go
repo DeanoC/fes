@@ -98,7 +98,7 @@ func colecoNativeDisplaySession() hostclient.SessionResult {
 }
 
 func TestColecoF12OpensTitleSelectorOnSessionDisplayPlane(t *testing.T) {
-	prior := colecoBIOSKitSession()
+	prior := colecoNativeDisplaySession()
 	running := protocol.Status{State: protocol.StateActive, Development: true, CorePackage: observedKitPackage(prior)}
 	var displayPosts atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
