@@ -265,6 +265,7 @@ func (a *App) openTapePickerLocked() {
 	if a.tapePickerBusy {
 		return
 	}
+	a.beginColecoCartridgeControlsLocked()
 	if a.kitSessionDisplayPlaneLocked() && !a.launcherDisplayFocusedLocked() {
 		a.beginSessionDisplayLocked(protocol.SessionDisplayFocused, true)
 		return

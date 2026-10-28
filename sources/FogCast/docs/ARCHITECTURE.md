@@ -762,12 +762,15 @@ launch-time `POST /api/v1/session/development-media` (`load_media`). See the FES
 Factory Coleco format-4 packages link the 8 KiB BIOS and 16 KiB cartridge into
 the RBF at launch and do not expose a live media unit. Home and F12 during
 Coleco play open the `example.coleco-arcade` title selector over the running
-session. A selected title says that the running cartridge is fixed and that
-Stop is required before choosing another; Confirm cannot launch over the active
+session. On a kit display plane, the room is drawn and accepts pointer input
+while it has focus. A selected title says that the running cartridge is fixed
+and that Stop is required before choosing another; Confirm cannot launch over the active
 session. This catalog route remains the Home/F12 action and Coleco does not fall
 through to the ZX81-only `example.hardware` workbench. With the Coleco room
-closed, Guide opens **Change media** as a cartridge picker. The cartridge is
-the single `rom_link` on its session package, or the second `rom_links` source
+closed, Guide opens **Change media** directly on the kit display plane as a
+cartridge picker. Back at the picker roots returns to play in one step without
+opening the Coleco room underneath it. The cartridge is the single `rom_link`
+on its session package, or the second `rom_links` source
 after the linked BIOS. A swap replaces only that cartridge source. Select stays
 the machine's keypad `*` while the machine owns input; when a picker has focus,
 Select confirms its focused row and is not forwarded to the machine. The picker

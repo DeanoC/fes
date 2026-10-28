@@ -164,10 +164,10 @@ type SessionSnapshot struct {
 	DevelopmentActive bool
 	DevelopmentState  string
 	Diagnostic        bool
-	LoadTape          bool
+	LoadTape          bool // Live removable-media support, separate from ROM-linked cartridge swaps.
 	ControlsNotice    string
 	ControlsOpen      bool
-	MediaSelector     bool
+	MediaSelector     bool // The kit session plane is available for direct media controls.
 	// KeypadSelect keeps Select with a keypad machine; Guide opens controls.
 	KeypadSelect bool
 	HardwareRoom bool
@@ -2834,9 +2834,9 @@ func mediaSelectorKey(name string, usage uint8) bool {
 
 // openRunningMediaSelector opens the running machine's media selector. An
 // empty tape and a folder with no .p files still open: Eject and a typed path
-// stay available. A ROM-linked Coleco session opens its title selector instead
-// of offering unsupported cartridge hot swapping. A kit-local core keeps F12
-// as Stop, so this returns false there.
+// stay available. F12 opens a ROM-linked Coleco session's title selector;
+// Guide opens its cartridge picker. A kit-local core keeps F12 as Stop, so
+// this returns false there.
 func (a *App) openRunningMediaSelector(down bool, now time.Time) bool {
 	a.mu.Lock()
 	colecoSession := a.colecoSessionLocked()
@@ -3511,10 +3511,10 @@ func (a *App) sessionSnapshotLocked() SessionSnapshot {
 		DevelopmentActive: devActive,
 		DevelopmentState:  devState,
 		Diagnostic:        diagnostic,
-		LoadTape:          a.sessionMediaOfferedLocked(),
+		LoadTape:          a.sessionLiveMediaOfferedLocked(),
 		ControlsNotice:    a.roomSessionNotice,
 		ControlsOpen:      a.roomDuringPlay,
-		MediaSelector:     a.needsSessionDisplayLocked() && a.sessionMediaOfferedLocked(),
+		MediaSelector:     a.needsSessionDisplayLocked() && (a.sessionLiveMediaOfferedLocked() || a.mediaControlsDirect),
 		KeypadSelect:      a.sessionKeypadLocked(),
 		HardwareRoom:      a.playingHardwareRoomAvailableLocked(),
 	}

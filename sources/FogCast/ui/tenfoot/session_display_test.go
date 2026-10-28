@@ -98,7 +98,7 @@ func colecoNativeDisplaySession() hostclient.SessionResult {
 }
 
 func TestColecoF12OpensTitleSelectorOnSessionDisplayPlane(t *testing.T) {
-	prior := colecoNativeDisplaySession()
+	prior := colecoBIOSKitSession()
 	running := protocol.Status{State: protocol.StateActive, Development: true, CorePackage: observedKitPackage(prior)}
 	var displayPosts atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -122,7 +122,15 @@ func TestColecoF12OpensTitleSelectorOnSessionDisplayPlane(t *testing.T) {
 	app, _ := kitDisplayApp(t, server)
 	app.SetRooms(rooms.NewIndex([]rooms.Pack{
 		testRoomPack(t, hardwareRoomID, `function load() end; function draw() error("ZX81 workbench must not draw over Coleco") end`),
-		testRoomPack(t, colecoArcadeRoomID, `function load() end; function draw() gfx.clear("#101820") end`),
+		testRoomPack(t, colecoArcadeRoomID, `
+function load() end
+function draw()
+  gfx.clear("#101820")
+  gfx.text("Coleco title selector", 20, 20, {size=24})
+  gfx.rect(20, 60, 240, 80, "#345678")
+  gfx.hit("coleco-title", 20, 60, 240, 80)
+end
+`),
 	}), "")
 	app.mu.Lock()
 	app.session = prior
@@ -135,11 +143,50 @@ func TestColecoF12OpensTitleSelectorOnSessionDisplayPlane(t *testing.T) {
 	snap := waitFor(t, app, "Coleco title selector on focused session plane", func(s Snapshot) bool {
 		return s.Session.State == "active" && s.Session.ControlsOpen && s.Room.DuringPlay && s.Room.ID == colecoArcadeRoomID
 	})
-	if snap.TapePicker.Open || displayPosts.Load() != 1 {
+	if snap.TapePicker.Open || snap.Session.LoadTape || snap.Session.MediaSelector || displayPosts.Load() != 1 {
 		t.Fatalf("Coleco selector used live media or missed the display plane: picker=%v display POSTs=%d", snap.TapePicker.Open, displayPosts.Load())
 	}
 	if snap.Status != playingColecoSelectorStatus {
 		t.Fatalf("status = %q, want %q", snap.Status, playingColecoSelectorStatus)
+	}
+	rec := gfx.NewRecorder()
+	drawFrame(rec, snap, map[string]gpuTexture{}, map[string]gpuTexture{})
+	if len(rec.Calls) < 2 || rec.Calls[1].Op != "Clear" || rec.Calls[1].Color != snap.Room.Frame.Clear {
+		t.Fatalf("kit frame did not draw the Coleco room: calls=%+v clear=%+v", rec.Calls, snap.Room.Frame.Clear)
+	}
+	if len(snap.Room.Frame.Hits) == 0 {
+		t.Fatal("Coleco selector room has no pointer target")
+	}
+	target := snap.Room.Frame.Hits[0]
+	x := snap.Room.OffsetX + int(target.X+target.W/2)
+	y := snap.Room.OffsetY + int(target.Y+target.H/2)
+	if got := HitTest(snap, x, y); got.Kind != PointerRoom || got.KeyID != "coleco-title" {
+		t.Fatalf("kit Coleco selector pointer hit = %+v", got)
+	}
+}
+
+func TestColecoCartridgePlayHintSeparatesLiveMedia(t *testing.T) {
+	server := httptest.NewServer(http.NotFoundHandler())
+	t.Cleanup(server.Close)
+	app, _ := kitDisplayApp(t, server)
+	app.SetRooms(rooms.NewIndex([]rooms.Pack{
+		testRoomPack(t, colecoArcadeRoomID, `function load() end; function draw() end`),
+	}), "")
+	app.mu.Lock()
+	app.session = colecoBIOSKitSession()
+	app.syncGPUParkLocked()
+	app.mu.Unlock()
+
+	snap := app.Snapshot()
+	if !snap.Session.Coleco || snap.Session.LoadTape || snap.Session.MediaSelector || !snap.Session.HardwareRoom {
+		t.Fatalf("Coleco cartridge session capabilities = %+v", snap.Session)
+	}
+	if got := playingRoomLabel(snap.Session); got != "Coleco selector" {
+		t.Fatalf("surround room label = %q", got)
+	}
+	hint := strings.ToLower(snap.HeaderHint())
+	if strings.Contains(hint, "change media") || strings.Contains(hint, "load tape") || strings.Count(hint, "change cartridge") != 1 {
+		t.Fatalf("Coleco cartridge play hint = %q", snap.HeaderHint())
 	}
 }
 

@@ -171,6 +171,63 @@ func testCartridgeSwapOverPlay(t *testing.T, session func() hostclient.SessionRe
 	}
 }
 
+func TestKitColecoGuidePickerBackReturnsToPlay(t *testing.T) {
+	prior := colecoBIOSKitSession()
+	running := protocol.Status{State: protocol.StateActive, Development: true, CorePackage: observedKitPackage(prior)}
+	var mu sync.Mutex
+	var displays []protocol.SessionDisplay
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/session/display" {
+			http.NotFound(w, r)
+			return
+		}
+		binding, valid := protocol.DevelopmentMediaHeaders(r.Header)
+		if !valid || !binding.MatchesSessionDisplay(running) {
+			http.Error(w, "session display identity rejected", http.StatusConflict)
+			return
+		}
+		display := readSessionDisplay(t, r)
+		mu.Lock()
+		displays = append(displays, display)
+		mu.Unlock()
+		writeKitDisplaySession(w, prior)
+	}))
+	t.Cleanup(server.Close)
+	app, _ := kitDisplayApp(t, server)
+	app.SetRooms(rooms.NewIndex([]rooms.Pack{
+		testRoomPack(t, hardwareRoomID, liveHardwareTestScript),
+		testRoomPack(t, colecoArcadeRoomID, `function load() end; function draw() error("Guide must not open the Coleco room") end`),
+	}), "")
+	app.mu.Lock()
+	app.session = prior
+	app.syncGPUParkLocked()
+	app.mu.Unlock()
+
+	guide := sessionGuideCommand(app.Snapshot().Session)
+	if guide != CmdSearch {
+		t.Fatalf("Coleco Guide command = %v, want cartridge picker", guide)
+	}
+	app.HandleCommand(guide, time.Now())
+	snap := waitFor(t, app, "Coleco Guide cartridge picker", func(s Snapshot) bool {
+		return s.Session.ControlsOpen && s.TapePicker.Open && !s.GPUParked
+	})
+	if !snap.Session.MediaSelector || snap.Session.LoadTape || snap.Room.DuringPlay || snap.Room.ID == colecoArcadeRoomID {
+		t.Fatalf("Coleco picker opened under a room or used live-media state: session=%+v room=%+v", snap.Session, snap.Room)
+	}
+	app.HandleCommand(CmdBack, time.Now())
+	returned := waitFor(t, app, "Coleco Guide picker return to play", func(s Snapshot) bool {
+		return s.Session.State == "active" && !s.Session.ControlsOpen && !s.TapePicker.Open && s.GPUParked
+	})
+	if returned.Room.DuringPlay || returned.Session.MediaSelector {
+		t.Fatalf("Coleco session controls stayed open after Back: session=%+v room=%+v", returned.Session, returned.Room)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(displays) != 2 || displays[0] != protocol.SessionDisplayFocused || displays[1] != protocol.SessionDisplayClosed {
+		t.Fatalf("Guide/Back display transitions = %v", displays)
+	}
+}
+
 func selectCartridgeFromPad(t *testing.T, app *App) {
 	t.Helper()
 	now := time.Now()
