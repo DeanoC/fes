@@ -1,0 +1,215 @@
+{
+ "smoke": {
+  "commands": 899,
+  "results": 899,
+  "seconds": 0.001,
+  "failures": [],
+  "frames": [],
+  "marks": []
+ },
+ "mode13": {
+  "commands": 872,
+  "results": 872,
+  "seconds": 0.11,
+  "failures": [],
+  "frames": [
+   {
+    "width": 320,
+    "height": 400,
+    "buffer": 1,
+    "count": 14
+   }
+  ],
+  "marks": [
+   {
+    "name": "mode13",
+    "s": 0.11,
+    "done": 866
+   }
+  ]
+ },
+ "sound": {
+  "commands": 950,
+  "results": 950,
+  "seconds": 0.02,
+  "failures": [],
+  "frames": [],
+  "marks": [
+   {
+    "name": "speaker",
+    "s": 0.001,
+    "done": 861
+   },
+   {
+    "name": "speaker-end",
+    "s": 0.011,
+    "done": 867
+   },
+   {
+    "name": "dsp-single",
+    "s": 0.011,
+    "done": 903
+   },
+   {
+    "name": "dsp-auto",
+    "s": 0.014,
+    "done": 929
+   },
+   {
+    "name": "dsp-end",
+    "s": 0.02,
+    "done": 943
+   }
+  ]
+ },
+ "ata": {
+  "commands": 1916,
+  "results": 1916,
+  "seconds": 0.002,
+  "failures": [],
+  "frames": [],
+  "marks": [
+   {
+    "name": "disk-load",
+    "s": 0.0,
+    "done": 1
+   },
+   {
+    "name": "disk-loaded",
+    "s": 0.0,
+    "done": 1
+   }
+  ]
+ },
+ "vga-trace": {
+  "commands": 366931,
+  "results": 366931,
+  "seconds": 3.632,
+  "failures": [],
+  "frames": [
+   {
+    "width": 720,
+    "height": 400,
+    "buffer": 0,
+    "count": 24
+   },
+   {
+    "width": 720,
+    "height": 400,
+    "buffer": 1,
+    "count": 56
+   },
+   {
+    "width": 720,
+    "height": 400,
+    "buffer": 1,
+    "count": 89
+   },
+   {
+    "width": 320,
+    "height": 400,
+    "buffer": 2,
+    "count": 108
+   },
+   {
+    "width": 320,
+    "height": 400,
+    "buffer": 0,
+    "count": 130
+   },
+   {
+    "width": 320,
+    "height": 400,
+    "buffer": 2,
+    "count": 150
+   },
+   {
+    "width": 320,
+    "height": 400,
+    "buffer": 1,
+    "count": 165
+   },
+   {
+    "width": 320,
+    "height": 400,
+    "buffer": 2,
+    "count": 180
+   },
+   {
+    "width": 320,
+    "height": 400,
+    "buffer": 0,
+    "count": 211
+   },
+   {
+    "width": 640,
+    "height": 480,
+    "buffer": 0,
+    "count": 227
+   },
+   {
+    "width": 720,
+    "height": 400,
+    "buffer": 2,
+    "count": 242
+   }
+  ],
+  "marks": [
+   {
+    "name": "text",
+    "s": 0.124,
+    "done": 44616
+   },
+   {
+    "name": "text-font",
+    "s": 0.584,
+    "done": 44753
+   },
+   {
+    "name": "text-bright",
+    "s": 1.055,
+    "done": 44813
+   },
+   {
+    "name": "mode13",
+    "s": 1.32,
+    "done": 142660
+   },
+   {
+    "name": "mode13-cycle",
+    "s": 1.64,
+    "done": 145775
+   },
+   {
+    "name": "modey",
+    "s": 1.915,
+    "done": 261288
+   },
+   {
+    "name": "modey-flip",
+    "s": 2.139,
+    "done": 261312
+   },
+   {
+    "name": "modey-split",
+    "s": 2.353,
+    "done": 261340
+   },
+   {
+    "name": "modey-fade",
+    "s": 2.796,
+    "done": 285984
+   },
+   {
+    "name": "mode12",
+    "s": 3.043,
+    "done": 345488
+   },
+   {
+    "name": "final",
+    "s": 3.274,
+    "done": 366874
+   }
+  ]
+ }
+}
