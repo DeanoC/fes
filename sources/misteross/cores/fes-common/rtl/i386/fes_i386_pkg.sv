@@ -200,8 +200,13 @@ package fes_i386_pkg;
     // Faults decode finds; each travels with its uop and is taken at WB.
     // UNIMPLEMENTED is not architectural: an encoding this build does not
     // execute yet. WB stops on it, so a check never retires one silently.
-    // DE is the divide error EX finds (vector 0).
-    typedef enum logic [2:0] { FAULT_NONE, FAULT_UD, FAULT_GP0, FAULT_NM, FAULT_UNIMPLEMENTED, FAULT_SS0, FAULT_DE } fault_e;
+    // DE is the divide error EX finds (vector 0). REPLAY is not architectural
+    // either: an uncached load that was not the oldest uop when it reached M2
+    // (fes_i386_l1d), which WB restarts from its instruction instead of
+    // delivering anything.
+    typedef enum logic [2:0] {
+        FAULT_NONE, FAULT_UD, FAULT_GP0, FAULT_NM, FAULT_UNIMPLEMENTED, FAULT_SS0, FAULT_DE, FAULT_REPLAY
+    } fault_e;
 
     typedef struct packed {
         logic [3:0] cond;             // x86 condition code (tttn) for Jcc, SETcc
@@ -267,6 +272,31 @@ package fes_i386_pkg;
         flags_t      flags;
         control_t    ctl;
     } uop_t;
+
+    // ---- Memory -------------------------------------------------------------------
+    // Guest physical addresses are PA bits wide (64 MiB of RAM at most); a
+    // line is 32 bytes. The attribute map (docs/i386-cpu-design.md, "Memory
+    // types"): RAM, read-only RAM (cacheable, writes dropped), uncached MMIO,
+    // or a hole (reads FFh, writes dropped).
+    localparam int PA = 26;
+    typedef enum logic [1:0] { ATTR_RAM, ATTR_ROM, ATTR_MMIO, ATTR_HOLE } attr_e;
+
+    // The physical address of a linear one with paging off: A20M masks bit 20,
+    // and FFFF0000h-FFFFFFFFh reads the F0000h shadow (the reset fetch).
+    // above: the address is past PA bits, a hole unless it is that alias.
+    function automatic logic [PA:0] phys(input logic [31:0] linear, input logic a20m);
+        if (linear[31:16] == 16'hffff) phys = {1'b0, 10'h00f, linear[15:0]};
+        else phys = {|linear[31:PA], linear[PA-1:21], linear[20] && !a20m, linear[19:0]};
+    endfunction
+
+    // The attribute of a physical address (with phys's above bit): 640 KiB to
+    // 1 MiB by the machine's map, 16 KiB a slot from A0000h; RAM elsewhere
+    // below ram_top MiB.
+    function automatic attr_e attr(input logic [PA:0] p, input logic [23:0][1:0] upper, input logic [6:0] ram_top);
+        if (p[PA] || {1'b0, p[PA-1:20]} >= ram_top) attr = ATTR_HOLE;
+        else if (p[PA-1:20] != '0 || p[19:14] < 6'd40) attr = ATTR_RAM;
+        else attr = attr_e'(upper[5'(p[19:14] - 6'd40)]);
+    endfunction
 
     // ---- Pipeline ---------------------------------------------------------------
 

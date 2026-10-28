@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
-// fes_i386_cpu as far as Phase 1's register-only slice has built it
-// (docs/i386-cpu-design.md): the front end (F1 to Q) on a memory port, then
-// D, AG, M1, M2, EX and WB for the one-uop register and immediate forms that
-// fes_i386_decode lists, with their memory forms on a data port that stands
-// for the L1D's output. There is no cache yet.
+// fes_i386_cpu as far as Phase 1 has built it (docs/i386-cpu-design.md): the
+// front end (F1 to Q) behind the L1I, then D, AG, M1, M2, EX and WB for the
+// real-mode instructions fes_i386_decode lists, with their memory forms on
+// the L1D, and the bus interface on HPS DDR port 0 (fes_i386_l1i,
+// fes_i386_l1d, fes_i386_biu). There is no L2 or paging yet.
 //
 //   DC  decode (fes_i386_decode, fes_i386_amode) from Q's output register
 //   D   the GPR file and segment registers read; forwarding for data
@@ -23,8 +23,16 @@
 // Nothing moves relative to anything else, so the forwarding distances, AG's
 // late operands, the store merge and D's forwarding tables all hold as they
 // are; the tables only need clearing on a flush. A multiply or divide in EX
-// freezes them the same way while it works, and an I/O access in WB until
-// the machine completes it.
+// freezes them the same way while it works, an I/O access in WB until the
+// machine completes it, and a store in WB until the write buffer has room.
+//
+// An uncached load (MMIO) reads its device only as the oldest uop, with
+// nothing in EX or WB, so never on a wrong path. One that reaches M2 behind
+// older uops takes no data: the L1D marks it (FAULT_REPLAY), and when it
+// reaches WB, WB flushes everything younger and restarts the front end at
+// its instruction, which then issues one uop at a time (serial) until it
+// ends. Microcode writes nothing architectural before its last uop that can
+// fault, so restarting an instruction is safe wherever a fault is.
 //
 // A fault (#UD, #GP(0), #SS(0), #NM, #DE) is taken at WB with nothing of its
 // instruction retired: WB flushes, and DC takes the exception's entry into
@@ -43,8 +51,11 @@
 // 386 reset state; the lockstep harness loads a test's initial state.
 // trace_* and arch_* show each retirement: on the edge an instruction
 // retires, trace_retire rises and arch_* hold the state after it.
-module fes_i386_cpu (
+module fes_i386_cpu #(
+    parameter logic [31:0] RAM_BASE = 32'h3400_0000  // the HPS address of guest physical 0
+) (
     input  logic             clk,
+    input  logic             cold_reset,   // the machine's start: also empties the write buffer
     input  logic             reset,
     input  logic [7:0][31:0] init_gpr,
     input  logic [31:0]      init_eflags,
@@ -53,26 +64,42 @@ module fes_i386_cpu (
     input  logic [5:0][31:0] init_base,
     input  logic [5:0][31:0] init_limit,
     input  logic [5:0][15:0] init_ar,      // descriptor bits 8-23, the limit nibble clear
-    // Fetch: the L1I's way-selected block, an M10K with address stall whose
-    // data may arrive late (mem_valid).
-    output logic [27:0]      mem_block,
-    output logic             mem_load,
-    input  logic [15:0][7:0] mem_data,
-    input  logic             mem_valid,
-    // Data: the L1D's output for now, an M10K-like port. M1 drives a load's
-    // address, the port registers it on the edge M1 advances, and the 8 bytes
-    // from the address's dword, as memory held them on that edge, arrive in
-    // M2 once dmem_valid says so. A retiring store writes the bytes dmem_wmask
-    // names, from its address's dword, on the edge it retires. The port reads
-    // before it writes on the same edge.
-    output logic [31:0]      dmem_addr,
-    output logic             dmem_read,
-    input  logic [7:0][7:0]  dmem_rdata,
-    input  logic             dmem_valid,
-    output logic             dmem_write,
-    output logic [31:0]      dmem_waddr,
-    output logic [7:0][7:0]  dmem_wdata,
-    output logic [7:0]       dmem_wmask,
+    // A20M, and the attribute map: 640 KiB to 1 MiB in 16 KiB slots
+    // (fes_i386_pkg::attr_e), RAM elsewhere below ram_top MiB.
+    input  logic             a20m,
+    input  logic [23:0][1:0] attr_upper,
+    input  logic [6:0]       ram_top,
+    // HPS DDR port 0 (fes.memory.hps-ddr), guest physical 0 at RAM_BASE.
+    output logic [27:0]      ddr_address,
+    output logic [7:0]       ddr_burstcount,
+    output logic             ddr_read,
+    output logic             ddr_write,
+    output logic [127:0]     ddr_writedata,
+    output logic [15:0]      ddr_byteenable,
+    input  logic             ddr_waitrequest,
+    input  logic [127:0]     ddr_readdata,
+    input  logic             ddr_readdatavalid,
+    // MMIO: blocking dword reads with byte enables and posted writes, in
+    // order (fes_i386_biu), at physical dword addresses.
+    output logic             mmio_valid,
+    output logic             mmio_write,
+    output logic [fes_i386_pkg::PA-3:0] mmio_address,
+    output logic [3:0]       mmio_byteenable,
+    output logic [31:0]      mmio_wdata,
+    input  logic             mmio_ready,
+    input  logic             mmio_rvalid,
+    input  logic [31:0]      mmio_rdata,
+    // Machine DMA: one physical byte through the write buffer's order,
+    // coherent with both L1s; held until dma_done.
+    input  logic             dma_valid,
+    input  logic             dma_write,
+    input  logic [23:0]      dma_address,
+    input  logic [7:0]       dma_wdata,
+    output logic             dma_done,
+    output logic [7:0]       dma_rdata,
+    // FLUSH: empty the write buffer and invalidate both L1s; held until done.
+    input  logic             flush_request,
+    output logic             flush_done,
     // I/O: the access of the uop in WB, at commit (io_req), held until the
     // machine completes it (io_ack, IN's data in io_rdata on that edge). The
     // port, the size (a byte, word or dword: 0, 1, 2) and OUT's data stay put
@@ -101,6 +128,14 @@ module fes_i386_cpu (
                                                    // delivery (trace_vector 8: double fault)
     output logic             trace_issue,          // D issued this cycle (lockstep observability)
     output logic             trace_md_wait,        // D to WB wait for a multiply or divide in EX (ditto)
+    output logic             trace_fetch,          // F1 sent a block to the L1I (ditto)
+    output logic             trace_dread,          // M1 sent a load to the L1D (ditto)
+    // The store WB commits: the bytes trace_store_mask names of the eight
+    // from trace_store_addr's dword, at linear addresses.
+    output logic             trace_store,
+    output logic [31:0]      trace_store_addr,
+    output logic [7:0][7:0]  trace_store_data,
+    output logic [7:0]       trace_store_mask,
     output logic [7:0][31:0] arch_gpr,
     output logic [31:0]      arch_eflags,
     output logic [31:0]      arch_eip,
@@ -116,6 +151,27 @@ module fes_i386_cpu (
 
     localparam logic [1:0] EARLY = 2'd0, LATE = 2'd2;
     localparam int SEG_CS = 1, SEG_SS = 2;
+    localparam int PA = fes_i386_pkg::PA;
+
+    // The L1I's fetch port: mem_data is the block at the address registered on
+    // the last edge with mem_load, once mem_valid says it is there. The L1D's
+    // port: M1 drives a load's address, the L1D registers it on the edge M1
+    // advances, and the 8 bytes from the address's dword arrive in M2 once
+    // dmem_valid says so. A retiring store writes the bytes dmem_wmask names,
+    // from its address's dword, on the edge it retires; the L1D reads before
+    // it writes on the same edge.
+    logic [27:0]      mem_block;
+    logic             mem_load;
+    logic [15:0][7:0] mem_data;
+    logic             mem_valid;
+    logic [31:0]      dmem_addr;
+    logic             dmem_read;
+    logic [7:0][7:0]  dmem_rdata;
+    logic             dmem_valid;
+    logic             dmem_write;
+    logic [31:0]      dmem_waddr;
+    logic [7:0][7:0]  dmem_wdata;
+    logic [7:0]       dmem_wmask;
 
     // ---- Architectural state, written at WB -------------------------------------
     logic [7:0][31:0] gpr;
@@ -154,11 +210,12 @@ module fes_i386_cpu (
     // WB until the machine has completed it (io_wait, set as the uop enters
     // WB and cleared on the completing edge; see WB), and an INTR being taken
     // until the machine has returned its vector (int_wait, set at the
-    // boundary and cleared on the returning edge; see Interrupts). Each wait
-    // is one register, so the freeze stays one LUT of five.
-    logic freeze, m2_load, md_busy, io_wait, int_take, int_nmi, int_wait;
+    // boundary and cleared on the returning edge; see Interrupts), and a
+    // store in WB while the write buffer has no room for it (st_wait, see
+    // WB). Each wait is one register, so the freeze stays one LUT of six.
+    logic freeze, m2_load, md_busy, io_wait, int_take, int_nmi, int_wait, st_wait;
     logic int_next;  // an interrupt is taken on this edge (see Interrupts)
-    assign freeze = m2_load && !dmem_valid || md_busy || io_wait || int_wait;
+    assign freeze = m2_load && !dmem_valid || md_busy || io_wait || int_wait || st_wait;
 
     // A fault in WB is delivered (exc_take): WB flushes, the front end and DC
     // restart, and DC takes the exception's entry the cycle after
@@ -178,6 +235,12 @@ module fes_i386_cpu (
     assign wb_flush = !freeze && (wb_flushes || int_take);
     assign exc_take = !freeze && wb_deliver && !int_take;
     assign int_go = !freeze && int_take;
+    // A replay in WB (rp_go) flushes as a fault does but delivers nothing: the
+    // front end restarts at its instruction through start, two cycles on,
+    // when start_linear holds CS.base + EIP, and D issues nothing until then.
+    logic rp_go;
+    assign rp_go = !freeze && wb_flushes && !int_take && wb_s.valid
+                && wb_s.uop.ctl.fault == fes_i386_pkg::FAULT_REPLAY;
 
     // ---- Start and redirect -------------------------------------------------------
     // After reset the front end starts at CS.base + EIP, one cycle after the
@@ -187,7 +250,7 @@ module fes_i386_cpu (
     logic        redirect;
     logic [31:0] redirect_linear, redirect_eip;
     always_ff @(posedge clk) begin
-        if (reset) begin
+        if (reset || rp_go) begin
             start <= 2'd1;
         end else if (start != 2'd0) begin
             start <= start + 2'd1;
@@ -727,9 +790,13 @@ module fes_i386_cpu (
     // taken branch's redirect resets DC and D's EIP on the same edge, and a
     // fault or HLT stops the CPU. Once it has (halted), D issues nothing; in
     // the cycle the fault or HLT is in WB, its flush clears what D issues.
+    // After a replay, D issues the instruction one uop at a time (serial),
+    // each once nothing is left in AG to WB (ser_wait), so its uncached load
+    // reaches M2 as the oldest uop.
+    logic serial, ser_wait;
     assign issue = cur_valid && !(addr_use && lea_stall) && !(reads_seg && seg_hazard) && !(mem && mseg_hazard)
                 && !store_hazard && !flag_hazard && !sp_hazard && !stack_wait && !t_wait && !uc_wait && !str_wait
-                && !str_hazard && !io_hazard && !freeze && !halted;
+                && !str_hazard && !io_hazard && !ser_wait && !freeze && !halted;
     assign trace_issue = issue;
     assign trace_md_wait = md_busy;
 
@@ -740,9 +807,11 @@ module fes_i386_cpu (
             str_busy <= 3'd0;
             df_busy <= 1'b0;
             io_busy <= 1'b0;
+            ser_wait <= 1'b0;
         end else if (!freeze) begin
             io_busy <= issue && u.io != 2'd0 && !s_kill1 || does_io(ag_s) || does_io(m1_s) || does_io(m2_s)
                     || does_io(ex_s);
+            ser_wait <= serial && (issue || ag_s.valid || m1_s.valid || m2_s.valid || ex_s.valid);
             str_busy <= (issue && !s_kill1 ? {u.str_cx, u.str_di, u.str_si} : 3'd0) | str_steps(ag_s) | str_steps(m1_s) | str_steps(m2_s) | str_steps(ex_s);
             df_busy <= issue && writes_df(u) || ag_s.valid && writes_df(ag_s.uop) || m1_s.valid && writes_df(m1_s.uop)
                     || m2_s.valid && writes_df(m2_s.uop);
@@ -759,6 +828,8 @@ module fes_i386_cpu (
         end else if (redirect) begin
             d_stop <= 1'b0;
             d_eip <= redirect_eip;
+        end else if (rp_go) begin
+            d_stop <= 1'b1;  // until the restart's redirect
         end else if (issue) begin
             d_stop <= stop;
             if (!dc_more) d_eip <= d_eip_next;
@@ -980,6 +1051,9 @@ module fes_i386_cpu (
     end
     assign dmem_addr = m1_s.maddr;
     assign dmem_read = m1_s.valid && reads_mem(m1_s) && !freeze && !halted && !wb_stop;
+    // The load touches nothing in the L1D when it faults here.
+    logic dmem_fault, l1d_replay;
+    assign dmem_fault = m1_out.uop.ctl.fault != fes_i386_pkg::FAULT_NONE || m1_probe_bad;
 
     // Stores older than the load that have not written when the port reads:
     // the store now in EX, which will be in WB when the load is in M2, and
@@ -1056,6 +1130,8 @@ module fes_i386_cpu (
         if (m2_cap.uop.op == 5'd4 && (m2_cap.uop.cls == fes_i386_pkg::UOP_MUL || m2_cap.uop.cls == fes_i386_pkg::UOP_DIV))
             m2_out.result = md_hi;
         if (m2_cap.pbad && m2_cap.uop.ctl.fault == fes_i386_pkg::FAULT_NONE) m2_out.uop.ctl.fault = fes_i386_pkg::FAULT_SS0;
+        else if (l1d_replay && m2_cap.uop.ctl.fault == fes_i386_pkg::FAULT_NONE)
+            m2_out.uop.ctl.fault = fes_i386_pkg::FAULT_REPLAY;
     end
     always_ff @(posedge clk) begin
         if (reset || wb_flush) begin
@@ -1222,9 +1298,13 @@ module fes_i386_cpu (
     // The I/O access, while the uop that makes it is in WB and until the
     // machine completes it; the uop retires on the edge after, with IN's
     // data from io_data. The port is DX or imm8, OUT's data eAX (a) or, for
-    // OUTS, the loaded value (its result).
+    // OUTS, the loaded value (its result). It goes to the machine once the
+    // write buffer is empty, so every older store has reached memory or its
+    // device first (a DMA buffer written before the OUT that starts the DMA,
+    // a VGA store before a VGA register write).
     logic [31:0] io_data;
-    assign io_req = io_wait;
+    logic        wb_empty;
+    assign io_req = io_wait && wb_empty;
     assign io_write = wb_s.uop.io == 2'(fes_i386_pkg::IO_OUT);
     assign io_port = wb_s.uop.src2.valid ? wb_s.b[15:0] : wb_s.uop.imm[15:0];
     assign io_size = 2'(wb_s.uop.size);
@@ -1246,6 +1326,32 @@ module fes_i386_cpu (
         dmem_wdata = 64'(wb_sdata) << {wb_saddr[1:0], 3'b000};
         dmem_wmask = (wb_s.uop.mem.bytes[2] ? 8'h0f : wb_s.uop.mem.bytes[1] ? 8'h03 : 8'h01) << wb_saddr[1:0];
     end
+    assign trace_store = dmem_write;
+    assign trace_store_addr = dmem_waddr;
+    assign trace_store_data = dmem_wdata;
+    assign trace_store_mask = dmem_wmask;
+
+    // The store's physical line and the next one's, with their attributes,
+    // registered as it enters WB; whether its lanes run into the next line.
+    logic [PA:0]          wb_p0, wb_p1;
+    fes_i386_pkg::attr_e  wb_at0, wb_at1;
+    logic                 wb_cross;
+    logic [31:0]          ex_saddr;
+    assign ex_saddr = saddr(ex_s);
+    always_ff @(posedge clk) if (!freeze) begin
+        wb_p0 <= fes_i386_pkg::phys(ex_saddr, a20m);
+        wb_p1 <= fes_i386_pkg::phys({ex_saddr[31:5] + 27'd1, 5'd0}, a20m);
+    end
+    assign wb_at0 = fes_i386_pkg::attr(wb_p0, attr_upper, ram_top);
+    assign wb_at1 = fes_i386_pkg::attr(wb_p1, attr_upper, ram_top);
+    assign wb_cross = wb_saddr[4:2] == 3'd7 && dmem_wmask[7:4] != 4'd0;
+
+    // The store in WB waits while the write buffer will not have room for it
+    // (two entries) on this edge's next cycle: st_wait, one register, as the
+    // store enters WB or while it waits.
+    logic wb_room_next, st_next;
+    assign st_next = !(reset || wb_flush) && (freeze ? wb_s.valid && writes_mem(wb_s) : ex_s.valid && writes_mem(ex_s));
+    always_ff @(posedge clk) st_wait <= st_next && !wb_room_next;
     always_ff @(posedge clk) if (reset || !freeze) begin
         rt_valid <= wb_store;
         rt_data <= wb_sdata;
@@ -1258,7 +1364,8 @@ module fes_i386_cpu (
     // Once halted, nothing enters WB.
     logic ex_deliver, exc_busy;
     assign ex_deliver = ex_out.uop.ctl.fault != fes_i386_pkg::FAULT_NONE
-                     && ex_out.uop.ctl.fault != fes_i386_pkg::FAULT_UNIMPLEMENTED;
+                     && ex_out.uop.ctl.fault != fes_i386_pkg::FAULT_UNIMPLEMENTED
+                     && ex_out.uop.ctl.fault != fes_i386_pkg::FAULT_REPLAY;
     assign exc_busy = exc_active && !(wb_s.valid && wb_fault == 3'd0 && wb_eoi);
     always_ff @(posedge clk) begin
         if (reset || wb_flush) begin
@@ -1383,6 +1490,8 @@ module fes_i386_cpu (
                 exc_active <= 1'b1;
                 exc_vec <= wb_fault == 3'd1 ? 8'd6 : wb_fault == 3'd2 ? 8'd13 : wb_fault == 3'd3 ? 8'd7
                          : wb_fault == 3'd6 ? 8'd0 : 8'd12;
+            end else if (wb_fault == 3'(fes_i386_pkg::FAULT_REPLAY)) begin
+                // A replay: nothing retires, and the front end restarts (rp_go).
             end else if (wb_fault != 3'd0) begin
                 // An encoding not built, or a fault in a delivery.
                 halted <= 1'b1;
@@ -1426,6 +1535,59 @@ module fes_i386_cpu (
         end
     end
     assign trace_halt = halted;
+
+    // Serial issue after a replay, until its instruction ends or anything
+    // else flushes.
+    always_ff @(posedge clk) begin
+        if (reset || wb_flush && !rp_go) serial <= 1'b0;
+        else if (rp_go) serial <= 1'b1;
+        else if (wb_commit && wb_eoi) serial <= 1'b0;
+    end
+
+    // ---- Memory: L1I, L1D and the bus interface -------------------------------------
+    logic              st_ex, st_wb, oldest;
+    logic [PA-6:0]     inv_line;
+    logic              inv_valid, inv_all;
+    logic              d_req, d_mmio, d_beat, i_req, i_beat;
+    logic [PA-3:0]     d_addr;
+    logic [3:0]        d_be;
+    logic [PA-6:0]     i_line;
+    logic [127:0]      bus_rdata;
+    assign st_ex = ex_s.valid && writes_mem(ex_s);
+    assign st_wb = wb_s.valid && writes_mem(wb_s);
+    assign oldest = !ex_s.valid && !wb_s.valid && !int_take;
+    assign trace_fetch = mem_load;
+    assign trace_dread = dmem_read;
+
+    fes_i386_l1i l1i (
+        .clk, .reset, .a20m, .attr_upper, .ram_top, .mem_block, .mem_load, .mem_data, .mem_valid,
+        .st_advance(!freeze), .st_ex_addr(ex_saddr), .st_ex, .st_wb, .st_commit(wb_store),
+        .st_line0(wb_p0[PA-1:5]), .st_line1(wb_p1[PA-1:5]), .st_cross(wb_cross),
+        .inv_valid, .inv_line, .inv_all, .i_req, .i_line, .i_beat, .rdata(bus_rdata)
+    );
+
+    fes_i386_l1d l1d (
+        .clk, .reset, .a20m, .attr_upper, .ram_top, .advance(!freeze), .flush(wb_flush),
+        .rd(dmem_read), .addr(dmem_addr), .bytes(m1_s.uop.mem.bytes), .fault(dmem_fault),
+        .oldest, .valid(dmem_valid), .rdata(dmem_rdata), .replay(l1d_replay),
+        .st_ex_addr(ex_saddr), .st_wb_addr(wb_saddr), .st_commit(wb_store),
+        .st_line0(wb_p0[PA-1:5]), .st_line1(wb_p1[PA-1:5]), .st_attr0(wb_at0), .st_cross(wb_cross),
+        .st_dword(wb_saddr[4:2]), .st_data(dmem_wdata), .st_mask(dmem_wmask),
+        .inv_valid, .inv_line, .inv_all, .d_req, .d_mmio, .d_addr, .d_be, .d_beat, .bdata(bus_rdata)
+    );
+
+    fes_i386_biu #(.RAM_BASE(RAM_BASE)) biu (
+        .clk, .cold_reset, .reset, .attr_upper, .ram_top,
+        .st_valid(wb_store), .st_line0(wb_p0[PA-1:5]), .st_line1(wb_p1[PA-1:5]), .st_attr0(wb_at0), .st_attr1(wb_at1),
+        .st_dword(wb_saddr[4:2]), .st_data(dmem_wdata), .st_mask(dmem_wmask), .wb_room_next, .wb_empty,
+        .drain(io_wait), .d_req, .d_mmio, .d_addr, .d_be, .d_beat, .i_req, .i_line, .i_beat, .rdata(bus_rdata),
+        .inv_valid, .inv_line, .inv_all,
+        .ddr_address, .ddr_burstcount, .ddr_read, .ddr_write, .ddr_writedata, .ddr_byteenable, .ddr_waitrequest,
+        .ddr_readdata, .ddr_readdatavalid,
+        .mmio_valid, .mmio_write, .mmio_address, .mmio_byteenable, .mmio_wdata, .mmio_ready, .mmio_rvalid,
+        .mmio_rdata,
+        .dma_valid, .dma_write, .dma_address, .dma_wdata, .dma_done, .dma_rdata, .flush_request, .flush_done
+    );
 
     assign arch_gpr = gpr;
     assign arch_eflags = {14'd0, eflags};

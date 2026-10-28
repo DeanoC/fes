@@ -72,7 +72,7 @@ CPU_RTL = ('fes_i386_pkg.sv', 'fes_i386_oplen.sv', 'fes_i386_lendec.sv', 'fes_i3
            'fes_i386_fetchbuf.sv', 'fes_i386_qalign.sv', 'fes_i386_frontend.sv', 'fes_i386_amode.sv',
            'fes_i386_dfwd.sv', 'fes_i386_agu.sv', 'fes_i386_ucode_pkg.sv', 'fes_i386_ucode_rom.sv', 'fes_i386_decode.sv', 'fes_i386_seq.sv', 'fes_i386_dops.sv',
            'fes_i386_shift.sv', 'fes_i386_shflags.sv', 'fes_i386_exctl.sv', 'fes_i386_muldiv.sv', 'fes_i386_ex.sv',
-           'fes_i386_cpu.sv')
+           'fes_i386_l1i.sv', 'fes_i386_l1d.sv', 'fes_i386_biu.sv', 'fes_i386_cpu.sv')
 TOP = 'fes_i386_cpu'
 
 # What the CPU executes, by MOO stem without 66h/67h prefixes: every form of
