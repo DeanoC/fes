@@ -219,8 +219,9 @@ module fes_i386_biu import fes_i386_pkg::*; #(
         ddr_write = state == S_W0 || state == S_W1 || state == S_DW;
         ddr_burstcount = single || state == S_DW ? 8'd1 : 8'd2;
         ddr_writedata = state == S_W1 ? e_data[head][31:16] : state == S_DW ? {16{dma_wd}} : e_data[head][15:0];
-        ddr_byteenable = state == S_W1 ? e_mask[head][31:16] : state == S_DW ? 16'(16'd1 << dma_a[3:0])
-                       : e_mask[head][15:0];
+        // Every lane on a read, as a burst read needs.
+        ddr_byteenable = state == S_W0 ? e_mask[head][15:0] : state == S_W1 ? e_mask[head][31:16]
+                       : state == S_DW ? 16'(16'd1 << dma_a[3:0]) : 16'hffff;
         mmio_valid = state == S_MW || state == S_MRCMD;
         mmio_write = state == S_MW;
         mmio_address = state == S_MW ? {e_line[head], mw_k} : d_addr;
