@@ -10,7 +10,9 @@ The simulated FPGA generation producer is
 `a54abd623b08fe2ed77f8c9847f036f421ea1c83`; its independently annotated generation
 verification used `a0547320b160accf3d6e336e5b8ccf6693db92b3`. The tested helper and
 bench bytes match Git commit `a2274503a8d375787741dd50107661ebe57a1db4` exactly.
-The final FPGA producer is `71203a8cf8780466041729a29784729141d21d80`.
+The current FPGA producer is `6da029aa49eeef34698fde5336761580000bd0af`.
+The earlier compiled `71203a8cf8780466041729a29784729141d21d80` candidate was
+rejected for a new HIGH CDC-50011 finding in the external board reset shell.
 
 The helper selects the unchanged generated `peripheral_subsys`, both actual
 `mm_ccb` 19.4.1 bridges, endpoint/video/reader, and top-level
@@ -93,18 +95,30 @@ installed primary-source hashes/anchors.
 
 ## Binding and retained evidence
 
-[Source binding](source-binding.json) compares the successful simulation with
-the final `71203` generation: all **175 RTL/header files and 16 QIPs match
-byte-for-byte**. The remaining SOPCINFO difference is its timestamp comment
-only, and the scanout handoff dictionaries match. The SDC changes exactly one
-selector to supported `get_pins -compatibility_mode` syntax with the actual extra
-wrapper level. STA/constraint evidence belongs to the final compiled artifact;
-this source comparison supplies no timing or physical acceptance.
+[Final source binding](final-source-binding.json) compares the successful
+simulation with the `6da029aa49` generation: all **175 RTL/header files and 16
+QIPs match byte-for-byte**. The remaining SOPCINFO difference is its timestamp
+comment only, and the scanout handoff dictionaries match. The SDC retains the
+reviewed selector correction to supported `get_pins -compatibility_mode` syntax
+with the actual extra wrapper level; it is unchanged from `71203`. The seven
+transport cases are reused for these identical selected inputs.
+
+[Previous candidate binding](source-binding.json) is preserved unchanged as
+history. Its successful source comparison did not qualify the whole `71203`
+candidate: the actual report found combinational `top_reset_n && first_lock_seen`
+before a pixel reset synchronizer. The `6da` board shell drives the preserved
+`first_lock_seen` register output directly; that register already asserts
+asynchronously on `top_reset_n`. This board file is outside all 175 selected
+transport inputs. The final binding records its changed hash, matching `6da`
+Git blob, exact diff and independent board-bench log. Its reset/PLL/I2C boundary
+bench and final DA/STA results supply separate board-shell evidence. This
+transport source comparison supplies no timing or physical acceptance.
 
 | Retained record | SHA-256 |
 | --- | --- |
 | [Passing receipt](receipt.json) | `5ec1639b0b413348803dce55a98ef02c2db3ac46f787acc274e246daae5b23ce` |
-| [Source binding](source-binding.json) | `ea9dd2f94662c3e2de8170b18eb5078649ede1bdb745d91759ca6be33d3b5cf6` |
+| [Final source binding](final-source-binding.json) | `67eac96f40478b172dfaffe9e2e3bf861db70e3c2d34806d70dae0015bffb001` |
+| [Previous candidate binding](source-binding.json) | `ea9dd2f94662c3e2de8170b18eb5078649ede1bdb745d91759ca6be33d3b5cf6` |
 | Raw elaboration XML, retained privately | `fc5a32cae4e3c3b26c2cdcd06f0f140db4f842522179bcb3d2ef3c57795bcd5d` |
 | Explicit RAM model | `a19baa9bba68e7d6273f78e08d4a5111e87935c9580d63550a9ab37d641bd760` |
 

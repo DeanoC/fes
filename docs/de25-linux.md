@@ -247,6 +247,10 @@ The [2026-10-28 host validation record](validation/2026-10-28-de25-headless-linu
 retains the exact image, verification and QEMU receipts plus the exported SDK
 probe. Physical board boot remains pending.
 
+The [scanout ownership record](validation/2026-10-28-de25-scanout/README.md)
+retains the sixteen actual AArch64 kernel cases and links the generated
+two-clock transport evidence with its explicit RAM-model boundary.
+
 `verify-de25-linux` checks the retained artifact hashes, AArch64 executable
 identity, card layout and required rootfs services. `smoke-de25-linux` probes
 AArch64 userspace through QEMU user emulation: BusyBox reports its architecture
