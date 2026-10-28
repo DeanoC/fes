@@ -1184,25 +1184,28 @@ It declares, all required:
 | `fes.memory.hps-ddr` 1.0 | 12 | Exists |
 | `fes.video.session-display` 1.0 | 13 | Exists |
 | `fes.fabric.video.display-plane` 1.0 | None (manifest only) | Exists |
-| `fes.media.ata-disk` 1.0 | 15 | New |
-| `fes.persistence.words` 1.0 | 16 | New on `fes.computer` |
-| `fes.rtc.wall-clock` 1.0 | 17 | New |
-| `fes.pc386.machine` 1.0 layout | 18 | New |
+| `fes.media.ata-disk` 1.0 | 16 | New |
+| `fes.persistence.words` 1.0 | 17 | New on `fes.computer` |
+| `fes.rtc.wall-clock` 1.0 | 18 | New |
+| `fes.pc386.machine` 1.0 layout | 19 | New |
 
-**The capability word is full.** `fes.computer` 1.0 uses bits 0–14 of its
-single 16-bit capability word, and identity has no spare word. The decision is
+**The capability word is full.** `fes.computer` 1.0 uses bits 0–15 of its
+single 16-bit capability word (bit 15 is the Spectrum disk), and identity has
+no spare word. The decision is
 `fes.computer` 1.1, which adds identity word 16 for capability bits 16–31.
 Older runtimes reject ABI 1.1 at compatibility, before programming, which is
 the normal refusal path. A new `fes.pc` ABI was the alternative; it would have
 duplicated keyboard, mouse, media and display semantics only because one
 identity word ran out.
 
-Opcodes for 1.1, avoiding the display's 18–21 (the YAML fixes the final
-numbers):
+Opcodes for 1.1, avoiding the display's 18–21, as
+[`fes_computer.yaml`](../../mister-packages/packages/abi/fes_computer.yaml)
+fixes them; [computer I/O](../../mister-packages/docs/computer-io.md#ata-hard-disk)
+has the field rules:
 
 | Opcode | Name | Index | Argument |
 | --- | --- | --- | --- |
-| 16 | DiskInfo | unit × 8 + field | 0 |
+| 16 | DiskInfo | unit × 8 + field (chunk size is field 4, in sectors) | 0 |
 | 17 | DiskControl | unit | 0 prepare, 1 commit, 2 eject, 3 freeze, 4 resume, 5 saved |
 | 22 | DiskCommit | word 0–7 | size low and high, cylinders, heads, sectors, CRC low and high, 0 |
 | 23 | DiskDirty | word 0–127 | 0; response is 16 chunk bits |
@@ -1215,7 +1218,7 @@ own `toolchain.lock`.
 
 ### mister-packages adds
 
-- `fes_computer.yaml` 1.1: identity word 16, bits 15–18, the opcodes, disk
+- `fes_computer.yaml` 1.1: identity word 16, bits 16–19, the opcodes, disk
   window offset, maximum and chunk constants, CMOS and settings word counts.
 - `computer-io.md`: the disk, persistence and wall-clock sections; the mouse
   dy sign.
