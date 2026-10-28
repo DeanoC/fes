@@ -872,6 +872,9 @@ legacy ZX81 blob path. A `.tzx`, `.tap`, `.pzx`, `.csw`, `.z80`, `.sna` or
 `.szx` name, or no name, inserts the Spectrum cassette on unit 0, and a `.trd`
 or `.scl` name the TR-DOS disk on unit 1. Clear does not eject the TR-DOS
 disk, and the CLI's disk commands do not handle it; a live insert replaces it.
+Library disk inserts retain the confirmed session filename on failures before
+target dispatch. After dispatch, the target's `no_change` result determines
+whether the host can retain that filename.
 The CLI equivalents are `fogcast change-disk MEDIA_ID_OR_DISK_PATH` and
 `fogcast eject-disk` for a disk, and `fogcast change-cassette` and
 `fogcast eject-cassette` for a Spectrum tape. A stored
