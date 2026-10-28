@@ -180,12 +180,15 @@ ENTER, PUSHA and POPA come later.
 
 **Fixed sequences.** An instruction of several uops, decoded without the
 microcode ROM, keeps its place in `dc` while they issue: as D issues each but
-the last, `dc` takes the next from `fes_i386_seq`, worked out from `dc`
-itself, so every field D reads is a register at every step and the uops
-issue one per cycle. Each step changes only the fields that differ, and sets
-its one-bit controls outright, so DC's input select absorbs the rest. WB
-moves EIP only at an instruction's last uop, so a sequence that faults part
-way leaves EIP at the instruction. Two temporaries, T0 (16 bits) and T1
+the last, `dc` takes the next from `fes_i386_seq`, so every field D reads is
+a register at every step and the uops issue one per cycle. Every field a
+sequence rewrites is set outright at every step, from the instruction's
+first uop (`dc0`, kept beside `dc`) with every change of the steps before it
+applied again, and the per-step controls are reset. No field is kept from
+`dc` at some steps and not others, so `dc` loads on two enables from D's
+issue: the rewritten fields at every issue, the rest at the instruction's
+last. WB moves EIP only at an instruction's last uop, so a sequence
+that faults part way leaves EIP at the instruction. Two temporaries, T0 (16 bits) and T1
 (32), are destinations in RS_TEMP: WB writes them and no forwarding sees
 them, so a uop reads one at WB, or waits in D until its writers retire.
 
