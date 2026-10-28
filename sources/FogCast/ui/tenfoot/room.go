@@ -15,6 +15,7 @@ import (
 )
 
 const roomCoverWorkers = 4
+const runningMachineLibraryBlockedStatus = "Stop the running machine before opening the library."
 
 // RoomSnapshot is the frame-loop readable copy of the open room.
 type RoomSnapshot struct {
@@ -516,7 +517,7 @@ func (a *App) dropRoomNavActionsLocked() {
 
 func (a *App) openLibraryFromRoomLocked(act rooms.Action) {
 	if a.sessionStopOfferedLocked() {
-		a.status = "Stop the running machine before opening the library."
+		a.status = runningMachineLibraryBlockedStatus
 		return
 	}
 	a.suspendRoomsForLibraryLocked()

@@ -296,6 +296,9 @@ func drawRoomChoice(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 	if snap.Room.Destination.Choice == rooms.ChoiceBackend {
 		title = rooms.BackendChoiceAction
 	}
+	if snap.Room.ID == colecoArcadeRoomID && snap.Room.DuringPlay && snap.Session.State == "active" && snap.Session.Coleco {
+		title = colecoRunningDestinationAction
+	}
 	drawLabel(dev, labels, used, "rchoice-title", x+16, y+12, panelW-32, 18, title)
 	for i := 0; i < panel.Visible; i++ {
 		idx := panel.Start + i
@@ -458,6 +461,9 @@ func drawRoomChrome(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 		line = snap.Status
 	}
 	if snap.Room.ID == colecoArcadeRoomID && snap.Room.DuringPlay && snap.Session.Coleco && snap.Status == colecoCartridgeSessionStatus {
+		line = snap.Status
+	}
+	if snap.Room.ID == colecoArcadeRoomID && snap.Room.DuringPlay && snap.Session.Coleco && snap.Status == runningMachineLibraryBlockedStatus {
 		line = snap.Status
 	}
 	if line != "" {

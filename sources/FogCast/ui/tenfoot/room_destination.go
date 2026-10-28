@@ -60,9 +60,10 @@ func (a *App) roomDestinationLocked() rooms.Destination {
 		d.Action = rooms.CheckingAction
 	}
 	d = a.applyKitDirectLocked(d)
-	if a.session.State == "active" && a.roomDuringPlay && a.room.ID() == colecoArcadeRoomID && a.colecoSessionLocked() && d.Confirm() == rooms.ConfirmLaunch {
+	if a.session.State == "active" && a.roomDuringPlay && a.room.ID() == colecoArcadeRoomID && a.colecoSessionLocked() &&
+		(d.Confirm() == rooms.ConfirmLaunch || d.Confirm() == rooms.ConfirmChoose) {
 		// This room browses other ROM-linked cartridges while the current one
-		// keeps running. Do not advertise its ordinary Ready / Play copy here.
+		// keeps running. Do not advertise its ordinary Ready / Play or choice copy.
 		d.Status = colecoRunningDestinationStatus
 		d.Action = colecoRunningDestinationAction
 	}
@@ -560,11 +561,15 @@ func (a *App) roomChoiceSnapshotLocked() RoomChoiceSnapshot {
 	if !a.roomChoiceOpen {
 		return RoomChoiceSnapshot{}
 	}
+	hint := roomChoiceHint(a.affinity.current.Kind)
+	if a.session.State == "active" && a.roomDuringPlay && a.room != nil && a.room.ID() == colecoArcadeRoomID && a.colecoSessionLocked() {
+		hint = colecoRunningDestinationAction
+	}
 	return RoomChoiceSnapshot{
 		Open:  true,
 		Index: a.roomChoiceIndex,
 		Rows:  append([]hostclient.Game(nil), a.roomChoice...),
-		Hint:  roomChoiceHint(a.affinity.current.Kind),
+		Hint:  hint,
 	}
 }
 

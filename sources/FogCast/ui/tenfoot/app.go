@@ -2166,6 +2166,12 @@ func (a *App) detailPlayLocked() rooms.Destination {
 	case a.room != nil && strings.TrimSpace(a.roomDetail.ID) != "":
 		// Details for one chosen edition describes that edition.
 		game = a.roomDetail
+		d := a.gamePlayDestinationLocked(game)
+		if a.session.State == "active" && a.roomDuringPlay && a.room.ID() == colecoArcadeRoomID && a.colecoSessionLocked() && d.Confirm() == rooms.ConfirmLaunch {
+			d.Status = colecoRunningDestinationStatus
+			d.Action = colecoRunningDestinationAction
+		}
+		return d
 	case a.room != nil:
 		return a.roomDestinationLocked()
 	case strings.TrimSpace(a.libraryDetail.ID) != "":
@@ -2829,11 +2835,19 @@ func mediaSelectorKey(name string, usage uint8) bool {
 // as Stop, so this returns false there.
 func (a *App) openRunningMediaSelector(down bool, now time.Time) bool {
 	a.mu.Lock()
+	colecoSession := a.colecoSessionLocked()
 	available := !a.localCoreBusyLocked() && a.playingHardwareRoomAvailableLocked()
 	mediaOffer := available && a.sessionLiveMediaOfferedLocked()
-	colecoOffer := available && a.colecoSessionLocked() && !a.sessionLiveMediaOfferedLocked() && !a.roomDuringPlay
+	colecoOffer := available && colecoSession && !a.sessionLiveMediaOfferedLocked() && !a.roomDuringPlay
 	a.mu.Unlock()
 	if !mediaOffer && !colecoOffer {
+		if down && colecoSession {
+			a.mu.Lock()
+			if !a.roomDuringPlay {
+				a.status = colecoSelectorUnavailableStatus
+			}
+			a.mu.Unlock()
+		}
 		return false
 	}
 	if down {

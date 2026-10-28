@@ -160,6 +160,10 @@ end
 
 function draw()
   local w, h = room.width, room.height
+  local shelf_hint = "Tab opens the Coleco shelf"
+  if session.state() == "active" then
+    shelf_hint = "Stop before opening the library"
+  end
   gfx.clear(room.theme.background)
   gfx.rect(0, 0, w, 96, color.shade(room.theme.background, 0.7))
   gfx.rect(0, 96, w, 4, room.theme.accent)
@@ -168,7 +172,7 @@ function draw()
   end
   gfx.text("COLECOVISION", 160, 16, { size = 34, bold = true, color = room.theme.accent })
   gfx.text("ARCADE CABINET", 160, 56, { size = 14, color = "#c8b88a" })
-  gfx.text(status .. "  ·  Tab opens the Coleco shelf", w - 32, 38, { size = 16, align = "right", color = "#c8b88a" })
+  gfx.text(status .. "  ·  " .. shelf_hint, w - 32, 38, { size = 16, align = "right", color = "#c8b88a" })
   if list then
     list:draw{ label = function(item) return item.label end, background = "#1c1810", focus_color = room.theme.accent, focus_text = "#14110c", color = "#f0e6c8" }
   end
