@@ -68,3 +68,7 @@ U-Boot SPL hex; `sof_to_jic.bat` subsequently creates a QSPI image. This lane
 does neither. Its SOF is not a replacement for the Linux BSP's factory QSPI
 boot artifact, and it does not establish that the selected vendor kernel/DTB
 can safely program or address this design. No Linux bridge window is guessed.
+
+The [2026-10-28 host compile record](../../../docs/validation/2026-10-28-de25-hps-mailbox/README.md)
+retains the successful committed-source Quartus build, constrained timing
+rows and explicit remaining reset, electrical, firmware and physical gates.
