@@ -268,3 +268,28 @@ func TestGameOnlySingletonEntryClearsHiddenVariantFocus(t *testing.T) {
 		t.Fatalf("Confirm remained on the hidden variant selector: %+v", acts)
 	}
 }
+
+func TestSavedFamilyReopenUsesSelectedVariantHint(t *testing.T) {
+	games := spectrumFamilyEntries()
+	path := filepath.Join(t.TempDir(), "room.json")
+	if err := os.WriteFile(path, []byte(`{"navigation":{"core_id":"fes.spectrum","game_id":"spectrum-setup-a","edition_id":"spectrum-setup-a"}}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	// Direct room reopen supplies no initial selection; all visible copy must
+	// follow the persisted model rather than the workbench's initial default.
+	r := newRoom(t, examplePack(t, "example.system"), Options{
+		Services: c64ServicesWithEmptyHardware{Services: &fakeServices{games: games}},
+		Width:    1280, Height: 720, StorePath: path,
+	})
+	r.SetSessionState("idle")
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	frame := stepUntil(t, r, func(f Frame) bool {
+		return strings.Contains(frameText(f), games[0].Title) && strings.Contains(frameText(f), "Set up system")
+	})
+	text := frameText(frame)
+	if !strings.Contains(text, "Choose a ZX Spectrum 48K entry.") || strings.Contains(text, "Choose a Sinclair ZX81 entry.") {
+		t.Fatalf("saved Spectrum reopened with another model's hint:\n%s", text)
+	}
+}

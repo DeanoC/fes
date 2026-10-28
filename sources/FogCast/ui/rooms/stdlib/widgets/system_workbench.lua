@@ -41,7 +41,6 @@ local focus = "start"
 local controls = {}
 local live
 local hardware_unavailable = false
-local message = "Choose a " .. system_label() .. " entry."
 local rev = 0
 local last_hw = 0
 local hw_busy = false
@@ -66,6 +65,7 @@ local same_core = nav.core_id == selected_core
 local chosen = initial_game_id ~= "" and initial_game_id or (same_core and nav.game_id or previous_core.game_id) or ""
 local chosen_edition = initial_game_id ~= "" and initial_game_id or (same_core and nav.edition_id or previous_core.edition_id) or ""
 if nav.focus and nav.focus ~= "" then focus = nav.focus end
+local message = "Choose a " .. system_label() .. " entry."
 
 local function take()
   local n = #pool
