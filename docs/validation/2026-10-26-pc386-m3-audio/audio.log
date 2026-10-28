@@ -1,0 +1,89 @@
+$ build/sim/fes-pc386/audio/obj/Vpc386_at_core
+PASS DSP reset at 220h IRQ 2: AAh about 20 us after release
+PASS DSP version at 220h IRQ 2 is 2.01
+PASS the other base (240h) reads FFh at 220h IRQ 2
+PASS F2h raises IRQ 2 as vector 71h about 10 us later at 220h IRQ 2
+PASS reading base+E acknowledges the IRQ at 220h IRQ 2
+PASS OPL2 status at base+8 at 220h IRQ 2 reads the OPL2's 06h low bits
+PASS DSP reset at 220h IRQ 3: AAh about 20 us after release
+PASS DSP version at 220h IRQ 3 is 2.01
+PASS the other base (240h) reads FFh at 220h IRQ 3
+PASS F2h raises IRQ 3 as vector 0Bh about 10 us later at 220h IRQ 3
+PASS reading base+E acknowledges the IRQ at 220h IRQ 3
+PASS OPL2 status at base+8 at 220h IRQ 3 reads the OPL2's 06h low bits
+PASS DSP reset at 220h IRQ 5: AAh about 20 us after release
+PASS DSP version at 220h IRQ 5 is 2.01
+PASS the other base (240h) reads FFh at 220h IRQ 5
+PASS F2h raises IRQ 5 as vector 0Dh about 10 us later at 220h IRQ 5
+PASS reading base+E acknowledges the IRQ at 220h IRQ 5
+PASS OPL2 status at base+8 at 220h IRQ 5 reads the OPL2's 06h low bits
+PASS DSP reset at 220h IRQ 7: AAh about 20 us after release
+PASS DSP version at 220h IRQ 7 is 2.01
+PASS the other base (240h) reads FFh at 220h IRQ 7
+PASS F2h raises IRQ 7 as vector 0Fh about 10 us later at 220h IRQ 7
+PASS reading base+E acknowledges the IRQ at 220h IRQ 7
+PASS OPL2 status at base+8 at 220h IRQ 7 reads the OPL2's 06h low bits
+PASS DSP reset at 240h IRQ 2: AAh about 20 us after release
+PASS DSP version at 240h IRQ 2 is 2.01
+PASS the other base (220h) reads FFh at 240h IRQ 2
+PASS F2h raises IRQ 2 as vector 71h about 10 us later at 240h IRQ 2
+PASS reading base+E acknowledges the IRQ at 240h IRQ 2
+PASS OPL2 status at base+8 at 240h IRQ 2 reads the OPL2's 06h low bits
+PASS DSP reset at 240h IRQ 3: AAh about 20 us after release
+PASS DSP version at 240h IRQ 3 is 2.01
+PASS the other base (220h) reads FFh at 240h IRQ 3
+PASS F2h raises IRQ 3 as vector 0Bh about 10 us later at 240h IRQ 3
+PASS reading base+E acknowledges the IRQ at 240h IRQ 3
+PASS OPL2 status at base+8 at 240h IRQ 3 reads the OPL2's 06h low bits
+PASS DSP reset at 240h IRQ 5: AAh about 20 us after release
+PASS DSP version at 240h IRQ 5 is 2.01
+PASS the other base (220h) reads FFh at 240h IRQ 5
+PASS F2h raises IRQ 5 as vector 0Dh about 10 us later at 240h IRQ 5
+PASS reading base+E acknowledges the IRQ at 240h IRQ 5
+PASS OPL2 status at base+8 at 240h IRQ 5 reads the OPL2's 06h low bits
+PASS DSP reset at 240h IRQ 7: AAh about 20 us after release
+PASS DSP version at 240h IRQ 7 is 2.01
+PASS the other base (220h) reads FFh at 240h IRQ 7
+PASS F2h raises IRQ 7 as vector 0Fh about 10 us later at 240h IRQ 7
+PASS reading base+E acknowledges the IRQ at 240h IRQ 7
+PASS OPL2 status at base+8 at 240h IRQ 7 reads the OPL2's 06h low bits
+PASS write status reads AAh just after a command byte and 2Ah 3 us later
+PASS read status reads 2Ah with nothing to read
+PASS E0h returns the inverted byte
+PASS D8h reports the speaker on (FFh) and off (00h)
+PASS E4h/E8h test register
+PASS 20h direct ADC returns silence (80h)
+PASS an empty read buffer returns its last byte
+PASS 10h with the speaker off leaves the output at 80h
+PASS the DAC holds the last direct byte; speaker on plays it
+PASS 74h consumes its two argument bytes
+PASS 14h plays the 32 bytes in order through the DAC
+PASS time constant 9Ch spaces the samples 100 us apart (10 kHz)
+PASS IRQ 5 (vector 0Dh) at the block's end
+PASS single-cycle stops after its block
+PASS the 8237 reached terminal count on channel 1
+PASS 1Ch with 48h block 16: an IRQ every 16 samples at 20 kHz
+PASS IRQ 2 arrives as the AT's IRQ 9 (vector 71h) at 240h
+PASS D0h halts DMA and D4h continues it
+PASS DAh ends auto-init after the current block
+PASS 91h reads busy (AAh) during the block
+PASS 91h raises IRQ 3 (vector 0Bh) at the block's end
+PASS a byte written during high speed is dropped
+PASS reset stops high-speed auto-init
+PASS 80h: IRQ 7 (vector 0Fh) after 10 silent samples
+PASS 24h records 16 bytes of silence (80h) by DMA and raises the IRQ
+PASS E2h 5a writes 76 by DMA
+PASS E2h c3 writes dc by DMA
+PASS AdLib detection: flags clear, then timer 1 at FFh sets IRQ and T1 (C0h) within 80.5 us
+PASS flags clear again after 04h = 80h
+PASS timer 1 from 00h overflows in 20.60 ms (256 x 288 / 3.579545 MHz)
+PASS timer 2 from F0h overflows in 5.15 ms (16 x 1152 / 3.579545 MHz)
+PASS a masked timer sets no flag
+PASS the data port reads FFh
+PASS PC speaker square wave at 1000.2 Hz in the 48 kHz output
+PASS PC speaker peak about -12 dBFS (8192)
+PASS the DC blocker removes static cone drive
+PASS DSP full scale reaches the output at -6 dBFS (16256)
+PASS OPL2 tone at its f-number frequency (439.990570 Hz)
+PASS OPL2 single operator peak through the mixer about 4095/2
+PASS 0 failure(s)

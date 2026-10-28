@@ -106,15 +106,16 @@ func TestNativeDeveloperPartsStageAdoptAndRejectCrossedShellMarkers(t *testing.T
 		candidate := inspection
 		candidate.Descriptor.Format = 3
 		candidate.Descriptor.ROM = &ROM{Role: "cartridge", SourceSize: 16384}
-		if _, err := PartsShell(candidate, payload); err != nil {
-			t.Fatal(err)
+		if _, err := PartsShell(candidate, payload); err == nil {
+			t.Fatal("accepted the retired format-3 Coleco cartridge shell")
 		}
 	})
-	t.Run("format 3 without cartridge", func(t *testing.T) {
+	t.Run("format 4 BIOS and cartridge", func(t *testing.T) {
 		candidate := inspection
-		candidate.Descriptor.Format = 3
-		if _, err := PartsShell(candidate, payload); err == nil {
-			t.Fatal("accepted format 3 without a cartridge ROM")
+		candidate.Descriptor.Format = 4
+		candidate.Descriptor.ROMs = []ROMRequirement{{ID: "coleco-bios", Role: "firmware", SourceSize: 8192}, {ID: "coleco-cart", Role: "cartridge", SourceSize: 16384, SourceOffset: 8192}}
+		if shell, err := PartsShell(candidate, payload); err != nil || shell.Layout != expansion.ColecoNativeVideoLayout {
+			t.Fatalf("format-4 shell: %+v %v", shell, err)
 		}
 	})
 	for name, change := range map[string]func(*Inspection){

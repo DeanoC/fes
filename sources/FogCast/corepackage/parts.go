@@ -33,7 +33,7 @@ type PartsBundle struct {
 func PartsShell(inspection Inspection, payload []byte) (expansion.PartsShell, error) {
 	d := inspection.Descriptor
 	st := d.Format == 3 && d.Core.ID == "fes.atari-st" && d.ROM != nil && d.ROM.Role == "firmware"
-	coleco := d.Core.ID == "fes.coleco" && (d.Format == 2 || (d.Format == 3 && d.ROM != nil && d.ROM.Role == "cartridge" && d.ROM.SourceSize == 16384))
+	coleco := d.Core.ID == "fes.coleco" && (d.Format == 2 || colecoLinkedPartsShell(d))
 	abi := "fes.application"
 	if st {
 		abi = "fes.computer"
@@ -73,6 +73,15 @@ func PartsShell(inspection Inspection, payload []byte) (expansion.PartsShell, er
 		return expansion.PartsShell{}, errors.New("parts require explicitly declared video and CPU sockets")
 	}
 	return expansion.PartsShell{PackageID: inspection.PackageID, BuildID: d.Build.ID, Payload: payload, Layout: layout}, nil
+}
+
+// colecoLinkedPartsShell is the ROM-linked Coleco shell: the 8 KiB BIOS and
+// a 16 KiB cartridge, linked through one map. The 128 KiB MegaCart lane has no
+// video sockets.
+func colecoLinkedPartsShell(d Descriptor) bool {
+	return d.Format == 4 && len(d.ROMs) == 2 &&
+		d.ROMs[0].Role == "firmware" && d.ROMs[0].SourceSize == 8192 &&
+		d.ROMs[1].Role == "cartridge" && d.ROMs[1].SourceSize == 16384
 }
 
 func partRole(asset expansion.Asset) string {

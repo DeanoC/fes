@@ -5,11 +5,13 @@
 // (one unit), as in Fuse; a coupling capacitor is a leaky integrator updated
 // every T state. The AY's unsigned three-channel sum is DC-blocked with a
 // much slower leak so its bass survives. Socket audio is added with
-// saturation.
+// saturation. mute (turbo loading) silences the output; the filters still
+// follow every T state.
 module spectrum_audio (
     input  wire               clk,
     input  wire               reset,
     input  wire               tick,
+    input  wire               mute,
     input  wire               speaker,
     input  wire               mic,
     input  wire               ear,
@@ -51,6 +53,6 @@ module spectrum_audio (
         end
         mixed <= {{3{level[23]}}, level[23:8]} + {{3{ay_level[28]}}, ay_level[27:12]} +
                  {{3{slot_audio[15]}}, slot_audio};
-        sample <= mixed > 19'sd32767 ? 16'sh7fff : mixed < -19'sd32768 ? -16'sh8000 : mixed[15:0];
+        sample <= mute ? 16'sd0 : mixed > 19'sd32767 ? 16'sh7fff : mixed < -19'sd32768 ? -16'sh8000 : mixed[15:0];
     end
 endmodule
