@@ -18,7 +18,7 @@
 #define FES_DE25_DMA_SLOTS FES_DE25_SCANOUT_SLOT_COUNT
 
 /* Private, exclusive driver-controlled register transport. Accessors must be
- * ordered and bounded even when the external clock is absent. barrier orders
+ * ordered and bounded even when the external clock is absent. io_fence orders
  * completed writes before later accesses. No physical MMIO backend is admitted.
  * epoch is a nonzero external reset identity; register generation alone cannot
  * establish drain after reset. No userspace operation supplies either proof.
@@ -30,7 +30,7 @@ struct fes_de25_dma_backend {
 	u64 (*epoch)(void *context);
 	int (*read32)(void *context, u32 offset, u32 *value);
 	int (*write32)(void *context, u32 offset, u32 value);
-	int (*barrier)(void *context);
+	int (*io_fence)(void *context);
 	void *context;
 };
 

@@ -67,7 +67,7 @@ callback clears the kernel's empty generic `vma_dummy_vm_ops` sentinel before
 invoking the DMA API; real mapper-installed operations still cause refusal.
 
 The private backend supplies a nonzero external reset epoch and bounded,
-ordered `read32`, `write32` and `barrier` operations. No physical MMIO backend
+ordered `read32`, `write32` and `io_fence` operations. No physical MMIO backend
 is implemented or admitted. A callback error after SUBMIT may already have
 enabled DMA and retains exposure. Userspace cannot supply a drain proof.
 The kernel caller must retain callback code/context, exclusive engine ownership

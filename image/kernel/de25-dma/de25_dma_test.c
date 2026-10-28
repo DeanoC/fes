@@ -201,7 +201,7 @@ static int fixture_init(struct kunit *test)
 	backend.epoch = transport_epoch;
 	backend.read32 = transport_read;
 	backend.write32 = transport_write;
-	backend.barrier = transport_barrier;
+	backend.io_fence = transport_barrier;
 	backend.context = &fixture->transport;
 	fixture->file = fes_de25_dma_create(fixture->dev, &backend);
 	if (IS_ERR(fixture->file))
@@ -272,7 +272,7 @@ static void kernel_owns_descriptor_and_drain_lifetime(struct kunit *test)
 	struct test_descriptor *descriptor = &fixture->transport.descriptor;
 	struct fes_de25_dma_backend competing = {
 		.epoch = transport_epoch, .read32 = transport_read,
-		.write32 = transport_write, .barrier = transport_barrier,
+		.write32 = transport_write, .io_fence = transport_barrier,
 		.context = &fixture->transport,
 	};
 	struct file *other;
