@@ -50,7 +50,42 @@ make de25-linux DE25_LINUX_ARGS='--help'
 The default container runtime is `docker`. These commands prepare and inspect
 regular files. They do not write a card, program the FPGA or change boot flash.
 
-The output contains:
+## AArch64 runtime and agent checks without a board
+
+After building the C/C++ SDK, run:
+
+```sh
+make smoke-de25-runtime
+```
+
+`DE25_RUNTIME_ARGS` accepts `--image-output`, `--output`, `--jobs` and
+`--container-runtime`. For example, a retained image in a separate directory
+can be tested without replacing it:
+
+```sh
+make smoke-de25-runtime DE25_RUNTIME_ARGS='--image-output out/de25-nano-linux-cxx --output out/de25-runtime --jobs 2'
+```
+
+The diagnostic requires clean committed sources, verifies the selected image
+receipt and SDK hash, relocates that SDK and uses the runtime's existing
+Makefile to build its archive, daemon and six unit-test binaries. It checks the
+canonical archive and runs the runtime/protocol, fake-MMIO, fake FPGA-manager,
+file-offset and production-board guard tests under QEMU user emulation. It also
+cross-builds the FogCast agent and exercises its early-exit command plus five
+existing client/readiness/rejection tests. The production daemon is compiled;
+it is not started by this diagnostic.
+
+`out/de25-runtime/runtime.json` binds the runtime source revision, image/SDK
+producer, compiler identities and output hashes. Test logs and the resulting
+runtime archive, daemon and agent remain in that output. Its classification is
+`userspace-only`: it establishes AArch64 build/software behavior, without
+claiming a DE25 FPGA programming backend, hardware MMIO map or device access.
+The current production runtime accepts only its identified ARMv7 DE10 target
+and refuses other boards before loading drivers or constructing hardware.
+
+## Image artifacts
+
+The image output contains:
 
 | File | Meaning |
 | --- | --- |

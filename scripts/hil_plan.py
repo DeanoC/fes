@@ -20,7 +20,7 @@ RULES = [
         'scripts/ci_simulations.py', 'scripts/ci_verilator.sh',
         'scripts/test_policy.py', 'scripts/parent_tests.py', 'scripts/host_tests.py',
         'scripts/check_deadcode.py', 'scripts/check_diff.py',
-        'scripts/check_doc_links.py', 'scripts/coordination.py',
+        'scripts/check_doc_links.py', 'scripts/coordination.py', 'scripts/de25_runtime.py',
         'scripts/hil_plan.py', 'scripts/consistency.py', 'scripts/generate.py',
         'scripts/host_affected.py',
     )],

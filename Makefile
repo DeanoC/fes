@@ -40,6 +40,7 @@ help:
 	@printf '%s\n' 'make kit-sdk: build and publish the current image Buildroot SDK into the toolchain cache, without an image or core build.'
 	@printf '%s\n' 'make kit-software KIT_SOFTWARE_BASE=/absolute/linux.img KIT_SOFTWARE_BASE_SHA256=SHA256 KIT_SOFTWARE_VERSION=VERSION: build compatible kit userspace without an OS rebuild.'
 	@printf '%s\n' 'make fetch-de25-linux | de25-linux | verify-de25-linux | smoke-de25-linux: separate headless DE25-Nano AArch64 Linux diagnostic; see docs/de25-linux.md.'
+	@printf '%s\n' 'make smoke-de25-runtime DE25_RUNTIME_ARGS="--help": cross-build AArch64 runtime/agent and exercise software under QEMU without a board.'
 IMAGE_ARTIFACTS ?=
 doctor build host image verify rebuild dev:
 	IMAGE_PASSES="$(IMAGE_PASSES)" $(PYTHON) scripts/build.py $@ --profile "$(PROFILE)" $(if $(IMAGE_ARTIFACTS),--artifacts "$(IMAGE_ARTIFACTS)")
@@ -53,6 +54,10 @@ verify-de25-linux:
 	$(PYTHON) image/de25-nano/build.py verify $(DE25_LINUX_ARGS)
 smoke-de25-linux:
 	$(PYTHON) image/de25-nano/build.py smoke $(DE25_LINUX_ARGS)
+
+.PHONY: smoke-de25-runtime
+smoke-de25-runtime:
+	$(PYTHON) scripts/de25_runtime.py $(DE25_RUNTIME_ARGS)
 
 platform-provision:
 	$(PYTHON) scripts/platform.py provision --fogcast "$(abspath sources/FogCast)"
