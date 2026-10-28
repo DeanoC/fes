@@ -135,8 +135,10 @@ retires, and the L1D reads before it writes on the same edge.
 stage behind DC keeps its uop, D issues nothing and nothing retires, until
 they do. Nothing moves relative to anything else, so the forwarding
 distances, AG's late operands, the store merge and D's forwarding tables all
-hold as they are. Whether M2 holds a load is a register set as it enters, so
-the freeze is one gate on `dmem_valid`; WB's flush waits for it, which makes
+hold as they are. Whether M2 holds a load is a register set as it enters, and
+the L1D's `dmem_valid` is the complement of a register (`stall`, computed from
+the next cycle's state; see Memory), so the freeze is one gate on two
+registers; WB's flush waits for it, which makes
 a taken branch or a fault in WB wait out a wrong-path load. A multiply or
 divide freezes them the same way while it works in EX (`md_busy`, a register
 set as the uop enters EX), and so the freeze has one more registered input
@@ -600,15 +602,23 @@ the bus interface: the victim is invalidated, the beats written, then the
 tags, then the valid bit a cycle later. A fill ends only with no store in EX
 or WB, and a store WB commits into its line while it fills, a DMA write of
 it or FLUSH spoils it. Each store reads a snoop copy of the tags as it enters
-WB, and its commit clears a way that holds its line (self-modifying code; the
-instructions already past F2 are not checked yet). Fetches from MMIO or a
+WB, and its commit clears a way that holds its line on the next edge, from a
+register, so the valid bits' enables do not wait on the commit
+(self-modifying code; the instructions already past F2, and a fetch in F2 the
+cycle after the commit, are not checked yet). Fetches from MMIO or a
 hole read FFh.
 
 **L1D** (`fes_i386_l1d`): 16 KiB, 4 ways, 32-byte lines, two banks of even
-and odd dwords, write-through with no write allocate. M1 registers a load's
-index with its page and attribute; M2 compares the tags. A cacheable load
-that hits inside its line returns in M2. Anything else freezes D to WB for
-the slow path: a miss reads its line once no write-buffer entry holds bytes
+and odd dwords, write-through with no write allocate. The lookup tags are
+read a stage ahead, for AG's address on the edge a uop enters M1
+(`ag_index`); M1 compares them with its physical page and registers the hit,
+and M2 selects the hitting way, so no M10K output and no valid-bit lookup
+reaches the freeze; the set's valid bits are registered beside it for the
+victim choice. A clear of a set (DMA, FLUSH, a store running into the next
+line) drops both on the same edge, and a fill re-reads M1's tags as it ends. M1 also registers the load's index into the
+data arrays with its page and attribute. A cacheable load that hits inside
+its line returns in M2. Anything else freezes D to WB for the slow path, on
+`stall`, one register set from the next cycle's state: a miss reads its line once no write-buffer entry holds bytes
 of it, returns the load's bytes and fills the line (victim invalidated, rows,
 tags, valid bit, then the probe re-read for the store waiting in WB); an
 access running into the next line reads each part on its own; MMIO is read
@@ -623,7 +633,9 @@ WB, or only earlier uops of the same instruction that neither store, end an
 instruction or REP element, branch, fault, multiply nor divide, and no
 interrupt being taken. Then nothing older can flush the load, and every older
 store has reached the device. A load that reaches M2 behind anything else
-takes no data: the L1D marks it `FAULT_REPLAY`, which EX treats as a fault
+takes no data. Every uncached load first waits a cycle in M2 (`L_UNC`), so
+the freeze never waits on the oldest test; then it reads, or the L1D marks it
+`FAULT_REPLAY` (`L_REPLAY`), which EX treats as a fault
 (nothing changes) and WB as a restart: WB flushes everything younger, the
 front end restarts at the instruction through the reset path's `start`, once
 `start_linear` holds CS.base + EIP, and D issues that instruction one uop at
@@ -639,12 +651,18 @@ m's pop into nothing, the multiply and divide unit's LOAD and HI) touch
 nothing, so no device sees a read the instruction does not make.
 
 **Bus interface** (`fes_i386_biu`). The write buffer holds four 32-byte line
-entries with byte masks, in order. A committed store's RAM bytes coalesce
-into the newest entry for the same line unless it is being written, or take
-a new one; its MMIO bytes take an entry of their own, so the device sees each
+entries with byte masks, in order. A committed store is registered on the
+edge it retires (the commit register) and enters on the next, so nothing in
+the buffer waits on the freeze; the commit register counts as part of the
+buffer for every read, DMA, FLUSH and I/O access that waits on it. Its RAM
+bytes coalesce into the newest entry for the same line unless it is being
+written (the newest entry's line is kept in a register for that compare), or
+take a new one; its MMIO bytes take an entry of their own, so the device sees each
 store as the instruction made it; its bytes in read-only RAM or a hole are
 dropped. A store needs two free entries (its lanes may run into the next
-line), so WB holds a store while the buffer will not have them (`st_wait`).
+line) once the store committing ahead of it has entered, counted as entries
+of its own though it may coalesce, so WB holds a store while the buffer will
+not have them (`st_wait`).
 The oldest entry is written once a newer one exists, once it is full, an MMIO
 store or two cycles old, or whenever something waits on the buffer: a RAM
 entry as one two-beat burst on port 0, an MMIO one as a write per dword with

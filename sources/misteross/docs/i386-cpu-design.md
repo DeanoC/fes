@@ -504,8 +504,8 @@ endpoints are recorded in the [far-transfer record](https://github.com/DeanoC/fe
 | DC | Decode Q's instruction and address mode into a `decoded_t` record, including immediate, displacement, memory and segment controls; hold it in the two-entry `dc`/`dc_skid` buffer. | Opcode and address-mode logic; no carry chain | 70.0–75.8 MHz in the latest far-transfer whole-CPU stage report |
 | D | Read GPRs and segment bases, select forwarded operands from a per-GPR table, scale the index, check hazards and issue the decoded uop; governor gate, instruction-breakpoint and CS-limit checks. | Register and forwarding muxes, index scale, and the far-selector displacement add; one 32-bit carry chain from `dc` to `ag_disp` | 69.4–77.4 MHz in the latest far-transfer whole-CPU stage report; 85.8–90.1 MHz in the historical pre-DC D+AG route |
 | AG | Take the operands registered by D plus at most one late operand; compute the linear address and offset; run the early ALU; resolve early branches; adjust ESP. | Last 3:2 row and compression, one carry chain, one select | 85.5–95.7 MHz (address unit, D+AG route) |
-| M1 | Read L1D data and tags (index from linear bits 11:5); look up the DTLB; check the segment limit; compare data breakpoints. | DTLB CAM; the limit compare is the only carry chain | — |
-| M2 | Compare L1D tags with the physical page; select the way; merge bytes from older in-flight stores; decide faults and the memory type. | M10K output, equality compares, muxes; no carry chain | 97.8–106.5 MHz (control spike; fixes RTL, not re-routed for record RTL) |
+| M1 | Read L1D data (index from linear bits 11:5); compare the L1D tags, read as the uop entered M1, with the physical page and register the hit; look up the DTLB; check the segment limit; compare data breakpoints. | M10K output and equality compares into a register; DTLB CAM; the limit compare is the only carry chain | — |
+| M2 | Select the way M1's hit names; merge bytes from older in-flight stores; decide faults and the memory type. | M10K output, a way select, muxes; no carry chain | 97.8–106.5 MHz (control spike, with M2's tag compare; fixes RTL, not re-routed for record RTL) |
 | EX | Consume operands prepared in M2, including aligned and extended load data; late ALU and shifter, with shift controls decoded in M2 and shift flags applied a cycle later from WB; issue multiply and divide; resolve branches; check descriptors. | Byte rotate, one carry chain, result mux; the shifter stays off the flag path | 66.6–70.0 MHz on nextpnr, 97.2–105.5 on Quartus in the historical #1115 whole-CPU route |
 | WB | Retire in order: registers, EFLAGS, stores to L1D and the write buffer, I/O and uncached accesses, exceptions and interrupts, self-modifying-code checks. | Control only | — |
 
@@ -615,7 +615,8 @@ The L1I tags are a dual-port M10K. Port A serves fetch. Port B serves fills,
 the self-modifying-code snoop and L2 back-invalidation. The M10Ks Yosys maps
 have one read port, so the first memory slice keeps a second copy of the
 tags for the snoop, written with the first, and holds valid bits in
-flip-flops, which a store, DMA, FLUSH or reset clears at once. Until paging,
+flip-flops, which DMA, FLUSH or reset clears at once and a store on the edge
+after its commit. Until paging,
 the ITLB's page is the linear one with A20M applied.
 
 ### Prediction
@@ -835,6 +836,11 @@ pages.
 Write-through with no write allocate. A store hit updates the array at WB
 through the data M10K's second port, and every store enters the write buffer.
 A load miss stalls the pipeline until the critical dword arrives from L2.
+The lookup tags are read for AG's address as the uop enters M1, and M1
+registers the hit, so whether D to WB freeze waits only on registers: the
+freeze reaches every enable, and an M10K output or the valid bits' 128-way
+select ahead of it halved the first slice's placed clock
+([record](validation/2026-10-28-i386-memory-path.md#timing)).
 
 ### DTLB and paging
 
@@ -865,6 +871,9 @@ already completes at commit.
   coalesces sequential stores, so REP STOSD fills whole lines. A load that
   misses L1D checks it; in the first memory slice it waits for the entries
   holding its line to drain.
+- A committed store enters the write buffer a cycle after it retires, from
+  a commit register, so the buffer's logic never waits on the freeze; the
+  commit register counts as part of the buffer for whatever waits on it.
 - I/O instructions, locked operations and uncached loads drain the write
   buffer first. A DMA buffer written before the OUT that starts the DMA is then
   visible to the device.
@@ -889,7 +898,8 @@ divide, and no interrupt is being taken. Then nothing older can flush it, and
 once the write buffer has drained every older store has reached its device.
 D through WB only ever hold together, so a load cannot wait at M2 for older
 uops to retire: one that reaches M2 behind them takes no data and replays
-instead. WB restarts its instruction, as a fault would, and D issues that
+instead. Every uncached load waits a cycle in M2 first and decides then, so
+the freeze never waits on this test. WB restarts its instruction, as a fault would, and D issues that
 instruction one uop at a time until it ends, so the load comes back as the
 oldest. Microcode writes nothing architectural before its last uop that can
 fault, so a restart is safe wherever a fault is; ENTER with a nesting level,
@@ -990,8 +1000,8 @@ lockstep, the FreeDOS boot on the RTL CPU and a routed record:
 3. **L2**: 128 KiB between the L1s and port 0, DMA and FLUSH through it, a
    CPU reset that keeps it; write-buffer forwarding to a missing load.
 4. **The kit's line fills**: the DDR check above through the CPU path on
-   both kits, and whatever the routes then ask of F2's and M2's hit paths
-   (registered hits, critical word first).
+   both kits, and whatever the routes then ask of F2's hit path (a registered
+   hit, as M2's), and critical word first.
 5. **TLBs and paging** come with Phase 5.
 
 ## Execute
@@ -1290,6 +1300,17 @@ Settled on 2026-10-28:
   instruction and D issues it one uop at a time, rather than M2 holding while
   EX and WB drain, which D's forwarding tables and the freeze, built for D
   to WB holding together, do not allow ([memory types](#memory-types)).
+
+Settled on 2026-10-29:
+
+- The L1D's tags are compared in M1 and the hit registered for M2, and every
+  input of the D to WB freeze is one register: the L1D's wait is computed
+  from its next state, an uncached load waits a cycle before deciding to read
+  or replay, and the write buffer takes stores from a commit register. The
+  first slice's tag compare in M2 put the freeze 9–13 LUT levels deep and
+  placed at 27 MHz ([memory types](#memory-types),
+  [record](validation/2026-10-28-i386-memory-path.md#timing)). With paging,
+  the DTLB's page reaches M1's compare a stage earlier than the design had it.
 
 No decision is open.
 
