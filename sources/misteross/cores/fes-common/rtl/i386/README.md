@@ -366,7 +366,9 @@ design's commit rules ask, and between a REP string's elements.
 every field and routine.
 - **Words.** A word is a `ucode_t`: the uop fields a routine sets. The
   operand size, the vector and the memory operand come from the instruction
-  in `dc`.
+  in `dc`. A word's memory operand is a stack slot, the vector's entry, or
+  the instruction's ModRM operand (`rm`); its registers are GPRs, or the
+  instruction's register (`rg`), which DC's first uop carries in src1.
 - **Issue.** DC decodes a routine's first uop, and `dc.upc` addresses the
   next word. Each later uop is a `SEQ_UCODE` step of the sequencer, so `dc`'s
   input select keeps its three sources.
@@ -397,6 +399,14 @@ every field and routine.
     and jump.
   - IRET reads its three slots, the FLAGS load checking the offset first,
     then jumps, stepping ESP at WB.
+  - BOUND loads its upper bound, past the lower by the operand size and
+    wrapped by address size, into T1, then compares the register with the
+    lower bound, which it loads, and T1 with the register. Each compare
+    raises #BR (vector 5) from EX's adder when its first operand is below
+    its second, signed, at the operand size, and writes no flag. Both
+    bounds load, and check their limits, before either compare, as the
+    386EX does: a bound past the limit raises #GP(0) or #SS(0) whatever
+    the register. A register operand is #UD.
 - **Flags in EX.** PUSHF and POPF are single uops. EX's flag operations give
   FLAGS' image and load the writable real-mode flags in its running copy, as
   INT's and IRET's do.
@@ -545,7 +555,7 @@ retires and stops it. A fault is delivered:
   DC. A uop that faults before EX changes nothing there, so the delivery
   starts from EX's running flags as they were before it. A divide raises #DE
   in EX itself, after its flags reach that copy, so its delivery pushes them,
-  as the 386EX does. The cycle after, DC's skid takes the
+  as the 386EX does; BOUND's #BR comes from EX too. The cycle after, DC's skid takes the
   exception's entry (`dc_exc`): a NOP, at length 0, that starts the ROM's
   `vector` routine with the fault's vector, the one INTO enters.
 - **The frame.** D's EIP is the faulting instruction's, cut to 16 bits, so
