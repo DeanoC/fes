@@ -98,10 +98,13 @@ package fes_i386_pkg;
     // UOP_ALU. The first eight follow the x86 group-1 order. MOVZX and MOVSX
     // extend from src_size; SIGN gives every bit the sign of the source at
     // src_size (CWD, CDQ); FLAGS is the flag instruction imm names (flag_op_e).
+    // BITDISP is a bit test's address displacement from its register bit
+    // number, src2 at src_size: (n >> 4) * 2 or (n >> 5) * 4, signed
+    // (SEQ_BTM).
     typedef enum logic [4:0] {
         ALU_ADD, ALU_OR, ALU_ADC, ALU_SBB, ALU_AND, ALU_SUB, ALU_XOR, ALU_CMP,
         ALU_TEST, ALU_MOV, ALU_INC, ALU_DEC, ALU_NEG, ALU_NOT, ALU_LEA,
-        ALU_MOVZX, ALU_MOVSX, ALU_SETCC, ALU_XCHG, ALU_BT, ALU_BTS, ALU_BTR, ALU_BTC,
+        ALU_MOVZX, ALU_MOVSX, ALU_SETCC, ALU_BITDISP, ALU_BT, ALU_BTS, ALU_BTR, ALU_BTC,
         ALU_BSF, ALU_BSR, ALU_DAA, ALU_DAS, ALU_AAA, ALU_AAS, ALU_SALC, ALU_FLAGS, ALU_SIGN
     } alu_op_e;
 
@@ -235,7 +238,10 @@ package fes_i386_pkg;
     // into its destination (EAX) or stores it (INS); OUT sends a (OUT) or its
     // result, the loaded value (OUTS). The port is src2's low half (DX), else
     // imm's. iret: IRET's last uop, which unblocks NMI as it retires.
+    // addr_t1: AG adds T1 as the segment term, and the result is the linear
+    // address, wrapped by address size (a bit test's address, SEQ_BTM).
     typedef struct packed {
+        logic        addr_t1;
         logic        iret;
         logic [1:0]  io;
         logic        str_si;
@@ -312,6 +318,8 @@ package fes_i386_pkg;
         logic [3:0]  slot;
         logic        a_t1;       // src1's value is T1's (POPAD's ESP), which waits as far_t does
         logic        b_t1;       // src2's value is T1's, which waits the same way
+        logic        disp_t1;    // the address's offset is T1's, with no address registers (SEQ_BTM)
+        logic        t_rd;       // the uop reads T0 or T1 (far_t, a_t1, b_t1, disp_t1, uop addr_t1)
         logic        popad_esp;  // the uop counts only for POPAD on a 16-bit stack
         // The ModRM memory operand's address registers and segment, kept
         // while a stack uop holds the address fields (POP r/m's store).
@@ -380,7 +388,8 @@ package fes_i386_pkg;
     typedef enum logic [2:0] { STK_NONE, STK_PUSH, STK_POP, STK_RET_IMM, STK_LEAVE, STK_PEEK, STK_RETF, STK_PROBE } stk_e;
     typedef enum logic [4:0] {
         SEQ_NONE, SEQ_CALL, SEQ_LPTR, SEQ_CALLF, SEQ_RETF, SEQ_JMPFM, SEQ_CALLFM, SEQ_UCODE,
-        SEQ_XCHG, SEQ_XCHGM, SEQ_CALLI, SEQ_PUSHM, SEQ_POPM, SEQ_MUL, SEQ_DIV, SEQ_STRING, SEQ_ENTER
+        SEQ_XCHG, SEQ_XCHGM, SEQ_CALLI, SEQ_PUSHM, SEQ_POPM, SEQ_MUL, SEQ_DIV, SEQ_STRING, SEQ_ENTER,
+        SEQ_BTM
     } seq_e;
     // The string instructions (SEQ_STRING's str_op).
     typedef enum logic [2:0] { STR_MOVS, STR_CMPS, STR_STOS, STR_LODS, STR_SCAS, STR_INS, STR_OUTS } str_e;
@@ -478,10 +487,10 @@ package fes_i386_pkg;
         logic       f_load;                    // the writable flags from y (POPF, IRET)
         logic       f_clrit;                   // IF and TF cleared (INT)
         logic       fl_cf, fl_cmc, fl_set;
-        // BT, BTS, BTR and BTC by an immediate: CF is x's bit bt_i0, OF its
-        // bits bt_i1 and bt_i2 XORed (fes_i386_ex); y is the bit's mask.
-        logic       f_bt;
-        logic [4:0] bt_i0, bt_i1, bt_i2;
+        // BT, BTS, BTR and BTC: the flags (f_bt) and result (r_bt) of the bit
+        // the shifter's count numbers, which BTS ORs in (bt_or), BTR clears
+        // (bt_andn) and BTC flips (fes_i386_ex). r_btd: BITDISP's result.
+        logic       f_bt, r_bt, bt_or, bt_andn, r_btd;
         logic       r_scan, bsr;               // BSF, BSR: the result and flags of the scan of y
         logic       b_jcc, b_jmp, b_loop, b_loope, b_loopne, b_jcxz;
         logic       b_rpe, b_rpne;             // a string element ends REPE, REPNE (uop rep_stop)

@@ -53,6 +53,12 @@
 //              the operand (its address fields restored from m_*); a pop
 //              into nothing, which steps ESP. A store that faults so leaves
 //              ESP as it was, as the 386EX does.
+//   SEQ_BTM    (BT, BTS, BTR, BTC m, r): the bit number's address
+//              displacement into T1 (ALU_BITDISP, DC's); the operand's
+//              address plus T1 into T1, AG adding T1 as its segment term and
+//              the result the linear address wrapped by address size
+//              (addr_t1); the bit test at T1 in the operand's segment
+//              (disp_t1), the bit numbered by the register mod the size.
 // SEQ_XCHG (XCHG r, r): three XORs without flags, each into the register
 // the one before read.
 //
@@ -216,6 +222,8 @@ module fes_i386_seq (
         n.slot = 4'd0;
         n.a_t1 = 1'b0;
         n.b_t1 = 1'b0;
+        n.disp_t1 = 1'b0;
+        n.uop.addr_t1 = 1'b0;
         n.popad_esp = 1'b0;
         n.str_load = 1'b0;
         n.str_a = 1'b0;
@@ -494,6 +502,37 @@ module fes_i386_seq (
                     n.uop.ctl.end_of_instruction = 1'b1;
                 end
             end
+            fes_i386_pkg::SEQ_BTM: begin
+                n.uop.src1.valid = 1'b0;
+                if (d.step == 3'd0) begin
+                    n.uop.op = 5'd14;  // ALU_LEA, of T1 plus the address
+                    n.uop.src2.valid = 1'b0;
+                    n.lea = 1'b1;
+                    n.uop.addr_t1 = 1'b1;
+                    n.more = 1'b1;
+                end else begin
+                    // The bit test, its op from DC's imm.
+                    case (d0.uop.imm[1:0])
+                        2'd0: n.uop.op = 5'd19;  // ALU_BT
+                        2'd1: n.uop.op = 5'd20;  // ALU_BTS
+                        2'd2: n.uop.op = 5'd21;  // ALU_BTR
+                        default: n.uop.op = 5'd22;  // ALU_BTC
+                    endcase
+                    n.uop.size = d.opsize32 ? fes_i386_pkg::SIZE_32 : fes_i386_pkg::SIZE_16;
+                    n.uop.src_size = n.uop.size;
+                    n.uop.dst.valid = 1'b0;
+                    n.uop.mem.kind = d0.uop.imm[1:0] == 2'd0 ? fes_i386_pkg::MEM_LOAD : fes_i386_pkg::MEM_RMW;
+                    n.uop.mem.bytes = d.opsize32 ? 4'd4 : 4'd2;
+                    n.uop.mem.seg = fes_i386_pkg::seg_e'(d.m_seg);
+                    n.uop.mem.in_a = 1'b1;
+                    n.uop.flags.write = '{oszap: 1'b1, cf: 1'b1};
+                    n.has_base = 1'b0;
+                    n.has_index = 1'b0;
+                    n.scale = 2'd0;
+                    n.disp_t1 = 1'b1;
+                    n.uop.ctl.end_of_instruction = 1'b1;
+                end
+            end
             fes_i386_pkg::SEQ_STRING: begin
                 // Step 1 is an element, or CMPS's first load; step 2 CMPS's
                 // compare.
@@ -627,5 +666,7 @@ module fes_i386_seq (
             default: ;
         endcase
         n.rd_str = fes_i386_pkg::str_reads(n.uop, n.lea, n.has_base, n.base, n.has_index, n.index);
+        // One bit for D's wait on a temporary, so the wait reads one register.
+        n.t_rd = n.far_t || n.a_t1 || n.b_t1 || n.disp_t1 || n.uop.addr_t1;
     end
 endmodule

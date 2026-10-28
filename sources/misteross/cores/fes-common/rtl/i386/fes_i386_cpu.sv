@@ -281,6 +281,8 @@ module fes_i386_cpu (
     assign dc_q.far_t = 1'b0;
     assign dc_q.a_t1 = 1'b0;
     assign dc_q.b_t1 = 1'b0;
+    assign dc_q.disp_t1 = 1'b0;
+    assign dc_q.t_rd = 1'b0;
     assign dc_q.popad_esp = 1'b0;
     // The string engine's first uop loads D's copies; the rest are
     // fes_i386_seq's.
@@ -472,7 +474,7 @@ module fes_i386_cpu (
     assign far_sel = dc.far_t ? t0 : dc.far_sel;
     assign far_off = dc.far_t ? t1 : dc.uop.imm;
     assign far_bad = dc.far_chk && !code32 && far_off[31:16] != 16'd0;
-    assign t_wait = (dc.far_t || dc.a_t1 || dc.b_t1) && t_busy;
+    assign t_wait = dc.t_rd && t_busy;
     always_comb begin
         u = dc.uop;
         if (stk != fes_i386_pkg::STK_NONE) u.mem.addr32 = ss32;
@@ -857,10 +859,13 @@ module fes_i386_cpu (
             ag_late <= late;
             ag_late_hi <= late_hi;
             // A string engine uop has no address registers: its offset is
-            // the displacement.
+            // the displacement, as is a bit test's at T1 (disp_t1). A bit
+            // test's address adds T1 as its segment term (addr_t1).
             ag_disp <= dc.far_jmp ? far_off : dc.str_a || dc.str_b || dc.str_fin ? str_off
+                     : dc.disp_t1 ? (u.mem.addr32 ? t1 : {16'b0, t1[15:0]})
                      : stk != fes_i386_pkg::STK_NONE ? st_disp : lea_disp;
-            ag_seg_term <= dc.far_jmp ? {12'd0, far_sel, 4'd0} : lea || dc.uop.mem.system ? 32'd0
+            ag_seg_term <= dc.far_jmp ? {12'd0, far_sel, 4'd0} : u.addr_t1 ? (u.mem.addr32 ? t1 : {16'b0, t1[15:0]})
+                         : lea || dc.uop.mem.system ? 32'd0
                          : u.mem.addr32 ? seg_base[mseg] : {16'b0, seg_base[mseg][15:0]};
             ag_seg_hi <= lea || dc.uop.mem.system ? 16'd0 : seg_base[mseg][31:16];
             ag_seg_hi_plus1 <= lea || dc.uop.mem.system ? 16'd0 : seg_hi1[mseg];
@@ -968,6 +973,9 @@ module fes_i386_cpu (
     always_comb begin
         m1_out = capture(m1_s, 3'd3, wb_s.result);
         m1_out.pbad = m1_probe_bad;
+        // A bit test's address (SEQ_BTM): the linear sum, T1 plus the
+        // operand's offset, wrapped by address size.
+        if (m1_s.uop.addr_t1) m1_out.result = m1_s.uop.mem.addr32 ? m1_s.maddr : {16'b0, m1_s.maddr[15:0]};
         // A st2 uop's second address faults after its first.
         if (m1_limit && m1_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE)
             m1_out.uop.ctl.fault = m1_s.uop.mem.seg == fes_i386_pkg::SEG_SS ? fes_i386_pkg::FAULT_SS0
