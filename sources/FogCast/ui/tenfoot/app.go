@@ -1162,6 +1162,14 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 	if a.handleBrowseActionsLocked(cmd) {
 		return
 	}
+	if cmd == CmdSearch && a.affinity.current.Kind == InputGamepad {
+		if d, _, ok := a.browseActionsDestinationLocked(); ok {
+			if _, hasSecondary := browseActionLabels(d); hasSecondary {
+				a.openDetailLocked()
+				return
+			}
+		}
+	}
 	if a.handleDetailLocked(cmd) {
 		return
 	}

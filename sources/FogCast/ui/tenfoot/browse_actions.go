@@ -207,7 +207,7 @@ func libraryActionRects(snap Snapshot) (primary, secondary rectI) {
 	pw := heroButtonWidth(selectWord(snap.Affinity), snap.BrowseActions.Primary)
 	sw := 0
 	if hasSecondary {
-		sw = heroButtonWidth(selectWord(snap.Affinity), "Details") + heroButtonGap
+		sw = heroButtonWidth(libraryActionPrompt(snap, 1), "Details") + heroButtonGap
 	}
 	x := geom.Pane.X + geom.Pane.W - 24 - pw - sw
 	y := geom.Pane.Y + (geom.Pane.H-heroButtonH)/2
@@ -216,6 +216,13 @@ func libraryActionRects(snap Snapshot) (primary, secondary rectI) {
 		secondary = rectI{X: x + pw + heroButtonGap, Y: y, W: sw - heroButtonGap, H: heroButtonH}
 	}
 	return primary, secondary
+}
+
+func libraryActionPrompt(snap Snapshot, index int) string {
+	if index == 1 && !snap.BrowseActions.Focused && snap.Affinity != InputMouse {
+		return detailsWord(snap.Affinity)
+	}
+	return selectWord(snap.Affinity)
 }
 
 func drawLibraryActions(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, used map[string]struct{}) {
@@ -228,10 +235,23 @@ func drawLibraryActions(dev gfx.Device, snap Snapshot, labels map[string]gpuText
 		if index == 1 {
 			label = "Details"
 		}
-		heroButton(dev, labels, used, r.X, r.Y, r.H, selectWord(snap.Affinity), label, index == 0 && label == "Play")
+		heroButton(dev, labels, used, r.X, r.Y, r.H, libraryActionPrompt(snap, index), label, index == 0 && label == "Play")
 		if snap.BrowseActions.Focused && snap.BrowseActions.Index == index {
 			heroOutline(dev, r.X-4, r.Y-4, r.W+8, r.H+8, 3, heroAccent)
 		}
+	}
+}
+
+func browseActionsClosedHint(snap Snapshot) string {
+	kind := snap.Affinity
+	switch kind {
+	case InputKeyboard:
+		return strings.Replace(browseHint(kind), "Enter launch", "Enter play  i details", 1)
+	case InputMouse:
+		return "move focus  click play  click details"
+	default:
+		hint := strings.Replace(browseHint(kind), "Y search", detailsWord(kind)+" details", 1)
+		return selectWord(kind) + " " + strings.ToLower(snap.BrowseActions.Primary) + "  " + hint
 	}
 }
 

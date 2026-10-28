@@ -271,6 +271,11 @@ func (s Snapshot) HeaderHint() string {
 	if s.BrowseActions.Focused {
 		return browseActionsHint(s)
 	}
+	if !s.Room.Open && s.BrowseActions.Visible {
+		if _, hasSecondary := browseActionLabels(s.DetailPlay); hasSecondary {
+			return browseActionsClosedHint(s)
+		}
+	}
 	if s.Room.Open {
 		if s.Room.Err != "" {
 			return backWord(kind) + " home"
