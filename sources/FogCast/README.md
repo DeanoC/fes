@@ -30,8 +30,8 @@ and content selection; the MiSTer is a small, directly controlled target.
   A missing Scanlines part falls back to a matching Direct part. Native pixel
   shells require a linked video part; raster shells retain built-in Direct as
   their final fallback. An installed selected part that fails admission
-  requires repair. Marked Coleco shells, including a format-3 16 KiB cartridge, link
-  one video part with an optional CPU expansion, retaining the shell identity
+  requires repair. Marked Coleco shells, including the format-4 BIOS and 16 KiB
+  cartridge shell, link one video part with an optional CPU expansion, retaining the shell identity
   and fixed 720p output. The target independently links the selected bytes.
   The separate `go run ./cmd/fes-parts` developer path remains volatile. See
   [library video preferences](docs/ARCHITECTURE.md#library-video-preferences) and
@@ -120,7 +120,14 @@ and content selection; the MiSTer is a small, directly controlled target.
   and Coleco `fes.application` 1.0) are ordinary `fpga_native` play sessions, not
   Diagnostic `fpga_development`. That development label is the no-ABI
   fallback and the explicit LoadDevelopmentRBF path. Development package
-  loads remain volatile.
+  loads remain volatile. Factory Coleco format-4 packages link the BIOS and
+  cartridge into the RBF at launch and do not expose a live media unit. Home
+  and F12 during Coleco play open the Coleco Arcade title selector over the
+  running session; another cartridge can be launched after Stop. This route
+  does not open the ZX81 workbench or imply hot swapping. The native-pixel
+  shell also needs its matching Direct or Scanlines video part, so the local
+  core shelf reports incomplete display setup until the part is composed
+  through the library.
 
 - Development media upload for an active described `fes.simple-computer` package
   with `fes.media.blob`: `fogcast --api http://127.0.0.1:8797 core-media PATH`
@@ -267,10 +274,11 @@ and content selection; the MiSTer is a small, directly controlled target.
   SSH and curl.
 - A separate reproducible `native-dev` image that packages the native runtime,
   native agent backend, one locked idle RBF and a selected set of validated
-  format-2/3 packages (`fes.menu`, `fes.pong`,
+  format-2, format-3, or format-4 packages (`fes.menu`, `fes.pong`,
   `fes.zx81`, `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.spectrum`, and
-  `fes.ramtest`, `fes.atari-st`) through the closed package selection described in [the
-  development guide](docs/DEVELOPMENT.md). The earlier Mega Drive image lane
+  `fes.ramtest`, `fes.atari-st`) through the closed package selection described
+  in [the development guide](docs/DEVELOPMENT.md). The factory `fes.coleco`
+  package uses format 4. The earlier Mega Drive image lane
   is retired; its dated hardware record is the
   [native Mega Drive baseline](docs/hardware/native-megadrive-baseline.md).
 
@@ -410,8 +418,10 @@ the gamepad OSK and POSTs the file bytes.
 
 ## Repository boundaries
 
-These are modules in the FES repository. Quartus Lite 17.0.2 is an oracle
-check, not the product FPGA route. The product route is HIP/nextpnr.
+These are modules in the FES repository. Quartus Lite 17.0.2 remains an
+explicit oracle/check in the current recipes. Accepted FES policy also allows
+a labelled Quartus-built variant after recipe and package-selection support
+lands; the current normal product route uses HIP/nextpnr.
 
 | Module | Owns |
 | --- | --- |

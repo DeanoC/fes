@@ -148,6 +148,7 @@ type SessionSnapshot struct {
 	GameID            string
 	Title             string
 	System            string
+	Coleco            bool // System or active Coleco bus identifies this session.
 	Execution         string
 	Media             string
 	InputState        string
@@ -334,6 +335,7 @@ type App struct {
 
 	platforms              []hostclient.Platform
 	platformID             string
+	libraryCoreIDs         []string
 	shelfQuery             hostclient.GameListQuery
 	shelfQuerySet          bool
 	shelfGames             []hostclient.Game
@@ -1374,6 +1376,7 @@ func (a *App) cyclePlatformLocked(delta int) {
 		return
 	}
 	a.platformID = next
+	a.libraryCoreIDs = nil
 	a.stampNavLocked("platform")
 	a.reloadLocked()
 }
@@ -2165,6 +2168,12 @@ func (a *App) detailPlayLocked() rooms.Destination {
 	case a.room != nil && strings.TrimSpace(a.roomDetail.ID) != "":
 		// Details for one chosen edition describes that edition.
 		game = a.roomDetail
+		d := a.gamePlayDestinationLocked(game)
+		if a.session.State == "active" && a.roomDuringPlay && a.room.ID() == colecoArcadeRoomID && a.colecoSessionLocked() && d.Confirm() == rooms.ConfirmLaunch {
+			d.Status = colecoRunningDestinationStatus
+			d.Action = colecoRunningDestinationAction
+		}
+		return d
 	case a.room != nil:
 		return a.roomDestinationLocked()
 	case strings.TrimSpace(a.libraryDetail.ID) != "":
@@ -2297,6 +2306,9 @@ func (a *App) startLaunchLocked() {
 		return
 	}
 	if a.launch.Phase == "launching" || hostclient.SessionKitLocal(a.session.State) || a.sessionStopOfferedLocked() || a.developmentLoadingLocked() {
+		if a.session.State == "active" && a.colecoSessionLocked() && a.roomDuringPlay {
+			a.status = colecoCartridgeSessionStatus
+		}
 		return
 	}
 	if a.searchPending {
@@ -2335,6 +2347,9 @@ func (a *App) startLaunchGameWithPackageLocked(game hostclient.Game, packageID, 
 		return
 	}
 	if a.launch.Phase == "launching" || hostclient.SessionKitLocal(a.session.State) || a.sessionStopOfferedLocked() || a.developmentLoadingLocked() {
+		if a.session.State == "active" && a.colecoSessionLocked() && a.roomDuringPlay {
+			a.status = colecoCartridgeSessionStatus
+		}
 		return
 	}
 	// Firmware import and other catalog blocks do not claim the kit.
@@ -2815,15 +2830,26 @@ func mediaSelectorKey(name string, usage uint8) bool {
 	return strings.EqualFold(strings.TrimSpace(name), "f12")
 }
 
-// openRunningMediaSelector opens the running machine's media selector.
-// An empty tape and a folder with no .p files still open: Eject and a typed
-// path stay available. A kit-local core keeps F12 as Stop, so this returns
-// false there.
+// openRunningMediaSelector opens the running machine's media selector. An
+// empty tape and a folder with no .p files still open: Eject and a typed path
+// stay available. A ROM-linked Coleco session opens its title selector instead
+// of offering unsupported cartridge hot swapping. A kit-local core keeps F12
+// as Stop, so this returns false there.
 func (a *App) openRunningMediaSelector(down bool, now time.Time) bool {
 	a.mu.Lock()
-	offer := !a.localCoreBusyLocked() && a.playingHardwareRoomAvailableLocked() && a.sessionLiveMediaOfferedLocked()
+	colecoSession := a.colecoSessionLocked()
+	available := !a.localCoreBusyLocked() && a.playingHardwareRoomAvailableLocked()
+	mediaOffer := available && a.sessionLiveMediaOfferedLocked()
+	colecoOffer := available && colecoSession && !a.sessionLiveMediaOfferedLocked() && !a.roomDuringPlay
 	a.mu.Unlock()
-	if !offer {
+	if !mediaOffer && !colecoOffer {
+		if down && colecoSession {
+			a.mu.Lock()
+			if !a.roomDuringPlay {
+				a.status = colecoSelectorUnavailableStatus
+			}
+			a.mu.Unlock()
+		}
 		return false
 	}
 	if down {
@@ -3467,6 +3493,7 @@ func (a *App) sessionSnapshotLocked() SessionSnapshot {
 		GameID:            a.session.GameID,
 		Title:             title,
 		System:            a.session.System,
+		Coleco:            a.colecoSessionLocked(),
 		Execution:         a.session.Execution,
 		Media:             a.session.Media,
 		InputState:        inputState,
@@ -3697,6 +3724,7 @@ func (a *App) currentQueryLocked() hostclient.GameListQuery {
 	return hostclient.GameListQuery{
 		Limit:          a.pageLimit,
 		Platform:       a.platformID,
+		CoreIDs:        append([]string(nil), a.libraryCoreIDs...),
 		Sort:           catalogQuerySort(a.collectionID, a.sort),
 		Q:              strings.TrimSpace(a.searchField.Buffer),
 		Collection:     a.collectionID,

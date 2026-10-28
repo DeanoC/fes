@@ -9,10 +9,13 @@ Which cores exist, and what ABI they declare, is [core status](core-status.md).
 
 Parent builds currently run on Linux amd64. Install Git, GNU Make, Python 3.11+
 and Go; image builds also require a running Docker-compatible container engine.
-Go selects the version required by the chosen FogCast `go.mod`. The normal FES
+Go selects the version required by the chosen FogCast `go.mod`. The current FES
 FPGA package route uses the authenticated HIP/nextpnr producers. Quartus Lite
-17.0.2 is only an explicit bring-up/oracle check for a system whose nextpnr
-route is not implemented; it is not required by the default package-only path.
+17.0.2 is an explicit bring-up/oracle check for a system whose nextpnr route is
+not implemented. Quartus-built variants are allowed by policy, but current
+recipes do not select them yet; see
+[Quartus-built cores](design/quartus-cores.md). Quartus is not required by the
+default package-only path.
 
 The first-party modules are tracked in FES, so a checkout of the reviewed import
 revision needs access to this repository rather than four separate component
@@ -65,8 +68,11 @@ local module tests can exercise uncommitted work.
 
 For the default package-only image, the first producer run authenticates or
 reuses the selected HIP/nextpnr toolchain automatically. A system whose nextpnr
-route is not implemented yet has a separate, recipe-defined Quartus oracle/check;
-it is never an automatic fallback and never creates an image bundle.
+route is not implemented yet has a separate, recipe-defined Quartus
+oracle/check. The accepted policy allows a labelled Quartus product variant,
+but recipe and package-selection support for variants is still pending
+([Quartus-built cores](design/quartus-cores.md)). Quartus is never an automatic
+fallback and never creates a legacy image bundle.
 
 The first development build can copy a compatible existing clean base or build
 it once. Later builds retain unchanged compiler/base packages. Completely
@@ -221,7 +227,7 @@ and input behavior require separate hardware checks of the exact image.
 | Generated consumer or copied source-pin drift | Update the authoritative definition, run `make generate`, review all consumer edits, then `make check-generated` |
 | Generated runtime lock is stale | Regenerate through the FES build path; artifact policy belongs to `image/build/native-inputs.toml` |
 | Private GitHub pin fetch failed / requires `GITHUB_TOKEN` | Splash/idle are in-tree and do not need a misteross token. For other private GitHub pins, export `GITHUB_TOKEN` or `GH_TOKEN` with `contents:read`, then retry. |
-| Missing Quartus | Only relevant to a documented oracle/check for a system not yet supported by nextpnr; the default package-only path uses HIP/nextpnr |
+| Missing Quartus | Needed only for a documented oracle/check today. Quartus variants are accepted policy but current recipes do not select them; the package-only path uses HIP/nextpnr. |
 | Build already running | Coordinate with its operator; one parent build owns this checkout at a time |
 | Verify reports stale outputs | Run the matching `make build`; a development receipt cannot replace a clean image receipt |
 | Checkout uses old recursive-component CI instructions | Confirm which FES revision and workflow is running; imported modules are tracked files, while old commits retain their historical checkout requirements |

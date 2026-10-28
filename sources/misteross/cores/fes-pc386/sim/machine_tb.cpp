@@ -28,6 +28,7 @@
 // usage: machine_tb --bios F --vgabios F --disk F [--disk-out F] [--limit-seconds S]
 //        [--cycles-per-instruction N] [--prompt TEXT] [--type TEXT] [--expect TEXT]
 //        [--trace F] [--frames DIR] [--pixel-from S] [--until-debug TEXT]
+//        [--type-at S] [--key-gap S] [--wav F] [--opl2-log F] [--keys S:TEXT]...
 // A program on the disk marks a picture by writing "SNAP <name>" and a newline
 // to port E9h, then holding it; the bench takes the second capture after the
 // marker, runs the pixel clock for two 720p frames and compares the second
@@ -35,9 +36,15 @@
 // after it (a blinking cursor changes the picture while it holds); it must
 // equal one of them exactly. --frames writes the capture and the 720p frame. --until-debug ends the run when a debug line
 // contains the text.
+// --type-at types the --type text at that simulated time instead of at the
+// prompt (for a program that runs as the shell); --key-gap is applied after
+// each byte unless the next byte is the 0xf0 break prefix (default 0.03 s).
 // PC386_TRACE_IO=1 prints every I/O but port 80h to stderr.
 #include "Vpc386_machine.h"
+#include "Vpc386_audio___024root.h"
+#include "audio_link.h"
 #include "i386_oracle.h"
+#include "opl2_reference.h"
 #include "pc386_ddr_model.h"
 #include "pc386_presenter_model.h"
 #include "verilated.h"
@@ -53,6 +60,7 @@
 #include <stdexcept>
 #include <string>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -82,6 +90,8 @@ bool set2(char c, uint8_t &code, bool &shift) {
     shift = false;
     if (c >= 'A' && c <= 'Z') { shift = true; c = char(c - 'A' + 'a'); }
     if (c == ':') { shift = true; c = ';'; }
+    if (c == '~') { code = 0x76; return true; }      // Esc
+    if (c == '^') { code = 0x14; return true; }      // left Ctrl
     auto found = plain.find(c);
     if (found == plain.end()) return false;
     code = found->second;
@@ -129,9 +139,15 @@ public:
         top.wall_valid = 1; clock(); top.wall_valid = 0;
         for (int n = 0; n < 1000; ++n) clock();
     }
-    ~Machine() override { if (trace) std::fclose(trace); }
+    ~Machine() override {
+        if (trace) std::fclose(trace);
+        if (opl2_log) std::fclose(opl2_log);
+    }
 
     Vpc386_machine top;
+    AudioLink<Vpc386_machine> link{top};
+    Opl2Reference opl2;
+    std::FILE *opl2_log = nullptr;
     pc386::Window window;
     pc386::Port ddr1{window, 0x5eed0001, "port 1"};
     pc386::Port ddr2{window, 0x5eed0002, "port 2"};
@@ -171,6 +187,7 @@ public:
     uint64_t now_ps = 0, pixel_edge_ps = 0;
     uint64_t pending_read_address = 0;
     bool pending_read = false;
+    bool dma_pending = false;
     // Capture and 720p frame bookkeeping.
     unsigned frames_done = 0;
     // Captures published while a marked picture waits for its 720p frame.
@@ -221,6 +238,14 @@ public:
             if (top.disk_write) store64(top.disk_address, top.disk_wdata);
             else { pending_read = true; pending_read_address = top.disk_address; }
         }
+        top.dma_done = dma_pending;
+        dma_pending = false;
+        if (top.dma_valid && !top.dma_done) {
+            dma_pending = true;
+            uint32_t address = top.dma_address & (RAM_BYTES - 1);
+            if (top.dma_write) ram[address] = top.dma_wdata;
+            else top.dma_rdata = ram[address];
+        }
         ddr1.drive(port1(top), cycles);
         ddr2.drive(port2(top), cycles);
         top.flush_done = top.flush_request;
@@ -229,10 +254,16 @@ public:
             pixel_edge();
             pixel_edge_ps += PIXEL_HALF_PS;
         }
-        top.clk = 1;
-        top.eval();
-        top.clk = 0;
-        top.eval();
+        link.carry(cycles);
+        if (opl2_log && link.audio.access && link.audio.write &&
+            (link.audio.adlib || (link.audio.address >> 1) == 4))
+            std::fprintf(opl2_log, "%llu %u %02x\n", (unsigned long long)cycles,
+                         unsigned(link.audio.address & 1u), unsigned(link.audio.wdata));
+        link.edge();
+        auto *audio = link.audio.rootp;
+        opl2.clock(audio->pc386_audio__DOT__opl2__DOT__opl2_reg_wr,
+                   audio->pc386_audio__DOT__opl2__DOT__sample_tick,
+                   link.audio.opl2_valid, int16_t(link.audio.opl2_sample));
         ++cycles;
         if (top.post_valid && top.post_code != last_post) {
             last_post = top.post_code;
@@ -266,7 +297,11 @@ public:
         std::string &line = debug_line[port];
         if (value == '\n' || line.size() > 200) {
             std::printf("DEBUG %03x %s\n", port, line.c_str());
-            if (port == 0xe9) debug_lines.push_back(line);
+            if (port == 0xe9) {
+                if (line.rfind("MARK ", 0) == 0)
+                    std::printf("MARK %zu %s\n", link.samples.size(), line.c_str() + 5);
+                debug_lines.push_back(line);
+            }
             line.clear();
         } else if (value != '\r') line.push_back(char(value));
     }
@@ -419,9 +454,24 @@ public:
     }
 };
 
+// 48 kHz mono 16-bit PCM.
+void write_wav(const std::string &path, const std::vector<int16_t> &samples) {
+    std::ofstream out(path, std::ios::binary);
+    auto u32 = [&](uint32_t value) { out.write(reinterpret_cast<const char *>(&value), 4); };
+    auto u16 = [&](uint16_t value) { out.write(reinterpret_cast<const char *>(&value), 2); };
+    uint32_t bytes = uint32_t(samples.size() * 2);
+    out.write("RIFF", 4); u32(36 + bytes); out.write("WAVEfmt ", 8);
+    u32(16); u16(1); u16(1); u32(48000); u32(96000); u16(2); u16(16);
+    out.write("data", 4); u32(bytes);
+    out.write(reinterpret_cast<const char *>(samples.data()), std::streamsize(bytes));
+    if (!out) throw std::runtime_error("cannot write " + path);
+}
+
 struct Options {
     std::string bios, vgabios, disk, disk_out, prompt = "C:\\>", type, expect, trace, frames, until_debug;
-    double limit_seconds = 120, pixel_from = -1;
+    std::string wav, opl2_log;
+    double limit_seconds = 120, pixel_from = -1, type_at = -1, key_gap = 0.03;
+    std::vector<std::pair<double, std::string>> keys;
     unsigned cycles_per_instruction = 4;
 };
 
@@ -444,11 +494,21 @@ Options parse(int argc, char **argv) {
         else if (flag == "--frames") options.frames = value;
         else if (flag == "--pixel-from") options.pixel_from = std::stod(value);
         else if (flag == "--until-debug") options.until_debug = value;
+        else if (flag == "--type-at") options.type_at = std::stod(value);
+        else if (flag == "--key-gap") options.key_gap = std::stod(value);
+        else if (flag == "--wav") options.wav = value;
+        else if (flag == "--opl2-log") options.opl2_log = value;
+        else if (flag == "--keys") {
+            size_t colon = value.find(':');
+            if (colon == std::string::npos) throw std::runtime_error("--keys takes SECONDS:TEXT");
+            options.keys.push_back({std::stod(value.substr(0, colon)), value.substr(colon + 1)});
+        }
         else throw std::runtime_error("unknown option " + flag);
     }
     if (options.bios.empty() || options.vgabios.empty() || options.disk.empty())
         throw std::runtime_error("--bios, --vgabios and --disk are required");
     for (char &c : options.type) if (c == '|') c = '\n';
+    for (auto &key : options.keys) for (char &c : key.second) if (c == '|') c = '\n';
     return options;
 }
 
@@ -460,6 +520,8 @@ int main(int argc, char **argv) {
     try {
         Options options = parse(argc, argv);
         Machine machine(read_file(options.bios), read_file(options.vgabios), options.disk);
+        if (!options.opl2_log.empty() && !(machine.opl2_log = std::fopen(options.opl2_log.c_str(), "w")))
+            throw std::runtime_error("cannot write " + options.opl2_log);
         if (!options.trace.empty()) {
             machine.trace = std::fopen(options.trace.c_str(), "w");
             if (!machine.trace) throw std::runtime_error("cannot write " + options.trace);
@@ -476,7 +538,9 @@ int main(int argc, char **argv) {
         uint64_t prompt_at = 0, settled_at = 0;
         size_t typed = 0;
         std::vector<uint8_t> key_bytes;
+        std::deque<uint64_t> key_holds;
         uint64_t next_key = 0;
+        size_t scheduled = 0;
         std::string last_screen;
         uint64_t screen_checked = 0;
         // Snapshots: a marker, then the second capture and the second raster.
@@ -554,14 +618,31 @@ int main(int argc, char **argv) {
             }
             if (finished && snap_name.empty()) { reason = "debug-marker"; break; }
 
-            // Keyboard: one set 2 byte when the keyboard can take it, keys 30 ms apart.
+            if (scheduled < options.keys.size() && key_bytes.empty() &&
+                machine.cycles >= uint64_t(options.keys[scheduled].first * CLOCK_HZ)) {
+                for (char c : options.keys[scheduled].second) {
+                    uint8_t code; bool shift;
+                    if (!set2(c, code, shift) || shift) throw std::runtime_error("cannot press that");
+                    for (uint8_t byte : {code, uint8_t(0xf0), code}) key_bytes.push_back(byte);
+                    for (uint64_t hold : {uint64_t(0.2 * CLOCK_HZ), uint64_t(0), uint64_t(0.1 * CLOCK_HZ)})
+                        key_holds.push_back(hold);
+                }
+                next_key = machine.cycles;
+                ++scheduled;
+            }
+
+            // Keyboard: one set 2 byte when ready; delay unless the next byte is 0xf0.
             if (key_bytes.size() && machine.cycles >= next_key && machine.top.key_ready) {
                 machine.top.key_valid = 1;
                 machine.top.key_code = key_bytes.front();
                 machine.clock();
                 machine.top.key_valid = 0;
                 key_bytes.erase(key_bytes.begin());
-                if (key_bytes.empty() || key_bytes.front() != 0xf0) next_key = machine.cycles + uint64_t(0.03 * CLOCK_HZ);
+                uint64_t hold = key_holds.empty() ? 0 : key_holds.front();
+                if (!key_holds.empty()) key_holds.pop_front();
+                if (hold) next_key = machine.cycles + hold;
+                else if (key_bytes.empty() || key_bytes.front() != 0xf0)
+                    next_key = machine.cycles + uint64_t(options.key_gap * CLOCK_HZ);
             }
 
             if (options.until_debug.empty() && machine.cycles - screen_checked >= uint64_t(0.05 * CLOCK_HZ)) {
@@ -573,7 +654,9 @@ int main(int argc, char **argv) {
                 }
                 if (now != last_screen) { last_screen = now; settled_at = machine.cycles; }
                 bool settled = machine.cycles - settled_at >= uint64_t(0.5 * CLOCK_HZ);
-                if (prompt_at && settled && typed < options.type.size() && key_bytes.empty()) {
+                bool type_now = options.type_at >= 0 ? machine.cycles >= uint64_t(options.type_at * CLOCK_HZ)
+                                                     : prompt_at && settled;
+                if (type_now && typed < options.type.size() && key_bytes.empty()) {
                     // Queue the rest of the text.
                     for (; typed < options.type.size(); ++typed) {
                         uint8_t code; bool shift;
@@ -583,6 +666,7 @@ int main(int argc, char **argv) {
                         key_bytes.push_back(0xf0); key_bytes.push_back(code);
                         if (shift) { key_bytes.push_back(0xf0); key_bytes.push_back(0x12); }
                     }
+                    key_holds.resize(key_bytes.size(), 0);
                     next_key = machine.cycles;
                     settled_at = machine.cycles;
                 }
@@ -601,6 +685,15 @@ int main(int argc, char **argv) {
                         (unsigned long long)std::get<2>(key), (unsigned long long)count);
         for (const auto &[time, count] : machine.inta_times)
             std::printf("INTA %llu %llu\n", (unsigned long long)time, (unsigned long long)count);
+        const Opl2Reference &opl2 = machine.opl2;
+        std::printf("OPL2 samples=%llu exact=%llu nonzero=%llu writes=%llu\n",
+                    (unsigned long long)opl2.samples, (unsigned long long)opl2.exact,
+                    (unsigned long long)opl2.nonzero, (unsigned long long)opl2.writes);
+        if (opl2.mismatches) std::printf("OPL2-MISMATCH %s\n", opl2.first_mismatch.c_str());
+        std::printf("AUDIO samples=%zu\n", machine.link.samples.size());
+        std::printf("SB resets=%llu commands=%llu dma=%llu irqs=%llu\n",
+                    (unsigned long long)machine.link.dsp_resets, (unsigned long long)machine.link.dsp_commands,
+                    (unsigned long long)machine.link.dacks, (unsigned long long)machine.link.dsp_irqs);
         std::printf("VGA frames %u\nVGA scanout_underflows %u\nVGA capture_drops %u\nVGA present_underflows %u\n"
                     "VGA plane_underflows %u\nVGA frames_shown %u\nVGA port1_commands %llu\nVGA port2_commands %llu\n",
                     machine.frames_done, machine.top.scanout_underflows, machine.top.capture_drops,
@@ -615,6 +708,7 @@ int main(int argc, char **argv) {
         bool expected = options.expect.empty() || machine.screen().find(options.expect) != std::string::npos;
         if (!expected) reason = "expected-text-missing";
         if (snap_failures) reason = "presenter-mismatch";
+        if (!options.wav.empty()) write_wav(options.wav, machine.link.samples);
         std::printf("END %s steps=%llu cycles=%llu seconds=%.3f\n", reason, steps,
                     (unsigned long long)machine.cycles, seconds);
         if (!options.disk_out.empty())

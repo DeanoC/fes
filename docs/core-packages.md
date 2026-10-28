@@ -42,12 +42,14 @@ tree. See [FES ZX81](fes-zx81.md) for the ZX81 machine contract.
 The default `native-integration-dev` profile installs the locked idle RBF and
 `fes.menu`. Playable cores are separate installations.
 
-The FES image route is package-only. Quartus is reserved for a documented bring-up or
-oracle/check when a system is not yet supported by nextpnr; the package-only
-route does not invoke it.
-Each package can be installed on the host and given an explicit library entry;
-the package route does not infer ROM or media inputs or replace the existing
-catalog system.
+The FES image route is package-only. The accepted product policy allows a
+labelled `quartus` variant alongside an `oss` (HIP/nextpnr) build; see
+[Quartus-built cores](design/quartus-cores.md). The current recipe registry
+and package resolver still produce and select only OSS packages. Quartus is
+used only for a documented bring-up or oracle/check while that rollout is
+pending. There is no `FES_OSS_ONLY` control in this tree. Each package can be
+installed on the host and given an explicit library entry; the package route
+does not infer ROM or media inputs or replace the existing catalog system.
 
 ## ROM linking transition
 
@@ -59,9 +61,11 @@ archive carries both original objects and an optional exact-shell SGM archive;
 the target verifies each digest, composes the expansion and patches the sealed
 139,264-byte ROM map before programming. Status exposes both source identities
 in `rom_links`. Format-3 `rom_link` keeps its one-source behavior. The factory
-Coleco cartridge is that format and does not keep blob, stream, or firmware
-mailboxes. This producer is imported explicitly for
-development because `config/core-recipes.toml` has one row per core ID.
+Coleco package is also format 4, with an exact 8,192-byte `coleco-bios` at
+source offset 0 and a 16,384-byte `coleco-cart` at offset 8,192. It does not
+keep blob, stream, or firmware mailboxes. The separate development MegaCart
+producer is imported explicitly because `config/core-recipes.toml` has one row
+per core ID.
 
 Format-3 packages seal one named ROM requirement and its CRAM map alongside the
 base RBF. Select an exact-size binary for the title using the
@@ -72,10 +76,13 @@ This path needs no Python on the kit and requires runtime capability
 `rom_linking: 1`. Status records the map, source ROM and programmed RBF digests;
 restart adoption independently reconstructs the retained programmed bytes.
 
-The ZX81, SMS, SG-1000, Apple II, Commodore 64, ZX Spectrum 48K and factory Coleco producers export format 3 when sealed.
+The ZX81, SMS, SG-1000, Apple II, Commodore 64, ZX Spectrum 48K and Atari ST
+producers export format 3 when sealed. The factory Coleco and development
+MegaCart producers export format 4.
 Other core producers retain format 2 and their current media/firmware paths
 until explicitly converted. SMS requires an exact 32 KiB `cartridge-rom`;
-SG-1000 and Coleco require an exact 16 KiB `cartridge-rom`. Pad a shorter fixed-map
+SG-1000 requires an exact 16 KiB `cartridge-rom`; factory Coleco requires an
+exact 8 KiB `coleco-bios` and 16 KiB `coleco-cart`. Pad a shorter fixed-map
 cartridge with `0xff` before import. Apple II requires an exact 16 KiB
 `apple2-firmware` image covering `$C000–$FFFF`; its slot cards and floppy
 media are separate inputs (see the
@@ -89,8 +96,9 @@ The ZX Spectrum models each require their exact firmware: the 48K
 the 128K/+2 (`fes.spectrum128`) a 32 KiB `spectrum128-firmware` (editor ROM,
 then 48 BASIC), the +2A/+3 (`fes.spectrum-plus3`) a 64 KiB
 `spectrum-plus3-firmware` (ROMs 0–3 in order) and the Pentagon 128
-(`fes.pentagon`) a 32 KiB `pentagon-firmware` (128, then 48 BASIC). Their edge
-cards and tape (`.tzx`, `.tap`, `.pzx` or `.csw`) are separate inputs (see the
+(`fes.pentagon`) a 48 KiB `pentagon-firmware` (128, 48 BASIC, then TR-DOS).
+Their edge cards, tape (`.tzx`, `.tap`, `.pzx` or `.csw`) and the Pentagon's
+TR-DOS disk (`.trd` or `.scl`) are separate inputs (see the
 [ZX Spectrum pathfinder design](superpowers/specs/2026-09-28-spectrum-pathfinder-design.md)
 and the [core README](../sources/misteross/cores/fes-spectrum/README.md)).
 The ZX81 family shares one shell. `fes.zx81` requires an 8192-byte
@@ -121,7 +129,7 @@ equivalents are `fogcast video-profile scanlines`,
 `fogcast video-part-install scanlines /absolute/path/part.tar`, and
 `fogcast core-video GAME_ID` to inspect the resolved choice.
 
-The factory Coleco recipe emits a format-3 native-pixel video shell. Its
+The factory Coleco recipe emits a format-4 native-pixel video shell. Its
 256×192 indexed source feeds a linked part that owns frame capture and 720p
 output. The earlier raster video shell remains supported with its own
 slot/map/layout. A part binds to one exact package and its frozen socket.
@@ -233,7 +241,7 @@ fes-spectrum.package-selection.toml
 fes-ramtest.package-selection.toml
 core-packages/<package-id>/manifest.toml
 core-packages/<package-id>/core.rbf
-core-packages/<package-id>/rom-map.json  # format 3 only
+core-packages/<package-id>/rom-map.json  # formats 3 and 4
 fes-core-video-parts.json                # selected video inventory
 core-video-parts/index.json
 core-video-parts/<shell-package-id>/<part-id>.tar
@@ -384,10 +392,10 @@ for response contracts, persistence and recovery behavior.
 
 ## Package and ABI compatibility
 
-`mister-packages` owns the format-2/3 schemas, FES GP ABI and DE10-Nano programming
+`mister-packages` owns the format-2/3/4 schemas, FES GP ABI and DE10-Nano programming
 profiles. `misteross` owns package construction and build provenance. The
 package ID hashes the exact manifest and payload bytes, plus the sealed ROM map
-for format 3, so changing any member creates a different immutable identity.
+for formats 3 and 4, so changing any member creates a different immutable identity.
 Package `version` follows semantic
 version syntax and describes the packaged core release; it does not relax ABI
 checks.

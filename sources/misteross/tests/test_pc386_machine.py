@@ -1,9 +1,8 @@
 # SPDX-License-Identifier: MIT
-"""pc386 machine M1 and M2: the firmware and FreeDOS locks, the image layout
-helpers, the boot report parser and its I/O timing checks, and (with
-Verilator) the directed device benches and the presenter and port 2 benches.
-No network access; the oracle boots and the VGA replays run from
-scripts/sim_fes_pc386.py --suite boot and --suite vga."""
+"""pc386 machine M1-M3: firmware/audio imports, boot reports, and directed
+device, audio, OPL2, presenter and port 2 benches. No network access; the
+oracle boot and VGA replay are separate suites."""
+import hashlib
 import json
 import os
 import shutil
@@ -99,6 +98,39 @@ class FreedosImageTest(unittest.TestCase):
             with self.assertRaises(freedos.ImageError):
                 freedos.mbr_code(source)
 
+
+class AudioImportTest(unittest.TestCase):
+    def test_vendored_files_match_their_manifests(self):
+        for name, license_name in (('opl2_fpga', 'LGPL-3.0-or-later'),
+                                   ('nuked-opl3', 'LGPL-2.1-or-later')):
+            tree = sim.CORE / 'vendor' / name
+            manifest = json.loads((tree / 'source.json').read_text())
+            self.assertEqual(manifest['license'], license_name)
+            self.assertRegex(manifest['commit'], r'^[0-9a-f]{40}$')
+            listed = {item['path'] for item in manifest['files']}
+            self.assertEqual(listed, {path.name for path in tree.iterdir()} - {'source.json', 'README.md', '.gitignore'},
+                             name)
+            for item in manifest['files']:
+                digest = hashlib.sha256((tree / item['path']).read_bytes()).hexdigest()
+                self.assertEqual(digest, item['sha256'], f'{name}/{item["path"]}')
+
+    def test_every_changed_import_file_says_why(self):
+        manifest = json.loads((sim.OPL2_VENDOR / 'source.json').read_text())
+        changed = {item['path'] for item in manifest['files'] if 'upstream_sha256' in item}
+        described = {change.split(':')[0] for change in manifest['local_changes']}
+        self.assertEqual(changed, described)
+
+    def test_every_import_file_is_built(self):
+        built = {path.name for path in sim.OPL2_RTL if path.parent == sim.OPL2_VENDOR}
+        self.assertEqual(built, {path.name for path in sim.OPL2_VENDOR.glob('*.sv')})
+
+    def test_tone(self):
+        square = [8000 if (n // 24) % 2 else -8000 for n in range(4800)]
+        section = sim.tone(square)
+        self.assertAlmostEqual(section['hz'], 1000.0, delta=1)
+        self.assertEqual(section['peak'], 8000)
+        self.assertEqual(sim.tone([0] * 100)['hz'], 0.0)
+
 BOOT_OUTPUT = """POST 00 11397
 DEBUG 402 BIOS BUILD DATE: 10/26/26
 PROMPT 240000013
@@ -113,6 +145,10 @@ SNAP text 720 400 frames/text.ppm
 PRESENT text frames/text-720p.ppm 0
 VGA scanout_underflows 0
 SCREEN 24 |C:\\>dir                                                                         |
+MARK 1200 speaker
+OPL2 samples=144000 exact=144000 nonzero=5000 writes=120
+AUDIO samples=139200
+SB resets=1 commands=12 dma=6000 irqs=6
 END prompt steps=69772120 cycles=290000013 seconds=2.900
 """
 
@@ -131,6 +167,10 @@ class BootReportTest(unittest.TestCase):
         self.assertEqual(report['snaps']['text'], {'width': 720, 'height': 400, 'file': 'frames/text.ppm'})
         self.assertEqual(report['present']['text'], {'file': 'frames/text-720p.ppm', 'mismatches': 0})
         self.assertEqual(report['vga'], {'scanout_underflows': 0})
+        self.assertEqual(report['marks'], {'speaker': 1200})
+        self.assertEqual(report['opl2'], {'samples': 144000, 'exact': 144000, 'nonzero': 5000, 'writes': 120})
+        self.assertEqual(report['audio_samples'], 139200)
+        self.assertEqual(report['sb'], {'resets': 1, 'commands': 12, 'dma': 6000, 'irqs': 6})
 
     def test_timing_classes(self):
         self.assertEqual(sim.timing_failures(sim.parse_boot(BOOT_OUTPUT)), [])
@@ -162,6 +202,18 @@ class DeviceBenchTest(unittest.TestCase):
             report = sim.run_devices(Args())
         self.assertEqual(report['failures'], [], '\n'.join(report['checks']))
         self.assertGreater(len(report['checks']), 50)
+
+    def test_opl2_against_nuked_opl3(self):
+        class Args:
+            verilator = VERILATOR
+            jobs = min(os.cpu_count() or 2, 16)
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(sim, 'OUTPUT', Path(directory)), \
+                mock.patch.object(sim, 'OPL2_SEEDS', (7,)), mock.patch.object(sim, 'OPL2_SAMPLES', 4000):
+            report = sim.run_opl2(Args())
+        self.assertEqual(report['failures'], [], '\n'.join(report['checks']))
+        random = report['runs'][0]
+        self.assertEqual(random['exact'], random['samples'])
+        self.assertGreater(random['nonzero'], 3000)
 
 
 @unittest.skipUnless(VERILATOR, 'requires Verilator')

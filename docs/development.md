@@ -140,17 +140,23 @@ The default FES integration profile is `native-integration-dev`. It selects only
 run as part of this image. The clean, development, verification and media paths
 reuse the same closed package set. Install `fes.pong`, `fes.zx81`, `fes.coleco`
 and other systems independently through the [core catalog](core-packages.md).
-Individual packages use HIP/nextpnr; Quartus remains an explicit oracle where
-specified. Host builds and [kit software updates](kit-software-releases.md) do
-not build FPGA packages. Build and verify do not deploy.
+Individual packages currently use HIP/nextpnr; Quartus is an explicit oracle
+where specified. The accepted policy also permits labelled Quartus variants,
+but the current recipe and package resolver do not select them yet; see
+[Quartus-built cores](design/quartus-cores.md). Host builds and [kit software
+updates](kit-software-releases.md) do not build FPGA packages. Build and verify
+do not deploy.
 
 FES selects placement seed 5 for both Atari ST video parts. The selected seed
 is part of their canonical cache identity and archive verification; it does not
 change the sealed shell, clocks or socket containment requirements. Standalone
 misteross builds can still select other bounded seeds explicitly.
 Systems whose nextpnr route is not implemented yet use an explicit Quartus
-oracle/check documented by that system's recipe. Quartus is never an automatic
-fallback and never creates a legacy image bundle.
+oracle/check documented by that system's recipe. A future labelled Quartus
+variant follows the accepted
+[Quartus-built core design](design/quartus-cores.md) once recipe and package
+selection support lands. Quartus is never an automatic fallback and never
+creates a legacy image bundle.
 
 During component development, use the narrow relevant component tests and
 build only changed artifacts. For target diagnostics, follow the selected
@@ -235,7 +241,7 @@ install the current agent, locked idle RBF, selected package set and build-input
 selection change retains the compiler/base volume but forces final image
 assembly. The development receipt binds the emitted package selection and the
 exact external `manifest.toml` and `core.rbf` bytes, plus `rom-map.json` when
-the selected package is format 3.
+the selected package is format 3 or 4.
 A failed build leaves no development success receipt; the next invocation can
 resume package compilation.
 

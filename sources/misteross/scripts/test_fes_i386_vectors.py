@@ -249,7 +249,10 @@ MODRM_TWO = frozenset([0x00, 0x01, 0x02, 0x03, *range(0x20, 0x27), *range(0x90, 
 PREFIXES = frozenset([0x26, 0x2E, 0x36, 0x3E, 0x64, 0x65, 0xF0, 0xF2, 0xF3, 0x66, 0x67])
 SHIFT_GROUPS = frozenset(['C0', 'C1', 'D0', 'D1', 'D2', 'D3'])
 DOUBLE_SHIFTS = frozenset(['0FA4', '0FA5', '0FAC', '0FAD'])
-PREDICATES = ('invalid-sib', 'count>0', 'count>1', 'count>=width', 'count>width', 'imm8=0')
+PREDICATES = ('invalid-sib', 'count>0', 'count>1', 'count>=width', 'count>width', 'imm8=0', 'opsize32',
+              'slot-straddles-wrap', 'frame-over-vector', 'idiv-unchecked-overflow')
+SEGMENT_PREFIXES = {0x26: 'es', 0x2E: 'cs', 0x36: 'ss', 0x3E: 'ds', 0x64: 'fs', 0x65: 'gs'}
+GPRS = ('eax', 'ecx', 'edx', 'ebx', 'esp', 'ebp', 'esi', 'edi')
 
 
 def base_opcode(stem: str) -> str:
@@ -259,11 +262,99 @@ def base_opcode(stem: str) -> str:
     return stem[2:] if stem.startswith('66') else stem
 
 
+def idiv386_faults(dividend: int, divisor: int, n: int) -> bool:
+    """Whether the 386EX raises #DE for IDIV of the 2n-bit dividend by the
+    n-bit divisor (fes_i386_muldiv): it divides a negative dividend's one's
+    complement by the divisor's magnitude, a bit per step with no bit out at
+    the top, and checks the quotient, with the one more the complement owes,
+    for its sign's range. An overflowing dividend leaves a garbage quotient."""
+    mask = (1 << n) - 1
+    negative, divisor_negative = dividend >> (2 * n - 1) & 1, divisor >> (n - 1) & 1
+    magnitude = -divisor & mask if divisor_negative else divisor
+    value = ~dividend & ((1 << 2 * n) - 1) if negative else dividend
+    remainder, low, quotient = value >> n, value & mask, 0
+    for _ in range(n):
+        remainder = (remainder << 1 | low >> (n - 1)) & mask
+        low = low << 1 & mask
+        bit = remainder >= magnitude
+        quotient = quotient << 1 | bit
+        if bit:
+            remainder = (remainder - magnitude) & mask
+    if negative and (remainder + 1) & mask == magnitude:
+        quotient += 1
+    half = 1 << (n - 1)
+    return magnitude == 0 or (quotient > half if negative != divisor_negative else quotient >= half)
+
+
+def idiv_overflows(dividend: int, divisor: int, n: int) -> bool:
+    """Whether IDIV's quotient is outside the signed range, or the divisor zero."""
+    if divisor == 0:
+        return True
+    signed_dividend = dividend - (1 << 2 * n) if dividend >> (2 * n - 1) & 1 else dividend
+    signed_divisor = divisor - (1 << n) if divisor >> (n - 1) & 1 else divisor
+    quotient = abs(signed_dividend) // abs(signed_divisor)
+    if (signed_dividend < 0) != (signed_divisor < 0):
+        quotient = -quotient
+    return not -(1 << (n - 1)) <= quotient < 1 << (n - 1)
+
+
+def modrm_operand(test: MooTest, code: bytes, position: int, address32: bool, segment: str | None,
+                  size: int) -> int:
+    """The r/m operand of the ModRM at code[position], size bytes (real mode, an
+    invalid SIB's scaled base included)."""
+    def register(name: str) -> int:
+        return test.initial[REGISTERS.index(name)]
+    modrm = code[position]
+    mod, rm, end = modrm >> 6, modrm & 7, position + 1
+    if mod == 3:
+        if size == 1:
+            return register(GPRS[rm & 3]) >> (8 if rm & 4 else 0) & 0xFF
+        return register(GPRS[rm]) & ((1 << 8 * size) - 1)
+    if address32:
+        base, index, scale = rm, None, 0
+        if rm == 4:
+            sib = code[end]
+            end += 1
+            scale, index, base = sib >> 6, (sib >> 3) & 7, sib & 7
+            index = None if index == 4 else index
+            if base == 5 and mod == 0:
+                base = None
+        elif rm == 5 and mod == 0:
+            base = None
+        if base is None or mod == 2:
+            displacement = int.from_bytes(code[end:end + 4], 'little')
+        else:
+            displacement = int.from_bytes(code[end:end + 1], 'little', signed=True) if mod == 1 else 0
+        offset = displacement
+        if base is not None:
+            offset += register(GPRS[base]) * ((1 << scale) if index is None and rm == 4 else 1)
+        if index is not None:
+            offset += register(GPRS[index]) << scale
+        offset &= 0xFFFFFFFF
+        stack = base in (4, 5)
+    else:
+        bases = (('ebx', 'esi'), ('ebx', 'edi'), ('ebp', 'esi'), ('ebp', 'edi'), ('esi',), ('edi',), ('ebp',), ('ebx',))
+        names = bases[rm]
+        if mod == 0 and rm == 6:
+            names, displacement = (), int.from_bytes(code[end:end + 2], 'little')
+        elif mod == 1:
+            displacement = int.from_bytes(code[end:end + 1], 'little', signed=True)
+        else:
+            displacement = int.from_bytes(code[end:end + 2], 'little') if mod == 2 else 0
+        offset = (displacement + sum(register(name) & 0xFFFF for name in names)) & 0xFFFF
+        stack = 'ebp' in names
+    linear = (register(segment or ('ss' if stack else 'ds')) & 0xFFFF) * 16 + offset
+    ram = dict(test.initial_ram)
+    return sum(ram.get(linear + k, 0) << 8 * k for k in range(size))
+
+
 def predicates(stem: str, test: MooTest) -> set[str]:
     """Facts about a test's instruction that scope divergence entries."""
-    code, index, address32 = test.instruction, 0, False
+    code, index, address32, operand32, segment = test.instruction, 0, False, False, None
     while index < len(code) and code[index] in PREFIXES:
         address32 |= code[index] == 0x67
+        operand32 |= code[index] == 0x66
+        segment = SEGMENT_PREFIXES.get(code[index], segment)
         index += 1
     two_byte = code[index] == 0x0F
     opcode = code[index + 1] if two_byte else code[index]
@@ -296,8 +387,36 @@ def predicates(stem: str, test: MooTest) -> set[str]:
             facts |= {name for name, holds in (('count>0', count > 0), ('count>1', count > 1),
                                                ('count>=width', count >= width),
                                                ('count>width', count > width)) if holds}
+        # IDIV whose quotient overflows, which the 386EX's check lets through.
+        if not two_byte and opcode in (0xF6, 0xF7) and (modrm >> 3) & 7 == 7:
+            n = 8 if opcode == 0xF6 else 32 if operand32 else 16
+            divisor = modrm_operand(test, code, position, address32, segment, n // 8)
+            eax, edx = (test.initial[REGISTERS.index(name)] for name in ('eax', 'edx'))
+            dividend = (eax & 0xFFFF if n == 8 else (edx & 0xFFFF) << 16 | eax & 0xFFFF if n == 16
+                        else edx << 32 | eax)
+            if idiv_overflows(dividend, divisor, n) and not idiv386_faults(dividend, divisor, n):
+                facts.add('idiv-unchecked-overflow')
     elif not two_byte and opcode in (0xD4, 0xD5) and code[position] == 0:
         facts.add('imm8=0')
+    # The corpus runs in 16-bit code: a 32-bit operand size is a 66h prefix.
+    if operand32:
+        facts.add('opsize32')
+    # PUSHA's or POPA's eight slots wrap the 16-bit stack misaligned, so one
+    # straddles FFFFh.
+    if not two_byte and opcode in (0x60, 0x61):
+        size = 4 if operand32 else 2
+        sp = test.initial[REGISTERS.index('esp')] & 0xFFFF
+        start = (sp - 8 * size) & 0xFFFF if opcode == 0x60 else sp
+        if start + 8 * size > 0x10000 and start % size:
+            facts.add('slot-straddles-wrap')
+    # The frame of the exception or interrupt the test takes (its three
+    # words below SP, on the 16-bit stack) overlaps the vector's entry.
+    if test.exception is not None:
+        vector = test.exception[0]
+        base = test.initial[REGISTERS.index('ss')] * 16
+        sp = test.initial[REGISTERS.index('esp')] & 0xFFFF
+        if {base + ((sp - k) & 0xFFFF) for k in range(1, 7)} & set(range(vector * 4, vector * 4 + 4)):
+            facts.add('frame-over-vector')
     return facts
 
 

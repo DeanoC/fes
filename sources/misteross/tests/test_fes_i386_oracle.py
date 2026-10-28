@@ -97,8 +97,9 @@ class ClassificationTest(unittest.TestCase):
                                            ('write.600', 0, 9), ('esp', 4, 2)])
         self.assertEqual(keys, ['eflags.OF', 'esp', 'ram', 'stack.flags.AF', 'stack.flags.OF', 'unlisted-write'])
 
-    def predicates(self, stem, code, ecx=0):
-        test = vectors.MooTest(0, '', bytes(code), [0] * 4 + [ecx] + [0] * 15, [], 0, {}, [], None, '0' * 40)
+    def predicates(self, stem, code, ecx=0, esp=0, ss=0, exception=None):
+        initial = [0] * 4 + [ecx] + [0] * 4 + [esp] + [0] * 5 + [ss] + [0] * 4
+        test = vectors.MooTest(0, '', bytes(code), initial, [], 0, {}, [], exception, '0' * 40)
         return vectors.predicates(stem, test)
 
     def test_invalid_sib_needs_32_bit_addressing_and_a_scale(self):
@@ -112,11 +113,47 @@ class ClassificationTest(unittest.TestCase):
         self.assertEqual(self.predicates('C1.4', [0xC1, 0xE0, 0x21, 0xF4]), {'count>0'})  # 33 & 31
         self.assertEqual(self.predicates('0FA4', [0x0F, 0xA4, 0x06, 0x34, 0x12, 17, 0xF4]),
                          {'count>0', 'count>1', 'count>=width', 'count>width'})
-        self.assertEqual(self.predicates('660FA4', [0x66, 0x0F, 0xA4, 0xC0, 17, 0xF4]), {'count>0', 'count>1'})
+        self.assertEqual(self.predicates('660FA4', [0x66, 0x0F, 0xA4, 0xC0, 17, 0xF4]),
+                         {'count>0', 'count>1', 'opsize32'})
+
+    def test_operand_size_from_the_prefix(self):
+        self.assertEqual(self.predicates('6661', [0x66, 0x61, 0xF4]), {'opsize32'})
+        self.assertEqual(self.predicates('61', [0x61, 0xF4]), set())
+        self.assertEqual(self.predicates('F6.6', [0xF6, 0xF0, 0xF4]), set())
+
+    def test_pusha_popa_slot_straddling_the_wrap(self):
+        self.assertEqual(self.predicates('6660', [0x66, 0x60, 0xF4], esp=0x12), {'opsize32', 'slot-straddles-wrap'})
+        self.assertEqual(self.predicates('60', [0x60, 0xF4], esp=0x0F), {'slot-straddles-wrap'})
+        self.assertEqual(self.predicates('60', [0x60, 0xF4], esp=0x10), set())  # wraps at a slot boundary
+        self.assertEqual(self.predicates('61', [0x61, 0xF4], esp=0xFFF9), {'slot-straddles-wrap'})
+        self.assertEqual(self.predicates('61', [0x61, 0xF4], esp=0xFFF0), set())  # ends at FFFFh
+
+    def test_frame_over_the_vector_entry(self):
+        # #UD's entry is at 18h-1Bh; the frame is the six bytes below SS:SP.
+        self.assertEqual(self.predicates('F00F', [0xF0, 0x0F, 0xF4], esp=0x1E, exception=(6, 0)),
+                         {'frame-over-vector'})
+        self.assertEqual(self.predicates('F00F', [0xF0, 0x0F, 0xF4], esp=0x1E, ss=1, exception=(6, 0)), set())
+        self.assertEqual(self.predicates('F00F', [0xF0, 0x0F, 0xF4], esp=0x1E), set())
 
     def test_aam_zero_immediate(self):
         self.assertEqual(self.predicates('D4', [0xD4, 0x00, 0xF4]), {'imm8=0'})
         self.assertEqual(self.predicates('D4', [0xD4, 0x0A, 0xF4]), set())
+
+    def test_idiv_overflow_the_386ex_lets_through(self):
+        # F6.7#516: IDIV CL, AX = 9C71h by 47h, a quotient of -358 that the
+        # 386EX returns as 80h; AX = 8000h by -1 it raises #DE as Bochs does.
+        def idiv_cl(ax, cl):
+            initial = [0] * len(vectors.REGISTERS)
+            initial[vectors.REGISTERS.index('eax')] = ax
+            initial[vectors.REGISTERS.index('ecx')] = cl
+            test = vectors.MooTest(0, 'idiv cl', bytes([0xF6, 0xF9, 0xF4]), initial, [], 0, {}, [], None, '0' * 40)
+            return vectors.predicates('F6.7', test)
+        self.assertEqual(idiv_cl(0x9C71, 0x47), {'idiv-unchecked-overflow'})
+        self.assertEqual(idiv_cl(0x8000, 0xFF), set())
+        self.assertEqual(idiv_cl(0x0100, 0x03), set())
+        self.assertFalse(vectors.idiv386_faults(0x0100, 0x03, 8))
+        self.assertTrue(vectors.idiv386_faults(0x8000, 0xFF, 8))
+        self.assertTrue(vectors.idiv_overflows(0x9C71, 0x47, 8))
 
 
 class DivergenceListTest(unittest.TestCase):
