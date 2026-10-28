@@ -98,6 +98,22 @@ package working directory; runtime, FogCast, shared-contract and FPGA source
 bytes are unchanged between those revisions. The successful QEMU receipts
 identify the later producer explicitly. CI coverage is not physical acceptance.
 
+## Combined source integration
+
+Integration commit `9d16147253290c34202feb2227244c65497ce6f0` merges the
+FPGA/HPS foundation (`633548e210ee7202d839e7ca0e10fca1385747ef`, including
+main `900cda98be`) into the Linux/runtime branch. The README describes both
+lanes, and test-mode selection retains both the standalone board-definition
+and headless-image rules.
+
+After that merge, generation is unchanged, `make check` verifies 23 consumers
+and 37 fixtures, and 105 focused planner/policy/consistency/image/runtime-runner
+tests pass. [Input comparison](combined-inputs.json) verifies the image recipe
+and rootfs keys and all eight HPS inputs still match their compiled producers.
+Runtime and FogCast trees also match the tested software producer. The existing
+artifacts retain their actual producer revisions; this integration check does
+not relabel them as newly rebuilt outputs.
+
 ## Remaining board gate
 
 DE25 kernel boot, serial/DHCP/SSH login, persistent SSH host identity and MAC
