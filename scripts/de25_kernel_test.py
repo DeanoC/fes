@@ -92,6 +92,11 @@ def passing_cases(report):
     return names
 
 
+def check_kernel_log(text):
+    if re.search(r"\b(?:WARNING:|BUG:|Oops:|Kernel panic|Internal error:)", text):
+        raise ValueError("kernel test log contains a warning, oops or panic")
+
+
 def fetch_kernel(cache, lock):
     cache = Path(cache).resolve()
     if not cache.exists():
@@ -157,10 +162,12 @@ def inside(jobs, revision):
     with (export / "kunit-run.log").open("w") as log:
         checked(command, cwd=kernel, env=env, stdout=log, stderr=subprocess.STDOUT, timeout=2400)
     names = passing_cases(json.loads((export / "kunit.json").read_text()))
+    check_kernel_log((build / "test.log").read_text())
     for name, source in (("kunit-Image", build / "arch/arm64/boot/Image"),
                          ("kunit.config", build / ".config"),
                          ("kunit-raw.log", build / "test.log"),
-                         ("fes_de25_dma.o", build / KERNEL_DRIVER / "fes_de25_dma.o")):
+                         ("de25_dma.o", build / KERNEL_DRIVER / "de25_dma.o"),
+                         ("de25_dma_test.o", build / KERNEL_DRIVER / "de25_dma_test.o")):
         shutil.copy2(source, export / name)
     result = {"classification": "AArch64 QEMU kernel DMA ownership tests", "fes_revision": revision,
               "kernel_revision": lock["revision"], "cases": names, "command": list(map(str, command)),

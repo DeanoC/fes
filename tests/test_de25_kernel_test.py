@@ -6,6 +6,13 @@ from scripts import de25_kernel_test as kernel
 
 
 class KernelEvidenceTests(unittest.TestCase):
+    def test_passing_kunit_does_not_hide_kernel_warnings(self):
+        kernel.check_kernel_log("Booting Linux\n# fes-de25-dma: pass:8 fail:0\n")
+        for message in ("WARNING: CPU: 0", "BUG: bad access", "Oops: abort",
+                        "Kernel panic - not syncing", "Internal error: Oops"):
+            with self.subTest(message=message), self.assertRaises(ValueError):
+                kernel.check_kernel_log("[  0.123] " + message)
+
     def test_ikconfig_requires_one_complete_bounded_payload(self):
         config = b"CONFIG_KUNIT=y\n"
         image = b"prefixIKCFG_ST" + gzip.compress(config) + b"IKCFG_EDsuffix"

@@ -278,7 +278,7 @@ static void coherent_mapping_uapi_and_revoke(struct kunit *test)
 	if (vma)
 		KUNIT_EXPECT_EQ(test, vma->vm_flags & (VM_IO | VM_PFNMAP), (vm_flags_t)(VM_IO | VM_PFNMAP));
 	mmap_read_unlock(mm);
-	pin_count = pin_user_pages(address, 1, FOLL_WRITE, &pinned);
+	pin_count = pin_user_pages_unlocked(address, 1, &pinned, FOLL_WRITE);
 	KUNIT_EXPECT_LE(test, pin_count, 0L);
 	if (pin_count == 1)
 		unpin_user_page(pinned);
