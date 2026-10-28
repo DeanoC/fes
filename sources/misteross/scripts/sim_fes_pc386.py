@@ -32,7 +32,9 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
   sound    boots FreeDOS and runs SOUND.COM; checks the speaker and DSP tones,
            OPL2 output and DSP interrupts.
   game     starts Wolfenstein 3D or Ultima VI from user-supplied eXoDOS files
-           and checks the game's OPL2 output. Supply the games outside the repo.
+           and checks the game's OPL2 output; writes the last captured frame.
+           Supply the games outside the repo. With --cpu rtl, on
+           fes_i386_cpu as boot runs it; writes game-<name>-rtl/.
   vga      runs the benches, boots
            cores/fes-pc386/sim/vga_test.asm (VGA BIOS text, mode 13h, mode Y,
            mode 12h), checks every marked picture's 720p frame from the
@@ -52,6 +54,7 @@ Examples:
   python3 scripts/sim_fes_pc386.py --suite rtl-stops
   python3 scripts/sim_fes_pc386.py --suite sound --download
   python3 scripts/sim_fes_pc386.py --suite game --game ultima6
+  python3 scripts/sim_fes_pc386.py --suite game --game wolf3d --cpu rtl
   python3 scripts/sim_fes_pc386.py --suite vga
 """
 from __future__ import annotations
@@ -211,7 +214,7 @@ def parse_boot(text: str) -> dict:
     report = {'post': [], 'debug': [], 'panic': [], 'io': {}, 'inta': {}, 'screen': [], 'end': None,
               'prompt_cycle': None, 'cpu_resets': 0, 'snaps': {}, 'present': {}, 'vga': {}, 'marks': {},
               'opl2': None, 'opl2_mismatch': None, 'audio_samples': None, 'sb': None}
-    rtl = {'stops': [], 'pmode': [], 'gaps': [], 'smc': [], 'notes': [], 'counters': None}
+    rtl = {'stops': [], 'pmode': [], 'gaps': [], 'smc': [], 'unretired': [], 'notes': [], 'counters': None}
     for line in text.splitlines():
         kind, _, rest = line.partition(' ')
         if kind == 'STOP':
@@ -229,6 +232,10 @@ def parse_boot(text: str) -> dict:
             event, cycle, site, instruction, address = rest.split()
             rtl['smc'].append({'event': event, 'cycle': int(cycle), 'site': site, 'instruction': instruction,
                                'address': address})
+        elif kind == 'UNRETIRED':
+            why, loads, site, stem, address, cycle = rest.split()
+            rtl['unretired'].append({'why': why, 'loads': int(loads), 'site': site, 'stem': stem,
+                                     'first_address': address, 'first_cycle': int(cycle)})
         elif kind == 'NOTE':
             rtl['notes'].append(rest)
         elif kind == 'RTL':
@@ -729,7 +736,9 @@ def game_disk(args, game: dict, work: Path) -> tuple[Path, dict]:
 
 def run_game(args, linked: list[Path]) -> dict:
     game = GAMES[args.game]
-    work = Path(args.games_work) / args.game
+    rtl = '-rtl' if args.cpu == 'rtl' else ''
+    suite = f'game-{args.game}{rtl}'
+    work = Path(args.games_work) / f'{args.game}{rtl}'
     work.mkdir(parents=True, exist_ok=True)
     disk, record = game_disk(args, game, work)
     args.limit_seconds = args.limit_seconds_given or game['limit']
@@ -738,12 +747,19 @@ def run_game(args, linked: list[Path]) -> dict:
     testbench = machine_testbench(args, linked)
     wav, opl2_log = work / f'{args.game}.wav', work / f'{args.game}-opl2.log'
     keys = [arg for seconds, text in game['keys'] for arg in ('--keys', f'{seconds}:{text}')]
-    report = run_machine(testbench, f'game-{args.game}', ['--disk', str(disk), '--limit-seconds',
-                                  str(args.limit_seconds), '--type', args.type, '--expect', args.expect,
-                                  '--wav', str(wav), '--opl2-log', str(opl2_log), *keys], images)
+    # The last captured frame, to see where the game got to.
+    frames = OUTPUT / suite / 'frames'
+    frames.mkdir(parents=True, exist_ok=True)
+    report = run_machine(testbench, suite, ['--disk', str(disk), '--limit-seconds', str(args.limit_seconds),
+                                            '--type', args.type, '--expect', args.expect, '--wav', str(wav),
+                                            '--opl2-log', str(opl2_log), '--frames', str(frames), *keys,
+                                            '--cpu', args.cpu], images)
     report['game'] = {'name': args.game, **record}
     report['work'] = str(work)
-    report['failures'] = [failure for failure in report['failures'] if not failure.startswith('machine_tb exited 1')]
+    # The game runs until the time limit, which machine_tb reports as exit 1.
+    if (report['end'] or {}).get('reason') == 'limit':
+        report['failures'] = [failure for failure in report['failures']
+                              if not failure.startswith('machine_tb exited 1')]
     opl2 = report['opl2'] or {}
     if not opl2.get('writes') or not opl2.get('nonzero'):
         report['failures'].append(f'the game did not play the OPL2: {opl2}')
@@ -767,12 +783,13 @@ def main() -> int:
     parser.add_argument('--type', default=None, help="keys typed at the prompt; '|' is Enter")
     parser.add_argument('--expect', default=None, help='text the screen must show at the end')
     parser.add_argument('--cpu', choices=('oracle', 'rtl'), default='oracle',
-                        help='boot: the CPU, the Bochs oracle or fes_i386_cpu (which the oracle backs on its stops)')
+                        help='boot and game: the CPU, the Bochs oracle or fes_i386_cpu (which the oracle backs on '
+                             'its stops)')
     parser.add_argument('--verilator', default=os.environ.get('VERILATOR', 'verilator'))
     parser.add_argument('--jobs', type=int, default=min(os.cpu_count() or 2, 16))
     args = parser.parse_args()
-    if args.cpu == 'rtl' and args.suite != 'boot':
-        parser.error('--cpu rtl runs the boot suite only')
+    if args.cpu == 'rtl' and args.suite not in ('boot', 'game'):
+        parser.error('--cpu rtl runs the boot and game suites only')
     limit_seconds, typed, expect = args.limit_seconds, args.type, args.expect
     args.limit_seconds_given = limit_seconds
     if shutil.which(args.verilator) is None:
@@ -803,7 +820,7 @@ def main() -> int:
             else:
                 run = run_boot if suite == 'boot' else run_vga
                 report = run(args, oracle.link_inputs(args.jobs, args.download))
-            name = f'game-{args.game}' if suite == 'game' else 'boot-rtl' if args.cpu == 'rtl' else suite
+            name = (f'game-{args.game}' if suite == 'game' else suite) + ('-rtl' if args.cpu == 'rtl' else '')
             (OUTPUT / name).mkdir(parents=True, exist_ok=True)
             (OUTPUT / name / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
             if suite in ('boot', 'vga', 'sound', 'game'):
