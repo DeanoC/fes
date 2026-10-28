@@ -1364,8 +1364,9 @@ module fes_i386_cpu #(
     assign wb_cross = wb_saddr[4:2] == 3'd7 && dmem_wmask[7:4] != 4'd0;
 
     // The store in WB waits while the write buffer will not have room for it
-    // (two entries) on this edge's next cycle: st_wait, one register, as the
-    // store enters WB or while it waits.
+    // (two entries) once the store committing on this edge has entered it
+    // (fes_i386_biu): st_wait, one register, as the store enters WB or while
+    // it waits.
     logic wb_room_next, st_next;
     assign st_next = !(reset || wb_flush) && (freeze ? wb_s.valid && writes_mem(wb_s) : ex_s.valid && writes_mem(ex_s));
     always_ff @(posedge clk) st_wait <= st_next && !wb_room_next;
@@ -1597,7 +1598,7 @@ module fes_i386_cpu #(
     );
 
     fes_i386_l1d l1d (
-        .clk, .reset, .a20m, .attr_upper, .ram_top, .advance(!freeze), .flush(wb_flush),
+        .clk, .reset, .a20m, .attr_upper, .ram_top, .advance(!freeze), .flush(wb_flush), .ag_index(linear[11:5]),
         .rd(dmem_read), .addr(dmem_addr), .bytes(m1_s.uop.mem.bytes), .fault(dmem_fault),
         .oldest, .valid(dmem_valid), .rdata(dmem_rdata), .replay(l1d_replay),
         .st_ex_addr(ex_saddr), .st_wb_addr(wb_saddr), .st_commit(wb_store),

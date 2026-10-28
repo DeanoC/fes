@@ -6,11 +6,14 @@
 // is the linear one with A20M and the reset alias (fes_i386_pkg::phys).
 //
 // The data is two banks of dwords, even and odd, so the port's eight bytes
-// (the address's dword and the next) are one read of each. M1 registers a
-// load's index into the M10K address registers (rd, on the edge M1
-// advances) with its physical page and attribute; M2 compares the four tags
-// and selects the hitting way. That is the fast path: a load of cacheable
-// memory (RAM or read-only RAM) that hits and stays inside its line.
+// (the address's dword and the next) are one read of each. The lookup tags
+// are read a stage ahead, for AG's address on the edge a uop enters M1
+// (ag_index); M1 compares them with its physical page and registers the hit
+// for M2, so D to WB's freeze never waits on an M10K output. M1 registers a
+// load's index into the data arrays' address registers (rd, on the edge M1
+// advances) with its physical page and attribute, and M2 selects the
+// hitting way. That is the fast path: a load of cacheable memory (RAM or
+// read-only RAM) that hits and stays inside its line.
 //
 // Everything else takes the slow path, with D to WB frozen (valid low):
 //   - a miss reads the line from the bus interface (fes_i386_biu), once no
@@ -22,10 +25,10 @@
 //   - uncached MMIO is read as dwords with the access's byte enables, once
 //     the write buffer is empty, and only for the oldest uop (oldest:
 //     nothing older can flush it or has a store to make; fes_i386_cpu), so
-//     never on a wrong path.
-//     An uncached load that is not the oldest takes no data at all: replay
-//     marks it, and WB restarts its instruction (fes_i386_cpu), which then
-//     runs alone;
+//     never on a wrong path. An uncached load waits a cycle first (L_UNC),
+//     so the freeze does not wait on oldest; then, if it is not the oldest,
+//     it takes no data at all: replay marks it (L_REPLAY), and WB restarts
+//     its instruction (fes_i386_cpu), which then runs alone;
 //   - a hole reads FFh.
 // A load that faulted in M1, one that uses nothing it reads (a probe; both
 // fault), or a load M1 did not send (rd low), touches nothing.
@@ -36,8 +39,9 @@
 // write port, the edge it retires; lanes running into the next line clear
 // that line's set. A fill happens only with D to WB frozen, so no store
 // commits while one runs; when a fill ends, the probe re-reads the tags for
-// the store waiting in WB. DMA writes and FLUSH clear valid bits, and spoil
-// a fill of their line under way (its valid bit is not set).
+// the store waiting in WB, and the lookup copy M1's. DMA writes and FLUSH
+// clear valid bits, and spoil a fill of their line under way (its valid bit
+// is not set); a clear of a set drops the hit registered for it.
 module fes_i386_l1d import fes_i386_pkg::*; (
     input  logic             clk,
     input  logic             reset,
@@ -46,6 +50,7 @@ module fes_i386_l1d import fes_i386_pkg::*; (
     input  logic [6:0]       ram_top,
     input  logic             advance,   // D to WB move on this edge
     input  logic             flush,     // ... and WB flushes everything younger
+    input  logic [6:0]       ag_index,  // AG's address, bits 11:5, entering M1 on this edge
     // M1: the load sent to the port on this edge.
     input  logic             rd,
     input  logic [31:0]      addr,
@@ -163,12 +168,15 @@ module fes_i386_l1d import fes_i386_pkg::*; (
         end
     end
 
-    // The tags: the lookup copy read with the data, the probe copy as a store
-    // enters WB, or for the store in WB once a fill has ended (refresh).
+    // The tags: the lookup copy for AG's address as a uop enters M1, or for
+    // M1's once a fill has ended (refresh); the probe copy as a store enters
+    // WB, or for the store in WB once a fill has ended. A refresh is never on
+    // an edge D to WB advance: valid is low through the fill.
     logic             wr_tag, refresh;
     logic [1:0]       victim;
     logic [3:0][TW-1:0] tag, probe;
-    logic [6:0]       pr_set;
+    logic [6:0]       lk_set, pr_set;
+    assign lk_set = refresh ? addr[11:5] : ag_index;
     assign pr_set = refresh ? st_wb_addr[11:5] : st_ex_addr[11:5];
     always_ff @(posedge clk) begin
         if (wr_tag) begin
@@ -179,11 +187,11 @@ module fes_i386_l1d import fes_i386_pkg::*; (
                 default: begin tag3[q_line0[6:0]] <= q_page; probe3[q_line0[6:0]] <= q_page; end
             endcase
         end
-        if (rd) begin
-            tag[0] <= tag0[addr[11:5]];
-            tag[1] <= tag1[addr[11:5]];
-            tag[2] <= tag2[addr[11:5]];
-            tag[3] <= tag3[addr[11:5]];
+        if (advance || refresh) begin
+            tag[0] <= tag0[lk_set];
+            tag[1] <= tag1[lk_set];
+            tag[2] <= tag2[lk_set];
+            tag[3] <= tag3[lk_set];
         end
         if (advance || refresh) begin
             probe[0] <= probe0[pr_set];
@@ -193,19 +201,42 @@ module fes_i386_l1d import fes_i386_pkg::*; (
         end
     end
 
-    // ---- M2: the fast path --------------------------------------------------------
-    logic [3:0] vm2, hit;
-    assign vm2 = valid_bits[q_addr[11:5]];
+    // ---- M1: the tag compare -----------------------------------------------------
+    // The hit goes to M2 in a register, and so do the set's valid bits (vm2,
+    // for the victim). Valid bits are set only by a fill, with D to WB frozen;
+    // a clear of a set on any edge drops what is registered for it, as the
+    // valid bits themselves drop.
+    logic [3:0] vm1, hit_m1, hit, vm2;
+    assign vm1 = valid_bits[addr[11:5]];
     for (genvar w = 0; w < 4; w++) begin : g_hit
-        assign hit[w] = vm2[w] && tag[w] == q_page;
+        assign hit_m1[w] = vm1[w] && tag[w] == p0[PA-1:12];
     end
+    logic clr_m1, clr_m2;  // M1's set, or M2's, is cleared on this edge
+    assign clr_m1 = inv_all || inv_valid && inv_line[6:0] == addr[11:5] || st_commit && st_cross && st_line1[6:0] == addr[11:5];
+    assign clr_m2 = inv_all || inv_valid && inv_line[6:0] == q_addr[11:5] || st_commit && st_cross && st_line1[6:0] == q_addr[11:5];
+    always_ff @(posedge clk) begin
+        if (reset) begin
+            hit <= 4'd0;
+            vm2 <= 4'd0;
+        end else if (advance) begin
+            hit <= clr_m1 ? 4'd0 : hit_m1;
+            vm2 <= clr_m1 ? 4'd0 : vm1;
+        end else if (clr_m2) begin
+            hit <= 4'd0;
+            vm2 <= 4'd0;
+        end
+    end
+
+    // ---- M2: the fast path --------------------------------------------------------
     logic [7:0][7:0] waysel;
     always_comb begin
         waysel = '0;
         for (int w = 0; w < 4; w++)
             if (hit[w]) waysel = waysel | (q_addr[2] ? {ev_q[w], od_q[w]} : {od_q[w], ev_q[w]});
     end
-    typedef enum logic [2:0] { L_IDLE, L_PART, L_WAIT, L_FILL, L_TAGS, L_VALID, L_REFRESH, L_DONE } slow_e;
+    typedef enum logic [3:0] {
+        L_IDLE, L_UNC, L_PART, L_WAIT, L_FILL, L_TAGS, L_VALID, L_REFRESH, L_DONE, L_REPLAY
+    } slow_e;
     // Only before the slow path starts: its fill sets a valid bit that the
     // arrays' outputs, read before the fill, do not match.
     logic cached0, fast, unc, idle;
@@ -223,9 +254,8 @@ module fes_i386_l1d import fes_i386_pkg::*; (
     logic [7:0][31:0] lbuf;     // the line read
     logic [1:0][31:0] sbuf;     // the port's two dwords
     logic           go;
-    assign go = q_rd && !q_fault && !fast && !(unc && !oldest);
-    assign replay = q_rd && !q_fault && unc && !oldest && state == L_IDLE;
-    assign valid = !q_rd || q_fault || fast || replay || state == L_DONE;
+    assign go = q_rd && !q_fault && !fast;
+    assign replay = state == L_REPLAY;
     assign rdata = state == L_DONE ? {sbuf[1], sbuf[0]} : waysel;
 
     // The current part: its attribute, line and dword in the line.
@@ -245,9 +275,14 @@ module fes_i386_l1d import fes_i386_pkg::*; (
         for (int w = 3; w >= 0; w--) if (!vm2[w]) free = 2'(w);
     end
 
-    logic spoil, start, set_valid;
+    // The slow path starts: at once (start_c), or for an uncached load once
+    // it has waited its cycle and is the oldest (start_u). Only start_c can
+    // fill.
+    logic spoil, start, start_c, start_u, set_valid;
     assign spoil = inv_valid && inv_line == q_line0 || inv_all;
-    assign start = state == L_IDLE && q_rd && go;
+    assign start_c = state == L_IDLE && go && !unc;
+    assign start_u = state == L_UNC && oldest;
+    assign start = start_c || start_u;
     assign set_valid = state == L_VALID && !spoilt && !spoil;
     assign wr_tag = state == L_TAGS;
     assign refresh = state == L_REFRESH;
@@ -258,18 +293,57 @@ module fes_i386_l1d import fes_i386_pkg::*; (
         after = !p && two ? L_PART : fill ? L_FILL : L_DONE;
     endfunction
 
+    slow_e state_n;
+    always_comb begin
+        state_n = state;
+        case (state)
+            L_IDLE, L_UNC:
+                if (start) state_n = L_PART;
+                else if (state == L_UNC) state_n = L_REPLAY;
+                else if (go && unc) state_n = L_UNC;
+            // A hole, or the next dword of a line already read, is done at
+            // once; anything else is read.
+            L_PART: state_n = p_at == ATTR_HOLE || part && !q_cross && p_at != ATTR_MMIO
+                            ? after(part, q_two, fill_it) : L_WAIT;
+            L_WAIT: if (d_beat && (d_mmio || beat_n)) state_n = after(part, q_two, fill_it);
+            L_FILL: if (row == 2'd3) state_n = L_TAGS;
+            L_TAGS: state_n = L_VALID;
+            L_VALID: state_n = L_REFRESH;
+            L_REFRESH: state_n = L_DONE;
+            default: if (advance) state_n = L_IDLE;  // L_DONE or L_REPLAY: the load leaves M2
+        endcase
+        if (reset) state_n = L_IDLE;
+    end
+
+    // valid's complement, registered from the next cycle's state so D to
+    // WB's freeze waits on one register: on an edge D to WB advance, the load
+    // M1 sends when it will not hit; otherwise M2's load until its slow path
+    // ends or it replays, or once a clear drops its hit.
+    attr_e at0_m1;
+    logic  stall;
+    assign at0_m1 = attr(p0, attr_upper, ram_top);
+    always_ff @(posedge clk) begin
+        if (reset)
+            stall <= 1'b0;
+        else if (advance)
+            stall <= rd && !flush && !fault && !((at0_m1 == ATTR_RAM || at0_m1 == ATTR_ROM)
+                                                 && !(be8[7:4] != 4'd0 && addr[4:2] == 3'd7) && !clr_m1 && hit_m1 != 4'd0);
+        else
+            stall <= q_rd && !q_fault && !(state_n == L_DONE || state_n == L_REPLAY
+                                           || state_n == L_IDLE && cached0 && !q_cross && !clr_m2 && hit != 4'd0);
+    end
+    assign valid = !stall;
+
     always_ff @(posedge clk) begin
         if (reset) begin
-            state <= L_IDLE;
             rr <= 2'd0;
         end else begin
             case (state)
-                L_IDLE: if (start) begin
-                    state <= L_PART;
+                L_IDLE, L_UNC: if (start) begin
                     part <= 1'b0;
-                    fill_it <= cached0 && !q_cross;
+                    fill_it <= start_c && cached0 && !q_cross;
                     victim <= free;
-                    if (cached0 && !q_cross) rr <= rr + 2'd1;
+                    if (start_c && cached0 && !q_cross) rr <= rr + 2'd1;
                     spoilt <= 1'b0;
                 end
                 L_PART: begin
@@ -277,12 +351,8 @@ module fes_i386_l1d import fes_i386_pkg::*; (
                     if (p_at == ATTR_HOLE) begin
                         sbuf[part] <= 32'hffff_ffff;
                         part <= 1'b1;
-                        state <= after(part, q_two, fill_it);
-                    end else if (part && !q_cross && p_at != ATTR_MMIO) begin
-                        // The next dword of a line already read.
-                        state <= after(part, q_two, fill_it);
-                    end else begin
-                        state <= L_WAIT;
+                    end else if (!(part && !q_cross && p_at != ATTR_MMIO)) begin
+                        // Not the next dword of a line already read: a read.
                         d_mmio <= p_at == ATTR_MMIO;
                         d_addr <= {p_line, p_at == ATTR_MMIO ? p_dword : 3'd0};
                         d_be <= part ? q_be[7:4] : q_be[3:0];
@@ -293,7 +363,6 @@ module fes_i386_l1d import fes_i386_pkg::*; (
                     if (d_mmio) begin
                         sbuf[part] <= bdata[31:0];
                         part <= 1'b1;
-                        state <= after(part, q_two, fill_it);
                     end else if (!beat_n) begin
                         lbuf[3:0] <= bdata;
                     end else begin
@@ -303,22 +372,16 @@ module fes_i386_l1d import fes_i386_pkg::*; (
                         if (!part && q_two && !q_cross)
                             sbuf[1] <= p_next[2] ? bdata[32 * p_next[1:0] +: 32] : lbuf[p_next];
                         part <= 1'b1;
-                        state <= after(part, q_two, fill_it);
                     end
                 end
-                L_FILL: begin
-                    row <= row + 2'd1;
-                    if (row == 2'd3) state <= L_TAGS;
-                end
-                L_TAGS: state <= L_VALID;
-                L_VALID: state <= L_REFRESH;
-                L_REFRESH: state <= L_DONE;
-                default: if (advance) state <= L_IDLE;  // L_DONE: the load leaves M2
+                L_FILL: row <= row + 2'd1;
+                default: ;
             endcase
             if (state == L_IDLE) row <= 2'd0;
             if (state != L_IDLE && spoil) spoilt <= 1'b1;
         end
     end
+    always_ff @(posedge clk) state <= state_n;
 
     // ---- Writes: a fill's rows, or the committing store ---------------------------------
     logic [6:0]  st_set;
@@ -361,7 +424,7 @@ module fes_i386_l1d import fes_i386_pkg::*; (
             logic clear;
             assign clear = inv_all || inv_valid && inv_line[6:0] == 7'(k)
                         || st_commit && st_cross && st_line1[6:0] == 7'(k)
-                        || start && cached0 && !q_cross && q_line0[6:0] == 7'(k) && free == 2'(w);
+                        || start_c && cached0 && !q_cross && q_line0[6:0] == 7'(k) && free == 2'(w);
             always_ff @(posedge clk) begin
                 if (reset) valid_bits[k][w] <= 1'b0;
                 else if (set_valid && q_line0[6:0] == 7'(k) && victim == 2'(w)) valid_bits[k][w] <= 1'b1;
