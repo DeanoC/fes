@@ -101,6 +101,10 @@ rollback, FPGA programming, HPS DDR or display compatibility.
 
 ## Validation and the board gate
 
+The [2026-10-28 host validation record](validation/2026-10-28-de25-headless-linux/README.md)
+retains the exact image, verification and QEMU receipts plus the exported SDK
+probe. Physical board boot remains pending.
+
 `verify-de25-linux` checks the retained artifact hashes, AArch64 executable
 identity, card layout and required rootfs services. `smoke-de25-linux` probes
 AArch64 userspace through QEMU user emulation: BusyBox reports its architecture
