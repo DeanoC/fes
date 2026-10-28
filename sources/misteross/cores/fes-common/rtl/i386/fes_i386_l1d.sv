@@ -20,14 +20,15 @@
 //   - an access that runs into the next line reads each part on its own: a
 //     line from the bus interface (not filled), an MMIO dword, or FFh;
 //   - uncached MMIO is read as dwords with the access's byte enables, once
-//     the write buffer is empty, and only for the oldest uop (oldest: none
-//     in EX or WB, and no interrupt being taken), so never on a wrong path.
+//     the write buffer is empty, and only for the oldest uop (oldest:
+//     nothing older can flush it or has a store to make; fes_i386_cpu), so
+//     never on a wrong path.
 //     An uncached load that is not the oldest takes no data at all: replay
 //     marks it, and WB restarts its instruction (fes_i386_cpu), which then
 //     runs alone;
 //   - a hole reads FFh.
-// A load that faulted in M1, or that M1 did not send (rd low), touches
-// nothing.
+// A load that faulted in M1, one that uses nothing it reads (a probe; both
+// fault), or a load M1 did not send (rd low), touches nothing.
 //
 // A store's line is looked up as it enters WB in a probe copy of the tags.
 // WB's commit writes the bytes into a way that holds the line (st_commit,
@@ -49,7 +50,7 @@ module fes_i386_l1d import fes_i386_pkg::*; (
     input  logic             rd,
     input  logic [31:0]      addr,
     input  logic [3:0]       bytes,
-    input  logic             fault,
+    input  logic             fault,      // ... it faults, or uses nothing it reads: no access
     // M2.
     input  logic             oldest,
     output logic             valid,
@@ -204,14 +205,17 @@ module fes_i386_l1d import fes_i386_pkg::*; (
         for (int w = 0; w < 4; w++)
             if (hit[w]) waysel = waysel | (q_addr[2] ? {ev_q[w], od_q[w]} : {od_q[w], ev_q[w]});
     end
-    logic cached0, fast, unc;
+    typedef enum logic [2:0] { L_IDLE, L_PART, L_WAIT, L_FILL, L_TAGS, L_VALID, L_REFRESH, L_DONE } slow_e;
+    // Only before the slow path starts: its fill sets a valid bit that the
+    // arrays' outputs, read before the fill, do not match.
+    logic cached0, fast, unc, idle;
     assign cached0 = q_at0 == ATTR_RAM || q_at0 == ATTR_ROM;
-    assign fast = cached0 && !q_cross && hit != 4'd0;
+    assign fast = cached0 && !q_cross && hit != 4'd0 && idle;
     assign unc = q_at0 == ATTR_MMIO || q_cross && q_at1 == ATTR_MMIO;
 
     // ---- The slow path ----------------------------------------------------------
-    typedef enum logic [2:0] { L_IDLE, L_PART, L_WAIT, L_FILL, L_TAGS, L_VALID, L_REFRESH, L_DONE } slow_e;
     slow_e          state;
+    assign idle = state == L_IDLE;
     logic           part;       // the dword being read: the address's (0) or the next (1)
     logic           fill_it;    // the line is filled when read
     logic           beat_n, spoilt;
@@ -254,6 +258,16 @@ module fes_i386_l1d import fes_i386_pkg::*; (
         after = !p && two ? L_PART : fill ? L_FILL : L_DONE;
     endfunction
 
+`ifdef FES_I386_DEBUG
+    always_ff @(posedge clk) begin
+        if (advance && rd) $display("L1D M1 rd addr=%h fault=%b", addr, fault);
+        if (q_rd && state == L_IDLE) $display("L1D M2 addr=%h at0=%0d cross=%b hit=%b fast=%b unc=%b oldest=%b valid=%b data=%h",
+            q_addr, q_at0, q_cross, hit, fast, unc, oldest, valid, rdata);
+        if (state == L_DONE) $display("L1D done sbuf=%h", {sbuf[1], sbuf[0]});
+        if (d_beat) $display("L1D beat %h", bdata);
+        if (st_commit) $display("L1D store line=%h dword=%0d data=%h mask=%h hit=%b at=%0d", st_line0, st_dword, st_data, st_mask, st_hit, st_attr0);
+    end
+`endif
     always_ff @(posedge clk) begin
         if (reset) begin
             state <= L_IDLE;

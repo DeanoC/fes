@@ -130,6 +130,9 @@ module fes_i386_cpu #(
     output logic             trace_md_wait,        // D to WB wait for a multiply or divide in EX (ditto)
     output logic             trace_fetch,          // F1 sent a block to the L1I (ditto)
     output logic             trace_dread,          // M1 sent a load to the L1D (ditto)
+    output logic             trace_mem_wait,       // D to WB wait for the L1D or the write buffer, or F2 for the L1I
+    output logic             trace_mem_idle,       // the bus interface has nothing to do or finish
+    output logic             trace_replay,         // WB restarts an instruction for an uncached load
     // The store WB commits: the bytes trace_store_mask names of the eight
     // from trace_store_addr's dword, at linear addresses.
     output logic             trace_store,
@@ -868,6 +871,11 @@ module fes_i386_cpu #(
         // and limit 3FFh, which a vector's entry never passes.
         d_out.mlimit = dc.uop.mem.system ? 32'hffff_ffff : seg_lim[mseg][msize];
         d_out.mtiny = !dc.uop.mem.system && seg_tiny[mseg][msize];
+        // Loads whose data nothing uses: probes, ENTER's last check, POP m's
+        // pop into nothing, and the multiply and divide unit's LOAD and HI.
+        d_out.nodata = dc.stk == fes_i386_pkg::STK_PROBE || dc.str_fin
+                    || dc.seq == 5'(fes_i386_pkg::SEQ_POPM) && dc.stk == fes_i386_pkg::STK_POP
+                    || (u.op == 5'd4 || u.op == 5'd5) && (u.cls == fes_i386_pkg::UOP_MUL || u.cls == fes_i386_pkg::UOP_DIV);
         // A st2 uop's store address and its fault; the next instruction for
         // a REPE or REPNE element. AG keeps them.
         d_out.target = dc.str_two ? str_daddr : s_tgt;
@@ -1051,9 +1059,11 @@ module fes_i386_cpu #(
     end
     assign dmem_addr = m1_s.maddr;
     assign dmem_read = m1_s.valid && reads_mem(m1_s) && !freeze && !halted && !wb_stop;
-    // The load touches nothing in the L1D when it faults here.
+    // The load touches nothing in the L1D when it faults here, or when it
+    // uses nothing it reads (nodata), so it never reads a device twice or
+    // for nothing, and a probe never replays a delivery.
     logic dmem_fault, l1d_replay;
-    assign dmem_fault = m1_out.uop.ctl.fault != fes_i386_pkg::FAULT_NONE || m1_probe_bad;
+    assign dmem_fault = m1_out.uop.ctl.fault != fes_i386_pkg::FAULT_NONE || m1_probe_bad || m1_s.nodata;
 
     // Stores older than the load that have not written when the port reads:
     // the store now in EX, which will be in WB when the load is in M2, and
@@ -1117,7 +1127,13 @@ module fes_i386_cpu #(
     pipe_t                m2_cap, m2_out;
     fes_i386_pkg::exctl_t m2_exc;
     logic [31:0]          m2_x, m2_y;
-    assign m2_cap = capture(m2_s, 3'd2, wb_s.result);
+    // A replayed load changes nothing in EX (fes_i386_exctl's ok), as a
+    // fault does.
+    always_comb begin
+        m2_cap = capture(m2_s, 3'd2, wb_s.result);
+        if (l1d_replay && m2_cap.uop.ctl.fault == fes_i386_pkg::FAULT_NONE)
+            m2_cap.uop.ctl.fault = fes_i386_pkg::FAULT_REPLAY;
+    end
     fes_i386_exctl exctl (.s(m2_cap), .exc(m2_exc), .x(m2_x), .y(m2_y));
     always_comb begin
         m2_out = m2_cap;
@@ -1130,8 +1146,6 @@ module fes_i386_cpu #(
         if (m2_cap.uop.op == 5'd4 && (m2_cap.uop.cls == fes_i386_pkg::UOP_MUL || m2_cap.uop.cls == fes_i386_pkg::UOP_DIV))
             m2_out.result = md_hi;
         if (m2_cap.pbad && m2_cap.uop.ctl.fault == fes_i386_pkg::FAULT_NONE) m2_out.uop.ctl.fault = fes_i386_pkg::FAULT_SS0;
-        else if (l1d_replay && m2_cap.uop.ctl.fault == fes_i386_pkg::FAULT_NONE)
-            m2_out.uop.ctl.fault = fes_i386_pkg::FAULT_REPLAY;
     end
     always_ff @(posedge clk) begin
         if (reset || wb_flush) begin
@@ -1536,6 +1550,14 @@ module fes_i386_cpu #(
     end
     assign trace_halt = halted;
 
+`ifdef FES_I386_DEBUG
+    always_ff @(posedge clk) begin
+        if (wb_s.valid && !freeze) $display("WB eip=%h cls=%0d op=%0d fault=%0d result=%h ld=%h dst=%0d/%0d eoi=%b taken=%b tgt=%h/%h t1=%h flush=%b redir=%b",
+            wb_s.eip, wb_s.uop.cls, wb_s.uop.op, wb_s.uop.ctl.fault, wb_s.result, wb_s.ld, wb_s.uop.dst.space, wb_s.uop.dst.index,
+            wb_eoi, wb_s.taken, wb_s.target, wb_s.target_eip, t1, wb_flush, redirect);
+        if (redirect) $display("REDIRECT linear=%h eip=%h start=%0d", redirect_linear, redirect_eip, start);
+    end
+`endif
     // Serial issue after a replay, until its instruction ends or anything
     // else flushes.
     always_ff @(posedge clk) begin
@@ -1555,9 +1577,21 @@ module fes_i386_cpu #(
     logic [127:0]      bus_rdata;
     assign st_ex = ex_s.valid && writes_mem(ex_s);
     assign st_wb = wb_s.valid && writes_mem(wb_s);
-    assign oldest = !ex_s.valid && !wb_s.valid && !int_take;
+    // An uncached load may read its device once nothing older can flush it
+    // or still has a store to make: EX and WB hold nothing, or only earlier
+    // uops of its own instruction that neither store, end an instruction or
+    // element (no interrupt boundary), branch, fault, nor multiply or divide
+    // (IRET's or POPA's loads after its first).
+    function automatic logic own_load(input pipe_t s);
+        own_load = !s.uop.ctl.end_of_instruction && !s.uop.str_cx && !writes_mem(s) && s.uop.io == 2'd0
+                && s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE && s.uop.cls != fes_i386_pkg::UOP_BRANCH
+                && s.uop.cls != fes_i386_pkg::UOP_MUL && s.uop.cls != fes_i386_pkg::UOP_DIV;
+    endfunction
+    assign oldest = !int_take && (!ex_s.valid || own_load(ex_s)) && (!wb_s.valid || own_load(wb_s) && !wb_flushes);
     assign trace_fetch = mem_load;
     assign trace_dread = dmem_read;
+    assign trace_mem_wait = m2_load && !dmem_valid || st_wait || !mem_valid;
+    assign trace_replay = rp_go;
 
     fes_i386_l1i l1i (
         .clk, .reset, .a20m, .attr_upper, .ram_top, .mem_block, .mem_load, .mem_data, .mem_valid,
@@ -1586,7 +1620,8 @@ module fes_i386_cpu #(
         .ddr_readdata, .ddr_readdatavalid,
         .mmio_valid, .mmio_write, .mmio_address, .mmio_byteenable, .mmio_wdata, .mmio_ready, .mmio_rvalid,
         .mmio_rdata,
-        .dma_valid, .dma_write, .dma_address, .dma_wdata, .dma_done, .dma_rdata, .flush_request, .flush_done
+        .dma_valid, .dma_write, .dma_address, .dma_wdata, .dma_done, .dma_rdata, .flush_request, .flush_done,
+        .idle(trace_mem_idle)
     );
 
     assign arch_gpr = gpr;

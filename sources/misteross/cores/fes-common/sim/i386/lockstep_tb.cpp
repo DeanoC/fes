@@ -22,10 +22,23 @@
 // writes the opcode-class entries to FES_I386_DIVERGENCES, one per line:
 //   <id> <corpus|oracle> <stem,...|*> <predicate,...|-> <field,...>
 //
-// The memory model delays each fetch block, each load's bytes and each I/O
-// access's completion by a random 0-12 cycles when FES_I386_LATENCY=1 (the
-// default); latency must never change a result. A load's bytes are memory as it was on the edge M1
-// sent the address, read before the store retiring on that edge writes.
+// The CPU reaches memory through its caches and HPS DDR port 0, which the
+// port-0 model of pc386_ddr_model.h serves from the guest RAM behind them
+// (Rtl::ddr) with the measured latency when FES_I386_LATENCY=1 (the
+// default), or with a fixed one. Each I/O access's completion and each MMIO
+// read is also delayed by a random 0-12 cycles; latency must never change a
+// result. Memory as the retired stores leave it (Rtl::ram, from the CPU's
+// store trace) is what the lockstep compares; after a run, once the write
+// buffer has drained, DDR must hold the same bytes.
+//
+// A0000h-BFFFFh is uncached MMIO in a run whose code lies outside it (the
+// CPU's attribute map; the oracle's bus routes the window through read and
+// write). The device there keeps bytes like RAM. Each instruction's reads
+// of it must be the oracle's (as a set: the order of an instruction's loads
+// is its microcode's), so a load made on a wrong path or made twice fails.
+// Its writes must be the RTL's retired MMIO stores, each once and in order,
+// and every store must reach it before a read of a later instruction. The
+// stores themselves are compared with the oracle's as any store is.
 //
 // Modes (FES_I386_MODE):
 //   corpus  SingleStepTests/80386 states on stdin, one per line, in the format
@@ -64,6 +77,7 @@
 // one JSON summary line. Exit status 1 on any failure.
 #include "Vfes_i386_cpu.h"
 #include "i386_oracle.h"
+#include "pc386_ddr_model.h"
 #include "verilated.h"
 
 #include <algorithm>
@@ -73,7 +87,9 @@
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
+#include <deque>
 #include <functional>
+#include <iterator>
 #include <iostream>
 #include <map>
 #include <memory>
@@ -89,9 +105,10 @@ namespace {
 using fes_i386::State;
 
 constexpr uint32_t RAM_BYTES = 16u << 20;
+constexpr uint32_t MMIO_LO = 0xa0000, MMIO_HI = 0xc0000;  // the MMIO window, when a run has it
 constexpr uint32_t EFLAGS_MASK = 0x0003ffff;
-constexpr int EVENT_CYCLES = 4000;  // an RTL retirement or fault must come within this many cycles
-                                    // (a REP string of 63 elements with the data port's latency)
+constexpr int EVENT_CYCLES = 20000;  // an RTL retirement or fault must come within this many cycles
+                                     // (a REP string of 63 elements, each missing in both caches)
 
 std::string hex(uint64_t value) {
     char text[24];
@@ -164,15 +181,46 @@ struct Pic {
     }
 };
 
-// The oracle's memory: 16 MiB of RAM, its I/O space and its PIC.
+// One byte an MMIO access read or wrote, in the lockstep step that made it.
+struct MmioAccess {
+    bool write = false;
+    uint32_t address = 0;
+    uint8_t value = 0;
+    uint64_t step = 0;
+    bool operator==(const MmioAccess &o) const { return write == o.write && address == o.address && value == o.value; }
+    uint64_t key() const { return uint64_t(write) << 40 | uint64_t(address) << 8 | value; }
+};
+bool in_window(uint32_t paddr) { return paddr >= MMIO_LO && paddr < MMIO_HI; }
+
+// The oracle's memory: 16 MiB of RAM, its I/O space and its PIC. With the
+// MMIO window on, its bytes are reached through read and write, logged.
 class OracleBus final : public fes_i386::Bus {
 public:
     fes_i386::PageMemory ram{RAM_BYTES};
     IoSpace io;
     Pic pic;
-    uint8_t *page(uint32_t paddr, bool) override { return paddr < RAM_BYTES ? &ram[paddr & ~0xfffu] : nullptr; }
-    void read(uint32_t, unsigned length, uint8_t *data) override { std::memset(data, 0xff, length); }
-    void write(uint32_t, unsigned, const uint8_t *) override {}
+    bool mmio_window = false;
+    std::vector<MmioAccess> mmio_log;
+    uint64_t step = 0;
+    uint8_t *page(uint32_t paddr, bool) override {
+        if (mmio_window && in_window(paddr)) return nullptr;
+        return paddr < RAM_BYTES ? &ram[paddr & ~0xfffu] : nullptr;
+    }
+    void read(uint32_t paddr, unsigned length, uint8_t *data) override {
+        for (unsigned i = 0; i < length; ++i) {
+            const uint32_t at = paddr + i;
+            data[i] = mmio_window && in_window(at) ? ram[at] : 0xff;
+            if (mmio_window && in_window(at)) mmio_log.push_back({false, at, data[i], step});
+        }
+    }
+    void write(uint32_t paddr, unsigned length, const uint8_t *data) override {
+        for (unsigned i = 0; i < length; ++i) {
+            const uint32_t at = paddr + i;
+            if (!(mmio_window && in_window(at))) continue;
+            ram[at] = data[i];
+            mmio_log.push_back({true, at, data[i], step});
+        }
+    }
     uint32_t in(uint16_t port, unsigned length) override { return io.in(port, length); }
     void out(uint16_t port, unsigned length, uint32_t value) override { io.out(port, length, value); }
     uint8_t interrupt_acknowledge() override { return pic.acknowledge(); }
@@ -180,8 +228,8 @@ public:
 
 // ---- The RTL and its memory model ------------------------------------------------
 
-// A memory port with random latency: a request made on one edge completes 0-12
-// cycles later. The fetch, data and I/O ports take one each.
+// A port with random latency: a request made on one edge completes 0-12
+// cycles later. The I/O port, INTA and MMIO reads take one each.
 struct Latency {
     std::mt19937_64 *random = nullptr;
     unsigned waiting = 0;
@@ -192,21 +240,61 @@ struct Latency {
     bool ready() const { return waiting == 0; }
 };
 
+struct Mismatches;
+
+// Guest RAM as port 0 reaches it: physical 0 at window offset GUEST_OFFSET.
+struct GuestRam {
+    std::vector<uint8_t> &bytes;
+    uint8_t *at(uint32_t offset) {
+        if (offset < pc386::GUEST_OFFSET || offset - pc386::GUEST_OFFSET >= RAM_BYTES)
+            throw std::runtime_error("port 0 outside guest RAM");
+        return &bytes[offset - pc386::GUEST_OFFSET];
+    }
+};
+
 class Rtl {
 public:
-    explicit Rtl(VerilatedContext &context) : top(&context), ram(RAM_BYTES, 0) {}
+    explicit Rtl(VerilatedContext &context)
+        : top(&context), ram(RAM_BYTES, 0), ddr(RAM_BYTES, 0), guest{ddr}, port0(guest, 0x5eed0000, "port 0") {
+        top.cold_reset = 1;
+        top.reset = 1;
+        top.ram_top = 16;
+        set_window(false);
+        for (int n = 0; n < 3; ++n) clock();
+        top.cold_reset = 0;
+    }
 
     Vfes_i386_cpu top;
-    std::vector<uint8_t> ram;
+    std::vector<uint8_t> ram;  // memory as the retired stores leave it
+    std::vector<uint8_t> ddr;  // guest RAM in DDR, behind the caches; the MMIO window's device keeps its bytes here
+    GuestRam guest;
+    pc386::Port0<GuestRam> port0;
     IoSpace io;
     Pic pic;
-    Latency fetch, data, port, inta;
-    uint64_t cycles = 0;
-    uint64_t load_waits = 0;  // cycles a load's bytes were late
+    Latency port, inta, mmio;
+    std::vector<MmioAccess> mmio_log;
+    uint64_t step = 0;                  // the lockstep step running
+    std::deque<MmioAccess> mmio_stores; // MMIO bytes retired stores wrote, not yet at the device
+    uint64_t mmio_wrong = 0;            // device writes no retired store made, or not in order
+    uint64_t mmio_early = 0;            // device reads before an earlier instruction's store reached it
+    uint64_t replays = 0;
+    uint64_t cycles = 0;      // since the last run's summary
+    uint64_t ticks = 0;       // since the start: port 0's clock
+    uint64_t load_waits = 0;  // cycles D to WB or F2 waited for memory
     uint64_t md_waits = 0;    // cycles D to WB waited for a multiply or divide, since the last retirement
+    uint64_t last_mem_wait = 0;      // the cycle of the last memory wait
     std::set<uint32_t> step_writes;  // bytes written since the last next()
     std::set<uint32_t> written;      // bytes either side wrote since the run began, to clear after it
     uint64_t io_unstable = 0;        // I/O requests whose port, size or data changed before their ack
+
+    // The attribute map: A0000h-BFFFFh MMIO or RAM, the rest RAM.
+    void set_window(bool on) {
+        uint64_t map = 0;
+        for (int slot = 0; slot < 8; ++slot) map |= uint64_t(on ? 2 : 0) << (2 * slot);
+        top.attr_upper = map;
+        window = on;
+    }
+    bool window = false;
 
     // Reset with this architectural state.
     void start(const State &s) {
@@ -219,18 +307,17 @@ public:
             top.init_limit[n] = s.seg[n].limit;
             set16(top.init_ar, n, s.seg[n].ar);
         }
-        fetch.waiting = 0;
-        data.waiting = 0;
         port.waiting = 0;
         io_waiting = false;
         top.intr = 0;
         top.nmi = 0;
         top.inta_ack = 0;
-        top.mem_valid = 1;
-        top.dmem_valid = 1;
         top.io_ack = 0;
         step_writes.clear();
         io.log.clear();
+        mmio_log.clear();
+        mmio_stores.clear();
+        mmio_wrong = mmio_early = 0;
         top.reset = 1;
         for (int n = 0; n < 3; ++n) clock();
         top.reset = 0;
@@ -241,16 +328,84 @@ public:
         pic = Pic{};
     }
 
+    // Hold the CPU in reset until the write buffer has drained and nothing
+    // is in flight, so DDR holds every retired store.
+    void quiesce() {
+        if (quiet) return;
+        const bool was = top.reset;
+        top.reset = 1;
+        for (int n = 0; n < 100000 && !(top.trace_mem_idle && port0.idle() && !mmio_pending); ++n) clock();
+        if (!(top.trace_mem_idle && port0.idle())) throw std::runtime_error("memory never went idle");
+        top.reset = was;
+        quiet = true;
+    }
+    // Memory set up for a run: the stores' view and DDR alike.
+    uint8_t poke(uint32_t address, uint8_t value) {
+        quiesce();
+        if (address < RAM_BYTES) ram[address] = ddr[address] = value;
+        return value;
+    }
+    // After a run: DDR must hold what the retired stores left.
+    void check_memory(Mismatches &out);
+
     void clock() {
         top.clk = 0;
         top.eval();
-        const bool load = top.mem_load;
-        const uint32_t block = top.mem_block;
-        const bool dread = top.dmem_read, dwrite = top.dmem_write;
-        const uint32_t daddr = top.dmem_addr & ~3u, waddr = top.dmem_waddr & ~3u;
-        const uint64_t wdata = top.dmem_wdata;
-        const uint8_t wmask = top.dmem_wmask;
+        if (!top.reset) quiet = false;
+        const bool store = top.trace_store;
+        const uint32_t waddr = top.trace_store_addr & ~3u;
+        const uint64_t wdata = top.trace_store_data;
+        const uint8_t wmask = top.trace_store_mask;
         md_waits += top.trace_md_wait;  // this cycle, before the edge that ends it
+        if (top.trace_mem_wait) {
+            ++load_waits;
+            last_mem_wait = cycles;
+        }
+        replays += top.trace_replay;
+        // Port 0, then MMIO: this edge's responses, and the command taken.
+        if (std::getenv("FES_I386_TRACE_MEM"))
+            std::fprintf(stderr, "%llu rst=%d rd=%d wr=%d a=%07x wait=%d rdv=%d fetch=%d mwait=%d idle=%d ret=%d halt=%d unimpl=%d\n",
+                         (unsigned long long)cycles, top.reset, top.ddr_read, top.ddr_write, unsigned(top.ddr_address),
+                         top.ddr_waitrequest, top.ddr_readdatavalid, top.trace_fetch, top.trace_mem_wait,
+                         top.trace_mem_idle, top.trace_retire, top.trace_halt, top.trace_unimplemented);
+        port0.drive(top, ticks++);
+        top.mmio_rvalid = 0;
+        top.mmio_rdata = uint32_t(cycles * 0x9e3779b9u);
+        if (mmio_pending) {
+            if (mmio.ready()) {
+                top.mmio_rvalid = 1;
+                top.mmio_rdata = mmio_value;
+                mmio_pending = false;
+            } else {
+                mmio.tick();
+            }
+        }
+        top.mmio_ready = !mmio_pending && (!mmio.random || (*mmio.random)() % 4 != 0);
+        if (top.mmio_valid && top.mmio_ready) {
+            const uint32_t dword = uint32_t(top.mmio_address) << 2;
+            if (top.mmio_write) {
+                for (unsigned k = 0; k < 4; ++k)
+                    if (top.mmio_byteenable >> k & 1) {
+                        const uint8_t value = uint8_t(top.mmio_wdata >> (8 * k));
+                        mmio_byte(dword + k) = value;
+                        const MmioAccess write{true, dword + k, value, step};
+                        if (mmio_stores.empty() || !(mmio_stores.front() == write)) ++mmio_wrong;
+                        else mmio_stores.pop_front();
+                        mmio_log.push_back(write);
+                    }
+            } else {
+                mmio_value = 0;
+                for (unsigned k = 0; k < 4; ++k) {
+                    const uint8_t value = top.mmio_byteenable >> k & 1 ? mmio_byte(dword + k) : 0xee;
+                    if (!(top.mmio_byteenable >> k & 1)) continue;
+                    mmio_log.push_back({false, dword + k, value, step});
+                    if (!mmio_stores.empty() && mmio_stores.front().step < step) ++mmio_early;
+                    mmio_value |= uint32_t(value) << (8 * k);
+                }
+                mmio_pending = true;
+                mmio.request();
+            }
+        }
         // The I/O port: a request completes after its latency, counted from
         // the cycle it rises, the access made on this side's I/O space then,
         // with io_ack (and IN's data) on this edge. The request must hold its
@@ -301,51 +456,18 @@ public:
         }
         top.clk = 1;
         top.eval();
-        // The data port reads, then the retiring store writes. Until a load's
-        // bytes arrive the port carries garbage.
-        if (dread) {
-            uint64_t value = 0;
-            for (int i = 0; i < 8; ++i) {
-                const uint64_t at = uint64_t(daddr) + i;
-                value |= uint64_t(at < RAM_BYTES ? ram[at] : 0xff) << (8 * i);
-            }
-            loaded = value;
-            data.request();
-            if (std::getenv("FES_I386_VERBOSE"))
-                std::fprintf(stderr, "  read %x -> %016llx\n", daddr, (unsigned long long)value);
-        }
-        else {
-            data.tick();
-        }
-        top.dmem_valid = data.ready();
-        load_waits += !data.ready();
-        top.dmem_rdata = data.ready() ? loaded : (uint64_t((*data.random)()) << 32 | uint32_t((*data.random)()));
-        if (dwrite && std::getenv("FES_I386_VERBOSE"))
+        // The retiring store, as the stores' view of memory.
+        if (store && std::getenv("FES_I386_VERBOSE"))
             std::fprintf(stderr, "  write %x mask %02x data %016llx\n", waddr, wmask, (unsigned long long)wdata);
-        if (dwrite) {
+        if (store) {
             for (int i = 0; i < 8; ++i) {
                 if (!(wmask >> i & 1)) continue;
                 const uint32_t at = waddr + i;
+                if (window && in_window(at)) mmio_stores.push_back({true, at, uint8_t(wdata >> (8 * i)), step});
                 if (at < RAM_BYTES) ram[at] = uint8_t(wdata >> (8 * i));
                 step_writes.insert(at);
                 written.insert(at);
             }
-        }
-        if (load) {
-            address = block;
-            fetch.request();
-        } else {
-            fetch.tick();
-        }
-        top.mem_valid = fetch.ready();
-        // Until the block arrives the port carries garbage.
-        for (int word = 0; word < 4; ++word) {
-            uint32_t value = 0;
-            for (int i = 0; i < 4; ++i) {
-                uint64_t at = (uint64_t(address) << 4) + 4 * word + i;
-                value |= uint32_t(at < RAM_BYTES ? ram[at] : 0xff) << (8 * i);
-            }
-            top.mem_data[word] = fetch.ready() ? value : uint32_t((*fetch.random)());
         }
         ++cycles;
     }
@@ -388,11 +510,17 @@ public:
     }
 
 private:
-    uint32_t address = 0;
-    uint64_t loaded = 0;  // the bytes the last load read
-    bool io_waiting = false;  // an I/O request is waiting for its ack
-    IoAccess io_request;      // ... as it was when it rose
+    bool quiet = false;         // nothing has run since the last quiesce
+    bool io_waiting = false;    // an I/O request is waiting for its ack
+    IoAccess io_request;        // ... as it was when it rose
     bool inta_waiting = false;  // an INTA is waiting for the PIC
+    bool mmio_pending = false;  // an MMIO read the device has taken, not yet answered
+    uint32_t mmio_value = 0;
+
+    uint8_t &mmio_byte(uint32_t address) {
+        if (!window || !in_window(address)) throw std::runtime_error("MMIO access outside the window: " + hex(address));
+        return ddr[address];
+    }
 
     template <typename W> static void set16(W &wide, int n, uint16_t value) {
         uint32_t &word = wide[n / 2];
@@ -409,17 +537,17 @@ bool reset_store_regression(Rtl &rtl) {
     state.gpr[fes_i386::REG_EBX] = 0x100;
 
     const std::array<uint8_t, 3> code = {0x89, 0x07, 0xf4};  // MOV [BX+DI], AX; HLT
-    std::copy(code.begin(), code.end(), rtl.ram.begin());
-    rtl.ram[0x100] = 0x12;
-    rtl.ram[0x101] = 0x34;
+    for (uint32_t i = 0; i < code.size(); ++i) rtl.poke(i, code[i]);
+    rtl.poke(0x100, 0x12);
+    rtl.poke(0x101, 0x34);
     rtl.start(state);
 
     bool pending = false;
     for (int n = 0; n < EVENT_CYCLES; ++n) {
         rtl.top.clk = 0;
         rtl.top.eval();
-        if (rtl.top.dmem_write) {
-            pending = rtl.top.dmem_waddr == 0x100 && rtl.top.dmem_wmask == 0x03;
+        if (rtl.top.trace_store) {
+            pending = rtl.top.trace_store_addr == 0x100 && rtl.top.trace_store_mask == 0x03;
             break;
         }
         rtl.clock();
@@ -429,9 +557,12 @@ bool reset_store_regression(Rtl &rtl) {
     rtl.top.reset = 1;
     rtl.top.clk = 0;
     rtl.top.eval();
-    const bool write_on_reset = rtl.top.dmem_write;
+    const bool write_on_reset = rtl.top.trace_store;
     rtl.clock();
-    return !write_on_reset && rtl.ram[0x100] == 0x12 && rtl.ram[0x101] == 0x34 && rtl.step_writes.empty();
+    // Nor does it reach DDR once the write buffer has drained.
+    rtl.quiesce();
+    return !write_on_reset && rtl.ram[0x100] == 0x12 && rtl.ram[0x101] == 0x34 && rtl.ddr[0x100] == 0x12
+           && rtl.ddr[0x101] == 0x34 && rtl.step_writes.empty();
 }
 
 // ---- Divergences -------------------------------------------------------------------
@@ -729,6 +860,35 @@ struct Mismatches {
     }
 };
 
+void Rtl::check_memory(Mismatches &out) {
+    quiesce();
+    unsigned reported = 0;
+    for (uint32_t address : written)
+        if (address < RAM_BYTES && ddr[address] != ram[address] && reported++ < 4)
+            out.add("ddr." + hex(address), ram[address], ddr[address]);
+}
+
+// After a run that halted: DDR holds the retired stores, and the RTL made
+// exactly the oracle's MMIO accesses.
+void end_run(OracleBus &bus, Rtl &rtl, bool halted, Mismatches &out) {
+    (void)bus;
+    rtl.check_memory(out);
+    if (!halted || !out.items.empty()) return;
+    if (!rtl.mmio_stores.empty()) out.add("mmio-stores-left", 0, rtl.mmio_stores.size());
+    if (rtl.mmio_wrong) out.add("mmio-wrong-writes", 0, rtl.mmio_wrong);
+}
+
+// The MMIO window for a run, on both sides.
+void set_window(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, bool on) {
+    rtl.quiesce();
+    if (bus.mmio_window != on) oracle.invalidate(MMIO_LO, MMIO_HI - MMIO_LO);
+    bus.mmio_window = on;
+    rtl.set_window(on);
+    bus.mmio_log.clear();
+}
+// Code at linear address a stays 16 bytes clear of the window.
+bool clear_of_window(uint32_t a) { return a + 16 <= MMIO_LO || a >= MMIO_HI + 16; }
+
 // RTL against the oracle, leaving out skip's fields.
 void compare(const State &want, const State &got, const Fields &skip, const std::string &at, Mismatches &out) {
     if (skip.all) return;
@@ -798,7 +958,8 @@ struct Summary {
     // ESI, EDI or ECX waits in D until the string's last element retires.
     // IN and OUT wait in WB for their access, so are several; the instruction
     // after an I/O one (a string's included) is after_io: it waits in D until
-    // that retires.
+    // that retires. Any retirement within 16 cycles of a wait for memory (a
+    // cache miss, an uncached access, a full write buffer) is memory's.
     // Any other instruction right after a push or pop is after_stack: it
     // waits in D if it reads ESP. Any other after a store, not after a shift,
     // is after_store: one cycle, as D's store hold must not catch it. A store
@@ -807,11 +968,15 @@ struct Summary {
     std::map<uint64_t, uint64_t> gap_sequential, gap_prefixed, gap_lea, gap_selector, gap_after_taken,
         gap_after_not_taken, gap_shift_consumer, gap_after_shift, gap_store_load, gap_after_store,
         gap_address, gap_after_segment, gap_after_stack, gap_stack_stack, gap_several, gap_after_string,
-        gap_after_io;
+        gap_after_io, gap_memory;
     uint64_t smc = 0;  // runs stopped at a store into their own code
     uint64_t vector_moved = 0;  // runs stopped at an interrupt whose vector they had rewritten
     uint64_t load_waits = 0;
     uint64_t io_accesses = 0;  // I/O accesses compared
+    uint64_t mmio_accesses = 0;   // MMIO bytes compared
+    uint64_t mmio_runs = 0;       // runs with the MMIO window on
+    uint64_t replays = 0;         // instructions restarted for an uncached load
+    uint64_t window_code = 0;     // runs stopped at code in the MMIO window
 };
 
 void hash_state(Summary &summary, const State &s) {
@@ -1039,6 +1204,7 @@ struct Outcome {
     bool limit = false;    // stopped at the retirement limit
     bool smc = false;      // stopped at a store into [code_lo, code_hi)
     bool vector_moved = false;  // stopped at an injected interrupt whose vector entry or handler the program rewrote
+    bool window_code = false;   // stopped at code in the MMIO window, which neither side fetches
     int interrupt = -1;    // the last software interrupt both sides took (INT n, INT3, INTO)
     std::string code;      // the last instruction's first bytes, for a failure's line
 };
@@ -1103,10 +1269,20 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
     unsigned since_segment = 99;  // retirements since a segment load
     unsigned since_string = 99;   // ... since a string instruction
     bool io_before = false;       // the last retirement was an I/O instruction
+    size_t mmio_seen = bus.mmio_log.size();
+    bus.step = rtl.step = 0;
     for (uint64_t step = 0;; ++step) {
         if (step == retire_limit) {
             outcome.limit = true;
             return outcome;
+        }
+        bus.step = rtl.step = step;
+        {
+            const State now = oracle.get_state();
+            if (bus.mmio_window && !clear_of_window(now.seg[fes_i386::SEG_CS].base + now.eip)) {
+                outcome.window_code = true;
+                return outcome;
+            }
         }
         const State before = oracle.get_state();
         const uint32_t linear = before.seg[fes_i386::SEG_CS].base + before.eip;
@@ -1377,7 +1553,9 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                            : shift_before ? (consumes_flags(code) ? summary.gap_shift_consumer : summary.gap_after_shift)
                            : store_before ? summary.gap_after_store
                                           : summary.gap_sequential;
-                ++(rtl.md_waits ? summary.gap_several : gaps)[rtl.cycles - last_retirement];
+                // A wait for memory near the gap makes it memory's.
+                const bool mem_wait = rtl.last_mem_wait + 16 >= last_retirement;
+                ++(rtl.md_waits ? summary.gap_several : mem_wait ? summary.gap_memory : gaps)[rtl.cycles - last_retirement];
             }
             // A string's or ENTER's last store is one of several uops, and
             // what follows a string may wait for its ESI, EDI and ECX.
@@ -1448,6 +1626,39 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             out.add(at + "io-unstable", 0, rtl.io_unstable);
             rtl.io_unstable = 0;
         }
+        // MMIO bytes: the RTL's so far, in order, a prefix of the oracle's
+        // (its stores may still wait in the write buffer).
+        summary.mmio_accesses += bus.mmio_log.size() - mmio_seen;
+        mmio_seen = bus.mmio_log.size();
+        // The step's reads, as a set (the order of an instruction's loads is
+        // its microcode's), each after every write of the steps before.
+        // Bochs's INS reads its destination before the port to check it,
+        // which a 386 does not: those reads are left out. An instruction that
+        // faults may read less than Bochs (a MOVS element whose destination
+        // fails its limit check reads no source on the RTL).
+        {
+            unsigned p = 0;
+            while (p < 15 && is_prefix(code[p])) ++p;
+            const bool ins = code[p] == 0x6c || code[p] == 0x6d;
+            std::multiset<uint64_t> want, got;
+            for (const MmioAccess &a : bus.mmio_log)
+                if (!a.write && a.step == step && !ins) want.insert(a.key());
+            for (const MmioAccess &a : rtl.mmio_log)
+                if (!a.write && a.step == step) got.insert(a.key());
+            if (rtl.mmio_early) out.add(at + "mmio-early-read", 0, rtl.mmio_early);
+            if (rtl.mmio_wrong) out.add(at + "mmio-wrong-write", 0, rtl.mmio_wrong);
+            const bool faulted = vector >= 0;
+            if (faulted ? !std::includes(want.begin(), want.end(), got.begin(), got.end()) : want != got) {
+                // The first byte one side read more often than the other.
+                std::multiset<uint64_t> only_want, only_got;
+                std::set_difference(want.begin(), want.end(), got.begin(), got.end(),
+                                    std::inserter(only_want, only_want.begin()));
+                std::set_difference(got.begin(), got.end(), want.begin(), want.end(),
+                                    std::inserter(only_got, only_got.begin()));
+                out.add(at + "mmio-reads." + std::to_string(want.size()) + "." + std::to_string(got.size()),
+                        only_want.empty() ? ~0ull : *only_want.begin(), only_got.empty() ? ~0ull : *only_got.begin());
+            }
+        }
         // Each side acknowledges each INTR it takes once, with INTR up.
         if (bus.pic.acks != rtl.pic.acks || bus.pic.unexpected || rtl.pic.unexpected)
             out.add(at + "inta", bus.pic.acks | bus.pic.unexpected << 32, rtl.pic.acks | rtl.pic.unexpected << 32);
@@ -1498,9 +1709,9 @@ void check_halt_quiet(Rtl &rtl, const std::string &label, Mismatches &out) {
         rtl.top.clk = 0;
         rtl.top.eval();
         resumed = resumed || !rtl.top.trace_halt;
-        fetched = fetched || rtl.top.mem_load;
+        fetched = fetched || rtl.top.trace_fetch;
         issued = issued || rtl.top.trace_issue;
-        read = read || rtl.top.dmem_read;
+        read = read || rtl.top.trace_dread;
         rtl.clock();
     }
     if (resumed) out.add(label + ".halt-held", 1, 0);
@@ -1532,7 +1743,7 @@ void run_fault_case(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
     if (stack_value)
         for (unsigned i = 0; i < stack_value->size(); ++i) image.emplace_back(stack_address + i, (*stack_value)[i]);
     for (auto [address, value] : image) {
-        bus.ram[address] = rtl.ram[address] = value;
+        bus.ram[address] = rtl.poke(address, value);
         oracle.invalidate(address, 1);
     }
     oracle.set_state(state);
@@ -1567,15 +1778,16 @@ void run_fault_case(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
         if (rtl.top.trace_halt) check_halt_quiet(rtl, label, out);
     }
 
+    end_run(bus, rtl, outcome.halted, out);
     summary.cycles += rtl.cycles;
     rtl.cycles = 0;
     rtl.load_waits = 0;
     for (auto [address, value] : image) {
-        bus.ram[address] = rtl.ram[address] = 0;
+        bus.ram[address] = rtl.poke(address, 0);
         oracle.invalidate(address, 1);
     }
     for (uint32_t address : rtl.written) {
-        if (address < RAM_BYTES) bus.ram[address] = rtl.ram[address] = 0;
+        if (address < RAM_BYTES) bus.ram[address] = rtl.poke(address, 0);
         oracle.invalidate(address, 1);
     }
     rtl.written.clear();
@@ -1597,7 +1809,7 @@ void run_nop_case(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
     std::vector<std::pair<uint32_t, uint8_t>> image;
     for (size_t i = 0; i < code.size(); ++i) image.emplace_back(code_base + uint32_t(i), code[i]);
     for (auto [address, value] : image) {
-        bus.ram[address] = rtl.ram[address] = value;
+        bus.ram[address] = rtl.poke(address, value);
         oracle.invalidate(address, 1);
     }
     oracle.set_state(state);
@@ -1616,15 +1828,16 @@ void run_nop_case(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
     if (outcome.exception >= 0) out.add(label + ".exception", 0xffffffffu, uint32_t(outcome.exception));
     if (outcome.interrupt >= 0) out.add(label + ".interrupt", 0xffffffffu, uint32_t(outcome.interrupt));
 
+    end_run(bus, rtl, outcome.halted, out);
     summary.cycles += rtl.cycles;
     rtl.cycles = 0;
     rtl.load_waits = 0;
     for (auto [address, value] : image) {
-        bus.ram[address] = rtl.ram[address] = 0;
+        bus.ram[address] = rtl.poke(address, 0);
         oracle.invalidate(address, 1);
     }
     for (uint32_t address : rtl.written) {
-        if (address < RAM_BYTES) bus.ram[address] = rtl.ram[address] = 0;
+        if (address < RAM_BYTES) bus.ram[address] = rtl.poke(address, 0);
         oracle.invalidate(address, 1);
     }
     rtl.written.clear();
@@ -1837,9 +2050,14 @@ int run_corpus(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
     while (std::getline(std::cin, line)) {
         if (line.empty()) continue;
         Test test = parse(line);
+        // The MMIO window, unless the test's code starts or ends near it.
+        const bool window = clear_of_window(uint32_t(uint16_t(test.initial[10])) * 16 + test.initial[16])
+                         && clear_of_window(uint32_t(uint16_t(test.final[10])) * 16 + test.final[16]);
+        set_window(oracle, bus, rtl, window);
+        summary.mmio_runs += window;
         for (auto [address, value] : test.initial_ram) {
             bus.ram[address] = value;
-            rtl.ram[address] = value;
+            rtl.poke(address, value);
         }
         for (auto [address, value] : test.initial_ram) oracle.invalidate(address, 1);
         const State initial = to_state(test.initial);
@@ -1869,6 +2087,7 @@ int run_corpus(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
                 compare_corpus(test, rtl.state(), rtl, out);
             }
         }
+        end_run(bus, rtl, outcome.halted, out);
         if (outcome.halted) {
             ++summary.halts;
             summary.interrupts += outcome.interrupt >= 0;
@@ -1879,10 +2098,10 @@ int run_corpus(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
         }
         summary.cycles += rtl.cycles;
         rtl.cycles = 0;
-        for (auto [address, value] : test.initial_ram) bus.ram[address] = rtl.ram[address] = 0;
-        for (auto [address, value] : test.final_ram) bus.ram[address] = rtl.ram[address] = 0;
+        for (auto [address, value] : test.initial_ram) bus.ram[address] = rtl.poke(address, 0);
+        for (auto [address, value] : test.final_ram) bus.ram[address] = rtl.poke(address, 0);
         for (uint32_t address : rtl.written) {
-            if (address < RAM_BYTES) bus.ram[address] = rtl.ram[address] = 0;
+            if (address < RAM_BYTES) bus.ram[address] = rtl.poke(address, 0);
             oracle.invalidate(address, 1);
         }
         rtl.written.clear();
@@ -2916,7 +3135,11 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
         const uint32_t base = state.seg[fes_i386::SEG_CS].base + state.eip;
         const std::vector<uint8_t> code = generator.program(20 + unsigned(random() % 180), base, state.eip);
         if (n < first) continue;
-        for (size_t i = 0; i < code.size(); ++i) bus.ram[base + i] = rtl.ram[base + i] = code[i];
+        // The MMIO window, unless the program's code is near it.
+        const bool window = base + uint32_t(code.size()) + 16 <= MMIO_LO || base >= MMIO_HI + 16;
+        set_window(oracle, bus, rtl, window);
+        summary.mmio_runs += window;
+        for (size_t i = 0; i < code.size(); ++i) bus.ram[base + i] = rtl.poke(base + i, code[i]);
         oracle.invalidate(base, uint32_t(code.size()));
         // A reset first: no NMI pending or blocked from the last program, as
         // the RTL's reset leaves it (set_state keeps them).
@@ -2932,7 +3155,7 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
             for (uint32_t i = 0; i < 4; ++i) image.emplace_back(vector * 4 + i, uint8_t(0xffffffe0u >> (8 * i)));
         static_assert(0xffff0 + 0xffe0 == IRQ_HANDLER);
         for (auto [address, value] : image) {
-            bus.ram[address] = rtl.ram[address] = value;
+            bus.ram[address] = rtl.poke(address, value);
             oracle.invalidate(address, 1);
             rtl.written.insert(address);
         }
@@ -2954,8 +3177,10 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
             oracle.reset();
         }
         if (out.items.empty() && !outcome.halted && !outcome.limit && !outcome.smc && outcome.exception < 0 &&
-            !outcome.double_fault && !outcome.vector_moved)
+            !outcome.double_fault && !outcome.vector_moved && !outcome.window_code)
             out.add("halt", 1, 0);
+        summary.window_code += outcome.window_code;
+        end_run(bus, rtl, outcome.halted || outcome.limit, out);
         summary.limits += outcome.limit;
         summary.smc += outcome.smc;
         summary.vector_moved += outcome.vector_moved;
@@ -2969,10 +3194,10 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
         rtl.cycles = 0;
         summary.load_waits += rtl.load_waits;
         rtl.load_waits = 0;
-        for (size_t i = 0; i < code.size(); ++i) bus.ram[base + i] = rtl.ram[base + i] = 0;
+        for (size_t i = 0; i < code.size(); ++i) bus.ram[base + i] = rtl.poke(base + i, 0);
         oracle.invalidate(base, uint32_t(code.size()));
         for (uint32_t address : rtl.written) {
-            if (address < RAM_BYTES) bus.ram[address] = rtl.ram[address] = 0;
+            if (address < RAM_BYTES) bus.ram[address] = rtl.poke(address, 0);
             oracle.invalidate(address, 1);
         }
         rtl.written.clear();
@@ -3004,7 +3229,7 @@ int run_unbuilt(Rtl &rtl, Summary &summary) {
         for (size_t i = 0; i + 1 < line.size(); i += 2) code.push_back(uint8_t(std::stoul(line.substr(i, 2), nullptr, 16)));
         code.resize(16, 0);
         code.push_back(0xf4);
-        for (size_t i = 0; i < code.size(); ++i) rtl.ram[base + i] = code[i];
+        for (size_t i = 0; i < code.size(); ++i) rtl.poke(base + i, code[i]);
         rtl.start(state);
         const Rtl::Event event = rtl.next();
         ++summary.runs;
@@ -3018,7 +3243,7 @@ int run_unbuilt(Rtl &rtl, Summary &summary) {
                       << (event != Rtl::Event::Retired ? "timeout" : rtl.top.trace_exception ? "exception" : "retired")
                       << " 1 0\n";
         }
-        for (size_t i = 0; i < code.size(); ++i) rtl.ram[base + i] = 0;
+        for (size_t i = 0; i < code.size(); ++i) rtl.poke(base + i, 0);
     }
     return 0;
 }
@@ -3041,7 +3266,9 @@ int main(int argc, char **argv) {
     VerilatedContext context;
     Rtl rtl(context);
     std::mt19937_64 latency_random(seed * 7919 + 17);
-    if (env("FES_I386_LATENCY", 1)) rtl.fetch.random = rtl.data.random = rtl.port.random = rtl.inta.random = &latency_random;
+    const bool latency = env("FES_I386_LATENCY", 1);
+    if (latency) rtl.port.random = rtl.inta.random = rtl.mmio.random = &latency_random;
+    rtl.port0.fixed = !latency;
 
     Summary summary;
     const std::vector<Entry> entries = load_entries(std::getenv("FES_I386_DIVERGENCES"));
@@ -3088,8 +3315,10 @@ int main(int argc, char **argv) {
                 "\"gaps\": {\"sequential\": %s, \"prefixed\": %s, \"lea\": %s, \"selector\": %s, "
                 "\"after_taken\": %s, \"after_not_taken\": %s, \"shift_consumer\": %s, \"after_shift\": %s, "
                 "\"store_load\": %s, \"after_store\": %s, \"address\": %s, \"after_segment\": %s, \"after_stack\": %s, \"stack_stack\": %s, "
-                "\"several\": %s, \"after_string\": %s, \"after_io\": %s}}\n",
-                mode.c_str(), (unsigned long long)seed, rtl.fetch.random ? "true" : "false",
+                "\"several\": %s, \"after_string\": %s, \"after_io\": %s, \"memory\": %s}, "
+                "\"mmio_accesses\": %llu, \"mmio_runs\": %llu, \"replays\": %llu, \"window_code_stops\": %llu, "
+                "\"port0_reads\": %llu, \"port0_writes\": %llu}\n",
+                mode.c_str(), (unsigned long long)seed, latency ? "true" : "false",
                 (unsigned long long)summary.runs, (unsigned long long)summary.passed,
                 (unsigned long long)summary.failed, (unsigned long long)summary.retirements,
                 (unsigned long long)summary.cycles, (unsigned long long)summary.halts,
@@ -3108,6 +3337,10 @@ int main(int argc, char **argv) {
                 histogram(summary.gap_after_store).c_str(), histogram(summary.gap_address).c_str(),
                 histogram(summary.gap_after_segment).c_str(), histogram(summary.gap_after_stack).c_str(),
                 histogram(summary.gap_stack_stack).c_str(), histogram(summary.gap_several).c_str(),
-                histogram(summary.gap_after_string).c_str(), histogram(summary.gap_after_io).c_str());
+                histogram(summary.gap_after_string).c_str(), histogram(summary.gap_after_io).c_str(),
+                histogram(summary.gap_memory).c_str(), (unsigned long long)summary.mmio_accesses,
+                (unsigned long long)summary.mmio_runs, (unsigned long long)rtl.replays,
+                (unsigned long long)summary.window_code, (unsigned long long)rtl.port0.beats_read,
+                (unsigned long long)rtl.port0.beats_written);
     return summary.failed ? 1 : 0;
 }

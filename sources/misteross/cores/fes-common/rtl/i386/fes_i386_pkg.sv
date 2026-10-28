@@ -556,6 +556,8 @@ package fes_i386_pkg;
         logic [31:0] mlimit;      // D: its segment's limit less the access's bytes but one
         logic        mtiny;       // D: ... which is below zero: every access faults
         logic        pbad;        // M1: a probe's slots straddle the 64 KiB wrap (#SS at M2)
+        logic        nodata;      // D: a load whose data nothing uses, made for its limit check (fes_i386_cpu):
+                                  // the L1D reads nothing for it
         fault_e      dfault;      // D: the fault of a second address's limit check (uop st2), which M1
                                   // takes when the first passes
         logic [31:0] ld;          // M2: the loaded value, zero-extended (fes_i386_exctl xl, yl)

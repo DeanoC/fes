@@ -96,7 +96,8 @@ module fes_i386_biu import fes_i386_pkg::*; #(
     output logic [7:0]       dma_rdata,
     // FLUSH, held until flush_done.
     input  logic             flush_request,
-    output logic             flush_done
+    output logic             flush_done,
+    output logic             idle            // nothing buffered, nothing in flight
 );
     localparam int LW = PA - 5;  // line address bits
     localparam logic [27:0] BASE_WORD = RAM_BASE[31:4];
@@ -334,4 +335,5 @@ module fes_i386_biu import fes_i386_pkg::*; #(
     assign count_next = count - 3'(pop) + 3'(take0) + 3'(take1);
     assign wb_room_next = count_next <= 3'd2;
     assign wb_empty = count == 3'd0;
+    assign idle = count == 3'd0 && state == S_IDLE && !dma_busy;
 endmodule
