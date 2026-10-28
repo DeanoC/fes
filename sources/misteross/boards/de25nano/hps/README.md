@@ -47,17 +47,22 @@ reads return zero, and writes to those addresses or read-only registers have
 no effect. A simultaneous scratch read/write returns the previous value.
 The Verilator bench exercises those behaviors through the real RTL, including
 every byte-enable combination and every byte address in the endpoint span.
-`make sim` also exercises the actual board-local reset RTL: asynchronous
-assertion at startup and with the clock stopped high or low, held reset,
-release on exactly the second rising edge, and interrupted release/relock.
+`make sim` also exercises the actual board-local reset RTL: all configuration
+reset/PLL-lock input combinations, asynchronous assertion at startup and with
+the clock stopped high or low, held reset, release on exactly the second
+rising edge, and interrupted release/relock.
 
-The copied top combines configuration reset (`ninit_done`) and loss of PLL
-lock into the asynchronous FPGA reset source. It supplies this source directly
-to the existing generated subsystem reset controllers, which retain their
-own domain-specific synchronized release. The PLL reset remains `ninit_done`
-so waiting for lock cannot hold the PLL itself in reset. A separate preserved
-two-register release synchronizer at 100 MHz supplies only the top-level
-debounce and heartbeat reset. Its narrow SDC exception covers exactly the
+The board-local reset module combines configuration reset (`ninit_done`) and
+loss of PLL lock, asserts asynchronously and releases through a preserved
+two-register chain at 100 MHz. This common `top_reset_n` supplies the top's
+debounce and heartbeat plus the existing generated subsystem reset input.
+The generated controllers retain their own domain-specific release behavior;
+their synchronous input stages receive the qualified common reset instead
+of a combinational expression from the SDM and PLL clock domains. The PLL
+reset remains `ninit_done` so waiting for lock cannot hold the PLL itself in
+reset. Quartus identifies the preserved chain automatically; no vector-wide
+synchronizer forcing splits its stages into separately declared chain heads.
+Its narrow SDC exception covers exactly the
 two synchronizer asynchronous clear pins; register D paths and the released
 reset's recovery/removal paths remain timed. A changed pin match count fails.
 

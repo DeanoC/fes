@@ -171,21 +171,22 @@ def repair_top_reset(project):
     source = path.read_text()
     replacements = (
         ("wire                   system_reset_n;",
-         "wire                   fpga_reset_n;\nwire                   pll_locked;\nwire                   top_reset_n;"),
+         "wire                   pll_locked;\nwire                   top_reset_n;"),
         ("assign                 system_reset_n = ~ninit_done;",
-         "assign                 fpga_reset_n = ~ninit_done & pll_locked;"),
+         "// Configuration and PLL-lock qualification are inside fes_top_reset_inst."),
         (".locked   ()", ".locked   (pll_locked)"),
         (".reset_reset_n                             (system_reset_n)",
-         ".reset_reset_n                             (fpga_reset_n)"),
+         ".reset_reset_n                             (top_reset_n)"),
         (".reset_n                                   (system_reset_n)",
          ".reset_n                                   (top_reset_n)"),
         ("always @(posedge system_clk_100_internal or negedge system_reset_n) begin\n  if (~system_reset_n)",
          "always @(posedge system_clk_100_internal or negedge top_reset_n) begin\n  if (~top_reset_n)"),
         ("// Debounce logic to clean out glitches within 1ms",
-         "// Local logic uses synchronized release; subsystem controllers keep their own release.\n"
+         "// Common reset qualifies PLL lock; generated controllers retain their own release.\n"
          "fes_de25_top_reset fes_top_reset_inst (\n"
          "  .clk (system_clk_100_internal),\n"
-         "  .async_reset_n (fpga_reset_n),\n"
+         "  .ninit_done (ninit_done),\n"
+         "  .pll_locked (pll_locked),\n"
          "  .reset_n (top_reset_n)\n);\n\n"
          "// Debounce logic to clean out glitches within 1ms"),
     )
@@ -210,9 +211,9 @@ def repair_top_reset(project):
     path.write_text(source)
     return {"asynchronous_source": "~ninit_done & pll_locked",
             "pll_reset": "ninit_done (unchanged)",
-            "subsystem_reset": "combined asynchronous source; generated domain controllers unchanged",
+            "subsystem_reset": "top_reset_n; generated domain controllers unchanged",
             "top_reset": "fes_top_reset_inst: two-stage 100 MHz synchronized release",
-            "top_reset_consumers": ["debounce_inst", "heartbeat_count"],
+            "top_reset_consumers": ["soc_inst.reset_reset_n", "debounce_inst", "heartbeat_count"],
             "asynchronous_led_output_pins": pins,
             "patches": [{"before": before, "after": after} for before, after in replacements]}
 

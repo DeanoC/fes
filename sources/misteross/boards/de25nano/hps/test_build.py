@@ -394,14 +394,15 @@ class HpsBuildTests(unittest.TestCase):
         output = self.prepare(archive, selected)
         project = output / "project"
         top = (project / "golden_top.v").read_text()
-        self.assertIn("fpga_reset_n = ~ninit_done & pll_locked;", top)
         self.assertIn(".locked   (pll_locked)", top)
         self.assertIn(".rst      (ninit_done)", top)
-        self.assertIn(".reset_reset_n                             (fpga_reset_n)", top)
+        self.assertIn(".reset_reset_n                             (top_reset_n)", top)
         self.assertIn(".reset_n                                   (top_reset_n)", top)
         self.assertIn("negedge top_reset_n", top)
-        self.assertIn(".async_reset_n (fpga_reset_n)", top)
+        self.assertIn(".ninit_done (ninit_done)", top)
+        self.assertIn(".pll_locked (pll_locked)", top)
         self.assertNotIn("system_reset_n", top)
+        self.assertNotIn("fpga_reset_n", top)
         for name in ("qsys_top.qsys", "peripheral_subsys/peripheral_subsys.qsys", HPS, EMIF, PLL, BOOT):
             self.assertEqual((project / name).read_bytes(), files[name], name)
         qsf = (project / "golden_top.qsf").read_text()
@@ -409,7 +410,8 @@ class HpsBuildTests(unittest.TestCase):
         self.assertIn("SDC_FILE fes_mailbox/fes_de25_top.sdc", qsf)
         inputs = json.loads((output / "inputs.json").read_text())
         repair = inputs["reviewed_top_reset_repairs"]
-        self.assertEqual(repair["top_reset_consumers"], ["debounce_inst", "heartbeat_count"])
+        self.assertEqual(repair["top_reset_consumers"],
+                         ["soc_inst.reset_reset_n", "debounce_inst", "heartbeat_count"])
         # The receipt must describe every actual vendor-top change.
         original = files["golden_top.v"].decode()
         for patch in repair["patches"]:
