@@ -155,17 +155,18 @@ DEC, NEG, NOT, TEST, MOV (to and from a segment register in real mode, and
 immediates), LEA, the shifts and rotates, SHLD and SHRD, SETcc, MOVZX and
 MOVSX, CBW/CWDE, CWD/CDQ, SAHF, LAHF, the flag set and clear instructions,
 NOP, HLT, the near JMP, Jcc, LOOP, LOOPE, LOOPNE and JCXZ, MUL, IMUL (all
-three forms), DIV, IDIV, AAM and AAD, the stack operations below, and the
+three forms), DIV, IDIV, AAM and AAD, BT, BTS, BTR and BTC by an immediate,
+BSF and BSR, the stack operations below, and the
 first uops of the string instructions and ENTER, with a ModRM memory
 operand wherever they take one. A memory operand is a load, a store,
 or both in one uop (read-modify-write), and stands for the register it
 replaces: no GPR is read or written for it. Its segment is the override, else
 SS for a BP-, EBP- or ESP-based address, else DS. LOCK on anything but a
-read-modify-write of ADD, OR, ADC, SBB, AND, SUB, XOR, NOT, NEG, INC or DEC,
-MOV to CS or to segment register 6 or 7, LEA of a register and C6h/C7h with
-reg != 0 raise #UD; over 15 bytes raises #GP(0). Every other encoding decodes
-as `FAULT_UNIMPLEMENTED`, which stops the CPU at WB, so no check can pass over
-one. An immediate after a ModRM's operand bytes is the instruction's last
+read-modify-write of ADD, OR, ADC, SBB, AND, SUB, XOR, NOT, NEG, INC, DEC,
+BTS, BTR or BTC, MOV to CS or to segment register 6 or 7, LEA of a register
+and C6h/C7h with reg != 0 raise #UD; over 15 bytes raises #GP(0). Every
+other encoding decodes as `FAULT_UNIMPLEMENTED`, which stops the CPU at WB,
+so no check can pass over one. An immediate after a ModRM's operand bytes is the instruction's last
 bytes, so DC takes it from the length, beside the decode. DC also registers
 the address registers and scale a memory ModRM names (`fes_i386_amode`), or
 ESP (EBP for LEAVE) for a stack operation.
@@ -512,6 +513,18 @@ D holds a flag reader one cycle behind a shift. Undefined flags follow the
 386EX (the Phase 0 divergence list): logic ops clear AF, shifts by a nonzero
 count set it, and the shift OF and wide-count CF rules are in
 `fes_i386_shflags`.
+
+**Bit test and scan.** BT, BTS, BTR and BTC by an immediate take the bit's
+mask from M2 as y (its complement for BTR), so the logic unit makes BTS's,
+BTR's and BTC's result. CF is the operand's bit, selected in EX by an index
+M2 registers. The 386EX writes OF as the two bits below it XORed, mod the
+size, and leaves SF, ZF, AF and PF. LOCK is valid on BTS, BTR and BTC with
+a memory operand. BSF and BSR scan y for its lowest or highest set bit in
+EX; a source of 0 sets ZF and keeps the destination. Their other flags are
+the 386EX's, which `fes_i386_ex` lists, fitted to every SingleStepTests
+state of the six opcodes. BT, BTS, BTR and BTC by a register (0F A3, AB,
+B3, BB) are not built: a memory operand's address moves by the register,
+which needs an address term AG does not have.
 
 **Branches** are predicted not taken. EX resolves them; a taken one redirects
 F1 from WB, where every younger uop is flushed, and clears D's forwarding

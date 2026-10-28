@@ -23,8 +23,9 @@
 // push of the next EIP, then JMP rel, which D builds from the push's
 // otherwise unused imm (the displacement).
 // Encodings the i386 rejects raise #UD (LOCK on anything but a read-modify-
-// write of ADD, OR, ADC, SBB, AND, SUB, XOR, NOT, NEG, INC or DEC, MOV to CS
-// or to segment register 6 or 7, LEA of a register, C6h/C7h with reg != 0);
+// write of ADD, OR, ADC, SBB, AND, SUB, XOR, NOT, NEG, INC, DEC, BTS, BTR or
+// BTC, MOV to CS or to segment register 6 or 7, LEA of a register, C6h/C7h
+// with reg != 0);
 // an instruction over 15 bytes raises #GP(0). Everything else decodes as
 // FAULT_UNIMPLEMENTED. In 16-bit code an instruction
 // whose next EIP passes FFFFh is FAULT_UNIMPLEMENTED too, but D applies
