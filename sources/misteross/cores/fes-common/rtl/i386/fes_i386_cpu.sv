@@ -128,7 +128,8 @@ module fes_i386_cpu #(
                                                    // delivery (trace_vector 8: double fault)
     output logic             trace_issue,          // D issued this cycle (lockstep observability)
     output logic             trace_md_wait,        // D to WB wait for a multiply or divide in EX (ditto)
-    output logic             trace_fetch,          // F1 sent a block to the L1I (ditto)
+    output logic             trace_fetch,          // F1 sent a block to the L1I (ditto) ...
+    output logic [27:0]      trace_fetch_block,    // ... this one, linear address / 16
     output logic             trace_dread,          // M1 sent a load to the L1D (ditto)
     output logic             trace_mem_wait,       // D to WB wait for the L1D or the write buffer, or F2 for the L1I
     output logic             trace_mem_idle,       // the bus interface has nothing to do or finish
@@ -795,11 +796,13 @@ module fes_i386_cpu #(
     // the cycle the fault or HLT is in WB, its flush clears what D issues.
     // After a replay, D issues the instruction one uop at a time (serial),
     // each once nothing is left in AG to WB (ser_wait), so its uncached load
-    // reaches M2 as the oldest uop.
+    // reaches M2 as the oldest uop. A CMPS element's second load issues right
+    // behind its first, whose result it takes one stage ahead (x_prev); it
+    // then counts as the oldest behind it (oldest).
     logic serial, ser_wait;
     assign issue = cur_valid && !(addr_use && lea_stall) && !(reads_seg && seg_hazard) && !(mem && mseg_hazard)
                 && !store_hazard && !flag_hazard && !sp_hazard && !stack_wait && !t_wait && !uc_wait && !str_wait
-                && !str_hazard && !io_hazard && !ser_wait && !freeze && !halted;
+                && !str_hazard && !io_hazard && !(ser_wait && !dc.x_prev) && !freeze && !halted;
     assign trace_issue = issue;
     assign trace_md_wait = md_busy;
 
@@ -1589,6 +1592,7 @@ module fes_i386_cpu #(
     endfunction
     assign oldest = !int_take && (!ex_s.valid || own_load(ex_s)) && (!wb_s.valid || own_load(wb_s) && !wb_flushes);
     assign trace_fetch = mem_load;
+    assign trace_fetch_block = mem_block;
     assign trace_dread = dmem_read;
     assign trace_mem_wait = m2_load && !dmem_valid || st_wait || !mem_valid;
     assign trace_replay = rp_go;

@@ -117,8 +117,8 @@ OPL2_RTL = (
     CORE / 'rtl/pc386_opl2.sv',
 )
 AUDIO_RTL = (*OPL2_RTL, CORE / 'rtl/pc386_sb.sv', CORE / 'rtl/pc386_mixer.sv', CORE / 'rtl/pc386_audio.sv')
-# machine_tb --cpu rtl's CPU: fes_i386_cpu with the load size it reports.
-CPU_RTL = (*(lockstep.RTL / path for path in lockstep.CPU_RTL), CORE / 'sim/pc386_rtl_cpu.sv')
+# machine_tb --cpu rtl's CPU.
+CPU_RTL = tuple(lockstep.RTL / path for path in lockstep.CPU_RTL)
 OPL2_SEEDS = (1, 2, 3)
 OPL2_SAMPLES = 20000
 # The machine without the CPU: the AT core, the VGA, the presenter, port 2
@@ -332,7 +332,7 @@ def timing_failures(report: dict) -> list[str]:
 
 
 def machine_testbench(args, linked: list[Path]) -> Path:
-    cpu = verilate(args.verilator, 'machine', 'pc386_rtl_cpu', CPU_RTL, None, [], args.jobs)
+    cpu = verilate(args.verilator, 'machine', 'fes_i386_cpu', CPU_RTL, None, [], args.jobs)
     return verilate_with_audio(args, 'machine', CORE / 'sim/machine_tb.cpp', [*linked, cpu],
                                top='pc386_machine', rtl=MACHINE_RTL, include=(cpu.parent,))
 

@@ -44,8 +44,10 @@
 // each byte unless the next byte is the 0xf0 break prefix (default 0.03 s).
 // PC386_TRACE_IO=1 prints every I/O but port 80h to stderr.
 //
-// --cpu rtl runs fes_i386_cpu (sim/pc386_rtl_cpu.sv) in the oracle's place,
-// clocked with the machine at the system clock (RtlCpu). An encoding it has
+// --cpu rtl runs fes_i386_cpu in the oracle's place, clocked with the
+// machine at the system clock (RtlCpu), with its caches on HPS DDR port 0
+// (pc386_ddr_model.h's Port0) and the machine's MMIO, DMA and FLUSH ports
+// wired to it. An encoding it has
 // not built stops it; the bench prints the stop, runs that one instruction
 // on the oracle from the RTL's state, and restarts the RTL from the oracle's
 // state after it, or after the whole stretch the oracle runs in protected
@@ -59,7 +61,7 @@
 // boot's instruction mix with the oracle as the CPU, the RTL's stops with it.
 #include "Vpc386_machine.h"
 #include "Vpc386_machine___024root.h"
-#include "Vpc386_rtl_cpu.h"
+#include "Vfes_i386_cpu.h"
 #include "Vpc386_audio___024root.h"
 #include "audio_link.h"
 #include "i386_oracle.h"
@@ -212,6 +214,7 @@ public:
     uint64_t pending_read_address = 0;
     bool pending_read = false;
     bool dma_pending = false;
+    bool cpu_memory = false;  // the RTL CPU serves DMA and FLUSH (RtlCpu), else this bench does
     // Capture and 720p frame bookkeeping.
     unsigned frames_done = 0;
     // Captures published while a marked picture waits for its 720p frame.
@@ -262,17 +265,19 @@ public:
             if (top.disk_write) store64(top.disk_address, top.disk_wdata);
             else { pending_read = true; pending_read_address = top.disk_address; }
         }
-        top.dma_done = dma_pending;
-        dma_pending = false;
-        if (top.dma_valid && !top.dma_done) {
-            dma_pending = true;
-            uint32_t address = top.dma_address & (RAM_BYTES - 1);
-            if (top.dma_write) ram[address] = top.dma_wdata;
-            else top.dma_rdata = ram[address];
+        if (!cpu_memory) {
+            top.dma_done = dma_pending;
+            dma_pending = false;
+            if (top.dma_valid && !top.dma_done) {
+                dma_pending = true;
+                uint32_t address = top.dma_address & (RAM_BYTES - 1);
+                if (top.dma_write) ram[address] = top.dma_wdata;
+                else top.dma_rdata = ram[address];
+            }
+            top.flush_done = top.flush_request;
         }
         ddr1.drive(port1(top), cycles);
         ddr2.drive(port2(top), cycles);
-        top.flush_done = top.flush_request;
         now_ps += SYS_PERIOD_PS;
         while (pixel_running && pixel_edge_ps <= now_ps) {
             pixel_edge();
@@ -498,25 +503,54 @@ public:
     }
 };
 
-// The RTL CPU on the machine, one system clock per cycle, driven as
-// lockstep_tb.cpp's Rtl drives it: the fetch and data ports on guest memory
-// with no latency, the VGA window as MMIO through the machine's port (stores
-// posted in order as they retire, loads waiting), I/O and INTA through the AT
-// core with its device time (an I/O access once the VGA stores before it are
-// taken), INTR from the PICs, no NMI. A20M masks physical bit 20 except in
-// the reset alias at FFFF0000h. There is no uncached path in the CPU yet, so
-// a VGA load on a wrong path reaches the VGA, which the L1D's uncached loads,
-// waiting until they are the oldest, will not let it.
+// Guest memory as port 0 reaches it: physical 0 at window offset
+// GUEST_OFFSET, through the machine's pages: RAM, and in the two ROM ranges
+// the ROM images, which the CPU only reads.
+struct GuestMemory {
+    Machine &m;
+    uint8_t *at(uint32_t offset) {
+        const uint32_t paddr = offset - pc386::GUEST_OFFSET;
+        uint8_t *page = offset >= pc386::GUEST_OFFSET ? m.page(paddr, false) : nullptr;
+        if (!page) throw std::runtime_error("port 0 outside guest memory: " + std::to_string(paddr));
+        return page + (paddr & 0xfff);
+    }
+};
+
+// The RTL CPU on the machine, one system clock per cycle: its caches on DDR
+// port 0, the machine's MMIO port for A0000h-BFFFFh (stores posted in order,
+// loads only by the oldest uop, the CPU's own rule), its DMA and FLUSH
+// ports, I/O and INTA through the AT core with its device time, INTR from
+// the PICs, no NMI, and A20M. The attribute map is the machine's: VGA
+// memory MMIO, the VGA and system BIOS read-only, upper RAM on.
 class RtlCpu {
 public:
-    explicit RtlCpu(Machine &machine) : m(machine), dirty(RAM_BYTES >> 12) {}
+    explicit RtlCpu(Machine &machine)
+        : m(machine), dirty(RAM_BYTES >> 12), guest{machine}, port0(guest, 0x5eed0000, "port 0") {
+        uint64_t map = 0;
+        for (int slot = 0; slot < 24; ++slot) {
+            const uint64_t attr = slot < 8 ? 2 : slot < 10 ? 1 : slot < 20 ? 0 : 1;
+            map |= attr << (2 * slot);
+        }
+        cpu.attr_upper = map;
+        cpu.ram_top = RAM_BYTES >> 20;
+        cpu.cold_reset = 1;
+        cpu.reset = 1;
+        for (int n = 0; n < 3; ++n) {
+            cpu.clk = 0;
+            cpu.eval();
+            cpu.clk = 1;
+            cpu.eval();
+        }
+        cpu.cold_reset = 0;
+    }
 
-    Vpc386_rtl_cpu cpu;
+    Vfes_i386_cpu cpu;
     Machine &m;
     uint64_t retired = 0;        // instructions the RTL retired
     uint64_t tf_retired = 0;     // ... with TF set, which the RTL does not trap on
     uint64_t parked_clocks = 0;  // clocks only the machine ran (see run)
-    uint64_t vga_loads = 0;      // loads from the VGA window
+    uint64_t vga_loads = 0;      // MMIO reads the VGA took
+    uint64_t replays = 0;        // instructions restarted for an MMIO load not the oldest
     // Self-modifying code: a store into a block the front end has fetched,
     // ahead of the next instruction, and an instruction that then retires
     // over a byte so stored before the front end next redirects (and so
@@ -526,12 +560,13 @@ public:
     std::vector<std::string> smc_sites;  // the first stores and executions
     std::function<unsigned(uint32_t linear)> length;  // an instruction's length, from memory
     std::vector<bool> dirty;     // pages stored to since the oracle last ran
+    GuestMemory guest;
+    pc386::Port0<GuestMemory> port0;
 
     // A20 below the reset alias.
     static uint32_t physical(uint32_t linear, bool a20m) {
         return linear >= 0xffff0000u || !a20m ? linear : linear & ~(1u << 20);
     }
-    static bool vga(uint32_t paddr) { return paddr >= 0xa0000 && paddr < 0xc0000; }
     uint8_t read8(uint32_t paddr) {
         uint8_t *page = m.page(paddr, false);
         return page ? page[paddr & 0xfff] : 0xff;
@@ -550,8 +585,7 @@ public:
             set16(cpu.init_ar, n, s.seg[n].ar);
         }
         cpu.nmi = 0;
-        cpu.mem_valid = 1;
-        cpu.dmem_valid = 1;
+        m.cpu_memory = true;
         cpu.reset = 1;
         resetting = true;
         for (int n = 0; n < 3; ++n) cycle();
@@ -580,17 +614,19 @@ public:
     enum class Event { Budget, Stopped, HaltedForGood, Reset, Stall };
     // Up to budget clocks, until the CPU stops, the machine resets it, or
     // nothing retires for STALL_CLOCKS. The CPU parks once it has made no
-    // request on any port for PARK_CLOCKS (so it is frozen, or its front end
-    // full) while an I/O or INTA cycle it waits for is at the machine, or in
-    // HLT with INTR low: until the cycle completes or INTR rises only the
-    // machine is clocked, which leaves the CPU as clocking it would.
+    // request on any port for PARK_CLOCKS, with its memory idle (so it is
+    // frozen, or its front end full), while an I/O or INTA cycle it waits
+    // for is at the machine, or in HLT with INTR low: until the cycle
+    // completes or INTR rises only the machine is clocked, which leaves the
+    // CPU as clocking it would.
     Event run(unsigned budget) {
         for (unsigned n = 0; n < budget; ++n) {
             if (cpu.trace_unimplemented) return Event::Stopped;
             if (cpu.trace_halt && !(cpu.arch_eflags & 0x200)) return Event::HaltedForGood;
             const bool waiting = io == Pending::Issued || inta == Pending::Issued;
             const bool asleep = cpu.trace_halt && io == Pending::Idle && inta == Pending::Idle && !m.top.intr;
-            if (still >= PARK_CLOCKS && vga_queue.empty() && (waiting || asleep)) {
+            if (still >= PARK_CLOCKS && cpu.trace_mem_idle && port0.idle() && !m.top.dma_valid
+                && !m.top.flush_request && (waiting || asleep)) {
                 m.clock();
                 ++parked_clocks;
                 answers();
@@ -609,11 +645,10 @@ public:
     void cycle() {
         cpu.clk = 0;
         cpu.eval();
-        const bool load = cpu.mem_load, dread = cpu.dmem_read, dwrite = cpu.dmem_write;
-        const uint32_t block = cpu.mem_block, daddr = cpu.dmem_addr, waddr = cpu.dmem_waddr & ~3u;
-        const unsigned dbytes = cpu.dmem_bytes;
-        const uint64_t wdata = cpu.dmem_wdata;
-        const uint8_t wmask = cpu.dmem_wmask;
+        const bool fetch = cpu.trace_fetch, store = cpu.trace_store;
+        const uint32_t block = cpu.trace_fetch_block, waddr = cpu.trace_store_addr & ~3u;
+        const uint64_t wdata = cpu.trace_store_data;
+        const uint8_t wmask = cpu.trace_store_mask;
         const bool a20m = m.top.a20m;
         // I/O and INTA: acknowledge on this edge what the machine completed
         // after the last; a request after an acknowledge is the next access.
@@ -638,12 +673,12 @@ public:
             inta = Pending::Want;
         }
         cpu.intr = m.top.intr;
+        cpu.a20m = a20m;
         // The machine's inputs for this edge: one I/O or INTA cycle when the
-        // AT core is free, as the oracle path waits for io_busy. An I/O
-        // access waits until the machine has taken every older VGA store, as
-        // the design's I/O instructions drain the write buffer first.
+        // AT core is free, as the oracle path waits for io_busy. (The CPU
+        // asks for an I/O access once its write buffer is empty.)
         bool issued = false;
-        if (io == Pending::Want && !m.top.io_busy && vga_queue.empty()) {
+        if (io == Pending::Want && !m.top.io_busy) {
             m.top.io_valid = 1;
             m.top.io_write = io_write;
             m.top.io_port = io_port;
@@ -659,17 +694,46 @@ public:
             inta_start = m.cycles;
             issued = true;
         }
-        bool vga_taken = false;
-        if (!vga_reading && !vga_queue.empty()) {
-            Mmio &op = vga_queue.front();
-            if (!op.presented) { op.presented = true; op.start = m.cycles; }
-            m.top.mem_valid = 1;
-            m.top.mem_write = op.write;
-            m.top.mem_address = (op.dword - 0xa0000) >> 2;
-            m.top.mem_byteenable = op.enables;
-            m.top.mem_wdata = op.value;
-            m.top.eval();
-            vga_taken = m.top.mem_ready;
+        // Port 0, and the machine's MMIO, DMA and FLUSH ports, wired.
+        port0.drive(cpu, ticks++);
+        const uint32_t mmio_dword = uint32_t(cpu.mmio_address) << 2;
+        m.top.mem_valid = cpu.mmio_valid;
+        m.top.mem_write = cpu.mmio_write;
+        m.top.mem_address = (mmio_dword - 0xa0000) >> 2;
+        m.top.mem_byteenable = cpu.mmio_byteenable;
+        m.top.mem_wdata = cpu.mmio_wdata;
+        m.top.dma_done = cpu.dma_done;
+        m.top.dma_rdata = cpu.dma_rdata;
+        m.top.flush_done = cpu.flush_done;
+        m.top.eval();
+        if (m.top.mem_valid && !mmio_presented) {
+            mmio_presented = true;
+            mmio_start = m.cycles;
+        }
+        const bool mmio_taken = m.top.mem_valid && m.top.mem_ready;
+        cpu.mmio_ready = m.top.mem_ready;
+        cpu.mmio_rvalid = m.top.mem_rvalid;
+        cpu.mmio_rdata = m.top.mem_rdata;
+        cpu.dma_valid = m.top.dma_valid;
+        cpu.dma_write = m.top.dma_write;
+        cpu.dma_address = m.top.dma_address;
+        cpu.dma_wdata = m.top.dma_wdata;
+        cpu.flush_request = m.top.flush_request;
+        if (cpu.mmio_rvalid && mmio_reading) {
+            m.record_mmio(false, read_start, read_dword, read_enables, cpu.mmio_rdata);
+            mmio_reading = false;
+        }
+        if (mmio_taken) {
+            mmio_presented = false;
+            if (cpu.mmio_write) {
+                m.record_mmio(true, mmio_start, mmio_dword, cpu.mmio_byteenable, cpu.mmio_wdata);
+            } else {
+                mmio_reading = true;
+                read_start = mmio_start;
+                read_dword = mmio_dword;
+                read_enables = cpu.mmio_byteenable;
+                ++vga_loads;
+            }
         }
         m.clock();
         cpu.clk = 1;
@@ -679,49 +743,32 @@ public:
         if (issued) { m.top.io_valid = 0; m.top.inta_valid = 0; }
         answers();
         m.top.mem_valid = 0;
-        if (vga_taken) {
-            const Mmio &op = vga_queue.front();
-            if (op.write) {
-                m.record_mmio(true, op.start, op.dword, op.enables, op.value);
-                vga_queue.pop_front();
-            } else {
-                vga_reading = true;
-            }
-        }
-        if (vga_reading && m.top.mem_rvalid) {
-            const Mmio &op = vga_queue.front();
-            uint32_t value = m.top.mem_rdata;
-            m.record_mmio(false, op.start, op.dword, op.enables, value);
-            for (unsigned k = 0; k < 4; ++k)
-                if (op.enables >> k & 1)
-                    loaded = (loaded & ~(0xffull << (8 * (op.lane + k)))) | uint64_t((value >> (8 * k)) & 0xff) << (8 * (op.lane + k));
-            vga_queue.pop_front();
-            vga_reading = false;
-            if (--vga_reads == 0) {
-                cpu.dmem_valid = 1;
-                cpu.dmem_rdata = loaded;
-            }
-        }
+        replays += cpu.trace_replay;
 
-        // The CPU's ports after its edge: the retiring store writes, then the
-        // load reads (a VGA load stays behind the store), then the fetch.
-        if (dwrite && !resetting) store(waddr, wdata, wmask, a20m);
-        if (dread && !resetting) data_read(daddr, dbytes, a20m);
-        if (load) {
-            const uint32_t base = physical(block << 4, a20m);
-            for (int word = 0; word < 4; ++word) {
-                uint32_t value = 0;
-                for (int i = 0; i < 4; ++i) {
-                    uint32_t at = base + 4 * word + i;
-                    value |= uint32_t(vga(at) ? 0xff : read8(at)) << (8 * i);
+        // The CPU's ports before its edge: the retiring store, then the fetch.
+        if (store && !resetting) {
+            const uint32_t next = physical(cpu.arch_base[fes_i386::SEG_CS] + cpu.arch_eip, a20m);
+            for (unsigned lane = 0; lane < 8; ++lane) {
+                if (!(wmask >> lane & 1)) continue;
+                const uint32_t at = physical(waddr + lane, a20m);
+                if (at >= RAM_BYTES || (at >= 0xa0000 && at < 0xc0000)) continue;
+                dirty[at >> 12] = true;
+                // Code the front end holds ahead of the next instruction.
+                if (at >= next && at < fetch_end && fetch_end - next <= SMC_WINDOW) {
+                    if (smc_addresses.insert(at).second && smc_sites.size() < 24)
+                        smc_sites.push_back(site("store", next, at));
+                    stale.insert(at);
+                    ++smc_stores;
                 }
-                cpu.mem_data[word] = value;
             }
+        }
+        if (fetch) {
+            const uint32_t base = physical(block << 4, a20m);
             if (base != fetch_end) stale.clear();  // a redirect: the front end refetches
             fetch_end = base + 16;
         }
-        cpu.mem_valid = 1;
-        still = load || dread || dwrite || issued || cpu.io_ack || cpu.inta_ack || cpu.trace_retire ? 0 : still + 1;
+        still = fetch || cpu.trace_dread || store || issued || cpu.io_ack || cpu.inta_ack || cpu.trace_retire
+                || !cpu.trace_mem_idle ? 0 : still + 1;
         if (cpu.trace_retire) {
             ++retired;
             last_retire = m.cycles;
@@ -742,15 +789,6 @@ private:
     static constexpr uint64_t STALL_CLOCKS = 10000000;  // 0.1 s
     static constexpr unsigned PARK_CLOCKS = 16;
     enum class Pending { Idle, Want, Issued, Done };
-    struct Mmio {
-        bool write;
-        uint32_t dword;
-        uint8_t enables;
-        uint32_t value;
-        unsigned lane;  // a load's: the port lane of the dword's byte 0
-        bool presented = false;
-        uint64_t start = 0;
-    };
     Pending io = Pending::Idle, inta = Pending::Idle;
     bool resetting = false;
     bool io_write = false;
@@ -759,11 +797,12 @@ private:
     uint32_t io_wdata = 0, io_result = 0;
     uint8_t inta_result = 0;
     uint64_t io_start = 0, inta_start = 0;
-    unsigned still = 0;  // clocks since the CPU last made or was answered a request, or retired
-    std::deque<Mmio> vga_queue;
-    bool vga_reading = false;  // the queue's front is a load the VGA has taken
-    unsigned vga_reads = 0;    // the waiting load's dwords not yet answered
-    uint64_t loaded = 0;       // the bytes the last load read
+    uint64_t ticks = 0;     // port 0's clock
+    unsigned still = 0;     // clocks since the CPU last made or was answered a request, or retired
+    bool mmio_presented = false, mmio_reading = false;  // an MMIO request waiting to be taken; a read taken
+    uint64_t mmio_start = 0, read_start = 0;
+    uint32_t read_dword = 0;
+    uint8_t read_enables = 0;
     uint32_t fetch_end = 0;    // the end of the last block fetched
     uint32_t retire_next = 0;  // where the next instruction to retire starts
     std::set<uint32_t> stale;  // bytes stored into fetched code since the last redirect
@@ -784,87 +823,30 @@ private:
     }
 
 public:
-    // Finish what the machine has in hand: the I/O or INTA cycle issued, the
-    // posted VGA stores, before the oracle runs or the CPU resets. A load
-    // the VGA has not taken is dropped.
+    // Finish what the machine has in hand, the I/O or INTA cycle issued,
+    // and hold the CPU in reset until its write buffer has drained and
+    // nothing is in flight on its ports, before the oracle runs or the CPU
+    // restarts. Memory then holds every store the CPU retired.
     void settle() {
         while (io == Pending::Issued && !m.top.io_done) m.clock();
         while (inta == Pending::Issued && !m.top.inta_done) m.clock();
         io = inta = Pending::Idle;
-        if (vga_reading) while (!m.top.mem_rvalid) m.clock();
-        if (vga_reading) vga_queue.pop_front();
-        vga_reading = false;
-        for (const Mmio &op : vga_queue)
-            if (op.write) m.mmio(true, op.dword, op.enables, op.value);
-        vga_queue.clear();
-        vga_reads = 0;
+        cpu.reset = 1;
+        resetting = true;
+        for (unsigned n = 0; n < 1000000 && !(cpu.trace_mem_idle && port0.idle() && !mmio_reading); ++n) cycle();
+        if (!(cpu.trace_mem_idle && port0.idle())) throw std::runtime_error("the RTL's memory never went idle");
+        resetting = false;
+        mmio_presented = false;
+        m.cpu_memory = false;
     }
 
 private:
-
-    void store(uint32_t dword, uint64_t data, uint8_t mask, bool a20m) {
-        const uint32_t next = physical(cpu.arch_base[fes_i386::SEG_CS] + cpu.arch_eip, a20m);
-        for (unsigned half = 0; half < 2; ++half) {
-            const uint32_t base = physical(dword + 4 * half, a20m);
-            Mmio op{true, base, 0, 0, 0};
-            for (unsigned k = 0; k < 4; ++k) {
-                const unsigned lane = 4 * half + k;
-                if (!(mask >> lane & 1)) continue;
-                const uint8_t byte = uint8_t(data >> (8 * lane));
-                const uint32_t at = base + k;
-                if (vga(at)) {
-                    op.enables |= uint8_t(1u << k);
-                    op.value |= uint32_t(byte) << (8 * k);
-                } else if (uint8_t *page = m.page(at, true)) {
-                    page[at & 0xfff] = byte;
-                    dirty[at >> 12] = true;
-                    // Code the front end holds ahead of the next instruction.
-                    if (at >= next && at < fetch_end && fetch_end - next <= SMC_WINDOW) {
-                        if (smc_addresses.insert(at).second && smc_sites.size() < 24)
-                            smc_sites.push_back(site("store", next, at));
-                        stale.insert(at);
-                        ++smc_stores;
-                    }
-                }
-            }
-            if (op.enables) vga_queue.push_back(op);
-        }
-    }
     static constexpr uint32_t SMC_WINDOW = 96;
     std::string site(const char *kind, uint32_t instruction, uint32_t address) const {
         char text[96];
         std::snprintf(text, sizeof text, "%s %llu %04x:%08x %08x %08x", kind, (unsigned long long)m.cycles,
                       unsigned(cpu.arch_sel[0] >> 16), cpu.arch_eip, instruction, address);
         return text;
-    }
-
-    void data_read(uint32_t address, unsigned bytes, bool a20m) {
-        const uint32_t dword = address & ~3u;
-        const unsigned first = address & 3, last = std::min(first + bytes, 8u);
-        uint64_t value = 0;
-        for (unsigned half = 0; half < 2; ++half) {
-            const uint32_t base = physical(dword + 4 * half, a20m);
-            Mmio op{false, base, 0, 0, 4 * half};
-            for (unsigned k = 0; k < 4; ++k) {
-                const unsigned lane = 4 * half + k;
-                const uint32_t at = base + k;
-                if (vga(at)) {
-                    value |= 0xffull << (8 * lane);
-                    if (lane >= first && lane < last) op.enables |= uint8_t(1u << k);
-                } else {
-                    value |= uint64_t(read8(at)) << (8 * lane);
-                }
-            }
-            if (op.enables) { vga_queue.push_back(op); ++vga_reads; }
-        }
-        loaded = value;
-        if (vga_reads) {
-            ++vga_loads;
-            cpu.dmem_valid = 0;
-        } else {
-            cpu.dmem_valid = 1;
-            cpu.dmem_rdata = value;
-        }
     }
 
     template <typename W> static void set16(W &wide, int n, uint16_t value) {
@@ -1025,6 +1007,7 @@ int main(int argc, char **argv) {
         // CS:EIP, with the RTL's state, to the oracle.
         auto stop = [&](const char *kind) {
             fes_i386::State s = rtl->state(oracle->get_state());
+            rtl->settle();
             const uint32_t linear = s.seg[fes_i386::SEG_CS].base + s.eip;
             uint8_t bytes[15];
             for (unsigned n = 0; n < 15; ++n) bytes[n] = rtl->read8(RtlCpu::physical(linear + n, machine.top.a20m));
@@ -1045,7 +1028,6 @@ int main(int argc, char **argv) {
             }
             gap.sites.insert(linear);
             skipping = &gap;
-            rtl->settle();
             for (uint32_t page = 0; page < rtl->dirty.size(); ++page)
                 if (rtl->dirty[page]) { oracle->invalidate(page << 12, 4096); rtl->dirty[page] = false; }
             oracle->set_state(s);
@@ -1286,10 +1268,13 @@ int main(int argc, char **argv) {
             for (const std::string &line : rtl->smc_sites) std::printf("SMC %s\n", line.c_str());
             for (const std::string &note : notes) std::printf("NOTE %s\n", note.c_str());
             std::printf("RTL retired=%llu oracle_steps=%llu protected_steps=%llu parked_clocks=%llu tf_retired=%llu "
-                        "vga_loads=%llu smc_stores=%llu smc_addresses=%zu smc_executed=%llu\n",
+                        "vga_loads=%llu replays=%llu port0_reads=%llu port0_writes=%llu smc_stores=%llu "
+                        "smc_addresses=%zu smc_executed=%llu\n",
                         (unsigned long long)rtl->retired, (unsigned long long)oracle_steps,
                         (unsigned long long)protected_steps, (unsigned long long)rtl->parked_clocks,
                         (unsigned long long)rtl->tf_retired, (unsigned long long)rtl->vga_loads,
+                        (unsigned long long)rtl->replays, (unsigned long long)rtl->port0.beats_read,
+                        (unsigned long long)rtl->port0.beats_written,
                         (unsigned long long)rtl->smc_stores, rtl->smc_addresses.size(),
                         (unsigned long long)rtl->smc_executed);
             steps += rtl->retired;

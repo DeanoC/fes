@@ -1647,8 +1647,11 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                 if (!a.write && a.step == step) got.insert(a.key());
             if (rtl.mmio_early) out.add(at + "mmio-early-read", 0, rtl.mmio_early);
             if (rtl.mmio_wrong) out.add(at + "mmio-wrong-write", 0, rtl.mmio_wrong);
+            // Where an entry leaves memory to the corpus, the oracle may read
+            // elsewhere (its address for a scaled SIB base without an index).
             const bool faulted = vector >= 0;
-            if (faulted ? !std::includes(want.begin(), want.end(), got.begin(), got.end()) : want != got) {
+            if (skip.has("ram")) {
+            } else if (faulted ? !std::includes(want.begin(), want.end(), got.begin(), got.end()) : want != got) {
                 // The first byte one side read more often than the other.
                 std::multiset<uint64_t> only_want, only_got;
                 std::set_difference(want.begin(), want.end(), got.begin(), got.end(),
@@ -3173,7 +3176,12 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
             outcome = lockstep(oracle, bus, rtl, entries, Fields{}, retire_limit, true, summary, out, base,
                                base + uint32_t(code.size()), &irq);
         } catch (const std::exception &error) {
-            out.add(std::string("oracle-error:") + error.what(), 0, 0);
+            // Bochs cannot fetch from the MMIO window: code there (a vector
+            // entry an interrupt's own frame rewrote, which Bochs reads after
+            // its pushes) stops the run.
+            if (bus.mmio_window && std::string(error.what()).find("vetoed direct read") != std::string::npos)
+                outcome.window_code = true;
+            else out.add(std::string("oracle-error:") + error.what(), 0, 0);
             oracle.reset();
         }
         if (out.items.empty() && !outcome.halted && !outcome.limit && !outcome.smc && outcome.exception < 0 &&
