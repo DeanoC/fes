@@ -157,7 +157,9 @@ type nativeInput struct {
 	kind InputKind
 	// player is this pad's controller port, or noLocalPlayer. Keyboards and
 	// mice never hold one.
-	player   int8
+	player int8
+	// yields marks a pad that gives its port to any other pad (yieldsPort).
+	yields   bool
 	pending  []byte
 	shifts   map[uint16]bool
 	commands map[uint16]Command
@@ -188,6 +190,9 @@ type nativeInputs struct {
 	// because a fixture node cannot answer EVIOCGBIT.
 	kindOf   func(fd int) InputKind
 	openFile func(path string) (int, error)
+	// padID stands in for EVIOCGID where kindOf does: it gives a test pad's
+	// vendor and product. Nil reads every test pad as 0000:0000.
+	padID func(fd int) (vendor, product uint16)
 }
 
 func openNativeInputs(spec, label string, padRemap func(guid string) (*inputmap.Remapper, error)) (*nativeInputs, error) {
@@ -257,6 +262,18 @@ func (ins *nativeInputs) openPath(app *App, path string) error {
 		return nil
 	}
 	in := &nativeInput{fd: fd, path: path, kind: kind, player: noLocalPlayer}
+	if kind == InputMouse {
+		in.mapper = controller.NewMouseMapper()
+	}
+	if kind == InputGamepad {
+		var vendor, product uint16
+		if ins.kindOf == nil {
+			in.mapper, in.remap, vendor, product = nativeGamepadMapper(fd, ins.padRemap)
+		} else if ins.padID != nil {
+			vendor, product = ins.padID(fd)
+		}
+		in.yields = yieldsPort(vendor, product)
+	}
 	// A pad takes a controller port. So does a node named with -input that
 	// the classifier could not place; automatic mode never keeps one.
 	if kind == InputGamepad || kind == InputNone {
@@ -265,19 +282,29 @@ func (ins *nativeInputs) openPath(app *App, path string) error {
 			what = "input"
 		}
 		in.player = ins.freePlayer()
+		yielder := ins.yieldingPad(in)
+		if yielder != nil {
+			ins.releasePort(app, yielder)
+			in.player = yielder.player
+			yielder.player = noLocalPlayer
+		}
 		if in.player == noLocalPlayer {
 			fmt.Fprintf(os.Stderr, "%s: %s %s: both controller ports are taken; menu only\n", ins.label, what, path)
 		} else {
 			fmt.Fprintf(os.Stderr, "%s: %s %s: controller port %d\n", ins.label, what, path, in.player+1)
 		}
+		ins.devices = append(ins.devices, in)
+		if yielder != nil {
+			yielder.player = ins.freePlayer()
+			if yielder.player == noLocalPlayer {
+				fmt.Fprintf(os.Stderr, "%s: gamepad %s: gave its controller port to %s; menu only\n", ins.label, yielder.path, path)
+			} else {
+				fmt.Fprintf(os.Stderr, "%s: gamepad %s: gave its controller port to %s; controller port %d\n", ins.label, yielder.path, path, yielder.player+1)
+			}
+		}
+	} else {
+		ins.devices = append(ins.devices, in)
 	}
-	if kind == InputMouse {
-		in.mapper = controller.NewMouseMapper()
-	}
-	if ins.kindOf == nil && kind == InputGamepad {
-		in.mapper, in.remap = nativeGamepadMapper(fd, ins.padRemap)
-	}
-	ins.devices = append(ins.devices, in)
 	if app != nil {
 		app.AttachInput(kind, fd)
 	}
@@ -307,6 +334,29 @@ func (ins *nativeInputs) freePlayer() int8 {
 		}
 	}
 	return noLocalPlayer
+}
+
+// yieldingPad is the pad that gives up its controller port to arriving, or
+// nil. A pad that yields gives way to one that does not, when it holds a
+// lower port than arriving would take or arriving would take none. The
+// lowest such port goes first.
+func (ins *nativeInputs) yieldingPad(arriving *nativeInput) *nativeInput {
+	if arriving.kind != InputGamepad || arriving.yields {
+		return nil
+	}
+	var yielder *nativeInput
+	for _, in := range ins.devices {
+		if !in.yields || in.player == noLocalPlayer {
+			continue
+		}
+		if arriving.player != noLocalPlayer && in.player > arriving.player {
+			continue
+		}
+		if yielder == nil || in.player < yielder.player {
+			yielder = in
+		}
+	}
+	return yielder
 }
 
 func (ins *nativeInputs) hasPath(path string) bool {
@@ -881,13 +931,14 @@ func nativeDeviceName(fd int) string {
 }
 
 // nativeGamepadMapper gives the controller mapper the pad's identity, its
-// EVIOCGBIT key/axis capabilities and the range of every reported axis.
-func nativeGamepadMapper(fd int, padRemap func(guid string) (*inputmap.Remapper, error)) (*controller.Mapper, *inputmap.Remapper) {
+// EVIOCGBIT key/axis capabilities and the range of every reported axis. It
+// also returns the pad's vendor and product.
+func nativeGamepadMapper(fd int, padRemap func(guid string) (*inputmap.Remapper, error)) (*controller.Mapper, *inputmap.Remapper, uint16, uint16) {
 	var id [8]byte
 	const idRequest = uintptr(0x80000000 | (8 << 16) | ('E' << 8) | 0x02)
 	_, _, err := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), idRequest, uintptr(unsafe.Pointer(&id[0])))
 	if err != 0 {
-		return nil, nil
+		return nil, nil, 0, 0
 	}
 	device := controller.Device{
 		Name:    nativeDeviceName(fd),
@@ -913,7 +964,8 @@ func nativeGamepadMapper(fd int, padRemap func(guid string) (*inputmap.Remapper,
 			device.Axes[code] = controller.Range{Min: int32(binary.LittleEndian.Uint32(info[4:])), Max: int32(binary.LittleEndian.Uint32(info[8:]))}
 		}
 	}
-	return padMapper(device, padRemap)
+	mapper, remap := padMapper(device, padRemap)
+	return mapper, remap, device.Vendor, device.Product
 }
 
 // padMapper reads a pad through its mapping and the profile saved for its
@@ -995,28 +1047,8 @@ func (ins *nativeInputs) releaseLostPlayInput(app *App, lost *nativeInput) {
 		}
 	}
 	app.mu.Lock()
-	var padEvents, keyEvents []remoteinput.Event
-	if lost.player != noLocalPlayer {
-		// The port was this pad's alone, so everything held on it comes up.
-		player := uint8(lost.player)
-		for _, event := range lost.padHeld {
-			event.Action = remoteinput.ActionRelease
-			event.Value = 0
-			padEvents = append(padEvents, event)
-		}
-		app.forgetPadLocked(player, time.Now())
-		// After its releases, the pad gives its port back. mister-agent
-		// drops that player's claim and leaves the other pad alone.
-		padEvents = append(padEvents, remoteinput.LocalPlayerDeparture(player))
-	}
-	if !app.playPadPair.anyHeld() {
-		app.playPadChordSince = time.Time{}
-		app.playPadChordFired = false
-	}
-	if !app.localPair.anyHeld() {
-		app.localChordSince = time.Time{}
-		app.localChordFired = false
-	}
+	padEvents := releasePortLocked(app, lost)
+	var keyEvents []remoteinput.Event
 	for code, name := range lost.keysHeld {
 		if remainingKeys[name] {
 			continue
@@ -1036,7 +1068,7 @@ func (ins *nativeInputs) releaseLostPlayInput(app *App, lost *nativeInput) {
 		}
 	}
 	feed := app.localFeed
-	forward := (app.localPhase == localPhaseRunning || app.localUnownedRun || app.session.State == "active") && !app.playHIDFailClosedLocked()
+	forward := localPadForwardLocked(app)
 	if forward {
 		app.queuePlayHIDLocked(keyEvents)
 	}
@@ -1046,6 +1078,60 @@ func (ins *nativeInputs) releaseLostPlayInput(app *App, lost *nativeInput) {
 			_ = feed.Send(event, time.Now())
 		}
 	}
+}
+
+// releasePort takes a still-connected pad off its controller port as an
+// unplug would: what it held comes up and its player departs. The caller
+// gives the port to another pad.
+func (ins *nativeInputs) releasePort(app *App, in *nativeInput) {
+	if app == nil {
+		in.padHeld = nil
+		return
+	}
+	app.mu.Lock()
+	padEvents := releasePortLocked(app, in)
+	feed := app.localFeed
+	forward := localPadForwardLocked(app)
+	app.mu.Unlock()
+	if forward && feed != nil {
+		for _, event := range padEvents {
+			_ = feed.Send(event, time.Now())
+		}
+	}
+}
+
+// releasePortLocked forgets what in held on its port and returns the
+// releases and departure to send for it. in keeps its player; the caller
+// reassigns it.
+func releasePortLocked(app *App, in *nativeInput) []remoteinput.Event {
+	var padEvents []remoteinput.Event
+	if in.player != noLocalPlayer {
+		// The port was this pad's alone, so everything held on it comes up.
+		player := uint8(in.player)
+		for _, event := range in.padHeld {
+			event.Action = remoteinput.ActionRelease
+			event.Value = 0
+			padEvents = append(padEvents, event)
+		}
+		in.padHeld = nil
+		app.forgetPadLocked(player, time.Now())
+		// After its releases, the pad gives its port back. mister-agent
+		// drops that player's claim and leaves the other pad alone.
+		padEvents = append(padEvents, remoteinput.LocalPlayerDeparture(player))
+	}
+	if !app.playPadPair.anyHeld() {
+		app.playPadChordSince = time.Time{}
+		app.playPadChordFired = false
+	}
+	if !app.localPair.anyHeld() {
+		app.localChordSince = time.Time{}
+		app.localChordFired = false
+	}
+	return padEvents
+}
+
+func localPadForwardLocked(app *App) bool {
+	return (app.localPhase == localPhaseRunning || app.localUnownedRun || app.session.State == "active") && !app.playHIDFailClosedLocked()
 }
 
 func menuQueuedSeq(dev gfx.Device) uint64 {

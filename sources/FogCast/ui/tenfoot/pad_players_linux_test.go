@@ -88,6 +88,98 @@ func TestAutoInputGivesPadsPortsInConnectionOrder(t *testing.T) {
 	}
 }
 
+// fixturePadInputs opens pipe pads in dir. A node whose name starts
+// "fixture" reports the kit fixture's 081f:e401; any other reports a
+// DualSense's 054c:0ce6.
+func fixturePadInputs(t *testing.T, dir string) *nativeInputs {
+	t.Helper()
+	inputs, err := openNativeInputsDir("auto", "menu-display", dir, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(inputs.close)
+	inputs.kindOf = pipeKind
+	names := map[int]string{}
+	inputs.openFile = func(path string) (int, error) {
+		fd, err := unix.Open(path, unix.O_RDONLY|unix.O_NONBLOCK|unix.O_CLOEXEC, 0)
+		if err == nil {
+			names[fd] = filepath.Base(path)
+		}
+		return fd, err
+	}
+	inputs.padID = func(fd int) (uint16, uint16) {
+		if strings.HasPrefix(names[fd], "fixture") {
+			return 0x081f, 0xe401
+		}
+		return 0x054c, 0x0ce6
+	}
+	return inputs
+}
+
+func padPorts(inputs *nativeInputs) map[string]int8 {
+	out := map[string]int8{}
+	for _, in := range inputs.devices {
+		out[filepath.Base(in.path)] = in.player
+	}
+	return out
+}
+
+// The fixture pad opened first gives port 1 to the DualSense that follows,
+// releasing what it held there, and moves to port 2. A third pad takes the
+// fixture's port 2 and leaves it menu only.
+func TestFixturePadYieldsItsPort(t *testing.T) {
+	dir := t.TempDir()
+	inputs := fixturePadInputs(t, dir)
+	feed := &localPadRecorder{}
+	app := runningLocalCoreApp(feed)
+	if err := inputs.openPath(app, pipePad(t, dir, "fixture0")); err != nil {
+		t.Fatal(err)
+	}
+	fixture := inputs.devices[0]
+	if fixture.player != 0 {
+		t.Fatalf("lone fixture port = %d", fixture.player)
+	}
+	fixture.button(app, ButtonSouth, 1, time.Now())
+	feed.events = nil
+
+	if err := inputs.openPath(app, pipePad(t, dir, "event0")); err != nil {
+		t.Fatal(err)
+	}
+	if got := padPorts(inputs); !reflect.DeepEqual(got, map[string]int8{"fixture0": 1, "event0": 0}) {
+		t.Fatalf("ports after DualSense = %v", got)
+	}
+	release := remoteinput.Event{Player: 0, Device: remoteinput.DeviceGamepad, Kind: remoteinput.KindButton, Action: remoteinput.ActionRelease, Code: remoteinput.ButtonA}
+	if len(feed.events) != 2 || feed.events[0] != release || !remoteinput.IsLocalPlayerDeparture(feed.events[1]) || feed.events[1].Player != 0 {
+		t.Fatalf("yield events: %+v", feed.events)
+	}
+	if len(fixture.padHeld) != 0 {
+		t.Fatalf("fixture kept port 1 holds: %v", fixture.padHeld)
+	}
+
+	if err := inputs.openPath(app, pipePad(t, dir, "event1")); err != nil {
+		t.Fatal(err)
+	}
+	if got := padPorts(inputs); !reflect.DeepEqual(got, map[string]int8{"fixture0": noLocalPlayer, "event0": 0, "event1": 1}) {
+		t.Fatalf("ports after second pad = %v", got)
+	}
+}
+
+// A fixture that arrives after another pad takes the next free port, and
+// fixtures do not take ports from each other.
+func TestFixturePadArrivingLaterKeepsConnectionOrder(t *testing.T) {
+	dir := t.TempDir()
+	inputs := fixturePadInputs(t, dir)
+	app := NewApp(nil, 1280, 720, 10)
+	for _, name := range []string{"event0", "fixture0", "fixture1"} {
+		if err := inputs.openPath(app, pipePad(t, dir, name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := padPorts(inputs); !reflect.DeepEqual(got, map[string]int8{"event0": 0, "fixture0": 1, "fixture1": noLocalPlayer}) {
+		t.Fatalf("ports = %v", got)
+	}
+}
+
 func TestSecondPadForwardsAsPlayerTwo(t *testing.T) {
 	feed := &localPadRecorder{}
 	a := runningLocalCoreApp(feed)
