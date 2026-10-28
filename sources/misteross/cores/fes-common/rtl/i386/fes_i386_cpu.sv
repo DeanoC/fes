@@ -1080,8 +1080,8 @@ module fes_i386_cpu (
     // and a flush only kills uops younger than WB, which have not. A shift
     // in WB still owes its flags (wb_flags): ex_flags lacks them for that
     // cycle, which no flag reader sees (flag_hazard), and takes them at its
-    // end. A faulting uop changes nothing in EX (fes_i386_ex), so an
-    // exception's delivery starts from the flags before it.
+    // end. A normal faulting uop changes no flags in EX; a divide error is
+    // raised after the multiply/divide unit's flags reach this running copy.
     logic [17:0] ex_flags_out, wb_flags, flags_keep;
     logic [31:0] ex_result;
     logic [31:0] md_result, md_hi;
