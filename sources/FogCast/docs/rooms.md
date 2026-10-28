@@ -426,9 +426,10 @@ An older agent omits `inputs`.
   otherwise the FES Home picker. In a room visited during play,
   Back returns to the playing view without stopping it. The visible Hardware
   room button, physical keyboard Home and controller Select/View return to
-  `example.hardware`; held computer keys are released before menu input.
-- `rooms.open(id)` opens a nested room (Back returns here and calls
-  `on_resume`), `rooms.back()`, `rooms.list()`, and
+  the active system workbench (or the Sinclair specialist workbench); held computer keys are released before menu input.
+- `rooms.open(id, {game_id=..., core_id=...})` opens a nested room (Back returns here and calls
+  `on_resume`). The optional selection is exposed as `room.initial_game_id` and
+  `room.initial_core_id`, `rooms.back()`, `rooms.list()`, and
   `rooms.open_library{platform=, collection=, layout=}` leaves to the
   library browser with those filters applied.
 - `store.get(key[, default])` / `store.set(key, value)` persist strings,
@@ -451,7 +452,10 @@ unpaired host keeps the existing save. Machines expose `game_id`, `title`, `core
 `package_ready`, `firmware_ready`, `ready`, `unavailable_reason`,
 `draft_expansion_id`, `socket = {id, label, supported}`, and
 `choices = {{expansion_id, label, description, ready, unavailable_reason}}`.
-The first host projection contains ZX81 entries only. Session fields are
+The `machines` projection contains Sinclair specialist setups. The separate
+`computers` list contains prepared playable core entries for Home, with
+`game_id`, `title`, `core_id`, `package_id`, `ready`, and `unavailable_reason`.
+Session fields are
 `id`, `game_id`, `state`, `target`, `target_id`, `flight_id`, `package_id`,
 `expansion_id`, `generation` (a decimal string preserving all 64 bits),
 `hardware_known`, `tape_available`, and `removable_available`. The last three
@@ -470,6 +474,17 @@ and never replay an ambiguous mutation automatically. One hardware read and
 one save may be outstanding per room. Unsupported launchers report an error
 to the callback instead of failing the room.
 
+`hardware.setup({core_id=...})` opens guided installed-package setup for a
+system. With no argument it opens the Sinclair family selector.
+`hardware.open_media({game_id=..., core_id=..., package_id=...,
+expected_media_id=...})` opens the next-start picker for the exact displayed
+entry. An empty expected media ID is explicit. The native picker reads the
+package's media capabilities and saves with compare-and-swap.
+`hardware.open_expansions({game_id=..., core_id=..., package_id=...})` opens
+manifest-derived sockets and exact-package cards. Importing and fitting are
+separate actions. These setup actions require an idle machine; live media uses
+`session.open_tape` and its observed session binding.
+
 Keep configuration out of `store`: it is presentation state, not the host
 catalogue. Room code may display compatibility results but must not infer
 them from labels, art or hardware family names.
@@ -484,6 +499,8 @@ directory separators inside the pack (`require "lib.paths"` →
 
 | module | purpose |
 | --- | --- |
+| `systems` | Registered system/model labels and navigation guidance; package manifests determine admission |
+| `widgets.system_workbench` | Shared system workbench; call the returned function with an optional fixed `core_id` |
 | `widgets.list` | focusable scrolling rows: `new{x,y,w,h,row_h,items,id}`, `input(cmd)`, `selected()`, `set_items`, `on_hover/on_activate(id)`, `draw{label=, background=, focus_color=}` |
 | `widgets.grid` | cover/icon grid with the library's focus rules: `new{x,y,w,h,cell_w,cell_h,gap,items,id}`, same methods, `draw{cover=fn(item), label=fn(item), plate=, hide_labels=}` |
 | `widgets.nodemap` | overworld graph: `new{nodes={{id,x,y,label,icon,played,done,color}}, edges={{a,b}}, radius}`, d-pad follows edges (falls back to the nearest node in that direction), `focused()`, `draw{edge_color, node_color, played_color, done_color, focus_color, path_width, labels_focused_only}`. `played` is recorded play; `done` is Completed only. Edges are navigation, not unlock gates |
@@ -506,8 +523,9 @@ is not a gate unless the room script adds that mechanic itself. See
 | `example.tms-vdp` | platform tags → two-pane platform/game browser; unresolved platform rows and game destinations on the compact strip |
 | `example.coleco-arcade` | curated Coleco arcade ports (Donkey Kong, Carnival, Zaxxon, Congo Bongo, Frogger) resolved by `library.query` search; missing titles are skipped; publishes the focused game |
 | `example.workbench` | AmigaOS 1.3 desktop drawn from rects; collection with genre fallback; publishes the focused drawer title |
-| `example.computers` | prepared ZX81 (`fes.zx81`) and Commodore 64 (`fes.c64`) library entries, filtered by core identity before paging. A row is shown when it is already launch-eligible. Grouped editions become variant rows. An `expansion_id` or `slot_expansions` entry becomes its own row and launches the same game id. Confirm stays in the room and calls `session.launch`. **Set up** opens `example.hardware` or `example.c64` for the focused row. The shelf itself does not add sockets, cards, or another machine family |
-| `example.c64` | Commodore 64 setup for prepared `fes.c64` entries. Next machine and Next edition walk the library rows and grouped editions. Socket 1, socket 2, and a saved expansion come from that entry. A saved disk is `media_role=disk`. `.tap`, `.t64`, and `.crt` are not offered. Start calls `session.launch`. Choose disk calls `session.open_tape` only while that entry is running with removable media |
+| `example.computers` | Systems shelf for all registered playable system/model entries. Grouped editions and saved expansion rows retain the exact game ID. Confirm launches; Set up opens the selected workbench. Add system remains available with an empty library |
+| `example.c64` | Shared system workbench with Commodore 64 selected: saved entries/editions, next-start D64 and real expansion sockets, launch/stop and capability-gated live disk controls |
+| `example.system` | Shared workbench for all registered playable systems and models. Next system, installed/published setup, editions, declared media and expansion sockets use ordinary host APIs; configuration stays in the library |
 | `example.fes-cores` | kit **Home** in the `hero` layout: a shelf of installed cores (manifest names verbatim, fallback motifs chosen from the core id and required inputs), the FES hero for the selection, and Library / Rooms / Settings routes one Up away in the hero and on one compact row. A stacked compact column walks Down and Up through those routes and then the cores. Checking while `kit.cores` resolves; the last selected installed package is restored on a later visit from `package_id` in the room state file (`/media/fat/fogcast/state/FogCast/rooms/example.fes-cores.state.json` on a kit). A fresh visit, or a saved package that is missing or unavailable, opens on the first installed core. Selecting an omitted core does not replace that saved package. An empty or unlistable kit, and a shelf whose every row is an omission, focuses the Library route. The shelf count is installed packages. Blocked cores do not launch: a blocked tile shows "Needs a cartridge", "Needs firmware", "Display setup incomplete", or "Hardware unavailable". An optional core omitted from the image is listed from `unavailable-cores.json` with that hardware block, and its Details name the core and the block without a package id. With no kit socket the room and the compact strip both say cores are not available here. Tenfoot on `-gfx menu-display` launches a core through the local-control socket |
 
 Run them against a host:
