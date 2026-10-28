@@ -92,6 +92,17 @@ class ScanoutBuildTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "bad actual bridge"):
                 B.generate(output, combined, hps, display, None, "test")
 
+    def test_top_interconnect_gets_real_common_reset_source_without_changing_board_port(self):
+        output, _, _, _ = self.prepare()
+        project = output / "combined/hps/project"
+        script = (project / "integrate-mailbox.tcl").read_text()
+        self.assertIn("add_instance fes_scanout_top_reset altera_reset_bridge 19.2.0", script)
+        self.assertIn("add_connection fes_scanout_top_reset.out_reset subsys_periph.fes_scanout_reset", script)
+        self.assertIn("fes_scanout_reset EXPORT_OF fes_scanout_top_reset.in_reset", script)
+        self.assertNotIn("fes_scanout_reset EXPORT_OF subsys_periph.fes_scanout_reset", script)
+        self.assertNotIn("add_connection rst_in.out_reset subsys_periph.fes_scanout_reset", script)
+        self.assertIn(".fes_scanout_reset_reset_n (scanout_reset_n)", (project / "golden_top.v").read_text())
+
     def test_postcompile_pll_mutation_is_rejected_with_failed_receipt_retained(self):
         output, _, hps, display = self.prepare()
         directory = output / "combined/hps"

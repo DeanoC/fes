@@ -34,6 +34,8 @@ shared zero-latency response-accounting fix preserves an accepted burst's
 budget, and the complete-frame controller retains a new submission accepted
 on the previous frame's last visible pixel. Existing consumers explicitly
 tie off the new optional ports; default DE10 package selections are unchanged.
+The shared reader/video fixes still affect rebuilt existing consumers; their
+package/HIL acceptance is separate from this undeployed DE25 build lane.
 
 STOP halts new fetches while holding an asserted command stable until
 acceptance, then drains all accepted responses and queued pixels. Missing
@@ -46,6 +48,8 @@ and all multiword identities in one pixel-clock observation; its serial
 changes only on the explicit snapshot command or cold reset.
 
 Both sides of both crossing bridges share a cold/configuration reset source.
+A top-level reset bridge supplies that same external source to the child and
+inserted memory interconnect; the child reset sink is not merely exported.
 Initial release waits for the first qualified pixel PLL lock. Later PLL-lock
 loss blanks HDMI, latches a fault in the running 100 MHz domain and stops/drains
 the endpoint once the pixel clock resumes; it does **not** reset live FIFO or

@@ -124,7 +124,7 @@ def wrapper(periph_source, memory_source, memory_module):
           "writedata": ("output", "[127:0]"), "byteenable": ("output", "[15:0]"),
           "waitrequest": ("input", ""), "readdata": ("input", "[127:0]"),
           "readdatavalid": ("input", ""), "response": ("input", "[1:0]"),
-          "writeresponsevalid": ("input", ""), "debugaccess": ("output", "")}
+          "writeresponsevalid": ("input", "[0:0]"), "debugaccess": ("output", "")}
     seen = {n: (d, w) for d, w, n in pp}
     required = {"address", "burstcount", "read", "byteenable", "waitrequest", "readdata", "readdatavalid", "response"}
     for role in required:

@@ -125,10 +125,17 @@ def prepare(archive, output=None, revision=None):
     anchor = "set_connection_parameter_value subsys_periph.fes_probe_mem/subsys_hps.f2sdram_adapter_axi4_sub baseAddress 0x0\n"
     script = replace_once(script, anchor, anchor + "add_connection subsys_periph.fes_scanout_mem subsys_hps.f2sdram_adapter_axi4_sub\n"
         "set_connection_parameter_value subsys_periph.fes_scanout_mem/subsys_hps.f2sdram_adapter_axi4_sub baseAddress 0x0\n")
-    # Explicit top exports follow the peripheral's new clock/reset/conduits.
+    # A real top-level reset source is required by the inserted memory
+    # interconnect. Merely exporting the child sink leaves its adapters without
+    # a source identity. Keep the same external common cold/first-lock signal.
     before = "save_system " + hps.tcl_word(project / "qsys_top.qsys") + "\n"
-    exports = ""
-    for name, kind in (("fes_scanout_pixel_clk", "clock sink"), ("fes_scanout_reset", "reset sink"),
+    exports = "add_instance fes_scanout_top_reset altera_reset_bridge 19.2.0\n"
+    for name, value in (("ACTIVE_LOW_RESET", "1"), ("SYNCHRONOUS_EDGES", "none"),
+                        ("O_SYNCHRONOUS_EDGES", "none"), ("NUM_RESET_OUTPUTS", "1"), ("USE_RESET_REQUEST", "0")):
+        exports += "set_instance_parameter_value fes_scanout_top_reset " + name + " " + value + "\n"
+    exports += "add_connection fes_scanout_top_reset.out_reset subsys_periph.fes_scanout_reset\n"
+    exports += "add_interface fes_scanout_reset reset sink\nset_interface_property fes_scanout_reset EXPORT_OF fes_scanout_top_reset.in_reset\n"
+    for name, kind in (("fes_scanout_pixel_clk", "clock sink"),
                        ("fes_scanout_video", "conduit end"), ("fes_scanout_clock_fault", "conduit end")):
         exports += "add_interface " + name + " " + kind + "\nset_interface_property " + name + " EXPORT_OF subsys_periph." + name + "\n"
     script = replace_once(script, before, exports + before)
@@ -194,6 +201,10 @@ def verify_handoff(project, hps):
     for sink in ("fes_ctrl_cdc.s0_reset", "fes_ctrl_cdc.m0_reset", "fes_mem_cdc.s0_reset", "fes_mem_cdc.m0_reset", "fes_scanout.reset"):
         if ("reset", "subsys_periph_fes_scanout_reset.out_reset", "subsys_periph_" + sink) not in connections:
             raise ValueError("generated scanout bridge common reset differs: " + sink)
+    reset_source = modules.get("fes_scanout_top_reset")
+    if (reset_source is None or reset_source.get("kind") != "altera_reset_bridge" or
+            ("reset", "fes_scanout_top_reset.out_reset", "subsys_periph_fes_scanout_reset.in_reset") not in connections):
+        raise ValueError("generated top scanout interconnect reset source differs")
     bridge_parameters = {}
     for name, width, address_bits, burst, depth in (("fes_ctrl_cdc", 32, 7, 1, 4), ("fes_mem_cdc", 128, 32, 16, 32)):
         module = modules.get("subsys_periph." + name)
@@ -218,6 +229,7 @@ def verify_handoff(project, hps):
         "pixel_hz": 74250000, "memory_hz": 100000000, "bridge_parameters": bridge_parameters,
         "read_only_master_ports": expected_master, "csr_write_completion": True,
         "peripheral_slave_map": probe["peripheral_slave_map"], "ddr_scanout": True,
+        "top_reset_source": "fes_scanout_top_reset.out_reset -> subsys_periph_fes_scanout_reset.in_reset",
         "runtime_admission": "not-qualified", "global_reset_ownership": "not-qualified"}
 
 

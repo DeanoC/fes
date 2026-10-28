@@ -73,7 +73,9 @@ struct Simulation {
         mem_rise = memory_event && !dut.clk_mem;
         bool pixel_rise = pixel_event && !pixel_stopped && !dut.clk_pixel;
         accepted_control = false; control_response = false;
-        dut.arready = !hold_responses && mem_cycles % 17 != 3;
+        // Withholding responses must not prevent AXI command acceptance:
+        // STOP/stall cases own real accepted AXI reads before cancellation.
+        dut.arready = mem_cycles % 17 != 3;
         if (!holding_response && !hold_responses && !pending.empty() && mem_cycles % 11 != 0) {
             const auto& burst = pending.front();
             uint32_t address = burst.address + (burst.position << burst.size);
@@ -244,6 +246,12 @@ struct Simulation {
         while (!dut.endpoint_outstanding) { step(); require(mem_cycles < end, "no accepted reader command"); }
     }
 
+    void wait_axi_request() {
+        uint64_t end = mem_cycles + 10000;
+        while (pending.empty()) { step(); require(mem_cycles < end, "no accepted AXI read awaiting response"); }
+        require(dut.endpoint_outstanding && !axi_beats, "AXI response was not held for cancellation test");
+    }
+
     void stop_and_drain(bool expect_fault = false) {
         check_pixels = false;
         write(FES_DE25_SCANOUT_COMMAND_OFFSET, FES_DE25_SCANOUT_COMMAND_STOP);
@@ -336,7 +344,7 @@ int main(int argc, char** argv) {
             s.stop_and_drain(); s.report("complete_frames_and_slot_reuse");
         }
         {
-            Simulation s; s.hold_responses = true; s.submit(1, 1); s.wait_request();
+            Simulation s; s.hold_responses = true; s.submit(1, 1); s.wait_request(); s.wait_axi_request();
             s.write(FES_DE25_SCANOUT_COMMAND_OFFSET, FES_DE25_SCANOUT_COMMAND_STOP);
             auto v = s.snapshot();
             require(!(v.status & FES_DE25_SCANOUT_STATUS_DRAINED) && v.outstanding,
@@ -344,7 +352,7 @@ int main(int argc, char** argv) {
             s.hold_responses = false; s.stop_and_drain(); s.report("stop_drains_accepted_reads");
         }
         {
-            Simulation s; s.hold_responses = true; s.submit(1, 1); s.wait_request();
+            Simulation s; s.hold_responses = true; s.submit(1, 1); s.wait_request(); s.wait_axi_request();
             s.cycles(50); unsigned before = s.dut.endpoint_outstanding;
             require(before && !s.dut.endpoint_drained, "clock-stall test has no owned traffic");
             // Freeze low without any reset. STOP can enter the control FIFO,
