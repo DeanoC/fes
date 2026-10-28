@@ -1026,7 +1026,9 @@ func (s *Service) DevelopmentSessionState(ctx context.Context) (bool, string, er
 // play profile. Unknown or empty ABIs stay on the Diagnostic development path.
 func RecognizedPlayABI(id string, major, minor int64) bool {
 	switch id {
-	case "fes.simple-computer", "fes.simple-game", "fes.application", "fes.computer":
+	case "fes.computer":
+		return protocol.ComputerABI(id, major, minor)
+	case "fes.simple-computer", "fes.simple-game", "fes.application":
 		return major == 1 && minor == 0
 	default:
 		return false
@@ -2000,6 +2002,17 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 				return protocol.Status{}, corePackageRequestFailure(canonicalError(protocol.CodeUnsupportedOperation, nil))
 			}
 			status, err = composed.LoadComposedCore(ctx, size, content, selected.entry.PackageID)
+		} else if selected.machine != nil {
+			machine, ok := client.(machineCoreClient)
+			if !ok {
+				return protocol.Status{}, corePackageRequestFailure(canonicalError(protocol.CodeUnsupportedOperation, nil))
+			}
+			if selected.hardDisk != nil {
+				if err := stageHardDisk(ctx, machine, selected.hardDisk); err != nil {
+					return protocol.Status{}, corePackageRequestFailure(err)
+				}
+			}
+			status, err = machine.LoadLibraryMachineCore(ctx, size, content, selected.entry.PackageID, *selected.machine)
 		} else {
 			status, err = library.LoadLibraryCore(ctx, size, content, selected.entry.PackageID)
 		}

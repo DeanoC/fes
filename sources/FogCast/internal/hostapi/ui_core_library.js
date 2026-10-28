@@ -3,6 +3,7 @@
   'use strict';
   const MAX_PACKAGE_BYTES = 65 * 1024 * 1024;
   const MAX_MEDIA_BYTES = 32 * 1024 * 1024;
+  const MAX_HARD_DISK_BYTES = 128 * 1024 * 1024;
   const MAX_VIDEO_PART_BYTES = 32 * 1024 * 1024;
   const videoProfile = value => ['direct', 'scanlines'].includes(value);
   const digest = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
@@ -56,7 +57,13 @@
     const selectedPackage = () => state.packages.find(p => p.package_id === state.packageId);
     const selectedEntry = () => state.entries.find(e => e.game_id === state.entryId);
     function fail(error) { state.message = String(error.message || error); return emit(); }
-    const MEDIA_ROLES = ['blob', 'disk', 'cassette'];
+    const MEDIA_ROLES = ['blob', 'disk', 'cassette', 'hard-disk'];
+    // A package with the fixed hard disk imports raw images through their
+    // own route, which admits up to 128 MiB in whole sectors.
+    function hardDisk() {
+      const caps = state.capabilities;
+      return !!(caps && caps.package_id === state.packageId && caps.media.find(m => m.role === 'hard-disk'));
+    }
     const ST_LAYOUTS = [];
     for (let tracks = 80; tracks <= 82; tracks++) {
       for (let heads = 1; heads <= 2; heads++) {
@@ -389,8 +396,10 @@
       importMedia(file) {
         return mutate(async () => {
           requirePackage();
-          boundedFile(file, MAX_MEDIA_BYTES);
-          const value = await request('/api/v1/core-media', {method:'POST', headers:{'Content-Type':'application/octet-stream'}, body:file});
+          const disk = hardDisk();
+          boundedFile(file, disk ? MAX_HARD_DISK_BYTES : MAX_MEDIA_BYTES);
+          if (disk && (file.size < 1024 * 1024 || file.size % 512 !== 0)) throw new Error('Choose a raw hard-disk image of 1 to 128 MiB in whole 512-byte sectors.');
+          const value = await request(disk ? '/api/v1/core-media/hard-disk' : '/api/v1/core-media', {method:'POST', headers:{'Content-Type':'application/octet-stream'}, body:file});
           if (!value || !digest(value.media_id) || value.size !== file.size) throw new Error('Invalid media import identity or size.');
           state.media = value;
         }, 'Media stored by digest. Select it explicitly; storage does not prove core compatibility.');

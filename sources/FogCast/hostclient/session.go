@@ -256,7 +256,7 @@ func DecodeSession(status int, body []byte) (SessionResult, error) {
 		result.Development = result.Execution == "fpga_development"
 	}
 	if wire.CorePackage != nil {
-		computer := wire.CorePackage.ABI.ID == "fes.computer" && wire.CorePackage.ABI.Major == 1 && wire.CorePackage.ABI.Minor == 0
+		computer := protocol.ComputerABI(wire.CorePackage.ABI.ID, int64(wire.CorePackage.ABI.Major), int64(wire.CorePackage.ABI.Minor))
 		for _, contract := range wire.CorePackage.ActiveInterfaces {
 			if contract.IsKeyboard() {
 				result.CoreKeyboard = true

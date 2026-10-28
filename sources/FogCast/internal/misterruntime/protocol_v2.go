@@ -1137,16 +1137,25 @@ func validProtocol2Error(remote Protocol2Error) bool {
 }
 
 func validCapabilities(capabilities Protocol2Capabilities) bool {
+	// One ABI may be advertised at several minors (fes.computer 1.0 and 1.1),
+	// each with its own interfaces; a package matches exactly one.
+	before := func(a, b Protocol2ABI) bool {
+		if a.ID != b.ID {
+			return a.ID < b.ID
+		}
+		if a.Major != b.Major {
+			return a.Major < b.Major
+		}
+		return a.Minor < b.Minor
+	}
 	if !sortedUniqueStrings(capabilities.ProgrammingProfiles) ||
-		!sort.SliceIsSorted(capabilities.ABIs, func(i, j int) bool { return capabilities.ABIs[i].ID < capabilities.ABIs[j].ID }) {
+		!sort.SliceIsSorted(capabilities.ABIs, func(i, j int) bool { return before(capabilities.ABIs[i], capabilities.ABIs[j]) }) {
 		return false
 	}
-	seen := map[string]bool{}
-	for _, abi := range capabilities.ABIs {
-		if seen[abi.ID] || !validContract(abi.ID, abi.Major, abi.Minor) || !validSupportedInterfaces(abi.Interfaces) {
+	for index, abi := range capabilities.ABIs {
+		if (index > 0 && !before(capabilities.ABIs[index-1], abi)) || !validContract(abi.ID, abi.Major, abi.Minor) || !validSupportedInterfaces(abi.Interfaces) {
 			return false
 		}
-		seen[abi.ID] = true
 	}
 	return validSupportedInterfaces(capabilities.ActiveInterfaces)
 }
@@ -1197,10 +1206,12 @@ func validMediaUnits(response Protocol2Response) bool {
 		}
 	}
 	p := computerMediaStatus(response).CorePackage
-	if bound && (!protocol.MediaWriteCapable(p) || active.PersistenceMode != "persistent") {
+	machine := protocol.DeclaresPc386Machine(active.Descriptor)
+	if bound && (!(protocol.MediaWriteCapable(p) || protocol.HardDiskCapable(p)) || active.PersistenceMode != "persistent") {
 		return false
 	}
-	if active.PersistenceMode == "persistent" && !bound {
+	// A pc386 machine record is persistent without a bound disk.
+	if active.PersistenceMode == "persistent" && !bound && !machine {
 		return false
 	}
 	return true
@@ -1251,7 +1262,7 @@ func validActivePackage(active Protocol2ActivePackage, capabilities Protocol2Cap
 				bound = true
 			}
 		}
-		if !bound || !descriptorMediaWrite(active.Descriptor) {
+		if !protocol.DeclaresPc386Machine(active.Descriptor) && (!bound || !descriptorMediaWrite(active.Descriptor)) {
 			return false
 		}
 	}

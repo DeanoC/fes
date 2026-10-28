@@ -35,7 +35,7 @@ func TestDiskMediaProjectionFollowsTheFloppyContract(t *testing.T) {
 			Interfaces: []corepackage.Interface{{ID: "fes.media.blob", Major: 1, Required: true}}},
 		"floppy on simple computer": {ABI: corepackage.Contract{ID: "fes.simple-computer", Major: 1},
 			Interfaces: []corepackage.Interface{{ID: "fes.media.apple2-floppy", Major: 1, Required: true}}},
-		"future abi": {ABI: corepackage.Contract{ID: "fes.computer", Major: 1, Minor: 1},
+		"future abi": {ABI: corepackage.Contract{ID: "fes.computer", Major: 1, Minor: 2},
 			Interfaces: []corepackage.Interface{{ID: "fes.media.apple2-floppy", Major: 1, Required: true}}},
 	} {
 		t.Run(name, func(t *testing.T) {

@@ -13,7 +13,7 @@ import (
 	"github.com/DeanoC/FogCast/protocol/internal/generated"
 )
 
-// Home-computer ABI (fes.computer 1.0) contracts. Values come from the
+// Home-computer ABI (fes.computer 1.0 and 1.1) contracts. Values come from the
 // mister-packages emitter; FogCast never infers them from a core ID.
 const (
 	ComputerABIID = generated.FesComputerABIID
@@ -215,9 +215,10 @@ func AdmitAtariStFloppySize(size int64) bool {
 	return ok
 }
 
-// ComputerABI reports the exact fes.computer 1.0 contract.
+// ComputerABI reports a fes.computer contract FogCast speaks: 1.0, or 1.1,
+// which adds identity word 16 and the pc386 interfaces on bits 16..19.
 func ComputerABI(id string, major, minor int64) bool {
-	return id == ComputerABIID && major == int64(generated.FesComputerABIMajor) && minor == 0
+	return id == ComputerABIID && major == int64(generated.FesComputerABIMajor) && minor >= 0 && minor <= int64(generated.FesComputerABIMinor)
 }
 
 func activeComputer(p *CorePackageStatus) bool {
@@ -266,6 +267,18 @@ type MediaUnitStatus struct {
 // Valid checks the unit against the ABI and, for known media interfaces, the
 // exact unit and size the interface defines.
 func (u MediaUnitStatus) Valid() bool {
+	if u.Interface.ID == AtaDiskInterface().ID {
+		// The fixed hard disk moves through the DDR window, not 512-byte
+		// mailbox chunks; it is persistent whenever it is bound.
+		switch u.State {
+		case MediaUnitEmpty, MediaUnitLoading, MediaUnitReady:
+		default:
+			return false
+		}
+		return u.Interface == AtaDiskInterface() && u.Unit == AtaDiskUnit && int64(u.MinBytes) == AtaDiskMinBytes &&
+			int64(u.MaxBytes) == AtaDiskMaxBytes && u.ChunkBytes == AtaDiskChunkBytes &&
+			(u.Persistence == nil || (u.State == MediaUnitReady && u.Persistence.Valid()))
+	}
 	if u.Persistence != nil && (u.Interface != AtariStFloppyInterface() || u.Unit != AtariStFloppyUnit || u.State != MediaUnitReady || !u.Persistence.Valid()) {
 		return false
 	}
@@ -323,12 +336,18 @@ func MediaUnit(p *CorePackageStatus, unit uint8) (MediaUnitStatus, bool) {
 	return MediaUnitStatus{}, false
 }
 
-// declaredComputerMedia projects known media interfaces of an exact
-// fes.computer 1.0 descriptor.
+// declaredComputerMedia projects known media interfaces of a fes.computer
+// descriptor.
 func declaredComputerMedia(descriptor corepackage.Descriptor) []CoreMediaCapability {
 	result := make([]CoreMediaCapability, 0)
 	if !ComputerABI(descriptor.ABI.ID, descriptor.ABI.Major, descriptor.ABI.Minor) {
 		return result
+	}
+	if DeclaresAtaDisk(descriptor) {
+		unit := AtaDiskUnit
+		result = append(result, CoreMediaCapability{Role: HardDiskRole, Format: "ata-disk-raw",
+			MinBytes: AtaDiskMinBytes, MaxBytes: AtaDiskMaxBytes, Interface: AtaDiskInterface(),
+			Transport: AtaDiskTransport, Unit: &unit, Extensions: []string{".img"}})
 	}
 	floppy := Apple2FloppyInterface()
 	tape := SpectrumTapeInterface()
@@ -571,8 +590,9 @@ func (b MediaUnitBinding) Matches(s Status) bool {
 		s.CorePackage == nil || s.CorePackage.PackageID != b.PackageID || s.CorePackage.Generation != b.Generation {
 		return false
 	}
-	_, ok := MediaUnit(s.CorePackage, b.Unit)
-	return ok
+	// The fixed hard disk takes no live insert, eject or save; Stop saves it.
+	unit, ok := MediaUnit(s.CorePackage, b.Unit)
+	return ok && unit.Interface != AtaDiskInterface()
 }
 
 // AcceptsSize checks the exact byte count against the observed unit limits.

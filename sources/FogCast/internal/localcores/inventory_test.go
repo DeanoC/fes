@@ -534,7 +534,7 @@ func TestLaunchRequirementsComeFromDescriptor(t *testing.T) {
 			{ID: "fes.media.blob", Major: 1, Required: true},
 		}, needs: "unsupported"},
 		{name: "future computer floppy is not empty startup", format: 2, abi: "fes.computer", interfaces: []corepackage.Interface{{ID: "fes.media.apple2-floppy", Major: 2, Required: true}}, needs: "unsupported"},
-		{name: "future computer abi does not inherit empty drives", format: 2, abi: "fes.computer", abiMinor: 1, interfaces: []corepackage.Interface{{ID: "fes.media.apple2-floppy", Major: 1, Required: true}}, needs: "unsupported"},
+		{name: "future computer abi does not inherit empty drives", format: 2, abi: "fes.computer", abiMinor: 2, interfaces: []corepackage.Interface{{ID: "fes.media.apple2-floppy", Major: 1, Required: true}}, needs: "unsupported"},
 		{name: "optional computer blob", format: 2, abi: "fes.computer", interfaces: []corepackage.Interface{{ID: "fes.media.blob", Major: 1}}, needs: "none", launchable: true},
 		{name: "optional media", format: 2, abi: "fes.application", interfaces: []corepackage.Interface{{ID: "fes.media.blob", Major: 1}}, needs: "none", launchable: true},
 	} {

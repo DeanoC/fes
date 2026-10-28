@@ -30,18 +30,25 @@ func registerCoreData(mux *http.ServeMux, service Service) {
 			var err error
 			if r.Method == http.MethodPut {
 				var body struct {
-					ExpectedPackageID string                `json:"expected_package_id"`
-					ExpectedRevision  string                `json:"expected_revision"`
-					PaddleSpeed       *protocol.PaddleSpeed `json:"paddle_speed"`
+					ExpectedPackageID string                    `json:"expected_package_id"`
+					ExpectedRevision  string                    `json:"expected_revision"`
+					PaddleSpeed       *protocol.PaddleSpeed     `json:"paddle_speed"`
+					Machine           *protocol.MachineSettings `json:"machine"`
 				}
 				if decodeSingleJSON(w, r, &body) != nil {
 					return
 				}
-				if body.PaddleSpeed == nil {
-					writeError(w, 400, "BAD_REQUEST", "paddle_speed is required")
+				if (body.PaddleSpeed == nil) == (body.Machine == nil) {
+					writeError(w, 400, "BAD_REQUEST", "exactly one of paddle_speed or machine is required")
 					return
 				}
-				update := protocol.CoreSettingsUpdate{ExpectedPackageID: body.ExpectedPackageID, ExpectedRevision: body.ExpectedRevision, PaddleSpeed: *body.PaddleSpeed}
+				update := protocol.CoreSettingsUpdate{ExpectedPackageID: body.ExpectedPackageID, ExpectedRevision: body.ExpectedRevision, Machine: body.Machine}
+				if body.PaddleSpeed != nil {
+					update.PaddleSpeed = *body.PaddleSpeed
+				} else {
+					// The entry's game keys the record; the service fills it in.
+					update.GameID = r.PathValue("game_id")
+				}
 				if !update.Valid() {
 					writeError(w, 400, "BAD_REQUEST", "core settings request is invalid")
 					return
