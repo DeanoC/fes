@@ -9,7 +9,7 @@ local color = require "util.color"
 local PLATFORM = "coleco"
 local CORE_ID = "fes.coleco"
 local CORE_PLATFORM = "fpga"
-local DEST = 130
+local DEST = 180
 local TMS = { "#21c842", "#54fcfc", "#e54c4c", "#e6c547" }
 
 local CABINETS = {

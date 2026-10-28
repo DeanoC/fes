@@ -389,11 +389,59 @@ func TestColecoTabOpensInstalledColecoShelfWhileIdle(t *testing.T) {
 	game := availableGame("fpga-coleco-donkey-kong", "Donkey Kong", "fpga")
 	game.CoreID = colecoCoreID
 	game.PackageID = strings.Repeat("a", 64)
+	otherFPGA := availableGame("fpga-pong", "Pong", "fpga")
+	otherFPGA.CoreID = "fes.pong"
+	otherPlatform := availableGame("snes-mario", "Mario", "snes")
+	type gameQuery struct {
+		platform string
+		coreIDs  []string
+	}
+	var queriesMu sync.Mutex
+	var queries []gameQuery
+	equalStrings := func(left, right []string) bool {
+		if len(left) != len(right) {
+			return false
+		}
+		for i := range left {
+			if left[i] != right[i] {
+				return false
+			}
+		}
+		return true
+	}
+	queryCount := func() int {
+		queriesMu.Lock()
+		defer queriesMu.Unlock()
+		return len(queries)
+	}
+	queryAfter := func(start int, platform string, coreIDs []string) bool {
+		queriesMu.Lock()
+		defer queriesMu.Unlock()
+		for _, query := range queries[start:] {
+			if query.platform == platform && equalStrings(query.coreIDs, coreIDs) {
+				return true
+			}
+		}
+		return false
+	}
+	queryCoreIDs := func(start int) [][]string {
+		queriesMu.Lock()
+		defer queriesMu.Unlock()
+		out := make([][]string, 0, len(queries)-start)
+		for _, query := range queries[start:] {
+			out = append(out, append([]string(nil), query.coreIDs...))
+		}
+		return out
+	}
 	var filteredShelfQueries atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/v1/games":
 			query := r.URL.Query()
+			coreIDs := append([]string(nil), query["core_id"]...)
+			queriesMu.Lock()
+			queries = append(queries, gameQuery{platform: query.Get("platform"), coreIDs: coreIDs})
+			queriesMu.Unlock()
 			games := []hostclient.Game{}
 			if query.Get("platform") == "fpga" && len(query["core_id"]) == 1 && query.Get("core_id") == colecoCoreID {
 				if query.Get("q") == "" {
@@ -402,12 +450,24 @@ func TestColecoTabOpensInstalledColecoShelfWhileIdle(t *testing.T) {
 				} else if strings.Contains(strings.ToLower(game.Title), strings.ToLower(query.Get("q"))) {
 					games = append(games, game)
 				}
+			} else if len(query["core_id"]) == 0 {
+				switch query.Get("platform") {
+				case "fpga":
+					games = append(games, game, otherFPGA)
+				case "snes":
+					games = append(games, otherPlatform)
+				default:
+					games = append(games, game, otherFPGA, otherPlatform)
+				}
 			}
 			_ = json.NewEncoder(w).Encode(hostclient.GamePage{Games: games})
 		case "/api/v1/session":
 			_ = json.NewEncoder(w).Encode(hostclient.SessionResult{State: "idle"})
 		case "/api/v1/platforms":
-			_ = json.NewEncoder(w).Encode(map[string]any{"platforms": []hostclient.Platform{}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"platforms": []hostclient.Platform{
+				{ID: "fpga", Label: "FES"},
+				{ID: "snes", Label: "Super NES"},
+			}})
 		case "/api/v1/library/collections":
 			_ = json.NewEncoder(w).Encode(map[string]any{"collections": []hostclient.Collection{}})
 		case "/api/v1/library/edition-preferences":
@@ -428,7 +488,7 @@ func TestColecoTabOpensInstalledColecoShelfWhileIdle(t *testing.T) {
 	app.openRoomLocked(colecoArcadeRoomID)
 	app.mu.Unlock()
 	waitFor(t, app, "idle Coleco selector", func(s Snapshot) bool {
-		return s.Room.ID == colecoArcadeRoomID && s.Session.State == "idle"
+		return s.Room.ID == colecoArcadeRoomID && s.Session.State == "idle" && len(s.Platforms) == 2
 	})
 
 	app.HandleCommand(CmdTab, time.Now())
@@ -440,6 +500,70 @@ func TestColecoTabOpensInstalledColecoShelfWhileIdle(t *testing.T) {
 	}
 	if filteredShelfQueries.Load() == 0 {
 		t.Fatal("idle Tab did not query the shelf with platform=fpga and core_id=fes.coleco")
+	}
+
+	assertPlatform := func(command Command, platform string, coreIDs, gameIDs []string) Snapshot {
+		t.Helper()
+		start := queryCount()
+		app.HandleCommand(command, time.Now())
+		snap := waitFor(t, app, "library platform "+platform, func(s Snapshot) bool {
+			if s.Loading || s.PlatformID != platform {
+				return false
+			}
+			for _, id := range gameIDs {
+				found := false
+				for _, listed := range s.Games {
+					if listed.ID == id {
+						found = true
+						break
+					}
+				}
+				if !found {
+					return false
+				}
+			}
+			return true
+		})
+		if !queryAfter(start, platform, coreIDs) {
+			t.Fatalf("platform %q query core_ids = %v, want %v", platform, queryCoreIDs(start), coreIDs)
+		}
+		return snap
+	}
+
+	assertPlatform(CmdFilterNext, "snes", nil, []string{otherPlatform.ID})
+	assertPlatform(CmdFilterPrev, "fpga", nil, []string{game.ID, otherFPGA.ID})
+	assertPlatform(CmdFilterPrev, "", nil, []string{game.ID, otherFPGA.ID, otherPlatform.ID})
+
+	app.HandleCommand(CmdHome, time.Now())
+	waitFor(t, app, "Home after platform navigation", func(s Snapshot) bool { return s.RoomPicker.Open })
+	focusHomeRow(t, app, HomeKindRoom, colecoArcadeRoomID)
+	app.HandleCommand(CmdSelect, time.Now())
+	waitFor(t, app, "Coleco room after Home", func(s Snapshot) bool { return s.Room.Open && s.Room.ID == colecoArcadeRoomID })
+	app.HandleCommand(CmdTab, time.Now())
+	waitFor(t, app, "filtered Coleco shelf before Home Library", func(s Snapshot) bool {
+		return !s.Room.Open && s.Grid.Mode == LayoutShelf && s.PlatformID == "fpga" && len(s.Games) == 1 && s.Games[0].ID == game.ID
+	})
+	app.HandleCommand(CmdHome, time.Now())
+	waitFor(t, app, "Home Library picker", func(s Snapshot) bool { return s.RoomPicker.Open })
+	focusHomeRow(t, app, HomeKindLibrary, "")
+	start := queryCount()
+	app.HandleCommand(CmdSelect, time.Now())
+	fullLibrary := waitFor(t, app, "full FPGA library from Home", func(s Snapshot) bool {
+		if s.Loading || s.PlatformID != "fpga" || !strings.Contains(s.Status, "FES") {
+			return false
+		}
+		for _, listed := range s.Games {
+			if listed.ID == otherFPGA.ID {
+				return true
+			}
+		}
+		return false
+	})
+	if !queryAfter(start, "fpga", nil) {
+		t.Fatalf("Home Library did not reload an unfiltered FPGA query: core_ids=%v", queryCoreIDs(start))
+	}
+	if len(fullLibrary.Games) != 2 {
+		t.Fatalf("Home Library games = %v, want Coleco and Pong", gameIDs(fullLibrary.Games))
 	}
 }
 

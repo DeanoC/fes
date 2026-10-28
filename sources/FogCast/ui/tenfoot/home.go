@@ -270,6 +270,7 @@ func (a *App) activateHomeRowLocked(row RoomPickerRow) {
 		a.suspendRoomsForLibraryLocked()
 		a.libraryCoreIDs = nil
 		a.stampNavLocked("library")
+		a.reloadLocked()
 	case HomeKindRecents:
 		a.openRecentsFromHomeLocked()
 	case HomeKindRecent:

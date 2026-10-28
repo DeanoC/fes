@@ -605,13 +605,16 @@ func TestBuiltInListRoomsKeepStatusBelowListRows(t *testing.T) {
 	h.mu.Unlock()
 
 	app := newRoomApp(t, h, rooms.NewIndex(rooms.Examples()), false)
-	for _, id := range []string{"example.computers", "example.lobby", "example.tms-vdp"} {
+	for _, id := range []string{"example.computers", "example.lobby", "example.tms-vdp", "example.coleco-arcade"} {
 		app.mu.Lock()
 		app.openRoomLocked(id)
 		app.mu.Unlock()
 		snap := waitFor(t, app, id, func(s Snapshot) bool {
 			if s.Room.ID != id {
 				return false
+			}
+			if id == "example.coleco-arcade" {
+				return roomFrameHasClip(s.Room.Frame.Ops)
 			}
 			return roomFrameHasTextInsideClip(s.Room.Frame.Ops)
 		})
@@ -647,6 +650,15 @@ func roomFrameHasTextInsideClip(ops []rooms.Op) bool {
 			if depth > 0 {
 				return true
 			}
+		}
+	}
+	return false
+}
+
+func roomFrameHasClip(ops []rooms.Op) bool {
+	for _, op := range ops {
+		if op.Kind == rooms.OpClipPush {
+			return true
 		}
 	}
 	return false

@@ -1376,6 +1376,7 @@ func (a *App) cyclePlatformLocked(delta int) {
 		return
 	}
 	a.platformID = next
+	a.libraryCoreIDs = nil
 	a.stampNavLocked("platform")
 	a.reloadLocked()
 }

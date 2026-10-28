@@ -1185,6 +1185,10 @@ write-only: GET exposes `agent_configured` only, the sofa never echoes a
 stored agent, and PATCH sends `agent` only when the operator edited or
 cleared it.
 
+The Home overlay's Library row clears any room-specific core filter and
+reloads the full title list for the selected platform. Cycling platforms also
+clears that filter before reloading the library.
+
 Attract prefers a playlist `video` handle when present. Darwin CGO builds
 decode with AVFoundation (`ui/tenfoot/attractvideo`) after streaming
 `Accept: video/*` to a temp file (128 MiB cap). Linux uses the same download
