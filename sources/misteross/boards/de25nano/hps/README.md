@@ -102,5 +102,6 @@ retains the successful committed-source Quartus build, constrained timing
 rows and explicit remaining reset, electrical, firmware and physical gates.
 Generated HPS/debug reset crossings still need their own protocol/release
 review; the local top reset repair does not qualify those crossings or physical
-metastability behavior. A new compile of the repaired source must retain its
-own source revision and reports; the earlier SOF does not contain this repair.
+metastability behavior. The [reset/clock compile record](../../../docs/validation/2026-10-28-de25-hps-mailbox/reset-sequencing/README.md)
+binds the repaired source, mapped path checks and remaining findings to its own
+artifact; the original mailbox SOF does not contain this repair.
