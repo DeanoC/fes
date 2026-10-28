@@ -123,7 +123,7 @@ class LockstepRunTest(unittest.TestCase):
                                 cwd=lockstep.ROOT, env=env, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn(', 0 fail;', result.stdout)
-        self.assertIn('directed faults: 3 pass, 0 fail', result.stdout)
+        self.assertIn('directed faults: 6 pass, 0 fail', result.stdout)
         self.assertIn('trace unchanged', result.stdout)
         return result.stdout
 
