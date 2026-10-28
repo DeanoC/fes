@@ -219,6 +219,29 @@ func TestStatusReconstructsRecognizedABIPackagePlayAsNative(t *testing.T) {
 	}
 }
 
+func TestStatusRestoresSavedCoreIDForMatchingPackage(t *testing.T) {
+	packageID := strings.Repeat("c", 64)
+	client := &fakeServiceClient{statusResult: protocol.Status{
+		State: protocol.StateActive, Development: true,
+		CorePackage: &protocol.CorePackageStatus{
+			PackageID: packageID, Generation: 7,
+			ABI: protocol.RuntimeContract{ID: "fes.application", Major: 1},
+		},
+	}}
+	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, client)
+	service.plays[service.selectedTarget] = targetPlay{
+		execution: ExecutionFPGANative, gameID: "fpga-coleco-dk", system: catalog.CorePlatform,
+		coreID: "fes.coleco", packageID: packageID, packageGeneration: 7,
+	}
+
+	status, err := service.Status(context.Background())
+	if err != nil || status.CorePackage == nil || status.CorePackage.CoreID != "fes.coleco" ||
+		status.GameID == nil || *status.GameID != "fpga-coleco-dk" ||
+		status.System == nil || *status.System != catalog.CorePlatform {
+		t.Fatalf("status=%+v err=%v", status, err)
+	}
+}
+
 func TestDevelopmentSessionStateReconstructsRecognizedABIPackagePlayAsNative(t *testing.T) {
 	packageID := strings.Repeat("a", 64)
 	observed := "fes.coleco"

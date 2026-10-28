@@ -347,7 +347,8 @@ EmuTOS or Atari ROMs.
    sibling. It authenticates one lock, requires a clean committed module,
    and never programs hardware. A new core with a ROM embedded in CRAM seals
    a producer-derived ROM map in format 3. ROM-less cores keep format 2.
-   The factory Coleco recipe emits format 3: one exact 16 KiB cartridge.
+   The factory Coleco recipe emits format 4: an exact 8 KiB `coleco-bios` and
+   16 KiB `coleco-cart`.
    Currency and retirement
    are the FES [core alignment](../../../docs/core-alignment.md) contract.
    Wire `make sim-…` and

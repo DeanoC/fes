@@ -72,6 +72,7 @@ type SessionCoreABI struct {
 // older fixture bodies may omit them.
 type SessionCorePackage struct {
 	PackageID        string                     `json:"package_id,omitempty"`
+	CoreID           string                     `json:"core_id,omitempty"`
 	MediaUnits       []protocol.MediaUnitStatus `json:"media_units,omitempty"`
 	PersistenceMode  string                     `json:"persistence_mode,omitempty"`
 	Composition      *SessionComposition        `json:"composition,omitempty"`

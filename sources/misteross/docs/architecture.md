@@ -24,17 +24,21 @@ identity 2 exclusively. Both Python and CLI entrypoints default to 2 and reject
 other identity versions. Quartus oracle and board-firmware records retain their
 current evidence schema. Rebuilt script closures receive new identities;
 existing artifacts and caches are never relabelled or deleted.
-ZX81, SMS, SG-1000, Apple II, C64, Spectrum, Atari ST and the factory Coleco
-cartridge use format 3 to seal one ROM map. ROM-less producers keep format 2.
+ZX81, SMS, SG-1000, Apple II, C64, Spectrum and Atari ST use format 3 to seal
+one ROM map. The factory Coleco package and its MegaCart development producer
+use format 4 for two ordered ROM sources and one sealed map. ROM-less producers
+keep format 2.
 The external `build-inputs.json` record is format 2.
 `build_identity` still hashes a format-1 record with the original full-record
 SHA256; a format-2 record uses the domain-separated functional projection.
 
 The package exporter and inspector also recognize format 4 with two ordered ROM
-requirements and one sealed map. The Coleco MegaCart development producer
-(`scripts/build_fes_coleco_megacart.py`) emits that format. The factory Coleco
-recipe emits format 3. Which format a new core uses, and when an older
-format is retired, is [core alignment](../../../docs/core-alignment.md).
+requirements and one sealed map. The factory Coleco recipe selects
+`scripts/build_fes_coleco_socket_v2.py` with native video; it requires an exact
+8 KiB `coleco-bios` and 16 KiB `coleco-cart`. The Coleco MegaCart development
+producer (`scripts/build_fes_coleco_megacart.py`) also emits format 4. Which
+format a new core uses, and when an older format is retired, is
+[core alignment](../../../docs/core-alignment.md).
 
 Record 2 keeps repository/revision and `source_path` as original build provenance, but derives
 its embedded 128-bit ID from a domain-separated functional projection excluding
@@ -983,16 +987,18 @@ and is not FogCast format-3.
 `cores/fes-coleco` is the next FES emulator bring-up after Pong and ZX81. It
 uses the [MiSTer ColecoVision core](https://github.com/MiSTer-devel/ColecoVision_MiSTer)
 as a system reference, but is a reduced Verilog-first adapter around the
-shared `fes.application` 1.0 mailbox, with `fes.gamepad.ports` and
-`fes.keypad.ports` 1.0, fixed video, blob and blob-stream media, and optional
-`fes.firmware.blob` 1.0. A/B map to Fire 1/2; the
-twelve keypad bits represent 0..9, *, #. Each active-high full-state write
-addresses port 0 or 1. HOLD neutralizes both controllers. The console-owned
-staging RAM preserves registered media-copy timing. The first slice contains a TV80
-Z80-compatible CPU, the Coleco reset/cartridge/RAM map, a shared TMS9918-style
+shared `fes.application` 1.0 ABI. The factory recipe selects the v2 native-video
+producer and seals a format-4 package with an exact 8 KiB `coleco-bios` and
+16 KiB `coleco-cart` in one ROM map. It does not advertise blob-media,
+blob-stream or firmware-mailbox interfaces; native video parts are required,
+and the Coleco expansion bus is optional. The RTL and mailbox simulations also
+retain the older media and firmware paths described below. A/B map to Fire 1/2;
+the twelve keypad bits represent 0..9, *, #. Each active-high full-state write
+addresses port 0 or 1. HOLD neutralizes both controllers. The machine contains
+a TV80 Z80-compatible CPU, Coleco reset/cartridge/RAM map, shared TMS9918-style
 renderer for Graphics I, Graphics II, Text and Multicolor on the fixed
-256×192 logical raster, two active-low controller views and the FES fixed-video
-shell. A raw 1–32 KiB cartridge image uses the fixed
+256×192 logical raster, two active-low controller views and the FES video path.
+In mailbox diagnostics, a raw 1–32 KiB cartridge image uses the fixed
 `0x8000–0xffff` aperture. Images up to 16 KiB preserve the prior C000 mirror;
 larger images use all fifteen address bits and return FF beyond committed length.
 The shared stream endpoint validates ordered chunks and complete CRC before
@@ -1003,19 +1009,19 @@ The shared 32-bit fractional raster enable emits 4,024,320 logical samples per
 second from each core's configured system clock; 256 samples × 262 lines gives
 a nominal 60 Hz frame cadence independent of CPU and HDMI pixel clocks. This
 models frame/line pacing, not composite sync, half-lines or cycle-perfect raster
-effects. The development Coleco machine edge has an inactive vacant response
-and masks expansion read claims to `0x2000–0x5fff` or unclaimed I/O. The
-physical socket is behind `FES_COLECO_EXPANSION_DEV`. The development producer
-authenticates `toolchain.lock` and seals a timed shell with a
-reserved `24 1 28 11` placement region containing only pinned boundary FFs.
-It declares optional `fes.expansion.coleco-bus` 1.0. The diagnostic module
-uses the frozen shell and restores the system PLL's
-second output from exact routed metadata. The integrated shell/cart has no
-outside CRAM changes. Its producer permits only the two fixed response-stub
-changes declared by `fes.coleco.response-boundary/4` if a route needs them,
-alongside the CPU-bus rectangle; the linker rejects every other outside change.
-The selected factory recipe and FES registration remain unchanged. External
-bus mastering, video/audio takeover, bank switching and retail-cartridge
+effects. The factory v2 Coleco shell includes the optional
+`fes.expansion.coleco-bus` interface and masks expansion read claims to
+`0x2000–0x5fff`. The separate v1 expansion diagnostic retains an inactive
+vacant response and, behind `FES_COLECO_EXPANSION_DEV`, claims reads below
+`0x8000` (`0x0000–0x7fff`) or unclaimed I/O. Its development producer
+authenticates `toolchain.lock` and seals a timed shell with a reserved
+`24 1 28 11` placement region containing only pinned boundary FFs. The
+diagnostic module uses the frozen shell and restores the system PLL's second
+output from exact routed metadata. The integrated shell/cart has no outside
+CRAM changes. Its producer permits only the two fixed response-stub changes declared by
+`fes.coleco.response-boundary/4` if a route needs them, alongside the CPU-bus
+rectangle; the linker rejects every other outside change. External bus
+mastering, video/audio takeover, bank switching and retail-cartridge
 compatibility remain outside this slice.
 
 Graphics I groups color entries by eight character patterns. Graphics II uses
@@ -1036,57 +1042,49 @@ Every sprite column and magnified repeat has a separate line-bank read before
 its write decision. Priority and collision use that pixel's metadata rather
 than the previous address or a same-port read-during-write result.
 
-The default reset ROM is an open `JP 0x8000` shim, not a Coleco BIOS. Quartus
-(`set_parameter -name ENABLE_FIRMWARE 1`) and OSS (`chparam -set ENABLE_FIRMWARE 1`)
-synthesize the shared mailbox overlay into the 8 KiB aperture; host simulations
-keep `ENABLE_FIRMWARE` at its RTL default 0. The default package still ships the
-open shim and declares `fes.firmware.blob` 1.0 optional so BIOS-free titles share
-the bitstream. Runtime firmware is an exact 8192-byte begin/data/commit while
-reset is held; it is not cartridge media and does not release execution.
-Firmware mailbox behavior is software-tested; physical Coleco BIOS bind remains
-pending. The OSS producer's explicit `--bios PATH` option embeds a privately
-supplied 8192-byte BIOS using a read-only binary/HEX snapshot in ignored build
-output. Identity v2 binds both digests and the BIOS mode, and the producer
-rechecks the snapshot before and after compilation and before export. This
-variant declares `fes.coleco.private-bios` and exports only to
-`build/private-packages`, separate from the default image-selected package.
-The BIOS is a build input, not an extension to the cartridge media protocol.
-BIOS boot does not establish general retail-game compatibility; rendering and
-input require per-game validation.
+The tracked reset image used by host simulations is an open `JP 0x8000` shim,
+not a Coleco BIOS. The factory format-4 package instead seals a ROM map with an
+exact 8192-byte `coleco-bios` source at `0x0000–0x1fff` and an exact 16384-byte
+`coleco-cart` source mapped to `0x8000–0xbfff` and mirrored at
+`0xc000–0xffff`; the target links both before download.
+The package removes the firmware and media-mailbox interfaces. Quartus and
+mailbox simulations retain the `ENABLE_FIRMWARE` overlay for diagnostics, with
+an exact 8192-byte begin/data/commit while reset is held; it is not cartridge
+media and does not release execution. Firmware mailbox behavior is
+software-tested, but it is not the selected factory package contract. The OSS
+producer's explicit `--bios PATH` option remains a separate private build-time
+path using a read-only binary/HEX snapshot in ignored build output. Identity v2
+binds both digests and the BIOS mode, and the producer rechecks the snapshot
+before and after compilation and before export. This variant declares
+`fes.coleco.private-bios` and exports only to `build/private-packages`, separate
+from the selected factory package. BIOS boot does not establish general
+retail-game compatibility; rendering and input require per-game validation.
 
 The serial renderer, replicated VRAM, registered request/wait schedule, packed
 line banks, sequential clear and publication interlock are deliberate RTL
 scaling accommodations shared by both compiler lanes. The original procedural
 sprite loop expanded to roughly 42K mapped combinational cells; the registered
 one-column/repeat schedule fits the fixed system-clock budget. The Coleco OSS
-recipe uses its core-local lock with Yosys `e2d425de`, nextpnr-mistral
-`a93fe013` with `--router gpu`, HeAP timing weight 100, criticality
-exponent 5, and `--timing-allow-fail`, and Mistral
-`7ed06e21`; the selected toolchain enables the HIP device backend. Default
-place-and-route is first-to-pass: seeds 5, 4, 1, 2, 3, 12, 7 and 10 at
-weight 100, then the same seeds at weights 300 and 1000. nextpnr `a93fe013`
-times each GPU route with Mistral's analogue signoff model and re-routes
-near-critical nets when a clock misses, so the table-model and signoff
-results no longer diverge silently.
-`make build-fes-coleco BEST_FMAX=1` synthesizes once, then searches the
-weight list 10/100/300/1000/2000 and remaining seeds for the best Fmax on
-one HIP device (functional identity v2 rejects more than one);
-the winner is stored in route evidence, not written back into recipe
-constants (that would change `BUILD_ID`). Because the
-sealed build record changes the embedded `BUILD_ID`, the seed is part of the
-route recipe. The GPU router can report a provisional timing shortfall before
-its final repair/signoff pass; the allowance lets it complete, while the
-recipe's structured final `clk_sys` and `pixel_clk` evidence still has to meet
-the requested constraints. The Quartus wrapper retains the literal
+recipe uses its core-local lock: Yosys `5391eeb1`, nextpnr-mistral `bec82e36`
+with `--router gpu`, and Mistral `8fcc4cb4`. Its factory native-video
+first-pass search follows the configured seed order 3, 4, 5, 1, 2, 6, 7, 8,
+9 and 10 at HeAP timing weights 2000 then 1000, with criticality exponent 5
+and `--timing-allow-fail`; the CPU-only socket target uses weight 2000. The
+producer records the selected seed and weight in route evidence. The timing
+allowance permits route completion, while the recipe's structured final
+`clk_sys` and `pixel_clk` evidence still has to meet the requested constraints.
+The Quartus wrapper retains the literal
 `altsyncram` mode `NEW_DATA_NO_NBE_READ`; OSS preserves the registered
 semantic schedule rather than that vendor literal. No missing nextpnr BEL or
 pack feature is implied.
 
 The open diagnostics and focused simulations exercise CPU-driven VDP writes,
 controller modes, sprite status and the exact 720p frame in both conditional
-lanes. The build recipes require a clean checkout and seal format-2 packages;
-they never program hardware. Parent selection and exact-kit acceptance are
-recorded in the FES validation documents.
+lanes. The Quartus oracle seals a format-2 package. `make build-fes-coleco`
+seals a format-4 package with the CPU-only socket; the factory format-4 shell
+is sealed by `make build-fes-coleco-native-video`. These targets
+require a clean checkout and do not program hardware. Parent selection and
+exact-kit acceptance are recorded in the FES validation documents.
 
 ### OSS/Yosys/nextpnr workarounds
 
@@ -1108,12 +1106,14 @@ marked as path-specific are not requirements of the other lane.
 | Reset image | OSS consumes tracked byte-per-line `coleco_reset_rom.hex`; Quartus `altsyncram` consumes tracked range-form `coleco_reset_rom.mif`. This is a file-format split, not a different reset image. |
 | PLL and I²C | Both retain the two existing `altera_pll` wrappers. Quartus uses tri-state HDMI I²C; OSS uses `MISTRAL_IO` open-drain pads and the HPS I²C BEL `cyclonev_hps_interface_peripheral_i2c.52.60.0`. |
 | Constraints | OSS uses only its accepted pin QSF and 50 MHz `clocks-oss.sdc`; nextpnr derives PLL clocks. Quartus retains `HPS_LOCATION`, clock groups and the full SDC. |
-| Route pressure | The OSS reproduction is `5CSEBA6U23I7`, nextpnr `a93fe013`, `--router gpu`, seed 5 first (order 5, 4, 1, 2, 3, 12, 7, 10), HeAP timing weight 100 before 300 and 1000, criticality exponent 5, `--timing-allow-fail`, no `--tmg-ripup`, at 74.25 MHz. The embedded `BUILD_ID` makes the seed part of the route recipe. The GPU router can report a provisional timing shortfall before final repair; the allowance only permits that intermediate result, while the recipe requires final structured `clk_sys` and `pixel_clk` timing to pass. The sealed recipe requires `backend hip:<device> ready` and rejects CPU-reference fallback; no missing BEL or pack feature was identified. |
+| Route pressure | The OSS reproduction is `5CSEBA6U23I7`, nextpnr `bec82e36`, `--router gpu`, seed order 3, 4, 5, 1, 2, 6, 7, 8, 9, 10, HeAP timing weights 2000 then 1000 for the factory native-video shell (2000 for the CPU-only socket), criticality exponent 5, `--timing-allow-fail`, no `--tmg-ripup`, at 74.25 MHz. The route evidence records the selected seed and weight. The allowance permits route completion; final structured `clk_sys` and `pixel_clk` timing must still pass. The sealed producer requires its authenticated live GPU backend and rejects CPU-reference fallback; no missing BEL or pack feature was identified. |
 
-The concrete build entry points are `make build-fes-coleco-quartus` and
-`make build-fes-coleco`; both require a clean source checkout, seal format-2
-packages and never program hardware. Exact-artifact kit acceptance remains a
-separate FES integration step.
+The concrete build entry points are `make build-fes-coleco-quartus`,
+`make build-fes-coleco` and `make build-fes-coleco-native-video`. The Quartus
+oracle seals format 2; the v2 OSS target seals a format-4 CPU-only socket
+package, while the native-video target seals the factory format-4 package.
+These targets require a clean source checkout and never program hardware.
+Exact-artifact kit acceptance remains a separate FES integration step.
 
 The Opcode SGM candidate uses a separate development shell with a 31-bit
 request and 28-bit registered response. The response carries direct data,
@@ -3491,8 +3491,8 @@ Alternatively supply an already encoded format-3 manifest and `rom_map=path`.
 The CLI equivalents are `--rom-map`, `--rom-id`, and `--rom-role`. The map is
 snapshotted, validated, sealed read-only and compared during reuse alongside the
 manifest and RBF. Format-3 exporters are ZX81, SMS, SG-1000, Apple II, C64,
-Spectrum, Atari ST and the factory Coleco cartridge. ROM-less producers export
-format 2. The Coleco MegaCart development producer exports format 4.
+Spectrum and Atari ST. The factory Coleco and Coleco MegaCart development
+producers export format 4. ROM-less producers export format 2.
 
 Repository URI syntax uses the host-only vendored
 `rfc3986-validator` 0.1.1 module from
