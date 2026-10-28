@@ -21,10 +21,13 @@ RULES = [
         'scripts/test_policy.py', 'scripts/parent_tests.py', 'scripts/host_tests.py',
         'scripts/check_deadcode.py', 'scripts/check_diff.py',
         'scripts/check_doc_links.py', 'scripts/coordination.py', 'scripts/de25_runtime.py',
-        'scripts/de25_boot_contract.py', 'scripts/de25_dma_descriptor.py',
+        'scripts/de25_boot_contract.py', 'scripts/de25_dma_descriptor.py', 'scripts/de25_kernel_test.py',
         'scripts/hil_plan.py', 'scripts/consistency.py', 'scripts/generate.py',
         'scripts/host_affected.py',
     )],
+    # This driver is exercised only in a private QEMU kernel. No appliance,
+    # image or software bundle installs or enables it.
+    ('image/kernel/de25-dma/**', 'none', None),
     # This separate headless image needs a DE25 serial/SSH boot check. It is
     # never installed as a DE10 kit software bundle or native-integration image.
     ('image/de25-nano/**', 'full', 'de25-nano-linux'),

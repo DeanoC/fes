@@ -1,0 +1,16 @@
+config FES_DE25_DMA
+	tristate "FES DE25 DMA ownership diagnostic"
+	depends on MMU && HAS_DMA && OF
+	select ANON_INODES
+	help
+	  Kernel-owned coherent DMA storage and revocable client mappings.
+	  DE25 production binding always refuses until actual device translation,
+	  firewall and boot/reset lifetime requirements have been established.
+
+config FES_DE25_DMA_KUNIT_TEST
+	bool "KUnit tests for FES DE25 DMA ownership"
+	depends on KUNIT && FES_DE25_DMA=y
+	help
+	  Run the actual allocation, file operations and lifetime code against a
+	  KUnit test device and a private scripted transport under a test kernel.
+	  This does not admit or emulate DE25 hardware.

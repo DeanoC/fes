@@ -5,7 +5,7 @@ The former standalone repository is archived.
 
 This module owns shared board/SoC/MMIO definitions, FES ABI contracts,
 programming-profile declarations, format-2/3/4 package schemas and conformance
-fixtures. Go emitters generate C++14, Go and Verilog consumers. FES runs
+fixtures. Go emitters generate C, C++14, Go and Verilog consumers. FES runs
 `make generate` and `make check-generated` across the tracked modules.
 
 Standalone board definitions support `validate` and `report`, independently of
@@ -27,6 +27,17 @@ The separate [`fes.fabric.de25-ddr-probe`](packages/fabric/fes_fabric_de25_ddr_p
 defines bounded, read-only DMA diagnostic registers. [DE25 DDR](docs/de25-ddr.md)
 specifies its drain behavior, address domains and planned Linux-owned MENU
 allocation. It adds no production runtime or GP interface.
+
+The fabric-only `emit-c` command supplies standalone constant headers for C
+consumers such as the DE25 kernel diagnostic. From this module:
+
+```sh
+go run ./cmd/mister-packages emit-c packages/fabric/fes_fabric_de25_ddr_probe.yaml
+```
+
+The guarded header contains unsigned 32-bit `#define` constants with the same
+uppercase macro names as the Verilog consumer. It needs no system headers;
+emitting constants grants no Linux device binding or DMA admission.
 
 The programming registry contains `fes-gp-v1` for `fes.simple-game`,
 `fes.simple-computer`, `fes.application` and `fes.computer`, plus the diagnostic-only
