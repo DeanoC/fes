@@ -14,6 +14,16 @@ const localControllerPorts = 2
 // machine and drives the menu where a pad with a port would.
 const noLocalPlayer int8 = -1
 
+// yieldsPort reports whether a pad with this vendor and product gives its
+// controller port to any other pad. 081f:e401 is the generic USB pad the
+// kits keep plugged in as a fixture. A pad plugged in to play, such as a
+// DualSense, takes port 1 from it even when the fixture opened first, and
+// the fixture moves to the port that pad would have taken. With no other
+// pad the fixture keeps port 1.
+func yieldsPort(vendor, product uint16) bool {
+	return vendor == 0x081f && product == 0xe401
+}
+
 // padKey is one pad's control. Held and sent state is per pad: a second
 // pad pressing A must not release the first pad's A.
 type padKey struct {
