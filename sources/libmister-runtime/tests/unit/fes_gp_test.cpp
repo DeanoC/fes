@@ -3000,13 +3000,14 @@ std::vector<Computer11Scenario> ReadComputer11Scenarios()
 	for (auto at = source.find("{\"abi_minor\":"); at != std::string::npos;
 		at = source.find("{\"abi_minor\":", at + 1))
 		starts.push_back(at);
-	assert(starts.size() == 3);
+	assert(starts.size() == 5);
 	starts.push_back(source.size());
 	const std::regex row("\\{\"argument\":([0-9]+),\"data\":([0-9]+),\"error\":([0-9]+),"
 		"\"gpi\":([0-9]+),\"gpo\":\\[([0-9]+),([0-9]+)\\],\"index\":([0-9]+),"
 		"\"name\":\"([^\"]+)\",\"opcode\":([0-9]+)\\}");
 	const std::regex cmos("\\{\"before\":([0-9]+),\"byte\":([0-9]+),\"kind\":\"cmos-write\",\"value\":([0-9]+)\\}");
-	const std::regex sector("\\{\"before\":([0-9]+),\"kind\":\"sector-write\",\"sector\":([0-9]+)\\}");
+	const std::regex sector("\\{\"before\":([0-9]+),\"kind\":\"(sector-write(-begin)?)\",\"sector\":([0-9]+)\\}");
+	const std::regex complete("\\{\"before\":([0-9]+),\"kind\":\"sector-write-complete\"\\}");
 	std::vector<Computer11Scenario> result;
 	for (std::size_t index = 0; index + 1 < starts.size(); ++index) {
 		const auto text = source.substr(starts[index], starts[index + 1] - starts[index]);
@@ -3031,8 +3032,10 @@ std::vector<Computer11Scenario> ReadComputer11Scenarios()
 			scenario.events.push_back({std::stoul((*it)[1]), "cmos-write",
 				static_cast<unsigned>(std::stoul((*it)[2])), static_cast<unsigned>(std::stoul((*it)[3]))});
 		for (std::sregex_iterator it(text.begin(), text.end(), sector), end; it != end; ++it)
-			scenario.events.push_back({std::stoul((*it)[1]), "sector-write",
-				static_cast<unsigned>(std::stoul((*it)[2])), 0});
+			scenario.events.push_back({std::stoul((*it)[1]), (*it)[2].str(),
+				static_cast<unsigned>(std::stoul((*it)[4])), 0});
+		for (std::sregex_iterator it(text.begin(), text.end(), complete), end; it != end; ++it)
+			scenario.events.push_back({std::stoul((*it)[1]), "sector-write-complete", 0, 0});
 		std::stable_sort(scenario.events.begin(), scenario.events.end(),
 			[](const Computer11Event& a, const Computer11Event& b) { return a.before < b.before; });
 		assert(std::regex_search(text, match, std::regex("\"persistent_words\":\\[([0-9,]+)\\]")));
@@ -3044,6 +3047,7 @@ std::vector<Computer11Scenario> ReadComputer11Scenarios()
 	assert(result[0].name == "minor-0-endpoint" && result[0].abi_minor == 0);
 	assert(result[1].name == "pc386-persistence-and-wall-clock" && result[1].abi_minor == 1);
 	assert(result[2].name == "pc386-ata-disk");
+	assert(result[3].name == "persistence-without-layout" && result[4].name == "layout-without-persistence");
 	return result;
 }
 
@@ -3061,10 +3065,10 @@ void TestComputer11ReplaysSharedFixtureThroughEndpoint()
 		std::size_t next = 0;
 		for (std::size_t n = 0; n < scenario.exchanges.size(); ++n) {
 			for (; next < scenario.events.size() && scenario.events[next].before == n; ++next) {
-				if (scenario.events[next].kind == "sector-write") {
-					endpoint.GuestSectorWrite(scenario.events[next].first);
-					continue;
-				}
+				const auto& kind = scenario.events[next].kind;
+				if (kind == "sector-write") { endpoint.GuestSectorWrite(scenario.events[next].first); continue; }
+				if (kind == "sector-write-begin") { endpoint.GuestSectorWriteBegin(scenario.events[next].first); continue; }
+				if (kind == "sector-write-complete") { endpoint.GuestSectorWriteComplete(); continue; }
 				endpoint.GuestCmosWrite(scenario.events[next].first,
 					static_cast<std::uint8_t>(scenario.events[next].second));
 			}

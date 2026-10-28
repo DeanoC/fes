@@ -872,7 +872,7 @@ offset `0x08000000`, maximum 134,217,728 bytes (128 MiB), chunk 65,536 bytes.
 
 | Operation | Meaning |
 | --- | --- |
-| DiskInfo | Fields: minimum and maximum bytes, chunk size, state (absent, empty, loading, verifying, ready), flags (dirty, frozen, writer busy), change epoch |
+| DiskInfo | Fields: minimum and maximum bytes, chunk size, state (absent, empty, loading, ready, verifying), flags (dirty, frozen, writer busy), change epoch |
 | DiskControl prepare | Held execution only. The unit becomes loading; the ATA device reports no drive |
 | DiskCommit words | Size in sectors, cylinders, heads, sectors per track, CRC-32 of the image |
 | DiskControl commit | The core reads the whole region on port 2, computing CRC-32 (about 0.2 s for 128 MiB at 700 MB/s), and becomes ready on a match. A mismatch leaves it loading with an error flag. The runtime polls DiskInfo |
