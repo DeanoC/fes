@@ -84,7 +84,7 @@ func (client *Client) LoadROMSlotComposedCoreWithInitialMedia(ctx context.Contex
 	}
 	if !validRuntimePath(path) || !validRuntimePath(programmedPath) || !validSlotLoad(packageID, expansions, payloadPath, composition) ||
 		!protocol2Identifier.MatchString(identity.ROMID) ||
-		!identity.ValidFor(corepackage.Descriptor{Format: 3, ROM: &corepackage.ROM{ID: identity.ROMID, SHA256: identity.MapSHA256, SourceSize: identity.SourceSize}}) {
+		!identity.ValidFor(corepackage.Descriptor{Format: 3, ROM: &corepackage.ROM{ID: identity.ROMID, Role: identity.Role, SHA256: identity.MapSHA256, SourceSize: identity.SourceSize}}) {
 		return Protocol2Response{}, errInvalidRuntimeRequest
 	}
 	before, err := client.Protocol2Status(ctx)

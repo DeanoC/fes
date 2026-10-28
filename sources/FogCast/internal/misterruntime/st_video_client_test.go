@@ -16,7 +16,7 @@ func stVideoResponse(t *testing.T) (Protocol2Response, expansion.PartsCompositio
 	r := atariStComputerResponse(t)
 	a := r.ActivePackage
 	a.Descriptor.Format = 3
-	link := corepackage.ROMLinkIdentity{ROMID: "atari-st-firmware", MapSHA256: strings.Repeat("a", 64), SourceSHA256: strings.Repeat("b", 64), SourceSize: 192 << 10, ProgrammedSHA256: strings.Repeat("f", 64), ProgrammedSize: 50000}
+	link := corepackage.ROMLinkIdentity{ROMID: "atari-st-firmware", Role: "firmware", MapSHA256: strings.Repeat("a", 64), SourceSHA256: strings.Repeat("b", 64), SourceSize: 192 << 10, ProgrammedSHA256: strings.Repeat("f", 64), ProgrammedSize: 50000}
 	a.Descriptor.ROM = &corepackage.ROM{ID: link.ROMID, Role: "firmware", File: "rom-map.json", Size: 100, SHA256: link.MapSHA256, SourceSize: link.SourceSize}
 	a.Descriptor.Interfaces = append(a.Descriptor.Interfaces, corepackage.Interface{ID: expansion.VideoSlot, Major: 1})
 	c := expansion.PartsComposition{PackageID: a.PackageID, Layout: expansion.AtariStVideoLayout,

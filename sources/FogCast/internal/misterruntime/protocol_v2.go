@@ -197,7 +197,7 @@ func (client *Client) LoadROMLinkedCoreWithInitialMedia(ctx context.Context, pat
 	if !validInitialMediaRequest(initial) {
 		return Protocol2Response{}, errInvalidRuntimeRequest
 	}
-	if !validRuntimePath(path) || !validRuntimePath(programmedPath) || !protocol2Hex64.MatchString(packageID) || !protocol2Identifier.MatchString(identity.ROMID) || !identity.ValidFor(corepackage.Descriptor{Format: 3, ROM: &corepackage.ROM{ID: identity.ROMID, SHA256: identity.MapSHA256, SourceSize: identity.SourceSize}}) {
+	if !validRuntimePath(path) || !validRuntimePath(programmedPath) || !protocol2Hex64.MatchString(packageID) || !protocol2Identifier.MatchString(identity.ROMID) || !identity.ValidFor(corepackage.Descriptor{Format: 3, ROM: &corepackage.ROM{ID: identity.ROMID, Role: identity.Role, SHA256: identity.MapSHA256, SourceSize: identity.SourceSize}}) {
 		return Protocol2Response{}, errInvalidRuntimeRequest
 	}
 	if root != "" && !validRuntimePath(root) {
@@ -547,12 +547,17 @@ func validateProtocol2Shape(line []byte) error {
 			return err
 		}
 		if raw, ok := active["rom_link"]; ok {
-			fields, err := exactRawObject(raw, []string{"rom_id", "map_sha256", "source_sha256", "source_size", "programmed_sha256", "programmed_size"}, nil)
+			fields, err := exactRawObject(raw, []string{"rom_id", "map_sha256", "source_sha256", "source_size", "programmed_sha256", "programmed_size"}, []string{"role"})
 			if err != nil {
 				return err
 			}
 			if err := requireRawKinds(fields, map[string]rawKind{"rom_id": rawString, "map_sha256": rawString, "source_sha256": rawString, "source_size": rawUnsigned, "programmed_sha256": rawString, "programmed_size": rawUnsigned}); err != nil {
 				return err
+			}
+			if _, ok := fields["role"]; ok {
+				if err := requireRawKinds(fields, map[string]rawKind{"role": rawString}); err != nil {
+					return err
+				}
 			}
 		}
 		if raw, ok := active["rom_links"]; ok {

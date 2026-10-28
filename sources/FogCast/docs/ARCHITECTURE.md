@@ -769,9 +769,10 @@ session. This catalog route remains the Home/F12 action and Coleco does not fall
 through to the ZX81-only `example.hardware` workbench. With the Coleco room
 closed, Guide opens **Change media** directly on the kit display plane as a
 cartridge picker. Back at the picker roots returns to play in one step without
-opening the Coleco room underneath it. The cartridge is the single `rom_link`
-on its session package, or the second `rom_links` source
-after the linked BIOS. A swap replaces only that cartridge source. Select stays
+opening the Coleco room underneath it. The cartridge is the single format-3
+`rom_link` whose role is `cartridge`, or the second format-4 `rom_links` source
+whose role is `cartridge` after the linked BIOS. A swap replaces only that
+cartridge source. Select stays
 the machine's keypad `*` while the machine owns input; when a picker has focus,
 Select confirms its focused row and is not forwarded to the machine. The picker
 admits `.col`, `.rom` or `.bin` files of exactly the running cartridge's size,

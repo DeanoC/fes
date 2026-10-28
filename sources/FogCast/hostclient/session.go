@@ -105,6 +105,7 @@ type SessionROMSource struct {
 // SessionROMLink identifies the ROM bytes linked into the running bitstream.
 type SessionROMLink struct {
 	ROMID        string `json:"rom_id"`
+	Role         string `json:"role,omitempty"`
 	SourceSHA256 string `json:"source_sha256"`
 	SourceSize   int64  `json:"source_size"`
 }

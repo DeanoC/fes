@@ -34,7 +34,7 @@ func colecoKitSession() hostclient.SessionResult {
 	s.CorePackage.ActiveInterfaces = []hostclient.SessionCoreInterface{
 		{ID: "fes.gamepad.ports", Major: 1}, {ID: "fes.keypad.ports", Major: 1},
 		{ID: "fes.memory.hps-ddr", Major: 1}, {ID: "fes.video.session-display", Major: 1}}
-	s.CorePackage.ROMLink = &hostclient.SessionROMLink{ROMID: "cartridge-rom", SourceSize: 16384}
+	s.CorePackage.ROMLink = &hostclient.SessionROMLink{ROMID: "cartridge-rom", Role: "cartridge", SourceSize: 16384}
 	return s
 }
 
@@ -225,6 +225,70 @@ func TestKitColecoGuidePickerBackReturnsToPlay(t *testing.T) {
 	defer mu.Unlock()
 	if len(displays) != 2 || displays[0] != protocol.SessionDisplayFocused || displays[1] != protocol.SessionDisplayClosed {
 		t.Fatalf("Guide/Back display transitions = %v", displays)
+	}
+}
+
+func TestColecoGuideFocusNotStartedLeavesPlayInputAvailable(t *testing.T) {
+	for _, mode := range []string{"session display busy", "missing client"} {
+		t.Run(mode, func(t *testing.T) {
+			prior := colecoBIOSKitSession()
+			running := protocol.Status{State: protocol.StateActive, Development: true, CorePackage: observedKitPackage(prior)}
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/api/v1/session/display" {
+					http.NotFound(w, r)
+					return
+				}
+				binding, valid := protocol.DevelopmentMediaHeaders(r.Header)
+				if !valid || !binding.MatchesSessionDisplay(running) {
+					http.Error(w, "session display identity rejected", http.StatusConflict)
+					return
+				}
+				if display := readSessionDisplay(t, r); display != protocol.SessionDisplayFocused {
+					http.Error(w, "Guide must focus the cartridge selector", http.StatusBadRequest)
+					return
+				}
+				writeKitDisplaySession(w, prior)
+			}))
+			t.Cleanup(server.Close)
+			app, _ := kitDisplayApp(t, server)
+			app.mu.Lock()
+			app.session = prior
+			app.syncGPUParkLocked()
+			epoch := app.sessionDisplayEpoch
+			client := app.client
+			switch mode {
+			case "session display busy":
+				app.sessionDisplayBusy = true
+			case "missing client":
+				app.client = nil
+			}
+			app.mu.Unlock()
+			app.HandleCommand(sessionGuideCommand(app.Snapshot().Session), time.Now())
+			app.mu.Lock()
+			if mode == "session display busy" {
+				// HandleCommand fences input while a transition is in flight. Also
+				// exercise the picker entry itself against a concurrent caller.
+				app.openTapePickerLocked()
+			}
+			if app.roomDuringPlay || app.mediaControlsDirect || app.tapePickerOpen || app.sessionDisplayEpoch != epoch {
+				app.mu.Unlock()
+				t.Fatal("Guide left direct controls set without opening the picker")
+			}
+			app.sessionDisplayBusy = false
+			app.client = client
+			app.mu.Unlock()
+			if !app.coreOwnsPadInput() {
+				t.Fatal("play input did not recover after the focus request was refused")
+			}
+
+			app.HandleCommand(CmdSearch, time.Now())
+			snap := waitFor(t, app, "Guide retry opens cartridge picker", func(s Snapshot) bool {
+				return s.Session.ControlsOpen && s.TapePicker.Open && !s.GPUParked
+			})
+			if !snap.Session.MediaSelector || snap.Room.DuringPlay {
+				t.Fatalf("Guide retry opened the wrong controls: session=%+v room=%+v", snap.Session, snap.Room)
+			}
+		})
 	}
 }
 

@@ -262,14 +262,14 @@ func (a *App) openTapePickerLocked() {
 		a.roomSessionNotice = a.status
 		return
 	}
-	if a.tapePickerBusy {
+	if a.tapePickerBusy || a.sessionDisplayBusy {
 		return
 	}
-	a.beginColecoCartridgeControlsLocked()
 	if a.kitSessionDisplayPlaneLocked() && !a.launcherDisplayFocusedLocked() {
 		a.beginSessionDisplayLocked(protocol.SessionDisplayFocused, true)
 		return
 	}
+	a.beginColecoCartridgeControlsLocked()
 	a.releasePlayHIDLocked()
 	a.suppressHeldPlayKeysLocked()
 	a.closeFirmwarePickerLocked()

@@ -49,17 +49,16 @@ func (s *sessionCoordinator) replaceCartridge(ctx context.Context, id, mediaID s
 	if s.target != "" {
 		scoped = fogcast.WithSessionTarget(scoped, s.target)
 	}
-	s.observationMu.Lock()
-	current := id == s.id
-	var status protocol.Status
-	var err error
-	if current {
-		status, err = s.service.Status(scoped)
+	if !s.begin() {
+		return sessionResult{}, busyError()
 	}
-	s.observationMu.Unlock()
-	if !current {
+	defer s.end()
+	s.observationMu.Lock()
+	defer s.observationMu.Unlock()
+	if id != s.id {
 		return sessionResult{}, protocol.CartridgeIdentityError()
 	}
+	status, err := s.service.Status(scoped)
 	if err != nil {
 		return sessionResult{}, err
 	}
@@ -67,5 +66,5 @@ func (s *sessionCoordinator) replaceCartridge(ctx context.Context, id, mediaID s
 		return sessionResult{}, protocol.CartridgeIdentityError()
 	}
 	gameID := *status.GameID
-	return s.launch(fogcast.WithCartridge(ctx, gameID, mediaID), gameID, s.target, clientStamp{})
+	return s.launchLocked(fogcast.WithCartridge(scoped, gameID, mediaID), gameID, s.target, clientStamp{})
 }

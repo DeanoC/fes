@@ -436,7 +436,7 @@ func TestLibraryROMLaunchSendsSourceInputs(t *testing.T) {
 					t.Fatal("transport did not preserve exact source package and ROM")
 				}
 				core := installed.Descriptor.Core.ID
-				return protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &core, CorePackage: &protocol.CorePackageStatus{PackageID: entry.PackageID, Generation: 4, ABI: protocol.RuntimeContract{ID: installed.Descriptor.ABI.ID, Major: 1}, BuildID: installed.Descriptor.Build.ID, Gamepad: true, ROMLink: &corepackage.ROMLinkIdentity{ROMID: installed.Descriptor.ROM.ID, MapSHA256: installed.Descriptor.ROM.SHA256, SourceSHA256: media.MediaID, SourceSize: 1024, ProgrammedSHA256: fmt.Sprintf("%x", sha256.Sum256([]byte("linked"))), ProgrammedSize: 6}}}, nil
+				return protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &core, CorePackage: &protocol.CorePackageStatus{PackageID: entry.PackageID, Generation: 4, ABI: protocol.RuntimeContract{ID: installed.Descriptor.ABI.ID, Major: 1}, BuildID: installed.Descriptor.Build.ID, Gamepad: true, ROMLink: &corepackage.ROMLinkIdentity{ROMID: installed.Descriptor.ROM.ID, Role: installed.Descriptor.ROM.Role, MapSHA256: installed.Descriptor.ROM.SHA256, SourceSHA256: media.MediaID, SourceSize: 1024, ProgrammedSHA256: fmt.Sprintf("%x", sha256.Sum256([]byte("linked"))), ProgrammedSize: 6}}}, nil
 			}
 			launchStarted = time.Now()
 			response, err := s.Launch(ctx, entry.GameID, nil)
@@ -530,7 +530,7 @@ func TestZX81FirmwareSelectionRebindsAcrossCompatiblePackageSwitch(t *testing.T)
 
 			active := coreEntryActiveStatus(next, 7, false)
 			active.CorePackage.ROMLink = &corepackage.ROMLinkIdentity{
-				ROMID: "machine-rom", MapSHA256: next.Descriptor.ROM.SHA256,
+				ROMID: "machine-rom", Role: next.Descriptor.ROM.Role, MapSHA256: next.Descriptor.ROM.SHA256,
 				SourceSHA256: mediaID, SourceSize: zx81machine.MachineROMBytes,
 				ProgrammedSHA256: fmt.Sprintf("%x", sha256.Sum256([]byte("linked"))), ProgrammedSize: 6,
 			}

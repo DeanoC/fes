@@ -29,7 +29,9 @@ func linkedCartridgeSize(p *SessionCorePackage) int64 {
 		}
 		return sources[1].SourceSize
 	case p.ROMLink != nil:
-		return p.ROMLink.SourceSize
+		if p.ROMLink.Role == "cartridge" {
+			return p.ROMLink.SourceSize
+		}
 	}
 	return 0
 }
@@ -64,8 +66,8 @@ func (c *Client) ReplaceCartridgeForSession(ctx context.Context, prior SessionRe
 	client := *c
 	client.httpClient = &transport
 	result, err := client.postLiveMedia(ctx, "/api/v1/session/cartridge", bytes.NewReader(payload), int64(len(payload)), prior.ID, b)
-	if err == nil && (result.Target != prior.Target || result.TargetID != prior.TargetID || result.GameID != prior.GameID ||
-		result.CorePackage == nil || result.CorePackage.PackageID != b.PackageID) {
+	if err == nil && (result.ID != prior.ID || result.State != "active" || result.Target != prior.Target || result.TargetID != prior.TargetID || result.GameID != prior.GameID ||
+		result.CorePackage == nil || result.CorePackage.PackageID != b.PackageID || result.CorePackage.Generation == b.Generation) {
 		return result, protocol.CartridgeIdentityError()
 	}
 	return result, err

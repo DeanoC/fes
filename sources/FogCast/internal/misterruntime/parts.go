@@ -222,7 +222,7 @@ func (client *Client) LoadROMPartsComposedCoreWithInitialMedia(ctx context.Conte
 	if !validInitialMediaRequest(initial) {
 		return Protocol2Response{}, errInvalidRuntimeRequest
 	}
-	if !validRuntimePath(path) || !validRuntimePath(payload) || !validRuntimePath(programmed) || !validPartsComposition(c, id) || len(parts) != len(c.Parts) || c.Layout != expansion.AtariStVideoLayout || !protocol2Identifier.MatchString(link.ROMID) || !link.ValidFor(corepackage.Descriptor{Format: 3, ROM: &corepackage.ROM{ID: link.ROMID, SHA256: link.MapSHA256, SourceSize: link.SourceSize}}) {
+	if !validRuntimePath(path) || !validRuntimePath(payload) || !validRuntimePath(programmed) || !validPartsComposition(c, id) || len(parts) != len(c.Parts) || c.Layout != expansion.AtariStVideoLayout || !protocol2Identifier.MatchString(link.ROMID) || !link.ValidFor(corepackage.Descriptor{Format: 3, ROM: &corepackage.ROM{ID: link.ROMID, Role: link.Role, SHA256: link.MapSHA256, SourceSize: link.SourceSize}}) {
 		return Protocol2Response{}, errInvalidRuntimeRequest
 	}
 	for i, p := range parts {
