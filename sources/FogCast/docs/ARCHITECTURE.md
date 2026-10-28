@@ -1078,6 +1078,8 @@ slot choices. Exact-package/socket archive import and fitting are separate;
 selection checks the previous card. Library metadata shows selected cards
 without inventing topology from the system label. Resume rereads both library
 entries and hardware while retaining the chosen entry/edition.
+All three workbench room IDs reserve the native 52 px status/hint footer
+below their Lua content, keeping that chrome clear of the action rows.
 
 Live media, Stop and Return to play use the captured active session. A failed
 hardware refresh disables live controls until a later read succeeds. The kit

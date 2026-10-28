@@ -443,9 +443,20 @@ func (a *App) resizeRoomsLocked() {
 	}
 }
 
+// Workbenches draw their own action rows across the room body. Keep native
+// status and hints in the reserved footer instead of over those controls.
+func roomHasWorkbenchFooter(id string) bool {
+	switch id {
+	case hardwareRoomID, systemRoomID, "example.c64":
+		return true
+	default:
+		return false
+	}
+}
+
 func (a *App) roomContentSizeLocked(id string) (int, int) {
 	w, h := a.grid.contentWidth(), a.grid.contentHeight()
-	if id == hardwareRoomID {
+	if roomHasWorkbenchFooter(id) {
 		h = max(1, h-hardwareRoomFooterHeight)
 	}
 	return w, h
