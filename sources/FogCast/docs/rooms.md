@@ -394,7 +394,9 @@ a launch is not Completed.
 On a host launcher `kit` is nil. When the launcher injects a client,
 `kit.cores(function(rows, err) end)` lists installed cores on a later tick.
 Each row is `{package_id, core_id, name, needs, launchable, block, inputs}`.
-`name` is the manifest name. `needs` is `none`, `media`, `firmware`, `parts`
+`name` is the plain model name for a registered first-party core, or the supplied
+manifest name for an unknown core. The local-control protocol retains raw
+metadata; this is the room presentation adapter. `needs` is `none`, `media`, `firmware`, `parts`
 or `unsupported`. `block` is empty when `launchable` is true. `inputs` lists
 `keyboard` when the package requires `fes.keyboard.hid`, or when it requires
 plain `fes.keyboard` 1.0 together with `fes.video.session-display` 1.0 and

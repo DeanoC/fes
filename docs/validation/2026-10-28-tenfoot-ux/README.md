@@ -24,7 +24,7 @@ readiness intent, client, room and session guards reject replaced selections.
 
 ## Native review
 
-The [representative references](../../ux/references/README.md#current-native-pass)
+The [representative references at the recorded result](https://github.com/DeanoC/fes/blob/f31cfccc911702d723bede22ec38a96bf620ca1f/docs/ux/references/README.md#current-native-pass)
 show production Go/Lua rendering with synthetic catalog, installed-core and
 hardware responses. The task gallery exercises all 12 embedded packs at both
 1280×720 and 1024×600: populated, directional focus and empty states; Home and

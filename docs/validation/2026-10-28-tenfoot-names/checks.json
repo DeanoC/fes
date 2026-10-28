@@ -1,0 +1,100 @@
+{
+  "format": 1,
+  "recorded_utc": "2026-10-28T13:11:19.933828+00:00",
+  "base": "f31cfccc911702d723bede22ec38a96bf620ca1f",
+  "executable_source": "b3ff95896edd1643a4d1f532cb4b8f9c7cb2915f",
+  "affected": {
+    "command": "make test-changed TEST_CHANGED_ARGS='--base f31cfccc911702d723bede22ec38a96bf620ca1f'",
+    "report_status": "passed",
+    "results": [
+      {
+        "label": "test_affected.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "test_test_changed.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "committed whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "working whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "parent Python regressions",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "working-tree generated consumer consistency",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "host Go and UI tests",
+        "lane": "host",
+        "returncode": 0
+      }
+    ],
+    "transport_exit_code": 143,
+    "transport_note": "Terminal wrapper returned143 after the complete source-bound report was written. Every selected command reports returncode0; independent report validation passes. No aggregate exit0 claim is made.",
+    "planner_tests": 21,
+    "runner_tests": 31,
+    "parent_tests": 864,
+    "go_package_pass_results": 126,
+    "node_tests": 361,
+    "browser_tests": 78,
+    "host_stage_results": [
+      {
+        "label": "host artifact functional suites",
+        "returncode": 0
+      },
+      {
+        "label": "host race suite excluding race-expensive packages",
+        "returncode": 0
+      },
+      {
+        "label": "host concurrency-focused race checks",
+        "returncode": 0
+      },
+      {
+        "label": "appliance race suite",
+        "returncode": 0
+      },
+      {
+        "label": "expansion functional suite",
+        "returncode": 0
+      },
+      {
+        "label": "expansion concurrency-focused race checks",
+        "returncode": 0
+      },
+      {
+        "label": "host UI tests",
+        "returncode": 0
+      }
+    ]
+  },
+  "report_validation": "passed; exact executable source and all selected command returncodes checked",
+  "checks": {
+    "make_check": 0,
+    "make_deadcode": 0,
+    "doc_links": "checked at documentation commit",
+    "whitespace": "checked at documentation commit"
+  },
+  "bundle": {
+    "id": "89d214ce5074bf6b56ffe53319402ac365a3158f33d5568c8905029029edd475",
+    "build_inspect_exit": 0,
+    "tar_sha256": "5c90ac3ce41f9d7806c6e51a4fb006c2e4aaa698ced8ec154972f958ee070739",
+    "tar_bytes": 36541952,
+    "deployed": false
+  },
+  "hardware": "No kit deployment or acceptance; host software/rendering evidence only."
+}

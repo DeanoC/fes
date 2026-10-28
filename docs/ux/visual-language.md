@@ -1,8 +1,9 @@
 # FES visual language
 
 **Status: updated 28 October 2026.** Home, Library, Details and Workshop use
-the warm FES direction. Embedded discovery rooms retain their own character
-with larger labels, controlled title surfaces and consistent focus.
+the warm FES direction. Home and Systems are the built-in navigation screens, with internal System
+and Sinclair setup templates. Installed authored rooms can supply their own
+character while following the same text and focus rules.
 The [room concepts](concepts/README.md) explain the broader direction;
 [native references](references/README.md) show the reviewed renderer result
 and a proposed Library target. Proposed layouts establish no hardware capability.
@@ -37,6 +38,22 @@ Library remains a dependable catalog; Rooms offers alternate presentations.
 Authored artwork, layout, and tone may vary. Back, System, Details, readiness,
 and output selection keep their meaning. Restoring a room restores its last
 valid selection, including after delayed artwork arrives.
+
+## Names and navigation
+
+Machine labels are plain model names: Pong, Catch, Sinclair ZX81, Commodore 64
+and the selected Spectrum model. Keep the FES wordmark in shared chrome; do not
+prefix every machine or game. Package versions, hashes and HIL build tags belong
+to package selection or technical details, not a machine heading or default setup
+title. Existing generated machine titles are presented cleanly; genuine custom
+and game titles remain intact. Core, package, media and saved-selection IDs do
+not depend on these display names.
+
+Home routes directly to Library, Systems and Settings. System setup and Sinclair
+setup are internal templates opened from a selected system/session, excluded
+from room and startup pickers. The former Lobby, Amiga, Mario, SNES, TMS and
+Coleco demo rooms and separate C64 wrapper are removed. Independently installed
+room packs remain available through the native menu.
 
 ## Palette seed
 

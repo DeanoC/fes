@@ -117,18 +117,21 @@ collecting kit evidence, following [acceptance](../acceptance.md#evidence-record
 ## Current native pass
 
 The 28 October pass covers Home, Library grid/list/Details, Settings and media
-pickers, the family workbenches and all 12 embedded room packs. Native fixtures
+pickers, Home, Systems and their two internal setup templates. Eight obsolete
+demo/wrapper packs are removed. Independently installed rooms remain supported. Native fixtures
 were rendered at 1280×720 and 1024×600, with empty/missing-art, blocked, long-title,
 variant and running-overlay states. These are software-framebuffer captures;
 they establish no physical viewing-distance, controller or scanout acceptance.
 Source, checks, fixture limitations and the kit follow-up are in the
-[validation record](../../validation/2026-10-28-tenfoot-ux/README.md).
+[current naming and room cleanup record](../../validation/2026-10-28-tenfoot-names/README.md).
 
 Home keeps direct Play and adds Up to the visible hero actions; Library uses
 Down from its bottom visible row. Left/Right selects Play or Details and Back
 returns to the same title. Selection, action focus and readiness remain separate.
 The shared dialogs and workbenches use larger proportional labels and neutral
-secondary controls; authored rooms retain their palettes and motifs.
+secondary controls. Machine names omit package prefixes and diagnostic tags;
+Home leads directly to Systems. Internal setup templates stay out of startup
+and room pickers.
 
 ![Home with its retained shelf selection](tenfoot-polish/home-1280x720.png)
 
@@ -136,11 +139,11 @@ secondary controls; authored rooms retain their palettes and motifs.
 
 ![Family workbench at the smaller viewport](tenfoot-polish/system-1024x600.png)
 
-![ZX81 workshop with the machine illustration](tenfoot-polish/workshop-1280x720.png)
+![Sinclair setup with the machine illustration](tenfoot-polish/workshop-1280x720.png)
 
 ![Settings with readable controls at the smaller viewport](tenfoot-polish/settings-1024x600.png)
 
-![Authored world map with readable shared controls](tenfoot-polish/world-1280x720.png)
+![Systems with plain machine and setup names](tenfoot-polish/systems-1280x720.png)
 
 
 Complete room and selector overview at the reviewed viewports:
