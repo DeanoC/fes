@@ -760,12 +760,14 @@ launch-time `POST /api/v1/session/development-media` (`load_media`). See the FES
 Factory Coleco format-4 packages link the 8 KiB BIOS and 16 KiB cartridge into
 the RBF at launch and do not expose a live media unit. Home and F12 during
 Coleco play open the `example.coleco-arcade` title selector over the running
-session; launching a different cartridge requires Stop. This is catalog
-navigation, not hot swapping, and Coleco does not fall through to the ZX81-only
-`example.hardware` workbench. The native-pixel shell also requires its matching
-Direct or Scanlines video part. The local core shelf cannot compose that part
-and correctly marks the shell's display setup incomplete; install and launch
-it through the library after selecting a video part.
+session. A selected title says that the running cartridge is fixed and that
+Stop is required before choosing another; Confirm cannot launch over the active
+session. This is catalog navigation, not hot swapping, and Coleco does not fall
+through to the ZX81-only `example.hardware` workbench. The native-pixel shell
+also requires its matching Direct or Scanlines video part. The local core shelf
+cannot compose that part and correctly marks the shell's display setup
+incomplete; install and launch it through the library after selecting a video
+part.
 
 Operator/diagnostics CLI:
 

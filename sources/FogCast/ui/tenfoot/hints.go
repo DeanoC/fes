@@ -206,6 +206,9 @@ func (s Snapshot) HeaderHint() string {
 		if s.RoomPicker.Open {
 			return roomPickerHint(kind)
 		}
+		if s.Session.Coleco && s.Room.ID == colecoArcadeRoomID {
+			return selectWord(kind) + " choose  " + backWord(kind) + " return to session  ·  Stop to play another cartridge"
+		}
 		return selectWord(kind) + " choose  " + backWord(kind) + " return to session  ·  Machine keeps running"
 	}
 	if s.GPUParked || s.Session.State == "active" || s.Session.RetryStop {

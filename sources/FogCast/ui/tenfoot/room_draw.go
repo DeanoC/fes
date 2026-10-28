@@ -457,6 +457,9 @@ func drawRoomChrome(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 	if snap.Status == localInUseCopy || snap.Status == machineStatusUnknown {
 		line = snap.Status
 	}
+	if snap.Room.ID == colecoArcadeRoomID && snap.Room.DuringPlay && snap.Session.Coleco && snap.Status == colecoCartridgeSessionStatus {
+		line = snap.Status
+	}
 	if line != "" {
 		drawLabel(dev, labels, used, "room-status", x+8, y, w*2/3, 14, line)
 	}

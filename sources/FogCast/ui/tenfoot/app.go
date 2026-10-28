@@ -148,6 +148,7 @@ type SessionSnapshot struct {
 	GameID            string
 	Title             string
 	System            string
+	Coleco            bool // System or active Coleco bus identifies this session.
 	Execution         string
 	Media             string
 	InputState        string
@@ -3476,6 +3477,7 @@ func (a *App) sessionSnapshotLocked() SessionSnapshot {
 		GameID:            a.session.GameID,
 		Title:             title,
 		System:            a.session.System,
+		Coleco:            a.colecoSessionLocked(),
 		Execution:         a.session.Execution,
 		Media:             a.session.Media,
 		InputState:        inputState,

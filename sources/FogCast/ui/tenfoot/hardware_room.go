@@ -18,6 +18,9 @@ const colecoArcadeRoomID = "example.coleco-arcade"
 const hardwareRoomFooterHeight = 52
 const maxPendingPlayHID = 128
 const colecoCartridgeSessionStatus = "Coleco cartridges are fixed for this launch. Stop and choose another title from the library."
+const colecoSelectorUnavailableStatus = "The Coleco title selector is unavailable."
+const colecoRunningDestinationStatus = "The running Coleco cartridge is fixed."
+const colecoRunningDestinationAction = "Stop to choose another title."
 
 func sessionHasCoreInterface(session hostclient.SessionResult, id string, major uint16) bool {
 	if session.CorePackage == nil {
@@ -44,7 +47,7 @@ func (a *App) playingRoomIDLocked() string {
 }
 
 func playingRoomLabel(session SessionSnapshot) string {
-	if session.System == string(protocol.SystemColecoVision) && !session.MediaSelector {
+	if session.Coleco && !session.MediaSelector {
 		return "Coleco selector"
 	}
 	return "Hardware room"
@@ -200,7 +203,7 @@ func (a *App) handlePlayingRoomKey(name string, down bool, now time.Time) bool {
 	if !a.playingHardwareRoomAvailableLocked() {
 		if down && a.colecoSessionLocked() {
 			a.noteActivityLocked(now)
-			a.status = colecoCartridgeSessionStatus
+			a.status = colecoSelectorUnavailableStatus
 		}
 		return a.colecoSessionLocked()
 	}

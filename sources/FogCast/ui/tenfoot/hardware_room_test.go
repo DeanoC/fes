@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -130,6 +131,140 @@ function draw() gfx.clear("#101820") gfx.text("Coleco title selector", 20, 20, {
 			}
 		})
 	}
+}
+
+func TestColecoHomeReportsUnavailableSelector(t *testing.T) {
+	app := NewApp(nil, 1280, 720, 20)
+	t.Cleanup(app.Stop)
+	app.mu.Lock()
+	app.session = hostclient.SessionResult{
+		System: string(protocol.SystemColecoVision),
+		State:  "active",
+	}
+	app.mu.Unlock()
+
+	if !app.HandlePlayHIDKey("home", true, time.Now()) {
+		t.Fatal("Coleco Home key was not consumed when its selector was unavailable")
+	}
+	if got := app.Snapshot().Status; got != colecoSelectorUnavailableStatus {
+		t.Fatalf("unavailable selector status = %q, want %q", got, colecoSelectorUnavailableStatus)
+	}
+}
+
+func TestColecoSelectorShowsStopGuidanceAndCannotLaunchWhileRunning(t *testing.T) {
+	var launchCalls atomic.Int32
+	game := hostclient.Game{
+		ID:         "coleco-donkey-kong",
+		Title:      "Donkey Kong",
+		System:     "coleco",
+		State:      "available",
+		RootOnline: true,
+		Launchable: true,
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/games":
+			games := []hostclient.Game{}
+			if r.URL.Query().Get("q") == "Donkey Kong" {
+				games = append(games, game)
+			}
+			_ = json.NewEncoder(w).Encode(hostclient.GamePage{Games: games})
+		case "/api/v1/session/launch":
+			launchCalls.Add(1)
+			http.Error(w, "a running Coleco session must not launch another cartridge", http.StatusConflict)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 20)
+	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
+	app.SetRooms(rooms.NewIndex(rooms.Examples()), "") // Uses the production embedded coleco-arcade/main.lua.
+	t.Cleanup(app.Stop)
+	app.mu.Lock()
+	app.session = hostclient.SessionResult{
+		ID:     "coleco-session",
+		System: string(protocol.SystemColecoVision),
+		State:  "active",
+		CorePackage: &hostclient.SessionCorePackage{
+			PackageID:        strings.Repeat("a", 64),
+			Generation:       7,
+			ABI:              hostclient.SessionCoreABI{ID: "fes.application", Major: 1},
+			ActiveInterfaces: []hostclient.SessionCoreInterface{{ID: "fes.expansion.coleco-bus", Major: 2}},
+		},
+	}
+	app.openRoomLocked(colecoArcadeRoomID)
+	app.roomDuringPlay = true
+	app.status = playingColecoSelectorStatus
+	app.mu.Unlock()
+
+	snap := waitFor(t, app, "production Coleco title", func(s Snapshot) bool {
+		return s.Room.ID == colecoArcadeRoomID && s.Room.Destination.Label == "Donkey Kong" && s.Room.Destination.Availability == rooms.AvailReady
+	})
+	if !roomTextHas(snap, "COLECOVISION") || !roomTextHas(snap, "Donkey Kong") {
+		t.Fatalf("production Coleco room did not draw its selected cabinet: ops=%+v", snap.Room.Frame.Ops)
+	}
+	if snap.Room.Destination.Status != colecoRunningDestinationStatus || snap.Room.Destination.Action != colecoRunningDestinationAction {
+		t.Fatalf("active-session destination = status %q action %q", snap.Room.Destination.Status, snap.Room.Destination.Action)
+	}
+	if !strings.Contains(snap.HeaderHint(), "Stop") {
+		t.Fatalf("active-session selector hint omits Stop guidance: %q", snap.HeaderHint())
+	}
+	if got := renderRoomLabelSource(t, snap, "rd-status"); got != colecoRunningDestinationStatus {
+		t.Fatalf("rendered destination status = %q, want %q", got, colecoRunningDestinationStatus)
+	}
+	if got := renderRoomLabelSource(t, snap, "rd-action"); got != colecoRunningDestinationAction || strings.Contains(got, "Play") {
+		t.Fatalf("rendered destination action = %q, want Stop guidance", got)
+	}
+
+	app.HandleCommand(CmdSelect, time.Now())
+	confirmed := app.Snapshot()
+	if confirmed.Session.State != "active" || confirmed.Launch.Phase == "launching" || launchCalls.Load() != 0 {
+		t.Fatalf("Confirm changed or relaunched the Coleco session: session=%+v launch=%+v requests=%d", confirmed.Session, confirmed.Launch, launchCalls.Load())
+	}
+	if confirmed.Status != colecoCartridgeSessionStatus {
+		t.Fatalf("Confirm refusal status = %q, want %q", confirmed.Status, colecoCartridgeSessionStatus)
+	}
+	if got := renderRoomLabelSource(t, confirmed, "rd-status"); got != colecoRunningDestinationStatus {
+		t.Fatalf("rendered status after Confirm = %q, want %q", got, colecoRunningDestinationStatus)
+	}
+	if got := renderRoomLabelSource(t, confirmed, "room-status"); got != colecoCartridgeSessionStatus {
+		t.Fatalf("rendered Confirm refusal = %q, want %q", got, colecoCartridgeSessionStatus)
+	}
+}
+
+func TestPlayingRoomLabelUsesColecoSessionPredicate(t *testing.T) {
+	app := NewApp(nil, 1280, 720, 20)
+	app.mu.Lock()
+	app.session = hostclient.SessionResult{
+		System: "other",
+		State:  "active",
+		CorePackage: &hostclient.SessionCorePackage{
+			ActiveInterfaces: []hostclient.SessionCoreInterface{{ID: "fes.expansion.coleco-bus", Major: 2}},
+		},
+	}
+	session := app.sessionSnapshotLocked()
+	app.mu.Unlock()
+	if !session.Coleco || playingRoomLabel(session) != "Coleco selector" {
+		t.Fatalf("Coleco expansion session label = %+v / %q", session, playingRoomLabel(session))
+	}
+}
+
+func renderRoomLabelSource(t *testing.T, snap Snapshot, slot string) string {
+	t.Helper()
+	dev, err := gfx.NewSoftware(snap.Grid.Width, snap.Grid.Height)
+	if err != nil {
+		t.Fatal(err)
+	}
+	labels := map[string]gpuTexture{}
+	drawRoom(dev, snap, map[string]gpuTexture{}, labels, map[string]struct{}{})
+	for key, label := range labels {
+		if strings.HasPrefix(key, slot+"\x1f") {
+			return label.labelSource
+		}
+	}
+	return ""
 }
 
 func TestHardwareRoomCanReturnDuringPlayWithoutRelaunch(t *testing.T) {
