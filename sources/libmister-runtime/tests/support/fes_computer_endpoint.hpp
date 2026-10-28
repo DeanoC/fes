@@ -85,7 +85,9 @@ public:
 			return {0, 0};
 		}
 		if (op >= FesComputerOpcodeDataControl && op <= FesComputerOpcodeDataInfo) {
-			if (!(capabilities_ & FesComputerCapabilityPersistenceWords)) return {opcode_error, 0};
+			// The transport and its one layout are advertised together.
+			const std::uint32_t data = FesComputerCapabilityPersistenceWords | FesComputerCapabilityPc386Machine;
+			if ((capabilities_ & data) != data) return {opcode_error, 0};
 			return Data(op, index, arg);
 		}
 		if (op == FesComputerOpcodeWallClock) {
@@ -326,13 +328,28 @@ public:
 		return {};
 	}
 
-	// A guest sector write that reaches the image: its chunk is dirty.
+	// A guest sector write: accepted (writer busy), then it reaches the image
+	// and its chunk is dirty. Freeze drains an accepted one.
 	void GuestSectorWrite(std::uint32_t sector, std::uint8_t fill = 0)
 	{
-		if (disk_state != 3 || held || disk_frozen) abort();
-		dirty_chunks.insert(sector / 128);
+		GuestSectorWriteBegin(sector, fill);
+		GuestSectorWriteComplete();
+	}
+	void GuestSectorWriteBegin(std::uint32_t sector, std::uint8_t fill = 0)
+	{
+		if (disk_state != 3 || held || disk_frozen || writer_busy) abort();
+		writer_busy = true;
+		pending_sector = sector;
+		pending_fill = fill;
+	}
+	void GuestSectorWriteComplete()
+	{
+		if (!writer_busy) abort();
+		dirty_chunks.insert(pending_sector / 128);
 		disk_epoch = static_cast<std::uint16_t>(disk_epoch + 1);
-		if (window) std::fill(window->begin() + sector * 512, window->begin() + (sector + 1) * 512, fill);
+		if (window)
+			std::fill(window->begin() + pending_sector * 512, window->begin() + (pending_sector + 1) * 512, pending_fill);
+		writer_busy = false;
 	}
 
 	// A guest CMOS write while running, as the fixture's machine events.
@@ -347,7 +364,7 @@ public:
 	void Reset()
 	{
 		machine_words = DefaultMachine();
-		disk_state = 1; disk_frozen = disk_saved = disk_error = false; disk_epoch = 0;
+		disk_state = 1; disk_frozen = disk_saved = disk_error = writer_busy = false; disk_epoch = 0;
 		dirty_chunks.clear(); disk_staged.clear(); disk_geometry.clear(); verify_left = 0;
 		data_snapshot.clear();
 		data_staging.clear();
@@ -429,7 +446,9 @@ public:
 	std::vector<std::uint8_t>* window = nullptr;
 	unsigned verify_reads = 1;
 	unsigned disk_state = 1, verify_left = 0, verify_result = 1;
-	bool disk_frozen = false, disk_saved = false, disk_error = false;
+	bool disk_frozen = false, disk_saved = false, disk_error = false, writer_busy = false;
+	std::uint32_t pending_sector = 0;
+	std::uint8_t pending_fill = 0;
 	std::uint16_t disk_epoch = 0;
 	std::set<unsigned> dirty_chunks;
 	std::vector<unsigned> disk_staged, disk_geometry;
@@ -512,8 +531,13 @@ private:
 			if (arg) return {argument_error, 0};
 			if (index >> 3) return {0, 0};
 			const unsigned state = disk_state;
-			if ((index & 7) == 5 && disk_state == 4 && --verify_left == 0) disk_state = verify_result;
-			const unsigned flags = (dirty_chunks.empty() ? 0 : 1) | (disk_frozen ? 2 : 0) | (disk_error ? 8 : 0);
+			// The CRC error flag appears when the check ends, not at Commit.
+			if ((index & 7) == 5 && disk_state == 4 && --verify_left == 0) {
+				disk_state = verify_result;
+				disk_error = verify_result != 3;
+			}
+			const unsigned flags = (dirty_chunks.empty() ? 0 : 1) | (disk_frozen ? 2 : 0) |
+				(writer_busy ? 4 : 0) | (disk_error ? 8 : 0);
 			const std::uint16_t fields[8] = {0, 0x10, 0, 0x800, 128, static_cast<std::uint16_t>(state),
 				static_cast<std::uint16_t>(flags), disk_epoch};
 			return {0, fields[index & 7]};
@@ -524,7 +548,7 @@ private:
 			if (arg == 0 || arg == 2) {
 				if (!held || (disk_frozen && !disk_saved)) return {state_error, 0};
 				disk_state = arg == 0 ? 2 : 1;
-				disk_frozen = disk_saved = disk_error = false;
+				disk_frozen = disk_saved = disk_error = writer_busy = false;
 				dirty_chunks.clear(); disk_staged.clear(); disk_geometry.clear(); verify_left = 0;
 				return {0, 0};
 			}
@@ -542,19 +566,20 @@ private:
 				disk_geometry = match ? std::vector<unsigned>{sectors, disk_staged[2], disk_staged[3], disk_staged[4]} :
 					std::vector<unsigned>{};
 				disk_staged.clear();
-				disk_error = !match;
+				disk_error = false;
 				verify_result = match ? 3 : 2;
 				if (verify_reads) { disk_state = 4; verify_left = verify_reads; }
-				else disk_state = verify_result;
+				else { disk_state = verify_result; disk_error = !match; }
 				return {0, 0};
 			}
 			if (arg == 3) {
 				if (disk_state != 3) return {state_error, 0};
 				if (!disk_frozen) { disk_frozen = true; disk_saved = false; }
+				if (writer_busy) GuestSectorWriteComplete();  // the accepted write drains
 				return {0, 0};
 			}
 			if (arg == 4) { disk_frozen = disk_saved = false; return {0, 0}; }
-			if (!disk_frozen) return {state_error, 0};
+			if (!disk_frozen || writer_busy) return {state_error, 0};
 			dirty_chunks.clear();
 			disk_saved = true;
 			return {0, 0};
@@ -583,6 +608,14 @@ private:
 		return {0, bits};
 	}
 
+	// The MC146818 weekday of a date: 1 Sunday .. 7 Saturday (Sakamoto).
+	static unsigned Weekday(unsigned year, unsigned month, unsigned day)
+	{
+		static const unsigned offsets[] = {0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4};
+		if (month < 3) year -= 1;
+		return (year + year / 4 - year / 100 + year / 400 + offsets[month - 1] + day) % 7 + 1;
+	}
+
 	std::pair<unsigned, std::uint16_t> WallClock(unsigned index, unsigned arg)
 	{
 		enum { index_error = 2, argument_error = 3, state_error = 4 };
@@ -600,7 +633,8 @@ private:
 			ok = low >= 1 && low <= 12 && high >= 1 && high <= days;
 		}
 		if (index == 2) ok = low <= 23 && high <= 59;
-		if (index == 3) ok = low <= 59 && high >= 1 && high <= 7;
+		if (index == 3) ok = low <= 59 && high >= 1 && high <= 7 && high == Weekday(clock_staged[0],
+			clock_staged[1] & 0xff, clock_staged[1] >> 8);
 		if (!ok) return {argument_error, 0};
 		if (index == 0) clock_staged.clear();
 		clock_staged.push_back(arg);
