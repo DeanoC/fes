@@ -770,7 +770,9 @@ launch record when an older target omits it. Tenfoot therefore recognizes
 `fes.coleco` even when the runtime's supported-interface projection omits its
 optional bus 2.0 interface. The selector resolves installed Coleco titles from
 the `fpga` catalog platform, constrained by `core_id=fes.coleco`; package-library
-entries are not indexed on the hardware platform named `coleco`. The
+entries are not indexed on the hardware platform named `coleco`. While idle,
+Tab/Search opens that same filtered platform shelf, including after Stop, so
+installed Coleco packages remain visible in the ordinary library browser. The
 native-pixel shell also requires its matching Direct or Scanlines video part.
 The ColecoVision tile on Home opens `example.coleco-arcade`, which launches
 through the library and composes the selected video part. Other local cores

@@ -130,7 +130,7 @@ function on_input(cmd)
     return true
   end
   if cmd == "search" or cmd == "tab" then
-    rooms.open_library{ platform = PLATFORM, layout = "shelf" }
+    rooms.open_library{ platform = CORE_PLATFORM, core_ids = { CORE_ID }, layout = "shelf" }
     return true
   end
   return false

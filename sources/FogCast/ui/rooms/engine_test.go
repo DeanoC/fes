@@ -223,7 +223,7 @@ function on_input(cmd)
   if cmd == "select" then session.launch("snes-mario-abc123") return true end
   return false
 end
-function on_activate(id) rooms.open_library({platform = "snes"}) end
+function on_activate(id) rooms.open_library({platform = "fpga", core_ids = {"fes.coleco"}}) end
 function on_hover(id) hovered = id end
 function on_resume() resumed = true end
 `
@@ -283,7 +283,7 @@ func TestGoodRoomFrameAndActions(t *testing.T) {
 	}
 	r.Activate("node:1")
 	acts = r.TakeActions()
-	if len(acts) != 1 || acts[0].Kind != ActionOpenLibrary || acts[0].Platform != "snes" {
+	if len(acts) != 1 || acts[0].Kind != ActionOpenLibrary || acts[0].Platform != "fpga" || len(acts[0].CoreIDs) != 1 || acts[0].CoreIDs[0] != "fes.coleco" {
 		t.Fatalf("actions %+v", acts)
 	}
 	r.Hover("node:1")

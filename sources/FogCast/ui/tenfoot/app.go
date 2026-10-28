@@ -335,6 +335,7 @@ type App struct {
 
 	platforms              []hostclient.Platform
 	platformID             string
+	libraryCoreIDs         []string
 	shelfQuery             hostclient.GameListQuery
 	shelfQuerySet          bool
 	shelfGames             []hostclient.Game
@@ -3722,6 +3723,7 @@ func (a *App) currentQueryLocked() hostclient.GameListQuery {
 	return hostclient.GameListQuery{
 		Limit:          a.pageLimit,
 		Platform:       a.platformID,
+		CoreIDs:        append([]string(nil), a.libraryCoreIDs...),
 		Sort:           catalogQuerySort(a.collectionID, a.sort),
 		Q:              strings.TrimSpace(a.searchField.Buffer),
 		Collection:     a.collectionID,

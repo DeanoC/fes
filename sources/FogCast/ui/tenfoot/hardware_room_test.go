@@ -385,6 +385,64 @@ func TestColecoSelectorShowsStopGuidanceAndCannotLaunchWhileRunning(t *testing.T
 	}
 }
 
+func TestColecoTabOpensInstalledColecoShelfWhileIdle(t *testing.T) {
+	game := availableGame("fpga-coleco-donkey-kong", "Donkey Kong", "fpga")
+	game.CoreID = colecoCoreID
+	game.PackageID = strings.Repeat("a", 64)
+	var filteredShelfQueries atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/games":
+			query := r.URL.Query()
+			games := []hostclient.Game{}
+			if query.Get("platform") == "fpga" && len(query["core_id"]) == 1 && query.Get("core_id") == colecoCoreID {
+				if query.Get("q") == "" {
+					filteredShelfQueries.Add(1)
+					games = append(games, game)
+				} else if strings.Contains(strings.ToLower(game.Title), strings.ToLower(query.Get("q"))) {
+					games = append(games, game)
+				}
+			}
+			_ = json.NewEncoder(w).Encode(hostclient.GamePage{Games: games})
+		case "/api/v1/session":
+			_ = json.NewEncoder(w).Encode(hostclient.SessionResult{State: "idle"})
+		case "/api/v1/platforms":
+			_ = json.NewEncoder(w).Encode(map[string]any{"platforms": []hostclient.Platform{}})
+		case "/api/v1/library/collections":
+			_ = json.NewEncoder(w).Encode(map[string]any{"collections": []hostclient.Collection{}})
+		case "/api/v1/library/edition-preferences":
+			_ = json.NewEncoder(w).Encode(map[string]any{"preferences": []hostclient.EditionPreference{}})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 20)
+	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
+	app.SetRooms(rooms.NewIndex(rooms.Examples()), "")
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	app.mu.Lock()
+	app.session.State = "idle"
+	app.openRoomLocked(colecoArcadeRoomID)
+	app.mu.Unlock()
+	waitFor(t, app, "idle Coleco selector", func(s Snapshot) bool {
+		return s.Room.ID == colecoArcadeRoomID && s.Session.State == "idle"
+	})
+
+	app.HandleCommand(CmdTab, time.Now())
+	snap := waitFor(t, app, "installed Coleco shelf", func(s Snapshot) bool {
+		return !s.Room.Open && s.Grid.Mode == LayoutShelf && s.PlatformID == "fpga" && len(s.Games) == 1 && s.Games[0].ID == game.ID
+	})
+	if snap.Games[0].CoreID != colecoCoreID {
+		t.Fatalf("shelf row core = %q, want %q", snap.Games[0].CoreID, colecoCoreID)
+	}
+	if filteredShelfQueries.Load() == 0 {
+		t.Fatal("idle Tab did not query the shelf with platform=fpga and core_id=fes.coleco")
+	}
+}
+
 func TestColecoBackendChoiceShowsStopGuidanceWhileRunning(t *testing.T) {
 	pack := testRoomPack(t, colecoArcadeRoomID, `
 local matches = {

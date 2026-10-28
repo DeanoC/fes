@@ -429,8 +429,9 @@ An older agent omits `inputs`.
   `example.hardware`; held computer keys are released before menu input.
 - `rooms.open(id)` opens a nested room (Back returns here and calls
   `on_resume`), `rooms.back()`, `rooms.list()`, and
-  `rooms.open_library{platform=, collection=, layout=}` leaves to the
-  library browser with those filters applied.
+  `rooms.open_library{platform=, core_ids=, collection=, layout=}` leaves to
+  the library browser with those filters applied. `core_ids` is an array of
+  core IDs, like `{"fes.coleco"}`.
 - `store.get(key[, default])` / `store.set(key, value)` persist strings,
   numbers, booleans and plain tables per room in
   `<config>/FogCast/rooms/<id>.state.json`. On a kit, config is

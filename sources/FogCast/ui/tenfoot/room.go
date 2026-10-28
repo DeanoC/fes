@@ -525,6 +525,7 @@ func (a *App) openLibraryFromRoomLocked(act rooms.Action) {
 	a.syncGPUParkLocked()
 	a.roomPickerOpen = false
 	a.platformID = strings.TrimSpace(act.Platform)
+	a.libraryCoreIDs = append([]string(nil), act.CoreIDs...)
 	a.collectionID = strings.TrimSpace(act.Collection)
 	a.normalizeSortForCollectionLocked()
 	if layout := strings.TrimSpace(act.Layout); layout != "" {
