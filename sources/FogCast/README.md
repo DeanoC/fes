@@ -30,8 +30,8 @@ and content selection; the MiSTer is a small, directly controlled target.
   A missing Scanlines part falls back to a matching Direct part. Native pixel
   shells require a linked video part; raster shells retain built-in Direct as
   their final fallback. An installed selected part that fails admission
-  requires repair. Marked Coleco shells, including a format-3 16 KiB cartridge, link
-  one video part with an optional CPU expansion, retaining the shell identity
+  requires repair. Marked Coleco shells, including the format-4 BIOS and 16 KiB
+  cartridge shell, link one video part with an optional CPU expansion, retaining the shell identity
   and fixed 720p output. The target independently links the selected bytes.
   The separate `go run ./cmd/fes-parts` developer path remains volatile. See
   [library video preferences](docs/ARCHITECTURE.md#library-video-preferences) and
@@ -410,8 +410,10 @@ the gamepad OSK and POSTs the file bytes.
 
 ## Repository boundaries
 
-These are modules in the FES repository. Quartus Lite 17.0.2 is an oracle
-check, not the product FPGA route. The product route is HIP/nextpnr.
+These are modules in the FES repository. Quartus Lite 17.0.2 remains an
+explicit oracle/check in the current recipes. Accepted FES policy also allows
+a labelled Quartus-built variant after recipe and package-selection support
+lands; the current normal product route uses HIP/nextpnr.
 
 | Module | Owns |
 | --- | --- |
