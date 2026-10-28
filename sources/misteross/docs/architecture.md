@@ -86,7 +86,9 @@ Both crossing bridges share initial configuration reset. Later pixel PLL-lock
 loss blanks output and latches a fault without resetting live bridge queues;
 the endpoint stops and drains when its clock resumes. The producer retains
 generated topology and response checks, native RTL tests and a simulation
-helper for the actual generated two-clock interconnect. It creates no runtime
+helper for the generated two-clock interconnect with explicitly modeled M20K
+storage. FIFO/controller logic remains generated; primitive equivalence and
+physical CDC remain unproven. It creates no runtime
 profile or production Linux binding. DMA translation/backing, global reset
 fencing, physical CDC, external HDMI timing and exact-artifact board acceptance
 remain separate gates.
