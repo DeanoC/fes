@@ -131,6 +131,7 @@ def create_build_record(
             "placer_heap_critexp": PLACER_CRITICALITY_EXPONENT,
             "frequency_mhz": 100,
             "pixel_clock_hz": 74_250_000,
+            "hdmi_clock_phase_ps": 8_979,
             "display": "cga-direct",
             "runtime_abi": "fes.computer/1.0-fixed-video-only",
             "timing_status": "unqualified-known-miss-fes-840",
@@ -183,7 +184,7 @@ def synthesis_command(root: Path, output: Path, build_id: str,
         raise BuildError("PC/XT package build requires authenticated Yosys and nextpnr")
     program = board.yosys_program(
         output, False, False, board.synthesis_command(),
-        enable_fes_computer=True, build_id=build_id,
+        enable_fes_computer=True, build_id=build_id, phased_hdmi_clock=True,
     )
     return str(tools["yosys"]), "-p", program
 
@@ -258,7 +259,8 @@ def build(
             "build_id": build_id,
             "device": board.TARGET,
             "top": board.TOP,
-            "profile": {"mda": False, "scanlines": False, "half_rate_board": False},
+            "profile": {"mda": False, "scanlines": False, "half_rate_board": False,
+                        "phased_hdmi_clock": True},
             "route": {"seed": PLACER_SEED, "timing_weight": PLACER_WEIGHT,
                       "critexp": PLACER_CRITICALITY_EXPONENT, "backend": "HIP"},
             "timing": timing,

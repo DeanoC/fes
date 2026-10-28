@@ -50,11 +50,14 @@ def synthesis_command():
 
 
 def yosys_program(output, mda, scanlines, synthesis, half_rate_board=False,
-                  *, enable_fes_computer=False, build_id=None):
+                  *, enable_fes_computer=False, build_id=None,
+                  phased_hdmi_clock=False):
     """Complete board Yosys script; run with cwd=output after board_inputs(output)."""
     if build_id is not None and re.fullmatch(r'[0-9a-f]{32}', build_id) is None:
         raise ValueError('PC/XT BUILD_ID must be 32 lowercase hexadecimal characters')
     package_parameters = (' -set ENABLE_FES_COMPUTER 1' if enable_fes_computer else '')
+    if phased_hdmi_clock:
+        package_parameters += ' -set PHASED_HDMI_CLOCK 1'
     if build_id is not None:
         package_parameters += f" -set BUILD_ID 128'h{build_id}"
     return ('read_verilog -sv -I ' + str(ROOT / 'cores/fes-common/generated') + ' -I ' + str(output) + ' ' +

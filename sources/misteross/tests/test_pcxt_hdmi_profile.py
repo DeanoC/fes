@@ -14,9 +14,9 @@ YOSYS = os.environ.get('YOSYS') or shutil.which('yosys')
 NEXTPNR = os.environ.get('NEXTPNR_MISTRAL') or shutil.which('nextpnr-mistral')
 
 
-def fixture(half_rate, mutation=None):
+def fixture(half_rate, phased_hdmi=False, mutation=None):
     source = (ROOT / 'cores/fes-pcxt/rtl/fes_pcxt_top.sv').read_text()
-    start = source.index('    wire [(HALF_RATE_BOARD ? 2 : 1)-1:0] video_clocks;')
+    start = source.index('    localparam bit USE_PHASED_HDMI_CLOCK =')
     end = source.index('    wire locked =', start)
     source = source[start:end]
     if mutation == 'unused_frequency':
@@ -27,8 +27,9 @@ def fixture(half_rate, mutation=None):
         raise ValueError('unknown mutation')
     return '''module top(input FPGA_CLK1_50,output HDMI_TX_CLK,output[1:0]HDMI_TX_D);
 localparam HALF_RATE_BOARD=HALF_VALUE;
+localparam PHASED_HDMI_CLOCK=PHASE_VALUE;
 wire clk_pixel,clk_hdmi,video_locked;
-''' .replace('HALF_VALUE', str(int(half_rate))) + source + '''
+''' .replace('HALF_VALUE', str(int(half_rate))).replace('PHASE_VALUE', str(int(phased_hdmi))) + source + '''
 reg[1:0] pixel_counter=0;
 always @(posedge clk_pixel) pixel_counter<=pixel_counter+1'b1;
 assign HDMI_TX_D=pixel_counter;
@@ -40,24 +41,28 @@ endmodule
 def memory_fixture(half_rate):
     source = (ROOT / 'cores/fes-pcxt/rtl/fes_pcxt_top.sv').read_text()
     start = source.index('    wire [(HALF_RATE_BOARD ? 4 : 2)-1:0] clocks;')
-    end = source.index('    wire [(HALF_RATE_BOARD ? 2 : 1)-1:0] video_clocks;')
+    end = source.index('    localparam bit USE_PHASED_HDMI_CLOCK =')
     source = source[start:end]
     return '''module top(input FPGA_CLK1_50, output wire [3:0] SDRAM_A);
 localparam HALF_RATE_BOARD=HALF_VALUE;
 wire clk,clk_memory,clk_capture,memory_locked;
 ''' .replace('HALF_VALUE', str(int(half_rate))) + source + '''
-assign SDRAM_A=clocks;
+wire [(HALF_RATE_BOARD ? 4 : 2)-1:0] buffered_clocks;
+generate for (genvar i=0;i<(HALF_RATE_BOARD ? 4 : 2);i=i+1) begin: output_clock_buffers
+    MISTRAL_CLKBUF buffer (.A(clocks[i]),.Q(buffered_clocks[i]));
+end endgenerate
+assign SDRAM_A=buffered_clocks;
 endmodule
 '''
 
 
-def pack(half_rate=False, mutation=None, output=None):
+def pack(half_rate=False, phased_hdmi=False, mutation=None, output=None):
     if output is not None:
         Path(output).mkdir(parents=True, exist_ok=False)
     context = nullcontext(str(output)) if output is not None else tempfile.TemporaryDirectory(prefix='pcxt-hdmi-profile-')
     with context as directory:
         work = Path(directory)
-        (work / 'fixture.sv').write_text(fixture(half_rate, mutation))
+        (work / 'fixture.sv').write_text(fixture(half_rate, phased_hdmi, mutation))
         constraints = (ROOT / 'cores/fes-pcxt/constraints-board50.qsf').read_text()
         pins = [line for line in constraints.splitlines() if re.fullmatch(
             r'set_location_assignment PIN_\w+ -to (FPGA_CLK1_50|HDMI_TX_CLK|HDMI_TX_D\[[01]\])', line)]
@@ -77,12 +82,24 @@ def pack(half_rate=False, mutation=None, output=None):
         if result.returncode == 0:
             model = json.loads((work / 'packed.json').read_text())['modules']['top']
             pll = model['cells']['video_clock']['parameters']
-            if int(pll['number_of_clocks'], 2) != (2 if half_rate else 1):
+            phase_enabled = half_rate or phased_hdmi
+            if int(pll['number_of_clocks'], 2) != (2 if phase_enabled else 1):
                 raise AssertionError('wrong number of packed video clocks')
-            if pll['output_clock_frequency1'] != ('74.25 MHz' if half_rate else '0 MHz'):
+            if pll['output_clock_frequency1'] != ('74.25 MHz' if phase_enabled else '0 MHz'):
                 raise AssertionError('wrong selected second-output frequency')
-            if pll['phase_shift1'] != ('8979 ps' if half_rate else '0 ps'):
+            if pll['phase_shift1'] != ('8979 ps' if phase_enabled else '0 ps'):
                 raise AssertionError('wrong selected second-output phase')
+            if phase_enabled:
+                buffer = model['cells'].get('phased_hdmi_clock.clock_buffer')
+                if buffer is None or buffer['type'] != 'MISTRAL_CLKBUF':
+                    raise AssertionError('phase-shifted profiles must buffer the forwarded HDMI clock')
+                if buffer['connections']['A'] != model['cells']['video_clock']['connections']['outclk[1]']:
+                    raise AssertionError('forwarded HDMI clock must use the phase-shifted PLL output')
+                output_pad = next((cell for cell in model['cells'].values()
+                                   if cell['type'] == 'MISTRAL_OB' and
+                                   cell['connections']['PAD'] == model['ports']['HDMI_TX_CLK']['bits']), None)
+                if output_pad is None or buffer['connections']['Q'] != output_pad['connections']['I']:
+                    raise AssertionError('phase-shifted clock buffer must drive the HDMI clock output pad')
         return result
 
 
@@ -134,6 +151,10 @@ class HdmiProfilePackTests(unittest.TestCase):
 
     def test_half_rate_profile_packs_the_two_actual_video_clocks(self):
         result = pack(half_rate=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_package_profile_phases_hdmi_without_slowing_the_board(self):
+        result = pack(phased_hdmi=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_nonzero_unused_output_frequency_is_rejected(self):

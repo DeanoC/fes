@@ -2874,11 +2874,13 @@ lists coverage and limitations.
 
 **The full PC/XT product remains in development.** The registered `fes.pcxt`
 recipe now exports an installable format-2 diagnostic package with the standard
-identity/execution mailbox and fixed CGA Direct video. Keyboard, media and
-physical socket interfaces are not declared. The package carries the known
-71.18/74.25 MHz video and 90.88/100 MHz main-clock miss tracked by FES #840;
-it does not claim timing closure, physical socket qualification or hardware
-acceptance. Existing linker layout admission remains closed until an exact
+identity/execution mailbox and fixed CGA Direct video. Its forwarded HDMI clock
+uses an 8.979 ns phase offset from pixel-data updates; the system and pixel
+rates do not change. Fixed video is inline in the RBF and needs no external
+video-part index. Keyboard, media and physical socket interfaces are not
+declared. The package carries the known 71.18/74.25 MHz video and 90.88/100 MHz
+main-clock miss tracked by FES #840; it does not claim timing closure, physical
+socket qualification or hardware acceptance. Existing linker layout admission remains closed until an exact
 shell and its physical sockets are qualified.
 
 The target is software for an IBM 5160-class machine, including bootable
@@ -3202,8 +3204,9 @@ uses the registered producer to create an installable RBF and manifest under
 `build/packages/`; this diagnostic package records the timing miss as
 unqualified rather than blocking export.
 Its default seed-3 route uses fixed timing weight 2000 and criticality exponent 5,
-with unchanged 100/74.25 MHz constraints. An explicit unsigned 64-bit `--seed`
-selects a reproducible diagnostic run; it does not start a seed search. The
+with unchanged 100/74.25 MHz constraints and the phase-shifted HDMI output.
+An explicit unsigned 64-bit `--seed` selects a reproducible diagnostic run; it
+does not start a seed search. The
 receipt binds that seed and all generated ROM/facts bytes. The producer preserves `gpu-run`'s ROCr
 lease mask while removing only an identical redundant HIP mask; route settings
 and visibility are recorded in the diagnostic receipt.

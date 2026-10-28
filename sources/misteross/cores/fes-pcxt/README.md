@@ -13,7 +13,10 @@ addon SDRAM controller and boots the display diagnostic through its physical
 command interface in host simulation. The CGA Direct board diagnostic has no
 accepted timing result: the earlier native signoff was rejected by the
 [Quartus cross-check](https://github.com/DeanoC/fes/issues/840).
-SDRAM pad timing and hardware remain unqualified.
+The package forwards HDMI on a 74.25 MHz clock phased 8979 ps after its pixel
+data registers; the standard system and pixel frequencies remain unchanged.
+Fixed video is inline, so the package does not need a separate video-parts
+inventory. SDRAM pad timing and hardware remain unqualified.
 The existing RAM Tester
 [external timing model](../../docs/architecture.md#sdram-external-timing-model)
 is the starting point for pad qualification. PC/XT's current board shell uses
@@ -45,14 +48,14 @@ the addon chip-select inverter more setup time while retaining the existing
 chip command/capture cycle. `EXTERNAL_CS_REGISTER` defaults to zero in the
 shared controller; only this experimental top owns that final CS register.
 
-The experimental video PLL also supplies a second 74.25 MHz output at phase
-8979 ps through a dedicated global buffer for `HDMI_TX_CLK`. Pixel registers
-stay on phase zero. The receiver samples between pixel updates, giving its
-hold requirement headroom without changing pixel order or rate. The default
-profile retains one video PLL output and forwards the pixel clock directly;
-its unused second-output frequency and phase select zero. A focused native
-pack regression lowers the actual clock block in both profile settings and
-rejects nonzero settings on the unused output.
+The video PLL can supply a second 74.25 MHz output at phase 8979 ps through a
+dedicated global buffer for `HDMI_TX_CLK`. Pixel registers stay on phase zero.
+The receiver samples between pixel updates, giving its hold requirement
+headroom without changing pixel order or rate. The standalone default retains
+one video PLL output and forwards the pixel clock directly; the installable
+package enables the phased output independently of the half-rate board profile.
+An unused second-output frequency and phase remain zero. A focused native pack
+regression covers the default, package and half-rate settings.
 The pixel-order proof and conditional external timing results are recorded
 with the native three-seed trial; physical board qualification remains open.
 

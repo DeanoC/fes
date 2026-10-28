@@ -52,7 +52,7 @@ class FesPcxtPackageRecipeTest(unittest.TestCase):
             )
             invocation.close.assert_called_once_with()
 
-    def test_manifest_declares_only_fixed_video_for_the_diagnostic_mailbox(self):
+    def test_manifest_declares_inline_fixed_video_for_the_diagnostic_mailbox(self):
         record = json.dumps({"recipe_sha256": "a" * 64}).encode()
         encoded = producer.manifest(
             record,
@@ -69,6 +69,11 @@ class FesPcxtPackageRecipeTest(unittest.TestCase):
             "id": "fes.video.fixed-720p60", "major": 1, "minor": 0, "required": True,
         }])
         self.assertEqual(manifest["payload"]["file"], "core.rbf")
+        # Fixed-video packages contain their Direct path in the RBF. They do
+        # not use the separately published native-video-parts index.
+        self.assertIn("cores/fes-common/rtl/fes_video_part_direct.v", producer.PINNED_INPUTS)
+        video_output = (producer.ROOT / "cores/fes-pcxt/rtl/pcxt_video_output.sv").read_text()
+        self.assertIn("fes_video_part_direct part", video_output)
 
     def test_registered_route_keeps_the_accepted_timing_miss_nonblocking(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -92,7 +97,7 @@ class FesPcxtPackageRecipeTest(unittest.TestCase):
         self.assertIn("--rbf", command)
         self.assertIn("--compress-rbf", command)
 
-    def test_synthesis_enables_mailbox_only_for_the_package_variant(self):
+    def test_synthesis_enables_mailbox_and_phased_hdmi_for_the_package_variant(self):
         tools = {
             "yosys": Path("/toolchain/bin/yosys"),
             "nextpnr-mistral": Path("/toolchain/bin/nextpnr-mistral"),
@@ -104,6 +109,7 @@ class FesPcxtPackageRecipeTest(unittest.TestCase):
             tools,
         )
         self.assertIn("-set ENABLE_FES_COMPUTER 1", program)
+        self.assertIn("-set PHASED_HDMI_CLOCK 1", program)
         self.assertIn("-set BUILD_ID 128'h" + "d" * 32, program)
 
 
