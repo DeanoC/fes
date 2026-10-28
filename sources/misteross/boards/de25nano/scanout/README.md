@@ -50,6 +50,9 @@ changes only on the explicit snapshot command or cold reset.
 Both sides of both crossing bridges share a cold/configuration reset source.
 A top-level reset bridge supplies that same external source to the child and
 inserted memory interconnect; the child reset sink is not merely exported.
+Its source is the direct Q of the preserved first-lock register, which clears
+asynchronously with the existing top reset; no combinational reset qualifier
+precedes the generated pixel-domain reset synchronizer.
 Initial release waits for the first qualified pixel PLL lock. Later PLL-lock
 loss blanks HDMI, latches a fault in the running 100 MHz domain and stops/drains
 the endpoint once the pixel clock resumes; it does **not** reset live FIFO or

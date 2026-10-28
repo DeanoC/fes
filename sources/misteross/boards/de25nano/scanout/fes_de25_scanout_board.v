@@ -12,7 +12,7 @@ module fes_de25_scanout_board (
     output wire HDMI_MCLK, HDMI_SCLK, HDMI_LRCLK, HDMI_I2S
 );
     wire pixel_locked, config_reset_n, qualified_lock;
-    reg first_lock_seen = 1'b0;
+    (* preserve, dont_merge *) reg first_lock_seen = 1'b0;
     (* preserve, dont_merge *) reg fault = 1'b0;
     sys_pll video_clock (.refclk(CLOCK0_50), .rst(ninit_done),
                          .outclk_0(pixel_clk), .locked(pixel_locked));
@@ -32,7 +32,10 @@ module fes_de25_scanout_board (
     end
     // A common cold reset asserts both sides of both PD bridges. Initial
     // release waits for the first lock; later lock loss never erases traffic.
-    assign scanout_reset_n = top_reset_n && first_lock_seen;
+    // This register already asserts asynchronously on top_reset_n. Drive its
+    // Q directly: re-ANDing that reset creates logic before the pixel-domain
+    // reset synchronizer even though the logical cold/startup behavior agrees.
+    assign scanout_reset_n = first_lock_seen;
     assign clock_fault = fault;
     I2C_HDMI_Config hdmi_config (.iCLK(CLOCK0_50), .iRST_N(config_reset_n),
         .I2C_SCLK(HDMI_I2C_SCL), .I2C_SDAT(HDMI_I2C_SDA),
