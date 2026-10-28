@@ -1314,7 +1314,6 @@ module fes_i386_decode (
     assign u.rep_stop = 2'd0;
     assign u.io = io;
     assign u.iret = 1'b0;
-    assign u.addr_t1 = 1'b0;
     assign u.sp_add = 1'b0;
     assign u.sp_write = stk != fes_i386_pkg::STK_NONE && stk != fes_i386_pkg::STK_PEEK && stk != fes_i386_pkg::STK_PROBE;
     assign u.cls = fes_i386_pkg::uop_class_e'(cls);

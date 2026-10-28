@@ -238,10 +238,7 @@ package fes_i386_pkg;
     // into its destination (EAX) or stores it (INS); OUT sends a (OUT) or its
     // result, the loaded value (OUTS). The port is src2's low half (DX), else
     // imm's. iret: IRET's last uop, which unblocks NMI as it retires.
-    // addr_t1: AG adds T1 as the segment term, and the result is the linear
-    // address, wrapped by address size (a bit test's address, SEQ_BTM).
     typedef struct packed {
-        logic        addr_t1;
         logic        iret;
         logic [1:0]  io;
         logic        str_si;
@@ -318,8 +315,8 @@ package fes_i386_pkg;
         logic [3:0]  slot;
         logic        a_t1;       // src1's value is T1's (POPAD's ESP), which waits as far_t does
         logic        b_t1;       // src2's value is T1's, which waits the same way
-        logic        disp_t1;    // the address's offset is T1's, with no address registers (SEQ_BTM)
-        logic        t_rd;       // the uop reads T0 or T1 (far_t, a_t1, b_t1, disp_t1, uop addr_t1)
+        logic        disp_t1;    // the address's displacement is T1, far_off's with far_t (SEQ_BTM)
+        logic        t_rd;       // the uop reads T0 or T1 (far_t, a_t1, b_t1)
         logic        popad_esp;  // the uop counts only for POPAD on a 16-bit stack
         // The ModRM memory operand's address registers and segment, kept
         // while a stack uop holds the address fields (POP r/m's store).
