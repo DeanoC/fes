@@ -20,6 +20,7 @@ a dated record. A dated record is not the schedule.
 | Build, provision or verify a flashable disk | [Bootable media](bootable-media.md) |
 | Build the headless DE25-Nano AArch64 Linux diagnostic | [DE25-Nano Linux](de25-linux.md) |
 | Prepare the DE25 HPS/DDR diagnostic and MENU allocation contract | [DE25 DDR](../sources/mister-packages/docs/de25-ddr.md) |
+| Build combined DE25 HPS/HDMI or test Linux DMA ownership under QEMU | [Combined diagnostic](../sources/misteross/boards/de25nano/combined/README.md), [DMA ownership](../image/kernel/de25-dma/README.md) |
 | Publish a versioned appliance image | [Appliance releases](appliance-releases.md) |
 | Share the kit | [Kit sharing](kit-sharing.md) |
 | Work in misteross | [misteross README](../sources/misteross/README.md): OSS place-and-route experiments, or a described core |

@@ -58,6 +58,7 @@ RULES = [
     ('sources/mister-packages/cmd/mister-packages/main.go', 'none', None),
     ('sources/mister-packages/internal/pack/board.go', 'none', None),
     ('sources/mister-packages/internal/pack/load.go', 'none', None),
+    ('sources/mister-packages/internal/emitc/emitc.go', 'none', None),
     ('sources/mister-packages/**', 'full', 'package-format'),
     ('sources/libmister-runtime/**', 'overlay', 'mister-runtime'),
     ('sources/FogCast/cmd/mister-agent/**', 'overlay', 'mister-agent'),

@@ -1,0 +1,4510 @@
+{
+  "classification": "host-only combined HPS/local-display compile; design closure remains conditional",
+  "execution": {
+    "cpu_workers_per_compile": 2,
+    "frozen_checkout": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-hps-display/out/work/de25-combined-ec3ab70b60",
+    "gpu_jobs": false,
+    "hardware_access": false,
+    "idle": {
+      "command": [
+        "python3",
+        "sources/misteross/boards/de25nano/combined/build.py",
+        "build",
+        "--mode",
+        "idle",
+        "--quartus-root",
+        "/data/altera_pro/26.3/quartus",
+        "--vendor-archive",
+        "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-linux-assessment/out/de25-linux-cache/DE25-Nano_revB_v.1.0.0_ResourcePackage.zip",
+        "--output",
+        "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-hps-display/out/de25-combined-idle-ec3ab70b60"
+      ],
+      "exec_session_id": 64358,
+      "exit_code": 0,
+      "initiated_by": "FPGA agent",
+      "launcher_log": "/tmp/de25-combined-idle-build.log",
+      "launcher_log_sha256": "56d23ef5acf125eeb253e6270fa9f2a42a1d7287edf3e129c35e2bf78d59f8ed"
+    },
+    "menu": {
+      "exec_session_id": 77544,
+      "initiated_by": "parent agent",
+      "launcher_log": "/tmp/de25-combined-menu-build.log",
+      "launcher_log_sha256": "ee39bff740d75eb7f2fda41e3de708107ac36694cae90e7d1e308441e48260fc"
+    },
+    "serialized_modes": [
+      "menu-pattern",
+      "idle"
+    ]
+  },
+  "extraction_script": {
+    "retained_path": "out/extract_combined.py",
+    "sha256": "a27507182eac82d3d2a05a2cf2db8b20e9257b2ee5cb12dd0b9afe6d140ed6d0"
+  },
+  "focused_validation": {
+    "derived_video_modes": {
+      "log": "out/de25-combined-sim-01.log",
+      "log_sha256": "20b2b254cd040946cf54adc5e63b0d461f49db26e68cbe8bc28d4b71b59bd4e0",
+      "modes": [
+        "idle",
+        "menu-pattern"
+      ],
+      "qualification": "real portable video/reset RTL; modeled PLL/configuration/I2C boundaries; exact compiled RTL equality checked per mode",
+      "result": "passed"
+    },
+    "initial_wrapper": {
+      "count": 7,
+      "log": "out/de25-combined-focused-01.log",
+      "log_sha256": "ca7d6feeda69dcd81056d0472d4717d58e5b0364b578e65b2d446f4add467118",
+      "result": "passed before new I2C guard test; final7 preparation tests recorded separately"
+    },
+    "preparation_tests": {
+      "count": 7,
+      "log": "out/de25-combined-preparation-03.log",
+      "log_sha256": "c54d7e7b58f53ce5b9e04b78c38b4f33fa15becdf5726a650c3c7a9ea8df123e",
+      "result": "passed"
+    }
+  },
+  "format": 1,
+  "modes": [
+    {
+      "artifact": {
+        "matches_build_receipt": true,
+        "path": "hps/project/output_files/golden_top.sof",
+        "sha256": "eab5618183dacf4e154de7b92840344efc38d3527261762edd70f3790e8b3940"
+      },
+      "baseline_clock_comparison": {
+        "added_clocks": [
+          {
+            "frequency": "0.01 MHz",
+            "master": "fes_video_inst|video_clock|iopll_0_refclk",
+            "name": "adv7513_config",
+            "period_ns": "100040.000",
+            "source": "CLOCK0_50",
+            "targets": "{ fes_video_inst|hdmi_config|mI2C_CTRL_CLK }",
+            "type": "Generated"
+          },
+          {
+            "frequency": "10.0 MHz",
+            "master": "fes_video_inst|video_clock|iopll_0_n_cnt_clk",
+            "name": "fes_video_inst|video_clock|iopll_0_m_cnt_clk",
+            "period_ns": "100.000",
+            "source": "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll~ncntr_reg",
+            "targets": "{ fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll~mcntr_reg }",
+            "type": "Generated"
+          },
+          {
+            "frequency": "10.0 MHz",
+            "master": "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll|ref_clk0",
+            "name": "fes_video_inst|video_clock|iopll_0_n_cnt_clk",
+            "period_ns": "100.000",
+            "source": "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll|ref_clk0",
+            "targets": "{ fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll~ncntr_reg }",
+            "type": "Generated"
+          },
+          {
+            "frequency": "74.25 MHz",
+            "master": "fes_video_inst|video_clock|iopll_0_n_cnt_clk",
+            "name": "fes_video_inst|video_clock|iopll_0_outclk0",
+            "period_ns": "13.468",
+            "source": "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll~ncntr_reg",
+            "targets": "{ fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll|out_clk[0] }",
+            "type": "Generated"
+          },
+          {
+            "frequency": "50.0 MHz",
+            "master": "",
+            "name": "fes_video_inst|video_clock|iopll_0_refclk",
+            "period_ns": "20.000",
+            "source": "",
+            "targets": "{ CLOCK0_50 }",
+            "type": "Base"
+          },
+          {
+            "frequency": "50.0 MHz",
+            "master": "fes_video_inst|video_clock|iopll_0_refclk",
+            "name": "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll|ref_clk0",
+            "period_ns": "20.000",
+            "source": "CLOCK0_50",
+            "targets": "{ fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll|ref_clk0 }",
+            "type": "Generated"
+          }
+        ],
+        "baseline_coverage": [
+          {
+            "Hold": "0",
+            "Property": "Illegal Clocks",
+            "Setup": "0"
+          },
+          {
+            "Hold": "0",
+            "Property": "Unconstrained Clocks",
+            "Setup": "0"
+          },
+          {
+            "Hold": "0",
+            "Property": "Unconstrained Input Ports",
+            "Setup": "0"
+          },
+          {
+            "Hold": "0",
+            "Property": "Paths from Unconstrained Input Ports (Pairs-Only)",
+            "Setup": "0"
+          },
+          {
+            "Hold": "0",
+            "Property": "Unconstrained Output Ports",
+            "Setup": "0"
+          },
+          {
+            "Hold": "0",
+            "Property": "Paths to Unconstrained Output Ports (Pairs-Only)",
+            "Setup": "0"
+          }
+        ],
+        "clock_count": 35,
+        "final_clock_count": 41,
+        "missing_or_changed_baseline_clocks": [],
+        "output": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-hps-interface/out/de25-ddr-probe-8f54e4f89e",
+        "preserved_clock_identities": [
+          "altera_reserved_tck",
+          "EMIF_REF_CLOCK",
+          "internal_clk",
+          "pll_inst|iopll_0_m_cnt_clk",
+          "pll_inst|iopll_0_n_cnt_clk",
+          "pll_inst|iopll_0_outclk0",
+          "pll_inst|iopll_0_refclk",
+          "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_c0_cntr_0",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_c1_cntr_0",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_byte_rx_gated",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_rxclk_gated",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_byte_rx_gated",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_rxclk_gated",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_byte_rx_gated",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_rxclk_gated",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_byte_rx_gated",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_rxclk_gated",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_byte_rx_gated",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_rxclk_gated",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_byte_rx_gated",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_rxclk_gated",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[0]_in",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[0]_nff",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[1]_in",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[1]_nff",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[2]_in",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[2]_nff",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[3]_in",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[3]_nff",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_sync_0",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_pll_ncntr",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_base_0",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_clk_periph_0"
+        ],
+        "producer_revision": "8f54e4f89e5b12ae18df70c542bc5846d0452ce6"
+      },
+      "baseline_failed_rule_detail_identity": {
+        "LNT-30023": true,
+        "RDC-50003": true,
+        "RES-50101": true
+      },
+      "bindings": {
+        "boot_handoff_sha256": "a17de6f2dbf5f4e93643b50b4c8291a33f930064f9a43bad3ece24e9c3dda04a",
+        "build_receipt_sha256": "6770b7177286ca11fa830abc9b2729f560790f81e940c257d08a6938bdf9f146",
+        "final_report_sha256": {
+          "golden_top.fit.rpt": "444fea5bfec0fad1c8f7c74340f5aa38ebc39e91040ef2468f4353690855c93b",
+          "golden_top.fit.summary": "c3460478b40564a1810d074c88bcf9749959d432d08314f79eefd17268d041a4",
+          "golden_top.pin": "9d0a0fa7a8dbd773bea3340d25a16ce9eb43fe1214e20d1ccce2cd470c8348c6",
+          "golden_top.sta.rpt": "9c5ddb9b79324f687ccb90ea9c28e1763dd59b03983a2b2a7e2b8aa9c70363b1",
+          "golden_top.sta.summary": "ce81efa5bad1f1a30839787ae0b0a6c67341011068c293618c3eb59e957e4a13",
+          "golden_top.syn.rpt": "5382447c3638cc37cb8be800490eebdb6a5ceb7fc11835968c3d97b030015d42",
+          "golden_top.tq.drc.signoff.rpt": "28cd51d70a1676f289db186ded4033604f3f63d124f4351d6eea3b8124ed5803"
+        },
+        "generation_sha256": "d2d9909f14082e4e6df0d1f89a0d9bb316bf60fde5de4b4c0499201c18b96e58",
+        "handoff_and_sdc_manifest_count": 363,
+        "handoff_and_sdc_mismatches": [],
+        "inputs_sha256": "a6a3168e0d03f6457865b480a12b6d0b58e907bc09b102ac55ac160f36e89404",
+        "report_manifest_count": 19,
+        "report_mismatches": [],
+        "snapshot_sha256": "16fc80d3e9da78e8fba28ee4a1b6e396cd2583273ff7e67d564c64c09839d2b2",
+        "top_handoff_sha256": "37b093820f21fda019ebbc94686f24108a7daacaf1e2ee38da7218ba49ff1f2f"
+      },
+      "boot_firmware_compatibility": "not-qualified",
+      "boot_handoff_matches_baseline": false,
+      "clock_status": [
+        {
+          "Clock": "fes_video_inst|video_clock|iopll_0_refclk",
+          "Status": "Constrained",
+          "Target": "CLOCK0_50",
+          "Type": "Base"
+        },
+        {
+          "Clock": "pll_inst|iopll_0_refclk",
+          "Status": "Constrained",
+          "Target": "CLOCK2_50",
+          "Type": "Base"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[0]_in",
+          "Status": "Constrained",
+          "Target": "LPDDR4A_DQS[0]",
+          "Type": "Base"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[1]_in",
+          "Status": "Constrained",
+          "Target": "LPDDR4A_DQS[1]",
+          "Type": "Base"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[2]_in",
+          "Status": "Constrained",
+          "Target": "LPDDR4A_DQS[2]",
+          "Type": "Base"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[3]_in",
+          "Status": "Constrained",
+          "Target": "LPDDR4A_DQS[3]",
+          "Type": "Base"
+        },
+        {
+          "Clock": "EMIF_REF_CLOCK",
+          "Status": "Constrained",
+          "Target": "LPDDR4A_REFCLK_p",
+          "Type": "Base"
+        },
+        {
+          "Clock": "altera_reserved_tck",
+          "Status": "Constrained",
+          "Target": "altera_reserved_tck",
+          "Type": "Base"
+        },
+        {
+          "Clock": "internal_clk",
+          "Status": "Constrained",
+          "Target": "auto_fab_0|alt_sld_fab_0|alt_sld_fab_0|configresetfabric|conf_reset_src|ag.sdm_gpo_out_user_reset~internal_ctrl_clock.reg",
+          "Type": "Base"
+        },
+        {
+          "Clock": "adv7513_config",
+          "Status": "Constrained",
+          "Target": "fes_video_inst|hdmi_config|mI2C_CTRL_CLK",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "fes_video_inst|video_clock|iopll_0_outclk0",
+          "Status": "Constrained",
+          "Target": "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll|out_clk[0]",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll|ref_clk0",
+          "Status": "Constrained",
+          "Target": "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll|ref_clk0",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "fes_video_inst|video_clock|iopll_0_m_cnt_clk",
+          "Status": "Constrained",
+          "Target": "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll~mcntr_reg",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "fes_video_inst|video_clock|iopll_0_n_cnt_clk",
+          "Status": "Constrained",
+          "Target": "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll~ncntr_reg",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "pll_inst|iopll_0_outclk0",
+          "Status": "Constrained",
+          "Target": "pll_inst|iopll_0|tennm_ph2_iopll|out_clk[0]",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0",
+          "Status": "Constrained",
+          "Target": "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "pll_inst|iopll_0_m_cnt_clk",
+          "Status": "Constrained",
+          "Target": "pll_inst|iopll_0|tennm_ph2_iopll~mcntr_reg",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "pll_inst|iopll_0_n_cnt_clk",
+          "Status": "Constrained",
+          "Target": "pll_inst|iopll_0|tennm_ph2_iopll~ncntr_reg",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_rxclk_gated",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[0].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+          "Type": "Base"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_byte_rx_gated",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[0].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[0]_nff",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[0].wrapper_byte|gen_used_byte.u_byte~dqsn0_0_reg__nff",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_rxclk_gated",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[1].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+          "Type": "Base"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_byte_rx_gated",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[1].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[1]_nff",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[1].wrapper_byte|gen_used_byte.u_byte~dqsn0_0_reg__nff",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_rxclk_gated",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[2].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+          "Type": "Base"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_byte_rx_gated",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[2].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_rxclk_gated",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[3].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+          "Type": "Base"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_byte_rx_gated",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[3].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_rxclk_gated",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[6].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+          "Type": "Base"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_byte_rx_gated",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[6].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[2]_nff",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[6].wrapper_byte|gen_used_byte.u_byte~dqsn0_0_reg__nff",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_rxclk_gated",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[7].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+          "Type": "Base"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_byte_rx_gated",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[7].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[3]_nff",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[7].wrapper_byte|gen_used_byte.u_byte~dqsn0_0_reg__nff",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll|out_clk_periph0",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_sync_0",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll|out_clk_periph1",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_clk_periph_0",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll|vco_clk_periph",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_c0_cntr_0",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~c0cntr_reg",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_c1_cntr_0",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~c1cntr_reg",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_pll_ncntr",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~ncntr_reg",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_base_0",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~vcoph[0]",
+          "Type": "Generated"
+        }
+      ],
+      "clocks": [
+        {
+          "frequency": "0.01 MHz",
+          "master": "fes_video_inst|video_clock|iopll_0_refclk",
+          "name": "adv7513_config",
+          "period_ns": "100040.000",
+          "source": "CLOCK0_50",
+          "targets": "{ fes_video_inst|hdmi_config|mI2C_CTRL_CLK }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "16.0 MHz",
+          "master": "",
+          "name": "altera_reserved_tck",
+          "period_ns": "62.500",
+          "source": "",
+          "targets": "{ altera_reserved_tck }",
+          "type": "Base"
+        },
+        {
+          "frequency": "166.67 MHz",
+          "master": "",
+          "name": "EMIF_REF_CLOCK",
+          "period_ns": "6.000",
+          "source": "",
+          "targets": "{ LPDDR4A_REFCLK_p }",
+          "type": "Base"
+        },
+        {
+          "frequency": "10.0 MHz",
+          "master": "fes_video_inst|video_clock|iopll_0_n_cnt_clk",
+          "name": "fes_video_inst|video_clock|iopll_0_m_cnt_clk",
+          "period_ns": "100.000",
+          "source": "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll~ncntr_reg",
+          "targets": "{ fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll~mcntr_reg }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "10.0 MHz",
+          "master": "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll|ref_clk0",
+          "name": "fes_video_inst|video_clock|iopll_0_n_cnt_clk",
+          "period_ns": "100.000",
+          "source": "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll|ref_clk0",
+          "targets": "{ fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll~ncntr_reg }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "74.25 MHz",
+          "master": "fes_video_inst|video_clock|iopll_0_n_cnt_clk",
+          "name": "fes_video_inst|video_clock|iopll_0_outclk0",
+          "period_ns": "13.468",
+          "source": "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll~ncntr_reg",
+          "targets": "{ fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll|out_clk[0] }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "50.0 MHz",
+          "master": "",
+          "name": "fes_video_inst|video_clock|iopll_0_refclk",
+          "period_ns": "20.000",
+          "source": "",
+          "targets": "{ CLOCK0_50 }",
+          "type": "Base"
+        },
+        {
+          "frequency": "50.0 MHz",
+          "master": "fes_video_inst|video_clock|iopll_0_refclk",
+          "name": "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll|ref_clk0",
+          "period_ns": "20.000",
+          "source": "CLOCK0_50",
+          "targets": "{ fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll|ref_clk0 }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "100.0 MHz",
+          "master": "",
+          "name": "internal_clk",
+          "period_ns": "10.000",
+          "source": "",
+          "targets": "{ auto_fab_0|alt_sld_fab_0|alt_sld_fab_0|configresetfabric|conf_reset_src|ag.sdm_gpo_out_user_reset~internal_ctrl_clock.reg }",
+          "type": "Base"
+        },
+        {
+          "frequency": "50.0 MHz",
+          "master": "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0",
+          "name": "pll_inst|iopll_0_m_cnt_clk",
+          "period_ns": "20.000",
+          "source": "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0",
+          "targets": "{ pll_inst|iopll_0|tennm_ph2_iopll~mcntr_reg }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "50.0 MHz",
+          "master": "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0",
+          "name": "pll_inst|iopll_0_n_cnt_clk",
+          "period_ns": "20.000",
+          "source": "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0",
+          "targets": "{ pll_inst|iopll_0|tennm_ph2_iopll~ncntr_reg }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "100.0 MHz",
+          "master": "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0",
+          "name": "pll_inst|iopll_0_outclk0",
+          "period_ns": "10.000",
+          "source": "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0",
+          "targets": "{ pll_inst|iopll_0|tennm_ph2_iopll|out_clk[0] }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "50.0 MHz",
+          "master": "",
+          "name": "pll_inst|iopll_0_refclk",
+          "period_ns": "20.000",
+          "source": "",
+          "targets": "{ CLOCK2_50 }",
+          "type": "Base"
+        },
+        {
+          "frequency": "50.0 MHz",
+          "master": "pll_inst|iopll_0_refclk",
+          "name": "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0",
+          "period_ns": "20.000",
+          "source": "CLOCK2_50",
+          "targets": "{ pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0 }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "666.67 MHz",
+          "master": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_base_0",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_c0_cntr_0",
+          "period_ns": "1.500",
+          "source": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~vcoph[0]",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~c0cntr_reg }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "166.67 MHz",
+          "master": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_base_0",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_c1_cntr_0",
+          "period_ns": "6.000",
+          "source": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~vcoph[0]",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~c1cntr_reg }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "100.0 MHz",
+          "master": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_rxclk_gated",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_byte_rx_gated",
+          "period_ns": "10.000",
+          "source": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[0].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[0].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "100.0 MHz",
+          "master": "",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_rxclk_gated",
+          "period_ns": "10.000",
+          "source": "",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[0].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated }",
+          "type": "Base"
+        },
+        {
+          "frequency": "100.0 MHz",
+          "master": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_rxclk_gated",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_byte_rx_gated",
+          "period_ns": "10.000",
+          "source": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[1].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[1].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "100.0 MHz",
+          "master": "",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_rxclk_gated",
+          "period_ns": "10.000",
+          "source": "",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[1].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated }",
+          "type": "Base"
+        },
+        {
+          "frequency": "100.0 MHz",
+          "master": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_rxclk_gated",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_byte_rx_gated",
+          "period_ns": "10.000",
+          "source": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[2].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[2].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "100.0 MHz",
+          "master": "",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_rxclk_gated",
+          "period_ns": "10.000",
+          "source": "",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[2].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated }",
+          "type": "Base"
+        },
+        {
+          "frequency": "100.0 MHz",
+          "master": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_rxclk_gated",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_byte_rx_gated",
+          "period_ns": "10.000",
+          "source": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[3].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[3].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "100.0 MHz",
+          "master": "",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_rxclk_gated",
+          "period_ns": "10.000",
+          "source": "",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[3].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated }",
+          "type": "Base"
+        },
+        {
+          "frequency": "100.0 MHz",
+          "master": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_rxclk_gated",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_byte_rx_gated",
+          "period_ns": "10.000",
+          "source": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[6].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[6].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "100.0 MHz",
+          "master": "",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_rxclk_gated",
+          "period_ns": "10.000",
+          "source": "",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[6].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated }",
+          "type": "Base"
+        },
+        {
+          "frequency": "100.0 MHz",
+          "master": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_rxclk_gated",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_byte_rx_gated",
+          "period_ns": "10.000",
+          "source": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[7].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[7].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "100.0 MHz",
+          "master": "",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_rxclk_gated",
+          "period_ns": "10.000",
+          "source": "",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[7].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated }",
+          "type": "Base"
+        },
+        {
+          "frequency": "1333.0 MHz",
+          "master": "",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[0]_in",
+          "period_ns": "0.750",
+          "source": "",
+          "targets": "{ LPDDR4A_DQS[0] }",
+          "type": "Base"
+        },
+        {
+          "frequency": "1333.0 MHz",
+          "master": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[0]_in",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[0]_nff",
+          "period_ns": "0.750",
+          "source": "LPDDR4A_DQS[0]",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[0].wrapper_byte|gen_used_byte.u_byte~dqsn0_0_reg__nff }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "1333.0 MHz",
+          "master": "",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[1]_in",
+          "period_ns": "0.750",
+          "source": "",
+          "targets": "{ LPDDR4A_DQS[1] }",
+          "type": "Base"
+        },
+        {
+          "frequency": "1333.0 MHz",
+          "master": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[1]_in",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[1]_nff",
+          "period_ns": "0.750",
+          "source": "LPDDR4A_DQS[1]",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[1].wrapper_byte|gen_used_byte.u_byte~dqsn0_0_reg__nff }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "1333.0 MHz",
+          "master": "",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[2]_in",
+          "period_ns": "0.750",
+          "source": "",
+          "targets": "{ LPDDR4A_DQS[2] }",
+          "type": "Base"
+        },
+        {
+          "frequency": "1333.0 MHz",
+          "master": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[2]_in",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[2]_nff",
+          "period_ns": "0.750",
+          "source": "LPDDR4A_DQS[2]",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[6].wrapper_byte|gen_used_byte.u_byte~dqsn0_0_reg__nff }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "1333.0 MHz",
+          "master": "",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[3]_in",
+          "period_ns": "0.750",
+          "source": "",
+          "targets": "{ LPDDR4A_DQS[3] }",
+          "type": "Base"
+        },
+        {
+          "frequency": "1333.0 MHz",
+          "master": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[3]_in",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[3]_nff",
+          "period_ns": "0.750",
+          "source": "LPDDR4A_DQS[3]",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[7].wrapper_byte|gen_used_byte.u_byte~dqsn0_0_reg__nff }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "666.67 MHz",
+          "master": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_c0_cntr_0",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0",
+          "period_ns": "1.500",
+          "source": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~c0cntr_reg",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll|out_clk_periph0 }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "166.67 MHz",
+          "master": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_c1_cntr_0",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_sync_0",
+          "period_ns": "6.000",
+          "source": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~c1cntr_reg",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll|out_clk_periph1 }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "166.67 MHz",
+          "master": "EMIF_REF_CLOCK",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_pll_ncntr",
+          "period_ns": "6.000",
+          "source": "LPDDR4A_REFCLK_p",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~ncntr_reg }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "1333.33 MHz",
+          "master": "EMIF_REF_CLOCK",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_base_0",
+          "period_ns": "0.750",
+          "source": "LPDDR4A_REFCLK_p",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~vcoph[0] }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "1333.33 MHz",
+          "master": "EMIF_REF_CLOCK",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_clk_periph_0",
+          "period_ns": "0.750",
+          "source": "LPDDR4A_REFCLK_p",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll|vco_clk_periph }",
+          "type": "Generated"
+        }
+      ],
+      "closure": [
+        {
+          "Panel Name": "Design Closure Summary",
+          "Result Flag": "Fail"
+        },
+        {
+          "Panel Name": "Timing Closure",
+          "Result Flag": "Pass"
+        },
+        {
+          "Panel Name": "Setup Summary",
+          "Result Flag": "Pass"
+        },
+        {
+          "Panel Name": "Hold Summary",
+          "Result Flag": "Pass"
+        },
+        {
+          "Panel Name": "Recovery Summary",
+          "Result Flag": "Pass"
+        },
+        {
+          "Panel Name": "Removal Summary",
+          "Result Flag": "Pass"
+        },
+        {
+          "Panel Name": "Setup Data Delay Summary",
+          "Result Flag": "Not Found"
+        },
+        {
+          "Panel Name": "Recovery Data Delay Summary",
+          "Result Flag": "Not Found"
+        },
+        {
+          "Panel Name": "Minimum Pulse Width Summary",
+          "Result Flag": "Pass"
+        },
+        {
+          "Panel Name": "Max Skew Summary",
+          "Result Flag": "Not Found"
+        },
+        {
+          "Panel Name": "Max Clock Skew Summary",
+          "Result Flag": "Not Found"
+        },
+        {
+          "Panel Name": "Net Delay Summary",
+          "Result Flag": "Not Found"
+        },
+        {
+          "Panel Name": "Metastability Summary",
+          "Result Flag": "Pass"
+        },
+        {
+          "Panel Name": "Double Data Rate (DDR) Summary",
+          "Result Flag": "Not Found"
+        },
+        {
+          "Panel Name": "Transmitter Channel-to-Channel Skew (TCCS) Summary",
+          "Result Flag": "Not Found"
+        },
+        {
+          "Panel Name": "Receiver Input Skew Margin (RSKM) Summary",
+          "Result Flag": "Not Found"
+        },
+        {
+          "Panel Name": "Design Assistant Summary",
+          "Result Flag": "High Severity Violations"
+        },
+        {
+          "Panel Name": "Unconstrained Paths",
+          "Result Flag": "Fail"
+        }
+      ],
+      "command": [
+        "/data/altera_pro/26.3/quartus/bin/quartus_sh",
+        "--flow",
+        "compile",
+        "golden_top"
+      ],
+      "compile": {
+        "errors": 0,
+        "warnings": 304
+      },
+      "coverage": [
+        {
+          "Hold": "0",
+          "Property": "Illegal Clocks",
+          "Setup": "0"
+        },
+        {
+          "Hold": "0",
+          "Property": "Unconstrained Clocks",
+          "Setup": "0"
+        },
+        {
+          "Hold": "2",
+          "Property": "Unconstrained Input Ports",
+          "Setup": "2"
+        },
+        {
+          "Hold": "9",
+          "Property": "Paths from Unconstrained Input Ports (Pairs-Only)",
+          "Setup": "9"
+        },
+        {
+          "Hold": "30",
+          "Property": "Unconstrained Output Ports",
+          "Setup": "30"
+        },
+        {
+          "Hold": "4651",
+          "Property": "Paths to Unconstrained Output Ports (Pairs-Only)",
+          "Setup": "4651"
+        }
+      ],
+      "ddr_scanout": false,
+      "design_assistant": {
+        "failed": [
+          {
+            "name": "Missing Output Delay Constraint",
+            "rule": "TMC-20012",
+            "severity": "High",
+            "violations": 30,
+            "waived": 0
+          },
+          {
+            "name": "Missing Input Delay Constraint",
+            "rule": "TMC-20011",
+            "severity": "High",
+            "violations": 2,
+            "waived": 0
+          },
+          {
+            "name": "Reset Nets with Polarity Conflict",
+            "rule": "LNT-30023",
+            "severity": "Medium",
+            "violations": 1,
+            "waived": 0
+          },
+          {
+            "name": "Multiple Asynchronous Reset Synchronizers in the Same Clock Domain",
+            "rule": "RDC-50003",
+            "severity": "Medium",
+            "violations": 1,
+            "waived": 0
+          },
+          {
+            "name": "Intra-Clock False Path Reset Synchronizer",
+            "rule": "RES-50101",
+            "severity": "Low",
+            "violations": 2,
+            "waived": 0
+          }
+        ],
+        "rule_count": 85,
+        "waived_total": 0
+      },
+      "dma_admission": "not-qualified",
+      "failed_rule_details": {
+        "LNT-30023": [
+          {
+            "Driver": "soc_inst|mm_interconnect_0|limiter_pipeline|gen_inst[0].core|data1[40]",
+            "Inverted Signal": "soc_inst|mm_interconnect_0|mux_pipeline|gen_inst[1].core|data0[0]|SCLR",
+            "Non-Inverted Signal": "soc_inst|mm_interconnect_0|mux_pipeline|gen_inst[0].core|data0[0]|SCLR",
+            "Number of Inverted Signals": "128",
+            "Number of Non-Inverted Signals": "128",
+            "Waived": ""
+          }
+        ],
+        "RDC-50003": [
+          {
+            "Number of Reset Chains": "12",
+            "Reset Chain Register Heads": "fes_top_reset_inst|sync_regs[0]   soc_inst|subsys_periph|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]   soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]   soc_inst|subsys_debug|hps_f2sdram|altera_jtag_avalon_master_inst|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]   soc_inst|subsys_debug|hps_m|altera_jtag_avalon_master_inst|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]   soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|sink_crosser|alt_rst_req_sync_in_rst|altera_reset_synchronizer_int_chain[1]   soc_inst|subsys_debug|hps_f2sdram|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|sink_crosser|alt_rst_req_sync_in_rst|altera_reset_synchronizer_int_chain[1]   soc_inst|subsys_debug|hps_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|sink_crosser|alt_rst_req_sync_in_rst|altera_reset_synchronizer_int_chain[1]   soc_inst|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]   soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n_synchronizer|din_s1   soc_inst|subsys_debug|hps_f2sdram|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n_synchronizer|din_s1   soc_inst|subsys_debug|hps_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n_synchronizer|din_s1",
+            "Reset Clock Domain": "pll_inst|iopll_0_outclk0",
+            "Reset Sources": "pll_inst|iopll_0|tennm_ph2_iopll~pll_ctrl_reg   auto_fab_0|alt_sld_fab_0|alt_sld_fab_0|configresetfabric|conf_reset_src|ag.sdm_gpo_out_user_reset~internal_ctrl_clock.reg   fes_top_reset_inst|sync_regs[1]   soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|synchronizer|dreg[1]   soc_inst|subsys_debug|hps_f2sdram|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|synchronizer|dreg[1]   soc_inst|subsys_debug|hps_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|synchronizer|dreg[1]   soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n   soc_inst|subsys_debug|hps_f2sdram|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n   soc_inst|subsys_debug|hps_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n",
+            "Waived": ""
+          }
+        ],
+        "RES-50101": [
+          {
+            "From": "fes_top_reset_inst|sync_regs[1]",
+            "From/To Clock": "pll_inst|iopll_0_outclk0",
+            "To": "soc_inst|subsys_periph|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]",
+            "Waived": ""
+          },
+          {
+            "From": "fes_top_reset_inst|sync_regs[1]",
+            "From/To Clock": "pll_inst|iopll_0_outclk0",
+            "To": "soc_inst|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]",
+            "Waived": ""
+          }
+        ],
+        "TMC-20011": [
+          {
+            "Port": "HDMI_I2C_SDA",
+            "Reason": "No input delay was set on the input port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_INT",
+            "Reason": "No input delay was set on the input port.",
+            "Waived": ""
+          }
+        ],
+        "TMC-20012": [
+          {
+            "Port": "LED[7]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[6]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[7]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[8]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[9]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[10]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[11]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[12]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[13]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[14]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[15]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_VS",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[16]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[17]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[18]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[19]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[20]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[21]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[22]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[23]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_DE",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_I2C_SCL",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_HS",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_I2C_SDA",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[0]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[1]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[2]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[3]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[4]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[5]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          }
+        ]
+      },
+      "fit": {
+        "Device": "A5EB013BB23BE4SCS",
+        "Device Status": "Final",
+        "Family": "Agilex 5",
+        "Fitter Status": "Successful - Wed Oct 28 18:52:00 2026",
+        "Logic utilization (in ALMs)": "11,369 / 46,800 ( 24 % )",
+        "Power Models": "Final",
+        "Quartus Prime Version": "26.3.0 Build 114 10/14/2026 SC Pro Edition",
+        "Revision Name": "golden_top",
+        "Timing Models": "Final",
+        "Top-level Entity Name": "golden_top",
+        "Total DSP Blocks": "0 / 188 ( 0 % )",
+        "Total HSSI HPS": "1 / 1 ( 100 % )",
+        "Total PLLs": "3 / 11 ( 27 % )",
+        "Total RAM Blocks": "134 / 358 ( 37 % )",
+        "Total block memory bits": "2,123,264 / 7,331,840 ( 29 % )",
+        "Total dedicated logic registers": "22291",
+        "Total pins": "284 / 351 ( 81 % )"
+      },
+      "fitted_display_pins": {
+        "CLOCK0_50": {
+          "bank": "2A_T",
+          "direction": "input",
+          "io_standard": "1.1-V",
+          "location": "DJ35",
+          "voltage": "1.1V"
+        },
+        "HDMI_I2C_SCL": {
+          "bank": "6F",
+          "direction": "bidir",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "BT1",
+          "voltage": "3.3V"
+        },
+        "HDMI_I2C_SDA": {
+          "bank": "6F",
+          "direction": "bidir",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "BW2",
+          "voltage": "3.3V"
+        },
+        "HDMI_I2S": {
+          "bank": "6F",
+          "direction": "bidir",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "CB2",
+          "voltage": "3.3V"
+        },
+        "HDMI_LRCLK": {
+          "bank": "6F",
+          "direction": "bidir",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "BR6",
+          "voltage": "3.3V"
+        },
+        "HDMI_MCLK": {
+          "bank": "6F",
+          "direction": "bidir",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "CF1",
+          "voltage": "3.3V"
+        },
+        "HDMI_SCLK": {
+          "bank": "6F",
+          "direction": "bidir",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "BW1",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_CLK": {
+          "bank": "2A_T",
+          "direction": "output",
+          "io_standard": "1.1-V",
+          "location": "DJ24",
+          "voltage": "1.1V"
+        },
+        "HDMI_TX_DE": {
+          "bank": "6F",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "CJ2",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[0]": {
+          "bank": "6E",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "AV19",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[10]": {
+          "bank": "6E",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "BE19",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[11]": {
+          "bank": "6E",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "BH14",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[12]": {
+          "bank": "6F",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "BV6",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[13]": {
+          "bank": "6E",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "BJ23",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[14]": {
+          "bank": "6F",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "BV4",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[15]": {
+          "bank": "6E",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "BU23",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[16]": {
+          "bank": "6E",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "BH16",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[17]": {
+          "bank": "6F",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "DA1",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[18]": {
+          "bank": "6E",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "BH19",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[19]": {
+          "bank": "6F",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "CP2",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[1]": {
+          "bank": "6E",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "AT11",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[20]": {
+          "bank": "6F",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "CM1",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[21]": {
+          "bank": "6F",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "DA2",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[22]": {
+          "bank": "6F",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "CP1",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[23]": {
+          "bank": "6F",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "CU2",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[2]": {
+          "bank": "6E",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "BE11",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[3]": {
+          "bank": "6E",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "AV14",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[4]": {
+          "bank": "6E",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "AT19",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[5]": {
+          "bank": "6E",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "AT14",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[6]": {
+          "bank": "6E",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "AV16",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[7]": {
+          "bank": "6E",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "AV11",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[8]": {
+          "bank": "6E",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "BH11",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[9]": {
+          "bank": "6E",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "BE14",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_HS": {
+          "bank": "6E",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "BR11",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_INT": {
+          "bank": "6F",
+          "direction": "input",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "CF2",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_VS": {
+          "bank": "6E",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "BR14",
+          "voltage": "3.3V"
+        }
+      },
+      "fitted_display_pins_match_prepared_qsf": true,
+      "generated_boot_handoff_baseline_byte_comparison": {
+        "baseline_length": 1629,
+        "different_offsets": [
+          1624,
+          1625,
+          1626,
+          1627
+        ],
+        "final_length": 1629,
+        "qualification": "raw byte comparison only; differing footer bytes not interpreted; no firmware pairing qualification"
+      },
+      "generation": {
+        "clock_hz": 100000000,
+        "combined_display": {
+          "ddr_scanout": false,
+          "pixel_pll_parameters_unchanged": true,
+          "warm_reset_ack_n": "constant1; unsupported"
+        },
+        "ddr_probe": {
+          "clock_hz": 100000000,
+          "dma_address_bits": 32,
+          "dma_admission": "not-qualified",
+          "instance": "subsys_periph.fes_ddr_probe",
+          "peripheral_offset": 65792,
+          "peripheral_slave_map": [
+            {
+              "base": 65536,
+              "name": "subsys_periph.sysid.control_slave",
+              "span": 8
+            },
+            {
+              "base": 65632,
+              "name": "subsys_periph.button_pio.s1",
+              "span": 16
+            },
+            {
+              "base": 65648,
+              "name": "subsys_periph.dipsw_pio.s1",
+              "span": 16
+            },
+            {
+              "base": 65664,
+              "name": "subsys_periph.led_pio.s1",
+              "span": 16
+            },
+            {
+              "base": 65696,
+              "name": "subsys_periph.fes_mailbox.avs",
+              "span": 32
+            },
+            {
+              "base": 65792,
+              "name": "subsys_periph.fes_ddr_probe.avs",
+              "span": 128
+            }
+          ],
+          "physical_ddr_address": "not-established",
+          "read_master_data_bits": 128,
+          "response_bits": 2,
+          "vendor_f2sdram_data_bits": 256
+        },
+        "mailbox_instance": "subsys_periph.fes_mailbox",
+        "peripheral_offset": 65696,
+        "physical_mailbox_address": "not-established",
+        "sha256": "37b093820f21fda019ebbc94686f24108a7daacaf1e2ee38da7218ba49ff1f2f",
+        "top_system_handoff": "qsys_top/qsys_top.sopcinfo"
+      },
+      "hardware_acceptance": "not-run",
+      "metastability": {
+        "excluded_counts": [
+          20
+        ],
+        "found_counts": [
+          44
+        ],
+        "modeled_counts": [
+          24
+        ],
+        "qualification": "partial compiler model; excluded chains and physical/whole-board behavior not qualified",
+        "reported_model_years": [
+          "1e+09"
+        ],
+        "shortest_register_counts": [
+          2
+        ],
+        "timing_violation_counts": [
+          0
+        ]
+      },
+      "mode": "menu-pattern",
+      "original_hps_emif_parameter_changes": {},
+      "output": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-hps-display/out/de25-combined-menu-ec3ab70b60",
+      "post_compile_original_hps_emif_parameter_changes": {},
+      "post_compile_vendor_boot_source_mismatches": [],
+      "preserved_local_reset_registers": [
+        {
+          "Cannot be Retimed (Protected by Synthesis Attribute or Quartus Assignment)": "yes",
+          "Not to be Touched by Netlist Optimizations": "yes",
+          "Protected by Synthesis Attribute or Preserve Register Assignment": "yes",
+          "Register Name": "fes_video_inst|pixel_reset|sync_regs[1]"
+        },
+        {
+          "Cannot be Retimed (Protected by Synthesis Attribute or Quartus Assignment)": "yes",
+          "Not to be Touched by Netlist Optimizations": "yes",
+          "Protected by Synthesis Attribute or Preserve Register Assignment": "yes",
+          "Register Name": "fes_video_inst|config_reset|sync_regs[1]"
+        },
+        {
+          "Cannot be Retimed (Protected by Synthesis Attribute or Quartus Assignment)": "yes",
+          "Not to be Touched by Netlist Optimizations": "yes",
+          "Protected by Synthesis Attribute or Preserve Register Assignment": "yes",
+          "Register Name": "fes_top_reset_inst|sync_regs[1]"
+        },
+        {
+          "Cannot be Retimed (Protected by Synthesis Attribute or Quartus Assignment)": "yes",
+          "Not to be Touched by Netlist Optimizations": "yes",
+          "Protected by Synthesis Attribute or Preserve Register Assignment": "yes",
+          "Register Name": "fes_video_inst|pixel_reset|sync_regs[0]"
+        },
+        {
+          "Cannot be Retimed (Protected by Synthesis Attribute or Quartus Assignment)": "yes",
+          "Not to be Touched by Netlist Optimizations": "yes",
+          "Protected by Synthesis Attribute or Preserve Register Assignment": "yes",
+          "Register Name": "fes_video_inst|config_reset|sync_regs[0]"
+        },
+        {
+          "Cannot be Retimed (Protected by Synthesis Attribute or Quartus Assignment)": "yes",
+          "Not to be Touched by Netlist Optimizations": "yes",
+          "Protected by Synthesis Attribute or Preserve Register Assignment": "yes",
+          "Register Name": "fes_top_reset_inst|sync_regs[0]"
+        }
+      ],
+      "producer_revision": "ec3ab70b608eb53a0b845d4462941f8a832af451",
+      "reset_constraint_messages": [
+        "DE25 asynchronous human-visible LED output ports: 4 (expected 4)",
+        "DE25 display reset ingress pins: 4 (expected 4)",
+        "DE25 top reset asynchronous clear pins: 2 (expected 2); D and release fanout remain timed"
+      ],
+      "reused_ddr_fabric_simulation": {
+        "cases": [
+          {
+            "ar_stall_cycles": 1,
+            "avalon128_beats": 1,
+            "avalon_bursts": 1,
+            "avalon_error_beats": 0,
+            "axi256_beats": 1,
+            "axi_bursts": 1,
+            "axi_transactions": [
+              {
+                "address": 2147483648,
+                "beats": 1,
+                "bytes_per_beat": 16
+              }
+            ],
+            "case": "aligned-single",
+            "injected_axi_response": 0,
+            "r_stall_cycles": 0,
+            "status": "pass"
+          },
+          {
+            "ar_stall_cycles": 1,
+            "avalon128_beats": 1,
+            "avalon_bursts": 1,
+            "avalon_error_beats": 0,
+            "axi256_beats": 1,
+            "axi_bursts": 1,
+            "axi_transactions": [
+              {
+                "address": 2147483664,
+                "beats": 1,
+                "bytes_per_beat": 16
+              }
+            ],
+            "case": "upper-half-single",
+            "injected_axi_response": 0,
+            "r_stall_cycles": 0,
+            "status": "pass"
+          },
+          {
+            "ar_stall_cycles": 1,
+            "avalon128_beats": 3,
+            "avalon_bursts": 1,
+            "avalon_error_beats": 0,
+            "axi256_beats": 3,
+            "axi_bursts": 1,
+            "axi_transactions": [
+              {
+                "address": 2147483920,
+                "beats": 3,
+                "bytes_per_beat": 16
+              }
+            ],
+            "case": "upper-half-odd-three",
+            "injected_axi_response": 0,
+            "r_stall_cycles": 0,
+            "status": "pass"
+          },
+          {
+            "ar_stall_cycles": 1,
+            "avalon128_beats": 5,
+            "avalon_bursts": 1,
+            "avalon_error_beats": 0,
+            "axi256_beats": 5,
+            "axi_bursts": 1,
+            "axi_transactions": [
+              {
+                "address": 2147484160,
+                "beats": 5,
+                "bytes_per_beat": 16
+              }
+            ],
+            "case": "aligned-odd-five",
+            "injected_axi_response": 0,
+            "r_stall_cycles": 0,
+            "status": "pass"
+          },
+          {
+            "ar_stall_cycles": 1,
+            "avalon128_beats": 16,
+            "avalon_bursts": 1,
+            "avalon_error_beats": 0,
+            "axi256_beats": 16,
+            "axi_bursts": 1,
+            "axi_transactions": [
+              {
+                "address": 2147484432,
+                "beats": 16,
+                "bytes_per_beat": 16
+              }
+            ],
+            "case": "upper-half-sixteen",
+            "injected_axi_response": 0,
+            "r_stall_cycles": 0,
+            "status": "pass"
+          },
+          {
+            "ar_stall_cycles": 2,
+            "avalon128_beats": 17,
+            "avalon_bursts": 2,
+            "avalon_error_beats": 0,
+            "axi256_beats": 17,
+            "axi_bursts": 2,
+            "axi_transactions": [
+              {
+                "address": 2147484688,
+                "beats": 16,
+                "bytes_per_beat": 16
+              },
+              {
+                "address": 2147484944,
+                "beats": 1,
+                "bytes_per_beat": 16
+              }
+            ],
+            "case": "upper-half-seventeen",
+            "injected_axi_response": 0,
+            "r_stall_cycles": 0,
+            "status": "pass"
+          },
+          {
+            "ar_stall_cycles": 1,
+            "avalon128_beats": 3,
+            "avalon_bursts": 2,
+            "avalon_error_beats": 0,
+            "axi256_beats": 3,
+            "axi_bursts": 2,
+            "axi_transactions": [
+              {
+                "address": 2147487728,
+                "beats": 1,
+                "bytes_per_beat": 16
+              },
+              {
+                "address": 2147487744,
+                "beats": 2,
+                "bytes_per_beat": 16
+              }
+            ],
+            "case": "4k-upper-half-tail",
+            "injected_axi_response": 0,
+            "r_stall_cycles": 0,
+            "status": "pass"
+          },
+          {
+            "ar_stall_cycles": 2,
+            "avalon128_beats": 19,
+            "avalon_bursts": 2,
+            "avalon_error_beats": 0,
+            "axi256_beats": 19,
+            "axi_bursts": 2,
+            "axi_transactions": [
+              {
+                "address": 2147487696,
+                "beats": 3,
+                "bytes_per_beat": 16
+              },
+              {
+                "address": 2147487744,
+                "beats": 16,
+                "bytes_per_beat": 16
+              }
+            ],
+            "case": "4k-head-tail-nineteen",
+            "injected_axi_response": 0,
+            "r_stall_cycles": 0,
+            "status": "pass"
+          },
+          {
+            "ar_stall_cycles": 1,
+            "avalon128_beats": 3,
+            "avalon_bursts": 1,
+            "avalon_error_beats": 1,
+            "axi256_beats": 3,
+            "axi_bursts": 1,
+            "axi_transactions": [
+              {
+                "address": 2147484176,
+                "beats": 3,
+                "bytes_per_beat": 16
+              }
+            ],
+            "case": "slverr-upper-half",
+            "injected_axi_response": 2,
+            "r_stall_cycles": 0,
+            "status": "pass"
+          },
+          {
+            "ar_stall_cycles": 1,
+            "avalon128_beats": 3,
+            "avalon_bursts": 1,
+            "avalon_error_beats": 1,
+            "axi256_beats": 3,
+            "axi_bursts": 1,
+            "axi_transactions": [
+              {
+                "address": 2147484160,
+                "beats": 3,
+                "bytes_per_beat": 16
+              }
+            ],
+            "case": "decerr-aligned",
+            "injected_axi_response": 3,
+            "r_stall_cycles": 0,
+            "status": "pass"
+          }
+        ],
+        "qualification": "prior actual-generated-fabric simulation; exact114-source equality checked after this full compile, no hardware/DMA admission",
+        "receipt": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-hps-interface/out/de25-ddr-interconnect-8f54e4f89e-03/receipt.json",
+        "receipt_sha256": "e27005a6faa4f0fd013c51dbab5e96066b2ff0adfd63fd20987d681db1556b2b",
+        "source_count": 114,
+        "source_mismatches": []
+      },
+      "reused_video_simulation": {
+        "bench_sha256": "a279823936f4ca64f24d7d3d7e3c194b94578a449200146558e692c652b70ecd",
+        "boundary_models_sha256": "9d6b6251938e80c8398294d711898d73d53c8ea22400f7e63f34ee3c30704566",
+        "compiled_rtl_mismatches": [],
+        "executable_sha256": "5913cb139572366f2cde9612e7b6472b63e065e86eae4a039e30a752b5acc315",
+        "source_sha256": {
+          "fes_de25_top_reset.v": "02b156aa9c08bbe5e1e4244f6c068fcfba84ea96f4132624d14de4034e79ce8a",
+          "fes_menu_pattern_memory.v": "3a03c36b8a23d2205f5a10a3da052beb744c64ddb8dfe64e8de2a2e8ec49e7b3",
+          "fes_menu_reader_de25.v": "66d1db21705cd356121aacd2a0f0002f9e625533bc3661a9db473722178aabd6",
+          "fes_menu_video.v": "03e7bf254c1ecb58174d61fec01cf124a784b0c7b6867f043386d7c78d2b0c6b",
+          "video.v": "1b898350972bd3d5f445a31202cc15fd9d11d51b05ce03b27244413e88b36295"
+        }
+      },
+      "runtime_menu": false,
+      "source_binding": {
+        "captured_git_blob_count": 23,
+        "compiled_top_sha256": "61ff6573b1618a715d1c5259de6b0fc1588bfd2eca6d50f866f48572d8c161b0",
+        "copied_hps_mismatches": [],
+        "copied_video_rtl_sdc_mismatches": [],
+        "git_snapshot_mismatches": []
+      },
+      "sta": {
+        "all_slack_nonnegative": true,
+        "all_tns_zero": true,
+        "minima_ns": {
+          "Hold": 0.0,
+          "Minimum Pulse Width": 0.22,
+          "Recovery": 7.057,
+          "Removal": 0.031,
+          "Setup": 3.129
+        },
+        "row_count": 38,
+        "rows": [
+          {
+            "clock": "pll_inst|iopll_0_outclk0",
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": 3.129,
+            "tns_ns": 0.0,
+            "type": "Setup"
+          },
+          {
+            "clock": "fes_video_inst|video_clock|iopll_0_outclk0",
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": 9.858,
+            "tns_ns": 0.0,
+            "type": "Setup"
+          },
+          {
+            "clock": "altera_reserved_tck",
+            "corner": "Slow fix4 100C Model",
+            "slack_ns": 12.809,
+            "tns_ns": 0.0,
+            "type": "Setup"
+          },
+          {
+            "clock": "adv7513_config",
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": 16.686,
+            "tns_ns": 0.0,
+            "type": "Setup"
+          },
+          {
+            "clock": "fes_video_inst|video_clock|iopll_0_refclk",
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": 18.329,
+            "tns_ns": 0.0,
+            "type": "Setup"
+          },
+          {
+            "clock": "pll_inst|iopll_0_outclk0",
+            "corner": "Fast fix4 0C Model",
+            "slack_ns": 0.0,
+            "tns_ns": 0.0,
+            "type": "Hold"
+          },
+          {
+            "clock": "fes_video_inst|video_clock|iopll_0_outclk0",
+            "corner": "Fast fix4 0C Model",
+            "slack_ns": 0.094,
+            "tns_ns": 0.0,
+            "type": "Hold"
+          },
+          {
+            "clock": "altera_reserved_tck",
+            "corner": "Fast fix4 0C Model",
+            "slack_ns": 0.097,
+            "tns_ns": 0.0,
+            "type": "Hold"
+          },
+          {
+            "clock": "adv7513_config",
+            "corner": "Fast fix4 0C Model",
+            "slack_ns": 0.104,
+            "tns_ns": 0.0,
+            "type": "Hold"
+          },
+          {
+            "clock": "fes_video_inst|video_clock|iopll_0_refclk",
+            "corner": "Fast fix4 0C Model",
+            "slack_ns": 0.111,
+            "tns_ns": 0.0,
+            "type": "Hold"
+          },
+          {
+            "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0",
+            "corner": "Fast fix4 0C Model",
+            "slack_ns": 0.376,
+            "tns_ns": 0.0,
+            "type": "Hold"
+          },
+          {
+            "clock": "pll_inst|iopll_0_outclk0",
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": 7.057,
+            "tns_ns": 0.0,
+            "type": "Recovery"
+          },
+          {
+            "clock": "fes_video_inst|video_clock|iopll_0_refclk",
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": 18.097,
+            "tns_ns": 0.0,
+            "type": "Recovery"
+          },
+          {
+            "clock": "adv7513_config",
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": 18.323,
+            "tns_ns": 0.0,
+            "type": "Recovery"
+          },
+          {
+            "clock": "altera_reserved_tck",
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": 61.056,
+            "tns_ns": 0.0,
+            "type": "Recovery"
+          },
+          {
+            "clock": "adv7513_config",
+            "corner": "Fast fix4 0C Model",
+            "slack_ns": 0.031,
+            "tns_ns": 0.0,
+            "type": "Removal"
+          },
+          {
+            "clock": "pll_inst|iopll_0_outclk0",
+            "corner": "Fast fix4 0C Model",
+            "slack_ns": 0.159,
+            "tns_ns": 0.0,
+            "type": "Removal"
+          },
+          {
+            "clock": "altera_reserved_tck",
+            "corner": "Fast fix4 0C Model",
+            "slack_ns": 0.167,
+            "tns_ns": 0.0,
+            "type": "Removal"
+          },
+          {
+            "clock": "fes_video_inst|video_clock|iopll_0_refclk",
+            "corner": "Fast fix4 0C Model",
+            "slack_ns": 0.639,
+            "tns_ns": 0.0,
+            "type": "Removal"
+          },
+          {
+            "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_clk_periph_0",
+            "corner": "Slow fix4 100C Model",
+            "slack_ns": 0.22,
+            "tns_ns": 0.0,
+            "type": "Minimum Pulse Width"
+          },
+          {
+            "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_base_0",
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": 0.272,
+            "tns_ns": 0.0,
+            "type": "Minimum Pulse Width"
+          },
+          {
+            "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0",
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": 0.419,
+            "tns_ns": 0.0,
+            "type": "Minimum Pulse Width"
+          },
+          {
+            "clock": "EMIF_REF_CLOCK",
+            "corner": "Slow fix4 100C Model",
+            "slack_ns": 2.22,
+            "tns_ns": 0.0,
+            "type": "Minimum Pulse Width"
+          },
+          {
+            "clock": "pll_inst|iopll_0_outclk0",
+            "corner": "Slow fix4a 0C Model",
+            "slack_ns": 4.385,
+            "tns_ns": 0.0,
+            "type": "Minimum Pulse Width"
+          },
+          {
+            "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_rxclk_gated",
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": 4.905,
+            "tns_ns": 0.0,
+            "type": "Minimum Pulse Width"
+          },
+          {
+            "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_rxclk_gated",
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": 4.905,
+            "tns_ns": 0.0,
+            "type": "Minimum Pulse Width"
+          },
+          {
+            "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_rxclk_gated",
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": 4.905,
+            "tns_ns": 0.0,
+            "type": "Minimum Pulse Width"
+          },
+          {
+            "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_rxclk_gated",
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": 4.905,
+            "tns_ns": 0.0,
+            "type": "Minimum Pulse Width"
+          },
+          {
+            "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_rxclk_gated",
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": 4.905,
+            "tns_ns": 0.0,
+            "type": "Minimum Pulse Width"
+          },
+          {
+            "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_rxclk_gated",
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": 4.905,
+            "tns_ns": 0.0,
+            "type": "Minimum Pulse Width"
+          },
+          {
+            "clock": "fes_video_inst|video_clock|iopll_0_outclk0",
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": 5.861,
+            "tns_ns": 0.0,
+            "type": "Minimum Pulse Width"
+          },
+          {
+            "clock": "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0",
+            "corner": "Slow fix4 100C Model",
+            "slack_ns": 8.313,
+            "tns_ns": 0.0,
+            "type": "Minimum Pulse Width"
+          },
+          {
+            "clock": "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll|ref_clk0",
+            "corner": "Slow fix4a 0C Model",
+            "slack_ns": 8.583,
+            "tns_ns": 0.0,
+            "type": "Minimum Pulse Width"
+          },
+          {
+            "clock": "pll_inst|iopll_0_refclk",
+            "corner": "Slow fix4 100C Model",
+            "slack_ns": 9.231,
+            "tns_ns": 0.0,
+            "type": "Minimum Pulse Width"
+          },
+          {
+            "clock": "fes_video_inst|video_clock|iopll_0_refclk",
+            "corner": "Slow fix4a 0C Model",
+            "slack_ns": 9.591,
+            "tns_ns": 0.0,
+            "type": "Minimum Pulse Width"
+          },
+          {
+            "clock": "altera_reserved_tck",
+            "corner": "Slow fix4 100C Model",
+            "slack_ns": 28.581,
+            "tns_ns": 0.0,
+            "type": "Minimum Pulse Width"
+          },
+          {
+            "clock": "fes_video_inst|video_clock|iopll_0_n_cnt_clk",
+            "corner": "Slow fix4 100C Model",
+            "slack_ns": 49.563,
+            "tns_ns": 0.0,
+            "type": "Minimum Pulse Width"
+          },
+          {
+            "clock": "adv7513_config",
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": 50018.636,
+            "tns_ns": 0.0,
+            "type": "Minimum Pulse Width"
+          }
+        ]
+      },
+      "timing_acceptance": "not-qualified",
+      "tool_version": "Quartus Prime Shell\nVersion 26.3.0 Build 114 10/14/2026 SC Pro Edition\nCopyright (C) 2026  Altera Corporation. All rights reserved.",
+      "unconstrained_input_ports": [
+        {
+          "Comment": "No input delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Input Port": "HDMI_I2C_SDA"
+        },
+        {
+          "Comment": "No input delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Input Port": "HDMI_TX_INT"
+        }
+      ],
+      "unconstrained_output_ports": [
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_CLK"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_VS"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_HS"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[0]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[1]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[2]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[3]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[4]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[5]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[6]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[7]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[8]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[9]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[10]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[11]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[12]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[13]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[14]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[15]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[16]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[17]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[18]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[19]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[20]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[21]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[22]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[23]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_DE"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_I2C_SCL"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_I2C_SDA"
+        }
+      ],
+      "video_fitted_ram": [
+        {
+          "Clock Mode": "Single Clock",
+          "ECC Mode": "Off",
+          "ECC Pipeline Registers": "No",
+          "Fits in MLABs": "Yes",
+          "Implementation Bits": "24576",
+          "Implementation Port A Depth": "256",
+          "Implementation Port A Width": "96",
+          "Implementation Port B Depth": "256",
+          "Implementation Port B Width": "96",
+          "Location": "M20K_X116_Y14_N0, M20K_X116_Y13_N0, M20K_X116_Y15_N0",
+          "Logical Size": "24576",
+          "M20K blocks": "3.000",
+          "MIF": "None",
+          "MLABs": "0.000",
+          "Mixed Port RDW Mode": "Old data",
+          "Mode": "Simple Dual Port",
+          "Name": "fes_video_inst|menu.scanout|reader|fifo_rtl_0|auto_generated|altera_syncram_impl1|ALTERA_SYNCRAM",
+          "Performance Mode": "High Speed",
+          "Port A Depth": "256",
+          "Port A Input Registers": "yes",
+          "Port A Output Registers": "no",
+          "Port A RDW Mode": "New data",
+          "Port A Width": "96",
+          "Port B Depth": "256",
+          "Port B Input Registers": "yes",
+          "Port B Output Registers": "no",
+          "Port B RDW Mode": "New data",
+          "Port B Width": "96",
+          "Type": "M20K"
+        }
+      ],
+      "warm_reset_ack_n": "explicit constant1 (inactive); no global drain/reset acknowledgement or grant lifetime admission"
+    },
+    {
+      "artifact": {
+        "matches_build_receipt": true,
+        "path": "hps/project/output_files/golden_top.sof",
+        "sha256": "f479941844f2d9eb5db36a42dbf0a96d07e2f8c9e565b2fba818d579ed26db86"
+      },
+      "baseline_clock_comparison": {
+        "added_clocks": [
+          {
+            "frequency": "0.01 MHz",
+            "master": "fes_video_inst|video_clock|iopll_0_refclk",
+            "name": "adv7513_config",
+            "period_ns": "100040.000",
+            "source": "CLOCK0_50",
+            "targets": "{ fes_video_inst|hdmi_config|mI2C_CTRL_CLK }",
+            "type": "Generated"
+          },
+          {
+            "frequency": "10.0 MHz",
+            "master": "fes_video_inst|video_clock|iopll_0_n_cnt_clk",
+            "name": "fes_video_inst|video_clock|iopll_0_m_cnt_clk",
+            "period_ns": "100.000",
+            "source": "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll~ncntr_reg",
+            "targets": "{ fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll~mcntr_reg }",
+            "type": "Generated"
+          },
+          {
+            "frequency": "10.0 MHz",
+            "master": "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll|ref_clk0",
+            "name": "fes_video_inst|video_clock|iopll_0_n_cnt_clk",
+            "period_ns": "100.000",
+            "source": "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll|ref_clk0",
+            "targets": "{ fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll~ncntr_reg }",
+            "type": "Generated"
+          },
+          {
+            "frequency": "74.25 MHz",
+            "master": "fes_video_inst|video_clock|iopll_0_n_cnt_clk",
+            "name": "fes_video_inst|video_clock|iopll_0_outclk0",
+            "period_ns": "13.468",
+            "source": "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll~ncntr_reg",
+            "targets": "{ fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll|out_clk[0] }",
+            "type": "Generated"
+          },
+          {
+            "frequency": "50.0 MHz",
+            "master": "",
+            "name": "fes_video_inst|video_clock|iopll_0_refclk",
+            "period_ns": "20.000",
+            "source": "",
+            "targets": "{ CLOCK0_50 }",
+            "type": "Base"
+          },
+          {
+            "frequency": "50.0 MHz",
+            "master": "fes_video_inst|video_clock|iopll_0_refclk",
+            "name": "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll|ref_clk0",
+            "period_ns": "20.000",
+            "source": "CLOCK0_50",
+            "targets": "{ fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll|ref_clk0 }",
+            "type": "Generated"
+          }
+        ],
+        "baseline_coverage": [
+          {
+            "Hold": "0",
+            "Property": "Illegal Clocks",
+            "Setup": "0"
+          },
+          {
+            "Hold": "0",
+            "Property": "Unconstrained Clocks",
+            "Setup": "0"
+          },
+          {
+            "Hold": "0",
+            "Property": "Unconstrained Input Ports",
+            "Setup": "0"
+          },
+          {
+            "Hold": "0",
+            "Property": "Paths from Unconstrained Input Ports (Pairs-Only)",
+            "Setup": "0"
+          },
+          {
+            "Hold": "0",
+            "Property": "Unconstrained Output Ports",
+            "Setup": "0"
+          },
+          {
+            "Hold": "0",
+            "Property": "Paths to Unconstrained Output Ports (Pairs-Only)",
+            "Setup": "0"
+          }
+        ],
+        "clock_count": 35,
+        "final_clock_count": 41,
+        "missing_or_changed_baseline_clocks": [],
+        "output": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-hps-interface/out/de25-ddr-probe-8f54e4f89e",
+        "preserved_clock_identities": [
+          "altera_reserved_tck",
+          "EMIF_REF_CLOCK",
+          "internal_clk",
+          "pll_inst|iopll_0_m_cnt_clk",
+          "pll_inst|iopll_0_n_cnt_clk",
+          "pll_inst|iopll_0_outclk0",
+          "pll_inst|iopll_0_refclk",
+          "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_c0_cntr_0",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_c1_cntr_0",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_byte_rx_gated",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_rxclk_gated",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_byte_rx_gated",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_rxclk_gated",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_byte_rx_gated",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_rxclk_gated",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_byte_rx_gated",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_rxclk_gated",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_byte_rx_gated",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_rxclk_gated",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_byte_rx_gated",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_rxclk_gated",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[0]_in",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[0]_nff",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[1]_in",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[1]_nff",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[2]_in",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[2]_nff",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[3]_in",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[3]_nff",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_sync_0",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_pll_ncntr",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_base_0",
+          "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_clk_periph_0"
+        ],
+        "producer_revision": "8f54e4f89e5b12ae18df70c542bc5846d0452ce6"
+      },
+      "baseline_failed_rule_detail_identity": {
+        "LNT-30023": true,
+        "RDC-50003": true,
+        "RES-50101": true
+      },
+      "bindings": {
+        "boot_handoff_sha256": "d2a479eefd310505d9426efaf3bf81b1b2e95cc75e1ff3e5f1626fda3e43f81b",
+        "build_receipt_sha256": "88ba9a9cf35735043d28a238126b8a208710d32655452f0c2079e73bece8ef69",
+        "final_report_sha256": {
+          "golden_top.fit.rpt": "57dd690be89c556597d3f6ae3ecd9ebf0528004e8679629e08d429c45d97a064",
+          "golden_top.fit.summary": "df767c8ca03d06ea44bb114964107d90e137288b43a3647e1842fc5501ee3bcc",
+          "golden_top.pin": "9d0a0fa7a8dbd773bea3340d25a16ce9eb43fe1214e20d1ccce2cd470c8348c6",
+          "golden_top.sta.rpt": "088a83bbc7fba281d515bcc1ba5cad76d43b57231eb0f6086c7869d5598da0bc",
+          "golden_top.sta.summary": "b3301874422f7a6a414fdf0a59d484ccbbefbd2074f270ca92d075344e9208d1",
+          "golden_top.syn.rpt": "fc214af9344eb22f4d6281e51133221931641ff4366e267b0aa80ebd4588b67a",
+          "golden_top.tq.drc.signoff.rpt": "1acb5420941a464e70309fbd8132d6a11e35d29a0726d1dab8a247d3c68046dd"
+        },
+        "generation_sha256": "3b10af749b23edc7da3e95f0d79e548a2da7b0c5a2f3de6903d94cc6977084ef",
+        "handoff_and_sdc_manifest_count": 363,
+        "handoff_and_sdc_mismatches": [],
+        "inputs_sha256": "ac6ca5864904b2868e47032a697da27968effe8ff86e60f0e7be62ebb6c107b1",
+        "report_manifest_count": 19,
+        "report_mismatches": [],
+        "snapshot_sha256": "16fc80d3e9da78e8fba28ee4a1b6e396cd2583273ff7e67d564c64c09839d2b2",
+        "top_handoff_sha256": "360d5f4c95c9723011c32ca4fa96dfe5c47f42540517eca56270edbd093d159e"
+      },
+      "boot_firmware_compatibility": "not-qualified",
+      "boot_handoff_matches_baseline": true,
+      "clock_status": [
+        {
+          "Clock": "fes_video_inst|video_clock|iopll_0_refclk",
+          "Status": "Constrained",
+          "Target": "CLOCK0_50",
+          "Type": "Base"
+        },
+        {
+          "Clock": "pll_inst|iopll_0_refclk",
+          "Status": "Constrained",
+          "Target": "CLOCK2_50",
+          "Type": "Base"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[0]_in",
+          "Status": "Constrained",
+          "Target": "LPDDR4A_DQS[0]",
+          "Type": "Base"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[1]_in",
+          "Status": "Constrained",
+          "Target": "LPDDR4A_DQS[1]",
+          "Type": "Base"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[2]_in",
+          "Status": "Constrained",
+          "Target": "LPDDR4A_DQS[2]",
+          "Type": "Base"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[3]_in",
+          "Status": "Constrained",
+          "Target": "LPDDR4A_DQS[3]",
+          "Type": "Base"
+        },
+        {
+          "Clock": "EMIF_REF_CLOCK",
+          "Status": "Constrained",
+          "Target": "LPDDR4A_REFCLK_p",
+          "Type": "Base"
+        },
+        {
+          "Clock": "altera_reserved_tck",
+          "Status": "Constrained",
+          "Target": "altera_reserved_tck",
+          "Type": "Base"
+        },
+        {
+          "Clock": "internal_clk",
+          "Status": "Constrained",
+          "Target": "auto_fab_0|alt_sld_fab_0|alt_sld_fab_0|configresetfabric|conf_reset_src|ag.sdm_gpo_out_user_reset~internal_ctrl_clock.reg",
+          "Type": "Base"
+        },
+        {
+          "Clock": "adv7513_config",
+          "Status": "Constrained",
+          "Target": "fes_video_inst|hdmi_config|mI2C_CTRL_CLK",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "fes_video_inst|video_clock|iopll_0_outclk0",
+          "Status": "Constrained",
+          "Target": "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll|out_clk[0]",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll|ref_clk0",
+          "Status": "Constrained",
+          "Target": "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll|ref_clk0",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "fes_video_inst|video_clock|iopll_0_m_cnt_clk",
+          "Status": "Constrained",
+          "Target": "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll~mcntr_reg",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "fes_video_inst|video_clock|iopll_0_n_cnt_clk",
+          "Status": "Constrained",
+          "Target": "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll~ncntr_reg",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "pll_inst|iopll_0_outclk0",
+          "Status": "Constrained",
+          "Target": "pll_inst|iopll_0|tennm_ph2_iopll|out_clk[0]",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0",
+          "Status": "Constrained",
+          "Target": "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "pll_inst|iopll_0_m_cnt_clk",
+          "Status": "Constrained",
+          "Target": "pll_inst|iopll_0|tennm_ph2_iopll~mcntr_reg",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "pll_inst|iopll_0_n_cnt_clk",
+          "Status": "Constrained",
+          "Target": "pll_inst|iopll_0|tennm_ph2_iopll~ncntr_reg",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_rxclk_gated",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[0].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+          "Type": "Base"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_byte_rx_gated",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[0].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[0]_nff",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[0].wrapper_byte|gen_used_byte.u_byte~dqsn0_0_reg__nff",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_rxclk_gated",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[1].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+          "Type": "Base"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_byte_rx_gated",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[1].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[1]_nff",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[1].wrapper_byte|gen_used_byte.u_byte~dqsn0_0_reg__nff",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_rxclk_gated",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[2].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+          "Type": "Base"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_byte_rx_gated",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[2].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_rxclk_gated",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[3].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+          "Type": "Base"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_byte_rx_gated",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[3].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_rxclk_gated",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[6].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+          "Type": "Base"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_byte_rx_gated",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[6].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[2]_nff",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[6].wrapper_byte|gen_used_byte.u_byte~dqsn0_0_reg__nff",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_rxclk_gated",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[7].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+          "Type": "Base"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_byte_rx_gated",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[7].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[3]_nff",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[7].wrapper_byte|gen_used_byte.u_byte~dqsn0_0_reg__nff",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll|out_clk_periph0",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_sync_0",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll|out_clk_periph1",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_clk_periph_0",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll|vco_clk_periph",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_c0_cntr_0",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~c0cntr_reg",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_c1_cntr_0",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~c1cntr_reg",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_pll_ncntr",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~ncntr_reg",
+          "Type": "Generated"
+        },
+        {
+          "Clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_base_0",
+          "Status": "Constrained",
+          "Target": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~vcoph[0]",
+          "Type": "Generated"
+        }
+      ],
+      "clocks": [
+        {
+          "frequency": "0.01 MHz",
+          "master": "fes_video_inst|video_clock|iopll_0_refclk",
+          "name": "adv7513_config",
+          "period_ns": "100040.000",
+          "source": "CLOCK0_50",
+          "targets": "{ fes_video_inst|hdmi_config|mI2C_CTRL_CLK }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "16.0 MHz",
+          "master": "",
+          "name": "altera_reserved_tck",
+          "period_ns": "62.500",
+          "source": "",
+          "targets": "{ altera_reserved_tck }",
+          "type": "Base"
+        },
+        {
+          "frequency": "166.67 MHz",
+          "master": "",
+          "name": "EMIF_REF_CLOCK",
+          "period_ns": "6.000",
+          "source": "",
+          "targets": "{ LPDDR4A_REFCLK_p }",
+          "type": "Base"
+        },
+        {
+          "frequency": "10.0 MHz",
+          "master": "fes_video_inst|video_clock|iopll_0_n_cnt_clk",
+          "name": "fes_video_inst|video_clock|iopll_0_m_cnt_clk",
+          "period_ns": "100.000",
+          "source": "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll~ncntr_reg",
+          "targets": "{ fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll~mcntr_reg }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "10.0 MHz",
+          "master": "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll|ref_clk0",
+          "name": "fes_video_inst|video_clock|iopll_0_n_cnt_clk",
+          "period_ns": "100.000",
+          "source": "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll|ref_clk0",
+          "targets": "{ fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll~ncntr_reg }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "74.25 MHz",
+          "master": "fes_video_inst|video_clock|iopll_0_n_cnt_clk",
+          "name": "fes_video_inst|video_clock|iopll_0_outclk0",
+          "period_ns": "13.468",
+          "source": "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll~ncntr_reg",
+          "targets": "{ fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll|out_clk[0] }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "50.0 MHz",
+          "master": "",
+          "name": "fes_video_inst|video_clock|iopll_0_refclk",
+          "period_ns": "20.000",
+          "source": "",
+          "targets": "{ CLOCK0_50 }",
+          "type": "Base"
+        },
+        {
+          "frequency": "50.0 MHz",
+          "master": "fes_video_inst|video_clock|iopll_0_refclk",
+          "name": "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll|ref_clk0",
+          "period_ns": "20.000",
+          "source": "CLOCK0_50",
+          "targets": "{ fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll|ref_clk0 }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "100.0 MHz",
+          "master": "",
+          "name": "internal_clk",
+          "period_ns": "10.000",
+          "source": "",
+          "targets": "{ auto_fab_0|alt_sld_fab_0|alt_sld_fab_0|configresetfabric|conf_reset_src|ag.sdm_gpo_out_user_reset~internal_ctrl_clock.reg }",
+          "type": "Base"
+        },
+        {
+          "frequency": "50.0 MHz",
+          "master": "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0",
+          "name": "pll_inst|iopll_0_m_cnt_clk",
+          "period_ns": "20.000",
+          "source": "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0",
+          "targets": "{ pll_inst|iopll_0|tennm_ph2_iopll~mcntr_reg }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "50.0 MHz",
+          "master": "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0",
+          "name": "pll_inst|iopll_0_n_cnt_clk",
+          "period_ns": "20.000",
+          "source": "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0",
+          "targets": "{ pll_inst|iopll_0|tennm_ph2_iopll~ncntr_reg }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "100.0 MHz",
+          "master": "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0",
+          "name": "pll_inst|iopll_0_outclk0",
+          "period_ns": "10.000",
+          "source": "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0",
+          "targets": "{ pll_inst|iopll_0|tennm_ph2_iopll|out_clk[0] }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "50.0 MHz",
+          "master": "",
+          "name": "pll_inst|iopll_0_refclk",
+          "period_ns": "20.000",
+          "source": "",
+          "targets": "{ CLOCK2_50 }",
+          "type": "Base"
+        },
+        {
+          "frequency": "50.0 MHz",
+          "master": "pll_inst|iopll_0_refclk",
+          "name": "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0",
+          "period_ns": "20.000",
+          "source": "CLOCK2_50",
+          "targets": "{ pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0 }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "666.67 MHz",
+          "master": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_base_0",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_c0_cntr_0",
+          "period_ns": "1.500",
+          "source": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~vcoph[0]",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~c0cntr_reg }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "166.67 MHz",
+          "master": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_base_0",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_c1_cntr_0",
+          "period_ns": "6.000",
+          "source": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~vcoph[0]",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~c1cntr_reg }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "100.0 MHz",
+          "master": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_rxclk_gated",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_byte_rx_gated",
+          "period_ns": "10.000",
+          "source": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[0].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[0].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "100.0 MHz",
+          "master": "",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_rxclk_gated",
+          "period_ns": "10.000",
+          "source": "",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[0].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated }",
+          "type": "Base"
+        },
+        {
+          "frequency": "100.0 MHz",
+          "master": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_rxclk_gated",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_byte_rx_gated",
+          "period_ns": "10.000",
+          "source": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[1].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[1].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "100.0 MHz",
+          "master": "",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_rxclk_gated",
+          "period_ns": "10.000",
+          "source": "",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[1].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated }",
+          "type": "Base"
+        },
+        {
+          "frequency": "100.0 MHz",
+          "master": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_rxclk_gated",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_byte_rx_gated",
+          "period_ns": "10.000",
+          "source": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[2].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[2].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "100.0 MHz",
+          "master": "",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_rxclk_gated",
+          "period_ns": "10.000",
+          "source": "",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[2].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated }",
+          "type": "Base"
+        },
+        {
+          "frequency": "100.0 MHz",
+          "master": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_rxclk_gated",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_byte_rx_gated",
+          "period_ns": "10.000",
+          "source": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[3].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[3].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "100.0 MHz",
+          "master": "",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_rxclk_gated",
+          "period_ns": "10.000",
+          "source": "",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[3].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated }",
+          "type": "Base"
+        },
+        {
+          "frequency": "100.0 MHz",
+          "master": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_rxclk_gated",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_byte_rx_gated",
+          "period_ns": "10.000",
+          "source": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[6].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[6].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "100.0 MHz",
+          "master": "",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_rxclk_gated",
+          "period_ns": "10.000",
+          "source": "",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[6].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated }",
+          "type": "Base"
+        },
+        {
+          "frequency": "100.0 MHz",
+          "master": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_rxclk_gated",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_byte_rx_gated",
+          "period_ns": "10.000",
+          "source": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[7].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[7].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "100.0 MHz",
+          "master": "",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_rxclk_gated",
+          "period_ns": "10.000",
+          "source": "",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[7].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated }",
+          "type": "Base"
+        },
+        {
+          "frequency": "1333.0 MHz",
+          "master": "",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[0]_in",
+          "period_ns": "0.750",
+          "source": "",
+          "targets": "{ LPDDR4A_DQS[0] }",
+          "type": "Base"
+        },
+        {
+          "frequency": "1333.0 MHz",
+          "master": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[0]_in",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[0]_nff",
+          "period_ns": "0.750",
+          "source": "LPDDR4A_DQS[0]",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[0].wrapper_byte|gen_used_byte.u_byte~dqsn0_0_reg__nff }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "1333.0 MHz",
+          "master": "",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[1]_in",
+          "period_ns": "0.750",
+          "source": "",
+          "targets": "{ LPDDR4A_DQS[1] }",
+          "type": "Base"
+        },
+        {
+          "frequency": "1333.0 MHz",
+          "master": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[1]_in",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[1]_nff",
+          "period_ns": "0.750",
+          "source": "LPDDR4A_DQS[1]",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[1].wrapper_byte|gen_used_byte.u_byte~dqsn0_0_reg__nff }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "1333.0 MHz",
+          "master": "",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[2]_in",
+          "period_ns": "0.750",
+          "source": "",
+          "targets": "{ LPDDR4A_DQS[2] }",
+          "type": "Base"
+        },
+        {
+          "frequency": "1333.0 MHz",
+          "master": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[2]_in",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[2]_nff",
+          "period_ns": "0.750",
+          "source": "LPDDR4A_DQS[2]",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[6].wrapper_byte|gen_used_byte.u_byte~dqsn0_0_reg__nff }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "1333.0 MHz",
+          "master": "",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[3]_in",
+          "period_ns": "0.750",
+          "source": "",
+          "targets": "{ LPDDR4A_DQS[3] }",
+          "type": "Base"
+        },
+        {
+          "frequency": "1333.0 MHz",
+          "master": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[3]_in",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[3]_nff",
+          "period_ns": "0.750",
+          "source": "LPDDR4A_DQS[3]",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[7].wrapper_byte|gen_used_byte.u_byte~dqsn0_0_reg__nff }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "666.67 MHz",
+          "master": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_c0_cntr_0",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0",
+          "period_ns": "1.500",
+          "source": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~c0cntr_reg",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll|out_clk_periph0 }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "166.67 MHz",
+          "master": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_c1_cntr_0",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_sync_0",
+          "period_ns": "6.000",
+          "source": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~c1cntr_reg",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll|out_clk_periph1 }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "166.67 MHz",
+          "master": "EMIF_REF_CLOCK",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_pll_ncntr",
+          "period_ns": "6.000",
+          "source": "LPDDR4A_REFCLK_p",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~ncntr_reg }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "1333.33 MHz",
+          "master": "EMIF_REF_CLOCK",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_base_0",
+          "period_ns": "0.750",
+          "source": "LPDDR4A_REFCLK_p",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll~vcoph[0] }",
+          "type": "Generated"
+        },
+        {
+          "frequency": "1333.33 MHz",
+          "master": "EMIF_REF_CLOCK",
+          "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_clk_periph_0",
+          "period_ns": "0.750",
+          "source": "LPDDR4A_REFCLK_p",
+          "targets": "{ soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_pll|pll|vco_clk_periph }",
+          "type": "Generated"
+        }
+      ],
+      "closure": [
+        {
+          "Panel Name": "Design Closure Summary",
+          "Result Flag": "Fail"
+        },
+        {
+          "Panel Name": "Timing Closure",
+          "Result Flag": "Pass"
+        },
+        {
+          "Panel Name": "Setup Summary",
+          "Result Flag": "Pass"
+        },
+        {
+          "Panel Name": "Hold Summary",
+          "Result Flag": "Pass"
+        },
+        {
+          "Panel Name": "Recovery Summary",
+          "Result Flag": "Pass"
+        },
+        {
+          "Panel Name": "Removal Summary",
+          "Result Flag": "Pass"
+        },
+        {
+          "Panel Name": "Setup Data Delay Summary",
+          "Result Flag": "Not Found"
+        },
+        {
+          "Panel Name": "Recovery Data Delay Summary",
+          "Result Flag": "Not Found"
+        },
+        {
+          "Panel Name": "Minimum Pulse Width Summary",
+          "Result Flag": "Pass"
+        },
+        {
+          "Panel Name": "Max Skew Summary",
+          "Result Flag": "Not Found"
+        },
+        {
+          "Panel Name": "Max Clock Skew Summary",
+          "Result Flag": "Not Found"
+        },
+        {
+          "Panel Name": "Net Delay Summary",
+          "Result Flag": "Not Found"
+        },
+        {
+          "Panel Name": "Metastability Summary",
+          "Result Flag": "Pass"
+        },
+        {
+          "Panel Name": "Double Data Rate (DDR) Summary",
+          "Result Flag": "Not Found"
+        },
+        {
+          "Panel Name": "Transmitter Channel-to-Channel Skew (TCCS) Summary",
+          "Result Flag": "Not Found"
+        },
+        {
+          "Panel Name": "Receiver Input Skew Margin (RSKM) Summary",
+          "Result Flag": "Not Found"
+        },
+        {
+          "Panel Name": "Design Assistant Summary",
+          "Result Flag": "High Severity Violations"
+        },
+        {
+          "Panel Name": "Unconstrained Paths",
+          "Result Flag": "Fail"
+        }
+      ],
+      "command": [
+        "/data/altera_pro/26.3/quartus/bin/quartus_sh",
+        "--flow",
+        "compile",
+        "golden_top"
+      ],
+      "compile": {
+        "errors": 0,
+        "warnings": 303
+      },
+      "coverage": [
+        {
+          "Hold": "0",
+          "Property": "Illegal Clocks",
+          "Setup": "0"
+        },
+        {
+          "Hold": "0",
+          "Property": "Unconstrained Clocks",
+          "Setup": "0"
+        },
+        {
+          "Hold": "2",
+          "Property": "Unconstrained Input Ports",
+          "Setup": "2"
+        },
+        {
+          "Hold": "9",
+          "Property": "Paths from Unconstrained Input Ports (Pairs-Only)",
+          "Setup": "9"
+        },
+        {
+          "Hold": "30",
+          "Property": "Unconstrained Output Ports",
+          "Setup": "30"
+        },
+        {
+          "Hold": "921",
+          "Property": "Paths to Unconstrained Output Ports (Pairs-Only)",
+          "Setup": "921"
+        }
+      ],
+      "ddr_scanout": false,
+      "design_assistant": {
+        "failed": [
+          {
+            "name": "Missing Output Delay Constraint",
+            "rule": "TMC-20012",
+            "severity": "High",
+            "violations": 30,
+            "waived": 0
+          },
+          {
+            "name": "Missing Input Delay Constraint",
+            "rule": "TMC-20011",
+            "severity": "High",
+            "violations": 2,
+            "waived": 0
+          },
+          {
+            "name": "Reset Nets with Polarity Conflict",
+            "rule": "LNT-30023",
+            "severity": "Medium",
+            "violations": 1,
+            "waived": 0
+          },
+          {
+            "name": "Multiple Asynchronous Reset Synchronizers in the Same Clock Domain",
+            "rule": "RDC-50003",
+            "severity": "Medium",
+            "violations": 1,
+            "waived": 0
+          },
+          {
+            "name": "Intra-Clock False Path Reset Synchronizer",
+            "rule": "RES-50101",
+            "severity": "Low",
+            "violations": 2,
+            "waived": 0
+          }
+        ],
+        "rule_count": 85,
+        "waived_total": 0
+      },
+      "dma_admission": "not-qualified",
+      "failed_rule_details": {
+        "LNT-30023": [
+          {
+            "Driver": "soc_inst|mm_interconnect_0|limiter_pipeline|gen_inst[0].core|data1[40]",
+            "Inverted Signal": "soc_inst|mm_interconnect_0|mux_pipeline|gen_inst[1].core|data0[0]|SCLR",
+            "Non-Inverted Signal": "soc_inst|mm_interconnect_0|mux_pipeline|gen_inst[0].core|data0[0]|SCLR",
+            "Number of Inverted Signals": "128",
+            "Number of Non-Inverted Signals": "128",
+            "Waived": ""
+          }
+        ],
+        "RDC-50003": [
+          {
+            "Number of Reset Chains": "12",
+            "Reset Chain Register Heads": "fes_top_reset_inst|sync_regs[0]   soc_inst|subsys_periph|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]   soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]   soc_inst|subsys_debug|hps_f2sdram|altera_jtag_avalon_master_inst|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]   soc_inst|subsys_debug|hps_m|altera_jtag_avalon_master_inst|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]   soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|sink_crosser|alt_rst_req_sync_in_rst|altera_reset_synchronizer_int_chain[1]   soc_inst|subsys_debug|hps_f2sdram|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|sink_crosser|alt_rst_req_sync_in_rst|altera_reset_synchronizer_int_chain[1]   soc_inst|subsys_debug|hps_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|sink_crosser|alt_rst_req_sync_in_rst|altera_reset_synchronizer_int_chain[1]   soc_inst|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]   soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n_synchronizer|din_s1   soc_inst|subsys_debug|hps_f2sdram|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n_synchronizer|din_s1   soc_inst|subsys_debug|hps_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n_synchronizer|din_s1",
+            "Reset Clock Domain": "pll_inst|iopll_0_outclk0",
+            "Reset Sources": "pll_inst|iopll_0|tennm_ph2_iopll~pll_ctrl_reg   auto_fab_0|alt_sld_fab_0|alt_sld_fab_0|configresetfabric|conf_reset_src|ag.sdm_gpo_out_user_reset~internal_ctrl_clock.reg   fes_top_reset_inst|sync_regs[1]   soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|synchronizer|dreg[1]   soc_inst|subsys_debug|hps_f2sdram|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|synchronizer|dreg[1]   soc_inst|subsys_debug|hps_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|synchronizer|dreg[1]   soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n   soc_inst|subsys_debug|hps_f2sdram|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n   soc_inst|subsys_debug|hps_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n",
+            "Waived": ""
+          }
+        ],
+        "RES-50101": [
+          {
+            "From": "fes_top_reset_inst|sync_regs[1]",
+            "From/To Clock": "pll_inst|iopll_0_outclk0",
+            "To": "soc_inst|subsys_periph|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]",
+            "Waived": ""
+          },
+          {
+            "From": "fes_top_reset_inst|sync_regs[1]",
+            "From/To Clock": "pll_inst|iopll_0_outclk0",
+            "To": "soc_inst|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]",
+            "Waived": ""
+          }
+        ],
+        "TMC-20011": [
+          {
+            "Port": "HDMI_I2C_SDA",
+            "Reason": "No input delay was set on the input port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_INT",
+            "Reason": "No input delay was set on the input port.",
+            "Waived": ""
+          }
+        ],
+        "TMC-20012": [
+          {
+            "Port": "LED[7]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[6]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[7]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[8]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[9]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[10]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[11]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[12]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[13]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[14]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[15]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_HS",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[16]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[17]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[18]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[19]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[20]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[21]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[22]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[23]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_DE",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_I2C_SCL",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_VS",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_I2C_SDA",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[0]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[1]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[2]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[3]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[4]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          },
+          {
+            "Port": "HDMI_TX_D[5]",
+            "Reason": "No output delay was set on the output port.",
+            "Waived": ""
+          }
+        ]
+      },
+      "fit": {
+        "Device": "A5EB013BB23BE4SCS",
+        "Device Status": "Final",
+        "Family": "Agilex 5",
+        "Fitter Status": "Successful - Wed Oct 28 19:00:35 2026",
+        "Logic utilization (in ALMs)": "11,152 / 46,800 ( 24 % )",
+        "Power Models": "Final",
+        "Quartus Prime Version": "26.3.0 Build 114 10/14/2026 SC Pro Edition",
+        "Revision Name": "golden_top",
+        "Timing Models": "Final",
+        "Top-level Entity Name": "golden_top",
+        "Total DSP Blocks": "0 / 188 ( 0 % )",
+        "Total HSSI HPS": "1 / 1 ( 100 % )",
+        "Total PLLs": "3 / 11 ( 27 % )",
+        "Total RAM Blocks": "131 / 358 ( 37 % )",
+        "Total block memory bits": "2,098,688 / 7,331,840 ( 29 % )",
+        "Total dedicated logic registers": "21832",
+        "Total pins": "284 / 351 ( 81 % )"
+      },
+      "fitted_display_pins": {
+        "CLOCK0_50": {
+          "bank": "2A_T",
+          "direction": "input",
+          "io_standard": "1.1-V",
+          "location": "DJ35",
+          "voltage": "1.1V"
+        },
+        "HDMI_I2C_SCL": {
+          "bank": "6F",
+          "direction": "bidir",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "BT1",
+          "voltage": "3.3V"
+        },
+        "HDMI_I2C_SDA": {
+          "bank": "6F",
+          "direction": "bidir",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "BW2",
+          "voltage": "3.3V"
+        },
+        "HDMI_I2S": {
+          "bank": "6F",
+          "direction": "bidir",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "CB2",
+          "voltage": "3.3V"
+        },
+        "HDMI_LRCLK": {
+          "bank": "6F",
+          "direction": "bidir",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "BR6",
+          "voltage": "3.3V"
+        },
+        "HDMI_MCLK": {
+          "bank": "6F",
+          "direction": "bidir",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "CF1",
+          "voltage": "3.3V"
+        },
+        "HDMI_SCLK": {
+          "bank": "6F",
+          "direction": "bidir",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "BW1",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_CLK": {
+          "bank": "2A_T",
+          "direction": "output",
+          "io_standard": "1.1-V",
+          "location": "DJ24",
+          "voltage": "1.1V"
+        },
+        "HDMI_TX_DE": {
+          "bank": "6F",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "CJ2",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[0]": {
+          "bank": "6E",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "AV19",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[10]": {
+          "bank": "6E",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "BE19",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[11]": {
+          "bank": "6E",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "BH14",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[12]": {
+          "bank": "6F",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "BV6",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[13]": {
+          "bank": "6E",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "BJ23",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[14]": {
+          "bank": "6F",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "BV4",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[15]": {
+          "bank": "6E",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "BU23",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[16]": {
+          "bank": "6E",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "BH16",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[17]": {
+          "bank": "6F",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "DA1",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[18]": {
+          "bank": "6E",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "BH19",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[19]": {
+          "bank": "6F",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "CP2",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[1]": {
+          "bank": "6E",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "AT11",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[20]": {
+          "bank": "6F",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "CM1",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[21]": {
+          "bank": "6F",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "DA2",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[22]": {
+          "bank": "6F",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "CP1",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[23]": {
+          "bank": "6F",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "CU2",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[2]": {
+          "bank": "6E",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "BE11",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[3]": {
+          "bank": "6E",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "AV14",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[4]": {
+          "bank": "6E",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "AT19",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[5]": {
+          "bank": "6E",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "AT14",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[6]": {
+          "bank": "6E",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "AV16",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[7]": {
+          "bank": "6E",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "AV11",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[8]": {
+          "bank": "6E",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "BH11",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_D[9]": {
+          "bank": "6E",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "BE14",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_HS": {
+          "bank": "6E",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "BR11",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_INT": {
+          "bank": "6F",
+          "direction": "input",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "CF2",
+          "voltage": "3.3V"
+        },
+        "HDMI_TX_VS": {
+          "bank": "6E",
+          "direction": "output",
+          "io_standard": "3.3-V LVCMOS",
+          "location": "BR14",
+          "voltage": "3.3V"
+        }
+      },
+      "fitted_display_pins_match_prepared_qsf": true,
+      "generated_boot_handoff_baseline_byte_comparison": {
+        "baseline_length": 1629,
+        "different_offsets": [],
+        "final_length": 1629,
+        "qualification": "raw byte comparison only; differing footer bytes not interpreted; no firmware pairing qualification"
+      },
+      "generation": {
+        "clock_hz": 100000000,
+        "combined_display": {
+          "ddr_scanout": false,
+          "pixel_pll_parameters_unchanged": true,
+          "warm_reset_ack_n": "constant1; unsupported"
+        },
+        "ddr_probe": {
+          "clock_hz": 100000000,
+          "dma_address_bits": 32,
+          "dma_admission": "not-qualified",
+          "instance": "subsys_periph.fes_ddr_probe",
+          "peripheral_offset": 65792,
+          "peripheral_slave_map": [
+            {
+              "base": 65536,
+              "name": "subsys_periph.sysid.control_slave",
+              "span": 8
+            },
+            {
+              "base": 65632,
+              "name": "subsys_periph.button_pio.s1",
+              "span": 16
+            },
+            {
+              "base": 65648,
+              "name": "subsys_periph.dipsw_pio.s1",
+              "span": 16
+            },
+            {
+              "base": 65664,
+              "name": "subsys_periph.led_pio.s1",
+              "span": 16
+            },
+            {
+              "base": 65696,
+              "name": "subsys_periph.fes_mailbox.avs",
+              "span": 32
+            },
+            {
+              "base": 65792,
+              "name": "subsys_periph.fes_ddr_probe.avs",
+              "span": 128
+            }
+          ],
+          "physical_ddr_address": "not-established",
+          "read_master_data_bits": 128,
+          "response_bits": 2,
+          "vendor_f2sdram_data_bits": 256
+        },
+        "mailbox_instance": "subsys_periph.fes_mailbox",
+        "peripheral_offset": 65696,
+        "physical_mailbox_address": "not-established",
+        "sha256": "360d5f4c95c9723011c32ca4fa96dfe5c47f42540517eca56270edbd093d159e",
+        "top_system_handoff": "qsys_top/qsys_top.sopcinfo"
+      },
+      "hardware_acceptance": "not-run",
+      "metastability": {
+        "excluded_counts": [
+          20
+        ],
+        "found_counts": [
+          44
+        ],
+        "modeled_counts": [
+          24
+        ],
+        "qualification": "partial compiler model; excluded chains and physical/whole-board behavior not qualified",
+        "reported_model_years": [
+          "1e+09"
+        ],
+        "shortest_register_counts": [
+          2
+        ],
+        "timing_violation_counts": [
+          0
+        ]
+      },
+      "mode": "idle",
+      "original_hps_emif_parameter_changes": {},
+      "output": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-hps-display/out/de25-combined-idle-ec3ab70b60",
+      "post_compile_original_hps_emif_parameter_changes": {},
+      "post_compile_vendor_boot_source_mismatches": [],
+      "preserved_local_reset_registers": [
+        {
+          "Cannot be Retimed (Protected by Synthesis Attribute or Quartus Assignment)": "yes",
+          "Not to be Touched by Netlist Optimizations": "yes",
+          "Protected by Synthesis Attribute or Preserve Register Assignment": "yes",
+          "Register Name": "fes_video_inst|pixel_reset|sync_regs[1]"
+        },
+        {
+          "Cannot be Retimed (Protected by Synthesis Attribute or Quartus Assignment)": "yes",
+          "Not to be Touched by Netlist Optimizations": "yes",
+          "Protected by Synthesis Attribute or Preserve Register Assignment": "yes",
+          "Register Name": "fes_top_reset_inst|sync_regs[1]"
+        },
+        {
+          "Cannot be Retimed (Protected by Synthesis Attribute or Quartus Assignment)": "yes",
+          "Not to be Touched by Netlist Optimizations": "yes",
+          "Protected by Synthesis Attribute or Preserve Register Assignment": "yes",
+          "Register Name": "fes_video_inst|pixel_reset|sync_regs[0]"
+        },
+        {
+          "Cannot be Retimed (Protected by Synthesis Attribute or Quartus Assignment)": "yes",
+          "Not to be Touched by Netlist Optimizations": "yes",
+          "Protected by Synthesis Attribute or Preserve Register Assignment": "yes",
+          "Register Name": "fes_video_inst|config_reset|sync_regs[1]"
+        },
+        {
+          "Cannot be Retimed (Protected by Synthesis Attribute or Quartus Assignment)": "yes",
+          "Not to be Touched by Netlist Optimizations": "yes",
+          "Protected by Synthesis Attribute or Preserve Register Assignment": "yes",
+          "Register Name": "fes_top_reset_inst|sync_regs[0]"
+        },
+        {
+          "Cannot be Retimed (Protected by Synthesis Attribute or Quartus Assignment)": "yes",
+          "Not to be Touched by Netlist Optimizations": "yes",
+          "Protected by Synthesis Attribute or Preserve Register Assignment": "yes",
+          "Register Name": "fes_video_inst|config_reset|sync_regs[0]"
+        }
+      ],
+      "producer_revision": "ec3ab70b608eb53a0b845d4462941f8a832af451",
+      "reset_constraint_messages": [
+        "DE25 asynchronous human-visible LED output ports: 4 (expected 4)",
+        "DE25 display reset ingress pins: 4 (expected 4)",
+        "DE25 top reset asynchronous clear pins: 2 (expected 2); D and release fanout remain timed"
+      ],
+      "reused_ddr_fabric_simulation": {
+        "cases": [
+          {
+            "ar_stall_cycles": 1,
+            "avalon128_beats": 1,
+            "avalon_bursts": 1,
+            "avalon_error_beats": 0,
+            "axi256_beats": 1,
+            "axi_bursts": 1,
+            "axi_transactions": [
+              {
+                "address": 2147483648,
+                "beats": 1,
+                "bytes_per_beat": 16
+              }
+            ],
+            "case": "aligned-single",
+            "injected_axi_response": 0,
+            "r_stall_cycles": 0,
+            "status": "pass"
+          },
+          {
+            "ar_stall_cycles": 1,
+            "avalon128_beats": 1,
+            "avalon_bursts": 1,
+            "avalon_error_beats": 0,
+            "axi256_beats": 1,
+            "axi_bursts": 1,
+            "axi_transactions": [
+              {
+                "address": 2147483664,
+                "beats": 1,
+                "bytes_per_beat": 16
+              }
+            ],
+            "case": "upper-half-single",
+            "injected_axi_response": 0,
+            "r_stall_cycles": 0,
+            "status": "pass"
+          },
+          {
+            "ar_stall_cycles": 1,
+            "avalon128_beats": 3,
+            "avalon_bursts": 1,
+            "avalon_error_beats": 0,
+            "axi256_beats": 3,
+            "axi_bursts": 1,
+            "axi_transactions": [
+              {
+                "address": 2147483920,
+                "beats": 3,
+                "bytes_per_beat": 16
+              }
+            ],
+            "case": "upper-half-odd-three",
+            "injected_axi_response": 0,
+            "r_stall_cycles": 0,
+            "status": "pass"
+          },
+          {
+            "ar_stall_cycles": 1,
+            "avalon128_beats": 5,
+            "avalon_bursts": 1,
+            "avalon_error_beats": 0,
+            "axi256_beats": 5,
+            "axi_bursts": 1,
+            "axi_transactions": [
+              {
+                "address": 2147484160,
+                "beats": 5,
+                "bytes_per_beat": 16
+              }
+            ],
+            "case": "aligned-odd-five",
+            "injected_axi_response": 0,
+            "r_stall_cycles": 0,
+            "status": "pass"
+          },
+          {
+            "ar_stall_cycles": 1,
+            "avalon128_beats": 16,
+            "avalon_bursts": 1,
+            "avalon_error_beats": 0,
+            "axi256_beats": 16,
+            "axi_bursts": 1,
+            "axi_transactions": [
+              {
+                "address": 2147484432,
+                "beats": 16,
+                "bytes_per_beat": 16
+              }
+            ],
+            "case": "upper-half-sixteen",
+            "injected_axi_response": 0,
+            "r_stall_cycles": 0,
+            "status": "pass"
+          },
+          {
+            "ar_stall_cycles": 2,
+            "avalon128_beats": 17,
+            "avalon_bursts": 2,
+            "avalon_error_beats": 0,
+            "axi256_beats": 17,
+            "axi_bursts": 2,
+            "axi_transactions": [
+              {
+                "address": 2147484688,
+                "beats": 16,
+                "bytes_per_beat": 16
+              },
+              {
+                "address": 2147484944,
+                "beats": 1,
+                "bytes_per_beat": 16
+              }
+            ],
+            "case": "upper-half-seventeen",
+            "injected_axi_response": 0,
+            "r_stall_cycles": 0,
+            "status": "pass"
+          },
+          {
+            "ar_stall_cycles": 1,
+            "avalon128_beats": 3,
+            "avalon_bursts": 2,
+            "avalon_error_beats": 0,
+            "axi256_beats": 3,
+            "axi_bursts": 2,
+            "axi_transactions": [
+              {
+                "address": 2147487728,
+                "beats": 1,
+                "bytes_per_beat": 16
+              },
+              {
+                "address": 2147487744,
+                "beats": 2,
+                "bytes_per_beat": 16
+              }
+            ],
+            "case": "4k-upper-half-tail",
+            "injected_axi_response": 0,
+            "r_stall_cycles": 0,
+            "status": "pass"
+          },
+          {
+            "ar_stall_cycles": 2,
+            "avalon128_beats": 19,
+            "avalon_bursts": 2,
+            "avalon_error_beats": 0,
+            "axi256_beats": 19,
+            "axi_bursts": 2,
+            "axi_transactions": [
+              {
+                "address": 2147487696,
+                "beats": 3,
+                "bytes_per_beat": 16
+              },
+              {
+                "address": 2147487744,
+                "beats": 16,
+                "bytes_per_beat": 16
+              }
+            ],
+            "case": "4k-head-tail-nineteen",
+            "injected_axi_response": 0,
+            "r_stall_cycles": 0,
+            "status": "pass"
+          },
+          {
+            "ar_stall_cycles": 1,
+            "avalon128_beats": 3,
+            "avalon_bursts": 1,
+            "avalon_error_beats": 1,
+            "axi256_beats": 3,
+            "axi_bursts": 1,
+            "axi_transactions": [
+              {
+                "address": 2147484176,
+                "beats": 3,
+                "bytes_per_beat": 16
+              }
+            ],
+            "case": "slverr-upper-half",
+            "injected_axi_response": 2,
+            "r_stall_cycles": 0,
+            "status": "pass"
+          },
+          {
+            "ar_stall_cycles": 1,
+            "avalon128_beats": 3,
+            "avalon_bursts": 1,
+            "avalon_error_beats": 1,
+            "axi256_beats": 3,
+            "axi_bursts": 1,
+            "axi_transactions": [
+              {
+                "address": 2147484160,
+                "beats": 3,
+                "bytes_per_beat": 16
+              }
+            ],
+            "case": "decerr-aligned",
+            "injected_axi_response": 3,
+            "r_stall_cycles": 0,
+            "status": "pass"
+          }
+        ],
+        "qualification": "prior actual-generated-fabric simulation; exact114-source equality checked after this full compile, no hardware/DMA admission",
+        "receipt": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-hps-interface/out/de25-ddr-interconnect-8f54e4f89e-03/receipt.json",
+        "receipt_sha256": "e27005a6faa4f0fd013c51dbab5e96066b2ff0adfd63fd20987d681db1556b2b",
+        "source_count": 114,
+        "source_mismatches": []
+      },
+      "reused_video_simulation": {
+        "bench_sha256": "a279823936f4ca64f24d7d3d7e3c194b94578a449200146558e692c652b70ecd",
+        "boundary_models_sha256": "9d6b6251938e80c8398294d711898d73d53c8ea22400f7e63f34ee3c30704566",
+        "compiled_rtl_mismatches": [],
+        "executable_sha256": "d07647c670f5c7dedd3280cc99c2476b5ae645db24dfde50519e7f6f8ccee1b0",
+        "source_sha256": {
+          "fes_de25_top_reset.v": "02b156aa9c08bbe5e1e4244f6c068fcfba84ea96f4132624d14de4034e79ce8a",
+          "fes_splash_core.v": "9740e47e25ffa8a9bd124339bcefd18a48c62ac5500f8d862e5abe435e50a7a6",
+          "video.v": "1b898350972bd3d5f445a31202cc15fd9d11d51b05ce03b27244413e88b36295"
+        }
+      },
+      "runtime_menu": false,
+      "source_binding": {
+        "captured_git_blob_count": 23,
+        "compiled_top_sha256": "2b9d16bf7340776a29502f11ee1dde44414fa657d7002cb35e6ba262e082ac53",
+        "copied_hps_mismatches": [],
+        "copied_video_rtl_sdc_mismatches": [],
+        "git_snapshot_mismatches": []
+      },
+      "sta": {
+        "all_slack_nonnegative": true,
+        "all_tns_zero": true,
+        "minima_ns": {
+          "Hold": 0.0,
+          "Minimum Pulse Width": 0.22,
+          "Recovery": 7.554,
+          "Removal": 0.069,
+          "Setup": 3.319
+        },
+        "row_count": 38,
+        "rows": [
+          {
+            "clock": "pll_inst|iopll_0_outclk0",
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": 3.319,
+            "tns_ns": 0.0,
+            "type": "Setup"
+          },
+          {
+            "clock": "fes_video_inst|video_clock|iopll_0_outclk0",
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": 11.281,
+            "tns_ns": 0.0,
+            "type": "Setup"
+          },
+          {
+            "clock": "altera_reserved_tck",
+            "corner": "Slow fix4 100C Model",
+            "slack_ns": 12.809,
+            "tns_ns": 0.0,
+            "type": "Setup"
+          },
+          {
+            "clock": "adv7513_config",
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": 16.558,
+            "tns_ns": 0.0,
+            "type": "Setup"
+          },
+          {
+            "clock": "fes_video_inst|video_clock|iopll_0_refclk",
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": 16.928,
+            "tns_ns": 0.0,
+            "type": "Setup"
+          },
+          {
+            "clock": "pll_inst|iopll_0_outclk0",
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": 0.0,
+            "tns_ns": 0.0,
+            "type": "Hold"
+          },
+          {
+            "clock": "altera_reserved_tck",
+            "corner": "Fast fix4 0C Model",
+            "slack_ns": 0.096,
+            "tns_ns": 0.0,
+            "type": "Hold"
+          },
+          {
+            "clock": "fes_video_inst|video_clock|iopll_0_outclk0",
+            "corner": "Fast fix4 0C Model",
+            "slack_ns": 0.104,
+            "tns_ns": 0.0,
+            "type": "Hold"
+          },
+          {
+            "clock": "adv7513_config",
+            "corner": "Fast fix4 0C Model",
+            "slack_ns": 0.106,
+            "tns_ns": 0.0,
+            "type": "Hold"
+          },
+          {
+            "clock": "fes_video_inst|video_clock|iopll_0_refclk",
+            "corner": "Fast fix4 0C Model",
+            "slack_ns": 0.107,
+            "tns_ns": 0.0,
+            "type": "Hold"
+          },
+          {
+            "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0",
+            "corner": "Fast fix4 0C Model",
+            "slack_ns": 0.376,
+            "tns_ns": 0.0,
+            "type": "Hold"
+          },
+          {
+            "clock": "pll_inst|iopll_0_outclk0",
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": 7.554,
+            "tns_ns": 0.0,
+            "type": "Recovery"
+          },
+          {
+            "clock": "adv7513_config",
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": 18.085,
+            "tns_ns": 0.0,
+            "type": "Recovery"
+          },
+          {
+            "clock": "fes_video_inst|video_clock|iopll_0_refclk",
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": 18.254,
+            "tns_ns": 0.0,
+            "type": "Recovery"
+          },
+          {
+            "clock": "altera_reserved_tck",
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": 60.937,
+            "tns_ns": 0.0,
+            "type": "Recovery"
+          },
+          {
+            "clock": "adv7513_config",
+            "corner": "Fast fix4 0C Model",
+            "slack_ns": 0.069,
+            "tns_ns": 0.0,
+            "type": "Removal"
+          },
+          {
+            "clock": "pll_inst|iopll_0_outclk0",
+            "corner": "Fast fix4 0C Model",
+            "slack_ns": 0.157,
+            "tns_ns": 0.0,
+            "type": "Removal"
+          },
+          {
+            "clock": "altera_reserved_tck",
+            "corner": "Fast fix4 0C Model",
+            "slack_ns": 0.165,
+            "tns_ns": 0.0,
+            "type": "Removal"
+          },
+          {
+            "clock": "fes_video_inst|video_clock|iopll_0_refclk",
+            "corner": "Fast fix4 0C Model",
+            "slack_ns": 0.208,
+            "tns_ns": 0.0,
+            "type": "Removal"
+          },
+          {
+            "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_clk_periph_0",
+            "corner": "Slow fix4 100C Model",
+            "slack_ns": 0.22,
+            "tns_ns": 0.0,
+            "type": "Minimum Pulse Width"
+          },
+          {
+            "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_base_0",
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": 0.272,
+            "tns_ns": 0.0,
+            "type": "Minimum Pulse Width"
+          },
+          {
+            "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0",
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": 0.419,
+            "tns_ns": 0.0,
+            "type": "Minimum Pulse Width"
+          },
+          {
+            "clock": "EMIF_REF_CLOCK",
+            "corner": "Slow fix4 100C Model",
+            "slack_ns": 2.22,
+            "tns_ns": 0.0,
+            "type": "Minimum Pulse Width"
+          },
+          {
+            "clock": "pll_inst|iopll_0_outclk0",
+            "corner": "Slow fix4a 0C Model",
+            "slack_ns": 4.385,
+            "tns_ns": 0.0,
+            "type": "Minimum Pulse Width"
+          },
+          {
+            "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_rxclk_gated",
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": 4.905,
+            "tns_ns": 0.0,
+            "type": "Minimum Pulse Width"
+          },
+          {
+            "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_rxclk_gated",
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": 4.905,
+            "tns_ns": 0.0,
+            "type": "Minimum Pulse Width"
+          },
+          {
+            "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_rxclk_gated",
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": 4.905,
+            "tns_ns": 0.0,
+            "type": "Minimum Pulse Width"
+          },
+          {
+            "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_rxclk_gated",
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": 4.905,
+            "tns_ns": 0.0,
+            "type": "Minimum Pulse Width"
+          },
+          {
+            "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_rxclk_gated",
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": 4.905,
+            "tns_ns": 0.0,
+            "type": "Minimum Pulse Width"
+          },
+          {
+            "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_rxclk_gated",
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": 4.905,
+            "tns_ns": 0.0,
+            "type": "Minimum Pulse Width"
+          },
+          {
+            "clock": "fes_video_inst|video_clock|iopll_0_outclk0",
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": 5.861,
+            "tns_ns": 0.0,
+            "type": "Minimum Pulse Width"
+          },
+          {
+            "clock": "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0",
+            "corner": "Slow fix4 100C Model",
+            "slack_ns": 8.313,
+            "tns_ns": 0.0,
+            "type": "Minimum Pulse Width"
+          },
+          {
+            "clock": "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll|ref_clk0",
+            "corner": "Slow fix4a 0C Model",
+            "slack_ns": 8.583,
+            "tns_ns": 0.0,
+            "type": "Minimum Pulse Width"
+          },
+          {
+            "clock": "pll_inst|iopll_0_refclk",
+            "corner": "Slow fix4 100C Model",
+            "slack_ns": 9.231,
+            "tns_ns": 0.0,
+            "type": "Minimum Pulse Width"
+          },
+          {
+            "clock": "fes_video_inst|video_clock|iopll_0_refclk",
+            "corner": "Slow fix4a 0C Model",
+            "slack_ns": 9.591,
+            "tns_ns": 0.0,
+            "type": "Minimum Pulse Width"
+          },
+          {
+            "clock": "altera_reserved_tck",
+            "corner": "Slow fix4 100C Model",
+            "slack_ns": 28.581,
+            "tns_ns": 0.0,
+            "type": "Minimum Pulse Width"
+          },
+          {
+            "clock": "fes_video_inst|video_clock|iopll_0_n_cnt_clk",
+            "corner": "Slow fix4 100C Model",
+            "slack_ns": 49.563,
+            "tns_ns": 0.0,
+            "type": "Minimum Pulse Width"
+          },
+          {
+            "clock": "adv7513_config",
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": 50018.732,
+            "tns_ns": 0.0,
+            "type": "Minimum Pulse Width"
+          }
+        ]
+      },
+      "timing_acceptance": "not-qualified",
+      "tool_version": "Quartus Prime Shell\nVersion 26.3.0 Build 114 10/14/2026 SC Pro Edition\nCopyright (C) 2026  Altera Corporation. All rights reserved.",
+      "unconstrained_input_ports": [
+        {
+          "Comment": "No input delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Input Port": "HDMI_I2C_SDA"
+        },
+        {
+          "Comment": "No input delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Input Port": "HDMI_TX_INT"
+        }
+      ],
+      "unconstrained_output_ports": [
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_CLK"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_HS"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_VS"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[0]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[1]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[2]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[3]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[4]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[5]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[6]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[7]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[8]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[9]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[10]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[11]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[12]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[13]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[14]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[15]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[16]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[17]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[18]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[19]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[20]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[21]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[22]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_D[23]"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_TX_DE"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_I2C_SCL"
+        },
+        {
+          "Comment": "No output delay, min/max delays, false-path exceptions, or max skew assignments found",
+          "Output Port": "HDMI_I2C_SDA"
+        }
+      ],
+      "video_fitted_ram": [],
+      "warm_reset_ack_n": "explicit constant1 (inactive); no global drain/reset acknowledgement or grant lifetime admission"
+    }
+  ],
+  "producer_revision": "ec3ab70b608eb53a0b845d4462941f8a832af451"
+}

@@ -65,6 +65,14 @@ upload/control interface, and default DE10 packages/images remain unchanged.
 External ADV7513 timing and the vendor's contradictory clock IO-standard
 documentation remain qualification gates; these SOFs are not boot/BSP artifacts.
 
+[`boards/de25nano/combined/`](../boards/de25nano/combined/README.md) composes
+that local display with the preserved GHRD HPS/LPDDR4, mailbox and read-only
+DDR probe. It uses a single configuration reset endpoint and separate system
+and video PLLs. A committed source closure binds both helper lanes and the
+guarded composition. Its display still uses local pattern memory; no FPGA DMA
+scanout or Linux upload path is admitted. Warm-reset ACK is explicitly inactive
+pending global bridge/master quiescence, and firmware pairing stays unqualified.
+
 ## Functional input identity
 
 Pong, ZX81, Coleco, SMS, SG-1000, Catch and all demo variants use functional
