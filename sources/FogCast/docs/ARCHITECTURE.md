@@ -1423,7 +1423,8 @@ core IDs. Unknown systems retain their supplied name; this table does not admit
 packages or media. Installed-core protocol metadata stays verbatim. The room
 adapters project machine names and recognize only known model aliases followed
 by reserved HIL issue/timestamp or generated semantic-version/8-hex suffixes.
-`corepackage.ValidVersion` exposes the existing version rule unchanged.
+A private UI matcher recognizes the historical generated-label shape; package
+admission and version validation stay unchanged.
 Genuine game/custom titles, raw catalog rows/candidates, stored titles and all
 launch/ROM/media/expansion/session identities remain intact. Classify and saved
 edition projections retain that same visible name. Native Library paints only

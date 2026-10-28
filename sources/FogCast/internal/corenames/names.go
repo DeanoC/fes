@@ -3,10 +3,13 @@
 package corenames
 
 import (
+	"regexp"
 	"strings"
-
-	"github.com/DeanoC/FogCast/corepackage"
 )
+
+// Old generated setup labels contained full producer semantic versions.
+// This private matcher recognizes that historical display shape only.
+var generatedVersionRE = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$`)
 
 type model struct {
 	name    string
@@ -87,7 +90,7 @@ func generatedTitle(title, base string) bool {
 	if !ok || len(digest) != 8 {
 		return false
 	}
-	if !corepackage.ValidVersion(version) {
+	if !generatedVersionRE.MatchString(version) {
 		return false
 	}
 	for _, c := range digest {
