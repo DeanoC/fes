@@ -258,16 +258,6 @@ module fes_i386_l1d import fes_i386_pkg::*; (
         after = !p && two ? L_PART : fill ? L_FILL : L_DONE;
     endfunction
 
-`ifdef FES_I386_DEBUG
-    always_ff @(posedge clk) begin
-        if (advance && rd) $display("L1D M1 rd addr=%h fault=%b", addr, fault);
-        if (q_rd && state == L_IDLE) $display("L1D M2 addr=%h at0=%0d cross=%b hit=%b fast=%b unc=%b oldest=%b valid=%b data=%h",
-            q_addr, q_at0, q_cross, hit, fast, unc, oldest, valid, rdata);
-        if (state == L_DONE) $display("L1D done sbuf=%h", {sbuf[1], sbuf[0]});
-        if (d_beat) $display("L1D beat %h", bdata);
-        if (st_commit) $display("L1D store line=%h dword=%0d data=%h mask=%h hit=%b at=%0d", st_line0, st_dword, st_data, st_mask, st_hit, st_attr0);
-    end
-`endif
     always_ff @(posedge clk) begin
         if (reset) begin
             state <= L_IDLE;

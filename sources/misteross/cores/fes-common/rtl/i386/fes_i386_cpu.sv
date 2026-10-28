@@ -1553,14 +1553,6 @@ module fes_i386_cpu #(
     end
     assign trace_halt = halted;
 
-`ifdef FES_I386_DEBUG
-    always_ff @(posedge clk) begin
-        if (wb_s.valid && !freeze) $display("WB eip=%h cls=%0d op=%0d fault=%0d result=%h ld=%h dst=%0d/%0d eoi=%b taken=%b tgt=%h/%h t1=%h flush=%b redir=%b",
-            wb_s.eip, wb_s.uop.cls, wb_s.uop.op, wb_s.uop.ctl.fault, wb_s.result, wb_s.ld, wb_s.uop.dst.space, wb_s.uop.dst.index,
-            wb_eoi, wb_s.taken, wb_s.target, wb_s.target_eip, t1, wb_flush, redirect);
-        if (redirect) $display("REDIRECT linear=%h eip=%h start=%0d", redirect_linear, redirect_eip, start);
-    end
-`endif
     // Serial issue after a replay, until its instruction ends or anything
     // else flushes.
     always_ff @(posedge clk) begin

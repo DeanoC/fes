@@ -370,11 +370,6 @@ public:
         }
         replays += top.trace_replay;
         // Port 0, then MMIO: this edge's responses, and the command taken.
-        if (std::getenv("FES_I386_TRACE_MEM"))
-            std::fprintf(stderr, "%llu rst=%d rd=%d wr=%d a=%07x wait=%d rdv=%d fetch=%d mwait=%d idle=%d ret=%d halt=%d unimpl=%d\n",
-                         (unsigned long long)cycles, top.reset, top.ddr_read, top.ddr_write, unsigned(top.ddr_address),
-                         top.ddr_waitrequest, top.ddr_readdatavalid, top.trace_fetch, top.trace_mem_wait,
-                         top.trace_mem_idle, top.trace_retire, top.trace_halt, top.trace_unimplemented);
         port0.drive(top, ticks++);
         top.mmio_rvalid = 0;
         top.mmio_rdata = uint32_t(cycles * 0x9e3779b9u);
