@@ -68,6 +68,8 @@
 //           hex bytes: each must stop the RTL with FAULT_UNIMPLEMENTED before
 //           anything retires. The RTL runs alone; the oracle is not stepped.
 //   reset-store a store waiting in WB must not write memory on a reset edge.
+//   memory    DMA and FLUSH against the caches and the write buffer
+//             (run_memory_cases).
 //   directed  out-of-limit CALL rel and r/m, RET and JMP faults, divide errors,
 //             count-zero REP MOVS with expand-down DS or ES, and a check that
 //             fetch, issue and data reads stay inactive after a handler HLT;
@@ -278,6 +280,11 @@ public:
     uint64_t mmio_wrong = 0;            // device writes no retired store made, or not in order
     uint64_t mmio_early = 0;            // device reads before an earlier instruction's store reached it
     uint64_t replays = 0;
+    // Machine DMA and FLUSH, for the memory cases: each request held until
+    // its done, whose edge clears it.
+    bool dma_valid = false, dma_write = false, flush = false;
+    uint32_t dma_address = 0;
+    uint8_t dma_wdata = 0, dma_result = 0;
     uint64_t cycles = 0;      // since the last run's summary
     uint64_t ticks = 0;       // since the start: port 0's clock
     uint64_t load_waits = 0;  // cycles D to WB or F2 waited for memory
@@ -454,8 +461,18 @@ public:
         } else {
             inta_waiting = false;
         }
+        top.dma_valid = dma_valid;
+        top.dma_write = dma_write;
+        top.dma_address = dma_address;
+        top.dma_wdata = dma_wdata;
+        top.flush_request = flush;
         top.clk = 1;
         top.eval();
+        if (top.dma_done) {
+            dma_result = top.dma_rdata;
+            dma_valid = false;
+        }
+        if (top.flush_done) flush = false;
         // The retiring store, as the stores' view of memory.
         if (store && std::getenv("FES_I386_VERBOSE"))
             std::fprintf(stderr, "  write %x mask %02x data %016llx\n", waddr, wmask, (unsigned long long)wdata);
@@ -3223,6 +3240,95 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
     return 0;
 }
 
+// The memory system's ports the lockstep does not drive: DMA and FLUSH. Each
+// case runs a program from 0000:1000 in real mode with the RTL alone, makes
+// its request part way, and checks what the CPU or DDR shows after it.
+//   dma-write-data  a loop reading 2000h until it reads 5Ah; DMA writes 5Ah
+//                   there once the loop has the line cached: the CPU must see
+//                   it and reach its HLT
+//   dma-write-code  JMP $ at 1000h, cached in the L1I; DMA writes HLT over the
+//                   JMP's opcode: the CPU must refetch it and halt
+//   dma-read-store  a store of A5h to 3000h, then JMP $; DMA reads 3000h as
+//                   soon as the store retires, with it still in the write
+//                   buffer: the read must return A5h
+//   flush           a store of 3Ch to 3001h, then JMP $; FLUSH as soon as it
+//                   retires: when FLUSH is done DDR must hold it
+int run_memory_cases(Rtl &rtl, Summary &summary) {
+    State state;
+    for (int k = 0; k < 6; ++k) state.seg[k] = fes_i386::real_mode_segment(0);
+    state.eip = 0x1000;
+    struct Case {
+        const char *label;
+        std::vector<uint8_t> code;
+    };
+    const std::vector<Case> cases = {
+        // L: MOV AL, [2000h]; CMP AL, 5Ah; JNE L; HLT
+        {"dma-write-data", {0xa0, 0x00, 0x20, 0x3c, 0x5a, 0x75, 0xf9, 0xf4}},
+        // L: JMP L
+        {"dma-write-code", {0xeb, 0xfe}},
+        // MOV BYTE [3000h], A5h; L: JMP L
+        {"dma-read-store", {0xc6, 0x06, 0x00, 0x30, 0xa5, 0xeb, 0xfe}},
+        // MOV BYTE [3001h], 3Ch; L: JMP L
+        {"flush", {0xc6, 0x06, 0x01, 0x30, 0x3c, 0xeb, 0xfe}},
+    };
+    for (const Case &c : cases) {
+        for (size_t i = 0; i < c.code.size(); ++i) rtl.poke(uint32_t(0x1000 + i), c.code[i]);
+        rtl.poke(0x2000, 0);
+        rtl.start(state);
+        const std::string label = c.label;
+        bool ok = false;
+        uint64_t asked = 0;
+        std::string detail;
+        for (int n = 0; n < 20000 && !ok; ++n) {
+            rtl.clock();
+            if (label == "dma-write-data" || label == "dma-write-code") {
+                // Once the loop has run a while (its lines are cached), the DMA write.
+                if (n == 2000) {
+                    rtl.dma_valid = true;
+                    rtl.dma_write = true;
+                    rtl.dma_address = label == "dma-write-data" ? 0x2000 : 0x1000;
+                    rtl.dma_wdata = label == "dma-write-data" ? 0x5a : 0xf4;
+                }
+                ok = n > 2000 && rtl.top.trace_halt && !rtl.top.trace_unimplemented;
+            } else if (!asked && rtl.top.trace_retire) {
+                // The store's instruction has just retired.
+                asked = 1;
+                if (label == "dma-read-store") {
+                    rtl.dma_valid = true;
+                    rtl.dma_write = false;
+                    rtl.dma_address = 0x3000;
+                } else {
+                    rtl.flush = true;
+                }
+            } else if (asked && label == "dma-read-store" && !rtl.dma_valid) {
+                ok = rtl.dma_result == 0xa5;
+                detail = hex(rtl.dma_result);
+                break;
+            } else if (asked && label == "flush" && !rtl.flush) {
+                ok = rtl.ddr[0x3001] == 0x3c;
+                detail = hex(rtl.ddr[0x3001]);
+                break;
+            }
+        }
+        ++summary.runs;
+        summary.cycles += rtl.cycles;
+        rtl.cycles = 0;
+        if (ok) {
+            ++summary.passed;
+        } else {
+            ++summary.failed;
+            std::cout << "FAIL memory:" << label << ' ' << (detail.empty() ? "no-halt" : "value") << " 1 "
+                      << (detail.empty() ? "0" : detail) << '\n';
+        }
+        rtl.dma_valid = rtl.flush = false;
+        for (size_t i = 0; i < c.code.size(); ++i) rtl.poke(uint32_t(0x1000 + i), 0);
+        for (uint32_t address : {0x2000u, 0x3000u, 0x3001u}) rtl.poke(address, 0);
+        for (uint32_t address : rtl.written) rtl.poke(address, 0);
+        rtl.written.clear();
+    }
+    return 0;
+}
+
 // Every encoding the runner lists as outside the build must stop the CPU
 // before it retires, so no check passes over an unbuilt instruction.
 int run_unbuilt(Rtl &rtl, Summary &summary) {
@@ -3292,6 +3398,8 @@ int main(int argc, char **argv) {
         run_fault_regressions(*oracle, bus, rtl, entries, summary);
     } else if (mode == "unbuilt") {
         run_unbuilt(rtl, summary);
+    } else if (mode == "memory") {
+        run_memory_cases(rtl, summary);
     } else if (mode == "random") {
         run_random(*oracle, bus, rtl, entries, summary, seed, env("FES_I386_PROGRAMS", 1000),
                    env("FES_I386_RETIRE_LIMIT", 2000), env("FES_I386_FIRST", 0));
