@@ -499,7 +499,7 @@ directory separators inside the pack (`require "lib.paths"` →
 
 | module | purpose |
 | --- | --- |
-| `systems` | Registered system/model labels and navigation guidance; package manifests determine admission |
+| `systems` | Registered model labels and family navigation (`families`, `family_by_core`); package manifests determine admission |
 | `widgets.system_workbench` | Shared system workbench; call the returned function with an optional fixed `core_id` |
 | `widgets.list` | focusable scrolling rows: `new{x,y,w,h,row_h,items,id}`, `input(cmd)`, `selected()`, `set_items`, `on_hover/on_activate(id)`, `draw{label=, background=, focus_color=}` |
 | `widgets.grid` | cover/icon grid with the library's focus rules: `new{x,y,w,h,cell_w,cell_h,gap,items,id}`, same methods, `draw{cover=fn(item), label=fn(item), plate=, hide_labels=}` |
@@ -525,7 +525,7 @@ is not a gate unless the room script adds that mechanic itself. See
 | `example.workbench` | AmigaOS 1.3 desktop drawn from rects; collection with genre fallback; publishes the focused drawer title |
 | `example.computers` | Systems shelf for all registered playable system/model entries. Grouped editions and saved expansion rows retain the exact game ID. Confirm launches; Set up opens the selected workbench. Add system remains available with an empty library |
 | `example.c64` | Shared system workbench with Commodore 64 selected: saved entries/editions, next-start D64 and real expansion sockets, launch/stop and capability-gated live disk controls |
-| `example.system` | Shared workbench for all registered playable systems and models. Next system, installed/published setup, editions, declared media and expansion sockets use ordinary host APIs; configuration stays in the library |
+| `example.system` | Shared workbench for 12 system families and their hardware variants. Next system changes families; Variant chooses the ZX81 or Spectrum model within one workbench and remembers each family's last choice. Saved entries, title editions, setup, declared media and expansion sockets retain exact core/package identities; configuration stays in the library |
 | `example.fes-cores` | kit **Home** in the `hero` layout: a shelf of installed cores (manifest names verbatim, fallback motifs chosen from the core id and required inputs), the FES hero for the selection, and Library / Rooms / Settings routes one Up away in the hero and on one compact row. A stacked compact column walks Down and Up through those routes and then the cores. Checking while `kit.cores` resolves; the last selected installed package is restored on a later visit from `package_id` in the room state file (`/media/fat/fogcast/state/FogCast/rooms/example.fes-cores.state.json` on a kit). A fresh visit, or a saved package that is missing or unavailable, opens on the first installed core. Selecting an omitted core does not replace that saved package. An empty or unlistable kit, and a shelf whose every row is an omission, focuses the Library route. The shelf count is installed packages. Blocked cores do not launch: a blocked tile shows "Needs a cartridge", "Needs firmware", "Display setup incomplete", or "Hardware unavailable". An optional core omitted from the image is listed from `unavailable-cores.json` with that hardware block, and its Details name the core and the block without a package id. With no kit socket the room and the compact strip both say cores are not available here. Tenfoot on `-gfx menu-display` launches a core through the local-control socket |
 
 Run them against a host:

@@ -8,6 +8,8 @@ local selected_core = locked_core ~= "" and locked_core or room.initial_core_id 
 if not systems.by_id[selected_core] then selected_core = "fes.zx81" end
 local function spec() return systems.by_id[selected_core] end
 local function system_label() return spec().label end
+local function family() return systems.family_by_core[selected_core] end
+local function family_label() return family().label end
 local function rgb(r, g, b, a)
   if a then return {r = r, g = g, b = b, a = a} end
   return {r = r, g = g, b = b}
@@ -56,9 +58,13 @@ local held_session = ""
 
 local nav = store.get("navigation", {})
 local initial_game_id = room.initial_game_id or ""
-if locked_core == "" and initial_game_id == "" and systems.by_id[nav.core_id or ""] then selected_core = nav.core_id end
-local chosen = initial_game_id ~= "" and initial_game_id or nav.game_id or ""
-local chosen_edition = initial_game_id ~= "" and initial_game_id or nav.edition_id or ""
+if locked_core == "" and initial_game_id == "" and (room.initial_core_id or "") == "" and systems.by_id[nav.core_id or ""] then selected_core = nav.core_id end
+local family_variants = type(nav.family_variants) == "table" and nav.family_variants or {}
+local core_choices = type(nav.core_choices) == "table" and nav.core_choices or {}
+local previous_core = core_choices[selected_core] or {}
+local same_core = nav.core_id == selected_core
+local chosen = initial_game_id ~= "" and initial_game_id or (same_core and nav.game_id or previous_core.game_id) or ""
+local chosen_edition = initial_game_id ~= "" and initial_game_id or (same_core and nav.edition_id or previous_core.edition_id) or ""
 if nav.focus and nav.focus ~= "" then focus = nav.focus end
 
 local function take()
@@ -174,7 +180,10 @@ end
 local function remember()
   local entry = entries[entry_i]
   local game = focused()
+  family_variants[family().id] = selected_core
+  core_choices[selected_core] = {game_id=entry and entry.id or "", edition_id=game and game.id or ""}
   store.set("navigation", {
+    family_variants=family_variants, core_choices=core_choices,
     game_id = entry and entry.id or "",
     edition_id = game and game.id or "",
     focus = focus, core_id = selected_core,
@@ -187,6 +196,7 @@ local function place(list)
       if has_game_id({g}, initial_game_id) then selected_core = g.core_id break end
     end
   end
+  if focus == "variant" and (locked_core ~= "" or #family().variants < 2) then focus = "start" end
   entries = {}
   for _, g in ipairs(all_entries) do if g.core_id == selected_core then entries[#entries + 1] = g end end
   entry_i, edition_i = 1, 1
@@ -302,6 +312,38 @@ local function running_line()
   return "Running: not checked"
 end
 
+local function choose_core(core_id)
+  if core_id == selected_core or not systems.by_id[core_id] then return end
+  remember()
+  selected_core = core_id
+  initial_game_id = ""
+  local previous = core_choices[core_id] or {}
+  chosen, chosen_edition = previous.game_id or "", previous.edition_id or ""
+  message = "Choose a " .. system_label() .. " entry, or set up this system."
+  place(all_entries)
+  remember()
+end
+local function next_variant()
+  local variants = family().variants
+  for i, variant in ipairs(variants) do
+    if variant.id == selected_core then
+      choose_core(variants[i % #variants + 1].id)
+      return
+    end
+  end
+end
+local function next_system()
+  for i, value in ipairs(systems.families) do
+    if value.id == family().id then
+      local next_family = systems.families[i % #systems.families + 1]
+      local core_id = family_variants[next_family.id]
+      if systems.family_by_core[core_id] ~= next_family then core_id = next_family.variants[1].id end
+      choose_core(core_id)
+      return
+    end
+  end
+end
+
 local function next_machine()
   if #entries < 2 then return end
   entry_i = entry_i % #entries + 1
@@ -335,8 +377,8 @@ local function paint_opening()
   clear_row(C.paper)
   rect(24, 18, 18, 5, C.accent)
   text("FES", 50, 14, 24, C.ink, 80, true)
-  text(system_label(), 118, 17, 19, C.ink, 400)
-  text("Opening the " .. system_label() .. "…", 24, 84, 22, C.label, 700)
+  text(family_label(), 118, 17, 19, C.ink, 400)
+  text("Opening the " .. family_label() .. "…", 24, 84, 22, C.label, 700)
   gfx.paint(cmds)
 end
 
@@ -356,12 +398,12 @@ local function picture(part)
     rect(24, 18, 18, 5, C.accent)
     text("FES", 50, 14, 24, C.ink, 80, true)
     rect(104, 16, 2, 26, C.line)
-    text(system_label(), 118, 17, 19, C.ink, 360)
+    text(family_label(), 118, 17, 19, C.ink, 360)
     button("back", "Back", 860, 10, 110, 38, true, function() rooms.back() end)
     button("home", "Home", 984, 10, 110, 38, true, function() rooms.home() end)
     rect(0, 56, 1120, 2, C.line)
 
-    text(string.upper(system_label()) .. " SETUP", 24, 68, 13, C.label, 600, true)
+    text(string.upper(family_label()) .. " SETUP", 24, 68, 13, C.label, 600, true)
     text(game and model_line(game) or "No " .. system_label() .. " entries yet.", 24, 90, 28, C.ink, 640, true)
     text(message, 24, 128, 16, C.label, 640)
     text(running_line(), 680, 90, 18, C.ink, 410, true)
@@ -384,7 +426,10 @@ local function picture(part)
       if i <= 5 then text(slot_line(game, slot.slot, "Socket " .. tostring(slot.slot)), 470, 192 + (i-1)*26, 16, C.ink, 620) end
     end
     local extra = game and extra_line(game) or ""
-    if extra ~= "" then text(extra, 470, 338, 16, C.ink, 620) end
+    if extra ~= "" then text(extra, 470, 322, 16, C.ink, 620) end
+    if locked_core == "" and #family().variants > 1 then
+      button("variant", "Variant: " .. system_label(), 470, 350, 620, 36, true, next_variant)
+    end
 
     text(game and disk_line(game) or spec().media .. "  ·  none saved", 24, 396, 18, C.ink, 1060, true)
     text(spec().hint, 24, 424, 16, C.label, 1060)
@@ -421,15 +466,7 @@ local function picture(part)
   button("expansions", "Expansion sockets", 496, 480, 240, 38, idle and game and game.package_id and game.package_id ~= "", function()
     hardware.open_expansions({game_id=game.id, core_id=game.core_id, package_id=game.package_id})
   end)
-  button("system", "Next system", 752, 480, 200, 38, locked_core == "", function()
-    local n = 1
-    for i, value in ipairs(systems.rows) do if value.id == selected_core then n = i break end end
-    selected_core = systems.rows[n % #systems.rows + 1].id
-    initial_game_id, chosen, chosen_edition = "", "", ""
-    message = "Choose a " .. system_label() .. " entry, or set up this system."
-    place(all_entries)
-    remember()
-  end)
+  button("system", "Next system", 752, 480, 200, 38, locked_core == "", next_system)
   button("machine", "Next machine", 24, 530, 200, 44, #entries > 1, next_machine)
   button("edition", "Next edition", 240, 530, 200, 44, game and #editions_of(entries[entry_i]) > 1, next_edition)
   button("start", label, 456, 524, 220, 52, enabled, fn)

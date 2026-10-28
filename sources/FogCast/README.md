@@ -39,7 +39,10 @@ and content selection; the MiSTer is a small, directly controlled target.
 
 - The tenfoot **Systems** room lists prepared playable systems, models and
   editions. **Set up** opens the selected workbench; **Add system** remains
-  available with an empty library. The shared **System workbench** chooses
+  available with an empty library. The shared **System workbench** groups related
+  models into one family: Spectrum's 48K, 128K, +3 and Pentagon 128 share a
+  **Variant** selector, as do ZX81, ZX80, TS1000 and TS1500. **Next system**
+  changes families; title editions remain a separate choice. It chooses
   installed package versions and sealed ROMs, saves declared media for the next
   start, and imports/selects expansion cards using the package's real sockets.
   Installed-package setup needs no published catalogue. **Settings → Systems**

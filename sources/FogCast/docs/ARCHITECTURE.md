@@ -1060,7 +1060,14 @@ entrypoint for the shared `widgets.system_workbench` implementation.
 system and model, including the Spectrum models, Apple II, Atari ST, consoles,
 ROM-less games and utilities.
 
-The shared workbench chooses a system/model, saved entry and grouped edition.
+The shared workbench chooses a system family, a hardware variant, a saved entry
+and a grouped title edition. `systems.families` and `systems.family_by_core`
+keep the ZX81 and Spectrum models in their respective families while retaining
+the actual core ID of each variant. **Next system** changes families;
+**Variant** cycles that family's models and is absent for single-model families.
+The family remembers its last browsed variant in navigation state. A variant
+change selects that core's own entries and package requirements without copying
+ROMs, media or expansion selections from another model or replacing live play.
 It resolves an explicitly selected entry directly if it falls outside the
 filtered library query. **Set up system** reads installed package versions and
 sealed ROM requirements without needing publication; the same overlay also

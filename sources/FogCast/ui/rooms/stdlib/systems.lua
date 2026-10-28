@@ -20,6 +20,30 @@ local rows = {
   {id="fes.ramtest", label="RAM Tester", mark="RAM", media="No media required", hint="Memory testing utility."},
   {id="fes.riscv", label="RISC-V", mark="RISC-V", media="No media required", hint="Start the installed demonstration."},
 }
-local by_id, ids = {}, {}
-for _, row in ipairs(rows) do by_id[row.id] = row ids[#ids+1] = row.id end
-return {rows=rows, by_id=by_id, ids=ids}
+-- Families organize the workbench. Each variant retains its real core ID;
+-- this table never changes package, media or expansion compatibility.
+local groups = {
+  ["fes.zx81"] = {id="zx81", label="Sinclair ZX81"},
+  ["fes.zx80"] = {id="zx81", label="Sinclair ZX81"},
+  ["fes.ts1000"] = {id="zx81", label="Sinclair ZX81"},
+  ["fes.ts1500"] = {id="zx81", label="Sinclair ZX81"},
+  ["fes.spectrum"] = {id="spectrum", label="ZX Spectrum"},
+  ["fes.spectrum128"] = {id="spectrum", label="ZX Spectrum"},
+  ["fes.spectrum-plus3"] = {id="spectrum", label="ZX Spectrum"},
+  ["fes.pentagon"] = {id="spectrum", label="ZX Spectrum"},
+}
+local by_id, ids, families, family_by_core, by_family = {}, {}, {}, {}, {}
+for _, row in ipairs(rows) do
+  by_id[row.id] = row
+  ids[#ids+1] = row.id
+  local group = groups[row.id] or {id=row.id, label=row.label}
+  local family = by_family[group.id]
+  if not family then
+    family = {id=group.id, label=group.label, variants={}}
+    families[#families+1] = family
+    by_family[group.id] = family
+  end
+  family.variants[#family.variants+1] = row
+  family_by_core[row.id] = family
+end
+return {rows=rows, by_id=by_id, ids=ids, families=families, family_by_core=family_by_core}

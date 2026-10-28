@@ -11,11 +11,19 @@ kit-local installed packages.
 
 `example.system` covers the ZX81 family, Commodore 64, the Spectrum 48K/128K/+3
 and Pentagon models, Apple II, Atari ST, ColecoVision, Sega Master System,
-SG-1000, Pong, Catch, RAM Tester and RISC-V. **Next system** chooses a system
-or model, **Next machine** chooses a saved entry, and **Next edition** chooses
-one of that entry's grouped library editions. These are navigation choices;
-installed packages and their manifests still determine what can launch.
-`example.c64` uses the same workbench with Commodore 64 selected.
+SG-1000, Pong, Catch, RAM Tester and RISC-V. **Next system** chooses one of
+12 system families. **Variant** chooses a model within that family's workbench:
+Spectrum has 48K, 128K, +3 and Pentagon 128; the ZX81 family has ZX81, ZX80,
+TS1000 and TS1500. Each family remembers its last browsed variant. Single-model
+families have no variant selector. The family stays in the header while the
+selected variant supplies its own setup, media guidance and library entries.
+
+**Next machine** chooses a saved entry for that variant; **Next edition**
+chooses one of that entry's grouped library editions. Changing a family or
+variant only changes navigation: it does not rewrite a saved package, ROM,
+medium or expansion, or replace a running machine. Installed packages and their
+manifests still determine what can launch. `example.c64` uses the same
+workbench with Commodore 64 selected.
 
 **Set up system** lists installed package versions for the selected core and
 reads their sealed ROM requirements. Choose the required files and add a

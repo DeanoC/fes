@@ -26,23 +26,37 @@ func loadSystemWorkbench(t *testing.T, svc Services, gameID, coreID string) *Ins
 func TestSystemWorkbenchEmptyLibrarySetsUpEveryPlayableModel(t *testing.T) {
 	r := loadSystemWorkbench(t, &fakeServices{}, "", "")
 	stepUntil(t, r, func(f Frame) bool { return strings.Contains(frameText(f), "Set up system") })
-	ids := []string{
-		"fes.zx81", "fes.zx80", "fes.ts1000", "fes.ts1500", "fes.c64", "fes.spectrum",
-		"fes.spectrum128", "fes.spectrum-plus3", "fes.pentagon", "fes.apple2", "fes.atari-st",
-		"fes.coleco", "fes.sms", "fes.sg1000", "fes.pong", "fes.catch", "fes.ramtest", "fes.riscv",
+	families := [][]string{
+		{"fes.zx81", "fes.zx80", "fes.ts1000", "fes.ts1500"},
+		{"fes.c64"},
+		{"fes.spectrum", "fes.spectrum128", "fes.spectrum-plus3", "fes.pentagon"},
+		{"fes.apple2"}, {"fes.atari-st"}, {"fes.coleco"}, {"fes.sms"}, {"fes.sg1000"},
+		{"fes.pong"}, {"fes.catch"}, {"fes.ramtest"}, {"fes.riscv"},
 	}
-	for _, id := range ids {
-		r.Activate("setup")
-		acts := r.TakeActions()
-		if len(acts) != 1 || acts[0].Kind != ActionHardwareSetup || acts[0].CoreID != id {
-			t.Fatalf("setup %s: %+v", id, acts)
-		}
-		r.Activate("start")
-		if acts := r.TakeActions(); len(acts) != 0 {
-			t.Fatalf("empty system %s launched %+v", id, acts)
+	for _, variants := range families {
+		for i, id := range variants {
+			r.Activate("setup")
+			acts := r.TakeActions()
+			if len(acts) != 1 || acts[0].Kind != ActionHardwareSetup || acts[0].CoreID != id {
+				t.Fatalf("setup %s: %+v", id, acts)
+			}
+			r.Activate("start")
+			if acts := r.TakeActions(); len(acts) != 0 {
+				t.Fatalf("empty system %s launched %+v", id, acts)
+			}
+			if i+1 < len(variants) {
+				r.Activate("variant")
+				stepUntil(t, r, func(f Frame) bool { return strings.Contains(frameText(f), "Set up system") })
+			}
 		}
 		r.Activate("system")
 		stepUntil(t, r, func(f Frame) bool { return strings.Contains(frameText(f), "Set up system") })
+	}
+	// Returning to a family restores its last browsed variant.
+	r.Activate("setup")
+	acts := r.TakeActions()
+	if len(acts) != 1 || acts[0].CoreID != "fes.ts1500" {
+		t.Fatalf("ZX81 family forgot its variant: %+v", acts)
 	}
 }
 
