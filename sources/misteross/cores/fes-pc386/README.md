@@ -37,6 +37,7 @@ check, plus diagnostic synthesis.
 | [`firmware/`](firmware/) | Bochs ROM BIOS and LGPL VGABios sources, `source.json` manifests, `firmware.lock` |
 | [`sim/machine_tb.cpp`](sim/machine_tb.cpp) | `pc386_machine` with the Bochs oracle as CPU, guest memory and DDR models; records VGA traces and frames. `--cpu rtl` runs `fes_i386_cpu` instead |
 | [`sim/pc386_rtl_cpu.sv`](sim/pc386_rtl_cpu.sv) | `fes_i386_cpu` with the byte count of its data-port load, for `--cpu rtl`'s VGA reads |
+| [`sim/rtl_stop_test.asm`](sim/rtl_stop_test.asm) | The stop test disk: instructions the RTL has not built, and a protected-mode stretch, for `--cpu rtl`'s stop path |
 | [`sim/devices_tb.cpp`](sim/devices_tb.cpp) | Directed checks of the AT core through its I/O port |
 | [`sim/audio_tb.cpp`](sim/audio_tb.cpp) | Directed checks of the DSP, the OPL2's AdLib port and the mixer, through the AT core |
 | [`sim/opl2_tb.cpp`](sim/opl2_tb.cpp) | The OPL2 against Nuked-OPL3, sample for sample, on random programs and captured port logs |
@@ -67,6 +68,7 @@ python3 scripts/sim_fes_pc386.py --suite opl2           # OPL2 against Nuked-OPL
 python3 scripts/sim_fes_pc386.py --suite benches        # presenter, capture overflow recovery and display plane on port 2
 python3 scripts/sim_fes_pc386.py --suite boot --download  # BIOS POST to the FreeDOS prompt and its VGA replay
 python3 scripts/sim_fes_pc386.py --suite boot --cpu rtl   # the same boot on fes_i386_cpu, the oracle backing its stops
+python3 scripts/sim_fes_pc386.py --suite rtl-stops        # the RTL's stop path on the stop test disk, against the oracle
 python3 scripts/sim_fes_pc386.py --suite sound --download  # boot, then SOUND.COM; writes sound.wav
 python3 scripts/sim_fes_pc386.py --suite vga              # presenter, capture and plane benches, VGA test disk, replay
 python3 scripts/synth_fes_pc386.py --cache-root /abs/out/cache/misteross-toolchains  # machine-only synthesis

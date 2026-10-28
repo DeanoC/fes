@@ -71,6 +71,7 @@
 #include <cstring>
 #include <deque>
 #include <fstream>
+#include <functional>
 #include <iterator>
 #include <map>
 #include <memory>
@@ -484,10 +485,11 @@ public:
 // lockstep_tb.cpp's Rtl drives it: the fetch and data ports on guest memory
 // with no latency, the VGA window as MMIO through the machine's port (stores
 // posted in order as they retire, loads waiting), I/O and INTA through the AT
-// core with its device time, INTR from the PICs, no NMI. A20M masks physical
-// bit 20 except in the reset alias at FFFF0000h. There is no uncached path in
-// the CPU yet, so a VGA load on a wrong path reaches the VGA, which the
-// L1D's uncached loads, waiting until they are the oldest, will not let it.
+// core with its device time (an I/O access once the VGA stores before it are
+// taken), INTR from the PICs, no NMI. A20M masks physical bit 20 except in
+// the reset alias at FFFF0000h. There is no uncached path in the CPU yet, so
+// a VGA load on a wrong path reaches the VGA, which the L1D's uncached loads,
+// waiting until they are the oldest, will not let it.
 class RtlCpu {
 public:
     explicit RtlCpu(Machine &machine) : m(machine), dirty(RAM_BYTES >> 12) {}
@@ -498,8 +500,14 @@ public:
     uint64_t tf_retired = 0;     // ... with TF set, which the RTL does not trap on
     uint64_t parked_clocks = 0;  // clocks only the machine ran (see run)
     uint64_t vga_loads = 0;      // loads from the VGA window
-    uint64_t smc_stores = 0;     // stores into code already fetched ahead of the next instruction
-    std::vector<std::pair<uint64_t, uint32_t>> smc_sites;  // the first of them: clock, address
+    // Self-modifying code: a store into a block the front end has fetched,
+    // ahead of the next instruction, and an instruction that then retires
+    // over a byte so stored before the front end next redirects (and so
+    // refetches): the CPU ran the bytes from before the store.
+    uint64_t smc_stores = 0, smc_executed = 0;
+    std::set<uint32_t> smc_addresses;
+    std::vector<std::string> smc_sites;  // the first stores and executions
+    std::function<unsigned(uint32_t linear)> length;  // an instruction's length, from memory
     std::vector<bool> dirty;     // pages stored to since the oracle last ran
 
     // A20 below the reset alias.
@@ -534,6 +542,8 @@ public:
         resetting = false;
         io = inta = Pending::Idle;
         last_retire = m.cycles;
+        retire_next = physical(s.seg[fes_i386::SEG_CS].base + s.eip, m.top.a20m);
+        stale.clear();
     }
 
     // The architectural state, over the fields the RTL does not hold.
@@ -612,9 +622,11 @@ public:
         }
         cpu.intr = m.top.intr;
         // The machine's inputs for this edge: one I/O or INTA cycle when the
-        // AT core is free, as the oracle path waits for io_busy.
+        // AT core is free, as the oracle path waits for io_busy. An I/O
+        // access waits until the machine has taken every older VGA store, as
+        // the design's I/O instructions drain the write buffer first.
         bool issued = false;
-        if (io == Pending::Want && !m.top.io_busy) {
+        if (io == Pending::Want && !m.top.io_busy && vga_queue.empty()) {
             m.top.io_valid = 1;
             m.top.io_write = io_write;
             m.top.io_port = io_port;
@@ -687,6 +699,7 @@ public:
                 }
                 cpu.mem_data[word] = value;
             }
+            if (base != fetch_end) stale.clear();  // a redirect: the front end refetches
             fetch_end = base + 16;
         }
         cpu.mem_valid = 1;
@@ -695,6 +708,15 @@ public:
             ++retired;
             last_retire = m.cycles;
             if (cpu.arch_eflags & 0x100) ++tf_retired;
+            const uint32_t start = retire_next;
+            retire_next = physical(cpu.arch_base[fes_i386::SEG_CS] + cpu.arch_eip, a20m);
+            if (!stale.empty() && !cpu.trace_exception) {
+                auto byte = stale.lower_bound(start);
+                if (byte != stale.end() && *byte < start + 15 && *byte < start + length(start)) {
+                    ++smc_executed;
+                    if (smc_sites.size() < 24) smc_sites.push_back(site("executed", start, *byte));
+                }
+            }
         }
     }
 
@@ -725,6 +747,8 @@ private:
     unsigned vga_reads = 0;    // the waiting load's dwords not yet answered
     uint64_t loaded = 0;       // the bytes the last load read
     uint32_t fetch_end = 0;    // the end of the last block fetched
+    uint32_t retire_next = 0;  // where the next instruction to retire starts
+    std::set<uint32_t> stale;  // bytes stored into fetched code since the last redirect
     uint64_t last_retire = 0;
 
     // The I/O or INTA cycle the machine completed on its last edge.
@@ -778,7 +802,9 @@ private:
                     dirty[at >> 12] = true;
                     // Code the front end holds ahead of the next instruction.
                     if (at >= next && at < fetch_end && fetch_end - next <= SMC_WINDOW) {
-                        if (smc_sites.size() < 16) smc_sites.push_back({m.cycles, at});
+                        if (smc_addresses.insert(at).second && smc_sites.size() < 24)
+                            smc_sites.push_back(site("store", next, at));
+                        stale.insert(at);
                         ++smc_stores;
                     }
                 }
@@ -787,6 +813,12 @@ private:
         }
     }
     static constexpr uint32_t SMC_WINDOW = 96;
+    std::string site(const char *kind, uint32_t instruction, uint32_t address) const {
+        char text[96];
+        std::snprintf(text, sizeof text, "%s %llu %04x:%08x %08x %08x", kind, (unsigned long long)m.cycles,
+                      unsigned(cpu.arch_sel[0] >> 16), cpu.arch_eip, instruction, address);
+        return text;
+    }
 
     void data_read(uint32_t address, unsigned bytes, bool a20m) {
         const uint32_t dword = address & ~3u;
@@ -949,6 +981,12 @@ int main(int argc, char **argv) {
         std::unique_ptr<RtlCpu> rtl;
         if (options.cpu == "rtl") {
             rtl = std::make_unique<RtlCpu>(machine);
+            rtl->length = [&](uint32_t linear) {
+                uint8_t bytes[15];
+                for (unsigned n = 0; n < 15; ++n) bytes[n] = rtl->read8(linear + n);
+                fes_i386::Decoded decoded = oracle->decode(bytes, 15, (rtl->cpu.arch_ar[0] >> 16) & 0x4000);  // CS.D
+                return decoded.complete ? unsigned(decoded.length) : 15u;
+            };
             rtl->start(oracle->get_state());
         }
         bool on_oracle = !rtl;
@@ -1227,15 +1265,15 @@ int main(int argc, char **argv) {
                 std::printf("GAP %s %s %llu %zu %llu %s %llu\n", key.first.c_str(), key.second.c_str(),
                             (unsigned long long)gap.stops, gap.sites.size(), (unsigned long long)gap.executed,
                             gap.first_site.c_str(), (unsigned long long)gap.first_cycle);
-            for (const auto &[clock, address] : rtl->smc_sites)
-                std::printf("SMC %llu %08x\n", (unsigned long long)clock, address);
+            for (const std::string &line : rtl->smc_sites) std::printf("SMC %s\n", line.c_str());
             for (const std::string &note : notes) std::printf("NOTE %s\n", note.c_str());
             std::printf("RTL retired=%llu oracle_steps=%llu protected_steps=%llu parked_clocks=%llu tf_retired=%llu "
-                        "vga_loads=%llu smc_stores=%llu\n",
+                        "vga_loads=%llu smc_stores=%llu smc_addresses=%zu smc_executed=%llu\n",
                         (unsigned long long)rtl->retired, (unsigned long long)oracle_steps,
                         (unsigned long long)protected_steps, (unsigned long long)rtl->parked_clocks,
                         (unsigned long long)rtl->tf_retired, (unsigned long long)rtl->vga_loads,
-                        (unsigned long long)rtl->smc_stores);
+                        (unsigned long long)rtl->smc_stores, rtl->smc_addresses.size(),
+                        (unsigned long long)rtl->smc_executed);
             steps += rtl->retired;
         }
         for (const auto &[key, count] : machine.io_times)

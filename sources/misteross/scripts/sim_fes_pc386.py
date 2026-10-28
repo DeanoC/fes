@@ -24,6 +24,11 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            With --cpu rtl, fes_i386_cpu is the CPU and the oracle runs only
            what it stops on (see machine_tb.cpp); writes boot-rtl/, whose
            report lists the stops by stem against the lockstep's scope.
+  rtl-stops
+           boots cores/fes-pc386/sim/rtl_stop_test.asm on the oracle and on
+           the RTL: DAA at two sites, SMSW, and a protected-mode stretch from
+           LMSW to MOV CR0, all unbuilt in the RTL. The RTL run must stop on
+           each, record the stretch, and write what the oracle run writes.
   sound    boots FreeDOS and runs SOUND.COM; checks the speaker and DSP tones,
            OPL2 output and DSP interrupts.
   game     starts Wolfenstein 3D or Ultima VI from user-supplied eXoDOS files
@@ -44,6 +49,7 @@ Examples:
   python3 scripts/sim_fes_pc386.py --suite opl2
   python3 scripts/sim_fes_pc386.py --suite boot --download
   python3 scripts/sim_fes_pc386.py --suite boot --cpu rtl
+  python3 scripts/sim_fes_pc386.py --suite rtl-stops
   python3 scripts/sim_fes_pc386.py --suite sound --download
   python3 scripts/sim_fes_pc386.py --suite game --game ultima6
   python3 scripts/sim_fes_pc386.py --suite vga
@@ -220,8 +226,9 @@ def parse_boot(text: str) -> dict:
             stop, stem, stops, sites, executed, site, cycle = rest.split()
             rtl['gaps'].append(rtl_gap(stop, stem, int(stops), int(sites), int(executed), site, int(cycle)))
         elif kind == 'SMC':
-            cycle, address = rest.split()
-            rtl['smc'].append({'cycle': int(cycle), 'address': address})
+            event, cycle, site, instruction, address = rest.split()
+            rtl['smc'].append({'event': event, 'cycle': int(cycle), 'site': site, 'instruction': instruction,
+                               'address': address})
         elif kind == 'NOTE':
             rtl['notes'].append(rest)
         elif kind == 'RTL':
@@ -439,6 +446,50 @@ def vga_test_disk(args) -> Path:
     disk = directory / 'vga_test.img'
     disk.write_bytes(data + bytes((1 << 20) - len(data)))
     return disk
+
+
+# What the RTL must stop on in rtl_stop_test.asm: stem -> (stops, sites).
+RTL_STOPS = {'27': (2, 2), '0F01.4': (1, 1), '0F01.6': (1, 1)}
+
+
+def run_rtl_stops(args, linked: list[Path]) -> dict:
+    """The stop path of --cpu rtl, on a boot sector of instructions the RTL has not built."""
+    nasm = test386.nasm(args.download, args.jobs)
+    directory = OUTPUT / 'rtl-stops'
+    directory.mkdir(parents=True, exist_ok=True)
+    binary = directory / 'rtl_stop_test.bin'
+    result = subprocess.run([str(nasm), '-f', 'bin', '-o', str(binary), str(CORE / 'sim/rtl_stop_test.asm')],
+                            capture_output=True, text=True)
+    if result.returncode:
+        raise SimError('nasm failed on rtl_stop_test.asm\n' + result.stderr)
+    disk = directory / 'rtl_stop_test.img'
+    disk.write_bytes(binary.read_bytes().ljust(1 << 20, b'\0'))
+    images = firmware.images(args.download, args.jobs)
+    testbench = machine_testbench(args, linked)
+    runs = {}
+    for cpu in ('oracle', 'rtl'):
+        print(f'Booting the stop test disk on the {cpu} CPU', flush=True)
+        runs[cpu] = run_machine(testbench, f'rtl-stops/{cpu}', ['--disk', str(disk), '--limit-seconds',
+                                                                str(args.limit_seconds), '--until-debug', 'DONE',
+                                                                '--cpu', cpu], images)
+    lines = {cpu: [entry['text'] for entry in run['debug'] if entry['port'] == '0e9'] for cpu, run in runs.items()}
+    failures = [f'{cpu}: {failure}' for cpu, run in runs.items() for failure in run['failures']]
+    if not lines['oracle'] or lines['oracle'][-1] != 'DONE':
+        failures.append(f'the oracle run did not finish: {lines["oracle"]}')
+    if lines['rtl'] != lines['oracle']:
+        failures.append(f'the RTL run wrote {lines["rtl"]}, the oracle run {lines["oracle"]}')
+    rtl = runs['rtl'].get('rtl') or {'gaps': [], 'pmode': []}
+    gaps = {gap['stem']: gap for gap in rtl['gaps']}
+    for stem, (stops, sites) in RTL_STOPS.items():
+        gap = gaps.get(stem)
+        if not gap or (gap['stops'], gap['sites'], gap['executed']) != (stops, sites, stops):
+            failures.append(f'stem {stem}: expected {stops} stops at {sites} sites, each run on the oracle: {gap}')
+    if set(gaps) != set(RTL_STOPS):
+        failures.append(f'the RTL stopped on {sorted(gaps)}, expected {sorted(RTL_STOPS)}')
+    if len(rtl['pmode']) != 1 or rtl['pmode'][0]['steps'] != 3:
+        failures.append(f'expected one protected-mode stretch of 3 steps: {rtl["pmode"]}')
+    return {'lines': lines, 'runs': runs, 'failures': failures,
+            'checks': [f'{cpu}: {" | ".join(lines[cpu])}' for cpu in runs] + [f'RTL {gap}' for gap in rtl['gaps']]}
 
 
 def run_bench(args, name: str, top: str, rtl: tuple[Path, ...], testbench: Path) -> dict:
@@ -703,8 +754,8 @@ def run_game(args, linked: list[Path]) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--suite', choices=('devices', 'audio', 'opl2', 'benches', 'boot', 'sound', 'game', 'vga',
-                                            'all'), default='all', help='simulation suite to run')
+    parser.add_argument('--suite', choices=('devices', 'audio', 'opl2', 'benches', 'boot', 'rtl-stops', 'sound', 'game',
+                                            'vga', 'all'), default='all', help='simulation suite to run')
     parser.add_argument('--download', action='store_true', help='fetch Bochs, dev86, FreeDOS and NASM if missing')
     parser.add_argument('--rebuild-image', action='store_true', help='rebuild the FreeDOS fixture')
     parser.add_argument('--limit-seconds', type=float, default=None, help='simulated seconds before giving up')
@@ -731,7 +782,8 @@ def main() -> int:
     try:
         suites = ('devices', 'audio', 'opl2', 'benches', 'boot', 'vga', 'sound') if args.suite == 'all' else (args.suite,)
         for suite in suites:
-            args.limit_seconds = limit_seconds or (14 if suite == 'sound' else 8 if suite == 'boot' else 12)
+            args.limit_seconds = limit_seconds or (14 if suite == 'sound' else 8 if suite == 'boot' else
+                                                   2 if suite == 'rtl-stops' else 12)
             args.type = typed or ('sound|' if suite == 'sound' else 'dir|')
             args.expect = expect or ('SOUND DONE' if suite == 'sound' else 'bytes free')
             if suite == 'devices':
@@ -746,6 +798,8 @@ def main() -> int:
                 report = run_sound(args, oracle.link_inputs(args.jobs, args.download))
             elif suite == 'game':
                 report = run_game(args, oracle.link_inputs(args.jobs, args.download))
+            elif suite == 'rtl-stops':
+                report = run_rtl_stops(args, oracle.link_inputs(args.jobs, args.download))
             else:
                 run = run_boot if suite == 'boot' else run_vga
                 report = run(args, oracle.link_inputs(args.jobs, args.download))
