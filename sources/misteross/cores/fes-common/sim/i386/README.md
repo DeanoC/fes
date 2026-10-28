@@ -268,7 +268,7 @@ outcome stands. The corpus itself then checks those values.
 | Source | What runs | Checked |
 | --- | --- | --- |
 | SingleStepTests/80386 | Every state of the instruction forms the CPU executes (the runner's `SCOPE` table), from its initial state to its HLT | Every retirement against the oracle, then the RTL's final state against the corpus's, undefined flags and RAM included |
-| Random programs | Register, immediate and 16-bit-addressed memory forms of the same instructions with segment, REP, 66h and 67h prefixes (and now and then a LOCK), forward branches, bounded LOOPs, backward jumps, pushes and pops, CALLs to subroutines that return with RET or RET imm16 (two deep, their bodies leaving ESP, SS and the return address alone), far CALLs returning with RETF or RETF imm16, through a pointer in the instruction or one stored just before, far JMPs, PUSH BP / MOV BP, SP / LEAVE frames and the far pointer loads, from random register states and zeroed memory. A far target is a CS:IP for the target's linear address, so the program's state is chosen before its layout | Every retirement against the oracle; a run stops at its HLT, a fault, 2,000 retirements or a store into its own code, which needs self-modifying-code detection the RTL does not have yet. Two seeds run again without latency and must retire the same trace (a hash of every retirement's state) |
+| Random programs | Register, immediate and 16-bit-addressed memory forms of the same instructions with segment, REP, 66h and 67h prefixes (and now and then a LOCK), forward branches, bounded LOOPs, backward jumps, pushes and pops, CALLs to subroutines that return with RET or RET imm16 (two deep, their bodies leaving ESP, SS and the return address alone), far CALLs returning with RETF or RETF imm16, through a pointer in the instruction or one stored just before, far JMPs, PUSH BP / MOV BP, SP / LEAVE frames, the far pointer loads, PUSHA and POPA, PUSHF/POPF pairs, and interrupt blocks (SS above the vector table, the vector's entry stored as the handler's CS:IP, INT n, INT3 or INTO, and a handler that IRETs), from random register states and zeroed memory. A far target is a CS:IP for the target's linear address, so the program's state is chosen before its layout | Every retirement against the oracle; a run stops at its HLT, a fault, 2,000 retirements or a store into its own code, which needs self-modifying-code detection the RTL does not have yet. Two seeds run again without latency and must retire the same trace (a hash of every retirement's state) |
 | Directed faults | 66 E8 with a 32-bit target past FFFFh, a 32-bit RET to 10000h, and JMP EBX to 10000h; each is followed by 32 monitored cycles | Bochs #GP(0), unchanged EIP/ESP and memory, and no fetch request, D issue or data read after the fault |
 
 The latency-free reruns also give the cycles between retirements: in
@@ -280,9 +280,14 @@ cycles after a shift and anything else one; an instruction that reads memory
 must retire at least two cycles after a store, and any other instruction
 without a memory operand one; a push or pop right after another must retire
 one cycle behind it, as its ESP is early from AG, unless it is a pop after a
-push (a load after a store) or follows a segment load. CALL and RETF
-(several uops), LEAVE, PUSH and POP of (E)SP, which read ESP as data, and
-anything after POP (E)SP, which loads ESP, are left out of that check.
+push (a load after a store) or follows a segment load. CALL, RETF, PUSHA,
+POPA, INT and IRET (several uops), LEAVE, PUSH and POP of (E)SP, which read
+ESP as data, and anything after POP (E)SP or POPA, which load ESP, are left
+out of that check.
+
+A software interrupt (INT n, INT3, INTO) is the corpus's exception: the run
+goes on into the handler, to its HLT, and the corpus's final state, the
+pushed frame included, is compared.
 
 Each later slice adds its instruction forms to `SCOPE`, its ports to the
 memory model, and its instructions to the random generator; the comparison

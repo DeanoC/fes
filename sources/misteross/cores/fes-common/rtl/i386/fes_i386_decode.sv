@@ -50,7 +50,9 @@ module fes_i386_decode (
     output logic                   far_jmp,     // a far jump by far_sel:imm
     output logic                   far_chk,     // ... whose offset (imm) D checks against CS's limit
     output logic [15:0]            far_sel,
-    output logic [5:0]             wseg         // the segment registers the uop writes, one-hot
+    output logic [5:0]             wseg,        // the segment registers the uop writes, one-hot
+    output logic [7:0]             upc,         // SEQ_UCODE: the ROM address of the routine's second uop
+    output logic                   ivt          // the memory operand is the interrupt vector's entry
 );
     typedef fes_i386_pkg::uop_t uop_t;
 
@@ -72,9 +74,13 @@ module fes_i386_decode (
     assign reg_f = modrm[5:3];
     assign rm = modrm[2:0];
     assign reg_form = mode == 2'b11;
-    assign opsize32 = code32 ^ q.prefixes.opsize;
+    logic osz32;  // the operand size as the prefixes set it
+    assign osz32 = code32 ^ q.prefixes.opsize;
+    // INT3, INT n and INTO push 16-bit slots in real mode, whatever the
+    // operand size: D's stack steps follow opsize32.
+    assign opsize32 = osz32 && !(!two && b0 >= 8'hcc && b0 <= 8'hce);
     assign addr32 = code32 ^ q.prefixes.adsize;
-    assign osz = opsize32 ? 2'd2 : 2'd1;
+    assign osz = osz32 ? 2'd2 : 2'd1;
 
     // A flag consumer: ADC, SBB, Jcc, SETcc, RCL, RCR, LAHF, CMC, LOOPE,
     // LOOPNE. Straight from the opcode and ModRM bytes, not through the
@@ -86,7 +92,8 @@ module fes_i386_decode (
                    || ((b0[7:1] == 7'b1100000 || b0[7:2] == 6'b110100) && by[1][5:4] == 2'b01)  // RCL, RCR
                    || b0[7:4] == 4'h7                                             // Jcc rel8
                    || (two && op2[7:5] == 3'b100)                                 // Jcc rel16/32, SETcc
-                   || b0 == 8'h9f || b0 == 8'hf5 || b0[7:1] == 7'b1110000;        // LAHF, CMC, LOOPNE, LOOPE
+                   || b0 == 8'h9f || b0 == 8'hf5 || b0[7:1] == 7'b1110000         // LAHF, CMC, LOOPNE, LOOPE
+                   || b0 == 8'h9c || b0 == 8'hce;                                 // PUSHF, INTO
 
     // Where the displacement is: after the ModRM and, in 32-bit addressing
     // with r/m 100b, a SIB byte.
@@ -110,14 +117,14 @@ module fes_i386_decode (
     assign blen = q.length - q.prefix_count;
     assign imm8_m = {24'b0, byx[blen - 4'd1]};
     assign imm8s_m = {{24{byx[blen - 4'd1][7]}}, byx[blen - 4'd1]};
-    assign immz_m = opsize32 ? {byx[blen - 4'd1], byx[blen - 4'd2], byx[blen - 4'd3], byx[blen - 4'd4]}
+    assign immz_m = osz32 ? {byx[blen - 4'd1], byx[blen - 4'd2], byx[blen - 4'd3], byx[blen - 4'd4]}
                              : {16'b0, byx[blen - 4'd1], byx[blen - 4'd2]};
     assign imm8_o = {24'b0, by[1]};
     // Branch displacements, as AG's disp: 32 bits, or zero-extended from 16
     // when the operand size is 16 (the target wraps at 64 KiB).
-    assign rel8 = opsize32 ? {{24{by[1][7]}}, by[1]} : {16'b0, {8{by[1][7]}}, by[1]};
-    assign relz1 = opsize32 ? {by[4], by[3], by[2], by[1]} : {16'b0, by[2], by[1]};
-    assign relz2 = opsize32 ? {by[5], by[4], by[3], by[2]} : {16'b0, by[3], by[2]};
+    assign rel8 = osz32 ? {{24{by[1][7]}}, by[1]} : {16'b0, {8{by[1][7]}}, by[1]};
+    assign relz1 = osz32 ? {by[4], by[3], by[2], by[1]} : {16'b0, by[2], by[1]};
+    assign relz2 = osz32 ? {by[5], by[4], by[3], by[2]} : {16'b0, by[3], by[2]};
 
     // ---- The opcode table -------------------------------------------------------
     logic [2:0]  cls;
@@ -135,6 +142,9 @@ module fes_i386_decode (
     logic        lptr;      // LES and its kin (SEQ_LPTR)
     logic        fptr;      // JMP and CALL m16:16/32 (SEQ_JMPFM, SEQ_CALLFM)
     logic        d_t1;      // the destination is T1, not T0
+    logic [1:0]  probe;     // probe_e: the uop probes a routine's stack slots
+    logic        eoi_taken; // ends the instruction only when taken (INTO's JNO)
+    logic [7:0]  vec;       // INT3, INT n, INTO: the vector
     logic        eoi;       // the uop ends the instruction
     logic [1:0]  mkind;     // a mem_kind_e
     logic        m_in_a;    // the memory operand stands for src1 (and the destination), else src2
@@ -167,6 +177,11 @@ module fes_i386_decode (
         lptr = 1'b0;
         fptr = 1'b0;
         d_t1 = 1'b0;
+        probe = fes_i386_pkg::PROBE_NONE;
+        upc = 8'd0;
+        ivt = 1'b0;
+        eoi_taken = 1'b0;
+        vec = 8'd0;
         d_idx = 3'd0;
         d_hi8 = 1'b0;
         imm = 32'd0;
@@ -215,7 +230,7 @@ module fes_i386_decode (
                 8'b011010?0: begin
                     // PUSH imm16/32 (68h), imm8 sign-extended (6Ah)
                     op = 5'd9;
-                    imm = b0[1] ? {{24{by[1][7]}}, by[1]} : opsize32 ? {by[4], by[3], by[2], by[1]} : {16'b0, by[2], by[1]};
+                    imm = b0[1] ? {{24{by[1][7]}}, by[1]} : osz32 ? {by[4], by[3], by[2], by[1]} : {16'b0, by[2], by[1]};
                     m_in_a = 1'b1;
                     mkind = 2'd2;
                     stk = fes_i386_pkg::STK_PUSH;
@@ -274,7 +289,7 @@ module fes_i386_decode (
                     if (b0[2:1] == 2'b10) begin
                         // AL/eAX, imm
                         s1_valid = 1'b1;
-                        imm = b0[0] ? (opsize32 ? {by[4], by[3], by[2], by[1]} : {16'b0, by[2], by[1]}) : imm8_o;
+                        imm = b0[0] ? (osz32 ? {by[4], by[3], by[2], by[1]} : {16'b0, by[2], by[1]}) : imm8_o;
                     end else begin
                         s1_valid = 1'b1;
                         s1_idx = b0[1] ? reg_f : rm;
@@ -416,7 +431,7 @@ module fes_i386_decode (
                 8'h98: begin
                     // CBW, CWDE
                     op = 5'd16;  // ALU_MOVSX
-                    src_size = opsize32 ? 2'd1 : 2'd0;
+                    src_size = osz32 ? 2'd1 : 2'd0;
                     s1_valid = 1'b1;
                     s2_valid = 1'b1;
                     d_valid = 1'b1;
@@ -429,6 +444,25 @@ module fes_i386_decode (
                     s2_valid = 1'b1;
                     d_valid = 1'b1;
                     d_idx = 3'd2;
+                end
+                8'h9c: begin
+                    // PUSHF, PUSHFD: FLAGS' image, VM and RF clear
+                    op = 5'd30;  // ALU_FLAGS
+                    imm = 32'd10;  // FLAG_READ
+                    rd_cf = 1'b1;
+                    rd_oszap = 1'b1;
+                    m_in_a = 1'b1;
+                    mkind = 2'd2;
+                    stk = fes_i386_pkg::STK_PUSH;
+                end
+                8'h9d: begin
+                    // POPF, POPFD
+                    op = 5'd30;  // ALU_FLAGS
+                    imm = 32'd9;  // FLAG_LOAD
+                    wr_cf = 1'b1;
+                    wr_oszap = 1'b1;
+                    mkind = 2'd1;
+                    stk = fes_i386_pkg::STK_POP;
                 end
                 8'h9e: begin
                     // SAHF
@@ -459,7 +493,7 @@ module fes_i386_decode (
                     wr_cf = 1'b1;
                     wr_oszap = 1'b1;
                     s1_valid = 1'b1;
-                    imm = b0[0] ? (opsize32 ? {by[4], by[3], by[2], by[1]} : {16'b0, by[2], by[1]}) : imm8_o;
+                    imm = b0[0] ? (osz32 ? {by[4], by[3], by[2], by[1]} : {16'b0, by[2], by[1]}) : imm8_o;
                 end
                 8'b1011????: begin
                     // MOV r, imm
@@ -471,7 +505,7 @@ module fes_i386_decode (
                     d_valid = 1'b1;
                     d_idx = s1_idx;
                     d_hi8 = s1_hi8;
-                    imm = b0[3] ? (opsize32 ? {by[4], by[3], by[2], by[1]} : {16'b0, by[2], by[1]}) : imm8_o;
+                    imm = b0[3] ? (osz32 ? {by[4], by[3], by[2], by[1]} : {16'b0, by[2], by[1]}) : imm8_o;
                 end
                 8'b1100000?, 8'b110100??: begin
                     // Group 2: C0h, C1h by imm8; D0h, D1h by 1; D2h, D3h by CL
@@ -549,6 +583,17 @@ module fes_i386_decode (
                     seg2_idx = 3'd1;
                     seg2_t = 1'b0;
                 end
+                8'b0110000?: begin
+                    // PUSHA, PUSHAD, POPA, POPAD (SEQ_UCODE): a probe of all
+                    // eight slots, then the ROM's routine
+                    op = 5'd9;  // ALU_MOV
+                    mkind = 2'd1;
+                    stk = fes_i386_pkg::STK_PROBE;
+                    probe = b0[0] ? fes_i386_pkg::PROBE_POPA : fes_i386_pkg::PROBE_PUSHA;
+                    seq = fes_i386_pkg::SEQ_UCODE;
+                    upc = b0[0] ? fes_i386_ucode_pkg::UC_POPA : fes_i386_ucode_pkg::UC_PUSHA;
+                    eoi = 1'b0;
+                end
                 8'h9a: begin
                     // CALL ptr16:16 or ptr16:32 (SEQ_CALLF): a read of the
                     // return address's lower slot, which checks the offset and
@@ -565,13 +610,58 @@ module fes_i386_decode (
                     seq = fes_i386_pkg::SEQ_CALLF;
                     eoi = 1'b0;
                 end
+                8'b1100110?: begin
+                    // INT3 (CCh), INT n (CDh) (SEQ_UCODE): the vector's offset
+                    // into T1, then the ROM's routine
+                    vec = b0[0] ? by[1] : 8'd3;
+                    op = 5'd9;  // ALU_MOV
+                    size = 2'd2;
+                    mbytes = 3'd2;
+                    mkind = 2'd1;
+                    ivt = 1'b1;
+                    d_valid = 1'b1;
+                    d_temp = 1'b1;
+                    d_t1 = 1'b1;
+                    seq = fes_i386_pkg::SEQ_UCODE;
+                    upc = fes_i386_ucode_pkg::UC_INT;
+                    eoi = 1'b0;
+                end
+                8'hce: begin
+                    // INTO (SEQ_UCODE): JNO to the next instruction, ending it
+                    // if taken; else the ROM's INT routine, vector 4
+                    vec = 8'd4;
+                    cls = C_BRANCH;
+                    op = 5'd0;  // BR_JCC
+                    cond = 4'b0001;  // NO
+                    rd_oszap = 1'b1;
+                    branch = 1'b1;
+                    eoi_taken = 1'b1;
+                    seq = fes_i386_pkg::SEQ_UCODE;
+                    upc = fes_i386_ucode_pkg::UC_INTO;
+                    eoi = 1'b0;
+                end
+                8'hcf: begin
+                    // IRET, IRETD (SEQ_UCODE): the offset's slot into T1, then
+                    // the ROM's routine
+                    op = 5'd9;  // ALU_MOV
+                    size = 2'd2;
+                    mbytes = osz32 ? 3'd4 : 3'd2;
+                    mkind = 2'd1;
+                    stk = fes_i386_pkg::STK_PEEK;
+                    d_valid = 1'b1;
+                    d_temp = 1'b1;
+                    d_t1 = 1'b1;
+                    seq = fes_i386_pkg::SEQ_UCODE;
+                    upc = fes_i386_ucode_pkg::UC_IRET;
+                    eoi = 1'b0;
+                end
                 8'b1100101?: begin
                     // RETF imm16 (CAh), RETF (CBh) (SEQ_RETF): the offset into
                     // T1 and the selector into T0, ESP unmoved, then JMP. A
                     // temporary's load is 32-bit, so nothing merges into it.
                     op = 5'd9;  // ALU_MOV
                     size = 2'd2;
-                    mbytes = opsize32 ? 3'd4 : 3'd2;
+                    mbytes = osz32 ? 3'd4 : 3'd2;
                     mkind = 2'd1;
                     stk = fes_i386_pkg::STK_PEEK;
                     imm = b0[0] ? 32'd0 : {16'b0, by[2], by[1]};
@@ -815,7 +905,10 @@ module fes_i386_decode (
     assign u.seg2_t = seg2_t;
     assign wseg = (u.dst.valid && d_seg ? 6'(1) << d_idx : 6'd0) | (u.seg2 ? 6'(1) << seg2_idx : 6'd0);
     // A far pointer's selector follows its offset.
-    assign far_sel = opsize32 ? {by[6], by[5]} : {by[4], by[3]};
+    // INT3, INT n and INTO carry the vector's entry, vector * 4, here.
+    assign far_sel = ivt || eoi_taken ? {6'd0, vec, 2'b00} : osz32 ? {by[6], by[5]} : {by[4], by[3]};
+    assign u.probe = probe;
+    assign u.eoi_taken = eoi_taken;
     assign u.sp_add = 1'b0;
     assign u.sp_write = stk != fes_i386_pkg::STK_NONE && stk != fes_i386_pkg::STK_PEEK && stk != fes_i386_pkg::STK_PROBE;
     assign u.cls = fes_i386_pkg::uop_class_e'(cls);
@@ -847,7 +940,7 @@ module fes_i386_decode (
     assign u.mem.disp = lea_disp;
     assign u.mem.addr32 = addr32;
     assign u.mem.lock = q.prefixes.lock;
-    assign u.mem.system = 1'b0;
+    assign u.mem.system = ivt;
     assign u.mem.in_a = m_in_a;
     assign u.flags.read.cf = rd_cf;
     assign u.flags.read.oszap = rd_oszap;

@@ -56,7 +56,7 @@ module fes_i386_ex (
     output logic                 def_co,      // CF and OF come from sh_* (fes_i386_shflags)
     output logic                 def_szap     // SF, ZF and PF follow the result; AF is set
 );
-    localparam int CF = 0, PF = 2, AF = 4, ZF = 6, SF = 7, IF = 9, DF = 10, OF = 11;
+    localparam int CF = 0, PF = 2, AF = 4, ZF = 6, SF = 7, TF = 8, IF = 9, DF = 10, OF = 11;
 
     function automatic logic cond(input logic [17:0] f, input logic [3:0] cc);
         logic t;
@@ -134,7 +134,8 @@ module fes_i386_ex (
                    | ({32{exc.r_movsx}} & (exc.src8 ? {{24{y[7]}}, y[7:0]} : {{16{y[15]}}, y[15:0]}))
                    | ({32{exc.r_setcc}} & {31'b0, cc_true})
                    | ({32{exc.r_lahf}} & {24'b0, flags_in[7:6], 1'b0, flags_in[4], 1'b0, flags_in[2], 1'b1, flags_in[0]})
-                   | ({32{exc.r_sign}} & {32{exc.src8 ? y[7] : exc.src16 ? y[15] : y[31]}});
+                   | ({32{exc.r_sign}} & {32{exc.src8 ? y[7] : exc.src16 ? y[15] : y[31]}})
+                   | ({32{exc.r_flags}} & {16'b0, flags_in[15:0]});
     assign r_shift = out[32:1];
     assign result[7:0] = ({8{exc.add_lo}} & sum[7:0]) | ({8{exc.sh_lo}} & r_shift[7:0])
                        | ({8{exc.ot_lo}} & r_other[7:0]) | ({8{exc.kp_lo}} & af[7:0]);
@@ -179,6 +180,24 @@ module fes_i386_ex (
             end
             if (exc.f_if) rest[IF] = exc.fl_set;
             if (exc.f_df) rest[DF] = exc.fl_set;
+            // POPF and IRET: every flag a real-mode load writes, bits 14:0
+            // but the reserved 1, 3 and 5; RF and VM stay.
+            if (exc.f_load) begin
+                rest[CF] = y[0];
+                rest[PF] = y[2];
+                rest[AF] = y[4];
+                rest[ZF] = y[6];
+                rest[SF] = y[7];
+                rest[TF] = y[8];
+                rest[IF] = y[9];
+                rest[DF] = y[10];
+                rest[OF] = y[11];
+                rest[14:12] = y[14:12];
+            end
+            if (exc.f_clrit) begin
+                rest[IF] = 1'b0;
+                rest[TF] = 1'b0;
+            end
         end
     end
     always_comb begin
