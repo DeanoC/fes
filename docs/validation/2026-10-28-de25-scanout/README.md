@@ -104,7 +104,17 @@ burst bounds, stalled STOP/drain, response errors, underflow and a recovered
 clock-fault pulse remaining sticky. This checks the selected endpoint/reader/
 video source; it is separate from generated interconnect, Quartus and physical
 evidence. FPGA compilation/STA and generated two-clock-path evidence are
-recorded separately by the integrating producer.
+recorded separately by the integrating producer. The
+[final FPGA record](../../../sources/misteross/docs/validation/2026-10-28-de25-scanout/README.md)
+binds producer `6da029aa49`, its compiled SOF and 74 nonnegative timing rows.
+The new CDC finding is cleared without waiver; five design-rule classes and
+physical qualification remain open.
+
+The [generated transport record](../../../sources/misteross/docs/validation/2026-10-28-de25-scanout/transport/README.md)
+retains seven passing two-clock cases, five complete pixel-checked frames and
+the exact source comparison to FPGA producer `6da029aa49`. Its generated FIFO
+logic uses explicitly modeled M20K storage; primitive equivalence and physical
+CDC remain unproven. This is separate from final Quartus timing evidence.
 
 No hardware was accessed. The actual device/SID and IOMMU domain, bus-to-DDR
 translation, physical firewall, boot/firmware pairing, bounded MMIO access,
