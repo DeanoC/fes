@@ -67,8 +67,11 @@ func TestDiskDataHostRoutesKeepSessionAndRejectStaleBinding(t *testing.T) {
 	if live := liveInsert("old.d64"); live.Code != http.StatusOK || !strings.Contains(live.Body.String(), `"media_name":"old.d64"`) {
 		t.Fatalf("live insert status=%d body=%s", live.Code, live.Body)
 	}
+	identity := protocol.MediaUnitIdentityError()
+	identity.NoChange = true
 	for _, rejection := range []error{
 		protocol.LiveMediaBusyError(),
+		identity,
 		&protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "completed insert rejection", Phase: "input", NoChange: true},
 	} {
 		s.err = rejection
@@ -80,7 +83,7 @@ func TestDiskDataHostRoutesKeepSessionAndRejectStaleBinding(t *testing.T) {
 		}
 	}
 	s.err = nil
-	if inserted := send("/api/v1/session/disk/insert", body, nil); inserted.Code != http.StatusOK || s.inserts != 3 || s.binding != b {
+	if inserted := send("/api/v1/session/disk/insert", body, nil); inserted.Code != http.StatusOK || s.inserts != 4 || s.binding != b {
 		t.Fatal("insert")
 	}
 	if strings.Contains(serve(t, handler, "GET", "/api/v1/session").Body.String(), `"media_name"`) {
@@ -98,7 +101,7 @@ func TestDiskDataHostRoutesKeepSessionAndRejectStaleBinding(t *testing.T) {
 	if send("/api/v1/session/disk/save", "", func(r *http.Request) { r.Header.Set(protocol.HostSessionIDHeader, "stale") }).Code == http.StatusOK {
 		t.Fatal("stale session")
 	}
-	if s.inserts != 3 || s.saves != 1 || s.replaceCalls != 2 {
+	if s.inserts != 4 || s.saves != 1 || s.replaceCalls != 2 {
 		t.Fatal("invalid request dispatched")
 	}
 	s.err = &protocol.APIError{Code: protocol.CodeSaveFailed, Message: "publish failed", Phase: "save"}
