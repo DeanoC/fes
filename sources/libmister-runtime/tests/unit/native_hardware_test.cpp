@@ -2307,6 +2307,12 @@ void TestMenuUnderflowPolicyReactivatesThenSplashes()
  script.Present(0,0,kMenuUnderflowPresentCap+1);
  assert(!PresentBackSlot(hardware,&displayed).ok());
  reactivate();
+ // A counter stuck at 0xffffffff is not a clean present: both samples
+ // saturated used to subtract to a zero delta and reset the streak.
+ script.Present(0,0xffffffffu,0xffffffffu);
+ assert(!PresentBackSlot(hardware,&displayed).ok());
+ assert(!hardware.menu_display().available);
+ assert(hardware.menu_display().error.message=="menu underflow exceeded the per-present cap");
 }
 
 void TestHpsDdrPortsReleaseAfterIdentityBeforeExecution()

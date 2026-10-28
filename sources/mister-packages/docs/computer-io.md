@@ -425,8 +425,9 @@ is an invalid index and a nonzero argument invalid; every field of units
 1..7 reads 0. Fields: 0/1 minimum bytes low/high, 2/3 maximum bytes
 low/high, 4 chunk size in sectors (128), 5 state, 6 flags, 7 a wrapping
 change epoch that advances once for every guest sector write that reaches
-the image. Flag bits: 0 dirty (a dirty bit is set), 1 frozen, 2 writer busy,
-3 CRC error. Other bits read 0.
+the image. Flag bits: 0 dirty (a dirty bit is set), 1 frozen, 2 writer busy (an
+accepted sector write has not yet reached the image), 3 CRC error. Other bits
+read 0. Writer busy clears only when that accepted write reaches the image.
 
 **DiskControl** (17): index = unit; a unit other than 0 is an invalid index
 and an argument above 5 is invalid.

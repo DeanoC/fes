@@ -1975,7 +1975,11 @@ Error NativeHardware::PresentMenuSlot(std::uint8_t slot,const MenuDraw& draw,Men
   }
   if(info.displayed_sequence==sequence&&!info.pending){
    const auto delta=info.underflows>=baseline?info.underflows-baseline:info.underflows;
-   if(delta>kMenuUnderflowPresentCap){error={ErrorCode::io_failed,"menu underflow exceeded the per-present cap","menu"};break;}
+   // fes_menu_video saturates underflows at 0xffffffff instead of wrapping.
+   // A saturated baseline and a saturated completion both subtract to zero,
+   // which would reset the streak and accept a stuck scanout.
+   const auto saturated=std::numeric_limits<std::uint32_t>::max();
+   if(baseline==saturated||info.underflows==saturated||delta>kMenuUnderflowPresentCap){error={ErrorCode::io_failed,"menu underflow exceeded the per-present cap","menu"};break;}
    if(delta>0){if(++menu_underflow_streak_>=kMenuUnderflowSustainPresents){error={ErrorCode::io_failed,"menu underflow persisted across presents","menu"};break;}}
    else menu_underflow_streak_=0;
    menu_slot_=slot;menu_status_.displayed_sequence=sequence;menu_status_.underflows=delta;info.underflows=delta;

@@ -14,6 +14,7 @@ never deployed.
 from __future__ import annotations
 
 import argparse
+from datetime import date
 import json
 import sys
 import zlib
@@ -525,6 +526,8 @@ class Endpoint11(Endpoint):
         self.disk_state = EMPTY
         self.frozen = False
         self.saved = False
+        self.writer_busy = False
+        self.pending_sector: int | None = None
         self.error = False
         self.epoch = 0
         self.dirty: set[int] = set()
@@ -551,10 +554,22 @@ class Endpoint11(Endpoint):
     # Machine side ---------------------------------------------------------
 
     def guest_sector_write(self, sector: int) -> None:
+        self.guest_sector_write_begin(sector)
+        self.guest_sector_write_complete()
+
+    def guest_sector_write_begin(self, sector: int) -> None:
         assert self.disk_state == READY and not self.held and not self.frozen
-        assert sector < self.geometry[0]
+        assert not self.writer_busy and sector < self.geometry[0]
+        self.writer_busy = True
+        self.pending_sector = sector
+
+    def guest_sector_write_complete(self) -> None:
+        assert self.writer_busy and self.pending_sector is not None
+        sector = self.pending_sector
         self.dirty.add(sector // CHUNK_SECTORS)
         self.epoch = (self.epoch + 1) & 0xFFFF
+        self.writer_busy = False
+        self.pending_sector = None
 
     def guest_cmos_write(self, byte: int, value: int) -> None:
         assert not self.held and 0 <= byte < 128 and 0 <= value < 256
@@ -566,11 +581,13 @@ class Endpoint11(Endpoint):
 
     def _flags(self) -> int:
         return ((FLAG_DIRTY if self.dirty else 0) | (FLAG_FROZEN if self.frozen else 0)
-                | (FLAG_ERROR if self.error else 0))
+                | (FLAG_BUSY if self.writer_busy else 0) | (FLAG_ERROR if self.error else 0))
 
     def _clear_disk(self, state: int) -> None:
         self.disk_state = state
         self.frozen = self.saved = self.error = False
+        self.writer_busy = False
+        self.pending_sector = None
         self.dirty = set()
         self.staged = []
         self.geometry = []
@@ -598,7 +615,8 @@ class Endpoint11(Endpoint):
                 return E_OPCODE, 0
             return self._disk(op, index, arg)
         if op in (OP_DATA_CONTROL, OP_DATA_READ, OP_DATA_WRITE, OP_DATA_INFO):
-            if not self.capabilities & CAP_PERSISTENCE:
+            persistence_caps = CAP_PERSISTENCE | CAP_PC386_MACHINE
+            if self.capabilities & persistence_caps != persistence_caps:
                 return E_OPCODE, 0
             return self._data(op, index, arg)
         if op == OP_WALL_CLOCK:
@@ -621,6 +639,7 @@ class Endpoint11(Endpoint):
                 self.verify_left -= 1
                 if not self.verify_left:
                     self.disk_state = self.verify_result
+                    self.error = self.verify_result != READY
             values = [(DISK_MIN_SECTORS * SECTOR) & 0xFFFF, (DISK_MIN_SECTORS * SECTOR) >> 16,
                       (DISK_MAX_SECTORS * SECTOR) & 0xFFFF, (DISK_MAX_SECTORS * SECTOR) >> 16,
                       CHUNK_SECTORS, state, self._flags(), self.epoch]
@@ -647,19 +666,19 @@ class Endpoint11(Endpoint):
                 self.verify_left = self.verify_reads
                 self.verify_result = READY if match else LOADING
                 self.geometry = [size, cylinders, heads, spt] if match else []
-                if not match:
-                    self.error = True
                 return 0, 0
             if arg == FREEZE:
                 if self.disk_state != READY:
                     return E_STATE, 0
                 if not self.frozen:
                     self.frozen, self.saved = True, False
+                if self.writer_busy:
+                    self.guest_sector_write_complete()
                 return 0, 0
             if arg == RESUME:
                 self.frozen = self.saved = False
                 return 0, 0
-            if not self.frozen:  # SAVED
+            if not self.frozen or self.writer_busy:  # SAVED
                 return E_STATE, 0
             self.dirty = set()
             self.saved = True
@@ -760,8 +779,14 @@ class Endpoint11(Endpoint):
             return E_ARGUMENT, 0
         if index == 2 and not (low <= 23 and high <= 59):
             return E_ARGUMENT, 0
-        if index == 3 and not (low <= 59 and 1 <= high <= 7):
-            return E_ARGUMENT, 0
+        if index == 3:
+            if not (low <= 59 and 1 <= high <= 7):
+                return E_ARGUMENT, 0
+            year = self.clock_staged[0]
+            month_day = self.clock_staged[1]
+            expected_weekday = (date(year, month_day & 0xFF, month_day >> 8).weekday() + 1) % 7 + 1
+            if high != expected_weekday:
+                return E_ARGUMENT, 0
         if index == 0:
             self.clock_staged = []
         self.clock_staged.append(arg)
@@ -786,6 +811,14 @@ class Session11(Session):
     def sector_write(self, sector: int) -> None:
         self.endpoint.guest_sector_write(sector)
         self.events.append({"before": len(self.exchanges), "kind": "sector-write", "sector": sector})
+
+    def sector_write_begin(self, sector: int) -> None:
+        self.endpoint.guest_sector_write_begin(sector)
+        self.events.append({"before": len(self.exchanges), "kind": "sector-write-begin", "sector": sector})
+
+    def sector_write_complete(self) -> None:
+        self.endpoint.guest_sector_write_complete()
+        self.events.append({"before": len(self.exchanges), "kind": "sector-write-complete"})
 
     def cmos_write(self, byte: int, value: int) -> None:
         self.endpoint.guest_cmos_write(byte, value)
@@ -814,6 +847,15 @@ class Session11(Session):
 PC386_CAPS = (CAP_VIDEO | CAP_KEYBOARD | CAP_AUDIO | CAP_MOUSE | CAP_HPS_DDR | CAP_SESSION_DISPLAY
               | CAP_ATA_DISK | CAP_PERSISTENCE | CAP_WALL_CLOCK | CAP_PC386_MACHINE)
 DISK_SECTORS = 4096  # a 2 MiB synthetic image
+
+
+def persistence_capability_session(name: str, capabilities: int) -> Session11:
+    s = Session11(name, Endpoint11(capabilities, 1),
+                  "Persistence and its pc386 layout capability must be advertised together.")
+    s.identify()
+    s.send("data-info-with-unpaired-capability", OP_DATA_INFO, 0, 0)
+    s.send("data-begin-with-unpaired-capability", OP_DATA_CONTROL, 0, DATA_BEGIN)
+    return s
 
 
 def minor0_session() -> Session11:
@@ -895,6 +937,7 @@ def persistence_session() -> Session11:
     s.send("clock-second-60", OP_WALL_CLOCK, 3, 60 | 4 << 8)
     s.send("clock-weekday-0", OP_WALL_CLOCK, 3, 37 | 0 << 8)
     s.send("clock-weekday-8", OP_WALL_CLOCK, 3, 37 | 8 << 8)
+    s.send("clock-weekday-mismatch", OP_WALL_CLOCK, 3, 37 | 3 << 8)
     s.send("clock-second-weekday", OP_WALL_CLOCK, 3, 37 | 4 << 8)
     s.send("clock-word-1-after-apply", OP_WALL_CLOCK, 1, 10 | 28 << 8)
     # A leap day is a valid date; an Execution request drops the staged words.
@@ -970,6 +1013,7 @@ def disk_session() -> Session11:
     s.send("reserved", OP_DISK_COMMIT, 7, 0)
     s.send("commit-word-after-complete", OP_DISK_COMMIT, 0, DISK_SECTORS)
     s.send("disk-commit-mismatch", OP_DISK_CONTROL, 0, COMMIT)
+    s.send("flags-verifying-no-error", OP_DISK_INFO, 6, 0)
     s.send("poll-verifying", OP_DISK_INFO, 5, 0)
     s.send("poll-loading", OP_DISK_INFO, 5, 0)
     s.send("flags-error", OP_DISK_INFO, 6, 0)
@@ -987,7 +1031,14 @@ def disk_session() -> Session11:
         s.sector_write(sector)
     s.send("flags-dirty", OP_DISK_INFO, 6, 0)
     s.send("epoch", OP_DISK_INFO, 7, 0)
-    s.send("disk-freeze", OP_DISK_CONTROL, 0, FREEZE)
+    s.sector_write_begin(512)
+    s.send("flags-writer-busy", OP_DISK_INFO, 6, 0)
+    s.send("disk-saved-busy-writer", OP_DISK_CONTROL, 0, SAVED)
+    s.send("epoch-before-freeze-drain", OP_DISK_INFO, 7, 0)
+    s.send("disk-freeze-drain", OP_DISK_CONTROL, 0, FREEZE)
+    s.send("flags-drained-frozen", OP_DISK_INFO, 6, 0)
+    s.send("epoch-after-freeze-drain", OP_DISK_INFO, 7, 0)
+    s.send("dirty-after-freeze-drain", OP_DISK_DIRTY, 0, 0)
     s.send("disk-freeze-again", OP_DISK_CONTROL, 0, FREEZE)
     s.send("flags-dirty-frozen", OP_DISK_INFO, 6, 0)
     s.send("dirty-index-rejected", OP_DISK_DIRTY, DIRTY_WORDS, 0)
@@ -1019,7 +1070,11 @@ def document_11() -> dict:
         "description": "Synthetic fes.computer 1.1 wire fixtures; never deploy.",
         "abi": {"id": "fes.computer", "tag": 4, "major": 1, "minor": 1},
         "scenarios": [minor0_session().document(), persistence_session().document(),
-                      disk_session().document()],
+                      disk_session().document(),
+                      persistence_capability_session("persistence-without-layout",
+                                                     PC386_CAPS & ~CAP_PC386_MACHINE).document(),
+                      persistence_capability_session("layout-without-persistence",
+                                                     PC386_CAPS & ~CAP_PERSISTENCE).document()],
     }
 
 
