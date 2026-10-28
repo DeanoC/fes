@@ -159,7 +159,10 @@ BCD adjusts, shift AF/OF/CF), where Bochs follows later Intel CPUs. The rest are
 real-mode details Bochs does not model: SIB index 100b with a scale, POPAD's
 ESP high word, the order of a real-mode interrupt's vector read and pushes,
 partial PUSHAD/POPA transfers that hit the stack limit, LOCK #UD before the
-15-byte limit, ARPL without a write, and a REP overwriting itself. One entry
+15-byte limit, IDIV overflows that the 386EX's check lets through (the
+`idiv-unchecked-overflow` predicate, which both runners work out from the
+operands, memory included), ARPL without a write, and a REP overwriting
+itself. One entry
 follows the oracle: the 386EX answers port 22h from an on-chip register, which
 is not CPU behaviour.
 
@@ -254,15 +257,19 @@ on from the same state, memory included; the testbench works out each
 entry's opcode stem and `when` predicates from the instruction, as the
 vectors runner does. An entry that leaves every field to the corpus also
 decides whether the instruction faults and with which vector: the RTL's
-outcome stands. The corpus itself then checks those values.
+outcome stands. The corpus itself then checks those values. An entry's
+`stack.flags` fields let a delivery's pushed FLAGS image differ in those
+flags, and the oracle takes the RTL's: a divide error pushes the flags the
+386EX's divide changed, where Bochs pushes them unchanged. Its `eflags`
+fields may also differ when the delivery then faults (a double fault).
 
 `scripts/test_fes_i386_lockstep.py` drives it two ways:
 
 | Source | What runs | Checked |
 | --- | --- | --- |
 | SingleStepTests/80386 | Every state of the instruction forms the CPU executes (the runner's `SCOPE` table), from its initial state to its HLT | Every retirement against the oracle, then the RTL's final state against the corpus's, undefined flags and RAM included |
-| Random programs | Register, immediate and 16-bit-addressed memory forms of the same instructions with segment, REP, 66h and 67h prefixes (and now and then a LOCK), forward branches, bounded LOOPs, backward jumps, pushes and pops, CALLs to subroutines that return with RET or RET imm16 (two deep, their bodies leaving ESP, SS and the return address alone), far CALLs returning with RETF or RETF imm16, through a pointer in the instruction or one stored just before, far JMPs, PUSH BP / MOV BP, SP / LEAVE frames, the far pointer loads, PUSHA and POPA, PUSHF/POPF pairs, and interrupt blocks (SS above the vector table, the vector's entry stored as the handler's CS:IP, INT n, INT3 or INTO, and a handler that IRETs), from random register states and zeroed memory. A far target is a CS:IP for the target's linear address, so the program's state is chosen before its layout | Every retirement against the oracle; a run stops at its HLT, a delivered exception, 2,000 retirements or a store into its own code, which needs self-modifying-code detection the RTL does not have yet. Two seeds run again without latency and must retire the same trace (a hash of every retirement's state) |
-| Directed faults | 66 E8 with a 32-bit target past FFFFh, a 32-bit RET to 10000h, and JMP EBX to 10000h, with the #GP entry at a HLT; INT 20h at SP 1, and the 66 E8 case at SP 3, whose deliveries fault | Bochs throughout; #GP(0) delivered with the faulting CS:IP pushed, then the handler's HLT followed by 32 cycles with no fetch request, D issue or data read. The nested cases stop the RTL with nothing written |
+| Random programs | Register, immediate and 16-bit-addressed memory forms of the same instructions with segment, REP, 66h and 67h prefixes (and now and then a LOCK), forward branches, bounded LOOPs, backward jumps, pushes and pops, CALLs to subroutines that return with RET or RET imm16 (two deep, their bodies leaving ESP, SS and the return address alone), far CALLs returning with RETF or RETF imm16, through a pointer in the instruction or one stored just before, far JMPs, PUSH BP / MOV BP, SP / LEAVE frames, the far pointer loads, XCHG, MOV with a direct offset, XLAT, SALC, PUSH and POP r/m, CALL r/m near through a register or a stored pointer (until a far transfer moves CS), PUSHA and POPA, PUSHF/POPF pairs, interrupt blocks (SS above the vector table, the vector's entry stored as the handler's CS:IP, INT n, INT3 or INTO, and a handler that IRETs), MUL and IMUL in all three forms, AAM (now and then AAM 0) and AAD, and DIV and IDIV after a setup that keeps the quotient in range (AH or (E)DX cleared, or CBW, CWD or CDQ) by a register, now and then one loaded with a nonzero immediate just before, or a direct memory operand stored just before, a few without the setup, from random register states and zeroed memory. A far target is a CS:IP for the target's linear address, so the program's state is chosen before its layout | Every retirement against the oracle; a run stops at its HLT, a delivered exception, 2,000 retirements or a store into its own code, which needs self-modifying-code detection the RTL does not have yet. Two seeds run again without latency and must retire the same trace (a hash of every retirement's state) |
+| Directed faults | 66 E8 with a 32-bit target past FFFFh, a 32-bit RET to 10000h, and JMP EBX and CALL EBX to 10000h, with the #GP entry at a HLT; INT 20h at SP 1, and the 66 E8 case at SP 3, whose deliveries fault; divide errors, with the #DE entry at a HLT: DIV BL by zero, DIV BX overflowing, DIV of a zero word in memory, IDIV EBX overflowing, AAM 0, and IDIV BL of AX −129 by 1, which overflows only once the one the 386EX owes its one's complement is added | Bochs throughout, the divergence list applying; the fault (#GP(0) or #DE) delivered with the faulting CS:IP pushed, then the handler's HLT followed by 32 cycles with no fetch request, D issue or data read. The nested cases stop the RTL with nothing written |
 
 The latency-free reruns also give the cycles between retirements: in
 sequence, after an instruction with more than one prefix, after a taken
@@ -273,10 +280,15 @@ cycles after a shift and anything else one; an instruction that reads memory
 must retire at least two cycles after a store, and any other instruction
 without a memory operand one; a push or pop right after another must retire
 one cycle behind it, as its ESP is early from AG, unless it is a pop after a
-push (a load after a store) or follows a segment load. CALL, RETF, PUSHA,
-POPA, INT and IRET (several uops), LEAVE, PUSH and POP of (E)SP, which read
-ESP as data, and anything after POP (E)SP or POPA, which load ESP, are left
-out of that check.
+push (a load after a store) or follows a segment load. CALL, PUSH and POP
+of r/m, RETF, PUSHA, POPA, INT and IRET (several uops), LEAVE, PUSH and POP
+of (E)SP, which read ESP as data, and anything after POP (E)SP or POPA,
+which load ESP, are left out of that check. XCHG of registers, three uops,
+has a bucket of its own, and so do MUL, IMUL, DIV, IDIV, AAM and AAD, which
+freeze D to WB while the multiply and divide unit works, and any
+retirement that waited for one (the CPU's `trace_md_wait`), since the uop
+in WB waits too. A store counts for the store holds only as an
+instruction's last uop (not XCHG's with memory, nor POP m's).
 
 A fault or a software interrupt (INT n, INT3, INTO) is the corpus's
 exception: the run goes on into the handler, to its HLT, and the corpus's
