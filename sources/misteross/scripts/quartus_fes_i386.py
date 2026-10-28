@@ -16,15 +16,16 @@ flatten; opt -purge; write_verilog`. That is the netlist the lockstep checks
 with --yosys, it is not technology-mapped, and Quartus does all synthesis
 (LUT mapping, carry chains) and all placement and routing.
 
-Quartus puts in DSP blocks what synth_intel_alm does. The elaborated netlist
-has two kinds of multiply. Products of two signals (fes_i386_muldiv's 18x18s)
-synth_intel_alm maps to DSP blocks. Constant multiplies, the packed-array
-strides the netlist still spells out (start*42 for dec[start]), it folds into
-logic, but Quartus would put the widest in a DSP block. So Quartus's
+The oracle is Quartus at its best. The elaborated netlist has two kinds of
+multiply: products of two signals (fes_i386_muldiv's 18x18s) and constant
+multiplies, the packed-array strides the netlist still spells out (start*42
+for dec[start]). The fastest mapping found puts the products in DSP blocks
+and the constant multiplies in logic. Left to choose, Quartus also puts the
+widest stride in a DSP block, and Q's worst path runs through it; with every
+multiply in logic, the soft products limit EX. So Quartus's
 DSP_BLOCK_BALANCING is logic elements, and each product of two signals is
 marked (* multstyle = "dsp" *), which Quartus takes over that setting. The
 marks are attributes only, so the logic is still the lockstep's netlist.
---dsp-in-logic leaves the marks off, so every multiply is logic.
 
 Each seed fits the same synthesis. TimeQuest reports, at the slow corner
 (1100 mV, 100 C):
@@ -114,9 +115,9 @@ _CONSTANT = re.compile(r"(?:\$(?:un)?signed\()?\d+(?:'s?[bodh][\da-fA-FxXzZ_?]+)
 
 
 def mark_products(netlist: str) -> tuple[str, list[str]]:
-    """Mark each multiply of two signals (* multstyle = "dsp" *), where
-    synth_intel_alm puts it in a DSP block, and leave each multiply by a
-    constant unmarked. Returns the netlist and the marked assigns."""
+    """Mark each multiply of two signals (* multstyle = "dsp" *), for a DSP
+    block, and leave each multiply by a constant unmarked, for logic. Returns
+    the netlist and the marked assigns."""
     marked = []
 
     def mark(match):
@@ -241,8 +242,6 @@ def main() -> int:
     parser.add_argument('--target-mhz', type=float, default=100.0)
     parser.add_argument('--jobs', type=int, default=4, help='seeds fitted at once')
     parser.add_argument('--output', type=Path)
-    parser.add_argument('--dsp-in-logic', action='store_true',
-                        help="build every multiply in logic, the products of two signals too")
     parser.add_argument('--reuse', action='store_true', help='keep an existing synthesis and fits; re-run TimeQuest')
     args = parser.parse_args()
     seeds = args.seed or [1, 2, 3, 4]
@@ -257,8 +256,7 @@ def main() -> int:
         for path in sources:
             digest.update(path.read_bytes())
         digest.update(Path(args.yosys).read_bytes())
-        dsp_mode = 'logic' if args.dsp_in_logic else 'oss'
-        digest.update(f'{args.spike}{args.target_mhz}{version}{dsp_mode}'.encode())
+        digest.update(f'{args.spike}{args.target_mhz}{version}'.encode())
         output = (args.output or ROOT / 'build/quartus/fes-i386' / digest.hexdigest()[:12]).resolve()
         base = output / 'synthesis'
         reuse = args.reuse and (base / 'db').is_dir()
@@ -273,9 +271,7 @@ def main() -> int:
         if not reuse:
             run([args.yosys, '-q', '-p', NETLIST.format(files=' '.join(map(str, sources)), top=TOP, out=elaborated)],
                 base, base / 'yosys.log', env)
-        text, products = elaborated.read_text(), []
-        if not args.dsp_in_logic:
-            text, products = mark_products(text)
+        text, products = mark_products(elaborated.read_text())
         netlist.write_text(text)
         pins = (ROOT / benchmark.SPIKE / 'spike.qsf').read_text()
         (base / f'{TOP}.qpf').write_text(f'PROJECT_REVISION = "{TOP}"\n')
@@ -319,7 +315,7 @@ def main() -> int:
                    'created_utc': datetime.now(timezone.utc).isoformat(), 'quartus': version,
                    'spike': args.spike, 'yosys': args.yosys,
                    'netlist': NETLIST.format(files='<spike sources>', top=TOP, out='yosys.v'),
-                   'dsp_mode': dsp_mode, 'dsp_products': products, 'device': DEVICE, 'target_mhz': args.target_mhz,
+                   'dsp_products': products, 'device': DEVICE, 'target_mhz': args.target_mhz,
                    'corner': 'slow 1100mV 100C (TimeQuest default)',
                    'sources': {path.relative_to(ROOT).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
                                for path in sources},
