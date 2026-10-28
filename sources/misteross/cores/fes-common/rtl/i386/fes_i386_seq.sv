@@ -76,6 +76,8 @@
 //       with ES:EDI (step 2), which takes that result one stage ahead
 //       (x_prev): D issues step 2 in the cycle after step 1, since nothing
 //       it waits on can change between them.
+//       INS: port DX's data stored at ES:EDI, the access at WB (io).
+//       OUTS: seg:ESI's value sent to port DX at WB.
 //     Under REPE or REPNE a CMPS or SCAS element but the last ends the
 //     instruction when ZF says so (rep_stop), as a taken branch to the next
 //     one, which flushes the elements D has issued after it.
@@ -229,6 +231,7 @@ module fes_i386_seq (
         n.uop.str_down = 1'b0;
         n.uop.st2 = 1'b0;
         n.uop.rep_stop = 2'd0;
+        n.uop.io = 2'd0;
         // The rewritten fields, from the first uop.
         n.uop.sp_write = d0.uop.sp_write;
         n.uop.cls = d0.uop.cls;
@@ -523,6 +526,21 @@ module fes_i386_seq (
                         n.str_a = 1'b1;
                         n.str_two = 1'b1;
                     end
+                    3'(fes_i386_pkg::STR_INS): begin
+                        // Port DX's data stored at ES:EDI, at WB.
+                        n.uop.src2 = gpr(1'b1, 3'd2);
+                        n.uop.mem.kind = fes_i386_pkg::MEM_STORE;
+                        n.uop.mem.in_a = 1'b1;
+                        n.uop.mem.seg = fes_i386_pkg::SEG_ES;
+                        n.uop.io = 2'(fes_i386_pkg::IO_IN);
+                        n.str_b = 1'b1;
+                    end
+                    3'(fes_i386_pkg::STR_OUTS): begin
+                        // seg:ESI's value sent to port DX, at WB.
+                        n.uop.src2 = gpr(1'b1, 3'd2);
+                        n.uop.io = 2'(fes_i386_pkg::IO_OUT);
+                        n.str_a = 1'b1;
+                    end
                     default: begin  // STR_CMPS
                         if (d.step == 3'd1) begin
                             n.uop.op = 5'd7;  // ALU_CMP
@@ -538,8 +556,8 @@ module fes_i386_seq (
                 endcase
                 if (s_end) begin
                     n.uop.str_si = d0.str_op != 3'(fes_i386_pkg::STR_STOS)
-                                && d0.str_op != 3'(fes_i386_pkg::STR_SCAS);
-                    n.uop.str_di = d0.str_op != 3'(fes_i386_pkg::STR_LODS);
+                                && d0.str_op != 3'(fes_i386_pkg::STR_SCAS) && d0.str_op != 3'(fes_i386_pkg::STR_INS);
+                    n.uop.str_di = d0.str_op != 3'(fes_i386_pkg::STR_LODS) && d0.str_op != 3'(fes_i386_pkg::STR_OUTS);
                     n.uop.str_cx = s_rep;
                     n.str_cnt = s_rep;
                     n.uop.ctl.end_of_instruction = s_last;
