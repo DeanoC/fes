@@ -176,6 +176,20 @@ cpu: cpu/arm_cyclone_v.yaml
 Vendor, FPGA part, clocks, and pins. Pins are descriptive; this schema
 does not generate XDC or Quartus constraints.
 
+`validate` and `report` accept a standalone board without a platform, SoC or
+CPU definition. `emit-cpp`, `emit-go` and `emit-verilog` do not accept boards.
+Board identifiers follow the ABI identifier grammar. Vendor, FPGA family and
+device are required. At least one clock is required, and each clock names its
+physical pin, I/O standard and positive frequency in Hz. Every additional pin
+names its physical pin, I/O standard and `input`, `output` or `inout` direction.
+Names and physical pins are unique across both lists. Board loading rejects
+unknown fields and multiple YAML documents; platform loading applies the same
+board validation.
+
+The DE25-Nano board definition describes the initial FPGA bring-up pins only.
+It does not declare an Agilex 5 SoC register map, programming profile, image or
+runtime support. Those require separate verified hardware contracts.
+
 ## soc
 
 Physical windows (base and size), AXI-style buses, and named register

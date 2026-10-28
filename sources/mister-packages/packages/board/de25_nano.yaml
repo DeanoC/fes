@@ -1,0 +1,58 @@
+schema: mister-packages.v1
+kind: board
+id: de25_nano
+vendor: altera
+fpga_family: Agilex 5
+# SCS is the device selected by Terasic's revB resource Golden_top project.
+# The R1 part printed in the user manuals is not an additional supported target.
+# Source: https://dl2.terasic.com/resources/de25-nano/DE25-Nano_revB_v.1.0.0_ResourcePackage.zip
+# Demonstration/FPGA/Golden_top/golden_top.qsf
+fpga_device: A5EB013BB23BE4SCS
+description: DE25-Nano FPGA clock and LED bring-up pins; no HPS or runtime platform.
+clocks:
+  - name: CLOCK0_50
+    pin: DJ35
+    standard: 1.1-V
+    frequency_hz: 50000000
+  - name: CLOCK1_50
+    pin: V16
+    standard: 3.3-V LVCMOS
+    frequency_hz: 50000000
+  - name: CLOCK2_50
+    pin: BF23
+    standard: 3.3-V LVCMOS
+    frequency_hz: 50000000
+pins:
+  # User LEDs are active-low.
+  - name: LEDR[0]
+    pin: DF35
+    standard: 1.1-V
+    direction: output
+  - name: LEDR[1]
+    pin: DJ32
+    standard: 1.1-V
+    direction: output
+  - name: LEDR[2]
+    pin: DN22
+    standard: 1.1-V
+    direction: output
+  - name: LEDR[3]
+    pin: DP23
+    standard: 1.1-V
+    direction: output
+  - name: LEDR[4]
+    pin: DN25
+    standard: 1.1-V
+    direction: output
+  - name: LEDR[5]
+    pin: DP25
+    standard: 1.1-V
+    direction: output
+  - name: LEDR[6]
+    pin: DJ27
+    standard: 1.1-V
+    direction: output
+  - name: LEDR[7]
+    pin: DP30
+    standard: 1.1-V
+    direction: output

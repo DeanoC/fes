@@ -4,6 +4,11 @@ Fogger Expandable System is a OSS FPGA based on 'mister' (DE-10 Nano) that provi
 should be. Compared to mister it currently supports only a few system but builds them with a fully OSS toolchain by default (Yosys + nextpnr) and provide a
 closer analog to real expansion and cartridge buses that many system had.
 
+DE25-Nano support starts with a shared board definition and a standalone
+[Quartus Pro clock/LED diagnostic](sources/misteross/boards/de25nano/README.md).
+The current image, runtime and playable packages target DE10-Nano; DE25-Nano
+boot, HPS integration and core packages remain bring-up work.
+
 Agents: read [AGENTS.md](AGENTS.md), then the
 [development guide](docs/development.md) and the selected component's guidance.
 [Component boundaries](docs/component-boundaries.md) describe ownership.

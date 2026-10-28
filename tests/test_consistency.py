@@ -92,6 +92,7 @@ class ConsistencyTest(unittest.TestCase):
             'packages/fabric/fes_fabric_pcxt_isa.yaml',
             'packages/fabric/fes_fabric_video_display_plane.yaml',
             'packages/platform/de10_nano.yaml',
+            'packages/board/de25_nano.yaml',
             'packages/abi/fes_simple_game.yaml', 'packages/abi/fes_simple_computer.yaml',
             'packages/abi/fes_application.yaml', 'packages/abi/fes_computer.yaml',
             'packages/programming/de10_nano.yaml'})

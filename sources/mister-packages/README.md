@@ -8,6 +8,16 @@ programming-profile declarations, format-2/3/4 package schemas and conformance
 fixtures. Go emitters generate C++14, Go and Verilog consumers. FES runs
 `make generate` and `make check-generated` across the tracked modules.
 
+Standalone board definitions support `validate` and `report`, independently of
+SoC and CPU definitions. DE25-Nano starts with descriptive FPGA bring-up pins;
+it has no platform, programming profile or runtime admission yet. Board metadata
+does not emit Quartus constraints. For example, from this module:
+
+```sh
+go run ./cmd/mister-packages validate packages/board/de25_nano.yaml
+go run ./cmd/mister-packages report packages/board/de25_nano.yaml
+```
+
 The programming registry contains `fes-gp-v1` for `fes.simple-game`,
 `fes.simple-computer`, `fes.application` and `fes.computer`, plus the diagnostic-only
 `development-contained-v1`. Conventional game profile/source pins and the

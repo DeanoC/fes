@@ -79,6 +79,8 @@ COMPONENT_FIXTURES = (
      'FogCast', 'internal/misterruntime/testdata/protocol-v2-edge-responses.jsonl'),
 )
 CORE_SOURCES = ()
+# Descriptive boards without a platform or generated runtime consumer yet.
+VALIDATED = ('packages/board/de25_nano.yaml',)
 
 
 def _run(packages, command, source):
@@ -100,7 +102,7 @@ def check(root: Path, sources: dict[str, Path] | None = None):
     sources = {name: Path(path) for name, path in sources.items()}
     sources["FES"] = root
     packages = sources['mister-packages']
-    for source in sorted({item[1] for item in GENERATED}):
+    for source in sorted({item[1] for item in GENERATED} | set(VALIDATED)):
         _run(packages, 'validate', source)
     with tempfile.TemporaryDirectory(prefix='fes-generated-') as temporary:
         for index, (command, source, component, destination) in enumerate(GENERATED):

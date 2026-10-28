@@ -99,6 +99,21 @@ class SelectTestModesTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertEqual(test_policy.select_test_modes([path]), ALL_TRUE)
 
+    def test_descriptive_de25_board_stays_routine_without_narrowing_shared_changes(self):
+        de25 = ['sources/mister-packages/packages/board/de25_nano.yaml',
+                'sources/misteross/boards/de25nano/blinky.sv']
+        self.assertEqual(test_policy.select_test_modes(de25), ALL_FALSE)
+        for path in ('sources/mister-packages/packages/board/de10_nano.yaml',
+                     'sources/mister-packages/packages/board/de25_nano_other.yaml',
+                     'sources/mister-packages/packages/platform/de25_nano.yaml',
+                     'sources/mister-packages/packages/abi/fes_application.yaml',
+                     'unknown/new.bin'):
+            with self.subTest(path=path):
+                self.assertEqual(test_policy.select_test_modes([*de25, path]), ALL_TRUE)
+        self.assertEqual(test_policy.select_test_modes(
+            [*de25, 'sources/misteross/cores/fes-common/rtl/fes_video_part_direct.v']),
+            {'video': True, 'media': False, 'full_race': False})
+
     def test_documentation_is_ignored_and_prefix_siblings_stay_conservative(self):
         self.assertEqual(test_policy.select_test_modes(['docs/guide.md']), ALL_FALSE)
         self.assertEqual(test_policy.select_test_modes(['AGENTS.md', 'sources/FogCast/AGENTS.md']), ALL_FALSE)
