@@ -763,11 +763,13 @@ Coleco play open the `example.coleco-arcade` title selector over the running
 session. A selected title says that the running cartridge is fixed and that
 Stop is required before choosing another; Confirm cannot launch over the active
 session. This is catalog navigation, not hot swapping, and Coleco does not fall
-through to the ZX81-only `example.hardware` workbench. The native-pixel shell
-also requires its matching Direct or Scanlines video part. The local core shelf
-cannot compose that part and correctly marks the shell's display setup
-incomplete; install and launch it through the library after selecting a video
-part.
+through to the ZX81-only `example.hardware` workbench. The host session carries
+the installed package's `core.id`, so Tenfoot recognizes `fes.coleco` even when
+the runtime's supported-interface projection omits its optional bus 2.0
+interface. The native-pixel shell also requires its matching Direct or
+Scanlines video part. The ColecoVision tile on Home opens `example.coleco-arcade`,
+which launches through the library and composes the selected video part. Other
+local cores that need a part still report incomplete display setup there.
 
 Operator/diagnostics CLI:
 

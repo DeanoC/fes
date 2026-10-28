@@ -15,6 +15,7 @@ import (
 
 const hardwareRoomID = "example.hardware"
 const colecoArcadeRoomID = "example.coleco-arcade"
+const colecoCoreID = "fes.coleco"
 const hardwareRoomFooterHeight = 52
 const maxPendingPlayHID = 128
 const colecoCartridgeSessionStatus = "Coleco cartridges are fixed for this launch. Stop and choose another title from the library."
@@ -36,6 +37,7 @@ func sessionHasCoreInterface(session hostclient.SessionResult, id string, major 
 
 func (a *App) colecoSessionLocked() bool {
 	return a.session.System == string(protocol.SystemColecoVision) ||
+		(a.session.CorePackage != nil && a.session.CorePackage.CoreID == colecoCoreID) ||
 		sessionHasCoreInterface(a.session, "fes.expansion.coleco-bus", 2)
 }
 

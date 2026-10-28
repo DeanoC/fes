@@ -76,6 +76,17 @@ func assertLiveHardwareIdentity(t *testing.T, app *App, h *tapeHost) {
 }
 
 func TestColecoHomeAndF12OpenColecoSelectorWithoutLiveMedia(t *testing.T) {
+	// This is the host session shape for the installed native format-4 Coleco
+	// package. Its package descriptor identifies fes.coleco, while the runtime's
+	// supported-interface projection omits the package's optional bus v2.
+	const realColecoSession = `{"id":"coleco-session","target":"kit-a","state":"active","game_id":"fpga-coleco-dk","system":"fpga","execution":"fpga_native","core_package":{"package_id":"506110a2554a80e0952d50ab3d40d2ea27e41ba014d4a91703e7de31bcddfa9c","core_id":"fes.coleco","generation":7,"abi":{"id":"fes.application","major":1,"minor":0},"active_interfaces":[{"id":"fes.audio.pcm-s16-stereo-48k","major":1,"minor":0},{"id":"fes.gamepad.ports","major":1,"minor":0},{"id":"fes.keypad.ports","major":1,"minor":0},{"id":"fes.video.fixed-720p60","major":1,"minor":0},{"id":"fes.memory.hps-ddr","major":1,"minor":0},{"id":"fes.video.session-display","major":1,"minor":0},{"id":"fes.fabric.video.display-plane","major":1,"minor":0}]}}`
+	installedSession, err := hostclient.DecodeSession(200, []byte(realColecoSession))
+	if err != nil {
+		t.Fatalf("decode installed Coleco session: %v", err)
+	}
+	if installedSession.System != "fpga" || installedSession.CorePackage == nil || installedSession.CorePackage.CoreID != colecoCoreID || sessionHasCoreInterface(installedSession, "fes.expansion.coleco-bus", 2) {
+		t.Fatalf("fixture no longer matches the installed Coleco session shape: %+v", installedSession)
+	}
 	for _, key := range []string{"home", "f12"} {
 		t.Run(key, func(t *testing.T) {
 			app := NewApp(nil, 1280, 720, 20)
@@ -91,17 +102,7 @@ function draw() gfx.clear("#101820") gfx.text("Coleco title selector", 20, 20, {
 `),
 			}), "")
 			app.mu.Lock()
-			app.session = hostclient.SessionResult{
-				ID:     "coleco-session",
-				System: string(protocol.SystemColecoVision),
-				State:  "active",
-				CorePackage: &hostclient.SessionCorePackage{
-					PackageID:        strings.Repeat("a", 64),
-					Generation:       7,
-					ABI:              hostclient.SessionCoreABI{ID: "fes.application", Major: 1},
-					ActiveInterfaces: []hostclient.SessionCoreInterface{{ID: "fes.expansion.coleco-bus", Major: 2}},
-				},
-			}
+			app.session = installedSession
 			app.mu.Unlock()
 
 			if hint := app.Snapshot().HeaderHint(); !strings.Contains(hint, "coleco selector") {

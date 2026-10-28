@@ -64,7 +64,7 @@ func frameText(f Frame) string {
 	return b.String()
 }
 
-func TestFesCoresRoomRendersTilesAndSkipsBlockedLaunch(t *testing.T) {
+func TestFesCoresRoomRendersTilesRoutesColecoAndSkipsBlockedLaunch(t *testing.T) {
 	pack := examplePack(t, "example.fes-cores")
 	if pack.DestinationPanel != PanelHero {
 		t.Fatalf("Home panel %q", pack.DestinationPanel)
@@ -80,7 +80,7 @@ func TestFesCoresRoomRendersTilesAndSkipsBlockedLaunch(t *testing.T) {
 	}
 	f := stepUntil(t, r, func(f Frame) bool {
 		text := frameText(f)
-		return strings.Contains(text, "FES Pong\n") && strings.Contains(text, "ColecoVision\n") && strings.Contains(text, "ZX81\n") && strings.Contains(text, "Needs a cartridge\n") && strings.Contains(text, "Needs firmware\n")
+		return strings.Contains(text, "FES Pong\n") && strings.Contains(text, "ColecoVision\n") && strings.Contains(text, "Browse Coleco titles\n") && strings.Contains(text, "ZX81\n") && strings.Contains(text, "Needs firmware\n")
 	})
 	if strings.Contains(frameText(f), "FES.PONG") || strings.Contains(frameText(f), "fes.pong") {
 		t.Fatalf("tile renamed the manifest name:\n%s", frameText(f))
@@ -97,8 +97,8 @@ func TestFesCoresRoomRendersTilesAndSkipsBlockedLaunch(t *testing.T) {
 	if !r.Input("right") {
 		t.Fatal("right")
 	}
-	if got := r.Destination(); got.Label != "ColecoVision" || got.PackageID != coreColecoID || got.CoreLaunchable || got.Status != "Needs a cartridge" || got.CoreNeeds != "media" || got.Confirm() != ConfirmExplain {
-		t.Fatalf("blocked dest %+v confirm %v", got, got.Confirm())
+	if got := r.Destination(); got.Label != "ColecoVision" || got.Kind != KindRoom || got.RoomID != "example.coleco-arcade" || got.Confirm() != ConfirmEnterRoom {
+		t.Fatalf("coleco destination %+v confirm %v", got, got.Confirm())
 	}
 	if err := r.ActivateDestination(context.Background()); err != nil {
 		t.Fatal(err)
@@ -185,7 +185,7 @@ func (s *homeComputerServices) SelectCoreEntryExpansion(context.Context, string,
 	return hostclient.CoreEntryExpansion{}, errors.New("not used")
 }
 
-func TestHomeListsHostComputersBesideUnavailableColeco(t *testing.T) {
+func TestHomeRoutesColecoTileBesideHostComputers(t *testing.T) {
 	pack := examplePack(t, "example.fes-cores")
 	local := &fakeLocalCores{cores: []localcores.Core{
 		{PackageID: coreColecoID, CoreID: "fes.coleco", Name: "FES ColecoVision", Needs: "parts", Launchable: false, Block: "Needs a video part"},
@@ -201,7 +201,7 @@ func TestHomeListsHostComputersBesideUnavailableColeco(t *testing.T) {
 	}
 	f := stepUntil(t, r, func(f Frame) bool {
 		text := frameText(f)
-		return strings.Contains(text, "FES ColecoVision\n") && strings.Contains(text, "Display setup incomplete\n") && strings.Contains(text, "Commodore 64\n") && strings.Contains(text, "ZX81\n")
+		return strings.Contains(text, "FES ColecoVision\n") && strings.Contains(text, "Browse Coleco titles\n") && strings.Contains(text, "Commodore 64\n") && strings.Contains(text, "ZX81\n")
 	})
 	if r.Err() != nil {
 		t.Fatal(r.Err())
@@ -209,7 +209,7 @@ func TestHomeListsHostComputersBesideUnavailableColeco(t *testing.T) {
 	if strings.Contains(frameText(f), "Keyboard") {
 		t.Fatalf("host computer drew a keyboard motif:\n%s", frameText(f))
 	}
-	if got := r.Destination(); got.Label != "FES ColecoVision" || got.Kind != KindCore || got.CoreNeeds != "parts" || got.CoreLaunchable || got.Confirm() != ConfirmExplain {
+	if got := r.Destination(); got.Label != "FES ColecoVision" || got.Kind != KindRoom || got.RoomID != "example.coleco-arcade" || got.Confirm() != ConfirmEnterRoom {
 		t.Fatalf("coleco dest %+v confirm %v", got, got.Confirm())
 	}
 	if !r.Input("right") {
@@ -394,7 +394,7 @@ func TestFesCoresSmallLayoutKeepsPointerRoutes(t *testing.T) {
 		}
 	}
 	r.Hover("core:2")
-	if got := r.Destination(); got.Label != "ColecoVision" || got.PackageID != coreColecoID {
+	if got := r.Destination(); got.Label != "ColecoVision" || got.Kind != KindRoom || got.RoomID != "example.coleco-arcade" {
 		t.Fatalf("core hit %+v", got)
 	}
 	r.Hover("menu:1")
