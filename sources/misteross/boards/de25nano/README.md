@@ -52,7 +52,8 @@ and rev. B manual clock/LED pin tables agree; no memory support is implied.
 `reset_release.ip` derives from the same resource package's
 `Demonstration/FPGA/Board_Info_RTL/reset_release.ip`, retaining its license
 notice. Its device and IP version are updated to `A5EB013BB23BE4SCS` and
-`19.4.9`, matching that example's Quartus 25.1.1 generation report. The
+`19.4.9`, matching that example's Quartus 25.1.1 generation report and the
+component supplied with Quartus 26.3. The
 [Agilex 5 configuration guide](https://docs.altera.com/r/docs/813773/26.1/device-configuration-user-guide-agilextm-5-fpgas-and-socs/understanding-the-reset-release-ip-requirement)
 requires this IP because fabric sectors enter user mode at different times.
 The Verilator bench uses a separate controllable `reset_release_model.v`;
@@ -60,7 +61,13 @@ it checks delayed initialization, asynchronous reset assertion, synchronous
 release and the unchanged hardware divider. That functional model does not
 prove configuration behavior on a physical FPGA.
 
-The next hardware check is a Quartus Pro compilation followed by a manual
-JTAG SRAM load on an identified SCS board. Verify the eight LEDs count at
-half-second intervals and retain the tool reports and exact SOF digest.
-This check does not establish Linux boot, display, memory or runtime support.
+The [2026-10-28 compiler record](../../docs/validation/2026-10-28-de25-quartus-26.3/README.md)
+retains a successful Quartus 26.3.0 Build 114 diagnostic compile. Required
+50 MHz fabric timing passes; LED output timing, electrical qualification and
+MTBF remain open, and overall design closure is not established. The record
+identifies the two retained warnings and exact SOF digest.
+
+The next hardware check is a manual JTAG SRAM load of that exact SOF on an
+identified SCS board. Verify the eight LEDs count at half-second intervals and
+retain the board/device identity. This check does not establish Linux boot,
+display, memory or runtime support.
