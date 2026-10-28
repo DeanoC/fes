@@ -121,6 +121,34 @@ inspection. It does not program or qualify the board's QSPI contents. The
 separately retained resource-package SOF is a source reference; it is not
 identified as the build source of the BSP's JIC.
 
+Inspect an existing image and, optionally, a separately built HPS diagnostic:
+
+```sh
+python3 scripts/de25_boot_contract.py --image-output out/de25-nano-linux-cxx \
+  --hps-output /absolute/private-hps-build --output out/de25-boot-contract.json
+```
+
+This read-only inspection verifies the image receipt and locked boot files,
+decodes the selected U-Boot FIT configuration and checks each embedded/external
+payload hash. It resolves the script, console/Ethernet aliases, raw memory
+declarations and firmware interfaces from the actual DTB bytes. The optional
+HPS input checks the SOF, handoff and matching resource archive against its
+committed-source build receipt. An existing report path is refused.
+
+The pinned script enables FPGA bridges and replaces the DTB's stale chosen
+boot arguments before loading the named kernel/device tree. U-Boot's embedded
+DT declares 1 GiB, while the Linux DT declares a 2 GiB default. The pinned
+[vendor U-Boot source](https://github.com/terasic/u-boot-socfpga/blob/d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413/arch/arm/lib/bootm-fdt.c#L34)
+implements memory-bank fixups before entering Linux. Actual booted memory and
+the effective saved U-Boot environment remain board observations.
+
+The Linux DT contains no lightweight-bridge window or mailbox endpoint. Neither
+its generic SoC ranges nor the bootloader's firewall-register settings establish
+a CPU mailbox address. The inspector leaves that address unestablished and
+keeps custom SOF/factory-firmware pairing unqualified. Preserved source
+parameters and matching archive identity do not replace that compatibility
+check. Inspection never executes the boot script or performs bridge/MMIO access.
+
 The serial console is `ttyS0` at 115200 baud. Ethernet requests an address by
 DHCP on `eth0`. The development login is `root` with password `1`, matching the
 existing FES development convention. Dropbear creates the board's SSH host keys
