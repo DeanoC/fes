@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/rooms"
@@ -70,6 +71,64 @@ func assertLiveHardwareIdentity(t *testing.T, app *App, h *tapeHost) {
 	h.mu.Unlock()
 	if session.ID != h.sessionID || session.State != "active" || session.CorePackage == nil || session.CorePackage.Generation != 9 || launches != 1 {
 		t.Fatalf("live media changed session: %+v launches=%d", session, launches)
+	}
+}
+
+func TestColecoHomeAndF12OpenColecoSelectorWithoutLiveMedia(t *testing.T) {
+	for _, key := range []string{"home", "f12"} {
+		t.Run(key, func(t *testing.T) {
+			app := NewApp(nil, 1280, 720, 20)
+			t.Cleanup(app.Stop)
+			app.SetRooms(rooms.NewIndex([]rooms.Pack{
+				testRoomPack(t, hardwareRoomID, `
+function load() end
+function draw() error("ZX81 workbench must not draw over Coleco") end
+`),
+				testRoomPack(t, colecoArcadeRoomID, `
+function load() end
+function draw() gfx.clear("#101820") gfx.text("Coleco title selector", 20, 20, {size=24}) end
+`),
+			}), "")
+			app.mu.Lock()
+			app.session = hostclient.SessionResult{
+				ID:     "coleco-session",
+				System: string(protocol.SystemColecoVision),
+				State:  "active",
+				CorePackage: &hostclient.SessionCorePackage{
+					PackageID:        strings.Repeat("a", 64),
+					Generation:       7,
+					ABI:              hostclient.SessionCoreABI{ID: "fes.application", Major: 1},
+					ActiveInterfaces: []hostclient.SessionCoreInterface{{ID: "fes.expansion.coleco-bus", Major: 2}},
+				},
+			}
+			app.mu.Unlock()
+
+			if hint := app.Snapshot().HeaderHint(); !strings.Contains(hint, "coleco selector") {
+				t.Fatalf("Coleco active-session hint = %q", hint)
+			}
+			now := time.Now()
+			if key == "home" {
+				if !app.HandlePlayHIDKey("home", true, now) {
+					t.Fatal("Coleco Home key was not consumed")
+				}
+			} else if !app.HandlePlayHIDScancode("F12", hidKeyboardF12, true, now) {
+				t.Fatal("Coleco F12 key was not consumed")
+			}
+			snap := app.Snapshot()
+			if snap.Room.ID != colecoArcadeRoomID || !snap.Room.DuringPlay || snap.GPUParked {
+				t.Fatalf("Coleco %s did not open its selector over the active session: room=%+v parked=%v", key, snap.Room, snap.GPUParked)
+			}
+			if snap.Session.State != "active" || snap.Status != playingColecoSelectorStatus {
+				t.Fatalf("Coleco session changed or selector status missing: session=%+v status=%q", snap.Session, snap.Status)
+			}
+			app.mu.Lock()
+			app.startLaunchGameLocked(hostclient.Game{ID: "next-coleco-title", Title: "Next title"})
+			launchPhase := app.launch.Phase
+			app.mu.Unlock()
+			if launchPhase == "launching" || app.Snapshot().Status != colecoCartridgeSessionStatus {
+				t.Fatalf("selector launched a second cartridge before Stop: phase=%q status=%q", launchPhase, app.Snapshot().Status)
+			}
+		})
 	}
 }
 

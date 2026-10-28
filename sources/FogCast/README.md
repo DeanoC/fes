@@ -120,7 +120,14 @@ and content selection; the MiSTer is a small, directly controlled target.
   and Coleco `fes.application` 1.0) are ordinary `fpga_native` play sessions, not
   Diagnostic `fpga_development`. That development label is the no-ABI
   fallback and the explicit LoadDevelopmentRBF path. Development package
-  loads remain volatile.
+  loads remain volatile. Factory Coleco format-4 packages link the BIOS and
+  cartridge into the RBF at launch and do not expose a live media unit. Home
+  and F12 during Coleco play open the Coleco Arcade title selector over the
+  running session; another cartridge can be launched after Stop. This route
+  does not open the ZX81 workbench or imply hot swapping. The native-pixel
+  shell also needs its matching Direct or Scanlines video part, so the local
+  core shelf reports incomplete display setup until the part is composed
+  through the library.
 
 - Development media upload for an active described `fes.simple-computer` package
   with `fes.media.blob`: `fogcast --api http://127.0.0.1:8797 core-media PATH`

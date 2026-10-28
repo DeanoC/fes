@@ -2297,6 +2297,9 @@ func (a *App) startLaunchLocked() {
 		return
 	}
 	if a.launch.Phase == "launching" || hostclient.SessionKitLocal(a.session.State) || a.sessionStopOfferedLocked() || a.developmentLoadingLocked() {
+		if a.session.State == "active" && a.colecoSessionLocked() && a.roomDuringPlay {
+			a.status = colecoCartridgeSessionStatus
+		}
 		return
 	}
 	if a.searchPending {
@@ -2335,6 +2338,9 @@ func (a *App) startLaunchGameWithPackageLocked(game hostclient.Game, packageID, 
 		return
 	}
 	if a.launch.Phase == "launching" || hostclient.SessionKitLocal(a.session.State) || a.sessionStopOfferedLocked() || a.developmentLoadingLocked() {
+		if a.session.State == "active" && a.colecoSessionLocked() && a.roomDuringPlay {
+			a.status = colecoCartridgeSessionStatus
+		}
 		return
 	}
 	// Firmware import and other catalog blocks do not claim the kit.
@@ -2815,15 +2821,18 @@ func mediaSelectorKey(name string, usage uint8) bool {
 	return strings.EqualFold(strings.TrimSpace(name), "f12")
 }
 
-// openRunningMediaSelector opens the running machine's media selector.
-// An empty tape and a folder with no .p files still open: Eject and a typed
-// path stay available. A kit-local core keeps F12 as Stop, so this returns
-// false there.
+// openRunningMediaSelector opens the running machine's media selector. An
+// empty tape and a folder with no .p files still open: Eject and a typed path
+// stay available. A ROM-linked Coleco session opens its title selector instead
+// of offering unsupported cartridge hot swapping. A kit-local core keeps F12
+// as Stop, so this returns false there.
 func (a *App) openRunningMediaSelector(down bool, now time.Time) bool {
 	a.mu.Lock()
-	offer := !a.localCoreBusyLocked() && a.playingHardwareRoomAvailableLocked() && a.sessionLiveMediaOfferedLocked()
+	available := !a.localCoreBusyLocked() && a.playingHardwareRoomAvailableLocked()
+	mediaOffer := available && a.sessionLiveMediaOfferedLocked()
+	colecoOffer := available && a.colecoSessionLocked() && !a.sessionLiveMediaOfferedLocked() && !a.roomDuringPlay
 	a.mu.Unlock()
-	if !offer {
+	if !mediaOffer && !colecoOffer {
 		return false
 	}
 	if down {

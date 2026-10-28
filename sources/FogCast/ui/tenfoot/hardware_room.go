@@ -14,8 +14,41 @@ import (
 )
 
 const hardwareRoomID = "example.hardware"
+const colecoArcadeRoomID = "example.coleco-arcade"
 const hardwareRoomFooterHeight = 52
 const maxPendingPlayHID = 128
+const colecoCartridgeSessionStatus = "Coleco cartridges are fixed for this launch. Stop and choose another title from the library."
+
+func sessionHasCoreInterface(session hostclient.SessionResult, id string, major uint16) bool {
+	if session.CorePackage == nil {
+		return false
+	}
+	for _, iface := range session.CorePackage.ActiveInterfaces {
+		if iface.ID == id && iface.Major == major {
+			return true
+		}
+	}
+	return false
+}
+
+func (a *App) colecoSessionLocked() bool {
+	return a.session.System == string(protocol.SystemColecoVision) ||
+		sessionHasCoreInterface(a.session, "fes.expansion.coleco-bus", 2)
+}
+
+func (a *App) playingRoomIDLocked() string {
+	if a.colecoSessionLocked() && !a.sessionLiveMediaOfferedLocked() {
+		return colecoArcadeRoomID
+	}
+	return hardwareRoomID
+}
+
+func playingRoomLabel(session SessionSnapshot) string {
+	if session.System == string(protocol.SystemColecoVision) && !session.MediaSelector {
+		return "Coleco selector"
+	}
+	return "Hardware room"
+}
 
 func (s roomServices) Hardware(ctx context.Context) (hostclient.HardwareSnapshot, error) {
 	if s.client == nil {
@@ -48,6 +81,13 @@ func (a *App) playingHardwareRoomAvailableLocked() bool {
 	if a.needsSessionDisplayLocked() && a.sessionLiveMediaOfferedLocked() {
 		return true
 	}
+	if a.colecoSessionLocked() {
+		if a.roomsIndex == nil {
+			return false
+		}
+		pack, ok := a.roomsIndex.Find(colecoArcadeRoomID)
+		return ok && pack.Valid()
+	}
 	if a.roomsIndex == nil {
 		return false
 	}
@@ -55,9 +95,11 @@ func (a *App) playingHardwareRoomAvailableLocked() bool {
 	return ok && pack.Valid()
 }
 
-// On a kit, open the active machine's media selector directly. A host window
-// retains its hardware room. Both preserve the running session and kit lease.
+// On a kit, open the active machine's media selector directly. A Coleco
+// format-4 session opens its catalog because its cartridge is ROM-linked.
+// Both routes preserve the running session and kit lease.
 const playingHardwareRoomStatus = "Hardware room · the machine is still running"
+const playingColecoSelectorStatus = "Coleco title selector · the machine is still running"
 
 func (a *App) openPlayingHardwareRoomLocked() {
 	if !a.playingHardwareRoomAvailableLocked() {
@@ -78,17 +120,18 @@ func (a *App) openPlayingHardwareRoomLocked() {
 	a.suppressHeldPlayKeysLocked()
 	a.repeat.Clear()
 	a.hold.Clear()
+	roomID := a.playingRoomIDLocked()
 	if a.room == nil {
-		a.openRoomLocked(hardwareRoomID)
-	} else if a.room.ID() != hardwareRoomID {
-		a.openNestedRoomLocked(hardwareRoomID, "")
+		a.openRoomLocked(roomID)
+	} else if a.room.ID() != roomID {
+		a.openNestedRoomLocked(roomID, "")
 	} else {
 		// Reused rooms retain focus but must refresh their pre-launch snapshot.
 		a.room.SetOverlay(a.roomOverlayLocked())
 		a.room.Resume()
 		a.dropRoomNavActionsLocked()
 	}
-	if a.room == nil || a.room.ID() != hardwareRoomID {
+	if a.room == nil || a.room.ID() != roomID {
 		return
 	}
 	a.roomPickerOpen = false
@@ -96,6 +139,9 @@ func (a *App) openPlayingHardwareRoomLocked() {
 	a.roomWasParked = false // This visit already loaded or resumed the room.
 	a.syncGPUParkLocked()
 	a.status = playingHardwareRoomStatus
+	if roomID == colecoArcadeRoomID {
+		a.status = playingColecoSelectorStatus
+	}
 }
 
 func (a *App) resumeRoomSessionLocked() {
@@ -148,8 +194,15 @@ func (a *App) handlePlayingRoomKey(name string, down bool, now time.Time) bool {
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if !a.playingHardwareRoomAvailableLocked() || a.tapePickerOpen || (a.roomDuringPlay && down) {
+	if a.session.State != "active" || a.sessionDisplayBusy || a.stopPhase == "stopping" || a.retryStopLock || a.tapePickerOpen || (a.roomDuringPlay && down) {
 		return false
+	}
+	if !a.playingHardwareRoomAvailableLocked() {
+		if down && a.colecoSessionLocked() {
+			a.noteActivityLocked(now)
+			a.status = colecoCartridgeSessionStatus
+		}
+		return a.colecoSessionLocked()
 	}
 	if down {
 		a.noteActivityLocked(now)
@@ -307,5 +360,5 @@ func drawHardwareRoomButton(dev gfx.Device, snap Snapshot, labels map[string]gpu
 		return
 	}
 	fillRect(dev, float32(button.X), float32(button.Y), float32(button.W), float32(button.H), 48, 84, 103, 255)
-	drawLabel(dev, labels, used, "np-hardware", button.X+14, button.Y+11, button.W-28, 18, "Hardware room · "+hardwareRoomWord(snap.Affinity))
+	drawLabel(dev, labels, used, "np-hardware", button.X+14, button.Y+11, button.W-28, 18, playingRoomLabel(snap.Session)+" · "+hardwareRoomWord(snap.Affinity))
 }

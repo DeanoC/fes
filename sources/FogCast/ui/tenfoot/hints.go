@@ -221,7 +221,7 @@ func (s Snapshot) HeaderHint() string {
 		}
 		if s.Session.HardwareRoom {
 			hint = strings.Replace(hint, "  "+layoutWord(kind)+" layout", "", 1)
-			label := "hardware room"
+			label := strings.ToLower(playingRoomLabel(s.Session))
 			if s.Session.MediaSelector {
 				label = "change media"
 			}
