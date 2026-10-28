@@ -2678,10 +2678,12 @@ private:
 
     // POP m with 32-bit addressing: ESP set below 10000h (now and then to
     // 0, so the pop wraps a 16-bit stack's SP from FFFEh or FFFCh to 0), a
-    // value pushed, then popped to [ESP + disp8], [ESP + r * scale + disp8],
-    // ESP scaled by an invalid SIB (the 386EX's scaled base) plus disp8, or
-    // [r + disp8]; each address reads ESP after the pop. A register r is
-    // first set to a small value. One item, so no branch lands between.
+    // value pushed, then popped to [ESP + disp8], [ESP + r * scale + disp8]
+    // or [r + disp8]; each address through ESP reads it after the pop. A
+    // register r is first set to a small value. ESP scaled by an invalid
+    // SIB is left out: the divergence list leaves an invalid SIB to the
+    // corpus, so the oracle would take the RTL's results. One item, so no
+    // branch lands between.
     std::vector<uint8_t> popm32_block() {
         std::vector<uint8_t> out;
         const bool os32 = pick(2);
@@ -2698,8 +2700,8 @@ private:
         set(4, pick(3) == 0 ? 0 : uint32_t(pick(0x10000)));
         unsigned r = pick(8);
         while (r == 4) r = pick(8);
-        const unsigned form = pick(4), scale = pick(4);
-        if (form == 1 || form == 3) set(r, pick(0x400));
+        const unsigned form = pick(3), scale = pick(4);
+        if (form != 0) set(r, pick(0x400));
         size();
         out.push_back(0x68);
         value(uint32_t(rng()), os32 ? 4 : 2);
@@ -2709,8 +2711,6 @@ private:
             out.insert(out.end(), {0x44, 0x24});  // [ESP + disp8]
         } else if (form == 1) {
             out.insert(out.end(), {0x44, uint8_t((scale << 6) | (r << 3) | 4)});  // [ESP + r * scale + disp8]
-        } else if (form == 2) {
-            out.insert(out.end(), {0x44, uint8_t((scale << 6) | 0x24)});  // [ESP * scale + disp8]
         } else {
             out.push_back(uint8_t(0x40 | r));  // [r + disp8]
         }
