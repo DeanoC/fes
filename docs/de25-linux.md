@@ -83,6 +83,10 @@ claiming a DE25 FPGA programming backend, hardware MMIO map or device access.
 The current production runtime accepts only its identified ARMv7 DE10 target
 and refuses other boards before loading drivers or constructing hardware.
 
+The [2026-10-28 AArch64 software validation record](validation/2026-10-28-de25-aarch64-runtime/README.md)
+retains the selected C++ SDK/image and runtime receipts, QEMU test logs, native
+retry and CI evidence. Physical DE25 boot remains pending.
+
 ## Image artifacts
 
 The image output contains:
