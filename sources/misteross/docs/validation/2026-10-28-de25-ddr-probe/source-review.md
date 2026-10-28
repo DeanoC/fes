@@ -185,7 +185,7 @@ path. The newer generated mapping is reviewed separately below.
 The new generated project is `out/de25-ddr-probe-8f54e4f89e/project` in the
 `out/dev/de25-hps-interface` worktree, producer
 `8f54e4f89e5b12ae18df70c542bc5846d0452ce6`. This section does not relabel the
-older project or claim the in-progress Quartus compile has completed.
+older project or establish routed timing or boot acceptance.
 Its `inputs.json` SHA-256 is
 `a49101da9b94c4c6289342415c647bbc3d73b9f6511a288535f34c05d49be27e`.
 
@@ -272,6 +272,44 @@ Two earlier helper setup attempts remain in private outputs ending `-01` and
 handle generated module declarations. The successful run above uses unchanged
 producer RTL. This is source-bound functional transport evidence only. It
 admits no physical bridge, DMA mapping, memory allocation or hardware use.
+
+## Compiled bootloader handoff difference
+
+The two retained `project/output_files/hps_bootloader_handoff.bin` files are
+both 1,629 bytes. The older `4ab2472b0b` file is SHA-256
+`a17de6f2dbf5f4e93643b50b4c8291a33f930064f9a43bad3ece24e9c3dda04a`;
+the newer `8f54e4f89e` file is
+`d2a479eefd310505d9426efaf3bf81b1b2e95cc75e1ff3e5f1626fda3e43f81b`.
+Exactly four bytes differ, at file offsets `0x658–0x65b` inclusive:
+
+| Offset range | Older bytes | Newer bytes |
+| --- | --- | --- |
+| `0x658–0x65b` | `77 72 5f 69` (`wr_i`) | `6c 5f 63 73` (`l_cs`) |
+
+The prefix `[0,0x658)` is identical, SHA-256
+`6d0b4a0bf960b9ad38aca677699a984249cf44a3a9f35f96ddd2714614007d96`;
+the final byte at `0x65c` remains newline. All seven magic/declared-length
+sections (`PMUX`, `IOCT`, `FPGA`, `DLAY`, `CLKS`, `PERI`, `SDRM`) are identical.
+
+At the pinned U-Boot revision, the
+[handoff definitions](https://github.com/terasic/u-boot-socfpga/blob/d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413/arch/arm/mach-socfpga/include/mach/handoff_soc64.h#L76-L84)
+place SDRAM at `0x634` and define a five-word read. The
+[DDR consumer](https://github.com/terasic/u-boot-socfpga/blob/d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413/drivers/ddr/altera/sdram_agilex5.c#L130-L138)
+and [handoff reader](https://github.com/terasic/u-boot-socfpga/blob/d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413/arch/arm/mach-socfpga/wrap_handoff_soc64.c#L103-L136)
+therefore read `[0x644,0x658)`. Those five big-endian words match exactly:
+`0, 0, 0, 0, 0x00010000`. Both files declare SDRM length `0x14`, ending at
+`0x648`; the audited driver uses its fixed five-word count beyond that declared
+end. The differing suffix starts after this consumer's read range. Reviewed
+header/reader/DDR-source SHA-256 values are respectively
+`7dd3be3b80a150f3f5a4e1f9b019a047c8fe40eca11844dfa6a1c2d9800ad0f3`,
+`3d6196f50bfbe64770d4231323f95004e9bee95aa48f3e90f05f05572240caed`,
+and `d84438c6576825024bd069f5a535d61139cf2ae41fc518c53831f48e171299f0`.
+
+This audit assigns no producer-defined semantic field to the changing ASCII
+suffix and does not prove every firmware consumer ignores it. Unchanged
+HPS/EMIF parameters and decoded regions do not establish binary equivalence
+or factory firmware compatibility. Boot pairing remains `not-qualified`;
+no SPL rebuild, QSPI write or producer-input mutation was performed.
 
 ## Reviewed source SHA-256 identities
 
