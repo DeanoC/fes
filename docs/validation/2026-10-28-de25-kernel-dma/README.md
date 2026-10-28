@@ -93,6 +93,14 @@ warnings and stopped during object collection. The final candidate corrects the
 GUP test entry point, checks the raw log and exports the actual component objects.
 Those earlier results are not substituted for the final clean run.
 
+All selected parent, host/UI, runtime, contract and FPGA tooling checks also
+pass. The affected run records 1,087 parent tests (two skipped) and 1,419 FPGA
+tooling tests (35 skipped). [software-checks.json](software-checks.json) retains
+the exact commands, starting checkout, log identity and results. The later
+kernel/runner fixes are covered by the final eight-case kernel run and focused
+runner/HIL tests; other module executable inputs did not change. `make check`
+passes with 26 generated consumers and 37 fixture copies.
+
 ## Integration gate
 
 This adds a separate kernel diagnostic ABI and a generated C consumer of the
