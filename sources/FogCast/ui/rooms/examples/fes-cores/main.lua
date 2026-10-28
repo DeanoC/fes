@@ -8,7 +8,7 @@
 -- in the hero text column (room.toml destination_panel = "hero"); this
 -- script draws the card, artwork motif, shelf and header routes.
 --
--- Up reaches Library, Rooms and Settings from the shelf, so a pad without
+-- Up reaches the hero's actions, then Library, Rooms and Settings, so a pad without
 -- a Guide button still reaches the system menu with Direction and Confirm.
 -- The hero and a compact route row use Left and Right along that header.
 -- When the compact routes stack, Down and Up follow the column and then
@@ -48,7 +48,7 @@ local LOBBY = "example.lobby"
 
 local cores = nil      -- nil while listing; a table once kit.cores answers
 local unavailable = false
-local row = "shelf"    -- "shelf" or "menu"
+local row = "shelf"    -- "shelf", native hero "actions", or "menu"
 local shelf_i = 1
 local menu_i = 1
 local first = 1        -- first visible shelf card
@@ -90,7 +90,7 @@ local function card_line(core)
 end
 
 local function selected_core()
-  if row ~= "shelf" or not cores then return nil end
+  if row == "menu" or not cores then return nil end
   return cores[shelf_i]
 end
 
@@ -427,7 +427,13 @@ local function focus_hit(id)
   return true
 end
 
-function on_hover(id) focus_hit(id) end
+function on_hover(id)
+  -- Native hero action focus retains this shelf item without drawing a
+  -- second focus outline. These private hits never activate a destination.
+  if id == "native:actions" then row = "actions" return end
+  if id == "native:shelf" then row = "shelf" return end
+  focus_hit(id)
+end
 function on_resize() keep_visible() end
 function on_activate(id) focus_hit(id) end
 

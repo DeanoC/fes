@@ -1,7 +1,8 @@
 # FES visual language
 
-**Status: updated 18 October 2026.** Home and Workshop implement the warm FES
-direction. Library still needs the shared presentation pass described below.
+**Status: updated 28 October 2026.** Home, Library, Details and Workshop use
+the warm FES direction. Embedded discovery rooms retain their own character
+with larger labels, controlled title surfaces and consistent focus.
 The [room concepts](concepts/README.md) explain the broader direction;
 [native references](references/README.md) show the reviewed renderer result
 and a proposed Library target. Proposed layouts establish no hardware capability.
@@ -79,8 +80,11 @@ titles and primary actions. Proposed native role seeds are:
 Native 1280×720 Home, Library and Workshop captures now exist. The
 [reference guide](references/README.md) identifies their exact source and
 fixtures; the [acceptance guide](acceptance.md) links the existing kit runs.
-The Library migration must make its own native pass. Browser CSS dimensions
-and small supporting text are not native specifications. Use the real Go
+The Library and room pass has additional native captures at 1280×720 and
+1024×600; see the [current reference set](references/README.md#current-native-pass).
+These are software-renderer fixtures, with physical readability and transport
+checks still required. Browser CSS dimensions and small supporting text are not
+native specifications. Use the real Go
 renderer to inspect long names, wrapping, glyph coverage, selected states and
 action hints at the target resolution and default 5% safe area.
 
@@ -118,9 +122,9 @@ acronym-only cards. Keep titles as text elements outside the art. Loading or
 missing media retains card geometry and focus; an empty catalog offers a useful
 setup action instead of invented games.
 
-## Library migration
+## Library presentation
 
-The next visual slice covers the existing Library grid, list, header, Details
+The shared presentation covers the existing Library grid, list, header, Details
 presentation and their visible prompts. Reuse its data, view modes, filters,
 artwork cache, readiness classifier, import flow and return behavior. The
 [proposed Library sheet](references/library-target.svg) is a hierarchy and
@@ -137,13 +141,16 @@ production catalog specification.
 | Prompts | Full-word, readable prompts from the active logical mapping; do not reuse the small debug-font shortcut line as the primary instruction. Keep text out of variable cover art. |
 | Missing art and empty results | A labelled machine/title fallback, stable geometry and useful filter/setup recovery. No fabricated library entries. |
 
-At the reviewed baseline, `drawCoverCells` fills the selected cell with
-`#FFB830`, while the title uses `#ECF0F8`: approximately **1.51:1** contrast.
-The artwork inset does not repair the title background. Start by fixing this
-grid title pair, then apply the broader shared chrome and regression-check list
-selection. The baseline list repaints its text surface dark inside the outline.
-Audit actual composed foreground/background pairs, including focused, blocked
-and unavailable states; the palette seed alone is insufficient.
+Library uses paper title plates and a green outline independently of readiness.
+Its header and footer use the same FES identity and proportional faces as Home.
+Details keeps requirement reasons and the supported remedy. Default and Night
+Library chrome share the warm surface; Arcade and custom resolved backgrounds
+retain their existing look. No theme-file schema changed.
+
+The earlier selected-grid title was `#ECF0F8` on `#FFB830` (about 1.51:1).
+The current title uses `#243631` on `#FFFCF5` (about 12.44:1); action text uses
+`#FCFCF3` on `#235A46` (about 7.76:1). These pairs do not constitute an audit of
+arbitrary custom looks or authored artwork.
 
 Treat the current renderer's Home and Workshop as implementation references.
 Extend its existing color and text roles where necessary; this task needs no
@@ -154,18 +161,18 @@ or a destination picker where only one output is supported.
 
 ### Directional action contract
 
-Keep direct Confirm on the selected Ready item. Provide an additional visible
-path from that item to its actions: move into the adjacent action group, move
-between Play and Details, Confirm the focused action, and Back to the same
-item. The implementation chooses the exact focus transition to fit the
-existing grid/room layout and records it in the PR. It must not replace direct
-Play with a mandatory intermediate dialog, trap focus in an action row, or
-activate an action for an item changed by a delayed catalog refresh.
+Confirm on a selected Ready item plays directly. In Library, Down from the
+bottom visible item row enters the footer actions; Left/Right chooses Play or
+Details, Confirm activates, and Up or Back returns to the same item. Home places
+its hero above the shelf: Up enters the hero actions, a second Up reaches the
+header routes, and Down or Back returns to the same shelf item. Left/Right moves
+within each row. Prompts describe the focused action.
 
-Home needs this same reachable Details route. Its drawn secondary button is
-currently accessible through a dedicated Details command or pointer but is
-outside the Home Lua menu/shelf focus model. Merely drawing a button or adding
-another controller legend does not complete the route.
+Action focus captures item, package, media, expansion selection, readiness intent,
+room, client and session context. A changed context cancels that focus; a stale
+Confirm cannot activate the replacement item. Pointer and dedicated Details
+commands retain their existing routes. This is launcher-local state, without a
+new room or network API.
 
 ## Semantic states and copy
 

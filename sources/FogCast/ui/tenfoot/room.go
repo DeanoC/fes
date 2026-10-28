@@ -390,6 +390,7 @@ func (a *App) closeRoomLocked() {
 	if a.room == nil {
 		return
 	}
+	a.leaveBrowseActionsLocked()
 	id := a.room.ID()
 	a.room.Close()
 	a.room = nil

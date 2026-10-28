@@ -268,6 +268,9 @@ func (s Snapshot) HeaderHint() string {
 		}
 		return tapePickerHint(kind)
 	}
+	if s.BrowseActions.Focused {
+		return browseActionsHint(s)
+	}
 	if s.Room.Open {
 		if s.Room.Err != "" {
 			return backWord(kind) + " home"

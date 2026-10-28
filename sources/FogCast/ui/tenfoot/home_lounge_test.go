@@ -98,6 +98,12 @@ func TestHomeLoungeNativeRender(t *testing.T) {
 				return s.Room.Open && s.Room.Destination.Kind == rooms.KindCore && s.Room.Destination.Label == "FES Pong"
 			})
 			writeHomeScreenshot(t, snap, "ready")
+			app.HandleCommand(CmdUp, time.Now())
+			app.HandleCommand(CmdRight, time.Now())
+			snap = waitFor(t, app, "hero Details action", func(s Snapshot) bool {
+				return s.BrowseActions.Focused && s.BrowseActions.Index == 1
+			})
+			writeHomeScreenshot(t, snap, "action-details")
 		})
 	}
 	t.Run("blocked", func(t *testing.T) {
@@ -122,7 +128,8 @@ func TestHomeLoungeNativeRender(t *testing.T) {
 	t.Run("settings", func(t *testing.T) {
 		app := startHomeLounge(t, &fakeLocalCores{cores: homeFixtureCores()}, 1280, 720)
 		waitFor(t, app, "first core", func(s Snapshot) bool { return s.Room.Destination.Label == "FES Pong" })
-		app.HandleCommand(CmdUp, time.Now())
+		app.HandleCommand(CmdUp, time.Now()) // Hero actions above the shelf.
+		app.HandleCommand(CmdUp, time.Now()) // Header routes above the actions.
 		app.HandleCommand(CmdRight, time.Now())
 		app.HandleCommand(CmdRight, time.Now())
 		snap := waitFor(t, app, "settings", func(s Snapshot) bool { return s.Room.Destination.Kind == rooms.KindAction })

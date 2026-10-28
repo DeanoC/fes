@@ -1,9 +1,9 @@
 # Native UI references
 
 Use this page with the [UX brief](../README.md), [visual language](../visual-language.md)
-and [acceptance journeys](../acceptance.md). It places the reviewed native UI
-beside the next Library design, so an implementation agent can distinguish
-current behavior from the proposed result.
+and [acceptance journeys](../acceptance.md). The current pass follows the
+shared language; the earlier reviewed baseline and design sheet remain dated
+references below.
 
 ## What each picture establishes
 
@@ -112,3 +112,40 @@ captions and comparison notes together. Git history retains earlier versions;
 do not accumulate competing current screenshots. Record actual controller,
 display, software bundle, base image and content identities separately when
 collecting kit evidence, following [acceptance](../acceptance.md#evidence-record).
+
+
+## Current native pass
+
+The 28 October pass covers Home, Library grid/list/Details, Settings and media
+pickers, the family workbenches and all 12 embedded room packs. Native fixtures
+were rendered at 1280×720 and 1024×600, with empty/missing-art, blocked, long-title,
+variant and running-overlay states. These are software-framebuffer captures;
+they establish no physical viewing-distance, controller or scanout acceptance.
+Source, checks, fixture limitations and the kit follow-up are in the
+[validation record](../../validation/2026-10-28-tenfoot-ux/README.md).
+
+Home keeps direct Play and adds Up to the visible hero actions; Library uses
+Down from its bottom visible row. Left/Right selects Play or Details and Back
+returns to the same title. Selection, action focus and readiness remain separate.
+The shared dialogs and workbenches use larger proportional labels and neutral
+secondary controls; authored rooms retain their palettes and motifs.
+
+![Home with its retained shelf selection](tenfoot-polish/home-1280x720.png)
+
+![Library with directional Details focus](tenfoot-polish/library-1280x720.png)
+
+![Family workbench at the smaller viewport](tenfoot-polish/system-1024x600.png)
+
+![ZX81 workshop with the machine illustration](tenfoot-polish/workshop-1280x720.png)
+
+![Settings with readable controls at the smaller viewport](tenfoot-polish/settings-1024x600.png)
+
+![Authored world map with readable shared controls](tenfoot-polish/world-1280x720.png)
+
+
+Complete room and selector overview at the reviewed viewports:
+
+- [All embedded rooms, 1280×720](tenfoot-polish/contact-rooms-1280x720.jpg)
+- [All embedded rooms, 1024×600](tenfoot-polish/contact-rooms-1024x600.jpg)
+- [Variants and running overlays, 1024×600](tenfoot-polish/contact-variants-1024x600.jpg)
+- [Native menus and selectors, 1024×600](tenfoot-polish/contact-native-1024x600.jpg)

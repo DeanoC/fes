@@ -26,13 +26,13 @@ end
 
 local function fill(games)
   for _, g in ipairs(games) do g.cover = image.cover(g.id) end
-  grid = Grid.new{ id = "icons", x = win.x + 8, y = win.y + 24, w = win.w - 16, h = win.h - 32, cell_w = 128, cell_h = 132, gap = 12, label_h = 34, size = 14, items = games }
+  grid = Grid.new{ id = "icons", x = win.x + 12, y = win.y + 48, w = win.w - 44, h = win.h - 60, cell_w = 176, cell_h = 184, gap = 20, label_h = 48, size = 22, items = games }
   status = #games .. " items"
   publish()
 end
 
 function load()
-  win = { x = 32, y = 60, w = room.width - 64, h = math.max(80, room.height - 60 - DEST) }
+  win = { x = 32, y = 72, w = room.width - 64, h = math.max(120, room.height - 72 - DEST) }
   publish()
   library.collections(function(list, err)
     local found
@@ -70,40 +70,32 @@ local function bevel(x, y, w, h, light, dark)
 end
 
 local function title_bar(x, y, w, text)
-  gfx.rect(x, y, w, 20, WHITE)
-  for i = 0, w, 4 do gfx.rect(x + i, y + 4, 2, 12, BLUE) end
-  gfx.rect(x + 4, y + 2, 16, 16, WHITE)
-  gfx.rect(x + 6, y + 4, 12, 12, BLUE)
-  gfx.rect(x + 9, y + 7, 6, 6, WHITE)
-  local tw = gfx.measure(text, 14)
-  gfx.rect(x + 28, y + 1, tw + 12, 18, WHITE)
-  gfx.text(text, x + 34, y + 1, { size = 14, color = BLUE })
-  gfx.rect(x + w - 40, y + 2, 16, 16, WHITE)
-  gfx.rect(x + w - 38, y + 4, 12, 12, BLUE)
-  gfx.rect(x + w - 20, y + 2, 16, 16, WHITE)
-  gfx.rect(x + w - 18, y + 4, 12, 12, BLUE)
+  gfx.rect(x, y, w, 36, WHITE)
+  for i = 0, w, 6 do gfx.rect(x + i, y + 6, 3, 24, BLUE) end
+  gfx.rect(x + 4, y + 4, 28, 28, WHITE)
+  gfx.rect(x + 8, y + 8, 20, 20, BLUE)
+  gfx.rect(x + 13, y + 13, 10, 10, WHITE)
+  local tw, th = gfx.measure(text, 22)
+  local label_w = math.min(tw + 20, w - 128)
+  gfx.rect(x + 40, y + 2, label_w, 32, WHITE)
+  gfx.text(text, x + 50, y + math.floor((36 - th) / 2), { size = 22, max_w = label_w - 20, color = BLUE })
+  gfx.rect(x + w - 72, y + 4, 28, 28, WHITE)
+  gfx.rect(x + w - 68, y + 8, 20, 20, BLUE)
+  gfx.rect(x + w - 36, y + 4, 28, 28, WHITE)
+  gfx.rect(x + w - 32, y + 8, 20, 20, BLUE)
 end
 
 function draw()
   gfx.clear(BLUE)
   -- screen title bar
-  gfx.rect(0, 0, room.width, 20, WHITE)
-  gfx.text("Workbench release 1.3   " .. status, 8, 1, { size = 14, color = BLUE })
-  gfx.rect(room.width - 20, 2, 16, 16, BLUE)
-  -- disk icons on the desktop
-  local dx = room.width - 90
-  for i, name in ipairs({ "Workbench1.3", "Games:" }) do
-    local iy = 40 + (i - 1) * 80
-    gfx.rect(dx, iy, 48, 40, WHITE)
-    gfx.rect(dx + 4, iy + 4, 40, 32, BLACK)
-    gfx.rect(dx + 10, iy + 10, 28, 8, WHITE)
-    gfx.text(name, dx + 24, iy + 44, { size = 12, align = "center", color = WHITE })
-  end
+  gfx.rect(0, 0, room.width, 40, WHITE)
+  gfx.text("Workbench release 1.3   " .. status, 12, 5, { size = 22, max_w = room.width - 64, color = BLUE })
+  gfx.rect(room.width - 36, 6, 28, 28, BLUE)
   -- drawer window
   gfx.rect(win.x, win.y, win.w, win.h, BLUE)
   bevel(win.x, win.y, win.w, win.h, WHITE, BLACK)
   title_bar(win.x, win.y, win.w, drawer)
-  gfx.clip(win.x + 2, win.y + 20, win.w - 4, win.h - 22)
+  gfx.clip(win.x + 2, win.y + 36, win.w - 4, win.h - 38)
   if grid then
     grid:draw{
       cover = function(item) return item.cover end,
@@ -115,7 +107,7 @@ function draw()
   end
   gfx.unclip()
   -- right-hand scroll gadget
-  gfx.rect(win.x + win.w - 18, win.y + 20, 16, win.h - 22, BLACK)
-  gfx.rect(win.x + win.w - 16, win.y + 24, 12, 40, ORANGE)
+  gfx.rect(win.x + win.w - 18, win.y + 36, 16, win.h - 38, BLACK)
+  gfx.rect(win.x + win.w - 16, win.y + 42, 12, 48, ORANGE)
   publish()
 end

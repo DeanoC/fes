@@ -57,10 +57,11 @@ local function load_games()
 end
 
 function load()
-  local lw = math.floor(room.width * 0.32)
-  local h = math.max(56, room.height - 110 - DEST)
-  platforms = List.new{ id = "plat", x = 24, y = 110, w = lw, h = h, row_h = 56, size = 22, items = {} }
-  games = List.new{ id = "game", x = 24 + lw + 24, y = 110, w = room.width - lw - 72, h = h, row_h = 40, size = 20, items = {} }
+  local lw = math.min(360, math.floor(room.width * 0.30))
+  local art_w = room.width >= 1180 and 200 or 0
+  local h = math.max(64, room.height - 148 - DEST)
+  platforms = List.new{ id = "plat", x = 32, y = 148, w = lw, h = h, row_h = 64, size = 24, items = {} }
+  games = List.new{ id = "game", x = 32 + lw + 24, y = 148, w = room.width - lw - 88 - art_w, h = h, row_h = 64, size = 24, items = {} }
   publish()
   library.platforms(function(list, err)
     if err then status = err publish() return end
@@ -100,24 +101,21 @@ function on_activate(id)
 end
 
 local function platform_label(p)
-  local tags = {}
-  for _, t in ipairs(p.tags or {}) do
-    if t:sub(1, 4) == "cpu:" or t:sub(1, 4) == "vdp:" then tags[#tags + 1] = t:sub(5) end
-  end
-  return p.label .. "   " .. table.concat(tags, " · ")
+  return p.label
 end
 
 function draw()
   gfx.clear(room.theme.background)
-  gfx.text("TMS9918 FAMILY", 24, 18, { size = 34, bold = true, color = room.theme.accent })
-  gfx.text("systems tagged " .. TAG, 24, 62, { size = 16, color = "#8aa" })
-  gfx.text(status, room.width - 24, 30, { size = 16, align = "right", color = "#cde" })
+  gfx.rect(0, 0, room.width, 124, "#0D1115")
+  gfx.rect(0, 124, room.width, 4, room.theme.accent)
+  gfx.text("TMS9918 FAMILY", 32, 20, { size = 36, bold = true, color = room.theme.accent })
+  gfx.text(status .. " · Left/Right changes pane", 32, 80, { size = 22, max_w = room.width - 64, color = "#CDDEE3" })
   platforms:draw{ label = platform_label, background = "#161c22", focus_color = pane == 1 and room.theme.accent or "#2a3640", focus_text = pane == 1 and "#101418" or "#dde" }
   local g = games:selected()
   games:draw{ label = function(item) return item.title .. (item.year ~= "" and ("  (" .. item.year .. ")") or "") end, background = "#161c22", focus_color = pane == 2 and room.theme.accent or "#2a3640", focus_text = pane == 2 and "#101418" or "#dde" }
-  if g and g.cover and g.cover.ready then
-    local cw = 120
-    gfx.image(g.cover, room.width - cw - 40, math.max(110, room.height - DEST - 170), cw, 160)
+  if room.width >= 1180 and g and g.cover and g.cover.ready then
+    local cw = 160
+    gfx.image(g.cover, room.width - cw - 32, 156, cw, 210)
   end
   publish()
 end

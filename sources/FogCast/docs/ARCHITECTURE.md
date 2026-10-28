@@ -1411,6 +1411,28 @@ The configured FogCast service still supplies library/setup operations and
 the host session path still launches games. Cached offline titles remain
 browse-only. This option does not install or select menu firmware in an image.
 
+Tenfoot's shared Library and Details chrome uses the warm FES paper, ink and
+forest-green action roles, proportional Go faces, opaque title plates and a
+focus outline separate from readiness. The native Library header reserves
+116 px for identity, metadata and readable hints. Its footer reserves space for
+the selected title and visible actions. Default/Night Library backgrounds use
+warm paper; Arcade and custom resolved backgrounds keep their look. Authored
+rooms retain their own palettes, with larger label plates and footer-safe
+content. Workshop secondary and disabled actions use neutral surfaces; Start
+(or Set up for an empty system) is the dominant action. Running and saved
+next-start setup remain distinct.
+
+`ui/tenfoot/browse_actions.go` owns launcher-local action focus. Direct Confirm
+on a Ready item still launches. Down from Library's bottom visible row enters
+Play/Details; Left/Right selects an action, Up/Back returns to the same item.
+On Home, Up from the shelf enters hero actions and another Up reaches the
+header; Down/Back returns to the shelf. `Snapshot.BrowseActions` feeds paint and
+contextual hints. The captured destination, readiness intent, room/client and
+session generation must still match before activation. The builtin Home room
+accepts private hover IDs to synchronize its shelf outline, without changing
+the public Lua API or destination schema. Opening Details preserves the browse
+selection and position.
+
 Tenfoot looks are data-driven. `ui/theme` loads colour, spacing,
 typography roles, cover-chrome, vignette, bezel, and cabinet tokens from a built-in name (`default`,
 `arcade`, `night`) or a JSON/TOML file. Roles are explicit pixel sizes

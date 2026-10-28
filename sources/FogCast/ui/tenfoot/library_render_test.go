@@ -81,6 +81,9 @@ func libraryRenderApp(t *testing.T, w, h int, withArt bool) *App {
 
 func writeLibraryScreenshot(t *testing.T, app *App, name string) Snapshot {
 	t.Helper()
+	app.mu.Lock()
+	app.setSafeAreaPctLocked(DefaultSafeAreaPct, false)
+	app.mu.Unlock()
 	snap := app.Snapshot()
 	dev, err := gfx.NewSoftware(snap.Grid.Width, snap.Grid.Height)
 	if err != nil {
@@ -117,6 +120,28 @@ func TestLibraryNativeRender(t *testing.T) {
 	t.Run("grid", func(t *testing.T) {
 		writeLibraryScreenshot(t, libraryRenderApp(t, 1280, 720, true), "grid")
 	})
+	t.Run("grid-1024", func(t *testing.T) {
+		writeLibraryScreenshot(t, libraryRenderApp(t, 1024, 600, true), "grid")
+	})
+	for _, size := range [][2]int{{1280, 720}, {1024, 600}} {
+		t.Run(fmt.Sprintf("action-details-%d", size[0]), func(t *testing.T) {
+			app := libraryRenderApp(t, size[0], size[1], true)
+			app.mu.Lock()
+			if !app.enterBrowseActionsLocked(1) {
+				t.Fatal("Details action is unavailable")
+			}
+			app.mu.Unlock()
+			writeLibraryScreenshot(t, app, "action-details")
+		})
+	}
+	for _, mode := range []LayoutKind{LayoutShelf, LayoutList} {
+		t.Run(mode.String(), func(t *testing.T) {
+			app := libraryRenderApp(t, 1280, 720, true)
+			app.grid.Mode = mode
+			app.grid.Layout(1280, 720)
+			writeLibraryScreenshot(t, app, mode.String())
+		})
+	}
 	t.Run("blocked", func(t *testing.T) {
 		app := libraryRenderApp(t, 1280, 720, true)
 		app.HandleCommand(CmdRight, now)
@@ -157,7 +182,8 @@ func TestLibraryBackReturnsToTheSameHomeAndSelection(t *testing.T) {
 	app.mu.Lock()
 	home := app.room
 	app.mu.Unlock()
-	app.HandleCommand(CmdUp, time.Now())
+	app.HandleCommand(CmdUp, time.Now()) // Hero actions above the shelf.
+	app.HandleCommand(CmdUp, time.Now()) // Header routes above the actions.
 	waitFor(t, app, "library route", func(s Snapshot) bool { return s.Room.Destination.Label == "Library" })
 	app.HandleCommand(CmdSelect, time.Now())
 	snap := app.Snapshot()
@@ -184,7 +210,8 @@ func TestLibraryHomeKeyReclaimsTheSuspendedHome(t *testing.T) {
 	app.mu.Lock()
 	home := app.room
 	app.mu.Unlock()
-	app.HandleCommand(CmdUp, time.Now())
+	app.HandleCommand(CmdUp, time.Now()) // Hero actions above the shelf.
+	app.HandleCommand(CmdUp, time.Now()) // Header routes above the actions.
 	app.HandleCommand(CmdSelect, time.Now())
 	if app.Snapshot().Room.Open {
 		t.Fatal("Library did not open")

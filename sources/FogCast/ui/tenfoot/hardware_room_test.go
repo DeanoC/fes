@@ -1,6 +1,7 @@
 package tenfoot
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -253,9 +254,12 @@ func TestParkedTapePickerIsPaintedAndPointerAccessible(t *testing.T) {
 	rec := gfx.NewRecorder()
 	labels := map[string]gpuTexture{}
 	presentFrame(rec, snap, map[string]gpuTexture{}, labels, false)
+	expected, _, _ := gfx.UIText(snap.TapePicker.Title, 28, gfx.WeightBold, panel.W-32)
 	painted := false
-	for key := range labels {
-		painted = painted || strings.HasPrefix(key, "tape-title\x1f")
+	for _, call := range rec.Calls {
+		if call.Op == "DrawMask" && expected != nil && call.Mask != nil && call.Mask.W == expected.W && call.Mask.H == expected.H && bytes.Equal(call.Mask.Pix, expected.Pix) {
+			painted = true
+		}
 	}
 	if !painted {
 		t.Fatal("parked tape controls not painted")

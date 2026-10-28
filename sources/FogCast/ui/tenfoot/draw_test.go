@@ -224,21 +224,27 @@ func TestUploadTextureRejectsEmpty(t *testing.T) {
 	}
 }
 
-func TestDrawFrameClearsWithThemeBackground(t *testing.T) {
+func TestLibraryDrawFrameUsesWarmFESBackground(t *testing.T) {
 	rec := gfx.NewRecorder()
 	snap := Snapshot{Grid: testDrawGrid()}
 	drawFrame(rec, snap, map[string]gpuTexture{}, map[string]gpuTexture{})
 	if len(rec.Calls) < 2 || rec.Calls[0].Op != "BeginFrame" || rec.Calls[1].Op != "Clear" {
 		t.Fatalf("ops %#v", rec.Ops())
 	}
-	if rec.Calls[1].Color != theme.Default().SofaBackground {
-		t.Fatalf("default sofa clear %+v", rec.Calls[1].Color)
+	if rec.Calls[1].Color != heroBackground {
+		t.Fatalf("default Library clear %+v", rec.Calls[1].Color)
+	}
+	rec = gfx.NewRecorder()
+	snap.Theme = theme.Night() // Provisioned sofa-dim resolves to Night.
+	drawFrame(rec, snap, map[string]gpuTexture{}, map[string]gpuTexture{})
+	if rec.Calls[1].Color != heroBackground {
+		t.Fatalf("provisioned Library clear %+v", rec.Calls[1].Color)
 	}
 	rec = gfx.NewRecorder()
 	snap.Theme = theme.Arcade()
 	drawFrame(rec, snap, map[string]gpuTexture{}, map[string]gpuTexture{})
 	if rec.Calls[1].Color != theme.Arcade().SofaBackground {
-		t.Fatalf("arcade sofa clear %+v", rec.Calls[1].Color)
+		t.Fatalf("Library clear %+v", rec.Calls[1].Color)
 	}
 	if theme.Arcade().SofaBackground == theme.Default().SofaBackground {
 		t.Fatal("arcade sofa must differ")

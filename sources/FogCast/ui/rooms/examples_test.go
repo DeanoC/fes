@@ -1026,14 +1026,23 @@ func TestMushroomKingdomPlayedIsNotCompleted(t *testing.T) {
 	assertNodeFill := func(when string) {
 		t.Helper()
 		f := r.Step(time.Unix(20, 0))
-		// Focused Donkey Kong sits near (128, 488) after the room's scale.
+		var node Hit
+		for _, hit := range f.Hits {
+			if hit.ID == "world:dk" {
+				node = hit
+				break
+			}
+		}
+		if node.ID == "" {
+			t.Fatalf("%s: missing Donkey Kong node", when)
+		}
 		var fill string
 		for _, op := range f.Ops {
 			if op.Kind != OpRect || op.W != 44 || op.H != 44 {
 				continue
 			}
 			cx, cy := op.X+22, op.Y+22
-			if cx < 100 || cx > 160 || cy < 450 || cy > 530 {
+			if cx != node.X+node.W/2 || cy != node.Y+node.H/2 {
 				continue
 			}
 			fill = FormatHexColor(op.Color)

@@ -214,7 +214,7 @@ local function button(id,label,x,y,w,h,enabled,fn,accent)
   else
     rect(x,y,w,h,fill)
   end
-  local size=math.max(12,math.floor(math.min(19,h-10)*scale))
+  local size=math.max(12,math.floor(math.min(20,h-10)*scale))
   local bold=selected or filled
   local th=text_height(size, bold)
   local color=filled and C.light or (enabled and C.ink or C.muted)
@@ -402,7 +402,7 @@ local function warm_more()
       seen[key] = true
       warm_px[#warm_px+1] = {px, bold and true or false}
     end
-    for _, s in ipairs({12, 13, 14, 15, 16, 17, 19, 22, 24, 30}) do
+    for _, s in ipairs({12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 30}) do
       add(s * scale, false)
       add(s * scale, true)
     end
@@ -452,7 +452,7 @@ local function picture(part)
   rect(24,18,18,5,C.accent) rect(24,26,18,5,C.accent) rect(24,34,10,5,C.accent)
   text("FES",50,14,24,C.ink,80,true)
   rect(104,16,2,26,C.line)
-  text(workshop_title(),118,17,19,C.ink,300)
+  text(workshop_title(),118,14,23,C.ink,360)
   button("back","Back",892,10,96,38,true,function() rooms.back() end)
   button("home","Home",1000,10,96,38,true,function() rooms.home() end)
   rect(0,56,1120,2,C.line)
@@ -462,14 +462,14 @@ local function picture(part)
   local info=read_error ~= "" and read_error or (data and data.session_error ~= "" and "Session unavailable. Refresh before controlling the machine." or message)
   if machine and not machine.ready and read_error == "" then info=machine.unavailable_reason end
   -- Status stays under the title so lifecycle consequences never disappear.
-  text(info,24,122,15,C.muted,1072)
+  text(info,24,122,18,C.muted,1072)
 
   -- Machine card: the saved next start stays on the connector. A ready
   -- preview is outlined beside it and never replaces the saved card. Over a
   -- running machine the real one shows through instead of card and artwork.
   if not overlay then rect(24,144,576,296,C.raised) end
-  text("Setup preview",40,154,15,C.muted,300)
-  text("1 rear connector",440,154,15,C.muted,144)
+  text("Setup preview",40,154,17,C.muted,300)
+  text("1 rear connector",432,154,17,C.muted,152)
   if overlay then
     -- No artwork or silhouette: the running machine is behind the room.
   elseif model().id == "fes.zx81" and art and art.ready then
@@ -513,7 +513,7 @@ local function picture(part)
   button("socket","Rear expansion",372,182,200,40,machine and machine.socket.supported,function() focus="card:1" end)
   local readonly=data and data.expansion_selection == false
   local save_guidance=readonly and ("Open the "..workshop_title().." on the host computer to choose Fit & save.") or "A saved setup remembers the machine, not its running memory."
-  text(save_guidance,40,412,15,C.muted,544)
+  text(save_guidance,40,412,16,C.muted,544)
 
   -- Setup column: the three states together, then the change and its cost.
   -- Running is an observation. Without a session reading it is unknown,
@@ -527,33 +527,34 @@ local function picture(part)
   elseif s.state == "idle" then running_line="Running: not running"
   else running_line="Running: "..(s.state ~= "" and s.state or "unknown") end
   if stale and data then running_line=running_line.." (may be out of date)" end
-  text(running_line,620,146,17,C.ink,476,true)
-  text(machine and ("Next start: "..label(saved_id)) or "Next start: no machine setup",620,170,17,C.ink,476,true)
+  text(running_line,620,146,19,C.ink,476,true)
+  text(machine and ("Next start: "..label(saved_id)) or "Next start: no machine setup",620,170,19,C.ink,476,true)
   if previewing then text("Previewing: "..label(inspected).." (not saved)",620,194,16,C.muted,476)
   elseif pending() then text("Restart needed: Stop, then Start, to use Next start",620,194,16,C.ink,476,true) end
   rect(620,220,476,2,C.line)
-  text(c and ("REAR CONNECTOR · ONE EXPANSION"..(c.in_progress and " · IN PROGRESS" or "")) or "REAR CONNECTOR · ONE EXPANSION",620,230,13,C.muted,476,true)
+  text(c and ("REAR CONNECTOR · ONE EXPANSION"..(c.in_progress and " · IN PROGRESS" or "")) or "REAR CONNECTOR · ONE EXPANSION",620,230,15,C.muted,476,true)
   text(c and c.label or "Empty socket",620,248,22,C.ink,476,true)
-  lines(c and c.description or "Choose an expansion on the shelf. The host checks that it fits this exact machine.",620,278,470,15,2,C.muted)
-  if c and not c.ready then text(c.unavailable_reason,620,318,14,C.ink,476,true) end
+  local description=c and c.description or "Choose an expansion on the shelf. The host checks that it fits this exact machine."
+  if c and not c.ready then description=c.unavailable_reason end
+  lines(description,620,278,470,18,2,C.muted)
   -- expansion_selection is this listener's save permission. Content
   -- readiness stays on the socket and the card. An omitted field is an
   -- older unpaired host and keeps the existing save.
   local save_here=not data or data.expansion_selection ~= false
   local can_edit=machine and machine.socket.supported and save_here and not stale and not loading and not saving
   local fit=c and c.ready and c.expansion_id ~= saved_id
-  button("fit","Fit & save setup",620,338,300,40,can_edit and fit,function() save(inspected) end,true)
+  button("fit","Fit & save setup",620,338,300,40,can_edit and fit,function() save(inspected) end,not running())
   button("remove","Remove & save",932,338,164,40,can_edit and saved_id ~= "",function() inspected="" save("") end)
   rect(620,388,476,52,C.warm)
   rect(620,388,5,52,C.warm_edge)
   local setup_notice=pending() and "Restart needed: the running machine still uses its old setup." or (readonly and "Inspect only. This kit cannot save Next start." or "Changing the setup needs a restart.")
-  text(setup_notice,634,394,15,C.ink,456,true)
-  text("Stopping clears memory. Saving a setup never saves RAM.",634,416,15,C.ink,456)
+  text(setup_notice,634,394,16,C.ink,456,true)
+  text("Stopping clears memory. Saving a setup never saves RAM.",634,418,16,C.ink,456)
   end
   if part == "upper" then return end
 
   -- Expansion shelf: inspecting a card changes only the preview.
-  text("Expansion shelf",24,452,19,C.ink,400,true)
+  text("Expansion shelf",24,452,21,C.ink,400,true)
   local choices=machine and machine.choices or {}
   local start=(page-1)*3+1
   for n=1,3 do
@@ -566,11 +567,11 @@ local function picture(part)
       -- Deliberately generic card art; appearance is not a feature claim.
       rect(x+10,490,30,32,item.ready and C.card or C.muted)
       rect(x+14,517,22,6,C.brass)
-      text(item.label,x+50,488,16,C.ink,180,focus == id)
+      text(item.label,x+50,486,18,C.ink,180,focus == id)
       local card_status=item.expansion_id == saved_id and "Saved for next start" or (item.ready and "Fits this machine" or "Unavailable")
       if inspected == item.expansion_id and item.expansion_id ~= saved_id then card_status="Previewing · "..card_status end
       if item.in_progress then card_status="In progress · "..card_status end
-      text(card_status,x+50,514,13,C.muted,180)
+      text(card_status,x+50,513,15,C.muted,180)
       hit(id,x,480,238,62)
       local preview_note="Previewing. Choose Fit & save setup to use it at the next start."
       if data and data.expansion_selection == false then preview_note="Previewing. This kit cannot save it." end
@@ -594,20 +595,20 @@ local function picture(part)
   -- keeps its start and its end.
   rect(24,546,1072,2,C.line)
   local tape_name=machine and machine.media_name ~= "" and machine.media_name or "No cassette"
-  text("Cassette",24,552,13,C.muted,84)
-  text(fit_name(tape_name,14,980,true),112,550,14,C.ink,980,true)
+  text("Cassette",24,552,15,C.muted,84)
+  text(fit_name(tape_name,17,980,true),112,550,17,C.ink,980,true)
   local can_control=not stale and not loading and data and data.session_error == ""
   local can_play=machine and machine.ready and not stale and not loading and not saving and data and data.session and data.session.state == "idle" and data.session_error == ""
   button("power",running() and (current() and "Stop machine" or "Machine in use") or "Start machine",24,576,186,48,(current() and can_control and current_session().hardware_known) or can_play,function()
     if running() then session.stop(current_session())
     elseif machine.launch_package_id and machine.launch_package_id ~= "" then session.launch(machine.game_id,machine.launch_package_id,machine.package_id)
     else session.launch(machine.game_id) end
-  end,true)
+  end,not previewing and not running())
   button("tape",running() and "Choose / eject tape" or "Choose cassette",222,576,196,48,(current() and can_control and current_session().tape_available) or (machine and machine.ready and data and data.session and data.session.state == "idle" and data.session_error == "" and not stale and not loading and not saving),function()
     if running() then session.open_tape(current_session())
     else hardware.open_tapes{game_id=machine.game_id,core_id=machine.core_id,package_id=machine.package_id,expected_media_id=machine.media_id or ""} end
   end)
-  button("resume","Return to play",430,576,164,48,running(),function() session.resume() end)
+  button("resume","Return to play",430,576,164,48,running(),function() session.resume() end,running())
   button("setup","Next setup",606,576,128,48,data and #data.machines > 1,function() next_machine() end)
   button("setup_library","Set up "..model().mark,746,576,170,48,not running(),function() hardware.setup{core_id=model().id} end)
   button("library","Library",976,514,120,28,not running(),function() rooms.open_library{platform="zx81"} end)

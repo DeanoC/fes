@@ -842,19 +842,34 @@ func TestDrawRoomReplaysOpsAndReapsTextures(t *testing.T) {
 		t.Fatal("room cover texture not uploaded")
 	}
 	fills, draws, texts := 0, 0, 0
+	authoredText := labels[roomTextKey(snap.Room.Frame.Ops[5])]
+	var hintText gpuTexture
+	for _, label := range labels {
+		if label.labelSource == snap.HeaderHint() {
+			hintText = label
+		}
+	}
+	hintPainted, hintBand := false, false
 	var clipped *gfx.Rect
 	for _, call := range rec.Calls {
 		switch call.Op {
 		case "FillRect":
-			fills++
+			if call.Color == gfx.RGB(9, 9, 9) {
+				fills++
+			}
+			hintBand = hintBand || (call.Color == heroText && call.Dst.H == 28)
 		case "Draw":
 			draws++
 			if call.Src != nil {
 				clipped = call.Src
 			}
 		case "DrawMask":
+			if call.Mask == hintText.mask {
+				hintPainted = call.Color == heroOnAccent && call.Y >= grid.footerY()-30 && call.Y+hintText.h < grid.footerY()
+				continue
+			}
 			texts++
-			if call.Color != gfx.RGB(255, 255, 255) || call.X != 10 || call.Y < 80 {
+			if call.Mask != authoredText.mask || call.Color != gfx.RGB(255, 255, 255) || call.X != 10 || call.Y < 80 {
 				t.Fatalf("text drawn %+v", call)
 			}
 		}
@@ -864,6 +879,9 @@ func TestDrawRoomReplaysOpsAndReapsTextures(t *testing.T) {
 	}
 	if draws != 1 || texts != 1 { // clipped cover; text label
 		t.Fatalf("expected a cover draw and a text draw, got %d and %d", draws, texts)
+	}
+	if !hintBand || !hintPainted || hintText.mask == nil {
+		t.Fatal("room controls need cached proportional text on a separate opaque band")
 	}
 	if clipped == nil || clipped.W != 2 || clipped.H != 2 {
 		t.Fatalf("clipped cover should crop the source proportionally, got %+v", clipped)

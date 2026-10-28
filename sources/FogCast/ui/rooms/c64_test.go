@@ -162,13 +162,13 @@ func TestC64RoomShowsSavedSocketsAndDiskThenLaunches(t *testing.T) {
 		"1541", "unit 0",
 		"Tape .tap and .t64: not on this core",
 		"Cartridge file .crt: not on this core",
-		"Package", shortID(pkg),
+		"Saved for next start",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("frame missing %q\n%s", want, text)
 		}
 	}
-	for _, absent := range []string{slot, disk, pkg, "FES Pong", "REU", ".crt "} {
+	for _, absent := range []string{slot, disk, pkg, shortID(pkg), "FES Pong", "REU", ".crt "} {
 		if strings.Contains(text, absent) {
 			t.Fatalf("frame includes %q\n%s", absent, text)
 		}
@@ -390,7 +390,7 @@ func TestC64RoomDisablesLiveControlsAfterRefreshFailure(t *testing.T) {
 func TestC64RoomEmptyLibraryDoesNotLaunch(t *testing.T) {
 	r := loadC64(t, &fakeServices{})
 	frame := stepUntil(t, r, func(f Frame) bool {
-		return strings.Contains(frameText(f), "No Commodore 64 entries yet.") && strings.Contains(frameText(f), "Start machine")
+		return strings.Contains(frameText(f), "Set up this system to begin") && strings.Contains(frameText(f), "Start machine")
 	})
 	assertRowContrast(t, frame)
 	text := frameText(frame)

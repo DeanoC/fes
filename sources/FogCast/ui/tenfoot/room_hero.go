@@ -313,10 +313,8 @@ type pillStyle struct {
 var heroPill = pillStyle{px: heroStatePx, ready: heroAccent, onReady: heroOnAccent,
 	unavailable: heroRaised, bar: heroText, text: heroText, outline: heroSecondary}
 
-// detailPill uses the dark seed roles in docs/ux/visual-language.md.
-var detailPill = pillStyle{px: 16, ready: gfx.RGBA(0xC8, 0xE3, 0xAC, 0xFF), onReady: gfx.RGBA(0x20, 0x37, 0x27, 0xFF),
-	unavailable: gfx.RGBA(0x30, 0x39, 0x36, 0xFF), bar: gfx.RGBA(0xED, 0xF3, 0xE9, 0xFF), text: gfx.RGBA(0xED, 0xF3, 0xE9, 0xFF),
-	outline: gfx.RGBA(0xB5, 0xC3, 0xB9, 0xFF)}
+// Details and its labelled cover plates share the warm Library surfaces.
+var detailPill = heroPill
 
 // heroStatePill draws the readiness name. Ready is filled; the others are
 // outlined, and Unavailable carries a solid leading bar, so shape and text
@@ -372,7 +370,11 @@ func heroButtonRects(snap Snapshot, pane rectI) (primary, secondary rectI) {
 		x += primary.W + heroButtonGap
 	}
 	if c.Secondary != "" {
-		secondary = rectI{X: x, Y: y, W: heroButtonWidth(detailsWord(kind), c.Secondary), H: heroButtonH}
+		prompt := detailsWord(kind)
+		if snap.BrowseActions.Focused && snap.BrowseActions.Index == 1 {
+			prompt = selectWord(kind)
+		}
+		secondary = rectI{X: x, Y: y, W: heroButtonWidth(prompt, c.Secondary), H: heroButtonH}
 	}
 	return primary, secondary
 }
@@ -520,7 +522,20 @@ func drawHeroDestination(dev gfx.Device, snap Snapshot, pane rectI, labels map[s
 		heroButton(dev, labels, used, primary.X, primary.Y, primary.H, selectWord(kind), c.Primary, c.Filled)
 	}
 	if c.Secondary != "" {
-		heroButton(dev, labels, used, secondary.X, secondary.Y, secondary.H, detailsWord(kind), c.Secondary, false)
+		prompt := detailsWord(kind)
+		if snap.BrowseActions.Focused && snap.BrowseActions.Index == 1 {
+			prompt = selectWord(kind)
+		}
+		heroButton(dev, labels, used, secondary.X, secondary.Y, secondary.H, prompt, c.Secondary, false)
+	}
+	if snap.BrowseActions.Focused {
+		focused := primary
+		if snap.BrowseActions.Index == 1 {
+			focused = secondary
+		}
+		if focused.W > 0 {
+			heroOutline(dev, focused.X-4, focused.Y-4, focused.W+8, focused.H+8, 3, heroAccent)
+		}
 	}
 }
 
@@ -559,6 +574,9 @@ func heroFooterStatus(snap Snapshot) string {
 
 // heroFooterHint names the routes on the affinity device in full words.
 func heroFooterHint(snap Snapshot) string {
+	if snap.BrowseActions.Focused {
+		return browseActionsHint(snap)
+	}
 	kind := snap.Affinity
 	move := "D-pad move"
 	switch kind {
@@ -590,9 +608,14 @@ func drawHeroChrome(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 	margin := layout.Card.X
 	textY := y + (f.H-gfx.TextHeight(heroFooterPx))/2
 	hint := heroFooterHint(snap)
-	hintW := min(gfx.MeasureText(hint, heroFooterPx), f.W*2/3)
+	status := heroFooterStatus(snap)
+	hintMaxW := f.W - 2*margin
+	if status != "" {
+		hintMaxW = f.W * 2 / 3
+	}
+	hintW := min(gfx.MeasureText(hint, heroFooterPx), hintMaxW)
 	heroLine(dev, labels, used, x+f.W-margin-hintW, textY, hintW, heroFooterPx, false, heroSecondary, hint)
-	if status := heroFooterStatus(snap); status != "" {
+	if status != "" {
 		heroLine(dev, labels, used, x+margin, textY, f.W-2*margin-hintW-24, heroFooterPx, true, heroText, status)
 	}
 }

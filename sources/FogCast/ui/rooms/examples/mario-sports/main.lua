@@ -34,7 +34,7 @@ function load()
       end
     end
     table.sort(items, function(a, b) return a.title < b.title end)
-    grid = Grid.new{ id = "sports", x = 24, y = 96, w = room.width - 48, h = room.height - 130, cell_w = 150, cell_h = 210, gap = 18, items = items }
+    grid = Grid.new{ id = "sports", x = 32, y = 152, w = room.width - 64, h = math.max(236, room.height - 152 - 130), cell_w = 200, cell_h = 236, gap = 24, items = items }
     status = #items .. " spin-offs found"
     if #items == 0 then status = "no Mario spin-offs in the library yet" end
     publish()
@@ -53,8 +53,9 @@ function draw()
   gfx.clear(room.theme.background)
   gfx.rect(0, room.height - 60, room.width, 60, "#e8d8a0")
   gfx.rect(0, room.height - 60, room.width, 6, color.shade("#e8d8a0", 0.8))
-  gfx.text("SPORTS ISLAND", 24, 18, { size = 34, bold = true, color = room.theme.accent })
-  gfx.text(status, room.width - 24, 30, { size = 16, align = "right", color = "#ffffff" })
+  gfx.rect(0, 0, room.width, 128, color.shade(room.theme.background, 0.55))
+  gfx.text("SPORTS ISLAND", 32, 20, { size = 36, bold = true, color = room.theme.accent })
+  gfx.text(status, 32, 80, { size = 22, max_w = room.width - 64, color = "#ffffff" })
   if grid then
     grid:draw{ cover = function(item) return item.cover end, plate = color.shade(room.theme.background, 0.6), label = function(g) return g.title end }
   end

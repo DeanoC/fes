@@ -270,6 +270,12 @@ func (a *App) handleRoomLocked(cmd Command) {
 			return
 		}
 	}
+	if a.handleBrowseActionsLocked(cmd) {
+		return
+	}
+	if cmd == CmdUp && a.enterBrowseActionsLocked(0) {
+		return
+	}
 	if cmd == CmdSearch || cmd == CmdDetails {
 		a.openRoomDetailsLocked()
 		return

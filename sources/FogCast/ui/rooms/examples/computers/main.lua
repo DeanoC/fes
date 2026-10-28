@@ -81,16 +81,16 @@ end
 local function show(games)
   rows = build(games)
   status = ""
-  local h = math.max(52, room.height - 140 - DEST)
+  local h = math.max(64, room.height - 148 - DEST)
   if list then
     list:set_items(rows)
     return
   end
   list = List.new{
     id = "computers",
-    x = 64, y = 140,
-    w = math.min(920, room.width - 128),
-    h = h, row_h = 56, size = 22,
+    x = 48, y = 148,
+    w = room.width - 96,
+    h = h, row_h = 64, size = 24,
     items = rows,
   }
 end
@@ -215,9 +215,9 @@ end
 
 function draw()
   gfx.clear(room.theme.background)
-  gfx.rect(0, 0, room.width, 112, color.shade(room.theme.background, 0.7))
-  gfx.rect(0, 112, room.width, 4, room.theme.accent)
-  gfx.text("Systems", 64, 28, { size = 40, bold = true, color = room.theme.accent })
+  gfx.rect(0, 0, room.width, 124, color.shade(room.theme.background, 0.7))
+  gfx.rect(0, 124, room.width, 4, room.theme.accent)
+  gfx.text("Systems", 48, 24, { size = 40, bold = true, color = room.theme.accent })
   local note = status
   if load_err then
     note = load_err
@@ -226,13 +226,21 @@ function draw()
   elseif rows and #rows > 0 and status == "" then
     note = "Confirm starts. Set up opens its workbench."
   end
-  gfx.text(note, 64, 76, { size = 16, color = STATUS })
+  gfx.text(note, 48, 82, { size = 22, max_w = room.width - 96, color = STATUS })
   if rows ~= nil then
-    local x, y, w, h = 980, 24, 180, 48
+    local x, y, w, h = room.width - 228, 24, 180, 52
     local fill = focus == "setup" and room.theme.accent or PLATE
     local ink = focus == "setup" and FOCUS_INK or INK
     gfx.rect(x, y, w, h, fill)
-    gfx.text(rows and #rows > 0 and "Set up" or "Add system", x + 16, y + 12, { size = 22, color = ink, bold = focus == "setup" })
+    local label = rows and #rows > 0 and "Set up" or "Add system"
+    local _, th = gfx.measure(label, 24, focus == "setup")
+    gfx.text(label, x + 16, y + math.floor((h - th) / 2), { size = 24, max_w = w - 32, color = ink, bold = focus == "setup" })
+    if focus == "setup" then
+      gfx.rect(x, y, w, 2, "#FFFFFF")
+      gfx.rect(x, y + h - 2, w, 2, "#FFFFFF")
+      gfx.rect(x, y, 2, h, "#FFFFFF")
+      gfx.rect(x + w - 2, y, 2, h, "#FFFFFF")
+    end
     gfx.hit("setup", x, y, w, h)
   end
   if list then
@@ -240,8 +248,8 @@ function draw()
       label = function(item) return item.label end,
       background = PLATE,
       color = INK,
-      focus_color = room.theme.accent,
-      focus_text = FOCUS_INK,
+      focus_color = focus == "list" and room.theme.accent or "#303E35",
+      focus_text = focus == "list" and FOCUS_INK or INK,
     }
   end
 end

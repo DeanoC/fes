@@ -76,7 +76,7 @@ local function show_found()
   if #items == 0 then
     status = "no Coleco arcade titles in this library yet"
   else
-    status = #items .. " cabinets"
+    status = #items == 1 and "1 cabinet" or (#items .. " cabinets")
   end
   publish()
 end
@@ -103,15 +103,15 @@ local function resolve(cab)
 end
 
 function load()
-  local h = math.max(56, room.height - 110 - DEST)
+  local h = math.max(64, room.height - 164 - DEST)
   list = List.new{
     id = "cabinets",
     x = 32,
-    y = 110,
-    w = math.min(560, room.width - 320),
+    y = 164,
+    w = math.min(700, room.width - 304),
     h = h,
-    row_h = 56,
-    size = 22,
+    row_h = 64,
+    size = 24,
     items = {},
   }
   publish()
@@ -161,22 +161,22 @@ end
 function draw()
   local w, h = room.width, room.height
   gfx.clear(room.theme.background)
-  gfx.rect(0, 0, w, 96, color.shade(room.theme.background, 0.7))
-  gfx.rect(0, 96, w, 4, room.theme.accent)
+  gfx.rect(0, 0, w, 144, color.shade(room.theme.background, 0.7))
+  gfx.rect(0, 144, w, 4, room.theme.accent)
   for i, c in ipairs(TMS) do
     gfx.rect(32 + (i - 1) * 28, 36, 20, 20, c)
   end
-  gfx.text("COLECOVISION", 160, 16, { size = 34, bold = true, color = room.theme.accent })
-  gfx.text("ARCADE CABINET", 160, 56, { size = 14, color = "#c8b88a" })
-  gfx.text(status .. "  ·  Tab opens the Coleco shelf", w - 32, 38, { size = 16, align = "right", color = "#c8b88a" })
+  gfx.text("COLECOVISION", 160, 18, { size = 36, bold = true, color = room.theme.accent })
+  gfx.text("ARCADE CABINET", 160, 64, { size = 22, color = "#c8b88a" })
+  gfx.text(status .. "  ·  Tab opens the Coleco shelf", 32, 106, { size = 22, max_w = w - 64, color = "#c8b88a" })
   if list then
     list:draw{ label = function(item) return item.label end, background = "#1c1810", focus_color = room.theme.accent, focus_text = "#14110c", color = "#f0e6c8" }
   end
   local item = list and list:selected()
   if item and item.cover and item.cover.ready then
-    local cw, ch = 160, 210
+    local cw, ch = 176, 230
     local cx = w - cw - 48
-    local cy = 130
+    local cy = 176
     gfx.rect(cx - 8, cy - 8, cw + 16, ch + 16, room.theme.accent)
     gfx.image(item.cover, cx, cy, cw, ch)
   end

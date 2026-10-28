@@ -4,7 +4,6 @@
 -- a nested room. The last visited node is remembered between sessions.
 -- Loading results never move the player's selection.
 local Map = require "widgets.nodemap"
-local color = require "util.color"
 
 local LEVELS = {
   { id = "dk",    x = 120, y = 420, label = "Donkey Kong",           search = "Donkey Kong",           platform = "arcade", note = "The arcade original that started it all." },
@@ -73,10 +72,10 @@ local function resolve(node)
 end
 
 function load()
-  local scale = room.width / 1200
+  local map_top, map_bottom = 160, room.height - 130 - 88
   for _, lvl in ipairs(LEVELS) do
-    lvl.x = lvl.x * scale
-    lvl.y = lvl.y * (room.height / 620)
+    lvl.x = 48 + lvl.x * ((room.width - 96) / 1200)
+    lvl.y = map_top + (lvl.y - 180) * ((map_bottom - map_top) / 320)
   end
   map = Map.new{ id = "world", nodes = LEVELS, edges = EDGES, radius = 22, focus = store.get("focus", "dk") }
   for _, lvl in ipairs(LEVELS) do
@@ -146,11 +145,11 @@ function draw()
   end
   for _, c in ipairs(clouds) do cloud(c) end
 
-  gfx.rect(0, 0, w, 56, color.with_alpha("#000000", 90))
-  gfx.text("MUSHROOM KINGDOM", 24, 10, { size = 30, bold = true, color = room.theme.accent })
+  gfx.rect(0, 0, w, 128, "#183C63")
+  gfx.text("MUSHROOM KINGDOM", 32, 20, { size = 36, max_w = w - 64, bold = true, color = room.theme.accent })
   local status = resolving > 0 and "finding levels..." or ("select a level  ·  " .. (#LEVELS - 1) .. " levels")
-  gfx.text(status, w - 24, 20, { size = 16, align = "right", color = "#ffffff" })
+  gfx.text(status, 32, 80, { size = 22, max_w = w - 64, color = "#ffffff" })
 
-  map:draw{ edge_color = "#f4e6b4", node_color = "#e84a3a", played_color = "#d4a017", done_color = "#2fb457", focus_color = room.theme.accent, path_width = 8, labels_focused_only = true, label_color = "#ffffff" }
+  map:draw{ edge_color = "#f4e6b4", node_color = "#e84a3a", played_color = "#d4a017", done_color = "#2fb457", focus_color = room.theme.accent, path_width = 8, labels_focused_only = true, label_color = "#ffffff", label_plate = "#173C2E", label_bottom = h - 142 }
   publish()
 end

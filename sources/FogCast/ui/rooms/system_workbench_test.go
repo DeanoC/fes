@@ -147,7 +147,11 @@ func TestSystemWorkbenchResumeRefreshesAddedLibraryEntries(t *testing.T) {
 	game := preparedComputer("new-title", "New title", "fes.apple2")
 	svc := &fakeServices{details: map[string]hostclient.Game{}}
 	r := loadSystemWorkbench(t, svc, "", game.CoreID)
-	stepUntil(t, r, func(f Frame) bool { return strings.Contains(frameText(f), "No Apple II entries yet.") })
+	stepUntil(t, r, func(f Frame) bool { return strings.Contains(frameText(f), "Set up this system to begin") })
+	r.Input("select")
+	if acts := r.TakeActions(); len(acts) != 1 || acts[0].Kind != ActionHardwareSetup || acts[0].CoreID != game.CoreID {
+		t.Fatalf("empty workbench Confirm must offer setup for this system: %+v", acts)
+	}
 	// A setup operation adds an entry while the workbench is covered by its
 	// native picker. Resuming must reread library entries as well as hardware.
 	svc.mu.Lock()

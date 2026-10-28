@@ -16,14 +16,16 @@ local function rgb(r, g, b, a)
 end
 local LIGHT = {
   paper = rgb(244, 240, 232), panel = rgb(255, 252, 245),
+  raised = rgb(233, 230, 220), muted = rgb(60, 77, 69),
   ink = rgb(28, 42, 38), label = rgb(36, 58, 52), line = rgb(206, 207, 192),
   accent = rgb(35, 90, 70), light = rgb(252, 252, 243),
   case = rgb(92, 122, 107), warm = rgb(246, 235, 203),
 }
 local DARK = {
   paper = {r = 20, g = 25, b = 24, a = 200}, panel = rgb(32, 39, 37),
+  raised = rgb(48, 57, 54), muted = rgb(210, 224, 214),
   ink = rgb(237, 243, 233), label = rgb(210, 224, 214), line = rgb(74, 86, 80),
-  accent = rgb(35, 90, 70), light = rgb(252, 252, 243),
+  accent = rgb(200, 227, 172), light = rgb(32, 55, 39),
   case = rgb(92, 122, 107), warm = rgb(32, 39, 37),
 }
 local C, overlay = LIGHT, false
@@ -125,16 +127,18 @@ local function outline(x, y, w, h, t, c)
 end
 local function button(id, label, x, y, w, h, enabled, fn)
   local selected = id == focus
-  local fill = enabled and C.accent or C.panel
+  local primary = id == "start" or (id == "setup" and #entries == 0)
+  local fill = primary and enabled and C.accent or (enabled and C.panel or C.raised)
   if selected then
     outline(x - 4, y - 4, w + 8, h + 8, 3, C.accent)
   end
-  rect(x, y, w, h, fill)
-  local size = math.max(12, math.floor(math.min(18, h - 12) * scale))
-  local bold = selected or enabled
+  rect(x, y, w, h, C.line)
+  rect(x + 1, y + 1, w - 2, h - 2, fill)
+  local size = math.max(12, math.floor(math.min(20, h - 12) * scale))
+  local bold = selected or (primary and enabled)
   local th = text_height(size, bold)
-  local color = enabled and C.light or C.ink
-  text(label, x + 12, y + (h - th) / 2, math.min(18, h - 12), color, w - 24, bold)
+  local color = primary and enabled and C.light or (enabled and C.ink or C.muted)
+  text(label, x + 12, y + (h - th / scale) / 2, math.min(20, h - 12), color, w - 24, bold)
   hit(id, x, y, w, h)
   controls[#controls + 1] = {id = id, x = x + w / 2, y = y + h / 2, enabled = enabled and true or false, fn = fn}
 end
@@ -199,6 +203,7 @@ local function place(list)
   if focus == "variant" and (locked_core ~= "" or #family().variants < 2) then focus = "start" end
   entries = {}
   for _, g in ipairs(all_entries) do if g.core_id == selected_core then entries[#entries + 1] = g end end
+  if #entries == 0 and focus == "start" then focus = "setup" end
   entry_i, edition_i = 1, 1
   local selected = false
   for i, entry in ipairs(entries) do
@@ -402,41 +407,42 @@ local function picture(part)
     rect(24, 18, 18, 5, C.accent)
     text("FES", 50, 14, 24, C.ink, 80, true)
     rect(104, 16, 2, 26, C.line)
-    text(family_label(), 118, 17, 19, C.ink, 360)
+    text(family_label(), 118, 15, 23, C.ink, 360)
     button("back", "Back", 860, 10, 110, 38, true, function() rooms.back() end)
     button("home", "Home", 984, 10, 110, 38, true, function() rooms.home() end)
     rect(0, 56, 1120, 2, C.line)
 
     text(string.upper(family_label()) .. " SETUP", 24, 68, 13, C.label, 600, true)
-    text(game and model_line(game) or "No " .. system_label() .. " entries yet.", 24, 90, 28, C.ink, 640, true)
-    text(message, 24, 128, 16, C.label, 640)
-    text(running_line(), 680, 90, 18, C.ink, 410, true)
-    if game and game.package_id and game.package_id ~= "" then
-      text("Package  ·  " .. short_id(game.package_id), 680, 118, 16, C.label, 410)
-    end
+    text(game and model_line(game) or system_label(), 24, 90, 30, C.ink, 640, true)
+    text(message, 24, 130, 18, C.muted, 640)
+    rect(680, 82, 414, 72, C.raised)
+    text(running_line(), 696, 92, 19, C.ink, 382, true)
+    text(game and "Saved for next start" or "Set up this system to begin", 696, 122, 16, C.muted, 382)
 
     if not overlay then
-      rect(24, 168, 420, 220, C.case)
-      rect(48, 188, 250, 120, C.panel)
-      rect(48, 324, 360, 36, C.warm)
-      text(spec().mark, 64, 220, 28, C.ink, 200, true)
+      rect(24, 168, 420, 220, C.line)
+      rect(25, 169, 418, 218, C.panel)
+      rect(48, 190, 370, 142, C.case)
+      rect(60, 202, 346, 118, C.raised)
+      text(spec().mark, 82, 234, 30, C.ink, 300, true)
+      rect(48, 346, 370, 18, C.warm)
     end
-    text("Selected expansion cards", 470, 168, 16, C.label, 620, true)
+    text("Selected expansion cards", 470, 170, 20, C.ink, 620, true)
     local slots = game and game.slot_expansions or {}
     if #slots == 0 then
-      text("Open Expansion sockets to inspect this package.", 470, 198, 16, C.ink, 620)
+      text("Open Expansion sockets to inspect this package.", 470, 206, 18, C.muted, 620)
     end
     for i, slot in ipairs(slots) do
-      if i <= 5 then text(slot_line(game, slot.slot, "Socket " .. tostring(slot.slot)), 470, 192 + (i-1)*26, 16, C.ink, 620) end
+      if i <= 5 then text(slot_line(game, slot.slot, "Socket " .. tostring(slot.slot)), 470, 202 + (i-1)*24, 17, C.ink, 620) end
     end
     local extra = game and extra_line(game) or ""
-    if extra ~= "" then text(extra, 470, 322, 16, C.ink, 620) end
+    if extra ~= "" then text(extra, 470, 324, 17, C.ink, 620) end
     if locked_core == "" and #family().variants > 1 then
       button("variant", "Variant: " .. system_label(), 470, 350, 620, 36, true, next_variant)
     end
 
-    text(game and disk_line(game) or spec().media .. "  ·  none saved", 24, 396, 18, C.ink, 1060, true)
-    text(spec().hint, 24, 424, 16, C.label, 1060)
+    text(game and disk_line(game) or spec().media .. "  ·  none saved", 24, 396, 20, C.ink, 1060, true)
+    text(spec().hint, 24, 426, 18, C.muted, 1060)
     if selected_core == "fes.c64" then
       text("Tape .tap and .t64: not on this core", 24, 448, 15, C.ink, 520)
       text("Cartridge file .crt: not on this core", 560, 448, 15, C.ink, 530)
@@ -478,7 +484,7 @@ local function picture(part)
     session.open_tape(live)
   end)
   button("resume", "Return to play", 908, 530, 188, 44, state == "active" and not hardware_unavailable, function() session.resume() end)
-  text("Stop clears memory. Saved media stays on the library entry.", 24, 586, 15, C.label, 900)
+  text("Stop clears memory. Saved media stays on the library entry.", 24, 590, 17, C.muted, 1060)
 
   if part == "lower" then
     gfx.extend(sink)
@@ -521,7 +527,7 @@ local function warm_more()
       seen[key] = true
       warm_px[#warm_px + 1] = {px, bold and true or false}
     end
-    for _, s in ipairs({13, 15, 16, 18, 19, 22, 24, 28}) do
+    for _, s in ipairs({13, 15, 16, 17, 18, 19, 20, 22, 23, 24, 28, 30}) do
       add(s * scale, false)
       add(s * scale, true)
     end

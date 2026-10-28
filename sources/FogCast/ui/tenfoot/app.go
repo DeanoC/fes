@@ -268,6 +268,7 @@ type Snapshot struct {
 	Health          HealthSnapshot
 	KitLease        KitLeaseSnapshot
 	Detail          DetailSnapshot
+	BrowseActions   BrowseActionsSnapshot
 	Screenshots     map[string]*image.RGBA
 	Preview         PreviewSnapshot
 	Theme           theme.Theme
@@ -508,6 +509,7 @@ type App struct {
 	frameLua rooms.StepTiming
 	// roomCoreDetail is the package whose Details the hero is showing.
 	roomCoreDetail string
+	browseActions  browseActionState
 	// libraryReturn is the suspended room the Library was opened from.
 	libraryReturn *libraryOrigin
 	// firmwarePickerFromDetail reopens Library Details when the picker is
@@ -1157,6 +1159,9 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 			return
 		}
 	}
+	if a.handleBrowseActionsLocked(cmd) {
+		return
+	}
 	if a.handleDetailLocked(cmd) {
 		return
 	}
@@ -1763,7 +1768,7 @@ func (a *App) Snapshot() Snapshot {
 	if health.Line != "" && (status == "" || status == "connecting to host API") {
 		status = health.Line
 	}
-	return Snapshot{
+	snap := Snapshot{
 		Games:                   games,
 		Grid:                    a.grid,
 		Status:                  status,
@@ -1828,6 +1833,13 @@ func (a *App) Snapshot() Snapshot {
 		LocalCoreLateAdopt:      a.localLateAdopt,
 		LocalCoreRedraw:         a.localRedraw,
 	}
+	destination := snap.DetailPlay
+	if snap.Room.Open {
+		destination = snap.Room.Destination
+	}
+	snap.BrowseActions = a.browseActionsSnapshotLocked(destination)
+	return snap
+
 }
 
 // SetDebugHUD enables the optional corner overlay (gen, lease ttl, last error).
@@ -2257,8 +2269,7 @@ func (a *App) platformLabelLocked(system string) string {
 }
 
 func (a *App) moveFocusLocked(dx, dy int) {
-	if dy > 0 && a.detailEnterFromBrowseLocked() {
-		a.openDetailLocked()
+	if dy > 0 && a.detailEnterFromBrowseLocked() && a.enterBrowseActionsLocked(0) {
 		return
 	}
 	before := a.grid.Focus
@@ -2269,8 +2280,8 @@ func (a *App) moveFocusLocked(dx, dy int) {
 		a.stampFocusLocked()
 		return
 	}
-	if dy > 0 && len(a.games) > 0 {
-		a.openDetailLocked()
+	if dy > 0 {
+		a.enterBrowseActionsLocked(0)
 	}
 }
 
