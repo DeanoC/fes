@@ -5,14 +5,17 @@
 // straight from HPS DDR port 0 and the write buffer drains there.
 //
 // The write buffer holds four 32-byte line entries with byte masks, in
-// order. A store WB commits enters it on that edge: its bytes in RAM coalesce
-// into the newest entry when that is the same line and not yet being
-// written, else take a new entry; its bytes in MMIO take an entry of their
-// own, never coalesced, so each store reaches the MMIO port as the
-// instruction made it. Bytes in read-only RAM or a hole are dropped. A store
-// whose lanes run past its line takes a second entry for the next line. So
-// a store needs two free entries; the CPU holds a store in WB while the
-// buffer will not have them (wb_room_next).
+// order. A store WB commits is registered on that edge (the commit
+// register, c_*) and enters the buffer on the next, so nothing in the buffer
+// waits on D to WB's freeze: its bytes in RAM coalesce into the newest entry
+// when that is the same line and not yet being written, else take a new
+// entry; its bytes in MMIO take an entry of their own, never coalesced, so
+// each store reaches the MMIO port as the instruction made it. Bytes in
+// read-only RAM or a hole are dropped. A store whose lanes run past its line
+// takes a second entry for the next line. So a store needs two free entries
+// once the one committing now has entered; the CPU holds a store in WB while
+// the buffer will not have them (wb_room_next). The commit register counts
+// as part of the buffer for everything that waits on it.
 //
 // The oldest entry is written once a newer one exists, once it is full, an
 // MMIO store, or two cycles old, or whenever something waits for the buffer:
@@ -49,7 +52,7 @@ module fes_i386_biu import fes_i386_pkg::*; #(
     input  logic [2:0]       st_dword,
     input  logic [7:0][7:0]  st_data,
     input  logic [7:0]       st_mask,
-    output logic             wb_room_next,  // two entries free next cycle
+    output logic             wb_room_next,  // two entries free once the store committing now has entered
     output logic             wb_empty,      // every committed store has left the buffer
     input  logic             drain,
     // The L1D: a line read (d_mmio clear: d_addr's line), or one MMIO dword
@@ -116,28 +119,64 @@ module fes_i386_biu import fes_i386_pkg::*; #(
     assign tail = head + 2'(count) - 2'd1;
     assign tail1 = head + 2'(count);
 
-    // The store's two parts, placed in their lines.
+    // The committing store's two parts, placed in their lines, and the commit
+    // register that holds them for a cycle.
+    logic             s_part0, s_part1;
+    logic [31:0]      s_mask0, s_mask1;
+    logic [31:0][7:0] s_data0, s_data1;
+    assign s_mask0 = 32'({24'd0, st_mask} << {st_dword, 2'b00});
+    assign s_data0 = 256'({192'd0, st_data} << {st_dword, 5'b00000});
+    assign s_mask1 = {28'd0, st_dword == 3'd7 ? st_mask[7:4] : 4'd0};
+    assign s_data1 = {224'd0, st_data[7:4]};
+    assign s_part0 = st_valid && s_mask0 != 32'd0 && (st_attr0 == ATTR_RAM || st_attr0 == ATTR_MMIO);
+    assign s_part1 = st_valid && s_mask1 != 32'd0 && (st_attr1 == ATTR_RAM || st_attr1 == ATTR_MMIO);
     logic             part0, part1, merge0, take0, take1;
+    logic             c_mmio0, c_mmio1;
+    logic [LW-1:0]    c_line0, c_line1;
     logic [31:0]      mask0, mask1;
     logic [31:0][7:0] data0, data1;
-    assign mask0 = 32'({24'd0, st_mask} << {st_dword, 2'b00});
-    assign data0 = 256'({192'd0, st_data} << {st_dword, 5'b00000});
-    assign mask1 = {28'd0, st_dword == 3'd7 ? st_mask[7:4] : 4'd0};
-    assign data1 = {224'd0, st_data[7:4]};
-    assign part0 = st_valid && mask0 != 32'd0 && (st_attr0 == ATTR_RAM || st_attr0 == ATTR_MMIO);
-    assign part1 = st_valid && mask1 != 32'd0 && (st_attr1 == ATTR_RAM || st_attr1 == ATTR_MMIO);
-    assign merge0 = part0 && st_attr0 == ATTR_RAM && count != 3'd0 && !e_mmio[tail]
-                 && e_line[tail] == st_line0 && !(writing && count == 3'd1);
+    always_ff @(posedge clk) begin
+        part0 <= !cold_reset && s_part0;
+        part1 <= !cold_reset && s_part1;
+        c_mmio0 <= st_attr0 == ATTR_MMIO;
+        c_mmio1 <= st_attr1 == ATTR_MMIO;
+        c_line0 <= st_line0;
+        c_line1 <= st_line1;
+        mask0 <= s_mask0;
+        mask1 <= s_mask1;
+        data0 <= s_data0;
+        data1 <= s_data1;
+    end
+    // The newest entry's line and kind, kept beside it for the coalescing
+    // compare (the tail entry's whenever the buffer holds one).
+    logic [LW-1:0] t_line;
+    logic          t_mmio;
+    always_ff @(posedge clk) begin
+        if (take1) begin
+            t_line <= c_line1;
+            t_mmio <= c_mmio1;
+        end else if (take0) begin
+            t_line <= c_line0;
+            t_mmio <= c_mmio0;
+        end
+    end
+    assign merge0 = part0 && !c_mmio0 && count != 3'd0 && !t_mmio && t_line == c_line0 && !(writing && count == 3'd1);
     assign take0 = part0 && !merge0;
     assign take1 = part1;
 
-    // An entry holding bytes of a line (RAM entries only).
+    // An entry, or the commit register, holding bytes of a line (RAM bytes
+    // only).
     function automatic logic held(input logic [LW-1:0] line, input logic [1:0] h, input logic [2:0] n,
-                                  input logic [3:0] mmio, input logic [3:0][LW-1:0] lines);
+                                  input logic [3:0] mmio, input logic [3:0][LW-1:0] lines,
+                                  input logic [1:0] c_part, input logic [1:0] c_mmio, input logic [1:0][LW-1:0] c_line);
         held = 1'b0;
         for (int k = 0; k < 4; k++)
             if (3'(2'(k - h)) < n && !mmio[k] && lines[k] == line) held = 1'b1;
+        for (int k = 0; k < 2; k++)
+            if (c_part[k] && !c_mmio[k] && c_line[k] == line) held = 1'b1;
     endfunction
+    logic c_valid;  // the commit register holds a store
+    assign c_valid = part0 || part1;
 
     // Each entry takes the store's first part, its second, or the first's
     // bytes merged in. The second part's entry is a 2-bit wire (tail2): the
@@ -148,13 +187,13 @@ module fes_i386_biu import fes_i386_pkg::*; #(
     for (genvar k = 0; k < 4; k++) begin : g_entry
         always_ff @(posedge clk) begin
             if (!cold_reset && take1 && tail2 == 2'(k)) begin
-                e_mmio[k] <= st_attr1 == ATTR_MMIO;
-                e_line[k] <= st_line1;
+                e_mmio[k] <= c_mmio1;
+                e_line[k] <= c_line1;
                 e_mask[k] <= mask1;
                 e_data[k] <= data1;
             end else if (!cold_reset && take0 && tail1 == 2'(k)) begin
-                e_mmio[k] <= st_attr0 == ATTR_MMIO;
-                e_line[k] <= st_line0;
+                e_mmio[k] <= c_mmio0;
+                e_line[k] <= c_line0;
                 e_mask[k] <= mask0;
                 e_data[k] <= data0;
             end else if (!cold_reset && merge0 && tail == 2'(k)) begin
@@ -176,9 +215,13 @@ module fes_i386_biu import fes_i386_pkg::*; #(
     assign dma_ram = attr(dma_p, attr_upper, ram_top) == ATTR_RAM;
 
     logic d_ok, i_ok, dma_ok;
-    assign d_ok = d_req && !reset && (d_mmio ? count == 3'd0 : !held(d_addr[PA-3:3], head, count, e_mmio, e_line));
-    assign dma_ok = dma_busy && dma_ram && !held(dma_p[PA-1:5], head, count, e_mmio, e_line);
-    assign i_ok = i_req && !reset && !held(i_line, head, count, e_mmio, e_line);
+    assign d_ok = d_req && !reset && (d_mmio ? wb_empty
+                                             : !held(d_addr[PA-3:3], head, count, e_mmio, e_line, {part1, part0},
+                                                     {c_mmio1, c_mmio0}, {c_line1, c_line0}));
+    assign dma_ok = dma_busy && dma_ram && !held(dma_p[PA-1:5], head, count, e_mmio, e_line, {part1, part0},
+                                                 {c_mmio1, c_mmio0}, {c_line1, c_line0});
+    assign i_ok = i_req && !reset && !held(i_line, head, count, e_mmio, e_line, {part1, part0},
+                                           {c_mmio1, c_mmio0}, {c_line1, c_line0});
 
     logic eligible;
     assign eligible = count != 3'd0 && (count >= 3'd2 || e_mmio[head] || &e_mask[head] || age == 2'd2 || drain
@@ -296,7 +339,7 @@ module fes_i386_biu import fes_i386_pkg::*; #(
                         writing <= 1'b1;
                         mw_left <= head_dwords;
                         state <= e_mmio[head] ? S_MW : S_W0;
-                    end else if (flush_request && count == 3'd0 && !flush_done) begin
+                    end else if (flush_request && wb_empty && !flush_done) begin
                         inv_all <= 1'b1;
                         flush_done <= 1'b1;
                     end
@@ -340,10 +383,12 @@ module fes_i386_biu import fes_i386_pkg::*; #(
         end
     end
 
-    // Room for a store's two entries next cycle, and the buffer empty now.
-    logic [2:0] count_next;
-    assign count_next = count - 3'(pop) + 3'(take0) + 3'(take1);
-    assign wb_room_next = count_next <= 3'd2;
-    assign wb_empty = count == 3'd0;
-    assign idle = count == 3'd0 && state == S_IDLE && !dma_busy;
+    // Room for a store's two entries once the store committing now has
+    // entered (counted as entries of its own, though it may coalesce), and
+    // the buffer empty now.
+    logic [3:0] count_next;
+    assign count_next = 4'(count) - 4'(pop) + 4'(take0) + 4'(take1) + 4'(s_part0) + 4'(s_part1);
+    assign wb_room_next = count_next <= 4'd2;
+    assign wb_empty = count == 3'd0 && !c_valid;
+    assign idle = wb_empty && state == S_IDLE && !dma_busy;
 endmodule
