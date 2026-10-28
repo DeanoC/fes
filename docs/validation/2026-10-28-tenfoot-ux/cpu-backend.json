@@ -1,5 +1,5 @@
 {
-  "scope": "Host comparative model update + Snapshot + warmed cached Go software renderer at1280x720. Not network/media decode, kit input-to-scanout latency, or hardware/performance acceptance. Shared-host samples vary; no exclusive CPU lease. Before is task-owned git archive of b5ec777d624a1c9dfa589ffcb4ae70e94ae21a58; after is uncommitted UX diff on that base.",
+  "scope": "Host comparative model update + Snapshot + warmed cached Go software renderer at 1280x720. Not network/media decode, kit input-to-scanout latency, or hardware/performance acceptance. Shared-host samples vary; no exclusive CPU lease. Before is task-owned git archive of b5ec777d624a1c9dfa589ffcb4ae70e94ae21a58; after is uncommitted UX diff on that base.",
   "command": "go test ./ui/tenfoot -run '^$' -bench 'BenchmarkCPUBackend/(Static|Navigation|SettingsNavigation)/Cached$' -benchtime=500ms -count=3",
   "results": {
     "Static": {
@@ -163,7 +163,7 @@
     "Synthetic fixtures; no network, media decoding, input-device timing or physical presentation.",
     "No kit input-to-scanout latency, performance qualification or hardware acceptance claim.",
     "Shared-host CPU scheduling was not isolated; broad sample variation prevents causal speed or regression claims from medians alone.",
-    "Static final samples span116387..463530ns; baseline SettingsNavigation spans309392..1060998ns.",
+    "Static final samples span 116387..463530 ns; baseline SettingsNavigation spans 309392..1060998 ns.",
     "Per-frame identity construction was removed from unfocused browse snapshots; captured action identity and stale-selection guards remain."
   ],
   "log_names": {

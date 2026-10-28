@@ -147,7 +147,9 @@ func TestSystemWorkbenchResumeRefreshesAddedLibraryEntries(t *testing.T) {
 	game := preparedComputer("new-title", "New title", "fes.apple2")
 	svc := &fakeServices{details: map[string]hostclient.Game{}}
 	r := loadSystemWorkbench(t, svc, "", game.CoreID)
-	stepUntil(t, r, func(f Frame) bool { return strings.Contains(frameText(f), "Set up this system to begin") })
+	stepUntil(t, r, func(f Frame) bool {
+		return strings.Contains(frameText(f), "Set up this system to begin") && strings.Contains(frameText(f), "Set up system")
+	})
 	r.Input("select")
 	if acts := r.TakeActions(); len(acts) != 1 || acts[0].Kind != ActionHardwareSetup || acts[0].CoreID != game.CoreID {
 		t.Fatalf("empty workbench Confirm must offer setup for this system: %+v", acts)

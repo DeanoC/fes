@@ -574,40 +574,59 @@ func drawDetail(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, use
 		drawFESLabel(dev, labels, used, "d-attr", attrX, metaY, attrW, 18, attr)
 	}
 	lineY := metaY + 28
-	// Readiness comes before history and the summary: it answers whether
-	// the title can start and what to do if not.
-	lineY += drawDetailReadiness(dev, labels, used, x+pad, lineY, textW, y+h-8, snap.DetailPlay)
+	bottom := y + h - 8
+	// Readiness comes before history and editorial text. Every later row
+	// consumes the space it actually draws, within the same pane boundary.
+	lineY += drawDetailReadiness(dev, labels, used, x+pad, lineY, textW, bottom, snap.DetailPlay)
 	if snap.Room.Open {
-		if hist := strings.TrimSpace(snap.Room.Destination.History.Line()); hist != "" {
+		if hist := strings.TrimSpace(snap.Room.Destination.History.Line()); hist != "" && lineY+gfx.TextHeight(18) <= bottom {
 			drawFESLabel(dev, labels, used, "d-history", x+pad, lineY, textW, 18, hist)
 			lineY += 26
 		}
+	}
+	credit, note := "", ""
+	if snap.Room.Open {
+		note = strings.TrimSpace(snap.Room.Destination.Note)
+		if note != "" {
+			credit = snap.Room.Destination.CuratorAttribution()
+			if credit == "" {
+				credit = "Note from this room"
+			}
+		}
+	}
+	// Reserve room for attribution and as much of the note as fits before
+	// filling the remainder with the title's general summary.
+	var noteLines []string
+	noteH := 0
+	for limit := 3; note != "" && limit > 0; limit-- {
+		noteLines = gfx.WrapText(note, 18, textW, limit)
+		noteH = 8 + gfx.TextHeight(16) + 4 + len(noteLines)*24
+		if lineY+noteH <= bottom {
+			break
+		}
+		noteLines, noteH = nil, 0
 	}
 	summaryLines := 2
 	if snap.Detail.Open {
 		summaryLines = detailSummaryLines
 	}
-	maxChars := textW / 10
-	if maxChars < 20 {
-		maxChars = 20
-	}
-	for i, line := range wrapWords(detail.Summary, maxChars, summaryLines) {
-		if lineY+i*26+20 > y+h-8 {
+	for i, line := range gfx.WrapText(detail.Summary, 20, textW, summaryLines) {
+		if lineY+gfx.TextHeight(20) > bottom-noteH {
 			break
 		}
-		drawFESLabel(dev, labels, used, fmt.Sprintf("d-sum-%d", i), x+pad, lineY+i*26, textW, 20, line)
+		drawFESLabel(dev, labels, used, fmt.Sprintf("d-sum-%d", i), x+pad, lineY, textW, 20, line)
+		lineY += 26
 	}
-	lineY += len(wrapWords(detail.Summary, maxChars, summaryLines)) * 26
-	if snap.Room.Open {
-		if note := strings.TrimSpace(snap.Room.Destination.Note); note != "" {
-			credit := snap.Room.Destination.CuratorAttribution()
-			if credit == "" {
-				credit = "Note from this room"
+	if len(noteLines) > 0 {
+		lineY += 8
+		drawFESLabel(dev, labels, used, "d-note-attr", x+pad, lineY, textW, 16, credit)
+		lineY += gfx.TextHeight(16) + 4
+		for i, line := range noteLines {
+			if lineY+gfx.TextHeight(18) > bottom {
+				break
 			}
-			drawFESLabel(dev, labels, used, "d-note-attr", x+pad, lineY+8, textW, 14, credit)
-			for i, line := range wrapWords(note, maxChars, 3) {
-				drawFESLabel(dev, labels, used, fmt.Sprintf("d-note-%d", i), x+pad, lineY+28+i*20, textW, 16, line)
-			}
+			drawFESLabel(dev, labels, used, fmt.Sprintf("d-note-%d", i), x+pad, lineY, textW, 18, line)
+			lineY += 24
 		}
 	}
 	if geom.Carousel.W > 0 {
@@ -942,10 +961,6 @@ func drawAttract(dev gfx.Device, snap Snapshot, textures, labels map[string]gpuT
 
 func fillRect(dev gfx.Device, x, y, w, h float32, r, g, b, a uint8) {
 	dev.FillRect(gfx.Rect{X: x, Y: y, W: w, H: h}, gfx.RGBA(r, g, b, a))
-}
-
-func drawDebug(dev gfx.Device, x, y int, text string, scale int) {
-	dev.DebugText(x, y, text, scale)
 }
 
 func drawDebugHUD(dev gfx.Device, snap Snapshot) {

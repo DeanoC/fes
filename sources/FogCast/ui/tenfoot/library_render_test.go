@@ -174,6 +174,47 @@ func TestLibraryNativeRender(t *testing.T) {
 	})
 }
 
+func TestRoomDetailsKeepsLongSummaryAndCuratorNoteInsidePane(t *testing.T) {
+	for _, size := range [][2]int{{1024, 600}, {1280, 720}} {
+		t.Run(fmt.Sprintf("%dx%d", size[0], size[1]), func(t *testing.T) {
+			snap := libraryRenderApp(t, size[0], size[1], false).Snapshot()
+			snap.Grid.Safe = insetsFromPct(size[0], size[1], DefaultSafeAreaPct)
+			snap.Grid.Layout(size[0], size[1])
+			snap.Detail.Open, snap.Detail.Count = true, 1
+			snap.FocusDetail.Title = "A long selected title with a special anniversary edition and additional adventures"
+			snap.FocusDetail.Summary = strings.Repeat("A detailed history of this game and its many different adventures. ", 18)
+			snap.DetailPlay = rooms.Destination{Kind: rooms.KindGame, Availability: rooms.AvailUnavailable, Status: "Choose the required firmware before starting this title on the selected machine."}
+			snap.Room = RoomSnapshot{Open: true, Width: snap.Grid.contentWidth(), Height: snap.Grid.contentHeight(),
+				OffsetX: snap.Grid.contentLeft(), OffsetY: snap.Grid.contentTop(), Frame: rooms.Frame{HasClear: true, Clear: heroBackground},
+				Destination: rooms.Destination{History: rooms.History{Played: true, Completed: true}, NoteBy: "The room curator", Note: strings.Repeat("Look for the hidden route and explore the bonus stages. ", 8)}}
+			geom, ok := detailGeomOf(snap)
+			if !ok || geom.Carousel.W == 0 {
+				t.Fatal("fixture needs the narrow Details text column")
+			}
+			rec := gfx.NewRecorder()
+			labels := map[string]gpuTexture{}
+			drawDetail(rec, snap, labels, map[string]struct{}{}, map[string]gpuTexture{})
+			attribution, note := false, false
+			for key := range labels {
+				attribution = attribution || strings.HasPrefix(key, "d-note-attr\x1f")
+				note = note || strings.HasPrefix(key, "d-note-0\x1f")
+			}
+			if !attribution || !note {
+				t.Fatal("long general summary displaced the curator attribution or note")
+			}
+			for _, call := range rec.Calls {
+				if call.Op != "DrawMask" {
+					continue
+				}
+				if call.X < geom.Pane.X || call.Y < geom.Pane.Y || call.X+call.MaskSrc.Dx() > geom.Pane.X+geom.Pane.W || call.Y+call.MaskSrc.Dy() > geom.Pane.Y+geom.Pane.H {
+					t.Fatalf("Details text escapes its pane/safe area: x=%d y=%d mask=%v pane=%+v", call.X, call.Y, call.MaskSrc, geom.Pane)
+				}
+			}
+			writeHomeScreenshot(t, snap, "curator-notes")
+		})
+	}
+}
+
 func TestLibraryBackReturnsToTheSameHomeAndSelection(t *testing.T) {
 	app := startHomeLounge(t, &fakeLocalCores{cores: homeFixtureCores()}, 1280, 720)
 	waitFor(t, app, "pong", func(s Snapshot) bool { return s.Room.Destination.Label == "FES Pong" })
