@@ -140,8 +140,9 @@ module fes_i386_biu import fes_i386_pkg::*; #(
     endfunction
 
     // Each entry takes the store's first part, its second, or the first's
-    // bytes merged in; written entry by entry with constant indices, which the
-    // locked Yosys reads right (a byte loop into e_data[tail] it does not).
+    // bytes merged in. The second part's entry is a 2-bit wire (tail2): the
+    // locked Yosys evaluates an index such as [tail1 + 2'd1] at 32 bits, so it
+    // would not wrap (DeanoC/yosys#69).
     logic [1:0] tail2;
     assign tail2 = take0 ? tail1 + 2'd1 : tail1;
     for (genvar k = 0; k < 4; k++) begin : g_entry

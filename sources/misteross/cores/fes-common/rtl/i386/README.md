@@ -692,6 +692,9 @@ what it reads correctly:
 - logic replicated to cut fanout merges back into one copy even on
   `(* keep *)` wires, so each replica needs its own kept input register
   ([#51](https://github.com/DeanoC/yosys/issues/51));
+- compute an index into a wire of the index's width (`tail2`), not as a sum
+  inside the brackets: the locked Yosys evaluates `a[i + 2'd1]` at 32 bits,
+  so the index does not wrap ([#69](https://github.com/DeanoC/yosys/issues/69));
 - read two or more fields of one variable-indexed record through a single
   whole-record copy (`at_start = dec[start]`), not as `dec[start].a` and
   `dec[start].b`: the selects share their `start * width` multiply, which
