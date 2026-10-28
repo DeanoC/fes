@@ -22,8 +22,12 @@ sources of programs:
           the retirement trace must not change.
 
 An instruction that faults (#UD for LOCK, for example) must fault in the RTL
-with the same vector and nothing retired. Exception delivery is not built,
-so such a run ends there and its final state is not compared.
+with the same vector and nothing of it retired. Both sides deliver it, and
+the delivery is compared as a retirement; a corpus state runs on into its
+handler, to its HLT, and its final state, the pushed frame included, is
+compared. A random program stops after the delivery. A fault in a delivery
+stops the RTL as not built (double fault and shutdown); the oracle must
+fault twice or shut down there.
 
 Beside the lockstep, every one-byte and 0Fh opcode followed by every second
 byte that SCOPE leaves out must stop the RTL with FAULT_UNIMPLEMENTED before
@@ -160,8 +164,8 @@ def run_directed(testbench: str, env: dict) -> dict:
     if result.returncode not in (0, 1):
         raise LockstepError(f'directed faults: testbench exited with {result.returncode}\n{result.stderr[-4000:]}')
     summary, failures = parse_output(result.stdout)
-    if summary['runs'] != 3:
-        raise LockstepError(f'directed faults: testbench ran {summary["runs"]} of 3 cases')
+    if summary['runs'] != 5:
+        raise LockstepError(f'directed faults: testbench ran {summary["runs"]} of 5 cases')
     return {'summary': summary, 'failures': failures}
 
 
@@ -365,7 +369,8 @@ def main() -> int:
     divergences = sum((Counter(result['summary']['divergence_retirements']) for result in corpus_results), Counter())
     random_totals = sum((Counter({key: result['summary'][key] for key in
                                   ('runs', 'passed', 'failed', 'retirements', 'cycles', 'halts', 'faults',
-                                   'retire_limits', 'smc_stops', 'load_wait_cycles')}) for result in random_results),
+                                   'double_faults', 'retire_limits', 'smc_stops', 'load_wait_cycles')})
+                         for result in random_results),
                          Counter())
     random_failures = [line for result in random_results + steady_results for line in result['failures']]
     hash_mismatches = [result['seed'] for result in steady_results
@@ -403,12 +408,13 @@ def main() -> int:
     (OUTPUT / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
     print(f"corpus: {len(corpus_results)} files, {len(by_opcode)} opcodes, {totals['tests']} tests: "
           f"{totals['passed']} pass ({totals['retired_to_hlt']} to HLT, {totals['interrupts']} of them in an "
-          f"interrupt's handler, {totals['faults']} faulting "
+          f"interrupt's handler, {totals['faults']} in an exception's handler "
           f"{dict(fault_vectors)}), {totals['failed']} fail; {totals['retirements']} retirements compared")
     if random_results:
         print(f"random: {len(random_results)} seeds x {args.random_programs} programs, {random_totals['retirements']} "
               f"retirements: {random_totals['passed']} pass ({random_totals['halts']} to HLT, {random_totals['faults']} "
-              f"faulting, {random_totals['retire_limits']} at the retirement limit, {random_totals['smc_stops']} at a "
+              f"at a delivered exception, {random_totals['double_faults']} at a fault in a delivery, "
+              f"{random_totals['retire_limits']} at the retirement limit, {random_totals['smc_stops']} at a "
               f"store into their code; {random_totals['load_wait_cycles']} cycles waiting for a load's bytes), "
               f"{random_totals['failed']} fail; "
               f"latency-free reruns of seeds {[result['seed'] for result in steady_results]}: "

@@ -1,61 +1,73 @@
 # The i386 microcode routines (scripts/fes_i386_ucode.py builds
-# fes_i386_ucode.sv from this). A routine's first uop is decoded by DC, with
+# fes_i386_ucode_pkg.sv and fes_i386_ucode_rom.sv from this). A routine's first uop is decoded by DC, with
 # the instruction; the ROM holds the rest, from its entry (UC_<NAME>) on. Each
 # uop sets fields of fes_i386_pkg's ucode_t; the rest default to zero, and
 # whatever the routine does not set comes from the instruction in dc (operand
 # size, the vector, the ModRM operand). Sizes "osz" follow the operand size.
 #
 # Registers: s1, s2 and d name GPRs; d also names t0 and t1 (the
-# temporaries) or a segment register. b = "t1" takes the value stored from
-# T1, "sel" the selector of segment seg, "eip" the next instruction's EIP.
+# temporaries) or a segment register. a = "t1" takes src1's value from T1;
+# b = "sel" takes src2's from the selector of segment seg, "eip" from the
+# next instruction's EIP. A stack slot (stk = "peek") is ESP plus slot
+# operand-sized slots, -8 to 7, with ESP unmoved; sp_step = true steps ESP
+# past the eight slots, down from a slot below ESP, up from one above.
 
-# PUSHA and PUSHAD. DC decodes the probe of all eight slots (probe =
-# "pusha"); the ROM keeps the original ESP in T1 and pushes EAX, ECX, EDX,
-# EBX, that ESP, EBP, ESI and EDI.
+# PUSHA and PUSHAD. Each register goes to its own slot below ESP, from the
+# lowest address up, as the 386EX stores them, and ESP moves only at the
+# last: DC decodes EDI's store at slot -8, and the ROM stores ESI, EBP, ESP
+# (unmoved, so the original), EBX, EDX, ECX and EAX, whose store steps ESP
+# down past the eight slots. Each slot checks its own limit, so a block that
+# wraps the 64 KiB stack misaligned stores the slots below the one that
+# straddles, then raises #SS with ESP unmoved, as the 386EX does (divergence
+# stack-wrap-partial-transfer).
 [[routine]]
 name = "pusha"
 uops = [
-    { cls = "alu", op = "mov", s2 = "esp", d = "t1", size = "32" },
-    { cls = "alu", op = "mov", s2 = "eax", mkind = "store", in_a = true, stk = "push" },
-    { cls = "alu", op = "mov", s2 = "ecx", mkind = "store", in_a = true, stk = "push" },
-    { cls = "alu", op = "mov", s2 = "edx", mkind = "store", in_a = true, stk = "push" },
-    { cls = "alu", op = "mov", s2 = "ebx", mkind = "store", in_a = true, stk = "push" },
-    { cls = "alu", op = "mov", b = "t1", mkind = "store", in_a = true, stk = "push" },
-    { cls = "alu", op = "mov", s2 = "ebp", mkind = "store", in_a = true, stk = "push" },
-    { cls = "alu", op = "mov", s2 = "esi", mkind = "store", in_a = true, stk = "push" },
-    { cls = "alu", op = "mov", s2 = "edi", mkind = "store", in_a = true, stk = "push" },
+    { cls = "alu", op = "mov", s2 = "esi", mkind = "store", in_a = true, stk = "peek", slot = -7 },
+    { cls = "alu", op = "mov", s2 = "ebp", mkind = "store", in_a = true, stk = "peek", slot = -6 },
+    { cls = "alu", op = "mov", s2 = "esp", mkind = "store", in_a = true, stk = "peek", slot = -5 },
+    { cls = "alu", op = "mov", s2 = "ebx", mkind = "store", in_a = true, stk = "peek", slot = -4 },
+    { cls = "alu", op = "mov", s2 = "edx", mkind = "store", in_a = true, stk = "peek", slot = -3 },
+    { cls = "alu", op = "mov", s2 = "ecx", mkind = "store", in_a = true, stk = "peek", slot = -2 },
+    { cls = "alu", op = "mov", s2 = "eax", mkind = "store", in_a = true, stk = "peek", slot = -1, sp_step = true },
 ]
 
-# POPA and POPAD. DC decodes the probe of all eight slots from ESP up
-# (probe = "popa"); the ROM pops EDI, ESI, EBP, reads ESP's slot into T1,
-# and pops EBX, EDX, ECX and EAX. POPAD on a 16-bit stack then takes ESP's
-# high word from that image, as the 386EX does (divergence
+# POPA and POPAD. Each slot from ESP up loads its register, as the 386EX
+# loads them, and ESP moves only at the last: DC decodes DI's load from slot
+# 0, and the ROM loads SI, BP, ESP's slot into T1, BX, DX, CX and AX, whose
+# load steps ESP up past the eight slots. A block that wraps the 64 KiB
+# stack misaligned loads the slots below the one that straddles, ESP's
+# among them, then raises #SS with ESP unmoved (divergence
+# stack-wrap-partial-transfer). POPAD on a 16-bit stack then takes ESP's
+# high word from the image, as the 386EX does (divergence
 # popad-esp-high-word): a 16-bit MOV merges SP into T1 (a = "t1") and
 # writes ESP. D keeps that uop only for POPAD on a 16-bit stack
 # (popad_esp).
 [[routine]]
 name = "popa"
 uops = [
-    { cls = "alu", op = "mov", s1 = "edi", d = "edi", mkind = "load", stk = "pop" },
-    { cls = "alu", op = "mov", s1 = "esi", d = "esi", mkind = "load", stk = "pop" },
-    { cls = "alu", op = "mov", s1 = "ebp", d = "ebp", mkind = "load", stk = "pop" },
-    { cls = "alu", op = "mov", d = "t1", size = "32", mkind = "load", stk = "pop" },
-    { cls = "alu", op = "mov", s1 = "ebx", d = "ebx", mkind = "load", stk = "pop" },
-    { cls = "alu", op = "mov", s1 = "edx", d = "edx", mkind = "load", stk = "pop" },
-    { cls = "alu", op = "mov", s1 = "ecx", d = "ecx", mkind = "load", stk = "pop" },
-    { cls = "alu", op = "mov", s1 = "eax", d = "eax", mkind = "load", stk = "pop" },
+    { cls = "alu", op = "mov", s1 = "esi", d = "esi", mkind = "load", stk = "peek", slot = 1 },
+    { cls = "alu", op = "mov", s1 = "ebp", d = "ebp", mkind = "load", stk = "peek", slot = 2 },
+    { cls = "alu", op = "mov", d = "t1", size = "32", mkind = "load", stk = "peek", slot = 3 },
+    { cls = "alu", op = "mov", s1 = "ebx", d = "ebx", mkind = "load", stk = "peek", slot = 4 },
+    { cls = "alu", op = "mov", s1 = "edx", d = "edx", mkind = "load", stk = "peek", slot = 5 },
+    { cls = "alu", op = "mov", s1 = "ecx", d = "ecx", mkind = "load", stk = "peek", slot = 6 },
+    { cls = "alu", op = "mov", s1 = "eax", d = "eax", mkind = "load", stk = "peek", slot = 7, sp_step = true },
     { cls = "alu", op = "mov", a = "t1", s2 = "esp", d = "esp", size = "16", popad_esp = true },
 ]
 
-# INTO: DC decodes a JNO to the next instruction that ends it if taken; with
-# OF set it falls into INT's routine with vector 4. INT n and INT3: DC
-# decodes the read of the vector's offset into T1. Real-mode interrupt entry,
-# as the 386EX does it, reads the vector's entry before pushing (divergence
+# The vector's offset into T1, then INT's routine. INTO enters here when OF
+# is set: DC decodes a JNO to the next instruction that ends INTO if taken,
+# and the vector is 4. An exception enters here too: WB flushes, and DC takes
+# a NOP that starts this routine with the fault's vector, at length 0, so the
+# IP pushed is the faulting instruction's. INT n and INT3: DC decodes the
+# read of the vector's offset into T1. Real-mode interrupt entry, as the
+# 386EX does it, reads the vector's entry before pushing (divergence
 # interrupt-vector-before-push): the selector into T0, a probe of the three
 # 16-bit slots, FLAGS (IF and TF then clear), CS and the next IP, then the far
 # jump to T0:T1.
 [[routine]]
-name = "into"
+name = "vector"
 falls_through = true
 uops = [
     { cls = "alu", op = "mov", d = "t1", size = "32", mkind = "load", mbytes = "2", ivt = true },

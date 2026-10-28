@@ -249,7 +249,8 @@ MODRM_TWO = frozenset([0x00, 0x01, 0x02, 0x03, *range(0x20, 0x27), *range(0x90, 
 PREFIXES = frozenset([0x26, 0x2E, 0x36, 0x3E, 0x64, 0x65, 0xF0, 0xF2, 0xF3, 0x66, 0x67])
 SHIFT_GROUPS = frozenset(['C0', 'C1', 'D0', 'D1', 'D2', 'D3'])
 DOUBLE_SHIFTS = frozenset(['0FA4', '0FA5', '0FAC', '0FAD'])
-PREDICATES = ('invalid-sib', 'count>0', 'count>1', 'count>=width', 'count>width', 'imm8=0', 'opsize32')
+PREDICATES = ('invalid-sib', 'count>0', 'count>1', 'count>=width', 'count>width', 'imm8=0', 'opsize32',
+              'slot-straddles-wrap', 'frame-over-vector')
 
 
 def base_opcode(stem: str) -> str:
@@ -302,6 +303,22 @@ def predicates(stem: str, test: MooTest) -> set[str]:
     # The corpus runs in 16-bit code: a 32-bit operand size is a 66h prefix.
     if operand32:
         facts.add('opsize32')
+    # PUSHA's or POPA's eight slots wrap the 16-bit stack misaligned, so one
+    # straddles FFFFh.
+    if not two_byte and opcode in (0x60, 0x61):
+        size = 4 if operand32 else 2
+        sp = test.initial[REGISTERS.index('esp')] & 0xFFFF
+        start = (sp - 8 * size) & 0xFFFF if opcode == 0x60 else sp
+        if start + 8 * size > 0x10000 and start % size:
+            facts.add('slot-straddles-wrap')
+    # The frame of the exception or interrupt the test takes (its three
+    # words below SP, on the 16-bit stack) overlaps the vector's entry.
+    if test.exception is not None:
+        vector = test.exception[0]
+        base = test.initial[REGISTERS.index('ss')] * 16
+        sp = test.initial[REGISTERS.index('esp')] & 0xFFFF
+        if {base + ((sp - k) & 0xFFFF) for k in range(1, 7)} & set(range(vector * 4, vector * 4 + 4)):
+            facts.add('frame-over-vector')
     return facts
 
 

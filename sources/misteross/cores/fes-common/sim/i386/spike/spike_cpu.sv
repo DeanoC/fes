@@ -113,7 +113,7 @@ module spike_cpu (
         end
     end
 
-    logic             trace_retire, trace_halt, trace_fault, trace_unimplemented, trace_issue;
+    logic             trace_retire, trace_halt, trace_exception, trace_unimplemented, trace_issue;
     logic [7:0]       trace_vector;
     logic [7:0][31:0] arch_gpr;
     logic [31:0]      arch_eflags, arch_eip;
@@ -123,13 +123,13 @@ module spike_cpu (
     fes_i386_cpu dut (
         .clk, .reset, .init_gpr, .init_eflags, .init_eip, .init_sel, .init_base, .init_limit, .init_ar,
         .mem_block, .mem_load, .mem_data, .mem_valid, .dmem_addr, .dmem_read, .dmem_rdata, .dmem_valid, .dmem_write, .dmem_waddr,
-        .dmem_wdata, .dmem_wmask, .trace_retire, .trace_halt, .trace_fault, .trace_vector,
+        .dmem_wdata, .dmem_wmask, .trace_retire, .trace_halt, .trace_exception, .trace_vector,
         .trace_unimplemented, .trace_issue, .arch_gpr, .arch_eflags, .arch_eip, .arch_sel, .arch_base, .arch_limit, .arch_ar
     );
 
     logic [31:0] signature, observed;
     always_comb begin
-        observed = arch_eflags ^ arch_eip ^ {20'b0, trace_retire, trace_halt, trace_fault, trace_unimplemented, trace_vector}
+        observed = arch_eflags ^ arch_eip ^ {20'b0, trace_retire, trace_halt, trace_exception, trace_unimplemented, trace_vector}
                  ^ dmem_waddr ^ dmem_wdata[3:0] ^ dmem_wdata[7:4] ^ {23'b0, dmem_write, dmem_wmask};
         for (int n = 0; n < 8; n++) observed ^= arch_gpr[n];
         for (int n = 0; n < 6; n++) observed ^= arch_base[n] ^ arch_limit[n] ^ {arch_sel[n], arch_ar[n]};
