@@ -1,7 +1,7 @@
 # FES - Fogger Expandable System
 
-Fogger Expandable System is a OSS FPGA based on 'mister' (DE-10 Nano) that provides a different view on how a FPGA multiple system 
-should be. Compared to mister it currently supports only a few system but all use fully OSS toolchain (No Quartus!) and provide a 
+Fogger Expandable System is a OSS FPGA based on 'mister' (DE-10 Nano) that provides a different view on how a FPGA multiple system
+should be. Compared to mister it currently supports only a few system but builds them with a fully OSS toolchain by default (Yosys + nextpnr) and provide a
 closer analog to real expansion and cartridge buses that many system had.
 
 Agents: read [AGENTS.md](AGENTS.md), then the
@@ -31,8 +31,11 @@ standing are the [core status](docs/core-status.md) matrix.
 Main_MiSTer is an original implementation and test reference, not a production
 dependency. The target agent talks to the runtime's local socket; only the
 runtime controls hardware. The normal FES package route uses misteross's
-authenticated HIP/nextpnr producer. Quartus is a build-time oracle/check for
-systems.
+authenticated HIP/nextpnr producer. FES policy also allows labelled
+Quartus-built core variants (accepted in #1163). Current recipes still build
+only OSS packages; the variant selector and OSS-only image option are rollout
+work described in the design. See
+[Quartus-built cores](docs/design/quartus-cores.md).
 
 ## Start
 
@@ -102,9 +105,12 @@ sealed selection are checked; a miss runs that package's registered producer.
 The menu uses its per-core HIP lock. Both RAM Tester rates and the RAM Tester
 timing diagnostic use `sources/misteross/cores/fes-ramtest/toolchain.lock`;
 these per-core locks currently select the same compiler pins.
-Quartus Lite 17.0.2 remains available only as an explicit bring-up/oracle check
-where a recipe documents one. It is not run by the default FES path, and a
-failed HIP route never falls back to Quartus.
+Quartus Lite 17.0.2 is available as an explicit bring-up/oracle check where a
+recipe documents one. The [Quartus-built cores](docs/design/quartus-cores.md)
+policy also allows a labelled Quartus variant of a core, built on a pinned host
+authorized for its edition and device, with a license when required. The
+current integrated recipe and package-selection path does not
+yet select such variants; a failed HIP route never falls back to Quartus.
 Downloads are checked against component locks; image compilation runs twice in
 independent build roots with networking disabled.
 
@@ -170,7 +176,10 @@ boot and play checks remain separate. See [bootable media](docs/bootable-media.m
 The parent exposes one FES integration profile. Systems whose nextpnr route is
 not implemented yet are checked explicitly with Quartus when their recipe
 requires it; that check does not create an image package or change the default
-package-only path.
+package-only path. The accepted policy also allows labelled Quartus variants,
+but no current recipe selects one; see
+[Quartus-built cores](docs/design/quartus-cores.md). Quartus is never an
+automatic fallback.
 
 ## Development and integration
 

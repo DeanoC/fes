@@ -396,10 +396,10 @@ tables. A fault, an unimplemented encoding or HLT stops D issuing after it.
 At WB an unimplemented encoding stops the CPU with nothing retired, and HLT
 retires and stops it. A fault is delivered:
 - **Entry.** WB flushes everything younger and restarts the front end and
-  DC. A uop that faults before EX changes nothing there, so the delivery
-  starts from EX's running flags as they were before it. A divide raises #DE
-  in EX itself, after its flags reach that copy, so its delivery pushes them,
-  as the 386EX does. The cycle after, DC's skid takes the
+  DC. A fault detected before EX changes no flags there, so its delivery
+  starts with the earlier EFLAGS. A divide raises #DE in EX after its
+  multiply/divide flags reach EX's running copy, so its delivery pushes those
+  flags, as the 386EX does. The cycle after, DC's skid takes the
   exception's entry (`dc_exc`): a NOP, at length 0, that starts the ROM's
   `vector` routine with the fault's vector, the one INTO enters.
 - **The frame.** D's EIP is the faulting instruction's, cut to 16 bits, so

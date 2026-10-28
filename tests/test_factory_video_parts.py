@@ -157,12 +157,14 @@ if st:
     mapping={'format':1,'device':'5CSEBA6U23I7','encoding':'m10k-1024x10-v1','base_sha256':sha(base_bytes),'source_size':1024,'blocks':[{'bel':'fixture','source_offset':0,'word_bits':[[32*7605+w*40+i for i in range(40)] for w in range(256)]}]}
     rom_id,rom_role,rom_size='fes.atari-st.firmware','firmware',1024
 else:
-    mapping={'format':1,'device':'5CSEBA6U23I7','encoding':'m10k-1024x10-v1','base_sha256':sha(base_bytes),'source_size':16384,'blocks':[{'bel':f'fixture-{block}','source_offset':block*1024,'word_bits':[[32*7605+(block*256+w)*40+i for i in range(40)] for w in range(256)]} for block in range(16)]}
-    rom_id,rom_role,rom_size='cartridge-rom','cartridge',16384
+    mapping={'format':1,'device':'5CSEBA6U23I7','encoding':'m10k-1024x10-v1','base_sha256':sha(base_bytes),'source_size':24576,'blocks':[{'bel':f'fixture-{block}','source_offset':block*1024,'word_bits':[[32*7605+(block*256+w)*40+i for i in range(40)] for w in range(256)]} for block in range(24)]}
 rom_map=enc(mapping)+b'\n'
-evidence['rom']={'id':rom_id,'role':rom_role,'source_size':rom_size,'file':'rom-map.json','size':len(rom_map),'sha256':sha(rom_map)}
+if st:
+    evidence['rom']={'id':rom_id,'role':rom_role,'source_size':rom_size,'file':'rom-map.json','size':len(rom_map),'sha256':sha(rom_map)}
+else:
+    evidence['rom_map']={'file':'rom-map.json','size':len(rom_map),'sha256':sha(rom_map)}
 manifest=(shell_producer._manifest(record,evidence,'https://github.com/DeanoC/fes.git',revision,current['tools']) if st else shell_producer.manifest(record,evidence,'https://github.com/DeanoC/fes.git',revision,current['tools'],**options))
-package_id=package_identity(manifest,base_bytes,rom_map)
+package_id=package_identity(manifest,base_bytes,rom_map,format_version=3 if st else 4)
 package=output/package_id; package.mkdir()
 for name,value in [('manifest.toml',manifest),('core.rbf',base_bytes)]: (package/name).write_bytes(value)
 shell=output/'shell'; shell.mkdir()
@@ -429,16 +431,20 @@ class VideoShellAdmissionTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     video.video_shell_profile(descriptor)
 
-    def test_coleco_admits_format2_and_exact_format3_cartridge(self):
+    def test_coleco_admits_format2_and_exact_format4_bios_and_cartridge(self):
         original = self.descriptor("fes.fabric.video.native-pixels")
         self.assertEqual(video.video_shell_profile(original), video.NATIVE_MAP)
-        cartridge = original | {"format": 3, "rom": {"role": "cartridge", "source_size": 16384}}
-        self.assertEqual(video.video_shell_profile(cartridge), video.NATIVE_MAP)
+        bios = {"id": "coleco-bios", "role": "firmware", "source_size": 8192, "source_offset": 0}
+        cart = {"id": "coleco-cart", "role": "cartridge", "source_size": 16384, "source_offset": 8192}
+        linked = original | {"format": 4, "roms": [bios, cart]}
+        self.assertEqual(video.video_shell_profile(linked), video.NATIVE_MAP)
         for changed in ({"format": 3}, {"format": 2.0}, {"format": 4},
                         {"core": {"id": "fes.pong"}},
                         {"abi": {"id": "fes.application", "major": 2, "minor": 0}},
-                        {"format": 3, "rom": {"role": "firmware", "source_size": 16384}},
-                        {"format": 3, "rom": {"role": "cartridge", "source_size": 8192}}):
+                        {"format": 3, "rom": {"role": "cartridge", "source_size": 16384}},
+                        {"format": 4, "roms": [cart, bios]},
+                        {"format": 4, "roms": [bios, cart | {"source_size": 131072}]},
+                        {"format": 4, "roms": [bios]}):
             with self.assertRaises(ValueError):
                 video.video_shell_profile(original | changed)
 

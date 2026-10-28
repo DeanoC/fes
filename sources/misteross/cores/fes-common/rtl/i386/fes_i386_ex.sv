@@ -14,7 +14,8 @@
 // SBB, RCL, RCR and LAHF read with no forwarding; flags_keep is EFLAGS after
 // every older uop, which a uop passes on where it writes no flag. They differ
 // only in the cycle after a shift or rotate, when D holds any flag reader
-// (fes_i386_cpu). A faulting uop changes nothing.
+// (fes_i386_cpu). A normal faulting uop changes nothing; a divide error
+// carries the flags that the multiply/divide unit has already produced.
 //
 // A shift's flags leave the shifter off the flag path: EX keeps the old flags
 // and hands WB the bits the shifter's CF and OF come from, and whether SF,
