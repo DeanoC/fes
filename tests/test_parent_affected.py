@@ -3,9 +3,12 @@ import contextlib
 import ast
 import io
 import json
+import os
+import shutil
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -24,6 +27,131 @@ def case(module, name='Case', fail=False):
         '__module__': module, 'setUpClass': classmethod(setup),
         'test_case': lambda self: None})
     return cls('test_case')
+
+
+class GoTestOnlyParentTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name).resolve()
+        self.path = 'sources/FogCast/host/lease_test.go'
+        file = self.root / self.path
+        file.parent.mkdir(parents=True)
+        file.write_text('package host\n')
+        self.record = {'ImportPath': 'example/host', 'Dir': str(file.parent),
+                       'TestGoFiles': ['lease_test.go']}
+        self.real_listing = policy.host_affected.listing
+        patcher = patch.object(policy.host_affected, 'listing', return_value=[self.record])
+        self.listing = patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def groups(self, paths=None, **kwargs):
+        return policy.select_groups([self.path] if paths is None else paths,
+                                    root=self.root, **kwargs)
+
+    def test_verified_tests_keep_policy_build_and_unassigned_modules(self):
+        groups = self.groups()
+        self.assertEqual(groups, {'policy', 'build'})
+        selected = policy.selected_modules(groups, ['test_new_unassigned'])
+        self.assertIn('test_new_unassigned', selected)
+        self.assertIn('test_host_affected', selected)
+        self.assertNotIn('test_package_acceptance', selected)
+        self.assertNotIn('test_core_build', selected)
+        self.record['XTestGoFiles'] = self.record.pop('TestGoFiles')
+        self.assertEqual(self.groups(), groups)
+
+    def test_mixed_guides_retain_documentation_readers(self):
+        paths = [self.path, 'docs/development.md']
+        groups = self.groups(paths)
+        self.assertEqual(groups, {'policy', 'build'})
+        self.assertTrue(policy.DOCUMENTATION_MODULES <= policy.selected_modules(groups, [], paths))
+
+    def test_unlisted_removed_tagged_and_symlink_tests_keep_consumers(self):
+        normal = {'policy', 'build', 'packages', 'acceptance'}
+        self.record['TestGoFiles'] = []
+        self.assertEqual(self.groups(), normal)
+        self.record['TestGoFiles'] = ['lease_test.go']
+        file = self.root / self.path
+        file.unlink()
+        self.assertEqual(self.groups(), normal)
+        other = self.root / 'other.go'
+        other.write_text('package host\n')
+        file.symlink_to(other)
+        self.assertEqual(self.groups(), normal)
+
+    def test_embedded_tests_and_guides_keep_consumers_including_race_variants(self):
+        normal = {'policy', 'build', 'packages', 'acceptance'}
+        for field in policy.host_affected.EMBED_FIELDS:
+            with self.subTest(field=field):
+                race = {**self.record, field: ['testdata']}
+                self.listing.return_value = [self.record, race]
+                self.assertEqual(self.groups(), normal)
+        root_record = {'ImportPath': 'example', 'Dir': str(self.root / 'sources/FogCast'),
+                       'EmbedPatterns': ['docs']}
+        self.listing.return_value = [self.record, root_record]
+        self.assertEqual(self.groups([self.path, 'sources/FogCast/docs/guide.md']), normal)
+
+    def test_uncertain_mixed_full_and_extended_inputs_keep_existing_selection(self):
+        for extra in ('sources/FogCast/host/lease.go', 'sources/FogCast/go.mod',
+                      'sources/FogCast/Makefile', 'scripts/parent_tests.py',
+                      'sources/mister-packages/abi.yaml', 'unknown/file',
+                      'sources/FogCast/host/testdata/fixture.json'):
+            with self.subTest(extra=extra):
+                paths = [self.path, extra]
+                self.assertEqual(self.groups(paths), policy.select_groups(paths))
+        for paths in ([], ['<new-branch>']):
+            self.assertIsNone(self.groups(paths))
+        for video, media in ((True, False), (False, True), (True, True)):
+            self.assertEqual(self.groups(video=video, media=media),
+                             policy.select_groups([self.path], video=video, media=media))
+        for failure in (OSError('no Go'), ValueError('bad metadata'),
+                        subprocess.CalledProcessError(1, ['go', 'list'])):
+            self.listing.side_effect = failure
+            self.assertEqual(self.groups(), policy.select_groups([self.path]))
+
+    def test_race_only_test_metadata_can_prove_ownership(self):
+        self.listing.return_value = [{**self.record, 'TestGoFiles': []}, self.record]
+        self.assertEqual(self.groups(), {'policy', 'build'})
+
+    @unittest.skipUnless(shutil.which('go'), 'Go required for real metadata fixture')
+    def test_real_go_metadata_distinguishes_tests_from_embedded_source_data(self):
+        for module, name in zip(policy.host_affected.MODULES, ('host', 'appliance', 'expansion')):
+            directory = self.root / module
+            directory.mkdir(parents=True, exist_ok=True)
+            (directory / 'go.mod').write_text('module example.com/' + name + '\n\ngo 1.20\n')
+            (directory / 'root.go').write_text('package root\n')
+        environment = dict(os.environ, GOWORK='off', GOTOOLCHAIN='local')
+        for name in ('GOOS', 'GOARCH', 'GOARM', 'GOFLAGS'):
+            environment.pop(name, None)
+        with patch.dict(os.environ, environment, clear=True), \
+                patch.object(policy.host_affected, 'listing', self.real_listing):
+            self.assertEqual(self.groups(), {'policy', 'build'})
+            file = self.root / self.path
+            file.write_text('//go:build race\n\npackage host\n')
+            self.assertEqual(self.groups(), {'policy', 'build'})
+            file.write_text('//go:build fes_unselected_fixture\n\npackage host\n')
+            self.assertEqual(self.groups(), {'policy', 'build', 'packages', 'acceptance'})
+            file.write_text('package host\n')
+            (self.root / 'sources/FogCast/host/embed.go').write_text(
+                'package host\nimport _ "embed"\n//go:embed lease_test.go\nvar source string\n')
+            self.assertEqual(self.groups(), {'policy', 'build', 'packages', 'acceptance'})
+
+    def test_runner_uses_checked_out_root_and_full_mode_bypasses_narrowing(self):
+        # A minimal discovered suite tests the actual CLI-to-selector boundary.
+        def suite(*args, **kwargs):
+            return unittest.TestSuite([case('test_status'), case('test_package_acceptance')])
+        with patch.object(parent_tests.unittest.defaultTestLoader, 'discover', side_effect=suite), \
+                patch.object(parent_tests, '__file__', str(self.root / 'scripts/parent_tests.py')):
+            (self.root / 'tests').mkdir()
+            for flags, expected in (([], {'policy', 'build'}), (['--full'], 'all')):
+                self.listing.reset_mock()
+                with contextlib.redirect_stdout(io.StringIO()) as output:
+                    self.assertEqual(parent_tests.main(['--plan-only', '--video', 'false', '--media',
+                        'false', '--paths-json', json.dumps([self.path]), *flags]), 0)
+                self.assertEqual(json.loads(output.getvalue())['groups'],
+                                 sorted(expected) if isinstance(expected, set) else expected)
+                if flags:
+                    self.listing.assert_not_called()
 
 
 class ParentAffectedTests(unittest.TestCase):

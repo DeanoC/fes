@@ -4,7 +4,14 @@ Shared implementation, configuration and unknown inputs remain full-suite. This
 is an explicit integration boundary, not an inferred Python dependency graph.
 Unassigned new test modules always run until their ownership is reviewed.
 """
-from pathlib import PurePosixPath
+import os
+from pathlib import Path, PurePosixPath
+import subprocess
+
+try:
+    from scripts import host_affected
+except ImportError:
+    import host_affected
 
 
 def names(text):
@@ -83,7 +90,39 @@ def under(path, prefix):
     return path == prefix or path.startswith(prefix + '/')
 
 
-def select_groups(paths, video=False, media=False):
+def verified_go_test_only(root, paths):
+    """Prove existing Go test ownership before omitting parent consumers."""
+    changed = host_affected.go_inputs(paths)
+    if not changed or any(not path.endswith('_test.go') or
+                          not under(path, 'sources/FogCast') for path in changed):
+        return False
+    root = Path(root).resolve()
+    files = {root / path for path in changed}
+    if any(not path.is_file() or path.resolve() != path for path in files):
+        return False
+    environment = dict(os.environ)
+    for key in ('GOOS', 'GOARCH', 'GOARM'):
+        environment.pop(key, None)
+    try:
+        records = host_affected.listing(root, environment)
+        if host_affected.select(paths, records, root) is None:
+            return False
+        listed = set()
+        for record in records:
+            directory = Path(record['Dir']).resolve()
+            # Directory embeds may cover files absent from the current listing.
+            # Keep all existing consumers whenever any embed could include one.
+            if (any(record.get(field) for field in host_affected.EMBED_FIELDS) and
+                    any(path.is_relative_to(directory) for path in files)):
+                return False
+            listed.update(directory / name for key in ('TestGoFiles', 'XTestGoFiles')
+                          for name in record.get(key, []))
+        return files <= listed
+    except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):
+        return False
+
+
+def select_groups(paths, video=False, media=False, root=None):
     """Return groups, or None for complete coverage. Union mixed owners."""
     if paths is None or not paths:
         return None
@@ -129,6 +168,9 @@ def select_groups(paths, video=False, media=False):
             # Includes shared contracts, root build/config inputs, parent
             # unreviewed scripts/tests, image/platform and newly introduced modules.
             return None
+    if (root is not None and not video and not media and 'media' not in groups
+            and verified_go_test_only(root, paths)):
+        return {'policy', 'build'}
     if video:
         groups.add('packages')
     if media:

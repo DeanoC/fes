@@ -90,9 +90,9 @@ SHARED_RTL = {
     't80pa.v': ('coleco', 'sms'),
     'fes_video_part_direct.v': ('coleco', 'atari-st', 'pcxt'),
     'fes_video_part_scanlines.v': ('coleco', 'atari-st', 'pcxt'),
-    'fes_display_plane.v': ('zx81', 'spectrum', 'c64', 'coleco'),
+    'fes_display_plane.v': ('zx81', 'spectrum', 'c64', 'coleco', 'pc386'),
     'fes_dma8237.sv': ('pcxt', 'pc386'),
-    'fes_display_cdc.v': ('zx81', 'spectrum', 'c64', 'coleco'),
+    'fes_display_cdc.v': ('zx81', 'spectrum', 'c64', 'coleco', 'pc386'),
 }
 # Apple II socket generator and card producer regenerate or build its RTL.
 APPLE2_SCRIPTS = frozenset({'apple2_slots.py', 'build_apple2_slot_card.py'})
@@ -134,7 +134,7 @@ def fpga_cores(path):
     if relative.as_posix() == 'cores/fes-common/generated/fes_pcxt_isa.vh':
         return ('pcxt',), 'PC/XT ISA fabric consumer'
     if relative.as_posix() == 'cores/fes-common/generated/fes_display_plane.vh':
-        return ('menu', 'zx81', 'spectrum', 'c64', 'coleco'), 'display-plane fabric consumers'
+        return ('menu', 'zx81', 'spectrum', 'c64', 'coleco', 'pc386'), 'display-plane fabric consumers'
     if len(parts) >= 3 and parts[0] == 'cores':
         if parts[1] == 'fes-common' and '/'.join(parts[2:]) in (
                 'sim/native_video_top.v', 'sim/native_video_tb.cpp',
@@ -159,7 +159,9 @@ def fpga_cores(path):
         if len(parts) >= 5 and parts[1:4] == ('fes-common', 'rtl', 'i386'):
             return (), 'i386 CPU RTL, checked by its software-lane tests; no core consumer yet'
         if parts[1] == 'fes-menu' and '/'.join(parts[2:]) in MENU_SESSION_INPUTS:
-            return ('menu', 'zx81', 'spectrum', 'c64', 'coleco'), 'idle and running-session display consumers'
+            # pc386 uses the plane's RTL with its own DDR model.
+            pc386 = ('pc386',) if parts[2] == 'rtl' else ()
+            return ('menu', 'zx81', 'spectrum', 'c64', 'coleco', *pc386), 'idle and running-session display consumers'
         if parts[1] in CORE_DIRECTORIES:
             return CORE_DIRECTORIES[parts[1]], 'core family and dependent consumers'
         if parts[1:3] == ('fes-common', 'rtl'):
@@ -200,6 +202,8 @@ def fpga_cores(path):
             return ('atari-st',), 'Atari ST socket/card/ROM test recipe'
         if parts[1] in ('build_pc386_firmware.py', 'build_pc386_freedos_image.py'):
             return ('pc386',), 'pc386 firmware and simulation disk recipes'
+        if parts[1] == 'synth_fes_pc386.py':
+            return (), 'pc386 diagnostic synthesis recipe; no simulation reads it'
         if parts[1] in I386_SCRIPTS:
             return (), 'i386 oracle, corpus runners, RTL checks and timing harness; no core consumer'
     if parts and parts[0] == 'tests':
