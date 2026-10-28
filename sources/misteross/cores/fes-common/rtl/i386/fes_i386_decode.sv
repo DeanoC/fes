@@ -8,7 +8,8 @@
 //   clear instructions, NOP, HLT, and the near JMP, Jcc, LOOP, LOOPE, LOOPNE
 //   and JCXZ; PUSH and POP of a register, an immediate or a segment register,
 //   RET and RET imm16, LEAVE, JMP r/m and CALL rel; XCHG, MOV to and from
-//   a direct offset, XLAT and SALC; PUSH, POP and CALL of r/m;
+//   a direct offset, XLAT and SALC; PUSH, POP and CALL of r/m; MUL, IMUL
+//   (all three forms), DIV, IDIV, AAM and AAD;
 // with a ModRM memory operand where they take one. The memory operand is a
 // load (src2, or src1 for CMP and TEST), a store, or both in one uop
 // (read-modify-write), and replaces the register it stands for: no GPR is
@@ -158,7 +159,8 @@ module fes_i386_decode (
     logic [2:0]  mbytes;    // the access's bytes, when not the operation's size
     logic        lockable;  // LOCK is valid on the memory form
 
-    localparam logic [2:0] C_ALU = 3'd0, C_SHIFT = 3'd1, C_BRANCH = 3'd4, C_SEGMENT = 3'd5, C_SPECIAL = 3'd7;
+    localparam logic [2:0] C_ALU = 3'd0, C_SHIFT = 3'd1, C_MUL = 3'd2, C_DIV = 3'd3, C_BRANCH = 3'd4, C_SEGMENT = 3'd5,
+                           C_SPECIAL = 3'd7;
 
     always_comb begin
         cls = C_ALU;
@@ -245,6 +247,35 @@ module fes_i386_decode (
                     m_in_a = 1'b1;
                     mkind = 2'd2;
                     stk = fes_i386_pkg::STK_PUSH;
+                end
+                8'b011010?1: begin
+                    // IMUL r, r/m, imm16/32 (69h), imm8 sign-extended (6Bh): the
+                    // register is src1 and the destination, r/m the multiplicand
+                    // (src2) and imm the multiplier
+                    cls = C_MUL;
+                    op = 5'd6;  // MULDIV_IMUL3
+                    mkind = reg_form ? 2'd0 : 2'd1;
+                    wr_cf = 1'b1;
+                    wr_oszap = 1'b1;
+                    s1_valid = 1'b1;
+                    s1_idx = reg_f;
+                    s2_valid = 1'b1;
+                    s2_idx = rm;
+                    d_valid = 1'b1;
+                    d_idx = reg_f;
+                    imm = b0[1] ? imm8s_m : immz_m;
+                end
+                8'b1101010?: begin
+                    // AAM (D4h): AH and AL from AL / imm8 and AL % imm8; AAD (D5h):
+                    // AL from AL + AH * imm8, AH 0. EAX is src1 and the destination.
+                    cls = b0[0] ? C_MUL : C_DIV;
+                    op = b0[0] ? 5'd3 : 5'd2;  // MULDIV_AAD, MULDIV_AAM
+                    size = 2'd0;
+                    wr_cf = 1'b1;
+                    wr_oszap = 1'b1;
+                    s1_valid = 1'b1;
+                    d_valid = 1'b1;
+                    imm = imm8_o;
                 end
                 8'b1100001?: begin
                     // RET imm16 (C2h), RET (C3h): EX adds CS's base to the popped EIP.
@@ -824,9 +855,39 @@ module fes_i386_decode (
                     rd_cf = b0 == 8'hf5;
                     wr_cf = b0 == 8'hf5 || b0[3:1] == 3'b100;
                 end
-                8'b1111011?: begin
-                    // Group 3: TEST r/m, imm (/0, /1); NOT; NEG. MUL, IMUL, DIV, IDIV later.
-                    known = !reg_f[2];
+                8'b1111011?: if (reg_f[2]) begin
+                    // Group 3: MUL, IMUL (/4, /5), DIV, IDIV (/6, /7) of AL or eAX
+                    // by r/m: EAX is src1 and the destination, r/m src2. A 16- or
+                    // 32-bit form also writes EDX: the high half MUL keeps
+                    // (SEQ_MUL), or DIV's remainder, after a LOAD uop that hands
+                    // the unit EDX and carries the divide's op in imm (SEQ_DIV).
+                    cls = reg_f[1] ? C_DIV : C_MUL;
+                    op = {4'd0, reg_f[0]};  // MULDIV_UNSIGNED, MULDIV_SIGNED
+                    mkind = reg_form ? 2'd0 : 2'd1;
+                    size = b0[0] ? osz : 2'd0;
+                    wr_cf = 1'b1;
+                    wr_oszap = 1'b1;
+                    s1_valid = 1'b1;
+                    s2_valid = 1'b1;
+                    s2_idx = b0[0] ? rm : {1'b0, rm[1:0]};
+                    s2_hi8 = !b0[0] && rm[2];
+                    d_valid = 1'b1;
+                    if (b0[0]) begin
+                        if (reg_f[1]) begin
+                            op = 5'd5;  // MULDIV_LOAD
+                            imm = {31'd0, reg_f[0]};
+                            s1_idx = 3'd2;
+                            d_valid = 1'b0;
+                            wr_cf = 1'b0;
+                            wr_oszap = 1'b0;
+                            seq = fes_i386_pkg::SEQ_DIV;
+                        end else begin
+                            seq = fes_i386_pkg::SEQ_MUL;
+                        end
+                        eoi = 1'b0;
+                    end
+                end else begin
+                    // Group 3: TEST r/m, imm (/0, /1); NOT; NEG.
                     op = reg_f[1] ? (reg_f[0] ? 5'd12 : 5'd13) : 5'd8;  // NEG, NOT, TEST
                     m_in_a = 1'b1;
                     mkind = reg_form ? 2'd0 : reg_f[1] ? 2'd3 : 2'd1;
@@ -987,6 +1048,20 @@ module fes_i386_decode (
                     undefined = reg_form;
                     seg2_idx = op2[2] ? (op2[0] ? 3'd5 : 3'd4) : 3'd2;
                     lptr = 1'b1;
+                end
+                8'haf: begin
+                    // IMUL r, r/m: the register is src1 and the destination
+                    cls = C_MUL;
+                    op = 5'd1;  // MULDIV_SIGNED
+                    mkind = reg_form ? 2'd0 : 2'd1;
+                    wr_cf = 1'b1;
+                    wr_oszap = 1'b1;
+                    s1_valid = 1'b1;
+                    s1_idx = reg_f;
+                    s2_valid = 1'b1;
+                    s2_idx = rm;
+                    d_valid = 1'b1;
+                    d_idx = reg_f;
                 end
                 8'b1011?11?: begin
                     // MOVZX (B6h, B7h), MOVSX (BEh, BFh)
