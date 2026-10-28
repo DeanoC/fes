@@ -192,8 +192,10 @@ as wires would; the machine top level will instantiate both.
 
 - **Ports and FIFO.** VGA port writes and MMIO writes share a 16-entry FIFO
   and are processed in order; a port write completes in four clocks (a clock
-  later than the M1 stand-in, as the byte is posted through a register), a
-  port read waits until the FIFO has drained. An MMIO read also drains the
+  later than the M1 stand-in, as the byte is posted through a register), and
+  a byte waits while the FIFO is full. The machine bench reports those waits
+  apart from the class time (`IOWAIT`). A port read waits until the FIFO has
+  drained. An MMIO read also drains the
   write coalescer first.
 - **Planar logic.** One VRAM word write per clock: the bytes of a dword that
   share a planar offset (a chain-4 dword, an odd/even pair) go together, each
