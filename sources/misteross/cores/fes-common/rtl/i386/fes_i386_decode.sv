@@ -1136,7 +1136,12 @@ module fes_i386_decode (
                     // a read-modify-write: the others' memory form, as on the
                     // 386EX.
                     known = reg_f[2];
-                    op = 5'd19 + {3'd0, reg_f[1:0]};  // ALU_BT, ALU_BTS, ALU_BTR, ALU_BTC
+                    case (reg_f[1:0])
+                        2'd0: op = 5'd19;  // ALU_BT
+                        2'd1: op = 5'd20;  // ALU_BTS
+                        2'd2: op = 5'd21;  // ALU_BTR
+                        default: op = 5'd22;  // ALU_BTC
+                    endcase
                     m_in_a = 1'b1;
                     mkind = reg_form ? 2'd0 : reg_f[1:0] == 2'd0 ? 2'd1 : 2'd3;
                     lockable = 1'b1;
