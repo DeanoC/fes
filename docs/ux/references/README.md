@@ -149,3 +149,5 @@ Complete room and selector overview at the reviewed viewports:
 - [All embedded rooms, 1024×600](tenfoot-polish/contact-rooms-1024x600.jpg)
 - [Variants and running overlays, 1024×600](tenfoot-polish/contact-variants-1024x600.jpg)
 - [Native menus and selectors, 1024×600](tenfoot-polish/contact-native-1024x600.jpg)
+
+[Long room Details and curator notes, 1024×600](tenfoot-polish/details-notes-1024x600.png)
