@@ -370,7 +370,7 @@ public:
 		const std::string& data_root = "", const CoreCompositionRequest* composition = nullptr,
 		const std::string& programmed_path = "", const std::string& programmed_sha256 = "", const CoreROMLink* rom_link = nullptr,
 		const CoreROMLinks* rom_links = nullptr, const InitialComputerMedia* initial_media = nullptr,
-		const std::string& game_id = "")
+		const std::string& game_id = "", const AtaDiskImage* disk = nullptr)
 	{
 		LogRecord rejection;
 		bool rejected = false;
@@ -432,7 +432,9 @@ public:
 		data.package_id = package->info().package_id;
 		data.core_id = package->info().declared_core;
 		if (!data_root.empty()) {
-			const Error prepared = hardware_.PrepareCoreData(package.get(), data_root, game_id, &data);
+			Error prepared = hardware_.PrepareCoreData(package.get(), data_root, game_id, &data);
+			if (prepared.ok() && disk != nullptr)
+				prepared = hardware_.PrepareAtaDisk(package.get(), game_id, *disk);
 			if (!prepared.ok()) {
 				{
 					std::lock_guard<std::mutex> lock(mutex_);
@@ -1545,11 +1547,12 @@ Error Runtime::LoadComposedCore(const std::string& directory, const std::string&
 	return impl_->LoadCore(directory, id, "", &request);
 }
 Error Runtime::LoadLibraryCore(const std::string& directory, const std::string& id,
-	const std::string& root, const std::string& game_id)
+	const std::string& root, const std::string& game_id, const AtaDiskImage* disk)
 {
-	if (!ValidAbsolutePath(root))
-		return Invalid("invalid core-data root");
-	return impl_->LoadCore(directory, id, root, nullptr, "", "", nullptr, nullptr, nullptr, game_id);
+	if (!ValidAbsolutePath(root) || (disk && (game_id.empty() || !ValidAbsolutePath(disk->path) ||
+		!ValidAbsolutePath(disk->data_root))))
+		return Invalid("invalid core-data root or ATA disk");
+	return impl_->LoadCore(directory, id, root, nullptr, "", "", nullptr, nullptr, nullptr, game_id, disk);
 }
 Error Runtime::LoadLibraryPartsCore(const std::string& directory, const std::string& id,
 	const std::string& root, const CoreCompositionRequest& request)

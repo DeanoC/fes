@@ -110,6 +110,21 @@ public:
 	bool TapeWriteCapable() const;
     bool MediaGeometryCapable(std::uint8_t unit) const;
 	bool home_computer() const { return home_computer_; }
+	// fes.media.ata-disk 1.0 on unit 0. The image lives in the HPS DDR window;
+	// the mailbox carries control, geometry, the CRC and the dirty map.
+	struct AtaDiskInfo {
+		std::uint32_t minimum = 0, maximum = 0;
+		std::uint16_t chunk_sectors = 0, state = 0, flags = 0, epoch = 0;
+	};
+	bool AtaDiskCapable() const { return ata_disk_; }
+	Error ReadAtaDiskInfo(std::uint64_t deadline, AtaDiskInfo*);
+	Error AtaDiskControl(std::uint16_t argument, std::uint64_t deadline);
+	// DiskCommit words 0..7 and Commit, then DiskInfo until the core's CRC
+	// pass ends: ready, or a CRC mismatch that leaves the unit loading.
+	Error CommitAtaDisk(std::uint32_t sectors, std::uint16_t cylinders, std::uint16_t heads,
+		std::uint16_t sectors_per_track, std::uint32_t crc, std::uint64_t deadline);
+	// After Freeze: the ascending chunk indices of the dirty map.
+	Error ReadAtaDirty(std::uint64_t deadline, std::vector<std::uint32_t>* chunks);
 	// fes.rtc.wall-clock 1.0: the four words of a local time, while held.
 	bool WallClockCapable() const { return wall_clock_; }
 	Error SetWallClock(const std::tm& local, std::uint64_t deadline);
@@ -180,6 +195,7 @@ private:
 	bool floppy_write_ = false;
 	bool tape_write_ = false;
 	bool wall_clock_ = false;
+	bool ata_disk_ = false;
 	KeyboardHidRows hid_rows_{};
 	bool hid_rows_known_ = false;
 	std::vector<MediaUnitCapability> media_units_;

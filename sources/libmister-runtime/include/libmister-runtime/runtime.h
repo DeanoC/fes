@@ -299,6 +299,19 @@ struct CoreData {
 	std::vector<std::uint16_t> words;
 };
 
+// A fes.media.ata-disk launch: the staged immutable base image, the geometry
+// its partition table was written with, and the media-data root that holds
+// its game's chunk delta.
+struct AtaDiskImage {
+	std::string path;
+	std::uint32_t size = 0;
+	std::string base_media_id;
+	std::string data_root;
+	std::uint16_t cylinders = 0;
+	std::uint16_t heads = 0;
+	std::uint16_t sectors_per_track = 0;
+};
+
 // A next-launch settings change: Pong's paddle speed, or the pc386 settings.
 struct CoreSettingsUpdate {
 	std::uint16_t paddle_speed = 1;
@@ -519,6 +532,10 @@ public:
 	{
 		return {};
 	}
+	// Binds the game's ATA disk: opens the image and its delta namespace and
+	// reads the manifest, before programming.
+	virtual Error PrepareAtaDisk(AdmittedCorePackage*, const std::string&, const AtaDiskImage&)
+	{ return {ErrorCode::unsupported_interface, "ATA disk unavailable", "admission"}; }
 	virtual Error PrepareInitialComputerMedia(AdmittedCorePackage*, const InitialComputerMedia&)
 	{ return {ErrorCode::unsupported_interface, "initial computer media unavailable", "admission"}; }
 	virtual Error RefreshInitialComputerMedia(AdmittedCorePackage*)
@@ -640,7 +657,7 @@ public:
 		const std::string& expected_package_id);
 	// The game ID keys a fes.computer package's per-game record.
 	Error LoadLibraryCore(const std::string&, const std::string&, const std::string&,
-		const std::string& game_id = "");
+		const std::string& game_id = "", const AtaDiskImage* disk = nullptr);
 	Error LoadComposedCore(const std::string&, const std::string&, const CoreCompositionRequest&);
 	Error LoadLibraryPartsCore(const std::string&, const std::string&, const std::string&, const CoreCompositionRequest&);
 	Error InspectPartsCore(const std::string&, const std::string&, const CoreCompositionRequest&, CorePackageInspection*);

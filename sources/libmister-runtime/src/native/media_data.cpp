@@ -74,7 +74,7 @@ bool Decimal(const std::string& text, std::size_t begin, std::size_t end)
 }
 bool StaleMediaTemporary(const std::string& name)
 {
-	static const char* prefixes[] = {".record-", ".probe-"};
+	static const char* prefixes[] = {".record-", ".probe-", ".chunk-"};
 	for (const char* prefix : prefixes) {
 		const std::size_t length = std::strlen(prefix);
 		if (name.compare(0, length, prefix) != 0)
@@ -229,6 +229,16 @@ MediaDataFile::~MediaDataFile()
 Error MediaDataFile::Open(
 	const std::string& root, const MediaDataIdentity& id, std::unique_ptr<MediaDataFile>* output)
 {
+	if (!output)
+		return Bad("invalid media-data root or identity");
+	int directory = -1;
+	const Error error = OpenMediaDataNamespace(root, id, &directory);
+	if (error.ok())
+		output->reset(new MediaDataFile(directory, id));
+	return error;
+}
+Error OpenMediaDataNamespace(const std::string& root, const MediaDataIdentity& id, int* output)
+{
 	if (!output || !ValidMediaDataIdentity(id) || root.empty() || root[0] != '/' || root.size() > 4095 ||
 		root.find('\0') != std::string::npos)
 		return Bad("invalid media-data root or identity");
@@ -264,7 +274,7 @@ Error MediaDataFile::Open(
 	Error swept = SweepStaleMediaTemps(opened.value);
 	if (!swept.ok())
 		return swept;
-	output->reset(new MediaDataFile(opened.value, id));
+	*output = opened.value;
 	opened.value = -1;
 	return {};
 }

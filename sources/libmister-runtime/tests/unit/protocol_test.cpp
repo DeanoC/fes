@@ -281,6 +281,49 @@ void TestStatusErrorIsIndependentOfResponseOk()
 }
 
 
+// A running pc386 package with its fixed disk bound to a game.
+mister::Status Pc386RunningStatus()
+{
+	mister::Status status;
+	status.state = mister::State::running_development;
+	status.execution = mister::Execution::development;
+	status.core = "fes.pc386";
+	status.generation = 1;
+	status.capabilities.programming_profiles = {"development-contained-v1", "fes-gp-v1"};
+	status.capabilities.abis = {{"fes.computer", 1, 1, {{"fes.media.ata-disk", 1, 0},
+		{"fes.memory.hps-ddr", 1, 0}, {"fes.video.fixed-720p60", 1, 0}}}};
+	status.capabilities.active_interfaces = {{"fes.media.ata-disk", 1, 0}, {"fes.memory.hps-ddr", 1, 0},
+		{"fes.video.fixed-720p60", 1, 0}};
+	mister::MediaUnitCapability unit;
+	unit.unit = 0;
+	unit.interface = {"fes.media.ata-disk", 1, 0};
+	unit.min_bytes = 1048576;
+	unit.max_bytes = 134217728;
+	unit.chunk_bytes = 65536;
+	unit.state = mister::MediaUnitState::ready;
+	unit.persistence_mode = "persistent";
+	unit.game_id = "ultima-vi";
+	unit.base_media_id = std::string(64, 'c');
+	unit.revision = "absent";
+	status.capabilities.media_units = {unit};
+	status.core_data.mode = "persistent";
+	status.active_package.package_id = std::string(64, 'a');
+	auto& d = status.active_package.descriptor;
+	d.format = 2;
+	d.core = {"fes.pc386", "FES pc386", "Synthetic test-only core bundle fixture; never deploy.", "0.1.0", ""};
+	d.target = {"de10_nano", "5CSEBA6U23I7", "fes-gp-v1"};
+	d.payload = {"core.rbf", 12, "e7bbf8fe5ebdebeef7f2e70638a0a3494f22ab977e1506386010705a3d43adf1"};
+	d.abi = {"fes.computer", 1, 1};
+	d.interfaces = {{"fes.video.fixed-720p60", 1, 0, true}, {"fes.memory.hps-ddr", 1, 0, true},
+		{"fes.media.ata-disk", 1, 0, true}};
+	d.build = {"0123456789abcdef0123456789abcdef", "https://example.invalid/fes-pc386",
+		"1111111111111111111111111111111111111111",
+		"2222222222222222222222222222222222222222222222222222222222222222",
+		"synthetic fixture generator 1.0 (test-only)"};
+	status.active_package.observed = {d.abi, d.build.id};
+	return status;
+}
+
 // fes.pc386: a per-game record keyed by game_id, and machine settings in
 // place of Pong's paddle speed. The response lines are the agent's fixture.
 void TestPc386CoreDataProtocol()
@@ -314,8 +357,31 @@ void TestPc386CoreDataProtocol()
 		"\"sb_base\":544,\"sb_irq\":7,\"sb_dma\":1}}", &request).ok());
 	assert(!Parse(update + machine + ",\"paddle_speed\":1}", &request).ok());
 
+	// load_library_core binds an ATA disk to its game.
+	const std::string disk = ",\"game_id\":\"ultima-vi\",\"ata_disk\":{\"path\":\"/media/fat/fogcast/disk-images/a.img\","
+		"\"size\":2098688,\"base_media_id\":\"" + std::string(64, 'c') + "\",\"data_root\":"
+		"\"/media/fat/fogcast/core-data/media\",\"cylinders\":4,\"heads\":16,\"sectors_per_track\":63";
+	const std::string load = "{\"protocol\":2,\"operation\":\"load_library_core\"," + fields;
+	assert(Parse(load + disk + "}}", &request).ok() && request.has_ata_disk);
+	assert(request.ata_disk.size == 2098688 && request.ata_disk.cylinders == 4 && request.ata_disk.heads == 16 &&
+		request.ata_disk.sectors_per_track == 63 && request.ata_disk.base_media_id == std::string(64, 'c') &&
+		request.ata_disk.data_root == "/media/fat/fogcast/core-data/media");
+	for (const auto& bad : {std::string("\"cylinders\":5"), std::string("\"heads\":17"),
+		std::string("\"sectors_per_track\":0"), std::string("\"size\":2098689"), std::string("\"size\":524288"),
+		std::string("\"extra\":1")}) {
+		std::string changed = disk;
+		const auto key = bad.substr(0, bad.find(':') + 1);
+		const auto at = changed.find(key);
+		if (at == std::string::npos) changed += "," + bad;
+		else changed.replace(at, changed.find_first_of(",}", at) - at, bad);
+		assert(!Parse(load + changed + "}}", &request).ok());
+	}
+	// The disk needs the request's game and is a launch field only.
+	assert(!Parse(load + disk.substr(disk.find(",\"ata_disk\"")) + "}}", &request).ok());
+	assert(!Parse("{\"protocol\":2,\"operation\":\"inspect_core_data\"," + fields + disk + "}}", &request).ok());
+
 	const auto lines = ReadLines("tests/fixtures/protocol-v2-pc386-responses.jsonl");
-	assert(lines.size() == 2);
+	assert(lines.size() == 3);
 	Status status;
 	status.state = State::idle;
 	status.capabilities = FixtureCapabilities();
@@ -334,6 +400,7 @@ void TestPc386CoreDataProtocol()
 	data.words[5] = 5;
 	data.revision = std::string(64, 'b');
 	assert(mister::daemon::EncodeResponse(2, true, status, "fixture", nullptr, &data) == lines[1]);
+	assert(mister::daemon::EncodeResponse(2, true, Pc386RunningStatus(), "fixture") == lines[2]);
 }
 
 void TestPersistenceRequestsAndResponseFixtures()

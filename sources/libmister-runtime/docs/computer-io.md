@@ -26,7 +26,8 @@ and exact-artifact acceptance.
 
 A package declares `fes.computer` major 1 with `fes-gp-v1`. Minor versions
 above 1 and any `core.system` value are rejected. Minor 1 adds identity word
-16, capability bits 16..31, and three of their interfaces: `fes.persistence.words`
+16, capability bits 16..31, and their interfaces: `fes.media.ata-disk` 1.0
+(a unit-0 medium that requires `fes.memory.hps-ddr`), `fes.persistence.words`
 1.0 with its one layout `fes.pc386.machine` 1.0, and `fes.rtc.wall-clock` 1.0.
 A 1.0 package that declares any of them is refused as an unsupported ABI. `fes.video.fixed-720p60` 1.0
 is required. The recognized operational set is `fes.video.fixed-720p60`,
@@ -71,7 +72,9 @@ presentation adapters are present, together with its shared plane
 package declaring either one without the other is refused at compatibility. A
 computer that does not implement the plane leaves the session-display bit clear.
 The 1.1 entry has the same interfaces plus `fes.pc386.machine`,
-`fes.persistence.words` and `fes.rtc.wall-clock`, each 1.0.
+`fes.persistence.words` and `fes.rtc.wall-clock`, each 1.0, and
+`fes.media.ata-disk` 1.0 when the DDR layout is latched and the window driver
+is available.
 
 ## Lifecycle
 
@@ -101,7 +104,45 @@ record (DataControl Begin, 72 DataWrite on opcodes 24..27, Commit) while
 held; a missing record restores the layout's defaults. A package with
 `fes.rtc.wall-clock` then gets the kit's local time in four WallClock words;
 a time before 1980 starts the clock at 1980-01-01, a leap second holds at 59,
-and an unavailable local time fails the launch. An explicit initial library disk is
+and an unavailable local time fails the launch.
+
+## ATA hard disk
+
+A `load_library_core` of a package with `fes.media.ata-disk` may carry its
+game's disk; it requires `game_id`:
+
+```json
+{"protocol":2,"operation":"load_library_core","package_path":"/tmp/fogcast-development/core-packages/example","package_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","data_root":"/media/fat/fogcast/core-data","game_id":"ultima-vi","ata_disk":{"path":"/media/fat/fogcast/disk-images/a.img","size":2098688,"base_media_id":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","data_root":"/media/fat/fogcast/core-data/media","cylinders":4,"heads":16,"sectors_per_track":63}}
+```
+
+The image is 1..128 MiB in whole sectors and its geometry must fit it as
+DiskCommit requires. Before programming the runtime opens the image (no
+symlinks; its size must equal `size`), opens the `fes.ata-disk.delta`
+namespace of core, game and base digest under `ata_disk.data_root`, reads
+the manifest and checks that the namespace is writable. A pc386 package
+without `ata_disk` launches with its drive empty.
+
+After identity and the record restore, while held, the runtime sends
+Prepare and writes the image into the DDR window from `0x08000000` through
+fes-window grants of 4 MiB in turn: each 64 KiB chunk is the base's bytes, or
+the delta's chunk file when the manifest names it. It hashes the base as it
+reads it and CRC-32s what it writes. Each grant is revoked before the next,
+which writes back and invalidates its lines in L1 and the PL310. A base whose
+SHA-256 differs from `base_media_id`, a missing or altered chunk file, or a
+CRC the core does not match fails the launch with `corrupt_data`. Then
+DiskCommit words 0..7 and Commit, and DiskInfo is polled until the core's CRC
+pass ends. Status lists the disk as unit 0 with interface
+`fes.media.ata-disk`, 65,536-byte chunks and its binding's revision. It is
+fixed: media insert, eject and save refuse it.
+
+Stop and fault cleanup save it before the record: Freeze, the 128 DiskDirty
+words, then each dirty chunk read through a fresh grant (taken after Freeze
+has fenced the core's writes, so no line cached before them can exist) and
+written as a synced content-addressed file. The merged manifest is published
+against the revision read under the namespace lock, chunk files it does not
+name are deleted, and Saved is sent. A Stop with no dirty chunk publishes
+nothing. A failed save leaves the disk frozen and returns `save_failed`; the
+resumed game sends Resume first. An explicit initial library disk is
 uploaded and confirmed ready before Start; otherwise the drive stays empty.
 Start sends only Execution release, with no media gate and no neutral writes,
 because programming starts held with neutral input. No evdev

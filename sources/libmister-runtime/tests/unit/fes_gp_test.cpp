@@ -3049,14 +3049,22 @@ std::vector<Computer11Scenario> ReadComputer11Scenarios()
 
 void TestComputer11ReplaysSharedFixtureThroughEndpoint()
 {
+	// The disk scenario's synthetic window: 2 MiB of (offset * 7 + (offset >> 11)).
+	std::vector<std::uint8_t> window(2u << 20);
+	for (std::size_t offset = 0; offset < window.size(); ++offset)
+		window[offset] = static_cast<std::uint8_t>(offset * 7 + (offset >> 11));
 	for (const auto& scenario : ReadComputer11Scenarios()) {
-		if (scenario.name == "pc386-ata-disk") continue;
 		mister_test::ComputerEndpoint endpoint(scenario.capabilities, {});
 		endpoint.abi_minor = scenario.abi_minor;
+		auto image = window;
+		endpoint.window = &image;
 		std::size_t next = 0;
 		for (std::size_t n = 0; n < scenario.exchanges.size(); ++n) {
 			for (; next < scenario.events.size() && scenario.events[next].before == n; ++next) {
-				assert(scenario.events[next].kind == "cmos-write");
+				if (scenario.events[next].kind == "sector-write") {
+					endpoint.GuestSectorWrite(scenario.events[next].first);
+					continue;
+				}
 				endpoint.GuestCmosWrite(scenario.events[next].first,
 					static_cast<std::uint8_t>(scenario.events[next].second));
 			}
@@ -3120,8 +3128,7 @@ void TestPc386IdentityPersistenceAndWallClock()
 		ComputerFixture f(wrong, {}, Pc386Descriptor());
 		f.endpoint.abi_minor = 1;
 		const auto result = f.driver.Identify(f.context, kComputerDeadline);
-		assert(wrong & FesComputerCapabilityMediaAtaDisk ? result.error.ok() :
-			result.error.code == mister::ErrorCode::core_mismatch);
+		assert(result.error.code == mister::ErrorCode::core_mismatch);
 	}
 	{
 		// A 1.0 endpoint rejects word 16, so it never identifies as 1.1.
@@ -3173,6 +3180,55 @@ void TestPc386IdentityPersistenceAndWallClock()
 	assert(f.endpoint.data_snapshot.empty());
 }
 
+void TestPc386AtaDiskCommitPollAndDirtyMap()
+{
+	auto descriptor = Pc386Descriptor();
+	descriptor.interfaces.push_back({FesComputerInterfaceMediaAtaDiskID, 1, 0, true});
+	const std::uint32_t live = FesComputerCapabilityVideoFixed720p60 | FesComputerCapabilityKeyboardHid |
+		FesComputerCapabilityAudioPcmS16Stereo48k | FesComputerCapabilityMouseRelative |
+		FesComputerCapabilityPersistenceWords | FesComputerCapabilityPc386Machine |
+		FesComputerCapabilityRtcWallClock | FesComputerCapabilityMediaAtaDisk;
+	ComputerFixture f(live, {}, descriptor);
+	f.endpoint.abi_minor = 1;
+	std::vector<std::uint8_t> window(2u << 20);
+	for (std::size_t offset = 0; offset < window.size(); ++offset)
+		window[offset] = static_cast<std::uint8_t>(offset * 13 + (offset >> 9));
+	f.endpoint.window = &window;
+	f.endpoint.verify_reads = 3;
+	assert(f.driver.Identify(f.context, kComputerDeadline).error.ok() && f.driver.AtaDiskCapable());
+	mister::native::FesGpCoreDriver::AtaDiskInfo info;
+	assert(f.driver.ReadAtaDiskInfo(kComputerDeadline, &info).ok());
+	assert(info.state == 1 && info.minimum == (1u << 20) && info.maximum == (128u << 20) && info.chunk_sectors == 128);
+	std::uint32_t crc = 0xffffffffu;
+	for (auto byte : window) {
+		crc ^= byte;
+		for (unsigned bit = 0; bit < 8; ++bit) crc = (crc >> 1) ^ ((crc & 1u) ? 0xedb88320u : 0u);
+	}
+	crc ^= 0xffffffffu;
+	assert(f.driver.AtaDiskControl(FesComputerDiskControlPrepare, kComputerDeadline).ok());
+	// A wrong CRC ends the poll with the unit loading.
+	assert(f.driver.CommitAtaDisk(4096, 4, 16, 63, crc ^ 1, kComputerDeadline).code ==
+		mister::ErrorCode::corrupt_data);
+	assert(f.endpoint.disk_state == 2 && f.endpoint.disk_error);
+	const std::size_t start = f.endpoint.requests.size();
+	assert(f.driver.CommitAtaDisk(4096, 4, 16, 63, crc, kComputerDeadline).ok());
+	assert(f.endpoint.disk_state == 3 && f.endpoint.disk_geometry == std::vector<unsigned>({4096, 4, 16, 63}));
+	// Eight words, Commit, three state reads of verifying and the ready one.
+	const auto commit = f.Since(start);
+	assert(commit.size() == 8 + 1 + 4 && commit[8].opcode == FesComputerOpcodeDiskControl);
+	for (std::size_t at = 9; at < commit.size(); ++at)
+		assert(commit[at].opcode == FesComputerOpcodeDiskInfo && commit[at].index == 5);
+	assert(f.driver.Start(f.context, kComputerDeadline).error.ok());
+	for (std::uint32_t sector : {0u, 300u, 4095u, 129u}) f.endpoint.GuestSectorWrite(sector, 0x5a);
+	std::vector<std::uint32_t> dirty;
+	assert(!f.driver.ReadAtaDirty(kComputerDeadline, &dirty).ok());
+	assert(f.driver.AtaDiskControl(FesComputerDiskControlFreeze, kComputerDeadline).ok());
+	assert(f.driver.ReadAtaDirty(kComputerDeadline, &dirty).ok());
+	assert(dirty == std::vector<std::uint32_t>({0, 1, 2, 31}));
+	assert(f.driver.AtaDiskControl(FesComputerDiskControlSaved, kComputerDeadline).ok());
+	assert(f.driver.ReadAtaDirty(kComputerDeadline, &dirty).ok() && dirty.empty());
+}
+
 int main()
 {
  TestMediaSnapshotFrozenCaptureAndRecovery();
@@ -3214,6 +3270,7 @@ int main()
 	TestComputerReplaysSharedWireFixturesThroughDriver();
 	TestComputer11ReplaysSharedFixtureThroughEndpoint();
 	TestPc386IdentityPersistenceAndWallClock();
+	TestPc386AtaDiskCommitPollAndDirtyMap();
 	TestComputerIdentityCapabilitiesAndDiscovery();
 	TestZx81SaveStaysDirtyUntilAcknowledged();
 	TestComputerInputValidationAndPartialRows();

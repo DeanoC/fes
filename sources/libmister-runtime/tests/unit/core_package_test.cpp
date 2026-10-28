@@ -4,6 +4,7 @@
 #include "native/core_package.hpp"
 #include "native/sha256.hpp"
 
+#include <algorithm>
 #include <assert.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -992,7 +993,7 @@ void TestComputerCompatibilityComposesRecognizedInterfaces()
 	assert(check(bus).code == mister::ErrorCode::unsupported_interface);
 	// Unknown optional declarations are ignored; unknown required ones fail.
 	for (const auto* id : {"vendor.extension", "fes.gamepad", "fes.keyboard",
-		"fes.media.ata-disk", "fes.media.blob", "fes.expansion.coleco-bus"}) {
+		"fes.media.blob", "fes.expansion.coleco-bus"}) {
 		auto unknown = descriptor;
 		unknown.interfaces.push_back({id, 1, 0, false});
 		assert(check(unknown).ok());
@@ -1006,6 +1007,22 @@ void TestComputerCompatibilityComposesRecognizedInterfaces()
 	assert(check(minor).ok());
 	minor.abi.minor = 2;
 	assert(check(minor).code == mister::ErrorCode::unsupported_abi);
+	{
+		// The hard disk is a unit-0 medium whose image lives in HPS DDR.
+		auto disk = descriptor;
+		disk.abi.minor = 1;
+		disk.interfaces.erase(std::remove_if(disk.interfaces.begin(), disk.interfaces.end(),
+			[](const Interface& i) { return i.id == "fes.media.apple2-floppy"; }), disk.interfaces.end());
+		disk.interfaces.push_back({"fes.media.ata-disk", 1, 0, true});
+		assert(check(disk).code == mister::ErrorCode::unsupported_interface);
+		disk.interfaces.push_back({"fes.memory.hps-ddr", 1, 0, true});
+		assert(check(disk).ok());
+		disk.abi.minor = 0;
+		assert(check(disk).code == mister::ErrorCode::unsupported_abi);
+		disk.abi.minor = 1;
+		disk.interfaces.push_back({"fes.media.apple2-floppy", 1, 0, true});
+		assert(check(disk).code == mister::ErrorCode::unsupported_interface);
+	}
 	for (const auto* id : {"fes.persistence.words", "fes.pc386.machine", "fes.rtc.wall-clock"}) {
 		auto high = descriptor;
 		high.abi.minor = 1;

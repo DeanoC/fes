@@ -640,6 +640,33 @@ public:
 	std::function<void()> on_start;
 };
 
+// fes-window grants over a memory copy of the window from the ATA disk offset.
+class ScriptedDiskWindow final : public mister::native::MenuWindowOperations {
+public:
+	mister::Error Grant(std::uint64_t offset, std::uint64_t bytes, int* fd) override
+	{
+		const std::uint64_t base = mister::native::generated::FesComputerAtaDiskWindowOffset;
+		if (offset < base || offset - base + bytes > region.size() || offset % 4096 || bytes % 4096)
+			return {mister::ErrorCode::io_failed, "grant outside the scripted disk region"};
+		grants.push_back({offset - base, bytes});
+		*fd = static_cast<int>(grants.size());
+		return {};
+	}
+	mister::Error Map(int fd, std::size_t, void** mapping) override
+	{
+		*mapping = region.data() + grants[static_cast<std::size_t>(fd - 1)].first;
+		return {};
+	}
+	void Unmap(void*, std::size_t) override {}
+	mister::Error Clean(int, std::uint64_t, std::uint32_t, std::uint32_t, std::uint32_t) override { return {}; }
+	mister::Error Revoke(int) override { ++revokes; return {}; }
+	mister::Error Duplicate(int, int*) override { return {mister::ErrorCode::io_failed, "unused"}; }
+	void Close(int) override { ++closes; }
+	std::vector<std::uint8_t> region;
+	std::vector<std::pair<std::uint64_t, std::uint64_t>> grants;
+	unsigned revokes = 0, closes = 0;
+};
+
 struct Fixture {
 	explicit Fixture(mister::native::CoreDriver* gp_driver = nullptr,
 		mister::native::IdleRecipe idle_recipe = mister::native::SplashIdle())
@@ -652,10 +679,10 @@ struct Fixture {
 		  log(events), game_video(i2c, clock, log,
 			mister::native::Menu720p60Recipe()), input(events, clock),
 		  input_identity({"FogCast Virtual Gamepad", 0x0006, 0x0000, 0x0001,
-			0x0001}), sink(),
+			0x0001}), sink(), disk_operations(), disk_window(disk_operations),
 			hardware(opener, fpga, idle_video, game_video, input,
 			input_identity, clock, log, idle, {30000, 10000, 10000},
-			gp_driver, {"/tmp"}, std::move(idle_recipe))
+			gp_driver, {"/tmp"}, std::move(idle_recipe), nullptr, nullptr, &disk_window)
 	{
 		hardware.SetFaultSink(&sink);
 	}
@@ -677,6 +704,8 @@ struct Fixture {
 	RecordingInput input;
 	mister::native::InputDeviceIdentity input_identity;
 	RecordingFaultSink sink;
+	ScriptedDiskWindow disk_operations;
+	mister::native::DiskWindow disk_window;
 	mister::native::NativeHardware hardware;
 };
 
@@ -1358,7 +1387,8 @@ void TestInspectionReportsActualDriverCompatibilityWithoutMutation()
 	std::vector<std::string> computer_11_interfaces;
 	for (const auto& interface : computer_11.interfaces) computer_11_interfaces.push_back(interface.id);
 	std::vector<std::string> expected_11 = computer_interfaces;
-	expected_11.insert(expected_11.end(), {"fes.pc386.machine", "fes.persistence.words", "fes.rtc.wall-clock"});
+	expected_11.insert(expected_11.end(), {"fes.media.ata-disk", "fes.pc386.machine", "fes.persistence.words",
+		"fes.rtc.wall-clock"});
 	std::sort(expected_11.begin(), expected_11.end());
 	assert(computer_11_interfaces == expected_11);
 	assert(capabilities.abis[3].id == "fes.simple-computer");
@@ -2980,6 +3010,108 @@ void TestPc386LibraryRecordAndWallClock()
 	assert(rmdir(games.c_str()) == 0);
 }
 
+// A pc386 launch writes the base image with its game's delta into the
+// window and commits it with its CRC; Stop stores the dirty chunks and
+// publishes the merged manifest; the next launch restores them over the base.
+void TestPc386AtaDiskLaunchSaveAndRestore()
+{
+	using namespace mister::native;
+	using namespace mister::native::generated;
+	const std::uint32_t caps = FesComputerCapabilityVideoFixed720p60 | FesComputerCapabilityKeyboardHid |
+		FesComputerCapabilityAudioPcmS16Stereo48k | FesComputerCapabilityMouseRelative |
+		FesComputerCapabilityMemoryHpsDdr | FesComputerCapabilityMediaAtaDisk |
+		FesComputerCapabilityPersistenceWords | FesComputerCapabilityPc386Machine |
+		FesComputerCapabilityRtcWallClock;
+	mister_test::ComputerEndpoint endpoint(caps, {}, "0123456789abcdef0123456789abcdef");
+	endpoint.abi_minor = 1;
+	endpoint.verify_reads = 0;
+	FixedClock clock(100);
+	FesGp transport(endpoint, clock);
+	FesGpCoreDriver driver(transport);
+	IntegratedFixture fixture(&driver);
+	fixture.native.clock.has_local = true;
+	fixture.native.clock.local.tm_year = 126;
+	fixture.native.clock.local.tm_mday = 1;
+	fixture.native.clock.local.tm_wday = 4;
+	fixture.native.disk_operations.region.assign(4u << 20, 0xee);
+	endpoint.window = &fixture.native.disk_operations.region;
+	fixture.Start();
+	fixture.native.fpga.on_program = [&] { endpoint.Reset(); };
+	TempDirectory package, data, media, images;
+	auto manifest = Pc386Manifest();
+	for (const auto* id : {"fes.memory.hps-ddr", "fes.media.ata-disk"})
+		manifest += std::string("\n[[interfaces]]\nid = \"") + id + "\"\nmajor = 1\nminor = 0\nrequired = true\n";
+	package.File("manifest.toml", manifest);
+	package.File("core.rbf", ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+	OpenedCorePackage opened;
+	assert(OpenCorePackage(package.path, "", &opened).ok());
+	const std::uint32_t size = (2u << 20) + 1536;
+	std::string base(size, '\0');
+	for (std::uint32_t at = 0; at < size; ++at) base[at] = static_cast<char>(at * 7 + (at >> 11));
+	Sha256 hash;
+	hash.Update(base.data(), base.size());
+	mister::AtaDiskImage disk{images.File("disk.img", base), size, Sha256Hex(hash.Final()), media.path, 4, 16, 63};
+	const MediaDataIdentity identity{"fes.pc386", "ultima-vi", disk.base_media_id, 0};
+	// The disk binds to the request's game and needs geometry that fits.
+	auto bad = disk;
+	bad.cylinders = 5;
+	assert(fixture.runtime.LoadLibraryCore(package.path, opened.package_id, data.path, "ultima-vi", &bad).code ==
+		mister::ErrorCode::invalid_request);
+	assert(fixture.runtime.LoadLibraryCore(package.path, opened.package_id, data.path, "ultima-vi", &disk).ok());
+	auto& region = fixture.native.disk_operations.region;
+	assert(std::equal(base.begin(), base.end(), region.begin(),
+		[](char a, std::uint8_t b) { return static_cast<std::uint8_t>(a) == b; }));
+	assert(endpoint.disk_state == 3 && endpoint.disk_geometry == std::vector<unsigned>({size / 512, 4, 16, 63}));
+	assert(fixture.native.disk_operations.revokes == fixture.native.disk_operations.grants.size());
+	const auto status = fixture.runtime.status();
+	assert(status.capabilities.media_units.size() == 1);
+	const auto& unit = status.capabilities.media_units[0];
+	assert(unit.interface.id == "fes.media.ata-disk" && unit.state == mister::MediaUnitState::ready &&
+		unit.chunk_bytes == 65536 && unit.persistence_mode == "persistent" && unit.revision == "absent");
+	// Released: the disk is fixed while the machine runs.
+	assert(!endpoint.held && !fixture.runtime.InsertMedia(images.path + "/disk.img", opened.package_id,
+		status.generation, 0, size).ok());
+	endpoint.GuestSectorWrite(0, 0x11);
+	endpoint.GuestSectorWrite(300, 0x22);
+	endpoint.GuestSectorWrite(size / 512 - 1, 0x33);  // in the 1536-byte tail chunk
+	const auto modified = region;
+	assert(fixture.runtime.Stop().ok());
+	std::unique_ptr<AtaDeltaFile> file;
+	assert(AtaDeltaFile::Open(media.path, identity, size, &file).ok());
+	AtaDiskDelta saved;
+	assert(file->Read(&saved).ok() && saved.revision != "absent" && saved.chunks.size() == 3);
+	assert(saved.chunks[0].index == 0 && saved.chunks[1].index == 2 && saved.chunks[2].index == 32);
+	std::vector<unsigned char> chunk;
+	assert(file->ReadChunk(saved.chunks[2], &chunk).ok() && chunk.size() == 1536 && chunk.back() == 0x33);
+	assert(endpoint.dirty_chunks.empty());
+	// The next launch writes the base and the saved chunks over stale DDR.
+	std::fill(region.begin(), region.end(), 0xee);
+	assert(fixture.runtime.LoadLibraryCore(package.path, opened.package_id, data.path, "ultima-vi", &disk).ok());
+	assert(std::equal(modified.begin(), modified.begin() + size, region.begin()));
+	assert(fixture.runtime.status().capabilities.media_units[0].revision == saved.revision);
+	// A Stop with no guest writes publishes nothing new.
+	assert(fixture.runtime.Stop().ok());
+	assert(file->Read(&saved).ok() && saved.chunks.size() == 3);
+	// A base that differs from its identity, or a corrupt chunk, blocks the launch.
+	std::string changed = base;
+	changed[4096] ^= 1;
+	{ std::ofstream rewrite(disk.path, std::ios::binary | std::ios::trunc); rewrite << changed; }
+	assert(fixture.runtime.LoadLibraryCore(package.path, opened.package_id, data.path, "ultima-vi", &disk).code ==
+		mister::ErrorCode::corrupt_data);
+	{ std::ofstream rewrite(disk.path, std::ios::binary | std::ios::trunc); rewrite << base; }
+	const std::string ns = media.path + "/" + MediaDataNamespace(identity);
+	{ std::ofstream corrupt(ns + "/chunk-" + saved.chunks[1].sha256, std::ios::binary | std::ios::trunc); corrupt << "x"; }
+	assert(fixture.runtime.LoadLibraryCore(package.path, opened.package_id, data.path, "ultima-vi", &disk).code ==
+		mister::ErrorCode::corrupt_data);
+	file.reset();
+	assert(unlink((ns + "/record.bin").c_str()) == 0);
+	for (const auto& entry : saved.chunks) unlink((ns + "/chunk-" + entry.sha256).c_str());
+	assert(rmdir(ns.c_str()) == 0);
+	const std::string games = data.path + "/games/";
+	const std::string record = games + GameDataNamespace("fes.pc386", "ultima-vi");
+	assert(unlink((record + "/record.bin").c_str()) == 0 && rmdir(record.c_str()) == 0 && rmdir(games.c_str()) == 0);
+}
+
 void TestPersistentReplacementRefreshAndSaveFailureResume()
 {
 	std::vector<std::string> events;
@@ -4483,6 +4615,7 @@ int main()
 	TestNativeStreamSnapshotSizeCleanupAndObservedCapabilities();
 	TestProductionFactoryForwardsCoreDataWithoutHardwareMutation();
 	TestProductionFactoryForwardsProgrammedBitstreamWithoutHardwareMutation();
+	TestPc386AtaDiskLaunchSaveAndRestore();
 	TestPc386LibraryRecordAndWallClock();
 	TestPersistentReplacementRefreshAndSaveFailureResume();
 	TestPersistenceUnsafeResumeRetainsRecoveryOwnership();

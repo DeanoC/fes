@@ -33,6 +33,10 @@ bool ValidMediaDataIdentity(const MediaDataIdentity&);
 std::string MediaDataNamespace(const MediaDataIdentity&);
 Error EncodeMediaData(const MediaDiskRecord&, std::vector<unsigned char>*);
 Error DecodeMediaData(const std::vector<unsigned char>&, const MediaDataIdentity&, MediaDiskRecord*);
+// The no-follow namespace directory of an identity under root, created when
+// absent, with leftover private save, probe and chunk temporaries removed
+// under its lock. The caller owns the descriptor.
+Error OpenMediaDataNamespace(const std::string& root, const MediaDataIdentity&, int* directory);
 // Separate immutable-source disk namespace; neither package versions nor
 // video/firmware selection name it. Open takes the namespace lock and
 // removes leftover private save and probe files. Read reopens the complete
