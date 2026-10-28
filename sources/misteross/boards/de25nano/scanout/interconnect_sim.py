@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Simulate unchanged generated scanout CDC/AXI transport in private copies."""
+"""Simulate generated scanout CDC/AXI transport WITH MODELED M20K STORAGE."""
 from __future__ import annotations
 
 import argparse
@@ -18,6 +18,167 @@ SLAVE = "subsys_hps_f2sdram_adapter_axi4_sub_"
 CASES = ["reset_disabled", "atomic_snapshot", "complete_frames_and_slot_reuse",
          "stop_drains_accepted_reads", "pixel_clock_stall_preserves_responses",
          "axi_error_crosses_cdc", "clock_fault_is_sticky"]
+
+# This deliberately models only the hard RAM's reviewed noncollision storage
+# contract. All generated FIFO pointers, synchronizers, credits and routing stay
+# unchanged. It is not a vendor primitive model or physical RAM qualification.
+RAM_MODEL = r'''
+module altera_syncram #(
+    parameter address_aclr_b="NONE", address_reg_b="CLOCK1",
+    parameter clock_enable_input_a="BYPASS", clock_enable_input_b="BYPASS",
+    parameter clock_enable_output_b="BYPASS", enable_ecc="FALSE",
+    parameter lpm_type="altera_syncram", numwords_a=4, numwords_b=4,
+    parameter operation_mode="DUAL_PORT", outdata_aclr_b="NONE",
+    parameter outdata_sclr_b="NONE", outdata_reg_b="UNREGISTERED",
+    parameter power_up_uninitialized="TRUE", ram_block_type="M20K",
+    parameter read_during_write_mode_mixed_ports="DONT_CARE",
+    parameter widthad_a=2, widthad_b=2, width_a=8, width_b=8, width_byteena_a=1
+) (
+    input wire [widthad_a-1:0] address_a,
+    input wire [widthad_b-1:0] address_b,
+    input wire clock0, clock1, wren_a,
+    input wire [width_a-1:0] data_a,
+    output wire [width_b-1:0] q_b,
+    input wire aclr0, aclr1, address2_a, address2_b, addressstall_a, addressstall_b,
+    input wire byteena_a, byteena_b, clocken0, clocken1, clocken2, clocken3,
+    input wire [width_b-1:0] data_b,
+    output wire [width_a-1:0] q_a,
+    output wire [2:0] eccstatus,
+    input wire eccencbypass,
+    input wire [7:0] eccencparity,
+    input wire rden_a, rden_b, sclr, wren_b
+);
+    reg [width_a-1:0] memory [0:numwords_a-1];
+    reg [widthad_b-1:0] model_read_address;
+    reg [numwords_a-1:0] model_written = 0;
+    wire model_read_initialized = model_written[model_read_address];
+    initial begin
+        if (address_aclr_b!="NONE" || address_reg_b!="CLOCK1" ||
+            clock_enable_input_a!="BYPASS" || clock_enable_input_b!="BYPASS" ||
+            clock_enable_output_b!="BYPASS" || enable_ecc!="FALSE" ||
+            lpm_type!="altera_syncram" || operation_mode!="DUAL_PORT" ||
+            outdata_aclr_b!="NONE" || outdata_sclr_b!="NONE" ||
+            outdata_reg_b!="UNREGISTERED" || power_up_uninitialized!="TRUE" ||
+            ram_block_type!="M20K" || width_a!=width_b || numwords_a!=numwords_b ||
+            read_during_write_mode_mixed_ports!="DONT_CARE" ||
+            widthad_a!=widthad_b || (1<<widthad_a)!=numwords_a || width_byteena_a!=1)
+            $fatal(1,"unsupported modeled RAM parameter contract");
+        if (!((numwords_a==4 && (width_a==47 || width_a==35 || width_a==184 || width_a==8)) ||
+              (numwords_a==32 && width_a==131)))
+            $fatal(1,"unsupported modeled RAM shape");
+    end
+    // BYPASS means the clock-enable pins do not gate either used clock.
+    always @(posedge clock0) begin
+        if (aclr0 || aclr1 || sclr || addressstall_a || addressstall_b ||
+            wren_b || !byteena_a || !byteena_b || !rden_a || !rden_b ||
+            !address2_a || !address2_b || eccencbypass || eccencparity!=0)
+            $fatal(1,"unsupported modeled RAM control inputs");
+        if (wren_a) begin
+            memory[address_a] <= data_a;
+            model_written[address_a] <= 1'b1;
+        end
+    end
+    always @(posedge clock1) model_read_address <= address_b;
+    // Uninitialized contents are explicitly undefined. The private wrapper
+    // asserts that real FIFO consumers never expose an unwritten RAM word.
+    assign q_b = model_read_initialized ? memory[model_read_address] : {width_b{1'bx}};
+    // These outputs are unconnected in every guarded generated instance.
+    assign q_a = {width_a{1'bx}};
+    assign eccstatus = 3'b000;
+endmodule
+'''
+
+
+def guard_ram_primitives(sources):
+    parameters = {
+        "address_aclr_b": '"NONE"', "address_reg_b": '"CLOCK1"',
+        "clock_enable_input_a": '"BYPASS"', "clock_enable_input_b": '"BYPASS"',
+        "clock_enable_output_b": '"BYPASS"', "enable_ecc": '"FALSE"',
+        "lpm_type": '"altera_syncram"', "numwords_a": "FIFO_DEPTH", "numwords_b": "FIFO_DEPTH",
+        "operation_mode": '"DUAL_PORT"', "outdata_aclr_b": '"NONE"', "outdata_sclr_b": '"NONE"',
+        "outdata_reg_b": '"UNREGISTERED"', "power_up_uninitialized": '"TRUE"', "ram_block_type": '"M20K"',
+        "widthad_a": "ADDR_WIDTH", "widthad_b": "ADDR_WIDTH", "width_a": "PAYLOAD_WIDTH",
+        "width_b": "PAYLOAD_WIDTH", "width_byteena_a": "1"}
+    ties = {"address_a": "mem_wr_ptr", "address_b": "mem_rd_ptr", "clock0": "in_clk", "clock1": "out_clk",
+            "data_a": "in_payload", "wren_a": "in_valid&&in_ready_copyA", "q_b": "fifo_out_payload",
+            "aclr0": "1'b0", "aclr1": "1'b0", "address2_a": "1'b1", "address2_b": "1'b1",
+            "addressstall_a": "1'b0", "addressstall_b": "1'b0", "byteena_a": "1'b1", "byteena_b": "1'b1",
+            "clocken0": "1'b1", "clocken1": "1'b1", "clocken2": "1'b1", "clocken3": "1'b1",
+            "data_b": "{PAYLOAD_WIDTH{1'b1}}", "q_a": "", "eccstatus": "", "eccencbypass": "1'b0",
+            "eccencparity": "8'b0", "rden_a": "1'b1", "rden_b": "1'b1", "sclr": "1'b0", "wren_b": "1'b0"}
+    checked, conditional = [], []
+    for path, data in sources.items():
+        source = uncomment(data.decode())
+        if not re.search(r"\baltera_syncram\s*#", source):
+            continue
+        if "/st_dc_fifo_1953/synth/" not in path.as_posix():
+            # Generic SC-FIFO sources also declare primitive branches. They
+            # are not modeled: the elaborated-cell inventory below must prove
+            # that none of those branches actually instantiates a RAM cell.
+            conditional.append(path)
+            continue
+        matches = re.findall(r"\baltera_syncram\s*#\s*\((.*?)\)\s+altera_syncram_component\s*\((.*?)\);", source, re.S)
+        if len(matches) != 1:
+            raise ValueError(f"unexpected primitive instance count: {path}")
+        def named(section):
+            fields = re.findall(r"\.(\w+)\s*\(([^()]*)\)", section)
+            if re.sub(r"\.(\w+)\s*\(([^()]*)\)", "", section).strip(" \t\r\n,"):
+                raise ValueError("unsupported RAM named-argument syntax")
+            if len(fields) != len(dict(fields)):
+                raise ValueError("duplicate RAM named argument")
+            return {k: re.sub(r"\s+", "", v) for k, v in fields}
+        if named(matches[0][0]) != parameters or named(matches[0][1]) != ties:
+            raise ValueError(f"generated primitive parameter/tie contract differs: {path}")
+        checked.append(path)
+    if len(checked) != 2:
+        raise ValueError(f"expected two generated FIFO storage module definitions, found {len(checked)}")
+    return checked, conditional
+
+
+def guard_elaborated_ram(xml_path):
+    """Prove the exact five active RAM cells, not source-text branch guesses."""
+    root = ET.parse(xml_path).getroot()
+    modules = {m.get("name"): m for m in root.findall(".//module")}
+    expected = {}
+    for bridge, shapes in (("fes_ctrl_cdc", ((47, 4), (35, 4))),
+                           ("fes_mem_cdc", ((184, 4), (131, 32)))):
+        for role, shape in zip(("cmd", "rsp"), shapes):
+            expected[f"{TOP}.periph.{bridge}.{bridge}.{role}_fifo.my_altera_avalon_dc_fifo_{role}_fifo.altera_syncram_component"] = shape
+    expected[TOP + ".ram_contract_test"] = (8, 4)
+    fixed = {"address_aclr_b": "NONE", "address_reg_b": "CLOCK1",
+             "clock_enable_input_a": "BYPASS", "clock_enable_input_b": "BYPASS",
+             "clock_enable_output_b": "BYPASS", "enable_ecc": "FALSE", "lpm_type": "altera_syncram",
+             "operation_mode": "DUAL_PORT", "outdata_aclr_b": "NONE", "outdata_sclr_b": "NONE",
+             "outdata_reg_b": "UNREGISTERED", "power_up_uninitialized": "TRUE", "ram_block_type": "M20K",
+             "read_during_write_mode_mixed_ports": "DONT_CARE", "width_byteena_a": 1}
+    result = []
+    for cell in root.findall(".//cell"):
+        module = modules.get(cell.get("submodname"))
+        if module is None or module.get("origName") != "altera_syncram":
+            continue
+        hierarchy = cell.get("hier")
+        if hierarchy not in expected:
+            raise ValueError(f"unexpected actually elaborated RAM primitive: {hierarchy}")
+        values = {}
+        for var in module.findall("var"):
+            if var.get("param") != "true":
+                continue
+            constant = var.find("const")
+            match = re.fullmatch(r"(\d+)'s?h([0-9a-f]+)", constant.get("name", "") if constant is not None else "")
+            if not match:
+                raise ValueError("unsupported elaborated RAM parameter constant")
+            value = int(match[2], 16)
+            name = var.get("name")
+            values[name] = value.to_bytes((int(match[1]) + 7) // 8, "big").decode("ascii").lstrip("\0") if isinstance(fixed.get(name), str) else value
+        width, depth = expected[hierarchy]
+        wanted = fixed | {"width_a": width, "width_b": width, "widthad_a": depth.bit_length() - 1,
+                          "widthad_b": depth.bit_length() - 1, "numwords_a": depth, "numwords_b": depth}
+        if values != wanted:
+            raise ValueError(f"actually elaborated RAM parameters differ: {hierarchy}")
+        result.append({"hierarchy": hierarchy, "parameters": values})
+    if len(result) != len(expected) or {c["hierarchy"] for c in result} != set(expected):
+        raise ValueError("actual elaboration did not contain exactly the four reviewed CDC RAMs and self-test")
+    return result
 
 
 def sha(data):
@@ -158,7 +319,10 @@ def wrapper(periph_source, memory_source, memory_module):
                 "output wire [31:0] endpoint_address", "output wire [4:0] endpoint_burstcount",
                 "output wire endpoint_read, endpoint_waitrequest", "output wire [127:0] endpoint_readdata",
                 "output wire [31:0] endpoint_accepted_sequence, endpoint_displayed_sequence",
-                "output wire endpoint_pending_slot, endpoint_displayed_slot"]
+                "output wire endpoint_pending_slot, endpoint_displayed_slot",
+                "input wire [1:0] ram_test_write_address, ram_test_read_address",
+                "input wire [7:0] ram_test_data", "input wire ram_test_write, ram_test_clock_enable",
+                "output wire [7:0] ram_test_q"]
     external += [f"{d} wire {w} {role}" for role, (d, w) in axi.items()]
     external += [f"output wire {av[r][1]} mem_{r}" for r in required]
     lines = [f"module {TOP} (\n    " + ",\n    ".join(external) + "\n);"]
@@ -220,9 +384,31 @@ def wrapper(periph_source, memory_source, memory_module):
                 "accepted_sequence": "accepted_sequence", "displayed_sequence": "displayed_sequence",
                 "pending_slot": "pending_slot", "displayed_slot": "displayed_slot"}
     lines += [f"assign endpoint_{role} = periph.fes_scanout.fes_scanout.{signal};" for role, signal in monitors.items()]
+    for bridge in ("fes_ctrl_cdc", "fes_mem_cdc"):
+        for role in ("cmd", "rsp"):
+            fifo = f"periph.{bridge}.{bridge}.{role}_fifo.my_altera_avalon_dc_fifo_{role}_fifo"
+            ram = fifo + ".altera_syncram_component"
+            lines += [f"always @(posedge {fifo}.out_clk) if (reset_n && {fifo}.internal_out_ready && {fifo}.internal_out_valid)",
+                      f" if (!{ram}.model_read_initialized) $fatal(1,\"FIFO exposed uninitialized modeled storage\");",
+                      f"always @(posedge {fifo}.in_clk) if (reset_n && {fifo}.in_valid && {fifo}.in_ready_copyA &&",
+                      f" {fifo}.internal_out_valid && {fifo}.mem_wr_ptr == {ram}.model_read_address)",
+                      ' $fatal(1,"FIFO write collided with its live unread modeled head");']
+    lines += ["altera_syncram ram_contract_test (",
+              " .address_a(ram_test_write_address), .address_b(ram_test_read_address),",
+              " .clock0(clk_mem), .clock1(clk_pixel), .data_a(ram_test_data), .wren_a(ram_test_write),",
+              " .q_b(ram_test_q), .aclr0(1'b0), .aclr1(1'b0), .address2_a(1'b1), .address2_b(1'b1),",
+              " .addressstall_a(1'b0), .addressstall_b(1'b0), .byteena_a(1'b1), .byteena_b(1'b1),",
+              " .clocken0(ram_test_clock_enable), .clocken1(ram_test_clock_enable),",
+              " .clocken2(ram_test_clock_enable), .clocken3(ram_test_clock_enable), .data_b(8'hff),",
+              " .q_a(), .eccstatus(), .eccencbypass(1'b0), .eccencparity(8'b0),",
+              " .rden_a(1'b1), .rden_b(1'b1), .sclr(1'b0), .wren_b(1'b0));"]
     connections = []
     for direction, width, name in mp:
-        if name.startswith(MASTER):
+        if name == MASTER + "translator_reset_reset_bridge_in_reset_reset":
+            if (direction, width) != ("input", ""):
+                raise ValueError("generated scanout translator reset port changed")
+            value = "~reset_n"
+        elif name.startswith(MASTER):
             role = name.removeprefix(MASTER)
             # The CCB exports a [0:0] writeresponsevalid vector; Pro's
             # top-level interconnect flattens that one-bit response to scalar.
@@ -258,9 +444,9 @@ def main(argv=None):
     if output == project or project in output.parents:
         parser.error("simulation output must be outside the producer project")
     output.mkdir(parents=True, exist_ok=False)
-    receipt = {"format": 1, "classification": "generated-scanout-cdc-transport-simulation", "status": "failed",
+    receipt = {"format": 1, "classification": "generated-scanout-cdc-transport-simulation-with-modeled-m20k-storage", "status": "failed",
                "hardware_access": "not-performed", "admission": "not-qualified", "project": str(project),
-               "coverage": "actual generated peripheral control/memory CDCs, endpoint/video/reader and Avalon128-to-AXI256 path",
+               "coverage": "actual generated peripheral control/memory CDC logic, endpoint/video/reader and Avalon128-to-AXI256 path WITH MODELED M20K STORAGE",
                "clock_model": {"system_hz": 100000000, "pixel_hz": 74250000,
                                "half_period_units": {"system": 297, "pixel": 400},
                                "pixel_initial_phase_units": 17, "physical_timing_proof": False},
@@ -275,6 +461,19 @@ def main(argv=None):
         receipt["generation_sha256"] = sha(generation_data)
         receipt["generation_scanout"] = generation["scanout"]
         qips, periph, memory, module, sources, cdc_instances = source_closure(project)
+        ram_sources, conditional_ram_sources = guard_ram_primitives(sources)
+        ram_path = output / "modeled_m20k_storage.v"
+        ram_path.write_text(RAM_MODEL)
+        receipt["ram_storage_model"] = {"classification": "explicit noncollision storage model; not a vendor primitive model",
+            "sha256": sha(ram_path.read_bytes()), "guarded_generated_sources": [str(p.relative_to(project)) for p in ram_sources],
+            "conditional_primitive_sources_proven_unelaborated": [str(p.relative_to(project)) for p in conditional_ram_sources],
+            "actual_shapes": [{"width": 47, "depth": 4}, {"width": 35, "depth": 4},
+                              {"width": 184, "depth": 4}, {"width": 131, "depth": 32}],
+            "self_test": "reset_disabled case checks independent clocks, address latency, unregistered output, write enable and BYPASS clock enables",
+            "runtime_guards": ["FIFO RAM-to-output-stage valid transfer never consumes an unwritten RAM word",
+                               "FIFO never overwrites its live unread RAM head; buffered output is separate"],
+            "unproven": ["mixed-port same-address collision behavior (vendor default DONT_CARE)",
+                         "undefined power-up data", "vendor primitive equivalence", "physical M20K behavior", "CDC metastability"]}
         header = project / "fes_mailbox/generated/fes_de25_scanout.h"
         sources[header] = header.read_bytes()
         receipt["source_sha256"] = {str(p.relative_to(project)): sha(b) for p, b in sorted(sources.items())}
@@ -304,10 +503,18 @@ def main(argv=None):
         receipt["verilator"] = {"path": verilator, "version": subprocess.check_output([verilator, "--version"], text=True).strip()}
         includes = sorted({str((output / "sources" / p.relative_to(project)).parent) for p in sources})
         rtl = sorted(str(output / "sources" / p.relative_to(project)) for p in sources if p.suffix in (".v", ".sv"))
+        rtl_args = [*("-I" + p for p in includes), str(wrapper_path), str(ram_path), *rtl]
+        xml_path = output / "elaboration.xml"
+        elaborate = [verilator, "--xml-only", "--xml-output", str(xml_path), "-Wno-fatal", "--assert", "--top-module", TOP, *rtl_args]
+        receipt["elaboration_command"] = elaborate
+        with (output / "elaboration.log").open("w") as log:
+            subprocess.run(elaborate, check=True, stdout=log, stderr=subprocess.STDOUT)
+        receipt["ram_storage_model"]["actual_elaborated_cells"] = guard_elaborated_ram(xml_path)
+        receipt["elaboration_sha256"] = sha(xml_path.read_bytes())
         command = [verilator, "--cc", "--exe", "--build", "-j", "2", "-O2", "-Wno-fatal", "--assert",
                    "--top-module", TOP, "--Mdir", str(output / "obj"),
                    "-CFLAGS", "-I" + str(output / "sources/fes_mailbox"),
-                   *("-I" + p for p in includes), str(wrapper_path), *rtl, str(bench_copy)]
+                   *rtl_args, str(bench_copy)]
         receipt["build_command"] = command
         with (output / "build.log").open("w") as log:
             subprocess.run(command, check=True, stdout=log, stderr=subprocess.STDOUT)
@@ -318,6 +525,8 @@ def main(argv=None):
         receipt["cases"] = [json.loads(line) for line in (output / "simulation.log").read_text().splitlines() if line.startswith("{")]
         if [c.get("case") for c in receipt["cases"]] != CASES or not all(c.get("status") == "pass" for c in receipt["cases"]):
             raise ValueError("simulation did not report every required case exactly once in order")
+        if receipt["cases"][0].get("ram_storage_self_test_passed") is not True:
+            raise ValueError("explicit RAM storage model contract self-test did not pass")
         if any(p.read_bytes() != data for p, data in qips.items()) or any(p.read_bytes() != data for p, data in sources.items()):
             raise ValueError("producer source changed during simulation")
         if sha(inputs.read_bytes()) != receipt["build_inputs_sha256"]:
@@ -330,7 +539,7 @@ def main(argv=None):
     except (OSError, ValueError, ET.ParseError, subprocess.CalledProcessError) as error:
         receipt["error"] = str(error)
     finally:
-        for name in ("build.log", "simulation.log"):
+        for name in ("elaboration.log", "build.log", "simulation.log"):
             path = output / name
             if path.is_file():
                 receipt.setdefault("log_sha256", {})[name] = sha(path.read_bytes())

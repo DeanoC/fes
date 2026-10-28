@@ -1,4 +1,4 @@
-// Unchanged generated control/memory CDCs and real scanout, modeled AXI256 RAM.
+// Generated CDC logic and real scanout WITH MODELED M20K STORAGE/AXI256 RAM.
 #include "Vfes_de25_scanout_interconnect_test.h"
 #include "verilated.h"
 #include "generated/fes_de25_scanout.h"
@@ -44,12 +44,15 @@ struct Simulation {
     std::array<unsigned, 2> frames_at_accept{};
     uint32_t observed_accepted = 0, observed_displayed = 0;
     bool check_pixels = true, ar_stalled = false;
+    bool ram_storage_self_test_passed = false;
     Burst held_ar{};
 
     Simulation() {
         dut.clk_mem = 0; dut.clk_pixel = 0; dut.reset_n = 0; dut.clock_fault = 0;
         dut.address = 0; dut.read = 0; dut.write = 0;
         dut.byteenable = 15; dut.writedata = 0;
+        dut.ram_test_write_address = 0; dut.ram_test_read_address = 2;
+        dut.ram_test_data = 0; dut.ram_test_write = 0; dut.ram_test_clock_enable = 1;
         dut.arready = 0; dut.rvalid = 0; dut.rlast = 0; dut.rresp = 0; dut.rid = 0;
         for (unsigned lane = 0; lane < 8; ++lane) dut.rdata[lane] = 0;
         cycles(32);
@@ -194,6 +197,39 @@ struct Simulation {
         while (mem_cycles < end) step();
     }
 
+    void test_ram_storage_contract() {
+        // Direct self-test of the explicit storage model, not of a vendor
+        // primitive. No same-address mixed-port collision is used as evidence.
+        dut.ram_test_clock_enable = 0;  // BYPASS must ignore these enable pins.
+        auto ram_write = [&](unsigned address, unsigned data, bool enable) {
+            dut.ram_test_write_address = address; dut.ram_test_data = data;
+            dut.ram_test_write = enable; dut.eval();
+            do { step(); } while (!mem_rise);
+            dut.ram_test_write = 0; dut.eval();
+        };
+        auto read_edge = [&]() {
+            uint64_t before = pixel_cycles;
+            while (pixel_cycles == before) step();
+        };
+        ram_write(0, 0x3c, true); ram_write(1, 0xa5, true);
+        dut.ram_test_read_address = 0; read_edge();
+        require(dut.ram_test_q == 0x3c, "RAM registered-address/unregistered-output latency differs");
+        while (dut.clk_pixel) step();
+        pixel_stopped = true; dut.ram_test_read_address = 1; cycles(4);
+        require(dut.ram_test_q == 0x3c, "RAM read address changed without its clock edge");
+        ram_write(2, 0x5a, true); ram_write(1, 0x99, false);
+        require(dut.ram_test_q == 0x3c, "independent writes changed the selected unrelated RAM word");
+        pixel_stopped = false; read_edge();
+        require(dut.ram_test_q == 0xa5, "disabled RAM write or BYPASS read enable was modeled incorrectly");
+        while (dut.clk_pixel) step();
+        pixel_stopped = true; dut.ram_test_read_address = 2; cycles(3);
+        require(dut.ram_test_q == 0xa5, "RAM output added an asynchronous address path");
+        pixel_stopped = false; read_edge();
+        require(dut.ram_test_q == 0x5a, "independent RAM write or one-edge read latency was lost");
+        dut.ram_test_clock_enable = 1;
+        ram_storage_self_test_passed = true;
+    }
+
     void write(uint32_t offset, uint32_t value) {
         dut.address = FES_DE25_SCANOUT_PERIPHERAL_OFFSET + offset;
         dut.writedata = value; dut.write = 1; dut.eval();
@@ -281,7 +317,9 @@ struct Simulation {
                   << ",\"axi_beats\":" << axi_beats << ",\"full_frames_slot0\":" << complete_frames[0]
                   << ",\"full_frames_slot1\":" << complete_frames[1] << ",\"ar_stall_cycles\":" << ar_stalls
                   << ",\"r_stall_cycles\":" << r_stalls << ",\"endpoint128_beats\":" << endpoint_beats
-                  << ",\"endpoint_error_beats\":" << endpoint_error_beats << "}" << std::endl;
+                  << ",\"endpoint_error_beats\":" << endpoint_error_beats
+                  << ",\"ram_storage_self_test_passed\":" << (ram_storage_self_test_passed ? "true" : "false")
+                  << "}" << std::endl;
     }
 };
 
@@ -290,6 +328,7 @@ int main(int argc, char** argv) {
     try {
         {
             Simulation s;
+            s.test_ram_storage_contract();
             require(s.read(FES_DE25_SCANOUT_ID_OFFSET) == FES_DE25_SCANOUT_IDENTITY, "wrong generated control decode");
             require(s.read(FES_DE25_SCANOUT_VERSION_OFFSET) == FES_DE25_SCANOUT_VERSION, "wrong register version");
             auto v = s.snapshot();
