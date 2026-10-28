@@ -1,6 +1,7 @@
 package tenfoot
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -12,7 +13,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DeanoC/FogCast/catalog"
+	"github.com/DeanoC/FogCast/corepackage"
+	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/agent"
+	"github.com/DeanoC/FogCast/internal/hostapi"
+	"github.com/DeanoC/FogCast/internal/misterruntime"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/gfx"
@@ -62,6 +69,58 @@ func newLiveHardwareApp(t *testing.T, h *tapeHost) *App {
 	return app
 }
 
+type colecoCoordinatorRuntime struct {
+	activation misterruntime.CoreActivation
+}
+
+func (*colecoCoordinatorRuntime) Health(string) protocol.Health { return protocol.Health{Ready: true} }
+func (*colecoCoordinatorRuntime) Reconcile(context.Context) protocol.Status {
+	return protocol.Status{State: protocol.StateIdle}
+}
+func (*colecoCoordinatorRuntime) LoadDevelopmentRBF(context.Context, int64, io.Reader) (string, bool, *protocol.APIError) {
+	return "", false, nil
+}
+func (*colecoCoordinatorRuntime) RecoverDevelopment(context.Context) (string, *protocol.APIError) {
+	return "", nil
+}
+func (*colecoCoordinatorRuntime) Stop(context.Context) (string, *protocol.APIError) { return "", nil }
+func (r *colecoCoordinatorRuntime) LoadCoreOwned(context.Context, context.Context, context.Context, int64, io.Reader) (misterruntime.CoreActivation, bool, *protocol.APIError) {
+	return r.activation, true, nil
+}
+
+type coordinatorSessionAPI struct {
+	coordinator *agent.Coordinator
+}
+
+func (*coordinatorSessionAPI) Games(context.Context) ([]catalog.Game, error) { return nil, nil }
+func (*coordinatorSessionAPI) Search(context.Context, string) ([]catalog.Game, error) {
+	return nil, nil
+}
+func (*coordinatorSessionAPI) Game(context.Context, string) (catalog.Game, error) {
+	return catalog.Game{}, nil
+}
+func (*coordinatorSessionAPI) Health(context.Context) (protocol.Health, error) {
+	return protocol.Health{}, nil
+}
+func (s *coordinatorSessionAPI) Status(context.Context) (protocol.Status, error) {
+	status := s.coordinator.Status()
+	gameID, system := "fpga-coleco-dk", catalog.CorePlatform
+	status.GameID, status.System = &gameID, &system
+	return status, nil
+}
+func (*coordinatorSessionAPI) Launch(context.Context, string, fogcast.ProgressFunc) (protocol.CachedLaunchResponse, error) {
+	return protocol.CachedLaunchResponse{}, nil
+}
+func (*coordinatorSessionAPI) LoadDevelopmentRBF(context.Context, int64, io.Reader) (protocol.Status, error) {
+	return protocol.Status{}, nil
+}
+func (*coordinatorSessionAPI) Stop(context.Context) (protocol.Status, error) {
+	return protocol.Status{State: protocol.StateIdle}, nil
+}
+func (*coordinatorSessionAPI) MeshBackendLibrary(context.Context) ([]fogcast.MeshBackendRow, []fogcast.MeshSkip) {
+	return nil, nil
+}
+
 func assertLiveHardwareIdentity(t *testing.T, app *App, h *tapeHost) {
 	t.Helper()
 	app.mu.Lock()
@@ -76,16 +135,34 @@ func assertLiveHardwareIdentity(t *testing.T, app *App, h *tapeHost) {
 }
 
 func TestColecoHomeAndF12OpenColecoSelectorWithoutLiveMedia(t *testing.T) {
-	// This is the host session shape for the installed native format-4 Coleco
-	// package. Its package descriptor identifies fes.coleco, while the runtime's
-	// supported-interface projection omits the package's optional bus v2.
-	const realColecoSession = `{"id":"coleco-session","target":"kit-a","state":"active","game_id":"fpga-coleco-dk","system":"fpga","execution":"fpga_native","core_package":{"package_id":"506110a2554a80e0952d50ab3d40d2ea27e41ba014d4a91703e7de31bcddfa9c","core_id":"fes.coleco","generation":7,"abi":{"id":"fes.application","major":1,"minor":0},"active_interfaces":[{"id":"fes.audio.pcm-s16-stereo-48k","major":1,"minor":0},{"id":"fes.gamepad.ports","major":1,"minor":0},{"id":"fes.keypad.ports","major":1,"minor":0},{"id":"fes.video.fixed-720p60","major":1,"minor":0},{"id":"fes.memory.hps-ddr","major":1,"minor":0},{"id":"fes.video.session-display","major":1,"minor":0},{"id":"fes.fabric.video.display-plane","major":1,"minor":0}]}}`
-	installedSession, err := hostclient.DecodeSession(200, []byte(realColecoSession))
-	if err != nil {
-		t.Fatalf("decode installed Coleco session: %v", err)
+	coordinator := agent.New(&colecoCoordinatorRuntime{activation: misterruntime.CoreActivation{
+		PackageID: "506110a2554a80e0952d50ab3d40d2ea27e41ba014d4a91703e7de31bcddfa9c",
+		Descriptor: corepackage.Descriptor{
+			Core:  corepackage.Core{ID: colecoCoreID},
+			ABI:   corepackage.Contract{ID: "fes.application", Major: 1},
+			Build: corepackage.Build{ID: "0123456789abcdef0123456789abcdef"},
+		},
+		Generation: 7,
+		ActiveInterfaces: []misterruntime.Protocol2Interface{
+			{ID: "fes.audio.pcm-s16-stereo-48k", Major: 1},
+			{ID: "fes.video.session-display", Major: 1},
+		},
+	}}, 0, 0)
+	status, apiErr := coordinator.LoadCore(context.Background(), 1, strings.NewReader("p"))
+	if apiErr != nil || status.CorePackage == nil || status.CorePackage.CoreID != colecoCoreID {
+		t.Fatalf("coordinator status=%+v err=%v", status, apiErr)
 	}
-	if installedSession.System != "fpga" || installedSession.CorePackage == nil || installedSession.CorePackage.CoreID != colecoCoreID || sessionHasCoreInterface(installedSession, "fes.expansion.coleco-bus", 2) {
-		t.Fatalf("fixture no longer matches the installed Coleco session shape: %+v", installedSession)
+
+	hostServer := httptest.NewServer(hostapi.New(&coordinatorSessionAPI{coordinator: coordinator}))
+	t.Cleanup(hostServer.Close)
+	installedSession, err := hostclient.NewClient(hostServer.URL, hostServer.Client()).Session(context.Background())
+	if err != nil {
+		t.Fatalf("read host session: %v", err)
+	}
+	if installedSession.System != string(catalog.CorePlatform) || installedSession.CorePackage == nil ||
+		installedSession.CorePackage.CoreID != colecoCoreID ||
+		sessionHasCoreInterface(installedSession, "fes.expansion.coleco-bus", 2) {
+		t.Fatalf("host session lost the coordinator's Coleco identity: %+v", installedSession)
 	}
 	for _, key := range []string{"home", "f12"} {
 		t.Run(key, func(t *testing.T) {
@@ -102,8 +179,12 @@ function draw() gfx.clear("#101820") gfx.text("Coleco title selector", 20, 20, {
 `),
 			}), "")
 			app.mu.Lock()
-			app.session = installedSession
+			app.applySessionLocked(installedSession)
+			coleco := app.colecoSessionLocked()
 			app.mu.Unlock()
+			if !coleco {
+				t.Fatal("Tenfoot did not recognize the coordinator-built Coleco host session")
+			}
 
 			if hint := app.Snapshot().HeaderHint(); !strings.Contains(hint, "coleco selector") {
 				t.Fatalf("Coleco active-session hint = %q", hint)
