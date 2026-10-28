@@ -395,11 +395,13 @@ func fetchCassetteSession(ctx context.Context, client *http.Client, origin strin
 
 func resolveCassetteArgument(ctx context.Context, origin, arg string) (mediaID, name string, err error) {
 	if protocol.ValidateDigest(arg) == nil {
-		return arg, "program.tap", nil
+		// A digest has no name; the host reads the media to tell a tape
+		// from a snapshot.
+		return arg, "", nil
 	}
 	before, err := os.Lstat(arg)
 	base := filepath.Base(arg)
-	if err != nil || !before.Mode().IsRegular() || !protocol.AdmitSpectrumTapeName(base) || !protocol.AdmitSpectrumTapeSize(before.Size()) {
+	if err != nil || !before.Mode().IsRegular() || !protocol.AdmitSpectrumCassetteName(base) || !protocol.AdmitSpectrumTapeSize(before.Size()) {
 		return "", "", protocol.CassetteMediaRequestError()
 	}
 	file, err := os.Open(arg)
