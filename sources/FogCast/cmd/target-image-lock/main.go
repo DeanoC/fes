@@ -94,7 +94,7 @@ func runPackageSelection(command string, args []string, stdout, stderr io.Writer
 	flags := flag.NewFlagSet(command, flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	coreID := flags.String("core-id", "fes.pong", "expected package core ID")
-	packageDirectory := flags.String("package", "", "sealed format-2 or format-3 package directory")
+	packageDirectory := flags.String("package", "", "sealed format-2, format-3, or format-4 package directory")
 	selection := flags.String("selection", "", "closed package selection record")
 	cache := flags.String("cache", "", "native package cache")
 	output := flags.String("output", "", "published package selection record")
