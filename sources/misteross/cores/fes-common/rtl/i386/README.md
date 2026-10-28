@@ -3,9 +3,9 @@
 The first-party 386-compatible CPU proposed in
 [the i386 CPU design](../../../../docs/i386-cpu-design.md). This directory
 holds Phase 1's slices so far: the uop format, the front end from F1 to Q,
-and `fes_i386_cpu`, which runs the one-uop register and immediate forms in
-real mode from D to WB. There is no data memory, cache, microcode or
-exception delivery yet.
+and `fes_i386_cpu`, which runs the real-mode instructions `fes_i386_decode`
+lists from D to WB, with their memory forms on a data port, fixed uop
+sequences, the microcode ROM and exception delivery. There is no cache yet.
 
 | File | Stage | Content |
 | --- | --- | --- |
@@ -219,18 +219,23 @@ every field and routine.
     (`rom_ok`, `uc_wait`), with `issue` kept off the M10K's pins.
   - Routines are straight sequences. INTO's JNO, a branch that ends the
     instruction only when taken, is the one microbranch, resolved at EX.
-- **Stack probe.** PUSHA, POPA and INT start with a probe of their stack
-  slots. Under SS's real-mode limit, FFFFh, a slot faults only by straddling
-  the 64 KiB wrap. Some slot does when the slots wrap and start misaligned
-  to their size. M1 flags that (`pbad`), and M2 raises #SS(0) from the
-  register, before the routine writes anything. Under any other SS limit the
-  routines are unimplemented. For PUSHA and POPA this differs from the
-  386EX, which moves the slots below the one that crosses first (divergence
-  `stack-wrap-partial-transfer`).
+- **Stack slots.** A `STK_PEEK` uop reads or writes the slot at ESP plus a
+  signed number of operand-sized slots, -8 to 7, without moving ESP. One
+  that also writes ESP steps it past eight slots, down from a slot below ESP
+  and up from one above.
+- **INT's probe.** INT starts with a probe of its three slots. Under SS's
+  real-mode limit, FFFFh, a slot faults only by straddling the 64 KiB wrap,
+  which one does when they wrap at an odd offset. M1 flags that (`pbad`), and
+  M2 raises #SS(0) from the register, before INT writes anything. Under any
+  other SS limit INT is unimplemented.
 - **The routines:**
-  - PUSHA and PUSHAD keep ESP in T1 for its push.
-  - POPA and POPAD read ESP's slot into T1. POPAD on a 16-bit stack takes
-    ESP's high word from it, as the 386EX does.
+  - PUSHA and PUSHAD store each register in its own slot below ESP, from the
+    lowest address up, ESP's being the unmoved original, and step ESP at the
+    last. Each slot checks its own limit, so a block that wraps the stack
+    misaligned stores the slots below the one that straddles and then raises
+    #SS(0), ESP unmoved, as the 386EX does.
+  - POPA and POPAD load each slot from ESP up the same way, ESP's into T1.
+    POPAD on a 16-bit stack takes ESP's high word from it, as the 386EX does.
   - INT n, INT3 and INTO read the vector's entry first, at linear vector × 4,
     as the 386EX does. Then they push FLAGS, clearing IF and TF, CS and IP,
     and jump.
@@ -310,9 +315,23 @@ count set it, and the shift OF and wide-count CF rules are in
 
 **Branches** are predicted not taken. EX resolves them; a taken one redirects
 F1 from WB, where every younger uop is flushed, and clears D's forwarding
-tables. A fault, an unimplemented encoding or HLT stops D issuing after it;
-at WB the fault stops the CPU with nothing retired (delivery waits for the
-microcode slice), and HLT retires and stops it.
+tables. A fault, an unimplemented encoding or HLT stops D issuing after it.
+At WB an unimplemented encoding stops the CPU with nothing retired, and HLT
+retires and stops it. A fault is delivered:
+- **Entry.** WB flushes everything younger, restores EX's running flags from
+  EFLAGS (the faulting uop has passed EX, but its flags never retire), and
+  restarts the front end and DC. The cycle after, DC's skid takes the
+  exception's entry (`dc_exc`): a NOP, at length 0, that starts the ROM's
+  `vector` routine with the fault's vector, the one INTO enters.
+- **The frame.** D's EIP is the faulting instruction's, cut to 16 bits, so
+  the routine pushes FLAGS, CS and that IP, and D's CS-limit check passes an
+  EIP of 10000h left by an instruction that ends at FFFFh. The front end
+  refetches from where it was, and the routine's far jump discards that.
+- **A fault in a delivery** stops the CPU, as unimplemented with vector 8:
+  double fault and shutdown are not built. In real mode that is a stack that
+  straddles the 64 KiB wrap at SP 1, 3 or 5, which faults again however the
+  delivery is retried.
+- The delivery's last uop retires with `trace_exception`.
 
 **WB** commits in order: the GPR file and segment registers in flip-flops,
 EFLAGS, EIP and stores, the result's low bytes moved to the address's place

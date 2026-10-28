@@ -52,7 +52,8 @@ module fes_i386_decode (
     output logic [15:0]            far_sel,
     output logic [5:0]             wseg,        // the segment registers the uop writes, one-hot
     output logic [7:0]             upc,         // SEQ_UCODE: the ROM address of the routine's second uop
-    output logic                   ivt          // the memory operand is the interrupt vector's entry
+    output logic                   ivt,         // the memory operand is the interrupt vector's entry
+    output logic [3:0]             slot         // STK_PEEK: the stack slot, -8 to 7, from ESP
 );
     typedef fes_i386_pkg::uop_t uop_t;
 
@@ -142,7 +143,7 @@ module fes_i386_decode (
     logic        lptr;      // LES and its kin (SEQ_LPTR)
     logic        fptr;      // JMP and CALL m16:16/32 (SEQ_JMPFM, SEQ_CALLFM)
     logic        d_t1;      // the destination is T1, not T0
-    logic [1:0]  probe;     // probe_e: the uop probes a routine's stack slots
+    logic        probe;     // probe_e: the uop probes INT's stack slots
     logic        eoi_taken; // ends the instruction only when taken (INTO's JNO)
     logic [7:0]  vec;       // INT3, INT n, INTO: the vector
     logic        eoi;       // the uop ends the instruction
@@ -180,6 +181,7 @@ module fes_i386_decode (
         probe = fes_i386_pkg::PROBE_NONE;
         upc = 8'd0;
         ivt = 1'b0;
+        slot = 4'd0;
         eoi_taken = 1'b0;
         vec = 8'd0;
         d_idx = 3'd0;
@@ -584,12 +586,25 @@ module fes_i386_decode (
                     seg2_t = 1'b0;
                 end
                 8'b0110000?: begin
-                    // PUSHA, PUSHAD, POPA, POPAD (SEQ_UCODE): a probe of all
-                    // eight slots, then the ROM's routine
+                    // PUSHA, PUSHAD (SEQ_UCODE): EDI's store at the lowest of
+                    // the eight slots below ESP; POPA, POPAD: DI's load from
+                    // the lowest above it. Then the ROM's routine, ESP
+                    // unmoved until its last uop.
                     op = 5'd9;  // ALU_MOV
-                    mkind = 2'd1;
-                    stk = fes_i386_pkg::STK_PROBE;
-                    probe = b0[0] ? fes_i386_pkg::PROBE_POPA : fes_i386_pkg::PROBE_PUSHA;
+                    stk = fes_i386_pkg::STK_PEEK;
+                    if (b0[0]) begin
+                        s1_valid = 1'b1;
+                        s1_idx = 3'd7;
+                        d_valid = 1'b1;
+                        d_idx = 3'd7;
+                        mkind = 2'd1;
+                    end else begin
+                        s2_valid = 1'b1;
+                        s2_idx = 3'd7;
+                        m_in_a = 1'b1;
+                        mkind = 2'd2;
+                        slot = 4'b1000;  // -8
+                    end
                     seq = fes_i386_pkg::SEQ_UCODE;
                     upc = b0[0] ? fes_i386_ucode_pkg::UC_POPA : fes_i386_ucode_pkg::UC_PUSHA;
                     eoi = 1'b0;
@@ -637,7 +652,7 @@ module fes_i386_decode (
                     branch = 1'b1;
                     eoi_taken = 1'b1;
                     seq = fes_i386_pkg::SEQ_UCODE;
-                    upc = fes_i386_ucode_pkg::UC_INTO;
+                    upc = fes_i386_ucode_pkg::UC_VECTOR;
                     eoi = 1'b0;
                 end
                 8'hcf: begin
