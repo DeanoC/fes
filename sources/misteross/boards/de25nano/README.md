@@ -5,6 +5,11 @@ FPGA-only 720p HDMI SOFs with Quartus Pro 26.3. They reuse portable FES video
 RTL and the pinned Terasic HDMI/Agilex reference; menu mode is a local pattern
 diagnostic without HPS, DDR, GP or runtime presentation support.
 
+The [allocated-buffer scanout diagnostic](scanout/README.md) connects the real
+menu reader to the preserved HPS memory path through explicit clock-crossing
+bridges. It tests full-frame completion and buffer ownership while production
+Linux binding and physical board acceptance remain closed.
+
 This standalone FPGA diagnostic targets the Terasic DE25-Nano with
 `A5EB013BB23BE4SCS`. It counts upward on the eight active-low user LEDs once
 every half second, using the 50 MHz `CLOCK0_50` input. Clock and LED pins use

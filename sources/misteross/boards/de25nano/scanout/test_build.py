@@ -1,0 +1,110 @@
+"""Actual upstream composition, retained-source and fail-closed mutation guards."""
+import importlib.util
+import json
+from pathlib import Path
+import tempfile
+import unittest
+from unittest import mock
+
+SPEC = importlib.util.spec_from_file_location("de25_scanout_builder_test", Path(__file__).with_name("build.py"))
+B = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(B)
+
+
+class ScanoutBuildTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix="de25-scanout-test-")
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        fixture_module = B.load(B.HERE.parent / "combined/test_build.py", "scanout_upstream_fixture")
+        self.fixture = fixture_module.CombinedBuildTests()
+        self.fixture.setUp()
+        self.addCleanup(self.fixture.doCleanups)
+        self.sources = B.capture()
+        self.sources.update(self.fixture.sources)
+
+    def prepare(self, revision=None):
+        with mock.patch.object(B, "capture", return_value=self.sources):
+            return B.prepare(self.fixture.archive, self.root / "prepared", revision)
+
+    def test_actual_preparation_replaces_pattern_with_response_preserving_real_scanout(self):
+        output, _, hps, _ = self.prepare()
+        project = output / "combined/hps/project"
+        inputs = json.loads((project.parent / "inputs.json").read_text())
+        qsf = (project / "golden_top.qsf").read_text()
+        top = (project / "golden_top.v").read_text()
+        self.assertNotIn("fes_menu_pattern_memory", qsf)
+        self.assertNotIn("fes_de25_combined_video", top)
+        self.assertFalse((project / "fes_combined/video.v").exists())
+        self.assertFalse((project / "fes_combined/fes_menu_pattern_memory.v").exists())
+        self.assertIn("fes_de25_scanout_board fes_video_inst", top)
+        self.assertIn(".h2f_warm_reset_handshake_reset_ack         (1'b1)", top)
+        self.assertIn(".fes_scanout_pixel_clk_clk (scanout_pixel_clk)", top)
+        self.assertTrue(inputs["combined_display"]["ddr_scanout"])
+        self.assertFalse(inputs["scanout"]["default_enabled"])
+        self.assertNotIn("reviewed_video_derivation", inputs["combined_display"])
+        # Preserve the original HPS producer files and its receipt: the new
+        # producer must not overwrite fes_mailbox/build.py or integrate.tcl.
+        for name, value in inputs["source_sha256"].items():
+            self.assertEqual(hps.digest(project / "fes_mailbox" / name), value)
+        for name, value in inputs["scanout"]["source_sha256"].items():
+            self.assertEqual(hps.digest(project / "fes_mailbox" / name), value)
+        self.assertIn("scanout_build.py", inputs["scanout"]["source_sha256"])
+        self.assertEqual((project / self.fixture.hps.HPS).read_bytes(), self.fixture.files[self.fixture.hps.HPS])
+        self.assertEqual((project / self.fixture.hps.EMIF).read_bytes(), self.fixture.files[self.fixture.hps.EMIF])
+        self.assertEqual((project / self.fixture.hps.BOOT).read_bytes(), self.fixture.files[self.fixture.hps.BOOT])
+
+    def test_source_snapshot_survives_later_working_source_mutation(self):
+        revision = "a" * 40
+        output, _, _, _ = self.prepare(revision)
+        key = B.BOARD + "scanout/fes_de25_scanout.v"
+        original = self.sources[key]
+        self.sources[key] = b"unselected edit"
+        project = output / "combined/hps/project"
+        self.assertEqual((project / "fes_mailbox/fes_de25_scanout.v").read_bytes(), original)
+        self.assertEqual((output / "functional-source" / key).read_bytes(), original)
+        inputs = json.loads((project.parent / "inputs.json").read_text())
+        self.assertEqual(inputs["fes_revision"], revision)
+        self.assertNotIn("base_revision", inputs)
+        self.assertEqual(inputs["functional_snapshot_sha256"][key], B.sha(original))
+
+    def test_rendered_register_offset_comes_from_selected_generated_definition(self):
+        key = B.BOARD + "scanout/generated/fes_de25_scanout.vh"
+        self.sources[key] = self.sources[key].replace(b"PERIPHERAL_OFFSET 32'h00010200", b"PERIPHERAL_OFFSET 32'h00010300")
+        output, _, _, _ = self.prepare()
+        project = output / "combined/hps/project"
+        script = (project / "integrate-mailbox.tcl").read_text()
+        self.assertIn("pb_cpu_0.m0/fes_ctrl_cdc.s0 baseAddress 0x10300", script)
+        self.assertNotIn("@SCANOUT_BASE@", script)
+        self.assertIn("subsys_periph.fes_scanout_mem/subsys_hps.f2sdram_adapter_axi4_sub baseAddress 0x0", script)
+        self.assertEqual(json.loads((project.parent / "inputs.json").read_text())["scanout"]["peripheral_offset"], 0x10300)
+
+    def test_generation_marks_actual_scanout_and_requires_handoff_validation(self):
+        output, combined, hps, display = self.prepare()
+        path = output / "combined/hps/generation.json"
+        def upstream(*args):
+            path.write_text(json.dumps({"combined_display": {"ddr_scanout": False}}))
+        with mock.patch.object(combined, "generate", side_effect=upstream), mock.patch.object(B, "verify_handoff", return_value={"ddr_scanout": True}) as verify:
+            B.generate(output, combined, hps, display, None, "test")
+            self.assertEqual(verify.call_count, 1)
+        self.assertTrue(json.loads(path.read_text())["combined_display"]["ddr_scanout"])
+        with mock.patch.object(combined, "generate", side_effect=upstream), mock.patch.object(B, "verify_handoff", side_effect=ValueError("bad actual bridge")):
+            with self.assertRaisesRegex(ValueError, "bad actual bridge"):
+                B.generate(output, combined, hps, display, None, "test")
+
+    def test_postcompile_pll_mutation_is_rejected_with_failed_receipt_retained(self):
+        output, _, hps, display = self.prepare()
+        directory = output / "combined/hps"
+        (directory / "generation.json").write_text("{}\n")
+        pll = directory / "project/fes_combined/sys_pll.ip"
+        pll.write_bytes(pll.read_bytes().replace(b">74.25<", b">73.0<"))
+        def compile_stub(*args):
+            (directory / "build.json").write_text("{}\n")
+            return directory / "project/output_files/golden_top.sof"
+        with mock.patch.object(hps, "compile_project", side_effect=compile_stub):
+            with self.assertRaisesRegex(ValueError, "changed pixel PLL"):
+                B.compile_project(output, hps, display, None)
+        self.assertFalse(json.loads((directory / "build.json").read_text())["post_compile_pixel_pll_parameters_unchanged"])
+
+
+if __name__ == "__main__": unittest.main()

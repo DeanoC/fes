@@ -73,6 +73,24 @@ guarded composition. Its display still uses local pattern memory; no FPGA DMA
 scanout or Linux upload path is admitted. Warm-reset ACK is explicitly inactive
 pending global bridge/master quiescence, and firmware pairing stays unqualified.
 
+[`boards/de25nano/scanout/`](../boards/de25nano/scanout/README.md) replaces
+the combined lane's private pattern responder with a read-only allocated-buffer
+path. The pixel-domain endpoint implements the shared `fes.fabric.de25-scanout`
+contract: one immutable 8 MiB grant, two frame slots, atomic status snapshots
+and completion only after a whole good frame. Explicit Platform Designer
+`mm_ccb` bridges carry control from 100 MHz to 74.25 MHz and memory traffic
+back to the preserved F2SDRAM path. The shared reader/video extensions are
+opt-in; existing consumers retain their default configuration.
+
+Both crossing bridges share initial configuration reset. Later pixel PLL-lock
+loss blanks output and latches a fault without resetting live bridge queues;
+the endpoint stops and drains when its clock resumes. The producer retains
+generated topology and response checks, native RTL tests and a simulation
+helper for the actual generated two-clock interconnect. It creates no runtime
+profile or production Linux binding. DMA translation/backing, global reset
+fencing, physical CDC, external HDMI timing and exact-artifact board acceptance
+remain separate gates.
+
 ## Functional input identity
 
 Pong, ZX81, Coleco, SMS, SG-1000, Catch and all demo variants use functional
