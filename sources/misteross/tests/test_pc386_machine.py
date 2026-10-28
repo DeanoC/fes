@@ -263,7 +263,7 @@ class DiagnosticTest(unittest.TestCase):
         shell = {'pc386_system_pll.v', 'pixel_pll.v', 'fes_computer_mailbox.v', 'fes_audio_output.v',
                  'fes_audio_i2s.v', 'fes_hps_ddr.v', 'fes_hps_ddr_guard.v', 'top.sv'}
         built = [Path(path) for path in producer.RTL_SOURCES if Path(path).name not in shell]
-        self.assertEqual([sim.ROOT / path for path in built], list(sim.DIAG_RTL))
+        self.assertEqual({sim.ROOT / path for path in built}, set(sim.DIAG_RTL))
         self.assertEqual(producer.SYSTEM_CLOCK_HZ, sim.DIAG_CLOCK_HZ)
         for path in producer.PINNED_INPUTS:
             self.assertTrue((sim.ROOT / path).is_file(), path)

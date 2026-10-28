@@ -247,6 +247,10 @@ releases its DDR ports. It has no CPU and boots nothing by itself.
   bench take them from there. The mixer's 48 kHz request is a rational
   enable too; `fes_audio_output` carries the newest sample into the I2S clock.
 
+The shell routes but does not yet meet its clocks; the
+[M4 record](../../../../docs/validation/2026-10-28-pc386-m4-diagnostic/summary.md#routed-timing)
+lists the blocks that miss.
+
 A diagnostic program is the command list plus what the host does between
 commands: stage bytes into the window, mark a point, dump window bytes, dump
 the newest capture. [`scripts/pc386_diag.py`](../../scripts/pc386_diag.py)

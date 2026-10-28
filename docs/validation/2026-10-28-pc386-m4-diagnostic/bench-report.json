@@ -5,7 +5,24 @@
   "seconds": 0.001,
   "failures": [],
   "frames": [],
-  "marks": []
+  "marks": [],
+  "io_clocks": {
+   "OUT vga size0": [
+    6
+   ],
+   "OUT vga size1": [
+    9
+   ],
+   "IN vga size0": [
+    8
+   ],
+   "OUT isa8 size0": [
+    49
+   ],
+   "IN isa8 size0": [
+    49
+   ]
+  }
  },
  "mode13": {
   "commands": 872,
@@ -26,7 +43,18 @@
     "s": 0.11,
     "done": 866
    }
-  ]
+  ],
+  "io_clocks": {
+   "OUT vga size0": [
+    6
+   ],
+   "OUT vga size1": [
+    9
+   ],
+   "IN vga size0": [
+    8
+   ]
+  }
  },
  "sound": {
   "commands": 950,
@@ -60,7 +88,24 @@
     "s": 0.02,
     "done": 943
    }
-  ]
+  ],
+  "io_clocks": {
+   "OUT vga size0": [
+    6
+   ],
+   "OUT vga size1": [
+    9
+   ],
+   "IN vga size0": [
+    8
+   ],
+   "OUT isa8 size0": [
+    49
+   ],
+   "IN isa8 size0": [
+    49
+   ]
+  }
  },
  "ata": {
   "commands": 1916,
@@ -79,7 +124,30 @@
     "s": 0.0,
     "done": 1
    }
-  ]
+  ],
+  "io_clocks": {
+   "OUT vga size0": [
+    6
+   ],
+   "OUT vga size1": [
+    9
+   ],
+   "IN vga size0": [
+    8
+   ],
+   "OUT isa8 size0": [
+    49
+   ],
+   "IN isa16 size1": [
+    27
+   ],
+   "OUT isa16 size1": [
+    27
+   ],
+   "IN isa8 size0": [
+    49
+   ]
+  }
  },
  "vga-trace": {
   "commands": 366931,
@@ -210,6 +278,7 @@
     "s": 3.274,
     "done": 366874
    }
-  ]
+  ],
+  "note": "ran before the bus master timing restructure; the VGA path is unchanged"
  }
 }

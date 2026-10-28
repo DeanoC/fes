@@ -1,24 +1,28 @@
 # pc386 M4: the machine diagnostic shell, 28 October 2026
 
-**The M4 shell, its bus master, its producer and its kit tool exist, and the
-diagnostic programs pass on the host bench; the sealed build and the kit run
-have not happened yet.** The producer's synthesis stopped at FES's compiler
-read audit: the locked Yosys opens `/sys/devices/system/cpu/online` about
-1.3 million times while synthesizing this shell, and its trace passed the
-audit's 128 MiB bound (DeanoC/yosys#67). The fix is a one-line change to
-Yosys; the shell is sealed and run on a kit once the pc386 lock can pin it.
-This record is a **host-only check** plus diagnostic synthesis and packing.
+**The M4 shell, its bus master, its producer and its kit tool exist and pass
+on the host bench, but the machine does not meet its clocks, so nothing is
+sealed and no kit run happened.** This is the machine's first placement and
+route. Two seeds routed to 40.4 and 38.6 MHz on the system clock (61.44 MHz
+sealed; 56.65 MHz is the floor, twice the VGA's 28.322 MHz dot clock) and 55.8
+and 52.3 MHz on the 74.25 MHz pixel clock. The misses are in M1 and M2 logic
+that had never been timed: the AT core's I/O read path, the VGA scanout and
+the presenter. Getting this far needed two toolchain-side fixes, recorded
+below: a Yosys change so the producer's read audit fits its bound
+(DeanoC/yosys#68, pinned), and #1153's M10K AT core so the shell places at
+all. This record is a **host-only check** plus routed timing; there is no
+hardware evidence.
 
 ## Inputs
 
 - FES branch `deano/interesting-yalow-d6a1e4`, on main `463783281c`. The
   shell is [`cores/fes-pc386/`](../../../sources/misteross/cores/fes-pc386/README.md#m4-diagnostic-shell).
-- Toolchain: [`cores/fes-pc386/toolchain.lock`](../../../sources/misteross/cores/fes-pc386/toolchain.lock),
-  the i386 lock's pins (Yosys `238eac9a`, nextpnr `bd7a1c0d`, Mistral
-  `8fcc4cb4`), HIP router. Verilator 5.032 for the benches.
-- The machine as M1-M3 left it: the AT core with its memories in flip-flops
-  (#1153, which moves them to M10K, is not in this build; the machine fits
-  without it), the M2 VGA, presenter and plane, the M3 audio.
+- Toolchain: [`cores/fes-pc386/toolchain.lock`](../../../sources/misteross/cores/fes-pc386/toolchain.lock):
+  Yosys `1f7d0273` (DeanoC/yosys#68 on the i386 lock's `238eac9a`), nextpnr
+  `bd7a1c0d`, Mistral `8fcc4cb4`, HIP router. Verilator 5.032 for the benches.
+- The machine as M1-M3 left it, with #1153's AT core memories in M10K
+  ([below](#placement-and-the-at-cores-memories)): the M2 VGA, presenter and
+  plane, the M3 audio.
 
 ## What was built
 
@@ -101,14 +105,16 @@ blink phase counts frames since reset, which differ). Every graphics picture
 is identical.
 
 I/O completion is fixed by the timing classes and shows in each result's
-clock count: every isa8 cycle took 50 clocks at 61.44 MHz (720 ns is 44.2
-clocks, plus the bus master's handshake), isa16 words 28, VGA port byte
-writes 7 and word writes 10.
+clock count: every isa8 cycle took 49 clocks at 61.44 MHz (720 ns is 44.2
+clocks, plus the bus master's handshake), isa16 words 27, VGA port byte
+writes 6 and word writes 9. The bench ran the vga-trace program before the
+bus master's timing change below; the VGA path did not change.
 
 ## Synthesis and packing
 
-`synth_intel_alm -nolutram` of the whole shell on the locked Yosys (outside
-the producer, 17 minutes) and `nextpnr-mistral` packing: 45,442 of 83,820
+Before #1153, with the AT core's memories in flip-flops,
+`synth_intel_alm -nolutram` of the whole shell (outside the producer, 17
+minutes) and `nextpnr-mistral` packing gave 45,442 of 83,820
 LUT positions (54%), 25,328 flip-flops (15%), 36 M10K, 18 DSP blocks (13
 9x9, 4 27x27, one 18x18), two PLLs. The PLLs solve exactly: the system PLL
 gives 61.439999857 MHz on output 0 and 12.287999971 MHz on output 1 (VCO
@@ -116,24 +122,92 @@ gives 61.439999857 MHz on output 0 and 12.287999971 MHz on output 1 (VCO
 
 ## The seal and the read audit
 
-`make build-fes-pc386-diag` failed before routing with `read audit exceeds
-bounded trace size: file=134297263 total=143835646 bytes`. The audit traces
-every file the compiler opens. On the presenter alone, 187,373 of the main
-Yosys process's 189,007 trace lines open `/sys/devices/system/cpu/online`:
-`ThreadPool::pool_size` calls `std::thread::hardware_concurrency()` on every
-call, glibc reads that file each time, and `opt_clean` sizes a pool per pass,
-2,273 passes here. The bound is a seal check and stays. The fix reads the
-count once ([DeanoC/yosys#67](https://github.com/DeanoC/yosys/issues/67)); the
-i386 lock has the same Yosys, so an audited i386 or M5 build meets the same
-bound.
+The first `make build-fes-pc386-diag` failed before routing with `read audit
+exceeds bounded trace size: file=134297263 total=143835646 bytes`. The audit
+traces every file the compiler opens. On the presenter alone, 187,373 of the
+main Yosys process's 189,007 trace lines opened
+`/sys/devices/system/cpu/online`: `ThreadPool::pool_size` called
+`std::thread::hardware_concurrency()` on every call, glibc reads that file
+each time, and `opt_clean` sizes a pool per pass, 2,273 passes here. The
+bound is a seal check and stays.
+[DeanoC/yosys#68](https://github.com/DeanoC/yosys/pull/68) reads the count
+once ([#67](https://github.com/DeanoC/yosys/issues/67)); synthesis results
+do not change. With it the presenter's main trace is 1,635 lines (315 KB) and
+opens the file once. The pc386 lock pins #68's head `1f7d0273` until it
+merges. The i386 lock still has `238eac9a`, so an audited i386 or M5 build
+needs the same move.
+
+## Placement, and the AT core's memories
+
+No placement of the machine existed before this phase; M2 only packed it.
+The first placement of the whole shell, with the AT core's memories in
+flip-flops, ran 52 CPU minutes (one thread, Powerboat load average 20-58)
+without finishing the placer's first iteration, and was stopped. Placing M2's
+block netlists on their own measured the cause:
+
+| Block | LUTs | FFs | First placer iteration |
+| --- | ---: | ---: | ---: |
+| AT core, memories in flip-flops | 33,053 | 14,510 | 840 s |
+| VGA | 3,783 | 2,251 | 1 s |
+| i386 CPU spike (another session, four threads), for scale | 19,200 | | 95 s |
+
+Every word of the AT core's register memories has its own write enable, so
+the placer must legalise thousands of distinct control sets. #1153 moves the
+ATA sector buffer, the dirty map and CMOS into M10K (AT core 7,599 LUTs and
+3,345 flip-flops). The machine fits without it but does not place in useful
+time, so this branch includes #1153, merged with main: every M2 file takes
+main's squashed version and #1153's own four commits apply on top. Its device
+suite passes on that merge, and the diag suite passes on this branch with it.
+
+## Routed timing
+
+The second seal attempt (Yosys `1f7d0273`, #1153 in) synthesized under the
+audit and placed in a minute: 20,168 LUT positions (24%), 14,157 flip-flops
+(8%), 40 M10K, 18 DSP blocks. Its routes miss both fixed clocks after the
+analogue signoff repair (the figures below are signoff figures). The producer
+then tries its remaining seeds, which cannot close gaps this size; it fails
+on its own and publishes nothing. Seed 1, failing setup endpoints at
+61.44 MHz and 74.25 MHz ([`routed-timing.json`](routed-timing.json)):
+
+| Block | Clock | Failing endpoints | Worst slack | About |
+| --- | --- | ---: | ---: | ---: |
+| AT core: I/O decoder, ATA, RTC | system | 295 | -8.45 ns | 40 MHz |
+| INTA vector from the PICs | system | 8 | -7.33 ns | 42 MHz |
+| VGA scanout (`f_expected`, `f_received`, `f_columns`, slot state) | system | 244 | -3.87 ns | 49 MHz |
+| Bus master (before the change below) | system | 237 | -2.99 ns | 52 MHz |
+| OPL2 | system | 5 | -0.43 ns | 60 MHz |
+| Presenter weights (`wx`, `wy`, `h_a`) | pixel | 94 | -4.47 ns | 56 MHz |
+
+The worst system path runs from the I/O decoder's `cycle_port` through the
+ATA's register select and the AT core's read-data mux into the decoder's
+`rdata` register, 28 cells. `pc386_io` holds the port stable for 18 phases
+and samples at phase 8, so the read path has cycles to spare; the catch is
+reads with side effects, which must return the value before the access. The
+worst pixel path runs through the presenter's weight computation and a 27 x 27
+multiplier, 74 cells. The pixel clock is fixed by 720p and the system clock
+cannot go below 56.65 MHz, so each block needs RTL work, not a lower clock or
+another seed.
+
+The bus master's own misses are fixed on this branch. Its fetched command is
+now compared with a registered sequence number a clock before the fields
+load, waits count down instead of comparing `clock - started`, each command's
+clocks count up, the READ word is selected a clock early, and POLL_IN compares
+in its own step. Synthesized and placed alone in the M2 envelope, the old bus
+master estimates 75.7 MHz and the new one 105.8 MHz. The diag suite passes on
+it.
 
 ## Not done
 
-- The seal, the routed timing of the 61.44 MHz system clock, and the kit run:
-  HDMI captures of the VGA pictures, OPL2 and DSP audio, the port 2 counters
-  and the image load time on hardware.
+- Timing closure of the AT core's read path, the VGA scanout and the
+  presenter; then the seal and the kit run this branch prepares (HDMI captures
+  of the VGA pictures, OPL2 and DSP audio, the port 2 counters and the image
+  load time on hardware). Kit B was claimed once, for a read-only probe of the
+  DDR window through `/dev/mem`, and released unchanged.
 - The disk round trip with the runtime: it needs the M0 contracts
-  (`fes.computer` 1.1). The shell serves the ATA image from the window, which
-  the HPS writes directly.
+  (`fes.computer` 1.1, [#1220](https://github.com/DeanoC/fes/pull/1220)). The
+  shell serves the ATA image from the window offset the runtime will write
+  (0x08000000), which the HPS writes directly for now. A 1.1 shell needs its
+  own mailbox path: ABI minor 1, identity word 16 with capability bits 16-19,
+  and the disk opcodes; the shared 1.0 mailbox stays minor 0.
 - The plane was not opened on the bench, so its underflow counter proves
   nothing yet; the presenter, capture and scanout counters are exercised.

@@ -189,23 +189,29 @@ module pc386_bus_master #(
     end
 
     // ---- Command engine
+    // A fetched command is checked, then loaded, a clock apart; waits count
+    // down and each command's clocks count up, so no wide compare or subtract
+    // sits on the command path.
     localparam [3:0] E_START = 4'd0, E_EPOCH = 4'd1, E_IDLE = 4'd2, E_BELL = 4'd3, E_FETCH = 4'd4,
-        E_RUN = 4'd5, E_RESULT = 4'd6, E_STATUS = 4'd7, E_BEAT = 4'd8, E_ANNOUNCE = 4'd9;
+        E_RUN = 4'd5, E_RESULT = 4'd6, E_STATUS = 4'd7, E_BEAT = 4'd8, E_ANNOUNCE = 4'd9,
+        E_CHECK = 4'd10, E_LOAD = 4'd11;
     reg [3:0] state, after_beat;
-    reg [31:0] epoch, head, tail;
+    reg [31:0] epoch, head, tail, expected;
     reg [7:0] poll;
     reg [127:0] command;
     wire [3:0] op = command[3:0];
     wire [1:0] size = command[9:8];
     wire [15:0] count = command[31:16];
     wire [31:0] address = command[63:32], data = command[95:64];
-    reg [31:0] result, started, remaining, ddr_offset;
+    wire [3:0] fetched_op = read_beat[3:0];
+    reg [31:0] result, observed, elapsed, countdown, ddr_offset;
+    reg [16:0] remaining;
     reg [16:2] mmio_address;
     reg [7:0] status;
     reg [2:0] step;
     reg [1:0] lane;
     reg [127:0] block;
-    wire [31:0] expected = epoch + head;
+    reg matched;
 
     task automatic beat(input write, input [27:0] where, input [127:0] value, input [15:0] enables);
         engine_request <= 1; engine_write <= write; engine_address <= where;
@@ -216,8 +222,9 @@ module pc386_bus_master #(
         if (engine_done) engine_request <= 0;
         if (reset) begin
             state <= E_START; engine_request <= 0; engine_write <= 0; engine_address <= 0;
-            engine_wdata <= 0; engine_be <= 0; epoch <= 0; head <= 0; tail <= 0; poll <= 0;
-            command <= 0; result <= 0; started <= 0; remaining <= 0; ddr_offset <= 0; status <= 0;
+            engine_wdata <= 0; engine_be <= 0; epoch <= 0; head <= 0; tail <= 0; expected <= 0; poll <= 0;
+            command <= 0; result <= 0; observed <= 0; elapsed <= 0; countdown <= 0; remaining <= 0;
+            ddr_offset <= 0; status <= 0; matched <= 0;
             step <= 0; lane <= 0; block <= 0; mmio_address <= 0; after_beat <= E_EPOCH;
             io_valid <= 0; io_write <= 0; inta_valid <= 0; io_port <= 0; io_size <= 0; io_wdata <= 0;
             mem_valid <= 0; mem_write <= 0; mem_address <= 0; mem_byteenable <= 0; mem_wdata <= 0;
@@ -230,10 +237,13 @@ module pc386_bus_master #(
         end else begin
             io_valid <= 0;
             inta_valid <= 0;
+            elapsed <= elapsed + 32'd1;
+            if (countdown != 0) countdown <= countdown - 32'd1;
             case (state)
                 // The epoch is the clock count when the master first runs.
                 E_START: begin
                     epoch <= clock;
+                    expected <= clock;
                     beat(1, DOORBELL, {64'd0, clock, 32'd0}, 16'hffff);
                     after_beat <= E_ANNOUNCE;
                     state <= E_BEAT;
@@ -257,17 +267,23 @@ module pc386_bus_master #(
                     if (read_beat[63:32] == epoch) tail <= read_beat[31:0];
                     state <= read_beat[63:32] == epoch ? E_IDLE : E_EPOCH;
                 end
-                E_FETCH: if (engine_done) begin
-                    if (read_beat[127:96] != expected) state <= E_IDLE;
-                    else begin
-                        command <= read_beat;
-                        started <= clock;
-                        result <= 0; status <= 0; step <= 0;
-                        remaining <= {16'd0, read_beat[31:16]};
-                        ddr_offset <= read_beat[95:64];
-                        mmio_address <= read_beat[48:34];
-                        state <= E_RUN;
-                    end
+                E_FETCH: if (engine_done) state <= E_CHECK;
+                E_CHECK: begin
+                    matched <= read_beat[127:96] == expected;
+                    observed <= read_beat[36] ? clock : observe[{read_beat[35:32], 5'b00000} +: 32];
+                    state <= E_LOAD;
+                end
+                E_LOAD: if (!matched) state <= E_IDLE;
+                else begin
+                    command <= read_beat;
+                    elapsed <= 0;
+                    countdown <= fetched_op == OP_DELAY || fetched_op == OP_WAIT_INTR ? read_beat[95:64]
+                                                                                      : POLL_TIMEOUT;
+                    result <= 0; status <= 0; step <= 0;
+                    remaining <= {1'b0, read_beat[31:16]};
+                    ddr_offset <= read_beat[95:64];
+                    mmio_address <= read_beat[48:34];
+                    state <= E_RUN;
                 end
                 E_RUN: case (op)
                     OP_NOP: state <= E_RESULT;
@@ -277,12 +293,13 @@ module pc386_bus_master #(
                             io_size <= size; io_wdata <= data;
                             step <= 1;
                         end
-                        default: if (io_done) begin
+                        1: if (io_done) begin
                             result <= io_rdata;
-                            if (op != OP_POLL_IN || (io_rdata & address) == data) state <= E_RESULT;
-                            else if (clock - started > POLL_TIMEOUT) begin status <= 8'd1; state <= E_RESULT; end
-                            else step <= 0;
+                            if (op == OP_POLL_IN) step <= 2; else state <= E_RESULT;
                         end
+                        default: if ((result & address) == data) state <= E_RESULT;
+                            else if (countdown == 0) begin status <= 8'd1; state <= E_RESULT; end
+                            else step <= 0;
                     endcase
                     OP_INTA: case (step)
                         0: if (!io_busy) begin inta_valid <= 1; step <= 1; end
@@ -306,7 +323,7 @@ module pc386_bus_master #(
                         mem_valid <= 1; mem_write <= 1; mem_address <= mmio_address;
                         mem_byteenable <= 4'hf; mem_wdata <= data;
                         mmio_address <= mmio_address + 15'd1;
-                        remaining <= remaining - 32'd1;
+                        remaining <= remaining - 17'd1;
                     end
                     // Four dwords per beat; the window offset is beat-aligned.
                     OP_COPY_IN: case (step)
@@ -327,7 +344,7 @@ module pc386_bus_master #(
                                 mem_valid <= 1; mem_write <= 1; mem_address <= mmio_address;
                                 mem_byteenable <= 4'hf; mem_wdata <= read_beat[{lane, 5'b00000} +: 32];
                                 mmio_address <= mmio_address + 15'd1;
-                                remaining <= remaining - 32'd1;
+                                remaining <= remaining - 17'd1;
                                 lane <= lane + 2'd1;
                                 if (lane == 2'd3) step <= 3;
                             end
@@ -343,9 +360,9 @@ module pc386_bus_master #(
                         2: if (mem_rvalid) begin
                             block[{lane, 5'b00000} +: 32] <= mem_rdata;
                             mmio_address <= mmio_address + 15'd1;
-                            remaining <= remaining - 32'd1;
+                            remaining <= remaining - 17'd1;
                             lane <= lane + 2'd1;
-                            step <= lane == 2'd3 || remaining == 32'd1 ? 3'd3 : 3'd0;
+                            step <= lane == 2'd3 || remaining == 17'd1 ? 3'd3 : 3'd0;
                         end
                         3: begin
                             beat(1, BASE + ddr_offset[31:4], block, 16'hffff);
@@ -358,8 +375,8 @@ module pc386_bus_master #(
                         end
                     endcase
                     OP_WAIT_INTR: if (intr) begin result <= 32'd1; state <= E_RESULT; end
-                        else if (clock - started >= data) state <= E_RESULT;
-                    OP_DELAY: if (clock - started >= data) state <= E_RESULT;
+                        else if (countdown == 0) state <= E_RESULT;
+                    OP_DELAY: if (countdown == 0) state <= E_RESULT;
                     OP_CONFIG: begin
                         case (address[3:0])
                             4'd0: machine_hold <= data[0];
@@ -380,7 +397,7 @@ module pc386_bus_master #(
                         state <= E_RESULT;
                     end
                     OP_READ: begin
-                        result <= address[4] ? clock : observe[{address[3:0], 5'b00000} +: 32];
+                        result <= observed;
                         state <= E_RESULT;
                     end
                     OP_KEY: if (key_valid && key_ready) begin key_valid <= 0; state <= E_RESULT; end
@@ -388,14 +405,14 @@ module pc386_bus_master #(
                     default: begin status <= 8'd2; state <= E_RESULT; end
                 endcase
                 E_RESULT: begin
-                    beat(1, RESULTS + {16'd0, head[11:0]}, {expected, 24'd0, status, clock - started, result},
-                         16'hffff);
+                    beat(1, RESULTS + {16'd0, head[11:0]}, {expected, 24'd0, status, elapsed, result}, 16'hffff);
                     after_beat <= E_STATUS;
                     state <= E_BEAT;
                 end
                 E_STATUS: begin
                     beat(1, STATUS, {clock, epoch, MAGIC, head + 32'd1}, 16'hffff);
                     head <= head + 32'd1;
+                    expected <= expected + 32'd1;
                     after_beat <= E_IDLE;
                     state <= E_BEAT;
                 end
