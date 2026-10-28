@@ -6,6 +6,10 @@ The runtime registry admits one known layout: two 16-bit words containing
 paddle speed (0 slow, 1 normal, 2 fast) and best rally (0–65535). Missing data
 starts with `[1,0]`. Existing volatile packages remain supported.
 
+A `fes.computer` 1.1 package has its own registry entry: `fes.persistence.words`
+1.0 with the `fes.pc386.machine` 1.0 layout, 72 words of next-launch settings
+and CMOS, keyed per library game. See [per-game records](#per-game-pc386-records).
+
 This is software-tested persistence of settings and progress, not a game save
 state. Exact-image physical acceptance is pending. Ordinary SNES battery SRAM
 keeps its existing `.srm` identity, sizes, transport, and file format.
@@ -56,6 +60,28 @@ update operation.
 Development `load_core` is always volatile, even for a persistence-capable
 package. It neither restores nor writes library records. Explicit library
 loading repeats authoritative compatibility and record validation at launch.
+
+## Per-game pc386 records
+
+A `fes.computer` package that declares `fes.persistence.words` keeps one
+record per library game, the `FESGAME1` envelope of mister-packages
+[computer I/O](../../mister-packages/docs/computer-io.md#persistence-words),
+at `<data_root>/games/<namespace>/record.bin`. The three operations take a
+`game_id`, which such a package requires and every other package refuses:
+
+```json
+{"protocol":2,"operation":"load_library_core","package_path":"/tmp/fogcast-development/core-packages/example","package_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","data_root":"/media/fat/fogcast/core-data","game_id":"ultima-vi"}
+{"protocol":2,"operation":"update_core_settings","package_path":"/tmp/fogcast-development/core-packages/example","package_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","data_root":"/media/fat/fogcast/core-data","game_id":"ultima-vi","expected_revision":"absent","machine":{"preset":3,"frequency":0,"code_profile":0,"turbo":0,"sb_base":544,"sb_irq":7,"sb_dma":1}}
+```
+
+A pc386 update replaces words 0..7 with the machine settings and keeps the
+record's CMOS words; values outside the layout's sets are refused. Its
+`core_data` reports `game_id` and the `machine` settings instead of Pong's
+paddle speed and best rally (the
+[response fixture](../tests/fixtures/protocol-v2-pc386-responses.jsonl)).
+Settings updates reject the game that is active. Launch restores the record
+before release and Stop captures it, with the same publication, revision and
+failure rules as below.
 
 ## Record and lifecycle boundary
 

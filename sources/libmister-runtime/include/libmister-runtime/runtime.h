@@ -274,6 +274,17 @@ struct ActiveCorePackage {
 	CoreROMLinks rom_links;
 };
 
+// fes.pc386.machine 1.0 settings, words 0..6 of its record.
+struct Pc386MachineSettings {
+	std::uint16_t preset = 0;
+	std::uint16_t frequency = 0;
+	std::uint16_t code_profile = 0;
+	std::uint16_t turbo = 0;
+	std::uint16_t sb_base = 0x220;
+	std::uint16_t sb_irq = 7;
+	std::uint16_t sb_dma = 1;
+};
+
 struct CoreData {
 	std::string package_id;
 	std::string core_id;
@@ -282,6 +293,30 @@ struct CoreData {
 	std::string revision = "absent";
 	std::uint16_t paddle_speed = 1;
 	std::uint16_t best_rally = 0;
+	// A per-game record (fes.computer) names its library game and keeps the
+	// layout's words; a per-core Pong record leaves both empty.
+	std::string game_id;
+	std::vector<std::uint16_t> words;
+};
+
+// A fes.media.ata-disk launch: the staged immutable base image, the geometry
+// its partition table was written with, and the media-data root that holds
+// its game's chunk delta.
+struct AtaDiskImage {
+	std::string path;
+	std::uint32_t size = 0;
+	std::string base_media_id;
+	std::string data_root;
+	std::uint16_t cylinders = 0;
+	std::uint16_t heads = 0;
+	std::uint16_t sectors_per_track = 0;
+};
+
+// A next-launch settings change: Pong's paddle speed, or the pc386 settings.
+struct CoreSettingsUpdate {
+	std::uint16_t paddle_speed = 1;
+	bool pc386 = false;
+	Pc386MachineSettings machine;
 };
 
 struct CorePackageInspection {
@@ -488,7 +523,8 @@ public:
 		return {ErrorCode::unsupported_protocol,
 			"core package inspection is unavailable"};
 	}
-	virtual Error PrepareCoreData(AdmittedCorePackage*, const std::string&, CoreData*)
+	// The game ID keys a per-game record; it is empty for per-core data.
+	virtual Error PrepareCoreData(AdmittedCorePackage*, const std::string&, const std::string&, CoreData*)
 	{
 		return {ErrorCode::unsupported_interface, "core data unavailable"};
 	}
@@ -496,6 +532,10 @@ public:
 	{
 		return {};
 	}
+	// Binds the game's ATA disk: opens the image and its delta namespace and
+	// reads the manifest, before programming.
+	virtual Error PrepareAtaDisk(AdmittedCorePackage*, const std::string&, const AtaDiskImage&)
+	{ return {ErrorCode::unsupported_interface, "ATA disk unavailable", "admission"}; }
 	virtual Error PrepareInitialComputerMedia(AdmittedCorePackage*, const InitialComputerMedia&)
 	{ return {ErrorCode::unsupported_interface, "initial computer media unavailable", "admission"}; }
 	virtual Error RefreshInitialComputerMedia(AdmittedCorePackage*)
@@ -510,13 +550,13 @@ public:
 	virtual Error AttachROMsBitstream(AdmittedCorePackage*, const std::string&, const CoreROMLinks&)
 	{ return {ErrorCode::unsupported_protocol, "two-source ROM linking is unavailable"}; }
 	virtual Error RecheckProgrammedBitstream(AdmittedCorePackage*) { return {}; }
-	virtual Error InspectCoreData(
-		const std::string&, const std::string&, const std::string&, CoreData*)
+	virtual Error InspectCoreData(const std::string&, const std::string&, const std::string&,
+		const std::string&, CoreData*)
 	{
 		return {ErrorCode::unsupported_interface, "core data unavailable"};
 	}
 	virtual Error UpdateCoreSettings(const std::string&, const std::string&, const std::string&,
-		const std::string&, std::uint16_t, CoreData*)
+		const std::string&, const std::string&, const CoreSettingsUpdate&, CoreData*)
 	{
 		return {ErrorCode::unsupported_interface, "core data unavailable"};
 	}
@@ -615,7 +655,9 @@ public:
 	Status status() const;
 	Error LoadCore(const std::string& directory,
 		const std::string& expected_package_id);
-	Error LoadLibraryCore(const std::string&, const std::string&, const std::string&);
+	// The game ID keys a fes.computer package's per-game record.
+	Error LoadLibraryCore(const std::string&, const std::string&, const std::string&,
+		const std::string& game_id = "", const AtaDiskImage* disk = nullptr);
 	Error LoadComposedCore(const std::string&, const std::string&, const CoreCompositionRequest&);
 	Error LoadLibraryPartsCore(const std::string&, const std::string&, const std::string&, const CoreCompositionRequest&);
 	Error InspectPartsCore(const std::string&, const std::string&, const CoreCompositionRequest&, CorePackageInspection*);
@@ -630,9 +672,10 @@ public:
 	Error LoadROMsCore(const std::string&, const std::string&, const std::string&, const CoreROMLinks&);
 	Error LoadROMsLibraryCore(const std::string&, const std::string&, const std::string&, const std::string&, const CoreROMLinks&);
 	Error LoadROMsComposedCore(const std::string&, const std::string&, const CoreCompositionRequest&, const std::string&, const CoreROMLinks&);
-	Error InspectCoreData(const std::string&, const std::string&, const std::string&, CoreData*);
+	Error InspectCoreData(const std::string&, const std::string&, const std::string&,
+		const std::string& game_id, CoreData*);
 	Error UpdateCoreSettings(const std::string&, const std::string&, const std::string&,
-		const std::string&, std::uint16_t, CoreData*);
+		const std::string& game_id, const std::string& revision, const CoreSettingsUpdate&, CoreData*);
 	Error InspectCore(const std::string& directory,
 		const std::string& expected_package_id, CorePackageInspection*);
 	Error LoadContainedDevelopmentRBF(const std::string&);

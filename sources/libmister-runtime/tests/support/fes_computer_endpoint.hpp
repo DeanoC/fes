@@ -9,15 +9,20 @@
 
 #include <cstdint>
 #include <functional>
+#include <algorithm>
+#include <cstdlib>
 #include <map>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
 
 namespace mister_test {
 
-// Independent C++ port of the fes.computer 1.0 reference endpoint
-// (mister-packages scripts/fes_computer_fixtures.py `Endpoint`). Rejected
+// Independent C++ port of the fes.computer reference endpoints
+// (mister-packages scripts/fes_computer_fixtures.py `Endpoint`, and with
+// abi_minor 1 the `Endpoint11` identity word 16, persistence words and wall
+// clock). Rejected
 // requests never change state. As an Mmio it answers the FES GP transport: a
 // GPO write with a new request toggle is one request, and GPI reports the
 // acknowledged toggle, error bit and response.
@@ -33,7 +38,7 @@ public:
 		unsigned opcode, index, argument;
 	};
 
-	ComputerEndpoint(std::uint16_t capabilities,
+	ComputerEndpoint(std::uint32_t capabilities,
 		std::map<unsigned, std::pair<std::uint32_t, std::uint32_t>> units,
 		const std::string& build_id = "00112233445566778899aabbccddeeff")
 		: capabilities_(capabilities)
@@ -57,9 +62,11 @@ public:
 		using namespace mister::native::generated;
 		enum { opcode_error = 1, index_error = 2, argument_error = 3, state_error = 4 };
 		if (op == FesComputerOpcodeIdentity) {
-			if (index >= 16) return {index_error, 0};
+			if (index >= (abi_minor ? 17u : 16u)) return {index_error, 0};
 			if (arg) return {argument_error, 0};
-			const std::uint16_t words[8] = {0x4546, 0x3153, 1, 0, 4, 1, 0, capabilities_};
+			if (index == 16) return {0, static_cast<std::uint16_t>(capabilities_ >> 16)};
+			const std::uint16_t words[8] = {0x4546, 0x3153, 1, 0, 4, 1,
+				static_cast<std::uint16_t>(abi_minor), static_cast<std::uint16_t>(capabilities_)};
 			return {0, index < 8 ? words[index] : build_words_[index - 8]};
 		}
 		if (op == FesComputerOpcodeExecution) {
@@ -70,8 +77,25 @@ public:
 				rows = std::vector<std::uint16_t>(9, 0);
 				ports = {0, 0};
 				mouse_buttons = 0;
+				data_snapshot.clear();
 			}
+			data_staging.clear();
+			staging_open = false;
+			clock_staged.clear();
 			return {0, 0};
+		}
+		if (op >= FesComputerOpcodeDataControl && op <= FesComputerOpcodeDataInfo) {
+			if (!(capabilities_ & FesComputerCapabilityPersistenceWords)) return {opcode_error, 0};
+			return Data(op, index, arg);
+		}
+		if (op == FesComputerOpcodeWallClock) {
+			if (!(capabilities_ & FesComputerCapabilityRtcWallClock)) return {opcode_error, 0};
+			return WallClock(index, arg);
+		}
+		if (op == FesComputerOpcodeDiskInfo || op == FesComputerOpcodeDiskControl ||
+			op == FesComputerOpcodeDiskCommit || op == FesComputerOpcodeDiskDirty) {
+			if (!(capabilities_ & FesComputerCapabilityMediaAtaDisk)) return {opcode_error, 0};
+			return Disk(op, index, arg);
 		}
 		if (op == FesComputerOpcodeMouseRelative) {
 			if (!(capabilities_ & FesComputerCapabilityMouseRelative)) return {opcode_error, 0};
@@ -302,9 +326,34 @@ public:
 		return {};
 	}
 
+	// A guest sector write that reaches the image: its chunk is dirty.
+	void GuestSectorWrite(std::uint32_t sector, std::uint8_t fill = 0)
+	{
+		if (disk_state != 3 || held || disk_frozen) abort();
+		dirty_chunks.insert(sector / 128);
+		disk_epoch = static_cast<std::uint16_t>(disk_epoch + 1);
+		if (window) std::fill(window->begin() + sector * 512, window->begin() + (sector + 1) * 512, fill);
+	}
+
+	// A guest CMOS write while running, as the fixture's machine events.
+	void GuestCmosWrite(unsigned byte, std::uint8_t value)
+	{
+		const unsigned shift = 8 * (byte & 1);
+		auto& word = machine_words[8 + byte / 2];
+		word = static_cast<std::uint16_t>((word & ~(0xffu << shift)) | (unsigned(value) << shift));
+	}
+
 	// FPGA programming: held, neutral input, empty units, toggle and ACK zero.
 	void Reset()
 	{
+		machine_words = DefaultMachine();
+		disk_state = 1; disk_frozen = disk_saved = disk_error = false; disk_epoch = 0;
+		dirty_chunks.clear(); disk_staged.clear(); disk_geometry.clear(); verify_left = 0;
+		data_snapshot.clear();
+		data_staging.clear();
+		staging_open = false;
+		clock_staged.clear();
+		clock.clear();
         mouse_x = 0; mouse_y = 0; mouse_buttons = 0;
 		frozen = false; saved = false; dirty = false; write_busy = false; save_ready = false; epoch = 0;
         snapshot_at = 0; snapshot_remaining = 0; snapshot_ordinal = 0;
@@ -366,8 +415,203 @@ public:
     std::function<bool(const Request&)> fail_after_request;
 	std::vector<std::uint32_t> writes;
 	std::vector<Request> requests;
+	unsigned abi_minor = 0;
+	// fes.pc386.machine words, the Freeze snapshot and the open restore staging.
+	std::vector<std::uint16_t> machine_words = DefaultMachine();
+	std::vector<std::uint16_t> data_snapshot;
+	std::map<unsigned, std::uint16_t> data_staging;
+	bool staging_open = false;
+	// The applied wall clock: year, month, day, hour, minute, second, weekday.
+	std::vector<unsigned> clock;
+	std::vector<unsigned> clock_staged;
+	// fes.media.ata-disk: the region of the DDR window (the core's CRC pass
+	// reads it), DiskInfo reads that report verifying after Commit, state.
+	std::vector<std::uint8_t>* window = nullptr;
+	unsigned verify_reads = 1;
+	unsigned disk_state = 1, verify_left = 0, verify_result = 1;
+	bool disk_frozen = false, disk_saved = false, disk_error = false;
+	std::uint16_t disk_epoch = 0;
+	std::set<unsigned> dirty_chunks;
+	std::vector<unsigned> disk_staged, disk_geometry;
+
+	static std::vector<std::uint16_t> DefaultMachine()
+	{
+		std::vector<std::uint16_t> words(72, 0);
+		words[4] = 0x220;
+		words[5] = 7;
+		words[6] = 1;
+		return words;
+	}
 
 private:
+	static bool MachineValid(const std::vector<std::uint16_t>& w)
+	{
+		if (w[0] > 7 || w[2] > 1 || w[3] > 1 || w[7] != 0 || w[6] != 1) return false;
+		if (w[1] != 0 && (w[0] == 0 || w[1] < 10 || w[1] > 1000)) return false;
+		return (w[4] == 0x220 || w[4] == 0x240) && (w[5] == 2 || w[5] == 3 || w[5] == 5 || w[5] == 7);
+	}
+
+	std::pair<unsigned, std::uint16_t> Data(unsigned op, unsigned index, unsigned arg)
+	{
+		using namespace mister::native::generated;
+		enum { index_error = 2, argument_error = 3, state_error = 4 };
+		if (op == FesComputerOpcodeDataControl) {
+			if (index) return {index_error, 0};
+			if (arg == FesComputerDataFreeze) {
+				if (held) return {state_error, 0};
+				if (data_snapshot.empty()) data_snapshot = machine_words;
+				return {0, 0};
+			}
+			if (arg == FesComputerDataBegin) {
+				if (!held) return {state_error, 0};
+				data_staging.clear();
+				staging_open = true;
+				return {0, 0};
+			}
+			if (arg == FesComputerDataCommit) {
+				if (!held || !staging_open || data_staging.size() != 72) return {state_error, 0};
+				std::vector<std::uint16_t> words;
+				for (const auto& word : data_staging) words.push_back(word.second);
+				if (!MachineValid(words)) return {argument_error, 0};
+				machine_words = words;
+				data_staging.clear();
+				staging_open = false;
+				return {0, 0};
+			}
+			if (arg == FesComputerDataResume) {
+				if (data_snapshot.empty()) return {state_error, 0};
+				data_snapshot.clear();
+				return {0, 0};
+			}
+			return {argument_error, 0};
+		}
+		if (op == FesComputerOpcodeDataRead) {
+			if (index >= 72) return {index_error, 0};
+			if (arg) return {argument_error, 0};
+			if (data_snapshot.empty()) return {state_error, 0};
+			return {0, data_snapshot[index]};
+		}
+		if (op == FesComputerOpcodeDataWrite) {
+			if (index >= 72) return {index_error, 0};
+			if (!held || !staging_open) return {state_error, 0};
+			data_staging[index] = static_cast<std::uint16_t>(arg);
+			return {0, 0};
+		}
+		if (index > 3) return {index_error, 0};
+		if (arg) return {argument_error, 0};
+		const std::uint16_t info[4] = {72, 3, 1, 0};
+		return {0, info[index]};
+	}
+
+	std::pair<unsigned, std::uint16_t> Disk(unsigned op, unsigned index, unsigned arg)
+	{
+		using namespace mister::native::generated;
+		enum { index_error = 2, argument_error = 3, state_error = 4 };
+		if (op == FesComputerOpcodeDiskInfo) {
+			if ((index >> 3) >= 8) return {index_error, 0};
+			if (arg) return {argument_error, 0};
+			if (index >> 3) return {0, 0};
+			const unsigned state = disk_state;
+			if ((index & 7) == 5 && disk_state == 4 && --verify_left == 0) disk_state = verify_result;
+			const unsigned flags = (dirty_chunks.empty() ? 0 : 1) | (disk_frozen ? 2 : 0) | (disk_error ? 8 : 0);
+			const std::uint16_t fields[8] = {0, 0x10, 0, 0x800, 128, static_cast<std::uint16_t>(state),
+				static_cast<std::uint16_t>(flags), disk_epoch};
+			return {0, fields[index & 7]};
+		}
+		if (op == FesComputerOpcodeDiskControl) {
+			if (index) return {index_error, 0};
+			if (arg > 5) return {argument_error, 0};
+			if (arg == 0 || arg == 2) {
+				if (!held || (disk_frozen && !disk_saved)) return {state_error, 0};
+				disk_state = arg == 0 ? 2 : 1;
+				disk_frozen = disk_saved = disk_error = false;
+				dirty_chunks.clear(); disk_staged.clear(); disk_geometry.clear(); verify_left = 0;
+				return {0, 0};
+			}
+			if (arg == 1) {
+				if (!held || disk_state != 2 || disk_staged.size() != 8) return {state_error, 0};
+				const std::uint32_t sectors = disk_staged[0] | disk_staged[1] << 16;
+				const std::uint32_t crc = disk_staged[5] | disk_staged[6] << 16;
+				std::uint32_t observed = 0xffffffffu;
+				for (std::size_t at = 0; window && at < std::size_t(sectors) * 512; ++at) {
+					observed ^= (*window)[at];
+					for (unsigned bit = 0; bit < 8; ++bit)
+						observed = (observed >> 1) ^ ((observed & 1u) ? 0xedb88320u : 0u);
+				}
+				const bool match = window && (observed ^ 0xffffffffu) == crc;
+				disk_geometry = match ? std::vector<unsigned>{sectors, disk_staged[2], disk_staged[3], disk_staged[4]} :
+					std::vector<unsigned>{};
+				disk_staged.clear();
+				disk_error = !match;
+				verify_result = match ? 3 : 2;
+				if (verify_reads) { disk_state = 4; verify_left = verify_reads; }
+				else disk_state = verify_result;
+				return {0, 0};
+			}
+			if (arg == 3) {
+				if (disk_state != 3) return {state_error, 0};
+				if (!disk_frozen) { disk_frozen = true; disk_saved = false; }
+				return {0, 0};
+			}
+			if (arg == 4) { disk_frozen = disk_saved = false; return {0, 0}; }
+			if (!disk_frozen) return {state_error, 0};
+			dirty_chunks.clear();
+			disk_saved = true;
+			return {0, 0};
+		}
+		if (op == FesComputerOpcodeDiskCommit) {
+			if (index > 7) return {index_error, 0};
+			if (!held || disk_state != 2) return {state_error, 0};
+			if (index != disk_staged.size()) return {index_error, 0};
+			const auto& w = disk_staged;
+			bool bad = false;
+			if (index == 1) { const unsigned size = w[0] | arg << 16; bad = size < 2048 || size > 262144; }
+			if (index == 2) bad = arg < 1 || arg > 16383;
+			if (index == 3) bad = arg < 1 || arg > 16;
+			if (index == 4) bad = arg < 1 || arg > 63 || std::uint64_t(w[2]) * w[3] * arg > (w[0] | w[1] << 16);
+			if (index == 7) bad = arg != 0;
+			if (bad) return {argument_error, 0};
+			disk_staged.push_back(arg);
+			return {0, 0};
+		}
+		if (index >= 128) return {index_error, 0};
+		if (arg) return {argument_error, 0};
+		if (!disk_frozen) return {state_error, 0};
+		std::uint16_t bits = 0;
+		for (unsigned bit = 0; bit < 16; ++bit)
+			if (dirty_chunks.count(index * 16 + bit)) bits = static_cast<std::uint16_t>(bits | (1u << bit));
+		return {0, bits};
+	}
+
+	std::pair<unsigned, std::uint16_t> WallClock(unsigned index, unsigned arg)
+	{
+		enum { index_error = 2, argument_error = 3, state_error = 4 };
+		if (index > 3) return {index_error, 0};
+		if (!held) return {state_error, 0};
+		if (index && index != clock_staged.size()) return {index_error, 0};
+		const unsigned low = arg & 0xff, high = arg >> 8;
+		bool ok = true;
+		if (index == 0) ok = arg >= 1980 && arg <= 2099;
+		if (index == 1) {
+			const unsigned year = clock_staged[0];
+			const bool leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+			const unsigned days = low == 2 ? (leap ? 29 : 28) :
+				(low == 4 || low == 6 || low == 9 || low == 11) ? 30 : 31;
+			ok = low >= 1 && low <= 12 && high >= 1 && high <= days;
+		}
+		if (index == 2) ok = low <= 23 && high <= 59;
+		if (index == 3) ok = low <= 59 && high >= 1 && high <= 7;
+		if (!ok) return {argument_error, 0};
+		if (index == 0) clock_staged.clear();
+		clock_staged.push_back(arg);
+		if (index == 3) {
+			const auto& w = clock_staged;
+			clock = {w[0], w[1] & 0xff, w[1] >> 8, w[2] & 0xff, w[2] >> 8, w[3] & 0xff, w[3] >> 8};
+			clock_staged.clear();
+		}
+		return {0, 0};
+	}
+
 	std::vector<std::uint8_t> zx81_snapshot_;
 	void ClearTransfer()
 	{
@@ -380,7 +624,7 @@ private:
 		ordinal_ = 0;
 	}
 
-	std::uint16_t capabilities_;
+	std::uint32_t capabilities_;
 	std::vector<std::uint16_t> build_words_;
 	std::map<unsigned, Unit> units_;
 	int begin_unit_ = -1;
