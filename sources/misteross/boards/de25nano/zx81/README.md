@@ -19,16 +19,18 @@ make build QUARTUS_ROOTDIR=/absolute/altera_pro/26.3 \
 
 The builder uses the same SHA-256 locked Terasic archive, SCS HDMI pins,
 Reset Release IP and unchanged ADV7513 initializer as the
-[display diagnostic](../display/README.md). Two native Agilex PLLs generate
-74.25 MHz for HDMI and 52.224 MHz for the machine. The existing rational
-clock-enable scheduler then supplies the 6.5 MHz ULA and 3.25 MHz CPU phases.
-The targets are not rounded to a different machine speed.
+[display diagnostic](../display/README.md). One native Agilex PLL generates
+74.25 MHz for both the machine and HDMI. Rational clock enables at 26/297
+supply the unchanged 6.5 MHz ULA and 3.25 MHz CPU phases. The existing DE10
+scheduler keeps its default 1625/13056 ratio for its 52.224 MHz shell.
 
 Preparation derives board-local copies of `zx81_dpram` and
 `zx81_video_720p`, replacing their guarded Cyclone V/M10K selections with
 Agilex 5/M20K. It records original and derived hashes and retains the RAM's
-one-cycle read and same-port new-data semantics. Shared ZX81 RTL and the
-DE10 package recipes are unchanged.
+one-cycle read and same-port new-data semantics. The shared scheduler accepts
+the board's rational ratio, retaining its DE10 defaults. The shared machine
+also declares WAIT/NMI before the CPU instance so Quartus Pro connects their
+assignments correctly. DE10 package recipes are unchanged.
 
 `project` prepares a fresh private output. `build` requires clean committed
 source, regenerates IP and compiles with two CPU workers. `OUTPUT=/new/path`
@@ -40,8 +42,8 @@ hardware or writes flash.
 The board simulation uses the real machine, CPU, firmware and video RTL with
 controllable digital PLL/configuration/I2C boundaries. It does not model the
 physical PLL, RAM primitive, I2C transfers or HDMI link. The existing capture
-buffer has asynchronous write/read clocks and no complete-frame ownership;
-startup, read/write collisions and visible tearing remain physical
+buffer's write/read ports share this board's clock but have no complete-frame
+ownership; startup, read/write collisions and visible tearing remain physical
 qualification gaps. External HDMI timing and the vendor's contradictory
 DJ24 clock IO-standard documentation retain the same open gates as the
 display diagnostic. Timing reports must be assessed separately from compile

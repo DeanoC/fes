@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Two physical active-low buttons: KEY0 reset and KEY1 ZX81 NEWLINE.
 module de25_zx81_keys #(
-    parameter integer STABLE_CYCLES = 522240
+    parameter integer STABLE_CYCLES = 742500
 ) (
     input wire clk,
     input wire reset_n,

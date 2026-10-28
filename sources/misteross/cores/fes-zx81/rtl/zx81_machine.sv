@@ -8,7 +8,9 @@
 
 module zx81_machine #(
     parameter EXTERNAL_RAM = 0,
-    parameter FIRMWARE_INIT = ""
+    parameter FIRMWARE_INIT = "",
+    parameter integer CLOCK_NUMERATOR = 1625,
+    parameter integer CLOCK_DENOMINATOR = 13056
 ) (
     input  wire        clk_sys,
     input  wire        reset,
@@ -76,6 +78,9 @@ module zx81_machine #(
     logic [7:0] cpu_din;
     wire [7:0] cpu_dout;
     wire nM1, nMREQ, nIORQ, nRD, nWR, nRFSH, nHALT;
+    // Declare before CPU ports so Quartus Pro does not create implicit nets
+    // and ignore the later net-declaration initializers.
+    wire nWAIT, nNMI;
     wire [15:0] debug_de;
     reg save_fast;
     wire nINT = addr[6];
@@ -85,7 +90,7 @@ module zx81_machine #(
     wire ce_cpu_p, ce_cpu_n, ce_6m5_r;
     wire ce_3m25 = ce_cpu_p;
     assign ce_6m5 = ce_6m5_r;
-    zx81_machine_clock machine_clock (
+    zx81_machine_clock #(.NUMERATOR(CLOCK_NUMERATOR), .DENOMINATOR(CLOCK_DENOMINATOR)) machine_clock (
         .clk_sys(clk_sys), .reset(1'b0), .ce_6m5(ce_6m5_r),
         .ce_cpu_p(ce_cpu_p), .ce_cpu_n(ce_cpu_n), .cpu_clock(bus_cpu_clock)
     );
@@ -505,8 +510,8 @@ module zx81_machine #(
         end
     end
 
-    wire nWAIT = (~nHALT | nNMI) & ~bus_wait;
-    wire nNMI = ~NMIlatch | ~hsync;
+    assign nWAIT = (~nHALT | nNMI) & ~bus_wait;
+    assign nNMI = ~NMIlatch | ~hsync;
 
     reg slow_mode;
     always @(posedge clk_sys) begin

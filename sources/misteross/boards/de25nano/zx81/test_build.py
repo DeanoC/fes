@@ -65,29 +65,28 @@ else begin mI2C_CLK_DIV <= 0; mI2C_CTRL_CLK <= ~mI2C_CTRL_CLK; end
         qsf = (project / (B.PROJECT + ".qsf")).read_text()
         self.assertIn("NUM_PARALLEL_PROCESSORS 2", qsf)
         self.assertIn("VERILOG_MACRO QUARTUS=1", qsf)
-        self.assertIn("IP_FILE machine_pll.ip", qsf)
+        self.assertNotIn("machine_pll", qsf)
         self.assertIn("SYSTEMVERILOG_FILE zx81_machine.sv", qsf)
         self.assertIn("VERILOG_FILE zx81_dpram_de25.v", qsf)
         self.assertNotIn("VERILOG_FILE zx81_dpram.v\n", qsf)
         self.assertIn("KEY[0]", (project / "pins.qsf").read_text())
         self.assertEqual((output / "vendor/sys_pll.ip").read_bytes(), self.files["sys_pll.ip"])
         self.assertEqual(B.pll_parameters((project / "sys_pll.ip").read_bytes())["gui_output_clock_frequency0"], "74.25")
-        self.assertEqual(B.pll_parameters((project / "machine_pll.ip").read_bytes())["gui_output_clock_frequency0"], "52.224")
         self.assertEqual((project / "zx81_dpram.v").read_bytes(), B.SOURCE_PATHS["zx81_dpram.v"].read_bytes())
         self.assertEqual((project / "I2C_HDMI_Config.v").read_bytes(), self.files["HDMI_I2C/I2C_HDMI_Config.v"])
         inputs = json.loads((output / "inputs.json").read_text())
         self.assertFalse(inputs["hps"] or inputs["ddr"] or inputs["gp"] or inputs["runtime_package"])
         self.assertEqual(inputs["source_classification"], "working-copy-diagnostic")
-        self.assertEqual(inputs["reviewed_machine_pll_derivation"]["derived_sha256"], B.sha((project / "machine_pll.ip").read_bytes()))
+        self.assertEqual(inputs["system_clock_hz"], 74250000)
+        self.assertEqual(inputs["machine_clock"], {"ula_hz": 6500000, "cpu_hz": 3250000, "phase_numerator": 26, "phase_denominator": 297})
         for key, value in inputs["prepared_project_sha256"].items():
             self.assertEqual(value, B.sha((project / key).read_bytes()))
 
-    def test_pll_targets_and_metadata_are_guarded(self):
+    def test_pll_targets_are_guarded(self):
         original = self.files["sys_pll.ip"]
-        for before, after in ((b">74.25<", b">75.0<"), (b">13468.013<", b">13333.333<"),
-                              (b">74250000<", b">75000000<"), (b">sys_pll<", b">renamed<")):
+        for before, after in ((b">74.25<", b">75.0<"), (b">true<", b">false<")):
             with self.subTest(before=before), self.assertRaisesRegex(ValueError, "PLL.*contract changed"):
-                B.machine_pll(original.replace(before, after))
+                B.DISPLAY.retarget_pll(original.replace(before, after))
 
     def test_ram_adaptation_is_limited_to_family_and_block_type(self):
         original = B.SOURCE_PATHS["zx81_dpram.v"].read_bytes()
@@ -135,13 +134,40 @@ else begin mI2C_CLK_DIV <= 0; mI2C_CTRL_CLK <= ~mI2C_CTRL_CLK; end
     def test_generated_ip_parameter_changes_are_retained_and_rejected(self):
         output = self.prepare()
         def mutate(command, project, log):
-            path = project / "machine_pll.ip"
-            path.write_bytes(path.read_bytes().replace(b">52.224<", b">52.0<"))
+            path = project / "sys_pll.ip"
+            path.write_bytes(path.read_bytes().replace(b">74.25<", b">74.0<"))
         with mock.patch.object(B.DISPLAY, "run", side_effect=mutate), self.assertRaisesRegex(ValueError, "generation changed"):
             B.compile_project(output, self.root / "quartus_sh", "test")
         self.assertFalse((output / "build.json").exists())
         review = json.loads((output / "ip-parameter-review.json").read_text())
-        self.assertEqual(review["machine_pll.ip"]["gui_output_clock_frequency0"], {"before": "52.224", "after": "52.0"})
+        self.assertEqual(review["sys_pll.ip"]["gui_output_clock_frequency0"], {"before": "74.25", "after": "74.0"})
+
+    def test_generated_clock_guard_rejects_silent_rounding_in_metadata_or_atom(self):
+        project = self.root / "generated"
+        synth = project / "sys_pll/altera_iopll_2110/synth"
+        synth.mkdir(parents=True)
+        xml = project / "sys_pll/sys_pll.xml"
+        xml.write_text('<deploy><perimeter>'
+            '<interface name="refclk"><property name="clockRate" value="50000000" /></interface>'
+            '<interface name="outclk0"><property name="clockRate" value="74250000" /></interface>'
+            '</perimeter><entity>'
+            '<parameter name="gui_actual_output_clock_frequency0" value="74.25" />'
+            '<parameter name="gui_actual_phase_shift0" value="0.0" />'
+            '<parameter name="gui_actual_duty_cycle0" value="50.0" />'
+            '</entity></deploy>')
+        hdl = synth / "sys_pll_atom.v"
+        hdl.write_text(".fb_clk_m_div(297), .ref_clk_n_div(5), .out_clk_0_c_div(40), "
+            ".fb_clk_fractional_div_num(1), .fb_clk_fractional_div_den(1), .fb_clk_fractional_div_value(1), "
+            ".out_clk_0_freq(36'd74250000)")
+        self.assertEqual(B.generated_clock_review(project)["output_clock_hz"], 74250000)
+        original_xml = xml.read_text()
+        xml.write_text(original_xml.replace('value="74.25"', 'value="74.249999"'))
+        with self.assertRaisesRegex(ValueError, "metadata differs"):
+            B.generated_clock_review(project)
+        xml.write_text(original_xml)
+        hdl.write_text(hdl.read_text().replace(".fb_clk_m_div(297)", ".fb_clk_m_div(296)"))
+        with self.assertRaisesRegex(ValueError, "does not realize exact"):
+            B.generated_clock_review(project)
 
 
 if __name__ == "__main__":

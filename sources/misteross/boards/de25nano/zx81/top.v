@@ -10,25 +10,22 @@ module de25nano_zx81 (
     inout wire HDMI_I2C_SDA,
     output wire HDMI_MCLK, HDMI_SCLK, HDMI_LRCLK, HDMI_I2S
 );
-    wire ninit_done, pixel_clk, clk_sys;
-    wire pixel_pll_locked, machine_pll_locked;
+    wire ninit_done, pixel_clk;
+    wire pixel_pll_locked;
     wire config_reset_n /* verilator public_flat_rd */;
     wire pixel_reset_n /* verilator public_flat_rd */;
-    wire system_reset_n /* verilator public_flat_rd */;
+    wire system_reset_n = pixel_reset_n;
+    wire clk_sys = pixel_clk;
     agilex_reset_release configuration_release (.ninit_done(ninit_done));
-    // Independent PLLs preserve the exact 74.25 and 52.224 MHz targets.
+    // Rational enables (26/297) preserve the 6.5 MHz ULA/3.25 MHz CPU on the
+    // exact 74.25 MHz clock. Capture and output now also share one clock.
     sys_pll video_clock (.refclk(CLOCK0_50), .rst(ninit_done),
                          .outclk_0(pixel_clk), .locked(pixel_pll_locked));
-    machine_pll machine_clock (.refclk(CLOCK0_50), .rst(ninit_done),
-                               .outclk_0(clk_sys), .locked(machine_pll_locked));
     fes_de25_top_reset config_reset (.clk(CLOCK0_50), .ninit_done(ninit_done),
                                      .pll_locked(1'b1), .reset_n(config_reset_n));
-    fes_de25_top_reset system_reset (.clk(clk_sys), .ninit_done(ninit_done),
-                                     .pll_locked(machine_pll_locked), .reset_n(system_reset_n));
-    // A stopped or unlocked machine clock must also blank the captured video.
-    // Assertion is asynchronous, so neither running clock is needed to blank.
+    // Assertion blanks without another pixel edge; release waits for two edges.
     fes_de25_top_reset pixel_reset (.clk(pixel_clk), .ninit_done(ninit_done),
-        .pll_locked(pixel_pll_locked && machine_pll_locked), .reset_n(pixel_reset_n));
+        .pll_locked(pixel_pll_locked), .reset_n(pixel_reset_n));
 
     I2C_HDMI_Config hdmi_config (.iCLK(CLOCK0_50), .iRST_N(config_reset_n),
         .I2C_SCLK(HDMI_I2C_SCL), .I2C_SDAT(HDMI_I2C_SDA),
@@ -52,7 +49,8 @@ module de25nano_zx81 (
 `else
     localparam FIRMWARE_INIT = "zx8x.hex";
 `endif
-    zx81_machine #(.EXTERNAL_RAM(0), .FIRMWARE_INIT(FIRMWARE_INIT)) machine (
+    zx81_machine #(.EXTERNAL_RAM(0), .FIRMWARE_INIT(FIRMWARE_INIT),
+        .CLOCK_NUMERATOR(26), .CLOCK_DENOMINATOR(297)) machine (
         .clk_sys(clk_sys), .reset(machine_reset), .keyboard(keyboard),
         .tape_ready(1'b0), .tape_size(15'd0), .tape_data(8'd0), .tape_addr_out(), .tape_busy(),
         .save_ready(), .save_busy(), .save_changed(), .save_size(),

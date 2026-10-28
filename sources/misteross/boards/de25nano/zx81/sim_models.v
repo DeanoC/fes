@@ -1,12 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Controllable digital board boundaries. The bench supplies independent
-// reference, system and pixel edges; this models neither PLL analogue behavior
+// reference and shared machine/pixel edges; this models neither PLL analogue behavior
 // nor configuration timing, serial I2C transfers or the physical transmitter.
 module sys_pll(input wire refclk, rst,
                output reg outclk_0 = 0, output reg locked = 0);
-endmodule
-module machine_pll(input wire refclk, rst,
-                   output reg outclk_0 = 0, output reg locked = 0);
 endmodule
 module agilex_reset_release(output reg ninit_done = 1);
 endmodule

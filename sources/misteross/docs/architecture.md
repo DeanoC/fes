@@ -67,13 +67,15 @@ documentation remain qualification gates; these SOFs are not boot/BSP artifacts.
 
 [`boards/de25nano/zx81/`](../boards/de25nano/zx81/README.md) combines the real
 ZX81 machine/NMOS Z80 and its existing 720p capture renderer with that board's
-HDMI pins and FPGA-side transmitter initializer. Independent native Agilex
-PLLs target 52.224 MHz system and 74.25 MHz pixel clocks. Board-local derived
-RAM sources change only the guarded device/block selections to Agilex 5/M20K;
-the shared machine and DE10 producers are unchanged. KEY0 resets the machine
+HDMI pins and FPGA-side transmitter initializer. A native Agilex PLL targets
+74.25 MHz for machine and video, with rational enables at 26/297 preserving
+the 6.5 MHz ULA and 3.25 MHz CPU. The shared scheduler retains its DE10
+1625/13056 default; WAIT/NMI are declared before use for Quartus Pro.
+Board-local derived RAM sources change only the guarded device/block
+selections to Agilex 5/M20K; DE10 producers are unchanged. KEY0 resets the machine
 and KEY1 supplies ENTER. This FPGA-only diagnostic has no HPS, DDR, runtime
-package, tape delivery or session-display plane. Its dual-clock capture RAM
-retains the existing startup/collision/frame-coherence limitations; external
+package, tape delivery or session-display plane. Both capture RAM ports use
+the same board clock; startup/collision/frame-coherence limitations remain. External
 IO timing and physical board acceptance remain open.
 
 [`boards/de25nano/combined/`](../boards/de25nano/combined/README.md) composes

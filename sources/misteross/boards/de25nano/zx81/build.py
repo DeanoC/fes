@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+from decimal import Decimal
+from fractions import Fraction
 import importlib.util
 import io
 import json
@@ -13,6 +15,7 @@ import subprocess
 import tempfile
 import tomllib
 import zipfile
+import xml.etree.ElementTree as ET
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[4]
@@ -60,25 +63,6 @@ def key_assignments(source):
     return "\n".join(rows) + "\n"
 
 
-def machine_pll(source):
-    """Derive a separate machine PLL, preserving the vendor pixel PLL unchanged."""
-    result, device_repair = DISPLAY.retarget_pll(source)
-    replacements = ((b"<ipxact:library>sys_pll</ipxact:library>", b"<ipxact:library>machine_pll</ipxact:library>", 2),
-                    (b"<ipxact:value>74250000</ipxact:value>", b"<ipxact:value>52224000</ipxact:value>", 1),
-                    (b"&lt;value&gt;74250000&lt;/value&gt;", b"&lt;value&gt;52224000&lt;/value&gt;", 1),
-                    (b"<ipxact:value>74.25</ipxact:value>", b"<ipxact:value>52.224</ipxact:value>", 1),
-                    (b"<ipxact:value>13468.013</ipxact:value>", b"<ipxact:value>19148.284</ipxact:value>", 1))
-    for before, after, count in replacements:
-        if result.count(before) != count:
-            raise ValueError("vendor machine PLL derivation contract changed")
-        result = result.replace(before, after)
-    return result, {"device_repair": device_repair, "module": "machine_pll",
-        "reference_clock_hz": 50000000, "output_clock_hz": 52224000,
-        "parameter_changes": {"gui_output_clock_frequency0": {"before": "74.25", "after": "52.224"},
-                              "gui_output_clock_frequency_ps0": {"before": "13468.013", "after": "19148.284"}},
-        "source_sha256": sha(source), "derived_sha256": sha(result)}
-
-
 def _derive(source, replacements, label):
     result = source
     for before, after, count in replacements:
@@ -120,7 +104,6 @@ def prepare(archive, output=None, revision=None):
         raise ValueError("HDMI reference pins differ from the SCS golden board")
     pins += key_assignments(baseline)
     pixel, pixel_repair = DISPLAY.retarget_pll(vendor["sys_pll.ip"])
-    machine, machine_repair = machine_pll(vendor["sys_pll.ip"])
     reset, reset_repair = DISPLAY.retarget_reset(vendor["agilex_reset_release.ip"])
     config = vendor["HDMI_I2C/I2C_HDMI_Config.v"].decode()
     expected = (r"parameter\s+CLK_Freq\s*=\s*50000000\s*;", r"parameter\s+I2C_Freq\s*=\s*20000\s*;",
@@ -146,7 +129,7 @@ def prepare(archive, output=None, revision=None):
     (output / "vendor/scs-golden.qsf").write_text(baseline)
     for name, data in sources.items():
         (project / name).write_bytes(data)
-    for name, data in {"sys_pll.ip": pixel, "machine_pll.ip": machine, "agilex_reset_release.ip": reset,
+    for name, data in {"sys_pll.ip": pixel, "agilex_reset_release.ip": reset,
         "I2C_HDMI_Config.v": vendor["HDMI_I2C/I2C_HDMI_Config.v"], "I2C_Controller.v": vendor["HDMI_I2C/I2C_Controller.v"],
         "zx81_dpram_de25.v": ram, "zx81_video_720p_de25.v": video}.items():
         (project / name).write_bytes(data)
@@ -156,7 +139,7 @@ def prepare(archive, output=None, revision=None):
         ("PROJECT_OUTPUT_DIRECTORY", "output_files"), ("NUM_PARALLEL_PROCESSORS", "2"), ("SEED", "1"),
         ("STRATIXV_CONFIGURATION_SCHEME", '"ACTIVE SERIAL X4"'), ("ACTIVE_SERIAL_CLOCK", "AS_FREQ_125MHZ"),
         ("DEVICE_INITIALIZATION_CLOCK", "OSC_CLK_1_125MHZ"), ("RESERVE_ALL_UNUSED_PINS", '"AS INPUT TRI-STATED"'),
-        ("VERILOG_MACRO", "QUARTUS=1"), ("IP_FILE", "sys_pll.ip"), ("IP_FILE", "machine_pll.ip"),
+        ("VERILOG_MACRO", "QUARTUS=1"), ("IP_FILE", "sys_pll.ip"),
         ("IP_FILE", "agilex_reset_release.ip"), ("SDC_FILE", "clocks.sdc"))
     verilog = ("top.v", "keyboard.v", "fes_de25_top_reset.v", "I2C_HDMI_Config.v", "I2C_Controller.v", "zx81_machine_clock.v",
                "zx81_dpram_de25.v", "zx81_video_720p_de25.v")
@@ -171,9 +154,11 @@ def prepare(archive, output=None, revision=None):
     inputs = {**identity, "board": "de25_nano", "device": DEVICE, "diagnostic_only": True,
         "source_sha256": {name: sha(data) for name, data in sources.items()}, "vendor_archive": lock["archive"],
         "vendor_source_sha256": {name: sha(data) for name, data in vendor.items()},
-        "reviewed_pixel_pll_device_repair": pixel_repair, "reviewed_machine_pll_derivation": machine_repair,
+        "reviewed_pixel_pll_device_repair": pixel_repair,
         "reviewed_reset_release_device_repair": reset_repair, "reviewed_ram_derivation": ram_repair,
-        "reviewed_video_ram_derivation": video_repair, "system_clock_hz": 52224000,
+        "reviewed_video_ram_derivation": video_repair, "system_clock_hz": 74250000,
+        "machine_clock": {"ula_hz": 6500000, "cpu_hz": 3250000,
+                          "phase_numerator": 26, "phase_denominator": 297},
         "video": {"pixel_clock_hz": 74250000, "h_total": 1650, "v_total": 750},
         "hps": False, "ddr": False, "gp": False, "runtime_package": False,
         "boot_firmware_compatibility": "not-qualified", "hardware_acceptance": "not-run",
@@ -182,11 +167,49 @@ def prepare(archive, output=None, revision=None):
     return output
 
 
+def generated_clock_review(project):
+    """Reject rounded IP output rates before synthesis, using generated metadata/atom."""
+    xml_path = project / "sys_pll/sys_pll.xml"
+    tree = ET.fromstring(xml_path.read_bytes())
+    expected = {
+        "./perimeter/interface[@name='refclk']/property[@name='clockRate']": "50000000",
+        "./perimeter/interface[@name='outclk0']/property[@name='clockRate']": "74250000",
+        ".//entity/parameter[@name='gui_actual_output_clock_frequency0']": "74.25",
+        ".//entity/parameter[@name='gui_actual_phase_shift0']": "0.0",
+        ".//entity/parameter[@name='gui_actual_duty_cycle0']": "50.0"}
+    actual = {}
+    for selector, value in expected.items():
+        nodes = tree.findall(selector)
+        if len(nodes) != 1 or Decimal(nodes[0].get("value", "NaN")) != Decimal(value):
+            raise ValueError("generated PLL clock metadata differs from exact 74.25 MHz target: " + selector)
+        actual[selector] = nodes[0].get("value")
+    files = list((project / "sys_pll").glob("altera_iopll_*/synth/*.v"))
+    if len(files) != 1:
+        raise ValueError("generated PLL must contain one reviewed synthesis atom")
+    hdl = files[0].read_text()
+    counters = {}
+    for name in ("fb_clk_m_div", "ref_clk_n_div", "out_clk_0_c_div",
+                 "fb_clk_fractional_div_num", "fb_clk_fractional_div_den", "fb_clk_fractional_div_value"):
+        values = re.findall(r"\." + name + r"\((\d+)\)", hdl)
+        if len(values) != 1 or int(values[0]) <= 0:
+            raise ValueError("generated PLL divider contract changed: " + name)
+        counters[name] = int(values[0])
+    if any(counters[name] != 1 for name in ("fb_clk_fractional_div_num", "fb_clk_fractional_div_den", "fb_clk_fractional_div_value")):
+        raise ValueError("generated PLL unexpectedly uses fractional feedback")
+    frequency = Fraction(50000000 * counters["fb_clk_m_div"], counters["ref_clk_n_div"] * counters["out_clk_0_c_div"])
+    if frequency != 74250000 or re.findall(r"\.out_clk_0_freq\(36'd(\d+)\)", hdl) != ["74250000"]:
+        raise ValueError("generated PLL atom does not realize exact 74.25 MHz")
+    return {"output_clock_hz": 74250000, "shared_machine_video_clock": True,
+        "metadata": actual, "counters": counters,
+        "generated_xml": str(xml_path.relative_to(project)), "generated_xml_sha256": sha(xml_path.read_bytes()),
+        "generated_hdl": str(files[0].relative_to(project)), "generated_hdl_sha256": sha(files[0].read_bytes())}
+
+
 def compile_project(output, tool, version):
     project = output / "project"
     (output / "quartus-version.txt").write_text(version + "\n")
     generate = [tool.with_name("quartus_ipgenerate"), "--generate_project_ip_files", "--synthesis=verilog", PROJECT]
-    ip_names = ("sys_pll.ip", "machine_pll.ip", "agilex_reset_release.ip")
+    ip_names = ("sys_pll.ip", "agilex_reset_release.ip")
     expected = {name: pll_parameters((project / name).read_bytes()) for name in ip_names}
     DISPLAY.run(generate, project, output / "ip-generation.log")
     changes = {name: {key: {"before": params.get(key), "after": actual.get(key)}
@@ -196,6 +219,8 @@ def compile_project(output, tool, version):
     (output / "ip-parameter-review.json").write_text(json.dumps(changes, indent=2, sort_keys=True) + "\n")
     if changes:
         raise ValueError("IP generation changed reviewed PLL/reset parameters")
+    clocks = generated_clock_review(project)
+    (output / "pll-frequency-review.json").write_text(json.dumps(clocks, indent=2, sort_keys=True) + "\n")
     command = [tool, "--flow", "compile", PROJECT]
     DISPLAY.run(command, project, output / "compile.log")
     if any(pll_parameters((project / name).read_bytes()) != params for name, params in expected.items()):
@@ -203,9 +228,12 @@ def compile_project(output, tool, version):
     artifact = project / "output_files" / (PROJECT + ".sof")
     if not artifact.is_file() or not artifact.stat().st_size:
         raise ValueError("Quartus produced no nonempty ZX81 SOF")
+    if generated_clock_review(project) != clocks:
+        raise ValueError("compile changed reviewed generated PLL clock identity")
     receipt = {"fes_revision": json.loads((output / "inputs.json").read_text())["fes_revision"],
         "artifact": str(artifact.relative_to(output)), "sha256": sha(artifact.read_bytes()),
         "inputs_sha256": sha((output / "inputs.json").read_bytes()), "quartus_version": version,
+        "generated_clock_review": clocks,
         "command": list(map(str, command)), "ip_generation_command": list(map(str, generate)),
         "reports_sha256": {str(path.relative_to(project)): sha(path.read_bytes()) for path in (project / "output_files").iterdir()
                             if path.suffix in (".rpt", ".summary", ".pin")},
