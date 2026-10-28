@@ -325,6 +325,18 @@ mister::Status Pc386RunningStatus()
 	return status;
 }
 
+mister::Status Pc386EmptyDiskStatus()
+{
+	auto status = Pc386RunningStatus();
+	auto& unit = status.capabilities.media_units.front();
+	unit.state = mister::MediaUnitState::empty;
+	unit.persistence_mode.clear();
+	unit.game_id.clear();
+	unit.base_media_id.clear();
+	unit.revision.clear();
+	return status;
+}
+
 // fes.pc386: a per-game record keyed by game_id, and machine settings in
 // place of Pong's paddle speed. The response lines are the agent's fixture.
 void TestPc386CoreDataProtocol()
@@ -382,8 +394,11 @@ void TestPc386CoreDataProtocol()
 	assert(!Parse("{\"protocol\":2,\"operation\":\"inspect_core_data\"," + fields + disk + "}}", &request).ok());
 
 	const auto lines = ReadLines("tests/fixtures/protocol-v2-pc386-responses.jsonl");
-	assert(lines.size() == 3);
+	assert(lines.size() == 4);
 	assert(lines[2].find("\"saveable\":false") != std::string::npos);
+	assert(lines[3].find("\"saveable\":false") != std::string::npos);
+	assert(lines[3].find("\"state\":\"empty\"") != std::string::npos);
+	assert(lines[3].find("\"persistence\"") == std::string::npos);
 	Status status;
 	status.state = State::idle;
 	status.capabilities = FixtureCapabilities();
@@ -403,6 +418,7 @@ void TestPc386CoreDataProtocol()
 	data.revision = std::string(64, 'b');
 	assert(mister::daemon::EncodeResponse(2, true, status, "fixture", nullptr, &data) == lines[1]);
 	assert(mister::daemon::EncodeResponse(2, true, Pc386RunningStatus(), "fixture") == lines[2]);
+	assert(mister::daemon::EncodeResponse(2, true, Pc386EmptyDiskStatus(), "fixture") == lines[3]);
 }
 
 void TestPersistenceRequestsAndResponseFixtures()

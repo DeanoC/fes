@@ -916,9 +916,15 @@ Live status exposes optional unit `persistence` with `mode:"persistent"`,
 or the full-record SHA-256). A unit may also report `saveable:false` when it has
 a durable binding but does not support an explicit in-session checkpoint;
 callers must preserve the binding identity while refusing the Save operation.
-Whole-package persistence mode is persistent only while such a binding exists.
-ST parts/ROM composition does not change this identity or weaken composition
-validation.
+Writable Atari ST packages use persistent mode only while a disk binding exists.
+The `fes.computer` 1.1 pc386 `fes.media.ata-disk` unit is a fixed 1..128 MiB
+unit with 65,536-byte chunks and always reports `saveable:false`. Its package
+remains persistent when the unit is empty, and a loaded disk keeps its
+game/base/revision binding in status. FogCast validates that binding and gives
+Stop the persistent-data deadline, while keeping the unit outside the Atari ST
+in-session Save and insert/eject paths; libmister-runtime checkpoints its dirty
+chunks during Stop or fault cleanup. ST parts/ROM composition does not change its
+binding identity or weaken composition validation.
 
 The host routes `POST /api/v1/session/disk/insert` and `…/disk/save` retain the
 captured session ID and package/generation/target/unit binding. Insert takes

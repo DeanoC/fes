@@ -1,0 +1,204 @@
+package misterruntime
+
+import (
+	"bytes"
+	"context"
+	"crypto/sha256"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"os"
+	"path/filepath"
+	"reflect"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/DeanoC/FogCast/corepackage"
+	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/targetclient"
+)
+
+type pc386FixtureControl struct{ response Protocol2Response }
+
+func (c pc386FixtureControl) Protocol2Status(context.Context) (Protocol2Response, error) {
+	return c.response, nil
+}
+func (pc386FixtureControl) Protocol2Stop(context.Context) (Protocol2Response, error) {
+	return Protocol2Response{}, io.ErrUnexpectedEOF
+}
+func (pc386FixtureControl) Protocol2LoadDevelopmentRBF(context.Context, string) (Protocol2Response, error) {
+	return Protocol2Response{}, io.ErrUnexpectedEOF
+}
+
+func TestPc386GoldenDiskStatusesDecodeReconcileAndPassTargetClient(t *testing.T) {
+	lines := fixtureLines(t, "protocol-v2-pc386-responses.jsonl")
+	if len(lines) != 4 {
+		t.Fatalf("pc386 fixture rows = %d", len(lines))
+	}
+	archive := pc386FixtureArchive(t)
+	root := t.TempDir()
+	staged, err := corepackage.Stage(context.Background(), root, int64(len(archive)), bytes.NewReader(archive))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer staged.Cleanup()
+
+	for _, test := range []struct {
+		name  string
+		row   int
+		state string
+		bound bool
+	}{
+		{name: "bound disk", row: 2, state: protocol.MediaUnitReady, bound: true},
+		{name: "empty disk", row: 3, state: protocol.MediaUnitEmpty},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			response, err := decodeProtocol2Response([]byte(lines[test.row]))
+			if err != nil {
+				t.Fatalf("decode row %d: %v", test.row+1, err)
+			}
+			if !reflect.DeepEqual(response.ActivePackage.Descriptor, staged.Descriptor) {
+				t.Fatal("pc386 fixture descriptor differs from the staged test package")
+			}
+			// The frozen protocol fixture uses a placeholder package ID. Rebind only
+			// that synthetic identity so reconciliation can adopt the matching test
+			// package and exercise the normal target status projection.
+			response.ActivePackage.PackageID = staged.PackageID
+			control := pc386FixtureControl{response: response}
+			runtime := NewRuntime(control, "", time.Millisecond, time.Second, WithCorePackageRoot(root))
+			status := runtime.reconcileProtocol2(context.Background(), control)
+			if status.State != protocol.StateActive || status.CorePackage == nil ||
+				status.CorePackage.PersistenceMode != "persistent" || len(status.CorePackage.MediaUnits) != 1 {
+				t.Fatalf("reconciled pc386 status = %+v", status)
+			}
+			unit := status.CorePackage.MediaUnits[0]
+			if unit.Interface != protocol.AtaDiskInterface() || unit.State != test.state || unit.CanSave() ||
+				(unit.Persistence != nil) != test.bound || protocol.PersistentMediaBound(status.CorePackage) != test.bound {
+				t.Fatalf("reconciled ATA unit = %+v", unit)
+			}
+			if protocol.MediaDataBound(status.CorePackage) {
+				t.Fatal("fixed ATA binding was exposed as an Atari ST saveable binding")
+			}
+			assertTargetClientAcceptsStatus(t, status)
+		})
+	}
+}
+
+func assertTargetClientAcceptsStatus(t *testing.T, status protocol.Status) {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/v1/library/core/load" {
+			t.Errorf("target request = %s %s", r.Method, r.URL.Path)
+		}
+		_, _ = io.Copy(io.Discard, r.Body)
+		_ = json.NewEncoder(w).Encode(status)
+	}))
+	defer server.Close()
+	base, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := targetclient.NewClient(base, "test-token", server.Client())
+	got, err := client.LoadLibraryCore(context.Background(), 1, strings.NewReader("x"), status.CorePackage.PackageID)
+	if err != nil {
+		t.Fatalf("targetclient rejected reconciled pc386 status: %v", err)
+	}
+	if got.CorePackage == nil || len(got.CorePackage.MediaUnits) != 1 || got.CorePackage.MediaUnits[0].Saveable == nil || got.CorePackage.MediaUnits[0].CanSave() {
+		t.Fatalf("targetclient dropped saveable:false: %+v", got.CorePackage)
+	}
+}
+
+func pc386FixtureArchive(t *testing.T) []byte {
+	t.Helper()
+	payloadPath := filepath.Join("..", "..", "corepackage", "testdata", "core-bundle-v2", "payloads", "fes-fixture.rbf")
+	payload, err := os.ReadFile(payloadPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	digest := sha256.Sum256(payload)
+	manifest := []byte(fmt.Sprintf(`format = 2
+
+[core]
+id = "fes.pc386"
+name = "FES pc386"
+description = "Synthetic test-only core bundle fixture; never deploy."
+version = "0.1.0"
+
+[target]
+platform = "de10_nano"
+device = "5CSEBA6U23I7"
+programming_profile = "fes-gp-v1"
+
+[payload]
+file = "core.rbf"
+size = %d
+sha256 = "%x"
+
+[abi]
+id = "fes.computer"
+major = 1
+minor = 1
+
+[[interfaces]]
+id = "fes.video.fixed-720p60"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.memory.hps-ddr"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.media.ata-disk"
+major = 1
+minor = 0
+required = true
+
+[build]
+id = "0123456789abcdef0123456789abcdef"
+repository = "https://example.invalid/fes-pc386"
+revision = "1111111111111111111111111111111111111111"
+recipe_sha256 = "2222222222222222222222222222222222222222222222222222222222222222"
+toolchain = "synthetic fixture generator 1.0 (test-only)"
+`, len(payload), digest))
+	return pc386TarArchive(manifest, payload)
+}
+
+func pc386TarArchive(manifest, payload []byte) []byte {
+	var output bytes.Buffer
+	for _, entry := range []struct {
+		name string
+		data []byte
+	}{{"manifest.toml", manifest}, {"core.rbf", payload}} {
+		header := make([]byte, 512)
+		copy(header, entry.name)
+		copy(header[100:108], "0000644\x00")
+		copy(header[108:116], "0000000\x00")
+		copy(header[116:124], "0000000\x00")
+		copy(header[124:136], fmt.Sprintf("%011o\x00", len(entry.data)))
+		copy(header[136:148], "00000000000\x00")
+		for i := 148; i < 156; i++ {
+			header[i] = ' '
+		}
+		header[156] = '0'
+		copy(header[257:263], "ustar\x00")
+		copy(header[263:265], "00")
+		checksum := 0
+		for _, value := range header {
+			checksum += int(value)
+		}
+		copy(header[148:156], fmt.Sprintf("%06o\x00 ", checksum))
+		output.Write(header)
+		output.Write(entry.data)
+		output.Write(make([]byte, (512-len(entry.data)%512)%512))
+	}
+	output.Write(make([]byte, 1024))
+	return output.Bytes()
+}
