@@ -205,7 +205,11 @@ cannot establish safety for the other fabric masters and HPS-origin traffic.
 
 The [Linux DMA ownership diagnostic](../image/kernel/de25-dma/README.md)
 implements kernel-owned coherent allocation, descriptor publication and
-revocable mappings. Its production binding refuses all devices. A separate
+revocable mappings. ABI 2 adds ordered scanout submission, explicit coherent
+status polling and repeated-frame slot ownership: command acceptance does not
+release the old slot; a matching complete displayed frame does. The allocation
+stays pinned for the configured engine's lifetime until an identity-matched
+STOP/drain/CLEAR proof. Its production binding refuses all devices. A separate
 AArch64 QEMU kernel exercises the real DMA/file/VMA code on a KUnit device:
 
 ```sh
@@ -217,16 +221,25 @@ python3 scripts/de25_kernel_test.py run --image-output out/de25-nano-linux-cxx \
 The runner requires clean committed sources, the locked SDK/vendor Image and
 the pinned Linux 6.12.11 source commit. The existing builder supplies QEMU;
 the compile and boot run with container networking disabled. It checks all
-eight required ownership cases and rejects raw kernel warnings, oopses and
+sixteen required ownership cases and rejects raw kernel warnings, oopses and
 panics before publishing artifact receipts. This test kernel's configuration
 and device differ from the board's preserved kernel and FPGA. It establishes
 no board module-loadability, stream translation or physical DMA visibility.
 
+The [allocated-buffer FPGA diagnostic](../sources/misteross/boards/de25nano/scanout/README.md)
+connects the real menu reader to the preserved memory path. Its shared
+`fes.fabric.de25-scanout` contract owns the two-slot grant, full-frame
+completion and frozen multiword snapshots. Explicit control and memory bridges
+cross between the 100 MHz system and 74.25 MHz pixel clocks. Pixel PLL-lock
+loss blanks output and retains live transaction accounting; local CLEAR never
+resets the crossing bridges. This diagnostic starts disabled and is separate
+from the image and runtime.
+
 Hardware integration still needs a compatible firmware/SOF pair and the real
-DMA device/stream binding, firewall coverage and global reset/drain lifetime.
-Interactive MENU additionally needs allocated-buffer scanout, ordered
-frame-boundary completion and the pixel-clock crossing. The existing AArch64
-runtime guard continues to refuse DE25 hardware access.
+DMA device/stream binding, bounded register-access behavior, firewall coverage
+and global reset/drain lifetime. Interactive MENU also needs the production
+presenter integration and exact-artifact physical DMA/HDMI acceptance. The
+existing AArch64 runtime guard continues to refuse DE25 hardware access.
 
 ## Validation and the board gate
 
