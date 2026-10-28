@@ -133,6 +133,7 @@ module fes_i386_seq (
     always_comb begin
         n = d;
         n.step = d.step + 3'd1;
+        n.upc = d.upc + 8'd1;  // read only by SEQ_UCODE
         // The per-step controls.
         n.more = 1'b0;
         n.uop.sp_add = 1'b0;
@@ -262,7 +263,6 @@ module fes_i386_seq (
             end
             fes_i386_pkg::SEQ_UCODE: begin
                 n.more = !w.last;
-                n.upc = d.upc + 8'd1;
                 n.uop.cls = fes_i386_pkg::uop_class_e'(w.cls);
                 n.uop.op = w.op;
                 n.uop.imm = {28'd0, w.imm};
