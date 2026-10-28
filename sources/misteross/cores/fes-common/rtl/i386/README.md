@@ -225,6 +225,16 @@ them, so a uop reads one at WB, or waits in D until its writers retire.
 - Far transfers are taken branches, with no prediction yet: each redirects
   from WB.
 
+**CR0, CLTS and WAIT.** CR0's MP and TS are all of CR0 the CPU holds,
+from `init_cr0`, shown in `arch_cr0`. WAIT is a NOP, or raises #NM when MP
+and TS are both set, which DC decodes after every other check, as the
+design's [FPU](../../../../docs/i386-cpu-design.md#fpu) section asks. CLTS
+clears TS at WB as a system uop that jumps to the next instruction, so
+every instruction after it decodes once TS is clear, and no wait in D
+follows it. The jump is not cut to 16 bits: a CLTS that ends at FFFFh
+leaves EIP 10000h, as any other instruction does. Nothing else writes MP
+or TS yet: MOV to CR0, LMSW and the ESC instructions are not built.
+
 **Small forms:**
 - XCHG of registers is three XORs that write no flags, each into the
   register the one before read; EX's arithmetic and logic flag selects
@@ -553,9 +563,10 @@ a string element's steps of ESI, EDI and ECX, EFLAGS, EIP and stores, the result
 in its dword and the next (IN's data for INS), and I/O accesses. A real-mode segment load sets the base to selector * 16 and
 keeps the limit and attributes.
 
-**Reset and trace.** `init_*` is the architectural state reset loads; a
-machine ties it to the 386 reset state, and the lockstep harness to a test's
-state. `trace_*` and `arch_*` show each retirement.
+**Reset and trace.** `init_*` is the architectural state reset loads,
+CR0's MP and TS among it; a machine ties it to the 386 reset state, and the
+lockstep harness to a test's state. `trace_*` and `arch_*` show each
+retirement.
 
 ## Synthesis notes
 
