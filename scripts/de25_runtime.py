@@ -107,7 +107,8 @@ def inside(jobs, revision):
     with (export / "agent-runtime-tests.log").open("w") as log:
         checked(["qemu-aarch64-static", "-cpu", "cortex-a53", export / "agent-runtime-tests", "-test.v",
                  "-test.run", "^(" + "|".join(GO_TESTS) + ")$", "-test.timeout=30s"],
-                cwd=ROOT / "sources/FogCast", stdout=log, stderr=subprocess.STDOUT, timeout=60)
+                cwd=ROOT / "sources/FogCast/internal/misterruntime",
+                stdout=log, stderr=subprocess.STDOUT, timeout=60)
     check_agent_results(export / "agent-runtime-tests.log")
     (export / "checks.json").write_text(json.dumps({"runtime_tests": checks,
                                                    "agent_tests": list(GO_TESTS),
