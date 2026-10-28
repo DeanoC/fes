@@ -17,8 +17,10 @@
 //   0x04000000  guest RAM at the 8237's 24-bit address
 //   0x08000000  ATA image, 64-bit words
 //
-// After reset the master writes a status beat with a fresh epoch (the clock
-// count at reset release) and waits until the doorbell carries that epoch.
+// After reset the master clears the doorbell to {tail 0, its epoch}, so no
+// tail left by an earlier run is honoured, then writes the status beat with
+// that epoch (the clock count since configuration). A host attaches when it
+// sees MAGIC there, and writes the doorbell with the same epoch.
 // Every command and result carries epoch + its sequence number, so a stale
 // beat from an earlier run or an earlier lap of the ring is never executed:
 // the master reads the command again until the sequence number matches.
@@ -115,8 +117,9 @@ module pc386_bus_master #(
         OP_DELAY = 4'd10, OP_POLL_IN = 4'd11, OP_CONFIG = 4'd12, OP_READ = 4'd13, OP_KEY = 4'd14;
     assign p0_burstcount = 8'd1;
 
-    reg [31:0] clock;
-    always @(posedge clk) clock <= reset ? 32'd0 : clock + 32'd1;
+    // Free-running from configuration, so each launch draws a new epoch.
+    reg [31:0] clock = 32'd0;
+    always @(posedge clk) clock <= clock + 32'd1;
 
     // ---- Port 0: one transaction at a time; DMA, then disk, then the engine.
     localparam [1:0] NONE = 2'd0, DMA = 2'd1, DISK = 2'd2, ENGINE = 2'd3;
@@ -187,7 +190,7 @@ module pc386_bus_master #(
 
     // ---- Command engine
     localparam [3:0] E_START = 4'd0, E_EPOCH = 4'd1, E_IDLE = 4'd2, E_BELL = 4'd3, E_FETCH = 4'd4,
-        E_RUN = 4'd5, E_RESULT = 4'd6, E_STATUS = 4'd7, E_BEAT = 4'd8;
+        E_RUN = 4'd5, E_RESULT = 4'd6, E_STATUS = 4'd7, E_BEAT = 4'd8, E_ANNOUNCE = 4'd9;
     reg [3:0] state, after_beat;
     reg [31:0] epoch, head, tail;
     reg [7:0] poll;
@@ -231,7 +234,12 @@ module pc386_bus_master #(
                 // The epoch is the clock count when the master first runs.
                 E_START: begin
                     epoch <= clock;
-                    beat(1, STATUS, {clock, clock, MAGIC, 32'd0}, 16'hffff);
+                    beat(1, DOORBELL, {64'd0, clock, 32'd0}, 16'hffff);
+                    after_beat <= E_ANNOUNCE;
+                    state <= E_BEAT;
+                end
+                E_ANNOUNCE: begin
+                    beat(1, STATUS, {clock, epoch, MAGIC, 32'd0}, 16'hffff);
                     after_beat <= E_EPOCH;
                     state <= E_BEAT;
                 end

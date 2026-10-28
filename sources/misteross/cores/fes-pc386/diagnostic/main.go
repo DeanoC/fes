@@ -121,6 +121,9 @@ func (r *runner) collect() error {
 	if time.Since(r.progress) > stallLimit {
 		return fmt.Errorf("no command completed for %v (%d of %d done)", stallLimit, r.completed, r.submitted)
 	}
+	if epoch := r.w.word(status + 8); epoch != r.epoch {
+		return fmt.Errorf("the bus master restarted (epoch %08x, attached to %08x)", epoch, r.epoch)
+	}
 	head := r.w.word(status)
 	for r.completed != head {
 		base := results + 16*(r.completed%ring)

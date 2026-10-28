@@ -335,7 +335,7 @@ def build(root: Path = ROOT, package_store=None, *, cache_root: Path | None = No
     repository, revision = require_clean_source(root, identity_version=identity_version)
     authenticated = _authenticate_tools(root, cache_root=cache_root)
     identities = {name: tool.identity for name, tool in authenticated.items()}
-    invocation = FunctionalInvocation(authenticated, gpu_device, extra_env={"NEXTPNR_REQUIRE_GPU": "1"})
+    invocation = FunctionalInvocation(authenticated, gpu_device)
     output = None
     try:
         record = create_build_record(root, repository, revision, identities, identity_version=identity_version,
