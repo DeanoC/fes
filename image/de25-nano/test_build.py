@@ -63,6 +63,7 @@ class HeadlessBuildTests(unittest.TestCase):
                 path.write_bytes(("artifact:" + name).encode())
             record = {"format": 1, "board": "de25-nano", "architecture": "aarch64",
                       "fes_revision": "a" * 40, "recipe_sha256": "b" * 64,
+                      "rootfs_key": BUILD.rootfs_key(), "builder_image": "sha256:" + "c" * 64,
                       "files": {name: BUILD.digest(output / name) for name in names}}
 
             def write(value):
@@ -73,7 +74,8 @@ class HeadlessBuildTests(unittest.TestCase):
                 write(record)
                 self.assertEqual(BUILD.verify_receipt(output), record)
                 for key, bad in (("board", "de10-nano"), ("architecture", "arm"),
-                                 ("fes_revision", "not-a-commit"), ("recipe_sha256", "c" * 64)):
+                                 ("fes_revision", "not-a-commit"), ("recipe_sha256", "c" * 64),
+                                 ("rootfs_key", "d" * 64), ("builder_image", "unqualified")):
                     altered = dict(record, **{key: bad})
                     write(altered)
                     with self.subTest(field=key), self.assertRaisesRegex(ValueError, "target or recipe"):

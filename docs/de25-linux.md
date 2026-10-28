@@ -88,6 +88,12 @@ existing FES development convention. Dropbear creates the board's SSH host keys
 on the writable root filesystem at first boot; no shared host key is shipped.
 `/etc/fes-board` identifies this root filesystem as `de25-nano`.
 
+The selected vendor boot path may generate a random Ethernet MAC when no
+valid address is available from firmware or hardware. Stable MAC identity
+across reboots is not established by this milestone. Record the observed MAC
+and DHCP address during board qualification, including distinct addresses
+when testing both boards.
+
 The normal FES appliance bootstrap is not used. Its current kernel contract,
 trial watchdog reset preparation and software bundle identities target
 DE10-Nano. The DE25 image does not accept DE10 bundles or claim managed update,

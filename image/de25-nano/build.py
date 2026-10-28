@@ -6,6 +6,7 @@ import argparse
 from contextlib import contextmanager
 import fcntl
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -82,8 +83,8 @@ def rootfs_key(root=ROOT):
     return value.hexdigest()
 
 
-def download_buildroot(cache):
-    source = lock()["buildroot"]
+def download_buildroot(cache, selected=None):
+    source = (lock() if selected is None else selected)["buildroot"]
     archive = cache / source["file"]
     if archive.exists() or archive.is_symlink():
         if not stat.S_ISREG(archive.lstat().st_mode):
@@ -272,6 +273,7 @@ def smoke_rootfs(directory):
         run([*qemu, root / "usr/bin/dropbearkey", "-t", "ed25519", "-f", key],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         server = subprocess.Popen([*qemu, str(root / "usr/sbin/dropbear"), "-F", "-E",
+                                   "-P", str(Path(temporary) / "dropbear.pid"),
                                    "-p", "127.0.0.1:2222", "-r", str(key)],
                                   stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
         try:
@@ -303,6 +305,9 @@ def inside(action, jobs):
     output = Path("/export")
     if action in ("verify", "smoke"):
         checks = smoke_rootfs(output) if action == "smoke" else verify_rootfs(output)
+        checks.update(board=BOARD, recipe_sha256=recipe_key(),
+                      rootfs_sha256=digest(output / "rootfs.ext4"),
+                      image_sha256=digest(output / "fes-de25-nano.img"))
         (output / (action + ".json")).write_text(json.dumps(checks, indent=2) + "\n")
         return
     source, work, command, env = prepare_buildroot()
@@ -321,13 +326,15 @@ def inside(action, jobs):
     verify_rootfs(output)
 
 
-def verify_receipt(output):
+def verify_receipt(output, source=ROOT):
     record = json.loads((output / "image.json").read_text())
     if (record.get("format") != 1 or record.get("board") != BOARD or
-            record.get("architecture") != ARCH or record.get("recipe_sha256") != recipe_key() or
+            record.get("architecture") != ARCH or record.get("recipe_sha256") != recipe_key(source) or
+            record.get("rootfs_key") != rootfs_key(source) or
+            not re.fullmatch(r"sha256:[a-f0-9]{64}", record.get("builder_image", "")) or
             not re.fullmatch(r"[a-f0-9]{40}", record.get("fes_revision", ""))):
         raise ValueError("DE25 receipt differs from target or recipe")
-    if set(record.get("files", {})) != set(artifact_names()):
+    if set(record.get("files", {})) != set(artifact_names(source)):
         raise ValueError("DE25 receipt has missing or unexpected artifacts")
     for name, expected in record["files"].items():
         path = output / name
@@ -336,9 +343,9 @@ def verify_receipt(output):
     return record
 
 
-def artifact_names():
+def artifact_names(source=ROOT):
     import boot
-    vendor = boot.load_lock()
+    vendor = boot.load_lock(Path(source) / "image/de25-nano/vendor.lock.toml")
     return ["fes-de25-nano.img", "rootfs.ext4", "rootfs.tar", "aarch64-sdk.tar.gz", "buildroot.config",
             "vendor-boot/vendor-boot-prefix.bin",
             *("vendor-boot/" + item["name"] for item in vendor["boot_files"]),
@@ -347,9 +354,10 @@ def artifact_names():
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("fetch", "build", "verify", "smoke", "_inside"))
-    parser.add_argument("inside_action", nargs="?")
-    parser.add_argument("inside_jobs", nargs="?", type=int)
+    parser.add_argument("action", choices=("fetch", "build", "verify", "smoke", "_inside"),
+                        metavar="{fetch,build,verify,smoke}")
+    parser.add_argument("inside_action", nargs="?", help=argparse.SUPPRESS)
+    parser.add_argument("inside_jobs", nargs="?", type=int, help=argparse.SUPPRESS)
     parser.add_argument("--output", type=Path, default=ROOT / "out/de25-nano-linux")
     parser.add_argument("--cache", type=Path, default=ROOT / "out/de25-linux-cache")
     parser.add_argument("--jobs", type=int, default=min(8, os.cpu_count() or 1))
@@ -362,6 +370,8 @@ def main(argv=None):
         return 0
     if not 1 <= args.jobs <= 64:
         parser.error("--jobs must be between 1 and 64")
+    if args.inside_action is not None or args.inside_jobs is not None:
+        parser.error("unexpected positional arguments")
     cache, output = args.cache.resolve(), args.output.resolve()
     cache.mkdir(parents=True, exist_ok=True)
     try:
@@ -369,6 +379,7 @@ def main(argv=None):
         import boot
         with build_lock(cache):
             if args.action in ("verify", "smoke"):
+                (output / (args.action + ".json")).unlink(missing_ok=True)
                 record = verify_receipt(output)
                 source = ROOT
             elif args.action == "fetch":
@@ -384,7 +395,12 @@ def main(argv=None):
                 if args.action == "build":
                     for name in ("image.json", "verify.json", "smoke.json"):
                         (output / name).unlink(missing_ok=True)
-                download_buildroot(cache)
+                selected = tomllib.loads((source / "image/de25-nano/buildroot.lock.toml").read_text())
+                download_buildroot(cache, selected)
+                if args.action == "build":
+                    spec = importlib.util.spec_from_file_location("de25_selected_boot", source / "image/de25-nano/boot.py")
+                    boot = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(boot)
                 # Vendor downloads and boot extraction are independently bound by vendor.lock.toml.
                 boot.prepare_boot(cache, output / "vendor-boot")
                 container(source, args.container_runtime, image, volume, cache, output, "fetch", args.jobs)
@@ -397,14 +413,14 @@ def main(argv=None):
                 boot.assemble(output / "vendor-boot/vendor-boot-prefix.bin", output / "rootfs.ext4", temporary)
                 temporary.replace(image_path)
                 container(source, args.container_runtime, image, volume, cache, output, "verify", args.jobs)
-                files = {name: digest(output / name) for name in artifact_names()}
+                files = {name: digest(output / name) for name in artifact_names(source)}
                 record = {"format": 1, "board": BOARD, "architecture": ARCH,
                           "classification": "headless-bringup", "fes_revision": revision,
                           "recipe_sha256": recipe_key(source), "rootfs_key": rootfs_key(source),
                           "builder_image": image, "files": files,
                           "hardware_acceptance": "not-run"}
                 (output / "image.json").write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
-                verify_receipt(output)
+                verify_receipt(output, source)
             if args.action != "fetch":
                 boot.verify_image(output / "fes-de25-nano.img", output / "rootfs.ext4")
                 if args.action != "build":
