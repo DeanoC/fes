@@ -184,8 +184,23 @@ func TestHardwarePickerOmitsZX81StartersForZX80(t *testing.T) {
 	if got != 1 {
 		t.Fatalf("ZX80 setup tape requests = %d, want the saved-program shelf", got)
 	}
-	if len(rows) != 2 || rows[0].Kind != "empty-tape" || rows[1].Kind != "import-tape" {
+	if len(rows) != 2 || rows[0].Kind != "empty-tape" || rows[1].Kind != "import-tape" || rows[1].Name != "Import a .o cassette…" {
 		t.Fatalf("ZX80 cassette picker rows = %+v", rows)
+	}
+}
+
+func TestAdmitHardwareCassette(t *testing.T) {
+	if err := admitHardwareCassette("fes.zx80", "dragons-add.o", 645); err != nil {
+		t.Fatal(err)
+	}
+	if err := admitHardwareCassette("fes.zx80", "game.p", 645); err == nil || !strings.Contains(err.Error(), ".o / .O") {
+		t.Fatalf("ZX80 .p = %v", err)
+	}
+	if err := admitHardwareCassette("fes.zx81", "game.p", 645); err != nil {
+		t.Fatal(err)
+	}
+	if err := admitHardwareCassette("fes.zx81", "dragons-add.o", 645); err == nil || !strings.Contains(err.Error(), ".p / .P") {
+		t.Fatalf("ZX81 .o = %v", err)
 	}
 }
 

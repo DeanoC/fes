@@ -42,6 +42,7 @@ func (a *App) openHardwarePickerLocked(action rooms.Action) {
 	s := &a.coreLibrary
 	s.HardwareGameID = action.GameID
 	s.HardwarePackageID = action.PackageID
+	s.HardwareCoreID = action.CoreID
 	s.ExpectedMediaID = action.ExpectedMediaID
 	s.Ref = nil
 	s.Setup = nil
@@ -88,7 +89,11 @@ func (a *App) hardwarePickerRowsLocked() []FirmwarePickerRow {
 		}
 		return rows
 	}
-	rows = append(rows, FirmwarePickerRow{Name: "No cassette · start BASIC", Kind: "empty-tape", Selectable: true}, FirmwarePickerRow{Name: "Import a .p cassette…", Kind: "import-tape", Selectable: true})
+	importLabel := "Import a .p cassette…"
+	if s.HardwareCoreID == "fes.zx80" {
+		importLabel = "Import a .o cassette…"
+	}
+	rows = append(rows, FirmwarePickerRow{Name: "No cassette · start BASIC", Kind: "empty-tape", Selectable: true}, FirmwarePickerRow{Name: importLabel, Kind: "import-tape", Selectable: true})
 	for _, t := range s.Tapes {
 		rows = append(rows, FirmwarePickerRow{Name: fmt.Sprintf("%s · %dK RAM · %s", t.Name, t.RAMKB, t.License), Kind: "tape:" + t.ID, Selectable: true})
 	}
@@ -107,7 +112,11 @@ func (a *App) handleHardwarePickerLocked(row FirmwarePickerRow) {
 		s.Status = hardwareExpansionFamilies[index].description + " Archive must match this exact installed core."
 	} else if row.Kind == "import-tape" {
 		s.PickID = "tape"
-		s.Status = "Choose a .p / .P file of 1–16384 bytes on this launcher."
+		if s.HardwareCoreID == "fes.zx80" {
+			s.Status = "Choose a .o / .O file of 1–16384 bytes on this launcher."
+		} else {
+			s.Status = "Choose a .p / .P file of 1–16384 bytes on this launcher."
+		}
 	} else if row.Kind == "empty-tape" {
 		a.selectHardwareTapeLocked(nil)
 		return
@@ -171,7 +180,7 @@ func (a *App) selectHardwareTapeLocked(tape *hostclient.HardwareTape) {
 
 func (a *App) importHardwareFileLocked(path string) {
 	s := &a.coreLibrary
-	mode, game, pkg, expected := s.HardwareMode, s.HardwareGameID, s.HardwarePackageID, s.ExpectedMediaID
+	mode, game, pkg, expected, coreID := s.HardwareMode, s.HardwareGameID, s.HardwarePackageID, s.ExpectedMediaID, s.HardwareCoreID
 	family := hardwareExpansionFamilies[s.ExpansionFamily]
 	manager := a.driveManagerLocked()
 	var selected hostclient.CoreEntry
@@ -195,8 +204,8 @@ func (a *App) importHardwareFileLocked(path string) {
 			}
 			return a.client.DescribeCoreExpansion(ctx, asset.ExpansionID, family.label, family.description, family.inProgress)
 		}
-		if !protocol.AdmitTapeMediaName(name) || !protocol.AdmitTapeMediaSize(size) {
-			return fmt.Errorf("choose a .p / .P cassette of 1–16384 bytes")
+		if err := admitHardwareCassette(coreID, name, size); err != nil {
+			return err
 		}
 		media, err := a.client.ImportCoreMedia(ctx, size, f)
 		if err != nil {
@@ -223,6 +232,19 @@ func (a *App) importHardwareFileLocked(path string) {
 			a.room.Resume()
 		}
 	})
+}
+
+func admitHardwareCassette(coreID, name string, size int64) error {
+	if coreID == "fes.zx80" {
+		if protocol.AdmitZx80TapeMediaName(name) && protocol.AdmitTapeMediaSize(size) {
+			return nil
+		}
+		return fmt.Errorf("choose a .o / .O cassette of 1–16384 bytes")
+	}
+	if protocol.AdmitTapeMediaName(name) && protocol.AdmitTapeMediaSize(size) {
+		return nil
+	}
+	return fmt.Errorf("choose a .p / .P cassette of 1–16384 bytes")
 }
 
 func (a *App) zx81HardwareTapeRole(ctx context.Context, pkg string) (string, error) {
