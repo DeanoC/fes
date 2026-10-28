@@ -2,13 +2,14 @@
 import json
 import os
 from pathlib import Path
+import re
 import tempfile
 import unittest
 from unittest.mock import patch
 
 from scripts.compiler_read_audit import ReadAuditError, python_source_guard, verify_traces
 from scripts.functional_execution import AuditedRoots, source_roots_for_inputs, source_roots_for_producer
-from scripts.source_closure import ROOT, imports, load_manifest, minimize
+from scripts.source_closure import ROOT, covered, imports, load_manifest, minimize
 from scripts.closure_tools.manifest import check, derive, static, main
 from scripts import export_core_package as exporter
 from tests import test_export_core_package as fixtures
@@ -43,6 +44,42 @@ class ManifestTests(unittest.TestCase):
             for source in display_sources:
                 self.assertTrue(any(source == root or source.startswith(root + '/') for root in roots),
                                 (producer, source))
+
+    def test_pcxt_producer_closure_covers_all_transitive_hdl_includes(self):
+        from scripts import build_fes_pcxt_oss as producer
+
+        roots = load_manifest()['build_fes_pcxt_oss']
+        pinned = set(producer.PINNED_INPUTS)
+        include_dirs = [
+            Path('cores/fes-common/generated'),
+            producer.OUTPUT_RELATIVE,
+            *(Path(directory) for directory in producer.board.CHIP_VENDORS),
+        ]
+        pending = list(producer.board.RTL)
+        seen = set()
+        generated_outputs = {Path(path).name for path in producer.BUILD_OUTPUTS}
+
+        while pending:
+            source = pending.pop()
+            if source in seen:
+                continue
+            seen.add(source)
+            text = (ROOT / source).read_text(encoding='utf-8')
+            for header in re.findall(r'^\s*`include\s+"([^"]+)"', text, re.MULTILINE):
+                candidates = [Path(source).parent / header]
+                candidates.extend(directory / header for directory in include_dirs)
+                generated = producer.OUTPUT_RELATIVE / header
+                if header in generated_outputs and (ROOT / generated).is_file():
+                    continue
+                included = next((path.as_posix() for path in candidates
+                                 if (ROOT / path).is_file()), None)
+                if included is None:
+                    self.assertIn(header, generated_outputs, (source, header))
+                    continue
+                with self.subTest(source=source, header=included):
+                    self.assertIn(included, pinned)
+                    self.assertTrue(covered(included, roots), included)
+                pending.append(included)
 
     def test_manifest_rejects_unsorted_or_escaping_roots(self):
         with tempfile.TemporaryDirectory() as temp:

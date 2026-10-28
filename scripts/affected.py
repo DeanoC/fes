@@ -13,10 +13,10 @@ except ImportError:
 MODULE_ROOTS = {'host': 'sources/FogCast', 'runtime': 'sources/libmister-runtime',
                 'contracts': 'sources/mister-packages', 'fpga': 'sources/misteross'}
 LANES = ('parent', 'host', 'runtime', 'contracts', 'fpga')
-# Simulation families include the standalone CPU; it has no play-package recipe.
+# z80 and pc386 are simulation-only families; PC/XT also has a package producer.
 CORES = ('demo', 'pong', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'menu', 'z80', 'atari-st', 'ramtest', 'riscv', 'pcxt',
          'pc386')
-SIMULATION_ONLY_CORES = frozenset({'z80', 'pcxt', 'pc386'})
+SIMULATION_ONLY_CORES = frozenset({'z80', 'pc386'})
 EXPANSION_ROOT = 'sources/misteross/expansion'
 # Parent-owned orchestration, test and assembly roots contain no component
 # sources, so their changes select only the parent lane. Matching is the exact

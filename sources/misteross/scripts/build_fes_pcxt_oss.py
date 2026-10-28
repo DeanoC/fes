@@ -68,7 +68,10 @@ PINNED_INPUTS = tuple(dict.fromkeys((
     "scripts/source_repository.py", "scripts/toolchain_cache.py",
     "scripts/bootstrap.sh", TOOLCHAIN_LOCK, ABI_DEFINITION,
     *board.RTL, board.QSF, board.SDC, board.CPU_MUX_MAP,
-    board.ROM_CLOCK_MAP, "cores/fes-pcxt/firmware/diagnostic.S",
+    board.ROM_CLOCK_MAP,
+    "cores/fes-common/generated/fes_pcxt_isa.vh",
+    "cores/fes-common/generated/fes_video_part.vh",
+    "cores/fes-pcxt/firmware/diagnostic.S",
     *VENDOR_INPUTS,
 )))
 

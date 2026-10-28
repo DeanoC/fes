@@ -221,6 +221,8 @@
   "build_fes_pcxt_oss": [
     "boards/de10nano/clocks.sdc",
     "cores/fes-common/generated/fes_computer.vh",
+    "cores/fes-common/generated/fes_pcxt_isa.vh",
+    "cores/fes-common/generated/fes_video_part.vh",
     "cores/fes-common/rtl/coleco_video_dpram.v",
     "cores/fes-common/rtl/fes_computer_mailbox.v",
     "cores/fes-common/rtl/fes_dma8237.sv",
