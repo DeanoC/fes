@@ -124,8 +124,9 @@ STAGES = {
                 r'|(.*\.)?l1d\.(state|part|fill_it|beat_n|spoilt|rr|row|lbuf|sbuf|victim|d_mmio|d_addr|d_be'
                 r'|valid_bits)$'),
         ('EX', r'(.*\.)?(st_wait|wb_p0|wb_p1)$|(.*\.)?l1i\.snoop|(.*\.)?l1d\.probe'),
-        ('M1', r'(.*\.)?l1d\.(q_\w+|ev_q|od_q|tag|ev\d|od\d|tag\d)$'),
-        ('F1', r'(.*\.)?(f2_block|fetch_block|active|itlb_page)$|l1i_|(.*\.)?l1i\.(blk|req|page|at|way|tag|data\d|tag\d)$'),
+        ('M1', r'(.*\.)?l1d\.(q_\w+|ev_q|od_q|tag|ev_wd|od_wd)$|(.*\.)?l1d\.(ev|od|tag)\d(\.|_|$)'),
+        ('F1', r'(.*\.)?(f2_block|fetch_block|active|itlb_page)$|l1i_|(.*\.)?l1i\.(blk|req|page|p_new|at|way|tag)$'
+               r'|(.*\.)?l1i\.(data|tag)\d(\.|_|$)'),
         ('F2', r'(.*\.)?(l1_valid|l1_block|l1_bytes|mem_data)$|.*\.oplen\.(one|two)_byte'),
         ('L1', r'(.*\.)?(l2_\w+|half|fill_bytes|fill_data)$|(.*\.)?fetch\.sums\.'),
         ('L2', r'(.*\.)?(bytes|half_block|dec|avail)$'),
