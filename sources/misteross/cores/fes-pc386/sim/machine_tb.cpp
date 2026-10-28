@@ -18,7 +18,9 @@
 //   POST <code> <cycle>                     each change of the POST code
 //   DEBUG <port> <text>                     a line on a debug port (402h BIOS, 500h VGA BIOS, E9h)
 //   PANIC <port> <value>                    a write to the BIOS panic ports 400h/401h
-//   IO <class> <size> <cycles> <count>      completion-time histogram of CPU I/O (VGA ports by direction)
+//   IO <class> <size> <cycles> <count>      completion-time histogram of CPU I/O (VGA ports by direction),
+//                                           less the clocks a VGA port write waited for FIFO space
+//   IOWAIT <class> <size> <clocks> <count>  those waits, for the accesses that had one
 //   INTA <cycles> <count>
 //   SNAP <name> <width> <height> <file>     a captured frame written at a marker
 //   PRESENT <name> <file> <mismatches>      the 720p frame at a marker against the presenter model
@@ -56,6 +58,7 @@
 // CS:EIP to F, ":pm" after a stem run in protected mode or V86: the whole
 // boot's instruction mix with the oracle as the CPU, the RTL's stops with it.
 #include "Vpc386_machine.h"
+#include "Vpc386_machine___024root.h"
 #include "Vpc386_rtl_cpu.h"
 #include "Vpc386_audio___024root.h"
 #include "audio_link.h"
@@ -178,7 +181,9 @@ public:
     uint8_t heads = 0, spt = 0;
     uint64_t cycles = 0;
     bool cpu_reset_seen = false;
-    std::map<std::tuple<std::string, unsigned, uint64_t>, uint64_t> io_times;
+    std::map<std::tuple<std::string, unsigned, uint64_t>, uint64_t> io_times, io_waits;
+    bool vga_write_open = false;  // the I/O access in flight is a VGA port write
+    uint64_t vga_waits = 0;       // its clocks waiting for VGA FIFO space
     std::map<uint64_t, uint64_t> inta_times;
     std::string debug_line[0x600];
     std::vector<std::string> debug_lines;
@@ -274,6 +279,10 @@ public:
             pixel_edge_ps += PIXEL_HALF_PS;
         }
         link.carry(cycles);
+        // A VGA port write's byte waits while the VGA's front FIFO is full.
+        if (vga_write_open && top.rootp->pc386_machine__DOT__vga__DOT__io_new &&
+            top.rootp->pc386_machine__DOT__vga__DOT__fifo_full)
+            ++vga_waits;
         if (opl2_log && link.audio.access && link.audio.write &&
             (link.audio.adlib || (link.audio.address >> 1) == 4))
             std::fprintf(opl2_log, "%llu %u %02x\n", (unsigned long long)cycles,
@@ -403,6 +412,7 @@ public:
         top.io_port = port;
         top.io_size = length == 1 ? 0 : length == 2 ? 1 : 2;
         top.io_wdata = value;
+        open_io(write, port);
         uint64_t start = cycles;
         clock();
         top.io_valid = 0;
@@ -414,10 +424,17 @@ public:
         record_io(write, port, length, value, result, start);
         return result;
     }
+    // A CPU I/O access issued now.
+    void open_io(bool write, uint16_t port) {
+        vga_write_open = write && port >= 0x3b0 && port <= 0x3df;
+        vga_waits = 0;
+    }
     // A CPU I/O access the machine completed now: its time from the request
-    // clock, and its trace lines.
+    // clock less its FIFO waits, the waits, and its trace lines.
     void record_io(bool write, uint16_t port, unsigned length, uint32_t value, uint32_t result, uint64_t start) {
-        ++io_times[{io_class(port, write), length, cycles - start}];
+        ++io_times[{io_class(port, write), length, cycles - start - vga_waits}];
+        if (vga_waits) ++io_waits[{io_class(port, write), length, vga_waits}];
+        vga_write_open = false;
         if (trace && port >= 0x3b0 && port <= 0x3df)
             std::fprintf(trace, "%c %llu %03x %u %08x\n", write ? 'O' : 'I', (unsigned long long)start, port, length,
                          write ? value : result);
@@ -632,6 +649,7 @@ public:
             m.top.io_port = io_port;
             m.top.io_size = io_length == 1 ? 0 : io_length == 2 ? 1 : 2;
             m.top.io_wdata = io_wdata;
+            m.open_io(io_write, io_port);
             io = Pending::Issued;
             io_start = m.cycles;
             issued = true;
@@ -1278,6 +1296,9 @@ int main(int argc, char **argv) {
         }
         for (const auto &[key, count] : machine.io_times)
             std::printf("IO %s %u %llu %llu\n", std::get<0>(key).c_str(), std::get<1>(key),
+                        (unsigned long long)std::get<2>(key), (unsigned long long)count);
+        for (const auto &[key, count] : machine.io_waits)
+            std::printf("IOWAIT %s %u %llu %llu\n", std::get<0>(key).c_str(), std::get<1>(key),
                         (unsigned long long)std::get<2>(key), (unsigned long long)count);
         for (const auto &[time, count] : machine.inta_times)
             std::printf("INTA %llu %llu\n", (unsigned long long)time, (unsigned long long)count);
