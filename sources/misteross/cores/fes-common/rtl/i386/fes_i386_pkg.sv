@@ -335,6 +335,10 @@ package fes_i386_pkg;
         logic        str_cnt;
         logic        b_fp;
         logic        x_prev;
+        // Which of ESI, EDI and ECX (bits 0-2) the uop reads, as a source,
+        // a CL count or an address register (str_reads): D holds it while
+        // a string element that steps one is in flight.
+        logic [2:0]  rd_str;
         // A microcode routine (SEQ_UCODE): the ROM address of its next uop.
         logic [7:0]  upc;
         // A fixed uop sequence (SEQ_*), the step dc holds, and whether
@@ -343,6 +347,23 @@ package fes_i386_pkg;
         logic [2:0]  step;
         logic        more;
     } decoded_t;
+
+    // Which of ESI, EDI and ECX (bits 0-2) a uop reads: src1, src2, a CL
+    // count, or its address registers when it has an address (lea, or a
+    // memory operand).
+    function automatic logic [2:0] str_reads(input uop_t u, input logic lea, input logic has_base,
+                                             input logic [2:0] base, input logic has_index, input logic [2:0] index);
+        logic a;
+        logic [2:0] r;
+        a = lea || u.mem.kind != MEM_NONE;
+        for (int k = 0; k < 3; k++) begin
+            r[k] = u.src1.valid && u.src1.index[2:0] == 3'(k == 2 ? 1 : 6 + k)
+                || u.src2.valid && u.src2.index[2:0] == 3'(k == 2 ? 1 : 6 + k)
+                || a && (has_base && base == 3'(k == 2 ? 1 : 6 + k) || has_index && index == 3'(k == 2 ? 1 : 6 + k));
+        end
+        r[2] = r[2] || u.count_cl;
+        return r;
+    endfunction
 
     // STK_PEEK reads or writes a stack slot without moving ESP (RETF's
     // loads, PUSHA's and POPA's slots); one that writes ESP (sp_write) steps
