@@ -1950,6 +1950,7 @@ public:
                 items.push_back(Item{{0xf4}, -1, 0, 0});
             } else if (kind < 37) shadow_block();
             else if (kind < 38) fpu_block();
+            else if (kind < 39) items.push_back(Item{popm32_block(), -1, 0, 0});
             else items.push_back(Item{instruction(false), -1, 0, 0});
         }
         items.push_back(Item{{0xf4}, -1, 0, 0});
@@ -2673,6 +2674,48 @@ private:
         } else {
             interrupt_block();
         }
+    }
+
+    // POP m with 32-bit addressing: ESP set below 10000h (now and then to
+    // 0, so the pop wraps a 16-bit stack's SP from FFFEh or FFFCh to 0), a
+    // value pushed, then popped to [ESP + disp8], [ESP + r * scale + disp8],
+    // ESP scaled by an invalid SIB (the 386EX's scaled base) plus disp8, or
+    // [r + disp8]; each address reads ESP after the pop. A register r is
+    // first set to a small value. One item, so no branch lands between.
+    std::vector<uint8_t> popm32_block() {
+        std::vector<uint8_t> out;
+        const bool os32 = pick(2);
+        auto size = [&]() {
+            if (os32) out.push_back(0x66);
+        };
+        auto value = [&](uint32_t v, unsigned bytes) {
+            for (unsigned n = 0; n < bytes; ++n) out.push_back(uint8_t(v >> (8 * n)));
+        };
+        auto set = [&](unsigned r, uint32_t v) {  // MOV r32, imm32
+            out.insert(out.end(), {0x66, uint8_t(0xb8 + r)});
+            value(v, 4);
+        };
+        set(4, pick(3) == 0 ? 0 : uint32_t(pick(0x10000)));
+        unsigned r = pick(8);
+        while (r == 4) r = pick(8);
+        const unsigned form = pick(4), scale = pick(4);
+        if (form == 1 || form == 3) set(r, pick(0x400));
+        size();
+        out.push_back(0x68);
+        value(uint32_t(rng()), os32 ? 4 : 2);
+        size();
+        out.insert(out.end(), {0x67, 0x8f});
+        if (form == 0) {
+            out.insert(out.end(), {0x44, 0x24});  // [ESP + disp8]
+        } else if (form == 1) {
+            out.insert(out.end(), {0x44, uint8_t((scale << 6) | (r << 3) | 4)});  // [ESP + r * scale + disp8]
+        } else if (form == 2) {
+            out.insert(out.end(), {0x44, uint8_t((scale << 6) | 0x24)});  // [ESP * scale + disp8]
+        } else {
+            out.push_back(uint8_t(0x40 | r));  // [r + disp8]
+        }
+        out.push_back(byte());
+        return out;
     }
 
     // CLTS, WAIT, or CLTS then WAIT, now and then with a prefix. WAIT

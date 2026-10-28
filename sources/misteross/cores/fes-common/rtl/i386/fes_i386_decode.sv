@@ -791,12 +791,11 @@ module fes_i386_decode (
                     d_valid = 1'b1;
                 end
                 8'h8f: begin
-                    // POP r/m (reg 0): a register as POP r; memory, with
-                    // 16-bit addressing, the stack's slot into T1 and the
-                    // rest from fes_i386_seq (SEQ_POPM). 32-bit addressing,
-                    // whose ESP base reads ESP after the pop, is not built.
+                    // POP r/m (reg 0): a register as POP r; memory, the
+                    // stack's slot into T1 and the rest from fes_i386_seq
+                    // (SEQ_POPM). A 32-bit address that reads ESP reads it
+                    // after the pop.
                     undefined = reg_f != 3'd0;
-                    known = reg_form || !addr32;
                     op = 5'd9;
                     mkind = 2'd1;
                     if (reg_form) begin
