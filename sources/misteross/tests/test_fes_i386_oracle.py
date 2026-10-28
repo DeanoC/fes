@@ -139,6 +139,22 @@ class ClassificationTest(unittest.TestCase):
         self.assertEqual(self.predicates('D4', [0xD4, 0x00, 0xF4]), {'imm8=0'})
         self.assertEqual(self.predicates('D4', [0xD4, 0x0A, 0xF4]), set())
 
+    def test_idiv_overflow_the_386ex_lets_through(self):
+        # F6.7#516: IDIV CL, AX = 9C71h by 47h, a quotient of -358 that the
+        # 386EX returns as 80h; AX = 8000h by -1 it raises #DE as Bochs does.
+        def idiv_cl(ax, cl):
+            initial = [0] * len(vectors.REGISTERS)
+            initial[vectors.REGISTERS.index('eax')] = ax
+            initial[vectors.REGISTERS.index('ecx')] = cl
+            test = vectors.MooTest(0, 'idiv cl', bytes([0xF6, 0xF9, 0xF4]), initial, [], 0, {}, [], None, '0' * 40)
+            return vectors.predicates('F6.7', test)
+        self.assertEqual(idiv_cl(0x9C71, 0x47), {'idiv-unchecked-overflow'})
+        self.assertEqual(idiv_cl(0x8000, 0xFF), set())
+        self.assertEqual(idiv_cl(0x0100, 0x03), set())
+        self.assertFalse(vectors.idiv386_faults(0x0100, 0x03, 8))
+        self.assertTrue(vectors.idiv386_faults(0x8000, 0xFF, 8))
+        self.assertTrue(vectors.idiv_overflows(0x9C71, 0x47, 8))
+
 
 class DivergenceListTest(unittest.TestCase):
     def test_checked_in_list_is_well_formed(self):

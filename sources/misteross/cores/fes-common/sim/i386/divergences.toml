@@ -276,24 +276,15 @@ follow = "corpus"
 # 5 failures; deciding case 'bound bx,[fs:bx-48h]'
 
 [[vectors]]
-id = "idiv8-overflow-returns-80h"
-title = "Some 8-bit IDIV overflows return 80h instead of #DE"
-cases = [
-    ["F6.7#469", "8813025dcf45588bd5141eb4d7081c67d6cf3ec3"],
-    ["F6.7#516", "c6d731127bec724d40594edc28a6ad8fdf14acbc"],
-    ["F6.7#850", "c1392c8316c2d0532d80fb1fcb78832533093e4e"],
-    ["F6.7#1265", "b674afe8d525fdf51217456b4a3f0b9102350cc4"],
-    ["F6.7#1754", "13e7537c7cd00f676d17da613b4289afb93b338d"],
-    ["F6.7#2348", "a4a926d8bbca1f281b0a479fd8c79fe3231bad34"],
-    ["67F6.7#375", "c30147a2fb7f67459cb7a1a4c888b670edd838f5"],
-    ["67F6.7#460", "8bddec44e46b709759d5d1550cd9fa16ab8e89fc"],
-    ["67F6.7#516", "a06745936bac371e6afb861b5bc87be4b2dd676e"],
-]
+id = "idiv-unchecked-overflow"
+title = "IDIV overflows that the 386EX's check lets through"
+opcodes = ["F6.7", "F7.7"]
+when = ["idiv-unchecked-overflow"]
 fields = ["*"]
 deciding_case = "67F6.7#375"
 deciding_hash = "c30147a2fb7f67459cb7a1a4c888b670edd838f5"
-oracle = "Bochs raises #DE for every quotient outside -128..127."
-corpus = "The 386EX completes without #DE, AL=80h and AH = the sign of AX over the low seven bits of AL. 48 other overflowing register-form cases in F6.7 do raise #DE; the rule that separates them is not yet derived."
+oracle = "Bochs raises #DE for every quotient outside the signed range."
+corpus = "The 386EX divides a negative dividend's one's complement by the divisor's magnitude, a bit per step, and checks the quotient, with the one more the complement owes, for its sign's range. On an overflowing dividend the steps leave a garbage quotient, and where it passes (80h for an 8-bit divide with the signs differing) the instruction completes without #DE: AL=80h and AH = the sign of AX over the low seven bits of AL (fes_i386_muldiv). No corpus case says whether the check comes before or after the one more; FES takes after, where Bochs agrees."
 follow = "corpus"
 # 9 failures; deciding case 'idiv cl'
 

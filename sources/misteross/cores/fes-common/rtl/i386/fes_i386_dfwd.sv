@@ -17,12 +17,13 @@
 // The forwarding selects are worked out a cycle ahead, per GPR rather than per
 // uop: each cycle a table records, for every GPR, where its youngest value will
 // be next cycle among the producers then in M1, M2, EX and WB (the uops now in
-// AG, M1, M2 and EX): in a result register, late from the EX or WB register,
-// further off, or only in the register file. The uop now in D, which is in AG
-// next cycle if it leaves D, is recorded beside the table with whether it
-// left. So D's cycle needs no tag compare: it applies each GPR's registered
-// select to the result registers, beside the addressing decode, and picks its
-// base and index by register number.
+// AG, M1, M2 and EX): in a result register, or only in the register file. Its
+// state as an address operand counts the uop now in D too, which is in AG next
+// cycle if it leaves D: whether the value will be late and from which
+// register, or further off. So D's cycle needs no tag compare: it applies
+// each GPR's registered select to the result registers, beside the addressing
+// decode, and picks its base and index, and whether they stall, by register
+// number.
 //
 // The table follows the pipeline. D to WB only ever hold together (hold),
 // when nothing moves, so the table keeps its state.
@@ -79,15 +80,12 @@ module fes_i386_dfwd (
     // ---- The table, for next cycle ----------------------------------------
     // Per GPR: which result register holds its value (one-hot M1, M2, EX, WB;
     // none: the register file), or that it is late and from where (2 EX,
-    // 3 WB), or that it is further off.
+    // 3 WB), or that it is further off. The uop now in D overrides the last
+    // three for what it writes (late, 1 M1).
     logic [7:0][3:0] ready_next, ready;
-    logic [7:0]      late_next, late_now, wait_next, wait_now;
+    logic [7:0]      late_next, wait_next, lt, wt;
     logic [7:0]      sp_wb_next, sp_wb;  // ESP from WB's sp_new, not its result
-    logic [7:0][1:0] source_next, source_now;
-    logic [7:0]      in_ag;  // the uop now in D writes this GPR
-    logic            ag_early;  // ... and the destination's value is early
-    logic            ag_sp;     // ... and it writes ESP early, not as its destination
-    logic            left;
+    logic [7:0][1:0] source_next, src;
 
     for (genvar r = 0; r < 8; r++) begin : g_table
         always_comb begin
@@ -146,26 +144,32 @@ module fes_i386_dfwd (
         end
     end
 
+    // The uop now in D, younger than every producer in the table, if it
+    // leaves D: the GPRs it writes, and whether each value is early (ESP
+    // from a stack operation is, whatever its destination is, unless that
+    // destination is ESP).
+    logic [7:0] d_w, d_early;
+    for (genvar r = 0; r < 8; r++) begin : g_d
+        assign d_w[r] = advance && (d_writes && d_dst == 3'(r) || r == 4 && d_sp);
+        assign d_early[r] = d_kind == EARLY || r == 4 && d_sp && !(d_writes && d_dst == 3'd4);
+    end
+
     always_ff @(posedge clk) begin
         if (reset) begin
             ready <= '0;
-            late_now <= '0;
-            wait_now <= '0;
+            lt <= '0;
+            wt <= '0;
             sp_wb <= '0;
-            in_ag <= '0;
-            left <= 1'b0;
         end else if (!hold) begin
             ready <= ready_next;
-            late_now <= late_next;
-            wait_now <= wait_next;
             sp_wb <= sp_wb_next;
-            for (int r = 0; r < 8; r++) in_ag[r] <= d_writes && d_dst == 3'(r) || r == 4 && d_sp;
-            left <= advance;
+            for (int r = 0; r < 8; r++) begin
+                lt[r] <= d_w[r] ? d_early[r] : late_next[r];
+                wt[r] <= d_w[r] ? !d_early[r] : wait_next[r];
+            end
         end
         if (!hold) begin
-            source_now <= source_next;
-            ag_early <= d_kind == EARLY;
-            ag_sp <= d_sp && !(d_writes && d_dst == 3'd4);
+            for (int r = 0; r < 8; r++) src[r] <= d_w[r] ? 2'd1 : source_next[r];
         end
     end
 
@@ -178,25 +182,14 @@ module fes_i386_dfwd (
                         | ({32{ready[r][3] && sp_wb[r]}} & wb_sp) | ({32{ready[r] == 4'b0000}} & gpr[r]);
     end
 
-    // The base and index by register number. The uop that left D last cycle,
-    // now in AG, is younger than everything in the table.
-    logic        base_ag, index_ag;
+    // The base and index by register number.
     logic        base_late, index_late, base_wait, index_wait;
-    logic [1:0]  base_source, index_source;
     logic [31:0] base_value, index_value, scaled;
 
-    assign base_ag = left && in_ag[base];
-    assign index_ag = left && in_ag[index];
-    // ESP from a stack operation in AG is early, whatever its destination
-    // is; an index is never ESP.
-    logic base_early;
-    assign base_early = ag_early || base == 3'd4 && ag_sp;
-    assign base_late = has_base && (base_ag ? base_early : late_now[base]);
-    assign index_late = has_index && (index_ag ? ag_early : late_now[index]);
-    assign base_wait = has_base && (base_ag ? !base_early : wait_now[base]);
-    assign index_wait = has_index && (index_ag ? !ag_early : wait_now[index]);
-    assign base_source = base_ag ? 2'd1 : source_now[base];
-    assign index_source = index_ag ? 2'd1 : source_now[index];
+    assign base_late = has_base && lt[base];
+    assign index_late = has_index && lt[index];
+    assign base_wait = has_base && wt[base];
+    assign index_wait = has_index && wt[index];
     assign base_value = !has_base ? 32'd0 : addr32 ? value[base] : {16'b0, value[base][15:0]};
     assign index_value = !has_index ? 32'd0 : {addr32 && !index8 ? value[index][31:16] : 16'b0,
                                                index8 ? 8'b0 : value[index][15:8], value[index][7:0]};
@@ -206,8 +199,8 @@ module fes_i386_dfwd (
     assign stall = base_wait || index_wait || (base_late && index_late) || (index_late && (scale != 2'd0 || index8));
     assign row = index_late ? base_value : scaled;
     assign last = index_late || base_late ? 32'd0 : base_value;
-    assign late = index_late ? index_source : base_late ? base_source : 2'd0;
+    assign late = index_late ? src[index] : base_late ? src[base] : 2'd0;
     assign late_hi = addr32 ? late : 2'd0;
     assign sp_hi = value[4][31:16];
-    assign sp_wait = left && in_ag[4] || late_now[4] || wait_now[4];
+    assign sp_wait = lt[4] || wt[4];
 endmodule
