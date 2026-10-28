@@ -30,6 +30,13 @@ state and issues a DMA publication barrier before calling the backend. This
 is a read-probe descriptor, not a display submission or frame-completion API.
 There is one exposed operation per grant; this does not implement MENU scanout.
 
+The mapping implementation currently accepts only an eager `VM_IO | VM_PFNMAP`
+mapping returned by the DMA API, with no architecture fault handler. It refuses
+page-backed/`VM_MIXEDMAP` IOMMU mappings: page pins and aliases can outlive PTE
+revocation, and no scheme to revoke those aliases has been established here.
+It does not manufacture PFN flags or derive PFNs from DMA addresses. DMA
+translation support and revocable userspace mapping support are separate gates.
+
 The private backend must supply a nonzero external reset epoch, an ordered
 start operation, an idempotent stop-new-requests operation and a drain operation
 that proves all accepted traffic retired in that same epoch. No DE25 hardware
@@ -75,7 +82,8 @@ and release paths on a KUnit device with the kernel's DMA API. A private
 scripted transport checks descriptor ownership and failed-start/failed-drain
 retention. VMA tests use a real temporary mm and kernel uaccess to verify
 coherent mappings, ioctl copying, revoke-before-stop ordering, denied remapping
-and post-revoke faults. A controlled test-only pause reproduces the mmap
+and post-revoke faults. They verify the accepted mapping form and refusal of
+writable page pinning. A controlled test-only pause reproduces the mmap
 callback/VMA-link race with separate mapper and revoker kernel threads. Test
 hooks compile out when `CONFIG_FES_DE25_DMA_KUNIT_TEST` is disabled.
 

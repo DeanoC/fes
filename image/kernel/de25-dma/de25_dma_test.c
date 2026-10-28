@@ -258,6 +258,9 @@ static void coherent_mapping_uapi_and_revoke(struct kunit *test)
 	struct mm_struct *mm = test_mm(test);
 	struct fes_de25_dma_publish publish = publish_for(fixture->file);
 	struct fes_de25_dma_info info;
+	struct vm_area_struct *vma;
+	struct page *pinned = NULL;
+	long pin_count;
 	unsigned long address;
 	u32 value = 0xfeed1234, copy = 0;
 
@@ -269,6 +272,16 @@ static void coherent_mapping_uapi_and_revoke(struct kunit *test)
 	KUNIT_EXPECT_EQ(test, address, TEST_ADDRESS);
 	if (IS_ERR_VALUE(address))
 		goto out;
+	mmap_read_lock(mm);
+	vma = find_vma(mm, address);
+	KUNIT_EXPECT_NOT_NULL(test, vma);
+	if (vma)
+		KUNIT_EXPECT_EQ(test, vma->vm_flags & (VM_IO | VM_PFNMAP), (vm_flags_t)(VM_IO | VM_PFNMAP));
+	mmap_read_unlock(mm);
+	pin_count = pin_user_pages(address, 1, FOLL_WRITE, &pinned);
+	KUNIT_EXPECT_LE(test, pin_count, 0L);
+	if (pin_count == 1)
+		unpin_user_page(pinned);
 	KUNIT_EXPECT_EQ(test, copy_to_user((void __user *)address, &value, sizeof(value)), 0UL);
 	KUNIT_EXPECT_EQ(test, copy_from_user(&copy, (void __user *)address, sizeof(copy)), 0UL);
 	KUNIT_EXPECT_EQ(test, copy, value);

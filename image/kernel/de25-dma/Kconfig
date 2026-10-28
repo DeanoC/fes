@@ -1,7 +1,6 @@
 config FES_DE25_DMA
 	tristate "FES DE25 DMA ownership diagnostic"
 	depends on MMU && HAS_DMA && OF
-	select ANON_INODES
 	help
 	  Kernel-owned coherent DMA storage and revocable client mappings.
 	  DE25 production binding always refuses until actual device translation,

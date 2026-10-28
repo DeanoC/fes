@@ -247,8 +247,13 @@ static int fes_de25_dma_mmap(struct file *file, struct vm_area_struct *vma)
 	ret = dma_mmap_coherent(grant->dev, vma, grant->cpu, grant->dma,
 			FES_DE25_DMA_ALLOCATION_BYTES);
 	if (!ret) {
-		/* Do not replace an architecture's fault-driven DMA mapping policy. */
-		if (vma->vm_ops) {
+		/* Only an eager I/O PFN mapping is currently revocable here. An
+		 * IOMMU's vm_map_pages mapping can also have no vm_ops, but permits
+		 * page pins/aliases that unmap_mapping_range cannot revoke. Never
+		 * manufacture PFNMAP flags or infer PFNs from a DMA address.
+		 */
+		if (vma->vm_ops ||
+		    (vma->vm_flags & (VM_IO | VM_PFNMAP)) != (VM_IO | VM_PFNMAP)) {
 			ret = -EOPNOTSUPP;
 			goto out;
 		}
@@ -307,7 +312,9 @@ static const struct file_operations fes_de25_dma_fops = {
 	.owner = THIS_MODULE,
 	.mmap = fes_de25_dma_mmap,
 	.unlocked_ioctl = fes_de25_dma_ioctl,
+#ifdef CONFIG_COMPAT
 	.compat_ioctl = compat_ptr_ioctl,
+#endif
 	.release = fes_de25_dma_release,
 	.llseek = noop_llseek,
 };
