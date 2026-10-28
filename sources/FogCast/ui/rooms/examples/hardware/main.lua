@@ -39,7 +39,7 @@ local function model()
   local family = systems.family_by_core[id]
   return family and family.id == "zx81" and systems.by_id[id] or systems.by_id["fes.zx81"]
 end
-local function workshop_title() return model().mark .. " Workshop" end
+local function workshop_title() return model().label .. " setup" end
 local opening_message = "Finding your " .. model().label .. " setups..."
 local initial_game_id = room.initial_game_id or ""
 local initial_selection_pending = false
@@ -457,7 +457,7 @@ local function picture(part)
   button("home","Home",1000,10,96,38,true,function() rooms.home() end)
   rect(0,56,1120,2,C.line)
 
-  text("THE "..string.upper(model().label).." WORKBENCH",24,66,13,C.muted,600,true)
+  text(string.upper(model().label).." SETUP",24,66,13,C.muted,600,true)
   text(machine and machine.title or model().label,24,84,30,C.ink,560,true)
   local info=read_error ~= "" and read_error or (data and data.session_error ~= "" and "Session unavailable. Refresh before controlling the machine." or message)
   if machine and not machine.ready and read_error == "" then info=machine.unavailable_reason end

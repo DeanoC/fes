@@ -1,10 +1,8 @@
 -- Shared workbench for installed playable systems. It uses the ordinary
 -- library launch and setup paths; only navigation lives in room storage.
-return function(options)
+return function()
 local systems = require "systems"
-options = options or {}
-local locked_core = options.core_id or ""
-local selected_core = locked_core ~= "" and locked_core or room.initial_core_id or ""
+local selected_core = room.initial_core_id or ""
 if not systems.by_id[selected_core] then selected_core = "fes.zx81" end
 local function spec() return systems.by_id[selected_core] end
 local function system_label() return spec().label end
@@ -59,7 +57,7 @@ local held_session = ""
 
 local nav = store.get("navigation", {})
 local initial_game_id = room.initial_game_id or ""
-if locked_core == "" and initial_game_id == "" and (room.initial_core_id or "") == "" and systems.by_id[nav.core_id or ""] then selected_core = nav.core_id end
+if initial_game_id == "" and (room.initial_core_id or "") == "" and systems.by_id[nav.core_id or ""] then selected_core = nav.core_id end
 local family_variants = type(nav.family_variants) == "table" and nav.family_variants or {}
 local core_choices = type(nav.core_choices) == "table" and nav.core_choices or {}
 local previous_core = core_choices[selected_core] or {}
@@ -149,7 +147,7 @@ local function short_id(id)
   return id
 end
 local function is_system(g)
-  return type(g) == "table" and systems.by_id[g.core_id or ""] and (locked_core == "" or g.core_id == locked_core) and g.id and g.id ~= ""
+  return type(g) == "table" and systems.by_id[g.core_id or ""] and g.id and g.id ~= ""
 end
 local function editions_of(entry)
   local out = {}
@@ -200,7 +198,7 @@ local function place(list)
       if has_game_id({g}, initial_game_id) then selected_core = g.core_id break end
     end
   end
-  if focus == "variant" and (locked_core ~= "" or #family().variants < 2) then focus = "start" end
+  if focus == "variant" and #family().variants < 2 then focus = "start" end
   entries = {}
   for _, g in ipairs(all_entries) do if g.core_id == selected_core then entries[#entries + 1] = g end end
   if #entries == 0 and focus == "start" then focus = "setup" end
@@ -386,8 +384,8 @@ local function paint_opening()
   clear_row(C.paper)
   rect(24, 18, 18, 5, C.accent)
   text("FES", 50, 14, 24, C.ink, 80, true)
-  text(family_label(), 118, 17, 19, C.ink, 400)
-  text("Opening the " .. family_label() .. "…", 24, 84, 22, C.label, 700)
+  text(system_label() .. " setup", 118, 17, 19, C.ink, 400)
+  text("Opening the " .. system_label() .. " setup…", 24, 84, 22, C.label, 700)
   gfx.paint(cmds)
 end
 
@@ -407,7 +405,7 @@ local function picture(part)
     rect(24, 18, 18, 5, C.accent)
     text("FES", 50, 14, 24, C.ink, 80, true)
     rect(104, 16, 2, 26, C.line)
-    text(family_label(), 118, 15, 23, C.ink, 360)
+    text(system_label() .. " setup", 118, 15, 23, C.ink, 360)
     button("back", "Back", 860, 10, 110, 38, true, function() rooms.back() end)
     button("home", "Home", 984, 10, 110, 38, true, function() rooms.home() end)
     rect(0, 56, 1120, 2, C.line)
@@ -437,7 +435,7 @@ local function picture(part)
     end
     local extra = game and extra_line(game) or ""
     if extra ~= "" then text(extra, 470, 324, 17, C.ink, 620) end
-    if locked_core == "" and #family().variants > 1 then
+    if #family().variants > 1 then
       button("variant", "Variant: " .. system_label(), 470, 350, 620, 36, true, next_variant)
     end
 
@@ -476,7 +474,7 @@ local function picture(part)
   button("expansions", "Expansion sockets", 496, 480, 240, 38, idle and game and game.package_id and game.package_id ~= "", function()
     hardware.open_expansions({game_id=game.id, core_id=game.core_id, package_id=game.package_id})
   end)
-  button("system", "Next system", 752, 480, 200, 38, locked_core == "", next_system)
+  button("system", "Next system", 752, 480, 200, 38, true, next_system)
   button("machine", "Next machine", 24, 530, 200, 44, #entries > 1, next_machine)
   button("edition", "Next edition", 240, 530, 200, 44, game and #editions_of(entries[entry_i]) > 1, next_edition)
   button("start", label, 456, 524, 220, 52, enabled, fn)
@@ -586,7 +584,7 @@ function load()
   read_hardware()
   library.query({
     platform = "fpga",
-    core_ids = locked_core ~= "" and {locked_core} or systems.ids,
+    core_ids = systems.ids,
     sort = "title",
     limit = 2000,
   }, function(games, err)

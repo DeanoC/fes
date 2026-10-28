@@ -4,9 +4,8 @@ local List = require "widgets.list"
 local color = require "util.color"
 
 local DEST = 130
--- List colours match the other console rooms: a dark plate, light unfocused
--- ink, and dark ink on the accent bar. Row text sets its own colour because
--- the sofa label is meant for the dark shell.
+-- Systems uses a dark plate, light unfocused ink and dark ink on the
+-- selected row. The setup page carries the family and model selectors.
 local PLATE = "#1C2420"
 local INK = "#F0F4F1"
 local FOCUS_INK = "#141916"
@@ -17,13 +16,12 @@ local SETUP = {
   ["fes.zx80"] = "example.hardware",
   ["fes.ts1000"] = "example.hardware",
   ["fes.ts1500"] = "example.hardware",
-  ["fes.c64"] = "example.c64",
 }
 local focus = "list"
 
 local list
 local rows
-local status = "Looking for prepared computers…"
+local status = "Looking for prepared systems…"
 local load_err
 
 local function machine_of(g)
@@ -39,7 +37,10 @@ local function short_id(id)
 end
 
 local function base_label(g)
-  local label = machine_of(g) .. "  ·  " .. (g.title or g.id)
+  local machine = machine_of(g)
+  local title = g.title or ""
+  local label = machine
+  if title ~= "" and title ~= machine then label = machine .. "  ·  " .. title end
   if g.region and g.region ~= "" then
     label = label .. " (" .. g.region .. ")"
   end
@@ -224,7 +225,7 @@ function draw()
   elseif rows and #rows == 0 and status == "" then
     note = "No prepared systems yet. Add a system to get started."
   elseif rows and #rows > 0 and status == "" then
-    note = "Confirm starts. Set up opens its workbench."
+    note = "Confirm starts. Set up opens system setup."
   end
   gfx.text(note, 48, 82, { size = 22, max_w = room.width - 96, color = STATUS })
   if rows ~= nil then

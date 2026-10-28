@@ -47,13 +47,13 @@ func (a *App) browseActionsAllowedLocked() bool {
 	if a.settingsOpen || a.settingsOSKOpenLocked() || a.filtersOpen || a.searchOpen || a.viewPickerOpen || a.nameEntryOpenLocked() || a.roomPickerOpen || a.driveSettings.Open || a.coreLibrary.Open || a.firmwarePickerOpen || a.tapePickerOpen {
 		return false
 	}
-	if a.sessionStopOfferedLocked() || a.localPhase != "" || a.launch.Phase == "launching" || a.loading || a.searchPending || a.detailOpen || a.roomCoreDetail != "" {
+	if a.sessionStopOfferedLocked() || a.localPhase != "" || a.launch.Phase == "launching" || a.detailOpen || a.roomCoreDetail != "" {
 		return false
 	}
 	if a.room != nil {
 		return a.room.ID() == installedCoresHomeID && a.room.Hero() && a.room.Err() == nil && !a.roomChoiceOpen
 	}
-	return a.grid.Focus >= 0 && a.grid.Focus < len(a.games)
+	return !a.loading && !a.searchPending && a.grid.Focus >= 0 && a.grid.Focus < len(a.games)
 }
 
 func (a *App) browseActionsIdentityLocked(d rooms.Destination) string {

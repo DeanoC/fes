@@ -1,5 +1,5 @@
 id = "example.system"
-title = "System workbench"
+title = "System setup"
 author = "FES"
 description = "Set up a system, choose a model, edition, media and expansion cards, then play."
 version = 1

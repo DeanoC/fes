@@ -53,7 +53,7 @@ func TestNativeDialogRender(t *testing.T) {
 				case "home":
 					snap.RoomPicker = RoomPickerSnapshot{Open: true, Index: 5}
 					for i := 0; i < 10; i++ {
-						snap.RoomPicker.Rows = append(snap.RoomPicker.Rows, RoomPickerRow{ID: fmt.Sprint(i), Label: "ZX Spectrum workbench", Detail: "Choose a variant, prepared title, media and expansion sockets."})
+						snap.RoomPicker.Rows = append(snap.RoomPicker.Rows, RoomPickerRow{ID: fmt.Sprintf("household.collection-%d", i), Label: fmt.Sprintf("Household collection %d", i+1), Detail: "An installed room for games in your library."})
 					}
 					panel, ok = roomPickerPanel(snap)
 				}

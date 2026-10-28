@@ -15,8 +15,8 @@ local rows = {
   {id="fes.coleco", label="ColecoVision", mark="COLECO", media="Linked cartridge", hint="Select the cartridge ROM in system setup."},
   {id="fes.sms", label="Sega Master System", mark="SMS", media="Linked cartridge", hint="Select the cartridge ROM in system setup."},
   {id="fes.sg1000", label="Sega SG-1000", mark="SG-1000", media="Linked cartridge", hint="Select the cartridge ROM in system setup."},
-  {id="fes.pong", label="FES Pong", mark="PONG", media="No media required", hint="Paddle settings and best rally are saved."},
-  {id="fes.catch", label="FES Catch", mark="CATCH", media="No media required", hint="Start the game with a controller."},
+  {id="fes.pong", label="Pong", mark="PONG", media="No media required", hint="Paddle settings and best rally are saved."},
+  {id="fes.catch", label="Catch", mark="CATCH", media="No media required", hint="Start the game with a controller."},
   {id="fes.ramtest", label="RAM Tester", mark="RAM", media="No media required", hint="Memory testing utility."},
   {id="fes.riscv", label="RISC-V", mark="RISC-V", media="No media required", hint="Start the installed demonstration."},
 }

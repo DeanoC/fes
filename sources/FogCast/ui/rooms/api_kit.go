@@ -6,6 +6,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/DeanoC/FogCast/internal/corenames"
 	"github.com/DeanoC/FogCast/internal/localcores"
 	lua "github.com/yuin/gopher-lua"
 )
@@ -98,7 +99,7 @@ func (r *Instance) coresTable(cores []localcores.Core) *lua.LTable {
 		row := r.L.NewTable()
 		row.RawSetString("package_id", lua.LString(c.PackageID))
 		row.RawSetString("core_id", lua.LString(c.CoreID))
-		row.RawSetString("name", lua.LString(c.Name))
+		row.RawSetString("name", lua.LString(corenames.Name(c.CoreID, c.Name)))
 		row.RawSetString("needs", lua.LString(c.Needs))
 		row.RawSetString("launchable", lua.LBool(c.Launchable))
 		row.RawSetString("block", lua.LString(c.Block))

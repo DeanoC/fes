@@ -37,9 +37,17 @@ and content selection; the MiSTer is a small, directly controlled target.
   [library video preferences](docs/ARCHITECTURE.md#library-video-preferences) and
   [developer parts](docs/ARCHITECTURE.md#developer-video-parts).
 
+- Tenfoot ships **Home** and **Systems** for navigation, plus internal
+  **System setup** and **Sinclair setup** templates. The old demo rooms and
+  separate C64 wrapper are removed. Home links directly to Systems; Menu lists
+  Home, Systems and independently installed rooms, without setup duplicates.
+  Machine names are plain model names. New setups default to those names;
+  package versions/hashes and generated HIL labels do not become headings.
+  Custom game/setup names and exact launch/media identities are preserved.
+
 - The tenfoot **Systems** room lists prepared playable systems, models and
   editions. **Set up** opens the selected workbench; **Add system** remains
-  available with an empty library. The shared **System workbench** groups related
+  available with an empty library. The shared **System setup** groups related
   models into one family: Spectrum's 48K, 128K, +3 and Pentagon 128 share a
   **Variant** selector, as do ZX81, ZX80, TS1000 and TS1500. **Next system**
   changes families; title editions remain a separate choice. It chooses

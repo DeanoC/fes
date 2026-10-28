@@ -98,13 +98,13 @@ shoulder buttons that are not Back / Home / Settings are passed through:
 | Guide | settings overlay (not delivered). A room can publish an allowlisted Settings destination; that is not this button |
 | hold B | Home (`CmdHome`; not delivered). Opens `home_room` when that pack can be opened; otherwise the rooms picker |
 
-Example rooms today: Confirm performs the destination’s primary action
-(Play / enter room / honest next action). Y / North / a pointer tap on the
-compact strip opens Details for a matched game. `example.console-snes`
-still hands off to the library on `search` / `tab`; Y is Details, so that
-hand-off is Tab (or keyboard `/` outside a room). Mushroom Kingdom, Lobby,
-Workbench, and TMS9918 Family publish the selected destination. SNES and
-Sports Island publish the focused title.
+Home and Systems use the selected destination's primary action. Home keeps
+Confirm-to-Play on the shelf; Up enters Play/Details, another Up reaches
+Library, Systems and Settings. Left/Right chooses within a row and Back returns
+to the selected machine. Library Down from the bottom visible item row enters
+its Play/Details controls. Systems Confirm launches and its Set up control opens
+the selected model's setup. Independently installed rooms can publish game,
+library and nested-room destinations through the same API.
 
 ---
 
@@ -140,14 +140,14 @@ binding drive-by:
    selected-destination strip open the shared game-info panel while a room
    is focused. Strip taps do not steal Direction, Confirm, Back, or the
    system menu. Rooms that previously used Y as `search` (library hand-off)
-   should use Tab; `example.console-snes` documents that.
+   should use Tab instead.
 2. **Pointer-only Back and System menu.** Room empty-space clicks are a
    no-op (so clicking the map does not leave). Overlay “click empty” Back
    does not apply inside an open room. No on-screen settings control.
 3. **Pads without a GUIDE button** have no gamepad System menu. Keyboard
    `o` is the tap fallback. Start remains Quit. Kit Home
-   (`example.fes-cores`) puts Library, Rooms and Settings one Up away
-   from its shelf in the hero layout and when the compact routes share a
+   (`example.fes-cores`) puts Library, Systems and Settings above its action row
+   and shelf in the hero layout and when the compact routes share a
    row, so Direction and Confirm reach Settings there. When the compact
    routes stack, Down and Up walk that column and then the cores, and Up
    from the first core lands on Settings. Other

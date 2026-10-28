@@ -159,7 +159,7 @@ func TestSinclairWorkshopUsesSelectedModel(t *testing.T) {
 				t.Fatal(err)
 			}
 			frame := stepUntil(t, r, func(f Frame) bool { return frameHas(f, "Set up "+tc.mark) })
-			if !frameHas(frame, tc.mark+" Workshop") || !frameHas(frame, strings.ToUpper(tc.label)) || frameHas(frame, "ZX81 Workshop") {
+			if !frameHas(frame, tc.label+" setup") || !frameHas(frame, strings.ToUpper(tc.label)) || frameHas(frame, "Sinclair ZX81 setup") {
 				t.Fatalf("wrong model branding:\n%s", frameText(frame))
 			}
 			r.Activate("setup_library")
@@ -183,7 +183,7 @@ func TestSinclairWorkshopMissingModelKeepsItsName(t *testing.T) {
 	frame := stepUntil(t, r, func(f Frame) bool {
 		return frameHas(f, "The selected Timex Sinclair 1500 setup is no longer available.")
 	})
-	if !frameHas(frame, "TS1500 Workshop") || frameHas(frame, "ZX81") {
+	if !frameHas(frame, "Timex Sinclair 1500 setup") || frameHas(frame, "ZX81") {
 		t.Fatalf("missing model showed another machine:\n%s", frameText(frame))
 	}
 }
@@ -285,7 +285,7 @@ func TestHardwareRoomReadOnlyHostKeepsInspection(t *testing.T) {
 	s.value.Session.CorePackage.Composition.ExpansionID = strings.Repeat("b", 64)
 	r := loadHardware(t, s, examplePack(t, "example.hardware"))
 	f := r.Step(time.Now())
-	if !frameHas(f, "Restart needed: the running machine still uses its old setup.") || !frameHas(f, "Open the ZX81 Workshop on the host computer to choose Fit & save.") {
+	if !frameHas(f, "Restart needed: the running machine still uses its old setup.") || !frameHas(f, "Open the Sinclair ZX81 setup on the host computer to choose Fit & save.") {
 		t.Fatal("read-only setup did not name the host computer")
 	}
 	if !frameHas(f, "Stopping clears memory") || !frameHas(f, "Stop machine") {
@@ -857,7 +857,7 @@ func TestHardwareRoomColdOpenIsStaged(t *testing.T) {
 	if r.Err() != nil {
 		t.Fatal(r.Err())
 	}
-	if len(first.Ops) > 8 || frameHas(first, "Import expansion") || frameHas(first, "Setup preview") || !frameHas(first, "ZX81 Workshop") {
+	if len(first.Ops) > 8 || frameHas(first, "Import expansion") || frameHas(first, "Setup preview") || !frameHas(first, "Sinclair ZX81 setup") {
 		t.Fatalf("cold first draw built the workshop: ops=%d", len(first.Ops))
 	}
 	var sawUpper bool

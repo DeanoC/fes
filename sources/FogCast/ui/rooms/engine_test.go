@@ -1350,7 +1350,7 @@ function draw() end`
 		t.Fatal(err)
 	}
 	stepUntil(t, r, func(Frame) bool { return r.Destination().Kind == KindCore })
-	if err := r.CheckGlobal(`got_err == nil and got[1].package_id == "` + corePongID + `" and got[1].core_id == "fes.pong" and got[1].name == "FES Pong" and got[1].needs == "none" and got[1].launchable == true and (got[1].block == nil or got[1].block == "")`); err != nil {
+	if err := r.CheckGlobal(`got_err == nil and got[1].package_id == "` + corePongID + `" and got[1].core_id == "fes.pong" and got[1].name == "Pong" and got[1].needs == "none" and got[1].launchable == true and (got[1].block == nil or got[1].block == "")`); err != nil {
 		t.Fatal(err)
 	}
 	d := r.Destination()

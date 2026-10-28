@@ -36,7 +36,7 @@ func TestSpectrumFamilyVariantKeepsExactSavedSetup(t *testing.T) {
 			return strings.Contains(frameText(f), game.Title) && strings.Contains(frameText(f), "Set up system")
 		})
 		text := frameText(frame)
-		for _, want := range []string{"ZX Spectrum", "Variant:", game.MediaID[:8], game.SlotExpansions[0].ExpansionID[:8]} {
+		for _, want := range []string{"ZX SPECTRUM SETUP", "Variant:", game.MediaID[:8], game.SlotExpansions[0].ExpansionID[:8]} {
 			if !strings.Contains(text, want) {
 				t.Fatalf("variant %s missing %q:\n%s", game.CoreID, want, text)
 			}

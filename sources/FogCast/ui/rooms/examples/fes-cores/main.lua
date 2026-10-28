@@ -8,7 +8,7 @@
 -- in the hero text column (room.toml destination_panel = "hero"); this
 -- script draws the card, artwork motif, shelf and header routes.
 --
--- Up reaches the hero's actions, then Library, Rooms and Settings, so a pad without
+-- Up reaches the hero's actions, then Library, Systems and Settings, so a pad without
 -- a Guide button still reaches the system menu with Direction and Confirm.
 -- The hero and a compact route row use Left and Right along that header.
 -- When the compact routes stack, Down and Up follow the column and then
@@ -40,11 +40,11 @@ local GROUNDS = { "#7097A8", "#9690B5", "#E08A63", "#8DB07A", "#D9B45A", "#6E8F8
 
 local MENU = {
   { id = "library", label = "Library" },
-  { id = "rooms", label = "Rooms" },
+  { id = "systems", label = "Systems" },
   { id = "settings", label = "Settings" },
 }
 
-local LOBBY = "example.lobby"
+local SYSTEMS = "example.computers"
 
 local cores = nil      -- nil while listing; a table once kit.cores answers
 local unavailable = false
@@ -168,8 +168,8 @@ local function publish()
     local item = MENU[menu_i]
     if item.id == "library" then
       destination.set{ kind = "library", label = "Library" }
-    elseif item.id == "rooms" then
-      destination.set{ kind = "room", room_id = LOBBY, label = "Rooms" }
+    elseif item.id == "systems" then
+      destination.set{ kind = "room", room_id = SYSTEMS, label = "Systems" }
     else
       destination.set{ kind = "action", action = "settings", label = "Settings" }
     end
@@ -511,7 +511,7 @@ local function menu_art(id, x, y, w, h)
       gfx.rect(x + w * 0.18 + (i - 1) * (sw + 6), y + h * 0.82 - sh, sw, sh, color)
     end
     gfx.rect(x + w * 0.12, y + h * 0.82, w * 0.76, 8, C.dark)
-  elseif id == "rooms" then
+  elseif id == "systems" then
     for i = 0, 2 do
       local dx = x + w * (0.16 + i * 0.25)
       gfx.rect(dx, y + h * 0.25, w * 0.18, h * 0.55, i == 1 and C.accent or C.dark)

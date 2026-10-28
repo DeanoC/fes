@@ -252,7 +252,7 @@ func drawCoverCells(dev gfx.Device, snap Snapshot, textures, labels map[string]g
 			drawFESLabel(dev, labels, used, "i:"+game.ID, x+16, y+20, snap.Grid.CellW-32, 18, placeholderSystem(snap, game))
 		}
 		drawCellBlockTag(dev, labels, used, x+8, y+snap.Grid.CellH-44, snap.Grid.CellW-16, game, snap.KitPlay)
-		heroLine(dev, labels, used, x+6, y+snap.Grid.CellH-31, snap.Grid.CellW-12, 20, i == snap.Grid.Focus, heroText, game.Title)
+		heroLine(dev, labels, used, x+6, y+snap.Grid.CellH-31, snap.Grid.CellW-12, 20, i == snap.Grid.Focus, heroText, displayGameTitle(game))
 	}
 }
 
@@ -283,7 +283,7 @@ func drawListRows(dev gfx.Device, snap Snapshot, textures, labels map[string]gpu
 		if textW < 1 {
 			textW = 1
 		}
-		title := game.Title
+		title := displayGameTitle(game)
 		if game.Favorite {
 			title = "* " + title
 		}

@@ -1710,8 +1710,8 @@ func (a *App) Tick(now time.Time) Command {
 }
 
 // Snapshot copies renderer-facing state. The games slice is shared: loadLibrary
-// replaces it rather than mutating elements, so the frame loop does not clone
-// the catalog. Cover images are shared, not cloned; the cover map is copied.
+// replaces it rather than mutating elements. Visible labels project prepared
+// names while drawing. Cover images are shared; the cover map is copied.
 func (a *App) Snapshot() Snapshot {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -2225,7 +2225,7 @@ func (a *App) focusDetailLocked() shared.FocusDetail {
 
 func (a *App) detailForGameLocked(game hostclient.Game) shared.FocusDetail {
 	detail := shared.FocusDetail{
-		Title:    game.Title,
+		Title:    displayGameTitle(game),
 		Platform: a.platformLabelLocked(game.System),
 		Year:     strings.TrimSpace(game.Year),
 		Genre:    strings.TrimSpace(game.Genre),
@@ -2395,13 +2395,13 @@ func (a *App) startLaunchGameWithPackageLocked(game hostclient.Game, packageID, 
 	}
 	a.launchPackageID = packageID
 	a.launchExpectedPackageID = expectedPackageID
-	a.sessionTitle = game.Title
+	a.sessionTitle = displayGameTitle(game)
 	a.cancelPlayHIDLocked()
 	a.launchLeaseRefusal = false
 	a.launch = LaunchSnapshot{
 		GameID:    game.ID,
 		Phase:     "launching",
-		Message:   "launching " + game.Title,
+		Message:   "launching " + displayGameTitle(game),
 		StartedAt: time.Now(),
 	}
 	if a.room != nil {
@@ -2434,7 +2434,7 @@ func launchBlockReason(game hostclient.Game) string {
 
 func libraryPlayDestination(game hostclient.Game) rooms.Destination {
 	state, matches := rooms.ClassifyGames([]hostclient.Game{game}, "")
-	d := rooms.Destination{Kind: rooms.KindGame, Availability: state, Matches: matches, GameID: game.ID, Label: game.Title, System: game.System}
+	d := rooms.Destination{Kind: rooms.KindGame, Availability: state, Matches: matches, GameID: game.ID, Label: displayGameTitle(game), System: game.System}
 	d.FillCopy()
 	return d
 }
@@ -3457,7 +3457,7 @@ func (a *App) sessionSnapshotLocked() SessionSnapshot {
 		found := false
 		for _, game := range a.games {
 			if game.ID == a.session.GameID {
-				title = game.Title
+				title = displayGameTitle(game)
 				found = true
 				break
 			}

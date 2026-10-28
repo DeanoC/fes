@@ -98,7 +98,7 @@ func TestHomeHeroActionsFollowSpatialDirectionsWithoutMovingSelection(t *testing
 		t.Run(fmt.Sprintf("%dx%d", size[0], size[1]), func(t *testing.T) {
 			fake := &fakeLocalCores{cores: homeFixtureCores()}
 			app := startHomeLounge(t, fake, size[0], size[1])
-			before := waitFor(t, app, "Pong", func(s Snapshot) bool { return s.Room.Destination.Label == "FES Pong" })
+			before := waitFor(t, app, "Pong", func(s Snapshot) bool { return s.Room.Destination.Label == "Pong" })
 			app.HandleCommand(CmdUp, time.Now())
 			snap := app.Snapshot()
 			if !snap.BrowseActions.Focused || snap.Room.Destination.PackageID != before.Room.Destination.PackageID {
@@ -131,10 +131,63 @@ func TestHomeHeroActionsFollowSpatialDirectionsWithoutMovingSelection(t *testing
 	}
 }
 
+func TestReadyHomeActionsDoNotWaitForUnrelatedLibraryLoad(t *testing.T) {
+	for _, size := range [][2]int{{1280, 720}, {1024, 600}} {
+		t.Run(fmt.Sprintf("%dx%d", size[0], size[1]), func(t *testing.T) {
+			index := rooms.NewIndex(rooms.Examples())
+			pack, _ := index.Find(installedCoresHomeID)
+			fake := &fakeLocalCores{cores: homeFixtureCores()}
+			app := NewApp(nil, size[0], size[1], 50)
+			app.roomsIndex = index
+			app.localCores, app.localFeed = fake, &fakePadFeed{}
+			w, h := app.roomContentSizeLocked(pack.ID)
+			inst, err := rooms.New(pack, rooms.Options{Width: w, Height: h, Index: index, Local: fake, Services: hardwareRenderServices{}, Budget: hardwareRenderTestBudget()})
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(inst.Close)
+			app.room = inst
+			if err := inst.Load(); err != nil {
+				t.Fatal(err)
+			}
+			before := waitFor(t, app, "ready local Home core", func(s Snapshot) bool {
+				return s.Room.Destination.Label == "Pong" && s.Room.Destination.Confirm() == rooms.ConfirmLaunchCore
+			})
+			// No host poller runs in this fixture: the unrelated library flags
+			// stay pending while real Home Lua and command routing run.
+			app.loading, app.searchPending = true, true
+			app.HandleCommand(CmdUp, time.Now())
+			snap := app.Snapshot()
+			if !snap.BrowseActions.Visible || !snap.BrowseActions.Focused || snap.Room.Destination.PackageID != before.Room.Destination.PackageID || snap.Room.Destination.Confirm() != rooms.ConfirmLaunchCore {
+				t.Fatalf("ready Home actions waited on the library: actions=%+v destination=%+v", snap.BrowseActions, snap.Room.Destination)
+			}
+			app.HandleCommand(CmdRight, time.Now())
+			app.HandleCommand(CmdSelect, time.Now())
+			if snap := app.Snapshot(); !snap.Room.CoreDetail || fake.launchCount() != 0 || !snap.Loading {
+				t.Fatalf("pending library blocked Home Details or changed launch state: detail=%v launches=%d loading=%v", snap.Room.CoreDetail, fake.launchCount(), snap.Loading)
+			}
+		})
+	}
+}
+
+func TestLibraryActionsStillWaitForTheirOwnPendingLoad(t *testing.T) {
+	for _, flag := range []string{"loading", "search"} {
+		t.Run(flag, func(t *testing.T) {
+			app := libraryRenderApp(t, 1024, 600, false)
+			app.focusIndex(len(app.games) - 1)
+			app.loading, app.searchPending = flag == "loading", flag == "search"
+			app.HandleCommand(CmdDown, time.Now())
+			if snap := app.Snapshot(); snap.BrowseActions.Visible || snap.BrowseActions.Focused || snap.Detail.Open {
+				t.Fatalf("pending Library offered stale actions: %+v", snap.BrowseActions)
+			}
+		})
+	}
+}
+
 func TestHomeHeroActionsRejectAChangedDestination(t *testing.T) {
 	fake := &fakeLocalCores{cores: homeFixtureCores()}
 	app := startHomeLounge(t, fake, 1280, 720)
-	waitFor(t, app, "Pong", func(s Snapshot) bool { return s.Room.Destination.Label == "FES Pong" })
+	waitFor(t, app, "Pong", func(s Snapshot) bool { return s.Room.Destination.Label == "Pong" })
 	app.HandleCommand(CmdUp, time.Now())
 	app.mu.Lock()
 	app.room.Hover("core:2") // A refreshed/externally selected row replaces the captured subject.

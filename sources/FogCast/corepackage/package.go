@@ -40,6 +40,9 @@ var (
 	ipvFutureRE   = regexp.MustCompile(`^v[0-9A-Fa-f]+\.[A-Za-z0-9_.~!$&'()*+,;=:-]+$`)
 )
 
+// ValidVersion reports the semantic-version form accepted by core packages.
+func ValidVersion(version string) bool { return semverRE.MatchString(version) }
+
 type ROM struct {
 	ID         string `toml:"id" json:"id"`
 	Role       string `toml:"role" json:"role"`
@@ -1245,7 +1248,7 @@ func ValidateDescriptor(d Descriptor) error {
 	if err := text(d.Core.Description, "core.description", false, 2048); err != nil {
 		return err
 	}
-	if !semverRE.MatchString(d.Core.Version) {
+	if !ValidVersion(d.Core.Version) {
 		return errors.New("core package: core.version must be full SemVer")
 	}
 	if d.Core.System != "" {

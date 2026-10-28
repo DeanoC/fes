@@ -34,6 +34,54 @@ func TestHomeListsPinnedRecentRoomsAndLibrary(t *testing.T) {
 	}
 }
 
+func TestHomeSelectorsHideSetupTemplatesAndKeepInstalledRooms(t *testing.T) {
+	const external = "community.favorite"
+	const reservedExternal = "example.custom"
+	const missingExternal = "community.missing"
+	app := NewApp(nil, 1280, 720, 10)
+	app.roomsIndex = rooms.NewIndex([]rooms.Pack{
+		testRoomPack(t, installedCoresHomeID, testRoomScript),
+		testRoomPack(t, "example.computers", testRoomScript),
+		testRoomPack(t, systemRoomID, testRoomScript),
+		testRoomPack(t, hardwareRoomID, testRoomScript),
+		testRoomPack(t, external, testRoomScript),
+		testRoomPack(t, reservedExternal, testRoomScript),
+	})
+	app.pinnedRooms = []string{systemRoomID, hardwareRoomID, "example.lobby", external, reservedExternal, missingExternal}
+	app.homeRooms = true
+	rows := app.roomPickerRowsLocked()
+	seen := map[string]bool{}
+	for _, row := range rows {
+		if row.ID == systemRoomID || row.ID == hardwareRoomID || row.ID == "example.lobby" {
+			t.Fatalf("internal setup template exposed as a room: %+v", row)
+		}
+		seen[row.ID] = true
+	}
+	for _, id := range []string{installedCoresHomeID, "example.computers", external, reservedExternal, missingExternal} {
+		if !seen[id] {
+			t.Fatalf("public room %q disappeared: %+v", id, rows)
+		}
+	}
+	if got := app.settingsHomeValueLocked(); got != "Rooms (4)" {
+		t.Fatalf("default-room count includes internal templates: %q", got)
+	}
+	for _, id := range []string{systemRoomID, hardwareRoomID} {
+		if _, reason, ok := app.resolveHomeRoomLocked(id); ok || reason != "internal setup" {
+			t.Fatalf("internal template %q offered as Home: ok=%v reason=%q", id, ok, reason)
+		}
+		if pack, ok := app.roomsIndex.Find(id); !ok || !pack.Valid() {
+			t.Fatalf("setup route lost its internal template %q", id)
+		}
+	}
+	if _, _, ok := app.resolveHomeRoomLocked(external); !ok {
+		t.Fatal("installed external room cannot be the default Home")
+	}
+	app.roomsIndex = rooms.NewIndex([]rooms.Pack{testRoomPack(t, systemRoomID, testRoomScript), testRoomPack(t, hardwareRoomID, testRoomScript)})
+	if app.roomsAvailableLocked() || app.settingsHomeValueLocked() != "Library (no rooms installed)" {
+		t.Fatal("internal templates count as available Home rooms")
+	}
+}
+
 func TestHomePinPersistsAndStaysFirst(t *testing.T) {
 	h := newRoomHost(t)
 	index := rooms.NewIndex([]rooms.Pack{

@@ -38,7 +38,7 @@ func TestSystemsSetupWaitsForLoadedShelf(t *testing.T) {
 		t.Fatal(err)
 	}
 	frame := r.Step(time.Now())
-	if !frameHas(frame, "Looking for prepared computers") || frameHas(frame, "Add system") {
+	if !frameHas(frame, "Looking for prepared systems") || frameHas(frame, "Add system") {
 		close(ready)
 		t.Fatalf("loading shelf offered setup:\n%s", frameText(frame))
 	}
@@ -257,14 +257,14 @@ func TestComputersRoomSetupOpensTheWorkbench(t *testing.T) {
 		t.Fatal("move to Commodore 64 setup")
 	}
 	acts = r.TakeActions()
-	if len(acts) != 1 || acts[0].Kind != ActionOpenRoom || acts[0].RoomID != "example.c64" || acts[0].InitialGameID != "fpga-c64-game" {
+	if len(acts) != 1 || acts[0].Kind != ActionOpenRoom || acts[0].RoomID != "example.system" || acts[0].InitialGameID != "fpga-c64-game" || acts[0].InitialCoreID != "fes.c64" {
 		t.Fatalf("C64 setup %+v", acts)
 	}
 	if !r.Input("left") || !r.Input("down") || !r.Input("right") || !r.Input("select") {
 		t.Fatal("move to the second Commodore 64 setup")
 	}
 	acts = r.TakeActions()
-	if len(acts) != 1 || acts[0].Kind != ActionOpenRoom || acts[0].RoomID != "example.c64" || acts[0].InitialGameID != "fpga-c64-second" {
+	if len(acts) != 1 || acts[0].Kind != ActionOpenRoom || acts[0].RoomID != "example.system" || acts[0].InitialGameID != "fpga-c64-second" || acts[0].InitialCoreID != "fes.c64" {
 		t.Fatalf("second C64 setup %+v", acts)
 	}
 	if !r.Input("left") || !r.Input("select") {
@@ -276,7 +276,7 @@ func TestComputersRoomSetupOpensTheWorkbench(t *testing.T) {
 	}
 	r.Activate("setup")
 	acts = r.TakeActions()
-	if len(acts) != 1 || acts[0].Kind != ActionOpenRoom || acts[0].RoomID != "example.c64" || acts[0].InitialGameID != "fpga-c64-second" {
+	if len(acts) != 1 || acts[0].Kind != ActionOpenRoom || acts[0].RoomID != "example.system" || acts[0].InitialGameID != "fpga-c64-second" || acts[0].InitialCoreID != "fes.c64" {
 		t.Fatalf("pointer setup %+v", acts)
 	}
 }
