@@ -213,7 +213,8 @@ def parse_boot(text: str) -> dict:
     report = {'post': [], 'debug': [], 'panic': [], 'io': {}, 'io_wait': {}, 'inta': {}, 'screen': [], 'end': None,
               'prompt_cycle': None, 'cpu_resets': 0, 'snaps': {}, 'present': {}, 'vga': {}, 'marks': {},
               'opl2': None, 'opl2_mismatch': None, 'audio_samples': None, 'sb': None}
-    rtl = {'stops': [], 'pmode': [], 'gaps': [], 'smc': [], 'unretired': [], 'notes': [], 'counters': None}
+    rtl = {'stops': [], 'pmode': [], 'gaps': [], 'smc': [], 'unretired': [], 'overlaps': [], 'notes': [],
+           'counters': None}
     for line in text.splitlines():
         kind, _, rest = line.partition(' ')
         if kind == 'STOP':
@@ -231,6 +232,9 @@ def parse_boot(text: str) -> dict:
             event, cycle, site, instruction, address = rest.split()
             rtl['smc'].append({'event': event, 'cycle': int(cycle), 'site': site, 'instruction': instruction,
                                'address': address})
+        elif kind == 'OVERLAP':
+            cycle, address, abandoned = rest.split()
+            rtl['overlaps'].append({'cycle': int(cycle), 'address': address, 'abandoned': abandoned})
         elif kind == 'UNRETIRED':
             why, loads, site, stem, address, cycle = rest.split()
             rtl['unretired'].append({'why': why, 'loads': int(loads), 'site': site, 'stem': stem,
