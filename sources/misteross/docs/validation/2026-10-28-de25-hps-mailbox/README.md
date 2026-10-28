@@ -1,5 +1,9 @@
 # DE25-Nano HPS mailbox: host compile, 2026-10-28
 
+The later [reset and clock cleanup](reset-sequencing/README.md) records the
+current diagnostic and its remaining gates. This record preserves the original
+mailbox producer and artifact before that cleanup.
+
 The committed HPS mailbox diagnostic generated all project IP and compiled
 successfully with Quartus Prime Pro 26.3.0 Build 114. This is host-only
 compiler/simulation evidence. No board, FPGA, QSPI or block device was touched.
