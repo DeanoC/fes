@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -80,6 +81,53 @@ root = "` + dir + `"
 	}
 	if got := stderr.String(); !strings.Contains(got, "fogcast-api: API composition failed") || strings.Contains(got, wantErr.Error()) {
 		t.Fatalf("stderr = %q", got)
+	}
+}
+
+func TestExplicitConfigKeepsCatalogStoresPrivate(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	dir := t.TempDir()
+	state := filepath.Join(dir, "private-state")
+	staging := filepath.Join(dir, "private-staging")
+	configPath := filepath.Join(dir, "host.toml")
+	config := fmt.Sprintf(`base_url = "http://127.0.0.1:8182"
+token = "test-token"
+request_timeout_seconds = 12
+upload_timeout_seconds = 60
+state = %q
+staging = %q
+`, state, staging)
+	if err := os.WriteFile(configPath, []byte(config), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var got fogcast.Paths
+	var stdout, stderr bytes.Buffer
+	code := runWithComposer(ctx, []string{"--config", configPath, "--headless", "--listen", "127.0.0.1:0"}, &stdout, &stderr,
+		func(_ context.Context, paths fogcast.Paths) (service, error) {
+			got = paths
+			cancel()
+			return &compositionService{}, nil
+		},
+		func(service, fogcast.Config, bridgeStarterFactory) (http.Handler, func() error, error) {
+			return http.NewServeMux(), func() error { return nil }, nil
+		},
+	)
+	if code != 0 {
+		t.Fatalf("exit = %d stderr=%q", code, stderr.String())
+	}
+	if got.Config != configPath || filepath.Dir(got.Index) != state || got.Staging != staging ||
+		filepath.Dir(got.MediaIndex) != state || filepath.Dir(got.CorePackages) != state {
+		t.Fatalf("paths = %+v", got)
+	}
+	if _, err := os.Stat(state); err != nil {
+		t.Fatalf("private state: %v", err)
+	}
+	homeCatalog := filepath.Join(home, ".local", "share", "fogcast")
+	if _, err := os.Stat(homeCatalog); !os.IsNotExist(err) {
+		t.Fatalf("home catalog = %v", err)
 	}
 }
 

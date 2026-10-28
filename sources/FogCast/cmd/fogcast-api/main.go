@@ -1201,13 +1201,23 @@ func runWithComposer(ctx context.Context, args []string, stdout, stderr io.Write
 		fmt.Fprintln(stderr, "fogcast-api: service opener is unavailable")
 		return 1
 	}
-	paths, err := fogcast.DefaultPaths()
-	if err != nil {
-		fmt.Fprintln(stderr, "fogcast-api: cannot determine default paths")
-		return 1
-	}
-	if strings.TrimSpace(*configPath) != "" {
-		paths.Config = *configPath
+	// An explicit config selects its own catalog stores. PathsForConfig
+	// honors absolute state and staging in that file; replacing only
+	// paths.Config left those stores on the default home catalog.
+	configFile := strings.TrimSpace(*configPath)
+	var paths fogcast.Paths
+	if configFile != "" {
+		paths, err = fogcast.PathsForConfig(configFile)
+		if err != nil {
+			fmt.Fprintln(stderr, "fogcast-api: configuration paths are unavailable")
+			return 1
+		}
+	} else {
+		paths, err = fogcast.DefaultPaths()
+		if err != nil {
+			fmt.Fprintln(stderr, "fogcast-api: cannot determine default paths")
+			return 1
+		}
 	}
 	config, err := loadAPIConfig(paths.Config, *metadataConfigPath)
 	config.StorageConfigPath = filepath.Join(filepath.Dir(paths.Config), "host-drives.json")
