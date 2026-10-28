@@ -3,21 +3,38 @@ package fogcast
 import (
 	"context"
 	"errors"
-	"github.com/DeanoC/FogCast/protocol"
 	"io"
 	"time"
+
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 // mediaUnchanged marks a library-insert failure that returned before the
 // target was asked to take the disk. The host keeps the confirmed filename.
 func mediaUnchanged(err error) error {
-	var api *protocol.APIError
-	if err == nil || !errors.As(err, &api) || api == nil || api.NoChange {
-		return err
+	if err == nil {
+		return nil
 	}
-	copy := *api
-	copy.NoChange = true
-	return &copy
+	var api *protocol.APIError
+	if errors.As(err, &api) && api != nil {
+		if api.NoChange {
+			return err
+		}
+		copy := *api
+		copy.NoChange = true
+		copy.Cause = err
+		return &copy
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return &protocol.APIError{
+			Cause: err, Code: protocol.CodeBusy,
+			Message: "another launch or stop transition is running", Phase: "admission", NoChange: true,
+		}
+	}
+	return &protocol.APIError{
+		Cause: err, Code: protocol.CodeInternal,
+		Message: "FogCast operation failed internally", Phase: "admission", NoChange: true,
+	}
 }
 
 type mediaDataClient interface {
