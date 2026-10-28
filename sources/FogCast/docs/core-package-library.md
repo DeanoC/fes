@@ -429,7 +429,9 @@ digest. A shell with a video socket also carries the selected video part (and
 any CPU part); the archive records the host's parts composition and programmed
 digest, and the target relinks and must reproduce both before it returns
 `parts_composition` beside `rom_links`. A BIOS or cartridge selection changed
-after launch capture is rejected before target load. The factory Coleco package still uses its own mailbox path.
+after launch capture is rejected before target load. The factory format-4
+package uses this same two-source launch path and has no `fes.media.blob*` or
+`fes.firmware.blob` mailbox interfaces.
 
 ## Named ROM selection for format-3 packages
 Format-3 packages declare one required ROM (`rom.id`, role `firmware` or

@@ -177,7 +177,7 @@ func TestHomeLoungeNativeRender(t *testing.T) {
 			writeHomeScreenshot(t, snap, "long")
 		})
 	}
-	t.Run("details", func(t *testing.T) {
+	t.Run("coleco-arcade", func(t *testing.T) {
 		app := startHomeLounge(t, &fakeLocalCores{cores: homeFixtureCores()}, 1280, 720)
 		waitFor(t, app, "first core", func(s Snapshot) bool { return s.Room.Destination.Label == "FES Pong" })
 		for i := 0; i < 3; i++ {
@@ -185,7 +185,7 @@ func TestHomeLoungeNativeRender(t *testing.T) {
 		}
 		waitFor(t, app, "coleco", func(s Snapshot) bool { return s.Room.Destination.Label == "FES ColecoVision" })
 		app.HandleCommand(CmdSelect, time.Now())
-		writeHomeScreenshot(t, app.Snapshot(), "details")
+		writeHomeScreenshot(t, app.Snapshot(), "coleco-arcade")
 	})
 	t.Run("no-kit", func(t *testing.T) {
 		app := startHomeLounge(t, nil, 1280, 720)
@@ -341,6 +341,25 @@ func TestHomeHeroIsTheTapTargetAndFitsTheRoom(t *testing.T) {
 	}
 }
 
+func TestHomeColecoTileOpensArcadeLibraryRoom(t *testing.T) {
+	app := startHomeLounge(t, &fakeLocalCores{cores: []localcores.Core{
+		{PackageID: strings.Repeat("c", 64), CoreID: colecoCoreID, Name: "FES ColecoVision", Needs: "parts", Block: "Needs a video part"},
+	}}, 1280, 720)
+	snap := waitFor(t, app, "Coleco home tile", func(s Snapshot) bool {
+		return s.Room.Destination.Label == "FES ColecoVision" && s.Room.Destination.Kind == rooms.KindRoom
+	})
+	if !roomTextHas(snap, "Browse Coleco titles") || roomTextHas(snap, "Display setup incomplete") {
+		t.Fatalf("Coleco tile still advertises incomplete display setup: %+v", snap.Room.Destination)
+	}
+	app.HandleCommand(CmdSelect, time.Now())
+	snap = waitFor(t, app, "Coleco Arcade room", func(s Snapshot) bool {
+		return s.Room.ID == colecoArcadeRoomID && s.Room.Open
+	})
+	if snap.Room.Destination.Kind == rooms.KindCore && snap.Room.Destination.CoreNeeds == "parts" {
+		t.Fatalf("Coleco tile retained its blocked local-core destination: %+v", snap.Room.Destination)
+	}
+}
+
 func TestHomeSkipsAnOmittedCoreAndHidesItsPackage(t *testing.T) {
 	id := func(n byte) string { return strings.Repeat(string("0123456789abcdef"[n]), 64) }
 	st := localcores.Core{PackageID: id(8), CoreID: "fes.atari-st", Name: "Atari ST", Needs: "unavailable", Launchable: false, Block: "Hardware unavailable"}
@@ -379,15 +398,15 @@ func TestHomeSkipsAnOmittedCoreAndHidesItsPackage(t *testing.T) {
 func TestHomeCoreDetailsOpenInTheHeroAndBackClosesThem(t *testing.T) {
 	app := startHomeLounge(t, &fakeLocalCores{cores: homeFixtureCores()}, 1280, 720)
 	waitFor(t, app, "pong", func(s Snapshot) bool { return s.Room.Destination.Label == "FES Pong" })
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 4; i++ {
 		app.HandleCommand(CmdRight, time.Now())
 	}
-	waitFor(t, app, "coleco", func(s Snapshot) bool { return s.Room.Destination.Label == "FES ColecoVision" })
+	waitFor(t, app, "master system", func(s Snapshot) bool { return s.Room.Destination.Label == "FES Master System" })
 	// A on a blocked core opens Details; it never does nothing.
 	app.HandleCommand(CmdSelect, time.Now())
 	snap := app.Snapshot()
 	c := heroDestinationCopy(snap)
-	if !snap.Room.CoreDetail || len(c.Details) == 0 || !strings.Contains(strings.Join(c.Details, "\n"), "Kit says: Needs a video part") {
+	if !snap.Room.CoreDetail || len(c.Details) == 0 || !strings.Contains(strings.Join(c.Details, "\n"), "Kit says: Needs a cartridge") {
 		t.Fatalf("blocked core Details %+v", c)
 	}
 	app.HandleCommand(CmdBack, time.Now())
@@ -401,7 +420,7 @@ func TestHomeCoreDetailsOpenInTheHeroAndBackClosesThem(t *testing.T) {
 		t.Fatal("Y did not open Details")
 	}
 	app.HandleCommand(CmdLeft, time.Now())
-	snap = waitFor(t, app, "moved", func(s Snapshot) bool { return s.Room.Destination.Label != "FES ColecoVision" })
+	snap = waitFor(t, app, "moved", func(s Snapshot) bool { return s.Room.Destination.Label != "FES Master System" })
 	if snap.Room.CoreDetail {
 		t.Fatal("Details followed focus to another core")
 	}
