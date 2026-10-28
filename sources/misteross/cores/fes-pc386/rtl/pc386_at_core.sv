@@ -5,7 +5,8 @@
 //   000-00F DMA 1     020-021 PIC 1    040-043 PIT (8254)   060, 064 8042
 //   061 port B        070-071 RTC      080 POST             081-08F DMA pages
 //   092 port A        0A0-0A1 PIC 2    0C0-0DF DMA 2        1F0-1F7, 3F6 ATA
-//   3B0-3DF VGA port  400-403, 500, E9 debug sink           anything else FFh
+//   220-22F or 240-24F, 388-389 sound port                  3B0-3DF VGA port
+//   400-403, 500, E9 debug sink                             anything else FFh
 //
 // Every guest time base is a rational enable of the system clock; the
 // defaults are for 100 MHz. A20M is asserted to the CPU when both the 8042
@@ -55,6 +56,11 @@ module pc386_at_core #(
     output wire [7:0] vga_wdata,
     input wire vga_done,
     input wire [7:0] vga_rdata,
+    // Sound port: the Sound Blaster base range and 388h-389h, isa8 cycles
+    output wire sound_access, sound_write, sound_adlib,
+    output wire [3:0] sound_address,
+    output wire [7:0] sound_wdata,
+    input wire [7:0] sound_rdata,
     // Interrupts from other devices (Sound Blaster), ORed in
     input wire [15:0] device_irq,
     output wire speaker,
@@ -126,11 +132,18 @@ module pc386_at_core #(
     wire select_dma2 = io_cycle && port[15:5] == 11'h006;
     wire select_ata_block = io_cycle && port[15:3] == 13'h003e;
     wire select_ata_control = io_cycle && port == 16'h03f6;
+    wire select_sound = io_cycle && (port[15:4] == {4'h0, sb_base_high} || port[15:1] == 15'h01c4);
     wire select_debug = io_cycle && ((port >= 16'h0400 && port <= 16'h0403) || port == 16'h0500 || port == 16'h00e9);
     wire access = cycle_access && io_cycle;
     wire read_strobe = cycle_strobe && !cycle_write && io_cycle;
     wire write_strobe = cycle_strobe && cycle_write;
     wire inta_strobe = cycle_strobe && cycle_inta;
+
+    assign sound_access = access && select_sound;
+    assign sound_write = cycle_write;
+    assign sound_adlib = port[15:4] != {4'h0, sb_base_high};
+    assign sound_address = port[3:0];
+    assign sound_wdata = cycle_wdata[7:0];
 
     // ---- Interrupts -------------------------------------------------------
     wire pit_out0, pit_out1, pit_out2, irq1, irq12, irq8, irq14;
@@ -320,6 +333,7 @@ module pc386_at_core #(
         else if (select_page) cycle_rdata = {8'hff, pages[port[3:0]]};
         else if (select_dma2) cycle_rdata = {8'hff, dma2_data};
         else if (select_ata_block || select_ata_control) cycle_rdata = ata_data;
+        else if (select_sound) cycle_rdata = {8'hff, sound_rdata};
     end
 
     // ---- Debug sink, CPU reset and FLUSH -----------------------------------
