@@ -755,7 +755,7 @@ func connectionFromStatus(health protocol.Health, status protocol.Status, owners
 	connection := TargetConnection{
 		State: "ready", Address: address, TargetID: id, BootID: health.BootID,
 		leaseSeen: true, leaseOwned: ownership.Owned, leaseGeneration: ownership.Generation,
-		mediaDataBound: protocol.MediaDataBound(status.CorePackage),
+		mediaDataBound: protocol.StopSavesMedia(status.CorePackage),
 	}
 	if err := protocol.CheckAPIVersion(health.APIVersion); err != nil {
 		connection.State = "version_mismatch"

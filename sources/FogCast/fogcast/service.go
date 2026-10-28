@@ -2829,7 +2829,7 @@ func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration,
 		})
 		if describedPackage && !discoveryAdmission {
 			observed, observeErr := client.Status(ctx)
-			boundDisk = observeErr == nil && protocol.MediaDataBound(observed.CorePackage)
+			boundDisk = observeErr == nil && protocol.StopSavesMedia(observed.CorePackage)
 		}
 		if boundDisk {
 			if timeout < 150*time.Second {

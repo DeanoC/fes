@@ -154,7 +154,7 @@ func validCorePackageStatus(status protocol.Status) bool {
 	}
 	value := status.CorePackage
 	if protocol.ComputerABI(value.ABI.ID, int64(value.ABI.Major), int64(value.ABI.Minor)) &&
-		value.PersistenceMode == "persistent" && !protocol.MediaDataBound(value) && !protocol.MachineRecordCapable(value) {
+		value.PersistenceMode == "persistent" && !protocol.StopSavesMedia(value) && !protocol.MachineRecordCapable(value) {
 		return false
 	}
 	if r := value.ROMLink; r != nil {

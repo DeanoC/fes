@@ -438,11 +438,21 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 			}
 			return source, nil
 		}
-		if protocol.DeclaresPc386Machine(inspection.Descriptor) || protocol.DeclaresAtaDisk(inspection.Descriptor) {
+		if protocol.DeclaresAtaDisk(inspection.Descriptor) && !protocol.DeclaresPc386Machine(inspection.Descriptor) && entry.MediaID != "" {
+			// The runtime binds a disk delta to the game of a per-game
+			// record, and takes a game only from a package that has one.
+			return coreLoadSource{}, &protocol.APIError{Code: protocol.CodeBadRequest, Phase: "admission",
+				Message: "this package has no per-game machine record, so a hard-disk image cannot be bound to it"}
+		}
+		if protocol.DeclaresPc386Machine(inspection.Descriptor) {
 			// The game keys the machine record and disk delta; the disk is
 			// staged on the kit by digest and written by the runtime before
 			// release, so nothing is inserted after the core starts.
-			hardDisk, err = s.readHardDisk(ctx, entry)
+			if protocol.DeclaresAtaDisk(inspection.Descriptor) {
+				hardDisk, err = s.readHardDisk(ctx, entry)
+			} else if entry.MediaID != "" {
+				err = protocol.HardDiskRequestError()
+			}
 			if err != nil {
 				return coreLoadSource{}, err
 			}

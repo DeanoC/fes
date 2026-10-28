@@ -77,6 +77,18 @@ func HardDiskCapable(p *CorePackageStatus) bool {
 	return activeComputer(p) && activeInterface(p, AtaDiskInterface())
 }
 
+// HardDiskBound reports a ready hard disk bound to a library game's delta.
+func HardDiskBound(p *CorePackageStatus) bool {
+	u, ok := MediaUnit(p, AtaDiskUnit)
+	return ok && u.Interface == AtaDiskInterface() && u.Persistence != nil
+}
+
+// StopSavesMedia reports a generation whose Stop publishes durable media, a
+// writable ST floppy or a hard-disk delta, and so needs the longer budget.
+func StopSavesMedia(p *CorePackageStatus) bool {
+	return MediaDataBound(p) || HardDiskBound(p)
+}
+
 // MachineRecordCapable reports an active generation whose persistence words
 // carry a per-game fes.pc386.machine record.
 func MachineRecordCapable(p *CorePackageStatus) bool {

@@ -53,6 +53,54 @@ func TestMachineCoreDataDecodes(t *testing.T) {
 	}
 }
 
+// The runtime's own pc386 response bytes (COMPONENT_FIXTURES copy) decode:
+// a missing record's defaults, a stored record, and a running disk unit.
+func TestRuntimePc386ResponsesDecode(t *testing.T) {
+	lines := fixtureLines(t, "protocol-v2-pc386-responses.jsonl")
+	if len(lines) != 3 {
+		t.Fatalf("fixture has %d lines", len(lines))
+	}
+	layout := protocol.Pc386MachineInterface()
+	for i, want := range []struct {
+		revision string
+		machine  protocol.MachineSettings
+	}{
+		{"absent", protocol.DefaultMachineSettings()},
+		{strings.Repeat("b", 64), protocol.MachineSettings{Preset: 3, Frequency: 250, CodeProfile: 1, SBBase: 0x240, SBIRQ: 5, SBDMA: 1}},
+	} {
+		response, err := decodeProtocol2Response([]byte(lines[i]))
+		if err != nil {
+			t.Fatalf("line %d: %v", i+1, err)
+		}
+		d := response.CoreData
+		if d == nil || d.CoreID != "fes.pc386" || d.Mode != "persistent" || d.Revision != want.revision || d.GameID != "ultima-vi" ||
+			d.Layout == nil || *d.Layout != layout || d.Machine == nil || *d.Machine != want.machine || d.PaddleSpeed != 0 || d.BestRally != 0 || !d.Valid() {
+			t.Fatalf("line %d core_data %+v", i+1, d)
+		}
+	}
+	response, err := decodeProtocol2Response([]byte(lines[2]))
+	if err != nil {
+		t.Fatalf("line 3: %v", err)
+	}
+	if response.State != "running_development" || response.ActivePackage == nil || response.ActivePackage.PersistenceMode != "persistent" {
+		t.Fatalf("line 3 active %+v", response.ActivePackage)
+	}
+	units := response.Capabilities.MediaUnits
+	if len(units) != 1 {
+		t.Fatalf("units %+v", units)
+	}
+	u := units[0]
+	if u.Unit != 0 || u.Interface != protocol.AtaDiskInterface() || u.MinBytes != 1<<20 || u.MaxBytes != 128<<20 || u.ChunkBytes != 65536 ||
+		u.State != protocol.MediaUnitReady || u.Persistence == nil || u.Persistence.GameID != "ultima-vi" || u.Persistence.BaseMediaID != strings.Repeat("c", 64) {
+		t.Fatalf("ata unit %+v", u)
+	}
+	status := computerMediaStatus(response).CorePackage
+	if got, ok := protocol.MediaUnit(status, 0); !ok || got.Interface != protocol.AtaDiskInterface() || !protocol.HardDiskCapable(status) ||
+		!protocol.StopSavesMedia(status) || protocol.MediaDataBound(status) {
+		t.Fatalf("status unit %+v %v", got, ok)
+	}
+}
+
 // The runtime advertises fes.computer at 1.0 and 1.1; each package matches
 // the entry of its own minor exactly.
 func TestComputerAdvertisedAtTwoMinors(t *testing.T) {

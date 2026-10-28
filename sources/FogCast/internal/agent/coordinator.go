@@ -444,7 +444,7 @@ func (c *Coordinator) stopLocked(parent context.Context) (protocol.Status, *prot
 	stopping.LastError = nil
 	c.set(stopping)
 	stopBudget := c.stopTimeout
-	if protocol.MediaDataBound(current.CorePackage) && stopBudget < 135*time.Second {
+	if protocol.StopSavesMedia(current.CorePackage) && stopBudget < 135*time.Second {
 		stopBudget = 135 * time.Second
 	}
 	var observed string

@@ -1262,7 +1262,10 @@ func validActivePackage(active Protocol2ActivePackage, capabilities Protocol2Cap
 				bound = true
 			}
 		}
-		if !protocol.DeclaresPc386Machine(active.Descriptor) && (!bound || !descriptorMediaWrite(active.Descriptor)) {
+		// Persistent means a bound writable ST floppy or hard disk, or a
+		// pc386 machine record, which needs no bound disk.
+		durableDisk := descriptorMediaWrite(active.Descriptor) || protocol.DeclaresAtaDisk(active.Descriptor)
+		if !protocol.DeclaresPc386Machine(active.Descriptor) && (!bound || !durableDisk) {
 			return false
 		}
 	}

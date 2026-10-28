@@ -393,7 +393,8 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 	if (staged.Descriptor.ROM != nil && staged.ROMLink == nil) || (staged.Descriptor.Format == 4 && staged.ROMLinks == nil) {
 		return CoreActivation{}, false, &protocol.APIError{Code: protocol.CodeInvalidArchive, Message: "ROM-bearing package requires selected ROM input", Phase: "admission"}
 	}
-	pc386 := protocol.DeclaresPc386Machine(staged.Descriptor) || protocol.DeclaresAtaDisk(staged.Descriptor)
+	// Only a fes.computer package with a per-game record takes a game.
+	pc386 := protocol.DeclaresPc386Machine(staged.Descriptor)
 	if machine != nil && (libraryID == "" || composed || parts || romInit != nil || staged.ROMLink != nil || staged.ROMLinks != nil || !pc386) {
 		return CoreActivation{}, false, &protocol.APIError{Code: protocol.CodeInvalidArchive, Message: "a library game and disk bind only a pc386 library package", Phase: "admission"}
 	}
