@@ -1,7 +1,7 @@
 {
   "artifacts": {
     "bundle.tar": {
-      "sha256": "5c90ac3ce41f9d7806c6e51a4fb006c2e4aaa698ced8ec154972f958ee070739",
+      "sha256": "c831d418dbd22913df3d7814830dc27377d3fece1a92421a9c58b9a6960ba59b",
       "size": 36541952
     }
   },
@@ -9,7 +9,7 @@
   "base_factory_manifest_sha256": "b5f6d8e54731b2b5356f7e475a87771fa88da0902af18083dddde05263b89176",
   "base_image_sha256": "f904961e008a972db8f06f1bb47aff9631123d67215b9f4157ea1fbee83b98d4",
   "bundle": {
-    "id": "89d214ce5074bf6b56ffe53319402ac365a3158f33d5568c8905029029edd475",
+    "id": "ee79404cf763b94a65d89425887304b2194bc04f25b536f53003f8fcfa473f19",
     "manifest": {
       "architecture": "armv7",
       "base_contract": "fes-kit-base-v1-bef75094a1690e550400b0c8c97f36ad9a8a49399f5540fd33929a1a6d853972",
@@ -18,25 +18,25 @@
         {
           "mode": 365,
           "path": "bin/fogcast-kit",
-          "sha256": "90ca89410631a30bed495b33875c5246fbb6efc0e93f1e4265d2338bc6a46749",
+          "sha256": "852670bacb7d5a4cf10a604c0e152ab6eb33528840ba2097ab8ed653928f99ad",
           "size": 1573026
         },
         {
           "mode": 365,
           "path": "bin/fogcast-tenfoot",
-          "sha256": "8740f568c304981fb40b2a53109b22bbaf84f81693961d96245189ab1a750c1a",
+          "sha256": "dca84c311ee9c97d2b1aa824d8112a77d6acc58b3bdf395facebd9c1a4fba644",
           "size": 23330978
         },
         {
           "mode": 365,
           "path": "bin/mister-agent",
-          "sha256": "b60ba032a6e59b551923a96ad3091956cbdecedc259aba500dfcbf3dbce3fd64",
+          "sha256": "785400a01be83134c8b3f0f3742f602317dd054b73ec5de36f3cb6135a70991b",
           "size": 10354850
         },
         {
           "mode": 365,
           "path": "bin/mister-runtime",
-          "sha256": "fd2af62a0bf23cf98f27eac340dfc2584e56e84f728473d12ea82b3447d1a6b0",
+          "sha256": "cbfecc8750f1638a10bf456a056d51d8e8c7014bceeae5eece0568eba0491ebb",
           "size": 1263936
         },
         {
@@ -69,10 +69,10 @@
         "software-admission": "fes-kit-software-v1"
       },
       "provenance": {
-        "fogcast": "b3ff95896edd1643a4d1f532cb4b8f9c7cb2915f",
-        "runtime": "b3ff95896edd1643a4d1f532cb4b8f9c7cb2915f"
+        "fogcast": "b1397abc6f78f1cc8e15f1c344c1e4375a0512ac",
+        "runtime": "b1397abc6f78f1cc8e15f1c344c1e4375a0512ac"
       },
-      "version": "tenfoot-names-b3ff95896e"
+      "version": "tenfoot-names-b1397abc6f"
     }
   },
   "deployed": false,
@@ -83,17 +83,17 @@
       "-buildvcs=false",
       "-trimpath",
       "-ldflags",
-      "-s -w -X github.com/DeanoC/FogCast/internal/version.Version=tenfoot-names-b3ff95896e -X github.com/DeanoC/FogCast/internal/version.Revision=b3ff95896edd1643a4d1f532cb4b8f9c7cb2915f"
+      "-s -w -X github.com/DeanoC/FogCast/internal/version.Version=tenfoot-names-b1397abc6f -X github.com/DeanoC/FogCast/internal/version.Revision=b1397abc6f78f1cc8e15f1c344c1e4375a0512ac"
     ],
     "go_sha256": "8da5fd321795754b994c64e3eb8a5a14ff47bd285559a7e876f3c79abafc67f9",
     "helper": "linux/amd64 CGO_ENABLED=0",
     "target": "linux/arm GOARM=7 CGO_ENABLED=0",
     "version": "go version go1.26.5 linux/amd64"
   },
-  "source_commit": "b3ff95896edd1643a4d1f532cb4b8f9c7cb2915f",
+  "source_commit": "b1397abc6f78f1cc8e15f1c344c1e4375a0512ac",
   "source_trees": {
     "image": "b7d856b0a2f4d04ed254b41377bc6fab4f02cc27",
-    "sources/FogCast": "838be571cc9320c9feb50ff6bd4840f04fffbf3a",
+    "sources/FogCast": "a5958e89bdcb51fc3a10fb9fb186b110456cb49b",
     "sources/libmister-runtime": "3f05fe2f97cba675326737ce3e84619125f708af"
   },
   "toolchain": {

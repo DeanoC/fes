@@ -1,5 +1,5 @@
 {
-  "source_commit": "b3ff95896edd1643a4d1f532cb4b8f9c7cb2915f",
+  "source_commit": "b1397abc6f78f1cc8e15f1c344c1e4375a0512ac",
   "gallery_pngs": 86,
   "native_pngs": 47,
   "builtin_packs": 4,
@@ -15,33 +15,33 @@
   "references": [
     {
       "path": "docs/ux/references/tenfoot-polish/contact-native-1024x600.jpg",
-      "bytes": 392669,
-      "sha256": "3f882810c11883b9e83f1aa5434da820d68bfc8013e1ea5c6dbe3372df37d091"
+      "bytes": 393486,
+      "sha256": "cf3cd2a149e9455067913adc512b76cdd5506311f256a70fdf541f885411a931"
     },
     {
       "path": "docs/ux/references/tenfoot-polish/contact-native-1280x720.jpg",
-      "bytes": 334743,
-      "sha256": "eb3a417e304f0cb811a9fbf4c1f792c57b9530e58c728f8f8e5015d59c81ed40"
+      "bytes": 335489,
+      "sha256": "5bbdd51a4bff23b4b8dc58b169fb93af5ff7c68ae02d18197843e0268b2713bc"
     },
     {
       "path": "docs/ux/references/tenfoot-polish/contact-rooms-1024x600.jpg",
-      "bytes": 97338,
-      "sha256": "3cb8e42fd828eae0550fda33cc1dba1cd22dbd91192146a4b7bf5c1135bfa2d5"
+      "bytes": 95773,
+      "sha256": "d7eb761df5d248b7673d71c19893284eb7b327d4902bd9eefbb855c101a996b1"
     },
     {
       "path": "docs/ux/references/tenfoot-polish/contact-rooms-1280x720.jpg",
-      "bytes": 91126,
-      "sha256": "aadcad32f2ec8cf8c70af895c7a8894fc080547d32552d42c42fa4dc581d99b0"
+      "bytes": 89546,
+      "sha256": "f7d68685bd5ec2d1a41e73121c135218c8ebd48dc40dff32161a284d5c000979"
     },
     {
       "path": "docs/ux/references/tenfoot-polish/contact-variants-1024x600.jpg",
-      "bytes": 301594,
-      "sha256": "761f7a249d3f1a80d026f9bac15931925a5567b8577f867fb863403f814666e0"
+      "bytes": 298644,
+      "sha256": "6f5f4980cbccfe9619987d43addbcb6dc5c827963a405abfd2639e2760a1df34"
     },
     {
       "path": "docs/ux/references/tenfoot-polish/contact-variants-1280x720.jpg",
-      "bytes": 287184,
-      "sha256": "1f9fe8279c722a6fd28632733a3c03c977ef8b300895fddf6aae397e030ff97e"
+      "bytes": 283658,
+      "sha256": "52ae1ef0381c74256874c2df7ca698cc6e5ef241a98008bded2c1448a94b4398"
     },
     {
       "path": "docs/ux/references/tenfoot-polish/details-notes-1024x600.png",
@@ -60,8 +60,8 @@
     },
     {
       "path": "docs/ux/references/tenfoot-polish/settings-1024x600.png",
-      "bytes": 54548,
-      "sha256": "c20147eb815ea7ebee05119f4be4cdb0b516a7e51199c8adeebfbb942118f345"
+      "bytes": 54567,
+      "sha256": "cbee7ca103b9b8ae8febefb576942cf1090dd00dcc197aa93aa4c6fd7eb65e7a"
     },
     {
       "path": "docs/ux/references/tenfoot-polish/system-1024x600.png",

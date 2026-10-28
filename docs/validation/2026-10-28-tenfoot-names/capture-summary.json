@@ -1,54 +1,56 @@
 {
-  "source_commit": "b3ff95896edd1643a4d1f532cb4b8f9c7cb2915f",
+  "source_commit": "b1397abc6f78f1cc8e15f1c344c1e4375a0512ac",
+  "previous_source_commit": "b3ff95896edd1643a4d1f532cb4b8f9c7cb2915f",
   "gallery_capture_count": 86,
   "embedded_pack_count": 4,
   "native_capture_count": 47,
   "native_top_level_tests": 5,
   "native_subtests": 45,
-  "native_package_elapsed_seconds": 3.65,
+  "native_package_elapsed_seconds": 2.727,
   "native_tests": [
     {
       "Test": "TestHardwareRoomNativeRender",
-      "Elapsed": 1.63
+      "Elapsed": 1.59
     },
     {
       "Test": "TestHomeLoungeNativeRender",
-      "Elapsed": 1.24
+      "Elapsed": 0.55
     },
     {
       "Test": "TestLibraryNativeRender",
-      "Elapsed": 0.26
+      "Elapsed": 0.27
     },
     {
       "Test": "TestRoomDetailsKeepsLongSummaryAndCuratorNoteInsidePane",
-      "Elapsed": 0.15
+      "Elapsed": 0.13
     },
     {
       "Test": "TestNativeDialogRender",
-      "Elapsed": 0.35
+      "Elapsed": 0.18
     }
   ],
   "archive_verification": {
-    "source_commit": "b3ff95896edd1643a4d1f532cb4b8f9c7cb2915f",
-    "verified_tracked_ui_files": 217,
-    "verified_ui_corenames_and_package_files": 220,
+    "source_commit": "b1397abc6f78f1cc8e15f1c344c1e4375a0512ac",
+    "verified_tracked_ui_files": 333,
+    "verified_ui_corenames_and_package_files": 336,
     "mismatches": [],
     "corepackage_exact_f31_bytes": true,
     "corepackage_sha256": "f6d81b8cc40f1e2378de5646a3bbd80e455c538ad1a7f6c900fcc416a986e20a",
-    "private_display_pattern_matches_historical_semver": true,
     "corenames_imports_corepackage": false,
-    "live_temporary_test_absent": true
+    "live_temporary_test_absent": true,
+    "snapshot_temporary_test_removed": true
   },
+  "archive_scope_note": "Current verification covers all333 UI files, including artwork and browser assets; the prior217-file manifest used a narrower UI subset. No source files were added by recapture.",
   "fixture_template_sha256": "c3ac0f9b2109f38903369994f44d27eeb915171de86c314ef28648f7e85ebebb",
   "live_source_touched": false,
   "snapshot_temporary_test_removed": true,
   "hardware_acceptance": false,
-  "gallery_test_elapsed_seconds": 8.86,
-  "reference_comparison": "out/ux-pass/names/final-reference-comparison.json",
+  "gallery_test_elapsed_seconds": 7.743,
+  "reference_comparison": "docs/validation/2026-10-28-tenfoot-names/reference-comparison.json",
   "reference_count": 13,
-  "changed_reference_count": 0,
+  "changed_reference_count": 7,
   "visual_review": {
-    "reviewed": "four-pack/variants/native contact sheets and all three differing captures side-by-side",
+    "reviewed": "current four-pack/variant/native contact sheets at both sizes and all changed reference images",
     "new_p1_p2_defects": [],
     "known_cosmetic_limit": "Existing unavailable-illustration fallback caption can slightly intersect expansion-card marker in small Sinclair variant setup; no control obscured. Not hardware acceptance."
   }

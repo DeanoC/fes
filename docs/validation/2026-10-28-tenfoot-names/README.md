@@ -2,7 +2,11 @@
 
 This follow-up to the [visual pass](../2026-10-28-tenfoot-ux/README.md) starts
 at `f31cfccc911702d723bede22ec38a96bf620ca1f` on `codex/tenfoot-ux-polish`
-(PR #1187). Executable result is `b3ff95896edd1643a4d1f532cb4b8f9c7cb2915f`.
+(PR #1187). Final executable result is `b1397abc6f78f1cc8e15f1c344c1e4375a0512ac`.
+The naming-only software campaign uses `b3ff95896edd1643a4d1f532cb4b8f9c7cb2915f`;
+the final result also merges the independently pushed Library Details shortcut
+fix `bb350c62c1` through merge `62c4ac8608`, then adds its missing controller
+Search hint and verifies the second-Y path.
 FogCast owns display names, navigation and embedded room packs.
 
 ## Result
@@ -41,10 +45,12 @@ The [bundle receipt](bundle-receipt.json), [capture summary](capture-summary.jso
 [archive verification](archive-verification.json) and [reference hashes](captures.json)
 bind the artifacts to that executable source. The capture run renders 86 gallery
 and 47 native frames, with all four packs, 5 native tests and 45 subtests passing.
-It verifies 217 UI files and three naming/validator files against Git blobs.
-All 13 current reference PNGs/contact sheets match the previous visual review;
-three non-reference frames differ only in asynchronous art readiness or launch
-animation. Manual review found no blocking action overlap. The TS1500 no-art
+The final archive verifies all 333 tracked UI files plus three naming/validator
+files against 336 exact Git blobs. The earlier 217-file verification covered a
+narrower UI subset. Seven of 13 references change after the merge: native
+Details prompts and asynchronously loaded Sinclair illustrations. Prior b3
+capture metadata is retained alongside the current comparison. Both viewports
+and all changed references were reviewed; no new blocking action overlap was found. The TS1500 no-art
 fallback retains a small caption/expansion-marker intersection from the earlier
 layout; physical readability acceptance remains open.
 
@@ -65,14 +71,14 @@ and the UI owns the same historical display matcher; [scope proof](display-match
 The final plan is rerun normally without video selection; no admission rule,
 constraint, callback limit or test gate is relaxed.
 
- The current [native references](../../ux/references/README.md#current-native-pass)
+The current [native references](../../ux/references/README.md#current-native-pass)
 show all four retained templates and navigation pages at 1280×720 and 1024×600.
 The dated visual-pass record retains the earlier 12-pack evidence as history.
 The manual [gallery fixture](capture-gallery.go.txt) uses the real Menu row
 builder so internal templates and removed demos cannot reappear in its screenshot.
 
-The [final affected report](test-changed-report.json) is source-bound to that
-executable commit and reports all seven selected commands successful: 21 planner
+The [affected report](test-changed-report.json) is source-bound to the naming
+implementation `b3ff95896e` and reports all seven selected commands successful: 21 planner
 tests, 31 runner tests, 864 parent regressions, generated consistency and the
 complete seven-stage host lane. It records 126 Go package pass results, 361 Node
 and 78 browser tests. `make check` and `make deadcode` also pass; see
@@ -82,13 +88,25 @@ this discrepancy is retained, not reported as an aggregate exit 0. An independen
 check verifies the exact source and every selected command's return code 0.
 Focused UI, rendering and bundle inspection passed independently.
 
+After merging the separately pushed Details shortcut fix, the complete naming,
+rooms and tenfoot [package tests](merged-ui-tests.log.gz) pass
+(0.008s, 10.621s and 46.926s respectively).
+The final controller hint change passes [focused Library/action/affinity checks](search-hint-tests.log.gz)
+(4.823s) and their [race run](reviewed-ui-race.log.gz) (6.373s). A ready Library item advertises Y Details;
+Details advertises Y Search, and a second Y opens Search without launching.
+The original source-bound aggregate is retained without claiming it ran the
+later merge. Final rendering, bundle and static checks identify the final source
+separately in [checks](checks.json).
+
 ## Hardware boundary
 
-Userspace bundle `89d214ce5074bf6b56ffe53319402ac365a3158f33d5568c8905029029edd475` builds and passes producer inspection
+Final userspace bundle `ee79404cf763b94a65d89425887304b2194bc04f25b536f53003f8fcfa473f19` builds and passes producer inspection
 against retained base image SHA-256
 `f904961e008a972db8f06f1bb47aff9631123d67215b9f4157ea1fbee83b98d4`. The tar is retained at this task worktree's
-`out/ux-pass/names/final-bundle/bundle.tar`; [build log](bundle-build.log.gz).
-The intermediate `9f10d0912f` bundle is superseded and was never deployed.
+`out/ux-pass/names/reviewed-bundle/bundle.tar`; [build log](bundle-build.log.gz).
+The naming-only [b3 receipt](naming-bundle-receipt-b3.json) and
+[checks](naming-checks-b3.json) are retained. Both earlier naming bundles and the
+intermediate merged-source bundle are superseded and were never deployed.
 
 Software-renderer fixtures are host-only evidence. The new userspace bundle
 must be activated on a claimed test kit's existing compatible image for physical

@@ -1,8 +1,8 @@
 {
   "format": 1,
-  "recorded_utc": "2026-10-28T13:11:19.933828+00:00",
+  "recorded_utc": "2026-10-28T13:19:19.480237+00:00",
   "base": "f31cfccc911702d723bede22ec38a96bf620ca1f",
-  "executable_source": "b3ff95896edd1643a4d1f532cb4b8f9c7cb2915f",
+  "executable_source": "b1397abc6f78f1cc8e15f1c344c1e4375a0512ac",
   "affected": {
     "command": "make test-changed TEST_CHANGED_ARGS='--base f31cfccc911702d723bede22ec38a96bf620ca1f'",
     "report_status": "passed",
@@ -80,21 +80,47 @@
         "label": "host UI tests",
         "returncode": 0
       }
-    ]
+    ],
+    "source_commit": "b3ff95896edd1643a4d1f532cb4b8f9c7cb2915f"
   },
   "report_validation": "passed; exact executable source and all selected command returncodes checked",
   "checks": {
     "make_check": 0,
     "make_deadcode": 0,
     "doc_links": "checked at documentation commit",
-    "whitespace": "checked at documentation commit"
+    "whitespace": "checked at documentation commit",
+    "source_commit": "b1397abc6f78f1cc8e15f1c344c1e4375a0512ac"
   },
   "bundle": {
-    "id": "89d214ce5074bf6b56ffe53319402ac365a3158f33d5568c8905029029edd475",
+    "source_commit": "b1397abc6f78f1cc8e15f1c344c1e4375a0512ac",
+    "id": "ee79404cf763b94a65d89425887304b2194bc04f25b536f53003f8fcfa473f19",
     "build_inspect_exit": 0,
-    "tar_sha256": "5c90ac3ce41f9d7806c6e51a4fb006c2e4aaa698ced8ec154972f958ee070739",
+    "tar_sha256": "c831d418dbd22913df3d7814830dc27377d3fece1a92421a9c58b9a6960ba59b",
     "tar_bytes": 36541952,
     "deployed": false
   },
-  "hardware": "No kit deployment or acceptance; host software/rendering evidence only."
+  "hardware": "No kit deployment or acceptance; host software/rendering evidence only.",
+  "additional_validation": {
+    "merge_source": "62c4ac8608be84c6314b9c213b8dfdac7e5c39f7",
+    "merged_remote_commit": "bb350c62c1dee1bc9a45da6c7042df0c48b0ff27",
+    "full_ui_packages": {
+      "corenames_seconds": 0.008,
+      "rooms_seconds": 10.621,
+      "tenfoot_seconds": 46.926,
+      "exit_code": 0,
+      "log": "merged-ui-tests.log.gz"
+    },
+    "final_source": "b1397abc6f78f1cc8e15f1c344c1e4375a0512ac",
+    "controller_hint_checks": {
+      "elapsed_seconds": 4.823,
+      "exit_code": 0,
+      "log": "search-hint-tests.log.gz"
+    },
+    "controller_hint_race_checks": {
+      "elapsed_seconds": 6.373,
+      "exit_code": 0,
+      "log": "reviewed-ui-race.log.gz"
+    },
+    "review": "Independent review found no actionable naming/identity/merge issues; second-Y Search path verified."
+  }
 }
