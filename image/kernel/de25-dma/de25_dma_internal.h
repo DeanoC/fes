@@ -29,6 +29,10 @@ struct fes_de25_dma_descriptor {
  * new requests; drain must establish all accepted traffic has retired in the
  * same nonzero external reset epoch. Neither callback is implemented for DE25
  * hardware yet. Production probe therefore refuses binding.
+ * The caller must retain callback code, context, and the device's DMA/domain
+ * resources until the final grant is destroyed, including uncertain exposure.
+ * get_device() keeps the device object alive; it does not pin devm resources
+ * or an IOMMU domain across device detach.
  */
 struct fes_de25_dma_backend {
 	u64 (*epoch)(void *context);

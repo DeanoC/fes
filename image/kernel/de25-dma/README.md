@@ -36,6 +36,9 @@ page-backed/`VM_MIXEDMAP` IOMMU mappings: page pins and aliases can outlive PTE
 revocation, and no scheme to revoke those aliases has been established here.
 It does not manufacture PFN flags or derive PFNs from DMA addresses. DMA
 translation support and revocable userspace mapping support are separate gates.
+The driver's fresh mmap callback clears the pinned kernel's empty generic
+`vma_dummy_vm_ops` sentinel before invoking the DMA API; architecture operations
+installed by the DMA mapper still cause refusal.
 
 The private backend must supply a nonzero external reset epoch, an ordered
 start operation, an idempotent stop-new-requests operation and a drain operation
@@ -43,6 +46,9 @@ that proves all accepted traffic retired in that same epoch. No DE25 hardware
 backend currently supplies those operations. Userspace cannot assert a drain
 proof. A failed start may already have exposed the allocation and therefore
 pins it exactly like a successful start.
+The kernel caller must retain backend code/context and device DMA/domain
+resources until the grant is finally destroyed. A device reference does not
+keep devm resources or translation domains intact across device detach.
 
 ## Revocation and lifetime
 

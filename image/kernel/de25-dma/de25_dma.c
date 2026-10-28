@@ -2,6 +2,7 @@
 /* Linux-owned, revocable DMA storage. DE25 hardware binding remains closed. */
 #include <linux/anon_inodes.h>
 #include <linux/atomic.h>
+#include <linux/build_bug.h>
 #include <linux/completion.h>
 #include <linux/dma-mapping.h>
 #include <linux/err.h>
@@ -16,6 +17,8 @@
 #include <linux/uaccess.h>
 
 #include "de25_dma_internal.h"
+
+static_assert(FES_DE25_DDR_PROBE_DMA_ADDRESS_BITS == 32);
 
 struct fes_de25_dma_mm {
 	struct list_head link;
@@ -244,6 +247,12 @@ static int fes_de25_dma_mmap(struct file *file, struct vm_area_struct *vma)
 		entry->mm = vma->vm_mm;
 		list_add_tail(&entry->link, &grant->mms);
 	}
+	/* vma_init supplied the kernel's empty generic dummy operations. This
+	 * fresh file mmap callback owns vm_ops; clear that sentinel before the
+	 * DMA mapper so any actual architecture-installed operations are visible
+	 * to the strict check below. No DMA-specific operations are discarded.
+	 */
+	vma->vm_ops = NULL;
 	ret = dma_mmap_coherent(grant->dev, vma, grant->cpu, grant->dma,
 			FES_DE25_DMA_ALLOCATION_BYTES);
 	if (!ret) {
@@ -331,7 +340,7 @@ struct file *fes_de25_dma_create(struct device *dev, const struct fes_de25_dma_b
 	epoch = backend->epoch(backend->context);
 	if (!epoch)
 		return ERR_PTR(-EOPNOTSUPP);
-	ret = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(32));
+	ret = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(FES_DE25_DDR_PROBE_DMA_ADDRESS_BITS));
 	if (ret)
 		return ERR_PTR(ret);
 	generation = fes_de25_dma_next_generation();
@@ -354,8 +363,8 @@ struct file *fes_de25_dma_create(struct device *dev, const struct fes_de25_dma_b
 		kfree(grant);
 		return ERR_PTR(-ENOMEM);
 	}
-	if (!IS_ALIGNED(grant->dma, 32) ||
-	    (u64)grant->dma + FES_DE25_DMA_ALLOCATION_BYTES > (1ULL << 32)) {
+	if (!IS_ALIGNED(grant->dma, FES_DE25_DDR_PROBE_GRANT_ALIGNMENT) ||
+	    (u64)grant->dma > (1ULL << FES_DE25_DDR_PROBE_DMA_ADDRESS_BITS) - FES_DE25_DMA_ALLOCATION_BYTES) {
 		kref_put(&grant->refs, fes_de25_dma_destroy);
 		return ERR_PTR(-ERANGE);
 	}
