@@ -62,6 +62,41 @@ func TestLibraryActionsReachDetailsAndReturnToTheSameTitle(t *testing.T) {
 	}
 }
 
+func TestUnfocusedLibraryDetailsPromptMatchesItsShortcut(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		kind   InputKind
+		prompt string
+		cmd    Command
+	}{
+		{name: "gamepad", kind: InputGamepad, prompt: "Y", cmd: CommandFromButton(ButtonNorth)},
+		{name: "keyboard", kind: InputKeyboard, prompt: "i", cmd: CommandFromKey("i")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			app := libraryRenderApp(t, 1280, 720, false)
+			app.NoteInput(tc.kind, 1)
+			snap := app.Snapshot()
+			if !snap.BrowseActions.Visible || snap.BrowseActions.Focused {
+				t.Fatalf("expected visible, unfocused Library actions: %+v", snap.BrowseActions)
+			}
+			if got := libraryActionPrompt(snap, 1); got != tc.prompt {
+				t.Fatalf("unfocused Details prompt = %q, want %q", got, tc.prompt)
+			}
+			hint := snap.HeaderHint()
+			if !strings.Contains(strings.ToLower(hint), strings.ToLower(tc.prompt)+" details") {
+				t.Fatalf("closed-row hint does not advertise %q Details: %q", tc.prompt, hint)
+			}
+			if tc.kind == InputGamepad && strings.Contains(hint, "Y search") {
+				t.Fatalf("Y still advertises search while it opens Details: %q", hint)
+			}
+			app.HandleCommand(tc.cmd, time.Now())
+			if opened := app.Snapshot(); !opened.Detail.Open || opened.BrowseActions.Focused {
+				t.Fatalf("Details shortcut did not open the selected title: %+v", opened)
+			}
+		})
+	}
+}
+
 func TestBrowseActionsRejectChangedSubjectOrContext(t *testing.T) {
 	for _, change := range []string{"new-item", "new-package", "new-media", "new-readiness", "new-target", "new-session"} {
 		t.Run(change, func(t *testing.T) {
