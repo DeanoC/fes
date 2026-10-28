@@ -96,6 +96,35 @@ The successful `44de76eea0` commit renamed them to `current_sequence` and
 `io_fence`, without warning suppression. The failed candidate has no passing
 receipt and was not relabelled as successful.
 
+## Affected software coverage
+
+[The software record](software-checks.json) covers all 20 planned commands.
+The local `test_changed.py` run completed its first 15 commands through the
+full C64 simulation. Parent tests ran 1,130 cases: 1,126 passed and four were
+skipped. FPGA producer tests ran 1,428 cases: 1,393 passed and 35 were skipped.
+Host/UI, runtime, contracts and native video/socket/session checks also passed.
+
+The remaining Coleco, MENU, PC386, Spectrum and ZX81 scenarios passed in
+[CI run 40754921557](https://github.com/DeanoC/fes/actions/runs/40754921557).
+The checked-out merge commit `39c44d8193006883d6af00b6f05f37377d1dd7f2`
+has exactly the Git tree of branch commit `c23d59ac94`; later changes are
+documentation only. The local duplicate tail was stopped after this identity
+and the successful jobs were verified. Its partial log is retained and is
+never labelled a complete local runner pass. CI's own C64 job was still running
+at observation, so aggregate CI success is not claimed; local C64 passed.
+
+The original local plan selected `cd9e7cf896` with four build jobs. Ten audited
+software groups have identical Git objects through board producer `6da029aa49`,
+and all eleven selected kernel/runner files match the actual `44de76eea0`
+kernel producer. Later board and transport-helper edits have their separate
+focused, generated-simulation and Quartus evidence. The raw local log, exact
+command plan, CI job identities and limited source comparison are retained in
+the JSON. `make check` passes with 28 generated consumers and 37 fixture copies.
+
+The affected runner excludes core P&R, cold image/platform packaging, required
+browser integration and hardware acceptance. The separate DE25 diagnostic
+Quartus result does not remove those limits or admit production binding.
+
 ## Remaining integration gates
 
 The direct endpoint bench separately passed 12 native Verilator groups,
