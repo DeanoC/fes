@@ -1,5 +1,10 @@
 # DE25-Nano FPGA bring-up
 
+The [ZX81 diagnostic](zx81/README.md) builds the real NMOS Z80/ZX81 machine
+with internal RAM and 720p HDMI, local reset and an ENTER button. It is a
+standalone FPGA diagnostic; HPS input, tape delivery and runtime launch are
+not implemented by this lane.
+
 The separate [idle/menu scanout diagnostics](display/README.md) build
 FPGA-only 720p HDMI SOFs with Quartus Pro 26.3. They reuse portable FES video
 RTL and the pinned Terasic HDMI/Agilex reference; menu mode is a local pattern

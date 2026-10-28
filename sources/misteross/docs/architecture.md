@@ -65,6 +65,17 @@ upload/control interface, and default DE10 packages/images remain unchanged.
 External ADV7513 timing and the vendor's contradictory clock IO-standard
 documentation remain qualification gates; these SOFs are not boot/BSP artifacts.
 
+[`boards/de25nano/zx81/`](../boards/de25nano/zx81/README.md) combines the real
+ZX81 machine/NMOS Z80 and its existing 720p capture renderer with that board's
+HDMI pins and FPGA-side transmitter initializer. Independent native Agilex
+PLLs target 52.224 MHz system and 74.25 MHz pixel clocks. Board-local derived
+RAM sources change only the guarded device/block selections to Agilex 5/M20K;
+the shared machine and DE10 producers are unchanged. KEY0 resets the machine
+and KEY1 supplies ENTER. This FPGA-only diagnostic has no HPS, DDR, runtime
+package, tape delivery or session-display plane. Its dual-clock capture RAM
+retains the existing startup/collision/frame-coherence limitations; external
+IO timing and physical board acceptance remain open.
+
 [`boards/de25nano/combined/`](../boards/de25nano/combined/README.md) composes
 that local display with the preserved GHRD HPS/LPDDR4, mailbox and read-only
 DDR probe. It uses a single configuration reset endpoint and separate system
