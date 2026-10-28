@@ -35,7 +35,7 @@
 //         0 none, 1 M1, 2 EX, 3 WB
 // With a 16-bit address size every operand is the register's low half,
 // zero-extended, and late_hi is 0 so AG takes the late value's high half
-// from last, which is zero.
+// from last, which is zero. XLAT's index is AL, zero-extended.
 module fes_i386_dfwd (
     input  logic              clk,
     input  logic              reset,
@@ -44,6 +44,7 @@ module fes_i386_dfwd (
     input  logic [2:0]        base,
     input  logic              has_index,
     input  logic [2:0]        index,
+    input  logic              index8,       // ... only its low byte, zero-extended (XLAT's AL)
     input  logic [1:0]        scale,
     input  logic              addr32,
     // ... the GPR it writes and when that value is ready: 0 early (end of AG),
@@ -197,10 +198,12 @@ module fes_i386_dfwd (
     assign base_source = base_ag ? 2'd1 : source_now[base];
     assign index_source = index_ag ? 2'd1 : source_now[index];
     assign base_value = !has_base ? 32'd0 : addr32 ? value[base] : {16'b0, value[base][15:0]};
-    assign index_value = !has_index ? 32'd0 : addr32 ? value[index] : {16'b0, value[index][15:0]};
+    assign index_value = !has_index ? 32'd0 : {addr32 && !index8 ? value[index][31:16] : 16'b0,
+                                               index8 ? 8'b0 : value[index][15:8], value[index][7:0]};
     assign scaled = index_value << scale;
 
-    assign stall = base_wait || index_wait || (base_late && index_late) || (index_late && scale != 2'd0);
+    // A late index enters AG whole, so a byte index waits for its value.
+    assign stall = base_wait || index_wait || (base_late && index_late) || (index_late && (scale != 2'd0 || index8));
     assign row = index_late ? base_value : scaled;
     assign last = index_late || base_late ? 32'd0 : base_value;
     assign late = index_late ? index_source : base_late ? base_source : 2'd0;
