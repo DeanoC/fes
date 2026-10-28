@@ -18,7 +18,8 @@ module top #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0) (
     altera_pll #(
         .reference_clock_frequency("50.0 MHz"), .number_of_clocks(HALF_RATE_BOARD ? 4 : 2),
         .output_clock_frequency0("100.0 MHz"), .output_clock_frequency1(HALF_RATE_BOARD ? "50.0 MHz" : "100.0 MHz"),
-        .output_clock_frequency2("50.0 MHz"), .output_clock_frequency3("50.0 MHz"),
+        .output_clock_frequency2(HALF_RATE_BOARD ? "50.0 MHz" : "0 MHz"),
+        .output_clock_frequency3(HALF_RATE_BOARD ? "50.0 MHz" : "0 MHz"),
         .phase_shift0("0 ps"), .phase_shift1(HALF_RATE_BOARD ? "10000 ps" : "5000 ps"), .phase_shift2("0 ps"), .phase_shift3("18000 ps"),
         .duty_cycle0(50), .duty_cycle1(50), .duty_cycle2(50), .duty_cycle3(50), .operation_mode("direct"),
         .fractional_vco_multiplier("false")
