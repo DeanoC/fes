@@ -26,8 +26,10 @@
 //
 // Self-modifying code: each store reads the snoop copy of the tags for its
 // set as it enters WB, and WB's commit clears the valid bit of a way that
-// holds its line. A store whose lanes run into the next line clears that
-// line's set. Instructions already past F2 are not checked yet.
+// holds its line, on the next edge (the clear is registered, so the 512
+// valid bits' enables do not wait on the commit). A store whose lanes run
+// into the next line clears that line's set. Instructions already past F2,
+// and a fetch in F2 the cycle after the commit, are not checked yet.
 module fes_i386_l1i import fes_i386_pkg::*; (
     input  logic             clk,
     input  logic             reset,
@@ -205,6 +207,18 @@ module fes_i386_l1i import fes_i386_pkg::*; (
                 || st_commit && (st_line0 == f_line || st_cross && st_line1 == f_line);
     assign start = fill == F_IDLE && miss;
     assign set_valid = fill == F_VALID && !spoilt && !spoil;
+    // A committed store's clears, registered: the way that held its line,
+    // and the next line's set when its lanes run into it.
+    logic       si_valid, si_cross;
+    logic [3:0] si_hit;
+    logic [6:0] si_set0, si_set1;
+    always_ff @(posedge clk) begin
+        si_valid <= st_commit && !reset;
+        si_hit <= st_hit;
+        si_cross <= st_cross;
+        si_set0 <= st_line0[6:0];
+        si_set1 <= st_line1[6:0];
+    end
     // The valid bits: a fill's victim clears as it starts and sets as it
     // ends; DMA, FLUSH and stores clear. A store or DMA write of another line
     // of the set that ends a fill leaves the fill's bit set.
@@ -212,8 +226,8 @@ module fes_i386_l1i import fes_i386_pkg::*; (
         for (genvar w = 0; w < 4; w++) begin : g_way
             logic clear;
             assign clear = inv_all || inv_valid && inv_line[6:0] == 7'(k)
-                        || st_commit && st_line0[6:0] == 7'(k) && st_hit[w]
-                        || st_commit && st_cross && st_line1[6:0] == 7'(k)
+                        || si_valid && si_set0 == 7'(k) && si_hit[w]
+                        || si_valid && si_cross && si_set1 == 7'(k)
                         || start && blk[7:1] == 7'(k) && free == 2'(w);
             always_ff @(posedge clk) begin
                 if (reset) valid[k][w] <= 1'b0;
