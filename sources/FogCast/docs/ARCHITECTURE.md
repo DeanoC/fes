@@ -768,10 +768,13 @@ activated descriptor's `core.id` in cached `/v1/status`; host polling keeps that
 identity with the matching package generation and can restore it from the saved
 launch record when an older target omits it. Tenfoot therefore recognizes
 `fes.coleco` even when the runtime's supported-interface projection omits its
-optional bus 2.0 interface. The native-pixel shell also requires its matching Direct or
-Scanlines video part. The ColecoVision tile on Home opens `example.coleco-arcade`,
-which launches through the library and composes the selected video part. Other
-local cores that need a part still report incomplete display setup there.
+optional bus 2.0 interface. The selector resolves installed Coleco titles from
+the `fpga` catalog platform, constrained by `core_id=fes.coleco`; package-library
+entries are not indexed on the hardware platform named `coleco`. The
+native-pixel shell also requires its matching Direct or Scanlines video part.
+The ColecoVision tile on Home opens `example.coleco-arcade`, which launches
+through the library and composes the selected video part. Other local cores
+that need a part still report incomplete display setup there.
 
 Operator/diagnostics CLI:
 

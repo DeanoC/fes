@@ -1,12 +1,14 @@
--- ColecoVision Arcade: a short cabinet of classic Coleco ports. Each title
--- is resolved from the library by search at load (game ids are path
--- derived, so rooms do not hard-code them). Missing titles are skipped so
--- the room still opens on a kit that only has some — or none — of them.
+-- ColecoVision Arcade: a short cabinet of classic Coleco ports. Installed
+-- core-package entries live on the FPGA catalog platform, so resolve by the
+-- package's core id as well as title (game ids are path-derived). Missing
+-- titles are skipped so the room still opens when only some are installed.
 -- Loading results never move the player's selection.
 local List = require "widgets.list"
 local color = require "util.color"
 
 local PLATFORM = "coleco"
+local CORE_ID = "fes.coleco"
+local CORE_PLATFORM = "fpga"
 local DEST = 130
 local TMS = { "#21c842", "#54fcfc", "#e54c4c", "#e6c547" }
 
@@ -25,7 +27,7 @@ local status = "searching the library..."
 local function coleco_games(games)
   local out = {}
   for _, g in ipairs(games or {}) do
-    if g.system == PLATFORM then out[#out + 1] = g end
+    if g.core_id == CORE_ID then out[#out + 1] = g end
   end
   return out
 end
@@ -83,7 +85,7 @@ end
 
 local function resolve(cab)
   resolving = resolving + 1
-  library.query({ q = cab.search, platform = PLATFORM, limit = 20 }, function(games, err)
+  library.query({ q = cab.search, platform = CORE_PLATFORM, core_ids = { CORE_ID }, limit = 20 }, function(games, err)
     resolving = resolving - 1
     if not err and games then
       local result = destination.classify(coleco_games(games), { q = cab.search })

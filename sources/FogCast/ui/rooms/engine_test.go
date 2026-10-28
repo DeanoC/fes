@@ -59,16 +59,22 @@ func (f *fakeServices) QueryGames(_ context.Context, q hostclient.GameListQuery,
 	f.queries = append(f.queries, q)
 	f.queryLimits = append(f.queryLimits, max)
 	games := f.games
-	if len(q.CoreIDs) > 0 {
+	if q.Platform != "" || len(q.CoreIDs) > 0 {
 		wanted := make(map[string]struct{}, len(q.CoreIDs))
 		for _, coreID := range q.CoreIDs {
 			wanted[coreID] = struct{}{}
 		}
 		games = make([]hostclient.Game, 0)
 		for _, game := range f.games {
-			if _, ok := wanted[game.CoreID]; ok {
-				games = append(games, game)
+			if q.Platform != "" && game.System != q.Platform {
+				continue
 			}
+			if len(wanted) > 0 {
+				if _, ok := wanted[game.CoreID]; !ok {
+					continue
+				}
+			}
+			games = append(games, game)
 		}
 	}
 	if max > 0 && len(games) > max {

@@ -14,6 +14,11 @@ import (
 
 const roomTexturePrefix = "room:"
 
+func roomChromeFooterRows(g Grid) (statusY, hintY int) {
+	footerY := g.footerY()
+	return footerY - 42, footerY - 16
+}
+
 // syncRoomTextures uploads the open room's decoded images and destroys
 // textures for images the room no longer holds (or when the room closes).
 // Room textures live in the shared map under roomTexturePrefix so the grid's
@@ -438,7 +443,7 @@ func drawRoomChrome(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 	g := snap.Grid
 	x := g.contentLeft()
 	w := g.contentWidth()
-	y := g.footerY() - 22
+	statusY, hintY := roomChromeFooterRows(g)
 	line := strings.TrimSpace(snap.Health.Line)
 	if lease := strings.TrimSpace(snap.KitLease.Line); lease != "" {
 		if line != "" {
@@ -460,17 +465,22 @@ func drawRoomChrome(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 	if snap.Status == localInUseCopy || snap.Status == machineStatusUnknown {
 		line = snap.Status
 	}
-	if snap.Room.ID == colecoArcadeRoomID && snap.Room.DuringPlay && snap.Session.Coleco && snap.Status == colecoCartridgeSessionStatus {
-		line = snap.Status
-	}
-	if snap.Room.ID == colecoArcadeRoomID && snap.Room.DuringPlay && snap.Session.Coleco && snap.Status == runningMachineLibraryBlockedStatus {
-		line = snap.Status
+	if snap.Room.ID == colecoArcadeRoomID && snap.Room.DuringPlay && snap.Session.Coleco {
+		switch strings.TrimSpace(snap.Room.Notice) {
+		case colecoCartridgeSessionStatus, runningMachineLibraryBlockedStatus:
+			line = strings.TrimSpace(snap.Room.Notice)
+		default:
+			switch snap.Status {
+			case colecoCartridgeSessionStatus, runningMachineLibraryBlockedStatus:
+				line = snap.Status
+			}
+		}
 	}
 	if line != "" {
-		drawLabel(dev, labels, used, "room-status", x+8, y, w*2/3, 14, line)
+		drawLabel(dev, labels, used, "room-status", x+8, statusY, w-16, 14, line)
 	}
 	hint := snap.HeaderHint()
-	drawDebug(dev, x+w-8*len(hint)-8, y+4, hint, 1)
+	drawDebug(dev, x+w-8*len(hint)-8, hintY, hint, 1)
 }
 
 func hardwareRoomStatus(snap Snapshot) string {

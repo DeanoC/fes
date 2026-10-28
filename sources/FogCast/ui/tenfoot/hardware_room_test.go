@@ -26,6 +26,8 @@ import (
 	"github.com/DeanoC/FogCast/ui/rooms"
 )
 
+const colecoFormat4HILPackageID = "506110a2554a80e0952d50ab3d40d2ea27e41ba014d4a91703e7de31bcddfa9c"
+
 const liveHardwareTestScript = `
 focus = 1
 local live = {id="host-zx81",game_id="fpga-zx81",target="dev",package_id=string.rep("a",64),generation="9"}
@@ -256,14 +258,21 @@ func TestColecoSelectorShowsStopGuidanceAndCannotLaunchWhileRunning(t *testing.T
 	game := hostclient.Game{
 		ID:         "coleco-donkey-kong",
 		Title:      "Donkey Kong",
-		System:     "coleco",
+		System:     "fpga",
+		CoreID:     colecoCoreID,
+		PackageID:  colecoFormat4HILPackageID,
 		State:      "available",
 		RootOnline: true,
 		Launchable: true,
+		Execution:  "fpga_native",
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/v1/games":
+			if r.URL.Query().Get("platform") != "fpga" || len(r.URL.Query()["core_id"]) != 1 || r.URL.Query().Get("core_id") != colecoCoreID {
+				http.Error(w, "Coleco selector must query installed fes.coleco entries", http.StatusBadRequest)
+				return
+			}
 			games := []hostclient.Game{}
 			if r.URL.Query().Get("q") == "Donkey Kong" {
 				games = append(games, game)
@@ -287,6 +296,9 @@ func TestColecoSelectorShowsStopGuidanceAndCannotLaunchWhileRunning(t *testing.T
 		ID:     "coleco-session",
 		System: string(protocol.SystemColecoVision),
 		State:  "active",
+		Progress: &hostclient.SessionProgress{
+			Message: "kit not ready · lease held · gen 7",
+		},
 		CorePackage: &hostclient.SessionCorePackage{
 			PackageID:        strings.Repeat("a", 64),
 			Generation:       7,
@@ -297,6 +309,10 @@ func TestColecoSelectorShowsStopGuidanceAndCannotLaunchWhileRunning(t *testing.T
 	app.openRoomLocked(colecoArcadeRoomID)
 	app.roomDuringPlay = true
 	app.status = playingColecoSelectorStatus
+	app.healthHave = true
+	app.health = hostclient.HealthResult{Ready: true, TargetReachable: true, TargetReady: false}
+	app.kitLeaseHave = true
+	app.kitLease = KitLeaseStatus{State: "held", Owner: "fogcast@host", Purpose: "session", Generation: "1234567890abcdef"}
 	app.mu.Unlock()
 
 	snap := waitFor(t, app, "production Coleco title", func(s Snapshot) bool {
@@ -311,6 +327,13 @@ func TestColecoSelectorShowsStopGuidanceAndCannotLaunchWhileRunning(t *testing.T
 	if !strings.Contains(snap.HeaderHint(), "Stop") {
 		t.Fatalf("active-session selector hint omits Stop guidance: %q", snap.HeaderHint())
 	}
+	if got := renderRoomLabelSource(t, snap, "room-status"); !strings.Contains(got, "kit not ready") || !strings.Contains(got, "lease held") {
+		t.Fatalf("running status line = %q, want health and lease details before any refusal", got)
+	}
+	statusY, hintY := roomChromeFooterRows(snap.Grid)
+	if hintY-statusY < gfx.TextHeight(14)+4 {
+		t.Fatalf("footer status and hint rows overlap: statusY=%d hintY=%d", statusY, hintY)
+	}
 	if !roomTextHas(snap, "Stop before opening the library") || roomTextHas(snap, "Tab opens the Coleco shelf") {
 		t.Fatalf("active-session room still advertises Tab as opening the library: ops=%+v", snap.Room.Frame.Ops)
 	}
@@ -321,9 +344,12 @@ func TestColecoSelectorShowsStopGuidanceAndCannotLaunchWhileRunning(t *testing.T
 		t.Fatalf("rendered destination action = %q, want Stop guidance", got)
 	}
 
-	app.HandleCommand(CmdTab, time.Now())
+	if app.HandlePlayHIDScancode("tab", 0x2b, true, time.Now()) {
+		t.Fatal("Tab was consumed by the play HID path instead of room navigation")
+	}
+	app.HandleCommand(CommandFromKey("tab"), time.Now())
 	tabbed := app.Snapshot()
-	if !tabbed.Room.DuringPlay || tabbed.Room.ID != colecoArcadeRoomID || tabbed.Status != runningMachineLibraryBlockedStatus {
+	if !tabbed.Room.DuringPlay || tabbed.Room.ID != colecoArcadeRoomID || tabbed.Room.Notice != runningMachineLibraryBlockedStatus {
 		t.Fatalf("Tab did not visibly refuse library navigation during play: room=%+v status=%q", tabbed.Room, tabbed.Status)
 	}
 	if got := renderRoomLabelSource(t, tabbed, "room-status"); got != runningMachineLibraryBlockedStatus {
@@ -340,13 +366,16 @@ func TestColecoSelectorShowsStopGuidanceAndCannotLaunchWhileRunning(t *testing.T
 	}
 	app.HandleCommand(CmdBack, time.Now())
 
-	app.HandleCommand(CmdSelect, time.Now())
+	if app.HandlePlayHIDScancode("return", 0x28, true, time.Now()) {
+		t.Fatal("Enter was consumed by the play HID path instead of room navigation")
+	}
+	app.HandleCommand(CommandFromKey("return"), time.Now())
 	confirmed := app.Snapshot()
 	if confirmed.Session.State != "active" || confirmed.Launch.Phase == "launching" || launchCalls.Load() != 0 {
 		t.Fatalf("Confirm changed or relaunched the Coleco session: session=%+v launch=%+v requests=%d", confirmed.Session, confirmed.Launch, launchCalls.Load())
 	}
-	if confirmed.Status != colecoCartridgeSessionStatus {
-		t.Fatalf("Confirm refusal status = %q, want %q", confirmed.Status, colecoCartridgeSessionStatus)
+	if confirmed.Room.Notice != colecoCartridgeSessionStatus {
+		t.Fatalf("Confirm refusal notice = %q, want %q", confirmed.Room.Notice, colecoCartridgeSessionStatus)
 	}
 	if got := renderRoomLabelSource(t, confirmed, "rd-status"); got != colecoRunningDestinationStatus {
 		t.Fatalf("rendered status after Confirm = %q, want %q", got, colecoRunningDestinationStatus)

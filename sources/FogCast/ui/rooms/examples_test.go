@@ -11,9 +11,61 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/localcores"
 )
+
+const colecoFormat4HILPackageID = "506110a2554a80e0952d50ab3d40d2ea27e41ba014d4a91703e7de31bcddfa9c"
+
+type coreLibraryEntrySpec struct {
+	title     string
+	coreID    string
+	packageID string
+}
+
+// catalogCoreLibraryGames builds the same metadata shape that the host
+// exposes for installed package entries: the catalog platform is "fpga", and
+// the selected package/core identity lives on the core-entry row.
+func catalogCoreLibraryGames(t *testing.T, specs ...coreLibraryEntrySpec) []hostclient.Game {
+	t.Helper()
+	store, err := catalog.Open(filepath.Join(t.TempDir(), "library.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	games := make([]hostclient.Game, 0, len(specs))
+	for _, spec := range specs {
+		entry, err := store.CreateCoreEntry(context.Background(), spec.title, spec.coreID, spec.packageID)
+		if err != nil {
+			t.Fatalf("create installed core entry %q: %v", spec.title, err)
+		}
+		row, err := store.Game(context.Background(), entry.GameID)
+		if err != nil {
+			t.Fatalf("read installed catalog row %q: %v", spec.title, err)
+		}
+		metadata, err := store.CoreEntry(context.Background(), entry.GameID)
+		if err != nil {
+			t.Fatalf("read installed package metadata %q: %v", spec.title, err)
+		}
+		if row.System != catalog.CorePlatform || metadata.CoreID != spec.coreID || metadata.PackageID != spec.packageID {
+			t.Fatalf("installed package metadata = row %+v entry %+v", row, metadata)
+		}
+		games = append(games, hostclient.Game{
+			ID:         row.ID,
+			Title:      row.Title,
+			System:     string(row.System),
+			CoreID:     metadata.CoreID,
+			PackageID:  metadata.PackageID,
+			State:      string(row.State),
+			RootOnline: row.RootOnline,
+			Launchable: true,
+			Execution:  "fpga_native",
+		})
+	}
+	return games
+}
 
 // Every embedded example must load and draw its first frame against a fake
 // host without a script error.
@@ -925,15 +977,18 @@ func TestLobbyWorkbenchTMSPublishDestination(t *testing.T) {
 	}
 }
 
-func TestColecoArcadeResolvesBySearchAndSkipsMissing(t *testing.T) {
+func TestColecoArcadeResolvesInstalledPackageEntriesAndSkipsMissing(t *testing.T) {
 	pack := examplePack(t, "example.coleco-arcade")
+	packageGames := catalogCoreLibraryGames(t,
+		coreLibraryEntrySpec{title: "Donkey Kong", coreID: "fes.coleco", packageID: colecoFormat4HILPackageID},
+		coreLibraryEntrySpec{title: "Zaxxon", coreID: "fes.coleco", packageID: colecoFormat4HILPackageID},
+		coreLibraryEntrySpec{title: "Donkey Kong", coreID: "fes.c64", packageID: strings.Repeat("c", 64)},
+	)
 	svc := &fakeServices{
-		games: []hostclient.Game{
-			{ID: "coleco-dk", Title: "Donkey Kong", System: "coleco", State: "available", RootOnline: true, Launchable: true},
-			{ID: "coleco-zaxxon", Title: "Zaxxon", System: "coleco", State: "available", RootOnline: true, Launchable: true},
+		games: append(packageGames, []hostclient.Game{
 			{ID: "arcade-dk", Title: "Donkey Kong", System: "arcade", State: "available", RootOnline: true, Launchable: true},
 			{ID: "snes-mario", Title: "Super Mario World", System: "snes", State: "available", RootOnline: true, Launchable: true},
-		},
+		}...),
 	}
 	r := newRoom(t, pack, Options{Services: svc, Width: 1280, Height: 720})
 	if err := r.Load(); err != nil {
@@ -943,10 +998,16 @@ func TestColecoArcadeResolvesBySearchAndSkipsMissing(t *testing.T) {
 		d := r.Destination()
 		return d.Kind == KindGame && d.GameID != "" && d.Availability != AvailChecking
 	})
+	if got := r.Destination(); got.GameID != packageGames[0].ID || got.System != "coleco" {
+		t.Fatalf("installed Coleco entry was not projected into the room: %+v", got)
+	}
 	wantQ := map[string]bool{"Donkey Kong": true, "Carnival": true, "Zaxxon": true, "Congo Bongo": true, "Frogger": true}
 	for _, q := range svc.recorded() {
-		if q.Platform != "coleco" {
-			t.Fatalf("query platform %q want coleco", q.Platform)
+		if q.Platform != string(catalog.CorePlatform) {
+			t.Fatalf("query platform %q want %s", q.Platform, catalog.CorePlatform)
+		}
+		if len(q.CoreIDs) != 1 || q.CoreIDs[0] != "fes.coleco" {
+			t.Fatalf("query core IDs %v want [fes.coleco]", q.CoreIDs)
 		}
 		if q.Q == "" {
 			t.Fatal("query missing q")
@@ -960,7 +1021,7 @@ func TestColecoArcadeResolvesBySearchAndSkipsMissing(t *testing.T) {
 		t.Fatalf("missing title searches %v", wantQ)
 	}
 	got := r.Destination()
-	if got.Kind != KindGame || got.Label != "Donkey Kong" || got.GameID != "coleco-dk" || got.Platform != "coleco" || got.Query != "Donkey Kong" {
+	if got.Kind != KindGame || got.Label != "Donkey Kong" || got.GameID != packageGames[0].ID || got.Platform != "coleco" || got.Query != "Donkey Kong" {
 		t.Fatalf("focused dest %+v", got)
 	}
 	if got.Availability != AvailReady || got.Confirm() != ConfirmLaunch {
@@ -971,7 +1032,7 @@ func TestColecoArcadeResolvesBySearchAndSkipsMissing(t *testing.T) {
 	}
 	r.Step(time.Unix(3, 0))
 	got = r.Destination()
-	if got.Label != "Zaxxon" || got.GameID != "coleco-zaxxon" {
+	if got.Label != "Zaxxon" || got.GameID != packageGames[1].ID {
 		t.Fatalf("skipped missing titles; next dest %+v", got)
 	}
 

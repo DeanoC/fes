@@ -691,6 +691,13 @@ func (a *App) roomSnapshotLocked(withImages bool) RoomSnapshot {
 		return RoomSnapshot{}
 	}
 	w, h := a.roomContentSizeLocked(a.room.ID())
+	notice := a.roomSessionNotice
+	if a.roomDuringPlay && a.room.ID() == colecoArcadeRoomID {
+		switch strings.TrimSpace(a.status) {
+		case colecoCartridgeSessionStatus, runningMachineLibraryBlockedStatus:
+			notice = strings.TrimSpace(a.status)
+		}
+	}
 	snap := RoomSnapshot{
 		Open:          true,
 		ID:            a.room.ID(),
@@ -706,7 +713,7 @@ func (a *App) roomSnapshotLocked(withImages bool) RoomSnapshot {
 		Parents:       a.roomParentIDsLocked(),
 		ReducedMotion: a.room.ReducedMotion(),
 		DuringPlay:    a.roomDuringPlay,
-		Notice:        a.roomSessionNotice,
+		Notice:        notice,
 	}
 	if a.room.Hero() {
 		_, snap.Hero = rooms.HeroPanel(w, h)
