@@ -630,3 +630,28 @@ func TestAdmit(t *testing.T) {
 		}
 	}
 }
+
+func TestCheckedTAP(t *testing.T) {
+	header := []byte{19, 0, 0x00, 3, 'n', 'a', 'm', 'e', ' ', ' ', ' ', ' ', ' ', ' ', 4, 0, 0, 0, 0, 0, 0}
+	sum := byte(0)
+	for _, v := range header[2:20] {
+		sum ^= v
+	}
+	header[20] = sum
+	if !CheckedTAP(header) || !CheckedTAP(append(append([]byte{}, header...), header...)) {
+		t.Fatal("a checked .tap was not taken")
+	}
+	bad := append([]byte{}, header...)
+	bad[20] ^= 1
+	for name, data := range map[string][]byte{
+		"bad checksum":   append(append([]byte{}, header...), bad...),
+		"one-byte block": {1, 0, 0},
+		"empty block":    {0, 0},
+		"short":          header[:20],
+		"TZX":            append([]byte("ZXTape!\x1a\x01\x14"), header...),
+	} {
+		if CheckedTAP(data) {
+			t.Errorf("%s: taken as a checked .tap", name)
+		}
+	}
+}
