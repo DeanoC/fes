@@ -10,12 +10,15 @@ from scripts import build_fes_pcxt_oss as producer
 
 
 class FesPcxtPackageRecipeTest(unittest.TestCase):
-    def test_build_prepares_output_with_shared_builder_helper(self):
+    def test_build_uses_shared_output_helper_and_synthesis_tools(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
+            output = root / "package-build"
             tools = {
-                "yosys": SimpleNamespace(identity="yosys-test"),
-                "nextpnr-mistral": SimpleNamespace(identity="nextpnr-test"),
+                "yosys": SimpleNamespace(identity="yosys-test", path=Path("/toolchain/bin/yosys")),
+                "mistral": SimpleNamespace(identity="mistral-test", path=Path("/toolchain/bin/mistral-cv")),
+                "nextpnr-mistral": SimpleNamespace(
+                    identity="nextpnr-test", path=Path("/toolchain/bin/nextpnr-mistral")),
             }
             invocation = SimpleNamespace(inputs={}, close=mock.Mock())
             with (
@@ -24,15 +27,28 @@ class FesPcxtPackageRecipeTest(unittest.TestCase):
                 mock.patch.object(producer, "authenticate_tools", return_value=tools),
                 mock.patch.object(producer, "FunctionalInvocation", return_value=invocation),
                 mock.patch.object(producer, "create_build_record", return_value=b"record"),
-                mock.patch.object(producer, "_prepare_output",
-                                  side_effect=producer.BuildError("stop after output preparation")) as prepare_output,
+                mock.patch.object(producer, "_prepare_output", return_value=output) as prepare_output,
+                mock.patch.object(producer, "_write_atomic"),
+                mock.patch.object(producer.board, "verify_vendor"),
+                mock.patch.object(producer.board, "board_inputs"),
+                mock.patch.object(producer, "build_identity", return_value="d" * 32),
+                mock.patch.object(
+                    producer, "synthesis_command",
+                    side_effect=producer.BuildError("stop after synthesis command"),
+                ) as synthesis_command,
+                mock.patch.object(producer, "_invalidate_failed_artifact"),
             ):
-                with self.assertRaisesRegex(producer.BuildError, "stop after output preparation"):
+                with self.assertRaisesRegex(producer.BuildError, "stop after synthesis command"):
                     producer.build(root)
 
             prepare_output.assert_called_once_with(
                 root, relative=producer.OUTPUT_RELATIVE,
                 build_outputs=producer.BUILD_OUTPUTS,
+            )
+            synthesis_command.assert_called_once_with(
+                root, output, "d" * 32,
+                {"yosys": tools["yosys"].path,
+                 "nextpnr-mistral": tools["nextpnr-mistral"].path},
             )
             invocation.close.assert_called_once_with()
 

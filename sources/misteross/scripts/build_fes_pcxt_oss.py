@@ -228,8 +228,10 @@ def build(
             board.verify_vendor(name)
         board.board_inputs(output)
         build_id = build_identity(record)
-        yosys = synthesis_command(root, output, build_id,
-                                  {name: tool.path for name, tool in tools.items()})
+        yosys = synthesis_command(
+            root, output, build_id,
+            {name: tools[name].path for name in ("yosys", "nextpnr-mistral")},
+        )
         _run_tool(yosys, output, output / "yosys.log",
                   output_relative=Path("."), env=invocation.env,
                   audit_source_root=root)
