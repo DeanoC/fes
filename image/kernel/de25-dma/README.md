@@ -1,99 +1,124 @@
-# DE25 Linux DMA ownership diagnostic
+# DE25 Linux DMA ownership and display diagnostic
 
-This kernel module implements Linux-owned coherent storage, grant file
-operations and DMA lifetime rules. Its production platform probe always returns
-`EOPNOTSUPP`. It registers no allocation device and accepts no DT, module or
-userspace option that qualifies DE25 hardware. The actual fabric device, SID,
-translation, physical firewall and boot/reset epoch binding remain missing.
-Nothing installs or loads this module into the DE25 image or runtime.
+This module implements Linux-owned coherent storage, revocable grant mappings
+and the `fes.fabric.de25-scanout` display lifecycle. Its production platform
+probe always returns `EOPNOTSUPP`. It registers no allocation device and accepts
+no DT, module or userspace option that qualifies DE25 hardware. The actual
+fabric device, SID, translation, physical firewall, ordered clock-domain access
+and boot/reset epoch binding remain missing. Nothing installs or loads this
+module into the DE25 image or runtime.
 
-The implementation has a separate ABI from the ARMv7 `fes-window` driver. It
-does not map a reserved physical window, use `/dev/mem`, invoke PL310 cache
-operations, or accept a caller-provided physical/DMA address.
+The implementation has a separate ABI from ARMv7 `fes-window`. It does not map
+a reserved physical window, use `/dev/mem`, invoke PL310 cache operations, or
+accept a caller-provided physical/DMA address.
 
-## Allocation and file operations
+## Allocation and ABI version 2
 
-The private kernel constructor receives the actual DMA device and a
-driver-controlled transport backend. The KUnit suite is its only current
-consumer. It sets that device's 32-bit coherent DMA mask, allocates one 8 MiB
-region with `dma_alloc_coherent`, and maps it with `dma_mmap_coherent`. CPU and
-DMA addresses remain separate kernel values. The allocation must fit wholly
-in the selected 32-bit DMA space and meet the shared grant alignment; lower
-IOVAs remain valid. Geometry comes from the generated C consumer of
-`fes.fabric.de25-ddr-probe`, including two 4 MiB slots and fixed 720p BGRX8888.
+The private constructor receives the actual DMA device and an exclusively owned,
+driver-controlled register transport. The KUnit suite is its only consumer. It
+sets the device's 32-bit coherent DMA mask, allocates one 8 MiB region with
+`dma_alloc_coherent`, clears it, and maps it with `dma_mmap_coherent`. CPU and DMA
+addresses remain distinct kernel values. The complete allocation must fit the
+32-bit DMA space and meet the generated grant alignment; low IOVAs remain valid.
+Geometry comes from the generated C consumer of `fes.fabric.de25-scanout`:
+two 4 MiB slots containing fixed 1280×720 BGRX8888 frames, stride 5120 bytes.
 
-Each grant uses a unique anonymous inode. Shared, non-executable mappings may
-cover bounded portions of that grant. `INFO` returns geometry, generation and
-lifetime state, without addresses. `PUBLISH` takes only the current generation,
-slot and nonzero sequence. It builds the descriptor from kernel-owned DMA
-state and issues a DMA publication barrier before calling the backend. This
-is a read-probe descriptor, not a display submission or frame-completion API.
-There is one exposed operation per grant; this does not implement MENU scanout.
+Each grant has a unique anonymous inode. `INFO` returns geometry, a nonzero
+64-bit allocation generation, cached lifetime/frame state and the available
+back slot, without addresses. `PUBLISH` accepts version 2, that generation, a
+nonzero increasing 32-bit sequence, a slot and zero reserved bits. Old version 1
+requests are refused. Generation allocation saturates rather than wrapping;
+sequence exhaustion requires revocation and a new allocation.
 
-The mapping implementation currently accepts only an eager `VM_IO | VM_PFNMAP`
-mapping returned by the DMA API, with no architecture fault handler. It refuses
-page-backed/`VM_MIXEDMAP` IOMMU mappings: page pins and aliases can outlive PTE
-revocation, and no scheme to revoke those aliases has been established here.
-It does not manufacture PFN flags or derive PFNs from DMA addresses. DMA
-translation support and revocable userspace mapping support are separate gates.
-The driver's fresh mmap callback clears the pinned kernel's empty generic
-`vma_dummy_vm_ops` sentinel before invoking the DMA API; architecture operations
-installed by the DMA mapper still cause refusal.
+Initially the logical front slot is zero and the first submission must use slot
+one. The kernel constructs all grant, generation, sequence and slot register
+writes, issues `dma_wmb`, orders those writes, pins the allocation, then submits.
+The first SUBMIT configures and starts fetching the intended slot atomically.
+There is one pending frame. Acceptance does not mean the frame was displayed,
+and neither the previous front nor pending slot is available for reuse.
 
-The private backend must supply a nonzero external reset epoch, an ordered
-start operation, an idempotent stop-new-requests operation and a drain operation
-that proves all accepted traffic retired in that same epoch. No DE25 hardware
-backend currently supplies those operations. Userspace cannot assert a drain
-proof. A failed start may already have exposed the allocation and therefore
-pins it exactly like a successful start.
-The kernel caller must retain backend code/context and device DMA/domain
-resources until the grant is finally destroyed. A device reference does not
-keep devm resources or translation domains intact across device detach.
+`POLL` requires version 2, the current allocation generation and zero reserved
+bits. It obtains a frozen hardware snapshot: read the serial, issue SNAPSHOT,
+order it, wait a bounded number of accesses for the serial to advance modulo
+32 bits, read the frozen fields, and recheck the serial. It validates the full
+64-bit generation, immutable DMA grant, accepted sequence, current/displayed
+identities, pending slot and errors. Only the exact submitted sequence/slot
+reported fully displayed, current, without pending or frame faults, releases
+the previous front slot. `INFO` then reports that previous slot as the back
+slot. Subsequent PUBLISH operations alternate slots while the allocation remains
+exposed. INFO itself performs no register access and does not complete a frame.
+A failed/contradictory snapshot prevents reuse and marks the grant uncertain.
+
+The mapping covers the allocation, so the client must draw only into the
+reported back slot and stop drawing it before PUBLISH. This ABI enforces slot
+ownership at submission; it does not make individual front-slot PTEs read-only.
+A complete frame acknowledgement never releases the allocation's DMA lifetime
+pin: continuous refresh may still read the displayed slot.
+
+## Mapping and transport boundaries
+
+Shared, non-executable mappings may cover bounded portions of the grant. Only
+an eager `VM_IO | VM_PFNMAP` mapping returned by the DMA API, with no mapper
+fault handler, is accepted. Page-backed/`VM_MIXEDMAP` IOMMU mappings are refused:
+page pins and aliases can outlive PTE revocation. The implementation does not
+manufacture PFN flags or derive PFNs from a DMA address. Translation support
+and revocable userspace mapping support are separate gates. The fresh mmap
+callback clears the kernel's empty generic `vma_dummy_vm_ops` sentinel before
+invoking the DMA API; real mapper-installed operations still cause refusal.
+
+The private backend supplies a nonzero external reset epoch and bounded,
+ordered `read32`, `write32` and `barrier` operations. No physical MMIO backend
+is implemented or admitted. A callback error after SUBMIT may already have
+enabled DMA and retains exposure. Userspace cannot supply a drain proof.
+The kernel caller must retain callback code/context, exclusive engine ownership
+and device DMA/domain resources until final grant destruction, including an
+uncertain exposure. `get_device` does not retain devm resources or a detached
+translation domain. A constructor refuses an already configured engine; it
+never clears a previous owner's grant.
 
 ## Revocation and lifetime
 
-`REVOKE` first rejects future mappings and publications. It synchronizes past
-any mmap callback that installed PTEs before its VMA was linked into the grant
-inode: every mm was recorded under the grant lock, and revocation takes each
-mm's mmap write lock without holding that grant lock. It then removes mappings
-through the unique inode. Revoked mappings fault with SIGBUS; mmap cannot
-recreate them. Only afterward does it stop and drain the backend.
+`REVOKE` rejects future mappings and publications. It synchronizes past every
+mmap callback that installed PTEs before its VMA was linked into the grant inode:
+each mm was recorded under the grant lock, and revocation takes each mm's mmap
+write lock without holding the grant lock. It then removes mappings through the
+unique inode. Revoked mappings fault with SIGBUS; mmap cannot recreate them.
+Only afterward does the kernel issue STOP and request a frozen snapshot.
 
-Exposed DMA holds a separate allocation reference and module pin, in addition
-to the grant file and DMA device references. A failed stop/drain, unreadable
-epoch, or changed epoch retains those references and marks the grant uncertain.
-Last close retries the idempotent stop/drain; it cannot free exposed storage
-without the proof. No timeout or client-close path declares outstanding traffic
-gone. Actual reset recovery and device detach qualification remain future work.
+The proof must retain the old nonzero generation and immutable grant in the
+same external epoch, report drained, have no running/pending work and zero
+outstanding traffic. Incomplete drain returns `EAGAIN`; callers can retry.
+Frame fault state does not replace this drain proof. Reset's zero generation
+cannot prove an old operation drained. After consuming the old proof, the owner
+issues CLEAR and verifies the empty, unconfigured, drained state before the
+allocation becomes releasable and the engine can accept a new grant.
+
+Exposed DMA holds an independent allocation reference and module pin alongside
+the file, inode and device references. Errors, missing/changed epochs, failed
+drain or failed cleanup retain these references and mark uncertainty. Last close
+retries stop/drain; it cannot free uncertain exposed storage. No timeout, frame
+completion or client-close path declares outstanding traffic gone. Actual reset
+recovery and device detach qualification remain future work.
 
 ## Off-board kernel tests
 
-The focused KUnit configuration is:
-
-```text
-CONFIG_MMU=y
-CONFIG_OF=y
-CONFIG_KUNIT=y
-CONFIG_FES_DE25_DMA=y
-CONFIG_FES_DE25_DMA_KUNIT_TEST=y
-```
-
-The test kernel also needs its normal DMA allocation/mapping implementation;
-the pinned AArch64 BSP enables DMA/CMA. Kernel integration sources this
-directory's Kconfig and Makefile. The DE25 kernel test runner builds a separate
-test kernel; its configuration is not the shipping kernel configuration.
+The focused KUnit configuration includes `MMU`, `OF`, `KUNIT`, `CMA`, `DMA_CMA`,
+32 MiB CMA, `FES_DE25_DMA=y` and `FES_DE25_DMA_KUNIT_TEST=y`. The runner builds a
+separate pinned AArch64 test kernel; this is not the shipping kernel config.
 
 The `fes-de25-dma` suite calls the actual allocator, file operations, DMA mmap
-and release paths on a KUnit device with the kernel's DMA API. A private
-scripted transport checks descriptor ownership and failed-start/failed-drain
-retention. VMA tests use a real temporary mm and kernel uaccess to verify
-coherent mappings, ioctl copying, revoke-before-stop ordering, denied remapping
-and post-revoke faults. They verify the accepted mapping form and refusal of
-writable page pinning. A controlled test-only pause reproduces the mmap
-callback/VMA-link race with separate mapper and revoker kernel threads. Test
-hooks compile out when `CONFIG_FES_DE25_DMA_KUNIT_TEST` is disabled.
+and release paths on a KUnit device using the kernel DMA API. A private scripted
+register device exercises the same descriptor writes, serial handshake and
+snapshot decoder used by the driver. Tests cover ordered first submission,
+acceptance versus full-frame display, alternating slot reuse, contradictory
+completion, frame faults, generation/reset mismatch, counter exhaustion,
+bounded/unstable snapshots and failed-start/drain retention. VMA tests use a real
+temporary mm and kernel uaccess for INFO/PUBLISH/POLL, revoke-before-stop,
+post-revoke faults, refused writable page pins, denied remapping and the
+mmap-callback/VMA-link race. Test hooks compile out when the test config is off.
 
-These are kernel software checks on a test device. They do not emulate or
-qualify the DE25 DMA master, SMMU, firewall, DDR, kernel boot, HDMI, runtime or
-interactive MENU. Loading against the board's existing kernel additionally
-requires matching kernel configuration and symbol-version evidence.
+These are kernel software checks with a scripted register device. They do not
+emulate or qualify the DE25 fabric master, SMMU, firewall, DDR, clock crossing,
+kernel boot, HDMI, runtime or interactive MENU. The separate RTL and generated
+interconnect simulations cover their own artifacts. Loading against the board's
+kernel additionally requires matching config and symbol-version evidence.

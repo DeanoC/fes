@@ -28,6 +28,11 @@ defines bounded, read-only DMA diagnostic registers. [DE25 DDR](docs/de25-ddr.md
 specifies its drain behavior, address domains and planned Linux-owned MENU
 allocation. It adds no production runtime or GP interface.
 
+[`fes.fabric.de25-scanout`](packages/fabric/fes_fabric_de25_scanout.yaml) adds
+the separate allocated-buffer display diagnostic. [DE25 scanout](docs/de25-scanout.md)
+specifies coherent snapshots, accepted/current/displayed identities, slot
+ownership and cross-clock drain/reset limits. It grants no hardware admission.
+
 The fabric-only `emit-c` command supplies standalone constant headers for C
 consumers such as the DE25 kernel diagnostic. From this module:
 

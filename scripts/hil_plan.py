@@ -52,6 +52,7 @@ RULES = [
     # Its manual DE25 JTAG smoke check is separate from deployed DE10 kit HIL.
     ('sources/mister-packages/packages/board/de25_nano.yaml', 'none', None),
     ('sources/mister-packages/packages/fabric/fes_fabric_de25_ddr_probe.yaml', 'none', None),
+    ('sources/mister-packages/packages/fabric/fes_fabric_de25_scanout.yaml', 'none', None),
     ('sources/misteross/boards/de25nano/**', 'none', None),
     # These exact validation/generation tools have no deployed binary consumer.
     # A changed emitted artifact is classified through its actual consumer path.

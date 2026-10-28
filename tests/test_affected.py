@@ -86,7 +86,6 @@ class AffectedTests(unittest.TestCase):
         consumers = [(module, path) for _, source, module, path in ast.literal_eval(registry)
                      if 'sources/mister-packages/' + source == definition]
         self.assertEqual(set(consumers), {
-            ('FES', 'image/kernel/de25-dma/generated/fes_de25_ddr_probe.h'),
             ('misteross', 'boards/de25nano/hps/generated/fes_de25_ddr_probe.vh'),
             ('misteross', 'boards/de25nano/hps/generated/fes_de25_ddr_probe.hpp'),
         })
@@ -99,6 +98,29 @@ class AffectedTests(unittest.TestCase):
                       'sources/mister-packages/packages/abi/fes_application.yaml'):
             with self.subTest(other=other):
                 self.assertEqual(set(plan([definition, other])['cores']), set(CORES))
+
+    def test_de25_scanout_contract_tracks_its_diagnostic_consumers(self):
+        definition = 'sources/mister-packages/packages/fabric/fes_fabric_de25_scanout.yaml'
+        source = Path(__file__).resolve().parents[1] / 'scripts/consistency.py'
+        registry = next(node.value for node in ast.parse(source.read_text()).body
+                        if isinstance(node, ast.Assign) and
+                        any(isinstance(name, ast.Name) and name.id == 'GENERATED' for name in node.targets))
+        consumers = {(module, path) for _, item, module, path in ast.literal_eval(registry)
+                     if 'sources/mister-packages/' + item == definition}
+        self.assertEqual(consumers, {
+            ('misteross', 'boards/de25nano/scanout/generated/fes_de25_scanout.vh'),
+            ('misteross', 'boards/de25nano/scanout/generated/fes_de25_scanout.h'),
+            ('FES', 'image/kernel/de25-dma/generated/fes_de25_scanout.h'),
+        })
+        result = plan([definition])
+        self.assertEqual({lane for lane, enabled in result['lanes'].items() if enabled},
+                         {'parent', 'contracts', 'fpga'})
+        self.assertEqual(result['cores'], [])
+        self.assertFalse(any(result['test_modes'].values()))
+        mixed = plan([definition, 'sources/misteross/cores/fes-menu/rtl/fes_menu_video.v'])
+        self.assertIn('menu', mixed['cores'])
+        self.assertIn('zx81', mixed['cores'])
+
     def test_parent_owned_roots_select_only_the_parent_lane(self):
         self.assertEqual(PARENT_ROOTS,
                          ('scripts', 'tests', 'image', 'platform', 'profiles', 'containers'))

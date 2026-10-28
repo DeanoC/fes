@@ -7,38 +7,30 @@
 #include <linux/types.h>
 
 #include "de25_dma.h"
-#include "generated/fes_de25_ddr_probe.h"
+#include "generated/fes_de25_scanout.h"
 
-#define FES_DE25_DMA_ALLOCATION_BYTES FES_DE25_DDR_PROBE_ALLOCATION_BYTES
-#define FES_DE25_DMA_SLOT_BYTES FES_DE25_DDR_PROBE_SLOT_BYTES
-#define FES_DE25_DMA_FRAME_BYTES FES_DE25_DDR_PROBE_FRAME_BYTES
-#define FES_DE25_DMA_WIDTH FES_DE25_DDR_PROBE_FRAME_WIDTH
-#define FES_DE25_DMA_HEIGHT FES_DE25_DDR_PROBE_FRAME_HEIGHT
-#define FES_DE25_DMA_STRIDE FES_DE25_DDR_PROBE_FRAME_STRIDE
-#define FES_DE25_DMA_SLOTS FES_DE25_DDR_PROBE_SLOT_COUNT
+#define FES_DE25_DMA_ALLOCATION_BYTES FES_DE25_SCANOUT_ALLOCATION_BYTES
+#define FES_DE25_DMA_SLOT_BYTES FES_DE25_SCANOUT_SLOT_BYTES
+#define FES_DE25_DMA_FRAME_BYTES FES_DE25_SCANOUT_FRAME_BYTES
+#define FES_DE25_DMA_WIDTH FES_DE25_SCANOUT_FRAME_WIDTH
+#define FES_DE25_DMA_HEIGHT FES_DE25_SCANOUT_FRAME_HEIGHT
+#define FES_DE25_DMA_STRIDE FES_DE25_SCANOUT_FRAME_STRIDE
+#define FES_DE25_DMA_SLOTS FES_DE25_SCANOUT_SLOT_COUNT
 
-struct fes_de25_dma_descriptor {
-	dma_addr_t dma;
-	u32 span, offset, bytes;
-	u64 generation;
-	u32 sequence;
-};
-
-/* Private driver-controlled transport. There is no userspace proof operation.
- * start may have exposed DMA even when it returns an error. stop only stops
- * new requests; drain must establish all accepted traffic has retired in the
- * same nonzero external reset epoch. Neither callback is implemented for DE25
- * hardware yet. Production probe therefore refuses binding.
- * The caller must retain callback code, context, and the device's DMA/domain
- * resources until the final grant is destroyed, including uncertain exposure.
- * get_device() keeps the device object alive; it does not pin devm resources
- * or an IOMMU domain across device detach.
+/* Private, exclusive driver-controlled register transport. Accessors must be
+ * ordered and bounded even when the external clock is absent. barrier orders
+ * completed writes before later accesses. No physical MMIO backend is admitted.
+ * epoch is a nonzero external reset identity; register generation alone cannot
+ * establish drain after reset. No userspace operation supplies either proof.
+ * The caller must retain callback code/context, exclusive engine ownership and
+ * device DMA/domain resources until final grant destruction, including uncertain
+ * exposure. get_device does not retain devm resources or a detached domain.
  */
 struct fes_de25_dma_backend {
 	u64 (*epoch)(void *context);
-	int (*start)(void *context, const struct fes_de25_dma_descriptor *descriptor);
-	int (*stop)(void *context, u64 generation);
-	int (*drain)(void *context, u64 generation);
+	int (*read32)(void *context, u32 offset, u32 *value);
+	int (*write32)(void *context, u32 offset, u32 value);
+	int (*barrier)(void *context);
 	void *context;
 };
 
@@ -47,10 +39,13 @@ struct file *fes_de25_dma_create(struct device *dev,
 int fes_de25_dma_publish(struct file *file,
 		const struct fes_de25_dma_publish *publish);
 int fes_de25_dma_revoke(struct file *file);
+int fes_de25_dma_poll(struct file *file, struct fes_de25_dma_info *info);
 void fes_de25_dma_info(struct file *file, struct fes_de25_dma_info *info);
 int fes_de25_dma_binding(struct device *dev);
 
 #if IS_ENABLED(CONFIG_FES_DE25_DMA_KUNIT_TEST)
+#include <linux/atomic.h>
+u64 fes_de25_dma_test_next_generation(atomic64_t *counter);
 struct completion;
 struct fes_de25_dma_test_observer {
 	unsigned int freed;
