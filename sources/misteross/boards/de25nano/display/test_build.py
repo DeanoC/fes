@@ -68,7 +68,7 @@ else begin mI2C_CLK_DIV <= 0; mI2C_CTRL_CLK <= ~mI2C_CTRL_CLK; end
                 self.assertIn('NUM_PARALLEL_PROCESSORS 2', qsf)
                 self.assertIn('set_parameter -name MENU_PATTERN ' + str(int(mode == "menu-pattern")), qsf)
                 self.assertEqual('VERILOG_FILE fes_splash_core.v' in qsf, mode == "idle")
-                self.assertEqual('VERILOG_FILE fes_menu_reader.v' in qsf, mode == "menu-pattern")
+                self.assertEqual('VERILOG_FILE fes_menu_reader_de25.v' in qsf, mode == "menu-pattern")
                 self.assertNotIn('fes_menu_ddr', qsf)
                 self.assertEqual((project / "I2C_HDMI_Config.v").read_bytes(), self.files["HDMI_I2C/I2C_HDMI_Config.v"])
                 self.assertEqual((output / "vendor/sys_pll.ip").read_bytes(), self.files["sys_pll.ip"])
@@ -80,6 +80,12 @@ else begin mI2C_CLK_DIV <= 0; mI2C_CTRL_CLK <= ~mI2C_CTRL_CLK; end
                 self.assertFalse(inputs['hps'] or inputs['ddr'] or inputs['runtime_menu'])
                 self.assertEqual(inputs['source_classification'], 'working-copy-diagnostic')
                 self.assertEqual(inputs['source_sha256']['top.v'], B.sha((project / 'top.v').read_bytes()))
+                original_reader = B.SOURCE_PATHS['fes_menu_reader.v'].read_bytes()
+                self.assertEqual((project / 'fes_menu_reader.v').read_bytes(), original_reader)
+                self.assertEqual((project / 'fes_menu_reader_de25.v').read_bytes(),
+                    original_reader.replace(b'ramstyle = "M10K"', b'ramstyle = "M20K"'))
+                self.assertEqual(inputs['reviewed_menu_ram_hint_repair']['derived_sha256'],
+                    B.sha((project / 'fes_menu_reader_de25.v').read_bytes()))
 
     def test_rejects_incomplete_or_disagreeing_scs_pin_contract(self):
         missing = self.baseline.replace(b'set_location_assignment', b'comment_location_assignment', 1)
@@ -128,6 +134,11 @@ else begin mI2C_CLK_DIV <= 0; mI2C_CTRL_CLK <= ~mI2C_CTRL_CLK; end
         self.files['HDMI_I2C/I2C_HDMI_Config.v'] = self.files['HDMI_I2C/I2C_HDMI_Config.v'].replace(b'20000;', b'100000;')
         with self.assertRaisesRegex(ValueError, 'I2C clock divider contract changed'):
             self.prepare()
+
+    def test_unexpected_menu_fifo_declaration_refuses_target_adaptation(self):
+        original = B.SOURCE_PATHS['fes_menu_reader.v'].read_bytes()
+        with self.assertRaisesRegex(ValueError, 'FIFO RAM hint/declaration changed'):
+            B.retarget_menu_ram(original.replace(b'fifo [0:255]', b'fifo [0:511]'))
 
     def test_captured_git_revision_ignores_later_working_tree_bytes(self):
         repository = self.root / 'repository'

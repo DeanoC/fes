@@ -102,8 +102,20 @@ def retarget_reset(source):
         "parameter": "system/device", "before": "A5EB013BB23BE4SR1", "after": DEVICE}
 
 
+def retarget_menu_ram(source):
+    before = b'(* ramstyle = "M10K" *) reg [127:0] fifo [0:255];'
+    after = before.replace(b'"M10K"', b'"M20K"')
+    if source.count(before) != 1:
+        raise ValueError("menu reader FIFO RAM hint/declaration changed")
+    result = source.replace(before, after)
+    return result, {"original": "fes_menu_reader.v", "derived": "fes_menu_reader_de25.v",
+                    "before": before.decode(), "after": after.decode(),
+                    "original_sha256": sha(source), "derived_sha256": sha(result)}
+
+
 def prepare(archive, mode, output=None, revision=None):
     sources = capture_sources(revision)
+    reader, reader_repair = retarget_menu_ram(sources["fes_menu_reader.v"])
     lock = tomllib.loads(sources["vendor.lock.toml"].decode())
     if lock["device"] != DEVICE or lock["format"] != 1:
         raise ValueError("invalid DE25 display lock")
@@ -148,6 +160,7 @@ def prepare(archive, mode, output=None, revision=None):
     (output / "vendor/scs-golden.qsf").write_text(baseline)
     for name, data in sources.items():
         (project / name).write_bytes(data)
+    (project / "fes_menu_reader_de25.v").write_bytes(reader)
     for name in VENDOR_FILES[1:]:
         (project / Path(name).name).write_bytes(pll if name == "sys_pll.ip" else
             reset if name == "agilex_reset_release.ip" else vendor[name])
@@ -160,7 +173,7 @@ def prepare(archive, mode, output=None, revision=None):
         ("DEVICE_INITIALIZATION_CLOCK", "OSC_CLK_1_125MHZ"), ("RESERVE_ALL_UNUSED_PINS", '"AS INPUT TRI-STATED"'),
         ("IP_FILE", "sys_pll.ip"), ("IP_FILE", "agilex_reset_release.ip"), ("SDC_FILE", "clocks.sdc")))
     rtl = ["top.v", "fes_de25_top_reset.v", "I2C_HDMI_Config.v", "I2C_Controller.v"]
-    rtl += ["fes_splash_core.v"] if mode == "idle" else ["fes_menu_reader.v", "fes_menu_video.v", "fes_menu_pattern_memory.v"]
+    rtl += ["fes_splash_core.v"] if mode == "idle" else ["fes_menu_reader_de25.v", "fes_menu_video.v", "fes_menu_pattern_memory.v"]
     (project / (PROJECT + ".qsf")).write_text(assignments + '\n' +
         '\n'.join('set_global_assignment -name VERILOG_FILE ' + name for name in rtl) +
         f'\nset_parameter -name MENU_PATTERN {int(mode == "menu-pattern")}\nsource pins.qsf\n')
@@ -171,6 +184,7 @@ def prepare(archive, mode, output=None, revision=None):
         "source_sha256": {name: sha(data) for name, data in sources.items()},
         "vendor_archive": lock["archive"], "vendor_source_sha256": {name: sha(data) for name, data in vendor.items()},
         "reviewed_pll_device_repair": repair, "reviewed_reset_release_device_repair": reset_repair,
+        "reviewed_menu_ram_hint_repair": reader_repair,
         "video": {"pixel_clock_hz": 74250000, "h_total": 1650, "v_total": 750},
         "i2c_internal_clock": {"source_hz": 50000000, "divide_by": 5002,
                                "derivation": "2 * (CLK_Freq / I2C_Freq + 1)"},

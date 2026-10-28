@@ -44,6 +44,13 @@ output, zero phase and 50 MHz reference are unchanged. Original PLL/reset
 module parameters must survive generation/compile; changes fail with a
 retained review. The vendor I2C source and 33-entry register table are unchanged.
 
+The generic menu reader's Cyclone V `M10K` hint is illegal on Agilex. The
+DE25 preparation retains that original Git input and derives a separate
+`fes_menu_reader_de25.v` by replacing only the guarded FIFO RAM-style hint
+with `M20K`. Both hashes and the exact replacement are recorded; reader
+logic, dimensions and synchronous read behavior are unchanged. Simulation
+uses the same derived source. The default DE10 reader is untouched.
+
 The selected pin locations and IO standards must match the SCS
 `Demonstration/FPGA/Golden_top/golden_top.qsf` exactly. No DE10 pin names,
 Cyclone V PLL/HPS primitives, HPS I2C BEL or DDR layout is reused.
