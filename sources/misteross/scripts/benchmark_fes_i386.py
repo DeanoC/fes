@@ -118,13 +118,15 @@ STAGES = {
         # The memory system's own state: the bus interface, the fill and
         # slow-path sequencers, and the valid bits fills, stores and DMA
         # write. Each cache's arrays and read registers take the stage that
-        # loads their address: F1 for the L1I's, M1 for the L1D's, EX for the
-        # copies a store reads as it enters WB.
-        ('MEM', r'(.*\.)?biu\.|(.*\.)?l1i\.(fill|f_line|victim|rr|beat_n|spoilt|valid)$'
+        # loads their address: F1 for the L1I's, M1 for the L1D's data and AG
+        # for its lookup tags, EX for the copies a store reads as it enters WB.
+        # M1 also registers the L1D's hit, the set's valid bits and its wait.
+        ('MEM', r'(.*\.)?biu\.|(.*\.)?l1i\.(fill|f_line|victim|rr|beat_n|spoilt|valid|si_\w+)$'
                 r'|(.*\.)?l1d\.(state|part|fill_it|beat_n|spoilt|rr|row|lbuf|sbuf|victim|d_mmio|d_addr|d_be'
                 r'|valid_bits)$'),
         ('EX', r'(.*\.)?(st_wait|wb_p0|wb_p1)$|(.*\.)?l1i\.snoop|(.*\.)?l1d\.probe'),
-        ('M1', r'(.*\.)?l1d\.(q_\w+|ev_q|od_q|tag|ev_wd|od_wd)$|(.*\.)?l1d\.(ev|od|tag)\d(\.|_|$)'),
+        ('M1', r'(.*\.)?l1d\.(q_\w+|ev_q|od_q|ev_wd|od_wd|hit|vm2|stall)$|(.*\.)?l1d\.(ev|od)\d(\.|_|$)'),
+        ('AG', r'(.*\.)?l1d\.tag$|(.*\.)?l1d\.tag\d(\.|_|$)'),
         ('F1', r'(.*\.)?(f2_block|fetch_block|active|itlb_page)$|l1i_|(.*\.)?l1i\.(blk|req|page|p_new|at|way|tag)$'
                r'|(.*\.)?l1i\.(data|tag)\d(\.|_|$)'),
         ('F2', r'(.*\.)?(l1_valid|l1_block|l1_bytes|mem_data)$|.*\.oplen\.(one|two)_byte'),
