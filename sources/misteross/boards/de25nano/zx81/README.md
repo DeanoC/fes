@@ -59,3 +59,7 @@ serial/DHCP/SSH bring-up remains a separate target.
 The shared machine/scheduler changes also require current DE10 ZX81 consumer
 regression and package/HIL evidence before integration. Earlier sealed packages
 and board diagnostics do not accept these new source bytes.
+
+The [compiler and simulation record](../../../docs/validation/2026-10-28-de25-zx81/README.md)
+binds the compiled SOF, passing editor/button checks, software coverage and
+remaining external IO, MTBF and hardware gates.
