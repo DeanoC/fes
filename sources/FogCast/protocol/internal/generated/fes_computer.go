@@ -127,6 +127,9 @@ const (
 	FesComputerZx81TapeLayoutMinor                      uint32 = 0x0
 	FesComputerC64DiskUnit                              uint32 = 0x0
 	FesComputerC64DiskBytes                             uint32 = 0x2ab00
+	FesComputerSpectrumDiskUnit                         uint32 = 0x1
+	FesComputerSpectrumDiskMinBytes                     uint32 = 0x2000
+	FesComputerSpectrumDiskMaxBytes                     uint32 = 0x2b4000
 	FesComputerAtariStFloppyUnit                        uint32 = 0x0
 	FesComputerAtariStFloppyBytes                       uint32 = 0xb4000
 	FesComputerAtariStFloppyGeometryMinBytes            uint32 = 0x5a000
@@ -199,4 +202,8 @@ const (
 	FesComputerInterfaceMediaZx81TapeWriteMajor         uint16 = 1
 	FesComputerInterfaceMediaZx81TapeWriteMinor         uint16 = 0
 	FesComputerCapabilityMediaZx81TapeWrite             uint32 = 0x4000
+	FesComputerInterfaceMediaSpectrumDiskID                    = "fes.media.spectrum-disk"
+	FesComputerInterfaceMediaSpectrumDiskMajor          uint16 = 1
+	FesComputerInterfaceMediaSpectrumDiskMinor          uint16 = 0
+	FesComputerCapabilityMediaSpectrumDisk              uint32 = 0x8000
 )

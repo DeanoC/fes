@@ -1,0 +1,137 @@
+# Divergence list for the pc386 VGA trace replay (sim/vga_replay_tb.cpp)
+# against Bochs's standard VGA (iodev/display/vgacore.cc at the oracle's pinned
+# revision, REL_3_1_FINAL). Every place the two disagree has an entry naming
+# the case that decides it; the RTL follows `follow`.
+#
+#   replay     how the bench treats it: "skip" entries are frames or reads
+#              the bench does not compare and counts under `counter`;
+#              "unclassified" entries come from reading vgacore.cc against
+#              the IBM behaviour and no trace in the suites reaches them
+#              (`exercised = false`). A trace that does will fail the replay
+#              as an unnamed mismatch, and the entry then needs a classifier.
+#   deciding   the reference that decides the behaviour.
+#   reference / rtl  what each side does.
+
+[[divergence]]
+id = "reference-unprogrammed"
+title = "Text frames before the CRTC is programmed"
+replay = "skip"
+counter = "frames-divergence-reference-unprogrammed"
+exercised = true
+reference = "update() draws an 80 x 25, 9 x 16 text screen while CRTC 01h or the maximum scan line is zero (a workaround in vgacore.cc for updates before the VGA BIOS runs)."
+rtl = "The raster follows the registers: at reset every CRTC register is zero, so a frame is five characters by two lines and the capture is 9 x 1."
+deciding = "IBM VGA Technical Reference: the CRTC generates whatever its registers program; there is no default mode."
+follow = "rtl"
+
+[[divergence]]
+id = "blink-rates"
+title = "Cursor and character blink rates"
+replay = "skip"
+counter = "frames-blink-phase"
+exercised = true
+reference = "One toggle every blink_counter updates drives both the cursor and blinking characters; the counter stops (not visible) in graphics modes without blink, so its phase restarts after a graphics mode. The adapter sets blink_counter to 8 and updates until Bochs's phase is the RTL cursor's; the replay skips text frames with blinking characters enabled where the RTL's character phase differs from its cursor phase."
+rtl = "The cursor blinks every 8 frames and blinking characters every 16, from the frame counter (IBM: cursor 1/16, characters 1/32 of the vertical rate)."
+deciding = "IBM VGA Technical Reference, attribute controller and CRTC: cursor blink at 1/16 of the vertical frequency, character blink at 1/32."
+follow = "rtl"
+
+[[divergence]]
+id = "cursor-style"
+title = "Cursor over a character"
+replay = "unclassified"
+exercised = false
+reference = "draw_char_common inverts the glyph on the cursor rows."
+rtl = "The cursor rows show the foreground colour across the cell."
+deciding = "IBM VGA Technical Reference: the cursor forces the foreground on the cursor scan lines."
+follow = "rtl"
+
+[[divergence]]
+id = "chain4-planar-logic"
+title = "Chain-4 writes and reads"
+replay = "unclassified"
+exercised = false
+reference = "A chain-4 write stores the CPU byte directly, ignoring the map mask and the write mode; a chain-4 read returns the byte without loading the latches or applying read mode 1."
+rtl = "Chain-4 selects plane A[1:0] and offset A >> 2, then the map mask, the write mode, the bit mask and the latches apply as in planar modes; reads load the latches."
+deciding = "IBM VGA Technical Reference, sequencer memory mode: chain-4 changes only the plane selection and address."
+follow = "rtl"
+
+[[divergence]]
+id = "odd-even-both-planes"
+title = "Odd/even writes with both planes of a pair enabled"
+replay = "unclassified"
+exercised = false
+reference = "Writes only plane 0 or 1 (or 2 or 3 when the first is masked off)."
+rtl = "Writes every plane of the pair the map mask enables (0 and 2 for even addresses, 1 and 3 for odd)."
+deciding = "IBM VGA Technical Reference: in odd/even mode A0 selects the odd or even maps; the map mask enables within them."
+follow = "rtl"
+
+[[divergence]]
+id = "pel-mask-256"
+title = "PEL mask in 256-colour modes"
+replay = "unclassified"
+exercised = false
+reference = "The 256-colour paths ignore the PEL mask (and the attribute palette)."
+rtl = "The PEL mask applies in every mode; 256-colour pixels skip the attribute palette, as in Bochs."
+deciding = "The PEL mask is in the DAC, after the attribute controller (IBM VGA Technical Reference, video DAC)."
+follow = "rtl"
+
+[[divergence]]
+id = "chained-panning"
+title = "Pixel panning in doubleword (chained 256-colour) mode"
+replay = "unclassified"
+exercised = false
+reference = "Applies pixel panning only in byte mode (unchained)."
+rtl = "Applies pixel panning in every 256-colour mode, two dots per step."
+deciding = "IBM VGA Technical Reference, horizontal PEL panning: applies to all modes."
+follow = "rtl"
+
+[[divergence]]
+id = "text-colour-path"
+title = "Colour plane enable and colour select in text modes"
+replay = "unclassified"
+exercised = false
+reference = "Text colours are the palette register masked by the PEL mask only."
+rtl = "Text attributes pass through colour plane enable, the palette, P54S and colour select, as graphics pixels do."
+deciding = "IBM VGA Technical Reference, attribute controller: the same path for text and graphics."
+follow = "rtl"
+
+[[divergence]]
+id = "line-compare-doubled"
+title = "Line compare in doubled modes"
+replay = "unclassified"
+exercised = false
+reference = "Compares the halved line number against half the line compare value."
+rtl = "Compares the scan line counter itself; the split starts on the line after the match."
+deciding = "IBM VGA Technical Reference, line compare: compared against the scan line counter. The two agree for odd values, which is what VL_SetSplitScreen programs and what the VGA test uses (299)."
+follow = "rtl"
+
+[[divergence]]
+id = "register-readback"
+title = "Register reads Bochs answers differently"
+replay = "unclassified"
+exercised = false
+reference = "3C0h reads 0 when the flip-flop is in the data state; 3B4h reads 0 in mono mode; DAC entries change a component at a time; 3C3h bit 0 clear leaves memory and registers working."
+rtl = "3C0h always reads the index and PAS; 3B4h reads the CRTC index; DAC entries change when the blue component is written; with 3C3h bit 0 clear, memory reads FFh and ignores writes and only 3C3h answers."
+deciding = "IBM VGA Technical Reference register descriptions; docs/pc386-machine-design.md for 3C3h."
+follow = "rtl"
+
+[[divergence]]
+id = "status-display-enable"
+title = "Input status 1 bit 0"
+replay = "skip"
+counter = "status reads are not compared"
+exercised = true
+reference = "Set during horizontal blanking and vertical blanking, from timers in microseconds."
+rtl = "Set outside the display-end window (hcount < CRTC 01h + 1 and vcount < vertical display end); CRTC horizontal blank/retrace registers 02h-05h and vertical blank registers 15h-16h are not connected to the raster."
+deciding = "IBM VGA Technical Reference, input status register 1: bit 0 follows display enable/blanking. The current M2 raster uses display ends as an approximation and does not yet implement the programmed blanking windows; see docs/pc386-machine-design.md."
+follow = "rtl"
+
+[[divergence]]
+id = "dac-width"
+title = "DAC readback width"
+replay = "skip"
+counter = "reads-divergence-dac-width"
+exercised = true
+reference = "DAC entries keep the 8 bits written, and 3C9h reads them back (the display then shifts them left by 2, wrapping)."
+rtl = "DAC entries are 6 bits; 3C9h reads them back with bits 7:6 clear."
+deciding = "IBM VGA Technical Reference, video DAC: 6-bit colour registers. Wolfenstein 3D's VL_TestPaletteSet (ID_VL.C) writes i for i in 0..767 through the DAC and compares the readbacks to set fastpalette (REP OUTSB versus individual byte OUTs); with 6-bit readback the comparison fails. The replay follows the RTL's run and counts each such read."
+follow = "rtl"

@@ -190,9 +190,8 @@ first uop (`dc0`, kept beside `dc`) with every change of the steps before it
 applied again, and the per-step controls are reset. No field is kept from
 `dc` at some steps and not others, so `dc` loads on two enables from D's
 issue: the rewritten fields at every issue, the rest at the instruction's
-last. WB
-moves EIP only at an instruction's last uop, so a sequence that faults part
-way leaves EIP at the instruction. Two temporaries, T0 (16 bits) and T1
+last. WB moves EIP only at an instruction's last uop, so a sequence
+that faults part way leaves EIP at the instruction. Two temporaries, T0 (16 bits) and T1
 (32), are destinations in RS_TEMP: WB writes them and no forwarding sees
 them, so a uop reads one at WB, or waits in D until its writers retire.
 
@@ -486,10 +485,10 @@ tables. A fault, an unimplemented encoding or HLT stops D issuing after it.
 At WB an unimplemented encoding stops the CPU with nothing retired, and HLT
 retires and stops it. A fault is delivered:
 - **Entry.** WB flushes everything younger and restarts the front end and
-  DC. A uop that faults before EX changes nothing there, so the delivery
-  starts from EX's running flags as they were before it. A divide raises #DE
-  in EX itself, after its flags reach that copy, so its delivery pushes them,
-  as the 386EX does. The cycle after, DC's skid takes the
+  DC. A fault detected before EX changes no flags there, so its delivery
+  starts with the earlier EFLAGS. A divide raises #DE in EX after its
+  multiply/divide flags reach EX's running copy, so its delivery pushes those
+  flags, as the 386EX does. The cycle after, DC's skid takes the
   exception's entry (`dc_exc`): a NOP, at length 0, that starts the ROM's
   `vector` routine with the fault's vector, the one INTO enters.
 - **The frame.** D's EIP is the faulting instruction's, cut to 16 bits, so

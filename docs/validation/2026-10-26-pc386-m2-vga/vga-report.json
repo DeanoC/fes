@@ -1,0 +1,353 @@
+{
+  "post": [
+    {
+      "code": "00",
+      "cycle": 11397
+    },
+    {
+      "code": "21",
+      "cycle": 2470979
+    },
+    {
+      "code": "31",
+      "cycle": 2571175
+    },
+    {
+      "code": "41",
+      "cycle": 2971375
+    },
+    {
+      "code": "71",
+      "cycle": 3072483
+    },
+    {
+      "code": "77",
+      "cycle": 3172509
+    }
+  ],
+  "debug": [
+    {
+      "port": "402",
+      "text": "BIOS BUILD DATE: 10/26/26"
+    },
+    {
+      "port": "500",
+      "text": "VGABios ID: vgabios.c 2026-08-07"
+    },
+    {
+      "port": "402",
+      "text": "ata0-0: PCHS=2/16/63 translation=none LCHS=2/16/63"
+    },
+    {
+      "port": "402",
+      "text": "IDE time out"
+    },
+    {
+      "port": "402",
+      "text": "Booting from 0000:7c00"
+    },
+    {
+      "port": "0e9",
+      "text": "SNAP text"
+    },
+    {
+      "port": "0e9",
+      "text": "SNAP text-font"
+    },
+    {
+      "port": "0e9",
+      "text": "SNAP text-bright"
+    },
+    {
+      "port": "0e9",
+      "text": "SNAP mode13"
+    },
+    {
+      "port": "0e9",
+      "text": "SNAP mode13-cycle"
+    },
+    {
+      "port": "0e9",
+      "text": "SNAP modey"
+    },
+    {
+      "port": "0e9",
+      "text": "SNAP modey-flip"
+    },
+    {
+      "port": "0e9",
+      "text": "SNAP modey-split"
+    },
+    {
+      "port": "0e9",
+      "text": "SNAP modey-fade"
+    },
+    {
+      "port": "0e9",
+      "text": "SNAP mode12"
+    },
+    {
+      "port": "0e9",
+      "text": "SNAP final"
+    },
+    {
+      "port": "0e9",
+      "text": "DONE"
+    }
+  ],
+  "panic": [],
+  "io": {
+    "isa16 2": {
+      "38": 8704
+    },
+    "isa8 1": {
+      "74": 64771
+    },
+    "vga-in 1": {
+      "6": 13128450
+    },
+    "vga-out 1": {
+      "4": 18179
+    },
+    "vga-out 2": {
+      "7": 1332
+    }
+  },
+  "inta": {
+    "146": 47
+  },
+  "screen": [
+    "DONE                                                                            ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                "
+  ],
+  "end": {
+    "reason": "debug-marker",
+    "steps": 44395819,
+    "cycles": 262354424,
+    "seconds": 2.624
+  },
+  "prompt_cycle": null,
+  "cpu_resets": 0,
+  "snaps": {
+    "text": {
+      "width": 720,
+      "height": 400,
+      "file": "build/sim/fes-pc386/vga/frames/text.ppm"
+    },
+    "text-font": {
+      "width": 720,
+      "height": 400,
+      "file": "build/sim/fes-pc386/vga/frames/text-font.ppm"
+    },
+    "text-bright": {
+      "width": 720,
+      "height": 400,
+      "file": "build/sim/fes-pc386/vga/frames/text-bright.ppm"
+    },
+    "mode13": {
+      "width": 320,
+      "height": 400,
+      "file": "build/sim/fes-pc386/vga/frames/mode13.ppm"
+    },
+    "mode13-cycle": {
+      "width": 320,
+      "height": 400,
+      "file": "build/sim/fes-pc386/vga/frames/mode13-cycle.ppm"
+    },
+    "modey": {
+      "width": 320,
+      "height": 400,
+      "file": "build/sim/fes-pc386/vga/frames/modey.ppm"
+    },
+    "modey-flip": {
+      "width": 320,
+      "height": 400,
+      "file": "build/sim/fes-pc386/vga/frames/modey-flip.ppm"
+    },
+    "modey-split": {
+      "width": 320,
+      "height": 400,
+      "file": "build/sim/fes-pc386/vga/frames/modey-split.ppm"
+    },
+    "modey-fade": {
+      "width": 320,
+      "height": 400,
+      "file": "build/sim/fes-pc386/vga/frames/modey-fade.ppm"
+    },
+    "mode12": {
+      "width": 640,
+      "height": 480,
+      "file": "build/sim/fes-pc386/vga/frames/mode12.ppm"
+    },
+    "final": {
+      "width": 720,
+      "height": 400,
+      "file": "build/sim/fes-pc386/vga/frames/final.ppm"
+    }
+  },
+  "present": {
+    "text": {
+      "file": "build/sim/fes-pc386/vga/frames/text-720p.ppm",
+      "mismatches": 0
+    },
+    "text-font": {
+      "file": "build/sim/fes-pc386/vga/frames/text-font-720p.ppm",
+      "mismatches": 0
+    },
+    "text-bright": {
+      "file": "build/sim/fes-pc386/vga/frames/text-bright-720p.ppm",
+      "mismatches": 0
+    },
+    "mode13": {
+      "file": "build/sim/fes-pc386/vga/frames/mode13-720p.ppm",
+      "mismatches": 0
+    },
+    "mode13-cycle": {
+      "file": "build/sim/fes-pc386/vga/frames/mode13-cycle-720p.ppm",
+      "mismatches": 0
+    },
+    "modey": {
+      "file": "build/sim/fes-pc386/vga/frames/modey-720p.ppm",
+      "mismatches": 0
+    },
+    "modey-flip": {
+      "file": "build/sim/fes-pc386/vga/frames/modey-flip-720p.ppm",
+      "mismatches": 0
+    },
+    "modey-split": {
+      "file": "build/sim/fes-pc386/vga/frames/modey-split-720p.ppm",
+      "mismatches": 0
+    },
+    "modey-fade": {
+      "file": "build/sim/fes-pc386/vga/frames/modey-fade-720p.ppm",
+      "mismatches": 0
+    },
+    "mode12": {
+      "file": "build/sim/fes-pc386/vga/frames/mode12-720p.ppm",
+      "mismatches": 0
+    },
+    "final": {
+      "file": "build/sim/fes-pc386/vga/frames/final-720p.ppm",
+      "mismatches": 0
+    }
+  },
+  "vga": {
+    "frames": 10195,
+    "scanout_underflows": 0,
+    "capture_drops": 0,
+    "present_underflows": 0,
+    "plane_underflows": 0,
+    "frames_shown": 33,
+    "port1_commands": 9380440,
+    "port2_commands": 1344977
+  },
+  "command": [
+    "build/sim/fes-pc386/machine/obj/Vpc386_machine",
+    "--bios",
+    "build/firmware/pc386/pc386-bios.bin",
+    "--vgabios",
+    "build/firmware/pc386/pc386-vgabios.bin",
+    "--disk",
+    "build/sim/fes-pc386/vga/vga_test.img",
+    "--limit-seconds",
+    "12",
+    "--until-debug",
+    "DONE",
+    "--trace",
+    "build/sim/fes-pc386/vga/vga.trace",
+    "--frames",
+    "build/sim/fes-pc386/vga/frames"
+  ],
+  "exit": 0,
+  "failures": [],
+  "replay": {
+    "exit": 0,
+    "counts": {
+      "events-I": 13128450,
+      "events-O": 19511,
+      "events-R": 4222,
+      "events-W": 329002,
+      "frames": 10197,
+      "frames-blink-phase": 43,
+      "frames-compared": 103,
+      "frames-divergence-reference-unprogrammed": 10010,
+      "frames-matched": 103,
+      "frames-matched-320x400-graphics": 44,
+      "frames-matched-640x480-graphics": 7,
+      "frames-matched-720x400-text": 52,
+      "frames-matched-at-final": 14,
+      "frames-matched-at-mode12": 7,
+      "frames-matched-at-mode13": 8,
+      "frames-matched-at-mode13-cycle": 7,
+      "frames-matched-at-modey": 7,
+      "frames-matched-at-modey-fade": 7,
+      "frames-matched-at-modey-flip": 7,
+      "frames-matched-at-modey-split": 8,
+      "frames-matched-at-text": 14,
+      "frames-matched-at-text-bright": 7,
+      "frames-matched-at-text-font": 9,
+      "frames-unstable": 41,
+      "scanout_underflows": 0,
+      "capture_drops": 0
+    },
+    "mismatches": [],
+    "summary": "match events=13481196 replay_mismatches=0 read_mismatches=0 vram_mismatches=0 frame_mismatches=0 end_vram_bytes_differing=0",
+    "failures": []
+  },
+  "benches": {
+    "presenter": {
+      "checks": [
+        "PASS 720x400 720x400",
+        "PASS 640x400 640x400",
+        "PASS 320x400 320x400",
+        "PASS 640x480 640x480",
+        "PASS 320x200 320x200",
+        "PASS 360x480 360x480",
+        "PASS 800x600 800x600",
+        "PASS 640x350 640x350",
+        "PASS switch 320x400",
+        "PASS stream: 6 720p frames each one published frame (5 distinct), 0 mixed"
+      ],
+      "failures": []
+    },
+    "plane": {
+      "checks": [
+        "PASS plane locks to the presenter's 720p raster",
+        "PASS closed plane passes the presenter's picture unchanged",
+        "PASS plane reports the picture rectangle (160, 0, 960, 720)",
+        "PASS plane configured and enabled",
+        "PASS launcher frame 1 shown from slot 0",
+        "PASS alpha 128 over the picture: 0 pixels differ",
+        "PASS launcher frame 2 shown from slot 1",
+        "PASS alpha 255 over the picture: 0 pixels differ",
+        "PASS plane closed",
+        "PASS closed plane returns the picture unchanged",
+        "PASS no presenter or plane underflow, no plane fault (capture beats written: 3279152)"
+      ],
+      "failures": []
+    }
+  }
+}

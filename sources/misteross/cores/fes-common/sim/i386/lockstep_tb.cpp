@@ -1248,7 +1248,7 @@ constexpr uint32_t HANDLER = 0x800;  // 0000:0800
 void run_fault_case(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
                     Summary &summary, const std::string &label, const std::vector<uint8_t> &code, State state,
                     bool nested, uint32_t stack_address = 0, const std::array<uint8_t, 4> *stack_value = nullptr,
-                    int expected = 13) {
+                    int expected = 13, bool allow_divergences = false) {
     const uint32_t code_base = state.seg[fes_i386::SEG_CS].base + state.eip;
     std::vector<std::pair<uint32_t, uint8_t>> image;
     for (size_t i = 0; i < code.size(); ++i) image.emplace_back(code_base + uint32_t(i), code[i]);
@@ -1269,7 +1269,9 @@ void run_fault_case(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
     Mismatches out;
     Outcome outcome;
     try {
-        outcome = lockstep(oracle, bus, rtl, entries, Fields{}, 64, false, summary, out,
+        const std::vector<Entry> no_divergences;
+        const std::vector<Entry> &directed_entries = allow_divergences ? entries : no_divergences;
+        outcome = lockstep(oracle, bus, rtl, directed_entries, Fields{}, 64, false, summary, out,
                            code_base, code_base + uint32_t(code.size()));
     } catch (const std::exception &error) {
         out.add(label + ".oracle-error:" + error.what(), 0, 1);
@@ -1416,18 +1418,18 @@ void run_fault_regressions(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, c
     de.gpr[fes_i386::REG_EDX] = 0x8765;
     de.gpr[fes_i386::REG_EBX] = 0x4300;  // BL 0
     de.gpr[fes_i386::REG_ESI] = 0x300;
-    run_fault_case(oracle, bus, rtl, entries, summary, "div8-by-zero", {0xf6, 0xf3, 0xf4}, de, false, 0, nullptr, 0);
+    run_fault_case(oracle, bus, rtl, entries, summary, "div8-by-zero", {0xf6, 0xf3, 0xf4}, de, false, 0, nullptr, 0, true);
     // DIV BX: DX not below BX, so the quotient overflows.
-    run_fault_case(oracle, bus, rtl, entries, summary, "div16-overflow", {0xf7, 0xf3, 0xf4}, de, false, 0, nullptr, 0);
+    run_fault_case(oracle, bus, rtl, entries, summary, "div16-overflow", {0xf7, 0xf3, 0xf4}, de, false, 0, nullptr, 0, true);
     // DIV WORD [SI] by zero: its LOAD uop reads the operand too.
     const std::array<uint8_t, 4> zero = {0, 0, 0, 0};
     run_fault_case(oracle, bus, rtl, entries, summary, "div16-memory-zero", {0xf7, 0x34, 0xf4}, de, false, 0x300, &zero,
-                   0);
+                   0, true);
     // IDIV EBX: 87651234h:00001234h by 4300h overflows.
     run_fault_case(oracle, bus, rtl, entries, summary, "idiv32-overflow", {0x66, 0xf7, 0xfb, 0xf4}, de, false, 0,
-                   nullptr, 0);
+                   nullptr, 0, true);
     // AAM 0.
-    run_fault_case(oracle, bus, rtl, entries, summary, "aam-zero", {0xd4, 0x00, 0xf4}, de, false, 0, nullptr, 0);
+    run_fault_case(oracle, bus, rtl, entries, summary, "aam-zero", {0xd4, 0x00, 0xf4}, de, false, 0, nullptr, 0, true);
     // IDIV BL: AX -129 by 1. The 386EX divides AX's one's complement, 128,
     // so the quotient is 80h until the one the complement owes is added; it
     // overflows only when checked after that.
@@ -1435,7 +1437,7 @@ void run_fault_regressions(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, c
     exact.gpr[fes_i386::REG_EAX] = 0xff7f;
     exact.gpr[fes_i386::REG_EBX] = 0x0001;
     run_fault_case(oracle, bus, rtl, entries, summary, "idiv8-exact-overflow", {0xf6, 0xfb, 0xf4}, exact, false, 0,
-                   nullptr, 0);
+                   nullptr, 0, true);
 
     // ENTER 10Fh, 0 with SP 110h: its push of BP passes, and the check of
     // the final slot, at SP FFFFh, raises #SS with ESP and EBP unmoved.
