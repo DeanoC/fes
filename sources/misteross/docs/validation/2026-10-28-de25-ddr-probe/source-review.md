@@ -14,8 +14,8 @@ The inspected generated project is
 `4ab2472b0b22b64d8756fd7c6e83d117e794b214` with Quartus Prime Pro
 26.3.0 Build 114. Its SOF SHA-256 is
 `2d93db15c2a525a8416916fab8f7018f44488be27a2aaf7507324cdf7e8c663c`.
-All generated-source paths and line numbers below are relative to that project,
-not the new probe's future output.
+Unless a section explicitly names the newer probe producer, generated-source
+paths and line numbers below are relative to that project.
 
 The locked [Terasic revision B resource ZIP](https://dl2.terasic.com/resources/de25-nano/DE25-Nano_revB_v.1.0.0_ResourcePackage.zip)
 is SHA-256 `f79f0eff3b0f9d042fdb61ddcf43efec77b0ebc13248eea100b94e47a1189b66`;
@@ -178,7 +178,100 @@ path does not deliver AXI read errors to its client. A new probe must expose
 response status and verify propagation through its freshly generated
 interconnect/width adapter, or use an AXI path preserving RRESP/RLAST. An RTL
 bench that directly injects a response is insufficient to prove that generated
-path. These findings do not assert the new probe's as-yet-unreviewed mapping.
+path. The newer generated mapping is reviewed separately below.
+
+## Fresh probe path: source review and transport simulation
+
+The new generated project is `out/de25-ddr-probe-8f54e4f89e/project` in the
+`out/dev/de25-hps-interface` worktree, producer
+`8f54e4f89e5b12ae18df70c542bc5846d0452ce6`. This section does not relabel the
+older project or claim the in-progress Quartus compile has completed.
+Its `inputs.json` SHA-256 is
+`a49101da9b94c4c6289342415c647bbc3d73b9f6511a288535f34c05d49be27e`.
+
+The exact new interconnect is
+`qsys_top/altera_mm_interconnect_1920/synth/qsys_top_altera_mm_interconnect_1920_7nkwjpa.v`,
+SHA-256 `69fe13fb37b94747d4ba8f4d14b7d82c65f15a3afcc6fa7befbd0ddcf83c3c9d`.
+Lines `457,491` enable and export the probe translator's read response;
+`1041,1075` preserve it in the probe master agent. AXI RRESP passes through
+the translator at `697,741` and the AXI master agent at `1254`. The legacy
+debug master's separate response-disabled interface is not reused by the probe.
+The wrapper instantiation in `qsys_top/synth/qsys_top.v:143,831,865` retains
+the probe's two response bits.
+
+The command width adapter selects `PACKING=0`, `ENABLE_ADDRESS_ALIGNMENT=0`
+at interconnect lines `1838,1841`. Its generated implementation,
+`qsys_top/altera_merlin_width_adapter_1970/synth/qsys_top_altera_merlin_width_adapter_1970_o2ilxeq.sv:1986,2000–2004`,
+retains the byte address and incoming burst size. Its SHA-256 is
+`6df3e73567eeec8822f2f489203f3f33b807d3b0e62ce692840c8b801573f914`.
+These settings are consistent with narrow AXI reads on the 256-bit interface;
+the functional check below observes the actual requests.
+
+Executed from that worktree, after IP generation completed:
+
+```sh
+python3 sources/misteross/boards/de25nano/hps/interconnect_sim.py \
+  --project out/de25-ddr-probe-8f54e4f89e/project \
+  --output out/de25-ddr-interconnect-8f54e4f89e-03
+```
+
+The helper copies the generated QIP-selected RTL inputs and the actual copied
+probe/headers to a new private directory. A guarded wrapper instantiates the
+unchanged generated probe-to-AXI interconnect and the real probe; unrelated
+debug master inputs are inactive. Unknown port forms or master widths fail
+closed. Compilation uses two workers. It writes no producer-project files
+and checks source bytes again after simulation. Future runs require a new
+output directory. The test responder models AXI transport and address-specific
+lane data; it does not model MPFE, TBU/SMMU, firewall, EMIF or physical DDR.
+
+All ten cases passed under `/usr/bin/verilator`, version
+`5.032 2025-01-01 rev (Debian 5.032-1+b2)`:
+
+| Case | Returned 128-bit beats |
+| --- | ---: |
+| `aligned-single` | 1 |
+| `upper-half-single` | 1 |
+| `upper-half-odd-three` | 3 |
+| `aligned-odd-five` | 5 |
+| `upper-half-sixteen` | 16 |
+| `upper-half-seventeen` | 17 |
+| `4k-upper-half-tail` | 3 |
+| `4k-head-tail-nineteen` | 19 |
+| `slverr-upper-half` | 3 |
+| `decerr-aligned` | 3 |
+
+Every observed AXI request used `ARSIZE=4`: 16-byte narrow transfers on the
+256-bit bus. Per-request assertions check the entire AXI byte footprint stays
+inside the granted allocation and does not cross 4 KiB. The first case grants
+only 16 bytes; no widening to a 32-byte allocation footprint occurred. The
+upper-half and odd-length cases compare every returned word against its
+requested byte address, then check the real probe's accepted/completed byte
+counts, checksum and last-data lanes. AR backpressure and gaps in RVALID are
+exercised. No R-channel backpressure was observed. Both injected AXI error
+codes reach the probe through the generated path, set its response fault,
+prevent DONE and drain all three accepted beats. The cases do not test a reset
+or cancellation across this generated transport.
+
+The retained receipt is
+`out/de25-ddr-interconnect-8f54e4f89e-03/receipt.json`, SHA-256
+`e27005a6faa4f0fd013c51dbab5e96066b2ff0adfd63fd20987d681db1556b2b`.
+It records all 114 captured RTL/header input hashes, the frozen producer's
+input receipt, wrapper, compiler command, case-by-case AXI address/length/size
+traces and these execution identities:
+
+| Item | SHA-256 |
+| --- | --- |
+| Helper | `9a46249c89e57b660a73e1ea936470339330337b74dcb1435a1819bca4ddd243` |
+| C++ bench | `ccbe0f529b7b13e112b35a72dcc3e7cbd2e32ab4fe4611c62834f11b794ce701` |
+| Generated wrapper | `f6e2318ec0fb0639768af1309eb1fb9b8d8883e8d07edcc005171a15824b21da` |
+| Simulation executable | `a24aeeccb111aef4d4acdb1eeb843ad69a663a722e4218de7891ce41b95e90f0` |
+| Simulation log | `fc382b9be5e95ae40546479bc45c52dad43f8c15c66b925a217e2978e213c51f` |
+
+Two earlier helper setup attempts remain in private outputs ending `-01` and
+`-02`; they stopped before simulation while the source index was corrected to
+handle generated module declarations. The successful run above uses unchanged
+producer RTL. This is source-bound functional transport evidence only. It
+admits no physical bridge, DMA mapping, memory allocation or hardware use.
 
 ## Reviewed source SHA-256 identities
 

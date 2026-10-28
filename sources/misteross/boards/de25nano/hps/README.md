@@ -71,6 +71,20 @@ vendor lock, generated constants and integration script select the project.
 clears IP generation directories and regenerates the project IP. `build` then
 compiles with two CPU workers. Neither command programs a device or writes flash.
 
+After IP generation, test the actual generated 128-bit Avalon to 256-bit AXI
+transport with a fresh private simulation output:
+
+```sh
+python3 interconnect_sim.py --project /absolute/generated-hps/project \
+  --output /absolute/new-interconnect-simulation
+```
+
+The helper snapshots unchanged generated dependencies and records their hashes,
+the compiler command and per-case AXI traces. It checks narrow-read footprints,
+lane order, boundary splits and SLVERR/DECERR propagation using the real probe.
+It models the AXI responder, without the HPS, translation, firewall or physical
+DDR. Direct probe simulation covers cancellation/reset accounting separately.
+
 The mailbox occupies 32 bytes at relative peripheral-bridge offset `0x100a0`,
 after the vendor's existing system-ID and PIO blocks. All offsets below are
 relative to this endpoint:
