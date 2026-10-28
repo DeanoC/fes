@@ -1,7 +1,11 @@
 package tenfoot
 
 import (
+	"bytes"
+	"encoding/json"
 	"image"
+	"io"
+	"net/http"
 	"path/filepath"
 	"testing"
 	"time"
@@ -167,12 +171,36 @@ func TestKitRoomOverTheMachineIsAnOverlay(t *testing.T) {
 	session.CorePackage.ActiveInterfaces = session.CorePackage.ActiveInterfaces[1:]
 	session.CorePackage.MediaUnits = nil
 	_, app, _ := newSurroundKit(t, session)
+	// This is an adopted session, so the room identifies its active package
+	// independently of the library shelf before changing display focus.
+	client := *app.client.HTTPClient()
+	transport := client.Transport
+	if transport == nil {
+		transport = http.DefaultTransport
+	}
+	packageRead := make(chan struct{}, 1)
+	client.Transport = roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.Method == http.MethodGet && request.URL.Path == "/api/v1/core-packages/"+session.CorePackage.PackageID {
+			packageRead <- struct{}{}
+			body, _ := json.Marshal(map[string]any{"package_id": session.CorePackage.PackageID, "descriptor": map[string]any{"core": map[string]string{"id": "fes.spectrum"}}})
+			return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(bytes.NewReader(body)), ContentLength: int64(len(body))}, nil
+		}
+		return transport.RoundTrip(request)
+	})
+	app.mu.Lock()
+	app.client = NewClient(app.client.BaseURL(), &client)
+	app.mu.Unlock()
 	app.SetRooms(rooms.NewIndex([]rooms.Pack{testRoomPack(t, systemRoomID, overlayRoomScript)}), "")
 	waitFor(t, app, "surround", func(s Snapshot) bool { return s.Surround.Active })
 	app.HandleCommand(CmdHome, time.Now())
 	waitFor(t, app, "room overlay", func(s Snapshot) bool {
 		return s.Room.DuringPlay && s.Room.Frame.HasClear && s.Room.Frame.Clear == gfx.RGBA(0, 0, 0, 160)
 	})
+	select {
+	case <-packageRead:
+	default:
+		t.Fatal("adopted session opened its room without reading the active package")
+	}
 	app.mu.Lock()
 	app.sessionDisplayUncertain = true
 	uncertain := app.roomOverlayLocked()
