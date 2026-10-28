@@ -16,7 +16,10 @@ from typing import Mapping
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+_SCRIPT_DIRECTORY = str(Path(__file__).resolve().parent)
+if _SCRIPT_DIRECTORY not in sys.path:
+    # Keep test discovery ahead of these legacy top-level producer imports.
+    sys.path.append(_SCRIPT_DIRECTORY)
 
 from scripts import build_fes_pcxt as board
 from scripts.compiler_read_audit import guard_functional_source
