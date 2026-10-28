@@ -1314,6 +1314,17 @@ first playable.
 | M4 | Machine diagnostic shell on a kit: a development package where a mailbox-driven bus master stands in for the CPU and issues I/O and MMIO cycles | Hardware diagnostic: VGA modes captured from HDMI, OPL2 and DSP audio, a disk load and save round trip with the runtime, port 2 underflow counters at zero, load time measured | Before CPU Phase 3 |
 | M5 = CPU Phase 3 | The RTL CPU in the machine | FreeDOS boots in simulation with the RTL CPU; first sealed package; the four games pass the checks above on a kit, with both presets recorded | — |
 
+**M4 as built** ([README](../cores/fes-pc386/README.md#m4-diagnostic-shell)):
+the bus master takes its commands from a ring in the DDR window on port 0, not
+through the GP mailbox. During a package session the mailbox belongs to the
+runtime: its exchanges toggle one request bit and poison on a mismatch, so a
+second writer would break them, and `fes.computer` 1.0 has no opcode for
+arbitrary data. A raw development RBF would leave the mailbox free, but the
+runtime releases the DDR ports and brings up HDMI and audio only for an
+admitted package. Until M0 the shell serves the ATA image port from port 0 and
+the HPS writes the image into the window directly; the disk round trip with
+the runtime waits for the M0 contracts.
+
 After first playable: CPU Phase 5 brings JEMM386 and Wolfenstein 3D with EMS;
 CPU Phase 6 wires FERR to IRQ13 and port F0h. Machine follow-ups wait for a
 title: OPL3 and Sound Blaster Pro, floppy, game port, MT-32 over MIDI,
@@ -1366,8 +1377,9 @@ No decision is open.
 
 ## Location
 
-The machine RTL goes in `cores/fes-pc386/` with `fes_pc386_top` as the shell,
-beside the CPU in `cores/fes-common/rtl/i386/`. The opl2_fpga import goes in
+The machine RTL goes in `cores/fes-pc386/` with `rtl/top.sv` as the shell
+(module `top`, as every FES producer names it), beside the CPU in
+`cores/fes-common/rtl/i386/`. The opl2_fpga import goes in
 `cores/fes-pc386/vendor/`. The KF8259 and KF8253 imports and the DMA
 controller moved from `cores/fes-pcxt/` to `cores/fes-common/` with M1
 (`vendor/kf8259`, `vendor/kf8253`, `rtl/fes_dma8237.sv`), since two cores share

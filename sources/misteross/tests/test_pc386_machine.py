@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: MIT
-"""pc386 machine M1-M3: firmware/audio imports, boot reports, and directed
-device, audio, OPL2, presenter and port 2 benches. No network access; the
-oracle boot and VGA replay are separate suites."""
+"""pc386 machine M1-M4: firmware/audio imports, boot reports, directed
+device, audio, OPL2, presenter and port 2 benches, and the M4 diagnostic
+programs and producer inputs. No network access; the oracle boot and VGA
+replay are separate suites."""
 import hashlib
 import json
 import os
@@ -13,6 +14,8 @@ from unittest import mock
 
 from scripts import build_pc386_firmware as firmware
 from scripts import build_pc386_freedos_image as freedos
+from scripts import build_fes_pc386_oss as producer
+from scripts import pc386_diag
 from scripts import sim_fes_pc386 as sim
 
 VERILATOR = shutil.which(os.environ.get('VERILATOR', 'verilator'))
@@ -236,6 +239,34 @@ class PresenterBenchTest(unittest.TestCase):
     def test_plane_reads_through_port_2(self):
         report = self.bench('plane', 'plane_top', sim.PLANE_RTL, sim.CORE / 'sim/plane_tb.cpp')
         self.assertEqual(len(report['checks']), 11)
+
+
+class DiagnosticTest(unittest.TestCase):
+    def test_rates_at_100_mhz_are_the_machine_defaults(self):
+        rates = pc386_diag.rates(100_000_000)
+        expected = {'ISA': (1, 12), 'PIT': (21, 880), 'US': (1, 100), 'DMA': (1, 24), 'DOT0': (1007, 4000),
+                    'DOT1': (14161, 50000), 'OPL2': (7, 14080), 'AUDIO': (3, 6250)}
+        for name, pair in expected.items():
+            self.assertEqual((rates[f'{name}_N'], rates[f'{name}_D']), pair, name)
+        self.assertEqual(rates['RTC_N'] / rates['RTC_D'], 256 / 781250)
+        self.assertEqual(rates['ATA_RESET_CLOCKS'], 1000)
+        with self.assertRaises(pc386_diag.DiagError):
+            pc386_diag.rates(50_000_000)
+
+    def test_programs_round_trip(self):
+        for name in ('smoke', 'mode13', 'sound', 'opl2', 'ata'):
+            program = pc386_diag.build_program(name, producer.SYSTEM_CLOCK_HZ)
+            encoded = program.encode()
+            self.assertEqual(pc386_diag.decode_program(encoded).encode(), encoded, name)
+
+    def test_producer_builds_what_the_bench_simulates(self):
+        shell = {'pc386_system_pll.v', 'pixel_pll.v', 'fes_computer_mailbox.v', 'fes_audio_output.v',
+                 'fes_audio_i2s.v', 'fes_hps_ddr.v', 'fes_hps_ddr_guard.v', 'top.sv'}
+        built = [Path(path) for path in producer.RTL_SOURCES if Path(path).name not in shell]
+        self.assertEqual([sim.ROOT / path for path in built], list(sim.DIAG_RTL))
+        self.assertEqual(producer.SYSTEM_CLOCK_HZ, sim.DIAG_CLOCK_HZ)
+        for path in producer.PINNED_INPUTS:
+            self.assertTrue((sim.ROOT / path).is_file(), path)
 
 
 if __name__ == '__main__':

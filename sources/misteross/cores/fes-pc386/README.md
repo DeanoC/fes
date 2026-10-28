@@ -2,12 +2,13 @@
 
 The AT-class 386 PC of the [pc386 machine design](../../docs/pc386-machine-design.md),
 built around [`fes_i386_cpu`](../fes-common/rtl/i386/). This directory holds
-phases M1, M2 and M3: the AT core, the firmware build, the register-level VGA with
+phases M1 to M4: the AT core, the firmware build, the register-level VGA with
 its capture writer, the 720p presenter, the display plane on DDR port 2, and a
 simulation of the machine with the Bochs oracle standing in for the CPU. The
 speaker, OPL2, Sound Blaster 2.0 DSP and mixer are checked beside the AT core.
-There is no shell, package or kit evidence. Everything here is a host-only
-check, plus diagnostic synthesis.
+Phase M4 is the [diagnostic shell](#m4-diagnostic-shell): the machine without
+its CPU in a DE10-Nano package, `fes.pc386-diag`, where a bus master runs
+commands from the HPS DDR window in the CPU's place.
 
 ## Layout
 
@@ -32,6 +33,13 @@ check, plus diagnostic synthesis.
 | [`rtl/pc386_opl2.sv`](rtl/pc386_opl2.sv) | OPL2: the [opl2_fpga import](vendor/opl2_fpga/README.md) behind the AdLib port, with status, timers and the 49,715.9 Hz enable |
 | [`rtl/pc386_sb.sv`](rtl/pc386_sb.sv) | Sound Blaster 2.0 DSP, version 2.01: commands, DMA on channel 1, IRQ |
 | [`rtl/pc386_mixer.sv`](rtl/pc386_mixer.sv) | Box-filter resampler of speaker, OPL2 and DSP to 48 kHz, gains, DC blocker |
+| [`rtl/top.sv`](rtl/top.sv) | The M4 shell: PLLs, the `fes.computer` mailbox, HDMI I2C, `fes_hps_ddr`, 720p HDMI and I2S |
+| [`rtl/pc386_diag.sv`](rtl/pc386_diag.sv) | The machine and its audio with the bus master in the CPU's place; what the commands observe |
+| [`rtl/pc386_bus_master.sv`](rtl/pc386_bus_master.sv) | The CPU stand-in: the command ring on DDR port 0, guest RAM for the 8237, the ATA image |
+| [`rtl/pc386_system_pll.v`](rtl/pc386_system_pll.v) | The sealed system clock and the 12.288 MHz audio clock |
+| [`constraints-oss.qsf`](constraints-oss.qsf), [`toolchain.lock`](toolchain.lock) | Pins, and the core's lock (the i386 lock's pins) |
+| [`diagnostic/`](diagnostic/main.go) | `pc386-diag`, the kit tool that runs a diagnostic program through the ring |
+| [`sim/diag_tb.cpp`](sim/diag_tb.cpp) | `pc386_diag` with the DDR ports, running a diagnostic program as the kit tool does |
 | [`vendor/opl2_fpga/`](vendor/opl2_fpga/README.md) | The YM3812 import (LGPL-3.0), with the local changes that make it sample-exact |
 | [`vendor/nuked-opl3/`](vendor/nuked-opl3/README.md) | Nuked-OPL3 (LGPL-2.1), the OPL2 reference in simulation only |
 | [`firmware/`](firmware/) | Bochs ROM BIOS and LGPL VGABios sources, `source.json` manifests, `firmware.lock` |
@@ -68,6 +76,9 @@ python3 scripts/sim_fes_pc386.py --suite boot --download  # BIOS POST to the Fre
 python3 scripts/sim_fes_pc386.py --suite sound --download  # boot, then SOUND.COM; writes sound.wav
 python3 scripts/sim_fes_pc386.py --suite vga              # presenter, capture and plane benches, VGA test disk, replay
 python3 scripts/synth_fes_pc386.py --cache-root /abs/out/cache/misteross-toolchains  # machine-only synthesis
+python3 scripts/sim_fes_pc386.py --suite diag           # M4: the diagnostic programs on pc386_diag, about 1 min
+make toolchain-fes-pc386 CACHE_ROOT=/abs/out/cache/misteross-toolchains  # once per lock
+make build-fes-pc386-diag CACHE_ROOT=/abs/out/cache/misteross-toolchains # seal fes.pc386-diag (clean tree)
 ```
 
 The boot suite runs the locked BIOS and VGA BIOS on `pc386_machine`, boots the
@@ -209,10 +220,45 @@ as wires would; the machine top level will instantiate both.
   blink (attribute bit 3 in graphics modes), cursor skew, display enable skew,
   9-dot 256-colour modes.
 
+## M4 diagnostic shell
+
+`fes.pc386-diag` is a format-2 `fes.computer` 1.0 development package: fixed
+720p60 video, 48 kHz audio, HPS DDR and the session-display plane. The
+runtime loads it as any computer package, which brings up HDMI and audio and
+releases its DDR ports. It has no CPU and boots nothing by itself.
+
+- **Bus master.** [`pc386_bus_master`](rtl/pc386_bus_master.sv) stands in for
+  the CPU. It reads commands from a ring in the DDR window on port 0 (the
+  CPU's port in the full machine) and issues each on the machine's ports:
+  OUT, IN and polled IN, INTA and waits for INTR, MMIO reads and writes, fills
+  and copies between VRAM and DDR, delays, straps, a keyboard byte and the
+  machine's counters. Each result goes back to the window with the clocks the
+  command took. The GP mailbox stays the runtime's: its one-request
+  handshake has no room for a second writer.
+- **Memory.** The 8237's memory cycles read and write guest RAM at window
+  offset 64 MiB, and the ATA image port reads and writes the image at 128 MiB,
+  both on port 0. The HPS writes them through `/dev/mem`.
+- **Reset.** After each launch the machine stays in reset until a command
+  releases it, so the Sound Blaster and disk straps are set first.
+- **Clock.** The system clock is sealed at 61.44 MHz, a multiple of the
+  12.288 MHz audio clock and above twice the 28.322 MHz dot clock that the
+  scanout needs. [`scripts/pc386_diag.py`](../../scripts/pc386_diag.py)
+  `rates()` turns it into every guest time base's N/D; the producer and the
+  bench take them from there. The mixer's 48 kHz request is a rational
+  enable too; `fes_audio_output` carries the newest sample into the I2S clock.
+
+A diagnostic program is the command list plus what the host does between
+commands: stage bytes into the window, mark a point, dump window bytes, dump
+the newest capture. [`scripts/pc386_diag.py`](../../scripts/pc386_diag.py)
+writes the programs (smoke, mode 13h, sound, OPL2 phrase, ATA, and a replay of
+a VGA trace from the vga or boot suite) and checks results. `diag_tb` runs a
+program on `pc386_diag` with the DDR model; `pc386-diag run PROGRAM RESULTS`
+runs the same file on a kit while the package runs, and writes the same
+results file.
+
 ## Not built yet
 
 The HID nine-row keyboard model and typematic repeat; the `fes.mouse.relative`
-and `fes.computer` mailbox wiring (disk prepare, commit with CRC, freeze,
-DiskDirty read-out, persistence, wall clock, display plane commands); the ATA
-image on DDR port 2 (it keeps its own 64-bit image port); the shell and the
-producer (phases M4-M5).
+and `fes.computer` 1.1 mailbox wiring (disk prepare, commit with CRC, freeze,
+DiskDirty read-out, persistence, wall clock); the ATA image on DDR port 2 (the
+M4 shell serves the image port from port 0); the CPU in the shell (M5).
