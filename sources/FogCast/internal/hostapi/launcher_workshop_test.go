@@ -120,7 +120,7 @@ func TestWorkshopCoreSetupReadsAndPackageSelectionAreAdmitted(t *testing.T) {
 	t.Cleanup(server.Close)
 	client := pairedExpansionClient(server, launcherTokenB, launcherIDB)
 
-	setup, err := client.InstalledZX81Setup(context.Background(), packageID)
+	setup, err := client.InstalledCoreSetup(context.Background(), packageID)
 	if err != nil || setup.CoreID != "fes.zx81" || setup.PackageID != packageID || len(setup.ROMs) != 1 || setup.ROMs[0].ID != "machine-rom" {
 		t.Fatalf("installed ZX81 setup = %+v, %v", setup, err)
 	}
@@ -187,9 +187,10 @@ func TestLauncherAdmitsSetupRoomCoreEntryPost(t *testing.T) {
 	client := pairedExpansionClient(server, launcherTokenB, launcherIDB)
 	setup := hostclient.CoreSetup{
 		CoreReference: hostclient.CoreReference{CoreID: "fes.zx81", PackageID: pkg},
+		Descriptor:    corepackage.Descriptor{ABI: corepackage.Contract{ID: "fes.computer", Major: 1}},
 		ROMs:          []hostclient.SetupROM{{ID: "machine-rom", Role: "firmware", SourceSize: 8192, Binding: "entry"}},
 	}
-	entry, err := client.CreateInstalledZX81Entry(context.Background(), setup, "My Zx81", map[string]string{"machine-rom": rom})
+	entry, err := client.CreateInstalledCoreEntry(context.Background(), setup, "My Zx81", map[string]string{"machine-rom": rom}, "", "")
 	if err != nil || entry.GameID != "my-zx81" || entry.PackageID != pkg || entry.CoreID != "fes.zx81" {
 		t.Fatalf("create = %+v, %v", entry, err)
 	}

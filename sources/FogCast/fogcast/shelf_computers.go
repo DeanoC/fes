@@ -2,6 +2,7 @@ package fogcast
 
 import (
 	"context"
+	"sort"
 
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
@@ -20,9 +21,9 @@ type ShelfComputer struct {
 	UnavailableReason string `json:"unavailable_reason,omitempty"`
 }
 
-// ShelfComputers lists the prepared ZX81 and C64 library entries. Those
-// machines launch through the host catalog, so a kit image that only selected
-// the menu and a local shell would otherwise omit them from Home. One card
+// ShelfComputers lists prepared playable library cores. Those systems launch
+// through the host catalog, so a kit image that only selected the menu and a
+// local shell would otherwise omit them from Home. One card
 // per core: a ready bare machine wins over another title for the same core.
 func (s *Service) ShelfComputers(ctx context.Context) ([]ShelfComputer, error) {
 	entries, err := s.CoreEntries(ctx)
@@ -32,7 +33,7 @@ func (s *Service) ShelfComputers(ctx context.Context) ([]ShelfComputer, error) {
 	picked := make([]catalog.CoreEntry, 0)
 	ids := make([]string, 0)
 	for _, entry := range entries {
-		if entry.CoreID != "fes.zx81" && entry.CoreID != "fes.c64" {
+		if entry.CoreID == "fes.menu" {
 			continue
 		}
 		picked = append(picked, entry)
@@ -48,6 +49,9 @@ func (s *Service) ShelfComputers(ctx context.Context) ([]ShelfComputer, error) {
 	best := map[string]shelfCandidate{}
 	for _, entry := range picked {
 		inspection, inspectErr := s.installedCoreInspection(ctx, entry.PackageID)
+		if inspectErr == nil && !shelfPlayableABI(inspection.Descriptor.ABI) {
+			continue
+		}
 		packageReady := inspectErr == nil && inspection.Descriptor.Core.ID == entry.CoreID
 		ready := packageReady && shelfCompositionReady(comps[entry.GameID])
 		if ready {
@@ -70,12 +74,23 @@ func (s *Service) ShelfComputers(ctx context.Context) ([]ShelfComputer, error) {
 		}
 	}
 	out := make([]ShelfComputer, 0, len(best))
-	for _, id := range []string{"fes.c64", "fes.zx81"} {
-		if card, ok := best[id]; ok {
-			out = append(out, card.card)
-		}
+	for _, card := range best {
+		out = append(out, card.card)
 	}
+	sort.Slice(out, func(i, j int) bool { return out[i].CoreID < out[j].CoreID })
 	return out, nil
+}
+
+func shelfPlayableABI(abi corepackage.Contract) bool {
+	if abi.Major != 1 || abi.Minor != 0 {
+		return false
+	}
+	switch abi.ID {
+	case "fes.application", "fes.simple-game", "fes.simple-computer", "fes.computer":
+		return true
+	default:
+		return false
+	}
 }
 
 // shelfComputerLaunchReady checks launch admissions that are not represented

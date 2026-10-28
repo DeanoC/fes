@@ -271,6 +271,7 @@ func TestHardwareRoomReturnRefreshesProductionLua(t *testing.T) {
 	waitFor(t, app, "initial idle Start", func(s Snapshot) bool { return hasText(s, "Start machine") && hasText(s, "Next start: Empty socket") })
 	app.mu.Lock()
 	app.applySessionLocked(current)
+	app.games = []hostclient.Game{{ID: current.GameID, CoreID: "fes.zx81"}}
 	app.openPlayingHardwareRoomLocked()
 	app.mu.Unlock()
 	waitFor(t, app, "fresh running Stop", func(s Snapshot) bool { return hasText(s, "Stop machine") && !hasText(s, "Start machine") })

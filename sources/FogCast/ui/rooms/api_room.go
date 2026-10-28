@@ -39,6 +39,7 @@ func (r *Instance) installRoom() *lua.LTable {
 	t.RawSetString("live_controls", lua.LBool(!r.opts.SessionDisplayRequired))
 	t.RawSetString("overlay", lua.LBool(false))
 	t.RawSetString("initial_game_id", lua.LString(r.opts.InitialGameID))
+	t.RawSetString("initial_core_id", lua.LString(r.opts.InitialCoreID))
 	th := r.opts.Theme
 	colors := L.NewTable()
 	background := FormatHexColor(th.SofaBackground)
@@ -85,7 +86,7 @@ func (r *Instance) installRooms() *lua.LTable {
 				}
 			}
 			initialGameID := strings.TrimSpace(optString(L.OptTable(2, nil), "game_id"))
-			r.actions = append(r.actions, Action{Kind: ActionOpenRoom, RoomID: id, InitialGameID: initialGameID})
+			r.actions = append(r.actions, Action{Kind: ActionOpenRoom, RoomID: id, InitialGameID: initialGameID, InitialCoreID: strings.TrimSpace(optString(L.OptTable(2, nil), "core_id"))})
 			return 0
 		},
 		"back": func(L *lua.LState) int {

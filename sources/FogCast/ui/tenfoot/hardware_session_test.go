@@ -169,3 +169,27 @@ func TestHardwareStopSessionChangedAllowsFreshExplicitStop(t *testing.T) {
 		t.Fatal("new explicit Stop did not stop refreshed session")
 	}
 }
+
+// A previous Sinclair visit must not choose the setup controls for another
+// running core, or retain that core when a second session begins.
+func TestPlayingSystemRoomReplacesStaleWorkshopSelection(t *testing.T) {
+	app := NewApp(nil, 1280, 720, 20)
+	app.roomsIndex = rooms.NewIndex(rooms.Examples())
+	app.openRoomLocked(hardwareRoomID)
+	app.session = hardwareBoundSession()
+	app.session.GameID = "coleco-game"
+	app.games = []hostclient.Game{{ID: "coleco-game", CoreID: "fes.coleco"}}
+	app.openPlayingHardwareRoomLocked()
+	if app.room == nil || app.room.ID() != systemRoomID || !app.roomDuringPlay || app.session.GameID != "coleco-game" || app.session.CorePackage.Generation != 9 {
+		t.Fatalf("wrong active room or changed session: room=%v session=%+v", app.room, app.session)
+	}
+	prior := app.room
+	app.session.GameID = "spectrum-game"
+	app.games = []hostclient.Game{{ID: "spectrum-game", CoreID: "fes.spectrum"}}
+	app.roomDuringPlay = false
+	app.openPlayingHardwareRoomLocked()
+	if app.room == nil || app.room.ID() != systemRoomID || app.room == prior {
+		t.Fatal("reused the previous system selection")
+	}
+	app.closeAllRoomsLocked()
+}

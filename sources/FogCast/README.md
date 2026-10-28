@@ -37,13 +37,19 @@ and content selection; the MiSTer is a small, directly controlled target.
   [library video preferences](docs/ARCHITECTURE.md#library-video-preferences) and
   [developer parts](docs/ARCHITECTURE.md#developer-video-parts).
 
-- The tenfoot **Settings → Systems** overlay browses the configured published
-  core catalog, installs packages and creates normal library games from their
-  manifest-declared ROM requirements. Gamepad, keyboard and pointer navigation
-  use the existing file picker and on-screen keyboard. BIOS replacement is an
-  explicit household action. Cached systems remain browsable when the host is
-  unavailable; setup requires an online catalog. See
-  [guided core setup](docs/core-package-library.md#tenfoot-guided-core-setup).
+- The tenfoot **Systems** room lists prepared playable systems, models and
+  editions. **Set up** opens the selected workbench; **Add system** remains
+  available with an empty library. The shared **System workbench** chooses
+  installed package versions and sealed ROMs, saves declared media for the next
+  start, and imports/selects expansion cards using the package's real sockets.
+  Installed-package setup needs no published catalogue. **Settings → Systems**
+  and **Browse published systems** also install and set up published packages.
+  Gamepad, keyboard and pointer use the existing file picker and on-screen
+  keyboard; BIOS replacement is explicit. ZX81 keeps its specialist expansion
+  shelf and starter cassettes. Live media controls follow the active package's
+  capabilities and preserve the running session. These software paths do not
+  establish hardware acceptance. See [system workbenches](../../docs/hardware-rooms.md)
+  and [guided core setup](docs/core-package-library.md#tenfoot-guided-core-setup).
 
 - Library `fes.computer` 1.0 packages (`fes.apple2`, `fes.c64`,
   `fes.spectrum` and `fes.atari-st`) launch as ordinary `fpga_native` sessions. A format-3
@@ -243,13 +249,13 @@ and content selection; the MiSTer is a small, directly controlled target.
   does not start a new wait. The next present after a wait is submitted. The menu-display backend takes no kit lease and only
   talks to the runtime menu socket; the tenfoot app keeps its existing host
   session client and existing status reads (for example the kit-lease status
-  read). With a running ZX81 that advertises the session display and HPS DDR
-  interfaces, Home or Select opens the hardware room on the same HDMI output.
-  An unchanged workshop setup reuses the last presented frame. Its first
-  picture is built over several frames so a cold open stays inside the draw
-  budget. Live cassette
-  replace/eject preserves the core generation and RAM. Other
-  packages keep prelaunch controls. Opening/closing is a leased host session
+  read). With an active package that supports session display and removable
+  media, Home or Select opens the live media picker on the same HDMI output.
+  A host window opens the active system's workbench. An unchanged workbench
+  reuses the last presented frame; its first picture is built over several
+  frames to keep cold draws bounded. Supported live media replace/eject keeps
+  the core generation and RAM. Packages without the required active interfaces
+  retain prelaunch controls. Opening/closing is a leased host session
   operation; frame submission stays on the local runtime socket. Host tests cover the backend. This renderer is the only kit UI: the
   base-image supervisor starts it with `-config` naming `launcher.json`, from
   which tenfoot reads the kit API URL, launcher bearer, and target ID.

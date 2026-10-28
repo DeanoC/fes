@@ -1050,20 +1050,34 @@ reply is ambiguous, Tenfoot reads the saved entry: the requested package
 confirms the selection, the old package keeps retry available, and a different
 package reports a conflict without overwriting it.
 
-The embedded **Computers** room (`example.computers`) lists prepared ZX81 (`fes.zx81`) and Commodore 64 (`fes.c64`) library entries and launches the focused row through `session.launch`. A row appears when that entry is already launch-eligible. Variant rows come from grouped editions. Expansion rows come from an existing `expansion_id` or `slot_expansions` value on that entry. The room adds no sockets, cards, or another machine family. The ZX81 workbench remains the ZX81 setup room. **Set up** opens `example.hardware` for a ZX81 row and `example.c64` for a
-Commodore 64 row, passing the selected game ID through `rooms.open` as the child
-room's `room.initial_game_id`. Each workbench selects that entry for the visit;
-the ZX81 workbench falls back to the active or first available setup if that
-entry is absent, and later refreshes fall back if its current setup disappears.
-Direct room opens continue to restore saved navigation. The Commodore 64 room
-queries up to 2,000 rows filtered to `fes.c64`; when the selected ID falls
-beyond that result it resolves the ID directly, and if the title is gone it
-keeps the other entries available. The room shows the entry's edition, saved
-sockets, and saved `.d64`. It starts through `session.launch` and opens the live
-disk picker only while that entry is running. A failed hardware refresh clears
-the observed live session and disables the session controls until a later read
-succeeds. Launcher session-state changes invalidate the cached hardware session,
-request a fresh hardware read, and force the controls and Running label to redraw.
+The embedded **Systems** room (`example.computers`) lists prepared playable
+library systems and their grouped editions. Confirm uses `session.launch`.
+**Set up** opens the selected entry's workbench with `room.initial_game_id`
+and `room.initial_core_id`; an empty library offers **Add system**. ZX81-family
+entries retain `example.hardware`; Commodore 64 uses `example.c64`, a configured
+entrypoint for the shared `widgets.system_workbench` implementation.
+`example.system` exposes that implementation for every registered playable
+system and model, including the Spectrum models, Apple II, Atari ST, consoles,
+ROM-less games and utilities.
+
+The shared workbench chooses a system/model, saved entry and grouped edition.
+It resolves an explicitly selected entry directly if it falls outside the
+filtered library query. **Set up system** reads installed package versions and
+sealed ROM requirements without needing publication; the same overlay also
+links to published installation/setup. **Media for next start** reads package
+capabilities and saves the selected role with package/media compare-and-swap.
+**Expansion sockets** reads the package's declared physical topology and saved
+slot choices. Exact-package/socket archive import and fitting are separate;
+selection checks the previous card. Library metadata shows selected cards
+without inventing topology from the system label. Resume rereads both library
+entries and hardware while retaining the chosen entry/edition.
+
+Live media, Stop and Return to play use the captured active session. A failed
+hardware refresh disables live controls until a later read succeeds. The kit
+opens a supported live picker directly; a host window selects the active
+system's workbench. Active package interfaces determine which live media and
+display controls are available. These host/UI paths do not rebuild or accept
+core artifacts on hardware.
 
 Rooms access this projection through optional typed `rooms.HardwareServices`
 and `hostclient`, without arbitrary Lua networking. A room visited while
@@ -2482,10 +2496,10 @@ conflict responses, and unexpected storage failures remain internal errors.
 Malformed archives or incompatible compositions are rejected as admission
 errors.
 
-### FES Home computer shelf
+### FES Home system shelf
 
 The embedded `example.fes-cores` Home room combines the kit-local package
-list from `kit.cores` with the host library's ZX81 and C64 entries from
+list from `kit.cores` with prepared host-library systems from
 `hardware.read`. Each host card publishes its library `game_id` and launches
 through the library path; a ready host card replaces a blocked local row for
 the same core, while a launchable local row stays selected. Host readiness
@@ -3406,8 +3420,16 @@ lock overlay mutation and use bounded contexts; failed refresh retains cached
 rows with setup disabled. App/renderer snapshots copy row data and pointer hit
 routing gives the systems overlay priority over room/catalog widgets.
 
-The Sinclair ZX81 room reuses that overlay for local installed-package/ROM setup,
-expansion import and prelaunch cassette selection. The picker saves a `.p`
+The general system workbench reuses that overlay for installed-package setup,
+sealed ROM selection and prelaunch media; catalogue setup also exposes declared
+cassette roles. Required linked cartridge ROMs satisfy their package's startup
+media requirement. The media picker checks declared format/size limits, and
+launch retains the ordinary conversion and package admission checks. Setup
+retains existing package, ROM and media choices on retry; it does not overwrite
+a conflicting saved entry.
+
+The Sinclair ZX81 room retains its local package/ROM setup, specialist expansion
+import and prelaunch cassette selection. The picker saves a `.p`
 selection as the role that package declares: `cassette` for `fes.media.zx81-tape`,
 and `blob` for a legacy `fes.media.blob` package. Installed setup uses existing
 package/library/ROM endpoints independently of publication. Media selection

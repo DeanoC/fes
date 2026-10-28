@@ -1,0 +1,10 @@
+id = "example.system"
+title = "System workbench"
+author = "FES"
+description = "Set up a system, choose a model, edition, media and expansion cards, then play."
+version = 1
+main = "main.lua"
+
+[theme]
+background = "#eee8dc"
+accent = "#235A46"

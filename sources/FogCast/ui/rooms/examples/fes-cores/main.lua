@@ -1,7 +1,7 @@
 -- FES Home on a kit: the Cartridge Lounge layout over installed cores.
 --
 -- The shelf lists what kit.cores reports, names verbatim, then adds the
--- host catalog's ZX81 and C64 computers when hardware.read provides them.
+-- host catalog's prepared systems when hardware.read provides them.
 -- Those cards launch with the library, and they do not draw a keyboard. The
 -- host list is still read when the kit-local listing fails.
 -- FES draws the selected item's title, input needs, readiness, destination and actions

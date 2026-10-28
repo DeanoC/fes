@@ -29,6 +29,8 @@ type coreLibraryState struct {
 	HardwareGameID, HardwarePackageID                      string
 	ExpectedMediaID                                        string
 	InstalledSetup                                         bool
+	SetupFamilyPicker                                      bool
+	SystemExpansions                                       systemExpansionState
 	ExpansionFamily                                        int
 	Tapes                                                  []hostclient.HardwareTape
 }
@@ -38,6 +40,12 @@ func (a *App) coreLibraryRowsLocked() []FirmwarePickerRow {
 	if s.PickID != "" {
 		return s.Files
 	}
+	if s.HardwareMode == "system-media" {
+		return a.systemMediaRowsLocked()
+	}
+	if s.HardwareMode == "system-expansions" {
+		return a.systemExpansionRowsLocked()
+	}
 	if s.HardwareMode != "" {
 		return a.hardwarePickerRowsLocked()
 	}
@@ -46,7 +54,7 @@ func (a *App) coreLibraryRowsLocked() []FirmwarePickerRow {
 		rows = append(rows, FirmwarePickerRow{Name: name, Kind: kind, Selectable: true})
 	}
 	if s.Ref == nil {
-		if s.InstalledSetup && s.FilterCoreID == "" {
+		if s.InstalledSetup && s.SetupFamilyPicker && s.FilterCoreID == "" {
 			for _, variant := range zx81family.Variants() {
 				add(variant.Label+" · "+variant.Detail, "variant:"+variant.CoreID)
 			}
@@ -85,9 +93,6 @@ func (a *App) coreLibraryRowsLocked() []FirmwarePickerRow {
 	}
 	blankDisk := false
 	for _, m := range s.Setup.Capabilities.Media {
-		if s.InstalledSetup {
-			continue
-		}
 		if m.Role == protocol.DiskRole && m.Format == "atari-st-floppy" && !blankDisk {
 			blankDisk = true
 			status := "720 KiB"
@@ -96,7 +101,7 @@ func (a *App) coreLibraryRowsLocked() []FirmwarePickerRow {
 			}
 			add("Blank disk · "+status, "blank-disk")
 		}
-		if m.Role == "blob" || m.Role == "disk" {
+		if m.Role == "blob" || m.Role == "disk" || m.Role == protocol.CassetteRole {
 			status := "choose file"
 			if s.MediaRole == m.Role && s.MediaID != "" {
 				status = "selected"
@@ -104,7 +109,7 @@ func (a *App) coreLibraryRowsLocked() []FirmwarePickerRow {
 			if m.Role == "blob" && protocol.RequiresCoreMedia(s.Setup.Descriptor) {
 				status = "required · " + status
 			}
-			add(m.Role+" · "+status, "media:"+m.Role)
+			add(mediaCapabilityLabel(m)+" · "+status, "media:"+m.Role)
 		}
 	}
 	add("Title · "+s.Title, "title")
@@ -117,6 +122,12 @@ func (a *App) coreLibrarySnapshotLocked() FirmwarePickerSnapshot {
 		return FirmwarePickerSnapshot{}
 	}
 	title := "Systems"
+	if s.HardwareMode == "system-media" {
+		title = "Media for next start"
+	}
+	if s.HardwareMode == "system-expansions" {
+		title = "Expansion for next start"
+	}
 	if s.HardwareMode == "tapes" {
 		title = "Cassette for next start"
 	}
@@ -128,6 +139,8 @@ func (a *App) coreLibrarySnapshotLocked() FirmwarePickerSnapshot {
 			title = "ZX81 family"
 		} else if variant, ok := zx81family.ByID(s.FilterCoreID); ok {
 			title = variant.Label
+		} else {
+			title = s.FilterCoreID
 		}
 	}
 	if s.Ref != nil {
@@ -155,6 +168,7 @@ func (a *App) resetCoreLibraryLocked() {
 	a.closeFirmwarePickerLocked()
 	a.closeTapePickerLocked()
 	a.coreLibrary.InstalledSetup = false
+	a.coreLibrary.SetupFamilyPicker = false
 	a.coreLibrary.HardwareMode = ""
 	a.coreLibrary.FilterCoreID = ""
 	a.coreLibrary.Open = true
@@ -219,7 +233,7 @@ func (a *App) loadCoreSetupLocked(install bool) {
 		}
 		var err error
 		if installedSetup {
-			setup, err = a.client.InstalledZX81Setup(ctx, ref.PackageID)
+			setup, err = a.client.InstalledCoreSetup(ctx, ref.PackageID)
 		} else {
 			setup, err = a.client.CoreSetup(ctx, ref.SourceID, ref.CoreID, ref.PackageID)
 		}
@@ -275,7 +289,7 @@ func (a *App) handleCoreLibraryLocked(cmd Command) {
 			s.Index = 0
 			return
 		}
-		if s.InstalledSetup && s.FilterCoreID != "" {
+		if s.InstalledSetup && s.SetupFamilyPicker && s.FilterCoreID != "" {
 			s.FilterCoreID = ""
 			s.Index = 0
 			s.Online = true
@@ -314,6 +328,14 @@ func (a *App) handleCoreLibraryLocked(cmd Command) {
 		a.coreLibraryFileLocked(row)
 		return
 	}
+	if s.HardwareMode == "system-media" {
+		a.handleSystemMediaLocked(row)
+		return
+	}
+	if s.HardwareMode == "system-expansions" {
+		a.handleSystemExpansionLocked(row)
+		return
+	}
 	if s.HardwareMode != "" {
 		a.handleHardwarePickerLocked(row)
 		return
@@ -333,12 +355,12 @@ func (a *App) handleCoreLibraryLocked(cmd Command) {
 		}
 		s.FilterCoreID = id
 		s.Index = 0
-		a.refreshInstalledZX81Locked()
+		a.refreshInstalledCoreSetupLocked()
 		return
 	}
 	if row.Kind == "refresh" {
 		if s.InstalledSetup {
-			a.refreshInstalledZX81Locked()
+			a.refreshInstalledCoreSetupLocked()
 			return
 		}
 		a.refreshCoreLibraryLocked()
@@ -469,6 +491,14 @@ func (a *App) submitCoreLibraryOSKLocked() {
 }
 func (a *App) importCoreLibraryFileLocked(path string) {
 	s := &a.coreLibrary
+	if s.HardwareMode == "system-media" {
+		a.importSystemMediaLocked(path)
+		return
+	}
+	if s.HardwareMode == "system-expansions" {
+		a.importSystemExpansionLocked(path)
+		return
+	}
 	if s.HardwareMode != "" {
 		a.importHardwareFileLocked(path)
 		return
@@ -478,6 +508,7 @@ func (a *App) importCoreLibraryFileLocked(path string) {
 		return
 	}
 	pick := s.PickID
+	capabilities := append([]protocol.CoreMediaCapability(nil), s.Setup.Capabilities.Media...)
 	min, max := int64(0), int64(0)
 	for _, r := range s.Setup.ROMs {
 		if pick == "rom:"+r.ID {
@@ -498,13 +529,20 @@ func (a *App) importCoreLibraryFileLocked(path string) {
 	manager := a.driveManagerLocked()
 	var media hostclient.CoreMedia
 	a.coreLibraryAsyncLocked(func(ctx context.Context) error {
-		f, size, _, err := openPickerFile(ctx, manager, a.client, path, storage.MaxFileBytes)
+		f, size, name, err := openPickerFile(ctx, manager, a.client, path, storage.MaxFileBytes)
 		if err != nil {
 			return err
 		}
 		defer f.Close()
 		if size < min || size > max {
 			return fmt.Errorf("Choose a regular file of %d–%d bytes", min, max)
+		}
+		if strings.HasPrefix(pick, "media:") {
+			for _, cap := range capabilities {
+				if pick == "media:"+cap.Role && !admitSetupMedia(cap, name, size) {
+					return fmt.Errorf("Choose %s of %d–%d bytes", mediaCapabilityLabel(cap), cap.MinBytes, cap.MaxBytes)
+				}
+			}
 		}
 		media, err = a.client.ImportCoreMedia(ctx, size, f)
 		return err
@@ -548,7 +586,7 @@ func (a *App) createCoreLibraryGameLocked() {
 		s.Status = "Enter a game title."
 		return
 	}
-	if protocol.RequiresCoreMedia(s.Setup.Descriptor) && (s.MediaRole != "blob" || s.MediaID == "") {
+	if protocol.RequiresCoreMedia(s.Setup.Descriptor) && !(s.Setup.Descriptor.ROM != nil && s.Setup.Descriptor.ROM.Role == "cartridge") && (s.MediaRole != "blob" || s.MediaID == "") {
 		s.Status = "Choose required blob media."
 		return
 	}
@@ -569,7 +607,7 @@ func (a *App) createCoreLibraryGameLocked() {
 	req := hostclient.CoreSetupRequest{CoreReference: *s.Ref, Title: s.Title, ROMs: roms, MediaRole: s.MediaRole, MediaID: s.MediaID}
 	a.coreLibraryAsyncLocked(func(ctx context.Context) error {
 		if installedSetup {
-			_, err := a.client.CreateInstalledZX81Entry(ctx, setup, req.Title, roms)
+			_, err := a.client.CreateInstalledCoreEntry(ctx, setup, req.Title, roms, req.MediaRole, req.MediaID)
 			return err
 		}
 		_, err := a.client.CreateCoreSetupEntry(ctx, req)
@@ -577,7 +615,7 @@ func (a *App) createCoreLibraryGameLocked() {
 	}, func() {
 		s.Status = "Game added to the library. Launch checks readiness and executor compatibility."
 		if installedSetup {
-			s.Status = "Setup added. Back returns to the room; choose a cassette before starting."
+			s.Status = "Setup added. Back returns to the room. Media and expansions are saved for the next start."
 			if a.room != nil {
 				a.room.Resume()
 			}

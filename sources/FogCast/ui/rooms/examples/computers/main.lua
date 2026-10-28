@@ -1,8 +1,5 @@
--- Computers: prepared ZX81 and Commodore 64 library entries.
--- Confirm stays here and calls session.launch. Set up opens that row's
--- workbench: the ZX81 workbench or the Commodore 64 setup room.
--- This room does not publish a destination or name hardware the library
--- did not return.
+-- Prepared systems launch through the ordinary library. Set up opens the
+-- selected system's workbench, including models and saved-media controls.
 local List = require "widgets.list"
 local color = require "util.color"
 
@@ -14,12 +11,12 @@ local PLATE = "#1C2420"
 local INK = "#F0F4F1"
 local FOCUS_INK = "#141916"
 local STATUS = "#C5D4CB"
-local MACHINES = {
-  ["fes.zx81"] = "ZX81",
-  ["fes.c64"] = "Commodore 64",
-}
+local systems = require "systems"
 local SETUP = {
   ["fes.zx81"] = "example.hardware",
+  ["fes.zx80"] = "example.hardware",
+  ["fes.ts1000"] = "example.hardware",
+  ["fes.ts1500"] = "example.hardware",
   ["fes.c64"] = "example.c64",
 }
 local focus = "list"
@@ -31,7 +28,8 @@ local load_err
 
 local function machine_of(g)
   if type(g) ~= "table" then return nil end
-  return MACHINES[g.core_id or ""]
+  local value = systems.by_id[g.core_id or ""]
+  return value and value.label or nil
 end
 
 local function short_id(id)
@@ -153,19 +151,18 @@ local function launch_selected()
 end
 
 local function open_setup()
-  if not list then return false end
+  if not list or not list:selected() then rooms.open("example.system") return true end
   local item = list:selected()
   if type(item) ~= "table" then return false end
-  local room_id = SETUP[item.core_id or ""]
-  if not room_id then return false end
-  rooms.open(room_id, { game_id = item.id })
+  local room_id = SETUP[item.core_id or ""] or "example.system"
+  rooms.open(room_id, { game_id = item.id, core_id = item.core_id })
   return true
 end
 
 function load()
   library.query({
     platform = "fpga",
-    core_ids = { "fes.zx81", "fes.c64" },
+    core_ids = systems.ids,
     sort = "title",
     limit = 2000,
   }, function(games, err)
@@ -189,7 +186,7 @@ function on_input(cmd)
     if cmd == "right" then return true end
     return false
   end
-  if cmd == "right" and rows and #rows > 0 then
+  if cmd == "right" then
     focus = "setup"
     return true
   end
@@ -218,22 +215,22 @@ function draw()
   gfx.clear(room.theme.background)
   gfx.rect(0, 0, room.width, 112, color.shade(room.theme.background, 0.7))
   gfx.rect(0, 112, room.width, 4, room.theme.accent)
-  gfx.text("Computers", 64, 28, { size = 40, bold = true, color = room.theme.accent })
+  gfx.text("Systems", 64, 28, { size = 40, bold = true, color = room.theme.accent })
   local note = status
   if load_err then
     note = load_err
   elseif rows and #rows == 0 and status == "" then
-    note = "No prepared ZX81 or Commodore 64 entries yet."
+    note = "No prepared systems yet. Add a system to get started."
   elseif rows and #rows > 0 and status == "" then
     note = "Confirm starts. Set up opens its workbench."
   end
   gfx.text(note, 64, 76, { size = 16, color = STATUS })
-  if rows and #rows > 0 then
+  do
     local x, y, w, h = 980, 24, 180, 48
     local fill = focus == "setup" and room.theme.accent or PLATE
     local ink = focus == "setup" and FOCUS_INK or INK
     gfx.rect(x, y, w, h, fill)
-    gfx.text("Set up", x + 16, y + 12, { size = 22, color = ink, bold = focus == "setup" })
+    gfx.text(rows and #rows > 0 and "Set up" or "Add system", x + 16, y + 12, { size = 22, color = ink, bold = focus == "setup" })
     gfx.hit("setup", x, y, w, h)
   end
   if list then

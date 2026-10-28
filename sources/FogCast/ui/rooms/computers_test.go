@@ -18,9 +18,9 @@ func preparedComputer(id, title, coreID string) hostclient.Game {
 	}
 }
 
-func TestComputersRoomListsPreparedZX81AndC64(t *testing.T) {
+func TestSystemsRoomListsPreparedWorkingFamilies(t *testing.T) {
 	pack := examplePack(t, "example.computers")
-	if !pack.Valid() || pack.Title != "Computers" {
+	if !pack.Valid() || pack.Title != "Systems" {
 		t.Fatalf("pack %+v", pack.Manifest)
 	}
 	expansion := strings.Repeat("ab", 32)
@@ -61,7 +61,7 @@ func TestComputersRoomListsPreparedZX81AndC64(t *testing.T) {
 			t.Fatalf("frame missing %q\n%s", want, text)
 		}
 	}
-	for _, absent := range []string{expansion, slotID, "Bare ZX81", "FES Pong", "Apple II", "Donkey Kong", "16K", "REU", "Zon X"} {
+	for _, absent := range []string{expansion, slotID, "Bare ZX81", "0000 unrelated", "16K", "REU", "Zon X"} {
 		if strings.Contains(text, absent) {
 			t.Fatalf("frame includes %q\n%s", absent, text)
 		}
@@ -71,7 +71,7 @@ func TestComputersRoomListsPreparedZX81AndC64(t *testing.T) {
 	}
 	assertRowContrast(t, frame)
 	queries := svc.recorded()
-	if len(queries) != 1 || queries[0].Platform != "fpga" || queries[0].Sort != "title" || len(queries[0].CoreIDs) != 2 || queries[0].CoreIDs[0] != "fes.zx81" || queries[0].CoreIDs[1] != "fes.c64" {
+	if len(queries) != 1 || queries[0].Platform != "fpga" || queries[0].Sort != "title" || len(queries[0].CoreIDs) != 18 {
 		t.Fatalf("queries %+v", queries)
 	}
 	if got := r.Destination(); got.Kind != "" || got.GameID != "" {
@@ -152,7 +152,7 @@ func TestComputersRoomEmptyLibraryDoesNotLaunch(t *testing.T) {
 		t.Fatal(err)
 	}
 	frame := stepUntil(t, r, func(f Frame) bool {
-		return strings.Contains(frameText(f), "No prepared ZX81 or Commodore 64 entries yet.")
+		return strings.Contains(frameText(f), "No prepared systems yet. Add a system to get started.")
 	})
 	if len(frame.Ops) >= 80 {
 		t.Fatalf("empty computers draw used %d ops", len(frame.Ops))
@@ -163,8 +163,12 @@ func TestComputersRoomEmptyLibraryDoesNotLaunch(t *testing.T) {
 	if acts := r.TakeActions(); len(acts) != 0 {
 		t.Fatalf("empty select launched %+v", acts)
 	}
-	if strings.Contains(frameText(frame), "Set up") {
-		t.Fatal("empty shelf offered Set up")
+	if !strings.Contains(frameText(frame), "Add system") {
+		t.Fatal("empty shelf did not offer setup")
+	}
+	r.Input("select")
+	if acts := r.TakeActions(); len(acts) != 1 || acts[0].Kind != ActionOpenRoom || acts[0].RoomID != "example.system" {
+		t.Fatalf("empty setup %+v", acts)
 	}
 	if r.Err() != nil {
 		t.Fatal(r.Err())

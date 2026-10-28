@@ -25,10 +25,11 @@ func TestZX81SetupRoomPicksAVariantThenItsPackages(t *testing.T) {
 		case "/api/v1/core-packages/" + zx80:
 			json.NewEncoder(w).Encode(map[string]any{"package_id": zx80, "descriptor": map[string]any{
 				"core": map[string]string{"id": "fes.zx80", "name": "ZX80", "version": "0.1.0"},
+				"abi":  map[string]any{"id": "fes.computer", "major": 1},
 				"rom":  map[string]any{"id": "zx80-rom", "role": "firmware", "source_size": 4096},
 			}})
 		case "/api/v1/core-packages/" + zx80 + "/media-capabilities":
-			json.NewEncoder(w).Encode(map[string]any{"media": []any{}})
+			json.NewEncoder(w).Encode(map[string]any{"package_id": zx80, "media": []any{}})
 		case "/api/v1/core-catalog":
 			json.NewEncoder(w).Encode(map[string]any{"cores": []any{map[string]any{
 				"source_id": "pub", "core_id": "fes.zx80", "package_id": zx80,
@@ -43,7 +44,7 @@ func TestZX81SetupRoomPicksAVariantThenItsPackages(t *testing.T) {
 	a := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
 	a.ctx = context.Background()
 	a.mu.Lock()
-	a.openZX81SetupLocked()
+	a.openInstalledCoreSetupLocked("")
 	snap := a.coreLibrarySnapshotLocked()
 	if snap.Title != "ZX81 family" || len(snap.Rows) != 4 {
 		t.Fatalf("variant list %+v", snap)
@@ -104,7 +105,7 @@ func TestZX81SetupRoomPicksAVariantThenItsPackages(t *testing.T) {
 		t.Fatal("back from the variant list stayed open")
 	}
 
-	a.openZX81SetupLocked()
+	a.openInstalledCoreSetupLocked("")
 	a.coreLibrary.Index = 1
 	a.handleCoreLibraryLocked(CmdSelect)
 	a.mu.Unlock()

@@ -656,7 +656,7 @@ func (h *tapeHost) sessionJSON() string {
 }
 
 func (h *tapeHost) zx81() hostclient.Game {
-	return hostclient.Game{ID: "fpga-zx81", Title: "ZX81", System: "fpga", State: "available", RootOnline: true, Launchable: true}
+	return hostclient.Game{ID: "fpga-zx81", CoreID: "fes.zx81", Title: "ZX81", System: "fpga", State: "available", RootOnline: true, Launchable: true}
 }
 
 func (h *tapeHost) importCount() int {

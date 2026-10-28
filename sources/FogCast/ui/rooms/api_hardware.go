@@ -22,7 +22,19 @@ func (r *Instance) installHardware() *lua.LTable {
 	L := r.L
 	t := L.NewTable()
 	L.SetFuncs(t, map[string]lua.LGFunction{
-		"setup": func(L *lua.LState) int { r.actions = append(r.actions, Action{Kind: ActionHardwareSetup}); return 0 },
+		"open_expansions": r.openSystemExpansions,
+		"setup": func(L *lua.LState) int {
+			coreID := ""
+			if opts, ok := L.Get(1).(*lua.LTable); ok {
+				coreID = optString(opts, "core_id")
+			}
+			r.actions = append(r.actions, Action{Kind: ActionHardwareSetup, CoreID: coreID})
+			return 0
+		},
+		"open_media": func(L *lua.LState) int {
+			r.actions = append(r.actions, hardwareSetupAction(L, ActionHardwareMedia))
+			return 0
+		},
 		"open_tapes": func(L *lua.LState) int {
 			r.actions = append(r.actions, hardwareSetupAction(L, ActionHardwareTapes))
 			return 0
@@ -167,7 +179,7 @@ func hardwareSetupAction(L *lua.LState, kind ActionKind) Action {
 	if game == "" || pkg == "" {
 		L.ArgError(1, "game_id and package_id are required")
 	}
-	if kind == ActionHardwareTapes {
+	if kind == ActionHardwareTapes || kind == ActionHardwareMedia {
 		if coreID == "" {
 			L.ArgError(1, "core_id is required")
 		}

@@ -291,7 +291,8 @@ func TestHardwareRoomEntryReleasesHeldKeysBeforeMenu(t *testing.T) {
 	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
 	app.SetRooms(rooms.NewIndex([]rooms.Pack{testRoomPack(t, hardwareRoomID, liveHardwareTestScript)}), "")
 	app.mu.Lock()
-	app.session = hostclient.SessionResult{State: "active", CoreKeyboardHID: true, Input: &hostclient.SessionInput{State: "attached", Ready: true}}
+	app.games = []hostclient.Game{{ID: "zx81-game", CoreID: "fes.zx81"}}
+	app.session = hostclient.SessionResult{GameID: "zx81-game", State: "active", CoreKeyboardHID: true, Input: &hostclient.SessionInput{State: "attached", Ready: true}}
 	app.syncGPUParkLocked()
 	app.mu.Unlock()
 	if !app.HandlePlayHIDScancode("a", 0x04, true, time.Now()) {

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/zx81family"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/gfx"
@@ -14,6 +15,7 @@ import (
 )
 
 const hardwareRoomID = "example.hardware"
+const systemRoomID = "example.system"
 const hardwareRoomFooterHeight = 52
 const maxPendingPlayHID = 128
 
@@ -51,13 +53,29 @@ func (a *App) playingHardwareRoomAvailableLocked() bool {
 	if a.roomsIndex == nil {
 		return false
 	}
-	pack, ok := a.roomsIndex.Find(hardwareRoomID)
+	pack, ok := a.roomsIndex.Find(a.playingSetupRoomLocked())
 	return ok && pack.Valid()
 }
 
 // On a kit, open the active machine's media selector directly. A host window
 // retains its hardware room. Both preserve the running session and kit lease.
 const playingHardwareRoomStatus = "Hardware room · the machine is still running"
+
+// Use the specialist Sinclair workbench when the library identifies that
+// family. Other sessions resolve their selected system from the current game.
+func (a *App) playingSetupRoomLocked() string {
+	for _, game := range a.games {
+		if game.ID == a.session.GameID && zx81family.Known(game.CoreID) {
+			return hardwareRoomID
+		}
+		for _, variant := range game.Variants {
+			if variant.ID == a.session.GameID && zx81family.Known(variant.CoreID) {
+				return hardwareRoomID
+			}
+		}
+	}
+	return systemRoomID
+}
 
 func (a *App) openPlayingHardwareRoomLocked() {
 	if !a.playingHardwareRoomAvailableLocked() {
@@ -78,17 +96,20 @@ func (a *App) openPlayingHardwareRoomLocked() {
 	a.suppressHeldPlayKeysLocked()
 	a.repeat.Clear()
 	a.hold.Clear()
+	roomID := a.playingSetupRoomLocked()
 	if a.room == nil {
-		a.openRoomLocked(hardwareRoomID)
-	} else if a.room.ID() != hardwareRoomID {
-		a.openNestedRoomLocked(hardwareRoomID, "")
+		a.openRoomWithSelectionLocked(roomID, a.session.GameID)
+	} else if a.room.ID() != roomID {
+		a.openNestedRoomLocked(roomID, a.session.GameID)
+	} else if roomID == systemRoomID {
+		a.openRoomWithSelectionLocked(roomID, a.session.GameID)
 	} else {
 		// Reused rooms retain focus but must refresh their pre-launch snapshot.
 		a.room.SetOverlay(a.roomOverlayLocked())
 		a.room.Resume()
 		a.dropRoomNavActionsLocked()
 	}
-	if a.room == nil || a.room.ID() != hardwareRoomID {
+	if a.room == nil || a.room.ID() != roomID {
 		return
 	}
 	a.roomPickerOpen = false

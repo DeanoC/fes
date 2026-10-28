@@ -167,7 +167,7 @@ func TestKitRoomOverTheMachineIsAnOverlay(t *testing.T) {
 	session.CorePackage.ActiveInterfaces = session.CorePackage.ActiveInterfaces[1:]
 	session.CorePackage.MediaUnits = nil
 	_, app, _ := newSurroundKit(t, session)
-	app.SetRooms(rooms.NewIndex([]rooms.Pack{testRoomPack(t, hardwareRoomID, overlayRoomScript)}), "")
+	app.SetRooms(rooms.NewIndex([]rooms.Pack{testRoomPack(t, systemRoomID, overlayRoomScript)}), "")
 	waitFor(t, app, "surround", func(s Snapshot) bool { return s.Surround.Active })
 	app.HandleCommand(CmdHome, time.Now())
 	waitFor(t, app, "room overlay", func(s Snapshot) bool {
