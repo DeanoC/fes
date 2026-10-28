@@ -117,7 +117,7 @@ REQUIRED_ZERO_RESOURCES = frozenset({"cyclonev_oscillator"})
 PLACER_SEEDS = (1, 2, 3, 4, 5, 6, 7, 8)
 PLACER_TIMING_WEIGHT = 10
 PLACER_CRITICALITY_EXPONENT = 2
-ROUTE_TIMEOUT_SECONDS = 3600
+ROUTE_TIMEOUT_SECONDS = 4 * 3600
 CORE = {"id": "fes.pc386-diag", "name": "FES pc386 M4 diagnostic", "version": "0.1.0",
         "description": "The pc386 machine without its CPU: AT core, VGA, 720p presenter, OPL2 and Sound "
                        "Blaster 2.0, driven by a bus master that runs diagnostic commands from the HPS DDR "
