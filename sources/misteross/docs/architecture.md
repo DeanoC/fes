@@ -30,7 +30,15 @@ The Verilator bench exercises reset hold/release, the clock divider and LED
 sequence using a functional configuration endpoint model. Compilation
 produces a JTAG `.sof`, retains the compiler reports, and never programs hardware.
 
-This diagnostic has no HPS instance, MMIO map, GP endpoint, display or memory
+The separate [`boards/de25nano/hps/`](../boards/de25nano/hps/README.md) lane
+extracts a locked Terasic GHRD into a fresh private project and adds a small
+Avalon-MM mailbox through its existing lightweight HPS bridge. Shared fabric
+constants generate the register values used by RTL and the Verilator bench.
+The recipe regenerates IP with Quartus 26.3, retains original source hashes
+and checks original HPS/EMIF parameters after generation. It creates no runtime
+profile, physical MMIO address, boot image or QSPI programming command.
+
+The clock/LED diagnostic has no HPS instance, MMIO map, GP endpoint, display or memory
 interface. It has no FES package producer or runtime programming profile.
 Board metadata can be validated and reported before a complete platform
 exists; it does not authorize a DE10-Nano image or package on Agilex 5.

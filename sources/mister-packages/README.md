@@ -18,6 +18,11 @@ go run ./cmd/mister-packages validate packages/board/de25_nano.yaml
 go run ./cmd/mister-packages report packages/board/de25_nano.yaml
 ```
 
+The internal [`fes.fabric.de25-hps-mailbox`](packages/fabric/fes_fabric_de25_hps_mailbox.yaml)
+definition supplies matching Verilog and C++ constants for the standalone
+DE25 GHRD mailbox diagnostic. Its offsets are relative to a diagnostic
+Avalon-MM endpoint; it declares no Linux physical address or runtime admission.
+
 The programming registry contains `fes-gp-v1` for `fes.simple-game`,
 `fes.simple-computer`, `fes.application` and `fes.computer`, plus the diagnostic-only
 `development-contained-v1`. Conventional game profile/source pins and the

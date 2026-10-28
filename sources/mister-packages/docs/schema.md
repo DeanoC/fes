@@ -307,6 +307,11 @@ constants for a fabric contract the runtime also reads, such as
 This path does not generate RTL modules, connections, constraints, or host
 Go/C++ admission tables.
 
+[`fabric/fes_fabric_de25_hps_mailbox.yaml`](../packages/fabric/fes_fabric_de25_hps_mailbox.yaml)
+defines the standalone DE25-Nano HPS mailbox's diagnostic register constants.
+Its peripheral offset is relative to the copied vendor GHRD subsystem, not
+a Linux physical MMIO map or an activatable package interface.
+
 [`fabric/fes_fabric_video_raster_rgb888.yaml`](../packages/fabric/fes_fabric_video_raster_rgb888.yaml)
 defines `fes.fabric.video.raster-rgb888` 1.0. See
 [timed video parts](video-parts.md) for bundled pixels/timing, CE-qualified

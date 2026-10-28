@@ -8,6 +8,11 @@ the FPGA finishes initialization; reset then releases through two registers
 in the 50 MHz domain. The HPS, SDRAM, LPDDR4, HDMI and expansion headers are
 not instantiated.
 
+The separate [HPS mailbox diagnostic](hps/README.md) extends the pinned vendor
+GHRD with a small bridge-relative register block and a transaction simulation.
+It preserves the vendor HPS/LPDDR4 configuration and tracks its own generation,
+compiler and firmware-compatibility evidence.
+
 Run from this directory:
 
 ```sh
