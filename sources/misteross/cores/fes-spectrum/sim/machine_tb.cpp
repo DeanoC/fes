@@ -55,6 +55,9 @@ int main(int argc, char** argv) {
     };
     dut.clk_sys = 0;
     dut.reset = 1;
+    // --turbo runs every T state in turbo; the results must not change.
+    for (int i = 1; i < argc; ++i)
+        if (std::string(argv[i]) == "--turbo") dut.turbo_always = 1;
     dut.matrix = 0xffffffffffULL & ~(1ULL << 5);  // A held
     dut.kempston = 0x11;                          // right + fire
     // The diagnostic tape, streamed as the DDR store presents it: one byte
@@ -96,6 +99,14 @@ int main(int argc, char** argv) {
     };
     bool pilot_seen = false;
     while (frames < 4 || !pilot_seen || !tape_loaded()) {
+        // The marker's T state is its write cycle's T2, at that T state's
+        // ce_n; when RAM changes depends on the clocks per T state.
+        if (marker_t < 0 && root.MACHINE(cpu_ce_n) && root.MACHINE(cycle_present) &&
+            root.MACHINE(cycle_kind) == 2 && root.MACHINE(cycle_t) == 2 &&
+            root.MACHINE(cpu_a) == 0x8006 && root.MACHINE(cpu_do) == 0xc3) {
+            marker_t = root.MACHINE(ula__DOT__t);
+            marker_frame = frames;
+        }
         clock();
         if (dut.tick && seen_edge) ++since;
         if (dut.ear != last_ear) {
@@ -104,10 +115,6 @@ int main(int argc, char** argv) {
             seen_edge = true;
             since = 0;
             last_ear = dut.ear;
-        }
-        if (marker_t < 0 && bank(2, 6) == 0xc3) {
-            marker_t = root.MACHINE(ula__DOT__t);
-            marker_frame = frames;
         }
         if (dut.frame_done) ++frames;
         if (dut.cpu_illegal) fail("CPU entered an illegal state");
@@ -122,6 +129,7 @@ int main(int argc, char** argv) {
         if (dut.frame_done) ++frames;
     }
     require(bank(2, 0) == 0xa5, "diagnostic marker missing at $8000");
+    require(bank(2, 6) == 0xc3, "timing marker missing at $8006");
     if (spectrum_ram_bank(root, 7) != nullptr) {
         require(bank(7, 0) == 0x77, "bank 7 did not receive $77 through $7FFD");
         require(bank(0, 0) == 0x66, "bank 0 did not return to $C000");

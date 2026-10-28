@@ -1,0 +1,54 @@
+{
+  "checks": [
+    "PASS opl2-random-1",
+    "PASS opl2-random-2",
+    "PASS opl2-random-3",
+    "PASS opl2-log"
+  ],
+  "failures": [],
+  "runs": [
+    {
+      "arguments": [
+        "--random",
+        "1",
+        "20000"
+      ],
+      "samples": 19995,
+      "exact": 19995,
+      "nonzero": 19991,
+      "writes": 213
+    },
+    {
+      "arguments": [
+        "--random",
+        "2",
+        "20000"
+      ],
+      "samples": 19995,
+      "exact": 19995,
+      "nonzero": 19990,
+      "writes": 227
+    },
+    {
+      "arguments": [
+        "--random",
+        "3",
+        "20000"
+      ],
+      "samples": 19995,
+      "exact": 19995,
+      "nonzero": 19991,
+      "writes": 224
+    },
+    {
+      "arguments": [
+        "--log",
+        "cores/fes-pc386/sim/fixtures/sound-opl2.log"
+      ],
+      "samples": 98134,
+      "exact": 98134,
+      "nonzero": 83656,
+      "writes": 125
+    }
+  ]
+}

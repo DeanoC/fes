@@ -1,0 +1,6 @@
+# Preserve pinned upstream bytes (trailing blanks) while checking the
+# local README and manifest.
+opl2_fpga/*.sv -whitespace
+opl2_fpga/COPYING.LESSER -whitespace
+nuked-opl3/opl3.* -whitespace
+nuked-opl3/LICENSE -whitespace

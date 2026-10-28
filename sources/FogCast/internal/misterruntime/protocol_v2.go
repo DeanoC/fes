@@ -254,12 +254,11 @@ func (client *Client) LoadROMLinkedCoreWithInitialMedia(ctx context.Context, pat
 	return response, nil
 }
 
-// LoadROMLinksLinkedCore uses the same physical operation with a distinct
-// two-source identity. An older daemon rejects the unknown field before load.
-func (client *Client) LoadROMLinksLinkedCore(ctx context.Context, path, packageID, root, expansionPath, payloadPath string, composition *expansion.Composition, programmedPath string, identity corepackage.ROMLinksIdentity) (Protocol2Response, error) {
-	if !validRuntimePath(path) || !validRuntimePath(programmedPath) || !protocol2Hex64.MatchString(packageID) ||
-		len(identity.Sources) != 2 || !protocol2Hex64.MatchString(identity.MapSHA256) || !protocol2Hex64.MatchString(identity.ProgrammedSHA256) || identity.ProgrammedSize < 1 || identity.ProgrammedSize > corepackage.MaxPayloadSize {
-		return Protocol2Response{}, errInvalidRuntimeRequest
+// validROMLinksRequest checks the syntax of a two-source receipt; the daemon
+// binds it to the sealed package.
+func validROMLinksRequest(identity corepackage.ROMLinksIdentity) bool {
+	if len(identity.Sources) != 2 || !protocol2Hex64.MatchString(identity.MapSHA256) || !protocol2Hex64.MatchString(identity.ProgrammedSHA256) || identity.ProgrammedSize < 1 || identity.ProgrammedSize > corepackage.MaxPayloadSize {
+		return false
 	}
 	for index, source := range identity.Sources {
 		role := "firmware"
@@ -267,10 +266,16 @@ func (client *Client) LoadROMLinksLinkedCore(ctx context.Context, path, packageI
 			role = "cartridge"
 		}
 		if !protocol2Identifier.MatchString(source.ID) || source.Role != role || !protocol2Hex64.MatchString(source.SourceSHA256) || source.SourceSize < 1024 || source.SourceSize > 262144 || source.SourceSize%1024 != 0 {
-			return Protocol2Response{}, errInvalidRuntimeRequest
+			return false
 		}
 	}
-	if identity.Sources[0].ID == identity.Sources[1].ID || identity.Sources[0].SourceSize+identity.Sources[1].SourceSize > 262144 {
+	return identity.Sources[0].ID != identity.Sources[1].ID && identity.Sources[0].SourceSize+identity.Sources[1].SourceSize <= 262144
+}
+
+// LoadROMLinksLinkedCore uses the same physical operation with a distinct
+// two-source identity. An older daemon rejects the unknown field before load.
+func (client *Client) LoadROMLinksLinkedCore(ctx context.Context, path, packageID, root, expansionPath, payloadPath string, composition *expansion.Composition, programmedPath string, identity corepackage.ROMLinksIdentity) (Protocol2Response, error) {
+	if !validRuntimePath(path) || !validRuntimePath(programmedPath) || !protocol2Hex64.MatchString(packageID) || !validROMLinksRequest(identity) {
 		return Protocol2Response{}, errInvalidRuntimeRequest
 	}
 	if root != "" && !validRuntimePath(root) {
