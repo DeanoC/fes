@@ -1,0 +1,120 @@
+# DE25-Nano headless Linux
+
+The DE25-Nano Linux lane builds a standalone AArch64 diagnostic image with a
+serial console, Ethernet DHCP and Dropbear SSH. FES owns the root filesystem;
+the boot files and kernel/device tree come from the pinned Terasic console BSP.
+The lane lives in [`image/de25-nano/`](../image/de25-nano/) and has its own inputs,
+cache, outputs and verification. It does not use `native-integration-dev` or
+change the DE10-Nano boot-media and toolchain locks.
+
+This is the first Linux bring-up milestone. It contains no FPGA runtime,
+FogCast target agent, MENU display, playable core or managed appliance update
+service. A successful image build does not qualify those interfaces.
+
+## Build and inspect
+
+Run these commands from the FES repository root on a Linux build host with
+Python 3.11+, Git and Docker available:
+
+```sh
+make fetch-de25-linux
+make de25-linux
+make verify-de25-linux
+make smoke-de25-linux
+```
+
+`fetch-de25-linux` downloads the locked external inputs into
+`out/de25-linux-cache/`. Fetching dependencies can run before source edits are
+committed. `de25-linux` requires a clean, committed source tree, selects that
+commit in a separate snapshot, builds the root filesystem and assembles the
+diagnostic card under `out/de25-nano-linux/`.
+
+The lane reuses the existing pinned native-image builder container and selects
+Buildroot 2021.02.4 through its own
+[`buildroot.lock.toml`](../image/de25-nano/buildroot.lock.toml). Its AArch64
+configuration produces a separate glibc toolchain and SDK. Compiler outputs live
+in a dedicated Docker volume with a cache key for the DE25 rootfs inputs;
+downloads stay in the explicit cache directory. This does not select the
+DE10-Nano SDK or rebuild its runtime. No Go host or target services are included:
+the initial userspace contains BusyBox and Dropbear.
+
+The runner accepts explicit output and cache directories, parallel job count
+and container runtime through `DE25_LINUX_ARGS`:
+
+```sh
+make de25-linux DE25_LINUX_ARGS='--output /absolute/de25-linux --cache /absolute/de25-cache --jobs 8'
+make verify-de25-linux DE25_LINUX_ARGS='--output /absolute/de25-linux --cache /absolute/de25-cache'
+make de25-linux DE25_LINUX_ARGS='--help'
+```
+
+The default container runtime is `docker`. These commands prepare and inspect
+regular files. They do not write a card, program the FPGA or change boot flash.
+
+The output contains:
+
+| File | Meaning |
+| --- | --- |
+| `rootfs.ext4` | Writable AArch64 FES diagnostic root filesystem |
+| `rootfs.tar` | Root filesystem contents for inspection |
+| `fes-de25-nano.img` | Complete diagnostic SD-card image |
+| `aarch64-sdk.tar.gz` | Buildroot SDK for this AArch64 userspace |
+| `buildroot.config` | Resolved Buildroot configuration |
+| `vendor-boot/` | Locked vendor boot prefix, extracted boot files and factory firmware dependencies |
+| `image.json` | Source revision, recipe/builder identities and artifact hashes |
+| `verify.json` | Root filesystem checks, written by verification |
+| `smoke.json` | QEMU userspace probe results, written by smoke |
+
+## Boot contract
+
+The card keeps the pinned vendor MBR and FAT boot prefix and replaces the
+vendor Linux partition with the FES root filesystem. Kernel, device tree and
+boot configuration remain the selected vendor artifacts, including Linux
+`6.12.11-gd7d192a9ddd9` and `socfpga_agilex5_de25_nano.dtb`. The vendor boot
+arguments select `/dev/mmcblk0p2`; they do not depend on a rootfs UUID or label.
+The vendor inputs and reviewed partition layout are declared in
+[`vendor.lock.toml`](../image/de25-nano/vendor.lock.toml), independently of
+`boot-media.lock.toml`.
+
+Terasic's BSP instructions require a microSD card of at least 8 GB, the matching
+HPS QSPI boot image and MSEL in AS mode. The build retains that BSP's exact
+`golden_top_hps.jic` and instructions under `vendor-boot/factory-boot/` for
+inspection. It does not program or qualify the board's QSPI contents. The
+separately retained resource-package SOF is a source reference; it is not
+identified as the build source of the BSP's JIC.
+
+The serial console is `ttyS0` at 115200 baud. Ethernet requests an address by
+DHCP on `eth0`. The development login is `root` with password `1`, matching the
+existing FES development convention. Dropbear creates the board's SSH host keys
+on the writable root filesystem at first boot; no shared host key is shipped.
+`/etc/fes-board` identifies this root filesystem as `de25-nano`.
+
+The normal FES appliance bootstrap is not used. Its current kernel contract,
+trial watchdog reset preparation and software bundle identities target
+DE10-Nano. The DE25 image does not accept DE10 bundles or claim managed update,
+rollback, FPGA programming, HPS DDR or display compatibility.
+
+## Validation and the board gate
+
+`verify-de25-linux` checks the retained artifact hashes, AArch64 executable
+identity, card layout and required rootfs services. `smoke-de25-linux` probes
+AArch64 userspace through QEMU user emulation: BusyBox reports its architecture
+and Dropbear serves an SSH banner using a temporary host key. This is not an SSH
+login or DE25 board emulation, kernel boot, Ethernet or FPGA check.
+
+The remaining hardware check uses an identified DE25-Nano and the exact
+`fes-de25-nano.img` digest. After the applicable board claim and authorized
+media delivery, retain:
+
+1. The serial boot log, kernel release, CPU architecture and device-tree model.
+2. The mounted root partition and filesystem identity.
+3. DHCP and an SSH login to the diagnostic rootfs.
+4. A clean reboot and successful second serial/SSH startup.
+
+Record those observations against the source revision, vendor input identity,
+image digest and board revision. Until that check completes, evidence remains
+host-only and physical boot is pending.
+
+The HIL planner reports `FULL_IMAGE` with component `de25-nano-linux` for
+`image/de25-nano/` changes. That identifies this DE25 image's boot check; it does
+not select a DE10 kit software bundle or establish acceptance of the default
+FES image.

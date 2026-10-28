@@ -24,6 +24,9 @@ RULES = [
         'scripts/hil_plan.py', 'scripts/consistency.py', 'scripts/generate.py',
         'scripts/host_affected.py',
     )],
+    # This separate headless image needs a DE25 serial/SSH boot check. It is
+    # never installed as a DE10 kit software bundle or native-integration image.
+    ('image/de25-nano/**', 'full', 'de25-nano-linux'),
     ('image/**', 'full', 'image'), ('boot-media.lock.toml', 'full', 'boot-media'),
     ('containers/**', 'full', 'boot-media'), ('profiles/**', 'full', 'profile'),
     ('config/**', 'full', 'config'), ('Makefile', 'full', 'build-system'),

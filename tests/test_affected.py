@@ -10,6 +10,20 @@ from scripts.affected import (changed_paths, plan, LANES, CORES, MODULE_ROOTS,
 
 
 class AffectedTests(unittest.TestCase):
+    def test_de25_linux_selects_parent_without_existing_core_consumers(self):
+        paths = ['image/de25-nano/' + name for name in
+                 ('build.py', 'boot.py', 'vendor.lock.toml', 'rootfs/config',
+                  'rootfs/overlay/etc/inittab')]
+        result = plan(paths)
+        self.assertEqual({lane for lane, enabled in result['lanes'].items() if enabled},
+                         {'parent'})
+        self.assertEqual(result['cores'], [])
+        self.assertFalse(any(result['test_modes'].values()))
+        mixed = plan([*paths, 'sources/misteross/cores/fes-atari-st/rtl/st_machine.sv'])
+        self.assertEqual({lane for lane, enabled in mixed['lanes'].items() if enabled},
+                         {'parent', 'fpga'})
+        self.assertEqual(mixed['cores'], ['atari-st'])
+
     def test_fpga_software_test_patterns_match_current_files(self):
         root = Path(__file__).resolve().parents[1] / 'sources/misteross/tests'
         for pattern in FPGA_SOFTWARE_TESTS:

@@ -25,6 +25,19 @@ RACE = ['go', 'test', '-race', '-short', '-timeout', '30m']
 
 
 class SelectTestModesTests(unittest.TestCase):
+    def test_de25_linux_does_not_select_unrelated_de10_media_suites(self):
+        de25 = ['image/de25-nano/build.py', 'image/de25-nano/vendor.lock.toml',
+                'image/de25-nano/rootfs/overlay/etc/inittab']
+        self.assertEqual(test_policy.select_test_modes(de25), ALL_FALSE)
+        for path in ('image/scripts/build-target-image.sh', 'boot-media.lock.toml',
+                     'image/de25-nano-other/build.py', 'image/de25-nano/../scripts/build.sh'):
+            with self.subTest(path=path):
+                self.assertEqual(test_policy.select_test_modes([*de25, path]),
+                                 {'video': False, 'media': True, 'full_race': False})
+        self.assertEqual(test_policy.select_test_modes([*de25, 'scripts/bundle.py']),
+                         {'video': True, 'media': False, 'full_race': False})
+        self.assertEqual(test_policy.select_test_modes([*de25, 'unknown/new.bin']), ALL_TRUE)
+
     def test_ordinary_and_policy_only_changes_select_no_extended_mode(self):
         for path in ('sources/FogCast/internal/hostapi/ui_app.js',
                      'sources/FogCast/catalog/query_test.go',

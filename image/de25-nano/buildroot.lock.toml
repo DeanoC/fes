@@ -1,0 +1,11 @@
+format = 1
+board = "de25-nano"
+architecture = "aarch64"
+source_date_epoch = 1751459412
+
+[buildroot]
+version = "2021.02.4"
+commit = "004a792dcf10e6c474070c9571f7504411e786cc"
+url = "https://buildroot.org/downloads/buildroot-2021.02.4.tar.gz"
+file = "buildroot-2021.02.4.tar.gz"
+sha256 = "341dcdc196614c947103969b2354f18b001577994e17349756598091f232f561"

@@ -87,6 +87,10 @@ def _documentation(path):
 def _classify(path):
     if path == '<new-branch>':
         return dict.fromkeys(TEST_MODE_KEYS, True)
+    # The standalone DE25 headless image has its own build/verification checks.
+    # It consumes no DE10 image, core package, runtime or media assembly input.
+    if _under(path, 'image/de25-nano') and '..' not in Path(path).parts:
+        return dict.fromkeys(TEST_MODE_KEYS, False)
     if _under(path, 'sources/mister-packages'):
         if path.endswith(('.go', '/go.mod', '/go.sum')):
             # Generator/tooling code is checked against committed consumers;
