@@ -151,14 +151,13 @@ module fes_i386_cpu (
     // there takes effect, and flushes, once the bytes arrive, even when the
     // load is on the wrong path. So does a multiply or divide while it works
     // in EX (md_busy, registered as it enters EX; see EX), an I/O access in
-    // WB until the machine has completed it (io_wait, set as the uop enters
-    // WB and cleared on the completing edge; see WB), and an INTR being taken
-    // until the machine has returned its vector (int_wait, set at the
-    // boundary and cleared on the returning edge; see Interrupts). Each wait
-    // is one register, so the freeze stays one LUT of five.
-    logic freeze, m2_load, md_busy, io_wait, int_take, int_nmi, int_wait;
+    // WB until the machine has completed it (`io_wb`, set as the uop enters
+    // WB, and `io_done`, set on the completing edge; see WB), and an INTR
+    // being taken until the machine returns its vector (`int_wait`, set at the
+    // boundary and cleared on the returning edge; see Interrupts).
+    logic freeze, m2_load, md_busy, io_wb, io_done, int_take, int_nmi, int_wait;
     logic int_next;  // an interrupt is taken on this edge (see Interrupts)
-    assign freeze = m2_load && !dmem_valid || md_busy || io_wait || int_wait;
+    assign freeze = m2_load && !dmem_valid || md_busy || io_wb && !io_done || int_wait;
 
     // A fault in WB is delivered (exc_take): WB flushes, the front end and DC
     // restart, and DC takes the exception's entry the cycle after
@@ -1190,12 +1189,10 @@ module fes_i386_cpu (
         end
         if (reset || wb_flush) begin
             wb_s.valid <= 1'b0;
-            io_wait <= 1'b0;
+            io_wb <= 1'b0;
         end else if (!freeze) begin
             wb_s <= ex_out;
-            io_wait <= ex_s.valid && ex_out.uop.io != 2'd0 && ex_out.uop.ctl.fault == fes_i386_pkg::FAULT_NONE && !int_next;
-        end else if (io_wait && io_ack) begin
-            io_wait <= 1'b0;
+            io_wb <= ex_s.valid && ex_out.uop.io != 2'd0 && ex_out.uop.ctl.fault == fes_i386_pkg::FAULT_NONE && !int_next;
         end
     end
 
@@ -1221,12 +1218,19 @@ module fes_i386_cpu (
     // data from io_data. The port is DX or imm8, OUT's data eAX (a) or, for
     // OUTS, the loaded value (its result).
     logic [31:0] io_data;
-    assign io_req = io_wait;
+    assign io_req = io_wb && !io_done;
     assign io_write = wb_s.uop.io == 2'(fes_i386_pkg::IO_OUT);
     assign io_port = wb_s.uop.src2.valid ? wb_s.b[15:0] : wb_s.uop.imm[15:0];
     assign io_size = 2'(wb_s.uop.size);
     assign io_wdata = wb_s.uop.mem.kind == fes_i386_pkg::MEM_LOAD ? wb_s.result : wb_s.a;
-    always_ff @(posedge clk) if (io_wait && io_ack) io_data <= io_rdata;
+    always_ff @(posedge clk) begin
+        if (reset || !freeze) begin
+            io_done <= 1'b0;
+        end else if (io_req && io_ack) begin
+            io_done <= 1'b1;
+            io_data <= io_rdata;
+        end
+    end
     // IN's data: merged into eAX's old value by size, or stored (INS).
     logic [31:0] wb_in, wb_sdata;
     assign wb_in = wb_s.uop.size == fes_i386_pkg::SIZE_8 ? {wb_s.a[31:8], io_data[7:0]}
