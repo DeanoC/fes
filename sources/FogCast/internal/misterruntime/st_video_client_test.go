@@ -58,8 +58,8 @@ func TestSTVideoROMClientRetainsBothReceiptsAndExactRequestShape(t *testing.T) {
 		}
 		var parts []PartPath
 		var composition expansion.PartsComposition
-		var receipt corepackage.ROMLinkIdentity
-		if json.Unmarshal(got["parts"], &parts) != nil || json.Unmarshal(got["composition"], &composition) != nil || json.Unmarshal(got["rom_link"], &receipt) != nil || !reflect.DeepEqual(parts, paths) || !reflect.DeepEqual(composition, c) || receipt != link {
+		var receipt protocol2ROMLink
+		if json.Unmarshal(got["parts"], &parts) != nil || json.Unmarshal(got["composition"], &composition) != nil || json.Unmarshal(got["rom_link"], &receipt) != nil || !reflect.DeepEqual(parts, paths) || !reflect.DeepEqual(composition, c) || receipt != protocol2ROMLinkFromIdentity(link) {
 			t.Fatal("request changed retained identities")
 		}
 	}

@@ -238,17 +238,17 @@ func (client *Client) LoadROMPartsComposedCoreWithInitialMedia(ctx context.Conte
 		return Protocol2Response{}, protocol2MutationError{error: errInvalidRuntimeResponse, attempted: false}
 	}
 	line, attempted, err := client.callRawTracked(ctx, struct {
-		InitialMedia   *InitialMediaRequest        `json:"initial_media,omitempty"`
-		Protocol       int                         `json:"protocol"`
-		Operation      string                      `json:"operation"`
-		PackagePath    string                      `json:"package_path"`
-		PackageID      string                      `json:"package_id"`
-		Parts          []PartPath                  `json:"parts"`
-		PayloadPath    string                      `json:"payload_path"`
-		Composition    expansion.PartsComposition  `json:"composition"`
-		ProgrammedPath string                      `json:"programmed_path"`
-		ROMLink        corepackage.ROMLinkIdentity `json:"rom_link"`
-	}{initial, 2, "load_rom_composed_core", path, id, parts, payload, c, programmed, link})
+		InitialMedia   *InitialMediaRequest       `json:"initial_media,omitempty"`
+		Protocol       int                        `json:"protocol"`
+		Operation      string                     `json:"operation"`
+		PackagePath    string                     `json:"package_path"`
+		PackageID      string                     `json:"package_id"`
+		Parts          []PartPath                 `json:"parts"`
+		PayloadPath    string                     `json:"payload_path"`
+		Composition    expansion.PartsComposition `json:"composition"`
+		ProgrammedPath string                     `json:"programmed_path"`
+		ROMLink        protocol2ROMLink           `json:"rom_link"`
+	}{initial, 2, "load_rom_composed_core", path, id, parts, payload, c, programmed, protocol2ROMLinkFromIdentity(link)})
 	if err != nil {
 		return Protocol2Response{}, protocol2MutationError{error: err, attempted: attempted}
 	}
