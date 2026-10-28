@@ -112,6 +112,8 @@ SCOPE: frozenset[str] = frozenset([
     'E4', 'E5', 'E6', 'E7', 'EC', 'ED', 'EE', 'EF', '6C', '6D', '6E', '6F',
     # BT, BTS, BTR and BTC by an immediate; BSF and BSR.
     '0FBA.4', '0FBA.5', '0FBA.6', '0FBA.7', '0FBC', '0FBD',
+    # DAA, DAS, AAA and AAS.
+    '27', '2F', '37', '3F',
 ])
 # Files of an in-scope opcode whose forms are not built yet: POP m with
 # 32-bit addressing, whose ESP base would read ESP after the pop.

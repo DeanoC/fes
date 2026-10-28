@@ -10,7 +10,7 @@
 //   RET and RET imm16, LEAVE, JMP r/m and CALL rel; XCHG, MOV to and from
 //   a direct offset, XLAT and SALC; PUSH, POP and CALL of r/m; MUL, IMUL
 //   (all three forms), DIV, IDIV, AAM and AAD; IN and OUT; BT, BTS, BTR and
-//   BTC by an immediate, BSF and BSR; the first uops of
+//   BTC by an immediate, BSF and BSR; DAA, DAS, AAA and AAS; the first uops of
 //   MOVS, CMPS, STOS, LODS, SCAS, INS, OUTS and ENTER (fes_i386_seq builds
 //   the rest);
 // with a ModRM memory operand where they take one. The memory operand is a
@@ -95,7 +95,7 @@ module fes_i386_decode (
     assign osz = osz32 ? 2'd2 : 2'd1;
 
     // A flag consumer: ADC, SBB, Jcc, SETcc, RCL, RCR, LAHF, CMC, LOOPE,
-    // LOOPNE, PUSHF, INTO, SALC. Straight from the opcode and ModRM bytes, not through the
+    // LOOPNE, PUSHF, INTO, SALC, DAA, DAS, AAA, AAS. Straight from the opcode and ModRM bytes, not through the
     // decode below, because D's issue waits on it (fes_i386_cpu); a superset
     // here would hold instructions needlessly, which the lockstep's gap check
     // catches. by[1][5:4] == 01 is ModRM reg 2 or 3.
@@ -105,7 +105,8 @@ module fes_i386_decode (
                    || b0[7:4] == 4'h7                                             // Jcc rel8
                    || (two && op2[7:5] == 3'b100)                                 // Jcc rel16/32, SETcc
                    || b0 == 8'h9f || b0 == 8'hf5 || b0[7:1] == 7'b1110000         // LAHF, CMC, LOOPNE, LOOPE
-                   || b0 == 8'h9c || b0 == 8'hce || b0 == 8'hd6;                  // PUSHF, INTO, SALC
+                   || b0 == 8'h9c || b0 == 8'hce || b0 == 8'hd6                   // PUSHF, INTO, SALC
+                   || (b0[7:5] == 3'b001 && b0[2:0] == 3'b111);                   // DAA, DAS, AAA, AAS
 
     // Where the displacement is: after the ModRM and, in 32-bit addressing
     // with r/m 100b, a SIB byte.
@@ -337,6 +338,24 @@ module fes_i386_decode (
                         d_idx = {1'b0, b0[4:3]};
                         stk = fes_i386_pkg::STK_POP;
                     end
+                end else if (b0[2:0] == 3'b111) begin
+                    // Column 7 of rows 2-3: DAA (27h), DAS (2Fh), AAA (37h)
+                    // and AAS (3Fh) adjust AL by AF and, for DAA and DAS, CF;
+                    // AAA and AAS carry into AH. EAX is src1 and the
+                    // destination.
+                    case (b0[4:3])
+                        2'd0: op = 5'd25;  // ALU_DAA
+                        2'd1: op = 5'd26;  // ALU_DAS
+                        2'd2: op = 5'd27;  // ALU_AAA
+                        default: op = 5'd28;  // ALU_AAS
+                    endcase
+                    size = b0[4] ? 2'd1 : 2'd0;
+                    rd_cf = !b0[4];
+                    rd_oszap = 1'b1;
+                    wr_cf = 1'b1;
+                    wr_oszap = 1'b1;
+                    s1_valid = 1'b1;
+                    d_valid = 1'b1;
                 end else begin
                     known = b0[2:1] != 2'b11;
                     op = {2'b00, b0[5:3]};
