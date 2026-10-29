@@ -31,16 +31,16 @@ func fixture(t *testing.T) (string, artifacts) {
 		}
 	}
 	identity := func(name string) string { return digest([]byte("synthetic-" + name)) }
-	a := artifacts{Format: 1, Kind: "fes.de25-pr-proof-artifacts", DiagnosticOnly: true, Device: "A5EB013BB23BE4SCS",
+	a := artifacts{Format: 2, Kind: "fes.de25-pr-proof-artifacts", DiagnosticOnly: true, Device: "A5EB013BB23BE4SCS",
 		Tool: toolIdentity{Version: "26.3.0 Build114", Edition: "SC Pro Edition", QuartusShSHA256: identity("sh"), QuartusAsmSHA256: identity("asm"), QuartusPfgSHA256: identity("pfg")},
-		Shell: shellIdentity{SourceRevision: strings.Repeat("1", 40), SourceClosureSHA256: identity("source"), RootQDBSHA256: identity("root"),
+		Shell: shellIdentity{ControlBuildID: "112233445566778899aabbccddeeff00", SourceRevision: strings.Repeat("1", 40), SourceClosureSHA256: identity("source"), RootQDBSHA256: identity("root"),
 			InterfaceSHA256: identity("interface"), ClockResetSHA256: identity("clock-reset"), Base: blob{Path: "base.rbf", Size: int64(len(files["base.rbf"])), SHA256: digest(files["base.rbf"])},
 			VendorPOF: vendorPOF{RegionID: "0x01000000", Hash: identity("pof"), InfoSHA256: identity("base-info")}},
 		Region:     regionIdentity{ID: "slot0", Instance: "slot_inst", Placement: "X10 Y20 X12 Y24", Routing: "X9 Y19 X13 Y25"},
 		Acceptance: acceptance{Physical: "not-run", Timing: "passed", BasePersonaCompatibility: "pfg-info-pof0-match"}}
 	for _, id := range []string{"a", "b"} {
 		name := "persona_" + id + ".rbf"
-		a.Personas = append(a.Personas, persona{ID: "counter_" + id, Entity: "fes_link_persona_" + id, Revision: "persona_" + id,
+		a.Personas = append(a.Personas, persona{ID: "counter_" + id, HardwareID: uint32(len(a.Personas) + 1), Entity: "fes_link_persona_" + id, Revision: "persona_" + id,
 			Path: name, Size: int64(len(files[name])), SHA256: digest(files[name]), RootQDBSHA256: a.Shell.RootQDBSHA256,
 			InterfaceSHA256: a.Shell.InterfaceSHA256, ClockResetSHA256: a.Shell.ClockResetSHA256, RegionID: "slot0",
 			VendorPOF: vendorPOF{RegionID: "0x01000000", Hash: a.Shell.VendorPOF.Hash, InfoSHA256: identity(id + "-info")}})
@@ -144,7 +144,7 @@ func TestComposeCopiesExactBytesAndOrdersDeployment(t *testing.T) {
 	if err := json.Unmarshal(stdout, &plan); err != nil {
 		t.Fatal(err)
 	}
-	if !plan.DiagnosticOnly || plan.MonolithicRBF || plan.PhysicalAcceptance != "not-run" || plan.Controller != "not-implemented" ||
+	if !plan.DiagnosticOnly || plan.MonolithicRBF || plan.PhysicalAcceptance != "not-run" || plan.Controller != "runtime-protocol-only" ||
 		plan.ShellID != a.Shell.ID || len(plan.Steps) != 2 || plan.Steps[0].Action != "load-base" || plan.Steps[1].Action != "load-persona" ||
 		plan.Steps[1].Persona != "counter_a" || plan.Steps[1].RegionID != "slot0" || plan.Steps[1].SHA256 != a.Personas[0].SHA256 {
 		t.Fatalf("incorrect plan or qualification boundary: %+v", plan)
@@ -166,32 +166,36 @@ func TestComposeCopiesExactBytesAndOrdersDeployment(t *testing.T) {
 
 func TestRefusesInvalidContractEvenWithFreshShellID(t *testing.T) {
 	cases := map[string]func(*artifacts){
-		"unsupported format":           func(a *artifacts) { a.Format = 2 },
-		"wrong device":                 func(a *artifacts) { a.Device = "5CSEBA6U23I7" },
-		"wrong tool version":           func(a *artifacts) { a.Tool.Version = "26.2.0 Build1" },
-		"wrong edition":                func(a *artifacts) { a.Tool.Edition = "Lite Edition" },
-		"missing tool identity":        func(a *artifacts) { a.Tool.QuartusPfgSHA256 = "" },
-		"physical qualification claim": func(a *artifacts) { a.Acceptance.Physical = "passed" },
-		"failed timing":                func(a *artifacts) { a.Acceptance.Timing = "failed" },
-		"compatibility absent":         func(a *artifacts) { a.Acceptance.BasePersonaCompatibility = "unchecked" },
-		"unknown region":               func(a *artifacts) { a.Region.ID = "slot1" },
-		"unbounded region":             func(a *artifacts) { a.Region.Routing = "X0 Y0 X999999 Y999999" },
-		"reversed region":              func(a *artifacts) { a.Region.Placement = "X12 Y24 X10 Y20" },
-		"foreign root QDB":             func(a *artifacts) { a.Personas[0].RootQDBSHA256 = digest([]byte("other shell")) },
-		"foreign interface":            func(a *artifacts) { a.Personas[0].InterfaceSHA256 = digest([]byte("other wires")) },
-		"foreign clock reset":          func(a *artifacts) { a.Personas[0].ClockResetSHA256 = digest([]byte("other clock")) },
-		"foreign region":               func(a *artifacts) { a.Personas[0].RegionID = "slot1" },
-		"foreign vendor POF hash":      func(a *artifacts) { a.Personas[0].VendorPOF.Hash = digest([]byte("foreign POF")) },
-		"foreign vendor POF region":    func(a *artifacts) { a.Personas[0].VendorPOF.RegionID = "0x02000000" },
-		"missing vendor info identity": func(a *artifacts) { a.Personas[0].VendorPOF.InfoSHA256 = "" },
-		"zero vendor POF":              func(a *artifacts) { a.Shell.VendorPOF.Hash = strings.Repeat("0", 64) },
-		"duplicate persona":            func(a *artifacts) { a.Personas[1].ID = a.Personas[0].ID },
-		"duplicate artifact path":      func(a *artifacts) { a.Personas[1].Path = a.Personas[0].Path },
-		"duplicate compiler revision":  func(a *artifacts) { a.Personas[1].Revision = a.Personas[0].Revision },
-		"unsorted alternatives":        func(a *artifacts) { a.Personas[0], a.Personas[1] = a.Personas[1], a.Personas[0] },
-		"escape artifact":              func(a *artifacts) { a.Personas[0].Path = "../outside.rbf" },
-		"absolute artifact":            func(a *artifacts) { a.Personas[0].Path = "/dev/mem" },
-		"unbounded artifact":           func(a *artifacts) { a.Personas[0].Size = maxArtifactBytes + 1 },
+		"missing control identity":            func(a *artifacts) { a.Shell.ControlBuildID = "" },
+		"zero control identity":               func(a *artifacts) { a.Shell.ControlBuildID = strings.Repeat("0", 32) },
+		"missing persona hardware identity":   func(a *artifacts) { a.Personas[0].HardwareID = 0 },
+		"duplicate persona hardware identity": func(a *artifacts) { a.Personas[1].HardwareID = a.Personas[0].HardwareID },
+		"unsupported format":                  func(a *artifacts) { a.Format = 1 },
+		"wrong device":                        func(a *artifacts) { a.Device = "5CSEBA6U23I7" },
+		"wrong tool version":                  func(a *artifacts) { a.Tool.Version = "26.2.0 Build1" },
+		"wrong edition":                       func(a *artifacts) { a.Tool.Edition = "Lite Edition" },
+		"missing tool identity":               func(a *artifacts) { a.Tool.QuartusPfgSHA256 = "" },
+		"physical qualification claim":        func(a *artifacts) { a.Acceptance.Physical = "passed" },
+		"failed timing":                       func(a *artifacts) { a.Acceptance.Timing = "failed" },
+		"compatibility absent":                func(a *artifacts) { a.Acceptance.BasePersonaCompatibility = "unchecked" },
+		"unknown region":                      func(a *artifacts) { a.Region.ID = "slot1" },
+		"unbounded region":                    func(a *artifacts) { a.Region.Routing = "X0 Y0 X999999 Y999999" },
+		"reversed region":                     func(a *artifacts) { a.Region.Placement = "X12 Y24 X10 Y20" },
+		"foreign root QDB":                    func(a *artifacts) { a.Personas[0].RootQDBSHA256 = digest([]byte("other shell")) },
+		"foreign interface":                   func(a *artifacts) { a.Personas[0].InterfaceSHA256 = digest([]byte("other wires")) },
+		"foreign clock reset":                 func(a *artifacts) { a.Personas[0].ClockResetSHA256 = digest([]byte("other clock")) },
+		"foreign region":                      func(a *artifacts) { a.Personas[0].RegionID = "slot1" },
+		"foreign vendor POF hash":             func(a *artifacts) { a.Personas[0].VendorPOF.Hash = digest([]byte("foreign POF")) },
+		"foreign vendor POF region":           func(a *artifacts) { a.Personas[0].VendorPOF.RegionID = "0x02000000" },
+		"missing vendor info identity":        func(a *artifacts) { a.Personas[0].VendorPOF.InfoSHA256 = "" },
+		"zero vendor POF":                     func(a *artifacts) { a.Shell.VendorPOF.Hash = strings.Repeat("0", 64) },
+		"duplicate persona":                   func(a *artifacts) { a.Personas[1].ID = a.Personas[0].ID },
+		"duplicate artifact path":             func(a *artifacts) { a.Personas[1].Path = a.Personas[0].Path },
+		"duplicate compiler revision":         func(a *artifacts) { a.Personas[1].Revision = a.Personas[0].Revision },
+		"unsorted alternatives":               func(a *artifacts) { a.Personas[0], a.Personas[1] = a.Personas[1], a.Personas[0] },
+		"escape artifact":                     func(a *artifacts) { a.Personas[0].Path = "../outside.rbf" },
+		"absolute artifact":                   func(a *artifacts) { a.Personas[0].Path = "/dev/mem" },
+		"unbounded artifact":                  func(a *artifacts) { a.Personas[0].Size = maxArtifactBytes + 1 },
 	}
 	for name, change := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -253,13 +257,13 @@ func TestClosedCanonicalJSON(t *testing.T) {
 	directory, a := fixture(t)
 	valid := writeFixture(t, directory, a)
 	for name, invalid := range map[string][]byte{
-		"duplicate key":        append([]byte(`{"format":1,`), valid[1:]...),
+		"duplicate key":        append([]byte(`{"format":2,`), valid[1:]...),
 		"unknown field":        append([]byte(`{"arbitrary":1,`), valid[1:]...),
 		"missing field":        bytes.Replace(valid, []byte(`"diagnostic_only":true,`), nil, 1),
 		"extra document":       append(append([]byte(nil), valid...), []byte("{}")...),
 		"whitespace":           append([]byte(" "), valid...),
 		"no canonical newline": valid[:len(valid)-1],
-		"numeric coercion":     bytes.Replace(valid, []byte(`"format":1`), []byte(`"format":1.0`), 1),
+		"numeric coercion":     bytes.Replace(valid, []byte(`"format":2`), []byte(`"format":2.0`), 1),
 		"truncation":           valid[:len(valid)/2],
 	} {
 		t.Run(name, func(t *testing.T) {

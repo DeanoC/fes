@@ -28,12 +28,13 @@ func (s *selectionFlags) Set(value string) error {
 }
 
 type deploymentStep struct {
-	Action   string `json:"action"`
-	Artifact string `json:"artifact"`
-	SHA256   string `json:"sha256"`
-	Size     int64  `json:"size"`
-	RegionID string `json:"region_id,omitempty"`
-	Persona  string `json:"persona,omitempty"`
+	Action     string `json:"action"`
+	Artifact   string `json:"artifact"`
+	SHA256     string `json:"sha256"`
+	Size       int64  `json:"size"`
+	RegionID   string `json:"region_id,omitempty"`
+	Persona    string `json:"persona,omitempty"`
+	HardwareID uint32 `json:"hardware_id,omitempty"`
 }
 
 type deployment struct {
@@ -44,6 +45,7 @@ type deployment struct {
 	Controller         string           `json:"controller"`
 	MonolithicRBF      bool             `json:"monolithic_rbf"`
 	ShellID            string           `json:"shell_id"`
+	ControlBuildID     string           `json:"control_build_id"`
 	DescriptorSHA256   string           `json:"descriptor_sha256"`
 	Device             string           `json:"device"`
 	CompositionID      string           `json:"composition_id"`
@@ -51,18 +53,19 @@ type deployment struct {
 }
 
 func makeDeployment(a artifacts, p persona, receipt []byte) (deployment, []byte, error) {
-	result := deployment{Format: 1, Kind: "fes.de25-pr-proof-deployment", DiagnosticOnly: true,
-		PhysicalAcceptance: "not-run", Controller: "not-implemented", MonolithicRBF: false,
+	result := deployment{Format: 2, Kind: "fes.de25-pr-proof-deployment", DiagnosticOnly: true,
+		PhysicalAcceptance: "not-run", Controller: "runtime-protocol-only", MonolithicRBF: false,
 		ShellID: a.Shell.ID, DescriptorSHA256: digest(receipt), Device: a.Device,
+		ControlBuildID: a.Shell.ControlBuildID,
 		Steps: []deploymentStep{
 			{Action: "load-base", Artifact: "base.rbf", SHA256: a.Shell.Base.SHA256, Size: a.Shell.Base.Size},
-			{Action: "load-persona", Artifact: "slot0/persona.rbf", SHA256: p.SHA256, Size: p.Size, RegionID: p.RegionID, Persona: p.ID},
+			{Action: "load-persona", Artifact: "slot0/persona.rbf", SHA256: p.SHA256, Size: p.Size, RegionID: p.RegionID, Persona: p.ID, HardwareID: p.HardwareID},
 		}}
-	identity, err := canonical(map[string]any{"shell_id": result.ShellID, "descriptor_sha256": result.DescriptorSHA256, "steps": result.Steps})
+	identity, err := canonical(map[string]any{"shell_id": result.ShellID, "control_build_id": result.ControlBuildID, "descriptor_sha256": result.DescriptorSHA256, "steps": result.Steps})
 	if err != nil {
 		return deployment{}, nil, err
 	}
-	result.CompositionID = digest(append([]byte("fes-de25-pr-deployment-v1\x00"), identity...))
+	result.CompositionID = digest(append([]byte("fes-de25-pr-deployment-v2\x00"), identity...))
 	encoded, err := canonical(result)
 	return result, append(encoded, '\n'), err
 }

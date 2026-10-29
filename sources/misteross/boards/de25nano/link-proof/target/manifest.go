@@ -43,6 +43,7 @@ type vendorPOF struct {
 
 type shellIdentity struct {
 	ID                  string    `json:"id"`
+	ControlBuildID      string    `json:"control_build_id"`
 	SourceRevision      string    `json:"source_revision"`
 	SourceClosureSHA256 string    `json:"source_closure_sha256"`
 	RootQDBSHA256       string    `json:"root_qdb_sha256"`
@@ -61,6 +62,7 @@ type regionIdentity struct {
 
 type persona struct {
 	ID               string    `json:"id"`
+	HardwareID       uint32    `json:"hardware_id"`
 	Entity           string    `json:"entity"`
 	Revision         string    `json:"revision"`
 	Path             string    `json:"path"`
@@ -93,6 +95,7 @@ type artifacts struct {
 
 var hash64 = regexp.MustCompile(`^[0-9a-f]{64}$`)
 var revision40 = regexp.MustCompile(`^[0-9a-f]{40}$`)
+var build32 = regexp.MustCompile(`^[0-9a-f]{32}$`)
 var identifier = regexp.MustCompile(`^[a-z][a-z0-9_]{0,63}$`)
 var rectangle = regexp.MustCompile(`^X([0-9]+) Y([0-9]+) X([0-9]+) Y([0-9]+)$`)
 
@@ -233,7 +236,7 @@ func shellID(a artifacts) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return digest(append([]byte("fes-de25-pr-shell-v1\x00"), material...)), nil
+	return digest(append([]byte("fes-de25-pr-shell-v2\x00"), material...)), nil
 }
 
 func validRectangle(value string) bool {
@@ -252,7 +255,7 @@ func validate(a artifacts, expectedShell, expectedBase string, selections []stri
 	if !hash64.MatchString(expectedShell) || !hash64.MatchString(expectedBase) {
 		return selected, errors.New("external expected shell ID and base SHA256 are required")
 	}
-	if a.Format != 1 || a.Kind != "fes.de25-pr-proof-artifacts" || !a.DiagnosticOnly || a.Device != "A5EB013BB23BE4SCS" {
+	if a.Format != 2 || a.Kind != "fes.de25-pr-proof-artifacts" || !a.DiagnosticOnly || a.Device != "A5EB013BB23BE4SCS" {
 		return selected, errors.New("unsupported proof format, kind, scope or device")
 	}
 	if a.Tool.Version != "26.3.0 Build114" || a.Tool.Edition != "SC Pro Edition" ||
@@ -263,6 +266,9 @@ func validate(a artifacts, expectedShell, expectedBase string, selections []stri
 		return selected, errors.New("proof requires retained compiler/timing checks and physical not-run boundary")
 	}
 	s := a.Shell
+	if !build32.MatchString(s.ControlBuildID) || s.ControlBuildID == strings.Repeat("0", 32) {
+		return selected, errors.New("missing controlled-base identity")
+	}
 	if !revision40.MatchString(s.SourceRevision) || !hash64.MatchString(s.SourceClosureSHA256) || !hash64.MatchString(s.RootQDBSHA256) ||
 		!hash64.MatchString(s.InterfaceSHA256) || !hash64.MatchString(s.ClockResetSHA256) || !validBlob(s.Base) || !validVendorPOF(s.VendorPOF) {
 		return selected, errors.New("invalid shell or base identity")
@@ -278,7 +284,12 @@ func validate(a artifacts, expectedShell, expectedBase string, selections []stri
 		return selected, errors.New("one physical slot requires exactly one selected persona from two alternatives; selections overlap")
 	}
 	seenID, seenPath, seenRevision := map[string]bool{}, map[string]bool{s.Base.Path: true}, map[string]bool{}
+	seenHardware := map[uint32]bool{}
 	for i, p := range a.Personas {
+		if p.HardwareID == 0 || seenHardware[p.HardwareID] {
+			return selected, errors.New("invalid or duplicate persona hardware identity")
+		}
+		seenHardware[p.HardwareID] = true
 		if !identifier.MatchString(p.ID) || !identifier.MatchString(p.Entity) || !identifier.MatchString(p.Revision) ||
 			!validBlob(blob{p.Path, p.Size, p.SHA256}) || seenID[p.ID] || seenPath[p.Path] || seenRevision[p.Revision] ||
 			(i > 0 && a.Personas[i-1].ID >= p.ID) {

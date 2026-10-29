@@ -19,16 +19,18 @@ selection and transfer. libmister-runtime programs the FPGA.
 
 ## DE25-Nano board diagnostic
 
-The isolated [base-plus-persona proof](../boards/de25nano/link-proof/README.md)
-builds a tiny Quartus PR base and two same-interface personas for the exact SCS
-device. A separate stdlib-only Go executable validates compiler descriptors and
-assembles ordinary opaque files into a deterministic deployment bundle on
-AArch64; it does not use the Cyclone V `expansion` module's CRAM codec. The
-single reserved region, final root QDB, clocks/reset/interface and exact payload
-hashes bind each persona to its base. The virtual freeze control has no HPS
-backend. The RTL bench models logical stop/drain/reset/clamp transitions;
-QEMU executes target composition. No production package, programming backend
-or physical PR acceptance is added by this diagnostic.
+The [HPS-controlled base/persona diagnostic](../boards/de25nano/link-proof/README.md)
+preserves the Terasic HPS/DDR base and adds one 100 MHz PR slot plus a generated
+lightweight-bridge control endpoint. Registered boundaries support sequenced
+freeze/drain/reset and an identity-checked resume. The shared
+`fes.fabric.de25-pr-control` constants also drive the native runtime's injected
+control/configuration interface. Its production device constructor stays closed.
+A stdlib-only Go executable binds format-2 descriptors and opaque payloads to
+the exact root QDB, slot, control build ID and persona hardware ID, then creates
+a deterministic deployment bundle. It does not use the Cyclone V CRAM codec.
+Native/AArch64 runtime co-simulation uses the actual endpoint RTL and a persona
+selection mux; it does not model SDM execution. No production package, physical
+programming backend or hardware acceptance is added by this diagnostic.
 
 The standalone [three-memory RAM Tester](../boards/de25nano/ramtest/README.md)
 adds separate destructive FPGA LPDDR4 B and board SDRAM endpoints to the pinned

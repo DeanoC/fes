@@ -25,6 +25,16 @@ from production archives. Identity/ordering tests establish this rejection
 behavior. An AArch64 compile or execution under QEMU does not establish DE25
 FPGA programming, MMIO, DDR, input or display support.
 
+`De25PrControl` is a separate internal diagnostic protocol consumer. Its caller
+owns bounded, ordered full-word register I/O and a validated persona
+configuration callback. The controller verifies the selected 128-bit base,
+uses strictly increasing command sequences, waits for positive freeze/drain
+completion, and validates the base again before an identity-probed resume.
+No callback runs before confirmed freeze. Read/write/configuration ambiguity,
+unexpected state/sequence or deadline failure prevents further commands and
+requires a fresh external recovery/identification epoch. This path is not
+constructed by the production factory or exposed by the runtime daemon.
+
 The package inspector reads format 4's two named ROM sources and sealed map
 with its separate identity domain. Physical admission still requires a linked
 load before that format can be activated.

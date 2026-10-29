@@ -31,14 +31,17 @@ class LinkProofTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             log = (Path(directory) / "simulation/simulation.log").read_text()
             self.assertIn("A/B/A/B", log)
-            self.assertIn("checked responses", log)
+            self.assertIn("four-cycle ROM/ID replies", log)
 
     def test_project_preparation_preserves_exact_part_and_root_import(self):
         spec = importlib.util.spec_from_file_location("de25_pr_build", BOARD / "build.py")
         build = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(build)
         with tempfile.TemporaryDirectory(prefix="de25-pr-project-") as directory:
-            project = build.prepare(Path(directory) / "project", "X2 Y7 X26 Y12", "X1 Y6 X27 Y13")
+            project = Path(directory)
+            (project / "golden_top.qsf").write_text('set_global_assignment -name DEVICE A5EB013BB23BE4SCS\n')
+            build.write_revisions(project, {"placement": "X2 Y7 X26 Y12", "routing": "X1 Y6 X27 Y13"},
+                                  "112233445566778899aabbccddeeff00")
             base = (project / "base.qsf").read_text()
             self.assertIn("A5EB013BB23BE4SCS", base)
             self.assertIn("REVISION_TYPE PR_BASE", base)
@@ -48,8 +51,17 @@ class LinkProofTests(unittest.TestCase):
                 self.assertIn("REVISION_TYPE PR_IMPL", consumer)
                 self.assertIn("QDB_FILE_PARTITION root_partition.qdb -to |", consumer)
                 self.assertIn(f"ENTITY_REBINDING fes_link_persona_{suffix}", consumer)
-            with self.assertRaises(FileExistsError):
-                build.prepare(project, "X2 Y7 X26 Y12", "X1 Y6 X27 Y13")
+            self.assertNotIn("VIRTUAL_PIN", base)
+            self.assertIn("FES_DE25_PR_BUILD_ID", base)
+
+    @unittest.skipUnless(shutil.which("verilator") and shutil.which("c++"), "requires Verilator and C++")
+    def test_native_runtime_controls_actual_endpoint_rtl(self):
+        with tempfile.TemporaryDirectory(prefix="de25-pr-control-") as directory:
+            result = subprocess.run([sys.executable, str(BOARD / "control_proof.py"), "--native-only",
+                                     "--allow-working-copy", "--output", str(Path(directory) / "proof")],
+                                    capture_output=True, text=True, timeout=240)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn('"scenarios": 6', result.stdout)
 
 
 if __name__ == "__main__":

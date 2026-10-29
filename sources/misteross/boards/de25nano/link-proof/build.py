@@ -1,33 +1,35 @@
 #!/usr/bin/env python3
-"""Build a tiny exact-device PR artifact proof; never configure an FPGA."""
+"""Build an HPS-controlled exact-device PR diagnostic; never configure an FPGA."""
 from __future__ import annotations
 
 import argparse
 from decimal import Decimal
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
 import re
 import shutil
 import subprocess
+import xml.etree.ElementTree as ET
 
 BOARD = Path(__file__).resolve().parent
 DEVICE = "A5EB013BB23BE4SCS"
 PROJECT = "fes_link_proof"
-TOOL_VERSION = "26.3.0"
-SOURCE_NAMES = ("build.py", "build_timing.tcl", "clocks.sdc", "fpga/top.v", "fpga/shell.v", "fpga/personas.v",
-                "fpga/persona_a.hex", "fpga/persona_b.hex")
-PARENT_NAMES = ("reset_release.ip", "pins.qsf")
-INTERFACE = {"name": "fes.de25.registered-pr-proof", "version": 1, "clock_hz": 50000000,
+SOURCE_NAMES = ("build.py", "build_timing.tcl", "clocks.sdc", "fpga/shell.v", "fpga/personas.v",
+                "fpga/fes_de25_pr_control_hw.tcl", "fpga/persona_a.hex", "fpga/persona_b.hex",
+                "generated/fes_de25_pr_control.vh")
+INTERFACE = {"name": "fes.de25.registered-pr-control", "version": 1, "clock_hz": 100000000,
              "request": {"valid": 1, "address": 8}, "response": {"valid": 1, "data": 32},
-             "latency_cycles": 2, "reset": "active-high-synchronous", "backpressure": False}
-CLOCK_RESET = {"clock": "board50", "period_ns": "20.000", "source": "CLOCK0_50",
-               "freeze_control": "virtual-diagnostic-input-no-hps-backend",
-               "sequence": ["stop-requests", "drain-responses", "freeze-ack",
-                            "clamp-outputs-and-hold-local-reset", "load-persona",
-                            "release-local-reset-and-resume"],
-               "cold_reset": "SDM-ninit_done-two-register-release"}
+             "latency_cycles": 4, "id_probe_address": 0, "reset": "active-high-synchronous", "backpressure": False}
+CLOCK_RESET = {"clock": "pll_inst|iopll_0_outclk0", "period_ns": "10.000", "source": "preserved-GHRD-PLL",
+               "freeze_control": "HPS-lightweight-Avalon-peripheral-0x10700",
+               "sequence": ["stop-requests", "drain-responses", "registered-reset-settle",
+                            "freeze-ack", "load-persona", "release-reset", "identity-probe", "resume-ack"],
+               "cold_reset": "preserved-SDM-and-GHRD-two-register-release",
+               "late_peripheral_reset": "terminal-fault-no-new-epoch"}
+
 
 
 class BuildError(ValueError):
@@ -73,6 +75,18 @@ def verify_project(directory: Path, inputs: dict) -> None:
     verify_qpf(directory)
 
 
+def verify_hps_inputs(project: Path) -> None:
+    hps = load_hps(project.parent.parent / "functional-source/sources/misteross/boards/de25nano/hps/build.py")
+    preserved = json.loads((project.parent / "inputs.json").read_bytes())
+    for name, expected in preserved["vendor_hps_emif_parameters"].items():
+        if hps.module_parameters(project / name) != expected:
+            raise BuildError("changed preserved HPS/EMIF module parameters: " + name)
+    vendor = json.loads((project.parent / "vendor-inputs.json").read_bytes())
+    for name, expected in vendor["source_sha256"].items():
+        if name.startswith("software/") and sha((project / name).read_bytes()) != expected:
+            raise BuildError("changed preserved vendor boot data: " + name)
+
+
 def report_table(text: str, title: str) -> list[dict[str, str]]:
     match = re.search(r"^;\s*" + re.escape(title) + r"\s*;\s*$", text, re.MULTILINE)
     if match is None:
@@ -95,9 +109,10 @@ def verify_regions(rows: list[dict[str, str]], region: dict, revision: str) -> N
             raise BuildError("invalid captured region coordinates")
         x0, y0, x1, y1 = map(int, match.groups())
         return f"({x0}, {y0}) to ({x1}, {y1})"
-    if (len(rows) != 1 or rows[0].get("Name") != expected_name
-            or rows[0].get("Place Region Constraint") != report_coordinates(region["placement"])
-            or rows[0].get("Route Region Constraint") != report_coordinates(region["routing"])):
+    selected = [row for row in rows if row.get("Name") == expected_name]
+    if (len(selected) != 1
+            or selected[0].get("Place Region Constraint") != report_coordinates(region["placement"])
+            or selected[0].get("Route Region Constraint") != report_coordinates(region["routing"])):
         raise BuildError(f"{revision}: fitted PR region differs from captured name or coordinates")
 
 
@@ -127,7 +142,7 @@ def timing_summary(output: Path, revision: str) -> dict:
     return {"status": "passed", "scope": "constrained-internal-timing-only",
             "rows": rows, "coverage": coverage, "clocks": clocks,
             "closure": report_table(report, "Design Closure Summary"),
-            "external_io": "human-visible-LEDs-and-virtual-freeze-control-not-physical-timing-qualification",
+            "external_io": "preserved-vendor-HPS-and-memory-IO-not-physical-timing-qualification",
             "report_sha256": {f"{revision}.sta.summary": sha(summary.encode()),
                               f"{revision}.sta.rpt": sha(report.encode())}}
 
@@ -158,6 +173,7 @@ def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
     verify_project(output, inputs)
     generated = json.loads((output / "generated-inputs.json").read_text())
     verify_files(output, generated)
+    verify_hps_inputs(output)
     root_qdb = blob(output, output / "root_partition.qdb")
     baseline_path = output / "root-qdb.json"
     baseline = json.loads(baseline_path.read_text())
@@ -185,14 +201,16 @@ def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
             raise BuildError(f"{revision}: unresolved critical compiler warning")
         summaries[revision] = timing_summary(output, revision)
         fit = (output / "output_files" / f"{revision}.fit.rpt").read_text()
-        memories = report_table(fit, "Fitter RAM Summary")
+        all_memories = report_table(fit, "Fitter RAM Summary")
+        memories = [row for row in all_memories if row.get("Name", "").startswith("slot_inst|")]
         if (len(memories) != 1 or memories[0].get("Type") != "M20K"
                 or memories[0].get("Logical Size") != "8192" or memories[0].get("M20K blocks") != "1.000"
                 or memories[0].get("MLABs") != "0.000"):
-            raise BuildError(f"{revision}: expected exactly one 256x32 M20K and no extra RAM")
+            raise BuildError(f"{revision}: expected exactly one 256x32 M20K inside the PR slot")
         regions = report_table(fit, "Logic Lock Region Constraints")
         verify_regions(regions, inputs["region"], revision)
         summaries[revision]["memory"] = memories
+        summaries[revision]["static_memory"] = [row for row in all_memories if row not in memories]
         summaries[revision]["regions"] = regions
         summaries[revision]["partition_reuse"] = report_table(fit, "Partial Reconfiguration and Periphery Reuse Statistics")
         drc = (output / "output_files" / f"{revision}.tq.drc.signoff.rpt").read_text()
@@ -203,7 +221,9 @@ def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
                 raise BuildError("proof must not contain waived Design Assistant findings")
             if int(violations):
                 failures.append({"rule": rule.strip(), "severity": severity, "violations": int(violations)})
-                if severity in ("Critical", "High") and not rule.startswith("TMC-20012 "):
+                if rule.startswith("BBD-60000 "):
+                    raise BuildError(f"{revision}: PR boundary is not directly registered")
+                if severity in ("Critical", "High") and not rule.startswith(("TMC-20011 ", "TMC-20012 ")):
                     raise BuildError(f"{revision}: unqualified internal Design Assistant failure {rule}")
         summaries[revision]["unwaived_design_assistant_findings"] = failures
         sta_report = (output / "output_files" / f"{revision}.sta.rpt").read_text()
@@ -217,12 +237,12 @@ def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
                 raw_hashes[path.relative_to(output).as_posix()] = sha(path.read_bytes())
         before_audit = dict(raw_hashes)
         before_audit["root_partition.qdb"] = root_qdb["sha256"]
-        run([str(tools["quartus_sta"]), "-t", str(output / "build_timing.tcl"), str(output), revision,
+        run([str(tools["quartus_sta"]), "-t", str(output / "fes_link/build_timing.tcl"), str(output), revision,
              str(output / f"timing-{revision}")], output, f"{revision}-timing-audit.log")
         verify_files(output, before_audit)
         summaries[revision]["synchronizer_audit"] = {
             "log_sha256": sha((output / f"{revision}-timing-audit.log").read_bytes()),
-            "paths_sha256": sha((output / f"timing-{revision}/synchronizer-paths.tsv").read_bytes())}
+            "paths_sha256": sha((output / f"timing-{revision}/boundary-paths.tsv").read_bytes())}
         if revision == "base":
             continue
         log = (output / f"{revision}-compile.log").read_text()
@@ -245,11 +265,12 @@ def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
         raise BuildError("Quartus executable closure changed during verification")
     verify_project(output, inputs)
     verify_files(output, generated)
+    verify_hps_inputs(output)
     if sha((output / "root_partition.qdb").read_bytes()) != expected_root:
         raise BuildError("root QDB changed during verification")
     interface_hash = sha(canonical(inputs["interface"]))
     reset_hash = sha(canonical(inputs["clock_reset"]))
-    descriptor = {"format": 1, "kind": "fes.de25-pr-proof-artifacts", "diagnostic_only": True,
+    descriptor = {"format": 2, "kind": "fes.de25-pr-proof-artifacts", "diagnostic_only": True,
         "device": DEVICE,
         "tool": {"version": "26.3.0 Build114", "edition": "SC Pro Edition",
                  "quartus_sh_sha256": selected_tools["quartus_sh"],
@@ -259,15 +280,15 @@ def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
                   "source_closure_sha256": inputs["source_closure_sha256"],
                   "root_qdb_sha256": root_qdb["sha256"], "interface_sha256": interface_hash,
                   "clock_reset_sha256": reset_hash, "base": blob(output, directory / "base.rbf"),
-                  "vendor_pof": base_pof},
+                  "vendor_pof": base_pof, "control_build_id": inputs["control_build_id"]},
         "region": inputs["region"], "personas": [],
         "acceptance": {"physical": "not-run", "timing": "passed",
                        "base_persona_compatibility": "pfg-info-pof0-match"}}
-    descriptor["shell"]["id"] = sha(b"fes-de25-pr-shell-v1\0" + canonical(
+    descriptor["shell"]["id"] = sha(b"fes-de25-pr-shell-v2\0" + canonical(
         {key: descriptor[key] for key in ("device", "tool", "shell", "region")}))
     for suffix in ("a", "b"):
         persona = {"id": f"counter_{suffix}", "entity": f"fes_link_persona_{suffix}",
-                   "revision": f"persona_{suffix}", **blob(output, directory / f"counter_{suffix}.rbf"),
+                   "revision": f"persona_{suffix}", "hardware_id": 0xc001a001 if suffix == "a" else 0xc002b002, **blob(output, directory / f"counter_{suffix}.rbf"),
                    "root_qdb_sha256": root_qdb["sha256"], "interface_sha256": interface_hash,
                    "clock_reset_sha256": reset_hash, "region_id": "slot0",
                    "vendor_pof": decoded[f"persona_{suffix}"]}
@@ -279,6 +300,7 @@ def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
              "source_revision": inputs["source_revision"], "source_committed": inputs["source_committed"],
              "source_closure_sha256": inputs["source_closure_sha256"], "device": DEVICE,
              "quartus_version": version, "tool_sha256": selected_tools,
+             "control_build_id": inputs["control_build_id"],
              "qpf_initial": inputs.get("qpf"), "qpf_final": verify_qpf(output),
              "compiler_status": "passed", "timing_status": "passed",
              "compatibility_status": "pfg-info-pof0-match", "hardware_acceptance": "not-run",
@@ -335,10 +357,27 @@ def tool_hashes(tools: dict[str, Path]) -> dict[str, str]:
     return result
 
 
+def load_hps(path: Path):
+    spec = importlib.util.spec_from_file_location("de25_pr_frozen_hps", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def control_constant(definition: bytes, name: str) -> int:
+    matches = re.findall(rb"^`define FES_DE25_PR_CONTROL_" + name.encode() + rb" 32'h([0-9a-f]{8})$", definition, re.M)
+    if len(matches) != 1:
+        raise BuildError("missing or duplicate generated PR control constant: " + name)
+    return int(matches[0], 16)
+
+
 def capture() -> dict:
     repository = Path(subprocess.check_output(["git", "rev-parse", "--show-toplevel"], cwd=BOARD, text=True).strip())
     revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=BOARD, text=True).strip()
-    paths = [BOARD / name for name in SOURCE_NAMES] + [BOARD.parent / name for name in PARENT_NAMES]
+    hps = load_hps(BOARD.parent / "hps/build.py")
+    paths = [BOARD / name for name in SOURCE_NAMES]
+    paths += [BOARD.parent / "hps" / name for name in hps.SOURCES]
+    paths += [BOARD.parent / "build.py"]
     files = {p.relative_to(repository).as_posix(): p.read_bytes() for p in paths}
     committed = True
     for name, data in files.items():
@@ -348,71 +387,211 @@ def capture() -> dict:
     return {"repository": repository, "revision": revision, "files": files, "committed": committed}
 
 
-def prepare(output: Path, placement: str, routing: str) -> Path:
+def write_revisions(project: Path, region: dict, build_id: str) -> None:
+    common = (project / "golden_top.qsf").read_text()
+    # Emit the selected tool defaults once; Quartus must not mutate functional
+    # assignments while compiling one of the explicit revisions.
+    overrides = {"NUM_PARALLEL_PROCESSORS", "SEED", "IP_SEARCH_PATHS", "LAST_QUARTUS_VERSION",
+                 "PWRMGT_VOLTAGE_OUTPUT_FORMAT", "PWRMGT_LINEAR_FORMAT_N",
+                 "RESERVE_ALL_UNUSED_PINS_NO_OUTPUT_GND", "ENABLE_PR_POF_ID"}
+    common = "\n".join(line for line in common.splitlines() if not any(
+        re.match(r"^set_global_assignment -name " + name + r"(?:\s|$)", line) for name in overrides)) + "\n"
+    common += ('set_global_assignment -name NUM_PARALLEL_PROCESSORS 2\n'
+        'set_global_assignment -name SEED 1\n'
+        'set_global_assignment -name LAST_QUARTUS_VERSION "26.3.0 Pro Edition"\n'
+        'set_global_assignment -name PWRMGT_VOLTAGE_OUTPUT_FORMAT "LINEAR FORMAT"\n'
+        'set_global_assignment -name PWRMGT_LINEAR_FORMAT_N "-12"\n'
+        'set_global_assignment -name RESERVE_ALL_UNUSED_PINS_NO_OUTPUT_GND "AS INPUT TRI-STATED"\n'
+        'set_global_assignment -name ENABLE_PR_POF_ID ON\n'
+        'set_global_assignment -name IP_SEARCH_PATHS "custom_ip/**/*;fes_mailbox;fes_link"\n'
+        'set_global_assignment -name VERILOG_FILE fes_link/personas.v\n'
+        'set_global_assignment -name SDC_FILE fes_link/clocks.sdc\n'
+        f'set_global_assignment -name VERILOG_MACRO "FES_DE25_PR_BUILD_ID=128\'h{build_id}"\n')
+    lines = common.splitlines()
+    constraints = "\n".join(line for line in lines if line.startswith("set_global_assignment -name SDC_FILE ")) + "\n"
+    common = "\n".join(line for line in lines if not line.startswith("set_global_assignment -name SDC_FILE ")) + "\n"
+    partition = ('set_instance_assignment -name PARTITION slot0 -to slot_inst\n'
+        'set_instance_assignment -name PARTIAL_RECONFIGURATION_PARTITION ON -to slot_inst\n')
+    reserved = (f'set_instance_assignment -name PLACE_REGION "{region["placement"]}" -to slot_inst\n'
+        f'set_instance_assignment -name ROUTE_REGION "{region["routing"]}" -to slot_inst\n'
+        'set_instance_assignment -name RESERVE_PLACE_REGION ON -to slot_inst\n'
+        'set_instance_assignment -name RESERVE_ROUTE_REGION ON -to slot_inst\n'
+        'set_instance_assignment -name CORE_ONLY_PLACE_REGION ON -to slot_inst\n')
+    (project / f"{PROJECT}.qpf").write_text('QUARTUS_VERSION = "26.3"\nPROJECT_REVISION = "base"\n'
+                                         'PROJECT_REVISION = "persona_a"\nPROJECT_REVISION = "persona_b"\n')
+    (project / "base.qsf").write_text(common + 'set_global_assignment -name REVISION_TYPE PR_BASE\n' +
+        partition + reserved + 'set_instance_assignment -name EXPORT_PARTITION_SNAPSHOT_FINAL root_partition.qdb -to |\n' + constraints)
+    for suffix in ("a", "b"):
+        (project / f"persona_{suffix}.qsf").write_text(common +
+            'set_global_assignment -name REVISION_TYPE PR_IMPL\n' +
+            'set_instance_assignment -name QDB_FILE_PARTITION root_partition.qdb -to |\n' + partition +
+            f'set_instance_assignment -name ENTITY_REBINDING fes_link_persona_{suffix} -to slot_inst\n' + constraints)
+
+
+def prepare(output: Path, placement: str, routing: str, archive: Path | None = None) -> Path:
     for region in (placement, routing):
         if re.fullmatch(r"X[0-9]+ Y[0-9]+ X[0-9]+ Y[0-9]+", region) is None:
             raise BuildError("region must contain exactly four canonical device coordinates")
+    if archive is None or not archive.is_file() or archive.is_symlink():
+        raise BuildError("an explicit regular-file --vendor-archive is required")
     frozen = capture()
+    definition = frozen["files"]["sources/misteross/boards/de25nano/link-proof/generated/fes_de25_pr_control.vh"]
+    control_offset = control_constant(definition, "PERIPHERAL_OFFSET")
+    if control_constant(definition, "CLOCK_HZ") != 100000000 or control_constant(definition, "SPAN") != 64:
+        raise BuildError("PR control clock/span contract changed")
     output = output.resolve()
     output.mkdir(parents=True, exist_ok=False)
+    snapshot = output / "functional-source"
     for name, data in frozen["files"].items():
-        (output / Path(name).name).write_bytes(data)
-    common = (
-        'set_global_assignment -name FAMILY "Agilex 5"\n'
-        f'set_global_assignment -name DEVICE {DEVICE}\n'
-        f'set_global_assignment -name TOP_LEVEL_ENTITY {PROJECT}\n'
-        'set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files\n'
-        'set_global_assignment -name NUM_PARALLEL_PROCESSORS 2\n'
-        'set_global_assignment -name SEED 1\n'
-        'set_global_assignment -name ENABLE_PR_POF_ID ON\n'
-        'set_global_assignment -name STRATIXV_CONFIGURATION_SCHEME "ACTIVE SERIAL X4"\n'
-        'set_global_assignment -name ACTIVE_SERIAL_CLOCK AS_FREQ_125MHZ\n'
-        'set_global_assignment -name DEVICE_INITIALIZATION_CLOCK OSC_CLK_1_125MHZ\n'
-        'set_global_assignment -name RESERVE_ALL_UNUSED_PINS "AS INPUT TRI-STATED"\n'
-        'set_global_assignment -name RESERVE_ALL_UNUSED_PINS_NO_OUTPUT_GND "AS INPUT TRI-STATED"\n'
-        'set_global_assignment -name PWRMGT_VOLTAGE_OUTPUT_FORMAT "LINEAR FORMAT"\n'
-        'set_global_assignment -name PWRMGT_LINEAR_FORMAT_N "-12"\n'
-        'set_global_assignment -name LAST_QUARTUS_VERSION "26.3.0 Pro Edition"\n'
-        'set_global_assignment -name IP_FILE reset_release.ip\n'
-        'set_global_assignment -name VERILOG_FILE top.v\n'
-        'set_global_assignment -name VERILOG_FILE shell.v\n'
-        'set_global_assignment -name VERILOG_FILE personas.v\n'
-        'set_instance_assignment -name VIRTUAL_PIN ON -to freeze_req\n'
-        'source pins.qsf\n'
-    )
-    partition = (
-        'set_instance_assignment -name PARTITION slot0 -to slot_inst\n'
-        'set_instance_assignment -name PARTIAL_RECONFIGURATION_PARTITION ON -to slot_inst\n'
-        f'set_instance_assignment -name PLACE_REGION "{placement}" -to slot_inst\n'
-        f'set_instance_assignment -name ROUTE_REGION "{routing}" -to slot_inst\n'
-        'set_instance_assignment -name RESERVE_PLACE_REGION ON -to slot_inst\n'
-        'set_instance_assignment -name RESERVE_ROUTE_REGION ON -to slot_inst\n'
-        'set_instance_assignment -name CORE_ONLY_PLACE_REGION ON -to slot_inst\n'
-    )
-    (output / f"{PROJECT}.qpf").write_text('QUARTUS_VERSION = "26.3"\nPROJECT_REVISION = "base"\n'
-                                           'PROJECT_REVISION = "persona_a"\nPROJECT_REVISION = "persona_b"\n')
-    (output / "base.qsf").write_text(common + 'set_global_assignment -name REVISION_TYPE PR_BASE\n' + partition +
-        'set_instance_assignment -name EXPORT_PARTITION_SNAPSHOT_FINAL root_partition.qdb -to |\n'
-        'set_global_assignment -name SDC_FILE clocks.sdc\n')
+        path = snapshot / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+    hps = load_hps(snapshot / "sources/misteross/boards/de25nano/hps/build.py")
+    retained = output / "vendor.zip"
+    retained.write_bytes(archive.read_bytes())
+    hps.source_identity = lambda: {"fes_revision": frozen["revision"],
+        "source_classification": "committed" if frozen["committed"] else "working-copy-diagnostic"}
+    hps_output = hps.prepare_project(retained, output / "hps")
+    project = hps_output / "project"
+    local = project / "fes_link"
+    local.mkdir()
+    for name in SOURCE_NAMES:
+        if name == "build.py":
+            target = local / "build.py"
+        elif name.startswith("fpga/"):
+            target = local / name.removeprefix("fpga/")
+        else:
+            target = local / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(frozen["files"]["sources/misteross/boards/de25nano/link-proof/" + name])
     for suffix in ("a", "b"):
-        (output / f"persona_{suffix}.qsf").write_text(common +
-            'set_global_assignment -name REVISION_TYPE PR_IMPL\n' +
-            'set_instance_assignment -name QDB_FILE_PARTITION root_partition.qdb -to |\n' +
-            'set_instance_assignment -name PARTITION slot0 -to slot_inst\n' +
-            'set_instance_assignment -name PARTIAL_RECONFIGURATION_PARTITION ON -to slot_inst\n' +
-            f'set_instance_assignment -name ENTITY_REBINDING fes_link_persona_{suffix} -to slot_inst\n' +
-            'set_global_assignment -name SDC_FILE clocks.sdc\n')
+        shutil.copyfile(local / f"persona_{suffix}.hex", project / f"persona_{suffix}.hex")
+    top = (project / "golden_top.v").read_text()
+    anchor = "qsys_top soc_inst ("
+    if top.count(anchor) != 1 or top.count("endmodule") != 1:
+        raise BuildError("preserved GHRD top boundary differs")
+    declarations = """wire pr_req, pr_reset, pr_rsp_valid, pr_frozen, pr_running;
+wire [7:0] pr_address;
+wire [31:0] pr_rsp_data, pr_isolated_data, pr_static_count, pr_retired, pr_last_data;
+qsys_top soc_inst (
+.fes_pr_slot_req(pr_req), .fes_pr_slot_address(pr_address), .fes_pr_slot_reset(pr_reset),
+.fes_pr_slot_rsp_valid(pr_rsp_valid), .fes_pr_slot_rsp_data(pr_rsp_data),
+.fes_pr_diagnostic_frozen(pr_frozen), .fes_pr_diagnostic_running(pr_running),
+.fes_pr_diagnostic_isolated_data(pr_isolated_data), .fes_pr_diagnostic_static_count(pr_static_count),
+.fes_pr_diagnostic_retired(pr_retired), .fes_pr_diagnostic_last_data(pr_last_data),
+"""
+    top = top.replace(anchor, declarations)
+    top = top.replace("endmodule", """fes_link_persona_a slot_inst (
+.clk(system_clk_100_internal), .reset(pr_reset), .req(pr_req), .address(pr_address),
+.rsp_valid(pr_rsp_valid), .rsp_data(pr_rsp_data));
+endmodule
+""")
+    (project / "golden_top.v").write_text(top)
+    script = (project / "integrate-mailbox.tcl").read_text()
+    insert = """add_instance fes_pr_control fes_de25_pr_control 1.0
+add_connection periph_clk.out_clk fes_pr_control.clk
+add_connection periph_rst_in.out_reset fes_pr_control.reset
+add_connection pb_cpu_0.m0 fes_pr_control.avs
+set_connection_parameter_value pb_cpu_0.m0/fes_pr_control.avs baseAddress @PR_BASE@
+add_interface fes_pr_slot conduit end
+set_interface_property fes_pr_slot EXPORT_OF fes_pr_control.slot
+add_interface fes_pr_diagnostic conduit end
+set_interface_property fes_pr_diagnostic EXPORT_OF fes_pr_control.diagnostic
+"""
+    anchor = "save_system $peripheral_system\n\n# Refresh"
+    if script.count(anchor) != 1:
+        raise BuildError("preserved GHRD integration boundary differs")
+    script = script.replace(anchor, insert.replace("@PR_BASE@", hex(control_offset)) + "\n" + anchor)
+    anchor = "save_system " + hps.tcl_word(project / "qsys_top.qsys") + "\n"
+    if script.count(anchor) != 1:
+        raise BuildError("preserved GHRD top save boundary differs")
+    exports = """add_interface fes_pr_slot conduit end
+set_interface_property fes_pr_slot EXPORT_OF subsys_periph.fes_pr_slot
+add_interface fes_pr_diagnostic conduit end
+set_interface_property fes_pr_diagnostic EXPORT_OF subsys_periph.fes_pr_diagnostic
+"""
+    script = script.replace(anchor, exports + anchor)
+    (project / "integrate-mailbox.tcl").write_text(script)
+    # The generator's project gets the same component search paths as PR revisions.
+    with (project / "golden_top.qsf").open("a") as qsf:
+        qsf.write('\nset_global_assignment -name IP_SEARCH_PATHS "custom_ip/**/*;fes_mailbox;fes_link"\n')
+    region = {"id": "slot0", "instance": "slot_inst", "placement": placement, "routing": routing}
     inputs = {"diagnostic_only": True, "source_revision": frozen["revision"],
               "source_committed": frozen["committed"], "device": DEVICE,
               "source_sha256": {name: sha(data) for name, data in frozen["files"].items()},
-              "interface": INTERFACE, "clock_reset": CLOCK_RESET,
-              "region": {"id": "slot0", "instance": "slot_inst", "placement": placement, "routing": routing}}
-    inputs["project_sha256"] = {path.name: sha(path.read_bytes()) for path in output.iterdir()
-                                if path.is_file() and path.suffix != ".qpf"}
-    inputs["qpf"] = verify_qpf(output)
+              "source_snapshot": str(snapshot.relative_to(project.parent.parent)),
+              "vendor_archive_sha256": sha(retained.read_bytes()),
+              "control_peripheral_offset": control_offset,
+              "interface": INTERFACE, "clock_reset": CLOCK_RESET, "region": region}
+    inputs["control_build_id"] = sha(canonical(inputs))[:32]
+    write_revisions(project, region, inputs["control_build_id"])
+    inputs["project_sha256"] = {path.relative_to(project).as_posix(): sha(path.read_bytes())
+        for path in local.rglob("*") if path.is_file()}
+    for name in ("base.qsf", "persona_a.qsf", "persona_b.qsf", "golden_top.v", "persona_a.hex", "persona_b.hex"):
+        inputs["project_sha256"][name] = sha((project / name).read_bytes())
+    inputs["qpf"] = verify_qpf(project)
     inputs["source_closure_sha256"] = sha(canonical(inputs))
-    (output / "inputs.json").write_bytes(canonical(inputs) + b"\n")
-    return output
+    (project / "inputs.json").write_bytes(canonical(inputs) + b"\n")
+    return project
+
+
+def generate_hps(project: Path, tools: dict[str, Path], version: str) -> None:
+    snapshot = project.parent.parent / "functional-source"
+    hps = load_hps(snapshot / "sources/misteross/boards/de25nano/hps/build.py")
+    install = tools["quartus_sh"].parents[2]
+    qsys = install / "qsys/bin/qsys-script"
+    run([str(qsys), "--quartus-project=golden_top",
+         "--search-path=custom_ip/**/*,fes_mailbox,fes_link,$", "--script=integrate-mailbox.tcl"],
+        project, "hps-integration.log")
+    run([str(tools["quartus_ipgenerate"]), "--clear_ip_generation_dirs", "golden_top"], project, "hps-clear.log")
+    run([str(tools["quartus_ipgenerate"]), "--generate_project_ip_files", "--synthesis=verilog", "golden_top"],
+        project, "hps-generation.log")
+    preserved = json.loads((project.parent / "inputs.json").read_bytes())
+    for name, expected in preserved["vendor_hps_emif_parameters"].items():
+        if hps.module_parameters(project / name) != expected:
+            raise BuildError("generation changed preserved HPS/EMIF module parameters: " + name)
+    vendor = json.loads((project.parent / "vendor-inputs.json").read_bytes())
+    for name, expected in vendor["source_sha256"].items():
+        if name.startswith("software/") and sha((project / name).read_bytes()) != expected:
+            raise BuildError("generation changed preserved vendor boot data: " + name)
+    handoff = hps.verify_mailbox_handoff(project)
+    handoff["ddr_probe"] = hps.verify_probe_handoff(project)
+    inputs = json.loads((project / "inputs.json").read_bytes())
+    tree = ET.parse(project / "qsys_top/qsys_top.sopcinfo")
+    modules = [item for item in tree.findall("module") if item.get("path") == "subsys_periph.fes_pr_control"]
+    if len(modules) != 1 or modules[0].get("kind") != "fes_de25_pr_control" or modules[0].get("version") != "1.0":
+        raise BuildError("actual generated system lacks PR control endpoint")
+    connections = {(item.get("kind"), item.get("start"), item.get("end")): item for item in tree.findall("connection")}
+    control = connections.get(("avalon", "subsys_periph_pb_cpu_0.m0", "subsys_periph_fes_pr_control.avs"))
+    clock = connections.get(("clock", "subsys_periph_periph_clk.out_clk", "subsys_periph_fes_pr_control.clk"))
+    reset = connections.get(("reset", "subsys_periph_periph_rst_in.out_reset", "subsys_periph_fes_pr_control.reset"))
+    if control is None or clock is None or reset is None or int(control.findtext("parameter[@name='baseAddress']/value"), 0) != inputs["control_peripheral_offset"] or clock.findtext("parameter[@name='clockRateSysInfo']/value") != "100000000":
+        raise BuildError("actual PR control offset/clock differs")
+    expected_ports = {"address": ("Input", 6), "read": ("Input", 1), "write": ("Input", 1),
+                      "byteenable": ("Input", 4), "writedata": ("Input", 32), "readdata": ("Output", 32),
+                      "readdatavalid": ("Output", 1), "waitrequest": ("Output", 1),
+                      "writeresponsevalid": ("Output", 1), "response": ("Output", 2)}
+    if hps.component_ports(modules[0], "avs") != expected_ports:
+        raise BuildError("generated PR control byte/address/response interface differs")
+    regions = [r for r in handoff["ddr_probe"]["peripheral_slave_map"] if r["name"] == "subsys_periph.fes_pr_control.avs"]
+    if len(regions) != 1 or regions[0]["base"] != inputs["control_peripheral_offset"] or regions[0]["span"] != 64:
+        raise BuildError("actual HPS bridge PR control aperture differs")
+    handoff["pr_control"] = {"module": modules[0].get("path"), "peripheral_offset": inputs["control_peripheral_offset"],
+                             "clock_hz": 100000000, "physical_mmio": "not-established"}
+    (project / "hps-handoff.json").write_bytes(canonical(handoff) + b"\n")
+    write_revisions(project, inputs["region"], inputs["control_build_id"])
+    for name in ("base.qsf", "persona_a.qsf", "persona_b.qsf"):
+        inputs["project_sha256"][name] = sha((project / name).read_bytes())
+    inputs["qpf"] = verify_qpf(project)
+    # Generation parameters are verified by the HPS helper; record the selected
+    # generated HDL/SDC and system topology before starting any compilation.
+    generated = {path.relative_to(project).as_posix(): sha(path.read_bytes())
+        for path in project.rglob("*") if path.is_file() and path.suffix in (".v", ".sv", ".sdc", ".qip", ".qsys", ".ip", ".mif", ".hex")
+        and "output_files" not in path.parts and not path.is_relative_to(project / "fes_link")}
+    if not generated:
+        raise BuildError("HPS generation produced no selected source closure")
+    (project / "generated-inputs.json").write_bytes(canonical(generated) + b"\n")
+    (project / "inputs.json").write_bytes(canonical(inputs) + b"\n")
 
 
 def compile_project(output: Path, tools: dict[str, Path], version: str, only: str | None) -> None:
@@ -421,14 +600,9 @@ def compile_project(output: Path, tools: dict[str, Path], version: str, only: st
     selected_tools = tool_hashes(tools)
     (output / "tools.json").write_bytes(canonical({"version": version, "sha256": selected_tools}) + b"\n")
     (output / "quartus-version.txt").write_text(version + "\n")
-    run([str(tools["quartus_ipgenerate"]), "--generate_project_ip_files", "--synthesis=verilog", PROJECT,
-         "-c", "base"], output, "ip-generation.log")
-    generated = {path.relative_to(output).as_posix(): sha(path.read_bytes())
-                 for path in (output / "reset_release").rglob("*")
-                 if path.is_file() and path.suffix in (".v", ".sv", ".sdc", ".qip")}
-    if not generated:
-        raise BuildError("Reset Release generation produced no selected HDL/SDC/QIP closure")
-    (output / "generated-inputs.json").write_bytes(canonical(generated) + b"\n")
+    generate_hps(output, tools, version)
+    inputs = json.loads((output / "inputs.json").read_bytes())
+    generated = json.loads((output / "generated-inputs.json").read_bytes())
     root_qdb_hash = None
     for revision in ("base", "persona_a", "persona_b"):
         verify_project(output, inputs)
@@ -457,6 +631,8 @@ def compile_project(output: Path, tools: dict[str, Path], version: str, only: st
 
 def simulate(output: Path) -> None:
     output.mkdir(parents=True, exist_ok=False)
+    (output / "generated").mkdir()
+    shutil.copyfile(BOARD / "generated/fes_de25_pr_control.vh", output / "generated/fes_de25_pr_control.vh")
     for name in ("shell.v", "personas.v", "sim_top.v", "tb.cpp", "persona_a.hex", "persona_b.hex"):
         shutil.copyfile(BOARD / "fpga" / name, output / name)
     # The released reset intentionally clears the async-ingress synchronizer
@@ -464,7 +640,8 @@ def simulate(output: Path) -> None:
     run(["verilator", "--cc", "--exe", "--build", "-j", "2", "-Wall", "-Wno-DECLFILENAME", "-Wno-SYNCASYNCNET",
          "--top-module", "fes_link_sim", "shell.v", "personas.v", "sim_top.v", "tb.cpp"], output, "build.log")
     run([str((output / "obj_dir/Vfes_link_sim").resolve())], output, "simulation.log")
-    files = ("shell.v", "personas.v", "sim_top.v", "tb.cpp", "persona_a.hex", "persona_b.hex")
+    files = ("shell.v", "personas.v", "sim_top.v", "tb.cpp", "persona_a.hex", "persona_b.hex",
+             "generated/fes_de25_pr_control.vh")
     (output / "simulation.json").write_bytes(canonical({
         "kind": "actual-RTL-with-persona-selection-mux",
         "status": "passed", "physical_pr": "not-modeled", "primitive_memory": "not-modeled",
@@ -479,6 +656,7 @@ def main() -> int:
     parser.add_argument("action", choices=("project", "probe", "build", "verify", "sim"))
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--quartus-root", type=Path, default=Path("/data/altera_pro/26.3"))
+    parser.add_argument("--vendor-archive", type=Path)
     parser.add_argument("--placement")
     parser.add_argument("--routing")
     parser.add_argument("--only", choices=("base",))
@@ -492,13 +670,13 @@ def main() -> int:
         else:
             if not args.placement or not args.routing:
                 raise BuildError("explicit tool-verified --placement and --routing regions are required")
-            output = prepare(args.output, args.placement, args.routing)
+            output = prepare(args.output, args.placement, args.routing, args.vendor_archive)
             if args.action in ("probe", "build"):
                 if args.action == "build" and not json.loads((output / "inputs.json").read_text())["source_committed"]:
                     raise BuildError("final build requires every captured source byte at the recorded Git commit; use probe for working-copy diagnostics")
                 tools, version = toolchain(args.quartus_root)
                 compile_project(output, tools, version, args.only)
-        print(args.output.resolve())
+        print(args.output.resolve() if args.action in ("sim", "verify") else output)
         return 0
     except (OSError, BuildError) as error:
         parser.exit(1, f"de25-link-proof: {error}\n")

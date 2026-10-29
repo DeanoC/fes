@@ -13,17 +13,23 @@ SPEC.loader.exec_module(build)
 class RecipeTests(unittest.TestCase):
     def test_real_preparation_declares_both_personas_reconfigurable(self):
         with tempfile.TemporaryDirectory() as tmp:
-            output = build.prepare(Path(tmp)/"project", "X2 Y7 X26 Y12", "X1 Y6 X27 Y13")
+            output = Path(tmp)
+            (output / "golden_top.qsf").write_text(
+                'set_global_assignment -name DEVICE A5EB013BB23BE4SCS\n'
+                'set_global_assignment -name TOP_LEVEL_ENTITY golden_top\n'
+                'set_global_assignment -name SDC_FILE ghrd_timing.sdc\n')
+            build.write_revisions(output, {"placement": "X2 Y7 X26 Y12", "routing": "X1 Y6 X27 Y13"}, "1" * 32)
             for revision in ("base", "persona_a", "persona_b"):
                 qsf = (output/f"{revision}.qsf").read_text()
                 self.assertIn("PARTIAL_RECONFIGURATION_PARTITION ON -to slot_inst", qsf)
                 self.assertIn("ENABLE_PR_POF_ID ON", qsf)
                 self.assertIn("NUM_PARALLEL_PROCESSORS 2", qsf)
                 self.assertIn(f"DEVICE {build.DEVICE}", qsf)
+                self.assertIn('SDC_FILE ghrd_timing.sdc', qsf)
+                self.assertIn('VERILOG_MACRO "FES_DE25_PR_BUILD_ID=128\'h' + '1' * 32 + '"', qsf)
                 if revision != "base":
-                    self.assertLess(qsf.index("QDB_FILE_PARTITION"), qsf.index("SDC_FILE"))
                     self.assertIn("root_partition.qdb -to |", qsf)
-            build.verify_project(output, json.loads((output/"inputs.json").read_text()))
+            self.assertNotIn("VIRTUAL_PIN", (output / "base.qsf").read_text())
 
     def test_tool_qpf_metadata_may_change_but_revision_selection_may_not(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -86,6 +92,13 @@ class RecipeTests(unittest.TestCase):
             (out/"output_files/base.sta.rpt").write_text("")
             with self.assertRaises(build.BuildError):
                 build.timing_summary(out, "base")
+
+    def test_hps_archive_is_required_before_output_creation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "project"
+            with self.assertRaises(build.BuildError):
+                build.prepare(output, "X2 Y7 X26 Y12", "X1 Y6 X27 Y13")
+            self.assertFalse(output.exists())
 
 
 if __name__ == "__main__":

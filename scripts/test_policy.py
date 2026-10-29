@@ -12,11 +12,12 @@ TEST_MODE_KEYS = ('video', 'media', 'full_race')
 # Descriptive bring-up metadata has no emitted, runtime or existing-core consumer.
 # Other board definitions remain shared contracts until their consumers are reviewed.
 DE25_BOARD_DEFINITION = 'sources/mister-packages/packages/board/de25_nano.yaml'
-# Generated consumers live only in the standalone diagnostic board tree.
+# These definitions have only diagnostic consumers, without production admission.
 DE25_DDR_PROBE_DEFINITION = 'sources/mister-packages/packages/fabric/fes_fabric_de25_ddr_probe.yaml'
 DE25_SCANOUT_DEFINITION = 'sources/mister-packages/packages/fabric/fes_fabric_de25_scanout.yaml'
 DE25_COMPUTER_DEFINITION = 'sources/mister-packages/packages/fabric/fes_fabric_de25_computer.yaml'
 DE25_RAMTEST_DEFINITION = 'sources/mister-packages/packages/fabric/fes_fabric_de25_ramtest.yaml'
+DE25_PR_CONTROL_DEFINITION = 'sources/mister-packages/packages/fabric/fes_fabric_de25_pr_control.yaml'
 
 # Video producer, package-admission and host library consumer inputs. Changes
 # here re-include the real-device video suites in the parent run.
@@ -101,7 +102,7 @@ def _classify(path):
         return dict.fromkeys(TEST_MODE_KEYS, False)
     if _under(path, 'image/kernel/de25-dma') and '..' not in Path(path).parts:
         return dict.fromkeys(TEST_MODE_KEYS, False)
-    if path in (DE25_BOARD_DEFINITION, DE25_DDR_PROBE_DEFINITION, DE25_SCANOUT_DEFINITION, DE25_COMPUTER_DEFINITION, DE25_RAMTEST_DEFINITION):
+    if path in (DE25_BOARD_DEFINITION, DE25_DDR_PROBE_DEFINITION, DE25_SCANOUT_DEFINITION, DE25_COMPUTER_DEFINITION, DE25_RAMTEST_DEFINITION, DE25_PR_CONTROL_DEFINITION):
         return dict.fromkeys(TEST_MODE_KEYS, False)
     if _under(path, 'sources/mister-packages'):
         if path.endswith(('.go', '/go.mod', '/go.sum')):

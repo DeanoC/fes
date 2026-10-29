@@ -16,6 +16,16 @@ its existing unavailable-hardware adapter and local protocol after refusal;
 it advertises no programming capabilities. An AArch64 compile or QEMU software
 test does not add DE25 hardware support.
 
+The internal `De25PrControl` diagnostic consumes the generated DE25 PR-control
+register contract through an exclusive injected `Mmio` backend and an injected
+persona-configuration operation. It validates the selected base identity,
+freezes and drains before configuration, and resumes only after the expected
+persona's identity response. Uncertain completion permanently poisons the
+controller. Native/AArch64 tests and actual-RTL co-simulation exercise this
+protocol; they add no device opener, daemon operation, programming profile or
+production hardware admission. See the
+[shared control contract](../mister-packages/docs/de25-pr-control.md).
+
 Raw RBF loading is an explicit, idle-only hardware diagnostic using
 `development-contained-v1`; it does not infer a game, ABI, media, or persistence.
 Startup, Stop, and bounded failure recovery load the sealed splash through the
