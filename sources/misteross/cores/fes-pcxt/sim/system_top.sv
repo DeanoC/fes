@@ -22,6 +22,7 @@ module system_top #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0) (
 );
     wire board_clock = HALF_RATE_BOARD ? clk_board : clk;
     wire unused_optional_board_clock = HALF_RATE_BOARD ? 1'b0 : clk_board;
+    wire unused_optional_cs_clock = HALF_RATE_BOARD ? 1'b0 : clk_cs;
     reg [15:0] dq_rise, dq_fall;
     always @(posedge board_clock) dq_rise <= dq_sample;
     always @(negedge board_clock) dq_fall <= dq_sample;
