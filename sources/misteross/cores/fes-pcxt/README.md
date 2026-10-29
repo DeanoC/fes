@@ -148,11 +148,15 @@ python3 scripts/core_dev.py prepare --core fes.pcxt --output /absolute/new-candi
 
 The recipe selects `scripts/build_fes_pcxt_quartus.py`. `quartus.lock` binds
 the exact Lite version and Yosys binary. Functional identity includes the full
-Quartus/Yosys installation digests, selected recipe, complete source closure,
+Quartus/Yosys installation digests, the invoked Python interpreter and standard
+library, host helper/library bytes, selected recipe, complete source closure,
 firmware, pin/SDC sources and clock profile. It has no GPU selection.
 Builds retain each seed and the independent repeat under
-`build/fes-pcxt-quartus/<build-id>/`. They reject any reported internal timing
-miss, missing coverage inventory or changed repeat RBF. The resulting format-2
+`build/fes-pcxt-quartus/<build-id>/attempt-<unique>/`. A retry retains earlier
+attempts. Builds reject any reported internal timing miss, invalid internal
+clock/constraint checks, missing coverage inventory or changed repeat RBF.
+Unclocked registers must belong to the two elaborated HPS hard primitives;
+their HPS timing remains outside the diagnostic qualification. The resulting format-2
 package remains an experimental diagnostic; external physical acceptance,
 BIOS/DOS, keyboard and disk support are separate.
 
@@ -172,7 +176,8 @@ python3 scripts/pcxt_diagnostic_acceptance.py frame1.png frame2.png frame3.png \
 ```
 
 The checker compares the entire scaled stripe picture, each output row,
-monochrome output and the completion block. Identical frames are expected.
+monochrome output and all eight completion-block scanlines. Partial drawing
+prefixes fail acceptance. Identical frames are expected.
 A cold launch must first clear the previous execution; verify package/build
 identity and Stop/baseline restoration through the normal lease lifecycle.
 For historical captures from the earlier ROM, `--historical-pattern` checks

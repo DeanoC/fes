@@ -13,9 +13,12 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import platform
+import re
 import shutil
 import subprocess
 import sys
+import sysconfig
 import tempfile
 import tomllib
 
@@ -109,19 +112,61 @@ def tree_digest(root):
     return {'sha256': digest.hexdigest(), 'files': count}
 
 
+def runtime_dependencies(executables, env, quartus_native):
+    files = {}
+    for binary in sorted(set(executables)):
+        with binary.open('rb') as stream:
+            if stream.read(4) != b'\x7fELF':
+                continue
+        # qenv.sh prepends this directory for the native Quartus processes.
+        native_env = dict(env, LD_LIBRARY_PATH=str(quartus_native)) if binary.parent == quartus_native else env
+        result = subprocess.run(['/usr/bin/ldd', str(binary)], env=native_env,
+                                capture_output=True, text=True, check=False)
+        output = result.stdout + result.stderr
+        if 'not found' in output or (result.returncode and
+                'not a dynamic executable' not in output and 'statically linked' not in output):
+            raise BuildError('cannot identify runtime libraries for ' + str(binary))
+        for name in re.findall(r'(?:=>\s+|^\s*)(/[^\s]+)', result.stdout, re.MULTILINE):
+            files[name] = sha(Path(name))
+    return dict(sorted(files.items()))
+
+
 def execution_inputs(paths, env, _unused_gpu_device=0):
     # Quartus uses device databases, Tcl and native DLLs outside its wrapper.
     # Bind the complete install trees; no GPU or driver enters this lane.
     installations = {str(paths['quartus'].parent.parent): tree_digest(paths['quartus'].parent.parent),
                      str(paths['yosys'].parent.parent): tree_digest(paths['yosys'].parent.parent)}
-    helpers = {}
-    for name in ('as', 'ld', 'python3'):
+    helpers = {'python': Path(sys.executable), 'bash': Path('/bin/bash'), 'sh': Path('/bin/sh')}
+    for name in ('as', 'ld', 'git', 'uname', 'dirname', 'basename', 'which',
+                 'tail', 'grep', 'sed', 'uniq', 'env', 'locale', 'awk'):
         path = shutil.which(name, path=env['PATH'])
         if path is None:
             raise BuildError('missing build helper: ' + name)
-        helpers[name] = sha(Path(path).resolve())
-    return {'version': 1, 'toolchain': 'quartus', 'installations': installations,
-            'helpers': helpers, 'environment': dict(env, HOME='<private-build-home>')}
+        helpers[name] = Path(path)
+    # Bind the interpreter actually used by build()/the proof subprocesses,
+    # including its standard-library sources and native extension modules.
+    # Bytecode caches are derived from these sources and change during imports.
+    stdlib = Path(sysconfig.get_path('stdlib'))
+    support = {str(p): sha(p) for p in sorted(stdlib.rglob('*')) if p.is_file()
+               and not {'__pycache__', 'site-packages', 'dist-packages'} & set(p.relative_to(stdlib).parts)
+               and p.suffix not in ('.pyc', '.pyo')}
+    if not support:
+        raise BuildError('missing Python standard-library support')
+    native = paths['quartus'].parent.parent / 'linux64'
+    executables = [*helpers.values(), paths['yosys'], paths['yosys'].with_name('yosys-abc'),
+                   *(native / ('quartus_' + name) for name in ('sh', 'map', 'fit', 'asm', 'sta')),
+                   *(Path(p) for p in support if p.endswith('.so'))]
+    libraries = runtime_dependencies(executables, env, native)
+    for name in ('/etc/os-release', '/etc/ld.so.cache'):
+        if Path(name).is_file():
+            libraries[name] = sha(name)
+    return {'version': 2, 'toolchain': 'quartus', 'installations': installations,
+            'helpers': {name: {'path': str(p), 'sha256': sha(p)} for name, p in helpers.items()},
+            'python': {'executable': sys.executable, 'version': sys.version,
+                       'prefix': sys.prefix, 'base_prefix': sys.base_prefix, 'support': support},
+            'runtime_libraries': dict(sorted(libraries.items())),
+            'system': platform.system(), 'machine': platform.machine(), 'kernel': platform.release(),
+            'environment': dict(env, HOME='<private-build-home>')}
 
 
 def create_build_record(root, repository, revision, tool_identities, *, identity_version=2, execution=None):
@@ -152,7 +197,10 @@ def require_timing(summary, seeds):
             or not summary.get('video_mailbox_contract')
             or summary.get('profile', {}).get('HALF_RATE_BOARD') != 0
             or summary.get('profile', {}).get('ENABLE_FES_COMPUTER') != 1
-            or len(summary.get('runs', [])) != len(seeds)):
+            or len(summary.get('runs', [])) != len(seeds)
+            or summary.get('elaboration', {}).get('hps_primitive_instances') != {
+                'hdmi_i2c': 'cyclonev_hps_interface_peripheral_i2c',
+                'fes_computer_runtime_hps_gp': 'cyclonev_hps_interface_mpu_general_purpose'}):
         raise BuildError('incomplete or mismatched Quartus package configuration')
     for seed, run in zip(seeds, summary['runs']):
         if (run.get('seed') != seed or not run.get('capture_complete')
@@ -162,7 +210,12 @@ def require_timing(summary, seeds):
                 or len(run.get('mailbox_interstage', [])) != 24
                 or any(r['slack_ns'].startswith('-') for r in run['mailbox_interstage'])
                 or any(run.get('timing_coverage_issues', {}).get(k, 1)
-                       for k in ('loops', 'latches', 'multiple_clock', 'generated_clock'))):
+                       for k in ('loops', 'latches', 'multiple_clock', 'generated_clock',
+                                 'partial_input_delay', 'partial_output_delay', 'io_min_max_delay_consistency',
+                                 'reference_pin', 'pll_cross_check', 'uncertainty'))
+                or len(run.get('no_clock_registers', [])) != run.get('timing_coverage_issues', {}).get('no_clock')
+                or any(not re.fullmatch(r'(hdmi_i2c|fes_computer_runtime_hps_gp)~FF_[0-9]+', name)
+                       for name in run.get('no_clock_registers', []))):
             raise BuildError('Quartus internal timing failed for seed ' + str(seed))
 
 
@@ -191,8 +244,9 @@ def build(root=ROOT, *, package_output=None, cache_root=None, identity_version=2
         execution = execution_inputs(paths, env)
         record = create_build_record(root, repository, revision, identities, execution=execution)
         build_id = build_identity(record)
-        output = root / 'build/fes-pcxt-quartus' / build_id
-        output.mkdir(parents=True, exist_ok=False)
+        attempts = root / 'build/fes-pcxt-quartus' / build_id
+        attempts.mkdir(parents=True, exist_ok=True)
+        output = Path(tempfile.mkdtemp(prefix='attempt-', dir=attempts))
         (output / 'build-inputs.json').write_bytes(record)
         recipe = selected_recipe(root)['quartus']
         summaries = []

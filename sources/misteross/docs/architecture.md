@@ -2929,8 +2929,11 @@ video-part index. Keyboard, media and physical socket interfaces are not
 declared. The registered producer is Quartus, with the common 100 MHz package profile,
 proof-bound video mailbox constraints and phased HDMI. All declared seeds
 must pass reported internal checks; an independent first-seed rebuild must
-reproduce the RBF. Functional identity binds the installed tools and full
-selected source closure. External physical timing/reset qualification and
+reproduce the RBF. Internal clock-validity checks must pass, and every unclocked
+register must belong to an elaborated HPS hard primitive. Functional identity
+binds the installed tools, actual Python interpreter/standard library, host
+helper/library bytes and full selected source closure. Retries retain each
+attempt beneath the build ID. External physical timing/reset qualification and
 exact-artifact hardware acceptance remain separate from this diagnostic seal.
 Existing linker layout admission remains closed until an exact shell and its
 physical sockets are qualified.
@@ -3254,10 +3257,10 @@ preserve storage/refresh; HOLD resets the machine and mutes video.
 `python3 scripts/build_fes_pcxt.py --cache-root /absolute/cache` retains each standalone
 diagnostic synthesis/route attempt under `build/diagnostic/fes-pcxt/`.
 `python3 scripts/core_dev.py prepare --core fes.pcxt --output out/pcxt-package`
-uses the registered producer to create an installable RBF and manifest under
-`build/packages/`; this diagnostic package records the timing miss as
-unqualified rather than blocking export.
-Its default seed-3 route uses fixed timing weight 2000 and criticality exponent 5,
+uses the registered Quartus producer to create an installable RBF and manifest
+under `build/packages/`. Export requires all declared timing seeds and the
+independent repeat to pass; missing or failing internal timing blocks it.
+The standalone nextpnr diagnostic's default seed-3 route uses fixed timing weight 2000 and criticality exponent 5,
 with unchanged 100/74.25 MHz constraints and the phase-shifted HDMI output.
 An explicit unsigned 64-bit `--seed` selects a reproducible diagnostic run; it
 does not start a seed search. The
@@ -3268,8 +3271,9 @@ The [board diagnostic guide](../cores/fes-pcxt/README.md#assembled-board-diagnos
 defines the firmware, clock/capture choices, profiles and test coverage.
 The existing Coleco/ST physical layouts are not admitted as PC/XT layouts.
 The inline output changes neither linker/runtime policies nor the shared
-fabric definitions. The installable package is diagnostic and has no timing or
-hardware acceptance.
+fabric definitions. The installable package remains diagnostic. Its dated
+acceptance record covers the named artifact's internal timing and hardware
+diagnostic, while whole-board physical qualification remains open.
 
 ### Emulated ISA expansion ports
 

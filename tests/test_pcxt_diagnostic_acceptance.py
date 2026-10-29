@@ -46,6 +46,16 @@ class PCXTDiagnosticAcceptanceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'geometry/pixels'):
             acceptance.check_rgb(1280, 720, shifted)
 
+    def test_every_incomplete_marker_prefix_rejects(self):
+        for completed_lines in range(8):
+            rgb = picture(marker=False)
+            for y in range(720):
+                if y * 200 // 720 < completed_lines:
+                    offset = (y * 1280 + 160) * 3
+                    rgb[offset:offset + 24 * 3] = b'\xff' * (24 * 3)
+            with self.subTest(completed_lines=completed_lines), self.assertRaisesRegex(ValueError, 'completion block'):
+                acceptance.check_rgb(1280, 720, rgb)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -156,7 +156,11 @@ def validate_renaming(work: Path, *, package_profile=False) -> dict:
                 value = int(value, 2)
             if value != expected:
                 raise ValueError('clock request changed: ' + name + '.' + key)
-    return {'complete_cell_and_net_records_equal_under_names': True, 'cells': counts}
+    hps = {name: cell['type'] for name, cell in cells.items()
+           if cell['type'] in ('cyclonev_hps_interface_peripheral_i2c',
+                               'cyclonev_hps_interface_mpu_general_purpose')}
+    return {'complete_cell_and_net_records_equal_under_names': True, 'cells': counts,
+            'hps_primitive_instances': hps}
 
 
 def project_qsf(source: Path, seed: int, threads: int, *, package_profile=False) -> str:
@@ -232,10 +236,15 @@ def timing_summary(work: Path, mailbox_contract: bool = False) -> dict:
             raise ValueError('missing or truncated minimum pulse-width capture')
         pulse_width[corner] = {'checks': int(match[1]), 'failures': int(match[2]) + int(match[3].startswith('-') and int(match[2]) == 0),
                                'minimum_slack_ns': float(match[3])}
+    coverage = (work / 'audit/check-timing.rpt').read_text()
     issues = {k: int(v) for k, v in re.findall(
-        r'^;\s*([a-z_]+)\s*;\s*(\d+)\s*;', (work / 'audit/check-timing.rpt').read_text(), re.M)}
+        r'^;\s*([a-z_]+)\s*;\s*(\d+)\s*;', coverage, re.M)}
     if not {'no_clock', 'no_input_delay', 'no_output_delay', 'loops', 'latches'} <= issues.keys():
         raise ValueError('missing timing-coverage checks')
+    no_clock = re.findall(r"^;\s*([^;]+?)\s*;\s*No clock feeds this register's clock port\.\s*;",
+                          coverage, re.M)
+    if len(no_clock) != issues['no_clock'] or len(no_clock) != len(set(no_clock)):
+        raise ValueError('missing or duplicated unclocked register inventory')
     fmax = []
     with (work / 'audit/fmax.tsv').open() as stream:
         for fields in list(csv.reader(stream, delimiter='\t'))[1:]:
@@ -260,6 +269,7 @@ def timing_summary(work: Path, mailbox_contract: bool = False) -> dict:
     return {'capture_complete': True, 'by_corner_and_check': by_corner,
             'reported_endpoint_checks_pass': not any(r['failures'] for r in by_corner.values()),
             'minimum_pulse_width': pulse_width, 'timing_coverage_issues': issues,
+            'no_clock_registers': no_clock,
             'clocks': clock_records, 'fmax': fmax,
             'mailbox_interstage': interstage,
             'whole_board_qualified': False,

@@ -176,7 +176,8 @@ class QuartusCaptureTests(unittest.TestCase):
                 self.counts.append([corner, kind, '*', '*', 0])
         (self.audit / 'check-timing.rpt').write_text(
             '; no_clock ; 617 ;\n; no_input_delay ; 18 ;\n; no_output_delay ; 69 ;\n'
-            '; loops ; 0 ;\n; latches ; 0 ;\n')
+            '; loops ; 0 ;\n; latches ; 0 ;\n' + ''.join(
+                f"; hdmi_i2c~FF_{n} ; No clock feeds this register's clock port. ;\n" for n in range(617)))
         (self.audit / 'fmax.tsv').write_text('corner\tclock\tfmax_mhz\trestricted_fmax_mhz\n' +
                                            ''.join(c + '\tcpu\t150\t150\n' for c in self.corners))
         self.save()
@@ -200,6 +201,16 @@ class QuartusCaptureTests(unittest.TestCase):
         self.assertEqual(result['timing_coverage_issues']['no_clock'], 617)
         self.assertEqual(result['timing_coverage_issues']['no_input_delay'], 18)
         self.assertEqual(len(result['minimum_pulse_width']), 4)
+
+    def test_missing_or_duplicate_unclocked_register_inventory_rejects(self):
+        path = self.audit / 'check-timing.rpt'
+        original = path.read_text()
+        path.write_text(original.replace('; hdmi_i2c~FF_616 ;', '; hdmi_i2c~FF_615 ;'))
+        with self.assertRaisesRegex(ValueError, 'unclocked register inventory'):
+            builder.timing_summary(self.work)
+        path.write_text(original.rsplit('\n', 2)[0] + '\n')
+        with self.assertRaisesRegex(ValueError, 'unclocked register inventory'):
+            builder.timing_summary(self.work)
 
     def test_negative_slack_is_retained_as_a_failure(self):
         self.rows[0][8] = -0.125
