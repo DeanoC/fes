@@ -32,6 +32,8 @@ if {[get_collection_size $owner_rows_source] != 9 || [get_collection_size $owner
     error "DE25 video row-count endpoints changed"
 }
 set_net_delay -max 10.000 -from $owner_rows_source -to $owner_rows_sink
+set_data_delay 10.000 -from $owner_rows_source -to $owner_rows_sink
+set_max_skew 10.000 -from $owner_rows_source -to $owner_rows_sink
 set_max_delay 10.000 -from $owner_rows_source -to $owner_rows_sink
 set_min_delay 0.000 -from $owner_rows_source -to $owner_rows_sink
 # Raw epoch reset enters two per-domain release chains. Recovery/removal from

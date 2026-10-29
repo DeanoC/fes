@@ -25,7 +25,8 @@ transport epoch reset asynchronously invalidates both owners even with clocks
 stopped; each domain releases reset through its own two-stage synchronizer.
 DE, sync and the scaled pixel selector share the RAM's registered read latency.
 The two single-bit crossings cut only their first synchronizer stages. The
-held row-count metadata has a 10 ns net-delay and maximum-path bound. No whole
+held row-count metadata has explicit 10 ns net-delay, datapath-delay,
+maximum-skew and maximum-path bounds. No whole
 clock group is cut. Physical M20K, metastability/MTBF, PLL recovery and external
 HDMI acceptance remain board-validation work.
 
