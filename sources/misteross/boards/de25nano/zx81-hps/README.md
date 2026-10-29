@@ -10,9 +10,11 @@ The GHRD's HPS/LPDDR4 configuration, debug paths, inherited DDR probe and boot
 data remain selected. The new computer path adds no DMA master or DDR access.
 It runs entirely on the existing 100 MHz peripheral clock, using 13/200
 enables for the unchanged 6.5 MHz ULA and 3.25 MHz CPU. HDMI uses its separate
-74.25 MHz PLL. Pixel-clock loss blanks output while CPU, control and tape
-continue; capture storage has no complete-frame ownership and its dual-clock
-collisions/startup/tearing remain unqualified.
+74.25 MHz PLL. The 100 MHz transport-ready level crosses a two-stage
+pixel-clock synchronizer, and the HDMI mask changes only at the renderer's
+frame tick. Pixel-clock loss blanks output while CPU, control and tape continue;
+capture storage has no complete-frame ownership and its
+dual-clock collisions/startup/tearing remain unqualified.
 
 Tape storage uses two explicit even/odd M20K banks with common-clock
 simple dual ports and old-data reads. A guarded board wrapper retains the

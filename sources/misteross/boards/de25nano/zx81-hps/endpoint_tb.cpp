@@ -152,6 +152,17 @@ static void tape_size_limits() {
 static void pixel_ready_crossing() {
     Board b; auto& t = b.t;
     b.cycles(4);
+    bool video_enabled_at_frame = false;
+    for (uint64_t pixel = 0; pixel < 2u * 1650u * 750u; ++pixel) {
+        const bool frame_boundary = S(video__DOT__frame_tick);
+        b.pixel_edge();
+        if (S(video_ready_frame)) {
+            check(frame_boundary, "video readiness changed away from the frame boundary");
+            video_enabled_at_frame = true;
+            break;
+        }
+    }
+    check(video_enabled_at_frame, "video was not enabled after the complete-frame handoff");
     for (unsigned n = 0; n != 4000 && !t.video_hs; ++n) b.pixel_edge();
     check(t.video_hs, "could not reach an active pixel-clock HS interval");
 
@@ -166,8 +177,20 @@ static void pixel_ready_crossing() {
     b.pixel_edge();
     check(t.video_hs, "pixel readiness crossed in one pixel-clock stage");
     b.pixel_edge();
-    check(!t.video_hs, "pixel readiness did not blank sync after two pixel-clock stages");
-    std::puts("PASS DE25 computer: transport readiness gates video through the pixel-clock synchronizer");
+    check(t.video_hs, "frame gate changed before the renderer's next frame tick");
+    bool video_disabled_at_frame = false;
+    for (uint64_t pixel = 0; pixel < 2u * 1650u * 750u; ++pixel) {
+        const bool frame_boundary = S(video__DOT__frame_tick);
+        b.pixel_edge();
+        if (!S(video_ready_frame)) {
+            check(frame_boundary, "video readiness changed away from the frame boundary");
+            video_disabled_at_frame = true;
+            break;
+        }
+    }
+    check(video_disabled_at_frame && !t.video_rgb && !t.video_de && !t.video_hs && !t.video_vs,
+          "pixel-domain readiness did not blank at the next frame boundary");
+    std::puts("PASS DE25 computer: two-stage readiness synchronization and frame-boundary video gating");
 }
 
 static void identity_keyboard_media() {

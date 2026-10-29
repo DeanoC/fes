@@ -70,11 +70,16 @@ module fes_de25_computer #(
     wire [7:0] tape_data;
     wire [13:0] tape_addr;
     wire tape_busy;
-    wire ce_6m5, video_pixel, hblank, vblank;
+    wire ce_6m5, video_pixel, hblank, vblank, frame_tick;
     wire [15:0] cpu_addr;
     wire halt_n;
     wire [7:0] red, green, blue;
     wire de, hs, vs;
+    (* async_reg = "true", altera_attribute="-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *)
+    reg transport_ready_meta = 1'b0;
+    (* async_reg = "true", altera_attribute="-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *)
+    reg transport_ready_sync = 1'b0;
+    reg video_ready_frame = 1'b0;
 `ifdef QUARTUS
     localparam FIRMWARE_INIT = "zx8x.mif";
 `else
@@ -90,6 +95,21 @@ module fes_de25_computer #(
     always @(posedge clk or negedge reset_n) begin
         if (!reset_n) healthy <= 1'b0;
         else if (!first_seen) healthy <= 1'b1;
+    end
+
+    // Resettable two-stage synchronization carries transport readiness into
+    // the pixel domain. Presentation changes only at the renderer frame tick.
+    always @(posedge pixel_clk or negedge reset_n) begin
+        if (!reset_n) begin
+            transport_ready_meta <= 1'b0;
+            transport_ready_sync <= 1'b0;
+        end else begin
+            transport_ready_meta <= transport_ready;
+            transport_ready_sync <= transport_ready_meta;
+        end
+    end
+    always @(posedge pixel_clk) begin
+        if (frame_tick) video_ready_frame <= transport_ready_sync;
     end
 
     assign waitrequest = !reset_n || !first_seen;
@@ -177,16 +197,9 @@ module fes_de25_computer #(
     zx81_video_720p video (
         .clk_sys(clk), .ce_6m5(ce_6m5), .zx_pixel(video_pixel), .hblank(hblank), .vblank(vblank),
         .pixel_clk(pixel_clk), .red(red), .green(green), .blue(blue), .de(de), .hsync(hs), .vsync(vs),
-        .frame_tick(), .raster_h(), .raster_v(), .src_x_max(), .src_y_max());
-    (* altera_attribute="-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *)
-    reg [1:0] pixel_transport_ready_sync = 2'b00;
-    always @(posedge pixel_clk or negedge reset_n) begin
-        if (!reset_n) pixel_transport_ready_sync <= 2'b00;
-        else pixel_transport_ready_sync <= {pixel_transport_ready_sync[0], transport_ready};
-    end
-    wire pixel_transport_ready = pixel_transport_ready_sync[1];
-    assign video_rgb = pixel_transport_ready ? {red, green, blue} : 24'd0;
-    assign video_de = pixel_transport_ready && de;
-    assign video_hs = pixel_transport_ready && hs;
-    assign video_vs = pixel_transport_ready && vs;
+        .frame_tick(frame_tick), .raster_h(), .raster_v(), .src_x_max(), .src_y_max());
+    assign video_rgb = video_ready_frame ? {red, green, blue} : 24'd0;
+    assign video_de = video_ready_frame && de;
+    assign video_hs = video_ready_frame && hs;
+    assign video_vs = video_ready_frame && vs;
 endmodule

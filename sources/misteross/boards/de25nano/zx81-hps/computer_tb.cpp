@@ -44,7 +44,7 @@ static uint32_t crc32(const std::vector<uint8_t>& bytes) {
 struct Computer {
     Vfes_de25_computer t;
     Clock system{100000000}, pixel{74250000};
-    uint64_t system_edges = 0, retired = 0, source_ink = 0;
+    uint64_t system_edges = 0, pixel_edges = 0, retired = 0, source_ink = 0;
     uint64_t ula_enables = 0, cpu_positive = 0, cpu_negative = 0;
     uint64_t complete_frames = 0, picture_frames = 0, frame_pixels = 0;
     unsigned active = 0, hs = 0, vs = 0, ink = 0, paper = 0;
@@ -153,7 +153,7 @@ struct Computer {
                 ++loaded_bytes;
             }
         }
-        if (pix_rise) pixel_sample();
+        if (pix_rise) { ++pixel_edges; pixel_sample(); }
     }
     void cycles(uint64_t count) {
         const uint64_t until = system_edges + count;
@@ -369,9 +369,25 @@ int main(int argc, char** argv) {
     const uint64_t held_retired = b.retired;
     b.cycles(2048); check(b.retired == held_retired, "CPU retired instructions while HOLD was asserted");
     check(b.read(regs::FesDe25ComputerFaultOffset) == 0, "valid machine session ended with transport faults");
+    check(SIGNAL(video_ready_frame), "video was not enabled after the complete-frame handoff");
+    t.reset_n = 0; t.eval();
+    check(SIGNAL(video_ready_frame), "system-domain readiness changed the pixel gate asynchronously");
+    bool video_disabled_at_frame = false;
+    const uint64_t pixel_deadline = b.pixel_edges + 2u * 1650u * 750u;
+    while (b.pixel_edges < pixel_deadline) {
+        const bool frame_boundary = SIGNAL(video__DOT__frame_tick);
+        b.step();
+        if (!SIGNAL(video_ready_frame)) {
+            check(frame_boundary, "video readiness changed away from the frame boundary");
+            video_disabled_at_frame = true;
+            break;
+        }
+    }
+    check(video_disabled_at_frame && !t.video_rgb && !t.video_de && !t.video_hs && !t.video_vs,
+          "pixel-domain readiness did not blank at the next frame boundary");
     std::printf("PASS DE25 computer: %u GP requests through %u MMIO reads/%u writes, %u upload chunks, "
                 "%llu complete720p frames/%llu ink-paper frames; real ROM/HID/CRC/tape/RAM, live eject, HOLD neutrality; "
-                "direct digital clocks and behavioral RAM only\n",
+                "frame-boundary readiness gating, direct digital clocks and behavioral RAM only\n",
                 b.gp_requests, b.mmio_reads, b.mmio_writes, b.upload_chunks,
                 (unsigned long long)b.complete_frames, (unsigned long long)b.picture_frames);
 }
