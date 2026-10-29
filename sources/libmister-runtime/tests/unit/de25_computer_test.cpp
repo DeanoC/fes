@@ -149,6 +149,16 @@ void TestAtomicIdentityAndControl() {
 	assert(f.bridge.writes.size() == 33); // Every owned row, exactly once, no preload.
 	assert(f.client.SetKeyboardHid({}, 1000000).ok()); assert((f.bridge.rows == KeyboardHidRows{}));
 }
+void TestCompletedKeyboardSnapshotSurvivesSettleDeadline() {
+	Fixture f; f.Probe();
+	KeyboardHidRows rows{}; rows[0] = 0x10; rows[3] = 0x4000; rows[8] = 2;
+	// The full HID exchange fits in this command budget. The nominal settle
+	// delay reaches its end, after all nine rows have already been acknowledged.
+	f.clock.frozen = true;
+	const auto deadline = f.clock.time + 2;
+	assert(f.client.SetKeyboardHid(rows, deadline).ok());
+	assert(!f.client.Poisoned() && f.bridge.rows == rows);
+}
 void TestSelectedIdentityRefusesMutations() {
 	for (unsigned fault = 0; fault < 7; ++fault) {
 		Fixture f; De25ComputerIdentity id;
@@ -277,9 +287,10 @@ void TestAcknowledgedCommitMustBecomeReady() {
 }
 } // namespace
 int main() {
-	TestAtomicIdentityAndControl(); TestSelectedIdentityRefusesMutations(); TestInputPreflightBeforeEffects();
+	TestAtomicIdentityAndControl(); TestCompletedKeyboardSnapshotSurvivesSettleDeadline();
+	TestSelectedIdentityRefusesMutations(); TestInputPreflightBeforeEffects();
 	TestOddTapeAndCrc(); TestMaximumTapeChunkOrdinals(); TestHealthyRejectionsDoNotReplayOrPoison();
 	TestUncertainCommandsNeverReplay(); TestBusyAndIdleToggleMismatchRefuseBeforeWrite();
 	TestBoundedMissingAckAndStalledClock(); TestAcknowledgedCommitMustBecomeReady(); TestOneSerializedClientOwnership(); TestLateSuccessfulAckIsUncertain();
-	std::puts("de25_computer_test: 12 groups passed (scripted registers; no hardware admission)");
+	std::puts("de25_computer_test: 13 groups passed (scripted registers; no hardware admission)");
 }
