@@ -1,5 +1,5 @@
 {
-  "build_id": "8a665015b07e3acd28010b028d31b39a",
+  "build_id": "f1d64e7d3ca9e85cbe82487bbf2b68a8",
   "device": "5CSEBA6U23I7",
   "guest_rates": {
     "ATA_RESET_CLOCKS": 615,
@@ -55,16 +55,17 @@
     "cores/fes-pc386/rtl/pc386_ata.sv": "5513a394684d7b34352f8e29acbd15d242ab9bc70f21dee233305a322766ae10",
     "cores/fes-pc386/rtl/pc386_audio.sv": "3e3d1f4f7e872b9c8e99356099ed110f7040928c32c5ba91a981276cc2a4993a",
     "cores/fes-pc386/rtl/pc386_bus_master.sv": "ae8975d1b6a95b0b14c3c5336d5c72555afbf5a2af3ebdfcedcd321bcf34db2b",
-    "cores/fes-pc386/rtl/pc386_diag.sv": "16cf33cb98c9035074f45eaa472e5ccae223d5b2a4d69291cb6e73eee035f3d0",
+    "cores/fes-pc386/rtl/pc386_diag.sv": "4e4bb31ccde88d33c7ced3b8e2584e1f0f9fdb9eab9600bfb1447746a1e8fa72",
     "cores/fes-pc386/rtl/pc386_io.sv": "4ae84cced9c83f8e13b8811a6fcd43130f23f10e38931214d9505b4f19296ece",
     "cores/fes-pc386/rtl/pc386_kbc.sv": "72c209d8f40ee017784038ec36d73c1a51b0d333f993927daec40cfe660ca203",
-    "cores/fes-pc386/rtl/pc386_machine.sv": "3a1d3001093b46f21f387bc56ed362e379482aadaef10ec5684ef0f55cc5367b",
+    "cores/fes-pc386/rtl/pc386_machine.sv": "696b7aadb6be35cf3cfbfbbf1099a458cf2e59b9cc2cdc9afe25e6846f25a80b",
     "cores/fes-pc386/rtl/pc386_mixer.sv": "6cf73e73456398105aa8eb2a221405d11540c90d4e5133b34a23330d72bd67d8",
     "cores/fes-pc386/rtl/pc386_opl2.sv": "562407033afcf45ea015bfe211ba00c3a57255d29ba21dcc3e688a3acc9e03de",
     "cores/fes-pc386/rtl/pc386_pic.sv": "46ac29f0f685a4a02cf3eaa157d758ec195a07fccdbf4e0475968d518360bc7e",
     "cores/fes-pc386/rtl/pc386_plane_bridge.sv": "1b9598fb76cfef94921abdffe1d3dc60964038c92d0fe3de07690f69949d86ad",
     "cores/fes-pc386/rtl/pc386_port2.sv": "ce48b631f6a67f665cb51f8f224c84cab08128f62de9cc95c090d8fcb592d19b",
-    "cores/fes-pc386/rtl/pc386_presenter.sv": "5030653faf54990bc37a66fbb6dd063ff80fa4c872f771dbc9184c7a180ddade",
+    "cores/fes-pc386/rtl/pc386_port_fence.sv": "8466a62e01f2e8a356f1c50dd89a51c19bac49b57aa47772a53e90d2bd8d3029",
+    "cores/fes-pc386/rtl/pc386_presenter.sv": "aed6df2bcb71cf1d975d5591d20d3c35258a25839743f088f9a29bc028a251b3",
     "cores/fes-pc386/rtl/pc386_ram.sv": "8ee96e8ee346e645aa77784cc4175f75f6185087d476a4d38caecb1aa5acca5a",
     "cores/fes-pc386/rtl/pc386_rate.sv": "66b7dee8dc40c4fb0886f1c6ea623cda241275625823e3a7f48b8d122dd3b02e",
     "cores/fes-pc386/rtl/pc386_rtc.sv": "215c4f2813c8db760034811cb58e242b427191533d748bc4d13344c9f2288bfc",
@@ -95,16 +96,16 @@
     "cores/fes-pc386/vendor/opl2_fpga/pipeline_sr.sv": "66626b1c730792d9231c6b3adda8a31199386c1b0fede1040db19ee492eeb7e4",
     "cores/fes-pc386/vendor/opl2_fpga/tremolo.sv": "6c7afcc694ad272155e0a812051d984b59115c4e4ea67bb76ac72ef6d53ac534",
     "cores/fes-pc386/vendor/opl2_fpga/vibrato.sv": "2d3c26c2a3c7184877194d857ad6ff03fd41d42b06d38b0c977d14a562f1e577",
-    "scripts/build_fes_pc386_oss.py": "0ddb28502614b80326983e61b2f2406ed0ecab63fbe81a98f406af882d516058",
+    "scripts/build_fes_pc386_oss.py": "3eba0202a11db123d1525750a04234c6e49b9f9d52a66d242853b7b69d002d82",
     "scripts/build_fes_pc386_quartus.py": "0b9573eafa56889d768b06776a654d622f252c5cbc9ce92e102382a557c5e5f1",
     "scripts/fes_build_common.py": "7a52bb11e96fed03587d1037d03cee32703ff1cdc3669bc851d8117ca1c60b94",
-    "scripts/pc386_diag.py": "b2b9dbbcfcf79fa3ad758dfbb9b88788aa14f19dfee2d45388f2307994407b7c",
+    "scripts/pc386_diag.py": "208f4f134b90f378028c840d81235a3d758ad322c5b9a2e66cd48ce7308b0fd1",
     "scripts/quartus_tools.py": "d84ccb9b2dbcd519c565b2bcd886ed7bce48d6d274a537d7a9358ca6c8ca56b2",
     "scripts/source_provenance.py": "4ea875fb576bbe00d833fb2a78fcf938367bda0a6cb49f65b9c1735fcf832155"
   },
   "rbf": {
-    "sha256": "a21be0a48155f46254d2d66aba99b13c63c4aa077e1c36a26c578845f39e88f8",
-    "size": 2520640
+    "sha256": "b723c56169d1507520b3b302369f2e6f1886e26abebdf6942a84878557468867",
+    "size": 2504420
   },
   "seed": 1,
   "status": "pass",
@@ -112,7 +113,7 @@
     "analyses": {
       "hold": {
         "tns_ns": 0.0,
-        "worst_slack_ns": 0.07
+        "worst_slack_ns": 0.097
       },
       "minimum_pulse_width": {
         "tns_ns": 0.0,
@@ -120,15 +121,15 @@
       },
       "recovery": {
         "tns_ns": 0.0,
-        "worst_slack_ns": 6.769
+        "worst_slack_ns": 6.821
       },
       "removal": {
         "tns_ns": 0.0,
-        "worst_slack_ns": 0.263
+        "worst_slack_ns": 0.319
       },
       "setup": {
         "tns_ns": 0.0,
-        "worst_slack_ns": 1.098
+        "worst_slack_ns": 0.756
       }
     },
     "clocks": {

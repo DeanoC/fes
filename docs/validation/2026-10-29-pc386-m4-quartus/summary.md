@@ -7,14 +7,21 @@ Without that change Quartus fits the system clock at 54.07 MHz; nextpnr routes
 the same shell at 40.4 ([M4 record](../2026-10-28-pc386-m4-diagnostic/summary.md#routed-timing)).
 The pc386 bring-up now takes its timing from Quartus, with nextpnr a separate
 later project ([#1235](https://github.com/DeanoC/fes/issues/1235)). This is the
-build and timing record. The package passed every M4 diagnostic program on
-Kit B ([hardware diagnostic](../2026-10-28-pc386-m4-diagnostic/summary.md#hardware-diagnostic-29-october-2026)).
+build and timing record. The lane sealed the shell three times as M4 changed
+it. The latest seal, with ports 1 and 2 fenced on machine reset, passed every
+M4 diagnostic program and 201 machine resets on Kit B
+([run q3](../2026-10-28-pc386-m4-diagnostic/summary.md#kit-run-with-the-port-fence-29-october-2026)).
 
 ## Inputs
 
-- FES branch `deano/pc386-quartus` at `d80a92fddc`: the M4 shell of
-  [#1226](https://github.com/DeanoC/fes/pull/1226) at `1df09954e0`, #1245
-  merged in, and this lane.
+- FES branch `deano/pc386-quartus` with #1245 merged in, for each seal:
+
+  | Seal | Revision | M4 shell of [#1226](https://github.com/DeanoC/fes/pull/1226) |
+  | --- | --- | --- |
+  | First | `d80a92fddc` | `1df09954e0` |
+  | 720p timing reset | `7e5da17459` | `605ff7b09f`: the presenter's 720p timing follows the pixel PLL's lock alone |
+  | Port fence | `d2f2565474` | `e920b2f90a`: ports 1 and 2 fenced on the bus master's machine reset |
+
 - Quartus Prime Lite 17.0.2 (`quartus_sh` SHA-256 `71035cc1…`). The machine
   netlist comes from the pc386 lock's Yosys `1f7d0273`.
 - Seed 1 for every fit below.
@@ -63,12 +70,14 @@ over all corners:
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Before #1245 | 54.07 | 82.01 | 167.36 | −2.454 ns | 0.107 ns |
 | With #1245, a scratch fit | 73.59 | 79.81 | 237.70 | 0.810 ns | 0.057 ns |
-| The seal, build `8a665015…` | 75.82 | 81.31 | 220.46 | 1.098 ns | 0.070 ns |
+| First seal, build `8a665015…` | 75.82 | 81.31 | 220.46 | 1.098 ns | 0.070 ns |
+| 720p timing reset, build `9571d035…` | 76.01 | 84.65 | 191.98 | 1.559 ns | 0.094 ns |
+| Port fence, build `f1d64e7d…` | 74.26 | 80.03 | 186.05 | 0.756 ns | 0.097 ns |
 | nextpnr `bd7a1c0d`, M4 record | 40.4 | 55.8 | | | |
 
-The scratch fit and the seal have the same RTL; the build ID stamped into the
-mailbox differs. In the seal, recovery, removal and minimum pulse width pass
-too (6.769, 0.263 and 1.122 ns), as in every fit.
+The scratch fit and the first seal have the same RTL; the build ID stamped
+into the mailbox differs. Recovery, removal and minimum pulse width pass in
+every fit too (6.821, 0.319 and 1.122 ns in the port fence seal).
 
 **Before #1245, 42 paths failed, all from one source.**
 - They started at the ATA's logical geometry and ended at the AT decoder's
@@ -85,14 +94,31 @@ too (6.769, 0.263 and 1.122 ns), as in every fit.
 
 | | |
 | --- | --- |
-| Package | `ddf3530668b061fc368f6e5cd5e9947d6185f36ba42a4ae8879cee6796496ffe` |
-| Build ID | `8a665015b07e3acd28010b028d31b39a` |
-| RBF | 2,520,640 bytes, SHA-256 `a21be0a4…` |
-| Manifest | `fes.pc386-diag` "FES pc386 M4 diagnostic (Quartus)", `fes.computer` 1.0, the OSS package's five interfaces |
-| Resources | 9,700 ALMs (23%), 12,576 registers, 53 RAM blocks (151,955 bits), 21 DSP blocks |
+The port fence seal:
 
-[`seal-summary.json`](seal-summary.json) is the seal's build summary: timing,
-clocks, guest rates, tool digests and every pinned input's hash.
+| | |
+| --- | --- |
+| Package | `fc9c0dd0f384c4627038e9e2efdbfaf2f2e48d4b77f4e481d8a445a600a3c8da` |
+| Build ID | `f1d64e7d3ca9e85cbe82487bbf2b68a8` |
+| RBF | 2,504,420 bytes, SHA-256 `b723c561…` |
+| Manifest | `fes.pc386-diag` "FES pc386 M4 diagnostic (Quartus)", `fes.computer` 1.0, the OSS package's five interfaces |
+| Resources | 9,754 ALMs (23%), 12,637 registers, 53 RAM blocks (151,955 bits), 21 DSP blocks |
+
+[`seal-summary.json`](seal-summary.json) is its build summary: timing,
+clocks, guest rates, tool digests and every pinned input's hash. The earlier
+seals were packages `ddf35306…` (build `8a665015…`) and `42cb45ef…` (build
+`9571d035…`).
+
+## On Kit B
+
+M4's record has each run. All used the same Kit B baseline and M4's
+diagnostic programs:
+
+| Run | Seal | Result |
+| --- | --- | --- |
+| [q1](../2026-10-28-pc386-m4-diagnostic/summary.md#hardware-diagnostic-29-october-2026) | First | The six programs pass every command. HDMI re-locks for about 1.5 s after each machine reset |
+| [q2](../2026-10-28-pc386-m4-diagnostic/summary.md#kit-re-run-with-the-timing-change-29-october-2026) | 720p timing reset | HDMI and audio hold through every reset. opl2 fails: a machine reset cut a port 2 write burst, and port 2 stopped serving the presenter |
+| [q3](../2026-10-28-pc386-m4-diagnostic/summary.md#kit-run-with-the-port-fence-29-october-2026) | Port fence | The six programs and `resets` pass every command. After 201 machine resets the mode 13h capture is whole and every counter reads zero |
 
 ## Checks
 
@@ -105,6 +131,4 @@ clocks, guest rates, tool digests and every pinned input's hash.
 
 ## Not done
 
-- The presenter's 720p timing resets with the machine, so HDMI sinks re-lock
-  after each machine reset (the hardware diagnostic above).
 - The CPU in the shell (M5).
