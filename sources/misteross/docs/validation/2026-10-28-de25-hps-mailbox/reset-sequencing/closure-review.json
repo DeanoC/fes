@@ -1,0 +1,301 @@
+{
+  "clock_count": 35,
+  "clock_inventory_matches_original": true,
+  "clocks": {
+    "EMIF_REF_CLOCK": [
+      "Base",
+      "6.000",
+      "166.67 MHz",
+      "0.000",
+      "3.000"
+    ],
+    "altera_reserved_tck": [
+      "Base",
+      "62.500",
+      "16.0 MHz",
+      "0.000",
+      "31.250"
+    ],
+    "internal_clk": [
+      "Base",
+      "10.000",
+      "100.0 MHz",
+      "0.000",
+      "5.000"
+    ],
+    "pll_inst|iopll_0_m_cnt_clk": [
+      "Generated",
+      "20.000",
+      "50.0 MHz",
+      "0.000",
+      "10.000"
+    ],
+    "pll_inst|iopll_0_n_cnt_clk": [
+      "Generated",
+      "20.000",
+      "50.0 MHz",
+      "0.000",
+      "10.000"
+    ],
+    "pll_inst|iopll_0_outclk0": [
+      "Generated",
+      "10.000",
+      "100.0 MHz",
+      "0.000",
+      "5.000"
+    ],
+    "pll_inst|iopll_0_refclk": [
+      "Base",
+      "20.000",
+      "50.0 MHz",
+      "0.000",
+      "10.000"
+    ],
+    "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0": [
+      "Generated",
+      "20.000",
+      "50.0 MHz",
+      "0.000",
+      "10.000"
+    ],
+    "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[0]_in": [
+      "Base",
+      "0.750",
+      "1333.0 MHz",
+      "0.000",
+      "0.375"
+    ],
+    "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[0]_nff": [
+      "Generated",
+      "0.750",
+      "1333.0 MHz",
+      "0.375",
+      "0.750"
+    ],
+    "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[1]_in": [
+      "Base",
+      "0.750",
+      "1333.0 MHz",
+      "0.000",
+      "0.375"
+    ],
+    "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[1]_nff": [
+      "Generated",
+      "0.750",
+      "1333.0 MHz",
+      "0.375",
+      "0.750"
+    ],
+    "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[2]_in": [
+      "Base",
+      "0.750",
+      "1333.0 MHz",
+      "0.000",
+      "0.375"
+    ],
+    "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[2]_nff": [
+      "Generated",
+      "0.750",
+      "1333.0 MHz",
+      "0.375",
+      "0.750"
+    ],
+    "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[3]_in": [
+      "Base",
+      "0.750",
+      "1333.0 MHz",
+      "0.000",
+      "0.375"
+    ],
+    "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[3]_nff": [
+      "Generated",
+      "0.750",
+      "1333.0 MHz",
+      "0.375",
+      "0.750"
+    ],
+    "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_c0_cntr_0": [
+      "Generated",
+      "1.500",
+      "666.67 MHz",
+      "0.000",
+      "0.750"
+    ],
+    "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_c1_cntr_0": [
+      "Generated",
+      "6.000",
+      "166.67 MHz",
+      "0.000",
+      "3.000"
+    ],
+    "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_byte_rx_gated": [
+      "Generated",
+      "10.000",
+      "100.0 MHz",
+      "0.000",
+      "5.000"
+    ],
+    "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_rxclk_gated": [
+      "Base",
+      "10.000",
+      "100.0 MHz",
+      "0.000",
+      "5.000"
+    ],
+    "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_byte_rx_gated": [
+      "Generated",
+      "10.000",
+      "100.0 MHz",
+      "0.000",
+      "5.000"
+    ],
+    "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_rxclk_gated": [
+      "Base",
+      "10.000",
+      "100.0 MHz",
+      "0.000",
+      "5.000"
+    ],
+    "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_byte_rx_gated": [
+      "Generated",
+      "10.000",
+      "100.0 MHz",
+      "0.000",
+      "5.000"
+    ],
+    "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_rxclk_gated": [
+      "Base",
+      "10.000",
+      "100.0 MHz",
+      "0.000",
+      "5.000"
+    ],
+    "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_byte_rx_gated": [
+      "Generated",
+      "10.000",
+      "100.0 MHz",
+      "0.000",
+      "5.000"
+    ],
+    "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_rxclk_gated": [
+      "Base",
+      "10.000",
+      "100.0 MHz",
+      "0.000",
+      "5.000"
+    ],
+    "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_byte_rx_gated": [
+      "Generated",
+      "10.000",
+      "100.0 MHz",
+      "0.000",
+      "5.000"
+    ],
+    "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_rxclk_gated": [
+      "Base",
+      "10.000",
+      "100.0 MHz",
+      "0.000",
+      "5.000"
+    ],
+    "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_byte_rx_gated": [
+      "Generated",
+      "10.000",
+      "100.0 MHz",
+      "0.000",
+      "5.000"
+    ],
+    "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_rxclk_gated": [
+      "Base",
+      "10.000",
+      "100.0 MHz",
+      "0.000",
+      "5.000"
+    ],
+    "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0": [
+      "Generated",
+      "1.500",
+      "666.67 MHz",
+      "0.000",
+      "0.750"
+    ],
+    "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_sync_0": [
+      "Generated",
+      "6.000",
+      "166.67 MHz",
+      "0.000",
+      "3.000"
+    ],
+    "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_pll_ncntr": [
+      "Generated",
+      "6.000",
+      "166.67 MHz",
+      "0.000",
+      "3.000"
+    ],
+    "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_base_0": [
+      "Generated",
+      "0.750",
+      "1333.33 MHz",
+      "0.000",
+      "0.375"
+    ],
+    "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_clk_periph_0": [
+      "Generated",
+      "0.750",
+      "1333.33 MHz",
+      "0.000",
+      "0.375"
+    ]
+  },
+  "fes_revision": "4ab2472b0b22b64d8756fd7c6e83d117e794b214",
+  "reviewed_protocol_rtl_matches": {
+    "hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_hps_100/synth/agilex_hps_intel_sundancemesa_hps_100_z5bqzvi.v": true,
+    "hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_hps_100/synth/ready_latency/ready_latency_adapter.sv": true,
+    "hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_hps_100/synth/ready_latency/ready_latency_reset_synchronizer.sv": true,
+    "hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_mpfe_100/synth/agilex_hps_intel_sundancemesa_mpfe_100_u4663zy.sv": true,
+    "hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_mpfe_100/synth/ready_latency/ready_latency_reset_synchronizer.sv": true,
+    "jtag_subsys/ip/jtag_subsys/fpga_m/altera_avalon_packets_to_master_1922/synth/altera_avalon_packets_to_master.v": true,
+    "jtag_subsys/ip/jtag_subsys/fpga_m/altera_jtag_avalon_master_191/synth/fpga_m_altera_jtag_avalon_master_191_unfwqdy.v": true,
+    "jtag_subsys/ip/jtag_subsys/fpga_m/altera_jtag_dc_streaming_191/synth/altera_avalon_st_clock_crosser.v": true,
+    "jtag_subsys/ip/jtag_subsys/fpga_m/altera_jtag_dc_streaming_191/synth/altera_jtag_dc_streaming.v": true,
+    "jtag_subsys/ip/jtag_subsys/fpga_m/altera_jtag_dc_streaming_191/synth/altera_jtag_streaming.v": true,
+    "jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_avalon_packets_to_master_1922/synth/altera_avalon_packets_to_master.v": true,
+    "jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_avalon_master_191/synth/hps_f2sdram_altera_jtag_avalon_master_191_unfwqdy.v": true,
+    "jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_avalon_st_clock_crosser.v": true,
+    "jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_jtag_dc_streaming.v": true,
+    "jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_jtag_streaming.v": true,
+    "jtag_subsys/ip/jtag_subsys/hps_m/altera_avalon_packets_to_master_1922/synth/altera_avalon_packets_to_master.v": true,
+    "jtag_subsys/ip/jtag_subsys/hps_m/altera_jtag_avalon_master_191/synth/hps_m_altera_jtag_avalon_master_191_unfwqdy.v": true,
+    "jtag_subsys/ip/jtag_subsys/hps_m/altera_jtag_dc_streaming_191/synth/altera_avalon_st_clock_crosser.v": true,
+    "jtag_subsys/ip/jtag_subsys/hps_m/altera_jtag_dc_streaming_191/synth/altera_jtag_dc_streaming.v": true,
+    "jtag_subsys/ip/jtag_subsys/hps_m/altera_jtag_dc_streaming_191/synth/altera_jtag_streaming.v": true,
+    "jtag_subsys/jtag_subsys/synth/jtag_subsys.v": true,
+    "peripheral_subsys/peripheral_subsys/synth/peripheral_subsys.v": true,
+    "qsys_top/synth/qsys_top.v": true
+  },
+  "signoff_failures": {
+    "RDC-50003": {
+      "count": 1,
+      "severity": "Medium",
+      "waived": 0
+    },
+    "RES-50101": {
+      "count": 2,
+      "severity": "Low",
+      "waived": 0
+    },
+    "TMC-20012": {
+      "count": 1,
+      "severity": "High",
+      "waived": 0
+    }
+  },
+  "synchronizer_model": {
+    "excluded": 14,
+    "found": 38,
+    "included": 24,
+    "physical_acceptance": "not-run",
+    "shortest_chain_registers": 2
+  }
+}
