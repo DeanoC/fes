@@ -23,7 +23,11 @@ module fes_zx81_pr_sim (
     wire [19:0] a_bus, b_bus;
     wire [45:0] guarded_debug = {debug_request[45] && running, debug_request[44:28],
         debug_request[27] | !running, debug_request[26:25], debug_request[24] | !running, debug_request[23:0]};
-    wire [45:0] bus_request = debug_bus ? guarded_debug : machine_request;
+    // The test generator includes the same first request FF as the real
+    // static machine adapter, so freeze probes include the full bus pipeline.
+    reg [45:0] debug_request_q = 0;
+    always @(posedge clk) debug_request_q <= guarded_debug;
+    wire [45:0] bus_request = debug_bus ? debug_request_q : machine_request;
     wire [19:0] bus_response = persona_b ? b_bus : a_bus;
     assign debug_response = bus_response;
     assign memory_write = b.core.write_enable && persona_b;

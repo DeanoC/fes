@@ -32,6 +32,13 @@ def main():
         (local / name).write_bytes((HERE / name).read_bytes())
     rtl = [local / name for name in ("shell.v", "personas.v", "static.v", "sim_top.v", "zx81_machine.sv",
         "zx81_machine_clock.v", "zx81_dpram.v", "zx81_ram_pack.v", "fes_z80_alu.sv", "fes_z80_engine.sv", "fes_z80_bus.sv", "fes_z80_nmos.sv")]
+    test_committed = True
+    for name, data in (("sim.py", driver_bytes), ("sim_top.v", (local / "sim_top.v").read_bytes()),
+                       ("tb.cpp", (local / "tb.cpp").read_bytes())):
+        relative = (HERE / name).relative_to(frozen["repository"]).as_posix()
+        result = subprocess.run(["git", "show", frozen["revision"] + ":" + relative],
+            cwd=frozen["repository"], capture_output=True, check=False)
+        test_committed = test_committed and result.returncode == 0 and result.stdout == data
     before = {str(x.relative_to(output)): build.sha(x.read_bytes()) for x in local.rglob("*") if x.is_file()}
     build.run(["verilator", "--cc", "--exe", "--build", "-j", "2", "--x-initial", "unique", "-Wno-fatal",
         "--top-module", "fes_zx81_pr_sim", "-I" + str(local), "--Mdir", str(output / "obj_dir")] +
@@ -43,7 +50,8 @@ def main():
     sources.update({"sim.py": build.sha(driver_bytes)})
     (output / "simulation.json").write_bytes(build.canonical({"status": "passed", "kind": "actual-ZX81-CPU-ROM-RAM-pack-RTL",
         "scenario": "drain-only" if args.drain_only else "full-BASIC-boot",
-        "source_revision": frozen["revision"], "source_committed": frozen["committed"], "source_sha256": sources,
+        "source_revision": frozen["revision"], "source_committed": frozen["committed"],
+        "test_source_committed": test_committed, "source_sha256": sources,
         "log_sha256": build.sha((output / "simulation.log").read_bytes()), "physical_PR": "not-modeled",
         "primitive_memory": "behavioral", "hardware_acceptance": "not-run"}) + b'\n')
     print(output)
