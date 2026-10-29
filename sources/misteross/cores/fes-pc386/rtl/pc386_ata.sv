@@ -143,7 +143,11 @@ module pc386_ata #(
     wire [4:0] block = (opcode == 8'hc4 || opcode == 8'hc5) ? multiple : 5'd1;
     wire [8:0] total = count == 0 ? 9'd256 : {1'b0, count};
     wire [15:0] current_cylinders = logical_cylinders;
-    wire [28:0] current_capacity = 29'(logical_cylinders * logical_heads) * logical_spt;
+    // IDENTIFY words 57-58. Only reset and INITIALIZE DEVICE PARAMETERS change
+    // the geometry, both under BSY, so the product comes from a register and
+    // its multiplies stay off the I/O read path.
+    reg [28:0] current_capacity;
+    always @(posedge clk) current_capacity <= 29'(logical_cylinders * logical_heads) * logical_spt;
 
     function automatic [15:0] identify_word(input [7:0] w);
         // Strings are two characters per word, first character high.
