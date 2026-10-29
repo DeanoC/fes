@@ -1,5 +1,10 @@
 # DE25-Nano FPGA bring-up
 
+The [base-plus-persona composition proof](link-proof/README.md) explores a
+Quartus-built fixed shell with two interchangeable PR personas and a static
+AArch64 offline bundle composer. It is diagnostic-only; production expansion
+admission and physical PR loading remain closed.
+
 The [three-memory RAM Tester](ramtest/README.md) provides a standalone
 diagnostic for FPGA LPDDR4 B, board SDRAM and a staged HPS allocation. Its
 JTAG controller permits destructive local-memory tests and refuses HPS writes;

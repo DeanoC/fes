@@ -19,6 +19,17 @@ selection and transfer. libmister-runtime programs the FPGA.
 
 ## DE25-Nano board diagnostic
 
+The isolated [base-plus-persona proof](../boards/de25nano/link-proof/README.md)
+builds a tiny Quartus PR base and two same-interface personas for the exact SCS
+device. A separate stdlib-only Go executable validates compiler descriptors and
+assembles ordinary opaque files into a deterministic deployment bundle on
+AArch64; it does not use the Cyclone V `expansion` module's CRAM codec. The
+single reserved region, final root QDB, clocks/reset/interface and exact payload
+hashes bind each persona to its base. The virtual freeze control has no HPS
+backend. The RTL bench models logical stop/drain/reset/clamp transitions;
+QEMU executes target composition. No production package, programming backend
+or physical PR acceptance is added by this diagnostic.
+
 The standalone [three-memory RAM Tester](../boards/de25nano/ramtest/README.md)
 adds separate destructive FPGA LPDDR4 B and board SDRAM endpoints to the pinned
 GHRD. It preserves the vendor B memory/PHY recipe and uses a custom fixed-50-MHz
