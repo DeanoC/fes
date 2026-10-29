@@ -52,6 +52,14 @@ but its destructive engine is disabled in the board top pending a real kernel
 allocation/binding/drain contract. The shared fabric constants and explicit
 JTAG controller add no package, runtime admission or physical qualification.
 
+Its generated FPGA-B transport check uses the real endpoint wrapper and
+unaltered Avalon128-to-AXI256 packet/width adapters against an independent AXI
+memory model. It verifies lanes, byte enables, command stability, errors,
+STOP/drain and reset containment. Unexpected controller responses exercise
+the generated simulation assertion with no assertion disabled. The selected
+transport elaborates without hard RAM primitives; this is not full peripheral
+CSR routing, HPS memory admission, controller/PHY or physical qualification.
+
 `boards/de25nano/` is an independent FPGA-only bring-up project for
 `A5EB013BB23BE4SCS` with Quartus Prime Pro 26.3.0. Its 50 MHz input and
 active-low LED pins follow Terasic's revision B resource package; the shared

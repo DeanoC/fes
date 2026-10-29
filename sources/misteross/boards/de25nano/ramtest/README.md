@@ -92,6 +92,45 @@ misteross Python suite discovers both paths. Functional memory models do not
 establish vendor EMIF primitive behavior, generated interconnect behavior,
 analogue CDC or physical memory acceptance.
 
+## Generated FPGA-DDR transport check
+
+`interconnect_sim.py` selects the generated FPGA-B endpoint wrapper and the
+actual 128-bit Avalon to 256-bit AXI interconnect from a completed, verified
+RAM Tester project. It copies the exact reachable generated HDL and includes
+into a new private output. Generated translators, packet routing, width/lane
+adaptation and response accounting remain unchanged. The controller-side AXI
+memory is an independent byte-addressed model; no hard RAM primitive is
+substituted or permitted in the elaborated transport.
+
+```sh
+make sim-interconnect PROJECT=/absolute/producer/hps/project \
+  OUTPUT=/absolute/new/transport-test
+```
+
+This needs Verilator and C++, not another Quartus compilation. It requires the
+producer's original `inputs.json`, `generation.json`, `quartus-version.txt`,
+QIPs and generated sources; copied RTL and the physical top must still match
+the retained generation checks. The HPS destructive-enable field must remain
+false. The helper records source, executable, wrapper and verifier identities,
+case results and the explicit hardware exclusions in `simulation.json`.
+
+The bench covers both 128-bit halves of the AXI bus, partial byte enables,
+burst boundaries, independent AW/W/AR backpressure and payload stability. The
+real endpoint runs all seven scan patterns and 1,024 latency samples. Corrupted
+read data must retain its failing address and bit mask; AXI read/write errors
+must reach the scan fault state. STOP cannot finish before accepted B/R
+responses arrive. Reset retains an uncertain epoch instead of inventing
+completion. A separate malformed-AXI run must trigger the actual generated
+read-ID FIFO assertion; this is a simulation assertion, not a synthesized
+hardware fault flag.
+
+This check does not exercise the upstream peripheral CSR routing, HPS memory
+path, EMIF controller/PHY, calibration, analogue timing or physical memory.
+The original endpoint/control and SDRAM simulations remain separate checks.
+No command programs hardware, changes the image or enables HPS writes.
+The [2026-10-29 transport record](../../../docs/validation/2026-10-29-de25-ram-transport/README.md)
+retains the actual generated-path cases, source identities and model boundaries.
+
 ## Explicit JTAG diagnostic control
 
 [jtag.tcl](jtag.tcl) is an operator diagnostic for an already programmed,

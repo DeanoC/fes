@@ -2,6 +2,7 @@
 #include "Vfes_de25_computer.h"
 #include "Vfes_de25_computer___024root.h"
 #include "fes_computer.hpp"
+#include "generated/fes_de25_computer.hpp"
 #include "fes_de25_computer.hpp"
 #include "verilated.h"
 #include <algorithm>
@@ -308,12 +309,16 @@ int main(int argc, char** argv) {
     std::fclose(saved);
     std::printf("PASS DE25 computer real NEW: E_LINE=%04x, immutable .p=%zu bytes CRC32=%08x\n",
                 image_end, image.size(), crc32(image));
+    const size_t tape_limit = regs::FesDe25ComputerZx81TapeMaxBytes;
+    std::vector<uint8_t> boundary_image(tape_limit);
+    for (size_t n = 0; n < boundary_image.size(); ++n)
+        boundary_image[n] = image[n % image.size()];
 
     // Stop only the pixel clock. MMIO and the actual CPU must keep advancing.
     b.pixel.running = false;
     const uint64_t retired_before_stall = b.retired;
     check(b.gp(regs::FesComputerOpcodeIdentity, 4) == regs::FesComputerAbiTag, "ABI query failed with pixel clock stopped");
-    b.upload(image, crc32(image));
+    b.upload(boundary_image, crc32(boundary_image));
     b.cycles(500000);
     check(b.retired > retired_before_stall && !SIGNAL(machine_reset), "stopped pixel clock blocked CPU or reset it");
     check(b.gp(regs::FesComputerOpcodeMediaInfo, regs::FesComputerMediaInfoStateField) == regs::FesComputerMediaStateReady,
@@ -331,14 +336,25 @@ int main(int argc, char** argv) {
     while (b.picture_frames < frames_until && b.system_edges < frame_deadline) b.step();
     check(b.picture_frames >= frames_until, "complete HDMI frames did not show typed LOAD quotes in ink/paper");
 
-    b.expected_load = image;
+    b.expected_load = boundary_image;
     std::array<uint16_t, 9> enter{}; enter[2] = 1u << 8; // USB HID Return, usage0x28.
     b.keys(enter, 0xffffffffffull & ~(1ull << 30));
     const uint64_t load_deadline = b.system_edges + 500000000;
-    while ((b.loaded_bytes != image.size() || SIGNAL(tape_busy)) && b.system_edges < load_deadline) b.cycles(512);
-    check(b.loaded_bytes == image.size() && !SIGNAL(tape_busy), "real BASIC LOAD did not consume and finish the complete image");
+    uint64_t load_progress = b.system_edges + 50000000;
+    while ((b.loaded_bytes != boundary_image.size() || SIGNAL(tape_busy)) && b.system_edges < load_deadline) {
+        b.cycles(512);
+        if (b.system_edges >= load_progress) {
+            std::printf("DE25 computer maximum LOAD progress: clocks=%llu bytes=%zu/%zu\n",
+                        (unsigned long long)b.system_edges, b.loaded_bytes, boundary_image.size());
+            load_progress += 50000000;
+        }
+    }
+    check(b.loaded_bytes == tape_limit && !SIGNAL(tape_busy),
+          "real BASIC LOAD did not consume every byte at the DE25 maximum");
+    check(b.peek(0x7fff) == boundary_image.back(),
+          "maximum tape did not end at the final ZX81 RAM byte");
     b.release_keys();
-    std::printf("PASS DE25 computer BASIC LOAD: %zu ordered bytes checked at their real RAM commits\n", b.loaded_bytes);
+    std::printf("PASS DE25 computer BASIC LOAD boundary: %zu bytes ended at $7FFF\n", b.loaded_bytes);
 
     b.gp(regs::FesComputerOpcodeMediaEject);
     check(b.gp(regs::FesComputerOpcodeMediaInfo, regs::FesComputerMediaInfoStateField) == regs::FesComputerMediaStateEmpty,
