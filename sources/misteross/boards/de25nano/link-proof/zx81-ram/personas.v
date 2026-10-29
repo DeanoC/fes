@@ -55,7 +55,9 @@ module fes_link_persona_a (
     output wire rsp_valid, output wire [31:0] rsp_data,
     output wire [19:0] bus_response
 );
-    fes_link_zx81_persona core (.*);
+    fes_link_zx81_persona core (
+        .clk(clk), .reset(reset), .req(req), .address(address), .bus_request(bus_request),
+        .rsp_valid(rsp_valid), .rsp_data(rsp_data), .bus_response(bus_response));
 endmodule
 module fes_link_persona_b (
     input wire clk, reset, req, input wire [7:0] address,
@@ -63,5 +65,7 @@ module fes_link_persona_b (
     output wire rsp_valid, output wire [31:0] rsp_data,
     output wire [19:0] bus_response
 );
-    fes_link_zx81_persona #(.RAM(1), .ID(`FES_DE25_PR_CONTROL_PERSONA_B)) core (.*);
+    fes_link_zx81_persona #(.RAM(1), .ID(`FES_DE25_PR_CONTROL_PERSONA_B)) core (
+        .clk(clk), .reset(reset), .req(req), .address(address), .bus_request(bus_request),
+        .rsp_valid(rsp_valid), .rsp_data(rsp_data), .bus_response(bus_response));
 endmodule
