@@ -1,0 +1,43 @@
+{
+  "runtime_tests": [
+    {
+      "name": "runtime_test",
+      "result": "passed",
+      "sha256": "6d343988327677afab99dd4543a2df3736d36207c63acb7191defa663cd99ef0"
+    },
+    {
+      "name": "protocol_test",
+      "result": "passed",
+      "sha256": "8c6794f4842a5adaa6663e4a6a3877dda9d2b421339a0bcbeabf61da25163ed4"
+    },
+    {
+      "name": "mmio_test",
+      "result": "passed",
+      "sha256": "79c944c77c046c330b39d307296a0daf85a41e23efe6459695357715571b1fb4"
+    },
+    {
+      "name": "fpga_manager_test",
+      "result": "passed",
+      "sha256": "074bc439ec42332d115c126baca1b40f03b8f4c198285cde0757778448cd4fe7"
+    },
+    {
+      "name": "off_t_test",
+      "result": "passed",
+      "sha256": "68ec6fa8be46829a9d7fb069cd0fac8cf77a8093a09f65a3efe2abbfcda9c800"
+    },
+    {
+      "name": "production_hardware_test",
+      "result": "passed",
+      "sha256": "7f3abc6c09a612cb24480472d848868a215bfb797791b6bc7e6a672022596bf5"
+    }
+  ],
+  "agent_tests": [
+    "TestClientRejectsWrongProtocolAndUnknownResponseFields",
+    "TestClientRejectsInvalidDevelopmentRBFPathsBeforeDial",
+    "TestRuntimeSocketOpenIsFalseWhenDialFails",
+    "TestNativeHealthIsReadyOnlyForControllableProductionStatesAndKeepsLegacyBooleansFalse",
+    "TestNativeReconcileMapsRebootRequiredToFailedUnavailable"
+  ],
+  "runtime_build_key": "1bc89e9c0f8172a3de80133c0e14996d179c0a3ae1620c9248d977fd374335fb",
+  "compiler_version": "aarch64-buildroot-linux-gnu-g++.br_real (Buildroot 2021.02.4) 9.4.0"
+}
