@@ -6,8 +6,9 @@ comes from a register ([#1245](https://github.com/DeanoC/fes/pull/1245)).**
 Without that change Quartus fits the system clock at 54.07 MHz; nextpnr routes
 the same shell at 40.4 ([M4 record](../2026-10-28-pc386-m4-diagnostic/summary.md#routed-timing)).
 The pc386 bring-up now takes its timing from Quartus, with nextpnr a separate
-later project ([#1235](https://github.com/DeanoC/fes/issues/1235)). This is a
-host build and timing record. The package has not been run on a kit.
+later project ([#1235](https://github.com/DeanoC/fes/issues/1235)). This is the
+build and timing record. The package passed every M4 diagnostic program on
+Kit B ([hardware diagnostic](../2026-10-28-pc386-m4-diagnostic/summary.md#hardware-diagnostic-29-october-2026)).
 
 ## Inputs
 
@@ -104,5 +105,6 @@ clocks, guest rates, tool digests and every pinned input's hash.
 
 ## Not done
 
-- A kit run of the package with the M4 kit tool's programs.
+- The presenter's 720p timing resets with the machine, so HDMI sinks re-lock
+  after each machine reset (the hardware diagnostic above).
 - The CPU in the shell (M5).
