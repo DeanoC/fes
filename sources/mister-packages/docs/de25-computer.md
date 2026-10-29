@@ -22,6 +22,10 @@ is busy. The computer mailbox powers up holding execution. Its existing
 identity, execution, HID keyboard and CRC/chunked tape operations retain their
 meaning. This target advertises keyboard, fixed 720p video and read-only ZX81
 tape delivery; it does not advertise audio, gamepads, SAVE or session display.
+This board advertises a 16,375-byte tape maximum: BASIC LOAD writes the first
+payload byte at `$4009` and the last byte must remain within the 16 KiB RAM at
+`$7FFF`. The shared `fes.computer` ABI permits 16,384 bytes for other
+implementations, but this endpoint rejects lengths beyond its machine window.
 During an active BASIC LOAD, MediaBegin and MediaEject return `INVALID_STATE`;
 this acknowledged command rejection leaves the transport healthy.
 
@@ -42,6 +46,8 @@ CPU and masks tape writes and presentation. It does not independently clear
 mailbox transport state. The mailbox may complete an already accepted command
 internally after a fault; no CPU or tape authorization is restored by that ACK.
 Pixel-clock loss blanks HDMI without resetting the computer or control path.
+The 100 MHz readiness gate crosses into the 74.25 MHz pixel domain through a
+two-register synchronizer before it gates RGB, DE, HS and VS.
 
 A client checks fault before and after each exchange, validates identity and
 capabilities, submits one full word, checks the held payload and waits for its
