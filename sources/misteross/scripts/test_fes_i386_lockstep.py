@@ -177,14 +177,14 @@ def run_reset_store(testbench: str, env: dict) -> dict:
 
 def run_memory(testbench: str, env: dict) -> dict:
     """DMA and FLUSH against the caches and the write buffer (lockstep_tb.cpp's
-    run_memory_cases): five cases."""
+    run_memory_cases): four cases, and six DMA sweeps under each profile."""
     env = dict(env, FES_I386_MODE='memory', FES_I386_LATENCY='1')
     result = subprocess.run([testbench], env=env, capture_output=True, text=True)
     if result.returncode not in (0, 1):
         raise LockstepError(f'memory cases: testbench exited with {result.returncode}\n{result.stderr[-4000:]}')
     summary, failures = parse_output(result.stdout)
-    if summary['runs'] != 5:
-        raise LockstepError(f'memory cases: testbench ran {summary["runs"]} of 5 cases')
+    if summary['runs'] != 16:
+        raise LockstepError(f'memory cases: testbench ran {summary["runs"]} of 16 cases')
     return {'summary': summary, 'failures': failures}
 
 

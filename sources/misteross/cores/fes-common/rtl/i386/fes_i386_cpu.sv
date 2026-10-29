@@ -143,6 +143,7 @@ module fes_i386_cpu #(
     output logic             trace_mem_idle,       // the bus interface has nothing to do or finish
     output logic             trace_replay,         // WB restarts an instruction for an uncached load
     output logic             trace_smc,            // ... for self-modifying code (see Self-modifying code)
+    output logic             trace_smc_open,       // a DMA write into fetched bytes now restarts the next instruction (ditto)
     // The store WB commits: the bytes trace_store_mask names of the eight
     // from trace_store_addr's dword, at linear addresses.
     output logic             trace_store,
@@ -265,16 +266,17 @@ module fes_i386_cpu #(
     // After reset the front end starts at CS.base + EIP, one cycle after the
     // sum is registered.
     logic [1:0]  start;
-    logic [31:0] start_linear;
+    logic [31:0] cs_eip, start_linear;
     logic        redirect;
     logic [31:0] redirect_linear, redirect_eip;
+    assign cs_eip = seg_base[SEG_CS] + eip;
     always_ff @(posedge clk) begin
         if (reset || rp_go) begin
             start <= 2'd1;
         end else if (start != 2'd0) begin
             start <= start + 2'd1;
         end
-        start_linear <= seg_base[SEG_CS] + eip;
+        start_linear <= cs_eip;
     end
     // A delivery refetches from the faulting instruction, or the one before
     // (start_linear is a cycle old), which the delivery's far jump discards.
@@ -1589,7 +1591,7 @@ module fes_i386_cpu #(
     end
 
     // ---- Memory: L1I, L1D and the bus interface -------------------------------------
-    logic              st_ex, st_wb, oldest;
+    logic              st_ex, st_wb, oldest, unc_start;
     logic [PA-6:0]     inv_line;
     logic              inv_valid, inv_all;
     logic              d_req, d_mmio, d_beat, i_req, i_beat;
@@ -1620,6 +1622,7 @@ module fes_i386_cpu #(
     assign trace_mem_wait = m2_load && !dmem_valid || st_wait || !mem_valid;
     assign trace_replay = rp_go && !wb_smc;
     assign trace_smc = smc_go;
+    assign trace_smc_open = smc_open && !unc_start;
 
     fes_i386_l1i l1i (
         .clk, .reset, .a20m, .attr_upper, .ram_top, .mem_block, .mem_load, .mem_data, .mem_valid,
@@ -1631,7 +1634,7 @@ module fes_i386_cpu #(
     fes_i386_l1d l1d (
         .clk, .reset, .a20m, .attr_upper, .ram_top, .advance(!freeze), .flush(wb_flush), .ag_index(linear[11:5]),
         .rd(dmem_read), .addr(dmem_addr), .bytes(m1_s.uop.mem.bytes), .fault(dmem_fault),
-        .oldest, .valid(dmem_valid), .rdata(dmem_rdata), .replay(l1d_replay),
+        .oldest, .valid(dmem_valid), .rdata(dmem_rdata), .replay(l1d_replay), .unc_start,
         .st_ex_addr(ex_saddr), .st_wb_addr(wb_saddr), .st_commit(wb_store),
         .st_line0(wb_p0[PA-1:5]), .st_line1(wb_p1[PA-1:5]), .st_attr0(wb_at0), .st_cross(wb_cross),
         .st_dword(wb_saddr[4:2]), .st_data(dmem_wdata), .st_mask(dmem_wmask),
@@ -1668,8 +1671,20 @@ module fes_i386_cpu #(
     // instruction that stored completes as it was decoded.
     //
     // Which instruction: under the coherent profile, and for a DMA write,
-    // the next one, once the instruction in WB ends (smc_pend until it does,
-    // smc_due after). Under queue16 the 16 bytes after the storing
+    // the next one not begun. That is the next once the instruction in WB
+    // ends (smc_pend until it does, smc_due after), or, while WB is empty
+    // between instructions (smc_open), the one whose first uop enters WB
+    // next: smc_first says the last uop WB took ended an instruction, and
+    // uc_live that the next one's uncached load has not read its device. A
+    // load that starts to read as the write lands (unc_start) has begun its
+    // instruction too: it starts with D to WB frozen, so nothing enters WB
+    // then, and the write waits for that instruction's end. A delivery's
+    // uops are no instruction's, and an instruction restarted for
+    // self-modifying code is not restarted again before it enters WB
+    // (smc_first low after smc_go): a DMA write that lands meanwhile
+    // restarts the one after it. So a stream of DMA writes into the run
+    // cannot hold the CPU, and the restarted instruction may run bytes from
+    // before the later write. Under queue16 the 16 bytes after the storing
     // instruction (from eip_next) keep what the front end holds: a store
     // with no byte past them (wb_q16, worked out in EX), which may lie
     // behind them, its own encoding among them, where nothing younger is,
@@ -1683,13 +1698,16 @@ module fes_i386_cpu #(
     //
     // Lines compare by bits 19:5, modulo 1 MiB, where linear and physical
     // agree under A20M and for the shadow at FFFF0000h; an alias 1 MiB away
-    // restarts for nothing. The run starts at start_linear, CS.base + EIP a
-    // cycle old: the instruction in WB or one before it. Past a redirect
-    // backwards the run wraps and takes in every line, which restarts for
-    // nothing too. Every input is a register, and the decision reaches only
-    // registers (smc_pend, smc_due, smc_defer, smc_chk, and WB's entry
-    // through smc_mark), so the freeze and WB's flush keep their depth.
+    // restarts for nothing. The run starts at smc_lo: CS.base + EIP a cycle
+    // old, the instruction in WB or one before it, except on the cycle after
+    // a redirect, when EIP has just moved and the run starts at the
+    // redirect's line, where F1 has just loaded. Every input but unc_start
+    // is a register, unc_start reaches only smc_pend and smc_due, and the
+    // decision reaches only registers (smc_pend, smc_due, smc_defer,
+    // smc_chk, and WB's entry through smc_mark), so the freeze and WB's
+    // flush keep their depth.
     logic        q16, wb_q16, smc_pend, smc_chk, smc_store, smc_dma, smc_bnd, smc_now, smc_late, smc_past;
+    logic        smc_first, uc_live, smc_open;
     logic [14:0] smc_lo, smc_span;
     logic [19:0] ex_next_lin, wb_next_lin, ex_q16_off, smc_t, smc_reach;
     // line - lo <= span, as the borrow of a subtraction, so both are carry
@@ -1699,12 +1717,12 @@ module fes_i386_cpu #(
         over = {1'b0, span} - {1'b0, 15'(line - lo)};
         smc_in = !over[15];
     endfunction
-    assign smc_lo = start_linear[19:5];
     assign smc_span = fetch_next[15:1] - smc_lo;
     assign smc_store = wb_store && !(q16 && wb_q16)
                     && (smc_in(wb_p0[19:5], smc_lo, smc_span) || wb_cross && smc_in(wb_p1[19:5], smc_lo, smc_span));
     assign smc_dma = inv_valid && smc_in(inv_line[14:0], smc_lo, smc_span);
-    assign smc_bnd = wb_commit && wb_eoi;
+    assign smc_open = !wb_s.valid && smc_first && !uc_live;
+    assign smc_bnd = wb_commit && wb_eoi || smc_open;
     assign smc_now = smc_pend || smc_dma || smc_store && !q16;
     assign smc_late = smc_defer || smc_store && q16;
     // The instruction in EX (its next instruction's linear address) reaches
@@ -1724,14 +1742,23 @@ module fes_i386_cpu #(
                       && ex_q16_off[3:0] <= (ex_s.uop.mem.bytes[2] ? 4'd12 : ex_s.uop.mem.bytes[1] ? 4'd14 : 4'd15);
         end
         if (!smc_defer) smc_t <= wb_next_lin + 20'd17;
+        smc_lo <= redirect ? redirect_linear[19:5] : cs_eip[19:5];
+        // A mid-instruction branch's commit leaves smc_first low, as the uops
+        // after it are its instruction's.
+        if (reset) smc_first <= 1'b1;
+        else if (exc_take || int_go || smc_go) smc_first <= 1'b0;
+        else if (rp_go) smc_first <= 1'b1;
+        else if (wb_commit) smc_first <= wb_eoi;
+        if (reset || wb_flush || wb_commit && wb_eoi) uc_live <= 1'b0;
+        else if (unc_start) uc_live <= 1'b1;
         if (reset || wb_flush) begin
             smc_pend <= 1'b0;
             smc_due <= 1'b0;
             smc_defer <= 1'b0;
             smc_chk <= 1'b0;
         end else begin
-            smc_pend <= smc_now && !smc_bnd;
-            smc_due <= smc_mark && !(!freeze && ex_s.valid);
+            smc_pend <= smc_now && (!smc_bnd || unc_start);
+            smc_due <= smc_mark && !(!freeze && ex_s.valid) && !unc_start;
             smc_defer <= smc_late;
             smc_chk <= (smc_bnd || smc_chk) && smc_late && !(!freeze && ex_s.valid);
         end

@@ -90,7 +90,8 @@ module spike_cpu (
     logic [1:0]       io_size;
     logic [31:0]      io_wdata;
     logic             trace_retire, trace_halt, trace_exception, trace_unimplemented, trace_issue, trace_md_wait;
-    logic             trace_fetch, trace_dread, trace_mem_wait, trace_mem_idle, trace_replay, trace_smc, trace_store;
+    logic             trace_fetch, trace_dread, trace_mem_wait, trace_mem_idle, trace_replay, trace_smc, trace_smc_open,
+                      trace_store;
     logic [27:0]      trace_fetch_block;
     logic [31:0]      trace_store_addr;
     logic [7:0][7:0]  trace_store_data;
@@ -111,14 +112,14 @@ module spike_cpu (
         .io_req, .io_write, .io_port, .io_size, .io_wdata, .io_ack, .io_rdata,
         .intr, .nmi, .inta_req, .inta_ack, .inta_vector, .trace_retire, .trace_exception, .trace_vector, .trace_halt,
         .trace_unimplemented, .trace_issue, .trace_md_wait, .trace_fetch, .trace_fetch_block, .trace_dread,
-        .trace_mem_wait, .trace_mem_idle, .trace_replay, .trace_smc, .trace_store, .trace_store_addr, .trace_store_data,
+        .trace_mem_wait, .trace_mem_idle, .trace_replay, .trace_smc, .trace_smc_open, .trace_store, .trace_store_addr, .trace_store_data,
         .trace_store_mask, .arch_gpr, .arch_eflags, .arch_eip, .arch_sel, .arch_base, .arch_limit, .arch_ar
     );
 
     logic [31:0] signature, observed;
     always_comb begin
         observed = arch_eflags ^ arch_eip ^ {20'b0, trace_retire, trace_halt, trace_exception, trace_unimplemented, trace_vector}
-                 ^ {trace_fetch_block, trace_fetch, trace_dread, trace_mem_wait, trace_replay ^ trace_smc}
+                 ^ {trace_fetch_block, trace_fetch, trace_dread, trace_mem_wait, trace_replay ^ trace_smc ^ trace_smc_open}
                  ^ trace_store_addr ^ trace_store_data[3:0] ^ trace_store_data[7:4] ^ {23'b0, trace_store, trace_store_mask}
                  ^ {ddr_address, ddr_read, ddr_write, trace_mem_idle, trace_issue} ^ {ddr_burstcount, 8'd0, ddr_byteenable}
                  ^ ddr_writedata[31:0] ^ ddr_writedata[63:32] ^ ddr_writedata[95:64] ^ ddr_writedata[127:96]

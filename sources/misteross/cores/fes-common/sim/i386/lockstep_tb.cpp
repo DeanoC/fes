@@ -307,11 +307,19 @@ public:
     // still holds the old line. A fetch out of sequence clears them, as the
     // front end then refetches. An instruction other than the storing one
     // that retires over one ran the bytes from before the store: stale, the
-    // first such byte, which the lockstep reports. length: an instruction's
-    // length, from ram.
+    // first such byte, which the lockstep reports. A DMA write's byte counts
+    // the same way on the cycle the CPU takes it, the one after its done,
+    // but only in the blocks fetched before then: the L1I clears its line on
+    // that edge, so a block F1 loads in that cycle misses. It goes with the
+    // start of the instruction after the last retirement if the CPU has
+    // begun that one, and DMA_WRITE, no instruction's, if not
+    // (trace_smc_open): then that one must not run the old byte either.
+    // length: an instruction's length, from ram.
+    static constexpr uint32_t DMA_WRITE = 0xffffffffu;
     std::map<uint32_t, uint32_t> fetched_stores;
     uint32_t fetch_lo = 0, fetch_end = 0;
     std::optional<uint32_t> stale;
+    std::optional<uint32_t> dma_landed;  // the byte a DMA write wrote on the last edge
     std::function<unsigned(uint32_t linear)> length;
 
     // The attribute map: A0000h-BFFFFh MMIO or RAM, the rest RAM.
@@ -348,6 +356,7 @@ public:
         fetched_stores.clear();
         fetch_lo = fetch_end = 0;
         stale.reset();
+        dma_landed.reset();
         top.reset = 1;
         for (int n = 0; n < 3; ++n) clock();
         top.reset = 0;
@@ -389,6 +398,9 @@ public:
         // The instruction retiring or storing now: the one after the last
         // retirement.
         const uint32_t current = top.arch_base[fes_i386::SEG_CS] + top.arch_eip;
+        if (dma_landed && !top.reset && *dma_landed >= current && *dma_landed >= fetch_lo && *dma_landed < fetch_end)
+            fetched_stores[*dma_landed] = top.trace_smc_open ? DMA_WRITE : current;
+        dma_landed.reset();
         if (top.trace_fetch && !top.reset) {
             const uint32_t block = uint32_t(top.trace_fetch_block) << 4;
             if (block != fetch_end) {
@@ -506,6 +518,7 @@ public:
         if (top.dma_done) {
             dma_result = top.dma_rdata;
             dma_valid = false;
+            if (dma_write) dma_landed = dma_address;
         }
         if (top.flush_done) flush = false;
         // The retiring store, as the stores' view of memory.
@@ -3488,62 +3501,122 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
 //                   buffer: the read must return A5h
 //   flush           a store of 3Ch to 3001h, then JMP $; FLUSH as soon as it
 //                   retires: when FLUSH is done DDR must hold it
-//   dma-write-ahead six DIVs, then MOV BL, 1 and HLT: DMA writes 2 over the
-//                   MOV's immediate, which the front end fetched long before,
-//                   at each of a sweep of cycles. Where the write is done two
-//                   cycles or more before the MOV retires, the MOV must run
-//                   the new byte (the CPU restarts it); where it is done
-//                   after, the old. Some write must find the MOV in flight.
-int run_dma_ahead(Rtl &rtl, Summary &summary) {
+//   dma-write-* a DMA write of 2 over MOV BL, 1's immediate, at each of a
+//                   sweep of cycles, under each profile. Where the write is
+//                   done two cycles or more before a run of the MOV retires,
+//                   that run must load 2 (the CPU restarts it); where it is
+//                   done after, 1. No instruction may run the old byte once
+//                   the CPU has taken the write before it (Rtl::stale), and
+//                   some write must find the MOV in flight. The programs:
+//     ahead         six DIVs, then the MOV and HLT: the front end fetched the
+//                   MOV long before, and WB holds a DIV
+//     after-branch  a loop of DEC CX; JZ out; JMP back, then the MOV and HLT:
+//                   WB is empty while the MOV, the JZ's target, comes in
+//     loop-back     the MOV heads a loop whose JMP back lies in the next
+//                   line, its target in the upper half of the line before:
+//                   on the cycle after the JMP, F1 has loaded the target
+//     cold          the MOV and HLT straight after reset
+//     stream        after-branch with a write asked for again as each is
+//                   done, from the sweep's cycle on: the CPU must still halt
+//     uncached      after-branch with an uncached load of A0000h before the
+//                   MOV: whatever the CPU restarts, it reads the device once
+struct DmaSweep {
+    const char *label;
+    std::vector<uint8_t> code;  // at 0000:1000
+    uint32_t mov;               // MOV BL, 1's address
+    uint64_t to, step;          // the write's cycles
+    bool stream = false;
+    bool window = false;        // A0000h-BFFFFh is MMIO
+};
+
+int run_dma_sweeps(Rtl &rtl, Summary &summary) {
     State state;
     for (int k = 0; k < 6; ++k) state.seg[k] = fes_i386::real_mode_segment(0);
     state.eip = 0x1000;
     // XOR DX, DX; MOV AX, 1234h; MOV CX, 3; DIV CX x6; MOV BL, 1; HLT
-    std::vector<uint8_t> code = {0x31, 0xd2, 0xb8, 0x34, 0x12, 0xb9, 0x03, 0x00};
-    for (int n = 0; n < 6; ++n) code.insert(code.end(), {0xf7, 0xf1});
-    code.insert(code.end(), {0xb3, 0x01, 0xf4});
-    constexpr uint32_t MOV = 0x1014, HLT = 0x1016;
-    std::string detail;
-    uint64_t restarted = 0;
-    for (uint64_t at = 0; at < 200; at += 2) {
-        for (size_t i = 0; i < code.size(); ++i) rtl.poke(uint32_t(0x1000 + i), code[i]);
-        rtl.start(state);
-        const uint64_t restarts = rtl.smc_restarts;
-        uint64_t done = ~0ull, retired = ~0ull;
-        for (uint64_t n = 0; n < 4000 && !rtl.top.trace_halt; ++n) {
-            if (n == at) {
-                rtl.dma_valid = true;
-                rtl.dma_write = true;
-                rtl.dma_address = MOV + 1;
-                rtl.dma_wdata = 2;
+    std::vector<uint8_t> ahead = {0x31, 0xd2, 0xb8, 0x34, 0x12, 0xb9, 0x03, 0x00};
+    for (int n = 0; n < 6; ++n) ahead.insert(ahead.end(), {0xf7, 0xf1});
+    ahead.insert(ahead.end(), {0xb3, 0x01, 0xf4});
+    // MOV CX, 20; JMP L; NOP x19; L (1018h): MOV BL, 1; DEC CX; JZ M; NOP x3;
+    // JMP L (1020h); M: HLT
+    std::vector<uint8_t> loop_back = {0xb9, 0x14, 0x00, 0xeb, 0x13};
+    loop_back.insert(loop_back.end(), 19, 0x90);
+    loop_back.insert(loop_back.end(), {0xb3, 0x01, 0x49, 0x74, 0x05, 0x90, 0x90, 0x90, 0xeb, 0xf6, 0xf4});
+    const std::vector<DmaSweep> sweeps = {
+        {"ahead", ahead, 0x1014, 200, 2},
+        // MOV CX, 20; L: DEC CX; JZ M; JMP L; M: MOV BL, 1; HLT
+        {"after-branch", {0xb9, 0x14, 0x00, 0x49, 0x74, 0x02, 0xeb, 0xfb, 0xb3, 0x01, 0xf4}, 0x1008, 600, 1},
+        {"stream", {0xb9, 0x14, 0x00, 0x49, 0x74, 0x02, 0xeb, 0xfb, 0xb3, 0x01, 0xf4}, 0x1008, 600, 1, true},
+        {"loop-back", loop_back, 0x1018, 600, 1},
+        // MOV AX, A000h; MOV DS, AX; MOV CX, 20; L: DEC CX; JZ M; JMP L;
+        // M: MOV AL, [0]; MOV BL, 1; HLT
+        {"uncached", {0xb8, 0x00, 0xa0, 0x8e, 0xd8, 0xb9, 0x14, 0x00, 0x49, 0x74, 0x02, 0xeb, 0xfb, 0xa0, 0x00, 0x00,
+                      0xb3, 0x01, 0xf4}, 0x1010, 600, 1, false, true},
+        {"cold", {0xb3, 0x01, 0xf4}, 0x1000, 80, 1},
+    };
+    for (const DmaSweep &sweep : sweeps) {
+        for (int profile = 0; profile < 2; ++profile) {
+            std::string detail;
+            uint64_t restarted = 0;
+            rtl.top.queue16 = profile;
+            rtl.set_window(sweep.window);
+            for (uint64_t at = 0; at < sweep.to && detail.empty(); at += sweep.step) {
+                for (size_t i = 0; i < sweep.code.size(); ++i) rtl.poke(uint32_t(0x1000 + i), sweep.code[i]);
+                rtl.start(state);
+                const uint64_t restarts = rtl.smc_restarts;
+                uint64_t done = ~0ull;
+                std::vector<std::pair<uint64_t, uint32_t>> movs;  // each run of the MOV: when it retired, BL
+                for (uint64_t n = 0; n < (sweep.stream ? 100000u : 4000u) && !rtl.top.trace_halt; ++n) {
+                    if (sweep.stream ? n >= at && !rtl.dma_valid : n == at) {
+                        rtl.dma_valid = true;
+                        rtl.dma_write = true;
+                        rtl.dma_address = sweep.mov + 1;
+                        rtl.dma_wdata = 2;
+                    }
+                    const bool waiting = rtl.dma_valid;
+                    const uint32_t current = rtl.top.arch_eip;
+                    rtl.clock();
+                    if (waiting && !rtl.dma_valid && done == ~0ull) done = n;
+                    if (rtl.top.trace_retire && !rtl.top.trace_exception && current == sweep.mov)
+                        movs.push_back({n, rtl.state().gpr[fes_i386::REG_EBX] & 0xff});
+                }
+                restarted += rtl.smc_restarts - restarts;
+                for (const auto &[retired, bl] : movs) {
+                    const bool ok = done == ~0ull || done > retired ? bl == 1
+                                  : done + 2 <= retired              ? bl == 2
+                                                                     : bl == 1 || bl == 2;
+                    if (!ok) {
+                        detail = "at" + std::to_string(at) + ":bl" + hex(bl) + ":done" + std::to_string(done) +
+                                 ":retired" + std::to_string(retired);
+                        break;
+                    }
+                }
+                if (detail.empty() && (!rtl.top.trace_halt || movs.empty())) detail = "at" + std::to_string(at) + ":no-halt";
+                if (detail.empty() && rtl.stale) detail = "at" + std::to_string(at) + ":stale-fetch." + hex(*rtl.stale);
+                const auto reads = std::count_if(rtl.mmio_log.begin(), rtl.mmio_log.end(),
+                                                 [](const MmioAccess &a) { return !a.write; });
+                if (detail.empty() && sweep.window && reads != 1)
+                    detail = "at" + std::to_string(at) + ":device-reads" + std::to_string(reads);
+                rtl.dma_valid = false;
+                for (size_t i = 0; i < sweep.code.size(); ++i) rtl.poke(uint32_t(0x1000 + i), 0);
+                for (uint32_t address : rtl.written) rtl.poke(address, 0);
+                rtl.written.clear();
             }
-            const bool waiting = rtl.dma_valid;
-            const uint32_t current = rtl.top.arch_eip;
-            rtl.clock();
-            if (waiting && !rtl.dma_valid) done = n;
-            if (rtl.top.trace_retire && current == MOV && rtl.top.arch_eip == HLT) retired = n;
+            if (detail.empty() && !restarted) detail = "no-restart";
+            ++summary.runs;
+            summary.cycles += rtl.cycles;
+            rtl.cycles = 0;
+            if (detail.empty()) {
+                ++summary.passed;
+            } else {
+                ++summary.failed;
+                std::cout << "FAIL memory:dma-write-" << sweep.label << (profile ? "-queue16 " : "-coherent ") << detail
+                          << " 1 0\n";
+            }
         }
-        restarted += rtl.smc_restarts - restarts;
-        const uint32_t bl = rtl.state().gpr[fes_i386::REG_EBX] & 0xff;
-        const bool ok = rtl.top.trace_halt && retired != ~0ull
-                     && (done == ~0ull || done > retired ? bl == 1 : done + 2 <= retired ? bl == 2 : bl == 1 || bl == 2);
-        if (!ok && detail.empty()) detail = "at" + std::to_string(at) + ":bl" + hex(bl) + ":done" + std::to_string(done) +
-                                            ":retired" + std::to_string(retired);
-        rtl.dma_valid = false;
-        for (size_t i = 0; i < code.size(); ++i) rtl.poke(uint32_t(0x1000 + i), 0);
-        for (uint32_t address : rtl.written) rtl.poke(address, 0);
-        rtl.written.clear();
     }
-    if (detail.empty() && !restarted) detail = "no-restart";
-    ++summary.runs;
-    summary.cycles += rtl.cycles;
-    rtl.cycles = 0;
-    if (detail.empty()) {
-        ++summary.passed;
-    } else {
-        ++summary.failed;
-        std::cout << "FAIL memory:dma-write-ahead " << detail << " 1 0\n";
-    }
+    rtl.top.queue16 = 0;
+    rtl.set_window(false);
     return 0;
 }
 
@@ -3604,6 +3677,10 @@ int run_memory_cases(Rtl &rtl, Summary &summary) {
                 break;
             }
         }
+        if (ok && rtl.stale) {
+            ok = false;
+            detail = "stale-fetch." + hex(*rtl.stale);
+        }
         ++summary.runs;
         summary.cycles += rtl.cycles;
         rtl.cycles = 0;
@@ -3620,7 +3697,7 @@ int run_memory_cases(Rtl &rtl, Summary &summary) {
         for (uint32_t address : rtl.written) rtl.poke(address, 0);
         rtl.written.clear();
     }
-    return run_dma_ahead(rtl, summary);
+    return run_dma_sweeps(rtl, summary);
 }
 
 // Every encoding the runner lists as outside the build must stop the CPU
