@@ -234,8 +234,9 @@ package fes_i386_pkg;
     // io: the uop is an I/O access at WB (io_e): IN merges the port's data
     // into its destination (EAX) or stores it (INS); OUT sends a (OUT) or its
     // result, the loaded value (OUTS). The port is src2's low half (DX), else
-    // imm's.
+    // imm's. iret: IRET's last uop, which unblocks NMI as it retires.
     typedef struct packed {
+        logic        iret;
         logic [1:0]  io;
         logic        str_si;
         logic        str_di;
@@ -426,6 +427,7 @@ package fes_i386_pkg;
         logic        rd_oszap;
         logic        wr_cf;
         logic        wr_oszap;
+        logic        iret;       // IRET's last uop (uop_t iret)
     } ucode_t;
 
     // The shifter's controls (fes_i386_shift), decoded in M2. sel gates

@@ -383,7 +383,8 @@ def main() -> int:
     divergences = sum((Counter(result['summary']['divergence_retirements']) for result in corpus_results), Counter())
     random_totals = sum((Counter({key: result['summary'][key] for key in
                                   ('runs', 'passed', 'failed', 'retirements', 'cycles', 'halts', 'faults',
-                                   'double_faults', 'retire_limits', 'smc_stops', 'load_wait_cycles', 'io_accesses')})
+                                   'double_faults', 'retire_limits', 'smc_stops', 'load_wait_cycles', 'io_accesses',
+                                   'external_interrupts', 'nmis', 'rep_interrupts', 'vector_moved_stops')})
                          for result in random_results),
                          Counter())
     random_failures = [line for result in random_results + steady_results for line in result['failures']]
@@ -430,8 +431,11 @@ def main() -> int:
               f"retirements: {random_totals['passed']} pass ({random_totals['halts']} to HLT, {random_totals['faults']} "
               f"at a delivered exception, {random_totals['double_faults']} at a fault in a delivery, "
               f"{random_totals['retire_limits']} at the retirement limit, {random_totals['smc_stops']} at a "
-              f"store into their code; {random_totals['load_wait_cycles']} cycles waiting for a load's bytes; "
-              f"{random_totals['io_accesses']} I/O accesses compared), {random_totals['failed']} fail; "
+              f"store into their code, {random_totals['vector_moved_stops']} at an interrupt whose vector they had "
+              f"rewritten; {random_totals['load_wait_cycles']} cycles waiting for a load's bytes; "
+              f"{random_totals['io_accesses']} I/O accesses compared; {random_totals['external_interrupts']} INTRs "
+              f"and {random_totals['nmis']} NMIs taken, {random_totals['rep_interrupts']} of them between a REP "
+              f"string's elements), {random_totals['failed']} fail; "
               f"latency-free reruns of seeds {[result['seed'] for result in steady_results]}: "
               f"{'trace unchanged' if not hash_mismatches else 'TRACE CHANGED for ' + str(hash_mismatches)}")
         def share(histogram: dict, cycles: int) -> str:

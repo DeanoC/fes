@@ -149,6 +149,18 @@ func (a *App) openPlayingHardwareRoomLocked() {
 	}
 }
 
+// beginColecoCartridgeControlsLocked opens the kit display plane as a direct
+// cartridge picker. The running Coleco room is a separate Home/F12 route.
+func (a *App) beginColecoCartridgeControlsLocked() bool {
+	if !a.needsSessionDisplayLocked() || !a.colecoCartridgeOfferedLocked() || a.sessionLiveMediaOfferedLocked() {
+		return false
+	}
+	a.roomDuringPlay = true
+	a.mediaControlsDirect = true
+	a.syncGPUParkLocked()
+	return true
+}
+
 func (a *App) resumeRoomSessionLocked() {
 	if !a.roomDuringPlay || a.tapePickerBusy {
 		return

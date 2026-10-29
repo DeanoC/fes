@@ -166,6 +166,10 @@ func TestColecoHomeAndF12OpenColecoSelectorWithoutLiveMedia(t *testing.T) {
 		sessionHasCoreInterface(installedSession, "fes.expansion.coleco-bus", 2) {
 		t.Fatalf("host session lost the coordinator's Coleco identity: %+v", installedSession)
 	}
+	installedSession.CorePackage.ROMLinks = &hostclient.SessionROMLinks{Sources: []hostclient.SessionROMSource{
+		{ID: "coleco-bios", Role: "firmware", SourceSize: 8192},
+		{ID: "coleco-cartridge", Role: "cartridge", SourceSize: 16384},
+	}}
 	for _, key := range []string{"home", "f12"} {
 		t.Run(key, func(t *testing.T) {
 			app := NewApp(nil, 1280, 720, 20)
@@ -188,7 +192,7 @@ function draw() gfx.clear("#101820") gfx.text("Coleco title selector", 20, 20, {
 				t.Fatal("Tenfoot did not recognize the coordinator-built Coleco host session")
 			}
 
-			if hint := app.Snapshot().HeaderHint(); !strings.Contains(hint, "coleco selector") {
+			if hint := app.Snapshot().HeaderHint(); !strings.Contains(strings.ToLower(hint), "coleco selector") {
 				t.Fatalf("Coleco active-session hint = %q", hint)
 			}
 			now := time.Now()
