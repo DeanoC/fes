@@ -35,22 +35,82 @@ QUARTUS_PRIMARY = 'Quartus (primary, policy)'
 DE25_CELL = 'Quartus-only (policy); shell pending'
 # i386, pc386 and PC/XT. nextpnr on these rows is advisory.
 QUARTUS_PRIMARY_IDS = frozenset({'i386', 'fes.pc386', 'fes.pcxt'})
-BOARDS = {
-    'de10': (
-        f'MiSTer/DE10-Nano, Cyclone V `{DE10_DEVICE}` '
-        f'(`sources/misteross/boards/de10nano`). DE25-Nano: {DE25_CELL}.'
-    ),
-    'device': (
-        f'Cyclone V `{DE10_DEVICE}` spike only. No DE10-Nano shell for this block. '
-        f'DE25-Nano: {DE25_CELL}.'
-    ),
-    'none': f'No board bitstream. DE25-Nano: {DE25_CELL}.',
+BOARDS = frozenset({'de10', 'device', 'none'})
+# Human-table feature words. The long `features` string stays in the JSON.
+HIGHLIGHTS = {
+    'fes.menu': 'HDMI',
+    'splash': 'HDMI',
+    'fes.pong': 'pad, HDMI',
+    'fes.catch': 'pad, HDMI',
+    'fes.ramtest': 'pad, HDMI',
+    'fes.zx81': 'tape, keys, HDMI',
+    'fes.zx80': 'tape, keys, HDMI',
+    'fes.ts1000': 'tape, keys, HDMI',
+    'fes.ts1500': 'tape, keys, HDMI',
+    'fes.coleco': 'cart, pad, HDMI',
+    'fes.sms': 'cart, keys, HDMI',
+    'fes.sg1000': 'cart, keys, HDMI',
+    'fes.apple2': 'disk, keys, HDMI',
+    'fes.c64': 'disk, keys, HDMI',
+    'fes.spectrum': 'tape, keys, HDMI',
+    'fes.spectrum128': 'tape, keys, HDMI',
+    'fes.spectrum-plus3': 'disk, keys, HDMI',
+    'fes.pentagon': 'disk, keys, HDMI',
+    'fes.atari-st': 'disk, keys, mouse, HDMI',
+    'fes.riscv': 'pad, HDMI',
+    'fes.demo': 'pad, HDMI',
+    'sim.pong': '—',
+    'fes.pcxt': 'HDMI',
+    'fes.pc386': 'sim',
+    'i386': '—',
+    'z80': '—',
+    'cpu6502': '—',
+    'fx68k': '—',
+    'tv80': '—',
 }
-DE25_TOOLCHAIN = (
-    f'DE25-Nano: {DE25_CELL}. {POLICY_CITE}. '
-    'Agilex 5 has no OSS reverse-engineering. '
-    'Per-core cells stay on this line until the shell is on this branch.'
-)
+# Repo path of the core's own doc, or a shared status page when it has none.
+DETAILS = {
+    'fes.menu': ('sources/misteross/cores/fes-menu/README.md', 'README'),
+    'splash': ('sources/misteross/cores/fes-splash/README.md', 'README'),
+    'fes.pong': ('sources/misteross/docs/cores.md', 'cores'),
+    'fes.catch': ('sources/misteross/docs/cores.md', 'cores'),
+    'fes.ramtest': ('sources/misteross/cores/fes-ramtest/README.md', 'README'),
+    'fes.zx81': ('sources/misteross/docs/cores.md', 'cores'),
+    'fes.zx80': ('sources/misteross/docs/cores.md', 'cores'),
+    'fes.ts1000': ('sources/misteross/docs/cores.md', 'cores'),
+    'fes.ts1500': ('sources/misteross/docs/cores.md', 'cores'),
+    'fes.coleco': ('sources/misteross/cores/fes-coleco/README.md', 'README'),
+    'fes.sms': ('sources/misteross/cores/fes-sms/README.md', 'README'),
+    'fes.sg1000': ('sources/misteross/cores/fes-sg1000/README.md', 'README'),
+    'fes.apple2': ('sources/misteross/cores/fes-apple2/README.md', 'README'),
+    'fes.c64': ('sources/misteross/cores/fes-c64/README.md', 'README'),
+    'fes.spectrum': ('sources/misteross/cores/fes-spectrum/README.md', 'README'),
+    'fes.spectrum128': ('sources/misteross/cores/fes-spectrum/README.md', 'README'),
+    'fes.spectrum-plus3': ('sources/misteross/cores/fes-spectrum/README.md', 'README'),
+    'fes.pentagon': ('sources/misteross/cores/fes-spectrum/README.md', 'README'),
+    'fes.atari-st': ('sources/misteross/cores/fes-atari-st/README.md', 'README'),
+    'fes.riscv': ('sources/misteross/cores/fes-riscv/README.md', 'README'),
+    'fes.demo': ('sources/misteross/docs/cores.md', 'cores'),
+    'sim.pong': ('sources/misteross/docs/cores.md', 'cores'),
+    'fes.pcxt': ('sources/misteross/cores/fes-pcxt/README.md', 'README'),
+    'fes.pc386': ('sources/misteross/cores/fes-pc386/README.md', 'README'),
+    'i386': ('sources/misteross/docs/i386-cpu-design.md', 'design'),
+    'z80': ('sources/misteross/cores/fes-common/rtl/z80/README.md', 'README'),
+    'cpu6502': ('sources/misteross/cores/fes-common/rtl/cpu6502/README.md', 'README'),
+    'fx68k': ('sources/misteross/cores/fes-common/rtl/fx68k/README.md', 'README'),
+    'tv80': ('docs/core-alignment.md', 'alignment'),
+}
+TIER_SHORT = {
+    'firmware': 'Firmware',
+    'catalog-supported': '1',
+    'optional': '2',
+    'experimental': '3',
+    'demo': 'Demo',
+    'reference': 'Reference',
+    'bring-up': 'Bring-up',
+    'shared-rtl': 'Shared',
+    'planned': 'Planned',
+}
 
 
 def load_json(root: Path):
@@ -61,33 +121,23 @@ def cell(text: str) -> str:
     return ' '.join(text.replace('|', '/').split())
 
 
-def toolchain_text(row: dict) -> str:
-    lock = row.get('oss_lock')
-    pins = ''
-    if lock:
-        pins = (
-            f"Yosys `{lock['yosys']}`, nextpnr `{lock['nextpnr']}`, "
-            f"Mistral `{lock['mistral']}` (`{lock['path']}`). "
-        )
-    if row.get('primary_toolchain') == 'quartus':
-        # The Quartus field carries the primary label and the citation.
-        # The lock pins are the advisory nextpnr build.
-        body = f"{row['quartus']} Advisory nextpnr: {pins}{row['router']}"
-    elif lock and row['board'] == 'de10':
-        body = (
-            f"DE10-Nano primary **oss** (Yosys + nextpnr-mistral). {pins}"
-            f"{row['router']} Quartus: {row['quartus']}"
-        )
-    elif lock and row['board'] == 'device':
-        body = (
-            'Cyclone V spike primary **oss** (Yosys + nextpnr-mistral). '
-            f"Not a board package. {pins}{row['router']} Quartus: {row['quartus']}"
-        )
-    elif lock:
-        body = f"No board package. Lock pins: {pins}{row['router']} Quartus: {row['quartus']}"
-    else:
-        body = f"{row['oss_note']} {row['router']} Quartus: {row['quartus']}"
-    return f'{body} {DE25_TOOLCHAIN}'
+def repo_href(path: str) -> str:
+    if path.startswith('docs/'):
+        return path[len('docs/'):]
+    return '../' + path
+
+
+def de10_cell(row: dict) -> str:
+    if row.get('primary_toolchain') == 'quartus' and row['board'] == 'de10':
+        return 'Quartus'
+    if row['board'] == 'de10':
+        return 'OSS'
+    return '—'
+
+
+def detail_cell(row: dict) -> str:
+    path, title = DETAILS[row['id']]
+    return f'[{title}]({repo_href(path)})'
 
 
 def render(data: dict) -> str:
@@ -96,63 +146,55 @@ def render(data: dict) -> str:
         '',
         '# Core support matrix',
         '',
-        'Maintained source: [`support-matrix.json`](support-matrix.json). '
-        'Regenerate this page with `python3 docs/support-matrix.py --write` from the repository root. '
-        'ABI, interfaces and package standing stay in [core status](core-status.md). '
-        'How to build a core stays in [misteross cores](../sources/misteross/docs/cores.md).',
+        'Short view of cores, boards and toolchains. Locks, evidence, feature notes and the full policy wording stay in [`support-matrix.json`](support-matrix.json). Edit that file, then run `python3 docs/support-matrix.py --write`.',
         '',
-    ]
-    for paragraph in data['intro']:
-        lines.append(paragraph)
-        lines.append('')
-    lines += ['## Tiers', '']
-    lines.append('| Tier | Meaning |')
-    lines.append('| --- | --- |')
-    for tier in data['tiers']:
-        lines.append(f"| {cell(tier['label'])} | {cell(tier['meaning'])} |")
-    lines.append('')
-    lines += ['## Toolchain policy', '']
-    for paragraph in data['policy']:
-        lines.append(paragraph)
-        lines.append('')
-    lines += [
-        '## Matrix',
+        'Package ABI and standing: [core status](core-status.md). Build steps: [misteross cores](../sources/misteross/docs/cores.md).',
         '',
-        'Bluetooth and mesh are host services. A paired Bluetooth HID or HoG pad is an evdev node on the kit '
-        '([FogCast README](../sources/FogCast/README.md)); no per-core Bluetooth contract was found. '
-        'Mesh and FogCast launch are also host-wide ([mesh under kit-as-host](mesh-kit-host.md)); '
-        'no per-core mesh flag was found. Those two facts are not repeated on every row. '
-        'A feature cell says `per-core unverified` where the host fact is the only evidence.',
+        '## Legend',
         '',
-        '| Core | Tier | Boards | RTL toolchain | Key features | Notes |',
+        '| Tier | Meaning |',
+        '| --- | --- |',
+        '| Firmware | Boot or kit UI bitstream. `fes.menu` is the bootstrap package. Splash is the idle RBF. |',
+        '| 1 | Catalog standing `supported`. Not in the bootstrap image. |',
+        '| 2 | Optional recipe. Today only Atari ST. |',
+        '| 3 | Catalog standing `experimental`. |',
+        '| Demo | Catalog standing `demo`. Today only Catch. |',
+        '| Reference | Not a registered play package. |',
+        '| Bring-up | RTL and a diagnostic path, no recipe. |',
+        '| Shared | CPU RTL used by other cores. Not a board bitstream. |',
+        '| Planned | No row uses this tier. |',
+        '',
+        f'**DE10-Nano** (MiSTer, Cyclone V) **OSS** is Yosys + nextpnr-mistral, the installed toolchain. i386, pc386 and PC/XT are {QUARTUS_PRIMARY} ({POLICY_CITE}). nextpnr builds there are advisory; a miss is filed as a nextpnr issue, not a blocker. A dash means this row has no DE10-Nano bitstream. pc386 and i386 are Cyclone V spikes; Quartus is still their primary toolchain.',
+        '',
+        f'**DE25-Nano** (Agilex 5) is **Quartus** on every row: {DE25_CELL} ({POLICY_CITE}). Agilex 5 has no OSS reverse-engineering. Per-core ports are re-checked only after the shell is on this branch.',
+        '',
+        '`oss` and `quartus` are the Debian-style labels in [Quartus-built cores](design/quartus-cores.md). Both labelled builds ship only when results differ by the 15% rule. No registered recipe ships both today. Bluetooth and mesh are host services, so they are not columns.',
+        '',
+        f'ColecoVision still uses the old media handling and shows 0 titles. Updating it is low priority and is folded into the wider Coleco work, including Adam support ({POLICY_CITE}).',
+        '',
+        '## Cores',
+        '',
+        '| Core | Tier | DE10-Nano | DE25-Nano | Features | Details |',
         '| --- | --- | --- | --- | --- | --- |',
     ]
-    labels = {tier['id']: tier['label'] for tier in data['tiers']}
     for row in data['cores']:
         lines.append('| ' + ' | '.join((
             cell(row['label']),
-            cell(labels[row['tier']]),
-            cell(BOARDS[row['board']]),
-            cell(toolchain_text(row)),
-            cell(row['features']),
-            cell(row['notes']),
+            TIER_SHORT[row['tier']],
+            de10_cell(row),
+            'Quartus',
+            HIGHLIGHTS[row['id']],
+            detail_cell(row),
         )) + ' |')
-    lines += ['', '## Unverified cells', '']
-    lines.append(
-        'These cells are deliberately not filled. The surrounding text is what the tree actually shows.'
-    )
-    lines.append('')
+    lines += [
+        '',
+        '## Open',
+        '',
+        'These cells are still open. The wording is in [`support-matrix.json`](support-matrix.json).',
+        '',
+    ]
     for item in data['unverified']:
-        lines.append(f"- **{item['where']} — {item['cell']}.** {item['detail']}")
-    lines += ['', '## Evidence', '']
-    lines.append('| Core | Paths |')
-    lines.append('| --- | --- |')
-    for row in data['cores']:
-        links = []
-        for path in row['evidence']:
-            target = path[len('docs/'):] if path.startswith('docs/') else '../' + path
-            links.append(f'[`{path}`]({target})')
-        lines.append(f"| {cell(row['label'])} | {cell('; '.join(links))} |")
+        lines.append(f"- {item['where']} — {item['cell']}")
     lines.append('')
     return '\n'.join(lines)
 
@@ -182,11 +224,8 @@ def validate(root: Path, data: dict) -> list[str]:
     # DE25-Nano landing is expected (policy: Deano 2026-10-29). The directory
     # may be absent (shell pending) or present. Either state is valid.
     # Per-core DE25 cells are re-verified by hand only after the shell is on
-    # this branch; this check does not inspect them, and the rendered line
-    # stays "Quartus-only (policy); shell pending" until that review.
+    # this branch; this check does not inspect them.
     (root / DE25).is_dir()
-    if 'unverified' in DE25_TOOLCHAIN or DE25_CELL not in DE25_TOOLCHAIN:
-        errors.append('DE25 toolchain line must stay Quartus-only (policy); shell pending')
     if not (root / 'sources/misteross/boards/de10nano').is_dir():
         errors.append('sources/misteross/boards/de10nano is missing')
 
@@ -248,12 +287,9 @@ def validate(root: Path, data: dict) -> list[str]:
                 errors.append(f"{row['id']} lock missing: {lock['path']}")
             else:
                 pins = _pins(path)
-                for name, pin in pins.items():
-                    if lock.get(name) != pin:
-                        errors.append(f"{row['id']} {name} pin {lock.get(name)} != {pin}")
-            for name in ('yosys', 'nextpnr', 'mistral'):
-                if lock[name] not in toolchain_text(row):
-                    errors.append(f"{row['id']} rendered toolchain omits {name}")
+            for name, pin in pins.items():
+                if lock.get(name) != pin:
+                    errors.append(f"{row['id']} {name} pin {lock.get(name)} != {pin}")
         elif not row.get('oss_note'):
             errors.append(f"{row['id']} needs oss_lock or oss_note")
         for path in row.get('paths') or []:
@@ -307,11 +343,55 @@ def validate(root: Path, data: dict) -> list[str]:
             f'{sorted(claimed_primary)} != {sorted(QUARTUS_PRIMARY_IDS)}'
         )
     for core_id in sorted(QUARTUS_PRIMARY_IDS & set(by_id)):
-        rendered_row = toolchain_text(by_id[core_id])
-        if QUARTUS_PRIMARY not in rendered_row or POLICY_CITE not in rendered_row:
-            errors.append(f'{core_id} toolchain cell is missing the Quartus-primary policy')
-        if 'primary **oss**' in rendered_row:
-            errors.append(f'{core_id} still renders an OSS-primary toolchain')
+        recorded = by_id[core_id].get('quartus') or ''
+        if QUARTUS_PRIMARY not in recorded or POLICY_CITE not in recorded:
+            errors.append(f'{core_id} JSON toolchain is missing the Quartus-primary policy')
+    ids = {row['id'] for row in rows}
+    if set(HIGHLIGHTS) != ids:
+        errors.append(
+            'highlight keys '
+            f'missing {sorted(ids - set(HIGHLIGHTS))} extra {sorted(set(HIGHLIGHTS) - ids)}'
+        )
+    if set(DETAILS) != ids:
+        errors.append(
+            'detail keys '
+            f'missing {sorted(ids - set(DETAILS))} extra {sorted(set(DETAILS) - ids)}'
+        )
+    if set(TIER_SHORT) != tier_ids:
+        errors.append('tier short labels do not match the tier list')
+    for core_id, highlight in HIGHLIGHTS.items():
+        if len(highlight) > 40 or '|' in highlight or '`' in highlight:
+            errors.append(f'{core_id} highlight is not a short feature cell')
+    for core_id, (path, _title) in DETAILS.items():
+        if not (root / path).is_file():
+            errors.append(f'{core_id} detail doc is missing: {path}')
+    rendered = render(data)
+    if rendered.count(DE25_CELL) != 1:
+        errors.append('DE25 policy line must appear once in the human page')
+    if rendered.count(QUARTUS_PRIMARY) != 1:
+        errors.append('Quartus-primary policy line must appear once in the human page')
+    for phrase in (POLICY_CITE, '0 titles', 'shell pending'):
+        if phrase not in rendered:
+            errors.append(f'human page is missing {phrase!r}')
+    if 'toolchain.lock' in rendered or '## Evidence' in rendered:
+        errors.append('human page still carries locks or an evidence table')
+    for row in rows:
+        lock = row.get('oss_lock') or {}
+        for name in ('yosys', 'nextpnr', 'mistral'):
+            pin = lock.get(name)
+            if pin and pin in rendered:
+                errors.append(f"{row['id']} {name} pin leaked into the human page")
+        if de10_cell(row) == 'Quartus' and row['id'] not in QUARTUS_PRIMARY_IDS:
+            errors.append(f"{row['id']} DE10 cell says Quartus without the primary policy")
+        if row['id'] in QUARTUS_PRIMARY_IDS and row['board'] == 'de10' and de10_cell(row) != 'Quartus':
+            errors.append(f"{row['id']} DE10 cell should say Quartus")
+    for item in data.get('unverified') or []:
+        detail = item.get('detail') or ''
+        if len(detail) > 80 and detail[:80] in rendered:
+            errors.append(f"open cell {item.get('cell')!r} still pastes its long detail")
+    for line in rendered.splitlines():
+        if line.startswith('| ') and not line.startswith('| ---') and len(line) > 180:
+            errors.append(f'human table row is too long ({len(line)}): {line[:80]}')
     policy = '\n'.join(data.get('policy') or [])
     for phrase in (POLICY_CITE, QUARTUS_PRIMARY, DE25_CELL, '0 titles'):
         if phrase not in policy:
