@@ -1469,10 +1469,9 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                 std::fprintf(stderr, "  event %d vector %x writes_before %u\n", int(e.kind), e.vector, e.writes_before);
         if (irq && !bus.pic.intr) oracle.set_intr(false);  // its INTA dropped it
         const std::string at = "@" + hex(before.eip) + ".";
-        if (rtl.stale) {
-            out.add(at + "stale-fetch." + hex(*rtl.stale), 0, 1);
-            rtl.stale.reset();
-        }
+        // Under queue16 an instruction may run bytes from before a store.
+        if (rtl.stale && !rtl.top.queue16) out.add(at + "stale-fetch." + hex(*rtl.stale), 0, 1);
+        rtl.stale.reset();
 
         // The oracle's first exception, and the vector the step takes: that,
         // or a software interrupt's. external: an INTR's or NMI's, which the
@@ -2042,9 +2041,9 @@ void run_fault_regressions(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, c
 // bytes the front end has fetched, and the instruction there must run the
 // new bytes; the one that stored completes as it was decoded. The profile
 // cases run the RTL alone, to its HLT, under each profile, and check one
-// register: under queue16 a store into the 16 bytes after its instruction
-// leaves the bytes the front end holds (the CPU fetches the 32-byte line
-// its instruction is in before that instruction reaches WB).
+// register: under queue16 a store with no byte 16 or more past its
+// instruction leaves the bytes the front end holds (the CPU fetches the
+// 32-byte line its instruction is in before that instruction reaches WB).
 void run_smc_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
                    Summary &summary) {
     State state;
@@ -2100,6 +2099,7 @@ void run_smc_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std
         std::vector<uint8_t> code;
         int reg;              // the GPR checked, its low word
         uint16_t coherent, queue16;
+        uint32_t eax = 0, ecx = 0, edi = 0;
     };
     const std::vector<Case> cases = {
         // The next instruction's immediate, in the store's own block.
@@ -2111,6 +2111,13 @@ void run_smc_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std
         // A word store over the 16th and 17th bytes: coherent.
         {"straddle", nops({0x2e, 0xc7, 0x06, 0x16, 0x00, 0x22, 0x33}, 14, {0xb8, 0x11, 0x11, 0xf4}), fes_i386::REG_EAX,
          0x3322, 0x3322},
+        // REP STOSW of two NOP pairs over its own encoding and MOV BL, 11h
+        // after it.
+        {"own-and-next", {0xf3, 0xab, 0xb3, 0x11, 0xf4}, fes_i386::REG_EBX, 0x0000, 0x0011, 0x9090, 2, 0},
+        // REP STOSB of 24 NOPs over the HLT after it and 22 bytes past the
+        // window, then MOV BL, 22h; HLT: under queue16 the old HLT halts,
+        // as the corpus's 386EX does after its REP MOVS and STOS over theirs.
+        {"past-window", nops({0xf3, 0xaa, 0xf4}, 23, {0xb3, 0x22, 0xf4}), fes_i386::REG_EBX, 0x0022, 0x0000, 0x90, 24, 2},
     };
     for (const Case &c : cases) {
         for (int profile = 0; profile < 2; ++profile) {
@@ -2119,7 +2126,10 @@ void run_smc_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std
             for (size_t i = 0; i < c.code.size(); ++i) rtl.poke(uint32_t(base + i), c.code[i]);
             rtl.top.queue16 = profile;
             State start = state;
-            start.gpr[fes_i386::REG_EAX] = 0;
+            start.gpr[fes_i386::REG_EAX] = c.eax;
+            start.gpr[fes_i386::REG_ECX] = c.ecx;
+            start.gpr[fes_i386::REG_EDI] = c.edi;
+            start.gpr[fes_i386::REG_EBX] = 0;
             rtl.start(start);
             for (int n = 0; n < 64 && !rtl.stopped(); ++n) rtl.next();
             const uint16_t got = uint16_t(rtl.state().gpr[c.reg]);
