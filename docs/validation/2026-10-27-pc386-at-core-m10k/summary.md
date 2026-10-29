@@ -1,22 +1,25 @@
 # pc386 AT core memories in M10K, in simulation and synthesis, 27 October 2026
 
-**The pc386 AT core fits its area budget: at least 3,799 ALMs and 4 M10K,
+**The pc386 AT core fits its area budget: at least 3,788 ALMs and 4 M10K,
 down from 16,526 ALMs and 0 M10K, and the machine boots FreeDOS on exactly
 the clocks it took before.** Three memories move from flip-flops to M10K
 with registered reads: the ATA sector buffer (128 × 64), the ATA dirty map
 (128 × 16) and the CMOS (64 byte pairs). The FreeDOS boot report is identical
-to the [M2 record's](../2026-10-26-pc386-m2-vga/summary.md#freedos-boot) in
-every field. That covers 430,003,773 clocks, the prompt at clock 240,003,758,
-every I/O class count and time, the VGA counts, the screen and the replay.
-The device checks and the presenter and plane benches pass unchanged. This is
-a **host-only check** plus diagnostic synthesis: no route, package or kit.
+to main's, with its flip-flop memories, in every field. That covers
+430,003,773 clocks, the prompt at clock 240,003,758, every I/O class count
+and time, the VGA counts, the screen and the replay. The device checks, whose
+dirty-map checks now cover two map words, and the benches pass. This is a
+**host-only check** plus diagnostic synthesis: no route, package or kit.
 
 ## Inputs
 
-- RTL at `59c1713d6e` on `deano/pc386-at-m10k`, on the M2 branch
-  (`deano/pc386-m2-vga` at `3e0d275abb`, PR
-  [#1149](https://github.com/DeanoC/fes/pull/1149)). The synthesis summary's
-  source digests are those files. Issue
+- RTL at `c2bc07352b` on `deano/pc386-at-m10k`. That is main at
+  `eea51e94e0` merged in, with M2 (PR
+  [#1149](https://github.com/DeanoC/fes/pull/1149)) and M3 (PR
+  [#1147](https://github.com/DeanoC/fes/pull/1147)). Every run here used that
+  commit, and the synthesis summary's source digests are its files. The
+  baseline for the boot is main at `eea51e94e0`, the flip-flop memories, run
+  the same day with the same inputs. Issue
   [#1152](https://github.com/DeanoC/fes/issues/1152).
 - Firmware, the FreeDOS image, the oracle, Verilator and the DDR model as in
   the [M2 record](../2026-10-26-pc386-m2-vga/summary.md#inputs).
@@ -41,7 +44,9 @@ a **host-only check** plus diagnostic synthesis: no route, package or kit.
   chunk by read-modify-write over the two clocks after the store. A reset
   clears the map over 128 clocks, during which `dirty_word` reads 0.
   `dirty_word` is now the word at `dirty_index` two clocks earlier. It holds
-  over a map read that met a write, which M10K leaves undefined.
+  over a map read that met a write, which M10K leaves undefined. A mark
+  therefore reaches `dirty_word` four clocks after the store goes idle, where
+  the flip-flop map showed it at once.
 - **CMOS** ([`pc386_rtc.sv`](../../../sources/misteross/cores/fes-pc386/rtl/pc386_rtc.sv)):
   64 pairs × 16 bits with byte enables, 1 M10K. 71h reads the pair at the
   index, re-read every clock. The checksum reads one pair ahead, and 2Eh–2Fh
@@ -52,30 +57,51 @@ a **host-only check** plus diagnostic synthesis: no route, package or kit.
 - Unchanged, measured inside their rows: the 8042 RAM and FIFOs, and the DMA
   register files in the shared `fes_dma8237` (pcxt uses it too).
 
-Recorded deviations, both protocol errors no driver makes:
+Recorded deviations, all protocol errors no driver makes:
 
 - A data-port read during a write command returns no defined data.
-- A guest write to CMOS while `busy` is lost. The testbenches release the
-  CPU only after `busy` falls, and so will the runtime that the endpoint
-  phase adds.
+- A guest write to CMOS while `busy` is lost.
+- A 71h read during the checksum, or on the last configuration clock,
+  returns the checksum's pair, not the index's.
+
+The Bochs BIOS, FreeDOS and the games reach neither CMOS deviation. `busy`
+lasts 190 clocks after a machine reset, and POST's first CMOS access comes
+518 clocks or more in. A CPU-only reset does not reset the RTC. The
+testbenches release the CPU only after `busy` falls, and so will the
+runtime that the endpoint phase adds.
 
 ## Device checks and benches
 
 - `python3 scripts/sim_fes_pc386.py --suite devices`
-  ([`devices-report.json`](devices-report.json)): all 72 checks pass. They
-  include WRITE SECTORS to the image and the dirty bit of its chunk, READ
-  SECTORS back, the CMOS configuration bytes and checksum, and the
-  wall-clock century.
+  ([`devices-report.json`](devices-report.json)): all 77 checks pass. They
+  include WRITE SECTORS to the image, READ SECTORS back, the CMOS
+  configuration bytes and checksum, and the wall-clock century. The dirty
+  map checks store sectors into three chunks over two words of the map
+  (the test image is 2,720 sectors for that), watching `dirty_word` on
+  every clock. A later mark keeps the word's earlier bits. A mark reaches
+  `dirty_word` four clocks after the store goes idle and nothing else shows
+  before it. A mark in another word leaves `dirty_word` steady. Each word
+  reads out exactly two clocks after `dirty_index`. A machine reset reads
+  the map as zero after the clear. The suite builds the RAMs with
+  `PC386_RAM_COLLISION`, which poisons a read of the word being written, as
+  M10K leaves it. So a design that used such a read fails here, though in
+  plain simulation it would read the old word. Removing the read-modify-write's
+  OR, either half of the `dirty_word` hold, the clear, or a clock of index
+  latency each fails a check. A sweep that stopped short of word 64 would
+  not: the test image reaches words 0 and 1 only.
 - `--suite benches` ([`benches-report.json`](benches-report.json)): the
-  presenter and plane benches pass.
+  presenter, capture and plane benches pass.
 
 ## FreeDOS boot
 
 `python3 scripts/sim_fes_pc386.py --suite boot` ([`boot-report.json`](boot-report.json)):
 `END prompt`, `dir` at `C:\>`. The run retired 103,831,426 instructions over
 430,003,773 clocks (4.30 s). The VGA replay matched: 85,234 events with no
-replay, read, VRAM or frame mismatch. Every field of the report, the I/O
-timing classes included, equals the M2 report.
+replay, read, VRAM or frame mismatch. Every field of the report equals that
+of the same boot on main at `eea51e94e0`, the I/O timing classes and M3's
+audio counts included. The fields M2 recorded also equal the
+[M2 report](../2026-10-26-pc386-m2-vga/summary.md#freedos-boot), which
+this record's first version matched before main was merged in.
 
 ## Machine-only synthesis
 
@@ -87,11 +113,14 @@ envelope, then nextpnr `--pack-only`. "ALMs at least" is half the packed LUTs.
 
 | Block | Packed LUTs | ALMs at least | FFs | M10K | DSP | M2 (LUTs / ALMs / FFs / M10K) | Budget (ALMs / M10K / DSP) |
 | --- | ---: | ---: | ---: | ---: | --- | --- | --- |
-| AT core: PICs, PIT, DMA, ports, 8042, RTC, ATA, I/O decoder | 7,599 | 3,799 | 3,345 | 4 | 1 + 2 (27 × 27) | 33,053 / 16,526 / 14,510 / 0 | 4,800 plus the I/O decoder's share of 900 / 6 / 0 |
-| Machine (AT core, VGA, presenter, port 2, plane) | 14,560 | 7,280 | 7,753 | 38 | 12 × 9 × 9, 4 × 27 × 27 | 40,034 / 20,017 / 18,886 / 34 | 16,100 / 142 / 16 for the whole machine, audio and endpoint included |
+| AT core: PICs, PIT, DMA, ports, 8042, RTC, ATA, I/O decoder | 7,577 | 3,788 | 3,345 | 4 | 1 + 2 (27 × 27) | 33,053 / 16,526 / 14,510 / 0 | 4,800 plus the I/O decoder's share of 900 / 6 / 0 |
+| Machine (AT core, VGA, presenter, port 2, plane) | 14,663 | 7,331 | 7,758 | 38 | 12 × 9 × 9, 1 × 18 × 18, 3 × 27 × 27 | 40,034 / 20,017 / 18,886 / 34 | 16,100 / 142 / 16 for the whole machine, audio and endpoint included |
 
-The M2 blocks are unchanged; their rows in the M2 record stand. Unflattened
-per-module figures from the same Yosys, as a guide:
+Both rows include what main brought in since M2: M3's sound port decode in
+the AT core, and the VGA scanout changes. On the branch before that merge
+(`59c1713d6e`) the rows read 7,599 / 3,799 / 3,345 / 4 and
+14,560 / 7,280 / 7,753 / 38. Unflattened per-module figures from the same
+Yosys, as a guide:
 
 | Module | M2 LUTs | Now | Row (ALMs / M10K) |
 | --- | ---: | --- | --- |
@@ -105,4 +134,7 @@ per-module figures from the same Yosys, as a guide:
 - A routed result or timing.
 - The machine beside the CPU in the device.
 - Kit hardware.
-- The M5 endpoint's DiskDirty reads, which must allow the map's two clocks.
+- The M5 endpoint's DiskDirty reads. They must allow the map's two clocks
+  after the index, and four clocks after the stores drain for the last mark.
+  The AT core exposes no store-idle signal; the endpoint's freeze, which
+  drains an accepted write, is where that wait belongs.

@@ -10,6 +10,7 @@
     "PASS 640x350 640x350",
     "PASS switch 320x400",
     "PASS stream: 6 720p frames each one published frame (5 distinct), 0 mixed",
+    "PASS capture drop recovery: dropped=1 published=1 buffer=1",
     "PASS plane locks to the presenter's 720p raster",
     "PASS closed plane passes the presenter's picture unchanged",
     "PASS plane reports the picture rectangle (160, 0, 960, 720)",
@@ -36,6 +37,12 @@
         "PASS 640x350 640x350",
         "PASS switch 320x400",
         "PASS stream: 6 720p frames each one published frame (5 distinct), 0 mixed"
+      ],
+      "failures": []
+    },
+    "capture": {
+      "checks": [
+        "PASS capture drop recovery: dropped=1 published=1 buffer=1"
       ],
       "failures": []
     },

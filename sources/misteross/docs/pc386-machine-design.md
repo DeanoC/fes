@@ -1158,8 +1158,8 @@ block), the presenter 826 ALMs, 8 M10K and five DSP blocks, the port 2 arbiter
 and plane bridge 199 ALMs and 6 M10K, the display plane 624 ALMs, 4 M10K and
 one DSP block. The M1 AT core needed at least 16,526 ALMs, more than three
 times its rows, because its memories synthesized to flip-flops. With the ATA
-sector buffer, dirty map and CMOS in M10K it needs at least 3,799 ALMs and
-4 M10K, inside its rows, and the machine-only blocks together need 7,280 ALMs
+sector buffer, dirty map and CMOS in M10K it needs at least 3,788 ALMs and
+4 M10K, inside its rows, and the machine-only blocks together need 7,331 ALMs
 and 38 M10K
 ([record](../../../docs/validation/2026-10-27-pc386-at-core-m10k/summary.md#machine-only-synthesis)).
 
