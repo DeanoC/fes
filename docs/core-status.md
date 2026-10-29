@@ -5,8 +5,10 @@ This is the current described-core matrix. It is taken from
 misteross producers that emit format-2 manifests, except ZX81, SMS, SG-1000,
 Apple II, C64, Spectrum and Atari ST format-3 manifests, and Coleco format-4
 manifests with sealed ROM maps.
-Whether a core matches the current HIP pin, CPU and display choices is
-[core alignment](core-alignment.md). A dated note under
+Boards, OSS versus Quartus toolchains and support tiers are the
+[core support matrix](support-matrix.md). This page stays ABI, interfaces
+and package standing. Whether a core matches the current HIP pin, CPU and
+display choices is [core alignment](core-alignment.md). A dated note under
 [validation/](validation/) describes the artifact it names. It does not accept
 a bitstream built later.
 
@@ -319,7 +321,7 @@ diagnostic commands from the HPS DDR window in the CPU's place
 nextpnr routes miss both clocks; sealed with Quartus 17.0.2, it passed every
 diagnostic program on Kit B on 2026-10-29. The RTL
 CPU in the machine, the `fes.computer` 1.1 mailbox and the disk round trip
-with the runtime remain open.
+with the runtime, the routed result, and full hardware acceptance remain open.
 
 ## Not implemented, or not this package
 
