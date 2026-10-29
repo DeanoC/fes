@@ -1578,25 +1578,32 @@
         "fes-pcxt"
       ],
       "paths": [],
-      "recipe": false,
-      "library_standing": null,
+      "recipe": true,
+      "optional": false,
+      "quartus_role": "bring-up/check oracle",
+      "recipe_gpu_router": "HIP",
+      "producer_script": "scripts/build_fes_pcxt_oss.py",
+      "library_standing": "experimental",
       "in_bootstrap_image": false,
       "oss_lock": {
         "path": "sources/misteross/cores/fes-pcxt/toolchain.lock",
         "yosys": "3a5accbd",
-        "mistral": "8fcc4cb4",
-        "nextpnr": "552ba246"
+        "mistral": "9ab65220",
+        "nextpnr": "2fa5ec4c"
       },
       "board": "de10",
       "primary_toolchain": "quartus",
-      "router": "Diagnostic producer authenticates its own lock and accepts `PCXT_GPU_ROUTER` HIP or CUDA (`cores/fes-pcxt/README.md`). Not a recipe row, so there is no recipe `gpu_router`.",
-      "quartus": "Quartus (primary, policy). policy: Deano 2026-10-29. nextpnr builds are advisory, and a nextpnr miss is filed as a nextpnr issue, not a blocker. The checked-in producer is still the OSS diagnostic (`scripts/build_fes_pcxt.py`). Quartus 17.0.2 is the cross-check that rejected the old nextpnr-only CGA Direct pass (core README, issue #840). That producer has no automatic Quartus fallback.",
+      "router": "Recipe `gpu_router` is HIP. The OSS producer authenticates its locked tools before routing; the diagnostic package remains timing-unqualified under #840.",
+      "quartus": "Quartus (primary, policy). policy: Deano 2026-10-29. Recipe `quartus_role` is `bring-up/check oracle`. Quartus 17.0.2 is a timing cross-check for the diagnostic board, not a package producer or automatic fallback. The format-2 OSS package remains diagnostic and unqualified under #840.",
       "features": "Media: diagnostic firmware byte port only. No disk controller and no sealed firmware map. Input: no HID keyboard frontend. HDMI: diagnostic 720p RGB on the DE10-Nano shell (CGA or MDA, Direct or Scanlines). No runtime ABI. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
-      "notes": "Unregistered. No `config/core-recipes.toml` row and no package. Cannot boot DOS. SDRAM pad timing and hardware remain unqualified in the core README.",
+      "notes": "Registered format-2 diagnostic package recipe, outside the bootstrap image. It cannot boot DOS and does not establish timing closure, SDRAM pad qualification or hardware acceptance.",
       "evidence": [
         "sources/misteross/cores/fes-pcxt/README.md",
         "sources/misteross/cores/fes-pcxt/toolchain.lock",
         "sources/misteross/scripts/build_fes_pcxt.py",
+        "sources/misteross/scripts/build_fes_pcxt_oss.py",
+        "config/core-recipes.toml",
+        "config/core-library.toml",
         "sources/misteross/docs/cores.md",
         "docs/design/quartus-cores.md"
       ],
@@ -1624,7 +1631,7 @@
         ],
         "media_gen": "diagnostic",
         "image_role": "none",
-        "catalog_standing": null
+        "catalog_standing": "experimental"
       }
     },
     {
