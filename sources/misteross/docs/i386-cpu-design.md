@@ -295,7 +295,10 @@ modified code runs. Two profiles:
 `queue16` exists for the anti-debugging idiom that patches the next
 instruction and expects the old one to run; a debugger's single step flushes
 the queue and exposes the patch. Real 386 queue contents depend on bus timing,
-so no profile is exact. It is a per-game core setting.
+so no profile is exact. It is a per-game core setting. `coherent` is more
+coherent than a 386, which runs the bytes it has queued until a jump: code
+that detects the prefetch queue, or patches the next instruction to catch a
+debugger, takes the patched path under it.
 
 Under both profiles the instruction that stores completes as it was decoded,
 as the 386EX does, and a byte the front end has not fetched yet reads new.
@@ -307,6 +310,15 @@ lockstep checks `coherent` against Bochs and `queue16` against the
 SingleStepTests corpus, a 386EX's, whose REP MOVS and STOS over their own
 encoding and the bytes after it halt on the HLT the 386EX had queued
 ([record](validation/2026-10-29-i386-smc.md)).
+
+A DMA write into the bytes in flight restarts the next instruction not yet
+begun, under either profile: the first whose first uop has not entered WB
+and whose uncached load has not read its device. An instruction restarted
+for self-modifying code is not restarted again before it enters WB, so a
+stream of DMA writes cannot hold the CPU. A write that lands while it
+refetches restarts the instruction after it instead, and may leave it
+running bytes from before that write: a bounded staleness, kept for forward
+progress.
 
 ### FPU
 
@@ -1012,13 +1024,14 @@ updates hold the L2's DMA port between their read and their write.
   line with that run, by line bits 19:5 as two carry chains, with registers
   in and registers out. A hit restarts an instruction after it through the
   uncached load's replay path: the next one under `coherent` or for DMA, once
-  the storing instruction ends; under `queue16`, none for a store within or
-  behind the 16 bytes after the storing instruction, and the first one to
-  reach past them otherwise. The restart refetches after the L1I has cleared
-  the line, and the fill waits for the store's write-buffer entry. With
-  prediction the run is no longer one stretch, and the check needs the
-  predicted path's lines; with the L2, DMA writes into code take the same
-  check and the L2 back-invalidation.
+  the storing instruction ends, or for DMA at once while WB is empty between
+  instructions and the next has read no device; under `queue16`, none for a
+  store within or behind the 16 bytes after the storing instruction, and the
+  first one to reach past them otherwise. The restart refetches after the L1I
+  has cleared the line, and the fill waits for the store's write-buffer
+  entry. With prediction the run is no longer one stretch, and the check
+  needs the predicted path's lines; with the L2, DMA writes into code take
+  the same check and the L2 back-invalidation.
 
 ### Memory slices
 

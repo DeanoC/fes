@@ -678,13 +678,15 @@ unseen; `cold_reset` also empties the buffer.
 
 **Self-modifying code** (`fes_i386_cpu`). Fetch is sequential from the last
 redirect, and every redirect comes from WB, so the instructions after the
-one in WB are one run of lines: from CS.base + EIP (`start_linear`, a cycle
-old) to the block F1 loads next (`fetch_next`), which holds every block F2
+one in WB are one run of lines: from CS.base + EIP (`smc_lo`, a cycle old,
+except that on the cycle after a redirect it is the redirect's line, where F1
+has just loaded) to the block F1 loads next (`fetch_next`), which holds every block F2
 may still read from the L1I before a clear of a line there lands. A store WB
 commits into one of those lines, or a DMA write (the bus interface's
 `inv_valid`), may have changed bytes the front end holds. The CPU then
 restarts an instruction after it, under the coherent profile and for DMA the
-next one: `smc_pend` until the instruction in WB ends, `smc_due` after, and
+next one not begun: `smc_pend` until the instruction in WB ends, `smc_due`
+after, or at once while WB is empty between instructions (`smc_open`), and
 the next instruction's first uop takes `FAULT_REPLAY` as it enters WB, so WB
 flushes it and everything younger and the front end restarts at it through
 `start`, as for an uncached load but without serial issue. EX's running flags go back to EFLAGS, as for an interrupt, since that
@@ -694,10 +696,9 @@ for the store's write-buffer entry, so the instruction runs the new bytes
 decoded. Lines compare by bits 19:5 as two carry
 chains (a subtraction and its borrow), modulo 1 MiB, where linear and
 physical agree under A20M and for the shadow at FFFF0000h: an alias 1 MiB
-away, a line of data next to code, or a run that a backward redirect leaves
-wrapped restarts for nothing. Every input of the check is a register and its
-decision reaches only registers, so the freeze and WB's flush keep their
-depth. Under the `queue16` profile input, sampled at reset, the 16 bytes
+away, or a line of data next to code, restarts for nothing. Every input of
+the check but the L1D's `unc_start` is a register, and its decision reaches
+only registers, so the freeze and WB's flush keep their depth. Under the `queue16` profile input, sampled at reset, the 16 bytes
 after a storing instruction (from `eip_next`) keep what the front end holds.
 A store with no byte past them (`wb_q16`, worked out in EX), which may lie
 behind them, its own encoding among them, where nothing younger is, needs no
@@ -706,9 +707,17 @@ reaches past them (`smc_defer`, with the window's end in `smc_t`), checked as
 each instruction's first uop enters WB, as a 386 refetches once it runs past
 its queue: a HLT in the window still halts, as the corpus's 386EX does after
 a REP that stores over it. A byte the front end has not fetched yet is read
-new. A DMA write restarts the next instruction under either profile, and an
-uncached load replays rather than read while a restart may come.
-`trace_smc` marks each restart.
+new. A DMA write restarts the next instruction not begun under either
+profile. While WB is empty, that is the one whose first uop enters WB next,
+if the last uop WB took ended an instruction (`smc_first`) and that one's
+uncached load has not started to read its device (`uc_live`, or the L1D's
+`unc_start` on the cycle it starts, when D to WB are frozen); otherwise the
+one after it. An instruction restarted for self-modifying code is not
+restarted again before it enters WB, so a stream of DMA writes cannot hold
+the CPU: it may run bytes from before a write that lands meanwhile, which
+restarts the one after it. An uncached load replays rather than read while a
+restart may come. `trace_smc` marks each restart, and `trace_smc_open` the
+cycles in which a DMA write would restart the next instruction.
 
 Not built yet: the L2, the TLBs and paging, critical-word-first fills, and
 forwarding from the write buffer to a load that misses (it waits for the
