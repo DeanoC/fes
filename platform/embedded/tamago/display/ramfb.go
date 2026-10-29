@@ -134,6 +134,10 @@ func (fb *RAMFB) Present(frame *image.RGBA) error {
 	fb.mu.Lock()
 	defer fb.mu.Unlock()
 	for y := 0; y < fb.height; y++ {
+		// Scanout uses uncached memory; bound each cooperative copy to four rows.
+		if y&3 == 0 {
+			runtime.Gosched()
+		}
 		source := frame.Pix[y*frame.Stride:]
 		dest := fb.buffer[y*fb.stride:]
 		for x := 0; x < fb.width*4; x += 4 {

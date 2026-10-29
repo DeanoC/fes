@@ -1,0 +1,16 @@
+{
+  "base_commit": "84acd2ded397ea2b43ddcac03f780f0605e18679",
+  "classification": "QEMU devices and software-only fabric model; no physical hardware",
+  "checks": {
+    "usb_two_boot_tenfoot": "passed",
+    "usb_300_press_release_and_disconnect": "passed",
+    "fabric_native_11_invariants": "passed",
+    "fabric_host_invariants_and_buffer_retention_race": "passed",
+    "renderer_30_concurrent_192k_responses_same_pixels": "passed",
+    "usb_descriptor_hid_fuzz_and_race": "passed",
+    "repository_test_changed": "passed",
+    "deadcode_linux_amd64_and_arm": "passed",
+    "explicit_uart_mode": "passed",
+    "independent_usb_pci_input_model_review": "no substantive findings"
+  }
+}

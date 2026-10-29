@@ -21,11 +21,13 @@ import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/fat"
 	"github.com/DeanoC/fes/platform/embedded/tamago/input"
 	"github.com/DeanoC/fes/platform/embedded/tamago/network"
+	"github.com/DeanoC/fes/platform/embedded/tamago/usb"
 )
 
 type bootConfig struct {
 	APIURL  string `json:"api_url"`
 	APIHost string `json:"api_host"`
+	Input   string `json:"input"`
 }
 
 type observedTransport struct{ base http.RoundTripper }
@@ -59,6 +61,7 @@ type framePlatform struct {
 	display   *display.RAMFB
 	network   *network.Interface
 	uart      input.UART
+	keyboard  *input.USBKeyboard
 	lastFrame time.Time
 	lastState string
 	ready     bool
@@ -83,7 +86,17 @@ func (p *framePlatform) Next(ctx context.Context) (tenfoot.PlatformInput, error)
 	now := time.Now()
 	p.lastFrame = now
 	frame := tenfoot.PlatformInput{At: now}
-	for _, event := range p.uart.Poll(now) {
+	var events []input.Event
+	if p.keyboard != nil {
+		var err error
+		events, err = p.keyboard.Poll()
+		if err != nil {
+			return tenfoot.PlatformInput{}, fmt.Errorf("USB keyboard: %w", err)
+		}
+	} else {
+		events = p.uart.Poll(now)
+	}
+	for _, event := range events {
 		fmt.Printf("FES_INPUT key=%s\n", event.Key)
 		if command := tenfoot.CommandFromKey(event.Key); command != tenfoot.CmdNone {
 			frame.Commands = append(frame.Commands, command)
@@ -158,6 +171,27 @@ func run() error {
 		return err
 	}
 	fmt.Printf("FES_NETWORK_READY address=%s\n", iface.Address())
+	var keyboard *input.USBKeyboard
+	switch config.Input {
+	case "usb":
+		base, err := qemuvirt.OpenUSBPCI()
+		if err != nil {
+			return err
+		}
+		host, err := usb.OpenXHCI(base)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("FES_USB_READY device=%+v configuration=%+v\n", host.DeviceInfo(), host.Configuration())
+		keyboard, err = input.NewUSBKeyboard(host)
+		if err != nil {
+			return err
+		}
+	case "uart":
+		fmt.Println("FES_UART_INPUT_READY")
+	default:
+		return fmt.Errorf("boot input must explicitly select usb or uart")
+	}
 	const width, height = 1280, 720
 	device, err := gfx.NewSoftware(width, height)
 	if err != nil {
@@ -175,7 +209,7 @@ func run() error {
 		return fmt.Errorf("load preferences: %w", err)
 	}
 	fmt.Printf("FES_PREFERENCES_LOADED layout=%s\n", app.Snapshot().Grid.Mode)
-	return tenfoot.RunPlatform(ctx, app, device, &framePlatform{device: device, display: screen, network: iface})
+	return tenfoot.RunPlatform(ctx, app, device, &framePlatform{device: device, display: screen, network: iface, keyboard: keyboard})
 }
 
 func main() {

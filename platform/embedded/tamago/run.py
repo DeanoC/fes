@@ -3,7 +3,7 @@
 
 No dependencies are downloaded. Tenfoot uses a private local FogCast host and
 synthetic .sfc catalog files, a regular-file FAT32 disk, virtio networking,
-ramfb display and PL011 serial input. No physical device is opened.
+ramfb display and an xHCI USB keyboard (or explicit UART diagnostic input). No physical device is opened.
 """
 import argparse
 import fcntl
@@ -56,7 +56,7 @@ def stop(process):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("program", choices=("probe", "tenfoot"))
+    parser.add_argument("program", choices=("probe", "fabric", "tenfoot"))
     parser.add_argument("--compiler", required=True, type=Path)
     parser.add_argument("--qemu", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
@@ -66,8 +66,10 @@ def main():
                         help="FogCast embedded host executable (tenfoot only)")
     parser.add_argument("--disk", type=Path,
                         help="persistent regular FAT32 image beneath out/; created if absent")
+    parser.add_argument("--input", choices=("usb", "uart"), default="usb",
+                        help="explicit keyboard backend (tenfoot only)")
     parser.add_argument("--interactive", action="store_true",
-                        help="keep tenfoot running; terminal keys drive it, Ctrl-] exits")
+                        help="keep tenfoot running; USB keys use the QEMU window, Ctrl-] in terminal exits")
     parser.add_argument("--display", default=None,
                         help="QEMU display backend: defaults to sdl interactively, none for checks")
     parser.add_argument("--timeout", type=float, default=90,
@@ -99,7 +101,8 @@ def main():
               "commands": [], "environment": {k: env[k] for k in (
                   "GOOS", "GOARCH", "CGO_ENABLED", "GOOSPKG", "GOTOOLCHAIN",
                   "GOENV", "GOWORK", "GOPROXY", "GOSUMDB", "GOMODCACHE", "GOCACHE")},
-              "limitations": ["PL011 serial input is not a USB driver",
+              "input": args.input,
+              "limitations": ["QEMU USB is not a DE25 DWC3 controller",
                               "virtio block is not a physical SD controller",
                               "synthetic catalog files are not playable ROMs",
                               "clean-reboot persistence is not power-loss atomicity"]}
@@ -208,7 +211,7 @@ def main():
             initial.write_bytes(data.ljust(4096, b" "))
             checked("write-prefs", ["mcopy", "-i", disk, initial, "::FES/PREFS.JSON"])
         boot = output / "boot.json"
-        boot.write_text(json.dumps({"api_url": api_url, "api_host": urlparse(record["host"]["base"]).netloc}) + "\n")
+        boot.write_text(json.dumps({"api_url": api_url, "api_host": urlparse(record["host"]["base"]).netloc, "input": args.input}) + "\n")
         checked("write-boot", ["mcopy", "-o", "-i", disk, boot, "::FES/BOOT.JSON"])
         record["disk"] = {"path": str(disk), "created": fresh, "bytes": disk.stat().st_size,
                           "before_sha256": sha(disk), "boot_config_sha256": sha(boot)}
@@ -221,6 +224,8 @@ def main():
                        f"FES_PREFERENCES_LOADED layout={expected}"):
             if marker not in text:
                 raise RuntimeError(f"missing startup evidence: {marker}")
+        if args.input == "usb" and "FES_USB_READY" not in text:
+            raise RuntimeError("no USB enumeration evidence")
         catalog_lines = re.findall(r"FES_CATALOG ids=(\[[^\r\n]*\])", text)
         if not catalog_lines or sorted(json.loads(catalog_lines[-1])) != record["host"]["catalog_ids"]:
             raise RuntimeError("guest catalog IDs differ from the real host scanner response")
@@ -264,9 +269,10 @@ def main():
         record.update(elf_machine="AArch64", elf_interpreter=None)
         checked("image-go-version", [compiler, "version", "-m", elf], native=True)
         display = args.display or ("sdl" if args.interactive else "none")
-        if args.program == "probe":
+        if args.program in ("probe", "fabric"):
             with Guest(qemu, elf, output / "boot-1", command_record, display=display) as guest:
-                guest.wait(lambda text: "FES_NATIVE_GO_PROBE PASS" in text, args.timeout, "probe completion")
+                marker = "FES_NATIVE_GO_PROBE PASS" if args.program == "probe" else "FES_FABRIC_MODEL PASS"
+                guest.wait(lambda text: marker in text, args.timeout, "diagnostic completion")
             record["termination"] = "runner stopped its QEMU process after probe marker"
         else:
             lock_disk()
@@ -275,7 +281,7 @@ def main():
             if initial not in LAYOUT_NEXT:
                 raise RuntimeError("unsupported initial layout in existing disk")
             screenshots = record["screenshots"] = []
-            with Guest(qemu, elf, output / "boot-1", command_record, disk=disk, display=display) as guest:
+            with Guest(qemu, elf, output / "boot-1", command_record, disk=disk, display=display, usb=args.input == "usb") as guest:
                 first = ready(guest, initial)
                 screenshots.append(guest.screenshot("initial"))
                 if args.interactive:
@@ -283,15 +289,15 @@ def main():
                     guest.interactive()
                     screenshots.append(guest.screenshot("final"))
                 else:
-                    guest.send(b"\x1b[C")
-                    record["serial_input"] = [{"hex": "1b5b43", "meaning": "right"}]
+                    guest.press("right")
+                    record["input_events"] = [{"source": args.input, "key": "right"}]
                     guest.wait(lambda text: any(f["seq"] > first["seq"] and f["focus"] != first["focus"]
-                                                for f in frames(text)), args.timeout, "serial right navigation")
+                                                for f in frames(text)), args.timeout, "keyboard right navigation")
                     screenshots.append(guest.screenshot("right"))
                     count = guest.text.count("FES_PREFERENCES_SAVED")
                     expected = LAYOUT_NEXT[initial]
-                    guest.send(b"l")
-                    record["serial_input"].append({"hex": "6c", "meaning": "layout cycle"})
+                    guest.press("l")
+                    record["input_events"].append({"source": args.input, "key": "l"})
                     guest.wait(lambda text: any(f["layout"] == expected for f in frames(text)) and
                                text.count("FES_PREFERENCES_SAVED") > count,
                                args.timeout, "changed layout and saved preferences")
@@ -305,7 +311,7 @@ def main():
                     raise RuntimeError("FAT32 preference file does not contain selected layout")
                 if len({s["sha256"] for s in screenshots}) != 3:
                     raise RuntimeError("QMP screenshots did not change with navigation and layout")
-                with Guest(qemu, elf, output / "boot-2", command_record, disk=disk, display=display) as guest:
+                with Guest(qemu, elf, output / "boot-2", command_record, disk=disk, display=display, usb=args.input == "usb") as guest:
                     ready(guest, expected)
                     screenshots.append(guest.screenshot("restored"))
                     record["second_boot_frames"] = frames(guest.text)

@@ -16,3 +16,11 @@ keystrokes. Automated checks can send the same bytes through the child
 process's stdin. This is live input into the guest, but it is **not** a USB
 host controller or a HID enumeration implementation. The PL011 address
 `0x09000000` is specific to QEMU `virt`.
+
+The optional `USBKeyboard` adapter consumes real eight-byte boot reports from
+`usb.XHCI` (or another `USBReports` implementation). It produces the same key
+names and text as terminal input, on press edges only. Releases are tracked to
+recognize the next press; held-key repeat and non-US layouts are not implemented.
+Shift modifies text and Shift-Tab. Caps Lock, Ctrl/Alt shortcuts, LEDs and gamepad
+reports are outside this first adapter. See [the USB transport](../usb/README.md)
+for its enumeration and controller limits.

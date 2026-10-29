@@ -1,0 +1,54 @@
+{
+  "command": "make test-changed TEST_CHANGED_ARGS=\"--base 84acd2ded397ea2b43ddcac03f780f0605e18679\"",
+  "status": "passed",
+  "results": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "host Go and UI tests",
+      "lane": "host",
+      "returncode": 0
+    }
+  ],
+  "parent_test_counts": [
+    "21",
+    "31",
+    "2",
+    "3",
+    "33",
+    "1065"
+  ],
+  "complete_log": "out/native-usb-fabric-checks/test-changed.log",
+  "complete_log_sha256": "83e23c52b8aed7afeb199d91bf8c60a80988853b71ea5d41ad4998d76a6343d4",
+  "deadcode": "passed linux/amd64 and linux/arm",
+  "focused_race": "passed fabricmodel and USB parser/HID",
+  "review": "no substantive findings in scoped QEMU USB/PCI/input/model review"
+}

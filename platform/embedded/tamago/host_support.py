@@ -67,7 +67,7 @@ def png_from_ppm(source, target):
 
 class Guest:
     """Own one QEMU process, its Unix serial socket and its QMP connection."""
-    def __init__(self, qemu, elf, directory, record_command, *, disk=None, display="none"):
+    def __init__(self, qemu, elf, directory, record_command, *, disk=None, display="none", usb=False):
         self.directory = Path(directory)
         self.directory.mkdir()
         self.temporary = tempfile.TemporaryDirectory(prefix="fes-native-")
@@ -78,7 +78,8 @@ class Guest:
         self.process = self.serial = self.qmp = self.qmp_stream = None
         self.stderr = (self.directory / "qemu.log").open("wb")
         self.started = time.monotonic()
-        self.command = [str(qemu), "-machine", "virt,gic-version=3", "-cpu", "cortex-a53",
+        self.usb = usb
+        self.command = [str(qemu), "-machine", "virt,gic-version=3,highmem=off" if usb else "virt,gic-version=3", "-cpu", "cortex-a53",
                         "-m", "512M", "-smp", "1", "-display", display,
                         "-monitor", "none", "-chardev",
                         f"socket,id=console,path={self.serial_path},server=on,wait=on",
@@ -93,6 +94,9 @@ class Guest:
                              "-object", f"filter-dump,id=packets,netdev=hostnet,file={self.directory / 'network.pcap'}"]
         else:
             self.command += ["-net", "none"]
+        if usb:
+            self.command += ["-device", "qemu-xhci,id=xhci,addr=1", "-device",
+                             f"usb-kbd,bus=xhci.0,pcap={self.directory / 'usb.pcap'}"]
         record_command(self.command)
         try:
             self.process = subprocess.Popen(self.command, stdout=self.stderr, stderr=self.stderr)
@@ -178,6 +182,12 @@ class Guest:
         # These short test/terminal writes fit the Unix socket send buffer.
         self.serial.sendall(data)
 
+    def press(self, key):
+        if self.usb:
+            self.execute("send-key", {"keys": [{"type": "qcode", "data": key}], "hold-time": 50})
+        else:
+            self.send({"right": b"\x1b[C", "l": b"l"}[key])
+
     def screenshot(self, name):
         ppm = self.directory / (name + ".ppm")
         self.execute("screendump", {"filename": str(ppm)})
@@ -191,8 +201,8 @@ class Guest:
         # from this terminal, not claimed as a USB keyboard controller.
         import termios
         import tty
-        print("Interactive: focus this terminal for arrows and l; Ctrl-] exits. "
-              "The QEMU window is display-only.", flush=True)
+        print("Interactive: USB keys use the QEMU window; UART keys use this terminal. "
+              "Ctrl-] in this terminal exits.", flush=True)
         descriptor = sys.stdin.fileno()
         saved = termios.tcgetattr(descriptor) if os.isatty(descriptor) else None
         try:
@@ -209,7 +219,8 @@ class Guest:
                             data = os.read(descriptor, 64)
                             if not data or b"\x1d" in data:
                                 return
-                            self.send(data)
+                            if not self.usb:
+                                self.send(data)
         finally:
             if saved is not None:
                 termios.tcsetattr(descriptor, termios.TCSADRAIN, saved)

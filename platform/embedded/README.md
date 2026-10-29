@@ -59,7 +59,7 @@ are not board constants. A tested NVMe FAT32 mount does not validate the SD
 controller; a working virtual NIC does not validate the Nano's PHY.
 
 The native [TamaGo image](tamago/README.md) runs the actual tenfoot App and
-renderer at 1280×720 with QEMU ramfb, live serial keyboard input, a VirtIO
+renderer at 1280×720 with QEMU ramfb, live USB boot-keyboard input, a VirtIO
 FAT32 disk and a VirtIO TCP/IP connection to a private FogCast host. The host
 uses the existing scanner/catalog/API. A two-boot test changes the layout,
 flushes its preference file, and verifies restoration from the same disk.
@@ -73,6 +73,10 @@ The independent [Zephyr reference](zephyr/README.md) owns separate tests.
 | Separate Zephyr storage reference | NVMe FAT32 mount and boot-config read |
 | Separate Zephyr TCP reference | Builds/starts; E1000 packet exchange remains unverified |
 | Physical SD, USB, Ethernet, display and FPGA | Await controller implementation and board verification |
+
+The native software renderer yields in small raster/copy chunks on TamaGo,
+so network goroutines can progress during a frame. A controlled renderer-plus-
+network test verifies the fix without changing pixels or extending timeouts.
 
 ## Tenfoot portability
 
@@ -107,9 +111,11 @@ need additional work before they can use this storage path.
    Prove quiescence before reusing any buffer or reconfiguring the fabric.
 7. Replace QEMU adapters with Nano drivers as hardware becomes available.
 
-Steps 1–5 now have a combined emulator path, using serial input in place of
-USB. Next work is USB/HID integration, a runtime-owned FPGA lifecycle model,
-and preparation of the Nano board/firmware adapter. Hardware addresses and
+Steps 1–5 now have a combined emulator path, including an xHCI USB boot keyboard. The separate
+[runtime-owned lifecycle model](tamago/fabricmodel/README.md) now tests command
+ordering, generations and failure retention without programming hardware.
+Next work is the Nano board/firmware adapter and binding the production runtime
+to proven board resources. Hardware addresses and
 DMA/interrupt contracts must be verified against the delivered board revision.
 
 No emulator result supplies physical boot, HDMI, USB-host, SD-card, PHY or

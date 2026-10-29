@@ -9,10 +9,12 @@ integration prototype, not a flashable DE25-Nano image.
 The `tenfoot` program mounts a real FAT32 disk through VirtIO, reads its API
 configuration and preferences, connects to a private FogCast host through a
 real VirtIO NIC and TCP stack, and draws the existing software renderer into
-QEMU ramfb at 1280×720. PL011 serial input supplies live navigation and
-settings commands. The host runs the normal scanner/catalog/API against a
-private library. Boot configuration supplies both the gateway URL and the
-loopback Host header expected by the existing private API policy. The runner's sample files are synthetic browsing data, not
+QEMU ramfb at 1280×720. A real xHCI USB boot keyboard supplies live navigation
+and settings commands; PL011 remains an explicit diagnostic input option.
+The host runs the normal scanner/catalog/API against a private library. Boot
+configuration supplies the gateway URL and loopback Host header expected by
+the existing private API policy. The runner's sample files are synthetic browsing
+data, not
 playable ROMs. No core launch or FPGA programming is implemented.
 
 The separate `probe` program checks time, goroutine scheduling, allocation/GC
@@ -49,17 +51,20 @@ python3 platform/embedded/tamago/run.py tenfoot \
 ```
 
 The default test boots twice on the same FAT32 image. It verifies catalog
-loading, sends live serial navigation and a layout change, captures QEMU's
+loading, sends live USB keyboard navigation and a layout change, captures QEMU's
 actual display, independently reads the saved JSON, then checks that a fresh
 boot restores the changed layout. The report records tool/ELF/source hashes,
 commands, disk identity, logs and screenshots. This proves a clean restart;
 it is not abrupt-power-loss or hardware acceptance. Use the runner's
-`--help` for interactive operation and host binary selection.
+`--help` for interactive operation and host binary selection. USB is the
+default; `--input uart` selects the independent serial diagnostic backend.
 
-For manual use, add `--interactive` (terminal keys, Ctrl-] to exit) and choose
+For manual use, add `--interactive` (USB keys in the QEMU window, Ctrl-] in
+the terminal to exit) and choose
 `--display sdl` or a supported QEMU display. Use `--disk out/my-boot.img` to retain
 preferences between invocations; a per-disk lock covers preparation and both
-boots. The runner refreshes only the boot API address on an existing image.
+boots. The runner refreshes boot connection/input configuration on an existing image
+without replacing its saved preferences.
 
 `probe` uses the same compiler/QEMU arguments without storage or networking.
 All output directories must be fresh and beneath the current worktree's `out/`.
@@ -71,25 +76,27 @@ at `0x40000000`. The combined profile provides 512 MiB physical RAM: a separate
 64 MiB DMA arena starts at `0x50000000`, followed by an 8 MiB framebuffer arena.
 `board/qemuvirt.InitDevices` walks the installed page tables and maps the device
 arenas as Normal noncacheable, non-executable memory. They never overlap the
-Go heap. Disk, network and display retain DMA ownership until completion;
+Go heap. Disk, network, USB and display retain DMA ownership until completion;
 ambiguous device failure retains buffers and requires reboot.
 
 One CPU is used; interrupts are masked. Drivers poll with deadlines and yield
-cooperatively. The runtime has no asynchronous goroutine preemption. Large
-CPU-bound work still requires smaller cooperative chunks: a controlled 180 ms
-busy-loop test starved TCP retries, while 2 ms chunks passed. The working
-launcher flow does not qualify future artwork decode or latency guarantees. No QEMU
+cooperatively. The runtime has no asynchronous goroutine preemption. The
+software renderer
+and scanout now yield every four rows and split large copies into 32 KiB chunks.
+The actual renderer/network stress test passes 30 concurrent 192 KiB responses
+with identical pixels and unchanged HTTP timeouts. Other CPU-heavy work still
+needs cooperative chunks; this is not a general latency guarantee. No QEMU
 address or firmware assumption is a DE25 board constant.
 
 | Component | Implemented here | Still required for DE25 |
 | --- | --- | --- |
 | CPU/RAM/time | AArch64 runtime, counter, heap/GC, isolated DMA memory | Nano firmware/DDR/EL1/cache and IRQ contract |
 | Display | QEMU ramfb via fw_cfg DMA, software RGBA rendering | HDMI/FPGA display plane and generation-bound handoff |
-| Input | Live PL011 terminal keys | USB host enumeration, HID and gamepads |
+| Input | QEMU xHCI, real USB boot-keyboard control/interrupt transfers; optional PL011 | DWC3/PHY/reset/power integration, hubs and gamepads |
 | Storage | VirtIO block reads/writes/FLUSH; FAT32 directories and files | SD controller, card lifecycle and removal |
 | Preferences | Existing preallocated FAT32 JSON file; data and metadata flushes | Allocation/update strategy and power-loss-safe publication |
 | Network | VirtIO, IPv4 TCP, static address, normal Go HTTP client | MAC/PHY, IRQs, address setup and qualified entropy |
-| FPGA | Not implemented in this image | Runtime-owned configuration, identity, reset and DMA revocation |
+| FPGA | Separate software lifecycle model; no actual FPGA programming | Runtime-owned configuration, identity, reset and DMA revocation |
 
 FAT32 writes update existing preallocated files only; they cannot create,
 allocate, rename or atomically replace them. The preference record reserves
@@ -102,3 +109,7 @@ Authentication and TLS are not qualified. The private test API uses numeric
 IPv4 HTTP addresses; DHCP, DNS configuration, UDP, IPv6, network recovery and
 throughput qualification remain outside this prototype. The separate
 [Zephyr reference](../zephyr/README.md) is not part of this boot image.
+
+The [fabric lifecycle model](fabricmodel/README.md) runs separately through
+`run.py fabric`. It checks ownership and recovery order with software-only
+images. It neither replaces the production runtime nor enables tenfoot Play.

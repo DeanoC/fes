@@ -33,8 +33,8 @@ experiment only browses and navigates; it does not launch cores.
 This boundary supports the experimental
 [Linux-free base](../../../platform/embedded/README.md). Its native QEMU image
 uses real VirtIO networking to a private FogCast host, FAT32 preferences, live
-serial keys and ramfb scanout. `cmd/fogcast-embedded-host` boots the existing
-scanner/catalog/API on loopback for this experiment. It is not a hardware
+USB boot-keyboard input and ramfb scanout. `cmd/fogcast-embedded-host` boots
+the existing scanner/catalog/API on loopback for this experiment. It is not a hardware
 runtime or full standalone appliance. USB input, physical scanout and FPGA
 lifecycle still need board implementations. The existing Linux launch path and
 package/session contracts are unchanged.
@@ -45,6 +45,13 @@ successful write must include any required flushes. Existing native callers
 continue to use file paths. Settings are normalized through the same encoder
 and decoder in both paths. The QEMU adapter updates a preallocated FAT32 file;
 its guarantee is clean-restart persistence, not power-loss atomicity.
+
+On TamaGo, the software renderer yields between groups of four raster rows
+and splits whole-frame copies into 32 KiB chunks. The ramfb presenter also
+yields every four scanout rows. These cooperative checkpoints let network and
+timer goroutines progress during rendering; they do not change pixel
+calculations or promise a frame deadline. Other Go targets retain their normal
+preemptive behavior.
 
 ## Normal FPGA game launch
 
