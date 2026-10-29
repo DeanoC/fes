@@ -84,6 +84,22 @@ def report_table(text: str, title: str) -> list[dict[str, str]]:
     return [dict(zip(rows[0], row)) for row in rows[1:]]
 
 
+def verify_regions(rows: list[dict[str, str]], region: dict, revision: str) -> None:
+    # Imported root QDBs retain the coordinates but Quartus labels the region
+    # with the hierarchy instance in implementation reports, not its base name.
+    expected_name = region["id"] if revision == "base" else region["instance"]
+    def report_coordinates(value: str) -> str:
+        match = re.fullmatch(r"X([0-9]+) Y([0-9]+) X([0-9]+) Y([0-9]+)", value)
+        if match is None:
+            raise BuildError("invalid captured region coordinates")
+        x0, y0, x1, y1 = map(int, match.groups())
+        return f"({x0}, {y0}) to ({x1}, {y1})"
+    if (len(rows) != 1 or rows[0].get("Name") != expected_name
+            or rows[0].get("Place Region Constraint") != report_coordinates(region["placement"])
+            or rows[0].get("Route Region Constraint") != report_coordinates(region["routing"])):
+        raise BuildError(f"{revision}: fitted PR region differs from captured name or coordinates")
+
+
 def timing_summary(output: Path, revision: str) -> dict:
     directory = output / "output_files"
     summary = (directory / f"{revision}.sta.summary").read_text()
@@ -168,8 +184,7 @@ def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
                 or memories[0].get("MLABs") != "0.000"):
             raise BuildError(f"{revision}: expected exactly one 256x32 M20K and no extra RAM")
         regions = report_table(fit, "Logic Lock Region Constraints")
-        if len(regions) != 1 or regions[0].get("Name") != "slot0":
-            raise BuildError(f"{revision}: unexpected fitted PR region inventory")
+        verify_regions(regions, inputs["region"], revision)
         summaries[revision]["memory"] = memories
         summaries[revision]["regions"] = regions
         summaries[revision]["partition_reuse"] = report_table(fit, "Partial Reconfiguration and Periphery Reuse Statistics")
@@ -250,6 +265,7 @@ def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
         descriptor["personas"].append(persona)
     manifest = output / "artifacts.json"
     manifest.write_bytes(canonical(descriptor) + b"\n")
+    verifier = capture()
     build = {"format": 1, "kind": "fes.de25-quartus-pr-build", "diagnostic_only": True,
              "source_revision": inputs["source_revision"], "source_committed": inputs["source_committed"],
              "source_closure_sha256": inputs["source_closure_sha256"], "device": DEVICE,
@@ -261,6 +277,9 @@ def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
              "timing": summaries, "compiled_report_sha256": raw_hashes,
              "compatibility_scope": "matching vendor-decoded POF0 region/hash and exact imported root QDB; no SDM execution",
              "pfg_compare_scope": "retained vendor output; unsigned owner-key field absent, not a complete pairing check"}
+    build["verification_recipe"] = {"source_revision": verifier["revision"],
+        "source_committed": verifier["committed"],
+        "source_sha256": {name: sha(data) for name, data in verifier["files"].items()}}
     (output / "build.json").write_bytes(canonical(build) + b"\n")
     return manifest
 

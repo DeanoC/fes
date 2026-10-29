@@ -54,6 +54,16 @@ class RecipeTests(unittest.TestCase):
             with self.assertRaises(build.BuildError):
                 build.verify_files(root, expected)
 
+    def test_fitted_region_checks_import_label_and_exact_coordinates(self):
+        region = {"id": "slot0", "instance": "slot_inst", "placement": "X2 Y7 X26 Y12", "routing": "X1 Y6 X27 Y13"}
+        row = {"Name": "slot_inst", "Place Region Constraint": "(2, 7) to (26, 12)",
+               "Route Region Constraint": "(1, 6) to (27, 13)"}
+        build.verify_regions([row], region, "persona_a")
+        with self.assertRaises(build.BuildError):
+            build.verify_regions([row], region, "base")
+        with self.assertRaises(build.BuildError):
+            build.verify_regions([{**row, "Place Region Constraint": "(3, 7) to (26, 12)"}], region, "persona_a")
+
     def test_vendor_decoded_pof_device_and_uniqueness(self):
         with tempfile.TemporaryDirectory() as tmp:
             log = Path(tmp)/"info.log"
