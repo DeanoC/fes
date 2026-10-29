@@ -100,6 +100,10 @@ constants, including the JTAG bridge-relative base; they are not CPU MMIO
 addresses. Use `sdram` for board SDRAM. An optional final argument selects a
 power-of-two test length from 32 bytes through bank capacity; otherwise the
 whole selected local bank is tested. Both choices overwrite existing contents.
+The default host wait is 15 minutes; the conservative SDRAM controller needs
+several minutes for a full-bank scan. Pass a shorter length for an initial smoke
+test, or an explicit wait up to one hour. These are host wait budgets, not
+hardware response timeouts or measured board performance.
 
 The result contains per-bank calibration/status and fault flags plus a frozen
 snapshot of individual counters and errors. Each snapshot requires an advanced

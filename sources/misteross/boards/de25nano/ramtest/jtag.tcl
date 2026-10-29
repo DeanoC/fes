@@ -104,7 +104,8 @@ proc de25ramtest::snapshot {master bank} {
     return $result
 }
 
-proc de25ramtest::run {service expected bank {timeout_ms 10000} {poll_ms 10} {length {}}} {
+# Full SDRAM scans use conservative single-word commands and take minutes.
+proc de25ramtest::run {service expected bank {timeout_ms 900000} {poll_ms 10} {length {}}} {
     if {$bank ni {fpga sdram}} {error "only FPGA B and SDRAM destructive tests are allowed; HPS requires kernel ownership"}
     if {$service eq {} || ![regexp {^[0-9a-fA-F]{32}$} $expected]} {error "explicit master service and 128-bit expected build ID required"}
     foreach value [list $timeout_ms $poll_ms] {
