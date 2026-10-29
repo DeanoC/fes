@@ -14,11 +14,12 @@ public:
     uint32_t count = 0, checked = 0;
     bool monitor = true;
     std::deque<Reply> replies;
-    Bench() {
-        d.clk = 0; d.reset_n = 0; d.persona_b = 0; d.address = 0;
+    explicit Bench(bool reset_already_released = false) {
+        d.clk = 0; d.reset_n = reset_already_released; d.persona_b = 0; d.address = 0;
         d.read = 0; d.write = 0; d.byteenable = 15; d.writedata = 0;
-        d.drop_response = 0; d.inject_response = 0;
+        d.drop_response = 0; d.inject_response = reset_already_released;
         for (int n=0;n<4;n++) tick();
+        d.inject_response = 0;
         d.reset_n = 1;
         for (int n=0;n<10;n++) tick();
         need(d.frozen && d.slot_reset, "cold start must be frozen and held reset");
@@ -81,6 +82,7 @@ public:
 int main(int argc,char **argv) {
     Verilated::commandArgs(argc,argv);
     uint32_t checked=0;
+    {Bench b(true);need(b.read32(20)==0,"cold unknown PR state leaked before reset settling");}
     {
         Bench b;
         need(b.read32(0)==0x44325052 && b.read32(4)==0x00010000,"identity differs");

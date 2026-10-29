@@ -637,9 +637,12 @@ def simulate(output: Path) -> None:
         shutil.copyfile(BOARD / "fpga" / name, output / name)
     # The released reset intentionally clears the async-ingress synchronizer
     # and synchronously resets functional state; this is not two reset sources.
-    run(["verilator", "--cc", "--exe", "--build", "-j", "2", "-Wall", "-Wno-DECLFILENAME", "-Wno-SYNCASYNCNET",
+    run(["verilator", "--cc", "--exe", "--build", "-j", "2", "--x-initial", "unique", "-Wall", "-Wno-DECLFILENAME", "-Wno-SYNCASYNCNET",
          "--top-module", "fes_link_sim", "shell.v", "personas.v", "sim_top.v", "tb.cpp"], output, "build.log")
-    run([str((output / "obj_dir/Vfes_link_sim").resolve())], output, "simulation.log")
+    binary = str((output / "obj_dir/Vfes_link_sim").resolve())
+    for seed in (17, 29, 41):
+        run([binary, "+verilator+rand+reset+2", f"+verilator+seed+{seed}"], output,
+            "simulation.log" if seed == 17 else f"simulation-seed-{seed}.log")
     files = ("shell.v", "personas.v", "sim_top.v", "tb.cpp", "persona_a.hex", "persona_b.hex",
              "generated/fes_de25_pr_control.vh")
     (output / "simulation.json").write_bytes(canonical({
@@ -647,6 +650,7 @@ def simulate(output: Path) -> None:
         "status": "passed", "physical_pr": "not-modeled", "primitive_memory": "not-modeled",
         "source_sha256": {name: sha((output / name).read_bytes()) for name in files},
         "log_sha256": sha((output / "simulation.log").read_bytes()),
+        "unspecified_register_initialization": {"mode": "random", "seeds": [17, 29, 41]},
         "verilator_version": subprocess.check_output(["verilator", "--version"], text=True).strip(),
     }) + b"\n")
 

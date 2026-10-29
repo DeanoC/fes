@@ -30,7 +30,7 @@ static void encode(unsigned char* p,std::uint32_t v) {
 }
 int main(int argc,char**argv) {
     try {
-        need(argc==2,"expected private Unix socket path");
+        need(argc>=2,"expected private Unix socket path");
         Verilated::commandArgs(argc,argv);
         sockaddr_un address{}; address.sun_family=AF_UNIX;
         need(std::strlen(argv[1])<sizeof(address.sun_path),"socket path too long");

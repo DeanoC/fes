@@ -14,9 +14,11 @@ module fes_link_persona_core #(
 );
     (* ramstyle = "M20K" *) reg [31:0] rom [0:255];
     // Dedicated registers terminate every reconfigurable control/data input.
-    (* preserve, dont_merge *) reg request_q = 1'b0;
-    (* preserve, dont_merge *) reg reset_q = 1'b1;
-    (* preserve, dont_merge *) reg [7:0] address_q = 8'd0;
+    // PR register power-up values are deliberately unspecified. The static
+    // shell holds reset/request/address through its bounded cold/freeze settle.
+    (* preserve, dont_merge *) reg request_q;
+    (* preserve, dont_merge *) reg reset_q;
+    (* preserve, dont_merge *) reg [7:0] address_q;
     reg [31:0] rom_q;
     reg rom_valid;
     reg id_read;

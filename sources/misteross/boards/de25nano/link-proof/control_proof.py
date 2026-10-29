@@ -95,7 +95,7 @@ def execute(args: argparse.Namespace) -> dict:
     obj = output / "obj"
     rtl = board / "fpga"
     command = [args.verilator, "--cc", "--exe", "--build", "-j", "2", "-O2", "--assert",
-               "-Wall", "-Wno-DECLFILENAME", "-Wno-SYNCASYNCNET", "--top-module", "fes_link_sim",
+               "-Wall", "-Wno-DECLFILENAME", "-Wno-SYNCASYNCNET", "--x-initial", "unique", "--top-module", "fes_link_sim",
                "-GTIMEOUT_CYCLES=1000000", "--Mdir", str(obj), "-I" + str(board),
                "-GBUILD_ID=128'h" + args.build_id,
                str(rtl / "shell.v"), str(rtl / "personas.v"), str(rtl / "sim_top.v"),
@@ -144,7 +144,8 @@ def execute(args: argparse.Namespace) -> dict:
             with tempfile.TemporaryDirectory(prefix="fes-pr-control-") as directory:
                 endpoint = Path(directory) / "endpoint"
                 with (logs / f"{architecture}-{scenario}-server.log").open("wb") as log:
-                    server = subprocess.Popen([str(obj / "Vfes_link_sim"), str(endpoint)], cwd=rtl,
+                    server = subprocess.Popen([str(obj / "Vfes_link_sim"), str(endpoint),
+                                               "+verilator+rand+reset+2", "+verilator+seed+41"], cwd=rtl,
                                               stdout=log, stderr=subprocess.STDOUT)
                     try:
                         limit = time.monotonic() + 15
@@ -181,6 +182,7 @@ def execute(args: argparse.Namespace) -> dict:
         raise ValueError("SDK compiler or implementation changed during proof")
     report = {"format": 1, "kind": "fes.de25-pr-control-cosim", "status": "passed",
               "physical_programming": "not-run", "configuration_model": "explicit-persona-mux-only",
+              "unspecified_register_initialization": {"mode": "random", "seed": 41},
               "inputs": inputs, "tools": tool_info, "results": results, "selected_build_id": args.build_id,
               "binaries": {p.name: digest(p) for p in (obj / "Vfes_link_sim", native)
                            if p.is_file()}}

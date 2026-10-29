@@ -74,8 +74,9 @@ module fes_link_shell #(
     wire [31:0] byte_address = {26'd0, address};
     // Configuration may drive arbitrary PR outputs. The static D registers
     // remain the only boundary sinks; no captured value is consumed while the
-    // acknowledged slot is frozen or its reset-release pipeline is settling.
-    wire response_active = state == RUNNING || state == DRAIN || state == RESET_SETTLE || state == PROBE;
+    // acknowledged slot is frozen or either reset pipeline is settling. Drain
+    // was already proved before entering RESET_SETTLE; cold PR FFs may be random.
+    wire response_active = state == RUNNING || state == DRAIN || state == PROBE;
     wire retire_valid = response_valid_q && response_active;
     reg [31:0] read_value;
     reg read_address_valid;
