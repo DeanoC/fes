@@ -50,20 +50,20 @@ end
 local function add_rows(out, g)
   if not machine_of(g) or not g.launchable or not g.id or g.id == "" then return end
   local label = base_label(g)
-  out[#out + 1] = { id = g.id, core_id = g.core_id, label = label }
   local seen = {}
   if g.expansion_id and g.expansion_id ~= "" then
     seen[g.expansion_id] = true
-    out[#out + 1] = { id = g.id, core_id = g.core_id, label = label .. "  ·  Expansion " .. short_id(g.expansion_id) }
+    label = label .. "  ·  Expansion " .. short_id(g.expansion_id)
   end
   for _, slot in ipairs(g.slot_expansions or {}) do
     local eid = slot.expansion_id or ""
     if eid ~= "" and not seen[eid] then
       seen[eid] = true
       local n = slot.slot or 0
-      out[#out + 1] = { id = g.id, core_id = g.core_id, label = label .. "  ·  Slot " .. tostring(n) .. " " .. short_id(eid) }
+      label = label .. "  ·  Slot " .. tostring(n) .. " " .. short_id(eid)
     end
   end
+  out[#out + 1] = { id = g.id, core_id = g.core_id, label = label }
 end
 
 local function build(games)

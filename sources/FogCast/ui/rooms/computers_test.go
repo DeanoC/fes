@@ -128,9 +128,7 @@ func TestSystemsRoomListsPreparedWorkingFamilies(t *testing.T) {
 
 	wantIDs := []string{
 		"fpga-zx81-maze",
-		"fpga-zx81-maze",
 		"fpga-zx81-jp",
-		"fpga-c64-game",
 		"fpga-c64-game",
 	}
 	for i, id := range wantIDs {

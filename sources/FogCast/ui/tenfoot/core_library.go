@@ -180,6 +180,7 @@ func (a *App) resetCoreLibraryLocked() {
 func (a *App) coreLibraryAsyncLocked(work func(context.Context) error, done func()) {
 	s := &a.coreLibrary
 	if s.Busy {
+		s.Status = "Please wait for the current library action to finish."
 		return
 	}
 	s.Busy = true
