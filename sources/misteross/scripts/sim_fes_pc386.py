@@ -174,7 +174,7 @@ class SimError(RuntimeError):
 
 def verilate(verilator: str, name: str, top: str, rtl: tuple[Path, ...], testbench: Path | None,
              linked: list[Path], jobs: int, parameters: dict[str, int] | None = None,
-             include: tuple[Path, ...] = ()) -> Path:
+             include: tuple[Path, ...] = (), defines: tuple[str, ...] = ()) -> Path:
     output = OUTPUT / name / ('obj' if testbench else f'obj-{top}')
     output.mkdir(parents=True, exist_ok=True)
     includes = ' '.join(f'-I{path}' for path in (COMMON / 'sim/i386', CORE / 'sim', NUKED, *include))
@@ -182,7 +182,7 @@ def verilate(verilator: str, name: str, top: str, rtl: tuple[Path, ...], testben
                '-Wall', '-Wno-UNUSEDSIGNAL', '-Wno-DECLFILENAME',
                str(CORE / 'sim/pc386.vlt'), str(CORE / 'sim/pc386_audio.vlt'),
                f'-I{COMMON / "vendor/kf8259"}', f'-I{COMMON / "vendor/kf8253"}', f'-I{COMMON / "generated"}',
-               *(f'-G{key}={value}' for key, value in (parameters or {}).items()),
+               *(f'-G{key}={value}' for key, value in (parameters or {}).items()), *(f'-D{name}' for name in defines),
                '--Mdir', str(output), '-MAKEFLAGS', 'OPT_FAST=-O3',
                '-CFLAGS', f'-std=c++17 -O2 {includes}', '-LDFLAGS', '-pthread',
                *map(str, rtl), *([str(testbench)] if testbench else []), *map(str, linked)]
@@ -445,8 +445,9 @@ def run_vga(args, linked: list[Path]) -> dict:
 
 def run_devices(args) -> dict:
     # A fast RTC (one guest second is 2^19 clocks) keeps the update test short.
+    # The RAMs poison a read of the word being written, as M10K leaves it.
     testbench = verilate(args.verilator, 'devices', 'pc386_at_core', AT_RTL, CORE / 'sim/devices_tb.cpp', [],
-                         args.jobs, {'RTC_N': 1, 'RTC_D': 16})
+                         args.jobs, {'RTC_N': 1, 'RTC_D': 16}, defines=('PC386_RAM_COLLISION',))
     result = subprocess.run([str(testbench)], cwd=OUTPUT / 'devices', capture_output=True, text=True)
     (OUTPUT / 'devices/devices.log').write_text(result.stdout + result.stderr)
     checks = [line for line in result.stdout.splitlines() if line.startswith(('PASS', 'FAIL'))]

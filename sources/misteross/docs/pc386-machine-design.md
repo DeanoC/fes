@@ -852,7 +852,8 @@ drive model. The Bochs BIOS lists that slave as "Unknown device".
   [ST disk](../../mister-packages/docs/media-data.md)).
 - **Dirty tracking:** one bit per 64 KiB chunk of the image (2,048 bits for
   128 MiB) in an M10K, set when a sector write reaches DDR. A word of the map
-  reads out two clocks after its index; a reset clears the map in 128 clocks.
+  reads out two clocks after its index, and a sector's mark reaches it four
+  clocks after the store goes idle; a reset clears the map in 128 clocks.
 - **IDENTIFY** reports the geometry the runtime committed (below), the LBA
   capacity, and PIO 16-bit only.
 
