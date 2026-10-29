@@ -11,6 +11,30 @@ from scripts.affected import (changed_paths, plan, LANES, CORES, MODULE_ROOTS,
 
 
 class AffectedTests(unittest.TestCase):
+    def test_de25_ramtest_definition_has_only_standalone_generated_consumers(self):
+        definition = 'sources/mister-packages/packages/fabric/fes_fabric_de25_ramtest.yaml'
+        source = Path(__file__).resolve().parents[1] / 'scripts/consistency.py'
+        registry = next(node.value for node in ast.parse(source.read_text()).body
+                        if isinstance(node, ast.Assign) and
+                        any(isinstance(name, ast.Name) and name.id == 'GENERATED' for name in node.targets))
+        consumers = {(module, path) for _, item, module, path in ast.literal_eval(registry)
+                     if 'sources/mister-packages/' + item == definition}
+        self.assertEqual(consumers, {
+            ('misteross', 'boards/de25nano/ramtest/generated/fes_de25_ramtest.vh'),
+            ('misteross', 'boards/de25nano/ramtest/generated/fes_de25_ramtest.hpp'),
+        })
+        result = plan([definition, 'sources/misteross/boards/de25nano/ramtest/endpoint.v'])
+        self.assertEqual({name for name, enabled in result['lanes'].items() if enabled},
+                         {'parent', 'contracts', 'fpga'})
+        self.assertEqual(result['cores'], [])
+        self.assertFalse(any(result['test_modes'].values()))
+        for other in (definition.replace('ramtest.yaml', 'ramtest_other.yaml'),
+                      'sources/mister-packages/packages/abi/fes_application.yaml'):
+            with self.subTest(other=other):
+                self.assertEqual(set(plan([definition, other])['cores']), set(CORES))
+        mixed = plan([definition, 'sources/misteross/cores/fes-ramtest/rtl/ramtest.v'])
+        self.assertIn('ramtest', mixed['cores'])
+
     def test_de25_computer_contract_has_only_diagnostic_consumers(self):
         definition = 'sources/mister-packages/packages/fabric/fes_fabric_de25_computer.yaml'
         result = plan([definition])

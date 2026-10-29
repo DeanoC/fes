@@ -19,6 +19,14 @@ selection and transfer. libmister-runtime programs the FPGA.
 
 ## DE25-Nano board diagnostic
 
+The standalone [three-memory RAM Tester](../boards/de25nano/ramtest/README.md)
+adds separate destructive FPGA LPDDR4 B and board SDRAM endpoints to the pinned
+GHRD. It preserves the vendor B memory/PHY recipe and uses a custom fixed-50-MHz
+controller for the two SDRAM chip selects. HPS grant-checking RTL is simulated,
+but its destructive engine is disabled in the board top pending a real kernel
+allocation/binding/drain contract. The shared fabric constants and explicit
+JTAG controller add no package, runtime admission or physical qualification.
+
 `boards/de25nano/` is an independent FPGA-only bring-up project for
 `A5EB013BB23BE4SCS` with Quartus Prime Pro 26.3.0. Its 50 MHz input and
 active-low LED pins follow Terasic's revision B resource package; the shared

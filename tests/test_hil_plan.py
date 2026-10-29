@@ -552,16 +552,20 @@ class HilPlanTest(unittest.TestCase):
                  'sources/mister-packages/packages/fabric/fes_fabric_de25_ddr_probe.yaml',
                  'sources/mister-packages/packages/fabric/fes_fabric_de25_scanout.yaml',
                  'sources/mister-packages/packages/fabric/fes_fabric_de25_computer.yaml',
+                 'sources/mister-packages/packages/fabric/fes_fabric_de25_ramtest.yaml',
                  'image/kernel/de25-dma/de25_dma.c',
                  *['sources/misteross/boards/de25nano/' + name
                    for name in ('blinky.sv', 'pins.qsf', 'clocks.sdc', 'Makefile',
-                                'test_de25nano.py', 'sim/blinky_tb.cpp')]]
+                                'test_de25nano.py', 'sim/blinky_tb.cpp',
+                                'ramtest/endpoint.v', 'ramtest/jtag.tcl',
+                                'ramtest/generated/fes_de25_ramtest.vh')]]
         result = planner.plan(paths, texts={})
         self.assertEqual(result['decision'], 'NO_DEPLOY_CHANGE')
         self.assertTrue(all(row['class'] == 'none' for row in result['rows']))
         for path in ('sources/mister-packages/packages/board/de10_nano.yaml',
                      'sources/mister-packages/packages/board/de25_nano_other.yaml',
                      'sources/mister-packages/packages/platform/de25_nano.yaml',
+                     'sources/mister-packages/packages/fabric/fes_fabric_de25_ramtest_other.yaml',
                      'sources/mister-packages/packages/abi/fes_application.yaml'):
             with self.subTest(path=path):
                 self.assertEqual(planner.plan([*paths, path], texts={})['decision'], 'FULL_IMAGE')

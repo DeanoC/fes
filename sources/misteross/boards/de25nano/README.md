@@ -1,5 +1,10 @@
 # DE25-Nano FPGA bring-up
 
+The [three-memory RAM Tester](ramtest/README.md) provides a standalone
+diagnostic for FPGA LPDDR4 B, board SDRAM and a staged HPS allocation. Its
+JTAG controller permits destructive local-memory tests and refuses HPS writes;
+physical Linux DMA binding and board acceptance remain open.
+
 The [HPS-controlled ZX81 diagnostic](zx81-hps/README.md) connects the preserved
 GHRD lightweight bridge to the current computer mailbox for keyboard and
 CRC-checked tape delivery. Its computer/control runs at 100 MHz independently

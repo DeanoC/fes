@@ -5,9 +5,9 @@ from pathlib import Path
 import subprocess
 
 try:
-    from scripts.test_policy import DE25_BOARD_DEFINITION, DE25_DDR_PROBE_DEFINITION, DE25_SCANOUT_DEFINITION, DE25_COMPUTER_DEFINITION, select_test_modes, validate_test_modes
+    from scripts.test_policy import DE25_BOARD_DEFINITION, DE25_DDR_PROBE_DEFINITION, DE25_SCANOUT_DEFINITION, DE25_COMPUTER_DEFINITION, DE25_RAMTEST_DEFINITION, select_test_modes, validate_test_modes
 except ImportError:
-    from test_policy import DE25_BOARD_DEFINITION, DE25_DDR_PROBE_DEFINITION, DE25_SCANOUT_DEFINITION, DE25_COMPUTER_DEFINITION, select_test_modes, validate_test_modes
+    from test_policy import DE25_BOARD_DEFINITION, DE25_DDR_PROBE_DEFINITION, DE25_SCANOUT_DEFINITION, DE25_COMPUTER_DEFINITION, DE25_RAMTEST_DEFINITION, select_test_modes, validate_test_modes
 
 # Logical module names survive the monorepo move; update only these roots.
 MODULE_ROOTS = {'host': 'sources/FogCast', 'runtime': 'sources/libmister-runtime',
@@ -282,7 +282,7 @@ def plan(paths):
         elif path == DE25_BOARD_DEFINITION:
             selected.update(('parent', 'contracts'))
             reasons.append(f'{path}: descriptive DE25-Nano board; no emitted or deployed consumers')
-        elif path in (DE25_DDR_PROBE_DEFINITION, DE25_SCANOUT_DEFINITION, DE25_COMPUTER_DEFINITION):
+        elif path in (DE25_DDR_PROBE_DEFINITION, DE25_SCANOUT_DEFINITION, DE25_COMPUTER_DEFINITION, DE25_RAMTEST_DEFINITION):
             selected.update(('parent', 'contracts', 'fpga'))
             reasons.append(f'{path}: standalone DE25 diagnostic consumers; no existing core consumer')
         elif owner == 'contracts' and path.endswith(('.go', '/go.mod', '/go.sum')):

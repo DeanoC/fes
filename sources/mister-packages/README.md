@@ -49,6 +49,11 @@ The guarded header contains unsigned 32-bit `#define` constants with the same
 uppercase macro names as the Verilog consumer. It needs no system headers;
 emitting constants grants no Linux device binding or DMA admission.
 
+The standalone [DE25 RAM Tester fabric](packages/fabric/fes_fabric_de25_ramtest.yaml)
+defines diagnostic register constants for its three memory channels. Its
+generated consumers stay in the [DE25 board diagnostic](../misteross/boards/de25nano/ramtest/README.md);
+the definition creates no core package, runtime ABI or ownership of HPS DDR.
+
 The programming registry contains `fes-gp-v1` for `fes.simple-game`,
 `fes.simple-computer`, `fes.application` and `fes.computer`, plus the diagnostic-only
 `development-contained-v1`. Conventional game profile/source pins and the
