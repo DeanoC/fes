@@ -109,7 +109,7 @@ class Peer:
             words = prefix + [capabilities] + [int.from_bytes(build[n:n + 2], "little") for n in range(0, 16, 2)]
             return False, words[index]
         if opcode == a("OPCODE_MEDIA_INFO"):
-            return False, [1, 0, 16384, 0, 512, self.state][index]
+            return False, [1, 0, self.c.bridge("ZX81_TAPE_MAX_BYTES"), 0, 512, self.state][index]
         self.mutations.append((opcode, index, argument))
         if opcode == a("OPCODE_EXECUTION"):
             if index or argument > 1:
@@ -194,7 +194,8 @@ class ClientTests(unittest.TestCase):
     def test_identity_build_and_capabilities_are_validated_without_machine_mutation(self):
         info = self.connect()
         self.assertEqual(info["build_id"], self.peer.build)
-        self.assertEqual(info["media"], {"minimum": 1, "maximum": 16384, "chunk_maximum": 512, "state": 1})
+        self.assertEqual(info["media"], {"minimum": 1,
+            "maximum": self.c.bridge("ZX81_TAPE_MAX_BYTES"), "chunk_maximum": 512, "state": 1})
         self.assertEqual(self.peer.mutations, [])
         self.assertEqual(len(self.peer.writes), 22)
         for before, after in zip(self.peer.writes, self.peer.writes[1:]):
@@ -251,7 +252,8 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(self.peer.state, self.c.abi("MEDIA_STATE_EMPTY"))
 
     def test_tape_minimum_maximum_and_chunk_boundary_round_trip(self):
-        for payload in (b"\xff", bytes(range(256)) * 64):
+        maximum = self.c.bridge("ZX81_TAPE_MAX_BYTES")
+        for payload in (b"\xff", bytes(n & 0xff for n in range(maximum))):
             with self.subTest(size=len(payload)):
                 self.setUp()
                 self.connect()
@@ -260,6 +262,12 @@ class ClientTests(unittest.TestCase):
                 self.assertTrue(all(1 <= n <= 512 for n in self.peer.chunk_lengths))
 
     def test_invalid_tape_sizes_and_chunk_sizes_are_rejected_before_io(self):
+        for size in (16376, 16377, 16384):
+            with self.subTest(size=size):
+                writes = len(self.peer.writes)
+                with self.assertRaisesRegex(ValueError, "1 through 16375 bytes"):
+                    self.client.upload(b"x" * size)
+                self.assertEqual(len(self.peer.writes), writes)
         for payload in (b"", b"x" * 16385):
             with self.assertRaises(ValueError):
                 self.client.upload(payload)

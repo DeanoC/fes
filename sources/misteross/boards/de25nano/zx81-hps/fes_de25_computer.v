@@ -143,7 +143,7 @@ module fes_de25_computer #(
     fes_computer_mailbox #(
         .ENABLE_KEYBOARD(1), .ENABLE_ZX81_TAPE(1), .MEDIA_AW(14),
         .UNIT0_MIN(`FES_COMPUTER_ZX81_TAPE_MIN_BYTES),
-        .UNIT0_MAX(`FES_COMPUTER_ZX81_TAPE_MAX_BYTES)
+        .UNIT0_MAX(`FES_DE25_COMPUTER_ZX81_TAPE_MAX_BYTES)
     ) gp_mailbox (
         .clk(clk), .gpo(gpo), .build_id(BUILD_ID), .gpi(gpi),
         .exec_reset(exec_reset), .keyboard_rows(keyboard_rows), .controller_buttons(),
@@ -178,8 +178,15 @@ module fes_de25_computer #(
         .clk_sys(clk), .ce_6m5(ce_6m5), .zx_pixel(video_pixel), .hblank(hblank), .vblank(vblank),
         .pixel_clk(pixel_clk), .red(red), .green(green), .blue(blue), .de(de), .hsync(hs), .vsync(vs),
         .frame_tick(), .raster_h(), .raster_v(), .src_x_max(), .src_y_max());
-    assign video_rgb = transport_ready ? {red, green, blue} : 24'd0;
-    assign video_de = transport_ready && de;
-    assign video_hs = transport_ready && hs;
-    assign video_vs = transport_ready && vs;
+    (* altera_attribute="-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *)
+    reg [1:0] pixel_transport_ready_sync = 2'b00;
+    always @(posedge pixel_clk or negedge reset_n) begin
+        if (!reset_n) pixel_transport_ready_sync <= 2'b00;
+        else pixel_transport_ready_sync <= {pixel_transport_ready_sync[0], transport_ready};
+    end
+    wire pixel_transport_ready = pixel_transport_ready_sync[1];
+    assign video_rgb = pixel_transport_ready ? {red, green, blue} : 24'd0;
+    assign video_de = pixel_transport_ready && de;
+    assign video_hs = pixel_transport_ready && hs;
+    assign video_vs = pixel_transport_ready && vs;
 endmodule
