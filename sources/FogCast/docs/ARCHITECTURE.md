@@ -332,6 +332,12 @@ target handlers, runtime lifecycle, image assembly, or FPGA builds. The FES
 parent selects the FogCast revision and owns image integration and release
 evidence.
 
+The host API and catalog CLI share `fogcast.PathsForConfig` when given an
+explicit `--config`, so scans and API reads use the same selected index,
+staging area, media stores, and core-package directory. Relative config paths
+resolve from the process working directory. Without the flag, or when the
+default user config is selected, both use `fogcast.DefaultPaths`.
+
 Tenfoot applies the paired kit-lease state to installed-core destinations as
 well as FPGA titles. On a paired kit, a foreign lease displays the shared
 in-use copy and refuses Confirm; unavailable lease status fails closed. Core

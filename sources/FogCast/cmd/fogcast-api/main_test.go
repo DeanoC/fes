@@ -101,11 +101,97 @@ staging = %q
 	if err := os.WriteFile(configPath, []byte(config), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	got := captureAPIPaths(t, []string{"--config", configPath, "--headless", "--listen", "127.0.0.1:0"})
+	want := fogcast.Paths{
+		Config:          configPath,
+		Index:           filepath.Join(state, "library.sqlite3"),
+		Staging:         staging,
+		MetadataRoot:    filepath.Join(dir, "metadata"),
+		UserLibrary:     filepath.Join(state, "library-user.sqlite3"),
+		LibrarySettings: filepath.Join(state, "library-settings.json"),
+		MediaIndex:      filepath.Join(state, "library-media.sqlite3"),
+		MediaCache:      filepath.Join(dir, "media-cache"),
+		CorePackages:    filepath.Join(state, "core-packages"),
+	}
+	if got != want {
+		t.Fatalf("paths = %+v, want %+v", got, want)
+	}
+	if _, err := os.Stat(state); err != nil {
+		t.Fatalf("private state: %v", err)
+	}
+	if _, err := os.Stat(staging); err != nil {
+		t.Fatalf("private staging: %v", err)
+	}
+	for _, path := range []string{
+		filepath.Join(home, ".local", "share", "fogcast"),
+		filepath.Join(home, ".cache", "fogcast")} {
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Fatalf("home catalog path %q = %v", path, err)
+		}
+	}
+}
+
+func TestExplicitRelativeConfigUsesAbsoluteCatalogPaths(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	configPath := filepath.Join(dir, "host.toml")
+	config := `base_url = "http://127.0.0.1:8182"
+token = "test-token"
+request_timeout_seconds = 12
+upload_timeout_seconds = 60
+`
+	if err := os.WriteFile(configPath, []byte(config), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got := captureAPIPaths(t, []string{"--config", "host.toml", "--headless", "--listen", "127.0.0.1:0"})
+	state := filepath.Join(dir, "state")
+	want := fogcast.Paths{
+		Config:          configPath,
+		Index:           filepath.Join(state, "library.sqlite3"),
+		Staging:         filepath.Join(dir, "staging"),
+		MetadataRoot:    filepath.Join(dir, "metadata"),
+		UserLibrary:     filepath.Join(state, "library-user.sqlite3"),
+		LibrarySettings: filepath.Join(state, "library-settings.json"),
+		MediaIndex:      filepath.Join(state, "library-media.sqlite3"),
+		MediaCache:      filepath.Join(dir, "media-cache"),
+		CorePackages:    filepath.Join(state, "core-packages"),
+	}
+	if got != want {
+		t.Fatalf("paths = %+v, want %+v", got, want)
+	}
+}
+
+func TestOmittedConfigUsesDefaultPaths(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	want, err := fogcast.DefaultPaths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(want.Config), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	config := `base_url = "http://127.0.0.1:8182"
+token = "test-token"
+request_timeout_seconds = 12
+upload_timeout_seconds = 60
+`
+	if err := os.WriteFile(want.Config, []byte(config), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got := captureAPIPaths(t, []string{"--headless", "--listen", "127.0.0.1:0"})
+	if got != want {
+		t.Fatalf("paths = %+v, want default paths %+v", got, want)
+	}
+}
+
+func captureAPIPaths(t *testing.T, args []string) fogcast.Paths {
+	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	var got fogcast.Paths
 	var stdout, stderr bytes.Buffer
-	code := runWithComposer(ctx, []string{"--config", configPath, "--headless", "--listen", "127.0.0.1:0"}, &stdout, &stderr,
+	code := runWithComposer(ctx, args, &stdout, &stderr,
 		func(_ context.Context, paths fogcast.Paths) (service, error) {
 			got = paths
 			cancel()
@@ -118,17 +204,7 @@ staging = %q
 	if code != 0 {
 		t.Fatalf("exit = %d stderr=%q", code, stderr.String())
 	}
-	if got.Config != configPath || filepath.Dir(got.Index) != state || got.Staging != staging ||
-		filepath.Dir(got.MediaIndex) != state || filepath.Dir(got.CorePackages) != state {
-		t.Fatalf("paths = %+v", got)
-	}
-	if _, err := os.Stat(state); err != nil {
-		t.Fatalf("private state: %v", err)
-	}
-	homeCatalog := filepath.Join(home, ".local", "share", "fogcast")
-	if _, err := os.Stat(homeCatalog); !os.IsNotExist(err) {
-		t.Fatalf("home catalog = %v", err)
-	}
+	return got
 }
 
 func TestLoadAPIConfigCanSourceMetadataFromSeparatePrivateConfig(t *testing.T) {

@@ -55,6 +55,32 @@ func TestResolveCatalogConfigPrefersSiblingAndExplicit(t *testing.T) {
 	}
 }
 
+func TestPathsForConfigResolvesRelativeConfigPath(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+	if err := os.WriteFile(configPath, []byte("token = \"x\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(dir)
+
+	paths, err := PathsForConfig("config.toml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if paths.Config != configPath || filepath.Dir(paths.Index) != filepath.Join(dir, "state") || paths.Staging != filepath.Join(dir, "staging") {
+		t.Fatalf("paths = %+v", paths)
+	}
+	for _, path := range []string{
+		paths.Config, paths.Index, paths.Staging, paths.MetadataRoot,
+		paths.UserLibrary, paths.LibrarySettings, paths.MediaIndex,
+		paths.MediaCache, paths.CorePackages,
+	} {
+		if !filepath.IsAbs(path) {
+			t.Fatalf("path %q is not absolute", path)
+		}
+	}
+}
+
 func TestPathsForConfigReadOnlyDirectoryDoesNotUseTheConfigDir(t *testing.T) {
 	dir := readOnlyConfigDir(t, "token = \"x\"\n")
 	configPath := filepath.Join(dir, "config.toml")

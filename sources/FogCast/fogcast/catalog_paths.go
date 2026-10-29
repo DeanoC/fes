@@ -58,7 +58,7 @@ func ResolveCatalogConfig(explicit, launcherConfig string, getenv func(string) s
 // create directories under /usr, and the kit still cannot use them.
 const catalogSystemReadOnlyRoot = "/usr"
 
-// PathsForConfig is the catalog Paths for one resolved config file.
+// PathsForConfig resolves one config file path and returns its catalog Paths.
 // Explicit state and staging in the file win when both are absolute and
 // usable. The default user config keeps DefaultPaths. Any other file on a
 // writable directory uses state beside that file so a test does not open
@@ -67,10 +67,16 @@ const catalogSystemReadOnlyRoot = "/usr"
 // beside a config that itself lives under /usr, are unusable even when the
 // current user can write them. They fall back to the writable default: the
 // kit tmpfs when that is writable, and a private temp directory otherwise.
+// Relative config paths resolve from the current working directory before
+// store paths are derived.
 func PathsForConfig(configPath string) (Paths, error) {
 	configPath = strings.TrimSpace(configPath)
 	if configPath == "" {
 		return Paths{}, fmt.Errorf("catalog config path is empty")
+	}
+	configPath, err := filepath.Abs(configPath)
+	if err != nil {
+		return Paths{}, fmt.Errorf("resolve catalog config path: %w", err)
 	}
 	info, err := os.Stat(configPath)
 	if err != nil || info.IsDir() {
