@@ -19,7 +19,7 @@ struct Rig {
  std::deque<Word> returned;
  uint64_t tick=0; unsigned write_index=0,write_count=0,read_wait=0,b_wait=0;
  uint32_t write_base=0; bool b_pending=false,hold_read=false,force_stall=false;
- bool zero=false,inject_data=false,inject_r=false,inject_b=false,ignore_mask=false,lose_cal_on_read=false;
+ bool zero=false,inject_data=false,inject_r=false,inject_b=false,ignore_mask=false,lose_cal_on_read=false,stray_b=false;
  uint32_t address_mask=0xffffffff;
  unsigned reads=0,writes=0;
  Word get_write(){Word w{};for(unsigned i=0;i<bytes;i++){
@@ -38,7 +38,7 @@ struct Rig {
 #endif
  }
  void cycle(){
-  d.clk=0;d.waitrequest=force_stall||tick%5==2;d.readdatavalid=0;d.writeresponsevalid=0;d.response=0;d.eval();
+  d.clk=0;d.waitrequest=force_stall||tick%5==2;d.readdatavalid=0;d.writeresponsevalid=stray_b;d.response=0;d.eval();
   const bool wr=d.write&&!d.waitrequest,rd=d.read&&!d.waitrequest;
   auto addr=d.address;auto count=d.burstcount;auto data=get_write();auto enable=d.byteenable;
   check(!rd||(!b_pending&&!write_index&&returned.empty()),"read before write completion or previous drain");
@@ -76,6 +76,7 @@ int main(int argc,char **argv){Verilated::commandArgs(argc,argv);try{
  {Rig r;r.ignore_mask=true;r.start();r.finish();check(r.d.done&&r.d.errors,"ignored byte masks not detected");}
  for(bool read:{false,true}){Rig r;r.inject_r=read;r.inject_b=!read;r.start();r.finish();check(!r.d.done&&r.d.stopped&&(r.d.faults&2),"response error accepted as PASS");}
  {Rig r;r.inject_r=true;r.lose_cal_on_read=true;r.start();r.finish();check((r.d.faults&10)==10&&!r.d.done,"simultaneous response and calibration faults lost");}
+ {Rig r;r.stray_b=true;r.cycle();r.stray_b=false;r.d.clear=1;r.cycle();r.d.clear=0;r.start();check((r.d.faults&4)&&!r.d.busy&&!r.writes,"CLEAR healed uncertain response ownership");}
  {Rig r;r.force_stall=true;r.start();while(!r.d.write)r.cycle();auto a=r.d.address;auto w=r.get_write();r.d.stop=1;for(unsigned i=0;i<12;i++){r.cycle();check(r.d.busy&&r.d.write&&r.d.address==a&&r.get_write()==w,"stopped stalled write abandoned");}r.force_stall=false;r.finish();check(r.d.stopped&&!r.d.done&&!r.write_index&&!r.b_pending,"write not drained");}
  {Rig r;r.hold_read=true;r.start();while(r.returned.empty())r.cycle();r.d.stop=1;for(unsigned i=0;i<90;i++)r.cycle();check(r.d.busy&&(r.d.faults&1)&&!r.d.done,"timeout invented read drain");unsigned accepted=r.reads;r.hold_read=false;r.finish();check(r.d.stopped&&!r.d.done&&r.reads==accepted,"stop issued more reads");}
  {Rig r;r.d.calibrated=0;r.start();check(!r.d.busy&&r.d.faults&&r.writes==0,"uncalibrated memory accessed");}

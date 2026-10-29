@@ -19,4 +19,3 @@ add_interface control50 clock sink
 set_interface_property control50 EXPORT_OF control50.in_clk
 add_connection control50.out_clk emif_lpddr4b.s0_axi4lite_clock
 save_system @EMIF_SYSTEM@
-

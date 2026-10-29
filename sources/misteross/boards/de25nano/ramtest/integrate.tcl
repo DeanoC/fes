@@ -26,4 +26,3 @@ add_connection pb_cpu_0.m0 fes_ramtest_sdram.avs
 set_connection_parameter_value pb_cpu_0.m0/fes_ramtest_sdram.avs baseAddress @SDRAM_BASE@
 add_interface fes_ramtest_dram conduit end
 set_interface_property fes_ramtest_dram EXPORT_OF fes_ramtest_sdram.dram
-

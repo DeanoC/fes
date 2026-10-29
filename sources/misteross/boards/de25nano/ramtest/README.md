@@ -65,7 +65,8 @@ address and inverted-address patterns, then exercises byte enables. It checks
 memory read/write responses, preserves an accepted command under backpressure,
 and drains accepted traffic after STOP or a fault while clocks and responses
 continue. Timeouts record faults; missing responses cannot be cancelled by a
-host timeout. A transport reset poisons ownership until external recovery.
+host timeout. A transport reset or unsolicited memory response permanently
+faults this tester until FPGA reconfiguration; CLEAR cannot recover ownership.
 Snapshots report errors, the first failing address/expected/actual data,
 accumulated bad bits, transferred bytes, cycle counters and bounded latency
 samples. Latency is measured at the diagnostic fabric interface in that

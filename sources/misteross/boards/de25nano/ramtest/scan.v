@@ -155,7 +155,9 @@ module fes_de25_ram_scan #(
             case (state)
                 IDLE: begin
                     watchdog <= 0;
-                    if (clear) begin
+                    // An unsolicited response destroys transaction ownership;
+                    // local CLEAR cannot establish a new external epoch.
+                    if (clear && (faults & (F_PROTOCOL|F_RESET)) == 0) begin
                         done <= 0; stopped <= 0; faults <= fault_events; cancel <= 0;
                         errors <= 0; bad_bits <= 0;
                     end
