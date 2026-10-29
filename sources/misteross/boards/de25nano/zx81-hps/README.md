@@ -87,3 +87,7 @@ This is an unadmitted JTAG SRAM diagnostic. Physical DE25 acceptance, external
 HDMI/I2C timing, MTBF, the inherited DJ24 voltage discrepancy, firmware pairing
 and global reset lifetime remain open. Serial/DHCP/SSH Linux boot is a separate
 first-board check. No image, device tree or installed bundle is changed here.
+
+[Validation and exact artifact](../../../docs/validation/2026-10-29-de25-zx81-hps/README.md)
+records the successful producer, failed capacity candidate, simulation binding,
+software checks and the remaining physical acceptance gates.

@@ -1,0 +1,41 @@
+{
+  "schema": "fes.de25-zx81-hps.repair-local-files.v1",
+  "implementation_revision": "5a7382c4b5c17173f48bd074847acc0acc22de93",
+  "files": [
+    {
+      "source": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/out/de25-computer-repaired-focused-final.log",
+      "retained_file": "focused-28.log",
+      "bytes": 4757,
+      "sha256": "219c562c88ac073d89571a68ff3fe64a3f73fc2fa0c24fa25904b4bd4a8bf60c",
+      "evidence_class": "host software check"
+    },
+    {
+      "source": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/out/de25-computer-repaired-consistency.log",
+      "retained_file": "consistency.log",
+      "bytes": 137,
+      "sha256": "08c07bc536fbb15a6932e60cbf47db79c9542e3fa7644c48a11dec9dd9523917",
+      "evidence_class": "host software check"
+    },
+    {
+      "source": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/out/de25-computer-repaired-endpoint.log",
+      "retained_file": "endpoint-simulation.log",
+      "bytes": 6234,
+      "sha256": "3fa70268d840357e8509a5b61898a4c77c9be302b359ee174ebc8d386ecc1488",
+      "evidence_class": "host RTL simulation with behavioral RAM"
+    },
+    {
+      "source": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/out/de25-computer-repair-affected-plan.json",
+      "retained_file": "delta-affected-plan.log",
+      "bytes": 18865,
+      "sha256": "82ab9bbee9777f93cf2b61909e768d6b4ed3cbd444904083cff9a2fc5cd670bb",
+      "evidence_class": "repair-delta planning"
+    },
+    {
+      "source": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/out/de25-computer-hil-plan.json",
+      "retained_file": "hil-plan.json",
+      "bytes": 19408,
+      "sha256": "f56acca70eb4dbe0452af8d211096a57ccf387a671d7e5be2b861f8d6e62c360",
+      "evidence_class": "strict deployment-impact planning"
+    }
+  ]
+}
