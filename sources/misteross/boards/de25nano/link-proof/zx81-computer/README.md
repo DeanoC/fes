@@ -21,8 +21,7 @@ Run from `link-proof/`:
 python3 build.py build --profile zx81-computer --output /absolute/new-build \
   --quartus-root /data/altera_pro/26.3 --vendor-archive /absolute/vendor.zip \
   --placement 'X2 Y7 X26 Y20' --routing 'X1 Y6 X27 Y21'
-python3 zx81-computer/proof.py --native-only --output /absolute/new-proof \
-  --vendor-archive /absolute/vendor.zip
+python3 zx81-computer/proof.py --native-only --output /absolute/new-proof
 python3 proof.py --artifacts /absolute/new-build/hps/project/artifacts.json \
   --output /absolute/new-composition --qemu /absolute/qemu-aarch64-static
 ```

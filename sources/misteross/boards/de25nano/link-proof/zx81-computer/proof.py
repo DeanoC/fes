@@ -32,8 +32,33 @@ def execute(args):
     selected = tuple(args.scenario or SCENARIOS)
     build.PROFILE = build.load_profile(HERE / "profile.py")
     output = args.output.resolve()
-    project = build.prepare(output, "X2 Y7 X26 Y20", "X1 Y6 X27 Y21", args.vendor_archive)
-    inputs = json.loads((project / "inputs.json").read_text())
+    output.mkdir(parents=True, exist_ok=False)
+    frozen = build.capture()
+    snapshot = output / "functional-source"
+    for name, data in frozen["files"].items():
+        dest = snapshot / name; dest.parent.mkdir(parents=True, exist_ok=True); dest.write_bytes(data)
+    project = output / "hps/project"; project.mkdir(parents=True)
+    local = project / "fes_link"; local.mkdir()
+    for name in build.SOURCE_NAMES:
+        dest = local / name.removeprefix("fpga/"); dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(frozen["files"]["sources/misteross/boards/de25nano/link-proof/" + name])
+    parent, comp = build.PROFILE.captured_helpers(project)
+    parent.prepare(local, project, frozen)
+    mailbox = project / "fes_mailbox"; mailbox.mkdir()
+    for name in comp.LOCAL:
+        dest = mailbox / name; dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(frozen["files"][comp.BOARD + "zx81-hps/" + name])
+    for name in comp.CORE_FILES:
+        dest = mailbox / name
+        dest.write_bytes(frozen["files"]["sources/misteross/cores/fes-zx81/rtl/" + name])
+    for name in ("fes_z80_alu", "fes_z80_engine", "fes_z80_bus", "fes_z80_nmos"):
+        (mailbox / (name + ".sv")).write_bytes(frozen["files"]["sources/misteross/cores/fes-common/rtl/z80/" + name + ".sv"])
+    (mailbox / "fes_computer_mailbox.v").write_bytes(frozen["files"]["sources/misteross/cores/fes-common/rtl/fes_computer_mailbox.v"])
+    (mailbox / "zx81_dpram_de25.v").write_bytes((local / "zx81_dpram.v").read_bytes())
+    (mailbox / "zx81_tape_store_de25.v").write_bytes(comp.retarget_tape((mailbox / "zx81_tape_store.v").read_bytes(), (mailbox / "tape_store.v").read_bytes())[0])
+    inputs = {"source_revision": frozen["revision"], "source_committed": frozen["committed"],
+              "source_sha256": {name: build.sha(data) for name,data in frozen["files"].items()}}
+    (output / "inputs.json").write_text(json.dumps(inputs,indent=2)+'\n')
     if not inputs["source_committed"] and not args.allow_working_copy:
         raise ValueError("commit captured production sources before producing evidence")
     snapshot = output / "functional-source"
@@ -64,6 +89,7 @@ def execute(args):
     flags=["-std=c++14","-O2","-Wall","-Wextra","-Werror","-pthread","-I"+str(include/"src"),"-I"+str(include/"include")]
     native=output/"client-native"
     helpers.run([args.cxx,*flags,str(bench/"client.cpp"),*map(str,sources),"-o",str(native)],logs/"native-build.log",timeout=180)
+    native_tools={str(Path(shutil.which(command) or command).resolve()): helpers.sha(Path(shutil.which(command) or command).resolve().read_bytes()) for command in (args.verilator,args.cxx)}
     clients={"native":[str(native)]}
     tools={"verilator":subprocess.check_output([args.verilator,"--version"],text=True).strip(),"cxx":subprocess.check_output([args.cxx,"--version"],text=True).strip()}
     if not args.native_only:
@@ -108,16 +134,20 @@ def execute(args):
     for scenario in selected:
         outcomes=[{k:v for k,v in r.items() if k!='architecture'} for r in results if r['scenario']==scenario]
         if any(r!=outcomes[0] for r in outcomes):raise ValueError("native/AArch64 semantic results differ")
+    for name,expected in inputs['source_sha256'].items():
+        if helpers.sha((ROOT/name).read_bytes())!=expected:raise ValueError("production recipe/RTL source changed during proof")
+    for name,expected in native_tools.items():
+        if helpers.sha(Path(name).read_bytes())!=expected:raise ValueError("native tool changed during proof")
     for name,data in captured.items():
         if (ROOT/name).read_bytes()!=data:raise ValueError("test/runtime source changed during proof")
     if not args.native_only and helpers.run([*container,"sha256sum",*sdk_files],logs/"sdk-after.txt")!=before:raise ValueError("SDK changed")
-    report={"status":"passed","kind":"actual-dual-client-combined-ZX81-PR-RTL","source_revision":inputs['source_revision'],"production_source_committed":inputs['source_committed'],"test_source_committed":test_committed,"compiler_source_sha256":inputs['source_sha256'],"test_runtime_source_sha256":{n:helpers.sha(d) for n,d in captured.items()},"results":results,"tools":tools,"selected_build_id":args.build_id,"binaries_sha256":{p.name:helpers.sha(p.read_bytes()) for p in (native,obj/"Vfes_de25_combined_sim")},"physical_PR":"selection-mux-model-only","memory":"behavioral","hardware":"not-run"}
+    report={"status":"passed","kind":"actual-dual-client-combined-ZX81-PR-RTL","source_revision":inputs['source_revision'],"production_source_committed":inputs['source_committed'],"test_source_committed":test_committed,"compiler_source_sha256":inputs['source_sha256'],"test_runtime_source_sha256":{n:helpers.sha(d) for n,d in captured.items()},"results":results,"tools":dict(tools,native_tools_sha256=native_tools),"selected_build_id":args.build_id,"binaries_sha256":{p.name:helpers.sha(p.read_bytes()) for p in ([native,obj/"Vfes_de25_combined_sim"]+([] if args.native_only else [arm]))},"physical_PR":"selection-mux-model-only","memory":"behavioral","hardware":"not-run"}
     (output/'proof.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps({"status":"passed","cases":len(results)}))
 
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--output',type=Path,required=True);p.add_argument('--vendor-archive',type=Path,required=True)
+    p.add_argument('--output',type=Path,required=True)
     p.add_argument('--native-only',action='store_true');p.add_argument('--allow-working-copy',action='store_true')
     p.add_argument('--scenario',action='append',choices=SCENARIOS)
     p.add_argument('--build-id',default='00112233445566778899aabbccddeeff')

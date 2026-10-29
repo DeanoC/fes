@@ -118,11 +118,14 @@ def top(source):
 def verify_generation(project, hps):
     _, comp = captured_helpers(project)
     result = comp.verify_computer(project, hps)
-    tree = ET.parse(project / "peripheral_subsys/peripheral_subsys.qsys")
-    parameters = tree.findall(".//module[@name='fes_computer']/parameter[@name='EXTERNAL_RAM']")
-    if len(parameters) != 1 or parameters[0].get("value") != "1":
+    component = project / "peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer.ip"
+    tree = ET.parse(component)
+    parameters = tree.findall(".//{*}parameter[@parameterId='EXTERNAL_RAM']/{*}value")
+    wrapper = project / "peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/synth/peripheral_subsys_fes_computer.v"
+    if len(parameters) != 1 or parameters[0].text != "1" or re.findall(r"\.EXTERNAL_RAM\s*\(\s*([0-9]+)\s*\)",wrapper.read_text()) != ["1"]:
         raise ValueError("generated computer must select external PR RAM")
-    result["external_ram"] = True
+    result["external_ram"] = {"parameter": 1, "component_sha256": comp.sha(component.read_bytes()),
+                              "wrapper_sha256": comp.sha(wrapper.read_bytes())}
     result["pll_reviews"] = {"system": comp.pll_review(project / "ip/pll", 100000000),
                              "pixel": comp.pll_review(project / "sys_pll", 74250000)}
     return result
