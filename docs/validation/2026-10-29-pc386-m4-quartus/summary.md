@@ -134,7 +134,9 @@ diagnostic programs:
   unconstrained clock, whose registers no slack row covers.
 - #1245's checks: the pc386 simulation lane and a FreeDOS boot identical clock
   for clock to the M2 record.
-- `scripts/test_changed.py`: TC
+- `scripts/test_changed.py` against #1245's branch, at `e10811e575` (the
+  review fixes seal's revision): 31 commands pass, in the parent and FPGA
+  lanes, among them every core's simulation. Only docs changed after it.
 
 ## Not done
 
