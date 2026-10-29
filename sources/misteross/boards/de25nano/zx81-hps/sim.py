@@ -6,7 +6,7 @@ import subprocess
 import tempfile
 import time
 
-from build import retarget_ram, retarget_tape, retarget_video
+from build import retarget_ram, retarget_tape
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
@@ -26,7 +26,6 @@ def prepare(bench, output=None):
     print(f"DE25 computer simulation directory: {output}", flush=True)
     adapted = []
     for filename, derive in (("zx81_dpram.v", retarget_ram),
-                             ("zx81_video_720p.v", retarget_video),
                              ("zx81_tape_store.v", retarget_tape)):
         path = output / filename
         path.write_bytes(derive((ZX81 / filename).read_bytes())[0])
@@ -34,7 +33,7 @@ def prepare(bench, output=None):
     (output / "zx8x.hex").write_bytes((ZX81 / "zx8x.hex").read_bytes())
     runtime = ROOT.parent / "libmister-runtime/src/native/generated/fes_computer.hpp"
     (output / "fes_computer.hpp").write_bytes(runtime.read_bytes())
-    sources = [HERE / "fes_de25_computer.v", COMMON / "rtl/fes_computer_mailbox.v",
+    sources = [HERE / "fes_de25_computer.v", HERE / "video.v", COMMON / "rtl/fes_computer_mailbox.v",
                ZX81 / "zx81_keyboard.v", ZX81 / "zx81_machine_clock.v",
                ZX81 / "zx81_machine.sv", *adapted]
     sources += [Z80 / (name + ".sv") for name in

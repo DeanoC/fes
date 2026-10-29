@@ -37,6 +37,14 @@ class HpsZX81BuildTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "adaptation contract changed"):
             B.retarget_tape(original, replacement + b"\n`else\n")
 
+    def test_capture_selects_only_the_owned_board_renderer(self):
+        sources = B.capture()
+        self.assertIn(B.BOARD + "zx81-hps/video.v", sources)
+        self.assertNotIn("sources/misteross/cores/fes-zx81/rtl/zx81_video_720p.v", sources)
+        definition = sources[B.BOARD + "zx81-hps/fes_de25_computer_hw.tcl"].decode()
+        self.assertIn("add_fileset_file video.v VERILOG PATH video.v", definition)
+        self.assertNotIn("zx81_video_720p_de25", definition)
+
     def test_patch_anchor_must_exist_exactly_once(self):
         self.assertEqual(B.replace_once("before ANCHOR after", "ANCHOR", "replacement"),
                          "before replacement after")
