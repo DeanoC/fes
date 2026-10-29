@@ -1594,7 +1594,7 @@
       "board": "de10",
       "primary_toolchain": "quartus",
       "router": "Quartus is the normal diagnostic package producer. Nextpnr remains an explicit advisory diagnostic.",
-      "quartus": "Quartus Lite 17.0.2 Build 602: common 100 MHz package profile, three-seed reported internal timing gate and independent RBF repeat. External IO/HPS/reset and exact-artifact hardware acceptance remain separate.",
+      "quartus": "Quartus (primary, policy). policy: Deano 2026-10-29. Quartus Lite 17.0.2 Build 602: common 100 MHz package profile, three-seed reported internal timing gate and independent RBF repeat. External IO/HPS/reset and exact-artifact hardware acceptance remain separate.",
       "features": "Media: diagnostic firmware byte port only. No disk controller and no sealed firmware map. Input: no HID keyboard frontend. HDMI: diagnostic 720p RGB on the DE10-Nano shell (CGA or MDA, Direct or Scanlines). No runtime ABI. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
       "notes": "Registered Quartus format-2 diagnostic package outside the bootstrap image. Static stripes plus the final completion block are expected; BIOS/DOS, keyboard and disks remain unavailable.",
       "evidence": [
@@ -1632,6 +1632,10 @@
         "media_gen": "diagnostic",
         "image_role": "none",
         "catalog_standing": "experimental"
+      },
+      "quartus_lock": {
+        "path": "sources/misteross/cores/fes-pcxt/quartus.lock",
+        "version": "17.0.2 Build 602"
       }
     },
     {

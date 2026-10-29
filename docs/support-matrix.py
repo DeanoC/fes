@@ -333,7 +333,7 @@ def validate(root: Path, data: dict) -> list[str]:
         if not producer.is_file():
             errors.append(f'{core_id} producer is missing: {producer}')
         lock = root / 'sources/misteross' / recipe['lock_path']
-        recorded = row.get('oss_lock') or {}
+        recorded = row.get('quartus_lock' if recipe.get('toolchain') == 'quartus' else 'oss_lock') or {}
         if recorded.get('path') != str(Path('sources/misteross') / recipe['lock_path']):
             errors.append(f'{core_id} lock path does not match config/core-recipes.toml')
         elif lock.is_file():
