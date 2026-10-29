@@ -88,6 +88,208 @@ func TestPc386GoldenDiskStatusesDecodeReconcileAndPassTargetClient(t *testing.T)
 	}
 }
 
+func TestAtariStGoldenStatusWithMultipleComputerABIMinorsReconciles(t *testing.T) {
+	lines := fixtureLines(t, "protocol-v2-computer-responses.jsonl")
+	response, err := decodeProtocol2Response([]byte(lines[7]))
+	if err != nil {
+		t.Fatalf("decode Atari ST status: %v", err)
+	}
+	archive := atariStFixtureArchive(t)
+	root := t.TempDir()
+	staged, err := corepackage.Stage(context.Background(), root, int64(len(archive)), bytes.NewReader(archive))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer staged.Cleanup()
+	if !reflect.DeepEqual(response.ActivePackage.Descriptor, staged.Descriptor) {
+		t.Fatal("Atari ST fixture descriptor differs from the staged test package")
+	}
+	response.ActivePackage.PackageID = staged.PackageID
+	control := pc386FixtureControl{response: response}
+	runtime := NewRuntime(control, "", time.Millisecond, time.Second, WithCorePackageRoot(root))
+	status := runtime.reconcileProtocol2(context.Background(), control)
+	if status.State != protocol.StateActive || status.CorePackage == nil || status.CorePackage.CoreID != "fes.atari-st" ||
+		status.CorePackage.PersistenceMode != "volatile" || len(status.CorePackage.MediaUnits) != 1 {
+		t.Fatalf("reconciled Atari ST status = %+v", status)
+	}
+	unit := status.CorePackage.MediaUnits[0]
+	if unit.Interface != protocol.AtariStFloppyInterface() || unit.State != protocol.MediaUnitEmpty || unit.Saveable == nil ||
+		*unit.Saveable || unit.Persistence != nil || protocol.MediaDataBound(status.CorePackage) {
+		t.Fatalf("reconciled Atari ST floppy = %+v", unit)
+	}
+	assertTargetClientAcceptsStatus(t, status)
+}
+
+func TestLiveRuntimeComputerStatusesDecodeReconcileAndPassTargetClient(t *testing.T) {
+	lines := fixtureLines(t, "protocol-v2-live-computer-statuses.jsonl")
+	if len(lines) != 3 {
+		t.Fatalf("live runtime status fixture rows = %d", len(lines))
+	}
+	for _, test := range []struct {
+		name       string
+		row        int
+		coreID     string
+		mediaState string
+		bound      bool
+	}{
+		{name: "Atari ST empty floppy", row: 0, coreID: "fes.atari-st", mediaState: protocol.MediaUnitEmpty},
+		{name: "pc386 empty fixed disk", row: 1, coreID: "fes.pc386", mediaState: protocol.MediaUnitEmpty},
+		{name: "pc386 bound fixed disk", row: 2, coreID: "fes.pc386", mediaState: protocol.MediaUnitReady, bound: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			response, err := decodeProtocol2Response([]byte(lines[test.row]))
+			if err != nil {
+				t.Fatalf("decode live runtime row %d: %v", test.row+1, err)
+			}
+			var computerVersions [][2]uint16
+			for _, abi := range response.Capabilities.ABIs {
+				if abi.ID == "fes.computer" {
+					computerVersions = append(computerVersions, [2]uint16{abi.Major, abi.Minor})
+				}
+			}
+			if !reflect.DeepEqual(computerVersions, [][2]uint16{{1, 0}, {1, 1}}) {
+				t.Fatalf("live fes.computer ABI versions = %v", computerVersions)
+			}
+			archive := liveRuntimeFixtureArchive(t, test.coreID)
+			root := t.TempDir()
+			staged, err := corepackage.Stage(context.Background(), root, int64(len(archive)), bytes.NewReader(archive))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer staged.Cleanup()
+			if !reflect.DeepEqual(response.ActivePackage.Descriptor, staged.Descriptor) {
+				t.Fatalf("live %s descriptor differs from the staged test package: live=%+v staged=%+v",
+					test.coreID, response.ActivePackage.Descriptor, staged.Descriptor)
+			}
+			response.ActivePackage.PackageID = staged.PackageID
+			control := pc386FixtureControl{response: response}
+			runtime := NewRuntime(control, "", time.Millisecond, time.Second, WithCorePackageRoot(root))
+			status := runtime.reconcileProtocol2(context.Background(), control)
+			if status.State != protocol.StateActive || status.CorePackage == nil ||
+				status.CorePackage.CoreID != test.coreID || len(status.CorePackage.MediaUnits) != 1 {
+				t.Fatalf("reconciled live status = %+v", status)
+			}
+			unit := status.CorePackage.MediaUnits[0]
+			if unit.State != test.mediaState {
+				t.Fatalf("reconciled live media unit = %+v", unit)
+			}
+			if test.coreID == "fes.pc386" {
+				if status.CorePackage.PersistenceMode != "persistent" || unit.Interface != protocol.AtaDiskInterface() ||
+					unit.Saveable == nil || *unit.Saveable || (unit.Persistence != nil) != test.bound ||
+					protocol.PersistentMediaBound(status.CorePackage) != test.bound || protocol.MediaDataBound(status.CorePackage) {
+					t.Fatalf("reconciled live pc386 status = %+v", status.CorePackage)
+				}
+			} else if status.CorePackage.PersistenceMode != "volatile" ||
+				unit.Interface != protocol.AtariStFloppyInterface() || unit.Saveable != nil ||
+				unit.Persistence != nil || protocol.MediaDataBound(status.CorePackage) {
+				t.Fatalf("reconciled live Atari ST status = %+v", status.CorePackage)
+			}
+			assertTargetClientAcceptsStatus(t, status)
+		})
+	}
+}
+
+func liveRuntimeFixtureArchive(t *testing.T, coreID string) []byte {
+	t.Helper()
+	runtimeFixtures := filepath.Join("..", "..", "..", "libmister-runtime", "tests", "fixtures", "core-bundle-v2")
+	manifestPath := filepath.Join(runtimeFixtures, "manifests", "valid-basic.toml")
+	manifestBytes, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest := string(manifestBytes)
+	payload, err := os.ReadFile(filepath.Join(runtimeFixtures, "payloads", "fes-fixture.rbf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	switch coreID {
+	case "fes.pc386":
+		manifest = strings.ReplaceAll(manifest, "fes.pong", "fes.pc386")
+		manifest = strings.ReplaceAll(manifest,
+			"id = \"fes.simple-game\"\nmajor = 1\nminor = 0",
+			"id = \"fes.computer\"\nmajor = 1\nminor = 1")
+		manifest = strings.ReplaceAll(manifest, "id = \"fes.gamepad\"", "id = \"fes.keyboard.hid\"")
+		for _, id := range []string{"fes.audio.pcm-s16-stereo-48k", "fes.mouse.relative",
+			"fes.persistence.words", "fes.pc386.machine", "fes.rtc.wall-clock",
+			"fes.memory.hps-ddr", "fes.media.ata-disk"} {
+			manifest += fmt.Sprintf("\n[[interfaces]]\nid = %q\nmajor = 1\nminor = 0\nrequired = true\n", id)
+		}
+	case "fes.atari-st":
+		manifest = strings.ReplaceAll(manifest, "fes.simple-game", "fes.computer")
+		manifest = strings.ReplaceAll(manifest, "id = \"fes.gamepad\"", "id = \"fes.keyboard.hid\"")
+		for _, id := range []string{"fes.gamepad.ports", "fes.audio.pcm-s16-stereo-48k", "fes.media.apple2-floppy"} {
+			manifest += fmt.Sprintf("\n[[interfaces]]\nid = %q\nmajor = 1\nminor = 0\nrequired = true\n", id)
+		}
+		manifest += "\n[[interfaces]]\nid = \"fes.expansion.apple2-bus\"\nmajor = 1\nminor = 0\nrequired = false\n"
+		manifest = strings.ReplaceAll(manifest, "fes.pong", "fes.atari-st")
+		manifest = strings.ReplaceAll(manifest, "fes.media.apple2-floppy", "fes.media.atari-st-floppy")
+		manifest = strings.ReplaceAll(manifest, "fes.expansion.apple2-bus", "fes.expansion.atari-st-bus")
+		manifest += "\n[[interfaces]]\nid = \"fes.media.atari-st-floppy-write\"\nmajor = 1\nminor = 0\nrequired = true\n"
+	default:
+		t.Fatalf("unsupported live fixture core %q", coreID)
+	}
+	return pc386TarArchive([]byte(manifest), payload)
+}
+
+func atariStFixtureArchive(t *testing.T) []byte {
+	t.Helper()
+	payloadPath := filepath.Join("..", "..", "corepackage", "testdata", "core-bundle-v2", "payloads", "fes-fixture.rbf")
+	payload, err := os.ReadFile(payloadPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	digest := sha256.Sum256(payload)
+	manifest := []byte(fmt.Sprintf(`format = 2
+
+[core]
+id = "fes.atari-st"
+name = "Synthetic FES Atari ST"
+description = "Synthetic test-only core bundle fixture; never deploy."
+version = "0.1.0"
+
+[target]
+platform = "de10_nano"
+device = "5CSEBA6U23I7"
+programming_profile = "fes-gp-v1"
+
+[payload]
+file = "core.rbf"
+size = %d
+sha256 = "%x"
+
+[abi]
+id = "fes.computer"
+major = 1
+minor = 0
+
+[[interfaces]]
+id = "fes.video.fixed-720p60"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.keyboard.hid"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.media.atari-st-floppy"
+major = 1
+minor = 0
+required = true
+
+[build]
+id = "0123456789abcdef0123456789abcdef"
+repository = "https://example.invalid/fes-atari-st"
+revision = "1111111111111111111111111111111111111111"
+recipe_sha256 = "2222222222222222222222222222222222222222222222222222222222222222"
+toolchain = "synthetic fixture generator 1.0 (test-only)"
+`, len(payload), digest))
+	return pc386TarArchive(manifest, payload)
+}
+
 func assertTargetClientAcceptsStatus(t *testing.T, status protocol.Status) {
 	t.Helper()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -105,10 +307,11 @@ func assertTargetClientAcceptsStatus(t *testing.T, status protocol.Status) {
 	client := targetclient.NewClient(base, "test-token", server.Client())
 	got, err := client.LoadLibraryCore(context.Background(), 1, strings.NewReader("x"), status.CorePackage.PackageID)
 	if err != nil {
-		t.Fatalf("targetclient rejected reconciled pc386 status: %v", err)
+		t.Fatalf("targetclient rejected reconciled computer status: %v", err)
 	}
-	if got.CorePackage == nil || len(got.CorePackage.MediaUnits) != 1 || got.CorePackage.MediaUnits[0].Saveable == nil || got.CorePackage.MediaUnits[0].CanSave() {
-		t.Fatalf("targetclient dropped saveable:false: %+v", got.CorePackage)
+	if got.CorePackage == nil || len(got.CorePackage.MediaUnits) != 1 ||
+		!reflect.DeepEqual(got.CorePackage.MediaUnits, status.CorePackage.MediaUnits) {
+		t.Fatalf("targetclient changed reconciled media status: got=%+v want=%+v", got.CorePackage, status.CorePackage)
 	}
 }
 

@@ -1143,15 +1143,29 @@ func validProtocol2Error(remote Protocol2Error) bool {
 
 func validCapabilities(capabilities Protocol2Capabilities) bool {
 	if !sortedUniqueStrings(capabilities.ProgrammingProfiles) ||
-		!sort.SliceIsSorted(capabilities.ABIs, func(i, j int) bool { return capabilities.ABIs[i].ID < capabilities.ABIs[j].ID }) {
+		!sort.SliceIsSorted(capabilities.ABIs, func(i, j int) bool {
+			a, b := capabilities.ABIs[i], capabilities.ABIs[j]
+			if a.ID != b.ID {
+				return a.ID < b.ID
+			}
+			if a.Major != b.Major {
+				return a.Major < b.Major
+			}
+			return a.Minor < b.Minor
+		}) {
 		return false
 	}
-	seen := map[string]bool{}
+	type abiVersion struct {
+		id           string
+		major, minor uint16
+	}
+	seen := map[abiVersion]bool{}
 	for _, abi := range capabilities.ABIs {
-		if seen[abi.ID] || !validContract(abi.ID, abi.Major, abi.Minor) || !validSupportedInterfaces(abi.Interfaces) {
+		version := abiVersion{id: abi.ID, major: abi.Major, minor: abi.Minor}
+		if seen[version] || !validContract(abi.ID, abi.Major, abi.Minor) || !validSupportedInterfaces(abi.Interfaces) {
 			return false
 		}
-		seen[abi.ID] = true
+		seen[version] = true
 	}
 	return validSupportedInterfaces(capabilities.ActiveInterfaces)
 }

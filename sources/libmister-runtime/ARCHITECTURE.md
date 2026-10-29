@@ -349,7 +349,9 @@ against an independent reference endpoint. See
 [home-computer I/O](docs/computer-io.md) for the exact protocol shapes. This
 path has host software coverage only.
 
-`fes.computer` 1.1 is a second advertised ABI entry with identity word 16,
+The capability registry advertises `fes.computer` 1.0 and 1.1 as separate
+version entries, ordered by ID, major and minor. A package's exact version
+selects its matching entry. `fes.computer` 1.1 adds identity word 16,
 the 17th identity word, compared like word 7 against the registered bits
 16..31. Its `fes.persistence.words` registry has one layout,
 `fes.pc386.machine` 1.0: the driver moves its 72 words on opcodes 24..27 with
@@ -361,6 +363,10 @@ the DDR window through short fes-window grants (`DiskWindow`) from the staged
 base image and the game's `fes.ata-disk.delta` chunks, committed with the CRC
 the core recomputes, and saved at Stop as content-addressed dirty chunks under
 a merged manifest. Host coverage only.
+
+An empty ATA unit does not remove the pc386 package's persistent core-data
+mode. Rejected insert/eject operations for that fixed unit leave the package's
+persistence mode unchanged.
 
 `fes.media.atari-st-floppy` 1.0 uses capability bit 7 and unit 0. Discovery
 and every insertion without the geometry extension require live minimum and maximum sizes of 737,280 bytes,

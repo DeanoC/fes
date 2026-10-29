@@ -976,7 +976,7 @@ public:
 		const Error error = hardware_.InsertComputerMedia(unit, path, size);
 		if (error.code == ErrorCode::save_failed)
 			return RestoreAfterSaveFailure("insert_media", system, core, generation, error);
-		FinishMediaUnit();
+		FinishMediaUnit(error.code != ErrorCode::unsupported_interface);
 		Log("insert_media", system, core, error.ok() ? "running" : "request", error);
 		return error;
 	}
@@ -1000,7 +1000,7 @@ public:
 		const Error error = hardware_.InsertLibraryComputerMedia(unit, path, size, root, binding);
 		if (error.code == ErrorCode::save_failed && error.phase != "request")
 			return RestoreAfterSaveFailure("insert_library_media", system, core, generation, error);
-		FinishMediaUnit();
+		FinishMediaUnit(error.code != ErrorCode::unsupported_interface);
 		Log("insert_library_media", system, core, error.ok() ? "running" : "request", error);
 		return error;
 	}
@@ -1041,7 +1041,7 @@ public:
 			busy_ = true; system = status_.system; core = status_.core;
 		}
 		const Error error = hardware_.CaptureZx81Tape(path);
-		FinishMediaUnit();
+		FinishMediaUnit(error.code != ErrorCode::unsupported_interface);
 		Log("capture_zx81_tape", system, core, error.ok() ? "running" : "request", error);
 		return error;
 	}
@@ -1060,7 +1060,7 @@ public:
 		const Error error = hardware_.AcknowledgeZx81Tape();
 		if (error.code == ErrorCode::save_failed)
 			return RestoreAfterSaveFailure("acknowledge_zx81_tape", system, core, generation, error);
-		FinishMediaUnit();
+		FinishMediaUnit(error.code != ErrorCode::unsupported_interface);
 		Log("acknowledge_zx81_tape", system, core, error.ok() ? "running" : "request", error);
 		return error;
 	}
@@ -1083,7 +1083,7 @@ public:
 		const Error error = hardware_.EjectComputerMedia(unit);
 		if (error.code == ErrorCode::save_failed)
 			return RestoreAfterSaveFailure("eject_media", system, core, generation, error);
-		FinishMediaUnit();
+		FinishMediaUnit(error.code != ErrorCode::unsupported_interface);
 		Log("eject_media", system, core, error.ok() ? "running" : "request", error);
 		return error;
 	}
@@ -1269,13 +1269,14 @@ public:
 			"media unit is not declared by the active computer", "compatibility"};
 	}
 
-	void FinishMediaUnit()
+	void FinishMediaUnit(bool recompute_persistence)
 	{
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
 			// Publish the driver's unit state from its last live exchange.
 			status_.capabilities.media_units = hardware_.capabilities().media_units;
-			if (status_.active_package.descriptor.abi.id == native::generated::FesComputerABIID) {
+			if (recompute_persistence &&
+				status_.active_package.descriptor.abi.id == native::generated::FesComputerABIID) {
 				status_.core_data.mode = "volatile";
 				for (const auto& media : status_.capabilities.media_units)
 					if (media.persistence_mode == "persistent") status_.core_data.mode = "persistent";

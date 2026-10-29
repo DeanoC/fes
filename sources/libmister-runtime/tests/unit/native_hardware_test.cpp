@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "capture_log.hpp"
+#include "daemon/protocol.hpp"
 #include "fake_input.hpp"
 #include "fake_mmio.hpp"
 #include "fes_computer_endpoint.hpp"
@@ -45,6 +46,7 @@
 #include <limits>
 #include <memory>
 #include <mutex>
+#include <sstream>
 #include <string>
 #include <thread>
 #include <utility>
@@ -65,7 +67,19 @@ extern "C" int fsync(int descriptor)
 }
 #endif
 
+void AssertComputerABIVersions(const mister::Capabilities& capabilities);
+
 namespace {
+
+std::vector<std::string> live_computer_status_responses;
+
+void RecordLiveComputerStatus(const mister::Status& status)
+{
+	AssertComputerABIVersions(status.capabilities);
+	const std::string response = mister::daemon::EncodeResponse(2, true, status, "fixture");
+	live_computer_status_responses.push_back(response);
+}
+
 mister::CoreSettingsUpdate PaddleSpeed(std::uint16_t speed)
 {
 	mister::CoreSettingsUpdate update;
@@ -3058,6 +3072,22 @@ void TestPc386AtaDiskLaunchSaveAndRestore()
 	hash.Update(base.data(), base.size());
 	mister::AtaDiskImage disk{images.File("disk.img", base), size, Sha256Hex(hash.Final()), media.path, 4, 16, 63};
 	const MediaDataIdentity identity{"fes.pc386", "ultima-vi", disk.base_media_id, 0};
+	assert(fixture.runtime.LoadLibraryCore(package.path, opened.package_id, data.path, "ultima-vi").ok());
+	const auto empty_status = fixture.runtime.status();
+	AssertComputerABIVersions(empty_status.capabilities);
+	RecordLiveComputerStatus(empty_status);
+	assert(empty_status.core_data.mode == "persistent" && empty_status.capabilities.media_units.size() == 1);
+	assert(empty_status.capabilities.media_units[0].interface.id == FesComputerInterfaceMediaAtaDiskID &&
+		empty_status.capabilities.media_units[0].state == mister::MediaUnitState::empty &&
+		!empty_status.capabilities.media_units[0].saveable);
+	const auto empty_generation = empty_status.generation;
+	assert(fixture.runtime.InsertMedia(disk.path, opened.package_id, empty_generation, 0, size).code ==
+		mister::ErrorCode::unsupported_interface);
+	assert(fixture.runtime.status().core_data.mode == "persistent");
+	assert(fixture.runtime.EjectMedia(opened.package_id, empty_generation, 0).code ==
+		mister::ErrorCode::unsupported_interface);
+	assert(fixture.runtime.status().core_data.mode == "persistent");
+	assert(fixture.runtime.Stop().ok());
 	// The disk binds to the request's game and needs geometry that fits.
 	auto bad = disk;
 	bad.cylinders = 5;
@@ -3070,6 +3100,8 @@ void TestPc386AtaDiskLaunchSaveAndRestore()
 	assert(endpoint.disk_state == 3 && endpoint.disk_geometry == std::vector<unsigned>({size / 512, 4, 16, 63}));
 	assert(fixture.native.disk_operations.revokes == fixture.native.disk_operations.grants.size());
 	const auto status = fixture.runtime.status();
+	AssertComputerABIVersions(status.capabilities);
+	RecordLiveComputerStatus(status);
 	assert(status.capabilities.media_units.size() == 1);
 	const auto& unit = status.capabilities.media_units[0];
 	assert(unit.interface.id == "fes.media.ata-disk" && unit.state == mister::MediaUnitState::ready &&
@@ -3589,6 +3621,18 @@ std::string ComputerManifest()
 	return manifest;
 }
 
+void AssertComputerABIVersions(const mister::Capabilities& capabilities)
+{
+	bool computer_10 = false;
+	bool computer_11 = false;
+	for (const auto& abi : capabilities.abis) {
+		if (abi.id != "fes.computer" || abi.major != 1) continue;
+		computer_10 = computer_10 || abi.minor == 0;
+		computer_11 = computer_11 || abi.minor == 1;
+	}
+	assert(computer_10 && computer_11);
+}
+
 std::string ComputerDisk(std::size_t size)
 {
 	std::string bytes(size, '\0');
@@ -3612,6 +3656,8 @@ void TestGeometryDiskBaseAdmissionAndRestoredLength()
         package.File("manifest.toml",manifest);package.File("core.rbf",ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
         OpenedCorePackage opened;assert(OpenCorePackage(package.path,"",&opened).ok());
         assert(fixture.runtime.LoadCore(package.path,opened.package_id).ok());const auto generation=fixture.runtime.status().generation;
+        AssertComputerABIVersions(fixture.runtime.status().capabilities);
+        if (!extension) RecordLiveComputerStatus(fixture.runtime.status());
         auto bytes=ComputerDisk(409600);
         const auto word=[&](unsigned at,unsigned value){bytes[at]=value;bytes[at+1]=value>>8;};
         word(11,512);word(19,800);word(24,10);word(26,1);
@@ -4590,6 +4636,18 @@ void TestZx81ComputerDisplayPackageAdmittedWhenAdvertised()
 	}
 }
 
+void TestLiveComputerStatusResponsesMatchRuntime()
+{
+	assert(live_computer_status_responses.size() == 3);
+	std::istringstream expected(ReadText("tests/fixtures/protocol-v2-live-computer-statuses.jsonl"));
+	std::string line;
+	for (const std::string& response : live_computer_status_responses) {
+		assert(std::getline(expected, line));
+		assert(response == line);
+	}
+	assert(!std::getline(expected, line));
+}
+
 int main()
 {
 	TestZx81ComputerDisplayPackageAdmittedWhenAdvertised();
@@ -4650,6 +4708,7 @@ int main()
 	TestInspectionReportsActualDriverCompatibilityWithoutMutation();
 	TestCompositionProgramsRetainedLinkedArtifactAndRechecksBeforeMutation();
 	TestActivationRechecksRetainedPayloadIdentityBeforeMutation();
-	puts("native_hardware_test: 34 passed");
+	TestLiveComputerStatusResponsesMatchRuntime();
+	puts("native_hardware_test: 35 passed");
 	return 0;
 }

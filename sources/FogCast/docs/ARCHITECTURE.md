@@ -389,7 +389,10 @@ lease ownership and recovery checks remain separate requirements.
 
 API compatibility is not a promise that every operation is available. The
 native adapter negotiates its versioned runtime protocol; package inspection
-checks the runtime's ABI registry before activation. Media, input and
+checks the runtime's ABI registry before activation. The registry lists each
+supported ABI version separately, so one ABI ID may appear more than once when
+the major/minor versions differ. Entries are ordered by ID, major and minor;
+an exact duplicate version is invalid. Media, input and
 persistence retain their operation-specific interface versions, limits and
 package/generation checks. Unsupported operations remain rejected rather than
 being inferred from a Git revision or silently retried through another path.
@@ -544,8 +547,9 @@ validates and relinks the retained source bytes.
 
 The target package lifecycle uses runtime protocol 2. A read-only
 `inspect_package` exchange negotiates the exact ABI registry and programming
-profiles before mutation. Protocol 1 is rejected without mutation; there is
-no negotiation fallback.
+profiles before mutation. The ABI registry may include multiple versions of
+one ID; each row describes one exact version and its interfaces. Protocol 1 is
+rejected without mutation; there is no negotiation fallback.
 The strict status decoder accepts the runtime's optional `menu_display`
 evidence, including a failed menu, so physical idle can still be confirmed
 for appliance maintenance. A `menu_display` field it does not define is

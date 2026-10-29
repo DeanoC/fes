@@ -24,7 +24,7 @@ Hardware-supported package paths: 0.
 | Native Coleco 256 by 192 indexed developer parts: distinct socket/layout binding, mandatory video part, and uncomposed-load rejection before mutation | covered by host tests | [Kit 2 native diagnostic](../../../docs/validation/2026-10-03-native-video-parts-kit2.md): linked Direct/Scanlines, HDMI video/audio, Stop/relaunch and vacant-load rejection; [factory image and native SGM acceptance](../../../docs/validation/2026-10-03-native-video-factory-kit2.md) for its exact image, compositions and open ROMs |
 | `fes.computer` admission, identity and firmware ROM activation | covered | none |
 | `fes.computer` 1.1: identity word 16, the per-game `fes.pc386.machine` record and the wall-clock seed | covered by host tests and the shared 1.1 fixture | pc386 exact-artifact acceptance pending |
-| `fes.media.ata-disk`: complete window load with delta chunks and CRC commit, fixed while running, dirty-chunk save at Stop/fault cleanup and manifest publication | covered by host tests with a scripted window and the shared 1.1 fixture | pc386 machine diagnostic (Phase M4) pending |
+| `fes.media.ata-disk`: complete window load with delta chunks and CRC commit, fixed while running, dirty-chunk save at Stop/fault cleanup and manifest publication; empty-unit insert/eject rejection retains package persistence | covered by host tests with a scripted window and the shared 1.1 fixture | pc386 machine diagnostic (Phase M4) pending |
 | `fes.computer` HID keyboard rows and controller ports | covered | none |
 | `fes.computer` live media units (insert/eject without reset hold) | covered | none |
 | `fes.computer` Spectrum snapshot metadata reported from declared optional interfaces | covered by runtime activation tests | none |
