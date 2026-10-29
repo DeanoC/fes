@@ -25,7 +25,7 @@ LOCAL = ("build.py", "board.v", "clocks.sdc", "integrate.tcl",
          "generated/fes_de25_computer.vh", "generated/fes_de25_computer.hpp",
          "generated/fes_computer.vh")
 CORE_FILES = ("zx81_machine.sv", "zx81_machine_clock.v", "zx81_dpram.v",
-              "zx81_model.vh", "zx81_keyboard.v",
+              "zx81_model.vh", "zx81_bus_pack.vh", "zx81_keyboard.v",
               "zx81_tape_store.v", "zx8x.mif", "zx8x.hex")
 
 
@@ -105,6 +105,11 @@ def prepare(archive, output=None, revision=None):
         output = Path(tempfile.mkdtemp(prefix="run-", dir=base))
     else:
         output = Path(output).resolve(); output.mkdir(parents=True, exist_ok=False)
+    return prepare_captured(archive, output, sources, selected)
+
+
+def prepare_captured(archive, output, sources, selected):
+    """Prepare a caller-owned private output from explicitly captured bytes."""
     snapshot = output / "functional-source"
     for name, data in sources.items():
         p = snapshot / name; p.parent.mkdir(parents=True, exist_ok=True); p.write_bytes(data)

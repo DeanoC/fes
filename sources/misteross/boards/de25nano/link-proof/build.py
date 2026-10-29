@@ -486,11 +486,12 @@ def capture() -> dict:
         paths += PROFILE.source_paths()
     files = {p.relative_to(repository).as_posix(): p.read_bytes() for p in paths}
     if PROFILE is not None:
-        name = (BOARD / "zx81-ram/profile.py").relative_to(repository).as_posix()
+        profile_path = Path(PROFILE.__file__)
+        name = profile_path.relative_to(repository).as_posix()
         if files[name] != PROFILE.selected_source_bytes:
             raise BuildError("profile source changed after selection")
         # Execute the captured bytes; callbacks and recorded source are identical.
-        PROFILE = load_profile(BOARD / "zx81-ram/profile.py", files[name])
+        PROFILE = load_profile(profile_path, files[name])
     committed = True
     for name, data in files.items():
         result = subprocess.run(["git", "show", f"{revision}:{name}"], cwd=repository,
@@ -521,7 +522,7 @@ def write_revisions(project: Path, region: dict, build_id: str) -> None:
         'set_instance_assignment -name NOT_GATE_PUSH_BACK OFF -to "soc_inst|subsys_periph|fes_pr_control|fes_pr_control|slot_reset"\n'
         f'set_global_assignment -name VERILOG_MACRO "FES_DE25_PR_BUILD_ID=128\'h{build_id}"\n')
     if PROFILE is not None:
-        common += PROFILE.qsf()
+        common += PROFILE.qsf(build_id)
     lines = common.splitlines()
     constraints = "\n".join(line for line in lines if line.startswith("set_global_assignment -name SDC_FILE ")) + "\n"
     common = "\n".join(line for line in lines if not line.startswith("set_global_assignment -name SDC_FILE ")) + "\n"
@@ -566,7 +567,10 @@ def prepare(output: Path, placement: str, routing: str, archive: Path | None = N
     retained.write_bytes(archive.read_bytes())
     hps.source_identity = lambda: {"fes_revision": frozen["revision"],
         "source_classification": "committed" if frozen["committed"] else "working-copy-diagnostic"}
-    hps_output = hps.prepare_project(retained, output / "hps")
+    if PROFILE is not None and hasattr(PROFILE, "prepare_base"):
+        hps_output = PROFILE.prepare_base(retained, output, frozen)
+    else:
+        hps_output = hps.prepare_project(retained, output / "hps")
     project = hps_output / "project"
     emif_reference_clock = remove_duplicate_emif_clock(project)
     local = project / "fes_link"
@@ -705,6 +709,8 @@ def generate_hps(project: Path, tools: dict[str, Path], version: str) -> None:
         raise BuildError("actual HPS bridge PR control aperture differs")
     handoff["pr_control"] = {"module": modules[0].get("path"), "peripheral_offset": inputs["control_peripheral_offset"],
                              "clock_hz": 100000000, "physical_mmio": "not-established"}
+    if PROFILE is not None and hasattr(PROFILE, "verify_generation"):
+        handoff["profile"] = PROFILE.verify_generation(project, hps)
     (project / "hps-handoff.json").write_bytes(canonical(handoff) + b"\n")
     write_revisions(project, inputs["region"], inputs["control_build_id"])
     for name in ("base.qsf", "persona_a.qsf", "persona_b.qsf"):
@@ -814,7 +820,7 @@ def main() -> int:
     parser.add_argument("--placement")
     parser.add_argument("--routing")
     parser.add_argument("--only", choices=("base",))
-    parser.add_argument("--profile", choices=("zx81-ram",))
+    parser.add_argument("--profile", choices=("zx81-ram", "zx81-computer"))
     args = parser.parse_args()
     if args.profile:
         global PROFILE
@@ -822,7 +828,7 @@ def main() -> int:
     try:
         if args.action == "sim":
             if PROFILE is not None:
-                raise BuildError("run zx81-ram/sim.py for the actual ZX81 profile simulation")
+                raise BuildError("run " + ("zx81-ram/sim.py" if args.profile == "zx81-ram" else "zx81-computer/proof.py") + " for the actual ZX81 profile")
             simulate(args.output.resolve())
         elif args.action == "verify":
             tools, version = toolchain(args.quartus_root)

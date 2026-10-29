@@ -132,3 +132,9 @@ first-board check. No image, device tree or installed bundle is changed here.
 [Validation and exact artifact](../../../docs/validation/2026-10-29-de25-zx81-hps/README.md)
 records the successful producer, failed capacity candidate, simulation binding,
 software checks and the remaining physical acceptance gates.
+
+The [combined PR profile](../link-proof/zx81-computer/README.md) explicitly
+selects this component's `EXTERNAL_RAM=1` parameter and its registered expansion
+conduit. It gates execution with PR RUNNING as well as the mailbox's RUN and
+transport health; freeze registers a complete idle memory request. This
+standalone diagnostic retains its internal-RAM selection and no PR control.

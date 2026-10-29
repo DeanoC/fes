@@ -88,7 +88,7 @@ def prepare(local, project, frozen):
     hw.write_bytes(hw.read_bytes() + b'\nadd_interface_port diagnostic memory_peek memory_peek Input 8\n')
 
 
-def qsf():
+def qsf(build_id=None):
     verilog = ("static.v", "zx81_machine_clock.v", "zx81_dpram.v", "zx81_ram_pack.v")
     sv = ("zx81_machine.sv", "fes_z80_alu.sv", "fes_z80_engine.sv", "fes_z80_bus.sv", "fes_z80_nmos.sv")
     return ('set_global_assignment -name VERILOG_MACRO "QUARTUS=1"\n'
@@ -112,7 +112,7 @@ def top(source):
     return source
 
 
-def verify_memories(revision, rows):
+def verify_memories(revision, rows, static_root="zx81_static"):
     slot = [r for r in rows if r.get("Name", "").startswith("slot_inst|")]
     if revision == "persona_b":
         if (sum(int(r["Logical Size"]) for r in slot) != 131072 or
@@ -120,7 +120,7 @@ def verify_memories(revision, rows):
             raise ValueError("RAM persona must contain exactly 16 KiB in M20K")
     elif slot:
         raise ValueError("empty persona must contain no memory")
-    machine = [r for r in rows if r.get("Name", "").startswith("zx81_static|")]
+    machine = [r for r in rows if r.get("Name", "").startswith(static_root + "|")]
     if not any("|rom|" in r["Name"] and int(r["Logical Size"]) == 131072 and
                r.get("Implementation Port A Depth") == "8192" and r.get("Implementation Port A Width") == "8" and
                r.get("Type") == "M20K" for r in machine):
@@ -129,19 +129,19 @@ def verify_memories(revision, rows):
         raise ValueError("static ZX81 1 KiB internal RAM M20K is missing")
 
 
-def verify_synthesis(report):
+def verify_synthesis(report, static_root="zx81_static"):
     text = report.read_text()
     names = re.findall(r"^;\s*(slot_inst\|core\|bus_response\[([0-9]+)\](?:~reg0)?)\s*;\s*yes\s*;\s*yes\s*;\s*yes\s*;", text, re.M)
     if len(names) != 20 or {int(bit) for name, bit in names} != set(range(20)):
         raise ValueError("synthesis must retain all 20 protected persona response registers")
-    launch = re.findall(r"^;\s*(zx81_static\|bus_request\[([0-9]+)\](?:~reg0)?)\s*;\s*yes\s*;\s*yes\s*;\s*yes\s*;", text, re.M)
+    launch = re.findall(r"^;\s*(" + re.escape(static_root) + r"\|bus_request\[([0-9]+)\](?:~reg0)?)\s*;\s*yes\s*;\s*yes\s*;\s*yes\s*;", text, re.M)
     if report.name == "base.syn.rpt" and (len(launch) != 46 or {int(bit) for name, bit in launch} != set(range(46))):
         raise ValueError("base synthesis must retain all 46 protected static request launch registers")
     active = False
     for line in text.splitlines():
         if re.match(r"^;\s*Inverted Register Statistics\s*;", line): active = True
         elif not line.strip(): active = False
-        elif active and re.search(r"slot_inst\|core\|(?:bus_response|bus_q|reset_q|request_q|address_q)|zx81_static\|(?:bus_request|response_q)", line):
+        elif active and re.search(r"slot_inst\|core\|(?:bus_response|bus_q|reset_q|request_q|address_q)|" + re.escape(static_root) + r"\|(?:bus_request|response_q)", line):
             raise ValueError("synthesis inverted a protected PR boundary register")
     return {"protected_response_registers": [name for name, bit in names],
             "protected_static_request_registers": [name for name, bit in launch], "boundary_inversions": 0}

@@ -44,6 +44,17 @@ It reuses the 64-byte control map without changing the counter profile. This
 is an off-board RAM-only PR proof, with no HPS computer mailbox, keyboard/tape
 transport, display, package admission or physical programming backend.
 
+The [combined ZX81 profile](../boards/de25nano/link-proof/zx81-computer/README.md)
+adds the actual HPS computer mailbox, keyboard/tape delivery and coherent 720p
+renderer to that PR RAM bus. It reuses the HPS computer recipe from captured
+source bytes. The CPU runs only with a healthy transport, PR RUNNING and mailbox
+RUN; every reset/HOLD/freeze captures an idle memory request before drain.
+Computer and PR control share the source-bound build identity but keep their
+separate generated register maps. The actual native and AArch64 C++ clients
+exercise both endpoints in one RTL model; only persona selection is modeled.
+The static base and both personas require fresh compilation/root/POF identity
+and composition checks. There is no SDM executor or production admission.
+
 The standalone [three-memory RAM Tester](../boards/de25nano/ramtest/README.md)
 adds separate destructive FPGA LPDDR4 B and board SDRAM endpoints to the pinned
 GHRD. It preserves the vendor B memory/PHY recipe and uses a custom fixed-50-MHz
