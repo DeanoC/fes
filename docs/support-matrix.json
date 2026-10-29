@@ -3,7 +3,7 @@
   "intro": [
     "This page is the board and toolchain matrix. It is taken from `config/core-recipes.toml`, `config/core-library.toml`, `profiles/native-integration-dev.toml`, the per-core `toolchain.lock` files, the misteross producers, and the docs those files point at. A cell that is not in those sources is marked unverified or TBD.",
     "The bootstrap image installs `fes.menu` and the pinned splash bitstream. Every playable core is a catalog install. Library standing `supported` is not a claim that the current bitstream has kit acceptance. Dated notes under `docs/validation/` accept only the artifact they name.",
-    "The tier names below follow the tree. They do not use \"HIL-verified and shipped in the default image\" as Tier 1, because no playable core is in that image and kit notes do not move forward onto a new bitstream."
+    "Tier 1 stays catalog `supported` (policy: Deano 2026-10-29). The tier names follow the tree. They do not use \"HIL-verified and shipped in the default image\" as Tier 1, because no playable core is in that image and kit notes do not move forward onto a new bitstream."
   ],
   "tiers": [
     {
@@ -49,15 +49,15 @@
     {
       "id": "planned",
       "label": "Planned",
-      "meaning": "Named future work with no core directory. No row uses this tier. DE25-Nano is a missing board shell on every row, not a core."
+      "meaning": "Named future work with no core directory. No row uses this tier. DE25-Nano is Quartus-only (policy); shell pending, not a core."
     }
   ],
   "policy": [
     "Labels follow the accepted Quartus policy in [Quartus-built cores](design/quartus-cores.md) (issue #1163). `oss` is the Debian-style main set: Yosys + nextpnr-mistral. `quartus` is the non-free set: a proprietary toolchain. A core build is supposed to say which one made it, so an all-OSS selection can exclude every Quartus build. `FES_OSS_ONLY` is not implemented. Current registered recipes and package selection build the OSS lane only. A failed OSS route never falls back to Quartus.",
-    "Both labelled builds ship only when the published rule is met, on the same RTL and the same target clocks. Either every Quartus sign-off seed closes a required clock that an OSS sign-off seed misses, or the best complete-seed Fmax is at least 15% higher on any required clock: `100 \u00d7 (Quartus best \u2212 OSS best) / OSS best`. Otherwise the core ships OSS only. No registered recipe declares a `toolchains` list yet, so no core ships both builds today. The i386 far-transfer numbers are the policy's worked example (about 40%), and they are still an oracle, not a product variant.",
-    "DE25-Nano uses an Agilex 5 device. There is no `sources/misteross/boards/de25nano` directory. nextpnr-mistral targets Cyclone V (`5CSEBA6U23I7` in [the DE10-Nano board note](../sources/misteross/boards/de10nano/README.md)). The policy says the first DE25 shells are Quartus-only, because the device is not OSS-reverse-engineered, and that Quartus Pro 24.1 or later is the first release that supports Agilex 5. No per-core DE25 recipe exists.",
-    "i386, pc386 and PC/XT are not labelled Quartus-primary in this tree. i386's Quartus 17.0.2 fit is an oracle on the same Yosys netlist, and a gap that only nextpnr shows is filed against that flow ([i386 CPU design](../sources/misteross/docs/i386-cpu-design.md)). pc386 has no sealed producer. PC/XT's producer is the OSS diagnostic, and Quartus is the cross-check that rejected an earlier nextpnr-only pass. Treating Quartus as the primary product toolchain, with nextpnr advisory, is unverified.",
-    "ColecoVision's factory recipe is the format-4 ROM map, not the blob/blob-stream mailboxes still present on the older Coleco producers. A household title count of 0 and a low-priority ranking are not stated in the tree. See the Coleco row and the unverified list."
+    "Both labelled builds ship only when the published rule is met, on the same RTL and the same target clocks. Either every Quartus sign-off seed closes a required clock that an OSS sign-off seed misses, or the best complete-seed Fmax is at least 15% higher on any required clock: `100 \u00d7 (Quartus best \u2212 OSS best) / OSS best`. Otherwise the core ships OSS only. No registered recipe declares a `toolchains` list yet, so no core ships both builds today. The i386 far-transfer numbers (about 40%) remain the worked example of a gap large enough for that rule. i386, pc386 and PC/XT are separately Quartus-primary; their nextpnr builds are advisory.",
+    "DE25-Nano (Agilex 5) is Quartus-only (policy); shell pending. policy: Deano 2026-10-29. Agilex 5 has no OSS reverse-engineering, so there is no OSS toolchain for that device. nextpnr-mistral targets Cyclone V (`5CSEBA6U23I7` in [the DE10-Nano board note](../sources/misteross/boards/de10nano/README.md)). Quartus Pro 24.1 or later is the first release that supports Agilex 5 ([Quartus-built cores](design/quartus-cores.md)). `sources/misteross/boards/de25nano` may be absent or present; the checker treats that landing as expected. Per-core DE25 cells stay on the policy line until the shell is on this branch and those cells are re-verified.",
+    "i386, pc386 and PC/XT use Quartus (primary, policy). policy: Deano 2026-10-29. nextpnr builds are advisory, and a nextpnr miss there is filed as a nextpnr issue, not a blocker. The checked-in producers remain the OSS diagnostic for PC/XT, pack-only nextpnr synthesis for pc386, and the Quartus 17.0.2 fit of the same Yosys netlist for i386 ([i386 CPU design](../sources/misteross/docs/i386-cpu-design.md), DeanoC/nextpnr#300). Those tree facts do not change the primary label.",
+    "ColecoVision still uses the old media handling and shows 0 titles. Updating that handling is low priority and is folded into the wider Coleco work (for example Adam support). policy: Deano 2026-10-29. The checked-in factory recipe is the format-4 ROM map, and it strips the blob and blob-stream mailboxes that the older Coleco producers still declare."
   ],
   "cores": [
     {
@@ -435,7 +435,7 @@
       "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
       "quartus": "Recipe `quartus_role` is `bring-up/check oracle`. `make build-fes-coleco-quartus` is the Quartus 17.0.2 oracle, not the installed package.",
       "features": "Media: format-4 ROM map, exact 8 KiB `coleco-bios` plus 16 KiB `coleco-cart`. The recipe producer strips `fes.media.blob`, `fes.media.blob-stream` and `fes.firmware.blob`. No live media unit. Guide Change media relaunches the same title with another exact-size `.col`/`.rom`/`.bin` (`POST /api/v1/session/cartridge`); the saved cartridge binding is unchanged. Input: `fes.gamepad.ports` and `fes.keypad.ports`. HDMI: native-pixel shell, mandatory Direct or Scanlines part, then the session display plane, fixed 720p60. CPU: TV80, not `fes_z80_nmos`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
-      "notes": "Library standing `supported`. Not retail-complete. The `example.coleco-arcade` room names five cabinets and skips any that are not installed; an empty library shows `no Coleco arcade titles in this library yet`. A committed title count of 0 and a low-priority ranking were not found (unverified). Older `build_fes_coleco.py` and `build_fes_coleco_oss.py` still declare blob and blob-stream; they are not the recipe producer.",
+      "notes": "Library standing `supported`. policy: Deano 2026-10-29. ColecoVision still uses the old media handling and shows 0 titles. Updating that handling is low priority and is folded into the wider Coleco work (for example Adam support). The `example.coleco-arcade` room names five cabinets and skips any that are not installed; an empty library shows `no Coleco arcade titles in this library yet`. Older `build_fes_coleco.py` and `build_fes_coleco_oss.py` still declare blob and blob-stream; they are not the recipe producer.",
       "evidence": [
         "config/core-recipes.toml",
         "config/core-library.toml",
@@ -931,8 +931,9 @@
         "nextpnr": "552ba246"
       },
       "board": "de10",
+      "primary_toolchain": "quartus",
       "router": "Diagnostic producer authenticates its own lock and accepts `PCXT_GPU_ROUTER` HIP or CUDA (`cores/fes-pcxt/README.md`). Not a recipe row, so there is no recipe `gpu_router`.",
-      "quartus": "Quartus 17.0.2 is a cross-check, not the producer. The CGA Direct build from the old nextpnr timer failed that cross-check and is not timing-qualified (core README, issue #840). There is no automatic Quartus fallback. Calling Quartus the primary product toolchain is unverified.",
+      "quartus": "Quartus (primary, policy). policy: Deano 2026-10-29. nextpnr builds are advisory, and a nextpnr miss is filed as a nextpnr issue, not a blocker. The checked-in producer is still the OSS diagnostic (`scripts/build_fes_pcxt.py`). Quartus 17.0.2 is the cross-check that rejected the old nextpnr-only CGA Direct pass (core README, issue #840). That producer has no automatic Quartus fallback.",
       "features": "Media: diagnostic firmware byte port only. No disk controller and no sealed firmware map. Input: no HID keyboard frontend. HDMI: diagnostic 720p RGB on the DE10-Nano shell (CGA or MDA, Direct or Scanlines). No runtime ABI. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
       "notes": "Unregistered. No `config/core-recipes.toml` row and no package. Cannot boot DOS. SDRAM pad timing and hardware remain unqualified in the core README.",
       "evidence": [
@@ -961,8 +962,9 @@
         "nextpnr": "bd7a1c0d"
       },
       "board": "device",
+      "primary_toolchain": "quartus",
       "router": "Machine synthesis packs with nextpnr-mistral and does not route (`scripts/synth_fes_pc386.py`). The default lock is the i386 lock. Not a recipe row.",
-      "quartus": "No Quartus producer for the machine was found. The machine design sketches `scripts/build_fes_pc386_oss.py`, which is not in the tree. Calling Quartus the primary product toolchain is unverified.",
+      "quartus": "Quartus (primary, policy). policy: Deano 2026-10-29. nextpnr builds are advisory, and a nextpnr miss is filed as a nextpnr issue, not a blocker. No Quartus producer for the machine was found. The machine design sketches `scripts/build_fes_pc386_oss.py`, which is not in the tree.",
       "features": "Media: ATA disk in host simulation only. Input: PS/2 keyboard and mouse models; the README says the HID row model and typematic repeat are not built yet. HDMI: 720p presenter and display plane in simulation. Audio: OPL2 and Sound Blaster in simulation. No shell, package or kit evidence. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
       "notes": "Host-only machine (phases M1\u2013M3) plus diagnostic Cyclone V synthesis. Not a catalog package. CPU is `fes_i386_cpu`, with the Bochs oracle standing in for the CPU in the machine simulation.",
       "evidence": [
@@ -991,8 +993,9 @@
         "nextpnr": "bd7a1c0d"
       },
       "board": "device",
+      "primary_toolchain": "quartus",
       "router": "CPU timing spikes use this lock with the GPU router. Not a package producer and not a recipe row.",
-      "quartus": "Quartus 17.0.2 fits the same Yosys netlist as an oracle (`scripts/quartus_fes_i386.py`). The far-transfer record is about 69\u201374 MHz nextpnr and about 98\u2013104 MHz Quartus. Accepted policy would ship both labelled builds once the 15% rule is met; recipe and package selection for that are not implemented. A gap that only nextpnr shows is filed on the flow (DeanoC/nextpnr#300, `docs/i386-cpu-design.md`). Calling Quartus the primary product toolchain is unverified.",
+      "quartus": "Quartus (primary, policy). policy: Deano 2026-10-29. nextpnr builds are advisory, and a nextpnr miss is filed as a nextpnr issue, not a blocker. Quartus 17.0.2 fits the same Yosys netlist (`scripts/quartus_fes_i386.py`). The far-transfer record is about 69\u201374 MHz nextpnr and about 98\u2013104 MHz Quartus. A nextpnr-only gap is filed on the flow (DeanoC/nextpnr#300, `docs/i386-cpu-design.md`). Recipe and package selection for a labelled variant are not implemented.",
       "features": "Not a system package. No media, HDMI, Bluetooth or mesh of its own. Phase 1 real-mode pipeline is in progress in the CPU design doc. The pc386 machine is the intended consumer and does not yet seal a package.",
       "notes": "Shared CPU RTL. Device `5CSEBA6U23I7` in the spike harness. Yosys pin `238eac9a` is newer than the repository lock's `3a5accbd` and is scoped to this CPU.",
       "evidence": [
@@ -1099,29 +1102,9 @@
   ],
   "unverified": [
     {
-      "where": "Tiers",
-      "cell": "Tier 1 definition",
-      "detail": "A Tier 1 of \"HIL-verified on kits and present in the default image\" has no matching playable core. The bootstrap image is `fes.menu` plus the pinned splash. Catalog `supported` is what this page calls Tier 1. Whether any of those cores should move to a stricter current-byte HIL tier is open."
-    },
-    {
-      "where": "`i386`, `fes.pc386`, `fes.pcxt`",
-      "cell": "Primary toolchain",
-      "detail": "The request to treat Quartus as primary, and nextpnr builds as advisory with misses filed as nextpnr issues, is not how the tree labels these blocks. i386 already files nextpnr-only gaps on DeanoC/nextpnr#300, and its Quartus fit stays an oracle until the variant rollout lands. pc386 has no producer. PC/XT's producer is OSS. The primary-toolchain cell is unverified."
-    },
-    {
-      "where": "`fes.coleco`",
-      "cell": "Media and priority",
-      "detail": "\"Old media handling (0 titles)\" and \"low priority\" were not found as statements. The factory package strips blob and blob-stream. The arcade room hardcodes five cabinet names and shows `no Coleco arcade titles in this library yet` when none of them are installed. No committed title catalog with a count of 0 was found, and no priority ranking was found."
-    },
-    {
       "where": "ZX80, TS1000, TS1500",
       "cell": "Quartus oracle",
       "detail": "Their recipes say `bring-up/check oracle`, and the only Quartus make target found for that shell is `build-fes-zx81-quartus`. Coverage of the other three models is unverified."
-    },
-    {
-      "where": "Every row",
-      "cell": "DE25-Nano",
-      "detail": "On this tree there is no sources/misteross/boards/de25nano directory, and no per-core Agilex 5 constraints, pins or image. The cell is the board-wide policy plus TBD, not a port plan. Open pull requests that are not on this branch add that directory and Quartus diagnostics (board metadata #1176, idle and menu scanout #1201, ZX81 BASIC and HDMI #1229, plus follow-ups). The checker fails when boards/de25nano appears, so those rows have to be rewritten from the merged tree."
     },
     {
       "where": "Every row with a pad or keyboard",
@@ -1136,7 +1119,7 @@
     {
       "where": "Registered recipes",
       "cell": "Ship both builds",
-      "detail": "No recipe records a completed OSS-versus-Quartus sign-off comparison against the 15% rule. i386 is the named example and is not a registered core. Which current cores would qualify to ship a Quartus variant is unverified."
+      "detail": "No recipe records a completed OSS-versus-Quartus sign-off comparison against the 15% rule. i386 is the worked example of the gap and is Quartus-primary by policy; it is not a registered core. Which other current cores would qualify to ship a Quartus variant is unverified."
     },
     {
       "where": "Catalog-supported and experimental rows",

@@ -30,20 +30,26 @@ CORES = Path('sources/misteross/cores')
 DE25 = Path('sources/misteross/boards/de25nano')
 SKIP_CORE_DIRS = frozenset({'fes-common'})
 DE10_DEVICE = '5CSEBA6U23I7'
+POLICY_CITE = 'policy: Deano 2026-10-29'
+QUARTUS_PRIMARY = 'Quartus (primary, policy)'
+DE25_CELL = 'Quartus-only (policy); shell pending'
+# i386, pc386 and PC/XT. nextpnr on these rows is advisory.
+QUARTUS_PRIMARY_IDS = frozenset({'i386', 'fes.pc386', 'fes.pcxt'})
 BOARDS = {
     'de10': (
         f'MiSTer/DE10-Nano, Cyclone V `{DE10_DEVICE}` '
-        '(`sources/misteross/boards/de10nano`). DE25-Nano Agilex 5: no shell.'
+        f'(`sources/misteross/boards/de10nano`). DE25-Nano: {DE25_CELL}.'
     ),
     'device': (
         f'Cyclone V `{DE10_DEVICE}` spike only. No DE10-Nano shell for this block. '
-        'DE25-Nano Agilex 5: no shell.'
+        f'DE25-Nano: {DE25_CELL}.'
     ),
-    'none': 'No board bitstream. DE25-Nano Agilex 5: no shell.',
+    'none': f'No board bitstream. DE25-Nano: {DE25_CELL}.',
 }
 DE25_TOOLCHAIN = (
-    'DE25-Nano: unverified. No shell; policy is Quartus-only because Agilex 5 '
-    'is not an OSS target. Per-core bring-up is TBD.'
+    f'DE25-Nano: {DE25_CELL}. {POLICY_CITE}. '
+    'Agilex 5 has no OSS reverse-engineering. '
+    'Per-core cells stay on this line until the shell is on this branch.'
 )
 
 
@@ -57,23 +63,31 @@ def cell(text: str) -> str:
 
 def toolchain_text(row: dict) -> str:
     lock = row.get('oss_lock')
-    if lock and row['board'] == 'de10':
-        where = 'DE10-Nano primary **oss** (Yosys + nextpnr-mistral).'
-    elif lock and row['board'] == 'device':
-        where = 'Cyclone V spike primary **oss** (Yosys + nextpnr-mistral). Not a board package.'
-    elif lock:
-        where = 'No board package. Lock pins:'
-    else:
-        where = ''
+    pins = ''
     if lock:
-        oss = (
-            f"{where} Yosys `{lock['yosys']}`, nextpnr `{lock['nextpnr']}`, "
+        pins = (
+            f"Yosys `{lock['yosys']}`, nextpnr `{lock['nextpnr']}`, "
             f"Mistral `{lock['mistral']}` (`{lock['path']}`). "
+        )
+    if row.get('primary_toolchain') == 'quartus':
+        # The Quartus field carries the primary label and the citation.
+        # The lock pins are the advisory nextpnr build.
+        body = f"{row['quartus']} Advisory nextpnr: {pins}{row['router']}"
+    elif lock and row['board'] == 'de10':
+        body = (
+            f"DE10-Nano primary **oss** (Yosys + nextpnr-mistral). {pins}"
             f"{row['router']} Quartus: {row['quartus']}"
         )
+    elif lock and row['board'] == 'device':
+        body = (
+            'Cyclone V spike primary **oss** (Yosys + nextpnr-mistral). '
+            f"Not a board package. {pins}{row['router']} Quartus: {row['quartus']}"
+        )
+    elif lock:
+        body = f"No board package. Lock pins: {pins}{row['router']} Quartus: {row['quartus']}"
     else:
-        oss = f"{row['oss_note']} {row['router']} Quartus: {row['quartus']}"
-    return f'{oss} {DE25_TOOLCHAIN}'
+        body = f"{row['oss_note']} {row['router']} Quartus: {row['quartus']}"
+    return f'{body} {DE25_TOOLCHAIN}'
 
 
 def render(data: dict) -> str:
@@ -165,8 +179,14 @@ def validate(root: Path, data: dict) -> list[str]:
     de10 = (root / ROOT_FILES['de10_readme']).read_text()
     if DE10_DEVICE not in de10:
         errors.append(f'{ROOT_FILES["de10_readme"]} no longer names {DE10_DEVICE}')
-    if (root / DE25).exists():
-        errors.append(f'{DE25} exists; the matrix still says there is no DE25 shell')
+    # DE25-Nano landing is expected (policy: Deano 2026-10-29). The directory
+    # may be absent (shell pending) or present. Either state is valid.
+    # Per-core DE25 cells are re-verified by hand only after the shell is on
+    # this branch; this check does not inspect them, and the rendered line
+    # stays "Quartus-only (policy); shell pending" until that review.
+    (root / DE25).is_dir()
+    if 'unverified' in DE25_TOOLCHAIN or DE25_CELL not in DE25_TOOLCHAIN:
+        errors.append('DE25 toolchain line must stay Quartus-only (policy); shell pending')
     if not (root / 'sources/misteross/boards/de10nano').is_dir():
         errors.append('sources/misteross/boards/de10nano is missing')
 
@@ -279,6 +299,28 @@ def validate(root: Path, data: dict) -> list[str]:
     for core_id in library:
         if core_id not in by_id:
             errors.append(f'library core {core_id} has no matrix row')
+
+    claimed_primary = {row['id'] for row in rows if row.get('primary_toolchain') == 'quartus'}
+    if claimed_primary != QUARTUS_PRIMARY_IDS:
+        errors.append(
+            'Quartus-primary rows '
+            f'{sorted(claimed_primary)} != {sorted(QUARTUS_PRIMARY_IDS)}'
+        )
+    for core_id in sorted(QUARTUS_PRIMARY_IDS & set(by_id)):
+        rendered_row = toolchain_text(by_id[core_id])
+        if QUARTUS_PRIMARY not in rendered_row or POLICY_CITE not in rendered_row:
+            errors.append(f'{core_id} toolchain cell is missing the Quartus-primary policy')
+        if 'primary **oss**' in rendered_row:
+            errors.append(f'{core_id} still renders an OSS-primary toolchain')
+    policy = '\n'.join(data.get('policy') or [])
+    for phrase in (POLICY_CITE, QUARTUS_PRIMARY, DE25_CELL, '0 titles'):
+        if phrase not in policy:
+            errors.append(f'policy section is missing {phrase!r}')
+    coleco = by_id.get('fes.coleco') or {}
+    coleco_notes = coleco.get('notes') or ''
+    for phrase in (POLICY_CITE, '0 titles', 'low priority', 'Adam'):
+        if phrase not in coleco_notes:
+            errors.append(f'fes.coleco notes are missing {phrase!r}')
     return errors
 
 
