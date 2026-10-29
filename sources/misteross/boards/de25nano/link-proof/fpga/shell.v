@@ -19,7 +19,7 @@ module fes_link_shell #(
     output wire waitrequest,
     output reg req = 0,
     output reg [7:0] slot_address = 0,
-    output reg slot_reset = 1,
+    (* preserve, dont_merge *) output reg slot_reset = 0,
     input wire rsp_valid,
     input wire [31:0] rsp_data,
     output wire frozen, running,
@@ -131,6 +131,10 @@ module fes_link_shell #(
     always @(posedge clk) begin
         static_count <= static_count + 32'd1;
         req <= 0;
+        // Use the fabric's native low power-up level on this boundary FF.
+        // RESET_SETTLE asserts it before any request or FROZEN acknowledgement;
+        // a high power-up level would add an inverter at the PR boundary.
+        if (state == RESET_SETTLE) slot_reset <= 1;
         readdatavalid <= accepted_read;
         writeresponsevalid <= accepted_write;
         response <= (access_fault != 0 || (accepted_write && faulted)) ? 2'b10 : 2'b00;

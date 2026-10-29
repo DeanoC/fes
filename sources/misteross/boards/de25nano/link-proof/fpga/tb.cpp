@@ -18,7 +18,14 @@ public:
         d.clk = 0; d.reset_n = reset_already_released; d.persona_b = 0; d.address = 0;
         d.read = 0; d.write = 0; d.byteenable = 15; d.writedata = 0;
         d.drop_response = 0; d.inject_response = reset_already_released;
-        for (int n=0;n<4;n++) tick();
+        d.eval();
+        need(!d.slot_reset && !d.frozen && !d.running && !d.req,
+             "cold power-up must await explicit reset settling");
+        for (int n=0;n<4;n++) {
+            tick();
+            need(d.slot_reset && !d.frozen && !d.running && !d.req,
+                 "cold reset must assert before any acknowledgement or request");
+        }
         d.inject_response = 0;
         d.reset_n = 1;
         for (int n=0;n<10;n++) tick();

@@ -26,10 +26,29 @@ class RecipeTests(unittest.TestCase):
                 self.assertIn("NUM_PARALLEL_PROCESSORS 2", qsf)
                 self.assertIn(f"DEVICE {build.DEVICE}", qsf)
                 self.assertIn('SDC_FILE ghrd_timing.sdc', qsf)
+                self.assertIn('NOT_GATE_PUSH_BACK OFF -to "soc_inst|subsys_periph|fes_pr_control|fes_pr_control|slot_reset"', qsf)
                 self.assertIn('VERILOG_MACRO "FES_DE25_PR_BUILD_ID=128\'h' + '1' * 32 + '"', qsf)
                 if revision != "base":
                     self.assertIn("root_partition.qdb -to |", qsf)
             self.assertNotIn("VIRTUAL_PIN", (output / "base.qsf").read_text())
+
+    def test_only_exact_duplicate_emif_clock_is_removed(self):
+        duplicate = 'create_clock -name EMIF_REF_CLOCK -period "166.6666MHz" [get_ports LPDDR4A_REFCLK_p]'
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp)
+            path = output / "ghrd_timing.sdc"
+            source = '# retained vendor timing\n' + duplicate + '\nsource ./jtag.sdc\n'
+            path.write_text(source)
+            receipt = build.remove_duplicate_emif_clock(output)
+            self.assertEqual(receipt["owner"], build.EMIF_REFERENCE_CLOCK)
+            self.assertEqual(receipt["period_ns"], "6.000")
+            self.assertEqual(path.read_text(), source.replace(duplicate,
+                '# Generated EMIF SDC owns the 6.000 ns LPDDR4A reference clock.'))
+            for changed in ('', source + duplicate + '\n', source.replace('166.6666MHz', '150MHz'),
+                            source.replace('LPDDR4A_REFCLK_p', 'OTHER_REFCLK_p')):
+                path.write_text(changed)
+                with self.assertRaises(build.BuildError):
+                    build.remove_duplicate_emif_clock(output)
 
     def test_tool_qpf_metadata_may_change_but_revision_selection_may_not(self):
         with tempfile.TemporaryDirectory() as tmp:

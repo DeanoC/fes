@@ -29,6 +29,7 @@ CLOCK_RESET = {"clock": "pll_inst|iopll_0_outclk0", "period_ns": "10.000", "sour
                             "freeze-ack", "load-persona", "release-reset", "identity-probe", "resume-ack"],
                "cold_reset": "preserved-SDM-and-GHRD-two-register-release",
                "late_peripheral_reset": "terminal-fault-no-new-epoch"}
+EMIF_REFERENCE_CLOCK = "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_ref_clock"
 
 
 
@@ -371,6 +372,21 @@ def control_constant(definition: bytes, name: str) -> int:
     return int(matches[0], 16)
 
 
+def remove_duplicate_emif_clock(project: Path) -> dict:
+    # The HPS helper has already verified the preserved EMIF reference input
+    # and 166.6666 MHz IP setting. Generated EMIF SDC owns this clock; Quartus
+    # ignores the later manual declaration on the same port (TMC-20025).
+    path = project / "ghrd_timing.sdc"
+    source = path.read_text()
+    duplicate = 'create_clock -name EMIF_REF_CLOCK -period "166.6666MHz" [get_ports LPDDR4A_REFCLK_p]'
+    if source.splitlines().count(duplicate) != 1 or source.count("EMIF_REF_CLOCK") != 1:
+        raise BuildError("preserved manual EMIF reference declaration differs")
+    path.write_text(source.replace(duplicate,
+        "# Generated EMIF SDC owns the 6.000 ns LPDDR4A reference clock."))
+    return {"removed_duplicate": duplicate, "owner": EMIF_REFERENCE_CLOCK, "period_ns": "6.000",
+            "port": "LPDDR4A_REFCLK_p", "verified_by": ["fes_link/clocks.sdc", "fes_link/build_timing.tcl"]}
+
+
 def capture() -> dict:
     repository = Path(subprocess.check_output(["git", "rev-parse", "--show-toplevel"], cwd=BOARD, text=True).strip())
     revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=BOARD, text=True).strip()
@@ -406,6 +422,7 @@ def write_revisions(project: Path, region: dict, build_id: str) -> None:
         'set_global_assignment -name IP_SEARCH_PATHS "custom_ip/**/*;fes_mailbox;fes_link"\n'
         'set_global_assignment -name VERILOG_FILE fes_link/personas.v\n'
         'set_global_assignment -name SDC_FILE fes_link/clocks.sdc\n'
+        'set_instance_assignment -name NOT_GATE_PUSH_BACK OFF -to "soc_inst|subsys_periph|fes_pr_control|fes_pr_control|slot_reset"\n'
         f'set_global_assignment -name VERILOG_MACRO "FES_DE25_PR_BUILD_ID=128\'h{build_id}"\n')
     lines = common.splitlines()
     constraints = "\n".join(line for line in lines if line.startswith("set_global_assignment -name SDC_FILE ")) + "\n"
@@ -453,6 +470,7 @@ def prepare(output: Path, placement: str, routing: str, archive: Path | None = N
         "source_classification": "committed" if frozen["committed"] else "working-copy-diagnostic"}
     hps_output = hps.prepare_project(retained, output / "hps")
     project = hps_output / "project"
+    emif_reference_clock = remove_duplicate_emif_clock(project)
     local = project / "fes_link"
     local.mkdir()
     for name in SOURCE_NAMES:
@@ -521,13 +539,14 @@ set_interface_property fes_pr_diagnostic EXPORT_OF subsys_periph.fes_pr_diagnost
               "source_sha256": {name: sha(data) for name, data in frozen["files"].items()},
               "source_snapshot": str(snapshot.relative_to(project.parent.parent)),
               "vendor_archive_sha256": sha(retained.read_bytes()),
+              "emif_reference_clock": emif_reference_clock,
               "control_peripheral_offset": control_offset,
               "interface": INTERFACE, "clock_reset": CLOCK_RESET, "region": region}
     inputs["control_build_id"] = sha(canonical(inputs))[:32]
     write_revisions(project, region, inputs["control_build_id"])
     inputs["project_sha256"] = {path.relative_to(project).as_posix(): sha(path.read_bytes())
         for path in local.rglob("*") if path.is_file()}
-    for name in ("base.qsf", "persona_a.qsf", "persona_b.qsf", "golden_top.v", "persona_a.hex", "persona_b.hex"):
+    for name in ("base.qsf", "persona_a.qsf", "persona_b.qsf", "golden_top.v", "ghrd_timing.sdc", "persona_a.hex", "persona_b.hex"):
         inputs["project_sha256"][name] = sha((project / name).read_bytes())
     inputs["qpf"] = verify_qpf(project)
     inputs["source_closure_sha256"] = sha(canonical(inputs))

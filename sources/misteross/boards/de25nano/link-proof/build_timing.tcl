@@ -14,6 +14,10 @@ set clock [get_clocks {pll_inst|iopll_0_outclk0}]
 if {[get_collection_size $clock] != 1 || [get_clock_info -period $clock] != 10.0} {
     error "missing preserved 100 MHz PR clock"
 }
+set emif_reference [get_clocks {soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_ref_clock}]
+if {[get_collection_size $emif_reference] != 1 || [get_clock_info -period $emif_reference] != 6.0} {
+    error "missing preserved generated 6 ns EMIF reference clock"
+}
 set reset_head [get_registers {fes_top_reset_inst|sync_regs[0]}]
 set reset_tail [get_registers {fes_top_reset_inst|sync_regs[1]}]
 if {[get_collection_size $reset_head] != 1 || [get_collection_size $reset_tail] != 1} {
