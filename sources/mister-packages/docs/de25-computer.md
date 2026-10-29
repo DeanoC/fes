@@ -22,6 +22,8 @@ is busy. The computer mailbox powers up holding execution. Its existing
 identity, execution, HID keyboard and CRC/chunked tape operations retain their
 meaning. This target advertises keyboard, fixed 720p video and read-only ZX81
 tape delivery; it does not advertise audio, gamepads, SAVE or session display.
+During an active BASIC LOAD, MediaBegin and MediaEject return `INVALID_STATE`;
+this acknowledged command rejection leaves the transport healthy.
 
 A submission is exactly one aligned, fully byte-enabled 32-bit GPO write,
 with a new request toggle, while idle and fault-free. The stored payload

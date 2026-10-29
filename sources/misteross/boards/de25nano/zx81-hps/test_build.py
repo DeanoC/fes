@@ -22,17 +22,20 @@ class HpsZX81BuildTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
 
-    def test_tape_ram_adaptation_changes_only_the_guarded_hint(self):
+    def test_tape_ram_adaptation_preserves_the_entire_native_branch(self):
         source = B.ROOT / "sources/misteross/cores/fes-zx81/rtl/zx81_tape_store.v"
         original = source.read_bytes()
-        before, after = b'(* ram_style = "m10k_tdp" *)', b'(* ramstyle = "M20K" *)'
+        replacement = (B.HERE / "tape_store.v").read_bytes()
         adapted, record = B.retarget_tape(original)
-        self.assertEqual(adapted, original.replace(before, after))
+        self.assertEqual(adapted, replacement)
+        self.assertEqual(adapted.partition(b"\n`else\n")[2], original + b"`endif\n")
         self.assertEqual(record["source_sha256"], hashlib.sha256(original).hexdigest())
         self.assertEqual(record["derived_sha256"], hashlib.sha256(adapted).hexdigest())
-        for changed in (original.replace(before, after), original + b"\n" + before):
+        for changed in (original + b"\n", original.replace(b"read_data", b"different_data")):
             with self.assertRaisesRegex(ValueError, "adaptation contract changed"):
                 B.retarget_tape(changed)
+        with self.assertRaisesRegex(ValueError, "adaptation contract changed"):
+            B.retarget_tape(original, replacement + b"\n`else\n")
 
     def test_patch_anchor_must_exist_exactly_once(self):
         self.assertEqual(B.replace_once("before ANCHOR after", "ANCHOR", "replacement"),

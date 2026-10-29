@@ -14,6 +14,12 @@ enables for the unchanged 6.5 MHz ULA and 3.25 MHz CPU. HDMI uses its separate
 continue; capture storage has no complete-frame ownership and its dual-clock
 collisions/startup/tearing remain unqualified.
 
+Tape storage uses two explicit even/odd M20K banks with common-clock
+simple dual ports and old-data reads. A guarded board wrapper retains the
+entire portable behavioral module for native simulation; shared RTL is unchanged.
+The original hint-only adaptation exceeded device capacity because Quartus
+could not infer its read-during-write behavior.
+
 Run here:
 
 ```sh
@@ -71,6 +77,11 @@ HOLD neutralization, malformed-access faults and stopped-clock reset behavior.
 Memory uses behavioral RTL; HPS, physical M20K, PLL, I2C and HDMI are not modeled.
 Compiled generation separately checks the real HPS-LW route, both PLL rates
 and the slave map against all inherited peripherals.
+
+`test_tape_store.py` compares the board primitive branch, native branch and
+portable store using an explicitly supplied vendor `altera_mf.v` model, or
+prepares a small isolated synthesis project. It never runs Quartus itself.
+Model simulation and actual M20K mapping are separate checks.
 
 This is an unadmitted JTAG SRAM diagnostic. Physical DE25 acceptance, external
 HDMI/I2C timing, MTBF, the inherited DJ24 voltage discrepancy, firmware pairing

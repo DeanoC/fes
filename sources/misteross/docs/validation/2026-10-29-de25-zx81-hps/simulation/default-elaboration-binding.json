@@ -1,0 +1,166 @@
+{
+  "tested_mdir": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/sources/misteross/build/sim/de25-zx81-hps/computer-vg771n3e",
+  "current_elaboration_mdir": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/sources/misteross/build/sim/de25-zx81-hps/default-elaboration-binding-zh9m26xl",
+  "normalization": "Only private Mdir absolute path bytes replaced by <PRIVATE_MDIR>. No code, line numbers, constants, names or other bytes normalized.",
+  "all_generated_cpp_and_headers_equal": false,
+  "files": [
+    {
+      "file": "Vfes_de25_computer.cpp",
+      "normalized_equal": true,
+      "old_normalized_sha256": "497b058e799c0672984a5fcdc7d305f44890537fcb088f2df24ed189f9fa053b",
+      "new_normalized_sha256": "497b058e799c0672984a5fcdc7d305f44890537fcb088f2df24ed189f9fa053b",
+      "equal_after_exact_guard_source_position_update": true,
+      "guard_diagnostic_source_line_updates": 0
+    },
+    {
+      "file": "Vfes_de25_computer.h",
+      "normalized_equal": true,
+      "old_normalized_sha256": "c87964327d3153f9b6801eb9b0f5b0ca91fefd8e2be5d1ac81ee1a019607066d",
+      "new_normalized_sha256": "c87964327d3153f9b6801eb9b0f5b0ca91fefd8e2be5d1ac81ee1a019607066d",
+      "equal_after_exact_guard_source_position_update": true,
+      "guard_diagnostic_source_line_updates": 0
+    },
+    {
+      "file": "Vfes_de25_computer__ConstPool_0.cpp",
+      "normalized_equal": true,
+      "old_normalized_sha256": "9f30d5590075b7b041b1b3b4eb9b3db11d46ebfc1dafad19f7b484c2d08f0931",
+      "new_normalized_sha256": "9f30d5590075b7b041b1b3b4eb9b3db11d46ebfc1dafad19f7b484c2d08f0931",
+      "equal_after_exact_guard_source_position_update": true,
+      "guard_diagnostic_source_line_updates": 0
+    },
+    {
+      "file": "Vfes_de25_computer__Dpi.cpp",
+      "normalized_equal": true,
+      "old_normalized_sha256": "a6da88af54c90d84877448aaa9f4834f35f6940ec3f35f4059357f438aff2aee",
+      "new_normalized_sha256": "a6da88af54c90d84877448aaa9f4834f35f6940ec3f35f4059357f438aff2aee",
+      "equal_after_exact_guard_source_position_update": true,
+      "guard_diagnostic_source_line_updates": 0
+    },
+    {
+      "file": "Vfes_de25_computer__Dpi.h",
+      "normalized_equal": true,
+      "old_normalized_sha256": "eb7af6a7775c733e01b805b42081e6db8c9b0dc7a01869b909cfaeb885870f46",
+      "new_normalized_sha256": "eb7af6a7775c733e01b805b42081e6db8c9b0dc7a01869b909cfaeb885870f46",
+      "equal_after_exact_guard_source_position_update": true,
+      "guard_diagnostic_source_line_updates": 0
+    },
+    {
+      "file": "Vfes_de25_computer__Syms.cpp",
+      "normalized_equal": true,
+      "old_normalized_sha256": "9b0e2c8b2306ef2d7cbc7f269bf74f790bb16bf3020ed24c4fc30f282ea83586",
+      "new_normalized_sha256": "9b0e2c8b2306ef2d7cbc7f269bf74f790bb16bf3020ed24c4fc30f282ea83586",
+      "equal_after_exact_guard_source_position_update": true,
+      "guard_diagnostic_source_line_updates": 0
+    },
+    {
+      "file": "Vfes_de25_computer__Syms.h",
+      "normalized_equal": true,
+      "old_normalized_sha256": "92095c4cda3026dd3b24afd89b213a436d168884f0ec4a021c38929c41432834",
+      "new_normalized_sha256": "92095c4cda3026dd3b24afd89b213a436d168884f0ec4a021c38929c41432834",
+      "equal_after_exact_guard_source_position_update": true,
+      "guard_diagnostic_source_line_updates": 0
+    },
+    {
+      "file": "Vfes_de25_computer___024root.h",
+      "normalized_equal": true,
+      "old_normalized_sha256": "0578a7ea1d706316bd000dec767d09b19c1cda58cedace6314a117e9d57aee1f",
+      "new_normalized_sha256": "0578a7ea1d706316bd000dec767d09b19c1cda58cedace6314a117e9d57aee1f",
+      "equal_after_exact_guard_source_position_update": true,
+      "guard_diagnostic_source_line_updates": 0
+    },
+    {
+      "file": "Vfes_de25_computer___024root__DepSet_h0305614d__0.cpp",
+      "normalized_equal": true,
+      "old_normalized_sha256": "ff83510c7b69356a5b3ef543a84479426c7c788eef72ffd6fa1cc56839fca655",
+      "new_normalized_sha256": "ff83510c7b69356a5b3ef543a84479426c7c788eef72ffd6fa1cc56839fca655",
+      "equal_after_exact_guard_source_position_update": true,
+      "guard_diagnostic_source_line_updates": 0
+    },
+    {
+      "file": "Vfes_de25_computer___024root__DepSet_h0305614d__0__Slow.cpp",
+      "normalized_equal": true,
+      "old_normalized_sha256": "cdbf36d1e18b4fc794a7f480faa891e5008d8fc37746b37687ae632c92da7926",
+      "new_normalized_sha256": "cdbf36d1e18b4fc794a7f480faa891e5008d8fc37746b37687ae632c92da7926",
+      "equal_after_exact_guard_source_position_update": true,
+      "guard_diagnostic_source_line_updates": 0
+    },
+    {
+      "file": "Vfes_de25_computer___024root__DepSet_hde5780f3__0.cpp",
+      "normalized_equal": false,
+      "old_normalized_sha256": "c803989a14c945bf759b6a7e0bbdf08990065145e077e264b84566a4b1dbb1bc",
+      "new_normalized_sha256": "ac3217d4b78806bd300c9a4e649146d65edfc979583d5c088d6f1c60b8d7891b",
+      "equal_after_exact_guard_source_position_update": true,
+      "guard_diagnostic_source_line_updates": 3
+    },
+    {
+      "file": "Vfes_de25_computer___024root__DepSet_hde5780f3__0__Slow.cpp",
+      "normalized_equal": false,
+      "old_normalized_sha256": "e74ba24e0384a9876f2594d0dc5e213ee058053c0be1184e72994af3f1383ca2",
+      "new_normalized_sha256": "ad0c0bef0bac9af8602b30dfc27e497f23acd97fec1b1b02654c870bb1277bb9",
+      "equal_after_exact_guard_source_position_update": true,
+      "guard_diagnostic_source_line_updates": 1
+    },
+    {
+      "file": "Vfes_de25_computer___024root__Slow.cpp",
+      "normalized_equal": true,
+      "old_normalized_sha256": "dc2b19b15d19d60dda29d08491f3dfd423e7b1de5fcbdb167de327c52b787642",
+      "new_normalized_sha256": "dc2b19b15d19d60dda29d08491f3dfd423e7b1de5fcbdb167de327c52b787642",
+      "equal_after_exact_guard_source_position_update": true,
+      "guard_diagnostic_source_line_updates": 0
+    },
+    {
+      "file": "Vfes_de25_computer__pch.h",
+      "normalized_equal": true,
+      "old_normalized_sha256": "2d57dc6e41ecf9bf00df78b05c0eff45f0861280d72fca7a43ef330abd2df566",
+      "new_normalized_sha256": "2d57dc6e41ecf9bf00df78b05c0eff45f0861280d72fca7a43ef330abd2df566",
+      "equal_after_exact_guard_source_position_update": true,
+      "guard_diagnostic_source_line_updates": 0
+    }
+  ],
+  "current_leaf_sha256": "26ce1e51454000f2762045cc442fbbae881404a98b94334eea8ba11e43a9ad0a",
+  "build_id": "00000000000000000000000000000000",
+  "command": [
+    "verilator",
+    "--cc",
+    "--exe",
+    "--public-flat-rw",
+    "-O3",
+    "--top-module",
+    "fes_de25_computer",
+    "-Wno-UNOPTFLAT",
+    "-Wno-CASEINCOMPLETE",
+    "-Wno-WIDTHTRUNC",
+    "-Wno-WIDTHEXPAND",
+    "-Wno-PINCONNECTEMPTY",
+    "-Wno-IMPLICITSTATIC",
+    "-Wno-CASEX",
+    "-I/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/sources/misteross/boards/de25nano/zx81-hps",
+    "-I/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/sources/misteross/boards/de25nano/zx81-hps/generated",
+    "-I/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/sources/misteross/cores/fes-common/generated",
+    "-I/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/sources/misteross/cores/fes-zx81/rtl",
+    "-I/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/sources/misteross/cores/fes-common/rtl/z80",
+    "-CFLAGS",
+    "-O2 -I/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/sources/misteross/build/sim/de25-zx81-hps/default-elaboration-binding-zh9m26xl -I/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/sources/misteross/boards/de25nano/zx81-hps -I/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/sources/misteross/boards/de25nano/zx81-hps/generated",
+    "--Mdir",
+    "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/sources/misteross/build/sim/de25-zx81-hps/default-elaboration-binding-zh9m26xl",
+    "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/sources/misteross/boards/de25nano/zx81-hps/fes_de25_computer.v",
+    "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/sources/misteross/cores/fes-common/rtl/fes_computer_mailbox.v",
+    "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/sources/misteross/cores/fes-zx81/rtl/zx81_keyboard.v",
+    "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/sources/misteross/cores/fes-zx81/rtl/zx81_machine_clock.v",
+    "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/sources/misteross/cores/fes-zx81/rtl/zx81_machine.sv",
+    "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/sources/misteross/build/sim/de25-zx81-hps/default-elaboration-binding-zh9m26xl/zx81_dpram.v",
+    "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/sources/misteross/build/sim/de25-zx81-hps/default-elaboration-binding-zh9m26xl/zx81_video_720p.v",
+    "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/sources/misteross/build/sim/de25-zx81-hps/default-elaboration-binding-zh9m26xl/zx81_tape_store.v",
+    "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/sources/misteross/cores/fes-common/rtl/z80/fes_z80_alu.sv",
+    "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/sources/misteross/cores/fes-common/rtl/z80/fes_z80_engine.sv",
+    "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/sources/misteross/cores/fes-common/rtl/z80/fes_z80_bus.sv",
+    "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/sources/misteross/cores/fes-common/rtl/z80/fes_z80_nmos.sv",
+    "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/sources/misteross/boards/de25nano/zx81-hps/computer_tb.cpp"
+  ],
+  "guard_source_position_audit": {
+    "exact_rewrite": "Four VL_FATAL_MT convergence-diagnostic origin line values in this leaf change from8to11 after three macro guard lines are inserted. Every other generated C++/header byte matches after private Mdir path normalization.",
+    "count": 4,
+    "all_other_generated_bytes_equal": true,
+    "full_machine_execution_repeated": false
+  }
+}

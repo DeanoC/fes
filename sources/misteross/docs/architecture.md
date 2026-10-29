@@ -91,6 +91,9 @@ It does not fence inherited masters or acknowledge global warm reset.
 The new path adds no DMA, but the GHRD's inherited DDR probe/debug paths remain.
 Generated constants and an offline injectable Python client add no runtime
 admission, physical MMIO address or boot image. Shared production RTL is unchanged.
+The board tape adapter uses two explicit even/odd simple-dual-port M20K banks
+with common-clock old-data reads, while retaining the exact portable module
+in its native simulation branch.
 
 [`boards/de25nano/combined/`](../boards/de25nano/combined/README.md) composes
 that local display with the preserved GHRD HPS/LPDDR4, mailbox and read-only

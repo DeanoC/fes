@@ -1,0 +1,61 @@
+{
+  "producer": "786e6383b32617af8baeb32e9de6cf99231a19f9",
+  "result": "rejected-capacity",
+  "sof_produced": false,
+  "synthesis_ALMs": 136319,
+  "device_ALMs": 46800,
+  "synthesis_registers": 154544,
+  "required_LUTs": 230235,
+  "available_LUTs": 93600,
+  "root_cause": "Tape image RAM uninferred due to unsupported read-during-write behavior; 131072-bit tape image expanded to logic.",
+  "files": {
+    "inputs.json": {
+      "retained": "inputs.json",
+      "original_bytes": 47491,
+      "original_sha256": "f6a0e6f70daece956927694199cd60434cab86648df470bce0fc2d9ab0dd10c8",
+      "retained_sha256": "f6a0e6f70daece956927694199cd60434cab86648df470bce0fc2d9ab0dd10c8"
+    },
+    "generation.json": {
+      "retained": "generation.json",
+      "original_bytes": 3370,
+      "original_sha256": "6d852ff02c9e6cdd131ea788e3dcd51d16d30159eb047016030b9b5aaca0befe",
+      "retained_sha256": "6d852ff02c9e6cdd131ea788e3dcd51d16d30159eb047016030b9b5aaca0befe"
+    },
+    "quartus-version.txt": {
+      "retained": "quartus-version.txt",
+      "original_bytes": 132,
+      "original_sha256": "67e962ce5b26d55c897ea2e1ce5937d822e07ee3d2a3068e3e4d74a01bc5e1e1",
+      "retained_sha256": "67e962ce5b26d55c897ea2e1ce5937d822e07ee3d2a3068e3e4d74a01bc5e1e1"
+    },
+    "compile.log": {
+      "retained": "compile.log.gz",
+      "original_bytes": 236673,
+      "original_sha256": "46f3bb19f875ba9fa637c3cd812e2522404431bec169570d26b1682fb8ab2f63",
+      "retained_sha256": "373b42c8e599e9fe0efa4a876c31f953e9148e2f4d4668c4e715bb050e9a29b2"
+    },
+    "project/output_files/golden_top.syn.summary": {
+      "retained": "golden_top.syn.summary",
+      "original_bytes": 376,
+      "original_sha256": "2c45257accb793bddf7302fc267f2e6827b32d9495054921523f2e49b7e1c7da",
+      "retained_sha256": "2c45257accb793bddf7302fc267f2e6827b32d9495054921523f2e49b7e1c7da"
+    },
+    "project/output_files/golden_top.syn.rpt": {
+      "retained": "golden_top.syn.rpt.gz",
+      "original_bytes": 6147272,
+      "original_sha256": "8d7c1633c011f119ba233941e2a2c6c3b567ae6c37b642b8d5d84e6e4c5501f9",
+      "retained_sha256": "f02d0c3ed38c3668e6628fd980c9b840baeda91835f3ac80ccb074edf8c5f078"
+    },
+    "project/output_files/golden_top.fit.summary": {
+      "retained": "golden_top.fit.summary",
+      "original_bytes": 554,
+      "original_sha256": "7b664b10f1c87686e45de098b777659d5383121f9d742f24fb8ff7ce6d8b3e7c",
+      "retained_sha256": "7b664b10f1c87686e45de098b777659d5383121f9d742f24fb8ff7ce6d8b3e7c"
+    },
+    "project/output_files/golden_top.fit.place.rpt": {
+      "retained": "golden_top.fit.place.rpt.gz",
+      "original_bytes": 601398,
+      "original_sha256": "13680eabda1e073e44525057dd480d323cfde95737a0d6bc59a3a694e1104ce5",
+      "retained_sha256": "cf62b6bd2631b348943d6d28175a58901655b80c972d48f525bfc419a1a11a29"
+    }
+  }
+}

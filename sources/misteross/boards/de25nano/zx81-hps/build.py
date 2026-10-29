@@ -21,7 +21,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[4]
 BOARD = "sources/misteross/boards/de25nano/"
 LOCAL = ("build.py", "board.v", "clocks.sdc", "integrate.tcl",
-         "fes_de25_computer.v", "fes_de25_computer_hw.tcl",
+         "fes_de25_computer.v", "fes_de25_computer_hw.tcl", "tape_store.v",
          "generated/fes_de25_computer.vh", "generated/fes_de25_computer.hpp",
          "generated/fes_computer.vh")
 CORE_FILES = ("zx81_machine.sv", "zx81_machine_clock.v", "zx81_dpram.v",
@@ -44,9 +44,14 @@ retarget_ram = ZX81.retarget_ram
 retarget_video = ZX81.retarget_video
 
 
-def retarget_tape(source):
-    return ZX81._derive(source, ((b'(* ram_style = "m10k_tdp" *)',
-                                b'(* ramstyle = "M20K" *)', 1),), "ZX81 tape RAM")
+def retarget_tape(source, replacement=None):
+    if replacement is None:
+        replacement = (HERE / "tape_store.v").read_bytes()
+    marker = b"\n`else\n"
+    if replacement.count(marker) != 1 or replacement.partition(marker)[2] != source + b"`endif\n":
+        raise ValueError("ZX81 tape RAM adaptation contract changed")
+    return replacement, {"source_sha256": sha(source), "derived_sha256": sha(replacement),
+                         "adapter": "explicit even/odd M20K banks; unchanged native branch"}
 
 
 def identity():
@@ -140,7 +145,7 @@ def prepare(archive, output=None, revision=None):
     files["fes_computer_mailbox.v"] = sources["sources/misteross/cores/fes-common/rtl/fes_computer_mailbox.v"]
     repairs = {}
     for name, transform in (("zx81_dpram", helpers.retarget_ram), ("zx81_video_720p", helpers.retarget_video),
-                            ("zx81_tape_store", retarget_tape)):
+                            ("zx81_tape_store", lambda source: retarget_tape(source, files["tape_store.v"]))):
         files[name + "_de25.v"], repairs[name] = transform(files[name + ".v"])
     for name, data in files.items():
         p = local / name; p.parent.mkdir(parents=True, exist_ok=True); p.write_bytes(data)

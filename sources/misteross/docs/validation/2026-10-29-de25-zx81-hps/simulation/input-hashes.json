@@ -1,0 +1,178 @@
+{
+  "classification": "Host simulation evidence. Original runs used working-copy sources; this is a later binding to a committed reference, not an original-run commit claim.",
+  "reference_commit": "786e6383b32617af8baeb32e9de6cf99231a19f9",
+  "machine_build_id": "00000000000000000000000000000000",
+  "endpoint_build_id": "00112233445566778899aabbccddeeff",
+  "original_machine_runner_sha256_recorded_before_refactor": "974b3a0ff27bfb39ec1c410cf701a8e49aa961fb848011f17c5a074e3fade208",
+  "machine_leaf_selection": "Original selected 8479-byte preguard leaf differs from current8615-byte leaf; see preserved leaf-build-id-binding and default-elaboration-binding receipts. Reconstructed preguard SHA is not an independently captured original source hash.",
+  "machine_cpp_binding": "Fourteen default-ID generated C++/headers match after only private Mdir path normalization and exactly four documented VL_FATAL_MT diagnostic origin line8to11 updates. Full machine execution was not repeated.",
+  "functional_current_sources": [
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/fes_de25_computer.v",
+      "bytes": 8615,
+      "sha256": "26ce1e51454000f2762045cc442fbbae881404a98b94334eea8ba11e43a9ad0a",
+      "matches_reference_commit": true
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/computer_tb.cpp",
+      "bytes": 19321,
+      "sha256": "3c6c79e8812e0d52a7ec6b9bd271706614e7466ae1bffa8ac8600fe815e52284",
+      "matches_reference_commit": true
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/endpoint_tb.cpp",
+      "bytes": 13411,
+      "sha256": "1382c64bfd65e50eb553806c30eb0875927714bf432eb34600c03b5a3169cb8a",
+      "matches_reference_commit": true
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/sim.py",
+      "bytes": 3164,
+      "sha256": "e93ce02a8ce358f1f5583b41dc4108547f358c5f815f9a3870c6685fea88a421",
+      "matches_reference_commit": true
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/build.py",
+      "bytes": 19355,
+      "sha256": "0a83ae14c677527593df0142878487f14a4db1b00ef28b5cf16386fc973c13c6",
+      "matches_reference_commit": true
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/generated/fes_de25_computer.vh",
+      "bytes": 1214,
+      "sha256": "c3ea3892d2ffdf0ccb9961e7d1e195d74918d3e93f93b04e955cf82b63faac87",
+      "matches_reference_commit": true
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/generated/fes_de25_computer.hpp",
+      "bytes": 1513,
+      "sha256": "79d53d66f7a4ea108ec85f55b2a3967bdd7ee5e1ea42a4f73d541bb1defe8610",
+      "matches_reference_commit": true
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/generated/fes_computer.vh",
+      "bytes": 12548,
+      "sha256": "fd64d373df04b1ec3220938c95cb598a4e448f9b78a6d789e0fc5cec535dfc59",
+      "matches_reference_commit": true
+    },
+    {
+      "path": "sources/libmister-runtime/src/native/generated/fes_computer.hpp",
+      "bytes": 14062,
+      "sha256": "f8f38d88daa43c3c58e845a74e5cc3d20cd397479a2f9b49da7c9ec9335db42d",
+      "matches_reference_commit": true
+    },
+    {
+      "path": "sources/misteross/cores/fes-common/rtl/fes_computer_mailbox.v",
+      "bytes": 39698,
+      "sha256": "e89431a63c4b91bef2ac377ceeeec5cea67d3aa3ad09a3f518cfdb579aa1daa0",
+      "matches_reference_commit": true
+    },
+    {
+      "path": "sources/misteross/cores/fes-common/rtl/z80/fes_z80_alu.sv",
+      "bytes": 8870,
+      "sha256": "c7ce86810a6537150ccc482b91135031422c10ff4de257a6d4d8e54f3a4f43d9",
+      "matches_reference_commit": true
+    },
+    {
+      "path": "sources/misteross/cores/fes-common/rtl/z80/fes_z80_engine.sv",
+      "bytes": 50666,
+      "sha256": "f40dad3d2b4909c4b93fa507479a417ad9b197d708580d8cc100f8f46954113b",
+      "matches_reference_commit": true
+    },
+    {
+      "path": "sources/misteross/cores/fes-common/rtl/z80/fes_z80_bus.sv",
+      "bytes": 11242,
+      "sha256": "1946158638c97ee46f993b4a53e168cd4f44f209af01b4be0f11faa69c331b2a",
+      "matches_reference_commit": true
+    },
+    {
+      "path": "sources/misteross/cores/fes-common/rtl/z80/fes_z80_nmos.sv",
+      "bytes": 4099,
+      "sha256": "d09a07cb9fcadf0c7811132dfe830554f0185f964a36c52fdc3792ad7e1ef1c0",
+      "matches_reference_commit": true
+    },
+    {
+      "path": "sources/misteross/cores/fes-zx81/rtl/zx81_keyboard.v",
+      "bytes": 4223,
+      "sha256": "684185761646e975608fd29c57366d50c12d8710d36e5c69696baf1ae453b45f",
+      "matches_reference_commit": true
+    },
+    {
+      "path": "sources/misteross/cores/fes-zx81/rtl/zx81_machine_clock.v",
+      "bytes": 1670,
+      "sha256": "d222d14bc64a9f7dd9cf1e3bad33be7708a70e0bfc94a9a6bf713d4d5ebbd501",
+      "matches_reference_commit": true
+    },
+    {
+      "path": "sources/misteross/cores/fes-zx81/rtl/zx81_machine.sv",
+      "bytes": 20886,
+      "sha256": "37744e9b25bb44e600d7e843bff4722d4db70cf614514dd04ef6e5368627187d",
+      "matches_reference_commit": true
+    },
+    {
+      "path": "sources/misteross/cores/fes-zx81/rtl/zx81_model.vh",
+      "bytes": 438,
+      "sha256": "c421b4ec19d294bc6e2dc98562ebf99fb9ce1100efa78fea1ed15ffabd2c3d2f",
+      "matches_reference_commit": true
+    },
+    {
+      "path": "sources/misteross/cores/fes-zx81/rtl/zx81_dpram.v",
+      "bytes": 3795,
+      "sha256": "a72d4bb2c2311813f07575c12ea96e51d1269882eed795753c3061b30c006038",
+      "matches_reference_commit": true
+    },
+    {
+      "path": "sources/misteross/cores/fes-zx81/rtl/zx81_video_720p.v",
+      "bytes": 3877,
+      "sha256": "caf509f34eed2278ae78edb3f4bc3c8b68876d27aaf0edc30edff8854147f231",
+      "matches_reference_commit": true
+    },
+    {
+      "path": "sources/misteross/cores/fes-zx81/rtl/zx81_tape_store.v",
+      "bytes": 1283,
+      "sha256": "796fdc6a9b1f044f96431ce64ab0f73a5676790770f7c814bb387c4df6a475fb",
+      "matches_reference_commit": true
+    },
+    {
+      "path": "sources/misteross/cores/fes-zx81/rtl/zx8x.hex",
+      "bytes": 49152,
+      "sha256": "93afab88ef8f12e6848700f4824f4268f193651657d23acbd30f8e9bb131131b",
+      "matches_reference_commit": true
+    }
+  ],
+  "machine_selected_adaptations": [
+    {
+      "selected_file": "zx81_dpram.v",
+      "bytes": 3794,
+      "sha256": "c8b6b1e922633255c43e099eb6047bd3d84b57eafba7fdcb53c0836f03e11ea2",
+      "exact_final_helper_match": true
+    },
+    {
+      "selected_file": "zx81_video_720p.v",
+      "bytes": 3877,
+      "sha256": "12f650c237598ecbc9d9cbf11241c49277a057def899e665ff4389b260c23135",
+      "exact_final_helper_match": true
+    },
+    {
+      "selected_file": "zx81_tape_store.v",
+      "bytes": 1278,
+      "sha256": "dbe005b3c1590c745da217aed515b329052461d8feba3e793a77b8bee4f12461",
+      "exact_final_helper_match": true
+    }
+  ],
+  "retained_machine_binary_sha256": "10db4b3b651d629626fcb36e855925fa3c16c6233bcfb7b91ccd94bb6a06a30d",
+  "selected_rom_sha256": "93afab88ef8f12e6848700f4824f4268f193651657d23acbd30f8e9bb131131b",
+  "selected_cpp_abi_header_sha256": "f8f38d88daa43c3c58e845a74e5cc3d20cd397479a2f9b49da7c9ec9335db42d",
+  "raw_default_elaboration_diff_sha256": "ff54203be795e6f795165f35562be3a15be025b43e597da7baaac7a73aecb92f",
+  "default_diff_encoding": "gzip, mtime0; decompression reproduces original raw bytes, including whitespace.",
+  "source_log_copies": {
+    "machine.log": "out/de25-zx81-hps-simulation/attempt-01.log",
+    "endpoint-runner.log": "out/de25-zx81-hps-simulation/endpoint-runner-smoke.log",
+    "endpoint-native.log": "out/de25-computer-endpoint-native-02/simulation.log",
+    "endpoint-native-compile.log": "out/de25-computer-endpoint-native-02/compile.log",
+    "endpoint-native-receipt.json": "out/de25-computer-endpoint-native-02/receipt.json",
+    "leaf-build-id-binding.json": "out/de25-zx81-hps-simulation/leaf-build-id-binding.json",
+    "default-elaboration-binding.json": "out/de25-zx81-hps-simulation/default-elaboration-binding.json",
+    "machine-verilator-files.dat": "sources/misteross/build/sim/de25-zx81-hps/computer-vg771n3e/Vfes_de25_computer__verFiles.dat"
+  }
+}

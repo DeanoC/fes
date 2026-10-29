@@ -1,0 +1,55 @@
+{
+  "schema": "fes.github-actions.job-log-summary.v1",
+  "job_id": 123247091992,
+  "job_name": "host (2)",
+  "job_url": "https://github.com/DeanoC/fes/actions/runs/40812839901/job/123247091992",
+  "conclusion": "success",
+  "source": "GitHub connector fetch_workflow_job_logs (decoded log; full log not copied)",
+  "source_log_characters": 30843,
+  "source_log_line_count": 399,
+  "go_package_pass_lines": 30,
+  "unique_go_packages": 30,
+  "excerpts": [
+    {
+      "line": 119,
+      "text": "HEAD is now at 66d0cff Merge 786e6383b32617af8baeb32e9de6cf99231a19f9 into 1db4ba71e973aa01fc521fe42ed0a901061ad8b0"
+    },
+    {
+      "line": 271,
+      "text": "\"label\": \"host race suite excluding race-expensive packages (2/3)\","
+    },
+    {
+      "line": 313,
+      "text": "\"label\": \"host concurrency-focused race checks\","
+    },
+    {
+      "line": 329,
+      "text": "\"label\": \"expansion concurrency-focused race checks\","
+    },
+    {
+      "line": 363,
+      "text": "\"label\": \"host race suite excluding race-expensive packages (2/3)\","
+    },
+    {
+      "line": 364,
+      "text": "\"returncode\": 0"
+    },
+    {
+      "line": 367,
+      "text": "\"label\": \"host concurrency-focused race checks\","
+    },
+    {
+      "line": 368,
+      "text": "\"returncode\": 0"
+    },
+    {
+      "line": 371,
+      "text": "\"label\": \"expansion concurrency-focused race checks\","
+    },
+    {
+      "line": 372,
+      "text": "\"returncode\": 0"
+    }
+  ],
+  "note": "Counts and groups retain the producing suite's wording; Go package pass lines are not individual test counts. These are host software tests, including tests of hardware guard code, not physical hardware acceptance."
+}

@@ -1,0 +1,104 @@
+{
+  "schema": "fes.de25-zx81-hps.software-plan-coverage.v1",
+  "implementation_revision": "786e6383b32617af8baeb32e9de6cf99231a19f9",
+  "ci_checkout": "66d0cff98c323dd176850d48c853ac3272ef5532",
+  "equal_tree": "1dd77c0a82501cc70bd9a59544af2267933e7371",
+  "local_plan_source": "local-affected-plan.log",
+  "ci_plan_source": "ci-affected-plan.json",
+  "local_and_ci_changed_path_sets_equal": true,
+  "planned_commands": 10,
+  "commands": [
+    {
+      "ordinal": 1,
+      "lane": "always",
+      "label": "test_affected.py",
+      "coverage": "CI plan job runs tests.test_affected inside its successful 102-case planner/metadata suite.",
+      "ci_job_ids": [
+        123246961987
+      ]
+    },
+    {
+      "ordinal": 2,
+      "lane": "always",
+      "label": "test_test_changed.py",
+      "coverage": "CI plan job runs tests.test_test_changed inside its successful 102-case planner/metadata suite.",
+      "ci_job_ids": [
+        123246961987
+      ]
+    },
+    {
+      "ordinal": 3,
+      "lane": "always",
+      "label": "committed whitespace",
+      "coverage": "CI plan job successfully runs check_diff.py for base 1db4ba71e973aa01fc521fe42ed0a901061ad8b0 to head 786e6383b32617af8baeb32e9de6cf99231a19f9.",
+      "ci_job_ids": [
+        123246961987
+      ]
+    },
+    {
+      "ordinal": 4,
+      "lane": "always",
+      "label": "working whitespace",
+      "coverage": "Local sequential runner passed this working-copy check before entering parent tests. CI checks committed changes; it does not test a future working-copy diff.",
+      "ci_job_ids": []
+    },
+    {
+      "ordinal": 5,
+      "lane": "parent",
+      "label": "parent Python regressions",
+      "coverage": "CI parent-tests runs the same false-video/false-media selection and succeeds with 1090 cases including 2 skips.",
+      "ci_job_ids": [
+        123247091941
+      ]
+    },
+    {
+      "ordinal": 6,
+      "lane": "parent",
+      "label": "working-tree generated consumer consistency",
+      "coverage": "CI consistency job passes make check on the byte-identical checkout tree, plus unused-code checking.",
+      "ci_job_ids": [
+        123247091950
+      ]
+    },
+    {
+      "ordinal": 7,
+      "lane": "host",
+      "label": "host Go and UI tests",
+      "coverage": "All three CI host shards pass; their union includes UI checks and the full selected unsharded command set.",
+      "ci_job_ids": [
+        123247092015,
+        123247091992,
+        123247092070
+      ]
+    },
+    {
+      "ordinal": 8,
+      "lane": "runtime",
+      "label": "runtime software tests",
+      "coverage": "CI runtime wrapper executes make -j2 test in sources/libmister-runtime and returns 0.",
+      "ci_job_ids": [
+        123247092019
+      ]
+    },
+    {
+      "ordinal": 9,
+      "lane": "contracts",
+      "label": "contract schemas and generated fixtures",
+      "coverage": "CI contracts executes make test in sources/mister-packages and passes.",
+      "ci_job_ids": [
+        123247092041
+      ]
+    },
+    {
+      "ordinal": 10,
+      "lane": "fpga",
+      "label": "test_*.py",
+      "coverage": "CI fpga-producer executes the selected misteross Python discovery suite and succeeds with 1448 cases including 58 skips.",
+      "ci_job_ids": [
+        123247091948
+      ]
+    }
+  ],
+  "local_run_status": "terminated-partial, make exit 2; no overall local pass",
+  "scope": "Coverage is frozen to the implementation/tree above. Later RTL or source changes require their own affected checks and CI receipts."
+}
