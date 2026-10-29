@@ -54,9 +54,12 @@ HIGHLIGHTS = {
     'fes.c64': 'disk, keys, HDMI',
     'fes.spectrum': 'tape, keys, HDMI',
     'fes.spectrum128': 'tape, keys, HDMI',
+    'fes.spectrum-plus2': 'tape, keys, HDMI',
     'fes.spectrum-plus3': 'disk, keys, HDMI',
     'fes.pentagon': 'disk, keys, HDMI',
+    'fes.c64-ntsc': '—',
     'fes.atari-st': 'disk, keys, mouse, HDMI',
+    'fes.atari-ste': '—',
     'fes.riscv': 'pad, HDMI',
     'fes.demo': 'pad, HDMI',
     'sim.pong': '—',
@@ -84,11 +87,14 @@ DETAILS = {
     'fes.sg1000': ('sources/misteross/cores/fes-sg1000/README.md', 'README'),
     'fes.apple2': ('sources/misteross/cores/fes-apple2/README.md', 'README'),
     'fes.c64': ('sources/misteross/cores/fes-c64/README.md', 'README'),
+    'fes.c64-ntsc': ('sources/misteross/cores/fes-c64/README.md', 'README'),
     'fes.spectrum': ('sources/misteross/cores/fes-spectrum/README.md', 'README'),
     'fes.spectrum128': ('sources/misteross/cores/fes-spectrum/README.md', 'README'),
+    'fes.spectrum-plus2': ('sources/misteross/cores/fes-spectrum/README.md', 'README'),
     'fes.spectrum-plus3': ('sources/misteross/cores/fes-spectrum/README.md', 'README'),
     'fes.pentagon': ('sources/misteross/cores/fes-spectrum/README.md', 'README'),
     'fes.atari-st': ('sources/misteross/cores/fes-atari-st/README.md', 'README'),
+    'fes.atari-ste': ('sources/misteross/cores/fes-atari-st/README.md', 'README'),
     'fes.riscv': ('sources/misteross/cores/fes-riscv/README.md', 'README'),
     'fes.demo': ('sources/misteross/docs/cores.md', 'cores'),
     'sim.pong': ('sources/misteross/docs/cores.md', 'cores'),
@@ -105,6 +111,7 @@ WINDOW_START = '2026-08-30'
 RECENT_CUTOFF = '2026-10-16'
 MEDIA_GENS = frozenset({'live', 'linked-rom', 'old', 'none', 'sim', 'diagnostic'})
 TIER_ROLES = frozenset({'firmware', 'shared', 'demo', 'reference', 'bring-up', 'play'})
+OVERRIDE_REASON = 'Deano 2026-10-29'
 ROLE_TIER = {
     'firmware': 'firmware',
     'shared': 'shared',
@@ -115,7 +122,7 @@ ROLE_TIER = {
 
 
 def derive_tier(row: dict) -> str:
-    """Tier from role and signals. Catalog standing is not an input."""
+    """Tier from role and signals. Catalog standing and overrides are not inputs."""
     role = row['tier_role']
     if role in ROLE_TIER:
         return ROLE_TIER[role]
@@ -128,6 +135,14 @@ def derive_tier(row: dict) -> str:
     if rtl and rtl >= WINDOW_START:
         return 'aging'
     return 'stale'
+
+
+def effective_tier(row: dict) -> str:
+    """Displayed tier. A recorded override replaces the derived result."""
+    override = row.get('tier_override')
+    if override:
+        return override['tier']
+    return derive_tier(row)
 
 
 def load_json(root: Path):
@@ -175,7 +190,9 @@ def render(data: dict) -> str:
         '',
         '## Legend',
         '',
-        f'Tiers are derived from signals in the JSON (as of {AS_OF}). Catalog standing is recorded and is not a tier. Owned RTL is a commit that changes that core\'s `rtl/` and names the core, or that core holds at least half of the commit\'s RTL files. A one-file edit inside another core\'s commit does not count.',
+        f'Tiers are derived from signals in the JSON (as of {AS_OF}). Catalog standing is recorded and is not a tier. Owned RTL is a commit that changes that core\'s `rtl/` and names the core, or that core holds at least half of the commit\'s RTL files. A one-file edit inside another core\'s commit does not count. A recorded override from {OVERRIDE_REASON} replaces the derived tier.',
+        '',
+        'Coleco is Aging: work toward Current is in progress and still needs work. Spectrum and Atari ST stay Current; their kit HIL pass on the latest RTL is pending and expected soon. C64 NTSC and Atari STE are Bring-up (queued).',
         '',
         '| Tier | Meaning |',
         '| --- | --- |',
@@ -425,16 +442,31 @@ def validate(root: Path, data: dict) -> list[str]:
             errors.append(f"{row['id']} catalog standing must stay a weak signal")
         if sig.get('catalog_standing') != row.get('library_standing'):
             errors.append(f"{row['id']} catalog signal does not match library_standing")
-        expected = derive_tier(row)
-        if row.get('tier') != expected:
-            errors.append(f"{row['id']} tier {row.get('tier')} != derived {expected}")
+        derived = derive_tier(row)
+        override = row.get('tier_override')
+        if override:
+            if override.get('reason') != OVERRIDE_REASON:
+                errors.append(f"{row['id']} tier override reason is not {OVERRIDE_REASON}")
+            if override.get('tier') not in tier_ids:
+                errors.append(f"{row['id']} tier override {override.get('tier')} is not a displayed tier")
+            if not str(override.get('note') or '').strip():
+                errors.append(f"{row['id']} tier override has no note")
+            if row.get('tier') != override.get('tier'):
+                errors.append(f"{row['id']} tier {row.get('tier')} != override {override.get('tier')}")
+        elif row.get('tier') != derived:
+            errors.append(f"{row['id']} tier {row.get('tier')} != derived {derived}")
+        if derived == 'unresolved' and not override:
+            errors.append(f"{row['id']} derives to unresolved and has no override")
+        expected = effective_tier(row)
         flipped = dict(row)
         flipped['library_standing'] = 'supported' if row.get('library_standing') != 'supported' else 'experimental'
         flipped_sig = dict(sig)
         flipped_sig['catalog_standing'] = flipped['library_standing']
         flipped['signals'] = flipped_sig
-        if derive_tier(flipped) != expected:
-            errors.append(f"{row['id']} tier changes when catalog standing changes")
+        if derive_tier(flipped) != derived:
+            errors.append(f"{row['id']} derived tier changes when catalog standing changes")
+        if effective_tier(flipped) != expected:
+            errors.append(f"{row['id']} displayed tier changes when catalog standing changes")
         hil = sig.get('hil_note')
         if hil and not (root / hil).is_file():
             errors.append(f"{row['id']} hil note is missing: {hil}")
@@ -472,9 +504,19 @@ def validate(root: Path, data: dict) -> list[str]:
         errors.append('DE25 policy line must appear once in the human page')
     if rendered.count(QUARTUS_PRIMARY) != 1:
         errors.append('Quartus-primary policy line must appear once in the human page')
-    for phrase in (POLICY_CITE, 'empty-library status', 'shell pending'):
+    for phrase in (
+        POLICY_CITE,
+        'empty-library status',
+        'shell pending',
+        'Bring-up (queued)',
+        'Spectrum (48K, 128K, +2, +2A/+3, Pentagon)',
+        'C64 (NTSC)',
+        'Atari ST (STE)',
+    ):
         if phrase not in rendered:
             errors.append(f'human page is missing {phrase!r}')
+    if 'Unresolved' in rendered:
+        errors.append('human page still shows the Unresolved tier')
     if 'toolchain.lock' in rendered or '## Evidence' in rendered:
         errors.append('human page still carries locks or an evidence table')
     for row in rows:

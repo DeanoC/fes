@@ -3,7 +3,7 @@
   "intro": [
     "This page is the board and toolchain matrix. It is taken from `config/core-recipes.toml`, `config/core-library.toml`, `profiles/native-integration-dev.toml`, the per-core `toolchain.lock` files, the misteross producers, and the docs those files point at. A cell that is not in those sources is marked unverified or TBD.",
     "The bootstrap image installs `fes.menu` and the pinned splash bitstream. Every playable core is a catalog install. Library standing `supported` is not a claim that the current bitstream has kit acceptance. Dated notes under `docs/validation/` accept only the artifact they name.",
-    "Tiers are derived from owned RTL dates, kit notes, image role and media generation. Catalog standing is stored on each row as a weak signal and is not an input. As of 2026-10-29. The recent cutoff is 2026-10-16. The window starts 2026-08-30."
+    "Tiers are derived from owned RTL dates, kit notes, image role and media generation. Catalog standing is stored on each row as a weak signal and is not an input. As of 2026-10-29. The recent cutoff is 2026-10-16. The window starts 2026-08-30. A tier_override with reason Deano 2026-10-29 replaces the derived tier."
   ],
   "tiers": [
     {
@@ -27,14 +27,14 @@
       "meaning": "No owned RTL in the 60-day window."
     },
     {
-      "id": "unresolved",
-      "label": "Unresolved",
-      "meaning": "Recent RTL and old media. The rule does not pick a tier."
-    },
-    {
       "id": "bring-up",
       "label": "Bring-up",
       "meaning": "No recipe. Diagnostic RTL or host simulation in progress."
+    },
+    {
+      "id": "bring-up-queued",
+      "label": "Bring-up (queued)",
+      "meaning": "No package yet. Queued by Deano 2026-10-29."
     },
     {
       "id": "shared",
@@ -617,7 +617,7 @@
     {
       "id": "fes.coleco",
       "label": "`fes.coleco`",
-      "tier": "unresolved",
+      "tier": "aging",
       "covers": [
         "fes-coleco"
       ],
@@ -641,7 +641,7 @@
       "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
       "quartus": "Recipe `quartus_role` is `bring-up/check oracle`. `make build-fes-coleco-quartus` is the Quartus 17.0.2 oracle, not the installed package.",
       "features": "Media: format-4 ROM map, exact 8 KiB `coleco-bios` plus 16 KiB `coleco-cart`. The recipe producer strips `fes.media.blob`, `fes.media.blob-stream` and `fes.firmware.blob`. No live media unit. Guide Change media relaunches the same title with another exact-size `.col`/`.rom`/`.bin` (`POST /api/v1/session/cartridge`); the saved cartridge binding is unchanged. Input: `fes.gamepad.ports` and `fes.keypad.ports`. HDMI: native-pixel shell, mandatory Direct or Scanlines part, then the session display plane, fixed 720p60. CPU: TV80, not `fes_z80_nmos`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
-      "notes": "Library standing `supported`. policy: Deano 2026-10-29. ColecoVision still uses the old media handling. Updating it is low priority and is folded into the wider Coleco work (for example Adam support). The `example.coleco-arcade` room names five cabinets and lists only those with matching titles; its empty-library status says `no Coleco arcade titles in this library yet` only when none match. Older `build_fes_coleco.py` and `build_fes_coleco_oss.py` still declare blob and blob-stream; they are not the recipe producer.",
+      "notes": "Library standing `supported`. policy: Deano 2026-10-29. ColecoVision still uses the old media handling. Updating it is low priority and is folded into the wider Coleco work (for example Adam support). The `example.coleco-arcade` room names five cabinets and lists only those with matching titles; its empty-library status says `no Coleco arcade titles in this library yet` only when none match. Older `build_fes_coleco.py` and `build_fes_coleco_oss.py` still declare blob and blob-stream; they are not the recipe producer. Deano 2026-10-29: the tier is Aging. Work toward Current is in progress and still needs work (media handling and the wider Coleco work).",
       "evidence": [
         "config/core-recipes.toml",
         "config/core-library.toml",
@@ -684,6 +684,11 @@
         "media_gen": "old",
         "image_role": "none",
         "catalog_standing": "supported"
+      },
+      "tier_override": {
+        "tier": "aging",
+        "reason": "Deano 2026-10-29",
+        "note": "Work toward Current is in progress and still needs work (media handling and the wider Coleco work)."
       }
     },
     {
@@ -905,7 +910,7 @@
       "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
       "quartus": "Recipe `quartus_role` is `no oracle required`. No Quartus product variant is selected. A failed OSS route does not fall back to Quartus.",
       "features": "Media: read-only D64 (`fes.media.c64-disk`) and linked `c64-firmware`. No disk-write interface on the producer. Input: `fes.keyboard.hid` and `fes.gamepad.ports`. HDMI: fixed 720p60. The producer requires `fes.video.session-display` and `fes.fabric.video.display-plane`, and `cores/fes-c64/rtl/top.v` instantiates `fes_display_plane`. `docs/display-pipeline.md` still lists this shell's plane as Planned. CPU: shared `cpu6502`, plus a native 1541. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
-      "notes": "Library standing `experimental`. Not in the bootstrap image. Dated kit notes accept only the packages they name. No Commodore ROM is shipped.",
+      "notes": "Library standing `experimental`. Not in the bootstrap image. Dated kit notes accept only the packages they name. No Commodore ROM is shipped. This row is PAL 6569. NTSC is fes.c64-ntsc, Bring-up (queued).",
       "evidence": [
         "config/core-recipes.toml",
         "config/core-library.toml",
@@ -950,6 +955,54 @@
       }
     },
     {
+      "id": "fes.c64-ntsc",
+      "label": "C64 NTSC",
+      "tier": "bring-up-queued",
+      "covers": [],
+      "paths": [],
+      "recipe": false,
+      "library_standing": null,
+      "in_bootstrap_image": false,
+      "oss_lock": null,
+      "board": "none",
+      "router": "No package and no producer.",
+      "quartus": "No Quartus flow. The shipped C64 package is PAL.",
+      "features": "No package. No media, input or HDMI of its own.",
+      "notes": "Deano 2026-10-29: Bring-up (queued). The C64 README says NTSC and 8565 grey-dot behavior remain unqualified. No NTSC model or package.",
+      "evidence": [
+        "sources/misteross/cores/fes-c64/README.md"
+      ],
+      "oss_note": "No toolchain lock. No NTSC bitstream.",
+      "tier_role": "play",
+      "family": "c64",
+      "variant": "NTSC",
+      "display": "C64 (NTSC)",
+      "tier_override": {
+        "tier": "bring-up-queued",
+        "reason": "Deano 2026-10-29",
+        "note": "Queued. The shipped package is PAL 6569. The C64 README says NTSC and 8565 grey-dot remain unqualified. No NTSC model or package."
+      },
+      "signals": {
+        "as_of": "2026-10-29",
+        "window_start": "2026-08-30",
+        "recent_cutoff": "2026-10-16",
+        "catalog_weight": "weak",
+        "last_rtl_change": null,
+        "last_rtl_sha": null,
+        "last_rtl_subject": null,
+        "last_host_change": null,
+        "last_host_sha": null,
+        "last_host_subject": null,
+        "last_hil_pass": null,
+        "hil_note": null,
+        "hil_scope": null,
+        "open_issues": [],
+        "media_gen": "none",
+        "image_role": "none",
+        "catalog_standing": null
+      }
+    },
+    {
       "id": "fes.spectrum",
       "label": "`fes.spectrum`",
       "tier": "current",
@@ -974,7 +1027,7 @@
       "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
       "quartus": "Recipe `quartus_role` is `no oracle required`. No Quartus product variant is selected. A failed OSS route does not fall back to Quartus.",
       "features": "Media: format-3 linked `spectrum-firmware`, tape 2.0 from HPS DDR, and 48K snapshots (`fes.media.spectrum-snapshot`). No disk interface on this model. Input: `fes.keyboard.hid` and `fes.gamepad.ports`. HDMI: 50 Hz frames 3x3 through the session display plane, fixed 720p60. CPU: `fes_z80_nmos`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
-      "notes": "Library standing `experimental`. Not in the bootstrap image. No Sinclair ROM is shipped. Joysticks on hardware are recorded as open in core status.",
+      "notes": "Library standing `experimental`. Not in the bootstrap image. No Sinclair ROM is shipped. Joysticks on hardware are recorded as open in core status. Deano 2026-10-29: stays Current. Kit HIL pass on the latest RTL is pending and expected soon.",
       "evidence": [
         "config/core-recipes.toml",
         "config/core-library.toml",
@@ -1013,6 +1066,11 @@
         "media_gen": "live",
         "image_role": "none",
         "catalog_standing": "experimental"
+      },
+      "tier_override": {
+        "tier": "current",
+        "reason": "Deano 2026-10-29",
+        "note": "Stays Current. Kit HIL pass on the latest RTL is pending and expected soon."
       }
     },
     {
@@ -1038,7 +1096,7 @@
       "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
       "quartus": "Recipe `quartus_role` is `no oracle required`. No Quartus product variant is selected. A failed OSS route does not fall back to Quartus.",
       "features": "Media: format-3 linked `spectrum128-firmware`, tape 2.0, and 48K/128K snapshots. No disk interface on this model. Input: `fes.keyboard.hid` and `fes.gamepad.ports`. HDMI: session display plane, fixed 720p60. AY-3-8912. CPU: `fes_z80_nmos`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
-      "notes": "Same tree and lock as `fes.spectrum`. Library standing `experimental`. Not in the bootstrap image.",
+      "notes": "Same tree and lock as `fes.spectrum`. Library standing `experimental`. Not in the bootstrap image. The producer text says 128K/+2. Grey +2 is the variant fes.spectrum-plus2 and has no model of its own.",
       "evidence": [
         "config/core-recipes.toml",
         "config/core-library.toml",
@@ -1075,6 +1133,60 @@
         "media_gen": "live",
         "image_role": "none",
         "catalog_standing": "experimental"
+      },
+      "tier_override": {
+        "tier": "current",
+        "reason": "Deano 2026-10-29",
+        "note": "Stays Current. Kit HIL pass on the latest RTL is pending and expected soon."
+      }
+    },
+    {
+      "id": "fes.spectrum-plus2",
+      "label": "Spectrum +2",
+      "tier": "current",
+      "covers": [],
+      "paths": [],
+      "recipe": false,
+      "library_standing": null,
+      "in_bootstrap_image": false,
+      "oss_lock": null,
+      "board": "de10",
+      "router": "No package. The 128 producer accepts the same router as fes.spectrum128.",
+      "quartus": "No package and no Quartus product variant. The shell is the Spectrum OSS build when a plus2 model exists.",
+      "features": "No distinct media path. The grey +2 is a tape machine, like the 128K, and is not the +2A/+3 disk machine.",
+      "notes": "Deano 2026-10-29: supported, alongside +2A/+3. The 128 producer is labelled 128K/+2 and ships one package, fes.spectrum128, with spectrum128-firmware. There is no plus2 model, firmware id or package. That split is the remaining work.",
+      "evidence": [
+        "sources/misteross/scripts/build_fes_spectrum_oss.py",
+        "sources/misteross/cores/fes-spectrum/README.md",
+        "sources/misteross/README.md"
+      ],
+      "oss_note": "No toolchain lock of its own. It has no bitstream yet.",
+      "tier_role": "play",
+      "family": "spectrum",
+      "variant": "+2",
+      "tier_override": {
+        "tier": "current",
+        "reason": "Deano 2026-10-29",
+        "note": "Supported. No distinct model yet: the 128 producer is labelled 128K/+2 and ships fes.spectrum128. Remaining work is a plus2 model, firmware id and package beside 128K and +2A/+3."
+      },
+      "signals": {
+        "as_of": "2026-10-29",
+        "window_start": "2026-08-30",
+        "recent_cutoff": "2026-10-16",
+        "catalog_weight": "weak",
+        "last_rtl_change": null,
+        "last_rtl_sha": null,
+        "last_rtl_subject": null,
+        "last_host_change": null,
+        "last_host_sha": null,
+        "last_host_subject": null,
+        "last_hil_pass": null,
+        "hil_note": null,
+        "hil_scope": null,
+        "open_issues": [],
+        "media_gen": "none",
+        "image_role": "none",
+        "catalog_standing": null
       }
     },
     {
@@ -1137,6 +1249,11 @@
         "media_gen": "live",
         "image_role": "none",
         "catalog_standing": "experimental"
+      },
+      "tier_override": {
+        "tier": "current",
+        "reason": "Deano 2026-10-29",
+        "note": "Stays Current. Kit HIL pass on the latest RTL is pending and expected soon."
       }
     },
     {
@@ -1199,6 +1316,11 @@
         "media_gen": "live",
         "image_role": "none",
         "catalog_standing": "experimental"
+      },
+      "tier_override": {
+        "tier": "current",
+        "reason": "Deano 2026-10-29",
+        "note": "Stays Current. Kit HIL pass on the latest RTL is pending and expected soon."
       }
     },
     {
@@ -1228,7 +1350,7 @@
       "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
       "quartus": "Recipe `quartus_role` is `no oracle required`. No Quartus product variant is selected. A failed OSS route does not fall back to Quartus.",
       "features": "Media: format-3 linked `atari-st-firmware` plus writable geometry-aware `.st` (`fes.media.atari-st-floppy`, write and geometry). Input: `fes.keyboard.hid`, `fes.gamepad.ports` and `fes.mouse.relative`. HDMI: shell raster with Direct/Scanlines parts and a built-in Direct fallback. Display plane is Planned in `docs/display-pipeline.md`. CPU: shared `fx68k`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
-      "notes": "The only recipe with `optional = true`. Library standing is `experimental`, not `supported`. The default profile does not select it. `FES_SKIP_OPTIONAL_CORES=1` or `FES_SKIP_CORES=fes.atari-st` skips place-and-route when a selection includes it. `FES_REQUIRE_ALL_CORES=1` makes that omission fail the build.",
+      "notes": "The only recipe with `optional = true`. Library standing is `experimental`, not `supported`. The default profile does not select it. `FES_SKIP_OPTIONAL_CORES=1` or `FES_SKIP_CORES=fes.atari-st` skips place-and-route when a selection includes it. `FES_REQUIRE_ALL_CORES=1` makes that omission fail the build. Deano 2026-10-29: stays Current. Kit HIL pass on the latest RTL is pending and expected soon. STE is fes.atari-ste, Bring-up (queued).",
       "evidence": [
         "config/core-recipes.toml",
         "config/core-library.toml",
@@ -1269,6 +1391,59 @@
         "media_gen": "live",
         "image_role": "none",
         "catalog_standing": "experimental"
+      },
+      "tier_override": {
+        "tier": "current",
+        "reason": "Deano 2026-10-29",
+        "note": "Stays Current. Kit HIL pass on the latest RTL is pending and expected soon."
+      }
+    },
+    {
+      "id": "fes.atari-ste",
+      "label": "Atari STE",
+      "tier": "bring-up-queued",
+      "covers": [],
+      "paths": [],
+      "recipe": false,
+      "library_standing": null,
+      "in_bootstrap_image": false,
+      "oss_lock": null,
+      "board": "none",
+      "router": "No package and no producer.",
+      "quartus": "No Quartus flow. The shipped Atari package is the 520ST.",
+      "features": "No package. STE blitter, enhanced palette and DMA sound are not in the 520ST build.",
+      "notes": "Deano 2026-10-29: Bring-up (queued). The Atari README says STE blitter, enhanced palette and DMA sound are outside the 520ST scope. No STE package.",
+      "evidence": [
+        "sources/misteross/cores/fes-atari-st/README.md"
+      ],
+      "oss_note": "No toolchain lock. No STE bitstream.",
+      "tier_role": "play",
+      "family": "atari-st",
+      "variant": "STE",
+      "display": "Atari ST (STE)",
+      "tier_override": {
+        "tier": "bring-up-queued",
+        "reason": "Deano 2026-10-29",
+        "note": "Queued. The Atari README says STE blitter, enhanced palette and DMA sound are outside the 520ST scope. No STE package."
+      },
+      "signals": {
+        "as_of": "2026-10-29",
+        "window_start": "2026-08-30",
+        "recent_cutoff": "2026-10-16",
+        "catalog_weight": "weak",
+        "last_rtl_change": null,
+        "last_rtl_sha": null,
+        "last_rtl_subject": null,
+        "last_host_change": null,
+        "last_host_sha": null,
+        "last_host_subject": null,
+        "last_hil_pass": null,
+        "hil_note": null,
+        "hil_scope": null,
+        "open_issues": [],
+        "media_gen": "none",
+        "image_role": "none",
+        "catalog_standing": null
       }
     },
     {
@@ -1808,6 +1983,11 @@
       "where": "Catalog-supported and experimental rows",
       "cell": "Current-byte kit acceptance",
       "detail": "Core status and the validation notes bind acceptance to named packages. This matrix does not copy those package ids forward. Which rows Deano wants marked HIL-verified for the bytes in the tree is open."
+    },
+    {
+      "where": "Spectrum +2",
+      "cell": "Distinct model",
+      "detail": "Deano 2026-10-29: +2 is supported. The 128 producer is labelled 128K/+2 and ships fes.spectrum128. There is no plus2 model, firmware id or package beside 128K and +2A/+3."
     }
   ],
   "tier_rules": [
@@ -1815,35 +1995,30 @@
     "Owned RTL: a commit that changes that core's rtl/ and whose subject names the core, or where that core holds at least half of the commit's RTL paths and at least two files. A one-file edit inside another core's commit is not owned RTL.",
     "Catalog standing is recorded and is not read by the tier rule.",
     "firmware, shared, demo, reference and bring-up come from tier_role, not from dates.",
-    "A play row with media_gen old and owned RTL on or after the recent cutoff is unresolved.",
     "Otherwise a play row is current when owned RTL is on or after the cutoff, aging when owned RTL is in the window before the cutoff, and stale when it has none.",
-    "last_hil_pass is a designated-kit note. It does not by itself set the tier. A host seal or a simulation PASS is not a kit pass."
+    "last_hil_pass is a designated-kit note. It does not by itself set the tier. A host seal or a simulation PASS is not a kit pass.",
+    "A play row with media_gen old and owned RTL on or after the recent cutoff derives to unresolved. That result is not a displayed tier. A tier_override with reason Deano 2026-10-29 replaces it.",
+    "Coleco derives to unresolved and is Aging by that override. Work toward Current is in progress and still needs work (media handling and the wider Coleco work).",
+    "Spectrum and Atari ST derive to current. The same override confirms that tier. Their kit HIL pass on the latest RTL is pending and expected soon.",
+    "Spectrum +2 is supported. It has no distinct model: the 128 producer is labelled 128K/+2 and ships fes.spectrum128. Its override tier is current. The remaining work is a plus2 model, firmware id and package beside 128K and +2A/+3.",
+    "C64 NTSC and Atari STE have no package. Their override tier is bring-up-queued."
   ],
   "needs_deano": [
-    "Coleco is unresolved: owned RTL 2026-10-28 (#1165) and a host cartridge swap 2026-10-29 (#1034), while media_gen is old (empty-library status, low priority, #1216). The rule does not pick current or aging.",
     "SMS and SG-1000 catalog standing is supported. Tier aging uses owned RTL on 2026-10-06 and kit diagnostics on 2026-09-29. The catalog flag was not used.",
     "Pong catalog standing is supported. No owned RTL in the 60-day window, so the tier is stale. The catalog flag was not used.",
-    "Atari ST kit note is 2026-10-10. Owned RTL is 2026-10-23 (#952). No kit PASS of that later bitstream was found.",
-    "Spectrum kit PASS is 2026-10-26. Owned RTL 2026-10-27 (#1093 snapshots) is not in that PASS.",
-    "No separate Spectrum +2 package was found. fes.spectrum-plus3 is +2A/+3.",
-    "The C64 package is PAL 6569 only. The C64 README says NTSC is unqualified. No NTSC row was added.",
-    "The Atari README says STE is outside the 520ST scope. No STE row was added.",
     "ZX80, TS1000 and TS1500 share the ZX81 shell. Kit notes name fes.zx81 (2026-10-22), not those three. The 2026-10-25 model commit is after that note.",
     "Apple II kit diagnostic is 2026-09-27. Owned RTL is 2026-10-06 (#549). No later kit note was found.",
-    "Open issues on each row are title matches, not a full blocker audit.",
-    "Coleco last_hil_pass is empty. Notes on 2026-10-02 and 2026-10-16 mention the package and do not read as a machine PASS."
+    "Open issues on each row are title matches, not a full blocker audit."
   ],
   "display_groups": [
     {
-      "label": "Spectrum (48K, 128K, +2A/+3, Pentagon)",
+      "label": "Spectrum (48K, 128K, +2, +2A/+3, Pentagon)",
       "ids": [
         "fes.spectrum",
         "fes.spectrum128",
+        "fes.spectrum-plus2",
         "fes.spectrum-plus3",
         "fes.pentagon"
-      ],
-      "not_in_tree": [
-        "+2 (grey, distinct from +2A/+3)"
       ]
     },
     {

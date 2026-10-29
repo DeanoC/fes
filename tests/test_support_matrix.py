@@ -35,6 +35,26 @@ class SupportMatrixTests(unittest.TestCase):
         self.assertIn('| Current |', line)
         self.assertNotIn('experimental', line)
 
+    def test_deano_overrides_replace_derived_tiers(self):
+        data = SUPPORT_MATRIX.load_json(ROOT)
+        by_id = {row['id']: row for row in data['cores']}
+        coleco = by_id['fes.coleco']
+        self.assertEqual('unresolved', SUPPORT_MATRIX.derive_tier(coleco))
+        self.assertEqual('aging', coleco['tier'])
+        self.assertEqual('Deano 2026-10-29', coleco['tier_override']['reason'])
+        rendered = SUPPORT_MATRIX.render(data)
+        self.assertIn('| `fes.coleco` | Aging |', rendered)
+        self.assertNotIn('Unresolved', rendered)
+        self.assertIn('Spectrum (48K, 128K, +2, +2A/+3, Pentagon)', rendered)
+        self.assertIn('| C64 (NTSC) | Bring-up (queued) |', rendered)
+        self.assertIn('| Atari ST (STE) | Bring-up (queued) |', rendered)
+        self.assertEqual('current', by_id['fes.spectrum-plus2']['tier'])
+        self.assertEqual('stale', SUPPORT_MATRIX.derive_tier(by_id['fes.spectrum-plus2']))
+        self.assertEqual('stale', SUPPORT_MATRIX.derive_tier(by_id['fes.c64-ntsc']))
+        self.assertEqual('bring-up-queued', by_id['fes.c64-ntsc']['tier'])
+        self.assertEqual('current', SUPPORT_MATRIX.derive_tier(by_id['fes.atari-st']))
+        self.assertEqual('current', by_id['fes.spectrum']['tier_override']['tier'])
+
     def test_missing_lock_is_reported_without_reusing_other_core_pins(self):
         data = SUPPORT_MATRIX.load_json(ROOT)
         recipes = tomllib.loads((ROOT / 'config/core-recipes.toml').read_text())['recipes']

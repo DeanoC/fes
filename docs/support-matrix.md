@@ -8,7 +8,9 @@ Package ABI and standing: [core status](core-status.md). Build steps: [misteross
 
 ## Legend
 
-Tiers are derived from signals in the JSON (as of 2026-10-29). Catalog standing is recorded and is not a tier. Owned RTL is a commit that changes that core's `rtl/` and names the core, or that core holds at least half of the commit's RTL files. A one-file edit inside another core's commit does not count.
+Tiers are derived from signals in the JSON (as of 2026-10-29). Catalog standing is recorded and is not a tier. Owned RTL is a commit that changes that core's `rtl/` and names the core, or that core holds at least half of the commit's RTL files. A one-file edit inside another core's commit does not count. A recorded override from Deano 2026-10-29 replaces the derived tier.
+
+Coleco is Aging: work toward Current is in progress and still needs work. Spectrum and Atari ST stay Current; their kit HIL pass on the latest RTL is pending and expected soon. C64 NTSC and Atari STE are Bring-up (queued).
 
 | Tier | Meaning |
 | --- | --- |
@@ -16,8 +18,8 @@ Tiers are derived from signals in the JSON (as of 2026-10-29). Catalog standing 
 | Current | Owned RTL on or after 2026-10-16, and media is not the old generation. |
 | Aging | Owned RTL in the 60-day window, before 2026-10-16. |
 | Stale | No owned RTL in the 60-day window. |
-| Unresolved | Recent RTL and old media. The rule does not pick a tier. |
 | Bring-up | No recipe. Diagnostic RTL or host simulation in progress. |
+| Bring-up (queued) | No package yet. Queued by Deano 2026-10-29. |
 | Shared | CPU RTL used by other cores. Not a system package. |
 | Demo | Registered demo package, not a machine. |
 | Reference | Simulation module or non-play shell. |
@@ -42,13 +44,15 @@ Atari ST is still the only optional recipe (`FES_SKIP_OPTIONAL_CORES`). That fla
 | `fes.catch` | Demo | OSS | Quartus | pad, HDMI | [cores](../sources/misteross/docs/cores.md) |
 | `fes.ramtest` | Current | OSS | Quartus | pad, HDMI | [README](../sources/misteross/cores/fes-ramtest/README.md) |
 | ZX81 (ZX81, ZX80, TS1000, TS1500) | Current | OSS | Quartus | tape, keys, HDMI | [cores](../sources/misteross/docs/cores.md) |
-| `fes.coleco` | Unresolved | OSS | Quartus | cart, pad, HDMI | [README](../sources/misteross/cores/fes-coleco/README.md) |
+| `fes.coleco` | Aging | OSS | Quartus | cart, pad, HDMI | [README](../sources/misteross/cores/fes-coleco/README.md) |
 | `fes.sms` | Aging | OSS | Quartus | cart, keys, HDMI | [README](../sources/misteross/cores/fes-sms/README.md) |
 | `fes.sg1000` | Aging | OSS | Quartus | cart, keys, HDMI | [README](../sources/misteross/cores/fes-sg1000/README.md) |
 | `fes.apple2` | Aging | OSS | Quartus | disk, keys, HDMI | [README](../sources/misteross/cores/fes-apple2/README.md) |
 | C64 (PAL) | Current | OSS | Quartus | disk, keys, HDMI | [README](../sources/misteross/cores/fes-c64/README.md) |
-| Spectrum (48K, 128K, +2A/+3, Pentagon) | Current | OSS | Quartus | tape, disk, keys, HDMI | [README](../sources/misteross/cores/fes-spectrum/README.md) |
+| C64 (NTSC) | Bring-up (queued) | — | — | — | [README](../sources/misteross/cores/fes-c64/README.md) |
+| Spectrum (48K, 128K, +2, +2A/+3, Pentagon) | Current | OSS | Quartus | tape, disk, keys, HDMI | [README](../sources/misteross/cores/fes-spectrum/README.md) |
 | Atari ST (520ST) | Current | OSS | Quartus | disk, keys, mouse, HDMI | [README](../sources/misteross/cores/fes-atari-st/README.md) |
+| Atari ST (STE) | Bring-up (queued) | — | — | — | [README](../sources/misteross/cores/fes-atari-st/README.md) |
 | `fes.riscv` | Aging | OSS | Quartus | pad, HDMI | [README](../sources/misteross/cores/fes-riscv/README.md) |
 | `fes.demo`, `fes.demo-media`, `fes.demo-audio` | Reference | OSS | Quartus | pad, HDMI | [cores](../sources/misteross/docs/cores.md) |
 | `cores/pong` simulation | Reference | — | — | — | [cores](../sources/misteross/docs/cores.md) |
@@ -69,18 +73,12 @@ These cells are still open. The wording is in [`support-matrix.json`](support-ma
 - Every row — Mesh / FogCast
 - Registered recipes — Ship both builds
 - Catalog-supported and experimental rows — Current-byte kit acceptance
+- Spectrum +2 — Distinct model
 
 ## Needs Deano
 
-- Coleco is unresolved: owned RTL 2026-10-28 (#1165) and a host cartridge swap 2026-10-29 (#1034), while media_gen is old (empty-library status, low priority, #1216). The rule does not pick current or aging.
 - SMS and SG-1000 catalog standing is supported. Tier aging uses owned RTL on 2026-10-06 and kit diagnostics on 2026-09-29. The catalog flag was not used.
 - Pong catalog standing is supported. No owned RTL in the 60-day window, so the tier is stale. The catalog flag was not used.
-- Atari ST kit note is 2026-10-10. Owned RTL is 2026-10-23 (#952). No kit PASS of that later bitstream was found.
-- Spectrum kit PASS is 2026-10-26. Owned RTL 2026-10-27 (#1093 snapshots) is not in that PASS.
-- No separate Spectrum +2 package was found. fes.spectrum-plus3 is +2A/+3.
-- The C64 package is PAL 6569 only. The C64 README says NTSC is unqualified. No NTSC row was added.
-- The Atari README says STE is outside the 520ST scope. No STE row was added.
 - ZX80, TS1000 and TS1500 share the ZX81 shell. Kit notes name fes.zx81 (2026-10-22), not those three. The 2026-10-25 model commit is after that note.
 - Apple II kit diagnostic is 2026-09-27. Owned RTL is 2026-10-06 (#549). No later kit note was found.
 - Open issues on each row are title matches, not a full blocker audit.
-- Coleco last_hil_pass is empty. Notes on 2026-10-02 and 2026-10-16 mention the package and do not read as a machine PASS.
