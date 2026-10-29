@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: MIT
-"""The pc386 Quartus seal's sources, machine netlist, project, timing gate and
-manifest. No Quartus or Yosys needed."""
+"""The pc386 Quartus seal's sources, guest rates, machine netlist, project,
+timing gate, resources and manifest. No Quartus or Yosys needed."""
 import json
 from pathlib import Path
+import re
 import tempfile
 import tomllib
 import unittest
 
-from scripts import build_fes_pc386_oss as oss
 from scripts import build_fes_pc386_quartus as quartus
 from scripts import fes_build_common as board
 from scripts.export_core_package import build_identity
@@ -18,7 +18,8 @@ IDENTITIES = {"quartus_sh": "version=17.0.2; sha256=" + "1" * 64, "yosys": "comm
 
 
 # TimeQuest's clock table and multicorner summary, as Quartus 17.0.2 writes
-# them for the pc386 shell (seed 1 of the M4 shell, which missed setup).
+# them for the pc386 shell (seed 1 of the M4 shell, which missed setup), and
+# the Fitter Summary's resource rows.
 CLOCK_TABLE = """\
 ; Clock Name                                                 ; Type      ; Period ; Frequency  ; Rise  ; Fall   ;
 ; FPGA_CLK1_50                                               ; Base      ; 20.000 ; 50.0 MHz   ; 0.000 ; 10.000 ;
@@ -36,28 +37,61 @@ MET = """\
 ; Worst-case Slack                                            ; 0.212   ; 0.107 ; 7.297    ; 0.394   ; 1.122               ;
 ; Design-wide TNS                                             ; 0.0     ; 0.0   ; 0.0      ; 0.0     ; 0.0                 ;
 """
+FIT_SUMMARY = """\
+; Logic utilization (in ALMs)     ; 9,754 / 41,910 ( 23 % )                     ;
+; Total registers                 ; 12637                                       ;
+; Total pins                      ; 33 / 314 ( 11 % )                           ;
+; Total block memory bits         ; 151,955 / 5,662,720 ( 3 % )                 ;
+; Total RAM Blocks                ; 53 / 553 ( 10 % )                           ;
+; Total DSP Blocks                ; 21 / 112 ( 19 % )                           ;
+"""
 
 
 class SourcesTest(unittest.TestCase):
-    def test_shell_and_machine_split_the_producers_sources(self):
-        self.assertTrue(set(quartus.SHELL_SOURCES) <= set(oss.RTL_SOURCES))
+    def test_shell_and_machine_split_the_sources(self):
         self.assertFalse(set(quartus.SHELL_SOURCES) & set(quartus.MACHINE_SOURCES))
-        self.assertEqual(set(quartus.SHELL_SOURCES) | set(quartus.MACHINE_SOURCES), set(oss.RTL_SOURCES))
-        self.assertIn("cores/fes-pc386/rtl/pc386_diag.sv", quartus.MACHINE_SOURCES)
+        self.assertEqual(len(set(quartus.MACHINE_SOURCES)), len(quartus.MACHINE_SOURCES))
+        self.assertEqual(quartus.MACHINE_SOURCES[-1], "cores/fes-pc386/rtl/pc386_system.sv")
+        self.assertIn("cores/fes-common/rtl/i386/fes_i386_cpu.sv", quartus.MACHINE_SOURCES)
+        self.assertIn("cores/fes-pc386/rtl/pc386_rom.sv", quartus.MACHINE_SOURCES)
+        self.assertNotIn("cores/fes-pc386/rtl/top.sv", quartus.MACHINE_SOURCES)
 
     def test_pinned_inputs_exist(self):
         for path in quartus.PINNED_INPUTS:
             self.assertTrue((ROOT / path).is_file(), path)
+        self.assertIn(quartus.FIRMWARE_LOCK, quartus.PINNED_INPUTS)
+
+    def test_the_rom_contents_are_where_pc386_rom_reads_them(self):
+        default = re.search(r'parameter ROM_HEX = "([^"]+)"', (ROOT / "cores/fes-pc386/rtl/pc386_rom.sv").read_text())
+        self.assertEqual(default.group(1), quartus.ROM_HEX)
 
     def test_machine_program_elaborates_at_the_sealed_rates(self):
-        program = quartus.machine_program(Path("out/pc386_diag.v"))
-        for name, value in oss.guest_rates().items():
+        program = quartus.machine_program(Path("out/pc386_system.v"))
+        for name, value in quartus.guest_rates().items():
             self.assertRegex(program, rf"-chparam {name} {value}[ ;]")
         self.assertIn(f"hierarchy -top {quartus.MACHINE_TOP} ", program)
         self.assertIn("memory_map t:$mem_v2 r:WR_PORTS>1 %i a:ramstyle %d;", program)
-        self.assertTrue(program.endswith("write_verilog out/pc386_diag.v"))
+        self.assertTrue(program.endswith("write_verilog out/pc386_system.v"))
         for source in quartus.SHELL_SOURCES:
             self.assertNotIn(source, program)
+
+
+class RatesTest(unittest.TestCase):
+    def test_rates_at_100_mhz_are_the_machine_defaults(self):
+        rates = quartus.guest_rates(100_000_000)
+        expected = {"ISA": (1, 12), "PIT": (21, 880), "US": (1, 100), "DMA": (1, 24), "DOT0": (1007, 4000),
+                    "DOT1": (14161, 50000), "OPL2": (7, 14080), "AUDIO": (3, 6250)}
+        for name, pair in expected.items():
+            self.assertEqual((rates[f"{name}_N"], rates[f"{name}_D"]), pair, name)
+        self.assertEqual(rates["RTC_N"] / rates["RTC_D"], 256 / 781250)
+        self.assertEqual(rates["ATA_RESET_CLOCKS"], 1000)
+        with self.assertRaises(board.BuildError):
+            quartus.guest_rates(50_000_000)
+
+    def test_the_shell_defaults_are_the_sealed_rates(self):
+        top = (ROOT / "cores/fes-pc386/rtl/top.sv").read_text()
+        for name, value in quartus.guest_rates().items():
+            self.assertRegex(top, rf"\b{name} = {value}\b")
 
 
 class IdentifiersTest(unittest.TestCase):
@@ -126,22 +160,39 @@ class TimingTest(unittest.TestCase):
             quartus.validate_timing_report(CLOCK_TABLE)
 
 
+class ResourcesTest(unittest.TestCase):
+    def test_the_fit_summary_gives_each_resource(self):
+        self.assertEqual(quartus.fit_resources(FIT_SUMMARY), {
+            "alms": {"used": 9754, "available": 41910}, "registers": {"used": 12637},
+            "ram_blocks": {"used": 53, "available": 553}, "block_memory_bits": {"used": 151955, "available": 5662720},
+            "dsp_blocks": {"used": 21, "available": 112},
+        })
+
+    def test_a_missing_row_fails(self):
+        with self.assertRaisesRegex(board.BuildError, "Total DSP Blocks"):
+            quartus.fit_resources(FIT_SUMMARY.replace("Total DSP Blocks", "Total DSPs"))
+
+
 class ManifestTest(unittest.TestCase):
-    def test_manifest_is_the_oss_package_labelled_quartus(self):
+    def test_manifest_is_the_system_labelled_quartus(self):
         record = quartus.create_build_record(ROOT, "https://github.com/DeanoC/fes", "a" * 40, IDENTITIES, 1)
         evidence = {"rbf": {"sha256": "3" * 64, "size": 4096}}
         fields = tomllib.loads(quartus.manifest(record, evidence, "https://github.com/DeanoC/fes", "a" * 40,
                                                 IDENTITIES).decode())
-        self.assertEqual(fields["core"]["id"], oss.CORE["id"])
-        self.assertEqual(fields["core"]["name"], "FES pc386 M4 diagnostic (Quartus)")
+        self.assertEqual(fields["core"]["id"], "fes.pc386")
+        self.assertEqual(fields["core"]["name"], "FES pc386 (Quartus)")
         self.assertEqual(fields["abi"], {"id": "fes.computer", "major": 1, "minor": 0})
-        self.assertEqual([item["id"] for item in fields["interfaces"]], list(oss.INTERFACES))
+        self.assertEqual([item["id"] for item in fields["interfaces"]], list(quartus.INTERFACES))
         self.assertEqual(fields["build"]["id"], build_identity(record))
         self.assertIn("Quartus Prime Lite 17.0.2", fields["build"]["toolchain"])
         self.assertIn("Yosys", fields["build"]["toolchain"])
         parameters = json.loads(record)["parameters"]
         self.assertEqual(parameters["compiler"], "quartus-17.0.2")
-        self.assertEqual(json.loads(parameters["guest_rates"]), oss.guest_rates())
+        self.assertEqual(json.loads(parameters["guest_rates"]), quartus.guest_rates())
+        self.assertEqual(json.loads(parameters["firmware"]), quartus.firmware_digests(ROOT))
+        self.assertIn("read_verilog -sv -I cores/fes-common/generated", parameters["machine_netlist"])
+        self.assertIn(" $MACHINE_SOURCES; hierarchy -top pc386_system ", parameters["machine_netlist"])
+        self.assertEqual(len(parameters["machine_sources_sha256"]), 64)
 
     def test_the_record_names_its_files_from_the_repository_root(self):
         fields = json.loads(quartus.create_build_record(ROOT, "https://github.com/DeanoC/fes", "a" * 40,

@@ -14,8 +14,7 @@ from unittest import mock
 
 from scripts import build_pc386_firmware as firmware
 from scripts import build_pc386_freedos_image as freedos
-from scripts import build_fes_pc386_oss as producer
-from scripts import pc386_diag
+from scripts import build_fes_pc386_quartus as producer
 from scripts import sim_fes_pc386 as sim
 
 VERILATOR = shutil.which(os.environ.get('VERILATOR', 'verilator'))
@@ -267,30 +266,49 @@ class PresenterBenchTest(unittest.TestCase):
         self.assertEqual(len(report['checks']), 14)
 
 
-class DiagnosticTest(unittest.TestCase):
-    def test_rates_at_100_mhz_are_the_machine_defaults(self):
-        rates = pc386_diag.rates(100_000_000)
-        expected = {'ISA': (1, 12), 'PIT': (21, 880), 'US': (1, 100), 'DMA': (1, 24), 'DOT0': (1007, 4000),
-                    'DOT1': (14161, 50000), 'OPL2': (7, 14080), 'AUDIO': (3, 6250)}
-        for name, pair in expected.items():
-            self.assertEqual((rates[f'{name}_N'], rates[f'{name}_D']), pair, name)
-        self.assertEqual(rates['RTC_N'] / rates['RTC_D'], 256 / 781250)
-        self.assertEqual(rates['ATA_RESET_CLOCKS'], 1000)
-        with self.assertRaises(pc386_diag.DiagError):
-            pc386_diag.rates(50_000_000)
+SYSTEM_OUTPUT = """ATTACH 40 0000002a
+CONFIG 48
+POST 00 65600
+DEBUG BIOS BUILD DATE: 10/26/26
+PROMPT 300000000
+SCREEN 0 |C:\\>                                                                             |
+STATUS running=1 debug_bytes=900 debug_drops=0 halted=1 stopped=0 a20m=0 intr=0 post=00 cpu_resets=1 retired=50000000 cs=0070 vector=00 eip=00001234 frames_shown=600 scanout_underflows=0 capture_drops=0 present_underflows=0 plane_underflows=0 samples=480000 dma_cycles=0 opl2_samples=0
+END prompt cycles=303000000 seconds=4.932
+"""
 
-    def test_programs_round_trip(self):
-        for name in ('smoke', 'mode13', 'sound', 'opl2', 'ata'):
-            program = pc386_diag.build_program(name, producer.SYSTEM_CLOCK_HZ)
-            encoded = program.encode()
-            self.assertEqual(pc386_diag.decode_program(encoded).encode(), encoded, name)
+
+class SystemTest(unittest.TestCase):
+    def test_parse(self):
+        report = sim.parse_system(SYSTEM_OUTPUT)
+        self.assertEqual(report['attach_cycle'], 40)
+        self.assertEqual(report['config_cycle'], 48)
+        self.assertEqual(report['post'], [{'code': '00', 'cycle': 65600}])
+        self.assertEqual(report['debug'], ['BIOS BUILD DATE: 10/26/26'])
+        self.assertEqual(report['prompt_cycle'], 300000000)
+        self.assertTrue(report['screen'][0].startswith('C:\\>'))
+        self.assertEqual(report['status']['cs'], 0x70)
+        self.assertEqual(report['status']['eip'], 0x1234)
+        self.assertEqual(report['status']['retired'], 50000000)
+        self.assertEqual(report['end'], {'reason': 'prompt', 'cycles': 303000000, 'seconds': 4.932})
+        self.assertEqual(sim.system_failures(report), [])
+
+    def test_failures(self):
+        cases = (
+            (SYSTEM_OUTPUT.replace('END prompt', 'END stalled'), 'did not reach the prompt'),
+            (SYSTEM_OUTPUT.replace('stopped=0', 'stopped=1').replace('vector=00', 'vector=08'), 'vector 08'),
+            (SYSTEM_OUTPUT.replace('present_underflows=0', 'present_underflows=3'), 'present_underflows=3'),
+            (SYSTEM_OUTPUT.replace('debug_drops=0', 'debug_drops=1'), 'debug_drops=1'),
+            (SYSTEM_OUTPUT.replace('DEBUG BIOS', 'DEBUG PANIC: BIOS'), 'panic'),
+            (SYSTEM_OUTPUT.replace('retired=50000000', 'retired=0'), 'retired nothing'),
+            ('END limit cycles=1 seconds=0.000\n', 'no status block'),
+        )
+        for output, expected in cases:
+            with self.subTest(expected=expected):
+                failures = sim.system_failures(sim.parse_system(output))
+                self.assertTrue(any(expected in failure for failure in failures), failures)
 
     def test_producer_builds_what_the_bench_simulates(self):
-        shell = {'pc386_system_pll.v', 'pixel_pll.v', 'fes_computer_mailbox.v', 'fes_audio_output.v',
-                 'fes_audio_i2s.v', 'fes_hps_ddr.v', 'fes_hps_ddr_guard.v', 'top.sv'}
-        built = [Path(path) for path in producer.RTL_SOURCES if Path(path).name not in shell]
-        self.assertEqual({sim.ROOT / path for path in built}, set(sim.DIAG_RTL))
-        self.assertEqual(producer.SYSTEM_CLOCK_HZ, sim.DIAG_CLOCK_HZ)
+        self.assertEqual({sim.ROOT / path for path in producer.MACHINE_SOURCES}, set(sim.SYSTEM_RTL))
         for path in producer.PINNED_INPUTS:
             self.assertTrue((sim.ROOT / path).is_file(), path)
 
