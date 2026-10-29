@@ -238,7 +238,7 @@ class PresenterBenchTest(unittest.TestCase):
 
     def test_plane_reads_through_port_2(self):
         report = self.bench('plane', 'plane_top', sim.PLANE_RTL, sim.CORE / 'sim/plane_tb.cpp')
-        self.assertEqual(len(report['checks']), 11)
+        self.assertEqual(len(report['checks']), 14)
 
 
 class DiagnosticTest(unittest.TestCase):

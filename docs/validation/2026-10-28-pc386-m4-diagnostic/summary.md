@@ -299,11 +299,19 @@ same way. The full machine resets for every launch and runtime hold, so the
 720p timing should run from the pixel PLL's lock alone. A run with that change
 would confirm it as the cause.
 
+**After the run.** On this branch, the presenter's counters and syncs now
+reset only on the pixel PLL's lock (`timing_reset`). Its picture state keeps
+the machine reset and shows black until the next frame setup. The plane bench
+holds the machine in reset for 1,000 system clocks in mid-frame and counts
+every HS and VS period. On the old RTL two periods broke; with the change none
+do, the plane stays locked, and the picture returns unchanged with no
+underflow.
+
 ## Not done
 
-- The 720p timing on the pixel PLL's lock alone, then a kit run to confirm
-  that the signal holds across resets and that the audio and the vga-trace
-  text grab are whole.
+- A kit run of the `timing_reset` change, to confirm that the signal holds
+  across resets and that the audio and the vga-trace text grab are whole. It
+  needs a Quartus re-seal.
 - Nextpnr timing closure of the AT core's read path, the VGA scanout and the
   presenter, parked with [#1235](https://github.com/DeanoC/fes/issues/1235).
 - The disk round trip with the runtime: it needs the M0 contracts

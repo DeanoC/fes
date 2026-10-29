@@ -23,7 +23,8 @@ nextpnr routes, the machine's first, miss both fixed clocks (about 40 of
 diagnostic program on Kit B: the VGA pictures on HDMI, speaker, DSP and OPL2
 audio, and the counters at zero
 ([M4 record](../../../docs/validation/2026-10-28-pc386-m4-diagnostic/summary.md)).
-The presenter's 720p timing still resets with the machine.
+That run found the presenter's 720p timing following machine reset. It now
+follows the pixel PLL's lock alone.
 
 Phase M3's audio exists beside the AT core: the OPL2 import, Sound Blaster 2.0
 DSP and mixer pass their host simulation checks, including OPL2 sample
