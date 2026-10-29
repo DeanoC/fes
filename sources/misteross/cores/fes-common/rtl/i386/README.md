@@ -683,16 +683,15 @@ old) to the block F1 loads next (`fetch_next`), which holds every block F2
 may still read from the L1I before a clear of a line there lands. A store WB
 commits into one of those lines, or a DMA write (the bus interface's
 `inv_valid`), may have changed bytes the front end holds. The CPU then
-restarts the next instruction: `smc_pend` until the instruction in WB ends,
-`smc_due` after, and the next instruction's first uop takes `FAULT_REPLAY`
-as it enters WB, so WB flushes it and everything younger and the front end
-restarts at it through `start`, as for an uncached load but without serial
-issue. EX's running flags go back to EFLAGS, as for an interrupt, since that
+restarts an instruction after it, under the coherent profile and for DMA the
+next one: `smc_pend` until the instruction in WB ends, `smc_due` after, and
+the next instruction's first uop takes `FAULT_REPLAY` as it enters WB, so WB
+flushes it and everything younger and the front end restarts at it through
+`start`, as for an uncached load but without serial issue. EX's running flags go back to EFLAGS, as for an interrupt, since that
 uop has passed EX. By then the L1I has cleared the line, and the fill waits
 for the store's write-buffer entry, so the instruction runs the new bytes
 (the coherent profile). The instruction that stored completes as it was
-decoded. While a restart is due no uncached load reads its device, which the
-restart would make it read again. Lines compare by bits 19:5 as two carry
+decoded. Lines compare by bits 19:5 as two carry
 chains (a subtraction and its borrow), modulo 1 MiB, where linear and
 physical agree under A20M and for the shadow at FFFF0000h: an alias 1 MiB
 away, a line of data next to code, or a run that a backward redirect leaves
