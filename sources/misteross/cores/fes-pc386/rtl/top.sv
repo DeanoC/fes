@@ -5,13 +5,14 @@
 `define FES_PC386_BUILD_ID 128'h00000000000000000000000000000000
 `endif
 
-// DE10-Nano shell of the pc386 M4 diagnostic package (fes.computer 1.0;
-// docs/pc386-machine-design.md, phase M4). The mailbox carries identity,
-// execution and the session-display plane. The machine runs at SYSTEM_CLOCK
-// with pc386_bus_master in the CPU's place, taking its commands from a ring in
-// the DDR window (pc386_bus_master.sv). All three HPS DDR ports are in the
-// system clock. 720p60 HDMI comes from the presenter through the plane; the
-// mixer's 48 kHz samples leave through I2S.
+// DE10-Nano shell of the pc386 package (fes.computer 1.0;
+// docs/pc386-machine-design.md, phase M5). The mailbox carries identity,
+// execution and the session-display plane. The machine and fes_i386_cpu run
+// at SYSTEM_CLOCK (pc386_system.sv); until the M0 contracts the HPS stages
+// the disk and the machine's configuration in the DDR window
+// (pc386_host_link.sv). All three HPS DDR ports are in the system clock.
+// 720p60 HDMI comes from the presenter through the plane; the mixer's 48 kHz
+// samples leave through I2S.
 module top #(
     parameter [127:0] BUILD_ID = `FES_PC386_BUILD_ID,
     parameter SYSTEM_CLOCK = "61.44 MHz",
@@ -104,7 +105,7 @@ module top #(
     // The Quartus seal reads the machine as the netlist Yosys elaborates with
     // these rates (scripts/build_fes_pc386_quartus.py), so there it takes no
     // parameters.
-    pc386_diag
+    pc386_system
 `ifndef QUARTUS
     #(
         .ISA_N(ISA_N), .ISA_D(ISA_D), .PIT_N(PIT_N), .PIT_D(PIT_D), .RTC_N(RTC_N), .RTC_D(RTC_D),
@@ -113,7 +114,7 @@ module top #(
         .AUDIO_N(AUDIO_N), .AUDIO_D(AUDIO_D), .ATA_RESET_CLOCKS(ATA_RESET_CLOCKS)
     )
 `endif
-    diag (
+    system (
         .clk(clk_sys), .pixel_clk(pixel_clk), .pixel_locked(pixel_locked),
         .p0_reset(p0_reset), .p1_reset(p1_reset), .p2_reset(p2_reset),
         .display_request(display_request), .display_opcode(display_opcode), .display_index(display_index),
