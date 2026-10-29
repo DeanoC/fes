@@ -1995,7 +1995,16 @@ Error FesGpCoreDriver::CommitAtaDisk(std::uint32_t sectors, std::uint16_t cylind
 		error = gp_.Exchange(FesComputerOpcodeDiskInfo, FesComputerDiskInfoStateField, 0, deadline, &state);
 		if (!error.ok() || state == FesComputerMediaStateReady) break;
 		if (state != FesComputerDiskStateVerifying) {
-			error = {ErrorCode::corrupt_data, "the core's CRC of the ATA disk image differs", "input"};
+			constexpr std::uint16_t kCrcErrorFlag = 1u << 3;
+			std::uint16_t flags = 0;
+			error = gp_.Exchange(FesComputerOpcodeDiskInfo, FesComputerDiskInfoFlagsField, 0, deadline, &flags);
+			if (error.ok()) {
+				if (flags & kCrcErrorFlag)
+					error = {ErrorCode::corrupt_data, "the core reported an ATA disk image CRC mismatch", "input"};
+				else
+					error = {ErrorCode::io_failed,
+						"the core left ATA disk verification without reporting ready or a CRC error", "input"};
+			}
 			break;
 		}
 		const std::uint64_t now = gp_.NowMs();

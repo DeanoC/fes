@@ -158,7 +158,9 @@ func TestComputer11Media(t *testing.T) {
 	if DeclaresAtaDisk(descriptor) {
 		t.Fatal("1.0 cannot declare the disk")
 	}
-	unit := MediaUnitStatus{Unit: 0, Interface: AtaDiskInterface(), MinBytes: 1 << 20, MaxBytes: 128 << 20, ChunkBytes: 65536, State: MediaUnitReady}
+	saveable := false
+	unit := MediaUnitStatus{Unit: 0, Interface: AtaDiskInterface(), MinBytes: 1 << 20, MaxBytes: 128 << 20, ChunkBytes: 65536,
+		State: MediaUnitEmpty, Saveable: &saveable}
 	if !unit.Valid() {
 		t.Fatal("ata unit refused")
 	}

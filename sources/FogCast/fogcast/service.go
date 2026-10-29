@@ -2823,13 +2823,13 @@ func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration,
 		// Reuse discovery admission's existing Status. Legacy address-only
 		// Stop never acquires a new status dependency; a remembered package
 		// may be observed directly while lifecycle admission is held.
-		boundDisk := discoveryAdmission && s.TargetConnection().mediaDataBound
+		boundDisk := discoveryAdmission && s.TargetConnection().persistentMediaBound
 		saving, canSave := client.(interface {
 			StopWithMediaSave(context.Context) (protocol.Status, error)
 		})
 		if describedPackage && !discoveryAdmission {
 			observed, observeErr := client.Status(ctx)
-			boundDisk = observeErr == nil && protocol.StopSavesMedia(observed.CorePackage)
+			boundDisk = observeErr == nil && protocol.PersistentMediaBound(observed.CorePackage)
 		}
 		if boundDisk {
 			if timeout < 150*time.Second {

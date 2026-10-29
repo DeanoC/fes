@@ -17,9 +17,19 @@ type sessionStopTransport func(*http.Request) (*http.Response, error)
 
 func (f sessionStopTransport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 func TestSessionStopDurableBudgetAndSingleMutation(t *testing.T) {
-	for _, mode := range []string{"expected-bound", "explicit-bound", "retain-bound", "expected-volatile", "explicit-volatile", "explicit-unknown", "short-parent", "lost-response"} {
+	for _, mode := range []string{"expected-bound", "explicit-bound", "retain-bound", "expected-volatile", "explicit-volatile", "explicit-unknown", "expected-ata-bound", "short-parent", "lost-response"} {
 		t.Run(mode, func(t *testing.T) {
 			p := &SessionCorePackage{PackageID: strings.Repeat("a", 64), Generation: 9, ABI: SessionCoreABI{ID: "fes.computer", Major: 1}, ActiveInterfaces: []SessionCoreInterface{{ID: protocol.AtariStFloppyInterface().ID, Major: 1}, {ID: protocol.AtariStFloppyWriteInterface().ID, Major: 1}}, MediaUnits: []protocol.MediaUnitStatus{{Interface: protocol.AtariStFloppyInterface(), MinBytes: 737280, MaxBytes: 737280, ChunkBytes: 512, State: protocol.MediaUnitReady, Persistence: &protocol.MediaDataStatus{Mode: "persistent", GameID: "st-desktop", BaseMediaID: strings.Repeat("b", 64), Revision: "absent"}}}}
+			if mode == "expected-ata-bound" {
+				saveable := false
+				p.ABI.Minor = 1
+				p.PersistenceMode = "persistent"
+				p.ActiveInterfaces = []SessionCoreInterface{{ID: protocol.AtaDiskInterface().ID, Major: protocol.AtaDiskInterface().Major}}
+				p.MediaUnits = []protocol.MediaUnitStatus{{Unit: protocol.AtaDiskUnit, Interface: protocol.AtaDiskInterface(),
+					MinBytes: uint32(protocol.AtaDiskMinBytes), MaxBytes: uint32(protocol.AtaDiskMaxBytes), ChunkBytes: protocol.AtaDiskChunkBytes,
+					State: protocol.MediaUnitReady, Saveable: &saveable,
+					Persistence: &protocol.MediaDataStatus{Mode: "persistent", GameID: "ultima-vi", BaseMediaID: strings.Repeat("c", 64), Revision: "absent"}}}
+			}
 			if strings.Contains(mode, "volatile") {
 				p.MediaUnits[0].Persistence = nil
 			}

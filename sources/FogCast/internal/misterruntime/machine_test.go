@@ -54,10 +54,11 @@ func TestMachineCoreDataDecodes(t *testing.T) {
 }
 
 // The runtime's own pc386 response bytes (COMPONENT_FIXTURES copy) decode:
-// a missing record's defaults, a stored record, and a running disk unit.
+// a missing record's defaults, a stored record, and a running disk unit. The
+// fourth line, an empty fixed disk, is TestPc386GoldenDiskStatuses's.
 func TestRuntimePc386ResponsesDecode(t *testing.T) {
 	lines := fixtureLines(t, "protocol-v2-pc386-responses.jsonl")
-	if len(lines) != 3 {
+	if len(lines) != 4 {
 		t.Fatalf("fixture has %d lines", len(lines))
 	}
 	layout := protocol.Pc386MachineInterface()
@@ -95,8 +96,8 @@ func TestRuntimePc386ResponsesDecode(t *testing.T) {
 		t.Fatalf("ata unit %+v", u)
 	}
 	status := computerMediaStatus(response).CorePackage
-	if got, ok := protocol.MediaUnit(status, 0); !ok || got.Interface != protocol.AtaDiskInterface() || !protocol.HardDiskCapable(status) ||
-		!protocol.StopSavesMedia(status) || protocol.MediaDataBound(status) {
+	if got, ok := protocol.MediaUnit(status, 0); !ok || got.Interface != protocol.AtaDiskInterface() || got.CanSave() ||
+		!protocol.PersistentMediaBound(status) || protocol.MediaDataBound(status) {
 		t.Fatalf("status unit %+v %v", got, ok)
 	}
 }

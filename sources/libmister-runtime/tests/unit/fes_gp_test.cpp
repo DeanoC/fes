@@ -3214,6 +3214,16 @@ void TestPc386AtaDiskCommitPollAndDirtyMap()
 	assert(f.driver.CommitAtaDisk(4096, 4, 16, 63, crc ^ 1, kComputerDeadline).code ==
 		mister::ErrorCode::corrupt_data);
 	assert(f.endpoint.disk_state == 2 && f.endpoint.disk_error);
+	assert(f.driver.AtaDiskControl(FesComputerDiskControlPrepare, kComputerDeadline).ok());
+	f.endpoint.after_disk_commit = [&] {
+		f.endpoint.disk_error = false;
+		f.endpoint.disk_state = 1;
+	};
+	assert(f.driver.CommitAtaDisk(4096, 4, 16, 63, crc ^ 1, kComputerDeadline).code ==
+		mister::ErrorCode::io_failed);
+	assert(!f.endpoint.disk_error && f.endpoint.disk_state == 1);
+	f.endpoint.after_disk_commit = {};
+	assert(f.driver.AtaDiskControl(FesComputerDiskControlPrepare, kComputerDeadline).ok());
 	const std::size_t start = f.endpoint.requests.size();
 	assert(f.driver.CommitAtaDisk(4096, 4, 16, 63, crc, kComputerDeadline).ok());
 	assert(f.endpoint.disk_state == 3 && f.endpoint.disk_geometry == std::vector<unsigned>({4096, 4, 16, 63}));

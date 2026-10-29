@@ -430,6 +430,7 @@ public:
 	// Return a GP error code to model an acknowledged command rejection.
 	std::function<unsigned(const Request&)> reject_request;
     std::function<bool(const Request&)> fail_after_request;
+	std::function<void()> after_disk_commit;
 	std::vector<std::uint32_t> writes;
 	std::vector<Request> requests;
 	unsigned abi_minor = 0;
@@ -570,6 +571,7 @@ private:
 				verify_result = match ? 3 : 2;
 				if (verify_reads) { disk_state = 4; verify_left = verify_reads; }
 				else { disk_state = verify_result; disk_error = !match; }
+				if (after_disk_commit) after_disk_commit();
 				return {0, 0};
 			}
 			if (arg == 3) {
@@ -608,14 +610,6 @@ private:
 		return {0, bits};
 	}
 
-	// The MC146818 weekday of a date: 1 Sunday .. 7 Saturday (Sakamoto).
-	static unsigned Weekday(unsigned year, unsigned month, unsigned day)
-	{
-		static const unsigned offsets[] = {0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4};
-		if (month < 3) year -= 1;
-		return (year + year / 4 - year / 100 + year / 400 + offsets[month - 1] + day) % 7 + 1;
-	}
-
 	std::pair<unsigned, std::uint16_t> WallClock(unsigned index, unsigned arg)
 	{
 		enum { index_error = 2, argument_error = 3, state_error = 4 };
@@ -633,8 +627,7 @@ private:
 			ok = low >= 1 && low <= 12 && high >= 1 && high <= days;
 		}
 		if (index == 2) ok = low <= 23 && high <= 59;
-		if (index == 3) ok = low <= 59 && high >= 1 && high <= 7 && high == Weekday(clock_staged[0],
-			clock_staged[1] & 0xff, clock_staged[1] >> 8);
+		if (index == 3) ok = low <= 59 && high >= 1 && high <= 7;
 		if (!ok) return {argument_error, 0};
 		if (index == 0) clock_staged.clear();
 		clock_staged.push_back(arg);

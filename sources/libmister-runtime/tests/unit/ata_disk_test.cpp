@@ -120,6 +120,7 @@ void Store()
 	AtaDiskDelta delta;
 	assert(file->Read(&delta).ok() && delta.revision == "absent" && delta.chunks.empty());
 	assert(file->CheckWritable().ok());
+	for (const auto& name : Names(dir)) assert(name.compare(0, 7, ".probe-") != 0 && name != ".probe-check");
 	std::vector<AtaDeltaChunk> changed;
 	for (std::uint32_t index : {0u, 5u, 32u}) {
 		const auto bytes = Chunk(index, AtaDiskChunkLength(size, index));

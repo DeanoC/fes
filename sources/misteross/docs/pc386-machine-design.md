@@ -472,9 +472,11 @@ exists ([firmware](#firmware)).
 
 The runtime seeds the clock from the kit's local time at every launch, before
 release, through `fes.rtc.wall-clock` 1.0: four words of binary year, month,
-day, hour, minute, second and weekday. The RTC converts to BCD or binary and
-12- or 24-hour form according to its current register B. A guest that sets the
-time keeps it until Stop; the next launch takes the kit's time again.
+day, hour, minute, second and weekday. The runtime computes the weekday from
+the date. Like an MC146818, the RTC stores the weekday as given and does not
+check it against the date. The RTC converts to BCD or binary and 12- or 24-hour
+form according to its current register B. A guest that sets the time keeps it
+until Stop; the next launch takes the kit's time again.
 
 ### Persistence
 
@@ -903,8 +905,8 @@ It also proves that the runtime's cache clean reached DDR.
   1. checks identity and releases the DDR ports;
   2. restores the `fes.pc386.machine` record and seeds the wall clock;
   3. sends prepare;
-  4. grants the region, zero-fills it, writes the base image, skipping all-zero
-     chunks, applies the saved delta's chunks, cleans and revokes the grant;
+  4. grants the region, writes every byte of the base image, applies the saved
+     delta's chunks, cleans and revokes the grant;
   5. sends the geometry and the CRC of what it wrote, commits, and polls until
      ready;
   6. releases execution.
@@ -984,7 +986,7 @@ ID, unit, base-image SHA-256), layout `fes.ata-disk.delta` 1.0:
   then an ascending list of chunk indices each with the SHA-256 of its 64 KiB
   of data, then a SHA-256 of the manifest.
 - Chunk data lives in content-addressed files beside it.
-- **Saving** (at Stop, and before eject): freeze; read the dirty map and the
+- **Saving** (at Stop and fault cleanup only): freeze; read the dirty map and the
   existing manifest (empty on the first save); grant the region (no line of
   it is cached, see below) and read the dirty chunks; write and sync each new chunk
   file; replace those indices in the existing manifest, retaining entries for
@@ -992,6 +994,8 @@ ID, unit, base-image SHA-256), layout `fes.ata-disk.delta` 1.0:
   temporary-file, rename and directory-sync rule; send Saved to clear the dirty
   bits; delete chunk files the published manifest does not name, under the
   namespace lock.
+- The disk is fixed while the computer runs. Insert, eject and explicit media
+  save are refused; periodic checkpoints during play remain future work.
 - **Restoring** applies the manifest's chunks over the base, as in launch step
   4.
 
@@ -1232,7 +1236,7 @@ own `toolchain.lock`.
 ### libmister-runtime adds
 
 - `fes.computer` 1.1 identity and admission.
-- The ATA disk loader and saver: window grant, zero-skip load, delta apply,
+- The ATA disk loader and saver: window grant, complete base-image write, delta apply,
   clean, commit with CRC, poll; freeze, dirty map, read, publish the delta,
   Saved.
 - Short fes-window grants for the disk region; REVOKE's write-back and

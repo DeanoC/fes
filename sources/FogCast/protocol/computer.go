@@ -221,6 +221,11 @@ func ComputerABI(id string, major, minor int64) bool {
 	return id == ComputerABIID && major == int64(generated.FesComputerABIMajor) && minor >= 0 && minor <= int64(generated.FesComputerABIMinor)
 }
 
+// ComputerAtaDiskABI reports a supported fes.computer minor that includes ATA disks.
+func ComputerAtaDiskABI(id string, major, minor int64) bool {
+	return ComputerABI(id, major, minor) && minor >= 1
+}
+
 func activeComputer(p *CorePackageStatus) bool {
 	return p != nil && ComputerABI(p.ABI.ID, int64(p.ABI.Major), int64(p.ABI.Minor))
 }
@@ -252,8 +257,8 @@ func KeyboardHIDCapable(p *CorePackageStatus) bool {
 	return activeComputer(p) && activeInterface(p, KeyboardHIDInterface())
 }
 
-// MediaUnitStatus is one runtime-reported removable-media drive. The runtime
-// reads it from live MediaInfo while a fes.computer generation is active.
+// MediaUnitStatus is one runtime-reported media unit. The runtime reads its
+// live state while a fes.computer generation is active.
 type MediaUnitStatus struct {
 	Unit        uint8            `json:"unit"`
 	Interface   RuntimeContract  `json:"interface"`
@@ -261,29 +266,45 @@ type MediaUnitStatus struct {
 	MaxBytes    uint32           `json:"max_bytes"`
 	ChunkBytes  uint32           `json:"chunk_bytes"`
 	State       string           `json:"state"`
+	Saveable    *bool            `json:"saveable,omitempty"`
 	Persistence *MediaDataStatus `json:"persistence,omitempty"`
 }
+
+// CanSave reports whether this unit supports an explicit in-session save.
+// Older status responses omit the field and retain their existing behavior.
+func (u MediaUnitStatus) CanSave() bool { return u.Saveable == nil || *u.Saveable }
 
 // Valid checks the unit against the ABI and, for known media interfaces, the
 // exact unit and size the interface defines.
 func (u MediaUnitStatus) Valid() bool {
-	if u.Interface.ID == AtaDiskInterface().ID {
-		// The fixed hard disk moves through the DDR window, not 512-byte
-		// mailbox chunks; it is persistent whenever it is bound.
-		switch u.State {
-		case MediaUnitEmpty, MediaUnitLoading, MediaUnitReady:
+	if u.Interface == AtaDiskInterface() && u.CanSave() {
+		return false
+	}
+	if u.Persistence != nil {
+		if u.Unit >= uint8(generated.FesComputerMediaUnitCount) || u.State != MediaUnitReady || !u.Persistence.Valid() {
+			return false
+		}
+		switch u.Interface {
+		case AtariStFloppyInterface():
+			if u.Unit != AtariStFloppyUnit {
+				return false
+			}
+		case AtaDiskInterface():
+			if u.Unit != AtaDiskUnit || u.CanSave() {
+				return false
+			}
 		default:
 			return false
 		}
-		return u.Interface == AtaDiskInterface() && u.Unit == AtaDiskUnit && int64(u.MinBytes) == AtaDiskMinBytes &&
-			int64(u.MaxBytes) == AtaDiskMaxBytes && u.ChunkBytes == AtaDiskChunkBytes &&
-			(u.Persistence == nil || (u.State == MediaUnitReady && u.Persistence.Valid()))
 	}
-	if u.Persistence != nil && (u.Interface != AtariStFloppyInterface() || u.Unit != AtariStFloppyUnit || u.State != MediaUnitReady || !u.Persistence.Valid()) {
-		return false
+	maxBytes := MaxComputerMediaBytes
+	chunkBytes := ComputerMediaChunkBytes
+	if u.Interface.ID == AtaDiskInterface().ID {
+		maxBytes = AtaDiskMaxBytes
+		chunkBytes = AtaDiskChunkBytes
 	}
 	if u.Unit >= uint8(generated.FesComputerMediaUnitCount) || u.MinBytes < generated.FesComputerMediaMinBytes ||
-		u.MinBytes > u.MaxBytes || int64(u.MaxBytes) > MaxComputerMediaBytes || u.ChunkBytes != ComputerMediaChunkBytes ||
+		u.MinBytes > u.MaxBytes || int64(u.MaxBytes) > maxBytes || u.ChunkBytes != chunkBytes ||
 		u.Interface.ID == "" || u.Interface.Major == 0 {
 		return false
 	}
@@ -303,6 +324,12 @@ func (u MediaUnitStatus) Valid() bool {
 		return u.Interface == AtariStFloppyInterface() && u.Unit == AtariStFloppyUnit &&
 			((int64(u.MinBytes) == AtariStFloppyBytes && int64(u.MaxBytes) == AtariStFloppyBytes) ||
 				(int64(u.MinBytes) == AtariStFloppyGeometryMinBytes && int64(u.MaxBytes) == AtariStFloppyGeometryMaxBytes))
+	case AtaDiskInterface().ID:
+		return u.Interface == AtaDiskInterface() && u.Unit == AtaDiskUnit &&
+			int64(u.MinBytes) == AtaDiskMinBytes && int64(u.MaxBytes) == AtaDiskMaxBytes &&
+			u.ChunkBytes == AtaDiskChunkBytes &&
+			((u.State == MediaUnitReady && u.Persistence != nil) ||
+				(u.Persistence == nil && (u.State == MediaUnitEmpty || u.State == MediaUnitLoading)))
 	}
 	if u.Interface.ID == SpectrumTapeInterface().ID {
 		return u.Interface == SpectrumTapeInterface() && u.Unit == SpectrumTapeUnit &&
@@ -327,6 +354,9 @@ func MediaUnit(p *CorePackageStatus, unit uint8) (MediaUnitStatus, bool) {
 	}
 	for _, u := range p.MediaUnits {
 		if u.Unit == unit && u.Valid() && activeInterface(p, u.Interface) {
+			if u.Interface == AtaDiskInterface() && !ComputerAtaDiskABI(p.ABI.ID, int64(p.ABI.Major), int64(p.ABI.Minor)) {
+				continue
+			}
 			if u.Interface == AtariStFloppyInterface() && int64(u.MaxBytes) != AtariStFloppyBytes && !AtariStFloppyGeometryCapable(p) {
 				continue
 			}

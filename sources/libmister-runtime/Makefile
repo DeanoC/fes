@@ -284,7 +284,8 @@ $(BUILD_DIR)/tests/unit/native_hardware_test: tests/unit/native_hardware_test.cp
 		src/native/hardware.cpp  src/runtime.cpp src/native/linux/menu_window.cpp \
 		src/linux/production_hardware.cpp \
 		src/native/linux/mmio.cpp src/native/linux/fpga_manager.cpp \
-		src/native/linux/i2c.cpp src/native/linux/input.cpp src/native/linux/window_driver.cpp
+		src/native/linux/i2c.cpp src/native/linux/input.cpp src/native/linux/window_driver.cpp \
+		src/daemon/json.cpp src/daemon/protocol.cpp
 	@mkdir -p "$(dir $@)"
 	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) \
 		-DMISTER_RUNTIME_IDLE_RBF=\"/definitely-missing/libmister-runtime/idle.rbf\" \
@@ -299,6 +300,7 @@ $(BUILD_DIR)/tests/unit/native_hardware_test: tests/unit/native_hardware_test.cp
 		src/linux/production_hardware.cpp \
 		src/native/linux/mmio.cpp src/native/linux/fpga_manager.cpp \
 		src/native/linux/i2c.cpp src/native/linux/input.cpp src/native/linux/window_driver.cpp \
+		src/daemon/json.cpp src/daemon/protocol.cpp \
 		 -o "$@"
 
 $(BUILD_DIR)/tests/unit/protocol_test: tests/unit/protocol_test.cpp \

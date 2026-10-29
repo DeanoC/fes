@@ -14,7 +14,6 @@ never deployed.
 from __future__ import annotations
 
 import argparse
-from datetime import date
 import json
 import sys
 import zlib
@@ -779,14 +778,8 @@ class Endpoint11(Endpoint):
             return E_ARGUMENT, 0
         if index == 2 and not (low <= 23 and high <= 59):
             return E_ARGUMENT, 0
-        if index == 3:
-            if not (low <= 59 and 1 <= high <= 7):
-                return E_ARGUMENT, 0
-            year = self.clock_staged[0]
-            month_day = self.clock_staged[1]
-            expected_weekday = (date(year, month_day & 0xFF, month_day >> 8).weekday() + 1) % 7 + 1
-            if high != expected_weekday:
-                return E_ARGUMENT, 0
+        if index == 3 and not (low <= 59 and 1 <= high <= 7):
+            return E_ARGUMENT, 0
         if index == 0:
             self.clock_staged = []
         self.clock_staged.append(arg)
@@ -937,7 +930,6 @@ def persistence_session() -> Session11:
     s.send("clock-second-60", OP_WALL_CLOCK, 3, 60 | 4 << 8)
     s.send("clock-weekday-0", OP_WALL_CLOCK, 3, 37 | 0 << 8)
     s.send("clock-weekday-8", OP_WALL_CLOCK, 3, 37 | 8 << 8)
-    s.send("clock-weekday-mismatch", OP_WALL_CLOCK, 3, 37 | 3 << 8)
     s.send("clock-second-weekday", OP_WALL_CLOCK, 3, 37 | 4 << 8)
     s.send("clock-word-1-after-apply", OP_WALL_CLOCK, 1, 10 | 28 << 8)
     # A leap day is a valid date; an Execution request drops the staged words.

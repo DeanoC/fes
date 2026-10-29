@@ -154,7 +154,7 @@ func validCorePackageStatus(status protocol.Status) bool {
 	}
 	value := status.CorePackage
 	if protocol.ComputerABI(value.ABI.ID, int64(value.ABI.Major), int64(value.ABI.Minor)) &&
-		value.PersistenceMode == "persistent" && !protocol.StopSavesMedia(value) && !protocol.MachineRecordCapable(value) {
+		value.PersistenceMode == "persistent" && !protocol.PersistentMediaStatusValid(value) {
 		return false
 	}
 	if r := value.ROMLink; r != nil {
@@ -192,7 +192,8 @@ func validCorePackageStatus(status protocol.Status) bool {
 	}
 	for index, unit := range value.MediaUnits {
 		if !unit.Valid() || (index > 0 && value.MediaUnits[index-1].Unit >= unit.Unit) ||
-			(unit.Persistence != nil && (value.PersistenceMode != "persistent" || !(protocol.MediaWriteCapable(value) || protocol.HardDiskCapable(value)))) {
+			(unit.Interface == protocol.AtaDiskInterface() && !protocol.ComputerAtaDiskABI(value.ABI.ID, int64(value.ABI.Major), int64(value.ABI.Minor))) ||
+			(unit.Persistence != nil && (value.PersistenceMode != "persistent" || !protocol.PersistentMediaUnitCapable(value, unit))) {
 			return false
 		}
 	}

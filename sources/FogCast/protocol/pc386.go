@@ -38,6 +38,7 @@ const (
 	MachineSettingsHeader = "X-FogCast-Machine-Settings"
 )
 
+// AtaDiskInterface is the fixed pc386 disk contract.
 func AtaDiskInterface() RuntimeContract {
 	return RuntimeContract{ID: generated.FesComputerInterfaceMediaAtaDiskID, Major: generated.FesComputerInterfaceMediaAtaDiskMajor, Minor: generated.FesComputerInterfaceMediaAtaDiskMinor}
 }
@@ -70,29 +71,6 @@ func DeclaresAtaDisk(descriptor corepackage.Descriptor) bool {
 func DeclaresPc386Machine(descriptor corepackage.Descriptor) bool {
 	return descriptor.ABI.ID == ComputerABIID && descriptor.ABI.Major == 1 && descriptor.ABI.Minor == 1 &&
 		declaresRequired(descriptor, PersistenceWordsInterface()) && declaresRequired(descriptor, Pc386MachineInterface())
-}
-
-// HardDiskCapable reports an active generation that negotiated the hard disk.
-func HardDiskCapable(p *CorePackageStatus) bool {
-	return activeComputer(p) && activeInterface(p, AtaDiskInterface())
-}
-
-// HardDiskBound reports a ready hard disk bound to a library game's delta.
-func HardDiskBound(p *CorePackageStatus) bool {
-	u, ok := MediaUnit(p, AtaDiskUnit)
-	return ok && u.Interface == AtaDiskInterface() && u.Persistence != nil
-}
-
-// StopSavesMedia reports a generation whose Stop publishes durable media, a
-// writable ST floppy or a hard-disk delta, and so needs the longer budget.
-func StopSavesMedia(p *CorePackageStatus) bool {
-	return MediaDataBound(p) || HardDiskBound(p)
-}
-
-// MachineRecordCapable reports an active generation whose persistence words
-// carry a per-game fes.pc386.machine record.
-func MachineRecordCapable(p *CorePackageStatus) bool {
-	return activeComputer(p) && activeInterface(p, PersistenceWordsInterface()) && activeInterface(p, Pc386MachineInterface())
 }
 
 // AdmitAtaDiskSize reports a raw image length the disk admits.

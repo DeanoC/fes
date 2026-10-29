@@ -3,7 +3,6 @@
 
 #include <assert.h>
 #include <algorithm>
-#include <cstdlib>
 #include <unistd.h>
 
 #include <fstream>
@@ -290,8 +289,27 @@ mister::Status Pc386RunningStatus()
 	status.core = "fes.pc386";
 	status.generation = 1;
 	status.capabilities.programming_profiles = {"development-contained-v1", "fes-gp-v1"};
-	status.capabilities.abis = {{"fes.computer", 1, 1, {{"fes.media.ata-disk", 1, 0},
-		{"fes.memory.hps-ddr", 1, 0}, {"fes.video.fixed-720p60", 1, 0}}}};
+	const std::vector<mister::SupportedInterface> computer_10_interfaces = {
+		{"fes.audio.pcm-s16-stereo-48k", 1, 0}, {"fes.expansion.apple2-bus", 1, 0},
+		{"fes.expansion.atari-st-bus", 1, 0}, {"fes.expansion.c64-bus", 1, 0},
+		{"fes.gamepad.ports", 1, 0}, {"fes.keyboard.hid", 1, 0},
+		{"fes.media.apple2-floppy", 1, 0}, {"fes.media.atari-st-floppy", 1, 0},
+		{"fes.media.atari-st-floppy-geometry", 1, 0}, {"fes.media.atari-st-floppy-write", 1, 0},
+		{"fes.media.c64-disk", 1, 0}, {"fes.media.spectrum-disk", 1, 0},
+		{"fes.media.spectrum-snapshot", 1, 0}, {"fes.media.spectrum-snapshot-128", 1, 0},
+		{"fes.media.spectrum-snapshot-plus3", 1, 0}, {"fes.media.spectrum-tape", 2, 0},
+		{"fes.media.zx81-tape", 1, 0}, {"fes.media.zx81-tape-write", 1, 0},
+		{"fes.memory.hps-ddr", 1, 0}, {"fes.mouse.relative", 1, 0},
+		{"fes.video.fixed-720p60", 1, 0}};
+	std::vector<mister::SupportedInterface> computer_11_interfaces = computer_10_interfaces;
+	computer_11_interfaces.insert(computer_11_interfaces.end(), {
+		{"fes.media.ata-disk", 1, 0}, {"fes.pc386.machine", 1, 0},
+		{"fes.persistence.words", 1, 0}, {"fes.rtc.wall-clock", 1, 0}});
+	std::sort(computer_11_interfaces.begin(), computer_11_interfaces.end(),
+		[](const auto& a, const auto& b) { return a.id < b.id; });
+	status.capabilities.abis = {
+		{"fes.computer", 1, 0, computer_10_interfaces},
+		{"fes.computer", 1, 1, computer_11_interfaces}};
 	status.capabilities.active_interfaces = {{"fes.media.ata-disk", 1, 0}, {"fes.memory.hps-ddr", 1, 0},
 		{"fes.video.fixed-720p60", 1, 0}};
 	mister::MediaUnitCapability unit;
@@ -301,6 +319,7 @@ mister::Status Pc386RunningStatus()
 	unit.max_bytes = 134217728;
 	unit.chunk_bytes = 65536;
 	unit.state = mister::MediaUnitState::ready;
+	unit.saveable = false;
 	unit.persistence_mode = "persistent";
 	unit.game_id = "ultima-vi";
 	unit.base_media_id = std::string(64, 'c');
@@ -321,6 +340,18 @@ mister::Status Pc386RunningStatus()
 		"2222222222222222222222222222222222222222222222222222222222222222",
 		"synthetic fixture generator 1.0 (test-only)"};
 	status.active_package.observed = {d.abi, d.build.id};
+	return status;
+}
+
+mister::Status Pc386EmptyDiskStatus()
+{
+	auto status = Pc386RunningStatus();
+	auto& unit = status.capabilities.media_units.front();
+	unit.state = mister::MediaUnitState::empty;
+	unit.persistence_mode.clear();
+	unit.game_id.clear();
+	unit.base_media_id.clear();
+	unit.revision.clear();
 	return status;
 }
 
@@ -381,7 +412,11 @@ void TestPc386CoreDataProtocol()
 	assert(!Parse("{\"protocol\":2,\"operation\":\"inspect_core_data\"," + fields + disk + "}}", &request).ok());
 
 	const auto lines = ReadLines("tests/fixtures/protocol-v2-pc386-responses.jsonl");
-	assert(lines.size() == 3);
+	assert(lines.size() == 4);
+	assert(lines[2].find("\"saveable\":false") != std::string::npos);
+	assert(lines[3].find("\"saveable\":false") != std::string::npos);
+	assert(lines[3].find("\"state\":\"empty\"") != std::string::npos);
+	assert(lines[3].find("\"persistence\"") == std::string::npos);
 	Status status;
 	status.state = State::idle;
 	status.capabilities = FixtureCapabilities();
@@ -401,6 +436,7 @@ void TestPc386CoreDataProtocol()
 	data.revision = std::string(64, 'b');
 	assert(mister::daemon::EncodeResponse(2, true, status, "fixture", nullptr, &data) == lines[1]);
 	assert(mister::daemon::EncodeResponse(2, true, Pc386RunningStatus(), "fixture") == lines[2]);
+	assert(mister::daemon::EncodeResponse(2, true, Pc386EmptyDiskStatus(), "fixture") == lines[3]);
 }
 
 void TestPersistenceRequestsAndResponseFixtures()
@@ -1041,6 +1077,7 @@ std::vector<std::string> ComputerResponseFixtures()
 		{"fes.computer", 1, 0, {{"fes.audio.pcm-s16-stereo-48k", 1, 0},
 			{"fes.expansion.apple2-bus", 1, 0}, {"fes.gamepad.ports", 1, 0},
 			{"fes.keyboard.hid", 1, 0}, {"fes.media.apple2-floppy", 1, 0},
+			{"fes.media.atari-st-floppy", 1, 0},
 			{"fes.video.fixed-720p60", 1, 0}}},
 		{"fes.simple-computer", 1, 0, {{"fes.expansion.zx81-bus", 1, 0}, {"fes.keyboard", 1, 0},
 			{"fes.media.blob", 1, 0}, {"fes.media.blob-stream", 1, 0},
@@ -1049,6 +1086,13 @@ std::vector<std::string> ComputerResponseFixtures()
 			{"fes.pong.progress", 1, 0}, {"fes.video.fixed-720p60", 1, 0}}}};
 	std::vector<std::string> lines;
 	// Idle runtime advertises the computer ABI and its interfaces.
+	auto computer_11 = status.capabilities.abis[1];
+	computer_11.minor = 1;
+	computer_11.interfaces.insert(computer_11.interfaces.end(), {
+		{"fes.pc386.machine", 1, 0}, {"fes.persistence.words", 1, 0}, {"fes.rtc.wall-clock", 1, 0}});
+	std::sort(computer_11.interfaces.begin(), computer_11.interfaces.end(),
+		[](const auto& a, const auto& b) { return a.id < b.id; });
+	status.capabilities.abis.insert(status.capabilities.abis.begin() + 2, computer_11);
 	lines.push_back(mister::daemon::EncodeResponse(2, true, status, "fixture"));
 
 	// Running Apple II loaded with load_rom_core: unit 0 discovered empty.
@@ -1078,6 +1122,7 @@ std::vector<std::string> ComputerResponseFixtures()
 	unit.max_bytes = 143360;
 	unit.chunk_bytes = 512;
 	unit.state = mister::MediaUnitState::empty;
+	unit.saveable = false;
 	status.capabilities.media_units = {unit};
 	lines.push_back(mister::daemon::EncodeResponse(2, true, status, "fixture"));
 
@@ -1139,6 +1184,39 @@ std::vector<std::string> ComputerResponseFixtures()
 	status.active_package.rom_link = {};
 	status.capabilities.active_interfaces = {{"fes.video.fixed-720p60", 1, 0}};
 	lines.push_back(mister::daemon::EncodeResponse(2, false, status, "fixture"));
+
+	// A live Atari ST keeps its 1.0 package ABI while runtime advertises 1.0
+	// and 1.1 as distinct supported versions of fes.computer.
+	status.error = {};
+	status.state = State::running_development;
+	status.execution = Execution::development;
+	status.core = "fes.atari-st";
+	status.generation = 7;
+	status.active_package.package_id = std::string(64, 'd');
+	status.active_package.descriptor = FixtureDescriptor();
+	status.active_package.descriptor.format = 2;
+	status.active_package.descriptor.core = {"fes.atari-st", "Synthetic FES Atari ST",
+		"Synthetic test-only core bundle fixture; never deploy.", "0.1.0", ""};
+	status.active_package.descriptor.abi = {"fes.computer", 1, 0};
+	status.active_package.descriptor.interfaces = {
+		{"fes.video.fixed-720p60", 1, 0, true}, {"fes.keyboard.hid", 1, 0, true},
+		{"fes.media.atari-st-floppy", 1, 0, true}};
+	status.active_package.descriptor.build.repository = "https://example.invalid/fes-atari-st";
+	status.active_package.observed = {status.active_package.descriptor.abi,
+		status.active_package.descriptor.build.id};
+	status.capabilities.active_interfaces = {{"fes.keyboard.hid", 1, 0},
+		{"fes.media.atari-st-floppy", 1, 0}, {"fes.video.fixed-720p60", 1, 0}};
+	status.capabilities.media_units.clear();
+	unit = mister::MediaUnitCapability{};
+	unit.unit = 0;
+	unit.interface = {"fes.media.atari-st-floppy", 1, 0};
+	unit.min_bytes = 737280;
+	unit.max_bytes = 737280;
+	unit.chunk_bytes = 512;
+	unit.state = mister::MediaUnitState::empty;
+	unit.saveable = false;
+	status.capabilities.media_units = {unit};
+	lines.push_back(mister::daemon::EncodeResponse(2, true, status, "fixture"));
 	return lines;
 }
 
@@ -1149,12 +1227,21 @@ void TestComputerResponseFixtures()
 	assert(lines[0].find("\"media_units\"") == std::string::npos);
 	assert(lines[1].find("\"media_units\":[{\"unit\":0,\"interface\":{\"id\":\"fes.media.apple2-floppy\","
 		"\"major\":1,\"minor\":0},\"min_bytes\":143360,\"max_bytes\":143360,\"chunk_bytes\":512,"
-		"\"state\":\"empty\"}]") != std::string::npos);
+		"\"state\":\"empty\",\"saveable\":false}]") != std::string::npos);
 	assert(lines[2].find("\"state\":\"ready\"") != std::string::npos);
 	assert(lines[3].find("\"state\":\"loading\"") != std::string::npos);
 	assert(lines[4].find("\"expansions\":[{\"slot\":4,") != std::string::npos);
 	assert(lines[5].find("\"media_units\":[]") != std::string::npos);
 	assert(lines[6].find("\"media_units\"") == std::string::npos);
+	assert(lines.size() == 8);
+	assert(lines[7].find("\"core\":\"fes.atari-st\"") != std::string::npos);
+	assert(lines[7].find("\"id\":\"fes.computer\",\"major\":1,\"minor\":0") != std::string::npos);
+	assert(lines[7].find("\"id\":\"fes.computer\",\"major\":1,\"minor\":1") != std::string::npos);
+	for (const auto& line : lines) {
+		const auto v10 = line.find("{\"id\":\"fes.computer\",\"major\":1,\"minor\":0");
+		const auto v11 = line.find("{\"id\":\"fes.computer\",\"major\":1,\"minor\":1");
+		assert(v10 != std::string::npos && v11 != std::string::npos && v10 < v11);
+	}
 }
 
 void TestMenuProtocolRequestsAndStatus()

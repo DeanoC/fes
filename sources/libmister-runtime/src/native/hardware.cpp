@@ -915,7 +915,9 @@ Capabilities NativeHardware::capabilities() const
 		result.abis.insert(result.abis.begin(), std::move(computer_io));
 		std::sort(result.abis.begin(), result.abis.end(),
 			[](const SupportedABI& a, const SupportedABI& b) {
-				return a.id != b.id ? a.id < b.id : a.minor < b.minor; });
+				if (a.id != b.id) return a.id < b.id;
+				if (a.major != b.major) return a.major < b.major;
+				return a.minor < b.minor; });
 		if (active_driver_ == fes_gp_driver_) {
 			MediaStreamInfo info;
 			const auto* driver = dynamic_cast<FesGpCoreDriver*>(fes_gp_driver_);
@@ -929,6 +931,7 @@ Capabilities NativeHardware::capabilities() const
                 unit.max_bytes = generated::FesComputerAtaDiskMaxBytes;
                 unit.chunk_bytes = generated::FesComputerAtaDiskChunkBytes;
                 unit.state = ata_ready_ ? MediaUnitState::ready : MediaUnitState::empty;
+                unit.saveable = false;
                 if (ata_delta_file_) {
                     unit.persistence_mode = "persistent"; unit.game_id = ata_identity_.game_id;
                     unit.base_media_id = ata_identity_.base_media_id; unit.revision = ata_delta_.revision;

@@ -51,7 +51,7 @@ func (c *Client) recordSessionResponse(order uint64, session SessionResult, muta
 		}
 		c.stopSession.accepted = order
 	}
-	c.stopSession.bound = protocol.StopSavesMedia(diskPackage(session.CorePackage))
+	c.stopSession.bound = protocol.PersistentMediaBound(diskPackage(session.CorePackage))
 }
 func (c *Client) knownStopHTTP() *http.Client {
 	if c.stopSession == nil {
@@ -63,7 +63,7 @@ func (c *Client) knownStopHTTP() *http.Client {
 	return c.stopHTTPForBound(bound)
 }
 func (c *Client) stopHTTPForSession(session SessionResult) *http.Client {
-	return c.stopHTTPForBound(protocol.StopSavesMedia(diskPackage(session.CorePackage)))
+	return c.stopHTTPForBound(protocol.PersistentMediaBound(diskPackage(session.CorePackage)))
 }
 func (c *Client) stopHTTPForBound(bound bool) *http.Client {
 	if !bound {
