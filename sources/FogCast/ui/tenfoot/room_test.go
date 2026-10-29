@@ -345,6 +345,8 @@ type roomHost struct {
 	stopStatus   int
 	stopBody     string
 	stops        int
+	games        []hostclient.Game
+	platforms    []hostclient.Platform
 	recents      []hostclient.Game
 	recentsGate  chan struct{}
 	prefs        map[string]hostclient.EditionPreference
@@ -384,16 +386,27 @@ func newRoomHost(t *testing.T) *roomHost {
 				_ = json.NewEncoder(w).Encode(map[string]any{"games": recents})
 				return
 			}
-			games := []hostclient.Game{
-				availableGame("snes-mario", "Mario", "snes"),
-				availableGame("snes-zelda", "Zelda", "snes"),
-			}
-			if r.URL.Query().Get("platform") == "megadrive" {
-				games = []hostclient.Game{availableGame("megadrive-sonic", "Sonic", "megadrive")}
+			h.mu.Lock()
+			games := append([]hostclient.Game(nil), h.games...)
+			h.mu.Unlock()
+			if games == nil {
+				games = []hostclient.Game{
+					availableGame("snes-mario", "Mario", "snes"),
+					availableGame("snes-zelda", "Zelda", "snes"),
+				}
+				if r.URL.Query().Get("platform") == "megadrive" {
+					games = []hostclient.Game{availableGame("megadrive-sonic", "Sonic", "megadrive")}
+				}
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{"games": games})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/platforms":
-			_ = json.NewEncoder(w).Encode(map[string]any{"platforms": []hostclient.Platform{{ID: "snes", Label: "SNES"}}})
+			h.mu.Lock()
+			platforms := append([]hostclient.Platform(nil), h.platforms...)
+			h.mu.Unlock()
+			if platforms == nil {
+				platforms = []hostclient.Platform{{ID: "snes", Label: "SNES"}}
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"platforms": platforms})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/collections":
 			_ = json.NewEncoder(w).Encode(map[string]any{"collections": []hostclient.Collection{}})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/edition-preferences":
@@ -577,6 +590,78 @@ func newRoomApp(t *testing.T, h *roomHost, index *rooms.Index, homeRooms bool, p
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
 	return app
+}
+
+func TestBuiltInListRoomsKeepStatusBelowListRows(t *testing.T) {
+	h := newRoomHost(t)
+	h.mu.Lock()
+	h.games = make([]hostclient.Game, 24)
+	for i := range h.games {
+		game := availableGame(fmt.Sprintf("zx81-%02d", i), fmt.Sprintf("Computer %02d", i), "fpga")
+		game.CoreID = "fes.zx81"
+		h.games[i] = game
+	}
+	h.platforms = []hostclient.Platform{{ID: "fpga", Label: "FES", Tags: []string{"vdp:tms9918-family"}}}
+	h.mu.Unlock()
+
+	app := newRoomApp(t, h, rooms.NewIndex(rooms.Examples()), false)
+	for _, id := range []string{"example.computers", "example.lobby", "example.tms-vdp", "example.coleco-arcade"} {
+		app.mu.Lock()
+		app.openRoomLocked(id)
+		app.mu.Unlock()
+		snap := waitFor(t, app, id, func(s Snapshot) bool {
+			if s.Room.ID != id {
+				return false
+			}
+			if id == "example.coleco-arcade" {
+				return roomFrameHasClip(s.Room.Frame.Ops)
+			}
+			return roomFrameHasTextInsideClip(s.Room.Frame.Ops)
+		})
+		statusY, _ := roomChromeFooterRows(snap.Grid)
+		clips := 0
+		for _, op := range snap.Room.Frame.Ops {
+			if op.Kind != rooms.OpClipPush {
+				continue
+			}
+			clips++
+			bottom := snap.Room.OffsetY + int(op.Y+op.H)
+			if bottom > statusY {
+				t.Fatalf("%s list clip ends at %d, through status row at %d", id, bottom, statusY)
+			}
+		}
+		if clips == 0 {
+			t.Fatalf("%s drew no list viewport", id)
+		}
+	}
+}
+
+func roomFrameHasTextInsideClip(ops []rooms.Op) bool {
+	depth := 0
+	for _, op := range ops {
+		switch op.Kind {
+		case rooms.OpClipPush:
+			depth++
+		case rooms.OpClipPop:
+			if depth > 0 {
+				depth--
+			}
+		case rooms.OpText:
+			if depth > 0 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func roomFrameHasClip(ops []rooms.Op) bool {
+	for _, op := range ops {
+		if op.Kind == rooms.OpClipPush {
+			return true
+		}
+	}
+	return false
 }
 
 func waitFor(t *testing.T, app *App, what string, pred func(Snapshot) bool) Snapshot {

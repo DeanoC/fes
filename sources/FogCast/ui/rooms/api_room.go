@@ -98,6 +98,7 @@ func (r *Instance) installRooms() *lua.LTable {
 			r.actions = append(r.actions, Action{
 				Kind:       ActionOpenLibrary,
 				Platform:   optString(opts, "platform"),
+				CoreIDs:    optStrings(opts, "core_ids"),
 				Collection: optString(opts, "collection"),
 				Layout:     optString(opts, "layout"),
 			})

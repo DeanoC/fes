@@ -7,7 +7,11 @@
 //   SETcc, MOVZX and MOVSX, CBW/CWDE, CWD/CDQ, SAHF, LAHF, the flag set and
 //   clear instructions, NOP, HLT, and the near JMP, Jcc, LOOP, LOOPE, LOOPNE
 //   and JCXZ; PUSH and POP of a register, an immediate or a segment register,
-//   RET and RET imm16, LEAVE, JMP r/m and CALL rel;
+//   RET and RET imm16, LEAVE, JMP r/m and CALL rel; XCHG, MOV to and from
+//   a direct offset, XLAT and SALC; PUSH, POP and CALL of r/m; MUL, IMUL
+//   (all three forms), DIV, IDIV, AAM and AAD; IN and OUT; the first uops of
+//   MOVS, CMPS, STOS, LODS, SCAS, INS, OUTS and ENTER (fes_i386_seq builds
+//   the rest);
 // with a ModRM memory operand where they take one. The memory operand is a
 // load (src2, or src1 for CMP and TEST), a store, or both in one uop
 // (read-modify-write), and replaces the register it stands for: no GPR is
@@ -45,14 +49,20 @@ module fes_i386_decode (
     output logic [2:0]             stk,         // a stack operation (fes_i386_pkg STK_*)
     output logic                   push_eip,    // src2 is the next instruction's EIP
     output logic                   cs_base,     // src1 is CS's base (EX adds the target)
-    output logic [2:0]             seq,         // a fixed uop sequence (fes_i386_pkg SEQ_*, fes_i386_seq)
+    output logic [4:0]             seq,         // a fixed uop sequence (fes_i386_pkg SEQ_*, fes_i386_seq)
     output logic                   sel_part,    // the uop reads a far pointer's selector
     output logic                   far_jmp,     // a far jump by far_sel:imm
     output logic                   far_chk,     // ... whose offset (imm) D checks against CS's limit
     output logic [15:0]            far_sel,
     output logic [5:0]             wseg,        // the segment registers the uop writes, one-hot
     output logic [7:0]             upc,         // SEQ_UCODE: the ROM address of the routine's second uop
-    output logic                   ivt          // the memory operand is the interrupt vector's entry
+    output logic                   direct,      // the memory operand has no base or index: a moffs, the vector's entry
+    output logic                   xlat,        // ... is XLAT's [BX + AL]
+    output logic [2:0]             m_seg,       // the ModRM operand's segment, apart from a stack uop's SS
+    output logic [3:0]             slot,        // STK_PEEK: the stack slot, -8 to 7, from ESP
+    output logic [2:0]             str_op,      // SEQ_STRING: the instruction (fes_i386_pkg str_e)
+    output logic [1:0]             str_rep,     // ... its REP prefix (rep_e)
+    output logic [4:0]             ecnt         // SEQ_ENTER: the nesting level, mod 32
 );
     typedef fes_i386_pkg::uop_t uop_t;
 
@@ -83,7 +93,7 @@ module fes_i386_decode (
     assign osz = osz32 ? 2'd2 : 2'd1;
 
     // A flag consumer: ADC, SBB, Jcc, SETcc, RCL, RCR, LAHF, CMC, LOOPE,
-    // LOOPNE. Straight from the opcode and ModRM bytes, not through the
+    // LOOPNE, PUSHF, INTO, SALC. Straight from the opcode and ModRM bytes, not through the
     // decode below, because D's issue waits on it (fes_i386_cpu); a superset
     // here would hold instructions needlessly, which the lockstep's gap check
     // catches. by[1][5:4] == 01 is ModRM reg 2 or 3.
@@ -93,7 +103,7 @@ module fes_i386_decode (
                    || b0[7:4] == 4'h7                                             // Jcc rel8
                    || (two && op2[7:5] == 3'b100)                                 // Jcc rel16/32, SETcc
                    || b0 == 8'h9f || b0 == 8'hf5 || b0[7:1] == 7'b1110000         // LAHF, CMC, LOOPNE, LOOPE
-                   || b0 == 8'h9c || b0 == 8'hce;                                 // PUSHF, INTO
+                   || b0 == 8'h9c || b0 == 8'hce || b0 == 8'hd6;                  // PUSHF, INTO, SALC
 
     // Where the displacement is: after the ModRM and, in 32-bit addressing
     // with r/m 100b, a SIB byte.
@@ -142,7 +152,10 @@ module fes_i386_decode (
     logic        lptr;      // LES and its kin (SEQ_LPTR)
     logic        fptr;      // JMP and CALL m16:16/32 (SEQ_JMPFM, SEQ_CALLFM)
     logic        d_t1;      // the destination is T1, not T0
-    logic [1:0]  probe;     // probe_e: the uop probes a routine's stack slots
+    logic        probe;     // probe_e: the uop probes INT's stack slots
+    logic        ivt;       // the memory operand is the interrupt vector's entry
+    logic        moffs;     // ... a direct offset, the bytes after the opcode (A0h-A3h)
+    logic        lock_any;  // LOCK is valid whatever the first uop (XCHG with memory)
     logic        eoi_taken; // ends the instruction only when taken (INTO's JNO)
     logic [7:0]  vec;       // INT3, INT n, INTO: the vector
     logic        eoi;       // the uop ends the instruction
@@ -150,8 +163,12 @@ module fes_i386_decode (
     logic        m_in_a;    // the memory operand stands for src1 (and the destination), else src2
     logic [2:0]  mbytes;    // the access's bytes, when not the operation's size
     logic        lockable;  // LOCK is valid on the memory form
+    logic        strop;     // a string instruction: no ModRM, DS:ESI and ES:EDI (SEQ_STRING)
+    logic        enter;     // ENTER: src1 is ESP, read for the string engine's copies
+    logic [1:0]  io;        // an I/O access at WB (fes_i386_pkg io_e)
 
-    localparam logic [2:0] C_ALU = 3'd0, C_SHIFT = 3'd1, C_BRANCH = 3'd4, C_SEGMENT = 3'd5, C_SPECIAL = 3'd7;
+    localparam logic [2:0] C_ALU = 3'd0, C_SHIFT = 3'd1, C_MUL = 3'd2, C_DIV = 3'd3, C_BRANCH = 3'd4, C_SEGMENT = 3'd5,
+                           C_SPECIAL = 3'd7;
 
     always_comb begin
         cls = C_ALU;
@@ -180,6 +197,10 @@ module fes_i386_decode (
         probe = fes_i386_pkg::PROBE_NONE;
         upc = 8'd0;
         ivt = 1'b0;
+        moffs = 1'b0;
+        xlat = 1'b0;
+        lock_any = 1'b0;
+        slot = 4'd0;
         eoi_taken = 1'b0;
         vec = 8'd0;
         d_idx = 3'd0;
@@ -200,6 +221,12 @@ module fes_i386_decode (
         m_in_a = 1'b0;
         mbytes = 3'd0;  // by size
         lockable = 1'b0;
+        strop = 1'b0;
+        enter = 1'b0;
+        io = 2'd0;
+        str_op = 3'd0;
+        str_rep = 2'd0;
+        ecnt = 5'd0;
         stk = fes_i386_pkg::STK_NONE;
         push_eip = 1'b0;
         cs_base = 1'b0;
@@ -234,6 +261,35 @@ module fes_i386_decode (
                     m_in_a = 1'b1;
                     mkind = 2'd2;
                     stk = fes_i386_pkg::STK_PUSH;
+                end
+                8'b011010?1: begin
+                    // IMUL r, r/m, imm16/32 (69h), imm8 sign-extended (6Bh): the
+                    // register is src1 and the destination, r/m the multiplicand
+                    // (src2) and imm the multiplier
+                    cls = C_MUL;
+                    op = 5'd6;  // MULDIV_IMUL3
+                    mkind = reg_form ? 2'd0 : 2'd1;
+                    wr_cf = 1'b1;
+                    wr_oszap = 1'b1;
+                    s1_valid = 1'b1;
+                    s1_idx = reg_f;
+                    s2_valid = 1'b1;
+                    s2_idx = rm;
+                    d_valid = 1'b1;
+                    d_idx = reg_f;
+                    imm = b0[1] ? imm8s_m : immz_m;
+                end
+                8'b1101010?: begin
+                    // AAM (D4h): AH and AL from AL / imm8 and AL % imm8; AAD (D5h):
+                    // AL from AL + AH * imm8, AH 0. EAX is src1 and the destination.
+                    cls = b0[0] ? C_MUL : C_DIV;
+                    op = b0[0] ? 5'd3 : 5'd2;  // MULDIV_AAD, MULDIV_AAM
+                    size = 2'd0;
+                    wr_cf = 1'b1;
+                    wr_oszap = 1'b1;
+                    s1_valid = 1'b1;
+                    d_valid = 1'b1;
+                    imm = imm8_o;
                 end
                 8'b1100001?: begin
                     // RET imm16 (C2h), RET (C3h): EX adds CS's base to the popped EIP.
@@ -424,10 +480,6 @@ module fes_i386_decode (
                     d_seg = 1'b1;
                     d_idx = reg_f;
                 end
-                8'h90: begin
-                    cls = C_SPECIAL;
-                    op = 5'd0;  // SPECIAL_NOP
-                end
                 8'h98: begin
                     // CBW, CWDE
                     op = 5'd16;  // ALU_MOVSX
@@ -583,13 +635,197 @@ module fes_i386_decode (
                     seg2_idx = 3'd1;
                     seg2_t = 1'b0;
                 end
-                8'b0110000?: begin
-                    // PUSHA, PUSHAD, POPA, POPAD (SEQ_UCODE): a probe of all
-                    // eight slots, then the ROM's routine
+                8'b1000011?: begin
+                    // XCHG r/m, r: with registers, three XORs that write no
+                    // flags (SEQ_XCHG), or a MOV of the register to itself
+                    // when it is one; with memory, the moves through T1
+                    // (SEQ_XCHGM), which LOCK may prefix.
+                    size = b0[0] ? osz : 2'd0;
+                    if (reg_form) begin
+                        op = reg_f == rm ? 5'd9 : 5'd6;  // ALU_MOV, ALU_XOR
+                        s1_valid = 1'b1;
+                        s1_idx = b0[0] ? rm : {1'b0, rm[1:0]};
+                        s1_hi8 = !b0[0] && rm[2];
+                        s2_valid = 1'b1;
+                        s2_idx = b0[0] ? reg_f : {1'b0, reg_f[1:0]};
+                        s2_hi8 = !b0[0] && reg_f[2];
+                        d_valid = 1'b1;
+                        d_idx = s1_idx;
+                        d_hi8 = s1_hi8;
+                        if (reg_f != rm) begin
+                            seq = fes_i386_pkg::SEQ_XCHG;
+                            eoi = 1'b0;
+                        end
+                    end else begin
+                        op = 5'd9;
+                        size = 2'd2;  // T1's load, unmerged
+                        mbytes = b0[0] ? (osz32 ? 3'd4 : 3'd2) : 3'd1;
+                        mkind = 2'd1;
+                        s1_idx = b0[0] ? reg_f : {1'b0, reg_f[1:0]};  // carried, unread
+                        s1_hi8 = !b0[0] && reg_f[2];
+                        d_valid = 1'b1;
+                        d_temp = 1'b1;
+                        d_t1 = 1'b1;
+                        lock_any = 1'b1;
+                        seq = fes_i386_pkg::SEQ_XCHGM;
+                        eoi = 1'b0;
+                    end
+                end
+                8'b10010???: if (b0[2:0] != 3'd0) begin
+                    // XCHG eAX, r (SEQ_XCHG); 90h is NOP
+                    op = 5'd6;  // ALU_XOR
+                    s1_valid = 1'b1;
+                    s1_idx = b0[2:0];
+                    s2_valid = 1'b1;
+                    d_valid = 1'b1;
+                    d_idx = b0[2:0];
+                    seq = fes_i386_pkg::SEQ_XCHG;
+                    eoi = 1'b0;
+                end else begin
+                    cls = C_SPECIAL;
+                    op = 5'd0;  // SPECIAL_NOP
+                end
+                8'b101000??: begin
+                    // MOV AL/eAX, moffs (A0h, A1h) and MOV moffs, AL/eAX (A2h,
+                    // A3h): the offset follows the opcode, by address size
                     op = 5'd9;  // ALU_MOV
+                    size = b0[0] ? osz : 2'd0;
+                    moffs = 1'b1;
+                    m_in_a = b0[1];
+                    mkind = b0[1] ? 2'd2 : 2'd1;
+                    s1_valid = 1'b1;
+                    s2_valid = 1'b1;
+                    d_valid = 1'b1;
+                end
+                8'b1010010?, 8'b1010011?, 8'b1010101?, 8'b1010110?, 8'b1010111?, 8'b011011??: begin
+                    // MOVS (A4h, A5h), CMPS (A6h, A7h), STOS (AAh, ABh),
+                    // LODS (ACh, ADh), SCAS (AEh, AFh), INS (6Ch, 6Dh), OUTS
+                    // (6Eh, 6Fh) (SEQ_STRING). This uop starts the
+                    // instruction, a NOP that reads ESI and EDI (where the
+                    // instruction uses them) and, under REP, ECX, for D's
+                    // copies; fes_i386_seq builds the elements from it, at
+                    // its size, address size and source segment. REP, F2h or
+                    // F3h, repeats; for CMPS and SCAS F3h is REPE and F2h
+                    // REPNE. INS stores at ES:EDI as STOS does, OUTS loads
+                    // seg:ESI as LODS does, each from or to port DX.
+                    cls = C_SPECIAL;
+                    op = 5'd0;  // SPECIAL_NOP
+                    size = b0[0] ? osz : 2'd0;
+                    strop = 1'b1;
+                    str_op = b0[7:2] == 6'b011011 ? (b0[1] ? 3'(fes_i386_pkg::STR_OUTS) : 3'(fes_i386_pkg::STR_INS))
+                           : b0[3:1] == 3'b010 ? 3'(fes_i386_pkg::STR_MOVS)
+                           : b0[3:1] == 3'b011 ? 3'(fes_i386_pkg::STR_CMPS)
+                           : b0[3:1] == 3'b101 ? 3'(fes_i386_pkg::STR_STOS)
+                           : b0[3:1] == 3'b110 ? 3'(fes_i386_pkg::STR_LODS) : 3'(fes_i386_pkg::STR_SCAS);
+                    str_rep = q.prefixes.rep;
+                    // ESI: MOVS, CMPS, LODS, OUTS; EDI: all but LODS and OUTS.
+                    s1_valid = b0[7:2] == 6'b011011 ? b0[1] : b0[3:1] != 3'b101 && b0[3:1] != 3'b111;
+                    s1_idx = 3'd6;
+                    s2_valid = b0[7:2] == 6'b011011 ? !b0[1] : b0[3:1] != 3'b110;
+                    s2_idx = 3'd7;
+                    count_cl = q.prefixes.rep != 2'd0;
+                    seq = fes_i386_pkg::SEQ_STRING;
+                    eoi = 1'b0;
+                end
+                8'b1110?1??: begin
+                    // IN AL/eAX, imm8 (E4h, E5h) or DX (ECh, EDh); OUT imm8 or
+                    // DX, AL/eAX (E6h, E7h, EEh, EFh): an I/O access at WB.
+                    // IN merges the port's data into eAX at WB; OUT sends
+                    // eAX. The port is DX (src2) or the imm8.
+                    op = 5'd9;  // ALU_MOV
+                    size = b0[0] ? osz : 2'd0;
+                    io = b0[1] ? 2'(fes_i386_pkg::IO_OUT) : 2'(fes_i386_pkg::IO_IN);
+                    s1_valid = 1'b1;
+                    s1_idx = 3'd0;
+                    d_valid = !b0[1];
+                    d_idx = 3'd0;
+                    s2_valid = b0[3];
+                    s2_idx = 3'd2;
+                    imm = {24'b0, by[1]};
+                end
+                8'hc8: begin
+                    // ENTER imm16, imm8 (SEQ_ENTER): the push of EBP, at
+                    // SS:ESP less the size, ESP unmoved. It reads ESP as
+                    // src1 for the string engine's copies; imm carries the
+                    // final ESP's step past the engine's last push slot, the
+                    // size less imm16.
+                    op = 5'd9;  // ALU_MOV
+                    enter = 1'b1;
+                    s2_valid = 1'b1;
+                    s2_idx = 3'd5;
+                    m_in_a = 1'b1;
+                    mkind = 2'd2;
+                    stk = fes_i386_pkg::STK_PEEK;
+                    slot = 4'hf;
+                    imm = (osz32 ? 32'd4 : 32'd2) - {16'b0, by[2], by[1]};
+                    ecnt = by[3][4:0];
+                    seq = fes_i386_pkg::SEQ_ENTER;
+                    eoi = 1'b0;
+                end
+                8'hd6: begin
+                    // SALC: AL from CF, as SBB AL, AL writing no flags
+                    op = 5'd3;  // ALU_SBB
+                    size = 2'd0;
+                    rd_cf = 1'b1;
+                    s1_valid = 1'b1;
+                    s2_valid = 1'b1;
+                    d_valid = 1'b1;
+                end
+                8'hd7: begin
+                    // XLAT: AL from [BX + AL], or [EBX + AL] by address size
+                    op = 5'd9;
+                    size = 2'd0;
+                    xlat = 1'b1;
                     mkind = 2'd1;
-                    stk = fes_i386_pkg::STK_PROBE;
-                    probe = b0[0] ? fes_i386_pkg::PROBE_POPA : fes_i386_pkg::PROBE_PUSHA;
+                    s1_valid = 1'b1;
+                    d_valid = 1'b1;
+                end
+                8'h8f: begin
+                    // POP r/m (reg 0): a register as POP r; memory, with
+                    // 16-bit addressing, the stack's slot into T1 and the
+                    // rest from fes_i386_seq (SEQ_POPM). 32-bit addressing,
+                    // whose ESP base reads ESP after the pop, is not built.
+                    undefined = reg_f != 3'd0;
+                    known = reg_form || !addr32;
+                    op = 5'd9;
+                    mkind = 2'd1;
+                    if (reg_form) begin
+                        s1_valid = 1'b1;
+                        s1_idx = rm;
+                        d_valid = 1'b1;
+                        d_idx = rm;
+                        stk = fes_i386_pkg::STK_POP;
+                    end else begin
+                        size = 2'd2;
+                        mbytes = osz32 ? 3'd4 : 3'd2;
+                        stk = fes_i386_pkg::STK_PEEK;
+                        d_valid = 1'b1;
+                        d_temp = 1'b1;
+                        d_t1 = 1'b1;
+                        seq = fes_i386_pkg::SEQ_POPM;
+                        eoi = 1'b0;
+                    end
+                end
+                8'b0110000?: begin
+                    // PUSHA, PUSHAD (SEQ_UCODE): EDI's store at the lowest of
+                    // the eight slots below ESP; POPA, POPAD: DI's load from
+                    // the lowest above it. Then the ROM's routine, ESP
+                    // unmoved until its last uop.
+                    op = 5'd9;  // ALU_MOV
+                    stk = fes_i386_pkg::STK_PEEK;
+                    if (b0[0]) begin
+                        s1_valid = 1'b1;
+                        s1_idx = 3'd7;
+                        d_valid = 1'b1;
+                        d_idx = 3'd7;
+                        mkind = 2'd1;
+                    end else begin
+                        s2_valid = 1'b1;
+                        s2_idx = 3'd7;
+                        m_in_a = 1'b1;
+                        mkind = 2'd2;
+                        slot = 4'b1000;  // -8
+                    end
                     seq = fes_i386_pkg::SEQ_UCODE;
                     upc = b0[0] ? fes_i386_ucode_pkg::UC_POPA : fes_i386_ucode_pkg::UC_PUSHA;
                     eoi = 1'b0;
@@ -637,7 +873,7 @@ module fes_i386_decode (
                     branch = 1'b1;
                     eoi_taken = 1'b1;
                     seq = fes_i386_pkg::SEQ_UCODE;
-                    upc = fes_i386_ucode_pkg::UC_INTO;
+                    upc = fes_i386_ucode_pkg::UC_VECTOR;
                     eoi = 1'b0;
                 end
                 8'hcf: begin
@@ -698,9 +934,39 @@ module fes_i386_decode (
                     rd_cf = b0 == 8'hf5;
                     wr_cf = b0 == 8'hf5 || b0[3:1] == 3'b100;
                 end
-                8'b1111011?: begin
-                    // Group 3: TEST r/m, imm (/0, /1); NOT; NEG. MUL, IMUL, DIV, IDIV later.
-                    known = !reg_f[2];
+                8'b1111011?: if (reg_f[2]) begin
+                    // Group 3: MUL, IMUL (/4, /5), DIV, IDIV (/6, /7) of AL or eAX
+                    // by r/m: EAX is src1 and the destination, r/m src2. A 16- or
+                    // 32-bit form also writes EDX: the high half MUL keeps
+                    // (SEQ_MUL), or DIV's remainder, after a LOAD uop that hands
+                    // the unit EDX and carries the divide's op in imm (SEQ_DIV).
+                    cls = reg_f[1] ? C_DIV : C_MUL;
+                    op = {4'd0, reg_f[0]};  // MULDIV_UNSIGNED, MULDIV_SIGNED
+                    mkind = reg_form ? 2'd0 : 2'd1;
+                    size = b0[0] ? osz : 2'd0;
+                    wr_cf = 1'b1;
+                    wr_oszap = 1'b1;
+                    s1_valid = 1'b1;
+                    s2_valid = 1'b1;
+                    s2_idx = b0[0] ? rm : {1'b0, rm[1:0]};
+                    s2_hi8 = !b0[0] && rm[2];
+                    d_valid = 1'b1;
+                    if (b0[0]) begin
+                        if (reg_f[1]) begin
+                            op = 5'd5;  // MULDIV_LOAD
+                            imm = {31'd0, reg_f[0]};
+                            s1_idx = 3'd2;
+                            d_valid = 1'b0;
+                            wr_cf = 1'b0;
+                            wr_oszap = 1'b0;
+                            seq = fes_i386_pkg::SEQ_DIV;
+                        end else begin
+                            seq = fes_i386_pkg::SEQ_MUL;
+                        end
+                        eoi = 1'b0;
+                    end
+                end else begin
+                    // Group 3: TEST r/m, imm (/0, /1); NOT; NEG.
                     op = reg_f[1] ? (reg_f[0] ? 5'd12 : 5'd13) : 5'd8;  // NEG, NOT, TEST
                     m_in_a = 1'b1;
                     mkind = reg_form ? 2'd0 : reg_f[1] ? 2'd3 : 2'd1;
@@ -725,6 +991,41 @@ module fes_i386_decode (
                         s2_idx = rm;
                         mkind = reg_form ? 2'd0 : 2'd1;
                         cs_base = 1'b1;
+                    end else if (b0[0] && reg_f == 3'd2) begin
+                        // FFh /2: CALL r/m near: the target, zero-extended
+                        // by operand size, into T1 (SEQ_CALLI)
+                        op = 5'd15;  // ALU_MOVZX
+                        size = 2'd2;
+                        src_size = osz;
+                        s2_valid = 1'b1;
+                        s2_idx = rm;
+                        mkind = reg_form ? 2'd0 : 2'd1;
+                        mbytes = osz32 ? 3'd4 : 3'd2;
+                        d_valid = 1'b1;
+                        d_temp = 1'b1;
+                        d_t1 = 1'b1;
+                        seq = fes_i386_pkg::SEQ_CALLI;
+                        eoi = 1'b0;
+                    end else if (b0[0] && reg_f == 3'd6) begin
+                        // FFh /6: PUSH r/m: a register as PUSH r; memory into
+                        // T1, then its push (SEQ_PUSHM)
+                        op = 5'd9;
+                        if (reg_form) begin
+                            s2_valid = 1'b1;
+                            s2_idx = rm;
+                            m_in_a = 1'b1;
+                            mkind = 2'd2;
+                            stk = fes_i386_pkg::STK_PUSH;
+                        end else begin
+                            size = 2'd2;
+                            mbytes = osz32 ? 3'd4 : 3'd2;
+                            mkind = 2'd1;
+                            d_valid = 1'b1;
+                            d_temp = 1'b1;
+                            d_t1 = 1'b1;
+                            seq = fes_i386_pkg::SEQ_PUSHM;
+                            eoi = 1'b0;
+                        end
                     end else if (b0[0] && (reg_f == 3'd3 || reg_f == 3'd5)) begin
                         // FFh /3, /5: CALL and JMP m16:16/32 (SEQ_CALLFM, SEQ_JMPFM)
                         undefined = reg_form;
@@ -827,6 +1128,20 @@ module fes_i386_decode (
                     seg2_idx = op2[2] ? (op2[0] ? 3'd5 : 3'd4) : 3'd2;
                     lptr = 1'b1;
                 end
+                8'haf: begin
+                    // IMUL r, r/m: the register is src1 and the destination
+                    cls = C_MUL;
+                    op = 5'd1;  // MULDIV_SIGNED
+                    mkind = reg_form ? 2'd0 : 2'd1;
+                    wr_cf = 1'b1;
+                    wr_oszap = 1'b1;
+                    s1_valid = 1'b1;
+                    s1_idx = reg_f;
+                    s2_valid = 1'b1;
+                    s2_idx = rm;
+                    d_valid = 1'b1;
+                    d_idx = reg_f;
+                end
                 8'b1011?11?: begin
                     // MOVZX (B6h, B7h), MOVSX (BEh, BFh)
                     op = op2[3] ? 5'd16 : 5'd15;
@@ -873,6 +1188,10 @@ module fes_i386_decode (
                 s2_hi8 = 1'b0;
             end
         end
+        if (enter) begin
+            s1_valid = 1'b1;
+            s1_idx = 3'd4;
+        end
     end
 
     // ---- The address's displacement ---------------------------------------------
@@ -881,7 +1200,9 @@ module fes_i386_decode (
     assign d16 = {16'b0, byx[dpos + 3'd1], byx[dpos]};
     assign d32 = {byx[dpos + 3'd3], byx[dpos + 3'd2], byx[dpos + 3'd1], byx[dpos]};
     always_comb begin
-        if (dlen == 3'd1) lea_disp = addr32 ? d8 : {16'b0, d8[15:0]};
+        if (moffs) lea_disp = addr32 ? {by[4], by[3], by[2], by[1]} : {16'b0, by[2], by[1]};
+        else if (xlat) lea_disp = 32'd0;
+        else if (dlen == 3'd1) lea_disp = addr32 ? d8 : {16'b0, d8[15:0]};
         else if (dlen == 3'd2) lea_disp = d16;
         else if (dlen == 3'd4) lea_disp = d32;
         else lea_disp = 32'd0;
@@ -893,7 +1214,7 @@ module fes_i386_decode (
     // lock-ud-before-length-gp).
     logic [2:0] fault;
     logic       lock_ok;
-    assign lock_ok = lockable && mkind == 2'd3;
+    assign lock_ok = lockable && mkind == 2'd3 || lock_any;
     assign fault = !known ? 3'd4                                      // FAULT_UNIMPLEMENTED
                  : undefined || (q.prefixes.lock && !lock_ok) ? 3'd1  // FAULT_UD
                  : q.too_long ? 3'd2 : 3'd0;                          // FAULT_GP0
@@ -909,6 +1230,14 @@ module fes_i386_decode (
     assign far_sel = ivt || eoi_taken ? {6'd0, vec, 2'b00} : osz32 ? {by[6], by[5]} : {by[4], by[3]};
     assign u.probe = probe;
     assign u.eoi_taken = eoi_taken;
+    // A string's elements and their steps come from fes_i386_seq.
+    assign u.str_si = 1'b0;
+    assign u.str_di = 1'b0;
+    assign u.str_cx = 1'b0;
+    assign u.str_down = 1'b0;
+    assign u.st2 = 1'b0;
+    assign u.rep_stop = 2'd0;
+    assign u.io = io;
     assign u.sp_add = 1'b0;
     assign u.sp_write = stk != fes_i386_pkg::STK_NONE && stk != fes_i386_pkg::STK_PEEK && stk != fes_i386_pkg::STK_PROBE;
     assign u.cls = fes_i386_pkg::uop_class_e'(cls);
@@ -931,9 +1260,12 @@ module fes_i386_decode (
     assign u.imm = imm;
     assign u.mem.kind = fes_i386_pkg::mem_kind_e'(mkind);
     assign u.mem.bytes = mbytes != 3'd0 ? 4'(mbytes) : size == 2'd0 ? 4'd1 : size == 2'd1 ? 4'd2 : 4'd4;
-    assign u.mem.seg = stk != fes_i386_pkg::STK_NONE ? fes_i386_pkg::SEG_SS
-                     : q.prefixes.seg_valid ? fes_i386_pkg::seg_e'(q.prefixes.seg)
-                     : stack ? fes_i386_pkg::SEG_SS : fes_i386_pkg::SEG_DS;
+    // A direct offset, XLAT's [BX + AL] or a string's ESI and EDI has no BP
+    // base, whatever byte 1 looks like as a ModRM.
+    assign direct = ivt || moffs || strop;
+    assign m_seg = q.prefixes.seg_valid ? q.prefixes.seg
+                 : stack && !direct && !xlat ? 3'(fes_i386_pkg::SEG_SS) : 3'(fes_i386_pkg::SEG_DS);
+    assign u.mem.seg = stk != fes_i386_pkg::STK_NONE ? fes_i386_pkg::SEG_SS : fes_i386_pkg::seg_e'(m_seg);
     assign u.mem.base = '0;
     assign u.mem.index = '0;
     assign u.mem.scale = 2'd0;

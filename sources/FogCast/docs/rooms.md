@@ -426,12 +426,16 @@ An older agent omits `inputs`.
   otherwise the FES Home picker. In a room visited during play,
   Back returns to the playing view without stopping it. The visible Hardware
   room button, physical keyboard Home and controller Select/View return to
-  the active system workbench (or the Sinclair specialist workbench); held computer keys are released before menu input.
-- `rooms.open(id, {game_id=..., core_id=...})` opens a nested room (Back returns here and calls
-  `on_resume`). The optional selection is exposed as `room.initial_game_id` and
-  `room.initial_core_id`, `rooms.back()`, `rooms.list()`, and
-  `rooms.open_library{platform=, collection=, layout=}` leaves to the
-  library browser with those filters applied.
+  the active system workbench (or the Sinclair specialist workbench); a
+  Coleco session without live media returns to `example.coleco-arcade`.
+  Held computer keys are released before menu input.
+- `rooms.open(id, {game_id=..., core_id=...})` opens a nested room (Back returns
+  here and calls `on_resume`). The optional selection is exposed as
+  `room.initial_game_id` and `room.initial_core_id`. `rooms.back()` and
+  `rooms.list()` navigate or list rooms. `rooms.open_library{platform=,
+  core_ids=, collection=, layout=}` leaves to the library browser with those
+  filters applied. `core_ids` is an array of core IDs, like
+  `{"fes.coleco"}`.
 - `store.get(key[, default])` / `store.set(key, value)` persist strings,
   numbers, booleans and plain tables per room in
   `<config>/FogCast/rooms/<id>.state.json`. On a kit, config is
@@ -521,7 +525,7 @@ is not a gate unless the room script adds that mechanic itself. See
 | `example.mario-sports` | nested room; client-side keyword filter over a cross-system query; publishes the focused title |
 | `example.console-snes` | one platform, themed header; Tab (`search`) hands off to the library shelf; Y is Details |
 | `example.tms-vdp` | platform tags → two-pane platform/game browser; unresolved platform rows and game destinations on the compact strip |
-| `example.coleco-arcade` | curated Coleco arcade ports (Donkey Kong, Carnival, Zaxxon, Congo Bongo, Frogger) resolved by `library.query` search; missing titles are skipped; publishes the focused game |
+| `example.coleco-arcade` | curated Coleco arcade ports (Donkey Kong, Carnival, Zaxxon, Congo Bongo, Frogger) resolved from installed `fes.coleco` entries on the `fpga` platform using `core_ids`; missing titles are skipped; publishes the focused game |
 | `example.workbench` | AmigaOS 1.3 desktop drawn from rects; collection with genre fallback; publishes the focused drawer title |
 | `example.computers` | Systems shelf for all registered playable system/model entries. Grouped editions and saved expansion rows retain the exact game ID. Confirm launches; Set up opens the selected workbench. Add system remains available with an empty library |
 | `example.c64` | Shared system workbench with Commodore 64 selected: saved entries/editions, next-start D64 and real expansion sockets, launch/stop and capability-gated live disk controls |

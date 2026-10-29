@@ -15,6 +15,7 @@ import (
 )
 
 const roomCoverWorkers = 4
+const runningMachineLibraryBlockedStatus = "Stop the running machine before opening the library."
 
 // RoomSnapshot is the frame-loop readable copy of the open room.
 type RoomSnapshot struct {
@@ -531,7 +532,7 @@ func (a *App) dropRoomNavActionsLocked() {
 
 func (a *App) openLibraryFromRoomLocked(act rooms.Action) {
 	if a.sessionStopOfferedLocked() {
-		a.status = "Stop the running machine before opening the library."
+		a.status = runningMachineLibraryBlockedStatus
 		return
 	}
 	a.suspendRoomsForLibraryLocked()
@@ -539,6 +540,7 @@ func (a *App) openLibraryFromRoomLocked(act rooms.Action) {
 	a.syncGPUParkLocked()
 	a.roomPickerOpen = false
 	a.platformID = strings.TrimSpace(act.Platform)
+	a.libraryCoreIDs = append([]string(nil), act.CoreIDs...)
 	a.collectionID = strings.TrimSpace(act.Collection)
 	a.normalizeSortForCollectionLocked()
 	if layout := strings.TrimSpace(act.Layout); layout != "" {
@@ -705,6 +707,13 @@ func (a *App) roomSnapshotLocked(withImages bool) RoomSnapshot {
 		return RoomSnapshot{}
 	}
 	w, h := a.roomContentSizeLocked(a.room.ID())
+	notice := a.roomSessionNotice
+	if a.roomDuringPlay && a.room.ID() == colecoArcadeRoomID {
+		switch strings.TrimSpace(a.status) {
+		case colecoCartridgeSessionStatus, runningMachineLibraryBlockedStatus:
+			notice = strings.TrimSpace(a.status)
+		}
+	}
 	snap := RoomSnapshot{
 		Open:          true,
 		ID:            a.room.ID(),
@@ -720,7 +729,7 @@ func (a *App) roomSnapshotLocked(withImages bool) RoomSnapshot {
 		Parents:       a.roomParentIDsLocked(),
 		ReducedMotion: a.room.ReducedMotion(),
 		DuringPlay:    a.roomDuringPlay,
-		Notice:        a.roomSessionNotice,
+		Notice:        notice,
 	}
 	if a.room.Hero() {
 		_, snap.Hero = rooms.HeroPanel(w, h)
