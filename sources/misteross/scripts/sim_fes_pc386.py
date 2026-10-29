@@ -501,7 +501,7 @@ def vga_test_disk(args) -> Path:
 
 
 # What the RTL must stop on in rtl_stop_test.asm: stem -> (stops, sites).
-RTL_STOPS = {'0F01.4': (1, 1), '0F01.6': (1, 1)}
+RTL_STOPS = {'0F22': (1, 1), '0F01.4': (1, 1), '0F01.6': (1, 1)}
 
 
 def run_rtl_stops(args, linked: list[Path]) -> dict:
@@ -528,6 +528,9 @@ def run_rtl_stops(args, linked: list[Path]) -> dict:
     failures = [f'{cpu}: {failure}' for cpu, run in runs.items() for failure in run['failures']]
     if not lines['oracle'] or lines['oracle'][-1] != 'DONE':
         failures.append(f'the oracle run did not finish: {lines["oracle"]}')
+    if 'C fff0' not in lines['oracle'] or 'C fff0' not in lines['rtl']:
+        failures.append(
+            f'SMSW after the RTL stop should report 386 CR0 fff0: oracle {lines["oracle"]}, RTL {lines["rtl"]}')
     if lines['rtl'] != lines['oracle']:
         failures.append(f'the RTL run wrote {lines["rtl"]}, the oracle run {lines["oracle"]}')
     rtl = runs['rtl'].get('rtl') or {'gaps': [], 'pmode': []}

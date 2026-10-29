@@ -596,7 +596,7 @@ public:
     fes_i386::State state(fes_i386::State s) const {
         for (int n = 0; n < 8; ++n) s.gpr[n] = cpu.arch_gpr[n];
         s.eflags = cpu.arch_eflags & 0x3ffff;
-        s.cr0 = cpu.arch_cr0;
+        s.cr0 = (s.cr0 & ~0xa) | (cpu.arch_cr0 & 0xa);
         s.eip = cpu.arch_eip;
         for (int n = 0; n < 6; ++n) {
             s.seg[n].selector = get16(cpu.arch_sel, n);

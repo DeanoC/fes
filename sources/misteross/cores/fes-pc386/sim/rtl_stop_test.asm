@@ -6,11 +6,13 @@
 ;
 ;   DAA (27h) at two sites, one without and one with a carry out; compare its
 ;   result and flags with the oracle
+;   MOV CR0 (0F 22): write CR0 as on a 386, setting its reserved bits to one
 ;   SMSW (0F 01 /4): a stop, then LMSW (0F 01 /6) sets PE, so the oracle runs
 ;   on in protected mode with the real-mode segment caches until MOV CR0
 ;   clears PE, and the RTL restarts in real mode
 ;
-; Each result is "R <AL> <flags>" (FLAGS' low byte, as LAHF reads it), in hex.
+; SMSW logs "C <CR0>" before LMSW changes it. Each DAA result is "R <AL>
+; <flags>" (FLAGS' low byte, as LAHF reads it), in hex.
 ; "DONE" ends the run.
 
 bits 16
@@ -32,7 +34,23 @@ start:
     mov al, 0x9a
     daa                     ; 00h, CF, AF, ZF, PF
     call result
+    mov eax, 0x10
+    mov cr0, eax             ; the 386 sets reserved CR0 bits on this write
     smsw ax
+    push bx
+    mov bx, ax
+    mov al, 'C'
+    out DEBUG_PORT, al
+    mov al, ' '
+    out DEBUG_PORT, al
+    mov al, bh
+    call hex
+    mov al, bl
+    call hex
+    mov al, 10
+    out DEBUG_PORT, al
+    mov ax, bx
+    pop bx
     or al, 1
     lmsw ax
     mov eax, cr0
