@@ -188,8 +188,9 @@ VGA follows by design (`vga_divergences.toml`, `reference-unprogrammed`).
   font byte. A five-character line is about 100 clocks at 61.44 MHz.
 - The DDR model's tail, 54-79 clocks at the 100 MHz calibration, can make
   two dependent reads exceed that.
-- So the count moved with the model's seed: one to six underflows in the
-  first 0.1 s for seeds 0 to 5, every one before the VGA BIOS set mode 3.
+- So the count moved with the model's seed (`system_tb --seed`). Before the
+  change, seeds 0 to 5 counted one to six underflows in the first 0.1 s,
+  every one before the VGA BIOS set mode 3.
   `machine_tb`'s merged-base boot at 100 MHz, with more clocks per dot,
   counted none.
 
