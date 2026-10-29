@@ -9,6 +9,9 @@ from fnmatch import fnmatchcase
 from pathlib import Path
 
 TEST_MODE_KEYS = ('video', 'media', 'full_race')
+# Descriptive bring-up metadata has no emitted, runtime or existing-core consumer.
+# Other board definitions remain shared contracts until their consumers are reviewed.
+DE25_BOARD_DEFINITION = 'sources/mister-packages/packages/board/de25_nano.yaml'
 
 # Video producer, package-admission and host library consumer inputs. Changes
 # here re-include the real-device video suites in the parent run.
@@ -87,6 +90,12 @@ def _documentation(path):
 def _classify(path):
     if path == '<new-branch>':
         return dict.fromkeys(TEST_MODE_KEYS, True)
+    # The standalone DE25 headless image has its own build/verification checks.
+    # It consumes no DE10 image, core package, runtime or media assembly input.
+    if _under(path, 'image/de25-nano') and '..' not in Path(path).parts:
+        return dict.fromkeys(TEST_MODE_KEYS, False)
+    if path == DE25_BOARD_DEFINITION:
+        return dict.fromkeys(TEST_MODE_KEYS, False)
     if _under(path, 'sources/mister-packages'):
         if path.endswith(('.go', '/go.mod', '/go.sum')):
             # Generator/tooling code is checked against committed consumers;
