@@ -252,10 +252,13 @@ Comparison reparses and verifies both raw captures, requires the same board
 label/image expectation, a changed boot UUID, stable SSH host key and stable
 MAC, and exits unsuccessfully on any mismatch. A random vendor MAC therefore
 stays a visible bring-up failure; the tool does not persist or replace it.
-The board label is caller-supplied, and imported serial logs are not
-independently bound to the SSH boot UUID. Retain board revision/serial details
-and review the serial logs alongside the captures. Receipt hashes detect
-inconsistency; they are not signed remote attestation or whole-board acceptance.
+The board label is caller-supplied, and the UTC collection time is unsigned
+receipt metadata; verification checks their syntax and that the time is not in
+the future but cannot independently attest either value. Imported serial logs
+are not independently bound to the SSH boot UUID. Retain board revision/serial
+details and review the serial logs alongside the captures. Receipt hashes
+detect inconsistency; they are not signed remote attestation or whole-board
+acceptance.
 
 ## DDR interface preparation without a board
 

@@ -94,8 +94,15 @@ def prepare(image_output):
     image_output = Path(image_output).resolve()
     receipt_bytes = regular_bytes(image_output / "image.json")
     record = load_json(receipt_bytes)
-    result = subprocess.run([sys.executable, str(ROOT / "scripts/de25_boot_contract.py"),
-                             "--image-output", str(image_output)], check=True, capture_output=True)
+    try:
+        result = subprocess.run([sys.executable, str(ROOT / "scripts/de25_boot_contract.py"),
+                                 "--image-output", str(image_output)], check=True, capture_output=True)
+    except subprocess.CalledProcessError as error:
+        detail = (error.stderr or b"").decode("utf-8", errors="replace").strip()
+        message = f"boot-contract inspector failed ({error.returncode})"
+        if detail:
+            message += ": " + detail
+        raise ValueError(message) from error
     contract = load_json(result.stdout)
     archive = regular_bytes(image_output / "rootfs.tar", 512 * 1024 * 1024)
     kernel = regular_bytes(image_output / "vendor-boot/Image", 128 * 1024 * 1024)
@@ -200,6 +207,9 @@ def ssh_argv(host, port, user, known_hosts, identity, key):
         # Set the complete identity list through config. With IdentitiesOnly=yes this
         # excludes the default ~/.ssh keys and agent identities without a fake path.
         options["IdentityFile"] = ssh_config_path(identity)
+    else:
+        # OpenSSH's special value suppresses its built-in ~/.ssh identity list.
+        options["IdentityFile"] = "none"
     for name, value in options.items():
         argv += ["-o", name + "=" + value]
     return argv + [host, "sh -s"]
@@ -284,11 +294,14 @@ def observe(raw, expected):
 
 def verify_transport(log, key, authentication, host, port, user, ssh_connection):
     validate_ssh_endpoint(host, port, user)
-    text = log.decode("utf-8", errors="replace")
+    text = log.decode("utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n")
     keys = re.findall(r"Server host key: (\S+) (SHA256:[A-Za-z0-9+/]+)", text)
     if keys != [(key["algorithm"], key["fingerprint"])]:
         raise ValueError("authenticated SSH server key differs or is missing")
-    if not re.search(r"Remote protocol version 2\.0, remote software version dropbear_[A-Za-z0-9._-]+", text):
+    banners = re.findall(
+        r"^debug[0-9]+: Remote protocol version 2\.0, remote software version dropbear_[A-Za-z0-9._-]+$",
+        text, re.M)
+    if len(banners) != 1:
         raise ValueError("expected SSH-2.0 Dropbear protocol")
     if authentication not in ("publickey", "password"):
         raise ValueError("unsupported SSH authentication method")
@@ -456,6 +469,9 @@ def verify(directory):
         raise ValueError("captured evidence hash or fixed collection script differs")
     expected = load_json(data["expectation.json"])
     validate_ssh_endpoint(receipt.get("host"), receipt.get("port"), receipt.get("user"))
+    if (not isinstance(receipt.get("board_id"), str)
+            or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}", receipt["board_id"])):
+        raise ValueError("receipt board ID is malformed")
     if receipt.get("collector_sha256") != sha(Path(__file__).read_bytes()):
         raise ValueError("receipt collector identity differs from this collector")
     collected = receipt.get("collected_utc")

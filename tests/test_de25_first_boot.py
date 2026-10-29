@@ -107,6 +107,15 @@ class PrepareTests(unittest.TestCase):
                 with mock.patch.object(boot.subprocess, "run", side_effect=replace), self.assertRaises(ValueError):
                     boot.prepare(directory)
 
+    def test_preparation_surfaces_inspector_stderr(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            self.image_fixture(directory)
+            error = subprocess.CalledProcessError(1, ["de25_boot_contract.py"], stderr=b"inspector detail\n")
+            with mock.patch.object(boot.subprocess, "run", side_effect=error), self.assertRaisesRegex(
+                    ValueError, "inspector detail"):
+                boot.prepare(directory)
+
     def test_exclusive_output_and_duplicate_json_keys(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "receipt.json"
@@ -188,9 +197,18 @@ class ProtocolTests(unittest.TestCase):
         good = transport(key)
         connection = ["192.0.2.1", "23456", "192.0.2.25", "22"]
         boot.verify_transport(good, key, "publickey", "192.0.2.25", 22, "root", connection)
+        # This is OpenSSH's pipe output: one debug-prefixed Dropbear server banner and CRLF records.
+        crlf = good.replace(b"\n", b"\r\n")
+        boot.verify_transport(crlf, key, "publickey", "192.0.2.25", 22, "root", connection)
+        authenticated_line = next(line for line in good.splitlines(keepends=True)
+                                  if line.startswith(b"Authenticated to "))
+        request_line = next(line for line in good.splitlines(keepends=True)
+                            if b"Authenticating to " in line)
+        unanchored_banner = good.replace(b"debug1: Remote protocol", b"debug1: text Remote protocol", 1)
         for data in (good.replace(key["fingerprint"].encode(), b"SHA256:bad"),
                      good.replace(b"dropbear_2020.81", b"OpenSSH_10"),
-                     good.replace(b'using "publickey"', b'using "password"'), good + good):
+                     good.replace(b'using "publickey"', b'using "password"'), good + good,
+                     good + authenticated_line, good + request_line, unanchored_banner):
             with self.subTest(data=data[:60]), self.assertRaises(ValueError):
                 boot.verify_transport(data, key, "publickey", "192.0.2.25", 22, "root", connection)
 
@@ -263,6 +281,7 @@ class CollectionTests(unittest.TestCase):
         call = self.last_run.call_args
         self.assertIn("PreferredAuthentications=password", call.args[0])
         self.assertIn("PubkeyAuthentication=no", call.args[0])
+        self.assertIn("IdentityFile=none", call.args[0])
         self.assertIn("NumberOfPasswordPrompts=1", call.args[0])
         self.assertNotIn("-i", call.args[0])
         env = call.kwargs["env"]
@@ -271,6 +290,16 @@ class CollectionTests(unittest.TestCase):
         self.assertFalse(Path(env["SSH_ASKPASS"]).exists())
         self.assertNotIn("fixture-password", json.dumps(receipt))
         self.assertNotIn("fixture-password", repr(call.args[0]))
+
+    def test_password_mode_effective_config_suppresses_default_identity_files(self):
+        key = boot.host_key(known_hosts(), "192.0.2.25", 22)
+        argv = boot.ssh_argv("192.0.2.25", 22, "root", self.root / "known_hosts", None, key)
+        result = subprocess.run(argv[:1] + ["-G"] + argv[1:], capture_output=True, check=True)
+        text = result.stdout.decode()
+        identity_files = [line.removeprefix("identityfile ") for line in text.splitlines()
+                          if line.startswith("identityfile ")]
+        self.assertEqual(identity_files, ["none"])
+        self.assertNotIn("~/.ssh/", text)
 
     def test_missing_or_multiple_credentials_are_rejected_before_contact(self):
         self.args.password_file = self.args.identity_file
@@ -324,6 +353,7 @@ class CollectionTests(unittest.TestCase):
             ("malformed-time", {"collected_utc": "yesterday"}),
             ("future-time", {"collected_utc": (datetime.now(timezone.utc)
                                                  + timedelta(days=1)).isoformat()}),
+            ("malformed-board-id", {"board_id": "DE25 revB 1"}),
         )
         for name, fields in edits:
             with self.subTest(field=name):
