@@ -316,8 +316,8 @@ STEM_NAMES = {
 def rtl_gap(kind: str, stem: str, stops: int, sites: int, executed: int, site: str, cycle: int) -> dict:
     """One stem the RTL stopped on, and whether the lockstep counts it as built."""
     bare = re.sub(r'^(67)?(66)?', '', stem)
-    return {'kind': kind, 'stem': stem, 'name': STEM_NAMES.get(bare), 'built': bare in lockstep.SCOPE
-            and stem not in lockstep.UNBUILT_FILES, 'stops': stops, 'sites': sites, 'executed': executed,
+    return {'kind': kind, 'stem': stem, 'name': STEM_NAMES.get(bare), 'built': lockstep.in_scope(stem),
+            'stops': stops, 'sites': sites, 'executed': executed,
             'first_site': site, 'first_cycle': cycle}
 
 
