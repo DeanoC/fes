@@ -180,10 +180,11 @@ only for a legacy package identified as the output of its registered OSS
 functional-cache producer and validated against that producer's functional
 input record. Absence alone does not identify a lane. The existing Quartus
 sealers in `build_fes_coleco.py`, `build_fes_sms.py`, `build_fes_sg1000.py`,
-`build_fes_zx81.py` and `build_fes_ramtest_quartus.py` emit manifests without
-the field and are not functional-cache outputs. The first four use format-1
-build-input records, which `artifact_cache.functional_key` does not hash; RAM
-Tester has a separate Quartus sealer. Their legacy manifests must not be
+`build_fes_zx81.py`, `build_fes_pc386_quartus.py` and
+`build_fes_ramtest_quartus.py` emit manifests without the field and are not
+functional-cache outputs. The first five use format-1 build-input records,
+which `artifact_cache.functional_key` does not hash; RAM Tester has a separate
+Quartus sealer. Their legacy manifests must not be
 classified as OSS just because the field is absent. Package identity includes
 the lane; both variants share the logical core ID and version but have distinct
 package IDs and payload digests. The strict manifest schema and its readers
@@ -375,15 +376,16 @@ Each step is one scope, one PR.
    writer, readers and consumers. Require every `encode_manifest` caller to
    supply the lane explicitly: OSS producers pass `oss`; the existing Quartus
    sealers in `scripts/build_fes_coleco.py`, `scripts/build_fes_sms.py`,
-   `scripts/build_fes_sg1000.py`, `scripts/build_fes_zx81.py` and
+   `scripts/build_fes_sg1000.py`, `scripts/build_fes_zx81.py`,
+   `scripts/build_fes_pc386_quartus.py` and
    `scripts/build_fes_ramtest_quartus.py` pass `quartus`. Do not default the
    field to `oss` in the shared encoder. Interpret an absent variant as `oss`
    only for a legacy package identified as the output of its registered OSS
    functional-cache producer and validated against that producer's functional
    input record. The existing Quartus sealers are not functional-cache outputs:
-   the Coleco, SMS, SG-1000 and ZX81 sealers use format-1 build-input records,
-   and RAM Tester has a separate Quartus sealer. Keep those legacy manifests
-   readable without treating absence as an OSS lane.
+   the Coleco, SMS, SG-1000, ZX81 and pc386 sealers use format-1 build-input
+   records, and RAM Tester has a separate Quartus sealer. Keep those legacy
+   manifests readable without treating absence as an OSS lane.
    Extend `Format2Recipe` and `scripts/recipes.py` to select an exact recipe
    field set by declared lane. An OSS lane keeps the current required
    `lock_path`, `gpu_router`, `hip_architectures` and complete `[recipes.pnr]`

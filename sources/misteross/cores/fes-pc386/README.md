@@ -37,7 +37,8 @@ commands from the HPS DDR window in the CPU's place.
 | [`rtl/pc386_diag.sv`](rtl/pc386_diag.sv) | The machine and its audio with the bus master in the CPU's place; what the commands observe |
 | [`rtl/pc386_bus_master.sv`](rtl/pc386_bus_master.sv) | The CPU stand-in: the command ring on DDR port 0, guest RAM for the 8237, the ATA image |
 | [`rtl/pc386_system_pll.v`](rtl/pc386_system_pll.v) | The sealed system clock and the 12.288 MHz audio clock |
-| [`constraints-oss.qsf`](constraints-oss.qsf), [`toolchain.lock`](toolchain.lock) | Pins, and the core's lock (the i386 lock's pins) |
+| [`constraints-oss.qsf`](constraints-oss.qsf), [`toolchain.lock`](toolchain.lock) | Pins (both lanes), and the core's lock (the i386 lock's pins) |
+| [`clocks.sdc`](clocks.sdc) | The Quartus lane's clocks |
 | [`diagnostic/`](diagnostic/main.go) | `pc386-diag`, the kit tool that runs a diagnostic program through the ring |
 | [`sim/diag_tb.cpp`](sim/diag_tb.cpp) | `pc386_diag` with the DDR ports, running a diagnostic program as the kit tool does |
 | [`vendor/opl2_fpga/`](vendor/opl2_fpga/README.md) | The YM3812 import (LGPL-3.0), with the local changes that make it sample-exact |
@@ -79,6 +80,7 @@ python3 scripts/synth_fes_pc386.py --cache-root /abs/out/cache/misteross-toolcha
 python3 scripts/sim_fes_pc386.py --suite diag           # M4: the diagnostic programs on pc386_diag, about 1 min
 make toolchain-fes-pc386 CACHE_ROOT=/abs/out/cache/misteross-toolchains  # once per lock
 make build-fes-pc386-diag CACHE_ROOT=/abs/out/cache/misteross-toolchains # seal fes.pc386-diag (clean tree)
+make build-fes-pc386-diag-quartus CACHE_ROOT=/abs/out/cache/misteross-toolchains  # the same with Quartus 17.0.2 (SEED=)
 ```
 
 The boot suite runs the locked BIOS and VGA BIOS on `pc386_machine`, boots the
@@ -250,6 +252,18 @@ releases its DDR ports. It has no CPU and boots nothing by itself.
 The shell routes but does not yet meet its clocks; the
 [M4 record](../../../../docs/validation/2026-10-28-pc386-m4-diagnostic/summary.md#routed-timing)
 lists the blocks that miss.
+
+**Quartus lane.** [`scripts/build_fes_pc386_quartus.py`](../../scripts/build_fes_pc386_quartus.py)
+seals the same package with Quartus 17.0.2, labelled as a Quartus build
+([Quartus-built cores](../../../../docs/design/quartus-cores.md)). It takes
+the RTL, guest rates, core ID and interfaces from the OSS producer.
+- Quartus 17.0.2 rejects some of the machine's SystemVerilog, so the core's
+  locked Yosys elaborates `pc386_diag` at the guest rates and writes it as
+  Verilog. Memories with more than one write port and no `ramstyle` become
+  registers, and flattened names become plain identifiers. Quartus reads that
+  netlist and the shell's own files, with `QUARTUS` defined: the HDMI I2C pins
+  come from the hard block, and `pc386_diag` takes no parameters.
+- Every analysis must pass on every clock, or the build publishes nothing.
 
 A diagnostic program is the command list plus what the host does between
 commands: stage bytes into the window, mark a point, dump window bytes, dump

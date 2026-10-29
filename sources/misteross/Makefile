@@ -145,6 +145,7 @@ help:
 		"  sim-fes-pc386-vga  Check the pc386 presenter and plane, run the VGA test disk, replay its VGA trace against Bochs" \
 		"  synth-fes-pc386  Synthesize and pack the pc386 machine without the CPU (needs CACHE_ROOT)" \
 		"  build-fes-pc386-diag  Seal the pc386 M4 diagnostic package with HIP nextpnr/Mistral (CACHE_ROOT= for shared cache)" \
+		"  build-fes-pc386-diag-quartus  Seal the pc386 M4 diagnostic package with Quartus 17.0.2 (CACHE_ROOT=, SEED=)" \
 		"  build-fes-pcxt  Autonomous PC/XT board diagnostic (local toolchain-fes-pcxt, or CACHE_ROOT=)" \
 		"  sim-fes-atari-st  Test the Atari 520ST CPU, memory, peripherals, media and video" \
 		"  build-fes-atari-st  Seal the Atari 520ST with HIP nextpnr (ST_VIDEO_OUTPUT=direct|scanlines)" \
@@ -2648,7 +2649,7 @@ sim-fes-pcxt:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_pcxt.py --verilator "$(VERILATOR)"
 
-.PHONY: sim-fes-pc386 sim-fes-pc386-boot sim-fes-pc386-sound sim-fes-pc386-vga synth-fes-pc386 build-fes-pc386-diag
+.PHONY: sim-fes-pc386 sim-fes-pc386-boot sim-fes-pc386-sound sim-fes-pc386-vga synth-fes-pc386 build-fes-pc386-diag build-fes-pc386-diag-quartus
 sim-fes-pc386:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_pc386.py --suite devices --verilator "$(VERILATOR)"
@@ -2675,6 +2676,9 @@ synth-fes-pc386:
 
 build-fes-pc386-diag:
 	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_pc386_oss.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
+
+build-fes-pc386-diag-quartus:
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_pc386_quartus.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)$(if $(strip $(SEED)), --seed "$(SEED)",)
 
 .PHONY: synth-fes-pcxt-isa
 synth-fes-pcxt-isa:
