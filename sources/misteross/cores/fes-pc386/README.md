@@ -67,7 +67,7 @@ python3 scripts/sim_fes_pc386.py --suite audio          # DSP, OPL2 timers, mixe
 python3 scripts/sim_fes_pc386.py --suite opl2           # OPL2 against Nuked-OPL3, about 30 s
 python3 scripts/sim_fes_pc386.py --suite benches        # presenter, capture overflow recovery and display plane on port 2
 python3 scripts/sim_fes_pc386.py --suite boot --download  # BIOS POST to the FreeDOS prompt and its VGA replay
-python3 scripts/sim_fes_pc386.py --suite boot --cpu rtl   # the same boot on fes_i386_cpu, the oracle backing its stops
+python3 scripts/sim_fes_pc386.py --suite boot --cpu rtl   # the RTL must reach the prompt without stops, stalls or oracle steps
 python3 scripts/sim_fes_pc386.py --suite rtl-stops        # the RTL's stop path on the stop test disk, against the oracle
 python3 scripts/sim_fes_pc386.py --suite sound --download  # boot, then SOUND.COM; writes sound.wav
 python3 scripts/sim_fes_pc386.py --suite vga              # presenter, capture and plane benches, VGA test disk, replay
@@ -116,6 +116,8 @@ captures stay outside the repository.
   from the RTL's state, keeps the oracle running through protected mode and
   V86, and restarts the RTL from the oracle's state. The boot suite's
   `boot-rtl/report.json` lists the stops by stem, with the lockstep's scope.
+  For `--suite boot --cpu rtl`, any stop, stall or oracle step fails the run;
+  the RTL itself must reach the prompt.
   While the CPU waits for an I/O cycle or sits in HLT with nothing in flight,
   only the machine is clocked.
 - **Memory.** 16 MiB of host pages: the ROMs at F0000h (aliased at FFFF0000h)
