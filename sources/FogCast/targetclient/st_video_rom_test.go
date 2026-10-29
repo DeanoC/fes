@@ -24,7 +24,7 @@ func TestSTROMPartsClientUsesOrdinaryLibraryLoadAndRejectsMixedReceipts(t *testi
 			c := value.PartsComposition
 			c.Layout = expansion.AtariStVideoLayout
 			c.ID, _ = expansion.PartsCompositionID(c.PackageID, c.Layout, c.Parts, c.PayloadSHA256)
-			value.ROMLink = &corepackage.ROMLinkIdentity{ROMID: "atari-st-firmware", MapSHA256: strings.Repeat("a", 64), SourceSHA256: strings.Repeat("b", 64), SourceSize: 192 << 10, ProgrammedSHA256: strings.Repeat("f", 64), ProgrammedSize: 50000}
+			value.ROMLink = &corepackage.ROMLinkIdentity{ROMID: "atari-st-firmware", Role: "firmware", MapSHA256: strings.Repeat("a", 64), SourceSHA256: strings.Repeat("b", 64), SourceSize: 192 << 10, ProgrammedSHA256: strings.Repeat("f", 64), ProgrammedSize: 50000}
 			if name == "persistent disk" || name == "persistent disk without parts" || name == "bad disk revision" || name == "read-only disk" {
 				value.PersistenceMode = "persistent"
 				value.ActiveInterfaces = []protocol.RuntimeInterface{{ID: protocol.AtariStFloppyInterface().ID, Major: 1}, {ID: protocol.AtariStFloppyWriteInterface().ID, Major: 1}, {ID: "fes.video.fixed-720p60", Major: 1}}

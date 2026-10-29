@@ -79,6 +79,25 @@ type Protocol2Response struct {
 	MenuDisplay      *Protocol2MenuDisplay   `json:"menu_display,omitempty"`
 }
 
+// protocol2ROMLink is the closed format-3 receipt accepted by the runtime.
+// The ROM role comes from the active package descriptor, not this wire object.
+type protocol2ROMLink struct {
+	ROMID            string `json:"rom_id"`
+	MapSHA256        string `json:"map_sha256"`
+	SourceSHA256     string `json:"source_sha256"`
+	SourceSize       int64  `json:"source_size"`
+	ProgrammedSHA256 string `json:"programmed_sha256"`
+	ProgrammedSize   int64  `json:"programmed_size"`
+}
+
+func protocol2ROMLinkFromIdentity(identity corepackage.ROMLinkIdentity) protocol2ROMLink {
+	return protocol2ROMLink{
+		ROMID: identity.ROMID, MapSHA256: identity.MapSHA256,
+		SourceSHA256: identity.SourceSHA256, SourceSize: identity.SourceSize,
+		ProgrammedSHA256: identity.ProgrammedSHA256, ProgrammedSize: identity.ProgrammedSize,
+	}
+}
+
 func (client *Client) SetKeyboard(ctx context.Context, matrix uint64) (Protocol2Response, error) {
 	if matrix > 0xffffffffff {
 		return Protocol2Response{}, errInvalidRuntimeRequest
@@ -197,7 +216,7 @@ func (client *Client) LoadROMLinkedCoreWithInitialMedia(ctx context.Context, pat
 	if !validInitialMediaRequest(initial) {
 		return Protocol2Response{}, errInvalidRuntimeRequest
 	}
-	if !validRuntimePath(path) || !validRuntimePath(programmedPath) || !protocol2Hex64.MatchString(packageID) || !protocol2Identifier.MatchString(identity.ROMID) || !identity.ValidFor(corepackage.Descriptor{Format: 3, ROM: &corepackage.ROM{ID: identity.ROMID, SHA256: identity.MapSHA256, SourceSize: identity.SourceSize}}) {
+	if !validRuntimePath(path) || !validRuntimePath(programmedPath) || !protocol2Hex64.MatchString(packageID) || !protocol2Identifier.MatchString(identity.ROMID) || !identity.ValidFor(corepackage.Descriptor{Format: 3, ROM: &corepackage.ROM{ID: identity.ROMID, Role: identity.Role, SHA256: identity.MapSHA256, SourceSize: identity.SourceSize}}) {
 		return Protocol2Response{}, errInvalidRuntimeRequest
 	}
 	if root != "" && !validRuntimePath(root) {
@@ -224,18 +243,18 @@ func (client *Client) LoadROMLinkedCoreWithInitialMedia(ctx context.Context, pat
 		operation = "load_rom_composed_core"
 	}
 	line, attempted, err := client.callRawTracked(ctx, struct {
-		InitialMedia   *InitialMediaRequest        `json:"initial_media,omitempty"`
-		Protocol       int                         `json:"protocol"`
-		Operation      string                      `json:"operation"`
-		PackagePath    string                      `json:"package_path"`
-		PackageID      string                      `json:"package_id"`
-		DataRoot       string                      `json:"data_root,omitempty"`
-		ExpansionPath  string                      `json:"expansion_path,omitempty"`
-		PayloadPath    string                      `json:"payload_path,omitempty"`
-		Composition    *expansion.Composition      `json:"composition,omitempty"`
-		ProgrammedPath string                      `json:"programmed_path"`
-		ROMLink        corepackage.ROMLinkIdentity `json:"rom_link"`
-	}{InitialMedia: initial, Protocol: 2, Operation: operation, PackagePath: path, PackageID: packageID, DataRoot: root, ExpansionPath: expansionPath, PayloadPath: payloadPath, Composition: composition, ProgrammedPath: programmedPath, ROMLink: identity})
+		InitialMedia   *InitialMediaRequest   `json:"initial_media,omitempty"`
+		Protocol       int                    `json:"protocol"`
+		Operation      string                 `json:"operation"`
+		PackagePath    string                 `json:"package_path"`
+		PackageID      string                 `json:"package_id"`
+		DataRoot       string                 `json:"data_root,omitempty"`
+		ExpansionPath  string                 `json:"expansion_path,omitempty"`
+		PayloadPath    string                 `json:"payload_path,omitempty"`
+		Composition    *expansion.Composition `json:"composition,omitempty"`
+		ProgrammedPath string                 `json:"programmed_path"`
+		ROMLink        protocol2ROMLink       `json:"rom_link"`
+	}{InitialMedia: initial, Protocol: 2, Operation: operation, PackagePath: path, PackageID: packageID, DataRoot: root, ExpansionPath: expansionPath, PayloadPath: payloadPath, Composition: composition, ProgrammedPath: programmedPath, ROMLink: protocol2ROMLinkFromIdentity(identity)})
 	if err != nil {
 		return Protocol2Response{}, protocol2MutationError{error: err, attempted: attempted}
 	}
@@ -422,6 +441,9 @@ func decodeProtocol2Response(line []byte) (Protocol2Response, error) {
 	if err := decoder.Decode(&struct{}{}); err != io.EOF {
 		return Protocol2Response{}, errInvalidRuntimeResponse
 	}
+	if response.ActivePackage != nil && response.ActivePackage.ROMLink != nil && response.ActivePackage.ROMLink.Role == "" && response.ActivePackage.Descriptor.ROM != nil {
+		response.ActivePackage.ROMLink.Role = response.ActivePackage.Descriptor.ROM.Role
+	}
 	if !validProtocol2Response(response) {
 		return Protocol2Response{}, errInvalidRuntimeResponse
 	}
@@ -547,12 +569,17 @@ func validateProtocol2Shape(line []byte) error {
 			return err
 		}
 		if raw, ok := active["rom_link"]; ok {
-			fields, err := exactRawObject(raw, []string{"rom_id", "map_sha256", "source_sha256", "source_size", "programmed_sha256", "programmed_size"}, nil)
+			fields, err := exactRawObject(raw, []string{"rom_id", "map_sha256", "source_sha256", "source_size", "programmed_sha256", "programmed_size"}, []string{"role"})
 			if err != nil {
 				return err
 			}
 			if err := requireRawKinds(fields, map[string]rawKind{"rom_id": rawString, "map_sha256": rawString, "source_sha256": rawString, "source_size": rawUnsigned, "programmed_sha256": rawString, "programmed_size": rawUnsigned}); err != nil {
 				return err
+			}
+			if _, ok := fields["role"]; ok {
+				if err := requireRawKinds(fields, map[string]rawKind{"role": rawString}); err != nil {
+					return err
+				}
 			}
 		}
 		if raw, ok := active["rom_links"]; ok {
