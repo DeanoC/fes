@@ -17,6 +17,9 @@ The persona input registers have no explicit power-up initialisation. The
 static controller holds reset through a bounded settling interval, and the
 RTL tests randomise their initial state. This follows the vendor's
 [PR register reset guidance](https://docs.altera.com/r/docs/683834/25.1/quartus-prime-pro-edition-user-guide-partial-reconfiguration/resetting-the-pr-region-registers).
+The static reset output starts low to preserve its direct register connection,
+asserts on the first fabric clock, and completes reset settling before any
+request or FROZEN acknowledgement.
 
 The runtime's `De25PrControl` requires an exclusive, ordered, bounded register
 backend and a selected 128-bit base identity. It completes FREEZE before
@@ -62,7 +65,10 @@ requires committed functional inputs, retains the locked vendor inputs and
 checks preservation of HPS/DDR/boot data. Its base exports a final root QDB;
 both implementation revisions import that exact root. The producer retains
 compiler reports, paired timing/control-path checks, M20K evidence and
-vendor-decoded POF0 identities before issuing the descriptor. No build command
+vendor-decoded POF0 identities before issuing the descriptor. Base RBF conversion
+uses Terasic's captured SPL and SOF-enrichment recipe; its boot inputs and
+packaging/verifier identity are recorded separately from the compiled source.
+No build command
 programs an FPGA or changes an image, boot configuration or flash.
 
 The standalone target command is:
@@ -82,7 +88,9 @@ composition publishes no output. Each tar contains `deployment.json`,
 the base before the persona; the runtime control sequence applies to partial
 loads after a verified base is running.
 
-The [original proof record](../../../docs/validation/2026-10-29-de25-quartus-link-proof/README.md)
+The [HPS control proof record](../../../docs/validation/2026-10-29-de25-pr-control/README.md)
+records the current source, compiler and CPU results. The
+[original proof record](../../../docs/validation/2026-10-29-de25-quartus-link-proof/README.md)
 binds the previous FPGA-only, 50 MHz source and its successful compiler/QEMU
 results. It does not qualify this changed HPS base. Physical CPU/SDM execution,
 firmware pairing, electrical timing, MTBF and exact-artifact board acceptance
