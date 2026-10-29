@@ -320,15 +320,17 @@ access at WB, never speculatively, on the I/O port.
   than a NOP, mostly the next instruction's wait to issue.
 
 **Interrupts.** INTR and NMI are taken at instruction boundaries, as the
-design's commit rules ask.
+design's commit rules ask, and between a REP string's elements.
 - **When.** On the edge an instruction's last uop retires, a delivery's
-  included, or while the CPU is in HLT.
+  included, or a REP string element's (the one that steps ECX,
+  `str_cx`), or while the CPU is in HLT.
   - NMI comes first, unless one is being handled: an NMI blocks the next
     until IRET's last uop retires (the microcode word's `iret` bit).
   - INTR is taken if IF is set after the instruction.
   - Neither is taken after MOV SS or POP SS, unless that one follows
     another, nor after an STI that set IF: the shadow, as Bochs keeps it.
-    LSS has none.
+    LSS has none. Before a REP string the shadow ends with its first
+    element, since Bochs counts an iteration as an instruction.
 - **How.** The decision is a register, `int_take`, from that edge.
   - An INTR first asks the machine for its vector: `inta_req` until
     `inta_ack`, with D to WB frozen.
@@ -337,11 +339,14 @@ design's commit rules ask.
     go back to EFLAGS.
   - DC takes the vector routine's entry with D's EIP the next instruction's,
     so the routine pushes it. An NMI's vector is 2.
+  - Between a REP string's elements that EIP is the string's own, since WB
+    moves EIP only as an instruction ends. The elements done have stepped
+    ESI, EDI and ECX, so IRET returns to the string, which runs on from
+    there. The uop in WB, the next element's, is discarded with the rest.
 - **HLT** waits for an interrupt now. `trace_halt` is HLT or the stop for
   good, which `trace_unimplemented` tells apart. A HLT that retires with an
   interrupt pending takes it at once.
-- **Not built yet:** interrupts between a REP string's elements (the string
-  runs to its end first), and the debug traps.
+- **Not built yet:** the debug traps.
 
 **Microcode.** Longer routines come from an M10K ROM
 (`fes_i386_ucode_rom`). `scripts/fes_i386_ucode.py` builds it from

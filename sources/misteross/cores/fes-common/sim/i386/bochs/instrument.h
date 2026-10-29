@@ -10,6 +10,7 @@ class bxInstruction_c;
 
 void fes_bx_before_execution(bxInstruction_c *i);
 void fes_bx_after_execution(bxInstruction_c *i);
+void fes_bx_repeat_iteration(bxInstruction_c *i);
 void fes_bx_exception(unsigned vector, unsigned error_code);
 void fes_bx_interrupt(unsigned vector);
 void fes_bx_hwinterrupt(unsigned vector);
@@ -37,7 +38,7 @@ void fes_bx_lin_access(bx_address lin, bx_address phy, unsigned len, unsigned rw
 #define BX_INSTR_PREFETCH_HINT(cpu_id, what, seg, offset)
 #define BX_INSTR_BEFORE_EXECUTION(cpu_id, i) fes_bx_before_execution(i)
 #define BX_INSTR_AFTER_EXECUTION(cpu_id, i) fes_bx_after_execution(i)
-#define BX_INSTR_REPEAT_ITERATION(cpu_id, i)
+#define BX_INSTR_REPEAT_ITERATION(cpu_id, i) fes_bx_repeat_iteration(i)
 #define BX_INSTR_LIN_ACCESS(cpu_id, lin, phy, len, memtype, rw) fes_bx_lin_access(lin, phy, len, rw)
 #define BX_INSTR_PHY_ACCESS(cpu_id, phy, len, memtype, rw)
 #define BX_INSTR_INP(addr, len)
