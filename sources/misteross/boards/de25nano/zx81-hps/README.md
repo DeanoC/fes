@@ -11,10 +11,12 @@ data remain selected. The new computer path adds no DMA master or DDR access.
 It runs entirely on the existing 100 MHz peripheral clock, using 13/200
 enables for the unchanged 6.5 MHz ULA and 3.25 MHz CPU. HDMI uses its separate
 74.25 MHz PLL. The 100 MHz transport-ready level crosses a two-stage
-pixel-clock synchronizer, and the HDMI mask changes only at the renderer's
-frame tick. Pixel-clock loss blanks output while CPU, control and tape continue;
-capture storage has no complete-frame ownership and its
-dual-clock collisions/startup/tearing remain unqualified.
+pixel-clock synchronizer, and the computer's first-picture mask changes only
+at the renderer's frame tick. The board shell tracks pixel reset/PLL lock:
+RGB and DE blank immediately, while sync visibility and picture resume wait for
+a complete horizontal sync pulse outside vertical sync. Pixel-clock loss does
+not stop CPU, control or tape. Capture storage has no complete-frame ownership
+and its dual-clock collisions/startup/tearing remain unqualified.
 
 Tape storage uses two explicit even/odd M20K banks with common-clock
 simple dual ports and old-data reads. A guarded board wrapper retains the
@@ -73,7 +75,8 @@ width/order, bounded MMIO, firmware/device binding and a production runtime
 profile remain board-validation work.
 
 The simulation exercises the real endpoint, mailbox, HID mapper, tape store,
-machine, ROM and renderer. It includes cold BASIC/editor boot, actual key-driven
+machine, ROM and renderer, plus the HDMI shell's lock/reset gating. It includes
+cold BASIC/editor boot, actual key-driven
 LOAD and ordered RAM-write verification, CRC failures, stopped PIX operation,
 HOLD neutralization, malformed-access faults and stopped-clock reset behavior.
 Memory uses behavioral RTL; HPS, physical M20K, PLL, I2C and HDMI are not modeled.

@@ -84,7 +84,10 @@ the ZX81 with the preserved GHRD. A 32-bit Avalon endpoint at peripheral offset
 It reuses the current `fes_computer_mailbox`, HID mapper and CRC-checked tape
 store. Control and the machine share 100 MHz, with 13/200 ULA enables; the
 renderer remains at 74.25 MHz. Readiness crosses a two-stage pixel-clock
-synchronizer, and the video mask changes only at the renderer's frame tick.
+synchronizer, and the computer's first-picture mask changes only at the
+renderer frame tick. The board shell blanks RGB/DE on pixel reset or PLL loss,
+then changes HDMI visibility and resumes picture only after a complete HS
+pulse outside VS; active sync is not reset-gated.
 No control CCB is required and stopped PIX
 does not stop command completion or CPU/tape progress. Partial/busy/malformed
 accesses and later peripheral resets permanently fault this diagnostic,
@@ -116,9 +119,12 @@ opt-in; existing consumers retain their default configuration.
 
 Both crossing bridges share initial configuration reset. Later pixel PLL-lock
 loss latches a fault without resetting live bridge queues; the endpoint stops
-and drains when its clock resumes. HDMI visibility crosses a two-stage
-pixel-clock synchronizer and changes after a complete horizontal sync pulse
-while VS is inactive, preserving complete DE/HS/VS pulses. The producer retains
+and drains when its clock resumes. The DE25 endpoint keeps its fixed raster and
+raw HS/VS running through stop, fault and reset while pixel data stays blank.
+HDMI visibility crosses a two-stage pixel-clock synchronizer and changes after
+a complete horizontal sync pulse while VS is inactive; lock/reset loss blanks
+RGB/DE immediately and picture resumes only after that safe boundary. The
+producer retains
 generated topology and response checks, native RTL tests and a simulation
 helper for the generated two-clock interconnect with explicitly modeled M20K
 storage. FIFO/controller logic remains generated; primitive equivalence and

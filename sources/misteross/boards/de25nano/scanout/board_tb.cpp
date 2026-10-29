@@ -23,9 +23,14 @@ int main(int argc, char** argv) {
         t.rootp->fes_de25_scanout_board__DOT__video_clock__DOT__outclk_0 = 1;
         t.eval();
     };
+    unsigned blank_checks = 0;
     auto blank = [&]() {
-        check(!t.HDMI_TX_D && !t.HDMI_TX_DE && !t.HDMI_TX_HS && !t.HDMI_TX_VS,
-              "pixel-domain boundary did not blank HDMI");
+        ++blank_checks;
+        if (t.HDMI_TX_D || t.HDMI_TX_DE || t.HDMI_TX_HS || t.HDMI_TX_VS) {
+            std::fprintf(stderr, "blank check %u: D=%06x DE=%u HS=%u VS=%u\n", blank_checks,
+                         t.HDMI_TX_D, t.HDMI_TX_DE, t.HDMI_TX_HS, t.HDMI_TX_VS);
+            check(false, "pixel-domain boundary did not blank HDMI");
+        }
     };
 
     t.ninit_done = 1; t.top_reset_n = 0; t.HDMI_TX_INT = 1;
@@ -50,13 +55,18 @@ int main(int argc, char** argv) {
 
     // A mid-sync visibility loss waits through the complete HS and VS pulse,
     // then takes effect at an HS trailing edge with VS low.
-    t.video_de = 0; t.video_hs = 1; t.video_vs = 1; tick_pixel();
-    check(t.HDMI_TX_HS && t.HDMI_TX_VS, "visible HS/VS pulse did not start");
+    t.video_de = 1; t.video_hs = 1; t.video_vs = 1; tick_pixel();
+    check(t.HDMI_TX_HS && t.HDMI_TX_VS && t.HDMI_TX_DE,
+          "visible HS/VS/data setup did not start");
     t.top_reset_n = 0; t.eval();
+    check(!t.HDMI_TX_DE && !t.HDMI_TX_D && t.HDMI_TX_HS && t.HDMI_TX_VS,
+          "asynchronous reset did not blank data while preserving sync");
     for (int i = 0; i < 4; ++i) {
         tick_pixel();
-        check(t.HDMI_TX_HS && t.HDMI_TX_VS, "asynchronous control clipped an active sync pulse");
+        check(!t.HDMI_TX_DE && !t.HDMI_TX_D && t.HDMI_TX_HS && t.HDMI_TX_VS,
+              "asynchronous control clipped sync or exposed reset pixel data");
     }
+    t.video_de = 0;
     t.video_hs = 0; tick_pixel();
     check(!t.HDMI_TX_HS && t.HDMI_TX_VS, "HS pulse was not passed through to its trailing edge");
     t.video_hs = 1; tick_pixel();
@@ -66,15 +76,18 @@ int main(int argc, char** argv) {
 
     // Initial lock loss still latches in the system domain and never resets
     // the live bridge epoch. Its HDMI mask follows the same safe boundary.
-    t.top_reset_n = 1; t.video_hs = 1; t.video_vs = 1; t.eval();
+    t.top_reset_n = 1; t.video_de = 1; t.video_hs = 1; t.video_vs = 1; t.eval();
     lock(true);
     for (int i = 0; i < 4; ++i) tick_system();
-    for (int i = 0; i < 4; ++i) tick_pixel();
+    for (int i = 0; i < 4; ++i) { tick_pixel(); blank(); }
     t.video_hs = 0; t.video_vs = 0; tick_pixel();
     check(t.HDMI_TX_D == 0x123456, "visibility did not recover after cold reset");
-    t.video_de = 0; t.video_hs = 1; t.video_vs = 1; tick_pixel();
-    check(t.HDMI_TX_HS && t.HDMI_TX_VS, "sync pulse setup before lock fault");
+    t.video_de = 1; t.video_hs = 1; t.video_vs = 1; tick_pixel();
+    check(t.HDMI_TX_HS && t.HDMI_TX_VS && t.HDMI_TX_DE,
+          "sync/data pulse setup before lock fault");
     t.system_clk = 0; t.eval(); lock(false);
+    check(!t.HDMI_TX_DE && !t.HDMI_TX_D && t.HDMI_TX_HS && t.HDMI_TX_VS,
+          "PLL loss did not blank data while preserving sync");
     check(t.scanout_reset_n, "PLL loss must not erase live CDC/accounting");
     lock(true);
     check(t.scanout_reset_n, "relock must not reset bridges");
@@ -85,7 +98,8 @@ int main(int argc, char** argv) {
     }
     for (int i = 0; i < 4; ++i) {
         tick_pixel();
-        check(t.HDMI_TX_HS && t.HDMI_TX_VS, "fault crossed domains in the middle of sync");
+        check(!t.HDMI_TX_DE && !t.HDMI_TX_D && t.HDMI_TX_HS && t.HDMI_TX_VS,
+              "fault clipped sync or exposed pixel data in the middle of sync");
     }
     t.video_hs = 0; tick_pixel();
     check(!t.HDMI_TX_HS && t.HDMI_TX_VS, "HS did not finish before fault blanking");

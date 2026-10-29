@@ -56,9 +56,11 @@ precedes the generated pixel-domain reset synchronizer.
 Initial release waits for the first qualified pixel PLL lock. Later PLL-lock
 loss latches a fault in the running 100 MHz domain and stops/drains the endpoint
 once the pixel clock resumes; it does **not** reset live FIFO or reader
-accounting. HDMI visibility crosses a two-stage pixel-clock synchronizer and
-changes after a complete horizontal sync pulse while VS is inactive. This keeps
-DE, HS and VS gating away from active pixels and complete sync pulses. A
+accounting. The DE25 scanout instance keeps its fixed raster and raw HS/VS
+running while the endpoint is stopped, faulted or reset. HDMI data blanks on
+reset/lock loss, then visibility changes after a complete horizontal sync pulse
+while VS is inactive. This keeps DE, HS and VS gating away from active pixels
+and complete sync pulses, including a lock failure in the middle of HS. A
 qualifier stretches brief loss/relock events so video cannot briefly reappear
 before the sticky fault latches. This detects PLL lock loss, not independent
 pixel-clock progress. Permanent clock loss cannot advance the control bridge or
@@ -102,9 +104,9 @@ M20K hint adaptation used by the build. They cover complete frames and lane
 ordering with delayed/zero-latency responses, descriptor/sequence/slot checks,
 snapshots/byte enables, command stalls/drain, missing responses, underflow,
 response errors and sticky clock failure. Separate benches cover the exact
-last-pixel submission corner, clock-shell startup/brief unlock/relock, and
-pixel-domain HDMI gating at a complete sync boundary using digital PLL/I2C
-models. The generated-interconnect
+last-pixel submission corner, full HS/VS continuity through endpoint disable
+and reset, clock-shell startup/brief unlock/relock, and pixel-domain HDMI
+gating at a complete sync boundary using digital PLL/I2C models. The generated-interconnect
 helper tests the actual two-clock bridges and width adapter after generation;
 none of these modeled checks establishes physical memory or HDMI operation.
 
