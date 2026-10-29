@@ -17,6 +17,44 @@ mechanisms in the tree.
 Network deployment and target lifecycle are outside this module. FogCast owns
 selection and transfer. libmister-runtime programs the FPGA.
 
+## DE25-Nano board diagnostic
+
+`boards/de25nano/` is an independent FPGA-only bring-up project for
+`A5EB013BB23BE4SCS` with Quartus Prime Pro 26.3.0. Its 50 MHz input and
+active-low LED pins follow Terasic's revision B resource package; the shared
+descriptive definition is
+[`packages/board/de25_nano.yaml`](../../mister-packages/packages/board/de25_nano.yaml).
+The project generates the Reset Release IP before compilation and preserves
+the vendor ASx4 configuration scheme and 125 MHz initialization clock.
+The Verilator bench exercises reset hold/release, the clock divider and LED
+sequence using a functional configuration endpoint model. Compilation
+produces a JTAG `.sof`, retains the compiler reports, and never programs hardware.
+
+The separate [`boards/de25nano/hps/`](../boards/de25nano/hps/README.md) lane
+extracts a locked Terasic GHRD into a fresh private project and adds a small
+Avalon-MM mailbox through its existing lightweight HPS bridge. Shared fabric
+constants generate the register values used by RTL and the Verilator bench.
+The recipe regenerates IP with Quartus 26.3, retains original source hashes
+and checks original HPS/EMIF parameters after generation. It creates no runtime
+profile, physical MMIO address, boot image or QSPI programming command.
+The copied top holds its debounce and heartbeat logic in reset until
+configuration is complete and the fabric PLL is locked, then synchronizes
+release to the 100 MHz clock. The generated subsystem reset controllers remain
+in place and receive this synchronized common reset. Only the board-local reset
+chain receives the raw configuration/PLL-lock qualification. The PLL
+owns the 50 MHz reference-clock constraint; the board's
+human-visible LED outputs have explicit asynchronous timing classification.
+Reset crossings inside the generated HPS/debug interconnect still require
+protocol review; compilation does not establish physical reset or MTBF acceptance.
+
+The clock/LED diagnostic has no HPS instance, MMIO map, GP endpoint, display or memory
+interface. It has no FES package producer or runtime programming profile.
+Board metadata can be validated and reported before a complete platform
+exists; it does not authorize a DE10-Nano image or package on Agilex 5.
+The vendor manual's `A5EB013BB23BE4SR1` suffix differs from the golden
+project's `A5EB013BB23BE4SCS`; only the latter is selected here. The board
+README records the exact vendor inputs and the remaining hardware check.
+
 ## Functional input identity
 
 Pong, ZX81, Coleco, SMS, SG-1000, Catch and all demo variants use functional

@@ -49,10 +49,10 @@ func (s *Service) ShelfComputers(ctx context.Context) ([]ShelfComputer, error) {
 	best := map[string]shelfCandidate{}
 	for _, entry := range picked {
 		inspection, inspectErr := s.installedCoreInspection(ctx, entry.PackageID)
-		if inspectErr == nil && !shelfPlayableABI(inspection.Descriptor.ABI) {
+		if inspectErr != nil || !shelfPlayableABI(inspection.Descriptor.ABI) {
 			continue
 		}
-		packageReady := inspectErr == nil && inspection.Descriptor.Core.ID == entry.CoreID
+		packageReady := inspection.Descriptor.Core.ID == entry.CoreID
 		ready := packageReady && shelfCompositionReady(comps[entry.GameID])
 		if ready {
 			ready = s.shelfComputerLaunchReady(ctx, entry, inspection)

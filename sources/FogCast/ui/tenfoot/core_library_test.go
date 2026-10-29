@@ -75,6 +75,22 @@ func TestInstalledSetupUsesPlainSystemNameWithoutChangingPackageChoice(t *testin
 	}
 }
 
+func TestCoreLibraryBusyActionReportsThatItWasNotStarted(t *testing.T) {
+	a := NewApp(nil, 1280, 720, 10)
+	var started atomic.Bool
+	a.mu.Lock()
+	a.coreLibrary.Busy = true
+	a.coreLibraryAsyncLocked(func(context.Context) error {
+		started.Store(true)
+		return nil
+	}, func() {})
+	status := a.coreLibrary.Status
+	a.mu.Unlock()
+	if started.Load() || status != "Please wait for the current library action to finish." {
+		t.Fatalf("busy action started=%v status=%q", started.Load(), status)
+	}
+}
+
 func TestCoreLibraryInstallAndOfflineBrowse(t *testing.T) {
 	installed := false
 	offline := false

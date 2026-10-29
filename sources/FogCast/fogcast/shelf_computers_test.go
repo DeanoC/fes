@@ -3,6 +3,8 @@ package fogcast
 import (
 	"bytes"
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -74,5 +76,33 @@ func TestShelfComputersIncludesPreparedFamiliesAndPrefersBareSetup(t *testing.T)
 		if card.CoreID == "fes.apple2" && card.Title == "A disk title" {
 			t.Fatalf("media title displaced a ready bare machine: %+v", card)
 		}
+	}
+}
+
+func TestShelfComputersOmitsPackagesWhoseABIWasNotInspected(t *testing.T) {
+	ctx := context.Background()
+	unknownABI := bytes.Replace(libraryPackageFixture(t, "1.0.0"),
+		[]byte(`id = "fes.pong"`), []byte(`id = "fes.fake"`), 1)
+	unknownABI = bytes.Replace(unknownABI,
+		[]byte(`id = "fes.simple-game"`), []byte(`id = "fes.unknown-abi"`), 1)
+	root := t.TempDir()
+	s, _, _, inspection := newCoreEntryLaunchFixtureAt(t, root, unknownABI, "Uninspected package")
+	if err := os.Remove(filepath.Join(root, "packages", inspection.PackageID+".fcore")); err != nil {
+		t.Fatal(err)
+	}
+	playable := libraryPackageFixture(t, "1.0.0")
+	installed, _, err := s.ImportCorePackage(ctx, int64(len(playable)), bytes.NewReader(playable))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CreateCoreEntry(ctx, "Playable package", installed.PackageID); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := s.ShelfComputers(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].CoreID != "fes.pong" || !rows[0].Ready {
+		t.Fatalf("shelf exposed an uninspected ABI or lost the playable package: %+v", rows)
 	}
 }

@@ -1,7 +1,12 @@
 package rooms
 
 import (
+	"context"
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -170,6 +175,237 @@ func TestSystemWorkbenchResumeRefreshesAddedLibraryEntries(t *testing.T) {
 		t.Fatal(r.Err())
 	}
 	r.Step(time.Unix(3, 0))
+}
+
+type delayedFirstWorkbenchQueryServices struct {
+	*fakeServices
+	firstResult []hostclient.Game
+	started     chan struct{}
+	release     chan struct{}
+	mu          sync.Mutex
+	calls       int
+	releaseOnce sync.Once
+}
+
+func (s *delayedFirstWorkbenchQueryServices) QueryGames(ctx context.Context, q hostclient.GameListQuery, limit int) ([]hostclient.Game, error) {
+	s.mu.Lock()
+	s.calls++
+	first := s.calls == 1
+	s.mu.Unlock()
+	if first {
+		close(s.started)
+		select {
+		case <-s.release:
+			return append([]hostclient.Game(nil), s.firstResult...), nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	return s.fakeServices.QueryGames(ctx, q, limit)
+}
+
+func (s *delayedFirstWorkbenchQueryServices) releaseFirst() {
+	s.releaseOnce.Do(func() { close(s.release) })
+}
+
+type delayedWorkbenchGameServices struct {
+	*fakeServices
+	blockedID   string
+	detail      hostclient.Game
+	started     chan struct{}
+	release     chan struct{}
+	returned    chan struct{}
+	startOnce   sync.Once
+	releaseOnce sync.Once
+}
+
+func (s *delayedWorkbenchGameServices) Game(ctx context.Context, id string) (hostclient.Game, error) {
+	if id != s.blockedID {
+		return s.fakeServices.Game(ctx, id)
+	}
+	s.startOnce.Do(func() { close(s.started) })
+	select {
+	case <-s.release:
+		close(s.returned)
+		return s.detail, nil
+	case <-ctx.Done():
+		close(s.returned)
+		return hostclient.Game{}, ctx.Err()
+	}
+}
+
+func (s *delayedWorkbenchGameServices) releaseDetail() {
+	s.releaseOnce.Do(func() { close(s.release) })
+}
+
+func stepUntilWorkbenchSignal(t *testing.T, r *Instance, signal <-chan struct{}, description string) {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		r.Step(time.Now())
+		select {
+		case <-signal:
+			return
+		default:
+			time.Sleep(time.Millisecond)
+		}
+	}
+	t.Fatalf("%s did not arrive", description)
+}
+
+func waitForWorkbenchPending(t *testing.T, r *Instance, game bool) {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		r.pendingMu.Lock()
+		found := false
+		for _, result := range r.pending {
+			if (game && result.game != nil) || (!game && result.games != nil) {
+				found = true
+				break
+			}
+		}
+		r.pendingMu.Unlock()
+		if found {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatal("workbench library result did not reach the room")
+}
+
+func TestSystemWorkbenchIgnoresStaleLibraryQuery(t *testing.T) {
+	old := preparedComputer("old-catalog-title", "Old catalog title", "fes.apple2")
+	newer := preparedComputer("new-catalog-title", "New catalog title", "fes.apple2")
+	svc := &delayedFirstWorkbenchQueryServices{
+		fakeServices: &fakeServices{games: []hostclient.Game{newer}},
+		firstResult:  []hostclient.Game{old},
+		started:      make(chan struct{}),
+		release:      make(chan struct{}),
+	}
+	defer svc.releaseFirst()
+	r := loadSystemWorkbench(t, svc, "", "fes.apple2")
+	stepUntilWorkbenchSignal(t, r, svc.started, "initial library query")
+	r.Resume()
+	stepUntil(t, r, func(f Frame) bool { return frameHas(f, newer.Title) })
+	svc.releaseFirst()
+	waitForWorkbenchPending(t, r, false)
+	frame := r.Step(time.Now())
+	if !frameHas(frame, newer.Title) || frameHas(frame, old.Title) {
+		t.Fatalf("stale query replaced the refreshed workbench:\n%s", frameText(frame))
+	}
+}
+
+func TestSystemWorkbenchIgnoresStaleEditionCallback(t *testing.T) {
+	old := preparedComputer("old-grouped-title", "Old grouped title", "fes.apple2")
+	old.VariantCount = 2
+	detail := old
+	detail.Title = "Old grouped detail"
+	newer := preparedComputer("new-edition-title", "New edition title", "fes.apple2")
+	svc := &delayedWorkbenchGameServices{
+		fakeServices: &fakeServices{games: []hostclient.Game{old}},
+		blockedID:    old.ID,
+		detail:       detail,
+		started:      make(chan struct{}),
+		release:      make(chan struct{}),
+		returned:     make(chan struct{}),
+	}
+	defer svc.releaseDetail()
+	r := loadSystemWorkbench(t, svc, "", "fes.apple2")
+	stepUntilWorkbenchSignal(t, r, svc.started, "grouped-edition lookup")
+	svc.mu.Lock()
+	svc.games = []hostclient.Game{newer}
+	svc.mu.Unlock()
+	r.Resume()
+	stepUntil(t, r, func(f Frame) bool { return frameHas(f, newer.Title) })
+	svc.releaseDetail()
+	select {
+	case <-svc.returned:
+	case <-time.After(3 * time.Second):
+		t.Fatal("grouped-edition lookup did not return")
+	}
+	waitForWorkbenchPending(t, r, true)
+	frame := r.Step(time.Now())
+	if !frameHas(frame, newer.Title) || frameHas(frame, old.Title) || frameHas(frame, detail.Title) {
+		t.Fatalf("stale edition callback replaced the refreshed workbench:\n%s", frameText(frame))
+	}
+}
+
+func TestSystemWorkbenchLibraryErrorSurvivesModelNavigation(t *testing.T) {
+	old := preparedComputer("old-spectrum-title", "Old Spectrum title", "fes.spectrum")
+	svc := &fakeServices{games: []hostclient.Game{old}}
+	r := loadSystemWorkbench(t, svc, "", old.CoreID)
+	stepUntil(t, r, func(f Frame) bool { return frameHas(f, old.Title) })
+	svc.mu.Lock()
+	svc.err = context.DeadlineExceeded
+	svc.mu.Unlock()
+	r.Resume()
+	frame := stepUntil(t, r, func(f Frame) bool { return frameHas(f, context.DeadlineExceeded.Error()) })
+	if frameHas(frame, old.Title) {
+		t.Fatalf("failed refresh kept the old catalog:\n%s", frameText(frame))
+	}
+	r.Activate("variant")
+	frame = r.Step(time.Now())
+	if !frameHas(frame, context.DeadlineExceeded.Error()) || frameHas(frame, old.Title) {
+		t.Fatalf("variant navigation hid the library error:\n%s", frameText(frame))
+	}
+	r.Activate("system")
+	frame = r.Step(time.Now())
+	if !frameHas(frame, context.DeadlineExceeded.Error()) || frameHas(frame, old.Title) {
+		t.Fatalf("Next system hid the library error:\n%s", frameText(frame))
+	}
+}
+
+func TestSystemWorkbenchSavesPlacedSelectionOnUnload(t *testing.T) {
+	game := preparedComputer("placed-setup", "Placed setup", "fes.apple2")
+	path := filepath.Join(t.TempDir(), "room.json")
+	r := newRoom(t, examplePack(t, "example.system"), Options{
+		Services:  c64ServicesWithEmptyHardware{Services: &fakeServices{games: []hostclient.Game{game}}},
+		StorePath: path, Width: 1280, Height: 720, InitialGameID: game.ID, InitialCoreID: game.CoreID,
+	})
+	r.SetSessionState("idle")
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	stepUntil(t, r, func(f Frame) bool { return frameHas(f, game.Title) })
+	r.Close()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var state struct {
+		Navigation struct {
+			CoreID    string `json:"core_id"`
+			GameID    string `json:"game_id"`
+			EditionID string `json:"edition_id"`
+		} `json:"navigation"`
+	}
+	if err := json.Unmarshal(data, &state); err != nil {
+		t.Fatal(err)
+	}
+	if state.Navigation.CoreID != game.CoreID || state.Navigation.GameID != game.ID || state.Navigation.EditionID != game.ID {
+		t.Fatalf("unload did not save the placed selection: %+v", state.Navigation)
+	}
+}
+
+func TestSystemWorkbenchUnknownCoreDoesNotImpersonateZX81(t *testing.T) {
+	const unknown = "fes.future-system"
+	r := newRoom(t, examplePack(t, "example.system"), Options{
+		Services: c64ServicesWithEmptyHardware{Services: &fakeServices{}},
+		Width:    1280, Height: 720, InitialCoreID: unknown,
+	})
+	r.SetSessionState("idle")
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	frame := stepUntil(t, r, func(f Frame) bool { return frameHas(f, unknown) })
+	if frameHas(frame, "ZX81") {
+		t.Fatalf("unknown core used the ZX81 setup:\n%s", frameText(frame))
+	}
+	r.Activate("setup")
+	if acts := r.TakeActions(); len(acts) != 0 {
+		t.Fatalf("unknown core offered setup %+v", acts)
+	}
 }
 
 func TestSystemsRoomRoutesOtherFamiliesToExactModelWorkbench(t *testing.T) {

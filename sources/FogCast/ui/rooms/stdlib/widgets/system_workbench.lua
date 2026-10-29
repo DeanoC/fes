@@ -1,12 +1,24 @@
 -- Shared workbench for installed playable systems. It uses the ordinary
 -- library launch and setup paths; only navigation lives in room storage.
-return function()
+return function(options)
 local systems = require "systems"
-local selected_core = room.initial_core_id or ""
-if not systems.by_id[selected_core] then selected_core = "fes.zx81" end
-local function spec() return systems.by_id[selected_core] end
+options = options or {}
+local locked_core = options.core_id or ""
+local selected_core = locked_core
+if selected_core == "" then selected_core = room.initial_core_id or "" end
+if selected_core == "" then selected_core = "fes.zx81" end
+local function spec()
+  return systems.by_id[selected_core] or {
+    label = "Unsupported system", mark = selected_core, disk = "", cassette = "",
+    media = "Media", hint = "This system is not supported by the workbench.",
+  }
+end
 local function system_label() return spec().label end
-local function family() return systems.family_by_core[selected_core] end
+local function family()
+  return systems.family_by_core[selected_core] or {
+    id = selected_core, label = "Unsupported system", variants = {{id = selected_core}},
+  }
+end
 local function family_label() return family().label end
 local function rgb(r, g, b, a)
   if a then return {r = r, g = g, b = b, a = a} end
@@ -46,6 +58,8 @@ local last_hw = 0
 local hw_busy = false
 local hw_refresh_pending = false
 local observed_session = session.state()
+local library_generation = 0
+local library_error = ""
 local cmds, pool, sink = {}, {}, nil
 local heights = {}
 local scale, ox, oy = 1, 0, 0
@@ -57,7 +71,7 @@ local held_session = ""
 
 local nav = store.get("navigation", {})
 local initial_game_id = room.initial_game_id or ""
-if initial_game_id == "" and (room.initial_core_id or "") == "" and systems.by_id[nav.core_id or ""] then selected_core = nav.core_id end
+if locked_core == "" and initial_game_id == "" and (room.initial_core_id or "") == "" and systems.by_id[nav.core_id or ""] then selected_core = nav.core_id end
 local family_variants = type(nav.family_variants) == "table" and nav.family_variants or {}
 local core_choices = type(nav.core_choices) == "table" and nav.core_choices or {}
 local previous_core = core_choices[selected_core] or {}
@@ -65,7 +79,8 @@ local same_core = nav.core_id == selected_core
 local chosen = initial_game_id ~= "" and initial_game_id or (same_core and nav.game_id or previous_core.game_id) or ""
 local chosen_edition = initial_game_id ~= "" and initial_game_id or (same_core and nav.edition_id or previous_core.edition_id) or ""
 if nav.focus and nav.focus ~= "" then focus = nav.focus end
-local message = "Choose a " .. system_label() .. " entry."
+local message = systems.by_id[selected_core] and ("Choose a " .. system_label() .. " entry.")
+  or ("The system " .. selected_core .. " is not supported by this workbench.")
 
 local function take()
   local n = #pool
@@ -147,7 +162,7 @@ local function short_id(id)
   return id
 end
 local function is_system(g)
-  return type(g) == "table" and systems.by_id[g.core_id or ""] and g.id and g.id ~= ""
+  return type(g) == "table" and systems.by_id[g.core_id or ""] and (locked_core == "" or g.core_id == locked_core) and g.id and g.id ~= ""
 end
 local function editions_of(entry)
   local out = {}
@@ -180,6 +195,7 @@ local function focused()
   return eds[edition_i]
 end
 local function remember()
+  if not systems.by_id[selected_core] then return end
   local entry = entries[entry_i]
   local game = focused()
   family_variants[family().id] = selected_core
@@ -198,7 +214,7 @@ local function place(list)
       if has_game_id({g}, initial_game_id) then selected_core = g.core_id break end
     end
   end
-  if focus == "variant" and #family().variants < 2 then focus = "start" end
+  if focus == "variant" and (locked_core ~= "" or #family().variants < 2) then focus = "start" end
   entries = {}
   for _, g in ipairs(all_entries) do if g.core_id == selected_core then entries[#entries + 1] = g end end
   if #entries == 0 and focus == "start" then focus = "setup" end
@@ -217,21 +233,25 @@ local function place(list)
       end
     end
   end
-  if initial_game_id ~= "" and not selected then
-    message = "The selected " .. system_label() .. " entry is no longer available."
-  elseif initial_game_id ~= "" then
-    message = "Choose a " .. system_label() .. " entry."
+  if library_error == "" then
+    if initial_game_id ~= "" and not selected then
+      message = "The selected " .. system_label() .. " entry is no longer available."
+    elseif initial_game_id ~= "" then
+      message = "Choose a " .. system_label() .. " entry."
+    end
   end
   if selected then initial_game_id = "" end
   rev = rev + 1
 end
-local function place_selected(list)
+local function place_selected(list, generation)
+  if generation ~= library_generation then return end
   local wanted = chosen_edition ~= "" and chosen_edition or chosen
   if wanted == "" or has_game_id(list, wanted) then
     place(list)
     return
   end
   library.game(wanted, function(detail, detail_err)
+    if generation ~= library_generation then return end
     if detail and not detail_err and is_system(detail) and has_game_id({detail}, wanted) then
       list[#list + 1] = detail
     end
@@ -326,11 +346,12 @@ local function choose_core(core_id)
   initial_game_id = ""
   local previous = core_choices[core_id] or {}
   chosen, chosen_edition = previous.game_id or "", previous.edition_id or ""
-  message = "Choose a " .. system_label() .. " entry, or set up this system."
+  message = library_error ~= "" and library_error or ("Choose a " .. system_label() .. " entry, or set up this system.")
   place(all_entries)
   remember()
 end
 local function next_variant()
+  if not systems.by_id[selected_core] then return end
   local variants = family().variants
   for i, variant in ipairs(variants) do
     if variant.id == selected_core then
@@ -340,6 +361,11 @@ local function next_variant()
   end
 end
 local function next_system()
+  if not systems.family_by_core[selected_core] then
+    local first = systems.families[1]
+    if first and first.variants[1] then choose_core(first.variants[1].id) end
+    return
+  end
   for i, value in ipairs(systems.families) do
     if value.id == family().id then
       local next_family = systems.families[i % #systems.families + 1]
@@ -435,7 +461,7 @@ local function picture(part)
     end
     local extra = game and extra_line(game) or ""
     if extra ~= "" then text(extra, 470, 324, 17, C.ink, 620) end
-    if #family().variants > 1 then
+    if locked_core == "" and #family().variants > 1 then
       button("variant", "Variant: " .. system_label(), 470, 350, 620, 36, true, next_variant)
     end
 
@@ -466,7 +492,7 @@ local function picture(part)
     label = "Machine in use"
     enabled = false
   end
-  local idle = state == "idle" and not hardware_unavailable
+  local idle = state == "idle" and not hardware_unavailable and systems.by_id[selected_core] ~= nil
   button("setup", "Set up system", 24, 480, 200, 38, idle, function() hardware.setup({core_id=selected_core}) end)
   button("media", "Media for next start", 240, 480, 240, 38, idle and game and game.package_id and game.package_id ~= "", function()
     hardware.open_media({game_id=game.id, core_id=game.core_id, package_id=game.package_id, expected_media_id=game.media_id or ""})
@@ -474,7 +500,7 @@ local function picture(part)
   button("expansions", "Expansion sockets", 496, 480, 240, 38, idle and game and game.package_id and game.package_id ~= "", function()
     hardware.open_expansions({game_id=game.id, core_id=game.core_id, package_id=game.package_id})
   end)
-  button("system", "Next system", 752, 480, 200, 38, true, next_system)
+  button("system", "Next system", 752, 480, 200, 38, locked_core == "", next_system)
   button("machine", "Next machine", 24, 530, 200, 44, #entries > 1, next_machine)
   button("edition", "Next edition", 240, 530, 200, 44, game and #editions_of(entries[entry_i]) > 1, next_edition)
   button("start", label, 456, 524, 220, 52, enabled, fn)
@@ -582,18 +608,25 @@ end
 function load()
   last_hw = room.time
   read_hardware()
+  library_generation = library_generation + 1
+  local generation = library_generation
   library.query({
     platform = "fpga",
-    core_ids = systems.ids,
+    core_ids = locked_core ~= "" and {locked_core} or systems.ids,
     sort = "title",
     limit = 2000,
   }, function(games, err)
+    if generation ~= library_generation then return end
     if err then
-      message = err
+      library_error = err
+      all_entries = {}
       entries = {}
+      entry_i, edition_i = 1, 1
+      message = library_error
       rev = rev + 1
       return
     end
+    library_error = ""
     local prepared = {}
     for _, g in ipairs(games or {}) do
       if is_system(g) then prepared[#prepared + 1] = g end
@@ -608,6 +641,7 @@ function load()
         local id = g.id
         local fallback = g
         library.game(id, function(detail, detail_err)
+          if generation ~= library_generation then return end
           if detail and not detail_err and is_system(detail) then
             replacements[id] = detail
           else
@@ -619,12 +653,12 @@ function load()
             for _, item in ipairs(prepared) do
               merged[#merged + 1] = replacements[item.id] or item
             end
-            place_selected(merged)
+            place_selected(merged, generation)
           end
         end)
       end
     end
-    if pending == 0 then place_selected(prepared) end
+    if pending == 0 then place_selected(prepared, generation) end
   end)
 end
 
@@ -647,6 +681,8 @@ function on_resume()
   read_hardware()
   load()
 end
+
+function unload() remember() end
 
 local function activate(id)
   for _, c in ipairs(controls) do

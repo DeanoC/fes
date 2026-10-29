@@ -1131,7 +1131,11 @@ expansion fitting is a separate operation.
 slot choices. Exact-package/socket archive import and fitting are separate;
 selection checks the previous card. Library metadata shows selected cards
 without inventing topology from the system label. Resume rereads both library
-entries and hardware while retaining the chosen entry/edition.
+entries and hardware while retaining the chosen entry/edition. Each library
+refresh ignores replies from older requests; a failed refresh clears the
+catalog and keeps its error visible while the user changes variants or systems.
+Closing the room saves the current navigation selection. Unsupported core IDs
+are shown as unsupported instead of being treated as ZX81.
 All three workbench room IDs reserve the native 52 px status/hint footer
 below their Lua content, keeping that chrome clear of the action rows.
 
