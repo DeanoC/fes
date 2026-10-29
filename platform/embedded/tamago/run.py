@@ -1,35 +1,35 @@
 #!/usr/bin/env python3
-"""Build and run the native Go bare-metal probe or tenfoot QEMU fixture.
+"""Build native Go and verify QEMU boot, real catalog, input and FAT32 persistence.
 
-No dependency is downloaded by this runner. Populate the module cache using
-the explicit commands in README.md before running it.
+No dependencies are downloaded. Tenfoot uses a private local FogCast host and
+synthetic .sfc catalog files, a regular-file FAT32 disk, virtio networking,
+ramfb display and PL011 serial input. No physical device is opened.
 """
 import argparse
-import base64
+import fcntl
 import hashlib
 import json
 import os
 from pathlib import Path
 import re
-import selectors
+import shutil
 import struct
 import subprocess
 import sys
 import time
+from urllib.parse import urlparse
+from urllib.request import urlopen
+
+from host_support import Guest, frames
 
 APP = Path(__file__).resolve().parent
 ROOT = APP.parents[2]
+LAYOUT_NEXT = {"grid": "shelf", "shelf": "list", "list": "grid"}
 
 
 def sha(path):
-    return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
-def capture(command, env, *, timeout=180):
-    result = subprocess.run([str(x) for x in command], cwd=APP, env=env,
-                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                            timeout=timeout)
-    return result.returncode, result.stdout.decode(errors="replace")
+    with path.open("rb") as stream:
+        return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
 def objects(stream):
@@ -44,6 +44,16 @@ def objects(stream):
         yield value
 
 
+def stop(process):
+    if process is not None and process.poll() is None:
+        process.terminate()
+        try:
+            process.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("program", choices=("probe", "tenfoot"))
@@ -52,7 +62,16 @@ def main():
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--module-cache", type=Path,
                         default=ROOT / "out/embedded-base-tools/tamago/mod")
-    parser.add_argument("--timeout", type=float, default=60)
+    parser.add_argument("--host", type=Path, default=ROOT / "out/embedded-base-tools/fogcast-host",
+                        help="FogCast embedded host executable (tenfoot only)")
+    parser.add_argument("--disk", type=Path,
+                        help="persistent regular FAT32 image beneath out/; created if absent")
+    parser.add_argument("--interactive", action="store_true",
+                        help="keep tenfoot running; terminal keys drive it, Ctrl-] exits")
+    parser.add_argument("--display", default=None,
+                        help="QEMU display backend: defaults to sdl interactively, none for checks")
+    parser.add_argument("--timeout", type=float, default=90,
+                        help="startup or per-action deadline, seconds (not interactive runtime)")
     args = parser.parse_args()
     output = args.output.resolve()
     if output.exists():
@@ -61,9 +80,15 @@ def main():
         parser.error("output must be beneath this worktree's out/ directory")
     if args.timeout <= 0 or args.timeout > 300:
         parser.error("timeout must be in (0, 300] seconds")
+    if args.interactive and args.program != "tenfoot":
+        parser.error("--interactive requires tenfoot")
+    disk = (args.disk or output / "fat32.img").resolve()
+    if not disk.is_relative_to(ROOT / "out") or (disk.exists() and not disk.is_file()):
+        parser.error("disk must be a regular file beneath this worktree's out/")
+    if "," in str(output) or "," in str(disk):
+        parser.error("output/disk paths cannot contain a comma (QEMU option separator)")
     output.mkdir(parents=True)
-    compiler = args.compiler.resolve()
-    qemu = args.qemu.resolve()
+    compiler, qemu = args.compiler.resolve(), args.qemu.resolve()
     env = dict(os.environ, GOOS="tamago", GOARCH="arm64", CGO_ENABLED="0",
                GOOSPKG="github.com/usbarmory/tamago", GOTOOLCHAIN="local",
                GOENV="off", GOWORK="off", GOPROXY="off", GOSUMDB="off",
@@ -73,30 +98,148 @@ def main():
               "classification": "QEMU-only native Go bare metal; not DE25 hardware",
               "commands": [], "environment": {k: env[k] for k in (
                   "GOOS", "GOARCH", "CGO_ENABLED", "GOOSPKG", "GOTOOLCHAIN",
-                  "GOENV", "GOWORK", "GOPROXY", "GOSUMDB", "GOMODCACHE", "GOCACHE")}}
+                  "GOENV", "GOWORK", "GOPROXY", "GOSUMDB", "GOMODCACHE", "GOCACHE")},
+              "limitations": ["PL011 serial input is not a USB driver",
+                              "virtio block is not a physical SD controller",
+                              "synthetic catalog files are not playable ROMs",
+                              "clean-reboot persistence is not power-loss atomicity"]}
+    host_process, host_log, disk_lock = None, None, None
 
     def save():
         (output / "result.json").write_text(json.dumps(record, indent=2) + "\n")
 
-    def checked(name, command):
+    def command_record(command):
         record["commands"].append([str(x) for x in command])
         save()
-        code, text = capture(command, env)
-        (output / (name + ".log")).write_text(text)
-        if code:
-            raise RuntimeError(f"{name} exited {code}; inspect {output / (name + '.log')}")
-        return text
 
+    def checked(name, command, *, native=False):
+        command_record(command)
+        result = subprocess.run([str(x) for x in command], cwd=APP,
+                                env=env if native else os.environ,
+                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=180)
+        (output / (name + ".log")).write_bytes(result.stdout)
+        if result.returncode:
+            raise RuntimeError(f"{name} exited {result.returncode}; inspect {output / (name + '.log')}")
+        return result.stdout.decode(errors="replace")
+
+    def preferences(name):
+        path = output / (name + ".json")
+        checked(name, ["mcopy", "-i", disk, "::FES/PREFS.JSON", path])
+        return json.loads(path.read_bytes().rstrip(b" \r\n\t\0"))
+
+    def prepare_host():
+        nonlocal host_process, host_log
+        host = args.host.resolve()
+        record["host_sha256"] = sha(host)
+        directory = output / "host"
+        library = directory / "library"
+        library.mkdir(parents=True)
+        # Real directory scanning and HTTP serving, with deliberately synthetic
+        # files. Nothing attempts to execute or qualify these as game software.
+        for number, name in enumerate(("Aster", "Borealis", "Comet"), 1):
+            (library / (name + ".sfc")).write_bytes(
+                (f"FES synthetic catalog sample {number}: {name}\n".encode() * 1024)[:32768])
+        record["catalog_files_sha256"] = {p.name: sha(p) for p in sorted(library.iterdir())}
+        config = directory / "config.toml"
+        config.write_text('selected_target = "unavailable"\nrequest_timeout_seconds = 3\nupload_timeout_seconds = 5\n' +
+                          f"state = {json.dumps(str(directory / 'state'))}\n" +
+                          f"staging = {json.dumps(str(directory / 'staging'))}\n" +
+                          '[[targets]]\nname = "unavailable"\nenabled = false\n' +
+                          '[[libraries]]\nid = "native-snes"\nsystem = "snes"\n' +
+                          f"root = {json.dumps(str(library))}\n")
+        ready = directory / "ready.json"
+        command = [host, "--config", config, "--ready-file", ready]
+        command_record(command)
+        host_log = (directory / "console.log").open("wb")
+        host_process = subprocess.Popen([str(x) for x in command], stdout=host_log, stderr=host_log)
+        deadline = time.monotonic() + args.timeout
+        while not ready.exists():
+            if host_process.poll() is not None or time.monotonic() >= deadline:
+                raise RuntimeError(f"private FogCast host did not become ready; inspect {directory / 'console.log'}")
+            time.sleep(0.05)
+        base = json.loads(ready.read_text())["base"]
+        address = urlparse(base)
+        if address.scheme != "http" or address.hostname != "127.0.0.1" or not address.port:
+            raise RuntimeError("private host returned an unexpected listen URL")
+        with urlopen(base + "/api/v1/games", timeout=args.timeout) as response:
+            catalog = json.load(response)
+        (directory / "catalog.json").write_text(json.dumps(catalog, indent=2) + "\n")
+        games = catalog.get("games", [])
+        if len(games) != 3:
+            raise RuntimeError(f"expected 3 scanned sample files, host returned {len(games)} games")
+        record["host"] = {"base": base, "guest_base": f"http://10.0.2.2:{address.port}",
+                          "catalog_count": len(games), "catalog_ids": sorted(g["id"] for g in games),
+                          "config_sha256": sha(config)}
+        return record["host"]["guest_base"]
+
+    def lock_disk():
+        nonlocal disk_lock
+        disk.parent.mkdir(parents=True, exist_ok=True)
+        disk_lock = Path(str(disk) + ".lock").open("a+")
+        try:
+            fcntl.flock(disk_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            disk_lock.close()
+            disk_lock = None
+            raise RuntimeError(f"disk is busy in another runner: {disk}") from None
+        disk_lock.seek(0)
+        disk_lock.truncate()
+        disk_lock.write(f"pid={os.getpid()} disk={disk}\n")
+        disk_lock.flush()
+
+    def prepare_disk(api_url):
+        fresh = not disk.exists()
+        disk.parent.mkdir(parents=True, exist_ok=True)
+        if fresh:
+            with disk.open("xb") as stream:
+                stream.truncate(128 << 20)
+            if formatter := shutil.which("mkfs.fat"):
+                checked("format", [formatter, "-F", "32", "-n", "FESNATIVE", disk])
+            else:
+                formatter = shutil.which("mformat")
+                if not formatter:
+                    raise RuntimeError("install dosfstools (mkfs.fat) or mtools (mformat) to create FAT32")
+                checked("format", [formatter, "-i", disk, "-F", "-v", "FESNATIVE", "::"])
+            record["fat_formatter"] = {"path": formatter, "sha256": sha(Path(formatter))}
+            checked("mkdir-fat", ["mmd", "-i", disk, "::FES"])
+            initial = output / "preferences-initial.json"
+            data = json.dumps({"safe_area_pct": 0.05, "layout": "grid",
+                               "attract_enabled": False, "home": "library"}).encode() + b"\n"
+            initial.write_bytes(data.ljust(4096, b" "))
+            checked("write-prefs", ["mcopy", "-i", disk, initial, "::FES/PREFS.JSON"])
+        boot = output / "boot.json"
+        boot.write_text(json.dumps({"api_url": api_url, "api_host": urlparse(record["host"]["base"]).netloc}) + "\n")
+        checked("write-boot", ["mcopy", "-o", "-i", disk, boot, "::FES/BOOT.JSON"])
+        record["disk"] = {"path": str(disk), "created": fresh, "bytes": disk.stat().st_size,
+                          "before_sha256": sha(disk), "boot_config_sha256": sha(boot)}
+        record["initial_preferences"] = preferences("preferences-before")
+
+    def ready(guest, expected):
+        guest.wait(lambda text: "FES_TENFOOT_READY" in text, args.timeout, "tenfoot ready")
+        text = guest.text
+        for marker in ("FES_BOOT_CONFIG", "FES_STORAGE_READY", "FES_NETWORK_READY",
+                       f"FES_PREFERENCES_LOADED layout={expected}"):
+            if marker not in text:
+                raise RuntimeError(f"missing startup evidence: {marker}")
+        catalog_lines = re.findall(r"FES_CATALOG ids=(\[[^\r\n]*\])", text)
+        if not catalog_lines or sorted(json.loads(catalog_lines[-1])) != record["host"]["catalog_ids"]:
+            raise RuntimeError("guest catalog IDs differ from the real host scanner response")
+        available = [f for f in frames(text) if f["titles"] >= 3 and f["layout"] == expected]
+        if not available:
+            raise RuntimeError("ready marker has no matching rendered catalog frame")
+        return available[-1]
+
+    started = time.monotonic()
     try:
         record["compiler_sha256"] = sha(compiler)
-        record["compiler_version"] = checked("compiler", [compiler, "version"]).strip()
+        record["compiler_version"] = checked("compiler", [compiler, "version"], native=True).strip()
         if "go1.26.5 " not in record["compiler_version"]:
             raise RuntimeError("this experiment pins the TamaGo Go 1.26.5 compiler")
         record["qemu_sha256"] = sha(qemu)
         record["qemu_version"] = checked("qemu", [qemu, "--version"]).strip()
         deps = checked("packages", [compiler, "list", "-deps", "-json", "-mod=readonly",
-                                    "./cmd/" + args.program])
-        files = set([APP / "go.mod", APP / "go.sum", APP / "run.py", APP / "toolchain.lock.toml"])
+                                    "./cmd/" + args.program], native=True)
+        files = {APP / name for name in ("go.mod", "go.sum", "run.py", "host_support.py", "toolchain.lock.toml")}
         modules = {}
         for package in objects(deps):
             if module := package.get("Module"):
@@ -108,87 +251,86 @@ def main():
         record["modules"] = modules
         record["source_sha256"] = {str(p.relative_to(ROOT)): sha(p) for p in sorted(files)}
         elf = output / (args.program + ".elf")
-        checked("build", [compiler, "build", "-mod=readonly", "-trimpath",
-                           "-ldflags", "-T 0x40010000 -R 0x1000",
-                           "-o", elf, "./cmd/" + args.program])
-        record["elf_sha256"] = sha(elf)
-        record["elf_bytes"] = elf.stat().st_size
+        checked("build", [compiler, "build", "-mod=readonly", "-trimpath", "-ldflags",
+                           "-T 0x40010000 -R 0x1000", "-o", elf, "./cmd/" + args.program], native=True)
+        record["elf_sha256"], record["elf_bytes"] = sha(elf), elf.stat().st_size
         data = elf.read_bytes()
         if data[:6] != b"\x7fELF\x02\x01" or struct.unpack_from("<H", data, 18)[0] != 183:
             raise RuntimeError("expected a little-endian AArch64 ELF")
         phoff = struct.unpack_from("<Q", data, 32)[0]
         phsize, phcount = struct.unpack_from("<HH", data, 54)
-        if any(struct.unpack_from("<I", data, phoff + n*phsize)[0] == 3 for n in range(phcount)):
+        if any(struct.unpack_from("<I", data, phoff + n * phsize)[0] == 3 for n in range(phcount)):
             raise RuntimeError("bare-metal image unexpectedly has an ELF interpreter")
-        record["elf_machine"] = "AArch64"
-        record["elf_interpreter"] = None
-        checked("image-go-version", [compiler, "version", "-m", elf])
-        # QEMU default non-secure direct kernel entry is EL1. EL2 is unsupported.
-        command = [str(qemu), "-machine", "virt,gic-version=3", "-cpu", "cortex-a53",
-                   "-m", "256M", "-smp", "1", "-nographic", "-monitor", "none",
-                   "-net", "none", "-kernel", str(elf)]
-        record["commands"].append(command)
-        save()
-        terminal = b"FES_NATIVE_GO_PROBE PASS" if args.program == "probe" else b"FES_NATIVE_TENFOOT PASS"
-        log = bytearray()
-        started = time.monotonic()
-        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        try:
-            with selectors.DefaultSelector() as selector:
-                selector.register(process.stdout, selectors.EVENT_READ)
-                while time.monotonic() - started < args.timeout:
-                    for key, _ in selector.select(timeout=0.1):
-                        chunk = os.read(key.fd, 65536)
-                        if not chunk:
-                            selector.unregister(key.fileobj)
-                            break
-                        log.extend(chunk)
-                    if terminal in log or process.poll() is not None:
-                        break
-        finally:
-            if process.poll() is None:
-                process.terminate()
-            try:
-                tail, _ = process.communicate(timeout=2)
-            except subprocess.TimeoutExpired:
-                process.kill()
-                tail, _ = process.communicate()
-            log.extend(tail)
-        text = log.decode(errors="replace")
-        (output / "console.log").write_text(text)
-        record["elapsed_seconds"] = time.monotonic() - started
-        if terminal not in log or re.search(r"panic:|\bFAIL\b|fatal error:", text):
-            raise RuntimeError("guest did not complete; inspect console.log")
-        record["termination"] = "runner stopped its emulator after guest completion marker"
-        if args.program == "tenfoot":
-            frames = []
-            pattern = (r"FES_FRAME_BEGIN stage=(\d+) focus=(\d+) bytes=(\d+) sha256=([0-9a-f]{64})\r?\n"
-                       r"([A-Za-z0-9+/=\r\n]+)\r?\nFES_FRAME_END")
-            for match in re.finditer(pattern, text):
-                stage, focus, size, digest, data = match.groups()
-                png = base64.b64decode("".join(data.split()), validate=True)
-                if len(png) != int(size) or hashlib.sha256(png).hexdigest() != digest:
-                    raise RuntimeError("frame size/hash mismatch")
-                if not png.startswith(b"\x89PNG\r\n\x1a\n"):
-                    raise RuntimeError("frame is not PNG")
-                name = "frame-" + stage + ".png"
-                (output / name).write_bytes(png)
-                frames.append({"path": name, "stage": int(stage), "focus": int(focus),
-                               "bytes": len(png), "sha256": digest})
-            if ([f["stage"] for f in frames] != [1, 2, 3] or
-                    [f["focus"] for f in frames] != [0, 1, 0]):
-                raise RuntimeError("missing frame/navigation evidence")
-            record["frames"] = frames
-        if any(sha(ROOT / p) != h for p, h in record["source_sha256"].items()):
+        record.update(elf_machine="AArch64", elf_interpreter=None)
+        checked("image-go-version", [compiler, "version", "-m", elf], native=True)
+        display = args.display or ("sdl" if args.interactive else "none")
+        if args.program == "probe":
+            with Guest(qemu, elf, output / "boot-1", command_record, display=display) as guest:
+                guest.wait(lambda text: "FES_NATIVE_GO_PROBE PASS" in text, args.timeout, "probe completion")
+            record["termination"] = "runner stopped its QEMU process after probe marker"
+        else:
+            lock_disk()
+            prepare_disk(prepare_host())
+            initial = record["initial_preferences"].get("layout", "grid")
+            if initial not in LAYOUT_NEXT:
+                raise RuntimeError("unsupported initial layout in existing disk")
+            screenshots = record["screenshots"] = []
+            with Guest(qemu, elf, output / "boot-1", command_record, disk=disk, display=display) as guest:
+                first = ready(guest, initial)
+                screenshots.append(guest.screenshot("initial"))
+                if args.interactive:
+                    print(f"Screenshot: {output / screenshots[-1]['path']}", flush=True)
+                    guest.interactive()
+                    screenshots.append(guest.screenshot("final"))
+                else:
+                    guest.send(b"\x1b[C")
+                    record["serial_input"] = [{"hex": "1b5b43", "meaning": "right"}]
+                    guest.wait(lambda text: any(f["seq"] > first["seq"] and f["focus"] != first["focus"]
+                                                for f in frames(text)), args.timeout, "serial right navigation")
+                    screenshots.append(guest.screenshot("right"))
+                    count = guest.text.count("FES_PREFERENCES_SAVED")
+                    expected = LAYOUT_NEXT[initial]
+                    guest.send(b"l")
+                    record["serial_input"].append({"hex": "6c", "meaning": "layout cycle"})
+                    guest.wait(lambda text: any(f["layout"] == expected for f in frames(text)) and
+                               text.count("FES_PREFERENCES_SAVED") > count,
+                               args.timeout, "changed layout and saved preferences")
+                    screenshots.append(guest.screenshot("layout"))
+                record["first_boot_frames"] = frames(guest.text)
+            saved = preferences("preferences-after-first-boot")
+            record["saved_preferences"] = saved
+            record["disk"]["after_first_boot_sha256"] = sha(disk)
+            if not args.interactive:
+                if saved.get("layout") != expected:
+                    raise RuntimeError("FAT32 preference file does not contain selected layout")
+                if len({s["sha256"] for s in screenshots}) != 3:
+                    raise RuntimeError("QMP screenshots did not change with navigation and layout")
+                with Guest(qemu, elf, output / "boot-2", command_record, disk=disk, display=display) as guest:
+                    ready(guest, expected)
+                    screenshots.append(guest.screenshot("restored"))
+                    record["second_boot_frames"] = frames(guest.text)
+                record["reboot_preferences"] = preferences("preferences-after-reboot")
+                if record["reboot_preferences"].get("layout") != expected:
+                    raise RuntimeError("saved layout was not retained across reboot")
+                record["persistence"] = "verified FAT32 write, fresh QEMU boot, loaded preference and displayed layout"
+            record["disk"]["final_sha256"] = sha(disk)
+            record["termination"] = "runner quit its QEMU process(es) through QMP; not guest shutdown evidence"
+        if any(sha(ROOT / path) != digest for path, digest in record["source_sha256"].items()):
             raise RuntimeError("source changed during build/run; repeat when edits finish")
-        record["status"] = "passed"
-        print(terminal.decode())
+        record["status"] = "interactive-completed" if args.interactive else "passed"
+        print(f"FES_NATIVE_{args.program.upper()} {record['status'].upper()}")
         print(output / "result.json")
-    except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as exc:
-        record.update(status="failed", error=str(exc))
-        print(exc, file=sys.stderr)
+    except (OSError, RuntimeError, ValueError, subprocess.SubprocessError, KeyboardInterrupt) as exc:
+        record.update(status="failed", error=str(exc) or type(exc).__name__)
+        print(record["error"], file=sys.stderr)
         return 1
     finally:
+        stop(host_process)
+        if host_log is not None:
+            host_log.close()
+        if disk_lock is not None:
+            disk_lock.close()
+        record["elapsed_seconds"] = time.monotonic() - started
         save()
     return 0
 

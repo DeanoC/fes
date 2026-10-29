@@ -4,140 +4,182 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"image/png"
-	"io"
 	"net/http"
+	"net/netip"
+	"net/url"
 	"runtime"
 	"time"
 
-	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/tenfoot"
+	"github.com/DeanoC/fes/platform/embedded/tamago/block"
 	"github.com/DeanoC/fes/platform/embedded/tamago/board/qemuvirt"
+	"github.com/DeanoC/fes/platform/embedded/tamago/display"
+	"github.com/DeanoC/fes/platform/embedded/tamago/fat"
+	"github.com/DeanoC/fes/platform/embedded/tamago/input"
+	"github.com/DeanoC/fes/platform/embedded/tamago/network"
 )
 
-// The base-system experiment has no network/FPGA backend yet. This explicit
-// read-only service fixture exercises the real App through its host API client.
-type fixtureTransport struct{}
+type bootConfig struct {
+	APIURL  string `json:"api_url"`
+	APIHost string `json:"api_host"`
+}
 
-func (fixtureTransport) RoundTrip(request *http.Request) (*http.Response, error) {
-	status := http.StatusOK
-	var value any
-	switch request.URL.Path {
-	case "/api/v1/games":
-		value = map[string]any{"games": []hostclient.Game{
-			{ID: "pong", Title: "FES Pong", System: "pong", RootOnline: true, State: "available"},
-			{ID: "zx81", Title: "Sinclair ZX81", System: "zx81", RootOnline: true, State: "available"},
-			{ID: "coleco", Title: "ColecoVision", System: "coleco", RootOnline: true, State: "available"},
-		}}
-	case "/api/v1/platforms":
-		value = map[string]any{"platforms": []any{}}
-	case "/api/v1/library/collections":
-		value = map[string]any{"collections": []any{}}
-	case "/api/v1/library/edition-preferences":
-		value = map[string]any{"preferences": []any{}}
-	case "/api/v1/library/facets":
-		value = map[string]any{"genres": []any{}, "years": []any{}}
-	case "/api/v1/session":
-		value = map[string]any{"state": "idle"}
-	default:
-		status = http.StatusNotImplemented
-		value = map[string]any{"error": "unimplemented read-only fixture endpoint"}
-	}
-	body, err := json.Marshal(value)
+type observedTransport struct{ base http.RoundTripper }
+
+func (t observedTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	response, err := t.base.RoundTrip(request)
 	if err != nil {
-		return nil, err
+		fmt.Printf("FES_HTTP method=%s path=%s error=%q\n", request.Method, request.URL.Path, err)
+	} else {
+		fmt.Printf("FES_HTTP method=%s path=%s status=%d\n", request.Method, request.URL.Path, response.StatusCode)
 	}
-	return &http.Response{StatusCode: status, Header: http.Header{"Content-Type": []string{"application/json"}},
-		Body: io.NopCloser(bytes.NewReader(body)), Request: request}, nil
+	return response, err
 }
 
-type framePlatform struct {
-	app      *tenfoot.App
-	device   *gfx.Software
-	stage    int
-	captured int
-	focus    []int
-	hashes   [][32]byte
-	started  time.Time
+type preferenceStore struct{ volume *fat.Volume }
+
+func (p preferenceStore) ReadPreferences() ([]byte, error) {
+	return p.volume.ReadFile("FES/PREFS.JSON")
 }
 
-func (p *framePlatform) Next(ctx context.Context) (tenfoot.PlatformInput, error) {
-	select {
-	case <-ctx.Done():
-		return tenfoot.PlatformInput{}, ctx.Err()
-	case <-time.After(time.Millisecond):
-	}
-	if time.Since(p.started) > 15*time.Second {
-		return tenfoot.PlatformInput{}, fmt.Errorf("tenfoot fixture did not complete")
-	}
-	input := tenfoot.PlatformInput{At: time.Now()}
-	snapshot := p.app.Snapshot()
-	if snapshot.Loading || len(snapshot.Games) != 3 {
-		return input, nil
-	}
-	switch p.stage {
-	case 0:
-		p.stage = 1
-	case 1:
-		input.Commands = []tenfoot.Command{tenfoot.CmdRight}
-		p.stage = 2
-	case 2:
-		input.Commands = []tenfoot.Command{tenfoot.CmdLeft}
-		p.stage = 3
-	default:
-		return tenfoot.PlatformInput{}, io.EOF
-	}
-	return input, nil
-}
-
-func (p *framePlatform) Present(_ context.Context, snapshot tenfoot.Snapshot) error {
-	if p.stage == 0 || snapshot.Loading || len(snapshot.Games) != 3 || p.captured >= p.stage {
-		return nil
-	}
-	p.focus = append(p.focus, snapshot.Grid.Focus)
-	p.hashes = append(p.hashes, sha256.Sum256(p.device.Framebuffer().Pix))
-	var frame bytes.Buffer
-	if err := png.Encode(&frame, p.device.Framebuffer()); err != nil {
+func (p preferenceStore) WritePreferences(data []byte) error {
+	if err := p.volume.WriteFile("FES/PREFS.JSON", data); err != nil {
 		return err
 	}
-	data := frame.Bytes()
-	fmt.Printf("FES_FRAME_BEGIN stage=%d focus=%d bytes=%d sha256=%x\n", p.stage, snapshot.Grid.Focus, len(data), sha256.Sum256(data))
-	fmt.Println(base64.StdEncoding.EncodeToString(data))
-	fmt.Println("FES_FRAME_END")
-	p.captured++
+	fmt.Printf("FES_PREFERENCES_SAVED bytes=%d\n", len(data))
 	return nil
 }
 
-func main() {
-	fmt.Printf("FES tenfoot native Go os=%s arch=%s EL=%d fixture=read-only network=absent\n",
-		runtime.GOOS, runtime.GOARCH, qemuvirt.ExceptionLevel())
-	if runtime.GOOS != "tamago" || runtime.GOARCH != "arm64" || qemuvirt.ExceptionLevel() != 1 {
-		panic("unexpected boot contract")
+type framePlatform struct {
+	device    *gfx.Software
+	display   *display.RAMFB
+	network   *network.Interface
+	uart      input.UART
+	lastFrame time.Time
+	lastState string
+	ready     bool
+	seq       uint64
+}
+
+func (p *framePlatform) Next(ctx context.Context) (tenfoot.PlatformInput, error) {
+	if err := p.network.Err(); err != nil {
+		return tenfoot.PlatformInput{}, fmt.Errorf("network stopped: %w", err)
 	}
+	// Yield to the network stack and UI workers on this cooperative runtime.
+	delay := 50*time.Millisecond - time.Since(p.lastFrame)
+	if delay > 0 {
+		select {
+		case <-ctx.Done():
+			return tenfoot.PlatformInput{}, ctx.Err()
+		case <-time.After(delay):
+		}
+	} else {
+		runtime.Gosched()
+	}
+	now := time.Now()
+	p.lastFrame = now
+	frame := tenfoot.PlatformInput{At: now}
+	for _, event := range p.uart.Poll(now) {
+		fmt.Printf("FES_INPUT key=%s\n", event.Key)
+		if command := tenfoot.CommandFromKey(event.Key); command != tenfoot.CmdNone {
+			frame.Commands = append(frame.Commands, command)
+		}
+		frame.Text += event.Text
+	}
+	return frame, ctx.Err()
+}
+
+func (p *framePlatform) Present(_ context.Context, snapshot tenfoot.Snapshot) error {
+	if err := p.display.Present(p.device.Framebuffer()); err != nil {
+		return err
+	}
+	p.seq++
+	state := fmt.Sprintf("titles=%d focus=%d layout=%s loading=%t error=%q", len(snapshot.Games), snapshot.Grid.Focus, snapshot.Grid.Mode, snapshot.Loading, snapshot.LoadErr)
+	if state != p.lastState {
+		fmt.Printf("FES_FRAME seq=%d %s\n", p.seq, state)
+		p.lastState = state
+	}
+	if !p.ready && !snapshot.Loading && snapshot.LoadErr == "" && len(snapshot.Games) > 0 {
+		p.ready = true
+		ids := make([]string, len(snapshot.Games))
+		for i, game := range snapshot.Games {
+			ids[i] = game.ID
+		}
+		catalog, _ := json.Marshal(ids)
+		fmt.Printf("FES_CATALOG ids=%s\n", catalog)
+		fmt.Printf("FES_NETWORK_STATS %+v\n", p.network.Statistics())
+		fmt.Println("FES_TENFOOT_READY")
+	}
+	return nil
+}
+
+func run() error {
+	fmt.Printf("FES tenfoot native Go os=%s arch=%s EL=%d\n", runtime.GOOS, runtime.GOARCH, qemuvirt.ExceptionLevel())
+	if runtime.GOOS != "tamago" || runtime.GOARCH != "arm64" || qemuvirt.ExceptionLevel() != 1 {
+		return fmt.Errorf("unexpected boot contract")
+	}
+	frameMemory, err := qemuvirt.InitDevices()
+	if err != nil {
+		return err
+	}
+	disk, err := block.ScanVirtIO()
+	if err != nil {
+		return err
+	}
+	volume, err := fat.Mount(disk)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("FES_STORAGE_READY sectors=%d\n", disk.SectorCount())
+	data, err := volume.ReadFile("FES/BOOT.JSON")
+	if err != nil {
+		return err
+	}
+	var config bootConfig
+	if err := json.Unmarshal(data, &config); err != nil {
+		return err
+	}
+	api, err := url.Parse(config.APIURL)
+	if err != nil {
+		return err
+	}
+	address, err := netip.ParseAddr(api.Hostname())
+	if err != nil || !address.Is4() || api.Scheme != "http" || api.User != nil || api.Path != "" || api.RawQuery != "" || api.Fragment != "" {
+		return fmt.Errorf("prototype API must be a plain HTTP IPv4 origin")
+	}
+	fmt.Printf("FES_BOOT_CONFIG api_url=%s\n", config.APIURL)
+	ctx := context.Background()
+	iface, err := network.Open(ctx, network.Config{})
+	if err != nil {
+		return err
+	}
+	fmt.Printf("FES_NETWORK_READY address=%s\n", iface.Address())
 	const width, height = 1280, 720
 	device, err := gfx.NewSoftware(width, height)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	defer device.Close()
-	client := tenfoot.NewClient("http://embedded.invalid", &http.Client{Transport: fixtureTransport{}})
-	app := tenfoot.NewApp(client, width, height, 10)
-	app.SetAttractDisabled(true)
-	app.SetPrefsPath("/tmp/tenfoot.json")
-	platform := &framePlatform{app: app, device: device, started: time.Now()}
-	if err := tenfoot.RunPlatform(context.Background(), app, device, platform); err != nil {
+	screen, err := display.Open(width, height, frameMemory)
+	if err != nil {
+		return err
+	}
+	client := tenfoot.NewClient(config.APIURL, &http.Client{Timeout: 5 * time.Second, Transport: observedTransport{base: &http.Transport{MaxIdleConnsPerHost: 4}}})
+	client.Client = client.Client.WithAPIHost(config.APIHost)
+	app := tenfoot.NewApp(client, width, height, 400)
+	if err := app.SetPreferenceStore(preferenceStore{volume}); err != nil {
+		return fmt.Errorf("load preferences: %w", err)
+	}
+	fmt.Printf("FES_PREFERENCES_LOADED layout=%s\n", app.Snapshot().Grid.Mode)
+	return tenfoot.RunPlatform(ctx, app, device, &framePlatform{device: device, display: screen, network: iface})
+}
+
+func main() {
+	if err := run(); err != nil {
 		panic(err)
 	}
-	if len(platform.focus) != 3 || platform.focus[0] != 0 || platform.focus[1] != 1 || platform.focus[2] != 0 ||
-		platform.hashes[0] == platform.hashes[1] {
-		panic("native tenfoot navigation did not change the rendered frame")
-	}
-	fmt.Println("FES_NATIVE_TENFOOT PASS frames=3 focus=0,1,0 services=fixture input=scripted")
 }

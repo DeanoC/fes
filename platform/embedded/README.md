@@ -59,21 +59,20 @@ are not board constants. A tested NVMe FAT32 mount does not validate the SD
 controller; a working virtual NIC does not validate the Nano's PHY.
 
 The native [TamaGo image](tamago/README.md) runs the actual tenfoot App and
-renderer at 1280×720 in QEMU. Its three captured frames verify selection
-moving right and back left. The service data and input are fixtures, and the
-frame is exported over the diagnostic serial channel rather than scanned out
-to HDMI. The independent [Zephyr reference](zephyr/README.md) owns its own
-filesystem/network tests.
-
-Current evidence is deliberately split:
+renderer at 1280×720 with QEMU ramfb, live serial keyboard input, a VirtIO
+FAT32 disk and a VirtIO TCP/IP connection to a private FogCast host. The host
+uses the existing scanner/catalog/API. A two-boot test changes the layout,
+flushes its preference file, and verifies restoration from the same disk.
+The independent [Zephyr reference](zephyr/README.md) owns separate tests.
 
 | Path | Current result |
 | --- | --- |
-| Native Go runtime and tenfoot | QEMU boot, memory/timer checks and real 720p UI navigation pass. |
-| Separate Zephyr storage reference | Real NVMe block I/O, FAT32 mount and boot-config read pass. |
-| Separate Zephyr TCP reference | Builds/starts, but packet exchange remains unverified because of the QEMU E1000 driver path. |
-| Native-Go persistent storage and network | Adapters are not connected yet; the UI uses a fixture and volatile files. |
-| Physical SD, USB, Ethernet, display and FPGA | Await controller implementation and later board verification. |
+| Native Go runtime and tenfoot | QEMU CPU/RAM/time, actual 720p output and live navigation |
+| Native persistent storage | Real VirtIO reads/writes/FLUSH and FAT32 preallocated preferences across restart |
+| Native network | Real IPv4 TCP/HTTP and existing FogCast catalog service |
+| Separate Zephyr storage reference | NVMe FAT32 mount and boot-config read |
+| Separate Zephyr TCP reference | Builds/starts; E1000 packet exchange remains unverified |
+| Physical SD, USB, Ethernet, display and FPGA | Await controller implementation and board verification |
 
 ## Tenfoot portability
 
@@ -83,16 +82,16 @@ instead of replacing it with a second launcher. Keep local host/database
 startup outside the UI model. An embedded caller supplies its display/event
 loop and chooses its storage and service adapters explicitly.
 
-For early execution, a fixture-backed service can exercise real rendering and
-navigation. Such a service is not the FogCast library server and cannot grant
-hardware support. Actual catalog/session operations, authentication and
-persistence need their normal contracts before being enabled.
+The native image uses the existing FogCast service on a separate private host,
+not an in-process HTTP fixture. The test library contains synthetic files for
+browsing, and does not supply playable games. Core launch and hardware support
+remain unimplemented.
 
-TamaGo's default `os` filesystem is volatile RAM. A successful `os.WriteFile`
-is not proof of a persistent SD write. A FAT-backed VFS or explicit staging and
-durable publication boundary must be implemented before claiming persistent
-settings, installed packages or saves. Likewise, Go's socket hook needs a real
-network stack and NIC adapter before ordinary HTTP can reach another machine.
+TamaGo's default `os` filesystem is volatile RAM. Tenfoot's optional
+`PreferenceStore` explicitly routes JSON to the FAT32 volume; a successful
+write includes block-device flushes. This supports clean-restart persistence,
+not atomic publication under power loss. Package/media/save lifecycle semantics
+need additional work before they can use this storage path.
 
 ## Integration sequence
 
@@ -108,12 +107,10 @@ network stack and NIC adapter before ordinary HTTP can reach another machine.
    Prove quiescence before reusing any buffer or reconfiguring the fabric.
 7. Replace QEMU adapters with Nano drivers as hardware becomes available.
 
-Steps 3–5 can advance before delivery: use an emulated block controller and
-NIC with the native Go base, then connect real file/HTTP clients and normalized
-input. The native runtime's `net.SocketFunc` hook is the network seam; its
-volatile filesystem needs an explicit persistent-storage integration. USB
-descriptor/HID and FPGA protocol tests can run against models, with physical
-host-controller and configuration support kept distinct.
+Steps 1–5 now have a combined emulator path, using serial input in place of
+USB. Next work is USB/HID integration, a runtime-owned FPGA lifecycle model,
+and preparation of the Nano board/firmware adapter. Hardware addresses and
+DMA/interrupt contracts must be verified against the delivered board revision.
 
 No emulator result supplies physical boot, HDMI, USB-host, SD-card, PHY or
 FPGA reconfiguration acceptance. Hardware arrival should enable those adapter

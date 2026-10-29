@@ -1,94 +1,104 @@
 # Native Go embedded base
 
-This exploratory target runs Go directly on QEMU's single-core AArch64 `virt`
-machine through [TamaGo](https://github.com/usbarmory/tamago). There is no guest
-Linux, WebAssembly interpreter, libc or dynamically loaded executable. This
-is not a DE25 board port: QEMU RAM, PL011 and the firmware entry contract are
-explicitly different from the pending Nano hardware.
+This exploratory image runs the existing tenfoot application directly on
+QEMU's single-core AArch64 `virt` machine through
+[TamaGo](https://github.com/usbarmory/tamago). There is no guest Linux, libc,
+WebAssembly interpreter or dynamically loaded executable. It is an emulator
+integration prototype, not a flashable DE25-Nano image.
 
-The `probe` program verifies counter-based time, goroutine scheduling,
-allocation/GC and a volatile in-memory filesystem round trip. The `tenfoot`
-program runs the existing FogCast `tenfoot.App` and software renderer, navigates
-right and left, and exports three actual rendered PNGs through serial. It uses
-a read-only in-process HTTP transport fixture and scripted logical input.
-It is an application/runtime proof, not evidence for a physical keyboard,
-network controller, display or FPGA core.
+The `tenfoot` program mounts a real FAT32 disk through VirtIO, reads its API
+configuration and preferences, connects to a private FogCast host through a
+real VirtIO NIC and TCP stack, and draws the existing software renderer into
+QEMU ramfb at 1280×720. PL011 serial input supplies live navigation and
+settings commands. The host runs the normal scanner/catalog/API against a
+private library. Boot configuration supplies both the gateway URL and the
+loopback Host header expected by the existing private API policy. The runner's sample files are synthetic browsing data, not
+playable ROMs. No core launch or FPGA programming is implemented.
 
-## Build inputs
+The separate `probe` program checks time, goroutine scheduling, allocation/GC
+and TamaGo's volatile in-memory filesystem.
 
-The native module pins TamaGo and its modified Go compiler to **1.26.5**, the
-Go version used by this FES checkout. Their exact versions and archive hash are
-in [toolchain.lock.toml](toolchain.lock.toml). The standard Go compiler cannot
-build `GOOS=tamago`. The nested module does not change FogCast's production
-toolchain or module requirements.
+## Build and run
 
-From the FES worktree root, extract the verified compiler archive under
-`out/embedded-base-tools/tamago`. Its archive layout includes
-`usr/local/tamago-go/bin/go`. Populate a private module cache explicitly:
+The native module pins TamaGo and its modified Go compiler to **1.26.5**,
+matching FES. Exact compiler, runtime and network pins are in
+[toolchain.lock.toml](toolchain.lock.toml). Stock Go cannot build `GOOS=tamago`.
+Extract the verified compiler archive under `out/embedded-base-tools/tamago`,
+then populate the private cache explicitly:
 
 ```sh
 cd platform/embedded/tamago
 GOTOOLCHAIN=local \
 GOMODCACHE="$PWD/../../../out/embedded-base-tools/tamago/mod" \
 ../../../out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go mod download
-GOTOOLCHAIN=local \
-GOMODCACHE="$PWD/../../../out/embedded-base-tools/tamago/mod" \
-../../../out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go mod download github.com/usbarmory/tamago
 cd ../../..
+(cd sources/FogCast && GOWORK=off go build \
+  -o ../../out/embedded-base-tools/fogcast-host ./cmd/fogcast-embedded-host)
 ```
 
-The second command ensures the runtime-overlay module has a local source
-directory before the compiler resolves `GOOSPKG`. The build runner performs
-no downloads: it selects `GOPROXY=off`, `GOSUMDB=off`, `GOTOOLCHAIN=local` and
-`-mod=readonly`. A missing dependency fails rather than fetching implicitly.
-
-With an AArch64 system emulator, run either program:
+The runner requires Python 3, QEMU AArch64 with ramfb, and mtools. It creates
+only ordinary files under a fresh output directory; it never opens a physical
+block device. Compiler builds use `GOPROXY=off`, `GOSUMDB=off`,
+`GOTOOLCHAIN=local` and `-mod=readonly`.
 
 ```sh
-python3 platform/embedded/tamago/run.py probe \
-  --compiler out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go \
-  --qemu out/de25-os-tools/zephyr-sdk-0.17.4/sysroots/x86_64-pokysdk-linux/usr/bin/qemu-system-aarch64 \
-  --output out/native-go-probe
-
 python3 platform/embedded/tamago/run.py tenfoot \
   --compiler out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go \
   --qemu out/de25-os-tools/zephyr-sdk-0.17.4/sysroots/x86_64-pokysdk-linux/usr/bin/qemu-system-aarch64 \
-  --output out/native-go-tenfoot
+  --output out/native-go-system
 ```
 
-Output must be a fresh directory under this worktree's `out/`. The runner
-records commands, tool identities, compiled Go source/embedded-asset hashes,
-the ELF identity/hash, console and result. Tenfoot output also includes
-`frame-1.png` through `frame-3.png`, with verified PNG hashes and focus sequence
-`0,1,0`. The emulator is stopped by the runner after the final guest marker;
-this is not guest shutdown evidence. No physical device is opened.
+The default test boots twice on the same FAT32 image. It verifies catalog
+loading, sends live serial navigation and a layout change, captures QEMU's
+actual display, independently reads the saved JSON, then checks that a fresh
+boot restores the changed layout. The report records tool/ELF/source hashes,
+commands, disk identity, logs and screenshots. This proves a clean restart;
+it is not abrupt-power-loss or hardware acceptance. Use the runner's
+`--help` for interactive operation and host binary selection.
 
-## Runtime contract and remaining devices
+For manual use, add `--interactive` (terminal keys, Ctrl-] to exit) and choose
+`--display sdl` or a supported QEMU display. Use `--disk out/my-boot.img` to retain
+preferences between invocations; a per-disk lock covers preparation and both
+boots. The runner refreshes only the boot API address on an existing image.
 
-The image starts at EL1, links at `0x40010000` and uses a fixed 256 MiB RAM
-window beginning at `0x40000000`. The gap below the image holds the library's
-MMU tables. Its early hooks enable floating point and map memory through
-TamaGo's ARM64 support. `board/qemuvirt` supplies PL011 serial, direct
-architectural counter time, memory bounds and a nonblocking idle hook.
-Interrupts are masked; one CPU is used. There is no GIC or DMA driver in this
-board package, and EL2 entry is unsupported.
+`probe` uses the same compiler/QEMU arguments without storage or networking.
+All output directories must be fresh and beneath the current worktree's `out/`.
 
-| Component | Current state | Next boundary |
+## Platform contract
+
+The image enters at EL1 and links at `0x40010000`. Go owns 256 MiB beginning
+at `0x40000000`. The combined profile provides 512 MiB physical RAM: a separate
+64 MiB DMA arena starts at `0x50000000`, followed by an 8 MiB framebuffer arena.
+`board/qemuvirt.InitDevices` walks the installed page tables and maps the device
+arenas as Normal noncacheable, non-executable memory. They never overlap the
+Go heap. Disk, network and display retain DMA ownership until completion;
+ambiguous device failure retains buffers and requires reboot.
+
+One CPU is used; interrupts are masked. Drivers poll with deadlines and yield
+cooperatively. The runtime has no asynchronous goroutine preemption. Large
+CPU-bound work still requires smaller cooperative chunks: a controlled 180 ms
+busy-loop test starved TCP retries, while 2 ms chunks passed. The working
+launcher flow does not qualify future artwork decode or latency guarantees. No QEMU
+address or firmware assumption is a DE25 board constant.
+
+| Component | Implemented here | Still required for DE25 |
 | --- | --- | --- |
-| CPU/RAM/Go runtime | Executes on AArch64 QEMU | Nano firmware/DDR/EL1/cache contract |
-| Tenfoot UI | Existing App/renderer and navigation execute | Board display buffer and physical input adapters |
-| Filesystem | TamaGo RAM filesystem only | Explicit persistent storage adapter; FAT32 and SD block I/O |
-| Network | Injected read-only HTTP fixture | Native TCP/IP stack and MAC/PHY driver; `net.SocketFunc` is the runtime seam |
-| USB | Absent | DWC3/xHCI host lifecycle, HID and mass storage |
-| FPGA | Absent | Identified Agilex endpoint and supported configuration path |
+| CPU/RAM/time | AArch64 runtime, counter, heap/GC, isolated DMA memory | Nano firmware/DDR/EL1/cache and IRQ contract |
+| Display | QEMU ramfb via fw_cfg DMA, software RGBA rendering | HDMI/FPGA display plane and generation-bound handoff |
+| Input | Live PL011 terminal keys | USB host enumeration, HID and gamepads |
+| Storage | VirtIO block reads/writes/FLUSH; FAT32 directories and files | SD controller, card lifecycle and removal |
+| Preferences | Existing preallocated FAT32 JSON file; data and metadata flushes | Allocation/update strategy and power-loss-safe publication |
+| Network | VirtIO, IPv4 TCP, static address, normal Go HTTP client | MAC/PHY, IRQs, address setup and qualified entropy |
+| FPGA | Not implemented in this image | Runtime-owned configuration, identity, reset and DMA revocation |
 
-TamaGo's default `os` filesystem is volatile. No `os.WriteFile` result here
-means an SD card write. In particular, this target does not yet provide FES's
-durable package/media/save semantics. The fixture library deliberately marks
-titles unlaunchable. It makes no claim of programming or running a core.
+FAT32 writes update existing preallocated files only; they cannot create,
+allocate, rename or atomically replace them. The preference record reserves
+4096 bytes. TamaGo's default `os` filesystem remains volatile; only the explicit
+`tenfoot.PreferenceStore` backed by this volume persists settings. Native
+Linux tenfoot keeps its existing file-based implementation.
 
-The runtime has no asynchronous goroutine preemption. Device work must return
-or yield promptly; a blocked loop can stall the whole single-core application.
-The QEMU board currently uses a deterministic PRNG only to seed runtime hash
-tables. It is unsuitable for network authentication or cryptography; replace
-it with qualified entropy before enabling those services.
+The board's deterministic entropy source only seeds runtime hash tables.
+Authentication and TLS are not qualified. The private test API uses numeric
+IPv4 HTTP addresses; DHCP, DNS configuration, UDP, IPv6, network recovery and
+throughput qualification remain outside this prototype. The separate
+[Zephyr reference](../zephyr/README.md) is not part of this boot image.

@@ -54,8 +54,7 @@ func timerNanos() int64
 func uartPut(c byte)
 func initializeUART()
 
-// This diagnostic has no network service or cryptographic operations. This
-// deterministic source satisfies runtime hash seeding only; a DE25 platform
+// This deterministic source satisfies runtime hash seeding only; a DE25 platform
 // must provide authenticated firmware/TRNG entropy before security use.
 var diagnosticSeed uint64 = 0x6a09e667f3bcc909
 

@@ -1,0 +1,26 @@
+FES tenfoot native Go os=tamago arch=arm64 EL=1
+FES_STORAGE_READY sectors=262144
+FES_BOOT_CONFIG api_url=http://10.0.2.2:38815
+FES_NETWORK_READY address=10.0.2.15/24
+FES_PREFERENCES_LOADED layout=grid
+FES_FRAME seq=1 titles=0 focus=0 layout=grid loading=true error=""
+FES_HTTP method=GET path=/api/v1/platforms status=200
+FES_HTTP method=GET path=/api/v1/library/collections status=200
+FES_HTTP method=GET path=/api/v1/library/edition-preferences status=200
+FES_HTTP method=GET path=/api/v1/session status=503
+FES_HTTP method=GET path=/api/v1/games status=200
+FES_FRAME seq=26 titles=3 focus=0 layout=grid loading=false error=""
+FES_CATALOG ids=["snes-aster-f9f4cb7f02eb","snes-borealis-00e22a74a676","snes-comet-112137a995fd"]
+FES_NETWORK_STATS {Received:13 Transmitted:13 Dropped:0}
+FES_TENFOOT_READY
+FES_INPUT key=right
+FES_FRAME seq=28 titles=3 focus=1 layout=grid loading=false error=""
+FES_HTTP method=GET path=/api/v1/session/events status=200
+FES_INPUT key=l
+FES_HTTP method=GET path=/api/v1/presentation/games/snes-aster-f9f4cb7f02eb status=200
+FES_HTTP method=GET path=/api/v1/presentation/games/snes-borealis-00e22a74a676 status=200
+FES_HTTP method=GET path=/api/v1/presentation/games/snes-comet-112137a995fd status=200
+FES_HTTP method=POST path=/api/v1/debug/ui-events status=200
+FES_HTTP method=GET path=/api/v1/health status=200
+FES_PREFERENCES_SAVED bytes=98
+FES_FRAME seq=30 titles=3 focus=1 layout=shelf loading=false error=""

@@ -31,11 +31,20 @@ lifecycle before publishing frames across core transitions. The initial
 experiment only browses and navigates; it does not launch cores.
 
 This boundary supports the experimental
-[Linux-free base](../../../platform/embedded/README.md). Its initial data
-adapter is a read-only fixture exercising the real UI. It is not a FogCast host,
-hardware runtime or full standalone appliance. Persistent storage, a network
-stack, USB input and physical scanout must be provided by the embedding base.
-The existing Linux launch path and package/session contracts are unchanged.
+[Linux-free base](../../../platform/embedded/README.md). Its native QEMU image
+uses real VirtIO networking to a private FogCast host, FAT32 preferences, live
+serial keys and ramfb scanout. `cmd/fogcast-embedded-host` boots the existing
+scanner/catalog/API on loopback for this experiment. It is not a hardware
+runtime or full standalone appliance. USB input, physical scanout and FPGA
+lifecycle still need board implementations. The existing Linux launch path and
+package/session contracts are unchanged.
+
+`App.SetPreferenceStore` optionally loads settings from an explicit JSON store
+before App startup. The embedding platform owns its durability contract; a
+successful write must include any required flushes. Existing native callers
+continue to use file paths. Settings are normalized through the same encoder
+and decoder in both paths. The QEMU adapter updates a preallocated FAT32 file;
+its guarantee is clean-restart persistence, not power-loss atomicity.
 
 ## Normal FPGA game launch
 

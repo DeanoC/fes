@@ -322,6 +322,10 @@ func loadTenfootPrefs(path string) (tenfootPrefs, error) {
 	if err != nil {
 		return tenfootPrefs{}, err
 	}
+	return decodeTenfootPrefs(data)
+}
+
+func decodeTenfootPrefs(data []byte) (tenfootPrefs, error) {
 	var prefs tenfootPrefs
 	if err := json.Unmarshal(data, &prefs); err != nil {
 		return tenfootPrefs{}, err
@@ -331,20 +335,27 @@ func loadTenfootPrefs(path string) (tenfootPrefs, error) {
 	return prefs, nil
 }
 
+func encodeTenfootPrefs(prefs tenfootPrefs) ([]byte, error) {
+	prefs.SafeAreaPct = clampSafeAreaPct(prefs.SafeAreaPct)
+	prefs.Layout = parseLayout(prefs.Layout).String()
+	data, err := json.MarshalIndent(prefs, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	return append(data, '\n'), nil
+}
+
 func saveTenfootPrefs(path string, prefs tenfootPrefs) error {
 	if path == "" {
 		return fmt.Errorf("prefs path is empty")
 	}
-	prefs.SafeAreaPct = clampSafeAreaPct(prefs.SafeAreaPct)
-	prefs.Layout = parseLayout(prefs.Layout).String()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	data, err := json.MarshalIndent(prefs, "", "  ")
+	data, err := encodeTenfootPrefs(prefs)
 	if err != nil {
 		return err
 	}
-	data = append(data, '\n')
 	return os.WriteFile(path, data, 0o644)
 }
 

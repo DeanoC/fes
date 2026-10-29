@@ -11,3 +11,9 @@ module = "github.com/usbarmory/tamago"
 version = "v1.26.5"
 commit = "ea10656381d348058facdde7f3df500d43791e2c"
 sum = "h1:k21IAFiXGmibfPn3SYx0XLNXdqDrAgXiIgKSbI5LZ1k="
+
+[network]
+module = "github.com/usbarmory/go-net"
+version = "v0.0.0-20260924083839-356cbf14db9e"
+commit = "356cbf14db9e2f92bf24db3b0ff3936f77d27bb2"
+sum = "h1:GDJdpJWCE2cc2KThdXovuQYYFtvOJm1OgNKwswv8FLA="

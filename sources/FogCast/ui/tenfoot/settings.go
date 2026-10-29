@@ -118,7 +118,7 @@ func (a *App) ConfigureAttract(disabled, forced bool) {
 	a.attractForcedOff = forced
 	a.attractDisabled = disabled || forced
 	if forced {
-		prefs, err := loadTenfootPrefs(a.prefsPath)
+		prefs, err := a.readPreferencesLocked()
 		if err != nil {
 			a.attractPrefEnabled = true
 		} else {
