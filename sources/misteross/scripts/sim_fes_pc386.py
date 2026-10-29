@@ -127,9 +127,9 @@ MACHINE_RTL = AT_RTL + (
 # The M4 diagnostic machine: the machine, its audio and the bus master that
 # stands in for the CPU (pc386_diag.sv).
 DIAG_RTL = (*dict.fromkeys(MACHINE_RTL + AUDIO_RTL), CORE / 'rtl/pc386_bus_master.sv',
-            CORE / 'rtl/pc386_port_fence.sv', CORE / 'rtl/pc386_diag.sv')
+            CORE / 'rtl/pc386_port_fence.sv', CORE / 'rtl/pc386_snapshot.sv', CORE / 'rtl/pc386_diag.sv')
 DIAG_CLOCK_HZ = 61_440_000
-DIAG_PROGRAMS = ('smoke', 'mode13', 'sound', 'ata', 'resets')
+DIAG_PROGRAMS = ('smoke', 'mode13', 'sound', 'opl2', 'ata', 'resets', 'copy')
 # I/O completion, request clock to done clock: each device cycle's class time
 # (isa8 72 clocks, isa16 36 at 100 MHz) plus one clock to take the request and
 # one to report it. 1F0h with a dword is one word cycle and two byte cycles
@@ -414,7 +414,7 @@ def run_benches(args) -> dict:
 
 def run_diag(args) -> dict:
     """The M4 diagnostic programs on pc386_diag through the command ring.
-    sound and resets run shortened; vga-trace runs when --trace names a VGA trace."""
+    sound, opl2 and resets run shortened; vga-trace runs when --trace names a VGA trace."""
     from scripts import pc386_diag
     parameters = pc386_diag.rates(DIAG_CLOCK_HZ)
     # The OPL2 import declares a timescale and the KF imports do not.
@@ -425,6 +425,10 @@ def run_diag(args) -> dict:
     for name in programs:
         if name == 'sound':
             program = pc386_diag.sound(DIAG_CLOCK_HZ, speaker_seconds=0.01, auto_seconds=0.004, block=64)
+        elif name == 'opl2':
+            # The setup and the first note, then a short tail.
+            program = pc386_diag.opl2(DIAG_CLOCK_HZ, CORE / 'sim/fixtures/sound-opl2.log', lines=140,
+                                      longest_gap=0.001, sample_every=0.001, tail_seconds=0.02, rate_seconds=0.02)
         elif name == 'resets':
             program = pc386_diag.resets(DIAG_CLOCK_HZ, count=16)
         else:

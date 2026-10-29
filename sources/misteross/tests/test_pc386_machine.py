@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import shutil
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -250,14 +251,33 @@ class DiagnosticTest(unittest.TestCase):
             self.assertEqual((rates[f'{name}_N'], rates[f'{name}_D']), pair, name)
         self.assertEqual(rates['RTC_N'] / rates['RTC_D'], 256 / 781250)
         self.assertEqual(rates['ATA_RESET_CLOCKS'], 1000)
+        self.assertEqual(rates['TIMEOUT_CLOCKS'], 10_000_000)
         with self.assertRaises(pc386_diag.DiagError):
             pc386_diag.rates(50_000_000)
 
     def test_programs_round_trip(self):
-        for name in ('smoke', 'mode13', 'sound', 'opl2', 'ata'):
+        for name in ('smoke', 'mode13', 'sound', 'opl2', 'ata', 'resets', 'copy'):
             program = pc386_diag.build_program(name, producer.SYSTEM_CLOCK_HZ)
             encoded = program.encode()
             self.assertEqual(pc386_diag.decode_program(encoded).encode(), encoded, name)
+
+    def test_a_command_must_return_its_expected_status(self):
+        program = pc386_diag.Program(61_440_000)
+        program.command(0x0f, status=2)
+        program.read(pc386_diag.CLOCK)
+        def results(*statuses):
+            return pc386_diag.Results(results=[(0, 1, status, n) for n, status in enumerate(statuses)])
+        self.assertEqual(pc386_diag.check(program, results(2, 0))['status'], 'pass')
+        self.assertEqual(len(pc386_diag.check(program, results(0, 0))['failures']), 1)
+        self.assertEqual(len(pc386_diag.check(program, results(2, 1))['failures']), 1)
+        with self.assertRaises(pc386_diag.DiagError):
+            program.command('READ', mask=1, value=1, status=2)
+
+    def test_check_needs_the_program_name(self):
+        with mock.patch.object(sys, 'argv', ['pc386_diag.py', 'check', 'a.p386', 'a.r386']), \
+                mock.patch('sys.stderr'), self.assertRaises(SystemExit) as raised:
+            pc386_diag.main()
+        self.assertEqual(raised.exception.code, 2)
 
     def test_producer_builds_what_the_bench_simulates(self):
         shell = {'pc386_system_pll.v', 'pixel_pll.v', 'fes_computer_mailbox.v', 'fes_audio_output.v',

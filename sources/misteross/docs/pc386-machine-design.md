@@ -1337,8 +1337,10 @@ second writer would break them, and `fes.computer` 1.0 has no opcode for
 arbitrary data. A raw development RBF would leave the mailbox free, but the
 runtime releases the DDR ports and brings up HDMI and audio only for an
 admitted package. The bus master's machine reset bypasses `fes_hps_ddr`'s
-guards, so it fences ports 1 and 2 to keep a reset from cutting a burst. Until
-M0 the shell serves the ATA image port from port 0 and the HPS writes the
+guards, so it fences ports 1 and 2 to keep a reset from cutting a burst. Port 0
+reaches all of HPS DDR, so the bus master refuses a command whose range leaves
+the window or A0000h-BFFFFh, or that would alias another, and gives up one the
+machine never answers, as while it is held in reset. Until M0 the shell serves the ATA image port from port 0 and the HPS writes the
 image into the window directly; the disk round trip with the runtime waits for
 the M0 contracts.
 
