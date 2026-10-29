@@ -26,8 +26,8 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            report lists the stops by stem against the lockstep's scope.
   rtl-stops
            boots cores/fes-pc386/sim/rtl_stop_test.asm on the oracle and on
-           the RTL: DAA at two sites, SMSW, and a protected-mode stretch from
-           LMSW to MOV CR0, all unbuilt in the RTL. The RTL run must stop on
+           the RTL: SMSW at two sites and a protected-mode stretch from LMSW
+           to MOV CR0, all unbuilt in the RTL. The RTL run must stop on
            each, record the stretch, and write what the oracle run writes.
   sound    boots FreeDOS and runs SOUND.COM; checks the speaker and DSP tones,
            OPL2 output and DSP interrupts.
@@ -501,7 +501,7 @@ def vga_test_disk(args) -> Path:
 
 
 # What the RTL must stop on in rtl_stop_test.asm: stem -> (stops, sites).
-RTL_STOPS = {'27': (2, 2), '0F01.4': (1, 1), '0F01.6': (1, 1)}
+RTL_STOPS = {'0F01.4': (2, 2), '0F01.6': (1, 1)}
 
 
 def run_rtl_stops(args, linked: list[Path]) -> dict:
