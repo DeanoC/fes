@@ -1,0 +1,121 @@
+{
+  "rows": [
+    {
+      "path": "sources/misteross/boards/de25nano/hps/Makefile",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/hps/README.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/*.md"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/hps/build.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/hps/fes_de25_top.sdc",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/hps/fes_de25_top_reset.v",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/hps/reset_tb.cpp",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/hps/test_build.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/docs/architecture.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-28-de25-hps-mailbox/reset-sequencing/candidate-6cb01a9123/README.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-28-de25-hps-mailbox/reset-sequencing/candidate-6cb01a9123/candidate.json",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-28-de25-hps-mailbox/reset-sequencing/candidate-6cb01a9123/full-report-sha256.txt",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-28-de25-hps-mailbox/reset-sequencing/candidate-6cb01a9123/golden_top.sta.summary",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-28-de25-hps-mailbox/reset-sequencing/candidate-6cb01a9123/postcompile-preservation.json",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-28-de25-hps-mailbox/reset-sequencing/candidate-6cb01a9123/report-excerpts.txt",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-28-de25-hps-mailbox/reset-sequencing/candidate-6cb01a9123/software-log-sha256.txt",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-28-de25-hps-mailbox/reset-sequencing/candidate-6cb01a9123/software-source-binding.json",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-28-de25-hps-mailbox/reset-sequencing/rdc-source-sha256.json",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-28-de25-hps-mailbox/reset-sequencing/reset-domain-review.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/tests/test_de25nano_hps.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/*/tests/**"
+    }
+  ],
+  "class": "none",
+  "components": [],
+  "decision": "NO_DEPLOY_CHANGE"
+}

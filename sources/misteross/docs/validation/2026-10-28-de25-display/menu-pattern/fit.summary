@@ -1,0 +1,17 @@
+Fitter Status : Successful - Wed Oct 28 17:19:50 2026
+Quartus Prime Version : 26.3.0 Build 114 10/14/2026 SC Pro Edition
+Revision Name : de25nano_display
+Top-level Entity Name : de25nano_display
+Family : Agilex 5
+Device : A5EB013BB23BE4SCS
+Timing Models : Final
+Power Models : Final
+Device Status : Final
+Logic utilization (in ALMs) : 446 / 46,800 ( < 1 % )
+Total dedicated logic registers : 667
+Total pins : 36 / 351 ( 10 % )
+Total block memory bits : 24,576 / 7,331,840 ( < 1 % )
+Total RAM Blocks : 3 / 358 ( < 1 % )
+Total DSP Blocks : 0 / 188 ( 0 % )
+Total HSSI HPS : 0 / 1 ( 0 % )
+Total PLLs : 1 / 11 ( 9 % )
