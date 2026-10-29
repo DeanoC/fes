@@ -570,8 +570,8 @@ def run_benches(args) -> dict:
 
 def parse_system(text: str) -> dict:
     """system_tb's lines."""
-    report = {'attach_cycle': None, 'config_cycle': None, 'post': [], 'debug': [], 'prompt_cycle': None,
-              'screen': [], 'status': None, 'end': None}
+    report = {'attach_cycle': None, 'config_cycle': None, 'post': [], 'debug': [], 'counters': [],
+              'prompt_cycle': None, 'screen': [], 'status': None, 'end': None}
     for line in text.splitlines():
         kind, _, rest = line.partition(' ')
         if kind == 'ATTACH':
@@ -583,6 +583,10 @@ def parse_system(text: str) -> dict:
             report['post'].append({'code': code, 'cycle': int(cycle)})
         elif kind == 'DEBUG':
             report['debug'].append(rest)
+        elif kind == 'COUNTER':
+            field, cycle = rest.split()
+            name, value = field.split('=')
+            report['counters'].append({'name': name, 'value': int(value), 'cycle': int(cycle)})
         elif kind == 'PROMPT' and report['prompt_cycle'] is None:
             report['prompt_cycle'] = int(rest)
         elif kind == 'SCREEN':

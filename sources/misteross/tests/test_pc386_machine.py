@@ -270,6 +270,7 @@ SYSTEM_OUTPUT = """ATTACH 40 0000002a
 CONFIG 48
 POST 00 65600
 DEBUG BIOS BUILD DATE: 10/26/26
+COUNTER cpu_resets=1 200000000
 PROMPT 300000000
 SCREEN 0 |C:\\>                                                                             |
 STATUS running=1 debug_bytes=900 debug_drops=0 halted=1 stopped=0 a20m=0 intr=0 post=00 cpu_resets=1 retired=50000000 cs=0070 vector=00 eip=00001234 frames_shown=600 scanout_underflows=0 capture_drops=0 present_underflows=0 plane_underflows=0 samples=480000 dma_cycles=0 opl2_samples=0
@@ -284,6 +285,7 @@ class SystemTest(unittest.TestCase):
         self.assertEqual(report['config_cycle'], 48)
         self.assertEqual(report['post'], [{'code': '00', 'cycle': 65600}])
         self.assertEqual(report['debug'], ['BIOS BUILD DATE: 10/26/26'])
+        self.assertEqual(report['counters'], [{'name': 'cpu_resets', 'value': 1, 'cycle': 200000000}])
         self.assertEqual(report['prompt_cycle'], 300000000)
         self.assertTrue(report['screen'][0].startswith('C:\\>'))
         self.assertEqual(report['status']['cs'], 0x70)

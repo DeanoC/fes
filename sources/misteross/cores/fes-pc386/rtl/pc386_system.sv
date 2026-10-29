@@ -332,7 +332,8 @@ module pc386_system #(
     // ---- What the status block reports (pc386_host_link words 2-7):
     //   2  flags [7:0] (halted, stopped, A20M, INTR), last POST code [15:8],
     //      CPU resets [23:16], instructions retired [63:32]
-    //   3  CS [15:0], the stop's vector [31:24], EIP [63:32]
+    //   3  CS [15:0], the last exception or interrupt vector delivered [31:24],
+    //      EIP [63:32]
     //   4  720p frames shown [31:0], scanout underflows [63:32]
     //   5  capture drops [31:0], presenter underflows [63:32]
     //   6  plane underflows [31:0], mixer samples [63:32]

@@ -285,8 +285,9 @@ video, 48 kHz audio, HPS DDR and the session-display plane, with
   profile and the wall clock. The machine stays in reset until that block
   arrives, and the CPU until the RTC has its CMOS setup and wall clock. The
   link then writes a status block about every millisecond (the CPU's CS:EIP,
-  instructions retired, halt and stop, POST code, CPU resets, frame and
-  underflow counters, audio samples) and the debug-port bytes to a 4 KiB ring.
+  instructions retired, halt and stop, the last vector it delivered, POST
+  code, CPU resets, frame and underflow counters, audio samples) and the
+  debug-port bytes to a 4 KiB ring.
 - **Clock.** The system clock is sealed at 61.44 MHz, a multiple of the
   12.288 MHz audio clock and above twice the 28.322 MHz dot clock that the
   scanout needs.

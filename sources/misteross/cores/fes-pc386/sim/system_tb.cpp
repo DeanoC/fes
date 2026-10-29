@@ -12,6 +12,7 @@
 //   ATTACH <cycle> <epoch>                  the link's status block appeared
 //   CONFIG <cycle>                          the host wrote the configuration
 //   POST <code> <cycle>                     each new POST code in the status block
+//   COUNTER <name>=<value> <cycle>          each change of an underflow or drop counter
 //   DEBUG <text>                            each line from the debug ring
 //   PROMPT <cycle>                          the prompt on the screen's last row
 //   SCREEN <row> |<80 characters>|          the text screen at the end, from VRAM
@@ -20,7 +21,10 @@
 // reason: prompt, stopped (the CPU stopped for good), stalled (no
 // instruction retired for 2 s: a hang, or HLT with interrupts off), or limit.
 //
-// usage: system_tb --disk F [--clock-hz N] [--limit-seconds S] [--prompt TEXT]
+// --seed N changes every DDR port's timing draws (pc386_ddr_model.h), so a
+// rare latency tail lands elsewhere.
+//
+// usage: system_tb --disk F [--clock-hz N] [--limit-seconds S] [--prompt TEXT] [--seed N]
 #include "Vpc386_system.h"
 #include "pc386_ddr_model.h"
 
@@ -69,8 +73,10 @@ std::vector<uint8_t> read_file(const std::string &path) {
 
 class Bench {
 public:
-    Bench(std::vector<uint8_t> image, uint32_t clock_hz, double limit_seconds, std::string prompt)
-        : image(std::move(image)), clock_hz(clock_hz), prompt(std::move(prompt)) {
+    Bench(std::vector<uint8_t> image, uint32_t clock_hz, double limit_seconds, std::string prompt, uint64_t seed)
+        : ddr0{window, 0x5eed0020 ^ seed, "port 0"}, ddr1{window, 0x5eed0021 ^ seed, "port 1"},
+          ddr2{window, 0x5eed0022 ^ seed, "port 2"}, image(std::move(image)), clock_hz(clock_hz),
+          prompt(std::move(prompt)) {
         if (this->image.size() % 512 || this->image.size() > (128u << 20)) throw std::runtime_error("bad disk image size");
         sys_ps = 1e12 / clock_hz;
         limit = uint64_t(limit_seconds * clock_hz);
@@ -100,9 +106,9 @@ private:
     pc386::Window window;
     Port0Signals p0{top.p0_address, top.p0_burstcount, top.p0_read, top.p0_write, top.p0_writedata,
                     top.p0_byteenable, top.p0_waitrequest, top.p0_readdata, top.p0_readdatavalid};
-    pc386::Port0<pc386::Window> ddr0{window, 0x5eed0020, "port 0"};
-    pc386::Port ddr1{window, 0x5eed0021, "port 1"};
-    pc386::Port ddr2{window, 0x5eed0022, "port 2"};
+    pc386::Port0<pc386::Window> ddr0;
+    pc386::Port ddr1;
+    pc386::Port ddr2;
     std::vector<uint8_t> image;
     uint32_t clock_hz;
     std::string prompt, reason, debug_line;
@@ -112,6 +118,7 @@ private:
     uint64_t cycles = 0, limit = 0, progress_at = 0, retired = 0, last_screen = 0;
     uint32_t epoch = 0, debug_read = 0;
     int last_post = -1;
+    uint64_t counters[6] = {};
     bool attached = false, prompt_seen = false;
 
     // The geometry machine_tb infers: the first partition's end head and
@@ -194,6 +201,16 @@ private:
             std::printf("POST %02x %llu\n", post, (unsigned long long)cycles);
             last_post = post;
         }
+        // Underflow and drop counters as the status block shows them change.
+        static const char *const names[] = {"debug_drops", "scanout_underflows", "capture_drops",
+                                            "present_underflows", "plane_underflows", "cpu_resets"};
+        const uint64_t now[6] = {(s1 >> 16) & 0xffff, status(4) >> 32, uint32_t(status(5)), status(5) >> 32,
+                                 uint32_t(status(6)), (s2 >> 16) & 0xff};
+        for (int n = 0; n < 6; ++n)
+            if (now[n] != counters[n]) {
+                std::printf("COUNTER %s=%llu %llu\n", names[n], (unsigned long long)now[n], (unsigned long long)cycles);
+                counters[n] = now[n];
+            }
         // The debug ring, a line at a time.
         uint32_t written = uint32_t(s1 >> 32);
         if (written - debug_read > RING_BYTES) throw std::runtime_error("the debug ring overran the host");
@@ -242,20 +259,22 @@ int main(int argc, char **argv) {
     std::string disk, prompt = "C:\\>";
     double limit_seconds = 12;
     uint32_t clock_hz = 61440000;
+    uint64_t seed = 0;
     for (int n = 1; n + 1 < argc; n += 2) {
         std::string flag = argv[n], value = argv[n + 1];
         if (flag == "--disk") disk = value;
         else if (flag == "--clock-hz") clock_hz = uint32_t(std::stoul(value));
         else if (flag == "--limit-seconds") limit_seconds = std::stod(value);
         else if (flag == "--prompt") prompt = value;
+        else if (flag == "--seed") seed = std::stoull(value, nullptr, 0);
         else { std::fprintf(stderr, "system_tb: unknown flag %s\n", flag.c_str()); return 2; }
     }
     if (disk.empty()) {
-        std::fprintf(stderr, "usage: system_tb --disk F [--clock-hz N] [--limit-seconds S] [--prompt TEXT]\n");
+        std::fprintf(stderr, "usage: system_tb --disk F [--clock-hz N] [--limit-seconds S] [--prompt TEXT] [--seed N]\n");
         return 2;
     }
     try {
-        Bench bench(read_file(disk), clock_hz, limit_seconds, prompt);
+        Bench bench(read_file(disk), clock_hz, limit_seconds, prompt, seed);
         return bench.run() == "prompt" ? 0 : 1;
     } catch (const std::exception &error) {
         std::fprintf(stderr, "system_tb: %s\n", error.what());
