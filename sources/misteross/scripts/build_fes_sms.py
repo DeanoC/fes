@@ -77,12 +77,17 @@ HEX40_RE = re.compile(r"[0-9a-f]{40}\Z")
 HEX64_RE = re.compile(r"[0-9a-f]{64}\Z")
 I2C_SITE = "HPSINTERFACEPERIPHERALI2C_X52_Y60_N111"
 TIMING_CATEGORIES = ("Setup", "Hold", "Recovery", "Removal", "Minimum Pulse Width")
+# The patterns take no sign, so any miss, even one TimeQuest prints as -0.000,
+# matches nothing and fails closed.
 WORST_SLACK_RE = re.compile(
     r"Worst-case Slack\s*;\s*([0-9.]+)\s*;\s*([0-9.]+)\s*;\s*([0-9.]+)\s*;\s*([0-9.]+)\s*;\s*([0-9.]+)"
 )
 DESIGN_TNS_RE = re.compile(
     r"Design-wide TNS\s*;\s*([0-9.]+)\s*;\s*([0-9.]+)\s*;\s*([0-9.]+)\s*;\s*([0-9.]+)\s*;\s*([0-9.]+)"
 )
+# Registers on a clock TimeQuest cannot analyse are in no slack row.
+UNANALYSED_CLOCKS = ("Illegal Clocks", "Unconstrained Clocks")
+UNANALYSED_ROW_RE = re.compile(r"^; (Illegal Clocks|Unconstrained Clocks)\s*; (\d+)\s*; (\d+)\s*;", re.M)
 
 
 class BuildError(ValueError):
@@ -271,6 +276,12 @@ def validate_timing_report(sta_text: str) -> list[dict[str, object]]:
         if not all(math.isfinite(value) and value >= 0 for value in (slack, tns)):
             raise BuildError("timing summary contains an unsupported or failing result")
         result.append({"type": name, "slack_ns": slack, "tns_ns": tns})
+    unanalysed = UNANALYSED_ROW_RE.findall(sta_text)
+    if sorted(row[0] for row in unanalysed) != sorted(UNANALYSED_CLOCKS):
+        raise BuildError("timing report lacks the unconstrained paths summary")
+    for row, setup, hold in unanalysed:
+        if int(setup) or int(hold):
+            raise BuildError(f"timing report has {row.lower()}: {setup} setup, {hold} hold")
     return result
 
 
