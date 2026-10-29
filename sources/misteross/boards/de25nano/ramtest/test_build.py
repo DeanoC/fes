@@ -71,6 +71,9 @@ class RamtestBuildTests(unittest.TestCase):
         self.assertIn("subsys_periph.fes_ramtest_fpga_mem ramtest_b.emif_lpddr4b_s0_axi4", script)
         self.assertIn("subsys_debug.fpga_m_master/subsys_periph.pb_cpu_0_s0 baseAddress 0x100000", script)
         self.assertTrue((project / "prepare-emif-b.tcl").is_file())
+        qsf=(project/'golden_top.qsf').read_text()
+        for name in ('EMIF_Qsys_emif_ddr4a_0','EMIF_Qsys_reset_in'):
+            self.assertIn('set_global_assignment -name IP_FILE ramtest_b/ip/EMIF_Qsys/'+name+'.ip',qsf)
         self.assertIn("`define ENABLE_LPDDR4B", (project / "golden_top.v").read_text())
         self.assertIn(".h2f_warm_reset_handshake_reset_ack (1'b1)", (project / "golden_top.v").read_text())
         self.assertIn(".fes_ramtest_hps_calibration_calibrated(1'b0)", (project / "golden_top.v").read_text())

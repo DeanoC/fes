@@ -190,6 +190,11 @@ set_connection_parameter_value subsys_debug.fpga_m_master/subsys_periph.pb_cpu_0
             'set_global_assignment -name SYSTEMVERILOG_FILE fes_mailbox/axil_driver_calibration.sv\n'
             'set_global_assignment -name SEARCH_PATH fes_mailbox\n'
             'set_global_assignment -name SDC_FILE fes_mailbox/clocks.sdc\n')
+        # Existing generic instances retain logical-view IP files. Unlike newly
+        # added instances, Platform Designer does not register these in QSF.
+        for ip in (emif_b_ip(emif/'EMIF_Qsys.qsys'),Path('ip/EMIF_Qsys/EMIF_Qsys_reset_in.ip')):
+            if not (emif/ip).is_file():raise ValueError('missing selected vendor DDR IP: '+str(ip))
+            qsf.write('set_global_assignment -name IP_FILE '+str((emif/ip).relative_to(project))+'\n')
 
 def compose_top(project,hps,vendor):
     top=(project/'golden_top.v').read_text()
