@@ -47,6 +47,36 @@ class NamesTest(unittest.TestCase):
         self.assertEqual(oracle.node_label('stimulus.lfsr[3]', STAGES, names), 'envelope')
 
 
+PRODUCTS = r'''
+  assign _05644_ = $signed({ 2'h0, \dut.muldiv.a33 [15:0] }) * $signed({ 2'h0, \dut.muldiv.b33 [15:0] });
+  assign _01669_[31:5] = \dut.str_dseg  * 27'h0000003;
+  assign _01672_ = \dut.str_dseg  * 32'd3;
+  assign _03809_[31:1] = \dut.frontend.align.start  * 31'h00000015;
+  assign _05700_ = \dut.x  * $signed(32'sd7);
+  assign _05701_ = \dut.x  * \dut.y ;
+  assign { _03803_[511:104], \dut.frontend.align.rotated  } = { \dut.frontend.align.source , \dut.frontend.align.source  } >> { \dut.frontend.align.start , 3'h0 };
+'''
+
+
+class ProductsTest(unittest.TestCase):
+    def test_products_of_two_signals_are_marked_for_dsp(self):
+        text, marked = oracle.mark_products(PRODUCTS)
+        self.assertEqual(marked, [
+            "assign _05644_ = $signed({ 2'h0, \\dut.muldiv.a33 [15:0] }) * $signed({ 2'h0, \\dut.muldiv.b33 [15:0] });",
+            'assign _05701_ = \\dut.x  * \\dut.y ;'])
+        self.assertIn("assign _05644_ = $signed({ 2'h0, \\dut.muldiv.a33 [15:0] }) * (* multstyle = \"dsp\" *) "
+                      "$signed({ 2'h0, \\dut.muldiv.b33 [15:0] });", text)
+        # An escaped name keeps the space that ends it.
+        self.assertIn('assign _05701_ = \\dut.x  * (* multstyle = "dsp" *) \\dut.y ;', text)
+
+    def test_constant_multiplies_and_shifts_are_left_alone(self):
+        text, _ = oracle.mark_products(PRODUCTS)
+        self.assertEqual(text.count('multstyle'), 2)
+        for line in PRODUCTS.splitlines():
+            if '_05644_' not in line and '_05701_' not in line:
+                self.assertIn(line, text.splitlines())
+
+
 class ParseTest(unittest.TestCase):
     def test_worst_path_per_stage_and_critical_points(self):
         text = '\n'.join([
