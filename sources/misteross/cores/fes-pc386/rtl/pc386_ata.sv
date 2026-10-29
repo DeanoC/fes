@@ -30,7 +30,8 @@
 // A sector store marks its chunk by read-modify-write two clocks later, and a
 // reset clears the map over 128 clocks; dirty_word is the word at dirty_index
 // two clocks before, held over a read that met a mark (M10K leaves that read
-// undefined).
+// undefined). A mark therefore reaches dirty_word four clocks after the store
+// goes idle: a reader that waits for the stores to drain waits four more.
 //
 // Device 1 is absent: with DEV set its status reads 00h and it runs no
 // command but EXECUTE DEVICE DIAGNOSTIC; the other registers are shared.

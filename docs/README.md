@@ -101,7 +101,8 @@ against Bochs's VGA) and the first machine-only synthesis figures. Like the
 host-only evidence: no routed result, package or kit.
 The [pc386 AT core M10K record](validation/2026-10-27-pc386-at-core-m10k/summary.md)
 replaces the AT core's synthesis figures (its memories in M10K, inside its
-budget) with a FreeDOS boot identical to M2's, clock for clock.
+budget) with a FreeDOS boot identical to the flip-flop machine's, clock for
+clock.
 
 The [pc386 M3 audio record](validation/2026-10-26-pc386-m3-audio/summary.md)
 checks the OPL2 sample for sample against Nuked-OPL3, the Sound Blaster DSP's
