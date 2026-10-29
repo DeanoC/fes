@@ -1,11 +1,11 @@
 ; SPDX-License-Identifier: MIT
-; pc386 RTL stop test disk: machine_tb --cpu rtl's stop path, through
-; instructions fes_i386_cpu had not built when this was written. One boot
-; sector; scripts/sim_fes_pc386.py --suite rtl-stops boots it on the oracle
-; and on the RTL and compares what each writes to port E9h.
+; pc386 RTL instruction test disk: DAA executes in the machine; the remaining
+; real-mode system instructions exercise machine_tb --cpu rtl's stop path.
+; One boot sector; scripts/sim_fes_pc386.py --suite rtl-stops boots it on the
+; oracle and on the RTL and compares what each writes to port E9h.
 ;
-;   DAA (27h) at two sites, one without and one with a carry out: two stops,
-;   each run on the oracle, and the RTL restarted after it with the result
+;   DAA (27h) at two sites, one without and one with a carry out; compare its
+;   result and flags with the oracle
 ;   SMSW (0F 01 /4): a stop, then LMSW (0F 01 /6) sets PE, so the oracle runs
 ;   on in protected mode with the real-mode segment caches until MOV CR0
 ;   clears PE, and the RTL restarts in real mode

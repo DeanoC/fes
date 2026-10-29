@@ -156,7 +156,7 @@ immediates), LEA, the shifts and rotates, SHLD and SHRD, SETcc, MOVZX and
 MOVSX, CBW/CWDE, CWD/CDQ, SAHF, LAHF, the flag set and clear instructions,
 NOP, HLT, the near JMP, Jcc, LOOP, LOOPE, LOOPNE and JCXZ, MUL, IMUL (all
 three forms), DIV, IDIV, AAM and AAD, BT, BTS, BTR and BTC by an immediate
-or a register, BSF and BSR, the stack operations below, and the
+or a register, BSF and BSR, DAA, DAS, AAA and AAS, the stack operations below, and the
 first uops of the string instructions and ENTER, with a ModRM memory
 operand wherever they take one. A memory operand is a load, a store,
 or both in one uop (read-modify-write), and stands for the register it
@@ -548,6 +548,17 @@ BSF and BSR scan y for its lowest or highest set bit in EX; a source of 0
 sets ZF and keeps the destination. Their other flags are the 386EX's, which
 `fes_i386_ex` lists, fitted to every SingleStepTests state of the two
 opcodes.
+
+**Decimal and ASCII adjusts.** DAA, DAS, AAA and AAS adjust AL in EX by AF
+and, for DAA and DAS, CF, read from EX's running copy, so D holds them behind
+a shift as flag readers. Each adds 6 to AL, or takes it away, when AL's low
+digit is above 9 or AF is set, and DAA and DAS 60h when AL is above 99h or
+CF is set; AAA and AAS carry into AH and keep AL's low digit. Each digit's
+sum is a table and the compares are spelled out, so the adjust adds no carry
+chain to EX. The flags the manual leaves undefined are the 386EX's:
+SF, ZF and PF of the byte the add or subtract makes, before AAA and AAS clear
+its high digit, and OF its signed overflow, fitted to every SingleStepTests
+state of the four opcodes. Their flags take the multiply unit's select in EX.
 
 **Branches** are predicted not taken. EX resolves them; a taken one redirects
 F1 from WB, where every younger uop is flushed, and clears D's forwarding

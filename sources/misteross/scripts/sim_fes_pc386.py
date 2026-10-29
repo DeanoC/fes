@@ -501,7 +501,7 @@ def vga_test_disk(args) -> Path:
 
 
 # What the RTL must stop on in rtl_stop_test.asm: stem -> (stops, sites).
-RTL_STOPS = {'27': (2, 2), '0F01.4': (1, 1), '0F01.6': (1, 1)}
+RTL_STOPS = {'0F01.4': (1, 1), '0F01.6': (1, 1)}
 
 
 def run_rtl_stops(args, linked: list[Path]) -> dict:
