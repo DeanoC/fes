@@ -2,8 +2,9 @@
 # Optional diagnostic contract. The ordinary clock constraints stay intact.
 # The RTL's ownership mailbox is proved under arbitrary clock interleavings:
 # published_bank is held through acknowledgement and is stable for two pixel
-# samples before adoption. A one-pixel-period max delay retains another full
-# pixel cycle of protocol headroom. This does not establish analogue MTBF.
+# samples before adoption. Quartus 17.0 does not support datapath-only max-delay
+# constraints, so this held asynchronous data path is scoped as a false path.
+# This does not establish analogue MTBF.
 # The proof assumes coordinated reset, as the video RTL requires. The builder
 # verifies both two-stage release chains share the same PLL-lock assertion;
 # reset pulse width, recovery/removal sources and MTBF still need qualification.
@@ -40,8 +41,5 @@ set_false_path -from $sent -to $head(sent)
 set_false_path -from $hold_source -to $head(hold)
 set published [mailbox_regs {system_video_adapter_published_bank[*]} {system_video_adapter_published_bank[0] system_video_adapter_published_bank[1]}]
 set front [mailbox_regs {system_video_adapter_front[*]} {system_video_adapter_front[0] system_video_adapter_front[1]}]
-set pixel [get_clocks {video_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk}]
-if {[get_collection_size $pixel] != 1} {error "Missing pixel capture clock"}
-set period [get_clock_info -period $pixel]
-set_max_delay $period -from $published -to $front
-puts "MAILBOX_CANDIDATE: three first-stage source pairs; two held payload bits; max delay $period ns"
+set_false_path -from $published -to $front
+puts "MAILBOX_CANDIDATE: four scoped asynchronous source-to-capture pairs"
