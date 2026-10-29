@@ -36,7 +36,9 @@ ownership and cross-clock drain/reset limits. It grants no hardware admission.
 [`fes.fabric.de25-computer`](packages/fabric/fes_fabric_de25_computer.yaml)
 defines the standalone HPS-to-ZX81 command transport. [DE25 computer](docs/de25-computer.md)
 describes atomic GPO submission, retained ACK state, keyboard/tape delivery and
-permanent fault containment. It adds no runtime programming or MMIO admission.
+permanent fault containment. Its generated C++ consumer also serves the
+scripted-register native runtime diagnostic client. It adds no runtime
+programming or MMIO admission.
 
 The fabric-only `emit-c` command supplies standalone constant headers for C
 consumers such as the DE25 kernel diagnostic. From this module:

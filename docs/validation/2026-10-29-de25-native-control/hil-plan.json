@@ -1,0 +1,87 @@
+{
+  "rows": [
+    {
+      "path": "scripts/consistency.py",
+      "class": "none",
+      "component": null,
+      "rule": "scripts/consistency.py"
+    },
+    {
+      "path": "scripts/de25_runtime.py",
+      "class": "none",
+      "component": null,
+      "rule": "scripts/de25_runtime.py"
+    },
+    {
+      "path": "sources/libmister-runtime/ARCHITECTURE.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/*.md"
+    },
+    {
+      "path": "sources/libmister-runtime/Makefile",
+      "class": "overlay",
+      "component": "mister-runtime",
+      "rule": "sources/libmister-runtime/**"
+    },
+    {
+      "path": "sources/libmister-runtime/README.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/*.md"
+    },
+    {
+      "path": "sources/libmister-runtime/docs/support-matrix.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/libmister-runtime/scripts/check-active-tree.sh",
+      "class": "overlay",
+      "component": "mister-runtime",
+      "rule": "sources/libmister-runtime/**"
+    },
+    {
+      "path": "sources/libmister-runtime/src/native/de25_computer.cpp",
+      "class": "overlay",
+      "component": "mister-runtime",
+      "rule": "sources/libmister-runtime/**"
+    },
+    {
+      "path": "sources/libmister-runtime/src/native/de25_computer.hpp",
+      "class": "overlay",
+      "component": "mister-runtime",
+      "rule": "sources/libmister-runtime/**"
+    },
+    {
+      "path": "sources/libmister-runtime/src/native/generated/fes_de25_computer.hpp",
+      "class": "overlay",
+      "component": "mister-runtime",
+      "rule": "sources/libmister-runtime/**"
+    },
+    {
+      "path": "sources/libmister-runtime/tests/unit/de25_computer_test.cpp",
+      "class": "none",
+      "component": null,
+      "rule": "sources/*/tests/**"
+    },
+    {
+      "path": "sources/mister-packages/README.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/*.md"
+    },
+    {
+      "path": "tests/test_consistency.py",
+      "class": "none",
+      "component": null,
+      "rule": "tests/**"
+    }
+  ],
+  "class": "overlay",
+  "components": [
+    "mister-runtime"
+  ],
+  "decision": "OVERLAY mister-runtime"
+}
