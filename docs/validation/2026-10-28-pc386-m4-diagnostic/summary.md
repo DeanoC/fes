@@ -20,8 +20,10 @@ Two findings, from runs q1 and q2:
 - The presenter's 720p timing followed machine reset, so each reset disturbed
   HDMI and the capture re-locked for about 1.5 s. It now follows the pixel
   PLL's lock alone, and the re-run q2 confirmed it on the kit.
-- In q2, port 2 hung after a machine reset that cut a capture write burst.
-  The bus master's reset bypasses the DDR guards. This is not fixed yet.
+- In q2, port 2 hung after a machine reset that cut a capture write burst:
+  the bus master's reset bypassed the DDR guards. Ports 1 and 2 are now
+  fenced on that reset. In run q3, 201 machine resets left every counter at
+  zero, and every program passed every check.
 
 Getting this far needed two toolchain-side fixes, recorded below: a Yosys
 change so the producer's read audit fits its bound (DeanoC/yosys#68, pinned),
@@ -377,9 +379,40 @@ the four counters at zero. The bench runs 16 resets and the kit 200. Without
 the fence the bench stops at `port 2: read during a write burst`; with it the
 program passes.
 
+## Kit run with the port fence, 29 October 2026
+
+Run q3 used the same Kit B baseline, the six programs and the full-length
+`resets` program ([`kit-report-q3.json`](kit-report-q3.json)). The package was
+a Quartus 17.0.2 re-seal, build `f1d64e7d3ca9e85cbe82487bbf2b68a8`, revision
+`d2f2565474`: this branch at `e920b2f90a`, #1245 and the Quartus lane. It met
+every clock: system 74.26 MHz, pixel 80.03 MHz, setup slack +0.756 ns, hold
++0.097 ns.
+
+**Every program passed every command:**
+
+| Program | Commands | On the kit |
+| --- | ---: | ---: |
+| smoke | 899 | 5 ms |
+| mode13 | 872 | 2.65 s |
+| vga-trace | 366,931 | 33.1 s |
+| sound | 1,078 | 4.73 s |
+| opl2 | 1,366 | 2.98 s |
+| ata | 1,916 | 0.18 s |
+| resets | 172,668 | 6.92 s |
+
+- **resets:** 201 machine resets (the program's first and 200 more) at offsets
+  spread over the VGA frame, while the capture, presenter and scanout used
+  ports 1 and 2. After them the mode 13h capture was whole and the four
+  counters read zero.
+- **Counters:** all four read zero at the end of every other program too.
+- **Port 2 at the end:** the run's last grab shows the picture, not black.
+- **Display and audio:** HDMI held through every reset, as in q2, and the
+  speaker, DSP and OPL2 audio ran without gaps.
+- **vga-trace:** its captures differ from the bench only in the two blink
+  cells seen before.
+
 ## Not done
 
-- A kit run of the fence on a Quartus re-seal, with the `resets` program.
 - Nextpnr timing closure of the AT core's read path, the VGA scanout and the
   presenter, parked with [#1235](https://github.com/DeanoC/fes/issues/1235).
 - The disk round trip with the runtime: it needs the M0 contracts
