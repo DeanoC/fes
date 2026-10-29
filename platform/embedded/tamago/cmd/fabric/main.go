@@ -5,12 +5,12 @@ package main
 
 import (
 	"fmt"
-	"github.com/DeanoC/fes/platform/embedded/tamago/board/qemuvirt"
+	"github.com/DeanoC/fes/platform/embedded/tamago/board"
 	"github.com/DeanoC/fes/platform/embedded/tamago/fabricmodel"
 )
 
 func main() {
-	fmt.Printf("FES fabric lifecycle model EL=%d hardware=none\n", qemuvirt.ExceptionLevel())
+	fmt.Printf("FES fabric lifecycle model EL=%d hardware=none\n", board.ExceptionLevel())
 	if failures := fabricmodel.RunChecks(func(name string, err error) {
 		if err != nil {
 			fmt.Printf("FES_FABRIC_CHECK %s FAIL %v\n", name, err)

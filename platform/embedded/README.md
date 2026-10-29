@@ -49,7 +49,7 @@ resources before this can launch on a Nano.
 | --- | --- | --- | --- |
 | CPU, memory and time | Boot entry, RAM layout, allocator/GC, interrupts, timers, cooperative scheduling | Go runtime, contexts and timers | Firmware entry, RAM reservation, exception level, cache/MMU and interrupt ownership |
 | Display | Own framebuffer lifetime, publish frames, wait for completion, revoke safely | Existing tenfoot software renderer and injected presenter | HDMI scanout, shared DDR/DMA and later FPGA display acceleration |
-| Input | USB host and HID decoding; bounded normalized event delivery | Existing commands and key/gamepad semantics | DWC3 host controller, hub/enumeration and actual devices |
+| Input | USB host and HID decoding; bounded normalized event delivery | Existing commands and key/gamepad semantics | DWC2 host controller, hub/enumeration and actual devices |
 | Block storage | Sector reads/writes and media presence | Filesystem mounts and file APIs | Cadence SD controller, card setup, DMA and removal behavior |
 | FAT32 | Parse directories/files; define durable writes separately | Assets, configuration, ROM/media and preferences | Physical SD writes and power-loss behavior |
 | Network | NIC, packet buffers, IP, sockets, timeouts and entropy | Existing HTTP client and service contracts | XGMAC/PHY, address configuration and DMA |

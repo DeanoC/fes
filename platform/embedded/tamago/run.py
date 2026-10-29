@@ -56,9 +56,11 @@ def stop(process):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("program", choices=("probe", "fabric", "packages", "admission", "play", "tenfoot"))
+    parser.add_argument("program", choices=("probe", "fabric", "packages", "admission", "play", "tenfoot", "storage"))
     parser.add_argument("--compiler", required=True, type=Path)
-    parser.add_argument("--qemu", required=True, type=Path)
+    parser.add_argument("--qemu", type=Path)
+    parser.add_argument("--board", choices=("qemu", "de25-nano"), default="qemu")
+    parser.add_argument("--profile", type=Path, help="required firmware handoff JSON for Nano cross-build")
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--module-cache", type=Path,
                         default=ROOT / "out/embedded-base-tools/tamago/mod")
@@ -75,6 +77,17 @@ def main():
     parser.add_argument("--timeout", type=float, default=90,
                         help="startup or per-action deadline, seconds (not interactive runtime)")
     args = parser.parse_args()
+    if args.board == "de25-nano":
+        from build import build
+        try:
+            build(args)
+        except (ValueError, OSError, subprocess.CalledProcessError) as error:
+            parser.error(str(error))
+        return
+    if args.profile is not None:
+        parser.error("--profile is only valid for --board de25-nano")
+    if args.qemu is None:
+        parser.error("--board qemu requires --qemu")
     output = args.output.resolve()
     if output.exists():
         parser.error("output exists; choose a new directory to retain earlier evidence")
@@ -89,6 +102,8 @@ def main():
         parser.error("package diagnostics require a fresh disk image")
     if not disk.is_relative_to(ROOT / "out") or (disk.exists() and not disk.is_file()):
         parser.error("disk must be a regular file beneath this worktree's out/")
+    if args.program == "storage" and not disk.is_file():
+        parser.error("storage requires --disk with an existing FAT32 regular-file image")
     if "," in str(output) or "," in str(disk):
         parser.error("output/disk paths cannot contain a comma (QEMU option separator)")
     output.mkdir(parents=True)
@@ -104,7 +119,7 @@ def main():
                   "GOOS", "GOARCH", "CGO_ENABLED", "GOOSPKG", "GOTOOLCHAIN",
                   "GOENV", "GOWORK", "GOPROXY", "GOSUMDB", "GOMODCACHE", "GOCACHE")},
               "input": args.input if args.program in ("tenfoot", "play") else None,
-              "limitations": ["QEMU USB is not a DE25 DWC3 controller",
+              "limitations": ["QEMU USB is not a DE25 DWC2 controller",
                               "virtio block is not a physical SD controller",
                               "synthetic catalog files are not playable ROMs",
                               "clean-reboot persistence is not power-loss atomicity"]}
@@ -319,10 +334,17 @@ def main():
         record.update(elf_machine="AArch64", elf_interpreter=None)
         checked("image-go-version", [compiler, "version", "-m", elf], native=True)
         display = args.display or ("sdl" if args.interactive else "none")
-        if args.program in ("probe", "fabric"):
-            with Guest(qemu, elf, output / "boot-1", command_record, display=display) as guest:
-                marker = "FES_NATIVE_GO_PROBE PASS" if args.program == "probe" else "FES_FABRIC_MODEL PASS"
+        if args.program in ("probe", "fabric", "storage"):
+            if args.program == "storage":
+                lock_disk()
+                record["disk"] = {"path": str(disk), "before_sha256": sha(disk)}
+            with Guest(qemu, elf, output / "boot-1", command_record, disk=disk if args.program == "storage" else None, display=display) as guest:
+                marker = {"probe": "FES_NATIVE_GO_PROBE PASS", "fabric": "FES_FABRIC_MODEL PASS", "storage": "FES_STORAGE_PROBE PASS"}[args.program]
                 guest.wait(lambda text: marker in text, args.timeout, "diagnostic completion")
+            if args.program == "storage":
+                record["disk"]["after_sha256"] = sha(disk)
+                if record["disk"]["before_sha256"] != record["disk"]["after_sha256"]:
+                    raise RuntimeError("read-only storage probe changed its disk")
             record["termination"] = "runner stopped its QEMU process after probe marker"
         elif args.program == "play":
             from play_support import exercise

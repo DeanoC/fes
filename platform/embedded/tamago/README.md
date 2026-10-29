@@ -15,10 +15,17 @@ The host runs the normal scanner/catalog/API against a private library. Boot
 configuration supplies the gateway URL and loopback Host header expected by
 the existing private API policy. The runner's sample files are synthetic browsing
 data, not
-playable ROMs. No core launch or FPGA programming is implemented.
+playable ROMs. Physical core launch and FPGA programming are unavailable.
 
 The separate `probe` program checks time, goroutine scheduling, allocation/GC
 and TamaGo's volatile in-memory filesystem.
+
+Board selection is now explicit: `--board qemu` (default) runs the emulated
+hardware drivers; `--board de25-nano --profile FILE` cross-builds the separate
+Nano UART/timer and read-only SDHCI handoff path. USB, Ethernet, display and
+physical FPGA providers remain unavailable on Nano. See the
+[board selection and firmware contract](board/README.md) for exact scope and
+bring-up commands. No physical Nano boot has been tested.
 
 ## Build and run
 
@@ -90,10 +97,10 @@ address or firmware assumption is a DE25 board constant.
 
 | Component | Implemented here | Still required for DE25 |
 | --- | --- | --- |
-| CPU/RAM/time | AArch64 runtime, counter, heap/GC, isolated DMA memory | Nano firmware/DDR/EL1/cache and IRQ contract |
+| CPU/RAM/time | AArch64 runtime; separate QEMU and Nano UART/counter hooks; validated Nano RAM profile | Actual Nano firmware/DDR/EL1/cache handoff and IRQ qualification |
 | Display | QEMU ramfb via fw_cfg DMA, software RGBA rendering | HDMI/FPGA display plane and generation-bound handoff |
-| Input | QEMU xHCI, real USB boot-keyboard control/interrupt transfers; optional PL011 | DWC3/PHY/reset/power integration, hubs and gamepads |
-| Storage | VirtIO block reads/writes/FLUSH; FAT32 directories and files | SD controller, card lifecycle and removal |
+| Input | QEMU xHCI, real USB boot-keyboard control/interrupt transfers; optional PL011 | DWC2/PHY/reset/power integration, hubs and gamepads |
+| Storage | VirtIO block reads/writes/FLUSH; Nano firmware-selected SDHC read-only PIO; shared FAT32 | Nano boot/read qualification, cold initialization, writes and card lifecycle |
 | Preferences | Existing preallocated FAT32 JSON file; data and metadata flushes | Allocation/update strategy and power-loss-safe publication |
 | Network | VirtIO, IPv4 TCP, static address, normal Go HTTP client | MAC/PHY, IRQs, address setup and qualified entropy |
 | FPGA | Retained-package software lifecycle connected to tenfoot Play/Back; no actual programming | Runtime-owned configuration, identity, reset and DMA revocation |

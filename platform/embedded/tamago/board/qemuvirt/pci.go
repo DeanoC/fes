@@ -13,7 +13,7 @@ import (
 // OpenUSBPCI assigns only the explicitly requested qemu-xhci at PCI 0:1.0.
 // The runner selects virt,highmem=off, whose device tree puts ECAM at
 // 0x3f000000 and the low PCI memory window at 0x10000000. Both are covered by
-// TamaGo's existing Device mappings. This is not a Nano PCI or DWC3 driver.
+// TamaGo's existing Device mappings. This is not a Nano PCI or DWC2 driver.
 func OpenUSBPCI() (uintptr, error) {
 	const config = uintptr(0x3f000000 + 1<<15)
 	const mmio = uint64(0x10000000)

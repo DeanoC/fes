@@ -1,4 +1,4 @@
-//go:build tamago && arm64
+//go:build tamago && arm64 && !de25nano
 
 // SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -17,7 +17,7 @@ import (
 
 // XHCI is a deliberately bounded polling host for one directly attached USB
 // boot keyboard. The caller supplies a mapped, exclusively owned controller.
-// It does not initialize a DE25 PHY, clock, reset, PCI bridge or DWC3 core.
+// It does not initialize a DE25 PHY, clock, reset, PCI bridge or DWC2 core.
 // DMA stays reserved until reboot, including after a controller error.
 type XHCI struct {
 	base, op, doorbell, interrupter uintptr

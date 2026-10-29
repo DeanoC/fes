@@ -28,7 +28,7 @@ and controller errors are sticky; the caller must stop using the keyboard and
 restart the prototype. There is no close/reuse path which could free memory
 while the controller can still access it.
 
-This is **not a DE25-Nano USB controller port**. No DWC3 host-mode selection,
+This is **not a DE25-Nano USB controller port**. No DWC2 host-mode selection,
 PHY, reset, clock, power, interrupt, cache-coherency or board routing behavior is
 inferred from QEMU. A board port must establish those resources before adapting
 the xHCI transport, and must check the controller capabilities against this

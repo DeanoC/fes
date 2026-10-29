@@ -37,13 +37,13 @@ checks remain open.
 | --- | --- | --- |
 | 1 | Firmware handoff, UART, counter/GIC and memory map | Boot a minimal EL1 Go probe; verify reserved RAM, timer progress and handled interrupts before UI/GC load |
 | 2 | SDMMC/ComboPHY block device | Read known sectors and mount a prepared FAT32 card; then qualify bounded writes/flush and removal behavior |
-| 3 | USB host/DWC3/PHY and Ethernet MAC/PHY | Prove enumeration/input and static-IP packet exchange separately; then verify DMA buffers, IRQs, reset and recovery |
+| 3 | USB host/DWC2/PHY and Ethernet MAC/PHY | Prove enumeration/input and static-IP packet exchange separately; then verify DMA buffers, IRQs, reset and recovery |
 | 4 | FPGA configuration/mailbox and bridge ownership | Program only a qualified Nano artifact under containment; verify identity before input/display release |
 | 5 | Physical display/input/session handoff | Run tenfoot Play/Back and failure checks with actual generation-bound memory, cache maintenance and proven quiescence |
 
 SD is a good first peripheral after boot: it immediately exercises the existing
 FAT32 and retained-package path. USB host integration needs its own controller,
-PHY/power and scheduler audit; the QEMU xHCI path does not validate DWC3. Network
+PHY/power and scheduler audit; the QEMU xHCI path does not validate DWC2. Network
 address setup and entropy remain explicit. FPGA configuration belongs last in
 this order because a working mailbox alone does not establish containment,
 correct bitstream/device identity or safe DMA/display release.
@@ -52,3 +52,12 @@ The CPU/video composition probes use Cyclone V synthetic maps and bitstreams.
 They verify portable data and lifecycle behavior, not Agilex configuration
 encoding or a Nano emulation core. Preserve those evidence boundaries when the
 first real driver compiles, and qualify one physical adapter at a time.
+
+## Selectable prototype backends
+
+The native base now selects QEMU or Nano providers at build time. The Nano
+prototype supplies UART/counter hooks and read-only PIO against firmware's
+selected SDHC card, with an explicit resource profile. USB DWC2, MAC/PHY, FPGA
+display and physical activation providers still refuse startup. See the
+[board contract](tamago/board/README.md) for build commands, firmware obligations
+and the first hardware gate. A Nano cross-build is host evidence only.

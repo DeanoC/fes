@@ -14,8 +14,7 @@ import (
 	"runtime"
 
 	"github.com/DeanoC/FogCast/corepackage"
-	"github.com/DeanoC/fes/platform/embedded/tamago/block"
-	"github.com/DeanoC/fes/platform/embedded/tamago/board/qemuvirt"
+	"github.com/DeanoC/fes/platform/embedded/tamago/board"
 	"github.com/DeanoC/fes/platform/embedded/tamago/fat"
 )
 
@@ -92,11 +91,11 @@ func sourceMutation(volume *fat.Volume, test fixture) (err error) {
 }
 
 func run() error {
-	fmt.Printf("FES native package inspection EL=%d activation=unavailable\n", qemuvirt.ExceptionLevel())
-	if _, err := qemuvirt.InitDevices(); err != nil {
+	fmt.Printf("FES native package inspection EL=%d activation=unavailable\n", board.ExceptionLevel())
+	if _, err := board.InitDevices(); err != nil {
 		return err
 	}
-	disk, err := block.ScanVirtIO()
+	disk, err := board.OpenStorage()
 	if err != nil {
 		return err
 	}

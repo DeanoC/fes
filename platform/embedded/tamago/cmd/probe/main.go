@@ -10,14 +10,14 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/DeanoC/fes/platform/embedded/tamago/board/qemuvirt"
+	"github.com/DeanoC/fes/platform/embedded/tamago/board"
 )
 
 func main() {
 	fmt.Printf("FES native Go probe os=%s arch=%s EL=%d counter=%dHz\n",
-		runtime.GOOS, runtime.GOARCH, qemuvirt.ExceptionLevel(), qemuvirt.CounterFrequency())
+		runtime.GOOS, runtime.GOARCH, board.ExceptionLevel(), board.CounterFrequency())
 	if runtime.GOOS != "tamago" || runtime.GOARCH != "arm64" ||
-		qemuvirt.ExceptionLevel() != 1 || qemuvirt.CounterFrequency() == 0 {
+		board.ExceptionLevel() != 1 || board.CounterFrequency() == 0 {
 		panic("unexpected boot contract")
 	}
 	before := time.Now()
@@ -46,5 +46,5 @@ func main() {
 		panic("volatile filesystem probe failed")
 	}
 	fmt.Println("PASS volatile memory filesystem (not SD/FAT32)")
-	fmt.Println("FES_NATIVE_GO_PROBE PASS os=tamago hardware=qemu-virt")
+	fmt.Printf("FES_NATIVE_GO_PROBE PASS os=tamago board=%s\n", board.Name)
 }

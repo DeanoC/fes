@@ -16,16 +16,12 @@ import (
 	"errors"
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/tenfoot"
-	"github.com/DeanoC/fes/platform/embedded/tamago/block"
-	"github.com/DeanoC/fes/platform/embedded/tamago/board/qemuvirt"
-	"github.com/DeanoC/fes/platform/embedded/tamago/display"
+	"github.com/DeanoC/fes/platform/embedded/tamago/board"
 	"github.com/DeanoC/fes/platform/embedded/tamago/fabricmodel"
 	"github.com/DeanoC/fes/platform/embedded/tamago/fat"
 	"github.com/DeanoC/fes/platform/embedded/tamago/input"
 	"github.com/DeanoC/fes/platform/embedded/tamago/modelbackend"
-	"github.com/DeanoC/fes/platform/embedded/tamago/network"
 	"github.com/DeanoC/fes/platform/embedded/tamago/runtimeadmission"
-	"github.com/DeanoC/fes/platform/embedded/tamago/usb"
 )
 
 type bootConfig struct {
@@ -68,8 +64,8 @@ type framePlatform struct {
 	oldGeneration uint64
 	lastModel     string
 	device        *gfx.Software
-	display       *display.RAMFB
-	network       *network.Interface
+	display       board.Display
+	network       board.Network
 	uart          input.UART
 	keyboard      *input.USBKeyboard
 	lastFrame     time.Time
@@ -194,7 +190,7 @@ func (p *framePlatform) Present(ctx context.Context, snapshot tenfoot.Snapshot) 
 		catalog, _ := json.Marshal(ids)
 		fmt.Printf("FES_CATALOG ids=%s\n", catalog)
 		if p.network != nil {
-			fmt.Printf("FES_NETWORK_STATS %+v\n", p.network.Statistics())
+			fmt.Printf("FES_NETWORK_STATS %+v\n", p.network.Stats())
 		}
 		fmt.Println("FES_TENFOOT_READY")
 	}
@@ -202,15 +198,15 @@ func (p *framePlatform) Present(ctx context.Context, snapshot tenfoot.Snapshot) 
 }
 
 func run() (result error) {
-	fmt.Printf("FES tenfoot native Go os=%s arch=%s EL=%d\n", runtime.GOOS, runtime.GOARCH, qemuvirt.ExceptionLevel())
-	if runtime.GOOS != "tamago" || runtime.GOARCH != "arm64" || qemuvirt.ExceptionLevel() != 1 {
+	fmt.Printf("FES tenfoot native Go os=%s arch=%s EL=%d\n", runtime.GOOS, runtime.GOARCH, board.ExceptionLevel())
+	if runtime.GOOS != "tamago" || runtime.GOARCH != "arm64" || board.ExceptionLevel() != 1 {
 		return fmt.Errorf("unexpected boot contract")
 	}
-	frameMemory, err := qemuvirt.InitDevices()
+	frameMemory, err := board.InitDevices()
 	if err != nil {
 		return err
 	}
-	disk, err := block.ScanVirtIO()
+	disk, err := board.OpenStorage()
 	if err != nil {
 		return err
 	}
@@ -228,7 +224,7 @@ func run() (result error) {
 		return err
 	}
 	ctx := context.Background()
-	var iface *network.Interface
+	var iface board.Network
 	var backend *modelbackend.Backend
 	var client *tenfoot.Client
 	if config.Model {
@@ -279,7 +275,7 @@ func run() (result error) {
 			return fmt.Errorf("prototype API must be a plain HTTP IPv4 origin")
 		}
 		fmt.Printf("FES_BOOT_CONFIG api_url=%s\n", config.APIURL)
-		iface, err = network.Open(ctx, network.Config{})
+		iface, err = board.OpenNetwork(ctx)
 		if err != nil {
 			return err
 		}
@@ -290,16 +286,7 @@ func run() (result error) {
 	var keyboard *input.USBKeyboard
 	switch config.Input {
 	case "usb":
-		base, err := qemuvirt.OpenUSBPCI()
-		if err != nil {
-			return err
-		}
-		host, err := usb.OpenXHCI(base)
-		if err != nil {
-			return err
-		}
-		fmt.Printf("FES_USB_READY device=%+v configuration=%+v\n", host.DeviceInfo(), host.Configuration())
-		keyboard, err = input.NewUSBKeyboard(host)
+		keyboard, err = board.OpenKeyboard()
 		if err != nil {
 			return err
 		}
@@ -314,7 +301,7 @@ func run() (result error) {
 		return err
 	}
 	defer device.Close()
-	screen, err := display.Open(width, height, frameMemory)
+	screen, err := board.OpenDisplay(width, height, frameMemory)
 	if err != nil {
 		return err
 	}

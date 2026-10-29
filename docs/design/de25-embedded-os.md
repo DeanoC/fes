@@ -94,7 +94,7 @@ than the archived Cyclone V-era hwlib, but is not a ready FES BSP.
 Two gaps deserve early attention. The reviewed Zephyr
 [Agilex FPGA driver](https://github.com/zephyrproject-rtos/zephyr/blob/main/drivers/fpga/fpga_altera_agilex_bridge.c)
 provides bridge on/off operations, not a bitstream-loading implementation.
-Also, a generic USB API does not establish an Agilex DWC3 host driver; the
+Also, a generic USB API does not establish an Agilex DWC2 host driver; the
 reviewed [host-controller list](https://github.com/zephyrproject-rtos/zephyr/blob/main/drivers/usb/uhc/CMakeLists.txt)
 does not supply that path. Network input is a useful initial limit, but local
 USB remains necessary for the usual appliance experience.
