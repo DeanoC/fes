@@ -53,7 +53,13 @@
 //   STOP <kind> <cycle> <cs>:<eip> <bytes> <stem>   the first stops of each stem
 //   PMODE <from> <to> <steps> <entry cs:eip> <exit cs:eip>   a stretch on the oracle
 //   GAP <kind> <stem> <stops> <sites> <executed> <first cs:eip> <first cycle>
+//   SMC <store|executed> <cycle> <cs:eip> <instruction> <address>   the first of each
+//   UNRETIRED <why> <loads> <cs:eip> <stem> <first address> <first cycle>
+//                                               VGA loads whose uop never retired, by instruction
 //   RTL <counter>=<n> ...                       retirements, oracle steps, waits
+// An unretired VGA load reached the VGA, which the oracle's never do: its
+// uop died on a wrong path behind a redirect that retired ("path"), in an
+// instruction a fault or an interrupt restarted ("restart"), or behind a stop.
 // --census F writes each stem the oracle retired, its count and its first
 // CS:EIP to F, ":pm" after a stem run in protected mode or V86: the whole
 // boot's instruction mix with the oracle as the CPU, the RTL's stops with it.
@@ -68,6 +74,7 @@
 #include "pc386_presenter_model.h"
 #include "verilated.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -517,6 +524,16 @@ public:
     uint64_t tf_retired = 0;     // ... with TF set, which the RTL does not trap on
     uint64_t parked_clocks = 0;  // clocks only the machine ran (see run)
     uint64_t vga_loads = 0;      // loads from the VGA window
+    // VGA loads whose uop never retired, which the oracle never makes: by
+    // why their uop died (Lost), and by the instruction that made them.
+    // The bench follows each load through M2, EX and WB (pc386_rtl_cpu's
+    // edge_* outputs); shadow_faults counts edges where that disagrees with
+    // what the CPU did, which would make the counts wrong.
+    enum Lost { LOST_PATH, LOST_RESTART, LOST_STOP, LOST_KINDS };
+    uint64_t vga_lost[LOST_KINDS] = {};
+    struct LostSite { uint64_t count = 0, first_cycle = 0; uint32_t first_address = 0; };
+    std::map<std::tuple<int, uint16_t, uint32_t, uint32_t>, LostSite> lost_sites;  // kind, CS, EIP, linear
+    uint64_t shadow_faults = 0;
     // Self-modifying code: a store into a block the front end has fetched,
     // ahead of the next instruction, and an instruction that then retires
     // over a byte so stored before the front end next redirects (and so
@@ -561,6 +578,7 @@ public:
         last_retire = m.cycles;
         retire_next = physical(s.seg[fes_i386::SEG_CS].base + s.eip, m.top.a20m);
         stale.clear();
+        for (Load &slot : shadow) lose(slot, LOST_STOP);
     }
 
     // The architectural state, over the fields the RTL does not hold.
@@ -611,6 +629,8 @@ public:
         cpu.eval();
         const bool load = cpu.mem_load, dread = cpu.dmem_read, dwrite = cpu.dmem_write;
         const uint32_t block = cpu.mem_block, daddr = cpu.dmem_addr, waddr = cpu.dmem_waddr & ~3u;
+        const uint32_t deip = cpu.dmem_eip, dlinear = cpu.arch_base[fes_i386::SEG_CS] + deip;
+        const uint16_t dcs = get16(cpu.arch_sel, fes_i386::SEG_CS);
         const unsigned dbytes = cpu.dmem_bytes;
         const uint64_t wdata = cpu.dmem_wdata;
         const uint8_t wmask = cpu.dmem_wmask;
@@ -706,7 +726,10 @@ public:
         // The CPU's ports after its edge: the retiring store writes, then the
         // load reads (a VGA load stays behind the store), then the fetch.
         if (dwrite && !resetting) store(waddr, wdata, wmask, a20m);
-        if (dread && !resetting) data_read(daddr, dbytes, a20m);
+        Load entering;
+        if (dread && !resetting && data_read(daddr, dbytes, a20m))
+            entering = {true, dcs, deip, dlinear, physical(daddr, a20m), m.cycles};
+        if (!resetting) follow(entering, dread);
         if (load) {
             const uint32_t base = physical(block << 4, a20m);
             for (int word = 0; word < 4; ++word) {
@@ -768,6 +791,44 @@ private:
     uint32_t retire_next = 0;  // where the next instruction to retire starts
     std::set<uint32_t> stale;  // bytes stored into fetched code since the last redirect
     uint64_t last_retire = 0;
+    // A VGA load in flight: its instruction, address and issue cycle.
+    struct Load {
+        bool vga = false;
+        uint16_t cs = 0;
+        uint32_t eip = 0, linear = 0, address = 0;
+        uint64_t cycle = 0;
+    };
+    Load shadow[3];  // M2, EX, WB
+
+    void lose(Load &slot, Lost kind) {
+        if (!slot.vga) return;
+        ++vga_lost[kind];
+        LostSite &site = lost_sites[{kind, slot.cs, slot.eip, slot.linear}];
+        if (!site.count++) { site.first_cycle = slot.cycle; site.first_address = slot.address; }
+        slot = Load{};
+    }
+
+    // M2, EX and WB after an edge, as the CPU moved them: a flush kills
+    // every uop younger than WB's, and WB's own unless it committed (a
+    // taken branch or other redirect commits; a fault or an interrupt does
+    // not, and its instruction runs again). A load M1 sent on a flushing
+    // edge reached the port, but its uop died there.
+    void follow(Load entering, bool dread) {
+        if (bool(cpu.edge_load) != dread || (entering.vga && !cpu.edge_move)) ++shadow_faults;
+        if (cpu.edge_flush) {
+            if (!cpu.edge_commit) lose(shadow[2], LOST_RESTART);
+            const Lost kind = cpu.edge_commit ? LOST_PATH : LOST_RESTART;
+            lose(shadow[1], kind);
+            lose(shadow[0], kind);
+            lose(entering, kind);
+            shadow[2] = Load{};
+        } else if (cpu.edge_move) {
+            if (shadow[2].vga && !cpu.edge_commit) ++shadow_faults;
+            shadow[2] = shadow[1];
+            shadow[1] = shadow[0];
+            shadow[0] = entering;
+        }
+    }
 
     // The I/O or INTA cycle the machine completed on its last edge.
     void answers() {
@@ -838,10 +899,12 @@ private:
         return text;
     }
 
-    void data_read(uint32_t address, unsigned bytes, bool a20m) {
+    // A load on the data port; true when it reads the VGA.
+    bool data_read(uint32_t address, unsigned bytes, bool a20m) {
         const uint32_t dword = address & ~3u;
         const unsigned first = address & 3, last = std::min(first + bytes, 8u);
         uint64_t value = 0;
+        bool queued = false;
         for (unsigned half = 0; half < 2; ++half) {
             const uint32_t base = physical(dword + 4 * half, a20m);
             Mmio op{false, base, 0, 0, 4 * half};
@@ -855,16 +918,17 @@ private:
                     value |= uint64_t(read8(at)) << (8 * lane);
                 }
             }
-            if (op.enables) { vga_queue.push_back(op); ++vga_reads; }
+            if (op.enables) { vga_queue.push_back(op); ++vga_reads; queued = true; }
         }
         loaded = value;
+        if (queued) ++vga_loads;
         if (vga_reads) {
-            ++vga_loads;
             cpu.dmem_valid = 0;
         } else {
             cpu.dmem_valid = 1;
             cpu.dmem_rdata = value;
         }
+        return queued;
     }
 
     template <typename W> static void set16(W &wide, int n, uint16_t value) {
@@ -1284,12 +1348,29 @@ int main(int argc, char **argv) {
                             (unsigned long long)gap.stops, gap.sites.size(), (unsigned long long)gap.executed,
                             gap.first_site.c_str(), (unsigned long long)gap.first_cycle);
             for (const std::string &line : rtl->smc_sites) std::printf("SMC %s\n", line.c_str());
+            // The unretired VGA loads' instructions, the most loads first.
+            std::vector<std::pair<const std::tuple<int, uint16_t, uint32_t, uint32_t>, RtlCpu::LostSite> *> lost;
+            for (auto &entry : rtl->lost_sites) lost.push_back(&entry);
+            std::stable_sort(lost.begin(), lost.end(), [](auto *a, auto *b) { return a->second.count > b->second.count; });
+            static const char *const lost_kinds[] = {"path", "restart", "stop"};
+            for (size_t n = 0; n < lost.size() && n < 32; ++n) {
+                const auto &[kind, cs, eip, linear] = lost[n]->first;
+                uint8_t bytes[15];
+                for (unsigned k = 0; k < 15; ++k) bytes[k] = rtl->read8(RtlCpu::physical(linear + k, machine.top.a20m));
+                std::printf("UNRETIRED %s %llu %04x:%08x %s %08x %llu\n", lost_kinds[kind],
+                            (unsigned long long)lost[n]->second.count, cs, eip, stem(bytes, 15).c_str(),
+                            lost[n]->second.first_address, (unsigned long long)lost[n]->second.first_cycle);
+            }
             for (const std::string &note : notes) std::printf("NOTE %s\n", note.c_str());
             std::printf("RTL retired=%llu oracle_steps=%llu protected_steps=%llu parked_clocks=%llu tf_retired=%llu "
-                        "vga_loads=%llu smc_stores=%llu smc_addresses=%zu smc_executed=%llu\n",
+                        "vga_loads=%llu vga_lost_path=%llu vga_lost_restart=%llu vga_lost_stop=%llu shadow_faults=%llu "
+                        "smc_stores=%llu smc_addresses=%zu smc_executed=%llu\n",
                         (unsigned long long)rtl->retired, (unsigned long long)oracle_steps,
                         (unsigned long long)protected_steps, (unsigned long long)rtl->parked_clocks,
                         (unsigned long long)rtl->tf_retired, (unsigned long long)rtl->vga_loads,
+                        (unsigned long long)rtl->vga_lost[RtlCpu::LOST_PATH],
+                        (unsigned long long)rtl->vga_lost[RtlCpu::LOST_RESTART],
+                        (unsigned long long)rtl->vga_lost[RtlCpu::LOST_STOP], (unsigned long long)rtl->shadow_faults,
                         (unsigned long long)rtl->smc_stores, rtl->smc_addresses.size(),
                         (unsigned long long)rtl->smc_executed);
             steps += rtl->retired;

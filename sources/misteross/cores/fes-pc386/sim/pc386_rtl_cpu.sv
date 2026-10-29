@@ -4,6 +4,12 @@
 // carry no size, and a VGA read has side effects (it loads the latches), so
 // the bench reads only the bytes the load uses, with byte enables, as the
 // L1D's uncached path will.
+//
+// Also the load's instruction EIP, and what D to WB did on the last edge,
+// for the bench's count of loads that never retire (a wrong path, or an
+// instruction a fault or an interrupt restarts): whether the stages moved,
+// whether WB committed its uop, and whether WB flushed every younger one.
+// Registered, so the bench reads them after the edge as it reads trace_*.
 module pc386_rtl_cpu (
     input  logic             clk,
     input  logic             reset,
@@ -21,6 +27,11 @@ module pc386_rtl_cpu (
     output logic [31:0]      dmem_addr,
     output logic             dmem_read,
     output logic [3:0]       dmem_bytes,  // the load's bytes: 1, 2, 4, 6 or 8
+    output logic [31:0]      dmem_eip,    // the load's instruction's EIP
+    output logic             edge_load,   // on the last edge: M1 sent a load
+    output logic             edge_move,   // ... D to WB moved (no freeze)
+    output logic             edge_commit, // ... WB committed its uop
+    output logic             edge_flush,  // ... WB flushed every younger uop
     input  logic [7:0][7:0]  dmem_rdata,
     input  logic             dmem_valid,
     output logic             dmem_write,
@@ -56,4 +67,11 @@ module pc386_rtl_cpu (
 );
     fes_i386_cpu cpu (.*);
     assign dmem_bytes = cpu.m1_s.uop.mem.bytes;
+    assign dmem_eip = cpu.m1_s.eip;
+    always_ff @(posedge clk) begin
+        edge_load <= dmem_read;
+        edge_move <= !cpu.freeze;
+        edge_commit <= cpu.wb_commit;
+        edge_flush <= cpu.wb_flush;
+    end
 endmodule
