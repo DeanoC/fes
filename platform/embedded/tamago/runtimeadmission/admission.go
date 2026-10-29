@@ -118,22 +118,16 @@ func NewModel(policy Policy) (*Gate, error) {
 	return g, nil
 }
 
-// Admit performs every check before a lifecycle transition can retire input,
-// save the current owner, drain display or issue a model program command.
-func (g *Gate) admit(archive *corepackage.Archive, expectedID string) (*fabricmodel.Image, error) {
-	if archive == nil || !digestID(expectedID) {
-		return nil, reject("package_mismatch", "missing retained package or expected identity")
-	}
-	inspection := archive.Inspection()
-	if inspection.PackageID != expectedID {
-		return nil, reject("package_mismatch", "retained package differs from requested identity")
+func (g *Gate) check(inspection corepackage.Inspection, expectedID string, linked bool) error {
+	if !digestID(expectedID) || inspection.PackageID != expectedID {
+		return reject("package_mismatch", "retained package differs from requested identity")
 	}
 	if g == nil || g.runtimeID == "" {
-		return nil, reject("backend_unavailable", "no qualified model policy")
+		return reject("backend_unavailable", "no qualified model policy")
 	}
 	d := inspection.Descriptor
 	if d.Target.Platform != g.target.Platform || d.Target.Device != g.target.Device {
-		return nil, reject("unsupported_target", "backend target mismatch")
+		return reject("unsupported_target", "backend target mismatch")
 	}
 	profile := false
 	var driver *Driver
@@ -149,13 +143,13 @@ func (g *Gate) admit(archive *corepackage.Archive, expectedID string) (*fabricmo
 		}
 	}
 	if !profile {
-		return nil, reject("unsupported_programming_profile", "model has no driver for profile")
+		return reject("unsupported_programming_profile", "model has no driver for profile")
 	}
 	if driver == nil {
-		return nil, reject("unsupported_abi", "model has no driver for ABI version")
+		return reject("unsupported_abi", "model has no driver for ABI version")
 	}
-	if d.Format != 2 {
-		return nil, reject("unsupported_abi", "model cannot supply linked ROM activation receipts")
+	if d.Format != 2 && !linked {
+		return reject("unsupported_abi", "raw ROM packages require a retained activation receipt")
 	}
 	for _, required := range d.Interfaces {
 		if !required.Required {
@@ -169,16 +163,33 @@ func (g *Gate) admit(archive *corepackage.Archive, expectedID string) (*fabricmo
 			}
 		}
 		if !found {
-			return nil, reject("unsupported_interface", "model driver lacks required interface")
+			return reject("unsupported_interface", "model driver lacks required interface")
 		}
 	}
 	decision, found := g.decisions[expectedID]
 	if !found {
-		return nil, reject("backend_unavailable", "no runtime compatibility decision for exact package")
+		return reject("backend_unavailable", "no runtime compatibility decision for exact package")
 	}
 	if decision.Code != "none" {
-		return nil, reject(decision.Code, decision.Phase+": "+decision.Message)
+		return reject(decision.Code, decision.Phase+": "+decision.Message)
 	}
+	return nil
+}
+
+// Admit performs every check before a lifecycle transition can retire input,
+// save the current owner, drain display or issue a model program command.
+func (g *Gate) admit(archive *corepackage.Archive, expectedID string) (*fabricmodel.Image, error) {
+	if archive == nil || !digestID(expectedID) {
+		return nil, reject("package_mismatch", "missing retained package or expected identity")
+	}
+	inspection := archive.Inspection()
+	if inspection.PackageID != expectedID {
+		return nil, reject("package_mismatch", "retained package differs from requested identity")
+	}
+	if err := g.check(inspection, expectedID, false); err != nil {
+		return nil, err
+	}
+	d := inspection.Descriptor
 	// A deliberately small model bound, not the supported production RBF size.
 	if d.Payload.Size < 1 || d.Payload.Size > 1<<20 {
 		return nil, reject("model_limit", "payload exceeds software model bound")
@@ -200,6 +211,53 @@ func (g *Gate) LoadModel(controller *fabricmodel.Controller, archive *corepackag
 		return reject("backend_unavailable", "missing model controller")
 	}
 	image, err := g.admit(archive, expectedID)
+	if err != nil {
+		return err
+	}
+	return controller.Load(image, now, deadline)
+}
+
+// LoadLinkedModel requires an opaque locally linked object and the exact receipt
+// selected by the caller. A raw package or reconstructed JSON cannot replace it.
+func (g *Gate) LoadLinkedModel(controller *fabricmodel.Controller, linked *corepackage.LinkedArchive, expectedID, expectedReceipt string, now, deadline time.Duration) error {
+	if controller == nil {
+		return reject("backend_unavailable", "missing model controller")
+	}
+	if !digestID(expectedReceipt) || linked.ReceiptSHA256() != expectedReceipt {
+		return reject("receipt_mismatch", "linked ROM activation receipt differs from request")
+	}
+	inspection := linked.Inspection()
+	if err := g.check(inspection, expectedID, true); err != nil {
+		return err
+	}
+	r := linked.Receipt()
+	var size int64
+	var digest string
+	switch {
+	case inspection.Descriptor.Format == 3 && r.ROMLink != nil && r.ROMLinks == nil && r.ROMLink.ValidFor(inspection.Descriptor):
+		size, digest = r.ROMLink.ProgrammedSize, r.ROMLink.ProgrammedSHA256
+	case inspection.Descriptor.Format == 4 && r.ROMLinks != nil && r.ROMLink == nil && r.ROMLinks.ValidFor(inspection.Descriptor):
+		size, digest = r.ROMLinks.ProgrammedSize, r.ROMLinks.ProgrammedSHA256
+	default:
+		return reject("receipt_mismatch", "missing or invalid linked ROM identity")
+	}
+	if r.PackageID != expectedID {
+		return reject("receipt_mismatch", "receipt package identity mismatch")
+	}
+	if size < 1 || size > fabricmodel.MaxImageBytes {
+		return reject("model_limit", "linked output exceeds software model bound")
+	}
+	payload, err := io.ReadAll(io.LimitReader(linked.Programmed(), size+1))
+	if err != nil {
+		return err
+	}
+	sum := sha256.Sum256(payload)
+	if int64(len(payload)) != size || hex.EncodeToString(sum[:]) != digest {
+		return reject("receipt_mismatch", "linked programming bytes differ from receipt")
+	}
+	d := inspection.Descriptor
+	binding := fabricmodel.PackageIdentity{PackageID: expectedID, CoreID: d.Core.ID, ABI: d.ABI.ID, Major: uint16(d.ABI.Major), Minor: uint16(d.ABI.Minor), BuildID: d.Build.ID, ActivationReceiptSHA256: expectedReceipt, ProgrammedSHA256: digest}
+	image, err := fabricmodel.Prepare("model.linked", payload, sum, fabricmodel.Identity{ABI: 1, Core: 1, Build: 1, Package: binding}, false)
 	if err != nil {
 		return err
 	}

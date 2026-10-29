@@ -55,6 +55,24 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	data, err = volume.ReadFile("FES/LINKS.JSON")
+	if err != nil {
+		return err
+	}
+	if len(data) > 1<<20 {
+		return fmt.Errorf("linked case index too large")
+	}
+	var linkedCases []admissioncheck.LinkedCase
+	if err = json.Unmarshal(data, &linkedCases); err != nil {
+		return err
+	}
+	if err = admissioncheck.RunLinked(policy, linkedCases, volume.ReadFile, volume.WriteFile, func(result admissioncheck.LinkedResult) {
+		encoded, _ := json.Marshal(result)
+		fmt.Printf("FES_ROM_LINK_CASE %s\n", encoded)
+	}); err != nil {
+		return err
+	}
+	fmt.Printf("FES_RETAINED_ROM_LINKS PASS cases=%d source_mutation=isolated receipts=bound\n", len(linkedCases))
 	fmt.Printf("FES_NATIVE_ADMISSION PASS cases=%d runtime_id=%s physical_activation=unavailable\n", len(cases), policy.RuntimeID)
 	return nil
 }

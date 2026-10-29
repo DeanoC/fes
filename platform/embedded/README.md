@@ -124,10 +124,12 @@ Steps 1–5 now have a combined emulator path, including an xHCI USB boot keyboa
 ordering, generations and failure retention without programming hardware.
 The [package admission diagnostic](tamago/README.md#runtime-admission-of-verified-packages)
 now binds exact-package compatibility decisions from the production runtime to
-retained bytes and full identity before model transitions. Next hardware-independent
-work is retained ROM linking and activation receipts; physical integration still
-needs the Nano board/firmware adapter and runtime checks against proven board
-resources. Hardware addresses and DMA/interrupt contracts must be verified against
+retained bytes and full identity before model transitions. Retained format-3/4
+ROM linking now supplies content-bound activation receipts through that model,
+including golden-output and source-mutation checks. Next hardware-independent
+work is expansion/parts composition receipts and launcher integration; physical
+integration still needs the Nano board/firmware adapter and runtime checks against
+proven board resources. Hardware addresses and DMA/interrupt contracts must be verified against
 the delivered board revision.
 
 No emulator result supplies physical boot, HDMI, USB-host, SD-card, PHY or

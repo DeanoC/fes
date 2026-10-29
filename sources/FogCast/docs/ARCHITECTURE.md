@@ -56,6 +56,18 @@ The native `packages` diagnostic reads shared conformance archives from FAT32;
 inspection does not authorize a Cyclone V package on an Agilex board. The
 physical runtime remains responsible for compatibility and linked-load receipts.
 
+`Archive.LinkROMs` derives format-3 single-source and format-4 BIOS/cartridge
+programming bytes using the existing target linker and the retained package's
+sealed map. It validates source IDs, roles, order and sizes before copying them.
+The opaque `LinkedArchive` owns the package, sources and linked output in RAM;
+copying readers and deep-copied receipts cannot mutate that state. Its content
+receipt binds the exact package, map, source identities and programmed digest.
+A domain-separated SHA256 identifies that receipt. The embedded model requires
+both the expected package ID and receipt hash, and checks programmed bytes before
+starting a transition. This is volatile ownership and software-model evidence,
+not a durable install, authenticated token or physical admission. Expansion,
+parts and initial media stay on their existing paths; the new API links ROMs only.
+
 On TamaGo, the software renderer yields between groups of four raster rows
 and splits whole-frame copies into 32 KiB chunks. The ramfb presenter also
 yields every four scanout rows. These cooperative checkpoints let network and

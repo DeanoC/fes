@@ -270,12 +270,13 @@ def main():
             package_directory, package_cases, package_sources = prepare(ROOT, output, checked)
             record["admission_policy"] = json.loads((package_directory / "RUNTIME.JSON").read_text())
             record["admission_cases"] = package_cases
+            record["linked_cases"] = json.loads((package_directory / "LINKS.JSON").read_text())
             record["oracle_sha256"] = sha(output / "admission-oracle")
             record["oracle_system_headers_sha256"] = sha(output / "oracle-system-headers.json")
             record["limitations"] = ["trusted runner-owned model policy; not authenticated admission",
                                      "C++ compatibility check is not full physical runtime admission",
                                      "DE10 fixture target, not DE25 support", "synthetic payloads, software completions",
-                                     "no ROM linking, FPGA programming, live GP identity or tenfoot Play"]
+                                     "ROM linking uses Cyclone V synthetic vectors; no FPGA programming, live GP identity or tenfoot Play"]
         deps = checked("packages", [compiler, "list", "-deps", "-json", "-mod=readonly",
                                     "./cmd/" + args.program], native=True)
         files = {APP / name for name in ("go.mod", "go.sum", "run.py", "host_support.py", "package_fixtures.py", "admission_fixtures.py", "toolchain.lock.toml")}
@@ -325,6 +326,12 @@ def main():
                     if observed != expected:
                         raise RuntimeError("guest admission decisions differ from fixture expectations")
                     record["admission_results"] = observed
+                    linked = [json.loads(line) for line in re.findall(r"FES_ROM_LINK_CASE ([^\r\n]+)", guest.text)]
+                    projection = [{k: c[k] for k in ("name", "package_id", "programmed_sha256", "programmed_size")} for c in linked]
+                    expected_linked = [{k: c[k] for k in ("name", "package_id", "programmed_sha256", "programmed_size")} for c in record["linked_cases"]]
+                    if projection != expected_linked or any(not re.fullmatch("[0-9a-f]{64}", c["receipt_sha256"]) for c in linked) or "FES_RETAINED_ROM_LINKS PASS" not in guest.text:
+                        raise RuntimeError("guest retained linking differs from Mistral oracle")
+                    record["linked_results"] = linked
                 else:
                     guest.wait(lambda text: "FES_NATIVE_PACKAGES PASS" in text, args.timeout, "package inspection")
                     observed = [json.loads(line) for line in re.findall(r"FES_PACKAGE_CASE ([^\r\n]+)", guest.text)]

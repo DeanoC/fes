@@ -33,9 +33,13 @@ type Identity struct {
 // PackageIdentity binds a software observation to the complete verified FES
 // identity. It is not a physical GP response or a shortened build identifier.
 type PackageIdentity struct {
-	PackageID, CoreID, ABI, BuildID string
-	Major, Minor                    uint16
+	PackageID, CoreID, ABI, BuildID           string
+	ActivationReceiptSHA256, ProgrammedSHA256 string
+	Major, Minor                              uint16
 }
+
+// MaxImageBytes bounds retained software-model buffers, including linked ROM fixtures.
+const MaxImageBytes = 8 << 20
 
 // Image keeps an immutable copy of admitted model bytes. Preparing an image
 // neither changes the running owner nor implies production package admission.
@@ -48,7 +52,7 @@ type Image struct {
 }
 
 func Prepare(id string, data []byte, digest [32]byte, identity Identity, idle bool) (*Image, error) {
-	if !strings.HasPrefix(id, "model.") || len(id) > 64 || len(data) == 0 || len(data) > 1<<20 || identity.ABI != 1 || identity.Core == 0 || identity.Build == 0 {
+	if !strings.HasPrefix(id, "model.") || len(id) > 64 || len(data) == 0 || len(data) > MaxImageBytes || identity.ABI != 1 || identity.Core == 0 || identity.Build == 0 {
 		return nil, errors.New("invalid software model image")
 	}
 	for _, r := range id {

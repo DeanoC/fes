@@ -192,9 +192,9 @@ can pass. Default/absent policy, absent exact-package decisions and wrong expect
 IDs are also rejected without changing ownership. A full build-identity mismatch
 exercises recovery to idle.
 
-This backend models only simple-game 1.0 with gamepad and fixed video, with a
-1 MiB payload bound. It deliberately rejects format-3/4 activation because it
-cannot supply linked ROM receipts. Existing DE10-Nano corpus targets remain
+This backend models only simple-game 1.0 with gamepad and fixed video. Raw
+format-2 payloads retain their 1 MiB bound. Format-3/4 raw loads reject; the
+separate retained ROM activation path below supplies their required receipts. Existing DE10-Nano corpus targets remain
 DE10-Nano targets; none become DE25-compatible. Production driver resolution,
 HPS DDR layout, native display composition and physical lifecycle checks remain
 outside this prototype. There is no FPGA programming, live identity proof,
@@ -207,3 +207,43 @@ FES_ADMISSION_FIXTURES="$PWD/out/native-runtime-admission/package-fixtures" \
   GOWORK=off go -C platform/embedded/tamago test -race \
   ./runtimeadmission ./admissioncheck ./fabricmodel
 ```
+
+
+## Retained ROM linking and activation receipts
+
+The same `run.py admission` command now also links three full synthetic RBF
+fixtures: format-3 firmware, format-3 cartridge, and format-4 BIOS plus cartridge.
+`Archive.LinkROMs` copies sources after checking exact IDs, roles, descriptor
+order and lengths, then calls the existing target linker against the retained
+sealed map. `LinkedArchive` owns those sources, the package and programmed bytes
+in RAM. `Receipt`, `Inspection`, `Source` and `Programmed` expose independent
+metadata/copying readers. No path lookup or filesystem staging is needed to link.
+
+`LoadLinkedModel` accepts this opaque object plus the expected package ID and
+receipt SHA256. The receipt binds source IDs/roles/digests/sizes, sealed map,
+package and programmed digest/size. A reconstructed JSON receipt is insufficient.
+Compatibility still requires the C++ oracle decision for the original package;
+linking alone cannot grant an unsupported target, ABI or interface. Before any
+owner transition, the gate verifies the derived output digest and creates a
+private model image. Simulated identity includes the complete receipt digest
+and programmed digest, so a different ROM for the same package cannot be released
+under the original selection.
+
+The diagnostic uses existing Mistral golden synthetic ROM vectors rather than
+inventing CRAM encoding. All three linked outputs must match its ramp-vector
+hash and size. Each case mutates a runner-owned FAT32 ROM source after retention,
+independently links that changed source, rejects the changed object under the
+original receipt, activates the original retained bytes, and restores the source.
+The entire FAT32 disk must finish with its original hash. Missing/wrong receipts,
+wrong package IDs, raw format-3/4 loads, missing sources and wrong roles reject
+without retiring the old owner or frame. A simulated live receipt mismatch must
+recover to idle. Host race tests compare their full receipts with native results.
+
+Linked model buffers are bounded at 8 MiB to accommodate the approximately 2 MiB
+synthetic bitstreams. This is an emulation limit, not a hardware-package size or
+latency qualification. Sources survive for the opaque object's lifetime; the
+model separately owns its programming-byte copy through completion/recovery.
+Nothing is durably installed. Parts/expansions, initial media, real-board resources,
+live GP identity and tenfoot launch integration remain separate. These are
+Cyclone V test vectors and supply no Agilex/DE25 programming support. Linker CPU,
+heap and concurrent UI/network latency have not been qualified on the board.

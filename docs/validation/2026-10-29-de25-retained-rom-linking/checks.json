@@ -1,0 +1,38 @@
+{
+  "base": "dab234a6760ea60471c14bcce6f9fed6893a12aa",
+  "classification": "host software and QEMU bare metal; no physical acceptance",
+  "commands": [
+    {
+      "command": "GOWORK=off go -C sources/FogCast test -race ./corepackage -run ^TestRetainedROM -count=1",
+      "exit_code": 0
+    },
+    {
+      "command": "GOWORK=off go -C sources/FogCast test ./corepackage",
+      "exit_code": 0
+    },
+    {
+      "command": "FES_ADMISSION_FIXTURES=<native run>/package-fixtures GOWORK=off go -C platform/embedded/tamago test -race -count=1 -v ./runtimeadmission ./admissioncheck ./fabricmodel",
+      "exit_code": 0
+    },
+    {
+      "command": "GOWORK=off go -C platform/embedded/tamago vet ./runtimeadmission ./admissioncheck ./fabricmodel",
+      "exit_code": 0
+    },
+    {
+      "command": "make deadcode",
+      "exit_code": 0
+    },
+    {
+      "command": "make test-changed TEST_CHANGED_ARGS=--base=dab234a6760ea60471c14bcce6f9fed6893a12aa",
+      "exit_code": 0
+    }
+  ],
+  "parent_unittest_summaries": [
+    "Ran 21 tests in 0.200s",
+    "Ran 31 tests in 0.763s",
+    "Ran 2 tests in 2.971s",
+    "Ran 3 tests in 15.471s",
+    "Ran 33 tests in 34.394s",
+    "Ran 1106 tests in 879.797s"
+  ]
+}

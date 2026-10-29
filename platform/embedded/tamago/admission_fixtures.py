@@ -2,6 +2,7 @@
 
 The JSON is a runner-owned fixture, not signed admission or a physical backend.
 """
+import gzip
 import hashlib
 import importlib.util
 import json
@@ -65,9 +66,51 @@ def prepare(root, output, checked):
         (directory / filename).write_bytes(data)
         cases.append(dict(name="admission/" + name, path="FES/" + filename, valid=True,
                           package_id=module.package_identity(body, payload.read_bytes()), format=2, expected=expected))
+    # Real synthetic RBF/map vectors exercise the existing linker, not the
+    # structurally valid 12-byte conformance payloads.
+    vectors = root / "sources/misteross/expansion/testdata/rom"
+    inputs = {}
+    for name in ("blank.rbf", "map.json", "ramp.rom"):
+        path = vectors / (name + ".gz")
+        sources.add(path)
+        inputs[name] = gzip.decompress(path.read_bytes())
+    sources.add(vectors / "oracle.json")
+    golden = next(c for c in json.loads((vectors / "oracle.json").read_text())["cases"] if c["name"] == "ramp")
+    base, mapping, rom = inputs["blank.rbf"], inputs["map.json"], inputs["ramp.rom"]
+    linked_cases = []
+    for n, (version, role) in enumerate(((3, "firmware"), (3, "cartridge"), (4, "both"))):
+        text = manifest.replace("format = 2", f"format = {version}", 1)
+        text = text.replace("size = 12", f"size = {len(base)}", 1).replace(hashlib.sha256(payload.read_bytes()).hexdigest(), hashlib.sha256(base).hexdigest())
+        metadata = f'file = "rom-map.json"\nsize = {len(mapping)}\nsha256 = "{hashlib.sha256(mapping).hexdigest()}"\n'
+        names = []
+        if version == 3:
+            text += f'\n[rom]\nid = "machine-rom"\nrole = "{role}"\nsource_size = {len(rom)}\n' + metadata
+            names.append(("machine-rom", role, rom))
+        else:
+            text += f'\n[[roms]]\nid = "bios"\nrole = "firmware"\nsource_size = 1024\nsource_offset = 0\n\n[[roms]]\nid = "cart"\nrole = "cartridge"\nsource_size = {len(rom)-1024}\nsource_offset = 1024\n\n[rom_map]\n' + metadata
+            names.extend((("bios", "firmware", rom[:1024]), ("cart", "cartridge", rom[1024:])))
+        members = (("manifest.toml", text.encode()), ("core.rbf", base), ("rom-map.json", mapping))
+        data = bytearray()
+        for member, value in members:
+            data.extend(module._ustar_header(member, len(value)))
+            data.extend(value)
+            data.extend(b"\0" * (-len(value) % 512))
+        data.extend(b"\0" * 1024)
+        filename = f"LINK{n:03d}.FCP"
+        (directory / filename).write_bytes(data)
+        source_cases = []
+        for i, (ident, source_role, value) in enumerate(names):
+            source_name = f"ROM{n}{i}.BIN"
+            (directory / source_name).write_bytes(value)
+            source_cases.append(dict(id=ident, role=source_role, path="FES/"+source_name))
+        case = dict(name=f"linked/v{version}-{role}", path="FES/"+filename, valid=True,
+                    package_id=module.package_identity(text.encode(), base, mapping, format_version=version),
+                    format=version, sources=source_cases, programmed_sha256=golden["rbf_sha256"], programmed_size=golden["rbf_size"])
+        linked_cases.append(case)
+    (directory / "LINKS.JSON").write_text(json.dumps(linked_cases, indent=2)+"\n")
     admitted_cases = []
     decisions = {}
-    for n, case in enumerate(cases):
+    for n, case in enumerate(cases + linked_cases):
         if not case["valid"]:
             continue
         private = output / f"oracle-package-{n}"
@@ -82,7 +125,11 @@ def prepare(root, output, checked):
             raise ValueError("C++ oracle did not verify the fixture identity")
         decisions[case["package_id"]] = decision
         expected = case.get("expected", "unsupported_abi" if case["format"] != 2 or case["name"].endswith("valid-unknown-abi") else "none")
-        admitted_cases.append({**case, "expected": expected, "runtime_code": decision["code"]})
+        if case in linked_cases:
+            if decision["code"] != "none":
+                raise ValueError("real ROM-link fixture rejected by runtime compatibility")
+        else:
+            admitted_cases.append({**case, "expected": expected, "runtime_code": decision["code"]})
     capabilities["decisions"] = list(decisions.values())
     (directory / "RUNTIME.JSON").write_text(json.dumps(capabilities, indent=2) + "\n")
     (directory / "ADMIT.JSON").write_text(json.dumps(admitted_cases, indent=2) + "\n")
