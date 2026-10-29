@@ -230,7 +230,8 @@ func TestInstalledPackageSelectionAndLibraryLaunch(t *testing.T) {
 		return protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &core, CorePackage: &protocol.CorePackageStatus{PackageID: first.PackageID, Generation: 4, ABI: protocol.RuntimeContract{ID: first.Descriptor.ABI.ID, Major: 1}, BuildID: first.Descriptor.Build.ID, Gamepad: true}}, nil
 	}
 	response, err := s.Launch(ctx, entry.GameID, nil)
-	if err != nil || response.Status.GameID == nil || *response.Status.GameID != entry.GameID {
+	if err != nil || response.Status.GameID == nil || *response.Status.GameID != entry.GameID ||
+		response.Status.CorePackage == nil || response.Status.CorePackage.CoreID != entry.CoreID {
 		t.Fatalf("launch: %+v %v", response, err)
 	}
 	client.statusResult = response.Status

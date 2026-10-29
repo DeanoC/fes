@@ -183,7 +183,7 @@ if (build["id"] != build_identity(record) or
 inspected = {"manifest": manifest, "package_id": package.package_id,
              "manifest_sha256": hashlib.sha256(package.manifest_bytes).hexdigest(),
              "core_rbf_sha256": hashlib.sha256(package.payload_bytes).hexdigest()}
-if manifest["format"] == 3:
+if manifest["format"] in (3, 4):
     inspected["rom_map_sha256"] = hashlib.sha256(package.rom_map_bytes).hexdigest()
 print(json.dumps(inspected, sort_keys=True))
 '''
@@ -197,7 +197,7 @@ print(json.dumps(inspected, sort_keys=True))
         raise ValueError(f"cached {recipe.core_id} package failed producer validation" +
                          (f": {detail}" if detail else "")) from error
     expected = {"manifest", "package_id", "manifest_sha256", "core_rbf_sha256"}
-    if inspected.get("manifest", {}).get("format") == 3:
+    if inspected.get("manifest", {}).get("format") in (3, 4):
         expected.add("rom_map_sha256")
     if set(inspected) != expected:
         raise ValueError("producer package inspection returned an unexpected result")
@@ -374,7 +374,7 @@ def resolve_core_package(source, mister_packages_revision, selection_path, force
         "manifest_sha256": manifest_sha256,
         "core_rbf_sha256": core_rbf_sha256,
     }
-    if manifest.get("format") == 3:
+    if manifest.get("format") in (3, 4):
         rom_map_sha256 = digest(package / "rom-map.json")
         if rom_map_sha256 != inspected.get("rom_map_sha256"):
             raise ValueError("selected package members changed after inspection")
