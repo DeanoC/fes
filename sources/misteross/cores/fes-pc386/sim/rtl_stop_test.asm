@@ -4,11 +4,14 @@
 ; sector; scripts/sim_fes_pc386.py --suite rtl-stops boots it on the oracle
 ; and on the RTL and compares what each writes to port E9h.
 ;
-;   DAA (27h) at two sites, one without and one with a carry out: two stops,
-;   each run on the oracle, and the RTL restarted after it with the result
-;   SMSW (0F 01 /4): a stop, then LMSW (0F 01 /6) sets PE, so the oracle runs
-;   on in protected mode with the real-mode segment caches until MOV CR0
-;   clears PE, and the RTL restarts in real mode
+;   SMSW (0F 01 /4) at two sites: two stops, each run on the oracle, and the
+;   RTL restarted after it with the result. The second feeds LMSW (0F 01 /6),
+;   which sets PE, so the oracle runs on in protected mode with the real-mode
+;   segment caches until MOV CR0 clears PE, and the RTL restarts in real mode
+;
+; The stops are on protected-mode instructions, which stay unbuilt until the
+; CPU's protected-mode phase; the real-mode instructions it used before were
+; built one by one.
 ;
 ; Each result is "R <AL> <flags>" (FLAGS' low byte, as LAHF reads it), in hex.
 ; "DONE" ends the run.
@@ -26,11 +29,7 @@ start:
     mov ss, ax
     mov sp, 0x7c00
     sti
-    mov al, 0x1a
-    daa                     ; 20h, AF
-    call result
-    mov al, 0x9a
-    daa                     ; 00h, CF, AF, ZF, PF
+    smsw ax                 ; CR0's low word, PE clear
     call result
     smsw ax
     or al, 1
