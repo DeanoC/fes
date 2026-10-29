@@ -1707,7 +1707,7 @@
       "primary_toolchain": "quartus",
       "router": "CPU timing spikes use this lock with the GPU router. Not a package producer and not a recipe row.",
       "quartus": "Quartus (primary, policy). policy: Deano 2026-10-29. nextpnr builds are advisory, and a nextpnr miss is filed as a nextpnr issue, not a blocker. Quartus 17.0.2 fits the same Yosys netlist (`scripts/quartus_fes_i386.py`). The far-transfer record is about 69\u201374 MHz nextpnr and about 98\u2013104 MHz Quartus. A nextpnr-only gap is filed on the flow (DeanoC/nextpnr#300, `docs/i386-cpu-design.md`). Recipe and package selection for a labelled variant are not implemented.",
-      "features": "Not a system package. No media, HDMI, Bluetooth or mesh of its own. Phase 1 real-mode pipeline is in progress in the CPU design doc. The pc386 machine is the intended consumer and does not yet seal a package.",
+      "features": "Not a system package. No media, HDMI, Bluetooth or mesh of its own. Phase 1 real-mode pipeline is in progress in the CPU design doc. The pc386 machine is its consumer: the development package `fes.pc386` (pc386 M5) seals it with Quartus 17.0.2.",
       "notes": "Shared CPU RTL. Device `5CSEBA6U23I7` in the spike harness. Yosys pin `238eac9a` is newer than the repository lock's `3a5accbd` and is scoped to this CPU.",
       "evidence": [
         "sources/misteross/docs/i386-cpu-design.md",
