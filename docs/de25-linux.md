@@ -169,6 +169,97 @@ trial watchdog reset preparation and software bundle identities target
 DE10-Nano. The DE25 image does not accept DE10 bundles or claim managed update,
 rollback, FPGA programming, HPS DDR or display compatibility.
 
+## First-boot evidence collection
+
+[`scripts/de25_first_boot.py`](../scripts/de25_first_boot.py) prepares expected
+identities offline, collects read-only SSH observations and imports an existing
+serial capture. It never deploys an image, programs an FPGA, opens a serial
+device, changes boot configuration, performs MMIO or issues a reboot. Use it
+only against the explicitly identified DE25 after the applicable board claim
+and separately authorized media delivery. It is not a FogCast/runtime client;
+the headless image has BusyBox and Dropbear only.
+
+Prepare expectations against the retained image before the board arrives:
+
+```sh
+python3 scripts/de25_first_boot.py prepare \
+  --image-output /absolute/de25-linux-output --output /absolute/de25-expected.json
+```
+
+Preparation reuses the boot-contract inspector above to verify the image
+receipt, pinned FIT/DT and boot files. It binds the selected kernel release and
+seven diagnostic binary/configuration hashes from the verified rootfs tar.
+Matching those observed files does **not** attest the whole SD-image digest:
+this image installs no immutable image-identity marker, and its filesystem is
+writable. The receipt preserves that limit rather than claiming an exact image
+from a board name or kernel release.
+
+During the eventual physical check, retain serial output from power-on through
+the login prompt at 115200 baud. The tool imports a caller-supplied regular log
+file; it does not manipulate termios/DTR or transmit serial commands. Obtain
+the board's public SSH host key over the trusted serial console and verify its
+fingerprint before creating a dedicated `known_hosts` file. For example,
+`dropbearkey -y -f /etc/dropbear/dropbear_ed25519_host_key` prints the public key
+and fingerprint; retain the public key with the exact SSH hostname/IP token.
+The dedicated file must contain exactly one unhashed `host algorithm key`
+entry (`[host]:port` for a nondefault port). There is no automatic key enrollment
+or `ssh-keyscan` trust step.
+
+OpenSSH on the collection host is required. Supply either a private password
+file with mode 0600 containing the diagnostic root password, or
+`--identity-file /absolute/private-key` if a public key was separately
+provisioned. Credentials are never copied into the receipt. Password mode uses
+a temporary local askpass helper, one explicit password attempt and no
+interactive fallback; private-key mode disables passwords and SSH agents.
+Neither mode reads ambient SSH configuration, proxy settings or default keys.
+
+```sh
+python3 scripts/de25_first_boot.py collect \
+  --expectation /absolute/de25-expected.json --board-id DE25-revB-1 \
+  --host 192.0.2.25 --port 22 --user root \
+  --known-hosts /absolute/de25-known-hosts --password-file /absolute/de25-password \
+  --serial-log /absolute/boot-one.log --output /absolute/boot-one-evidence
+python3 scripts/de25_first_boot.py verify --receipt /absolute/boot-one-evidence
+```
+
+Replace the illustrative host with the observed DHCP address. Collection
+requires authenticated SSH 2.0 Dropbear with the pinned host key, AArch64,
+the selected kernel/DT model/compatible strings, matching diagnostic files,
+the expected root/console arguments, a writable ext4 root matching the
+`mmcblk0p2` sysfs device, a unicast Ethernet MAC and carrier. It records the
+observed IPv4 address, routes, memory, root mount and boot UUID. An assigned
+address alone is not proof of a DHCP lease, and the root device number is not a
+filesystem UUID. Raw SSH output/errors, the fixed read-only script, expectation,
+known host key and serial log are hashed into a new receipt directory. Failed
+connections or identity/protocol mismatches retain diagnostic bytes without
+publishing a successful receipt. Existing output paths are refused.
+SSH stdout and stderr each have a 1 MiB cap enforced during collection; a
+timeout or excess output stops only the collector's own SSH process and keeps
+bounded partial logs without a successful receipt.
+
+After a separately authorized **manual reboot**, capture the second serial log
+and run `collect` again with a new output directory. The DHCP address may
+change; prepare an entry for the new address containing the same independently
+verified public host key. Then compare entirely offline:
+
+```sh
+python3 scripts/de25_first_boot.py compare \
+  --before /absolute/boot-one-evidence --after /absolute/boot-two-evidence \
+  --output /absolute/manual-reboot-comparison.json
+```
+
+Comparison reparses and verifies both raw captures, requires the same board
+label/image expectation, a changed boot UUID, stable SSH host key and stable
+MAC, and exits unsuccessfully on any mismatch. A random vendor MAC therefore
+stays a visible bring-up failure; the tool does not persist or replace it.
+The board label is caller-supplied, and the UTC collection time is unsigned
+receipt metadata; verification checks their syntax and that the time is not in
+the future but cannot independently attest either value. Imported serial logs
+are not independently bound to the SSH boot UUID. Retain board revision/serial
+details and review the serial logs alongside the captures. Receipt hashes
+detect inconsistency; they are not signed remote attestation or whole-board
+acceptance.
+
 ## DDR interface preparation without a board
 
 The [shared DE25 DDR contract](../sources/mister-packages/docs/de25-ddr.md)
