@@ -472,9 +472,11 @@ exists ([firmware](#firmware)).
 
 The runtime seeds the clock from the kit's local time at every launch, before
 release, through `fes.rtc.wall-clock` 1.0: four words of binary year, month,
-day, hour, minute, second and weekday. The RTC converts to BCD or binary and
-12- or 24-hour form according to its current register B. A guest that sets the
-time keeps it until Stop; the next launch takes the kit's time again.
+day, hour, minute, second and weekday. The runtime computes the weekday from
+the date. Like an MC146818, the RTC stores the weekday as given and does not
+check it against the date. The RTC converts to BCD or binary and 12- or 24-hour
+form according to its current register B. A guest that sets the time keeps it
+until Stop; the next launch takes the kit's time again.
 
 ### Persistence
 
