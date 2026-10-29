@@ -1,0 +1,983 @@
+{
+  "baseline_files": {
+    "output_files/base.slot0.pmsf": "86f53e1b7e97b8cf1007c69974be4310a61dc8b70bc220327b947dde52e4d7b8",
+    "output_files/base.sof": "3fca226cf9aa2f1e6bdaaeefd8203589d6f2a15f2178f80f08cc5736e8d21f0e",
+    "output_files/base.static.msf": "ba95876f85b9a4216117f08620dbba9820abe04f59a6c4ec24adcc522bcde811"
+  },
+  "distinct_persona_payloads": true,
+  "physical_pr": "not-run",
+  "producer": "4048ee2727239b0bb93364dc62ae538440e45163",
+  "result": "passed",
+  "revisions": {
+    "base": {
+      "actual_m20k_location": "M20K_X24_Y8_N0",
+      "actual_regions": [
+        {
+          "Name": "slot_inst",
+          "Place Region Constraint": "(2, 7) to (26, 12)",
+          "Route Region Constraint": "(1, 6) to (27, 13)"
+        }
+      ],
+      "assembler_baseline_checks": [],
+      "clock_parameters": [
+        {
+          "Clock Name": "board50",
+          "Divide by": "",
+          "Duty Cycle": "",
+          "Edge List": "",
+          "Edge Shift": "",
+          "Fall": "10.000",
+          "Frequency": "50.0 MHz",
+          "Inverted": "",
+          "Master": "",
+          "Multiply by": "",
+          "Offset": "",
+          "Period": "20.000",
+          "Phase": "",
+          "Rise": "0.000",
+          "Source": "",
+          "Targets": "{ CLOCK0_50 }",
+          "Type": "Base"
+        },
+        {
+          "Clock Name": "internal_clk",
+          "Divide by": "",
+          "Duty Cycle": "",
+          "Edge List": "",
+          "Edge Shift": "",
+          "Fall": "5.000",
+          "Frequency": "100.0 MHz",
+          "Inverted": "",
+          "Master": "",
+          "Multiply by": "",
+          "Offset": "",
+          "Period": "10.000",
+          "Phase": "",
+          "Rise": "0.000",
+          "Source": "",
+          "Targets": "{ auto_fab_0|alt_sld_fab_0|alt_sld_fab_0|agilexconfigreset|user_reset|sdm_gpo_out_user_reset~internal_ctrl_clock.reg }",
+          "Type": "Base"
+        }
+      ],
+      "compile_log_sha256": "03fe63ed2276b5b705c6ffded94160650f5c71a6480cf0b34c4d21b65e18b44c",
+      "mif_sha256": "c5ed57c53cc6ed0af14dc05a14ee14d90b2e9bf16eabcfad205d86a6309cbe58",
+      "mif_words_exact": 256,
+      "phase_findings": {
+        "base.drc.partitioned.rpt": [],
+        "base.drc.synthesized.rpt": [],
+        "base.tq.drc.signoff.rpt": [
+          {
+            "rule": "TMC-20012 - Missing Output Delay Constraint",
+            "severity": "High",
+            "violations": 8,
+            "waived": 0
+          },
+          {
+            "rule": "BBD-60000 - Partial Reconfiguration or Reserved Core Input/Output Ports not Directly Registered",
+            "severity": "Medium",
+            "violations": 3,
+            "waived": 0
+          }
+        ]
+      },
+      "pr_region_hash": "697BC1EA09815A9FF19DEEDCFDA0094421742AD10A5EE6BD96202B8897A130AFF08542E1C22544555C904FC419CA568E",
+      "pr_region_name": "base.slot0",
+      "preservation_stats": {
+        "excluding_pr": [
+          {
+            "Statistic": "Total Preserved Core Logic",
+            "root_partition": "0.00%",
+            "slot0": "0.00%"
+          },
+          {
+            "Statistic": "Preserved Dedicated Logic Registers",
+            "root_partition": "0.00%",
+            "slot0": "0.00%"
+          },
+          {
+            "Statistic": "Preserved Combinational ALUTs",
+            "root_partition": "0.00%",
+            "slot0": "0.00%"
+          },
+          {
+            "Statistic": "Preserved M20Ks",
+            "root_partition": "-",
+            "slot0": "-"
+          },
+          {
+            "Statistic": "Preserved ALMs used for memory",
+            "root_partition": "-",
+            "slot0": "-"
+          },
+          {
+            "Statistic": "Preserved DSP Blocks",
+            "root_partition": "-",
+            "slot0": "-"
+          }
+        ],
+        "including_pr": [
+          {
+            "Statistic": "Total Preserved Core Logic",
+            "root_partition": "0.00%",
+            "slot0": "0.00%"
+          },
+          {
+            "Statistic": "Preserved Dedicated Logic Registers",
+            "root_partition": "0.00%",
+            "slot0": "0.00%"
+          },
+          {
+            "Statistic": "Preserved Combinational ALUTs",
+            "root_partition": "0.00%",
+            "slot0": "0.00%"
+          },
+          {
+            "Statistic": "Preserved M20Ks",
+            "root_partition": "-",
+            "slot0": "-"
+          },
+          {
+            "Statistic": "Preserved ALMs used for memory",
+            "root_partition": "-",
+            "slot0": "-"
+          },
+          {
+            "Statistic": "Preserved DSP Blocks",
+            "root_partition": "-",
+            "slot0": "-"
+          }
+        ]
+      },
+      "root_final_import_log": true,
+      "source_hex_sha256": "a9660675ab0514cf6e5b7b3247b6a0877d391f60c90cc4602f4da06ab41bdfa3",
+      "static_region_mask_hash": "3D73DCE0E0294A5CA8AD0E278F9A73C8F29515D6522199FBC062B6FE31C250AF60DB7F0BE06B124F6C2D8DC42AF7B387",
+      "timing": {
+        "clocks": [
+          {
+            "Clock": "board50",
+            "Status": "Constrained",
+            "Target": "CLOCK0_50",
+            "Type": "Base"
+          },
+          {
+            "Clock": "internal_clk",
+            "Status": "Constrained",
+            "Target": "auto_fab_0|alt_sld_fab_0|alt_sld_fab_0|agilexconfigreset|user_reset|sdm_gpo_out_user_reset~internal_ctrl_clock.reg",
+            "Type": "Base"
+          }
+        ],
+        "closure": [
+          {
+            "Panel Name": "Design Closure Summary",
+            "Result Flag": "Fail"
+          },
+          {
+            "Panel Name": "Timing Closure",
+            "Result Flag": "Pass"
+          },
+          {
+            "Panel Name": "Setup Summary",
+            "Result Flag": "Pass"
+          },
+          {
+            "Panel Name": "Hold Summary",
+            "Result Flag": "Pass"
+          },
+          {
+            "Panel Name": "Recovery Summary",
+            "Result Flag": "Pass"
+          },
+          {
+            "Panel Name": "Removal Summary",
+            "Result Flag": "Pass"
+          },
+          {
+            "Panel Name": "Setup Data Delay Summary",
+            "Result Flag": "Not Found"
+          },
+          {
+            "Panel Name": "Recovery Data Delay Summary",
+            "Result Flag": "Not Found"
+          },
+          {
+            "Panel Name": "Minimum Pulse Width Summary",
+            "Result Flag": "Pass"
+          },
+          {
+            "Panel Name": "Max Skew Summary",
+            "Result Flag": "Not Found"
+          },
+          {
+            "Panel Name": "Max Clock Skew Summary",
+            "Result Flag": "Not Found"
+          },
+          {
+            "Panel Name": "Net Delay Summary",
+            "Result Flag": "Not Found"
+          },
+          {
+            "Panel Name": "Metastability Summary",
+            "Result Flag": "Not Calculated"
+          },
+          {
+            "Panel Name": "Double Data Rate (DDR) Summary",
+            "Result Flag": "Not Found"
+          },
+          {
+            "Panel Name": "Transmitter Channel-to-Channel Skew (TCCS) Summary",
+            "Result Flag": "Not Found"
+          },
+          {
+            "Panel Name": "Receiver Input Skew Margin (RSKM) Summary",
+            "Result Flag": "Not Found"
+          },
+          {
+            "Panel Name": "Design Assistant Summary",
+            "Result Flag": "High Severity Violations"
+          },
+          {
+            "Panel Name": "Unconstrained Paths",
+            "Result Flag": "Pass"
+          }
+        ],
+        "coverage": [
+          {
+            "Hold": "0",
+            "Property": "Illegal Clocks",
+            "Setup": "0"
+          },
+          {
+            "Hold": "0",
+            "Property": "Unconstrained Clocks",
+            "Setup": "0"
+          },
+          {
+            "Hold": "0",
+            "Property": "Unconstrained Input Ports",
+            "Setup": "0"
+          },
+          {
+            "Hold": "0",
+            "Property": "Paths from Unconstrained Input Ports (Pairs-Only)",
+            "Setup": "0"
+          },
+          {
+            "Hold": "0",
+            "Property": "Unconstrained Output Ports",
+            "Setup": "0"
+          },
+          {
+            "Hold": "0",
+            "Property": "Paths to Unconstrained Output Ports (Pairs-Only)",
+            "Setup": "0"
+          }
+        ],
+        "external_io": "human-visible-LEDs-and-virtual-freeze-control-not-physical-timing-qualification",
+        "report_sha256": {
+          "base.sta.rpt": "66efd4e129bb1a27d00ebd985df08d478673269c080d2f0979a13d5fe7bfcbfa",
+          "base.sta.summary": "5638016f2b95118089438c9285cb01d34df2b24a44c8a8a3225a77ec2b941607"
+        },
+        "rows": [
+          {
+            "corner": "Slow fix4a 0C Model",
+            "slack_ns": "18.005",
+            "tns_ns": "0.000",
+            "type": "Setup 'board50'"
+          },
+          {
+            "corner": "Fast fix4 0C Model",
+            "slack_ns": "0.102",
+            "tns_ns": "0.000",
+            "type": "Hold 'board50'"
+          },
+          {
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": "19.043",
+            "tns_ns": "0.000",
+            "type": "Recovery 'board50'"
+          },
+          {
+            "corner": "Fast fix4 0C Model",
+            "slack_ns": "0.279",
+            "tns_ns": "0.000",
+            "type": "Removal 'board50'"
+          },
+          {
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": "9.483",
+            "tns_ns": "0.000",
+            "type": "Minimum Pulse Width 'board50'"
+          }
+        ],
+        "scope": "constrained-internal-timing-only",
+        "status": "passed"
+      },
+      "vendor_pof": {
+        "hash": "2a56e609a04548caa70944b6bd009959d07510ad054368496597da868fc9fb19",
+        "info_sha256": "7018a2710ed68a5bcce5c63c0f384e9fe2510c67c0740415ca1b4d6104cf1842",
+        "region_id": "0x01000000"
+      }
+    },
+    "persona_a": {
+      "actual_m20k_location": "M20K_X24_Y8_N0",
+      "actual_regions": [
+        {
+          "Name": "slot_inst",
+          "Place Region Constraint": "(2, 7) to (26, 12)",
+          "Route Region Constraint": "(1, 6) to (27, 13)"
+        }
+      ],
+      "assembler_baseline_checks": [
+        [
+          "output_files/base.slot0.pmsf",
+          "persona_a.slot0 mask verification"
+        ],
+        [
+          "output_files/base.static.msf",
+          "static mask verification"
+        ],
+        [
+          "output_files/base.sof",
+          "root region logic preservation verification"
+        ]
+      ],
+      "clock_parameters": [
+        {
+          "Clock Name": "board50",
+          "Divide by": "",
+          "Duty Cycle": "",
+          "Edge List": "",
+          "Edge Shift": "",
+          "Fall": "10.000",
+          "Frequency": "50.0 MHz",
+          "Inverted": "",
+          "Master": "",
+          "Multiply by": "",
+          "Offset": "",
+          "Period": "20.000",
+          "Phase": "",
+          "Rise": "0.000",
+          "Source": "",
+          "Targets": "{ CLOCK0_50 }",
+          "Type": "Base"
+        },
+        {
+          "Clock Name": "internal_clk",
+          "Divide by": "",
+          "Duty Cycle": "",
+          "Edge List": "",
+          "Edge Shift": "",
+          "Fall": "5.000",
+          "Frequency": "100.0 MHz",
+          "Inverted": "",
+          "Master": "",
+          "Multiply by": "",
+          "Offset": "",
+          "Period": "10.000",
+          "Phase": "",
+          "Rise": "0.000",
+          "Source": "",
+          "Targets": "{ auto_fab_0|alt_sld_fab_0|alt_sld_fab_0|agilexconfigreset|user_reset|sdm_gpo_out_user_reset~internal_ctrl_clock.reg }",
+          "Type": "Base"
+        }
+      ],
+      "compile_log_sha256": "3c7e66f9e3afa000fcefd6731929d9520d5b67e84899c44d5f1238f112d8c26f",
+      "mif_sha256": "c5ed57c53cc6ed0af14dc05a14ee14d90b2e9bf16eabcfad205d86a6309cbe58",
+      "mif_words_exact": 256,
+      "phase_findings": {
+        "persona_a.drc.partitioned.rpt": [
+          {
+            "rule": "RES-10204 - Reset Release Instance Count Check",
+            "severity": "High",
+            "violations": 1,
+            "waived": 0
+          }
+        ],
+        "persona_a.drc.synthesized.rpt": [],
+        "persona_a.tq.drc.signoff.rpt": [
+          {
+            "rule": "TMC-20012 - Missing Output Delay Constraint",
+            "severity": "High",
+            "violations": 8,
+            "waived": 0
+          },
+          {
+            "rule": "BBD-60000 - Partial Reconfiguration or Reserved Core Input/Output Ports not Directly Registered",
+            "severity": "Medium",
+            "violations": 3,
+            "waived": 0
+          }
+        ]
+      },
+      "pr_region_hash": "2D1CA2FF762F84F55C65BE4C9D61D6224B94082B7714B49F71D0F8AF0E736E71BDAE2CE0ADA37A9EACCB49DCDC4C94B4",
+      "pr_region_name": "persona_a.slot0",
+      "preservation_stats": {
+        "excluding_pr": [
+          {
+            "Statistic": "Total Preserved Core Logic",
+            "root_partition": "100.00%",
+            "slot0": "0.00%"
+          },
+          {
+            "Statistic": "Preserved Dedicated Logic Registers",
+            "root_partition": "100.00%",
+            "slot0": "0.00%"
+          },
+          {
+            "Statistic": "Preserved Combinational ALUTs",
+            "root_partition": "100.00%",
+            "slot0": "0.00%"
+          },
+          {
+            "Statistic": "Preserved M20Ks",
+            "root_partition": "-",
+            "slot0": "-"
+          },
+          {
+            "Statistic": "Preserved ALMs used for memory",
+            "root_partition": "-",
+            "slot0": "-"
+          },
+          {
+            "Statistic": "Preserved DSP Blocks",
+            "root_partition": "-",
+            "slot0": "-"
+          }
+        ],
+        "including_pr": [
+          {
+            "Statistic": "Total Preserved Core Logic",
+            "root_partition": "42.56%",
+            "slot0": "0.00%"
+          },
+          {
+            "Statistic": "Preserved Dedicated Logic Registers",
+            "root_partition": "53.98%",
+            "slot0": "0.00%"
+          },
+          {
+            "Statistic": "Preserved Combinational ALUTs",
+            "root_partition": "39.01%",
+            "slot0": "0.00%"
+          },
+          {
+            "Statistic": "Preserved M20Ks",
+            "root_partition": "-",
+            "slot0": "-"
+          },
+          {
+            "Statistic": "Preserved ALMs used for memory",
+            "root_partition": "-",
+            "slot0": "-"
+          },
+          {
+            "Statistic": "Preserved DSP Blocks",
+            "root_partition": "-",
+            "slot0": "-"
+          }
+        ]
+      },
+      "root_final_import_log": true,
+      "source_hex_sha256": "a9660675ab0514cf6e5b7b3247b6a0877d391f60c90cc4602f4da06ab41bdfa3",
+      "static_region_mask_hash": null,
+      "timing": {
+        "clocks": [
+          {
+            "Clock": "board50",
+            "Status": "Constrained",
+            "Target": "CLOCK0_50",
+            "Type": "Base"
+          },
+          {
+            "Clock": "internal_clk",
+            "Status": "Constrained",
+            "Target": "auto_fab_0|alt_sld_fab_0|alt_sld_fab_0|agilexconfigreset|user_reset|sdm_gpo_out_user_reset~internal_ctrl_clock.reg",
+            "Type": "Base"
+          }
+        ],
+        "closure": [
+          {
+            "Panel Name": "Design Closure Summary",
+            "Result Flag": "Fail"
+          },
+          {
+            "Panel Name": "Timing Closure",
+            "Result Flag": "Pass"
+          },
+          {
+            "Panel Name": "Setup Summary",
+            "Result Flag": "Pass"
+          },
+          {
+            "Panel Name": "Hold Summary",
+            "Result Flag": "Pass"
+          },
+          {
+            "Panel Name": "Recovery Summary",
+            "Result Flag": "Pass"
+          },
+          {
+            "Panel Name": "Removal Summary",
+            "Result Flag": "Pass"
+          },
+          {
+            "Panel Name": "Setup Data Delay Summary",
+            "Result Flag": "Not Found"
+          },
+          {
+            "Panel Name": "Recovery Data Delay Summary",
+            "Result Flag": "Not Found"
+          },
+          {
+            "Panel Name": "Minimum Pulse Width Summary",
+            "Result Flag": "Pass"
+          },
+          {
+            "Panel Name": "Max Skew Summary",
+            "Result Flag": "Not Found"
+          },
+          {
+            "Panel Name": "Max Clock Skew Summary",
+            "Result Flag": "Not Found"
+          },
+          {
+            "Panel Name": "Net Delay Summary",
+            "Result Flag": "Not Found"
+          },
+          {
+            "Panel Name": "Metastability Summary",
+            "Result Flag": "Not Calculated"
+          },
+          {
+            "Panel Name": "Double Data Rate (DDR) Summary",
+            "Result Flag": "Not Found"
+          },
+          {
+            "Panel Name": "Transmitter Channel-to-Channel Skew (TCCS) Summary",
+            "Result Flag": "Not Found"
+          },
+          {
+            "Panel Name": "Receiver Input Skew Margin (RSKM) Summary",
+            "Result Flag": "Not Found"
+          },
+          {
+            "Panel Name": "Design Assistant Summary",
+            "Result Flag": "High Severity Violations"
+          },
+          {
+            "Panel Name": "Unconstrained Paths",
+            "Result Flag": "Pass"
+          }
+        ],
+        "coverage": [
+          {
+            "Hold": "0",
+            "Property": "Illegal Clocks",
+            "Setup": "0"
+          },
+          {
+            "Hold": "0",
+            "Property": "Unconstrained Clocks",
+            "Setup": "0"
+          },
+          {
+            "Hold": "0",
+            "Property": "Unconstrained Input Ports",
+            "Setup": "0"
+          },
+          {
+            "Hold": "0",
+            "Property": "Paths from Unconstrained Input Ports (Pairs-Only)",
+            "Setup": "0"
+          },
+          {
+            "Hold": "0",
+            "Property": "Unconstrained Output Ports",
+            "Setup": "0"
+          },
+          {
+            "Hold": "0",
+            "Property": "Paths to Unconstrained Output Ports (Pairs-Only)",
+            "Setup": "0"
+          }
+        ],
+        "external_io": "human-visible-LEDs-and-virtual-freeze-control-not-physical-timing-qualification",
+        "report_sha256": {
+          "persona_a.sta.rpt": "d8056512032cc00eb73444c494a089974d15388ea36ebe7c5355800e53aa6e09",
+          "persona_a.sta.summary": "617e0bd5c965cae9c13ec7304fe090c5a71ecd44cf665477ced6a6c2d3a31242"
+        },
+        "rows": [
+          {
+            "corner": "Slow fix4a 0C Model",
+            "slack_ns": "18.039",
+            "tns_ns": "0.000",
+            "type": "Setup 'board50'"
+          },
+          {
+            "corner": "Fast fix4 0C Model",
+            "slack_ns": "0.102",
+            "tns_ns": "0.000",
+            "type": "Hold 'board50'"
+          },
+          {
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": "19.043",
+            "tns_ns": "0.000",
+            "type": "Recovery 'board50'"
+          },
+          {
+            "corner": "Fast fix4 0C Model",
+            "slack_ns": "0.279",
+            "tns_ns": "0.000",
+            "type": "Removal 'board50'"
+          },
+          {
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": "9.483",
+            "tns_ns": "0.000",
+            "type": "Minimum Pulse Width 'board50'"
+          }
+        ],
+        "scope": "constrained-internal-timing-only",
+        "status": "passed"
+      },
+      "vendor_pof": {
+        "hash": "2a56e609a04548caa70944b6bd009959d07510ad054368496597da868fc9fb19",
+        "info_sha256": "f55d4a98907777e22a94a8d80cdf22341701cb1351f5a62d7abc2bd76fc16259",
+        "region_id": "0x01000000"
+      }
+    },
+    "persona_b": {
+      "actual_m20k_location": "M20K_X24_Y8_N0",
+      "actual_regions": [
+        {
+          "Name": "slot_inst",
+          "Place Region Constraint": "(2, 7) to (26, 12)",
+          "Route Region Constraint": "(1, 6) to (27, 13)"
+        }
+      ],
+      "assembler_baseline_checks": [
+        [
+          "output_files/base.slot0.pmsf",
+          "persona_b.slot0 mask verification"
+        ],
+        [
+          "output_files/base.static.msf",
+          "static mask verification"
+        ],
+        [
+          "output_files/base.sof",
+          "root region logic preservation verification"
+        ]
+      ],
+      "clock_parameters": [
+        {
+          "Clock Name": "board50",
+          "Divide by": "",
+          "Duty Cycle": "",
+          "Edge List": "",
+          "Edge Shift": "",
+          "Fall": "10.000",
+          "Frequency": "50.0 MHz",
+          "Inverted": "",
+          "Master": "",
+          "Multiply by": "",
+          "Offset": "",
+          "Period": "20.000",
+          "Phase": "",
+          "Rise": "0.000",
+          "Source": "",
+          "Targets": "{ CLOCK0_50 }",
+          "Type": "Base"
+        },
+        {
+          "Clock Name": "internal_clk",
+          "Divide by": "",
+          "Duty Cycle": "",
+          "Edge List": "",
+          "Edge Shift": "",
+          "Fall": "5.000",
+          "Frequency": "100.0 MHz",
+          "Inverted": "",
+          "Master": "",
+          "Multiply by": "",
+          "Offset": "",
+          "Period": "10.000",
+          "Phase": "",
+          "Rise": "0.000",
+          "Source": "",
+          "Targets": "{ auto_fab_0|alt_sld_fab_0|alt_sld_fab_0|agilexconfigreset|user_reset|sdm_gpo_out_user_reset~internal_ctrl_clock.reg }",
+          "Type": "Base"
+        }
+      ],
+      "compile_log_sha256": "39082140a3bcf4cd0a1df95334cdc563bf14cf47e62f7e5bec9e7fccb2877dc0",
+      "mif_sha256": "2e0ca3f969d2c64f092e8a970143582479ad248097e8876bbb7e2c6bfa856fc1",
+      "mif_words_exact": 256,
+      "phase_findings": {
+        "persona_b.drc.partitioned.rpt": [
+          {
+            "rule": "RES-10204 - Reset Release Instance Count Check",
+            "severity": "High",
+            "violations": 1,
+            "waived": 0
+          }
+        ],
+        "persona_b.drc.synthesized.rpt": [],
+        "persona_b.tq.drc.signoff.rpt": [
+          {
+            "rule": "TMC-20012 - Missing Output Delay Constraint",
+            "severity": "High",
+            "violations": 8,
+            "waived": 0
+          },
+          {
+            "rule": "BBD-60000 - Partial Reconfiguration or Reserved Core Input/Output Ports not Directly Registered",
+            "severity": "Medium",
+            "violations": 3,
+            "waived": 0
+          }
+        ]
+      },
+      "pr_region_hash": "53755D0CCAB1F555193E72C1547B363A77E660335AF59055107C057276B44B6ADAF8746BB5F44297D87795413F65D03F",
+      "pr_region_name": "persona_b.slot0",
+      "preservation_stats": {
+        "excluding_pr": [
+          {
+            "Statistic": "Total Preserved Core Logic",
+            "root_partition": "100.00%",
+            "slot0": "0.00%"
+          },
+          {
+            "Statistic": "Preserved Dedicated Logic Registers",
+            "root_partition": "100.00%",
+            "slot0": "0.00%"
+          },
+          {
+            "Statistic": "Preserved Combinational ALUTs",
+            "root_partition": "100.00%",
+            "slot0": "0.00%"
+          },
+          {
+            "Statistic": "Preserved M20Ks",
+            "root_partition": "-",
+            "slot0": "-"
+          },
+          {
+            "Statistic": "Preserved ALMs used for memory",
+            "root_partition": "-",
+            "slot0": "-"
+          },
+          {
+            "Statistic": "Preserved DSP Blocks",
+            "root_partition": "-",
+            "slot0": "-"
+          }
+        ],
+        "including_pr": [
+          {
+            "Statistic": "Total Preserved Core Logic",
+            "root_partition": "42.56%",
+            "slot0": "0.00%"
+          },
+          {
+            "Statistic": "Preserved Dedicated Logic Registers",
+            "root_partition": "53.98%",
+            "slot0": "0.00%"
+          },
+          {
+            "Statistic": "Preserved Combinational ALUTs",
+            "root_partition": "39.01%",
+            "slot0": "0.00%"
+          },
+          {
+            "Statistic": "Preserved M20Ks",
+            "root_partition": "-",
+            "slot0": "-"
+          },
+          {
+            "Statistic": "Preserved ALMs used for memory",
+            "root_partition": "-",
+            "slot0": "-"
+          },
+          {
+            "Statistic": "Preserved DSP Blocks",
+            "root_partition": "-",
+            "slot0": "-"
+          }
+        ]
+      },
+      "root_final_import_log": true,
+      "source_hex_sha256": "39142fe44734c61cf7916cfb9af6bd6ae4ef33b3a68416a9b2eec2344004577d",
+      "static_region_mask_hash": null,
+      "timing": {
+        "clocks": [
+          {
+            "Clock": "board50",
+            "Status": "Constrained",
+            "Target": "CLOCK0_50",
+            "Type": "Base"
+          },
+          {
+            "Clock": "internal_clk",
+            "Status": "Constrained",
+            "Target": "auto_fab_0|alt_sld_fab_0|alt_sld_fab_0|agilexconfigreset|user_reset|sdm_gpo_out_user_reset~internal_ctrl_clock.reg",
+            "Type": "Base"
+          }
+        ],
+        "closure": [
+          {
+            "Panel Name": "Design Closure Summary",
+            "Result Flag": "Fail"
+          },
+          {
+            "Panel Name": "Timing Closure",
+            "Result Flag": "Pass"
+          },
+          {
+            "Panel Name": "Setup Summary",
+            "Result Flag": "Pass"
+          },
+          {
+            "Panel Name": "Hold Summary",
+            "Result Flag": "Pass"
+          },
+          {
+            "Panel Name": "Recovery Summary",
+            "Result Flag": "Pass"
+          },
+          {
+            "Panel Name": "Removal Summary",
+            "Result Flag": "Pass"
+          },
+          {
+            "Panel Name": "Setup Data Delay Summary",
+            "Result Flag": "Not Found"
+          },
+          {
+            "Panel Name": "Recovery Data Delay Summary",
+            "Result Flag": "Not Found"
+          },
+          {
+            "Panel Name": "Minimum Pulse Width Summary",
+            "Result Flag": "Pass"
+          },
+          {
+            "Panel Name": "Max Skew Summary",
+            "Result Flag": "Not Found"
+          },
+          {
+            "Panel Name": "Max Clock Skew Summary",
+            "Result Flag": "Not Found"
+          },
+          {
+            "Panel Name": "Net Delay Summary",
+            "Result Flag": "Not Found"
+          },
+          {
+            "Panel Name": "Metastability Summary",
+            "Result Flag": "Not Calculated"
+          },
+          {
+            "Panel Name": "Double Data Rate (DDR) Summary",
+            "Result Flag": "Not Found"
+          },
+          {
+            "Panel Name": "Transmitter Channel-to-Channel Skew (TCCS) Summary",
+            "Result Flag": "Not Found"
+          },
+          {
+            "Panel Name": "Receiver Input Skew Margin (RSKM) Summary",
+            "Result Flag": "Not Found"
+          },
+          {
+            "Panel Name": "Design Assistant Summary",
+            "Result Flag": "High Severity Violations"
+          },
+          {
+            "Panel Name": "Unconstrained Paths",
+            "Result Flag": "Pass"
+          }
+        ],
+        "coverage": [
+          {
+            "Hold": "0",
+            "Property": "Illegal Clocks",
+            "Setup": "0"
+          },
+          {
+            "Hold": "0",
+            "Property": "Unconstrained Clocks",
+            "Setup": "0"
+          },
+          {
+            "Hold": "0",
+            "Property": "Unconstrained Input Ports",
+            "Setup": "0"
+          },
+          {
+            "Hold": "0",
+            "Property": "Paths from Unconstrained Input Ports (Pairs-Only)",
+            "Setup": "0"
+          },
+          {
+            "Hold": "0",
+            "Property": "Unconstrained Output Ports",
+            "Setup": "0"
+          },
+          {
+            "Hold": "0",
+            "Property": "Paths to Unconstrained Output Ports (Pairs-Only)",
+            "Setup": "0"
+          }
+        ],
+        "external_io": "human-visible-LEDs-and-virtual-freeze-control-not-physical-timing-qualification",
+        "report_sha256": {
+          "persona_b.sta.rpt": "2fb44c17ff55f20e4979e281f710e675109f0064903081d6345b20f3ab329585",
+          "persona_b.sta.summary": "617e0bd5c965cae9c13ec7304fe090c5a71ecd44cf665477ced6a6c2d3a31242"
+        },
+        "rows": [
+          {
+            "corner": "Slow fix4a 0C Model",
+            "slack_ns": "18.039",
+            "tns_ns": "0.000",
+            "type": "Setup 'board50'"
+          },
+          {
+            "corner": "Fast fix4 0C Model",
+            "slack_ns": "0.102",
+            "tns_ns": "0.000",
+            "type": "Hold 'board50'"
+          },
+          {
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": "19.043",
+            "tns_ns": "0.000",
+            "type": "Recovery 'board50'"
+          },
+          {
+            "corner": "Fast fix4 0C Model",
+            "slack_ns": "0.279",
+            "tns_ns": "0.000",
+            "type": "Removal 'board50'"
+          },
+          {
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": "9.483",
+            "tns_ns": "0.000",
+            "type": "Minimum Pulse Width 'board50'"
+          }
+        ],
+        "scope": "constrained-internal-timing-only",
+        "status": "passed"
+      },
+      "vendor_pof": {
+        "hash": "2a56e609a04548caa70944b6bd009959d07510ad054368496597da868fc9fb19",
+        "info_sha256": "f8de8025509f2bf12a8b2ec1bfe9c64a515b4a62fdec69fda123782a45a085c7",
+        "region_id": "0x01000000"
+      }
+    }
+  },
+  "root_qdb_sha256": "e42d7fd2e8763798e261d60f24d65b6b4b138a7d1cae81910a02c590e45b3b41",
+  "source_closure_sha256": "c6257bf464a91724e39c68c670567fd22f2a3c5557f1e9792b081b4f48495981",
+  "static_mask_meaning": "vendor mask identity; not independent equality of every static configuration bit"
+}
