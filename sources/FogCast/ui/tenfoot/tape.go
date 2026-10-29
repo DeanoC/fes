@@ -249,6 +249,13 @@ func admitSessionMedia(p *hostclient.SessionCorePackage, name string, size int64
 	return hostclient.AdmitRemovableMedia(p, name, size) || hostclient.AdmitCartridge(p, name, size)
 }
 
+func sessionMediaAdmissionError(p *hostclient.SessionCorePackage, name string) *protocol.APIError {
+	if hostclient.RemovableMediaCapable(p) {
+		return hostclient.RemovableMediaRequestError(p, name)
+	}
+	return protocol.LiveMediaRequestError()
+}
+
 func (a *App) tapePickerPromptLocked() string {
 	if a.sessionCartridgeLocked() {
 		return "Choose a cartridge for the running machine."
@@ -756,14 +763,14 @@ func importAndArmTape(ctx context.Context, client *Client, prior hostclient.Sess
 	}
 	defer file.Close()
 	if !admitSessionMedia(prior.CorePackage, name, size) {
-		return hostclient.SessionResult{}, false, protocol.LiveMediaRequestError()
+		return hostclient.SessionResult{}, false, sessionMediaAdmissionError(prior.CorePackage, name)
 	}
 	media, err := client.ImportCoreMedia(ctx, size, io.LimitReader(file, size))
 	if err != nil {
 		return hostclient.SessionResult{}, false, err
 	}
 	if media.Size != size || !admitSessionMedia(prior.CorePackage, name, media.Size) {
-		return hostclient.SessionResult{}, false, protocol.LiveMediaRequestError()
+		return hostclient.SessionResult{}, false, sessionMediaAdmissionError(prior.CorePackage, name)
 	}
 	if hostclient.CartridgeSwapCapable(prior.CorePackage) {
 		result, err := client.ReplaceCartridgeForSession(ctx, prior, media.MediaID, name)
