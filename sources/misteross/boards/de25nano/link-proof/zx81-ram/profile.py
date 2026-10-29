@@ -51,7 +51,18 @@ def prepare(local, project, frozen):
             if data.count(b'`ifdef') != 1 or data.count(b'`else') != 1 or data.count(b'`endif') != 1:
                 raise ValueError("RAM pack conditional derivation changed")
             data = data[:begin] + data[split + len(b'`else'):end] + data[end + len(b'`endif'):]
+        if name == "zx8x.hex":
+            words = data.split()
+            if len(words) != 16384 or any(int(word, 16) != 255 for word in words[12288:]):
+                raise ValueError("ZX81 source HEX depth or unreachable tail changed")
+            data = b"\n".join(words[:12288]) + b"\n" + b"00\n" * 4096
+        if name == "zx8x.mif":
+            data = replace(data, b"DEPTH = 12288;", b"DEPTH = 16384;", "firmware depth")
+            data = replace(data, b"END;", b"[3000..3FFF]: 00;\r\nEND;", "firmware unreachable tail")
         (local / name).write_bytes(data)
+    machine = selected(FILES["zx81_machine.sv"])
+    if machine.count(b".address_a({1'b0, rom_a[12], rom_a[11:0]}),") != 1:
+        raise ValueError("ZX81 8 KiB reachable firmware window changed")
     static = selected(HERE / "static.v")
     # These exact drivers justify the six optional constant ingress FFs.
     for driver in (b"wire [15:0] peek_addr = {8'h40, diagnostic_address};",
@@ -64,7 +75,7 @@ def prepare(local, project, frozen):
     for name in ("personas.v", "static.v"):
         (local / name).write_bytes(selected(HERE / name))
     for name in ("zx8x.hex", "zx8x.mif"):
-        (project / name).write_bytes(selected(FILES[name]))
+        (project / name).write_bytes((local / name).read_bytes())
     shell = (local / "shell.v").read_bytes()
     shell = replace(shell, b'input wire rsp_valid,', b'input wire [7:0] memory_peek,\n    input wire rsp_valid,', "peek input")
     shell = replace(shell, b'last_data <= response_data_q;',

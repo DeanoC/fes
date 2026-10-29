@@ -26,8 +26,14 @@ class ProfileTests(unittest.TestCase):
             self.assertIn("zx81_dpram", (local / "zx81_ram_pack.v").read_text())
             self.assertIn('intended_device_family = "Agilex 5"', (local / "zx81_dpram.v").read_text())
             self.assertIn('ram_block_type = "M20K"', (local / "zx81_dpram.v").read_text())
-            for name in ("zx81_machine.sv", "zx8x.hex", "zx8x.mif"):
+            for name in ("zx81_machine.sv",):
                 self.assertEqual((local / name).read_bytes(), frozen["files"][build.PROFILE.FILES[name].relative_to(build.PROFILE.ROOT).as_posix()])
+            original = frozen["files"][build.PROFILE.FILES["zx8x.hex"].relative_to(build.PROFILE.ROOT).as_posix()]
+            padded = (local / "zx8x.hex").read_bytes().split()
+            self.assertEqual(padded[:12288], original.split()[:12288])
+            self.assertEqual(padded[12288:], [b"00"] * 4096)
+            self.assertIn(b"DEPTH = 16384;", (local / "zx8x.mif").read_bytes())
+            self.assertIn(b"[3000..3FFF]: 00;", (local / "zx8x.mif").read_bytes())
             self.assertIn("state == RUNNING ? {response_data_q[31:8], memory_peek}", (local / "shell.v").read_text())
             self.assertIn('FIRMWARE = "zx8x.mif"', (local / "static.v").read_text())
     def test_captured_profile_is_executed_and_load_drift_rejected(self):

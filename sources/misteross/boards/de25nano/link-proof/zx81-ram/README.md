@@ -6,7 +6,11 @@ partition implements either an empty expansion slot or the actual
 `zx81_ram_pack` module with 16 KiB writable memory. A guarded board-local
 derivation selects that module's portable dual-port implementation and
 retargets `zx81_dpram` to Agilex 5/M20K; shared Cyclone V RTL stays unchanged.
-Quartus reads the MIF firmware; Verilator reads the matching HEX.
+Quartus reads the MIF firmware; Verilator reads the matching HEX. Both derived
+initialization files preserve all 12,288 original bytes and explicitly pad the
+unreachable 4 KiB tail with zero to match the shared 16 KiB ROM declaration.
+The ZX81 address wiring only reaches the original first 8 KiB; that guard is
+checked before preparation.
 
 The existing counter diagnostic remains the default. Its 64-byte control map,
 four-cycle diagnostic latency, source guards and memory checks are unchanged.
