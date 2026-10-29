@@ -1,0 +1,44 @@
+{
+  "affected_fpga_suite": {
+    "skipped": 35,
+    "status": "passed",
+    "total": 1395
+  },
+  "affected_parent_suite": {
+    "skipped": 1,
+    "status": "passed",
+    "total": 870
+  },
+  "base_revision": "633548e210ee7202d839e7ca0e10fca1385747ef",
+  "changed_file_sha256": {
+    "sources/misteross/boards/de25nano/hps/Makefile": "5dda22c4f66d8da5d6b2f045c6df73527bf73e99ccb114a220b952f982e357b8",
+    "sources/misteross/boards/de25nano/hps/README.md": "83105e038a8fd7b67eb00d7d773add3ed107ba87dd24982b174cf338235adf7f",
+    "sources/misteross/boards/de25nano/hps/build.py": "07830316823d7ded94e0f01b62b48b954b4695138c169ad89916f5102d1c935b",
+    "sources/misteross/boards/de25nano/hps/fes_de25_top.sdc": "bfeec4459f58d8287a55119b899bd663805942f7d51e915bc7c8e2dc7d77c2e7",
+    "sources/misteross/boards/de25nano/hps/fes_de25_top_reset.v": "7ccb199472688361d4dc2e8baa1dbdc7561c8f57d623e94a588e63f95d784826",
+    "sources/misteross/boards/de25nano/hps/reset_tb.cpp": "9c1c43e52b8772ecf0b015fd9b7a88d536ddb92fd5654c06cf9118786ef69b21",
+    "sources/misteross/boards/de25nano/hps/test_build.py": "e5a72654fb83d2fc5b8b41878a83f720febe32d07026731e2e5f9d9dbfa2e986",
+    "sources/misteross/docs/architecture.md": "b2e94488a71d5d4e000c02316719b23651b729750e1b462e20df881d3691b452",
+    "sources/misteross/docs/validation/2026-10-28-de25-hps-mailbox/reset-sequencing/rdc-source-sha256.json": "f8f1a82d7beb324e4144a8d76653c4f52169e42610c727e679a113abcb3f3333",
+    "sources/misteross/docs/validation/2026-10-28-de25-hps-mailbox/reset-sequencing/reset-domain-review.md": "49208f103b1a3316b0374b959e40add3d3ea5c333fb35d569377911c3b4de456",
+    "sources/misteross/tests/test_de25nano_hps.py": "7a05250a69310a091377496a2b86e88657b8d207170e8bcca6cc7cf89cc8a8d3"
+  },
+  "consistency": {
+    "fixture_copies": 37,
+    "generated_consumers": 23,
+    "source_pins": 0,
+    "status": "passed"
+  },
+  "focused_tests": {
+    "actual_rtl_benches": [
+      "mailbox",
+      "top reset"
+    ],
+    "preparation_tests": 19,
+    "status": "passed",
+    "total": 21
+  },
+  "source_binding": "Affected suite started on working changes; those bytes were committed unchanged as tested_change_revision while it ran.",
+  "test_changed_planner_head": "633548e210ee7202d839e7ca0e10fca1385747ef",
+  "tested_change_revision": "6cb01a9123d20923032a3f47cb927409931b4af1"
+}

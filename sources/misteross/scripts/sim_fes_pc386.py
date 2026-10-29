@@ -26,8 +26,8 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            report lists the stops by stem against the lockstep's scope.
   rtl-stops
            boots cores/fes-pc386/sim/rtl_stop_test.asm on the oracle and on
-           the RTL: DAA at two sites, SMSW, and a protected-mode stretch from
-           LMSW to MOV CR0, all unbuilt in the RTL. The RTL run must stop on
+           the RTL: SMSW at two sites and a protected-mode stretch from LMSW
+           to MOV CR0, all unbuilt in the RTL. The RTL run must stop on
            each, record the stretch, and write what the oracle run writes.
   sound    boots FreeDOS and runs SOUND.COM; checks the speaker and DSP tones,
            OPL2 output and DSP interrupts.
@@ -103,6 +103,7 @@ AT_RTL = (
     CORE / 'rtl/pc386_sysctl.sv',
     CORE / 'rtl/pc386_kbc.sv',
     CORE / 'rtl/pc386_rtc.sv',
+    CORE / 'rtl/pc386_ram.sv',
     CORE / 'rtl/pc386_ata.sv',
     CORE / 'rtl/pc386_at_core.sv',
 )
@@ -124,7 +125,6 @@ OPL2_SAMPLES = 20000
 # The machine without the CPU: the AT core, the VGA, the presenter, port 2
 # and the shared display plane.
 MACHINE_RTL = AT_RTL + (
-    CORE / 'rtl/pc386_ram.sv',
     CORE / 'rtl/pc386_vga.sv',
     CORE / 'rtl/pc386_vga_scanout.sv',
     CORE / 'rtl/pc386_presenter.sv',
@@ -189,7 +189,7 @@ class SimError(RuntimeError):
 
 def verilate(verilator: str, name: str, top: str, rtl: tuple[Path, ...], testbench: Path | None,
              linked: list[Path], jobs: int, parameters: dict[str, int] | None = None,
-             include: tuple[Path, ...] = ()) -> Path:
+             include: tuple[Path, ...] = (), defines: tuple[str, ...] = ()) -> Path:
     output = OUTPUT / name / ('obj' if testbench else f'obj-{top}')
     output.mkdir(parents=True, exist_ok=True)
     includes = ' '.join(f'-I{path}' for path in (COMMON / 'sim/i386', CORE / 'sim', NUKED, *include))
@@ -197,7 +197,7 @@ def verilate(verilator: str, name: str, top: str, rtl: tuple[Path, ...], testben
                '-Wall', '-Wno-UNUSEDSIGNAL', '-Wno-DECLFILENAME',
                *(str(CORE / 'sim' / name) for name in ('pc386.vlt', 'pc386_audio.vlt', 'pc386_vga.vlt')),
                f'-I{COMMON / "vendor/kf8259"}', f'-I{COMMON / "vendor/kf8253"}', f'-I{COMMON / "generated"}',
-               *(f'-G{key}={value}' for key, value in (parameters or {}).items()),
+               *(f'-G{key}={value}' for key, value in (parameters or {}).items()), *(f'-D{name}' for name in defines),
                '--Mdir', str(output), '-MAKEFLAGS', 'OPT_FAST=-O3',
                '-CFLAGS', f'-std=c++17 -O2 {includes}', '-LDFLAGS', '-pthread',
                *map(str, rtl), *([str(testbench)] if testbench else []), *map(str, linked)]
@@ -501,7 +501,7 @@ def vga_test_disk(args) -> Path:
 
 
 # What the RTL must stop on in rtl_stop_test.asm: stem -> (stops, sites).
-RTL_STOPS = {'0F22': (1, 1), '0F01.4': (1, 1), '0F01.6': (1, 1)}
+RTL_STOPS = {'0F22': (1, 1), '0F01.4': (2, 2), '0F01.6': (1, 1)}
 
 
 def run_rtl_stops(args, linked: list[Path]) -> dict:
@@ -606,8 +606,9 @@ def run_vga(args, linked: list[Path]) -> dict:
 
 def run_devices(args) -> dict:
     # A fast RTC (one guest second is 2^19 clocks) keeps the update test short.
+    # The RAMs poison a read of the word being written, as M10K leaves it.
     testbench = verilate(args.verilator, 'devices', 'pc386_at_core', AT_RTL, CORE / 'sim/devices_tb.cpp', [],
-                         args.jobs, {'RTC_N': 1, 'RTC_D': 16})
+                         args.jobs, {'RTC_N': 1, 'RTC_D': 16}, defines=('PC386_RAM_COLLISION',))
     result = subprocess.run([str(testbench)], cwd=OUTPUT / 'devices', capture_output=True, text=True)
     (OUTPUT / 'devices/devices.log').write_text(result.stdout + result.stderr)
     checks = [line for line in result.stdout.splitlines() if line.startswith(('PASS', 'FAIL'))]
