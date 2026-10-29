@@ -4,7 +4,8 @@
 local List = require "widgets.list"
 local color = require "util.color"
 
-local DEST = 130
+-- Leave room for Tenfoot's status row below the list viewport.
+local DEST = 180
 local list
 local entries = {}
 

@@ -5,7 +5,8 @@
 local List = require "widgets.list"
 
 local TAG = "vdp:tms9918-family"
-local DEST = 130
+-- Leave room for Tenfoot's status row below the list viewport.
+local DEST = 180
 local platforms, games
 local pane = 1
 local generation = 0
