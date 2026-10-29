@@ -67,6 +67,16 @@ extern "C" int fsync(int descriptor)
 
 namespace {
 
+mister::Error CreateKnownProductionHardware(mister::LogSink& log,
+	std::unique_ptr<mister::Hardware>* hardware)
+{
+	const char model[] = "Terasic DE10-nano";
+	const char compatible[] = "altr,socfpga-cyclone5\0altr,socfpga";
+	return mister::CreateProductionHardware(log, hardware, "armv7",
+		std::string(model, sizeof(model)), std::string(compatible, sizeof(compatible)),
+		[] { return mister::Error{}; });
+}
+
 struct TempDirectory {
 	explicit TempDirectory(const std::string& parent = "/tmp")
 	{
@@ -2285,6 +2295,12 @@ void TestMenuUnderflowPolicyReactivatesThenSplashes()
  script.Present(0,0,kMenuUnderflowPresentCap+1);
  assert(!PresentBackSlot(hardware,&displayed).ok());
  reactivate();
+ // A counter stuck at 0xffffffff is not a clean present: both samples
+ // saturated used to subtract to a zero delta and reset the streak.
+ script.Present(0,0xffffffffu,0xffffffffu);
+ assert(!PresentBackSlot(hardware,&displayed).ok());
+ assert(!hardware.menu_display().available);
+ assert(hardware.menu_display().error.message=="menu underflow exceeded the per-present cap");
 }
 
 void TestHpsDdrPortsReleaseAfterIdentityBeforeExecution()
@@ -2768,7 +2784,7 @@ void TestProductionFactoryForwardsCoreDataWithoutHardwareMutation()
 		const std::string id = PersistentPackage(&package);
 		mister_test::CaptureLog log;
 		std::unique_ptr<mister::Hardware> hardware;
-		assert(mister::CreateProductionHardware(log, &hardware).ok());
+		assert(CreateKnownProductionHardware(log, &hardware).ok());
 		// Creation and data operations are lazy with respect to all physical devices.
 		// Do not call Start/LoadIdle/LoadCore: this exercises only production admission/storage.
 		mister::CoreData observed;
@@ -2835,7 +2851,7 @@ void TestProductionFactoryForwardsProgrammedBitstreamWithoutHardwareMutation()
 		const std::string digest = mister::native::Sha256Hex(hash.Final());
 		mister_test::CaptureLog log;
 		std::unique_ptr<mister::Hardware> hardware;
-		assert(mister::CreateProductionHardware(log, &hardware).ok());
+		assert(CreateKnownProductionHardware(log, &hardware).ok());
 		std::unique_ptr<mister::AdmittedCorePackage> admitted;
 		assert(hardware->AdmitCorePackage(package.path, id, &admitted).ok());
 		const auto mismatch = hardware->AttachProgrammedBitstream(
@@ -3287,7 +3303,7 @@ void TestFormat4TwoSourceAdmissionBeforeMutation()
 	// Admission and attachment retain files without touching physical devices.
 	mister_test::CaptureLog production_log;
 	std::unique_ptr<mister::Hardware> production;
-	assert(mister::CreateProductionHardware(production_log, &production).ok());
+	assert(CreateKnownProductionHardware(production_log, &production).ok());
 	std::unique_ptr<mister::AdmittedCorePackage> retained;
 	assert(fixture.native.hardware.AdmitCorePackage(package.path, opened.package_id, &retained).ok());
 	assert(production->AttachROMsBitstream(retained.get(), programmed, links).ok());
@@ -3608,7 +3624,7 @@ void TestInitialSTDiskBeforeExecution(unsigned size = 737280)
     initial.binding = {"st-initial", Sha256Hex(source.Final()), 0};
     mister_test::CaptureLog production_log;
     std::unique_ptr<mister::Hardware> production;
-    assert(mister::CreateProductionHardware(production_log, &production).ok());
+    assert(CreateKnownProductionHardware(production_log, &production).ok());
     std::unique_ptr<mister::AdmittedCorePackage> prepared;
     assert(fixture.native.hardware.AdmitCorePackage(package.path, opened.package_id, &prepared).ok());
     assert(production->PrepareInitialComputerMedia(prepared.get(), initial).ok());
@@ -4105,7 +4121,7 @@ void TestComputerLiveMediaLifecycleThroughRuntime()
 	// The production factory forwards the computer operations to native hardware.
 	mister_test::CaptureLog production_log;
 	std::unique_ptr<mister::Hardware> production;
-	assert(mister::CreateProductionHardware(production_log, &production).ok());
+	assert(CreateKnownProductionHardware(production_log, &production).ok());
 	assert(production->SetKeyboardHid(mister::KeyboardHidRows{}).message == "FES computer is not active");
 	assert(production->InsertComputerMedia(0, "/media/disk.dsk", 143360).message ==
 		"FES computer media unit is not active");

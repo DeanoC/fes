@@ -1,0 +1,35 @@
+{
+  "artifact_sha256": "66dcdb3bf831197f0e604c52cc2d30f2ef3072cb49f3bc680b828e942aeefa4a",
+  "classification": "one-slow-model-mapped-stage-path-diagnostic",
+  "compiled_report_hashes_unchanged": true,
+  "fes_revision": "a00b0eebb362fd6594a28364e9b83263174b5db8",
+  "hardware_acceptance": "not-run",
+  "paths": {
+    "config_reset-hold.rpt": {
+      "returned_paths": 1,
+      "sha256": "42892d8bd84e3d9ad945d7aecb2505303de8fc67f490e3fec7b99b34467c0846",
+      "slack_ns": 0.108
+    },
+    "config_reset-setup.rpt": {
+      "returned_paths": 1,
+      "sha256": "7209ad37744e3ec7243b7ee9caae6c657e8a4e7830e2579edeb58d283a2962ed",
+      "slack_ns": 19.578
+    },
+    "pixel_reset-hold.rpt": {
+      "returned_paths": 1,
+      "sha256": "1ca46f45e3715424fc89b66f64a23df7027eac241962ffed79adbb42e79d4ac8",
+      "slack_ns": 0.11
+    },
+    "pixel_reset-setup.rpt": {
+      "returned_paths": 1,
+      "sha256": "71f1e658daeca520e99c73e7173d7efe51887bc2612e1270bf39e13d618787f9",
+      "slack_ns": 12.998
+    }
+  },
+  "query_log_sha256": "b8be0a54bb4122ba8a8a958bd4f04f312925453cf9012ed13b382ac6506b8a6d",
+  "query_sha256": "1290b62f94fe0679542d3014413c19bfce08fbc7a4b6a3afbdb86ba39de88d57",
+  "two_stages_each": [
+    "config_reset",
+    "pixel_reset"
+  ]
+}

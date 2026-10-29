@@ -1,0 +1,19 @@
+test_archive_replacement_after_hash_cannot_change_selected_entries (de25_display_tests.DisplayBuildTests.test_archive_replacement_after_hash_cannot_change_selected_entries) ... ok
+test_captured_git_revision_ignores_later_working_tree_bytes (de25_display_tests.DisplayBuildTests.test_captured_git_revision_ignores_later_working_tree_bytes) ... ok
+test_changed_reset_release_family_is_rejected (de25_display_tests.DisplayBuildTests.test_changed_reset_release_family_is_rejected) ... ok
+test_changed_vendor_i2c_divider_is_rejected (de25_display_tests.DisplayBuildTests.test_changed_vendor_i2c_divider_is_rejected) ... ok
+test_dirty_build_stops_before_preparation (de25_display_tests.DisplayBuildTests.test_dirty_build_stops_before_preparation) ... ok
+test_ip_generation_cannot_add_unreviewed_reset_parameters (de25_display_tests.DisplayBuildTests.test_ip_generation_cannot_add_unreviewed_reset_parameters) ... ok
+test_ip_generation_cannot_silently_change_original_pll_parameters (de25_display_tests.DisplayBuildTests.test_ip_generation_cannot_silently_change_original_pll_parameters) ... ok
+test_prepares_real_source_modes_with_vendor_pins_and_only_device_retarget (de25_display_tests.DisplayBuildTests.test_prepares_real_source_modes_with_vendor_pins_and_only_device_retarget) ... ok
+test_refuses_existing_output_and_unlocked_archive (de25_display_tests.DisplayBuildTests.test_refuses_existing_output_and_unlocked_archive) ... ok
+test_rejects_changed_pll_frequency_or_metadata (de25_display_tests.DisplayBuildTests.test_rejects_changed_pll_frequency_or_metadata) ... ok
+test_rejects_incomplete_or_disagreeing_scs_pin_contract (de25_display_tests.DisplayBuildTests.test_rejects_incomplete_or_disagreeing_scs_pin_contract) ... ok
+test_source_change_during_preparation_stops_before_ip_generation (de25_display_tests.DisplayBuildTests.test_source_change_during_preparation_stops_before_ip_generation) ... ok
+test_unexpected_menu_fifo_declaration_refuses_target_adaptation (de25_display_tests.DisplayBuildTests.test_unexpected_menu_fifo_declaration_refuses_target_adaptation) ... ok
+test_idle_and_menu_pattern_board_rtl (tests.test_de25nano_display.DisplaySimulationTests.test_idle_and_menu_pattern_board_rtl) ... ok
+
+----------------------------------------------------------------------
+Ran 14 tests in 31.856s
+
+OK

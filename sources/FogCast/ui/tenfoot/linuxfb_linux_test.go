@@ -937,6 +937,25 @@ func waitStops(t *testing.T, fake *fakeLocalCores, want int) {
 	}
 }
 
+func TestSessionGuideKeepsColecoRoomAndCartridgeActionsDistinct(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		session SessionSnapshot
+		want    Command
+	}{
+		{name: "Coleco play opens cartridge picker", session: SessionSnapshot{Coleco: true, HardwareRoom: true}, want: CmdSearch},
+		{name: "Coleco room keeps its room picker", session: SessionSnapshot{Coleco: true, HardwareRoom: true, ControlsOpen: true}, want: CmdHome},
+		{name: "other media room opens normally", session: SessionSnapshot{HardwareRoom: true}, want: CmdHome},
+		{name: "no room leaves Guide alone", session: SessionSnapshot{Coleco: true}, want: CmdNone},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := sessionGuideCommand(tc.session); got != tc.want {
+				t.Fatalf("sessionGuideCommand(%+v) = %v, want %v", tc.session, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestKitLocalCoreStopsOnOnePressOfF12OrGuide(t *testing.T) {
 	for _, tc := range []struct {
 		name string

@@ -1,0 +1,87 @@
+# Inspected official Terasic BSP 1.1.0 (rev. A/B), 2026-10-28.
+# The SD image retains the exact vendor MBR/FAT prefix and replaces only p2.
+format = 1
+board = "de25_nano"
+sector_size = 512
+image_size = 3984588800
+image_member = "de25_nano_revA_sdcard_console_v1.1.img"
+image_sha256 = "047ed8f702d076d7ad0062517ac2b2316b948c564fc8e07f393c1b78ec07baaf"
+prefix_size = 315621888
+prefix_sha256 = "8e84382c3d19210d4e0d431628dd877f1177bd0a388c31ed6498c635f98bb519"
+mbr_sha256 = "9feca428016c5da3285d02fa9c055655004c6c8ea5bcea941321a80a88f19e9e"
+root_device = "/dev/mmcblk0p2"
+console = "ttyS0,115200"
+
+[bsp]
+url = "https://dl2.terasic.com/resources/de25-nano/de25_nano_sdcard_console_v1.1.zip"
+filename = "de25_nano_sdcard_console_v1.1.zip"
+size = 954444500
+sha256 = "b67480f7e49af836352dc83e90879251601ff0f8e9d88e50b3571d67205cf659"
+
+[resources]
+url = "https://dl2.terasic.com/resources/de25-nano/DE25-Nano_revB_v.1.0.0_ResourcePackage.zip"
+filename = "DE25-Nano_revB_v.1.0.0_ResourcePackage.zip"
+size = 184572628
+sha256 = "f79f0eff3b0f9d042fdb61ddcf43efec77b0ebc13248eea100b94e47a1189b66"
+
+[[partitions]]
+type = 11
+start_sector = 2048
+sectors = 614401
+
+[[partitions]]
+type = 131
+start_sector = 616449
+sectors = 7165951
+
+[[boot_files]]
+name = "u-boot.itb"
+fat_name = "U-BOOT  ITB"
+size = 1013832
+sha256 = "bb6a48c77d2559a2f9710153cc616a242bfe701ff891cb5a14bddba33eaf2cf7"
+
+[[boot_files]]
+name = "Image"
+fat_name = "IMAGE      "
+size = 46701056
+sha256 = "874f75d81f6452406f0f0ea5e0849ea269e92599fe728eb02b1bdbb56ada1aa8"
+
+[[boot_files]]
+name = "socfpga_agilex5_de25_nano.dtb"
+fat_name = "SOCFPG~1DTB"
+size = 24320
+sha256 = "d9bd893fc94e45359fb442ca06741aa63c5881e9376473fb9397ebf6d6be4d13"
+
+[[boot_files]]
+name = "boot.scr.uimg"
+fat_name = "BOOTSC~1UIM"
+size = 1783
+sha256 = "b38747a4b43abcc04d84b8f46ea514594e9cc59c8188633e4d24ba36da3728ef"
+
+# This exact JIC is bundled with the BSP, and is its external QSPI dependency.
+# This image builder extracts it for inspection but never programs a device.
+[[factory_boot]]
+name = "golden_top_hps.jic"
+member = "golden_top_hps.jic"
+archive = "bsp"
+role = "factory-qspi-boot-dependency"
+size = 16777447
+sha256 = "e3d20c2d066761fd02897422ba361aa19faafcd0240dd2782965754cc61b38a4"
+
+[[factory_boot]]
+name = "vendor-readme.txt"
+member = "readme.txt"
+archive = "bsp"
+role = "vendor-boot-instructions"
+size = 1127
+sha256 = "bb81c63795a18a22f30001eed7a2bd4acea2704d1ebed20c4ad60092001eb5cc"
+
+# The resource package's SOF is a rebuild reference. It is not relabelled as
+# the source of the BSP JIC: the resource package contains a different JIC.
+[[factory_boot]]
+name = "resource-golden_top_hps.sof"
+member = "Demonstration/SoC_FPGA/GHRD/output_files/golden_top_hps.sof"
+archive = "resources"
+role = "hardware-source-reference-only"
+size = 1480451
+sha256 = "e71a72180cb77ddd05a9c2ae49afa739d74786f9366f00233fd27bbebff6ea09"

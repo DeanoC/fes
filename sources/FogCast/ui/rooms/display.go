@@ -79,6 +79,7 @@ type Action struct {
 	CoreID            string
 	RoomID            string
 	Platform          string
+	CoreIDs           []string
 	Collection        string
 	Layout            string
 	SessionID         string

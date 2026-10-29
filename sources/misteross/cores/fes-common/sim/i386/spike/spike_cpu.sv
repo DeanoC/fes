@@ -12,7 +12,9 @@
 // the edge, so a load's 8 bytes arrive in M2 as the L1D's data will.
 // dmem_valid is a registered stimulus bit, as mem_valid is, so loads wait
 // and the CPU freezes without the L1D's own miss path. The CPU's stores feed
-// the signature.
+// the signature. The I/O port completes on a registered stimulus bit too,
+// with IN's data from the stimulus, and its requests feed the signature, and
+// so do INTR, NMI and INTA's answer, with INTA's requests.
 //
 // The reset state comes from the stimulus too, so CS's base and every
 // register stay variables as later far transfers will make them. Every
@@ -113,6 +115,21 @@ module spike_cpu (
         end
     end
 
+    logic             io_req, io_write, io_ack;
+    logic [15:0]      io_port;
+    logic [1:0]       io_size;
+    logic [31:0]      io_wdata, io_rdata;
+    logic             intr, nmi, inta_req, inta_ack;
+    logic [7:0]       inta_vector;
+    always_ff @(posedge clk) begin
+        io_ack <= |noise[378:376];
+        io_rdata <= noise[127:96];
+        intr <= &noise[381:379];
+        nmi <= &noise[384:382];
+        inta_ack <= |noise[387:385];
+        inta_vector <= noise[63:56];
+    end
+
     logic             trace_retire, trace_halt, trace_exception, trace_unimplemented, trace_issue, trace_md_wait;
     logic [7:0]       trace_vector;
     logic [7:0][31:0] arch_gpr;
@@ -123,14 +140,16 @@ module spike_cpu (
     fes_i386_cpu dut (
         .clk, .reset, .init_gpr, .init_eflags, .init_eip, .init_sel, .init_base, .init_limit, .init_ar,
         .mem_block, .mem_load, .mem_data, .mem_valid, .dmem_addr, .dmem_read, .dmem_rdata, .dmem_valid, .dmem_write, .dmem_waddr,
-        .dmem_wdata, .dmem_wmask, .trace_retire, .trace_halt, .trace_exception, .trace_vector,
+        .dmem_wdata, .dmem_wmask, .io_req, .io_write, .io_port, .io_size, .io_wdata, .io_ack, .io_rdata,
+        .intr, .nmi, .inta_req, .inta_ack, .inta_vector, .trace_retire, .trace_halt, .trace_exception, .trace_vector,
         .trace_unimplemented, .trace_issue, .trace_md_wait, .arch_gpr, .arch_eflags, .arch_eip, .arch_sel, .arch_base, .arch_limit, .arch_ar
     );
 
     logic [31:0] signature, observed;
     always_comb begin
         observed = arch_eflags ^ arch_eip ^ {20'b0, trace_retire, trace_halt, trace_exception, trace_unimplemented, trace_vector}
-                 ^ dmem_waddr ^ dmem_wdata[3:0] ^ dmem_wdata[7:4] ^ {23'b0, dmem_write, dmem_wmask};
+                 ^ dmem_waddr ^ dmem_wdata[3:0] ^ dmem_wdata[7:4] ^ {23'b0, dmem_write, dmem_wmask}
+                 ^ io_wdata ^ {io_port, 11'b0, inta_req, io_req, io_write, io_size};
         for (int n = 0; n < 8; n++) observed ^= arch_gpr[n];
         for (int n = 0; n < 6; n++) observed ^= arch_base[n] ^ arch_limit[n] ^ {arch_sel[n], arch_ar[n]};
     end
