@@ -100,17 +100,34 @@ DETAILS = {
     'fx68k': ('sources/misteross/cores/fes-common/rtl/fx68k/README.md', 'README'),
     'tv80': ('docs/core-alignment.md', 'alignment'),
 }
-TIER_SHORT = {
-    'firmware': 'Firmware',
-    'catalog-supported': '1',
-    'optional': '2',
-    'experimental': '3',
-    'demo': 'Demo',
-    'reference': 'Reference',
-    'bring-up': 'Bring-up',
-    'shared-rtl': 'Shared',
-    'planned': 'Planned',
+AS_OF = '2026-10-29'
+WINDOW_START = '2026-08-30'
+RECENT_CUTOFF = '2026-10-16'
+MEDIA_GENS = frozenset({'live', 'linked-rom', 'old', 'none', 'sim', 'diagnostic'})
+TIER_ROLES = frozenset({'firmware', 'shared', 'demo', 'reference', 'bring-up', 'play'})
+ROLE_TIER = {
+    'firmware': 'firmware',
+    'shared': 'shared',
+    'demo': 'demo',
+    'reference': 'reference',
+    'bring-up': 'bring-up',
 }
+
+
+def derive_tier(row: dict) -> str:
+    """Tier from role and signals. Catalog standing is not an input."""
+    role = row['tier_role']
+    if role in ROLE_TIER:
+        return ROLE_TIER[role]
+    rtl = (row.get('signals') or {}).get('last_rtl_change')
+    media = (row.get('signals') or {}).get('media_gen')
+    if media == 'old' and rtl and rtl >= RECENT_CUTOFF:
+        return 'unresolved'
+    if rtl and rtl >= RECENT_CUTOFF:
+        return 'current'
+    if rtl and rtl >= WINDOW_START:
+        return 'aging'
+    return 'stale'
 
 
 def load_json(root: Path):
@@ -152,17 +169,14 @@ def render(data: dict) -> str:
         '',
         '## Legend',
         '',
+        f'Tiers are derived from signals in the JSON (as of {AS_OF}). Catalog standing is recorded and is not a tier. Owned RTL is a commit that changes that core\'s `rtl/` and names the core, or that core holds at least half of the commit\'s RTL files. A one-file edit inside another core\'s commit does not count.',
+        '',
         '| Tier | Meaning |',
         '| --- | --- |',
-        '| Firmware | Boot or kit UI bitstream. `fes.menu` is the bootstrap package. Splash is the idle RBF. |',
-        '| 1 | Catalog standing `supported`. Not in the bootstrap image. |',
-        '| 2 | Optional recipe. Today only Atari ST. |',
-        '| 3 | Catalog standing `experimental`. |',
-        '| Demo | Catalog standing `demo`. Today only Catch. |',
-        '| Reference | Not a registered play package. |',
-        '| Bring-up | RTL and a diagnostic path, no recipe. |',
-        '| Shared | CPU RTL used by other cores. Not a board bitstream. |',
-        '| Planned | No row uses this tier. |',
+    ]
+    for tier in data['tiers']:
+        lines.append(f"| {cell(tier['label'])} | {cell(tier['meaning'])} |")
+    lines += [
         '',
         f'**DE10-Nano** (MiSTer, Cyclone V) **OSS** is Yosys + nextpnr-mistral, the installed toolchain. i386, pc386 and PC/XT are {QUARTUS_PRIMARY} ({POLICY_CITE}). nextpnr builds there are advisory; a miss is filed as a nextpnr issue, not a blocker. A dash means this row has no DE10-Nano bitstream. pc386 and i386 are Cyclone V spikes; Quartus is still their primary toolchain.',
         '',
@@ -172,15 +186,35 @@ def render(data: dict) -> str:
         '',
         f'ColecoVision still uses the old media handling and shows 0 titles. Updating it is low priority and is folded into the wider Coleco work, including Adam support ({POLICY_CITE}).',
         '',
+        'Atari ST is still the only optional recipe (`FES_SKIP_OPTIONAL_CORES`). That flag is not its tier.',
+        '',
         '## Cores',
         '',
         '| Core | Tier | DE10-Nano | DE25-Nano | Features | Details |',
         '| --- | --- | --- | --- | --- | --- |',
     ]
+    labels = {tier['id']: tier['label'] for tier in data['tiers']}
+    groups = {cid: group for group in data.get('display_groups') or [] for cid in group['ids']}
+    emitted = set()
     for row in data['cores']:
+        group = groups.get(row['id'])
+        if group:
+            if group['ids'][0] != row['id'] or row['id'] in emitted:
+                continue
+            emitted.add(row['id'])
+            members = [by for by in data['cores'] if by['id'] in group['ids']]
+            lines.append('| ' + ' | '.join((
+                cell(group['label']),
+                labels[members[0]['tier']],
+                de10_cell(members[0]),
+                'Quartus',
+                feature_union(group['ids']),
+                detail_cell(members[0]),
+            )) + ' |')
+            continue
         lines.append('| ' + ' | '.join((
-            cell(row['label']),
-            TIER_SHORT[row['tier']],
+            cell(row.get('display') or row['label']),
+            labels[row['tier']],
             de10_cell(row),
             'Quartus',
             HIGHLIGHTS[row['id']],
@@ -195,8 +229,22 @@ def render(data: dict) -> str:
     ]
     for item in data['unverified']:
         lines.append(f"- {item['where']} — {item['cell']}")
+    lines += ['', '## Needs Deano', '']
+    for item in data.get('needs_deano') or []:
+        lines.append(f"- {item}")
     lines.append('')
     return '\n'.join(lines)
+
+
+def feature_union(ids: list[str]) -> str:
+    order = ('tape', 'disk', 'cart', 'pad', 'keys', 'mouse', 'HDMI', 'sim')
+    words = set()
+    for core_id in ids:
+        for word in HIGHLIGHTS[core_id].split(', '):
+            if word != '—':
+                words.add(word)
+    chosen = [word for word in order if word in words]
+    return ', '.join(chosen) if chosen else '—'
 
 
 def _pins(path: Path) -> dict:
@@ -357,8 +405,56 @@ def validate(root: Path, data: dict) -> list[str]:
             'detail keys '
             f'missing {sorted(ids - set(DETAILS))} extra {sorted(set(DETAILS) - ids)}'
         )
-    if set(TIER_SHORT) != tier_ids:
-        errors.append('tier short labels do not match the tier list')
+    if {tier['id'] for tier in data['tiers']} != tier_ids:
+        errors.append('duplicate tier ids')
+    for row in rows:
+        if row.get('tier_role') not in TIER_ROLES:
+            errors.append(f"{row['id']} tier_role is missing or unknown")
+        sig = row.get('signals') or {}
+        if sig.get('as_of') != AS_OF or sig.get('window_start') != WINDOW_START or sig.get('recent_cutoff') != RECENT_CUTOFF:
+            errors.append(f"{row['id']} signal window does not match the checker")
+        if sig.get('media_gen') not in MEDIA_GENS:
+            errors.append(f"{row['id']} media_gen is missing or unknown")
+        if sig.get('catalog_weight') != 'weak':
+            errors.append(f"{row['id']} catalog standing must stay a weak signal")
+        if sig.get('catalog_standing') != row.get('library_standing'):
+            errors.append(f"{row['id']} catalog signal does not match library_standing")
+        expected = derive_tier(row)
+        if row.get('tier') != expected:
+            errors.append(f"{row['id']} tier {row.get('tier')} != derived {expected}")
+        flipped = dict(row)
+        flipped['library_standing'] = 'supported' if row.get('library_standing') != 'supported' else 'experimental'
+        flipped_sig = dict(sig)
+        flipped_sig['catalog_standing'] = flipped['library_standing']
+        flipped['signals'] = flipped_sig
+        if derive_tier(flipped) != expected:
+            errors.append(f"{row['id']} tier changes when catalog standing changes")
+        hil = sig.get('hil_note')
+        if hil and not (root / hil).is_file():
+            errors.append(f"{row['id']} hil note is missing: {hil}")
+        image_role = sig.get('image_role')
+        if row.get('in_bootstrap_image') and image_role != 'bootstrap':
+            errors.append(f"{row['id']} is in the bootstrap image but image_role is {image_role}")
+        if not row.get('in_bootstrap_image') and image_role == 'bootstrap':
+            errors.append(f"{row['id']} claims the bootstrap image")
+    seen_group = []
+    for group in data.get('display_groups') or []:
+        members = [by_id[cid] for cid in group['ids'] if cid in by_id]
+        if len(members) != len(group['ids']):
+            errors.append(f"display group {group.get('label')} names an unknown core")
+            continue
+        tiers = {member['tier'] for member in members}
+        boards = {de10_cell(member) for member in members}
+        if len(tiers) != 1 or len(boards) != 1:
+            errors.append(f"display group {group.get('label')} mixes tiers or DE10 cells")
+        for cid in group['ids']:
+            if cid in seen_group:
+                errors.append(f'{cid} is in two display groups')
+            seen_group.append(cid)
+            if not (by_id[cid].get('variant')):
+                errors.append(f'{cid} is grouped but has no variant name')
+            if by_id[cid].get('variant') not in group['label']:
+                errors.append(f"{cid} variant {by_id[cid].get('variant')} is not in the group label")
     for core_id, highlight in HIGHLIGHTS.items():
         if len(highlight) > 40 or '|' in highlight or '`' in highlight:
             errors.append(f'{core_id} highlight is not a short feature cell')

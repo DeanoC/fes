@@ -3,53 +3,53 @@
   "intro": [
     "This page is the board and toolchain matrix. It is taken from `config/core-recipes.toml`, `config/core-library.toml`, `profiles/native-integration-dev.toml`, the per-core `toolchain.lock` files, the misteross producers, and the docs those files point at. A cell that is not in those sources is marked unverified or TBD.",
     "The bootstrap image installs `fes.menu` and the pinned splash bitstream. Every playable core is a catalog install. Library standing `supported` is not a claim that the current bitstream has kit acceptance. Dated notes under `docs/validation/` accept only the artifact they name.",
-    "Tier 1 stays catalog `supported` (policy: Deano 2026-10-29). The tier names follow the tree. They do not use \"HIL-verified and shipped in the default image\" as Tier 1, because no playable core is in that image and kit notes do not move forward onto a new bitstream."
+    "Tiers are derived from owned RTL dates, kit notes, image role and media generation. Catalog standing is stored on each row as a weak signal and is not an input. As of 2026-10-29. The recent cutoff is 2026-10-16. The window starts 2026-08-30."
   ],
   "tiers": [
     {
       "id": "firmware",
       "label": "Firmware",
-      "meaning": "Board bitstream required by boot or the kit UI. `fes.menu` is the only package in the default image profile. Splash is the pinned idle RBF, not a play package."
+      "meaning": "Boot package or pinned idle RBF."
     },
     {
-      "id": "catalog-supported",
-      "label": "Tier 1 \u2014 Catalog supported",
-      "meaning": "`standing = supported` in `config/core-library.toml`, with a recipe row. Installed from the catalog. Not in the bootstrap image. This is the library's own word, not a current-byte hardware acceptance."
+      "id": "current",
+      "label": "Current",
+      "meaning": "Owned RTL on or after 2026-10-16, and media is not the old generation."
     },
     {
-      "id": "optional",
-      "label": "Tier 2 \u2014 Optional",
-      "meaning": "Recipe `optional = true`. Today only `fes.atari-st`. Its library standing is still `experimental`. The default profile does not select it. When a selection includes it, `FES_SKIP_OPTIONAL_CORES=1` or `FES_SKIP_CORES=fes.atari-st` skips place-and-route, and `FES_REQUIRE_ALL_CORES=1` makes the omission fail the build."
+      "id": "aging",
+      "label": "Aging",
+      "meaning": "Owned RTL in the 60-day window, before 2026-10-16."
     },
     {
-      "id": "experimental",
-      "label": "Tier 3 \u2014 Experimental",
-      "meaning": "`standing = experimental` in `config/core-library.toml`. Registered for `make core-dev` and the catalog. Not in the bootstrap image. Bring-up evidence, where it exists, is package-specific."
+      "id": "stale",
+      "label": "Stale",
+      "meaning": "No owned RTL in the 60-day window."
     },
     {
-      "id": "demo",
-      "label": "Demo",
-      "meaning": "`standing = demo` in `config/core-library.toml`. Today only `fes.catch`."
-    },
-    {
-      "id": "reference",
-      "label": "Reference",
-      "meaning": "A producer or simulation module exists and core docs say it is not a registered play package. No recipe row."
+      "id": "unresolved",
+      "label": "Unresolved",
+      "meaning": "Recent RTL and old media. The rule does not pick a tier."
     },
     {
       "id": "bring-up",
       "label": "Bring-up",
-      "meaning": "A core directory with RTL and a simulation or diagnostic route, and no recipe row. Not a catalog package."
+      "meaning": "No recipe. Diagnostic RTL or host simulation in progress."
     },
     {
-      "id": "shared-rtl",
-      "label": "Shared RTL",
-      "meaning": "A CPU other cores instantiate. Not a system package and not a board bitstream of its own."
+      "id": "shared",
+      "label": "Shared",
+      "meaning": "CPU RTL used by other cores. Not a system package."
     },
     {
-      "id": "planned",
-      "label": "Planned",
-      "meaning": "Named future work with no core directory. No row uses this tier. DE25-Nano is Quartus-only (policy); shell pending, not a core."
+      "id": "demo",
+      "label": "Demo",
+      "meaning": "Registered demo package, not a machine."
+    },
+    {
+      "id": "reference",
+      "label": "Reference",
+      "meaning": "Simulation module or non-play shell."
     }
   ],
   "policy": [
@@ -98,7 +98,29 @@
         "sources/misteross/AGENTS.md",
         "sources/misteross/cores/fes-menu/toolchain.lock",
         "sources/misteross/scripts/build_fes_menu_package.py"
-      ]
+      ],
+      "tier_role": "firmware",
+      "family": null,
+      "variant": null,
+      "signals": {
+        "as_of": "2026-10-29",
+        "window_start": "2026-08-30",
+        "recent_cutoff": "2026-10-16",
+        "catalog_weight": "weak",
+        "last_rtl_change": "2026-10-23",
+        "last_rtl_sha": "3e01a230b",
+        "last_rtl_subject": "menu blitter 1.1: EXPAND draws A8 coverage in a colour (#1015)",
+        "last_host_change": "2026-10-23",
+        "last_host_sha": "862ab6660",
+        "last_host_subject": "tenfoot: text as coverage masks, drawn by the blitter's EXPAND (#1024)",
+        "last_hil_pass": "2026-09-28",
+        "hil_note": "docs/validation/2026-09-28-native-menu-shell-kit.md",
+        "hil_scope": "kit note for the sealed menu package",
+        "open_issues": [],
+        "media_gen": "none",
+        "image_role": "bootstrap",
+        "catalog_standing": null
+      }
     },
     {
       "id": "splash",
@@ -129,12 +151,35 @@
         "sources/misteross/toolchain.lock",
         "sources/misteross/docs/cores.md"
       ],
-      "image_pin_path": "sealed/fes-splash.rbf"
+      "image_pin_path": "sealed/fes-splash.rbf",
+      "tier_role": "firmware",
+      "family": null,
+      "variant": null,
+      "display": "splash / idle",
+      "signals": {
+        "as_of": "2026-10-29",
+        "window_start": "2026-08-30",
+        "recent_cutoff": "2026-10-16",
+        "catalog_weight": "weak",
+        "last_rtl_change": "2026-09-22",
+        "last_rtl_sha": "0fc95bf61",
+        "last_rtl_subject": "fix(fes-splash): PLL lock-gate HDMI after reconfig",
+        "last_host_change": null,
+        "last_host_sha": null,
+        "last_host_subject": null,
+        "last_hil_pass": null,
+        "hil_note": null,
+        "hil_scope": null,
+        "open_issues": [],
+        "media_gen": "none",
+        "image_role": "idle",
+        "catalog_standing": null
+      }
     },
     {
       "id": "fes.pong",
       "label": "`fes.pong`",
-      "tier": "catalog-supported",
+      "tier": "stale",
       "covers": [
         "fes-pong"
       ],
@@ -169,7 +214,29 @@
         "sources/misteross/AGENTS.md",
         "sources/misteross/cores/fes-pong/toolchain.lock",
         "sources/misteross/scripts/build_fes_pong.py"
-      ]
+      ],
+      "tier_role": "play",
+      "family": null,
+      "variant": null,
+      "signals": {
+        "as_of": "2026-10-29",
+        "window_start": "2026-08-30",
+        "recent_cutoff": "2026-10-16",
+        "catalog_weight": "weak",
+        "last_rtl_change": null,
+        "last_rtl_sha": null,
+        "last_rtl_subject": null,
+        "last_host_change": "2026-10-11",
+        "last_host_sha": "242e136f5",
+        "last_host_subject": "Remove FogCast's retired Mega Drive/Pong/SNES/NES raw-RBF image lane",
+        "last_hil_pass": null,
+        "hil_note": null,
+        "hil_scope": null,
+        "open_issues": [],
+        "media_gen": "none",
+        "image_role": "none",
+        "catalog_standing": "supported"
+      }
     },
     {
       "id": "fes.catch",
@@ -210,12 +277,34 @@
         "sources/misteross/cores/fes-catch/toolchain.lock",
         "sources/misteross/scripts/build_fes_catch.py",
         "sources/misteross/cores/fes-demo/rtl/fes_catch_core.v"
-      ]
+      ],
+      "tier_role": "demo",
+      "family": null,
+      "variant": null,
+      "signals": {
+        "as_of": "2026-10-29",
+        "window_start": "2026-08-30",
+        "recent_cutoff": "2026-10-16",
+        "catalog_weight": "weak",
+        "last_rtl_change": null,
+        "last_rtl_sha": null,
+        "last_rtl_subject": null,
+        "last_host_change": null,
+        "last_host_sha": null,
+        "last_host_subject": null,
+        "last_hil_pass": null,
+        "hil_note": null,
+        "hil_scope": null,
+        "open_issues": [],
+        "media_gen": "none",
+        "image_role": "none",
+        "catalog_standing": "demo"
+      }
     },
     {
       "id": "fes.ramtest",
       "label": "`fes.ramtest`",
-      "tier": "catalog-supported",
+      "tier": "current",
       "covers": [
         "fes-ramtest"
       ],
@@ -251,12 +340,38 @@
         "sources/misteross/cores/fes-ramtest/toolchain.lock",
         "sources/misteross/scripts/build_fes_ramtest.py",
         "sources/misteross/scripts/build_fes_ramtest_quartus.py"
-      ]
+      ],
+      "tier_role": "play",
+      "family": null,
+      "variant": null,
+      "signals": {
+        "as_of": "2026-10-29",
+        "window_start": "2026-08-30",
+        "recent_cutoff": "2026-10-16",
+        "catalog_weight": "weak",
+        "last_rtl_change": "2026-10-25",
+        "last_rtl_sha": "b6f145b31",
+        "last_rtl_subject": "ramtest: measure HPS DDR and SDRAM read latency (Kit A idle and loaded) (#1076)",
+        "last_host_change": null,
+        "last_host_sha": null,
+        "last_host_subject": null,
+        "last_hil_pass": "2026-10-25",
+        "hil_note": "docs/validation/2026-10-25-hps-ddr-latency.md",
+        "hil_scope": "kit latency diagnostic, not play acceptance",
+        "open_issues": [
+          "#264",
+          "#529",
+          "#1083"
+        ],
+        "media_gen": "none",
+        "image_role": "none",
+        "catalog_standing": "supported"
+      }
     },
     {
       "id": "fes.zx81",
       "label": "`fes.zx81`",
-      "tier": "catalog-supported",
+      "tier": "current",
       "covers": [
         "fes-zx81"
       ],
@@ -292,12 +407,37 @@
         "sources/misteross/cores/fes-zx81/toolchain.lock",
         "sources/misteross/scripts/build_fes_zx81_oss.py",
         "sources/misteross/scripts/build_fes_zx81.py"
-      ]
+      ],
+      "tier_role": "play",
+      "family": "zx81",
+      "variant": "ZX81",
+      "signals": {
+        "as_of": "2026-10-29",
+        "window_start": "2026-08-30",
+        "recent_cutoff": "2026-10-16",
+        "catalog_weight": "weak",
+        "last_rtl_change": "2026-10-25",
+        "last_rtl_sha": "6442d2ec0",
+        "last_rtl_subject": "Support ZX81-family models (ZX80, TS1000, TS1500) (#1054)",
+        "last_host_change": "2026-10-25",
+        "last_host_sha": "6442d2ec0",
+        "last_host_subject": "Support ZX81-family models (ZX80, TS1000, TS1500) (#1054)",
+        "last_hil_pass": "2026-10-22",
+        "hil_note": "docs/validation/2026-10-22-spectrum-tape-ddr.md",
+        "hil_scope": "kit pass for fes.zx81, no tape; not image acceptance",
+        "open_issues": [
+          "#370",
+          "#1239"
+        ],
+        "media_gen": "live",
+        "image_role": "none",
+        "catalog_standing": "supported"
+      }
     },
     {
       "id": "fes.zx80",
       "label": "`fes.zx80`",
-      "tier": "experimental",
+      "tier": "current",
       "covers": [],
       "paths": [],
       "recipe": true,
@@ -330,12 +470,34 @@
         "sources/misteross/AGENTS.md",
         "sources/misteross/cores/fes-zx81/toolchain.lock",
         "sources/misteross/scripts/build_fes_zx81_oss.py"
-      ]
+      ],
+      "tier_role": "play",
+      "family": "zx81",
+      "variant": "ZX80",
+      "signals": {
+        "as_of": "2026-10-29",
+        "window_start": "2026-08-30",
+        "recent_cutoff": "2026-10-16",
+        "catalog_weight": "weak",
+        "last_rtl_change": "2026-10-25",
+        "last_rtl_sha": "6442d2ec0",
+        "last_rtl_subject": "Support ZX81-family models (ZX80, TS1000, TS1500) (#1054)",
+        "last_host_change": "2026-10-25",
+        "last_host_sha": "6442d2ec0",
+        "last_host_subject": "Support ZX81-family models (ZX80, TS1000, TS1500) (#1054)",
+        "last_hil_pass": null,
+        "hil_note": null,
+        "hil_scope": null,
+        "open_issues": [],
+        "media_gen": "live",
+        "image_role": "none",
+        "catalog_standing": "experimental"
+      }
     },
     {
       "id": "fes.ts1000",
       "label": "`fes.ts1000`",
-      "tier": "experimental",
+      "tier": "current",
       "covers": [],
       "paths": [],
       "recipe": true,
@@ -368,12 +530,34 @@
         "sources/misteross/AGENTS.md",
         "sources/misteross/cores/fes-zx81/toolchain.lock",
         "sources/misteross/scripts/build_fes_zx81_oss.py"
-      ]
+      ],
+      "tier_role": "play",
+      "family": "zx81",
+      "variant": "TS1000",
+      "signals": {
+        "as_of": "2026-10-29",
+        "window_start": "2026-08-30",
+        "recent_cutoff": "2026-10-16",
+        "catalog_weight": "weak",
+        "last_rtl_change": "2026-10-25",
+        "last_rtl_sha": "6442d2ec0",
+        "last_rtl_subject": "Support ZX81-family models (ZX80, TS1000, TS1500) (#1054)",
+        "last_host_change": "2026-10-25",
+        "last_host_sha": "6442d2ec0",
+        "last_host_subject": "Support ZX81-family models (ZX80, TS1000, TS1500) (#1054)",
+        "last_hil_pass": null,
+        "hil_note": null,
+        "hil_scope": null,
+        "open_issues": [],
+        "media_gen": "live",
+        "image_role": "none",
+        "catalog_standing": "experimental"
+      }
     },
     {
       "id": "fes.ts1500",
       "label": "`fes.ts1500`",
-      "tier": "experimental",
+      "tier": "current",
       "covers": [],
       "paths": [],
       "recipe": true,
@@ -406,12 +590,34 @@
         "sources/misteross/AGENTS.md",
         "sources/misteross/cores/fes-zx81/toolchain.lock",
         "sources/misteross/scripts/build_fes_zx81_oss.py"
-      ]
+      ],
+      "tier_role": "play",
+      "family": "zx81",
+      "variant": "TS1500",
+      "signals": {
+        "as_of": "2026-10-29",
+        "window_start": "2026-08-30",
+        "recent_cutoff": "2026-10-16",
+        "catalog_weight": "weak",
+        "last_rtl_change": "2026-10-25",
+        "last_rtl_sha": "6442d2ec0",
+        "last_rtl_subject": "Support ZX81-family models (ZX80, TS1000, TS1500) (#1054)",
+        "last_host_change": "2026-10-25",
+        "last_host_sha": "6442d2ec0",
+        "last_host_subject": "Support ZX81-family models (ZX80, TS1000, TS1500) (#1054)",
+        "last_hil_pass": null,
+        "hil_note": null,
+        "hil_scope": null,
+        "open_issues": [],
+        "media_gen": "live",
+        "image_role": "none",
+        "catalog_standing": "experimental"
+      }
     },
     {
       "id": "fes.coleco",
       "label": "`fes.coleco`",
-      "tier": "catalog-supported",
+      "tier": "unresolved",
       "covers": [
         "fes-coleco"
       ],
@@ -452,12 +658,38 @@
         "sources/FogCast/docs/ARCHITECTURE.md",
         "sources/FogCast/protocol/cartridge.go",
         "sources/FogCast/ui/rooms/examples/coleco-arcade/main.lua"
-      ]
+      ],
+      "tier_role": "play",
+      "family": "coleco",
+      "variant": null,
+      "signals": {
+        "as_of": "2026-10-29",
+        "window_start": "2026-08-30",
+        "recent_cutoff": "2026-10-16",
+        "catalog_weight": "weak",
+        "last_rtl_change": "2026-10-28",
+        "last_rtl_sha": "ba6a55240",
+        "last_rtl_subject": "Record rom_map_sha256 for format-4 packages; fix Coleco docs and comment (#1165)",
+        "last_host_change": "2026-10-29",
+        "last_host_sha": "73fcd1f79",
+        "last_host_subject": "Coleco cartridge swap from the media selector over play (#1034)",
+        "last_hil_pass": null,
+        "hil_note": null,
+        "hil_scope": null,
+        "open_issues": [
+          "#1216",
+          "#701",
+          "#695"
+        ],
+        "media_gen": "old",
+        "image_role": "none",
+        "catalog_standing": "supported"
+      }
     },
     {
       "id": "fes.sms",
       "label": "`fes.sms`",
-      "tier": "catalog-supported",
+      "tier": "aging",
       "covers": [
         "fes-sms"
       ],
@@ -492,12 +724,34 @@
         "sources/misteross/AGENTS.md",
         "sources/misteross/cores/fes-sms/toolchain.lock",
         "sources/misteross/scripts/build_fes_sms_oss.py"
-      ]
+      ],
+      "tier_role": "play",
+      "family": null,
+      "variant": null,
+      "signals": {
+        "as_of": "2026-10-29",
+        "window_start": "2026-08-30",
+        "recent_cutoff": "2026-10-16",
+        "catalog_weight": "weak",
+        "last_rtl_change": "2026-10-06",
+        "last_rtl_sha": "162e91d35",
+        "last_rtl_subject": "SMS: synchronous cartridge M10K lanes (no async M10K) (#545)",
+        "last_host_change": "2026-10-13",
+        "last_host_sha": "17afa0c4d",
+        "last_host_subject": "Retry a cancelled SMS digest fill on the next catalog load (#689)",
+        "last_hil_pass": "2026-09-29",
+        "hil_note": "docs/validation/2026-09-29-sms-shared-audio-hil.md",
+        "hil_scope": "kit diagnostic of one 32 KiB ROM; not commercial games",
+        "open_issues": [],
+        "media_gen": "linked-rom",
+        "image_role": "none",
+        "catalog_standing": "supported"
+      }
     },
     {
       "id": "fes.sg1000",
       "label": "`fes.sg1000`",
-      "tier": "catalog-supported",
+      "tier": "aging",
       "covers": [
         "fes-sg1000"
       ],
@@ -532,12 +786,37 @@
         "sources/misteross/AGENTS.md",
         "sources/misteross/cores/fes-sg1000/toolchain.lock",
         "sources/misteross/scripts/build_fes_sg1000_oss.py"
-      ]
+      ],
+      "tier_role": "play",
+      "family": null,
+      "variant": null,
+      "signals": {
+        "as_of": "2026-10-29",
+        "window_start": "2026-08-30",
+        "recent_cutoff": "2026-10-16",
+        "catalog_weight": "weak",
+        "last_rtl_change": "2026-10-06",
+        "last_rtl_sha": "3afe947c7",
+        "last_rtl_subject": "SG-1000: synchronous cartridge M10K lanes (no async M10K) (#546)",
+        "last_host_change": "2026-10-03",
+        "last_host_sha": "d1965db1f",
+        "last_host_subject": "FogCast: kit-local pad drives SMS/Coleco/SG-1000 keyboard joystick matrix (#172) (#453)",
+        "last_hil_pass": "2026-09-29",
+        "hil_note": "docs/validation/2026-09-29-sg1000-shared-audio-hil.md",
+        "hil_scope": "kit diagnostic of one 16 KiB ROM; not commercial games",
+        "open_issues": [
+          "#495",
+          "#477"
+        ],
+        "media_gen": "linked-rom",
+        "image_role": "none",
+        "catalog_standing": "supported"
+      }
     },
     {
       "id": "fes.apple2",
       "label": "`fes.apple2`",
-      "tier": "experimental",
+      "tier": "aging",
       "covers": [
         "fes-apple2"
       ],
@@ -575,12 +854,36 @@
         "sources/misteross/cores/fes-apple2/toolchain.lock",
         "sources/misteross/scripts/build_fes_apple2_oss.py",
         "sources/misteross/cores/fes-common/rtl/cpu6502/README.md"
-      ]
+      ],
+      "tier_role": "play",
+      "family": null,
+      "variant": null,
+      "signals": {
+        "as_of": "2026-10-29",
+        "window_start": "2026-08-30",
+        "recent_cutoff": "2026-10-16",
+        "catalog_weight": "weak",
+        "last_rtl_change": "2026-10-06",
+        "last_rtl_sha": "03b040d02",
+        "last_rtl_subject": "Apple II: synchronous firmware and font M10Ks (no async M10K) (#549)",
+        "last_host_change": null,
+        "last_host_sha": null,
+        "last_host_subject": null,
+        "last_hil_pass": "2026-09-27",
+        "hil_note": "docs/validation/2026-09-27-apple2-kit-diagnostic.md",
+        "hil_scope": "kit diagnostic with linked firmware and a live disk; not image acceptance",
+        "open_issues": [
+          "#773"
+        ],
+        "media_gen": "live",
+        "image_role": "none",
+        "catalog_standing": "experimental"
+      }
     },
     {
       "id": "fes.c64",
       "label": "`fes.c64`",
-      "tier": "experimental",
+      "tier": "current",
       "covers": [
         "fes-c64"
       ],
@@ -617,12 +920,39 @@
         "sources/misteross/cores/fes-c64/README.md",
         "sources/misteross/scripts/build_fes_c64_oss.py",
         "sources/misteross/cores/fes-c64/rtl/top.v"
-      ]
+      ],
+      "tier_role": "play",
+      "family": "c64",
+      "variant": "PAL",
+      "display": "C64 (PAL)",
+      "signals": {
+        "as_of": "2026-10-29",
+        "window_start": "2026-08-30",
+        "recent_cutoff": "2026-10-16",
+        "catalog_weight": "weak",
+        "last_rtl_change": "2026-10-23",
+        "last_rtl_sha": "4c3562c1d",
+        "last_rtl_subject": "c64: support in-session disk selection through the shared display plane (#1032)",
+        "last_host_change": "2026-10-25",
+        "last_host_sha": "045cbc707",
+        "last_host_subject": "Add a Commodore 64 setup room (#1052)",
+        "last_hil_pass": "2026-10-25",
+        "hil_note": "docs/validation/2026-10-24-c64-hps-ddr-reseal.md",
+        "hil_scope": "kit A BASIC screen on the resealed package; not image acceptance",
+        "open_issues": [
+          "#750",
+          "#775",
+          "#804"
+        ],
+        "media_gen": "live",
+        "image_role": "none",
+        "catalog_standing": "experimental"
+      }
     },
     {
       "id": "fes.spectrum",
       "label": "`fes.spectrum`",
-      "tier": "experimental",
+      "tier": "current",
       "covers": [
         "fes-spectrum"
       ],
@@ -657,12 +987,38 @@
         "sources/misteross/AGENTS.md",
         "sources/misteross/cores/fes-spectrum/toolchain.lock",
         "sources/misteross/scripts/build_fes_spectrum_oss.py"
-      ]
+      ],
+      "tier_role": "play",
+      "family": "spectrum",
+      "variant": "48K",
+      "signals": {
+        "as_of": "2026-10-29",
+        "window_start": "2026-08-30",
+        "recent_cutoff": "2026-10-16",
+        "catalog_weight": "weak",
+        "last_rtl_change": "2026-10-27",
+        "last_rtl_sha": "b6037daf8",
+        "last_rtl_subject": "Spectrum: load .z80 and .sna snapshots through the cassette unit (#1093)",
+        "last_host_change": "2026-10-27",
+        "last_host_sha": "b6037daf8",
+        "last_host_subject": "Spectrum: load .z80 and .sna snapshots through the cassette unit (#1093)",
+        "last_hil_pass": "2026-10-26",
+        "hil_note": "docs/validation/2026-10-26-spectrum-turbo-loading.md",
+        "hil_scope": "kit PASS of the four models; not image acceptance",
+        "open_issues": [
+          "#1128",
+          "#999",
+          "#603"
+        ],
+        "media_gen": "live",
+        "image_role": "none",
+        "catalog_standing": "experimental"
+      }
     },
     {
       "id": "fes.spectrum128",
       "label": "`fes.spectrum128`",
-      "tier": "experimental",
+      "tier": "current",
       "covers": [],
       "paths": [],
       "recipe": true,
@@ -695,12 +1051,36 @@
         "sources/misteross/AGENTS.md",
         "sources/misteross/cores/fes-spectrum/toolchain.lock",
         "sources/misteross/scripts/build_fes_spectrum_oss.py"
-      ]
+      ],
+      "tier_role": "play",
+      "family": "spectrum",
+      "variant": "128K",
+      "signals": {
+        "as_of": "2026-10-29",
+        "window_start": "2026-08-30",
+        "recent_cutoff": "2026-10-16",
+        "catalog_weight": "weak",
+        "last_rtl_change": "2026-10-27",
+        "last_rtl_sha": "b6037daf8",
+        "last_rtl_subject": "Spectrum: load .z80 and .sna snapshots through the cassette unit (#1093)",
+        "last_host_change": "2026-10-27",
+        "last_host_sha": "b6037daf8",
+        "last_host_subject": "Spectrum: load .z80 and .sna snapshots through the cassette unit (#1093)",
+        "last_hil_pass": "2026-10-26",
+        "hil_note": "docs/validation/2026-10-26-spectrum-turbo-loading.md",
+        "hil_scope": "kit PASS of the four models; not image acceptance",
+        "open_issues": [
+          "#1128"
+        ],
+        "media_gen": "live",
+        "image_role": "none",
+        "catalog_standing": "experimental"
+      }
     },
     {
       "id": "fes.spectrum-plus3",
       "label": "`fes.spectrum-plus3`",
-      "tier": "experimental",
+      "tier": "current",
       "covers": [],
       "paths": [],
       "recipe": true,
@@ -733,12 +1113,36 @@
         "sources/misteross/AGENTS.md",
         "sources/misteross/cores/fes-spectrum/toolchain.lock",
         "sources/misteross/scripts/build_fes_spectrum_oss.py"
-      ]
+      ],
+      "tier_role": "play",
+      "family": "spectrum",
+      "variant": "+2A/+3",
+      "signals": {
+        "as_of": "2026-10-29",
+        "window_start": "2026-08-30",
+        "recent_cutoff": "2026-10-16",
+        "catalog_weight": "weak",
+        "last_rtl_change": "2026-10-27",
+        "last_rtl_sha": "b6037daf8",
+        "last_rtl_subject": "Spectrum: load .z80 and .sna snapshots through the cassette unit (#1093)",
+        "last_host_change": "2026-10-27",
+        "last_host_sha": "b6037daf8",
+        "last_host_subject": "Spectrum: load .z80 and .sna snapshots through the cassette unit (#1093)",
+        "last_hil_pass": "2026-10-26",
+        "hil_note": "docs/validation/2026-10-26-spectrum-turbo-loading.md",
+        "hil_scope": "kit PASS, including Bubble Bobble on +2A/+3; not image acceptance",
+        "open_issues": [
+          "#1128"
+        ],
+        "media_gen": "live",
+        "image_role": "none",
+        "catalog_standing": "experimental"
+      }
     },
     {
       "id": "fes.pentagon",
       "label": "`fes.pentagon`",
-      "tier": "experimental",
+      "tier": "current",
       "covers": [],
       "paths": [],
       "recipe": true,
@@ -771,12 +1175,36 @@
         "sources/misteross/AGENTS.md",
         "sources/misteross/cores/fes-spectrum/toolchain.lock",
         "sources/misteross/scripts/build_fes_spectrum_oss.py"
-      ]
+      ],
+      "tier_role": "play",
+      "family": "spectrum",
+      "variant": "Pentagon",
+      "signals": {
+        "as_of": "2026-10-29",
+        "window_start": "2026-08-30",
+        "recent_cutoff": "2026-10-16",
+        "catalog_weight": "weak",
+        "last_rtl_change": "2026-10-27",
+        "last_rtl_sha": "b6037daf8",
+        "last_rtl_subject": "Spectrum: load .z80 and .sna snapshots through the cassette unit (#1093)",
+        "last_host_change": "2026-10-27",
+        "last_host_sha": "b6037daf8",
+        "last_host_subject": "Spectrum: load .z80 and .sna snapshots through the cassette unit (#1093)",
+        "last_hil_pass": "2026-10-26",
+        "hil_note": "docs/validation/2026-10-26-spectrum-turbo-loading.md",
+        "hil_scope": "kit PASS, tetris.trd booted; not image acceptance",
+        "open_issues": [
+          "#1128"
+        ],
+        "media_gen": "live",
+        "image_role": "none",
+        "catalog_standing": "experimental"
+      }
     },
     {
       "id": "fes.atari-st",
       "label": "`fes.atari-st`",
-      "tier": "optional",
+      "tier": "current",
       "covers": [
         "fes-atari-st"
       ],
@@ -815,12 +1243,38 @@
         "sources/misteross/scripts/build_fes_atari_st_oss.py",
         "sources/misteross/cores/fes-common/rtl/fx68k/README.md",
         "tests/test_optional_cores.py"
-      ]
+      ],
+      "tier_role": "play",
+      "family": "atari-st",
+      "variant": "520ST",
+      "display": "Atari ST (520ST)",
+      "signals": {
+        "as_of": "2026-10-29",
+        "window_start": "2026-08-30",
+        "recent_cutoff": "2026-10-16",
+        "catalog_weight": "weak",
+        "last_rtl_change": "2026-10-23",
+        "last_rtl_sha": "a0ed6ecb6",
+        "last_rtl_subject": "atari-st: take M10K outputs off the pixel consume and frame read paths (#952)",
+        "last_host_change": "2026-10-24",
+        "last_host_sha": "4bd64a993",
+        "last_host_subject": "Create a blank formatted Atari ST disk from the library (#1043)",
+        "last_hil_pass": "2026-10-10",
+        "hil_note": "docs/validation/2026-10-10-atari-st-ram-latency.md",
+        "hil_scope": "Kit A exercise of that date's package; not the 2026-10-23 RTL",
+        "open_issues": [
+          "#489",
+          "#707"
+        ],
+        "media_gen": "live",
+        "image_role": "none",
+        "catalog_standing": "experimental"
+      }
     },
     {
       "id": "fes.riscv",
       "label": "`fes.riscv`",
-      "tier": "experimental",
+      "tier": "aging",
       "covers": [
         "fes-riscv"
       ],
@@ -858,7 +1312,29 @@
         "sources/misteross/cores/fes-riscv/toolchain.lock",
         "sources/misteross/scripts/build_fes_riscv.py",
         "sources/misteross/cores/fes-common/rtl/riscv/README.md"
-      ]
+      ],
+      "tier_role": "play",
+      "family": null,
+      "variant": null,
+      "signals": {
+        "as_of": "2026-10-29",
+        "window_start": "2026-08-30",
+        "recent_cutoff": "2026-10-16",
+        "catalog_weight": "weak",
+        "last_rtl_change": "2026-10-05",
+        "last_rtl_sha": "71d8ce600",
+        "last_rtl_subject": "Add an original RV32I CPU and the fes.riscv package on the HIP nextpnr lane (#525)",
+        "last_host_change": null,
+        "last_host_sha": null,
+        "last_host_subject": null,
+        "last_hil_pass": "2026-10-04",
+        "hil_note": "docs/validation/2026-10-04-riscv-kit-a.md",
+        "hil_scope": "kit A development load; not image acceptance",
+        "open_issues": [],
+        "media_gen": "none",
+        "image_role": "none",
+        "catalog_standing": "experimental"
+      }
     },
     {
       "id": "fes.demo",
@@ -888,7 +1364,29 @@
         "sources/misteross/toolchain.lock",
         "docs/core-status.md",
         "docs/display-pipeline.md"
-      ]
+      ],
+      "tier_role": "reference",
+      "family": null,
+      "variant": null,
+      "signals": {
+        "as_of": "2026-10-29",
+        "window_start": "2026-08-30",
+        "recent_cutoff": "2026-10-16",
+        "catalog_weight": "weak",
+        "last_rtl_change": "2026-09-21",
+        "last_rtl_sha": "cbb6299ec",
+        "last_rtl_subject": "Add original Catch application through shared core developer workflow",
+        "last_host_change": null,
+        "last_host_sha": null,
+        "last_host_subject": null,
+        "last_hil_pass": null,
+        "hil_note": null,
+        "hil_scope": null,
+        "open_issues": [],
+        "media_gen": "none",
+        "image_role": "none",
+        "catalog_standing": null
+      }
     },
     {
       "id": "sim.pong",
@@ -911,7 +1409,29 @@
         "sources/misteross/docs/cores.md",
         "sources/misteross/cores/pong/rtl/pong_game.sv"
       ],
-      "oss_note": "No toolchain lock. This directory is not a bitstream."
+      "oss_note": "No toolchain lock. This directory is not a bitstream.",
+      "tier_role": "reference",
+      "family": null,
+      "variant": null,
+      "signals": {
+        "as_of": "2026-10-29",
+        "window_start": "2026-08-30",
+        "recent_cutoff": "2026-10-16",
+        "catalog_weight": "weak",
+        "last_rtl_change": null,
+        "last_rtl_sha": null,
+        "last_rtl_subject": null,
+        "last_host_change": null,
+        "last_host_sha": null,
+        "last_host_subject": null,
+        "last_hil_pass": null,
+        "hil_note": null,
+        "hil_scope": null,
+        "open_issues": [],
+        "media_gen": "none",
+        "image_role": "none",
+        "catalog_standing": null
+      }
     },
     {
       "id": "fes.pcxt",
@@ -942,7 +1462,33 @@
         "sources/misteross/scripts/build_fes_pcxt.py",
         "sources/misteross/docs/cores.md",
         "docs/design/quartus-cores.md"
-      ]
+      ],
+      "tier_role": "bring-up",
+      "family": "pc",
+      "variant": "XT",
+      "display": "PC/XT",
+      "signals": {
+        "as_of": "2026-10-29",
+        "window_start": "2026-08-30",
+        "recent_cutoff": "2026-10-16",
+        "catalog_weight": "weak",
+        "last_rtl_change": "2026-10-21",
+        "last_rtl_sha": "e9ece2993",
+        "last_rtl_subject": "PC/XT: assemble SDRAM and ISA graphics in a diagnostic board shell (#836)",
+        "last_host_change": null,
+        "last_host_sha": null,
+        "last_host_subject": null,
+        "last_hil_pass": null,
+        "hil_note": null,
+        "hil_scope": null,
+        "open_issues": [
+          "#840",
+          "#835"
+        ],
+        "media_gen": "diagnostic",
+        "image_role": "none",
+        "catalog_standing": null
+      }
     },
     {
       "id": "fes.pc386",
@@ -973,12 +1519,39 @@
         "sources/misteross/docs/pc386-machine-design.md",
         "sources/misteross/cores/fes-common/rtl/i386/toolchain.lock",
         "docs/design/quartus-cores.md"
-      ]
+      ],
+      "tier_role": "bring-up",
+      "family": "pc",
+      "variant": "386",
+      "display": "pc386",
+      "signals": {
+        "as_of": "2026-10-29",
+        "window_start": "2026-08-30",
+        "recent_cutoff": "2026-10-16",
+        "catalog_weight": "weak",
+        "last_rtl_change": "2026-10-27",
+        "last_rtl_sha": "6742286b5",
+        "last_rtl_subject": "pc386 M3: PC speaker, OPL2 import, Sound Blaster 2.0 DSP and mixer in simulation (#1147)",
+        "last_host_change": null,
+        "last_host_sha": null,
+        "last_host_subject": null,
+        "last_hil_pass": null,
+        "hil_note": null,
+        "hil_scope": null,
+        "open_issues": [
+          "#1246",
+          "#1224",
+          "#1152"
+        ],
+        "media_gen": "sim",
+        "image_role": "none",
+        "catalog_standing": null
+      }
     },
     {
       "id": "i386",
       "label": "`fes_i386_cpu`",
-      "tier": "shared-rtl",
+      "tier": "shared",
       "covers": [],
       "paths": [
         "sources/misteross/cores/fes-common/rtl/i386"
@@ -1004,12 +1577,34 @@
         "sources/misteross/scripts/quartus_fes_i386.py",
         "sources/misteross/docs/validation/2026-10-26-i386-far.md",
         "docs/design/quartus-cores.md"
-      ]
+      ],
+      "tier_role": "shared",
+      "family": "pc",
+      "variant": null,
+      "signals": {
+        "as_of": "2026-10-29",
+        "window_start": "2026-08-30",
+        "recent_cutoff": "2026-10-16",
+        "catalog_weight": "weak",
+        "last_rtl_change": "2026-10-29",
+        "last_rtl_sha": "26f08da32",
+        "last_rtl_subject": "i386 Phase 1: INTR, NMI, the interrupt shadow and HLT wake (#1174)",
+        "last_host_change": null,
+        "last_host_sha": null,
+        "last_host_subject": null,
+        "last_hil_pass": null,
+        "hil_note": null,
+        "hil_scope": null,
+        "open_issues": [],
+        "media_gen": "none",
+        "image_role": "none",
+        "catalog_standing": null
+      }
     },
     {
       "id": "z80",
       "label": "`fes_z80_nmos` / `fes_z80_fast`",
-      "tier": "shared-rtl",
+      "tier": "shared",
       "covers": [],
       "paths": [
         "sources/misteross/cores/fes-common/rtl/z80"
@@ -1027,12 +1622,34 @@
         "sources/misteross/cores/fes-common/rtl/z80/README.md",
         "docs/core-alignment.md"
       ],
-      "oss_note": "No bitstream and no toolchain lock of its own."
+      "oss_note": "No bitstream and no toolchain lock of its own.",
+      "tier_role": "shared",
+      "family": null,
+      "variant": null,
+      "signals": {
+        "as_of": "2026-10-29",
+        "window_start": "2026-08-30",
+        "recent_cutoff": "2026-10-16",
+        "catalog_weight": "weak",
+        "last_rtl_change": "2026-10-24",
+        "last_rtl_sha": "e93b15b24",
+        "last_rtl_subject": "Spectrum tapes of any length from HPS DDR (#1001); Z80 RTL changed in that commit",
+        "last_host_change": null,
+        "last_host_sha": null,
+        "last_host_subject": null,
+        "last_hil_pass": null,
+        "hil_note": null,
+        "hil_scope": null,
+        "open_issues": [],
+        "media_gen": "none",
+        "image_role": "none",
+        "catalog_standing": null
+      }
     },
     {
       "id": "cpu6502",
       "label": "`cpu6502`",
-      "tier": "shared-rtl",
+      "tier": "shared",
       "covers": [],
       "paths": [
         "sources/misteross/cores/fes-common/rtl/cpu6502"
@@ -1050,12 +1667,34 @@
         "sources/misteross/cores/fes-common/rtl/cpu6502/README.md",
         "docs/core-alignment.md"
       ],
-      "oss_note": "No bitstream and no toolchain lock of its own."
+      "oss_note": "No bitstream and no toolchain lock of its own.",
+      "tier_role": "shared",
+      "family": null,
+      "variant": null,
+      "signals": {
+        "as_of": "2026-10-29",
+        "window_start": "2026-08-30",
+        "recent_cutoff": "2026-10-16",
+        "catalog_weight": "weak",
+        "last_rtl_change": "2026-10-21",
+        "last_rtl_sha": "8eff4a0f3",
+        "last_rtl_subject": "C64: improve demo fidelity, native 1541 and MOS6581 audio (#714); cpu6502 changed in that commit",
+        "last_host_change": null,
+        "last_host_sha": null,
+        "last_host_subject": null,
+        "last_hil_pass": null,
+        "hil_note": null,
+        "hil_scope": null,
+        "open_issues": [],
+        "media_gen": "none",
+        "image_role": "none",
+        "catalog_standing": null
+      }
     },
     {
       "id": "fx68k",
       "label": "`fx68k`",
-      "tier": "shared-rtl",
+      "tier": "shared",
       "covers": [],
       "paths": [
         "sources/misteross/cores/fes-common/rtl/fx68k"
@@ -1073,12 +1712,34 @@
         "sources/misteross/cores/fes-common/rtl/fx68k/README.md",
         "docs/core-alignment.md"
       ],
-      "oss_note": "No bitstream and no toolchain lock of its own."
+      "oss_note": "No bitstream and no toolchain lock of its own.",
+      "tier_role": "shared",
+      "family": "atari-st",
+      "variant": null,
+      "signals": {
+        "as_of": "2026-10-29",
+        "window_start": "2026-08-30",
+        "recent_cutoff": "2026-10-16",
+        "catalog_weight": "weak",
+        "last_rtl_change": "2026-10-03",
+        "last_rtl_sha": "51167005c",
+        "last_rtl_subject": "Add Atari 520ST motherboard, SDRAM and pluggable interfaces (#483)",
+        "last_host_change": null,
+        "last_host_sha": null,
+        "last_host_subject": null,
+        "last_hil_pass": null,
+        "hil_note": null,
+        "hil_scope": null,
+        "open_issues": [],
+        "media_gen": "none",
+        "image_role": "none",
+        "catalog_standing": null
+      }
     },
     {
       "id": "tv80",
       "label": "TV80",
-      "tier": "shared-rtl",
+      "tier": "shared",
       "covers": [],
       "paths": [
         "sources/misteross/cores/fes-common/rtl/tv80"
@@ -1097,7 +1758,29 @@
         "sources/misteross/cores/fes-common/rtl/tv80/tv80_core.v",
         "docs/core-alignment.md"
       ],
-      "oss_note": "No bitstream and no toolchain lock of its own."
+      "oss_note": "No bitstream and no toolchain lock of its own.",
+      "tier_role": "shared",
+      "family": null,
+      "variant": null,
+      "signals": {
+        "as_of": "2026-10-29",
+        "window_start": "2026-08-30",
+        "recent_cutoff": "2026-10-16",
+        "catalog_weight": "weak",
+        "last_rtl_change": null,
+        "last_rtl_sha": null,
+        "last_rtl_subject": null,
+        "last_host_change": null,
+        "last_host_sha": null,
+        "last_host_subject": null,
+        "last_hil_pass": null,
+        "hil_note": null,
+        "hil_scope": null,
+        "open_issues": [],
+        "media_gen": "none",
+        "image_role": "none",
+        "catalog_standing": null
+      }
     }
   ],
   "unverified": [
@@ -1125,6 +1808,52 @@
       "where": "Catalog-supported and experimental rows",
       "cell": "Current-byte kit acceptance",
       "detail": "Core status and the validation notes bind acceptance to named packages. This matrix does not copy those package ids forward. Which rows Deano wants marked HIL-verified for the bytes in the tree is open."
+    }
+  ],
+  "tier_rules": [
+    "As of 2026-10-29. Window 2026-08-30 through that day. Recent cutoff 2026-10-16.",
+    "Owned RTL: a commit that changes that core's rtl/ and whose subject names the core, or where that core holds at least half of the commit's RTL paths and at least two files. A one-file edit inside another core's commit is not owned RTL.",
+    "Catalog standing is recorded and is not read by the tier rule.",
+    "firmware, shared, demo, reference and bring-up come from tier_role, not from dates.",
+    "A play row with media_gen old and owned RTL on or after the recent cutoff is unresolved.",
+    "Otherwise a play row is current when owned RTL is on or after the cutoff, aging when owned RTL is in the window before the cutoff, and stale when it has none.",
+    "last_hil_pass is a designated-kit note. It does not by itself set the tier. A host seal or a simulation PASS is not a kit pass."
+  ],
+  "needs_deano": [
+    "Coleco is unresolved: owned RTL 2026-10-28 (#1165) and a host cartridge swap 2026-10-29 (#1034), while media_gen is old (0 titles, low priority, #1216). The rule does not pick current or aging.",
+    "SMS and SG-1000 catalog standing is supported. Tier aging uses owned RTL on 2026-10-06 and kit diagnostics on 2026-09-29. The catalog flag was not used.",
+    "Pong catalog standing is supported. No owned RTL in the 60-day window, so the tier is stale. The catalog flag was not used.",
+    "Atari ST kit note is 2026-10-10. Owned RTL is 2026-10-23 (#952). No kit PASS of that later bitstream was found.",
+    "Spectrum kit PASS is 2026-10-26. Owned RTL 2026-10-27 (#1093 snapshots) is not in that PASS.",
+    "No separate Spectrum +2 package was found. fes.spectrum-plus3 is +2A/+3.",
+    "The C64 package is PAL 6569 only. The C64 README says NTSC is unqualified. No NTSC row was added.",
+    "The Atari README says STE is outside the 520ST scope. No STE row was added.",
+    "ZX80, TS1000 and TS1500 share the ZX81 shell. Kit notes name fes.zx81 (2026-10-22), not those three. The 2026-10-25 model commit is after that note.",
+    "Apple II kit diagnostic is 2026-09-27. Owned RTL is 2026-10-06 (#549). No later kit note was found.",
+    "Open issues on each row are title matches, not a full blocker audit.",
+    "Coleco last_hil_pass is empty. Notes on 2026-10-02 and 2026-10-16 mention the package and do not read as a machine PASS."
+  ],
+  "display_groups": [
+    {
+      "label": "Spectrum (48K, 128K, +2A/+3, Pentagon)",
+      "ids": [
+        "fes.spectrum",
+        "fes.spectrum128",
+        "fes.spectrum-plus3",
+        "fes.pentagon"
+      ],
+      "not_in_tree": [
+        "+2 (grey, distinct from +2A/+3)"
+      ]
+    },
+    {
+      "label": "ZX81 (ZX81, ZX80, TS1000, TS1500)",
+      "ids": [
+        "fes.zx81",
+        "fes.zx80",
+        "fes.ts1000",
+        "fes.ts1500"
+      ]
     }
   ]
 }
