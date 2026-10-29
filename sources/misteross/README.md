@@ -86,7 +86,7 @@ normal Quartus diagnostic package, with authenticated tool/source identity,
 three timing seeds and an independent byte-identical rebuild under
 `build/fes-pcxt-quartus/`. The [core README](cores/fes-pcxt/README.md) describes
 tool selection and the separate advisory nextpnr diagnostic. The exact package
-in the [Kit A record](../../docs/validation/2026-10-29-pcxt-quartus-package/result.json)
+in the [reviewed Kit A record](../../docs/validation/2026-10-29-pcxt-quartus-package/review-followup.json)
 passes the static picture/completion-block and launch/Stop checks. External
 SDRAM/HDMI timing, whole-board qualification, physically linkable ISA sockets
 and BIOS/DOS/game compatibility remain open.

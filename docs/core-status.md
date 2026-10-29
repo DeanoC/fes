@@ -295,12 +295,14 @@ mailbox and fixed CGA Direct video. The registered package producer uses Quartus
 74.25 MHz CGA Direct video and a visible firmware-completion block. All declared
 seeds must pass reported internal timing; the first seed must reproduce its RBF.
 Nextpnr remains advisory under [#840](https://github.com/DeanoC/fes/issues/840).
-The package does not establish external SDRAM/HDMI/HPS/reset qualification,
-physical socket containment or exact-artifact hardware acceptance.
-The [29 October Quartus package diagnostic](validation/2026-10-29-pcxt-quartus-package/result.json)
-passes three seeds and a byte-identical independent rebuild at producer `d0745b0c2c`.
-Kit A accepts package `00d06ddc1866e901` through normal import/launch/Stop:
-three captures match the static stripes and final firmware-completion block.
+Build success does not establish external SDRAM/HDMI/HPS/reset qualification
+or physical socket containment; hardware acceptance needs its own dated run.
+The [reviewed 29 October Quartus diagnostic](validation/2026-10-29-pcxt-quartus-package/review-followup.json)
+passes three seeds and a byte-identical independent rebuild at producer `38ef151bfa`.
+Independent review found four package/acceptance defects, now fixed and re-reviewed.
+Kit A accepts package `9d46fefc49f516b2` through normal import/launch/Stop in a
+private host HOME/catalog: three captures match the static stripes and all eight
+firmware-completion scanlines.
 The baseline image/bundle are retained and the kit is idle/lease-free.
 BIOS/DOS/game compatibility, keyboard and other profiles remain open. See the
 [PC/XT diagnostic guide](../sources/misteross/cores/fes-pcxt/README.md#assembled-board-diagnostic).

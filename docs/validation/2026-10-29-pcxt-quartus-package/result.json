@@ -429,5 +429,6 @@
     "physical reset/PLL relock/pulse/MTBF qualification",
     "independent review",
     "BIOS, DOS, keyboard and disks remain outside this diagnostic"
-  ]
+  ],
+  "superseded_by": "review-followup.json"
 }
