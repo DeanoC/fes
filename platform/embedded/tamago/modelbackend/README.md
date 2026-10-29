@@ -79,3 +79,8 @@ frame across admission, submit a stale Stop after relaunch, cancel a real HTTP
 request during preparation, and cancel after admission but before release.
 Linux-only tenfoot test dependencies are recorded in this module; they are not
 selected into the bare-metal image.
+
+A native presenter error returns before `FinishFrame`, leaving the outstanding
+model preparation held. Close refuses that grant. A completed CPU copy in the
+boot-owned scanout backend is still not a physical vblank or DMA drain; the
+model's software completions cannot authorize FPGA reconfiguration.

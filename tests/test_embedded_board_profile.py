@@ -11,17 +11,17 @@ spec.loader.exec_module(build)
 
 
 def profile():
-    return {"schema": 3, "firmware": "synthetic test; not a board recipe",
+    return {"schema": 4, "firmware": "synthetic test; not a board recipe",
             "ram_start": 0x82000000, "ram_size": 256 << 20, "entry": 0x82010000,
             "reserved": [{"start": 0x80000000, "size": 32 << 20, "owner": "synthetic firmware"}],
             "sd_input_clock_hz": 100000000, "usb_phy_clock_hz": 60000000,
-            "network": None, "handoff": {"ethernet_platform_ready":False, **{key: True for key in ("el1", "single_cpu", "counter_access", "exclusive_devices",
+            "network": None, "display": None, "handoff": {"display_platform_ready":False, "ethernet_platform_ready":False, **{key: True for key in ("el1", "single_cpu", "counter_access", "exclusive_devices",
                 "uart0_configured", "sd_platform_ready", "usb_platform_ready", "mmu_off_caches_clean")}}}
 
 
 class BoardProfileTests(unittest.TestCase):
     def test_explicit_profile(self):
-        self.assertEqual(build.profile_constants(profile()), (0x82000000, 256 << 20, 0x82010000, 100000000, 60000000, None))
+        self.assertEqual(build.profile_constants(profile()), (0x82000000, 256 << 20, 0x82010000, 100000000, 60000000, None, None))
 
     def test_bad_handoff(self):
         for mutate in (
@@ -68,7 +68,7 @@ def ethernet_profile():
 class EthernetProfileTests(unittest.TestCase):
     def test_admitted_and_disabled(self):
         p = ethernet_profile()
-        self.assertEqual(build.profile_constants(p)[-1], p["network"])
+        self.assertEqual(build.profile_constants(p)[5], p["network"])
         self.assertIsNone(build.profile_constants(profile())[-1])
         p["network"]["rx_buffer_shift"] = 1
         build.profile_constants(p)
@@ -97,5 +97,46 @@ class EthernetProfileTests(unittest.TestCase):
             build.profile_constants(p)
         p = ethernet_profile()
         p["reserved"].append({"start": 0x92000000, "size": 2 << 20, "owner": "other firmware"})
+        with self.assertRaises(ValueError):
+            build.profile_constants(p)
+
+
+def display_profile():
+    p = ethernet_profile()
+    p["handoff"]["display_platform_ready"] = True
+    p["display"] = {"base": 0x93000000, "size": 4 << 20,
+        "width": 1280, "height": 720, "stride": 5120, "format": "xrgb8888",
+        "lifetime": "boot", "firmware_artifact_sha256": "ab" * 32}
+    return p
+
+
+class DisplayProfileTests(unittest.TestCase):
+    def test_admitted_and_disabled(self):
+        p = display_profile()
+        self.assertEqual(build.profile_constants(p)[6], p["display"])
+        self.assertIsNone(build.profile_constants(profile())[6])
+
+    def test_frame_window_and_lifetime_are_explicit(self):
+        for key, value in (("base", 0x30000000), ("base", 0x82000000),
+            ("base", 0x80000000), ("base", 0x92000000), ("base", 0x93001000),
+            ("base", 0xbfe00000), ("size", 2 << 20), ("width", True),
+            ("width", 1920), ("stride", 5116), ("height", 1080),
+            ("format", "rgba"), ("lifetime", "frame"),
+            ("firmware_artifact_sha256", "0" * 64), ("firmware_artifact_sha256", "unknown")):
+            with self.subTest(key=key, value=value):
+                p = display_profile()
+                p["display"][key] = value
+                with self.assertRaises(ValueError):
+                    build.profile_constants(p)
+        p = display_profile()
+        p["handoff"]["display_platform_ready"] = False
+        with self.assertRaises(ValueError):
+            build.profile_constants(p)
+        p = display_profile()
+        p["reserved"].append({"start": 0x93000000, "size": 4 << 20, "owner": "firmware task"})
+        with self.assertRaises(ValueError):
+            build.profile_constants(p)
+        p = display_profile()
+        p["schema"] = 3
         with self.assertRaises(ValueError):
             build.profile_constants(p)

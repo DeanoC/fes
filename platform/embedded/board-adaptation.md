@@ -60,6 +60,8 @@ prototype supplies UART/counter hooks, cold SDHC/SDXC initialization with
 read-only PIO and a direct DWC2 PIO boot keyboard, with an explicit firmware
 resource profile. SoC clocks, ComboPHY/ULPI and VBUS remain firmware obligations.
 The Nano now has an XGMAC DMA/static-IPv4 prototype with explicit PHY, RGMII and
-SMMU firmware obligations. FPGA display and physical activation remain unavailable. See the
+SMMU firmware obligations. Optional boot-owned display now copies into an explicitly reserved firmware
+scanout window; no compatible Nano bitstream, physical drain or FPGA activation
+is supplied. See the
 [board contract](tamago/board/README.md) for build commands, firmware obligations
 and the first hardware gate. A Nano cross-build is host evidence only.

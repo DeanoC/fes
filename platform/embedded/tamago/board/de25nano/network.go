@@ -6,34 +6,19 @@ package de25nano
 import (
 	"context"
 	"fmt"
-	"sync"
 	"sync/atomic"
 	"time"
 	"unsafe"
 
-	"github.com/DeanoC/fes/platform/embedded/tamago/board/arm64map"
 	"github.com/DeanoC/fes/platform/embedded/tamago/network"
 	"github.com/DeanoC/fes/platform/embedded/tamago/xgmac"
 )
-
-var networkMapOnce sync.Once
-var networkMapError error
-
-func InitDevices() error {
-	networkMapOnce.Do(func() {
-		if profileNetworkEnabled {
-			networkMapError = arm64map.NormalUncached(profileNetworkDMAStart, profileNetworkDMABytes, profileRAMStart, profileRAMSize)
-		}
-	})
-	return networkMapError
-}
 
 type macRegisters struct{}
 
 func (macRegisters) Read32(offset uint32) uint32  { return load32(profileNetworkBase + uintptr(offset)) }
 func (macRegisters) Write32(offset, value uint32) { store32(profileNetworkBase+uintptr(offset), value) }
 func (macRegisters) Now() time.Time               { return time.Now() }
-func memoryBarrier()
 
 type networkMemory struct{}
 

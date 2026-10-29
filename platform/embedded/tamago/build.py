@@ -15,15 +15,15 @@ ROOT = APP.parents[2]
 
 def profile_constants(profile):
     """Validate firmware memory and platform readiness, not a board default."""
-    expected = {"schema", "firmware", "ram_start", "ram_size", "entry", "reserved", "sd_input_clock_hz", "usb_phy_clock_hz", "network", "handoff"}
-    if not isinstance(profile, dict) or set(profile) != expected or type(profile["schema"]) is not int or profile["schema"] != 3:
-        raise ValueError("expected exact schema-3 handoff fields")
+    expected = {"schema", "firmware", "ram_start", "ram_size", "entry", "reserved", "sd_input_clock_hz", "usb_phy_clock_hz", "network", "display", "handoff"}
+    if not isinstance(profile, dict) or set(profile) != expected or type(profile["schema"]) is not int or profile["schema"] != 4:
+        raise ValueError("expected exact schema-4 handoff fields")
     if not isinstance(profile["firmware"], str) or not profile["firmware"].strip():
         raise ValueError("firmware identity is required")
     required = {"el1", "single_cpu", "counter_access", "exclusive_devices", "uart0_configured", "sd_platform_ready", "mmu_off_caches_clean"}
-    required.update(("usb_platform_ready", "ethernet_platform_ready"))
-    if not isinstance(profile["handoff"], dict) or set(profile["handoff"]) != required or any(v is not True for k,v in profile["handoff"].items() if k not in ("usb_platform_ready", "ethernet_platform_ready")) or type(profile["handoff"].get("usb_platform_ready")) is not bool or type(profile["handoff"].get("ethernet_platform_ready")) is not bool:
-        raise ValueError("firmware readiness must be explicit; USB and Ethernet may be disabled")
+    required.update(("usb_platform_ready", "ethernet_platform_ready", "display_platform_ready"))
+    if not isinstance(profile["handoff"], dict) or set(profile["handoff"]) != required or any(v is not True for k,v in profile["handoff"].items() if k not in ("usb_platform_ready", "ethernet_platform_ready", "display_platform_ready")) or type(profile["handoff"].get("usb_platform_ready")) is not bool or type(profile["handoff"].get("ethernet_platform_ready", "display_platform_ready")) is not bool:
+        raise ValueError("firmware readiness must be explicit; USB, Ethernet and display may be disabled")
     def number(key):
         value = profile[key]
         if type(value) is not int:
@@ -86,7 +86,30 @@ def profile_constants(profile):
                 raise ValueError("DMA overlaps firmware reservation")
         if network["dma_identity"] is not True or network["rgmii_125mhz_ready"] is not True:
             raise ValueError("Ethernet requires identity DMA and qualified 125 MHz RGMII firmware setup")
-    return start, size, entry, frequency, usb_frequency, network
+    display = profile["display"]
+    if profile["handoff"]["display_platform_ready"] != (display is not None):
+        raise ValueError("display readiness must match the explicit display profile")
+    if display is not None:
+        expected_display = {"base", "size", "width", "height", "stride", "format", "lifetime", "firmware_artifact_sha256"}
+        if not isinstance(display, dict) or set(display) != expected_display:
+            raise ValueError("invalid display profile fields")
+        for key in ("base", "size", "width", "height", "stride"):
+            if type(display[key]) is not int:
+                raise ValueError("display " + key + " must be an integer")
+        if (display["width"], display["height"], display["stride"], display["size"]) != (1280, 720, 5120, 4 << 20) or display["format"] != "xrgb8888" or display["lifetime"] != "boot":
+            raise ValueError("display requires boot-pinned 720p XRGB8888 in a 4 MiB window")
+        artifact = display["firmware_artifact_sha256"]
+        if not isinstance(artifact, str) or not re.fullmatch("[0-9a-f]{64}", artifact) or artifact == "0" * 64:
+            raise ValueError("display firmware artifact identity is required")
+        base, amount = display["base"], display["size"]
+        if base < 0x80000000 or base % (2 << 20) or base + amount > 0xc0000000 or base >> 30 != start >> 30 or (base < start + size and start < base + amount):
+            raise ValueError("display window must be disjoint HPS DDR in the Go L1 section")
+        for r in reserved:
+            if base < r["start"] + r["size"] and r["start"] < base + amount:
+                raise ValueError("display overlaps firmware reservation")
+        if network is not None and base < network["dma_start"] + network["dma_size"] and network["dma_start"] < base + amount:
+            raise ValueError("display overlaps Ethernet DMA")
+    return start, size, entry, frequency, usb_frequency, network, display
 
 
 def build(args):
@@ -98,7 +121,7 @@ def build(args):
         raise ValueError("--board de25-nano requires --profile from the firmware handoff")
     raw = args.profile.resolve().read_bytes()
     profile = json.loads(raw)
-    start, size, entry, frequency, usb_frequency, net = profile_constants(profile)
+    start, size, entry, frequency, usb_frequency, net, display = profile_constants(profile)
     output = args.output.resolve()
     if output.exists() or not output.is_relative_to(ROOT / "out"):
         raise ValueError("output must be a fresh directory beneath this worktree's out/")
@@ -120,6 +143,15 @@ def build(args):
                          "profileNetworkDMABytes": net["dma_size"] if net else 0}
     with generated.open("a") as stream:
         stream.write("const (\n" + "".join(key + " = " + json.dumps(value) + "\n" for key, value in network_constants.items()) + ")\n")
+    display_constants = {"profileDisplayEnabled": display is not None,
+                         "profileDisplayBase": display["base"] if display else 0,
+                         "profileDisplayBytes": display["size"] if display else 0,
+                         "profileDisplayWidth": display["width"] if display else 0,
+                         "profileDisplayHeight": display["height"] if display else 0,
+                         "profileDisplayStride": display["stride"] if display else 0,
+                         "profileDisplayArtifact": display["firmware_artifact_sha256"] if display else ""}
+    with generated.open("a") as stream:
+        stream.write("const (\n" + "".join(key + " = " + json.dumps(value) + "\n" for key, value in display_constants.items()) + ")\n")
     overlay = output / "overlay.json"
     overlay.write_text(json.dumps({"Replace": {str(APP / "board/de25nano/profile.go"): str(generated)}}))
     env = dict(os.environ, GOOS="tamago", GOARCH="arm64", CGO_ENABLED="0", GOOSPKG="github.com/usbarmory/tamago",
@@ -131,8 +163,8 @@ def build(args):
     deps = subprocess.check_output(command, cwd=APP, env=env, text=True)
     from run import objects, sha
     packages = list(objects(deps))
-    forbidden = ("/board/qemuvirt", "/display")
-    if any(p["ImportPath"].startswith("github.com/DeanoC/fes/platform/embedded/tamago") and p["ImportPath"].endswith(forbidden) for p in packages):
+    forbidden = {"github.com/DeanoC/fes/platform/embedded/tamago" + name for name in ("/board/qemuvirt", "/display")}
+    if any(p["ImportPath"] in forbidden for p in packages):
         raise ValueError("Nano dependency graph includes a QEMU device backend")
     forbidden_files = {"virtio.go", "xhci_tamago.go", "xhci_tamago.s", "ramfb.go", "nic_tamago.go"}
     if any(forbidden_files.intersection(p.get("GoFiles", []) + p.get("SFiles", [])) for p in packages):
@@ -172,6 +204,6 @@ def build(args):
               "compiler_sha256": sha(compiler), "elf_sha256": sha(elf), "command": command,
               "imports": [p["ImportPath"] for p in packages],
               "limitations": ["firmware must supply SD/USB PHY and input clocks plus verified resource reservations",
-                              "SD cold card initialization, read-only PIO; SoC PHY setup remains firmware-owned", "USB direct low/full-speed boot keyboard only; Ethernet XGMAC 2.10 static IPv4/1000-full prototype; display/physical FPGA adapters unavailable"]}
+                              "SD cold card initialization, read-only PIO; SoC PHY setup remains firmware-owned", "USB direct low/full-speed boot keyboard only; Ethernet XGMAC 2.10 static IPv4/1000-full prototype; display is boot-firmware scanout only, no drain or FPGA replacement; physical activation unavailable"]}
     (output / "result.json").write_text(json.dumps(report, indent=2) + "\n")
     print(f"Cross-built {elf}; hardware not executed")

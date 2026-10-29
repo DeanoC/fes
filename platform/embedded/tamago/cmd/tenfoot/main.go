@@ -154,6 +154,11 @@ func (p *framePlatform) Next(ctx context.Context) (tenfoot.PlatformInput, error)
 func (p *framePlatform) Present(ctx context.Context, snapshot tenfoot.Snapshot) error {
 	if p.model == nil || p.frame != nil {
 		err := p.display.Present(p.device.Framebuffer())
+		if err != nil {
+			// A failed publication cannot finish the renderer's model grant. Close
+			// must refuse it; neither this path nor a CPU copy proves physical drain.
+			return err
+		}
 		if p.frame != nil {
 			if finish := p.model.FinishFrame(ctx, *p.frame); finish != nil {
 				return finish
@@ -163,9 +168,6 @@ func (p *framePlatform) Present(ctx context.Context, snapshot tenfoot.Snapshot) 
 				p.oldFrame = &copy
 			}
 			p.frame = nil
-		}
-		if err != nil {
-			return err
 		}
 	}
 	if p.model != nil {

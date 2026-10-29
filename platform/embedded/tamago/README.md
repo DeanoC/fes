@@ -23,7 +23,9 @@ and TamaGo's volatile in-memory filesystem.
 Board selection is now explicit: `--board qemu` (default) runs the emulated
 hardware drivers; `--board de25-nano --profile FILE` cross-builds the separate
 Nano UART/timer, cold read-only SDHCI and direct DWC2 keyboard paths. Nano also has an XGMAC static-IPv4 prototype with explicit DMA/PHY firmware
-requirements; display and physical FPGA providers remain unavailable. See the
+requirements. Optional display copies into a boot-firmware-owned window; it
+requires a matching Nano scanout artifact and provides no physical drain or FPGA
+activation support. See the
 [board selection and firmware contract](board/README.md) for exact scope and
 bring-up commands. No physical Nano boot has been tested.
 
@@ -98,7 +100,7 @@ address or firmware assumption is a DE25 board constant.
 | Component | Implemented here | Still required for DE25 |
 | --- | --- | --- |
 | CPU/RAM/time | AArch64 runtime; separate QEMU and Nano UART/counter hooks; validated Nano RAM profile | Actual Nano firmware/DDR/EL1/cache handoff and IRQ qualification |
-| Display | QEMU ramfb via fw_cfg DMA, software RGBA rendering | HDMI/FPGA display plane and generation-bound handoff |
+| Display | Shared RGBA-to-XRGB copier; QEMU RAMFB; optional Nano boot-owned window | Matching Nano scanout firmware, HDMI qualification and proven drain/handoff |
 | Input | QEMU xHCI, real USB boot-keyboard control/interrupt transfers; optional PL011; Nano DWC2 PIO direct keyboard | Nano PHY/VBUS and real input qualification, hubs and gamepads |
 | Storage | VirtIO block reads/writes/FLUSH; Nano cold SDHC/SDXC initialization and read-only PIO; shared FAT32 | Nano boot/read qualification, writes and card lifecycle |
 | Preferences | Existing preallocated FAT32 JSON file; data and metadata flushes | Allocation/update strategy and power-loss-safe publication |

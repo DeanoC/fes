@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"image"
 	"io"
 	"net/http"
 	"os"
@@ -18,6 +19,7 @@ import (
 	"github.com/DeanoC/FogCast/ui/tenfoot"
 	"github.com/DeanoC/fes/platform/embedded/tamago/fabricmodel"
 	"github.com/DeanoC/fes/platform/embedded/tamago/runtimeadmission"
+	"github.com/DeanoC/fes/platform/embedded/tamago/scanout"
 )
 
 func fixtures(t *testing.T) (runtimeadmission.Policy, Config, func(string) ([]byte, error)) {
@@ -457,4 +459,47 @@ func TestBadPartPreservesRunningComposition(t *testing.T) {
 	if err = backend.FinishFrame(ctx, frame); err != nil {
 		t.Fatal("rejection invalidated outstanding frame", err)
 	}
+}
+
+type failedScanout struct{ bytes []byte }
+
+func (m failedScanout) Size() uint64 { return uint64(len(m.bytes)) }
+func (m failedScanout) Write(offset uint64, src []byte) error {
+	copy(m.bytes[int(offset):], src)
+	return nil
+}
+func (failedScanout) Publish() error { return errors.New("publication is uncertain") }
+func TestFailedScanoutPreservesOutstandingFrame(t *testing.T) {
+	policy, config, read := fixtures(t)
+	backend, err := New(policy, config, read, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	before := backend.View().Status
+	frame, err := backend.BeginFrame(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	surface, err := scanout.New(4, 6, 16, failedScanout{bytes: make([]byte, 4*6*4)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = surface.Present(image.NewRGBA(image.Rect(0, 0, 4, 6))); err == nil {
+		t.Fatal("unknown publication accepted")
+	}
+	// The caller does not report FinishFrame after an uncertain copy.
+	if err = backend.Close(ctx); !errors.Is(err, fabricmodel.ErrBusy) {
+		t.Fatal("close stole failed presenter grant", err)
+	}
+	if backend.View().Status != before {
+		t.Fatal("failed copy changed the active model owner")
+	}
+	// Host-only cleanup: this fake sink has no asynchronous memory access. This
+	// trusted model completion is not a physical scanout drain or pool release.
+	if err = backend.FinishFrame(ctx, frame); err != nil {
+		t.Fatal(err)
+	}
+	closeBackend(t, backend)
 }

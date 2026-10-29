@@ -11,9 +11,9 @@ import (
 	"image"
 	"math/bits"
 	"runtime"
-	"sync"
 	"time"
 
+	"github.com/DeanoC/fes/platform/embedded/tamago/scanout"
 	"github.com/usbarmory/tamago/dma"
 )
 
@@ -33,11 +33,19 @@ func barrier()
 // RAMFB owns a persistent DMA allocation for QEMU's scanout. There is no Close:
 // the buffer must remain allocated while QEMU may read it, through guest exit.
 // Present copies a private software frame into this separate scanout buffer.
-type RAMFB struct {
-	mu                    sync.Mutex
-	width, height, stride int
-	buffer                []byte
+type RAMFB struct{ surface *scanout.Surface }
+
+type frameWindow struct{ bytes []byte }
+
+func (m frameWindow) Size() uint64 { return uint64(len(m.bytes)) }
+func (m frameWindow) Write(offset uint64, src []byte) error {
+	if offset > uint64(len(m.bytes)) || uint64(len(src)) > uint64(len(m.bytes))-offset {
+		return errors.New("ramfb: copy outside reserved window")
+	}
+	copy(m.bytes[int(offset):], src)
+	return nil
 }
+func (frameWindow) Publish() error { barrier(); return nil }
 
 // Open configures the QEMU ramfb device. The supplied region must be outside
 // the Go runtime heap and mapped uncached by the QEMU board package. Caller
@@ -121,34 +129,20 @@ func Open(width, height int, region *dma.Region) (*RAMFB, error) {
 	}
 	region.Release(configAddress)
 	region.Release(descriptorAddress)
-	return &RAMFB{width: width, height: height, stride: stride, buffer: buffer}, nil
+	surface, err := scanout.New(width, height, stride, frameWindow{bytes: buffer})
+	if err != nil {
+		return nil, err
+	}
+	return &RAMFB{surface: surface}, nil
 }
 
 // Present publishes an RGBA software frame to QEMU's XRGB8888 scanout. The
 // copy is not a hardware vblank fence or a DE25 DMA ownership protocol.
 func (fb *RAMFB) Present(frame *image.RGBA) error {
-	if fb == nil || frame == nil || frame.Rect.Dx() != fb.width || frame.Rect.Dy() != fb.height ||
-		frame.Stride < fb.width*4 || len(frame.Pix) < (fb.height-1)*frame.Stride+fb.width*4 {
-		return errors.New("frame does not match ramfb geometry")
+	if fb == nil || fb.surface == nil {
+		return errors.New("ramfb: missing owned surface")
 	}
-	fb.mu.Lock()
-	defer fb.mu.Unlock()
-	for y := 0; y < fb.height; y++ {
-		// Scanout uses uncached memory; bound each cooperative copy to four rows.
-		if y&3 == 0 {
-			runtime.Gosched()
-		}
-		source := frame.Pix[y*frame.Stride:]
-		dest := fb.buffer[y*fb.stride:]
-		for x := 0; x < fb.width*4; x += 4 {
-			dest[x] = source[x+2]
-			dest[x+1] = source[x+1]
-			dest[x+2] = source[x]
-			dest[x+3] = 0xff
-		}
-	}
-	barrier()
-	return nil
+	return fb.surface.Present(frame)
 }
 
 func selectItem(selector uint16) {

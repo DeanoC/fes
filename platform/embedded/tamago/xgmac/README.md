@@ -31,7 +31,7 @@ FPGA ownership transitions must account for this lifetime before physical launch
 
 ## Explicit firmware profile
 
-Schema 3 adds `network` and the boolean `handoff.ethernet_platform_ready`.
+Schema 4 includes `network` and the boolean `handoff.ethernet_platform_ready`.
 `network: null` with readiness false disables Ethernet without touching its
 controller or mapping an arena. With readiness true, `network` has exactly:
 
@@ -53,7 +53,7 @@ controller or mapping an arena. With readiness true, `network` has exactly:
   hardware manual/BSP and verify frame DMA bounds before enabling a real profile.
 
 The test profile is synthetic: its MAC index, PHY address/ID, clocks and RAM
-layout are not assertions about the Nano waiting for delivery. Schema 2 and
+layout are not assertions about the Nano waiting for delivery. Superseded schemas and
 missing/extra fields reject; no old-profile compatibility path remains.
 
 ## Source references and evidence

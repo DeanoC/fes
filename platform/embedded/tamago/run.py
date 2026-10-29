@@ -56,7 +56,7 @@ def stop(process):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("program", choices=("probe", "fabric", "packages", "admission", "play", "tenfoot", "storage", "keyboard", "network"))
+    parser.add_argument("program", choices=("probe", "fabric", "packages", "admission", "play", "tenfoot", "storage", "keyboard", "network", "display"))
     parser.add_argument("--compiler", required=True, type=Path)
     parser.add_argument("--qemu", type=Path)
     parser.add_argument("--board", choices=("qemu", "de25-nano"), default="qemu")
@@ -346,6 +346,25 @@ def main():
                 if record["disk"]["before_sha256"] != record["disk"]["after_sha256"]:
                     raise RuntimeError("read-only storage probe changed its disk")
             record["termination"] = "runner stopped its QEMU process after probe marker"
+        elif args.program == "display":
+            captures = []
+            with Guest(qemu, elf, output / "boot-1", command_record, display=display, video=True) as guest:
+                guest.wait(lambda text: "FES_DISPLAY_PROBE_READY frame=1" in text, args.timeout, "first scanout frame")
+                captures.append(guest.screenshot("bars"))
+                guest.send(b"n")
+                guest.wait(lambda text: "FES_DISPLAY_PROBE PASS frame=2" in text, args.timeout, "second scanout frame")
+                captures.append(guest.screenshot("inverted"))
+            colors = ((255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 255))
+            for number, capture in enumerate(captures):
+                raw = (output / capture["ppm_path"]).read_bytes().split(b"\n", 3)
+                if len(raw) != 4 or raw[:3] != [b"P6", b"1280 720", b"255"]:
+                    raise RuntimeError("display probe capture geometry differs")
+                row = b"".join(bytes(255 - c if number else c for c in rgb) * 320 for rgb in colors)
+                if raw[3] != row * 720:
+                    raise RuntimeError("display probe pixel order/content differs")
+            record["screenshots"] = captures
+            record["display_checks"] = "two actual QEMU scanout frames match every expected RGB pixel"
+            record["termination"] = "runner stopped QEMU after copies; no display drain or guest shutdown proof"
         elif args.program == "network":
             lock_disk()
             prepare_disk(prepare_host())

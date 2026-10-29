@@ -139,3 +139,9 @@ the delivered board revision.
 No emulator result supplies physical boot, HDMI, USB-host, SD-card, PHY or
 FPGA reconfiguration acceptance. Hardware arrival should enable those adapter
 tests, rather than require starting application/platform separation from scratch.
+
+The Nano's optional [boot-owned scanout](tamago/scanout/README.md) now shares
+pixel-copy code with QEMU RAMFB. It requires compatible preinitialized firmware
+and a dedicated profile reservation; no Nano bitstream or physical drain is
+provided. The reservation remains pinned until reboot, so this does not enable
+physical FPGA replacement or core launch.

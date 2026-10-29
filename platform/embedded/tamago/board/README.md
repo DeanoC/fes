@@ -15,13 +15,14 @@ All native applications now obtain peripherals through `board`.
 | Serial input | PL011 | UART0 16550-compatible registers, error-byte discard |
 | USB input | xHCI plus shared HID decoder | DWC2 PIO for one direct low/full-speed boot keyboard; firmware ULPI/VBUS readiness required |
 | Network | VirtIO and existing Go IP/TCP stack | XGMAC 2.10, firmware-qualified PHY/RGMII and pinned DMA; static IPv4/1000-full only |
-| Display | RAMFB and tenfoot software renderer | FPGA display/ownership adapter unavailable; explicit error |
+| Display | RAMFB and tenfoot software renderer | Optional boot-firmware XRGB8888 window; pinned until reboot, no drain/reconfiguration |
 | FPGA activation | Software lifecycle model | Physical configuration/identity/containment adapter unavailable |
 
 Nano builds exclude VirtIO, xHCI, RAMFB and QEMU's DMA/page-table setup.
 The shared USB descriptor/report decoder remains usable in both builds.
 A successful cross-build does **not** mean tenfoot can display or launch on
-hardware: the missing display provider still stops tenfoot startup. `probe`, `storage`, `keyboard` and `network` are the
+hardware: display is disabled unless an explicit compatible firmware handoff is supplied.
+`probe`, `storage`, `keyboard`, `network` and `display` are the
 first bring-up programs; `keyboard` reports keys over serial, while `storage` mounts the same FAT32 implementation, reads
 `FES/BOOT.JSON`, and prints its hash without writing anything.
 
@@ -29,7 +30,7 @@ first bring-up programs; `keyboard` reports keys over serial, while `storage` mo
 
 No default Nano resource profile is shipped. The delivery board revision,
 firmware recipe and actual memory reservations have not been verified.
-The build runner requires an exact schema-3 JSON object with these fields:
+The build runner requires an exact schema-4 JSON object with these fields:
 
 - `firmware`: identifying string for the firmware producing this handoff.
 - `ram_start`, `ram_size`, `entry`: integer physical addresses/length; owned RAM
@@ -41,9 +42,11 @@ The build runner requires an exact schema-3 JSON object with these fields:
   identification and initial read-only operation, using a one-bit bus.
 - `usb_phy_clock_hz`: `60000000` for admitted ULPI USB, or `0` to disable USB
   explicitly. Disabling USB allows SD/serial bring-up before PHY/VBUS work.
-- `schema`: integer `3`. Superseded schemas and capacity/RCA fields reject.
+- `schema`: integer `4`. Superseded schemas and capacity/RCA fields reject.
 - `network` and `handoff.ethernet_platform_ready`: explicit XGMAC/DMA profile
   or disabled `null`/false; see the [network contract](../xgmac/README.md).
+- `display` and `handoff.display_platform_ready`: a separate boot-pinned
+  framebuffer or disabled `null`/false; see the [scanout contract](../scanout/README.md).
 - `handoff`: object with `el1`, `single_cpu`, `counter_access`,
   `exclusive_devices`, `uart0_configured`, `sd_platform_ready`, and
   `mmu_off_caches_clean`, all explicitly `true`. `usb_platform_ready` must be a
@@ -119,6 +122,8 @@ actual reservations/entry contract; boot `probe` over serial; then boot `storage
 on disposable synthetic FAT32 media and verify its hash. Boot `keyboard` next
 to validate ULPI/VBUS, enumeration and actual key reports independently of display.
 Validate the network firmware contract and `network` HTTP probe next. Writable
-SD persistence and FPGA display/activation follow separately.
+SD persistence and physical FPGA activation follow separately. A compatible Nano
+boot scanout artifact must be supplied and qualified before the optional display
+provider can produce physical HDMI; the copied firmware hash is not live proof.
 Retain QEMU as the integration control; cross-builds and register models establish
 no physical Nano acceptance.
