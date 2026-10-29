@@ -136,6 +136,9 @@ BUILD_OUTPUTS = (
 TIMING_CATEGORIES = ("Setup", "Hold", "Recovery", "Removal", "Minimum Pulse Width")
 WORST_SLACK_RE = re.compile(r"; Worst-case Slack\s*((?:;\s*-?[0-9.]+\s*){5});")
 DESIGN_TNS_RE = re.compile(r"; Design-wide TNS\s*((?:;\s*-?[0-9.]+\s*){5});")
+# Registers on a clock TimeQuest cannot analyse are in no slack row.
+UNANALYSED_CLOCKS = ("Illegal Clocks", "Unconstrained Clocks")
+UNANALYSED_ROW_RE = re.compile(r"^; (Illegal Clocks|Unconstrained Clocks)\s*; (\d+)\s*; (\d+)\s*;", re.M)
 # TimeQuest's clock table: name, type, period, frequency, ...
 CLOCK_ROW_RE = re.compile(r"^; (\S+)\s*; (Base|Generated)\s*; ([0-9.]+)\s*; ([0-9.]+) MHz\s*;", re.M)
 # The PLLs' fractional synthesis lands the pixel clock at 74.27 MHz.
@@ -155,7 +158,8 @@ SEED_LIMIT = 0x7fffffff
 UNDERSCORE_KEYWORDS = frozenset({
     "always_comb", "always_ff", "always_latch", "accept_on", "reject_on", "s_always", "s_eventually",
     "s_nexttime", "s_until", "s_until_with", "sync_accept_on", "sync_reject_on", "until_with", "wait_order",
-    "pulsestyle_ondetect", "pulsestyle_onevent",
+    "pulsestyle_ondetect", "pulsestyle_onevent", "first_match", "ignore_bins", "illegal_bins", "join_any",
+    "join_none",
 })
 CORE = {"id": "fes.pc386", "name": "FES pc386", "version": "0.1.0",
         "description": "A 386 AT: fes_i386_cpu, the Bochs BIOS and LGPL VGABios, VGA at 720p, OPL2 and Sound "
@@ -244,7 +248,8 @@ def plain_identifiers(verilog: str) -> str:
     """Rewrite escaped identifiers that hold hierarchy or index characters as
     plain ones, unique within the netlist. A name escaped only because it is a
     keyword (\\always_ff) and string literals (attribute values) stay."""
-    taken = set(re.findall(r"(?<![\\\w$])[A-Za-z_][A-Za-z0-9_$]*", verilog)) | UNDERSCORE_KEYWORDS
+    taken = (set(re.findall(r"(?<![\\\w$])[A-Za-z_][A-Za-z0-9_$]*", verilog))
+             | set(re.findall(r"\\([A-Za-z_][A-Za-z0-9_$]*)(?=\s)", verilog)) | UNDERSCORE_KEYWORDS)
     names: dict[str, str] = {}
 
     def plain(match: re.Match) -> str:
@@ -396,9 +401,16 @@ def validate_timing_report(sta_text: str) -> dict:
         worst, total = float(slack_text), float(tns_text)
         if not (math.isfinite(worst) and math.isfinite(total)):
             raise board.BuildError(f"{name} timing is not finite")
-        if worst < 0 or total < 0:
+        # A miss under half a picosecond prints as -0.000.
+        if slack_text.startswith("-") or tns_text.startswith("-"):
             raise board.BuildError(f"{name} timing fails: worst slack {worst} ns, TNS {total} ns")
         analyses[name.lower().replace(" ", "_")] = {"worst_slack_ns": worst, "tns_ns": total}
+    unanalysed = UNANALYSED_ROW_RE.findall(sta_text)
+    if sorted(row[0] for row in unanalysed) != sorted(UNANALYSED_CLOCKS):
+        raise board.BuildError("timing report lacks the unconstrained paths summary")
+    for row, setup, hold in unanalysed:
+        if int(setup) or int(hold):
+            raise board.BuildError(f"timing report has {row.lower()}: {setup} setup, {hold} hold")
     rows = {(name, float(frequency)) for name, _, _, frequency in CLOCK_ROW_RE.findall(sta_text)}
     clocks = {}
     for label, clock, mhz, tolerance in CLOCKS:

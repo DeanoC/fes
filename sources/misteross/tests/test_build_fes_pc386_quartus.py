@@ -37,6 +37,11 @@ MET = """\
 ; Worst-case Slack                                            ; 0.212   ; 0.107 ; 7.297    ; 0.394   ; 1.122               ;
 ; Design-wide TNS                                             ; 0.0     ; 0.0   ; 0.0      ; 0.0     ; 0.0                 ;
 """
+UNCONSTRAINED = """\
+; Illegal Clocks                  ; 0     ; 0    ;
+; Unconstrained Clocks            ; 0     ; 0    ;
+; Unconstrained Input Ports       ; 2     ; 2    ;
+"""
 FIT_SUMMARY = """\
 ; Logic utilization (in ALMs)     ; 9,754 / 41,910 ( 23 % )                     ;
 ; Total registers                 ; 12637                                       ;
@@ -113,6 +118,10 @@ class IdentifiersTest(unittest.TestCase):
 
     def test_a_rewritten_name_never_spells_a_keyword(self):
         self.assertEqual(quartus.plain_identifiers("wire \\always.ff ;"), "wire always_ff_1 ;")
+        self.assertEqual(quartus.plain_identifiers("wire \\join.any ;"), "wire join_any_1 ;")
+
+    def test_a_rewritten_name_never_takes_a_kept_escaped_name(self):
+        self.assertEqual(quartus.plain_identifiers("wire \\a_b ;\nwire \\a.b ;"), "wire \\a_b ;\nwire a_b_1 ;")
 
 
 class ProjectTest(unittest.TestCase):
@@ -142,20 +151,36 @@ class ProjectTest(unittest.TestCase):
 
 class TimingTest(unittest.TestCase):
     def test_a_met_report_passes_with_each_clock(self):
-        timing = quartus.validate_timing_report(CLOCK_TABLE + MET)
+        timing = quartus.validate_timing_report(CLOCK_TABLE + MET + UNCONSTRAINED)
         self.assertEqual(timing["analyses"]["setup"], {"worst_slack_ns": 0.212, "tns_ns": 0.0})
         self.assertEqual({label: clock["mhz"] for label, clock in timing["clocks"].items()},
                          {"system": 61.44, "audio": 12.29, "pixel": 74.27})
 
     def test_a_setup_miss_fails(self):
         with self.assertRaisesRegex(board.BuildError, "Setup timing fails"):
-            quartus.validate_timing_report(CLOCK_TABLE + MISSED)
+            quartus.validate_timing_report(CLOCK_TABLE + MISSED + UNCONSTRAINED)
+
+    def test_a_miss_that_rounds_to_zero_fails(self):
+        with self.assertRaisesRegex(board.BuildError, "Setup timing fails"):
+            quartus.validate_timing_report(CLOCK_TABLE + MET.replace("; 0.212  ", "; -0.000 ") + UNCONSTRAINED)
+        with self.assertRaisesRegex(board.BuildError, "Setup timing fails"):
+            quartus.validate_timing_report(CLOCK_TABLE + MET.replace("; 0.0     ; 0.0   ;", "; -0.000  ; 0.0   ;")
+                                           + UNCONSTRAINED)
+
+    def test_a_clock_timequest_cannot_analyse_fails(self):
+        unconstrained = UNCONSTRAINED.replace("Unconstrained Clocks            ; 0     ; 0 ",
+                                              "Unconstrained Clocks            ; 1     ; 1 ")
+        with self.assertRaisesRegex(board.BuildError, "unconstrained clocks: 1 setup"):
+            quartus.validate_timing_report(CLOCK_TABLE + MET + unconstrained)
+        with self.assertRaisesRegex(board.BuildError, "unconstrained paths summary"):
+            quartus.validate_timing_report(CLOCK_TABLE + MET)
 
     def test_a_wrong_or_missing_clock_fails(self):
         with self.assertRaisesRegex(board.BuildError, "system clock is 54.0 MHz"):
-            quartus.validate_timing_report(CLOCK_TABLE.replace("16.276 ; 61.44 MHz", "18.519 ; 54.0 MHz") + MET)
+            quartus.validate_timing_report(CLOCK_TABLE.replace("16.276 ; 61.44 MHz", "18.519 ; 54.0 MHz") + MET
+                                           + UNCONSTRAINED)
         with self.assertRaisesRegex(board.BuildError, "pixel clock"):
-            quartus.validate_timing_report(CLOCK_TABLE.replace("video_clock", "other_clock") + MET)
+            quartus.validate_timing_report(CLOCK_TABLE.replace("video_clock", "other_clock") + MET + UNCONSTRAINED)
         with self.assertRaisesRegex(board.BuildError, "worst-case slack"):
             quartus.validate_timing_report(CLOCK_TABLE)
 

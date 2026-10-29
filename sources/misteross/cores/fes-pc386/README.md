@@ -315,8 +315,9 @@ builds of pc386 are parked with [#1235](https://github.com/DeanoC/fes/issues/123
   become plain identifiers. Quartus reads that netlist and the shell's own
   files, with `QUARTUS` defined: the HDMI I2C pins come from the hard block,
   and `pc386_system` takes no parameters.
-- Every analysis must pass on every clock, or the build publishes nothing.
-  The build summary records the fit's ALMs, registers, RAM and DSP blocks.
+- Every analysis must pass on every clock, and TimeQuest must analyse every
+  clock, or the build publishes nothing. The build summary records the fit's
+  ALMs, registers, RAM and DSP blocks.
 
 **M4.** The diagnostic package `fes.pc386-diag`, the machine with a bus master
 running commands from a DDR ring in the CPU's place, passed every program on

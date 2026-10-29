@@ -122,9 +122,11 @@ diagnostic programs:
 
 ## Checks
 
-- `tests/test_build_fes_pc386_quartus.py`: 13 tests. They cover the source
+- `tests/test_build_fes_pc386_quartus.py`: 16 tests. They cover the source
   split, the Yosys script, identifier rewriting, the project, the timing gate
-  on this shell's TimeQuest rows, the manifest and the build record.
+  on this shell's TimeQuest rows, the manifest and the build record. The gate
+  also fails a slack or TNS printed as `-0.000`, and an illegal or
+  unconstrained clock, whose registers no slack row covers.
 - #1245's checks: the pc386 simulation lane and a FreeDOS boot identical clock
   for clock to the M2 record.
 - `scripts/test_changed.py`: TC
