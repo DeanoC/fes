@@ -120,6 +120,7 @@ bool mixed = false;
 uint8_t device_read(uint32_t paddr, uint8_t written) {
     return mixed && paddr >= MIX_LO && paddr < MIX_HI ? uint8_t(written ^ ((paddr * 0x9e3779b1u) >> 24 | 1)) : written;
 }
+bool in_mix(uint32_t paddr) { return mixed && paddr >= MIX_LO && paddr < MIX_HI; }
 bool in_rom(uint32_t paddr) { return mixed && paddr >= ROM_LO && paddr < HOLE_LO; }
 bool in_hole(uint32_t paddr) { return mixed && paddr >= HOLE_LO && paddr < HOLE_HI; }
 uint32_t window_top() { return mixed ? HOLE_HI : MMIO_HI; }  // code stays clear of the window below this
@@ -217,10 +218,11 @@ public:
     IoSpace io;
     Pic pic;
     bool mmio_window = false;
+    bool mixed_read = false;  // the oracle read the mixing device, the ROM or the hole since this was cleared
     std::vector<MmioAccess> mmio_log;
     uint64_t step = 0;
     uint8_t *page(uint32_t paddr, bool write) override {
-        if (mmio_window && (in_window(paddr) || in_hole(paddr) || write && in_rom(paddr))) return nullptr;
+        if (mmio_window && (in_window(paddr) || in_hole(paddr) || in_rom(paddr))) return nullptr;
         return paddr < RAM_BYTES ? &ram[paddr & ~0xfffu] : nullptr;
     }
     // A write to read-only RAM or a hole is dropped; a hole reads FFh.
@@ -231,6 +233,7 @@ public:
                     : mmio_window && in_rom(at)    ? ram[at]
                                                    : 0xff;
             if (mmio_window && in_window(at)) mmio_log.push_back({false, at, data[i], step});
+            if (mmio_window && (in_mix(at) || in_rom(at) || in_hole(at))) mixed_read = true;
         }
     }
     void write(uint32_t paddr, unsigned length, const uint8_t *data) override {
@@ -1239,9 +1242,11 @@ struct Outcome {
     bool vector_moved = false;  // stopped at an injected interrupt whose vector entry or handler the program rewrote
     bool window_code = false;   // stopped at code in the MMIO window, which neither side fetches
     // With mixed memory, stopped at code outside [code_lo, code_hi) and the
-    // injected interrupts' handler, or with TF set: a return address, far
-    // pointer or flags image read back from the device, the ROM or the hole
-    // is no longer the program's, and its code is then anything.
+    // injected interrupts' handler, at code other than the 16 bytes from the
+    // instruction before if that one read the mixing device, the ROM or the
+    // hole, or with TF set: a return address, far pointer or flags image read
+    // back from mixed memory is no longer the program's, and the code it
+    // leads to is then anything.
     bool stray = false;
     int interrupt = -1;    // the last software interrupt both sides took (INT n, INT3, INTO)
     std::string code;      // the last instruction's first bytes, for a failure's line
@@ -1308,6 +1313,8 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
     unsigned since_string = 99;   // ... since a string instruction
     bool io_before = false;       // the last retirement was an I/O instruction
     size_t mmio_seen = bus.mmio_log.size();
+    uint32_t mixed_from = 0;  // the linear address of the step that bus.mixed_read covers
+    bus.mixed_read = false;
     bus.step = rtl.step = 0;
     for (uint64_t step = 0;; ++step) {
         if (step == retire_limit) {
@@ -1322,11 +1329,14 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                 outcome.window_code = true;
                 return outcome;
             }
-            if (mixed && code_hi && (!(at >= code_lo && at < code_hi) && !(irq && at - irq->handler < 2)
-                                     || now.eflags & 0x100)) {
+            const bool handler = irq && at - irq->handler < 2;
+            if (mixed && code_hi && (!(at >= code_lo && at < code_hi) && !handler || now.eflags & 0x100
+                                     || bus.mixed_read && at - mixed_from >= 16 && !handler)) {
                 outcome.stray = true;
                 return outcome;
             }
+            bus.mixed_read = false;
+            mixed_from = at;
         }
         const State before = oracle.get_state();
         const uint32_t linear = before.seg[fes_i386::SEG_CS].base + before.eip;
