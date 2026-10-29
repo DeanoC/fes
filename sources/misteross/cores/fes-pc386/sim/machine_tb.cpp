@@ -31,7 +31,7 @@
 //        [--cycles-per-instruction N] [--prompt TEXT] [--type TEXT] [--expect TEXT]
 //        [--trace F] [--frames DIR] [--pixel-from S] [--until-debug TEXT]
 //        [--type-at S] [--key-gap S] [--wav F] [--opl2-log F] [--keys S:TEXT]... [--cpu oracle|rtl]
-//        [--census F] [--stop-history N]
+//        [--census F] [--stop-history N] [--stop-dump ADDRESS:LENGTH]...
 // A program on the disk marks a picture by writing "SNAP <name>" and a newline
 // to port E9h, then holding it; the bench takes the second capture after the
 // marker, runs the pixel clock for two 720p frames and compares the second
@@ -60,11 +60,14 @@
 //                                               issued while each abandoned VGA read is still out
 //   RTL <counter>=<n> ...                       retirements, oracle steps, waits
 // and with --stop-history N, at the first stop of the run:
-//   HISTORY <cycle> <start> <bytes> <cs>:<eip> <ss>:<esp> <vector|->   each of the last N
-//                                               retirements: the linear address it started at, the
-//                                               bytes there at the stop, the state after it, and the
-//                                               vector it delivered
+//   HISTORY <cycle> <start> <bytes> <cs>:<eip> <ss>:<esp> <vector|-> <register>=<value> ...
+//                                               each of the last N retirements: the linear address
+//                                               it started at, the bytes there at the stop, the
+//                                               state after it, the vector it delivered, and the
+//                                               general registers, DS and ES after it
 //   STOPSTATE <register>=<value> ...            the RTL's registers at the stop
+// and with --stop-dump, at the same stop, for each range (hexadecimal):
+//   DUMP <physical address> <bytes>             the range's memory, 16 bytes a line
 // An unretired VGA load reached the VGA, which the oracle's never do: its
 // uop died on a wrong path behind a redirect that retired ("path"), in an
 // instruction a fault or an interrupt restarted ("restart"), or behind a stop.
@@ -561,8 +564,9 @@ public:
     // The last retirements (--stop-history), a ring: the path into a stop.
     struct Retirement {
         uint64_t cycle;
-        uint32_t start, eip, esp;
-        uint16_t cs, ss;
+        uint32_t start, eip;
+        uint32_t gpr[8];
+        uint16_t cs, ss, ds, es;
         int vector;  // the exception or interrupt it delivered, or -1
     };
     std::vector<Retirement> history;
@@ -777,11 +781,14 @@ public:
             if (cpu.arch_eflags & 0x100) ++tf_retired;
             const uint32_t start = retire_next;
             retire_next = physical(cpu.arch_base[fes_i386::SEG_CS] + cpu.arch_eip, a20m);
-            if (!history.empty())
-                history[history_count++ % history.size()] = {
-                    m.cycles, start, cpu.arch_eip, cpu.arch_gpr[fes_i386::REG_ESP],
-                    get16(cpu.arch_sel, fes_i386::SEG_CS), get16(cpu.arch_sel, fes_i386::SEG_SS),
-                    cpu.trace_exception ? int(cpu.trace_vector) : -1};
+            if (!history.empty()) {
+                Retirement &r = history[history_count++ % history.size()];
+                r = {m.cycles, start, cpu.arch_eip, {},
+                     get16(cpu.arch_sel, fes_i386::SEG_CS), get16(cpu.arch_sel, fes_i386::SEG_SS),
+                     get16(cpu.arch_sel, fes_i386::SEG_DS), get16(cpu.arch_sel, fes_i386::SEG_ES),
+                     cpu.trace_exception ? int(cpu.trace_vector) : -1};
+                for (int n = 0; n < 8; ++n) r.gpr[n] = cpu.arch_gpr[n];
+            }
             if (!stale.empty() && !cpu.trace_exception) {
                 auto byte = stale.lower_bound(start);
                 if (byte != stale.end() && *byte < start + 15 && *byte < start + length(start)) {
@@ -1052,6 +1059,7 @@ struct Options {
     std::vector<std::pair<double, std::string>> keys;
     unsigned cycles_per_instruction = 4;
     unsigned stop_history = 0;
+    std::vector<std::pair<uint32_t, uint32_t>> stop_dumps;
 };
 
 Options parse(int argc, char **argv) {
@@ -1080,6 +1088,12 @@ Options parse(int argc, char **argv) {
         else if (flag == "--cpu") options.cpu = value;
         else if (flag == "--census") options.census = value;
         else if (flag == "--stop-history") options.stop_history = unsigned(std::stoul(value));
+        else if (flag == "--stop-dump") {
+            const size_t colon = value.find(':');
+            if (colon == std::string::npos) throw std::runtime_error("--stop-dump takes ADDRESS:LENGTH");
+            options.stop_dumps.emplace_back(uint32_t(std::stoul(value.substr(0, colon), nullptr, 16)),
+                                            uint32_t(std::stoul(value.substr(colon + 1), nullptr, 16)));
+        }
         else if (flag == "--keys") {
             size_t colon = value.find(':');
             if (colon == std::string::npos) throw std::runtime_error("--keys takes SECONDS:TEXT");
@@ -1152,6 +1166,8 @@ int main(int argc, char **argv) {
             const std::string key = stem(bytes, length);
             // --stop-history: the path into the run's first stop.
             if (gaps.empty() && !rtl->history.empty()) {
+                static const char *const gprs[] = {"eax", "ecx", "edx", "ebx", "esp", "ebp", "esi", "edi"};
+                static const char *const segs[] = {"es", "cs", "ss", "ds", "fs", "gs"};
                 const uint64_t total = rtl->history_count, size = rtl->history.size();
                 for (uint64_t n = total - std::min(total, size); n < total; ++n) {
                     const RtlCpu::Retirement &r = rtl->history[n % size];
@@ -1163,16 +1179,24 @@ int main(int argc, char **argv) {
                         std::snprintf(text, sizeof text, "%02x", rtl->read8(RtlCpu::physical(r.start + k, machine.top.a20m)));
                         code += text;
                     }
-                    std::printf("HISTORY %llu %08x %s %04x:%08x %04x:%08x %s\n", (unsigned long long)r.cycle, r.start,
-                                code.c_str(), r.cs, r.eip, r.ss, r.esp, vector);
+                    std::printf("HISTORY %llu %08x %s %04x:%08x %04x:%08x %s", (unsigned long long)r.cycle, r.start,
+                                code.c_str(), r.cs, r.eip, r.ss, r.gpr[fes_i386::REG_ESP], vector);
+                    for (int n = 0; n < 8; ++n)
+                        if (n != fes_i386::REG_ESP) std::printf(" %s=%08x", gprs[n], r.gpr[n]);
+                    std::printf(" ds=%04x es=%04x\n", r.ds, r.es);
                 }
-                static const char *const gprs[] = {"eax", "ecx", "edx", "ebx", "esp", "ebp", "esi", "edi"};
-                static const char *const segs[] = {"es", "cs", "ss", "ds", "fs", "gs"};
                 std::printf("STOPSTATE");
                 for (int n = 0; n < 8; ++n) std::printf(" %s=%08x", gprs[n], s.gpr[n]);
                 std::printf(" eflags=%08x", s.eflags);
                 for (int n = 0; n < 6; ++n) std::printf(" %s=%04x", segs[n], s.seg[n].selector);
                 std::printf("\n");
+                for (const auto &[address, length] : options.stop_dumps)
+                    for (uint32_t line = 0; line < length; line += 16) {
+                        std::printf("DUMP %08x", address + line);
+                        for (uint32_t k = line; k < std::min(length, line + 16); ++k)
+                            std::printf(" %02x", rtl->read8(address + k));
+                        std::printf("\n");
+                    }
             }
             Gap &gap = gaps[{kind, key}];
             if (!gap.stops) { gap.first_cycle = machine.cycles; gap.first_site = site(s); }
