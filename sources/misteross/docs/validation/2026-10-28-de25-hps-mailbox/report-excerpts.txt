@@ -1,0 +1,93 @@
+
+Design Closure Summary
+; Panel Name                                             ; Result Flag              ;
+; Design Closure Summary                                 ; Fail                     ;
+;   Timing Closure                                       ; Pass                     ;
+;     Setup Summary                                      ; Pass                     ;
+;     Hold Summary                                       ; Pass                     ;
+;     Recovery Summary                                   ; Pass                     ;
+;     Removal Summary                                    ; Pass                     ;
+;     Setup Data Delay Summary                           ; Not Found                ;
+;     Recovery Data Delay Summary                        ; Not Found                ;
+;     Minimum Pulse Width Summary                        ; Pass                     ;
+;     Max Skew Summary                                   ; Not Found                ;
+;     Max Clock Skew Summary                             ; Not Found                ;
+;     Net Delay Summary                                  ; Not Found                ;
+;     Metastability Summary                              ; Pass                     ;
+;     Double Data Rate (DDR) Summary                     ; Not Found                ;
+;     Transmitter Channel-to-Channel Skew (TCCS) Summary ; Not Found                ;
+;     Receiver Input Skew Margin (RSKM) Summary          ; Not Found                ;
+;   Design Assistant Summary                             ; High Severity Violations ;
+;   Unconstrained Paths                                  ; Fail                     ;
+; Fmax Summary                                                                                     ;
+; Fmax       ; Restricted Fmax ; Clock Name               ; Note ; Worst-Case Operating Conditions ;
+
+Unconstrained Paths Summary
+; Property                                          ; Setup ; Hold ;
+; Illegal Clocks                                    ; 0     ; 0    ;
+; Unconstrained Clocks                              ; 0     ; 0    ;
+; Unconstrained Input Ports                         ; 0     ; 0    ;
+; Paths from Unconstrained Input Ports (Pairs-Only) ; 0     ; 0    ;
+; Unconstrained Output Ports                        ; 4     ; 4    ;
+; Paths to Unconstrained Output Ports (Pairs-Only)  ; 4     ; 4    ;
+; Clock Status Summary                                                                                                                                                                                                                                                                                                       ;
+; Target                                                                                                                                                                                          ; Clock                                                                                          ; Type      ; Status      ;
+; CLOCK2_50                                                                                                                                                                                       ; pll_inst|iopll_0_refclk                                                                        ; Base      ; Constrained ;
+; LPDDR4A_DQS[0]                                                                                                                                                                                  ; soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[0]_in    ; Base      ; Constrained ;
+; LPDDR4A_DQS[1]                                                                                                                                                                                  ; soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[1]_in    ; Base      ; Constrained ;
+; LPDDR4A_DQS[2]                                                                                                                                                                                  ; soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[2]_in    ; Base      ; Constrained ;
+; LPDDR4A_DQS[3]                                                                                                                                                                                  ; soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[3]_in    ; Base      ; Constrained ;
+; LPDDR4A_REFCLK_p                                                                                                                                                                                ; EMIF_REF_CLOCK                                                                                 ; Base      ; Constrained ;
+; altera_reserved_tck                                                                                                                                                                             ; altera_reserved_tck                                                                            ; Base      ; Constrained ;
+; auto_fab_0|alt_sld_fab_0|alt_sld_fab_0|configresetfabric|conf_reset_src|ag.sdm_gpo_out_user_reset~internal_ctrl_clock.reg                                                                       ; internal_clk                                                                                   ; Base      ; Constrained ;
+; pll_inst|iopll_0|tennm_ph2_iopll|out_clk[0]                                                                                                                                                     ; pll_inst|iopll_0_outclk0                                                                       ; Generated ; Constrained ;
+; pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0                                                                                                                                                       ; pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0                                                      ; Generated ; Constrained ;
+; pll_inst|iopll_0|tennm_ph2_iopll~mcntr_reg                                                                                                                                                      ; pll_inst|iopll_0_m_cnt_clk                                                                     ; Generated ; Constrained ;
+; pll_inst|iopll_0|tennm_ph2_iopll~ncntr_reg                                                                                                                                                      ; pll_inst|iopll_0_n_cnt_clk                                                                     ; Generated ; Constrained ;
+
+Clock Status Summary
+; Target                                                                                                                                                                                          ; Clock                                                                                          ; Type      ; Status      ;
+; CLOCK2_50                                                                                                                                                                                       ; pll_inst|iopll_0_refclk                                                                        ; Base      ; Constrained ;
+; LPDDR4A_DQS[0]                                                                                                                                                                                  ; soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[0]_in    ; Base      ; Constrained ;
+; LPDDR4A_DQS[1]                                                                                                                                                                                  ; soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[1]_in    ; Base      ; Constrained ;
+; LPDDR4A_DQS[2]                                                                                                                                                                                  ; soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[2]_in    ; Base      ; Constrained ;
+; LPDDR4A_DQS[3]                                                                                                                                                                                  ; soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[3]_in    ; Base      ; Constrained ;
+; LPDDR4A_REFCLK_p                                                                                                                                                                                ; EMIF_REF_CLOCK                                                                                 ; Base      ; Constrained ;
+; altera_reserved_tck                                                                                                                                                                             ; altera_reserved_tck                                                                            ; Base      ; Constrained ;
+; auto_fab_0|alt_sld_fab_0|alt_sld_fab_0|configresetfabric|conf_reset_src|ag.sdm_gpo_out_user_reset~internal_ctrl_clock.reg                                                                       ; internal_clk                                                                                   ; Base      ; Constrained ;
+; pll_inst|iopll_0|tennm_ph2_iopll|out_clk[0]                                                                                                                                                     ; pll_inst|iopll_0_outclk0                                                                       ; Generated ; Constrained ;
+; pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0                                                                                                                                                       ; pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0                                                      ; Generated ; Constrained ;
+; pll_inst|iopll_0|tennm_ph2_iopll~mcntr_reg                                                                                                                                                      ; pll_inst|iopll_0_m_cnt_clk                                                                     ; Generated ; Constrained ;
+; pll_inst|iopll_0|tennm_ph2_iopll~ncntr_reg                                                                                                                                                      ; pll_inst|iopll_0_n_cnt_clk                                                                     ; Generated ; Constrained ;
+; soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[0].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated ; soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_rxclk_gated   ; Base      ; Constrained ;
+; soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[0].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg ; soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_byte_rx_gated ; Generated ; Constrained ;
+; soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[0].wrapper_byte|gen_used_byte.u_byte~dqsn0_0_reg__nff  ; soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[0]_nff   ; Generated ; Constrained ;
+; soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[1].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated ; soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_rxclk_gated   ; Base      ; Constrained ;
+; soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[1].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg ; soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_byte_rx_gated ; Generated ; Constrained ;
+; soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[1].wrapper_byte|gen_used_byte.u_byte~dqsn0_0_reg__nff  ; soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[1]_nff   ; Generated ; Constrained ;
+; soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[2].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated ; soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_rxclk_gated   ; Base      ; Constrained ;
+; soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[2].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg ; soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_byte_rx_gated ; Generated ; Constrained ;
+; soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[3].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated ; soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_rxclk_gated   ; Base      ; Constrained ;
+; soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[3].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg ; soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_byte_rx_gated ; Generated ; Constrained ;
+; soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[6].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated ; soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_rxclk_gated   ; Base      ; Constrained ;
+; soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[6].wrapper_byte|gen_used_byte.u_byte~byte_rx_gated_reg ; soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_byte_rx_gated ; Generated ; Constrained ;
+; soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[6].wrapper_byte|gen_used_byte.u_byte~dqsn0_0_reg__nff  ; soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[2]_nff   ; Generated ; Constrained ;
+; soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|gen_byte_conns[7].wrapper_byte|gen_used_byte.u_byte|i_phy_rxclk_gated ; soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_rxclk_gated   ; Base      ; Constrained ;
+
+RES-50001
+; Reset Source                                                                                                              ; Reset Source Clock                     ; Register Clock           ; Number of Registers Being Reset ; Sample Register Being Reset ; Waived ;
+; auto_fab_0|alt_sld_fab_0|alt_sld_fab_0|configresetfabric|conf_reset_src|ag.sdm_gpo_out_user_reset~internal_ctrl_clock.reg ; internal_clk   internal_clk (INVERTED) ; pll_inst|iopll_0_outclk0 ; 89                              ; debounce_inst|counter[0][4] ;        ;
+
+TMC-20012
+; Port   ; Reason                                      ; Waived ;
+; LED[7] ; No output delay was set on the output port. ;        ;
+
+CLK-30032
+; Assignment              ; Reason                             ; Location           ; Waived ;
+; [get_ports {CLOCK2_50}] ; Target already has clock assigned. ; ghrd_timing.sdc:15 ;        ;
+
+RDC-50003
+
+TMC-20025
+; Ignored Constraint                                                                                ; Location           ; Reason                                                                                                ; Waived ;
+; create_clock -name {MAIN_CLOCK} -period 20.000 -waveform { 0.000 10.000 } [get_ports {CLOCK2_50}] ; ghrd_timing.sdc:15 ; Assignment contains errors and will not be analyzed. Verify that the assignment is entered correctly. ;        ;
