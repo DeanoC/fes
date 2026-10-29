@@ -5,14 +5,23 @@ Dated record, 2026-10-28. Host simulation only. No package, RBF or kit.
 The next step of pc386's M5 after the [FreeDOS boot](2026-10-28-pc386-rtl-boot.md):
 what the first Phase 3 games need from [`fes_i386_cpu`](../../cores/fes-common/rtl/i386/),
 measured the way the boot was. Each game's instruction mix comes from a
-`--census` run under the Bochs oracle, then the game runs on the RTL. Nothing
-in the CPU changed.
+`--census` run under the Bochs oracle, then the game runs on the RTL. This
+branch changes nothing in the CPU.
 
-- The CPU is `1814f0c590`, byte for byte, as in the boot record.
+- The CPU is `1814f0c590`, byte for byte, as in the boot record's first runs.
+  The last reruns, of the boot and Ultima VI on the RTL and of both games on
+  the oracle, are of `7f243eb0ed`, whose CPU is the base branch's
+  `015048c65d` (#1194: BT, BTS, BTR and BTC by a register), as the boot
+  record's now is.
 - The games are the M3 acceptance setups
   ([record](../../../../docs/validation/2026-10-26-pc386-m3-audio/summary.md)),
   user-supplied from the eXoDOS 6.04 collection and copied onto a copy of the
-  FreeDOS fixture outside the repository. Nothing from them is committed.
+  FreeDOS fixture outside the repository. Nothing from them is committed: no
+  game file, no frame, and none of the game's code or data bytes. The record
+  and its data name instructions and give addresses, register values, counts
+  and hashes. Earlier commits of the data held some of those bytes, in a
+  memory dump, the retire histories and a port trace; `bytes_note` on each
+  line says what was taken out.
   - **Ultima VI**: `Ultima VI - The False Prophet (1990).zip`, SHA-256
     `5ec54a045d18ccea63fe35e857e9c0294427e06d397370433d4a7c5add881cb9`, 324
     files. `cd ultima6`, `ultima6`, no keys, 16 simulated seconds.
@@ -29,30 +38,43 @@ in the CPU changed.
   against the game and the game's timing (below).
 - The Wolfenstein 3D RTL run with a retire history is of `9899d39f53`, which
   adds `--stop-history` to the bench.
-- The Ultima VI and boot RTL runs are of `d6fb3af33d`, which fixes the
-  bench's data port (below), through the runner. So is the first Wolfenstein
-  3D run on the fixed port, run directly.
+- The first Wolfenstein 3D run on the fixed port is of `d6fb3af33d`, which
+  fixes the bench's data port (below), run directly. So were the first
+  Ultima VI and boot RTL runs through the runner; the jsonl keeps them as
+  `game-ultima6-rtl-d6fb3af33d` and `boot-rtl-d6fb3af33d`.
 - Wolfenstein 3D's runs to 14.4899 s, just past where it first stopped at
   that time, are of `69de303890` (RTL and oracle), which prints each overlap
   as it happens; `e41dd6a36d`, which adds registers to the history and
   `--stop-dump`; `678f9aa62c`, which adds `--trace-port`; and `037248ffae`,
   which fixes the port a second time (below).
 - The 24 s Wolfenstein 3D RTL run is of `037248ffae`, through the runner.
-  The oracle's 24 s run it is compared with is on the merged tip
-  `1187fefd6d`; the port fixes change nothing on the oracle path.
+  Its result under the game suite's RTL checks, which came later, is derived
+  from its saved report, not rerun. Its final frame is compared with the
+  oracle's 24 s run on `7f243eb0ed`; the port fixes change nothing on the
+  oracle path.
+- The boot and Ultima VI RTL results, both games' oracle runs in the table
+  below, and the final frames of all but the Wolfenstein 3D RTL run are of
+  `7f243eb0ed`, through the runner, with a warm build: runs share the
+  runner's machine build, so a second starts only once the first has built
+  it. That commit, on the base branch as merged at `f7f8a273b2`, fails the
+  RTL game suite on stops and oracle steps. Its Ultima VI RTL run retires
+  the `d6fb3af33d` run's 292,535,229 instructions and ends on the same
+  frame, byte for byte. Its oracle runs take the censuses' 307,160,725 and
+  532,715,552 steps, with the same counts as the censuses.
 - Run data: [`2026-10-28-pc386-game-census.jsonl`](2026-10-28-pc386-game-census.jsonl):
   a summary line per run, and the censuses, a line per stem.
 
 ## Result
 
-**Wolfenstein 3D runs its 24 s on the RTL with no stop, and the runner's
-game suite passes.** Its final frame is the oracle's, pixel for pixel, but
+**Wolfenstein 3D runs its 24 s on the RTL with no stop, and passes the
+runner's game suite.** Its final frame is the oracle's, pixel for pixel, but
 for the status bar, which the CPU's missing uncached path garbles. Both
-crashes on the way there were the bench's. The suite checks that every I/O
-access and INTA took its class time, net of FIFO waits; that the OPL2
-played and matched Nuked-OPL3; and that the VGA never underflowed and the
-BIOS never panicked. It does not check stops, modes or the frame, which
-are this record's.
+crashes on the way there were the bench's. On the RTL the suite fails a run
+that retired nothing, handed the oracle an instruction (protected mode and
+V86 included) or stopped or stalled. On either CPU it checks that every I/O
+access and INTA took its class time, net of FIFO waits; that the OPL2 played
+and matched Nuked-OPL3; and that the VGA never underflowed and the BIOS
+never panicked. It does not check the frame, which is this record's.
 
 - **First crash, at 12.127 s, was the bench's.** The first run stopped as
   E1M1 started, running ASCII text as code. The oracle runs of the game at 3,
@@ -65,7 +87,7 @@ are this record's.
   (`d6fb3af33d`), the game runs past 12.127 s with no stop until 14.490 s.
   There a RETF at the end of one of its compiled scalers returns to
   0101:0108, in DOS's data, and the RTL stops on x87 escapes there. The CPU
-  had left its path 125 instructions earlier, when the sprite scaler's loop
+  had left its path 300 retirements earlier, when the sprite scaler's loop
   read 1D1Dh where its span list holds the 0000h that ends it. A trace of
   the data port shows where those bytes came from: a VGA read M1 had sent
   for a wrong-path instruction that D had already marked faulted, which M2
@@ -81,8 +103,9 @@ are this record's.
   the latches of the source byte two ahead. That fits every byte the bar's
   copies drew in the 24 s frame.
 
-**Ultima VI runs its 16 s on the RTL with no stop**, and its final frame is
-the oracle's but for the intro's animated TV picture.
+**Ultima VI runs its 16 s on the RTL with no stop, and passes the game
+suite** with its RTL checks. Its final frame is the oracle's but for the
+intro's animated TV picture.
 
 **Neither game's oracle run needs an instruction or a mode the CPU has not
 built.** Every stem either game retired under the oracle is one the
@@ -123,28 +146,25 @@ On the RTL, through the runner, against the oracle's runs of the same length:
 
 The games run to the time limit, so the counts are of different amounts of
 work on each CPU and say nothing about correctness. The final frames do:
-in Ultima VI, 2,172 of the 128,000 pixels differ, all inside the TV's
+in Ultima VI (`game-ultima6-rtl` against `game-ultima6-oracle`, both on
+`7f243eb0ed`), 2,172 of the 128,000 pixels differ, all inside the TV's
 picture (x 233-282, y 104-173 of 320 × 400), which the intro animates; the
 rest of the frame is the oracle's, pixel for pixel.
 
-In Wolfenstein 3D both final frames show E1M1's first view: the door ahead,
-a dead guard before it, the knife drawn and no ammunition left. They are the
-same, pixel for pixel, but for 2,056 pixels, all in the status bar (x
-24-299, y 328-391): its numbers, face and weapon picture are garbled.
+In Wolfenstein 3D the RTL's final frame (`037248ffae`) and the oracle's
+(`game-wolf3d-oracle`, on `7f243eb0ed`, with the census's 532,715,552 steps)
+both show E1M1's first view: the door ahead, a dead guard before it, the
+knife drawn and no ammunition left. They are the same, pixel for pixel, but
+for 2,056 pixels, all in the status bar (x 24-299, y 328-391): its numbers,
+face and weapon picture are garbled.
 FLOOR's 1 shows as two bars 4 pixels apart, and the 0, 3, 100% and 0 are
 doubled the same way; the face's right half repeats in 4-pixel strips.
 
-The runs to 14.4899 s show the same. There the RTL is further into the
-level's fade-in than the oracle (34h against 30h, 69h against 61h in each
-channel), so 120,780 pixels differ, nearly all by a few levels of
-brightness. Mapping each of the oracle's colours to the RTL's commonest at
-the same pixels leaves 2,298, all in the status bar. On the port before
-`037248ffae`, 24 more were one column of the dead guard's sprite (x
-152-153, y 232-243), light grey where the oracle's are dark, drawn from a
-span the stray bytes below had corrupted. That frame is otherwise the same
-on both ports, byte for byte. To that time the RTL's OPL2 writes are the
-oracle's 1,270, one pair in another order, and the 24 s run's begin with
-them.
+The frames of the runs to 14.4899 s were not kept, so this record gives no
+pixel figures for them. To that time the RTL made the oracle's number of
+OPL2 writes, 1,270 (`wolf3d-rtl-rerun` against `oracle-wolf3d-1449`),
+though their non-zero OPL2 samples differ slightly, 517,829 against
+517,915, as the writes' times do.
 
 The game draws the bar's pictures with latch copies: a REP MOVSB from a copy
 of each picture in the VGA's memory to the screen, in write mode 1. Each
@@ -155,13 +175,14 @@ answered. So element n's store waits in WB while element n+2's read is out,
 and writes on the edge M1 sends element n+3's. The VGA sees R0, R1, R2, W0,
 R3, W1 and so on: each byte takes the latches of the source byte two ahead,
 and a row's last three bytes all take its last. Taking the oracle's screen
-as the source, that fits every byte the bar's copies drew at 24 s: the
-digits' and the key slot's 960, the face's 384 and the weapon picture's 576,
-of which one element ahead fits only 138 of the face's and 512 of the
-weapon's. No other byte of the bar differs. At 14.4899 s it fits all but the
-face, whose animation frame there differs from the oracle's; even so, the
-face's last three bytes are equal in every row, as the model has it, and in
-none of the oracle's.
+as the source, that fits every byte the bar's copies drew at 24 s, counted
+in bytes of the 320 × 200 screen (the frame doubles each line): the 14
+digits' 448 and the two key slots' 64, which are two bytes wide and so
+cannot tell one element ahead from two; the face's 192, of which one element
+ahead fits only 69; and the weapon picture's 288, of which one ahead fits
+256. 323 of those 992 bytes differ from the oracle's, and no other byte of
+the bar does. The jsonl's `frames` lines hold these counts and the frames'
+hashes.
 
 This is the design's known gap, no uncached path, not the bench's: the port
 keeps the CPU's order, a store before a load sent on the same edge. The
@@ -172,18 +193,18 @@ after every older store has written.
 
 The first Wolfenstein 3D run on the RTL (`d8b0e63907`) ran with no stop
 until cycle 1,212,734,685 (12.127 s), as E1M1 started. Then the RTL ran
-ASCII text as code:
+data as code, in low memory and then in the VGA BIOS:
 
-| Cycle | CS:EIP | Bytes | Stem |
-| ---: | --- | --- | --- |
-| 1,212,734,685 | 0206:2C0B | `64 62 61 61` ("dbaa") | `62` BOUND, FS: |
-| 1,212,734,734 | 0206:2C29 | `3F` ("?") | `3F` AAS |
-| 1,212,735,604 | 0206:2C67 | `63 00` ("c") | `63` ARPL |
-| 1,212,771,331 | C000:003A | `63 74 20` ("ct ") | `63` ARPL |
-| 1,212,774,444 | C000:3333 | `FF FF` | `FF /7`, invalid |
-| 1,212,775,558 | C000:3526 | `D8 6C 6C` | `D8 /5`, x87 |
-| 1,212,780,066 | C000:0EFE | `0F 0B` | `0F0B` UD2 |
-| 1,212,785,273 | C000:7FFF | `D9 00` | `D9 /0`, x87 |
+| Cycle | CS:EIP | Stem |
+| ---: | --- | --- |
+| 1,212,734,685 | 0206:2C0B | `62` BOUND, FS: |
+| 1,212,734,734 | 0206:2C29 | `3F` AAS |
+| 1,212,735,604 | 0206:2C67 | `63` ARPL |
+| 1,212,771,331 | C000:003A | `63` ARPL |
+| 1,212,774,444 | C000:3333 | `FF /7`, invalid |
+| 1,212,775,558 | C000:3526 | `D8 /5`, x87 |
+| 1,212,780,066 | C000:0EFE | `0F0B` UD2 |
+| 1,212,785,273 | C000:7FFF | `D9 /0`, x87 |
 
 Those are 8 of its 21 stops; the jsonl has them all. C000:0022 to 0040
 holds the VGA BIOS's name and date ("Bochs VGABios", "0.9d 26 Oct 2026"),
@@ -202,17 +223,17 @@ A rerun to 12.1278 s with `--stop-history 256` (`9899d39f53`) stopped first
 at the same cycle, so the run is deterministic. It shows the path into the
 first stop:
 
-| Cycle | Retired | Bytes | Then CS:EIP | SS:SP | Delivered |
+| Cycle | Retired | Instruction | Then CS:EIP | SS:SP | Delivered |
 | ---: | --- | --- | --- | --- | --- |
-| 1,212,734,243 | 2C0B:08F5 | `F3 A4` REP MOVSB | 2C0B:08F7 | 4993:FF80 | |
-| 1,212,734,249 | 2C0B:08F7 | `01 DF` ADD DI,BX | 2C0B:08F9 | 4993:FF80 | |
-| 1,212,734,250 | 2C0B:08F9 | `4A` DEC DX | 2C0B:08FA | 4993:FF80 | |
-| 1,212,734,251 | 2C0B:08FA | `75 F7` JNZ | 2C0B:08F3 | 4993:FF80 | |
-| 1,212,734,262 | 2C0B:08F3 | `89 C1` MOV CX,AX | 2C0B:08F5 | 4993:FF80 | |
+| 1,212,734,243 | 2C0B:08F5 | REP MOVSB | 2C0B:08F7 | 4993:FF80 | |
+| 1,212,734,249 | 2C0B:08F7 | ADD DI,BX | 2C0B:08F9 | 4993:FF80 | |
+| 1,212,734,250 | 2C0B:08F9 | DEC DX | 2C0B:08FA | 4993:FF80 | |
+| 1,212,734,251 | 2C0B:08FA | JNZ | 2C0B:08F3 | 4993:FF80 | |
+| 1,212,734,262 | 2C0B:08F3 | MOV CX,AX | 2C0B:08F5 | 4993:FF80 | |
 | 1,212,734,557 | (2C0B:08F5 next) | | 2B0F:0097 | 4993:FF7A | IRQ0, vector 08h |
-| 1,212,734,657 | 2B0F:0097 | `E6 20` OUT 20h,AL | 2B0F:0099 | 4993:FF7A | |
-| 1,212,734,663 | 2B0F:0099 | `58` POP AX | 2B0F:009A | 4993:FF7C | |
-| 1,212,734,674 | 2B0F:009A | `CF` IRET | 0206:2C0B | 4993:FF82 | |
+| 1,212,734,657 | 2B0F:0097 | OUT 20h,AL | 2B0F:0099 | 4993:FF7A | |
+| 1,212,734,663 | 2B0F:0099 | POP AX | 2B0F:009A | 4993:FF7C | |
+| 1,212,734,674 | 2B0F:009A | IRET | 0206:2C0B | 4993:FF82 | |
 
 The game copies VGA memory to VGA memory a row at a time, with DS and ES at
 A000h: a mode-X copy through the latches. IRQ0 arrived with the next REP
@@ -223,9 +244,10 @@ as IP and the pushed FLAGS (0206h) as CS.
 
 The vector the RTL read was wrong, and the bench put the wrong byte in it.
 M1 can send a load on the edge WB flushes for an interrupt, and the
-MOVSB's load from A000:C931 went out on that edge: the bench's count shows
-4 VGA loads at 2C0B:08F5 lost to a restart, the first at cycle
-1,212,734,297. The bench queued the load's read for the VGA and held
+MOVSB's load from A000:C934 went out on that edge (the rerun below shows
+it). The bench counts 4 VGA loads at 2C0B:08F5 lost to restarts, the
+first, from A000:C931, at cycle 1,212,734,297; SI is C931h at the stop. The
+bench queued the load's read for the VGA and held
 `dmem_valid` low until it came back. The CPU's next load was the delivery's
 read of vector 8 at 0000:0020, and the bench gave it its bytes only once the
 VGA read returned, merged in: the VGA byte replaced lane 1, which in the
@@ -247,43 +269,45 @@ The `RTL` line now counts such loads (`vga_cancelled`) and the loads issued
 while one's read was still out (`vga_overlaps`), which the old port gave the
 wrong bytes; `OVERLAP` lines give the first of them. Nothing in the CPU is
 implicated: an L1D drops a request on a flushing edge, and the design's
-uncached loads wait until they are the oldest. The Ultima VI and boot RTL
-results are of `d6fb3af33d`.
+uncached loads wait until they are the oldest.
 
 ## The stop at 14.490 s
 
 On the fixed port (`d6fb3af33d`) Wolfenstein 3D ran past 12.127 s with no
-stop. The first stop came at cycle 1,448,989,946, on `D9 00` at 0101:010C.
-The second came 856 cycles later, on `D9 00` at 0101:0110, and the oracle
-step for it never returned (below). A rerun to 14.4899 s (`69de303890`)
-stopped first at the same cycle, with the same registers. Its
-4,096-retirement history shows where the CPU left its path, 125
-retirements before the stop. That was in the game's sprite scaler,
-`ScaleLine` (`WL_SCALE.C` in its published source):
+stop. The first stop came at cycle 1,448,989,946, on an x87 escape (`D9 /0`)
+at 0101:010C. The second came 856 cycles later, on another at 0101:0110, and
+the oracle step for it never returned (below). A rerun to 14.4899 s
+(`69de303890`) stopped first at the same cycle, with the same registers. Its
+4,096-retirement history shows where the CPU left its path, 300 retirements
+before the stop. That was in the game's sprite scaler, `ScaleLine`
+(`WL_SCALE.C` in its published source). The jsonl keeps each history's last
+300 entries, which begin just after MOV BX,DS:[BP] at 2000:036D, the span
+list's next entry, had read 1D1Dh into BX; the figures here from before that
+come from the runs' full histories, which were not kept.
 
-| Cycle | CS:EIP | Bytes | Instruction |
+| Cycle | CS:EIP | Instruction | After |
 | ---: | --- | --- | --- |
-| 1,448,989,416 | 2000:036D | `3E 8B 5E 00` | MOV BX,DS:[BP]: the span list's next entry |
-| 1,448,989,421 | 2000:0375 | `26 8B 1F` | MOV BX,ES:[BX]: the code offset that ends the span |
-| 1,448,989,425 | 2000:0378 | `26 8A 17` | MOV DL,ES:[BX]: save the byte there |
-| 1,448,989,426 | 2000:037B | `26 C6 07 CB` | MOV BYTE ES:[BX],CBh: a RETF over it |
-| 1,448,989,428 | 2000:037F | `3E 8B 76 04` | MOV SI,DS:[BP+4] |
-| 1,448,989,432 | 2000:0383 | `26 8B 04` | MOV AX,ES:[SI]: the code offset that starts the span |
-| 1,448,989,433 | 2000:0386 | `36 A3 E7 DD` | MOV SS:[DDE7],AX |
-| 1,448,989,435 | 2000:038A | `3E 8B 76 02` | MOV SI,DS:[BP+2] |
-| 1,448,989,436 | 2000:038E | `83 C5 06` | ADD BP,6 |
-| 1,448,989,438 | 2000:0391 | `B8 00 A0`, `8E C0` | MOV AX,A000h; MOV ES,AX |
-| 1,448,989,449 | 2000:0396 | `36 FF 1E E7 DD` | CALL FAR SS:[DDE7], to 614F:A103 |
-| 1,448,989,532 | 614F:A103 | `03 88 03 9A` | ADD CX,[BX+SI+9A03h] |
+| 1,448,989,417 | 2000:0371 | OR BX,BX: the list's end? | BX 1D1Dh |
+| 1,448,989,418 | 2000:0373 | JZ, not taken | |
+| 1,448,989,421 | 2000:0375 | MOV BX,ES:[BX]: the code offset that ends the span | BX 448Ah |
+| 1,448,989,425 | 2000:0378 | MOV DL,ES:[BX]: save the byte there | |
+| 1,448,989,426 | 2000:037B | MOV BYTE ES:[BX],CBh: a RETF over it | |
+| 1,448,989,428 | 2000:037F | MOV SI,DS:[BP+4] | SI 007Dh |
+| 1,448,989,432 | 2000:0383 | MOV AX,ES:[SI]: the code offset that starts the span | AX A103h |
+| 1,448,989,433 | 2000:0386 | MOV SS:[DDE7],AX | |
+| 1,448,989,435 | 2000:038A | MOV SI,DS:[BP+2] | SI 006Eh |
+| 1,448,989,436 | 2000:038E | ADD BP,6 | BP 0246h |
+| 1,448,989,438 | 2000:0391 | MOV AX,A000h; MOV ES,AX | ES A000h |
+| 1,448,989,449 | 2000:0396 | CALL FAR SS:[DDE7], to 614F:A103, 287 retirements before the stop | |
+| 1,448,989,532 | 614F:A103 | ADD CX,[BX+SI+9A03h] | |
 
 ES before the call is the scaler's segment, 614Fh. The five calls before
-this one in the history went to 614F:0323, 0316, 0316, 0355 and 0316. The
-spans they ran ended at RETFs the loop had patched in, the last at
+this one in the full history went to 614F:0323, 0316, 0316, 0355 and 0316.
+The spans they ran ended at RETFs the loop had patched in, the last at
 614F:03A1. 614F:A103 is 40 KB further on, in another scaler's tables:
-offsets into its code (0388h, 039Ah, 03ACh, ...) and then pixel widths (3,
-3, 4, ...). The CPU ran those tables as code, a byte off, and slid into that
-scaler's code. On the way, `03 E7` (ADD SP,DI) made SP odd. The scaler's
-RETF then took 0101:0108 from the stack.
+offsets into its code and then pixel widths. The CPU ran those tables as
+code, a byte off, and slid into that scaler's code. On the way, an ADD SP,DI
+made SP odd. The scaler's RETF then took 0101:0108 from the stack.
 
 So the offset AX carried to the call, A103h, was wrong. As bytes it is
 03h A1h: a 03xxh offset's high byte, then 03A1h's low byte.
@@ -301,19 +325,21 @@ BX,DS:[BP] at 036D should have read 0000h and left the loop. It read 1D1Dh.
 The loop then took the next column's words a word out of step, and its odd
 start offset.
 
-That was the second time. The history holds nine passes of that load:
+That was the second time. The full history holds nine passes of that load,
+and every read but the two of 1D1Dh is what memory held at the stop; the
+second's word there is its list's closing zero:
 
-| Cycle | BP | Address | Read | Memory at the stop | Clocks since the last retirement |
-| ---: | ---: | ---: | ---: | ---: | ---: |
-| 1,448,987,269 | 0260h | 97F60h | 007Ch | 007Ch | 6 |
-| 1,448,987,388 | 0266h | 97F66h | 0000h | 0000h | 12 |
-| 1,448,988,051 | 0250h | 97F50h | 007Eh | 007Eh | 6 |
-| 1,448,988,298 | 0256h | 97F56h | 0000h | 0000h | 132 |
-| 1,448,988,539 | 0242h | 97F42h | 006Eh | 006Eh | 6 |
-| 1,448,988,819 | 0248h | 97F48h | 1D1Dh | 007Eh | 193 |
-| 1,448,988,984 | 024Eh | 97F4Eh | 0000h | 0000h | 71 |
-| 1,448,989,174 | 023Ah | 97F3Ah | 007Eh | 007Eh | 6 |
-| 1,448,989,416 | 0240h | 97F40h | 1D1Dh | 0000h | 127 |
+| Cycle | BP | Address | BX read | Clocks since the last retirement |
+| ---: | ---: | ---: | ---: | ---: |
+| 1,448,987,269 | 0260h | 97F60h | 007Ch | 6 |
+| 1,448,987,388 | 0266h | 97F66h | 0000h | 12 |
+| 1,448,988,051 | 0250h | 97F50h | 007Eh | 6 |
+| 1,448,988,298 | 0256h | 97F56h | 0000h | 132 |
+| 1,448,988,539 | 0242h | 97F42h | 006Eh | 6 |
+| 1,448,988,819 | 0248h | 97F48h | 1D1Dh | 193 |
+| 1,448,988,984 | 024Eh | 97F4Eh | 0000h | 71 |
+| 1,448,989,174 | 023Ah | 97F3Ah | 007Eh | 6 |
+| 1,448,989,416 | 0240h | 97F40h | 1D1Dh | 127 |
 
 At 1,448,988,819 the 1D1Dh sent the loop to ES:[1D1Dh], 448Ah, for the
 span's end. It patched its RETF into 614F:448A, far past the span, so the
@@ -327,7 +353,7 @@ and were right.
 A last rerun (`678f9aa62c`) printed the data port each clock around both
 wrong reads, and they have one cause. At cycle 1,448,988,607 M1 sent a
 2-byte load of A0288h for 614F:034F, the byte after the RETF the loop had
-patched in at 034D. That byte is `37`, AAA, which the CPU has not built:
+patched in at 034D. That byte is an AAA, which the CPU has not built:
 the front end decoded on past the RETF, D marked the uop faulted, and M1
 sent its load anyway. M2 waits only for a fault-free load's bytes
 (`dmem_read` in `fes_i386_cpu.sv` does not check the fault that `m2_load`
@@ -336,7 +362,7 @@ out. The port did not know that nothing waited for it. It held the next
 loads behind it, the span-list read at 1,448,988,635 among them, until the
 VGA answered at 1,448,988,816, and merged the read's two bytes into that
 load's lanes 0 and 1. At 1,448,989,270 the same happened at 614F:03A3,
-after the RETF at 03A1: `3F`, AAS, the same load of A0288h. The span-list
+after the RETF at 03A1: an AAS, the same load of A0288h. The span-list
 read at 1,448,989,298 waited until 1,448,989,413 and took 1D1Dh where memory
 held 0000h. Both times the VGA returned 1D1Dh for A0288h, pixels already
 drawn there. The read after 71 clocks, at 97F4Eh, waited behind a third
@@ -350,26 +376,29 @@ The CPU's part is that it sends the load of a uop it has already marked
 faulted: a VGA read, with its effect on the latches, for an instruction that
 never runs. The bench's count of VGA loads that never retired already held
 these: on the old port, 15 at 614F:03A3 and 2 at 614F:034F, on wrong paths.
+The same holds for a load that faults its limit check in M1 (`m1_limit`):
+M1 sends it, and since `m2_load` checks only the fault the uop brought into
+M1, M2 also waits for its bytes. No run here traced that case.
 
 On `037248ffae` the game runs to 14.4899 s with no stop, and through the
 runner on to 24 s, with `vga_faulted` 25 at 14.4899 s and `shadow_faults` 0
 in both. 18 of the faulted loads are at 614F:03A3 and 2 at 614F:034F. The
-frame is the old port's but for the dead guard's sprite column, which now
-matches the oracle's. The OPL2 writes and the audio are the old port's,
-sample for sample. With a faulted load's read abandoned, the loads issued
-while it is out count as overlaps. The `OVERLAP` lines, one for each
-abandoned read a load was issued during, rise from 36 to 56, the 20 more all
-for reads of A0288h, and `vga_overlaps`, which counts every load issued
-while an abandoned read is out, from 290 to 704.
+OPL2 writes, their non-zero samples and the audio's length are the old
+port's. With a faulted load's read abandoned, the loads issued while it is
+out count as overlaps. The `OVERLAP` lines rise from 36 to 56, the 20 more
+all for reads of A0288h, and `vga_overlaps`, which counts every load issued
+while an abandoned read is out, from 290 to 704. Both kinds of abandoned
+read now give their bytes to no load, so an overlap is harmless, and since
+`7f243eb0ed` the RTL boot no longer fails on one; the count stays.
 
 ## The oracle hangs on an x87 escape
 
 In both Wolfenstein 3D runs that went astray, an oracle step for an x87
 escape never returned:
 
-- `D9 00` at C000:7FFF in the first run, after `D8 6C 6C` at C000:3526
+- `D9 /0` at C000:7FFF in the first run, after `D8 /5` at C000:3526
   returned;
-- `D9 00` at 0101:0110 on the fixed port, after `D9 00` at 0101:010C
+- `D9 /0` at 0101:0110 on the fixed port, after `D9 /0` at 0101:010C
   returned.
 
 Sampling the bench's instruction pointer found it in Bochs's
@@ -409,13 +438,14 @@ compared read for read. The bench now counts the same thing directly: each
 VGA load the RTL sends that never retires. The oracle never speculates, so
 these are exactly the reads its trace would lack. On the boot the count is
 22 of 28,837 VGA loads, the boot record's figure, with 121,487,313 retired,
-the same as there, on the old port and on the fixed one (where 11 loads were
-cancelled and none overlapped).
+the same as there, on the old port, on the fixed one and on `7f243eb0ed`
+with the base's CPU (11 loads cancelled, none faulted, none overlapped; the
+boot passes there, its VGA trace replaying with no mismatch).
 
 | Game | VGA loads | Never retired | Where |
 | --- | ---: | ---: | --- |
 | Ultima VI | 139,556 | 26, all on a wrong path | The boot's 22, and 4 at 3.95 s as the game starts: 3 from FreeDOS's kernel at 0070:0544 (`FF /3`, CALL FAR m16:16) reading A0A68h, and 1 from the game's code at 21D3:2005 reading A1951h |
-| Wolfenstein 3D, 24 s | 252,098 | 34,294: 34,244 on a wrong path, 50 to a restart; 12,006 of them already faulted in D | The boot's BIOS sites; then the game's mode-X code. The 32 commonest sites, 34,252 loads: 30,457 on wrong paths in scaler code in segment 614F, which ends each call with a RETF, among them 8,671 at the AAS at 03A3 and 667 at the AAA at 034F, both unbuilt and so faulted; 3,335 on wrong paths at 5F1F:034B and 384 at 686F:0373 and 0385; 38 at `MOV r8,m8` loads in 2D73:0059-01D1, half on wrong paths and half lost to interrupt restarts; 12 at the VGA-to-VGA REP MOVSB at 2C0B:08F5, 8 of them to restarts, the first at 12.127 s; 12 at 2CBB:08B5, 6 to restarts. To 14.49 s there were 179 of 200,031: 51 at 614F and 10 at 5F1F:034B. The rest came in play, as each frame scales the sprites and the weapon |
+| Wolfenstein 3D, 24 s | 252,098 | 34,294: 34,244 on a wrong path, 50 to a restart; 12,006 of them already faulted in D | The 32 commonest sites, 34,252 loads: 20 at the boot's BIOS sites; then the game's mode-X code. 30,457 on wrong paths in scaler code in segment 614F, which ends each call with a RETF, among them 8,671 at the AAS at 03A3 and 667 at the AAA at 034F, both unbuilt and so faulted; 3,335 on wrong paths at 5F1F:034B and 384 at 686F:0373 and 0385; 32 at `MOV r8,m8` loads in 2D73:0059-01D1, 19 on wrong paths and 13 lost to interrupt restarts; 12 at the VGA-to-VGA REP MOVSB at 2C0B:08F5, 8 of them to restarts, the first at 12.127 s; 12 at 2CBB:08B5, 6 to restarts. To 14.49 s on the same commit (`wolf3d-rtl-faulted`) there were 179 of 200,031, of which the 32 commonest sites hold 143: 51 at 614F, 38 in 2D73, 10 at 5F1F:034B and the rest as at 24 s. The rest came in play, as each frame scales the sprites and the weapon |
 
 The boot's 22 come from the BIOS, at 0.06 s and 0.30 s. The front end
 fetches on past an unconditional JMP (F000:E3FE) and two IRETs (F000:FEE6,
@@ -447,8 +477,8 @@ cycle and then takes the JZ, which the CPU predicts not taken, resolves in
 EX and redirects from WB. In Wolfenstein 3D's 24 s it retired 26% more than
 the oracle, at 3.6 clocks an instruction against 4.5, and read the status
 port 28% fewer times. Nearly all of both runs' status reads come before
-14.49 s: after it the RTL read the port 264 times, and the oracle, which was
-further behind in E1M1's fade-in, 144,627. With no caches, these clocks are
+14.49 s: after it the RTL read the port 264 times, and the oracle 144,627.
+With no caches, these clocks are
 no measure of the CPU on a kit.
 
 ## The instruction mix
@@ -527,46 +557,65 @@ load on the edge M1 sent it, the port marks that load's reads abandoned.
 They still go to the VGA, but their bytes go nowhere, and `dmem_valid` rises
 at once. `vga_cancelled` counts such loads, and `vga_overlaps` counts the
 loads issued while an abandoned read was still out. Since `69de303890` an
-`OVERLAP` line, printed as it happens, gives the first load issued while
-each abandoned read is out: its cycle, its physical address and the
-abandoned read's. Since `037248ffae` the port also abandons, as M1 sends it,
-the load of a uop that already carries a fault, which M2 never waits for:
-the wrapper's `dmem_awaited` says which, and `vga_faulted` counts them.
+`OVERLAP` line, printed as it happens, gives the first load issued while an
+abandoned read is out: its cycle, its physical address and the abandoned
+read's. Until `7f243eb0ed` only the queue's first abandoned read got one, so
+a newer abandoned read queued behind one already overlapped got none; the
+`OVERLAP` counts in this record are of that rule. Each abandoned read now
+gets its own. Since `037248ffae` the port also abandons, as M1 sends it, the
+load of a uop that already carries a fault, which M2 never waits for: the
+wrapper's `dmem_awaited` says which, and `vga_faulted` counts them.
 
 `--trace-port FROM:TO` (`678f9aa62c`, repeatable) prints a `PORT` line for
 each clock of the window: the load M1 sends, its address, bytes and EIP;
 the store; the edge's load, move, flush and commit; the retirement;
 `dmem_valid` and `dmem_rdata`; and the VGA queue, its length, the reads the
-waiting load still needs and the kind of the op at its front.
+waiting load still needs and the kind of the op at its front. The jsonl's
+`PORT` lines leave out the store's data and `dmem_rdata`.
 
-The runner's game suite takes `--cpu rtl` and writes `game-<name>-rtl/`. The
-sound suite still runs the oracle only.
+The runner's game suite takes `--cpu rtl` and writes `game-<name>-rtl/`.
+There it fails a run in which the RTL retired nothing, handed the oracle an
+instruction (protected mode and V86 included), or stopped or stalled, as the
+RTL boot does. `shadow_faults` is the boot's check only, and the other port
+counts, `vga_overlaps` among them, are reported, not checked. The sound
+suite still runs the oracle only.
 
 ## Run time
 
-On Powerboat, one thread each, at loads from 5 to 60 on 24 threads:
+On Powerboat, one thread each, at loads from 5 to 60 on 24 threads; the
+jsonl gives each run's seconds, and leaves CPU time out where it was not
+measured:
 
-| Run | CPU minutes | Wall minutes |
-| --- | ---: | ---: |
-| Ultima VI census, oracle, 16 s | 27 | 27 |
-| Wolfenstein 3D census, oracle, 24 s | 47 | 47 |
-| Ultima VI, RTL, 16 s | 91 | 95 |
-| Wolfenstein 3D, RTL, to 14.49 s | 80 | 80 |
-| Wolfenstein 3D, oracle, to 14.49 s | 23 | 23 |
-| Wolfenstein 3D, RTL, to 14.49 s, with registers and dumps | — | 88 |
-| Wolfenstein 3D, RTL, to 14.49 s, with two port-trace windows | 89 | 97 |
-| Wolfenstein 3D, RTL, to 14.49 s, port fixed again, with a history and dumps | 116 | 134 |
-| Wolfenstein 3D, RTL, 24 s, through the runner | 164 | 183 |
-| FreeDOS boot, RTL, 4.1 s | 30 | 32 |
-| Wolfenstein 3D, oracle, merged tip, 24 s | 77 | 127 |
+| Run | Commit | CPU minutes | Wall minutes |
+| --- | --- | ---: | ---: |
+| Ultima VI census, oracle, 16 s | `d8b0e63907` | 27 | 27 |
+| Wolfenstein 3D census, oracle, 24 s | `d8b0e63907` | 47 | 47 |
+| Ultima VI, RTL, 16 s | `d6fb3af33d` | 91 | 95 |
+| FreeDOS boot, RTL, 4.1 s | `d6fb3af33d` | 30 | 32 |
+| Wolfenstein 3D, RTL, to 14.49 s | `69de303890` | 80 | 80 |
+| Wolfenstein 3D, oracle, to 14.49 s | `69de303890` | — | 27 |
+| Wolfenstein 3D, RTL, to 14.49 s, with registers and dumps | `e41dd6a36d` | — | 88 |
+| Wolfenstein 3D, RTL, to 14.49 s, with two port-trace windows | `678f9aa62c` | 89 | 97 |
+| Wolfenstein 3D, RTL, to 14.49 s, port fixed again, with a history and dumps | `037248ffae` | 116 | 134 |
+| Wolfenstein 3D, RTL, 24 s, through the runner | `037248ffae` | 164 | 183 |
+| Wolfenstein 3D, oracle, merged tip, 24 s | `1187fefd6d` | 77 | 127 |
+| FreeDOS boot, RTL, 4.1 s, building the bench first | `7f243eb0ed` | 29 | 29 |
+| Ultima VI, oracle, 16 s | `7f243eb0ed` | 33 | 34 |
+| Wolfenstein 3D, oracle, 24 s | `7f243eb0ed` | 44 | 45 |
+| Ultima VI, RTL, 16 s | `7f243eb0ed` | 116 | 124 |
+
+The same Ultima VI RTL run took 91 CPU minutes on `d6fb3af33d` and 116 on
+`7f243eb0ed`, with the same instructions retired, at different loads on the
+host.
 
 ## What comes next for Phase 3
 
 - The uncached path, so that loads on a wrong path no longer reach the VGA
   and a load to the VGA waits for the stores before it. The sites above and
   Wolfenstein 3D's status bar are its test cases. M1 should also send no
-  load for a uop D has already marked faulted (`dmem_read`, which lacks the
-  fault check `m2_load` has).
+  load for a uop that has faulted, whether D marked it or its own limit
+  check (`m1_limit`) did: `dmem_read` (`fes_i386_cpu.sv:982`) checks
+  neither, and `m2_load` (line 1067) only the first.
 - The oracle adapter should bound an x87 escape's wait, so a stop on a
   second escape cannot hang the bench.
 - Ultima VII needs a fixture with HIMEMX, and then protected-mode entry (LGDT,
@@ -585,6 +634,9 @@ python3 scripts/sim_fes_pc386.py --suite game --game ultima6 --cpu rtl   # write
 python3 scripts/sim_fes_pc386.py --suite game --game wolf3d --cpu rtl    # writes build/sim/fes-pc386/game-wolf3d-rtl/
 python3 scripts/sim_fes_pc386.py --suite game --game wolf3d              # the oracle run
 ```
+
+The runs share the runner's machine build (`build/sim/fes-pc386/machine/`),
+so start a second only once the first has built it and begun simulating.
 
 A census is `machine_tb --census FILE` on the oracle game run's arguments,
 which its `report.json` records as `command`. The retire histories are

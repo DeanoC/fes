@@ -36,7 +36,8 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            Supply the games outside the repo. With --cpu rtl, on
            fes_i386_cpu as boot runs it, and fails if the RTL stopped,
            stalled or handed the oracle an instruction; writes
-           game-<name>-rtl/.
+           game-<name>-rtl/. Runs share machine/'s build, so start a second
+           run only once the first has built it.
   vga      runs the benches, boots
            cores/fes-pc386/sim/vga_test.asm (VGA BIOS text, mode 13h, mode Y,
            mode 12h), checks every marked picture's 720p frame from the
