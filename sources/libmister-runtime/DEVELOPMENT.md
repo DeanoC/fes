@@ -42,6 +42,12 @@ clean build.
 This runtime is Linux on the Cyclone V ARMv7 HPS, talking to the FPGA.
 That is the target. A development-host compiler is not a substitute.
 
+An AArch64 compile and execution of fake-hardware tests under QEMU can check
+software portability. The production factory refuses that architecture before
+loading a driver or constructing physical adapters. Its device-tree gate also
+requires the exact DE10 identity on ARMv7; a changed compiler target does not
+select a DE25 programming implementation.
+
 Use the pinned GNU Arm 10.2-2020.11 A-profile toolchain from host setup; it is
 not vendored or downloaded by this repository. Generated headers under
 `src/native/generated/` are C++14 target text from mister-packages;

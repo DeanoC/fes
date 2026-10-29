@@ -27,11 +27,8 @@ func LoadPlatform(path string) (*Resolved, error) {
 		return nil, err
 	}
 	boardPath := filepath.Join(packagesDir, platform.Board)
-	var board BoardFile
-	if err := readYAML(boardPath, &board); err != nil {
-		return nil, err
-	}
-	if err := checkHeader(board.Schema, board.Kind, "board", boardPath); err != nil {
+	board, err := LoadBoard(boardPath)
+	if err != nil {
 		return nil, err
 	}
 	socPath := filepath.Join(packagesDir, platform.SoC)
@@ -54,7 +51,7 @@ func LoadPlatform(path string) (*Resolved, error) {
 	resolved := &Resolved{
 		Root:     packagesDir,
 		Platform: platform,
-		Board:    board,
+		Board:    *board,
 		SoC:      soc,
 		CPU:      cpu,
 	}

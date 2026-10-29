@@ -1,0 +1,35 @@
+{
+  "artifact": "project/output_files/golden_top.sof",
+  "artifact_sha256": "d29f747aa52355a7ef24ceccd024e4337bf0fa9ad3ad001298ffb1d7c079d79d",
+  "classification": "retained-host-candidate-not-accepted-for-closure",
+  "excluded_chains": 18,
+  "fes_revision": "6cb01a9123d20923032a3f47cb927409931b4af1",
+  "full_receipt_and_path_report_sha256": {
+    "build.json": "b3b41dac0036c170ec147fbac5677187591172bb9fe7c9a6cf3c409c9dc81403",
+    "generation.json": "62e12ef9b13bcf8fa27b190fa8a251ee1050a668607f1fbf481f669860adcac1",
+    "hps-emif-parameter-review.json": "5646923729a8d4be8315cab3d13a605718998b43466a806af3487c3d20798b11",
+    "inputs.json": "c2f5d97da7bd89a08dbc7bada00af5c035c7aedbdc2f828616f8c64219bc3064",
+    "reset-path-audit.log": "4620d3eccb1b0df3ebd73eb88487664d039cbd1a97e8aeb3ef9d8501b9be2963",
+    "reset-path-audit/clocks.rpt": "84548f2d768013759e72c3364ca873e34fbd0f7d476fa38457e1de0e0358b05b",
+    "reset-path-audit/exceptions.rpt": "d5b48c5b3f691c3bd71e8ca8bb07cdca9fd52279b2d55d1c69d941b8198f4b7a",
+    "reset-path-audit/reset-release-recovery.rpt": "a1b5ebbdb4ac1132476ad4b27a0b90d6b3482e84146d3b04871340f5d6ffa891",
+    "reset-path-audit/reset-release-removal.rpt": "5fbc97e6471eb2c84b862ac69592b6800c27b619389642e5df4773f540c72c25",
+    "reset-path-audit/reset-stage-hold.rpt": "0cace258e534826ad2b0872f6ba35e5290bf1ef9559aa21e535f2dd2db555be9",
+    "reset-path-audit/reset-stage-setup.rpt": "c9d37f7ff6969cbaf0dab971428afe22fda5d0938487e1545b7b22590e3e75e5",
+    "vendor-inputs.json": "ce04b2ae52aa1a79354d7e24d61ee05f697baf37417a135849263b218ad7e286"
+  },
+  "hardware_acceptance": "not-run",
+  "modelled_chains": 25,
+  "new_drc_failures": {
+    "CDC-50012": 2,
+    "CDC-50103": 1,
+    "RES-50002": 1
+  },
+  "output": "out/de25-hps-reset-6cb01a9123",
+  "remaining_drc_failures": {
+    "RDC-50003": 1,
+    "TMC-20012": 1
+  },
+  "top_reset_consumers": 89,
+  "top_reset_stages": 2
+}

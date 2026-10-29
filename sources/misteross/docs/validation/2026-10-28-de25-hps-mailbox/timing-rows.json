@@ -1,0 +1,120 @@
+{
+  "classification": "reported-constrained-rows-only",
+  "rows": [
+    {
+      "check": "Setup 'pll_inst|iopll_0_outclk0'",
+      "slack_ns": 3.484,
+      "tns_ns": 0.0
+    },
+    {
+      "check": "Setup 'altera_reserved_tck'",
+      "slack_ns": 12.809,
+      "tns_ns": 0.0
+    },
+    {
+      "check": "Hold 'pll_inst|iopll_0_outclk0'",
+      "slack_ns": 0.0,
+      "tns_ns": 0.0
+    },
+    {
+      "check": "Hold 'altera_reserved_tck'",
+      "slack_ns": 0.096,
+      "tns_ns": 0.0
+    },
+    {
+      "check": "Hold 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0'",
+      "slack_ns": 0.376,
+      "tns_ns": 0.0
+    },
+    {
+      "check": "Recovery 'pll_inst|iopll_0_outclk0'",
+      "slack_ns": 7.613,
+      "tns_ns": 0.0
+    },
+    {
+      "check": "Recovery 'altera_reserved_tck'",
+      "slack_ns": 61.047,
+      "tns_ns": 0.0
+    },
+    {
+      "check": "Removal 'pll_inst|iopll_0_outclk0'",
+      "slack_ns": 0.156,
+      "tns_ns": 0.0
+    },
+    {
+      "check": "Removal 'altera_reserved_tck'",
+      "slack_ns": 0.165,
+      "tns_ns": 0.0
+    },
+    {
+      "check": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_clk_periph_0'",
+      "slack_ns": 0.22,
+      "tns_ns": 0.0
+    },
+    {
+      "check": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_base_0'",
+      "slack_ns": 0.272,
+      "tns_ns": 0.0
+    },
+    {
+      "check": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0'",
+      "slack_ns": 0.419,
+      "tns_ns": 0.0
+    },
+    {
+      "check": "Minimum Pulse Width 'EMIF_REF_CLOCK'",
+      "slack_ns": 2.22,
+      "tns_ns": 0.0
+    },
+    {
+      "check": "Minimum Pulse Width 'pll_inst|iopll_0_outclk0'",
+      "slack_ns": 4.385,
+      "tns_ns": 0.0
+    },
+    {
+      "check": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_rxclk_gated'",
+      "slack_ns": 4.905,
+      "tns_ns": 0.0
+    },
+    {
+      "check": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_rxclk_gated'",
+      "slack_ns": 4.905,
+      "tns_ns": 0.0
+    },
+    {
+      "check": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_rxclk_gated'",
+      "slack_ns": 4.905,
+      "tns_ns": 0.0
+    },
+    {
+      "check": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_rxclk_gated'",
+      "slack_ns": 4.905,
+      "tns_ns": 0.0
+    },
+    {
+      "check": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_rxclk_gated'",
+      "slack_ns": 4.905,
+      "tns_ns": 0.0
+    },
+    {
+      "check": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_rxclk_gated'",
+      "slack_ns": 4.905,
+      "tns_ns": 0.0
+    },
+    {
+      "check": "Minimum Pulse Width 'pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0'",
+      "slack_ns": 8.313,
+      "tns_ns": 0.0
+    },
+    {
+      "check": "Minimum Pulse Width 'pll_inst|iopll_0_refclk'",
+      "slack_ns": 9.231,
+      "tns_ns": 0.0
+    },
+    {
+      "check": "Minimum Pulse Width 'altera_reserved_tck'",
+      "slack_ns": 28.581,
+      "tns_ns": 0.0
+    }
+  ]
+}

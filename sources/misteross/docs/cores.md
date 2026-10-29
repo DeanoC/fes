@@ -16,7 +16,9 @@ they were written. They are not the schedule for this tree.
 
 ## Current cores
 
-Parent recipe rows live in FES `config/core-recipes.toml`. The bootstrap
+Boards, toolchains and support tiers for these cores are the parent
+[core support matrix](../../../docs/support-matrix.md). Parent recipe rows
+live in FES `config/core-recipes.toml`. The bootstrap
 image installs the idle display `fes.menu` only (fes#919); every playable
 package is a core-library installation with a standing in
 `config/core-library.toml`. `fes.coleco` and `fes.atari-st` are video-socket

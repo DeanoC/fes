@@ -5,9 +5,9 @@ from pathlib import Path
 import subprocess
 
 try:
-    from scripts.test_policy import select_test_modes, validate_test_modes
+    from scripts.test_policy import DE25_BOARD_DEFINITION, select_test_modes, validate_test_modes
 except ImportError:
-    from test_policy import select_test_modes, validate_test_modes
+    from test_policy import DE25_BOARD_DEFINITION, select_test_modes, validate_test_modes
 
 # Logical module names survive the monorepo move; update only these roots.
 MODULE_ROOTS = {'host': 'sources/FogCast', 'runtime': 'sources/libmister-runtime',
@@ -120,6 +120,8 @@ def fpga_cores(path):
     """
     relative = Path(path).relative_to(MODULE_ROOTS['fpga'])
     parts = relative.parts
+    if len(parts) >= 3 and parts[:2] == ('boards', 'de25nano') and '..' not in parts:
+        return (), 'standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer'
     if relative.as_posix() == 'cores/fes-pong/rtl/pixel_pll.v':
         return ('demo', 'pong', 'ramtest', 'riscv'), 'shared fixed-raster clock consumers'
     if relative.as_posix() == 'cores/fes-ramtest/rtl/sdram_addon_port.v':
@@ -277,6 +279,9 @@ def plan(paths):
                     for prefix in PARENT_ROOTS)):
             selected.add('parent')
             reasons.append(f'{path}: parent orchestration/tests/assembly; component sources unchanged')
+        elif path == DE25_BOARD_DEFINITION:
+            selected.update(('parent', 'contracts'))
+            reasons.append(f'{path}: descriptive DE25-Nano board; no emitted or deployed consumers')
         elif owner == 'contracts' and path.endswith(('.go', '/go.mod', '/go.sum')):
             selected.update(LANES)
             reasons.append(f'{path}: contract tooling software; generated RTL unchanged')

@@ -9,6 +9,7 @@ a dated record. A dated record is not the schedule.
 | --- | --- |
 | Design or implement the FES user experience | [FES UX design](ux/README.md), [native references and Library target](ux/references/README.md), [concepts](ux/concepts/README.md), [acceptance](ux/acceptance.md) |
 | See which cores exist, their ABI, interfaces and standing | [Core status](core-status.md) |
+| See which boards and toolchains each core supports, and its support tier | [Core support matrix](support-matrix.md) |
 | Read the accepted Quartus-built core policy and its implementation status (#1163) | [Quartus-built cores](design/quartus-cores.md) |
 | See whether cores match current FPGA choices, and the retirement order | [Core alignment](core-alignment.md) |
 | Set up a checkout and run the host | [Getting started](getting-started.md) |
@@ -18,6 +19,7 @@ a dated record. A dated record is not the schedule.
 | Decide whether a PR needs a full image for hardware testing | [HIL plan](hil-plan.md) |
 | See which module owns a change | [Project map](project-map.md), [component boundaries](component-boundaries.md) |
 | Build, provision or verify a flashable disk | [Bootable media](bootable-media.md) |
+| Build the headless DE25-Nano AArch64 Linux diagnostic | [DE25-Nano Linux](de25-linux.md) |
 | Publish a versioned appliance image | [Appliance releases](appliance-releases.md) |
 | Share the kit | [Kit sharing](kit-sharing.md) |
 | Work in misteross | [misteross README](../sources/misteross/README.md): OSS place-and-route experiments, or a described core |
