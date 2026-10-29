@@ -34,9 +34,11 @@ type ROMInput struct {
 	Parts []expansion.Asset
 }
 
-// ROMLinkIdentity binds an exact source ROM and sealed map to target-linked bytes.
+// ROMLinkIdentity binds an exact source ROM, its declared role and sealed map
+// to target-linked bytes. Role may be absent in identities from older targets.
 type ROMLinkIdentity struct {
 	ROMID            string `json:"rom_id"`
+	Role             string `json:"role,omitempty"`
 	MapSHA256        string `json:"map_sha256"`
 	SourceSHA256     string `json:"source_sha256"`
 	SourceSize       int64  `json:"source_size"`
@@ -46,7 +48,7 @@ type ROMLinkIdentity struct {
 
 // ValidFor checks identity syntax and its binding to sealed ROM metadata.
 func (r ROMLinkIdentity) ValidFor(d Descriptor) bool {
-	return d.Format == 3 && d.ROM != nil && identifier(r.ROMID, "rom.id") == nil && r.ROMID == d.ROM.ID && r.MapSHA256 == d.ROM.SHA256 &&
+	return d.Format == 3 && d.ROM != nil && identifier(r.ROMID, "rom.id") == nil && r.ROMID == d.ROM.ID && (r.Role == "" || r.Role == d.ROM.Role) && r.MapSHA256 == d.ROM.SHA256 &&
 		hex64RE.MatchString(r.MapSHA256) && hex64RE.MatchString(r.SourceSHA256) && hex64RE.MatchString(r.ProgrammedSHA256) &&
 		r.SourceSize == d.ROM.SourceSize && r.SourceSize >= 1024 && r.SourceSize <= 256<<10 && r.SourceSize%1024 == 0 &&
 		r.ProgrammedSize > 0 && r.ProgrammedSize <= MaxPayloadSize
@@ -505,7 +507,7 @@ func linkPreparedROMInput(ctx context.Context, prepared preparedROMInput, sent r
 		}
 	}
 	result.receipt = receipt
-	result.identity = ROMLinkIdentity{ROMID: receipt.ROMID, MapSHA256: receipt.MapSHA256, SourceSHA256: receipt.SourceSHA256, SourceSize: receipt.SourceSize, ProgrammedSHA256: romDigest(result.programmed), ProgrammedSize: int64(len(result.programmed))}
+	result.identity = ROMLinkIdentity{ROMID: receipt.ROMID, Role: inspection.Descriptor.ROM.Role, MapSHA256: receipt.MapSHA256, SourceSHA256: receipt.SourceSHA256, SourceSize: receipt.SourceSize, ProgrammedSHA256: romDigest(result.programmed), ProgrammedSize: int64(len(result.programmed))}
 	return result, nil
 }
 

@@ -48,7 +48,7 @@ func TestROMLaunchClientUploadLimits(t *testing.T) {
 	}
 }
 func TestROMWithExpansionUsesOrdinaryLibraryLoad(t *testing.T) {
-	good := corepackage.ROMLinkIdentity{ROMID: "machine", MapSHA256: strings.Repeat("b", 64), SourceSHA256: strings.Repeat("c", 64), SourceSize: 8192, ProgrammedSHA256: strings.Repeat("d", 64), ProgrammedSize: 4000}
+	good := corepackage.ROMLinkIdentity{ROMID: "machine", Role: "cartridge", MapSHA256: strings.Repeat("b", 64), SourceSHA256: strings.Repeat("c", 64), SourceSize: 8192, ProgrammedSHA256: strings.Repeat("d", 64), ProgrammedSize: 4000}
 	for _, kind := range []string{"valid", "missing ROM identity", "bad id", "bad map", "bad source", "bad source size", "bad programmed hash", "bad programmed size"} {
 		t.Run(kind, func(t *testing.T) {
 			link := good

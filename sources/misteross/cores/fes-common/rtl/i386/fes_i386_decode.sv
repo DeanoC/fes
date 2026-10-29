@@ -11,9 +11,9 @@
 //   a direct offset, XLAT and SALC; PUSH, POP and CALL of r/m; MUL, IMUL
 //   (all three forms), DIV, IDIV, AAM and AAD; IN and OUT; BT, BTS, BTR and
 //   BTC by an immediate, BSF and BSR; the first uops of
-//   MOVS, CMPS, STOS, LODS, SCAS, INS, OUTS and ENTER (fes_i386_seq builds
-//   the rest), and of the microcode routines (PUSHA, POPA, INT, INTO, IRET
-//   and BOUND);
+//   MOVS, CMPS, STOS, LODS, SCAS, INS, OUTS and ENTER, the microcode routines
+//   (PUSHA, POPA, INT, INTO, IRET and BOUND), and BT, BTS, BTR and BTC by a
+//   register with a memory operand (fes_i386_seq builds the rest);
 // with a ModRM memory operand where they take one. The memory operand is a
 // load (src2, or src1 for CMP and TEST), a store, or both in one uop
 // (read-modify-write), and replaces the register it stands for: no GPR is
@@ -1174,6 +1174,41 @@ module fes_i386_decode (
                     d_valid = reg_f[1:0] != 2'd0;
                     d_idx = rm;
                     imm = imm8_m;
+                end
+                8'b101??011: begin
+                    // BT (A3h), BTS (ABh), BTR (B3h), BTC (BBh) r/m, r: the
+                    // register numbers the bit. With a register operand,
+                    // one uop. A memory operand's address moves by the
+                    // register (SEQ_BTM): this uop puts that displacement in
+                    // T1, and imm carries the bit test's op. LOCK is valid
+                    // on BTS's, BTR's and BTC's memory form, as on the 386EX.
+                    case (op2[4:3])
+                        2'd0: op = 5'd19;  // ALU_BT
+                        2'd1: op = 5'd20;  // ALU_BTS
+                        2'd2: op = 5'd21;  // ALU_BTR
+                        default: op = 5'd22;  // ALU_BTC
+                    endcase
+                    s2_valid = 1'b1;
+                    s2_idx = reg_f;
+                    if (reg_form) begin
+                        wr_cf = 1'b1;
+                        wr_oszap = 1'b1;
+                        s1_valid = 1'b1;
+                        s1_idx = rm;
+                        d_valid = op2[4:3] != 2'd0;
+                        d_idx = rm;
+                    end else begin
+                        op = 5'd18;  // ALU_BITDISP
+                        size = 2'd2;
+                        src_size = osz;
+                        d_valid = 1'b1;
+                        d_temp = 1'b1;
+                        d_t1 = 1'b1;
+                        lock_any = op2[4:3] != 2'd0;
+                        imm = {30'd0, op2[4:3]};
+                        seq = fes_i386_pkg::SEQ_BTM;
+                        eoi = 1'b0;
+                    end
                 end
                 8'b1011110?: begin
                     // BSF (BCh), BSR (BDh) r, r/m: src1 is the destination,
