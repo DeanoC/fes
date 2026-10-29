@@ -68,8 +68,17 @@ int main(int argc,char**argv){
             wire::need(!identified.ok()&&pr.Poisoned()&&io.state(combined::PrWrites)==0,"wrong build mutated PR endpoint");
         }else{
             okay(identified,"PR identity");De25ComputerIdentity computer_identity;okay(computer.Identify(build,io.deadline(),&computer_identity),"computer identity");
+            // A successful mailbox RUN cannot bypass an unselected/frozen PR
+            // resource. Keep RUN requested in negative cases to test that gate.
+            okay(computer.Run(io.deadline()),"RUN while PR frozen");
+            auto held_retired=io.call(wire::State,wire::MachineReset).retired;
+            auto held_writes=io.state(combined::MemoryWrites);io.call(wire::Advance,4096);
+            wire::need(io.state(wire::MachineReset)&&io.call(wire::State,wire::MachineReset).retired==held_retired&&io.state(combined::MemoryWrites)==held_writes,"mailbox RUN bypassed PR freeze");
             if(scenario=="session"){
+                okay(computer.Hold(io.deadline()),"HOLD before initial selection");
                 okay(pr.Reconfigure(FesDe25PrControlPersonaA,[&]{return configure(FesDe25PrControlPersonaA);},io.deadline()),"empty selection");
+                io.call(wire::Advance,4096);
+                wire::need(io.state(wire::MachineReset)&&io.call(wire::State,wire::MachineReset).retired==held_retired,"PR RUNNING bypassed mailbox HOLD");
                 okay(computer.Run(io.deadline()),"empty RUN");std::cerr<<"BOOT empty\n";ramtop_a=io.call(combined::WaitRamtop,0x4400).value;
                 okay(computer.Hold(io.deadline()),"HOLD before RAM selection");
                 io.call(wire::PixelClock,0);
