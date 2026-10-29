@@ -22,6 +22,8 @@
 #include <cstddef>
 #include <cstring>
 #include <cstdlib>
+#include <fstream>
+#include <functional>
 #include <string>
 #include <time.h>
 #include <utility>
@@ -37,7 +39,41 @@
 namespace mister {
 namespace {
 
+const char kDe10Model[] = "Terasic DE10-nano";
+const char kDe10Compatible[] = "altr,socfpga-cyclone5\0altr,socfpga";
 
+std::string ProductionArchitecture()
+{
+#if defined(__linux__) && defined(__arm__) && defined(__ARM_ARCH) && __ARM_ARCH == 7
+	return "armv7";
+#elif defined(__aarch64__)
+	return "aarch64";
+#else
+	return "unsupported";
+#endif
+}
+
+std::string DeviceTreeIdentity(const char* path)
+{
+	std::ifstream stream(path, std::ios::binary);
+	std::string bytes(256, '\0');
+	stream.read(&bytes[0], bytes.size());
+	if (stream.bad()) return {};
+	bytes.resize(static_cast<std::size_t>(stream.gcount()));
+	return bytes;
+}
+
+Error RequireProductionBoard(const std::string& architecture,
+	const std::string& model, const std::string& compatible)
+{
+	// Match the board identity used by FES boot/reset preparation. Raw device-
+	// tree properties include their terminating NULs; prefixes are not identities.
+	if (architecture != "armv7" || model != std::string(kDe10Model, sizeof(kDe10Model)) ||
+		compatible != std::string(kDe10Compatible, sizeof(kDe10Compatible)))
+		return {ErrorCode::unsupported_target,
+			"production hardware requires ARMv7 Terasic DE10-nano Cyclone V", "platform"};
+	return {};
+}
 
 class UnavailableHardware final : public Hardware {
 public:
@@ -250,25 +286,49 @@ private:
 	native::NativeHardware hardware_;
 };
 
-} // namespace
-
-
-Error CreateProductionHardware(LogSink& log,
-	std::unique_ptr<Hardware>* hardware)
+Error ConstructProductionHardware(LogSink& log, std::unique_ptr<Hardware>* hardware,
+	const std::string& architecture, const std::string& model,
+	const std::string& compatible, const std::function<Error()>& load_window_driver)
 {
 	if (hardware == nullptr)
 		return {ErrorCode::invalid_request, "missing production hardware output"};
-	// Nothing maps through the driver yet; a load failure is reported, not fatal.
-	const Error window = native::LoadWindowDriver(native::WindowDriverDirectory());
+	const Error platform = RequireProductionBoard(architecture, model, compatible);
+	if (!platform.ok()) return platform;
+	// Identity precedes module loading and construction of every physical adapter.
+	// A driver load failure is reported but retains the existing DE10 idle path.
+	const Error window = load_window_driver();
 	if (!window.ok())
 		log.Write({"window_driver", "", "", "failure", window});
 	hardware->reset(new ProductionHardware(log));
 	return {};
 }
 
+} // namespace
+
+
+Error CreateProductionHardware(LogSink& log,
+	std::unique_ptr<Hardware>* hardware)
+{
+	return ConstructProductionHardware(log, hardware, ProductionArchitecture(),
+		DeviceTreeIdentity("/proc/device-tree/model"),
+		DeviceTreeIdentity("/proc/device-tree/compatible"), [] {
+			return native::LoadWindowDriver(native::WindowDriverDirectory());
+		});
+}
+
 std::unique_ptr<Hardware> CreateUnavailableHardware(const Error& reason)
 {
 	return std::make_unique<UnavailableHardware>(reason);
 }
+
+#if defined(MISTER_RUNTIME_TESTING)
+Error CreateProductionHardware(LogSink& log, std::unique_ptr<Hardware>* hardware,
+	const std::string& architecture, const std::string& model,
+	const std::string& compatible, const std::function<Error()>& load_window_driver)
+{
+	return ConstructProductionHardware(log, hardware, architecture, model, compatible,
+		load_window_driver);
+}
+#endif
 
 } // namespace mister
