@@ -5,8 +5,10 @@ This is the current described-core matrix. It is taken from
 misteross producers that emit format-2 manifests, except ZX81, SMS, SG-1000,
 Apple II, C64, Spectrum and Atari ST format-3 manifests, and Coleco format-4
 manifests with sealed ROM maps.
-Whether a core matches the current HIP pin, CPU and display choices is
-[core alignment](core-alignment.md). A dated note under
+Boards, OSS versus Quartus toolchains and support tiers are the
+[core support matrix](support-matrix.md). This page stays ABI, interfaces
+and package standing. Whether a core matches the current HIP pin, CPU and
+display choices is [core alignment](core-alignment.md). A dated note under
 [validation/](validation/) describes the artifact it names. It does not accept
 a bitstream built later.
 

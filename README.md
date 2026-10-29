@@ -11,7 +11,8 @@ Agents: read [AGENTS.md](AGENTS.md), then the
 ## Documentation
 
 Start at the [documentation index](docs/README.md). Core ABI, interfaces and
-standing are the [core status](docs/core-status.md) matrix.
+standing are the [core status](docs/core-status.md) matrix. Boards, toolchains
+and support tiers are the [core support matrix](docs/support-matrix.md).
 
 - [DeepWiki](https://deepwiki.com/DeanoC/fes): Devin-generated guide to the FES codebase.
 - [Getting started](docs/getting-started.md): setup, build choices, running the host and common failures.

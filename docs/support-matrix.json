@@ -1,0 +1,1147 @@
+{
+  "version": 1,
+  "intro": [
+    "This page is the board and toolchain matrix. It is taken from `config/core-recipes.toml`, `config/core-library.toml`, `profiles/native-integration-dev.toml`, the per-core `toolchain.lock` files, the misteross producers, and the docs those files point at. A cell that is not in those sources is marked unverified or TBD.",
+    "The bootstrap image installs `fes.menu` and the pinned splash bitstream. Every playable core is a catalog install. Library standing `supported` is not a claim that the current bitstream has kit acceptance. Dated notes under `docs/validation/` accept only the artifact they name.",
+    "The tier names below follow the tree. They do not use \"HIL-verified and shipped in the default image\" as Tier 1, because no playable core is in that image and kit notes do not move forward onto a new bitstream."
+  ],
+  "tiers": [
+    {
+      "id": "firmware",
+      "label": "Firmware",
+      "meaning": "Board bitstream required by boot or the kit UI. `fes.menu` is the only package in the default image profile. Splash is the pinned idle RBF, not a play package."
+    },
+    {
+      "id": "catalog-supported",
+      "label": "Tier 1 \u2014 Catalog supported",
+      "meaning": "`standing = supported` in `config/core-library.toml`, with a recipe row. Installed from the catalog. Not in the bootstrap image. This is the library's own word, not a current-byte hardware acceptance."
+    },
+    {
+      "id": "optional",
+      "label": "Tier 2 \u2014 Optional",
+      "meaning": "Recipe `optional = true`. Today only `fes.atari-st`. Its library standing is still `experimental`. The default profile does not select it. When a selection includes it, `FES_SKIP_OPTIONAL_CORES=1` or `FES_SKIP_CORES=fes.atari-st` skips place-and-route, and `FES_REQUIRE_ALL_CORES=1` makes the omission fail the build."
+    },
+    {
+      "id": "experimental",
+      "label": "Tier 3 \u2014 Experimental",
+      "meaning": "`standing = experimental` in `config/core-library.toml`. Registered for `make core-dev` and the catalog. Not in the bootstrap image. Bring-up evidence, where it exists, is package-specific."
+    },
+    {
+      "id": "demo",
+      "label": "Demo",
+      "meaning": "`standing = demo` in `config/core-library.toml`. Today only `fes.catch`."
+    },
+    {
+      "id": "reference",
+      "label": "Reference",
+      "meaning": "A producer or simulation module exists and core docs say it is not a registered play package. No recipe row."
+    },
+    {
+      "id": "bring-up",
+      "label": "Bring-up",
+      "meaning": "A core directory with RTL and a simulation or diagnostic route, and no recipe row. Not a catalog package."
+    },
+    {
+      "id": "shared-rtl",
+      "label": "Shared RTL",
+      "meaning": "A CPU other cores instantiate. Not a system package and not a board bitstream of its own."
+    },
+    {
+      "id": "planned",
+      "label": "Planned",
+      "meaning": "Named future work with no core directory. No row uses this tier. DE25-Nano is a missing board shell on every row, not a core."
+    }
+  ],
+  "policy": [
+    "Labels follow the accepted Quartus policy in [Quartus-built cores](design/quartus-cores.md) (issue #1163). `oss` is the Debian-style main set: Yosys + nextpnr-mistral. `quartus` is the non-free set: a proprietary toolchain. A core build is supposed to say which one made it, so an all-OSS selection can exclude every Quartus build. `FES_OSS_ONLY` is not implemented. Current registered recipes and package selection build the OSS lane only. A failed OSS route never falls back to Quartus.",
+    "Both labelled builds ship only when the published rule is met, on the same RTL and the same target clocks. Either every Quartus sign-off seed closes a required clock that an OSS sign-off seed misses, or the best complete-seed Fmax is at least 15% higher on any required clock: `100 \u00d7 (Quartus best \u2212 OSS best) / OSS best`. Otherwise the core ships OSS only. No registered recipe declares a `toolchains` list yet, so no core ships both builds today. The i386 far-transfer numbers are the policy's worked example (about 40%), and they are still an oracle, not a product variant.",
+    "DE25-Nano uses an Agilex 5 device. There is no `sources/misteross/boards/de25nano` directory. nextpnr-mistral targets Cyclone V (`5CSEBA6U23I7` in [the DE10-Nano board note](../sources/misteross/boards/de10nano/README.md)). The policy says the first DE25 shells are Quartus-only, because the device is not OSS-reverse-engineered, and that Quartus Pro 24.1 or later is the first release that supports Agilex 5. No per-core DE25 recipe exists.",
+    "i386, pc386 and PC/XT are not labelled Quartus-primary in this tree. i386's Quartus 17.0.2 fit is an oracle on the same Yosys netlist, and a gap that only nextpnr shows is filed against that flow ([i386 CPU design](../sources/misteross/docs/i386-cpu-design.md)). pc386 has no sealed producer. PC/XT's producer is the OSS diagnostic, and Quartus is the cross-check that rejected an earlier nextpnr-only pass. Treating Quartus as the primary product toolchain, with nextpnr advisory, is unverified.",
+    "ColecoVision's factory recipe is the format-4 ROM map, not the blob/blob-stream mailboxes still present on the older Coleco producers. A household title count of 0 and a low-priority ranking are not stated in the tree. See the Coleco row and the unverified list."
+  ],
+  "cores": [
+    {
+      "id": "fes.menu",
+      "label": "`fes.menu`",
+      "tier": "firmware",
+      "covers": [
+        "fes-menu"
+      ],
+      "paths": [],
+      "recipe": true,
+      "optional": false,
+      "quartus_role": "no oracle required",
+      "recipe_gpu_router": "HIP",
+      "producer_script": "scripts/build_fes_menu_package.py",
+      "library_standing": null,
+      "in_bootstrap_image": true,
+      "oss_lock": {
+        "path": "sources/misteross/cores/fes-menu/toolchain.lock",
+        "yosys": "3a5accbd",
+        "mistral": "8fcc4cb4",
+        "nextpnr": "1eecf877"
+      },
+      "board": "de10",
+      "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-device` only; the authenticated toolchain sets the backend (misteross AGENTS.md).",
+      "quartus": "Recipe `quartus_role` is `no oracle required`. No Quartus product variant is selected. A failed OSS route does not fall back to Quartus.",
+      "features": "Media: none. Input: none in the package interfaces. HDMI: fixed 720p60 menu display and blitter over HPS DDR (`fes.video.menu-display`, `fes.video.menu-blitter`). Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
+      "notes": "Bootstrap image display firmware, not a playable core. The only `fpga_packages` row in `profiles/native-integration-dev.toml`. Lock nextpnr `1eecf877`. `docs/core-alignment.md` still groups menu with repository-level nextpnr `9128800f`; this matrix follows the lock file.",
+      "evidence": [
+        "config/core-recipes.toml",
+        "config/core-library.toml",
+        "profiles/native-integration-dev.toml",
+        "docs/core-status.md",
+        "docs/design/quartus-cores.md",
+        "docs/display-pipeline.md",
+        "sources/misteross/docs/cores.md",
+        "sources/misteross/boards/de10nano/README.md",
+        "sources/misteross/AGENTS.md",
+        "sources/misteross/cores/fes-menu/toolchain.lock",
+        "sources/misteross/scripts/build_fes_menu_package.py"
+      ]
+    },
+    {
+      "id": "splash",
+      "label": "splash / idle",
+      "tier": "firmware",
+      "covers": [
+        "fes-splash"
+      ],
+      "paths": [],
+      "recipe": false,
+      "library_standing": null,
+      "in_bootstrap_image": false,
+      "oss_lock": {
+        "path": "sources/misteross/toolchain.lock",
+        "yosys": "3a5accbd",
+        "mistral": "8fcc4cb4",
+        "nextpnr": "9128800f"
+      },
+      "board": "de10",
+      "router": "Build sets `gpu_router` OFF and uses the repository lock (`scripts/build_fes_splash.py`).",
+      "quartus": "No Quartus product lane was found. The image pins `sealed/fes-splash.rbf` for U-Boot `/idle.rbf` and Stop idle.",
+      "features": "Media: none. Input: none. No MiSTer user-io (Probe `0x0014` and HPS framebuffer `0x002f` are unanswered). HDMI: 720p60 logo. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
+      "notes": "Board firmware, not a `fes.*` recipe and not in `config/core-library.toml`. Not a play package.",
+      "evidence": [
+        "image/build/native-inputs.toml",
+        "sources/misteross/cores/fes-splash/README.md",
+        "sources/misteross/scripts/build_fes_splash.py",
+        "sources/misteross/toolchain.lock",
+        "sources/misteross/docs/cores.md"
+      ],
+      "image_pin_path": "sealed/fes-splash.rbf"
+    },
+    {
+      "id": "fes.pong",
+      "label": "`fes.pong`",
+      "tier": "catalog-supported",
+      "covers": [
+        "fes-pong"
+      ],
+      "paths": [],
+      "recipe": true,
+      "optional": false,
+      "quartus_role": "check only when a twin exists",
+      "recipe_gpu_router": "HIP",
+      "producer_script": "scripts/build_fes_pong.py",
+      "library_standing": "supported",
+      "in_bootstrap_image": false,
+      "oss_lock": {
+        "path": "sources/misteross/cores/fes-pong/toolchain.lock",
+        "yosys": "3a5accbd",
+        "mistral": "8fcc4cb4",
+        "nextpnr": "552ba246"
+      },
+      "board": "de10",
+      "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-device` only; the authenticated toolchain sets the backend (misteross AGENTS.md).",
+      "quartus": "Recipe `quartus_role` is `check only when a twin exists`. No `build-fes-pong-quartus` target was found. Not a shipped variant.",
+      "features": "Media: ROM-less. Persists settings and best rally (`fes.persistence.words`, `fes.pong.progress`). Input: `fes.gamepad`. HDMI: shared `fes_video_720p`, fixed 720p60. Display plane is Planned in `docs/display-pipeline.md`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
+      "notes": "Library standing `supported`. Not in the bootstrap image. Named kit notes do not accept a later bitstream.",
+      "evidence": [
+        "config/core-recipes.toml",
+        "config/core-library.toml",
+        "profiles/native-integration-dev.toml",
+        "docs/core-status.md",
+        "docs/design/quartus-cores.md",
+        "docs/display-pipeline.md",
+        "sources/misteross/docs/cores.md",
+        "sources/misteross/boards/de10nano/README.md",
+        "sources/misteross/AGENTS.md",
+        "sources/misteross/cores/fes-pong/toolchain.lock",
+        "sources/misteross/scripts/build_fes_pong.py"
+      ]
+    },
+    {
+      "id": "fes.catch",
+      "label": "`fes.catch`",
+      "tier": "demo",
+      "covers": [
+        "fes-catch"
+      ],
+      "paths": [],
+      "recipe": true,
+      "optional": false,
+      "quartus_role": "no oracle required",
+      "recipe_gpu_router": "HIP",
+      "producer_script": "scripts/build_fes_catch.py",
+      "library_standing": "demo",
+      "in_bootstrap_image": false,
+      "oss_lock": {
+        "path": "sources/misteross/cores/fes-catch/toolchain.lock",
+        "yosys": "3a5accbd",
+        "mistral": "8fcc4cb4",
+        "nextpnr": "9128800f"
+      },
+      "board": "de10",
+      "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-device` only; the authenticated toolchain sets the backend (misteross AGENTS.md).",
+      "quartus": "Recipe `quartus_role` is `no oracle required`. No Quartus product variant is selected. A failed OSS route does not fall back to Quartus.",
+      "features": "Media: ROM-less. Input: `fes.gamepad`. HDMI: fixed 720p60 with audio on the demo shell. Display plane is Planned in `docs/display-pipeline.md`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
+      "notes": "Library standing `demo`. RTL lives in `cores/fes-demo`; the lock file is the only file under `cores/fes-catch`. Not in the bootstrap image. No separate kit acceptance is recorded in core status.",
+      "evidence": [
+        "config/core-recipes.toml",
+        "config/core-library.toml",
+        "profiles/native-integration-dev.toml",
+        "docs/core-status.md",
+        "docs/design/quartus-cores.md",
+        "docs/display-pipeline.md",
+        "sources/misteross/docs/cores.md",
+        "sources/misteross/boards/de10nano/README.md",
+        "sources/misteross/AGENTS.md",
+        "sources/misteross/cores/fes-catch/toolchain.lock",
+        "sources/misteross/scripts/build_fes_catch.py",
+        "sources/misteross/cores/fes-demo/rtl/fes_catch_core.v"
+      ]
+    },
+    {
+      "id": "fes.ramtest",
+      "label": "`fes.ramtest`",
+      "tier": "catalog-supported",
+      "covers": [
+        "fes-ramtest"
+      ],
+      "paths": [],
+      "recipe": true,
+      "optional": false,
+      "quartus_role": "bring-up/check oracle",
+      "recipe_gpu_router": "HIP",
+      "producer_script": "scripts/build_fes_ramtest.py",
+      "library_standing": "supported",
+      "in_bootstrap_image": false,
+      "oss_lock": {
+        "path": "sources/misteross/cores/fes-ramtest/toolchain.lock",
+        "yosys": "3a5accbd",
+        "mistral": "8fcc4cb4",
+        "nextpnr": "9128800f"
+      },
+      "board": "de10",
+      "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-device` only; the authenticated toolchain sets the backend (misteross AGENTS.md).",
+      "quartus": "Recipe `quartus_role` is `bring-up/check oracle`. `make build-fes-ramtest-quartus` is Quartus 17.0.2 at 130 MHz (`RAMTEST_MHZ=100` selects 100 MHz). The catalog utility is the OSS 100 MHz variant. 130 MHz closure remains open.",
+      "features": "Media: ROM-less utility. Input: `fes.gamepad`. HDMI: fixed 720p60. Memory: SDRAM addon and `fes.memory.hps-ddr`. Display plane is Planned in `docs/display-pipeline.md`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
+      "notes": "Library standing `supported`. Not in the bootstrap image. No exact-image hardware acceptance is claimed in core status.",
+      "evidence": [
+        "config/core-recipes.toml",
+        "config/core-library.toml",
+        "profiles/native-integration-dev.toml",
+        "docs/core-status.md",
+        "docs/design/quartus-cores.md",
+        "docs/display-pipeline.md",
+        "sources/misteross/docs/cores.md",
+        "sources/misteross/boards/de10nano/README.md",
+        "sources/misteross/AGENTS.md",
+        "sources/misteross/cores/fes-ramtest/toolchain.lock",
+        "sources/misteross/scripts/build_fes_ramtest.py",
+        "sources/misteross/scripts/build_fes_ramtest_quartus.py"
+      ]
+    },
+    {
+      "id": "fes.zx81",
+      "label": "`fes.zx81`",
+      "tier": "catalog-supported",
+      "covers": [
+        "fes-zx81"
+      ],
+      "paths": [],
+      "recipe": true,
+      "optional": false,
+      "quartus_role": "bring-up/check oracle",
+      "recipe_gpu_router": "HIP",
+      "producer_script": "scripts/build_fes_zx81_oss.py",
+      "library_standing": "supported",
+      "in_bootstrap_image": false,
+      "oss_lock": {
+        "path": "sources/misteross/cores/fes-zx81/toolchain.lock",
+        "yosys": "3a5accbd",
+        "mistral": "8fcc4cb4",
+        "nextpnr": "1eecf877"
+      },
+      "board": "de10",
+      "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
+      "quartus": "Recipe `quartus_role` is `bring-up/check oracle`. `make build-fes-zx81-quartus` runs Quartus 17.0.2 (`scripts/build_fes_zx81.py`). Not the installed package.",
+      "features": "Media: format-3 `machine-rom` plus `fes.media.zx81-tape` and tape-write (`.p`). Input: `fes.keyboard.hid` and `fes.gamepad.ports`. HDMI: fixed 720p60 through `fes_display_plane`. Optional `fes.expansion.zx81-bus` 2.0. CPU: `fes_z80_nmos`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
+      "notes": "Library standing `supported`. Not in the bootstrap image. ZX80, TS1000 and TS1500 are other models of this shell.",
+      "evidence": [
+        "config/core-recipes.toml",
+        "config/core-library.toml",
+        "profiles/native-integration-dev.toml",
+        "docs/core-status.md",
+        "docs/design/quartus-cores.md",
+        "docs/display-pipeline.md",
+        "sources/misteross/docs/cores.md",
+        "sources/misteross/boards/de10nano/README.md",
+        "sources/misteross/AGENTS.md",
+        "sources/misteross/cores/fes-zx81/toolchain.lock",
+        "sources/misteross/scripts/build_fes_zx81_oss.py",
+        "sources/misteross/scripts/build_fes_zx81.py"
+      ]
+    },
+    {
+      "id": "fes.zx80",
+      "label": "`fes.zx80`",
+      "tier": "experimental",
+      "covers": [],
+      "paths": [],
+      "recipe": true,
+      "optional": false,
+      "quartus_role": "bring-up/check oracle",
+      "recipe_gpu_router": "HIP",
+      "producer_script": "scripts/build_fes_zx81_oss.py",
+      "library_standing": "experimental",
+      "in_bootstrap_image": false,
+      "oss_lock": {
+        "path": "sources/misteross/cores/fes-zx81/toolchain.lock",
+        "yosys": "3a5accbd",
+        "mistral": "8fcc4cb4",
+        "nextpnr": "1eecf877"
+      },
+      "board": "de10",
+      "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
+      "quartus": "Recipe `quartus_role` is `bring-up/check oracle`, the same wording as ZX81. No `make build-fes-zx80-quartus` target was found. `scripts/build_fes_zx81.py` writes `build/fes-zx81-quartus`. Whether that oracle covers ZX80 is unverified.",
+      "features": "Media: format-3 tape load (`fes.media.zx81-tape`); the producer omits tape-write for this model. Input: `fes.keyboard.hid` and `fes.gamepad.ports`. HDMI: fixed 720p60 through the session display plane. CPU: `fes_z80_nmos`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
+      "notes": "Same tree and lock as ZX81. Experimental: PAL, 4 KiB ROM, 1 KiB RAM, no NMI. Not in the bootstrap image. No sealed package and no hardware acceptance are recorded in core alignment.",
+      "evidence": [
+        "config/core-recipes.toml",
+        "config/core-library.toml",
+        "profiles/native-integration-dev.toml",
+        "docs/core-status.md",
+        "docs/design/quartus-cores.md",
+        "docs/display-pipeline.md",
+        "sources/misteross/docs/cores.md",
+        "sources/misteross/boards/de10nano/README.md",
+        "sources/misteross/AGENTS.md",
+        "sources/misteross/cores/fes-zx81/toolchain.lock",
+        "sources/misteross/scripts/build_fes_zx81_oss.py"
+      ]
+    },
+    {
+      "id": "fes.ts1000",
+      "label": "`fes.ts1000`",
+      "tier": "experimental",
+      "covers": [],
+      "paths": [],
+      "recipe": true,
+      "optional": false,
+      "quartus_role": "bring-up/check oracle",
+      "recipe_gpu_router": "HIP",
+      "producer_script": "scripts/build_fes_zx81_oss.py",
+      "library_standing": "experimental",
+      "in_bootstrap_image": false,
+      "oss_lock": {
+        "path": "sources/misteross/cores/fes-zx81/toolchain.lock",
+        "yosys": "3a5accbd",
+        "mistral": "8fcc4cb4",
+        "nextpnr": "1eecf877"
+      },
+      "board": "de10",
+      "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
+      "quartus": "Recipe `quartus_role` is `bring-up/check oracle`. No `make build-fes-ts1000-quartus` target was found. Whether the ZX81 Quartus script covers this model is unverified.",
+      "features": "Media: tape and tape-write. Input: `fes.keyboard.hid` and `fes.gamepad.ports`. HDMI: fixed 720p60 through the session display plane. CPU: `fes_z80_nmos`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
+      "notes": "Same tree and lock as ZX81. Experimental: NTSC, 8 KiB ROM, 2 KiB RAM. Not in the bootstrap image.",
+      "evidence": [
+        "config/core-recipes.toml",
+        "config/core-library.toml",
+        "profiles/native-integration-dev.toml",
+        "docs/core-status.md",
+        "docs/design/quartus-cores.md",
+        "docs/display-pipeline.md",
+        "sources/misteross/docs/cores.md",
+        "sources/misteross/boards/de10nano/README.md",
+        "sources/misteross/AGENTS.md",
+        "sources/misteross/cores/fes-zx81/toolchain.lock",
+        "sources/misteross/scripts/build_fes_zx81_oss.py"
+      ]
+    },
+    {
+      "id": "fes.ts1500",
+      "label": "`fes.ts1500`",
+      "tier": "experimental",
+      "covers": [],
+      "paths": [],
+      "recipe": true,
+      "optional": false,
+      "quartus_role": "bring-up/check oracle",
+      "recipe_gpu_router": "HIP",
+      "producer_script": "scripts/build_fes_zx81_oss.py",
+      "library_standing": "experimental",
+      "in_bootstrap_image": false,
+      "oss_lock": {
+        "path": "sources/misteross/cores/fes-zx81/toolchain.lock",
+        "yosys": "3a5accbd",
+        "mistral": "8fcc4cb4",
+        "nextpnr": "1eecf877"
+      },
+      "board": "de10",
+      "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
+      "quartus": "Recipe `quartus_role` is `bring-up/check oracle`. No `make build-fes-ts1500-quartus` target was found. Whether the ZX81 Quartus script covers this model is unverified.",
+      "features": "Media: tape and tape-write. Input: `fes.keyboard.hid` and `fes.gamepad.ports`. HDMI: fixed 720p60 through the session display plane. CPU: `fes_z80_nmos`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
+      "notes": "Same tree and lock as ZX81. Experimental: NTSC, 8 KiB ROM, 16 KiB RAM. Not in the bootstrap image.",
+      "evidence": [
+        "config/core-recipes.toml",
+        "config/core-library.toml",
+        "profiles/native-integration-dev.toml",
+        "docs/core-status.md",
+        "docs/design/quartus-cores.md",
+        "docs/display-pipeline.md",
+        "sources/misteross/docs/cores.md",
+        "sources/misteross/boards/de10nano/README.md",
+        "sources/misteross/AGENTS.md",
+        "sources/misteross/cores/fes-zx81/toolchain.lock",
+        "sources/misteross/scripts/build_fes_zx81_oss.py"
+      ]
+    },
+    {
+      "id": "fes.coleco",
+      "label": "`fes.coleco`",
+      "tier": "catalog-supported",
+      "covers": [
+        "fes-coleco"
+      ],
+      "paths": [
+        "sources/misteross/cores/fes-common/rtl/tv80"
+      ],
+      "recipe": true,
+      "optional": false,
+      "quartus_role": "bring-up/check oracle",
+      "recipe_gpu_router": "HIP",
+      "producer_script": "scripts/build_fes_coleco_socket_v2.py",
+      "library_standing": "supported",
+      "in_bootstrap_image": false,
+      "oss_lock": {
+        "path": "sources/misteross/cores/fes-coleco/toolchain.lock",
+        "yosys": "5391eeb1",
+        "mistral": "8fcc4cb4",
+        "nextpnr": "bec82e36"
+      },
+      "board": "de10",
+      "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
+      "quartus": "Recipe `quartus_role` is `bring-up/check oracle`. `make build-fes-coleco-quartus` is the Quartus 17.0.2 oracle, not the installed package.",
+      "features": "Media: format-4 ROM map, exact 8 KiB `coleco-bios` plus 16 KiB `coleco-cart`. The recipe producer strips `fes.media.blob`, `fes.media.blob-stream` and `fes.firmware.blob`. No live media unit. Guide Change media relaunches the same title with another exact-size `.col`/`.rom`/`.bin` (`POST /api/v1/session/cartridge`); the saved cartridge binding is unchanged. Input: `fes.gamepad.ports` and `fes.keypad.ports`. HDMI: native-pixel shell, mandatory Direct or Scanlines part, then the session display plane, fixed 720p60. CPU: TV80, not `fes_z80_nmos`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
+      "notes": "Library standing `supported`. Not retail-complete. The `example.coleco-arcade` room names five cabinets and skips any that are not installed; an empty library shows `no Coleco arcade titles in this library yet`. A committed title count of 0 and a low-priority ranking were not found (unverified). Older `build_fes_coleco.py` and `build_fes_coleco_oss.py` still declare blob and blob-stream; they are not the recipe producer.",
+      "evidence": [
+        "config/core-recipes.toml",
+        "config/core-library.toml",
+        "profiles/native-integration-dev.toml",
+        "docs/core-status.md",
+        "docs/design/quartus-cores.md",
+        "docs/display-pipeline.md",
+        "sources/misteross/docs/cores.md",
+        "sources/misteross/boards/de10nano/README.md",
+        "sources/misteross/AGENTS.md",
+        "sources/misteross/cores/fes-coleco/toolchain.lock",
+        "sources/misteross/cores/fes-coleco/README.md",
+        "sources/misteross/scripts/build_fes_coleco_socket_v2.py",
+        "sources/FogCast/docs/ARCHITECTURE.md",
+        "sources/FogCast/protocol/cartridge.go",
+        "sources/FogCast/ui/rooms/examples/coleco-arcade/main.lua"
+      ]
+    },
+    {
+      "id": "fes.sms",
+      "label": "`fes.sms`",
+      "tier": "catalog-supported",
+      "covers": [
+        "fes-sms"
+      ],
+      "paths": [],
+      "recipe": true,
+      "optional": false,
+      "quartus_role": "bring-up/check oracle",
+      "recipe_gpu_router": "HIP",
+      "producer_script": "scripts/build_fes_sms_oss.py",
+      "library_standing": "supported",
+      "in_bootstrap_image": false,
+      "oss_lock": {
+        "path": "sources/misteross/cores/fes-sms/toolchain.lock",
+        "yosys": "3a5accbd",
+        "mistral": "8fcc4cb4",
+        "nextpnr": "9128800f"
+      },
+      "board": "de10",
+      "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
+      "quartus": "Recipe `quartus_role` is `bring-up/check oracle`. `make build-fes-sms-quartus` is the Quartus 17.0.2 oracle, not the installed package. Do not use `fes.mastersystem`.",
+      "features": "Media: format-3 exact 32 KiB `cartridge-rom`. No mapper. Input: `fes.keyboard`. HDMI: fixed 720p60 shell raster. Display plane is Planned in `docs/display-pipeline.md`. Audio: SN76489 into HDMI I2S. CPU: TV80. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
+      "notes": "Library standing `supported`. Not in the bootstrap image. Named kit audio notes do not accept a later bitstream.",
+      "evidence": [
+        "config/core-recipes.toml",
+        "config/core-library.toml",
+        "profiles/native-integration-dev.toml",
+        "docs/core-status.md",
+        "docs/design/quartus-cores.md",
+        "docs/display-pipeline.md",
+        "sources/misteross/docs/cores.md",
+        "sources/misteross/boards/de10nano/README.md",
+        "sources/misteross/AGENTS.md",
+        "sources/misteross/cores/fes-sms/toolchain.lock",
+        "sources/misteross/scripts/build_fes_sms_oss.py"
+      ]
+    },
+    {
+      "id": "fes.sg1000",
+      "label": "`fes.sg1000`",
+      "tier": "catalog-supported",
+      "covers": [
+        "fes-sg1000"
+      ],
+      "paths": [],
+      "recipe": true,
+      "optional": false,
+      "quartus_role": "bring-up/check oracle",
+      "recipe_gpu_router": "HIP",
+      "producer_script": "scripts/build_fes_sg1000_oss.py",
+      "library_standing": "supported",
+      "in_bootstrap_image": false,
+      "oss_lock": {
+        "path": "sources/misteross/cores/fes-sg1000/toolchain.lock",
+        "yosys": "3a5accbd",
+        "mistral": "8fcc4cb4",
+        "nextpnr": "9128800f"
+      },
+      "board": "de10",
+      "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
+      "quartus": "Recipe `quartus_role` is `bring-up/check oracle`. `make build-fes-sg1000-quartus` is the Quartus 17.0.2 oracle, not the installed package.",
+      "features": "Media: format-3 exact 16 KiB `cartridge-rom`. No startup media blob on the OSS producer. Input: `fes.keyboard`. HDMI: fixed 720p60 shell raster. Display plane is Planned in `docs/display-pipeline.md`. Audio: SN76489 into HDMI I2S. CPU: `fes_z80_nmos`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
+      "notes": "Library standing `supported`. Not in the bootstrap image. The 1.2.0 kit audio note does not qualify 1.3.0.",
+      "evidence": [
+        "config/core-recipes.toml",
+        "config/core-library.toml",
+        "profiles/native-integration-dev.toml",
+        "docs/core-status.md",
+        "docs/design/quartus-cores.md",
+        "docs/display-pipeline.md",
+        "sources/misteross/docs/cores.md",
+        "sources/misteross/boards/de10nano/README.md",
+        "sources/misteross/AGENTS.md",
+        "sources/misteross/cores/fes-sg1000/toolchain.lock",
+        "sources/misteross/scripts/build_fes_sg1000_oss.py"
+      ]
+    },
+    {
+      "id": "fes.apple2",
+      "label": "`fes.apple2`",
+      "tier": "experimental",
+      "covers": [
+        "fes-apple2"
+      ],
+      "paths": [
+        "sources/misteross/cores/fes-common/rtl/cpu6502"
+      ],
+      "recipe": true,
+      "optional": false,
+      "quartus_role": "no oracle required",
+      "recipe_gpu_router": "HIP",
+      "producer_script": "scripts/build_fes_apple2_oss.py",
+      "library_standing": "experimental",
+      "in_bootstrap_image": false,
+      "oss_lock": {
+        "path": "sources/misteross/cores/fes-apple2/toolchain.lock",
+        "yosys": "3a5accbd",
+        "mistral": "8fcc4cb4",
+        "nextpnr": "5fe55f3d"
+      },
+      "board": "de10",
+      "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
+      "quartus": "Recipe `quartus_role` is `no oracle required`. No Quartus product variant is selected. A failed OSS route does not fall back to Quartus.",
+      "features": "Media: read-only Disk II (`fes.media.apple2-floppy`), live-swappable 143,360-byte image. No write interface on the producer. Input: `fes.keyboard.hid` and `fes.gamepad.ports`. HDMI: fixed 720p60 shell raster. Display plane is Planned in `docs/display-pipeline.md`. CPU: shared `cpu6502`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
+      "notes": "Library standing `experimental`. Optional slot cards. Not in the bootstrap image. Core status says the shared-pin HIP seal on this lock remains open. No Apple ROM is shipped.",
+      "evidence": [
+        "config/core-recipes.toml",
+        "config/core-library.toml",
+        "profiles/native-integration-dev.toml",
+        "docs/core-status.md",
+        "docs/design/quartus-cores.md",
+        "docs/display-pipeline.md",
+        "sources/misteross/docs/cores.md",
+        "sources/misteross/boards/de10nano/README.md",
+        "sources/misteross/AGENTS.md",
+        "sources/misteross/cores/fes-apple2/toolchain.lock",
+        "sources/misteross/scripts/build_fes_apple2_oss.py",
+        "sources/misteross/cores/fes-common/rtl/cpu6502/README.md"
+      ]
+    },
+    {
+      "id": "fes.c64",
+      "label": "`fes.c64`",
+      "tier": "experimental",
+      "covers": [
+        "fes-c64"
+      ],
+      "paths": [],
+      "recipe": true,
+      "optional": false,
+      "quartus_role": "no oracle required",
+      "recipe_gpu_router": "HIP",
+      "producer_script": "scripts/build_fes_c64_oss.py",
+      "library_standing": "experimental",
+      "in_bootstrap_image": false,
+      "oss_lock": {
+        "path": "sources/misteross/cores/fes-c64/toolchain.lock",
+        "yosys": "3a5accbd",
+        "mistral": "8fcc4cb4",
+        "nextpnr": "5fe55f3d"
+      },
+      "board": "de10",
+      "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
+      "quartus": "Recipe `quartus_role` is `no oracle required`. No Quartus product variant is selected. A failed OSS route does not fall back to Quartus.",
+      "features": "Media: read-only D64 (`fes.media.c64-disk`) and linked `c64-firmware`. No disk-write interface on the producer. Input: `fes.keyboard.hid` and `fes.gamepad.ports`. HDMI: fixed 720p60. The producer requires `fes.video.session-display` and `fes.fabric.video.display-plane`, and `cores/fes-c64/rtl/top.v` instantiates `fes_display_plane`. `docs/display-pipeline.md` still lists this shell's plane as Planned. CPU: shared `cpu6502`, plus a native 1541. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
+      "notes": "Library standing `experimental`. Not in the bootstrap image. Dated kit notes accept only the packages they name. No Commodore ROM is shipped.",
+      "evidence": [
+        "config/core-recipes.toml",
+        "config/core-library.toml",
+        "profiles/native-integration-dev.toml",
+        "docs/core-status.md",
+        "docs/design/quartus-cores.md",
+        "docs/display-pipeline.md",
+        "sources/misteross/docs/cores.md",
+        "sources/misteross/boards/de10nano/README.md",
+        "sources/misteross/AGENTS.md",
+        "sources/misteross/cores/fes-c64/toolchain.lock",
+        "sources/misteross/cores/fes-c64/README.md",
+        "sources/misteross/scripts/build_fes_c64_oss.py",
+        "sources/misteross/cores/fes-c64/rtl/top.v"
+      ]
+    },
+    {
+      "id": "fes.spectrum",
+      "label": "`fes.spectrum`",
+      "tier": "experimental",
+      "covers": [
+        "fes-spectrum"
+      ],
+      "paths": [],
+      "recipe": true,
+      "optional": false,
+      "quartus_role": "no oracle required",
+      "recipe_gpu_router": "HIP",
+      "producer_script": "scripts/build_fes_spectrum_oss.py",
+      "library_standing": "experimental",
+      "in_bootstrap_image": false,
+      "oss_lock": {
+        "path": "sources/misteross/cores/fes-spectrum/toolchain.lock",
+        "yosys": "3a5accbd",
+        "mistral": "8fcc4cb4",
+        "nextpnr": "bd7a1c0d"
+      },
+      "board": "de10",
+      "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
+      "quartus": "Recipe `quartus_role` is `no oracle required`. No Quartus product variant is selected. A failed OSS route does not fall back to Quartus.",
+      "features": "Media: format-3 firmware, tape 2.0 from HPS DDR, and 48K snapshots (`fes.media.spectrum-snapshot`). No disk interface on this model. Input: `fes.keyboard.hid` and `fes.gamepad.ports`. HDMI: 50 Hz frames 3x3 through the session display plane, fixed 720p60. CPU: `fes_z80_nmos`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
+      "notes": "Library standing `experimental`. Not in the bootstrap image. No Sinclair ROM is shipped. Joysticks on hardware are recorded as open in core status.",
+      "evidence": [
+        "config/core-recipes.toml",
+        "config/core-library.toml",
+        "profiles/native-integration-dev.toml",
+        "docs/core-status.md",
+        "docs/design/quartus-cores.md",
+        "docs/display-pipeline.md",
+        "sources/misteross/docs/cores.md",
+        "sources/misteross/boards/de10nano/README.md",
+        "sources/misteross/AGENTS.md",
+        "sources/misteross/cores/fes-spectrum/toolchain.lock",
+        "sources/misteross/scripts/build_fes_spectrum_oss.py"
+      ]
+    },
+    {
+      "id": "fes.spectrum128",
+      "label": "`fes.spectrum128`",
+      "tier": "experimental",
+      "covers": [],
+      "paths": [],
+      "recipe": true,
+      "optional": false,
+      "quartus_role": "no oracle required",
+      "recipe_gpu_router": "HIP",
+      "producer_script": "scripts/build_fes_spectrum_oss.py",
+      "library_standing": "experimental",
+      "in_bootstrap_image": false,
+      "oss_lock": {
+        "path": "sources/misteross/cores/fes-spectrum/toolchain.lock",
+        "yosys": "3a5accbd",
+        "mistral": "8fcc4cb4",
+        "nextpnr": "bd7a1c0d"
+      },
+      "board": "de10",
+      "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
+      "quartus": "Recipe `quartus_role` is `no oracle required`. No Quartus product variant is selected. A failed OSS route does not fall back to Quartus.",
+      "features": "Media: tape 2.0, 48K and 128K snapshots. No disk interface on this model. Input: `fes.keyboard.hid` and `fes.gamepad.ports`. HDMI: session display plane, fixed 720p60. AY-3-8912. CPU: `fes_z80_nmos`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
+      "notes": "Same tree and lock as `fes.spectrum`. Library standing `experimental`. Not in the bootstrap image.",
+      "evidence": [
+        "config/core-recipes.toml",
+        "config/core-library.toml",
+        "profiles/native-integration-dev.toml",
+        "docs/core-status.md",
+        "docs/design/quartus-cores.md",
+        "docs/display-pipeline.md",
+        "sources/misteross/docs/cores.md",
+        "sources/misteross/boards/de10nano/README.md",
+        "sources/misteross/AGENTS.md",
+        "sources/misteross/cores/fes-spectrum/toolchain.lock",
+        "sources/misteross/scripts/build_fes_spectrum_oss.py"
+      ]
+    },
+    {
+      "id": "fes.spectrum-plus3",
+      "label": "`fes.spectrum-plus3`",
+      "tier": "experimental",
+      "covers": [],
+      "paths": [],
+      "recipe": true,
+      "optional": false,
+      "quartus_role": "no oracle required",
+      "recipe_gpu_router": "HIP",
+      "producer_script": "scripts/build_fes_spectrum_oss.py",
+      "library_standing": "experimental",
+      "in_bootstrap_image": false,
+      "oss_lock": {
+        "path": "sources/misteross/cores/fes-spectrum/toolchain.lock",
+        "yosys": "3a5accbd",
+        "mistral": "8fcc4cb4",
+        "nextpnr": "bd7a1c0d"
+      },
+      "board": "de10",
+      "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
+      "quartus": "Recipe `quartus_role` is `no oracle required`. No Quartus product variant is selected. A failed OSS route does not fall back to Quartus.",
+      "features": "Media: tape 2.0, 48K/128K/+3 snapshots, and a write-protected `.dsk` (`fes.media.spectrum-disk`, `fes.media.spectrum-disk-plus3`). Input: `fes.keyboard.hid` and `fes.gamepad.ports`. HDMI: session display plane, fixed 720p60. CPU: `fes_z80_nmos`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
+      "notes": "Same tree and lock as `fes.spectrum`. Library standing `experimental`. Not in the bootstrap image.",
+      "evidence": [
+        "config/core-recipes.toml",
+        "config/core-library.toml",
+        "profiles/native-integration-dev.toml",
+        "docs/core-status.md",
+        "docs/design/quartus-cores.md",
+        "docs/display-pipeline.md",
+        "sources/misteross/docs/cores.md",
+        "sources/misteross/boards/de10nano/README.md",
+        "sources/misteross/AGENTS.md",
+        "sources/misteross/cores/fes-spectrum/toolchain.lock",
+        "sources/misteross/scripts/build_fes_spectrum_oss.py"
+      ]
+    },
+    {
+      "id": "fes.pentagon",
+      "label": "`fes.pentagon`",
+      "tier": "experimental",
+      "covers": [],
+      "paths": [],
+      "recipe": true,
+      "optional": false,
+      "quartus_role": "no oracle required",
+      "recipe_gpu_router": "HIP",
+      "producer_script": "scripts/build_fes_spectrum_oss.py",
+      "library_standing": "experimental",
+      "in_bootstrap_image": false,
+      "oss_lock": {
+        "path": "sources/misteross/cores/fes-spectrum/toolchain.lock",
+        "yosys": "3a5accbd",
+        "mistral": "8fcc4cb4",
+        "nextpnr": "bd7a1c0d"
+      },
+      "board": "de10",
+      "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
+      "quartus": "Recipe `quartus_role` is `no oracle required`. No Quartus product variant is selected. A failed OSS route does not fall back to Quartus.",
+      "features": "Media: tape 2.0, 48K and 128K snapshots, and a write-protected `.trd`/`.scl` (`fes.media.spectrum-disk`, `fes.media.spectrum-disk-trdos`). Input: `fes.keyboard.hid` and `fes.gamepad.ports`. HDMI: session display plane, fixed 720p60. CPU: `fes_z80_nmos`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
+      "notes": "Same tree and lock as `fes.spectrum`. Library standing `experimental`. Not in the bootstrap image. No TR-DOS ROM is shipped.",
+      "evidence": [
+        "config/core-recipes.toml",
+        "config/core-library.toml",
+        "profiles/native-integration-dev.toml",
+        "docs/core-status.md",
+        "docs/design/quartus-cores.md",
+        "docs/display-pipeline.md",
+        "sources/misteross/docs/cores.md",
+        "sources/misteross/boards/de10nano/README.md",
+        "sources/misteross/AGENTS.md",
+        "sources/misteross/cores/fes-spectrum/toolchain.lock",
+        "sources/misteross/scripts/build_fes_spectrum_oss.py"
+      ]
+    },
+    {
+      "id": "fes.atari-st",
+      "label": "`fes.atari-st`",
+      "tier": "optional",
+      "covers": [
+        "fes-atari-st"
+      ],
+      "paths": [
+        "sources/misteross/cores/fes-common/rtl/fx68k"
+      ],
+      "recipe": true,
+      "optional": true,
+      "quartus_role": "no oracle required",
+      "recipe_gpu_router": "HIP",
+      "producer_script": "scripts/build_fes_atari_st_oss.py",
+      "library_standing": "experimental",
+      "in_bootstrap_image": false,
+      "oss_lock": {
+        "path": "sources/misteross/cores/fes-atari-st/toolchain.lock",
+        "yosys": "3a5accbd",
+        "mistral": "8fcc4cb4",
+        "nextpnr": "5fe55f3d"
+      },
+      "board": "de10",
+      "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
+      "quartus": "Recipe `quartus_role` is `no oracle required`. No Quartus product variant is selected. A failed OSS route does not fall back to Quartus.",
+      "features": "Media: writable geometry-aware `.st` (`fes.media.atari-st-floppy`, write and geometry). Input: `fes.keyboard.hid`, `fes.gamepad.ports` and `fes.mouse.relative`. HDMI: shell raster with Direct/Scanlines parts and a built-in Direct fallback. Display plane is Planned in `docs/display-pipeline.md`. CPU: shared `fx68k`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
+      "notes": "The only recipe with `optional = true`. Library standing is `experimental`, not `supported`. The default profile does not select it. `FES_SKIP_OPTIONAL_CORES=1` or `FES_SKIP_CORES=fes.atari-st` skips place-and-route when a selection includes it. `FES_REQUIRE_ALL_CORES=1` makes that omission fail the build.",
+      "evidence": [
+        "config/core-recipes.toml",
+        "config/core-library.toml",
+        "profiles/native-integration-dev.toml",
+        "docs/core-status.md",
+        "docs/design/quartus-cores.md",
+        "docs/display-pipeline.md",
+        "sources/misteross/docs/cores.md",
+        "sources/misteross/boards/de10nano/README.md",
+        "sources/misteross/AGENTS.md",
+        "sources/misteross/cores/fes-atari-st/toolchain.lock",
+        "sources/misteross/scripts/build_fes_atari_st_oss.py",
+        "sources/misteross/cores/fes-common/rtl/fx68k/README.md",
+        "tests/test_optional_cores.py"
+      ]
+    },
+    {
+      "id": "fes.riscv",
+      "label": "`fes.riscv`",
+      "tier": "experimental",
+      "covers": [
+        "fes-riscv"
+      ],
+      "paths": [
+        "sources/misteross/cores/fes-common/rtl/riscv"
+      ],
+      "recipe": true,
+      "optional": false,
+      "quartus_role": "no oracle required",
+      "recipe_gpu_router": "HIP",
+      "producer_script": "scripts/build_fes_riscv.py",
+      "library_standing": "experimental",
+      "in_bootstrap_image": false,
+      "oss_lock": {
+        "path": "sources/misteross/cores/fes-riscv/toolchain.lock",
+        "yosys": "3a5accbd",
+        "mistral": "8fcc4cb4",
+        "nextpnr": "8f453ebc"
+      },
+      "board": "de10",
+      "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-device` only; the authenticated toolchain sets the backend (misteross AGENTS.md).",
+      "quartus": "Recipe `quartus_role` is `no oracle required`. No Quartus product variant is selected. A failed OSS route does not fall back to Quartus.",
+      "features": "Media: none. The package runs hand-assembled demonstration firmware. Input: `fes.gamepad`. No audio interface on the producer. HDMI: 160x120 framebuffer in the shared 720p raster. Display plane is Planned in `docs/display-pipeline.md`. CPU: `fes_rv32_cpu` in `cores/fes-common/rtl/riscv`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
+      "notes": "Library standing `experimental`. Not in the bootstrap image. Kit loads cited in core status accept only the packages they name.",
+      "evidence": [
+        "config/core-recipes.toml",
+        "config/core-library.toml",
+        "profiles/native-integration-dev.toml",
+        "docs/core-status.md",
+        "docs/design/quartus-cores.md",
+        "docs/display-pipeline.md",
+        "sources/misteross/docs/cores.md",
+        "sources/misteross/boards/de10nano/README.md",
+        "sources/misteross/AGENTS.md",
+        "sources/misteross/cores/fes-riscv/toolchain.lock",
+        "sources/misteross/scripts/build_fes_riscv.py",
+        "sources/misteross/cores/fes-common/rtl/riscv/README.md"
+      ]
+    },
+    {
+      "id": "fes.demo",
+      "label": "`fes.demo`, `fes.demo-media`, `fes.demo-audio`",
+      "tier": "reference",
+      "covers": [
+        "fes-demo"
+      ],
+      "paths": [],
+      "recipe": false,
+      "library_standing": null,
+      "in_bootstrap_image": false,
+      "oss_lock": {
+        "path": "sources/misteross/toolchain.lock",
+        "yosys": "3a5accbd",
+        "mistral": "8fcc4cb4",
+        "nextpnr": "9128800f"
+      },
+      "board": "de10",
+      "router": "Reference producers use the repository lock. Not registered, so there is no recipe `gpu_router`.",
+      "quartus": "No Quartus product lane was found. Not registered.",
+      "features": "`fes.demo`: fixed 720p60 only. `fes.demo-media`: gamepad plus `fes.media.blob`. `fes.demo-audio`: gamepad plus stereo PCM. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
+      "notes": "Reference packages. Core status standing is Reference. No recipe row. Catch is the registered game on this shell.",
+      "evidence": [
+        "sources/misteross/docs/cores.md",
+        "sources/misteross/scripts/build_fes_demo.py",
+        "sources/misteross/toolchain.lock",
+        "docs/core-status.md",
+        "docs/display-pipeline.md"
+      ]
+    },
+    {
+      "id": "sim.pong",
+      "label": "`cores/pong` simulation",
+      "tier": "reference",
+      "covers": [
+        "pong"
+      ],
+      "paths": [],
+      "recipe": false,
+      "library_standing": null,
+      "in_bootstrap_image": false,
+      "oss_lock": null,
+      "board": "none",
+      "router": "No place-and-route producer. `make sim-pong` simulates this module.",
+      "quartus": "No Quartus flow for this module.",
+      "features": "Not a package. No media, input, HDMI or mesh contract of its own. The package is `fes.pong`.",
+      "notes": "`sources/misteross/docs/cores.md` says `cores/pong` is the standalone Pong game module and is not a package.",
+      "evidence": [
+        "sources/misteross/docs/cores.md",
+        "sources/misteross/cores/pong/rtl/pong_game.sv"
+      ],
+      "oss_note": "No toolchain lock. This directory is not a bitstream."
+    },
+    {
+      "id": "fes.pcxt",
+      "label": "`fes.pcxt`",
+      "tier": "bring-up",
+      "covers": [
+        "fes-pcxt"
+      ],
+      "paths": [],
+      "recipe": false,
+      "library_standing": null,
+      "in_bootstrap_image": false,
+      "oss_lock": {
+        "path": "sources/misteross/cores/fes-pcxt/toolchain.lock",
+        "yosys": "3a5accbd",
+        "mistral": "8fcc4cb4",
+        "nextpnr": "552ba246"
+      },
+      "board": "de10",
+      "router": "Diagnostic producer authenticates its own lock and accepts `PCXT_GPU_ROUTER` HIP or CUDA (`cores/fes-pcxt/README.md`). Not a recipe row, so there is no recipe `gpu_router`.",
+      "quartus": "Quartus 17.0.2 is a cross-check, not the producer. The CGA Direct build from the old nextpnr timer failed that cross-check and is not timing-qualified (core README, issue #840). There is no automatic Quartus fallback. Calling Quartus the primary product toolchain is unverified.",
+      "features": "Media: diagnostic firmware byte port only. No disk controller and no sealed firmware map. Input: no HID keyboard frontend. HDMI: diagnostic 720p RGB on the DE10-Nano shell (CGA or MDA, Direct or Scanlines). No runtime ABI. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
+      "notes": "Unregistered. No `config/core-recipes.toml` row and no package. Cannot boot DOS. SDRAM pad timing and hardware remain unqualified in the core README.",
+      "evidence": [
+        "sources/misteross/cores/fes-pcxt/README.md",
+        "sources/misteross/cores/fes-pcxt/toolchain.lock",
+        "sources/misteross/scripts/build_fes_pcxt.py",
+        "sources/misteross/docs/cores.md",
+        "docs/design/quartus-cores.md"
+      ]
+    },
+    {
+      "id": "fes.pc386",
+      "label": "`fes.pc386`",
+      "tier": "bring-up",
+      "covers": [
+        "fes-pc386"
+      ],
+      "paths": [],
+      "recipe": false,
+      "library_standing": null,
+      "in_bootstrap_image": false,
+      "oss_lock": {
+        "path": "sources/misteross/cores/fes-common/rtl/i386/toolchain.lock",
+        "yosys": "238eac9a",
+        "mistral": "8fcc4cb4",
+        "nextpnr": "bd7a1c0d"
+      },
+      "board": "device",
+      "router": "Machine synthesis packs with nextpnr-mistral and does not route (`scripts/synth_fes_pc386.py`). The default lock is the i386 lock. Not a recipe row.",
+      "quartus": "No Quartus producer for the machine was found. The machine design sketches `scripts/build_fes_pc386_oss.py`, which is not in the tree. Calling Quartus the primary product toolchain is unverified.",
+      "features": "Media: ATA disk in host simulation only. Input: PS/2 keyboard and mouse models; the README says the HID row model and typematic repeat are not built yet. HDMI: 720p presenter and display plane in simulation. Audio: OPL2 and Sound Blaster in simulation. No shell, package or kit evidence. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
+      "notes": "Host-only machine (phases M1\u2013M3) plus diagnostic Cyclone V synthesis. Not a catalog package. CPU is `fes_i386_cpu`, with the Bochs oracle standing in for the CPU in the machine simulation.",
+      "evidence": [
+        "sources/misteross/cores/fes-pc386/README.md",
+        "sources/misteross/scripts/synth_fes_pc386.py",
+        "sources/misteross/docs/pc386-machine-design.md",
+        "sources/misteross/cores/fes-common/rtl/i386/toolchain.lock",
+        "docs/design/quartus-cores.md"
+      ]
+    },
+    {
+      "id": "i386",
+      "label": "`fes_i386_cpu`",
+      "tier": "shared-rtl",
+      "covers": [],
+      "paths": [
+        "sources/misteross/cores/fes-common/rtl/i386"
+      ],
+      "recipe": false,
+      "library_standing": null,
+      "in_bootstrap_image": false,
+      "oss_lock": {
+        "path": "sources/misteross/cores/fes-common/rtl/i386/toolchain.lock",
+        "yosys": "238eac9a",
+        "mistral": "8fcc4cb4",
+        "nextpnr": "bd7a1c0d"
+      },
+      "board": "device",
+      "router": "CPU timing spikes use this lock with the GPU router. Not a package producer and not a recipe row.",
+      "quartus": "Quartus 17.0.2 fits the same Yosys netlist as an oracle (`scripts/quartus_fes_i386.py`). The far-transfer record is about 69\u201374 MHz nextpnr and about 98\u2013104 MHz Quartus. Accepted policy would ship both labelled builds once the 15% rule is met; recipe and package selection for that are not implemented. A gap that only nextpnr shows is filed on the flow (DeanoC/nextpnr#300, `docs/i386-cpu-design.md`). Calling Quartus the primary product toolchain is unverified.",
+      "features": "Not a system package. No media, HDMI, Bluetooth or mesh of its own. Phase 1 real-mode pipeline is in progress in the CPU design doc. The pc386 machine is the intended consumer and does not yet seal a package.",
+      "notes": "Shared CPU RTL. Device `5CSEBA6U23I7` in the spike harness. Yosys pin `238eac9a` is newer than the repository lock's `3a5accbd` and is scoped to this CPU.",
+      "evidence": [
+        "sources/misteross/docs/i386-cpu-design.md",
+        "sources/misteross/cores/fes-common/rtl/i386/toolchain.lock",
+        "sources/misteross/scripts/quartus_fes_i386.py",
+        "sources/misteross/docs/validation/2026-10-26-i386-far.md",
+        "docs/design/quartus-cores.md"
+      ]
+    },
+    {
+      "id": "z80",
+      "label": "`fes_z80_nmos` / `fes_z80_fast`",
+      "tier": "shared-rtl",
+      "covers": [],
+      "paths": [
+        "sources/misteross/cores/fes-common/rtl/z80"
+      ],
+      "recipe": false,
+      "library_standing": null,
+      "in_bootstrap_image": false,
+      "oss_lock": null,
+      "board": "none",
+      "router": "No place-and-route producer. Consumers authenticate their own locks.",
+      "quartus": "No Quartus flow for the shared CPU. ZX81, Coleco, SMS and RAM Tester have their own oracle targets.",
+      "features": "Not a system package. `fes_z80_nmos` is the product CPU for ZX81 (and the ZX80/TS models), SG-1000 and the Spectrum models. No product core selects `fes_z80_fast`. Coleco and SMS still instantiate TV80.",
+      "notes": "Shared RTL under `cores/fes-common/rtl/z80`. No toolchain lock of its own. Each consumer needs its own timing and hardware qualification.",
+      "evidence": [
+        "sources/misteross/cores/fes-common/rtl/z80/README.md",
+        "docs/core-alignment.md"
+      ],
+      "oss_note": "No bitstream and no toolchain lock of its own."
+    },
+    {
+      "id": "cpu6502",
+      "label": "`cpu6502`",
+      "tier": "shared-rtl",
+      "covers": [],
+      "paths": [
+        "sources/misteross/cores/fes-common/rtl/cpu6502"
+      ],
+      "recipe": false,
+      "library_standing": null,
+      "in_bootstrap_image": false,
+      "oss_lock": null,
+      "board": "none",
+      "router": "No place-and-route producer. Apple II and C64 authenticate their own locks.",
+      "quartus": "No Quartus flow for this CPU.",
+      "features": "Not a system package. Verilog NMOS 6502 used by Apple II, C64 and the development 1541.",
+      "notes": "Imported Arlet `verilog-6502` with the local rename and SO-pin changes in its README. No toolchain lock of its own.",
+      "evidence": [
+        "sources/misteross/cores/fes-common/rtl/cpu6502/README.md",
+        "docs/core-alignment.md"
+      ],
+      "oss_note": "No bitstream and no toolchain lock of its own."
+    },
+    {
+      "id": "fx68k",
+      "label": "`fx68k`",
+      "tier": "shared-rtl",
+      "covers": [],
+      "paths": [
+        "sources/misteross/cores/fes-common/rtl/fx68k"
+      ],
+      "recipe": false,
+      "library_standing": null,
+      "in_bootstrap_image": false,
+      "oss_lock": null,
+      "board": "none",
+      "router": "No place-and-route producer. Atari ST authenticates its own lock.",
+      "quartus": "No Quartus flow for this CPU.",
+      "features": "Not a system package. Motorola 68000 used by `fes.atari-st`.",
+      "notes": "FX68K by Jorge Cwik, GPL-3.0-or-later, no local RTL changes recorded in its README. No toolchain lock of its own.",
+      "evidence": [
+        "sources/misteross/cores/fes-common/rtl/fx68k/README.md",
+        "docs/core-alignment.md"
+      ],
+      "oss_note": "No bitstream and no toolchain lock of its own."
+    },
+    {
+      "id": "tv80",
+      "label": "TV80",
+      "tier": "shared-rtl",
+      "covers": [],
+      "paths": [
+        "sources/misteross/cores/fes-common/rtl/tv80"
+      ],
+      "recipe": false,
+      "library_standing": null,
+      "in_bootstrap_image": false,
+      "oss_lock": null,
+      "board": "none",
+      "router": "No place-and-route producer. Coleco and SMS authenticate their own locks.",
+      "quartus": "No separate Quartus flow. Coleco and SMS oracles build those machines, not this CPU alone.",
+      "features": "Not a system package. Historical Z80 still instantiated by Coleco and SMS. Not `fes_z80_nmos`.",
+      "notes": "Core alignment lists TV80/T80 as the remaining divergence from the first-party NMOS Z80. No toolchain lock of its own.",
+      "evidence": [
+        "sources/misteross/cores/fes-common/rtl/z80/README.md",
+        "sources/misteross/cores/fes-common/rtl/tv80/tv80_core.v",
+        "docs/core-alignment.md"
+      ],
+      "oss_note": "No bitstream and no toolchain lock of its own."
+    }
+  ],
+  "unverified": [
+    {
+      "where": "Tiers",
+      "cell": "Tier 1 definition",
+      "detail": "A Tier 1 of \"HIL-verified on kits and present in the default image\" has no matching playable core. The bootstrap image is `fes.menu` plus the pinned splash. Catalog `supported` is what this page calls Tier 1. Whether any of those cores should move to a stricter current-byte HIL tier is open."
+    },
+    {
+      "where": "`i386`, `fes.pc386`, `fes.pcxt`",
+      "cell": "Primary toolchain",
+      "detail": "The request to treat Quartus as primary, and nextpnr builds as advisory with misses filed as nextpnr issues, is not how the tree labels these blocks. i386 already files nextpnr-only gaps on DeanoC/nextpnr#300, and its Quartus fit stays an oracle until the variant rollout lands. pc386 has no producer. PC/XT's producer is OSS. The primary-toolchain cell is unverified."
+    },
+    {
+      "where": "`fes.coleco`",
+      "cell": "Media and priority",
+      "detail": "\"Old media handling (0 titles)\" and \"low priority\" were not found as statements. The factory package strips blob and blob-stream. The arcade room hardcodes five cabinet names and shows `no Coleco arcade titles in this library yet` when none of them are installed. No committed title catalog with a count of 0 was found, and no priority ranking was found."
+    },
+    {
+      "where": "ZX80, TS1000, TS1500",
+      "cell": "Quartus oracle",
+      "detail": "Their recipes say `bring-up/check oracle`, and the only Quartus make target found for that shell is `build-fes-zx81-quartus`. Coverage of the other three models is unverified."
+    },
+    {
+      "where": "Every row",
+      "cell": "DE25-Nano",
+      "detail": "On this tree there is no sources/misteross/boards/de25nano directory, and no per-core Agilex 5 constraints, pins or image. The cell is the board-wide policy plus TBD, not a port plan. Open pull requests that are not on this branch add that directory and Quartus diagnostics (board metadata #1176, idle and menu scanout #1201, ZX81 BASIC and HDMI #1229, plus follow-ups). The checker fails when boards/de25nano appears, so those rows have to be rewritten from the merged tree."
+    },
+    {
+      "where": "Every row with a pad or keyboard",
+      "cell": "Bluetooth",
+      "detail": "Bluetooth HID/HoG pairing is a host evdev path in the FogCast README. No per-core Bluetooth interface was found."
+    },
+    {
+      "where": "Every row",
+      "cell": "Mesh / FogCast",
+      "detail": "Launch, library and mesh are host services. No per-core mesh capability flag was found, so this page does not claim that any core is in or out of the mesh."
+    },
+    {
+      "where": "Registered recipes",
+      "cell": "Ship both builds",
+      "detail": "No recipe records a completed OSS-versus-Quartus sign-off comparison against the 15% rule. i386 is the named example and is not a registered core. Which current cores would qualify to ship a Quartus variant is unverified."
+    },
+    {
+      "where": "Catalog-supported and experimental rows",
+      "cell": "Current-byte kit acceptance",
+      "detail": "Core status and the validation notes bind acceptance to named packages. This matrix does not copy those package ids forward. Which rows Deano wants marked HIL-verified for the bytes in the tree is open."
+    }
+  ]
+}
