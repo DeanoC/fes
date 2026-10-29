@@ -63,7 +63,7 @@ inline bool ComputerInterfaceCurrent(const CoreInterface& interface)
 			interface.minor == generated::FesComputerInterfaceMediaSpectrumTapeMinor;
 	return interface.major == 1 && interface.minor == 0;
 }
-// Format 2 is the ROM-less shell. Format 3 is the factory 16 KiB cartridge.
+// Format 2 is the ROM-less shell. Format 4 links the Coleco BIOS and cartridge.
 inline bool ColecoVideoShell(const CoreDescriptor& descriptor)
 {
 	if (descriptor.core.id != "fes.coleco") return false;

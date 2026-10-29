@@ -14,6 +14,16 @@ const localControllerPorts = 2
 // machine and drives the menu where a pad with a port would.
 const noLocalPlayer int8 = -1
 
+// yieldsPort reports whether a pad with this vendor and product gives its
+// controller port to any other pad. 081f:e401 is the generic USB pad the
+// kits keep plugged in as a fixture. A pad plugged in to play, such as a
+// DualSense, takes port 1 from it even when the fixture opened first, and
+// the fixture moves to the port that pad would have taken. With no other
+// pad the fixture keeps port 1.
+func yieldsPort(vendor, product uint16) bool {
+	return vendor == 0x081f && product == 0xe401
+}
+
 // padKey is one pad's control. Held and sent state is per pad: a second
 // pad pressing A must not release the first pad's A.
 type padKey struct {
@@ -164,12 +174,11 @@ func (a *App) suppressPadLocked(player uint8) {
 }
 
 // portlessPadReachesMenu reports whether a pad without a controller port may
-// press a menu control now. It may wherever a pad with a port would reach
-// the menu (HandleLocalPad returning false): whenever no machine owns the
-// pads, and in the room shown over a running session, where Select returns
-// to the game and Start is never the menu's Quit (sessionPadLocked). During
-// an uncertain display transition, B uses the same guarded return as a
-// ported pad without enabling ordinary menu commands.
+// press a menu control now. It may drive the room shown over a running session,
+// except for Start and Select. Select also reaches focused launcher controls
+// for keypad sessions, where it confirms the picker instead of reaching the
+// machine. During an uncertain display transition, B uses the same guarded
+// return as a ported pad without enabling ordinary menu commands.
 func (a *App) portlessPadReachesMenu(code remoteinput.Code) bool {
 	if a == nil {
 		return false
@@ -188,6 +197,8 @@ func (a *App) portlessPadReachesMenu(code remoteinput.Code) bool {
 		}
 		return false
 	}
-	return a.roomDuringPlay && code != remoteinput.ButtonStart && code != remoteinput.ButtonSelect &&
+	menuSelect := code == remoteinput.ButtonSelect && a.sessionKeypadLocked() && a.sessionMenuOwnsPadInputLocked()
+	roomCommand := a.roomDuringPlay && code != remoteinput.ButtonStart && code != remoteinput.ButtonSelect
+	return (roomCommand || menuSelect) &&
 		!a.sessionDisplayBusy && a.stopPhase != "stopping" && !a.retryStopLock && !a.playHIDFailClosedLocked()
 }
