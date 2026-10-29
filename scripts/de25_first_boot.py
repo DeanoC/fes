@@ -18,7 +18,7 @@ import sys
 import tarfile
 import tempfile
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -162,21 +162,30 @@ def host_key(data, host, port):
     return {"algorithm": fields[1], "public_key": fields[2], "fingerprint": fingerprint}
 
 
+def validate_ssh_endpoint(host, port, user):
+    if (not isinstance(host, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9.:-]*", host)
+            or type(port) is not int or not 1 <= port <= 65535
+            or not isinstance(user, str) or not re.fullmatch(r"[a-z_][a-z0-9_-]*", user)):
+        raise ValueError("invalid explicit SSH host, user or port")
+
+
+def ssh_config_path(path):
+    return '"' + str(path).replace('\\', '\\\\').replace('"', '\\"') + '"'
+
+
 def ssh_argv(host, port, user, known_hosts, identity, key):
     # No ambient config, agent, proxy, multiplexed session, forwarding or host-key enrollment.
-    if (not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9.:-]*", host)
-            or not re.fullmatch(r"[a-z_][a-z0-9_-]*", user) or not 1 <= port <= 65535):
-        raise ValueError("invalid explicit SSH host, user or port")
+    validate_ssh_endpoint(host, port, user)
     # OpenSSH expands tokens/environment variables in these paths itself.
     # Refuse those forms; quote spaces for its config parser rather than a shell.
     for path in (known_hosts, identity):
         if path is not None and any(char in str(path) for char in '%$\r\n\0'):
             raise ValueError("SSH file paths must not contain expansion tokens/control characters")
-    pinned_path = '"' + str(known_hosts).replace('\\', '\\\\').replace('"', '\\"') + '"'
+    pinned_path = ssh_config_path(known_hosts)
     options = {"BatchMode": "yes" if identity else "no", "IdentitiesOnly": "yes", "IdentityAgent": "none",
                "PreferredAuthentications": "publickey" if identity else "password",
                "PubkeyAuthentication": "yes" if identity else "no",
-               "PasswordAuthentication": "no" if identity else "yes", "IdentityFile": "none",
+               "PasswordAuthentication": "no" if identity else "yes",
                "KbdInteractiveAuthentication": "no", "NumberOfPasswordPrompts": "0" if identity else "1",
                "UserKnownHostsFile": pinned_path, "GlobalKnownHostsFile": "/dev/null",
                "StrictHostKeyChecking": "yes", "UpdateHostKeys": "no", "VerifyHostKeyDNS": "no",
@@ -188,7 +197,9 @@ def ssh_argv(host, port, user, known_hosts, identity, key):
                "ServerAliveInterval": "5", "ServerAliveCountMax": "2"}
     argv = ["ssh", "-F", "/dev/null", "-T", "-v", "-p", str(port), "-l", user]
     if identity:
-        argv += ["-i", str(identity)]
+        # Set the complete identity list through config. With IdentitiesOnly=yes this
+        # excludes the default ~/.ssh keys and agent identities without a fake path.
+        options["IdentityFile"] = ssh_config_path(identity)
     for name, value in options.items():
         argv += ["-o", name + "=" + value]
     return argv + [host, "sh -s"]
@@ -271,16 +282,29 @@ def observe(raw, expected):
             "dhcp_lease": "not established by address observation"}
 
 
-def verify_transport(log, key, authentication="publickey"):
+def verify_transport(log, key, authentication, host, port, user, ssh_connection):
+    validate_ssh_endpoint(host, port, user)
     text = log.decode("utf-8", errors="replace")
     keys = re.findall(r"Server host key: (\S+) (SHA256:[A-Za-z0-9+/]+)", text)
     if keys != [(key["algorithm"], key["fingerprint"])]:
         raise ValueError("authenticated SSH server key differs or is missing")
     if not re.search(r"Remote protocol version 2\.0, remote software version dropbear_[A-Za-z0-9._-]+", text):
         raise ValueError("expected SSH-2.0 Dropbear protocol")
-    if authentication not in ("publickey", "password") or not re.search(
-            r'Authenticated to .+ using "' + authentication + r'"\.', text):
-        raise ValueError("explicit authentication method was not observed")
+    if authentication not in ("publickey", "password"):
+        raise ValueError("unsupported SSH authentication method")
+    requests = re.findall(r"^debug[0-9]+: Authenticating to (\S+):([0-9]+) as '([^'\r\n]+)'$", text, re.M)
+    if requests != [(host, str(port), user)]:
+        raise ValueError("SSH authentication request differs from receipt endpoint")
+    authenticated = re.findall(
+        r'^(?:debug[0-9]+: )?Authenticated to (\S+) \(\[([^\]]+)\]:([0-9]+)\) using "([^"\r\n]+)"\.$',
+        text, re.M)
+    if len(authenticated) != 1:
+        raise ValueError("authenticated SSH endpoint is missing or ambiguous")
+    connected_host, connected_ip, connected_port, method = authenticated[0]
+    if (connected_host != host or int(connected_port) != port or method != authentication
+            or len(ssh_connection) != 4 or int(ssh_connection[3]) != port
+            or ipaddress.ip_address(connected_ip) != ipaddress.ip_address(ssh_connection[2])):
+        raise ValueError("authenticated SSH endpoint differs from receipt or observed SSH_CONNECTION")
 
 
 def serial_observation(data, expected):
@@ -356,6 +380,7 @@ def run_ssh(argv, *, input, timeout, env):
 
 
 def collect(args):
+    collector_sha256 = sha(Path(__file__).read_bytes())
     expected_bytes = regular_bytes(args.expectation)
     expected = load_json(expected_bytes)
     validate_expectation(expected)
@@ -403,14 +428,15 @@ def collect(args):
     if result.returncode:
         raise ValueError(f"SSH failed ({result.returncode}); evidence retained, no successful receipt")
     authentication = "publickey" if identity else "password"
-    verify_transport(result.stderr, key, authentication)
     observed = observe(result.stdout, expected)
+    verify_transport(result.stderr, key, authentication, args.host, args.port, args.user,
+                     observed["ssh_connection"])
     receipt = {"format": 1, "kind": "de25-first-boot-observation", "board_id": args.board_id,
                "collected_utc": datetime.now(timezone.utc).isoformat(),
                "classification": "read-only-board-observation", "host": args.host, "port": args.port,
                "user": args.user, "authentication": authentication,
                "ssh_host_key": key, "serial": serial_info, "observed": observed,
-               "collector_sha256": sha(Path(__file__).read_bytes()),
+               "collector_sha256": collector_sha256,
                "files": {name: sha(regular_bytes(output / name)) for name in
                          ("expectation.json", "known_hosts", "serial.log", "read-only.sh", "ssh.stdout", "ssh.stderr")}}
     save_json(output / "receipt.json", receipt)
@@ -429,9 +455,22 @@ def verify(directory):
     if any(sha(data[name]) != receipt["files"][name] for name in names) or data["read-only.sh"] != SHELL:
         raise ValueError("captured evidence hash or fixed collection script differs")
     expected = load_json(data["expectation.json"])
+    validate_ssh_endpoint(receipt.get("host"), receipt.get("port"), receipt.get("user"))
+    if receipt.get("collector_sha256") != sha(Path(__file__).read_bytes()):
+        raise ValueError("receipt collector identity differs from this collector")
+    collected = receipt.get("collected_utc")
+    try:
+        collected_at = datetime.fromisoformat(collected)
+    except (TypeError, ValueError) as error:
+        raise ValueError("receipt collection time is malformed") from error
+    if (collected_at.utcoffset() != timedelta(0) or collected_at.isoformat() != collected
+            or collected_at > datetime.now(timezone.utc) + timedelta(minutes=5)):
+        raise ValueError("receipt collection time is not a sane UTC timestamp")
     key = host_key(data["known_hosts"], receipt["host"], receipt["port"])
-    verify_transport(data["ssh.stderr"], key, receipt["authentication"])
-    if (key != receipt["ssh_host_key"] or observe(data["ssh.stdout"], expected) != receipt["observed"]
+    observed = observe(data["ssh.stdout"], expected)
+    verify_transport(data["ssh.stderr"], key, receipt["authentication"], receipt["host"], receipt["port"],
+                     receipt["user"], observed["ssh_connection"])
+    if (key != receipt["ssh_host_key"] or observed != receipt["observed"]
             or serial_observation(data["serial.log"], expected) != receipt["serial"]):
         raise ValueError("receipt identity/observations differ from captured bytes")
     return receipt

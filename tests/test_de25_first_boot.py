@@ -2,6 +2,7 @@
 import base64
 import io
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import struct
 import subprocess
@@ -34,11 +35,13 @@ def known_hosts(host="192.0.2.25", port=22, seed=0):
     return f"{token} ssh-ed25519 {base64.b64encode(blob).decode()}\n".encode()
 
 
-def transport(key=None):
-    key = key or boot.host_key(known_hosts(), "192.0.2.25", 22)
+def transport(key=None, host="192.0.2.25", port=22, user="root", connected_host=None):
+    key = key or boot.host_key(known_hosts(host, port), host, port)
+    connected_host = connected_host or host
     return (f"debug1: Remote protocol version 2.0, remote software version dropbear_2020.81\n"
             f"debug1: Server host key: {key['algorithm']} {key['fingerprint']}\n"
-            'Authenticated to 192.0.2.25 ([192.0.2.25]:22) using "publickey".\n').encode()
+            f"debug1: Authenticating to {host}:{port} as '{user}'\n"
+            f'Authenticated to {host} ([{connected_host}]:{port}) using "publickey".\n').encode()
 
 
 def observation(changes=None, expected=None):
@@ -183,12 +186,13 @@ class ProtocolTests(unittest.TestCase):
     def test_protocol_key_authentication_and_dropbear_banner_required(self):
         key = boot.host_key(known_hosts(), "192.0.2.25", 22)
         good = transport(key)
-        boot.verify_transport(good, key)
+        connection = ["192.0.2.1", "23456", "192.0.2.25", "22"]
+        boot.verify_transport(good, key, "publickey", "192.0.2.25", 22, "root", connection)
         for data in (good.replace(key["fingerprint"].encode(), b"SHA256:bad"),
                      good.replace(b"dropbear_2020.81", b"OpenSSH_10"),
                      good.replace(b'using "publickey"', b'using "password"'), good + good):
             with self.subTest(data=data[:60]), self.assertRaises(ValueError):
-                boot.verify_transport(data, key)
+                boot.verify_transport(data, key, "publickey", "192.0.2.25", 22, "root", connection)
 
 
 class CollectionTests(unittest.TestCase):
@@ -222,6 +226,8 @@ class CollectionTests(unittest.TestCase):
                        "IdentitiesOnly=yes", "PasswordAuthentication=no", "ProxyCommand=none",
                        "ControlPath=none", "UpdateHostKeys=no", "GlobalKnownHostsFile=/dev/null"):
             self.assertIn(option, argv)
+        self.assertNotIn("IdentityFile=none", argv)
+        self.assertNotIn("-i", argv)
         self.assertEqual(argv[-2:], ["192.0.2.25", "sh -s"])
         self.assertEqual(self.last_run.call_args.kwargs["input"], boot.SHELL)
         self.assertNotIn("SSH_AUTH_SOCK", self.last_run.call_args.kwargs["env"])
@@ -309,13 +315,59 @@ class CollectionTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             boot.verify(self.args.output)
 
+    def test_verify_binds_receipt_endpoint_collector_and_collection_time(self):
+        edits = (
+            ("user", {"user": "admin"}),
+            ("host", {"host": "192.0.2.99"}),
+            ("port", {"port": 2222}),
+            ("collector", {"collector_sha256": "0" * 64}),
+            ("malformed-time", {"collected_utc": "yesterday"}),
+            ("future-time", {"collected_utc": (datetime.now(timezone.utc)
+                                                 + timedelta(days=1)).isoformat()}),
+        )
+        for name, fields in edits:
+            with self.subTest(field=name):
+                self.args.output = self.root / name
+                self.capture()
+                receipt_path = self.args.output / "receipt.json"
+                value = json.loads(receipt_path.read_text())
+                value.update(fields)
+                if name in ("host", "port"):
+                    host = fields.get("host", value["host"])
+                    port = fields.get("port", value["port"])
+                    pin = known_hosts(host, port)
+                    (self.args.output / "known_hosts").write_bytes(pin)
+                    value["files"]["known_hosts"] = boot.sha(pin)
+                receipt_path.write_text(json.dumps(value))
+                with self.assertRaises(ValueError):
+                    boot.verify(self.args.output)
+
+    def test_rewritten_endpoint_transcript_still_must_match_observed_ssh_connection(self):
+        self.capture()
+        receipt_path = self.args.output / "receipt.json"
+        value = json.loads(receipt_path.read_text())
+        value["host"] = "192.0.2.99"
+        value["port"] = 2222
+        pin = known_hosts(value["host"], value["port"])
+        (self.args.output / "known_hosts").write_bytes(pin)
+        value["files"]["known_hosts"] = boot.sha(pin)
+        stderr = transport(host=value["host"], port=value["port"])
+        (self.args.output / "ssh.stderr").write_bytes(stderr)
+        value["files"]["ssh.stderr"] = boot.sha(stderr)
+        receipt_path.write_text(json.dumps(value))
+        with self.assertRaisesRegex(ValueError, "SSH_CONNECTION"):
+            boot.verify(self.args.output)
+
     def test_manual_reboot_comparison_allows_address_change_but_requires_new_boot(self):
         before = self.args.output
         self.capture()
         self.args.output = self.root / "boot2"
+        self.args.host = "192.0.2.26"
+        self.args.known_hosts.write_bytes(known_hosts(self.args.host, self.args.port))
         new_id = b"de250000-0000-4000-8000-000000000002\n"
         self.capture({"boot_id_start": new_id, "boot_id_end": new_id,
-                      "addresses": b"inet 192.0.2.26/24", "ssh_connection": b"192.0.2.1 45678 192.0.2.26 22"})
+                      "addresses": b"inet 192.0.2.26/24", "ssh_connection": b"192.0.2.1 45678 192.0.2.26 22"},
+                     transport(host=self.args.host, port=self.args.port))
         result = boot.compare(before, self.args.output)
         self.assertTrue(result["passed"])
         self.assertEqual(result["whole_image_identity"], "not attested")
@@ -360,15 +412,18 @@ class CollectionTests(unittest.TestCase):
     def test_openssh_effective_config_has_only_explicit_key_and_pinned_file(self):
         key = boot.host_key(known_hosts(), "192.0.2.25", 22)
         # -G prints effective configuration and exits without connecting.
-        pinned = self.root / "directory with spaces/known_hosts"
-        argv = boot.ssh_argv("192.0.2.25", 22, "root", pinned, self.args.identity_file, key)
+        directory = self.root / "directory with spaces"
+        pinned = directory / "known_hosts"
+        identity = directory / "private key"
+        argv = boot.ssh_argv("192.0.2.25", 22, "root", pinned, identity, key)
         result = subprocess.run(argv[:1] + ["-G"] + argv[1:], capture_output=True, check=True)
         text = result.stdout.decode()
         self.assertIn("userknownhostsfile " + str(pinned) + "\n", text)
-        self.assertIn("identityfile " + str(self.args.identity_file) + "\n", text)
+        identity_files = [line.removeprefix("identityfile ") for line in text.splitlines()
+                          if line.startswith("identityfile ")]
+        self.assertEqual(identity_files, [str(identity)])
         self.assertIn("identityagent none\n", text)
         self.assertIn("stricthostkeychecking true\n", text)
-        self.assertNotIn("identityfile ~/.ssh/", text)
 
 
 class BoundedProcessTests(unittest.TestCase):
