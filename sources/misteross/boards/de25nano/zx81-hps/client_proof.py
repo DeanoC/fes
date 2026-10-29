@@ -78,6 +78,13 @@ def upload_writes(length: int, chunk: int = 127) -> int:
     return 4 + sum(3 + (min(chunk, length - n) + 1) // 2 for n in range(0, length, chunk)) + 1 + 6
 
 
+def tape_maximum() -> int:
+    text = (BOARD / "generated/fes_de25_computer.vh").read_text()
+    values = re.findall(r"^`define FES_DE25_COMPUTER_ZX81_TAPE_MAX_BYTES 32'h([0-9a-fA-F]{8})$", text, re.M)
+    if len(values) != 1: raise ValueError("missing or duplicate generated DE25 tape limit")
+    return int(values[0], 16)
+
+
 def validate_result(result: dict, scenario: str) -> None:
     if set(result) != {"scenario", "result", "writes", "image_bytes", "loaded_bytes", "complete_frames"}:
         raise ValueError("incomplete or unknown result fields")
@@ -85,14 +92,14 @@ def validate_result(result: dict, scenario: str) -> None:
     for name in ("writes", "image_bytes", "loaded_bytes", "complete_frames"):
         if type(result[name]) is not int or result[name] < 0: raise ValueError("invalid result count")
     if scenario == "session":
-        if not 1 <= result["image_bytes"] <= 16384 or result["loaded_bytes"] != result["image_bytes"] or result["complete_frames"] < 2:
+        if not 1 <= result["image_bytes"] <= tape_maximum() or result["loaded_bytes"] != result["image_bytes"] or result["complete_frames"] < 2:
             raise ValueError("session lacks complete real-machine evidence")
         expected = 115 + upload_writes(result["image_bytes"])
     else:
         if any(result[name] for name in ("image_bytes", "loaded_bytes", "complete_frames")):
             raise ValueError("non-session result claims machine evidence")
         expected = {"wrong-build": 16, "late-reset": 22,
-                    "tape-bounds": 22 + upload_writes(517) + 7 + upload_writes(16384) + 7 + 16}.get(scenario, 23)
+                    "tape-bounds": 22 + upload_writes(517) + 7 + upload_writes(tape_maximum()) + 7 + 16}.get(scenario, 23)
     if result["writes"] != expected: raise ValueError(f"unexpected command count for {scenario}: {result['writes']} != {expected}")
 
 
