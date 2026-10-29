@@ -31,6 +31,8 @@ constants:
     value: 5
   - name: FesDe25ComputerPeripheralOffset
     value: 0x00010300
+  - name: FesDe25ComputerZx81TapeMaxBytes
+    value: 16375
   - name: FesDe25ComputerStatusReady
     value: 1
   - name: FesDe25ComputerStatusBusy

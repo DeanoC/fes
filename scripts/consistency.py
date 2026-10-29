@@ -12,6 +12,7 @@ GENERATED = (
     ('emit-cpp', 'packages/fabric/fes_fabric_de25_ramtest.yaml', 'misteross', 'boards/de25nano/ramtest/generated/fes_de25_ramtest.hpp'),
     ('emit-verilog', 'packages/fabric/fes_fabric_de25_computer.yaml', 'misteross', 'boards/de25nano/zx81-hps/generated/fes_de25_computer.vh'),
     ('emit-cpp', 'packages/fabric/fes_fabric_de25_computer.yaml', 'misteross', 'boards/de25nano/zx81-hps/generated/fes_de25_computer.hpp'),
+    ('emit-cpp', 'packages/fabric/fes_fabric_de25_computer.yaml', 'libmister-runtime', 'src/native/generated/fes_de25_computer.hpp'),
     ('emit-verilog', 'packages/abi/fes_computer.yaml', 'misteross', 'boards/de25nano/zx81-hps/generated/fes_computer.vh'),
     ('emit-verilog', 'packages/fabric/fes_fabric_de25_scanout.yaml', 'misteross', 'boards/de25nano/scanout/generated/fes_de25_scanout.vh'),
     ('emit-c', 'packages/fabric/fes_fabric_de25_scanout.yaml', 'misteross', 'boards/de25nano/scanout/generated/fes_de25_scanout.h'),
