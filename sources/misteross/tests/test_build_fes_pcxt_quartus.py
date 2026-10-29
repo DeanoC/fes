@@ -45,6 +45,13 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'toolchain'):
             _validate_build_record(fields)
 
+    def test_package_uses_common_clock_pad_constraints_not_board50_packing(self):
+        qsf = producer.board.project_qsf(producer.ROOT, 1, 2, package_profile=True)
+        self.assertNotIn('FAST_INPUT_REGISTER ON -to SDRAM_DQ', qsf)
+        self.assertIn('set_location_assignment', qsf)
+        experimental = producer.board.project_qsf(producer.ROOT, 1, 2)
+        self.assertIn('FAST_INPUT_REGISTER ON -to SDRAM_DQ', experimental)
+
     def test_package_elaboration_embeds_the_exact_build_id(self):
         program = producer.board.elaboration(producer.ROOT, producer.ROOT / 'build',
                                              producer.ROOT / 'unused-library',

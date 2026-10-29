@@ -41,6 +41,7 @@ ADAPTERS = CORE / 'quartus/adapters.v'
 AUDIT = CORE / 'quartus/audit.tcl'
 MAILBOX = CORE / 'quartus/mailbox.sdc'
 PINS = CORE / 'constraints-board50.qsf'
+PACKAGE_PINS = Path('cores/fes-ramtest/constraints.qsf')
 DEVICE = '5CSEBA6U23I7'
 SDC = ('create_clock -name FPGA_CLK1_50 -period 20.000 [get_ports {FPGA_CLK1_50}]\n'
        'derive_pll_clocks\nderive_clock_uncertainty\n')
@@ -57,7 +58,7 @@ def input_paths(root: Path) -> list[Path]:
     tracked = subprocess.check_output(
         ['git', 'ls-files', '--', str(CORE), *map(str, vendor_roots)], cwd=root, text=True).splitlines()
     paths = set(map(Path, tracked)) | set(map(Path, RTL))
-    paths.update((ADAPTERS, AUDIT, MAILBOX, PINS, Path('scripts/sim_fes_pcxt.py'),
+    paths.update((ADAPTERS, AUDIT, MAILBOX, PINS, PACKAGE_PINS, Path('scripts/sim_fes_pcxt.py'),
                   Path('scripts/quartus_fes_pcxt.py'), Path('scripts/quartus_tools.py'),
                   Path('scripts/pcxt_quartus_mailbox.py'), Path('tests/test_pcxt_video_mailbox.py')))
     paths.update(p.relative_to(root) for p in (root / 'cores/fes-common/generated').glob('*.vh'))
@@ -158,7 +159,7 @@ def validate_renaming(work: Path, *, package_profile=False) -> dict:
     return {'complete_cell_and_net_records_equal_under_names': True, 'cells': counts}
 
 
-def project_qsf(source: Path, seed: int, threads: int) -> str:
+def project_qsf(source: Path, seed: int, threads: int, *, package_profile=False) -> str:
     lines = [
         'set_global_assignment -name FAMILY "Cyclone V"',
         f'set_global_assignment -name DEVICE {DEVICE}',
@@ -173,7 +174,7 @@ def project_qsf(source: Path, seed: int, threads: int) -> str:
         'set_global_assignment -name DSP_BLOCK_BALANCING "LOGIC ELEMENTS"',
         'set_instance_assignment -name HPS_LOCATION '
         'HPSINTERFACEPERIPHERALI2C_X52_Y60_N111 -entity top -to hdmi_i2c',
-        (source / PINS).read_text(),
+        (source / (PACKAGE_PINS if package_profile else PINS)).read_text(),
     ]
     return '\n'.join(lines) + '\n'
 
@@ -373,7 +374,7 @@ def main(argv=None) -> int:
             shutil.copy2(work / 'elaborated.v', fit / 'elaborated.v')
             shutil.copy2(source / AUDIT, fit / 'audit.tcl')
             (fit / 'top.qpf').write_text('QUARTUS_VERSION = "17.0";\nPROJECT_REVISION = "top";\n')
-            (fit / 'top.qsf').write_text(project_qsf(source, seed, args.threads))
+            (fit / 'top.qsf').write_text(project_qsf(source, seed, args.threads, package_profile=args.package_profile))
             (fit / 'clocks.sdc').write_text(SDC)
             if args.video_mailbox_contract:
                 shutil.copy2(source / MAILBOX, fit / 'mailbox.sdc')
@@ -396,6 +397,9 @@ def main(argv=None) -> int:
                                           for p in sorted(captures) if p.is_file()}
             receipt['status'] = 'diagnostic-captured'
             (output / 'summary.json').write_text(json.dumps(record, indent=2) + '\n')
+            if args.package_profile and (not receipt['reported_endpoint_checks_pass'] or
+                    any(v['failures'] for v in receipt['minimum_pulse_width'].values())):
+                raise ValueError('package internal timing failed at seed ' + str(seed))
         if any(sha(ROOT / p) != value for p, value in record['sources'].items()):
             raise ValueError('selected sources changed during the diagnostic')
         record['status'] = 'diagnostic-captured'
