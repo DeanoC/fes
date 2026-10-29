@@ -6,6 +6,7 @@ replay are separate suites."""
 import hashlib
 import json
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -156,6 +157,11 @@ SB resets=1 commands=12 dma=6000 irqs=6
 END prompt steps=69772120 cycles=290000013 seconds=2.900
 """
 
+RTL_BOOT_OUTPUT = """PROMPT 100
+RTL retired=42 oracle_steps=0 protected_steps=0 parked_clocks=0 tf_retired=0 vga_loads=0 vga_lost_path=0 vga_lost_restart=0 vga_lost_stop=0 shadow_faults=0 vga_cancelled=0 vga_overlaps=0 smc_stores=0 smc_addresses=0 smc_executed=0
+END prompt steps=42 cycles=100 seconds=0.001
+"""
+
 
 class BootReportTest(unittest.TestCase):
     def test_parse(self):
@@ -192,6 +198,32 @@ class BootReportTest(unittest.TestCase):
         self.assertEqual(len(sim.timing_failures(early)), 1)
         late = sim.parse_boot(BOOT_OUTPUT + f'IO vga-in 1 {sim.VGA_READ_BOUND + 1} 1\n')
         self.assertEqual(len(sim.timing_failures(late)), 1)
+
+    def test_rtl_boot_requires_the_rtl_to_reach_the_prompt_without_stops(self):
+        passed = sim.parse_boot(RTL_BOOT_OUTPUT)
+        self.assertEqual(sim.rtl_boot_failures(passed, 'rtl'), [])
+        # The oracle boot keeps its existing acceptance rules.
+        self.assertEqual(sim.rtl_boot_failures(passed, 'oracle'), [])
+
+        cases = (
+            (RTL_BOOT_OUTPUT.replace('retired=42', 'retired=0'), 'no instructions', None),
+            (RTL_BOOT_OUTPUT.replace('oracle_steps=0', 'oracle_steps=1'), 'oracle_steps=1', None),
+            (RTL_BOOT_OUTPUT.replace('shadow_faults=0', 'shadow_faults=1'), 'shadow_faults=1', None),
+            (RTL_BOOT_OUTPUT.replace('vga_overlaps=0', 'vga_overlaps=1'), 'vga_overlaps=1', None),
+            ('STOP stall 50 f000:00000000 00 00\n'
+             'GAP stall 00 1 1 0 f000:00000000 50\n' + RTL_BOOT_OUTPUT, 'stall 00', 'unimplemented'),
+            ('STOP unimplemented 50 f000:00000000 27 27\n'
+             'GAP unimplemented 27 1 1 0 f000:00000000 50\n' + RTL_BOOT_OUTPUT,
+             'unimplemented 27', 'stall 00'),
+            (RTL_BOOT_OUTPUT.replace('PROMPT 100\n', '').replace('END prompt', 'END limit'), 'prompt', None),
+            ('PROMPT 100\nEND prompt steps=42 cycles=100 seconds=0.001\n', 'counters', None),
+        )
+        for output, expected, wrong_classification in cases:
+            with self.subTest(expected=expected):
+                failures = sim.rtl_boot_failures(sim.parse_boot(output), 'rtl')
+                self.assertTrue(any(expected in failure for failure in failures), failures)
+                if wrong_classification:
+                    self.assertFalse(any(wrong_classification in failure for failure in failures), failures)
 
 
 @unittest.skipUnless(VERILATOR, 'requires Verilator')
@@ -243,7 +275,7 @@ class PresenterBenchTest(unittest.TestCase):
 
 
 class DiagnosticTest(unittest.TestCase):
-    def test_rates_at_100_mhz_are_the_machine_defaults(self):
+    def test_rates_at_100_mhz(self):
         rates = pc386_diag.rates(100_000_000)
         expected = {'ISA': (1, 12), 'PIT': (21, 880), 'US': (1, 100), 'DMA': (1, 24), 'DOT0': (1007, 4000),
                     'DOT1': (14161, 50000), 'OPL2': (7, 14080), 'AUDIO': (3, 6250)}
@@ -254,6 +286,28 @@ class DiagnosticTest(unittest.TestCase):
         self.assertEqual(rates['TIMEOUT_CLOCKS'], 10_000_000)
         with self.assertRaises(pc386_diag.DiagError):
             pc386_diag.rates(50_000_000)
+
+    def test_sealed_rates_match_shell_parameters_and_diag_connections(self):
+        rates = pc386_diag.rates(producer.SYSTEM_CLOCK_HZ)
+        top = (producer.ROOT / 'cores/fes-pc386/rtl/top.sv').read_text()
+        parameter_block = top.split('module top #(', 1)[1].split(') (', 1)[0]
+        declarations = re.findall(r'\b([A-Z][A-Z0-9_]*)\s*=\s*([^,\n]+)', parameter_block)
+        shell_parameters = {name for name, _ in declarations} - {'BUILD_ID', 'SYSTEM_CLOCK'}
+        self.assertEqual(shell_parameters, set(rates))
+        shell_defaults = {name: int(value.strip(), 0) for name, value in declarations if name in rates}
+        self.assertEqual(shell_defaults, rates)
+
+        diag_parameters = top.split('pc386_diag #(', 1)[1].split(') diag (', 1)[0]
+        diag_connections = set(re.findall(r'\.([A-Z][A-Z0-9_]*)\s*\(', diag_parameters))
+        self.assertEqual(diag_connections, set(rates))
+
+    def test_oss_synthesis_uses_hierarchy_chparam(self):
+        program = producer.synthesis_command('a' * 32, Path('/toolchain/yosys'))[2]
+        self.assertIn(f"hierarchy -top {producer.board.TOP} -chparam BUILD_ID 128'h{'a' * 32}", program)
+        self.assertIn('-chparam SYSTEM_CLOCK "61.44 MHz"', program)
+        for name, value in pc386_diag.rates(producer.SYSTEM_CLOCK_HZ).items():
+            self.assertIn(f'-chparam {name} {value}', program)
+        self.assertNotIn('chparam -set', program)
 
     def test_programs_round_trip(self):
         for name in ('smoke', 'mode13', 'sound', 'opl2', 'ata', 'resets', 'copy'):

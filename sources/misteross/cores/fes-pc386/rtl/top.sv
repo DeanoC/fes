@@ -24,7 +24,8 @@ module top #(
     parameter integer DOT1_N = 14161, DOT1_D = 30720,
     parameter integer OPL2_N = 875, OPL2_D = 1081344,
     parameter integer AUDIO_N = 1, AUDIO_D = 1280,
-    parameter integer ATA_RESET_CLOCKS = 615
+    parameter integer ATA_RESET_CLOCKS = 615,
+    parameter integer TIMEOUT_CLOCKS = 6_144_000
 ) (
     input  wire        FPGA_CLK1_50,
     output wire        HDMI_TX_CLK,
@@ -110,7 +111,8 @@ module top #(
         .ISA_N(ISA_N), .ISA_D(ISA_D), .PIT_N(PIT_N), .PIT_D(PIT_D), .RTC_N(RTC_N), .RTC_D(RTC_D),
         .US_N(US_N), .US_D(US_D), .DMA_N(DMA_N), .DMA_D(DMA_D), .DOT0_N(DOT0_N), .DOT0_D(DOT0_D),
         .DOT1_N(DOT1_N), .DOT1_D(DOT1_D), .OPL2_N(OPL2_N), .OPL2_D(OPL2_D),
-        .AUDIO_N(AUDIO_N), .AUDIO_D(AUDIO_D), .ATA_RESET_CLOCKS(ATA_RESET_CLOCKS)
+        .AUDIO_N(AUDIO_N), .AUDIO_D(AUDIO_D), .ATA_RESET_CLOCKS(ATA_RESET_CLOCKS),
+        .TIMEOUT_CLOCKS(TIMEOUT_CLOCKS)
     )
 `endif
     diag (

@@ -445,9 +445,14 @@ traced. They found these, fixed in `0c2407d6e0`:
   forever, and POLL_IN's timeout skipped its first wait. While the machine is
   held, none of them is ever answered. Every command but WAIT_INTR and DELAY
   now gives up with status 1 after `TIMEOUT_CLOCKS`, set by `rates()` to
-  0.1 s (6,144,000 clocks at 61.44 MHz). The longest wait in any of q3's
-  programs was a vga-trace retrace poll of 1,021,086 clocks (16.6 ms). A
-  port 0 beat is never given up: the machine's reset does not reach port 0.
+  0.1 s (6,144,000 clocks at 61.44 MHz). The Quartus builder applied these
+  rates directly to its `pc386_diag` machine netlist. In q4, Kit B returned
+  status 1 for both held-machine timeout commands after 6,144,001 clocks each
+  (`kit-report-q4.json`). This validates the timeout on that Quartus artifact;
+  it does not exercise the separate OSS shell-parameter path. The longest wait
+  in any of q3's programs was a vga-trace retrace poll of 1,021,086 clocks
+  (16.6 ms). A port 0 beat is never given up: the machine's reset does not
+  reach port 0.
 
 **Fence and counters:**
 - A filler beat now carries its burst's first-beat address and length, which
