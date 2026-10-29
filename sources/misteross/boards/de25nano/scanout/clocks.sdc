@@ -3,15 +3,17 @@
 set hdmi_config_clock [get_registers {fes_video_inst|hdmi_config|mI2C_CTRL_CLK}]
 if {[get_collection_size $hdmi_config_clock] != 1} {error "DE25 scanout I2C clock register changed"}
 create_generated_clock -name adv7513_config -source [get_ports CLOCK0_50] -divide_by 5002 $hdmi_config_clock
-# Configuration release and PLL-lock monitoring only. Loss of pixel lock does
-# not reset either live PD crossing or the endpoint's outstanding accounting.
-set scanout_aclr [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|config_reset|sync_regs*|aclr fes_video_inst|lock_qualifier|sync_regs*|aclr}]
-set scanout_clrn [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|config_reset|sync_regs*|clrn fes_video_inst|lock_qualifier|sync_regs*|clrn}]
+# Only asynchronous ingress to the dedicated configuration, lock, and pixel
+# reset synchronizers is untimed. Keep inter-stage D and released-reset fanout
+# timed. Loss of pixel lock does not reset either live PD crossing or the
+# endpoint's outstanding accounting.
+set scanout_aclr [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|config_reset|sync_regs*|aclr fes_video_inst|lock_qualifier|sync_regs*|aclr soc_inst|subsys_periph|fes_scanout|fes_scanout|pixel_reset_sync*|aclr}]
+set scanout_clrn [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|config_reset|sync_regs*|clrn fes_video_inst|lock_qualifier|sync_regs*|clrn soc_inst|subsys_periph|fes_scanout|fes_scanout|pixel_reset_sync*|clrn}]
 set scanout_clear_count [expr {[get_collection_size $scanout_aclr] + [get_collection_size $scanout_clrn]}]
-if {$scanout_clear_count != 4} {error "DE25 scanout requires exactly four qualifier clear pins"}
+if {$scanout_clear_count != 6} {error "DE25 scanout requires exactly six reset synchronizer clear pins"}
 if {[get_collection_size $scanout_aclr] > 0} {set_false_path -to $scanout_aclr}
 if {[get_collection_size $scanout_clrn] > 0} {set_false_path -to $scanout_clrn}
-post_message -type info "DE25 scanout qualifier clear pins: $scanout_clear_count (expected 4)"
+post_message -type info "DE25 scanout reset synchronizer clear pins: $scanout_clear_count (expected 6); release paths remain timed"
 # A monotonic 100 MHz fault level crosses through its dedicated two-flop chain.
 # Cut only asynchronous ingress to stage0 D. Stage0->1 and fanout stay timed.
 set scanout_fault_source [get_registers {fes_video_inst|fault}]

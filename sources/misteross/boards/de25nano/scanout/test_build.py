@@ -121,6 +121,11 @@ class ScanoutBuildTests(unittest.TestCase):
         endpoint = (SCANOUT / "fes_de25_scanout.v").read_text()
         self.assertIn("pixel_reset_sync <= {pixel_reset_sync[0], 1'b1}", endpoint)
         self.assertIn(".RESET_DROPS_OUTSTANDING(1'b1)", endpoint)
+        constraints = (SCANOUT / "clocks.sdc").read_text()
+        self.assertIn("pixel_reset_sync*|aclr", constraints)
+        self.assertIn("pixel_reset_sync*|clrn", constraints)
+        self.assertIn("scanout_clear_count != 6", constraints)
+        self.assertIn("release paths remain timed", constraints)
 
     def test_postcompile_pll_mutation_is_rejected_with_failed_receipt_retained(self):
         output, _, hps, display = self.prepare()
