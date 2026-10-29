@@ -543,12 +543,13 @@ paths clear it together with package identity.
 
 Protocol-2 `inspect_parts_core` and `load_parts_core` accept a closed role list
 (`video`, plus optional `expansion`) and a separate typed parts composition.
-Only a Coleco application shell, format 2 or the factory 16 KiB format-3 cartridge, that explicitly declares optional
-`fes.fabric.video.raster-rgb888` 1.0 or `fes.fabric.video.native-pixels` 1.0,
-and optional Coleco bus 2.0 qualifies. Duplicate or simultaneous video markers
-are rejected. Fabric markers have no GP capability and do not enter the runtime
-interface registry. The raster marker selects layout `fes.coleco-video.parts/1`
-and map `fes.coleco-video.socket/1`. The native marker selects the separate
+Parts admission accepts a Coleco application shell in format 2 or the factory
+format-4 layout with exact 8 KiB firmware and 16 KiB cartridge ROMs, provided it
+declares optional `fes.fabric.video.raster-rgb888` 1.0 or
+`fes.fabric.video.native-pixels` 1.0, and optional Coleco bus 2.0. Duplicate or
+simultaneous video markers are rejected. Fabric markers have no GP capability
+and do not enter the runtime interface registry. The raster marker selects
+layout `fes.coleco-video.parts/1` and map `fes.coleco-video.socket/1`. The native marker selects the separate
 `fes.coleco-native-video.parts/1` layout and `fes.coleco-native-video.socket/1`
 map; version 1.0 fixes a 256 by 192 indexed source with four-bit TMS9918 palette
 values. Parts from the two layouts cannot be interchanged. A CPU part uses

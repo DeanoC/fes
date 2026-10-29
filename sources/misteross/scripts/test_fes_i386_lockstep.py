@@ -108,6 +108,8 @@ SCOPE: frozenset[str] = frozenset([
     '0FAF', '69', '6B', 'D4', 'D5',
     # The string instructions, with every REP prefix; ENTER.
     'A4', 'A5', 'A6', 'A7', 'AA', 'AB', 'AC', 'AD', 'AE', 'AF', 'C8',
+    # I/O: IN and OUT, imm8 and DX forms; INS and OUTS.
+    'E4', 'E5', 'E6', 'E7', 'EC', 'ED', 'EE', 'EF', '6C', '6D', '6E', '6F',
 ])
 # Files of an in-scope opcode whose forms are not built yet: POP m with
 # 32-bit addressing, whose ESP base would read ESP after the pop.
@@ -374,14 +376,14 @@ def main() -> int:
         counts = by_opcode.setdefault(vectors.base_opcode(result['stem']), Counter())
         counts.update({'tests': result['tests'], 'passed': summary['passed'], 'failed': summary['failed'],
                        'retired_to_hlt': summary['halts'], 'interrupts': summary['interrupts'], 'faults': summary['faults'],
-                       'retirements': summary['retirements']})
+                       'retirements': summary['retirements'], 'io_accesses': summary['io_accesses']})
         corpus_failures += result['failures']
     totals = sum(by_opcode.values(), Counter())
     fault_vectors = sum((Counter(result['summary']['fault_vectors']) for result in corpus_results), Counter())
     divergences = sum((Counter(result['summary']['divergence_retirements']) for result in corpus_results), Counter())
     random_totals = sum((Counter({key: result['summary'][key] for key in
                                   ('runs', 'passed', 'failed', 'retirements', 'cycles', 'halts', 'faults',
-                                   'double_faults', 'retire_limits', 'smc_stops', 'load_wait_cycles')})
+                                   'double_faults', 'retire_limits', 'smc_stops', 'load_wait_cycles', 'io_accesses')})
                          for result in random_results),
                          Counter())
     random_failures = [line for result in random_results + steady_results for line in result['failures']]
@@ -394,7 +396,7 @@ def main() -> int:
                                   for result in steady_results), Counter()).items()))
             for key in ('sequential', 'prefixed', 'lea', 'selector', 'after_taken', 'after_not_taken',
                         'shift_consumer', 'after_shift', 'store_load', 'after_store', 'address', 'after_segment',
-                        'after_stack', 'stack_stack', 'several', 'after_string')}
+                        'after_stack', 'stack_stack', 'several', 'after_string', 'after_io')}
     held = hold_failures(gaps)
     unbuilt_failures = [line for result in unbuilt_results for line in result['failures']]
     unbuilt_runs = sum(result['summary']['runs'] for result in unbuilt_results)
@@ -421,14 +423,15 @@ def main() -> int:
     print(f"corpus: {len(corpus_results)} files, {len(by_opcode)} opcodes, {totals['tests']} tests: "
           f"{totals['passed']} pass ({totals['retired_to_hlt']} to HLT, {totals['interrupts']} of them in an "
           f"interrupt's handler, {totals['faults']} in an exception's handler "
-          f"{dict(fault_vectors)}), {totals['failed']} fail; {totals['retirements']} retirements compared")
+          f"{dict(fault_vectors)}), {totals['failed']} fail; {totals['retirements']} retirements and "
+          f"{totals['io_accesses']} I/O accesses compared")
     if random_results:
         print(f"random: {len(random_results)} seeds x {args.random_programs} programs, {random_totals['retirements']} "
               f"retirements: {random_totals['passed']} pass ({random_totals['halts']} to HLT, {random_totals['faults']} "
               f"at a delivered exception, {random_totals['double_faults']} at a fault in a delivery, "
               f"{random_totals['retire_limits']} at the retirement limit, {random_totals['smc_stops']} at a "
-              f"store into their code; {random_totals['load_wait_cycles']} cycles waiting for a load's bytes), "
-              f"{random_totals['failed']} fail; "
+              f"store into their code; {random_totals['load_wait_cycles']} cycles waiting for a load's bytes; "
+              f"{random_totals['io_accesses']} I/O accesses compared), {random_totals['failed']} fail; "
               f"latency-free reruns of seeds {[result['seed'] for result in steady_results]}: "
               f"{'trace unchanged' if not hash_mismatches else 'TRACE CHANGED for ' + str(hash_mismatches)}")
         def share(histogram: dict, cycles: int) -> str:

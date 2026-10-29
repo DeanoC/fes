@@ -231,7 +231,12 @@ package fes_i386_pkg;
     // MOVS element, ENTER's copy of a frame pointer); rep_stop: REPE (bit
     // 0) or REPNE (bit 1) ends the instruction here, a taken branch to the
     // next, when ZF is clear or set.
+    // io: the uop is an I/O access at WB (io_e): IN merges the port's data
+    // into its destination (EAX) or stores it (INS); OUT sends a (OUT) or its
+    // result, the loaded value (OUTS). The port is src2's low half (DX), else
+    // imm's.
     typedef struct packed {
+        logic [1:0]  io;
         logic        str_si;
         logic        str_di;
         logic        str_cx;
@@ -377,7 +382,9 @@ package fes_i386_pkg;
         SEQ_XCHG, SEQ_XCHGM, SEQ_CALLI, SEQ_PUSHM, SEQ_POPM, SEQ_MUL, SEQ_DIV, SEQ_STRING, SEQ_ENTER
     } seq_e;
     // The string instructions (SEQ_STRING's str_op).
-    typedef enum logic [2:0] { STR_MOVS, STR_CMPS, STR_STOS, STR_LODS, STR_SCAS } str_e;
+    typedef enum logic [2:0] { STR_MOVS, STR_CMPS, STR_STOS, STR_LODS, STR_SCAS, STR_INS, STR_OUTS } str_e;
+    // A uop's I/O access (uop_t io).
+    typedef enum logic [1:0] { IO_NONE, IO_IN, IO_OUT } io_e;
     typedef enum logic { PROBE_NONE, PROBE_INT } probe_e;
 
     // A microcode ROM word (fes_i386_ucode_rom, built by

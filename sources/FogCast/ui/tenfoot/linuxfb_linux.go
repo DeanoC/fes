@@ -463,20 +463,23 @@ devices:
 						continue
 					}
 					if guide {
-						if value == 1 && app.Snapshot().Session.HardwareRoom {
-							app.Press(CmdHome, now)
+						session := app.Snapshot().Session
+						if value == 1 {
+							if command := sessionGuideCommand(session); command != CmdNone {
+								app.Press(command, now)
+							} else if app.coreOwnsPadInput() {
+								app.NoteInput(InputGamepad, in.fd)
+								// Guide is a launcher button, never sent to a core:
+								// on a kit-local core it is the one-press Stop.
+								app.RequestLocalStop()
+							} else {
+								app.NoteInput(InputGamepad, in.fd)
+								in.setButton(code, CmdSettings, true)
+							}
 						} else if app.coreOwnsPadInput() {
 							if value != 0 {
 								app.NoteInput(InputGamepad, in.fd)
 							}
-							// Guide is a launcher button, never sent to a core:
-							// on a kit-local core it is the one-press Stop.
-							if value == 1 {
-								app.RequestLocalStop()
-							}
-						} else if value == 1 {
-							app.NoteInput(InputGamepad, in.fd)
-							in.setButton(code, CmdSettings, true)
 						} else if value == 0 {
 							in.setButton(code, CmdSettings, false)
 						}
@@ -520,6 +523,16 @@ devices:
 		ins.menuSuppressed = false
 	}
 	return ins.applyButtons(app, now), nil
+}
+
+func sessionGuideCommand(session SessionSnapshot) Command {
+	if !session.HardwareRoom {
+		return CmdNone
+	}
+	if session.Coleco && !session.ControlsOpen {
+		return CmdSearch
+	}
+	return CmdHome
 }
 
 func (ins *nativeInputs) dropMenuEdges(app *App) {
@@ -608,9 +621,10 @@ func (in *nativeInput) button(app *App, button Button, value int32, now time.Tim
 	if in.player == noLocalPlayer {
 		// Both controller ports belong to other pads. This pad never reaches
 		// a machine. It presses menu controls only where a pad with a port
-		// would, and its releases always clear them.
+		// would, and its releases always clear them. Keypad Select follows the
+		// focused launcher's confirmation mapping too.
 		if value == 0 || app.portlessPadReachesMenu(e.Code) {
-			in.setButton(uint16(button), CommandFromLogical(e), value != 0)
+			in.setButton(uint16(button), app.localPadCommand(e), value != 0)
 		}
 		if value != 0 {
 			app.NoteInput(InputGamepad, in.fd)
@@ -633,7 +647,7 @@ func (in *nativeInput) button(app *App, button Button, value int32, now time.Tim
 		}
 		return
 	}
-	in.setButton(uint16(button), CommandFromLogical(e), value != 0)
+	in.setButton(uint16(button), app.localPadCommand(e), value != 0)
 	if value != 0 {
 		app.NoteInput(InputGamepad, in.fd)
 	}

@@ -158,8 +158,12 @@ func (c *Client) ClearRemovableMediaForSession(ctx context.Context, prior Sessio
 	return c.postRemovableMedia(ctx, prior, "/api/v1/session/live-media/clear", http.NoBody, 0, prior.ID, b)
 }
 
+// liveMediaTimeout bounds a media change on a running kit, including a
+// cartridge relaunch.
+const liveMediaTimeout = 450 * time.Second
+
 func (c *Client) postRemovableMedia(ctx context.Context, prior SessionResult, path string, body io.Reader, length int64, sessionID string, b protocol.DevelopmentMediaBinding) (SessionResult, error) {
-	ctx, cancel := context.WithTimeout(ctx, 450*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, liveMediaTimeout)
 	defer cancel()
 	transport := *c.HTTPClient()
 	transport.Timeout = 0

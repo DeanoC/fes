@@ -174,12 +174,11 @@ func (a *App) suppressPadLocked(player uint8) {
 }
 
 // portlessPadReachesMenu reports whether a pad without a controller port may
-// press a menu control now. It may wherever a pad with a port would reach
-// the menu (HandleLocalPad returning false): whenever no machine owns the
-// pads, and in the room shown over a running session, where Select returns
-// to the game and Start is never the menu's Quit (sessionPadLocked). During
-// an uncertain display transition, B uses the same guarded return as a
-// ported pad without enabling ordinary menu commands.
+// press a menu control now. It may drive the room shown over a running session,
+// except for Start and Select. Select also reaches focused launcher controls
+// for keypad sessions, where it confirms the picker instead of reaching the
+// machine. During an uncertain display transition, B uses the same guarded
+// return as a ported pad without enabling ordinary menu commands.
 func (a *App) portlessPadReachesMenu(code remoteinput.Code) bool {
 	if a == nil {
 		return false
@@ -198,6 +197,8 @@ func (a *App) portlessPadReachesMenu(code remoteinput.Code) bool {
 		}
 		return false
 	}
-	return a.roomDuringPlay && code != remoteinput.ButtonStart && code != remoteinput.ButtonSelect &&
+	menuSelect := code == remoteinput.ButtonSelect && a.sessionKeypadLocked() && a.sessionMenuOwnsPadInputLocked()
+	roomCommand := a.roomDuringPlay && code != remoteinput.ButtonStart && code != remoteinput.ButtonSelect
+	return (roomCommand || menuSelect) &&
 		!a.sessionDisplayBusy && a.stopPhase != "stopping" && !a.retryStopLock && !a.playHIDFailClosedLocked()
 }

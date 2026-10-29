@@ -86,11 +86,12 @@ of the current tree.
    - Splash remains the pinned idle bitstream. Menu scanout does not replace
      it until its own acceptance gate.
 6. An external ROM uses a sealed ROM map. Format 3 is that shape: ZX81, SMS,
-   SG-1000, Apple II, C64, Spectrum, Atari ST and the factory Coleco cartridge.
-   Coleco format 3 is one exact 16 KiB cartridge, mirrored at `0x8000`. Pad a
-   shorter cart with `0xff`. Format 2 remains for ROM-less packages. Format 4
-   is the Coleco MegaCart development producer. It is not a third cartridge
-   mechanism to copy.
+   SG-1000, Apple II, C64, Spectrum and Atari ST. Format 4 carries more than
+   one ROM source. The factory Coleco package (`fes.coleco` 1.5.0) is format 4:
+   an 8 KiB BIOS at `0x0000-0x1fff` plus one exact 16 KiB cartridge, mirrored
+   at `0x8000`. Pad a shorter cart with `0xff`. Format 2 remains for ROM-less
+   packages. The Coleco MegaCart development producer also uses format 4. It
+   is not a third cartridge mechanism to copy.
 7. Functional identity is 2. Factory producers use audited per-producer source
    closures. A producer moved onto the shared lock adopts an audited closure
    in the same change if it does not have one.
@@ -117,7 +118,7 @@ nine-package image set; its evidence limits are unchanged.
 | `fes.pong` 1.1.0 | ROM-less game. Settings and best rally persist. The [10 Oct kit B load](validation/2026-10-10-optimizer-video-area.md) showed the field and Stop. | `cores/fes-pong/toolchain.lock`, single-PLL gate, optimizer scaler. | That note is a bounded video/Stop check, not gameplay or image acceptance. |
 | `fes.zx81` 1.7.0 | Most complete 8-bit machine in the library: live `.p` tape, BASIC SAVE to a library cassette, session display, bus 2.0. The [2 Oct image diagnostic](validation/2026-10-02-zx81-session-display.md) showed cassette swap with BASIC kept. | `fes.computer` 1.0, `fes_z80_nmos`, sync M10K, shared display plane, format 3. Current lock: `cores/fes-zx81/toolchain.lock`. | The 2 Oct note covers the earlier opaque plane and does not accept a shared-pin seal. The 1.6.0 display plane, physical keyboard, expansion and audio are not accepted. Completed SAVE images still need a stored library cassette. |
 | `fes.zx80` 0.1.0, `fes.ts1000` 0.1.0, `fes.ts1500` 0.1.0 | Experimental package-only shells of the ZX81 machine. Not in the factory image. | One shell, `fes_z80_nmos`, sync M10K, format 3. Lock `cores/fes-zx81/toolchain.lock`. | No sealed package and no hardware acceptance. ZX80 is PAL, 4 KiB ROM, 1 KiB RAM, no NMI. TS1000 is NTSC, 8 KiB ROM, 2 KiB RAM. TS1500 is NTSC, 8 KiB ROM, 16 KiB RAM. |
-| `fes.coleco` 1.4.0 | Reduced ColecoVision. Native video parts are mandatory. Optional SGM. One exact 16 KiB cartridge, padded with `0xff`. Launcher overlay and surround through the session display. | `fes.application` 1.0, native video parts, shared display plane after the part, sync M10K, format 3. Current lock: `cores/fes-coleco/toolchain.lock`. | Still TV80. Not retail-complete. The 3 Oct note does not accept these bytes. The 1.4.0 display plane is not accepted on a kit. |
+| `fes.coleco` 1.5.0 | Reduced ColecoVision. Native video parts are mandatory. Optional SGM. An 8 KiB BIOS at `0x0000-0x1fff` plus one exact 16 KiB cartridge mirrored at `0x8000`, padded with `0xff`. Launcher overlay and surround through the session display. | `fes.application` 1.0, native video parts, shared display plane after the part, sync M10K, format 4. Current lock: `cores/fes-coleco/toolchain.lock`. | Still TV80. Not retail-complete. The 3 Oct note does not accept these bytes. The 1.4.0 display plane is not accepted on a kit. The [BIOS and cartridge address map of 1.5.0](https://github.com/DeanoC/fes/pull/1120) booted the BIOS title screen and the Donkey Kong cartridge screen on kit A, as an overlay with no gameplay keys. |
 | `fes.sms` 1.4.0 | 32 KiB Master System slice. No mapper. Do not use `fes.mastersystem`. | Sync M10K, format 3. Current lock: `cores/fes-sms/toolchain.lock`. | Still TV80. Named kit audio is artifact-scoped and does not accept a shared-pin seal. |
 | `fes.sg1000` 1.3.0 | 16 KiB slice. | `fes_z80_nmos`, sync M10K, format 3. Current lock: `cores/fes-sg1000/toolchain.lock`. | The 1.2.0 kit audio note does not qualify 1.3.0 or a shared-pin seal. |
 | `fes.spectrum` 0.4.0, `fes.spectrum128` 0.2.0, `fes.spectrum-plus3` 0.2.0, `fes.pentagon` 0.2.0 | Experimental library packages; no longer in the image. Open diagnostic firmware only; no Sinclair or Amstrad ROM is shipped. | One shell, `fes_z80_nmos` with ULA clock stretching, session display plane, tape 2.0 played from HPS DDR port 1 (`fes_media_ddr`), sync M10K, format 3. Current lock: `cores/fes-spectrum/toolchain.lock`. | Timing matches Fuse in simulation, and the host's tape conversion matches Fuse on its fixtures. The [22 Oct Kit A diagnostic](validation/2026-10-22-spectrum-models-seal.md) booted each named ROM and ran a typed BASIC line. On kit A the superseded `7589e281` archives of these versions loaded a turbo-loader tape from DDR on the 48K, 128K and Pentagon; that +2A/+3 archive loaded it too and held HDMI once the runtime moved the ADV7513 input clock delay to −0.8 ns (#1011). Joysticks, AY music and expansion remain untested on kit. |
@@ -229,10 +230,11 @@ socket.
 
 ### 5. Coleco cartridge shape
 
-The factory Coleco recipe is format 3: one exact 16 KiB cartridge and one
-sealed map. Short carts are padded with `0xff`. MegaCart format 4 stays a
-development lane. It must not become a third cartridge interface that the
-image can select by accident.
+The factory Coleco recipe is format 4: an 8 KiB BIOS at `0x0000-0x1fff`, one
+exact 16 KiB cartridge mirrored at `0x8000` and one sealed map. Short carts
+are padded with `0xff`. The MegaCart development lane also uses format 4. It
+must not become a third cartridge interface that the image can select by
+accident.
 
 ### 6. Image
 
