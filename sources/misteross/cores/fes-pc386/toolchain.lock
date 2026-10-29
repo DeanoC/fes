@@ -1,0 +1,29 @@
+[tool.yosys]
+repo = "https://github.com/DeanoC/yosys.git"
+commit = "1f7d0273b55bd48343b149c86ca9766d6d48c174"
+order = 10
+rationale = "DeanoC/yosys PR #68 head 1f7d0273b5 on main commit 238eac9a49, the pin of cores/fes-common/rtl/i386/toolchain.lock. #68 reads the hardware thread count once: on 238eac9a ThreadPool::pool_size opened /sys/devices/system/cpu/online on every call (#67), about 1.3 million times for the pc386 M4 shell, and the producer's compiler read audit exceeded its trace bound. Synthesis results are unchanged. Move to main's commit once #68 merges. The pc386 machine is read with the Yosys the i386 CPU is read with, since the M5 package puts both in one netlist. The shared toolchain.lock stays at 3a5accbd. Pair with nextpnr bd7a1c0d and Mistral 8fcc4cb4. Previous pin 238eac9a49."
+
+[tool.mistral]
+repo = "https://github.com/DeanoC/mistral.git"
+commit = "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f"
+order = 20
+rationale = "DeanoC fork master 8fcc4cb4, as the i386 and Spectrum locks pin it; required by nextpnr bd7a1c0d."
+
+[tool.nextpnr]
+repo = "https://github.com/DeanoC/nextpnr.git"
+commit = "bd7a1c0d2e1a36ff64ad303edffac87fdabd66bb"
+order = 30
+rationale = "DeanoC/nextpnr main commit bd7a1c0d (squash merge of #292), the i386 lock's pin and the first one this core routes on: the pc386 M4 diagnostic package (scripts/build_fes_pc386_oss.py) is its first routed result. It is the last known good for this core, not a required pin. Pair with Mistral 8fcc4cb4 (required)."
+
+[tool.verilator]
+repo = "https://github.com/verilator/verilator.git"
+commit = "5e4151e3e0c8ecf11d9845a93495f37a31b2f667"
+order = 40
+rationale = "Current lint and simulation baseline sampled 2026-08-26."
+
+[tool.openfpgaloader]
+repo = "https://github.com/trabucayre/openFPGALoader.git"
+commit = "0c5ebaab1fa63c9d9c684abc0b8e68546ea8ea86"
+order = 50
+rationale = "Current DE10-Nano programmer baseline sampled 2026-08-26."

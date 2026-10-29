@@ -58,6 +58,7 @@ help:
 		"  toolchain-fes-c64  Provision the FES C64 HIP toolchain (per-core lock)" \
 		"  toolchain-fes-spectrum  Provision the FES Spectrum HIP toolchain (per-core lock)" \
 		"  toolchain-fes-riscv  Provision the FES RISC-V HIP toolchain (per-core lock)" \
+		"  toolchain-fes-pc386  Provision the pc386 HIP toolchain (per-core lock)" \
 		"  doctor     Report host, toolchain, optional Quartus, and hardware readiness" \
 		"  doctor-strict  Require host and OSS readiness (Quartus/hardware optional)" \
 		"  sim        Simulate an experiment with the Verilator lane" \
@@ -138,11 +139,13 @@ help:
 		"  sim-fes-c64-sid  Check digital SID state and staged MOS6581 audio" \
 		"  sim-fes-c64-ba-timing  Check CPU retirement at VIC BA phase boundaries" \
 		"  sim-fes-pcxt  Test the PC/XT ISA fabric, waits, IRQ and DMA transactions" \
-		"  sim-fes-pc386  Check pc386 devices, audio, OPL2, presenter and display plane on port 2" \
+		"  sim-fes-pc386  Check pc386 devices, audio, OPL2, presenter, display plane on port 2 and the M4 diagnostic machine" \
 		"  sim-fes-pc386-boot  Boot the Bochs BIOS and FreeDOS on the pc386 machine with the oracle CPU; replay its VGA trace" \
 		"  sim-fes-pc386-sound  Boot FreeDOS and run the audio start-up exercise; writes sound.wav" \
 		"  sim-fes-pc386-vga  Check the pc386 presenter and plane, run the VGA test disk, replay its VGA trace against Bochs" \
 		"  synth-fes-pc386  Synthesize and pack the pc386 machine without the CPU (needs CACHE_ROOT)" \
+		"  build-fes-pc386-diag  Seal the pc386 M4 diagnostic package with HIP nextpnr/Mistral (CACHE_ROOT= for shared cache)" \
+		"  build-fes-pc386-diag-quartus  Seal the pc386 M4 diagnostic package with Quartus 17.0.2 (CACHE_ROOT=, SEED=)" \
 		"  build-fes-pcxt  Autonomous PC/XT board diagnostic (local toolchain-fes-pcxt, or CACHE_ROOT=)" \
 		"  sim-fes-atari-st  Test the Atari 520ST CPU, memory, peripherals, media and video" \
 		"  build-fes-atari-st  Seal the Atari 520ST with HIP nextpnr (ST_VIDEO_OUTPUT=direct|scanlines)" \
@@ -198,7 +201,7 @@ $(error misteross: shared toolchain cache is unsupported for Make simulation tar
 endif
 endif
 
-.PHONY: toolchain toolchain-fes toolchain-fes-menu toolchain-fes-catch toolchain-fes-pong toolchain-fes-zx81 toolchain-fes-coleco toolchain-fes-sg1000 toolchain-fes-sms toolchain-fes-apple2 toolchain-fes-c64 toolchain-fes-spectrum toolchain-fes-riscv toolchain-fes-ramtest toolchain-check doctor doctor-strict sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-session sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-oss sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sg1000-diagnostic sim-fes-sms sim-fes-sms-oss sim-fes-sms-rom-link-mailbox sim-fes-sms-quartus sms-diagnostic sim-fes-c64 c64-diagnostic sim-fes-spectrum spectrum-diagnostic sim-fes-splash build-fes-splash build-fes-zx81-quartus build-fes-zx81 build-fes-coleco-quartus build-fes-coleco build-fes-sg1000-quartus build-fes-sg1000 build-fes-sms-quartus build-fes-sms build-fes-pong build-fes-c64 build-fes-spectrum oss export-core-package program clean
+.PHONY: toolchain toolchain-fes toolchain-fes-menu toolchain-fes-catch toolchain-fes-pong toolchain-fes-zx81 toolchain-fes-coleco toolchain-fes-sg1000 toolchain-fes-sms toolchain-fes-apple2 toolchain-fes-c64 toolchain-fes-spectrum toolchain-fes-riscv toolchain-fes-pc386 toolchain-fes-ramtest toolchain-check doctor doctor-strict sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-session sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-oss sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sg1000-diagnostic sim-fes-sms sim-fes-sms-oss sim-fes-sms-rom-link-mailbox sim-fes-sms-quartus sms-diagnostic sim-fes-c64 c64-diagnostic sim-fes-spectrum spectrum-diagnostic sim-fes-splash build-fes-splash build-fes-zx81-quartus build-fes-zx81 build-fes-coleco-quartus build-fes-coleco build-fes-sg1000-quartus build-fes-sg1000 build-fes-sms-quartus build-fes-sms build-fes-pong build-fes-c64 build-fes-spectrum oss export-core-package program clean
 
 sim-pong:
 	$(require_local_sim)
@@ -1865,6 +1868,11 @@ toolchain-fes-riscv:
 	FES_TOOLCHAIN_GPU_ROUTER=HIP \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
+toolchain-fes-pc386:
+	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-pc386/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-pc386") \
+	FES_TOOLCHAIN_GPU_ROUTER=HIP \
+	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
+
 toolchain-check:
 	@$(SHARED_MAKE_ENV)scripts/bootstrap.sh --check-prereqs
 
@@ -2641,13 +2649,14 @@ sim-fes-pcxt:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_pcxt.py --verilator "$(VERILATOR)"
 
-.PHONY: sim-fes-pc386 sim-fes-pc386-boot sim-fes-pc386-sound sim-fes-pc386-vga synth-fes-pc386
+.PHONY: sim-fes-pc386 sim-fes-pc386-boot sim-fes-pc386-sound sim-fes-pc386-vga synth-fes-pc386 build-fes-pc386-diag build-fes-pc386-diag-quartus
 sim-fes-pc386:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_pc386.py --suite devices --verilator "$(VERILATOR)"
 	$(PYTHON) scripts/sim_fes_pc386.py --suite audio --verilator "$(VERILATOR)"
 	$(PYTHON) scripts/sim_fes_pc386.py --suite opl2 --verilator "$(VERILATOR)"
 	$(PYTHON) scripts/sim_fes_pc386.py --suite benches --verilator "$(VERILATOR)"
+	$(PYTHON) scripts/sim_fes_pc386.py --suite diag --verilator "$(VERILATOR)"
 
 sim-fes-pc386-boot:
 	$(require_local_sim)
@@ -2664,6 +2673,12 @@ sim-fes-pc386-vga:
 synth-fes-pc386:
 	@test -n "$(CACHE_ROOT)" || { echo 'Set CACHE_ROOT to the authenticated compiler cache'; exit 1; }
 	$(SHARED_MAKE_ENV)$(PYTHON) scripts/synth_fes_pc386.py --cache-root "$(CACHE_ROOT)"
+
+build-fes-pc386-diag:
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_pc386_oss.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
+
+build-fes-pc386-diag-quartus:
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_pc386_quartus.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)$(if $(strip $(SEED)), --seed "$(SEED)",)
 
 .PHONY: synth-fes-pcxt-isa
 synth-fes-pcxt-isa:

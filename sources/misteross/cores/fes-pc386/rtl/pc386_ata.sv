@@ -20,6 +20,18 @@
 // image; no seek or rotation time is modelled. Each sector store sets the
 // dirty bit of its 64 KiB chunk.
 //
+// The buffer and the dirty map are M10K with registered reads. The data port
+// reads the buffer word at the guest's pointer, re-read every clock: the
+// pointer moves only at a device cycle's access, 36 clocks or more apart. A
+// guest's 16-bit writes collect in a register and reach the buffer with the
+// fourth of each 64-bit word, so the buffer takes only whole words; a data-port
+// read during a write command, a protocol error, returns no defined data. The
+// store engine presents each word's address a clock before it issues the word.
+// A sector store marks its chunk by read-modify-write two clocks later, and a
+// reset clears the map over 128 clocks; dirty_word is the word at dirty_index
+// two clocks before, held over a read that met a mark (M10K leaves that read
+// undefined).
+//
 // Device 1 is absent: with DEV set its status reads 00h and it runs no
 // command but EXECUTE DEVICE DIAGNOSTIC; the other registers are shared.
 module pc386_ata #(
@@ -46,9 +58,9 @@ module pc386_ata #(
     input wire disk_ready,
     input wire disk_rvalid,
     input wire [63:0] disk_rdata,
-    // Dirty map, 16 chunks per word.
+    // Dirty map, 16 chunks per word, two clocks after the index.
     input wire [6:0] dirty_index,
-    output wire [15:0] dirty_word
+    output reg [15:0] dirty_word
 );
     localparam [7:0] ABRT = 8'h04, IDNF = 8'h10;
 
@@ -82,7 +94,6 @@ module pc386_ata #(
     reg [15:0] reset_timer;
 
     // Buffer: two sectors of 64 quarter-sector words.
-    reg [63:0] buffer [0:127];
     reg [1:0] loaded, queued;            // per half: fetched for reading / waiting to be stored
     reg [8:0] fetch_left;
     reg [27:0] fetch_lba, store_lba;
@@ -90,8 +101,41 @@ module pc386_ata #(
     localparam ENGINE_IDLE = 2'd0, ENGINE_ISSUE = 2'd1, ENGINE_WAIT = 2'd2, ENGINE_ABORT = 2'd3;
     reg [1:0] fetch_state, store_state;
     reg [5:0] fetch_word, store_word;
-    reg [15:0] dirty [0:127];
-    assign dirty_word = dirty[dirty_index];
+    reg [63:0] gathered;                 // the guest's words of a buffer word
+    reg deferred;                        // a whole word from the guest waits for a fetch beat
+    reg [6:0] deferred_address;
+    wire fetch_fill = fetch_state == ENGINE_WAIT && disk_rvalid;
+    wire store_start = store_state == ENGINE_IDLE && queued[store_half] && fetch_state == ENGINE_IDLE && !disk_valid;
+    wire buffer_write;
+    wire [6:0] buffer_waddress;
+    wire [63:0] buffer_wdata;
+    reg [6:0] buffer_raddress;
+    wire [63:0] buffer_word;
+    pc386_ram #(.WIDTH(64), .DEPTH(128)) buffer (
+        .clk(clk), .write(buffer_write), .waddress(buffer_waddress), .wdata(buffer_wdata), .wbyteenable(1'b1),
+        .read(1'b1), .raddress(buffer_raddress), .rdata(buffer_word)
+    );
+    // The store engine has the read port from the clock before its first
+    // word; the data port has it otherwise.
+    always @* begin
+        buffer_raddress = {half, pointer[7:2]};
+        if (store_start) buffer_raddress = {store_half, 6'd0};
+        else if (store_state == ENGINE_ISSUE) buffer_raddress = {store_half, store_word};
+        else if (store_state == ENGINE_WAIT) buffer_raddress = {store_half, store_word + 1'b1};
+    end
+
+    // Dirty map: a sector store marks its chunk in two clocks, ahead of dirty_index.
+    reg mark_read, mark_write, clearing;
+    reg host_read;                       // last clock's map read was dirty_index's, with no write
+    reg [6:0] mark_index, dirty_clear;
+    reg [3:0] mark_bit;
+    wire [15:0] dirty_read;
+    wire dirty_write = clearing || mark_write;
+    pc386_ram #(.WIDTH(16), .DEPTH(128)) dirty (
+        .clk(clk), .write(dirty_write), .waddress(clearing ? dirty_clear : mark_index),
+        .wdata(clearing ? 16'h0000 : dirty_read | (16'h0001 << mark_bit)), .wbyteenable(1'b1),
+        .read(1'b1), .raddress(mark_read ? mark_index : dirty_index), .rdata(dirty_read)
+    );
 
     // BSY, DRDY, DF, DSC (always set: no seek is modelled), DRQ, CORR, IDX, ERR
     wire [7:0] status = device1 ? 8'h00 : {busy, !busy && present, 1'b0, 1'b1, drq, 2'b00, err};
@@ -99,7 +143,11 @@ module pc386_ata #(
     wire [4:0] block = (opcode == 8'hc4 || opcode == 8'hc5) ? multiple : 5'd1;
     wire [8:0] total = count == 0 ? 9'd256 : {1'b0, count};
     wire [15:0] current_cylinders = logical_cylinders;
-    wire [28:0] current_capacity = 29'(logical_cylinders * logical_heads) * logical_spt;
+    // IDENTIFY words 57-58. Only reset and INITIALIZE DEVICE PARAMETERS change
+    // the geometry, both under BSY, so the product comes from a register and
+    // its multiplies stay off the I/O read path.
+    reg [28:0] current_capacity;
+    always @(posedge clk) current_capacity <= 29'(logical_cylinders * logical_heads) * logical_spt;
 
     function automatic [15:0] identify_word(input [7:0] w);
         // Strings are two characters per word, first character high.
@@ -162,8 +210,7 @@ module pc386_ata #(
         if (present) begin
             if (!command_block) rdata = {8'hff, status};
             else case (register)
-                3'd0: rdata = phase == IDENTIFY ? identify_word(pointer) :
-                              buffer[{half, pointer[7:2]}][16 * pointer[1:0] +: 16];
+                3'd0: rdata = phase == IDENTIFY ? identify_word(pointer) : buffer_word[16 * pointer[1:0] +: 16];
                 3'd1: rdata = {8'hff, error};
                 3'd2: rdata = {8'hff, count};
                 3'd3: rdata = {8'hff, number};
@@ -182,9 +229,18 @@ module pc386_ata #(
     wire abort_fetch = access && present && write &&
                        ((!command_block && wdata[2]) ||
                         (command_block && register == 3'd7 && !busy && !srst && !device1));
+    // A guest's whole word goes in with its fourth write. Only a guest writing
+    // the data port during a read command meets a fetch beat; its word then
+    // follows a clock later.
+    wire guest_word = guest_write && pointer[1:0] == 2'd3;
+    assign buffer_write = fetch_fill || guest_word || deferred;
+    assign buffer_waddress = fetch_fill ? {fetch_half, fetch_word} : deferred ? deferred_address : {half, pointer[7:2]};
+    assign buffer_wdata = fetch_fill ? disk_rdata : deferred ? gathered : {wdata, gathered[47:0]};
 
-    integer n;
     always @(posedge clk) begin
+        host_read <= !mark_read && !dirty_write;
+        if (clearing) dirty_word <= 16'h0000;
+        else if (host_read) dirty_word <= dirty_read;
         if (reset) begin
             features <= 0; count <= 1; number <= 1; cylinder_low <= 0; cylinder_high <= 0; drive_head <= 0;
             error <= 8'h01; nien <= 0; srst <= 0;
@@ -196,8 +252,22 @@ module pc386_ata #(
             fetch_half <= 0; store_half <= 0; fetch_state <= ENGINE_IDLE; store_state <= ENGINE_IDLE;
             fetch_word <= 0; store_word <= 0;
             disk_valid <= 0; disk_write <= 0; disk_address <= 0; disk_wdata <= 0;
-            for (n = 0; n < 128; n = n + 1) dirty[n] <= 0;
+            gathered <= 0; deferred <= 0; deferred_address <= 0;
+            mark_read <= 0; mark_write <= 0; mark_index <= 0; mark_bit <= 0;
+            clearing <= 1; dirty_clear <= 0;
         end else begin
+            if (clearing) begin
+                dirty_clear <= dirty_clear + 1'b1;
+                if (dirty_clear == 7'd127) clearing <= 0;
+            end
+            mark_write <= mark_read;
+            mark_read <= 0;
+            if (!fetch_fill) deferred <= 0;
+            if (guest_word && fetch_fill) begin
+                deferred <= 1;
+                deferred_address <= {half, pointer[7:2]};
+            end
+
             // The power-on translation is the image's default geometry.
             if (logical_heads == 0) begin
                 logical_cylinders <= cylinders; logical_heads <= heads; logical_spt <= spt;
@@ -217,7 +287,6 @@ module pc386_ata #(
                 ENGINE_WAIT: begin
                     if (disk_valid && disk_ready) disk_valid <= 0;
                     if (disk_rvalid) begin
-                        buffer[{fetch_half, fetch_word}] <= disk_rdata;
                         fetch_word <= fetch_word + 1'b1;
                         if (fetch_word == 6'd63) begin
                             loaded[fetch_half] <= 1;
@@ -242,14 +311,14 @@ module pc386_ata #(
 
             // Store engine: half store_half to sector store_lba.
             case (store_state)
-                ENGINE_IDLE: if (queued[store_half] && fetch_state == ENGINE_IDLE && !disk_valid) begin
+                ENGINE_IDLE: if (store_start) begin
                     store_state <= ENGINE_ISSUE;
                     store_word <= 0;
                 end
                 ENGINE_ISSUE: if (!disk_valid) begin
                     disk_valid <= 1; disk_write <= 1;
                     disk_address <= {store_lba[17:0], store_word};
-                    disk_wdata <= buffer[{store_half, store_word}];
+                    disk_wdata <= buffer_word;
                     store_state <= ENGINE_WAIT;
                 end
                 default: if (disk_valid && disk_ready) begin
@@ -257,7 +326,7 @@ module pc386_ata #(
                     store_word <= store_word + 1'b1;
                     if (store_word == 6'd63) begin
                         queued[store_half] <= 0;
-                        dirty[store_lba[17:11]][store_lba[10:7]] <= 1;
+                        mark_read <= 1; mark_index <= store_lba[17:11]; mark_bit <= store_lba[10:7];
                         store_half <= !store_half;
                         store_lba <= store_lba + 1'b1;
                         store_state <= ENGINE_IDLE;
@@ -289,7 +358,12 @@ module pc386_ata #(
                 end
             end
             if (guest_write) begin
-                buffer[{half, pointer[7:2]}][16 * pointer[1:0] +: 16] <= wdata;
+                case (pointer[1:0])
+                    2'd0: gathered[15:0] <= wdata;
+                    2'd1: gathered[31:16] <= wdata;
+                    2'd2: gathered[47:32] <= wdata;
+                    default: gathered[63:48] <= wdata;
+                endcase
                 pointer <= pointer + 1'b1;
                 if (last_word) begin
                     queued[half] <= 1;

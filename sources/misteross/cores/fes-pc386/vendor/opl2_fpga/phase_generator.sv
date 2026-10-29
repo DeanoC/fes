@@ -61,6 +61,7 @@ module phase_generator
 );
     localparam LOG_SIN_OUT_WIDTH = 12;
     localparam EXP_OUT_WIDTH = 10;
+    localparam OPERATOR_T_BITS = 3;           // $bits(operator_t)
     localparam PIPELINE_DELAY = 6;
 
     logic [PIPELINE_DELAY:1] sample_clk_en_p;
@@ -75,7 +76,7 @@ module phase_generator
     logic [FINAL_ENV_WIDTH+4-1:0] post_gain_p4; // need extra bits to detect overflow
     logic [PIPELINE_DELAY:1] [REG_WS_WIDTH-1:0] ws_p;
     logic [PIPELINE_DELAY:1] [OP_NUM_WIDTH-1:0] op_num_p;
-    logic [PIPELINE_DELAY:1] [$bits(operator_t)-1:0] op_type_p;
+    logic [PIPELINE_DELAY:1] [OPERATOR_T_BITS-1:0] op_type_p;
     logic [PIPELINE_DELAY:2] [OP_OUT_WIDTH-1:0] modulation_p;
     logic [PIPELINE_DELAY:4] [PHASE_FINAL_WIDTH-1:0] final_phase_p;
     logic [FINAL_ENV_WIDTH+3-1:0] env_shifted_p4 = 0;
@@ -103,7 +104,7 @@ module phase_generator
     );
 
     pipeline_sr #(
-        .DATA_WIDTH($bits(operator_t)),
+        .DATA_WIDTH(OPERATOR_T_BITS),
         .ENDING_CYCLE(PIPELINE_DELAY)
     ) op_type_sr (
         .clk,

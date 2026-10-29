@@ -34,9 +34,11 @@ public:
     Bench() {
         top.reset = 1;
         top.pixel_reset = 1;
+        top.timing_reset = 1;
         for (int n = 0; n < 8; ++n) step();
         top.reset = 0;
         top.pixel_reset = 0;
+        top.timing_reset = 0;
     }
     Vpc386_presenter top;
     pc386::Window window;

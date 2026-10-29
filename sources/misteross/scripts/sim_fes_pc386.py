@@ -92,6 +92,7 @@ AT_RTL = (
     CORE / 'rtl/pc386_sysctl.sv',
     CORE / 'rtl/pc386_kbc.sv',
     CORE / 'rtl/pc386_rtc.sv',
+    CORE / 'rtl/pc386_ram.sv',
     CORE / 'rtl/pc386_ata.sv',
     CORE / 'rtl/pc386_at_core.sv',
 )
@@ -111,7 +112,6 @@ OPL2_SAMPLES = 20000
 # The machine without the CPU: the AT core, the VGA, the presenter, port 2
 # and the shared display plane.
 MACHINE_RTL = AT_RTL + (
-    CORE / 'rtl/pc386_ram.sv',
     CORE / 'rtl/pc386_vga.sv',
     CORE / 'rtl/pc386_vga_scanout.sv',
     CORE / 'rtl/pc386_presenter.sv',
@@ -124,6 +124,12 @@ MACHINE_RTL = AT_RTL + (
     ROOT / 'cores/fes-menu/rtl/fes_menu_video.v',
     ROOT / 'cores/fes-menu/rtl/fes_menu_reader.v',
 )
+# The M4 diagnostic machine: the machine, its audio and the bus master that
+# stands in for the CPU (pc386_diag.sv).
+DIAG_RTL = (*dict.fromkeys(MACHINE_RTL + AUDIO_RTL), CORE / 'rtl/pc386_bus_master.sv',
+            CORE / 'rtl/pc386_port_fence.sv', CORE / 'rtl/pc386_diag.sv')
+DIAG_CLOCK_HZ = 61_440_000
+DIAG_PROGRAMS = ('smoke', 'mode13', 'sound', 'ata', 'resets')
 # I/O completion, request clock to done clock: each device cycle's class time
 # (isa8 72 clocks, isa16 36 at 100 MHz) plus one clock to take the request and
 # one to report it. 1F0h with a dword is one word cycle and two byte cycles
@@ -174,12 +180,12 @@ class SimError(RuntimeError):
 
 def verilate(verilator: str, name: str, top: str, rtl: tuple[Path, ...], testbench: Path | None,
              linked: list[Path], jobs: int, parameters: dict[str, int] | None = None,
-             include: tuple[Path, ...] = ()) -> Path:
+             include: tuple[Path, ...] = (), flags: tuple[str, ...] = ()) -> Path:
     output = OUTPUT / name / ('obj' if testbench else f'obj-{top}')
     output.mkdir(parents=True, exist_ok=True)
     includes = ' '.join(f'-I{path}' for path in (COMMON / 'sim/i386', CORE / 'sim', NUKED, *include))
     command = [verilator, '--cc', *(['--exe'] if testbench else []), '--build', '-j', str(jobs), '-O3', '--top-module', top,
-               '-Wall', '-Wno-UNUSEDSIGNAL', '-Wno-DECLFILENAME',
+               '-Wall', '-Wno-UNUSEDSIGNAL', '-Wno-DECLFILENAME', *flags,
                str(CORE / 'sim/pc386.vlt'), str(CORE / 'sim/pc386_audio.vlt'),
                f'-I{COMMON / "vendor/kf8259"}', f'-I{COMMON / "vendor/kf8253"}', f'-I{COMMON / "generated"}',
                *(f'-G{key}={value}' for key, value in (parameters or {}).items()),
@@ -404,6 +410,48 @@ def run_benches(args) -> dict:
                'plane': run_bench(args, 'plane', 'plane_top', PLANE_RTL, CORE / 'sim/plane_tb.cpp')}
     return {'checks': [line for bench in benches.values() for line in bench['checks']],
             'failures': [line for bench in benches.values() for line in bench['failures']], 'benches': benches}
+
+
+def run_diag(args) -> dict:
+    """The M4 diagnostic programs on pc386_diag through the command ring.
+    sound and resets run shortened; vga-trace runs when --trace names a VGA trace."""
+    from scripts import pc386_diag
+    parameters = pc386_diag.rates(DIAG_CLOCK_HZ)
+    # The OPL2 import declares a timescale and the KF imports do not.
+    testbench = verilate(args.verilator, 'diag', 'pc386_diag', DIAG_RTL, CORE / 'sim/diag_tb.cpp', [], args.jobs,
+                         parameters, flags=('-Wno-TIMESCALEMOD',))
+    report = {'clock_hz': DIAG_CLOCK_HZ, 'programs': {}, 'checks': [], 'failures': []}
+    programs = list(DIAG_PROGRAMS) + (['vga-trace'] if args.trace else [])
+    for name in programs:
+        if name == 'sound':
+            program = pc386_diag.sound(DIAG_CLOCK_HZ, speaker_seconds=0.01, auto_seconds=0.004, block=64)
+        elif name == 'resets':
+            program = pc386_diag.resets(DIAG_CLOCK_HZ, count=16)
+        else:
+            program = pc386_diag.build_program(name, DIAG_CLOCK_HZ, trace=Path(args.trace) if args.trace else None)
+        directory = OUTPUT / 'diag' / name
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / 'program.p386').write_bytes(program.encode())
+        results = directory / 'results.r386'
+        limit = args.limit_seconds_given or (60 if name == 'vga-trace' else 4)
+        run = subprocess.run([str(testbench), '--program', str(directory / 'program.p386'), '--results', str(results),
+                              '--limit-seconds', str(limit)], cwd=directory, capture_output=True, text=True)
+        (directory / 'diag.log').write_text(run.stdout + run.stderr)
+        if run.returncode:
+            report['failures'].append(f'{name}: diag_tb exited {run.returncode}: {run.stderr.strip()[-400:]}')
+            continue
+        decoded = pc386_diag.decode_results(results.read_bytes())
+        checked = pc386_diag.check(program, decoded)
+        checked['failures'] += pc386_diag.program_checks(name, program, decoded)
+        frames = directory / 'frames'
+        frames.mkdir(exist_ok=True)
+        for n, frame in enumerate(decoded.frames):
+            pc386_diag.write_frame_ppm(frame, frames / f'{n:02d}.ppm')
+        report['programs'][name] = checked
+        report['checks'].append(f'{name}: {checked["commands"]} commands, {checked["seconds"]} simulated s, '
+                                f'{len(decoded.frames)} frames')
+        report['failures'] += [f'{name}: {failure}' for failure in checked['failures']]
+    return report
 
 
 def run_vga(args, linked: list[Path]) -> dict:
@@ -649,7 +697,8 @@ def run_game(args, linked: list[Path]) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--suite', choices=('devices', 'audio', 'opl2', 'benches', 'boot', 'sound', 'game', 'vga',
-                                            'all'), default='all', help='simulation suite to run')
+                                            'diag', 'all'), default='all', help='simulation suite to run')
+    parser.add_argument('--trace', default=None, help='diag: also replay this VGA trace (from the vga suite)')
     parser.add_argument('--download', action='store_true', help='fetch Bochs, dev86, FreeDOS and NASM if missing')
     parser.add_argument('--rebuild-image', action='store_true', help='rebuild the FreeDOS fixture')
     parser.add_argument('--limit-seconds', type=float, default=None, help='simulated seconds before giving up')
@@ -670,7 +719,7 @@ def main() -> int:
         return 2
     failed = False
     try:
-        suites = ('devices', 'audio', 'opl2', 'benches', 'boot', 'vga', 'sound') if args.suite == 'all' else (args.suite,)
+        suites = ('devices', 'audio', 'opl2', 'benches', 'diag', 'boot', 'vga', 'sound') if args.suite == 'all' else (args.suite,)
         for suite in suites:
             args.limit_seconds = limit_seconds or (14 if suite == 'sound' else 8 if suite == 'boot' else 12)
             args.type = typed or ('sound|' if suite == 'sound' else 'dir|')
@@ -683,6 +732,8 @@ def main() -> int:
                 report = run_opl2(args)
             elif suite == 'benches':
                 report = run_benches(args)
+            elif suite == 'diag':
+                report = run_diag(args)
             elif suite == 'sound':
                 report = run_sound(args, oracle.link_inputs(args.jobs, args.download))
             elif suite == 'game':
