@@ -30,12 +30,15 @@ without them Quartus folds empty responses and fails the PR boundary DRC.
 A same-part constant-register probe confirms the preservation semantics, and
 actual profile synthesis must report all 20 protected FFs without boundary
 inversions before fitting starts.
-The timing audit requires every live ingress bit, every RAM read/peek bit,
-RAM presence, and all physical replicas. The six constant ingress FFs receive
-separate structural records: CDB verifies their exact FF-to-IPORT-to-driven
-constant cone. Raw LUT masks and polarity flags are retained; the verifier
-does not claim an independent fitted Boolean value from uninterpreted masks.
-The numeric zero contract is checked in captured RTL and simulation.
+Both the 46 static request launch FFs and the 20 persona response FFs use
+preserve/dont_merge/noprune. Without those attributes Quartus folds constants
+and either violates the registered boundary or cannot route an imported PR
+input. Synthesis preflight proves all 46 static launch FFs in the base and all
+20 response FFs in each revision before fitting. Report-only limits expose
+all protected/inverted registers. The completed base must pass its full
+all-corner boundary timing audit before implementation builds begin.
+Every bit, including the source-constant fields, then has real registered
+setup/hold coverage; there is no constant-cone timing exception.
 
 Deasserting RUNNING resets the CPU and gates expansion writes in the registered
 request. The simulation bounds the remaining writes to three edges after that

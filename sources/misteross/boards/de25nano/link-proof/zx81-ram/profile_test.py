@@ -24,6 +24,8 @@ class ProfileTests(unittest.TestCase):
             build.PROFILE.prepare(local, project, frozen)
             self.assertIn("(* preserve, dont_merge, noprune *) output reg [19:0] bus_response",
                 (local / "personas.v").read_text())
+            self.assertIn("(* preserve, dont_merge, noprune *) output reg [45:0] bus_request = 0",
+                (local / "static.v").read_text())
             self.assertNotIn("MISTRAL", (local / "zx81_ram_pack.v").read_text())
             self.assertIn("zx81_dpram", (local / "zx81_ram_pack.v").read_text())
             self.assertIn('intended_device_family = "Agilex 5"', (local / "zx81_dpram.v").read_text())
@@ -56,6 +58,13 @@ class ProfileTests(unittest.TestCase):
             report = Path(tmp) / "synthesis.rpt"
             report.write_text("\n".join(rows))
             self.assertEqual(len(build.PROFILE.verify_synthesis(report)["protected_response_registers"]), 20)
+            base_report = Path(tmp) / "base.syn.rpt"
+            launches = [f"; zx81_static|bus_request[{bit}]~reg0 ; yes ; yes ; yes ;" for bit in range(46)]
+            base_report.write_text("\n".join(rows + launches))
+            self.assertEqual(len(build.PROFILE.verify_synthesis(base_report)["protected_static_request_registers"]), 46)
+            base_report.write_text("\n".join(rows + launches[:-1]))
+            with self.assertRaises(ValueError):
+                build.PROFILE.verify_synthesis(base_report)
             bad_reports = (rows[:-1], rows + [rows[-1]],
                 rows[:-1] + [rows[-1].replace("yes", "no", 1)],
                 rows + ["", "; Inverted Register Statistics ;", "; slot_inst|core|bus_response[19]~reg0 ; 1 ;"])

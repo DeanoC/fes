@@ -4,7 +4,7 @@ module fes_de25_zx81_static (
     input wire clk, running,
     input wire [7:0] diagnostic_address,
     input wire [19:0] bus_response,
-    output reg [45:0] bus_request = 0,
+    (* preserve, dont_merge, noprune *) output reg [45:0] bus_request = 0,
     output wire [7:0] peek_data,
     output wire [15:0] cpu_addr
 );

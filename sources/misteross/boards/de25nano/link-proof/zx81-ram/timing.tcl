@@ -34,36 +34,11 @@ set logical_groups [list \
     address_ingress {slot_inst|core|address_q[*]} $address_names \
     valid_egress "$static|response_valid_q" [list "$static|response_valid_q"] \
     data_egress [format {%s|response_data_q[*]} $static] $data_names]
-# Ingress bits38..43 carry peek_addr[13:8], explicitly zero for0x40xx.
-# All other bits feed the diagnostic checksum and must retain endpoints.
+# Every packed request bit now launches from a protected static register.
+# Even source constants cross the physical PR boundary through real FFs.
 set bus_ingress_names {}
-for {set bit 0} {$bit < 46} {incr bit} {
-    if {$bit >= 38 && $bit <= 43} {continue}
-    lappend bus_ingress_names [format {slot_inst|core|bus_q[%d]} $bit]
-}
+for {set bit 0} {$bit < 46} {incr bit} {lappend bus_ingress_names [format {slot_inst|core|bus_q[%d]} $bit]}
 lappend logical_groups bus_ingress {slot_inst|core|bus_q[*]} $bus_ingress_names
-# CDB separately verifies these exact FF-to-IPORT-to-constant physical cones.
-# They have no register/port launch startpoint; do not invent setup/hold rows.
-set constant_names {}
-for {set bit 38} {$bit <= 43} {incr bit} {lappend constant_names [format {slot_inst|core|bus_q[%d]} $bit]}
-set constant_nodes [get_registers {slot_inst|core|bus_q[*]}]
-set constant_seen {}
-set constant_stream [open [file join $output constant-registers.tsv] w]
-puts $constant_stream "register\tstructural_class\tsynchronous_startpoints\tincoming_setup_paths\tincoming_hold_paths"
-foreach_in_collection node $constant_nodes {
-    set name [get_node_info -name $node]
-    regsub {~DUPLICATE[0-9]*$} $name {} logical
-    if {![regexp {^slot_inst\|core\|bus_q\[(3[89]|4[0-3])\]$} $logical]} {continue}
-    if {[lsearch -exact $constant_names $logical] < 0} {error "unexpected constant register $name"}
-    dict set constant_seen $logical 1
-    set fanins [get_collection_size [get_fanins -synch $name]]
-    set setup [get_collection_size [get_timing_paths -setup -to $node -npaths 1]]
-    set hold [get_collection_size [get_timing_paths -hold -to $node -npaths 1]]
-    if {$fanins != 0 || $setup != 0 || $hold != 0} {error "$name has unexpected variable timing fanin"}
-    puts $constant_stream "$name\tdriven-constant-cone-separately-checked-by-CDB\t$fanins\t$setup\t$hold"
-}
-if {[lsort [dict keys $constant_seen]] ne [lsort $constant_names]} {error "constant register identity missing"}
-close $constant_stream
 # The RAM persona must retain all 16 read/peek data bits. Flags 16..18
 # are explicitly wired zero; presence19 is the persona's constant0/1.
 # Empty/base data0..15 are explicitly zero. Only these source-defined
@@ -92,7 +67,6 @@ foreach {name pattern canonical} $logical_groups {
         # Quartus may retain the protected logical FF and create physical
         # replicas. Audit every replica instead of dropping it from timing.
         regsub {~DUPLICATE[0-9]*$} $actual {} logical
-        if {$name eq "bus_ingress" && [lsearch -exact $constant_names $logical] >= 0} {continue}
         if {[lsearch -exact $canonical $logical] < 0 || [lsearch -exact $physical $actual] >= 0} {
             error "$name unexpected or duplicated physical boundary identity $actual"
         }

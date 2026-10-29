@@ -311,17 +311,6 @@ def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
         run([str(tools["quartus_sta"]), "-t", str(timing_script), str(output), revision,
              str(output / f"timing-{revision}")], output, f"{revision}-timing-audit.log")
         verify_files(output, before_audit)
-        if PROFILE is not None:
-            constant_script = verification / PROFILE.constant_path
-            run([str(tools["quartus_cdb"]), "-t", str(constant_script), str(output), revision,
-                 str(output / f"timing-{revision}")], output, f"{revision}-constant-audit.log")
-            verify_files(output, before_audit)
-            summaries[revision]["constant_boundary_audit"] = {
-                "scope": "source-guarded-zero-and-fitted-driven-constant-cone; no-independent-LUT-value-evaluation",
-                "script_sha256": sha(constant_script.read_bytes()),
-                "log_sha256": sha((output / f"{revision}-constant-audit.log").read_bytes()),
-                "cones_sha256": sha((output / f"timing-{revision}/constant-cones.tsv").read_bytes()),
-                "registers_sha256": sha((output / f"timing-{revision}/constant-registers.tsv").read_bytes())}
         summaries[revision]["synchronizer_audit"] = {
             "log_sha256": sha((output / f"{revision}-timing-audit.log").read_bytes()),
             "paths_sha256": sha((output / f"timing-{revision}/boundary-paths.tsv").read_bytes())}
@@ -768,6 +757,19 @@ def compile_project(output: Path, tools: dict[str, Path], version: str, only: st
                 "phase": "after-base-before-personas"}) + b"\n")
         elif root_qdb_hash != actual_root_hash:
             raise BuildError("implementation changed the exported base root QDB")
+        if revision == "base" and PROFILE is not None:
+            script = output.parent.parent / "functional-source" / PROFILE.timing_path
+            report_hashes = {path.relative_to(output).as_posix(): sha(path.read_bytes())
+                for path in (output / "output_files").glob("base.*") if path.is_file()}
+            report_hashes["root_partition.qdb"] = root_qdb_hash
+            run([str(tools["quartus_sta"]), "-t", str(script), str(output), revision,
+                 str(output / "timing-base-preflight")], output, "base-boundary-preflight.log")
+            verify_files(output, report_hashes)
+            verify_project(output, inputs)
+            (output / "base-boundary-preflight.json").write_bytes(canonical({
+                "status": "passed", "timing_script_sha256": sha(script.read_bytes()),
+                "paths_sha256": sha((output / "timing-base-preflight/boundary-paths.tsv").read_bytes()),
+                "quartus_sta_sha256": selected_tools["quartus_sta"], "root_qdb_sha256": root_qdb_hash}) + b"\n")
         if revision == "base" and only == "base":
             return
     # Keep vendor metadata/integrity checks and opaque payloads together. A

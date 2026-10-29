@@ -7,7 +7,6 @@ MISTEROSS = ROOT / "sources/misteross"
 identity = "fes.de25-zx81-empty-ram16k.v1"
 persona_names = {"a": "zx81_empty", "b": "zx81_ram16k"}
 timing_path = "sources/misteross/boards/de25nano/link-proof/zx81-ram/timing.tcl"
-constant_path = "sources/misteross/boards/de25nano/link-proof/zx81-ram/constants.tcl"
 interface = {
     "name": identity, "version": 1, "clock_hz": 100000000,
     "diagnostic": {"request": {"valid": 1, "address": 8}, "response": {"valid": 1, "data": 32},
@@ -27,7 +26,7 @@ FILES.update({name: Z80 / name for name in ("fes_z80_alu.sv", "fes_z80_engine.sv
 
 
 def source_paths():
-    return list(FILES.values()) + [HERE / name for name in ("profile.py", "personas.v", "static.v", "timing.tcl", "constants.tcl")]
+    return list(FILES.values()) + [HERE / name for name in ("profile.py", "personas.v", "static.v", "timing.tcl")]
 
 
 def replace(source, before, after, label):
@@ -91,7 +90,9 @@ def qsf():
     verilog = ("static.v", "zx81_machine_clock.v", "zx81_dpram.v", "zx81_ram_pack.v")
     sv = ("zx81_machine.sv", "fes_z80_alu.sv", "fes_z80_engine.sv", "fes_z80_bus.sv", "fes_z80_nmos.sv")
     return ('set_global_assignment -name VERILOG_MACRO "QUARTUS=1"\n'
-            'set_global_assignment -name SEARCH_PATH fes_link\n' +
+            'set_global_assignment -name SEARCH_PATH fes_link\n'
+            'set_global_assignment -name NUMBER_OF_PROTECTED_REGISTERS_REPORTED 10000\n'
+            'set_global_assignment -name NUMBER_OF_INVERTED_REGISTERS_REPORTED 10000\n' +
         ''.join(f'set_global_assignment -name {kind} fes_link/{name}\n' for kind, files in
             (("VERILOG_FILE", verilog), ("SYSTEMVERILOG_FILE", sv)) for name in files))
 
@@ -131,10 +132,14 @@ def verify_synthesis(report):
     names = re.findall(r"^;\s*(slot_inst\|core\|bus_response\[([0-9]+)\](?:~reg0)?)\s*;\s*yes\s*;\s*yes\s*;\s*yes\s*;", text, re.M)
     if len(names) != 20 or {int(bit) for name, bit in names} != set(range(20)):
         raise ValueError("synthesis must retain all 20 protected persona response registers")
+    launch = re.findall(r"^;\s*(zx81_static\|bus_request\[([0-9]+)\](?:~reg0)?)\s*;\s*yes\s*;\s*yes\s*;\s*yes\s*;", text, re.M)
+    if report.name == "base.syn.rpt" and (len(launch) != 46 or {int(bit) for name, bit in launch} != set(range(46))):
+        raise ValueError("base synthesis must retain all 46 protected static request launch registers")
     active = False
     for line in text.splitlines():
         if re.match(r"^;\s*Inverted Register Statistics\s*;", line): active = True
         elif not line.strip(): active = False
-        elif active and re.search(r"slot_inst\|core\|(?:bus_response|bus_q|reset_q|request_q|address_q)", line):
+        elif active and re.search(r"slot_inst\|core\|(?:bus_response|bus_q|reset_q|request_q|address_q)|zx81_static\|(?:bus_request|response_q)", line):
             raise ValueError("synthesis inverted a protected PR boundary register")
-    return {"protected_response_registers": [name for name, bit in names], "boundary_inversions": 0}
+    return {"protected_response_registers": [name for name, bit in names],
+            "protected_static_request_registers": [name for name, bit in launch], "boundary_inversions": 0}
