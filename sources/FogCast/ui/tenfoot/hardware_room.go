@@ -207,7 +207,7 @@ func (a *App) openPlayingHardwareRoomLocked() {
 		return
 	}
 	directMedia := a.needsSessionDisplayLocked() && a.sessionLiveMediaOfferedLocked()
-	if !directMedia && a.playingSetupCoreLocked() == "" && a.session.CorePackage != nil {
+	if !a.colecoSessionLocked() && !directMedia && a.playingSetupCoreLocked() == "" && a.session.CorePackage != nil {
 		a.resolvePlayingSetupLocked()
 		return
 	}
