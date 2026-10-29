@@ -311,8 +311,10 @@ simulation, and the VGA trace replay matches Bochs's VGA
 synthesis figures. See the [pc386 README](../sources/misteross/cores/fes-pc386/README.md),
 the [M1 record](validation/2026-10-26-pc386-m1-freedos-boot/summary.md) and the
 [M2 record](validation/2026-10-26-pc386-m2-vga/summary.md) and the
-[M3 audio record](validation/2026-10-26-pc386-m3-audio/summary.md). The RTL CPU
-in the machine, mailbox, routed result and hardware remain open.
+[M3 audio record](validation/2026-10-26-pc386-m3-audio/summary.md); the
+[AT core M10K record](validation/2026-10-27-pc386-at-core-m10k/summary.md) has the
+AT core's current synthesis figures. The RTL CPU in the machine, mailbox,
+routed result and hardware remain open.
 
 ## Not implemented, or not this package
 
