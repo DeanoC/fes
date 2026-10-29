@@ -53,6 +53,7 @@ static void type_load(De25Computer& computer,Link&io){
     KeyboardHidRows j{};j[0]=1u<<13;key(computer,io,j);io.call(wire::WaitToken,0xef,1);key(computer,io,{});io.call(wire::WaitEditor,160000000);
     KeyboardHidRows quote{};quote[1]=1u<<3;quote[8]=2;
     for(unsigned n=1;n<=2;++n){key(computer,io,quote);io.call(wire::WaitToken,0x0b,n);key(computer,io,{});io.call(wire::WaitEditor,160000000);}
+    io.call(wire::WaitPicture,2);
     KeyboardHidRows enter{};enter[2]=1u<<8;key(computer,io,enter);
 }
 int main(int argc,char**argv){
@@ -91,7 +92,14 @@ int main(int argc,char**argv){
                 auto before=io.call(wire::State,wire::MachineReset).retired;io.call(wire::Advance,500000);
                 wire::need(io.call(wire::State,wire::MachineReset).retired>before,"pixel stop blocked CPU");io.call(wire::PixelClock,1);
                 std::cerr<<"LOAD full\n";io.call(wire::BeginLoad);type_load(computer,io);loaded=io.call(wire::WaitLoaded).value;
-                wire::need(loaded==size,"external LOAD incomplete");key(computer,io,{});io.call(wire::WaitEditor,160000000);io.call(wire::WaitPicture,2);
+                wire::need(loaded==size,"external LOAD incomplete");key(computer,io,{});
+                // A loaded NEW snapshot is not an editor-return contract. Boot
+                // a fresh RAM selection before exercising another real LOAD.
+                okay(computer.Hold(io.deadline()),"HOLD before second RAM boot");
+                okay(pr.Reconfigure(FesDe25PrControlPersonaB,[&]{return configure(FesDe25PrControlPersonaB);},io.deadline()),"fresh RAM selection");
+                okay(computer.Run(io.deadline()),"fresh RAM RUN");
+                wire::need(io.call(combined::WaitRamtop,0x8000).value==ramtop_b,"RAM re-selection did not reboot/re-size");
+                okay(computer.LoadTape(image,io.deadline(),127),"second CRC tape upload");
                 // Interrupt a second real LOAD with the PR freeze request.
                 std::cerr<<"LOAD interrupted\n";io.call(wire::BeginLoad);type_load(computer,io);io.call(combined::WaitSomeLoad,8);
                 okay(pr.Freeze(io.deadline()),"freeze during real loader writes");

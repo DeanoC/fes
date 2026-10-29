@@ -119,7 +119,7 @@ def execute(args):
                             time.sleep(.01)
                         result=json.loads(helpers.run([*command,str(endpoint),scenario,args.build_id],logs/f"{architecture}-{scenario}-client.log",timeout=1800))
                         if result['scenario']!=scenario or result['result']!='passed':raise ValueError("wrong proof result")
-                        if scenario=='session' and (result['callbacks']!=3 or result['loaded_bytes']!=910 or result['ramtop_empty']!=0x4400 or result['ramtop_16k']!=0x8000):raise ValueError("incomplete real session evidence")
+                        if scenario=='session' and (result['callbacks']!=4 or result['loaded_bytes']!=910 or result['ramtop_empty']!=0x4400 or result['ramtop_16k']!=0x8000):raise ValueError("incomplete real session evidence")
                         if server.wait(timeout=10):raise ValueError("combined RTL server failed")
                         rows.append(dict(architecture=architecture,**result))
                     finally:

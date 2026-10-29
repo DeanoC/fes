@@ -29,9 +29,10 @@ python3 proof.py --artifacts /absolute/new-build/hps/project/artifacts.json \
 `zx81-computer/proof.py --help` lists the explicit SDK image, read-only volume,
 compiler and QEMU arguments for static AArch64 execution. Both actual C++
 clients operate separate resources in one actual RTL model. The session
-selects empty/RAM/empty, observes CPU-written RAMTOP 0x4400/0x8000/0x4400,
+selects empty/RAM/fresh RAM/empty, observes CPU-written RAMTOP 0x4400/0x8000/0x4400,
 delivers a real BASIC LOAD through the RAM persona, and freezes a later load
-in flight. Callback failure, wrong persona/build, uncertain writes, missing
+in flight after a fresh RAM boot. The loaded NEW snapshot is not required to
+return to the keyboard editor. Callback failure, wrong persona/build, uncertain writes, missing
 responses and actual later reset must leave execution held and prevent retries.
 Pixel-clock loss must not block selection, control, tape upload or CPU progress.
 Simulation-only observations advance clocks and inspect state; they never
