@@ -255,8 +255,9 @@ and nextpnr builds of pc386 are parked with
 [#1235](https://github.com/DeanoC/fes/issues/1235). Sealed with Quartus 17.0.2
 instead, it passed every diagnostic program on Kit B
 ([hardware diagnostic](../../../../docs/validation/2026-10-28-pc386-m4-diagnostic/summary.md#hardware-diagnostic-29-october-2026)).
-The presenter's 720p timing still resets with the machine, so HDMI sinks
-re-lock after each machine reset.
+The presenter's 720p counters and syncs reset only on the pixel PLL's lock,
+so a machine reset leaves the HDMI signal running. On the first kit run they
+still followed the machine, and the sink re-locked after each machine reset.
 
 **Quartus lane.** [`scripts/build_fes_pc386_quartus.py`](../../scripts/build_fes_pc386_quartus.py)
 seals the same package with Quartus 17.0.2, labelled as a Quartus build
