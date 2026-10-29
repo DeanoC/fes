@@ -39,25 +39,11 @@ set logical_groups [list \
 set bus_ingress_names {}
 for {set bit 0} {$bit < 46} {incr bit} {lappend bus_ingress_names [format {slot_inst|core|bus_q[%d]} $bit]}
 lappend logical_groups bus_ingress {slot_inst|core|bus_q[*]} $bus_ingress_names
-# The RAM persona must retain all 16 read/peek data bits. Flags 16..18
-# are explicitly wired zero; presence19 is the persona's constant0/1.
-# Empty/base data0..15 are explicitly zero. Only these source-defined
-# constants may fold; audit any physical registers they still produce.
-set required_bus_egress {}
-if {$revision eq "persona_b"} {
-    for {set bit 0} {$bit < 16} {incr bit} {lappend required_bus_egress [format {zx81_static|response_q[%d]} $bit]}
-    lappend required_bus_egress {zx81_static|response_q[19]}
-}
-set bus_egress_names $required_bus_egress
-foreach_in_collection node [get_registers {zx81_static|response_q[*]}] {
-    set actual [get_node_info -name $node]
-    regsub {~DUPLICATE[0-9]*$} $actual {} logical
-    if {![regexp {^zx81_static\|response_q\[([0-9]+)\]$} $logical -> bit] || $bit > 19} {
-        error "unexpected static bus endpoint $actual"
-    }
-    if {[lsearch -exact $bus_egress_names $logical] < 0} {lappend bus_egress_names $logical}
-}
-if {[llength $bus_egress_names]} {lappend logical_groups bus_egress {zx81_static|response_q[*]} $bus_egress_names}
+# Every response bit terminates in a protected static register. Require
+# the complete packed contract even where the persona's source is constant.
+set bus_egress_names {}
+for {set bit 0} {$bit < 20} {incr bit} {lappend bus_egress_names [format {zx81_static|response_q[%d]} $bit]}
+lappend logical_groups bus_egress {zx81_static|response_q[*]} $bus_egress_names
 set boundary_groups {}
 foreach {name pattern canonical} $logical_groups {
     set nodes [get_registers $pattern]
