@@ -13,9 +13,23 @@ spec = importlib.util.spec_from_file_location("de25_link_recipe_tests", BOARD / 
 recipe_tests = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(recipe_tests)
 RecipeTests = recipe_tests.RecipeTests
+profile_spec = importlib.util.spec_from_file_location("de25_zx81_pr_profile_tests", BOARD / "zx81-ram/profile_test.py")
+profile_tests = importlib.util.module_from_spec(profile_spec)
+profile_spec.loader.exec_module(profile_tests)
+ProfileTests = profile_tests.ProfileTests
 
 
 class LinkProofTests(unittest.TestCase):
+    def test_zx81_profile_cannot_silently_run_counter_simulation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "simulation"
+            result = subprocess.run([sys.executable, str(BOARD / "build.py"), "sim",
+                                     "--profile", "zx81-ram", "--output", str(output)],
+                                    capture_output=True, text=True, timeout=30)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("run zx81-ram/sim.py", result.stderr)
+            self.assertFalse(output.exists())
+
     def test_control_proof_rejects_missing_or_wrong_scenario_results(self):
         spec = importlib.util.spec_from_file_location("de25_control_proof", BOARD / "control_proof.py")
         proof = importlib.util.module_from_spec(spec)

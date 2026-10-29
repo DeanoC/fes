@@ -4,6 +4,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <array>
+#include <string>
 static void need(bool b,const char*s){if(!b)throw std::runtime_error(s);}
 struct Bench {
  Vfes_zx81_pr_sim d;
@@ -53,11 +54,11 @@ struct Bench {
    wr(12,0);wr(16,(1u<<24)|++seq);
    d.debug_request&=~(1ull<<45);
    for(unsigned n=0;n<100&&!d.frozen;n++)tick();need(d.frozen,"write-phase freeze timeout");
-   auto old=writes;ticks(16);need(writes==old,"write escaped Frozen");
+   auto old=writes;auto response=d.static_response;ticks(16);need(writes==old,"write escaped Frozen");need(d.static_response==response,"response escaped Frozen");
    std::cout<<"DRAIN phase="<<phase<<" postFrozenWrites=0\n";
    if(phase!=5){command(2,0xc002b002);need(d.running,"phase resume failed");}
   }
   d.debug_bus=0;
  }
 };
-int main(int argc,char**argv){std::cout.setf(std::ios::unitbuf);Verilated::commandArgs(argc,argv);try{Bench b;b.select(false);b.boot(0x4400);need(b.peek(4)==0x00&&b.peek(5)==0x44,"internal RAMTOP peek mismatch");b.freeze();b.select(true);b.boot(0x8000);need(b.peek(4)==0x00&&b.peek(5)==0x80,"pack RAMTOP peek mismatch");b.memory_test();b.select(false);b.boot(0x4400);need(b.peek(5)==0x44,"selection did not reset/re-size machine");b.freeze();std::cout<<"PASS actual ZX81 CPU+BASIC ROM, empty/RAM16K/reset/drain\n";}catch(const std::exception&e){std::cerr<<e.what()<<"\n";return 1;}}
+int main(int argc,char**argv){std::cout.setf(std::ios::unitbuf);Verilated::commandArgs(argc,argv);try{Bench b;if(argc>1&&std::string(argv[1])=="--drain-only"){b.select(true);b.memory_test();std::cout<<"PASS isolated RAM write/response drain\n";return 0;}b.select(false);b.boot(0x4400);need(b.peek(4)==0x00&&b.peek(5)==0x44,"internal RAMTOP peek mismatch");b.freeze();b.select(true);b.boot(0x8000);need(b.peek(4)==0x00&&b.peek(5)==0x80,"pack RAMTOP peek mismatch");b.memory_test();b.select(false);b.boot(0x4400);need(b.peek(5)==0x44,"selection did not reset/re-size machine");b.freeze();std::cout<<"PASS actual ZX81 CPU+BASIC ROM, empty/RAM16K/reset/drain\n";}catch(const std::exception&e){std::cerr<<e.what()<<"\n";return 1;}}

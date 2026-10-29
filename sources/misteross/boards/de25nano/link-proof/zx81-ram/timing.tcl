@@ -57,6 +57,7 @@ lappend logical_groups bus_ingress {slot_inst|core|bus_q[*]} $bus_ingress_names
 set required_bus_egress {}
 if {$revision eq "persona_b"} {
     for {set bit 0} {$bit < 16} {incr bit} {lappend required_bus_egress [format {zx81_static|response_q[%d]} $bit]}
+    lappend required_bus_egress {zx81_static|response_q[19]}
 }
 set bus_egress_names $required_bus_egress
 foreach_in_collection node [get_registers {zx81_static|response_q[*]}] {
