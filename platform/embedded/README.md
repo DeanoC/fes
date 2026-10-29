@@ -70,6 +70,7 @@ The independent [Zephyr reference](zephyr/README.md) owns separate tests.
 | Native Go runtime and tenfoot | QEMU CPU/RAM/time, actual 720p output and live navigation |
 | Native persistent storage | Real VirtIO reads/writes/FLUSH and FAT32 preallocated preferences across restart |
 | Native network | Real IPv4 TCP/HTTP and existing FogCast catalog service |
+| Native package inspection | Existing FES format-2/3/4 validator reads and retains canonical archives from FAT32; no hardware admission |
 | Separate Zephyr storage reference | NVMe FAT32 mount and boot-config read |
 | Separate Zephyr TCP reference | Builds/starts; E1000 packet exchange remains unverified |
 | Physical SD, USB, Ethernet, display and FPGA | Await controller implementation and board verification |
@@ -96,6 +97,12 @@ TamaGo's default `os` filesystem is volatile RAM. Tenfoot's optional
 write includes block-device flushes. This supports clean-restart persistence,
 not atomic publication under power loss. Package/media/save lifecycle semantics
 need additional work before they can use this storage path.
+
+The separate native `packages` program now inspects real FES package archives
+using the same FogCast validator and identities as the host. It checks the
+shared conformance corpus and retains a payload across a source-file mutation.
+This does not make existing Cyclone V packages compatible with DE25, enable
+ROM linking, or connect the lifecycle model to physical programming.
 
 ## Integration sequence
 

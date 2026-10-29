@@ -1,0 +1,23 @@
+{
+  "base_commit": "d563b7cd2d60a5efdd51f24f9d680d8e6d1b143f",
+  "classification": "native Go on QEMU, FAT32/VirtIO; no physical hardware",
+  "checks": {
+    "native_shared_corpus": {
+      "cases": 88,
+      "valid": 11,
+      "invalid": 77,
+      "status": "passed"
+    },
+    "native_container_corruption": {
+      "cases": 4,
+      "status": "passed"
+    },
+    "native_retained_payload_after_source_mutation": "passed",
+    "FAT32_exact_restore": "passed",
+    "existing_corepackage_suite": "passed",
+    "reader_conformance_ownership_input_race": "passed",
+    "USB_tenfoot_two_boot_control": "passed",
+    "deadcode_linux_amd64_and_arm": "passed",
+    "test_changed": "parent/consumer lanes passed; initial host room budget failure, host retry passed"
+  }
+}

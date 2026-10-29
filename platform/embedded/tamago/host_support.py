@@ -67,7 +67,7 @@ def png_from_ppm(source, target):
 
 class Guest:
     """Own one QEMU process, its Unix serial socket and its QMP connection."""
-    def __init__(self, qemu, elf, directory, record_command, *, disk=None, display="none", usb=False):
+    def __init__(self, qemu, elf, directory, record_command, *, disk=None, display="none", usb=False, ui=True):
         self.directory = Path(directory)
         self.directory.mkdir()
         self.temporary = tempfile.TemporaryDirectory(prefix="fes-native-")
@@ -86,10 +86,11 @@ class Guest:
                         "-serial", "chardev:console", "-qmp",
                         f"unix:{self.qmp_path},server=on,wait=off", "-kernel", str(elf)]
         if disk:
-            self.command += ["-global", "virtio-mmio.force-legacy=false", "-device", "ramfb", "-drive",
+            self.command += ["-global", "virtio-mmio.force-legacy=false", "-drive",
                              f"file={disk},if=none,id=bootdisk,format=raw,cache=writeback",
-                             "-device", "virtio-blk-device,drive=bootdisk",
-                             "-netdev", "user,id=hostnet", "-device",
+                             "-device", "virtio-blk-device,drive=bootdisk"]
+        if disk and ui:
+            self.command += ["-device", "ramfb", "-netdev", "user,id=hostnet", "-device",
                              "virtio-net-device,netdev=hostnet,mac=52:54:00:12:34:56",
                              "-object", f"filter-dump,id=packets,netdev=hostnet,file={self.directory / 'network.pcap'}"]
         else:

@@ -46,6 +46,16 @@ continue to use file paths. Settings are normalized through the same encoder
 and decoder in both paths. The QEMU adapter updates a preallocated FAT32 file;
 its guarantee is clean-restart persistence, not power-loss atomicity.
 
+`corepackage.RetainArchive` validates an exact-length reader using the existing
+canonical archive, manifest, payload and ROM-map rules. It retains private
+bytes and exposes copied inspection metadata and a copying payload reader.
+The OS-backed `Stage` path uses that same reader/validation boundary before
+its existing rooted private publication. No separate embedded validator,
+package identity domain, ABI allowlist or hardware admission is introduced.
+The native `packages` diagnostic reads shared conformance archives from FAT32;
+inspection does not authorize a Cyclone V package on an Agilex board. The
+physical runtime remains responsible for compatibility and linked-load receipts.
+
 On TamaGo, the software renderer yields between groups of four raster rows
 and splits whole-frame copies into 32 KiB chunks. The ramfb presenter also
 yields every four scanout rows. These cooperative checkpoints let network and

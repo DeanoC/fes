@@ -56,7 +56,7 @@ def stop(process):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("program", choices=("probe", "fabric", "tenfoot"))
+    parser.add_argument("program", choices=("probe", "fabric", "packages", "tenfoot"))
     parser.add_argument("--compiler", required=True, type=Path)
     parser.add_argument("--qemu", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
@@ -85,6 +85,8 @@ def main():
     if args.interactive and args.program != "tenfoot":
         parser.error("--interactive requires tenfoot")
     disk = (args.disk or output / "fat32.img").resolve()
+    if args.program == "packages" and disk.exists():
+        parser.error("packages diagnostic requires a fresh disk image")
     if not disk.is_relative_to(ROOT / "out") or (disk.exists() and not disk.is_file()):
         parser.error("disk must be a regular file beneath this worktree's out/")
     if "," in str(output) or "," in str(disk):
@@ -101,12 +103,17 @@ def main():
               "commands": [], "environment": {k: env[k] for k in (
                   "GOOS", "GOARCH", "CGO_ENABLED", "GOOSPKG", "GOTOOLCHAIN",
                   "GOENV", "GOWORK", "GOPROXY", "GOSUMDB", "GOMODCACHE", "GOCACHE")},
-              "input": args.input,
+              "input": args.input if args.program == "tenfoot" else None,
               "limitations": ["QEMU USB is not a DE25 DWC3 controller",
                               "virtio block is not a physical SD controller",
                               "synthetic catalog files are not playable ROMs",
                               "clean-reboot persistence is not power-loss atomicity"]}
     host_process, host_log, disk_lock = None, None, None
+    if args.program == "packages":
+        record["limitations"] = ["package inspection is not hardware admission",
+                                "synthetic shared corpus, not deployable RBFs",
+                                "no FPGA programming or ROM linking",
+                                "largest production-package latency is unqualified"]
 
     def save():
         (output / "result.json").write_text(json.dumps(record, indent=2) + "\n")
@@ -190,7 +197,7 @@ def main():
         disk_lock.write(f"pid={os.getpid()} disk={disk}\n")
         disk_lock.flush()
 
-    def prepare_disk(api_url):
+    def format_disk():
         fresh = not disk.exists()
         disk.parent.mkdir(parents=True, exist_ok=True)
         if fresh:
@@ -205,6 +212,11 @@ def main():
                 checked("format", [formatter, "-i", disk, "-F", "-v", "FESNATIVE", "::"])
             record["fat_formatter"] = {"path": formatter, "sha256": sha(Path(formatter))}
             checked("mkdir-fat", ["mmd", "-i", disk, "::FES"])
+        return fresh
+
+    def prepare_disk(api_url):
+        fresh = format_disk()
+        if fresh:
             initial = output / "preferences-initial.json"
             data = json.dumps({"safe_area_pct": 0.05, "layout": "grid",
                                "attract_enabled": False, "home": "library"}).encode() + b"\n"
@@ -234,6 +246,9 @@ def main():
             raise RuntimeError("ready marker has no matching rendered catalog frame")
         return available[-1]
 
+    package_sources = set()
+    package_directory = None
+    package_cases = []
     started = time.monotonic()
     try:
         record["compiler_sha256"] = sha(compiler)
@@ -242,9 +257,16 @@ def main():
             raise RuntimeError("this experiment pins the TamaGo Go 1.26.5 compiler")
         record["qemu_sha256"] = sha(qemu)
         record["qemu_version"] = checked("qemu", [qemu, "--version"]).strip()
+        if args.program == "packages":
+            from package_fixtures import prepare
+            package_directory, package_cases, package_sources = prepare(ROOT, output)
+            record["package_fixtures"] = {
+                "cases": package_cases,
+                "files_sha256": {p.name: sha(p) for p in sorted(package_directory.iterdir())}}
         deps = checked("packages", [compiler, "list", "-deps", "-json", "-mod=readonly",
                                     "./cmd/" + args.program], native=True)
-        files = {APP / name for name in ("go.mod", "go.sum", "run.py", "host_support.py", "toolchain.lock.toml")}
+        files = {APP / name for name in ("go.mod", "go.sum", "run.py", "host_support.py", "package_fixtures.py", "toolchain.lock.toml")}
+        files.update(package_sources)
         modules = {}
         for package in objects(deps):
             if module := package.get("Module"):
@@ -274,6 +296,27 @@ def main():
                 marker = "FES_NATIVE_GO_PROBE PASS" if args.program == "probe" else "FES_FABRIC_MODEL PASS"
                 guest.wait(lambda text: marker in text, args.timeout, "diagnostic completion")
             record["termination"] = "runner stopped its QEMU process after probe marker"
+        elif args.program == "packages":
+            lock_disk()
+            if not format_disk():
+                raise RuntimeError("packages diagnostic refuses an existing disk")
+            for path in sorted(package_directory.iterdir()):
+                checked("copy-" + path.name, ["mcopy", "-i", disk, path, "::FES/" + path.name])
+            before = sha(disk)
+            with Guest(qemu, elf, output / "boot-1", command_record, disk=disk, ui=False) as guest:
+                guest.wait(lambda text: "FES_NATIVE_PACKAGES PASS" in text, args.timeout, "package inspection")
+                observed = [json.loads(line) for line in re.findall(r"FES_PACKAGE_CASE ([^\r\n]+)", guest.text)]
+                expected = [{"name": c["name"], "accepted": c["valid"], "package_id": c["package_id"] if c["valid"] else ""}
+                            for c in package_cases]
+                projection = [{k: c[k] for k in ("name", "accepted", "package_id")} for c in observed]
+                if projection != expected or "FES_PACKAGE_SOURCE_MUTATION PASS" not in guest.text:
+                    raise RuntimeError("guest package results differ from the shared corpus")
+                record["package_results"] = observed
+            after = sha(disk)
+            if before != after:
+                raise RuntimeError("package mutation test did not restore the original FAT32 disk")
+            record["disk"] = {"path": str(disk), "before_sha256": before, "after_sha256": after}
+            record["termination"] = "runner quit QEMU after inspection; no FPGA programming"
         else:
             lock_disk()
             prepare_disk(prepare_host())

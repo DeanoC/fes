@@ -113,3 +113,36 @@ throughput qualification remain outside this prototype. The separate
 The [fabric lifecycle model](fabricmodel/README.md) runs separately through
 `run.py fabric`. It checks ownership and recovery order with software-only
 images. It neither replaces the production runtime nor enables tenfoot Play.
+
+## Package inspection without a host OS
+
+`run.py packages` builds a separate native diagnostic, creates a fresh FAT32
+image from the existing shared format-2/3/4 conformance corpus, and inspects
+its archives through `corepackage.RetainArchive`. The validator is shared with
+normal FogCast staging: canonical archive shape, manifest rules, payload/map
+hashes and package identity are unchanged. Reads allocate within the declared
+archive bound and reject short, extra or non-progressing input. The caller's
+reader must enforce deadlines for blocking I/O; cancellation is checked between
+reads and validation phases.
+
+```sh
+python3 platform/embedded/tamago/run.py packages \
+  --compiler out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go \
+  --qemu out/de25-os-tools/zephyr-sdk-0.17.4/sysroots/x86_64-pokysdk-linux/usr/bin/qemu-system-aarch64 \
+  --output out/native-package-inspection
+```
+
+This run needs no remote host, display or USB device. It verifies package IDs
+and payloads, corrupts one runner-owned source file, proves the retained payload
+is unchanged and a fresh read fails, then restores the exact original FAT32
+image. Existing `--disk` images are refused by this diagnostic. Generated
+archives are synthetic test fixtures, never deployable bitstreams.
+
+The retained object keeps private bytes in RAM; returned metadata and payload
+read cursors cannot mutate it. This is not durable package installation or
+hardware admission. A syntactically valid unknown ABI remains valid for
+inspection, with compatibility left to the runtime. Format-3/4 ROM maps are
+validated, but linking and their activation receipts are not implemented here.
+The native FAT reader currently limits individual files to 64 MiB, below the
+shared 65 MiB archive cap. Maximum-size memory/latency behavior is unqualified.
+No FPGA is programmed and tenfoot Play remains unavailable.

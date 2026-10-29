@@ -474,26 +474,12 @@ func Stage(ctx context.Context, root string, length int64, reader io.Reader) (St
 	if err := ctx.Err(); err != nil {
 		return Staged{}, err
 	}
-	// The validated length bounds one allocation. ReadAll's geometric growth
-	// otherwise repeatedly copies a large map before it can be inspected.
-	data := make([]byte, int(length)+1)
-	n, err := io.ReadFull(&contextReader{ctx: ctx, reader: reader}, data)
-	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
-		return Staged{}, err
-	}
-	if int64(n) != length {
-		return Staged{}, errors.New("core package: upload length does not match the declared length")
-	}
-	data = data[:n]
-	manifest, payload, romMap, err := readArchiveMembers(data, false)
+	archive, err := RetainArchive(ctx, length, reader)
 	if err != nil {
 		return Staged{}, err
 	}
-	descriptor, err := decodeContext(ctx, manifest, payload, romMap)
-	if err != nil {
-		return Staged{}, err
-	}
-	id := packageIdentity(manifest, payload, romMap)
+	manifest, payload, romMap := archive.manifest, archive.payload, archive.romMap
+	descriptor, id := archive.inspection.Descriptor, archive.inspection.PackageID
 	rootHandle, err := os.OpenRoot(root)
 	if err != nil {
 		return Staged{}, fmt.Errorf("core package: open staging root: %w", err)
