@@ -232,8 +232,11 @@ module fes_i386_ex (
     assign count_zero = x == 32'd0;
     assign ind_target = sum[31:0];
     assign ind_eip = y;
+    // A REPE or REPNE CMPS or SCAS element ends the instruction, branching
+    // to the next, when its own compare's ZF says so.
     assign taken = exc.ok && ((exc.b_jcc && cc_true) || exc.b_jmp || exc.b_ind
                               || ((exc.b_loop || (exc.b_loope && flags_in[ZF]) || (exc.b_loopne && !flags_in[ZF]))
                                   && !count_one)
-                              || (exc.b_jcxz && count_zero));
+                              || (exc.b_jcxz && count_zero)
+                              || (exc.b_rpe && !add_zf) || (exc.b_rpne && add_zf));
 endmodule

@@ -237,6 +237,7 @@ type mediaUnitLaunchClient struct {
 	inserts        int
 	libraryCalls   int
 	libraryBinding protocol.LibraryMediaBinding
+	libraryErr     error
 	saveCalls      int
 	saveErr        error
 	inserted       []byte
@@ -264,6 +265,9 @@ func (c *mediaUnitLaunchClient) InsertLibraryMedia(ctx context.Context, size int
 	}
 	c.libraryCalls++
 	c.libraryBinding = b
+	if c.libraryErr != nil {
+		return c.statusResult, c.libraryErr
+	}
 	return c.InsertMedia(ctx, size, body, b.MediaUnitBinding)
 }
 func (c *mediaUnitLaunchClient) SaveMedia(context.Context, protocol.MediaUnitBinding) (protocol.Status, error) {
