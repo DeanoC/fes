@@ -15,10 +15,14 @@ COMMON = ROOT / "cores/fes-common"
 Z80 = COMMON / "rtl/z80"
 
 
-def prepare(bench):
-    parent = ROOT / "build/sim/de25-zx81-hps"
-    parent.mkdir(parents=True, exist_ok=True)
-    output = Path(tempfile.mkdtemp(prefix=bench + "-", dir=parent))
+def prepare(bench, output=None):
+    if output is None:
+        parent = ROOT / "build/sim/de25-zx81-hps"
+        parent.mkdir(parents=True, exist_ok=True)
+        output = Path(tempfile.mkdtemp(prefix=bench + "-", dir=parent))
+    else:
+        output = Path(output).resolve()
+        output.mkdir(parents=True, exist_ok=False)
     print(f"DE25 computer simulation directory: {output}", flush=True)
     adapted = []
     for filename, derive in (("zx81_dpram.v", retarget_ram),

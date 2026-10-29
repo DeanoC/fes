@@ -95,6 +95,15 @@ The board tape adapter uses two explicit even/odd simple-dual-port M20K banks
 with common-clock old-data reads, while retaining the exact portable module
 in its native simulation branch.
 
+The same endpoint/machine also serves the native `De25Computer` client through
+the private-socket co-simulation in `zx81-hps/client_proof.py`. It snapshots the
+actual runtime and RTL sources, runs native and static AArch64 clients against
+one Verilated model, and checks real BASIC/HID/tape/RAM behavior plus uncertain
+transactions and resets. Simulation controls advance clocks and inspect state;
+they do not generate the client's mailbox commands. The existing board bench
+shares those clock and observation helpers. This remains software/RTL evidence
+with behavioral memory and no physical HPS/MMIO or programming backend.
+
 [`boards/de25nano/combined/`](../boards/de25nano/combined/README.md) composes
 that local display with the preserved GHRD HPS/LPDDR4, mailbox and read-only
 DDR probe. It uses a single configuration reset endpoint and separate system

@@ -21,8 +21,10 @@ ordered 32-bit register operations for `fes.fabric.de25-computer`. It requires
 the selected nonzero build ID and exact ZX81 capabilities before hold/run,
 full HID state or CRC/chunked tape delivery. Each command has one atomic GPO
 write; an uncertain completion permanently poisons the client without replay.
-Only scripted-register consumers currently construct it. It has no physical
-MMIO backend, daemon command, programming profile or production factory path;
+Scripted-register unit tests and the DE25 ZX81 client/RTL co-simulation construct
+it. The latter executes the real client natively and under AArch64 QEMU against
+the real endpoint and machine RTL. It has no physical MMIO backend, daemon
+command, programming profile or production factory path;
 the ARMv7/DE10 guard above remains the production gate.
 
 Raw RBF loading is an explicit, idle-only hardware diagnostic using

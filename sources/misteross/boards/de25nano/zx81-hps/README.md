@@ -78,6 +78,25 @@ Memory uses behavioral RTL; HPS, physical M20K, PLL, I2C and HDMI are not modele
 Compiled generation separately checks the real HPS-LW route, both PLL rates
 and the slave map against all inherited peripherals.
 
+`make client-proof OUTPUT=/new/private/output CLIENT_PROOF_ARGS=--native-only`
+connects the actual native `De25Computer` implementation to this endpoint and
+machine through a private Unix socket. `client_proof.py --help` lists the
+explicit SDK image/volume/compiler and QEMU arguments for the static AArch64
+client. Both architectures run the same source snapshot. The full matrix
+includes real BASIC boot, complete HID snapshots typing `LOAD ""`, CRC/chunked
+tape delivery, every actual loader RAM write, pixel-clock stoppage, live eject
+and HOLD/RUN. Smaller scenarios cover maximum/odd tape sizes, wrong identity,
+malformed observations, missing/late ACKs, ambiguous writes and later reset.
+
+The existing machine bench and the socket server share `computer_sim.hpp` for
+clock generation and RAM/video observations. Only the client emits mailbox
+commands. Test observation operations advance simulation time explicitly;
+the selected build ID identifies this simulation, not an existing SOF. Fault
+injections alter read results or report uncertain writes after real RTL
+transactions; the reset cases assert the actual endpoint reset. This proves
+client/RTL integration, without modeling HPS bridge accesses, SDM programming,
+physical memory primitives or a hardware bus-access deadline.
+
 `test_tape_store.py` compares the board primitive branch, native branch and
 portable store using an explicitly supplied vendor `altera_mf.v` model, or
 prepares a small isolated synthesis project. It never runs Quartus itself.

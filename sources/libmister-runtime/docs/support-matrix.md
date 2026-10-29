@@ -5,7 +5,7 @@ Hardware-supported package paths: 0.
 | Capability | Software coverage | Hardware acceptance |
 | --- | --- | --- |
 | Production platform guard: ARMv7 plus exact DE10-nano device-tree identity; AArch64/DE25/unknown/malformed identity refused before window-driver loading or MMIO/I2C construction | covered by native identity/ordering and unavailable-adapter tests | exact-artifact DE10 guard acceptance pending; DE25 hardware unsupported |
-| DE25 atomic computer-register client: selected build/ABI/capability and tape-limit validation, one full-word submission, held-payload/fault/ACK checks, bounded polling, no replay after uncertainty, HID and CRC/chunked tape operations | covered by scripted-register native C++ tests | none; no physical register backend or production construction; DE25 hardware unsupported |
+| DE25 atomic computer-register client: selected build/ABI/capability and tape-limit validation, one full-word submission, held-payload/fault/ACK checks, bounded polling, no replay after uncertainty, HID and CRC/chunked tape operations | scripted-register C++ tests and native/AArch64 client against actual endpoint/machine RTL | none; no physical register backend or production construction; DE25 hardware unsupported |
 | FES described package admission and GP activation | covered | pending for exact current artifacts |
 | GP acknowledged-response settling guard, bounded full-word sampling, fail-closed ACK/signature/MMIO handling and no command replay | covered by host fault-injection tests | none |
 | Simple-game, simple-computer, application ABI | covered | pending |
