@@ -459,27 +459,7 @@ func drawRoomChrome(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 	if pane, ok := roomDestGeom(snap); ok {
 		y = pane.Y - 30
 	}
-	line := strings.TrimSpace(snap.Health.Line)
-	if lease := strings.TrimSpace(snap.KitLease.Line); lease != "" {
-		if line != "" {
-			line += "  ·  "
-		}
-		line += lease
-	}
-	if !launchOverlayVisible(snap) {
-		switch snap.Launch.Phase {
-		case "launching", "error", "host":
-			if msg := strings.TrimSpace(snap.Launch.Message); msg != "" {
-				line = msg
-			}
-		}
-	}
-	if strings.TrimSpace(snap.Status) != "" && strings.HasPrefix(snap.Status, "room failed") {
-		line = snap.Status
-	}
-	if snap.Status == localInUseCopy || snap.Status == machineStatusUnknown {
-		line = snap.Status
-	}
+	line := heroFooterStatus(snap)
 	if snap.Room.ID == colecoArcadeRoomID && snap.Room.DuringPlay && snap.Session.Coleco {
 		switch strings.TrimSpace(snap.Room.Notice) {
 		case colecoCartridgeSessionStatus, runningMachineLibraryBlockedStatus:
