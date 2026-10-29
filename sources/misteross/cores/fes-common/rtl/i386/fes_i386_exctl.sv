@@ -30,7 +30,7 @@ module fes_i386_exctl (
     uop_t       u;
     logic [2:0] cls;
     logic [4:0] op;
-    logic       alu, arith, logic_op, incdec, neg, lnot, ext, size8, size16, src8, src16, w8, w16, bt, scan;
+    logic       alu, arith, logic_op, incdec, neg, lnot, ext, size8, size16, src8, src16, w8, w16, bt, scan, bcd;
     assign u = s.uop;
     assign cls = 3'(u.cls);
     assign op = u.op;
@@ -43,6 +43,7 @@ module fes_i386_exctl (
     assign lnot = alu && op == 5'd13;
     assign bt = alu && op >= 5'd19 && op <= 5'd22;   // BT, BTS, BTR, BTC
     assign scan = alu && (op == 5'd23 || op == 5'd24);  // BSF, BSR
+    assign bcd = alu && op >= 5'd25 && op <= 5'd28;    // DAA, DAS, AAA, AAS
     assign size8 = u.size == fes_i386_pkg::SIZE_8;
     assign size16 = u.size == fes_i386_pkg::SIZE_16;
     assign src8 = u.src_size == fes_i386_pkg::SIZE_8;
@@ -155,6 +156,10 @@ module fes_i386_exctl (
     assign c.r_btd = alu && op == 5'd18;
     assign c.r_scan = scan;
     assign c.bsr = op == 5'd24;
+    // DAA, DAS, AAA and AAS adjust x, AL or AX, in EX by its flags.
+    assign c.r_bcd = bcd;
+    assign c.bcd_sub = op == 5'd26 || op == 5'd28;  // DAS, AAS
+    assign c.bcd_ax = op == 5'd27 || op == 5'd28;   // AAA, AAS
 
     // ---- Flags --------------------------------------------------------------------
     // The flag instructions: CLC STC CMC CLI STI CLD STD SAHF (LAHF writes none).
