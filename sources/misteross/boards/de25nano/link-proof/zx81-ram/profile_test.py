@@ -48,6 +48,22 @@ class ProfileTests(unittest.TestCase):
     def test_mutated_memory_guard_fails_closed(self):
         with self.assertRaisesRegex(ValueError, "derivation changed"):
             build.PROFILE.replace(b'wrong primitive', b'expected', b'replacement', "memory")
+    def test_synthesis_preflight_rejects_incomplete_protection_or_inversion(self):
+        # Unit controls use the exact column/name spelling observed in the
+        # same-part probe. They are separate from real profile synthesis.
+        rows = [f"; slot_inst|core|bus_response[{bit}]~reg0 ; yes ; yes ; yes ;" for bit in range(20)]
+        with tempfile.TemporaryDirectory() as tmp:
+            report = Path(tmp) / "synthesis.rpt"
+            report.write_text("\n".join(rows))
+            self.assertEqual(len(build.PROFILE.verify_synthesis(report)["protected_response_registers"]), 20)
+            bad_reports = (rows[:-1], rows + [rows[-1]],
+                rows[:-1] + [rows[-1].replace("yes", "no", 1)],
+                rows + ["", "; Inverted Register Statistics ;", "; slot_inst|core|bus_response[19]~reg0 ; 1 ;"])
+            for bad in bad_reports:
+                report.write_text("\n".join(bad))
+                with self.assertRaises(ValueError):
+                    build.PROFILE.verify_synthesis(report)
+
     def test_counter_profile_keeps_four_cycles_and_no_zx81_sources(self):
         build.PROFILE = None
         self.assertEqual(build.INTERFACE["latency_cycles"], 4)
