@@ -11,9 +11,9 @@
 //   a direct offset, XLAT and SALC; PUSH, POP and CALL of r/m; MUL, IMUL
 //   (all three forms), DIV, IDIV, AAM and AAD; IN and OUT; BT, BTS, BTR and
 //   BTC by an immediate, BSF and BSR; the first uops of
-//   MOVS, CMPS, STOS, LODS, SCAS, INS, OUTS and ENTER, the microcode routines
-//   (PUSHA, POPA, INT, INTO, IRET and BOUND), and BT, BTS, BTR and BTC by a
-//   register with a memory operand (fes_i386_seq builds the rest);
+//   MOVS, CMPS, STOS, LODS, SCAS, INS, OUTS and ENTER, of BT, BTS, BTR and
+//   BTC by a register with a memory operand (fes_i386_seq builds the rest),
+//   and of the microcode routines (PUSHA, POPA, INT, INTO, IRET and BOUND);
 // with a ModRM memory operand where they take one. The memory operand is a
 // load (src2, or src1 for CMP and TEST), a store, or both in one uop
 // (read-modify-write), and replaces the register it stands for: no GPR is
