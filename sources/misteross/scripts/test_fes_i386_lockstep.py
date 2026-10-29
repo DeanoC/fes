@@ -110,8 +110,8 @@ SCOPE: frozenset[str] = frozenset([
     'A4', 'A5', 'A6', 'A7', 'AA', 'AB', 'AC', 'AD', 'AE', 'AF', 'C8',
     # I/O: IN and OUT, imm8 and DX forms; INS and OUTS.
     'E4', 'E5', 'E6', 'E7', 'EC', 'ED', 'EE', 'EF', '6C', '6D', '6E', '6F',
-    # BT, BTS, BTR and BTC by an immediate; BSF and BSR.
-    '0FBA.4', '0FBA.5', '0FBA.6', '0FBA.7', '0FBC', '0FBD',
+    # BT, BTS, BTR and BTC by an immediate and by a register; BSF and BSR.
+    '0FBA.4', '0FBA.5', '0FBA.6', '0FBA.7', '0FA3', '0FAB', '0FB3', '0FBB', '0FBC', '0FBD',
     # BOUND.
     '62',
 ])
