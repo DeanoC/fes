@@ -31,7 +31,7 @@
 //        [--cycles-per-instruction N] [--prompt TEXT] [--type TEXT] [--expect TEXT]
 //        [--trace F] [--frames DIR] [--pixel-from S] [--until-debug TEXT]
 //        [--type-at S] [--key-gap S] [--wav F] [--opl2-log F] [--keys S:TEXT]... [--cpu oracle|rtl]
-//        [--census F] [--stop-history N] [--stop-dump ADDRESS:LENGTH]...
+//        [--census F] [--stop-history N] [--stop-dump ADDRESS:LENGTH]... [--trace-port FROM:TO]...
 // A program on the disk marks a picture by writing "SNAP <name>" and a newline
 // to port E9h, then holding it; the bench takes the second capture after the
 // marker, runs the pixel clock for two 720p frames and compares the second
@@ -68,6 +68,10 @@
 //   STOPSTATE <register>=<value> ...            the RTL's registers at the stop
 // and with --stop-dump, at the same stop, for each range (hexadecimal):
 //   DUMP <physical address> <bytes>             the range's memory, 16 bytes a line
+// and with --trace-port, for each clock from FROM to TO (machine cycles), in each window:
+//   PORT <cycle> rd=<load> <address>/<bytes> <cs:eip> wr=<store> <dword>/<mask>=<bytes>
+//        edge=<sent><moved><flushed><committed> ret=<retired>:<eip> valid=<dmem_valid> <dmem_rdata>
+//        queue=<VGA ops> reads=<dwords the load waits for> [front=<W|R|A><dword>/<enables>]
 // An unretired VGA load reached the VGA, which the oracle's never do: its
 // uop died on a wrong path behind a redirect that retired ("path"), in an
 // instruction a fault or an interrupt restarted ("restart"), or behind a stop.
@@ -538,6 +542,7 @@ public:
     uint64_t tf_retired = 0;     // ... with TF set, which the RTL does not trap on
     uint64_t parked_clocks = 0;  // clocks only the machine ran (see run)
     uint64_t vga_loads = 0;      // loads from the VGA window
+    std::vector<std::pair<uint64_t, uint64_t>> trace_windows;  // --trace-port: the clocks to print the data port at
     // VGA loads whose uop never retired, which the oracle never makes: by
     // why their uop died (Lost), and by the instruction that made them.
     // The bench follows each load through M2, EX and WB (pc386_rtl_cpu's
@@ -774,6 +779,19 @@ public:
             fetch_end = base + 16;
         }
         cpu.mem_valid = 1;
+        if (std::any_of(trace_windows.begin(), trace_windows.end(),
+                        [&](const auto &w) { return m.cycles >= w.first && m.cycles <= w.second; })) {
+            std::printf("PORT %llu rd=%d %08x/%u %04x:%08x wr=%d %08x/%02x=%016llx edge=%d%d%d%d ret=%d:%08x "
+                        "valid=%d %016llx queue=%zu reads=%u",
+                        (unsigned long long)m.cycles, dread, daddr, dbytes, dcs, deip, dwrite, waddr, wmask,
+                        (unsigned long long)wdata, int(cpu.edge_load), int(cpu.edge_move), int(cpu.edge_flush),
+                        int(cpu.edge_commit), int(cpu.trace_retire), cpu.arch_eip, int(cpu.dmem_valid),
+                        (unsigned long long)cpu.dmem_rdata, vga_queue.size(), vga_reads);
+            if (!vga_queue.empty())
+                std::printf(" front=%c%08x/%x", vga_queue.front().write ? 'W' : vga_queue.front().abandoned ? 'A' : 'R',
+                            vga_queue.front().dword, vga_queue.front().enables);
+            std::printf("\n");
+        }
         still = load || dread || dwrite || issued || cpu.io_ack || cpu.inta_ack || cpu.trace_retire ? 0 : still + 1;
         if (cpu.trace_retire) {
             ++retired;
@@ -1060,6 +1078,7 @@ struct Options {
     unsigned cycles_per_instruction = 4;
     unsigned stop_history = 0;
     std::vector<std::pair<uint32_t, uint32_t>> stop_dumps;
+    std::vector<std::pair<uint64_t, uint64_t>> trace_windows;
 };
 
 Options parse(int argc, char **argv) {
@@ -1093,6 +1112,11 @@ Options parse(int argc, char **argv) {
             if (colon == std::string::npos) throw std::runtime_error("--stop-dump takes ADDRESS:LENGTH");
             options.stop_dumps.emplace_back(uint32_t(std::stoul(value.substr(0, colon), nullptr, 16)),
                                             uint32_t(std::stoul(value.substr(colon + 1), nullptr, 16)));
+        }
+        else if (flag == "--trace-port") {
+            const size_t colon = value.find(':');
+            if (colon == std::string::npos) throw std::runtime_error("--trace-port takes FROM:TO");
+            options.trace_windows.emplace_back(std::stoull(value.substr(0, colon)), std::stoull(value.substr(colon + 1)));
         }
         else if (flag == "--keys") {
             size_t colon = value.find(':');
@@ -1138,6 +1162,7 @@ int main(int argc, char **argv) {
                 return decoded.complete ? unsigned(decoded.length) : 15u;
             };
             rtl->history.resize(options.stop_history);
+            rtl->trace_windows = options.trace_windows;
             rtl->start(oracle->get_state());
         }
         bool on_oracle = !rtl;
