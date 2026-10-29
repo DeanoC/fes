@@ -1,0 +1,7 @@
+{
+  "base": "7600f53b170d246591fdaf754aade08a75762e59",
+  "result": "e5e5be52087ab58643f12dab131ce6ea0acdc351",
+  "main_body_byte_identical": true,
+  "fixture_change": "include guard and inline CRC helper only",
+  "rtl_changed": false
+}

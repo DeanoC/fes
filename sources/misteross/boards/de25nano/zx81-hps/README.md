@@ -96,6 +96,8 @@ injections alter read results or report uncertain writes after real RTL
 transactions; the reset cases assert the actual endpoint reset. This proves
 client/RTL integration, without modeling HPS bridge accesses, SDM programming,
 physical memory primitives or a hardware bus-access deadline.
+The [native/AArch64 client proof](../../../../../docs/validation/2026-10-29-de25-zx81-client-rtl/README.md)
+records the complete session, uncertainty cases and frozen source/tool hashes.
 
 `test_tape_store.py` compares the board primitive branch, native branch and
 portable store using an explicitly supplied vendor `altera_mf.v` model, or
