@@ -459,7 +459,7 @@ the same RTL input; #1115, #1141 and #1143 use Yosys `238eac9a49`.
 | Earlier near-stack slice after its review fix ([#1141](https://github.com/DeanoC/fes/pull/1141), [record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-stack.md#the-review-fix-routed-and-on-the-netlist)) | 68.89, 70.38, 74.12, 68.02 MHz | 103.69, 99.80, 99.44, 102.13 MHz | AG, DC, Q, Q on nextpnr; Q on every Quartus seed |
 | Far-transfer slice ([#1143](https://github.com/DeanoC/fes/pull/1143), [record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-far.md#result)) | 69.43, 70.48, 74.40, 70.34 MHz | 103.73, 98.34, 100.78, 104.47 MHz | D, Q, DC, DC on nextpnr; Q on every Quartus seed |
 | Memory path, slice 1 ([#1230](https://github.com/DeanoC/fes/pull/1230), [record](validation/2026-10-28-i386-memory-path.md#quartus)); Quartus with #1184's mapping at 120 MHz | 47.50, 48.70, 48.51, 48.40 MHz | 99.85, 100.76, 99.59, 101.19 MHz; after its review fix 98.85, 101.39, 94.82, 97.71 | D, D, MEM, MEM on nextpnr; EX, Q, F1, Q on Quartus; after the fix F1, Q, MEM, EX |
-| Self-modifying code, slice 2 ([#1234](https://github.com/DeanoC/fes/pull/1234), [record](validation/2026-10-29-i386-smc.md#quartus)); Quartus as slice 1 | 43.99, 38.12, 44.80, 43.36 MHz | 99.96, 100.40, 98.73, 101.14 MHz | MEM, MEM, EX, MEM on nextpnr; F2, D, F2, Q on Quartus |
+| Self-modifying code, slice 2 ([#1234](https://github.com/DeanoC/fes/pull/1234), [record](validation/2026-10-29-i386-smc.md#quartus)); Quartus as slice 1 | 43.99, 38.12, 44.80, 43.36 MHz | 99.96, 100.40, 98.73, 101.14 MHz; with both review fixes 99.99, 99.57, 102.12, 99.44 | MEM, MEM, EX, MEM on nextpnr; F2, D, F2, Q on Quartus; with the fixes F2, Q, EX, Q |
 
 - **Far-transfer nextpnr result:** the four seeds average 71.2 MHz. D limits seed 1,
   Q seed 2, and DC seeds 3 and 4.
@@ -471,9 +471,9 @@ the same RTL input; #1115, #1141 and #1143 use Yosys `238eac9a49`.
   own logic, in M1, costs nothing measurable, and the L1I's hit select,
   which it does not change, falls 3 to 4 MHz and limits two seeds. Its
   nextpnr routes average 48.3 MHz, against the base's 61.5: wire, which
-  Quartus does not show. Slice 2, the
-  self-modifying-code check, averages 100.1 MHz; that L1I hit path, into
-  F2, limits two of its seeds.
+  Quartus does not show. Slice 2, the self-modifying-code check, averages
+  100.1 MHz, and 100.3 with both slices' review fixes; that L1I hit path,
+  into F2, limits two of its seeds before the fixes and one after.
 - **The last nextpnr clock before the memory path** is 69.43–74.40 MHz, the
   far-transfer slice's, not the historical 62.6–64.8 MHz #1115 result. About
   80 MHz remains a target. The place-and-route gap remains tracked as
