@@ -109,10 +109,12 @@ captures stay outside the repository.
   I/O and INTA ports on the AT core, INTR from the PICs, A20M applied below the
   reset alias. VGA stores post in order to the MMIO port as they retire; a VGA
   load waits for its bytes, reading only those the load uses. The CPU has no
-  uncached path yet, so a VGA load on a wrong path still reaches the VGA. An
-  encoding the CPU has not built stops it: the bench runs that instruction on
-  the oracle from the RTL's state, keeps the oracle running through protected
-  mode and V86, and restarts the RTL from the oracle's state. The boot suite's
+  uncached path yet, so a VGA load on a wrong path still reaches the VGA; the
+  bench counts the loads whose uop never retired (`UNRETIRED`), and one whose
+  uop died as it was sent gives its bytes to no later load. An encoding the
+  CPU has not built stops it: the bench runs that instruction on the oracle
+  from the RTL's state, keeps the oracle running through protected mode and
+  V86, and restarts the RTL from the oracle's state. The boot suite's
   `boot-rtl/report.json` lists the stops by stem, with the lockstep's scope.
   While the CPU waits for an I/O cycle or sits in HLT with nothing in flight,
   only the machine is clocked.
