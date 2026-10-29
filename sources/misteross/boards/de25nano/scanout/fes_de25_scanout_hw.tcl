@@ -24,7 +24,7 @@ set_interface_property pixel_reset synchronousEdges DEASSERT
 add_interface_port pixel_reset pixel_reset_n reset_n Output 1
 add_interface avs avalon end
 set_interface_property avs associatedClock clk
-set_interface_property avs associatedReset reset
+set_interface_property avs associatedReset pixel_reset
 set_interface_property avs addressUnits SYMBOLS
 set_interface_property avs bitsPerSymbol 8
 set_interface_property avs explicitAddressSpan 128
@@ -51,7 +51,7 @@ add_interface_port avs writeresponsevalid writeresponsevalid Output 1
 add_interface_port avs response response Output 2
 add_interface avm avalon start
 set_interface_property avm associatedClock clk
-set_interface_property avm associatedReset reset
+set_interface_property avm associatedReset pixel_reset
 set_interface_property avm addressUnits SYMBOLS
 set_interface_property avm bitsPerSymbol 8
 set_interface_property avm burstcountUnits WORDS

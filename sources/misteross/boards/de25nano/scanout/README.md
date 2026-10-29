@@ -95,9 +95,10 @@ bridge parameters, response/write-completion interfaces, clocks and common
 reset connections, in addition to inherited mailbox/probe and HPS/EMIF
 checks. The pixel PLL parameters are checked after generation and compilation.
 Generated bridge FIFO constraints remain authoritative: no broad clock groups
-or pointer-path cuts are added. The board SDC cuts only four qualifier clear
-pins and the dedicated sticky-fault synchronizer's first D ingress; subsequent
-stages and release fanout remain timed. No HDMI IO delays are fabricated.
+or pointer-path cuts are added. The board SDC cuts the four qualifier and two
+pixel-reset synchronizer clear pins, plus the dedicated sticky-fault
+synchronizer's first D ingress; subsequent stages and release fanout remain
+timed. No HDMI IO delays are fabricated.
 
 Native tests exercise the real reader/video/control RTL with the same guarded
 M20K hint adaptation used by the build. They cover complete frames and lane

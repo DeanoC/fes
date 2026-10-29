@@ -183,6 +183,15 @@ def require_parameters(actual, expected, name):
     return {key: actual[key] for key in expected}
 
 
+def require_interface_parameter(definition, interface_name, parameter, expected):
+    interfaces = [item for item in definition.findall("boundary/interfaces/interface")
+                  if item.findtext("name") == interface_name]
+    actual = (interfaces[0].findtext(f"parameters/parameterValueMap/entry[key='{parameter}']/value")
+              if len(interfaces) == 1 else None)
+    if actual != expected:
+        raise ValueError(f"generated scanout interface property differs: {interface_name}.{parameter}")
+
+
 def verify_reset_bridge(project, module, hps):
     if module is None or module.get("kind") != "altera_reset_bridge" or module.get("version") != "19.2.0":
         raise ValueError("generated scanout reset bridge version/kind differs")
@@ -217,11 +226,9 @@ def verify_handoff(project, hps):
     if hps.component_ports(endpoint, "pixel_reset") != {"reset_n": ("Output", 1)}:
         raise ValueError("generated scanout pixel-domain reset source differs")
     endpoint_definition = ET.fromstring(endpoint.findtext("parameter[@name='componentDefinition']/value"))
-    pixel_reset_interfaces = [item for item in endpoint_definition.findall("boundary/interfaces/interface")
-                              if item.findtext("name") == "pixel_reset"]
-    if (len(pixel_reset_interfaces) != 1 or
-            pixel_reset_interfaces[0].findtext("parameters/parameterValueMap/entry[key='synchronousEdges']/value") != "DEASSERT"):
-        raise ValueError("generated scanout pixel reset is not deassert-synchronized")
+    require_interface_parameter(endpoint_definition, "pixel_reset", "synchronousEdges", "DEASSERT")
+    for interface_name in ("avs", "avm"):
+        require_interface_parameter(endpoint_definition, interface_name, "associatedReset", "pixel_reset")
     control_ports = hps.component_ports(endpoint, "avs")
     if (control_ports.get("address") != ("Input", 7) or control_ports.get("readdata") != ("Output", 32) or
             control_ports.get("writeresponsevalid") != ("Output", 1) or control_ports.get("response") != ("Output", 2)):

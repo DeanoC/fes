@@ -38,7 +38,9 @@ module fes_de25_scanout (
     // The common cold/configuration reset also reaches logic on the independent
     // pixel clock. Assert asynchronously, but release only after two pixel
     // clock edges. This reset source also feeds the pixel sides of both CCBs.
-    (* preserve, dont_merge, async_reg = "true" *) reg [1:0] pixel_reset_sync;
+    // Let Quartus infer the actual asynchronous-clear reset chain. Marking the
+    // whole vector async_reg incorrectly makes each bit a separate chain head.
+    (* preserve, dont_merge *) reg [1:0] pixel_reset_sync;
     always @(posedge clk or negedge reset_n) begin
         if (!reset_n) pixel_reset_sync <= 2'b00;
         else pixel_reset_sync <= {pixel_reset_sync[0], 1'b1};

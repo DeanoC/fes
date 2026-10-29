@@ -127,6 +127,35 @@ class ScanoutBuildTests(unittest.TestCase):
         self.assertIn("scanout_clear_count != 6", constraints)
         self.assertIn("release paths remain timed", constraints)
 
+    def test_avalon_reset_associations_use_the_pixel_domain_reset(self):
+        component = (SCANOUT / "fes_de25_scanout_hw.tcl").read_text()
+        for interface in ("avs", "avm"):
+            with self.subTest(interface=interface):
+                self.assertIn(f"set_interface_property {interface} associatedReset pixel_reset", component)
+                self.assertNotIn(f"set_interface_property {interface} associatedReset reset", component)
+
+    def test_generated_avalon_interfaces_require_pixel_reset_association(self):
+        definition = ET.fromstring("""<componentDefinition><boundary><interfaces>
+          <interface><name>avs</name><parameters><parameterValueMap>
+            <entry><key>associatedReset</key><value>pixel_reset</value></entry>
+          </parameterValueMap></parameters></interface>
+          <interface><name>avm</name><parameters><parameterValueMap>
+            <entry><key>associatedReset</key><value>pixel_reset</value></entry>
+          </parameterValueMap></parameters></interface>
+        </interfaces></boundary></componentDefinition>""")
+        for interface in ("avs", "avm"):
+            B.require_interface_parameter(definition, interface, "associatedReset", "pixel_reset")
+        for interface in definition.findall("boundary/interfaces/interface"):
+            if interface.findtext("name") == "avm":
+                interface.find("parameters/parameterValueMap/entry/value").text = "reset"
+        with self.assertRaisesRegex(ValueError, "avm.associatedReset"):
+            B.require_interface_parameter(definition, "avm", "associatedReset", "pixel_reset")
+
+    def test_pixel_reset_uses_one_inferred_async_clear_chain(self):
+        endpoint = (SCANOUT / "fes_de25_scanout.v").read_text()
+        self.assertIn("(* preserve, dont_merge *) reg [1:0] pixel_reset_sync;", endpoint)
+        self.assertNotRegex(endpoint, r"\(\*[^)]*\basync_reg\b[^)]*\)\s*reg\s+\[1:0\]\s+pixel_reset_sync")
+
     def test_postcompile_pll_mutation_is_rejected_with_failed_receipt_retained(self):
         output, _, hps, display = self.prepare()
         directory = output / "combined/hps"
