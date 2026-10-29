@@ -33,6 +33,9 @@ class RecipeTests(unittest.TestCase):
                 f'PROJECT_REVISION = "{r}"\n' for r in ("base", "persona_a", "persona_b"))
             qpf.write_text(valid)
             build.verify_qpf(root)
+            qpf.write_text(valid.replace('PROJECT_REVISION = "base"\nPROJECT_REVISION = "persona_a"',
+                                        'PROJECT_REVISION = "persona_a"\nPROJECT_REVISION = "base"'))
+            build.verify_qpf(root)
             qpf.write_text(valid+'PROJECT_REVISION = "other"\n')
             with self.assertRaises(build.BuildError):
                 build.verify_qpf(root)

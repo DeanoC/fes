@@ -50,7 +50,8 @@ def verify_files(directory: Path, expected: dict[str, str]) -> None:
 
 def verify_qpf(directory: Path) -> dict:
     # Quartus writes its own date/comment header and normalizes 26.3.0 to 26.3.
-    # Those are metadata; the revision selection remains a strict input.
+    # It also moves the current revision first. Commands select -c explicitly;
+    # membership remains strict while this tool-owned order is recorded.
     source = (directory / f"{PROJECT}.qpf").read_text()
     records = []
     for line in source.splitlines():
@@ -62,7 +63,7 @@ def verify_qpf(directory: Path) -> dict:
         records.append((match[1], match[2]))
     versions = [value for key, value in records if key == "QUARTUS_VERSION"]
     revisions = [value for key, value in records if key == "PROJECT_REVISION"]
-    if versions not in (["26.3"], ["26.3.0"]) or revisions != ["base", "persona_a", "persona_b"]:
+    if versions not in (["26.3"], ["26.3.0"]) or sorted(revisions) != ["base", "persona_a", "persona_b"]:
         raise BuildError("Quartus project revision/version selection changed")
     return {"sha256": sha(source.encode()), "revisions": revisions, "version": versions[0]}
 
