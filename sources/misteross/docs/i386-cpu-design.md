@@ -430,7 +430,8 @@ Rules that follow, checked in review and against every routed critical path:
     ([#1184](https://github.com/DeanoC/fes/pull/1184)'s mapping) is the
     i386's timing reference and no new nextpnr routes run. The gap between
     the flows is a project of its own after bring-up
-    ([DeanoC/nextpnr#300](https://github.com/DeanoC/nextpnr/issues/300)).
+    ([DeanoC/fes#1235](https://github.com/DeanoC/fes/issues/1235), with
+    [DeanoC/nextpnr#300](https://github.com/DeanoC/nextpnr/issues/300)).
 
 ### The clock on each flow
 
