@@ -28,6 +28,23 @@ def run(*args, cwd=None):
 
 
 class HilPlanTest(unittest.TestCase):
+    def test_de25_linux_requires_its_own_full_image_boot_check(self):
+        planner = hil_module()
+        paths = ['image/de25-nano/build.py', 'image/de25-nano/boot.py',
+                 'image/de25-nano/vendor.lock.toml', 'image/de25-nano/rootfs/config']
+        result = planner.plan(paths, texts={})
+        self.assertEqual(result['decision'], 'FULL_IMAGE')
+        self.assertTrue(all(row['component'] == 'de25-nano-linux' for row in result['rows']))
+        self.assertEqual(planner.plan(['docs/de25-linux.md'], texts={})['decision'],
+                         'NO_DEPLOY_CHANGE')
+        for path, component in (('image/scripts/build-target-image.sh', 'image'),
+                                ('image/de25-nano-other/build.py', 'image'),
+                                ('boot-media.lock.toml', 'boot-media')):
+            with self.subTest(path=path):
+                mixed = planner.plan([*paths, path], texts={})
+                self.assertEqual(mixed['decision'], 'FULL_IMAGE')
+                self.assertEqual(mixed['rows'][-1]['component'], component)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
@@ -192,7 +209,7 @@ class HilPlanTest(unittest.TestCase):
 
     def test_ci_selection_scripts_are_none(self):
         plan = hil_module()
-        for name in ('affected', 'hil_plan', 'host_tests', 'test_changed'):
+        for name in ('affected', 'hil_plan', 'host_tests', 'test_changed', 'de25_runtime', 'de25_boot_contract'):
             path = f'scripts/{name}.py'
             with self.subTest(path=path):
                 row = plan.classify_path(path)
@@ -528,6 +545,55 @@ class HilPlanTest(unittest.TestCase):
         result = run('classify', '--paths-file',
                      self.path_file('scripts/check_deadcode.py\nimage/buildroot/config'), '--json')
         self.assertEqual(json.loads(result.stdout)['decision'], 'FULL_IMAGE')
+
+    def test_standalone_de25_bringup_has_no_deployed_consumer(self):
+        planner = hil_module()
+        paths = ['sources/mister-packages/packages/board/de25_nano.yaml',
+                 *['sources/misteross/boards/de25nano/' + name
+                   for name in ('blinky.sv', 'pins.qsf', 'clocks.sdc', 'Makefile',
+                                'test_de25nano.py', 'sim/blinky_tb.cpp')]]
+        result = planner.plan(paths, texts={})
+        self.assertEqual(result['decision'], 'NO_DEPLOY_CHANGE')
+        self.assertTrue(all(row['class'] == 'none' for row in result['rows']))
+        for path in ('sources/mister-packages/packages/board/de10_nano.yaml',
+                     'sources/mister-packages/packages/board/de25_nano_other.yaml',
+                     'sources/mister-packages/packages/platform/de25_nano.yaml',
+                     'sources/mister-packages/packages/abi/fes_application.yaml'):
+            with self.subTest(path=path):
+                self.assertEqual(planner.plan([*paths, path], texts={})['decision'], 'FULL_IMAGE')
+        for path in ('sources/misteross/boards/de10nano/pins.qsf',
+                     'sources/misteross/boards/de25nano-other/pins.qsf',
+                     'sources/misteross/boards/newboard/top.sv'):
+            with self.subTest(path=path):
+                self.assertEqual(planner.plan([*paths, path], texts={})['decision'],
+                                 'OVERLAY core:ALL')
+
+    def test_board_validation_tools_preserve_generated_consumer_requirements(self):
+        planner = hil_module()
+        paths = [
+            'sources/mister-packages/cmd/mister-packages/main.go',
+            'sources/mister-packages/internal/pack/board.go',
+            'sources/mister-packages/internal/pack/load.go',
+            'sources/mister-packages/internal/pack/board_test.go',
+            'sources/mister-packages/cmd/mister-packages/main_test.go',
+            'sources/mister-packages/packages/board/de25_nano.yaml',
+            'sources/misteross/boards/de25nano/blinky.v',
+            'sources/misteross/boards/de25nano/build.py',
+            'sources/misteross/boards/de25nano/test_build.py',
+            'sources/misteross/boards/de25nano/Makefile',
+        ]
+        result = planner.plan(paths, texts={})
+        self.assertEqual(result['decision'], 'NO_DEPLOY_CHANGE')
+        self.assertTrue(all(row['class'] == 'none' for row in result['rows']))
+        runtime_header = 'sources/libmister-runtime/src/native/generated/de10_nano.hpp'
+        self.assertEqual(planner.plan([*paths, runtime_header], texts={})['decision'],
+                         'OVERLAY mister-runtime')
+        for path in ('sources/mister-packages/packages/abi/fes_application.yaml',
+                     'sources/mister-packages/internal/pack/abi.go',
+                     'sources/mister-packages/internal/pack/other.go'):
+            with self.subTest(path=path):
+                self.assertEqual(planner.plan([*paths, path], texts={})['decision'],
+                                 'FULL_IMAGE')
 
 
     def test_two_tree_drift_forces_full_and_rename_out_of_image(self):
