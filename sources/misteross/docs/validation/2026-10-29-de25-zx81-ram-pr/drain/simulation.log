@@ -1,8 +1,0 @@
-RAM read/write/peek checked16384addresses twoaddresspatterns last7fff=1 outOfRange8000NoWrite=1
-DRAIN phase=0 postFrozenWrites=0
-DRAIN phase=1 postFrozenWrites=0
-DRAIN phase=2 postFrozenWrites=0
-DRAIN phase=3 postFrozenWrites=0
-DRAIN phase=4 postFrozenWrites=0
-DRAIN phase=5 postFrozenWrites=0
-PASS isolated RAM write/response drain
