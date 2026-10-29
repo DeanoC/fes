@@ -311,6 +311,17 @@ def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
         run([str(tools["quartus_sta"]), "-t", str(timing_script), str(output), revision,
              str(output / f"timing-{revision}")], output, f"{revision}-timing-audit.log")
         verify_files(output, before_audit)
+        if PROFILE is not None:
+            constant_script = verification / PROFILE.constant_path
+            run([str(tools["quartus_cdb"]), "-t", str(constant_script), str(output), revision,
+                 str(output / f"timing-{revision}")], output, f"{revision}-constant-audit.log")
+            verify_files(output, before_audit)
+            summaries[revision]["constant_boundary_audit"] = {
+                "scope": "source-guarded-zero-and-fitted-driven-constant-cone; no-independent-LUT-value-evaluation",
+                "script_sha256": sha(constant_script.read_bytes()),
+                "log_sha256": sha((output / f"{revision}-constant-audit.log").read_bytes()),
+                "cones_sha256": sha((output / f"timing-{revision}/constant-cones.tsv").read_bytes()),
+                "registers_sha256": sha((output / f"timing-{revision}/constant-registers.tsv").read_bytes())}
         summaries[revision]["synchronizer_audit"] = {
             "log_sha256": sha((output / f"{revision}-timing-audit.log").read_bytes()),
             "paths_sha256": sha((output / f"timing-{revision}/boundary-paths.tsv").read_bytes())}

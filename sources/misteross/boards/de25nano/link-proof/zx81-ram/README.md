@@ -30,8 +30,12 @@ without them Quartus folds empty responses and fails the PR boundary DRC.
 A same-part constant-register probe confirms the preservation semantics, and
 actual profile synthesis must report all 20 protected FFs without boundary
 inversions before fitting starts.
-The timing audit requires every live ingress bit, every RAM read/peek bit, and
-all physical replicas, while auditing any retained constant-field registers.
+The timing audit requires every live ingress bit, every RAM read/peek bit,
+RAM presence, and all physical replicas. The six constant ingress FFs receive
+separate structural records: CDB verifies their exact FF-to-IPORT-to-driven
+constant cone. Raw LUT masks and polarity flags are retained; the verifier
+does not claim an independent fitted Boolean value from uninterpreted masks.
+The numeric zero contract is checked in captured RTL and simulation.
 
 Deasserting RUNNING resets the CPU and gates expansion writes in the registered
 request. The simulation bounds the remaining writes to three edges after that
@@ -58,7 +62,7 @@ python3 proof.py --artifacts /absolute/new-build/hps/project/artifacts.json \
 
 The builder freezes all selected production sources and executes captured
 profile bytes. Real base/A/B fitting, internal five-category timing, physical
-boundary setup/hold, M20K/firmware inspection, imported-root preservation and
+boundary setup/hold, M20K/fitter-selected firmware initialization inspection, imported-root preservation and
 vendor POF0/integrity checks precede artifact composition. The standard native
 and emulated AArch64 composer retains exact opaque Quartus payload bytes.
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Independently inspect fitted memory and emitted firmware initialization."""
+"""Inspect fitted memory and its selected firmware initialization file."""
 import argparse
 import hashlib
 import importlib.util
@@ -61,7 +61,7 @@ def main():
         path = project / rom[0]["MIF"]
         actual = mif_bytes(path.read_text())
         if actual != expected: raise ValueError("fitted firmware differs from captured ZX81 bytes")
-        records[revision] = {"memories": rows, "firmware": {"bytes_checked": 8192,
+        records[revision] = {"memories": rows, "firmware": {"evidence_class": "fitter-selected-initialization-file; opaque-Agilex-RBF-not-independently-decoded", "bytes_checked": 8192,
             "sha256": hashlib.sha256(actual).hexdigest(), "mif_path": str(path.relative_to(project)),
             "mif_sha256": hashlib.sha256(path.read_bytes()).hexdigest()},
             "region_usage": build.report_table(fit, "Logic Lock Region Usage Summary")}

@@ -7,6 +7,7 @@ MISTEROSS = ROOT / "sources/misteross"
 identity = "fes.de25-zx81-empty-ram16k.v1"
 persona_names = {"a": "zx81_empty", "b": "zx81_ram16k"}
 timing_path = "sources/misteross/boards/de25nano/link-proof/zx81-ram/timing.tcl"
+constant_path = "sources/misteross/boards/de25nano/link-proof/zx81-ram/constants.tcl"
 interface = {
     "name": identity, "version": 1, "clock_hz": 100000000,
     "diagnostic": {"request": {"valid": 1, "address": 8}, "response": {"valid": 1, "data": 32},
@@ -26,7 +27,7 @@ FILES.update({name: Z80 / name for name in ("fes_z80_alu.sv", "fes_z80_engine.sv
 
 
 def source_paths():
-    return list(FILES.values()) + [HERE / name for name in ("profile.py", "personas.v", "static.v", "timing.tcl")]
+    return list(FILES.values()) + [HERE / name for name in ("profile.py", "personas.v", "static.v", "timing.tcl", "constants.tcl")]
 
 
 def replace(source, before, after, label):
