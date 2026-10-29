@@ -70,6 +70,7 @@ The independent [Zephyr reference](zephyr/README.md) owns separate tests.
 | Native Go runtime and tenfoot | QEMU CPU/RAM/time, actual 720p output and live navigation |
 | Native persistent storage | Real VirtIO reads/writes/FLUSH and FAT32 preallocated preferences across restart |
 | Native network | Real IPv4 TCP/HTTP and existing FogCast catalog service |
+| Runtime admission model | Exact-package C++ compatibility decisions gate retained payloads before software lifecycle transitions; physical activation unavailable |
 | Native package inspection | Existing FES format-2/3/4 validator reads and retains canonical archives from FAT32; no hardware admission |
 | Separate Zephyr storage reference | NVMe FAT32 mount and boot-config read |
 | Separate Zephyr TCP reference | Builds/starts; E1000 packet exchange remains unverified |
@@ -121,9 +122,13 @@ ROM linking, or connect the lifecycle model to physical programming.
 Steps 1–5 now have a combined emulator path, including an xHCI USB boot keyboard. The separate
 [runtime-owned lifecycle model](tamago/fabricmodel/README.md) now tests command
 ordering, generations and failure retention without programming hardware.
-Next work is the Nano board/firmware adapter and binding the production runtime
-to proven board resources. Hardware addresses and
-DMA/interrupt contracts must be verified against the delivered board revision.
+The [package admission diagnostic](tamago/README.md#runtime-admission-of-verified-packages)
+now binds exact-package compatibility decisions from the production runtime to
+retained bytes and full identity before model transitions. Next hardware-independent
+work is retained ROM linking and activation receipts; physical integration still
+needs the Nano board/firmware adapter and runtime checks against proven board
+resources. Hardware addresses and DMA/interrupt contracts must be verified against
+the delivered board revision.
 
 No emulator result supplies physical boot, HDMI, USB-host, SD-card, PHY or
 FPGA reconfiguration acceptance. Hardware arrival should enable those adapter

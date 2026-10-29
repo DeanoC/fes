@@ -146,3 +146,64 @@ validated, but linking and their activation receipts are not implemented here.
 The native FAT reader currently limits individual files to 64 MiB, below the
 shared 65 MiB archive cap. Maximum-size memory/latency behavior is unqualified.
 No FPGA is programmed and tenfoot Play remains unavailable.
+
+## Runtime admission of verified packages
+
+`run.py admission` connects retained archives to the software fabric lifecycle.
+It builds a host-only [oracle](../runtime/admission_oracle.cpp) from the existing
+runtime's `OpenCorePackage` and `CheckCoreCompatibility` implementation. This
+keeps profile/ABI pairings and interface semantics in their current owner,
+libmister-runtime. The helper constructs no physical backend. Its restricted
+model-driver snapshot uses generated runtime contract identities, and its
+per-package decisions bind the exact verified package ID. The oracle binary
+hash identifies the policy producer in the receipt.
+
+```sh
+python3 platform/embedded/tamago/run.py admission \
+  --compiler out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go \
+  --qemu out/de25-os-tools/zephyr-sdk-0.17.4/sysroots/x86_64-pokysdk-linux/usr/bin/qemu-system-aarch64 \
+  --output out/native-runtime-admission
+```
+
+The runner also needs a host C++14 compiler. It records compiler, oracle,
+compiler-reported source/header dependencies, native ELF and FAT32 hashes.
+It downloads nothing and refuses an existing disk. `RUNTIME.JSON` is a trusted,
+runner-owned **test input**, not an authenticated admission receipt. Editing it
+cannot authorize physical programming: this gate has only `LoadModel` and
+accepts only the explicit `qemu-model-only` scope. A production backend must
+perform its own runtime-owned checks against retained bytes and live hardware.
+The C++ checker itself has not been ported into native Go.
+
+The native gate checks the expected package ID, target, programming profile,
+ABI, required interfaces and exact-package compatibility decision before calling
+`Controller.Load`. Missing policy or decisions fail closed. Successful loads
+copy the retained payload into the software model and bind the complete package,
+core, ABI version and build identity to the identify/release sequence. Rejection
+leaves the current core, input generation and prepared display frame intact.
+An accepted replacement still saves the old owner and waits for its frame to
+finish; identity failure recovers to idle before release.
+
+The diagnostic runs all eleven structurally valid shared corpus entries plus
+six compatibility cases: missing mandatory gamepad, newer ABI, diagnostic-only
+profile, unknown required interface, unknown optional interface, and an invalid
+optional persistence declaration. The last case requires the C++ semantic check;
+matching required capabilities alone would miss it. An unknown optional extension
+can pass. Default/absent policy, absent exact-package decisions and wrong expected
+IDs are also rejected without changing ownership. A full build-identity mismatch
+exercises recovery to idle.
+
+This backend models only simple-game 1.0 with gamepad and fixed video, with a
+1 MiB payload bound. It deliberately rejects format-3/4 activation because it
+cannot supply linked ROM receipts. Existing DE10-Nano corpus targets remain
+DE10-Nano targets; none become DE25-compatible. Production driver resolution,
+HPS DDR layout, native display composition and physical lifecycle checks remain
+outside this prototype. There is no FPGA programming, live identity proof,
+physical hardware acceptance or tenfoot Play support.
+
+The same corpus can run on the host with the race detector after a native run:
+
+```sh
+FES_ADMISSION_FIXTURES="$PWD/out/native-runtime-admission/package-fixtures" \
+  GOWORK=off go -C platform/embedded/tamago test -race \
+  ./runtimeadmission ./admissioncheck ./fabricmodel
+```

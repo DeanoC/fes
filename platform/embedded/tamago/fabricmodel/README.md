@@ -3,8 +3,12 @@
 This is an executable specification for the runtime-owned boundary of the
 Linux-free experiment. It runs as ordinary Go tests and as `cmd/fabric` on
 native AArch64 QEMU. It does not program an FPGA, validate a production FES
-package, implement FES GP, or grant real DMA memory. Its `model.*` images contain
-software-only bytes and a separate identity domain; they are not RBFs.
+package, implement FES GP, or grant real DMA memory. Its `model.*` images are
+software endpoint inputs, never a physical programming path. The separate
+[runtime admission gate](../runtimeadmission/admission.go) can now supply a
+verified package's retained payload to this model. Its full package/core/ABI/build
+binding is compared during simulated identity verification and published only
+after release. Echoing that binding in software is not live GP identity proof.
 
 The existing production [runtime](../../../../sources/libmister-runtime/ARCHITECTURE.md)
 remains authoritative. A board implementation must preserve its admission,

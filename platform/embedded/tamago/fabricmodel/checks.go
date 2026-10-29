@@ -9,7 +9,7 @@ import (
 
 func sampleImage(id string, idle bool) *Image {
 	data := []byte("software model only: " + id)
-	image, err := Prepare(id, data, sha256.Sum256(data), Identity{1, 1, uint64(len(data))}, idle)
+	image, err := Prepare(id, data, sha256.Sum256(data), Identity{ABI: 1, Core: 1, Build: uint64(len(data))}, idle)
 	if err != nil {
 		panic(err)
 	}
@@ -110,13 +110,13 @@ func RunChecks(report func(string, error)) int {
 			before := c.Status()
 			data := []byte("retained model core")
 			sum := sha256.Sum256(data)
-			if _, err = Prepare("model.bad", data, [32]byte{}, Identity{1, 2, 3}, false); err == nil {
+			if _, err = Prepare("model.bad", data, [32]byte{}, Identity{ABI: 1, Core: 2, Build: 3}, false); err == nil {
 				return errors.New("bad digest admitted")
 			}
 			if c.Status() != before {
 				return errors.New("failed admission changed owner")
 			}
-			im, err := Prepare("model.retained", data, sum, Identity{1, 2, 3}, false)
+			im, err := Prepare("model.retained", data, sum, Identity{ABI: 1, Core: 2, Build: 3}, false)
 			if err != nil {
 				return err
 			}

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 // Package fabricmodel is an executable specification of the embedded runtime
-// ownership boundary. It is not a hardware driver or FES package loader. Its
-// model images cannot be used as RBFs. A caller issues each returned command
+// ownership boundary. It is not a hardware driver or physical package loader. All
+// programming and identity observations remain software simulations. A caller issues each returned command
 // once, then supplies its completion; polling never repeats a command.
 package fabricmodel
 
@@ -24,9 +24,17 @@ var (
 
 // Identity belongs only to this software model; it is not a FES GP ABI.
 type Identity struct {
-	ABI   uint16
-	Core  uint32
-	Build uint64
+	ABI     uint16
+	Core    uint32
+	Build   uint64
+	Package PackageIdentity
+}
+
+// PackageIdentity binds a software observation to the complete verified FES
+// identity. It is not a physical GP response or a shortened build identifier.
+type PackageIdentity struct {
+	PackageID, CoreID, ABI, BuildID string
+	Major, Minor                    uint16
 }
 
 // Image keeps an immutable copy of admitted model bytes. Preparing an image
@@ -109,6 +117,7 @@ type Status struct {
 	DisplayGeneration uint64
 	InputEnabled      bool
 	LastError         string
+	Package           PackageIdentity
 }
 
 type transition struct {
@@ -342,7 +351,7 @@ func (c *Controller) Complete(token Token, result Completion, now time.Duration)
 		c.generation++
 		c.displayGeneration++
 		c.active = c.pending.target
-		c.status = Status{State: Running, ImageID: c.active.id, CoreGeneration: c.generation, DisplayGeneration: c.displayGeneration, InputEnabled: true}
+		c.status = Status{State: Running, ImageID: c.active.id, CoreGeneration: c.generation, DisplayGeneration: c.displayGeneration, InputEnabled: true, Package: c.active.identity.Package}
 		if c.active.idle {
 			c.status.State = Idle
 			c.status.CoreGeneration = 0
