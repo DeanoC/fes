@@ -248,7 +248,12 @@ or TS yet: MOV to CR0, LMSW and the ESC instructions are not built.
   it. POP m reads the stack's slot into T1 without moving ESP, stores T1 to
   the operand, whose address registers DC kept beside the stack uop's
   (`m_*`), then pops into nothing to step ESP, so a store that faults leaves
-  ESP as the 386EX does. POP m with 32-bit addressing is not built.
+  ESP as the 386EX does. A 32-bit address that reads ESP, as a base or as
+  the 386EX's scaled base of an invalid SIB, reads it after the pop, which
+  has not happened yet. The store waits for T1, so every older uop has
+  retired and ESP is the register file's: D adds the operand size, scaled
+  as ESP is, to the store's displacement (`esp_adj`), less 10000h so scaled
+  (`esp_wrap`) when a 16-bit stack's SP wraps from its top slot to 0.
 
 **Strings and ENTER** run on the string engine, as the design's string
 sequencer describes. While one runs, D keeps copies of the next source and

@@ -279,6 +279,8 @@ module fes_i386_cpu (
     assign dc_q.m_base = am_base;
     assign dc_q.m_has_index = am_has_index && !q_direct;
     assign dc_q.m_scale = am_scale;
+    assign dc_q.esp_adj = 6'd0;
+    assign dc_q.esp_wrap = 4'd0;
     assign dc_q.length = q.length;
     assign dc_q.seq = q_seq;
     assign dc_q.step = 3'd0;
@@ -499,9 +501,19 @@ module fes_i386_cpu (
     // wrapped by address size.
     // The interrupt vector's entry is at vector * 4 (far_sel), its selector
     // at + 2.
+    // POP m's store through ESP reads ESP after the pop, which has not
+    // moved it: the store waits for T1, so every older uop has retired and
+    // ESP is the register file's. The displacement gains the operand size,
+    // scaled as ESP is (esp_adj), less 10000h so scaled (esp_wrap) when a
+    // 16-bit stack's SP wraps, which it does only from the top slot, since
+    // a slot past FFFFh faults first.
+    logic        sp_wraps;
+    logic [31:0] disp_add;
+    assign sp_wraps = !ss32 && (dc.opsize32 ? &gpr[4][15:2] : &gpr[4][15:1]);
+    assign disp_add = dc.sel_part ? st_size : {sp_wraps ? -{12'd0, dc.esp_wrap} : 16'd0, 10'd0, dc.esp_adj};
     assign lea_disp = dc.uop.mem.system ? {16'b0, dc.far_sel[15:2], dc.sel_part, 1'b0}
-                    : !dc.sel_part ? dc.lea_disp
-                    : dc.uop.mem.addr32 ? dc.lea_disp + st_size : {16'b0, dc.lea_disp[15:0] + st_size[15:0]};
+                    : !dc.sel_part && dc.esp_adj == 6'd0 ? dc.lea_disp
+                    : dc.uop.mem.addr32 ? dc.lea_disp + disp_add : {16'b0, dc.lea_disp[15:0] + disp_add[15:0]};
     assign consumes = dc.consumes;
     assign reads_seg = dc.reads_seg;
     assign seg_index = dc.seg_index;

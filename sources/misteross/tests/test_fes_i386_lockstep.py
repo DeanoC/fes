@@ -33,11 +33,11 @@ class ScopeTest(unittest.TestCase):
                      '66CF', '87', '6694', 'A0', '67A3', 'D6', 'D7', 'FF.2', 'FF.6', '8F', '668F',
                      'F6.4', '66F7.5', '67F6.6', 'F7.7', '0FAF', '6669', '6B', 'D4', 'D5', 'A4', '67A5', '6766AF', 'C8',
                      '66C8', 'E4', '66E5', 'EE', '6C', '666D', '676F', '0FBA.4', '670FBA.7', '660FBC', '0FBD',
-                     '0FA3', '670FAB', '660FB3', '67660FBB', '62', '676662', '0F06', '9B'):
+                     '0FA3', '670FAB', '660FB3', '67660FBB', '62', '676662', '0F06', '9B', '678F', '67668F'):
             with self.subTest(stem=stem):
                 self.assertTrue(lockstep.in_scope(stem))
-        # DAA, LOADALL; BT's group /0 to /3; POP m with 32-bit addressing
-        for stem in ('27', '0F07', '0FBA.0', '0FBA.3', '678F', '67668F'):
+        # DAA, LOADALL; BT's group /0 to /3
+        for stem in ('27', '0F07', '0FBA.0', '0FBA.3'):
             with self.subTest(stem=stem):
                 self.assertFalse(lockstep.in_scope(stem))
 

@@ -55,7 +55,9 @@
 //   SEQ_POPM   (POP m): the stack's slot into T1, ESP unmoved; T1 stored to
 //              the operand (its address fields restored from m_*); a pop
 //              into nothing, which steps ESP. A store that faults so leaves
-//              ESP as it was, as the 386EX does.
+//              ESP as it was, as the 386EX does. An address that reads ESP
+//              reads it after the pop, which D adds to the store's
+//              displacement (esp_adj, esp_wrap).
 //   SEQ_BTM    (BT, BTS, BTR, BTC m, r): the bit number's address
 //              displacement into T1 (ALU_BITDISP, DC's); T1 plus the
 //              operand's displacement into T1; the bit test at the operand's
@@ -227,6 +229,8 @@ module fes_i386_seq (
         n.b_t1 = 1'b0;
         n.disp_t1 = 1'b0;
         n.popad_esp = 1'b0;
+        n.esp_adj = 6'd0;
+        n.esp_wrap = 4'd0;
         n.str_load = 1'b0;
         n.str_a = 1'b0;
         n.str_b = 1'b0;
@@ -498,6 +502,12 @@ module fes_i386_seq (
                     n.base = d.m_base;
                     n.has_index = d.m_has_index;
                     n.scale = d.m_scale;
+                    // ESP as a base, or scaled as the 386EX scales an
+                    // invalid SIB's base (the index slot, index 4).
+                    if (d.m_has_base && d.m_base == 3'd4 || d.m_has_index && d.index == 3'd4) begin
+                        n.esp_wrap = 4'd1 << (d.m_has_index && d.index == 3'd4 ? d.m_scale : 2'd0);
+                        n.esp_adj = (d.opsize32 ? 6'd4 : 6'd2) << (d.m_has_index && d.index == 3'd4 ? d.m_scale : 2'd0);
+                    end
                     n.b_t1 = 1'b1;
                     n.more = 1'b1;
                 end else begin
