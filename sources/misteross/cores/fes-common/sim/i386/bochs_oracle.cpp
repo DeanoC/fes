@@ -22,8 +22,10 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <functional>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 #if BX_CPU_LEVEL != 3 || !BX_SUPPORT_FPU || BX_SUPPORT_SMP || BX_SUPPORT_X86_64 || !BX_X86_DEBUGGER
 #error "the FES i386 oracle requires Bochs configured by scripts/fes_i386_oracle.py"
@@ -45,8 +47,10 @@ struct StepContext {
     bool delivery_pending = false;  // exception()/HW event awaiting interrupt()
     bool nmi_requested = false;
     bool rep_string = false;  // the instruction being executed is a REP string op
+    unsigned iterations = 0;  // REP string iterations the step has run
 };
 StepContext context;
+std::function<void(unsigned)> iteration_hook;
 
 bool is_prefix(uint8_t b) {
     switch (b) {
@@ -230,6 +234,14 @@ void fes_bx_after_execution(bxInstruction_c *) {
     stop_at_next_boundary();
 }
 
+void fes_bx_repeat_iteration(bxInstruction_c *) {
+    // Bochs then steps the count and, unless that was the last iteration,
+    // stops between iterations for a pending event the hook raised.
+    if (!context.result) return;
+    ++context.iterations;
+    if (iteration_hook) iteration_hook(context.iterations);
+}
+
 void fes_bx_exception(unsigned vector, unsigned error_code) {
     if (!context.result) return;
     context.result->events.push_back({fes_i386::EventKind::Exception, uint8_t(vector), error_code,
@@ -377,6 +389,7 @@ public:
         context.result = &result;
         context.boundary_event = false;
         context.delivery_pending = false;
+        context.iterations = 0;
         bx_pc_system.kill_bochs_request = 0;
         bx_cpu.async_event |= 1;  // evaluate boundary events before fetching
         try {
@@ -399,6 +412,8 @@ public:
         context.nmi_requested = true;
         bx_cpu.deliver_NMI();
     }
+
+    void set_iteration_hook(std::function<void(unsigned)> hook) override { iteration_hook = std::move(hook); }
 
     void set_a20(bool enabled) override {
         bx_pc_system.enable_a20 = enabled;

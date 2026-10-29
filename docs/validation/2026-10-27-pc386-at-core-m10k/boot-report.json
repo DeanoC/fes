@@ -115,6 +115,21 @@
     "port1_commands": 19736774,
     "port2_commands": 2760557
   },
+  "marks": {},
+  "opl2": {
+    "samples": 213780,
+    "exact": 213780,
+    "nonzero": 0,
+    "writes": 0
+  },
+  "opl2_mismatch": null,
+  "audio_samples": 206401,
+  "sb": {
+    "resets": 0,
+    "commands": 0,
+    "dma": 0,
+    "irqs": 0
+  },
   "command": [
     "build/sim/fes-pc386/machine/obj/Vpc386_machine",
     "--bios",

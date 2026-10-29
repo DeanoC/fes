@@ -232,6 +232,7 @@ module fes_i386_seq (
         n.uop.st2 = 1'b0;
         n.uop.rep_stop = 2'd0;
         n.uop.io = 2'd0;
+        n.uop.iret = 1'b0;
         // The rewritten fields, from the first uop.
         n.uop.sp_write = d0.uop.sp_write;
         n.uop.cls = d0.uop.cls;
@@ -370,6 +371,7 @@ module fes_i386_seq (
                 n.uop.flags = '{read: '{oszap: w.rd_oszap, cf: w.rd_cf}, write: '{oszap: w.wr_oszap, cf: w.wr_cf}};
                 n.uop.ctl.end_of_instruction = w.last;
                 n.uop.ctl.fault = fes_i386_pkg::FAULT_NONE;
+                n.uop.iret = w.iret;
                 n.stk = w.stk;
                 n.slot = w.slot;
                 n.sel_part = w.sel_part;
