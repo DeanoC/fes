@@ -19,7 +19,9 @@ dirty-map checks now cover two map words, and the benches pass. This is a
   [#1147](https://github.com/DeanoC/fes/pull/1147)). Every run here used that
   commit, and the synthesis summary's source digests are its files. The
   baseline for the boot is main at `eea51e94e0`, the flip-flop memories, run
-  the same day with the same inputs. Issue
+  on 29 October with the same inputs. Every run here is from 29 October,
+  after main was merged in; the record's first version measured `59c1713d6e`
+  on 27 October. Issue
   [#1152](https://github.com/DeanoC/fes/issues/1152).
 - Firmware, the FreeDOS image, the oracle, Verilator and the DDR model as in
   the [M2 record](../2026-10-26-pc386-m2-vga/summary.md#inputs).
