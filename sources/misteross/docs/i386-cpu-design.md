@@ -426,6 +426,11 @@ Rules that follow, checked in review and against every routed critical path:
     this fit remains an oracle/check until that path lands ([#1112](https://github.com/DeanoC/fes/pull/1112)).
     An RTL cut is worth making when it lifts the Quartus figure too; a gap
     that only nextpnr shows belongs to the flow and goes to its fork.
+    From the memory path on, until the CPU works, Quartus at its best
+    ([#1184](https://github.com/DeanoC/fes/pull/1184)'s mapping) is the
+    i386's timing reference and no new nextpnr routes run. The gap between
+    the flows is a project of its own after bring-up
+    ([DeanoC/nextpnr#300](https://github.com/DeanoC/nextpnr/issues/300)).
 
 ### The clock on each flow
 
@@ -439,15 +444,20 @@ the same RTL input; #1115, #1141 and #1143 use Yosys `238eac9a49`.
 | After the D cut ([#1124](https://github.com/DeanoC/fes/pull/1124), [record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-25-i386-d-cut.md)) | 68.6–74.6 MHz | 100.4–103.3 MHz | EX on nextpnr; Q on Quartus |
 | After the second EX cut ([#1127](https://github.com/DeanoC/fes/pull/1127), [record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-ex-cut2.md)) | 71.8–83.3 MHz | 102.8–106.1 MHz | D or Q on nextpnr; Q on Quartus |
 | Earlier near-stack slice after its review fix ([#1141](https://github.com/DeanoC/fes/pull/1141), [record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-stack.md#the-review-fix-routed-and-on-the-netlist)) | 68.89, 70.38, 74.12, 68.02 MHz | 103.69, 99.80, 99.44, 102.13 MHz | AG, DC, Q, Q on nextpnr; Q on every Quartus seed |
-| Current far-transfer slice ([#1143](https://github.com/DeanoC/fes/pull/1143), [record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-far.md#result)) | 69.43, 70.48, 74.40, 70.34 MHz | 103.73, 98.34, 100.78, 104.47 MHz | D, Q, DC, DC on nextpnr; Q on every Quartus seed |
+| Far-transfer slice ([#1143](https://github.com/DeanoC/fes/pull/1143), [record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-far.md#result)) | 69.43, 70.48, 74.40, 70.34 MHz | 103.73, 98.34, 100.78, 104.47 MHz | D, Q, DC, DC on nextpnr; Q on every Quartus seed |
+| Memory path, slice 1 ([#1230](https://github.com/DeanoC/fes/pull/1230), [record](validation/2026-10-28-i386-memory-path.md#quartus)); Quartus with #1184's mapping at 120 MHz | 47.50, 48.70, 48.51, 48.40 MHz | 99.85, 100.76, 99.59, 101.19 MHz | D, D, MEM, MEM on nextpnr; EX, Q, F1, Q on Quartus |
 
-- **Current nextpnr result:** the four seeds average 71.2 MHz. D limits seed 1,
+- **Far-transfer nextpnr result:** the four seeds average 71.2 MHz. D limits seed 1,
   Q seed 2, and DC seeds 3 and 4.
-- **Current Quartus result:** the four seeds average 101.8 MHz; every seed is
+- **Far-transfer Quartus result:** the four seeds average 101.8 MHz; every seed is
   Q-limited. Seed 2 is 98.34 MHz and the other three are above 100 MHz.
-- **The current routed clock** is 69.43–74.40 MHz on nextpnr, not the
-  historical 62.6–64.8 MHz #1115 result. About 80 MHz remains a target. The
-  place-and-route gap remains tracked as
+- **The memory path's Quartus result:** slice 1 averages 100.3 MHz, against
+  102.2 for its base fitted the same way. Q limits two seeds, EX one, and
+  the L1I's hit select into F1 one. Its nextpnr routes average 48.3 MHz,
+  against the base's 61.5: wire, which Quartus does not show.
+- **The last nextpnr clock before the memory path** is 69.43–74.40 MHz, the
+  far-transfer slice's, not the historical 62.6–64.8 MHz #1115 result. About
+  80 MHz remains a target. The place-and-route gap remains tracked as
   [DeanoC/nextpnr#300](https://github.com/DeanoC/nextpnr/issues/300).
 
 The area budget is in [budgets](#budgets).
@@ -1009,7 +1019,7 @@ updates hold the L2's DMA port between their read and their write.
 ### Memory slices
 
 Phase 1 builds the memory path in slices, each with its RTL and netlist
-lockstep, the FreeDOS boot on the RTL CPU and a routed record:
+lockstep, the FreeDOS boot on the RTL CPU and a record timed with Quartus:
 
 1. **L1I, L1D and the bus interface on port 0**
    ([record](validation/2026-10-28-i386-memory-path.md)): both L1s as above,
@@ -1022,14 +1032,15 @@ lockstep, the FreeDOS boot on the RTL CPU and a routed record:
 3. **L2**: 128 KiB between the L1s and port 0, DMA and FLUSH through it, a
    CPU reset that keeps it; write-buffer forwarding to a missing load.
 4. **The kit's line fills**: the DDR check above through the CPU path on
-   both kits, and whatever the routes then ask of F2's hit path (a registered
+   both kits, and whatever Quartus then asks of F2's hit path (a registered
    hit, as M2's), and critical word first.
-5. **The freeze's distribution and the memory system's placement**: slice
-   1 routes 13 MHz below its base on wire, every stage alike
-   ([record](validation/2026-10-28-i386-memory-path.md#routes)); measured
-   first, then copies of the freeze register per region or a placement that
-   keeps the L1s and the bus interface out of the pipeline's path.
-6. **TLBs and paging** come with Phase 5.
+5. **TLBs and paging** come with Phase 5.
+
+Slice 1's nextpnr routes are 13 MHz below its base, on wire, every stage
+alike. Quartus fits it within 2 MHz of its base
+([record](validation/2026-10-28-i386-memory-path.md#quartus)). So the freeze's
+distribution and the memory system's placement belong to the nextpnr project
+after bring-up, not to a memory slice.
 
 ## Execute
 
