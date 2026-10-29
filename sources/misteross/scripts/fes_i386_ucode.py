@@ -36,7 +36,7 @@ FIELDS: tuple[tuple[str, int], ...] = (
     ('mkind', 2), ('mbytes', 2), ('in_a', 1), ('stk', 3), ('slot', 4), ('ivt', 1), ('sel_part', 1),
     ('probe', 1), ('b', 2), ('seg', 3),
     ('far_jmp', 1), ('far_chk', 1), ('far_t', 1), ('sp_add', 1), ('sp_step', 1), ('a_t1', 1), ('popad_esp', 1),
-    ('rd_cf', 1), ('rd_oszap', 1), ('wr_cf', 1), ('wr_oszap', 1),
+    ('rd_cf', 1), ('rd_oszap', 1), ('wr_cf', 1), ('wr_oszap', 1), ('iret', 1),
 )
 WIDTH = sum(width for _, width in FIELDS)
 

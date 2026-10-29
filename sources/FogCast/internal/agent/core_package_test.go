@@ -153,7 +153,7 @@ func TestCoordinatorPublishesCustomGenerationAndCapabilitiesAfterSuccess(t *test
 	runtime := &packageRuntime{fakeRuntime: fakeRuntime{health: protocol.Health{Ready: true}}, attempted: true,
 		activation: misterruntime.CoreActivation{
 			PackageID:  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-			Descriptor: corepackage.Descriptor{ABI: corepackage.Contract{ID: "fes.simple-game", Major: 1}, Build: corepackage.Build{ID: "0123456789abcdef0123456789abcdef"}},
+			Descriptor: corepackage.Descriptor{Core: corepackage.Core{ID: "fes.pong"}, ABI: corepackage.Contract{ID: "fes.simple-game", Major: 1}, Build: corepackage.Build{ID: "0123456789abcdef0123456789abcdef"}},
 			Generation: 7, ObservedCore: "fes.pong", Gamepad: true,
 			ActiveInterfaces: []misterruntime.Protocol2Interface{{ID: "fes.gamepad", Major: 1}},
 		},
@@ -163,7 +163,7 @@ func TestCoordinatorPublishesCustomGenerationAndCapabilitiesAfterSuccess(t *test
 	if apiErr != nil || status.State != protocol.StateActive || !status.Development || status.CorePackage == nil {
 		t.Fatalf("status=%#v err=%#v", status, apiErr)
 	}
-	if status.CorePackage.PackageID != runtime.activation.PackageID || status.CorePackage.Generation != 7 ||
+	if status.CorePackage.PackageID != runtime.activation.PackageID || status.CorePackage.CoreID != "fes.pong" || status.CorePackage.Generation != 7 ||
 		!status.CorePackage.Gamepad || status.ObservedCore == nil || *status.ObservedCore != "fes.pong" {
 		t.Fatalf("core package status=%#v", status.CorePackage)
 	}

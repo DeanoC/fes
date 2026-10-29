@@ -1,8 +1,10 @@
 package hostclient
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -50,6 +52,10 @@ func TestSessionDisplayCapabilityNeedsObservedVersionAndIdentity(t *testing.T) {
 func TestCapturedDisplayOpUsesOriginalTargetAndLosslessGeneration(t *testing.T) {
 	prior := displaySessionFixture()
 	var sent []protocol.SessionDisplayRequest
+	var logs bytes.Buffer
+	originalLogger := log.Writer()
+	log.SetOutput(&logs)
+	t.Cleanup(func() { log.SetOutput(originalLogger) })
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost || r.URL.Path != "/api/v1/session/display" {
 			t.Error("display request reread foreground or changed endpoint")
@@ -89,6 +95,15 @@ func TestCapturedDisplayOpUsesOriginalTargetAndLosslessGeneration(t *testing.T) 
 	for i, request := range sent {
 		if got, ok := request.Display(); !ok || got != want[i] {
 			t.Fatalf("display mutation %d: %+v", i, request)
+		}
+	}
+	for _, payload := range []string{
+		`payload={"visible":true,"focus":"machine"}`,
+		`payload={"visible":true}`,
+		`payload={"visible":false}`,
+	} {
+		if !strings.Contains(logs.String(), payload) {
+			t.Fatalf("display POST payload not logged: missing %s in %q", payload, logs.String())
 		}
 	}
 }

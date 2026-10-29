@@ -9,7 +9,9 @@
 //   and JCXZ; PUSH and POP of a register, an immediate or a segment register,
 //   RET and RET imm16, LEAVE, JMP r/m and CALL rel; XCHG, MOV to and from
 //   a direct offset, XLAT and SALC; PUSH, POP and CALL of r/m; MUL, IMUL
-//   (all three forms), DIV, IDIV, AAM and AAD;
+//   (all three forms), DIV, IDIV, AAM and AAD; IN and OUT; the first uops of
+//   MOVS, CMPS, STOS, LODS, SCAS, INS, OUTS and ENTER (fes_i386_seq builds
+//   the rest);
 // with a ModRM memory operand where they take one. The memory operand is a
 // load (src2, or src1 for CMP and TEST), a store, or both in one uop
 // (read-modify-write), and replaces the register it stands for: no GPR is
@@ -47,7 +49,7 @@ module fes_i386_decode (
     output logic [2:0]             stk,         // a stack operation (fes_i386_pkg STK_*)
     output logic                   push_eip,    // src2 is the next instruction's EIP
     output logic                   cs_base,     // src1 is CS's base (EX adds the target)
-    output logic [3:0]             seq,         // a fixed uop sequence (fes_i386_pkg SEQ_*, fes_i386_seq)
+    output logic [4:0]             seq,         // a fixed uop sequence (fes_i386_pkg SEQ_*, fes_i386_seq)
     output logic                   sel_part,    // the uop reads a far pointer's selector
     output logic                   far_jmp,     // a far jump by far_sel:imm
     output logic                   far_chk,     // ... whose offset (imm) D checks against CS's limit
@@ -57,7 +59,10 @@ module fes_i386_decode (
     output logic                   direct,      // the memory operand has no base or index: a moffs, the vector's entry
     output logic                   xlat,        // ... is XLAT's [BX + AL]
     output logic [2:0]             m_seg,       // the ModRM operand's segment, apart from a stack uop's SS
-    output logic [3:0]             slot         // STK_PEEK: the stack slot, -8 to 7, from ESP
+    output logic [3:0]             slot,        // STK_PEEK: the stack slot, -8 to 7, from ESP
+    output logic [2:0]             str_op,      // SEQ_STRING: the instruction (fes_i386_pkg str_e)
+    output logic [1:0]             str_rep,     // ... its REP prefix (rep_e)
+    output logic [4:0]             ecnt         // SEQ_ENTER: the nesting level, mod 32
 );
     typedef fes_i386_pkg::uop_t uop_t;
 
@@ -158,6 +163,9 @@ module fes_i386_decode (
     logic        m_in_a;    // the memory operand stands for src1 (and the destination), else src2
     logic [2:0]  mbytes;    // the access's bytes, when not the operation's size
     logic        lockable;  // LOCK is valid on the memory form
+    logic        strop;     // a string instruction: no ModRM, DS:ESI and ES:EDI (SEQ_STRING)
+    logic        enter;     // ENTER: src1 is ESP, read for the string engine's copies
+    logic [1:0]  io;        // an I/O access at WB (fes_i386_pkg io_e)
 
     localparam logic [2:0] C_ALU = 3'd0, C_SHIFT = 3'd1, C_MUL = 3'd2, C_DIV = 3'd3, C_BRANCH = 3'd4, C_SEGMENT = 3'd5,
                            C_SPECIAL = 3'd7;
@@ -213,6 +221,12 @@ module fes_i386_decode (
         m_in_a = 1'b0;
         mbytes = 3'd0;  // by size
         lockable = 1'b0;
+        strop = 1'b0;
+        enter = 1'b0;
+        io = 2'd0;
+        str_op = 3'd0;
+        str_rep = 2'd0;
+        ecnt = 5'd0;
         stk = fes_i386_pkg::STK_NONE;
         push_eip = 1'b0;
         cs_base = 1'b0;
@@ -683,6 +697,71 @@ module fes_i386_decode (
                     s2_valid = 1'b1;
                     d_valid = 1'b1;
                 end
+                8'b1010010?, 8'b1010011?, 8'b1010101?, 8'b1010110?, 8'b1010111?, 8'b011011??: begin
+                    // MOVS (A4h, A5h), CMPS (A6h, A7h), STOS (AAh, ABh),
+                    // LODS (ACh, ADh), SCAS (AEh, AFh), INS (6Ch, 6Dh), OUTS
+                    // (6Eh, 6Fh) (SEQ_STRING). This uop starts the
+                    // instruction, a NOP that reads ESI and EDI (where the
+                    // instruction uses them) and, under REP, ECX, for D's
+                    // copies; fes_i386_seq builds the elements from it, at
+                    // its size, address size and source segment. REP, F2h or
+                    // F3h, repeats; for CMPS and SCAS F3h is REPE and F2h
+                    // REPNE. INS stores at ES:EDI as STOS does, OUTS loads
+                    // seg:ESI as LODS does, each from or to port DX.
+                    cls = C_SPECIAL;
+                    op = 5'd0;  // SPECIAL_NOP
+                    size = b0[0] ? osz : 2'd0;
+                    strop = 1'b1;
+                    str_op = b0[7:2] == 6'b011011 ? (b0[1] ? 3'(fes_i386_pkg::STR_OUTS) : 3'(fes_i386_pkg::STR_INS))
+                           : b0[3:1] == 3'b010 ? 3'(fes_i386_pkg::STR_MOVS)
+                           : b0[3:1] == 3'b011 ? 3'(fes_i386_pkg::STR_CMPS)
+                           : b0[3:1] == 3'b101 ? 3'(fes_i386_pkg::STR_STOS)
+                           : b0[3:1] == 3'b110 ? 3'(fes_i386_pkg::STR_LODS) : 3'(fes_i386_pkg::STR_SCAS);
+                    str_rep = q.prefixes.rep;
+                    // ESI: MOVS, CMPS, LODS, OUTS; EDI: all but LODS and OUTS.
+                    s1_valid = b0[7:2] == 6'b011011 ? b0[1] : b0[3:1] != 3'b101 && b0[3:1] != 3'b111;
+                    s1_idx = 3'd6;
+                    s2_valid = b0[7:2] == 6'b011011 ? !b0[1] : b0[3:1] != 3'b110;
+                    s2_idx = 3'd7;
+                    count_cl = q.prefixes.rep != 2'd0;
+                    seq = fes_i386_pkg::SEQ_STRING;
+                    eoi = 1'b0;
+                end
+                8'b1110?1??: begin
+                    // IN AL/eAX, imm8 (E4h, E5h) or DX (ECh, EDh); OUT imm8 or
+                    // DX, AL/eAX (E6h, E7h, EEh, EFh): an I/O access at WB.
+                    // IN merges the port's data into eAX at WB; OUT sends
+                    // eAX. The port is DX (src2) or the imm8.
+                    op = 5'd9;  // ALU_MOV
+                    size = b0[0] ? osz : 2'd0;
+                    io = b0[1] ? 2'(fes_i386_pkg::IO_OUT) : 2'(fes_i386_pkg::IO_IN);
+                    s1_valid = 1'b1;
+                    s1_idx = 3'd0;
+                    d_valid = !b0[1];
+                    d_idx = 3'd0;
+                    s2_valid = b0[3];
+                    s2_idx = 3'd2;
+                    imm = {24'b0, by[1]};
+                end
+                8'hc8: begin
+                    // ENTER imm16, imm8 (SEQ_ENTER): the push of EBP, at
+                    // SS:ESP less the size, ESP unmoved. It reads ESP as
+                    // src1 for the string engine's copies; imm carries the
+                    // final ESP's step past the engine's last push slot, the
+                    // size less imm16.
+                    op = 5'd9;  // ALU_MOV
+                    enter = 1'b1;
+                    s2_valid = 1'b1;
+                    s2_idx = 3'd5;
+                    m_in_a = 1'b1;
+                    mkind = 2'd2;
+                    stk = fes_i386_pkg::STK_PEEK;
+                    slot = 4'hf;
+                    imm = (osz32 ? 32'd4 : 32'd2) - {16'b0, by[2], by[1]};
+                    ecnt = by[3][4:0];
+                    seq = fes_i386_pkg::SEQ_ENTER;
+                    eoi = 1'b0;
+                end
                 8'hd6: begin
                     // SALC: AL from CF, as SBB AL, AL writing no flags
                     op = 5'd3;  // ALU_SBB
@@ -1109,6 +1188,10 @@ module fes_i386_decode (
                 s2_hi8 = 1'b0;
             end
         end
+        if (enter) begin
+            s1_valid = 1'b1;
+            s1_idx = 3'd4;
+        end
     end
 
     // ---- The address's displacement ---------------------------------------------
@@ -1147,6 +1230,15 @@ module fes_i386_decode (
     assign far_sel = ivt || eoi_taken ? {6'd0, vec, 2'b00} : osz32 ? {by[6], by[5]} : {by[4], by[3]};
     assign u.probe = probe;
     assign u.eoi_taken = eoi_taken;
+    // A string's elements and their steps come from fes_i386_seq.
+    assign u.str_si = 1'b0;
+    assign u.str_di = 1'b0;
+    assign u.str_cx = 1'b0;
+    assign u.str_down = 1'b0;
+    assign u.st2 = 1'b0;
+    assign u.rep_stop = 2'd0;
+    assign u.io = io;
+    assign u.iret = 1'b0;
     assign u.sp_add = 1'b0;
     assign u.sp_write = stk != fes_i386_pkg::STK_NONE && stk != fes_i386_pkg::STK_PEEK && stk != fes_i386_pkg::STK_PROBE;
     assign u.cls = fes_i386_pkg::uop_class_e'(cls);
@@ -1169,9 +1261,9 @@ module fes_i386_decode (
     assign u.imm = imm;
     assign u.mem.kind = fes_i386_pkg::mem_kind_e'(mkind);
     assign u.mem.bytes = mbytes != 3'd0 ? 4'(mbytes) : size == 2'd0 ? 4'd1 : size == 2'd1 ? 4'd2 : 4'd4;
-    // A direct offset or XLAT's [BX + AL] has no BP base, whatever byte 1
-    // looks like as a ModRM.
-    assign direct = ivt || moffs;
+    // A direct offset, XLAT's [BX + AL] or a string's ESI and EDI has no BP
+    // base, whatever byte 1 looks like as a ModRM.
+    assign direct = ivt || moffs || strop;
     assign m_seg = q.prefixes.seg_valid ? q.prefixes.seg
                  : stack && !direct && !xlat ? 3'(fes_i386_pkg::SEG_SS) : 3'(fes_i386_pkg::SEG_DS);
     assign u.mem.seg = stk != fes_i386_pkg::STK_NONE ? fes_i386_pkg::SEG_SS : fes_i386_pkg::seg_e'(m_seg);

@@ -173,7 +173,8 @@ class FitTests(unittest.TestCase):
 
 
 class BootSelectionTests(unittest.TestCase):
-    def inspect_fixture(self, directory, selected="board-good", include_tree=True, after_verify=None):
+    def inspect_fixture(self, directory, selected="board-good", include_tree=True, after_verify=None,
+                        script_data=None, uboot_environment=None):
         tree = fdt(node(properties=[("model", b"SoCFPGA Agilex5 Terasic DE25-Nano\0"),
                                     ("compatible", b"intel,socfpga-agilex5\0")], children=[
             node("aliases", [("serial0", b"/soc@0/serial@10c02100\0"),
@@ -181,14 +182,18 @@ class BootSelectionTests(unittest.TestCase):
             node("soc@0", children=[node("serial@10c02100", [("reg", word(0x10c02100) + word(256))]),
                                     node("ethernet@10810000", [("reg", word(0x10810000) + word(256))])])]))
         (directory / "socfpga_agilex5_de25_nano.dtb").write_bytes(tree)
-        script = (b'bridge enable;\nsetenv bootargs "console=ttyS0,115200 root=${mmcroot} rw rootwait";\n'
-                  b'fatload mmc 0:1 ${fdt_addr_r} socfpga_agilex5_de25_nano.dtb;\n'
-                  b'booti ${kernel_addr_r} - ${fdt_addr_r};\n')
+        if script_data is None:
+            script_data = (b'bridge enable;\nsetenv bootargs "console=ttyS0,115200 root=${mmcroot} rw rootwait";\n'
+                           b'fatload mmc 0:1 ${fdt_addr_r} socfpga_agilex5_de25_nano.dtb;\n'
+                           b'booti ${kernel_addr_r} - ${fdt_addr_r};\n')
+        script = script_data
         script_image = image("script", script)
         script_image[1][0] = ("type", b"script\0")
         (directory / "boot.scr.uimg").write_bytes(fdt(node(children=[
             node("images", [("default", b"script\0")], [script_image])])))
-        images = [image("atf", b"trusted firmware"), image("uboot", b"mmcroot=/dev/mmcblk0p2\0")]
+        if uboot_environment is None:
+            uboot_environment = b"mmcroot=/dev/mmcblk0p2\0"
+        images = [image("atf", b"trusted firmware"), image("uboot", uboot_environment)]
         if include_tree:
             images.append(image("fdt-0", tree))
         roles = [("firmware", b"atf\0"), ("loadables", b"uboot\0"), ("fdt", b"fdt-0\0")]
@@ -232,6 +237,31 @@ class BootSelectionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary, self.assertRaisesRegex(
                 ValueError, "decoded boot bytes differ from lock: u-boot.itb"):
             self.inspect_fixture(Path(temporary), after_verify=replace_unused_configuration)
+
+    def test_rejects_later_bridge_and_bootargs_overrides(self):
+        valid_script = (b'bridge enable;\nsetenv bootargs "console=ttyS0,115200 root=${mmcroot} rw rootwait";\n'
+                        b'fatload mmc 0:1 ${fdt_addr_r} socfpga_agilex5_de25_nano.dtb;\n'
+                        b'booti ${kernel_addr_r} - ${fdt_addr_r};\n')
+        invalid_scripts = [
+            valid_script + b"bridge disable;\n",
+            valid_script + b'setenv bootargs "console=ttyS0,115200 root=/dev/mmcblk0p1 rw rootwait";\n',
+            valid_script.replace(b"bridge enable;", b"not-bridge enable;"),
+        ]
+        for script_data in invalid_scripts:
+            with self.subTest(script=script_data), tempfile.TemporaryDirectory() as temporary, \
+                    self.assertRaisesRegex(ValueError, "pinned boot script contract differs"):
+                self.inspect_fixture(Path(temporary), script_data=script_data)
+
+    def test_requires_one_exact_uboot_root_variable(self):
+        invalid_environments = [
+            b"oldmmcroot=/dev/mmcblk0p2\0",
+            b"mmcroot=/dev/mmcblk0p2\0mmcroot=/dev/mmcblk0p1\0",
+            b"mmcroot=/dev/mmcblk0p1\0",
+        ]
+        for environment in invalid_environments:
+            with self.subTest(environment=environment), tempfile.TemporaryDirectory() as temporary, \
+                    self.assertRaisesRegex(ValueError, "U-Boot root-device environment differs"):
+                self.inspect_fixture(Path(temporary), uboot_environment=environment)
 
 
 class HpsReceiptTests(unittest.TestCase):
