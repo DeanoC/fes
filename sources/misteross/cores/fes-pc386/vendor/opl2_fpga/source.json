@@ -1,0 +1,138 @@
+{
+  "repository": "https://github.com/gtaylormb/opl2_fpga_MiSTer",
+  "commit": "451e5b0b23c961666a60619a057ee5842664a5a9",
+  "license": "LGPL-3.0-or-later",
+  "description": "The MiSTer port of opl2_fpga (https://github.com/gtaylormb/opl2_fpga), the YM3812 cut of opl3_fpga. Only the synthesis core under channels is vendored; the host interface, clock divider, timers and LEDs are replaced by cores/fes-pc386/rtl/pc386_opl2.sv.",
+  "reference": "Nuked-OPL3 765ec962e473aeb767e4cba74ffdc8f588ffbfe8 in OPL2 mode, default build (sample-exact; scripts/sim_fes_pc386.py --suite opl2)",
+  "local_changes": [
+    "calc_envelope_shift.sv: EG_INC_STEP packed in the order its [rate_lo][eg_timer_lo] index reads; upstream had rows and bits reversed, which gave rates 12-14 the wrong step.",
+    "calc_phase_inc.sv: Vibrato offset added to the f-number before the block shift and multiplier, as Nuked-OPL3 does, instead of to the phase increment.",
+    "calc_rhythm_phase.sv: Noise LFSR as Nuked-OPL3's 23-bit Fibonacci register stepping once per operator slot (36 per sample); top-cymbal phase latched only in rhythm mode.",
+    "channels.sv: Channels 6-8 mix their second operator from the previous sample (Nuked-OPL3 OPL_QUIRK_CHANNELSAMPLEDELAY); channel sums are no longer doubled, so the output has Nuked-OPL3's scale.",
+    "control_operators.sv: NTS is latched per channel when its A0h-A8h or B0h-B8h register is written, which is when Nuked-OPL3 derives the key scale value.",
+    "envelope_generator.sv: The AM bit is pipelined to stage 2 with the operator; upstream read the register memory there, which by then shows the next operator.",
+    "operator.sv: In rhythm mode a drum operator is keyed by its drum bit OR its channel key-on, as Nuked-OPL3 ORs the two key sources.",
+    "opl2_pkg.sv: INSTANTIATE_SAMPLE_DAC_CDC = 0: the sample stays in the machine clock domain; the mixer resamples it.",
+    "phase_generator.sv: Key-on resets the phase accumulator to this sample's increment, not zero, as Nuked-OPL3 resets then adds.",
+    "tremolo.sv: Tremolo rewritten to Nuked-OPL3's: position 0-209 stepping every 64 samples, depth shift 2 or 4, value for the next sample computed after the last operator.",
+    "vibrato.sv: Vibrato rewritten to Nuked-OPL3's: eight positions stepping every 1024 samples, giving a signed f-number offset."
+  ],
+  "files": [
+    {
+      "path": "COPYING.LESSER",
+      "upstream_path": "COPYING.LESSER",
+      "sha256": "da7eabb7bafdf7d3ae5e9f223aa5bdc1eece45ac569dc21b3b037520b4464768"
+    },
+    {
+      "path": "calc_envelope_shift.sv",
+      "upstream_path": "src/calc_envelope_shift.sv",
+      "sha256": "5c1d3e0b6442b5579aac8a7c1fb8cbf5b5cb02b6db66d73a88cf70fa0b7ee064",
+      "upstream_sha256": "9ac8e66697d4dda48f60a76c63ee115716eacd99a28484ee5310255dfaf30741"
+    },
+    {
+      "path": "calc_phase_inc.sv",
+      "upstream_path": "src/calc_phase_inc.sv",
+      "sha256": "c3fd37a32e7950f1d392f2faad6212e82c88f5b8dea1a1bca576fa27be6630eb",
+      "upstream_sha256": "4fbbe4d957d235b8f5b1ac03b1ca76f776062cc80401204e3da2cb22576f753f"
+    },
+    {
+      "path": "calc_rhythm_phase.sv",
+      "upstream_path": "src/calc_rhythm_phase.sv",
+      "sha256": "2d1d1d55a70bbb7b2d6ebb6a425867eb0333f8cffcb138a31b41698a46bcfcc5",
+      "upstream_sha256": "212ad04f77933d2d5254d8ce902ac431c2415fb69aa2ff30c5b5938f043ecf36"
+    },
+    {
+      "path": "channels.sv",
+      "upstream_path": "src/channels.sv",
+      "sha256": "118e1814436a8f4b574155a3f83c3a4b87b124bb8ed7af7010b1d485191ce4ae",
+      "upstream_sha256": "fb739d78ad69eb407f27cdbe451957d8ca478909dff0991ce98138aec085a378"
+    },
+    {
+      "path": "control_operators.sv",
+      "upstream_path": "src/control_operators.sv",
+      "sha256": "ca66204f005e03452f7706f58cefecabfbdb6976d8fc5e158a560b1f1a9ed9da",
+      "upstream_sha256": "b1fdf7de931f3cf5502d1441949a0a61c406ffaffc4af394f17600dc5fb035ca"
+    },
+    {
+      "path": "dac_prep.sv",
+      "upstream_path": "src/dac_prep.sv",
+      "sha256": "d135293b56505c9bcd1c4154616d73ba66a467bd4a1c9cd12a6abaf56714c252"
+    },
+    {
+      "path": "envelope_generator.sv",
+      "upstream_path": "src/envelope_generator.sv",
+      "sha256": "568588355b7179863224b474c29b388d33e8081beeaaa7b01f6bddf1c6045e14",
+      "upstream_sha256": "bb69d72c35a3a6f4aa6e4bee91e0c8a3bd6b4254691bbf003b91a517a7394b7e"
+    },
+    {
+      "path": "ksl_add_rom.sv",
+      "upstream_path": "src/ksl_add_rom.sv",
+      "sha256": "f091b66fa79a3ae9850403c8ae7646ecef8a66a443fd719eb696fb0bb5eb717f"
+    },
+    {
+      "path": "mem_simple_dual_port.sv",
+      "upstream_path": "src/mem_simple_dual_port.sv",
+      "sha256": "fc0d0995f1083dd70532ecef3be963c90b52d83f73a3fe257a276fcb4d9817a0"
+    },
+    {
+      "path": "mem_simple_dual_port_async_read.sv",
+      "upstream_path": "src/mem_simple_dual_port_async_read.sv",
+      "sha256": "d5a6346e04979f8560cca680ee5648b358a1dd7ca6736a56c19801d1486713d4"
+    },
+    {
+      "path": "mem_single_bank.sv",
+      "upstream_path": "src/mem_single_bank.sv",
+      "sha256": "e8a70ba17fd0e708ea3b35ae739c64ff970064b79310b921bbadeb8917c9dea7"
+    },
+    {
+      "path": "mem_single_bank_reset.sv",
+      "upstream_path": "src/mem_single_bank_reset.sv",
+      "sha256": "eda3334f0a8ddcdb2ae6789b29031a2a7abd3074174c78d4e53cd7212664e7c2"
+    },
+    {
+      "path": "operator.sv",
+      "upstream_path": "src/operator.sv",
+      "sha256": "b1fc81fade73f8e779f1b05f2502182567a510a85118c3a2b380594423f45722",
+      "upstream_sha256": "5c2a441756d2c4186af187460d334d9acb6d0f8b7b31396aac2d050e0ae83d79"
+    },
+    {
+      "path": "opl2_exp_lut.sv",
+      "upstream_path": "src/opl2_exp_lut.sv",
+      "sha256": "368d149c853e494931141e957d3786ea54a5b46d8291e8783234ae13ccb44291"
+    },
+    {
+      "path": "opl2_log_sine_lut.sv",
+      "upstream_path": "src/opl2_log_sine_lut.sv",
+      "sha256": "5a0304073db431076ddc53864f2038600221a5b1e7110797c503ce6a56a93250"
+    },
+    {
+      "path": "opl2_pkg.sv",
+      "upstream_path": "src/opl2_pkg.sv",
+      "sha256": "18fdd374ee0416ee7914eec2df2a0e5052e0c4916b444e0426c86d56ec4e43e5",
+      "upstream_sha256": "de4578787a2e73bdf867c19df2eee256fccdd5ebebda46cc183efa4bfa513472"
+    },
+    {
+      "path": "phase_generator.sv",
+      "upstream_path": "src/phase_generator.sv",
+      "sha256": "72b31c6dc825e01cde66f14305781df4c5a975c042ef5c6b568985a8e4586908",
+      "upstream_sha256": "adf9ba1892ad71a07bf2d80ad7c8c117a4a16f5421efa48d89bf374289b1ca3f"
+    },
+    {
+      "path": "pipeline_sr.sv",
+      "upstream_path": "src/pipeline_sr.sv",
+      "sha256": "2b7d2b87b14644f45b354e2b8137054f85e86aabe1cf535b5036e74465e3af41"
+    },
+    {
+      "path": "tremolo.sv",
+      "upstream_path": "src/tremolo.sv",
+      "sha256": "6c7afcc694ad272155e0a812051d984b59115c4e4ea67bb76ac72ef6d53ac534",
+      "upstream_sha256": "4ea265e99ad0ada71f994b7cf0436cfb38290ca91ec7040f2b2d4cee1f14f71e"
+    },
+    {
+      "path": "vibrato.sv",
+      "upstream_path": "src/vibrato.sv",
+      "sha256": "2d3c26c2a3c7184877194d857ad6ff03fd41d42b06d38b0c977d14a562f1e577",
+      "upstream_sha256": "cbf03f893dfafab8e4d9fd7a853491dfef4d27982e002a9c6ebcf4cbc8122f00"
+    }
+  ]
+}

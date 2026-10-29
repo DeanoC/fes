@@ -654,7 +654,8 @@ func launcherExpansionSelectionPath(path string) bool {
 }
 
 func launcherLiveMutation(method, path string) bool {
-	return method == http.MethodPost && (path == "/api/v1/session/display" || path == "/api/v1/session/live-media" || path == "/api/v1/session/live-media/clear")
+	return method == http.MethodPost && (path == "/api/v1/session/display" || path == "/api/v1/session/live-media" ||
+		path == "/api/v1/session/live-media/clear" || path == "/api/v1/session/cartridge")
 }
 
 func launcherTapeImportPath(path string) bool {

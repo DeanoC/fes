@@ -281,6 +281,8 @@ module fes_i386_cpu (
     assign dc_q.far_t = 1'b0;
     assign dc_q.a_t1 = 1'b0;
     assign dc_q.b_t1 = 1'b0;
+    assign dc_q.disp_t1 = 1'b0;
+    assign dc_q.t_rd = 1'b0;
     assign dc_q.popad_esp = 1'b0;
     // The string engine's first uop loads D's copies; the rest are
     // fes_i386_seq's.
@@ -472,7 +474,7 @@ module fes_i386_cpu (
     assign far_sel = dc.far_t ? t0 : dc.far_sel;
     assign far_off = dc.far_t ? t1 : dc.uop.imm;
     assign far_bad = dc.far_chk && !code32 && far_off[31:16] != 16'd0;
-    assign t_wait = (dc.far_t || dc.a_t1 || dc.b_t1) && t_busy;
+    assign t_wait = dc.t_rd && t_busy;
     always_comb begin
         u = dc.uop;
         if (stk != fes_i386_pkg::STK_NONE) u.mem.addr32 = ss32;
@@ -857,8 +859,9 @@ module fes_i386_cpu (
             ag_late <= late;
             ag_late_hi <= late_hi;
             // A string engine uop has no address registers: its offset is
-            // the displacement.
-            ag_disp <= dc.far_jmp ? far_off : dc.str_a || dc.str_b || dc.str_fin ? str_off
+            // the displacement. A bit test's displacement is T1 (disp_t1,
+            // far_off with far_t).
+            ag_disp <= dc.far_jmp || dc.disp_t1 ? far_off : dc.str_a || dc.str_b || dc.str_fin ? str_off
                      : stk != fes_i386_pkg::STK_NONE ? st_disp : lea_disp;
             ag_seg_term <= dc.far_jmp ? {12'd0, far_sel, 4'd0} : lea || dc.uop.mem.system ? 32'd0
                          : u.mem.addr32 ? seg_base[mseg] : {16'b0, seg_base[mseg][15:0]};
@@ -1077,8 +1080,8 @@ module fes_i386_cpu (
     // and a flush only kills uops younger than WB, which have not. A shift
     // in WB still owes its flags (wb_flags): ex_flags lacks them for that
     // cycle, which no flag reader sees (flag_hazard), and takes them at its
-    // end. A faulting uop changes nothing in EX (fes_i386_ex), so an
-    // exception's delivery starts from the flags before it.
+    // end. A normal faulting uop changes no flags in EX; a divide error is
+    // raised after the multiply/divide unit's flags reach this running copy.
     logic [17:0] ex_flags_out, wb_flags, flags_keep;
     logic [31:0] ex_result;
     logic [31:0] md_result, md_hi;

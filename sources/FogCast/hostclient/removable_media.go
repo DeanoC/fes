@@ -33,16 +33,48 @@ func RemovableMediaCapable(p *SessionCorePackage) bool {
 	return ok || LiveMediaCapable(p)
 }
 
+func spectrumSnapshotsCapable(p *SessionCorePackage) bool {
+	if p == nil {
+		return false
+	}
+	for _, i := range p.ActiveInterfaces {
+		if i.ID == protocol.SpectrumSnapshotInterfaceID && i.Major == 1 && i.Minor == 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// spectrumDiskCapable reports an active unit-1 Spectrum disk beside the
+// cassette; the host converts .trd and .scl images for a TR-DOS drive and
+// .dsk images for a +3 drive, and refuses one for the other.
+func spectrumDiskCapable(p *SessionCorePackage) bool {
+	if p == nil {
+		return false
+	}
+	u, ok := protocol.MediaUnit(sessionPackageStatus(p), protocol.SpectrumDiskUnit)
+	return ok && u.Interface == protocol.SpectrumDiskInterface()
+}
+
 // AdmitRemovableMedia applies the active unit's format and observed size
 // limits. A Spectrum tape image is converted to the unit's PZX stream on
-// insert, so it is bounded as an image and the host checks the stream.
+// insert, and a snapshot to its restore stream, so each is bounded as an
+// image and the host checks the stream and whether the package runs it. A
+// Spectrum disk goes to the unit-1 disk beside the cassette; without that
+// unit a .dsk is an Apple II disk.
 func AdmitRemovableMedia(p *SessionCorePackage, name string, size int64) bool {
+	if protocol.AdmitSpectrumDiskName(name) && (spectrumDiskCapable(p) || !protocol.AdmitComputerDiskName(name)) {
+		return spectrumDiskCapable(p) && protocol.AdmitSpectrumDiskSize(size)
+	}
 	u, ok := RemovableMediaUnit(p)
 	if !ok {
 		return LiveMediaCapable(p) && protocol.AdmitTapeMediaName(name) && protocol.AdmitTapeMediaSize(size)
 	}
 	if u.Interface == protocol.SpectrumTapeInterface() {
-		return protocol.AdmitSpectrumTapeName(name) && protocol.AdmitSpectrumTapeSize(size)
+		if protocol.AdmitSpectrumSnapshotName(name) && !spectrumSnapshotsCapable(p) {
+			return false
+		}
+		return protocol.AdmitSpectrumCassetteName(name) && protocol.AdmitSpectrumTapeSize(size)
 	}
 	if size < int64(u.MinBytes) || size > int64(u.MaxBytes) {
 		return false
@@ -58,6 +90,31 @@ func AdmitRemovableMedia(p *SessionCorePackage, name string, size int64) bool {
 		return protocol.AdmitAtariStFloppyName(name) && protocol.AdmitAtariStFloppySize(size)
 	}
 	return false
+}
+
+// RemovableMediaRequestError is the pre-dispatch refusal for the active unit.
+// A C64 disk session must not be told it needs a ZX81 .p tape. The refusal
+// happens before the host is asked to change media.
+func RemovableMediaRequestError(p *SessionCorePackage, name string) *protocol.APIError {
+	var err *protocol.APIError
+	switch {
+	case protocol.AdmitSpectrumDiskName(name) && spectrumDiskCapable(p):
+		err = protocol.SpectrumDiskRequestError()
+	default:
+		if u, ok := RemovableMediaUnit(p); ok {
+			switch u.Interface {
+			case protocol.Apple2FloppyInterface(), protocol.C64DiskInterface(), protocol.AtariStFloppyInterface():
+				err = protocol.DiskMediaRequestError()
+			case protocol.SpectrumTapeInterface():
+				err = protocol.CassetteMediaRequestError()
+			}
+		}
+		if err == nil {
+			err = protocol.LiveMediaRequestError()
+		}
+	}
+	err.NoChange = true
+	return err
 }
 
 func removableMediaBinding(s SessionResult) (protocol.DevelopmentMediaBinding, error) {
@@ -84,7 +141,7 @@ func (c *Client) ReplaceRemovableMediaForSession(ctx context.Context, prior Sess
 		size = int64(u.MinBytes)
 	}
 	if protocol.ValidateDigest(mediaID) != nil || !AdmitRemovableMedia(prior.CorePackage, name, size) {
-		return SessionResult{}, protocol.LiveMediaRequestError()
+		return SessionResult{}, RemovableMediaRequestError(prior.CorePackage, name)
 	}
 	payload, err := json.Marshal(protocol.LiveMediaRequest{MediaID: mediaID, Name: name})
 	if err != nil {
@@ -101,8 +158,12 @@ func (c *Client) ClearRemovableMediaForSession(ctx context.Context, prior Sessio
 	return c.postRemovableMedia(ctx, prior, "/api/v1/session/live-media/clear", http.NoBody, 0, prior.ID, b)
 }
 
+// liveMediaTimeout bounds a media change on a running kit, including a
+// cartridge relaunch.
+const liveMediaTimeout = 450 * time.Second
+
 func (c *Client) postRemovableMedia(ctx context.Context, prior SessionResult, path string, body io.Reader, length int64, sessionID string, b protocol.DevelopmentMediaBinding) (SessionResult, error) {
-	ctx, cancel := context.WithTimeout(ctx, 450*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, liveMediaTimeout)
 	defer cancel()
 	transport := *c.HTTPClient()
 	transport.Timeout = 0

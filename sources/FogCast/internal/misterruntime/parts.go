@@ -155,13 +155,10 @@ func clonePartsComposition(c *expansion.PartsComposition) *expansion.PartsCompos
 	return &copy
 }
 
-func romLinkedPartsLayout(layout string) bool {
-	switch layout {
-	case expansion.AtariStVideoLayout, expansion.ColecoNativeVideoLayout, expansion.ColecoVideoLayout:
-		return true
-	default:
-		return false
-	}
+// colecoROMPartsLayout is a Coleco video layout, linked with the format-4
+// BIOS and cartridge. Format-3 ROM parts are the ST raster shell only.
+func colecoROMPartsLayout(layout string) bool {
+	return layout == expansion.ColecoNativeVideoLayout || layout == expansion.ColecoVideoLayout
 }
 
 // ROM parts reuse the existing composed-ROM operation and its separate source
@@ -170,14 +167,14 @@ type protocol2ROMPartsCompositionControl interface {
 	LoadROMPartsComposedCore(context.Context, string, string, []PartPath, string, expansion.PartsComposition, string, corepackage.ROMLinkIdentity) (Protocol2Response, error)
 }
 
-func (client *Client) LoadROMPartsComposedCore(ctx context.Context, path, id string, parts []PartPath, payload string, c expansion.PartsComposition, programmed string, link corepackage.ROMLinkIdentity) (Protocol2Response, error) {
-	return client.LoadROMPartsComposedCoreWithInitialMedia(ctx, path, id, parts, payload, c, programmed, link, nil)
+// ROM-links parts send the parts tuple with the two-source receipt on the same
+// composed-ROM operation. An older daemon rejects the pairing before load.
+type protocol2ROMLinksPartsCompositionControl interface {
+	LoadROMLinksPartsComposedCore(context.Context, string, string, []PartPath, string, expansion.PartsComposition, string, corepackage.ROMLinksIdentity) (Protocol2Response, error)
 }
-func (client *Client) LoadROMPartsComposedCoreWithInitialMedia(ctx context.Context, path, id string, parts []PartPath, payload string, c expansion.PartsComposition, programmed string, link corepackage.ROMLinkIdentity, initial *InitialMediaRequest) (Protocol2Response, error) {
-	if !validInitialMediaRequest(initial) {
-		return Protocol2Response{}, errInvalidRuntimeRequest
-	}
-	if !validRuntimePath(path) || !validRuntimePath(payload) || !validRuntimePath(programmed) || !validPartsComposition(c, id) || len(parts) != len(c.Parts) || !romLinkedPartsLayout(c.Layout) || !protocol2Identifier.MatchString(link.ROMID) || !link.ValidFor(corepackage.Descriptor{Format: 3, ROM: &corepackage.ROM{ID: link.ROMID, SHA256: link.MapSHA256, SourceSize: link.SourceSize}}) {
+
+func (client *Client) LoadROMLinksPartsComposedCore(ctx context.Context, path, id string, parts []PartPath, payload string, c expansion.PartsComposition, programmed string, links corepackage.ROMLinksIdentity) (Protocol2Response, error) {
+	if !validRuntimePath(path) || !validRuntimePath(payload) || !validRuntimePath(programmed) || !validPartsComposition(c, id) || len(parts) != len(c.Parts) || !colecoROMPartsLayout(c.Layout) || !validROMLinksRequest(links) {
 		return Protocol2Response{}, errInvalidRuntimeRequest
 	}
 	for i, p := range parts {
@@ -193,17 +190,65 @@ func (client *Client) LoadROMPartsComposedCoreWithInitialMedia(ctx context.Conte
 		return Protocol2Response{}, protocol2MutationError{error: errInvalidRuntimeResponse, attempted: false}
 	}
 	line, attempted, err := client.callRawTracked(ctx, struct {
-		InitialMedia   *InitialMediaRequest        `json:"initial_media,omitempty"`
-		Protocol       int                         `json:"protocol"`
-		Operation      string                      `json:"operation"`
-		PackagePath    string                      `json:"package_path"`
-		PackageID      string                      `json:"package_id"`
-		Parts          []PartPath                  `json:"parts"`
-		PayloadPath    string                      `json:"payload_path"`
-		Composition    expansion.PartsComposition  `json:"composition"`
-		ProgrammedPath string                      `json:"programmed_path"`
-		ROMLink        corepackage.ROMLinkIdentity `json:"rom_link"`
-	}{initial, 2, "load_rom_composed_core", path, id, parts, payload, c, programmed, link})
+		Protocol       int                          `json:"protocol"`
+		Operation      string                       `json:"operation"`
+		PackagePath    string                       `json:"package_path"`
+		PackageID      string                       `json:"package_id"`
+		Parts          []PartPath                   `json:"parts"`
+		PayloadPath    string                       `json:"payload_path"`
+		Composition    expansion.PartsComposition   `json:"composition"`
+		ProgrammedPath string                       `json:"programmed_path"`
+		ROMLinks       corepackage.ROMLinksIdentity `json:"rom_links"`
+	}{2, "load_rom_composed_core", path, id, parts, payload, c, programmed, links})
+	if err != nil {
+		return Protocol2Response{}, protocol2MutationError{error: err, attempted: attempted}
+	}
+	response, err := decodeProtocol2Response(line)
+	if err == nil && response.OK {
+		if response.State != "running_development" || response.Execution != "development" || response.ActivePackage == nil || response.ActivePackage.PackageID != id || !reflect.DeepEqual(response.ActivePackage.PartsComposition, &c) || !reflect.DeepEqual(response.ActivePackage.ROMLinks, &links) || response.ActivePackage.ROMLink != nil || response.ActivePackage.Composition != nil || response.ActivePackage.SlotComposition != nil || response.InspectedPackage != nil {
+			err = errInvalidRuntimeResponse
+		}
+	}
+	if err != nil {
+		return Protocol2Response{}, protocol2MutationError{error: err, attempted: true}
+	}
+	return response, nil
+}
+
+func (client *Client) LoadROMPartsComposedCore(ctx context.Context, path, id string, parts []PartPath, payload string, c expansion.PartsComposition, programmed string, link corepackage.ROMLinkIdentity) (Protocol2Response, error) {
+	return client.LoadROMPartsComposedCoreWithInitialMedia(ctx, path, id, parts, payload, c, programmed, link, nil)
+}
+func (client *Client) LoadROMPartsComposedCoreWithInitialMedia(ctx context.Context, path, id string, parts []PartPath, payload string, c expansion.PartsComposition, programmed string, link corepackage.ROMLinkIdentity, initial *InitialMediaRequest) (Protocol2Response, error) {
+	if !validInitialMediaRequest(initial) {
+		return Protocol2Response{}, errInvalidRuntimeRequest
+	}
+	if !validRuntimePath(path) || !validRuntimePath(payload) || !validRuntimePath(programmed) || !validPartsComposition(c, id) || len(parts) != len(c.Parts) || c.Layout != expansion.AtariStVideoLayout || !protocol2Identifier.MatchString(link.ROMID) || !link.ValidFor(corepackage.Descriptor{Format: 3, ROM: &corepackage.ROM{ID: link.ROMID, Role: link.Role, SHA256: link.MapSHA256, SourceSize: link.SourceSize}}) {
+		return Protocol2Response{}, errInvalidRuntimeRequest
+	}
+	for i, p := range parts {
+		if p.Role != c.Parts[i].Role || !validRuntimePath(p.Path) {
+			return Protocol2Response{}, errInvalidRuntimeRequest
+		}
+	}
+	before, err := client.Protocol2Status(ctx)
+	if err != nil {
+		return Protocol2Response{}, protocol2MutationError{error: err, attempted: false}
+	}
+	if before.Capabilities.ROMLinking != 1 {
+		return Protocol2Response{}, protocol2MutationError{error: errInvalidRuntimeResponse, attempted: false}
+	}
+	line, attempted, err := client.callRawTracked(ctx, struct {
+		InitialMedia   *InitialMediaRequest       `json:"initial_media,omitempty"`
+		Protocol       int                        `json:"protocol"`
+		Operation      string                     `json:"operation"`
+		PackagePath    string                     `json:"package_path"`
+		PackageID      string                     `json:"package_id"`
+		Parts          []PartPath                 `json:"parts"`
+		PayloadPath    string                     `json:"payload_path"`
+		Composition    expansion.PartsComposition `json:"composition"`
+		ProgrammedPath string                     `json:"programmed_path"`
+		ROMLink        protocol2ROMLink           `json:"rom_link"`
+	}{initial, 2, "load_rom_composed_core", path, id, parts, payload, c, programmed, protocol2ROMLinkFromIdentity(link)})
 	if err != nil {
 		return Protocol2Response{}, protocol2MutationError{error: err, attempted: attempted}
 	}

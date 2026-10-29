@@ -62,6 +62,79 @@ func TestRemovableMediaBoundsSpectrumTapeImages(t *testing.T) {
 	}
 }
 
+func TestRemovableMediaOffersSnapshotsOnlyWhenPackageSupportsThem(t *testing.T) {
+	p := removableSession(protocol.SpectrumTapeInterface(), uint32(protocol.SpectrumTapeMinBytes), uint32(protocol.SpectrumTapeMaxBytes)).CorePackage
+	for _, name := range []string{"game.z80", "game.sna", "game.szx"} {
+		if AdmitRemovableMedia(p, name, 1) {
+			t.Errorf("tape-only package admitted %s", name)
+		}
+	}
+	if !AdmitRemovableMedia(p, "game.tap", 1) {
+		t.Fatal("tape-only package refused a TAP image")
+	}
+	p.ActiveInterfaces = append(p.ActiveInterfaces, SessionCoreInterface{ID: protocol.SpectrumSnapshotInterfaceID, Major: 1})
+	for _, name := range []string{"game.z80", "game.sna", "game.szx"} {
+		if !AdmitRemovableMedia(p, name, 1) {
+			t.Errorf("snapshot-capable package refused %s", name)
+		}
+	}
+}
+
+// A Pentagon's TR-DOS or a +3's disk sits on unit 1 beside the cassette;
+// .trd, .scl and .dsk images go there only while that unit is active.
+func TestRemovableMediaOffersTrdosDisksOnTheDiskUnit(t *testing.T) {
+	s := removableSession(protocol.SpectrumTapeInterface(), uint32(protocol.SpectrumTapeMinBytes), uint32(protocol.SpectrumTapeMaxBytes))
+	p := s.CorePackage
+	if AdmitRemovableMedia(p, "game.trd", 655360) {
+		t.Fatal("TR-DOS disk admitted without a disk unit")
+	}
+	disk := protocol.SpectrumDiskInterface()
+	p.ActiveInterfaces = append(p.ActiveInterfaces, SessionCoreInterface{ID: disk.ID, Major: disk.Major, Minor: disk.Minor})
+	p.MediaUnits = append(p.MediaUnits, protocol.MediaUnitStatus{Unit: protocol.SpectrumDiskUnit, Interface: disk,
+		MinBytes: uint32(protocol.SpectrumDiskMinBytes), MaxBytes: uint32(protocol.SpectrumDiskMaxBytes), ChunkBytes: 512, State: "empty"})
+	for _, name := range []string{"game.trd", "game.scl"} {
+		if !AdmitRemovableMedia(p, name, 655360) || !AdmitRemovableMedia(p, name, protocol.SpectrumDiskImageMaxBytes) {
+			t.Fatalf("%s refused", name)
+		}
+	}
+	if AdmitRemovableMedia(p, "game.trd", protocol.SpectrumDiskImageMaxBytes+1) || !AdmitRemovableMedia(p, "game.tzx", 1) {
+		t.Fatal("disk bound or cassette admission wrong")
+	}
+	// A +3's .dsk goes to the same unit; the host checks the system.
+	if !AdmitRemovableMedia(p, "game.dsk", 655360) {
+		t.Fatal("+3 disk refused on the disk unit")
+	}
+}
+
+// Without a Spectrum disk unit a .dsk stays an Apple II disk.
+func TestRemovableMediaKeepsAppleDisksOffTheSpectrumUnit(t *testing.T) {
+	apple := removableSession(protocol.Apple2FloppyInterface(), 143360, 143360)
+	if !AdmitRemovableMedia(apple.CorePackage, "game.dsk", 143360) {
+		t.Fatal("Apple II .dsk refused")
+	}
+	tape := removableSession(protocol.SpectrumTapeInterface(), uint32(protocol.SpectrumTapeMinBytes), uint32(protocol.SpectrumTapeMaxBytes))
+	if AdmitRemovableMedia(tape.CorePackage, "game.dsk", 143360) {
+		t.Fatal(".dsk admitted on a tape-only Spectrum")
+	}
+}
+
+func TestC64DiskRejectionDoesNotUseZX81TapeWording(t *testing.T) {
+	prior := removableSession(protocol.C64DiskInterface(), 174848, 174848)
+	client := NewClient("http://127.0.0.1:1", nil)
+	_, err := client.ReplaceRemovableMediaForSession(context.Background(), prior, strings.Repeat("b", 64), "tape.p")
+	if err == nil || strings.Contains(err.Error(), ".p/.P") || !strings.Contains(err.Error(), ".d64") {
+		t.Fatalf("C64 rejection = %v", err)
+	}
+	if !protocol.LiveMediaNoChange(err) {
+		t.Fatal("pre-dispatch disk refusal claimed a media change")
+	}
+	zx := removableSession(protocol.Zx81TapeInterface(), 1, 16384)
+	_, err = client.ReplaceRemovableMediaForSession(context.Background(), zx, strings.Repeat("c", 64), "disk.d64")
+	if err == nil || !strings.Contains(err.Error(), ".p/.P") {
+		t.Fatalf("ZX81 rejection = %v", err)
+	}
+}
+
 func TestRemovableMediaKeepsCapturedSessionAndRejectsReplacementReply(t *testing.T) {
 	prior := removableSession(protocol.C64DiskInterface(), 174848, 174848)
 	calls := 0

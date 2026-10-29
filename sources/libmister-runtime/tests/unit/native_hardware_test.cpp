@@ -1330,14 +1330,14 @@ void TestInspectionReportsActualDriverCompatibilityWithoutMutation()
 	assert(computer.id == "fes.computer" && computer.major == 1 && computer.minor == 0);
 	std::vector<std::string> computer_interfaces;
 	for (const auto& interface : computer.interfaces) {
-		// The Spectrum tape is 2.0, a PZX stream; every other interface is 1.0.
+		// Spectrum tape is a PZX stream; snapshot interfaces are host metadata.
 		assert(interface.major == (interface.id == "fes.media.spectrum-tape" ? 2 : 1) && interface.minor == 0);
 		computer_interfaces.push_back(interface.id);
 	}
 	assert(computer_interfaces == std::vector<std::string>({"fes.audio.pcm-s16-stereo-48k",
 		"fes.expansion.apple2-bus", "fes.expansion.atari-st-bus", "fes.expansion.c64-bus", "fes.expansion.spectrum-bus",
 		"fes.gamepad.ports", "fes.keyboard.hid", "fes.media.apple2-floppy",
-		"fes.media.atari-st-floppy", "fes.media.atari-st-floppy-geometry", "fes.media.atari-st-floppy-write", "fes.media.c64-disk", "fes.media.spectrum-tape", "fes.media.zx81-tape", "fes.media.zx81-tape-write",
+		"fes.media.atari-st-floppy", "fes.media.atari-st-floppy-geometry", "fes.media.atari-st-floppy-write", "fes.media.c64-disk", "fes.media.spectrum-disk", "fes.media.spectrum-snapshot", "fes.media.spectrum-snapshot-128", "fes.media.spectrum-snapshot-plus3", "fes.media.spectrum-tape", "fes.media.zx81-tape", "fes.media.zx81-tape-write",
 		"fes.memory.hps-ddr", "fes.mouse.relative", "fes.video.fixed-720p60"}));
 	assert(capabilities.abis[2].id == "fes.simple-computer");
 	assert(capabilities.abis[2].interfaces[0].id == "fes.audio.pcm-s16-stereo-48k");
@@ -1460,6 +1460,40 @@ void TestApplicationFirmwareStatusAdvertisesOptionalSlot()
 		if (contract.id == "fes.firmware.blob" && contract.major == 1 && contract.minor == 0)
 			active = true;
 	assert(active);
+	assert(fixture.runtime.Stop().ok());
+}
+
+void TestComputerSnapshotInterfacesBecomeActiveThroughRuntime()
+{
+	std::vector<std::string> events;
+	RecordingDriver driver(events);
+	IntegratedFixture fixture(&driver);
+	fixture.Start();
+	TempDirectory package;
+	std::string manifest = ReadText("tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
+	ReplaceAll(&manifest, "fes.simple-game", "fes.computer");
+	ReplaceAll(&manifest, "fes.gamepad", "fes.keyboard.hid");
+	for (const char* id : {"fes.media.spectrum-snapshot", "fes.media.spectrum-snapshot-128",
+		"fes.media.spectrum-snapshot-plus3"})
+		manifest += std::string("\n[[interfaces]]\nid = \"") + id +
+			"\"\nmajor = 1\nminor = 0\nrequired = false\n";
+	manifest += "\n[[interfaces]]\nid = \"fes.media.spectrum-snapshot-unknown\"\nmajor = 1\nminor = 0\nrequired = false\n";
+	package.File("manifest.toml", manifest);
+	package.File("core.rbf", ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+	mister::native::OpenedCorePackage opened;
+	assert(mister::native::OpenCorePackage(package.path, "", &opened).ok());
+	assert(fixture.runtime.LoadCore(package.path, opened.package_id).ok());
+	const auto status = fixture.runtime.status();
+	for (const char* id : {"fes.media.spectrum-snapshot", "fes.media.spectrum-snapshot-128",
+		"fes.media.spectrum-snapshot-plus3"}) {
+		bool active = false;
+		for (const auto& interface : status.capabilities.active_interfaces)
+			if (interface.id == id && interface.major == 1 && interface.minor == 0)
+				active = true;
+		assert(active);
+	}
+	for (const auto& interface : status.capabilities.active_interfaces)
+		assert(interface.id != "fes.media.spectrum-snapshot-unknown");
 	assert(fixture.runtime.Stop().ok());
 }
 
@@ -2251,6 +2285,12 @@ void TestMenuUnderflowPolicyReactivatesThenSplashes()
  script.Present(0,0,kMenuUnderflowPresentCap+1);
  assert(!PresentBackSlot(hardware,&displayed).ok());
  reactivate();
+ // A counter stuck at 0xffffffff is not a clean present: both samples
+ // saturated used to subtract to a zero delta and reset the streak.
+ script.Present(0,0xffffffffu,0xffffffffu);
+ assert(!PresentBackSlot(hardware,&displayed).ok());
+ assert(!hardware.menu_display().available);
+ assert(hardware.menu_display().error.message=="menu underflow exceeded the per-present cap");
 }
 
 void TestHpsDdrPortsReleaseAfterIdentityBeforeExecution()
@@ -4318,6 +4358,7 @@ int main()
 	TestApplicationVideoOnlyLifecycleNeedsNoInput();
 	TestSimpleComputerAudioIsEnabledOnlyAfterIdentity();
 	TestApplicationFirmwareStatusAdvertisesOptionalSlot();
+	TestComputerSnapshotInterfacesBecomeActiveThroughRuntime();
 	TestHpsDdrPortsReleaseAfterIdentityBeforeExecution();
 	TestHpsDdrReleaseFailureRecoversBeforeExecution();
 	TestHpsDdrNeedsTheBootLayout();

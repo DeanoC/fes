@@ -47,8 +47,8 @@ module fes_i386_exctl (
     assign size16 = u.size == fes_i386_pkg::SIZE_16;
     assign src8 = u.src_size == fes_i386_pkg::SIZE_8;
     assign src16 = u.src_size == fes_i386_pkg::SIZE_16;
-    // MOVZX, MOVSX, SIGN and a segment read take src2 at its own size.
-    assign ext = (alu && (op == 5'd15 || op == 5'd16 || op == 5'd31)) || cls == C_SEGMENT;
+    // MOVZX, MOVSX, SIGN, BITDISP and a segment read take src2 at its own size.
+    assign ext = (alu && (op == 5'd15 || op == 5'd16 || op == 5'd31 || op == 5'd18)) || cls == C_SEGMENT;
     assign w8 = ext ? src8 : size8;
     assign w16 = ext ? src16 : size16;
 
@@ -64,7 +64,9 @@ module fes_i386_exctl (
     assign c.byp_a = s.pend_a && s.dist_a == 3'd1;
     assign c.xl = lda;
     assign c.yl = ya ? lda : ldb;
-    assign c.byp_c = s.pend_c && s.dist_c == 3'd1;
+    // A bit test's bit number is src2 or imm, through the shifter's count
+    // and its bypass from WB.
+    assign c.byp_c = bt ? s.pend_b && s.dist_b == 3'd1 : s.pend_c && s.dist_c == 3'd1;
     assign c.size8 = size8;
     assign c.size16 = size16;
     assign c.src8 = src8;
@@ -87,14 +89,7 @@ module fes_i386_exctl (
     assign ya = neg;                       // y is src1
     assign fill = arith || incdec;
     assign x = (neg || byp_a ? 32'd0 : an) | ({32{fill}} & ~mask);
-    // A bit test's y is its bit's mask, by the immediate mod the size; BTR's
-    // the mask's complement, which the logic unit ANDs.
-    logic [4:0]  bit_n;
-    logic [31:0] bit_m;
-    assign bit_n = s.b[4:0] & {!size16, 4'hf};
-    assign bit_m = 32'd1 << bit_n;
-    assign y = (y_one ? 32'd1 : lnot ? mask : bt ? (op == 5'd21 ? ~bit_m : bit_m)
-                : ya ? (byp_a ? 32'd0 : an) : byp_b ? 32'd0 : bn) ^ ({32{sub}} & mask);
+    assign y = (y_one ? 32'd1 : lnot ? mask : ya ? (byp_a ? 32'd0 : an) : byp_b ? 32'd0 : bn) ^ ({32{sub}} & mask);
     assign h8 = size8 && u.src1.hi8;
     assign c.xw_lo = byp_a && !neg && !h8;
     assign c.xw_hi = byp_a && !neg && h8;
@@ -102,7 +97,7 @@ module fes_i386_exctl (
     assign c.xw32 = byp_a && !neg && !size8 && !size16;
     // y bypasses src1 for NEG, src2 for anything else that reads it.
     logic yb, yh;
-    assign yb = !y_one && !lnot && !bt && (ya ? byp_a : byp_b);
+    assign yb = !y_one && !lnot && (ya ? byp_a : byp_b);
     assign yh = ya ? h8 : w8 && u.src2.hi8;
     assign c.yw_lo = yb && !yh;
     assign c.yw_hi = yb && yh;
@@ -146,14 +141,18 @@ module fes_i386_exctl (
     assign c.kp_lo = dh8;
     assign c.kp_mid = size8 && !dh8 && !md;
     assign c.kp_hi = !whole;
-    assign c.r_logic = logic_op || lnot || bt;
+    assign c.r_logic = logic_op || lnot;
     assign c.r_lea = alu && op == 5'd14 || md;
     assign c.r_y = (alu && (op == 5'd15 || op == 5'd9)) || cls == C_SEGMENT;
     assign c.r_movsx = alu && op == 5'd16;
     assign c.r_setcc = alu && op == 5'd17;
     assign c.r_sign = alu && op == 5'd31;
-    assign c.l_or = op == 5'd1 || op == 5'd20;   // BTS
-    assign c.l_xor = op == 5'd6 || op == 5'd13 || op == 5'd22;   // NOT is x XOR the size's ones; BTC
+    assign c.l_or = op == 5'd1;
+    assign c.l_xor = op == 5'd6 || op == 5'd13;   // NOT is x XOR the size's ones
+    assign c.r_bt = bt;
+    assign c.bt_or = op == 5'd20;    // BTS
+    assign c.bt_andn = op == 5'd21;  // BTR; BTC flips
+    assign c.r_btd = alu && op == 5'd18;
     assign c.r_scan = scan;
     assign c.bsr = op == 5'd24;
     // DAA, DAS, AAA and AAS adjust x, AL or AX, in EX by its flags.
@@ -184,12 +183,7 @@ module fes_i386_exctl (
     assign c.fl_cf = fop == 4'd1;
     assign c.fl_cmc = fop == 4'd2;
     assign c.fl_set = fop == 4'd4 || fop == 4'd6;
-    // A bit test's CF is the bit, and its OF (Phase 0 divergence bit-test-of)
-    // the two bits below it XORed, each index mod the size.
-    assign c.f_bt = bt;
-    assign c.bt_i0 = bit_n;
-    assign c.bt_i1 = (bit_n - 5'd1) & {!size16, 4'hf};
-    assign c.bt_i2 = (bit_n - 5'd2) & {!size16, 4'hf};
+    assign c.f_bt = bt && u.flags.write.cf;
 
     assign c.b_jcc = cls == C_BRANCH && op == 5'd0;
     assign c.b_jmp = cls == C_BRANCH && op == 5'd1;
@@ -219,7 +213,7 @@ module fes_i386_exctl (
                 for (int f = 0; f < 5; f++)
                     sel[d * 15 + k * 5 + f] = shift && left == (d == 1) && z[k] && kind[f];
     end
-    assign count = u.count_cl ? s.c[4:0] : u.imm[4:0];
+    assign count = bt ? s.b[4:0] : u.count_cl ? s.c[4:0] : u.imm[4:0];
     assign c.sh.sel = sel;
     assign c.sh.left = left;
     assign c.sh.z8 = z[0];

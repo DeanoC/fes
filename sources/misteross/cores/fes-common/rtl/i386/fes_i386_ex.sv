@@ -14,7 +14,8 @@
 // SBB, RCL, RCR and LAHF read with no forwarding; flags_keep is EFLAGS after
 // every older uop, which a uop passes on where it writes no flag. They differ
 // only in the cycle after a shift or rotate, when D holds any flag reader
-// (fes_i386_cpu). A faulting uop changes nothing.
+// (fes_i386_cpu). A normal faulting uop changes nothing; a divide error
+// carries the flags that the multiply/divide unit has already produced.
 //
 // A shift's flags leave the shifter off the flag path: EX keeps the old flags
 // and hands WB the bits the shifter's CF and OF come from, and whether SF,
@@ -34,10 +35,13 @@
 // list): AND, OR, XOR and TEST clear AF; a shift by a nonzero count sets AF;
 // shifts and rotates set OF and CF as fes_i386_shflags says.
 //
-// BT, BTS, BTR and BTC by an immediate take y as the bit's mask, and the
-// logic unit makes BTS's, BTR's and BTC's result. CF is the bit; OF, which
-// the manual leaves undefined, the two bits below it XORed (mod the size), as
-// the 386EX makes it (Phase 0 divergence bit-test-of); SF, ZF, AF and PF stay.
+// BT, BTS, BTR and BTC number their bit by the shifter's count, an
+// immediate or src2 (the bypass from WB included), mod the size: its
+// one-hot mask sets, clears or flips the bit in x for the result. CF is the
+// bit; OF, which the manual leaves undefined, the two bits below it XORed
+// (mod the size), as the 386EX makes it (Phase 0 divergence bit-test-of);
+// SF, ZF, AF and PF stay. BITDISP, a bit test's address displacement from
+// its register bit number in y, is wiring.
 //
 // BSF and BSR find y's lowest or highest set bit; a source of 0 sets ZF and
 // keeps the destination (a). Their other flags are the 386EX's (divergence
@@ -155,9 +159,19 @@ module fes_i386_ex (
     assign def_szap = def_co && exc.sh.szap;
 
     // ---- Bit test and scan ----------------------------------------------------------
+    // The bit's one-hot mask, and the masks one and two below it, mod the size.
+    logic [4:0]  bit_n;
+    logic [31:0] bit_m, bit_m1, bit_m2, r_bt, r_btd;
     logic        bt_cf, bt_of;
-    assign bt_cf = x[exc.bt_i0];
-    assign bt_of = x[exc.bt_i1] ^ x[exc.bt_i2];
+    assign bit_n = count & {!exc.size16, 4'hf};
+    assign bit_m = 32'd1 << bit_n;
+    assign bit_m1 = exc.size16 ? {16'd0, bit_m[0], bit_m[15:1]} : {bit_m[0], bit_m[31:1]};
+    assign bit_m2 = exc.size16 ? {16'd0, bit_m[1:0], bit_m[15:2]} : {bit_m[1:0], bit_m[31:2]};
+    assign bt_cf = |(x & bit_m);
+    assign bt_of = |(x & bit_m1) ^ |(x & bit_m2);
+    assign r_bt = exc.bt_or ? x | bit_m : exc.bt_andn ? x & ~bit_m : x ^ bit_m;
+    // (n >> 4) * 2 or (n >> 5) * 4, signed, from src2 at its size.
+    assign r_btd = exc.src16 ? {{19{y[15]}}, y[15:4], 1'b0} : {{3{y[31]}}, y[31:5], 2'b00};
     // The scan takes one-hot vectors of y's lowest and highest set bit, each
     // from an OR of the bits on one side, so no index is decremented and no
     // bit is selected by one: the index ORs out of the vector, and BSR's CF
@@ -274,7 +288,9 @@ module fes_i386_ex (
                    | ({32{exc.r_sign}} & {32{exc.src8 ? y[7] : exc.src16 ? y[15] : y[31]}})
                    | ({32{exc.r_flags}} & {16'b0, flags_in[15:0]})
                    | ({32{exc.r_scan}} & (scan_z ? af : {27'b0, scan_n}))
-                   | ({32{exc.r_bcd}} & {16'b0, bcd_r});
+                   | ({32{exc.r_bcd}} & {16'b0, bcd_r})
+                   | ({32{exc.r_bt}} & r_bt)
+                   | ({32{exc.r_btd}} & r_btd);
     assign r_shift = out[32:1];
     assign result[7:0] = ({8{exc.add_lo}} & sum[7:0]) | ({8{exc.sh_lo}} & r_shift[7:0])
                        | ({8{exc.ot_lo}} & r_other[7:0]) | ({8{exc.kp_lo}} & af[7:0]);

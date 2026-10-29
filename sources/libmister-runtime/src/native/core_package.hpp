@@ -63,13 +63,15 @@ inline bool ComputerInterfaceCurrent(const CoreInterface& interface)
 			interface.minor == generated::FesComputerInterfaceMediaSpectrumTapeMinor;
 	return interface.major == 1 && interface.minor == 0;
 }
-// Format 2 is the ROM-less shell. Format 3 is the factory 16 KiB cartridge.
+// Format 2 is the ROM-less shell. Format 4 links the Coleco BIOS and cartridge.
 inline bool ColecoVideoShell(const CoreDescriptor& descriptor)
 {
 	if (descriptor.core.id != "fes.coleco") return false;
 	if (descriptor.format == 2) return true;
-	return descriptor.format == 3 && descriptor.rom.role == "cartridge" &&
-		descriptor.rom.source_size == 16384;
+	// The linked shell carries the BIOS and one 16 KiB cartridge.
+	return descriptor.format == 4 && descriptor.roms.size() == 2 &&
+		descriptor.roms[0].role == "firmware" && descriptor.roms[0].source_size == 8192 &&
+		descriptor.roms[1].role == "cartridge" && descriptor.roms[1].source_size == 16384;
 }
 Error CorePersistenceLayout(const CoreDescriptor&, VersionedContract*);
 

@@ -34,9 +34,11 @@ type ROMInput struct {
 	Parts []expansion.Asset
 }
 
-// ROMLinkIdentity binds an exact source ROM and sealed map to target-linked bytes.
+// ROMLinkIdentity binds an exact source ROM, its declared role and sealed map
+// to target-linked bytes. Role may be absent in identities from older targets.
 type ROMLinkIdentity struct {
 	ROMID            string `json:"rom_id"`
+	Role             string `json:"role,omitempty"`
 	MapSHA256        string `json:"map_sha256"`
 	SourceSHA256     string `json:"source_sha256"`
 	SourceSize       int64  `json:"source_size"`
@@ -46,7 +48,7 @@ type ROMLinkIdentity struct {
 
 // ValidFor checks identity syntax and its binding to sealed ROM metadata.
 func (r ROMLinkIdentity) ValidFor(d Descriptor) bool {
-	return d.Format == 3 && d.ROM != nil && identifier(r.ROMID, "rom.id") == nil && r.ROMID == d.ROM.ID && r.MapSHA256 == d.ROM.SHA256 &&
+	return d.Format == 3 && d.ROM != nil && identifier(r.ROMID, "rom.id") == nil && r.ROMID == d.ROM.ID && (r.Role == "" || r.Role == d.ROM.Role) && r.MapSHA256 == d.ROM.SHA256 &&
 		hex64RE.MatchString(r.MapSHA256) && hex64RE.MatchString(r.SourceSHA256) && hex64RE.MatchString(r.ProgrammedSHA256) &&
 		r.SourceSize == d.ROM.SourceSize && r.SourceSize >= 1024 && r.SourceSize <= 256<<10 && r.SourceSize%1024 == 0 &&
 		r.ProgrammedSize > 0 && r.ProgrammedSize <= MaxPayloadSize
@@ -136,15 +138,9 @@ func prepareROMInput(ctx context.Context, in ROMInput) (preparedROMInput, error)
 		receipt.ExpansionID = in.Expansion.ID
 	}
 	if len(in.Parts) != 0 {
-		shell, err := PartsShell(inspection, payload)
-		if err != nil || !romLinkedPartsLayout(shell.Layout) {
-			return preparedROMInput{}, errors.New("ROM parts require a sealed video shell")
-		}
-		if err := expansion.AdmitParts(shell, in.Parts); err != nil {
+		receipt.Parts, err = admitROMParts(inspection, payload, in.Parts)
+		if err != nil {
 			return preparedROMInput{}, err
-		}
-		for _, asset := range orderedROMParts(in.Parts) {
-			receipt.Parts = append(receipt.Parts, expansion.PartSelection{Role: partRole(asset), PartID: asset.ID})
 		}
 	}
 	if len(in.SlotExpansions) != 0 {
@@ -215,6 +211,52 @@ func PrepareROMInput(ctx context.Context, in ROMInput) (ROMTransport, error) {
 	return ROMTransport{Data: data, SlotComposition: receipt.Composition, PartsComposition: receipt.PartsComposition}, nil
 }
 
+// admitROMParts admits video parts, and an optional CPU part, against a
+// ROM-linked video shell and returns their ascending role selections.
+func admitROMParts(inspection Inspection, payload []byte, parts []expansion.Asset) ([]expansion.PartSelection, error) {
+	shell, err := PartsShell(inspection, payload)
+	if err != nil || !romLinkedPartsLayout(shell.Layout) {
+		return nil, errors.New("ROM parts require a sealed video shell")
+	}
+	if err := expansion.AdmitParts(shell, parts); err != nil {
+		return nil, err
+	}
+	var selections []expansion.PartSelection
+	for _, asset := range orderedROMParts(parts) {
+		selections = append(selections, expansion.PartSelection{Role: partRole(asset), PartID: asset.ID})
+	}
+	return selections, nil
+}
+
+// validateROMPartsDestinations keeps every ROM lane of a video parts shell
+// outside its sockets, whether or not parts are linked this time.
+func validateROMPartsDestinations(ctx context.Context, inspection Inspection, base []byte, m expansion.ROMMap) error {
+	if shell, err := PartsShell(inspection, base); err == nil && romLinkedPartsLayout(shell.Layout) {
+		return expansion.ValidatePartsROMDestinations(ctx, shell.Layout, m)
+	}
+	return nil
+}
+
+// linkROMParts composes the parts, then links source through the sealed map.
+// The composition describes the retained pre-ROM overlay.
+func linkROMParts(ctx context.Context, inspection Inspection, pkg, base []byte, assets []expansion.Asset, m expansion.ROMMap, source []byte) (*PartsBundle, []byte, error) {
+	shell, err := PartsShell(inspection, base)
+	if err != nil {
+		return nil, nil, err
+	}
+	parts := orderedROMParts(assets)
+	final, overlay, programmed, err := expansion.ComposePartsROM(ctx, shell, parts, m, source)
+	if err != nil {
+		return nil, nil, err
+	}
+	final.PayloadSHA256, final.PayloadSize = romDigest(overlay), int64(len(overlay))
+	final.ID, err = expansion.PartsCompositionID(final.PackageID, final.Layout, final.Parts, final.PayloadSHA256)
+	if err != nil {
+		return nil, nil, err
+	}
+	return &PartsBundle{Package: pkg, Assets: parts, Composition: final, Payload: overlay}, programmed, nil
+}
+
 func orderedROMParts(parts []expansion.Asset) []expansion.Asset {
 	ordered := append([]expansion.Asset(nil), parts...)
 	sort.Slice(ordered, func(i, j int) bool { return partRole(ordered[i]) < partRole(ordered[j]) })
@@ -241,18 +283,54 @@ func writeROMInputReceipt(in ROMInput, receipt romInputReceipt) ([]byte, error) 
 	if err != nil {
 		return nil, err
 	}
-	for _, asset := range orderedROMParts(in.Parts) {
-		var encoded bytes.Buffer
-		if err := asset.Write(&encoded); err != nil {
-			return nil, err
-		}
-		cards = append(cards, canonicalMember{"part-" + partRole(asset) + ".tar", encoded.Bytes()})
+	parts, err := romPartMembers(in.Parts)
+	if err != nil {
+		return nil, err
 	}
-	out, err := writeCanonicalMembers(append(members, cards...), MaxROMInputSize)
+	out, err := writeCanonicalMembers(append(append(members, cards...), parts...), MaxROMInputSize)
 	if err != nil {
 		return nil, errors.New("ROM input exceeds size limit")
 	}
 	return out, nil
+}
+
+// romPartMembers encodes ROM-linked parts in ascending role order.
+func romPartMembers(parts []expansion.Asset) ([]canonicalMember, error) {
+	var members []canonicalMember
+	for _, asset := range orderedROMParts(parts) {
+		var encoded bytes.Buffer
+		if err := asset.Write(&encoded); err != nil {
+			return nil, err
+		}
+		members = append(members, canonicalMember{"part-" + partRole(asset) + ".tar", encoded.Bytes()})
+	}
+	return members, nil
+}
+
+// hasROMParts reports whether the next member starts the ROM parts list.
+func (r *canonicalReader) hasROMParts() bool {
+	return r.peek() == "part-video.tar" || r.peek() == "part-expansion.tar"
+}
+
+// readROMParts reads the ascending part-<role>.tar members whose manifests
+// carry that role.
+func (r *canonicalReader) readROMParts() ([]expansion.Asset, error) {
+	var parts []expansion.Asset
+	for _, role := range []string{expansion.PartRoleExpansion, expansion.PartRoleVideo} {
+		if r.peek() != "part-"+role+".tar" {
+			continue
+		}
+		encoded, err := r.read("part-"+role+".tar", expansion.MaxArchiveBytes)
+		if err != nil {
+			return nil, err
+		}
+		asset, err := expansion.ReadAsset(bytes.NewReader(encoded))
+		if err != nil || partRole(asset) != role {
+			return nil, errors.New("ROM part role differs from member")
+		}
+		parts = append(parts, asset)
+	}
+	return parts, nil
 }
 
 // readROMInput validates closed framing and the source receipt. Slot link
@@ -308,20 +386,10 @@ func readPreparedROMInput(ctx context.Context, data []byte) (preparedROMInput, e
 			return preparedROMInput{}, err
 		}
 		in.Expansion = &asset
-	} else if reader.peek() == "part-video.tar" || reader.peek() == "part-expansion.tar" {
-		for _, role := range []string{expansion.PartRoleExpansion, expansion.PartRoleVideo} {
-			if reader.peek() != "part-"+role+".tar" {
-				continue
-			}
-			encoded, err := reader.read("part-"+role+".tar", expansion.MaxArchiveBytes)
-			if err != nil {
-				return preparedROMInput{}, err
-			}
-			asset, err := expansion.ReadAsset(bytes.NewReader(encoded))
-			if err != nil || partRole(asset) != role {
-				return preparedROMInput{}, errors.New("ROM part role differs from member")
-			}
-			in.Parts = append(in.Parts, asset)
+	} else if reader.hasROMParts() {
+		in.Parts, err = reader.readROMParts()
+		if err != nil {
+			return preparedROMInput{}, err
 		}
 	} else if !reader.done() {
 		in.SlotExpansions, err = reader.readSlotAssets()
@@ -386,31 +454,20 @@ func linkPreparedROMInput(ctx context.Context, prepared preparedROMInput, sent r
 	receipt.ProgrammedSHA256, receipt.ProgrammedSize = "", 0
 	m := *prepared.romMap
 	var err error
-	if shell, shellErr := PartsShell(inspection, base); shellErr == nil && romLinkedPartsLayout(shell.Layout) {
-		if err := expansion.ValidatePartsROMDestinations(ctx, shell.Layout, m); err != nil {
-			return romLinkResult{}, err
-		}
+	if err := validateROMPartsDestinations(ctx, inspection, base, m); err != nil {
+		return romLinkResult{}, err
 	}
 	result := romLinkResult{inspection: inspection}
 	slotShell, slotErr := slotCompositionShell(inspection, base)
 	switch {
 	case len(in.Parts) != 0:
-		shell, err := PartsShell(inspection, base)
-		if err != nil {
-			return romLinkResult{}, err
-		}
-		parts := orderedROMParts(in.Parts)
-		final, overlay, programmed, err := expansion.ComposePartsROM(ctx, shell, parts, m, in.ROM)
-		if err != nil {
-			return romLinkResult{}, err
-		}
-		final.PayloadSHA256, final.PayloadSize = romDigest(overlay), int64(len(overlay))
-		final.ID, err = expansion.PartsCompositionID(final.PackageID, final.Layout, final.Parts, final.PayloadSHA256)
+		parts, programmed, err := linkROMParts(ctx, inspection, in.Package, base, in.Parts, m, in.ROM)
 		if err != nil {
 			return romLinkResult{}, err
 		}
 		result.programmed = programmed
-		result.parts = &PartsBundle{Package: in.Package, Assets: parts, Composition: final, Payload: overlay}
+		result.parts = parts
+		final := parts.Composition
 		receipt.PartsComposition = &final
 		receipt.ProgrammedSHA256, receipt.ProgrammedSize = romDigest(programmed), int64(len(programmed))
 	case slotErr == nil:
@@ -450,7 +507,7 @@ func linkPreparedROMInput(ctx context.Context, prepared preparedROMInput, sent r
 		}
 	}
 	result.receipt = receipt
-	result.identity = ROMLinkIdentity{ROMID: receipt.ROMID, MapSHA256: receipt.MapSHA256, SourceSHA256: receipt.SourceSHA256, SourceSize: receipt.SourceSize, ProgrammedSHA256: romDigest(result.programmed), ProgrammedSize: int64(len(result.programmed))}
+	result.identity = ROMLinkIdentity{ROMID: receipt.ROMID, Role: inspection.Descriptor.ROM.Role, MapSHA256: receipt.MapSHA256, SourceSHA256: receipt.SourceSHA256, SourceSize: receipt.SourceSize, ProgrammedSHA256: romDigest(result.programmed), ProgrammedSize: int64(len(result.programmed))}
 	return result, nil
 }
 
@@ -616,8 +673,12 @@ func adoptROMInput(handle *os.Root, staged *Staged) error {
 		if readErr != nil {
 			return readErr
 		}
-		var links ROMLinksIdentity
-		inspection, links, programmed, bundle, err = linkPreparedROMInputV2(context.Background(), prepared)
+		linked, linkErr := linkPreparedROMInputV2(context.Background(), prepared)
+		if linkErr != nil {
+			return linkErr
+		}
+		inspection, programmed, bundle, parts = linked.inspection, linked.programmed, linked.bundle, linked.parts
+		links := linked.identity
 		identity = links
 		staged.ROMLinks = &links
 	} else {

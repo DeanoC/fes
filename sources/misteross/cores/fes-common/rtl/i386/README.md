@@ -155,8 +155,8 @@ DEC, NEG, NOT, TEST, MOV (to and from a segment register in real mode, and
 immediates), LEA, the shifts and rotates, SHLD and SHRD, SETcc, MOVZX and
 MOVSX, CBW/CWDE, CWD/CDQ, SAHF, LAHF, the flag set and clear instructions,
 NOP, HLT, the near JMP, Jcc, LOOP, LOOPE, LOOPNE and JCXZ, MUL, IMUL (all
-three forms), DIV, IDIV, AAM and AAD, BT, BTS, BTR and BTC by an immediate,
-BSF and BSR, DAA, DAS, AAA and AAS, the stack operations below, and the
+three forms), DIV, IDIV, AAM and AAD, BT, BTS, BTR and BTC by an immediate
+or a register, BSF and BSR, DAA, DAS, AAA and AAS, the stack operations below, and the
 first uops of the string instructions and ENTER, with a ModRM memory
 operand wherever they take one. A memory operand is a load, a store,
 or both in one uop (read-modify-write), and stands for the register it
@@ -195,9 +195,8 @@ first uop (`dc0`, kept beside `dc`) with every change of the steps before it
 applied again, and the per-step controls are reset. No field is kept from
 `dc` at some steps and not others, so `dc` loads on two enables from D's
 issue: the rewritten fields at every issue, the rest at the instruction's
-last. WB
-moves EIP only at an instruction's last uop, so a sequence that faults part
-way leaves EIP at the instruction. Two temporaries, T0 (16 bits) and T1
+last. WB moves EIP only at an instruction's last uop, so a sequence
+that faults part way leaves EIP at the instruction. Two temporaries, T0 (16 bits) and T1
 (32), are destinations in RS_TEMP: WB writes them and no forwarding sees
 them, so a uop reads one at WB, or waits in D until its writers retire.
 
@@ -514,17 +513,31 @@ D holds a flag reader one cycle behind a shift. Undefined flags follow the
 count set it, and the shift OF and wide-count CF rules are in
 `fes_i386_shflags`.
 
-**Bit test and scan.** BT, BTS, BTR and BTC by an immediate take the bit's
-mask from M2 as y (its complement for BTR), so the logic unit makes BTS's,
-BTR's and BTC's result. CF is the operand's bit, selected in EX by an index
-M2 registers. The 386EX writes OF as the two bits below it XORed, mod the
-size, and leaves SF, ZF, AF and PF. LOCK is valid on BTS, BTR and BTC with
-a memory operand. BSF and BSR scan y for its lowest or highest set bit in
-EX; a source of 0 sets ZF and keeps the destination. Their other flags are
-the 386EX's, which `fes_i386_ex` lists, fitted to every SingleStepTests
-state of the six opcodes. BT, BTS, BTR and BTC by a register (0F A3, AB,
-B3, BB) are not built: a memory operand's address moves by the register,
-which needs an address term AG does not have.
+**Bit test and scan.** BT, BTS, BTR and BTC number their bit by the
+shifter's count: the immediate, or the register with its bypass from WB, as
+a shift's CL. EX builds the bit's one-hot mask after that bypass, mod the
+size, and sets, clears or flips the bit for BTS, BTR and BTC. CF is the bit.
+The 386EX writes OF as the two bits below it XORed, mod the size, and leaves
+SF, ZF, AF and PF. LOCK is valid on BTS, BTR and BTC with a memory operand.
+- **By a register, with a memory operand** (`SEQ_BTM`), the address moves by
+  the register: (n >> 4) * 2 or (n >> 5) * 4, signed, added to the operand's
+  offset and wrapped by address size, as Bochs and the 386EX do. AG has no
+  fifth term for it, so three uops fold it into the displacement through T1:
+  - the displacement into T1, from the register (`ALU_BITDISP`, wiring in EX);
+  - T1 plus the operand's displacement into T1, an ADD;
+  - the bit test at the operand's address with T1 as its displacement
+    (`disp_t1`), through `far_off`, which already takes a far jump's offset
+    from T1. AG wraps the offset by address size.
+  No other path from T1 into D's AG registers is added: two that a first
+  version had cost about 4 MHz on nextpnr.
+  Each waits for the T1 before it to retire, behind one register (`t_rd`):
+  about 12 cycles more than a bit test by an immediate, without latency, on
+  a form game code rarely runs.
+
+BSF and BSR scan y for its lowest or highest set bit in EX; a source of 0
+sets ZF and keeps the destination. Their other flags are the 386EX's, which
+`fes_i386_ex` lists, fitted to every SingleStepTests state of the two
+opcodes.
 
 **Decimal and ASCII adjusts.** DAA, DAS, AAA and AAS adjust AL in EX by AF
 and, for DAA and DAS, CF, read from EX's running copy, so D holds them behind
@@ -543,10 +556,10 @@ tables. A fault, an unimplemented encoding or HLT stops D issuing after it.
 At WB an unimplemented encoding stops the CPU with nothing retired, and HLT
 retires and stops it. A fault is delivered:
 - **Entry.** WB flushes everything younger and restarts the front end and
-  DC. A uop that faults before EX changes nothing there, so the delivery
-  starts from EX's running flags as they were before it. A divide raises #DE
-  in EX itself, after its flags reach that copy, so its delivery pushes them,
-  as the 386EX does. The cycle after, DC's skid takes the
+  DC. A fault detected before EX changes no flags there, so its delivery
+  starts with the earlier EFLAGS. A divide raises #DE in EX after its
+  multiply/divide flags reach EX's running copy, so its delivery pushes those
+  flags, as the 386EX does. The cycle after, DC's skid takes the
   exception's entry (`dc_exc`): a NOP, at length 0, that starts the ROM's
   `vector` routine with the fault's vector, the one INTO enters.
 - **The frame.** D's EIP is the faulting instruction's, cut to 16 bits, so
