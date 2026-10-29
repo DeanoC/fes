@@ -458,7 +458,7 @@ the same RTL input; #1115, #1141 and #1143 use Yosys `238eac9a49`.
 | After the second EX cut ([#1127](https://github.com/DeanoC/fes/pull/1127), [record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-ex-cut2.md)) | 71.8–83.3 MHz | 102.8–106.1 MHz | D or Q on nextpnr; Q on Quartus |
 | Earlier near-stack slice after its review fix ([#1141](https://github.com/DeanoC/fes/pull/1141), [record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-stack.md#the-review-fix-routed-and-on-the-netlist)) | 68.89, 70.38, 74.12, 68.02 MHz | 103.69, 99.80, 99.44, 102.13 MHz | AG, DC, Q, Q on nextpnr; Q on every Quartus seed |
 | Far-transfer slice ([#1143](https://github.com/DeanoC/fes/pull/1143), [record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-far.md#result)) | 69.43, 70.48, 74.40, 70.34 MHz | 103.73, 98.34, 100.78, 104.47 MHz | D, Q, DC, DC on nextpnr; Q on every Quartus seed |
-| Memory path, slice 1 ([#1230](https://github.com/DeanoC/fes/pull/1230), [record](validation/2026-10-28-i386-memory-path.md#quartus)); Quartus with #1184's mapping at 120 MHz | 47.50, 48.70, 48.51, 48.40 MHz | 99.85, 100.76, 99.59, 101.19 MHz | D, D, MEM, MEM on nextpnr; EX, Q, F1, Q on Quartus |
+| Memory path, slice 1 ([#1230](https://github.com/DeanoC/fes/pull/1230), [record](validation/2026-10-28-i386-memory-path.md#quartus)); Quartus with #1184's mapping at 120 MHz | 47.50, 48.70, 48.51, 48.40 MHz | 99.85, 100.76, 99.59, 101.19 MHz; after its review fix 98.85, 101.39, 94.82, 97.71 | D, D, MEM, MEM on nextpnr; EX, Q, F1, Q on Quartus; after the fix F1, Q, MEM, EX |
 | Self-modifying code, slice 2 ([#1234](https://github.com/DeanoC/fes/pull/1234), [record](validation/2026-10-29-i386-smc.md#quartus)); Quartus as slice 1 | 43.99, 38.12, 44.80, 43.36 MHz | 99.96, 100.40, 98.73, 101.14 MHz | MEM, MEM, EX, MEM on nextpnr; F2, D, F2, Q on Quartus |
 
 - **Far-transfer nextpnr result:** the four seeds average 71.2 MHz. D limits seed 1,
@@ -467,8 +467,11 @@ the same RTL input; #1115, #1141 and #1143 use Yosys `238eac9a49`.
   Q-limited. Seed 2 is 98.34 MHz and the other three are above 100 MHz.
 - **The memory path's Quartus result:** slice 1 averages 100.3 MHz, against
   102.2 for its base fitted the same way. Q limits two seeds, EX one, and
-  the L1I's hit select into F1 one. Its nextpnr routes average 48.3 MHz,
-  against the base's 61.5: wire, which Quartus does not show. Slice 2, the
+  the L1I's hit select into F1 one. Its review fix averages 98.2: the fix's
+  own logic, in M1, costs nothing measurable, and the L1I's hit select,
+  which it does not change, falls 3 to 4 MHz and limits two seeds. Its
+  nextpnr routes average 48.3 MHz, against the base's 61.5: wire, which
+  Quartus does not show. Slice 2, the
   self-modifying-code check, averages 100.1 MHz; that L1I hit path, into
   F2, limits two of its seeds.
 - **The last nextpnr clock before the memory path** is 69.43–74.40 MHz, the
@@ -903,7 +906,9 @@ already completes at commit.
 ### Stores and forwarding
 
 - A load at M2 merges, byte by byte, data from older stores that have not yet
-  written the array; the youngest older store wins.
+  written the array; the youngest older store wins. The match is by physical
+  address, and only a store's bytes that write RAM count: read-only RAM and
+  holes drop the store, and a device answers for itself.
 - The write buffer holds four 32-byte line entries with byte masks and
   coalesces sequential stores, so REP STOSD fills whole lines. A load that
   misses L1D checks it; in the first memory slice it waits for the entries
@@ -911,9 +916,11 @@ already completes at commit.
 - A committed store enters the write buffer a cycle after it retires, from
   a commit register, so the buffer's logic never waits on the freeze; the
   commit register counts as part of the buffer for whatever waits on it.
-- I/O instructions, locked operations and uncached loads drain the write
-  buffer first. A DMA buffer written before the OUT that starts the DMA is then
-  visible to the device.
+- I/O instructions and uncached loads drain the write buffer first. A DMA
+  buffer written before the OUT that starts the DMA is then visible to the
+  device. A locked operation does not: the bus interface serves DMA in the
+  buffer's order, so with DMA the only other master nothing can see the
+  difference.
 
 ### Memory types
 
@@ -939,9 +946,11 @@ instead. Every uncached load waits a cycle in M2 first and decides then, so
 the freeze never waits on this test. WB restarts its instruction, as a fault would, and D issues that
 instruction one uop at a time until it ends, so the load comes back as the
 oldest. Microcode writes nothing architectural before its last uop that can
-fault, so a restart is safe wherever a fault is; ENTER with a nesting level,
-whose pushes precede its frame copies, repeats those pushes when a copy from
-MMIO restarts it. Loads that only check a slot (probes) or reload an operand
+fault, so a restart is safe wherever a fault is, with two exceptions that
+repeat what they did with the same values: POPA writes each GPR as its load
+retires, and a restart pops them again; ENTER with a nesting level, whose
+pushes precede its frame copies, repeats those pushes when a copy from MMIO
+restarts it. Loads that only check a slot (probes) or reload an operand
 (the multiply and divide unit's) read nothing. Uncached stores post in order
 at commit to the MMIO port, which accepts one store per cycle into a FIFO.
 Planar VGA logic sits behind it, in the machine.

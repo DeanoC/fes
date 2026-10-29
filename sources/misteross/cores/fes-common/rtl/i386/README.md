@@ -500,8 +500,13 @@ when the load is in M2, and the one in WB writes on the edge the port reads.
 **M2** aligns the 8 loaded bytes to the access and takes each byte an older
 store writes from that store: a MOVS element's store in EX first (its loaded
 value, `pipe_t` ld), then the store in WB, then the one that retired on the
-read edge. EX takes the value through its bypass selects, the
-ones a WB result uses, so EX's front stays one LUT level.
+read edge. M1 takes each distance between physical addresses, so a store and
+a load through two aliases of a byte (A20M, the reset alias) meet, and only
+a store's bytes that write RAM are taken (`ram_bytes`, worked out as the
+store is in EX, or in M2 for a MOVS element's): read-only RAM and holes drop
+the store, and a device answers for itself. EX takes the value through its
+bypass selects, the ones a WB result uses, so EX's front stays one LUT
+level.
 
 **EX** (`fes_i386_ex`) takes its selects registered: M2 decodes them from
 the uop (`fes_i386_exctl`), so no opcode compare sits on EX's data paths. M2
@@ -643,9 +648,10 @@ a time (`serial`, until its last uop commits or anything else flushes), so
 its uncached loads reach M2 as the oldest. A CMPS element's second load still
 issues right behind its first (`x_prev`). Microcode writes nothing
 architectural before its last uop that can fault, so a restart is safe where
-a fault is; the one exception is ENTER with a nesting level, whose pushes
-come before its frame copies: a copy from MMIO that restarts ENTER repeats
-the pushes before it, with the same values. Loads whose data nothing uses
+a fault is, with two exceptions that repeat what they did with the same
+values: POPA writes each GPR as its load retires, and a restart pops them
+again from the same slots; ENTER with a nesting level pushes before its
+frame copies, and a copy from MMIO that restarts ENTER repeats the pushes. Loads whose data nothing uses
 (`pipe_t` `nodata`: INT's and a far CALL's probes, ENTER's last check, POP
 m's pop into nothing, the multiply and divide unit's LOAD and HI) touch
 nothing, so no device sees a read the instruction does not make.
