@@ -10,8 +10,10 @@
 //
 // p0_reset..p2_reset are fes_hps_ddr's per-port execution resets. The bus
 // master holds the machine in reset after each launch until a CONFIG command
-// releases it. Every guest time base is a rational enable of clk; the
-// producer sets each N/D pair from the sealed frequency.
+// releases it. Its hold also fences ports 1 and 2 (pc386_port_fence), so a
+// machine reset never cuts a burst there. Port 0 is the bus master's own.
+// Every guest time base is a rational enable of clk; the producer sets each
+// N/D pair from the sealed frequency.
 module pc386_diag #(
     parameter integer ISA_N = 1, ISA_D = 12,
     parameter integer PIT_N = 21, PIT_D = 880,
@@ -71,6 +73,32 @@ module pc386_diag #(
     wire machine_hold;
     reg reset = 1'b1;
     always @(posedge clk) reset <= machine_hold || p1_reset || p2_reset;
+
+    // The machine's ports 1 and 2, fenced by the bus master's hold.
+    wire [28:0] machine_p1_address, machine_p2_address;
+    wire [7:0] machine_p1_burstcount, machine_p2_burstcount;
+    wire machine_p1_read, machine_p1_write, machine_p1_waitrequest, machine_p1_readdatavalid;
+    wire machine_p2_read, machine_p2_write, machine_p2_waitrequest, machine_p2_readdatavalid;
+    wire [63:0] machine_p1_writedata, machine_p1_readdata, machine_p2_writedata, machine_p2_readdata;
+    wire [7:0] machine_p1_byteenable, machine_p2_byteenable;
+    pc386_port_fence p1_fence (
+        .clk(clk), .reset(p1_reset), .hold(machine_hold),
+        .address(machine_p1_address), .burstcount(machine_p1_burstcount), .read(machine_p1_read),
+        .write(machine_p1_write), .writedata(machine_p1_writedata), .byteenable(machine_p1_byteenable),
+        .waitrequest(machine_p1_waitrequest), .readdata(machine_p1_readdata), .readdatavalid(machine_p1_readdatavalid),
+        .m_address(p1_address), .m_burstcount(p1_burstcount), .m_read(p1_read), .m_write(p1_write),
+        .m_writedata(p1_writedata), .m_byteenable(p1_byteenable), .m_waitrequest(p1_waitrequest),
+        .m_readdata(p1_readdata), .m_readdatavalid(p1_readdatavalid)
+    );
+    pc386_port_fence p2_fence (
+        .clk(clk), .reset(p2_reset), .hold(machine_hold),
+        .address(machine_p2_address), .burstcount(machine_p2_burstcount), .read(machine_p2_read),
+        .write(machine_p2_write), .writedata(machine_p2_writedata), .byteenable(machine_p2_byteenable),
+        .waitrequest(machine_p2_waitrequest), .readdata(machine_p2_readdata), .readdatavalid(machine_p2_readdatavalid),
+        .m_address(p2_address), .m_burstcount(p2_burstcount), .m_read(p2_read), .m_write(p2_write),
+        .m_writedata(p2_writedata), .m_byteenable(p2_byteenable), .m_waitrequest(p2_waitrequest),
+        .m_readdata(p2_readdata), .m_readdatavalid(p2_readdatavalid)
+    );
 
     wire io_valid, io_write, inta_valid, io_busy, io_done, inta_done, intr, a20m;
     wire [15:0] io_port;
@@ -161,12 +189,14 @@ module pc386_diag #(
         .disk_valid(disk_valid), .disk_write(disk_write), .disk_address(disk_address), .disk_wdata(disk_wdata),
         .disk_ready(disk_ready), .disk_rvalid(disk_rvalid), .disk_rdata(disk_rdata),
         .dirty_index(dirty_index), .dirty_word(dirty_word),
-        .p1_address(p1_address), .p1_burstcount(p1_burstcount), .p1_read(p1_read), .p1_write(p1_write),
-        .p1_writedata(p1_writedata), .p1_byteenable(p1_byteenable), .p1_waitrequest(p1_waitrequest),
-        .p1_readdata(p1_readdata), .p1_readdatavalid(p1_readdatavalid),
-        .p2_address(p2_address), .p2_burstcount(p2_burstcount), .p2_read(p2_read), .p2_write(p2_write),
-        .p2_writedata(p2_writedata), .p2_byteenable(p2_byteenable), .p2_waitrequest(p2_waitrequest),
-        .p2_readdata(p2_readdata), .p2_readdatavalid(p2_readdatavalid),
+        .p1_address(machine_p1_address), .p1_burstcount(machine_p1_burstcount), .p1_read(machine_p1_read),
+        .p1_write(machine_p1_write), .p1_writedata(machine_p1_writedata), .p1_byteenable(machine_p1_byteenable),
+        .p1_waitrequest(machine_p1_waitrequest), .p1_readdata(machine_p1_readdata),
+        .p1_readdatavalid(machine_p1_readdatavalid),
+        .p2_address(machine_p2_address), .p2_burstcount(machine_p2_burstcount), .p2_read(machine_p2_read),
+        .p2_write(machine_p2_write), .p2_writedata(machine_p2_writedata), .p2_byteenable(machine_p2_byteenable),
+        .p2_waitrequest(machine_p2_waitrequest), .p2_readdata(machine_p2_readdata),
+        .p2_readdatavalid(machine_p2_readdatavalid),
         .display_request(display_request), .display_opcode(display_opcode), .display_index(display_index),
         .display_argument(display_argument), .display_response_valid(display_response_valid),
         .display_response_error(display_response_error), .display_response_data(display_response_data),

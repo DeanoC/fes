@@ -36,6 +36,7 @@ commands from the HPS DDR window in the CPU's place.
 | [`rtl/top.sv`](rtl/top.sv) | The M4 shell: PLLs, the `fes.computer` mailbox, HDMI I2C, `fes_hps_ddr`, 720p HDMI and I2S |
 | [`rtl/pc386_diag.sv`](rtl/pc386_diag.sv) | The machine and its audio with the bus master in the CPU's place; what the commands observe |
 | [`rtl/pc386_bus_master.sv`](rtl/pc386_bus_master.sv) | The CPU stand-in: the command ring on DDR port 0, guest RAM for the 8237, the ATA image |
+| [`rtl/pc386_port_fence.sv`](rtl/pc386_port_fence.sv) | Keeps the bus master's machine reset from cutting a DDR burst on ports 1 and 2 |
 | [`rtl/pc386_system_pll.v`](rtl/pc386_system_pll.v) | The sealed system clock and the 12.288 MHz audio clock |
 | [`constraints-oss.qsf`](constraints-oss.qsf), [`toolchain.lock`](toolchain.lock) | Pins (both lanes), and the core's lock (the i386 lock's pins) |
 | [`clocks.sdc`](clocks.sdc) | The Quartus lane's clocks |
@@ -241,7 +242,11 @@ releases its DDR ports. It has no CPU and boots nothing by itself.
   offset 64 MiB, and the ATA image port reads and writes the image at 128 MiB,
   both on port 0. The HPS writes them through `/dev/mem`.
 - **Reset.** After each launch the machine stays in reset until a command
-  releases it, so the Sound Blaster and disk straps are set first.
+  releases it, so the Sound Blaster and disk straps are set first. The HPS
+  controller cannot recover a burst that stops midway, and `fes_hps_ddr`'s
+  guards act only on an execution hold. So the bus master's hold also fences
+  ports 1 and 2 ([`pc386_port_fence`](rtl/pc386_port_fence.sv)): it finishes a
+  write burst the machine started and hides read data the machine was owed.
 - **Clock.** The system clock is sealed at 61.44 MHz, a multiple of the
   12.288 MHz audio clock and above twice the 28.322 MHz dot clock that the
   scanout needs. [`scripts/pc386_diag.py`](../../scripts/pc386_diag.py)

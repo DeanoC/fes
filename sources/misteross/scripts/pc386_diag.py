@@ -430,6 +430,31 @@ def check_mode13(results: Results, frame) -> list[str]:
     return []
 
 
+def resets(clock_hz: int, count: int = 200) -> Program:
+    """Machine resets at points spread over a VGA frame, while the capture
+    writes and the presenter reads port 2 and the scanout reads port 1. A
+    reset must not cut a DDR burst: after the last, mode 13h is captured
+    whole and nothing underflows."""
+    p = Program(clock_hz)
+    p.reset()
+    set_mode13(p)
+    p.copy_in(0xa0000, bytes(mode13_pattern(x, y) for y in range(200) for x in range(320)))
+    frame = 1 / 70
+    for n in range(count):
+        # Offsets step by 7/16 of a frame, so 16 resets cover it.
+        p.delay(frame * (1 + (n * 7 % 16) / 16))
+        p.config(HOLD, 1)
+        p.delay_clocks(64)
+        p.config(HOLD, 0)
+        p.delay(20e-6)
+        set_mode13(p)
+    p.delay(0.1)
+    p.mark('resets', 2500)
+    p.frame()
+    p.counters()
+    return p
+
+
 def opl2(clock_hz: int, log: Path) -> Program:
     """The OPL2 phrase SOUND.COM played, at its recorded timing (100 MHz cycles)."""
     p = Program(clock_hz)
@@ -741,7 +766,7 @@ def write_frame_ppm(frame, path: Path):
     path.write_bytes(f'P6\n{width} {height}\n255\n'.encode() + rgb)
 
 
-PROGRAMS = ('smoke', 'mode13', 'sound', 'opl2', 'ata', 'vga-trace')
+PROGRAMS = ('smoke', 'mode13', 'sound', 'opl2', 'ata', 'resets', 'vga-trace')
 
 
 def build_program(name: str, clock_hz: int, *, opl2_log: Path | None = None, trace: Path | None = None,
@@ -756,6 +781,8 @@ def build_program(name: str, clock_hz: int, *, opl2_log: Path | None = None, tra
         return opl2(clock_hz, opl2_log or Path(__file__).resolve().parents[1] / 'cores/fes-pc386/sim/fixtures/sound-opl2.log')
     if name == 'ata':
         return ata(clock_hz)
+    if name == 'resets':
+        return resets(clock_hz)
     if name == 'vga-trace':
         if trace is None:
             raise DiagError('vga-trace needs --trace')
@@ -776,6 +803,8 @@ def program_checks(name: str, program: Program, results: Results) -> list[str]:
         return errors
     if name == 'ata':
         return check_ata(program, results)
+    if name == 'resets':
+        return check_mode13(results, results.frames[0]) if results.frames else ['resets program has no frame']
     return []
 
 

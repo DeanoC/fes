@@ -8,16 +8,20 @@ to Quartus ([#1235](https://github.com/DeanoC/fes/issues/1235)), and a
 Quartus 17.0.2 lane sealed `fes.pc386-diag` from this branch plus
 [#1245](https://github.com/DeanoC/fes/pull/1245), which registers the ATA's
 current capacity. Every clock and analysis was met, the system clock at
-75.82 MHz. On Kit B on 29 October all six programs ran and every command's
-status and value passed:
+75.82 MHz. On Kit B on 29 October, in run q1, all six programs ran and every
+command's status and value passed:
 - HDMI showed the VGA pictures.
 - The speaker and DSP reached HDMI audio at their programmed frequencies,
   and the OPL2 phrase was audible.
 - The capture and underflow counters stayed at zero.
 - The package loaded in 4.13 s.
 
-One finding: the presenter's 720p timing is in the machine's reset, so each
-machine reset disturbs HDMI and the capture card re-locks for about 1.5 s.
+Two findings, from runs q1 and q2:
+- The presenter's 720p timing followed machine reset, so each reset disturbed
+  HDMI and the capture re-locked for about 1.5 s. It now follows the pixel
+  PLL's lock alone, and the re-run q2 confirmed it on the kit.
+- In q2, port 2 hung after a machine reset that cut a capture write burst.
+  The bus master's reset bypasses the DDR guards. This is not fixed yet.
 
 Getting this far needed two toolchain-side fixes, recorded below: a Yosys
 change so the producer's read audit fits its bound (DeanoC/yosys#68, pinned),
@@ -307,11 +311,75 @@ every HS and VS period. On the old RTL two periods broke; with the change none
 do, the plane stays locked, and the picture returns unchanged with no
 underflow.
 
+## Kit re-run with the timing change, 29 October 2026
+
+Run q2 used the same programs and Kit B baseline as q1
+([`kit-report-q2.json`](kit-report-q2.json)). The package was a Quartus
+17.0.2 re-seal, build `9571d03573d39fe60d31e0ba8db5e514`, revision
+`7e5da17459`: this branch at `605ff7b09f`, #1245 and the Quartus lane. It met
+every clock: system 76.01 MHz, pixel 84.65 MHz, setup slack +1.559 ns, hold
++0.094 ns.
+
+**The timing change works on the kit.** HDMI held through every machine
+reset:
+- 3 s after load, the grab is a black 720p frame (the machine held, syncs
+  running), not the frozen menu.
+- The mode13 and text pictures show 0.9 s and 1.1 s after their programs'
+  resets. The text grab is now 29.7 dB against the simulation; it was 6.4 dB
+  in q1.
+- The audio has no gaps: the speaker's 440 Hz for 1.5 s, the DSP's 1 kHz for
+  3.2 s, and the OPL2 phrase for 1.7 s (0.55 s in q1).
+
+![3 s after load, black; 0.9 s after mode13's reset; 1.1 s after vga-trace's reset](kit-q2-resets.png)
+
+smoke, mode13, vga-trace, sound and ata passed every command again. The
+vga-trace captures differed from the bench only in blink phase.
+
+**Finding: a machine reset can cut a port 2 burst.** opl2 failed one check:
+its presenter-underflow counter read 128,564 at the end, nearly every row of
+the 178 frames after its reset. The grab at the end of the run is black. Port
+2 stopped serving the presenter after that reset and did not recover in the
+session.
+
+The plane bench reproduces it. A machine reset in the middle of a capture
+write burst stops the DDR model with "port 2: read during a write burst": the
+VGA capture writer and `pc386_port2` reset with the machine and abandon the
+burst, and the arbiter then issues a read. `fes_hps_ddr_guard` says the HPS
+controller cannot recover a burst that stops midway. The bench fails the same
+way on the RTL before the timing change, so q1's six resets missed an
+in-flight burst by chance.
+
+The machine reset is `machine_hold || p1_reset || p2_reset`.
+`fes_hps_ddr`'s guards finish or drain a started transfer only while their
+execution `hold` is high. The bus master's `machine_hold` resets the machine
+without them, and it cannot use that shared hold, which also holds port 0,
+the bus master's own port. So this is the M4 shell's own reset path. In the
+full machine, resets come from execution hold, through the guards.
+
+Kit B stayed healthy. When the runtime loaded the idle core after the session,
+it held the SDR FPGA ports in reset (FPGAPORTRST) and then released them. The
+kit shows the FES menu from DDR, and the wrapper verified the baseline.
+
+**After q2.** `pc386_diag` now fences ports 1 and 2 on the bus master's hold
+([`pc386_port_fence`](../../../sources/misteross/cores/fes-pc386/rtl/pc386_port_fence.sv)).
+While held, the fence takes no new command and finishes a write burst the
+machine started, with byte enables cleared, even if the hold ends first. It
+hides read data the machine was owed until all of it has returned. A second
+`fes_hps_ddr_guard` was not used: it has no reset, so inside `fes_hps_ddr`'s
+own guard both would fill the same burst on an execution hold. The fence adds
+no clock, and smoke, mode13 and ata give the same clocks, data and frames as
+before, command for command.
+
+A new `resets` program checks the fix: machine resets at 16 offsets spread
+over a VGA frame while the capture writes, the presenter reads and the
+scanout reads. After the last reset it checks a whole mode 13h capture and
+the four counters at zero. The bench runs 16 resets and the kit 200. Without
+the fence the bench stops at `port 2: read during a write burst`; with it the
+program passes.
+
 ## Not done
 
-- A kit run of the `timing_reset` change, to confirm that the signal holds
-  across resets and that the audio and the vga-trace text grab are whole. It
-  needs a Quartus re-seal.
+- A kit run of the fence on a Quartus re-seal, with the `resets` program.
 - Nextpnr timing closure of the AT core's read path, the VGA scanout and the
   presenter, parked with [#1235](https://github.com/DeanoC/fes/issues/1235).
 - The disk round trip with the runtime: it needs the M0 contracts

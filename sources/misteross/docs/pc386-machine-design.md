@@ -1336,9 +1336,11 @@ runtime: its exchanges toggle one request bit and poison on a mismatch, so a
 second writer would break them, and `fes.computer` 1.0 has no opcode for
 arbitrary data. A raw development RBF would leave the mailbox free, but the
 runtime releases the DDR ports and brings up HDMI and audio only for an
-admitted package. Until M0 the shell serves the ATA image port from port 0 and
-the HPS writes the image into the window directly; the disk round trip with
-the runtime waits for the M0 contracts.
+admitted package. The bus master's machine reset bypasses `fes_hps_ddr`'s
+guards, so it fences ports 1 and 2 to keep a reset from cutting a burst. Until
+M0 the shell serves the ATA image port from port 0 and the HPS writes the
+image into the window directly; the disk round trip with the runtime waits for
+the M0 contracts.
 
 After first playable: CPU Phase 5 brings JEMM386 and Wolfenstein 3D with EMS;
 CPU Phase 6 wires FERR to IRQ13 and port F0h. Machine follow-ups wait for a
