@@ -1094,16 +1094,40 @@ module fes_i386_cpu #(
     // st2 uop's (a MOVS element's), whose data is its own load: then the
     // store in M2 is older too, and in EX, beside the load in M2, it holds
     // its data (pipe_t ld). M1 takes each one's distance from the load's
-    // address; M2 decodes it.
-    logic [31:0] m2_de, m2_dw, m2_dr;  // the load's address less the store's
+    // address; M2 decodes it. Both are physical, as the L1D and DDR see
+    // them, so a store and a load through two aliases of a byte (A20M, the
+    // reset alias) meet. A store's byte is taken only if it writes RAM (ram_bytes,
+    // worked out as the store is in EX, or in M2 for a st2 uop): one to
+    // read-only RAM or a hole is dropped, and MMIO is the device's, so the
+    // load reads the memory or the device. An access that crosses a 1 MiB
+    // boundary under A20M, or into the reset alias, compares the bytes past
+    // it as if they followed on.
+    function automatic logic [3:0] ram_bytes(input logic [31:0] a, input logic a20m_in,
+                                             input logic [23:0][1:0] upper, input logic [6:0] top);
+        fes_i386_pkg::attr_e at0, at1;
+        at0 = fes_i386_pkg::attr(fes_i386_pkg::phys(a, a20m_in), upper, top);
+        at1 = fes_i386_pkg::attr(fes_i386_pkg::phys({a[31:5] + 27'd1, 5'd0}, a20m_in), upper, top);
+        for (int k = 0; k < 4; k++)
+            ram_bytes[k] = (6'(a[4:0]) + 6'(k) > 6'd31 ? at1 : at0) == fes_i386_pkg::ATTR_RAM;
+    endfunction
+    logic [PA:0] m2_de, m2_dw, m2_dr;  // the load's physical address less the store's
     logic        m2_ve, m2_vw, m2_vr;
+    logic [3:0]  m2_re, m2_rw, m2_rr;  // the store's bytes that write RAM
+    logic [3:0]  ex_ram, wb_ram;       // ... for the store in EX, and in WB
+    logic [PA:0] m1_p;
+    assign m1_p = fes_i386_pkg::phys(m1_s.maddr, a20m);
+    assign ex_ram = ram_bytes(saddr(ex_s), a20m, attr_upper, ram_top);
     always_ff @(posedge clk) if (!freeze) begin
-        m2_de <= m1_s.maddr - m2_s.target;
-        m2_dw <= m1_s.maddr - saddr(ex_s);
-        m2_dr <= m1_s.maddr - saddr(wb_s);
+        m2_de <= m1_p - fes_i386_pkg::phys(m2_s.target, a20m);
+        m2_dw <= m1_p - fes_i386_pkg::phys(saddr(ex_s), a20m);
+        m2_dr <= m1_p - fes_i386_pkg::phys(saddr(wb_s), a20m);
         m2_ve <= m2_s.valid && m2_s.uop.st2;
         m2_vw <= ex_s.valid && writes_mem(ex_s);
         m2_vr <= wb_s.valid && writes_mem(wb_s) && wb_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE;
+        m2_re <= ram_bytes(m2_s.target, a20m, attr_upper, ram_top);
+        m2_rw <= ex_ram;
+        m2_rr <= wb_ram;
+        wb_ram <= ex_ram;
     end
 
     // ---- M2 -----------------------------------------------------------------------
@@ -1118,15 +1142,15 @@ module fes_i386_cpu #(
 
     // Load byte i is store byte k when the load's address less the store's is
     // k - i: within -3..3, so its high bits are all zero or all one and its
-    // low three bits are k - i.
+    // low three bits are k - i. long_*: the store writes byte k, to RAM.
     logic       near_e, near_w, near_r;
     logic [3:0] long_e, long_w, long_r;  // the store writes byte k
-    assign near_e = m2_ve && (m2_de[31:2] == 30'd0 || m2_de[31:2] == '1);
-    assign near_w = m2_vw && (m2_dw[31:2] == 30'd0 || m2_dw[31:2] == '1);
-    assign near_r = rt_valid && (m2_dr[31:2] == 30'd0 || m2_dr[31:2] == '1);
-    assign long_e = {{2{ex_s.uop.mem.bytes[2]}}, |ex_s.uop.mem.bytes[2:1], 1'b1};
-    assign long_w = {{2{wb_s.uop.mem.bytes[2]}}, |wb_s.uop.mem.bytes[2:1], 1'b1};
-    assign long_r = {{2{rt_bytes[2]}}, |rt_bytes[2:1], 1'b1};
+    assign near_e = m2_ve && (m2_de[PA:2] == '0 || m2_de[PA:2] == '1);
+    assign near_w = m2_vw && (m2_dw[PA:2] == '0 || m2_dw[PA:2] == '1);
+    assign near_r = rt_valid && (m2_dr[PA:2] == '0 || m2_dr[PA:2] == '1);
+    assign long_e = {{2{ex_s.uop.mem.bytes[2]}}, |ex_s.uop.mem.bytes[2:1], 1'b1} & m2_re;
+    assign long_w = {{2{wb_s.uop.mem.bytes[2]}}, |wb_s.uop.mem.bytes[2:1], 1'b1} & m2_rw;
+    assign long_r = {{2{rt_bytes[2]}}, |rt_bytes[2:1], 1'b1} & m2_rr;
     for (genvar i = 0; i < 4; i++) begin : g_ld
         logic [3:0] he, hw, hr;
         logic [7:0] port, from_e, from_w, from_r;
