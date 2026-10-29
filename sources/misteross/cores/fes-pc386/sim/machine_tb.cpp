@@ -76,10 +76,10 @@
 // uop died on a wrong path behind a redirect that retired ("path"), in an
 // instruction a fault or an interrupt restarted ("restart"), or behind a stop.
 // One whose uop died on the edge M1 sent it still reads the VGA, and the port
-// gives its bytes to no later load (vga_cancelled; vga_overlaps counts the
-// loads issued while such a read was out). So does one whose uop already
-// carried a fault when M1 sent it, since M2 waits only for a fault-free
-// load's bytes (vga_faulted).
+// gives its bytes to no later load (vga_cancelled). So does one whose uop
+// already carried a fault when M1 sent it, since M2 waits only for a
+// fault-free load's bytes (vga_faulted). vga_overlaps counts the loads issued
+// while either kind's read was out.
 // --census F writes each stem the oracle retired, its count and its first
 // CS:EIP to F, ":pm" after a stem run in protected mode or V86: the whole
 // boot's instruction mix with the oracle as the CPU, the RTL's stops with it.
@@ -997,15 +997,16 @@ private:
         const unsigned first = address & 3, last = std::min(first + bytes, 8u);
         uint64_t value = 0;
         bool queued = false;
+        bool overlaps = false;
         for (Mmio &op : vga_queue)
             if (op.abandoned) {
-                ++vga_overlaps;
+                overlaps = true;
                 if (!op.overlapped)
                     std::printf("OVERLAP %llu %08x %08x\n", (unsigned long long)m.cycles, physical(address, a20m),
                                 op.dword + unsigned(__builtin_ctz(op.enables)));
-                for (Mmio &other : vga_queue) other.overlapped |= other.abandoned;
-                break;
+                op.overlapped = true;
             }
+        if (overlaps) ++vga_overlaps;
         last_reads = 0;
         for (unsigned half = 0; half < 2; ++half) {
             const uint32_t base = physical(dword + 4 * half, a20m);

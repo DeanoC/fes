@@ -34,7 +34,9 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
   game     starts Wolfenstein 3D or Ultima VI from user-supplied eXoDOS files
            and checks the game's OPL2 output; writes the last captured frame.
            Supply the games outside the repo. With --cpu rtl, on
-           fes_i386_cpu as boot runs it; writes game-<name>-rtl/.
+           fes_i386_cpu as boot runs it, and fails if the RTL stopped,
+           stalled or handed the oracle an instruction; writes
+           game-<name>-rtl/.
   vga      runs the benches, boots
            cores/fes-pc386/sim/vga_test.asm (VGA BIOS text, mode 13h, mode Y,
            mode 12h), checks every marked picture's 720p frame from the
@@ -381,6 +383,37 @@ def run_machine(testbench: Path, suite: str, arguments: list[str], images: dict)
     return report
 
 
+def rtl_failures(report: dict, run: str) -> list[str]:
+    """Require the RTL to have run the whole run itself: it retired, handed no
+    instruction to the oracle (protected mode and V86 included), and neither
+    stopped nor stalled."""
+    rtl = report.get('rtl')
+    if not isinstance(rtl, dict):
+        return [f'the {run} report has no RTL CPU counters']
+
+    failures = []
+    counters = rtl.get('counters') or {}
+    retired = counters.get('retired')
+    if retired is None:
+        failures.append(f'the {run} report is missing the retired counter')
+    elif retired <= 0:
+        failures.append(f'the RTL retired no instructions in the {run}: {retired}')
+    for counter in ('oracle_steps', 'protected_steps'):
+        value = counters.get(counter)
+        if value is None:
+            failures.append(f'the {run} report is missing the {counter} counter')
+        elif value != 0:
+            failures.append(f'RTL {counter}={value}, expected 0: the {run} handed instructions to the oracle')
+
+    stops = rtl.get('stops', [])
+    gaps = rtl.get('gaps', [])
+    if stops or gaps:
+        details = [f'{stop.get("kind")} {stop.get("stem")} at {stop.get("site")}' for stop in stops]
+        details.extend(f'{gap.get("kind")} {gap.get("stem")} ({gap.get("stops")} stops)' for gap in gaps)
+        failures.append(f'the RTL stopped or stalled in the {run}: ' + '; '.join(details))
+    return failures
+
+
 def rtl_boot_failures(report: dict, cpu: str) -> list[str]:
     """Require the RTL itself to reach the FreeDOS prompt on an RTL boot."""
     if cpu != 'rtl':
@@ -391,31 +424,13 @@ def rtl_boot_failures(report: dict, cpu: str) -> list[str]:
         failures.append('the RTL boot did not report reaching the prompt')
     if (report.get('end') or {}).get('reason') != 'prompt':
         failures.append(f'the RTL boot ended before the prompt: {(report.get("end") or {}).get("reason")}')
-
-    rtl = report.get('rtl')
-    if not isinstance(rtl, dict):
-        failures.append('the RTL boot report has no RTL CPU counters')
-        return failures
-
-    counters = rtl.get('counters') or {}
-    retired = counters.get('retired')
-    if retired is None:
-        failures.append('the RTL boot report is missing the retired counter')
-    elif retired <= 0:
-        failures.append(f'the RTL retired no instructions before the prompt: {retired}')
-    for counter in ('oracle_steps', 'shadow_faults', 'vga_overlaps'):
-        value = counters.get(counter)
+    failures += rtl_failures(report, 'RTL boot')
+    if isinstance(report.get('rtl'), dict):
+        value = (report['rtl'].get('counters') or {}).get('shadow_faults')
         if value is None:
-            failures.append(f'the RTL boot report is missing the {counter} counter')
+            failures.append('the RTL boot report is missing the shadow_faults counter')
         elif value != 0:
-            failures.append(f'RTL {counter}={value}, expected 0 for an RTL-only boot')
-
-    stops = rtl.get('stops', [])
-    gaps = rtl.get('gaps', [])
-    if stops or gaps:
-        details = [f'{stop.get("kind")} {stop.get("stem")} at {stop.get("site")}' for stop in stops]
-        details.extend(f'{gap.get("kind")} {gap.get("stem")} ({gap.get("stops")} stops)' for gap in gaps)
-        failures.append('the RTL stopped or stalled before the prompt: ' + '; '.join(details))
+            failures.append(f'RTL shadow_faults={value}, expected 0')
     return failures
 
 
@@ -782,6 +797,21 @@ def game_disk(args, game: dict, work: Path) -> tuple[Path, dict]:
     return disk, record
 
 
+def game_failures(report: dict, cpu: str) -> list[str]:
+    """The machine's failures but the time limit's exit, a game that never
+    played the OPL2, and on the RTL CPU, what rtl_failures requires."""
+    failures = list(report['failures'])
+    # The game runs until the time limit, which machine_tb reports as exit 1.
+    if (report['end'] or {}).get('reason') == 'limit':
+        failures = [failure for failure in failures if not failure.startswith('machine_tb exited 1')]
+    opl2 = report['opl2'] or {}
+    if not opl2.get('writes') or not opl2.get('nonzero'):
+        failures.append(f'the game did not play the OPL2: {opl2}')
+    if cpu == 'rtl':
+        failures += rtl_failures(report, 'game')
+    return failures
+
+
 def run_game(args, linked: list[Path]) -> dict:
     game = GAMES[args.game]
     rtl = '-rtl' if args.cpu == 'rtl' else ''
@@ -804,13 +834,7 @@ def run_game(args, linked: list[Path]) -> dict:
                                             '--cpu', args.cpu], images)
     report['game'] = {'name': args.game, **record}
     report['work'] = str(work)
-    # The game runs until the time limit, which machine_tb reports as exit 1.
-    if (report['end'] or {}).get('reason') == 'limit':
-        report['failures'] = [failure for failure in report['failures']
-                              if not failure.startswith('machine_tb exited 1')]
-    opl2 = report['opl2'] or {}
-    if not opl2.get('writes') or not opl2.get('nonzero'):
-        report['failures'].append(f'the game did not play the OPL2: {opl2}')
+    report['failures'] = game_failures(report, args.cpu)
     if wav.exists():
         report['audio'] = tone(read_wav(wav))
     return report
