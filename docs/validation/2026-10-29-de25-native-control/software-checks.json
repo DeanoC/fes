@@ -1,0 +1,253 @@
+{
+  "base_and_candidate_fogcast_bytes_identical": true,
+  "base_revision": "ff73fe2173861b216ef16512340c3adfe4f54147",
+  "consistency": {
+    "fixture_copies": 37,
+    "generated_consumers": 32,
+    "source_pin_copies": 0
+  },
+  "focused_parent_checks": {
+    "test_consistency.py": {
+      "passed": 11,
+      "ran": 11
+    },
+    "test_de25_runtime.py": {
+      "passed": 4,
+      "ran": 4
+    }
+  },
+  "fogcast_source_tree": "d9306de9a3b6f9225bc17c1ccd814a0526574dbf",
+  "format": 1,
+  "full_runtime_tests": {
+    "active_tree": "passed",
+    "command": [
+      "make",
+      "-C",
+      "sources/libmister-runtime",
+      "-j2",
+      "test"
+    ],
+    "log": "out/runtime-tests.log",
+    "new_client_groups": 12,
+    "returncode": 0,
+    "sha256": "d48a6fe4bafa112f84e47e98d11142afc0e1bd8d291e9ca5e17709a8e01d0d38",
+    "support_truth": "passed"
+  },
+  "hardware_acceptance": "not-performed",
+  "host_original": {
+    "not_started": [
+      "host concurrency-focused race checks",
+      "appliance race suite",
+      "expansion functional suite",
+      "expansion concurrency-focused race checks",
+      "host UI tests"
+    ],
+    "results": [
+      {
+        "label": "host artifact functional suites",
+        "returncode": 0
+      },
+      {
+        "label": "host race suite excluding race-expensive packages",
+        "returncode": 1
+      }
+    ],
+    "status": "failed"
+  },
+  "logs": {
+    "out/host-remaining-2.log": "1b957234b53e1795e2ce22c26e95fb309e141e686b77d71b0c68d70e6dbd2444",
+    "out/host-remaining-3.log": "d5ba29e3d2fe01a250de3c68714976b281f8b163797659f04fc159be9292cac5",
+    "out/host-remaining-4.log": "83e57005dabd0a6e61719bfe1c2a4033690559505d2507e322e0c433e8e7fa60",
+    "out/host-remaining-5.log": "b898612d4a887df88e02f1d0ad4b45ad28e9c89ea4d45f5708925b70d55fcf7d",
+    "out/host-remaining-6.log": "0b8ffa06cbddea4a0b20f08a3428a5c2ab4b40a411ffaf1cbd7aff865b02de66",
+    "out/tenfoot-base-control.log": "1108c9ccba08d35a97890ceec3641b06711daf2cfe0913a5633df6246ef5e7cb",
+    "out/tenfoot-candidate-control.log": "73b18543e01db67608f47b9336a343e4eb928bab79de7b7e27a44d9dff363cda"
+  },
+  "narrow_race_controls": [
+    {
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-short",
+        "-count=1",
+        "-run",
+        "^TestHomeCoreDetailsOpenInTheHeroAndBackClosesThem$",
+        "./ui/tenfoot"
+      ],
+      "log": "out/tenfoot-base-control.log",
+      "name": "base",
+      "returncode": 0,
+      "revision": "ff73fe2173861b216ef16512340c3adfe4f54147"
+    },
+    {
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-short",
+        "-count=1",
+        "-run",
+        "^TestHomeCoreDetailsOpenInTheHeroAndBackClosesThem$",
+        "./ui/tenfoot"
+      ],
+      "log": "out/tenfoot-candidate-control.log",
+      "name": "candidate",
+      "returncode": 0,
+      "revision": "fe624de4f160c9bd50667b7934b4979431d9ced6"
+    }
+  ],
+  "physical_de25_backend": "absent",
+  "producer_revision": "fe624de4f160c9bd50667b7934b4979431d9ced6",
+  "remaining_host_commands": [
+    {
+      "argv": [
+        "go",
+        "test",
+        "-race",
+        "-short",
+        "-timeout",
+        "30m",
+        "-run",
+        "(Concurrent|Concurrency|Race|Cancel|Cancellation|Barrier|Lifecycle|Session|Stop|Target|Lock|Queued|Queue|Drain|Lease|Discovery|Watch|Input|Mesh)",
+        "./fogcast",
+        "./corepackage"
+      ],
+      "cwd": "sources/FogCast",
+      "label": "host concurrency-focused race checks",
+      "log": "out/host-remaining-2.log",
+      "returncode": 0,
+      "seconds": 127.583
+    },
+    {
+      "argv": [
+        "go",
+        "test",
+        "-race",
+        "-short",
+        "-timeout",
+        "30m",
+        "./..."
+      ],
+      "cwd": "sources/FogCast/appliance",
+      "label": "appliance race suite",
+      "log": "out/host-remaining-3.log",
+      "returncode": 0,
+      "seconds": 11.584
+    },
+    {
+      "argv": [
+        "go",
+        "test",
+        "-short",
+        "-timeout",
+        "30m",
+        "./..."
+      ],
+      "cwd": "sources/misteross/expansion",
+      "label": "expansion functional suite",
+      "log": "out/host-remaining-4.log",
+      "returncode": 0,
+      "seconds": 121.728
+    },
+    {
+      "argv": [
+        "go",
+        "test",
+        "-race",
+        "-short",
+        "-timeout",
+        "30m",
+        "-run",
+        "(Concurrent|Concurrency|Race|Cancel|Cancellation|Barrier|Lifecycle|Session|Stop|Target|Lock|Queued|Queue|Drain|Lease|Discovery|Watch|Input|Mesh)",
+        "./..."
+      ],
+      "cwd": "sources/misteross/expansion",
+      "label": "expansion concurrency-focused race checks",
+      "log": "out/host-remaining-5.log",
+      "returncode": 0,
+      "seconds": 18.872
+    },
+    {
+      "argv": [
+        "make",
+        "test-ui"
+      ],
+      "cwd": "sources/FogCast",
+      "label": "host UI tests",
+      "log": "out/host-remaining-6.log",
+      "returncode": 0,
+      "seconds": 63.416
+    }
+  ],
+  "sdk_receipt": "runtime.json",
+  "source_binding": "source-binding.json",
+  "strict_hil": "OVERLAY mister-runtime",
+  "test_changed": {
+    "failure": {
+      "cause": "unknown; not reproduced by narrow base/candidate controls",
+      "excerpt": "test-changed-failure.log",
+      "location": "home_lounge_test.go:385",
+      "package": "github.com/DeanoC/FogCast/ui/tenfoot",
+      "result": "timeout waiting for coleco",
+      "test": "TestHomeCoreDetailsOpenInTheHeroAndBackClosesThem"
+    },
+    "limits": [
+      "FPGA synthesis/place-and-route",
+      "cold image builds",
+      "hardware acceptance",
+      "platform/image packaging suite",
+      "required browser integration suite",
+      "committed-source/release validation (make check remains separate)"
+    ],
+    "log": "out/test-changed.log",
+    "not_started": [
+      "runtime software tests"
+    ],
+    "parent_unittest": {
+      "failed": 0,
+      "passed": 1088,
+      "ran": 1090,
+      "skipped": 2
+    },
+    "results": [
+      {
+        "label": "test_affected.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "test_test_changed.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "committed whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "working whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "parent Python regressions",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "working-tree generated consumer consistency",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "host Go and UI tests",
+        "lane": "host",
+        "returncode": 1
+      }
+    ],
+    "sha256": "c222b594fac3b44fe79a59438e7bf22f77356d5c288eac218cba001bbfe37ed5",
+    "status": "failed"
+  }
+}
