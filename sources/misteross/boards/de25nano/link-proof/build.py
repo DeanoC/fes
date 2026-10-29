@@ -86,9 +86,9 @@ def report_table(text: str, title: str) -> list[dict[str, str]]:
 
 
 def verify_regions(rows: list[dict[str, str]], region: dict, revision: str) -> None:
-    # Imported root QDBs retain the coordinates but Quartus labels the region
-    # with the hierarchy instance in implementation reports, not its base name.
-    expected_name = region["id"] if revision == "base" else region["instance"]
+    # With no redundant REGION_NAME assignment, Quartus labels the physical
+    # region by its hierarchy instance in both base and implementation reports.
+    expected_name = region["instance"]
     def report_coordinates(value: str) -> str:
         match = re.fullmatch(r"X([0-9]+) Y([0-9]+) X([0-9]+) Y([0-9]+)", value)
         if match is None:
@@ -155,20 +155,26 @@ def blob(output: Path, path: Path) -> dict:
 
 def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
     inputs = json.loads((output / "inputs.json").read_text())
-    if "project_sha256" in inputs:
-        verify_project(output, inputs)
+    verify_project(output, inputs)
+    generated = json.loads((output / "generated-inputs.json").read_text())
+    verify_files(output, generated)
+    root_qdb = blob(output, output / "root_partition.qdb")
+    baseline_path = output / "root-qdb.json"
+    baseline = json.loads(baseline_path.read_text())
+    if (set(baseline) != {"sha256", "phase"} or baseline["phase"] != "after-base-before-personas"
+            or re.fullmatch(r"[0-9a-f]{64}", baseline["sha256"]) is None):
+        raise BuildError("invalid pre-persona root QDB baseline record")
+    expected_root = baseline["sha256"]
+    if expected_root != root_qdb["sha256"]:
+        raise BuildError("root QDB differs from the retained pre-persona baseline")
     selected_tools = tool_hashes(tools)
-    if (output / "tools.json").exists():
-        if json.loads((output / "tools.json").read_text())["sha256"] != selected_tools:
-            raise BuildError("Quartus executable closure changed after compilation")
-    elif inputs["source_committed"]:
-        raise BuildError("missing frozen compiler tool identity")
+    if json.loads((output / "tools.json").read_text())["sha256"] != selected_tools:
+        raise BuildError("Quartus executable closure changed after compilation")
     directory = output / "artifacts"
     directory.mkdir(exist_ok=False)
     summaries = {}
     decoded = {}
     raw_hashes = {}
-    root_qdb = blob(output, output / "root_partition.qdb")
     run([str(tools["quartus_pfg"]), "-c", str(output / "output_files/base.sof"), str(directory / "base.rbf")],
         output, "base-convert.log")
     run([str(tools["quartus_pfg"]), "-i", str(directory / "base.rbf")], output, "base-info.log")
@@ -237,8 +243,10 @@ def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
              str(output / "output_files" / f"{revision}.slot0.pmsf")], output, f"{revision}-compare.log")
     if tool_hashes(tools) != selected_tools:
         raise BuildError("Quartus executable closure changed during verification")
-    if "project_sha256" in inputs:
-        verify_project(output, inputs)
+    verify_project(output, inputs)
+    verify_files(output, generated)
+    if sha((output / "root_partition.qdb").read_bytes()) != expected_root:
+        raise BuildError("root QDB changed during verification")
     interface_hash = sha(canonical(inputs["interface"]))
     reset_hash = sha(canonical(inputs["clock_reset"]))
     descriptor = {"format": 1, "kind": "fes.de25-pr-proof-artifacts", "diagnostic_only": True,
@@ -275,6 +283,7 @@ def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
              "compiler_status": "passed", "timing_status": "passed",
              "compatibility_status": "pfg-info-pof0-match", "hardware_acceptance": "not-run",
              "artifact_manifest": blob(output, manifest), "root_qdb": root_qdb,
+             "root_qdb_baseline": blob(output, baseline_path),
              "timing": summaries, "compiled_report_sha256": raw_hashes,
              "compatibility_scope": "matching vendor-decoded POF0 region/hash and exact imported root QDB; no SDM execution",
              "pfg_compare_scope": "retained vendor output; unsigned owner-key field absent, not a complete pairing check"}
@@ -433,6 +442,8 @@ def compile_project(output: Path, tools: dict[str, Path], version: str, only: st
         actual_root_hash = sha((output / "root_partition.qdb").read_bytes())
         if root_qdb_hash is None:
             root_qdb_hash = actual_root_hash
+            (output / "root-qdb.json").write_bytes(canonical({"sha256": root_qdb_hash,
+                "phase": "after-base-before-personas"}) + b"\n")
         elif root_qdb_hash != actual_root_hash:
             raise BuildError("implementation changed the exported base root QDB")
         if revision == "base" and only == "base":

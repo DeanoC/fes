@@ -62,8 +62,9 @@ class RecipeTests(unittest.TestCase):
         row = {"Name": "slot_inst", "Place Region Constraint": "(2, 7) to (26, 12)",
                "Route Region Constraint": "(1, 6) to (27, 13)"}
         build.verify_regions([row], region, "persona_a")
+        build.verify_regions([row], region, "base")
         with self.assertRaises(build.BuildError):
-            build.verify_regions([row], region, "base")
+            build.verify_regions([{**row, "Name": "other_instance"}], region, "base")
         with self.assertRaises(build.BuildError):
             build.verify_regions([{**row, "Place Region Constraint": "(3, 7) to (26, 12)"}], region, "persona_a")
 
