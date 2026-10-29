@@ -1,0 +1,16 @@
+{
+  "architecture": "aarch64",
+  "console": "ttyS0:115200",
+  "ethernet": "eth0:dhcp",
+  "ssh": "dropbear",
+  "hardware_acceptance": "not-run",
+  "classification": "userspace-only",
+  "qemu_architecture": "aarch64",
+  "ssh_banner": "SSH-2.0-dropbear_2020.81",
+  "ssh_authentication": "not-tested",
+  "board_boot": "not-run",
+  "board": "de25-nano",
+  "recipe_sha256": "6e672b4d0186cc81433338bdb5bb2c007ae7b5d7fda020f3c836e42769c8f348",
+  "rootfs_sha256": "eda5315463ea8f39475776d3019fcdd911e88e56eaa59533870577cef6f78efd",
+  "image_sha256": "e8836b89667899efe1350d94668644fda19ebf397a3c18d770f6e93dd2d3e854"
+}
