@@ -90,6 +90,21 @@ tests pass. Native Go tests/vet and nine Go test groups under AArch64 QEMU pass;
 controls, separately from the real-artifact end-to-end proof. `make deadcode`
 and generated consistency checks pass (33 consumers, 37 fixtures).
 
+[Software CI at `995a51d0f8`](https://github.com/DeanoC/fes/actions/runs/40855650705)
+passes every selected job. The broader local aggregate completes with 1,092
+parent tests/two skips passing, followed by 1,480 FPGA software tests with two
+failures, one error and 35 skips. [local-checks.json](local-checks.json) retains
+the tracebacks and exact limits; no local aggregate success is claimed.
+Two existing OSS-purity assertions scan absolute paths and reject `quartus`
+in this worktree's directory name. A [paired unchanged-base bootstrap control](path-control.json)
+passes under a plain directory and fails under the keyword-bearing directory.
+The existing HPS simulation wrapper times out after 600 seconds covering both
+builds and runs. Its [27 consumed sources and 10 derived files](hps-source-control.json)
+are unchanged from base; the timeout cause remains unproven without a baseline
+execution. No surviving HPS simulation child was found. Existing tests and
+timeout limits are unchanged. Final verifier guards pass separately at `18be`;
+software CI binds the complete published code to `995a`.
+
 ## Remaining gates and retained outputs
 
 Overall Design Assistant closure remains FAIL, with zero waivers:
