@@ -1,7 +1,7 @@
 {
  "smoke": {
-  "commands": 899,
-  "results": 899,
+  "commands": 908,
+  "results": 908,
   "seconds": 0.001,
   "failures": [],
   "frames": [],
@@ -57,9 +57,9 @@
   }
  },
  "sound": {
-  "commands": 950,
-  "results": 950,
-  "seconds": 0.02,
+  "commands": 961,
+  "results": 961,
+  "seconds": 0.054,
   "failures": [],
   "frames": [],
   "marks": [
@@ -70,23 +70,59 @@
    },
    {
     "name": "speaker-end",
-    "s": 0.011,
-    "done": 867
+    "s": 0.045,
+    "done": 878
    },
    {
     "name": "dsp-single",
-    "s": 0.011,
-    "done": 903
+    "s": 0.045,
+    "done": 914
    },
    {
     "name": "dsp-auto",
-    "s": 0.014,
-    "done": 929
+    "s": 0.048,
+    "done": 940
    },
    {
     "name": "dsp-end",
-    "s": 0.02,
-    "done": 943
+    "s": 0.054,
+    "done": 954
+   }
+  ],
+  "io_clocks": {
+   "OUT vga size0": [
+    6
+   ],
+   "OUT vga size1": [
+    9
+   ],
+   "IN vga size0": [
+    8
+   ],
+   "OUT isa8 size0": [
+    49
+   ],
+   "IN isa8 size0": [
+    49
+   ]
+  }
+ },
+ "opl2": {
+  "commands": 1201,
+  "results": 1201,
+  "seconds": 0.046,
+  "failures": [],
+  "frames": [],
+  "marks": [
+   {
+    "name": "opl2",
+    "s": 0.001,
+    "done": 876
+   },
+   {
+    "name": "opl2-end",
+    "s": 0.026,
+    "done": 1194
    }
   ],
   "io_clocks": {
@@ -146,6 +182,64 @@
    ],
    "IN isa8 size0": [
     49
+   ]
+  }
+ },
+ "resets": {
+  "commands": 14612,
+  "results": 14612,
+  "seconds": 0.447,
+  "failures": [],
+  "frames": [
+   {
+    "width": 320,
+    "height": 400,
+    "buffer": 0,
+    "count": 14
+   }
+  ],
+  "marks": [
+   {
+    "name": "resets",
+    "s": 0.447,
+    "done": 14606
+   }
+  ],
+  "io_clocks": {
+   "OUT vga size0": [
+    6
+   ],
+   "OUT vga size1": [
+    9
+   ],
+   "IN vga size0": [
+    8
+   ]
+  }
+ },
+ "copy": {
+  "commands": 890,
+  "results": 890,
+  "seconds": 0.201,
+  "failures": [],
+  "frames": [],
+  "marks": [],
+  "io_clocks": {
+   "OUT vga size0": [
+    6
+   ],
+   "OUT vga size1": [
+    9
+   ],
+   "IN vga size0": [
+    8
+   ],
+   "OUT isa8 size3": [
+    0
+   ],
+   "OUT isa8 size0": [
+    49,
+    6144001
    ]
   }
  },
@@ -225,7 +319,7 @@
   "marks": [
    {
     "name": "text",
-    "s": 0.124,
+    "s": 0.125,
     "done": 44616
    },
    {
@@ -240,7 +334,7 @@
    },
    {
     "name": "mode13",
-    "s": 1.32,
+    "s": 1.323,
     "done": 142660
    },
    {
@@ -250,7 +344,7 @@
    },
    {
     "name": "modey",
-    "s": 1.915,
+    "s": 1.919,
     "done": 261288
    },
    {
@@ -265,12 +359,12 @@
    },
    {
     "name": "modey-fade",
-    "s": 2.796,
+    "s": 2.797,
     "done": 285984
    },
    {
     "name": "mode12",
-    "s": 3.043,
+    "s": 3.045,
     "done": 345488
    },
    {
@@ -279,6 +373,16 @@
     "done": 366874
    }
   ],
-  "note": "ran before the bus master timing restructure; the VGA path is unchanged"
+  "io_clocks": {
+   "OUT vga size0": [
+    6
+   ],
+   "IN vga size0": [
+    8
+   ],
+   "OUT vga size1": [
+    9
+   ]
+  }
  }
 }

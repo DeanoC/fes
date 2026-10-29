@@ -101,11 +101,25 @@ func (r *runner) put32(v uint32) { r.out = binary.LittleEndian.AppendUint32(r.ou
 func (r *runner) put64(v uint64) { r.out = binary.LittleEndian.AppendUint64(r.out, v) }
 func (r *runner) since() uint64  { return uint64(time.Since(r.start).Nanoseconds()) }
 
+// attach waits for the master's status, then for it to finish every command
+// the doorbell holds for its epoch: a run that was interrupted leaves its
+// commands numbered as this run's would be, and the master would take them
+// as this run's. A doorbell of another epoch is one the master ignores.
 func (r *runner) attach() error {
 	deadline := time.Now().Add(5 * time.Second)
 	for r.w.word(status+4) != magic {
 		if time.Now().After(deadline) {
 			return errors.New("no pc386 bus master status in the window: is fes.pc386-diag running?")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	head, progress := r.w.word(status), time.Now()
+	for r.w.word(doorbell+4) == r.w.word(status+8) && r.w.word(status) != r.w.word(doorbell) {
+		if now := r.w.word(status); now != head {
+			head, progress = now, time.Now()
+		} else if time.Since(progress) > stallLimit {
+			return fmt.Errorf("an earlier run's commands are not finishing (head %d, tail %d)",
+				head, r.w.word(doorbell))
 		}
 		time.Sleep(time.Millisecond)
 	}

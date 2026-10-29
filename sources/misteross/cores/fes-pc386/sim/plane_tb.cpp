@@ -84,6 +84,8 @@ public:
         pc386::PortSignals port{&top.p2_address, &top.p2_burstcount, &top.p2_read, &top.p2_write,
                                 &top.p2_writedata, &top.p2_byteenable, &top.p2_waitrequest, &top.p2_readdata,
                                 &top.p2_readdatavalid};
+        // The capture inputs changed since the last eval; the port sees this clock's command.
+        top.eval();
         ddr.drive(port, cycles);
         top.eval();
         bool beat_taken = top.capture_write && !top.capture_waitrequest;

@@ -13,7 +13,7 @@
 // releases it. Its hold also fences ports 1 and 2 (pc386_port_fence), so a
 // machine reset never cuts a burst there. Port 0 is the bus master's own.
 // Every guest time base is a rational enable of clk; the producer sets each
-// N/D pair from the sealed frequency.
+// N/D pair, and the bus master's TIMEOUT_CLOCKS, from the sealed frequency.
 module pc386_diag #(
     parameter integer ISA_N = 1, ISA_D = 12,
     parameter integer PIT_N = 21, PIT_D = 880,
@@ -25,6 +25,7 @@ module pc386_diag #(
     parameter integer OPL2_N = 7, OPL2_D = 14080,
     parameter integer AUDIO_N = 3, AUDIO_D = 6250,
     parameter integer ATA_RESET_CLOCKS = 1000,
+    parameter integer TIMEOUT_CLOCKS = 10000000,
     parameter integer POLL_CLOCKS = 255
 ) (
     input wire clk, pixel_clk, pixel_locked,
@@ -238,7 +239,13 @@ module pc386_diag #(
     //   12 8237 memory cycles   13 DSP DMA acknowledges  14 debug-port bytes
     //   15 CPU resets [23:16], last debug byte [7:0]
     // status: last POST code [15:8], CMOS busy, plane quiesced, NMI mask,
-    // speaker, A20M, INTR [5:0].
+    // speaker, A20M, INTR [5:0]. Words 1, 2 and 4 count in pixel_clk and
+    // cross whole (pc386_snapshot).
+    wire [31:0] present_underflows_sys, plane_underflows_sys, frames_shown_sys;
+    pc386_snapshot #(.W(96)) pixel_counts (
+        .source_clk(pixel_clk), .value({frames_shown, plane_underflows, present_underflows}),
+        .clk(clk), .snapshot({frames_shown_sys, plane_underflows_sys, present_underflows_sys})
+    );
     reg [31:0] samples, opl2_samples, dma_cycles, dsp_acks, debug_bytes;
     reg [7:0] cpu_resets, last_post, last_debug;
     reg reset_seen;
@@ -261,12 +268,12 @@ module pc386_diag #(
         opl2_samples, samples, {{16{held[15]}}, held}, {16'd0, dirty_word},
         {14'd0, frame_buffer, frame_count}, {6'd0, frame_height, 6'd0, frame_width},
         {16'd0, last_post, 2'd0, cmos_busy, display_quiesced, nmi_mask, speaker, a20m, intr},
-        frames_shown, scanout_underflows, plane_underflows, present_underflows, capture_drops
+        frames_shown_sys, scanout_underflows, plane_underflows_sys, present_underflows_sys, capture_drops
     };
     wire unused = ^{dma_ack_tc, start_latched, frame_start, frame_done, presenter_video,
                     debug_port, opl2_sample, dsp_dac, flush_request};
 
-    pc386_bus_master #(.POLL_CLOCKS(POLL_CLOCKS)) master (
+    pc386_bus_master #(.POLL_CLOCKS(POLL_CLOCKS), .TIMEOUT_CLOCKS(TIMEOUT_CLOCKS)) master (
         .clk(clk), .reset(p0_reset), .machine_hold(machine_hold),
         .io_valid(io_valid), .io_write(io_write), .inta_valid(inta_valid), .io_port(io_port),
         .io_size(io_size), .io_wdata(io_wdata), .io_busy(io_busy), .io_done(io_done), .inta_done(inta_done),

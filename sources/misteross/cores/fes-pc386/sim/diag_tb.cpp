@@ -4,10 +4,13 @@
 // that runs a diagnostic program through the command ring exactly as the
 // kit's pc386-diag tool does (scripts/pc386_diag.py describes both files).
 // The host acts every 16 system clocks. The pixel clock runs throughout, so
-// the presenter and plane load port 2 as on a kit.
+// the presenter and plane load port 2 as on a kit. Behind each port fence the
+// bench also watches the machine's side: read data reaches the machine only
+// for reads it issued since its last reset.
 //
 // usage: diag_tb --program F --results F [--limit-seconds S]
 #include "Vpc386_diag.h"
+#include "Vpc386_diag___024root.h"
 #include "pc386_ddr_model.h"
 
 #include <cstdio>
@@ -40,6 +43,11 @@ public:
     Port0(pc386::Window &window, uint64_t seed) : window(window), random(seed) {}
     void drive(Vpc386_diag &top, uint64_t cycle) {
         uint32_t draw_wait = random.next(), draw_latency = random.next();
+        if (refused && !(top.p0_read == held.read && top.p0_write == held.write && top.p0_address == held.address &&
+                         (!held.write || (top.p0_byteenable == held.byteenable &&
+                                          std::memcmp(top.p0_writedata, held.writedata, 16) == 0))))
+            throw std::runtime_error("port 0: a command changed or withdrawn under waitrequest");
+        refused = false;
         top.p0_readdatavalid = 0;
         if (!reads.empty() && reads.front().first <= cycle) {
             uint8_t *source = window.at(offset(reads.front().second));
@@ -49,7 +57,14 @@ public:
         }
         bool refuse = (draw_wait & 15) == 0 || reads.size() >= 14;
         top.p0_waitrequest = refuse;
-        if (refuse) return;
+        if (refuse) {
+            if (top.p0_read || top.p0_write) {
+                held = {top.p0_read != 0, top.p0_write != 0, top.p0_address, top.p0_byteenable, {}};
+                std::memcpy(held.writedata, top.p0_writedata, 16);
+                refused = true;
+            }
+            return;
+        }
         if (top.p0_read || top.p0_write) {
             if (top.p0_burstcount != 1) throw std::runtime_error("port 0: the bus master issues single beats");
             if (top.p0_read) {
@@ -73,9 +88,35 @@ private:
             throw std::runtime_error("port 0: command outside the DDR window");
         return uint32_t(byte - pc386::WINDOW_BASE);
     }
+    struct Command {
+        bool read, write;
+        uint32_t address;
+        uint16_t byteenable;
+        uint32_t writedata[4];
+    };
     pc386::Window &window;
     pc386::Random random;
     std::vector<std::pair<uint64_t, uint32_t>> reads;
+    bool refused = false;
+    Command held{};
+};
+
+// The machine's side of a port fence, sampled each clock before the edge.
+class Owed {
+public:
+    explicit Owed(std::string name) : name(std::move(name)) {}
+    void observe(bool reset, bool read, bool waitrequest, unsigned burstcount, bool readdatavalid) {
+        if (readdatavalid) {
+            if (reset || owed == 0) throw std::runtime_error(name + ": read data the machine did not ask for");
+            --owed;
+        }
+        if (reset) owed = 0;
+        else if (read && !waitrequest) owed += burstcount;
+    }
+
+private:
+    std::string name;
+    uint64_t owed = 0;
 };
 
 pc386::PortSignals port1(Vpc386_diag &top) {
@@ -123,6 +164,7 @@ private:
     Port0 ddr0{window, 0x5eed0010};
     pc386::Port ddr1{window, 0x5eed0011, "port 1"};
     pc386::Port ddr2{window, 0x5eed0012, "port 2"};
+    Owed machine1{"port 1 fence"}, machine2{"port 2 fence"};
     const std::vector<uint8_t> &program;
     std::vector<uint8_t> out;
     std::vector<std::array<uint32_t, 4>> done;
@@ -136,6 +178,13 @@ private:
         ddr0.drive(top, cycles);
         ddr1.drive(port1(top), cycles);
         ddr2.drive(port2(top), cycles);
+        top.eval();
+        const auto *root = top.rootp;
+        bool reset = root->pc386_diag__DOT__reset;
+        machine1.observe(reset, root->pc386_diag__DOT__machine_p1_read, root->pc386_diag__DOT__machine_p1_waitrequest,
+                         root->pc386_diag__DOT__machine_p1_burstcount, root->pc386_diag__DOT__machine_p1_readdatavalid);
+        machine2.observe(reset, root->pc386_diag__DOT__machine_p2_read, root->pc386_diag__DOT__machine_p2_waitrequest,
+                         root->pc386_diag__DOT__machine_p2_burstcount, root->pc386_diag__DOT__machine_p2_readdatavalid);
         top.clk = 1;
         top.eval();
         top.clk = 0;
@@ -156,10 +205,13 @@ private:
     void put32(uint32_t value) { for (int n = 0; n < 4; ++n) out.push_back(uint8_t(value >> (8 * n))); }
     void put64(uint64_t value) { for (int n = 0; n < 8; ++n) out.push_back(uint8_t(value >> (8 * n))); }
 
-    // The host's share of a clock: attach, collect results, then advance the program.
+    // The host's share of a clock: attach, collect results, then advance the
+    // program. It attaches as pc386-diag does, once the master has finished
+    // every command the doorbell holds for its epoch.
     void host() {
         if (!attached) {
             if (word(STATUS + 4) != MAGIC) return;
+            if (word(DOORBELL + 4) == word(STATUS + 8) && word(STATUS) != word(DOORBELL)) return;
             epoch = word(STATUS + 8);
             submitted = completed = word(STATUS);
             store(DOORBELL, submitted);

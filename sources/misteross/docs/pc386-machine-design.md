@@ -864,7 +864,8 @@ drive model. The Bochs BIOS lists that slave as "Unknown device".
   [ST disk](../../mister-packages/docs/media-data.md)).
 - **Dirty tracking:** one bit per 64 KiB chunk of the image (2,048 bits for
   128 MiB) in an M10K, set when a sector write reaches DDR. A word of the map
-  reads out two clocks after its index; a reset clears the map in 128 clocks.
+  reads out two clocks after its index, and a sector's mark reaches it four
+  clocks after the store goes idle; a reset clears the map in 128 clocks.
 - **IDENTIFY** reports the geometry the runtime committed (below), the LBA
   capacity, and PIO 16-bit only.
 
@@ -1169,8 +1170,8 @@ block), the presenter 826 ALMs, 8 M10K and five DSP blocks, the port 2 arbiter
 and plane bridge 199 ALMs and 6 M10K, the display plane 624 ALMs, 4 M10K and
 one DSP block. The M1 AT core needed at least 16,526 ALMs, more than three
 times its rows, because its memories synthesized to flip-flops. With the ATA
-sector buffer, dirty map and CMOS in M10K it needs at least 3,799 ALMs and
-4 M10K, inside its rows, and the machine-only blocks together need 7,280 ALMs
+sector buffer, dirty map and CMOS in M10K it needs at least 3,788 ALMs and
+4 M10K, inside its rows, and the machine-only blocks together need 7,331 ALMs
 and 38 M10K
 ([record](../../../docs/validation/2026-10-27-pc386-at-core-m10k/summary.md#machine-only-synthesis)).
 
@@ -1337,8 +1338,10 @@ second writer would break them, and `fes.computer` 1.0 has no opcode for
 arbitrary data. A raw development RBF would leave the mailbox free, but the
 runtime releases the DDR ports and brings up HDMI and audio only for an
 admitted package. The bus master's machine reset bypasses `fes_hps_ddr`'s
-guards, so it fences ports 1 and 2 to keep a reset from cutting a burst. Until
-M0 the shell serves the ATA image port from port 0 and the HPS writes the
+guards, so it fences ports 1 and 2 to keep a reset from cutting a burst. Port 0
+reaches all of HPS DDR, so the bus master refuses a command whose range leaves
+the window or A0000h-BFFFFh, or that would alias another, and gives up one the
+machine never answers, as while it is held in reset. Until M0 the shell serves the ATA image port from port 0 and the HPS writes the
 image into the window directly; the disk round trip with the runtime waits for
 the M0 contracts.
 

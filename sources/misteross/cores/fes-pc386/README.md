@@ -37,8 +37,9 @@ commands from the HPS DDR window in the CPU's place.
 | [`rtl/pc386_diag.sv`](rtl/pc386_diag.sv) | The machine and its audio with the bus master in the CPU's place; what the commands observe |
 | [`rtl/pc386_bus_master.sv`](rtl/pc386_bus_master.sv) | The CPU stand-in: the command ring on DDR port 0, guest RAM for the 8237, the ATA image |
 | [`rtl/pc386_port_fence.sv`](rtl/pc386_port_fence.sv) | Keeps the bus master's machine reset from cutting a DDR burst on ports 1 and 2 |
+| [`rtl/pc386_snapshot.sv`](rtl/pc386_snapshot.sv) | Carries the presenter's and the plane's pixel-clock counters whole into the system clock |
 | [`rtl/pc386_system_pll.v`](rtl/pc386_system_pll.v) | The sealed system clock and the 12.288 MHz audio clock |
-| [`constraints-oss.qsf`](constraints-oss.qsf), [`toolchain.lock`](toolchain.lock) | Pins (both lanes), and the core's lock (the i386 lock's pins) |
+| [`constraints-oss.qsf`](constraints-oss.qsf), [`toolchain.lock`](toolchain.lock) | Pins (both lanes), and the core's lock (the i386 lock's nextpnr and Mistral, Yosys main) |
 | [`clocks.sdc`](clocks.sdc) | The Quartus lane's clocks |
 | [`diagnostic/`](diagnostic/main.go) | `pc386-diag`, the kit tool that runs a diagnostic program through the ring |
 | [`sim/diag_tb.cpp`](sim/diag_tb.cpp) | `pc386_diag` with the DDR ports, running a diagnostic program as the kit tool does |
@@ -236,8 +237,12 @@ releases its DDR ports. It has no CPU and boots nothing by itself.
   OUT, IN and polled IN, INTA and waits for INTR, MMIO reads and writes, fills
   and copies between VRAM and DDR, delays, straps, a keyboard byte and the
   machine's counters. Each result goes back to the window with the clocks the
-  command took. The GP mailbox stays the runtime's: its one-request
-  handshake has no room for a second writer.
+  command took. A command that would alias another (an unknown op, CONFIG or
+  READ index, or I/O size) or reach outside A0000h-BFFFFh or the window is
+  refused before it runs, and every command but a wait or delay gives up
+  after 0.1 s, as when the machine is held in reset and never answers. The
+  GP mailbox stays the runtime's: its one-request handshake has no room for
+  a second writer.
 - **Memory.** The 8237's memory cycles read and write guest RAM at window
   offset 64 MiB, and the ATA image port reads and writes the image at 128 MiB,
   both on port 0. The HPS writes them through `/dev/mem`.
@@ -246,7 +251,8 @@ releases its DDR ports. It has no CPU and boots nothing by itself.
   controller cannot recover a burst that stops midway, and `fes_hps_ddr`'s
   guards act only on an execution hold. So the bus master's hold also fences
   ports 1 and 2 ([`pc386_port_fence`](rtl/pc386_port_fence.sv)): it finishes a
-  write burst the machine started and hides read data the machine was owed.
+  write burst the machine started, keeps presenting a command the port
+  refused, and hides read data the machine was owed.
 - **Clock.** The system clock is sealed at 61.44 MHz, a multiple of the
   12.288 MHz audio clock and above twice the 28.322 MHz dot clock that the
   scanout needs. [`scripts/pc386_diag.py`](../../scripts/pc386_diag.py)
@@ -280,11 +286,14 @@ the RTL, guest rates, core ID and interfaces from the OSS producer.
 A diagnostic program is the command list plus what the host does between
 commands: stage bytes into the window, mark a point, dump window bytes, dump
 the newest capture. [`scripts/pc386_diag.py`](../../scripts/pc386_diag.py)
-writes the programs (smoke, mode 13h, sound, OPL2 phrase, ATA, and a replay of
-a VGA trace from the vga or boot suite) and checks results. `diag_tb` runs a
-program on `pc386_diag` with the DDR model; `pc386-diag run PROGRAM RESULTS`
-runs the same file on a kit while the package runs, and writes the same
-results file.
+writes the programs (smoke, mode 13h, sound, OPL2 phrase, ATA, machine
+resets, partial and refused copies, and a replay of a VGA trace from the vga
+or boot suite) and checks results; `check --name` names the program, whose
+own checks run with the commands'. `diag_tb` runs a program on `pc386_diag`
+with the DDR model; `pc386-diag run PROGRAM RESULTS` runs the same file on a
+kit while the package runs, and writes the same results file. It attaches
+only once the bus master has finished every command an earlier,
+interrupted run left in the ring.
 
 ## Not built yet
 

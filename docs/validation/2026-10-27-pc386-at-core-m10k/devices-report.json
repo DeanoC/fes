@@ -52,6 +52,10 @@
     "PASS WRITE SECTORS completes with DRDY at once (the sector is buffered)",
     "PASS written sectors reach the image whole",
     "PASS the sector store sets dirty chunk 1 only",
+    "PASS a mark keeps its word's earlier bits, and dirty_word holds over the mark's read-modify-write",
+    "PASS a mark reaches dirty_word 4 clocks after the store goes idle",
+    "PASS a mark in another word leaves dirty_word steady",
+    "PASS dirty_word reads word 1 (chunk 19), then word 0 (chunks 1, 5), two clocks after dirty_index",
     "PASS READ SECTORS returns what was written",
     "PASS READ MULTIPLE streams two four-sector blocks, one IRQ14 each",
     "PASS new ATA command drains an old prefetch before filling its buffer",
@@ -71,6 +75,7 @@
     "PASS 8254 null count clears once the counter has the count",
     "PASS 8254 read-back count latch alone",
     "PASS port 61h bit 4 toggles every 15.09 us with channel 1 at 18",
+    "PASS a reset clears the dirty map",
     "PASS 0 failure(s)"
   ],
   "failures": [],

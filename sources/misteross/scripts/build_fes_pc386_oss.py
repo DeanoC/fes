@@ -79,7 +79,7 @@ RTL_SOURCES = (
         "operator", "control_operators", "dac_prep", "channels")),
     *(f"cores/fes-pc386/rtl/{name}.sv" for name in (
         "pc386_opl2", "pc386_sb", "pc386_mixer", "pc386_audio", "pc386_bus_master", "pc386_port_fence",
-        "pc386_diag")),
+        "pc386_snapshot", "pc386_diag")),
     "cores/fes-pc386/rtl/pc386_system_pll.v",
     "cores/fes-common/rtl/pixel_pll.v",
     "cores/fes-common/rtl/fes_computer_mailbox.v",

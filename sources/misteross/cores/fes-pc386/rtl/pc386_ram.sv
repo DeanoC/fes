@@ -25,6 +25,11 @@ module pc386_ram #(
             for (lane = 0; lane < BYTES; lane = lane + 1)
                 if (wbyteenable[lane]) memory[waddress][lane * LANE +: LANE] <= wdata[lane * LANE +: LANE];
         if (read) rdata <= memory[raddress];
+`ifdef PC386_RAM_COLLISION
+        // M10K leaves a read of the word being written undefined; the device
+        // checks poison it so that a design using one fails.
+        if (read && write && raddress == waddress) rdata <= ~memory[raddress];
+`endif
     end
     initial if (WIDTH % BYTES != 0) $error("pc386_ram: WIDTH must divide into BYTES lanes");
 endmodule

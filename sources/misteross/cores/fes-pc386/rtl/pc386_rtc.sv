@@ -17,10 +17,11 @@
 // 2Eh-2Fh. busy is high until that has finished.
 //
 // CMOS is an M10K of 64 byte pairs with registered reads: 71h reads the pair
-// at the index, re-read every clock, and the checksum reads one pair ahead.
-// It has one write port: setup first (a guest write while busy is lost), then
-// the guest, then the century byte, which waits for a free clock and gives way
-// to a guest write of 32h.
+// at the index, re-read every clock, and the checksum reads one pair ahead
+// (a 71h read during the checksum, or on the last configuration clock, returns
+// the checksum's pair). It has one write port: setup first (a guest write
+// while busy is lost), then the guest, then the century byte, which waits for
+// a free clock and gives way to a guest write of 32h.
 module pc386_rtc #(
     parameter integer RTC_N = 256,       // 32,768 Hz as N/D of the system clock
     parameter integer RTC_D = 781250

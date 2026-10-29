@@ -127,9 +127,9 @@ MACHINE_RTL = AT_RTL + (
 # The M4 diagnostic machine: the machine, its audio and the bus master that
 # stands in for the CPU (pc386_diag.sv).
 DIAG_RTL = (*dict.fromkeys(MACHINE_RTL + AUDIO_RTL), CORE / 'rtl/pc386_bus_master.sv',
-            CORE / 'rtl/pc386_port_fence.sv', CORE / 'rtl/pc386_diag.sv')
+            CORE / 'rtl/pc386_port_fence.sv', CORE / 'rtl/pc386_snapshot.sv', CORE / 'rtl/pc386_diag.sv')
 DIAG_CLOCK_HZ = 61_440_000
-DIAG_PROGRAMS = ('smoke', 'mode13', 'sound', 'ata', 'resets')
+DIAG_PROGRAMS = ('smoke', 'mode13', 'sound', 'opl2', 'ata', 'resets', 'copy')
 # I/O completion, request clock to done clock: each device cycle's class time
 # (isa8 72 clocks, isa16 36 at 100 MHz) plus one clock to take the request and
 # one to report it. 1F0h with a dword is one word cycle and two byte cycles
@@ -180,7 +180,7 @@ class SimError(RuntimeError):
 
 def verilate(verilator: str, name: str, top: str, rtl: tuple[Path, ...], testbench: Path | None,
              linked: list[Path], jobs: int, parameters: dict[str, int] | None = None,
-             include: tuple[Path, ...] = (), flags: tuple[str, ...] = ()) -> Path:
+             include: tuple[Path, ...] = (), flags: tuple[str, ...] = (), defines: tuple[str, ...] = ()) -> Path:
     output = OUTPUT / name / ('obj' if testbench else f'obj-{top}')
     output.mkdir(parents=True, exist_ok=True)
     includes = ' '.join(f'-I{path}' for path in (COMMON / 'sim/i386', CORE / 'sim', NUKED, *include))
@@ -188,7 +188,7 @@ def verilate(verilator: str, name: str, top: str, rtl: tuple[Path, ...], testben
                '-Wall', '-Wno-UNUSEDSIGNAL', '-Wno-DECLFILENAME', *flags,
                str(CORE / 'sim/pc386.vlt'), str(CORE / 'sim/pc386_audio.vlt'),
                f'-I{COMMON / "vendor/kf8259"}', f'-I{COMMON / "vendor/kf8253"}', f'-I{COMMON / "generated"}',
-               *(f'-G{key}={value}' for key, value in (parameters or {}).items()),
+               *(f'-G{key}={value}' for key, value in (parameters or {}).items()), *(f'-D{name}' for name in defines),
                '--Mdir', str(output), '-MAKEFLAGS', 'OPT_FAST=-O3',
                '-CFLAGS', f'-std=c++17 -O2 {includes}', '-LDFLAGS', '-pthread',
                *map(str, rtl), *([str(testbench)] if testbench else []), *map(str, linked)]
@@ -414,7 +414,7 @@ def run_benches(args) -> dict:
 
 def run_diag(args) -> dict:
     """The M4 diagnostic programs on pc386_diag through the command ring.
-    sound and resets run shortened; vga-trace runs when --trace names a VGA trace."""
+    sound, opl2 and resets run shortened; vga-trace runs when --trace names a VGA trace."""
     from scripts import pc386_diag
     parameters = pc386_diag.rates(DIAG_CLOCK_HZ)
     # The OPL2 import declares a timescale and the KF imports do not.
@@ -425,6 +425,10 @@ def run_diag(args) -> dict:
     for name in programs:
         if name == 'sound':
             program = pc386_diag.sound(DIAG_CLOCK_HZ, speaker_seconds=0.01, auto_seconds=0.004, block=64)
+        elif name == 'opl2':
+            # The setup and the first note, then a short tail.
+            program = pc386_diag.opl2(DIAG_CLOCK_HZ, CORE / 'sim/fixtures/sound-opl2.log', lines=140,
+                                      longest_gap=0.001, sample_every=0.001, tail_seconds=0.02, rate_seconds=0.02)
         elif name == 'resets':
             program = pc386_diag.resets(DIAG_CLOCK_HZ, count=16)
         else:
@@ -493,8 +497,9 @@ def run_vga(args, linked: list[Path]) -> dict:
 
 def run_devices(args) -> dict:
     # A fast RTC (one guest second is 2^19 clocks) keeps the update test short.
+    # The RAMs poison a read of the word being written, as M10K leaves it.
     testbench = verilate(args.verilator, 'devices', 'pc386_at_core', AT_RTL, CORE / 'sim/devices_tb.cpp', [],
-                         args.jobs, {'RTC_N': 1, 'RTC_D': 16})
+                         args.jobs, {'RTC_N': 1, 'RTC_D': 16}, defines=('PC386_RAM_COLLISION',))
     result = subprocess.run([str(testbench)], cwd=OUTPUT / 'devices', capture_output=True, text=True)
     (OUTPUT / 'devices/devices.log').write_text(result.stdout + result.stderr)
     checks = [line for line in result.stdout.splitlines() if line.startswith(('PASS', 'FAIL'))]
