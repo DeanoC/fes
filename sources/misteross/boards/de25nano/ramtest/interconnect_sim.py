@@ -234,7 +234,7 @@ def main(argv=None):
             raise ValueError("current generated route differs from generation receipt")
         qips, memory, module, endpoint, sources = source_closure(project)
         header = project / "fes_mailbox/generated/fes_de25_ramtest.hpp"
-        sources[header] = header.read_bytes()
+        sources[header] = contained_file(project, header)
         receipt.update({"inputs_sha256": digest(inputs_data), "generation_sha256": digest(generation_data),
                         "source_revision": inputs.get("fes_revision"), "source_sha256": {str(p.relative_to(project)): digest(d) for p, d in sorted(sources.items())},
                         "qip_sha256": {str(p.relative_to(project)): digest(d) for p, d in sorted(qips.items())},
