@@ -6,6 +6,7 @@ replay are separate suites."""
 import hashlib
 import json
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -243,7 +244,7 @@ class PresenterBenchTest(unittest.TestCase):
 
 
 class DiagnosticTest(unittest.TestCase):
-    def test_rates_at_100_mhz_are_the_machine_defaults(self):
+    def test_rates_at_100_mhz(self):
         rates = pc386_diag.rates(100_000_000)
         expected = {'ISA': (1, 12), 'PIT': (21, 880), 'US': (1, 100), 'DMA': (1, 24), 'DOT0': (1007, 4000),
                     'DOT1': (14161, 50000), 'OPL2': (7, 14080), 'AUDIO': (3, 6250)}
@@ -254,6 +255,28 @@ class DiagnosticTest(unittest.TestCase):
         self.assertEqual(rates['TIMEOUT_CLOCKS'], 10_000_000)
         with self.assertRaises(pc386_diag.DiagError):
             pc386_diag.rates(50_000_000)
+
+    def test_sealed_rates_match_shell_parameters_and_diag_connections(self):
+        rates = pc386_diag.rates(producer.SYSTEM_CLOCK_HZ)
+        top = (producer.ROOT / 'cores/fes-pc386/rtl/top.sv').read_text()
+        parameter_block = top.split('module top #(', 1)[1].split(') (', 1)[0]
+        declarations = re.findall(r'\b([A-Z][A-Z0-9_]*)\s*=\s*([^,\n]+)', parameter_block)
+        shell_parameters = {name for name, _ in declarations} - {'BUILD_ID', 'SYSTEM_CLOCK'}
+        self.assertEqual(shell_parameters, set(rates))
+        shell_defaults = {name: int(value.strip(), 0) for name, value in declarations if name in rates}
+        self.assertEqual(shell_defaults, rates)
+
+        diag_parameters = top.split('pc386_diag #(', 1)[1].split(') diag (', 1)[0]
+        diag_connections = set(re.findall(r'\.([A-Z][A-Z0-9_]*)\s*\(', diag_parameters))
+        self.assertEqual(diag_connections, set(rates))
+
+    def test_oss_synthesis_uses_hierarchy_chparam(self):
+        program = producer.synthesis_command('a' * 32, Path('/toolchain/yosys'))[2]
+        self.assertIn(f"hierarchy -top {producer.board.TOP} -chparam BUILD_ID 128'h{'a' * 32}", program)
+        self.assertIn('-chparam SYSTEM_CLOCK "61.44 MHz"', program)
+        for name, value in pc386_diag.rates(producer.SYSTEM_CLOCK_HZ).items():
+            self.assertIn(f'-chparam {name} {value}', program)
+        self.assertNotIn('chparam -set', program)
 
     def test_programs_round_trip(self):
         for name in ('smoke', 'mode13', 'sound', 'opl2', 'ata', 'resets', 'copy'):
