@@ -78,7 +78,7 @@ python3 scripts/sim_fes_pc386.py --suite vga              # presenter, capture a
 python3 scripts/synth_fes_pc386.py --cache-root /abs/out/cache/misteross-toolchains  # machine-only synthesis
 python3 scripts/sim_fes_pc386.py --suite diag           # M4: the diagnostic programs on pc386_diag, about 1 min
 make toolchain-fes-pc386 CACHE_ROOT=/abs/out/cache/misteross-toolchains  # once per lock
-make build-fes-pc386-diag CACHE_ROOT=/abs/out/cache/misteross-toolchains # seal fes.pc386-diag (clean tree)
+make build-fes-pc386-diag CACHE_ROOT=/abs/out/cache/misteross-toolchains # nextpnr lane (misses timing, #1235)
 ```
 
 The boot suite runs the locked BIOS and VGA BIOS on `pc386_machine`, boots the
@@ -247,9 +247,14 @@ releases its DDR ports. It has no CPU and boots nothing by itself.
   bench take them from there. The mixer's 48 kHz request is a rational
   enable too; `fes_audio_output` carries the newest sample into the I2S clock.
 
-The shell routes but does not yet meet its clocks; the
-[M4 record](../../../../docs/validation/2026-10-28-pc386-m4-diagnostic/summary.md#routed-timing)
-lists the blocks that miss.
+Its nextpnr routes miss both clocks
+([M4 record](../../../../docs/validation/2026-10-28-pc386-m4-diagnostic/summary.md#routed-timing)),
+and nextpnr builds of pc386 are parked with
+[#1235](https://github.com/DeanoC/fes/issues/1235). Sealed with Quartus 17.0.2
+instead, it passed every diagnostic program on Kit B
+([hardware diagnostic](../../../../docs/validation/2026-10-28-pc386-m4-diagnostic/summary.md#hardware-diagnostic-29-october-2026)).
+The presenter's 720p timing still resets with the machine, so HDMI sinks
+re-lock after each machine reset.
 
 A diagnostic program is the command list plus what the host does between
 commands: stage bytes into the window, mark a point, dump window bytes, dump
