@@ -77,7 +77,9 @@
 // instruction a fault or an interrupt restarted ("restart"), or behind a stop.
 // One whose uop died on the edge M1 sent it still reads the VGA, and the port
 // gives its bytes to no later load (vga_cancelled; vga_overlaps counts the
-// loads issued while such a read was out).
+// loads issued while such a read was out). So does one whose uop already
+// carried a fault when M1 sent it, since M2 waits only for a fault-free
+// load's bytes (vga_faulted).
 // --census F writes each stem the oracle retired, its count and its first
 // CS:EIP to F, ":pm" after a stem run in protected mode or V86: the whole
 // boot's instruction mix with the oracle as the CPU, the RTL's stops with it.
@@ -554,9 +556,10 @@ public:
     std::map<std::tuple<int, uint16_t, uint32_t, uint32_t>, LostSite> lost_sites;  // kind, CS, EIP, linear
     uint64_t shadow_faults = 0;
     // VGA loads whose uop died as M1 sent them, while their reads were
-    // still to come, and later loads issued before those reads came back:
-    // the port gives such a read's bytes to no load.
-    uint64_t vga_cancelled = 0, vga_overlaps = 0;
+    // still to come, VGA loads M1 sent for a uop that had already faulted,
+    // and later loads issued before either's reads came back: the port
+    // gives such a read's bytes to no load.
+    uint64_t vga_cancelled = 0, vga_faulted = 0, vga_overlaps = 0;
     // Self-modifying code: a store into a block the front end has fetched,
     // ahead of the next instruction, and an instruction that then retires
     // over a byte so stored before the front end next redirects (and so
@@ -660,7 +663,7 @@ public:
     void cycle() {
         cpu.clk = 0;
         cpu.eval();
-        const bool load = cpu.mem_load, dread = cpu.dmem_read, dwrite = cpu.dmem_write;
+        const bool load = cpu.mem_load, dread = cpu.dmem_read, dawaited = cpu.dmem_awaited, dwrite = cpu.dmem_write;
         const uint32_t block = cpu.mem_block, daddr = cpu.dmem_addr, waddr = cpu.dmem_waddr & ~3u;
         const uint32_t deip = cpu.dmem_eip, dlinear = cpu.arch_base[fes_i386::SEG_CS] + deip;
         const uint16_t dcs = get16(cpu.arch_sel, fes_i386::SEG_CS);
@@ -762,7 +765,7 @@ public:
         // load reads (a VGA load stays behind the store), then the fetch.
         if (dwrite && !resetting) store(waddr, wdata, wmask, a20m);
         Load entering;
-        if (dread && !resetting && data_read(daddr, dbytes, a20m))
+        if (dread && !resetting && data_read(daddr, dbytes, a20m, dawaited))
             entering = {true, dcs, deip, dlinear, physical(daddr, a20m), m.cycles};
         if (!resetting) follow(entering, dread);
         if (load) {
@@ -873,7 +876,8 @@ private:
     // not, and its instruction runs again). A load M1 sent on a flushing
     // edge reached the port, but its uop died there: its VGA reads still
     // go to the VGA, and their bytes go to no later load. (A VGA load in M2
-    // or EX has its bytes, since one waiting for them freezes the CPU.)
+    // or EX has its bytes, since one waiting for them freezes the CPU,
+    // unless its uop had already faulted: see data_read.)
     void follow(Load entering, bool dread) {
         if (bool(cpu.edge_load) != dread || (entering.vga && !cpu.edge_move)) ++shadow_faults;
         if (cpu.edge_flush) {
@@ -881,7 +885,7 @@ private:
             const Lost kind = cpu.edge_commit ? LOST_PATH : LOST_RESTART;
             lose(shadow[1], kind);
             lose(shadow[0], kind);
-            if (entering.vga) {
+            if (entering.vga && last_reads) {
                 ++vga_cancelled;
                 for (auto op = vga_queue.rbegin(); op != vga_queue.rend() && last_reads; ++op)
                     if (!op->write && !op->abandoned) { op->abandoned = true; --last_reads; --vga_reads; }
@@ -966,8 +970,10 @@ private:
         return text;
     }
 
-    // A load on the data port; true when it reads the VGA.
-    bool data_read(uint32_t address, unsigned bytes, bool a20m) {
+    // A load on the data port; true when it reads the VGA. M2 waits for
+    // the bytes of a load whose uop has no fault (awaited); M1 sends the
+    // load of a faulted uop too, and its VGA reads are abandoned as sent.
+    bool data_read(uint32_t address, unsigned bytes, bool a20m, bool awaited) {
         const uint32_t dword = address & ~3u;
         const unsigned first = address & 3, last = std::min(first + bytes, 8u);
         uint64_t value = 0;
@@ -985,6 +991,7 @@ private:
         for (unsigned half = 0; half < 2; ++half) {
             const uint32_t base = physical(dword + 4 * half, a20m);
             Mmio op{false, base, 0, 0, 4 * half};
+            op.abandoned = !awaited;
             for (unsigned k = 0; k < 4; ++k) {
                 const unsigned lane = 4 * half + k;
                 const uint32_t at = base + k;
@@ -995,10 +1002,15 @@ private:
                     value |= uint64_t(read8(at)) << (8 * lane);
                 }
             }
-            if (op.enables) { vga_queue.push_back(op); ++vga_reads; ++last_reads; queued = true; }
+            if (op.enables) {
+                vga_queue.push_back(op);
+                queued = true;
+                if (awaited) { ++vga_reads; ++last_reads; }
+            }
         }
         loaded = value;
         if (queued) ++vga_loads;
+        if (queued && !awaited) ++vga_faulted;
         if (vga_reads) {
             cpu.dmem_valid = 0;
         } else {
@@ -1492,14 +1504,16 @@ int main(int argc, char **argv) {
             for (const std::string &note : notes) std::printf("NOTE %s\n", note.c_str());
             std::printf("RTL retired=%llu oracle_steps=%llu protected_steps=%llu parked_clocks=%llu tf_retired=%llu "
                         "vga_loads=%llu vga_lost_path=%llu vga_lost_restart=%llu vga_lost_stop=%llu shadow_faults=%llu "
-                        "vga_cancelled=%llu vga_overlaps=%llu smc_stores=%llu smc_addresses=%zu smc_executed=%llu\n",
+                        "vga_cancelled=%llu vga_faulted=%llu vga_overlaps=%llu smc_stores=%llu smc_addresses=%zu "
+                        "smc_executed=%llu\n",
                         (unsigned long long)rtl->retired, (unsigned long long)oracle_steps,
                         (unsigned long long)protected_steps, (unsigned long long)rtl->parked_clocks,
                         (unsigned long long)rtl->tf_retired, (unsigned long long)rtl->vga_loads,
                         (unsigned long long)rtl->vga_lost[RtlCpu::LOST_PATH],
                         (unsigned long long)rtl->vga_lost[RtlCpu::LOST_RESTART],
                         (unsigned long long)rtl->vga_lost[RtlCpu::LOST_STOP], (unsigned long long)rtl->shadow_faults,
-                        (unsigned long long)rtl->vga_cancelled, (unsigned long long)rtl->vga_overlaps,
+                        (unsigned long long)rtl->vga_cancelled, (unsigned long long)rtl->vga_faulted,
+                        (unsigned long long)rtl->vga_overlaps,
                         (unsigned long long)rtl->smc_stores, rtl->smc_addresses.size(),
                         (unsigned long long)rtl->smc_executed);
             steps += rtl->retired;
