@@ -262,4 +262,3 @@ struct Computer {
         wait_idle(160000000, "ROM keyboard debounce did not return to idle after HID release");
     }
 };
-
