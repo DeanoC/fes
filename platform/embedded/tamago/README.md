@@ -96,7 +96,7 @@ address or firmware assumption is a DE25 board constant.
 | Storage | VirtIO block reads/writes/FLUSH; FAT32 directories and files | SD controller, card lifecycle and removal |
 | Preferences | Existing preallocated FAT32 JSON file; data and metadata flushes | Allocation/update strategy and power-loss-safe publication |
 | Network | VirtIO, IPv4 TCP, static address, normal Go HTTP client | MAC/PHY, IRQs, address setup and qualified entropy |
-| FPGA | Separate software lifecycle model; no actual FPGA programming | Runtime-owned configuration, identity, reset and DMA revocation |
+| FPGA | Retained-package software lifecycle connected to tenfoot Play/Back; no actual programming | Runtime-owned configuration, identity, reset and DMA revocation |
 
 FAT32 writes update existing preallocated files only; they cannot create,
 allocate, rename or atomically replace them. The preference record reserves
@@ -112,7 +112,8 @@ throughput qualification remain outside this prototype. The separate
 
 The [fabric lifecycle model](fabricmodel/README.md) runs separately through
 `run.py fabric`. It checks ownership and recovery order with software-only
-images. It neither replaces the production runtime nor enables tenfoot Play.
+images. It does not replace the production runtime. The separate model-only Play path
+below now connects that lifecycle to the actual UI.
 
 ## Package inspection without a host OS
 
@@ -145,7 +146,7 @@ inspection, with compatibility left to the runtime. Format-3/4 ROM maps are
 validated, but linking and their activation receipts are not implemented here.
 The native FAT reader currently limits individual files to 64 MiB, below the
 shared 65 MiB archive cap. Maximum-size memory/latency behavior is unqualified.
-No FPGA is programmed and tenfoot Play remains unavailable.
+No FPGA is programmed; physical tenfoot Play remains unavailable.
 
 ## Runtime admission of verified packages
 
@@ -197,8 +198,8 @@ format-2 payloads retain their 1 MiB bound. Format-3/4 raw loads reject; the
 separate retained ROM activation path below supplies their required receipts. Existing DE10-Nano corpus targets remain
 DE10-Nano targets; none become DE25-compatible. Production driver resolution,
 HPS DDR layout, native display composition and physical lifecycle checks remain
-outside this prototype. There is no FPGA programming, live identity proof,
-physical hardware acceptance or tenfoot Play support.
+outside this prototype. There is no FPGA programming, live identity proof or physical hardware
+acceptance. Model-only tenfoot Play is covered below.
 
 The same corpus can run on the host with the race detector after a native run:
 
@@ -243,7 +244,41 @@ Linked model buffers are bounded at 8 MiB to accommodate the approximately 2 MiB
 synthetic bitstreams. This is an emulation limit, not a hardware-package size or
 latency qualification. Sources survive for the opaque object's lifetime; the
 model separately owns its programming-byte copy through completion/recovery.
-Nothing is durably installed. Parts/expansions, initial media, real-board resources,
-live GP identity and tenfoot launch integration remain separate. These are
+Nothing is durably installed. Parts/expansions, initial media, real-board resources
+and live GP identity remain separate. The model-only tenfoot integration below
+uses this retained activation path. These are
 Cyclone V test vectors and supply no Agilex/DE25 programming support. Linker CPU,
 heap and concurrent UI/network latency have not been qualified on the board.
+
+
+## Tenfoot Play and return through the model
+
+```sh
+python3 platform/embedded/tamago/run.py play \
+  --compiler out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go \
+  --qemu out/de25-os-tools/zephyr-sdk-0.17.4/sysroots/x86_64-pokysdk-linux/usr/bin/qemu-system-aarch64 \
+  --output out/native-tenfoot-play
+```
+
+This builds the existing `cmd/tenfoot` with an explicitly selected model boot
+configuration, then drives Play and Back using QEMU's USB keyboard. It retains
+and links real synthetic Mistral fixtures from FAT32, checks the selected package,
+source digests and receipt, activates the model, parks/resumes the existing UI
+renderer, and returns to the same catalog selection. The session contains no
+emulated gameplay or physical FPGA output. The [model adapter](modelbackend/README.md)
+explains actor, frame, input and request ownership.
+
+The test covers normal launch/return, wrong ROM, wrong receipt, canceled
+preparation, programming/identity recovery and a failed save followed by retry.
+It also rejects delayed input/display events. QMP screenshots and complete
+state/command traces accompany the receipt. Tenfoot handles its own Quit, idle
+release and backend close before the runner reaps QEMU. All input disk bytes
+must remain unchanged. QMP waits drain guest serial output while assembling
+possibly partial replies; their existing five-second control timeout is unchanged.
+
+The host-only fixture helper uses an installed standard Go toolchain to derive
+expected receipts with the same linker. No alternate ROM encoding is introduced.
+The ordinary `run.py tenfoot` mode still browses the real private network host,
+checks USB navigation and persists layout across two boots. Model mode uses an
+in-process diagnostic catalog and does not claim production host/target launch
+orchestration, physical programming, board DMA containment or DE25 acceptance.

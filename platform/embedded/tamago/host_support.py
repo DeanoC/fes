@@ -76,6 +76,7 @@ class Guest:
         self.log = bytearray()
         self.console = (self.directory / "console.log").open("wb")
         self.process = self.serial = self.qmp = self.qmp_stream = None
+        self.qmp_buffer = bytearray()
         self.stderr = (self.directory / "qemu.log").open("wb")
         self.started = time.monotonic()
         self.usb = usb
@@ -138,16 +139,34 @@ class Guest:
         request = {"execute": command}
         if arguments is not None:
             request["arguments"] = arguments
-        self.qmp_stream.write(json.dumps(request).encode() + b"\n")
+        self.qmp.sendall(json.dumps(request).encode() + b"\n")
+        deadline = time.monotonic() + 5
         while True:
-            line = self.qmp_stream.readline()
-            if not line:
-                raise RuntimeError("QMP disconnected")
-            response = json.loads(line)
-            if "error" in response:
-                raise RuntimeError(f"QMP {command}: {response['error']}")
-            if "return" in response:
-                return response["return"]
+            while b"\n" in self.qmp_buffer:
+                line, _, remaining = self.qmp_buffer.partition(b"\n")
+                self.qmp_buffer = bytearray(remaining)
+                response = json.loads(line)
+                if "error" in response:
+                    raise RuntimeError(f"QMP {command}: {response['error']}")
+                if "return" in response:
+                    return response["return"]
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise RuntimeError(f"QMP {command} timed out after 5 seconds")
+            # A chatty guest may block in UART output. Keep its serial channel
+            # flowing while QEMU services screenshots or injected USB keys.
+            with selectors.DefaultSelector() as selector:
+                selector.register(self.qmp, selectors.EVENT_READ, "qmp")
+                selector.register(self.serial, selectors.EVENT_READ, "serial")
+                ready = selector.select(remaining)
+            for key, _ in ready:
+                if key.data == "serial":
+                    self.pump(0)
+                else:
+                    data = self.qmp.recv(65536)
+                    if not data:
+                        raise RuntimeError("QMP disconnected")
+                    self.qmp_buffer.extend(data)
 
     def pump(self, timeout=0.1, echo=False):
         with selectors.DefaultSelector() as selector:

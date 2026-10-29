@@ -56,7 +56,7 @@ def stop(process):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("program", choices=("probe", "fabric", "packages", "admission", "tenfoot"))
+    parser.add_argument("program", choices=("probe", "fabric", "packages", "admission", "play", "tenfoot"))
     parser.add_argument("--compiler", required=True, type=Path)
     parser.add_argument("--qemu", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
@@ -85,7 +85,7 @@ def main():
     if args.interactive and args.program != "tenfoot":
         parser.error("--interactive requires tenfoot")
     disk = (args.disk or output / "fat32.img").resolve()
-    if args.program in ("packages", "admission") and disk.exists():
+    if args.program in ("packages", "admission", "play") and disk.exists():
         parser.error("package diagnostics require a fresh disk image")
     if not disk.is_relative_to(ROOT / "out") or (disk.exists() and not disk.is_file()):
         parser.error("disk must be a regular file beneath this worktree's out/")
@@ -103,13 +103,13 @@ def main():
               "commands": [], "environment": {k: env[k] for k in (
                   "GOOS", "GOARCH", "CGO_ENABLED", "GOOSPKG", "GOTOOLCHAIN",
                   "GOENV", "GOWORK", "GOPROXY", "GOSUMDB", "GOMODCACHE", "GOCACHE")},
-              "input": args.input if args.program == "tenfoot" else None,
+              "input": args.input if args.program in ("tenfoot", "play") else None,
               "limitations": ["QEMU USB is not a DE25 DWC3 controller",
                               "virtio block is not a physical SD controller",
                               "synthetic catalog files are not playable ROMs",
                               "clean-reboot persistence is not power-loss atomicity"]}
     host_process, host_log, disk_lock = None, None, None
-    if args.program in ("packages", "admission"):
+    if args.program in ("packages", "admission", "play"):
         record["limitations"] = ["package inspection is not hardware admission",
                                 "synthetic shared corpus, not deployable RBFs",
                                 "no FPGA programming or ROM linking",
@@ -263,7 +263,7 @@ def main():
             record["package_fixtures"] = {
                 "cases": package_cases,
                 "files_sha256": {p.name: sha(p) for p in sorted(package_directory.iterdir())}}
-        if args.program == "admission":
+        if args.program in ("admission", "play"):
             from admission_fixtures import prepare
             record["oracle_compiler_sha256"] = sha(Path(shutil.which("c++")).resolve())
             record["oracle_compiler"] = checked("oracle-compiler", ["c++", "--version"])
@@ -277,9 +277,22 @@ def main():
                                      "C++ compatibility check is not full physical runtime admission",
                                      "DE10 fixture target, not DE25 support", "synthetic payloads, software completions",
                                      "ROM linking uses Cyclone V synthetic vectors; no FPGA programming, live GP identity or tenfoot Play"]
+        target = "tenfoot" if args.program == "play" else args.program
+        if args.program == "play":
+            if args.input != "usb":
+                raise RuntimeError("Play diagnostic requires USB input")
+            record["host_go"] = checked("host-go", ["go", "version"])
+            host_go = Path(checked("host-go-root", ["go", "env", "GOROOT"]).strip()) / "bin/go"
+            record["host_go_sha256"] = sha(host_go)
+            helper = output / "session-fixtures"
+            checked("session-fixtures-build", ["env", "GOWORK=off", "GOTOOLCHAIN=local", "GOPROXY=off", "GOSUMDB=off", host_go, "build", "-mod=readonly", "-o", helper, "./cmd/session-fixtures"])
+            checked("session-fixtures", [helper, package_directory])
+            record["session_fixtures_sha256"] = sha(helper)
+            record["model_config"] = json.loads((package_directory / "PLAY.JSON").read_text())
+            package_sources.add(APP / "cmd/session-fixtures/main.go")
         deps = checked("packages", [compiler, "list", "-deps", "-json", "-mod=readonly",
-                                    "./cmd/" + args.program], native=True)
-        files = {APP / name for name in ("go.mod", "go.sum", "run.py", "host_support.py", "package_fixtures.py", "admission_fixtures.py", "toolchain.lock.toml")}
+                                    "./cmd/" + target], native=True)
+        files = {APP / name for name in ("go.mod", "go.sum", "run.py", "host_support.py", "package_fixtures.py", "admission_fixtures.py", "play_support.py", "toolchain.lock.toml")}
         files.update(package_sources)
         modules = {}
         for package in objects(deps):
@@ -293,7 +306,7 @@ def main():
         record["source_sha256"] = {str(p.relative_to(ROOT)): sha(p) for p in sorted(files)}
         elf = output / (args.program + ".elf")
         checked("build", [compiler, "build", "-mod=readonly", "-trimpath", "-ldflags",
-                           "-T 0x40010000 -R 0x1000", "-o", elf, "./cmd/" + args.program], native=True)
+                           "-T 0x40010000 -R 0x1000", "-o", elf, "./cmd/" + target], native=True)
         record["elf_sha256"], record["elf_bytes"] = sha(elf), elf.stat().st_size
         data = elf.read_bytes()
         if data[:6] != b"\x7fELF\x02\x01" or struct.unpack_from("<H", data, 18)[0] != 183:
@@ -310,6 +323,31 @@ def main():
                 marker = "FES_NATIVE_GO_PROBE PASS" if args.program == "probe" else "FES_FABRIC_MODEL PASS"
                 guest.wait(lambda text: marker in text, args.timeout, "diagnostic completion")
             record["termination"] = "runner stopped its QEMU process after probe marker"
+        elif args.program == "play":
+            from play_support import exercise
+            lock_disk()
+            if not format_disk():
+                raise RuntimeError("Play diagnostic refuses an existing disk")
+            for path in sorted(package_directory.iterdir()):
+                checked("copy-" + path.name, ["mcopy", "-i", disk, path, "::FES/" + path.name])
+            initial = output / "preferences-initial.json"
+            initial.write_bytes(json.dumps({"home": "library", "attract_enabled": False, "layout": "grid"}).encode().ljust(4096, b" "))
+            checked("write-prefs", ["mcopy", "-i", disk, initial, "::FES/PREFS.JSON"])
+            boot = output / "boot.json"
+            boot.write_text(json.dumps({"model": True, "input": "usb"})+"\n")
+            checked("write-boot", ["mcopy", "-i", disk, boot, "::FES/BOOT.JSON"])
+            before = sha(disk)
+            with Guest(qemu, elf, output / "boot-1", command_record, disk=disk, usb=True, display=display) as guest:
+                # Case labels are diagnostic expectations, not product API.
+                entries = record["model_config"]["entries"]
+                faults = ("", "source", "receipt", "cancel", "identity", "program", "save")
+                cases = [{**entry, "fault": fault} for entry, fault in zip(entries, faults, strict=True)]
+                record["play_results"], record["screenshots"] = exercise(guest, cases, args.timeout)
+            record["disk"] = {"path": str(disk), "before_sha256": before, "after_sha256": sha(disk)}
+            if record["disk"]["before_sha256"] != record["disk"]["after_sha256"]:
+                raise RuntimeError("Play diagnostic changed the input FAT32 image")
+            record["termination"] = "tenfoot quit and model closed before runner reaped QEMU"
+            record["limitations"] = ["software model sessions, no emulated game or physical programming", "Cyclone V synthetic vectors; no DE25 acceptance", "in-process model catalog, not production host/target orchestration", "no power-loss durability or hardware DMA proof"]
         elif args.program in ("packages", "admission"):
             lock_disk()
             if not format_disk():

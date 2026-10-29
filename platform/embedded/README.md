@@ -36,10 +36,12 @@ containment, media/input ownership and recovery semantics; it cannot replace
 those checks with direct UI register writes. Their protocols and generated
 definitions remain the authority while that port is developed.
 
-The injected tenfoot loop currently proves browsing and navigation. Its
-software framebuffer is private; the Linux menu path's generation-bound
-pause/drain handoff is not implemented in this loop. Physical frame grants
-and core transitions need that lifecycle before this can launch on a board.
+The injected tenfoot loop proves browsing/navigation and, in its explicit model
+mode, retained-ROM Play/Back with generation-bound frame and input ownership.
+Its software framebuffer remains private, and model grants bracket RAMFB copying.
+The Linux menu path and physical pause/drain/DMA handoff are not ported by these
+software checks. Board frame grants and physical transitions still need qualified
+resources before this can launch on a Nano.
 
 ## Services and their boundaries
 
@@ -127,7 +129,8 @@ now binds exact-package compatibility decisions from the production runtime to
 retained bytes and full identity before model transitions. Retained format-3/4
 ROM linking now supplies content-bound activation receipts through that model,
 including golden-output and source-mutation checks. Next hardware-independent
-work is expansion/parts composition receipts and launcher integration; physical
+work is expansion/parts composition receipts. The real tenfoot now runs model-only
+Play/Back and failure recovery through the retained path; physical
 integration still needs the Nano board/firmware adapter and runtime checks against
 proven board resources. Hardware addresses and DMA/interrupt contracts must be verified against
 the delivered board revision.
