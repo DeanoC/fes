@@ -20,7 +20,7 @@ import time
 from urllib.parse import urlparse
 from urllib.request import urlopen
 
-from host_support import Guest, frames
+from host_support import Guest, frames, network_catalog
 
 APP = Path(__file__).resolve().parent
 ROOT = APP.parents[2]
@@ -56,7 +56,7 @@ def stop(process):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("program", choices=("probe", "fabric", "packages", "admission", "play", "tenfoot", "storage", "keyboard"))
+    parser.add_argument("program", choices=("probe", "fabric", "packages", "admission", "play", "tenfoot", "storage", "keyboard", "network"))
     parser.add_argument("--compiler", required=True, type=Path)
     parser.add_argument("--qemu", type=Path)
     parser.add_argument("--board", choices=("qemu", "de25-nano"), default="qemu")
@@ -346,6 +346,19 @@ def main():
                 if record["disk"]["before_sha256"] != record["disk"]["after_sha256"]:
                     raise RuntimeError("read-only storage probe changed its disk")
             record["termination"] = "runner stopped its QEMU process after probe marker"
+        elif args.program == "network":
+            lock_disk()
+            prepare_disk(prepare_host())
+            before = sha(disk)
+            with Guest(qemu, elf, output / "boot-1", command_record, disk=disk, display=display) as guest:
+                guest.wait(lambda text: network_catalog(text) is not None, args.timeout, "HTTP catalog probe")
+                ids = network_catalog(guest.text)
+                if sorted(ids) != record["host"]["catalog_ids"]:
+                    raise RuntimeError("network probe catalog differs from private host")
+            record["disk"] = {"path": str(disk), "before_sha256": before, "after_sha256": sha(disk)}
+            if before != sha(disk):
+                raise RuntimeError("read-only network probe changed its disk")
+            record["termination"] = "runner stopped QEMU after actual IPv4/TCP/HTTP catalog; not guest shutdown"
         elif args.program == "keyboard":
             with Guest(qemu, elf, output / "boot-1", command_record, usb=True, display=display) as guest:
                 guest.wait(lambda text: "FES_KEYBOARD_READY" in text, args.timeout, "keyboard initialization")

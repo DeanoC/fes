@@ -1,17 +1,18 @@
-# Native Go networking on QEMU
+# Native Go networking
 
-This adapter connects the ordinary Go `net` and `net/http` APIs to a real
-modern VirtIO network device. It uses the
+This adapter connects ordinary Go `net` and `net/http` APIs to an explicit
+board Ethernet device. QEMU uses a modern VirtIO network device; Nano now has
+a separate [XGMAC/firmware contract](../xgmac/README.md). It uses the
 [go-net](https://github.com/usbarmory/go-net) Lneto stack and a small polling
-MMIO driver. The controller is QEMU `virt`'s test backend; this is not a
-DE25-Nano XGMAC/PHY driver.
+MMIO driver. The default `Open` path selects QEMU `virt`; `OpenDevice` supplies the shared
+IP/socket service to the Nano provider without QEMU address defaults.
 
 After `qemuvirt.InitDevices()`, call `network.Open(ctx, network.Config{})`
 once, before opening application sockets. The default address is
 `10.0.2.15/24`, with gateway `10.0.2.2`, matching QEMU user networking. Supply
 `Config.Address` and `Config.Gateway` to change them. `MMIOAddress == 0` scans
 the 32 QEMU VirtIO slots and rejects ambiguous multiple-NIC configurations.
-The adapter installs `net.SocketFunc`; application clients must use actual
+The shared adapter installs `net.SocketFunc`; application clients must use actual
 HTTP transport. `Open` neither replaces nor wraps an HTTP transport.
 
 Run the image with 512 MiB of RAM and one CPU. Enable modern VirtIO devices:
@@ -45,13 +46,15 @@ new sockets fail. Existing socket operations still need application deadlines.
 This does not shut down the stack, detach the global socket provider, or
 reclaim DMA. A failed TX poisons the NIC because descriptor ownership is
 uncertain; buffers stay reserved. Startup failure is likewise not retried.
-Recovery currently means rebooting the image.
+Recovery currently means rebooting the image. The shared `Link` installs its
+TX callback before starting Lneto workers and stops callback work on cancellation
+or a device failure. Cancellation is not a DMA fence.
 
 This prototype supports IPv4 TCP with static addressing and a 1500-byte MTU.
 It enables neither checksum/segmentation offloads nor merged receive buffers.
 The Lneto configuration limits active TCP ports to 16 and listener connections
 to 8. DHCP, DNS configuration, UDP, IPv6, link-change recovery, network
-throughput qualification and physical Ethernet remain separate work. Use
+throughput qualification and physical Ethernet acceptance remain separate work. Use
 numeric IPv4 addresses for the current private HTTP service. The board's
 deterministic entropy provider is unsuitable for authentication and TLS.
 

@@ -58,3 +58,15 @@ class QMPTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NetworkProbeTests(unittest.TestCase):
+    def test_serial_prefixes_do_not_publish_a_partial_catalog(self):
+        row = 'FES_NETWORK_PROBE PASS ids=["a","b"] stats={Received:5 Transmitted:5 Dropped:0}\n'
+        for n in range(len(row)):
+            self.assertIsNone(HOST.network_catalog("booted\n" + row[:n]))
+        self.assertEqual(HOST.network_catalog("booted\n" + row), ["a", "b"])
+        with self.assertRaises(ValueError):
+            HOST.network_catalog(row + row)
+        with self.assertRaises(ValueError):
+            HOST.network_catalog('FES_NETWORK_PROBE PASS ids=[5] stats={}\n')

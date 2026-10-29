@@ -24,6 +24,19 @@ def frames(text):
             for m in FRAME.findall(text)]
 
 
+def network_catalog(text):
+    """Admit only a complete probe line; UART reads may split any byte."""
+    lines = re.findall(r"^FES_NETWORK_PROBE PASS ids=(\[[^\r\n]*\]) stats=[^\r\n]*\r?\n", text, re.MULTILINE)
+    if not lines:
+        return None
+    if len(lines) != 1:
+        raise ValueError("multiple network probe completions")
+    ids = json.loads(lines[0])
+    if not isinstance(ids, list) or any(not isinstance(value, str) for value in ids):
+        raise ValueError("invalid network catalog identities")
+    return ids
+
+
 def png_from_ppm(source, target):
     """Convert QMP's binary PPM to PNG without an optional imaging dependency."""
     data = source.read_bytes()

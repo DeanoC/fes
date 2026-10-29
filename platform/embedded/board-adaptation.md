@@ -59,6 +59,7 @@ The native base now selects QEMU or Nano providers at build time. The Nano
 prototype supplies UART/counter hooks, cold SDHC/SDXC initialization with
 read-only PIO and a direct DWC2 PIO boot keyboard, with an explicit firmware
 resource profile. SoC clocks, ComboPHY/ULPI and VBUS remain firmware obligations.
-MAC/PHY, FPGA display and physical activation providers still refuse startup. See the
+The Nano now has an XGMAC DMA/static-IPv4 prototype with explicit PHY, RGMII and
+SMMU firmware obligations. FPGA display and physical activation remain unavailable. See the
 [board contract](tamago/board/README.md) for build commands, firmware obligations
 and the first hardware gate. A Nano cross-build is host evidence only.

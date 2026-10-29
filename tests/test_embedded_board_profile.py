@@ -11,17 +11,17 @@ spec.loader.exec_module(build)
 
 
 def profile():
-    return {"schema": 2, "firmware": "synthetic test; not a board recipe",
+    return {"schema": 3, "firmware": "synthetic test; not a board recipe",
             "ram_start": 0x82000000, "ram_size": 256 << 20, "entry": 0x82010000,
             "reserved": [{"start": 0x80000000, "size": 32 << 20, "owner": "synthetic firmware"}],
             "sd_input_clock_hz": 100000000, "usb_phy_clock_hz": 60000000,
-            "handoff": {key: True for key in ("el1", "single_cpu", "counter_access", "exclusive_devices",
-                "uart0_configured", "sd_platform_ready", "usb_platform_ready", "mmu_off_caches_clean")}}
+            "network": None, "handoff": {"ethernet_platform_ready":False, **{key: True for key in ("el1", "single_cpu", "counter_access", "exclusive_devices",
+                "uart0_configured", "sd_platform_ready", "usb_platform_ready", "mmu_off_caches_clean")}}}
 
 
 class BoardProfileTests(unittest.TestCase):
     def test_explicit_profile(self):
-        self.assertEqual(build.profile_constants(profile()), (0x82000000, 256 << 20, 0x82010000, 100000000, 60000000))
+        self.assertEqual(build.profile_constants(profile()), (0x82000000, 256 << 20, 0x82010000, 100000000, 60000000, None))
 
     def test_bad_handoff(self):
         for mutate in (
@@ -51,4 +51,51 @@ class BoardProfileTests(unittest.TestCase):
         p = profile()
         p["usb_phy_clock_hz"] = 0
         p["handoff"]["usb_platform_ready"] = False
-        self.assertEqual(build.profile_constants(p)[-1], 0)
+        self.assertEqual(build.profile_constants(p)[4], 0)
+
+
+def ethernet_profile():
+    p = profile()
+    p["handoff"]["ethernet_platform_ready"] = True
+    p["network"] = {"mac_index": 0, "phy_address": 4, "phy_id": 0x001cc916,
+        "mac_address": "02:12:34:56:78:90", "csr_clock_hz": 125000000,
+        "rx_buffer_shift": 4, "address": "192.0.2.2/24", "gateway": "192.0.2.1",
+        "dma_start": 0x92000000, "dma_size": 2 << 20, "dma_identity": True,
+        "rgmii_125mhz_ready": True}
+    return p
+
+
+class EthernetProfileTests(unittest.TestCase):
+    def test_admitted_and_disabled(self):
+        p = ethernet_profile()
+        self.assertEqual(build.profile_constants(p)[-1], p["network"])
+        self.assertIsNone(build.profile_constants(profile())[-1])
+        p["network"]["rx_buffer_shift"] = 1
+        build.profile_constants(p)
+
+    def test_invalid_memory_identity_and_link_contract(self):
+        changes = (
+            ("dma_start", 0x82000000), ("dma_start", 0x80000000),
+            ("dma_start", 0x92001000), ("dma_start", 0xc0000000),
+            ("dma_size", 4 << 20), ("dma_identity", False),
+            ("rgmii_125mhz_ready", False), ("rx_buffer_shift", 0),
+            ("csr_clock_hz", 150000000), ("mac_index", 3),
+            ("phy_address", 32), ("phy_id", 0), ("phy_id", True),
+            ("mac_address", "00:00:00:00:00:00"),
+            ("mac_address", "01:00:00:00:00:01"), ("address", "192.0.2.0/24"),
+            ("gateway", "192.0.3.1"), ("gateway", "192.0.2.2"),
+        )
+        for key, value in changes:
+            with self.subTest(key=key, value=value):
+                p = ethernet_profile()
+                p["network"][key] = value
+                with self.assertRaises(ValueError):
+                    build.profile_constants(p)
+        p = ethernet_profile()
+        p["handoff"]["ethernet_platform_ready"] = False
+        with self.assertRaises(ValueError):
+            build.profile_constants(p)
+        p = ethernet_profile()
+        p["reserved"].append({"start": 0x92000000, "size": 2 << 20, "owner": "other firmware"})
+        with self.assertRaises(ValueError):
+            build.profile_constants(p)

@@ -1,4 +1,4 @@
-//go:build tamago && arm64 && !de25nano
+//go:build tamago && arm64
 
 // SPDX-License-Identifier: GPL-3.0-or-later
 package network
@@ -12,49 +12,29 @@ import (
 	gnet "github.com/usbarmory/go-net"
 )
 
-// Interface owns one QEMU NIC for the lifetime of the image. The board must
+// Interface owns one board NIC for the lifetime of the image. The board must
 // initialize a shared DMA arena outside Go's heap before Open is called.
 // DMA must be mapped Normal memory; no buffer is returned to the allocator
 // after the device begins DMA. This prototype polls rather than using IRQs.
 type Interface struct {
 	config Config
-	device *NIC
-	bridge gnet.Interface
+	device Device
+	bridge *Link
 	ctx    context.Context
-}
-
-// monitoredNIC stops polling on a fatal driver failure. Invalid individual
-// packets can still be dropped without taking down the entire interface.
-type monitoredNIC struct {
-	device *NIC
-	stop   context.CancelCauseFunc
-}
-
-func (n monitoredNIC) Receive(buf []byte) (int, error) {
-	count, err := n.device.Receive(buf)
-	if err != nil && n.device.failed.Load() {
-		n.stop(err)
-	}
-	return count, err
-}
-
-func (n monitoredNIC) Transmit(buf []byte) error {
-	err := n.device.Transmit(buf)
-	if err != nil && n.device.failed.Load() {
-		n.stop(err)
-	}
-	return err
 }
 
 var opened atomic.Bool
 
-// Open connects the existing Go net/socket/HTTP API to a real emulated NIC.
-// It must run once at startup, before any application uses network sockets.
-// A failed startup is not retried against an uncertain device state.
-func Open(ctx context.Context, config Config) (*Interface, error) {
-	c, err := config.normalized()
+// OpenDevice installs the shared Go socket/IP service over one explicit board
+// device. Addressing is mandatory; this path has no QEMU defaults or discovery.
+// The factory runs only after socket-provider ownership has been admitted.
+func OpenDevice(ctx context.Context, address, gateway string, factory func() (Device, error)) (*Interface, error) {
+	c, err := staticConfig(address, gateway)
 	if err != nil {
 		return nil, err
+	}
+	if factory == nil {
+		return nil, errors.New("network: missing device factory")
 	}
 	if ctx == nil {
 		ctx = context.Background()
@@ -65,19 +45,22 @@ func Open(ctx context.Context, config Config) (*Interface, error) {
 	if net.SocketFunc != nil || !opened.CompareAndSwap(false, true) {
 		return nil, errors.New("network: socket provider already installed or attempted")
 	}
-	nic, err := openNIC(c.MMIOAddress)
+	nic, err := factory()
 	if err != nil {
 		return nil, err
 	}
+	if nic == nil {
+		return nil, errors.New("network: factory returned nil device")
+	}
 	cfg := gnet.DefaultLnetoStackConfig()
-	cfg.Hostname = "fes-qemu"
+	cfg.Hostname = "fes-native"
 	cfg.MaxActiveTCPPorts = 16
 	cfg.MaxListenerConns = 8
 	runCtx, stop := context.WithCancelCause(ctx)
-	iface := &Interface{config: c, device: nic, ctx: runCtx,
-		bridge: gnet.Interface{Stack: gnet.NewLnetoStack(cfg), NetworkDevice: monitoredNIC{device: nic, stop: stop}}}
-	if err = iface.bridge.Init(c.Address, nic.mac.String(), c.Gateway); err != nil {
-		nic.failed.Store(true)
+	stack := gnet.NewLnetoStack(cfg)
+	iface := &Interface{config: c, device: nic, ctx: runCtx}
+	iface.bridge, err = NewLink(stack, nic, c.Address, nic.MAC(), c.Gateway)
+	if err != nil {
 		stop(err)
 		return nil, err
 	}
@@ -85,7 +68,7 @@ func Open(ctx context.Context, config Config) (*Interface, error) {
 		if err := iface.Err(); err != nil {
 			return nil, err
 		}
-		return iface.bridge.Stack.Socket(ctx, network, family, sotype, laddr, raddr)
+		return stack.Socket(ctx, network, family, sotype, laddr, raddr)
 	}
 	go func() {
 		err := iface.bridge.Start(runCtx)
@@ -98,12 +81,20 @@ func Open(ctx context.Context, config Config) (*Interface, error) {
 }
 
 func (i *Interface) Address() string   { return i.config.Address }
-func (i *Interface) MAC() string       { return i.device.mac.String() }
+func (i *Interface) MAC() string       { return i.device.MAC() }
 func (i *Interface) Statistics() Stats { return i.device.Statistics() }
 
 // Err reports cancellation or the first fatal driver error. Existing socket
 // operations still need deadlines; new sockets fail immediately after Err.
-func (i *Interface) Err() error { return context.Cause(i.ctx) }
+func (i *Interface) Err() error {
+	if err := i.device.Err(); err != nil {
+		return err
+	}
+	if err := i.bridge.Err(); err != nil {
+		return err
+	}
+	return context.Cause(i.ctx)
+}
 
 // Done closes when networking becomes unavailable. It is not a DMA fence;
 // the device allocations remain reserved until reboot.

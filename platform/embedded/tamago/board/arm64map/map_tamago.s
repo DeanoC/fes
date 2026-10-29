@@ -1,4 +1,4 @@
-//go:build tamago
+//go:build tamago && arm64
 
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "textflag.h"

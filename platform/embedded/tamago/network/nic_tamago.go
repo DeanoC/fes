@@ -72,8 +72,6 @@ type NIC struct {
 	dropped   atomic.Uint64
 }
 
-type Stats struct{ Received, Transmitted, Dropped uint64 }
-
 func readMMIO(address uint32) uint32 {
 	return atomic.LoadUint32((*uint32)(unsafe.Pointer(uintptr(address))))
 }
@@ -340,4 +338,12 @@ func (n *NIC) Transmit(frame []byte) error {
 
 func (n *NIC) Statistics() Stats {
 	return Stats{Received: n.rxPackets.Load(), Transmitted: n.txPackets.Load(), Dropped: n.dropped.Load()}
+}
+
+func (n *NIC) MAC() string { return n.mac.String() }
+func (n *NIC) Err() error {
+	if n.failed.Load() {
+		return errors.New("network: VirtIO NIC failed")
+	}
+	return nil
 }
