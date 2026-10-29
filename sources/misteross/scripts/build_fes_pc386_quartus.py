@@ -40,6 +40,7 @@ if __package__ in (None, ""):
 
 from scripts import build_fes_pc386_oss as oss
 from scripts import fes_build_common as board
+from scripts import source_provenance
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
 from scripts.export_core_package import build_identity, encode_build_record, export_package
 from scripts.quartus_tools import RebuildError, locate_quartus, quartus_version_line
@@ -162,10 +163,12 @@ def plain_identifiers(verilog: str) -> str:
 
 
 def record_fields(root: Path, repository: str, revision: str, identities: dict[str, str], seed: int) -> dict:
+    # A format-1 record names its files from the repository root.
+    qualify = source_provenance.context(root).qualify
     return {
         "format": 1, "repository": repository, "revision": revision,
-        "recipe": RECIPE, "recipe_sha256": board._sha256(board._regular_input(root, RECIPE)),
-        "abi_definition": oss.ABI_DEFINITION,
+        "recipe": qualify(RECIPE), "recipe_sha256": board._sha256(board._regular_input(root, RECIPE)),
+        "abi_definition": qualify(oss.ABI_DEFINITION),
         "abi_definition_sha256": board._sha256(board._regular_input(root, oss.ABI_DEFINITION)),
         "dependencies": {}, "tools": dict(identities),
         "parameters": {

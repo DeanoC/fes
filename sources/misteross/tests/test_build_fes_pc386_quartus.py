@@ -143,6 +143,12 @@ class ManifestTest(unittest.TestCase):
         self.assertEqual(parameters["compiler"], "quartus-17.0.2")
         self.assertEqual(json.loads(parameters["guest_rates"]), oss.guest_rates())
 
+    def test_the_record_names_its_files_from_the_repository_root(self):
+        fields = json.loads(quartus.create_build_record(ROOT, "https://github.com/DeanoC/fes", "a" * 40,
+                                                        IDENTITIES, 1))
+        self.assertEqual(fields["recipe"], "sources/misteross/scripts/build_fes_pc386_quartus.py")
+        self.assertEqual(fields["abi_definition"], "sources/misteross/cores/fes-common/generated/fes_computer.vh")
+
     def test_the_seed_is_part_of_the_build_identity(self):
         first = quartus.create_build_record(ROOT, "https://github.com/DeanoC/fes", "a" * 40, IDENTITIES, 1)
         second = quartus.create_build_record(ROOT, "https://github.com/DeanoC/fes", "a" * 40, IDENTITIES, 2)
