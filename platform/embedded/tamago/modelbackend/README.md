@@ -20,6 +20,11 @@ existing parser/linker cancellation checkpoints. The actor independently checks
 package and receipt admission before retiring any owner. Its event callback must
 return promptly and must not call blocking actor methods.
 
+Part archives are read against selected file digests and asset IDs, then retained
+and composed with the ROMs. The canonical part tuple and pre-ROM overlay identity
+remain separate from the final programmed digest. An active session publishes
+its parts composition only after release.
+
 The selected receipt is generated on the host with the same retained-link API,
 then checked on the guest; the guest does not trust caller-supplied programmed
 bytes. Compatibility still comes from the existing C++ oracle's exact-package
@@ -53,9 +58,10 @@ endpoint completions. Sources and receipts are volatile; no durable session or
 package installation is created.
 
 Run `run.py play` as described in the [native guide](../README.md#tenfoot-play-and-return-through-the-model).
-It drives real QEMU xHCI USB keys and captures the rendered frames. The seven
-cases are normal Play/Back, wrong ROM, wrong receipt, interrupted preparation,
-identity mismatch, programming mismatch, and a failed save followed by retry.
+It drives real QEMU xHCI USB keys and captures the rendered frames. The eleven
+cases include normal Play/Back, wrong ROM, wrong receipt, interrupted preparation,
+identity/programming mismatch, a failed save followed by retry, a composed
+CPU/video launch, and changed/missing/incompatible part rejections.
 Stale input/frame events and tenfoot's own Quit are also checked. The complete
 FAT32 disk must retain its original hash. The fixture producer needs an installed
 standard Go toolchain as well as the existing C++ compiler and TamaGo tools.

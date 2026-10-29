@@ -26,7 +26,7 @@ def exercise(guest, entries, timeout):
             guest.wait(lambda t: states(t)[-1]["focus"] != focus, timeout, "next model title")
         before = states(guest.text)[-1]["backend"]
         guest.press("ret")
-        success = entry["fault"] in ("", "save")
+        success = entry["check"] in ("return", "retry")
         def completed(text):
             current = states(text)[-1]
             if current["launch_game"] != entry["id"] or current["backend"]["Busy"]:
@@ -40,6 +40,8 @@ def exercise(guest, entries, timeout):
         if success:
             if after["Status"]["Package"]["ActivationReceiptSHA256"] != entry["receipt_sha256"]:
                 raise RuntimeError("tenfoot session published a different receipt")
+            if entry.get("composition_id") and after["PartsCompositionID"] != entry["composition_id"]:
+                raise RuntimeError("tenfoot published a different part composition")
             shots.append(guest.screenshot(entry["id"] + "-playing"))
             input_count = len([e for e in events(guest.text) if e["kind"] == "input" and e.get("game") == "right"])
             guest.press("right")
@@ -50,7 +52,7 @@ def exercise(guest, entries, timeout):
             stale_input = guest.text.count("FES_MODEL_STALE_INPUT PASS")
             stale_frame = guest.text.count("FES_MODEL_STALE_FRAME PASS")
             guest.press("esc")
-            if entry["fault"] == "save":
+            if entry["check"] == "retry":
                 guest.wait(lambda t: states(t)[-1]["retry"] and not states(t)[-1]["backend"]["Busy"], timeout, "save failure retained session")
                 failed = states(guest.text)[-1]["backend"]
                 if failed["Status"]["Package"] != after["Status"]["Package"] or failed["Status"]["CoreGeneration"] != after["Status"]["CoreGeneration"] or failed["Status"]["InputEnabled"]:
@@ -62,7 +64,7 @@ def exercise(guest, entries, timeout):
             if states(guest.text)[-1]["focus"] != index:
                 raise RuntimeError("return lost the selected title")
         else:
-            if entry["fault"] in ("source", "receipt", "cancel"):
+            if entry["check"] == "preserve":
                 if before["Status"] != after["Status"] or before["Programs"] != after["Programs"]:
                     raise RuntimeError("pre-admission failure changed the current owner")
             elif after["Status"]["Package"]["PackageID"]:
@@ -70,7 +72,7 @@ def exercise(guest, entries, timeout):
             if any(e.get("game") == entry["id"] and e.get("operation") == "release_model" and e["status"]["State"] == "running_model" for e in events(guest.text)):
                 raise RuntimeError("failed activation released a model core before recovery")
         shots.append(guest.screenshot(entry["id"] + "-returned"))
-        results.append({"id": entry["id"], "fault": entry["fault"], "outcome": "returned" if success else "rejected", "state": states(guest.text)[-1]})
+        results.append({"id": entry["id"], "check": entry["check"], "outcome": "returned" if success else "rejected", "state": states(guest.text)[-1]})
     # Go through tenfoot's own exit and let its idle release finish before the
     # backend closes. QMP quit afterwards only reaps this runner's process.
     guest.press("q")

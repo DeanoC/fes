@@ -121,13 +121,20 @@ func (p *scriptPlatform) Next(ctx context.Context) (tenfoot.PlatformInput, error
 			if s.Launch.GameID != entry.ID || view.Busy {
 				break
 			}
-			success := entry.Fault == "" && entry.ID == "model-normal" || entry.Fault == "save"
+			success := entry.Check == "return" || entry.Check == "retry"
 			if success {
 				if s.Session.State != "active" || !s.GPUParked || view.Status.State != fabricmodel.Running {
 					break
 				}
 				if view.Status.Package.ActivationReceiptSHA256 != entry.ReceiptSHA256 {
 					return input, errors.New("UI published wrong retained receipt")
+				}
+				if entry.CompositionID != "" {
+					client := hostclient.NewClient("http://model.invalid", &http.Client{Transport: p.backend})
+					session, err := client.Session(ctx)
+					if err != nil || session.CorePackage == nil || session.CorePackage.PartsComposition == nil || session.CorePackage.PartsComposition.ID != entry.CompositionID || view.PartsCompositionID != entry.CompositionID {
+						return input, errors.New("UI session lost part composition identity")
+					}
 				}
 				if err := p.backend.Input(ctx, view.Status.CoreGeneration, "right"); err != nil {
 					return input, err
@@ -143,7 +150,7 @@ func (p *scriptPlatform) Next(ctx context.Context) (tenfoot.PlatformInput, error
 				if s.Launch.Phase != "error" && s.Launch.Phase != "host" || s.Session.State != "idle" || s.GPUParked || view.Status.State != fabricmodel.Idle {
 					break
 				}
-				if entry.ID == "model-wrong-rom" || entry.ID == "model-wrong-receipt" || entry.Fault == "cancel" {
+				if entry.Check == "preserve" {
 					if view.Status != p.before.Status || view.Programs != p.before.Programs {
 						return input, errors.New("failed preparation retired current owner")
 					}
@@ -153,7 +160,7 @@ func (p *scriptPlatform) Next(ctx context.Context) (tenfoot.PlatformInput, error
 			}
 		case 2:
 			input.Commands = []tenfoot.Command{tenfoot.CmdBack}
-			if entry.Fault == "save" {
+			if entry.Check == "retry" {
 				p.stage = 3
 			} else {
 				p.stage = 4
@@ -238,7 +245,7 @@ func TestTenfootLaunchReturnAndFailures(t *testing.T) {
 	if err = tenfoot.RunPlatform(ctx, app, device, p); err != nil {
 		t.Fatalf("%v stage=%d index=%d snapshot=%+v backend=%+v", err, p.stage, p.index, app.Snapshot().Launch, backend.View())
 	}
-	if p.index != 7 || p.frames < 20 || !p.sawPixels {
+	if p.index != len(config.Entries) || p.frames < 20 || !p.sawPixels {
 		t.Fatalf("cases=%d frames=%d pixels=%t", p.index, p.frames, p.sawPixels)
 	}
 	mu.Lock()
@@ -411,5 +418,43 @@ func TestCancelAfterAdmissionRecoversBeforeRelease(t *testing.T) {
 	defer mu.Unlock()
 	if released {
 		t.Fatal("canceled target released before recovery")
+	}
+}
+
+func TestBadPartPreservesRunningComposition(t *testing.T) {
+	policy, config, read := fixtures(t)
+	backend, err := New(policy, config, read, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeBackend(t, backend)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	client := hostclient.NewClient("http://model.invalid", &http.Client{Transport: backend})
+	result, err := client.Launch(ctx, "model-composed")
+	if err != nil || result.ErrorCode != "" {
+		t.Fatalf("composed launch: %v %+v", err, result)
+	}
+	before := backend.View()
+	frame, err := backend.BeginFrame(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"model-part-changed", "model-part-missing", "model-part-incompatible"} {
+		result, err = client.Launch(ctx, id)
+		if err != nil || result.ErrorCode == "" {
+			t.Fatalf("invalid part was not rejected: %s %v %+v", id, err, result)
+		}
+		after := backend.View()
+		if after.Status != before.Status || after.PartsCompositionID != before.PartsCompositionID || after.Programs != before.Programs || after.Saves != before.Saves {
+			t.Fatal("rejected part retired the running composition")
+		}
+		current, err := client.Session(ctx)
+		if err != nil || current.State != "active" || current.CorePackage == nil || current.CorePackage.PartsComposition == nil || current.CorePackage.PartsComposition.ID != before.PartsCompositionID {
+			t.Fatal("rejection changed the published composition", err)
+		}
+	}
+	if err = backend.FinishFrame(ctx, frame); err != nil {
+		t.Fatal("rejection invalidated outstanding frame", err)
 	}
 }

@@ -3,6 +3,7 @@
 #include "native/core_package.hpp"
 #include "native/generated/de10_nano_programming.hpp"
 #include "native/generated/fes_gp.hpp"
+#include "native/generated/fes_application.hpp"
 #include <iostream>
 #include <string>
 
@@ -54,6 +55,14 @@ int main(int argc, char** argv)
         Contract(FesGpInterfaceGamepadID, FesGpInterfaceGamepadMajor, FesGpInterfaceGamepadMinor);
         std::cout << ',';
         Contract(FesGpInterfaceVideoFixed720p60ID, FesGpInterfaceVideoFixed720p60Major, FesGpInterfaceVideoFixed720p60Minor);
+        std::cout << "]},{\"profile\":";
+        Quote(profile);
+        std::cout << ",\"abi\":";
+        Contract(FesApplicationABIID, FesApplicationABIMajor, FesApplicationABIMinor);
+        std::cout << ",\"interfaces\":[";
+        Contract(FesApplicationInterfaceGamepadID, FesApplicationInterfaceGamepadMajor, FesApplicationInterfaceGamepadMinor);
+        std::cout << ',';
+        Contract(FesApplicationInterfaceVideoFixed720p60ID, FesApplicationInterfaceVideoFixed720p60Major, FesApplicationInterfaceVideoFixed720p60Minor);
         std::cout << "]}]}\n";
         return 0;
     }

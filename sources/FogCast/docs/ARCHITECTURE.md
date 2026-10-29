@@ -65,8 +65,17 @@ receipt binds the exact package, map, source identities and programmed digest.
 A domain-separated SHA256 identifies that receipt. The embedded model requires
 both the expected package ID and receipt hash, and checks programmed bytes before
 starting a transition. This is volatile ownership and software-model evidence,
-not a durable install, authenticated token or physical admission. Expansion,
-parts and initial media stay on their existing paths; the new API links ROMs only.
+not a durable install, authenticated token or physical admission.
+
+`LinkROMs` also accepts selected CPU/video part archives. It retains private
+archive copies, validates each exact asset ID, and uses existing parts admission
+and ROM-input composition. A sealed parts shell requires its selected video
+part; malformed, duplicate, missing and incompatible selections do not publish
+a linked object. The receipt includes the canonical parts tuple and pre-ROM
+overlay identity separately from the final ROM-linked digest. Part archives and
+overlay readers cannot mutate retained state; copied receipt selections cannot
+change it either. This does not change filesystem staging, native package
+formats, physical runtime admission or initial-media delivery.
 
 On TamaGo, the software renderer yields between groups of four raster rows
 and splits whole-frame copies into 32 KiB chunks. The ramfb presenter also

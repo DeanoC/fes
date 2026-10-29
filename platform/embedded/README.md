@@ -129,8 +129,9 @@ now binds exact-package compatibility decisions from the production runtime to
 retained bytes and full identity before model transitions. Retained format-3/4
 ROM linking now supplies content-bound activation receipts through that model,
 including golden-output and source-mutation checks. Next hardware-independent
-work is expansion/parts composition receipts. The real tenfoot now runs model-only
-Play/Back and failure recovery through the retained path; physical
+work now includes retained CPU/video parts composition receipts and the real
+tenfoot model-only Play/Back and failure cycle. The next board-facing step is the
+[Nano driver backend](board-adaptation.md); physical
 integration still needs the Nano board/firmware adapter and runtime checks against
 proven board resources. Hardware addresses and DMA/interrupt contracts must be verified against
 the delivered board revision.

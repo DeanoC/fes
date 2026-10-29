@@ -21,8 +21,8 @@ import (
 )
 
 func run() error {
-	if len(os.Args) != 2 {
-		return fmt.Errorf("usage: session-fixtures FIXTURE_DIRECTORY")
+	if len(os.Args) != 3 {
+		return fmt.Errorf("usage: session-fixtures FIXTURE_DIRECTORY ORACLE")
 	}
 	dir := os.Args[1]
 	raw, err := os.ReadFile(filepath.Join(dir, "LINKS.JSON"))
@@ -43,7 +43,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	base := modelbackend.Entry{ID: "model-normal", Title: "A - Model launch", Path: selected.Path, PackageID: selected.PackageID}
+	base := modelbackend.Entry{Check: "return", ID: "model-normal", Title: "A - Model launch", Path: selected.Path, PackageID: selected.PackageID}
 	sources := []corepackage.ROMSource{}
 	for _, source := range selected.Sources {
 		data, err := read(source.Path)
@@ -71,6 +71,13 @@ func run() error {
 		entry := base
 		entry.ID, entry.Title = test.id, test.title
 		entry.Sources = append([]modelbackend.Source(nil), base.Sources...)
+		entry.Check = "preserve"
+		if test.fault == "identity" || test.fault == "program" {
+			entry.Check = "recover"
+		}
+		if test.fault == "save" {
+			entry.Check = "retry"
+		}
 		switch test.fault {
 		case "source":
 			changed := bytes.Clone(sources[0].Data)
@@ -85,6 +92,9 @@ func run() error {
 			entry.Fault = test.fault
 		}
 		config.Entries = append(config.Entries, entry)
+	}
+	if err = addComposition(dir, os.Args[2], body, archive, &config); err != nil {
+		return err
 	}
 	raw, err = json.MarshalIndent(config, "", "  ")
 	if err != nil {

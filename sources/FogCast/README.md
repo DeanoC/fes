@@ -16,7 +16,8 @@ and content selection; the MiSTer is a small, directly controlled target.
   Linux-free execution. Native backends keep their existing behavior; this
   does not make the embedded target a complete FogCast host or FPGA runtime.
   The shared core-package reader also retains format-3/4 ROM sources and linked
-  bytes in RAM with content-bound activation receipts for the embedded model;
+  bytes and selected CPU/video part archives in RAM with content-bound activation
+  receipts for the embedded model;
   physical runtime admission remains separate.
 
 - **Settings → BIOS & media drives** remembers USB volumes and SMB shares on

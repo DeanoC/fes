@@ -1,0 +1,58 @@
+{
+  "overlay_sha256": "74dd8fde5fc5f8d2a59d96c40d2165da4333765691ef4b8f1ecfe261ba4fb22f",
+  "package_id": "b32b552ee2ded49f5deae951234cbcceb09c132327b0db3c307bd80a516f0ce9",
+  "parts": [
+    {
+      "id": "0b0baaeb24bdc8d503a00b3edd75bcea9b49c0f329c9dd704eb62cbdf3b32aae",
+      "path": "FES/CPU.FEX",
+      "sha256": "cc01af62cc2f773c23dfdfe9ebb1eb75c1bc2df8d1f12548a64a5dcbe2812b58"
+    },
+    {
+      "id": "7890f7b10011ea8ecf85d2a41f0a65b72e68bc249ddf45588d2005ec1dfbc3a1",
+      "path": "FES/VIDEO.FEX",
+      "sha256": "c33272093ae1ed0f92fa059a0f9e3f0d4e5fe2dde743f21f90de0b412831d8a8"
+    }
+  ],
+  "programmed_sha256": "dc47178ea7d0b9f22047cf9e053c86981acb55c4e79aed0d664a077c9300733c",
+  "receipt": {
+    "parts_composition": {
+      "composition_id": "14f008ad39c32da1217e410b2d2c11b3c616e01359fb668f3386188cd64146db",
+      "package_id": "b32b552ee2ded49f5deae951234cbcceb09c132327b0db3c307bd80a516f0ce9",
+      "layout": "fes.coleco-video.parts/1",
+      "parts": [
+        {
+          "role": "expansion",
+          "part_id": "0b0baaeb24bdc8d503a00b3edd75bcea9b49c0f329c9dd704eb62cbdf3b32aae"
+        },
+        {
+          "role": "video",
+          "part_id": "7890f7b10011ea8ecf85d2a41f0a65b72e68bc249ddf45588d2005ec1dfbc3a1"
+        }
+      ],
+      "shell_sha256": "a7e7ab262251f9a4d588e370224dd0e94debf8536ea409b0f72b508596d71a72",
+      "payload_sha256": "74dd8fde5fc5f8d2a59d96c40d2165da4333765691ef4b8f1ecfe261ba4fb22f",
+      "payload_size": 1974494
+    },
+    "package_id": "b32b552ee2ded49f5deae951234cbcceb09c132327b0db3c307bd80a516f0ce9",
+    "rom_links": {
+      "sources": [
+        {
+          "id": "bios",
+          "role": "firmware",
+          "source_sha256": "ccd521371b29352a7b02a04c2408c4e0ceacba97fc3ce449edd8897cb2397410",
+          "source_size": 8192
+        },
+        {
+          "id": "cart",
+          "role": "cartridge",
+          "source_sha256": "53a31bbd7abb95a3bc7313283cd8259b7445a65a9a7e91d9abab6beafc604f1f",
+          "source_size": 16384
+        }
+      ],
+      "map_sha256": "6aa098da24f871b7df0a97024b6f31dcdc9d73f266d746adcb95615647f06534",
+      "programmed_sha256": "dc47178ea7d0b9f22047cf9e053c86981acb55c4e79aed0d664a077c9300733c",
+      "programmed_size": 1948769
+    }
+  },
+  "receipt_sha256": "18f8ef5081a5a20ee3b8bf1cb6a37a5fd5ed6793a633a96b79b54f439add45bf"
+}

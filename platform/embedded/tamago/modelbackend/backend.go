@@ -20,6 +20,7 @@ import (
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/fes/platform/embedded/tamago/fabricmodel"
 	"github.com/DeanoC/fes/platform/embedded/tamago/runtimeadmission"
+	"github.com/DeanoC/misteross/expansion"
 )
 
 type Source struct {
@@ -28,7 +29,16 @@ type Source struct {
 	Path   string `json:"path"`
 	SHA256 string `json:"sha256"`
 }
+type Part struct {
+	ID     string `json:"id"`
+	Path   string `json:"path"`
+	SHA256 string `json:"sha256"`
+}
+
 type Entry struct {
+	CompositionID string   `json:"composition_id,omitempty"`
+	Parts         []Part   `json:"parts,omitempty"`
+	Check         string   `json:"check"`
 	ID            string   `json:"id"`
 	Title         string   `json:"title"`
 	Path          string   `json:"path"`
@@ -50,6 +60,7 @@ type Event struct {
 	Error     string                `json:"error,omitempty"`
 }
 type View struct {
+	PartsCompositionID               string
 	Action                           string
 	Status                           fabricmodel.Status
 	Busy                             bool
@@ -94,28 +105,30 @@ type prepared struct {
 	err    error
 }
 type pending struct {
-	call      call
-	entry     Entry
-	cancel    context.CancelFunc
-	ready     chan prepared
-	started   bool
-	faultUsed bool
-	failure   error
+	composition *expansion.PartsComposition
+	call        call
+	entry       Entry
+	cancel      context.CancelFunc
+	ready       chan prepared
+	started     bool
+	faultUsed   bool
+	failure     error
 }
 
 // Backend owns one actor. Controller calls, frame tokens and input generations
 // are serialized there; HTTP workers never manipulate the controller directly.
 type Backend struct {
-	gate       *runtimeadmission.Gate
-	controller *fabricmodel.Controller
-	entries    []Entry
-	read       func(string) ([]byte, error)
-	log        func(Event)
-	calls      chan call
-	done       chan struct{}
-	mu         sync.RWMutex
-	view       View
-	wire       []byte
+	composition *expansion.PartsComposition
+	gate        *runtimeadmission.Gate
+	controller  *fabricmodel.Controller
+	entries     []Entry
+	read        func(string) ([]byte, error)
+	log         func(Event)
+	calls       chan call
+	done        chan struct{}
+	mu          sync.RWMutex
+	view        View
+	wire        []byte
 }
 
 func New(policy runtimeadmission.Policy, config Config, read func(string) ([]byte, error), log func(Event)) (*Backend, error) {
@@ -139,6 +152,7 @@ func New(policy runtimeadmission.Policy, config Config, read func(string) ([]byt
 		}
 		seen[e.ID] = true
 		entries[i].Sources = append([]Source(nil), e.Sources...)
+		entries[i].Parts = append([]Part(nil), e.Parts...)
 	}
 	data := []byte("model session idle")
 	idle, err := fabricmodel.Prepare("model.idle", data, sha256.Sum256(data), fabricmodel.Identity{ABI: 1, Core: 1, Build: 1}, true)
@@ -181,6 +195,10 @@ func (b *Backend) emit(kind, game string, operation fabricmodel.Operation, err e
 }
 func (b *Backend) publish(view View, session expectedSession) {
 	view.Status = b.controller.Status()
+	view.PartsCompositionID = ""
+	if view.Status.State == fabricmodel.Running && b.composition != nil {
+		view.PartsCompositionID = b.composition.ID
+	}
 	state := "idle"
 	if view.Status.State == fabricmodel.Running {
 		state = "active"
@@ -199,7 +217,7 @@ func (b *Backend) publish(view View, session expectedSession) {
 		wire["id"], wire["game_id"], wire["target"], wire["target_id"], wire["flight_id"] = session.ID, session.Game, session.Target, session.TargetID, session.Flight
 		wire["system"], wire["media"] = "model", "active"
 		p := view.Status.Package
-		wire["core_package"] = &hostclient.SessionCorePackage{CoreID: p.CoreID, PackageID: p.PackageID, Generation: view.Status.CoreGeneration, Gamepad: true, ABI: hostclient.SessionCoreABI{ID: p.ABI, Major: p.Major, Minor: p.Minor}}
+		wire["core_package"] = &hostclient.SessionCorePackage{CoreID: p.CoreID, PackageID: p.PackageID, Generation: view.Status.CoreGeneration, PartsComposition: b.composition, Gamepad: true, ABI: hostclient.SessionCoreABI{ID: p.ABI, Major: p.Major, Minor: p.Minor}}
 	}
 	data, _ := json.Marshal(wire)
 	b.mu.Lock()
@@ -291,7 +309,19 @@ func (b *Backend) prepare(ctx context.Context, e Entry) (*corepackage.LinkedArch
 			cancel()
 		}
 	}
-	return archive.LinkROMs(cooperative, sources)
+	parts := []corepackage.PartInput{}
+	for _, part := range e.Parts {
+		data, err := b.read(part.Path)
+		if err != nil {
+			return nil, err
+		}
+		sum := sha256.Sum256(data)
+		if hex.EncodeToString(sum[:]) != part.SHA256 {
+			return nil, errors.New("part archive differs from selected digest")
+		}
+		parts = append(parts, corepackage.PartInput{ID: part.ID, Archive: data})
+	}
+	return archive.LinkROMs(cooperative, sources, parts...)
 }
 
 func (b *Backend) run() {
@@ -313,6 +343,7 @@ func (b *Backend) run() {
 		view.Action = ""
 		if b.controller.Status().State == fabricmodel.Idle {
 			session = expectedSession{}
+			b.composition = nil
 			active = Entry{}
 			view.Game = ""
 		}
@@ -441,6 +472,7 @@ func (b *Backend) run() {
 						finish(err)
 						continue
 					}
+					job.composition = p.linked.Receipt().PartsComposition
 					job.started = true
 					b.emit("admitted", job.entry.ID, "", nil)
 				default:
@@ -492,6 +524,7 @@ func (b *Backend) run() {
 			if job != nil && job.started && b.controller.Status().State != fabricmodel.Changing {
 				if job.failure == nil && job.call.method == "launch" && b.controller.Status().State == fabricmodel.Running {
 					active = job.entry
+					b.composition = job.composition
 					view.Game = active.ID
 					s := b.controller.Status()
 					session = expectedSession{ID: fmt.Sprintf("model-%d", s.CoreGeneration), Game: active.ID, Target: "qemu-model", TargetID: "qemu-model", PackageID: s.Package.PackageID, Generation: s.CoreGeneration, Flight: job.call.flight}
@@ -513,6 +546,7 @@ func (b *Backend) run() {
 						continue
 					}
 					session = expectedSession{}
+					b.composition = nil
 					view.Game = ""
 					view.Busy = false
 					view.Action = ""

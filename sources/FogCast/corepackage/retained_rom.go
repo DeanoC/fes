@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"github.com/DeanoC/misteross/expansion"
 	"io"
 )
 
@@ -17,12 +18,25 @@ type ROMSource struct {
 	Data     []byte
 }
 
-// ROMActivationReceipt binds a package and its independently linked output.
-// It describes content, not hardware admission, authentication or durable state.
+// PartInput selects one exact CPU/video asset archive. Callers must not mutate
+// its bytes concurrently with LinkROMs.
+type PartInput struct {
+	ID      string
+	Archive []byte
+}
+
+type retainedPart struct {
+	id      string
+	archive []byte
+}
+
+// ROMActivationReceipt binds selected content and independently linked output.
+// It is not hardware admission, authentication or durable state.
 type ROMActivationReceipt struct {
-	PackageID string            `json:"package_id"`
-	ROMLink   *ROMLinkIdentity  `json:"rom_link,omitempty"`
-	ROMLinks  *ROMLinksIdentity `json:"rom_links,omitempty"`
+	PartsComposition *expansion.PartsComposition `json:"parts_composition,omitempty"`
+	PackageID        string                      `json:"package_id"`
+	ROMLink          *ROMLinkIdentity            `json:"rom_link,omitempty"`
+	ROMLinks         *ROMLinksIdentity           `json:"rom_links,omitempty"`
 }
 
 // LinkedArchive owns the package, source ROMs and derived programming bytes.
@@ -30,6 +44,8 @@ type ROMActivationReceipt struct {
 // cannot be substituted. No filesystem staging or physical activation occurs.
 type LinkedArchive struct {
 	archive       *Archive
+	parts         []retainedPart
+	overlay       []byte
 	sources       []ROMSource
 	programmed    []byte
 	receipt       ROMActivationReceipt
@@ -37,14 +53,17 @@ type LinkedArchive struct {
 }
 
 // LinkROMs uses the sealed map and the same target linker as ROM-input staging.
-// This entrypoint links ROMs alone; expansion/parts and initial media remain on
-// their existing paths. Format 3 takes one source; format 4 takes BIOS then cart.
-func (a *Archive) LinkROMs(ctx context.Context, sources []ROMSource) (*LinkedArchive, error) {
+// Optional part archives select the sealed CPU/video composition. Format 3 takes
+// one source; format 4 takes BIOS then cart. Initial media is not included.
+func (a *Archive) LinkROMs(ctx context.Context, sources []ROMSource, partInputs ...PartInput) (*LinkedArchive, error) {
 	if ctx == nil || a == nil || a.inspection.PackageID == "" {
 		return nil, errors.New("missing retained ROM package or context")
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
+	}
+	if len(partInputs) > 2 {
+		return nil, errors.New("too many retained CPU/video parts")
 	}
 	d := a.inspection.Descriptor
 	var requirements []ROMRequirement
@@ -78,26 +97,64 @@ func (a *Archive) LinkROMs(ctx context.Context, sources []ROMSource) (*LinkedArc
 	}
 	inspection := Inspection{PackageID: a.inspection.PackageID, Descriptor: descriptor}
 	linked := &LinkedArchive{archive: a, sources: owned, receipt: ROMActivationReceipt{PackageID: inspection.PackageID}}
+	assets := make([]expansion.Asset, 0, len(partInputs))
+	for _, input := range partInputs {
+		if len(input.Archive) == 0 || len(input.Archive) > expansion.MaxArchiveBytes {
+			return nil, errors.New("retained part archive exceeds bound")
+		}
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		raw := bytes.Clone(input.Archive)
+		asset, err := expansion.ReadAsset(bytes.NewReader(raw))
+		if err != nil {
+			return nil, err
+		}
+		if asset.ID != input.ID {
+			return nil, errors.New("retained part differs from selected identity")
+		}
+		linked.parts = append(linked.parts, retainedPart{asset.ID, raw})
+		assets = append(assets, asset)
+	}
+	var selected []expansion.PartSelection
+	shell, shellErr := PartsShell(inspection, a.payload)
+	if len(assets) != 0 || (shellErr == nil && romLinkedPartsLayout(shell.Layout)) {
+		if len(assets) == 0 {
+			return nil, errors.New("retained video shell requires its selected parts")
+		}
+		selected, err = admitROMParts(inspection, a.payload, assets)
+		if err != nil {
+			return nil, err
+		}
+	}
 	if d.Format == 3 {
 		s := owned[0]
-		receipt := romInputReceipt{Format: 1, PackageID: inspection.PackageID, ROMID: s.ID, MapSHA256: d.ROM.SHA256, SourceSHA256: romDigest(s.Data), SourceSize: int64(len(s.Data))}
-		result, err := linkPreparedROMInput(ctx, preparedROMInput{input: ROMInput{ROM: s.Data}, inspection: inspection, base: a.payload, mapping: a.romMap, receipt: receipt, romMap: parsed}, romInputReceipt{})
+		receipt := romInputReceipt{Parts: selected, Format: 1, PackageID: inspection.PackageID, ROMID: s.ID, MapSHA256: d.ROM.SHA256, SourceSHA256: romDigest(s.Data), SourceSize: int64(len(s.Data))}
+		result, err := linkPreparedROMInput(ctx, preparedROMInput{input: ROMInput{ROM: s.Data, Parts: assets}, inspection: inspection, base: a.payload, mapping: a.romMap, receipt: receipt, romMap: parsed}, romInputReceipt{})
 		if err != nil {
 			return nil, err
 		}
 		linked.programmed = result.programmed
 		linked.receipt.ROMLink = &result.identity
+		if result.parts != nil {
+			linked.receipt.PartsComposition = &result.parts.Composition
+			linked.overlay = result.parts.Payload
+		}
 	} else {
-		receipt := romInputReceiptV2{Format: 2, PackageID: inspection.PackageID, MapSHA256: d.ROMMap.SHA256}
+		receipt := romInputReceiptV2{Parts: selected, Format: 2, PackageID: inspection.PackageID, MapSHA256: d.ROMMap.SHA256}
 		for _, s := range owned {
 			receipt.Sources = append(receipt.Sources, ROMSourceIdentity{ID: s.ID, Role: s.Role, SourceSHA256: romDigest(s.Data), SourceSize: int64(len(s.Data))})
 		}
-		result, err := linkPreparedROMInputV2(ctx, preparedROMInputV2{input: ROMInputV2{BIOS: owned[0].Data, Cartridge: owned[1].Data}, inspection: inspection, base: a.payload, mapping: a.romMap, receipt: receipt, romMap: parsed})
+		result, err := linkPreparedROMInputV2(ctx, preparedROMInputV2{input: ROMInputV2{BIOS: owned[0].Data, Cartridge: owned[1].Data, Parts: assets}, inspection: inspection, base: a.payload, mapping: a.romMap, receipt: receipt, romMap: parsed})
 		if err != nil {
 			return nil, err
 		}
 		linked.programmed = result.programmed
 		linked.receipt.ROMLinks = &result.identity
+		if result.parts != nil {
+			linked.receipt.PartsComposition = &result.parts.Composition
+			linked.overlay = result.parts.Payload
+		}
 	}
 	if err = ctx.Err(); err != nil {
 		return nil, err
@@ -122,6 +179,11 @@ func (l *LinkedArchive) Receipt() ROMActivationReceipt {
 		return ROMActivationReceipt{}
 	}
 	r := l.receipt
+	if r.PartsComposition != nil {
+		value := *r.PartsComposition
+		value.Parts = append([]expansion.PartSelection(nil), value.Parts...)
+		r.PartsComposition = &value
+	}
 	if r.ROMLink != nil {
 		value := *r.ROMLink
 		r.ROMLink = &value
@@ -156,4 +218,24 @@ func (l *LinkedArchive) Source(id, role string) (io.Reader, error) {
 		}
 	}
 	return nil, errors.New("ROM source is not retained")
+}
+
+// Part returns a copying cursor over the exact retained asset archive.
+func (l *LinkedArchive) Part(id string) (io.Reader, error) {
+	if l != nil {
+		for _, p := range l.parts {
+			if p.id == id {
+				return &contextReader{ctx: context.Background(), reader: bytes.NewReader(p.archive)}, nil
+			}
+		}
+	}
+	return nil, errors.New("part is not retained")
+}
+
+// Overlay returns the pre-ROM composition bytes; ROM-only loads have no overlay.
+func (l *LinkedArchive) Overlay() io.Reader {
+	if l == nil {
+		return bytes.NewReader(nil)
+	}
+	return &contextReader{ctx: context.Background(), reader: bytes.NewReader(l.overlay)}
 }

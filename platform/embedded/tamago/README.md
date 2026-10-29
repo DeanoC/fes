@@ -193,7 +193,8 @@ can pass. Default/absent policy, absent exact-package decisions and wrong expect
 IDs are also rejected without changing ownership. A full build-identity mismatch
 exercises recovery to idle.
 
-This backend models only simple-game 1.0 with gamepad and fixed video. Raw
+This backend models simple-game 1.0 and a restricted application 1.0 driver
+with gamepad and fixed video. Raw
 format-2 payloads retain their 1 MiB bound. Format-3/4 raw loads reject; the
 separate retained ROM activation path below supplies their required receipts. Existing DE10-Nano corpus targets remain
 DE10-Nano targets; none become DE25-compatible. Production driver resolution,
@@ -244,9 +245,9 @@ Linked model buffers are bounded at 8 MiB to accommodate the approximately 2 MiB
 synthetic bitstreams. This is an emulation limit, not a hardware-package size or
 latency qualification. Sources survive for the opaque object's lifetime; the
 model separately owns its programming-byte copy through completion/recovery.
-Nothing is durably installed. Parts/expansions, initial media, real-board resources
-and live GP identity remain separate. The model-only tenfoot integration below
-uses this retained activation path. These are
+Nothing is durably installed. Other expansion families, initial media, real-board resources
+and live GP identity remain separate. Selected CPU/video parts now extend the
+retained activation path as described below. These are
 Cyclone V test vectors and supply no Agilex/DE25 programming support. Linker CPU,
 heap and concurrent UI/network latency have not been qualified on the board.
 
@@ -282,3 +283,29 @@ The ordinary `run.py tenfoot` mode still browses the real private network host,
 checks USB navigation and persists layout across two boots. Model mode uses an
 in-process diagnostic catalog and does not claim production host/target launch
 orchestration, physical programming, board DMA containment or DE25 acceptance.
+
+
+## CPU/video parts in retained activation
+
+`run.py play` now runs eleven cases. In addition to the existing seven, it
+activates a synthetic Coleco application shell with one CPU expansion and one
+raster video part, then rejects changed, missing and incompatible selections.
+Both part payloads make actual fenced bit changes; the pre-ROM overlay and final
+programmed output have different digests. Existing admission and composition
+implementations enforce the exact shell/package/build and closed socket roles.
+No alternate linker or compatibility policy is introduced.
+
+`Archive.LinkROMs(ctx, sources, parts...)` accepts `PartInput` objects containing
+an expected asset ID and archive bytes. It copies/parses each bounded archive
+and retains it behind a copying `Part` reader. The receipt carries the canonical
+`PartsComposition` and its pre-ROM overlay digest; `Overlay` exposes an independent
+reader. The existing ROM identity still carries the final programmed digest.
+Changing a valid part's identity changes the activation receipt even when its
+payload and programmed bytes are identical. Model admission still needs the
+selected full receipt, and the active session exposes its parts composition
+only after release.
+
+This exercises the existing CPU/video parts mechanism, not every multi-slot
+expansion family. It provides no FPGA programming or DE25 acceptance. The
+[board adaptation plan](../board-adaptation.md) describes the next real-driver
+work while keeping QEMU as the regression backend.

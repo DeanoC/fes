@@ -286,10 +286,11 @@ def main():
             record["host_go_sha256"] = sha(host_go)
             helper = output / "session-fixtures"
             checked("session-fixtures-build", ["env", "GOWORK=off", "GOTOOLCHAIN=local", "GOPROXY=off", "GOSUMDB=off", host_go, "build", "-mod=readonly", "-o", helper, "./cmd/session-fixtures"])
-            checked("session-fixtures", [helper, package_directory])
+            checked("session-fixtures", [helper, package_directory, output / "admission-oracle"])
             record["session_fixtures_sha256"] = sha(helper)
             record["model_config"] = json.loads((package_directory / "PLAY.JSON").read_text())
-            package_sources.add(APP / "cmd/session-fixtures/main.go")
+            package_sources.update((APP / "cmd/session-fixtures").glob("*.go"))
+            record["admission_policy"] = json.loads((package_directory / "RUNTIME.JSON").read_text())
         deps = checked("packages", [compiler, "list", "-deps", "-json", "-mod=readonly",
                                     "./cmd/" + target], native=True)
         files = {APP / name for name in ("go.mod", "go.sum", "run.py", "host_support.py", "package_fixtures.py", "admission_fixtures.py", "play_support.py", "toolchain.lock.toml")}
@@ -340,9 +341,7 @@ def main():
             with Guest(qemu, elf, output / "boot-1", command_record, disk=disk, usb=True, display=display) as guest:
                 # Case labels are diagnostic expectations, not product API.
                 entries = record["model_config"]["entries"]
-                faults = ("", "source", "receipt", "cancel", "identity", "program", "save")
-                cases = [{**entry, "fault": fault} for entry, fault in zip(entries, faults, strict=True)]
-                record["play_results"], record["screenshots"] = exercise(guest, cases, args.timeout)
+                record["play_results"], record["screenshots"] = exercise(guest, entries, args.timeout)
             record["disk"] = {"path": str(disk), "before_sha256": before, "after_sha256": sha(disk)}
             if record["disk"]["before_sha256"] != record["disk"]["after_sha256"]:
                 raise RuntimeError("Play diagnostic changed the input FAT32 image")
