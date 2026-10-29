@@ -5,7 +5,9 @@ CRC-checked tape delivery and coherent 720p display with the registered
 empty/16 KiB RAM personas. Both endpoints share the static base's build ID.
 CPU execution requires transport health, PR RUNNING and mailbox RUN. HOLD or
 PR freeze captures an idle CPU bus independently of enable-scheduled reset;
-the existing drain and four-cycle settle complete before Frozen. Selection
+the existing drain and four-cycle settle complete before Frozen. Transport
+readiness reaches renderer reset through two pixel-clock stages; common reset
+still asserts asynchronously. Selection
 resets/reboots BASIC and does not preserve a running program.
 
 The PR bus retains its protected 46-bit request and 20-bit response, five

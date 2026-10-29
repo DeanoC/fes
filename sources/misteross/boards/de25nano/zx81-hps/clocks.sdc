@@ -42,3 +42,25 @@ set owner_reset_pins [get_pins -compatibility_mode -nocase -nowarn {*|video|sys_
 if {[get_collection_size $owner_reset_pins] != 4} {error "DE25 video reset release ingress changed"}
 set_false_path -to $owner_reset_pins
 post_message -type info "DE25 video: 2 first-stage crossings, 9 bounded metadata bits, 4 reset ingress pins"
+
+# Only the first stage and asynchronous reset pins of the pixel readiness
+# synchronizer are cut. The stage-to-stage path and both generated clocks stay
+# timed; no broad clock groups or HDMI/I2C delay assumptions are introduced.
+set computer_pixel_ready_stage0 [get_registers {soc_inst|subsys_periph|fes_computer|fes_computer|pixel_transport_ready_sync[0]}]
+set computer_pixel_ready_stage1 [get_registers {soc_inst|subsys_periph|fes_computer|fes_computer|pixel_transport_ready_sync[1]}]
+set computer_pixel_ready_stage0_d [get_pins -compatibility_mode -nocase -nowarn {soc_inst|subsys_periph|fes_computer|fes_computer|pixel_transport_ready_sync[0]|D}]
+set computer_pixel_ready_aclr [get_pins -compatibility_mode -nocase -nowarn {soc_inst|subsys_periph|fes_computer|fes_computer|pixel_transport_ready_sync[0]|aclr soc_inst|subsys_periph|fes_computer|fes_computer|pixel_transport_ready_sync[1]|aclr}]
+set computer_pixel_ready_clrn [get_pins -compatibility_mode -nocase -nowarn {soc_inst|subsys_periph|fes_computer|fes_computer|pixel_transport_ready_sync[0]|clrn soc_inst|subsys_periph|fes_computer|fes_computer|pixel_transport_ready_sync[1]|clrn}]
+foreach computer_pixel_ready_nodes [list $computer_pixel_ready_stage0 $computer_pixel_ready_stage1 $computer_pixel_ready_stage0_d] {
+    if {[get_collection_size $computer_pixel_ready_nodes] != 1} {
+        error "DE25 computer requires both pixel readiness synchronizer stages and the first-stage D pin"
+    }
+}
+set computer_pixel_ready_clear_count [expr {[get_collection_size $computer_pixel_ready_aclr] + [get_collection_size $computer_pixel_ready_clrn]}]
+if {$computer_pixel_ready_clear_count != 2} {
+    error "DE25 computer pixel readiness synchronizer must have exactly two asynchronous clear pins"
+}
+set_false_path -to $computer_pixel_ready_stage0_d
+if {[get_collection_size $computer_pixel_ready_aclr] > 0} {set_false_path -to $computer_pixel_ready_aclr}
+if {[get_collection_size $computer_pixel_ready_clrn] > 0} {set_false_path -to $computer_pixel_ready_clrn}
+post_message -type info "DE25 computer pixel readiness crossing: one first-stage ingress, timed stage-to-stage path"

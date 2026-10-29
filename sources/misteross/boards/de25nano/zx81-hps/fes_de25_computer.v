@@ -207,12 +207,21 @@ module fes_de25_computer #(
         .bus_peek_data(machine_response[`ZX81_BUS_PEEK_D]), .bus_dsel(machine_response[`ZX81_BUS_DSEL]),
         .bus_romcs(machine_response[`ZX81_BUS_ROMCS]), .bus_wait(machine_response[`ZX81_BUS_WAIT]),
         .bus_ram_present(machine_response[`ZX81_BUS_RAM_PRESENT]));
+    // Readiness changes reset the renderer only on pixel edges. Common reset
+    // still asserts asynchronously, including with both clocks stopped.
+    (* altera_attribute="-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *)
+    reg [1:0] pixel_transport_ready_sync = 2'b00;
+    always @(posedge pixel_clk or negedge reset_n) begin
+        if (!reset_n) pixel_transport_ready_sync <= 2'b00;
+        else pixel_transport_ready_sync <= {pixel_transport_ready_sync[0], transport_ready};
+    end
+    wire pixel_transport_ready = pixel_transport_ready_sync[1];
     fes_de25_zx81_video video (
-        .reset_n(transport_ready), .held(machine_reset),
+        .reset_n(pixel_transport_ready), .held(machine_reset),
         .clk_sys(clk), .ce_6m5(ce_6m5), .zx_pixel(video_pixel), .hblank(hblank), .vblank(vblank),
         .pixel_clk(pixel_clk), .red(red), .green(green), .blue(blue), .de(de), .hsync(hs), .vsync(vs));
-    assign video_rgb = transport_ready ? {red, green, blue} : 24'd0;
-    assign video_de = transport_ready && de;
-    assign video_hs = transport_ready && hs;
-    assign video_vs = transport_ready && vs;
+    assign video_rgb = pixel_transport_ready ? {red, green, blue} : 24'd0;
+    assign video_de = pixel_transport_ready && de;
+    assign video_hs = pixel_transport_ready && hs;
+    assign video_vs = pixel_transport_ready && vs;
 endmodule
