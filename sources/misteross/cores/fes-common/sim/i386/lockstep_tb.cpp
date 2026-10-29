@@ -60,10 +60,15 @@
 //           are injected (Irq), and a HLT before the program's last wakes.
 //           FES_I386_FIRST skips the programs before it (they are still
 //           generated), to run one again.
+//           Now and then a store through CS rewrites a later instruction's
+//           immediate or a one-byte opcode, the next instruction or one up to
+//           16 bytes and more ahead: the coherent profile, which the oracle
+//           follows. No instruction may run bytes from before a store into
+//           them (Rtl::stale).
 //           A run stops at its last HLT, once it has delivered an exception,
-//           after FES_I386_RETIRE_LIMIT retirements, at a store into its own
-//           code, which needs self-modifying-code detection the RTL does not
-//           have yet, or at an interrupt through a vector entry it rewrote.
+//           after FES_I386_RETIRE_LIMIT retirements, at an interrupt through
+//           a vector entry it rewrote, or at a store into its code other
+//           than those rewrites, after which it may run anything.
 //   unbuilt encodings this build does not execute, one per line on stdin as
 //           hex bytes: each must stop the RTL with FAULT_UNIMPLEMENTED before
 //           anything retires. The RTL runs alone; the oracle is not stepped.
@@ -95,6 +100,7 @@
 #include <iostream>
 #include <map>
 #include <memory>
+#include <optional>
 #include <random>
 #include <set>
 #include <sstream>
@@ -280,6 +286,7 @@ public:
     uint64_t mmio_wrong = 0;            // device writes no retired store made, or not in order
     uint64_t mmio_early = 0;            // device reads before an earlier instruction's store reached it
     uint64_t replays = 0;
+    uint64_t smc_restarts = 0;  // instructions restarted for self-modifying code
     // Machine DMA and FLUSH, for the memory cases: each request held until
     // its done, whose edge clears it.
     bool dma_valid = false, dma_write = false, flush = false;
@@ -293,6 +300,19 @@ public:
     std::set<uint32_t> step_writes;  // bytes written since the last next()
     std::set<uint32_t> written;      // bytes either side wrote since the run began, to clear after it
     uint64_t io_unstable = 0;        // I/O requests whose port, size or data changed before their ack
+    // Self-modifying code: the bytes a retired store wrote into the blocks
+    // the front end has fetched since it last fetched out of sequence, at or
+    // after the storing instruction, each with that instruction's start. A
+    // block fetched as the store retires counts: the L1I reads it while it
+    // still holds the old line. A fetch out of sequence clears them, as the
+    // front end then refetches. An instruction other than the storing one
+    // that retires over one ran the bytes from before the store: stale, the
+    // first such byte, which the lockstep reports. length: an instruction's
+    // length, from ram.
+    std::map<uint32_t, uint32_t> fetched_stores;
+    uint32_t fetch_lo = 0, fetch_end = 0;
+    std::optional<uint32_t> stale;
+    std::function<unsigned(uint32_t linear)> length;
 
     // The attribute map: A0000h-BFFFFh MMIO or RAM, the rest RAM.
     void set_window(bool on) {
@@ -325,6 +345,9 @@ public:
         mmio_log.clear();
         mmio_stores.clear();
         mmio_wrong = mmio_early = 0;
+        fetched_stores.clear();
+        fetch_lo = fetch_end = 0;
+        stale.reset();
         top.reset = 1;
         for (int n = 0; n < 3; ++n) clock();
         top.reset = 0;
@@ -363,12 +386,29 @@ public:
         const uint32_t waddr = top.trace_store_addr & ~3u;
         const uint64_t wdata = top.trace_store_data;
         const uint8_t wmask = top.trace_store_mask;
+        // The instruction retiring or storing now: the one after the last
+        // retirement.
+        const uint32_t current = top.arch_base[fes_i386::SEG_CS] + top.arch_eip;
+        if (top.trace_fetch && !top.reset) {
+            const uint32_t block = uint32_t(top.trace_fetch_block) << 4;
+            if (block != fetch_end) {
+                fetched_stores.clear();
+                fetch_lo = block;
+            }
+            fetch_end = block + 16;
+        }
+        if (store && !top.reset)
+            for (int i = 0; i < 8; ++i) {
+                const uint32_t at = waddr + i;
+                if (wmask >> i & 1 && at >= current && at >= fetch_lo && at < fetch_end) fetched_stores[at] = current;
+            }
         md_waits += top.trace_md_wait;  // this cycle, before the edge that ends it
         if (top.trace_mem_wait) {
             ++load_waits;
             last_mem_wait = cycles;
         }
         replays += top.trace_replay;
+        smc_restarts += top.trace_smc;
         // Port 0, then MMIO: this edge's responses, and the command taken.
         port0.drive(top, ticks++);
         top.mmio_rvalid = 0;
@@ -480,6 +520,14 @@ public:
                 step_writes.insert(at);
                 written.insert(at);
             }
+        }
+        if (top.trace_retire && !top.trace_exception && !fetched_stores.empty() && !stale) {
+            const uint32_t end = current + (length ? length(current) : 15u);
+            for (auto byte = fetched_stores.lower_bound(current); byte != fetched_stores.end() && byte->first < end; ++byte)
+                if (byte->second != current) {
+                    stale = byte->first;
+                    break;
+                }
         }
         ++cycles;
     }
@@ -976,12 +1024,12 @@ struct Summary {
     // waits in D if it reads ESP. Any other after a store, not after a shift,
     // is after_store: one cycle, as D's store hold must not catch it. A store
     // counts only as an instruction's last uop, which XCHG's and POP m's are
-    // not.
+    // not. A retirement the CPU restarted for self-modifying code since the
+    // last is smc's, before any other.
     std::map<uint64_t, uint64_t> gap_sequential, gap_prefixed, gap_lea, gap_selector, gap_after_taken,
         gap_after_not_taken, gap_shift_consumer, gap_after_shift, gap_store_load, gap_after_store,
         gap_address, gap_after_segment, gap_after_stack, gap_stack_stack, gap_several, gap_after_string,
-        gap_after_io, gap_memory;
-    uint64_t smc = 0;  // runs stopped at a store into their own code
+        gap_after_io, gap_memory, gap_smc;
     uint64_t vector_moved = 0;  // runs stopped at an interrupt whose vector they had rewritten
     uint64_t load_waits = 0;
     uint64_t io_accesses = 0;  // I/O accesses compared
@@ -989,6 +1037,7 @@ struct Summary {
     uint64_t mmio_runs = 0;       // runs with the MMIO window on
     uint64_t replays = 0;         // instructions restarted for an uncached load
     uint64_t window_code = 0;     // runs stopped at code in the MMIO window
+    uint64_t code_stores = 0;     // runs stopped at a store into their code that they did not plan
 };
 
 void hash_state(Summary &summary, const State &s) {
@@ -1214,9 +1263,9 @@ struct Outcome {
     int exception = -1;    // the last exception both sides delivered
     bool double_fault = false;  // stopped at a fault in a delivery (no double fault is built)
     bool limit = false;    // stopped at the retirement limit
-    bool smc = false;      // stopped at a store into [code_lo, code_hi)
     bool vector_moved = false;  // stopped at an injected interrupt whose vector entry or handler the program rewrote
     bool window_code = false;   // stopped at code in the MMIO window, which neither side fetches
+    bool code_store = false;    // stopped at a store into its code that it did not plan
     int interrupt = -1;    // the last software interrupt both sides took (INT n, INT3, INTO)
     std::string code;      // the last instruction's first bytes, for a failure's line
 };
@@ -1247,9 +1296,16 @@ struct Irq {
 
 // Run from the state both sides hold now. label_corpus and label_oracle hold
 // label-scoped divergence fields.
+// A random program's code, and the bytes of it its own stores rewrite
+// (Generator::smc_block).
+struct Code {
+    uint32_t lo = 0, hi = 0;
+    std::set<uint32_t> rewritten;
+};
+
 Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
                  const Fields &label_corpus, uint64_t retire_limit, bool stop_at_exception, Summary &summary,
-                 Mismatches &out, uint32_t code_lo = 0, uint32_t code_hi = 0, Irq *irq = nullptr) {
+                 Mismatches &out, uint32_t code_hi = 0, Irq *irq = nullptr, const Code *own = nullptr) {
     Outcome outcome;
     // Raise INTR (or NMI) for the boundary after the instruction at code, on
     // the RTL now; for the oracle in this step, or for a HLT's wake before
@@ -1275,7 +1331,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         }
         irq->nmi_last = nmi;
     };
-    uint64_t last_retirement = 0;
+    uint64_t last_retirement = 0, smc_seen = rtl.smc_restarts;
     bool retired_before = false, branch_before = false, taken_before = false, shift_before = false;
     bool store_before = false, stack_before = false, pop_sp_before = false;
     unsigned since_segment = 99;  // retirements since a segment load
@@ -1413,6 +1469,10 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                 std::fprintf(stderr, "  event %d vector %x writes_before %u\n", int(e.kind), e.vector, e.writes_before);
         if (irq && !bus.pic.intr) oracle.set_intr(false);  // its INTA dropped it
         const std::string at = "@" + hex(before.eip) + ".";
+        if (rtl.stale) {
+            out.add(at + "stale-fetch." + hex(*rtl.stale), 0, 1);
+            rtl.stale.reset();
+        }
 
         // The oracle's first exception, and the vector the step takes: that,
         // or a software interrupt's. external: an INTR's or NMI's, which the
@@ -1567,7 +1627,9 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                                           : summary.gap_sequential;
                 // A wait for memory near the gap makes it memory's.
                 const bool mem_wait = rtl.last_mem_wait + 16 >= last_retirement;
-                ++(rtl.md_waits ? summary.gap_several : mem_wait ? summary.gap_memory : gaps)[rtl.cycles - last_retirement];
+                const bool smc = rtl.smc_restarts != smc_seen;
+                ++(smc ? summary.gap_smc : rtl.md_waits ? summary.gap_several : mem_wait ? summary.gap_memory
+                                                                           : gaps)[rtl.cycles - last_retirement];
             }
             // A string's or ENTER's last store is one of several uops, and
             // what follows a string may wait for its ESI, EDI and ECX.
@@ -1581,6 +1643,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             branch_before = branch_taken(code, before, code32, taken_before);
             shift_before = is_shift(code);
             last_retirement = rtl.cycles;
+            smc_seen = rtl.smc_restarts;
         }
         rtl.md_waits = 0;
 
@@ -1623,8 +1686,10 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                     if (address < RAM_BYTES && bus.ram[address] != rtl.ram[address])
                         out.add(at + "write." + hex(address), bus.ram[address], rtl.ram[address]);
             }
-            for (uint32_t address : oracle_writes)
-                if (address >= code_lo && address < code_hi) outcome.smc = true;
+            if (own)
+                for (uint32_t address : oracle_writes)
+                    if (address >= own->lo && address < own->hi && !own->rewritten.count(address))
+                        outcome.code_store = true;
         }
         // The I/O accesses, in order; a request must hold until its ack.
         summary.io_accesses += bus.io.log.size();
@@ -1713,7 +1778,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             outcome.vector_moved = true;
             return outcome;
         }
-        if (outcome.smc) return outcome;
+        if (outcome.code_store) return outcome;
     }
 }
 
@@ -1770,7 +1835,7 @@ void run_fault_case(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
         const std::vector<Entry> no_divergences;
         const std::vector<Entry> &directed_entries = allow_divergences ? entries : no_divergences;
         outcome = lockstep(oracle, bus, rtl, directed_entries, Fields{}, 64, false, summary, out,
-                           code_base, code_base + uint32_t(code.size()));
+                           code_base + uint32_t(code.size()));
     } catch (const std::exception &error) {
         out.add(label + ".oracle-error:" + error.what(), 0, 1);
         oracle.reset();
@@ -1834,7 +1899,7 @@ void run_nop_case(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std:
     Outcome outcome;
     try {
         outcome = lockstep(oracle, bus, rtl, entries, Fields{}, 64, false, summary, out,
-                           code_base, code_base + uint32_t(code.size()));
+                           code_base + uint32_t(code.size()));
     } catch (const std::exception &error) {
         out.add(label + ".oracle-error:" + error.what(), 0, 1);
         oracle.reset();
@@ -1970,6 +2035,110 @@ void run_fault_regressions(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, c
     rep_zero_es.seg[fes_i386::SEG_ES].ar = 0x96;
     rep_zero_es.seg[fes_i386::SEG_ES].limit = 0x0f;
     run_nop_case(oracle, bus, rtl, entries, summary, "rep-movs-zero-expand-down-es", {0xf3, 0xa4}, rep_zero_es);
+}
+
+// Self-modifying code, from CS:0 at linear 1000h. The coherent cases run in
+// lockstep with the oracle, which follows that profile: each stores into
+// bytes the front end has fetched, and the instruction there must run the
+// new bytes; the one that stored completes as it was decoded. The profile
+// cases run the RTL alone, to its HLT, under each profile, and check one
+// register: under queue16 a store into the 16 bytes after its instruction
+// leaves the bytes the front end holds (the CPU fetches the 32-byte line
+// its instruction is in before that instruction reaches WB).
+void run_smc_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
+                   Summary &summary) {
+    State state;
+    for (int k = 0; k < 6; ++k) state.seg[k] = fes_i386::real_mode_segment(0x100);
+    state.eip = 0;
+    state.gpr[fes_i386::REG_ESP] = 0x8000;
+    auto nops = [](std::vector<uint8_t> code, size_t n, std::initializer_list<uint8_t> tail) {
+        code.insert(code.end(), n, 0x90);
+        code.insert(code.end(), tail);
+        return code;
+    };
+    // MOV BYTE [CS:7], 5; MOV AL, 1: the next instruction's immediate.
+    run_nop_case(oracle, bus, rtl, entries, summary, "smc-next-immediate",
+                 {0x2e, 0xc6, 0x06, 0x07, 0x00, 0x05, 0xb0, 0x01}, state);
+    // MOV BYTE [CS:6], 40h over a NOP: INC AX.
+    run_nop_case(oracle, bus, rtl, entries, summary, "smc-next-opcode", {0x2e, 0xc6, 0x06, 0x06, 0x00, 0x40, 0x90}, state);
+    // MOV BYTE [CS:1Bh], 2, 20 NOPs, MOV BL, 1.
+    run_nop_case(oracle, bus, rtl, entries, summary, "smc-ahead",
+                 nops({0x2e, 0xc6, 0x06, 0x1b, 0x00, 0x02}, 20, {0xb3, 0x01}), state);
+    // MOV WORD [CS:1Fh], 1234h into MOV AX, imm16's immediate across the
+    // line at 1020h.
+    run_nop_case(oracle, bus, rtl, entries, summary, "smc-line-crossing",
+                 nops({0x2e, 0xc7, 0x06, 0x1f, 0x00, 0x34, 0x12}, 23, {0xb8, 0x00, 0x00}), state);
+    // MOV BYTE [CS:0Bh], 7; JMP +2; two NOPs; MOV CL, 1: a taken branch
+    // after the store.
+    run_nop_case(oracle, bus, rtl, entries, summary, "smc-then-jump",
+                 {0x2e, 0xc6, 0x06, 0x0b, 0x00, 0x07, 0xeb, 0x02, 0x90, 0x90, 0xb1, 0x01}, state);
+    // PUSH 05B2h with the stack in the code: MOV DL, 11h five NOPs on
+    // becomes MOV DL, 5.
+    State push = state;
+    push.gpr[fes_i386::REG_ESP] = 0x000a;
+    run_nop_case(oracle, bus, rtl, entries, summary, "smc-push", nops({0x68, 0xb2, 0x05}, 5, {0xb2, 0x11}), push);
+    // REP STOSB of three NOPs over the three INC AX after it.
+    State rep = state;
+    rep.gpr[fes_i386::REG_EAX] = 0x90;
+    rep.gpr[fes_i386::REG_ECX] = 3;
+    rep.gpr[fes_i386::REG_EDI] = 2;
+    run_nop_case(oracle, bus, rtl, entries, summary, "smc-rep-stos", {0xf3, 0xaa, 0x40, 0x40, 0x40}, rep);
+    // MOV WORD [CS:0], 9090h over its own first bytes, then MOV AL, 1.
+    run_nop_case(oracle, bus, rtl, entries, summary, "smc-own-bytes",
+                 {0x2e, 0xc7, 0x06, 0x00, 0x00, 0x90, 0x90, 0xb0, 0x01}, state);
+    // Through DS at 0: MOV BYTE [1006h], 5; MOV AL, 1.
+    State ds = state;
+    ds.seg[fes_i386::SEG_DS] = fes_i386::real_mode_segment(0);
+    run_nop_case(oracle, bus, rtl, entries, summary, "smc-ds-alias", {0xc6, 0x06, 0x06, 0x10, 0x05, 0xb0, 0x01}, ds);
+    // MOV CX, 3; L: INC BYTE [CS:9]; ADD AL, imm8; LOOP L: each pass adds
+    // the immediate it has just incremented.
+    run_nop_case(oracle, bus, rtl, entries, summary, "smc-loop",
+                 {0xb9, 0x03, 0x00, 0x2e, 0xfe, 0x06, 0x09, 0x00, 0x04, 0x00, 0xe2, 0xf7}, state);
+
+    struct Case {
+        const char *label;
+        std::vector<uint8_t> code;
+        int reg;              // the GPR checked, its low word
+        uint16_t coherent, queue16;
+    };
+    const std::vector<Case> cases = {
+        // The next instruction's immediate, in the store's own block.
+        {"next", {0x2e, 0xc6, 0x06, 0x07, 0x00, 0x05, 0xb0, 0x01, 0xf4}, fes_i386::REG_EAX, 0x05, 0x01},
+        // The 16th byte after the store: MOV AH, 11h's immediate.
+        {"byte-15", nops({0x2e, 0xc6, 0x06, 0x15, 0x00, 0x22}, 14, {0xb4, 0x11, 0xf4}), fes_i386::REG_EAX, 0x2200, 0x1100},
+        // The 17th.
+        {"byte-16", nops({0x2e, 0xc6, 0x06, 0x16, 0x00, 0x22}, 15, {0xb4, 0x11, 0xf4}), fes_i386::REG_EAX, 0x2200, 0x2200},
+        // A word store over the 16th and 17th bytes: coherent.
+        {"straddle", nops({0x2e, 0xc7, 0x06, 0x16, 0x00, 0x22, 0x33}, 14, {0xb8, 0x11, 0x11, 0xf4}), fes_i386::REG_EAX,
+         0x3322, 0x3322},
+    };
+    for (const Case &c : cases) {
+        for (int profile = 0; profile < 2; ++profile) {
+            const std::string label = std::string("smc-") + (profile ? "queue16-" : "coherent-") + c.label;
+            const uint32_t base = state.seg[fes_i386::SEG_CS].base;
+            for (size_t i = 0; i < c.code.size(); ++i) rtl.poke(uint32_t(base + i), c.code[i]);
+            rtl.top.queue16 = profile;
+            State start = state;
+            start.gpr[fes_i386::REG_EAX] = 0;
+            rtl.start(start);
+            for (int n = 0; n < 64 && !rtl.stopped(); ++n) rtl.next();
+            const uint16_t got = uint16_t(rtl.state().gpr[c.reg]);
+            const uint16_t want = profile ? c.queue16 : c.coherent;
+            ++summary.runs;
+            summary.cycles += rtl.cycles;
+            rtl.cycles = 0;
+            if (rtl.stopped() && !rtl.top.trace_unimplemented && got == want) {
+                ++summary.passed;
+            } else {
+                ++summary.failed;
+                std::cout << "FAIL directed:" << label << " value " << hex(want) << ' ' << hex(got) << '\n';
+            }
+            rtl.top.queue16 = 0;
+            for (size_t i = 0; i < c.code.size(); ++i) rtl.poke(uint32_t(base + i), 0);
+            for (uint32_t address : rtl.written) rtl.poke(address, 0);
+            rtl.written.clear();
+        }
+    }
 }
 
 // ---- SingleStepTests mode ---------------------------------------------------------------
@@ -2150,9 +2319,15 @@ public:
         // A far transfer to target: rel_at holds a far pointer (its offset,
         // rel_size bytes, then the selector), or the offset or selector a
         // MOV stores for an indirect one. NEAR_ABS: the target's EIP, which a
-        // MOV loads or stores for a CALL r/m.
+        // MOV loads or stores for a CALL r/m, plus target_byte (a store that
+        // rewrites the target).
         enum { NEAR, FAR_PTR, FAR_OFF, FAR_SEL, NEAR_ABS } far = NEAR;
+        unsigned target_byte = 0;
+        unsigned rewrites = 0;  // the bytes from there a store rewrites (smc_block)
     };
+
+    // The linear addresses the last program's stores rewrite.
+    std::set<uint32_t> rewritten;
 
     // base: the program's linear address, which far targets need; eip: its
     // first instruction's EIP, which near absolute targets need.
@@ -2180,6 +2355,7 @@ public:
                 items.push_back(Item{{0xfb}, -1, 0, 0});
                 items.push_back(Item{{0xf4}, -1, 0, 0});
             } else if (kind < 37) shadow_block();
+            else if (kind < 39) smc_block();
             else items.push_back(Item{instruction(false), -1, 0, 0});
         }
         items.push_back(Item{{0xf4}, -1, 0, 0});
@@ -3101,14 +3277,67 @@ private:
         return item;
     }
 
+    // A store through CS into a later instruction, until a far transfer has
+    // moved CS: MOV BYTE or WORD [CS:disp16], imm, the displacement the
+    // rewritten byte's EIP. It rewrites one or both bytes of MOV r16, imm16's
+    // or an ALU AX, imm16's immediate, MOV r8, imm8's, or a one-byte
+    // instruction as another; the next instruction, one after up to three
+    // others, or one 14 to 33 bytes of others on.
+    void smc_block() {
+        static const uint8_t ones[] = {0x40, 0x43, 0x48, 0x4b, 0x90, 0x93, 0x98, 0x99,
+                                       0x9e, 0x9f, 0xf5, 0xf8, 0xf9, 0xfc, 0xfd};
+        if (cs_moved) {
+            items.push_back(Item{instruction(false), -1, 0, 0});
+            return;
+        }
+        Item target;
+        unsigned size = 1;
+        const unsigned form = pick(4);
+        Item store;
+        store.far = Item::NEAR_ABS;
+        if (form == 0) {
+            target.bytes = {ones[pick(sizeof ones)]};
+        } else if (form == 1) {
+            target.bytes = {uint8_t(0xb0 + pick(8)), byte()};
+            store.target_byte = 1;
+        } else {
+            target.bytes = {form == 2 ? uint8_t(0xb8 + pick(8)) : uint8_t((pick(8) << 3) | 5), byte(), byte()};
+            store.target_byte = 1 + pick(2);
+            if (store.target_byte == 1 && pick(2)) size = 2;
+        }
+        store.bytes = {0x2e, uint8_t(size == 2 ? 0xc7 : 0xc6), 0x06, 0, 0};
+        store.rel_at = 3;
+        store.rel_size = 2;
+        store.rewrites = size;
+        if (form == 0) store.bytes.push_back(ones[pick(sizeof ones)]);
+        else imm(store.bytes, size);
+        const size_t at = items.size();
+        items.push_back(store);
+        const unsigned gap = pick(4);
+        if (gap == 1) {
+            for (unsigned n = 1 + pick(3); n > 0; --n) items.push_back(Item{instruction(false), -1, 0, 0});
+        } else if (gap >= 2) {
+            const unsigned bytes = 14 + pick(20);
+            for (unsigned filled = 0; filled < bytes;) {
+                items.push_back(Item{instruction(false), -1, 0, 0});
+                filled += unsigned(items.back().bytes.size());
+            }
+        }
+        items[at].target = int(items.size());
+        items.push_back(target);
+    }
+
     std::vector<uint8_t> layout() {
+        rewritten.clear();
         std::vector<uint32_t> offset(items.size() + 1, 0);
         for (size_t n = 0; n < items.size(); ++n) offset[n + 1] = offset[n] + uint32_t(items[n].bytes.size());
         std::vector<uint8_t> out;
         for (size_t n = 0; n < items.size(); ++n) {
             Item &item = items[n];
             if (item.target >= 0 && item.far == Item::NEAR_ABS) {
-                const uint32_t value = program_eip + offset[size_t(item.target)];
+                const uint32_t value = program_eip + offset[size_t(item.target)] + item.target_byte;
+                for (unsigned i = 0; i < item.rewrites; ++i)
+                    rewritten.insert(program_base + offset[size_t(item.target)] + item.target_byte + i);
                 for (unsigned i = 0; i < item.rel_size; ++i) item.bytes[item.rel_at + i] = uint8_t(value >> (8 * i));
             } else if (item.target >= 0 && item.far != Item::NEAR) {
                 uint16_t sel;
@@ -3185,8 +3414,9 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
         Mismatches out;
         Outcome outcome;
         try {
-            outcome = lockstep(oracle, bus, rtl, entries, Fields{}, retire_limit, true, summary, out, base,
-                               base + uint32_t(code.size()), &irq);
+            const Code own{base, base + uint32_t(code.size()), generator.rewritten};
+            outcome = lockstep(oracle, bus, rtl, entries, Fields{}, retire_limit, true, summary, out,
+                               base + uint32_t(code.size()), &irq, &own);
         } catch (const std::exception &error) {
             // Bochs cannot fetch from the MMIO window: code there (a vector
             // entry an interrupt's own frame rewrote, which Bochs reads after
@@ -3196,13 +3426,13 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
             else out.add(std::string("oracle-error:") + error.what(), 0, 0);
             oracle.reset();
         }
-        if (out.items.empty() && !outcome.halted && !outcome.limit && !outcome.smc && outcome.exception < 0 &&
-            !outcome.double_fault && !outcome.vector_moved && !outcome.window_code)
+        if (out.items.empty() && !outcome.halted && !outcome.limit && outcome.exception < 0 &&
+            !outcome.double_fault && !outcome.vector_moved && !outcome.window_code && !outcome.code_store)
             out.add("halt", 1, 0);
         summary.window_code += outcome.window_code;
+        summary.code_stores += outcome.code_store;
         end_run(bus, rtl, outcome.halted || outcome.limit, out);
         summary.limits += outcome.limit;
-        summary.smc += outcome.smc;
         summary.vector_moved += outcome.vector_moved;
         summary.halts += outcome.halted;
         summary.double_faults += outcome.double_fault;
@@ -3248,6 +3478,65 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
 //                   buffer: the read must return A5h
 //   flush           a store of 3Ch to 3001h, then JMP $; FLUSH as soon as it
 //                   retires: when FLUSH is done DDR must hold it
+//   dma-write-ahead six DIVs, then MOV BL, 1 and HLT: DMA writes 2 over the
+//                   MOV's immediate, which the front end fetched long before,
+//                   at each of a sweep of cycles. Where the write is done two
+//                   cycles or more before the MOV retires, the MOV must run
+//                   the new byte (the CPU restarts it); where it is done
+//                   after, the old. Some write must find the MOV in flight.
+int run_dma_ahead(Rtl &rtl, Summary &summary) {
+    State state;
+    for (int k = 0; k < 6; ++k) state.seg[k] = fes_i386::real_mode_segment(0);
+    state.eip = 0x1000;
+    // XOR DX, DX; MOV AX, 1234h; MOV CX, 3; DIV CX x6; MOV BL, 1; HLT
+    std::vector<uint8_t> code = {0x31, 0xd2, 0xb8, 0x34, 0x12, 0xb9, 0x03, 0x00};
+    for (int n = 0; n < 6; ++n) code.insert(code.end(), {0xf7, 0xf1});
+    code.insert(code.end(), {0xb3, 0x01, 0xf4});
+    constexpr uint32_t MOV = 0x1014, HLT = 0x1016;
+    std::string detail;
+    uint64_t restarted = 0;
+    for (uint64_t at = 0; at < 200; at += 2) {
+        for (size_t i = 0; i < code.size(); ++i) rtl.poke(uint32_t(0x1000 + i), code[i]);
+        rtl.start(state);
+        const uint64_t restarts = rtl.smc_restarts;
+        uint64_t done = ~0ull, retired = ~0ull;
+        for (uint64_t n = 0; n < 4000 && !rtl.top.trace_halt; ++n) {
+            if (n == at) {
+                rtl.dma_valid = true;
+                rtl.dma_write = true;
+                rtl.dma_address = MOV + 1;
+                rtl.dma_wdata = 2;
+            }
+            const bool waiting = rtl.dma_valid;
+            const uint32_t current = rtl.top.arch_eip;
+            rtl.clock();
+            if (waiting && !rtl.dma_valid) done = n;
+            if (rtl.top.trace_retire && current == MOV && rtl.top.arch_eip == HLT) retired = n;
+        }
+        restarted += rtl.smc_restarts - restarts;
+        const uint32_t bl = rtl.state().gpr[fes_i386::REG_EBX] & 0xff;
+        const bool ok = rtl.top.trace_halt && retired != ~0ull
+                     && (done == ~0ull || done > retired ? bl == 1 : done + 2 <= retired ? bl == 2 : bl == 1 || bl == 2);
+        if (!ok && detail.empty()) detail = "at" + std::to_string(at) + ":bl" + hex(bl) + ":done" + std::to_string(done) +
+                                            ":retired" + std::to_string(retired);
+        rtl.dma_valid = false;
+        for (size_t i = 0; i < code.size(); ++i) rtl.poke(uint32_t(0x1000 + i), 0);
+        for (uint32_t address : rtl.written) rtl.poke(address, 0);
+        rtl.written.clear();
+    }
+    if (detail.empty() && !restarted) detail = "no-restart";
+    ++summary.runs;
+    summary.cycles += rtl.cycles;
+    rtl.cycles = 0;
+    if (detail.empty()) {
+        ++summary.passed;
+    } else {
+        ++summary.failed;
+        std::cout << "FAIL memory:dma-write-ahead " << detail << " 1 0\n";
+    }
+    return 0;
+}
+
 int run_memory_cases(Rtl &rtl, Summary &summary) {
     State state;
     for (int k = 0; k < 6; ++k) state.seg[k] = fes_i386::real_mode_segment(0);
@@ -3321,7 +3610,7 @@ int run_memory_cases(Rtl &rtl, Summary &summary) {
         for (uint32_t address : rtl.written) rtl.poke(address, 0);
         rtl.written.clear();
     }
-    return 0;
+    return run_dma_ahead(rtl, summary);
 }
 
 // Every encoding the runner lists as outside the build must stop the CPU
@@ -3374,6 +3663,12 @@ int main(int argc, char **argv) {
     std::unique_ptr<fes_i386::Oracle> oracle = fes_i386::make_oracle(bus);
     VerilatedContext context;
     Rtl rtl(context);
+    rtl.length = [&](uint32_t linear) {
+        uint8_t bytes[15];
+        for (uint32_t n = 0; n < 15; ++n) bytes[n] = linear + n < RAM_BYTES ? rtl.ram[linear + n] : 0xff;
+        const fes_i386::Decoded decoded = oracle->decode(bytes, 15, rtl.state().seg[fes_i386::SEG_CS].ar & 0x4000);
+        return decoded.complete ? unsigned(decoded.length) : 15u;
+    };
     std::mt19937_64 latency_random(seed * 7919 + 17);
     const bool latency = env("FES_I386_LATENCY", 1);
     if (latency) rtl.port.random = rtl.inta.random = rtl.mmio.random = &latency_random;
@@ -3391,6 +3686,7 @@ int main(int argc, char **argv) {
         }
     } else if (mode == "directed") {
         run_fault_regressions(*oracle, bus, rtl, entries, summary);
+        run_smc_cases(*oracle, bus, rtl, entries, summary);
     } else if (mode == "unbuilt") {
         run_unbuilt(rtl, summary);
     } else if (mode == "memory") {
@@ -3399,6 +3695,8 @@ int main(int argc, char **argv) {
         run_random(*oracle, bus, rtl, entries, summary, seed, env("FES_I386_PROGRAMS", 1000),
                    env("FES_I386_RETIRE_LIMIT", 2000), env("FES_I386_FIRST", 0));
     } else {
+        // The corpus is a 386EX's, with its prefetch queue: queue16.
+        rtl.top.queue16 = 1;
         run_corpus(*oracle, bus, rtl, entries, summary);
     }
 
@@ -3419,15 +3717,16 @@ int main(int argc, char **argv) {
     std::printf("{\"mode\": \"%s\", \"seed\": %llu, \"latency\": %s, \"runs\": %llu, \"passed\": %llu, \"failed\": %llu, "
                 "\"retirements\": %llu, \"cycles\": %llu, \"halts\": %llu, \"interrupts\": %llu, \"faults\": %llu, \"fault_vectors\": {%s}, "
                 "\"double_faults\": %llu, "
-                "\"retire_limits\": %llu, \"smc_stops\": %llu, \"load_wait_cycles\": %llu, \"io_accesses\": %llu, "
+                "\"retire_limits\": %llu, \"load_wait_cycles\": %llu, \"io_accesses\": %llu, "
                 "\"external_interrupts\": %llu, \"nmis\": %llu, \"rep_interrupts\": %llu, \"vector_moved_stops\": %llu, "
                 "\"divergence_retirements\": {%s}, "
                 "\"trace_hash\": \"%016llx\", "
                 "\"gaps\": {\"sequential\": %s, \"prefixed\": %s, \"lea\": %s, \"selector\": %s, "
                 "\"after_taken\": %s, \"after_not_taken\": %s, \"shift_consumer\": %s, \"after_shift\": %s, "
                 "\"store_load\": %s, \"after_store\": %s, \"address\": %s, \"after_segment\": %s, \"after_stack\": %s, \"stack_stack\": %s, "
-                "\"several\": %s, \"after_string\": %s, \"after_io\": %s, \"memory\": %s}, "
-                "\"mmio_accesses\": %llu, \"mmio_runs\": %llu, \"replays\": %llu, \"window_code_stops\": %llu, "
+                "\"several\": %s, \"after_string\": %s, \"after_io\": %s, \"memory\": %s, \"smc\": %s}, "
+                "\"mmio_accesses\": %llu, \"mmio_runs\": %llu, \"replays\": %llu, \"smc_restarts\": %llu, "
+                "\"window_code_stops\": %llu, \"code_store_stops\": %llu, "
                 "\"port0_reads\": %llu, \"port0_writes\": %llu}\n",
                 mode.c_str(), (unsigned long long)seed, latency ? "true" : "false",
                 (unsigned long long)summary.runs, (unsigned long long)summary.passed,
@@ -3436,7 +3735,7 @@ int main(int argc, char **argv) {
                 (unsigned long long)summary.interrupts,
                 (unsigned long long)summary.faults, vectors.c_str(), (unsigned long long)summary.double_faults,
                 (unsigned long long)summary.limits,
-                (unsigned long long)summary.smc, (unsigned long long)summary.load_waits,
+                (unsigned long long)summary.load_waits,
                 (unsigned long long)summary.io_accesses, (unsigned long long)summary.external_interrupts,
                 (unsigned long long)summary.nmis, (unsigned long long)summary.rep_interrupts,
                 (unsigned long long)summary.vector_moved, divergences.c_str(),
@@ -3449,9 +3748,11 @@ int main(int argc, char **argv) {
                 histogram(summary.gap_after_segment).c_str(), histogram(summary.gap_after_stack).c_str(),
                 histogram(summary.gap_stack_stack).c_str(), histogram(summary.gap_several).c_str(),
                 histogram(summary.gap_after_string).c_str(), histogram(summary.gap_after_io).c_str(),
-                histogram(summary.gap_memory).c_str(), (unsigned long long)summary.mmio_accesses,
-                (unsigned long long)summary.mmio_runs, (unsigned long long)rtl.replays,
-                (unsigned long long)summary.window_code, (unsigned long long)rtl.port0.beats_read,
+                histogram(summary.gap_memory).c_str(), histogram(summary.gap_smc).c_str(),
+                (unsigned long long)summary.mmio_accesses, (unsigned long long)summary.mmio_runs,
+                (unsigned long long)rtl.replays, (unsigned long long)rtl.smc_restarts,
+                (unsigned long long)summary.window_code, (unsigned long long)summary.code_stores,
+                (unsigned long long)rtl.port0.beats_read,
                 (unsigned long long)rtl.port0.beats_written);
     return summary.failed ? 1 : 0;
 }
