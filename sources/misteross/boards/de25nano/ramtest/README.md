@@ -128,6 +128,8 @@ This check does not exercise the upstream peripheral CSR routing, HPS memory
 path, EMIF controller/PHY, calibration, analogue timing or physical memory.
 The original endpoint/control and SDRAM simulations remain separate checks.
 No command programs hardware, changes the image or enables HPS writes.
+The [2026-10-29 transport record](../../../docs/validation/2026-10-29-de25-ram-transport/README.md)
+retains the actual generated-path cases, source identities and model boundaries.
 
 ## Explicit JTAG diagnostic control
 

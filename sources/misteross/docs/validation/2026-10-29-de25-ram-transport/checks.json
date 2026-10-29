@@ -1,0 +1,20 @@
+{
+  "source": "202ef4c64f",
+  "focused_tests": {
+    "count": 26,
+    "status": "passed",
+    "log_sha256": "b9a0d4107bbc7b9f58a2ab06c43e392e164ea4f2dbc6b12ae89825150e6d98e3"
+  },
+  "generated_transport": {
+    "status": "passed",
+    "normal_cases": 8,
+    "expected_assertion_cases": 1,
+    "receipt_sha256": "fba9ea393609a03d09425add1f9e0515fee703de0458b8b7b1759f08779ec441"
+  },
+  "generated_consistency": {
+    "status": "passed",
+    "consumers": 33,
+    "fixtures": 37
+  },
+  "physical_acceptance": "not-run"
+}
