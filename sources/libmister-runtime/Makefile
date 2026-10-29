@@ -47,6 +47,7 @@ LIB_SOURCES := \
 	src/native/media_data.cpp \
 	src/native/core_driver.cpp \
 	src/native/fes_gp.cpp \
+	src/native/de25_computer.cpp \
 	src/native/de25_pr_control.cpp \
 	src/native/menu_display.cpp \
 	src/native/linux/menu_window.cpp \
@@ -87,6 +88,7 @@ TEST_BINS := \
 	$(BUILD_DIR)/tests/unit/core_data_test \
 	$(BUILD_DIR)/tests/unit/media_data_test \
 	$(BUILD_DIR)/tests/unit/fes_gp_test \
+	$(BUILD_DIR)/tests/unit/de25_computer_test \
 	$(BUILD_DIR)/tests/unit/de25_pr_control_test \
 	$(BUILD_DIR)/tests/unit/native_hardware_test \
 	$(BUILD_DIR)/tests/unit/fpga_manager_test \
@@ -198,6 +200,10 @@ $(BUILD_DIR)/tests/unit/media_data_test: tests/unit/media_data_test.cpp src/nati
 $(BUILD_DIR)/tests/unit/core_data_test: tests/unit/core_data_test.cpp src/native/core_data.cpp src/native/sha256.cpp
 	@mkdir -p "$(dir $@)"
 	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) tests/unit/core_data_test.cpp src/native/core_data.cpp src/native/sha256.cpp -o "$@"
+
+$(BUILD_DIR)/tests/unit/de25_computer_test: tests/unit/de25_computer_test.cpp src/native/de25_computer.cpp
+	@mkdir -p "$(dir $@)"
+	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) $(filter %.cpp,$^) -o "$@"
 
 $(BUILD_DIR)/tests/unit/fes_gp_test: tests/unit/fes_gp_test.cpp \
 		tests/support/fake_mmio.cpp src/native/fes_gp.cpp src/native/artifacts.cpp src/native/diagnostic.cpp
@@ -415,7 +421,7 @@ archive-audit: $(ARCHIVE)
 		echo "archive members differ from production objects" >&2; \
 		exit 1; \
 	}; \
-	for required in runtime.o artifacts.o core_composition.o core_data.o media_data.o core_package.o core_driver.o fes_gp.o de25_pr_control.o \
+	for required in runtime.o artifacts.o core_composition.o core_data.o media_data.o core_package.o core_driver.o fes_gp.o de25_computer.o de25_pr_control.o \
 		diagnostic.o sha256.o input.o hardware.o \
 		fpga_manager.o mmio.o production_hardware.o video_recipe.o \
 		video.o i2c.o linux_input.o; do \
@@ -432,7 +438,7 @@ archive-audit: $(ARCHIVE)
 		else source="$${relative_object%.o}.cpp"; fi; \
 		[[ -f "$$source" ]] || { echo "object has no production source: $$relative_object" >&2; exit 1; }; \
 		case "$$source" in \
-			src/runtime.cpp|src/native/artifacts.cpp|src/native/core_package.cpp|src/native/core_composition.cpp|src/native/core_data.cpp|src/native/media_data.cpp|src/native/core_driver.cpp|src/native/fes_gp.cpp|src/native/de25_pr_control.cpp|src/native/menu_display.cpp|src/native/linux/menu_window.cpp|src/native/diagnostic.cpp|src/native/sha256.cpp|src/native/input.cpp|src/native/video_recipe.cpp|src/native/video.cpp|src/native/hardware.cpp|src/native/linux/fpga_manager.cpp|src/native/linux/i2c.cpp|src/native/linux/input.cpp|src/native/linux/mmio.cpp|src/native/linux/window_driver.cpp|src/linux/production_hardware.cpp) ;; \
+			src/runtime.cpp|src/native/artifacts.cpp|src/native/core_package.cpp|src/native/core_composition.cpp|src/native/core_data.cpp|src/native/media_data.cpp|src/native/core_driver.cpp|src/native/fes_gp.cpp|src/native/de25_computer.cpp|src/native/de25_pr_control.cpp|src/native/menu_display.cpp|src/native/linux/menu_window.cpp|src/native/diagnostic.cpp|src/native/sha256.cpp|src/native/input.cpp|src/native/video_recipe.cpp|src/native/video.cpp|src/native/hardware.cpp|src/native/linux/fpga_manager.cpp|src/native/linux/i2c.cpp|src/native/linux/input.cpp|src/native/linux/mmio.cpp|src/native/linux/window_driver.cpp|src/linux/production_hardware.cpp) ;; \
 			*) echo "archive contains non-production source: $$source" >&2; exit 1 ;; \
 		esac; \
 		compiled_sources+="$$source"$$'\n'; \

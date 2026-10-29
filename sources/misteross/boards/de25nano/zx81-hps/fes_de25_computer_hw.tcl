@@ -18,7 +18,7 @@ add_fileset_file zx81_machine_clock.v VERILOG PATH zx81_machine_clock.v
 add_fileset_file zx81_keyboard.v VERILOG PATH zx81_keyboard.v
 add_fileset_file zx81_tape_store_de25.v VERILOG PATH zx81_tape_store_de25.v
 add_fileset_file zx81_dpram_de25.v VERILOG PATH zx81_dpram_de25.v
-add_fileset_file zx81_video_720p_de25.v VERILOG PATH zx81_video_720p_de25.v
+add_fileset_file video.v VERILOG PATH video.v
 foreach name {fes_z80_alu fes_z80_engine fes_z80_bus fes_z80_nmos} {
     add_fileset_file ${name}.sv SYSTEM_VERILOG PATH ${name}.sv
 }

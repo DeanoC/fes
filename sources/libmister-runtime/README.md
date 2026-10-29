@@ -26,6 +26,17 @@ protocol; they add no device opener, daemon operation, programming profile or
 production hardware admission. See the
 [shared control contract](../mister-packages/docs/de25-pr-control.md).
 
+The separate native `De25Computer` diagnostic client uses resource-relative,
+ordered 32-bit register operations for `fes.fabric.de25-computer`. It requires
+the selected nonzero build ID and exact ZX81 capabilities before hold/run,
+full HID state or CRC/chunked tape delivery. Each command has one atomic GPO
+write; an uncertain completion permanently poisons the client without replay.
+Scripted-register unit tests and the DE25 ZX81 client/RTL co-simulation construct
+it. The latter executes the real client natively and under AArch64 QEMU against
+the real endpoint and machine RTL. It has no physical MMIO backend, daemon
+command, programming profile or production factory path;
+the ARMv7/DE10 guard above remains the production gate.
+
 Raw RBF loading is an explicit, idle-only hardware diagnostic using
 `development-contained-v1`; it does not infer a game, ABI, media, or persistence.
 Startup, Stop, and bounded failure recovery load the sealed splash through the

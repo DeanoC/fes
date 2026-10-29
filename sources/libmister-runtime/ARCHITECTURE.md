@@ -35,6 +35,54 @@ unexpected state/sequence or deadline failure prevents further commands and
 requires a fresh external recovery/identification epoch. This path is not
 constructed by the production factory or exposed by the runtime daemon.
 
+## DE25 diagnostic register client
+
+`De25Computer` is a separately instantiated protocol consumer for the generated
+`fes.fabric.de25-computer` register map. It reuses the abstract `Mmio` and
+`Clock` interfaces with resource-relative offsets. There is no Linux MMIO
+constructor, physical base, daemon operation or platform/profile admission for
+this client. Its callers are scripted-register unit tests and the native/AArch64
+DE25 ZX81 co-simulation in `misteross/boards/de25nano/zx81-hps/client_proof.py`.
+That test connects the actual client to the endpoint/machine RTL, with explicit
+simulation-time advances and separately labeled observation/transport faults.
+The production factory and its exact ARMv7/DE10 guard above are unchanged.
+
+The client requires an explicit nonzero 128-bit build ID, bridge identity and
+version, exact `fes.computer` identity/capabilities, and live ZX81 tape limits
+before controls are available. This diagnostic advertises fixed video, HID
+keyboard and read-only ZX81 tape delivery; extra capabilities are refused.
+Unlike the Cyclone V GP transport's old-toggle preload followed by a toggle,
+each DE25 exchange performs exactly one ordered full-word GPO write. It checks
+ready/fault and idle request/ACK consistency before writing, verifies the held
+payload, polls coherent full-word GPI, then checks busy, held payload and fault
+again before accepting completion.
+
+Calls serialize on one client mutex. The caller must exclusively own and keep
+the register backend alive; no resource lifetime or board qualification is
+inferred from a successful identity. An ACK has at most 100 ms, bounded by the
+caller's absolute clock deadline and a monotonic wall deadline. The complete
+operation mirrors the caller's remaining deadline into wall time with a
+120-second cap, so a stopped injected clock cannot extend it indefinitely.
+Backward clocks, late ACKs, malformed GPI, a changed held payload, MMIO failure
+or transport fault poison the client permanently. It exposes no clear/realign
+or retry operation. A backend that blocks inside a bus access cannot be
+interrupted by these software deadlines; bounded hardware access is a future
+binding requirement. Known acknowledged command rejection remains a healthy
+link, with invalid-state reported as busy, and is not retried automatically.
+
+Hold/run return only after a zero-data success acknowledgement. HID snapshots
+write all nine validated rows, including neutral state, then allow two wall
+milliseconds for the keyboard mapper's nominal settling interval within the
+operation deadline. Tape delivery uses generated CRC32 constants, bounded
+1..512-byte chunks, little-endian packed words with zero odd-byte padding, and
+requires MediaInfo ready after commit. Eject requires empty state afterward.
+The caller owns stable payload bytes for the duration of the call. A failed
+transfer is reported without automatic commit/eject/replay or execution release.
+These checks establish software protocol behavior, not firmware/MMIO/reset or
+physical keyboard/tape/display acceptance.
+
+## Package lifecycle
+
 The package inspector reads format 4's two named ROM sources and sealed map
 with its separate identity domain. Physical admission still requires a linked
 load before that format can be activated.
