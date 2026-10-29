@@ -6,7 +6,7 @@ Quartus Pro 26.3 and native/AArch64 artifact composition. The
 [profile guide](../../../boards/de25nano/link-proof/zx81-ram/README.md)
 describes the current diagnostic and its boundaries.
 
-The retained BASIC simulation at `3e2c423db2` runs the real machine/CPU,
+The retained BASIC simulation at `918145ebb4` runs the real machine/CPU,
 stock firmware and actual RAM-pack RTL. CPU writes establish exclusive
 RAMTOP bounds 0x4400/0x8000, followed by the real BASIC keyboard idle loop.
 Actual CSR LAST_DATA reads agree with the machine peek. Full 16 KiB two-pass
@@ -27,6 +27,11 @@ persona failed to route a folded static ~GND request bit, so the current
 profile also retains every static request launch FF. Its real synthesis gate
 requires all 46 static launches and all 20 persona response registers, and the
 base must pass its complete boundary audit before A/B compilation starts.
+A per-edge real-CPU freeze probe then exposed a late read response after
+Frozen, despite passing static timing. The current adapter captures the whole
+CPU memory bus as idle when RUNNING drops, independent of CPU reset enables.
+The committed fixed probe changes read data from166 to57 during settling,
+then observes no writes, retirements or bus-response changes after Frozen.
 
 The fresh protected-register base/A/B campaign, final boundary audit and
 native/AArch64 actual-artifact composition are still running. No hardware,

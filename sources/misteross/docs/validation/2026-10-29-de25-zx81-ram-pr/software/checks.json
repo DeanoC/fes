@@ -10,8 +10,8 @@
   },
   "evidence_class": "off-board software checks only",
   "focused": {
-    "scope": "actual counter/runtime regression plus profile guards; final compiler-source build/proof follows separately",
-    "source_revision": "9a7728502a",
+    "scope": "final idle-fence source; counter/runtime regression and profile gates",
+    "source_revision": "918145ebb4",
     "status": "passed",
     "tests": 23
   },

@@ -37,7 +37,9 @@ keeps the actual ZX81 machine, NMOS CPU, firmware and 1 KiB RAM static, with
 empty-slot and actual 16 KiB RAM-pack personas. The registered 46/20-bit
 expansion bus takes four elapsed cycles; diagnostic retirement takes five so
 LAST_DATA observes the real machine peek after the external RAM pipeline.
-Selection resets the machine; freeze drains writes before its acknowledgement.
+Selection resets the machine; freeze captures an idle CPU memory request and
+drains writes/read responses before its acknowledgement, independently of CPU
+reset-enable latency.
 It reuses the 64-byte control map without changing the counter profile. This
 is an off-board RAM-only PR proof, with no HPS computer mailbox, keyboard/tape
 transport, display, package admission or physical programming backend.

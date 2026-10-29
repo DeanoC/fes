@@ -23,6 +23,6 @@ test_tool_qpf_metadata_may_change_but_revision_selection_may_not (de25_link_reci
 test_vendor_decoded_pof_device_and_uniqueness (de25_link_recipe_tests.RecipeTests.test_vendor_decoded_pof_device_and_uniqueness) ... ok
 
 ----------------------------------------------------------------------
-Ran 23 tests in 11.642s
+Ran 23 tests in 14.724s
 
 OK

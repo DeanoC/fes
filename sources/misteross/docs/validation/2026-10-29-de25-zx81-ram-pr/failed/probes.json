@@ -24,5 +24,11 @@
     "name": "static-constant-route",
     "reason": "Base passed BBD and timing, but imported empty-persona routing failed from ~GND into bus_request[41]~IPORT; repaired by retaining all 46 static launch FFs",
     "retained_output": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-ram-pr/out/zx81-ram-quartus-frozen04/hps/project"
+  },
+  {
+    "compiled_candidate": "3e2c423db2",
+    "name": "late-read-response",
+    "reason": "The fully registered base passed boundary timing, but committed real-CPU test 8f8578 observed a read-response change on a post-Frozen edge; repaired by fencing the complete CPU bus to idle independently of CPU reset latency",
+    "retained_output": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-ram-pr/out/zx81-real-cpu-freeze-edges"
   }
 ]
