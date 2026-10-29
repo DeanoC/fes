@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <functional>
 #include <memory>
 #include <new>
 #include <string>
@@ -139,6 +140,11 @@ public:
     // INTR is a level sampled at instruction boundaries; NMI is an edge.
     virtual void set_intr(bool level) = 0;
     virtual void nmi() = 0;
+    // Called after each iteration of a REP string instruction a step runs,
+    // with the iterations the step has run. It may raise INTR or NMI, which
+    // the instruction takes after this iteration unless it is the last.
+    // An empty hook clears it.
+    virtual void set_iteration_hook(std::function<void(unsigned iterations)> hook) = 0;
     virtual void set_a20(bool enabled) = 0;
     // The harness changed memory behind the oracle's back (test setup, DMA).
     virtual void invalidate(uint32_t paddr, uint32_t length) = 0;

@@ -93,5 +93,5 @@ name = "iret"
 uops = [
     { cls = "alu", op = "mov", d = "t0", size = "32", mkind = "load", stk = "peek", slot = 1 },
     { cls = "alu", op = "flags", imm = 9, mkind = "load", stk = "peek", slot = 2, far_chk = true, far_t = true, wr_cf = true, wr_oszap = true },
-    { cls = "branch", op = "jmp", far_jmp = true, far_t = true, sp_add = true, stk = "retf", slot = 1 },
+    { cls = "branch", op = "jmp", far_jmp = true, far_t = true, sp_add = true, stk = "retf", slot = 1, iret = true },
 ]

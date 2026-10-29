@@ -118,6 +118,23 @@ func TestRemovableMediaKeepsAppleDisksOffTheSpectrumUnit(t *testing.T) {
 	}
 }
 
+func TestC64DiskRejectionDoesNotUseZX81TapeWording(t *testing.T) {
+	prior := removableSession(protocol.C64DiskInterface(), 174848, 174848)
+	client := NewClient("http://127.0.0.1:1", nil)
+	_, err := client.ReplaceRemovableMediaForSession(context.Background(), prior, strings.Repeat("b", 64), "tape.p")
+	if err == nil || strings.Contains(err.Error(), ".p/.P") || !strings.Contains(err.Error(), ".d64") {
+		t.Fatalf("C64 rejection = %v", err)
+	}
+	if !protocol.LiveMediaNoChange(err) {
+		t.Fatal("pre-dispatch disk refusal claimed a media change")
+	}
+	zx := removableSession(protocol.Zx81TapeInterface(), 1, 16384)
+	_, err = client.ReplaceRemovableMediaForSession(context.Background(), zx, strings.Repeat("c", 64), "disk.d64")
+	if err == nil || !strings.Contains(err.Error(), ".p/.P") {
+		t.Fatalf("ZX81 rejection = %v", err)
+	}
+}
+
 func TestRemovableMediaKeepsCapturedSessionAndRejectsReplacementReply(t *testing.T) {
 	prior := removableSession(protocol.C64DiskInterface(), 174848, 174848)
 	calls := 0
