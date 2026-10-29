@@ -24,11 +24,11 @@ Tiers are derived from signals in the JSON (as of 2026-10-29). Catalog standing 
 
 **DE10-Nano** (MiSTer, Cyclone V) **OSS** is Yosys + nextpnr-mistral, the installed toolchain. i386, pc386 and PC/XT are Quartus (primary, policy) (policy: Deano 2026-10-29). nextpnr builds there are advisory; a miss is filed as a nextpnr issue, not a blocker. A dash means this row has no DE10-Nano bitstream. pc386 and i386 are Cyclone V spikes; Quartus is still their primary toolchain.
 
-**DE25-Nano** (Agilex 5) is **Quartus** on every row: Quartus-only (policy); shell pending (policy: Deano 2026-10-29). Agilex 5 has no OSS reverse-engineering. Per-core ports are re-checked only after the shell is on this branch.
+**DE25-Nano** (Agilex 5) follows Quartus-only (policy); shell pending (policy: Deano 2026-10-29). Rows with a board bitstream show Quartus; rows without one show a dash. Agilex 5 has no OSS reverse-engineering. Per-core ports are re-checked only after the shell is on this branch.
 
 `oss` and `quartus` are the Debian-style labels in [Quartus-built cores](design/quartus-cores.md). Both labelled builds ship only when results differ by the 15% rule. No registered recipe ships both today. Bluetooth and mesh are host services, so they are not columns.
 
-ColecoVision still uses the old media handling and shows 0 titles. Updating it is low priority and is folded into the wider Coleco work, including Adam support (policy: Deano 2026-10-29).
+ColecoVision still uses the old media handling. Its example arcade room shows an empty-library status when no matching titles are available. Updating it is low priority and is folded into the wider Coleco work, including Adam support (policy: Deano 2026-10-29).
 
 Atari ST is still the only optional recipe (`FES_SKIP_OPTIONAL_CORES`). That flag is not its tier.
 
@@ -51,14 +51,14 @@ Atari ST is still the only optional recipe (`FES_SKIP_OPTIONAL_CORES`). That fla
 | Atari ST (520ST) | Current | OSS | Quartus | disk, keys, mouse, HDMI | [README](../sources/misteross/cores/fes-atari-st/README.md) |
 | `fes.riscv` | Aging | OSS | Quartus | pad, HDMI | [README](../sources/misteross/cores/fes-riscv/README.md) |
 | `fes.demo`, `fes.demo-media`, `fes.demo-audio` | Reference | OSS | Quartus | pad, HDMI | [cores](../sources/misteross/docs/cores.md) |
-| `cores/pong` simulation | Reference | — | Quartus | — | [cores](../sources/misteross/docs/cores.md) |
+| `cores/pong` simulation | Reference | — | — | — | [cores](../sources/misteross/docs/cores.md) |
 | PC/XT | Bring-up | Quartus | Quartus | HDMI | [README](../sources/misteross/cores/fes-pcxt/README.md) |
-| pc386 | Bring-up | — | Quartus | sim | [README](../sources/misteross/cores/fes-pc386/README.md) |
-| `fes_i386_cpu` | Shared | — | Quartus | — | [design](../sources/misteross/docs/i386-cpu-design.md) |
-| `fes_z80_nmos` / `fes_z80_fast` | Shared | — | Quartus | — | [README](../sources/misteross/cores/fes-common/rtl/z80/README.md) |
-| `cpu6502` | Shared | — | Quartus | — | [README](../sources/misteross/cores/fes-common/rtl/cpu6502/README.md) |
-| `fx68k` | Shared | — | Quartus | — | [README](../sources/misteross/cores/fes-common/rtl/fx68k/README.md) |
-| TV80 | Shared | — | Quartus | — | [alignment](core-alignment.md) |
+| pc386 | Bring-up | — | — | sim | [README](../sources/misteross/cores/fes-pc386/README.md) |
+| `fes_i386_cpu` | Shared | — | — | — | [design](../sources/misteross/docs/i386-cpu-design.md) |
+| `fes_z80_nmos` / `fes_z80_fast` | Shared | — | — | — | [README](../sources/misteross/cores/fes-common/rtl/z80/README.md) |
+| `cpu6502` | Shared | — | — | — | [README](../sources/misteross/cores/fes-common/rtl/cpu6502/README.md) |
+| `fx68k` | Shared | — | — | — | [README](../sources/misteross/cores/fes-common/rtl/fx68k/README.md) |
+| TV80 | Shared | — | — | — | [alignment](core-alignment.md) |
 
 ## Open
 
@@ -72,7 +72,7 @@ These cells are still open. The wording is in [`support-matrix.json`](support-ma
 
 ## Needs Deano
 
-- Coleco is unresolved: owned RTL 2026-10-28 (#1165) and a host cartridge swap 2026-10-29 (#1034), while media_gen is old (0 titles, low priority, #1216). The rule does not pick current or aging.
+- Coleco is unresolved: owned RTL 2026-10-28 (#1165) and a host cartridge swap 2026-10-29 (#1034), while media_gen is old (empty-library status, low priority, #1216). The rule does not pick current or aging.
 - SMS and SG-1000 catalog standing is supported. Tier aging uses owned RTL on 2026-10-06 and kit diagnostics on 2026-09-29. The catalog flag was not used.
 - Pong catalog standing is supported. No owned RTL in the 60-day window, so the tier is stale. The catalog flag was not used.
 - Atari ST kit note is 2026-10-10. Owned RTL is 2026-10-23 (#952). No kit PASS of that later bitstream was found.
