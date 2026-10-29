@@ -1,0 +1,113 @@
+{
+  "output": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-idle-menu/out/de25-display-menu-pattern-a00b0eebb3",
+  "timing_rows": [
+    {
+      "type": "Setup 'video_clock|iopll_0_outclk0'",
+      "slack_ns": 10.231,
+      "tns_ns": 0.0,
+      "corner": "Slow fix4 0C Model"
+    },
+    {
+      "type": "Setup 'adv7513_config'",
+      "slack_ns": 17.858,
+      "tns_ns": 0.0,
+      "corner": "Slow fix4 0C Model"
+    },
+    {
+      "type": "Setup 'video_clock|iopll_0_refclk'",
+      "slack_ns": 18.169,
+      "tns_ns": 0.0,
+      "corner": "Slow fix4a 0C Model"
+    },
+    {
+      "type": "Hold 'video_clock|iopll_0_outclk0'",
+      "slack_ns": 0.09,
+      "tns_ns": 0.0,
+      "corner": "Fast fix4 0C Model"
+    },
+    {
+      "type": "Hold 'adv7513_config'",
+      "slack_ns": 0.105,
+      "tns_ns": 0.0,
+      "corner": "Fast fix4 0C Model"
+    },
+    {
+      "type": "Hold 'video_clock|iopll_0_refclk'",
+      "slack_ns": 0.112,
+      "tns_ns": 0.0,
+      "corner": "Fast fix4 0C Model"
+    },
+    {
+      "type": "Recovery 'adv7513_config'",
+      "slack_ns": 18.254,
+      "tns_ns": 0.0,
+      "corner": "Slow fix4 0C Model"
+    },
+    {
+      "type": "Recovery 'video_clock|iopll_0_refclk'",
+      "slack_ns": 18.719,
+      "tns_ns": 0.0,
+      "corner": "Slow fix4 0C Model"
+    },
+    {
+      "type": "Removal 'adv7513_config'",
+      "slack_ns": 0.009,
+      "tns_ns": 0.0,
+      "corner": "Fast fix4 0C Model"
+    },
+    {
+      "type": "Removal 'video_clock|iopll_0_refclk'",
+      "slack_ns": 0.222,
+      "tns_ns": 0.0,
+      "corner": "Fast fix4 0C Model"
+    },
+    {
+      "type": "Minimum Pulse Width 'video_clock|iopll_0_outclk0'",
+      "slack_ns": 5.858,
+      "tns_ns": 0.0,
+      "corner": "Slow fix4 0C Model"
+    },
+    {
+      "type": "Minimum Pulse Width 'video_clock|iopll_0|tennm_ph2_iopll|ref_clk0'",
+      "slack_ns": 8.582,
+      "tns_ns": 0.0,
+      "corner": "Slow fix4a 0C Model"
+    },
+    {
+      "type": "Minimum Pulse Width 'video_clock|iopll_0_refclk'",
+      "slack_ns": 9.591,
+      "tns_ns": 0.0,
+      "corner": "Slow fix4a 0C Model"
+    },
+    {
+      "type": "Minimum Pulse Width 'video_clock|iopll_0_n_cnt_clk'",
+      "slack_ns": 49.563,
+      "tns_ns": 0.0,
+      "corner": "Slow fix4 100C Model"
+    },
+    {
+      "type": "Minimum Pulse Width 'adv7513_config'",
+      "slack_ns": 50018.769,
+      "tns_ns": 0.0,
+      "corner": "Slow fix4 0C Model"
+    }
+  ],
+  "failed_design_assistant_rules": [
+    {
+      "rule": "TMC-20012 - Missing Output Delay Constraint",
+      "severity": "High",
+      "violations": 29,
+      "waived": 0
+    },
+    {
+      "rule": "TMC-20011 - Missing Input Delay Constraint",
+      "severity": "High",
+      "violations": 2,
+      "waived": 0
+    }
+  ],
+  "warnings_retained": "14",
+  "internal_timing_acceptance": "constrained rows only; external IO remains unqualified",
+  "hardware_acceptance": "not-run",
+  "boot_firmware_compatibility": "not-qualified"
+}

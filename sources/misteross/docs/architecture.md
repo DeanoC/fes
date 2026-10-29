@@ -55,6 +55,16 @@ The vendor manual's `A5EB013BB23BE4SR1` suffix differs from the golden
 project's `A5EB013BB23BE4SCS`; only the latter is selected here. The board
 README records the exact vendor inputs and the remaining hardware check.
 
+The separate [`boards/de25nano/display/`](../boards/de25nano/display/README.md)
+lane builds standalone FPGA-only idle and menu-pattern HDMI SOFs with Quartus
+26.3. It reuses `fes_splash_core` or the real menu reader/FIFO/video path with
+its local pattern responder, and regenerates the pinned Terasic 74.25 MHz
+Agilex PLL/Reset Release IP for SCS. Pins and mixed IO standards are checked
+against the SCS golden board. There is no HPS, DDR, GP, menu blitter or runtime
+upload/control interface, and default DE10 packages/images remain unchanged.
+External ADV7513 timing and the vendor's contradictory clock IO-standard
+documentation remain qualification gates; these SOFs are not boot/BSP artifacts.
+
 ## Functional input identity
 
 Pong, ZX81, Coleco, SMS, SG-1000, Catch and all demo variants use functional
