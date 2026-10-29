@@ -63,8 +63,11 @@ There is no old-toggle preload write. A partial/busy/malformed access or a
 post-start peripheral reset permanently faults this local transport. It keeps
 GPO/ACK state, holds the CPU and masks cassette writes/ready; only FPGA
 reconfiguration starts a new epoch. Faulted reads still complete after reset
-release. This containment is not a fence for inherited HPS/debug masters, and
-warm-reset ACK remains inactive.
+release. The DE25 tape maximum is 16,375 bytes so BASIC LOAD stays within
+`$4009..$7FFF`; its generated limit is checked by both the mailbox and client.
+The transport readiness gate is synchronized into the pixel clock before it
+masks RGB and video sync. This containment is not a fence for inherited
+HPS/debug masters, and warm-reset ACK remains inactive.
 
 The Python client uses generated constants and injectable `RegisterIO`
 callbacks. Its CLI accepts only explicit regular-file storage for offline

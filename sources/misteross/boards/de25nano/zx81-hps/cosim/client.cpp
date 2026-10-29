@@ -153,7 +153,7 @@ int main(int argc, char** argv) {
                 complete_frames = io.state(wire::Frames);
                 wire::need(io.state(wire::PictureFrames) >= 2 && io.state(wire::BridgeFault) == 0, "session lacked valid frames or had bridge fault");
             } else if (scenario == "tape-bounds") {
-                for (const unsigned length : {517u, 16384u}) {
+                for (const unsigned length : {517u, unsigned(FesDe25ComputerZx81TapeMaxBytes)}) {
                     std::vector<std::uint8_t> image(length);
                     for (unsigned i = 0; i < length; ++i) image[i] = (i * 29u + (i >> 8)) & 255;
                     okay(computer.LoadTape(image, deadline(io), 127), "odd/max upload"); check_tape(io, image);

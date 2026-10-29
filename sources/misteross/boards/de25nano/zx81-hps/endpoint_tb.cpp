@@ -42,6 +42,16 @@ struct Board {
         if (pixel_running) t.pixel_clk = 1;
         t.eval();
     }
+    void system_edge() {
+        t.clk = 0; t.eval();
+        t.clk = 1; t.eval();
+        t.clk = 0; t.eval();
+    }
+    void pixel_edge() {
+        t.pixel_clk = 0; t.eval();
+        t.pixel_clk = 1; t.eval();
+        t.pixel_clk = 0; t.eval();
+    }
     void cycles(unsigned count) { while (count--) cycle(); }
     uint32_t read_word(uint8_t address, unsigned expected_response = 0) {
         t.address = address; t.read = 1; t.write = 0; t.eval();
@@ -121,6 +131,43 @@ static void upload_data(Board& b, const std::array<uint8_t, 5>& bytes) {
     b.exchange(FesComputerOpcodeMediaData, 0, uint16_t(bytes[0]) | uint16_t(bytes[1]) << 8);
     b.exchange(FesComputerOpcodeMediaData, 1, uint16_t(bytes[2]) | uint16_t(bytes[3]) << 8);
     b.exchange(FesComputerOpcodeMediaData, 2, bytes[4]);
+}
+
+static void tape_size_limits() {
+    for (uint32_t size : {16375u, 16376u, 16377u, 16384u}) {
+        Board b;
+        const bool rejected = size > FesDe25ComputerZx81TapeMaxBytes;
+        check(b.exchange(FesComputerOpcodeMediaInfo, 2) == FesDe25ComputerZx81TapeMaxBytes,
+              "DE25 mailbox maximum differs from its generated board limit");
+        b.exchange(FesComputerOpcodeMediaBegin, 0, uint16_t(size));
+        b.exchange(FesComputerOpcodeMediaBegin, 1, uint16_t(size >> 16));
+        b.exchange(FesComputerOpcodeMediaBegin, 2, 0);
+        const uint16_t response = b.exchange(FesComputerOpcodeMediaBegin, 3, 0, rejected);
+        check(rejected ? response == FesComputerErrorInvalidArgument : response == 0,
+              "mailbox accepted a tape beyond the real ZX81 load window");
+    }
+    std::puts("PASS DE25 computer: tape sizes 16375 accepted; 16376, 16377 and 16384 rejected");
+}
+
+static void pixel_ready_crossing() {
+    Board b; auto& t = b.t;
+    b.cycles(4);
+    for (unsigned n = 0; n != 4000 && !t.video_hs; ++n) b.pixel_edge();
+    check(t.video_hs, "could not reach an active pixel-clock HS interval");
+
+    t.address = FesDe25ComputerGpoOffset;
+    t.writedata = FesComputerRequestMask | (uint32_t(FesComputerOpcodeIdentity) << 24);
+    t.byteenable = 1;
+    t.write = 1;
+    b.system_edge();
+    t.write = 0; t.byteenable = 15; t.eval();
+    check(!S(transport_ready), "malformed write did not withdraw system-domain readiness");
+    check(t.video_hs, "transport readiness changed HDMI sync outside the pixel clock");
+    b.pixel_edge();
+    check(t.video_hs, "pixel readiness crossed in one pixel-clock stage");
+    b.pixel_edge();
+    check(!t.video_hs, "pixel readiness did not blank sync after two pixel-clock stages");
+    std::puts("PASS DE25 computer: transport readiness gates video through the pixel-clock synchronizer");
 }
 
 static void identity_keyboard_media() {
@@ -254,6 +301,8 @@ int main(int argc, char** argv) {
     auto* rom = std::fopen("zx8x.hex", "rb");
     check(rom != nullptr, "selected ROM missing from native output directory");
     std::fclose(rom);
+    tape_size_limits();
+    pixel_ready_crossing();
     identity_keyboard_media();
     atomic_response_and_busy_fault();
     malformed_accesses();

@@ -25,6 +25,8 @@ from production archives. Identity/ordering tests establish this rejection
 behavior. An AArch64 compile or execution under QEMU does not establish DE25
 FPGA programming, MMIO, DDR, input or display support.
 
+## DE25 PR-control diagnostic
+
 `De25PrControl` is a separate internal diagnostic protocol consumer. Its caller
 owns bounded, ordered full-word register I/O and a validated persona
 configuration callback. The controller verifies the selected 128-bit base,

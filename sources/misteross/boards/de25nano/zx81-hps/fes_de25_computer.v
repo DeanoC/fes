@@ -173,7 +173,7 @@ module fes_de25_computer #(
     fes_computer_mailbox #(
         .ENABLE_KEYBOARD(1), .ENABLE_ZX81_TAPE(1), .MEDIA_AW(14),
         .UNIT0_MIN(`FES_COMPUTER_ZX81_TAPE_MIN_BYTES),
-        .UNIT0_MAX(`FES_COMPUTER_ZX81_TAPE_MAX_BYTES)
+        .UNIT0_MAX(`FES_DE25_COMPUTER_ZX81_TAPE_MAX_BYTES)
     ) gp_mailbox (
         .clk(clk), .gpo(gpo), .build_id(BUILD_ID), .gpi(gpi),
         .exec_reset(exec_reset), .keyboard_rows(keyboard_rows), .controller_buttons(),

@@ -17,6 +17,7 @@ def suite(name):
 
 RamtestBuildTests = suite("test_build").RamtestBuildTests
 RamtestJtagTests = suite("test_jtag").RamtestJtagTests
+RamtestInterconnectTests = suite("test_interconnect").RamtestInterconnectTests
 
 
 class RamtestSimulationTests(unittest.TestCase):

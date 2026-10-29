@@ -218,7 +218,8 @@ Error De25Computer::Identify(const std::string& expected_build, std::uint64_t de
 		return Fail("DE25 mailbox identity/capabilities/build differ from selected artifact");
 	std::uint32_t minimum = 0, maximum = 0; std::uint16_t chunk = 0, state = 0;
 	e = MediaInfo(&minimum, &maximum, &chunk, &state); if (!e.ok()) return Fail("DE25 tape discovery failed: " + e.message);
-	if (minimum != FesComputerZx81TapeMinBytes || maximum != FesComputerZx81TapeMaxBytes || chunk != FesComputerMediaChunkMaxBytes)
+	if (minimum != FesComputerZx81TapeMinBytes ||
+		maximum != FesDe25ComputerZx81TapeMaxBytes || chunk != FesComputerMediaChunkMaxBytes)
 		return Fail("DE25 tape limits differ from selected diagnostic contract");
 	identified_ = true; identity->build_id = expected; identity->capabilities = kCapabilities;
 	return {};
@@ -252,7 +253,8 @@ Error De25Computer::SetKeyboardHid(const KeyboardHidRows& rows, std::uint64_t de
 Error De25Computer::LoadTape(const std::vector<std::uint8_t>& bytes, std::uint64_t deadline, std::uint16_t chunk_bytes)
 {
 	std::lock_guard<std::mutex> lock(mutex_);
-	if (bytes.size() < FesComputerZx81TapeMinBytes || bytes.size() > FesComputerZx81TapeMaxBytes ||
+	if (bytes.size() < FesComputerZx81TapeMinBytes ||
+		bytes.size() > FesDe25ComputerZx81TapeMaxBytes ||
 		!chunk_bytes || chunk_bytes > FesComputerMediaChunkMaxBytes) return Invalid("invalid DE25 tape/chunk length");
 	Error e = RequireIdentity(); if (!e.ok()) return e;
 	e = Begin(deadline); if (!e.ok()) return e;
