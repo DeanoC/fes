@@ -207,14 +207,22 @@ module fes_de25_computer #(
         .bus_peek_data(machine_response[`ZX81_BUS_PEEK_D]), .bus_dsel(machine_response[`ZX81_BUS_DSEL]),
         .bus_romcs(machine_response[`ZX81_BUS_ROMCS]), .bus_wait(machine_response[`ZX81_BUS_WAIT]),
         .bus_ram_present(machine_response[`ZX81_BUS_RAM_PRESENT]));
-    // Readiness changes reset the renderer only on pixel edges. Common reset
-    // still asserts asynchronously, including with both clocks stopped.
-    (* altera_attribute="-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *)
-    reg [1:0] pixel_transport_ready_sync = 2'b00;
-    always @(posedge pixel_clk or negedge reset_n) begin
-        if (!reset_n) pixel_transport_ready_sync <= 2'b00;
-        else pixel_transport_ready_sync <= {pixel_transport_ready_sync[0], transport_ready};
-    end
+    // Register the source before crossing domains; release the destination's
+    // reset locally. Common reset still asserts with both clocks stopped.
+    (* preserve, dont_merge *) reg pixel_transport_ready_source = 0;
+    always @(posedge clk or negedge reset_n)
+        if (!reset_n) pixel_transport_ready_source <= 0;
+        else pixel_transport_ready_source <= transport_ready;
+    (* async_reg="true", altera_attribute="-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *)
+    reg [1:0] pixel_transport_reset_release = 0;
+    always @(posedge pixel_clk or negedge reset_n)
+        if (!reset_n) pixel_transport_reset_release <= 0;
+        else pixel_transport_reset_release <= {pixel_transport_reset_release[0], 1'b1};
+    (* async_reg="true", altera_attribute="-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *)
+    reg [1:0] pixel_transport_ready_sync = 0;
+    always @(posedge pixel_clk or negedge pixel_transport_reset_release[1])
+        if (!pixel_transport_reset_release[1]) pixel_transport_ready_sync <= 0;
+        else pixel_transport_ready_sync <= {pixel_transport_ready_sync[0], pixel_transport_ready_source};
     wire pixel_transport_ready = pixel_transport_ready_sync[1];
     fes_de25_zx81_video video (
         .reset_n(pixel_transport_ready), .held(machine_reset),

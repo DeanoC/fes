@@ -162,6 +162,8 @@ static void pixel_ready_crossing() {
     b.system_edge();
     t.write = 0; t.byteenable = 15; t.eval();
     check(!S(transport_ready), "malformed write did not withdraw system-domain readiness");
+    b.system_edge(); // The registered source withdraws on the next system edge.
+    check(!S(pixel_transport_ready_source), "readiness source did not withdraw on the next system edge");
     check(t.video_hs, "transport readiness changed HDMI sync outside the pixel clock");
     b.pixel_edge();
     check(t.video_hs, "pixel readiness crossed in one pixel-clock stage");

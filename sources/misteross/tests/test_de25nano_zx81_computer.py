@@ -43,6 +43,20 @@ class CombinedComputerTests(unittest.TestCase):
             self.assertEqual(result['source_sha256'],{'video.v':b.sha(b'actual selected RTL')})
             self.assertEqual(set(b.PROFILE.extra_project_inputs(project)),{project/'sys_pll.ip',project/'integrate-mailbox.tcl',mailbox/'video.v'})
 
+    def test_internal_design_assistant_failure_stops_before_personas(self):
+        b=builder()
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);reports=root/'output_files';reports.mkdir()
+            report=reports/'base.tq.drc.signoff.rpt'
+            external='; TMC-20012 - Missing Output Delay Constraint ; High ; 30 ; 0 ;\n'
+            report.write_text(external)
+            self.assertEqual(len(b.design_assistant_findings(root,'base')),1)
+            for row in ('; CDC-50001 - Unsynchronized Transfer ; High ; 1 ; 0 ;\n',
+                        '; RES-50001 - Unsynchronized Reset ; High ; 1 ; 0 ;\n',
+                        '; LNT-30023 - Reset Polarity ; Medium ; 1 ; 1 ;\n'):
+                report.write_text(external+row)
+                with self.assertRaises(b.BuildError):b.design_assistant_findings(root,'base')
+
     def test_zero_build_identity_rejected_before_preparation(self):
         with tempfile.TemporaryDirectory() as tmp:
             output=Path(tmp)/'proof'

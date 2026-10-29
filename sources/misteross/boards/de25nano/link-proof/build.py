@@ -205,6 +205,22 @@ def hps_boot_packaging(output: Path) -> dict:
             "vendor_recipe": blob(output, output / names[1])}
 
 
+def design_assistant_findings(output: Path, revision: str) -> list[dict]:
+    drc = (output / "output_files" / f"{revision}.tq.drc.signoff.rpt").read_text()
+    failures = []
+    for rule, severity, violations, waived in re.findall(
+            r"^; ([A-Z]+-[0-9]+[^;]*?)\s*;\s*(Critical|High|Medium|Low)\s*;\s*([0-9]+)\s*;\s*([0-9]+)\s*;", drc, re.MULTILINE):
+        if int(waived):
+            raise BuildError("proof must not contain waived Design Assistant findings")
+        if int(violations):
+            failures.append({"rule": rule.strip(), "severity": severity, "violations": int(violations)})
+            if rule.startswith("BBD-60000 "):
+                raise BuildError(f"{revision}: PR boundary is not directly registered")
+            if severity in ("Critical", "High") and not rule.startswith(("TMC-20011 ", "TMC-20012 ")):
+                raise BuildError(f"{revision}: unqualified internal Design Assistant failure {rule}")
+    return failures
+
+
 def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
     verifier = capture()
     if not verifier["committed"]:
@@ -284,19 +300,7 @@ def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
         summaries[revision]["static_memory"] = [row for row in all_memories if row not in memories]
         summaries[revision]["regions"] = regions
         summaries[revision]["partition_reuse"] = report_table(fit, "Partial Reconfiguration and Periphery Reuse Statistics")
-        drc = (output / "output_files" / f"{revision}.tq.drc.signoff.rpt").read_text()
-        failures = []
-        for rule, severity, violations, waived in re.findall(
-                r"^; ([A-Z]+-[0-9]+[^;]*?)\s*;\s*(Critical|High|Medium|Low)\s*;\s*([0-9]+)\s*;\s*([0-9]+)\s*;", drc, re.MULTILINE):
-            if int(waived):
-                raise BuildError("proof must not contain waived Design Assistant findings")
-            if int(violations):
-                failures.append({"rule": rule.strip(), "severity": severity, "violations": int(violations)})
-                if rule.startswith("BBD-60000 "):
-                    raise BuildError(f"{revision}: PR boundary is not directly registered")
-                if severity in ("Critical", "High") and not rule.startswith(("TMC-20011 ", "TMC-20012 ")):
-                    raise BuildError(f"{revision}: unqualified internal Design Assistant failure {rule}")
-        summaries[revision]["unwaived_design_assistant_findings"] = failures
+        summaries[revision]["unwaived_design_assistant_findings"] = design_assistant_findings(output, revision)
         sta_report = (output / "output_files" / f"{revision}.sta.rpt").read_text()
         summaries[revision]["metastability"] = {
             "status": next(row["Result Flag"] for row in summaries[revision]["closure"]
@@ -781,6 +785,9 @@ def compile_project(output: Path, tools: dict[str, Path], version: str, only: st
                 "status": "passed", "timing_script_sha256": sha(script.read_bytes()),
                 "paths_sha256": sha((output / "timing-base-preflight/boundary-paths.tsv").read_bytes()),
                 "quartus_sta_sha256": selected_tools["quartus_sta"], "root_qdb_sha256": root_qdb_hash}) + b"\n")
+        if revision == "base":
+            # Internal CDC/reset/boundary failures must stop before personas.
+            design_assistant_findings(output, revision)
         if revision == "base" and only == "base":
             return
     # Keep vendor metadata/integrity checks and opaque payloads together. A

@@ -6,8 +6,10 @@ empty/16 KiB RAM personas. Both endpoints share the static base's build ID.
 CPU execution requires transport health, PR RUNNING and mailbox RUN. HOLD or
 PR freeze captures an idle CPU bus independently of enable-scheduled reset;
 the existing drain and four-cycle settle complete before Frozen. Transport
-readiness reaches renderer reset through two pixel-clock stages; common reset
-still asserts asynchronously. Selection
+readiness is registered in the system domain and reaches renderer reset
+through two pixel-clock stages with locally synchronized reset release. Common
+reset still asserts asynchronously. Internal Design Assistant failures stop the
+base build before either persona is compiled. Selection
 resets/reboots BASIC and does not preserve a running program.
 
 The PR bus retains its protected 46-bit request and 20-bit response, five
