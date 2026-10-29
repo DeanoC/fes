@@ -1,14 +1,86 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 """The RAM tester stays on fes.application and scans the whole HPS DDR window."""
 
+import contextlib
+import io
 import unittest
 from unittest.mock import patch
 from scripts import build_fes_ramtest as producer
+from scripts import build_fes_ramtest_quartus as quartus
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CORE = ROOT / "cores" / "fes-ramtest"
 COMMON = ROOT / "cores" / "fes-common"
+
+# The TimeQuest 17.0.2 tables the Quartus diagnostic's timing gate reads, at 130 MHz.
+MEMORY_ROW = "; ram_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk   ; 0.412 ; 0.000         ;"
+PIXEL_ROW = "; video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk ; 5.205 ; 0.000         ;"
+ILLEGAL_ROW = "; Illegal Clocks                  ; 0     ; 0    ;"
+UNCONSTRAINED_ROW = "; Unconstrained Clocks            ; 0     ; 0    ;"
+PASSING_REPORT = f"""\
++--------------------------------------------------------------------------------------------+
+; Clocks                                                                                     ;
++-----------------------------------------------------------+-----------+--------+-----------+
+; Clock Name                                                ; Type      ; Period ; Frequency ;
++-----------------------------------------------------------+-----------+--------+-----------+
+; FPGA_CLK1_50                                              ; Base      ; 20.000 ; 50.0 MHz  ;
+; ram_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk   ; Generated ; 7.692  ; 130.0 MHz ;
+; ram_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk   ; Generated ; 7.692  ; 130.0 MHz ;
+; video_clock|pll|general[0].gpll~PLL_OUTPUT_COUNTER|divclk ; Generated ; 13.464 ; 74.27 MHz ;
++-----------------------------------------------------------+-----------+--------+-----------+
+
+
++-----------------------------------------------------------------------------------+
+; Slow 1100mV 100C Model Setup Summary                                              ;
++-----------------------------------------------------------+-------+---------------+
+; Clock                                                     ; Slack ; End Point TNS ;
++-----------------------------------------------------------+-------+---------------+
+{MEMORY_ROW}
+; ram_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk   ; 1.904 ; 0.000         ;
+{PIXEL_ROW}
++-----------------------------------------------------------+-------+---------------+
+
+
++------------------------------------------------+
+; Unconstrained Paths Summary                    ;
++---------------------------------+-------+------+
+; Property                        ; Setup ; Hold ;
++---------------------------------+-------+------+
+{ILLEGAL_ROW}
+{UNCONSTRAINED_ROW}
+; Unconstrained Input Ports       ; 2     ; 2    ;
+; Unconstrained Input Port Paths  ; 2     ; 2    ;
+; Unconstrained Output Ports      ; 34    ; 34   ;
+; Unconstrained Output Port Paths ; 1102  ; 1102 ;
++---------------------------------+-------+------+
+"""
+# Each report and the error the gate must raise for it.
+FAILING_REPORTS = (
+    ("memory setup miss", PASSING_REPORT.replace(MEMORY_ROW, MEMORY_ROW.replace("; 0.412 ; 0.000 ", "; -0.123 ; -0.123")),
+     "memory setup slack is -0.123 ns"),
+    ("sub-picosecond memory setup miss",
+     PASSING_REPORT.replace(MEMORY_ROW, MEMORY_ROW.replace("; 0.412 ; 0.000 ", "; -0.000 ; -0.000")),
+     "memory setup slack is -0.000 ns"),
+    ("pixel setup miss", PASSING_REPORT.replace(PIXEL_ROW, PIXEL_ROW.replace("; 5.205 ; 0.000 ", "; -1.250 ; -9.875")),
+     "pixel setup slack is -1.250 ns"),
+    ("sub-picosecond pixel setup miss",
+     PASSING_REPORT.replace(PIXEL_ROW, PIXEL_ROW.replace("; 5.205 ; 0.000 ", "; -0.000 ; -0.000")),
+     "pixel setup slack is -0.000 ns"),
+    ("no unconstrained paths summary",
+     PASSING_REPORT.replace(f"{ILLEGAL_ROW}\n", "").replace(f"{UNCONSTRAINED_ROW}\n", ""),
+     "unconstrained paths summary"),
+    ("no illegal clocks row", PASSING_REPORT.replace(f"{ILLEGAL_ROW}\n", ""), "unconstrained paths summary"),
+    ("no unconstrained clocks row", PASSING_REPORT.replace(f"{UNCONSTRAINED_ROW}\n", ""),
+     "unconstrained paths summary"),
+    ("unconstrained clocks row twice",
+     PASSING_REPORT.replace(UNCONSTRAINED_ROW, f"{UNCONSTRAINED_ROW}\n{UNCONSTRAINED_ROW}"),
+     "unconstrained paths summary"),
+    ("unconstrained setup clock", PASSING_REPORT.replace(UNCONSTRAINED_ROW, UNCONSTRAINED_ROW.replace("; 0     ;", "; 1     ;")),
+     "unconstrained clocks: 1 setup, 0 hold"),
+    ("illegal hold clock", PASSING_REPORT.replace(ILLEGAL_ROW, ILLEGAL_ROW.replace("; 0    ;", "; 3    ;")),
+     "illegal clocks: 0 setup, 3 hold"),
+)
 
 
 class RamTestAbiTest(unittest.TestCase):
@@ -98,6 +170,18 @@ class RamTestAbiTest(unittest.TestCase):
         self.assertIn("fes_hps_ddr_guard.v", sim)
         for source in ("lat_stats.v", "lat_monitor.v", "lat_stats_tb.cpp"):
             self.assertIn(source, sim)
+
+    def test_quartus_timing_gate_requires_every_clock_analysed(self):
+        with patch.object(quartus, "MHZ", "130"):
+            with contextlib.redirect_stdout(io.StringIO()) as output:
+                quartus.validate_timing(PASSING_REPORT)
+            self.assertIn("memory setup slack 0.412 ns", output.getvalue())
+            self.assertIn("pixel setup slack 5.205 ns", output.getvalue())
+            for name, report, message in FAILING_REPORTS:
+                self.assertNotEqual(report, PASSING_REPORT, name)
+                with self.subTest(name), contextlib.redirect_stdout(io.StringIO()), \
+                        self.assertRaisesRegex(quartus.BuildError, message):
+                    quartus.validate_timing(report)
 
 
 if __name__ == "__main__":
