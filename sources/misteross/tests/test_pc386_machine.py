@@ -297,7 +297,11 @@ class DiagnosticTest(unittest.TestCase):
         shell_defaults = {name: int(value.strip(), 0) for name, value in declarations if name in rates}
         self.assertEqual(shell_defaults, rates)
 
-        diag_parameters = top.split('pc386_diag #(', 1)[1].split(') diag (', 1)[0]
+        diag_instance = re.search(
+            r'pc386_diag\s*(?:`ifndef\s+QUARTUS\s*)?#\s*\((.*?)\)\s*(?:`endif\s*)?diag\s*\(',
+            top, re.DOTALL)
+        self.assertIsNotNone(diag_instance, 'could not find pc386_diag rate parameters')
+        diag_parameters = diag_instance.group(1)
         diag_connections = set(re.findall(r'\.([A-Z][A-Z0-9_]*)\s*\(', diag_parameters))
         self.assertEqual(diag_connections, set(rates))
 
