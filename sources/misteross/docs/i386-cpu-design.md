@@ -1002,7 +1002,12 @@ lockstep, the FreeDOS boot on the RTL CPU and a routed record:
 4. **The kit's line fills**: the DDR check above through the CPU path on
    both kits, and whatever the routes then ask of F2's hit path (a registered
    hit, as M2's), and critical word first.
-5. **TLBs and paging** come with Phase 5.
+5. **The freeze's distribution and the memory system's placement**: slice
+   1 routes 13 MHz below its base on wire, every stage alike
+   ([record](validation/2026-10-28-i386-memory-path.md#routes)); measured
+   first, then copies of the freeze register per region or a placement that
+   keeps the L1s and the bus interface out of the pipeline's path.
+6. **TLBs and paging** come with Phase 5.
 
 ## Execute
 
