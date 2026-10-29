@@ -6,8 +6,8 @@ The change adds a test harness; it changes no endpoint/controller RTL, FPGA
 constraints, memory parameters, boot image, shared contract or HPS interlock.
 
 The RAM source producer is `43c248d2dfbad7fa2d0ef4c72fa006fe21214dc9`.
-The harness and bench are committed at `202ef4c64f`. The actual frozen run is
-retained in the task worktree at `out/interconnect-final-202ef4c64f/`.
+The harness and bench are committed at `e75ebf6a0b`. The actual frozen run is
+retained in the task worktree at `out/interconnect-final-e75ebf6a0b/`.
 The original project is the existing `de25-ramtest-calibration-contract`
 producer output under `out/dev/de25-ramtest/out/`, with build ID
 `6ee668470911276a9e553d0025c7ef0b`.
@@ -40,9 +40,12 @@ nonzero termination is checked by the helper. It is a simulation checker,
 not a claimed synthesized hardware fault flag or controller recovery path.
 
 Twenty-six focused tests pass, including existing scan/endpoint/SDRAM benches
-and six new harness-boundary controls. `make check` passes with 33 generated
+and six new harness-boundary controls. Eleven consistency tests also pass. `make check` passes with 34 generated
 consumers and 37 fixtures. [checks.json](checks.json) binds these local results.
-The broader affected suite and CI are reported in the PR separately.
+The broader affected suite and CI are reported in the PR separately. The
+upstream RAM branch advanced to `6006e664d8` and was merged normally; its
+additional generated computer consumer required the registry-based count
+check. The RAM endpoint, scan RTL and generated memory path are unchanged.
 
 Initial development attempts remain under `out/interconnect-dev-*`:
 the first kept the vendor assertion enabled and exposed the malformed
