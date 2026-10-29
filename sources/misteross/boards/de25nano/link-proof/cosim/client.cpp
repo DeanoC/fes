@@ -87,6 +87,12 @@ int main(int argc,char**argv) {
                 io.fail_command=true;
                 result=control.Reconfigure(FesDe25PrControlPersonaA,[&] {return configure(FesDe25PrControlPersonaA);},100000);
                 need(!result.ok()&&control.Poisoned()&&callback_count==0,"ambiguous write admitted programming");
+            } else if(scenario=="missing-response") {
+                result=control.Reconfigure(FesDe25PrControlPersonaA,[&] {
+                    auto configured=configure(FesDe25PrControlPersonaA);io.exchange(6,1);return configured;
+                },100000);
+                need(!result.ok()&&control.Poisoned(),"missing response did not poison");
+                need(io.exchange(1,FesDe25PrControlFaultOffset)&FesDe25PrControlFaultTimeout,"actual RTL timeout absent");
             } else if(scenario=="late-reset") {
                 io.exchange(8);
                 result=control.Reconfigure(FesDe25PrControlPersonaA,[&] {return configure(FesDe25PrControlPersonaA);},100000);

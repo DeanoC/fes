@@ -15,7 +15,17 @@ import time
 
 BOARD = Path(__file__).resolve().parent
 ROOT = BOARD.parents[4]
-SCENARIOS = ("success", "program-failure", "wrong-persona", "ambiguous-write", "late-reset", "wrong-build")
+SCENARIOS = ("success", "program-failure", "wrong-persona", "ambiguous-write", "missing-response", "late-reset", "wrong-build")
+EXPECTED_COUNTS = {"success": (14, 3), "program-failure": (2, 0), "wrong-persona": (4, 1),
+                   "ambiguous-write": (2, 0), "missing-response": (4, 1), "late-reset": (0, 0), "wrong-build": (0, 0)}
+
+
+def validate_result(value: dict, scenario: str) -> None:
+    if (not isinstance(value, dict) or set(value) != {"scenario", "result", "writes", "logical_selections"}
+            or value["scenario"] != scenario or value["result"] != "passed"
+            or type(value["writes"]) is not int or type(value["logical_selections"]) is not int
+            or (value["writes"], value["logical_selections"]) != EXPECTED_COUNTS[scenario]):
+        raise ValueError("runtime/RTL result does not match the requested scenario and exact expected mutations")
 
 
 def digest(path: Path) -> str:
@@ -67,6 +77,21 @@ def execute(args: argparse.Namespace) -> dict:
     runtime = snapshot / "sources/libmister-runtime"
     logs = output / "logs"
     logs.mkdir()
+    # Record the executables before they consume the frozen source. Buildroot's
+    # SDK driver is a wrapper, so its .br_real implementation is recorded too.
+    native_tools = {}
+    for executable in (args.cxx, args.verilator):
+        found = shutil.which(executable)
+        if not found:
+            raise ValueError("missing tool: " + executable)
+        path = Path(found).resolve()
+        native_tools[str(path)] = digest(path)
+        companion = path.with_name("verilator_bin")
+        if executable == args.verilator and companion.is_file():
+            native_tools[str(companion)] = digest(companion)
+    tool_info = {"native_tool_sha256": native_tools,
+                 "verilator": run([args.verilator, "--version"], logs / "verilator-version.txt").decode().strip(),
+                 "native_cxx": run([args.cxx, "--version"], logs / "native-cxx-version.txt").decode().strip()}
     obj = output / "obj"
     rtl = board / "fpga"
     command = [args.verilator, "--cc", "--exe", "--build", "-j", "2", "-O2", "--assert",
@@ -81,8 +106,6 @@ def execute(args: argparse.Namespace) -> dict:
     sources = [board / "cosim/client.cpp", runtime / "src/native/de25_pr_control.cpp"]
     run([args.cxx, *flags, "-I" + str(runtime / "include"), "-I" + str(runtime / "src"),
          *map(str, sources), "-o", str(native)], logs / "native-build.log")
-    tool_info = {"verilator": run([args.verilator, "--version"], logs / "verilator-version.txt").decode().strip(),
-                 "native_cxx": run([args.cxx, "--version"], logs / "native-cxx-version.txt").decode().strip()}
     clients = {"native": [str(native)]}
     if not args.native_only:
         if not all((args.builder_image, args.sdk_volume, args.sdk_cxx, args.qemu)):
@@ -95,6 +118,8 @@ def execute(args: argparse.Namespace) -> dict:
         container_board = Path("/src") / BOARD.relative_to(ROOT)
         container_runtime = Path("/src/sources/libmister-runtime")
         target = output / "client-aarch64"
+        sdk_tools = [args.sdk_cxx, args.sdk_cxx + ".br_real"]
+        sdk_hashes = run([*container, "sha256sum", *sdk_tools], logs / "sdk-tools-before.txt")
         run([*container, args.sdk_cxx, *flags, "-static", "-I" + str(container_runtime / "include"),
              "-I" + str(container_runtime / "src"), str(container_board / "cosim/client.cpp"),
              str(container_runtime / "src/native/de25_pr_control.cpp"), "-o", "/work/client-aarch64"],
@@ -112,8 +137,7 @@ def execute(args: argparse.Namespace) -> dict:
                          "qemu_version": run([str(qemu), "--version"], logs / "qemu-version.txt").decode().strip(),
                          "aarch64_cxx_version": run([*container, args.sdk_cxx, "--version"],
                                                     logs / "aarch64-cxx-version.txt").decode().strip(),
-                         "aarch64_cxx_sha256": run([*container, "sha256sum", args.sdk_cxx],
-                                                   logs / "aarch64-cxx-sha256.txt").decode().split()[0]})
+                         "aarch64_tools_sha256": sdk_hashes.decode().splitlines()})
     results = []
     for architecture, client in clients.items():
         for scenario in SCENARIOS:
@@ -130,6 +154,7 @@ def execute(args: argparse.Namespace) -> dict:
                             time.sleep(0.01)
                         result = json.loads(run([*client, str(endpoint), scenario, args.build_id],
                                                 logs / f"{architecture}-{scenario}-client.log"))
+                        validate_result(result, scenario)
                         if server.wait(timeout=10) != 0:
                             raise ValueError("RTL server failed")
                         results.append({"architecture": architecture, **result})
@@ -141,11 +166,19 @@ def execute(args: argparse.Namespace) -> dict:
                             except subprocess.TimeoutExpired:
                                 server.kill()
                                 server.wait()
+    if (len(results) != len(clients) * len(SCENARIOS)
+            or {(row["architecture"], row["scenario"]) for row in results}
+            != {(architecture, scenario) for architecture in clients for scenario in SCENARIOS}):
+        raise ValueError("missing or repeated runtime/RTL scenario")
     for scenario in SCENARIOS:
         values = [{k: v for k, v in row.items() if k != "architecture"}
                   for row in results if row["scenario"] == scenario]
         if any(value != values[0] for value in values):
             raise ValueError("native and AArch64 runtime/RTL outcomes differ")
+    if any(digest(Path(path)) != expected for path, expected in native_tools.items()):
+        raise ValueError("native build executable changed during proof")
+    if not args.native_only and run([*container, "sha256sum", *sdk_tools], logs / "sdk-tools-after.txt") != sdk_hashes:
+        raise ValueError("SDK compiler or implementation changed during proof")
     report = {"format": 1, "kind": "fes.de25-pr-control-cosim", "status": "passed",
               "physical_programming": "not-run", "configuration_model": "explicit-persona-mux-only",
               "inputs": inputs, "tools": tool_info, "results": results, "selected_build_id": args.build_id,

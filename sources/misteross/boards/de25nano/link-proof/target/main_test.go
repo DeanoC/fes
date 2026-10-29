@@ -7,10 +7,31 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
 )
+
+func TestHardwareIDsMatchGeneratedControlContract(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "generated", "fes_de25_pr_control.hpp"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, a := fixture(t)
+	for i, suffix := range []string{"A", "B"} {
+		pattern := regexp.MustCompile(`FesDe25PrControlPersona` + suffix + ` = (0x[0-9a-f]+)u;`)
+		match := pattern.FindSubmatch(data)
+		if len(match) != 2 {
+			t.Fatal("missing generated persona constant", suffix)
+		}
+		value, err := strconv.ParseUint(string(match[1]), 0, 32)
+		if err != nil || uint32(value) != a.Personas[i].HardwareID {
+			t.Fatal("persona identity differs from shared control contract", suffix)
+		}
+	}
+}
 
 // These small payloads are deliberately synthetic parser/assembly controls.
 // They are not Quartus outputs, partial bitstreams or hardware evidence.
@@ -40,7 +61,11 @@ func fixture(t *testing.T) (string, artifacts) {
 		Acceptance: acceptance{Physical: "not-run", Timing: "passed", BasePersonaCompatibility: "pfg-info-pof0-match"}}
 	for _, id := range []string{"a", "b"} {
 		name := "persona_" + id + ".rbf"
-		a.Personas = append(a.Personas, persona{ID: "counter_" + id, HardwareID: uint32(len(a.Personas) + 1), Entity: "fes_link_persona_" + id, Revision: "persona_" + id,
+		hardware := uint32(0xc001a001)
+		if id == "b" {
+			hardware = 0xc002b002
+		}
+		a.Personas = append(a.Personas, persona{ID: "counter_" + id, HardwareID: hardware, Entity: "fes_link_persona_" + id, Revision: "persona_" + id,
 			Path: name, Size: int64(len(files[name])), SHA256: digest(files[name]), RootQDBSHA256: a.Shell.RootQDBSHA256,
 			InterfaceSHA256: a.Shell.InterfaceSHA256, ClockResetSHA256: a.Shell.ClockResetSHA256, RegionID: "slot0",
 			VendorPOF: vendorPOF{RegionID: "0x01000000", Hash: a.Shell.VendorPOF.Hash, InfoSHA256: identity(id + "-info")}})
@@ -169,6 +194,7 @@ func TestRefusesInvalidContractEvenWithFreshShellID(t *testing.T) {
 		"missing control identity":            func(a *artifacts) { a.Shell.ControlBuildID = "" },
 		"zero control identity":               func(a *artifacts) { a.Shell.ControlBuildID = strings.Repeat("0", 32) },
 		"missing persona hardware identity":   func(a *artifacts) { a.Personas[0].HardwareID = 0 },
+		"unknown persona hardware identity":   func(a *artifacts) { a.Personas[0].HardwareID = 0xc003c003 },
 		"duplicate persona hardware identity": func(a *artifacts) { a.Personas[1].HardwareID = a.Personas[0].HardwareID },
 		"unsupported format":                  func(a *artifacts) { a.Format = 1 },
 		"wrong device":                        func(a *artifacts) { a.Device = "5CSEBA6U23I7" },

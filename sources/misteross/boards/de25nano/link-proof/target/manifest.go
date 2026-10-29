@@ -286,7 +286,7 @@ func validate(a artifacts, expectedShell, expectedBase string, selections []stri
 	seenID, seenPath, seenRevision := map[string]bool{}, map[string]bool{s.Base.Path: true}, map[string]bool{}
 	seenHardware := map[uint32]bool{}
 	for i, p := range a.Personas {
-		if p.HardwareID == 0 || seenHardware[p.HardwareID] {
+		if (p.HardwareID != 0xc001a001 && p.HardwareID != 0xc002b002) || seenHardware[p.HardwareID] {
 			return selected, errors.New("invalid or duplicate persona hardware identity")
 		}
 		seenHardware[p.HardwareID] = true

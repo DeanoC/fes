@@ -16,6 +16,18 @@ RecipeTests = recipe_tests.RecipeTests
 
 
 class LinkProofTests(unittest.TestCase):
+    def test_control_proof_rejects_missing_or_wrong_scenario_results(self):
+        spec = importlib.util.spec_from_file_location("de25_control_proof", BOARD / "control_proof.py")
+        proof = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(proof)
+        expected = {"scenario": "success", "result": "passed", "writes": 14, "logical_selections": 3}
+        proof.validate_result(expected, "success")
+        for bad in ({}, [], {**expected, "scenario": "wrong-build"},
+                    {**expected, "result": "failed"}, {**expected, "writes": 0},
+                    {**expected, "logical_selections": True}, {**expected, "extra": 1}):
+            with self.assertRaises(ValueError):
+                proof.validate_result(bad, "success")
+
     @unittest.skipUnless(shutil.which("go"), "requires Go")
     def test_target_composition_and_rejection_controls(self):
         result = subprocess.run(["go", "test", "./..."], cwd=BOARD / "target",
@@ -61,7 +73,7 @@ class LinkProofTests(unittest.TestCase):
                                      "--allow-working-copy", "--output", str(Path(directory) / "proof")],
                                     capture_output=True, text=True, timeout=240)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            self.assertIn('"scenarios": 6', result.stdout)
+            self.assertIn('"scenarios": 7', result.stdout)
 
 
 if __name__ == "__main__":

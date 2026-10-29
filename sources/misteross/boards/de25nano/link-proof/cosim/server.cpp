@@ -59,6 +59,9 @@ int main(int argc,char**argv) {
                 status=d.response;result=d.readdata;
                 if(op==2)++writes;
                 d.read=0;d.write=0;tick();
+                // Advance simulated clock time without making the controller
+                // spend a million IPC round trips on a lost response.
+                if(op==1&&d.drop_response)for(unsigned i=0;i<1024;++i)tick();
             } else if(op==3) {
                 // This is a logical persona-selection model, not SDM execution.
                 need(d.frozen&&d.slot_reset&&!d.running,"program callback before freeze/drain");
