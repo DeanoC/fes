@@ -17,11 +17,13 @@ unless it names a measurement. The milestone that measures one replaces it.
 Phase M4's diagnostic shell exists as RTL, a producer and a kit tool: the
 machine without its CPU in the development package `fes.pc386-diag`, with a
 bus master that runs commands from the DDR window in the CPU's place. Its
-programs pass on the host bench. Its first route, the machine's first, misses
-both fixed clocks (about 40 of 61.44 MHz system, 56 of 74.25 MHz pixel): the
-AT core's I/O read path, the VGA scanout and the presenter need timing work
-before the seal and the kit run
+nextpnr routes, the machine's first, miss both fixed clocks (about 40 of
+61.44 MHz system, 56 of 74.25 MHz pixel). Sealed with Quartus 17.0.2 instead
+([#1235](https://github.com/DeanoC/fes/issues/1235)), it passed every
+diagnostic program on Kit B: the VGA pictures on HDMI, speaker, DSP and OPL2
+audio, and the counters at zero
 ([M4 record](../../../docs/validation/2026-10-28-pc386-m4-diagnostic/summary.md)).
+The presenter's 720p timing still resets with the machine.
 
 Phase M3's audio exists beside the AT core: the OPL2 import, Sound Blaster 2.0
 DSP and mixer pass their host simulation checks, including OPL2 sample

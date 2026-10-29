@@ -1,17 +1,29 @@
-# pc386 M4: the machine diagnostic shell, 28 October 2026
+# pc386 M4: the machine diagnostic shell, 28 and 29 October 2026
 
-**The M4 shell, its bus master, its producer and its kit tool exist and pass
-on the host bench, but the machine does not meet its clocks, so nothing is
-sealed and no kit run happened.** This is the machine's first placement and
-route. Two seeds routed to 40.4 and 38.6 MHz on the system clock (61.44 MHz
-sealed; 56.65 MHz is the floor, twice the VGA's 28.322 MHz dot clock) and 55.8
-and 52.3 MHz on the 74.25 MHz pixel clock. The misses are in M1 and M2 logic
-that had never been timed: the AT core's I/O read path, the VGA scanout and
-the presenter. Getting this far needed two toolchain-side fixes, recorded
-below: a Yosys change so the producer's read audit fits its bound
-(DeanoC/yosys#68, pinned), and #1153's M10K AT core so the shell places at
-all. This record is a **host-only check** plus routed timing; there is no
-hardware evidence.
+**The M4 shell passes every diagnostic program on Kit B.** Its bus master,
+producer and kit tool pass on the host bench. The nextpnr lane does not seal
+it: its routes miss both fixed clocks (system 40.4 and 38.6 MHz of 61.44 MHz,
+pixel 55.8 and 52.3 of 74.25 MHz). Deano then moved the pc386 and i386 bring-up
+to Quartus ([#1235](https://github.com/DeanoC/fes/issues/1235)), and a
+Quartus 17.0.2 lane sealed `fes.pc386-diag` from this branch plus
+[#1245](https://github.com/DeanoC/fes/pull/1245), which registers the ATA's
+current capacity. Every clock and analysis was met, the system clock at
+75.82 MHz. On Kit B on 29 October all six programs ran and every command's
+status and value passed:
+- HDMI showed the VGA pictures.
+- The speaker and DSP reached HDMI audio at their programmed frequencies,
+  and the OPL2 phrase was audible.
+- The capture and underflow counters stayed at zero.
+- The package loaded in 4.13 s.
+
+One finding: the presenter's 720p timing is in the machine's reset, so each
+machine reset disturbs HDMI and the capture card re-locks for about 1.5 s.
+
+Getting this far needed two toolchain-side fixes, recorded below: a Yosys
+change so the producer's read audit fits its bound (DeanoC/yosys#68, pinned),
+and #1153's M10K AT core so the shell places at all. This record has host-only
+checks, nextpnr routed timing and a hardware diagnostic. The disk round trip
+with the runtime is not done.
 
 ## Inputs
 
@@ -23,6 +35,14 @@ hardware evidence.
 - The machine as M1-M3 left it, with #1153's AT core memories in M10K
   ([below](#placement-and-the-at-cores-memories)): the M2 VGA, presenter and
   plane, the M3 audio.
+- Kit run: package `ddf3530668b0…`, build `8a665015b07e3acd28010b028d31b39a`,
+  sealed by Quartus Prime Lite 17.0.2 with the machine elaborated by this
+  lock's Yosys. Its revision is `d80a92fddc` on `deano/pc386-quartus`: this
+  branch at `1df09954e0`, #1245, and the Quartus lane.
+  - Kit B on its designated baseline: image `f904961e`, kit software
+    `b5f6d8e5`, idle core `64f1f16d`.
+  - Loaded through the agent's `/v1/development/core` under a kit lease.
+    Nothing was installed, and the kit kept the same boot.
 
 ## What was built
 
@@ -161,6 +181,15 @@ suite passes on that merge, and the diag suite passes on this branch with it.
 
 ## Routed timing
 
+These are nextpnr figures, kept as measured data. Nextpnr builds of pc386 are
+parked until the CPU works on Quartus
+([#1235](https://github.com/DeanoC/fes/issues/1235)). Quartus 17.0.2 met
+every block below except one path. That path was the ATA's current capacity
+(IDENTIFY words 57-58), a product of the logical geometry computed inside the
+I/O read mux, which held the system clock to 54.07 MHz. With
+[#1245](https://github.com/DeanoC/fes/pull/1245) registering it, Quartus met
+every clock: system 75.82 MHz, pixel 81.31 MHz, audio 220 MHz.
+
 The second seal attempt (Yosys `1f7d0273`, #1153 in) synthesized under the
 audit and placed in a minute: 20,168 LUT positions (24%), 14,157 flip-flops
 (8%), 40 M10K, 18 DSP blocks. Its routes miss both fixed clocks after the
@@ -185,8 +214,8 @@ and samples at phase 8, so the read path has cycles to spare; the catch is
 reads with side effects, which must return the value before the access. The
 worst pixel path runs through the presenter's weight computation and a 27 x 27
 multiplier, 74 cells. The pixel clock is fixed by 720p and the system clock
-cannot go below 56.65 MHz, so each block needs RTL work, not a lower clock or
-another seed.
+cannot go below 56.65 MHz, so on nextpnr each block needs RTL work, not a
+lower clock or another seed.
 
 The bus master's own misses are fixed on this branch. Its fetched command is
 now compared with a registered sequence number a clock before the fields
@@ -196,13 +225,87 @@ in its own step. Synthesized and placed alone in the M2 envelope, the old bus
 master estimates 75.7 MHz and the new one 105.8 MHz. The diag suite passes on
 it.
 
+## Hardware diagnostic, 29 October 2026
+
+Kit B ran the six programs in order. `pc386-diag run` read and wrote the
+window through `/dev/mem`, and each program started with a machine reset
+([`kit-report.json`](kit-report.json)). Every command's status and expected
+value passed:
+
+| Program | Commands | On the kit | Result |
+| --- | ---: | ---: | --- |
+| smoke | 899 | 4 ms | Pass |
+| mode13 | 872 | 2.65 s, one 2.5 s hold | Pass; the capture equals the bench's |
+| vga-trace | 366,931 | 33.2 s, eleven holds | Every recorded read passes; 8 of 11 captures equal the bench's |
+| sound, full length | 1,078 | 4.73 s | Pass: speaker, DSP reset and version, single-cycle and auto-init DMA, IRQ 7 |
+| opl2 | 1,366 | 2.98 s | Pass |
+| ata | 1,916 | 0.18 s | Pass: IDENTIFY, READ SECTORS equal to the image, WRITE SECTORS in the image only, the dirty bit |
+
+The three vga-trace captures that differ are the three text pictures. They
+differ only where text blinks:
+- the 12 glyph cells of the blinking line in text-font;
+- one blinking cell in text-bright;
+- the underline cursor (cell 0,0, scanlines 14-15) in the final picture.
+
+The blink phase counts frames since reset, which differs between bench and
+kit. The ata, mode13 and smoke references came from the bench on #1245's
+head, with the same program files; the vga-trace reference is the bench run
+above.
+
+**Timing classes.** In smoke, mode13 and ata, I/O completion equals the bench
+on #1245's head, command for command and in every class: VGA byte writes 6
+clocks, word writes 9, VGA reads 8, 8-bit ISA cycles 49, ATA data words 27.
+The vga-trace reference predates the bus master's timing change, which takes
+one clock off each command's count. All 33,359 of the kit's vga-trace VGA
+cycles are that reference's count less one. Sound and opl2 have no
+full-length bench run.
+
+**Counters.** Capture drops, presenter underflows, plane underflows and
+scanout underflows read zero at the end of every program that reads them
+(all but ata). No host session-display request enabled the plane, so its zero
+proves nothing yet.
+
+**Load.** `/v1/development/core` took 4.13 s from the start of the 2.5 MB
+upload to an active core. Staging through `/dev/mem` ran at 44-46 MiB/s, so
+the 8 MiB ATA image took 173 ms.
+
+**HDMI.** The ASUS 4KPRO captured at 1920x1080. Against the vga suite's 720p
+frames, scaled to 1280x720, nine of the pictures grabbed after the signal had
+settled give 29.8-39.3 dB PSNR and the final one 56 dB. The capture's 4:2:2
+chroma and the scaling account for the difference.
+
+![HDMI grabs on the kit (left) and the 720p simulation (right): text-font, mode 13h, mode Y split, mode 12h](kit-grabs.png)
+
+**Audio.** The 4KPRO's HDMI audio, in 0.1 s windows:
+
+| Source | Programmed | Heard |
+| --- | --- | --- |
+| PC speaker, PIT channel 2 | 440 Hz, 1.5 s | 439.6-440.0 Hz, 0.85 s |
+| DSP, 8-bit DMA of a sine | 1 kHz, 3.2 s single-cycle then auto-init | 1000.0 Hz, 2.45 s |
+| OPL2, SOUND.COM's phrase | 2 s | 0.55 s of the phrase, 1.0-1.8 kHz zero-crossing rate |
+
+**Finding: HDMI follows machine reset.** In `pc386_machine.sv` the presenter's
+720p counters reset with the machine: `pixel_reset` is `reset || !pixel_locked`,
+synchronised. After a launch the machine stays in reset until the first
+command, and each program starts with a reset. About 0.85 s after each reset
+the capture went silent and showed a held picture or "Video Signal is
+abnormal" for about 1.45 s, which is the gap in each audio row above.
+
+![3 s after load, still the menu; 0.9 s after mode13's reset; 1.1 s after vga-trace's reset, the previous picture](kit-relock.png)
+
+What the machine produced in that time was right: the capture dumped at the
+vga-trace text mark equals the bench's. A display would still blank in the
+same way. The full machine resets for every launch and runtime hold, so the
+720p timing should run from the pixel PLL's lock alone. A run with that change
+would confirm it as the cause.
+
 ## Not done
 
-- Timing closure of the AT core's read path, the VGA scanout and the
-  presenter; then the seal and the kit run this branch prepares (HDMI captures
-  of the VGA pictures, OPL2 and DSP audio, the port 2 counters and the image
-  load time on hardware). Kit B was claimed once, for a read-only probe of the
-  DDR window through `/dev/mem`, and released unchanged.
+- The 720p timing on the pixel PLL's lock alone, then a kit run to confirm
+  that the signal holds across resets and that the audio and the vga-trace
+  text grab are whole.
+- Nextpnr timing closure of the AT core's read path, the VGA scanout and the
+  presenter, parked with [#1235](https://github.com/DeanoC/fes/issues/1235).
 - The disk round trip with the runtime: it needs the M0 contracts
   (`fes.computer` 1.1, [#1220](https://github.com/DeanoC/fes/pull/1220)). The
   shell serves the ATA image from the window offset the runtime will write

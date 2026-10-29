@@ -315,7 +315,9 @@ AT core's current synthesis figures. Phase M4's
 development package `fes.pc386-diag` (`make build-fes-pc386-diag`, not
 registered) is the machine without its CPU on a DE10-Nano: a bus master runs
 diagnostic commands from the HPS DDR window in the CPU's place
-([M4 record](validation/2026-10-28-pc386-m4-diagnostic/summary.md)). The RTL
+([M4 record](validation/2026-10-28-pc386-m4-diagnostic/summary.md)). Its
+nextpnr routes miss both clocks; sealed with Quartus 17.0.2, it passed every
+diagnostic program on Kit B on 2026-10-29. The RTL
 CPU in the machine, the `fes.computer` 1.1 mailbox and the disk round trip
 with the runtime remain open.
 
