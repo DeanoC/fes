@@ -178,6 +178,10 @@ function load()
   end)
 end
 
+function on_resume()
+  load()
+end
+
 function on_input(cmd)
   if focus == "setup" then
     if cmd == "left" or cmd == "up" or cmd == "down" then

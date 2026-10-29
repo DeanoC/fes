@@ -1103,8 +1103,10 @@ package reports a conflict without overwriting it.
 The embedded **Systems** room (`example.computers`) lists prepared playable
 library systems and their grouped editions. Confirm uses `session.launch`.
 **Set up** opens the selected entry's workbench with `room.initial_game_id`
-and `room.initial_core_id`; a loaded empty library offers **Add system**. Setup
-navigation stays unavailable while the shelf or its editions are loading. ZX81-family
+and `room.initial_core_id`; a loaded empty library offers **Add system**. The
+shelf reloads its entries when it resumes from a nested workbench, so systems
+added during setup appear on return. Setup navigation stays unavailable while
+the shelf or its editions are loading. ZX81-family
 entries retain `example.hardware`; Commodore 64 uses `example.c64`, a configured
 entrypoint for the shared `widgets.system_workbench` implementation.
 `example.system` exposes that implementation for every registered playable

@@ -128,3 +128,21 @@ func TestZX81SetupRoomPicksAVariantThenItsPackages(t *testing.T) {
 	a.mu.Unlock()
 	waitCoreLibrary(t, a)
 }
+
+func TestInstalledSystemSetupStartsWithNeutralStatus(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("unexpected request while opening the system picker: %s %s", r.Method, r.URL.Path)
+		http.Error(w, "unexpected", http.StatusInternalServerError)
+	}))
+	defer server.Close()
+	a := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
+	a.ctx = context.Background()
+
+	a.mu.Lock()
+	a.openInstalledCoreSetupLocked("")
+	snap := a.coreLibrarySnapshotLocked()
+	a.mu.Unlock()
+	if snap.Status != "Preparing system setup…" || strings.Contains(snap.Status, "ZX81") {
+		t.Fatalf("system setup started with a core-specific status: %q", snap.Status)
+	}
+}

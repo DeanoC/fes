@@ -221,6 +221,28 @@ func TestComputersRoomEmptyLibraryDoesNotLaunch(t *testing.T) {
 	}
 }
 
+func TestComputersRoomRefreshesPreparedSystemsOnResume(t *testing.T) {
+	game := preparedComputer("added-in-workbench", "Added in workbench", "fes.apple2")
+	svc := &fakeServices{}
+	r := newRoom(t, examplePack(t, "example.computers"), Options{
+		Services: svc, Width: 1280, Height: 720,
+	})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	stepUntil(t, r, func(f Frame) bool { return frameHas(f, "No prepared systems yet.") })
+
+	// The nested workbench can add an entry while this room is suspended.
+	svc.mu.Lock()
+	svc.games = []hostclient.Game{game}
+	svc.mu.Unlock()
+	r.Resume()
+	frame := stepUntil(t, r, func(f Frame) bool { return frameHas(f, game.Title) })
+	if !frameHas(frame, "Set up") || r.Err() != nil {
+		t.Fatalf("resumed shelf did not show the new system:\n%s\nroom error: %v", frameText(frame), r.Err())
+	}
+}
+
 func TestComputersRoomSetupOpensTheWorkbench(t *testing.T) {
 	pack := examplePack(t, "example.computers")
 	zx := preparedComputer("fpga-zx81-maze", "3D Monster Maze", "fes.zx81")

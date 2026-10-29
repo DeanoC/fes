@@ -194,12 +194,19 @@ local function remember()
   if not systems.by_id[selected_core] then return end
   local entry = entries[entry_i]
   local game = focused()
+  local previous = core_choices[selected_core] or {}
+  local game_id = entry and entry.id or chosen
+  local edition_id = game and game.id or chosen_edition
+  if game_id == "" then game_id = previous.game_id or "" end
+  if edition_id == "" then edition_id = previous.edition_id or "" end
+  if game_id ~= "" then chosen = game_id end
+  if edition_id ~= "" then chosen_edition = edition_id end
   family_variants[family().id] = selected_core
-  core_choices[selected_core] = {game_id=entry and entry.id or "", edition_id=game and game.id or ""}
+  core_choices[selected_core] = {game_id=game_id, edition_id=edition_id}
   store.set("navigation", {
     family_variants=family_variants, core_choices=core_choices,
-    game_id = entry and entry.id or "",
-    edition_id = game and game.id or "",
+    game_id = game_id,
+    edition_id = edition_id,
     focus = focus, core_id = selected_core,
   })
 end
@@ -621,6 +628,11 @@ function load()
       return
     end
     library_error = ""
+    if systems.by_id[selected_core] then
+      message = "Choose a " .. system_label() .. " entry."
+    else
+      message = "The system " .. selected_core .. " is not supported by this workbench."
+    end
     local prepared = {}
     for _, g in ipairs(games or {}) do
       if is_system(g) then prepared[#prepared + 1] = g end
