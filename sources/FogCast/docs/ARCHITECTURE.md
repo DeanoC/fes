@@ -55,6 +55,11 @@ package identity domain, ABI allowlist or hardware admission is introduced.
 The native `packages` diagnostic reads shared conformance archives from FAT32;
 inspection does not authorize a Cyclone V package on an Agilex board. The
 physical runtime remains responsible for compatibility and linked-load receipts.
+The reader also recognizes format-2 `de25_nano` / `A5EB013BB23BE4SCS`
+archives for retained inspection. Their target contributes to package identity.
+This does not register an Agilex programming profile, ABI or physical driver.
+Formats 3/4 still reject Nano because their ROM linkers remain Cyclone V specific;
+the Linux runtime's target checks and model admission policy remain independent.
 
 `Archive.LinkROMs` derives format-3 single-source and format-4 BIOS/cartridge
 programming bytes using the existing target linker and the retained package's

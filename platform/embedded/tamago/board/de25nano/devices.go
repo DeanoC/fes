@@ -19,6 +19,9 @@ func InitDevices() error {
 		if deviceMapError == nil && profileDisplayEnabled {
 			deviceMapError = arm64map.NormalUncached(profileDisplayBase, profileDisplayBytes, profileRAMStart, profileRAMSize)
 		}
+		if deviceMapError == nil && profileFPGAProbeEnabled {
+			deviceMapError = arm64map.NormalUncached(profileFPGAProbeBase, profileFPGAProbeBytes, profileRAMStart, profileRAMSize)
+		}
 	})
 	return deviceMapError
 }

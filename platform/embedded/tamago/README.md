@@ -28,6 +28,9 @@ requires a matching Nano scanout artifact and provides no physical drain or FPGA
 activation support. See the
 [board selection and firmware contract](board/README.md) for exact scope and
 bring-up commands. No physical Nano boot has been tested.
+The Nano-only `fpga` program cross-builds a read-only TF-A SDM mailbox probe.
+It reports silicon IDCODE and configuration status, without programming,
+opening bridges or establishing a live package identity. See [SDM](sdm/README.md).
 
 ## Build and run
 
@@ -105,7 +108,7 @@ address or firmware assumption is a DE25 board constant.
 | Storage | VirtIO block reads/writes/FLUSH; Nano cold SDHC/SDXC initialization and read-only PIO; shared FAT32 | Nano boot/read qualification, writes and card lifecycle |
 | Preferences | Existing preallocated FAT32 JSON file; data and metadata flushes | Allocation/update strategy and power-loss-safe publication |
 | Network | Shared IPv4/TCP/HTTP; QEMU VirtIO; Nano XGMAC 2.10 with explicit DMA/PHY profile | Nano RGMII/PHY/cache/SMMU qualification, throughput and qualified entropy |
-| FPGA | Retained-package software lifecycle connected to tenfoot Play/Back; no actual programming | Runtime-owned configuration, identity, reset and DMA revocation |
+| FPGA | Retained-package software lifecycle connected to tenfoot Play/Back; optional Nano read-only SDM probe | Runtime-owned configuration with bridges held, live identity, reset and DMA revocation |
 
 FAT32 writes update existing preallocated files only; they cannot create,
 allocate, rename or atomically replace them. The preference record reserves

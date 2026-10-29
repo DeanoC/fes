@@ -56,7 +56,7 @@ def stop(process):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("program", choices=("probe", "fabric", "packages", "admission", "play", "tenfoot", "storage", "keyboard", "network", "display"))
+    parser.add_argument("program", choices=("probe", "fabric", "packages", "admission", "play", "tenfoot", "storage", "keyboard", "network", "display", "fpga"))
     parser.add_argument("--compiler", required=True, type=Path)
     parser.add_argument("--qemu", type=Path)
     parser.add_argument("--board", choices=("qemu", "de25-nano"), default="qemu")
@@ -86,6 +86,8 @@ def main():
         return
     if args.profile is not None:
         parser.error("--profile is only valid for --board de25-nano")
+    if args.program == "fpga":
+        parser.error("fpga is a Nano firmware probe; QEMU does not emulate the SDM service")
     if args.qemu is None:
         parser.error("--board qemu requires --qemu")
     output = args.output.resolve()

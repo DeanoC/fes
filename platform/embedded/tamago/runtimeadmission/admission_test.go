@@ -127,6 +127,29 @@ func TestRejectBeforeOwnerMutation(t *testing.T) {
 		})
 	}
 }
+
+func TestNanoRecognitionDoesNotAdmitIntoExistingBackend(t *testing.T) {
+	cyclone := fixture(t, nil)
+	nano := fixture(t, func(m string) string {
+		m = strings.ReplaceAll(m, "de10_nano", "de25_nano")
+		return strings.ReplaceAll(m, "5CSEBA6U23I7", "A5EB013BB23BE4SCS")
+	})
+	gate, err := NewModel(policyFor(cyclone))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := controller(t)
+	before := c.Status()
+	if code := ErrorCode(gate.LoadModel(c, nano, nano.Inspection().PackageID, 0, time.Second)); code != "unsupported_target" {
+		t.Fatalf("Nano recognized as an admitted package: %s", code)
+	}
+	if c.Status() != before {
+		t.Fatal("unsupported target changed running owner")
+	}
+	if command, err := c.Next(0); command != nil || err != nil {
+		t.Fatal("unsupported target issued command")
+	}
+}
 func TestPolicyAndMetadataArePrivate(t *testing.T) {
 	a := fixture(t, nil)
 	id := a.Inspection().PackageID

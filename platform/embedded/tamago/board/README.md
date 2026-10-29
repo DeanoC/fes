@@ -16,7 +16,7 @@ All native applications now obtain peripherals through `board`.
 | USB input | xHCI plus shared HID decoder | DWC2 PIO for one direct low/full-speed boot keyboard; firmware ULPI/VBUS readiness required |
 | Network | VirtIO and existing Go IP/TCP stack | XGMAC 2.10, firmware-qualified PHY/RGMII and pinned DMA; static IPv4/1000-full only |
 | Display | RAMFB and tenfoot software renderer | Optional boot-firmware XRGB8888 window; pinned until reboot, no drain/reconfiguration |
-| FPGA activation | Software lifecycle model | Physical configuration/identity/containment adapter unavailable |
+| FPGA | Software lifecycle model | Optional read-only TF-A SDM probe; physical configuration/identity/containment unavailable |
 
 Nano builds exclude VirtIO, xHCI, RAMFB and QEMU's DMA/page-table setup.
 The shared USB descriptor/report decoder remains usable in both builds.
@@ -30,7 +30,7 @@ first bring-up programs; `keyboard` reports keys over serial, while `storage` mo
 
 No default Nano resource profile is shipped. The delivery board revision,
 firmware recipe and actual memory reservations have not been verified.
-The build runner requires an exact schema-4 JSON object with these fields:
+The build runner requires an exact schema-5 JSON object with these fields:
 
 - `firmware`: identifying string for the firmware producing this handoff.
 - `ram_start`, `ram_size`, `entry`: integer physical addresses/length; owned RAM
@@ -47,6 +47,9 @@ The build runner requires an exact schema-4 JSON object with these fields:
   or disabled `null`/false; see the [network contract](../xgmac/README.md).
 - `display` and `handoff.display_platform_ready`: a separate boot-pinned
   framebuffer or disabled `null`/false; see the [scanout contract](../scanout/README.md).
+- `fpga_probe`: disabled `null`, or an explicit reserved 2 MiB service arena,
+  exclusive mailbox ownership and synchronous bounded-return TF-A v1 service;
+  see the [read-only SDM contract](../sdm/README.md). It admits no programming.
 - `handoff`: object with `el1`, `single_cpu`, `counter_access`,
   `exclusive_devices`, `uart0_configured`, `sd_platform_ready`, and
   `mmu_off_caches_clean`, all explicitly `true`. `usb_platform_ready` must be a

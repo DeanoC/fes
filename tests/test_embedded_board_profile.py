@@ -11,17 +11,17 @@ spec.loader.exec_module(build)
 
 
 def profile():
-    return {"schema": 4, "firmware": "synthetic test; not a board recipe",
+    return {"schema": 5, "firmware": "synthetic test; not a board recipe",
             "ram_start": 0x82000000, "ram_size": 256 << 20, "entry": 0x82010000,
             "reserved": [{"start": 0x80000000, "size": 32 << 20, "owner": "synthetic firmware"}],
             "sd_input_clock_hz": 100000000, "usb_phy_clock_hz": 60000000,
-            "network": None, "display": None, "handoff": {"display_platform_ready":False, "ethernet_platform_ready":False, **{key: True for key in ("el1", "single_cpu", "counter_access", "exclusive_devices",
+            "network": None, "display": None, "fpga_probe": None, "handoff": {"display_platform_ready":False, "ethernet_platform_ready":False, **{key: True for key in ("el1", "single_cpu", "counter_access", "exclusive_devices",
                 "uart0_configured", "sd_platform_ready", "usb_platform_ready", "mmu_off_caches_clean")}}}
 
 
 class BoardProfileTests(unittest.TestCase):
     def test_explicit_profile(self):
-        self.assertEqual(build.profile_constants(profile()), (0x82000000, 256 << 20, 0x82010000, 100000000, 60000000, None, None))
+        self.assertEqual(build.profile_constants(profile()), (0x82000000, 256 << 20, 0x82010000, 100000000, 60000000, None, None, None))
 
     def test_bad_handoff(self):
         for mutate in (
@@ -69,7 +69,7 @@ class EthernetProfileTests(unittest.TestCase):
     def test_admitted_and_disabled(self):
         p = ethernet_profile()
         self.assertEqual(build.profile_constants(p)[5], p["network"])
-        self.assertIsNone(build.profile_constants(profile())[-1])
+        self.assertIsNone(build.profile_constants(profile())[5])
         p["network"]["rx_buffer_shift"] = 1
         build.profile_constants(p)
 
@@ -138,5 +138,48 @@ class DisplayProfileTests(unittest.TestCase):
             build.profile_constants(p)
         p = display_profile()
         p["schema"] = 3
+        with self.assertRaises(ValueError):
+            build.profile_constants(p)
+
+
+def fpga_profile():
+    p = display_profile()
+    p['fpga_probe'] = {'base': 0x94000000, 'size': 2 << 20,
+        'service': 'intel-sip-mbox-v1-read-only', 'exclusive': True,
+        'synchronous_bounded_return': True}
+    return p
+
+
+class FPGAProbeProfileTests(unittest.TestCase):
+    def test_service_is_explicit_and_optional(self):
+        p = fpga_profile()
+        self.assertEqual(build.profile_constants(p)[7], p['fpga_probe'])
+        self.assertIsNone(build.profile_constants(profile())[7])
+        p = profile()
+        p['schema'] = 4
+        with self.assertRaises(ValueError):
+            build.profile_constants(p)
+
+    def test_arena_and_firmware_contract(self):
+        for key, value in (
+            ('base', 0x80000000), ('base', 0x82000000),
+            ('base', 0x92000000), ('base', 0x93000000),
+            ('base', 0x94000040), ('base', 0xc0000000),
+            ('base', True), ('size', 64), ('size', 4 << 20),
+            ('service', 'intel-sip-fpga-config'), ('service', 'mmio'),
+            ('exclusive', False), ('exclusive', 1),
+            ('synchronous_bounded_return', False), ('synchronous_bounded_return', 1),
+        ):
+            with self.subTest(key=key, value=value):
+                p = fpga_profile()
+                p['fpga_probe'][key] = value
+                with self.assertRaises(ValueError):
+                    build.profile_constants(p)
+        p = fpga_profile()
+        p['reserved'].append({'start': 0x94000000, 'size': 2 << 20, 'owner': 'TF-A'})
+        with self.assertRaises(ValueError):
+            build.profile_constants(p)
+        p = fpga_profile()
+        p['fpga_probe']['mutating'] = True
         with self.assertRaises(ValueError):
             build.profile_constants(p)

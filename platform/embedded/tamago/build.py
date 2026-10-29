@@ -15,9 +15,9 @@ ROOT = APP.parents[2]
 
 def profile_constants(profile):
     """Validate firmware memory and platform readiness, not a board default."""
-    expected = {"schema", "firmware", "ram_start", "ram_size", "entry", "reserved", "sd_input_clock_hz", "usb_phy_clock_hz", "network", "display", "handoff"}
-    if not isinstance(profile, dict) or set(profile) != expected or type(profile["schema"]) is not int or profile["schema"] != 4:
-        raise ValueError("expected exact schema-4 handoff fields")
+    expected = {"schema", "firmware", "ram_start", "ram_size", "entry", "reserved", "sd_input_clock_hz", "usb_phy_clock_hz", "network", "display", "fpga_probe", "handoff"}
+    if not isinstance(profile, dict) or set(profile) != expected or type(profile["schema"]) is not int or profile["schema"] != 5:
+        raise ValueError("expected exact schema-5 handoff fields")
     if not isinstance(profile["firmware"], str) or not profile["firmware"].strip():
         raise ValueError("firmware identity is required")
     required = {"el1", "single_cpu", "counter_access", "exclusive_devices", "uart0_configured", "sd_platform_ready", "mmu_off_caches_clean"}
@@ -109,7 +109,24 @@ def profile_constants(profile):
                 raise ValueError("display overlaps firmware reservation")
         if network is not None and base < network["dma_start"] + network["dma_size"] and network["dma_start"] < base + amount:
             raise ValueError("display overlaps Ethernet DMA")
-    return start, size, entry, frequency, usb_frequency, network, display
+    fpga = profile["fpga_probe"]
+    if fpga is not None:
+        fields = {"base", "size", "service", "exclusive", "synchronous_bounded_return"}
+        if not isinstance(fpga, dict) or set(fpga) != fields:
+            raise ValueError("invalid FPGA probe profile fields")
+        if fpga["service"] != "intel-sip-mbox-v1-read-only" or fpga["exclusive"] is not True or fpga["synchronous_bounded_return"] is not True:
+            raise ValueError("FPGA probe requires exclusive synchronous bounded-return TF-A mailbox v1 service")
+        base, amount = fpga["base"], fpga["size"]
+        if type(base) is not int or type(amount) is not int or base < 0x82000000 or amount != 2 << 20 or base % (2 << 20) or base + amount > 0xc0000000 or base >> 30 != start >> 30 or (base < start + size and start < base + amount):
+            raise ValueError("FPGA probe requires disjoint reserved 2 MiB DDR above BL31")
+        for r in reserved:
+            if base < r["start"] + r["size"] and r["start"] < base + amount:
+                raise ValueError("FPGA probe overlaps firmware reservation")
+        if network is not None and base < network["dma_start"] + network["dma_size"] and network["dma_start"] < base + amount:
+            raise ValueError("FPGA probe overlaps Ethernet DMA")
+        if display is not None and base < display["base"] + display["size"] and display["base"] < base + amount:
+            raise ValueError("FPGA probe overlaps display window")
+    return start, size, entry, frequency, usb_frequency, network, display, fpga
 
 
 def build(args):
@@ -121,7 +138,9 @@ def build(args):
         raise ValueError("--board de25-nano requires --profile from the firmware handoff")
     raw = args.profile.resolve().read_bytes()
     profile = json.loads(raw)
-    start, size, entry, frequency, usb_frequency, net, display = profile_constants(profile)
+    start, size, entry, frequency, usb_frequency, net, display, fpga = profile_constants(profile)
+    if args.program == "fpga" and fpga is None:
+        raise ValueError("fpga probe requires an explicit read-only service profile")
     output = args.output.resolve()
     if output.exists() or not output.is_relative_to(ROOT / "out"):
         raise ValueError("output must be a fresh directory beneath this worktree's out/")
@@ -129,7 +148,8 @@ def build(args):
     (output / "handoff.json").write_bytes(raw)
     generated = output / "profile.go"
     generated.write_text("//go:build tamago && arm64 && de25nano\n\npackage de25nano\nconst (\n" +
-                         f"profileRAMStart = {start}\nprofileRAMSize = {size}\nprofileSDInputClockHz = {frequency}\nprofileUSBPHYClockHz = {usb_frequency}\n)\n")
+                         f"profileRAMStart = {start}\nprofileRAMSize = {size}\nprofileSDInputClockHz = {frequency}\nprofileUSBPHYClockHz = {usb_frequency}\n" +
+                         f"profileFPGAProbeEnabled = {str(fpga is not None).lower()}\nprofileFPGAProbeBase = {fpga['base'] if fpga else 0}\nprofileFPGAProbeBytes = {fpga['size'] if fpga else 0}\n)\n")
     network_constants = {"profileNetworkEnabled": net is not None,
                          "profileNetworkBase": 0x10810000 + (net["mac_index"] * 0x10000) if net else 0,
                          "profileNetworkPHY": net["phy_address"] if net else 0,
@@ -204,6 +224,6 @@ def build(args):
               "compiler_sha256": sha(compiler), "elf_sha256": sha(elf), "command": command,
               "imports": [p["ImportPath"] for p in packages],
               "limitations": ["firmware must supply SD/USB PHY and input clocks plus verified resource reservations",
-                              "SD cold card initialization, read-only PIO; SoC PHY setup remains firmware-owned", "USB direct low/full-speed boot keyboard only; Ethernet XGMAC 2.10 static IPv4/1000-full prototype; display is boot-firmware scanout only, no drain or FPGA replacement; physical activation unavailable"]}
+                              "SD cold card initialization, read-only PIO; SoC PHY setup remains firmware-owned", "USB direct low/full-speed boot keyboard only; Ethernet XGMAC 2.10 static IPv4/1000-full prototype; display is boot-firmware scanout only, no drain or FPGA replacement; physical activation unavailable", "SDM probe is read-only TF-A mailbox v1; no programming, live package identity or containment; SMC bounded return is a firmware obligation"]}
     (output / "result.json").write_text(json.dumps(report, indent=2) + "\n")
     print(f"Cross-built {elf}; hardware not executed")
