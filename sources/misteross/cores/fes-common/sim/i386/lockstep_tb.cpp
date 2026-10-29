@@ -903,6 +903,14 @@ MemUse mem_use(const uint8_t *code) {
     if (two) {
         if ((op & 0xf0) == 0x90) m.writes = true;
         else if (op == 0xa4 || op == 0xa5 || op == 0xac || op == 0xad) m.reads = m.writes = true;
+        else if (op == 0xba) {  // BT, BTS, BTR, BTC by an immediate: BT only reads
+            m.reads = true;
+            m.writes = reg != 4;
+        } else if (op == 0xbc || op == 0xbd || op == 0xa3) {  // BSF, BSR, BT by a register
+            m.reads = true;
+        } else if (op == 0xab || op == 0xb3 || op == 0xbb) {  // BTS, BTR, BTC by a register
+            m.reads = m.writes = true;
+        }
         else if (op == 0xb6 || op == 0xb7 || op == 0xbe || op == 0xbf || op == 0xb2 || op == 0xb4 || op == 0xb5 ||
                  op == 0xaf)
             m.reads = true;
@@ -978,6 +986,7 @@ bool consumes_flags(const uint8_t *code) {
     if (op < 0x40 && (op & 7) < 6) return ((op >> 3) & 7) == 2 || ((op >> 3) & 7) == 3;
     if (op >= 0x80 && op <= 0x83) return reg == 2 || reg == 3;
     if (op == 0xc0 || op == 0xc1 || (op >= 0xd0 && op <= 0xd3)) return reg == 2 || reg == 3;
+    if (op < 0x40 && (op & 0x27) == 0x27) return true;  // DAA, DAS, AAA, AAS
     return (op >= 0x70 && op <= 0x7f) || op == 0x9f || op == 0xf5 || op == 0xe0 || op == 0xe1 || op == 0xd6;
 }
 
@@ -1981,7 +1990,7 @@ private:
             bool os32;
             prefixes(out, os32);
             const unsigned z = os32 ? 4 : 2;
-            const unsigned form = pick(26);
+            const unsigned form = pick(28);
             bool memory = pick(3) == 0;  // the r/m operand becomes a memory one
             unsigned dst = 8;  // the GPR it writes (8: none or checked below)
             bool dst_byte = false;
@@ -2216,6 +2225,39 @@ private:
                 out.push_back(uint8_t(0xd4 + (which & 1)));
                 out.push_back(which == 0 && pick(64) == 0 ? uint8_t(0) : pick(4) ? uint8_t(10) : uint8_t(1 + pick(255)));
                 dst = 0;
+                break;
+            }
+            case 24: {  // BT, BTS, BTR, BTC r/m, imm8 (mostly below 32) or r; BSF, BSR r, r/m
+                out.push_back(0x0f);
+                const unsigned which = pick(3);
+                if (which == 2) {
+                    const unsigned kind = pick(4);
+                    out.push_back(uint8_t(0xa3 + 8 * kind));
+                    out.push_back(uint8_t(0xc0 | pick(64)));
+                    if (kind) dst = out.back() & 7;
+                } else if (which == 1) {
+                    const unsigned reg = 4 + pick(4);
+                    out.push_back(0xba);
+                    out.push_back(uint8_t(0xc0 | (reg << 3) | pick(8)));
+                    if (reg != 4) dst = out.back() & 7;
+                    out.push_back(uint8_t(pick(4) ? pick(32) : pick(256)));
+                } else {
+                    out.push_back(uint8_t(0xbc + pick(2)));
+                    out.push_back(uint8_t(0xc0 | pick(64)));
+                    dst = (out.back() >> 3) & 7;
+                }
+                break;
+            }
+            case 25: {  // DAA, DAS, AAA, AAS; half of them after ADD, ADC, SUB or SBB AL, r/m8, whose AL and flags
+                        // they take from the uop just ahead
+                static const uint8_t alu[] = {0x02, 0x12, 0x2a, 0x1a};
+                if (pick(2)) {
+                    out.push_back(alu[pick(4)]);
+                    out.push_back(uint8_t(0xc0 | pick(8)));
+                }
+                out.push_back(uint8_t(0x27 + (pick(4) << 3)));
+                dst = 0;
+                dst_byte = out.back() < 0x30;
                 break;
             }
             default: {  // MOV r, imm32 keeps values wide
