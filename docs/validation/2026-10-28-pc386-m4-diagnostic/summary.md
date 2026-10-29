@@ -41,7 +41,8 @@ runs on Kit B again.
 - FES branch `deano/interesting-yalow-d6a1e4`, on main `463783281c`. The
   shell is [`cores/fes-pc386/`](../../../sources/misteross/cores/fes-pc386/README.md#m4-diagnostic-shell).
 - Toolchain: [`cores/fes-pc386/toolchain.lock`](../../../sources/misteross/cores/fes-pc386/toolchain.lock):
-  Yosys `1f7d0273` (DeanoC/yosys#68 on the i386 lock's `238eac9a`), nextpnr
+  Yosys `1f7d0273` (DeanoC/yosys#68 on the i386 lock's `238eac9a`; the lock
+  has since moved to main's `0a7927bf`), nextpnr
   `bd7a1c0d`, Mistral `8fcc4cb4`, HIP router. Verilator 5.032 for the benches.
 - The machine as M1-M3 left it, with #1153's AT core memories in M10K
   ([below](#placement-and-the-at-cores-memories)): the M2 VGA, presenter and
