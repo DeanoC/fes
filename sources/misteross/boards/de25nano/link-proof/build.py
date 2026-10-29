@@ -204,6 +204,9 @@ def hps_boot_packaging(output: Path) -> dict:
 
 
 def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
+    verifier = capture()
+    if not verifier["committed"]:
+        raise BuildError("verification requires committed recipe source")
     inputs = json.loads((output / "inputs.json").read_text())
     verify_project(output, inputs)
     generated = json.loads((output / "generated-inputs.json").read_text())
@@ -224,6 +227,13 @@ def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
     packaging = hps_boot_packaging(output)
     packaging["compiled_sof"] = blob(output, output / "output_files/base.sof")
     packaging["quartus_pfg_sha256"] = selected_tools["quartus_pfg"]
+    verification = output / "verification-recipe"
+    verification.mkdir(exist_ok=False)
+    for name, data in verifier["files"].items():
+        target = verification / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
+    timing_script = verification / "sources/misteross/boards/de25nano/link-proof/build_timing.tcl"
     directory = output / "artifacts"
     directory.mkdir(exist_ok=False)
     summaries = {}
@@ -290,7 +300,7 @@ def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
                 raw_hashes[path.relative_to(output).as_posix()] = sha(path.read_bytes())
         before_audit = dict(raw_hashes)
         before_audit["root_partition.qdb"] = root_qdb["sha256"]
-        run([str(tools["quartus_sta"]), "-t", str(output / "fes_link/build_timing.tcl"), str(output), revision,
+        run([str(tools["quartus_sta"]), "-t", str(timing_script), str(output), revision,
              str(output / f"timing-{revision}")], output, f"{revision}-timing-audit.log")
         verify_files(output, before_audit)
         summaries[revision]["synchronizer_audit"] = {
@@ -320,6 +330,7 @@ def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
     verify_project(output, inputs)
     verify_files(output, generated)
     verify_hps_inputs(output)
+    verify_files(verification, {name: sha(data) for name, data in verifier["files"].items()})
     for key in ("compiled_sof", "bootloader", "vendor_recipe"):
         verify_files(output, {packaging[key]["path"]: packaging[key]["sha256"]})
     if sha((output / "root_partition.qdb").read_bytes()) != expected_root:
@@ -351,7 +362,6 @@ def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
         descriptor["personas"].append(persona)
     manifest = output / "artifacts.json"
     manifest.write_bytes(canonical(descriptor) + b"\n")
-    verifier = capture()
     build = {"format": 1, "kind": "fes.de25-quartus-pr-build", "diagnostic_only": True,
              "source_revision": inputs["source_revision"], "source_committed": inputs["source_committed"],
              "source_closure_sha256": inputs["source_closure_sha256"], "device": DEVICE,
@@ -367,7 +377,8 @@ def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
              "pfg_compare_scope": "retained vendor output; unsigned owner-key field absent, not a complete pairing check"}
     build["verification_recipe"] = {"source_revision": verifier["revision"],
         "source_committed": verifier["committed"],
-        "source_sha256": {name: sha(data) for name, data in verifier["files"].items()}}
+        "source_sha256": {name: sha(data) for name, data in verifier["files"].items()},
+        "snapshot": str(verification.relative_to(output)), "timing_script": blob(output, timing_script)}
     packaging["logs_sha256"] = {name: sha((output / name).read_bytes()) for name in
         ("base-compiled-info.log", "base-enrich.log", "base-enriched-info.log", "base-convert.log", "base-info.log", "base-integrity.log")}
     build["packaging"] = packaging
