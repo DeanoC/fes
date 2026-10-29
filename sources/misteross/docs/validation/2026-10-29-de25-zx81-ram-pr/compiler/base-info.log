@@ -1,0 +1,167 @@
+Info: *******************************************************************
+Info: Running Quartus Prime Programming File Generator
+    Info: Version 26.3.0 Build 114 10/14/2026 SC Pro Edition
+    Info: Copyright (C) 2026  Altera Corporation. All rights reserved.
+    Info: Your use of Altera Corporation's design tools, logic functions 
+    Info: and other software and tools, and any partner logic 
+    Info: functions, and any output files from any of the foregoing 
+    Info: (including device programming or simulation files), and any 
+    Info: associated documentation or information are expressly subject 
+    Info: to the terms and conditions of the Altera Program License 
+    Info: Subscription Agreement, the Altera Quartus Prime License Agreement,
+    Info: the Altera IP License Agreement, or other applicable license
+    Info: agreement, including, without limitation, that your use is for
+    Info: the sole purpose of programming logic devices manufactured by
+    Info: Altera and sold by Altera or its authorized distributors.  Please
+    Info: refer to the Altera Software License Subscription Agreements 
+    Info: on the Quartus Prime software download page.
+    Info: Processing started: Thu Oct 29 16:16:58 2026
+    Info: System process ID: 3898287
+Info: Command: quartus_pfg -i /home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-ram-pr/out/zx81-ram-quartus-frozen06/hps/project/artifacts/base.rbf
+==================================================
+General
+==================================================
+Device name: A5EB013BB23BE4SCS
+Software version: Quartus Prime Version 26.3.0 Build 114
+JTAG user code: 0xFFFFFFFF
+JTAG ID: 0x4362C0DD
+Secondary JTAG ID: 0x4362C0DD
+Configuration clock source: 125 MHz OSC_CLK_1 pin
+IO hash: 55ADCB2790E8E563C688A54B5B2833FEA162E6D0286A3AF32061C4F59A6B59B2
+Use external voltage reference: FALSE
+QSPI ownership after HPS bring up: SDM
+SOF file checksum: 0x0645B78E
+
+==================================================
+Configuration
+==================================================
+Configuration scheme: Active Serial x4
+Active serial clock source: 125 MHz Clock Frequency
+Remote system update MAX_RETRY count: 1
+HPS present: TRUE
+HPS/FPGA configuration order: HPS_AFTER_INIT_DONE
+HPS debug access port (DAP): DISABLED
+Allow HPS debug without certificate: FALSE
+FIPS Mode: NON_FIPS
+
+==================================================
+Configuration Pin Options
+==================================================
+SDM_IO0: NA
+SDM_IO1: AS_DATA1
+SDM_IO2: AS_CLK
+SDM_IO3: AS_DATA2
+SDM_IO4: AS_DATA0
+SDM_IO5: AS_nCSO0
+SDM_IO6: AS_DATA3
+SDM_IO7: AS_nCSO2
+SDM_IO8: AS_nCSO3
+SDM_IO9: AS_nCSO1
+SDM_IO10: NA
+SDM_IO11: nHPSCOLDRESET
+SDM_IO12: NA
+SDM_IO13: NA
+SDM_IO14: NA
+SDM_IO15: AS_RESET
+SDM_IO16: CONF_DONE
+
+==================================================
+Power Management & VID
+==================================================
+Version: 2
+VID enable: FALSE
+
+==================================================
+Error Detection CRC
+==================================================
+Enable internal scrubbing: FALSE
+Allow SEU fault injection: FALSE
+Enable external scrubbing: FALSE
+Enable CRAM integrity check: FALSE
+
+==================================================
+CvP settings
+==================================================
+Configuration via Protocol: OFF
+
+==================================================
+Partial Reconfiguration
+==================================================
+POF0 region ID: 0x01000000
+POF0 hash: 8662210B13586E7EB9EBD5152F1B6F0CF40F7DCAC0C3080C5B0BF0FC89C218D8
+
+==================================================
+Security
+==================================================
+Bitstream signed: FALSE
+Bitstream encrypted: FALSE
+Ownership Transfer Mode: FALSE
+
+==================================================
+Anti-Tamper
+==================================================
+Anti-tamper response: DISABLE
+
+==================================================
+Temperature
+==================================================
+Temperature threshold: 120°C
+
+==================================================
+Attestation
+==================================================
+CRL distribution point: https://
+
+==================================================
+Security Options
+==================================================
+Disable JTAG: OFF
+Force SDM clock to internal oscillator: OFF
+Use UDS Intel PUF: OFF
+User UDS Intel PUF: OFF
+Disable virtual eFuses: OFF
+Lock security eFuses: OFF
+Disable HPS debug: OFF
+Disable encryption key in eFuses: OFF
+Disable encryption key in BBRAM: OFF
+Disable Intrinsic ID PUF-wrapped encryption key in Quad SPI: OFF
+
+==================================================
+CMF Section
+==================================================
+Offset: 0x00000000
+Version: 0x1A030000 (26.3.0)
+Support firmware upgrade: TRUE (Max 4)
+Number of sections following: 3
+Signature Block Size: 4096 bytes
+Signed: True
+Keychain permission: SIGN_CODE (0x00000001)
+Keychain can be cancelled by ID: hash:1
+
+==================================================
+IO Section
+==================================================
+Offset: 0x0006A000
+Signature Block Size: 4096 bytes
+Signed: False
+
+==================================================
+HPS Section
+==================================================
+Offset: 0x000D0000
+Signature Block Size: 4096 bytes
+Signed: False
+
+==================================================
+CORE Section
+==================================================
+Offset: 0x000F6000
+Signature Block Size: 4096 bytes
+Signed: False
+
+
+Info: Quartus Prime Programming File Generator was successful. 0 errors, 0 warnings
+    Info: Peak virtual memory: 611 megabytes
+    Info: Processing ended: Thu Oct 29 16:16:58 2026
+    Info: Elapsed time: 00:00:00
+    Info: System process ID: 3898287
