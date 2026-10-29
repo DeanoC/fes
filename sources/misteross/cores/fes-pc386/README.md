@@ -274,7 +274,8 @@ the RTL, guest rates, core ID and interfaces from the OSS producer.
   registers, and flattened names become plain identifiers. Quartus reads that
   netlist and the shell's own files, with `QUARTUS` defined: the HDMI I2C pins
   come from the hard block, and `pc386_diag` takes no parameters.
-- Every analysis must pass on every clock, or the build publishes nothing.
+- Every analysis must pass on every clock, and TimeQuest must analyse every
+  clock, or the build publishes nothing.
 
 A diagnostic program is the command list plus what the host does between
 commands: stage bytes into the window, mark a point, dump window bytes, dump
