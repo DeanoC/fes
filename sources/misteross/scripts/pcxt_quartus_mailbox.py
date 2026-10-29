@@ -3,7 +3,7 @@
 This is a structural precondition for the optional diagnostic SDC. The actual
 mailbox proof, native timing, reset pulse/MTBF and physical IO remain distinct.
 """
-def validate_mailbox(before: dict, after: dict) -> dict:
+def validate_mailbox(before: dict, after: dict, *, half_rate_board: bool = True) -> dict:
     def require(condition, message):
         if not condition:
             raise ValueError('PC/XT mailbox: ' + message)
@@ -12,7 +12,7 @@ def validate_mailbox(before: dict, after: dict) -> dict:
     roles = ('received', 'sent', 'ack_meta', 'ack_sync', 'sent_meta', 'sent_sync',
              'hold_meta', 'hold_sync', 'published_bank', 'front')
     names = {r: 'system.video.adapter.' + r for r in roles}
-    names.update(hold_source='system.machine_reset', board_reset='board_reset_domain.board_reset',
+    names.update(hold_source='system.machine_reset', board_reset='board_reset_domain.board_reset' if half_rate_board else 'sys_reset',
                  pixel_reset='pixel_reset')
     wires, emitted, flops = {}, {}, {}
     for role, name in names.items():
@@ -34,7 +34,7 @@ def validate_mailbox(before: dict, after: dict) -> dict:
 
     require(cells.get('memory_clock', {}).get('type') == 'altera_pll' and
             cells.get('video_clock', {}).get('type') == 'altera_pll', 'missing PLL roots')
-    board = cells['memory_clock']['connections']['outclk'][2]
+    board = cells['memory_clock']['connections']['outclk'][2 if half_rate_board else 0]
     pixel = cells['video_clock']['connections']['outclk'][0]
     require(board != pixel, 'board/pixel clocks collapsed')
     for role, clock in [('received', pixel), ('sent', board), ('hold_source', board),

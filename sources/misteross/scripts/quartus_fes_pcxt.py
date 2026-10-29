@@ -77,7 +77,7 @@ def capture_sources(root: Path, output: Path) -> tuple[Path, dict[str, str]]:
     return frozen, identities
 
 
-def elaboration(source: Path, work: Path, library: Path) -> str:
+def elaboration(source: Path, work: Path, library: Path, *, package_profile=False, build_id=None) -> str:
     includes = [source / 'cores/fes-common/generated', work]
     includes += [source / ('cores/fes-common/vendor' if name in SHARED_VENDORS else CORE / 'vendor') / name
                  for name in CHIP_VENDORS]
@@ -86,11 +86,16 @@ def elaboration(source: Path, work: Path, library: Path) -> str:
     if any(any(c.isspace() or c in '\\";' for c in str(p)) for p in includes):
         raise ValueError('Yosys include directories must not contain whitespace, quotes or semicolons')
     quote = lambda p: '"' + str(p).replace('\\', '\\\\').replace('"', '\\"') + '"'
+    parameters = '-set MDA 0 -set SCANLINES 0 -set HALF_RATE_BOARD ' + ('0' if package_profile else '1')
+    if package_profile:
+        if not isinstance(build_id, str) or not re.fullmatch('[0-9a-f]{32}', build_id):
+            raise ValueError('package profile requires an explicit BUILD_ID')
+        parameters += " -set ENABLE_FES_COMPUTER 1 -set PHASED_HDMI_CLOCK 1 -set BUILD_ID 128'h" + build_id
     return (
         f'read_verilog -lib {quote(library)}; read_verilog -sv '
         + ' '.join('-I ' + str(p) for p in includes) + ' '
         + ' '.join(quote(source / p) for p in (str(ADAPTERS), *RTL))
-        + '; chparam -set MDA 0 -set SCANLINES 0 -set HALF_RATE_BOARD 1 top; '
+        + '; chparam ' + parameters + ' top; '
         # Both libraries spell disabled bus hold differently: OFF is the
         # board's Yosys primitive value, FALSE is Quartus's accepted spelling.
         'setparam -set enable_bus_hold "FALSE" t:altiobuf_bidir; '
@@ -107,7 +112,7 @@ def elaboration(source: Path, work: Path, library: Path) -> str:
         'write_verilog -noattr elaborated.v\n')
 
 
-def validate_renaming(work: Path) -> dict:
+def validate_renaming(work: Path, *, package_profile=False) -> dict:
     before = json.loads((work / 'before-names.json').read_text())['modules']
     after = json.loads((work / 'elaborated.json').read_text())['modules']
     if before.keys() != after.keys():
@@ -126,11 +131,17 @@ def validate_renaming(work: Path) -> dict:
                 'cyclonev_hps_interface_peripheral_i2c': 1, 'altddio_out': 1}
     if any(counts.get(kind) != count for kind, count in boundary.items()):
         raise ValueError('whole-board primitive boundary is incomplete')
+    memory_settings = ({'number_of_clocks': 2, 'output_clock_frequency0': '100.0 MHz',
+                        'output_clock_frequency1': '100.0 MHz', 'phase_shift0': '0 ps', 'phase_shift1': '5000 ps'}
+                       if package_profile else
+                       {'number_of_clocks': 4, 'output_clock_frequency0': '100.0 MHz',
+                        'output_clock_frequency1': '50.0 MHz', 'output_clock_frequency2': '50.0 MHz',
+                        'output_clock_frequency3': '50.0 MHz', 'phase_shift0': '0 ps',
+                        'phase_shift1': '10000 ps', 'phase_shift2': '0 ps', 'phase_shift3': '18000 ps'})
+    if package_profile and counts.get('cyclonev_hps_interface_mpu_general_purpose') != 1:
+        raise ValueError('package profile lacks its runtime mailbox')
     for name, settings in {
-        'memory_clock': {'number_of_clocks': 4, 'output_clock_frequency0': '100.0 MHz',
-                         'output_clock_frequency1': '50.0 MHz', 'output_clock_frequency2': '50.0 MHz',
-                         'output_clock_frequency3': '50.0 MHz', 'phase_shift0': '0 ps',
-                         'phase_shift1': '10000 ps', 'phase_shift2': '0 ps', 'phase_shift3': '18000 ps'},
+        'memory_clock': memory_settings,
         'video_clock': {'number_of_clocks': 2, 'output_clock_frequency0': '74.25 MHz',
                         'output_clock_frequency1': '74.25 MHz', 'phase_shift0': '0 ps',
                         'phase_shift1': '8979 ps'},
@@ -206,7 +217,7 @@ def timing_summary(work: Path, mailbox_contract: bool = False) -> dict:
         key = r['corner'] + '/' + r['kind']
         summary = by_corner.setdefault(key, {'endpoints': 0, 'failures': 0, 'worst': r})
         summary['endpoints'] += 1
-        summary['failures'] += slack < 0
+        summary['failures'] += r['slack_ns'].startswith('-')
         if slack < float(summary['worst']['slack_ns']):
             summary['worst'] = r
     for corner in {r['corner'] for r in counts}:
@@ -218,7 +229,7 @@ def timing_summary(work: Path, mailbox_contract: bool = False) -> dict:
         match = re.search(r'Found (\d+) results \((\d+) violated\)\.\s+Worst case slack is ([+-]?[\d.]+)', raw)
         if not match or not 0 < int(match[1]) < 100000 or not math.isfinite(float(match[3])):
             raise ValueError('missing or truncated minimum pulse-width capture')
-        pulse_width[corner] = {'checks': int(match[1]), 'failures': int(match[2]),
+        pulse_width[corner] = {'checks': int(match[1]), 'failures': int(match[2]) + int(match[3].startswith('-') and int(match[2]) == 0),
                                'minimum_slack_ns': float(match[3])}
     issues = {k: int(v) for k, v in re.findall(
         r'^;\s*([a-z_]+)\s*;\s*(\d+)\s*;', (work / 'audit/check-timing.rpt').read_text(), re.M)}
@@ -268,7 +279,7 @@ def run(command: list[str], work: Path, log: str, record: dict, env: dict | None
         raise RuntimeError(f'{command[0]} failed ({result.returncode}); see {work / log}')
 
 
-def main() -> int:
+def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--yosys', required=True, type=Path)
     parser.add_argument('--quartus-root', default=os.environ.get('QUARTUS_ROOTDIR', ''))
@@ -277,7 +288,11 @@ def main() -> int:
     parser.add_argument('--video-mailbox-contract', action='store_true',
                         help='prove and bind the held video mailbox before applying its scoped diagnostic SDC')
     parser.add_argument('--output', type=Path, help='new output directory; existing evidence is never overwritten')
-    args = parser.parse_args()
+    parser.add_argument('--package-profile', action='store_true')
+    parser.add_argument('--build-id')
+    args = parser.parse_args(argv)
+    if args.package_profile and not args.video_mailbox_contract:
+        parser.error('package profile requires --video-mailbox-contract')
     seeds = args.seed or [1, 2, 3]
     if len(seeds) != len(set(seeds)) or any(not 1 <= s <= 2147483647 for s in seeds):
         parser.error('seeds must be distinct positive signed 32-bit integers')
@@ -286,8 +301,9 @@ def main() -> int:
     record = {'classification': 'whole-board Quartus diagnostic; not physical acceptance',
               'toolchain': 'quartus', 'video_mailbox_contract': args.video_mailbox_contract,
               'whole_board_qualified': False, 'device': DEVICE, 'seeds': seeds,
-              'profile': {'MDA': 0, 'SCANLINES': 0, 'HALF_RATE_BOARD': 1},
-              'clock_targets_mhz': {'cpu': 100, 'board': 50, 'pixel': 74.25},
+              'profile': {'MDA': 0, 'SCANLINES': 0, 'HALF_RATE_BOARD': int(not args.package_profile),
+                          'ENABLE_FES_COMPUTER': int(args.package_profile), 'BUILD_ID': args.build_id},
+              'clock_targets_mhz': {'cpu': 100, 'board': 100 if args.package_profile else 50, 'pixel': 74.25},
               'operations': [], 'runs': [], 'hardware': False, 'status': 'preparing'}
     output = None
     created = False
@@ -341,13 +357,14 @@ def main() -> int:
         for vendor in ('kf8259', 'kf8253', 'kf8255'):
             generator.verify_vendor(vendor)
         generator.board_inputs(work)
-        (work / 'elaborate.ys').write_text(elaboration(source, work, library))
+        (work / 'elaborate.ys').write_text(elaboration(source, work, library, package_profile=args.package_profile, build_id=args.build_id))
         run([str(yosys), '-s', 'elaborate.ys'], work, 'elaborate.log', record)
-        record['elaboration'] = validate_renaming(work)
+        record['elaboration'] = validate_renaming(work, package_profile=args.package_profile)
         if args.video_mailbox_contract:
             record['mailbox_binding'] = validate_mailbox(
                 json.loads((work / 'before-names.json').read_text())['modules']['top'],
-                json.loads((work / 'elaborated.json').read_text())['modules']['top'])
+                json.loads((work / 'elaborated.json').read_text())['modules']['top'],
+                half_rate_board=not args.package_profile)
         record['generated'] = {p.name: sha(p) for p in work.iterdir() if p.suffix in ('.mem', '.hex', '.vh')}
         record['elaborated_verilog_sha256'] = sha(work / 'elaborated.v')
         for seed in seeds:

@@ -88,20 +88,17 @@ class RecipeRegistryTest(unittest.TestCase):
         self.assertNotIn("fes.riscv", build.selected_packages(
             {"fpga_packages": [{"core_id": "fes.pong"}]}, "native-integration-dev"))
 
-    def test_pcxt_is_registered_as_an_unqualified_format2_diagnostic_package(self):
+    def test_pcxt_is_a_quartus_diagnostic_without_dummy_gpu_fields(self):
         recipe = recipes.recipe_for("fes.pcxt")
-        self.assertEqual(recipe.producer_module, "scripts.build_fes_pcxt_oss")
-        self.assertEqual(recipe.producer_script, "scripts/build_fes_pcxt_oss.py")
-        self.assertEqual(recipe.authenticate, "authenticate_tools")
-        self.assertEqual(recipe.lock_path, "cores/fes-pcxt/toolchain.lock")
-        self.assertEqual(recipe.selection_filename, "fes-pcxt.package-selection.toml")
-        self.assertEqual(recipe.package_dir_env, "FES_PCXT_PACKAGE_DIR")
-        self.assertEqual(recipe.package_selection_env, "FES_PCXT_PACKAGE_SELECTION")
-        self.assertEqual(recipe.quartus_role, "bring-up/check oracle")
-        self.assertEqual(recipe.pnr["seeds"], [3])
-        self.assertEqual(recipe.pnr["timing_weights"], [2000])
-        self.assertTrue(recipe.pnr["timing_allow_fail"])
-        self.assertEqual(recipe.pnr["freq"], "100")
+        self.assertEqual(recipe.producer_module, "scripts.build_fes_pcxt_quartus")
+        self.assertEqual(recipe.toolchain, "quartus")
+        self.assertEqual(recipe.lock_path, "cores/fes-pcxt/quartus.lock")
+        self.assertIsNone(recipe.pnr)
+        self.assertIsNone(recipe.gpu_router)
+        self.assertIsNone(recipe.hip_architectures)
+        self.assertEqual(recipe.quartus["seeds"], [1, 2, 3])
+        env = recipes.producer_environment({"FES_TOOLCHAIN_GPU_ROUTER": "HIP"}, recipe)
+        self.assertNotIn("FES_TOOLCHAIN_GPU_ROUTER", env)
 
     def test_atari_st_registered_producer_has_bounded_selection(self):
         recipe = recipes.recipe_for("fes.atari-st")
@@ -142,10 +139,10 @@ class RecipeRegistryTest(unittest.TestCase):
             " sorted(pnr_recipe.recipe_for(core)['flags']), matching_schemas(core)]"
             " for core in json.loads(input())}))\n")
         result = subprocess.run([sys.executable, "-c", program], cwd=source, check=True,
-                                input=json.dumps(sorted(recipes.FORMAT2_RECIPES)),
+                                input=json.dumps(sorted(k for k, r in recipes.FORMAT2_RECIPES.items() if r.toolchain == "oss")),
                                 capture_output=True, text=True, timeout=60)
         selected = json.loads(result.stdout)
-        self.assertEqual(set(selected), set(recipes.FORMAT2_RECIPES))
+        self.assertEqual(set(selected), {k for k, r in recipes.FORMAT2_RECIPES.items() if r.toolchain == "oss"})
         for core_id, (pin, flags, schemas) in selected.items():
             with self.subTest(core=core_id):
                 recipe = recipes.recipe_for(core_id)
@@ -232,15 +229,6 @@ class RecipeRegistryTest(unittest.TestCase):
                 "package_dir_env": "FES_SPECTRUM_PACKAGE_DIR",
                 "package_selection_env": "FES_SPECTRUM_PACKAGE_SELECTION",
             },
-            "fes.pcxt": {
-                "producer_script": "scripts/build_fes_pcxt_oss.py",
-                "producer_module": "scripts.build_fes_pcxt_oss",
-                "lock_path": "cores/fes-pcxt/toolchain.lock",
-                "selection_filename": "fes-pcxt.package-selection.toml",
-                "authenticate": "authenticate_tools",
-                "package_dir_env": "FES_PCXT_PACKAGE_DIR",
-                "package_selection_env": "FES_PCXT_PACKAGE_SELECTION",
-            },
         }
         for core_id, fields in expected.items():
             recipe = recipes.recipe_for(core_id)
@@ -265,7 +253,7 @@ class RecipeRegistryTest(unittest.TestCase):
         coleco = recipes.recipe_for("fes.coleco")
         sms = recipes.recipe_for("fes.sms")
         for core_id in ("fes.pong", "fes.zx81", "fes.coleco", "fes.sms",
-                        "fes.sg1000", "fes.apple2", "fes.c64", "fes.spectrum", "fes.pcxt"):
+                        "fes.sg1000", "fes.apple2", "fes.c64", "fes.spectrum"):
             self.assertEqual(recipes.recipe_for(core_id).lock_path,
                              f"cores/fes-{core_id.removeprefix('fes.')}/toolchain.lock")
         self.assertEqual(len({r.lock_path for r in (pong, zx81, coleco, sms)}), 4)

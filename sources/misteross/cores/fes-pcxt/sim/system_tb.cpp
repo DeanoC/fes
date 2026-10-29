@@ -51,7 +51,8 @@ int main(int argc,char**argv) {
             unsigned want=0;
             if(x>=160 && x<1120 && y<720) {
                 unsigned sx=(x-160)*(mda?720u:640u)/960;
-                bool ink=mda ? sx%9==0 || sx%9>=7 : (sx%16<8 ? !(sx&1):bool(sx&1));
+                bool ink=mda ? sx%9==0 || sx%9>=7 :
+                    ((sx<16 && y*200/720<8) || (sx%16<8 ? !(sx&1):bool(sx&1)));
                 want=ink?0xffffff:0;
             }
             require((r&0xffffff)==want,"SDRAM CPU/ISA-to-720p pixel",cycles);++pixels;

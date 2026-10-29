@@ -45,41 +45,13 @@ class ManifestTests(unittest.TestCase):
                 self.assertTrue(any(source == root or source.startswith(root + '/') for root in roots),
                                 (producer, source))
 
-    def test_pcxt_producer_closure_covers_all_transitive_hdl_includes(self):
-        from scripts import build_fes_pcxt_oss as producer
-
-        roots = load_manifest()['build_fes_pcxt_oss']
-        pinned = set(producer.PINNED_INPUTS)
-        include_dirs = [
-            Path('cores/fes-common/generated'),
-            producer.OUTPUT_RELATIVE,
-            *(Path(directory) for directory in producer.board.CHIP_VENDORS),
-        ]
-        pending = list(producer.board.RTL)
-        seen = set()
-        generated_outputs = {Path(path).name for path in producer.BUILD_OUTPUTS}
-
-        while pending:
-            source = pending.pop()
-            if source in seen:
-                continue
-            seen.add(source)
-            text = (ROOT / source).read_text(encoding='utf-8')
-            for header in re.findall(r'^\s*`include\s+"([^"]+)"', text, re.MULTILINE):
-                candidates = [Path(source).parent / header]
-                candidates.extend(directory / header for directory in include_dirs)
-                generated = producer.OUTPUT_RELATIVE / header
-                if header in generated_outputs and (ROOT / generated).is_file():
-                    continue
-                included = next((path.as_posix() for path in candidates
-                                 if (ROOT / path).is_file()), None)
-                if included is None:
-                    self.assertIn(header, generated_outputs, (source, header))
-                    continue
-                with self.subTest(source=source, header=included):
-                    self.assertIn(included, pinned)
-                    self.assertTrue(covered(included, roots), included)
-                pending.append(included)
+    def test_pcxt_quartus_captures_the_complete_core_and_board_inputs(self):
+        from scripts import build_fes_pcxt_quartus as producer
+        roots = producer.source_roots(ROOT)
+        for path in producer.board.input_paths(ROOT):
+            self.assertTrue(covered(str(path), roots), path)
+        self.assertIn('cores/fes-pcxt', roots)
+        self.assertIn(producer.RECIPE, roots)
 
     def test_manifest_rejects_unsorted_or_escaping_roots(self):
         with tempfile.TemporaryDirectory() as temp:

@@ -295,7 +295,7 @@ class AffectedTests(unittest.TestCase):
                      'scripts/rom_map.py', 'scripts/rom_map_oracle.py', 'tests/test_rom_map.py',
                      'tests/test_core_package_v3.py', 'scripts/build_fes_atari_st_oss.py',
                      'tests/test_atari_st_producer.py', 'tests/test_atari_st_slot_card.py',
-                     'scripts/build_fes_pcxt_oss.py'):
+                     'scripts/build_fes_pcxt_quartus.py'):
             with self.subTest(path=path):
                 result = plan(['sources/misteross/' + path])
                 self.assertTrue(result['lanes']['fpga'])

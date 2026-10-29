@@ -10,13 +10,12 @@ registered `fes.pcxt` recipe builds a diagnostic package with fixed CGA Direct
 video and the standard identity/execution mailbox; it can start the built-in
 diagnostic, but cannot boot DOS or PC/XT games yet. The storage lane connects conventional RAM and firmware to the existing
 addon SDRAM controller and boots the display diagnostic through its physical
-command interface in host simulation. The CGA Direct board diagnostic has no
-accepted timing result: the earlier native signoff was rejected by the
-[Quartus cross-check](https://github.com/DeanoC/fes/issues/840).
-The package forwards HDMI on a 74.25 MHz clock phased 8979 ps after its pixel
-data registers; the standard system and pixel frequencies remain unchanged.
-Fixed video is inline, so the package does not need a separate video-parts
-inventory. SDRAM pad timing and hardware remain unqualified.
+command interface in host simulation. The normal package producer is Quartus Lite 17.0.2, with a common 100 MHz
+CPU/motherboard/SDRAM clock and 74.25 MHz CGA Direct output. It requires
+all declared seeds to pass reported internal setup, hold, recovery, removal
+and pulse-width checks, plus a byte-identical independent seed-1 rebuild.
+External SDRAM/HDMI, HPS and physical reset qualification remain open.
+Nextpnr is an advisory diagnostic, not the normal package producer.
 The existing RAM Tester
 [external timing model](../../docs/architecture.md#sdram-external-timing-model)
 is the starting point for pad qualification. PC/XT's current board shell uses
@@ -118,10 +117,11 @@ unconstrained paths. Missing or truncated captures reject. The initial SDC
 derives PLL clocks and uncertainty without clock groups, false paths or
 external delay assumptions. An exit code of zero means the diagnostic was
 captured; negative slacks and uncovered interfaces remain explicit in
-`summary.json`. This does not implement a Quartus package variant, establish
-physical board timing or authorize programming a kit. A product variant still
-needs the FES recipe/package rollout, complete timing and reproducibility
-checks, and hardware acceptance of its own bytes.
+`summary.json`. The package producer selects `--package-profile` with an
+explicit `--build-id` and requires `--video-mailbox-contract`. That configuration
+enables the runtime mailbox, common 100 MHz board clock and phased HDMI.
+The standalone default remains the CPU100/board50 experiment; its timing does
+not qualify the package configuration.
 
 `--video-mailbox-contract` is a separate diagnostic opt-in. It runs the real
 CGA/MDA ownership proofs from the captured sources, binds the declarations
@@ -135,6 +135,50 @@ payload path timed. No clock group is cut. Every fit captures all 24 direct
 interstage setup/hold checks across four corners. Reset pulse width,
 metastability, external IO and HPS timing remain open. The ordinary invocation
 keeps its original constraints.
+
+### Normal Quartus package and acceptance
+
+From the FES root, with the pinned installations available:
+
+```sh
+export QUARTUS_ROOTDIR=/absolute/quartus
+export FES_PCXT_YOSYS=/absolute/pcxt-locked/install/bin/yosys
+python3 scripts/core_dev.py prepare --core fes.pcxt --output /absolute/new-candidate
+```
+
+The recipe selects `scripts/build_fes_pcxt_quartus.py`. `quartus.lock` binds
+the exact Lite version and Yosys binary. Functional identity includes the full
+Quartus/Yosys installation digests, selected recipe, complete source closure,
+firmware, pin/SDC sources and clock profile. It has no GPU selection.
+Builds retain each seed and the independent repeat under
+`build/fes-pcxt-quartus/<build-id>/`. They reject any reported internal timing
+miss, missing coverage inventory or changed repeat RBF. The resulting format-2
+package remains an experimental diagnostic; external physical acceptance,
+BIOS/DOS, keyboard and disk support are separate.
+
+The ROM displays static black/white stripes and then halts. Only after SDRAM,
+DMA, both display adapters and status polling pass does it draw a solid white
+16-dot by 8-line block at the CGA image's top left and write `AA` to RAM `00600`.
+A halt, fixed picture, rejected private debug read or no keyboard response is
+not independently a failure. The package exposes no keyboard/debug interface.
+
+For a leased kit run, use a private host and the normal package acceptance
+path; do not replace the shared host. Capture three complete HDMI frames after
+boot, then run this checker from the FES root (ffmpeg/ffprobe required):
+
+```sh
+python3 scripts/pcxt_diagnostic_acceptance.py frame1.png frame2.png frame3.png \
+  --output /absolute/diagnostic-result.json
+```
+
+The checker compares the entire scaled stripe picture, each output row,
+monochrome output and the completion block. Identical frames are expected.
+A cold launch must first clear the previous execution; verify package/build
+identity and Stop/baseline restoration through the normal lease lifecycle.
+For historical captures from the earlier ROM, `--historical-pattern` checks
+the old stripes but explicitly leaves final firmware completion unverified.
+It cannot accept the new package. Passing this image check is a hardware
+diagnostic result, not whole-board physical timing or DOS compatibility.
 
 ### Physical timing inputs
 
@@ -544,10 +588,10 @@ keyboard and media interfaces remain disabled.
 make toolchain-fes-pcxt CACHE_ROOT=/absolute/toolchain-cache
 python3 scripts/sim_fes_pcxt.py --suite system
 python3 scripts/sim_fes_pcxt.py --suite system-mda
-FES_GPU_LEASE_OWNER=pcxt-agent GPU_LEASE_MAX_PER_OWNER=2 make build-fes-pcxt CACHE_ROOT=/absolute/toolchain-cache
-FES_GPU_LEASE_OWNER=pcxt-agent GPU_LEASE_MAX_PER_OWNER=2 make build-fes-pcxt CACHE_ROOT=/absolute/toolchain-cache PCXT_BUILD_ARGS='--mda --scanlines'
+FES_GPU_LEASE_OWNER=pcxt-agent GPU_LEASE_MAX_PER_OWNER=2 python3 scripts/build_fes_pcxt.py --cache-root /absolute/toolchain-cache
+FES_GPU_LEASE_OWNER=pcxt-agent GPU_LEASE_MAX_PER_OWNER=2 python3 scripts/build_fes_pcxt.py --cache-root /absolute/toolchain-cache PCXT_BUILD_ARGS='--mda --scanlines'
 # Optional frontend/resource probe; no route:
-make build-fes-pcxt CACHE_ROOT=/absolute/toolchain-cache PCXT_BUILD_ARGS='--synth-only'
+python3 scripts/build_fes_pcxt.py --cache-root /absolute/toolchain-cache PCXT_BUILD_ARGS='--synth-only'
 # From the FES repository root, prepare the installable diagnostic package:
 python3 scripts/core_dev.py prepare --core fes.pcxt --output out/pcxt-package
 ```

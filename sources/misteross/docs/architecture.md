@@ -2926,10 +2926,14 @@ identity/execution mailbox and fixed CGA Direct video. Its forwarded HDMI clock
 uses an 8.979 ns phase offset from pixel-data updates; the system and pixel
 rates do not change. Fixed video is inline in the RBF and needs no external
 video-part index. Keyboard, media and physical socket interfaces are not
-declared. The package carries the known 71.18/74.25 MHz video and 90.88/100 MHz
-main-clock miss tracked by FES #840; it does not claim timing closure, physical
-socket qualification or hardware acceptance. Existing linker layout admission remains closed until an exact
-shell and its physical sockets are qualified.
+declared. The registered producer is Quartus, with the common 100 MHz package profile,
+proof-bound video mailbox constraints and phased HDMI. All declared seeds
+must pass reported internal checks; an independent first-seed rebuild must
+reproduce the RBF. Functional identity binds the installed tools and full
+selected source closure. External physical timing/reset qualification and
+exact-artifact hardware acceptance remain separate from this diagnostic seal.
+Existing linker layout admission remains closed until an exact shell and its
+physical sockets are qualified.
 
 The target is software for an IBM 5160-class machine, including bootable
 floppy games and DOS games that access hardware directly. The baseline is an
@@ -3247,7 +3251,7 @@ I/O strobes and PIC/PIT/PPI chip selects are registered predictions of the
 existing state/phase decode, preserving every active/release cycle while
 removing that decode from the peripheral's same-cycle control path. Warm reset/HOLD
 preserve storage/refresh; HOLD resets the machine and mutes video.
-`make build-fes-pcxt CACHE_ROOT=/absolute/cache` retains each standalone
+`python3 scripts/build_fes_pcxt.py --cache-root /absolute/cache` retains each standalone
 diagnostic synthesis/route attempt under `build/diagnostic/fes-pcxt/`.
 `python3 scripts/core_dev.py prepare --core fes.pcxt --output out/pcxt-package`
 uses the registered producer to create an installable RBF and manifest under

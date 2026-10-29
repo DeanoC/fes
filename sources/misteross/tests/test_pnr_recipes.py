@@ -43,7 +43,6 @@ LOCK_SHA256 = {
     "fes.spectrum-plus3": "213604b82009022085ea1bc504207da3c5b56db044d2e836fce8688d246afec3",
     "fes.pentagon": "213604b82009022085ea1bc504207da3c5b56db044d2e836fce8688d246afec3",
     "fes.riscv": "2669044d4d481c94cf6ba7127614077480fd65ba730a784ac26f747764e472cf",
-    "fes.pcxt": "526fae173ab429cfbe65dba15ad9422e408db27fc27117130926160fea60da4f",
     "fes.ramtest": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
     "fes.atari-st": "e4a11eac287674e473ab33ae356595245d564d32623be5b90472740d02aaecdb",
 }
@@ -108,7 +107,6 @@ GOLDENS = {
     "fes.spectrum-plus3": ("09c8a0e75e87113ac9cfd5a05071d62431ce8427b4d7b95c38897d5e95305c29", "df1e8572d39b1baa8febcd96bee550765c2d5451b27baea60682e52a5d87f21d"),
     "fes.pentagon": ("09c8a0e75e87113ac9cfd5a05071d62431ce8427b4d7b95c38897d5e95305c29", "df1e8572d39b1baa8febcd96bee550765c2d5451b27baea60682e52a5d87f21d"),
     "fes.riscv": ("c7be1fd18e5fea4deb93dc7247e759409c802db3073e11659ac591ddb68b589b", "213407fd4fd731c94a022df86b5460388dd691a54d5f7cb390cd2e5c0e80126a"),
-    "fes.pcxt": ("d56ed213794d92ba21b7b111bc2ea31bd60e9d94f2388cfc494cc137296ac594", "2f0cff584410f19cddc5e1e75f645324a2f1922341e84817011ffe6698d391b4"),
     "fes.ramtest": ("ede6474bf85ce45e0631d4edb375bc37ab9c1161aae0a265f3c5c34920947781", "ded346bda6c66889e7f08e994eb82964871784b747cbc24159782b25406da42e"),
     "fes.atari-st": ("024942708300607968eb887324d48912d50c96634fe7ea0cd1a74d16776dbfd0", "31597590be7e868a81521a62ceaa190e7af72dfffc106b9c5898646ea56e040a"),
 }
@@ -134,7 +132,6 @@ ARGV_MATRIX_GOLDENS = {
     "fes.spectrum-plus3": "e3836e041f0ebefcf4eeff1c8969849321ce5f9ada1ed30e499cc2064febe060",
     "fes.pentagon": "e3836e041f0ebefcf4eeff1c8969849321ce5f9ada1ed30e499cc2064febe060",
     "fes.riscv": "177f0476e55e89727fd172de68e2a08b4c684e2a0c99184e4330acfaa4efa85c",
-    "fes.pcxt": "0c29ee23b9a1301052e549577005798822d5b00122e5c7e62a4b3b639ce20309",
     "fes.ramtest": "159f755b9a023c72346c869160555cb102132b77c7ca714bd0b52980be3d4079",
     "fes.atari-st": "36c86eaedd189ac95d79f18c08cd140d6def21d83613e863d6dae20567ab6d84",
 }
@@ -239,9 +236,11 @@ class PnrRecipeTests(unittest.TestCase):
     def test_every_registered_lock_pins_a_recipe_with_its_option_schema(self):
         from scripts.lockfile import load_lock
         registry = tomllib.loads((ROOT / "config/core-recipes.toml").read_text())
-        self.assertEqual(set(GOLDENS), {entry["core_id"] for entry in registry["recipes"]})
+        self.assertEqual(set(GOLDENS), {entry["core_id"] for entry in registry["recipes"] if entry.get("toolchain", "oss") == "oss"})
         self.assertEqual(set(LOCK_SHA256), set(GOLDENS))
         for entry in registry["recipes"]:
+            if entry.get("toolchain", "oss") != "oss":
+                continue
             core_id = entry["core_id"]
             with self.subTest(core=core_id):
                 lock = ROOT / "sources/misteross" / entry["lock_path"]
@@ -735,7 +734,7 @@ class PnrRecipeTests(unittest.TestCase):
     def test_search_producers_bind_to_the_registered_recipe(self):
         entries = tomllib.loads((ROOT / "config/core-recipes.toml").read_text())["recipes"]
         for entry in entries:
-            if entry["pnr"]["argv_style"] != "search":
+            if entry.get("toolchain", "oss") != "oss" or entry["pnr"]["argv_style"] != "search":
                 continue
             source = ROOT / "sources/misteross" / entry["producer_script"]
             tree = ast.parse(source.read_text())

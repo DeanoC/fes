@@ -290,12 +290,13 @@ coverage, including DMA and refresh. The diagnostic board builder supplies
 PLL/reset, SDRAM capture/pads and HDMI, with separate retained attempts under
 `sources/misteross/build/diagnostic/fes-pcxt/`. `fes.pcxt` now has an installable
 format-2 diagnostic package with a minimal `fes.computer` identity/execution
-mailbox and fixed CGA Direct video. The known OSS timing miss remains accepted
-for packaging: video 71.18/74.25 MHz and main 90.88/100 MHz. The CGA Direct
-diagnostic was rejected by the [Quartus cross-check](https://github.com/DeanoC/fes/pull/836#issuecomment-6261235615),
-and [#840](https://github.com/DeanoC/fes/issues/840) remains open. Package creation
-does not establish timing closure, SDRAM pad qualification, physical socket
-containment or hardware acceptance. BIOS/DOS/game compatibility, keyboard and
+mailbox and fixed CGA Direct video. The registered package producer uses Quartus with a common 100 MHz board,
+74.25 MHz CGA Direct video and a visible firmware-completion block. All declared
+seeds must pass reported internal timing; the first seed must reproduce its RBF.
+Nextpnr remains advisory under [#840](https://github.com/DeanoC/fes/issues/840).
+The package does not establish external SDRAM/HDMI/HPS/reset qualification,
+physical socket containment or exact-artifact hardware acceptance.
+BIOS/DOS/game compatibility, keyboard and
 other profiles remain open. See the
 [PC/XT diagnostic guide](../sources/misteross/cores/fes-pcxt/README.md#assembled-board-diagnostic).
 
