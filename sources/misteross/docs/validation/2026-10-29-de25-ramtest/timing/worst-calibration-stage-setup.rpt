@@ -1,0 +1,138 @@
+----------------
+; Command Info ;
+----------------
+Report Timing: Found 1 setup paths (0 violated).  Worst case slack is 9.542 
+
+Tcl Command:
+    report_timing -setup -file /home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-43c248d2df/final/1-calibration-stage-setup.rpt -from [get_registers {soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[0]}] -to [get_registers {soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[1]}] -npaths 1 -detail full_path
+
+Options:
+    -from [get_registers {soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[0]}] 
+    -to [get_registers {soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[1]}] 
+    -setup 
+    -npaths 1 
+    -detail full_path 
+    -file {/home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-43c248d2df/final/1-calibration-stage-setup.rpt} 
+
+Snapshot:
+    final
+
+Delay Model:
+    Slow fix4 0C Model
+
++----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+; Summary of Paths                                                                                                                                                                                                                                         ;
++-------+-------------------------------------------------------------------------+-------------------------------------------------------------------------+--------------------------+--------------------------+--------------+------------+------------+
+; Slack ; From Node                                                               ; To Node                                                                 ; Launch Clock             ; Latch Clock              ; Relationship ; Clock Skew ; Data Delay ;
++-------+-------------------------------------------------------------------------+-------------------------------------------------------------------------+--------------------------+--------------------------+--------------+------------+------------+
+; 9.542 ; soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[0] ; soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[1] ; pll_inst|iopll_0_outclk0 ; pll_inst|iopll_0_outclk0 ; 10.000       ; -0.017     ; 0.467      ;
++-------+-------------------------------------------------------------------------+-------------------------------------------------------------------------+--------------------------+--------------------------+--------------+------------+------------+
+
+Path #1: Setup slack is 9.542 
+===============================================================================
++-----------------------------------------------------------------------------------------------------------+
+; Path Summary                                                                                              ;
++---------------------------------+-------------------------------------------------------------------------+
+; Property                        ; Value                                                                   ;
++---------------------------------+-------------------------------------------------------------------------+
+; From Node                       ; soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[0] ;
+; To Node                         ; soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[1] ;
+; Launch Clock                    ; pll_inst|iopll_0_outclk0                                                ;
+; Latch Clock                     ; pll_inst|iopll_0_outclk0                                                ;
+; SDC Exception                   ; No SDC Exception on Path                                                ;
+; Data Arrival Time               ; 5.923                                                                   ;
+; Data Required Time              ; 15.465                                                                  ;
+; Slack                           ; 9.542                                                                   ;
+; Worst-Case Operating Conditions ; Slow fix4 0C Model                                                      ;
++---------------------------------+-------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------+
+; Statistics                                                                           ;
++------------------------+--------+-------+-------------+------------+--------+--------+
+; Property               ; Value  ; Count ; Total Delay ; % of Total ; Min    ; Max    ;
++------------------------+--------+-------+-------------+------------+--------+--------+
+; Setup Relationship     ; 10.000 ;       ;             ;            ;        ;        ;
+; Clock Skew             ; -0.017 ;       ;             ;            ;        ;        ;
+; Data Delay             ; 0.467  ;       ;             ;            ;        ;        ;
+; Number of Logic Levels ;        ; 0     ;             ;            ;        ;        ;
+; Physical Delays        ;        ;       ;             ;            ;        ;        ;
+;  Arrival Path          ;        ;       ;             ;            ;        ;        ;
+;   Clock                ;        ;       ;             ;            ;        ;        ;
+;    IC                  ;        ; 2     ; 1.652       ; 28         ; 0.000  ; 1.652  ;
+;    Cell                ;        ; 11    ; 3.879       ; 66         ; 0.000  ; 1.520  ;
+;    PLL Compensation    ;        ; 1     ; -0.392      ; 0          ; -0.392 ; -0.392 ;
+;    uTco                ;        ; 1     ; 0.317       ; 5          ; 0.317  ; 0.317  ;
+;   Data                 ;        ;       ;             ;            ;        ;        ;
+;    IC                  ;        ; 1     ; 0.154       ; 33         ; 0.154  ; 0.154  ;
+;    Cell                ;        ; 1     ; 0.000       ; 0          ; 0.000  ; 0.000  ;
+;    uTco                ;        ; 1     ; 0.313       ; 67         ; 0.313  ; 0.313  ;
+;  Required Path         ;        ;       ;             ;            ;        ;        ;
+;   Clock                ;        ;       ;             ;            ;        ;        ;
+;    IC                  ;        ; 2     ; 1.460       ; 30         ; 0.000  ; 1.460  ;
+;    Cell                ;        ; 11    ; 3.105       ; 64         ; 0.000  ; 1.007  ;
+;    PLL Compensation    ;        ; 1     ; -0.560      ; 0          ; -0.560 ; -0.560 ;
+;    uTco                ;        ; 1     ; 0.277       ; 6          ; 0.277  ; 0.277  ;
++------------------------+--------+-------+-------------+------------+--------+--------+
+Note: Negative delays are omitted from totals when calculating percentages
+
++-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+; Data Arrival Path                                                                                                                                                                                                 ;
++---------+----------+----+------+--------+----------------------+------------------+-------------------------------------------------------------------------------------------------------------------------------+
+; Total   ; Incr     ; RF ; Type ; Fanout ; Location             ; Element Type     ; Element                                                                                                                       ;
++---------+----------+----+------+--------+----------------------+------------------+-------------------------------------------------------------------------------------------------------------------------------+
+; 0.000   ; 0.000    ;    ;      ;        ;                      ;                  ; launch edge time                                                                                                              ;
+; 5.456   ; 5.456    ;    ;      ;        ;                      ;                  ; clock path                                                                                                                    ;
+;   0.000 ;   0.000  ;    ;      ;        ;                      ;                  ; source latency                                                                                                                ;
+;   0.000 ;   0.000  ;    ;      ; 1      ; PIN_BF23             ; I/O pad          ; CLOCK2_50                                                                                                                     ;
+;   0.000 ;   0.000  ; RR ; IC   ; 1      ; IOIBUF_X121_Y8_N1201 ; I/O input buffer ; CLOCK2_50~input|i                                                                                                             ;
+;   0.751 ;   0.751  ; RR ; CELL ; 1      ; IOIBUF_X121_Y8_N1201 ; I/O input buffer ; CLOCK2_50~input|o                                                                                                             ;
+;   2.271 ;   1.520  ; RR ; CELL ; 1      ; IOPLL_X121_Y6_N846   ; IOPLL            ; pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0                                                                                     ;
+;   2.480 ;   0.209  ; RR ; CELL ; 2      ; IOPLL_X121_Y6_N846   ; IOPLL            ; pll_inst|iopll_0|tennm_ph2_iopll~hviowr/xpllwrap_top/xpllwrap_bf/xiopllwrap_top/xbf/xiopll_custom/xpm_pll_so/clkin[0]         ;
+;   2.673 ;   0.193  ; RR ; CELL ; 2      ; IOPLL_X121_Y6_N846   ; IOPLL            ; pll_inst|iopll_0|tennm_ph2_iopll~hviowr/xpllwrap_top/xpllwrap_bf/xiopllwrap_top/xbf/xiopll_custom/xiopll_core/xncnt_iopll/clk ;
+;   2.801 ;   0.128  ; RR ; CELL ; 1      ; IOPLL_X121_Y6_N846   ; IOPLL            ; pll_inst|iopll_0|tennm_ph2_iopll~pllnout                                                                                      ;
+;   2.945 ;   0.144  ; RR ; CELL ; 1      ; IOPLL_X121_Y6_N846   ; IOPLL            ; pll_inst|iopll_0|tennm_ph2_iopll~vco_refclk                                                                                   ;
+;   2.553 ;   -0.392 ; RR ; COMP ; 2      ; IOPLL_X121_Y6_N846   ; IOPLL            ; pll_inst|iopll_0|tennm_ph2_iopll~vctrl                                                                                        ;
+;   2.553 ;   0.000  ; RR ; CELL ; 1      ; IOPLL_X121_Y6_N846   ; IOPLL            ; pll_inst|iopll_0|tennm_ph2_iopll~vcoph[0]                                                                                     ;
+;   2.583 ;   0.030  ; RR ; CELL ; 1      ; IOPLL_X121_Y6_N846   ; IOPLL            ; pll_inst|iopll_0|tennm_ph2_iopll~hviowr/xpllwrap_top/xpllwrap_bf/xiopllwrap_top/xbf/xiopll_custom/xccnt_iopll0/vcoph[0]       ;
+;   2.583 ;   0.000  ; RR ; CELL ; 1      ; IOPLL_X121_Y6_N846   ; IOPLL            ; pll_inst|iopll_0|tennm_ph2_iopll~c0cntr_reg                                                                                   ;
+;   2.900 ;   0.317  ; RR ; uTco ; 1      ; IOPLL_X121_Y6_N846   ; IOPLL            ; pll_inst|iopll_0|tennm_ph2_iopll|out_clk[0]                                                                                   ;
+;   3.804 ;   0.904  ; RR ; CELL ; 51148  ; IOPLL_X121_Y6_N846   ; IOPLL            ; pll_inst|iopll_0|tennm_ph2_iopll~hviowr/m3_0_1__hssi_dcm__pllcout_or_lvpeclout[0]                                             ;
+;   5.456 ;   1.652  ; RR ; IC   ; 1      ; FF_X78_Y37_N4        ; ALM Register     ; soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[0]|clk                                                   ;
+;   5.456 ;   0.000  ; RR ; CELL ; 1      ; FF_X78_Y37_N4        ; ALM Register     ; soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[0]                                                       ;
+; 5.923   ; 0.467    ;    ;      ;        ;                      ;                  ; data path                                                                                                                     ;
+;   5.769 ;   0.313  ; FF ; uTco ; 1      ; FF_X78_Y37_N4        ; ALM Register     ; soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[0]|q                                                     ;
+;   5.923 ;   0.154  ; FF ; IC   ; 1      ; FF_X78_Y37_N37       ; ALM Register     ; soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[1]|d                                                     ;
+;   5.923 ;   0.000  ; FF ; CELL ; 1      ; FF_X78_Y37_N37       ; ALM Register     ; soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[1]                                                       ;
++---------+----------+----+------+--------+----------------------+------------------+-------------------------------------------------------------------------------------------------------------------------------+
+
++--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+; Data Required Path                                                                                                                                                                                                 ;
++----------+----------+----+------+--------+----------------------+------------------+-------------------------------------------------------------------------------------------------------------------------------+
+; Total    ; Incr     ; RF ; Type ; Fanout ; Location             ; Element Type     ; Element                                                                                                                       ;
++----------+----------+----+------+--------+----------------------+------------------+-------------------------------------------------------------------------------------------------------------------------------+
+; 10.000   ; 10.000   ;    ;      ;        ;                      ;                  ; latch edge time                                                                                                               ;
+; 15.439   ; 5.439    ;    ;      ;        ;                      ;                  ; clock path                                                                                                                    ;
+;   10.000 ;   0.000  ;    ;      ;        ;                      ;                  ; source latency                                                                                                                ;
+;   10.000 ;   0.000  ;    ;      ; 1      ; PIN_BF23             ; I/O pad          ; CLOCK2_50                                                                                                                     ;
+;   10.000 ;   0.000  ; RR ; IC   ; 1      ; IOIBUF_X121_Y8_N1201 ; I/O input buffer ; CLOCK2_50~input|i                                                                                                             ;
+;   10.685 ;   0.685  ; RR ; CELL ; 1      ; IOIBUF_X121_Y8_N1201 ; I/O input buffer ; CLOCK2_50~input|o                                                                                                             ;
+;   11.692 ;   1.007  ; RR ; CELL ; 1      ; IOPLL_X121_Y6_N846   ; IOPLL            ; pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0                                                                                     ;
+;   11.879 ;   0.187  ; RR ; CELL ; 2      ; IOPLL_X121_Y6_N846   ; IOPLL            ; pll_inst|iopll_0|tennm_ph2_iopll~hviowr/xpllwrap_top/xpllwrap_bf/xiopllwrap_top/xbf/xiopll_custom/xpm_pll_so/clkin[0]         ;
+;   12.042 ;   0.163  ; RR ; CELL ; 2      ; IOPLL_X121_Y6_N846   ; IOPLL            ; pll_inst|iopll_0|tennm_ph2_iopll~hviowr/xpllwrap_top/xpllwrap_bf/xiopllwrap_top/xbf/xiopll_custom/xiopll_core/xncnt_iopll/clk ;
+;   12.155 ;   0.113  ; RR ; CELL ; 1      ; IOPLL_X121_Y6_N846   ; IOPLL            ; pll_inst|iopll_0|tennm_ph2_iopll~pllnout                                                                                      ;
+;   12.282 ;   0.127  ; RR ; CELL ; 1      ; IOPLL_X121_Y6_N846   ; IOPLL            ; pll_inst|iopll_0|tennm_ph2_iopll~vco_refclk                                                                                   ;
+;   11.722 ;   -0.560 ; RR ; COMP ; 2      ; IOPLL_X121_Y6_N846   ; IOPLL            ; pll_inst|iopll_0|tennm_ph2_iopll~vctrl                                                                                        ;
+;   11.722 ;   0.000  ; RR ; CELL ; 1      ; IOPLL_X121_Y6_N846   ; IOPLL            ; pll_inst|iopll_0|tennm_ph2_iopll~vcoph[0]                                                                                     ;
+;   11.747 ;   0.025  ; RR ; CELL ; 1      ; IOPLL_X121_Y6_N846   ; IOPLL            ; pll_inst|iopll_0|tennm_ph2_iopll~hviowr/xpllwrap_top/xpllwrap_bf/xiopllwrap_top/xbf/xiopll_custom/xccnt_iopll0/vcoph[0]       ;
+;   11.747 ;   0.000  ; RR ; CELL ; 1      ; IOPLL_X121_Y6_N846   ; IOPLL            ; pll_inst|iopll_0|tennm_ph2_iopll~c0cntr_reg                                                                                   ;
+;   12.024 ;   0.277  ; RR ; uTco ; 1      ; IOPLL_X121_Y6_N846   ; IOPLL            ; pll_inst|iopll_0|tennm_ph2_iopll|out_clk[0]                                                                                   ;
+;   12.822 ;   0.798  ; RR ; CELL ; 51148  ; IOPLL_X121_Y6_N846   ; IOPLL            ; pll_inst|iopll_0|tennm_ph2_iopll~hviowr/m3_0_1__hssi_dcm__pllcout_or_lvpeclout[0]                                             ;
+;   14.282 ;   1.460  ; RR ; IC   ; 1      ; FF_X78_Y37_N37       ; ALM Register     ; soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[1]|clk                                                   ;
+;   14.282 ;   0.000  ; RR ; CELL ; 1      ; FF_X78_Y37_N37       ; ALM Register     ; soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[1]                                                       ;
+;   15.456 ;   1.174  ;    ;      ;        ;                      ;                  ; clock pessimism removed                                                                                                       ;
+;   15.439 ;   -0.017 ;    ;      ;        ;                      ;                  ; advanced clock effects                                                                                                        ;
+; 15.409   ; -0.030   ;    ;      ;        ;                      ;                  ; clock uncertainty                                                                                                             ;
+; 15.465   ; 0.056    ;    ; uTsu ; 1      ; FF_X78_Y37_N37       ; ALM Register     ; soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[1]                                                       ;
++----------+----------+----+------+--------+----------------------+------------------+-------------------------------------------------------------------------------------------------------------------------------+
+
+
