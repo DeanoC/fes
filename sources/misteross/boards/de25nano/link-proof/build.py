@@ -12,11 +12,13 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import types
 import xml.etree.ElementTree as ET
 
 BOARD = Path(__file__).resolve().parent
 DEVICE = "A5EB013BB23BE4SCS"
 PROJECT = "fes_link_proof"
+PROFILE = None
 SOURCE_NAMES = ("build.py", "build_timing.tcl", "clocks.sdc", "fpga/shell.v", "fpga/personas.v",
                 "fpga/fes_de25_pr_control_hw.tcl", "fpga/persona_a.hex", "fpga/persona_b.hex",
                 "generated/fes_de25_pr_control.vh")
@@ -208,6 +210,9 @@ def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
     if not verifier["committed"]:
         raise BuildError("verification requires committed recipe source")
     inputs = json.loads((output / "inputs.json").read_text())
+    selected_profile = PROFILE.identity if PROFILE is not None else None
+    if inputs.get("profile") != selected_profile:
+        raise BuildError("selected verifier/compiler profile differs from captured inputs")
     verify_project(output, inputs)
     generated = json.loads((output / "generated-inputs.json").read_text())
     verify_files(output, generated)
@@ -233,7 +238,8 @@ def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
         target = verification / name
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(data)
-    timing_script = verification / "sources/misteross/boards/de25nano/link-proof/build_timing.tcl"
+    timing_script = verification / (PROFILE.timing_path if PROFILE is not None else
+        "sources/misteross/boards/de25nano/link-proof/build_timing.tcl")
     directory = output / "artifacts"
     directory.mkdir(exist_ok=False)
     summaries = {}
@@ -266,7 +272,9 @@ def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
         fit = (output / "output_files" / f"{revision}.fit.rpt").read_text()
         all_memories = report_table(fit, "Fitter RAM Summary")
         memories = [row for row in all_memories if row.get("Name", "").startswith("slot_inst|")]
-        if (len(memories) != 1 or memories[0].get("Type") != "M20K"
+        if PROFILE is not None:
+            PROFILE.verify_memories(revision, all_memories)
+        elif (len(memories) != 1 or memories[0].get("Type") != "M20K"
                 or memories[0].get("Logical Size") != "8192" or memories[0].get("M20K blocks") != "1.000"
                 or memories[0].get("MLABs") != "0.000"):
             raise BuildError(f"{revision}: expected exactly one 256x32 M20K inside the PR slot")
@@ -312,7 +320,7 @@ def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
         if 'Loading "final" snapshot for partition "root_partition"' not in log:
             raise BuildError(f"{revision}: no actual final-root import evidence")
         source = output / "output_files" / f"{revision}.slot0.rbf"
-        target = directory / f"counter_{revision[-1]}.rbf"
+        target = directory / ((PROFILE.persona_names[revision[-1]] if PROFILE is not None else f"counter_{revision[-1]}") + ".rbf")
         shutil.copyfile(source, target)
         run([str(tools["quartus_pfg"]), "-i", str(target)], output, f"{revision}-info.log")
         run([str(tools["quartus_pfg"]), "--check_integrity", str(target)], output, f"{revision}-integrity.log")
@@ -354,8 +362,9 @@ def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
     descriptor["shell"]["id"] = sha(b"fes-de25-pr-shell-v2\0" + canonical(
         {key: descriptor[key] for key in ("device", "tool", "shell", "region")}))
     for suffix in ("a", "b"):
-        persona = {"id": f"counter_{suffix}", "entity": f"fes_link_persona_{suffix}",
-                   "revision": f"persona_{suffix}", "hardware_id": 0xc001a001 if suffix == "a" else 0xc002b002, **blob(output, directory / f"counter_{suffix}.rbf"),
+        name = PROFILE.persona_names[suffix] if PROFILE is not None else f"counter_{suffix}"
+        persona = {"id": name, "entity": f"fes_link_persona_{suffix}",
+                   "revision": f"persona_{suffix}", "hardware_id": 0xc001a001 if suffix == "a" else 0xc002b002, **blob(output, directory / (name + ".rbf")),
                    "root_qdb_sha256": root_qdb["sha256"], "interface_sha256": interface_hash,
                    "clock_reset_sha256": reset_hash, "region_id": "slot0",
                    "vendor_pof": decoded[f"persona_{suffix}"]}
@@ -456,14 +465,32 @@ def remove_duplicate_emif_clock(project: Path) -> dict:
             "port": "LPDDR4A_REFCLK_p", "verified_by": ["fes_link/clocks.sdc", "fes_link/build_timing.tcl"]}
 
 
+def load_profile(path: Path, source: bytes | None = None):
+    source = path.read_bytes() if source is None else source
+    module = types.ModuleType("de25_pr_selected_profile")
+    module.__file__ = str(path)
+    exec(compile(source, str(path), "exec"), module.__dict__)
+    module.selected_source_bytes = source
+    return module
+
+
 def capture() -> dict:
+    global PROFILE
     repository = Path(subprocess.check_output(["git", "rev-parse", "--show-toplevel"], cwd=BOARD, text=True).strip())
     revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=BOARD, text=True).strip()
     hps = load_hps(BOARD.parent / "hps/build.py")
     paths = [BOARD / name for name in SOURCE_NAMES]
     paths += [BOARD.parent / "hps" / name for name in hps.SOURCES]
     paths += [BOARD.parent / "build.py"]
+    if PROFILE is not None:
+        paths += PROFILE.source_paths()
     files = {p.relative_to(repository).as_posix(): p.read_bytes() for p in paths}
+    if PROFILE is not None:
+        name = (BOARD / "zx81-ram/profile.py").relative_to(repository).as_posix()
+        if files[name] != PROFILE.selected_source_bytes:
+            raise BuildError("profile source changed after selection")
+        # Execute the captured bytes; callbacks and recorded source are identical.
+        PROFILE = load_profile(BOARD / "zx81-ram/profile.py", files[name])
     committed = True
     for name, data in files.items():
         result = subprocess.run(["git", "show", f"{revision}:{name}"], cwd=repository,
@@ -493,6 +520,8 @@ def write_revisions(project: Path, region: dict, build_id: str) -> None:
         'set_global_assignment -name SDC_FILE fes_link/clocks.sdc\n'
         'set_instance_assignment -name NOT_GATE_PUSH_BACK OFF -to "soc_inst|subsys_periph|fes_pr_control|fes_pr_control|slot_reset"\n'
         f'set_global_assignment -name VERILOG_MACRO "FES_DE25_PR_BUILD_ID=128\'h{build_id}"\n')
+    if PROFILE is not None:
+        common += PROFILE.qsf()
     lines = common.splitlines()
     constraints = "\n".join(line for line in lines if line.startswith("set_global_assignment -name SDC_FILE ")) + "\n"
     common = "\n".join(line for line in lines if not line.startswith("set_global_assignment -name SDC_FILE ")) + "\n"
@@ -551,6 +580,8 @@ def prepare(output: Path, placement: str, routing: str, archive: Path | None = N
             target = local / name
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(frozen["files"]["sources/misteross/boards/de25nano/link-proof/" + name])
+    if PROFILE is not None:
+        PROFILE.prepare(local, project, frozen)
     for suffix in ("a", "b"):
         shutil.copyfile(local / f"persona_{suffix}.hex", project / f"persona_{suffix}.hex")
     top = (project / "golden_top.v").read_text()
@@ -573,6 +604,8 @@ qsys_top soc_inst (
 .rsp_valid(pr_rsp_valid), .rsp_data(pr_rsp_data));
 endmodule
 """)
+    if PROFILE is not None:
+        top = PROFILE.top(top)
     (project / "golden_top.v").write_text(top)
     script = (project / "integrate-mailbox.tcl").read_text()
     insert = """add_instance fes_pr_control fes_de25_pr_control 1.0
@@ -611,12 +644,18 @@ set_interface_property fes_pr_diagnostic EXPORT_OF subsys_periph.fes_pr_diagnost
               "emif_reference_clock": emif_reference_clock,
               "control_peripheral_offset": control_offset,
               "interface": INTERFACE, "clock_reset": CLOCK_RESET, "region": region}
+    if PROFILE is not None:
+        inputs["profile"] = PROFILE.identity
+        inputs["interface"] = PROFILE.interface
     inputs["control_build_id"] = sha(canonical(inputs))[:32]
     write_revisions(project, region, inputs["control_build_id"])
     inputs["project_sha256"] = {path.relative_to(project).as_posix(): sha(path.read_bytes())
         for path in local.rglob("*") if path.is_file()}
     for name in ("base.qsf", "persona_a.qsf", "persona_b.qsf", "golden_top.v", "ghrd_timing.sdc", "persona_a.hex", "persona_b.hex"):
         inputs["project_sha256"][name] = sha((project / name).read_bytes())
+    if PROFILE is not None:
+        for name in ("zx8x.hex", "zx8x.mif"):
+            inputs["project_sha256"][name] = sha((project / name).read_bytes())
     inputs["qpf"] = verify_qpf(project)
     inputs["source_closure_sha256"] = sha(canonical(inputs))
     (project / "inputs.json").write_bytes(canonical(inputs) + b"\n")
@@ -684,6 +723,9 @@ def generate_hps(project: Path, tools: dict[str, Path], version: str) -> None:
 
 def compile_project(output: Path, tools: dict[str, Path], version: str, only: str | None) -> None:
     inputs = json.loads((output / "inputs.json").read_text())
+    selected_profile = PROFILE.identity if PROFILE is not None else None
+    if inputs.get("profile") != selected_profile:
+        raise BuildError("selected verifier/compiler profile differs from captured inputs")
     verify_project(output, inputs)
     selected_tools = tool_hashes(tools)
     (output / "tools.json").write_bytes(canonical({"version": version, "sha256": selected_tools}) + b"\n")
@@ -752,9 +794,15 @@ def main() -> int:
     parser.add_argument("--placement")
     parser.add_argument("--routing")
     parser.add_argument("--only", choices=("base",))
+    parser.add_argument("--profile", choices=("zx81-ram",))
     args = parser.parse_args()
+    if args.profile:
+        global PROFILE
+        PROFILE = load_profile(BOARD / args.profile / "profile.py")
     try:
         if args.action == "sim":
+            if PROFILE is not None:
+                raise BuildError("run zx81-ram/sim.py for the actual ZX81 profile simulation")
             simulate(args.output.resolve())
         elif args.action == "verify":
             tools, version = toolchain(args.quartus_root)

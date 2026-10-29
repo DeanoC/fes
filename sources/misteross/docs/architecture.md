@@ -32,6 +32,16 @@ Native/AArch64 runtime co-simulation uses the actual endpoint RTL and a persona
 selection mux; it does not model SDM execution. No production package, physical
 programming backend or hardware acceptance is added by this diagnostic.
 
+The opt-in [ZX81 RAM-pack profile](../boards/de25nano/link-proof/zx81-ram/README.md)
+keeps the actual ZX81 machine, NMOS CPU, firmware and 1 KiB RAM static, with
+empty-slot and actual 16 KiB RAM-pack personas. The registered 46/20-bit
+expansion bus takes four elapsed cycles; diagnostic retirement takes five so
+LAST_DATA observes the real machine peek after the external RAM pipeline.
+Selection resets the machine; freeze drains writes before its acknowledgement.
+It reuses the 64-byte control map without changing the counter profile. This
+is an off-board RAM-only PR proof, with no HPS computer mailbox, keyboard/tape
+transport, display, package admission or physical programming backend.
+
 The standalone [three-memory RAM Tester](../boards/de25nano/ramtest/README.md)
 adds separate destructive FPGA LPDDR4 B and board SDRAM endpoints to the pinned
 GHRD. It preserves the vendor B memory/PHY recipe and uses a custom fixed-50-MHz
