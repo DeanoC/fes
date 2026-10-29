@@ -251,20 +251,14 @@ def inspect_boot(directory, lock, boot):
     script_name = strings(script_nodes["/images"]["default"])[0]
     script = script_images[script_name]["data"].decode("ascii")
     commands = uboot_commands(script)
-    bridge_commands = [command for command in commands if re.match(r"^bridge(?:\s|$)", command)]
-    bootargs_commands = [command for command in commands
-                         if re.match(r"^setenv\s+bootargs(?:\s|$)", command)]
-    fatload_commands = [command for command in commands if re.match(r"^fatload(?:\s|$)", command)]
-    boot_commands = [command for command in commands if re.match(r"^boot(?:i|m|z)(?:\s|$)", command)]
     expected_bootargs = 'setenv bootargs "console=ttyS0,115200 root=${mmcroot} rw rootwait"'
     expected_loads = [
         "fatload mmc 0:1 ${kernel_addr_r} Image",
         "fatload mmc 0:1 ${fdt_addr_r} socfpga_agilex5_de25_nano.dtb",
     ]
     expected_boot = "booti ${kernel_addr_r} - ${fdt_addr_r}"
-    if (script_images[script_name]["type"] != "script" or bridge_commands != ["bridge enable"]
-            or bootargs_commands != [expected_bootargs]
-            or fatload_commands != expected_loads or boot_commands != [expected_boot]):
+    expected_commands = ["bridge enable", expected_bootargs, *expected_loads, expected_boot]
+    if script_images[script_name]["type"] != "script" or commands != expected_commands:
         raise ValueError("pinned boot script contract differs")
     fit_nodes, images = fit_images(pinned_bytes("u-boot.itb"))
     selected = strings(fit_nodes["/configurations"]["default"])[0]

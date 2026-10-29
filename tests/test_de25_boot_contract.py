@@ -254,6 +254,34 @@ class BootSelectionTests(unittest.TestCase):
                     self.assertRaisesRegex(ValueError, "pinned boot script contract differs"):
                 self.inspect_fixture(Path(temporary), script_data=script_data)
 
+    def test_rejects_root_address_load_and_order_bypasses(self):
+        valid_script = (b'bridge enable;\nsetenv bootargs "console=ttyS0,115200 root=${mmcroot} rw rootwait";\n'
+                        b'fatload mmc 0:1 ${kernel_addr_r} Image;\n'
+                        b'fatload mmc 0:1 ${fdt_addr_r} socfpga_agilex5_de25_nano.dtb;\n'
+                        b'booti ${kernel_addr_r} - ${fdt_addr_r};\n')
+        invalid_scripts = [
+            valid_script.replace(
+                b'setenv bootargs',
+                b'setenv mmcroot /dev/mmcblk0p1;\nsetenv bootargs'),
+            valid_script.replace(
+                b'booti ${kernel_addr_r}',
+                b'setenv kernel_addr_r 0x1000000;\nbooti ${kernel_addr_r}'),
+            valid_script.replace(
+                b'booti ${kernel_addr_r}',
+                b'setenv fdt_addr_r 0x2000000;\nbooti ${kernel_addr_r}'),
+            valid_script.replace(
+                b'booti ${kernel_addr_r}',
+                b'load mmc 0:1 ${kernel_addr_r} evil.bin;\nbooti ${kernel_addr_r}'),
+            (b'bridge enable;\nsetenv bootargs "console=ttyS0,115200 root=${mmcroot} rw rootwait";\n'
+             b'booti ${kernel_addr_r} - ${fdt_addr_r};\n'
+             b'fatload mmc 0:1 ${kernel_addr_r} Image;\n'
+             b'fatload mmc 0:1 ${fdt_addr_r} socfpga_agilex5_de25_nano.dtb;\n'),
+        ]
+        for script_data in invalid_scripts:
+            with self.subTest(script=script_data), tempfile.TemporaryDirectory() as temporary, \
+                    self.assertRaisesRegex(ValueError, "pinned boot script contract differs"):
+                self.inspect_fixture(Path(temporary), script_data=script_data)
+
     def test_requires_the_exact_kernel_dtb_loads_and_boot_command(self):
         script = (b'bridge enable;\nsetenv bootargs "console=ttyS0,115200 root=${mmcroot} rw rootwait";\n'
                   b'echo socfpga_agilex5_de25_nano.dtb;\n'
