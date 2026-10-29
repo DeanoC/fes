@@ -837,9 +837,9 @@ Write-through with no write allocate. A store hit updates the array at WB
 through the data M10K's second port, and every store enters the write buffer.
 A load miss stalls the pipeline until the critical dword arrives from L2.
 The lookup tags are read for AG's address as the uop enters M1, and M1
-registers the hit, so whether D to WB freeze waits only on registers: the
-freeze reaches every enable, and an M10K output or the valid bits' 128-way
-select ahead of it halved the first slice's placed clock
+registers the hit, so the D to WB freeze waits only on registers: the freeze
+reaches every enable, and with an M10K output and the valid bits' 128-way
+select ahead of it the first slice routed at 36 MHz against the base's 61
 ([record](validation/2026-10-28-i386-memory-path.md#timing)).
 
 ### DTLB and paging
@@ -1307,8 +1307,10 @@ Settled on 2026-10-29:
   input of the D to WB freeze is one register: the L1D's wait is computed
   from its next state, an uncached load waits a cycle before deciding to read
   or replay, and the write buffer takes stores from a commit register. The
-  first slice's tag compare in M2 put the freeze 9–13 LUT levels deep and
-  placed at 27 MHz ([memory types](#memory-types),
+  first slice's tag compare in M2 put the freeze 9–13 LUT levels deep, and
+  it routed at 36 MHz against the base's 61.5; with the cuts it routes at
+  48.3, the rest wire across a larger design
+  ([memory types](#memory-types),
   [record](validation/2026-10-28-i386-memory-path.md#timing)). With paging,
   the DTLB's page reaches M1's compare a stage earlier than the design had it.
 
