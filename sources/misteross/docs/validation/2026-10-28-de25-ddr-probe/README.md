@@ -7,14 +7,21 @@ Quartus compilation. No board, kit, block device, FPGA or QSPI was accessed.
 There is no new runtime hardware admission, Linux DMA driver, programming
 profile, display submission or interactive MENU implementation.
 
+> Historical snapshot: the SOF, timing reports and simulations below are bound
+> to the 2026-10-28 producer and probe RTL hash
+> `884512e8259f8ac1becdeae5dd2845de450ee6ec3dc5b977f67fb11bb676d498`. They predate the
+> current same-edge CLEAR fault guard. See the [2026-10-30 refreshed evidence](../2026-10-30-de25-ddr-probe/README.md)
+> for a Quartus build and simulations against the current RTL.
+
 ## Source and artifacts
 
 The work is based on headless Linux commit
 `9c155bb5fc31d293efcf325b676215b0bb4399e0`. The compiled producer is
 `8f54e4f89e5b12ae18df70c542bc5846d0452ce6`. Later commit
 `c51d15b57f` adds the generated transport harness, source review and a planner
-test fix; it does not relabel the SOF's producer. The selected functional
-source bytes remain bound by [inputs.json](inputs.json).
+test fix; it does not relabel the SOF's producer. The functional source bytes
+in this historical snapshot remain bound by [inputs.json](inputs.json); that
+receipt does not attest later RTL commits.
 
 | Item | Identity |
 | --- | --- |
