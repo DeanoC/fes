@@ -1248,7 +1248,7 @@ int main(int argc, char **argv) {
                             stretch_steps = 0;
                         }
                         // What the RTL cannot take from the oracle's state.
-                        if (state.idtr.base != 0 || state.idtr.limit != 0x3ff)
+                        if (state.idtr.base != 0 || state.idtr.limit != 0xffff)
                             notes.insert("real-mode IDTR moved");
                         if (state.cr0 & 0xe) notes.insert("CR0 MP, EM or TS set");
                         rtl->start(state);
