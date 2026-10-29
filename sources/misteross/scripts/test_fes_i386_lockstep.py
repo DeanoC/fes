@@ -177,14 +177,14 @@ def run_reset_store(testbench: str, env: dict) -> dict:
 
 def run_memory(testbench: str, env: dict) -> dict:
     """DMA and FLUSH against the caches and the write buffer (lockstep_tb.cpp's
-    run_memory_cases): four cases."""
+    run_memory_cases): four cases, and eight store-to-load forwarding cases."""
     env = dict(env, FES_I386_MODE='memory', FES_I386_LATENCY='1')
     result = subprocess.run([testbench], env=env, capture_output=True, text=True)
     if result.returncode not in (0, 1):
         raise LockstepError(f'memory cases: testbench exited with {result.returncode}\n{result.stderr[-4000:]}')
     summary, failures = parse_output(result.stdout)
-    if summary['runs'] != 4:
-        raise LockstepError(f'memory cases: testbench ran {summary["runs"]} of 4 cases')
+    if summary['runs'] != 12:
+        raise LockstepError(f'memory cases: testbench ran {summary["runs"]} of 12 cases')
     return {'summary': summary, 'failures': failures}
 
 
@@ -404,8 +404,8 @@ def main() -> int:
                                   ('runs', 'passed', 'failed', 'retirements', 'cycles', 'halts', 'faults',
                                    'double_faults', 'retire_limits', 'smc_stops', 'load_wait_cycles', 'io_accesses',
                                    'external_interrupts', 'nmis', 'rep_interrupts', 'vector_moved_stops',
-                                   'window_code_stops', 'mmio_runs', 'mmio_accesses', 'replays', 'port0_reads',
-                                   'port0_writes')})
+                                   'window_code_stops', 'stray_stops', 'mmio_runs', 'mmio_accesses', 'replays',
+                                   'port0_reads', 'port0_writes')})
                          for result in random_results),
                          Counter())
     random_failures = [line for result in random_results + steady_results for line in result['failures']]
@@ -456,7 +456,9 @@ def main() -> int:
               f"at a delivered exception, {random_totals['double_faults']} at a fault in a delivery, "
               f"{random_totals['retire_limits']} at the retirement limit, {random_totals['smc_stops']} at a "
               f"store into their code, {random_totals['vector_moved_stops']} at an interrupt whose vector they had "
-              f"rewritten, {random_totals['window_code_stops']} at code in the MMIO window; "
+              f"rewritten, {random_totals['window_code_stops']} at code in the MMIO window, "
+              f"{random_totals['stray_stops']} at code outside the program or TF set, after control data read "
+              f"back from mixed memory; "
               f"{random_totals['mmio_runs']} with the window, {random_totals['mmio_accesses']} MMIO bytes and "
               f"{random_totals['replays']} replays; {random_totals['load_wait_cycles']} cycles waiting for memory; "
               f"{random_totals['io_accesses']} I/O accesses compared; {random_totals['external_interrupts']} INTRs "
