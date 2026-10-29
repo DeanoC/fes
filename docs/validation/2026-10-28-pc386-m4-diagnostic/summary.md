@@ -32,9 +32,10 @@ host-only checks, nextpnr routed timing and a hardware diagnostic. The disk
 round trip with the runtime is not done.
 
 Two reviews then found bugs in the bus master, the fence, the kit tool and
-the checks, all fixed on the bench ([review fixes](#review-fixes-29-october-2026)).
-The branch no longer matches the kit-tested build `f1d64e7d` until a re-seal
-runs on Kit B again.
+the checks ([review fixes](#review-fixes-29-october-2026)). A Quartus re-seal
+with the fixes, build `fa9fcda1`, passed every program on Kit B in run q4,
+including the new `copy` program and the checks the reviews found missing
+([q4](#kit-run-of-the-review-fixes-29-october-2026)).
 
 ## Inputs
 
@@ -541,6 +542,67 @@ diag bench does not set in the RTL it builds.
   could tear the grab, which would show in the blinking cells. That is
   plausible, not confirmed: the differences seen so far match blink phase.
 
+## Kit run of the review fixes, 29 October 2026
+
+Run q4 used the same Kit B baseline and the eight programs: q3's seven,
+regenerated with the new checks, and `copy`
+([`kit-report-q4.json`](kit-report-q4.json)). The package was a Quartus
+17.0.2 re-seal, build `fa9fcda12ddccefa8675c795d4168290`, package
+`48fd1d4a…`, revision `e10811e575` on `deano/pc386-quartus` (#1262): this
+branch at `6ba525cf7a`, #1153 at `962f7cd0c0`, #1245 and the Quartus lane.
+The machine was elaborated by Yosys `0a7927bf`, this branch's lock. It met
+every clock and analysis: system 77.62 MHz, pixel 81.77 MHz, setup slack
++1.233 ns, hold +0.044 ns.
+
+**Every program passed every command and its own checks:**
+
+| Program | Commands | On the kit |
+| --- | ---: | ---: |
+| smoke | 908 | 5 ms |
+| mode13 | 872 | 2.65 s |
+| vga-trace | 366,931 | 33.1 s |
+| sound | 1,089 | 4.77 s |
+| opl2 | 1,971 | 3.98 s |
+| ata | 1,916 | 0.20 s |
+| copy | 890 | 0.21 s |
+| resets | 172,668 | 6.92 s |
+
+**Against the bench, command for command.** The bench references are this
+head's diag runs of the same program files. In smoke, mode13, ata, copy and
+vga-trace, every status and every I/O command's clocks equal the bench's,
+33,359 I/O commands in vga-trace alone. The mode13 capture and all seven
+dumps equal the bench's: mode13's read-back, ata's two sectors and copy's
+four. Nine of vga-trace's eleven captures equal
+the bench's. The other two are text pictures that differ only in blinking
+text: the blinking line's 12 cells and one blinking cell. All eleven equal
+q3's kit captures exactly.
+
+**What the new checks measured on the kit:**
+- smoke: every isa8 cycle took 49 clocks, as on the bench. The OPL2 status
+  read 06h, then C6h once timer 1 ran out, 1,850 clocks after it started.
+- sound: the speaker's period was 2.2729 ms, as programmed. The mixer read
+  +9036 after a rising edge and -9022 after a falling one.
+- opl2: the mixer read 171 distinct samples in 294 reads through the phrase,
+  and the OPL2 made 49,716 samples in the closing second (49,715.9 Hz).
+- copy: the 20-byte partial copy and the window's last beat landed as on the
+  bench. All 15 refused commands returned their status (8 with 2, 7 with 3)
+  and wrote nothing. With the machine held, the OUT and the MMIO read both
+  timed out after 6,144,001 clocks, and the machine answered once released.
+
+**Counters, display and audio:**
+- **Counters:** all four read zero at the end of every program that reads
+  them, including after `resets`' 201 machine resets.
+- **Display:** HDMI held through every reset. The captures after `resets`
+  and at the end of the run show the mode 13h picture. The grabs against the
+  720p simulation gave 29.7-39.3 dB, and the final picture 56.4 dB, as in q3.
+- **Audio:** the speaker played 1.4 s at 439.9-440.0 Hz, the DSP 3.3 s at
+  997-1007 Hz, and the OPL2 phrase 1.8 s.
+- **Load and staging:** the package loaded in 4.4 s, and the 8 MiB ATA image
+  staged in 188 ms (41.9 MiB/s).
+
+Kit B was released FREE: the wrapper verified it was back on its baseline,
+with the same image, software, boot and idle core, agent idle, lease free.
+
 ## Not done
 
 - Nextpnr timing closure of the AT core's read path, the VGA scanout and the
@@ -553,4 +615,3 @@ diag bench does not set in the RTL it builds.
   and the disk opcodes; the shared 1.0 mailbox stays minor 0.
 - The plane was not opened on the bench, so its underflow counter proves
   nothing yet; the presenter, capture and scanout counters are exercised.
-- A kit run of the review fixes (q4), after a Quartus re-seal of this head.
