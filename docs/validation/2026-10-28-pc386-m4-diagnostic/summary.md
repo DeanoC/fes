@@ -363,7 +363,7 @@ it held the SDR FPGA ports in reset (FPGAPORTRST) and then released them. The
 kit shows the FES menu from DDR, and the wrapper verified the baseline.
 
 **After q2.** `pc386_diag` now fences ports 1 and 2 on the bus master's hold
-([`pc386_port_fence`](../../../sources/misteross/cores/fes-pc386/rtl/pc386_port_fence.sv)).
+([`pc386_port_fence`](https://github.com/DeanoC/fes/blob/e920b2f90a/sources/misteross/cores/fes-pc386/rtl/pc386_port_fence.sv)).
 While held, the fence takes no new command and finishes a write burst the
 machine started, with byte enables cleared, even if the hold ends first. It
 hides read data the machine was owed until all of it has returned. A second

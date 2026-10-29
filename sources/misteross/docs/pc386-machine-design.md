@@ -160,9 +160,11 @@ L2 fills in the two ROM ranges and the reset alias to the ROM M10K; everything
 else goes to DDR port 0 at window offset `0x04000000 + physical`. The ROM
 ranges are read-only, so their lines are never dirty and never written back.
 The CPU maps the reset alias onto F0000h itself, so its fills there name
-F0000h-FFFFFh. Until the L2 lands its L1s fill straight from port 0, and the
-simulation serves the two ROM ranges from the ROM images at those window
-offsets ([first memory slice](validation/2026-10-28-i386-memory-path.md)).
+F0000h-FFFFFh. Until the L2 lands its L1s fill straight from port 0, so the
+ROM M10K sits in front of port 0 and answers the L1s' reads of the two ROM
+ranges itself ([`pc386_rom`](../cores/fes-pc386/rtl/pc386_rom.sv), M5);
+`machine_tb` serves them from the ROM images at those window offsets
+([first memory slice](validation/2026-10-28-i386-memory-path.md)).
 
 **Upper RAM** is on by default, so a UMB driver can load DOS drivers high
 without V86, which the Ultima VII games forbid. UMBM from the Jemm package
@@ -1229,8 +1231,11 @@ numbers):
 | 28 | WallClock | word 0–3 | year; month and day; hour and minute; second and weekday |
 
 Package: format 2 (firmware in the RBF), `core.id = fes.pc386`, built by
-`scripts/build_fes_pc386_oss.py` with the CPU's DSP-permitting recipe and its
-own `toolchain.lock`.
+`scripts/build_fes_pc386_quartus.py` with Quartus 17.0.2 from the netlist of
+its own `toolchain.lock`'s Yosys, while nextpnr is parked
+([#1235](https://github.com/DeanoC/fes/issues/1235)). Until the M0 contracts
+land it declares `fes.computer` 1.0 and takes its disk and settings from the
+DDR window ([M5 as built](#phases)).
 
 ### mister-packages adds
 
@@ -1333,7 +1338,7 @@ first playable.
 | M4 | Machine diagnostic shell on a kit: a development package where a mailbox-driven bus master stands in for the CPU and issues I/O and MMIO cycles | Hardware diagnostic: VGA modes captured from HDMI, OPL2 and DSP audio, a disk load and save round trip with the runtime, port 2 underflow counters at zero, load time measured | Before CPU Phase 3 |
 | M5 = CPU Phase 3 | The RTL CPU in the machine | FreeDOS boots in simulation with the RTL CPU; first sealed package; the four games pass the checks above on a kit, with both presets recorded | — |
 
-**M4 as built** ([README](../cores/fes-pc386/README.md#m4-diagnostic-shell)):
+**M4 as built** ([record](../../../docs/validation/2026-10-28-pc386-m4-diagnostic/summary.md)):
 the bus master takes its commands from a ring in the DDR window on port 0, not
 through the GP mailbox. During a package session the mailbox belongs to the
 runtime: its exchanges toggle one request bit and poison on a mismatch, so a
@@ -1345,6 +1350,20 @@ guards, so it fences ports 1 and 2 to keep a reset from cutting a burst. Until
 M0 the shell serves the ATA image port from port 0 and the HPS writes the
 image into the window directly; the disk round trip with the runtime waits for
 the M0 contracts.
+
+**M5 as built** ([README](../cores/fes-pc386/README.md#m5-system)): slice 1
+puts `fes_i386_cpu` with its L1s and bus interface on port 0 in place of the
+M4 bus master, which leaves the tree with its ring, port fence, kit tool and
+nextpnr producer. Until the CPU has an L2, the firmware ROM answers the L1s'
+reads of its two ranges in front of port 0. Until M0, a host link stages the
+machine: the HPS writes the ATA image and a configuration block (memory and
+Sound Blaster straps, disk geometry, wall clock) into the window, the machine
+waits in reset for it, and the link reports a status block and the
+debug-port bytes back through the window; the ATA image moves to port 2 as
+the table above has it. The system simulation boots FreeDOS on the whole
+shell below `top.sv`, and Quartus 17.0.2 seals it
+([record](../../../docs/validation/2026-10-29-pc386-m5-system/summary.md)). The kit boot and the
+four games follow; there is no keyboard or mouse in the package yet.
 
 After first playable: CPU Phase 5 brings JEMM386 and Wolfenstein 3D with EMS;
 CPU Phase 6 wires FERR to IRQ13 and port F0h. Machine follow-ups wait for a
@@ -1407,5 +1426,5 @@ controller moved from `cores/fes-pcxt/` to `cores/fes-common/` with M1
 them; the PC/XT keeps no copy. The
 firmware sources go in `cores/fes-pc386/firmware/`, their build script in
 `scripts/build_pc386_firmware.py`, and the producer in
-`scripts/build_fes_pc386_oss.py`. The FogCast disk builder and its FreeDOS
+`scripts/build_fes_pc386_quartus.py`. The FogCast disk builder and its FreeDOS
 lock land in `sources/FogCast/` with that follow-up.
