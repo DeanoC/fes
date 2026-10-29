@@ -1,7 +1,9 @@
 {
   "development_aggregate": {
+    "compressed_log": "development-aggregate.log.gz",
     "fpga_skipped": 35,
     "fpga_tests": 1487,
+    "log_sha256": "b63c9244fa29eb43eb28d70dd3df4caed6ddeaa81c544fc7369e36718e2fbbcd",
     "parent_skipped": 1,
     "parent_tests": 937,
     "plan_head": "b00b1040740a19af6d1fa1de824644bcfd70f028",
