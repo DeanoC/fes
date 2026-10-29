@@ -24,6 +24,44 @@ class AffectedTests(unittest.TestCase):
                 self.assertTrue(all(result['lanes'].values()))
                 self.assertEqual(set(result['cores']), set(CORES))
 
+    def test_de25_board_metadata_and_diagnostic_have_no_existing_core_consumer(self):
+        definition = 'sources/mister-packages/packages/board/de25_nano.yaml'
+        board = 'sources/misteross/boards/de25nano/'
+        cases = [([definition], {'parent', 'contracts'})]
+        for member in ('blinky.sv', 'pins.qsf', 'clocks.sdc', 'Makefile',
+                       'test_de25nano.py', 'sim/blinky_tb.cpp'):
+            cases.append(([board + member], {'parent', 'fpga'}))
+        cases.append(([definition, board + 'blinky.sv'], {'parent', 'contracts', 'fpga'}))
+        for paths, lanes in cases:
+            with self.subTest(paths=paths):
+                result = plan(paths)
+                self.assertEqual({lane for lane, enabled in result['lanes'].items() if enabled}, lanes)
+                self.assertEqual(result['cores'], [])
+                self.assertFalse(any(result['test_modes'].values()))
+
+    def test_de25_exception_does_not_narrow_other_boards_or_shared_changes(self):
+        de25 = ['sources/mister-packages/packages/board/de25_nano.yaml',
+                'sources/misteross/boards/de25nano/blinky.sv']
+        for path in ('sources/mister-packages/packages/board/de10_nano.yaml',
+                     'sources/mister-packages/packages/board/de25_nano_other.yaml',
+                     'sources/mister-packages/packages/platform/de25_nano.yaml',
+                     'sources/mister-packages/packages/abi/fes_application.yaml'):
+            with self.subTest(path=path):
+                result = plan([*de25, path])
+                self.assertTrue(all(result['lanes'].values()))
+                self.assertEqual(set(result['cores']), set(CORES))
+                self.assertTrue(all(result['test_modes'].values()))
+        for path in ('boards/de10nano/pins.qsf', 'boards/newboard/top.sv',
+                     'boards/de25nano-other/top.sv', 'boards/de25nano/../de10nano/pins.qsf',
+                     'cores/fes-common/rtl/new_unit.sv'):
+            with self.subTest(path=path):
+                result = plan([*de25, 'sources/misteross/' + path])
+                self.assertEqual(set(result['cores']), set(CORES))
+        result = plan([*de25, 'sources/mister-packages/internal/pack/load.go'])
+        self.assertTrue(all(result['lanes'].values()))
+        self.assertEqual(result['cores'], [])
+        self.assertFalse(any(result['test_modes'].values()))
+
     def test_parent_owned_roots_select_only_the_parent_lane(self):
         self.assertEqual(PARENT_ROOTS,
                          ('scripts', 'tests', 'image', 'platform', 'profiles', 'containers'))
