@@ -1,5 +1,10 @@
 # DE25-Nano FPGA bring-up
 
+The separate [idle/menu scanout diagnostics](display/README.md) build
+FPGA-only 720p HDMI SOFs with Quartus Pro 26.3. They reuse portable FES video
+RTL and the pinned Terasic HDMI/Agilex reference; menu mode is a local pattern
+diagnostic without HPS, DDR, GP or runtime presentation support.
+
 This standalone FPGA diagnostic targets the Terasic DE25-Nano with
 `A5EB013BB23BE4SCS`. It counts upward on the eight active-low user LEDs once
 every half second, using the 50 MHz `CLOCK0_50` input. Clock and LED pins use

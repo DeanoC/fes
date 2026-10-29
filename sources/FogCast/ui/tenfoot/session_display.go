@@ -251,7 +251,9 @@ func (a *App) beginSessionDisplayLocked(target protocol.SessionDisplay, openTape
 				a.kickSessionPollLocked()
 				return
 			}
-			a.openPlayingHardwareRoomLocked()
+			if !(openTape && a.beginColecoCartridgeControlsLocked()) {
+				a.openPlayingHardwareRoomLocked()
+			}
 			if !a.roomDuringPlay {
 				a.beginSessionDisplayLocked(a.sessionReturnDisplayLocked(), false)
 				return

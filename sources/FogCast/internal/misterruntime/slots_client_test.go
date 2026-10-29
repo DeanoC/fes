@@ -105,7 +105,7 @@ func TestSlotComposedLoadRequestShapes(t *testing.T) {
 		t.Fatalf("request %s", requests[1])
 	}
 
-	identity := corepackage.ROMLinkIdentity{ROMID: "apple2-firmware", MapSHA256: strings.Repeat("a", 64), SourceSHA256: strings.Repeat("b", 64), SourceSize: 16384, ProgrammedSHA256: strings.Repeat("f", 64), ProgrammedSize: 50000}
+	identity := corepackage.ROMLinkIdentity{ROMID: "apple2-firmware", Role: "firmware", MapSHA256: strings.Repeat("a", 64), SourceSHA256: strings.Repeat("b", 64), SourceSize: 16384, ProgrammedSHA256: strings.Repeat("f", 64), ProgrammedSize: 50000}
 	romIdle := strings.Replace(idle, `"capabilities":{`, `"capabilities":{"rom_linking":1,`, 1)
 	romReply := r
 	romReply.Capabilities.ROMLinking = 1
