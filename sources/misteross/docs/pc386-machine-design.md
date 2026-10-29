@@ -159,6 +159,10 @@ while running and the machine never uses FLUSH for it. The memory router sends
 L2 fills in the two ROM ranges and the reset alias to the ROM M10K; everything
 else goes to DDR port 0 at window offset `0x04000000 + physical`. The ROM
 ranges are read-only, so their lines are never dirty and never written back.
+The CPU maps the reset alias onto F0000h itself, so its fills there name
+F0000h-FFFFFh. Until the L2 lands its L1s fill straight from port 0, and the
+simulation serves the two ROM ranges from the ROM images at those window
+offsets ([first memory slice](validation/2026-10-28-i386-memory-path.md)).
 
 **Upper RAM** is on by default, so a UMB driver can load DOS drivers high
 without V86, which the Ultima VII games forbid. UMBM from the Jemm package
@@ -315,7 +319,7 @@ cycles for 16-bit devices.
 | --- | --- | --- |
 | `isa8` | Every on-board chip, port 61h/92h/80h, ATA task file, Sound Blaster, OPL2 | 720 ns: six ISA clocks at 8.33 MHz |
 | `isa16` | ATA data port 1F0h | 360 ns: three ISA clocks |
-| `vga` | 3B0–3DF | Posted into the VGA FIFO (four clocks a byte at the CPU); reads wait for the FIFO to drain (six clocks a byte when it is empty) |
+| `vga` | 3B0–3DF | Posted into the VGA FIFO (four clocks a byte at the CPU, and a byte waits while the FIFO is full); reads wait for the FIFO to drain (six clocks a byte when it is empty) |
 
 The ISA figures come from the AT bus's default wait states: an ISA cycle is
 two bus clocks plus four wait states for 8-bit cycles and one for 16-bit

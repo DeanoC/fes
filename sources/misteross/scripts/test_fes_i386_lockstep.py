@@ -67,12 +67,13 @@ from scripts import test_fes_i386_vectors as vectors
 ROOT = Path(__file__).resolve().parents[1]
 RTL = ROOT / 'cores/fes-common/rtl/i386'
 SIM = ROOT / 'cores/fes-common/sim/i386'
+DDR_MODEL = ROOT / 'cores/fes-pc386/sim'  # pc386_ddr_model.h: HPS DDR port 0
 OUTPUT = ROOT / 'build/sim/fes-i386-lockstep'
 CPU_RTL = ('fes_i386_pkg.sv', 'fes_i386_oplen.sv', 'fes_i386_lendec.sv', 'fes_i386_lstage.sv',
            'fes_i386_fetchbuf.sv', 'fes_i386_qalign.sv', 'fes_i386_frontend.sv', 'fes_i386_amode.sv',
            'fes_i386_dfwd.sv', 'fes_i386_agu.sv', 'fes_i386_ucode_pkg.sv', 'fes_i386_ucode_rom.sv', 'fes_i386_decode.sv', 'fes_i386_seq.sv', 'fes_i386_dops.sv',
            'fes_i386_shift.sv', 'fes_i386_shflags.sv', 'fes_i386_exctl.sv', 'fes_i386_muldiv.sv', 'fes_i386_ex.sv',
-           'fes_i386_cpu.sv')
+           'fes_i386_l1i.sv', 'fes_i386_l1d.sv', 'fes_i386_biu.sv', 'fes_i386_cpu.sv')
 TOP = 'fes_i386_cpu'
 
 # What the CPU executes, by MOO stem without 66h/67h prefixes: every form of
@@ -110,6 +111,8 @@ SCOPE: frozenset[str] = frozenset([
     'A4', 'A5', 'A6', 'A7', 'AA', 'AB', 'AC', 'AD', 'AE', 'AF', 'C8',
     # I/O: IN and OUT, imm8 and DX forms; INS and OUTS.
     'E4', 'E5', 'E6', 'E7', 'EC', 'ED', 'EE', 'EF', '6C', '6D', '6E', '6F',
+    # BT, BTS, BTR and BTC by an immediate and by a register; BSF and BSR.
+    '0FBA.4', '0FBA.5', '0FBA.6', '0FBA.7', '0FA3', '0FAB', '0FB3', '0FBB', '0FBC', '0FBD',
 ])
 # Files of an in-scope opcode whose forms are not built yet: POP m with
 # 32-bit addressing, whose ESP base would read ESP after the pop.
@@ -172,14 +175,27 @@ def run_reset_store(testbench: str, env: dict) -> dict:
     return {'summary': summary, 'failures': failures}
 
 
+def run_memory(testbench: str, env: dict) -> dict:
+    """DMA and FLUSH against the caches and the write buffer (lockstep_tb.cpp's
+    run_memory_cases): five cases."""
+    env = dict(env, FES_I386_MODE='memory', FES_I386_LATENCY='1')
+    result = subprocess.run([testbench], env=env, capture_output=True, text=True)
+    if result.returncode not in (0, 1):
+        raise LockstepError(f'memory cases: testbench exited with {result.returncode}\n{result.stderr[-4000:]}')
+    summary, failures = parse_output(result.stdout)
+    if summary['runs'] != 5:
+        raise LockstepError(f'memory cases: testbench ran {summary["runs"]} of 5 cases')
+    return {'summary': summary, 'failures': failures}
+
+
 def run_directed(testbench: str, env: dict) -> dict:
     env = dict(env, FES_I386_MODE='directed', FES_I386_LATENCY='1')
     result = subprocess.run([testbench], env=env, capture_output=True, text=True)
     if result.returncode not in (0, 1):
         raise LockstepError(f'directed cases: testbench exited with {result.returncode}\n{result.stderr[-4000:]}')
     summary, failures = parse_output(result.stdout)
-    if summary['runs'] != 16:
-        raise LockstepError(f'directed cases: testbench ran {summary["runs"]} of 16 cases')
+    if summary['runs'] != 38:
+        raise LockstepError(f'directed cases: testbench ran {summary["runs"]} of 38 cases')
     return {'summary': summary, 'failures': failures}
 
 
@@ -219,7 +235,7 @@ def verilate(verilator: str, linked: list[Path], jobs: int, yosys: str | None) -
         warnings = []
     command = [verilator, '--cc', '--exe', '--build', '-j', str(jobs), '-O3', '--top-module', TOP,
                '-Wall', '-Wno-UNUSEDSIGNAL', *warnings, '--Mdir', str(output),
-               '-CFLAGS', f'-std=c++17 -O2 -I{SIM}', '-LDFLAGS', '-pthread',
+               '-CFLAGS', f'-std=c++17 -O2 -I{SIM} -I{DDR_MODEL}', '-LDFLAGS', '-pthread',
                *map(str, design), str(SIM / 'lockstep_tb.cpp'), *map(str, linked)]
     log = output / 'build.log'
     with log.open('w') as stream:
@@ -335,6 +351,7 @@ def main() -> int:
         env = dict(os.environ, FES_I386_DIVERGENCES=str(table), FES_I386_LATENCY='0' if args.no_latency else '1')
         reset_store = run_reset_store(testbench, env)
         directed = run_directed(testbench, env)
+        memory = run_memory(testbench, env)
 
         corpus = args.corpus or vectors.OUTPUT / 'corpus' / vectors.REVISION
         if args.download:
@@ -376,15 +393,21 @@ def main() -> int:
         counts = by_opcode.setdefault(vectors.base_opcode(result['stem']), Counter())
         counts.update({'tests': result['tests'], 'passed': summary['passed'], 'failed': summary['failed'],
                        'retired_to_hlt': summary['halts'], 'interrupts': summary['interrupts'], 'faults': summary['faults'],
-                       'retirements': summary['retirements'], 'io_accesses': summary['io_accesses']})
+                       'retirements': summary['retirements'], 'io_accesses': summary['io_accesses'],
+                       'mmio_runs': summary['mmio_runs'], 'mmio_accesses': summary['mmio_accesses'],
+                       'replays': summary['replays'], 'smc_restarts': summary['smc_restarts'],
+                       'cycles': summary['cycles']})
         corpus_failures += result['failures']
     totals = sum(by_opcode.values(), Counter())
     fault_vectors = sum((Counter(result['summary']['fault_vectors']) for result in corpus_results), Counter())
     divergences = sum((Counter(result['summary']['divergence_retirements']) for result in corpus_results), Counter())
     random_totals = sum((Counter({key: result['summary'][key] for key in
                                   ('runs', 'passed', 'failed', 'retirements', 'cycles', 'halts', 'faults',
-                                   'double_faults', 'retire_limits', 'smc_stops', 'load_wait_cycles', 'io_accesses',
-                                   'external_interrupts', 'nmis', 'rep_interrupts', 'vector_moved_stops')})
+                                   'double_faults', 'retire_limits', 'load_wait_cycles', 'io_accesses',
+                                   'external_interrupts', 'nmis', 'rep_interrupts', 'vector_moved_stops',
+                                   'window_code_stops', 'code_store_stops', 'mmio_runs', 'mmio_accesses',
+                                   'replays', 'smc_restarts', 'port0_reads',
+                                   'port0_writes')})
                          for result in random_results),
                          Counter())
     random_failures = [line for result in random_results + steady_results for line in result['failures']]
@@ -397,19 +420,21 @@ def main() -> int:
                                   for result in steady_results), Counter()).items()))
             for key in ('sequential', 'prefixed', 'lea', 'selector', 'after_taken', 'after_not_taken',
                         'shift_consumer', 'after_shift', 'store_load', 'after_store', 'address', 'after_segment',
-                        'after_stack', 'stack_stack', 'several', 'after_string', 'after_io')}
+                        'after_stack', 'stack_stack', 'several', 'after_string', 'after_io', 'memory', 'smc')}
     held = hold_failures(gaps)
     unbuilt_failures = [line for result in unbuilt_results for line in result['failures']]
     unbuilt_runs = sum(result['summary']['runs'] for result in unbuilt_results)
     random_failures += held
     reset_store_failures = reset_store['failures']
     directed_failures = directed['failures']
+    memory_failures = memory['failures']
     if (corpus_failures or random_failures or hash_mismatches or unbuilt_failures or reset_store_failures
-            or directed_failures):
+            or directed_failures or memory_failures):
         exit_code = 1
     report.update({
         'reset_store': reset_store,
         'directed_cases': directed,
+        'memory_cases': memory,
         'corpus': {'revision': vectors.REVISION, 'files': len(corpus_results), 'totals': dict(totals),
                    'fault_vectors': dict(fault_vectors), 'divergence_retirements': dict(divergences),
                    'by_opcode': {stem: dict(counts) for stem, counts in sorted(by_opcode.items())},
@@ -425,14 +450,20 @@ def main() -> int:
           f"{totals['passed']} pass ({totals['retired_to_hlt']} to HLT, {totals['interrupts']} of them in an "
           f"interrupt's handler, {totals['faults']} in an exception's handler "
           f"{dict(fault_vectors)}), {totals['failed']} fail; {totals['retirements']} retirements and "
-          f"{totals['io_accesses']} I/O accesses compared")
+          f"{totals['io_accesses']} I/O accesses compared; {totals['mmio_runs']} with the MMIO window, "
+          f"{totals['mmio_accesses']} MMIO bytes and {totals['replays']} replays; {totals['smc_restarts']} "
+          f"restarts for self-modifying code (queue16)")
     if random_results:
         print(f"random: {len(random_results)} seeds x {args.random_programs} programs, {random_totals['retirements']} "
               f"retirements: {random_totals['passed']} pass ({random_totals['halts']} to HLT, {random_totals['faults']} "
               f"at a delivered exception, {random_totals['double_faults']} at a fault in a delivery, "
-              f"{random_totals['retire_limits']} at the retirement limit, {random_totals['smc_stops']} at a "
-              f"store into their code, {random_totals['vector_moved_stops']} at an interrupt whose vector they had "
-              f"rewritten; {random_totals['load_wait_cycles']} cycles waiting for a load's bytes; "
+              f"{random_totals['retire_limits']} at the retirement limit, "
+              f"{random_totals['vector_moved_stops']} at an interrupt whose vector they had "
+              f"rewritten, {random_totals['window_code_stops']} at code in the MMIO window, "
+              f"{random_totals['code_store_stops']} at a store into their code other than their rewrites; "
+              f"{random_totals['mmio_runs']} with the window, {random_totals['mmio_accesses']} MMIO bytes and "
+              f"{random_totals['replays']} replays; {random_totals['smc_restarts']} restarts for self-modifying "
+              f"code; {random_totals['load_wait_cycles']} cycles waiting for memory; "
               f"{random_totals['io_accesses']} I/O accesses compared; {random_totals['external_interrupts']} INTRs "
               f"and {random_totals['nmis']} NMIs taken, {random_totals['rep_interrupts']} of them between a REP "
               f"string's elements), {random_totals['failed']} fail; "
@@ -456,7 +487,9 @@ def main() -> int:
     print(f"unbuilt encodings: {unbuilt_runs} outside SCOPE, {len(unbuilt_failures)} not stopped as unimplemented")
     print(f"reset-store-on-reset: {reset_store['summary']['passed']} pass, {reset_store['summary']['failed']} fail")
     print(f"directed cases: {directed['summary']['passed']} pass, {directed['summary']['failed']} fail")
-    for line in (reset_store_failures + directed_failures + unbuilt_failures + corpus_failures + random_failures)[:40]:
+    print(f"memory cases (DMA, FLUSH): {memory['summary']['passed']} pass, {memory['summary']['failed']} fail")
+    for line in (reset_store_failures + directed_failures + memory_failures + unbuilt_failures + corpus_failures
+                 + random_failures)[:40]:
         print(line)
     print(('i386 lockstep FAILED' if exit_code else 'i386 lockstep passed')
           + f' (host simulation only; report: {OUTPUT / "report.json"})')

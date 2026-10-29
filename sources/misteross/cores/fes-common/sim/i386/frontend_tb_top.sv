@@ -32,7 +32,7 @@ module frontend_tb_top (
     fes_i386_pkg::fetched_t q;
 
     fes_i386_frontend dut (
-        .clk, .reset, .redirect, .redirect_linear, .code32, .mem_block, .mem_load,
+        .clk, .reset, .redirect, .redirect_linear, .code32, .mem_block, .mem_load, .fetch_next(),
         .mem_data(mem_data), .mem_valid, .q_valid, .q, .d_ready
     );
 

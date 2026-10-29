@@ -45,7 +45,8 @@ commands from the HPS DDR window in the CPU's place.
 | [`vendor/opl2_fpga/`](vendor/opl2_fpga/README.md) | The YM3812 import (LGPL-3.0), with the local changes that make it sample-exact |
 | [`vendor/nuked-opl3/`](vendor/nuked-opl3/README.md) | Nuked-OPL3 (LGPL-2.1), the OPL2 reference in simulation only |
 | [`firmware/`](firmware/) | Bochs ROM BIOS and LGPL VGABios sources, `source.json` manifests, `firmware.lock` |
-| [`sim/machine_tb.cpp`](sim/machine_tb.cpp) | `pc386_machine` with the Bochs oracle as CPU, guest memory and DDR models; records VGA traces and frames |
+| [`sim/machine_tb.cpp`](sim/machine_tb.cpp) | `pc386_machine` with the Bochs oracle as CPU, guest memory and DDR models; records VGA traces and frames. `--cpu rtl` runs `fes_i386_cpu` instead |
+| [`sim/rtl_stop_test.asm`](sim/rtl_stop_test.asm) | The stop test disk: instructions the RTL has not built, and a protected-mode stretch, for `--cpu rtl`'s stop path |
 | [`sim/devices_tb.cpp`](sim/devices_tb.cpp) | Directed checks of the AT core through its I/O port |
 | [`sim/audio_tb.cpp`](sim/audio_tb.cpp) | Directed checks of the DSP, the OPL2's AdLib port and the mixer, through the AT core |
 | [`sim/opl2_tb.cpp`](sim/opl2_tb.cpp) | The OPL2 against Nuked-OPL3, sample for sample, on random programs and captured port logs |
@@ -75,6 +76,8 @@ python3 scripts/sim_fes_pc386.py --suite audio          # DSP, OPL2 timers, mixe
 python3 scripts/sim_fes_pc386.py --suite opl2           # OPL2 against Nuked-OPL3, about 30 s
 python3 scripts/sim_fes_pc386.py --suite benches        # presenter, capture overflow recovery and display plane on port 2
 python3 scripts/sim_fes_pc386.py --suite boot --download  # BIOS POST to the FreeDOS prompt and its VGA replay
+python3 scripts/sim_fes_pc386.py --suite boot --cpu rtl   # the same boot on fes_i386_cpu, the oracle backing its stops
+python3 scripts/sim_fes_pc386.py --suite rtl-stops        # the RTL's stop path on the stop test disk, against the oracle
 python3 scripts/sim_fes_pc386.py --suite sound --download  # boot, then SOUND.COM; writes sound.wav
 python3 scripts/sim_fes_pc386.py --suite vga              # presenter, capture and plane benches, VGA test disk, replay
 python3 scripts/synth_fes_pc386.py --cache-root /abs/out/cache/misteross-toolchains  # machine-only synthesis
@@ -114,8 +117,25 @@ captures stay outside the repository.
   boot calibrates against it; it sets how long the boot takes. IN, OUT and INTA
   run through the RTL inside the instruction and take its device time on top.
   A halted CPU lets the RTL run until INTR.
+- **RTL CPU (`--cpu rtl`).** [`fes_i386_cpu`](../fes-common/rtl/i386/) on the
+  system clock with its L1I, L1D and bus interface: guest memory through HPS
+  DDR port 0 (`Port0` below), the machine's MMIO, DMA and FLUSH ports wired to
+  its own, its I/O and INTA ports on the AT core, INTR from the PICs, and
+  A20M. Its attribute map is the machine's: A0000h-BFFFFh MMIO, the VGA and
+  system BIOS ranges read-only, upper RAM on, 16 MiB of RAM. The CPU posts VGA
+  stores in order as they retire and reads VGA memory only for the oldest uop,
+  so never on a wrong path; an I/O access waits until its write buffer is
+  empty. An encoding the CPU has not built stops it: the bench holds the CPU
+  in reset until its write buffer has drained, runs that instruction on the
+  oracle from the RTL's state, keeps the oracle running through protected
+  mode and V86 (serving DMA and FLUSH itself meanwhile), and restarts the RTL
+  from the oracle's state. The boot suite's `boot-rtl/report.json` lists the
+  stops by stem, with the lockstep's scope. While the CPU waits for an I/O
+  cycle or sits in HLT with nothing in flight, only the machine is clocked.
 - **Memory.** 16 MiB of host pages: the ROMs at F0000h (aliased at FFFF0000h)
-  and C0000h are read-only, C8000h-EFFFFh is RAM. A0000h-BFFFFh is MMIO into
+  and C0000h are read-only, C8000h-EFFFFh is RAM. With `--cpu rtl` these
+  pages are what port 0 serves at window offset 4000000h plus the physical
+  address, the ROM images in the two ROM ranges. A0000h-BFFFFh is MMIO into
   the RTL VGA: each access becomes dword requests with byte enables in address
   order, writes posted, reads blocking. Above 16 MiB is a hole.
 - **DDR.** Ports 1 and 2 are `sim/pc386_ddr_model.h` ports on one 256 MiB
@@ -123,7 +143,9 @@ captures stay outside the repository.
   54-79 for 0.1% (Kit B, [#1076](https://github.com/DeanoC/fes/pull/1076)),
   commands are refused at random and while 14 reads wait, all from a seeded
   generator so a replay sees the same timing. The screen text is read from
-  VRAM in the window.
+  VRAM in the window. With `--cpu rtl`, port 0 is the 128-bit `Port0`, with
+  Kit A's port 0 timing: 18-19 clocks for most reads, 47-51 for the slowest
+  1%, and a tail to 135.
 - **Pixel clock.** 74.25 MHz, interleaved with the system clock in time. It
   runs only while a marked picture waits for its 720p frames (or from
   `--pixel-from`), so the presenter and plane cost nothing otherwise.
@@ -190,8 +212,10 @@ as wires would; the machine top level will instantiate both.
 
 - **Ports and FIFO.** VGA port writes and MMIO writes share a 16-entry FIFO
   and are processed in order; a port write completes in four clocks (a clock
-  later than the M1 stand-in, as the byte is posted through a register), a
-  port read waits until the FIFO has drained. An MMIO read also drains the
+  later than the M1 stand-in, as the byte is posted through a register), and
+  a byte waits while the FIFO is full. The machine bench reports those waits
+  apart from the class time (`IOWAIT`). A port read waits until the FIFO has
+  drained. An MMIO read also drains the
   write coalescer first.
 - **Planar logic.** One VRAM word write per clock: the bytes of a dword that
   share a planar offset (a chain-4 dword, an odd/even pair) go together, each

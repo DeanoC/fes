@@ -1,24 +1,14 @@
 // SPDX-License-Identifier: MIT
-// Timing spike (d): fes_i386_cpu as Phase 1 has built it, behind the same
-// L1I model as spike_frontend: F1's block address loads the M10K address
-// registers of a 16 KiB 4-way L1I, F2 compares the four tags with an ITLB
-// page per two bytes and selects the hitting way. A miss passes zeros; there
-// is no refill, and mem_valid is a registered stimulus bit, so fetch stalls
-// without the L1I's own miss path (the L1I slice adds that). The stimulus
-// rewrites tags and data, so the CPU executes whatever arrives.
-//
-// The data port reads an L1D model: two M10K banks of even and odd dwords
-// (4 KiB), written by the stimulus and read with the address registered on
-// the edge, so a load's 8 bytes arrive in M2 as the L1D's data will.
-// dmem_valid is a registered stimulus bit, as mem_valid is, so loads wait
-// and the CPU freezes without the L1D's own miss path. The CPU's stores feed
-// the signature. The I/O port completes on a registered stimulus bit too,
-// with IN's data from the stimulus, and its requests feed the signature, and
-// so do INTR, NMI and INTA's answer, with INTA's requests.
+// Timing spike (d): fes_i386_cpu as Phase 1 has built it, F1 to WB with its
+// L1I, L1D and bus interface (fes_i386_l1i, fes_i386_l1d, fes_i386_biu). The
+// envelope stands for the machine: HPS DDR port 0, the MMIO port, DMA, FLUSH,
+// the I/O port and the interrupt lines answer with registered stimulus bits,
+// and A20M is one too. The attribute map is pc386's, tied as its shell ties
+// it: A0000h-BFFFFh MMIO, the two BIOS ranges read-only, 16 MiB of RAM.
 //
 // The reset state comes from the stimulus too, so CS's base and every
 // register stay variables as later far transfers will make them. Every
-// trace and architectural output feeds the signature.
+// trace, port and architectural output feeds the signature.
 module spike_cpu (
     input  wire  FPGA_CLK1_50,
     input  wire  KEY0_N,
@@ -29,81 +19,19 @@ module spike_cpu (
     logic [511:0] noise;
     spike_stimulus #(.WIDTH(512)) stimulus (.clk, .key0_n(KEY0_N), .reset, .noise);
 
-    logic [27:0]      mem_block;
-    logic             mem_load;
-    logic [15:0][7:0] mem_data;
-    logic             mem_valid;
-
-    // L1I arrays, written by the stimulus, read with address stall.
-    logic [127:0] l1i_data0 [0:255];
-    logic [127:0] l1i_data1 [0:255];
-    logic [127:0] l1i_data2 [0:255];
-    logic [127:0] l1i_data3 [0:255];
-    logic [83:0]  l1i_tags [0:127];
-    logic [127:0] way0, way1, way2, way3;
-    logic [83:0]  tags;
-    (* keep *) logic [7:0][19:0] itlb_page;
-
-    always_ff @(posedge clk)
-        if (noise[0] && noise[9]) begin
-            case (noise[11:10])
-                2'd0: l1i_data0[noise[19:12]] <= noise[255:128];
-                2'd1: l1i_data1[noise[19:12]] <= noise[255:128];
-                2'd2: l1i_data2[noise[19:12]] <= noise[255:128];
-                default: l1i_data3[noise[19:12]] <= noise[255:128];
-            endcase
-        end
-    always_ff @(posedge clk)
-        if (noise[1] && noise[2]) l1i_tags[noise[26:20]] <= noise[343:260];
-    always_ff @(posedge clk) if (mem_load) way0 <= l1i_data0[mem_block[7:0]];
-    always_ff @(posedge clk) if (mem_load) way1 <= l1i_data1[mem_block[7:0]];
-    always_ff @(posedge clk) if (mem_load) way2 <= l1i_data2[mem_block[7:0]];
-    always_ff @(posedge clk) if (mem_load) way3 <= l1i_data3[mem_block[7:0]];
-    always_ff @(posedge clk) if (mem_load) tags <= l1i_tags[mem_block[7:1]];
-    always_ff @(posedge clk) if (mem_load) itlb_page <= {8{noise[363:356], mem_block[27:16]}};
-
-    logic [7:0][3:0] hit;  // hit[s][w] selects way w for bytes 2s and 2s + 1
-    for (genvar s = 0; s < 8; s++) begin : g_set
-        for (genvar w = 0; w < 4; w++) begin : g_way
-            assign hit[s][w] = tags[21 * w + 20] && tags[21 * w +: 20] == itlb_page[s];
-        end
-        for (genvar i = 16 * s; i < 16 * s + 16; i++) begin : g_bit
-            assign mem_data[i / 8][i % 8] = (way0[i] & hit[s][0]) | (way1[i] & hit[s][1])
-                                          | (way2[i] & hit[s][2]) | (way3[i] & hit[s][3]);
-        end
-    end
-
-    // L1D model.
-    logic [31:0]      dmem_addr, dmem_waddr;
-    logic             dmem_read, dmem_write, dmem_valid;
-    logic [7:0][7:0]  dmem_rdata, dmem_wdata;
-    logic [7:0]       dmem_wmask;
-    logic [31:0]      l1d_even [0:511];
-    logic [31:0]      l1d_odd [0:511];
-    logic [31:0]      even_q, odd_q;
-    logic             odd_first;
-    logic [9:0]       dword;
-    logic [8:0]       even_index;
-    assign dword = dmem_addr[11:2];
-    assign even_index = dword[9:1] + 9'(dword[0]);
-    always_ff @(posedge clk)
-        if (noise[3] && noise[4]) begin
-            if (noise[5]) l1d_even[noise[44:36]] <= noise[95:64];
-            else l1d_odd[noise[44:36]] <= noise[95:64];
-        end
-    always_ff @(posedge clk) if (dmem_read) even_q <= l1d_even[even_index];
-    always_ff @(posedge clk) if (dmem_read) odd_q <= l1d_odd[dword[9:1]];
-    always_ff @(posedge clk) if (dmem_read) odd_first <= dword[0];
-    assign dmem_rdata = odd_first ? {even_q, odd_q} : {odd_q, even_q};
+    // pc386's attribute map: slots A0000h-BFFFFh MMIO (2), C0000h-C7FFFh
+    // read-only (1), C8000h-EFFFFh RAM (0), F0000h-FFFFFh read-only (1).
+    localparam logic [47:0] ATTR_UPPER = 48'h55_0000_05_aaaa;
 
     // The reset state, held while reset is.
     logic [7:0][31:0] init_gpr;
     logic [31:0]      init_eflags, init_eip;
     logic [5:0][15:0] init_sel, init_ar;
     logic [5:0][31:0] init_base, init_limit;
+    logic             a20m, queue16;
     always_ff @(posedge clk) begin
-        mem_valid <= |noise[372:370];
-        dmem_valid <= |noise[375:373];
+        a20m <= &noise[7:6];
+        queue16 <= noise[8];
         if (reset) begin
             init_gpr <= noise[511:256];
             init_eflags <= noise[415:384];
@@ -115,13 +43,29 @@ module spike_cpu (
         end
     end
 
-    logic             io_req, io_write, io_ack;
-    logic [15:0]      io_port;
-    logic [1:0]       io_size;
-    logic [31:0]      io_wdata, io_rdata;
-    logic             intr, nmi, inta_req, inta_ack;
+    // The machine's answers.
+    logic             ddr_waitrequest, ddr_readdatavalid;
+    logic [127:0]     ddr_readdata;
+    logic             mmio_ready, mmio_rvalid;
+    logic [31:0]      mmio_rdata;
+    logic             dma_valid, dma_write, flush_request;
+    logic [23:0]      dma_address;
+    logic [7:0]       dma_wdata;
+    logic             io_ack, intr, nmi, inta_ack;
+    logic [31:0]      io_rdata;
     logic [7:0]       inta_vector;
     always_ff @(posedge clk) begin
+        ddr_waitrequest <= &noise[369:368];
+        ddr_readdatavalid <= |noise[372:370];
+        ddr_readdata <= noise[255:128];
+        mmio_ready <= |noise[375:373];
+        mmio_rvalid <= &noise[388:387];
+        mmio_rdata <= noise[95:64];
+        dma_valid <= &noise[391:389];
+        dma_write <= noise[392];
+        dma_address <= noise[127:104];
+        dma_wdata <= noise[103:96];
+        flush_request <= &noise[395:393];
         io_ack <= |noise[378:376];
         io_rdata <= noise[127:96];
         intr <= &noise[381:379];
@@ -130,7 +74,27 @@ module spike_cpu (
         inta_vector <= noise[63:56];
     end
 
+    logic [27:0]      ddr_address;
+    logic [7:0]       ddr_burstcount;
+    logic             ddr_read, ddr_write;
+    logic [127:0]     ddr_writedata;
+    logic [15:0]      ddr_byteenable;
+    logic             mmio_valid, mmio_write;
+    logic [fes_i386_pkg::PA-3:0] mmio_address;
+    logic [3:0]       mmio_byteenable;
+    logic [31:0]      mmio_wdata;
+    logic             dma_done, flush_done;
+    logic [7:0]       dma_rdata;
+    logic             io_req, io_write, inta_req;
+    logic [15:0]      io_port;
+    logic [1:0]       io_size;
+    logic [31:0]      io_wdata;
     logic             trace_retire, trace_halt, trace_exception, trace_unimplemented, trace_issue, trace_md_wait;
+    logic             trace_fetch, trace_dread, trace_mem_wait, trace_mem_idle, trace_replay, trace_smc, trace_store;
+    logic [27:0]      trace_fetch_block;
+    logic [31:0]      trace_store_addr;
+    logic [7:0][7:0]  trace_store_data;
+    logic [7:0]       trace_store_mask;
     logic [7:0]       trace_vector;
     logic [7:0][31:0] arch_gpr;
     logic [31:0]      arch_eflags, arch_eip;
@@ -138,17 +102,28 @@ module spike_cpu (
     logic [5:0][31:0] arch_base, arch_limit;
 
     fes_i386_cpu dut (
-        .clk, .reset, .init_gpr, .init_eflags, .init_eip, .init_sel, .init_base, .init_limit, .init_ar,
-        .mem_block, .mem_load, .mem_data, .mem_valid, .dmem_addr, .dmem_read, .dmem_rdata, .dmem_valid, .dmem_write, .dmem_waddr,
-        .dmem_wdata, .dmem_wmask, .io_req, .io_write, .io_port, .io_size, .io_wdata, .io_ack, .io_rdata,
-        .intr, .nmi, .inta_req, .inta_ack, .inta_vector, .trace_retire, .trace_halt, .trace_exception, .trace_vector,
-        .trace_unimplemented, .trace_issue, .trace_md_wait, .arch_gpr, .arch_eflags, .arch_eip, .arch_sel, .arch_base, .arch_limit, .arch_ar
+        .clk, .cold_reset(reset), .reset, .init_gpr, .init_eflags, .init_eip, .init_sel, .init_base, .init_limit,
+        .init_ar, .a20m, .attr_upper(ATTR_UPPER), .ram_top(7'd16), .queue16,
+        .ddr_address, .ddr_burstcount, .ddr_read, .ddr_write, .ddr_writedata, .ddr_byteenable, .ddr_waitrequest,
+        .ddr_readdata, .ddr_readdatavalid,
+        .mmio_valid, .mmio_write, .mmio_address, .mmio_byteenable, .mmio_wdata, .mmio_ready, .mmio_rvalid, .mmio_rdata,
+        .dma_valid, .dma_write, .dma_address, .dma_wdata, .dma_done, .dma_rdata, .flush_request, .flush_done,
+        .io_req, .io_write, .io_port, .io_size, .io_wdata, .io_ack, .io_rdata,
+        .intr, .nmi, .inta_req, .inta_ack, .inta_vector, .trace_retire, .trace_exception, .trace_vector, .trace_halt,
+        .trace_unimplemented, .trace_issue, .trace_md_wait, .trace_fetch, .trace_fetch_block, .trace_dread,
+        .trace_mem_wait, .trace_mem_idle, .trace_replay, .trace_smc, .trace_store, .trace_store_addr, .trace_store_data,
+        .trace_store_mask, .arch_gpr, .arch_eflags, .arch_eip, .arch_sel, .arch_base, .arch_limit, .arch_ar
     );
 
     logic [31:0] signature, observed;
     always_comb begin
         observed = arch_eflags ^ arch_eip ^ {20'b0, trace_retire, trace_halt, trace_exception, trace_unimplemented, trace_vector}
-                 ^ dmem_waddr ^ dmem_wdata[3:0] ^ dmem_wdata[7:4] ^ {23'b0, dmem_write, dmem_wmask}
+                 ^ {trace_fetch_block, trace_fetch, trace_dread, trace_mem_wait, trace_replay ^ trace_smc}
+                 ^ trace_store_addr ^ trace_store_data[3:0] ^ trace_store_data[7:4] ^ {23'b0, trace_store, trace_store_mask}
+                 ^ {ddr_address, ddr_read, ddr_write, trace_mem_idle, trace_issue} ^ {ddr_burstcount, 8'd0, ddr_byteenable}
+                 ^ ddr_writedata[31:0] ^ ddr_writedata[63:32] ^ ddr_writedata[95:64] ^ ddr_writedata[127:96]
+                 ^ {mmio_address, mmio_valid, mmio_write} ^ {mmio_byteenable, 28'd0} ^ mmio_wdata
+                 ^ {dma_rdata, dma_done, flush_done, 21'd0, trace_md_wait}
                  ^ io_wdata ^ {io_port, 11'b0, inta_req, io_req, io_write, io_size};
         for (int n = 0; n < 8; n++) observed ^= arch_gpr[n];
         for (int n = 0; n < 6; n++) observed ^= arch_base[n] ^ arch_limit[n] ^ {arch_sel[n], arch_ar[n]};
