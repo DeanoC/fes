@@ -1,0 +1,1 @@
+PASS: HPS CSR A/B/A/B, 26 four-cycle ROM/ID replies; drain/reset, sequence, busy, partial, mismatch, timeout, reset and unsolicited faults

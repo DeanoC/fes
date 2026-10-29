@@ -1,0 +1,5 @@
+{
+  "mutation": "remove explicit RESET_SETTLE assertion",
+  "exit_code": -6,
+  "expected_failure": "cold reset must assert before any acknowledgement or request"
+}

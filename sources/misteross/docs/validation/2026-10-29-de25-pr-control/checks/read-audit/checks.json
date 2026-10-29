@@ -1,0 +1,71 @@
+{
+  "base": "f5542eaba6989b5612adbbefc6290eb225910d49",
+  "current_revision": "9663da282aade3e61de1702455636c3e3ec058c5",
+  "files": [
+    {
+      "path": "sources/misteross/scripts/compiler_read_audit.py",
+      "current_sha256": "874cda5a860f367153400e70366eb7ac1d6fc87579a2755033413291067a48f6",
+      "base_sha256": "874cda5a860f367153400e70366eb7ac1d6fc87579a2755033413291067a48f6",
+      "identical": true
+    },
+    {
+      "path": "sources/misteross/tests/test_compiler_read_audit.py",
+      "current_sha256": "d9e3d1dd0451f0113487167fb3ad1fc9aa0b9d5b927628d9f196056fe75d1ce0",
+      "base_sha256": "d9e3d1dd0451f0113487167fb3ad1fc9aa0b9d5b927628d9f196056fe75d1ce0",
+      "identical": true
+    },
+    {
+      "path": "sources/misteross/scripts/export_core_package.py",
+      "current_sha256": "59fcf948c5f83f863b16695deb47c9d1a0c97d6f695b8156b8a53349219b6e8d",
+      "base_sha256": "59fcf948c5f83f863b16695deb47c9d1a0c97d6f695b8156b8a53349219b6e8d",
+      "identical": true
+    },
+    {
+      "path": "sources/misteross/tests/test_export_core_package.py",
+      "current_sha256": "e399489bec03515ea2a2dd4373c0f0c96056776c9937672faba0ab31e06ca047",
+      "base_sha256": "e399489bec03515ea2a2dd4373c0f0c96056776c9937672faba0ab31e06ca047",
+      "identical": true
+    }
+  ],
+  "python": "/usr/bin/python3",
+  "python_version": "3.13.5 (main, Jul 15 2026, 20:25:40) [GCC 14.2.0]",
+  "test_timeout_seconds": 0.5,
+  "commands": [
+    {
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "-v",
+        "tests.test_compiler_read_audit.ReadAuditTests.test_timeout_cancels_multithreaded_child_group_without_masking_timeout"
+      ],
+      "cwd": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-pr-control/sources/misteross",
+      "returncode": 0,
+      "elapsed_seconds": 0.5794883680064231,
+      "log": "exact-method.log"
+    }
+  ],
+  "aggregate": {
+    "log": "out/pr-control-test-changed-final.log",
+    "sha256": "e76e978a853e99eb7f3c47d082984a5d9612b59be5c4b0860f3013d4134e9dd5",
+    "result": "failed",
+    "fpga_tests": 1483,
+    "fpga_failures": 1,
+    "fpga_skips": 35,
+    "failure_excerpt": "aggregate-failure.txt",
+    "failed_assertion": "with self.assertRaises(ProcessLookupError): os.kill(pid, 0)",
+    "failure": "ProcessLookupError not raised",
+    "source_binding_note": "Aggregate started earlier than the latest source revision; audit implementation/test match the unchanged base."
+  },
+  "classification": {
+    "aggregate_success": false,
+    "isolated_exact_method": "passed",
+    "timeout_seconds_unchanged": 0.5,
+    "production_or_test_source_changes": "none",
+    "causal_conclusion": "not established",
+    "pid_state": "aggregate failure retained neither the failing PID nor /proc state; alive tracee versus an exited zombie cannot be distinguished from this log",
+    "base_comparison": "audit implementation, exact test and direct exporter/fixture imports are byte-identical to f5542eaba6989b5612adbbefc6290eb225910d49; no separate baseline execution claimed",
+    "scope": "one isolated exact-method rerun; no repetition or expanded suite"
+  },
+  "command_log_sha256": "2874d70589ef0b9222111d53c5c941e23a92757427ea66b93d5cda0e4a64c827"
+}

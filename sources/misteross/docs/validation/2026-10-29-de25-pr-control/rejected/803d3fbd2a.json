@@ -1,0 +1,596 @@
+{
+  "format": 1,
+  "kind": "fes.de25-pr-control-rejected-candidate",
+  "status": "rejected",
+  "source_revision": "803d3fbd2a2a58bfc2a3d9dfd376153a4fae315e",
+  "source_committed": true,
+  "source_closure_sha256": "59c421fb70ee4114e5fa4859ac91099f283a7c3fa481721fc766eb8d5236f885",
+  "source_files_checked_against_revision": 23,
+  "source_hash_mismatches": [],
+  "control_build_id": "1773d85fd1a692f0659060eba4c130a1",
+  "device": "A5EB013BB23BE4SCS",
+  "region": {
+    "id": "slot0",
+    "instance": "slot_inst",
+    "placement": "X2 Y7 X26 Y12",
+    "routing": "X1 Y6 X27 Y13"
+  },
+  "vendor_archive_sha256": "f79f0eff3b0f9d042fdb61ddcf43efec77b0ebc13248eea100b94e47a1189b66",
+  "quartus_version": "Quartus Prime Shell\nVersion 26.3.0 Build 114 10/14/2026 SC Pro Edition\nCopyright (C) 2026  Altera Corporation. All rights reserved.",
+  "base_compilation": {
+    "result": "successful-compilation-rejected-for-signoff",
+    "errors": 0,
+    "warnings": 311,
+    "completed_at_local": "2026-10-29 12:59:16",
+    "sof": {
+      "path": "out/pr-control-final-803d3fbd2a/hps/project/output_files/base.sof",
+      "bytes": 1597327,
+      "sha256": "8618fcd7bc6ae96c2c83990c30c1adaf4ab8c3c3bdd2294f88e69c82c53e43ba"
+    }
+  },
+  "rejection_reasons": [
+    {
+      "rule": "BBD-60000",
+      "severity": "Medium",
+      "violations": 1,
+      "waived": 0,
+      "details": [
+        {
+          "Port": "slot_inst|reset",
+          "Waived": ""
+        }
+      ],
+      "scope": "new PR slot reset ingress boundary; unresolved direct-registration rule"
+    },
+    {
+      "rule": "TMC-20025",
+      "severity": "Medium",
+      "violations": 1,
+      "waived": 0,
+      "details": [
+        {
+          "Ignored Constraint": "create_clock -name {EMIF_REF_CLOCK} -period 6.000 -waveform { 0.000 3.000 } [get_ports {LPDDR4A_REFCLK_p}]",
+          "Location": "ghrd_timing.sdc:15",
+          "Reason": "Assignment contains errors and will not be analyzed. Verify that the assignment is entered correctly.",
+          "Waived": ""
+        }
+      ],
+      "scope": "inherited ghrd_timing.sdc EMIF clock declaration conflicts with generated IP clock on same reference port"
+    },
+    {
+      "rule": "CLK-30032",
+      "severity": "Medium",
+      "violations": 1,
+      "waived": 0,
+      "details": [
+        {
+          "Assignment": "[get_ports {LPDDR4A_REFCLK_p}]",
+          "Reason": "Target already has clock assigned.",
+          "Location": "ghrd_timing.sdc:15",
+          "Waived": ""
+        }
+      ],
+      "scope": "same duplicate EMIF reference-clock target"
+    }
+  ],
+  "duplicate_clock_evidence": {
+    "preserved_sdc_line": {
+      "path": "ghrd_timing.sdc",
+      "line": 15,
+      "text": "create_clock -name EMIF_REF_CLOCK -period \"166.6666MHz\" [get_ports LPDDR4A_REFCLK_p]"
+    },
+    "active_generated_ip_clock": {
+      "Clock Name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_ref_clock",
+      "Type": "Base",
+      "Period": "6.000",
+      "Frequency": "166.67 MHz",
+      "Rise": "0.000",
+      "Fall": "3.000",
+      "Duty Cycle": "",
+      "Divide by": "",
+      "Multiply by": "",
+      "Phase": "",
+      "Offset": "",
+      "Edge List": "",
+      "Edge Shift": "",
+      "Inverted": "",
+      "Master": "",
+      "Source": "",
+      "Targets": "{ LPDDR4A_REFCLK_p }"
+    },
+    "qualification": "Report identifies an ignored duplicate; do not treat nonnegative STA as overall closure or relax the generated 6 ns clock."
+  },
+  "design_assistant": {
+    "result": "failed",
+    "failed_rules": 7,
+    "total_rules": 88,
+    "waivers": 0,
+    "nonzero_rules": [
+      {
+        "rule": "TMC-20012 - Missing Output Delay Constraint",
+        "severity": "High",
+        "violations": 1,
+        "waived": 0,
+        "tags": "sdc, system"
+      },
+      {
+        "rule": "BBD-60000 - Partial Reconfiguration or Reserved Core Input/Output Ports not Directly Registered",
+        "severity": "Medium",
+        "violations": 1,
+        "waived": 0,
+        "tags": "partial-reconfiguration"
+      },
+      {
+        "rule": "CLK-30032 - Improper Clock Targets",
+        "severity": "Medium",
+        "violations": 1,
+        "waived": 0,
+        "tags": "sdc"
+      },
+      {
+        "rule": "LNT-30023 - Reset Nets with Polarity Conflict",
+        "severity": "Medium",
+        "violations": 1,
+        "waived": 0,
+        "tags": "reset-usage"
+      },
+      {
+        "rule": "RDC-50003 - Multiple Asynchronous Reset Synchronizers in the Same Clock Domain",
+        "severity": "Medium",
+        "violations": 1,
+        "waived": 0,
+        "tags": "reset-usage, reset-reachability"
+      },
+      {
+        "rule": "TMC-20025 - Ignored or Overridden Constraints",
+        "severity": "Medium",
+        "violations": 1,
+        "waived": 0,
+        "tags": "sdc"
+      },
+      {
+        "rule": "RES-50101 - Intra-Clock False Path Reset Synchronizer",
+        "severity": "Low",
+        "violations": 2,
+        "waived": 0,
+        "tags": "synchronizer, false-positive-synchronizer"
+      }
+    ]
+  },
+  "inherited_hps_and_board_findings": {
+    "TMC-20012": [
+      {
+        "Port": "LED[7]",
+        "Reason": "No output delay was set on the output port.",
+        "Waived": ""
+      }
+    ],
+    "LNT-30023": [
+      {
+        "Driver": "soc_inst|mm_interconnect_0|limiter_pipeline|gen_inst[0].core|data1[40]",
+        "Non-Inverted Signal": "soc_inst|mm_interconnect_0|mux_pipeline|gen_inst[0].core|data0[0]|SCLR",
+        "Number of Non-Inverted Signals": "128",
+        "Inverted Signal": "soc_inst|mm_interconnect_0|mux_pipeline|gen_inst[1].core|data0[0]|SCLR",
+        "Number of Inverted Signals": "128",
+        "Waived": ""
+      }
+    ],
+    "RDC-50003": {
+      "reset_clock_domain": "pll_inst|iopll_0_outclk0",
+      "number_of_reset_chains": 12,
+      "scope": "preserved HPS/debug/reset fabric; full row in hashed signoff report"
+    },
+    "RES-50101": [
+      {
+        "From": "fes_top_reset_inst|sync_regs[1]",
+        "To": "soc_inst|subsys_periph|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]",
+        "From/To Clock": "pll_inst|iopll_0_outclk0",
+        "Waived": ""
+      },
+      {
+        "From": "fes_top_reset_inst|sync_regs[1]",
+        "To": "soc_inst|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]",
+        "From/To Clock": "pll_inst|iopll_0_outclk0",
+        "Waived": ""
+      }
+    ],
+    "classification_limit": "These rows name the preserved HPS/interconnect/board paths in this candidate. This receipt is not a separate clean-baseline reproduction and does not waive them."
+  },
+  "base_timing": {
+    "classification": "reported constrained timing only; candidate rejected",
+    "rows": [
+      {
+        "type": "Setup 'pll_inst|iopll_0_outclk0'",
+        "slack_ns": "3.610",
+        "tns_ns": "0.000",
+        "corner": "Slow fix4 0C Model"
+      },
+      {
+        "type": "Setup 'altera_reserved_tck'",
+        "slack_ns": "12.809",
+        "tns_ns": "0.000",
+        "corner": "Slow fix4 100C Model"
+      },
+      {
+        "type": "Hold 'pll_inst|iopll_0_outclk0'",
+        "slack_ns": "0.000",
+        "tns_ns": "0.000",
+        "corner": "Slow fix4a 0C Model"
+      },
+      {
+        "type": "Hold 'altera_reserved_tck'",
+        "slack_ns": "0.094",
+        "tns_ns": "0.000",
+        "corner": "Fast fix4 0C Model"
+      },
+      {
+        "type": "Hold 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0'",
+        "slack_ns": "0.376",
+        "tns_ns": "0.000",
+        "corner": "Fast fix4 0C Model"
+      },
+      {
+        "type": "Recovery 'pll_inst|iopll_0_outclk0'",
+        "slack_ns": "7.242",
+        "tns_ns": "0.000",
+        "corner": "Slow fix4 0C Model"
+      },
+      {
+        "type": "Recovery 'altera_reserved_tck'",
+        "slack_ns": "60.563",
+        "tns_ns": "0.000",
+        "corner": "Slow fix4 0C Model"
+      },
+      {
+        "type": "Removal 'pll_inst|iopll_0_outclk0'",
+        "slack_ns": "0.156",
+        "tns_ns": "0.000",
+        "corner": "Fast fix4 0C Model"
+      },
+      {
+        "type": "Removal 'altera_reserved_tck'",
+        "slack_ns": "0.178",
+        "tns_ns": "0.000",
+        "corner": "Fast fix4 0C Model"
+      },
+      {
+        "type": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_clk_periph_0'",
+        "slack_ns": "0.220",
+        "tns_ns": "0.000",
+        "corner": "Slow fix4 100C Model"
+      },
+      {
+        "type": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_base_0'",
+        "slack_ns": "0.272",
+        "tns_ns": "0.000",
+        "corner": "Slow fix4 0C Model"
+      },
+      {
+        "type": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0'",
+        "slack_ns": "0.419",
+        "tns_ns": "0.000",
+        "corner": "Slow fix4 0C Model"
+      },
+      {
+        "type": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_ref_clock'",
+        "slack_ns": "2.220",
+        "tns_ns": "0.000",
+        "corner": "Slow fix4 100C Model"
+      },
+      {
+        "type": "Minimum Pulse Width 'pll_inst|iopll_0_outclk0'",
+        "slack_ns": "4.385",
+        "tns_ns": "0.000",
+        "corner": "Slow fix4a 0C Model"
+      },
+      {
+        "type": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_rxclk_gated'",
+        "slack_ns": "4.905",
+        "tns_ns": "0.000",
+        "corner": "Slow fix4 0C Model"
+      },
+      {
+        "type": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_rxclk_gated'",
+        "slack_ns": "4.905",
+        "tns_ns": "0.000",
+        "corner": "Slow fix4 0C Model"
+      },
+      {
+        "type": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_rxclk_gated'",
+        "slack_ns": "4.905",
+        "tns_ns": "0.000",
+        "corner": "Slow fix4 0C Model"
+      },
+      {
+        "type": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_rxclk_gated'",
+        "slack_ns": "4.905",
+        "tns_ns": "0.000",
+        "corner": "Slow fix4 0C Model"
+      },
+      {
+        "type": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_rxclk_gated'",
+        "slack_ns": "4.905",
+        "tns_ns": "0.000",
+        "corner": "Slow fix4 0C Model"
+      },
+      {
+        "type": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_rxclk_gated'",
+        "slack_ns": "4.905",
+        "tns_ns": "0.000",
+        "corner": "Slow fix4 0C Model"
+      },
+      {
+        "type": "Minimum Pulse Width 'pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0'",
+        "slack_ns": "8.313",
+        "tns_ns": "0.000",
+        "corner": "Slow fix4 100C Model"
+      },
+      {
+        "type": "Minimum Pulse Width 'pll_inst|iopll_0_refclk'",
+        "slack_ns": "9.231",
+        "tns_ns": "0.000",
+        "corner": "Slow fix4 100C Model"
+      },
+      {
+        "type": "Minimum Pulse Width 'altera_reserved_tck'",
+        "slack_ns": "28.581",
+        "tns_ns": "0.000",
+        "corner": "Slow fix4 100C Model"
+      }
+    ],
+    "all_reported_slacks_nonnegative": true,
+    "all_reported_tns_zero": true,
+    "rounded_zero_slack_note": "PLL-domain hold is reported 0.000 ns; this is report precision, not a quantified positive margin.",
+    "closure": [
+      {
+        "Panel Name": "Design Closure Summary",
+        "Result Flag": "Fail"
+      },
+      {
+        "Panel Name": "Timing Closure",
+        "Result Flag": "Pass"
+      },
+      {
+        "Panel Name": "Setup Summary",
+        "Result Flag": "Pass"
+      },
+      {
+        "Panel Name": "Hold Summary",
+        "Result Flag": "Pass"
+      },
+      {
+        "Panel Name": "Recovery Summary",
+        "Result Flag": "Pass"
+      },
+      {
+        "Panel Name": "Removal Summary",
+        "Result Flag": "Pass"
+      },
+      {
+        "Panel Name": "Setup Data Delay Summary",
+        "Result Flag": "Not Found"
+      },
+      {
+        "Panel Name": "Recovery Data Delay Summary",
+        "Result Flag": "Not Found"
+      },
+      {
+        "Panel Name": "Minimum Pulse Width Summary",
+        "Result Flag": "Pass"
+      },
+      {
+        "Panel Name": "Max Skew Summary",
+        "Result Flag": "Not Found"
+      },
+      {
+        "Panel Name": "Max Clock Skew Summary",
+        "Result Flag": "Not Found"
+      },
+      {
+        "Panel Name": "Net Delay Summary",
+        "Result Flag": "Not Found"
+      },
+      {
+        "Panel Name": "Metastability Summary",
+        "Result Flag": "Pass"
+      },
+      {
+        "Panel Name": "Double Data Rate (DDR) Summary",
+        "Result Flag": "Not Found"
+      },
+      {
+        "Panel Name": "Transmitter Channel-to-Channel Skew (TCCS) Summary",
+        "Result Flag": "Not Found"
+      },
+      {
+        "Panel Name": "Receiver Input Skew Margin (RSKM) Summary",
+        "Result Flag": "Not Found"
+      },
+      {
+        "Panel Name": "Design Assistant Summary",
+        "Result Flag": "High Severity Violations"
+      },
+      {
+        "Panel Name": "Unconstrained Paths",
+        "Result Flag": "Pass"
+      }
+    ],
+    "unconstrained_paths": [
+      {
+        "Property": "Illegal Clocks",
+        "Setup": "0",
+        "Hold": "0"
+      },
+      {
+        "Property": "Unconstrained Clocks",
+        "Setup": "0",
+        "Hold": "0"
+      },
+      {
+        "Property": "Unconstrained Input Ports",
+        "Setup": "0",
+        "Hold": "0"
+      },
+      {
+        "Property": "Paths from Unconstrained Input Ports (Pairs-Only)",
+        "Setup": "0",
+        "Hold": "0"
+      },
+      {
+        "Property": "Unconstrained Output Ports",
+        "Setup": "0",
+        "Hold": "0"
+      },
+      {
+        "Property": "Paths to Unconstrained Output Ports (Pairs-Only)",
+        "Setup": "0",
+        "Hold": "0"
+      }
+    ]
+  },
+  "root_qdb": {
+    "record": {
+      "phase": "after-base-before-personas",
+      "sha256": "ac237e2f12940cd6a4198005edb4a74d4ee4913ab9a95025fafcc41b75445e31"
+    },
+    "observed": {
+      "path": "out/pr-control-final-803d3fbd2a/hps/project/root_partition.qdb",
+      "bytes": 16312247,
+      "sha256": "ac237e2f12940cd6a4198005edb4a74d4ee4913ab9a95025fafcc41b75445e31"
+    }
+  },
+  "persona_status": {
+    "persona_a": "stopped during fitting after base compile and synthesis/partition reports",
+    "persona_b": "not started",
+    "final_build_json_exists": false,
+    "final_artifact_descriptor_exists": false,
+    "final_bundle_composition": "not run; no accepted final descriptor"
+  },
+  "provenance": [
+    {
+      "path": "out/pr-control-final-803d3fbd2a/hps/project/inputs.json",
+      "bytes": 5733,
+      "sha256": "87df917a5811f0517c6c4c54de30d419c50d81ef81d935475ef60d727a83d21b"
+    },
+    {
+      "path": "out/pr-control-final-803d3fbd2a/hps/project/tools.json",
+      "bytes": 1539,
+      "sha256": "8137dd1c26519a3d2dfaca282a10dea6f11880141303c0fe2c77483d8750d4d0"
+    },
+    {
+      "path": "out/pr-control-final-803d3fbd2a/hps/project/generated-inputs.json",
+      "bytes": 123674,
+      "sha256": "9578031e3f7eca4c88b4da5e850a34af529f6964c044f895a2311ad48bd9fc0f"
+    },
+    {
+      "path": "out/pr-control-final-803d3fbd2a/hps/project/hps-handoff.json",
+      "bytes": 1149,
+      "sha256": "1bb289913e806d5c6fd4bfef4051bb85356aa9ba32aead3f26b9c13047a49dc1"
+    },
+    {
+      "path": "out/pr-control-final-803d3fbd2a/hps/project/independent-input-audit-base-routing.json",
+      "bytes": 976,
+      "sha256": "051e0b6d1ca6d00b7c07c0c3e7296d31a141bd3bad74a9974def2715d3c8ab8f"
+    },
+    {
+      "path": "out/pr-control-final-803d3fbd2a/hps/project/independent-synthesis-audit.json",
+      "bytes": 695,
+      "sha256": "621b4ff547d28897cb10b85f1e734f6ea5bb3f8f4797e06b5cd1c0e6235008bc"
+    },
+    {
+      "path": "out/pr-control-final-803d3fbd2a/hps/project/root-qdb.json",
+      "bytes": 115,
+      "sha256": "bef04f2cdef3c9639dc70c895bbd0734d07d9776fc3a464617e8054e73f27a99"
+    },
+    {
+      "path": "out/pr-control-final-803d3fbd2a/hps/project/base-compile.log",
+      "bytes": 264060,
+      "sha256": "4c2d0436e5ba9389f59caff5c3eeb795f8aaa5cbe496ae687d5d8cb5d7fd1fdc"
+    },
+    {
+      "path": "out/pr-control-final-803d3fbd2a/hps/project/output_files/base.sta.rpt",
+      "bytes": 1898427,
+      "sha256": "beec04c435a71d9627c86642675df4f63c4eba92e3a8b9ac0bee940a0e1c29c9"
+    },
+    {
+      "path": "out/pr-control-final-803d3fbd2a/hps/project/output_files/base.sta.summary",
+      "bytes": 3361,
+      "sha256": "848cf67cea22afdee31a3e4ec9de9eb48c67c13e30f3eda162689064dfe1cdd3"
+    },
+    {
+      "path": "out/pr-control-final-803d3fbd2a/hps/project/output_files/base.tq.drc.signoff.rpt",
+      "bytes": 79602,
+      "sha256": "0ab8f47711521fbac3c60b4d085e3f4256e59ff02c63ee50194f2368ad6acee9"
+    },
+    {
+      "path": "out/pr-control-final-803d3fbd2a/hps/project/output_files/base.fit.rpt",
+      "bytes": 2318580,
+      "sha256": "1ff3cc3ee49b92b523fff909f1138f7397d76872f23f6ea127286811e04b0089"
+    },
+    {
+      "path": "out/pr-control-final-803d3fbd2a/hps/project/output_files/base.syn.rpt",
+      "bytes": 5816220,
+      "sha256": "010350f20db08fbe046eda1cf334de94758a3a59f501d409f2d6015dafecb227"
+    },
+    {
+      "path": "out/pr-control-final-803d3fbd2a/hps/project/output_files/base.asm.rpt",
+      "bytes": 30536,
+      "sha256": "c649b040f78d4d12e69bb5b34b3918243335fac2192934558b442b49c67075f1"
+    }
+  ],
+  "stop": {
+    "receipt": {
+      "path": "out/pr-control-final-803d3fbd2a/termination.json",
+      "bytes": 1044,
+      "sha256": "108de14acceb7ea3a2373e4c7e15995c5d774f9434c01f310cb7e54fd5bc865b"
+    },
+    "record": {
+      "reason": "BBD60000 remains on slot_inst|reset; inspect legal boundary implementation before more personas",
+      "anchor": 2166103,
+      "processes": {
+        "2166103": {
+          "ppid": 2166055,
+          "start_ticks": 30252497,
+          "argv": "python3 sources/misteross/boards/de25nano/link-proof/build.py build --output /home/deano/.codex/worktrees/c134/fes/out/dev/de25-pr-control/out/pr-control-final-803d3fbd2a --vendor-archive /home/deano/.codex/worktrees/c134/fes/out/dev/de25-linux-assessment/out/de25-linux-cache/DE25-Nano_revB_v.1.0.0_ResourcePackage.zip --placement X2 Y7 X26 Y12 --routing X1 Y6 X27 Y13 "
+        },
+        "2225112": {
+          "ppid": 2166103,
+          "start_ticks": 30307173,
+          "argv": "quartus_sh --flow compile fes_link_proof -c persona_a "
+        },
+        "2227243": {
+          "ppid": 2225112,
+          "start_ticks": 30310533,
+          "argv": "quartus_fit --ipc_flow=17 --ipc_mode --read_settings_files=on --write_settings_files=off fes_link_proof -c persona_a "
+        }
+      },
+      "action": "SIGTERM then SIGCONT on exact owned identities"
+    },
+    "recorded_process_identity_recheck": [
+      {
+        "pid": 2166103,
+        "recorded_start_ticks": 30252497,
+        "same_process_still_exists": false
+      },
+      {
+        "pid": 2225112,
+        "recorded_start_ticks": 30307173,
+        "same_process_still_exists": false
+      },
+      {
+        "pid": 2227243,
+        "recorded_start_ticks": 30310533,
+        "same_process_still_exists": false
+      }
+    ],
+    "recheck_time_utc": "2026-10-29T11:01:10.934654+00:00"
+  },
+  "acceptance": {
+    "production": "not-admitted",
+    "physical": "not-run",
+    "full_base_and_both_persona_compilation": "not-completed",
+    "partial_reconfiguration_boundary": "failed",
+    "electrical_and_board_timing": "not-qualified"
+  },
+  "note": "This rejected run is retained as evidence. Later changes must use a new frozen build and must not relabel these reports or artifacts."
+}
