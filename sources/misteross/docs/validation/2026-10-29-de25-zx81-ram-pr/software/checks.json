@@ -1,0 +1,23 @@
+{
+  "development_aggregate": {
+    "fpga_skipped": 35,
+    "fpga_tests": 1487,
+    "parent_skipped": 1,
+    "parent_tests": 937,
+    "plan_head": "b00b1040740a19af6d1fa1de824644bcfd70f028",
+    "source_scope": "changing development worktree; not exact final-head signoff",
+    "status": "passed"
+  },
+  "evidence_class": "off-board software checks only",
+  "focused": {
+    "scope": "actual counter/runtime regression plus profile guards; final compiler-source build/proof follows separately",
+    "source_revision": "9a7728502a",
+    "status": "passed",
+    "tests": 23
+  },
+  "hardware_acceptance": "not-run",
+  "hil_plan": {
+    "decision": "NO_DEPLOY_CHANGE",
+    "status": "passed"
+  }
+}

@@ -1,0 +1,187 @@
+{
+  "rows": [
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/build.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/zx81-ram/README.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/*.md"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/zx81-ram/audit.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/zx81-ram/personas.v",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/zx81-ram/profile.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/zx81-ram/profile_test.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/zx81-ram/sim.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/zx81-ram/sim_top.v",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/zx81-ram/static.v",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/zx81-ram/tb.cpp",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/zx81-ram/timing.tcl",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/docs/architecture.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-ram-pr/README.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-ram-pr/constant-register-probe/constant.v",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-ram-pr/constant-register-probe/constant_probe.qpf",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-ram-pr/constant-register-probe/constant_probe.qsf",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-ram-pr/failed/diagnostic-phase/sources.tar.gz",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-ram-pr/failed/folded-response/base-compile.log.gz",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-ram-pr/failed/folded-response/base.fit.rpt.gz",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-ram-pr/failed/folded-response/base.sta.summary",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-ram-pr/failed/folded-response/base.syn.rpt.gz",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-ram-pr/failed/folded-response/base.tq.drc.signoff.rpt.gz",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-ram-pr/failed/folded-response/quartus-version.txt",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-ram-pr/failed/parser/base-compile.log.gz",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-ram-pr/failed/parser/base.syn.rpt.gz",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-ram-pr/failed/parser/quartus-version.txt",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-ram-pr/failed/rom-depth/base-compile.log.gz",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-ram-pr/failed/rom-depth/base.syn.rpt.gz",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/docs/validation/2026-10-29-de25-zx81-ram-pr/failed/rom-depth/quartus-version.txt",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/tests/test_de25nano_link_proof.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/*/tests/**"
+    }
+  ],
+  "class": "none",
+  "components": [],
+  "decision": "NO_DEPLOY_CHANGE"
+}
