@@ -955,6 +955,16 @@ restarts it. Loads that only check a slot (probes) or reload an operand
 at commit to the MMIO port, which accepts one store per cycle into a FIFO.
 Planar VGA logic sits behind it, in the machine.
 
+**Open divergence: a shift or rotate of a memory operand by zero.** The CPU
+makes the read-modify-write's write, of the byte it read; Bochs, the
+lockstep's oracle, makes none. On RAM the write changes nothing. On a device
+it may: in VGA's planar modes the write modes, the bit mask and the latches
+act on the byte written. Whether a 386 makes that write cycle for a count of
+zero is not known here (the 386 manual says only that the flags are left
+alone). Until a 386 bus trace, or a reference that decides it, settles it,
+the lockstep's mixing device takes the CPU's byte
+([memory path record](validation/2026-10-28-i386-memory-path.md#the-review-fix)).
+
 The machine's FLUSH request invalidates L1 and writes back and invalidates L2.
 The machine uses it when it changes the attribute map (shadow RAM control).
 The L2 controller serves FLUSH and DMA without the pipeline, so both complete
