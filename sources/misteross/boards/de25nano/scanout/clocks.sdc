@@ -19,5 +19,12 @@ set scanout_fault_head [get_pins -compatibility_mode -nocase {soc_inst|subsys_pe
 if {[get_collection_size $scanout_fault_source] != 1 || [get_collection_size $scanout_fault_head] != 1} {error "DE25 scanout fault synchronizer ingress changed"}
 set_false_path -from $scanout_fault_source -to $scanout_fault_head
 post_message -type info "DE25 scanout fault CDC ingress: one source and one stage0 D pin"
+# The system/PLL visibility request crosses into the pixel-clock HDMI gate.
+# Cut only the first synchronizer D input; its next stage and line-boundary
+# gate remain timed in the pixel domain.
+set scanout_visible_head [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|visible_sync[0]|d}]
+if {[get_collection_size $scanout_visible_head] != 1} {error "DE25 scanout visibility synchronizer ingress changed"}
+set_false_path -to $scanout_visible_head
+post_message -type info "DE25 scanout visibility CDC ingress: one stage0 D pin"
 # No clock groups or FIFO pointer cuts: mm_ccb owns its CDC constraints.
 # External HDMI/I2C delay and electrical contracts remain unqualified.
