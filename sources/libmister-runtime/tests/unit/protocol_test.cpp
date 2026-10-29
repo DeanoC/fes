@@ -1237,6 +1237,11 @@ void TestComputerResponseFixtures()
 	assert(lines[7].find("\"core\":\"fes.atari-st\"") != std::string::npos);
 	assert(lines[7].find("\"id\":\"fes.computer\",\"major\":1,\"minor\":0") != std::string::npos);
 	assert(lines[7].find("\"id\":\"fes.computer\",\"major\":1,\"minor\":1") != std::string::npos);
+	for (const auto& line : lines) {
+		const auto v10 = line.find("{\"id\":\"fes.computer\",\"major\":1,\"minor\":0");
+		const auto v11 = line.find("{\"id\":\"fes.computer\",\"major\":1,\"minor\":1");
+		assert(v10 != std::string::npos && v11 != std::string::npos && v10 < v11);
+	}
 }
 
 void TestMenuProtocolRequestsAndStatus()
