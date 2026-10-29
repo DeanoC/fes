@@ -35,6 +35,7 @@ module fes_de25_sdram #(
     reg [4:0] read_left=0,write_left=0;
     reg is_write=0;
     reg [15:0] payload=0;
+    reg [15:0] sampled_dq=0;
     reg [1:0] enables=0;
     wire refresh_due=refresh_age>=REFRESH_CYCLES;
     assign waitrequest=!initialized||state!=IDLE||refresh_due||
@@ -42,6 +43,11 @@ module fes_de25_sdram #(
     assign response=0;
     assign dram_clk=~clk;
     wire [1:0] selected_cs=word_addr[25]?2'b01:2'b10;
+    // CL2/BL1 data is driven after T1 and remains valid through T2+hold.
+    // Capture at nominal external T2, then retire on the next fabric rising
+    // edge. External clock-out/PCB/input delays still need board qualification.
+    always @(negedge clk)
+        if(reset_n&&state==RD_WAIT&&timer==0) sampled_dq<=dq_i;
     always @(posedge clk or negedge reset_n) begin
         if(!reset_n) begin
             state<=POWER;next_state<=POWER;timer<=0;refresh_age<=0;
@@ -102,14 +108,11 @@ module fes_de25_sdram #(
                     if(is_write) begin
                         dq_oe<=1;dq_o<=payload;dram_dqm<=~enables;
                         state<=WR_WAIT;timer<=3;
-                    // CL2/BL1: data drives after external T1, then leaves the
-                    // valid window after T2. Capture at fabric T1+half-cycle,
-                    // not T2+half-cycle (the bus may already be high impedance).
-                    end else begin state<=RD_WAIT;timer<=1;end
+                    end else begin state<=RD_WAIT;timer<=2;end
                 end
                 WR_WAIT:if(timer==0) state<=PRE;else timer<=timer-1;
                 RD_WAIT:if(timer==0) begin
-                    readdata<=dq_i;readdatavalid<=1;state<=PRE;
+                    readdata<=sampled_dq;readdatavalid<=1;state<=PRE;
                 end else timer<=timer-1;
                 PRE:begin
                     dram_cs_n<=selected_cs;dram_ras_n<=0;dram_we_n<=0;dram_addr<=13'h400;

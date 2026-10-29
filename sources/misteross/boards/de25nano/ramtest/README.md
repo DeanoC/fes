@@ -16,9 +16,10 @@ The SDRAM controller follows the locked package's
 SHA-256 `ca58df0eeb180528fe71bb329feace0ea5cd69435d38a11b4f9fe0abc8cbddf1`).
 After 200 microseconds it precharges both chips, refreshes twice, programs
 CAS2/BL1 with BA=0/address=0x20, and programs full drive/all-bank PASR with
-BA=2/address=0 before admitting requests. Read capture uses the half-cycle
-after external T1; the pin model expires BL1 data before the later T2
-half-cycle. Its 6.4-microsecond refresh budget covers the documented
+BA=2/address=0 before admitting requests. A falling-edge input register captures
+at nominal external T2 and returns that held sample on the next rising edge.
+The pin model keeps BL1 data through T2 and expires it before that later rising
+edge. Its 6.4-microsecond refresh budget covers the documented
 8192-refresh/64-millisecond envelope at up to 85 C; A2-grade operation above
 85 C needs a different policy. External data-window and board timing remain
 unqualified.
