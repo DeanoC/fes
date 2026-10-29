@@ -558,7 +558,7 @@ func heroFooterStatus(snap Snapshot) string {
 		return local
 	}
 	switch status {
-	case localLaunchCheckingCopy, "Settings are unavailable during play.", "That action is not available.":
+	case localLaunchCheckingCopy, "Settings are unavailable during play.", "That action is not available.", staleBrowseActionStatus:
 		return status
 	}
 	if snap.Health.Line != "" && (snap.Health.HostUnreachable || !snap.Health.TargetReachable) {

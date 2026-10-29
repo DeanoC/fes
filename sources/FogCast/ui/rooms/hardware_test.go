@@ -28,6 +28,37 @@ type hardwareFixture struct {
 	saves            [][4]string
 }
 
+type delayedFirstHardwareServices struct {
+	*hardwareFixture
+	started     chan struct{}
+	release     chan struct{}
+	callMu      sync.Mutex
+	calls       int
+	startOnce   sync.Once
+	releaseOnce sync.Once
+}
+
+func (s *delayedFirstHardwareServices) Hardware(ctx context.Context) (hostclient.HardwareSnapshot, error) {
+	snapshot, err := s.hardwareFixture.Hardware(ctx)
+	s.callMu.Lock()
+	s.calls++
+	first := s.calls == 1
+	s.callMu.Unlock()
+	if first {
+		s.startOnce.Do(func() { close(s.started) })
+		select {
+		case <-s.release:
+		case <-ctx.Done():
+			return hostclient.HardwareSnapshot{}, ctx.Err()
+		}
+	}
+	return snapshot, err
+}
+
+func (s *delayedFirstHardwareServices) releaseFirst() {
+	s.releaseOnce.Do(func() { close(s.release) })
+}
+
 func (s *hardwareFixture) Hardware(context.Context) (hostclient.HardwareSnapshot, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
@@ -77,6 +108,36 @@ func loadHardware(t *testing.T, svc Services, pack Pack) *Instance {
 	}
 	stepUntil(t, r, func(f Frame) bool { return frameHas(f, "Fits this machine") })
 	return r
+}
+
+func TestHardwareRoomQueuesRefreshRequestedDuringRead(t *testing.T) {
+	svc := &delayedFirstHardwareServices{
+		hardwareFixture: hardwareData(false),
+		started:         make(chan struct{}),
+		release:         make(chan struct{}),
+	}
+	defer svc.releaseFirst()
+	r := newRoom(t, examplePack(t, "example.hardware"), Options{Services: svc, StorePath: filepath.Join(t.TempDir(), "room.json")})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-svc.started:
+	case <-time.After(3 * time.Second):
+		t.Fatal("initial hardware read did not start")
+	}
+	r.Resume()
+	svc.hardwareFixture.lock.Lock()
+	svc.value.Machines[0].Title = "Updated custom setup"
+	svc.hardwareFixture.lock.Unlock()
+	svc.releaseFirst()
+	stepUntil(t, r, func(f Frame) bool { return frameHas(f, "Updated custom setup") })
+	svc.callMu.Lock()
+	calls := svc.calls
+	svc.callMu.Unlock()
+	if calls != 2 {
+		t.Fatalf("hardware reads = %d, want initial plus queued refresh", calls)
+	}
 }
 
 func TestHardwareRoomSavesDraftWithoutChangingActiveMachine(t *testing.T) {

@@ -10,6 +10,8 @@ import (
 	"github.com/DeanoC/FogCast/ui/rooms"
 )
 
+const staleBrowseActionStatus = "The selection changed. Choose its action again."
+
 // BrowseActionsSnapshot describes focus on the selected item's visible actions.
 // The item stays selected while focus moves to this row.
 type BrowseActionsSnapshot struct {
@@ -149,7 +151,7 @@ func (a *App) handleBrowseActionsLocked(cmd Command) bool {
 		// Never let a delayed refresh or context change turn this Confirm
 		// into an activation of the item now occupying the old position.
 		if cmd == CmdSelect {
-			a.status = "The selection changed. Choose its action again."
+			a.status = staleBrowseActionStatus
 			return true
 		}
 		return false

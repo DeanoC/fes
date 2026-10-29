@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/rooms"
 )
 
@@ -237,7 +238,21 @@ func TestHomeHeroActionsRejectAChangedDestination(t *testing.T) {
 	app.room.Hover("core:2") // A refreshed/externally selected row replaces the captured subject.
 	app.mu.Unlock()
 	app.HandleCommand(CmdSelect, time.Now())
-	if snap := app.Snapshot(); fake.launchCount() != 0 || snap.Room.CoreDetail || !strings.Contains(snap.Status, "selection changed") {
+	snap := app.Snapshot()
+	if fake.launchCount() != 0 || snap.Room.CoreDetail || snap.Status != staleBrowseActionStatus {
 		t.Fatalf("stale Home action activated replacement: status=%q launches=%d", snap.Status, fake.launchCount())
+	}
+	if !snap.Room.Hero {
+		t.Fatal("expected Home hero room")
+	}
+	dev, err := gfx.NewSoftware(snap.Grid.Width, snap.Grid.Height)
+	if err != nil {
+		t.Fatal(err)
+	}
+	labels := map[string]gpuTexture{}
+	presentFrame(dev, snap, map[string]gpuTexture{}, labels, false)
+	key := roomTextKey(rooms.Op{Kind: rooms.OpText, Text: staleBrowseActionStatus, Size: heroFooterPx, Bold: true})
+	if footer, ok := labels[key]; !ok || !labelHasInk(footer) {
+		t.Fatal("stale-action message was not drawn in the Home hero footer")
 	}
 }

@@ -47,6 +47,7 @@ local chosen, inspected = "", ""
 local focus = "socket"
 local controls = {}
 local loading, saving, stale = false, false, true
+local refresh_pending = false
 local message, read_error = opening_message, ""
 local last_read, page = 0, 1
 local scale, ox, oy = 1, 0, 0
@@ -267,29 +268,34 @@ local function pending()
   return current() and current_session().hardware_known and (current_session().package_id ~= launch_package or (current_session().expansion_id or "") ~= machine.draft_expansion_id)
 end
 local function read()
-  if loading or saving then return end
+  if loading or saving then refresh_pending=true return end
+  refresh_pending=false
   loading = true
   last_read = room.time
   hardware.read(function(value,err)
     loading = false
-    if err then stale=true read_error="Cannot refresh the host. "..err return end
-    stale=false read_error="" data=value
-    machine=nil
-    local list=value.machines or {}
-    for _,m in ipairs(list) do if m.game_id == chosen then machine=m end end
-    if not machine and value.session then
-      for _,m in ipairs(list) do if m.game_id == value.session.game_id then machine=m end end
+    if err then
+      stale=true read_error="Cannot refresh the host. "..err
+    else
+      stale=false read_error="" data=value
+      machine=nil
+      local list=value.machines or {}
+      for _,m in ipairs(list) do if m.game_id == chosen then machine=m end end
+      if not machine and value.session then
+        for _,m in ipairs(list) do if m.game_id == value.session.game_id then machine=m end end
+      end
+      if not machine then machine=list[1] end
+      if machine then
+        chosen=machine.game_id
+        if not choice() then inspected=machine.draft_expansion_id end
+        page=math.max(1,math.min(page,math.ceil(math.max(1,#machine.choices)/3)))
+      elseif initial_selection_pending then
+        read_error="The selected "..model().label.." setup is no longer available."
+      end
+      initial_selection_pending=false
+      if message == opening_message then message="Choose a card to see what it adds." end
     end
-    if not machine then machine=list[1] end
-    if machine then
-      chosen=machine.game_id
-      if not choice() then inspected=machine.draft_expansion_id end
-      page=math.max(1,math.min(page,math.ceil(math.max(1,#machine.choices)/3)))
-    elseif initial_selection_pending then
-      read_error="The selected "..model().label.." setup is no longer available."
-    end
-    initial_selection_pending=false
-    if message == opening_message then message="Choose a card to see what it adds." end
+    if refresh_pending and not saving then read() end
   end)
 end
 local function save(id)

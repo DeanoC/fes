@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -64,6 +65,177 @@ func preparedComputer(id, title, coreID string) hostclient.Game {
 		ID: id, Title: title, System: "fpga", CoreID: coreID,
 		State: "available", RootOnline: true, Launchable: true,
 	}
+}
+
+func TestSystemsRoomRefreshesAfterNestedSetup(t *testing.T) {
+	svc := &fakeServices{}
+	r := newRoom(t, examplePack(t, "example.computers"), Options{Services: svc, Width: 1280, Height: 720})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	stepUntil(t, r, func(f Frame) bool {
+		return frameHas(f, "No prepared systems yet. Add a system to get started.")
+	})
+	added := preparedComputer("nested-setup", "Newly prepared ZX81", "fes.zx81")
+	svc.mu.Lock()
+	svc.games = []hostclient.Game{added}
+	svc.mu.Unlock()
+	r.Resume()
+	frame := stepUntil(t, r, func(f Frame) bool { return frameHas(f, added.Title) })
+	if !frameHas(frame, "Set up") || r.Err() != nil {
+		t.Fatalf("resumed Systems shelf did not include the new setup:\n%s\nerror=%v", frameText(frame), r.Err())
+	}
+}
+
+type delayedFirstSystemsQueryServices struct {
+	*fakeServices
+	firstResult []hostclient.Game
+	started     chan struct{}
+	release     chan struct{}
+	mu          sync.Mutex
+	calls       int
+	releaseOnce sync.Once
+}
+
+func (s *delayedFirstSystemsQueryServices) QueryGames(ctx context.Context, q hostclient.GameListQuery, limit int) ([]hostclient.Game, error) {
+	s.mu.Lock()
+	s.calls++
+	first := s.calls == 1
+	s.mu.Unlock()
+	if first {
+		close(s.started)
+		select {
+		case <-s.release:
+			return append([]hostclient.Game(nil), s.firstResult...), nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	return s.fakeServices.QueryGames(ctx, q, limit)
+}
+
+func (s *delayedFirstSystemsQueryServices) releaseFirst() {
+	s.releaseOnce.Do(func() { close(s.release) })
+}
+
+func TestSystemsRoomIgnoresStaleCatalogRefresh(t *testing.T) {
+	old := preparedComputer("old-system", "Old system", "fes.zx81")
+	newer := preparedComputer("new-system", "New system", "fes.zx81")
+	svc := &delayedFirstSystemsQueryServices{
+		fakeServices: &fakeServices{games: []hostclient.Game{newer}},
+		firstResult:  []hostclient.Game{old},
+		started:      make(chan struct{}),
+		release:      make(chan struct{}),
+	}
+	defer svc.releaseFirst()
+	r := newRoom(t, examplePack(t, "example.computers"), Options{Services: svc, Width: 1280, Height: 720})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	waitForSystemsSignal(t, r, svc.started, "initial Systems query")
+	r.Resume()
+	stepUntil(t, r, func(f Frame) bool { return frameHas(f, newer.Title) })
+	svc.releaseFirst()
+	waitForSystemsPending(t, r, false)
+	frame := r.Step(time.Now())
+	if !frameHas(frame, newer.Title) || frameHas(frame, old.Title) {
+		t.Fatalf("stale query replaced the resumed Systems shelf:\n%s", frameText(frame))
+	}
+}
+
+type delayedSystemsGameServices struct {
+	*fakeServices
+	blockedID   string
+	detail      hostclient.Game
+	started     chan struct{}
+	release     chan struct{}
+	startOnce   sync.Once
+	releaseOnce sync.Once
+}
+
+func (s *delayedSystemsGameServices) Game(ctx context.Context, id string) (hostclient.Game, error) {
+	if id != s.blockedID {
+		return s.fakeServices.Game(ctx, id)
+	}
+	s.startOnce.Do(func() { close(s.started) })
+	select {
+	case <-s.release:
+		return s.detail, nil
+	case <-ctx.Done():
+		return hostclient.Game{}, ctx.Err()
+	}
+}
+
+func (s *delayedSystemsGameServices) releaseDetail() {
+	s.releaseOnce.Do(func() { close(s.release) })
+}
+
+func TestSystemsRoomIgnoresStaleEditionRefresh(t *testing.T) {
+	old := preparedComputer("old-group", "Old grouped system", "fes.zx81")
+	old.VariantCount = 2
+	detail := old
+	detail.Title = "Old detailed system"
+	newer := preparedComputer("new-system", "New system after setup", "fes.zx81")
+	svc := &delayedSystemsGameServices{
+		fakeServices: &fakeServices{games: []hostclient.Game{old}},
+		blockedID:    old.ID,
+		detail:       detail,
+		started:      make(chan struct{}),
+		release:      make(chan struct{}),
+	}
+	defer svc.releaseDetail()
+	r := newRoom(t, examplePack(t, "example.computers"), Options{Services: svc, Width: 1280, Height: 720})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	waitForSystemsSignal(t, r, svc.started, "grouped-edition lookup")
+	svc.fakeServices.mu.Lock()
+	svc.fakeServices.games = []hostclient.Game{newer}
+	svc.fakeServices.mu.Unlock()
+	r.Resume()
+	stepUntil(t, r, func(f Frame) bool { return frameHas(f, newer.Title) })
+	svc.releaseDetail()
+	waitForSystemsPending(t, r, true)
+	frame := r.Step(time.Now())
+	if !frameHas(frame, newer.Title) || frameHas(frame, old.Title) || frameHas(frame, detail.Title) {
+		t.Fatalf("stale edition callback replaced the resumed Systems shelf:\n%s", frameText(frame))
+	}
+}
+
+func waitForSystemsSignal(t *testing.T, r *Instance, signal <-chan struct{}, description string) {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		r.Step(time.Now())
+		select {
+		case <-signal:
+			return
+		default:
+			time.Sleep(time.Millisecond)
+		}
+	}
+	t.Fatalf("%s did not arrive", description)
+}
+
+func waitForSystemsPending(t *testing.T, r *Instance, game bool) {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		r.pendingMu.Lock()
+		found := false
+		for _, result := range r.pending {
+			if (game && result.game != nil) || (!game && result.games != nil) {
+				found = true
+				break
+			}
+		}
+		r.pendingMu.Unlock()
+		if found {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatal("Systems callback did not arrive")
 }
 
 func TestSystemsRoomListsPreparedWorkingFamilies(t *testing.T) {

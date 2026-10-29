@@ -24,6 +24,7 @@ local list
 local rows
 local status = "Looking for prepared systems…"
 local load_err
+local library_generation = 0
 
 local function machine_of(g)
   if type(g) ~= "table" then return nil end
@@ -107,7 +108,7 @@ local function prepared_from(games)
   return out
 end
 
-local function resolve(games)
+local function resolve(games, generation)
   local prepared = prepared_from(games)
   local pending = 0
   local replacements = {}
@@ -119,6 +120,7 @@ local function resolve(games)
       local id = g.id
       local fallback = g
       library.game(id, function(detail, err)
+        if generation ~= library_generation then return end
         if detail and not err and detail.id and detail.id ~= "" then
           replacements[id] = detail
         else
@@ -162,22 +164,29 @@ local function open_setup()
   return true
 end
 
-function load()
+local function refresh()
+  library_generation = library_generation + 1
+  local generation = library_generation
   library.query({
     platform = "fpga",
     core_ids = systems.ids,
     sort = "title",
     limit = 2000,
   }, function(games, err)
+    if generation ~= library_generation then return end
     if err then
       load_err = err
       status = ""
       rows = {}
       return
     end
-    resolve(games)
+    load_err = nil
+    resolve(games, generation)
   end)
 end
+
+function load() refresh() end
+function on_resume() refresh() end
 
 function on_input(cmd)
   if focus == "setup" then

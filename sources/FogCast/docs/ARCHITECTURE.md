@@ -1471,6 +1471,9 @@ The last two are internal templates opened with an exact model/entry, excluded
 from room and default-home pickers. Home routes directly to Systems. The old
 Lobby, Amiga Workbench, Mario, SNES, TMS and Coleco demo rooms and redundant
 C64 wrapper are removed; the installed-room framework and public widgets stay.
+Systems rereads its playable shelf on resume after nested setup and ignores
+callbacks from earlier refreshes. Sinclair setup queues a refresh requested
+during a read and performs it after the current snapshot arrives.
 Missing saved-home IDs use the existing fallback without replacement aliases.
 
 `internal/corenames` supplies plain display names for 18 exact first-party
