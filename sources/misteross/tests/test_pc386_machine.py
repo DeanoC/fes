@@ -152,6 +152,11 @@ SB resets=1 commands=12 dma=6000 irqs=6
 END prompt steps=69772120 cycles=290000013 seconds=2.900
 """
 
+RTL_BOOT_OUTPUT = """PROMPT 100
+RTL retired=42 oracle_steps=0 protected_steps=0 parked_clocks=0 tf_retired=0 vga_loads=0 vga_lost_path=0 vga_lost_restart=0 vga_lost_stop=0 shadow_faults=0 vga_cancelled=0 vga_overlaps=0 smc_stores=0 smc_addresses=0 smc_executed=0
+END prompt steps=42 cycles=100 seconds=0.001
+"""
+
 
 class BootReportTest(unittest.TestCase):
     def test_parse(self):
@@ -188,6 +193,32 @@ class BootReportTest(unittest.TestCase):
         self.assertEqual(len(sim.timing_failures(early)), 1)
         late = sim.parse_boot(BOOT_OUTPUT + f'IO vga-in 1 {sim.VGA_READ_BOUND + 1} 1\n')
         self.assertEqual(len(sim.timing_failures(late)), 1)
+
+    def test_rtl_boot_requires_the_rtl_to_reach_the_prompt_without_stops(self):
+        passed = sim.parse_boot(RTL_BOOT_OUTPUT)
+        self.assertEqual(sim.rtl_boot_failures(passed, 'rtl'), [])
+        # The oracle boot keeps its existing acceptance rules.
+        self.assertEqual(sim.rtl_boot_failures(passed, 'oracle'), [])
+
+        cases = (
+            (RTL_BOOT_OUTPUT.replace('retired=42', 'retired=0'), 'no instructions', None),
+            (RTL_BOOT_OUTPUT.replace('oracle_steps=0', 'oracle_steps=1'), 'oracle_steps=1', None),
+            (RTL_BOOT_OUTPUT.replace('shadow_faults=0', 'shadow_faults=1'), 'shadow_faults=1', None),
+            (RTL_BOOT_OUTPUT.replace('vga_overlaps=0', 'vga_overlaps=1'), 'vga_overlaps=1', None),
+            ('STOP stall 50 f000:00000000 00 00\n'
+             'GAP stall 00 1 1 0 f000:00000000 50\n' + RTL_BOOT_OUTPUT, 'stall 00', 'unimplemented'),
+            ('STOP unimplemented 50 f000:00000000 27 27\n'
+             'GAP unimplemented 27 1 1 0 f000:00000000 50\n' + RTL_BOOT_OUTPUT,
+             'unimplemented 27', 'stall 00'),
+            (RTL_BOOT_OUTPUT.replace('PROMPT 100\n', '').replace('END prompt', 'END limit'), 'prompt', None),
+            ('PROMPT 100\nEND prompt steps=42 cycles=100 seconds=0.001\n', 'counters', None),
+        )
+        for output, expected, wrong_classification in cases:
+            with self.subTest(expected=expected):
+                failures = sim.rtl_boot_failures(sim.parse_boot(output), 'rtl')
+                self.assertTrue(any(expected in failure for failure in failures), failures)
+                if wrong_classification:
+                    self.assertFalse(any(wrong_classification in failure for failure in failures), failures)
 
 
 @unittest.skipUnless(VERILATOR, 'requires Verilator')
