@@ -48,7 +48,11 @@ in the CPU changed.
 **Wolfenstein 3D runs its 24 s on the RTL with no stop, and the runner's
 game suite passes.** Its final frame is the oracle's, pixel for pixel, but
 for the status bar, which the CPU's missing uncached path garbles. Both
-crashes on the way there were the bench's.
+crashes on the way there were the bench's. The suite checks that every I/O
+access and INTA took its class time, net of FIFO waits; that the OPL2
+played and matched Nuked-OPL3; and that the VGA never underflowed and the
+BIOS never panicked. It does not check stops, modes or the frame, which
+are this record's.
 
 - **First crash, at 12.127 s, was the bench's.** The first run stopped as
   E1M1 started, running ASCII text as code. The oracle runs of the game at 3,
