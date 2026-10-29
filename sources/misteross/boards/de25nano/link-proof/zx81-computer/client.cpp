@@ -70,21 +70,21 @@ int main(int argc,char**argv){
             okay(identified,"PR identity");De25ComputerIdentity computer_identity;okay(computer.Identify(build,io.deadline(),&computer_identity),"computer identity");
             if(scenario=="session"){
                 okay(pr.Reconfigure(FesDe25PrControlPersonaA,[&]{return configure(FesDe25PrControlPersonaA);},io.deadline()),"empty selection");
-                okay(computer.Run(io.deadline()),"empty RUN");ramtop_a=io.call(combined::WaitRamtop,0x4400).value;
+                okay(computer.Run(io.deadline()),"empty RUN");std::cerr<<"BOOT empty\n";ramtop_a=io.call(combined::WaitRamtop,0x4400).value;
                 okay(computer.Hold(io.deadline()),"HOLD before RAM selection");
                 io.call(wire::PixelClock,0);
                 okay(pr.Reconfigure(FesDe25PrControlPersonaB,[&]{return configure(FesDe25PrControlPersonaB);},io.deadline()),"RAM selection with stopped PIX");
                 okay(computer.Run(io.deadline()),"RAM RUN");io.call(wire::PixelClock,1);
-                ramtop_b=io.call(combined::WaitRamtop,0x8000).value;
+                std::cerr<<"BOOT 16K\n";ramtop_b=io.call(combined::WaitRamtop,0x8000).value;
                 unsigned size=io.call(wire::CaptureNew).value;std::vector<unsigned char> image;
                 for(unsigned at=0;at<size;++at)image.push_back(io.call(wire::PeekRam,0x4009+at).value);
                 io.call(wire::PixelClock,0);okay(computer.LoadTape(image,io.deadline(),127),"CRC tape upload");
                 auto before=io.call(wire::State,wire::MachineReset).retired;io.call(wire::Advance,500000);
                 wire::need(io.call(wire::State,wire::MachineReset).retired>before,"pixel stop blocked CPU");io.call(wire::PixelClock,1);
-                io.call(wire::BeginLoad);type_load(computer,io);loaded=io.call(wire::WaitLoaded).value;
+                std::cerr<<"LOAD full\n";io.call(wire::BeginLoad);type_load(computer,io);loaded=io.call(wire::WaitLoaded).value;
                 wire::need(loaded==size,"external LOAD incomplete");key(computer,io,{});io.call(wire::WaitEditor,160000000);io.call(wire::WaitPicture,2);
                 // Interrupt a second real LOAD with the PR freeze request.
-                io.call(wire::BeginLoad);type_load(computer,io);io.call(combined::WaitSomeLoad,8);
+                std::cerr<<"LOAD interrupted\n";io.call(wire::BeginLoad);type_load(computer,io);io.call(combined::WaitSomeLoad,8);
                 okay(pr.Freeze(io.deadline()),"freeze during real loader writes");
                 unsigned writes=io.state(combined::MemoryWrites);io.call(wire::Advance,2048);
                 wire::need(io.state(combined::MemoryWrites)==writes&&io.state(wire::MachineReset),"freeze did not fence loader writes");
