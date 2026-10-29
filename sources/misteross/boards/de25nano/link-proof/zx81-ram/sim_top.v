@@ -21,8 +21,8 @@ module fes_zx81_pr_sim (
     wire req, a_valid, b_valid;
     wire [31:0] a_data, b_data;
     wire [19:0] a_bus, b_bus;
-    wire [45:0] guarded_debug = {debug_request[45] && running, debug_request[44:28],
-        debug_request[27] | !running, debug_request[26:25], debug_request[24] | !running, debug_request[23:0]};
+    wire [45:0] guarded_debug = {debug_request[45] && running, debug_request[44:30],
+        running ? debug_request[29:0] : {6'b111111, 24'd0}};
     // The test generator includes the same first request FF as the real
     // static machine adapter, so freeze probes include the full bus pipeline.
     reg [45:0] debug_request_q = 0;

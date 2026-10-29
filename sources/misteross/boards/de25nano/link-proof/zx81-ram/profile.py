@@ -15,7 +15,7 @@ interface = {
     "machine": {"request_bits": 46, "response_bits": 20, "packing": "zx81_bus_pack.vh",
         "latency_cycles": 4, "sampled_edges": 5, "maximum_contract_cycles": 6,
         "constant_request_bits": {"43:38": 0}, "constant_response_bits": {"18:16": 0, "19": "persona-RAM-parameter"},
-        "reset": "running-low-resets-machine-and-disables-request-writes",
+        "reset": "running-low-resets-machine-and-registers-an-idle-CPU-memory-bus",
         "freeze": "drain-diagnostic-then-four-reset-settle-cycles-flush-bus",
         "selection": "resets-machine-no-program-survival"}}
 CORE = MISTEROSS / "cores/fes-zx81/rtl"
@@ -67,9 +67,11 @@ def prepare(local, project, frozen):
     static = selected(HERE / "static.v")
     # These exact drivers justify the six optional constant ingress FFs.
     for driver in (b"wire [15:0] peek_addr = {8'h40, diagnostic_address};",
-                   b'bus_request <= {running, cpu_clock, peek_addr[13:0], rfsh_n, m1_n,'):
+                   b'bus_request <= {running, cpu_clock, peek_addr[13:0],'):
         if static.count(driver) != 1:
             raise ValueError("constant bus driver derivation changed")
+    if static.count(b"running ? {rfsh_n, m1_n, wr_n, rd_n, iorq_n, mreq_n, d, a} : {6'b111111, 24'd0}") != 1:
+        raise ValueError("frozen CPU bus fence derivation changed")
     persona = selected(HERE / "personas.v")
     if persona.count(b"bus_response <= {RAM != 0, 3'b000, peek_data, read_data};") != 1:
         raise ValueError("constant response driver derivation changed")

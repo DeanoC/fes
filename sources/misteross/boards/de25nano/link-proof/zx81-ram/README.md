@@ -40,8 +40,10 @@ all-corner boundary timing audit before implementation builds begin.
 Every bit, including the source-constant fields, then has real registered
 setup/hold coverage; there is no constant-cone timing exception.
 
-Deasserting RUNNING resets the CPU and gates expansion writes in the registered
-request. The simulation bounds the remaining writes to three edges after that
+Deasserting RUNNING resets the CPU and captures a complete idle CPU memory
+bus at the static request FF: address/data zero and inactive active-low controls.
+Peek/clock fields retain their separate contract. This fences read responses
+and writes independently of the CPU's enable-scheduled reset latency. The simulation bounds the remaining writes to three edges after that
 transition. Diagnostic drain and the existing four-cycle reset settle finish
 before Frozen; no writes, retirements or response changes occur after Frozen.
 Selection resets/reboots BASIC and makes no promise of program preservation.

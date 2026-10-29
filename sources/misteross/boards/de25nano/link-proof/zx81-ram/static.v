@@ -15,8 +15,10 @@ module fes_de25_zx81_static (
     wire [15:0] peek_addr = {8'h40, diagnostic_address};
     always @(posedge clk) begin
         response_q <= bus_response;
-        bus_request <= {running, cpu_clock, peek_addr[13:0], rfsh_n, m1_n,
-                        wr_n | !running, rd_n, iorq_n, mreq_n | !running, d, a};
+        // CPU reset is enable-scheduled. Fence the entire memory request at
+        // this boundary FF so drain never waits for the CPU's reset latency.
+        bus_request <= {running, cpu_clock, peek_addr[13:0],
+            running ? {rfsh_n, m1_n, wr_n, rd_n, iorq_n, mreq_n, d, a} : {6'b111111, 24'd0}};
     end
 `ifdef QUARTUS
     localparam FIRMWARE = "zx8x.mif";
