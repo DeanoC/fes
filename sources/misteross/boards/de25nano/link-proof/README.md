@@ -75,3 +75,9 @@ native/AArch64 byte equality, and exercises wrong shell/base, foreign root,
 replaced descriptor, corrupt persona and overlapping selection rejection on both CPUs. `proof.json`
 records tools, executables, source hashes and results. QEMU execution is
 software evidence; execution on the physical kit CPU remains untested.
+
+The [2026-10-29 proof record](../../../docs/validation/2026-10-29-de25-quartus-link-proof/README.md)
+retains successful exact-device base/A/B compilation and real-artifact native/
+AArch64 composition. Unwaived LED-delay and physical partition-registration
+findings, early imported-root methodology checks and uncalculated MTBF remain
+visible there. Logical transition and bundle proofs do not qualify physical PR.
