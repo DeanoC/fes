@@ -54,12 +54,12 @@ def prepare(local, project, frozen):
         (local / name).write_bytes(data)
     static = selected(HERE / "static.v")
     # These exact drivers justify the six optional constant ingress FFs.
-    for driver in (b'wire [15:0] peek_addr = {8'h40, diagnostic_address};',
+    for driver in (b"wire [15:0] peek_addr = {8'h40, diagnostic_address};",
                    b'bus_request <= {running, cpu_clock, peek_addr[13:0], rfsh_n, m1_n,'):
         if static.count(driver) != 1:
             raise ValueError("constant bus driver derivation changed")
     persona = selected(HERE / "personas.v")
-    if persona.count(b'bus_response <= {RAM != 0, 3'b000, peek_data, read_data};') != 1:
+    if persona.count(b"bus_response <= {RAM != 0, 3'b000, peek_data, read_data};") != 1:
         raise ValueError("constant response driver derivation changed")
     for name in ("personas.v", "static.v"):
         (local / name).write_bytes(selected(HERE / name))
