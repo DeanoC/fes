@@ -56,7 +56,7 @@ def stop(process):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("program", choices=("probe", "fabric", "packages", "admission", "play", "tenfoot", "storage"))
+    parser.add_argument("program", choices=("probe", "fabric", "packages", "admission", "play", "tenfoot", "storage", "keyboard"))
     parser.add_argument("--compiler", required=True, type=Path)
     parser.add_argument("--qemu", type=Path)
     parser.add_argument("--board", choices=("qemu", "de25-nano"), default="qemu")
@@ -346,6 +346,12 @@ def main():
                 if record["disk"]["before_sha256"] != record["disk"]["after_sha256"]:
                     raise RuntimeError("read-only storage probe changed its disk")
             record["termination"] = "runner stopped its QEMU process after probe marker"
+        elif args.program == "keyboard":
+            with Guest(qemu, elf, output / "boot-1", command_record, usb=True, display=display) as guest:
+                guest.wait(lambda text: "FES_KEYBOARD_READY" in text, args.timeout, "keyboard initialization")
+                guest.press("a")
+                guest.wait(lambda text: "FES_KEYBOARD_EVENT key=a" in text, args.timeout, "USB keyboard input")
+            record["termination"] = "runner stopped QEMU after actual USB/HID input; not guest shutdown"
         elif args.program == "play":
             from play_support import exercise
             lock_disk()

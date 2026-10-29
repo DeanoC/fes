@@ -21,7 +21,7 @@ func CounterFrequency() uint64 { return de25nano.CounterFrequency() }
 func InitDevices() (*dma.Region, error)  { return nil, nil }
 func OpenStorage() (block.Device, error) { return de25nano.OpenStorage() }
 func OpenKeyboard() (*input.USBKeyboard, error) {
-	return nil, fmt.Errorf("de25-nano: DWC2 USB host adapter unavailable")
+	return de25nano.OpenKeyboard()
 }
 func OpenNetwork(context.Context) (Network, error) {
 	return nil, fmt.Errorf("de25-nano: Ethernet MAC/PHY adapter unavailable")

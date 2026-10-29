@@ -22,8 +22,8 @@ and TamaGo's volatile in-memory filesystem.
 
 Board selection is now explicit: `--board qemu` (default) runs the emulated
 hardware drivers; `--board de25-nano --profile FILE` cross-builds the separate
-Nano UART/timer and read-only SDHCI handoff path. USB, Ethernet, display and
-physical FPGA providers remain unavailable on Nano. See the
+Nano UART/timer, cold read-only SDHCI and direct DWC2 keyboard paths. Ethernet,
+display and physical FPGA providers remain unavailable on Nano. See the
 [board selection and firmware contract](board/README.md) for exact scope and
 bring-up commands. No physical Nano boot has been tested.
 
@@ -99,8 +99,8 @@ address or firmware assumption is a DE25 board constant.
 | --- | --- | --- |
 | CPU/RAM/time | AArch64 runtime; separate QEMU and Nano UART/counter hooks; validated Nano RAM profile | Actual Nano firmware/DDR/EL1/cache handoff and IRQ qualification |
 | Display | QEMU ramfb via fw_cfg DMA, software RGBA rendering | HDMI/FPGA display plane and generation-bound handoff |
-| Input | QEMU xHCI, real USB boot-keyboard control/interrupt transfers; optional PL011 | DWC2/PHY/reset/power integration, hubs and gamepads |
-| Storage | VirtIO block reads/writes/FLUSH; Nano firmware-selected SDHC read-only PIO; shared FAT32 | Nano boot/read qualification, cold initialization, writes and card lifecycle |
+| Input | QEMU xHCI, real USB boot-keyboard control/interrupt transfers; optional PL011; Nano DWC2 PIO direct keyboard | Nano PHY/VBUS and real input qualification, hubs and gamepads |
+| Storage | VirtIO block reads/writes/FLUSH; Nano cold SDHC/SDXC initialization and read-only PIO; shared FAT32 | Nano boot/read qualification, writes and card lifecycle |
 | Preferences | Existing preallocated FAT32 JSON file; data and metadata flushes | Allocation/update strategy and power-loss-safe publication |
 | Network | VirtIO, IPv4 TCP, static address, normal Go HTTP client | MAC/PHY, IRQs, address setup and qualified entropy |
 | FPGA | Retained-package software lifecycle connected to tenfoot Play/Back; no actual programming | Runtime-owned configuration, identity, reset and DMA revocation |

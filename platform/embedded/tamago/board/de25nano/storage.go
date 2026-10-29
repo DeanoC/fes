@@ -22,8 +22,8 @@ var attempted bool
 
 func OpenStorage() (block.Device, error) {
 	if attempted {
-		return nil, fmt.Errorf("de25-nano: storage handoff already attempted")
+		return nil, fmt.Errorf("de25-nano: storage initialization already attempted")
 	}
 	attempted = true
-	return sdhci.Open(registers{}, profileSDSectors, profileSDRCA)
+	return sdhci.Open(registers{}, sdhci.Config{InputClockHz: profileSDInputClockHz})
 }

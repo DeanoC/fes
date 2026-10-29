@@ -12,15 +12,16 @@ ROOT = APP.parents[2]
 
 
 def profile_constants(profile):
-    """Validate a firmware-owned memory/card handoff, not a board default."""
-    expected = {"schema", "firmware", "ram_start", "ram_size", "entry", "reserved", "sd_sectors", "sd_rca", "handoff"}
-    if not isinstance(profile, dict) or set(profile) != expected or type(profile["schema"]) is not int or profile["schema"] != 1:
-        raise ValueError("expected exact schema-1 handoff fields")
+    """Validate firmware memory and platform readiness, not a board default."""
+    expected = {"schema", "firmware", "ram_start", "ram_size", "entry", "reserved", "sd_input_clock_hz", "usb_phy_clock_hz", "handoff"}
+    if not isinstance(profile, dict) or set(profile) != expected or type(profile["schema"]) is not int or profile["schema"] != 2:
+        raise ValueError("expected exact schema-2 handoff fields")
     if not isinstance(profile["firmware"], str) or not profile["firmware"].strip():
         raise ValueError("firmware identity is required")
-    required = {"el1", "single_cpu", "counter_access", "exclusive_devices", "uart0_configured", "sdhc_selected", "mmu_off_caches_clean"}
-    if not isinstance(profile["handoff"], dict) or set(profile["handoff"]) != required or any(v is not True for v in profile["handoff"].values()):
-        raise ValueError("all firmware handoff requirements must be explicit and true")
+    required = {"el1", "single_cpu", "counter_access", "exclusive_devices", "uart0_configured", "sd_platform_ready", "mmu_off_caches_clean"}
+    required.add("usb_platform_ready")
+    if not isinstance(profile["handoff"], dict) or set(profile["handoff"]) != required or any(v is not True for k,v in profile["handoff"].items() if k != "usb_platform_ready") or type(profile["handoff"].get("usb_platform_ready")) is not bool:
+        raise ValueError("firmware readiness must be explicit; only USB may be disabled")
     def number(key):
         value = profile[key]
         if type(value) is not int:
@@ -43,10 +44,13 @@ def profile_constants(profile):
             raise ValueError("invalid reservation bounds")
         if a < start + size and start < a + n:
             raise ValueError("Go RAM overlaps firmware reservation")
-    sectors, rca = number("sd_sectors"), number("sd_rca")
-    if not 0 < sectors <= 1 << 32 or not 0 < rca <= 65535:
-        raise ValueError("invalid firmware SDHC capacity/RCA")
-    return start, size, entry, sectors, rca
+    frequency = number("sd_input_clock_hz")
+    if not 400000 <= frequency <= 200000000:
+        raise ValueError("invalid firmware SD input clock")
+    usb_frequency = number("usb_phy_clock_hz")
+    if (profile["handoff"]["usb_platform_ready"] and usb_frequency != 60000000) or (not profile["handoff"]["usb_platform_ready"] and usb_frequency != 0):
+        raise ValueError("USB requires 60 MHz ULPI or explicit disabled clock 0")
+    return start, size, entry, frequency, usb_frequency
 
 
 def build(args):
@@ -58,7 +62,7 @@ def build(args):
         raise ValueError("--board de25-nano requires --profile from the firmware handoff")
     raw = args.profile.resolve().read_bytes()
     profile = json.loads(raw)
-    start, size, entry, sectors, rca = profile_constants(profile)
+    start, size, entry, frequency, usb_frequency = profile_constants(profile)
     output = args.output.resolve()
     if output.exists() or not output.is_relative_to(ROOT / "out"):
         raise ValueError("output must be a fresh directory beneath this worktree's out/")
@@ -66,7 +70,7 @@ def build(args):
     (output / "handoff.json").write_bytes(raw)
     generated = output / "profile.go"
     generated.write_text("//go:build tamago && arm64 && de25nano\n\npackage de25nano\nconst (\n" +
-                         f"profileRAMStart = {start}\nprofileRAMSize = {size}\nprofileSDSectors = {sectors}\nprofileSDRCA = {rca}\n)\n")
+                         f"profileRAMStart = {start}\nprofileRAMSize = {size}\nprofileSDInputClockHz = {frequency}\nprofileUSBPHYClockHz = {usb_frequency}\n)\n")
     overlay = output / "overlay.json"
     overlay.write_text(json.dumps({"Replace": {str(APP / "board/de25nano/profile.go"): str(generated)}}))
     env = dict(os.environ, GOOS="tamago", GOARCH="arm64", CGO_ENABLED="0", GOOSPKG="github.com/usbarmory/tamago",
@@ -118,7 +122,7 @@ def build(args):
               "generated_profile_sha256": sha(generated), "environment": {k: env[k] for k in ("GOOS", "GOARCH", "GOOSPKG", "GOTOOLCHAIN", "GOMODCACHE", "GOCACHE")},
               "compiler_sha256": sha(compiler), "elf_sha256": sha(elf), "command": command,
               "imports": [p["ImportPath"] for p in packages],
-              "limitations": ["firmware must supply selected SDHC card and verified resource reservations",
-                              "SD read-only PIO; no cold card/PHY initialization", "USB/Ethernet/display/physical FPGA adapters unavailable"]}
+              "limitations": ["firmware must supply SD/USB PHY and input clocks plus verified resource reservations",
+                              "SD cold card initialization, read-only PIO; SoC PHY setup remains firmware-owned", "USB direct low/full-speed boot keyboard only; Ethernet/display/physical FPGA adapters unavailable"]}
     (output / "result.json").write_text(json.dumps(report, indent=2) + "\n")
     print(f"Cross-built {elf}; hardware not executed")

@@ -56,8 +56,9 @@ first real driver compiles, and qualify one physical adapter at a time.
 ## Selectable prototype backends
 
 The native base now selects QEMU or Nano providers at build time. The Nano
-prototype supplies UART/counter hooks and read-only PIO against firmware's
-selected SDHC card, with an explicit resource profile. USB DWC2, MAC/PHY, FPGA
-display and physical activation providers still refuse startup. See the
+prototype supplies UART/counter hooks, cold SDHC/SDXC initialization with
+read-only PIO and a direct DWC2 PIO boot keyboard, with an explicit firmware
+resource profile. SoC clocks, ComboPHY/ULPI and VBUS remain firmware obligations.
+MAC/PHY, FPGA display and physical activation providers still refuse startup. See the
 [board contract](tamago/board/README.md) for build commands, firmware obligations
 and the first hardware gate. A Nano cross-build is host evidence only.

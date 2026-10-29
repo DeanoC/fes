@@ -11,27 +11,31 @@ spec.loader.exec_module(build)
 
 
 def profile():
-    return {"schema": 1, "firmware": "synthetic test; not a board recipe",
+    return {"schema": 2, "firmware": "synthetic test; not a board recipe",
             "ram_start": 0x82000000, "ram_size": 256 << 20, "entry": 0x82010000,
             "reserved": [{"start": 0x80000000, "size": 32 << 20, "owner": "synthetic firmware"}],
-            "sd_sectors": 8192, "sd_rca": 7,
+            "sd_input_clock_hz": 100000000, "usb_phy_clock_hz": 60000000,
             "handoff": {key: True for key in ("el1", "single_cpu", "counter_access", "exclusive_devices",
-                "uart0_configured", "sdhc_selected", "mmu_off_caches_clean")}}
+                "uart0_configured", "sd_platform_ready", "usb_platform_ready", "mmu_off_caches_clean")}}
 
 
 class BoardProfileTests(unittest.TestCase):
     def test_explicit_profile(self):
-        self.assertEqual(build.profile_constants(profile()), (0x82000000, 256 << 20, 0x82010000, 8192, 7))
+        self.assertEqual(build.profile_constants(profile()), (0x82000000, 256 << 20, 0x82010000, 100000000, 60000000))
 
     def test_bad_handoff(self):
         for mutate in (
             lambda p: p.update(ram_start=0x40000000),
+            lambda p: p.update(schema=1),
+            lambda p: p.update(sd_sectors=8192, sd_rca=7),
             lambda p: p.update(ram_size=2 << 30),
             lambda p: p.update(entry=0x82000000),
             lambda p: p.update(ram_start=0x82001000),
-            lambda p: p.update(sd_rca=0),
-            lambda p: p.update(sd_sectors=1 << 33),
-            lambda p: p.update(sd_sectors=True),
+            lambda p: p.update(sd_input_clock_hz=0),
+            lambda p: p.update(usb_phy_clock_hz=48000000),
+            lambda p: p["handoff"].update(usb_platform_ready=False),
+            lambda p: p.update(sd_input_clock_hz=200000001),
+            lambda p: p.update(sd_input_clock_hz=True),
             lambda p: p.update(reserved=[]),
             lambda p: p["reserved"][0].update(size=64 << 20),
             lambda p: p["handoff"].update(exclusive_devices=False),
@@ -42,3 +46,9 @@ class BoardProfileTests(unittest.TestCase):
                 mutate(candidate)
                 with self.assertRaises(ValueError):
                     build.profile_constants(candidate)
+
+    def test_explicit_usb_disabled(self):
+        p = profile()
+        p["usb_phy_clock_hz"] = 0
+        p["handoff"]["usb_platform_ready"] = False
+        self.assertEqual(build.profile_constants(p)[-1], 0)

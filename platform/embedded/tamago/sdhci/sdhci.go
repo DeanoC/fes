@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// Package sdhci provides read-only, single-block PIO for a firmware-initialized
-// SDHC card on the Agilex 5 Cadence controller. It does not initialize its
-// clock, ComboPHY, pinmux or card. The firmware must relinquish exclusive use.
+// Package sdhci initializes SDHC/SDXC cards and provides read-only, single-block
+// PIO on the Agilex 5 Cadence controller. Firmware must establish the input
+// clock, ComboPHY and pinmux, then relinquish exclusive controller ownership.
 package sdhci
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"runtime"
 	"sync"
@@ -48,25 +49,134 @@ type Device struct {
 	failed  bool
 }
 
-// Open adopts a selected, block-addressed SDHC/SDXC card.
-// sectors and RCA must come from this boot's firmware card discovery, never a
-// guessed example profile. SDSC and eMMC are deliberately unsupported.
-func Open(io Registers, sectors uint64, rca uint16) (*Device, error) {
-	if io == nil || sectors == 0 || sectors > 1<<32 || rca == 0 {
-		return nil, fmt.Errorf("sdhci: invalid SDHC handoff")
+// Config describes the actual input clock established by firmware, not the
+// requested SD bus rate. The initial transport stays at <=400 kHz, one bit.
+type Config struct{ InputClockHz uint32 }
+
+// Open resets the SDHCI host, power-cycles and discovers a block-addressed SD
+// card. SDSC, SDUC and eMMC reject. The SoC's ComboPHY/clock/reset/pinmux must
+// already permit register and identification-clock access; this is not a PHY port.
+func Open(io Registers, config Config) (*Device, error) {
+	if io == nil || config.InputClockHz < 400000 || config.InputClockHz > 200000000 {
+		return nil, fmt.Errorf("sdhci: invalid firmware input clock")
 	}
-	d := &Device{io: io, sectors: sectors, rca: rca}
-	// Card-inserted is unreliable on this SoC. Check bus power and live clock,
-	// then query the actual selected card instead of treating that bit as proof.
-	if io.Read32(host)&(1<<8) == 0 || io.Read32(clock)&7 != 7 {
-		return nil, fmt.Errorf("sdhci: firmware clock/power handoff missing")
-	}
-	io.Write32(signalEnable, 0) // polling only, firmware IRQ ownership released
-	io.Write32(statusEnable, 0xffff8033)
-	if err := d.ready(); err != nil {
+	d := &Device{io: io}
+	if err := d.initialize(config); err != nil {
 		return nil, err
 	}
 	return d, nil
+}
+
+func (d *Device) pause(duration time.Duration) error {
+	end := d.io.Now().Add(duration)
+	for n := 0; n < 1000000; n++ {
+		if !d.io.Now().Before(end) {
+			return nil
+		}
+		if n&255 == 255 {
+			runtime.Gosched()
+		}
+	}
+	return fmt.Errorf("sdhci: clock stalled during required delay")
+}
+
+func (d *Device) initialize(config Config) error {
+	d.io.Write32(signalEnable, 0)
+	d.io.Write32(clock, 1<<24) // SDHCI software reset all, including DMA state
+	if err := d.wait(clock, 1<<24, 0, false); err != nil {
+		return err
+	}
+	if d.io.Read32(0x240)&(1<<24) == 0 {
+		return fmt.Errorf("sdhci: 3.3V bus power unsupported")
+	}
+	d.io.Write32(signalEnable, 0)
+	d.io.Write32(statusEnable, 0xffff8033)
+	d.io.Write32(host, 0) // 1-bit, default speed, bus power off
+	if err := d.pause(10 * time.Millisecond); err != nil {
+		return err
+	}
+	d.io.Write32(host, 7<<9) // select 3.3V before enabling bus power
+	d.io.Write32(host, 7<<9|1<<8)
+	if err := d.pause(time.Millisecond); err != nil {
+		return err
+	}
+	// SDHCI divided-clock mode: divisor encoding 0 means /1, otherwise /2N.
+	divisor := (uint64(config.InputClockHz) + 799999) / 800000
+	if divisor == 0 {
+		divisor = 1
+	}
+	d.io.Write32(clock, uint32(divisor)<<8|14<<16|1)
+	if err := d.wait(clock, 2, 2, false); err != nil {
+		return err
+	}
+	d.io.Write32(clock, d.io.Read32(clock)|4)
+	if err := d.pause(time.Millisecond); err != nil {
+		return err
+	} // >=74 startup clocks
+	if err := d.issue(0, 0, responseNone, false); err != nil {
+		return err
+	}
+	if err := d.issue(8, 0x1aa, responseR7, false); err != nil {
+		return err
+	}
+	if d.io.Read32(response)&0xfff != 0x1aa {
+		return fmt.Errorf("sdhci: unsupported CMD8 voltage/echo")
+	}
+	deadline := d.io.Now().Add(time.Second)
+	ready := false
+	for n := 0; n < 100; n++ {
+		if err := d.issue(55, 0, responseR1, false); err != nil {
+			return err
+		}
+		if d.io.Read32(response)&(1<<5) == 0 {
+			return fmt.Errorf("sdhci: card refused APP_CMD")
+		}
+		// HCS, 3.2-3.4V; no 1.8V switch or extended-power request.
+		if err := d.issue(41, 1<<30|0x00300000, responseR3, false); err != nil {
+			return err
+		}
+		ocr := d.io.Read32(response)
+		if ocr&(1<<31) != 0 {
+			if ocr&(1<<30) == 0 || ocr&0x00300000 == 0 {
+				return fmt.Errorf("sdhci: non-SDHC or incompatible OCR")
+			}
+			ready = true
+			break
+		}
+		if !d.io.Now().Before(deadline) {
+			break
+		}
+		if err := d.pause(10 * time.Millisecond); err != nil {
+			return err
+		}
+	}
+	if !ready {
+		return fmt.Errorf("sdhci: card power-up timeout")
+	}
+	if err := d.issue(2, 0, responseR2, false); err != nil {
+		return err
+	}
+	if err := d.issue(3, 0, responseR6, false); err != nil {
+		return err
+	}
+	r6 := d.io.Read32(response)
+	d.rca = uint16(r6 >> 16)
+	if d.rca == 0 || r6&0xe000 != 0 {
+		return fmt.Errorf("sdhci: invalid card RCA/R6 %#x", r6)
+	}
+	if err := d.issue(9, uint32(d.rca)<<16, responseR2, false); err != nil {
+		return err
+	}
+	// SDHCI R2 registers hold CSD[127:8] shifted down by 8 bits.
+	if (d.io.Read32(response+12)>>22)&3 != 1 {
+		return fmt.Errorf("sdhci: unsupported CSD structure")
+	}
+	csize := (d.io.Read32(response+4) >> 8) & 0x3fffff
+	d.sectors = (uint64(csize) + 1) * 1024
+	if err := d.issue(7, uint32(d.rca)<<16, responseR1Busy, false); err != nil {
+		return err
+	}
+	return d.ready()
 }
 func (d *Device) SectorCount() uint64 { return d.sectors }
 func (d *Device) wait(offset, mask, value uint32, checkErrors bool) error {
@@ -89,13 +199,36 @@ func (d *Device) wait(offset, mask, value uint32, checkErrors bool) error {
 	}
 	return fmt.Errorf("sdhci: timeout at register %#x", offset)
 }
-func (d *Device) issue(index uint32, arg uint32, read bool) error {
+
+type responseType uint8
+
+const (
+	responseNone responseType = iota
+	responseR1
+	responseR1Busy
+	responseR2
+	responseR3
+	responseR6
+	responseR7
+)
+
+func (d *Device) issue(index uint32, arg uint32, kind responseType, read bool) error {
 	if err := d.wait(present, 3, 0, false); err != nil {
 		return err
 	}
 	d.io.Write32(status, 0xffffffff)
 	d.io.Write32(argument, arg)
-	flags := uint32(0x1a0000) // 48-bit response, CRC and command-index checks
+	flags := uint32(0)
+	switch kind {
+	case responseR1, responseR6, responseR7:
+		flags = 0x1a0000
+	case responseR1Busy:
+		flags = 0x1b0000
+	case responseR2:
+		flags = 0x090000 // 136-bit, CRC, no index check
+	case responseR3:
+		flags = 0x020000 // OCR has no CRC or command index
+	}
 	transfer := uint32(0)
 	if read {
 		flags |= 1 << 21
@@ -107,13 +240,19 @@ func (d *Device) issue(index uint32, arg uint32, read bool) error {
 		return err
 	}
 	d.io.Write32(status, 1)
-	if r := d.io.Read32(response); r&0xfdffe008 != 0 {
+	if r := d.io.Read32(response); (kind == responseR1 || kind == responseR1Busy) && r&0xfdffe008 != 0 {
 		return fmt.Errorf("sdhci: card rejected CMD%d: %#x", index, r)
+	}
+	if kind == responseR1Busy {
+		if err := d.wait(status, 2, 2, true); err != nil {
+			return err
+		}
+		d.io.Write32(status, 2)
 	}
 	return nil
 }
 func (d *Device) ready() error {
-	if err := d.issue(13, uint32(d.rca)<<16, false); err != nil {
+	if err := d.issue(13, uint32(d.rca)<<16, responseR1, false); err != nil {
 		return err
 	}
 	r := d.io.Read32(response)
@@ -129,13 +268,13 @@ func (d *Device) ReadSectors(lba uint64, dst []byte) error {
 		return err
 	}
 	if d.failed {
-		return fmt.Errorf("sdhci: prior failure requires firmware reinitialization")
+		return fmt.Errorf("sdhci: prior failure requires a fresh cold initialization")
 	}
 	for n := 0; n < len(dst); n += 512 {
 		// Stage each sector until transfer completion; uncertain data never appears
 		// as a successful sector. Earlier sectors may have completed on batch error.
 		var sector [512]byte
-		err := d.issue(17, uint32(lba), true)
+		err := d.issue(17, uint32(lba), responseR1, true)
 		if err == nil {
 			err = d.wait(status, 1<<5, 1<<5, true)
 		}
@@ -148,7 +287,11 @@ func (d *Device) ReadSectors(lba uint64, dst []byte) error {
 		}
 		if err != nil {
 			d.failed = true
-			return err
+			// Contain command/data state, but never replay a read into an existing
+			// filesystem after a possible removal. A fresh Open and FAT mount is needed.
+			d.io.Write32(clock, d.io.Read32(clock)|6<<24)
+			resetErr := d.wait(clock, 6<<24, 0, false)
+			return errors.Join(err, resetErr)
 		}
 		d.io.Write32(status, 2)
 		copy(dst[n:n+512], sector[:])
@@ -163,7 +306,7 @@ func (d *Device) Flush() error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.failed {
-		return fmt.Errorf("sdhci: prior failure requires firmware reinitialization")
+		return fmt.Errorf("sdhci: prior failure requires a fresh cold initialization")
 	}
 	if err := d.ready(); err != nil {
 		d.failed = true
