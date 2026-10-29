@@ -32,7 +32,7 @@ foreach {instance width address_bits max_burst response_depth} {
     # Keep the 100 MHz bridge sides on the common cold/configuration reset.
     # Pixel-side resets come from the endpoint's async-assert/sync-release
     # reset synchronizer, avoiding reset release between pixel clock edges.
-    if {$instance eq "fes_ctrl_cdc"} {
+    if {[string equal $instance "fes_ctrl_cdc"]} {
         add_connection fes_scanout_reset.out_reset $instance.s0_reset
         add_connection fes_scanout.pixel_reset $instance.m0_reset
     } else {
