@@ -373,7 +373,7 @@ func (c *Coordinator) loadCore(parent context.Context, size int64, content io.Re
 		SlotComposition:  activation.SlotComposition,
 		MediaStream:      activation.MediaStream,
 		MediaUnits:       activation.MediaUnits,
-		PackageID:        activation.PackageID, Generation: activation.Generation,
+		PackageID:        activation.PackageID, CoreID: activation.Descriptor.Core.ID, Generation: activation.Generation,
 		ABI: protocol.RuntimeContract{ID: activation.Descriptor.ABI.ID,
 			Major: uint16(activation.Descriptor.ABI.Major), Minor: uint16(activation.Descriptor.ABI.Minor)},
 		BuildID: activation.Descriptor.Build.ID, ActiveInterfaces: interfaces,

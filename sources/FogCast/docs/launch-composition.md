@@ -58,10 +58,11 @@ The Coleco kit observation is the grounding case, not a one-off bug:
 
 - Commercial Frogger carries the stock ColecoVision `55aa` cartridge header
   and needs Coleco BIOS services at `0x0000`.
-- The default FES package is an open `JP 0x8000` reset shim. It does not
-  interpret that header and does not provide BIOS calls.
-- The same sealed package and runtime can pass the BIOS-free Graphics I /
-  graphics-i control and still leave Frogger on black HDMI.
+- The open `JP 0x8000` reset shim is used by host simulations and mailbox
+  diagnostics. The factory format-4 package links `coleco-bios` through its
+  ROM map.
+- The shim-based diagnostic package and runtime can pass the BIOS-free
+  Graphics I / graphics-i control and still leave Frogger on black HDMI.
 
 Core-present is not composition-ready. Launching a required-firmware title
 without firmware must not look like **Ready**. Silent black HDMI is a
@@ -95,7 +96,7 @@ display name or file extension.
 
 | Slot | What it is | When it must be bound | First systems |
 | --- | --- | --- | --- |
-| **Core** | Format-2 FPGA package (sealed manifest + RBF) | Before boot | `fes.pong`, `fes.zx81`, `fes.coleco` |
+| **Core** | Sealed FPGA package (format declared in its manifest) | Before boot | `fes.pong`, `fes.zx81`, `fes.coleco` |
 | **Firmware** | BIOS / boot ROM the CPU fetches at reset | Before boot | Coleco 8 KiB BIOS (Phase 1) |
 | **Expansions** | Optional carts **linked at load** onto the core’s registered expansion bus | At load, before programming | ZX81 expansion-bus validation cart via the proven nextpnr CRAM linker (Phase 2) |
 | **Primary media** | Cart, ROM, or the media the machine is meant to start with | Before boot, unless the package allows a media-less start | Coleco cart, Mega Drive `cartridge`, ZX81 `.p` tape |

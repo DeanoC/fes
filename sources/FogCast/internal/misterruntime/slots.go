@@ -84,7 +84,7 @@ func (client *Client) LoadROMSlotComposedCoreWithInitialMedia(ctx context.Contex
 	}
 	if !validRuntimePath(path) || !validRuntimePath(programmedPath) || !validSlotLoad(packageID, expansions, payloadPath, composition) ||
 		!protocol2Identifier.MatchString(identity.ROMID) ||
-		!identity.ValidFor(corepackage.Descriptor{Format: 3, ROM: &corepackage.ROM{ID: identity.ROMID, SHA256: identity.MapSHA256, SourceSize: identity.SourceSize}}) {
+		!identity.ValidFor(corepackage.Descriptor{Format: 3, ROM: &corepackage.ROM{ID: identity.ROMID, Role: identity.Role, SHA256: identity.MapSHA256, SourceSize: identity.SourceSize}}) {
 		return Protocol2Response{}, errInvalidRuntimeRequest
 	}
 	before, err := client.Protocol2Status(ctx)
@@ -95,17 +95,17 @@ func (client *Client) LoadROMSlotComposedCoreWithInitialMedia(ctx context.Contex
 		return Protocol2Response{}, protocol2MutationError{error: errInvalidRuntimeResponse, attempted: false}
 	}
 	line, attempted, err := client.callRawTracked(ctx, struct {
-		InitialMedia   *InitialMediaRequest        `json:"initial_media,omitempty"`
-		Protocol       int                         `json:"protocol"`
-		Operation      string                      `json:"operation"`
-		PackagePath    string                      `json:"package_path"`
-		PackageID      string                      `json:"package_id"`
-		Expansions     []SlotExpansionPath         `json:"expansions"`
-		PayloadPath    string                      `json:"payload_path"`
-		Composition    expansion.SlotComposition   `json:"composition"`
-		ProgrammedPath string                      `json:"programmed_path"`
-		ROMLink        corepackage.ROMLinkIdentity `json:"rom_link"`
-	}{initial, 2, "load_rom_composed_core", path, packageID, expansions, payloadPath, composition, programmedPath, identity})
+		InitialMedia   *InitialMediaRequest      `json:"initial_media,omitempty"`
+		Protocol       int                       `json:"protocol"`
+		Operation      string                    `json:"operation"`
+		PackagePath    string                    `json:"package_path"`
+		PackageID      string                    `json:"package_id"`
+		Expansions     []SlotExpansionPath       `json:"expansions"`
+		PayloadPath    string                    `json:"payload_path"`
+		Composition    expansion.SlotComposition `json:"composition"`
+		ProgrammedPath string                    `json:"programmed_path"`
+		ROMLink        protocol2ROMLink          `json:"rom_link"`
+	}{initial, 2, "load_rom_composed_core", path, packageID, expansions, payloadPath, composition, programmedPath, protocol2ROMLinkFromIdentity(identity)})
 	if err != nil {
 		return Protocol2Response{}, protocol2MutationError{error: err, attempted: attempted}
 	}

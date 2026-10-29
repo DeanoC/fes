@@ -62,7 +62,7 @@ func TestColecoVideoROMLinksClientSendsPairedRequest(t *testing.T) {
 		}
 	}
 	// Format-3 ROM parts are the ST shell only; Coleco layouts use two sources.
-	single := corepackage.ROMLinkIdentity{ROMID: "cartridge-rom", MapSHA256: links.MapSHA256, SourceSHA256: links.Sources[1].SourceSHA256, SourceSize: 16384, ProgrammedSHA256: links.ProgrammedSHA256, ProgrammedSize: links.ProgrammedSize}
+	single := corepackage.ROMLinkIdentity{ROMID: "cartridge-rom", Role: "cartridge", MapSHA256: links.MapSHA256, SourceSHA256: links.Sources[1].SourceSHA256, SourceSize: 16384, ProgrammedSHA256: links.ProgrammedSHA256, ProgrammedSize: links.ProgrammedSize}
 	if _, err := NewClient("/absent.sock").LoadROMPartsComposedCore(context.Background(), "/stage/shell", c.PackageID, paths, "/stage/parts/linked.rbf", c, "/stage/rom/programmed.rbf", single); err != errInvalidRuntimeRequest {
 		t.Fatalf("Coleco layout sent with a single ROM link: %v", err)
 	}

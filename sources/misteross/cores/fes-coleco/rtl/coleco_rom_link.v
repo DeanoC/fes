@@ -4,7 +4,8 @@
 // hold the BIOS, lanes 8-23 the cartridge. Column 5 rows 1-14 and 40-49 sit
 // outside the native video CRAM rectangle (y 1800-3442) and placement
 // (x 5-38, y 23-38) and the v2 expansion socket (x 24-28, y 1-19).
-// Rows 15-39 of column 5 are not legal M10K BELs.
+// This ROM map does not use column 5 rows 15-39. Rows 23-38 are inside the
+// native video rectangle, and rows 32-39 contain M10K sites used by SMS.
 // Latency matches sg1000_rom_link: two system clocks, CFG_ASYNC_READ=0.
 module coleco_rom_link (
     input wire clk,
