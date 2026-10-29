@@ -104,7 +104,7 @@ func drawSurroundLabels(dev gfx.Device, snap Snapshot, labels map[string]gpuText
 	}
 	right := image.Rect(picture.Max.X+surroundBezel+surroundPanelInset, picture.Min.Y, frame.Max.X-surroundPanelInset, picture.Max.Y)
 	if right.Dx() >= surroundPanelMin && snap.Session.HardwareRoom {
-		drawLabel(dev, labels, used, "surround-hint", right.Min.X, right.Max.Y-24, right.Dx(), 16, "Hardware room · "+hardwareRoomWord(snap.Affinity))
+		drawLabel(dev, labels, used, "surround-hint", right.Min.X, right.Max.Y-24, right.Dx(), 16, playingRoomLabel(snap.Session)+" · "+hardwareRoomWord(snap.Affinity))
 	}
 }
 

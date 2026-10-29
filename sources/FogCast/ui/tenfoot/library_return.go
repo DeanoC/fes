@@ -48,6 +48,7 @@ func (a *App) restoreLibraryOriginLocked() bool {
 	a.closeFiltersLocked()
 	a.closeCollectionOverlaysLocked()
 	a.searchOpen = false
+	a.libraryCoreIDs = nil
 	// A Library refusal never started this room's launch. Leaving the error
 	// set replays it as "Launch failed" over the resumed room, and offers
 	// retry for a Confirm that already refused.
