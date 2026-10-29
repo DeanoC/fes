@@ -1,10 +1,11 @@
 package tenfoot
 
 import (
-	"github.com/DeanoC/FogCast/hostclient"
 	"image"
 	"image/color"
 	"testing"
+
+	"github.com/DeanoC/FogCast/hostclient"
 
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/theme"
@@ -14,6 +15,17 @@ func testDrawGrid() Grid {
 	var g Grid
 	g.Layout(1280, 720)
 	return g
+}
+
+func TestRoomChromeFooterSeparatesStatusAndHintRows(t *testing.T) {
+	g := testDrawGrid()
+	statusY, hintY := roomChromeFooterRows(g)
+	if gap := hintY - statusY; gap < gfx.TextHeight(14)+4 {
+		t.Fatalf("room footer status and hint rows overlap: statusY=%d hintY=%d textHeight=%d", statusY, hintY, gfx.TextHeight(14))
+	}
+	if statusY+gfx.TextHeight(14) > g.footerY() || hintY+8 > g.footerY() {
+		t.Fatalf("room footer rows leave the room content: statusY=%d hintY=%d footerY=%d", statusY, hintY, g.footerY())
+	}
 }
 
 func testDrawRGBA(w, h int) *image.RGBA {

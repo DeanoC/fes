@@ -34,7 +34,7 @@ func TestHomeListsPinnedRecentRoomsAndLibrary(t *testing.T) {
 	}
 }
 
-func TestHomeSelectorsHideSetupTemplatesAndKeepInstalledRooms(t *testing.T) {
+func TestHomeSelectorsHideInternalRoomsAndKeepInstalledRooms(t *testing.T) {
 	const external = "community.favorite"
 	const reservedExternal = "example.custom"
 	const missingExternal = "community.missing"
@@ -44,16 +44,17 @@ func TestHomeSelectorsHideSetupTemplatesAndKeepInstalledRooms(t *testing.T) {
 		testRoomPack(t, "example.computers", testRoomScript),
 		testRoomPack(t, systemRoomID, testRoomScript),
 		testRoomPack(t, hardwareRoomID, testRoomScript),
+		testRoomPack(t, colecoArcadeRoomID, testRoomScript),
 		testRoomPack(t, external, testRoomScript),
 		testRoomPack(t, reservedExternal, testRoomScript),
 	})
-	app.pinnedRooms = []string{systemRoomID, hardwareRoomID, "example.lobby", external, reservedExternal, missingExternal}
+	app.pinnedRooms = []string{systemRoomID, hardwareRoomID, colecoArcadeRoomID, "example.retired", external, reservedExternal, missingExternal}
 	app.homeRooms = true
 	rows := app.roomPickerRowsLocked()
 	seen := map[string]bool{}
 	for _, row := range rows {
-		if row.ID == systemRoomID || row.ID == hardwareRoomID || row.ID == "example.lobby" {
-			t.Fatalf("internal setup template exposed as a room: %+v", row)
+		if row.ID == systemRoomID || row.ID == hardwareRoomID || row.ID == colecoArcadeRoomID || row.ID == "example.retired" {
+			t.Fatalf("internal room exposed as a destination: %+v", row)
 		}
 		seen[row.ID] = true
 	}
@@ -65,9 +66,13 @@ func TestHomeSelectorsHideSetupTemplatesAndKeepInstalledRooms(t *testing.T) {
 	if got := app.settingsHomeValueLocked(); got != "Rooms (4)" {
 		t.Fatalf("default-room count includes internal templates: %q", got)
 	}
-	for _, id := range []string{systemRoomID, hardwareRoomID} {
-		if _, reason, ok := app.resolveHomeRoomLocked(id); ok || reason != "internal setup" {
-			t.Fatalf("internal template %q offered as Home: ok=%v reason=%q", id, ok, reason)
+	for id, wantReason := range map[string]string{
+		systemRoomID:       "internal setup",
+		hardwareRoomID:     "internal setup",
+		colecoArcadeRoomID: "internal browser",
+	} {
+		if _, reason, ok := app.resolveHomeRoomLocked(id); ok || reason != wantReason {
+			t.Fatalf("internal room %q offered as Home: ok=%v reason=%q", id, ok, reason)
 		}
 		if pack, ok := app.roomsIndex.Find(id); !ok || !pack.Valid() {
 			t.Fatalf("setup route lost its internal template %q", id)
@@ -76,7 +81,7 @@ func TestHomeSelectorsHideSetupTemplatesAndKeepInstalledRooms(t *testing.T) {
 	if _, _, ok := app.resolveHomeRoomLocked(external); !ok {
 		t.Fatal("installed external room cannot be the default Home")
 	}
-	app.roomsIndex = rooms.NewIndex([]rooms.Pack{testRoomPack(t, systemRoomID, testRoomScript), testRoomPack(t, hardwareRoomID, testRoomScript)})
+	app.roomsIndex = rooms.NewIndex([]rooms.Pack{testRoomPack(t, systemRoomID, testRoomScript), testRoomPack(t, hardwareRoomID, testRoomScript), testRoomPack(t, colecoArcadeRoomID, testRoomScript)})
 	if app.roomsAvailableLocked() || app.settingsHomeValueLocked() != "Library (no rooms installed)" {
 		t.Fatal("internal templates count as available Home rooms")
 	}

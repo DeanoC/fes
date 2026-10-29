@@ -94,6 +94,7 @@ struct Event {
     EventKind kind;
     uint8_t vector;
     uint32_t error_code;
+    uint32_t writes_before = 0;  // the step's writes before its delivery began (StepResult writes)
 };
 
 struct Access {

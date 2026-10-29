@@ -3,7 +3,8 @@
 local List = require "widgets.list"
 local color = require "util.color"
 
-local DEST = 130
+-- Leave room for Tenfoot's status row below the list viewport.
+local DEST = 180
 -- Systems uses a dark plate, light unfocused ink and dark ink on the
 -- selected row. The setup page carries the family and model selectors.
 local PLATE = "#1C2420"

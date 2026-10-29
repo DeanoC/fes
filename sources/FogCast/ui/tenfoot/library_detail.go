@@ -55,6 +55,9 @@ type readinessCopy struct {
 }
 
 func detailReadiness(d rooms.Destination) readinessCopy {
+	if d.Status == colecoRunningDestinationStatus {
+		return readinessCopy{State: heroStateUnavailable, Headline: d.Status, Explain: d.Action}
+	}
 	c := readinessCopy{State: heroState(d.Availability)}
 	switch d.Kind {
 	case rooms.KindCore:

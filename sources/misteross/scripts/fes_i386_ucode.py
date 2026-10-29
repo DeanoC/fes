@@ -33,9 +33,9 @@ FIELDS: tuple[tuple[str, int], ...] = (
     ('last', 1), ('cls', 3), ('op', 5), ('imm', 4), ('size', 2), ('src_size', 2),
     ('s1', 1), ('s1_idx', 3), ('s2', 1), ('s2_idx', 3),
     ('d', 1), ('d_space', 2), ('d_idx', 4),
-    ('mkind', 2), ('mbytes', 2), ('in_a', 1), ('stk', 3), ('slot', 2), ('ivt', 1), ('sel_part', 1),
-    ('probe', 2), ('b', 2), ('seg', 3),
-    ('far_jmp', 1), ('far_chk', 1), ('far_t', 1), ('sp_add', 1), ('a_t1', 1), ('popad_esp', 1),
+    ('mkind', 2), ('mbytes', 2), ('in_a', 1), ('stk', 3), ('slot', 4), ('ivt', 1), ('sel_part', 1),
+    ('probe', 1), ('b', 2), ('seg', 3),
+    ('far_jmp', 1), ('far_chk', 1), ('far_t', 1), ('sp_add', 1), ('sp_step', 1), ('a_t1', 1), ('popad_esp', 1),
     ('rd_cf', 1), ('rd_oszap', 1), ('wr_cf', 1), ('wr_oszap', 1),
 )
 WIDTH = sum(width for _, width in FIELDS)
@@ -52,12 +52,14 @@ VALUES: dict[str, dict[str, int]] = {
     'mkind': {'none': 0, 'load': 1, 'store': 2, 'rmw': 3},
     'd_space': {'gpr': 0, 'temp': 1, 'seg': 2},
     'stk': {'none': 0, 'push': 1, 'pop': 2, 'peek': 5, 'retf': 6, 'probe': 7},
-    'probe': {'none': 0, 'int': 1, 'pusha': 2, 'popa': 3},
-    'b': {'src2': 0, 'eip': 1, 't1': 2, 'sel': 3},
+    'probe': {'none': 0, 'int': 1},
+    'b': {'src2': 0, 'eip': 1, 'sel': 2},
     'seg': SEG,
 }
 # Shorthands: a register as a source or destination.
 REGS = {'s1': 's1_idx', 's2': 's2_idx'}
+# Fields that take a signed integer, stored in two's complement.
+SIGNED = {'slot'}
 
 
 class UcodeError(ValueError):
@@ -90,6 +92,11 @@ def encode(uop: dict, last: bool, where: str) -> int:
         elif key in values and key != 'last':
             if isinstance(value, bool):
                 values[key] = int(value)
+            elif isinstance(value, int) and key in SIGNED:
+                width = dict(FIELDS)[key]
+                if not -(1 << (width - 1)) <= value < 1 << (width - 1):
+                    raise UcodeError(f'{where}: {key} = {value} does not fit {width} signed bits')
+                values[key] = value & ((1 << width) - 1)
             elif isinstance(value, int):
                 values[key] = value
             elif key in VALUES and str(value) in VALUES[key]:

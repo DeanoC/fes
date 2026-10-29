@@ -14,6 +14,11 @@ import (
 
 const roomTexturePrefix = "room:"
 
+func roomChromeFooterRows(g Grid) (statusY, hintY int) {
+	footerY := g.footerY()
+	return footerY - 42, footerY - 16
+}
+
 // syncRoomTextures uploads the open room's decoded images and destroys
 // textures for images the room no longer holds (or when the room closes).
 // Room textures live in the shared map under roomTexturePrefix so the grid's
@@ -296,6 +301,9 @@ func drawRoomChoice(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 	if snap.Room.Destination.Choice == rooms.ChoiceBackend {
 		title = rooms.BackendChoiceAction
 	}
+	if snap.Room.ID == colecoArcadeRoomID && snap.Room.DuringPlay && snap.Session.State == "active" && snap.Session.Coleco {
+		title = colecoRunningDestinationAction
+	}
 	drawLabel(dev, labels, used, "rchoice-title", x+16, y+12, panelW-32, 18, title)
 	for i := 0; i < panel.Visible; i++ {
 		idx := panel.Start + i
@@ -451,15 +459,46 @@ func drawRoomChrome(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 	if pane, ok := roomDestGeom(snap); ok {
 		y = pane.Y - 30
 	}
+	line := strings.TrimSpace(snap.Health.Line)
+	if lease := strings.TrimSpace(snap.KitLease.Line); lease != "" {
+		if line != "" {
+			line += "  ·  "
+		}
+		line += lease
+	}
+	if !launchOverlayVisible(snap) {
+		switch snap.Launch.Phase {
+		case "launching", "error", "host":
+			if msg := strings.TrimSpace(snap.Launch.Message); msg != "" {
+				line = msg
+			}
+		}
+	}
+	if strings.TrimSpace(snap.Status) != "" && strings.HasPrefix(snap.Status, "room failed") {
+		line = snap.Status
+	}
+	if snap.Status == localInUseCopy || snap.Status == machineStatusUnknown {
+		line = snap.Status
+	}
+	if snap.Room.ID == colecoArcadeRoomID && snap.Room.DuringPlay && snap.Session.Coleco {
+		switch strings.TrimSpace(snap.Room.Notice) {
+		case colecoCartridgeSessionStatus, runningMachineLibraryBlockedStatus:
+			line = strings.TrimSpace(snap.Room.Notice)
+		default:
+			switch snap.Status {
+			case colecoCartridgeSessionStatus, runningMachineLibraryBlockedStatus:
+				line = snap.Status
+			}
+		}
+	}
 	y = max(g.contentTop(), y)
 	dev.FillRect(gfx.Rect{X: float32(x), Y: float32(y), W: float32(w), H: 28}, heroText)
 	statusW := 0
-	if status := heroFooterStatus(snap); status != "" {
-		statusW = min(w/3, gfx.MeasureText(status, 16)+24)
-		drawTintedLabel(dev, labels, used, "room-status", x+12, y+4, statusW-20, 16, heroOnAccent, status)
+	if line != "" {
+		statusW = min(w/3, gfx.MeasureText(line, 16)+24)
+		drawTintedLabel(dev, labels, used, "room-status", x+12, y+4, statusW-20, 16, heroOnAccent, line)
 	}
 	drawTintedLabel(dev, labels, used, "room-hint", x+12+statusW, y+3, w-24-statusW, 18, heroOnAccent, snap.HeaderHint())
-
 }
 
 func hardwareRoomStatus(snap Snapshot) string {

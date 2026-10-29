@@ -39,10 +39,32 @@ func (r RoomPickerRow) isRoom() bool {
 	return r.Kind == HomeKindRoom || r.Kind == HomeKindPinned
 }
 
-// Setup templates are reached through a selected system, rather than offered
-// as independent destinations or default Home rooms.
+// Internal screens are opened from their owning navigation flow, rather than
+// offered as independent destinations or default Home rooms.
 func userFacingRoom(id string) bool {
-	return id != systemRoomID && id != hardwareRoomID
+	return id != systemRoomID && id != hardwareRoomID && id != colecoArcadeRoomID
+}
+
+func (a *App) hasColecoRoomOpenLocked() bool {
+	if a.room != nil && a.room.ID() == colecoArcadeRoomID {
+		return true
+	}
+	for _, parent := range a.roomStack {
+		if parent != nil && parent.ID() == colecoArcadeRoomID {
+			return true
+		}
+	}
+	if a.libraryReturn != nil {
+		if a.libraryReturn.room != nil && a.libraryReturn.room.ID() == colecoArcadeRoomID {
+			return true
+		}
+		for _, parent := range a.libraryReturn.stack {
+			if parent != nil && parent.ID() == colecoArcadeRoomID {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (a *App) publicRoomCountLocked() int {
@@ -186,7 +208,8 @@ func (a *App) roomPickerRowsLocked() []RoomPickerRow {
 	rows = append(rows, recents)
 	if a.roomsIndex != nil {
 		for _, p := range a.roomsIndex.Packs {
-			if !userFacingRoom(p.ID) {
+			colecoOrigin := p.ID == colecoArcadeRoomID && a.hasColecoRoomOpenLocked()
+			if !userFacingRoom(p.ID) && !colecoOrigin {
 				continue
 			}
 			row := a.packToHomeRow(p)
@@ -298,7 +321,9 @@ func (a *App) activateHomeRowLocked(row RoomPickerRow) {
 	case HomeKindLibrary:
 		a.roomPickerOpen = false
 		a.suspendRoomsForLibraryLocked()
+		a.libraryCoreIDs = nil
 		a.stampNavLocked("library")
+		a.reloadLocked()
 	case HomeKindRecents:
 		a.openRecentsFromHomeLocked()
 	case HomeKindRecent:
@@ -333,6 +358,7 @@ func (a *App) openRecentsFromHomeLocked() {
 	a.suspendRoomsForLibraryLocked()
 	a.roomPickerOpen = false
 	a.collectionID = "recents"
+	a.libraryCoreIDs = nil
 	a.normalizeSortForCollectionLocked()
 	a.stampNavLocked("home-recents")
 	a.reloadLocked()

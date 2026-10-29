@@ -45,6 +45,7 @@ local MENU = {
 }
 
 local SYSTEMS = "example.computers"
+local COLECO_ARCADE = "example.coleco-arcade"
 
 local cores = nil      -- nil while listing; a table once kit.cores answers
 local unavailable = false
@@ -76,6 +77,7 @@ end
 -- Short shelf line. Readiness itself is the hero's job: a kit lease can
 -- make a launchable core unavailable, so the shelf never says Ready.
 local function card_line(core)
+  if core.core_id == "fes.coleco" then return "Browse Coleco titles" end
   if not core.launchable then
     if core.needs == "parts" then return "Display setup incomplete" end
     if core.needs == "firmware" then return "Needs firmware" end
@@ -176,7 +178,9 @@ local function publish()
     return
   end
   local core = selected_core()
-  if core and core.host_launch and core.game_id and core.game_id ~= "" then
+  if core and core.core_id == "fes.coleco" then
+    destination.set{ kind = "room", room_id = COLECO_ARCADE, label = core.name }
+  elseif core and core.host_launch and core.game_id and core.game_id ~= "" then
     destination.set{
       kind = "game",
       label = core.name,
