@@ -99,10 +99,12 @@ declaration exactly as for applications. A library launch of a package with
 `fes.persistence.words` restores its game's 72-word `fes.pc386.machine`
 record (DataControl Begin, 72 DataWrite on opcodes 24..27, Commit) while
 held; a missing record restores the layout's defaults. A package with
-`fes.rtc.wall-clock` then gets the kit's local time in four WallClock words;
-a time before 1980 starts the clock at 1980-01-01, a leap second holds at 59,
-and an unavailable local time fails the launch. An explicit initial library disk is
-uploaded and confirmed ready before Start; otherwise the drive stays empty.
+`fes.rtc.wall-clock` then gets the kit's local time in four WallClock words.
+The core stores the weekday unchecked, so the runtime sends the local time's
+own. A time before 1980 starts the clock at 1980-01-01, a Tuesday; a leap
+second holds at 59; and an unavailable local time fails the launch. An explicit
+initial library disk is uploaded and confirmed ready before Start; otherwise
+the drive stays empty.
 Start sends only Execution release, with no media gate and no neutral writes,
 because programming starts held with neutral input. No evdev
 input worker is opened. Stop and replacement send Execution hold before
