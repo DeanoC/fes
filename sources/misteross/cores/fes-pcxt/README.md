@@ -127,14 +127,14 @@ checks, and hardware acceptance of its own bytes.
 CGA/MDA ownership proofs from the captured sources, binds the declarations
 through portable naming, checks the three exclusive two-stage chains and
 their common PLL-lock reset assertion, then applies `quartus/mailbox.sdc`.
-It false-paths only four asynchronous pairs: `received` to `ack_meta`, `sent`
-to `sent_meta`, `machine_reset` to `hold_meta`, and `published_bank` to
-`front`. The ownership proof checks that each bank stays stable for two pixel
-samples before adoption. Quartus 17.0 does not support datapath-only max-delay
-constraints, so the held bank path has no separate physical delay bound. No
-clock group is cut. Every fit captures all 24 direct interstage setup/hold
-checks across four corners. Reset pulse width, metastability, external IO and
-HPS timing remain open. The ordinary invocation keeps its original constraints.
+It false-paths only three asynchronous pairs: `received` to `ack_meta`, `sent`
+to `sent_meta`, and `machine_reset` to `hold_meta`. The ownership proof checks
+that each bank stays stable for two pixel samples before adoption; a one-pixel-
+period `set_max_delay` constrains `published_bank` to `front` and leaves that
+payload path timed. No clock group is cut. Every fit captures all 24 direct
+interstage setup/hold checks across four corners. Reset pulse width,
+metastability, external IO and HPS timing remain open. The ordinary invocation
+keeps its original constraints.
 
 ### Physical timing inputs
 

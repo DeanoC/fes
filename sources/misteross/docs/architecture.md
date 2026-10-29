@@ -2987,12 +2987,12 @@ exceptions or external budgets. A complete diagnostic capture can contain
 timing failures; it neither seals a package nor supplies physical acceptance.
 Its default-off `--video-mailbox-contract` mode additionally runs the captured
 ownership proof, verifies the declared chains and common reset assertion, and
-checks direct interstage paths at every corner. Its SDC false-paths only four
-asynchronous pairs: `received` to `ack_meta`, `sent` to `sent_meta`,
-`machine_reset` to `hold_meta`, and `published_bank` to `front`. Quartus 17.0
-does not support datapath-only max-delay constraints, so the held bank path has
-no separate physical delay bound. It adds no clock-group exception or physical
-acceptance.
+checks direct interstage paths at every corner. Its SDC false-paths only three
+asynchronous pairs: `received` to `ack_meta`, `sent` to `sent_meta`, and
+`machine_reset` to `hold_meta`. The held `published_bank` payload path to
+`front` remains timed with a one-pixel-period `set_max_delay`, matching the
+ownership proof's two-sample stability window. It adds no clock-group
+exception or physical acceptance.
 
 ### Machine partition and timing
 

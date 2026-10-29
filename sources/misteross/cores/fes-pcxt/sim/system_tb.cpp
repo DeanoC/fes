@@ -61,6 +61,9 @@ int main(int argc,char**argv) {
     auto step=[&] {
         if constexpr (HALF_RATE_BOARD) {
             edge(0); d.clk_board=(cycles & 1)==0; edge(1);
+            // Model the phase-18 ns chip-select capture after the phase-zero
+            // board edge. This registered output feeds the SDRAM model.
+            d.clk_cs=d.clk_board; d.eval();
             if (!d.clk_board) { d.dq_sample=ram.tick(d); d.eval(); }
             ++cycles;
         } else {
@@ -120,7 +123,8 @@ int main(int argc,char**argv) {
             require(((ram.words[a/2]>>((a&1)*8))&255)==0x6d,"ISA DMA write to real SDRAM",cycles);
         require(ram.words[0x2000]==0x3231 && ram.words[0x2001]==0x3433,"CPU SDRAM DMA source",cycles);
         require(ram.mode_sets==modes,"warm boot restarted SDRAM",cycles);
-        std::cout<<"PASS system "<<(mda?"MDA Scanlines":"CGA Direct")<<" mask-delay="<<argv[1]<<" boot="<<boot
+        std::cout<<"PASS system "<<(mda?"MDA Scanlines":"CGA Direct")
+                 <<(HALF_RATE_BOARD?" external-CS-register":"")<<" mask-delay="<<argv[1]<<" boot="<<boot
                  <<" clocks="<<ticks<<" pixels="<<pixels<<" DMA="<<dma_cycles<<" refresh="<<refresh<<'\n';
         check_video=false;
         d.hold=1;

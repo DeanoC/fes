@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 module system_top #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0) (
-    input wire clk, clk_board, clk_pixel, reset_pixel, warm_reset, hold, load_enable,
+    input wire clk, clk_board, clk_cs, clk_pixel, reset_pixel, warm_reset, hold, load_enable,
     // Cold reset asserts the memory reset stretcher asynchronously and is
     // also sampled by firmware/control; the board50 fixtures exercise both phases.
     /* verilator lint_off SYNCASYNCNET */
@@ -27,11 +27,23 @@ module system_top #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0) (
     always @(negedge board_clock) dq_fall <= dq_sample;
     wire firmware_valid, firmware_ready, firmware_done;
     wire [7:0] firmware_data;
+    wire controller_ncs;
+    generate if (HALF_RATE_BOARD) begin: early_chip_select
+        // Match fes_pcxt_top: sample raw controller CS after its board edge,
+        // on the separately stepped phase-shifted output clock.
+        reg cs;
+        always @(posedge clk_cs) cs <= controller_ncs;
+        assign sdram_ncs = cs;
+    end else begin: common_chip_select
+        assign sdram_ncs = controller_ncs;
+    end endgenerate
     pcxt_boot boot (.clk(board_clock), .cold_reset(cold_reset), .enable(load_enable),
         .valid(firmware_valid), .ready(firmware_ready), .done(firmware_done),
         .address(firmware_address), .data(firmware_data));
     /* verilator lint_off PINCONNECTEMPTY */
-    pcxt_system #(.MDA(MDA), .SCANLINES(SCANLINES), .HALF_RATE_BOARD(HALF_RATE_BOARD)) system (
-        .clk(board_clock), .clk_cpu(clk), .clk_pin(board_clock), .audio_valid(), .audio_sample(), .*);
+    pcxt_system #(.MDA(MDA), .SCANLINES(SCANLINES), .HALF_RATE_BOARD(HALF_RATE_BOARD),
+                  .EXTERNAL_CS_REGISTER(HALF_RATE_BOARD)) system (
+        .clk(board_clock), .clk_cpu(clk), .clk_pin(board_clock), .sdram_ncs(controller_ncs),
+        .audio_valid(), .audio_sample(), .*);
     /* verilator lint_on PINCONNECTEMPTY */
 endmodule

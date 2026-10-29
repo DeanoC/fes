@@ -87,6 +87,12 @@ class MailboxBindingTests(unittest.TestCase):
                          'scripts/pcxt_quartus_mailbox.py'):
                 self.assertEqual(builder.sha(source / name), identities[name])
 
+    def test_mailbox_payload_uses_one_pixel_period_max_delay(self):
+        constraint = (builder.ROOT / 'cores/fes-pcxt/quartus/mailbox.sdc').read_text()
+        self.assertIn('set_max_delay $period -from $published -to $front', constraint)
+        self.assertNotRegex(constraint, r'set_false_path[^\n]*\$published')
+        self.assertEqual(constraint.count('set_false_path -from '), 3)
+
 
 @unittest.skipUnless(YOSYS, 'requires Yosys for the real elaboration path')
 class QuartusElaborationTests(unittest.TestCase):
