@@ -34,6 +34,11 @@
 // ends. Microcode writes nothing architectural before its last uop that can
 // fault, so restarting an instruction is safe wherever a fault is.
 //
+// A store or DMA write into the bytes the front end has fetched restarts the
+// instruction after the one in WB the same way, once that one ends, so it
+// runs the new bytes (self-modifying code, the coherent profile; queue16
+// leaves the 16 bytes after a storing instruction as fetched).
+//
 // A fault (#UD, #GP(0), #SS(0), #NM, #DE) is taken at WB with nothing of its
 // instruction retired: WB flushes, and DC takes the exception's entry into
 // the microcode routine INT uses, which pushes FLAGS, CS and the faulting
@@ -69,6 +74,9 @@ module fes_i386_cpu #(
     input  logic             a20m,
     input  logic [23:0][1:0] attr_upper,
     input  logic [6:0]       ram_top,
+    // The self-modifying-code profile, sampled at reset: coherent (0) or
+    // queue16 (1); see Self-modifying code.
+    input  logic             queue16,
     // HPS DDR port 0 (fes.memory.hps-ddr), guest physical 0 at RAM_BASE.
     output logic [27:0]      ddr_address,
     output logic [7:0]       ddr_burstcount,
@@ -134,6 +142,7 @@ module fes_i386_cpu #(
     output logic             trace_mem_wait,       // D to WB wait for the L1D or the write buffer, or F2 for the L1I
     output logic             trace_mem_idle,       // the bus interface has nothing to do or finish
     output logic             trace_replay,         // WB restarts an instruction for an uncached load
+    output logic             trace_smc,            // ... for self-modifying code (see Self-modifying code)
     // The store WB commits: the bytes trace_store_mask names of the eight
     // from trace_store_addr's dword, at linear addresses.
     output logic             trace_store,
@@ -245,6 +254,11 @@ module fes_i386_cpu #(
     logic rp_go;
     assign rp_go = !freeze && wb_flushes && !int_take && wb_s.valid
                 && wb_s.uop.ctl.fault == fes_i386_pkg::FAULT_REPLAY;
+    // A replay of the instruction after one that stored into the bytes the
+    // front end holds (see Self-modifying code): smc_due once the storing
+    // instruction has ended, smc_mark as the next one's first uop enters WB,
+    // wb_smc while it is there, smc_go as WB restarts it.
+    logic smc_due, smc_mark, wb_smc, smc_go;
 
     // ---- Start and redirect -------------------------------------------------------
     // After reset the front end starts at CS.base + EIP, one cycle after the
@@ -275,11 +289,12 @@ module fes_i386_cpu #(
     assign redirect_eip = start == 2'd2 ? eip : wb_faulted || int_take ? {16'd0, eip[15:0]} : wb_s.target_eip;
 
     // ---- F1 to Q ------------------------------------------------------------------
-    logic     q_valid, d_ready, fe_mem_load;
-    fetched_t q;
+    logic        q_valid, d_ready, fe_mem_load;
+    logic [27:0] fetch_next;
+    fetched_t    q;
     fes_i386_frontend frontend (
-        .clk, .reset, .redirect, .redirect_linear, .code32, .mem_block, .mem_load(fe_mem_load), .mem_data, .mem_valid,
-        .q_valid, .q, .d_ready
+        .clk, .reset, .redirect, .redirect_linear, .code32, .mem_block, .mem_load(fe_mem_load), .fetch_next,
+        .mem_data, .mem_valid, .q_valid, .q, .d_ready
     );
     assign mem_load = fe_mem_load && !halted && !wb_stop;
 
@@ -1276,8 +1291,9 @@ module fes_i386_cpu #(
             ex_flags <= {init_eflags[17:2], 1'b1, init_eflags[0]};
         end else if (freeze) begin
             // EX's running copy waits with the uops.
-        end else if (int_take) begin
-            // An interrupt discards the uops EX has run since the boundary.
+        end else if (int_take || smc_go) begin
+            // An interrupt, or a restart for self-modifying code, discards
+            // the uops EX has run since the boundary.
             ex_flags <= eflags;
         end else if (ex_s.valid && !wb_flush) begin
             ex_flags <= ex_flags_out;
@@ -1286,10 +1302,19 @@ module fes_i386_cpu #(
         end
         if (reset || wb_flush) begin
             wb_s.valid <= 1'b0;
+            wb_smc <= 1'b0;
             io_wait <= 1'b0;
         end else if (!freeze) begin
             wb_s <= ex_out;
-            io_wait <= ex_s.valid && ex_out.uop.io != 2'd0 && ex_out.uop.ctl.fault == fes_i386_pkg::FAULT_NONE && !int_next;
+            // The next instruction's first uop after a store into the bytes
+            // the front end holds restarts, whatever it was to do.
+            if (smc_mark) begin
+                wb_s.uop.ctl.fault <= fes_i386_pkg::FAULT_REPLAY;
+                wb_s.taken <= 1'b0;
+            end
+            wb_smc <= smc_mark && ex_s.valid;
+            io_wait <= ex_s.valid && ex_out.uop.io != 2'd0 && ex_out.uop.ctl.fault == fes_i386_pkg::FAULT_NONE && !int_next
+                    && !smc_mark;
         end else if (io_wait && io_ack) begin
             io_wait <= 1'b0;
         end
@@ -1391,10 +1416,10 @@ module fes_i386_cpu #(
             wb_redir <= 1'b0;
             wb_deliver <= 1'b0;
         end else if (!freeze) begin
-            wb_flushes <= ex_s.valid && (ex_out.taken || ex_out.uop.ctl.fault != fes_i386_pkg::FAULT_NONE
+            wb_flushes <= ex_s.valid && (smc_mark || ex_out.taken || ex_out.uop.ctl.fault != fes_i386_pkg::FAULT_NONE
                                          || ex_s.uop.cls == fes_i386_pkg::UOP_SPECIAL && ex_s.uop.op == 5'd1);
-            wb_redir <= ex_s.valid && (ex_out.taken || ex_deliver && !exc_busy);
-            wb_deliver <= ex_s.valid && ex_deliver && !exc_busy;
+            wb_redir <= ex_s.valid && !smc_mark && (ex_out.taken || ex_deliver && !exc_busy);
+            wb_deliver <= ex_s.valid && !smc_mark && ex_deliver && !exc_busy;
         end
     end
 
@@ -1554,11 +1579,11 @@ module fes_i386_cpu #(
     end
     assign trace_halt = halted;
 
-    // Serial issue after a replay, until its instruction ends or anything
-    // else flushes.
+    // Serial issue after a replay for an uncached load, until its
+    // instruction ends or anything else flushes.
     always_ff @(posedge clk) begin
         if (reset || wb_flush && !rp_go) serial <= 1'b0;
-        else if (rp_go) serial <= 1'b1;
+        else if (rp_go) serial <= !wb_smc;
         else if (wb_commit && wb_eoi) serial <= 1'b0;
     end
 
@@ -1577,18 +1602,22 @@ module fes_i386_cpu #(
     // or still has a store to make: EX and WB hold nothing, or only earlier
     // uops of its own instruction that neither store, end an instruction or
     // element (no interrupt boundary), branch, fault, nor multiply or divide
-    // (IRET's or POPA's loads after its first).
+    // (IRET's or POPA's loads after its first). Nor while the instruction
+    // the load is part of is due to restart (smc_due), which would read the
+    // device again.
     function automatic logic own_load(input pipe_t s);
         own_load = !s.uop.ctl.end_of_instruction && !s.uop.str_cx && !writes_mem(s) && s.uop.io == 2'd0
                 && s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE && s.uop.cls != fes_i386_pkg::UOP_BRANCH
                 && s.uop.cls != fes_i386_pkg::UOP_MUL && s.uop.cls != fes_i386_pkg::UOP_DIV;
     endfunction
-    assign oldest = !int_take && (!ex_s.valid || own_load(ex_s)) && (!wb_s.valid || own_load(wb_s) && !wb_flushes);
+    assign oldest = !int_take && !smc_due && (!ex_s.valid || own_load(ex_s))
+                 && (!wb_s.valid || own_load(wb_s) && !wb_flushes);
     assign trace_fetch = mem_load;
     assign trace_fetch_block = mem_block;
     assign trace_dread = dmem_read;
     assign trace_mem_wait = m2_load && !dmem_valid || st_wait || !mem_valid;
-    assign trace_replay = rp_go;
+    assign trace_replay = rp_go && !wb_smc;
+    assign trace_smc = smc_go;
 
     fes_i386_l1i l1i (
         .clk, .reset, .a20m, .attr_upper, .ram_top, .mem_block, .mem_load, .mem_data, .mem_valid,
@@ -1620,6 +1649,66 @@ module fes_i386_cpu #(
         .dma_valid, .dma_write, .dma_address, .dma_wdata, .dma_done, .dma_rdata, .flush_request, .flush_done,
         .idle(trace_mem_idle)
     );
+
+    // ---- Self-modifying code -------------------------------------------------------
+    // Fetch is sequential from the last redirect, and every redirect comes
+    // from WB, so the instructions after the one in WB are the bytes from
+    // where it starts to the end of the block F1 loads next (fetch_next):
+    // one run of lines, holding every block F2 may still read from the L1I
+    // before a clear of a line there lands. A store committed into one of
+    // them, or a DMA write (inv_valid), may have changed bytes the front end
+    // already holds. Then, once the instruction in WB ends (smc_pend until
+    // it does, smc_due after), the uop entering WB after it, the next
+    // instruction's first, takes FAULT_REPLAY (smc_mark): WB flushes it and
+    // everything younger, and the front end restarts at it through start,
+    // as for an uncached load but without serial issue (smc_go). By then the
+    // L1I has cleared the line, and its fill waits for the store's entry in
+    // the write buffer, so the instruction runs the new bytes: the coherent
+    // profile. The instruction that stored completes as it was decoded.
+    // Under queue16, a store whose bytes all lie in the 16 after its
+    // instruction (from eip_next; wb_q16, worked out in EX) leaves what the
+    // front end holds of them.
+    //
+    // Lines compare by bits 19:5, modulo 1 MiB, where linear and physical
+    // agree under A20M and for the shadow at FFFF0000h; an alias 1 MiB away
+    // restarts for nothing. The run starts at start_linear, CS.base + EIP a
+    // cycle old: the instruction in WB or one before it. Past a redirect
+    // backwards the run wraps and takes in every line, which restarts for
+    // nothing too. Every input is a register, and the decision reaches only
+    // registers (smc_pend, smc_due, and WB's entry through smc_mark), so the
+    // freeze and WB's flush keep their depth.
+    logic        q16, wb_q16, smc_pend, smc_store, smc_dma, smc_now;
+    logic [14:0] smc_lo, smc_span;
+    logic [19:0] ex_q16_off;
+    // line - lo <= span, as the borrow of a subtraction, so both are carry
+    // chains.
+    function automatic logic smc_in(input logic [14:0] line, input logic [14:0] lo, input logic [14:0] span);
+        logic [15:0] over;
+        over = {1'b0, span} - {1'b0, 15'(line - lo)};
+        smc_in = !over[15];
+    endfunction
+    assign smc_lo = start_linear[19:5];
+    assign smc_span = fetch_next[15:1] - smc_lo;
+    assign smc_store = wb_store && !(q16 && wb_q16)
+                    && (smc_in(wb_p0[19:5], smc_lo, smc_span) || wb_cross && smc_in(wb_p1[19:5], smc_lo, smc_span));
+    assign smc_dma = inv_valid && smc_in(inv_line[14:0], smc_lo, smc_span);
+    assign smc_now = smc_pend || smc_store || smc_dma;
+    assign smc_mark = smc_due || wb_commit && wb_eoi && smc_now;
+    assign smc_go = rp_go && wb_smc;
+    assign ex_q16_off = ex_saddr[19:0] - (seg_base[SEG_CS][19:0] + ex_s.eip_next[19:0]);
+    always_ff @(posedge clk) begin
+        if (reset) q16 <= queue16;
+        if (!freeze)
+            wb_q16 <= ex_q16_off[19:4] == 16'd0
+                   && ex_q16_off[3:0] <= (ex_s.uop.mem.bytes[2] ? 4'd12 : ex_s.uop.mem.bytes[1] ? 4'd14 : 4'd15);
+        if (reset || wb_flush) begin
+            smc_pend <= 1'b0;
+            smc_due <= 1'b0;
+        end else begin
+            smc_pend <= smc_now && !(wb_commit && wb_eoi);
+            smc_due <= smc_mark && !(!freeze && ex_s.valid);
+        end
+    end
 
     assign arch_gpr = gpr;
     assign arch_eflags = {14'd0, eflags};
