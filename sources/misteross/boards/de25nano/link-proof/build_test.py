@@ -104,6 +104,57 @@ class RecipeTests(unittest.TestCase):
                 with self.assertRaises(build.BuildError):
                     build.vendor_pof(log)
 
+    def test_pfg_zero_exit_text_must_not_hide_errors(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            log = Path(tmp)/"info.log"
+            valid = f"Device name: {build.DEVICE}\nPOF0 region ID: 0x01000000\nPOF0 hash: {'A'*64}\n"
+            missing = "Error\nError info: The SOF file is incomplete.\nError detail: HPS is present but bootloader information is missing\n"
+            for failure in (missing, 'Error (19192): incomplete\n', 'Error: bad image\n',
+                            'Info: Programming File Generator was unsuccessful.\n'):
+                log.write_text(valid + failure)
+                with self.assertRaises(build.BuildError):
+                    build.vendor_pof(log)
+            log.write_text(valid + missing)
+            self.assertEqual(build.vendor_pof(log, allow_missing_bootloader=True)["hash"], 'a'*64)
+            for unexpected in (valid, valid + missing + 'Error: another error\n'):
+                log.write_text(unexpected)
+                with self.assertRaises(build.BuildError):
+                    build.vendor_pof(log, allow_missing_bootloader=True)
+            log.write_text(valid + 'Error Detection CRC\n')
+            build.vendor_pof(log)
+
+    def test_pfg_integrity_requires_explicit_success(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            log = Path(tmp)/"integrity.log"
+            log.write_text('   Integrity status: OK\n')
+            build.vendor_integrity(log)
+            for text in ('', 'Integrity status: FAILED\n', 'Integrity status: OK\nError: bad image\n',
+                         'Integrity status: OK\nIntegrity status: OK\n'):
+                log.write_text(text)
+                with self.assertRaises(build.BuildError):
+                    build.vendor_integrity(log)
+
+    def test_hps_packaging_binds_vendor_bootloader_and_recipe(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)/'project'; project.mkdir()
+            boot = project/'software/u-boot/spl/u-boot-spl-dtb.hex'
+            boot.parent.mkdir(parents=True); boot.write_bytes(b'captured bootloader')
+            recipe = project/'sof_with_hps.bat'
+            recipe.write_text(r'%QUARTUS_ROOTDIR%\bin64\quartus_pfg -c output_files\golden_top.sof output_files\golden_top_hps.sof -o hps_path=software\u-boot\spl\u-boot-spl-dtb.hex' + '\n\npause\n')
+            hashes = {p.relative_to(project).as_posix():build.sha(p.read_bytes()) for p in (boot,recipe)}
+            metadata = project.parent/'vendor-inputs.json'
+            metadata.write_text(json.dumps({'source_sha256':hashes}))
+            self.assertEqual(build.hps_boot_packaging(project)['bootloader']['sha256'], hashes[boot.relative_to(project).as_posix()])
+            boot.write_bytes(b'different bootloader')
+            with self.assertRaises(build.BuildError):
+                build.hps_boot_packaging(project)
+            boot.write_bytes(b'captured bootloader')
+            recipe.write_text(recipe.read_text().replace('golden_top.sof','different.sof'))
+            hashes['sof_with_hps.bat'] = build.sha(recipe.read_bytes())
+            metadata.write_text(json.dumps({'source_sha256':hashes}))
+            with self.assertRaises(build.BuildError):
+                build.hps_boot_packaging(project)
+
     def test_negative_timing_is_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp); (out/"output_files").mkdir()

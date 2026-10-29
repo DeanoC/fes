@@ -148,8 +148,21 @@ def timing_summary(output: Path, revision: str) -> dict:
                               f"{revision}.sta.rpt": sha(report.encode())}}
 
 
-def vendor_pof(log: Path) -> dict[str, str]:
+def pfg_report(log: Path, *, allow_missing_bootloader: bool = False) -> str:
     text = log.read_text(errors="replace")
+    errors = [line.strip() for line in text.splitlines()
+              if re.match(r"^\s*Error(?:$|:| \([0-9]+\):| info:| detail:)", line, re.I)]
+    missing_bootloader = ["Error", "Error info: The SOF file is incomplete.",
+                         "Error detail: HPS is present but bootloader information is missing"]
+    if (allow_missing_bootloader and errors != missing_bootloader) or (not allow_missing_bootloader and errors):
+        raise BuildError(f"{log.name}: PFG reported an error despite its exit status")
+    if re.search(r"was unsuccessful", text, re.I):
+        raise BuildError(f"{log.name}: PFG reported unsuccessful processing")
+    return text
+
+
+def vendor_pof(log: Path, *, allow_missing_bootloader: bool = False) -> dict[str, str]:
+    text = pfg_report(log, allow_missing_bootloader=allow_missing_bootloader)
     def field(name: str, pattern: str) -> str:
         values = re.findall(r"^" + re.escape(name) + r": (" + pattern + r")$", text, re.MULTILINE)
         if len(values) != 1:
@@ -162,11 +175,32 @@ def vendor_pof(log: Path) -> dict[str, str]:
             "info_sha256": sha(log.read_bytes())}
 
 
+def vendor_integrity(log: Path) -> None:
+    text = pfg_report(log)
+    if re.findall(r"^\s*Integrity status:\s*(\S+)\s*$", text, re.M) != ["OK"]:
+        raise BuildError(f"{log.name}: missing or failed PFG integrity status")
+
+
 def blob(output: Path, path: Path) -> dict:
     if not path.is_file() or path.stat().st_size == 0:
         raise BuildError(f"missing nonempty artifact: {path}")
     return {"path": path.relative_to(output).as_posix(), "size": path.stat().st_size,
             "sha256": sha(path.read_bytes())}
+
+
+def hps_boot_packaging(output: Path) -> dict:
+    vendor = json.loads((output.parent / "vendor-inputs.json").read_bytes())["source_sha256"]
+    names = ("software/u-boot/spl/u-boot-spl-dtb.hex", "sof_with_hps.bat")
+    for name in names:
+        path = output / name
+        if path.is_symlink() or name not in vendor or sha(path.read_bytes()) != vendor[name]:
+            raise BuildError("changed or missing vendor HPS packaging input: " + name)
+    lines = [line.strip() for line in (output / names[1]).read_text().splitlines() if line.strip()]
+    expected = r"%QUARTUS_ROOTDIR%\bin64\quartus_pfg -c output_files\golden_top.sof output_files\golden_top_hps.sof -o hps_path=software\u-boot\spl\u-boot-spl-dtb.hex"
+    if lines != [expected, "pause"]:
+        raise BuildError("preserved vendor HPS SOF-enrichment recipe differs")
+    return {"strategy": "vendor-sof-enrichment-then-full-rbf", "bootloader": blob(output, output / names[0]),
+            "vendor_recipe": blob(output, output / names[1])}
 
 
 def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
@@ -187,16 +221,34 @@ def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
     selected_tools = tool_hashes(tools)
     if json.loads((output / "tools.json").read_text())["sha256"] != selected_tools:
         raise BuildError("Quartus executable closure changed after compilation")
+    packaging = hps_boot_packaging(output)
+    packaging["compiled_sof"] = blob(output, output / "output_files/base.sof")
+    packaging["quartus_pfg_sha256"] = selected_tools["quartus_pfg"]
     directory = output / "artifacts"
     directory.mkdir(exist_ok=False)
     summaries = {}
     decoded = {}
     raw_hashes = {}
-    run([str(tools["quartus_pfg"]), "-c", str(output / "output_files/base.sof"), str(directory / "base.rbf")],
+    # The compiled SOF intentionally lacks boot software. Its vendor decoder
+    # reports that incompleteness even with exit 0; use only its POF metadata.
+    run([str(tools["quartus_pfg"]), "-i", str(output / "output_files/base.sof")], output, "base-compiled-info.log")
+    packaging["compiled_sof_inspection"] = {"status": "known-incomplete-metadata-only",
+        "vendor_pof": vendor_pof(output / "base-compiled-info.log", allow_missing_bootloader=True)}
+    enriched = directory / "base_hps.sof"
+    run([str(tools["quartus_pfg"]), "-c", str(output / "output_files/base.sof"), str(enriched),
+         "-o", "hps_path=" + str(output / packaging["bootloader"]["path"])], output, "base-enrich.log")
+    packaging["enriched_sof"] = blob(output, enriched)
+    run([str(tools["quartus_pfg"]), "-i", str(enriched)], output, "base-enriched-info.log")
+    packaging["enriched_sof_pof"] = vendor_pof(output / "base-enriched-info.log")
+    run([str(tools["quartus_pfg"]), "-c", str(enriched), str(directory / "base.rbf")],
         output, "base-convert.log")
     run([str(tools["quartus_pfg"]), "-i", str(directory / "base.rbf")], output, "base-info.log")
     base_pof = vendor_pof(output / "base-info.log")
+    for previous in (packaging["compiled_sof_inspection"]["vendor_pof"], packaging["enriched_sof_pof"]):
+        if any(previous[key] != base_pof[key] for key in ("region_id", "hash")):
+            raise BuildError("HPS bootloader enrichment changed the compiled base POF0 identity")
     run([str(tools["quartus_pfg"]), "--check_integrity", str(directory / "base.rbf")], output, "base-integrity.log")
+    vendor_integrity(output / "base-integrity.log")
     for revision in ("base", "persona_a", "persona_b"):
         if "Critical Warning (" in (output / f"{revision}-compile.log").read_text():
             raise BuildError(f"{revision}: unresolved critical compiler warning")
@@ -254,6 +306,7 @@ def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
         shutil.copyfile(source, target)
         run([str(tools["quartus_pfg"]), "-i", str(target)], output, f"{revision}-info.log")
         run([str(tools["quartus_pfg"]), "--check_integrity", str(target)], output, f"{revision}-integrity.log")
+        vendor_integrity(output / f"{revision}-integrity.log")
         pof = vendor_pof(output / f"{revision}-info.log")
         if any(pof[key] != base_pof[key] for key in ("region_id", "hash")):
             raise BuildError(f"{revision}: vendor-decoded POF0 does not match base")
@@ -267,6 +320,8 @@ def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
     verify_project(output, inputs)
     verify_files(output, generated)
     verify_hps_inputs(output)
+    for key in ("compiled_sof", "bootloader", "vendor_recipe"):
+        verify_files(output, {packaging[key]["path"]: packaging[key]["sha256"]})
     if sha((output / "root_partition.qdb").read_bytes()) != expected_root:
         raise BuildError("root QDB changed during verification")
     interface_hash = sha(canonical(inputs["interface"]))
@@ -313,6 +368,9 @@ def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
     build["verification_recipe"] = {"source_revision": verifier["revision"],
         "source_committed": verifier["committed"],
         "source_sha256": {name: sha(data) for name, data in verifier["files"].items()}}
+    packaging["logs_sha256"] = {name: sha((output / name).read_bytes()) for name in
+        ("base-compiled-info.log", "base-enrich.log", "base-enriched-info.log", "base-convert.log", "base-info.log", "base-integrity.log")}
+    build["packaging"] = packaging
     (output / "build.json").write_bytes(canonical(build) + b"\n")
     return manifest
 
