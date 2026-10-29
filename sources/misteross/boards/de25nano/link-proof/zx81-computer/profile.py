@@ -141,4 +141,23 @@ def verify_memories(revision, rows):
 
 
 def verify_synthesis(report):
-    return ram.verify_synthesis(report, static_root=STATIC_ROOT)
+    return ram.verify_synthesis(report, static_root=STATIC_ROOT, static_separator=".")
+
+
+def extra_project_inputs(project):
+    return [project / "sys_pll.ip", project / "integrate-mailbox.tcl", *[p for p in (project / "fes_mailbox").rglob("*") if p.is_file()]]
+
+
+def bind_identity(project, build_id):
+    # The base's two endpoint identities must describe the same selected epoch.
+    receipt = project.parent / "inputs.json"
+    selected = json.loads(receipt.read_text())
+    comp = selected["computer"]
+    comp["build_id"] = build_id
+    comp["build_id_owner"] = "PR static base control_build_id"
+    comp["external_ram"] = True
+    comp["source_sha256"] = {p.relative_to(project / "fes_mailbox").as_posix(): computer.sha(p.read_bytes())
+                              for p in (project / "fes_mailbox").rglob("*") if p.is_file()}
+    comp["top_sha256"] = computer.sha((project / "golden_top.v").read_bytes())
+    comp["integration_sha256"] = computer.sha((project / "integrate-mailbox.tcl").read_bytes())
+    receipt.write_text(json.dumps(selected, indent=2, sort_keys=True) + '\n')

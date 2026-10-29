@@ -652,6 +652,8 @@ set_interface_property fes_pr_diagnostic EXPORT_OF subsys_periph.fes_pr_diagnost
         inputs["profile"] = PROFILE.identity
         inputs["interface"] = PROFILE.interface
     inputs["control_build_id"] = sha(canonical(inputs))[:32]
+    if PROFILE is not None and hasattr(PROFILE, "bind_identity"):
+        PROFILE.bind_identity(project, inputs["control_build_id"])
     write_revisions(project, region, inputs["control_build_id"])
     inputs["project_sha256"] = {path.relative_to(project).as_posix(): sha(path.read_bytes())
         for path in local.rglob("*") if path.is_file()}
@@ -660,6 +662,9 @@ set_interface_property fes_pr_diagnostic EXPORT_OF subsys_periph.fes_pr_diagnost
     if PROFILE is not None:
         for name in ("zx8x.hex", "zx8x.mif"):
             inputs["project_sha256"][name] = sha((project / name).read_bytes())
+    if PROFILE is not None and hasattr(PROFILE, "extra_project_inputs"):
+        for path in PROFILE.extra_project_inputs(project):
+            inputs["project_sha256"][path.relative_to(project).as_posix()] = sha(path.read_bytes())
     inputs["qpf"] = verify_qpf(project)
     inputs["source_closure_sha256"] = sha(canonical(inputs))
     (project / "inputs.json").write_bytes(canonical(inputs) + b"\n")

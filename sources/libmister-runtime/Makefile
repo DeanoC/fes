@@ -406,8 +406,8 @@ archive-audit: $(ARCHIVE)
 		exit 1; \
 	}; \
 	member_count="$$(printf '%s\n' "$$actual_members" | sed '/^$$/d' | wc -l | tr -d ' ')"; \
-	[[ "$$member_count" == 23 ]] || { \
-		echo "canonical archive must contain exactly 23 production members" >&2; \
+	[[ "$$member_count" == 24 ]] || { \
+		echo "canonical archive must contain exactly 24 production members" >&2; \
 		exit 1; \
 	}; \
 	archive_list="$$(find "$(BUILD_DIR)" -maxdepth 1 -type f -name '*.a' | sed 's|^.*/||' | LC_ALL=C sort)"; \

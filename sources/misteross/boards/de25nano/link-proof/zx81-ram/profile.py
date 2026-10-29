@@ -129,19 +129,19 @@ def verify_memories(revision, rows, static_root="zx81_static"):
         raise ValueError("static ZX81 1 KiB internal RAM M20K is missing")
 
 
-def verify_synthesis(report, static_root="zx81_static"):
+def verify_synthesis(report, static_root="zx81_static", static_separator="|"):
     text = report.read_text()
     names = re.findall(r"^;\s*(slot_inst\|core\|bus_response\[([0-9]+)\](?:~reg0)?)\s*;\s*yes\s*;\s*yes\s*;\s*yes\s*;", text, re.M)
     if len(names) != 20 or {int(bit) for name, bit in names} != set(range(20)):
         raise ValueError("synthesis must retain all 20 protected persona response registers")
-    launch = re.findall(r"^;\s*(" + re.escape(static_root) + r"\|bus_request\[([0-9]+)\](?:~reg0)?)\s*;\s*yes\s*;\s*yes\s*;\s*yes\s*;", text, re.M)
+    launch = re.findall(r"^;\s*(" + re.escape(static_root + static_separator) + r"bus_request\[([0-9]+)\](?:~reg0)?)\s*;\s*yes\s*;\s*yes\s*;\s*yes\s*;", text, re.M)
     if report.name == "base.syn.rpt" and (len(launch) != 46 or {int(bit) for name, bit in launch} != set(range(46))):
         raise ValueError("base synthesis must retain all 46 protected static request launch registers")
     active = False
     for line in text.splitlines():
         if re.match(r"^;\s*Inverted Register Statistics\s*;", line): active = True
         elif not line.strip(): active = False
-        elif active and re.search(r"slot_inst\|core\|(?:bus_response|bus_q|reset_q|request_q|address_q)|" + re.escape(static_root) + r"\|(?:bus_request|response_q)", line):
+        elif active and re.search(r"slot_inst\|core\|(?:bus_response|bus_q|reset_q|request_q|address_q)|" + re.escape(static_root + static_separator) + r"(?:bus_request|response_q)", line):
             raise ValueError("synthesis inverted a protected PR boundary register")
     return {"protected_response_registers": [name for name, bit in names],
             "protected_static_request_registers": [name for name, bit in launch], "boundary_inversions": 0}

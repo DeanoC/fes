@@ -1,5 +1,6 @@
 """Combined endpoint selection containment; no vendor archive or physical device."""
 import importlib.util
+import json
 from pathlib import Path
 import shutil
 import subprocess
@@ -25,6 +26,22 @@ class CombinedComputerTests(unittest.TestCase):
         self.assertNotEqual(b.PROFILE.identity,b.INTERFACE['name'])
         b.PROFILE.selected_source_bytes+=b'\n'
         with self.assertRaisesRegex(b.BuildError,'profile source changed'):b.capture()
+
+    def test_identity_binding_updates_both_endpoints_and_source_receipt(self):
+        b=builder()
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp); project=root/'project';mailbox=project/'fes_mailbox';mailbox.mkdir(parents=True)
+            (mailbox/'video.v').write_bytes(b'actual selected RTL')
+            (project/'sys_pll.ip').write_bytes(b'captured PLL')
+            (project/'golden_top.v').write_bytes(b'captured top')
+            (project/'integrate-mailbox.tcl').write_bytes(b'captured integration')
+            receipt=root/'inputs.json';receipt.write_text(json.dumps({'computer':{'build_id':'old'}}))
+            b.PROFILE.bind_identity(project,'0123456789abcdef'*2)
+            result=json.loads(receipt.read_text())['computer']
+            self.assertEqual(result['build_id'],'0123456789abcdef'*2)
+            self.assertTrue(result['external_ram'])
+            self.assertEqual(result['source_sha256'],{'video.v':b.sha(b'actual selected RTL')})
+            self.assertEqual(set(b.PROFILE.extra_project_inputs(project)),{project/'sys_pll.ip',project/'integrate-mailbox.tcl',mailbox/'video.v'})
 
     def test_zero_build_identity_rejected_before_preparation(self):
         with tempfile.TemporaryDirectory() as tmp:
