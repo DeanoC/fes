@@ -64,9 +64,10 @@ factory-image acceptance or promotion. Keyboard transposition
 ([#750](https://github.com/DeanoC/fes/issues/750)) is unrelated. The factory
 packages, Apple II and Catch seal with HIP/nextpnr. The accepted policy allows
 labelled Quartus product variants alongside OSS builds; current registered
-recipes and package selection still use HIP/nextpnr only. Quartus remains an
-oracle where a recipe says so until variant support lands. A failed OSS route
-never falls back to Quartus.
+playable recipes use HIP/nextpnr. PC/XT selects a Quartus diagnostic package
+through its normal recipe; nextpnr remains advisory for that core. Quartus
+remains an oracle where other recipes say so until variant support lands.
+A failed OSS route never falls back to Quartus.
 
 ## Matrix
 
