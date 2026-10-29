@@ -982,6 +982,13 @@ std::vector<std::string> ComputerResponseFixtures()
 			{"fes.pong.progress", 1, 0}, {"fes.video.fixed-720p60", 1, 0}}}};
 	std::vector<std::string> lines;
 	// Idle runtime advertises the computer ABI and its interfaces.
+	auto computer_11 = status.capabilities.abis[1];
+	computer_11.minor = 1;
+	computer_11.interfaces.insert(computer_11.interfaces.end(), {
+		{"fes.pc386.machine", 1, 0}, {"fes.persistence.words", 1, 0}, {"fes.rtc.wall-clock", 1, 0}});
+	std::sort(computer_11.interfaces.begin(), computer_11.interfaces.end(),
+		[](const auto& a, const auto& b) { return a.id < b.id; });
+	status.capabilities.abis.insert(status.capabilities.abis.begin() + 2, computer_11);
 	lines.push_back(mister::daemon::EncodeResponse(2, true, status, "fixture"));
 
 	// Running Apple II loaded with load_rom_core: unit 0 discovered empty.
@@ -1088,6 +1095,11 @@ void TestComputerResponseFixtures()
 	assert(lines[4].find("\"expansions\":[{\"slot\":4,") != std::string::npos);
 	assert(lines[5].find("\"media_units\":[]") != std::string::npos);
 	assert(lines[6].find("\"media_units\"") == std::string::npos);
+	for (const auto& line : lines) {
+		const auto v10 = line.find("{\"id\":\"fes.computer\",\"major\":1,\"minor\":0");
+		const auto v11 = line.find("{\"id\":\"fes.computer\",\"major\":1,\"minor\":1");
+		assert(v10 != std::string::npos && v11 != std::string::npos && v10 < v11);
+	}
 }
 
 void TestMenuProtocolRequestsAndStatus()
