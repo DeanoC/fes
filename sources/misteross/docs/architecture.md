@@ -78,6 +78,20 @@ package, tape delivery or session-display plane. Both capture RAM ports use
 the same board clock; startup/collision/frame-coherence limitations remain. External
 IO timing and physical board acceptance remain open.
 
+[`boards/de25nano/zx81-hps/`](../boards/de25nano/zx81-hps/README.md) composes
+the ZX81 with the preserved GHRD. A 32-bit Avalon endpoint at peripheral offset
+0x10300 stores one atomic GPO command and exposes coherent GPI/status words.
+It reuses the current `fes_computer_mailbox`, HID mapper and CRC-checked tape
+store. Control and the machine share 100 MHz, with 13/200 ULA enables; the
+renderer remains at 74.25 MHz. No control CCB is required and stopped PIX
+does not stop command completion or CPU/tape progress. Partial/busy/malformed
+accesses and later peripheral resets permanently fault this diagnostic,
+retaining GPO/ACK state while holding CPU and masking tape writes/presentation.
+It does not fence inherited masters or acknowledge global warm reset.
+The new path adds no DMA, but the GHRD's inherited DDR probe/debug paths remain.
+Generated constants and an offline injectable Python client add no runtime
+admission, physical MMIO address or boot image. Shared production RTL is unchanged.
+
 [`boards/de25nano/combined/`](../boards/de25nano/combined/README.md) composes
 that local display with the preserved GHRD HPS/LPDDR4, mailbox and read-only
 DDR probe. It uses a single configuration reset endpoint and separate system

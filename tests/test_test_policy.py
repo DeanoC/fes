@@ -123,6 +123,7 @@ class SelectTestModesTests(unittest.TestCase):
 
     def test_descriptive_de25_board_stays_routine_without_narrowing_shared_changes(self):
         de25 = ['sources/mister-packages/packages/board/de25_nano.yaml',
+                'sources/mister-packages/packages/fabric/fes_fabric_de25_computer.yaml',
                 'sources/misteross/boards/de25nano/blinky.sv']
         self.assertEqual(test_policy.select_test_modes(de25), ALL_FALSE)
         for path in ('sources/mister-packages/packages/board/de10_nano.yaml',

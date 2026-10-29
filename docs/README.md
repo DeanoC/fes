@@ -23,6 +23,7 @@ a dated record. A dated record is not the schedule.
 | Build combined DE25 HPS/HDMI or test Linux DMA ownership under QEMU | [Combined diagnostic](../sources/misteross/boards/de25nano/combined/README.md), [DMA ownership](../image/kernel/de25-dma/README.md) |
 | Build DE25 allocated-buffer scanout and test displayed-frame ownership | [Scanout diagnostic](../sources/misteross/boards/de25nano/scanout/README.md), [Shared contract](../sources/mister-packages/docs/de25-scanout.md) |
 | Build an FPGA-only ZX81 BASIC diagnostic for DE25 | [DE25 ZX81](../sources/misteross/boards/de25nano/zx81/README.md) |
+| Build DE25 ZX81 with HPS keyboard and tape control | [HPS-controlled ZX81](../sources/misteross/boards/de25nano/zx81-hps/README.md) |
 | Publish a versioned appliance image | [Appliance releases](appliance-releases.md) |
 | Share the kit | [Kit sharing](kit-sharing.md) |
 | Work in misteross | [misteross README](../sources/misteross/README.md): OSS place-and-route experiments, or a described core |

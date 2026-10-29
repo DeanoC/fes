@@ -551,6 +551,7 @@ class HilPlanTest(unittest.TestCase):
         paths = ['sources/mister-packages/packages/board/de25_nano.yaml',
                  'sources/mister-packages/packages/fabric/fes_fabric_de25_ddr_probe.yaml',
                  'sources/mister-packages/packages/fabric/fes_fabric_de25_scanout.yaml',
+                 'sources/mister-packages/packages/fabric/fes_fabric_de25_computer.yaml',
                  'image/kernel/de25-dma/de25_dma.c',
                  *['sources/misteross/boards/de25nano/' + name
                    for name in ('blinky.sv', 'pins.qsf', 'clocks.sdc', 'Makefile',

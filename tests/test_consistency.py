@@ -85,11 +85,12 @@ class ConsistencyTest(unittest.TestCase):
 
     def test_selected_sources_and_validation_coverage(self):
         self.assertEqual(self.module.check(self.root, self.sources), {
-            'generated_files': 28, 'source_pin_copies': 0, 'fixture_copies': 37})
+            'generated_files': 31, 'source_pin_copies': 0, 'fixture_copies': 37})
         self.assertEqual({source for command, source in self.calls if command == 'validate'}, {
             'packages/fabric/fes_fabric_de25_hps_mailbox.yaml',
             'packages/fabric/fes_fabric_de25_ddr_probe.yaml',
             'packages/fabric/fes_fabric_de25_scanout.yaml',
+            'packages/fabric/fes_fabric_de25_computer.yaml',
             'packages/fabric/fes_fabric_video_native_pixels.yaml',
             'packages/fabric/fes_fabric_video_raster_rgb888.yaml',
             'packages/fabric/fes_fabric_atari_st_bus.yaml',

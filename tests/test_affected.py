@@ -11,6 +11,17 @@ from scripts.affected import (changed_paths, plan, LANES, CORES, MODULE_ROOTS,
 
 
 class AffectedTests(unittest.TestCase):
+    def test_de25_computer_contract_has_only_diagnostic_consumers(self):
+        definition = 'sources/mister-packages/packages/fabric/fes_fabric_de25_computer.yaml'
+        result = plan([definition])
+        self.assertEqual({name for name, selected in result['lanes'].items() if selected},
+                         {'parent', 'contracts', 'fpga'})
+        self.assertEqual(result['cores'], [])
+        self.assertFalse(any(result['test_modes'].values()))
+        self.assertEqual(set(plan([definition, definition.replace('computer.yaml', 'computer_other.yaml')])['cores']), set(CORES))
+        result = plan([definition, 'sources/misteross/cores/fes-common/rtl/fes_computer_mailbox.v'])
+        self.assertTrue(result['cores'])
+
     def test_de25_linux_selects_parent_without_existing_core_consumers(self):
         paths = ['image/de25-nano/' + name for name in
                  ('build.py', 'boot.py', 'vendor.lock.toml', 'rootfs/config',

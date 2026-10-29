@@ -1,5 +1,10 @@
 # DE25-Nano FPGA bring-up
 
+The [HPS-controlled ZX81 diagnostic](zx81-hps/README.md) connects the preserved
+GHRD lightweight bridge to the current computer mailbox for keyboard and
+CRC-checked tape delivery. Its computer/control runs at 100 MHz independently
+of the HDMI pixel clock. Production MMIO/runtime binding remains closed.
+
 The [ZX81 diagnostic](zx81/README.md) builds the real NMOS Z80/ZX81 machine
 with internal RAM and 720p HDMI, local reset and an ENTER button. It is a
 standalone FPGA diagnostic; HPS input, tape delivery and runtime launch are
