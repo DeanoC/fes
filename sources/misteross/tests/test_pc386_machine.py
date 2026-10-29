@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT
-"""pc386 machine M1-M4: firmware/audio imports, boot reports, directed
-device, audio, OPL2, presenter and port 2 benches, and the M4 diagnostic
-programs and producer inputs. No network access; the oracle boot and VGA
+"""pc386 machine M1-M5: firmware/audio imports, boot reports, directed
+device, audio, OPL2, presenter and port 2 benches, and the M5 system bench's
+report and producer inputs. No network access; the oracle boot and VGA
 replay are separate suites."""
 import hashlib
 import json

@@ -144,7 +144,7 @@ MACHINE_RTL = AT_RTL + (
 # the firmware ROM on port 0 and the host link (pc386_system.sv), at the
 # sealed clock.
 SYSTEM_RTL = (*dict.fromkeys(CPU_RTL + MACHINE_RTL + AUDIO_RTL), CORE / 'rtl/pc386_rom.sv',
-              CORE / 'rtl/pc386_host_link.sv', CORE / 'rtl/pc386_system.sv')
+              CORE / 'rtl/pc386_host_link.sv', CORE / 'rtl/pc386_snapshot.sv', CORE / 'rtl/pc386_system.sv')
 # I/O completion, request clock to done clock: each device cycle's class time
 # (isa8 72 clocks, isa16 36 at 100 MHz) plus one clock to take the request and
 # one to report it. 1F0h with a dword is one word cycle and two byte cycles

@@ -338,6 +338,13 @@ module pc386_system #(
     //   5  capture drops [31:0], presenter underflows [63:32]
     //   6  plane underflows [31:0], mixer samples [63:32]
     //   7  8237 memory cycles [31:0], OPL2 samples [63:32]
+    // The presenter's and the plane's counters run in pixel_clk and cross
+    // whole (pc386_snapshot).
+    wire [31:0] present_underflows_sys, plane_underflows_sys, frames_shown_sys;
+    pc386_snapshot #(.W(96)) pixel_counts (
+        .source_clk(pixel_clk), .value({frames_shown, plane_underflows, present_underflows}),
+        .clk(clk), .snapshot({frames_shown_sys, plane_underflows_sys, present_underflows_sys})
+    );
     reg [31:0] retired, samples, opl2_samples, dma_cycles;
     reg [7:0] cpu_resets, last_post;
     always @(posedge clk)
@@ -352,8 +359,8 @@ module pc386_system #(
             if (post_valid) last_post <= post_code;
         end
     wire [6*64-1:0] observe = {
-        opl2_samples, dma_cycles, samples, plane_underflows, present_underflows, capture_drops,
-        scanout_underflows, frames_shown, cpu_eip, cpu_vector, 8'd0, cpu_sel[1],
+        opl2_samples, dma_cycles, samples, plane_underflows_sys, present_underflows_sys, capture_drops,
+        scanout_underflows, frames_shown_sys, cpu_eip, cpu_vector, 8'd0, cpu_sel[1],
         retired, 8'd0, cpu_resets, last_post, 4'd0, intr, a20m, cpu_stopped, cpu_halt
     };
 

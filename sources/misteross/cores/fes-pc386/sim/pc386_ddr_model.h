@@ -13,6 +13,12 @@
 // does. Every draw comes from a seeded generator, consumed once per clock, so
 // two benches that drive a port identically see identical timing. The clock
 // counts are 100 MHz ones: at a slower port clock they overstate latency.
+//
+// Port holds its masters to Avalon-MM, as the HPS controller needs: a
+// command it refused comes again unchanged on the next clock, no read starts
+// inside a write burst, and every beat of a write burst carries its first
+// beat's address and length, so a burst cut short and followed by another
+// is caught at the new burst's first beat.
 #pragma once
 
 #include <array>
@@ -84,6 +90,10 @@ public:
     // command the master presents, if the port accepts it.
     void drive(const PortSignals &port, uint64_t cycle) {
         uint32_t draw_wait = random.next(), draw_gap = random.next(), draw_latency = random.next();
+        if (refused && !(presented(port) == held))
+            throw std::runtime_error(name + ": a command changed or withdrawn under waitrequest at clock " +
+                                     std::to_string(cycle));
+        refused = false;
         *port.readdatavalid = 0;
         if (!reads.empty() && reads.front().ready <= cycle && (draw_gap & 15) != 0) {
             Burst &burst = reads.front();
@@ -96,7 +106,13 @@ public:
         }
         bool refuse = (draw_wait & 15) == 0 || reads.size() >= 14;
         *port.waitrequest = refuse;
-        if (refuse) return;
+        if (refuse) {
+            if (*port.read || *port.write) {
+                held = presented(port);
+                refused = true;
+            }
+            return;
+        }
         if (*port.read) {
             if (write_left) throw std::runtime_error(name + ": read during a write burst");
             unsigned beats = *port.burstcount;
@@ -114,6 +130,9 @@ public:
                 write_beats = write_left;
                 if (write_left == 0 || write_left > 128) throw std::runtime_error(name + ": bad write burst length");
                 ++commands;
+            } else if (*port.address != write_address || *port.burstcount != write_beats) {
+                throw std::runtime_error(name + ": a write burst cut short, then another begun at clock " +
+                                         std::to_string(cycle));
             }
             uint8_t *target = window.at(offset(write_address + (write_beats - write_left)));
             uint64_t data = *port.writedata;
@@ -133,6 +152,22 @@ private:
         uint32_t address;
         unsigned beats, done;
     };
+    // The fields a refused command must hold; write data only for a write.
+    struct Command {
+        bool read, write;
+        uint32_t address;
+        uint8_t burstcount, byteenable;
+        uint64_t writedata;
+        bool operator==(const Command &other) const {
+            return read == other.read && write == other.write && address == other.address &&
+                   burstcount == other.burstcount &&
+                   (!write || (byteenable == other.byteenable && writedata == other.writedata));
+        }
+    };
+    static Command presented(const PortSignals &port) {
+        return {*port.read != 0, *port.write != 0, *port.address, *port.burstcount, *port.byteenable,
+                *port.writedata};
+    }
     uint32_t offset(uint32_t word) {
         uint64_t byte = uint64_t(word) * 8;
         if (byte < WINDOW_BASE || byte + 8 > uint64_t(WINDOW_BASE) + WINDOW_BYTES)
@@ -145,6 +180,8 @@ private:
     std::deque<Burst> reads;
     unsigned write_left = 0, write_beats = 0;
     uint32_t write_address = 0;
+    bool refused = false;
+    Command held{};
 };
 
 // Port 0: 128-bit beats on word addresses (byte address / 16), for any

@@ -37,8 +37,9 @@ Quartus 17.0.2.
 | [`rtl/pc386_system.sv`](rtl/pc386_system.sv) | The machine, its audio and `fes_i386_cpu`: the CPU's resets, I/O and INTA handshake, attribute map, what the status block reports |
 | [`rtl/pc386_rom.sv`](rtl/pc386_rom.sv) | The BIOS and VGA BIOS in M10K, answering the CPU's port 0 reads of their ranges |
 | [`rtl/pc386_host_link.sv`](rtl/pc386_host_link.sv) | The HPS's link through the DDR window until M0: configuration, status, debug ring, the ATA image on port 2 |
+| [`rtl/pc386_snapshot.sv`](rtl/pc386_snapshot.sv) | Carries the presenter's and the plane's pixel-clock counters whole into the system clock |
 | [`rtl/pc386_system_pll.v`](rtl/pc386_system_pll.v) | The sealed system clock and the 12.288 MHz audio clock |
-| [`constraints-oss.qsf`](constraints-oss.qsf), [`toolchain.lock`](toolchain.lock) | Pins (both lanes), and the core's lock (the i386 lock's pins) |
+| [`constraints-oss.qsf`](constraints-oss.qsf), [`toolchain.lock`](toolchain.lock) | Pins (both lanes), and the core's lock (the i386 lock's nextpnr and Mistral, Yosys main) |
 | [`clocks.sdc`](clocks.sdc) | The Quartus lane's clocks |
 | [`vendor/opl2_fpga/`](vendor/opl2_fpga/README.md) | The YM3812 import (LGPL-3.0), with the local changes that make it sample-exact |
 | [`vendor/nuked-opl3/`](vendor/nuked-opl3/README.md) | Nuked-OPL3 (LGPL-2.1), the OPL2 reference in simulation only |
