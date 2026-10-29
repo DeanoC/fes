@@ -26,10 +26,15 @@ Two findings, from runs q1 and q2:
   zero, and every program passed every check.
 
 Getting this far needed two toolchain-side fixes, recorded below: a Yosys
-change so the producer's read audit fits its bound (DeanoC/yosys#68, pinned),
-and #1153's M10K AT core so the shell places at all. This record has host-only
-checks, nextpnr routed timing and a hardware diagnostic. The disk round trip
-with the runtime is not done.
+change so the producer's read audit fits its bound (DeanoC/yosys#68, since
+merged), and #1153's M10K AT core so the shell places at all. This record has
+host-only checks, nextpnr routed timing and a hardware diagnostic. The disk
+round trip with the runtime is not done.
+
+Two reviews then found bugs in the bus master, the fence, the kit tool and
+the checks, all fixed on the bench ([review fixes](#review-fixes-29-october-2026)).
+The branch no longer matches the kit-tested build `f1d64e7d` until a re-seal
+runs on Kit B again.
 
 ## Inputs
 
@@ -159,9 +164,10 @@ bound is a seal check and stays.
 [DeanoC/yosys#68](https://github.com/DeanoC/yosys/pull/68) reads the count
 once ([#67](https://github.com/DeanoC/yosys/issues/67)); synthesis results
 do not change. With it the presenter's main trace is 1,635 lines (315 KB) and
-opens the file once. The pc386 lock pins #68's head `1f7d0273` until it
-merges. The i386 lock still has `238eac9a`, so an audited i386 or M5 build
-needs the same move.
+opens the file once. The pc386 lock pinned #68's head `1f7d0273` until it
+merged, and now pins main's `0a7927bf` ([review fixes](#review-fixes-29-october-2026)).
+The i386 lock still has `238eac9a`, so an audited i386 or M5 build needs the
+same move.
 
 ## Placement, and the AT core's memories
 
@@ -411,6 +417,129 @@ every clock: system 74.26 MHz, pixel 80.03 MHz, setup slack +0.756 ns, hold
 - **vga-trace:** its captures differ from the bench only in the two blink
   cells seen before.
 
+## Review fixes, 29 October 2026
+
+Two reviews of #1226, one of the RTL and bench and one of the software,
+found no DDR protocol violation, and the fence held in every case they
+traced. They found these, fixed in `0c2407d6e0`:
+
+**Bus master:**
+- **COPY_OUT after a partial COPY_IN.** The lane counter was not reset when a
+  command loaded, so a COPY_IN of a count not a multiple of 4 left it mid-beat
+  and the next COPY_OUT filled its beat from there. It now resets at load.
+- **COPY_OUT's last beat.** A partial last beat was written with every byte
+  enabled, rewriting up to 12 bytes past the range with stale lanes. Only the
+  filled lanes are enabled now.
+- **The window bound.** Port 0 reaches all of HPS DDR, and COPY_IN and
+  COPY_OUT formed their address from the whole offset, so an offset of 256 MiB
+  or more, or a long copy near the window's end, reached Linux memory. A copy
+  whose offset is not beat-aligned or whose range leaves the window is now
+  refused with status 3, and so is an MMIO range outside A0000h-BFFFFh. The
+  address uses only the offset's low 28 bits.
+- **Aliases.** The op was `command[3:0]` of an 8-bit field, CONFIG used
+  `address[3:0]` and READ indices from 17 aliased. An op above 14, CONFIG
+  above 12, READ above 16 and I/O size 3 now return status 2.
+- **Timeouts.** OUT, IN, INTA, the MMIO ops, FILL, the copies and KEY waited
+  forever, and POLL_IN's timeout skipped its first wait. While the machine is
+  held, none of them is ever answered. Every command but WAIT_INTR and DELAY
+  now gives up with status 1 after `TIMEOUT_CLOCKS`, set by `rates()` to
+  0.1 s (6,144,000 clocks at 61.44 MHz). The longest wait in any of q3's
+  programs was a vga-trace retrace poll of 1,021,086 clocks (16.6 ms). A
+  port 0 beat is never given up: the machine's reset does not reach port 0.
+
+**Fence and counters:**
+- A filler beat now carries its burst's first-beat address and length, which
+  the fence latches, instead of the machine's live fields (0 after a reset).
+- A command the port refused stays presented, unchanged, until the port
+  takes it. The old fence withdrew a refused read when hold rose.
+- Observe words 1, 2 and 4 (presenter and plane underflows, 720p frames)
+  count in `pixel_clk` and were sampled raw in the system clock.
+  [`pc386_snapshot`](../../../sources/misteross/cores/fes-pc386/rtl/pc386_snapshot.sv)
+  now carries all three across whole with a toggle handshake. The Quartus
+  SDC makes the two PLLs asynchronous; the parked nextpnr lane has no clock
+  groups.
+
+**Kit tool and checks:**
+- `pc386-diag` attached while an interrupted run's commands were still in
+  the ring, numbered as the new run's would be. It now waits until the
+  status head reaches the doorbell's tail, when the doorbell has the
+  master's epoch, and fails after 20 s without progress. `diag_tb` attaches
+  the same way.
+- `check` ran a program's own checks (the mode 13h capture and read-back,
+  the ATA image dumps, the resets frame) only with `--name`, which the usage
+  line left out. `--name` is now required.
+- A command can expect a nonzero status: mask 0 with a nonzero value.
+- Checks that asserted nothing now measure:
+  - smoke: every isa8 byte cycle takes 720 ns plus the engine's 5 clocks
+    (all 40 took 49 clocks on the bench), and the AdLib detection reads
+    status 06h, then C6h once timer 1 runs out (71 us on the bench).
+  - sound: port 61h bit 5 is polled through two rising edges of the
+    speaker's square wave a period apart (2.2733 ms on the bench, 2.2729 ms
+    programmed), and the mixer reads +9051 after a rising edge and -9002
+    after a falling one.
+  - opl2: the AdLib detection, the mixer's sample every 10 ms through the
+    phrase (19 distinct of 19 in the bench's shortened run), and the OPL2's
+    samples over a closing delay (994 in 20 ms on the bench, 994.3 at
+    49,715.9 Hz).
+  - smoke's three `OUT; READ CLOCK` pairs, which nothing checked, are gone.
+
+**Bench:**
+- The DDR model now fails a command changed or withdrawn under waitrequest,
+  and a write beat whose address or length is not its burst's, which a burst
+  cut short and followed by another shows. It already failed a read inside
+  a write burst.
+- `diag_tb` watches the machine's side of each fence and fails on read data
+  the machine did not ask for since its last reset. A scratch fence that does
+  not hide read data fails the resets program on that check; this fence
+  passes.
+- The new `copy` program stages a sentinel, copies 2 dwords in and 5 out, and
+  checks exactly 20 bytes land, and that a copy to the window's last beat
+  stays inside it. It sends one of each refused command (status 2 and 3) and
+  checks they write nothing, then times out an OUT and an MMIO read with the
+  machine held (status 1) and checks the machine answers once released. A
+  scratch build with the old lane handling and enables fails it with the
+  review's pattern: `0 0 11111111 22222222`, then a stale `22222222` past the
+  range.
+- The plane bench changed its capture inputs after its last evaluation in a
+  clock, so the model sampled port 2 a clock late. The stricter model caught
+  it; the bench now evaluates first.
+
+**Lock.** The pc386 lock moves from `1f7d0273`, #68's head, to DeanoC/yosys
+main `0a7927bf`, its squash merge. Main also carries #54, #57 and #60
+(nomerge handling in opt_merge and proc_dlatch, a wreduce fix), so the
+netlist may differ. The i386 lock stays at `238eac9a` until its own change.
+
+**Bench at this head** ([`bench-report.json`](bench-report.json)). Every
+command's status and value pass, every program's own checks pass, and neither
+the DDR model's checks nor the fence monitor fail:
+
+| Program | Commands | Simulated | What changed |
+| --- | ---: | ---: | --- |
+| smoke | 908 | 1 ms | isa8 timing (40 cycles, 49 clocks each) and the OPL2 timer |
+| mode13 | 872 | 110 ms | Nothing: clocks, data, capture and read-back equal the run before the fixes, command for command |
+| sound, shortened | 961 | 54 ms | The speaker's period and its level at the mixer |
+| opl2, shortened | 1,201 | 46 ms | New on the bench: the AdLib detection, the first note, the mixer moving, the sample rate over 20 ms |
+| ata | 1,916 | 2 ms | Nothing: equal to the run before, command for command |
+| resets, 16 resets | 14,612 | 447 ms | The fence's new checks |
+| copy | 890 | 201 ms | New: partial copies, every refusal, two timeouts with the machine held |
+| vga-trace | 366,931 | 3.63 s | Its 11 captures equal the earlier bench run's |
+
+The bench's opl2 plays the phrase's first 140 register writes, through the
+first note, with every gap cut to 1 ms, then reads the mixer every 1 ms for
+20 ms. The kit programs at full length have 908 (smoke), 1,089 (sound) and
+1,971 (opl2) commands. vga-trace ran at `0c2407d6e0`, before the merge of
+#1153's review fixes, which change only comments and a simulation define the
+diag bench does not set in the RTL it builds.
+
+**Notes:**
+- Each machine reset clears the counters, so `resets` checks them only
+  after the last of its resets.
+- A text-mode F record reads 1.15 MB of capture through uncached `/dev/mem`.
+  At the staging rate, 44-46 MiB/s, that is about 24 ms, and the capture
+  reuses a buffer after two more frames, 28.6 ms at 70 Hz. A slower read
+  could tear the grab, which would show in the blinking cells. That is
+  plausible, not confirmed: the differences seen so far match blink phase.
+
 ## Not done
 
 - Nextpnr timing closure of the AT core's read path, the VGA scanout and the
@@ -423,3 +552,4 @@ every clock: system 74.26 MHz, pixel 80.03 MHz, setup slack +0.756 ns, hold
   and the disk opcodes; the shared 1.0 mailbox stays minor 0.
 - The plane was not opened on the bench, so its underflow counter proves
   nothing yet; the presenter, capture and scanout counters are exercised.
+- A kit run of the review fixes (q4), after a Quartus re-seal of this head.
