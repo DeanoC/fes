@@ -330,9 +330,14 @@ func TestROMLinkIdentityRejectsInvalidMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	good := ROMLinkIdentity{ROMID: receipt.ROMID, MapSHA256: receipt.MapSHA256, SourceSHA256: receipt.SourceSHA256, SourceSize: receipt.SourceSize, ProgrammedSHA256: strings.Repeat("a", 64), ProgrammedSize: 100}
+	good := ROMLinkIdentity{ROMID: receipt.ROMID, Role: inspection.Descriptor.ROM.Role, MapSHA256: receipt.MapSHA256, SourceSHA256: receipt.SourceSHA256, SourceSize: receipt.SourceSize, ProgrammedSHA256: strings.Repeat("a", 64), ProgrammedSize: 100}
 	if !good.ValidFor(inspection.Descriptor) {
 		t.Fatal("valid identity rejected")
+	}
+	legacy := good
+	legacy.Role = ""
+	if !legacy.ValidFor(inspection.Descriptor) {
+		t.Fatal("legacy identity without role rejected")
 	}
 	d := inspection.Descriptor
 	r := *d.ROM
@@ -343,7 +348,7 @@ func TestROMLinkIdentityRejectsInvalidMetadata(t *testing.T) {
 	if bad.ValidFor(d) {
 		t.Fatal("empty ROM ID accepted")
 	}
-	for name, alter := range map[string]func(*ROMLinkIdentity){"map": func(r *ROMLinkIdentity) { r.MapSHA256 = strings.Repeat("b", 64) }, "source digest": func(r *ROMLinkIdentity) { r.SourceSHA256 = strings.Repeat("A", 64) }, "size": func(r *ROMLinkIdentity) { r.SourceSize++ }, "programmed digest": func(r *ROMLinkIdentity) { r.ProgrammedSHA256 = "" }, "programmed size": func(r *ROMLinkIdentity) { r.ProgrammedSize = MaxPayloadSize + 1 }} {
+	for name, alter := range map[string]func(*ROMLinkIdentity){"role": func(r *ROMLinkIdentity) { r.Role = "cartridge" }, "map": func(r *ROMLinkIdentity) { r.MapSHA256 = strings.Repeat("b", 64) }, "source digest": func(r *ROMLinkIdentity) { r.SourceSHA256 = strings.Repeat("A", 64) }, "size": func(r *ROMLinkIdentity) { r.SourceSize++ }, "programmed digest": func(r *ROMLinkIdentity) { r.ProgrammedSHA256 = "" }, "programmed size": func(r *ROMLinkIdentity) { r.ProgrammedSize = MaxPayloadSize + 1 }} {
 		t.Run(name, func(t *testing.T) {
 			bad := good
 			alter(&bad)

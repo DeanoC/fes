@@ -224,11 +224,26 @@ func (s Snapshot) HeaderHint() string {
 		}
 		if s.Session.HardwareRoom {
 			hint = strings.Replace(hint, "  "+layoutWord(kind)+" layout", "", 1)
-			label := strings.ToLower(playingRoomLabel(s.Session))
-			if s.Session.MediaSelector {
-				label = "change media"
+			if s.Session.Coleco && !s.Session.ControlsOpen {
+				switch kind {
+				case InputKeyboard:
+					hint += "  / change cartridge  ·  Home/F12 Coleco selector"
+				case InputMouse:
+					hint += "  Gamepad Guide changes cartridge  ·  Home Coleco selector"
+				default:
+					hint += "  GUIDE change cartridge  ·  Home Coleco selector"
+				}
+			} else {
+				label := strings.ToLower(playingRoomLabel(s.Session))
+				if s.Session.MediaSelector {
+					label = "change media"
+				}
+				word := hardwareRoomWord(kind)
+				if s.Session.KeypadSelect && word == "SELECT" {
+					word = "GUIDE"
+				}
+				hint += "  " + word + " " + label
 			}
-			hint += "  " + hardwareRoomWord(kind) + " " + label
 		}
 		if h := strings.TrimSpace(s.Session.InputHint); h != "" {
 			return hint + "  " + h

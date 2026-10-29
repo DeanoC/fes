@@ -3,6 +3,7 @@ package fogcast
 import (
 	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"database/sql"
@@ -191,24 +192,38 @@ func libraryROMPackageFixture(t *testing.T, role string, transforms ...func([]by
 	if role == "cartridge" {
 		manifest = "valid-cartridge.toml"
 	}
+	manifestData, err := os.ReadFile(root + "manifests/" + manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifestData = bytes.Replace(manifestData, []byte(`id = "fes.pong"`), []byte(`id = "fes.zx81"`), 1)
+	for _, transform := range transforms {
+		manifestData = transform(manifestData)
+	}
+	payload, err := os.ReadFile(root + "payloads/fes-fixture.rbf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mapping, err := os.ReadFile(root + "maps/valid-basic.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return libraryROMPackageArchive(t, manifestData, payload, mapping)
+}
+
+func libraryROMPackageArchive(t *testing.T, manifest, payload, mapping []byte) []byte {
+	t.Helper()
 	var out bytes.Buffer
-	for _, member := range []struct{ name, path string }{{"manifest.toml", "manifests/" + manifest}, {"core.rbf", "payloads/fes-fixture.rbf"}, {"rom-map.json", "maps/valid-basic.json"}} {
-		data, err := os.ReadFile(root + member.path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if member.name == "manifest.toml" {
-			data = bytes.Replace(data, []byte(`id = "fes.pong"`), []byte(`id = "fes.zx81"`), 1)
-			for _, transform := range transforms {
-				data = transform(data)
-			}
-		}
+	for _, member := range []struct {
+		name string
+		data []byte
+	}{{"manifest.toml", manifest}, {"core.rbf", payload}, {"rom-map.json", mapping}} {
 		header := make([]byte, 512)
 		copy(header, member.name)
 		copy(header[100:], "0000644\x00")
 		copy(header[108:], "0000000\x00")
 		copy(header[116:], "0000000\x00")
-		copy(header[124:], fmt.Sprintf("%011o\x00", len(data)))
+		copy(header[124:], fmt.Sprintf("%011o\x00", len(member.data)))
 		copy(header[136:], "00000000000\x00")
 		copy(header[148:], "        ")
 		header[156] = '0'
@@ -220,11 +235,81 @@ func libraryROMPackageFixture(t *testing.T, role string, transforms ...func([]by
 		}
 		copy(header[148:], fmt.Sprintf("%06o\x00 ", sum))
 		out.Write(header)
-		out.Write(data)
-		out.Write(make([]byte, (512-len(data)%512)%512))
+		out.Write(member.data)
+		out.Write(make([]byte, (512-len(member.data)%512)%512))
 	}
 	out.Write(make([]byte, 1024))
 	return out.Bytes()
+}
+
+func linkedColecoPackageFixture(t *testing.T) []byte {
+	t.Helper()
+	root := "../../misteross/expansion/testdata/rom/"
+	read := func(name string) []byte {
+		t.Helper()
+		packed, err := os.ReadFile(root + name + ".gz")
+		if err != nil {
+			t.Fatal(err)
+		}
+		compressed, err := gzip.NewReader(bytes.NewReader(packed))
+		if err != nil {
+			t.Fatal(err)
+		}
+		data, err := io.ReadAll(compressed)
+		closeErr := compressed.Close()
+		if err != nil || closeErr != nil {
+			t.Fatalf("read ROM linker fixture %s: %v %v", name, err, closeErr)
+		}
+		return data
+	}
+	manifestRoot := "../corepackage/testdata/core-bundle-v3/"
+	manifest, err := os.ReadFile(manifestRoot + "manifests/valid-cartridge.toml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest = bytes.Replace(manifest, []byte(`id = "fes.pong"`), []byte(`id = "fes.coleco"`), 1)
+	manifest = bytes.Replace(manifest, []byte(`name = "FES Pong"`), []byte(`name = "FES ColecoVision"`), 1)
+	manifest = bytes.Replace(manifest, []byte(`id = "fes.simple-game"`), []byte(`id = "fes.application"`), 1)
+	manifest = bytes.Replace(manifest, []byte(`id = "fes.gamepad"`), []byte(`id = "fes.gamepad.ports"`), 1)
+	manifest = append(manifest, []byte(`
+[[interfaces]]
+id = "fes.keypad.ports"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.memory.hps-ddr"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.video.session-display"
+major = 1
+minor = 0
+required = true
+`)...)
+	payload, mapping := read("blank.rbf"), read("map.json")
+	rom := read("ramp.rom")
+	fixturePayload, err := os.ReadFile(manifestRoot + "payloads/fes-fixture.rbf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixtureMapping, err := os.ReadFile(manifestRoot + "maps/valid-basic.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldPayloadID := fmt.Sprintf("%x", sha256.Sum256(fixturePayload))
+	payloadID := fmt.Sprintf("%x", sha256.Sum256(payload))
+	mapID := fmt.Sprintf("%x", sha256.Sum256(mapping))
+	manifest = bytes.Replace(manifest, []byte(fmt.Sprintf("size = %d", len(fixturePayload))), []byte(fmt.Sprintf("size = %d", len(payload))), 1)
+	manifest = bytes.Replace(manifest, []byte(oldPayloadID), []byte(payloadID), 1)
+	oldMapID := fmt.Sprintf("%x", sha256.Sum256(fixtureMapping))
+	manifest = bytes.Replace(manifest, []byte(fmt.Sprintf("size = %d", len(fixtureMapping))), []byte(fmt.Sprintf("size = %d", len(mapping))), 1)
+	manifest = bytes.Replace(manifest, []byte(oldMapID), []byte(mapID), 1)
+	manifest = bytes.Replace(manifest, []byte("source_size = 1024"), []byte(fmt.Sprintf("source_size = %d", len(rom))), 1)
+	return libraryROMPackageArchive(t, manifest, payload, mapping)
 }
 
 func TestLibraryROMLaunchSendsSourceInputs(t *testing.T) {
@@ -351,7 +436,7 @@ func TestLibraryROMLaunchSendsSourceInputs(t *testing.T) {
 					t.Fatal("transport did not preserve exact source package and ROM")
 				}
 				core := installed.Descriptor.Core.ID
-				return protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &core, CorePackage: &protocol.CorePackageStatus{PackageID: entry.PackageID, Generation: 4, ABI: protocol.RuntimeContract{ID: installed.Descriptor.ABI.ID, Major: 1}, BuildID: installed.Descriptor.Build.ID, Gamepad: true, ROMLink: &corepackage.ROMLinkIdentity{ROMID: installed.Descriptor.ROM.ID, MapSHA256: installed.Descriptor.ROM.SHA256, SourceSHA256: media.MediaID, SourceSize: 1024, ProgrammedSHA256: fmt.Sprintf("%x", sha256.Sum256([]byte("linked"))), ProgrammedSize: 6}}}, nil
+				return protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &core, CorePackage: &protocol.CorePackageStatus{PackageID: entry.PackageID, Generation: 4, ABI: protocol.RuntimeContract{ID: installed.Descriptor.ABI.ID, Major: 1}, BuildID: installed.Descriptor.Build.ID, Gamepad: true, ROMLink: &corepackage.ROMLinkIdentity{ROMID: installed.Descriptor.ROM.ID, Role: installed.Descriptor.ROM.Role, MapSHA256: installed.Descriptor.ROM.SHA256, SourceSHA256: media.MediaID, SourceSize: 1024, ProgrammedSHA256: fmt.Sprintf("%x", sha256.Sum256([]byte("linked"))), ProgrammedSize: 6}}}, nil
 			}
 			launchStarted = time.Now()
 			response, err := s.Launch(ctx, entry.GameID, nil)
@@ -376,6 +461,10 @@ func TestLibraryROMLaunchSendsSourceInputs(t *testing.T) {
 	}
 }
 
+// Package switching inspects both installed archives in one request; allow
+// race-instrumented package reads more than the fixture's one-second default.
+const zx81PackageSwitchTestTimeout = 15 * time.Second
+
 func TestZX81FirmwareSelectionRebindsAcrossCompatiblePackageSwitch(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
@@ -384,7 +473,7 @@ func TestZX81FirmwareSelectionRebindsAcrossCompatiblePackageSwitch(t *testing.T)
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 			firstArchive, _ := hardwareZX81ContractFixtureWithROMMapAndImage(t, true, false, "fes.computer", "fes.media.zx81-tape", strings.Repeat("1", 40), nil, bytes.Repeat([]byte{0x21}, zx81machine.MachineROMBytes))
-			s, client, entry, first := newCoreEntryLaunchFixture(t, firstArchive, "Workshop ZX81")
+			s, client, entry, first := newCoreEntryLaunchFixture(t, firstArchive, "Workshop ZX81", zx81PackageSwitchTestTimeout)
 
 			var mediaID string
 			var firmware []byte
@@ -441,7 +530,7 @@ func TestZX81FirmwareSelectionRebindsAcrossCompatiblePackageSwitch(t *testing.T)
 
 			active := coreEntryActiveStatus(next, 7, false)
 			active.CorePackage.ROMLink = &corepackage.ROMLinkIdentity{
-				ROMID: "machine-rom", MapSHA256: next.Descriptor.ROM.SHA256,
+				ROMID: "machine-rom", Role: next.Descriptor.ROM.Role, MapSHA256: next.Descriptor.ROM.SHA256,
 				SourceSHA256: mediaID, SourceSize: zx81machine.MachineROMBytes,
 				ProgrammedSHA256: fmt.Sprintf("%x", sha256.Sum256([]byte("linked"))), ProgrammedSize: 6,
 			}
@@ -488,7 +577,7 @@ func TestZX81DamagedFirmwareSelectionCanBeReplacedAfterPackageSwitch(t *testing.
 	ctx := context.Background()
 	root := t.TempDir()
 	firstArchive, _ := hardwareZX81ContractFixtureWithROMMapAndImage(t, true, false, "fes.computer", "fes.media.zx81-tape", strings.Repeat("1", 40), nil, bytes.Repeat([]byte{0x21}, zx81machine.MachineROMBytes))
-	s, _, entry, first := newCoreEntryLaunchFixtureAt(t, root, firstArchive, "Workshop ZX81")
+	s, _, entry, first := newCoreEntryLaunchFixtureAt(t, root, firstArchive, "Workshop ZX81", zx81PackageSwitchTestTimeout)
 
 	initial, err := s.CoreCompositions(ctx, []string{entry.GameID})
 	if err != nil || !initial[entry.GameID].FirmwareReady || initial[entry.GameID].ROMMediaID == "" {
@@ -653,5 +742,243 @@ func TestCartridgeROMMediaContractVersionBounds(t *testing.T) {
 				t.Fatalf("rejected=%v error=%v", tc.reject, err)
 			}
 		})
+	}
+}
+
+// A cartridge swap over play links another cartridge for one launch of the
+// title and never rewrites the title's own binding.
+func TestCartridgeSwapReplacesOnlyThatLaunchesCartridge(t *testing.T) {
+	for _, role := range []string{"firmware", "cartridge"} {
+		t.Run(role, func(t *testing.T) {
+			ctx := context.Background()
+			root := t.TempDir()
+			store, err := catalog.OpenContext(ctx, filepath.Join(root, "catalog.db"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer store.Close()
+			packages, err := corepackage.NewStore(filepath.Join(root, "packages"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			client := &defaultMediaPackageClient{packageLibraryClient: &packageLibraryClient{fakeServiceClient: &fakeServiceClient{statusResult: protocol.Status{State: protocol.StateIdle}}}}
+			s := newService(Config{RequestTimeout: time.Second, UploadTimeout: time.Second}, Paths{}, store, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
+			s.corePackages = packages
+			archive := libraryROMPackageFixture(t, role)
+			installed, _, err := s.ImportCorePackage(ctx, int64(len(archive)), bytes.NewReader(archive))
+			if err != nil {
+				t.Fatal(err)
+			}
+			entry, err := s.CreateCoreEntry(ctx, "ROM title", installed.PackageID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			own, _, err := store.ImportCoreMedia(ctx, bytes.Repeat([]byte{0x5a}, 1024))
+			if err != nil {
+				t.Fatal(err)
+			}
+			other, _, err := store.ImportCoreMedia(ctx, bytes.Repeat([]byte{0xa5}, 1024))
+			if err != nil {
+				t.Fatal(err)
+			}
+			short, _, err := store.ImportCoreMedia(ctx, []byte("short"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err = s.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, installed.Descriptor.ROM.ID, "", own.MediaID); err != nil {
+				t.Fatal(err)
+			}
+			swapped, data, err := s.readCoreEntryROM(WithCartridge(ctx, entry.GameID, other.MediaID), entry, installed.Descriptor)
+			if role == "firmware" {
+				// Firmware is not a cartridge; the swap never replaces it.
+				if err == nil {
+					t.Fatal("firmware ROM swapped as a cartridge")
+				}
+				return
+			}
+			if err != nil || swapped.MediaID != other.MediaID || !bytes.Equal(data, bytes.Repeat([]byte{0xa5}, 1024)) {
+				t.Fatalf("swap read %+v %v", swapped, err)
+			}
+			if _, _, err = s.readCoreEntryROM(WithCartridge(ctx, entry.GameID, short.MediaID), entry, installed.Descriptor); err == nil {
+				t.Fatal("wrong-size swap cartridge admitted")
+			}
+			if selected, data, err := s.readCoreEntryROM(WithCartridge(ctx, "another-title", other.MediaID), entry, installed.Descriptor); err != nil ||
+				selected.MediaID != own.MediaID || !bytes.Equal(data, bytes.Repeat([]byte{0x5a}, 1024)) {
+				t.Fatalf("another title's swap applied: %+v %v", selected, err)
+			}
+			if binding, err := store.CoreEntryROM(ctx, entry.GameID); err != nil || binding.MediaID != own.MediaID {
+				t.Fatalf("swap rewrote the title's binding: %+v %v", binding, err)
+			}
+		})
+	}
+}
+
+func TestCartridgeSwapRelaunchPassesReplacementThroughTargetLinker(t *testing.T) {
+	ctx := context.Background()
+	// The target linker reparses and relinks the full Coleco ROM map on each
+	// launch. This test checks link identities, not activation latency, so use
+	// the same generous budget as the other full-map race tests.
+	s, client, entry, inspection := newCoreEntryLaunchFixture(t, linkedColecoPackageFixture(t), "Cartridge title", 2*time.Minute)
+	originalBytes := bytes.Repeat([]byte{0x5a}, 8192)
+	original, _, err := s.ImportCoreMedia(ctx, int64(len(originalBytes)), bytes.NewReader(originalBytes))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, inspection.Descriptor.ROM.ID, "", original.MediaID); err != nil {
+		t.Fatal(err)
+	}
+	replacementBytes := bytes.Repeat([]byte{0xa5}, 8192)
+	replacement, _, err := s.ImportCoreMedia(ctx, int64(len(replacementBytes)), bytes.NewReader(replacementBytes))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var linked []corepackage.ROMLinkIdentity
+	var targetLinkErr error
+	client.coreLoad = func(loadCtx context.Context, size int64, body io.Reader) (protocol.Status, error) {
+		staged, err := corepackage.StageROMInput(loadCtx, t.TempDir(), size, body)
+		if err != nil {
+			targetLinkErr = err
+			return protocol.Status{}, err
+		}
+		defer staged.Cleanup()
+		if staged.ROMLink == nil {
+			return protocol.Status{}, errors.New("target did not link the cartridge transport")
+		}
+		identity := *staged.ROMLink
+		linked = append(linked, identity)
+		result := coreEntryActiveStatus(inspection, uint64(6+len(linked)), false)
+		result.CorePackage.ROMLink = &identity
+		result.CorePackage.ActiveInterfaces = append(result.CorePackage.ActiveInterfaces,
+			protocol.RuntimeInterface{ID: "fes.gamepad.ports", Major: 1},
+			protocol.RuntimeInterface{ID: "fes.keypad.ports", Major: 1},
+			protocol.RuntimeInterface{ID: "fes.memory.hps-ddr", Major: 1},
+			protocol.RuntimeInterface{ID: "fes.video.session-display", Major: 1})
+		client.statusResult = result
+		return result, nil
+	}
+
+	if _, err = s.Launch(ctx, entry.GameID, nil); err != nil {
+		t.Fatalf("initial launch: %v target link error=%v loads=%d", err, targetLinkErr, client.coreCalls)
+	}
+	if _, err = s.Launch(WithCartridge(ctx, entry.GameID, replacement.MediaID), entry.GameID, nil); err != nil {
+		t.Fatalf("cartridge swap launch: %v target link error=%v loads=%d", err, targetLinkErr, client.coreCalls)
+	}
+	if len(linked) != 2 || linked[0].SourceSHA256 != original.MediaID || linked[1].SourceSHA256 != replacement.MediaID ||
+		linked[0].ProgrammedSHA256 == linked[1].ProgrammedSHA256 || client.coreCalls != 2 {
+		t.Fatalf("target link identities=%+v core loads=%d", linked, client.coreCalls)
+	}
+	selected, err := s.CoreEntryROM(ctx, entry.GameID)
+	if err != nil || selected.MediaID != original.MediaID {
+		t.Fatalf("swap changed the title's saved cartridge: %+v %v", selected, err)
+	}
+}
+
+// A format-4 swap replaces the cartridge source; the BIOS stays the kit's
+// firmware slot and the title's own cartridge binding is unchanged.
+func TestCartridgeSwapReplacesTheFormat4Cartridge(t *testing.T) {
+	ctx := context.Background()
+	s, client, entry, inspection := newCoreEntryLaunchFixture(t, twoROMLibraryPackageFixture(t), "MegaCart swap", 2*time.Minute)
+	size := inspection.Descriptor.ROMs[1].SourceSize
+	own, _, err := s.ImportCoreMedia(ctx, size, bytes.NewReader(bytes.Repeat([]byte{0x34}, int(size))))
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, _, err := s.ImportCoreMedia(ctx, size, bytes.NewReader(bytes.Repeat([]byte{0x78}, int(size))))
+	if err != nil {
+		t.Fatal(err)
+	}
+	bios, _, err := s.ImportCoreMedia(ctx, 8192, bytes.NewReader(bytes.Repeat([]byte{0x12}, 8192)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, "coleco-cart", "", own.MediaID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.SelectCoreFirmware(ctx, protocol.FirmwareRole, bios.MediaID); err != nil {
+		t.Fatal(err)
+	}
+
+	var linked *corepackage.ROMLinksIdentity
+	var targetLinkErr error
+	client.coreLoad = func(_ context.Context, transportSize int64, body io.Reader) (protocol.Status, error) {
+		if transportSize <= 0 {
+			return protocol.Status{}, errors.New("empty ROM-input-v2 transport")
+		}
+		transport, err := io.ReadAll(body)
+		if err != nil || int64(len(transport)) != transportSize || !corepackage.IsROMInputV2(transport) {
+			targetLinkErr = errors.New("target did not receive a complete ROM-input-v2 transport")
+			return protocol.Status{}, targetLinkErr
+		}
+		archive := tar.NewReader(bytes.NewReader(transport))
+		header, err := archive.Next()
+		if err != nil || header.Name != "rom-link-v2.json" {
+			targetLinkErr = errors.New("ROM-input-v2 receipt is missing")
+			return protocol.Status{}, targetLinkErr
+		}
+		var receipt struct {
+			Sources   []corepackage.ROMSourceIdentity `json:"sources"`
+			MapSHA256 string                          `json:"map_sha256"`
+		}
+		receiptBytes, err := io.ReadAll(archive)
+		if err != nil || json.Unmarshal(receiptBytes, &receipt) != nil {
+			targetLinkErr = errors.New("ROM-input-v2 receipt is invalid")
+			return protocol.Status{}, targetLinkErr
+		}
+		if header, err = archive.Next(); err != nil || header.Name != "package.tar" {
+			targetLinkErr = errors.New("ROM-input-v2 package source is missing")
+			return protocol.Status{}, targetLinkErr
+		}
+		if _, err = io.Copy(io.Discard, archive); err != nil {
+			targetLinkErr = err
+			return protocol.Status{}, err
+		}
+		if header, err = archive.Next(); err != nil || header.Name != "bios.bin" {
+			targetLinkErr = errors.New("ROM-input-v2 firmware source is missing")
+			return protocol.Status{}, targetLinkErr
+		}
+		firmwareBytes, err := io.ReadAll(archive)
+		if err != nil {
+			targetLinkErr = err
+			return protocol.Status{}, err
+		}
+		if header, err = archive.Next(); err != nil || header.Name != "cartridge.bin" {
+			targetLinkErr = errors.New("ROM-input-v2 cartridge source is missing")
+			return protocol.Status{}, targetLinkErr
+		}
+		cartridgeBytes, err := io.ReadAll(archive)
+		if err != nil {
+			targetLinkErr = err
+			return protocol.Status{}, err
+		}
+		if len(receipt.Sources) != 2 || receipt.Sources[0].ID != "coleco-bios" || receipt.Sources[0].Role != "firmware" ||
+			receipt.Sources[0].SourceSHA256 != bios.MediaID || receipt.Sources[0].SourceSize != 8192 || !bytes.Equal(firmwareBytes, bytes.Repeat([]byte{0x12}, 8192)) ||
+			receipt.Sources[1].ID != "coleco-cart" || receipt.Sources[1].Role != "cartridge" || receipt.Sources[1].SourceSHA256 != other.MediaID ||
+			receipt.Sources[1].SourceSize != size || !bytes.Equal(cartridgeBytes, bytes.Repeat([]byte{0x78}, int(size))) {
+			targetLinkErr = errors.New("ROM-input-v2 sources are not firmware then replacement cartridge")
+			return protocol.Status{}, targetLinkErr
+		}
+		linked = &corepackage.ROMLinksIdentity{Sources: receipt.Sources, MapSHA256: receipt.MapSHA256,
+			ProgrammedSHA256: fmt.Sprintf("%x", sha256.Sum256([]byte("linked"))), ProgrammedSize: inspection.Descriptor.Payload.Size}
+		active := coreEntryActiveStatus(inspection, 8, false)
+		active.CorePackage.ActiveInterfaces = append(active.CorePackage.ActiveInterfaces,
+			protocol.RuntimeInterface{ID: "fes.gamepad.ports", Major: 1},
+			protocol.RuntimeInterface{ID: "fes.keypad.ports", Major: 1},
+			protocol.RuntimeInterface{ID: "fes.memory.hps-ddr", Major: 1},
+			protocol.RuntimeInterface{ID: "fes.video.session-display", Major: 1})
+		active.CorePackage.ROMLinks = linked
+		client.statusResult = active
+		return active, nil
+	}
+	if _, err = s.Launch(WithCartridge(ctx, entry.GameID, other.MediaID), entry.GameID, nil); err != nil {
+		t.Fatalf("format-4 cartridge swap launch: %v target link error=%v loads=%d", err, targetLinkErr, client.coreCalls)
+	}
+	if linked == nil || len(linked.Sources) != 2 ||
+		linked.Sources[0].ID != "coleco-bios" || linked.Sources[0].Role != "firmware" || linked.Sources[0].SourceSHA256 != bios.MediaID ||
+		linked.Sources[1].ID != "coleco-cart" || linked.Sources[1].Role != "cartridge" || linked.Sources[1].SourceSHA256 != other.MediaID || client.coreCalls != 1 {
+		t.Fatalf("format-4 swap linked sources=%+v core loads=%d", linked, client.coreCalls)
+	}
+	if binding, err := s.catalog.(coreROMCatalog).CoreEntryROM(ctx, entry.GameID); err != nil || binding.MediaID != own.MediaID {
+		t.Fatalf("swap rewrote the title's binding: %+v %v", binding, err)
 	}
 }

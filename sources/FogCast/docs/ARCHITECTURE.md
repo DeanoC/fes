@@ -757,19 +757,42 @@ native, and `change-tape` accepts that execution. Both paths are distinct from
 launch-time `POST /api/v1/session/development-media` (`load_media`). See the FES lock
 [ZX81 tape media](../../../docs/zx81-tape-media.md).
 
+### Coleco title selector and cartridge swap
+
 Factory Coleco format-4 packages link the 8 KiB BIOS and 16 KiB cartridge into
 the RBF at launch and do not expose a live media unit. Home and F12 during
 Coleco play open the `example.coleco-arcade` title selector over the running
-session. A selected title says that the running cartridge is fixed and that
-Stop is required before choosing another; Confirm cannot launch over the active
-session. This is catalog navigation, not hot swapping, and Coleco does not fall
-through to the ZX81-only `example.hardware` workbench. The target publishes the
+session. On a kit display plane, the room is drawn and accepts pointer input
+while it has focus. A selected title says that the running cartridge is fixed
+and that Stop is required before choosing another; Confirm cannot launch over the active
+session. This catalog route remains the Home/F12 action and Coleco does not fall
+through to the ZX81-only `example.hardware` workbench. With the Coleco room
+closed, Guide opens **Change media** directly on the kit display plane as a
+cartridge picker. Back at the picker roots returns to play in one step without
+opening the Coleco room underneath it. The cartridge is the single format-3
+`rom_link` whose role is `cartridge`, or the second format-4 `rom_links` source
+whose role is `cartridge` after the linked BIOS. A swap replaces only that
+cartridge source. Select stays
+the machine's keypad `*` while the machine owns input; when a picker has focus,
+Select confirms its focused row and is not forwarded to the machine. The picker
+admits `.col`, `.rom` or `.bin` files of exactly the running cartridge's size,
+with no eject or live insert. Choosing one imports it and posts
+`POST /api/v1/session/cartridge {media_id, name}` with the captured session and
+package-generation binding. The host relaunches the same title on the same kit
+with that cartridge for this one launch. The title's own cartridge binding is
+unchanged, so its next ordinary launch uses its own cartridge again. The reply
+is the new generation; it retires the old plane and its focus, the picker closes,
+and play continues on the new load. The host separately revalidates the saved
+package, firmware and cartridge snapshot, then checks the load against the
+explicit replacement ID; the temporary choice does not weaken those checks.
+
+The Coleco Arcade room also remains the catalog path. The target publishes the
 activated descriptor's `core.id` in cached `/v1/status`; host polling keeps that
 identity with the matching package generation and can restore it from the saved
 launch record when an older target omits it. Tenfoot therefore recognizes
 `fes.coleco` even when the runtime's supported-interface projection omits its
-optional bus 2.0 interface. The selector resolves installed Coleco titles from
-the `fpga` catalog platform, constrained by `core_id=fes.coleco`; package-library
+optional bus 2.0 interface. The room resolves installed Coleco titles from the
+`fpga` catalog platform, constrained by `core_id=fes.coleco`; package-library
 entries are not indexed on the hardware platform named `coleco`. While idle,
 Tab/Search opens that same filtered platform shelf, including after Stop, so
 installed Coleco packages remain visible in the ordinary library browser. The
@@ -2682,6 +2705,10 @@ a kit-local core. A `-input` node the classifier cannot place also takes a
 port. Keyboard
 connection or removal does not shift either controller. Keyboard disconnect
 releases its held keys independently.
+
+On a keypad session, a portless pad's Select reaches the focused launcher while
+its controls own input, including the cartridge picker. During play the
+portless pad cannot send Select to the machine or use it as a menu command.
 
 If an HDMI control transition leaves display ownership uncertain, a portless
 pad's B uses the same guarded return-to-play operation as a ported pad. Other
