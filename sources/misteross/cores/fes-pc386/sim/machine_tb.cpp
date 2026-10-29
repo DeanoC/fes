@@ -56,8 +56,8 @@
 //   SMC <store|executed> <cycle> <cs:eip> <instruction> <address>   the first of each
 //   UNRETIRED <why> <loads> <cs:eip> <stem> <first address> <first cycle>
 //                                               VGA loads whose uop never retired, by instruction
-//   OVERLAP <cycle> <load address> <abandoned VGA address>   the first loads issued while the
-//                                               VGA read of a load whose uop died is still out
+//   OVERLAP <cycle> <load address> <abandoned VGA address>   as it happens, the first load
+//                                               issued while each abandoned VGA read is still out
 //   RTL <counter>=<n> ...                       retirements, oracle steps, waits
 // and with --stop-history N, at the first stop of the run:
 //   HISTORY <cycle> <start> <bytes> <cs>:<eip> <ss>:<esp> <vector|->   each of the last N
@@ -549,7 +549,6 @@ public:
     // still to come, and later loads issued before those reads came back:
     // the port gives such a read's bytes to no load.
     uint64_t vga_cancelled = 0, vga_overlaps = 0;
-    std::vector<std::string> overlap_sites;  // the first overlaps
     // Self-modifying code: a store into a block the front end has fetched,
     // ahead of the next instruction, and an instruction that then retires
     // over a byte so stored before the front end next redirects (and so
@@ -806,6 +805,7 @@ private:
         bool presented = false;
         uint64_t start = 0;
         bool abandoned = false;  // a load's uop died: it still reaches the VGA, its bytes go nowhere
+        bool overlapped = false; // a later load was issued while it was out
     };
     Pending io = Pending::Idle, inta = Pending::Idle;
     bool resetting = false;
@@ -947,15 +947,13 @@ private:
         const unsigned first = address & 3, last = std::min(first + bytes, 8u);
         uint64_t value = 0;
         bool queued = false;
-        for (const Mmio &op : vga_queue)
+        for (Mmio &op : vga_queue)
             if (op.abandoned) {
                 ++vga_overlaps;
-                if (overlap_sites.size() < 8) {
-                    char text[64];
-                    std::snprintf(text, sizeof text, "%llu %08x %08x", (unsigned long long)m.cycles,
-                                  physical(address, a20m), op.dword + unsigned(__builtin_ctz(op.enables)));
-                    overlap_sites.push_back(text);
-                }
+                if (!op.overlapped)
+                    std::printf("OVERLAP %llu %08x %08x\n", (unsigned long long)m.cycles, physical(address, a20m),
+                                op.dword + unsigned(__builtin_ctz(op.enables)));
+                for (Mmio &other : vga_queue) other.overlapped |= other.abandoned;
                 break;
             }
         last_reads = 0;
@@ -1429,7 +1427,6 @@ int main(int argc, char **argv) {
                             (unsigned long long)gap.stops, gap.sites.size(), (unsigned long long)gap.executed,
                             gap.first_site.c_str(), (unsigned long long)gap.first_cycle);
             for (const std::string &line : rtl->smc_sites) std::printf("SMC %s\n", line.c_str());
-            for (const std::string &line : rtl->overlap_sites) std::printf("OVERLAP %s\n", line.c_str());
             // The unretired VGA loads' instructions, the most loads first.
             std::vector<std::pair<const std::tuple<int, uint16_t, uint32_t, uint32_t>, RtlCpu::LostSite> *> lost;
             for (auto &entry : rtl->lost_sites) lost.push_back(&entry);
