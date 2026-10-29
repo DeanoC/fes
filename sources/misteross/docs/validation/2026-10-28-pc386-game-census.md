@@ -12,7 +12,11 @@ branch changes nothing in the CPU.
   The last reruns, of the boot and Ultima VI on the RTL and of both games on
   the oracle, are of `7f243eb0ed`, whose CPU is the base branch's
   `015048c65d` (#1194: BT, BTS, BTR and BTC by a register), as the boot
-  record's now is.
+  record's now is. The base has since built DAA, DAS, AAA and AAS (#1199),
+  merged here after every run. The AAA and AAS at 614F:034F and 03A3 that
+  this record calls unbuilt are built there, so their wrong-path loads would
+  not have faulted in D; with no uncached path they would still reach the
+  VGA.
 - The games are the M3 acceptance setups
   ([record](../../../../docs/validation/2026-10-26-pc386-m3-audio/summary.md)),
   user-supplied from the eXoDOS 6.04 collection and copied onto a copy of the
