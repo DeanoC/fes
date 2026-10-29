@@ -1,0 +1,11 @@
+Warning (272007): Device family Agilex 5 does not have M10K blocks -- using available memory blocks File: /home/deano/.codex/worktrees/c134/fes/out/dev/de25-idle-menu/out/de25-display-menu-pattern-c436951365/project/fes_menu_reader.v Line: 37
+Error (272006): Parameter error: altera_syncram megafunction's RAM_BLOCK_TYPE parameter is set to an illegal M10K value -- legal values for parameter RAM_BLOCK_TYPE are AUTO|M20K|MLAB(LUTRAM) File: /home/deano/.codex/worktrees/c134/fes/out/dev/de25-idle-menu/out/de25-display-menu-pattern-c436951365/project/fes_menu_reader.v Line: 37
+Error (20110): Auto-generation of IP "altera_syncram" for instance "menu.scanout|reader|fifo_rtl_0" failed. See previous errors for reason/mitigation. File: /home/deano/.codex/worktrees/c134/fes/out/dev/de25-idle-menu/out/de25-display-menu-pattern-c436951365/project/fes_menu_reader.v Line: 37
+Error (16185): Can't elaborate user hierarchy "menu.scanout|reader|fifo_rtl_0" File: /home/deano/.codex/worktrees/c134/fes/out/dev/de25-idle-menu/out/de25-display-menu-pattern-c436951365/project/fes_menu_reader.v Line: 39
+Error: Failed to synthesize partition
+Error: Quartus Prime Synthesis was unsuccessful. 4 errors, 2 warnings
+Error (21794): Quartus Prime Full Compilation was unsuccessful. 6 errors, 9 warnings
+Error: Flow compile (for project /home/deano/.codex/worktrees/c134/fes/out/dev/de25-idle-menu/out/de25-display-menu-pattern-c436951365/project/de25nano_display) was not successful
+Error: run_flow flow:run1 finished: 0 Failed
+Error (23031): Evaluation of Tcl script /data/altera_pro/26.3/quartus/common/tcl/internal/qsh_flowengine.tcl unsuccessful
+Error: Quartus Prime Shell was unsuccessful. 13 errors, 9 warnings
