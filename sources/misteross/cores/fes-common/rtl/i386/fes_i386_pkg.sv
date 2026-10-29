@@ -519,6 +519,9 @@ package fes_i386_pkg;
         // (bt_andn) and BTC flips (fes_i386_ex). r_btd: BITDISP's result.
         logic       f_bt, r_bt, bt_or, bt_andn, r_btd;
         logic       r_scan, bsr;               // BSF, BSR: the result and flags of the scan of y
+        // DAA, DAS, AAA and AAS: the result and flags of AL's adjust
+        // (fes_i386_ex); bcd_sub: DAS, AAS; bcd_ax: AAA, AAS.
+        logic       r_bcd, bcd_sub, bcd_ax;
         logic       b_jcc, b_jmp, b_loop, b_loope, b_loopne, b_jcxz;
         logic       b_rpe, b_rpne;             // a string element ends REPE, REPNE (uop rep_stop)
         logic       b_ind;                     // RET, JMP r/m: the target is x (CS's base) + y (the EIP)

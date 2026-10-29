@@ -828,8 +828,18 @@ public:
     // nothing is in flight on its ports, before the oracle runs or the CPU
     // restarts. Memory then holds every store the CPU retired.
     void settle() {
-        while (io == Pending::Issued && !m.top.io_done) m.clock();
-        while (inta == Pending::Issued && !m.top.inta_done) m.clock();
+        auto wait = [this](const char *what, const auto &done) {
+            const uint64_t start = m.cycles;
+            while (!done()) {
+                if (m.cycles - start >= STALL_CLOCKS)
+                    throw std::runtime_error(std::string(what) + " did not complete while settling");
+                m.clock();
+                answers();
+            }
+            answers();
+        };
+        if (io == Pending::Issued) wait("I/O", [this] { return m.top.io_done; });
+        if (inta == Pending::Issued) wait("INTA", [this] { return m.top.inta_done; });
         io = inta = Pending::Idle;
         cpu.reset = 1;
         resetting = true;
@@ -1113,7 +1123,7 @@ int main(int argc, char **argv) {
                             stretch_steps = 0;
                         }
                         // What the RTL cannot take from the oracle's state.
-                        if (state.idtr.base != 0 || state.idtr.limit != 0x3ff)
+                        if (state.idtr.base != 0 || state.idtr.limit != 0xffff)
                             notes.insert("real-mode IDTR moved");
                         if (state.cr0 & 0xe) notes.insert("CR0 MP, EM or TS set");
                         rtl->start(state);

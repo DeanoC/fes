@@ -370,6 +370,43 @@ def run_machine(testbench: Path, suite: str, arguments: list[str], images: dict)
     return report
 
 
+def rtl_boot_failures(report: dict, cpu: str) -> list[str]:
+    """Require the RTL itself to reach the FreeDOS prompt on an RTL boot."""
+    if cpu != 'rtl':
+        return []
+
+    failures = []
+    if report.get('prompt_cycle') is None:
+        failures.append('the RTL boot did not report reaching the prompt')
+    if (report.get('end') or {}).get('reason') != 'prompt':
+        failures.append(f'the RTL boot ended before the prompt: {(report.get("end") or {}).get("reason")}')
+
+    rtl = report.get('rtl')
+    if not isinstance(rtl, dict):
+        failures.append('the RTL boot report has no RTL CPU counters')
+        return failures
+
+    counters = rtl.get('counters') or {}
+    retired = counters.get('retired')
+    if retired is None:
+        failures.append('the RTL boot report is missing the retired counter')
+    elif retired <= 0:
+        failures.append(f'the RTL retired no instructions before the prompt: {retired}')
+    value = counters.get('oracle_steps')
+    if value is None:
+        failures.append('the RTL boot report is missing the oracle_steps counter')
+    elif value != 0:
+        failures.append(f'RTL oracle_steps={value}, expected 0 for an RTL-only boot')
+
+    stops = rtl.get('stops', [])
+    gaps = rtl.get('gaps', [])
+    if stops or gaps:
+        details = [f'{stop.get("kind")} {stop.get("stem")} at {stop.get("site")}' for stop in stops]
+        details.extend(f'{gap.get("kind")} {gap.get("stem")} ({gap.get("stops")} stops)' for gap in gaps)
+        failures.append('the RTL stopped or stalled before the prompt: ' + '; '.join(details))
+    return failures
+
+
 def vga_reference_objects(args) -> list[Path]:
     """Bochs's VGA and GUI renderer from the oracle's configured checkout, and the adapter."""
     bochs = oracle.build_bochs(oracle.bochs_source(args.download), args.jobs)
@@ -431,6 +468,7 @@ def run_boot(args, linked: list[Path]) -> dict:
     report = run_machine(testbench, suite, ['--disk', str(disk), '--limit-seconds', str(args.limit_seconds),
                                             '--type', args.type, '--expect', args.expect, '--trace', str(trace),
                                             '--cpu', args.cpu], images)
+    report['failures'] += rtl_boot_failures(report, args.cpu)
     print('Replaying the boot\'s VGA trace against Bochs\'s VGA', flush=True)
     report['replay'] = run_replay(args, suite, trace)
     report['failures'] += report['replay']['failures']
