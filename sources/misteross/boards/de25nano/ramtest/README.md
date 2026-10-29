@@ -11,6 +11,18 @@ catalog entry, runtime launch profile, boot image or automatic programming step.
 | FPGA LPDDR4 B | 1 GiB, Terasic RTL LPDDR4 example's B EMIF | 100 MHz fabric, vendor memory/PHY configuration | Destructive standalone diagnostic; calibration and controller-ready must both assert |
 | Board SDRAM | 128 MiB, two 64 MiB chip selects, custom 16-bit controller | Fixed 50 MHz | Destructive standalone diagnostic; waits for controller initialization |
 
+The SDRAM controller follows the locked package's
+`Datasheet/Memory/42-45VM16320G.pdf` (ISSI Rev. 0A, May 2024,
+SHA-256 `ca58df0eeb180528fe71bb329feace0ea5cd69435d38a11b4f9fe0abc8cbddf1`).
+After 200 microseconds it precharges both chips, refreshes twice, programs
+CAS2/BL1 with BA=0/address=0x20, and programs full drive/all-bank PASR with
+BA=2/address=0 before admitting requests. Read capture uses the half-cycle
+after external T1; the pin model expires BL1 data before the later T2
+half-cycle. Its 6.4-microsecond refresh budget covers the documented
+8192-refresh/64-millisecond envelope at up to 85 C; A2-grade operation above
+85 C needs a different policy. External data-window and board timing remain
+unqualified.
+
 The HPS capacity register describes the bank, not a grant to overwrite it.
 There is no fixed CPU physical DDR address or reserved pool in this lane.
 The generic endpoint's grant checks require nonzero generation/sequence and a

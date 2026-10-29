@@ -28,7 +28,7 @@ module fes_de25_sdram #(
 );
     localparam [4:0] POWER=0,PRE_INIT=1,REF_INIT1=2,REF_INIT2=3,MODE=4,
         IDLE=5,ACT=6,RW=7,RD_WAIT=8,WR_WAIT=9,PRE=10,WORD_DONE=11,
-        REFRESH=12,DELAY=13;
+        REFRESH=12,DELAY=13,EXT_MODE=14,READY=15;
     reg [4:0] state=POWER,next_state=POWER;
     reg [31:0] timer=0,refresh_age=0;
     reg [25:0] word_addr=0,write_next=0;
@@ -68,8 +68,17 @@ module fes_de25_sdram #(
                 MODE:begin
                     // CAS2, burst length1, programmed write burst.
                     dram_cs_n<=0;dram_ras_n<=0;dram_cas_n<=0;dram_we_n<=0;dram_addr<=13'h20;
-                    state<=DELAY;timer<=3;next_state<=IDLE;
-                    initialized<=1;refresh_age<=0;
+                    state<=DELAY;timer<=3;next_state<=EXT_MODE;
+                end
+                EXT_MODE:begin
+                    // IS42/45VM16320G EMRS: BA=10, full drive, all-bank PASR,
+                    // reserved bits zero. Both chips must be programmed.
+                    dram_cs_n<=0;dram_ras_n<=0;dram_cas_n<=0;dram_we_n<=0;
+                    dram_ba<=2'b10;dram_addr<=0;
+                    state<=DELAY;timer<=3;next_state<=READY;
+                end
+                READY:begin
+                    initialized<=1;refresh_age<=0;state<=IDLE;
                 end
                 IDLE:begin
                     if(refresh_due) state<=REFRESH;
@@ -93,7 +102,10 @@ module fes_de25_sdram #(
                     if(is_write) begin
                         dq_oe<=1;dq_o<=payload;dram_dqm<=~enables;
                         state<=WR_WAIT;timer<=3;
-                    end else begin state<=RD_WAIT;timer<=2;end
+                    // CL2/BL1: data drives after external T1, then leaves the
+                    // valid window after T2. Capture at fabric T1+half-cycle,
+                    // not T2+half-cycle (the bus may already be high impedance).
+                    end else begin state<=RD_WAIT;timer<=1;end
                 end
                 WR_WAIT:if(timer==0) state<=PRE;else timer<=timer-1;
                 RD_WAIT:if(timer==0) begin
