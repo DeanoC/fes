@@ -1106,7 +1106,11 @@ library systems and their grouped editions. Confirm uses `session.launch`.
 and `room.initial_core_id`; a loaded empty library offers **Add system**. The
 shelf reloads its entries when it resumes from a nested workbench, so systems
 added during setup appear on return. Setup navigation stays unavailable while
-the shelf or its editions are loading. ZX81-family
+the shelf or its editions are loading. Each refresh ignores its older query and
+edition replies. A failed refresh clears the rows and selection and shows its
+error; a later successful refresh clears the error and restores the current
+entries. **Add system** opens the general workbench when the refreshed shelf is
+empty. ZX81-family
 entries retain `example.hardware`; Commodore 64 uses `example.c64`, a configured
 entrypoint for the shared `widgets.system_workbench` implementation.
 `example.system` exposes that implementation for every registered playable

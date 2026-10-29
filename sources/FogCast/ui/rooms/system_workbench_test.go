@@ -171,7 +171,7 @@ func TestSystemWorkbenchResumeRefreshesAddedLibraryEntries(t *testing.T) {
 	r.Step(time.Unix(3, 0))
 }
 
-type delayedFirstWorkbenchQueryServices struct {
+type delayedFirstLibraryQueryServices struct {
 	*fakeServices
 	firstResult []hostclient.Game
 	started     chan struct{}
@@ -181,7 +181,7 @@ type delayedFirstWorkbenchQueryServices struct {
 	releaseOnce sync.Once
 }
 
-func (s *delayedFirstWorkbenchQueryServices) QueryGames(ctx context.Context, q hostclient.GameListQuery, limit int) ([]hostclient.Game, error) {
+func (s *delayedFirstLibraryQueryServices) QueryGames(ctx context.Context, q hostclient.GameListQuery, limit int) ([]hostclient.Game, error) {
 	s.mu.Lock()
 	s.calls++
 	first := s.calls == 1
@@ -198,11 +198,11 @@ func (s *delayedFirstWorkbenchQueryServices) QueryGames(ctx context.Context, q h
 	return s.fakeServices.QueryGames(ctx, q, limit)
 }
 
-func (s *delayedFirstWorkbenchQueryServices) releaseFirst() {
+func (s *delayedFirstLibraryQueryServices) releaseFirst() {
 	s.releaseOnce.Do(func() { close(s.release) })
 }
 
-type delayedWorkbenchGameServices struct {
+type delayedLibraryGameServices struct {
 	*fakeServices
 	blockedID   string
 	detail      hostclient.Game
@@ -213,7 +213,7 @@ type delayedWorkbenchGameServices struct {
 	releaseOnce sync.Once
 }
 
-func (s *delayedWorkbenchGameServices) Game(ctx context.Context, id string) (hostclient.Game, error) {
+func (s *delayedLibraryGameServices) Game(ctx context.Context, id string) (hostclient.Game, error) {
 	if id != s.blockedID {
 		return s.fakeServices.Game(ctx, id)
 	}
@@ -228,11 +228,11 @@ func (s *delayedWorkbenchGameServices) Game(ctx context.Context, id string) (hos
 	}
 }
 
-func (s *delayedWorkbenchGameServices) releaseDetail() {
+func (s *delayedLibraryGameServices) releaseDetail() {
 	s.releaseOnce.Do(func() { close(s.release) })
 }
 
-func stepUntilWorkbenchSignal(t *testing.T, r *Instance, signal <-chan struct{}, description string) {
+func stepUntilLibrarySignal(t *testing.T, r *Instance, signal <-chan struct{}, description string) {
 	t.Helper()
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
@@ -247,7 +247,7 @@ func stepUntilWorkbenchSignal(t *testing.T, r *Instance, signal <-chan struct{},
 	t.Fatalf("%s did not arrive", description)
 }
 
-func waitForWorkbenchPending(t *testing.T, r *Instance, game bool) {
+func waitForLibraryPending(t *testing.T, r *Instance, game bool) {
 	t.Helper()
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
@@ -271,7 +271,7 @@ func waitForWorkbenchPending(t *testing.T, r *Instance, game bool) {
 func TestSystemWorkbenchIgnoresStaleLibraryQuery(t *testing.T) {
 	old := preparedComputer("old-catalog-title", "Old catalog title", "fes.apple2")
 	newer := preparedComputer("new-catalog-title", "New catalog title", "fes.apple2")
-	svc := &delayedFirstWorkbenchQueryServices{
+	svc := &delayedFirstLibraryQueryServices{
 		fakeServices: &fakeServices{games: []hostclient.Game{newer}},
 		firstResult:  []hostclient.Game{old},
 		started:      make(chan struct{}),
@@ -279,11 +279,11 @@ func TestSystemWorkbenchIgnoresStaleLibraryQuery(t *testing.T) {
 	}
 	defer svc.releaseFirst()
 	r := loadSystemWorkbench(t, svc, "", "fes.apple2")
-	stepUntilWorkbenchSignal(t, r, svc.started, "initial library query")
+	stepUntilLibrarySignal(t, r, svc.started, "initial library query")
 	r.Resume()
 	stepUntil(t, r, func(f Frame) bool { return frameHas(f, newer.Title) })
 	svc.releaseFirst()
-	waitForWorkbenchPending(t, r, false)
+	waitForLibraryPending(t, r, false)
 	frame := r.Step(time.Now())
 	if !frameHas(frame, newer.Title) || frameHas(frame, old.Title) {
 		t.Fatalf("stale query replaced the refreshed workbench:\n%s", frameText(frame))
@@ -296,7 +296,7 @@ func TestSystemWorkbenchIgnoresStaleEditionCallback(t *testing.T) {
 	detail := old
 	detail.Title = "Old grouped detail"
 	newer := preparedComputer("new-edition-title", "New edition title", "fes.apple2")
-	svc := &delayedWorkbenchGameServices{
+	svc := &delayedLibraryGameServices{
 		fakeServices: &fakeServices{games: []hostclient.Game{old}},
 		blockedID:    old.ID,
 		detail:       detail,
@@ -306,7 +306,7 @@ func TestSystemWorkbenchIgnoresStaleEditionCallback(t *testing.T) {
 	}
 	defer svc.releaseDetail()
 	r := loadSystemWorkbench(t, svc, "", "fes.apple2")
-	stepUntilWorkbenchSignal(t, r, svc.started, "grouped-edition lookup")
+	stepUntilLibrarySignal(t, r, svc.started, "grouped-edition lookup")
 	svc.mu.Lock()
 	svc.games = []hostclient.Game{newer}
 	svc.mu.Unlock()
@@ -318,7 +318,7 @@ func TestSystemWorkbenchIgnoresStaleEditionCallback(t *testing.T) {
 	case <-time.After(3 * time.Second):
 		t.Fatal("grouped-edition lookup did not return")
 	}
-	waitForWorkbenchPending(t, r, true)
+	waitForLibraryPending(t, r, true)
 	frame := r.Step(time.Now())
 	if !frameHas(frame, newer.Title) || frameHas(frame, old.Title) || frameHas(frame, detail.Title) {
 		t.Fatalf("stale edition callback replaced the refreshed workbench:\n%s", frameText(frame))

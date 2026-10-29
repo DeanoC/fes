@@ -26,6 +26,7 @@ local list
 local rows
 local status = "Looking for prepared computers…"
 local load_err
+local library_generation = 0
 
 local function machine_of(g)
   if type(g) ~= "table" then return nil end
@@ -106,7 +107,7 @@ local function prepared_from(games)
   return out
 end
 
-local function resolve(games)
+local function resolve(games, generation)
   local prepared = prepared_from(games)
   local pending = 0
   local replacements = {}
@@ -118,6 +119,7 @@ local function resolve(games)
       local id = g.id
       local fallback = g
       library.game(id, function(detail, err)
+        if generation ~= library_generation then return end
         if detail and not err and detail.id and detail.id ~= "" then
           replacements[id] = detail
         else
@@ -153,7 +155,8 @@ end
 
 local function open_setup()
   if rows == nil then return false end
-  if not list or not list:selected() then rooms.open("example.system") return true end
+  if #rows == 0 then rooms.open("example.system") return true end
+  if not list then return false end
   local item = list:selected()
   if type(item) ~= "table" then return false end
   local room_id = SETUP[item.core_id or ""] or "example.system"
@@ -162,19 +165,24 @@ local function open_setup()
 end
 
 function load()
+  library_generation = library_generation + 1
+  local generation = library_generation
   library.query({
     platform = "fpga",
     core_ids = systems.ids,
     sort = "title",
     limit = 2000,
   }, function(games, err)
+    if generation ~= library_generation then return end
     if err then
       load_err = err
       status = ""
       rows = {}
+      if list then list:set_items(rows) end
       return
     end
-    resolve(games)
+    load_err = nil
+    resolve(games, generation)
   end)
 end
 
