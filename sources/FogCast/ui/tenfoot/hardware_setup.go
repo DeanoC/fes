@@ -252,9 +252,9 @@ func (a *App) zx81HardwareTapeRole(ctx context.Context, pkg string) (string, err
 	if err != nil {
 		return "", err
 	}
-	role, ok := protocol.ZX81TapeSelectionRole(caps.Media)
+	role, ok := protocol.ZX81FamilyTapeSelectionRole(caps.Media)
 	if !ok {
-		return "", fmt.Errorf("this Sinclair ZX81 package has no .p cassette")
+		return "", fmt.Errorf("this Sinclair ZX81-family package has no supported cassette")
 	}
 	return role, nil
 }

@@ -3033,7 +3033,10 @@ Interrupted import reads preserve cancellation and deadline errors through the
 service boundary rather than classifying them as invalid media.
 
 `protocol/core_media.go` projects supported transport semantics from exact
-package ABI/interface declarations, never core IDs. The offline
+package ABI/interface declarations. When a shared unit has machine-specific
+source images, its capability also reports that format: `fes.zx80` uses raw
+`.o` files for next-start setup, while ZX81 and Timex packages use `.p` files.
+The offline
 `core-media-capabilities` API/CLI separates `import_max_bytes` storage policy
 from each role's `min_bytes`/`max_bytes`, format and transport. It explicitly
 reports `source:declared-contract` and `compatibility:unknown`: this is not
@@ -3474,8 +3477,9 @@ retains the captured package and previous media ID for compare-and-swap; expansi
 import does not fit the asset. Catalogue schema 16 adds optional `in_progress`
 presentation, without changing immutable admission or shared wire definitions.
 The hardware projection carries each setup's core ID through the tenfoot action;
-bundled starter cassettes appear only for `fes.zx81`. ZX80 and Timex setups still
-load their game-scoped saved programs and can import a selected `.p`. Machine-bound
+bundled starter cassettes appear only for `fes.zx81`. ZX80 next-start setup
+imports raw `.o` cassettes; ZX81 and Timex setups import `.p` programs. The
+live-media selector continues to admit `.p` only. Machine-bound
 tape-shelf reads apply the same starter filter, including the live picker.
 The workbench may suggest a same-target ZX81 package with required
 session-display, HPS DDR and ABI-specific media interfaces when the selected

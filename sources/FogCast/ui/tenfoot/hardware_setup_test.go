@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -201,6 +202,90 @@ func TestAdmitHardwareCassette(t *testing.T) {
 	}
 	if err := admitHardwareCassette("fes.zx81", "dragons-add.o", 645); err == nil || !strings.Contains(err.Error(), ".p / .P") {
 		t.Fatalf("ZX81 .o = %v", err)
+	}
+}
+
+func TestImportHardwareCassetteUsesCapturedCoreID(t *testing.T) {
+	const driveID = "0123456789abcdef01234567"
+	pkg, mediaID := strings.Repeat("e", 64), strings.Repeat("f", 64)
+	payload := []byte("raw ZX80 O cassette")
+	fileRequest := make(chan struct{}, 1)
+	allowFileResponse := make(chan struct{})
+	var releaseFileOnce sync.Once
+	releaseFileResponse := func() { releaseFileOnce.Do(func() { close(allowFileResponse) }) }
+	var mu sync.Mutex
+	var uploadCount int
+	var uploaded string
+	var selection map[string]string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/storage/drives/" + driveID + "/file":
+			fileRequest <- struct{}{}
+			<-allowFileResponse
+			w.Header().Set("Content-Length", strconv.Itoa(len(payload)))
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(payload)
+		case "/api/v1/core-media":
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				t.Errorf("read core-media upload: %v", err)
+			}
+			mu.Lock()
+			uploadCount++
+			uploaded = string(body)
+			mu.Unlock()
+			w.WriteHeader(http.StatusCreated)
+			json.NewEncoder(w).Encode(hostclient.CoreMedia{MediaID: mediaID, Size: int64(len(body))})
+		case "/api/v1/core-packages/" + pkg + "/media-capabilities":
+			json.NewEncoder(w).Encode(map[string]any{"package_id": pkg, "media": []any{map[string]any{
+				"role": "cassette", "format": "zx80-o", "extensions": []string{".o"},
+				"interface": map[string]any{"id": "fes.media.zx81-tape", "major": 1, "minor": 0},
+			}}})
+		case "/api/v1/library/core-entries/test-zx80/media":
+			var body map[string]string
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Errorf("decode cassette selection: %v", err)
+			}
+			mu.Lock()
+			selection = body
+			mu.Unlock()
+			json.NewEncoder(w).Encode(hostclient.CoreEntry{GameID: "test-zx80", PackageID: pkg, MediaID: body["media_id"], MediaRole: body["media_role"]})
+		default:
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+			http.Error(w, "unexpected", http.StatusInternalServerError)
+		}
+	}))
+	defer server.Close()
+	defer releaseFileResponse()
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
+	app.ctx = context.Background()
+	app.mu.Lock()
+	app.coreLibrary.Open = true
+	app.coreLibrary.HardwareMode = "tapes"
+	app.coreLibrary.HardwareGameID = "test-zx80"
+	app.coreLibrary.HardwarePackageID = pkg
+	app.coreLibrary.HardwareCoreID = "fes.zx80"
+	app.importHardwareFileLocked("host-drive:" + driveID + "/dragons-add.o")
+	app.mu.Unlock()
+
+	select {
+	case <-fileRequest:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for the host storage request")
+	}
+	app.mu.Lock()
+	app.coreLibrary.HardwareCoreID = "fes.zx81"
+	app.mu.Unlock()
+	releaseFileResponse()
+	waitCoreLibrary(t, app)
+
+	mu.Lock()
+	defer mu.Unlock()
+	if uploadCount != 1 || uploaded != string(payload) {
+		t.Fatalf("ZX80 cassette upload count=%d bytes=%q", uploadCount, uploaded)
+	}
+	if selection["expected_package_id"] != pkg || selection["media_id"] != mediaID || selection["media_role"] != "cassette" {
+		t.Fatalf("ZX80 cassette selection = %+v", selection)
 	}
 }
 
