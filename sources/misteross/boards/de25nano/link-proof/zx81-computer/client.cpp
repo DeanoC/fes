@@ -54,7 +54,7 @@ static void type_load(De25Computer& computer,Link&io){
     KeyboardHidRows quote{};quote[1]=1u<<3;quote[8]=2;
     for(unsigned n=1;n<=2;++n){key(computer,io,quote);io.call(wire::WaitToken,0x0b,n);key(computer,io,{});io.call(wire::WaitEditor,160000000);}
     io.call(wire::WaitPicture,2);
-    KeyboardHidRows enter{};enter[2]=1u<<8;key(computer,io,enter);
+    KeyboardHidRows enter{};enter[2]=1u<<8;okay(computer.SetKeyboardHid(enter,io.deadline()),"LOAD ENTER");
 }
 int main(int argc,char**argv){
     try{
@@ -63,7 +63,7 @@ int main(int argc,char**argv){
         std::string scenario=argv[2],build=argv[3],selected=build;
         if(scenario=="wrong-build")selected[0]=selected[0]=='0'?'1':'0';
         auto identified=pr.Identify(selected,io.deadline(),&identity);
-        unsigned callbacks=0,loaded=0,ramtop_a=0,ramtop_b=0;
+        unsigned callbacks=0,loaded=0,interrupted=0,ramtop_a=0,ramtop_b=0;
         auto configure=[&](unsigned persona){++callbacks;io.call(combined::Select,persona);return Error{};};
         if(scenario=="wrong-build"){
             wire::need(!identified.ok()&&pr.Poisoned()&&io.state(combined::PrWrites)==0,"wrong build mutated PR endpoint");
@@ -103,6 +103,8 @@ int main(int argc,char**argv){
                 // Interrupt a second real LOAD with the PR freeze request.
                 std::cerr<<"LOAD interrupted\n";io.call(wire::BeginLoad);type_load(computer,io);io.call(combined::WaitSomeLoad,8);
                 okay(pr.Freeze(io.deadline()),"freeze during real loader writes");
+                interrupted=io.state(wire::LoadedBytes);
+                wire::need(interrupted>=8&&interrupted<size,"freeze did not interrupt an incomplete real LOAD");
                 unsigned writes=io.state(combined::MemoryWrites);io.call(wire::Advance,2048);
                 wire::need(io.state(combined::MemoryWrites)==writes&&io.state(wire::MachineReset),"freeze did not fence loader writes");
                 okay(computer.Hold(io.deadline()),"HOLD frozen machine");okay(computer.EjectTape(io.deadline()),"eject");
@@ -132,6 +134,6 @@ int main(int argc,char**argv){
             }
         }
         auto final=io.call(wire::Done);
-        std::cout<<"{\"scenario\":\""<<scenario<<"\",\"result\":\"passed\",\"callbacks\":"<<callbacks<<",\"loaded_bytes\":"<<loaded<<",\"ramtop_empty\":"<<ramtop_a<<",\"ramtop_16k\":"<<ramtop_b<<",\"writes\":"<<final.writes<<"}\n";
+        std::cout<<"{\"scenario\":\""<<scenario<<"\",\"result\":\"passed\",\"callbacks\":"<<callbacks<<",\"loaded_bytes\":"<<loaded<<",\"interrupted_bytes\":"<<interrupted<<",\"ramtop_empty\":"<<ramtop_a<<",\"ramtop_16k\":"<<ramtop_b<<",\"writes\":"<<final.writes<<"}\n";
     }catch(const std::exception&e){std::cerr<<"FAIL combined client: "<<e.what()<<"\n";return 1;}
 }
