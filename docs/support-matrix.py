@@ -54,7 +54,6 @@ HIGHLIGHTS = {
     'fes.c64': 'disk, keys, HDMI',
     'fes.spectrum': 'tape, keys, HDMI',
     'fes.spectrum128': 'tape, keys, HDMI',
-    'fes.spectrum-plus2': 'tape, keys, HDMI',
     'fes.spectrum-plus3': 'disk, keys, HDMI',
     'fes.pentagon': 'disk, keys, HDMI',
     'fes.c64-ntsc': '—',
@@ -90,7 +89,6 @@ DETAILS = {
     'fes.c64-ntsc': ('sources/misteross/cores/fes-c64/README.md', 'README'),
     'fes.spectrum': ('sources/misteross/cores/fes-spectrum/README.md', 'README'),
     'fes.spectrum128': ('sources/misteross/cores/fes-spectrum/README.md', 'README'),
-    'fes.spectrum-plus2': ('sources/misteross/cores/fes-spectrum/README.md', 'README'),
     'fes.spectrum-plus3': ('sources/misteross/cores/fes-spectrum/README.md', 'README'),
     'fes.pentagon': ('sources/misteross/cores/fes-spectrum/README.md', 'README'),
     'fes.atari-st': ('sources/misteross/cores/fes-atari-st/README.md', 'README'),
@@ -112,6 +110,7 @@ RECENT_CUTOFF = '2026-10-16'
 MEDIA_GENS = frozenset({'live', 'linked-rom', 'old', 'none', 'sim', 'diagnostic'})
 TIER_ROLES = frozenset({'firmware', 'shared', 'demo', 'reference', 'bring-up', 'play'})
 OVERRIDE_REASON = 'Deano 2026-10-29'
+VARIANT_KINDS = frozenset({'model', 'rom'})
 ROLE_TIER = {
     'firmware': 'firmware',
     'shared': 'shared',
@@ -119,6 +118,14 @@ ROLE_TIER = {
     'reference': 'reference',
     'bring-up': 'bring-up',
 }
+
+
+def label_tokens(label: str) -> list[str]:
+    start = label.find('(')
+    end = label.rfind(')')
+    if start < 0 or end <= start:
+        return []
+    return [part.strip() for part in label[start + 1:end].split(',') if part.strip()]
 
 
 def derive_tier(row: dict) -> str:
@@ -485,14 +492,31 @@ def validate(root: Path, data: dict) -> list[str]:
         boards = {de10_cell(member) for member in members}
         if len(tiers) != 1 or len(boards) != 1:
             errors.append(f"display group {group.get('label')} mixes tiers or DE10 cells")
+        tokens = label_tokens(group.get('label') or '')
+        named = set()
         for cid in group['ids']:
             if cid in seen_group:
                 errors.append(f'{cid} is in two display groups')
             seen_group.append(cid)
-            if not (by_id[cid].get('variant')):
+            row_variant = by_id[cid].get('variant')
+            if not row_variant:
                 errors.append(f'{cid} is grouped but has no variant name')
-            if by_id[cid].get('variant') not in group['label']:
-                errors.append(f"{cid} variant {by_id[cid].get('variant')} is not in the group label")
+            elif row_variant not in tokens:
+                errors.append(f"{cid} variant {row_variant} is not in the group label")
+            else:
+                named.add(row_variant)
+            for item in by_id[cid].get('variants') or []:
+                name = item.get('name')
+                kind = item.get('kind')
+                if kind not in VARIANT_KINDS or not name:
+                    errors.append(f'{cid} variant entry needs a name and kind')
+                    continue
+                named.add(name)
+                if kind == 'rom' and name not in tokens:
+                    errors.append(f'{cid} ROM variant {name} is not in the group label')
+        for token in tokens:
+            if token not in named:
+                errors.append(f"{group.get('label')} lists {token} without a variant")
     for core_id, highlight in HIGHLIGHTS.items():
         if len(highlight) > 40 or '|' in highlight or '`' in highlight:
             errors.append(f'{core_id} highlight is not a short feature cell')
@@ -517,6 +541,18 @@ def validate(root: Path, data: dict) -> list[str]:
             errors.append(f'human page is missing {phrase!r}')
     if 'Unresolved' in rendered:
         errors.append('human page still shows the Unresolved tier')
+    if any(row['id'] == 'fes.spectrum-plus2' for row in rows):
+        errors.append('fes.spectrum-plus2 is not a separate core')
+    plus2 = next((
+        item for item in (by_id.get('fes.spectrum128') or {}).get('variants') or []
+        if item.get('name') == '+2'
+    ), None)
+    if not plus2 or plus2.get('kind') != 'rom':
+        errors.append('fes.spectrum128 must record +2 as a ROM variant')
+    matrix_text = (root / DATA).read_text()
+    for phrase in ('no distinct model', 'no plus2 model', 'has no model', 'Distinct model', 'lacks a model'):
+        if phrase in rendered or phrase in matrix_text:
+            errors.append(f'support matrix still says {phrase!r}')
     if 'toolchain.lock' in rendered or '## Evidence' in rendered:
         errors.append('human page still carries locks or an evidence table')
     for row in rows:

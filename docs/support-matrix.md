@@ -73,7 +73,6 @@ These cells are still open. The wording is in [`support-matrix.json`](support-ma
 - Every row — Mesh / FogCast
 - Registered recipes — Ship both builds
 - Catalog-supported and experimental rows — Current-byte kit acceptance
-- Spectrum +2 — Distinct model
 
 ## Needs Deano
 
