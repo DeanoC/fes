@@ -214,6 +214,14 @@ def verify_handoff(project, hps):
         "readdatavalid": ("Input", 1), "response": ("Input", 2)}
     if hps.component_ports(endpoint, "avm") != expected_master:
         raise ValueError("generated scanout read-only response-aware master differs")
+    if hps.component_ports(endpoint, "pixel_reset") != {"reset_n": ("Output", 1)}:
+        raise ValueError("generated scanout pixel-domain reset source differs")
+    endpoint_definition = ET.fromstring(endpoint.findtext("parameter[@name='componentDefinition']/value"))
+    pixel_reset_interfaces = [item for item in endpoint_definition.findall("boundary/interfaces/interface")
+                              if item.findtext("name") == "pixel_reset"]
+    if (len(pixel_reset_interfaces) != 1 or
+            pixel_reset_interfaces[0].findtext("parameters/parameterValueMap/entry[key='synchronousEdges']/value") != "DEASSERT"):
+        raise ValueError("generated scanout pixel reset is not deassert-synchronized")
     control_ports = hps.component_ports(endpoint, "avs")
     if (control_ports.get("address") != ("Input", 7) or control_ports.get("readdata") != ("Output", 32) or
             control_ports.get("writeresponsevalid") != ("Output", 1) or control_ports.get("response") != ("Output", 2)):
@@ -238,9 +246,16 @@ def verify_handoff(project, hps):
         item = connections.get(("clock", start, "subsys_periph_" + end))
         if item is None or item.findtext("parameter[@name='clockRateSysInfo']/value") != str(rate):
             raise ValueError("generated scanout clock differs: " + end)
-    for sink in ("fes_ctrl_cdc.s0_reset", "fes_ctrl_cdc.m0_reset", "fes_mem_cdc.s0_reset", "fes_mem_cdc.m0_reset", "fes_scanout.reset"):
-        if ("reset", "subsys_periph_fes_scanout_reset.out_reset", "subsys_periph_" + sink) not in connections:
-            raise ValueError("generated scanout bridge common reset differs: " + sink)
+    reset_routes = (
+        ("subsys_periph_fes_scanout_reset.out_reset", "subsys_periph_fes_ctrl_cdc.s0_reset"),
+        ("subsys_periph_fes_scanout.pixel_reset", "subsys_periph_fes_ctrl_cdc.m0_reset"),
+        ("subsys_periph_fes_scanout.pixel_reset", "subsys_periph_fes_mem_cdc.s0_reset"),
+        ("subsys_periph_fes_scanout_reset.out_reset", "subsys_periph_fes_mem_cdc.m0_reset"),
+        ("subsys_periph_fes_scanout_reset.out_reset", "subsys_periph_fes_scanout.reset"),
+    )
+    for source, sink in reset_routes:
+        if ("reset", source, sink) not in connections:
+            raise ValueError("generated scanout reset-domain connection differs: " + source + " -> " + sink)
     reset_source = modules.get("fes_scanout_top_reset")
     if (reset_source is None or reset_source.get("kind") != "altera_reset_bridge" or
             ("reset", "fes_scanout_top_reset.out_reset", "subsys_periph_fes_scanout_reset.in_reset") not in connections):
@@ -270,6 +285,7 @@ def verify_handoff(project, hps):
         "read_only_master_ports": expected_master, "csr_write_completion": True,
         "peripheral_slave_map": probe["peripheral_slave_map"], "ddr_scanout": True,
         "top_reset_source": "fes_scanout_top_reset.out_reset -> subsys_periph_fes_scanout_reset.in_reset",
+        "pixel_reset_source": "fes_scanout.pixel_reset -> both pixel-clock mm_ccb sides",
         "reset_bridges": reset_bridges,
         "runtime_admission": "not-qualified", "global_reset_ownership": "not-qualified"}
 

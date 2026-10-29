@@ -29,10 +29,16 @@ foreach {instance width address_bits max_burst response_depth} {
             MASTER_SYNC_DEPTH 2 SLAVE_SYNC_DEPTH 2 ENABLE_RESPONSE 1 SYNC_RESET 0 PIPELINE_ENABLE 0] {
         set_instance_parameter_value $instance $name $value
     }
-    # Both sides assert from this one cold/configuration reset source. Software
-    # STOP/CLEAR and post-startup pixel-lock loss never reset these bridges.
-    add_connection fes_scanout_reset.out_reset $instance.s0_reset
-    add_connection fes_scanout_reset.out_reset $instance.m0_reset
+    # Keep the 100 MHz bridge sides on the common cold/configuration reset.
+    # Pixel-side resets come from the endpoint's async-assert/sync-release
+    # reset synchronizer, avoiding reset release between pixel clock edges.
+    if {$instance eq "fes_ctrl_cdc"} {
+        add_connection fes_scanout_reset.out_reset $instance.s0_reset
+        add_connection fes_scanout.pixel_reset $instance.m0_reset
+    } else {
+        add_connection fes_scanout.pixel_reset $instance.s0_reset
+        add_connection fes_scanout_reset.out_reset $instance.m0_reset
+    }
 }
 add_connection periph_clk.out_clk fes_ctrl_cdc.s0_clk
 add_connection fes_pixel_clk.out_clk fes_ctrl_cdc.m0_clk

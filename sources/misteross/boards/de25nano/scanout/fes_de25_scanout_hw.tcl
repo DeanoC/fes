@@ -16,8 +16,12 @@ add_interface clk clock sink
 add_interface_port clk clk clk Input 1
 add_interface reset reset sink
 set_interface_property reset associatedClock clk
-set_interface_property reset synchronousEdges DEASSERT
+set_interface_property reset synchronousEdges NONE
 add_interface_port reset reset_n reset_n Input 1
+add_interface pixel_reset reset source
+set_interface_property pixel_reset associatedClock clk
+set_interface_property pixel_reset synchronousEdges DEASSERT
+add_interface_port pixel_reset pixel_reset_n reset_n Output 1
 add_interface avs avalon end
 set_interface_property avs associatedClock clk
 set_interface_property avs associatedReset reset

@@ -10,7 +10,9 @@ module fes_menu_video #(
     parameter [0:0] COMPLETE_FRAME_ACK = 1'b0,
     parameter [0:0] DYNAMIC_BASE = 1'b0,
     parameter [7:0] MAX_BURST_BEATS = 8'd128,
-    parameter [0:0] CHECK_RESPONSE = 1'b0
+    parameter [0:0] CHECK_RESPONSE = 1'b0,
+    // Only for integrations whose reset also clears bridge queues.
+    parameter [0:0] RESET_DROPS_OUTSTANDING = 1'b0
 ) (
     input wire clk, rst, enable, quiesce,
     input wire [31:0] window_base,
@@ -100,7 +102,7 @@ module fes_menu_video #(
 
     fes_menu_reader #(.WINDOW_BASE(TEST_PATTERN ? 32'h00001000 : WINDOW_BASE),
         .DYNAMIC_BASE(DYNAMIC_BASE), .MAX_BURST_BEATS(MAX_BURST_BEATS),
-        .CHECK_RESPONSE(CHECK_RESPONSE)) reader (
+        .CHECK_RESPONSE(CHECK_RESPONSE), .RESET_DROPS_OUTSTANDING(RESET_DROPS_OUTSTANDING)) reader (
         .clk(clk), .rst(rst), .enable(reader_enable), .slot(fetch_slot),
         .window_base(TEST_PATTERN ? 32'h00001000 : window_base),
         .window_base_valid(TEST_PATTERN ? 1'b1 : window_base_valid),

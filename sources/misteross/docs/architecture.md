@@ -82,16 +82,19 @@ and completion only after a whole good frame. Explicit Platform Designer
 back to the preserved F2SDRAM path. The shared reader/video extensions are
 opt-in; existing consumers retain their default configuration.
 
-Both crossing bridges share initial configuration reset. Later pixel PLL-lock
-loss blanks output and latches a fault without resetting live bridge queues;
-the endpoint stops and drains when its clock resumes. The producer retains
-generated topology and response checks, native RTL tests and a simulation
-helper for the generated two-clock interconnect with explicitly modeled M20K
-storage. FIFO/controller logic remains generated; primitive equivalence and
-physical CDC remain unproven. It creates no runtime
-profile or production Linux binding. DMA translation/backing, global reset
-fencing, physical CDC, external HDMI timing and exact-artifact board acceptance
-remain separate gates.
+The scanout endpoint uses an explicit two-flop pixel-clock reset synchronizer:
+the common initial configuration reset reaches the 100 MHz bridge sides, and
+its synchronized pixel-domain output resets the endpoint and 74.25 MHz bridge
+sides together. This lets reader accounting restart consistently when the
+bridges discard in-flight traffic. Later pixel PLL-lock loss blanks output and
+latches a fault without resetting live bridge queues; the endpoint stops and
+drains when its clock resumes. The producer retains generated topology and
+response checks, native RTL tests and a simulation helper for the generated
+two-clock interconnect with explicitly modeled M20K storage. FIFO/controller
+logic remains generated; primitive equivalence and physical CDC remain
+unproven. It creates no runtime profile or production Linux binding. DMA
+translation/backing, global reset fencing, physical CDC, external HDMI timing
+and exact-artifact board acceptance remain separate gates.
 
 ## Functional input identity
 

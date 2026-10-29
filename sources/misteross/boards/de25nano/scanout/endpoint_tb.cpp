@@ -59,7 +59,12 @@ public:
         dut.address = 0; dut.read = 0; dut.write = 0; dut.byteenable = 0; dut.writedata = 0;
         dut.avm_waitrequest = 0; dut.avm_readdatavalid = 0; dut.avm_response = 0;
         for (unsigned lane = 0; lane < 4; ++lane) dut.avm_readdata[lane] = 0;
-        dut.eval(); tick(); tick(); dut.reset_n = 1; idle(4);
+        dut.eval(); require(dut.waitrequest, "cold reset did not hold CSR side");
+        dut.reset_n = 1; dut.eval();
+        require(dut.waitrequest, "pixel reset released without a pixel clock");
+        tick(); require(dut.waitrequest, "pixel reset released after one pixel edge");
+        tick(); require(!dut.waitrequest, "pixel reset did not release after two pixel edges");
+        idle(2);
         equal(read(FES_DE25_SCANOUT_ID_OFFSET), FES_DE25_SCANOUT_IDENTITY, "identity");
         equal(read(FES_DE25_SCANOUT_VERSION_OFFSET), FES_DE25_SCANOUT_VERSION, "version");
         equal(read(FES_DE25_SCANOUT_STATUS_OFFSET), FES_DE25_SCANOUT_STATUS_DRAINED, "cold state");
@@ -192,6 +197,20 @@ public:
         const auto state = wait_status(FES_DE25_SCANOUT_STATUS_DRAINED);
         equal(state.outstanding(), 0, "drained outstanding"); require(pending.empty() && !dut.avm_read, "drain hid traffic");
     }
+    void cold_reset() {
+        stall = false; responses = false; unsolicited = false;
+        dut.read = 0; dut.write = 0; dut.reset_n = 0; dut.eval();
+        require(dut.waitrequest, "cold reset did not assert CSR waitrequest asynchronously");
+        // Model the common reset clearing the crossing bridges' in-flight data.
+        pending.clear(); bursts.clear(); held_ = false; bounded_ = false; have_frame_ = false;
+        frame_start_ = next_address_ = 0; allowed_slots_ = 0; base_ = 0;
+        tick(); tick();
+        dut.reset_n = 1; dut.eval();
+        require(dut.waitrequest, "pixel reset released before a pixel edge after cold reset");
+        tick(); require(dut.waitrequest, "pixel reset released after one post-reset edge");
+        tick(); require(!dut.waitrequest, "pixel reset did not release after two post-reset edges");
+        idle(2);
+    }
 private:
     bool held_ = false, bounded_ = false, have_frame_ = false;
     std::uint32_t held_address_ = 0, held_beats_ = 0;
@@ -255,6 +274,37 @@ static void stop_keeps_stalled_command_and_accepted_responses() {
     equal(pending.generation(), d.generation, "STOP lost ownership generation"); equal(pending.outstanding(), beats, "accepted response budget");
     equal(pending.displayed(), 0, "STOP acknowledged incomplete frame");
     e.stop_and_drain(); equal(e.returned, beats, "not all accepted responses retired");
+}
+static void reset_discards_inflight_reader_state_and_recovers() {
+    Endpoint e; Descriptor d; e.responses = false; e.submit(d); e.wait_request();
+    auto in_flight = e.snapshot();
+    require(in_flight.outstanding() && !(in_flight.status() & FES_DE25_SCANOUT_STATUS_DRAINED),
+            "reset test did not establish accepted in-flight traffic");
+
+    e.command(FES_DE25_SCANOUT_COMMAND_CLEAR);
+    auto clear_rejected = e.snapshot();
+    require((clear_rejected.errors() & FES_DE25_SCANOUT_ERROR_COMMAND) &&
+            !(clear_rejected.status() & FES_DE25_SCANOUT_STATUS_DRAINED),
+            "CLEAR did not stay rejected while responses were outstanding");
+    e.submit(d);
+    auto submit_rejected = e.snapshot();
+    require((submit_rejected.errors() & FES_DE25_SCANOUT_ERROR_COMMAND) && submit_rejected.accepted() == 1,
+            "SUBMIT changed ownership while old responses were outstanding");
+
+    e.cold_reset();
+    auto reset_state = e.snapshot();
+    equal(reset_state.status(), FES_DE25_SCANOUT_STATUS_DRAINED, "reset left stale drain state");
+    equal(reset_state.outstanding(), 0, "reset retained stale response budget");
+    require(!e.dut.avm_read && !e.dut.video_de && reset_state.errors() == 0,
+            "reset retained stale command, error or video state");
+
+    e.command(FES_DE25_SCANOUT_COMMAND_CLEAR);
+    auto cleared = e.snapshot();
+    equal(cleared.status(), FES_DE25_SCANOUT_STATUS_DRAINED, "CLEAR stayed rejected after reset");
+    equal(cleared.errors(), 0, "CLEAR after reset retained errors");
+    ++d.generation; e.responses = true; e.submit(d); e.wait_request();
+    require(!e.snapshot().errors(), "new SUBMIT failed after reset recovery");
+    e.stop_and_drain();
 }
 static void boundaries_and_low_iova() {
     for (const std::uint64_t base : {0ull, 0x10000020ull, 0xff800000ull}) {
@@ -347,6 +397,7 @@ int main(int argc, char** argv) {
         two_complete_frames(false); ++groups; std::cout << "PASS two_complete_frames_delayed\n";
         two_complete_frames(true); ++groups; std::cout << "PASS two_complete_frames_zero_latency\n";
         RUN(stop_keeps_stalled_command_and_accepted_responses);
+        RUN(reset_discards_inflight_reader_state_and_recovers);
         RUN(boundaries_and_low_iova);
         RUN(invalid_descriptors_never_fetch);
         RUN(pending_and_sequence_errors);

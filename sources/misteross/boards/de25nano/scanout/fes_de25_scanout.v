@@ -4,6 +4,7 @@
 `include "generated/fes_de25_scanout.vh"
 module fes_de25_scanout (
     input wire clk, reset_n,
+    output wire pixel_reset_n,
     input wire clock_fault,
     input wire [6:0] address,
     input wire read, write,
@@ -33,6 +34,16 @@ module fes_de25_scanout (
     reg [31:0] snapshot_serial;
     reg [31:0] frozen [0:12];
     integer field, lane;
+
+    // The common cold/configuration reset also reaches logic on the independent
+    // pixel clock. Assert asynchronously, but release only after two pixel
+    // clock edges. This reset source also feeds the pixel sides of both CCBs.
+    (* preserve, dont_merge, async_reg = "true" *) reg [1:0] pixel_reset_sync;
+    always @(posedge clk or negedge reset_n) begin
+        if (!reset_n) pixel_reset_sync <= 2'b00;
+        else pixel_reset_sync <= {pixel_reset_sync[0], 1'b1};
+    end
+    assign pixel_reset_n = pixel_reset_sync[1];
 
     wire [27:0] reader_address;
     wire [7:0] reader_burstcount;
@@ -114,7 +125,7 @@ module fes_de25_scanout (
         endcase
     end
     assign response = 2'b00;
-    assign waitrequest = !reset_n;
+    assign waitrequest = !pixel_reset_n;
     assign avm_address = {reader_address, 4'd0};
     assign avm_burstcount = reader_burstcount[4:0];
     assign avm_byteenable = 16'hffff;
@@ -129,8 +140,9 @@ module fes_de25_scanout (
     assign video_vs = video_enable && vs;
 
     fes_menu_video #(.DYNAMIC_BASE(1'b1), .MAX_BURST_BEATS(8'd16),
-        .CHECK_RESPONSE(1'b1), .COMPLETE_FRAME_ACK(1'b1)) video (
-        .clk(clk), .rst(!reset_n || local_clear), .enable(video_enable), .quiesce(!running),
+        .CHECK_RESPONSE(1'b1), .COMPLETE_FRAME_ACK(1'b1),
+        .RESET_DROPS_OUTSTANDING(1'b1)) video (
+        .clk(clk), .rst(!pixel_reset_n || local_clear), .enable(video_enable), .quiesce(!running),
         .window_base(grant_base), .window_base_valid(configured),
         .raster_h(11'd0), .raster_v(10'd0),
         .submit_valid(queued_submit), .submit_slot(pending_slot), .submit_sequence(accepted_sequence),
@@ -142,13 +154,13 @@ module fes_de25_scanout (
         .waitrequest(avm_waitrequest), .readdata(avm_readdata),
         .readdatavalid(avm_readdatavalid), .response(avm_response));
 
-    always @(posedge clk or negedge reset_n) begin
-        if (!reset_n) begin
+    always @(posedge clk or negedge pixel_reset_n) begin
+        if (!pixel_reset_n) begin
             clock_fault_sync <= 2'b00;
         end else clock_fault_sync <= {clock_fault_sync[0], clock_fault};
     end
-    always @(posedge clk or negedge reset_n) begin
-        if (!reset_n) begin
+    always @(posedge clk or negedge pixel_reset_n) begin
+        if (!pixel_reset_n) begin
             for (field = 0; field < 7; field = field + 1) staged[field] <= 32'd0;
             for (field = 0; field < 13; field = field + 1) frozen[field] <= 32'd0;
             readdata <= 32'd0; readdatavalid <= 1'b0; writeresponsevalid <= 1'b0;

@@ -29,11 +29,14 @@ pattern responder in this lane.
 
 The generic reader/video extensions default to the existing static-base,
 128-beat and unchecked-response behavior. This lane opts into the dynamic
-window, sixteen-beat bursts, response checking and complete-frame ACK. A
-shared zero-latency response-accounting fix preserves an accepted burst's
-budget, and the complete-frame controller retains a new submission accepted
-on the previous frame's last visible pixel. Existing consumers explicitly
-tie off the new optional ports; default DE10 package selections are unchanged.
+window, sixteen-beat bursts, response checking, complete-frame ACK and reset
+discard for outstanding reads. That reset mode is enabled only where the reset
+also clears the matching bridge queues; ordinary MENU consumers retain their
+drain behavior. A shared zero-latency response-accounting fix preserves an
+accepted burst's budget, and the complete-frame controller retains a new
+submission accepted on the previous frame's last visible pixel. Existing
+consumers explicitly tie off the new optional ports; default DE10 package
+selections are unchanged.
 The shared reader/video fixes still affect rebuilt existing consumers; their
 package/HIL acceptance is separate from this undeployed DE25 build lane.
 
@@ -47,20 +50,23 @@ cannot report Drained or be cleared locally. SNAPSHOT freezes coherent status
 and all multiword identities in one pixel-clock observation; its serial
 changes only on the explicit snapshot command or cold reset.
 
-Both sides of both crossing bridges share a cold/configuration reset source.
-A top-level reset bridge supplies that same external source to the child and
-inserted memory interconnect; the child reset sink is not merely exported.
-Its source is the direct Q of the preserved first-lock register, which clears
-asynchronously with the existing top reset; no combinational reset qualifier
-precedes the generated pixel-domain reset synchronizer.
-Initial release waits for the first qualified pixel PLL lock. Later PLL-lock
-loss blanks HDMI, latches a fault in the running 100 MHz domain and stops/drains
-the endpoint once the pixel clock resumes; it does **not** reset live FIFO or
-reader accounting. A qualifier stretches brief loss/relock events so video
-cannot briefly reappear before the sticky fault latches. This detects PLL
+The preserved first-lock register directly drives the common cold/configuration
+reset into the endpoint and both 100 MHz bridge sides. It asserts asynchronously
+with the top reset. The endpoint's two-flop pixel reset synchronizer asserts
+asynchronously and releases only on 74.25 MHz pixel-clock edges. Its reset
+output resets the endpoint state and the pixel-clock sides of both crossing
+bridges. The reader clears its held command, address, issued and outstanding
+response counts, and FIFO accounting on this reset because the corresponding
+bridge sides are reset at the same time. Initial release waits for the first
+qualified pixel PLL lock and then two pixel-clock edges.
+
+Later PLL-lock loss blanks HDMI, latches a fault in the running 100 MHz domain
+and stops/drains the endpoint once its clock resumes; it does **not** reset live
+FIFO or reader accounting. A qualifier stretches brief loss/relock events so
+video cannot briefly reappear before the sticky fault latches. This detects PLL
 lock loss, not independent pixel-clock progress. Permanent clock loss cannot
-advance the control bridge or local drain proof. Forced common reset still
-changes the ownership epoch and cannot prove prior traffic drained.
+advance the control bridge or local drain proof. A forced common reset changes
+the ownership epoch and cannot prove prior traffic drained.
 
 Run from this directory:
 
@@ -97,9 +103,10 @@ Native tests exercise the real reader/video/control RTL with the same guarded
 M20K hint adaptation used by the build. They cover complete frames and lane
 ordering with delayed/zero-latency responses, descriptor/sequence/slot checks,
 snapshots/byte enables, command stalls/drain, missing responses, underflow,
-response errors and sticky clock failure. Separate benches cover the exact
-last-pixel submission corner and actual clock-shell startup/brief unlock/
-relock behavior using digital PLL/I2C models. The generated-interconnect
+response errors, sticky clock failure and reset recovery with an in-flight
+burst discarded by the bridges. Separate benches cover the exact last-pixel
+submission corner and actual clock-shell startup/brief unlock/relock behavior
+using digital PLL/I2C models. The generated-interconnect
 helper tests the actual two-clock bridges and width adapter after generation;
 none of these modeled checks establishes physical memory or HDMI operation.
 

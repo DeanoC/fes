@@ -7,6 +7,7 @@ import unittest
 from unittest import mock
 import xml.etree.ElementTree as ET
 
+SCANOUT = Path(__file__).resolve().parent
 SPEC = importlib.util.spec_from_file_location("de25_scanout_builder_test", Path(__file__).with_name("build.py"))
 B = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(B)
@@ -103,6 +104,23 @@ class ScanoutBuildTests(unittest.TestCase):
         self.assertNotIn("fes_scanout_reset EXPORT_OF subsys_periph.fes_scanout_reset", script)
         self.assertNotIn("add_connection rst_in.out_reset subsys_periph.fes_scanout_reset", script)
         self.assertIn(".fes_scanout_reset_reset_n (scanout_reset_n)", (project / "golden_top.v").read_text())
+
+    def test_pixel_reset_source_drives_only_pixel_clock_bridge_sides(self):
+        output, _, _, _ = self.prepare()
+        project = output / "combined/hps/project"
+        script = (project / "integrate-mailbox.tcl").read_text()
+        self.assertIn("add_connection fes_scanout.pixel_reset $instance.m0_reset", script)
+        self.assertIn("add_connection fes_scanout.pixel_reset $instance.s0_reset", script)
+        self.assertIn("add_connection fes_scanout_reset.out_reset $instance.s0_reset", script)
+        self.assertIn("add_connection fes_scanout_reset.out_reset $instance.m0_reset", script)
+        self.assertIn("add_connection fes_scanout_reset.out_reset fes_scanout.reset", script)
+        component = (SCANOUT / "fes_de25_scanout_hw.tcl").read_text()
+        self.assertIn("set_interface_property reset synchronousEdges NONE", component)
+        self.assertIn("add_interface pixel_reset reset source", component)
+        self.assertIn("set_interface_property pixel_reset synchronousEdges DEASSERT", component)
+        endpoint = (SCANOUT / "fes_de25_scanout.v").read_text()
+        self.assertIn("pixel_reset_sync <= {pixel_reset_sync[0], 1'b1}", endpoint)
+        self.assertIn(".RESET_DROPS_OUTSTANDING(1'b1)", endpoint)
 
     def test_postcompile_pll_mutation_is_rejected_with_failed_receipt_retained(self):
         output, _, hps, display = self.prepare()
