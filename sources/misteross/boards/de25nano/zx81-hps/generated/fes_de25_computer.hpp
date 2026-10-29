@@ -23,6 +23,7 @@ constexpr std::uint32_t FesDe25ComputerFaultOffset = 0x14u;
 constexpr std::uint32_t FesDe25ComputerSpan = 0x20u;
 constexpr std::uint32_t FesDe25ComputerAddressBits = 0x5u;
 constexpr std::uint32_t FesDe25ComputerPeripheralOffset = 0x10300u;
+constexpr std::uint32_t FesDe25ComputerZx81TapeMaxBytes = 0x3ff7u;
 constexpr std::uint32_t FesDe25ComputerStatusReady = 0x1u;
 constexpr std::uint32_t FesDe25ComputerStatusBusy = 0x2u;
 constexpr std::uint32_t FesDe25ComputerStatusFault = 0x4u;

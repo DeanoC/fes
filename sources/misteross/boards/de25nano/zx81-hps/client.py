@@ -54,7 +54,8 @@ class Definitions:
                         raise ValueError("duplicate generated constant: " + match[1])
                     self.values[match[1]] = int(match[2], 16)
         required_bridge = ("IDENTITY VERSION ID_OFFSET VERSION_OFFSET STATUS_OFFSET GPO_OFFSET "
-                           "GPI_OFFSET FAULT_OFFSET SPAN STATUS_READY STATUS_BUSY STATUS_FAULT").split()
+                           "GPI_OFFSET FAULT_OFFSET SPAN ZX81_TAPE_MAX_BYTES "
+                           "STATUS_READY STATUS_BUSY STATUS_FAULT").split()
         required_abi = ("SIGNATURE REQUEST_MASK ACK_MASK ERROR_MASK RESPONSE_MASK IDENTITY_WORD_COUNT "
                         "IDENTITY_MAGIC0 IDENTITY_MAGIC1 TRANSPORT_MAJOR TRANSPORT_MINOR ABI_TAG ABI_MAJOR ABI_MINOR "
                         "IDENTITY_CAPABILITIES_INDEX IDENTITY_BUILD_IDSTART_INDEX OPCODE_IDENTITY OPCODE_EXECUTION "
@@ -69,6 +70,8 @@ class Definitions:
         for name in ["FES_DE25_COMPUTER_" + x for x in required_bridge] + ["FES_COMPUTER_" + x for x in required_abi]:
             if name not in self.values:
                 raise ValueError("missing literal generated constant: " + name)
+        if self.bridge("ZX81_TAPE_MAX_BYTES") > self.abi("ZX81_TAPE_MAX_BYTES"):
+            raise ValueError("DE25 tape limit exceeds the ZX81 computer ABI limit")
 
     def bridge(self, name: str) -> int:
         return self.values["FES_DE25_COMPUTER_" + name]
@@ -244,7 +247,7 @@ class ComputerClient:
                 self._abort("mailbox build identity differs from the selected artifact")
             media = self._media_info()
             if (media["minimum"], media["maximum"], media["chunk_maximum"]) != (
-                    self.c.abi("ZX81_TAPE_MIN_BYTES"), self.c.abi("ZX81_TAPE_MAX_BYTES"),
+                    self.c.abi("ZX81_TAPE_MIN_BYTES"), self.c.bridge("ZX81_TAPE_MAX_BYTES"),
                     self.c.abi("MEDIA_CHUNK_MAX_BYTES")):
                 self._abort("live tape limits differ from the ZX81 diagnostic contract")
             self.probed = True
@@ -303,8 +306,9 @@ class ComputerClient:
 
     def upload(self, payload: bytes, *, chunk_bytes: int | None = None) -> dict:
         size = len(payload)
-        if not self.c.abi("ZX81_TAPE_MIN_BYTES") <= size <= self.c.abi("ZX81_TAPE_MAX_BYTES"):
-            raise ValueError("ZX81 tape payload must contain 1 through 16384 bytes")
+        tape_maximum = self.c.bridge("ZX81_TAPE_MAX_BYTES")
+        if not self.c.abi("ZX81_TAPE_MIN_BYTES") <= size <= tape_maximum:
+            raise ValueError(f"ZX81 tape payload must contain 1 through {tape_maximum} bytes")
         maximum = self.c.abi("MEDIA_CHUNK_MAX_BYTES")
         chunk_bytes = maximum if chunk_bytes is None else chunk_bytes
         if type(chunk_bytes) is not int or not 1 <= chunk_bytes <= maximum:
@@ -351,11 +355,12 @@ def main(argv=None):
         constants = Definitions()
         payload = None
         if args.operation == "upload":
-            if not args.payload.is_file() or not 1 <= args.payload.stat().st_size <= constants.abi("ZX81_TAPE_MAX_BYTES"):
-                raise ValueError("tape input must be a regular file containing 1 through 16384 bytes")
+            tape_maximum = constants.bridge("ZX81_TAPE_MAX_BYTES")
+            if not args.payload.is_file() or not 1 <= args.payload.stat().st_size <= tape_maximum:
+                raise ValueError(f"tape input must be a regular file containing 1 through {tape_maximum} bytes")
             with args.payload.open("rb") as source:
-                payload = source.read(constants.abi("ZX81_TAPE_MAX_BYTES") + 1)
-            if not 1 <= len(payload) <= constants.abi("ZX81_TAPE_MAX_BYTES"):
+                payload = source.read(tape_maximum + 1)
+            if not 1 <= len(payload) <= tape_maximum:
                 raise ValueError("tape input changed outside the permitted size")
         if args.operation == "key" and args.press and not args.usages:
             raise ValueError("key --press requires at least one HID usage")
