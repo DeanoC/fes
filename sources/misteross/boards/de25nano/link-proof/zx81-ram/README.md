@@ -25,6 +25,11 @@ response FF span five sampled edges/four elapsed cycles, within the existing
 six-cycle bus bound. Request bits 38..43 are explicitly zero because diagnostic
 peek addresses are 0x40xx. Response flags16..18 are zero, bit19 is RAM presence;
 empty read/peek bytes are zero. Preparation checks these exact captured drivers.
+All 20 persona response FF variables have preserve/dont_merge/noprune attributes:
+without them Quartus folds empty responses and fails the PR boundary DRC.
+A same-part constant-register probe confirms the preservation semantics, and
+actual profile synthesis must report all 20 protected FFs without boundary
+inversions before fitting starts.
 The timing audit requires every live ingress bit, every RAM read/peek bit, and
 all physical replicas, while auditing any retained constant-field registers.
 

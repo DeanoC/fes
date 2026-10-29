@@ -22,6 +22,8 @@ class ProfileTests(unittest.TestCase):
             for name in ("shell.v", "fes_de25_pr_control_hw.tcl"):
                 (local / name).write_bytes((HERE.parent / "fpga" / name).read_bytes())
             build.PROFILE.prepare(local, project, frozen)
+            self.assertIn("(* preserve, dont_merge, noprune *) output reg [19:0] bus_response",
+                (local / "personas.v").read_text())
             self.assertNotIn("MISTRAL", (local / "zx81_ram_pack.v").read_text())
             self.assertIn("zx81_dpram", (local / "zx81_ram_pack.v").read_text())
             self.assertIn('intended_device_family = "Agilex 5"', (local / "zx81_dpram.v").read_text())

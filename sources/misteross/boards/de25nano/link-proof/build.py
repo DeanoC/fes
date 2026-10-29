@@ -739,6 +739,13 @@ def compile_project(output: Path, tools: dict[str, Path], version: str, only: st
         verify_files(output, generated)
         if tool_hashes(tools) != selected_tools:
             raise BuildError("selected Quartus executable changed")
+        if PROFILE is not None:
+            run([str(tools["quartus_syn"]), "--read_settings_files=on", "--write_settings_files=off",
+                 PROJECT, "-c", revision], output, f"{revision}-synthesis-preflight.log")
+            preflight = PROFILE.verify_synthesis(output / "output_files" / f"{revision}.syn.rpt")
+            (output / f"{revision}-synthesis-preflight.json").write_bytes(canonical(preflight) + b"\n")
+            verify_project(output, inputs)
+            verify_files(output, generated)
         run([str(tools["quartus_sh"]), "--flow", "compile", PROJECT, "-c", revision],
             output, f"{revision}-compile.log")
         verify_project(output, inputs)

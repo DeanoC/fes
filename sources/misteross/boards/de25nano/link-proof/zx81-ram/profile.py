@@ -1,5 +1,6 @@
 """ZX81 RAM-pack proof profile for the shared exact-device PR builder."""
 from pathlib import Path
+import re
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[5]
 MISTEROSS = ROOT / "sources/misteross"
@@ -122,3 +123,17 @@ def verify_memories(revision, rows):
         raise ValueError("static ZX81 8 KiB firmware M20K is missing")
     if not any(int(r["Logical Size"]) == 8192 and r.get("Type") == "M20K" for r in machine):
         raise ValueError("static ZX81 1 KiB internal RAM M20K is missing")
+
+
+def verify_synthesis(report):
+    text = report.read_text()
+    names = re.findall(r"^;\s*(slot_inst\|core\|bus_response\[([0-9]+)\](?:~reg0)?)\s*;\s*yes\s*;\s*yes\s*;\s*yes\s*;", text, re.M)
+    if len(names) != 20 or {int(bit) for name, bit in names} != set(range(20)):
+        raise ValueError("synthesis must retain all 20 protected persona response registers")
+    active = False
+    for line in text.splitlines():
+        if re.match(r"^;\s*Inverted Register Statistics\s*;", line): active = True
+        elif not line.strip(): active = False
+        elif active and re.search(r"slot_inst\|core\|(?:bus_response|bus_q|reset_q|request_q|address_q)", line):
+            raise ValueError("synthesis inverted a protected PR boundary register")
+    return {"protected_response_registers": [name for name, bit in names], "boundary_inversions": 0}

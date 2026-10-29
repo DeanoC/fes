@@ -11,7 +11,7 @@ module fes_link_zx81_persona #(
     input wire [45:0] bus_request,
     output reg rsp_valid,
     output reg [31:0] rsp_data,
-    output reg [19:0] bus_response
+    (* preserve, dont_merge, noprune *) output reg [19:0] bus_response
 );
     (* preserve, dont_merge *) reg request_q, reset_q;
     (* preserve, dont_merge *) reg [7:0] address_q;
