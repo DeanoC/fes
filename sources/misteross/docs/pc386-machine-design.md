@@ -1364,9 +1364,10 @@ Sound Blaster straps, disk geometry, wall clock) into the window, the machine
 waits in reset for it, and the link reports a status block and the
 debug-port bytes back through the window; the ATA image moves to port 2 as
 the table above has it. The system simulation boots FreeDOS on the whole
-shell below `top.sv`, and Quartus 17.0.2 seals it
-([record](../../../docs/validation/2026-10-29-pc386-m5-system/summary.md)). The kit boot and the
-four games follow; there is no keyboard or mouse in the package yet.
+shell below `top.sv`, Quartus 17.0.2 seals it, and the sealed package boots
+FreeDOS to its prompt on Kit B
+([record](../../../docs/validation/2026-10-29-pc386-m5-system/summary.md)). The four games
+follow; there is no keyboard or mouse in the package yet.
 
 After first playable: CPU Phase 5 brings JEMM386 and Wolfenstein 3D with EMS;
 CPU Phase 6 wires FERR to IRQ13 and port F0h. Machine follow-ups wait for a

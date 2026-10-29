@@ -320,11 +320,12 @@ place, passed every diagnostic program on Kit B on 2026-10-29
 replaces it with the development package `fes.pc386`
 (`make build-fes-pc386-quartus`, not registered): `fes_i386_cpu` with its L1s
 on DDR port 0 in the same machine, the firmware in M10K, and the HPS staging
-the disk and settings in the DDR window until the `fes.computer` 1.1 contracts
+the disk and settings in the DDR window until the `fes.computer` 1.1 contracts.
+It boots FreeDOS to its prompt in simulation and on Kit B on 2026-10-29
 ([M5 record](validation/2026-10-29-pc386-m5-system/summary.md)). nextpnr
 builds of pc386 are parked ([#1235](https://github.com/DeanoC/fes/issues/1235)).
-The kit boot, the four games, the keyboard and mouse, the `fes.computer` 1.1
-mailbox and the disk round trip with the runtime remain open.
+The four games, the keyboard and mouse, the `fes.computer` 1.1 mailbox and
+the disk round trip with the runtime remain open.
 
 ## Not implemented, or not this package
 
