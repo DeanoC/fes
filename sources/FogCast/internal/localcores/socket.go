@@ -3,11 +3,8 @@ package localcores
 import (
 	"context"
 	"errors"
-	"net"
 	"net/http"
 	"os"
-	"path/filepath"
-	"syscall"
 	"time"
 )
 
@@ -17,32 +14,6 @@ import (
 // process on the kit can call it; that is the same authority that owns
 // the hardware.
 const DefaultSocket = "/run/fogcast/local-control.sock"
-
-func listen(path string) (net.Listener, error) {
-	if path == "" {
-		return nil, errors.New("local control socket path is empty")
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return nil, err
-	}
-	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return nil, err
-	}
-	// Umask is process-wide. Restore it as soon as Listen returns so the
-	// socket is created 0600 and later files keep the caller's mask.
-	oldMask := syscall.Umask(0o077)
-	listener, err := net.Listen("unix", path)
-	syscall.Umask(oldMask)
-	if err != nil {
-		return nil, err
-	}
-	if err := os.Chmod(path, 0o600); err != nil {
-		_ = listener.Close()
-		_ = os.Remove(path)
-		return nil, err
-	}
-	return listener, nil
-}
 
 // Serve accepts HTTP on a root-only unix socket until ctx is cancelled.
 // An empty path does not listen. The socket is removed when Serve returns.

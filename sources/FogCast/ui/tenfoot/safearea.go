@@ -12,7 +12,6 @@ import (
 
 	"github.com/DeanoC/FogCast/ui/inputmap"
 	"github.com/DeanoC/FogCast/ui/rooms"
-	"golang.org/x/sys/unix"
 )
 
 // kitPersistentStateDir is the writable FAT directory the kit software
@@ -207,7 +206,7 @@ func chooseConfigDir(dir string) (string, bool) {
 func configDirWritable(dir string) bool {
 	info, err := os.Stat(dir)
 	if err == nil {
-		return info.IsDir() && unix.Access(dir, unix.W_OK) == nil
+		return info.IsDir() && directoryWritable(dir, info)
 	}
 	if !os.IsNotExist(err) {
 		return false
@@ -226,7 +225,7 @@ func ancestorWritable(dir string) bool {
 		}
 		info, err := os.Stat(parent)
 		if err == nil {
-			return info.IsDir() && unix.Access(parent, unix.W_OK) == nil
+			return info.IsDir() && directoryWritable(parent, info)
 		}
 		if !os.IsNotExist(err) {
 			return false

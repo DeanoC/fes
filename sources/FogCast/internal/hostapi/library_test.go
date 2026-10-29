@@ -1017,8 +1017,8 @@ type editionPrefFake struct {
 
 func (s *editionPrefFake) SetEditionPreference(_ context.Context, query, platform, gameID string) (libraryuser.EditionPreference, error) {
 	pref := libraryuser.EditionPreference{
-		Query:    libraryuser.CanonicalEditionQuery(query),
-		Platform: libraryuser.CanonicalEditionPlatform(platform),
+		Query:    protocol.CanonicalEditionQuery(query),
+		Platform: protocol.CanonicalEditionPlatform(platform),
 		GameID:   gameID,
 		ChosenAt: 42,
 	}
@@ -1031,7 +1031,7 @@ func (s *editionPrefFake) SetEditionPreference(_ context.Context, query, platfor
 	if s.prefs == nil {
 		s.prefs = map[string]libraryuser.EditionPreference{}
 	}
-	s.prefs[libraryuser.EditionKey(query, platform)] = pref
+	s.prefs[protocol.EditionKey(query, platform)] = pref
 	return pref, nil
 }
 

@@ -9,6 +9,34 @@ independently validate their retained package bytes.
 
 This is the canonical description of the working system.
 
+## Embedded launcher boundary
+
+`ui/tenfoot.RunPlatform` runs the existing App, command handling and renderer
+with an injected frame clock, input source and presenter. The caller supplies
+the graphics device and the Client's HTTP transport; the loop does not open an
+SDL window, Linux framebuffer or runtime socket. It starts/stops the App and
+releases its own presentation resources without taking ownership of the
+caller's device. Native entry points continue to use their existing backends.
+
+Local catalog/database startup is kept in the native platform implementation,
+outside the portable App. Pure edition-key normalization lives in `protocol`
+so the room destination model does not import the database implementation.
+Embedded builds reject unsupported native package-inventory and Unix-socket
+operations explicitly; they do not substitute weaker artifact checks.
+
+The injected loop does not yet implement the Linux menu path's
+generation-bound pause/drain handoff. An embedded presenter must keep its
+software framebuffer separate from live DMA grants and implement that
+lifecycle before publishing frames across core transitions. The initial
+experiment only browses and navigates; it does not launch cores.
+
+This boundary supports the experimental
+[Linux-free base](../../../platform/embedded/README.md). Its initial data
+adapter is a read-only fixture exercising the real UI. It is not a FogCast host,
+hardware runtime or full standalone appliance. Persistent storage, a network
+stack, USB input and physical scanout must be provided by the embedding base.
+The existing Linux launch path and package/session contracts are unchanged.
+
 ## Normal FPGA game launch
 
 ```text

@@ -1,4 +1,4 @@
-// Package tenfoot is the native SDL3 10-foot FogCast launcher.
+// Package tenfoot is the native 10-foot FogCast launcher.
 //
 // It talks to the public host API over HTTP. Catalog, content transfer, and
 // the MiSTer command path stay in the existing host and target processes.

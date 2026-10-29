@@ -17,7 +17,7 @@ a dated record. A dated record is not the schedule.
 | Coordinate cross-vendor tasks and milestone acceptance | [Agent workflow](agent-workflow.md#github-delivery-coordination) |
 | Decide whether a PR needs a full image for hardware testing | [HIL plan](hil-plan.md) |
 | See which module owns a change | [Project map](project-map.md), [component boundaries](component-boundaries.md) |
-| Explore DE25-Nano without Linux | [Bare-metal and RTOS feasibility study](design/de25-embedded-os.md) |
+| Develop DE25-Nano without Linux | [Embedded base and native tenfoot](../platform/embedded/README.md), [initial feasibility study](design/de25-embedded-os.md) |
 | Build, provision or verify a flashable disk | [Bootable media](bootable-media.md) |
 | Publish a versioned appliance image | [Appliance releases](appliance-releases.md) |
 | Share the kit | [Kit sharing](kit-sharing.md) |

@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
@@ -309,7 +308,7 @@ func openPickerFile(ctx context.Context, manager *storage.Manager, client *Clien
 		}
 		return file, size, filepath.Base(rel), err
 	}
-	file, err := os.OpenFile(strings.TrimSpace(path), os.O_RDONLY|syscall.O_NONBLOCK, 0)
+	file, err := openLocalPickerFile(strings.TrimSpace(path))
 	if err != nil {
 		return nil, 0, "", err
 	}

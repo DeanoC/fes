@@ -1,0 +1,12 @@
+FES tenfoot native Go os=tamago arch=arm64 EL=1 fixture=read-only network=absent
+FES_FRAME_BEGIN stage=1 focus=0 bytes=27827 sha256=bacdc809f717b77251cc6b7db345ae6a59368ec6a541b438eb003dab69b5bdf2
+[PNG payload retained in adjacent frame image]
+FES_FRAME_END
+FES_FRAME_BEGIN stage=2 focus=1 bytes=29064 sha256=dc3f7dabdcad13f6f646529852cdf3e79c735eaee70424a56b34047c5e5c9fa7
+[PNG payload retained in adjacent frame image]
+FES_FRAME_END
+FES_FRAME_BEGIN stage=3 focus=0 bytes=27827 sha256=bacdc809f717b77251cc6b7db345ae6a59368ec6a541b438eb003dab69b5bdf2
+[PNG payload retained in adjacent frame image]
+FES_FRAME_END
+FES_NATIVE_TENFOOT PASS frames=3 focus=0,1,0 services=fixture input=scripted
+qemu-system-aarch64: terminating on signal 15 from pid 1628260 (python3)

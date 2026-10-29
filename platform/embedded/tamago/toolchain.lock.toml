@@ -1,0 +1,13 @@
+# Exploratory native Go boot toolchain, separate from all production FES pins.
+[compiler]
+version = "go1.26.5"
+tag = "tamago-go1.26.5"
+commit = "9b05c7c8d559edc9f8ac7aef4c09fcdd30d21219"
+url = "https://github.com/usbarmory/tamago-go/releases/download/tamago-go1.26.5/tamago-go1.26.5.linux-amd64.tar.gz"
+sha256 = "cead9f1be5af028a649795a085e3dd88042d92cd0ebd02e8899f6d35e17b56b9"
+
+[library]
+module = "github.com/usbarmory/tamago"
+version = "v1.26.5"
+commit = "ea10656381d348058facdde7f3df500d43791e2c"
+sum = "h1:k21IAFiXGmibfPn3SYx0XLNXdqDrAgXiIgKSbI5LZ1k="

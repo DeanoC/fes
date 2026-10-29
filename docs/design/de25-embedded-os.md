@@ -5,6 +5,12 @@ Exploratory study, 29 October 2026. FES source baseline:
 change. Linux-free means no Linux kernel on the target; development tools and
 an optional remote FogCast host can still run on an ordinary OS.
 
+The follow-on [embedded base](../../platform/embedded/README.md) now develops
+native Go hosting and real filesystem/network service experiments in QEMU.
+That work uses TamaGo's modified Go runtime, a further option beyond the stock
+Go, freestanding C++ and Zephyr comparison below. It does not inherit physical
+DE25 support from these experiments.
+
 ## Assessment
 
 Both a bare-metal executive and an RTOS can plausibly control a DE25-Nano

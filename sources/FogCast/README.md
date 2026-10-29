@@ -10,6 +10,12 @@ and content selection; the MiSTer is a small, directly controlled target.
 
 ## What works now
 
+- Tenfoot's existing model and renderer can run through an injected platform
+  loop, without SDL or Linux display/input devices. The experimental
+  [embedded base](../../platform/embedded/README.md) uses this boundary for
+  Linux-free execution. Native backends keep their existing behavior; this
+  does not make the embedded target a complete FogCast host or FPGA runtime.
+
 - **Settings → BIOS & media drives** remembers USB volumes and SMB shares on
   either the kit/launcher device or the FogCast host, with separate BIOS and
   media folders. Saved drives appear in BIOS, core setup and live-media
