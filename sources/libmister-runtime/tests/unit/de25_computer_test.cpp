@@ -36,7 +36,7 @@ public:
 		0x1100, 0x3322, 0x5544, 0x7766, 0x9988, 0xbbaa, 0xddcc, 0xffee}};
 	std::uint32_t gpo = 0, gpi = 0xf5000000, fault = 0;
 	std::uint32_t bridge_id = FesDe25ComputerIdentity, version = FesDe25ComputerVersion;
-	std::uint32_t minimum = 1, maximum = 16384;
+	std::uint32_t minimum = 1, maximum = FesDe25ComputerZx81TapeMaxBytes;
 	std::uint16_t state = FesComputerMediaStateEmpty, max_chunk = 512;
 	std::uint16_t reject_next = 0, success_data = 0;
 	bool slow_ack = false;
@@ -157,7 +157,7 @@ void TestSelectedIdentityRefusesMutations() {
 		if (fault == 2) f.bridge.identity[4]++;
 		if (fault == 3) f.bridge.identity[7] |= 0x2000; // Unexpected session display is not this artifact.
 		if (fault == 4) f.bridge.identity[8] ^= 1;
-		if (fault == 5) f.bridge.maximum = 65536;
+		if (fault == 5) f.bridge.maximum = FesComputerZx81TapeMaxBytes;
 		if (fault == 6) f.bridge.max_chunk = 256;
 		assert(!f.client.Identify(kBuild, 1000000, &id).ok() && f.client.Poisoned());
 		const auto writes = f.bridge.writes.size(); assert(!f.client.Hold(1000000).ok());
@@ -174,7 +174,8 @@ void TestInputPreflightBeforeEffects() {
 	KeyboardHidRows rows{}; rows[0] = 1; assert(!f.client.SetKeyboardHid(rows, 1000000).ok());
 	rows = {}; rows[8] = 0x100; assert(!f.client.SetKeyboardHid(rows, 1000000).ok());
 	assert(!f.client.LoadTape({}, 1000000).ok());
-	assert(!f.client.LoadTape(std::vector<std::uint8_t>(16385), 1000000).ok());
+	assert(!f.client.LoadTape(
+		std::vector<std::uint8_t>(FesDe25ComputerZx81TapeMaxBytes + 1), 1000000).ok());
 	assert(!f.client.LoadTape({1}, 1000000, 0).ok());
 	assert(!f.client.LoadTape({1}, 1000000, 513).ok());
 	std::uint16_t aliased = 0;
@@ -192,12 +193,14 @@ void TestOddTapeAndCrc() {
 	assert(f.client.EjectTape(1000000).ok() && f.bridge.state == FesComputerMediaStateEmpty);
 }
 void TestMaximumTapeChunkOrdinals() {
-	Fixture f; f.Probe(); std::vector<std::uint8_t> payload(16384);
+	Fixture f; f.Probe(); std::vector<std::uint8_t> payload(FesDe25ComputerZx81TapeMaxBytes);
 	for (unsigned i = 0; i < payload.size(); ++i) payload[i] = (i * 37u + 19u) & 255;
 	assert(f.client.LoadTape(payload, 1000000000).ok()); assert(f.bridge.tape == payload);
 	assert(f.bridge.chunk_sizes.size() == 32);
-	assert(std::all_of(f.bridge.chunk_sizes.begin(), f.bridge.chunk_sizes.end(), [](auto n) { return n == 512; }));
-	assert(f.bridge.data_words.size() == 8192);
+	assert(std::all_of(f.bridge.chunk_sizes.begin(), f.bridge.chunk_sizes.end() - 1,
+		[](auto n) { return n == 512; }));
+	assert(f.bridge.chunk_sizes.back() == FesDe25ComputerZx81TapeMaxBytes % FesComputerMediaChunkMaxBytes);
+	assert(f.bridge.data_words.size() == (FesDe25ComputerZx81TapeMaxBytes + 1) / 2);
 }
 void TestHealthyRejectionsDoNotReplayOrPoison() {
 	Fixture f; f.Probe(); auto count = f.bridge.writes.size();
