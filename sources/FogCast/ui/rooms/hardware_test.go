@@ -140,6 +140,50 @@ func TestHardwareRoomQueuesRefreshRequestedDuringRead(t *testing.T) {
 	}
 }
 
+func TestHardwareRoomDropsSnapshotSupersededByQueuedRefresh(t *testing.T) {
+	stale := hardwareData(false).value.Machines[0]
+	stale.GameID = "stale-in-flight"
+	stale.Title = "Stale in-flight setup"
+	selected := stale
+	selected.GameID = "selected-setup"
+	selected.Title = "Selected setup"
+	fixture := hardwareData(false)
+	fixture.value.Machines = []hostclient.HardwareMachine{stale}
+	svc := &delayedFirstHardwareServices{
+		hardwareFixture: fixture,
+		started:         make(chan struct{}),
+		release:         make(chan struct{}),
+	}
+	defer svc.releaseFirst()
+	r := newRoom(t, examplePack(t, "example.hardware"), Options{
+		Services: svc, StorePath: filepath.Join(t.TempDir(), "room.json"), InitialGameID: selected.GameID,
+	})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-svc.started:
+	case <-time.After(3 * time.Second):
+		t.Fatal("initial hardware read did not start")
+	}
+	r.Resume()
+
+	fixture.lock.Lock()
+	fixture.value.Machines = []hostclient.HardwareMachine{stale, selected}
+	fixture.lock.Unlock()
+	svc.releaseFirst()
+	frame := stepUntil(t, r, func(f Frame) bool { return frameHas(f, selected.Title) })
+	if frameHas(frame, stale.Title) {
+		t.Fatalf("superseded snapshot changed the initial selection:\n%s", frameText(frame))
+	}
+	svc.callMu.Lock()
+	calls := svc.calls
+	svc.callMu.Unlock()
+	if calls != 2 {
+		t.Fatalf("hardware reads = %d, want initial plus queued refresh", calls)
+	}
+}
+
 func TestHardwareRoomSavesDraftWithoutChangingActiveMachine(t *testing.T) {
 	s := hardwareData(true)
 	r := loadHardware(t, s, examplePack(t, "example.hardware"))

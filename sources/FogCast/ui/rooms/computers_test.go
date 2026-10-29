@@ -87,6 +87,55 @@ func TestSystemsRoomRefreshesAfterNestedSetup(t *testing.T) {
 	}
 }
 
+func TestSystemsRoomResumeKeepsSelectedGameAfterEarlierInsert(t *testing.T) {
+	first := preparedComputer("alpha-system", "Alpha setup", "fes.zx81")
+	selected := preparedComputer("charlie-system", "Charlie setup", "fes.zx81")
+	earlier := preparedComputer("aardvark-system", "Aardvark setup", "fes.zx81")
+	svc := &fakeServices{games: []hostclient.Game{first, selected}}
+	r := newRoom(t, examplePack(t, "example.computers"), Options{Services: svc, Width: 1280, Height: 720})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	stepUntil(t, r, func(f Frame) bool { return frameHas(f, selected.Title) })
+	if !r.Input("down") {
+		t.Fatal("could not select the second system")
+	}
+
+	svc.mu.Lock()
+	svc.games = []hostclient.Game{earlier, first, selected}
+	svc.mu.Unlock()
+	r.Resume()
+	stepUntil(t, r, func(f Frame) bool { return frameHas(f, earlier.Title) })
+	if !r.Input("select") {
+		t.Fatal("Confirm was not handled")
+	}
+	acts := r.TakeActions()
+	if len(acts) != 1 || acts[0].Kind != ActionLaunch || acts[0].GameID != selected.ID {
+		t.Fatalf("Confirm launched %+v, want game %q", acts, selected.ID)
+	}
+}
+
+func TestSystemsRoomFailedRefreshClearsSetupSelection(t *testing.T) {
+	game := preparedComputer("old-system", "Old setup", "fes.zx81")
+	svc := &fakeServices{games: []hostclient.Game{game}}
+	r := newRoom(t, examplePack(t, "example.computers"), Options{Services: svc, Width: 1280, Height: 720})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	stepUntil(t, r, func(f Frame) bool { return frameHas(f, game.Title) })
+
+	svc.mu.Lock()
+	svc.err = fmt.Errorf("refresh failed")
+	svc.mu.Unlock()
+	r.Resume()
+	stepUntil(t, r, func(f Frame) bool { return frameHas(f, "refresh failed") })
+	r.Activate("setup")
+	acts := r.TakeActions()
+	if len(acts) != 1 || acts[0].Kind != ActionOpenRoom || acts[0].RoomID != "example.system" || acts[0].InitialGameID != "" {
+		t.Fatalf("setup after a failed refresh opened %+v, want Add system", acts)
+	}
+}
+
 type delayedFirstSystemsQueryServices struct {
 	*fakeServices
 	firstResult []hostclient.Game

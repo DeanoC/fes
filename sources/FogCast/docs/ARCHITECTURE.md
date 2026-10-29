@@ -1110,6 +1110,10 @@ entries use `example.hardware`; Commodore 64 and other families use
 `widgets.system_workbench` implementation covers every registered playable
 system and model, including the Spectrum models, Apple II, Atari ST, consoles,
 ROM-less games and utilities.
+Resume refreshes retain the selected game ID when title order changes and keep
+the prior row position, clamped to the new list, if that game disappears. A
+failed refresh clears both the shelf rows and list widget so Set up cannot open
+a stale entry.
 
 The shared workbench chooses a system family, a hardware variant, a saved entry
 and a grouped title edition. `systems.families` and `systems.family_by_core`
@@ -1134,6 +1138,8 @@ without inventing topology from the system label. Resume rereads both library
 entries and hardware while retaining the chosen entry/edition. Each library
 refresh ignores replies from older requests; a failed refresh clears the
 catalog and keeps its error visible while the user changes variants or systems.
+The hardware room drops an in-flight snapshot when a newer read is queued, so
+the older result cannot replace the requested machine before the follow-up read.
 Closing the room saves the current navigation selection. Unsupported core IDs
 are shown as unsupported instead of being treated as ZX81.
 All three workbench room IDs reserve the native 52 px status/hint footer

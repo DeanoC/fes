@@ -274,6 +274,10 @@ local function read()
   last_read = room.time
   hardware.read(function(value,err)
     loading = false
+    if refresh_pending then
+      if not saving then read() end
+      return
+    end
     if err then
       stale=true read_error="Cannot refresh the host. "..err
     else
@@ -295,7 +299,6 @@ local function read()
       initial_selection_pending=false
       if message == opening_message then message="Choose a card to see what it adds." end
     end
-    if refresh_pending and not saving then read() end
   end)
 end
 local function save(id)

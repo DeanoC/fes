@@ -82,11 +82,29 @@ local function build(games)
 end
 
 local function show(games)
+  local selected_id, selected_index
+  if list then
+    local selected
+    selected, selected_index = list:selected()
+    if type(selected) == "table" then selected_id = selected.id end
+  end
   rows = build(games)
   status = ""
   local h = math.max(64, room.height - 148 - DEST)
   if list then
     list:set_items(rows)
+    if selected_index then
+      list.focus = selected_index
+      if selected_id then
+        for i, item in ipairs(rows) do
+          if item.id == selected_id then
+            list.focus = i
+            break
+          end
+        end
+      end
+      list:clamp()
+    end
     return
   end
   list = List.new{
@@ -178,6 +196,7 @@ local function refresh()
       load_err = err
       status = ""
       rows = {}
+      if list then list:set_items(rows) end
       return
     end
     load_err = nil
