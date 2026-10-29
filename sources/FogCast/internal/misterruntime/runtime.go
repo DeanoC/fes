@@ -906,7 +906,7 @@ func corePackageStatus(activation CoreActivation) *protocol.CorePackageStatus {
 	for index, value := range activation.ActiveInterfaces {
 		interfaces[index] = protocol.RuntimeInterface{ID: value.ID, Major: value.Major, Minor: value.Minor}
 	}
-	return &protocol.CorePackageStatus{PartsComposition: clonePartsComposition(activation.PartsComposition), ROMLink: cloneROMLink(activation.ROMLink), ROMLinks: cloneROMLinks(activation.ROMLinks), Composition: cloneComposition(activation.Composition), PackageID: activation.PackageID, Generation: activation.Generation, PersistenceMode: activation.PersistenceMode,
+	return &protocol.CorePackageStatus{PartsComposition: clonePartsComposition(activation.PartsComposition), ROMLink: cloneROMLink(activation.ROMLink), ROMLinks: cloneROMLinks(activation.ROMLinks), Composition: cloneComposition(activation.Composition), PackageID: activation.PackageID, CoreID: activation.Descriptor.Core.ID, Generation: activation.Generation, PersistenceMode: activation.PersistenceMode,
 		SlotComposition: cloneSlotComposition(activation.SlotComposition), MediaUnits: cloneMediaUnits(activation.MediaUnits),
 		MediaStream: activation.MediaStream,
 		ABI:         protocol.RuntimeContract{ID: activation.Descriptor.ABI.ID, Major: uint16(activation.Descriptor.ABI.Major), Minor: uint16(activation.Descriptor.ABI.Minor)},

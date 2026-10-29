@@ -31,7 +31,7 @@ func TestColecoROMLinksPartsClientUsesOrdinaryLibraryLoad(t *testing.T) {
 					{ID: "coleco-cart", Role: "cartridge", SourceSHA256: strings.Repeat("e", 64), SourceSize: 16384},
 				}}
 			value.ROMLinks = links
-			single := &corepackage.ROMLinkIdentity{ROMID: "cartridge-rom", MapSHA256: strings.Repeat("a", 64), SourceSHA256: strings.Repeat("b", 64), SourceSize: 16384, ProgrammedSHA256: strings.Repeat("f", 64), ProgrammedSize: 50000}
+			single := &corepackage.ROMLinkIdentity{ROMID: "cartridge-rom", Role: "cartridge", MapSHA256: strings.Repeat("a", 64), SourceSHA256: strings.Repeat("b", 64), SourceSize: 16384, ProgrammedSHA256: strings.Repeat("f", 64), ProgrammedSize: 50000}
 			switch name {
 			case "raster":
 				c.Layout = expansion.ColecoVideoLayout

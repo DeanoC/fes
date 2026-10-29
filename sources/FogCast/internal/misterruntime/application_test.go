@@ -19,6 +19,10 @@ func TestApplicationDecoderConsumesRuntimeSerializerFixtures(t *testing.T) {
 		p := response.ActivePackage
 		activation := activationFromProtocol2(p.PackageID, p.Descriptor, response)
 		status := corePackageStatus(activation)
+		if status.CoreID != p.Descriptor.Core.ID {
+			t.Fatalf("mode %d package identity projection = %q, want descriptor core %q",
+				mode, status.CoreID, p.Descriptor.Core.ID)
+		}
 		ports, keypad := protocol.ControllerPorts(status)
 		if ports != (mode >= 4) || keypad != (mode >= 4) {
 			t.Fatalf("mode %d ports projection %+v", mode, status)

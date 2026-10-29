@@ -202,9 +202,18 @@ def inspect_boot(directory, lock, boot):
     script_nodes, script_images = fit_images(pinned_bytes("boot.scr.uimg"))
     script_name = strings(script_nodes["/images"]["default"])[0]
     script = script_images[script_name]["data"].decode("ascii")
-    if (script_images[script_name]["type"] != "script" or "bridge enable;" not in script
-            or 'setenv bootargs "console=ttyS0,115200 root=${mmcroot} rw rootwait";' not in script
-            or "socfpga_agilex5_de25_nano.dtb" not in script or "booti ${kernel_addr_r} - ${fdt_addr_r}" not in script):
+    commands = []
+    for line in script.splitlines():
+        line = line.split("#", 1)[0]
+        commands.extend(command.strip() for command in line.split(";") if command.strip())
+    bridge_commands = [command for command in commands if re.match(r"^bridge(?:\s|$)", command)]
+    bootargs_commands = [command for command in commands
+                         if re.match(r"^setenv\s+bootargs(?:\s|$)", command)]
+    expected_bootargs = 'setenv bootargs "console=ttyS0,115200 root=${mmcroot} rw rootwait"'
+    if (script_images[script_name]["type"] != "script" or bridge_commands != ["bridge enable"]
+            or bootargs_commands != [expected_bootargs]
+            or not any("socfpga_agilex5_de25_nano.dtb" in command.split() for command in commands)
+            or "booti ${kernel_addr_r} - ${fdt_addr_r}" not in commands):
         raise ValueError("pinned boot script contract differs")
     fit_nodes, images = fit_images(pinned_bytes("u-boot.itb"))
     selected = strings(fit_nodes["/configurations"]["default"])[0]
@@ -217,7 +226,9 @@ def inspect_boot(directory, lock, boot):
             raise ValueError("FIT configuration references missing image")
     uboot_tree = tree_summary(images["fdt-0"]["data"])
     env = images["uboot"]["data"]
-    if b"mmcroot=/dev/mmcblk0p2\0" not in env:
+    root_entries = [entry for entry in env.split(b"\0")
+                    if entry.partition(b"=")[0] == b"mmcroot"]
+    if root_entries != [b"mmcroot=/dev/mmcblk0p2"]:
         raise ValueError("U-Boot root-device environment differs")
     return {"linux_device_tree": linux, "uboot_device_tree": uboot_tree,
             "fit_configuration": {"name": selected, **roles},
