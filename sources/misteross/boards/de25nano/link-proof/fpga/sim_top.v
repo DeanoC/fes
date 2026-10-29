@@ -22,7 +22,8 @@ module fes_link_sim #(
     wire selected_valid = persona_b ? b_valid : a_valid;
     wire [31:0] selected_data = persona_b ? b_data : a_data;
     wire rsp_valid = inject_response || (selected_valid && !drop_response);
-    wire [31:0] rsp_data = inject_response ? 32'hbad0bad0 : selected_data;
+    wire [31:0] rsp_data = inject_response ?
+        (persona_b ? 32'hc002b002 : 32'hc001a001) : selected_data;
     fes_link_shell #(.BUILD_ID(BUILD_ID), .TIMEOUT_CYCLES(TIMEOUT_CYCLES)) shell_inst (
         .clk(clk), .reset_n(reset_n), .address(address), .read(read), .write(write),
         .byteenable(byteenable), .writedata(writedata), .readdata(readdata),

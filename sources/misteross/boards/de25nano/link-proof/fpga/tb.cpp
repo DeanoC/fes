@@ -111,5 +111,8 @@ int main(int argc,char **argv) {
     {Bench b;b.d.inject_response=1;for(int n=0;n<20;n++)b.tick();need(b.d.frozen && b.read32(20)==0,"frozen PR output noise was consumed");b.d.inject_response=0;b.command(2,1,0xc001a001);b.completed(1);}
     {Bench b;b.monitor=false;b.d.reset_n=0;b.d.eval();need(!b.d.frozen && !b.d.running,"stopped-clock reset did not revoke state");b.d.reset_n=1;for(int n=0;n<4;n++)b.tick();b.fault(1);b.write32(12,0,15,false);}
     {Bench b;b.monitor=false;need(b.read32(3)==0,"invalid address data");b.fault(16);}
+    {Bench b;b.monitor=false;b.command(2,1,0xc001a001);b.d.inject_response=1;for(int n=0;n<14;n++)b.tick();b.fault(128);need(b.read32(24)==0,"premature ID reply acknowledged an unissued probe");}
+    {Bench b;b.monitor=false;b.command(2,1,0xc001a001);for(int n=0;n<8;n++)b.tick();b.read32(3);b.fault(16);need(b.read32(24)==0 && b.read32(40)==0,"probe completion advanced while fault won");}
+    {Bench b;b.monitor=false;b.command(2,1,0xc001a001);b.completed(1);while((b.d.static_count&15)!=8)b.tick();b.command(1,2,0);for(int n=0;n<4;n++)b.tick();b.read32(3);b.fault(16);need(b.read32(24)==1,"freeze completion advanced while fault won");}
     std::cout<<"PASS: HPS CSR A/B/A/B, "<<checked<<" four-cycle ROM/ID replies; drain/reset, sequence, busy, partial, mismatch, timeout, reset and unsolicited faults\n";
 }

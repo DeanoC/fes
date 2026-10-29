@@ -13,6 +13,11 @@ reporting FROZEN. Every request/control input terminates in a preserved persona
 register, and every response terminates in a static register. The logical
 request/response latency is four cycles.
 
+The persona input registers have no explicit power-up initialisation. The
+static controller holds reset through a bounded settling interval, and the
+RTL tests randomise their initial state. This follows the vendor's
+[PR register reset guidance](https://docs.altera.com/r/docs/683834/25.1/quartus-prime-pro-edition-user-guide-partial-reconfiguration/resetting-the-pr-region-registers).
+
 The runtime's `De25PrControl` requires an exclusive, ordered, bounded register
 backend and a selected 128-bit base identity. It completes FREEZE before
 invoking an injected persona-configuration operation, then validates the base

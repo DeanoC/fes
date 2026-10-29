@@ -78,6 +78,8 @@ module fes_link_shell #(
     // was already proved before entering RESET_SETTLE; cold PR FFs may be random.
     wire response_active = state == RUNNING || state == DRAIN || state == PROBE;
     wire retire_valid = response_valid_q && response_active;
+    // The fixed-latency slot can never answer a request accepted on this edge.
+    wire valid_reply = retire_valid && pending != 0;
     reg [31:0] read_value;
     reg read_address_valid;
     reg [31:0] access_fault;
@@ -134,12 +136,12 @@ module fes_link_shell #(
         response <= (access_fault != 0 || (accepted_write && faulted)) ? 2'b10 : 2'b00;
         if (accepted_read) readdata <= read_value;
         if (ready) begin
-            case ({req, retire_valid})
+            case ({req, valid_reply})
                 2'b10: pending <= pending + 3'd1;
                 2'b01: pending <= pending - 3'd1;
                 default: pending <= pending;
             endcase
-            if (retire_valid) begin
+            if (valid_reply) begin
                 retired <= retired + 32'd1;
                 last_data <= response_data_q;
             end
@@ -178,7 +180,7 @@ module fes_link_shell #(
                         else begin state <= FROZEN; completed_seq <= active_seq; end
                     RELEASE_SETTLE: if (settle != 0) settle <= settle - 3'd1;
                         else begin req <= 1; slot_address <= 0; state <= PROBE; end
-                    PROBE: if (retire_valid && response_data_q == expected_persona) begin
+                    PROBE: if (valid_reply && response_data_q == expected_persona) begin
                         persona_id <= response_data_q;
                         completed_seq <= active_seq;
                         slot_address <= 0;
@@ -189,18 +191,21 @@ module fes_link_shell #(
             end
         end
         if (faulted || access_fault != 0 ||
-            (ready && retire_valid && pending == 0 && !req) ||
-            (ready && req && pending == 3'd7 && !retire_valid) ||
+            (ready && retire_valid && pending == 0) ||
+            (ready && req && pending == 3'd7 && !valid_reply) ||
             (ready && busy && elapsed >= TIMEOUT_CYCLES - 1) ||
             (ready && state == PROBE && retire_valid && response_data_q != expected_persona)) begin
             fault_flags <= faults | access_fault |
-                ((ready && retire_valid && pending == 0 && !req) ||
-                 (ready && req && pending == 3'd7 && !retire_valid) ? `FES_DE25_PR_CONTROL_FAULT_PROTOCOL : 0) |
+                ((ready && retire_valid && pending == 0) ||
+                 (ready && req && pending == 3'd7 && !valid_reply) ? `FES_DE25_PR_CONTROL_FAULT_PROTOCOL : 0) |
                 (ready && busy && elapsed >= TIMEOUT_CYCLES - 1 ? `FES_DE25_PR_CONTROL_FAULT_TIMEOUT : 0) |
                 (ready && state == PROBE && retire_valid && response_data_q != expected_persona ? `FES_DE25_PR_CONTROL_FAULT_PERSONA : 0);
             req <= 0;
             slot_reset <= 1;
             argument_valid <= 0;
+            // A same-edge response/settle completion loses to any fault.
+            completed_seq <= completed_seq;
+            persona_id <= persona_id;
             state <= FAILED;
         end
     end
