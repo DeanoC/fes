@@ -100,6 +100,12 @@ func validatePath(path string) (string, error) {
 		return "", err
 	}
 	switch kind {
+	case "board":
+		board, err := pack.LoadBoard(path)
+		if err != nil {
+			return "", err
+		}
+		return board.ID, nil
 	case "platform":
 		resolved, err := pack.LoadPlatform(path)
 		if err != nil {
@@ -128,7 +134,7 @@ func validatePath(path string) (string, error) {
 		}
 		return profiles.ID, nil
 	default:
-		return "", fmt.Errorf("%s: kind %q is not platform, abi, fabric, or programming_profiles", path, kind)
+		return "", fmt.Errorf("%s: kind %q is not board, platform, abi, fabric, or programming_profiles", path, kind)
 	}
 }
 
@@ -138,6 +144,12 @@ func reportPath(path string) error {
 		return err
 	}
 	switch kind {
+	case "board":
+		board, err := pack.LoadBoard(path)
+		if err != nil {
+			return err
+		}
+		return board.Report(os.Stdout)
 	case "platform":
 		resolved, err := pack.LoadPlatform(path)
 		if err != nil {
@@ -145,7 +157,7 @@ func reportPath(path string) error {
 		}
 		return resolved.Report(os.Stdout)
 	default:
-		return fmt.Errorf("%s: kind %q is not platform", path, kind)
+		return fmt.Errorf("%s: kind %q is not board or platform", path, kind)
 	}
 }
 
@@ -281,6 +293,7 @@ Commands:
   diff-oracle <package.yaml> <oracle.yaml>
 
 Default package is packages/platform/de10_nano.yaml.
-Package kind is platform, abi, fabric, or programming_profiles.
+Package kind is board, platform, abi, fabric, or programming_profiles.
+Standalone boards support validate and report only.
 `)
 }
