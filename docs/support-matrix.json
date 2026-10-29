@@ -55,9 +55,9 @@
   "policy": [
     "Labels follow the accepted Quartus policy in [Quartus-built cores](design/quartus-cores.md) (issue #1163). `oss` is the Debian-style main set: Yosys + nextpnr-mistral. `quartus` is the non-free set: a proprietary toolchain. A core build is supposed to say which one made it, so an all-OSS selection can exclude every Quartus build. `FES_OSS_ONLY` is not implemented. Current registered recipes and package selection build the OSS lane only. A failed OSS route never falls back to Quartus.",
     "Both labelled builds ship only when the published rule is met, on the same RTL and the same target clocks. Either every Quartus sign-off seed closes a required clock that an OSS sign-off seed misses, or the best complete-seed Fmax is at least 15% higher on any required clock: `100 \u00d7 (Quartus best \u2212 OSS best) / OSS best`. Otherwise the core ships OSS only. No registered recipe declares a `toolchains` list yet, so no core ships both builds today. The i386 far-transfer numbers (about 40%) remain the worked example of a gap large enough for that rule. i386, pc386 and PC/XT are separately Quartus-primary; their nextpnr builds are advisory.",
-    "DE25-Nano (Agilex 5) is Quartus-only (policy); shell pending. policy: Deano 2026-10-29. Agilex 5 has no OSS reverse-engineering, so there is no OSS toolchain for that device. nextpnr-mistral targets Cyclone V (`5CSEBA6U23I7` in [the DE10-Nano board note](../sources/misteross/boards/de10nano/README.md)). Quartus Pro 24.1 or later is the first release that supports Agilex 5 ([Quartus-built cores](design/quartus-cores.md)). `sources/misteross/boards/de25nano` may be absent or present; the checker treats that landing as expected. Per-core DE25 cells stay on the policy line until the shell is on this branch and those cells are re-verified.",
+    "DE25-Nano (Agilex 5) is Quartus-only (policy); shell pending. policy: Deano 2026-10-29. Rows with a DE10 board bitstream show Quartus; rows without a board bitstream show no DE25 toolchain cell. Agilex 5 has no OSS reverse-engineering, so there is no OSS toolchain for that device. nextpnr-mistral targets Cyclone V (`5CSEBA6U23I7` in [the DE10-Nano board note](../sources/misteross/boards/de10nano/README.md)). Quartus Pro 24.1 or later is the first release that supports Agilex 5 ([Quartus-built cores](design/quartus-cores.md)). `sources/misteross/boards/de25nano` may be absent or present; the checker treats that landing as expected. Per-core DE25 cells stay on the policy line until the shell is on this branch and those cells are re-verified.",
     "i386, pc386 and PC/XT use Quartus (primary, policy). policy: Deano 2026-10-29. nextpnr builds are advisory, and a nextpnr miss there is filed as a nextpnr issue, not a blocker. The checked-in producers remain the OSS diagnostic for PC/XT, pack-only nextpnr synthesis for pc386, and the Quartus 17.0.2 fit of the same Yosys netlist for i386 ([i386 CPU design](../sources/misteross/docs/i386-cpu-design.md), DeanoC/nextpnr#300). Those tree facts do not change the primary label.",
-    "ColecoVision still uses the old media handling and shows 0 titles. Updating that handling is low priority and is folded into the wider Coleco work (for example Adam support). policy: Deano 2026-10-29. The checked-in factory recipe is the format-4 ROM map, and it strips the blob and blob-stream mailboxes that the older Coleco producers still declare."
+    "ColecoVision still uses the old media handling. Its example arcade room has an empty-library status when no matching titles are available. Updating that handling is low priority and is folded into the wider Coleco work (for example Adam support). policy: Deano 2026-10-29. The checked-in factory recipe is the format-4 ROM map, and it strips the blob and blob-stream mailboxes that the older Coleco producers still declare."
   ],
   "cores": [
     {
@@ -316,7 +316,7 @@
       "board": "de10",
       "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
       "quartus": "Recipe `quartus_role` is `bring-up/check oracle`, the same wording as ZX81. No `make build-fes-zx80-quartus` target was found. `scripts/build_fes_zx81.py` writes `build/fes-zx81-quartus`. Whether that oracle covers ZX80 is unverified.",
-      "features": "Media: format-3 tape load (`fes.media.zx81-tape`); the producer omits tape-write for this model. Input: `fes.keyboard.hid` and `fes.gamepad.ports`. HDMI: fixed 720p60 through the session display plane. CPU: `fes_z80_nmos`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
+      "features": "Media: format-3 linked `zx80-rom` firmware plus tape load (`fes.media.zx81-tape`); the producer omits tape-write for this model. Input: `fes.keyboard.hid` and `fes.gamepad.ports`. HDMI: fixed 720p60 through the session display plane. CPU: `fes_z80_nmos`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
       "notes": "Same tree and lock as ZX81. Experimental: PAL, 4 KiB ROM, 1 KiB RAM, no NMI. Not in the bootstrap image. No sealed package and no hardware acceptance are recorded in core alignment.",
       "evidence": [
         "config/core-recipes.toml",
@@ -354,7 +354,7 @@
       "board": "de10",
       "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
       "quartus": "Recipe `quartus_role` is `bring-up/check oracle`. No `make build-fes-ts1000-quartus` target was found. Whether the ZX81 Quartus script covers this model is unverified.",
-      "features": "Media: tape and tape-write. Input: `fes.keyboard.hid` and `fes.gamepad.ports`. HDMI: fixed 720p60 through the session display plane. CPU: `fes_z80_nmos`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
+      "features": "Media: format-3 linked `ts1000-firmware`, tape and tape-write. Input: `fes.keyboard.hid` and `fes.gamepad.ports`. HDMI: fixed 720p60 through the session display plane. CPU: `fes_z80_nmos`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
       "notes": "Same tree and lock as ZX81. Experimental: NTSC, 8 KiB ROM, 2 KiB RAM. Not in the bootstrap image.",
       "evidence": [
         "config/core-recipes.toml",
@@ -392,7 +392,7 @@
       "board": "de10",
       "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
       "quartus": "Recipe `quartus_role` is `bring-up/check oracle`. No `make build-fes-ts1500-quartus` target was found. Whether the ZX81 Quartus script covers this model is unverified.",
-      "features": "Media: tape and tape-write. Input: `fes.keyboard.hid` and `fes.gamepad.ports`. HDMI: fixed 720p60 through the session display plane. CPU: `fes_z80_nmos`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
+      "features": "Media: format-3 linked `ts1500-firmware`, tape and tape-write. Input: `fes.keyboard.hid` and `fes.gamepad.ports`. HDMI: fixed 720p60 through the session display plane. CPU: `fes_z80_nmos`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
       "notes": "Same tree and lock as ZX81. Experimental: NTSC, 8 KiB ROM, 16 KiB RAM. Not in the bootstrap image.",
       "evidence": [
         "config/core-recipes.toml",
@@ -435,7 +435,7 @@
       "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
       "quartus": "Recipe `quartus_role` is `bring-up/check oracle`. `make build-fes-coleco-quartus` is the Quartus 17.0.2 oracle, not the installed package.",
       "features": "Media: format-4 ROM map, exact 8 KiB `coleco-bios` plus 16 KiB `coleco-cart`. The recipe producer strips `fes.media.blob`, `fes.media.blob-stream` and `fes.firmware.blob`. No live media unit. Guide Change media relaunches the same title with another exact-size `.col`/`.rom`/`.bin` (`POST /api/v1/session/cartridge`); the saved cartridge binding is unchanged. Input: `fes.gamepad.ports` and `fes.keypad.ports`. HDMI: native-pixel shell, mandatory Direct or Scanlines part, then the session display plane, fixed 720p60. CPU: TV80, not `fes_z80_nmos`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
-      "notes": "Library standing `supported`. policy: Deano 2026-10-29. ColecoVision still uses the old media handling and shows 0 titles. Updating that handling is low priority and is folded into the wider Coleco work (for example Adam support). The `example.coleco-arcade` room names five cabinets and skips any that are not installed; an empty library shows `no Coleco arcade titles in this library yet`. Older `build_fes_coleco.py` and `build_fes_coleco_oss.py` still declare blob and blob-stream; they are not the recipe producer.",
+      "notes": "Library standing `supported`. policy: Deano 2026-10-29. ColecoVision still uses the old media handling. Updating it is low priority and is folded into the wider Coleco work (for example Adam support). The `example.coleco-arcade` room names five cabinets and lists only those with matching titles; its empty-library status says `no Coleco arcade titles in this library yet` only when none match. Older `build_fes_coleco.py` and `build_fes_coleco_oss.py` still declare blob and blob-stream; they are not the recipe producer.",
       "evidence": [
         "config/core-recipes.toml",
         "config/core-library.toml",
@@ -560,7 +560,7 @@
       "board": "de10",
       "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
       "quartus": "Recipe `quartus_role` is `no oracle required`. No Quartus product variant is selected. A failed OSS route does not fall back to Quartus.",
-      "features": "Media: read-only Disk II (`fes.media.apple2-floppy`), live-swappable 143,360-byte image. No write interface on the producer. Input: `fes.keyboard.hid` and `fes.gamepad.ports`. HDMI: fixed 720p60 shell raster. Display plane is Planned in `docs/display-pipeline.md`. CPU: shared `cpu6502`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
+      "features": "Media: format-3 linked `apple2-firmware` plus read-only Disk II (`fes.media.apple2-floppy`), live-swappable 143,360-byte image. No write interface on the producer. Input: `fes.keyboard.hid` and `fes.gamepad.ports`. HDMI: fixed 720p60 shell raster. Display plane is Planned in `docs/display-pipeline.md`. CPU: shared `cpu6502`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
       "notes": "Library standing `experimental`. Optional slot cards. Not in the bootstrap image. Core status says the shared-pin HIP seal on this lock remains open. No Apple ROM is shipped.",
       "evidence": [
         "config/core-recipes.toml",
@@ -643,7 +643,7 @@
       "board": "de10",
       "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
       "quartus": "Recipe `quartus_role` is `no oracle required`. No Quartus product variant is selected. A failed OSS route does not fall back to Quartus.",
-      "features": "Media: format-3 firmware, tape 2.0 from HPS DDR, and 48K snapshots (`fes.media.spectrum-snapshot`). No disk interface on this model. Input: `fes.keyboard.hid` and `fes.gamepad.ports`. HDMI: 50 Hz frames 3x3 through the session display plane, fixed 720p60. CPU: `fes_z80_nmos`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
+      "features": "Media: format-3 linked `spectrum-firmware`, tape 2.0 from HPS DDR, and 48K snapshots (`fes.media.spectrum-snapshot`). No disk interface on this model. Input: `fes.keyboard.hid` and `fes.gamepad.ports`. HDMI: 50 Hz frames 3x3 through the session display plane, fixed 720p60. CPU: `fes_z80_nmos`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
       "notes": "Library standing `experimental`. Not in the bootstrap image. No Sinclair ROM is shipped. Joysticks on hardware are recorded as open in core status.",
       "evidence": [
         "config/core-recipes.toml",
@@ -681,7 +681,7 @@
       "board": "de10",
       "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
       "quartus": "Recipe `quartus_role` is `no oracle required`. No Quartus product variant is selected. A failed OSS route does not fall back to Quartus.",
-      "features": "Media: tape 2.0, 48K and 128K snapshots. No disk interface on this model. Input: `fes.keyboard.hid` and `fes.gamepad.ports`. HDMI: session display plane, fixed 720p60. AY-3-8912. CPU: `fes_z80_nmos`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
+      "features": "Media: format-3 linked `spectrum128-firmware`, tape 2.0, and 48K/128K snapshots. No disk interface on this model. Input: `fes.keyboard.hid` and `fes.gamepad.ports`. HDMI: session display plane, fixed 720p60. AY-3-8912. CPU: `fes_z80_nmos`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
       "notes": "Same tree and lock as `fes.spectrum`. Library standing `experimental`. Not in the bootstrap image.",
       "evidence": [
         "config/core-recipes.toml",
@@ -719,7 +719,7 @@
       "board": "de10",
       "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
       "quartus": "Recipe `quartus_role` is `no oracle required`. No Quartus product variant is selected. A failed OSS route does not fall back to Quartus.",
-      "features": "Media: tape 2.0, 48K/128K/+3 snapshots, and a write-protected `.dsk` (`fes.media.spectrum-disk`, `fes.media.spectrum-disk-plus3`). Input: `fes.keyboard.hid` and `fes.gamepad.ports`. HDMI: session display plane, fixed 720p60. CPU: `fes_z80_nmos`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
+      "features": "Media: format-3 linked `spectrum-plus3-firmware`, tape 2.0, snapshots, and a write-protected `.dsk` (`fes.media.spectrum-disk`, `fes.media.spectrum-disk-plus3`). Input: `fes.keyboard.hid` and `fes.gamepad.ports`. HDMI: session display plane, fixed 720p60. CPU: `fes_z80_nmos`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
       "notes": "Same tree and lock as `fes.spectrum`. Library standing `experimental`. Not in the bootstrap image.",
       "evidence": [
         "config/core-recipes.toml",
@@ -757,7 +757,7 @@
       "board": "de10",
       "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
       "quartus": "Recipe `quartus_role` is `no oracle required`. No Quartus product variant is selected. A failed OSS route does not fall back to Quartus.",
-      "features": "Media: tape 2.0, 48K and 128K snapshots, and a write-protected `.trd`/`.scl` (`fes.media.spectrum-disk`, `fes.media.spectrum-disk-trdos`). Input: `fes.keyboard.hid` and `fes.gamepad.ports`. HDMI: session display plane, fixed 720p60. CPU: `fes_z80_nmos`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
+      "features": "Media: format-3 linked `pentagon-firmware`, tape 2.0, snapshots, and a write-protected `.trd`/`.scl` (`fes.media.spectrum-disk`, `fes.media.spectrum-disk-trdos`). Input: `fes.keyboard.hid` and `fes.gamepad.ports`. HDMI: session display plane, fixed 720p60. CPU: `fes_z80_nmos`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
       "notes": "Same tree and lock as `fes.spectrum`. Library standing `experimental`. Not in the bootstrap image. No TR-DOS ROM is shipped.",
       "evidence": [
         "config/core-recipes.toml",
@@ -799,7 +799,7 @@
       "board": "de10",
       "router": "Recipe `gpu_router` is HIP. This producer accepts `--gpu-router HIP` or `CUDA` (misteross AGENTS.md).",
       "quartus": "Recipe `quartus_role` is `no oracle required`. No Quartus product variant is selected. A failed OSS route does not fall back to Quartus.",
-      "features": "Media: writable geometry-aware `.st` (`fes.media.atari-st-floppy`, write and geometry). Input: `fes.keyboard.hid`, `fes.gamepad.ports` and `fes.mouse.relative`. HDMI: shell raster with Direct/Scanlines parts and a built-in Direct fallback. Display plane is Planned in `docs/display-pipeline.md`. CPU: shared `fx68k`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
+      "features": "Media: format-3 linked `atari-st-firmware` plus writable geometry-aware `.st` (`fes.media.atari-st-floppy`, write and geometry). Input: `fes.keyboard.hid`, `fes.gamepad.ports` and `fes.mouse.relative`. HDMI: shell raster with Direct/Scanlines parts and a built-in Direct fallback. Display plane is Planned in `docs/display-pipeline.md`. CPU: shared `fx68k`. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
       "notes": "The only recipe with `optional = true`. Library standing is `experimental`, not `supported`. The default profile does not select it. `FES_SKIP_OPTIONAL_CORES=1` or `FES_SKIP_CORES=fes.atari-st` skips place-and-route when a selection includes it. `FES_REQUIRE_ALL_CORES=1` makes that omission fail the build.",
       "evidence": [
         "config/core-recipes.toml",

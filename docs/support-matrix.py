@@ -135,6 +135,19 @@ def de10_cell(row: dict) -> str:
     return '—'
 
 
+def de25_cell(row: dict) -> str:
+    if row['board'] == 'de10':
+        return 'Quartus'
+    return '—'
+
+
+def tier_cell(row: dict) -> str:
+    short = TIER_SHORT[row['tier']]
+    if row['tier'] == 'optional' and row.get('library_standing'):
+        return f"{short} ({row['library_standing']})"
+    return short
+
+
 def detail_cell(row: dict) -> str:
     path, title = DETAILS[row['id']]
     return f'[{title}]({repo_href(path)})'
@@ -156,7 +169,7 @@ def render(data: dict) -> str:
         '| --- | --- |',
         '| Firmware | Boot or kit UI bitstream. `fes.menu` is the bootstrap package. Splash is the idle RBF. |',
         '| 1 | Catalog standing `supported`. Not in the bootstrap image. |',
-        '| 2 | Optional recipe. Today only Atari ST. |',
+        '| 2 | Optional recipe. Catalog standing appears in parentheses; Atari ST is experimental. |',
         '| 3 | Catalog standing `experimental`. |',
         '| Demo | Catalog standing `demo`. Today only Catch. |',
         '| Reference | Not a registered play package. |',
@@ -166,11 +179,11 @@ def render(data: dict) -> str:
         '',
         f'**DE10-Nano** (MiSTer, Cyclone V) **OSS** is Yosys + nextpnr-mistral, the installed toolchain. i386, pc386 and PC/XT are {QUARTUS_PRIMARY} ({POLICY_CITE}). nextpnr builds there are advisory; a miss is filed as a nextpnr issue, not a blocker. A dash means this row has no DE10-Nano bitstream. pc386 and i386 are Cyclone V spikes; Quartus is still their primary toolchain.',
         '',
-        f'**DE25-Nano** (Agilex 5) is **Quartus** on every row: {DE25_CELL} ({POLICY_CITE}). Agilex 5 has no OSS reverse-engineering. Per-core ports are re-checked only after the shell is on this branch.',
+        f'**DE25-Nano** (Agilex 5) follows {DE25_CELL} ({POLICY_CITE}). Rows with a board bitstream show Quartus; rows without one show a dash. Agilex 5 has no OSS reverse-engineering. Per-core ports are re-checked only after the shell is on this branch.',
         '',
         '`oss` and `quartus` are the Debian-style labels in [Quartus-built cores](design/quartus-cores.md). Both labelled builds ship only when results differ by the 15% rule. No registered recipe ships both today. Bluetooth and mesh are host services, so they are not columns.',
         '',
-        f'ColecoVision still uses the old media handling and shows 0 titles. Updating it is low priority and is folded into the wider Coleco work, including Adam support ({POLICY_CITE}).',
+        f'ColecoVision still uses the old media handling. Its example arcade room shows an empty-library status when no matching titles are available. Updating it is low priority and is folded into the wider Coleco work, including Adam support ({POLICY_CITE}).',
         '',
         '## Cores',
         '',
@@ -180,9 +193,9 @@ def render(data: dict) -> str:
     for row in data['cores']:
         lines.append('| ' + ' | '.join((
             cell(row['label']),
-            TIER_SHORT[row['tier']],
+            tier_cell(row),
             de10_cell(row),
-            'Quartus',
+            de25_cell(row),
             HIGHLIGHTS[row['id']],
             detail_cell(row),
         )) + ' |')
@@ -287,9 +300,9 @@ def validate(root: Path, data: dict) -> list[str]:
                 errors.append(f"{row['id']} lock missing: {lock['path']}")
             else:
                 pins = _pins(path)
-            for name, pin in pins.items():
-                if lock.get(name) != pin:
-                    errors.append(f"{row['id']} {name} pin {lock.get(name)} != {pin}")
+                for name, pin in pins.items():
+                    if lock.get(name) != pin:
+                        errors.append(f"{row['id']} {name} pin {lock.get(name)} != {pin}")
         elif not row.get('oss_note'):
             errors.append(f"{row['id']} needs oss_lock or oss_note")
         for path in row.get('paths') or []:
@@ -370,7 +383,7 @@ def validate(root: Path, data: dict) -> list[str]:
         errors.append('DE25 policy line must appear once in the human page')
     if rendered.count(QUARTUS_PRIMARY) != 1:
         errors.append('Quartus-primary policy line must appear once in the human page')
-    for phrase in (POLICY_CITE, '0 titles', 'shell pending'):
+    for phrase in (POLICY_CITE, 'empty-library status', 'shell pending'):
         if phrase not in rendered:
             errors.append(f'human page is missing {phrase!r}')
     if 'toolchain.lock' in rendered or '## Evidence' in rendered:
@@ -393,12 +406,12 @@ def validate(root: Path, data: dict) -> list[str]:
         if line.startswith('| ') and not line.startswith('| ---') and len(line) > 180:
             errors.append(f'human table row is too long ({len(line)}): {line[:80]}')
     policy = '\n'.join(data.get('policy') or [])
-    for phrase in (POLICY_CITE, QUARTUS_PRIMARY, DE25_CELL, '0 titles'):
+    for phrase in (POLICY_CITE, QUARTUS_PRIMARY, DE25_CELL, 'empty-library status'):
         if phrase not in policy:
             errors.append(f'policy section is missing {phrase!r}')
     coleco = by_id.get('fes.coleco') or {}
     coleco_notes = coleco.get('notes') or ''
-    for phrase in (POLICY_CITE, '0 titles', 'low priority', 'Adam'):
+    for phrase in (POLICY_CITE, 'empty-library status', 'low priority', 'Adam'):
         if phrase not in coleco_notes:
             errors.append(f'fes.coleco notes are missing {phrase!r}')
     return errors

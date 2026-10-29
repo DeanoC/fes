@@ -1,9 +1,13 @@
+from contextlib import redirect_stdout
+from io import StringIO
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
-from scripts.check_doc_links import broken_links
+from scripts.check_doc_links import broken_links, main
 
 
 class CheckDocLinksTests(unittest.TestCase):
@@ -50,6 +54,20 @@ class CheckDocLinksTests(unittest.TestCase):
         root = self.repo({'a.md': 'ok\n'})
         (root / 'scratch.md').write_text('[gone](missing.md)\n')
         self.assertEqual(broken_links(root), [])
+
+    def test_main_runs_support_matrix_check_when_source_exists(self):
+        root = self.repo({'README.md': 'No links here.\n',
+                          'docs/support-matrix.json': '{}\n',
+                          'docs/support-matrix.py': '# support matrix checker\n'})
+        expected = [sys.executable, str(root / 'docs/support-matrix.py'), '--check',
+                    '--root', str(root)]
+        with patch('scripts.check_doc_links.broken_links', return_value=[]), \
+                patch('scripts.check_doc_links.subprocess.run',
+                      return_value=subprocess.CompletedProcess(expected, 0)) as run, \
+                patch.object(sys, 'argv', ['check_doc_links.py', '--root', str(root)]), \
+                redirect_stdout(StringIO()):
+            main()
+        run.assert_called_once_with(expected, check=False)
 
 
 if __name__ == '__main__':
