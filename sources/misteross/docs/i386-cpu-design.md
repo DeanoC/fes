@@ -447,7 +447,7 @@ the same RTL input; #1115, #1141 and #1143 use Yosys `238eac9a49`.
 | Earlier near-stack slice after its review fix ([#1141](https://github.com/DeanoC/fes/pull/1141), [record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-stack.md#the-review-fix-routed-and-on-the-netlist)) | 68.89, 70.38, 74.12, 68.02 MHz | 103.69, 99.80, 99.44, 102.13 MHz | AG, DC, Q, Q on nextpnr; Q on every Quartus seed |
 | Far-transfer slice ([#1143](https://github.com/DeanoC/fes/pull/1143), [record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-far.md#result)) | 69.43, 70.48, 74.40, 70.34 MHz | 103.73, 98.34, 100.78, 104.47 MHz | D, Q, DC, DC on nextpnr; Q on every Quartus seed |
 | Memory path, slice 1 ([#1230](https://github.com/DeanoC/fes/pull/1230), [record](validation/2026-10-28-i386-memory-path.md#quartus)); Quartus with #1184's mapping at 120 MHz | 47.50, 48.70, 48.51, 48.40 MHz | 99.85, 100.76, 99.59, 101.19 MHz | D, D, MEM, MEM on nextpnr; EX, Q, F1, Q on Quartus |
-| Self-modifying code, slice 2 ([#1234](https://github.com/DeanoC/fes/pull/1234), [record](validation/2026-10-29-i386-smc.md#quartus)); Quartus as slice 1 | 43.99, 38.12 MHz (seeds 1, 2) | 99.96, 100.40, 98.73, 101.14 MHz | MEM, MEM on nextpnr; F2, D, F2, Q on Quartus |
+| Self-modifying code, slice 2 ([#1234](https://github.com/DeanoC/fes/pull/1234), [record](validation/2026-10-29-i386-smc.md#quartus)); Quartus as slice 1 | 43.99, 38.12, 44.80, 43.36 MHz | 99.96, 100.40, 98.73, 101.14 MHz | MEM, MEM, EX, MEM on nextpnr; F2, D, F2, Q on Quartus |
 
 - **Far-transfer nextpnr result:** the four seeds average 71.2 MHz. D limits seed 1,
   Q seed 2, and DC seeds 3 and 4.
