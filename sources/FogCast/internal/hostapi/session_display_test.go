@@ -15,11 +15,12 @@ import (
 
 type displayHostService struct {
 	fakeService
-	calls      int
-	mediaCalls int
-	settings   fogcast.LibraryConfig
-	target     string
-	display    protocol.SessionDisplay
+	calls            int
+	mediaCalls       int
+	settings         fogcast.LibraryConfig
+	target           string
+	display          protocol.SessionDisplay
+	statusTargetHook func(context.Context, string) (protocol.Status, error)
 }
 
 func (s *displayHostService) LibrarySettings() fogcast.LibraryConfig { return s.settings }
@@ -34,7 +35,10 @@ func (s *displayHostService) TargetIDForName(name string) string {
 func (s *displayHostService) Status(ctx context.Context) (protocol.Status, error) {
 	return s.StatusTarget(ctx, fogcast.SessionTargetFromContext(ctx))
 }
-func (s *displayHostService) StatusTarget(_ context.Context, target string) (protocol.Status, error) {
+func (s *displayHostService) StatusTarget(ctx context.Context, target string) (protocol.Status, error) {
+	if s.statusTargetHook != nil {
+		return s.statusTargetHook(ctx, target)
+	}
 	s.target = target
 	return s.status, nil
 }
