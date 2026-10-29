@@ -1,0 +1,835 @@
+{
+  "rows": [
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/README.md",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/checks.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/fixture-refactor.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/hil-plan.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/inputs.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-ambiguous-write-client.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-ambiguous-write-server.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-bad-signature-client.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-bad-signature-server.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-held-word-change-client.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-held-word-change-server.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-late-ack-client.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-late-ack-server.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-late-reset-client.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-late-reset-server.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-missing-ack-client.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-missing-ack-server.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-post-write-reset-client.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-post-write-reset-server.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-session-client.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-session-server.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-tape-bounds-client.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-tape-bounds-server.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-wrong-build-client.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-wrong-build-server.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/doclinks.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/focused-tests.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-ambiguous-write-client.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-ambiguous-write-server.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-bad-signature-client.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-bad-signature-server.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-held-word-change-client.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-held-word-change-server.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-late-ack-client.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-late-ack-server.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-late-reset-client.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-late-reset-server.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-missing-ack-client.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-missing-ack-server.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-post-write-reset-client.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-post-write-reset-server.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-session-client.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-session-server.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-tape-bounds-client.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-tape-bounds-server.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-wrong-build-client.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-wrong-build-server.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-client-rtl/proof.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/README.md",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/artifact-archive.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/check.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/client-inputs.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/client-proof.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/client-source-match.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/compile.log.gz",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/compiler-build.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/compiler-generation.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/compiler-inputs.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/compiler-quartus-version.txt",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/doc-links.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/README.md",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/compile.log.gz",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/compiler-build.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/compiler-generation.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/compiler-inputs.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/compiler-quartus-version.txt",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/golden_top.fit.place.rpt.gz",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/golden_top.sta.rpt.gz",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/golden_top.sta.summary.gz",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/golden_top.syn.rpt.gz",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/net-delay-Fast_fix4_0C_Model.txt.gz",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/net-delay-Slow_fix4_0C_Model.txt.gz",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/net-delay-Slow_fix4_100C_Model.txt.gz",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/net-delay-Slow_fix4a_0C_Model.txt.gz",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/owner-paths.tsv",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/signoff-drc.rpt.gz",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/strengthened-constraints-drc.rpt.gz",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/timing-summary.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/video-timing-audit.log.gz",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/video-timing-audit.tcl",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/golden_top.fit.place.rpt.gz",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/golden_top.sta.rpt.gz",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/golden_top.sta.summary.gz",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/golden_top.syn.rpt.gz",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/golden_top.tq.drc.signoff.rpt.gz",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/hil-plan.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/net-delay-Fast_fix4_0C_Model.txt.gz",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/net-delay-Slow_fix4_0C_Model.txt.gz",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/net-delay-Slow_fix4_100C_Model.txt.gz",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/net-delay-Slow_fix4a_0C_Model.txt.gz",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/owner-paths.tsv",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/software/checks.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/software/focused-final.log.gz",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/software/lease-clean-parent-control.log",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/software/lease-focused-retry.log.gz",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/software/lease-suite-retry.log.gz",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/software/test-changed.log.gz",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/timing-summary.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/video-timing-audit.log.gz",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/video-timing-audit.tcl",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-29-de25-zx81-frame-ownership/video.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "sources/libmister-runtime/ARCHITECTURE.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/*.md"
+    },
+    {
+      "path": "sources/libmister-runtime/README.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/*.md"
+    },
+    {
+      "path": "sources/libmister-runtime/docs/support-matrix.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/build.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/zx81-computer/README.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/*.md"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/zx81-computer/client.cpp",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/zx81-computer/profile.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/zx81-computer/proof.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/zx81-computer/server.cpp",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/zx81-computer/sim.hpp",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/zx81-computer/sim_top.v",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/zx81-computer/timing.tcl",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/zx81-computer/wire.hpp",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/zx81-ram/profile.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/zx81-ram/timing.tcl",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/Makefile",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/README.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/*.md"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/build.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/client_proof.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/clocks.sdc",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/computer_sim.hpp",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/computer_tb.cpp",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/cosim/client.cpp",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/cosim/server.cpp",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/cosim/wire.hpp",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/endpoint_tb.cpp",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/fes_de25_computer.v",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/fes_de25_computer_hw.tcl",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/sim.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/test_build.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/test_client_proof.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/video.v",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/video_sim.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81-hps/video_tb.cpp",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/docs/architecture.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/tests/test_de25nano_zx81_computer.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/*/tests/**"
+    },
+    {
+      "path": "sources/misteross/tests/test_de25nano_zx81_hps.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/*/tests/**"
+    }
+  ],
+  "class": "none",
+  "components": [],
+  "decision": "NO_DEPLOY_CHANGE"
+}
