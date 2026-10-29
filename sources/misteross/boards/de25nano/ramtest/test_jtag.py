@@ -27,6 +27,10 @@ proc master_write_32 {master address words} {
     set ::registers($address) [lindex $words 0]
     foreach bank {fpga sdram} {
         if {$address == [de25ramtest::address $bank COMMAND_OFFSET] &&
+            [lindex $words 0] == [de25ramtest::constant COMMAND_START] && $::mode eq "uncertain_start"} {
+            error "START transport result unknown"
+        }
+        if {$address == [de25ramtest::address $bank COMMAND_OFFSET] &&
             [lindex $words 0] == [de25ramtest::constant COMMAND_SNAPSHOT]} {
             set serial [de25ramtest::address $bank SERIAL_OFFSET]
             if {$::mode ne "stuck_serial"} {incr ::registers($serial)}
@@ -142,6 +146,21 @@ set mode stuck_serial
 expect {[catch {de25ramtest::run /explicit/master $expected fpga 100 1 32} message]} "stale snapshot accepted"
 expect {[string match {*drain remains unproven*} $message]} "uncertain drain omitted"
 expect {[lindex [lindex $writes end] 1] == [de25ramtest::constant COMMAND_STOP]} "snapshot error did not request STOP"
+''')
+
+    def test_uncertain_start_is_not_replayed_and_attempts_one_stop(self):
+        self.run_tcl('''
+set mode uncertain_start
+expect {[catch {de25ramtest::run /explicit/master $expected fpga 100 1 32} message]} "uncertain START accepted"
+expect {[string match {*drain remains unproven*} $message]} "uncertain drain omitted"
+set starts 0; set stops 0
+foreach write $writes {
+    if {[lindex $write 0] == [de25ramtest::address fpga COMMAND_OFFSET]} {
+        if {[lindex $write 1] == [de25ramtest::constant COMMAND_START]} {incr starts}
+        if {[lindex $write 1] == [de25ramtest::constant COMMAND_STOP]} {incr stops}
+    }
+}
+expect {$starts == 1 && $stops == 1 && $closed == 1} "uncertain command replayed or not contained"
 ''')
 
     def test_errors_and_response_fault_are_individually_reported_as_failure(self):

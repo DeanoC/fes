@@ -137,8 +137,10 @@ proc de25ramtest::run {service expected bank {timeout_ms 900000} {poll_ms 10} {l
             TRANSFER_OFFSET 0 LENGTH_OFFSET $length SEQUENCE_OFFSET $sequence] {
             write_word $master $bank $name $value
         }
-        write_word $master $bank COMMAND_OFFSET [constant COMMAND_START]
+        # A transport error may arrive after START reached the FPGA. Treat the
+        # operation as potentially active before sending, and attempt STOP once.
         set started 1
+        write_word $master $bank COMMAND_OFFSET [constant COMMAND_START]
         set deadline [expr {[clock milliseconds] + $timeout_ms}]
         while {1} {
             set observed [snapshot $master $bank]
