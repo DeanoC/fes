@@ -360,12 +360,26 @@ Kit B stayed healthy. When the runtime loaded the idle core after the session,
 it held the SDR FPGA ports in reset (FPGAPORTRST) and then released them. The
 kit shows the FES menu from DDR, and the wrapper verified the baseline.
 
+**After q2.** `pc386_diag` now fences ports 1 and 2 on the bus master's hold
+([`pc386_port_fence`](../../../sources/misteross/cores/fes-pc386/rtl/pc386_port_fence.sv)).
+While held, the fence takes no new command and finishes a write burst the
+machine started, with byte enables cleared, even if the hold ends first. It
+hides read data the machine was owed until all of it has returned. A second
+`fes_hps_ddr_guard` was not used: it has no reset, so inside `fes_hps_ddr`'s
+own guard both would fill the same burst on an execution hold. The fence adds
+no clock, and smoke, mode13 and ata give the same clocks, data and frames as
+before, command for command.
+
+A new `resets` program checks the fix: machine resets at 16 offsets spread
+over a VGA frame while the capture writes, the presenter reads and the
+scanout reads. After the last reset it checks a whole mode 13h capture and
+the four counters at zero. The bench runs 16 resets and the kit 200. Without
+the fence the bench stops at `port 2: read during a write burst`; with it the
+program passes.
+
 ## Not done
 
-- Ports 1 and 2 drained before the bus master's machine reset: guard them with
-  `fes_hps_ddr_guard` on `machine_hold`, and assert the reset only once they
-  have drained. Then re-seal and re-run, with the plane bench resetting
-  inside a write burst.
+- A kit run of the fence on a Quartus re-seal, with the `resets` program.
 - Nextpnr timing closure of the AT core's read path, the VGA scanout and the
   presenter, parked with [#1235](https://github.com/DeanoC/fes/issues/1235).
 - The disk round trip with the runtime: it needs the M0 contracts
