@@ -569,8 +569,9 @@ rejected word is not consumed. Words are binary, first-named byte low:
 The host has three duties. It sends the date's own weekday, counted as the
 MC146818 counts it. It clamps a leap second to 59. It clamps a kit time before
 1980 to 1980-01-01 00:00:00, a Tuesday (3). The machine does not compare the
-weekday with the date. Like the MC146818, it stores the weekday it is given. The machine converts to its guest's BCD or binary and 12- or 24-hour
-forms. A guest that changes the time keeps it until Stop.
+weekday with the date. Like the MC146818, it stores the weekday it is given.
+The machine converts to its guest's BCD or binary and 12- or 24-hour forms. A
+guest that changes the time keeps it until Stop.
 
 ## Audio
 
