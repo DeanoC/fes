@@ -12,6 +12,19 @@ video, Linux input, callback-only input session, and `NativeHardware`.
 There is no conventional Main, MiSTer SPI, framebuffer, cartridge profile table,
 or raw game launch operation.
 
+Before loading the window driver or constructing those physical adapters, the
+factory requires a Linux ARMv7 binary, raw device-tree model
+`Terasic DE10-nano\0`, and compatible list
+`altr,socfpga-cyclone5\0altr,socfpga\0`. This matches the existing FES boot/reset
+board contract. AArch64, another board, or absent/malformed properties return
+`unsupported_target` with phase `platform`. The daemon uses its existing
+failure-only hardware adapter and serves the same local protocol with no
+programming capabilities. The test-only factory overload supplies identity and
+the driver-loader callback to this same guarded construction path; it is absent
+from production archives. Identity/ordering tests establish this rejection
+behavior. An AArch64 compile or execution under QEMU does not establish DE25
+FPGA programming, MMIO, DDR, input or display support.
+
 The package inspector reads format 4's two named ROM sources and sealed map
 with its separate identity domain. Physical admission still requires a linked
 load before that format can be activated.
@@ -543,12 +556,13 @@ paths clear it together with package identity.
 
 Protocol-2 `inspect_parts_core` and `load_parts_core` accept a closed role list
 (`video`, plus optional `expansion`) and a separate typed parts composition.
-Only a Coleco application shell, format 2 or the factory 16 KiB format-3 cartridge, that explicitly declares optional
-`fes.fabric.video.raster-rgb888` 1.0 or `fes.fabric.video.native-pixels` 1.0,
-and optional Coleco bus 2.0 qualifies. Duplicate or simultaneous video markers
-are rejected. Fabric markers have no GP capability and do not enter the runtime
-interface registry. The raster marker selects layout `fes.coleco-video.parts/1`
-and map `fes.coleco-video.socket/1`. The native marker selects the separate
+Parts admission accepts a Coleco application shell in format 2 or the factory
+format-4 layout with exact 8 KiB firmware and 16 KiB cartridge ROMs, provided it
+declares optional `fes.fabric.video.raster-rgb888` 1.0 or
+`fes.fabric.video.native-pixels` 1.0, and optional Coleco bus 2.0. Duplicate or
+simultaneous video markers are rejected. Fabric markers have no GP capability
+and do not enter the runtime interface registry. The raster marker selects
+layout `fes.coleco-video.parts/1` and map `fes.coleco-video.socket/1`. The native marker selects the separate
 `fes.coleco-native-video.parts/1` layout and `fes.coleco-native-video.socket/1`
 map; version 1.0 fixes a 256 by 192 indexed source with four-bit TMS9918 palette
 values. Parts from the two layouts cannot be interchanged. A CPU part uses

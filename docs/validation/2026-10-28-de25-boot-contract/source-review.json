@@ -1,0 +1,42 @@
+{
+  "bsp_jic_sha256": "e3d20c2d066761fd02897422ba361aa19faafcd0240dd2782965754cc61b38a4",
+  "classification": "pinned-source-and-independent-binary-audit",
+  "linux_revision": "d7d192a9ddd955fe206aa350afed8f82e368a74c",
+  "physical_boot": "not-run",
+  "resource_emif_ip_sha256": "de18eefbc061aead55136749177d977838121a980b1b60b688690e2309246bd3",
+  "resource_hps_ip_sha256": "ab5fed80711d8a9e8af9bca1364d10119d4633ce1381339679ad8493a7f61332",
+  "resource_jic_sha256": "f0326cb10f2b1c6109dff2b124f7875e3dc719a6682201dc9753a54422c7c9b9",
+  "uboot_revision": "d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413",
+  "uboot_sources": {
+    "arch/arm/dts/socfpga_agilex5_de25_nano-u-boot.dtsi": {
+      "lines": "60-63",
+      "sha256": "bb0ef9544a4bf7fa56207b67f19ac0d5c67ef5515084fe8d07a9d4fd9729870d",
+      "url": "https://github.com/terasic/u-boot-socfpga/blob/d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413/arch/arm/dts/socfpga_agilex5_de25_nano-u-boot.dtsi"
+    },
+    "arch/arm/lib/bootm-fdt.c": {
+      "lines": "34-54",
+      "sha256": "4b50bb24ebafac66b8ae6780dec961e3dbcfa334551fd8cb677f48b2018c3935",
+      "url": "https://github.com/terasic/u-boot-socfpga/blob/d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413/arch/arm/lib/bootm-fdt.c"
+    },
+    "arch/arm/mach-socfpga/board.c": {
+      "lines": "60-74",
+      "sha256": "e4c9b445d5919fed453ee8d15d2fc26a92ac67fa737f726697bb09386772be17",
+      "url": "https://github.com/terasic/u-boot-socfpga/blob/d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413/arch/arm/mach-socfpga/board.c"
+    },
+    "common/init/handoff.c": {
+      "lines": "13-39",
+      "sha256": "6d41b786d2537cab9b41bb4269836e746b7952db890a3f8fef5a4c782d631922",
+      "url": "https://github.com/terasic/u-boot-socfpga/blob/d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413/common/init/handoff.c"
+    },
+    "configs/socfpga_agilex5_de25_nano_defconfig": {
+      "lines": "121,159-162",
+      "sha256": "9e408e6fec4a508bc3c33154d93acf6a67941edcd0681c8b691021a8d776b6a9",
+      "url": "https://github.com/terasic/u-boot-socfpga/blob/d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413/configs/socfpga_agilex5_de25_nano_defconfig"
+    },
+    "drivers/ddr/altera/sdram_agilex5.c": {
+      "lines": "289-355",
+      "sha256": "d84438c6576825024bd069f5a535d61139cf2ae41fc518c53831f48e171299f0",
+      "url": "https://github.com/terasic/u-boot-socfpga/blob/d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413/drivers/ddr/altera/sdram_agilex5.c"
+    }
+  }
+}

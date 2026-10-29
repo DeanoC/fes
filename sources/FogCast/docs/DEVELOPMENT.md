@@ -57,13 +57,14 @@ launch/input/Stop/relaunch results, and the
 loaded a Mega Drive bitstream, are evidence for that retired lane. They do
 not accept this image. See [core status](../../../docs/core-status.md).
 
-### FES format-2/3 image package set
+### FES image package set
 
 The image selector supports ten core IDs: `fes.menu`, `fes.pong`, `fes.zx81`,
 `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.c64`, `fes.spectrum`, `fes.ramtest`,
 `fes.atari-st`, using sealed
-format-2 or format-3 packages. `fes.menu` is idle display firmware, not a playable
-catalog entry. The current [FES default profile](../../../profiles/native-integration-dev.toml)
+format-2, format-3, or format-4 packages. The factory `fes.coleco` package uses
+format 4 and requires `rom-map.json`. `fes.menu` is idle display firmware, not a
+playable catalog entry. The current [FES default profile](../../../profiles/native-integration-dev.toml)
 selects menu, Pong, ZX81, Coleco, SMS, SG-1000, Spectrum, the OSS 100 MHz RAM Tester
 and Atari ST. ST firmware is separately selected; the image bundles no ROM.
 C64 remains package-only without factory-image acceptance.
@@ -101,10 +102,10 @@ export FES_ATARI_ST_PACKAGE_SELECTION=/absolute/path/to/fes-atari-st.package-sel
 
 Each selected core requires its pair; unselected cores must not supply package
 inputs. The package directory contains exactly `manifest.toml` and `core.rbf`,
-plus `rom-map.json` for format 3. The closed selection records format/kind, core
-and package IDs, payload
-SHA-256, the selected misteross and mister-packages revisions, and the derived
-install path. `target-image-lock select-package --core-id <core-id>` copies a
+plus the required `rom-map.json` for format 3 or 4. The closed selection records
+format/kind, core and package IDs, payload SHA-256, the selected misteross and
+mister-packages revisions, and the derived install path.
+`target-image-lock select-package --core-id <core-id>` copies a
 validated pair into the native cache. `verify-package --core-id <core-id>`
 reinspects the exact bytes, while
 `verify-package --core-id <core-id> --print-inputs` emits the canonical

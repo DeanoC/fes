@@ -92,6 +92,31 @@ func AdmitRemovableMedia(p *SessionCorePackage, name string, size int64) bool {
 	return false
 }
 
+// RemovableMediaRequestError is the pre-dispatch refusal for the active unit.
+// A C64 disk session must not be told it needs a ZX81 .p tape. The refusal
+// happens before the host is asked to change media.
+func RemovableMediaRequestError(p *SessionCorePackage, name string) *protocol.APIError {
+	var err *protocol.APIError
+	switch {
+	case protocol.AdmitSpectrumDiskName(name) && spectrumDiskCapable(p):
+		err = protocol.SpectrumDiskRequestError()
+	default:
+		if u, ok := RemovableMediaUnit(p); ok {
+			switch u.Interface {
+			case protocol.Apple2FloppyInterface(), protocol.C64DiskInterface(), protocol.AtariStFloppyInterface():
+				err = protocol.DiskMediaRequestError()
+			case protocol.SpectrumTapeInterface():
+				err = protocol.CassetteMediaRequestError()
+			}
+		}
+		if err == nil {
+			err = protocol.LiveMediaRequestError()
+		}
+	}
+	err.NoChange = true
+	return err
+}
+
 func removableMediaBinding(s SessionResult) (protocol.DevelopmentMediaBinding, error) {
 	b := protocol.DevelopmentMediaBinding{Target: s.Target, TargetID: s.TargetID}
 	if s.CorePackage != nil {
@@ -116,7 +141,7 @@ func (c *Client) ReplaceRemovableMediaForSession(ctx context.Context, prior Sess
 		size = int64(u.MinBytes)
 	}
 	if protocol.ValidateDigest(mediaID) != nil || !AdmitRemovableMedia(prior.CorePackage, name, size) {
-		return SessionResult{}, protocol.LiveMediaRequestError()
+		return SessionResult{}, RemovableMediaRequestError(prior.CorePackage, name)
 	}
 	payload, err := json.Marshal(protocol.LiveMediaRequest{MediaID: mediaID, Name: name})
 	if err != nil {
@@ -133,8 +158,12 @@ func (c *Client) ClearRemovableMediaForSession(ctx context.Context, prior Sessio
 	return c.postRemovableMedia(ctx, prior, "/api/v1/session/live-media/clear", http.NoBody, 0, prior.ID, b)
 }
 
+// liveMediaTimeout bounds a media change on a running kit, including a
+// cartridge relaunch.
+const liveMediaTimeout = 450 * time.Second
+
 func (c *Client) postRemovableMedia(ctx context.Context, prior SessionResult, path string, body io.Reader, length int64, sessionID string, b protocol.DevelopmentMediaBinding) (SessionResult, error) {
-	ctx, cancel := context.WithTimeout(ctx, 450*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, liveMediaTimeout)
 	defer cancel()
 	transport := *c.HTTPClient()
 	transport.Timeout = 0

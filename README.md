@@ -4,6 +4,13 @@ Fogger Expandable System is a OSS FPGA based on 'mister' (DE-10 Nano) that provi
 should be. Compared to mister it currently supports only a few system but builds them with a fully OSS toolchain by default (Yosys + nextpnr) and provide a
 closer analog to real expansion and cartridge buses that many system had.
 
+DE25-Nano bring-up includes a [headless AArch64 image](docs/de25-linux.md),
+[Quartus Pro clock/LED and HPS mailbox diagnostics](sources/misteross/boards/de25nano/README.md),
+and [off-board runtime software checks](docs/de25-linux.md#aarch64-runtime-and-agent-checks-without-a-board).
+These lanes build, simulate and retain diagnostic artifacts; DE25 physical
+boot, FPGA programming, display and playable-core acceptance remain open.
+The default appliance and playable packages target DE10-Nano.
+
 Agents: read [AGENTS.md](AGENTS.md), then the
 [development guide](docs/development.md) and the selected component's guidance.
 [Component boundaries](docs/component-boundaries.md) describe ownership.
@@ -11,7 +18,8 @@ Agents: read [AGENTS.md](AGENTS.md), then the
 ## Documentation
 
 Start at the [documentation index](docs/README.md). Core ABI, interfaces and
-standing are the [core status](docs/core-status.md) matrix.
+standing are the [core status](docs/core-status.md) matrix. Boards, toolchains
+and support tiers are the [core support matrix](docs/support-matrix.md).
 
 - [DeepWiki](https://deepwiki.com/DeanoC/fes): Devin-generated guide to the FES codebase.
 - [Getting started](docs/getting-started.md): setup, build choices, running the host and common failures.

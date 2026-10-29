@@ -13,7 +13,7 @@
 //   M2  the loaded bytes, aligned and merged with older stores not yet written
 //   EX  ALU, shifter, flags, branch resolution (fes_i386_ex); multiply and
 //       divide (fes_i386_muldiv), over several cycles
-//   WB  in-order commit, stores included
+//   WB  in-order commit, stores and I/O accesses included
 //
 // Branches are predicted not taken. EX resolves them; a taken one redirects
 // F1 from WB and flushes every younger uop, which costs 10 cycles.
@@ -23,15 +23,21 @@
 // Nothing moves relative to anything else, so the forwarding distances, AG's
 // late operands, the store merge and D's forwarding tables all hold as they
 // are; the tables only need clearing on a flush. A multiply or divide in EX
-// freezes them the same way while it works.
+// freezes them the same way while it works, and an I/O access in WB until
+// the machine completes it.
 //
 // A fault (#UD, #GP(0), #SS(0), #NM, #DE) is taken at WB with nothing of its
 // instruction retired: WB flushes, and DC takes the exception's entry into
 // the microcode routine INT uses, which pushes FLAGS, CS and the faulting
 // instruction's IP and jumps through the vector table. An encoding this
 // build does not implement stops the CPU at WB, and so does a fault while an
-// exception is delivered (double fault and shutdown are not built), and HLT
-// after it retires.
+// exception is delivered (double fault and shutdown are not built). HLT
+// halts it until an interrupt.
+//
+// INTR and NMI are taken at an instruction boundary, or in HLT: WB flushes as
+// for a fault, with nothing of the next instruction retired, and DC takes the
+// same routine's entry with the interrupt's vector, from INTA for INTR, so
+// the routine pushes the next instruction's IP.
 //
 // init_* is the architectural state reset loads. A machine ties it to the
 // 386 reset state; the lockstep harness loads a test's initial state.
@@ -67,11 +73,31 @@ module fes_i386_cpu (
     output logic [31:0]      dmem_waddr,
     output logic [7:0][7:0]  dmem_wdata,
     output logic [7:0]       dmem_wmask,
+    // I/O: the access of the uop in WB, at commit (io_req), held until the
+    // machine completes it (io_ack, IN's data in io_rdata on that edge). The
+    // port, the size (a byte, word or dword: 0, 1, 2) and OUT's data stay put
+    // while io_req is high; a request after an ack is the next access.
+    output logic             io_req,
+    output logic             io_write,
+    output logic [15:0]      io_port,
+    output logic [1:0]       io_size,
+    output logic [31:0]      io_wdata,
+    input  logic             io_ack,
+    input  logic [31:0]      io_rdata,
+    // Interrupts: INTR, a level the machine's PICs hold until the CPU
+    // acknowledges it, and NMI, taken on its rising edge. Taking INTR, the
+    // CPU asks for the vector (inta_req) and holds the request until the
+    // machine returns it (inta_ack, the vector in inta_vector on that edge).
+    input  logic             intr,
+    input  logic             nmi,
+    output logic             inta_req,
+    input  logic             inta_ack,
+    input  logic [7:0]       inta_vector,
     output logic             trace_retire,
     output logic             trace_exception,      // the retirement delivered exception trace_vector
     output logic [7:0]       trace_vector,
-    output logic             trace_halt,           // stopped: HLT retired, or ...
-    output logic             trace_unimplemented,  // ... an encoding not built yet, or a fault in a
+    output logic             trace_halt,           // stopped: in HLT, until an interrupt wakes it, or ...
+    output logic             trace_unimplemented,  // ... for good: an encoding not built yet, or a fault in a
                                                    // delivery (trace_vector 8: double fault)
     output logic             trace_issue,          // D issued this cycle (lockstep observability)
     output logic             trace_md_wait,        // D to WB wait for a multiply or divide in EX (ditto)
@@ -111,7 +137,9 @@ module fes_i386_cpu (
 
     // ---- Pipeline registers -------------------------------------------------------
     pipe_t ag_s, m1_s, m2_s, ex_s, wb_s;
-    logic  wb_flush, wb_stop, halted;
+    // halted: in HLT (hlt) or stopped for good (trace_unimplemented), kept as a
+    // register of its own, which D's issue and the ports read.
+    logic  wb_flush, wb_stop, halted, hlt;
     // A uop that retires, faults or stops in WB this cycle, and whether it
     // flushes everything younger.
     assign wb_stop = wb_s.valid && (wb_s.uop.ctl.fault != fes_i386_pkg::FAULT_NONE
@@ -122,9 +150,15 @@ module fes_i386_cpu (
     // waits too, then faults). WB waits as well, so a taken branch or a fault
     // there takes effect, and flushes, once the bytes arrive, even when the
     // load is on the wrong path. So does a multiply or divide while it works
-    // in EX (md_busy, registered as it enters EX; see EX).
-    logic freeze, m2_load, md_busy;
-    assign freeze = m2_load && !dmem_valid || md_busy;
+    // in EX (md_busy, registered as it enters EX; see EX), an I/O access in
+    // WB until the machine has completed it (io_wait, set as the uop enters
+    // WB and cleared on the completing edge; see WB), and an INTR being taken
+    // until the machine has returned its vector (int_wait, set at the
+    // boundary and cleared on the returning edge; see Interrupts). Each wait
+    // is one register, so the freeze stays one LUT of five.
+    logic freeze, m2_load, md_busy, io_wait, int_take, int_nmi, int_wait;
+    logic int_next;  // an interrupt is taken on this edge (see Interrupts)
+    assign freeze = m2_load && !dmem_valid || md_busy || io_wait || int_wait;
 
     // A fault in WB is delivered (exc_take): WB flushes, the front end and DC
     // restart, and DC takes the exception's entry the cycle after
@@ -137,10 +171,13 @@ module fes_i386_cpu (
     // uop enters WB (see WB): wb_flushes, flush everything younger (a taken
     // branch, a fault, HLT); wb_redir, restart the front end and DC (a taken
     // branch, or a fault it delivers); wb_deliver, deliver its fault. So each
-    // of these is one gate from freeze.
-    logic wb_flushes, wb_redir, wb_deliver;
-    assign wb_flush = !freeze && wb_flushes;
-    assign exc_take = !freeze && wb_deliver;
+    // of these is one gate from freeze. An interrupt being taken (int_take)
+    // flushes and restarts them in place of the uop's own decisions
+    // (int_go).
+    logic wb_flushes, wb_redir, wb_deliver, int_go;
+    assign wb_flush = !freeze && (wb_flushes || int_take);
+    assign exc_take = !freeze && wb_deliver && !int_take;
+    assign int_go = !freeze && int_take;
 
     // ---- Start and redirect -------------------------------------------------------
     // After reset the front end starts at CS.base + EIP, one cycle after the
@@ -160,14 +197,15 @@ module fes_i386_cpu (
     // A delivery refetches from the faulting instruction, or the one before
     // (start_linear is a cycle old), which the delivery's far jump discards.
     // D's EIP is the faulting instruction's, cut to 16 bits: the IP the
-    // routine pushes, which D's CS-limit check then passes. The address
-    // selects key on WB's fault field, a register (a taken branch has none),
-    // so the fetch address stays off exc_take's path.
+    // routine pushes, which D's CS-limit check then passes. An interrupt's
+    // is the next instruction's. The address selects key on WB's fault field
+    // and int_take, registers (a taken branch has neither), so the fetch
+    // address stays off exc_take's path.
     logic wb_faulted;
     assign wb_faulted = wb_s.uop.ctl.fault != fes_i386_pkg::FAULT_NONE;
-    assign redirect = start == 2'd2 || !freeze && wb_redir;
-    assign redirect_linear = start == 2'd2 || wb_faulted ? start_linear : wb_s.target;
-    assign redirect_eip = start == 2'd2 ? eip : wb_faulted ? {16'd0, eip[15:0]} : wb_s.target_eip;
+    assign redirect = start == 2'd2 || !freeze && (wb_redir || int_take);
+    assign redirect_linear = start == 2'd2 || wb_faulted || int_take ? start_linear : wb_s.target;
+    assign redirect_eip = start == 2'd2 ? eip : wb_faulted || int_take ? {16'd0, eip[15:0]} : wb_s.target_eip;
 
     // ---- F1 to Q ------------------------------------------------------------------
     logic     q_valid, d_ready, fe_mem_load;
@@ -629,6 +667,17 @@ module fes_i386_cpu (
     logic str_hazard;
     assign str_hazard = |(dc.rd_str & str_busy);
 
+    // An I/O instruction's access is at WB, and IN's data reaches only WB, so
+    // nothing younger issues until it has retired (io_busy, as t_busy): no
+    // load reads memory an OUT may remap, and nothing reads IN's data before
+    // it is in the register file. A REP INS or OUTS's own elements stream;
+    // the next instruction's first uop, never an element, waits.
+    logic io_busy, io_hazard;
+    function automatic logic does_io(input pipe_t s);
+        does_io = s.valid && s.uop.io != 2'd0;
+    endfunction
+    assign io_hazard = io_busy && !(dc.str_a || dc.str_b);
+
     // What AG's uop is, for the holds below, registered as it enters AG: a
     // store, a shift or rotate, a stack operation that writes ESP.
     logic ag_store, ag_shift, ag_wsp;
@@ -678,7 +727,7 @@ module fes_i386_cpu (
     // the cycle the fault or HLT is in WB, its flush clears what D issues.
     assign issue = cur_valid && !(addr_use && lea_stall) && !(reads_seg && seg_hazard) && !(mem && mseg_hazard)
                 && !store_hazard && !flag_hazard && !sp_hazard && !stack_wait && !t_wait && !uc_wait && !str_wait
-                && !str_hazard && !freeze && !halted;
+                && !str_hazard && !io_hazard && !freeze && !halted;
     assign trace_issue = issue;
     assign trace_md_wait = md_busy;
 
@@ -688,7 +737,10 @@ module fes_i386_cpu (
             t_busy <= 1'b0;
             str_busy <= 3'd0;
             df_busy <= 1'b0;
+            io_busy <= 1'b0;
         end else if (!freeze) begin
+            io_busy <= issue && u.io != 2'd0 && !s_kill1 || does_io(ag_s) || does_io(m1_s) || does_io(m2_s)
+                    || does_io(ex_s);
             str_busy <= (issue && !s_kill1 ? {u.str_cx, u.str_di, u.str_si} : 3'd0) | str_steps(ag_s) | str_steps(m1_s) | str_steps(m2_s) | str_steps(ex_s);
             df_busy <= issue && writes_df(u) || ag_s.valid && writes_df(ag_s.uop) || m1_s.valid && writes_df(m1_s.uop)
                     || m2_s.valid && writes_df(m2_s.uop);
@@ -767,6 +819,7 @@ module fes_i386_cpu (
             d_out.uop.str_di = 1'b0;
             d_out.uop.str_cx = 1'b0;
             d_out.uop.st2 = 1'b0;
+            d_out.uop.io = 2'd0;
         end
     end
     always_ff @(posedge clk) begin
@@ -1074,7 +1127,7 @@ module fes_i386_cpu (
     // EDX while it is in EX.
     always_ff @(posedge clk) begin
         if (reset || wb_flush) md_busy <= 1'b0;
-        else if (md_busy) md_busy <= !md_last && !wb_flushes;
+        else if (md_busy) md_busy <= !md_last && !wb_flushes && !int_take;
         else if (!freeze)
             md_busy <= m2_out.valid && m2_out.exc.md_wait && m2_out.uop.ctl.fault == fes_i386_pkg::FAULT_NONE;
     end
@@ -1094,6 +1147,13 @@ module fes_i386_cpu (
         ex_out = ex_s;
         ex_out.result = ex_result;
         ex_out.eflags = ex_flags_out;
+        // An I/O uop's port (b) and OUT's data or IN's merge (a) are used at
+        // WB, from its record: one its producer a stage ahead has just
+        // computed is taken from the WB register here, as EX's operands are.
+        if (ex_s.uop.io != 2'd0) begin
+            if (ex_s.pend_a && ex_s.dist_a == 3'd1) ex_out.a = wb_s.result;
+            if (ex_s.pend_b && ex_s.dist_b == 3'd1) ex_out.b = wb_s.result;
+        end
         // RET and JMP r/m: EX's adder gives the target.
         if (ex_s.exc.b_ind) begin
             ex_out.target = ex_ind_target;
@@ -1120,6 +1180,9 @@ module fes_i386_cpu (
             ex_flags <= {init_eflags[17:2], 1'b1, init_eflags[0]};
         end else if (freeze) begin
             // EX's running copy waits with the uops.
+        end else if (int_take) begin
+            // An interrupt discards the uops EX has run since the boundary.
+            ex_flags <= eflags;
         end else if (ex_s.valid && !wb_flush) begin
             ex_flags <= ex_flags_out;
         end else begin
@@ -1127,8 +1190,12 @@ module fes_i386_cpu (
         end
         if (reset || wb_flush) begin
             wb_s.valid <= 1'b0;
+            io_wait <= 1'b0;
         end else if (!freeze) begin
             wb_s <= ex_out;
+            io_wait <= ex_s.valid && ex_out.uop.io != 2'd0 && ex_out.uop.ctl.fault == fes_i386_pkg::FAULT_NONE && !int_next;
+        end else if (io_wait && io_ack) begin
+            io_wait <= 1'b0;
         end
     end
 
@@ -1149,19 +1216,36 @@ module fes_i386_cpu (
 
     // A store writes its bytes on the edge it retires: the result's low
     // bytes, moved to the address's place in its dword and the next.
+    // The I/O access, while the uop that makes it is in WB and until the
+    // machine completes it; the uop retires on the edge after, with IN's
+    // data from io_data. The port is DX or imm8, OUT's data eAX (a) or, for
+    // OUTS, the loaded value (its result).
+    logic [31:0] io_data;
+    assign io_req = io_wait;
+    assign io_write = wb_s.uop.io == 2'(fes_i386_pkg::IO_OUT);
+    assign io_port = wb_s.uop.src2.valid ? wb_s.b[15:0] : wb_s.uop.imm[15:0];
+    assign io_size = 2'(wb_s.uop.size);
+    assign io_wdata = wb_s.uop.mem.kind == fes_i386_pkg::MEM_LOAD ? wb_s.result : wb_s.a;
+    always_ff @(posedge clk) if (io_wait && io_ack) io_data <= io_rdata;
+    // IN's data: merged into eAX's old value by size, or stored (INS).
+    logic [31:0] wb_in, wb_sdata;
+    assign wb_in = wb_s.uop.size == fes_i386_pkg::SIZE_8 ? {wb_s.a[31:8], io_data[7:0]}
+                 : wb_s.uop.size == fes_i386_pkg::SIZE_16 ? {wb_s.a[31:16], io_data[15:0]} : io_data;
+    assign wb_sdata = wb_s.uop.io == 2'(fes_i386_pkg::IO_IN) ? io_data : wb_s.result;
+
     logic wb_store;
-    assign wb_store = wb_s.valid && !reset && !freeze && !halted && wb_fault == 3'd0 && writes_mem(wb_s);
+    assign wb_store = wb_s.valid && !reset && !freeze && !halted && !int_take && wb_fault == 3'd0 && writes_mem(wb_s);
     logic [31:0] wb_saddr;
     assign wb_saddr = saddr(wb_s);
     assign dmem_write = wb_store;
     assign dmem_waddr = wb_saddr;
     always_comb begin
-        dmem_wdata = 64'(wb_s.result) << {wb_saddr[1:0], 3'b000};
+        dmem_wdata = 64'(wb_sdata) << {wb_saddr[1:0], 3'b000};
         dmem_wmask = (wb_s.uop.mem.bytes[2] ? 8'h0f : wb_s.uop.mem.bytes[1] ? 8'h03 : 8'h01) << wb_saddr[1:0];
     end
     always_ff @(posedge clk) if (reset || !freeze) begin
         rt_valid <= wb_store;
-        rt_data <= wb_s.result;
+        rt_data <= wb_sdata;
         rt_bytes <= wb_s.uop.mem.bytes;
     end
 
@@ -1194,9 +1278,72 @@ module fes_i386_cpu (
         str_wb_step = w32 ? r + by : {r[31:16], r[15:0] + by[15:0]};
     endfunction
 
-    // trace_vector: the delivered fault's vector, or 8 once a fault in a
-    // delivery has stopped the CPU.
-    always_ff @(posedge clk) exc_inject <= !reset && exc_take;
+    // ---- Interrupts ---------------------------------------------------------------
+    // INTR and NMI are taken at an instruction boundary: on the edge an
+    // instruction's last uop retires, a delivery's included, or a REP
+    // string element's last uop (str_cx), or while the CPU is in HLT. NMI
+    // comes first, unless one is being handled (blocked
+    // until IRET's last uop retires); INTR if IF is set after the
+    // instruction. Neither is taken after MOV SS or POP SS, unless that one
+    // follows another, nor after an STI that set IF: the shadow, as Bochs
+    // keeps it. int_take holds from that edge until the delivery starts. An
+    // INTR first asks the machine for its vector (inta_req), D to WB frozen
+    // until it answers. Then WB flushes, as for a fault, with nothing of the
+    // uop in it retired, and DC takes the vector routine's entry with D's EIP
+    // the next instruction's (int_go). Between a REP string's elements that
+    // is the string's own, since WB moves EIP only as an instruction ends:
+    // the elements done have stepped ESI, EDI and ECX, so IRET returns to
+    // the string, which runs on from there. An NMI's vector is 2.
+    logic       nmi_q, nmi_pend, nmi_edge, nmi_block, movss_sh;
+    logic [7:0] int_vec;
+    logic       wb_commit, at_boundary, in_hlt, wb_ss_load, wb_sti, sh_ss, int_shadow, nmi_ok, int_if;
+    assign wb_commit = wb_s.valid && !halted && !freeze && !int_take && wb_fault == 3'd0;
+    assign at_boundary = wb_commit && (wb_eoi || wb_s.uop.str_cx);
+    assign in_hlt = hlt && !int_take;
+    assign wb_ss_load = wb_s.uop.dst.valid && wb_s.uop.dst.space == fes_i386_pkg::RS_SEG
+                     && wb_s.uop.dst.index[2:0] == 3'(SEG_SS);
+    assign wb_sti = wb_s.uop.cls == fes_i386_pkg::UOP_ALU && wb_s.uop.op == 5'd30 && wb_s.uop.imm[3:0] == 4'd4;
+    assign sh_ss = wb_ss_load && !movss_sh;
+    assign int_shadow = sh_ss || wb_sti && !eflags[9];
+    assign nmi_edge = nmi && !nmi_q;
+    assign nmi_ok = (nmi_pend || nmi_edge) && (!nmi_block || at_boundary && wb_s.uop.iret);
+    assign int_if = at_boundary ? wb_flags[9] : eflags[9];
+    assign int_next = (at_boundary && !int_shadow || in_hlt) && (nmi_ok || intr && int_if);
+    assign inta_req = int_wait;
+    always_ff @(posedge clk) begin
+        nmi_q <= nmi;
+        if (reset) begin
+            nmi_pend <= 1'b0;
+            nmi_block <= 1'b0;
+            movss_sh <= 1'b0;
+            int_take <= 1'b0;
+            int_nmi <= 1'b0;
+            int_wait <= 1'b0;
+        end else begin
+            if (at_boundary) movss_sh <= sh_ss;
+            if (at_boundary && wb_s.uop.iret) nmi_block <= 1'b0;
+            // An edge stays pending until an NMI is taken; one that comes
+            // while another is pending, or as it is taken, is that one.
+            if (int_next && nmi_ok) nmi_pend <= 1'b0;
+            else if (nmi_edge) nmi_pend <= 1'b1;
+            if (int_next) begin
+                int_take <= 1'b1;
+                int_nmi <= nmi_ok;
+                int_wait <= !nmi_ok;
+                if (nmi_ok) nmi_block <= 1'b1;
+            end else if (int_go) begin
+                int_take <= 1'b0;
+            end
+            if (int_wait && inta_ack) begin
+                int_wait <= 1'b0;
+                int_vec <= inta_vector;
+            end
+        end
+    end
+
+    // trace_vector: the delivered fault's or interrupt's vector, or 8 once a
+    // fault in a delivery has stopped the CPU.
+    always_ff @(posedge clk) exc_inject <= !reset && (exc_take || int_go);
     assign trace_vector = exc_vec;
     always_ff @(posedge clk) begin
         trace_retire <= 1'b0;
@@ -1218,10 +1365,16 @@ module fes_i386_cpu (
                 seg_lim[k][2] <= init_limit[k] - 32'd3;
                 seg_tiny[k] <= {init_limit[k] < 32'd3, init_limit[k] < 32'd1, 1'b0};
             end
+            hlt <= 1'b0;
             halted <= 1'b0;
             trace_unimplemented <= 1'b0;
             exc_active <= 1'b0;
             exc_vec <= 8'd0;
+        end else if (int_go) begin
+            exc_active <= 1'b1;
+            exc_vec <= int_nmi ? 8'd2 : int_vec;
+            hlt <= 1'b0;
+            halted <= 1'b0;
         end else if (wb_s.valid && !halted && !freeze) begin
             if (exc_take) begin
                 exc_active <= 1'b1;
@@ -1246,7 +1399,7 @@ module fes_i386_cpu (
                 if (wb_s.uop.sp_add)
                     gpr[4] <= ss32 ? gpr[4] + wb_s.sp_new : {gpr[4][31:16], gpr[4][15:0] + wb_s.sp_new[15:0]};
                 if (wb_s.uop.dst.valid && wb_s.uop.dst.space == fes_i386_pkg::RS_GPR)
-                    gpr[wb_s.uop.dst.index[2:0]] <= wb_s.result;
+                    gpr[wb_s.uop.dst.index[2:0]] <= wb_s.uop.io == 2'(fes_i386_pkg::IO_IN) ? wb_in : wb_s.result;
                 // A string element's steps of ESI, EDI and ECX (CX by
                 // address size).
                 if (wb_s.uop.str_si) gpr[6] <= str_wb_step(gpr[6], wb_str_by, wb_s.uop.mem.addr32);
@@ -1262,7 +1415,10 @@ module fes_i386_cpu (
                     seg_base[seg_w_idx] <= {12'd0, seg_w_sel, 4'd0};
                     seg_hi1[seg_w_idx] <= {11'd0, 5'(seg_w_sel[15:12]) + (* no_carry *) 5'd1};
                 end
-                if (wb_stop) halted <= 1'b1;
+                if (wb_stop) begin
+                    hlt <= 1'b1;
+                    halted <= 1'b1;
+                end
             end
         end
     end

@@ -289,6 +289,61 @@ func TestPortlessPadDrivesTheRoomDuringPlay(t *testing.T) {
 	}
 }
 
+func TestPortlessKeypadSelectConfirmsFocusedPicker(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(http.NotFound))
+	t.Cleanup(server.Close)
+	app, feed := kitDisplayApp(t, server)
+	app.mu.Lock()
+	app.session = colecoKitSession()
+	app.sessionDisplay = protocol.SessionDisplayFocused
+	app.tapePickerOpen = true
+	app.tapePickerRows = []TapePickerRow{{Name: tapePickerOSKLabel, Kind: tapePickerKindOSK}}
+	app.tapePickerIndex = 0
+	app.mu.Unlock()
+
+	in := &nativeInput{fd: 9, kind: InputGamepad, player: noLocalPlayer}
+	inputs := &nativeInputs{devices: []*nativeInput{in}}
+	now := time.Now()
+	in.button(app, ButtonBack, 1, now)
+	if got := in.controls[uint16(ButtonBack)]; got != CmdSelect {
+		t.Fatalf("portless keypad Select command = %v, want CmdSelect", got)
+	}
+	if inputs.applyButtons(app, now) {
+		t.Fatal("picker Select requested quitting")
+	}
+	app.mu.Lock()
+	oskKind := app.settingsOSKKind
+	app.mu.Unlock()
+	if oskKind != settingsOSKTapePath {
+		t.Fatalf("picker Select did not open its path keyboard: %v", oskKind)
+	}
+	if got := feed.snapshot(); len(got) != 0 {
+		t.Fatalf("portless Select reached the machine: %+v", got)
+	}
+	in.button(app, ButtonBack, 0, now.Add(time.Millisecond))
+	inputs.applyButtons(app, now.Add(time.Millisecond))
+	if len(in.controls) != 0 {
+		t.Fatalf("portless Select release left controls held: %v", in.controls)
+	}
+
+	app.mu.Lock()
+	app.tapePickerOpen = false
+	app.tapePickerRows = nil
+	app.settingsOSKKind = settingsOSKNone
+	app.sessionDisplay = protocol.SessionDisplayShown
+	app.mu.Unlock()
+	in.button(app, ButtonBack, 1, now.Add(2*time.Millisecond))
+	inputs.applyButtons(app, now.Add(2*time.Millisecond))
+	if len(in.controls) != 0 {
+		t.Fatalf("portless keypad Select reached the menu during play: %v", in.controls)
+	}
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	if app.settingsOSKKind != settingsOSKNone {
+		t.Fatalf("portless Select opened launcher controls during play: %v", app.settingsOSKKind)
+	}
+}
+
 func TestPortlessPadBReturnsAfterLostHDMIOpen(t *testing.T) {
 	prior := kitDisplaySession()
 	var opens, closes atomic.Int32

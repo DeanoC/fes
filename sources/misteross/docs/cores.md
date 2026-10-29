@@ -16,7 +16,9 @@ they were written. They are not the schedule for this tree.
 
 ## Current cores
 
-Parent recipe rows live in FES `config/core-recipes.toml`. The bootstrap
+Boards, toolchains and support tiers for these cores are the parent
+[core support matrix](../../../docs/support-matrix.md). Parent recipe rows
+live in FES `config/core-recipes.toml`. The bootstrap
 image installs the idle display `fes.menu` only (fes#919); every playable
 package is a core-library installation with a standing in
 `config/core-library.toml`. `fes.coleco` and `fes.atari-st` are video-socket
@@ -338,7 +340,8 @@ EmuTOS or Atari ROMs.
    sibling. It authenticates one lock, requires a clean committed module,
    and never programs hardware. A new core with a ROM embedded in CRAM seals
    a producer-derived ROM map in format 3. ROM-less cores keep format 2.
-   The factory Coleco recipe emits format 3: one exact 16 KiB cartridge.
+   The factory Coleco recipe emits format 4: an exact 8 KiB `coleco-bios` and
+   16 KiB `coleco-cart`.
    Currency and retirement
    are the FES [core alignment](../../../docs/core-alignment.md) contract.
    Wire `make sim-…` and
