@@ -36,14 +36,19 @@ in the CPU changed.
   that time, are of `69de303890` (RTL and oracle), which prints each overlap
   as it happens; `e41dd6a36d`, which adds registers to the history and
   `--stop-dump`; `678f9aa62c`, which adds `--trace-port`; and `037248ffae`,
-  which fixes the port a second time (below). The RTL figures to 14.4899 s
-  are of `037248ffae`.
+  which fixes the port a second time (below).
+- The 24 s Wolfenstein 3D RTL run is of `037248ffae`, through the runner.
+  The oracle's 24 s run it is compared with is on the merged tip
+  `1187fefd6d`; the port fixes change nothing on the oracle path.
 - Run data: [`2026-10-28-pc386-game-census.jsonl`](2026-10-28-pc386-game-census.jsonl):
   a summary line per run, and the censuses, a line per stem.
 
 ## Result
 
-**Wolfenstein 3D runs 14.49 s on the RTL, into E1M1, then goes astray.**
+**Wolfenstein 3D runs its 24 s on the RTL with no stop, and the runner's
+game suite passes.** Its final frame is the oracle's, pixel for pixel, but
+for the status bar, which the CPU's missing uncached path garbles. Both
+crashes on the way there were the bench's.
 
 - **First crash, at 12.127 s, was the bench's.** The first run stopped as
   E1M1 started, running ASCII text as code. The oracle runs of the game at 3,
@@ -62,7 +67,7 @@ in the CPU changed.
   for a wrong-path instruction that D had already marked faulted, which M2
   never waits for. The port held the span-list read behind that read and
   gave it the VGA's bytes. `037248ffae` fixes the port, and the game then
-  reaches 14.4899 s with no stop. That M1 sends a faulted uop's load at all
+  runs its 24 s with no stop. That M1 sends a faulted uop's load at all
   is the CPU's: it puts a read nothing waits for on the bus, which on this
   bench loads the VGA's latches (below).
 - **The garbled status bar is the CPU's missing uncached path.** The game
@@ -70,8 +75,7 @@ in the CPU changed.
   VGA's latches, with a REP MOVSB in write mode 1. On the RTL each element's
   store reaches the VGA after the read two elements on, so each byte takes
   the latches of the source byte two ahead. That fits every byte the bar's
-  copies drew but the face's, whose animation frame may differ from the
-  oracle's.
+  copies drew in the 24 s frame.
 
 **Ultima VI runs its 16 s on the RTL with no stop**, and its final frame is
 the oracle's but for the intro's animated TV picture.
@@ -79,8 +83,8 @@ the oracle's but for the intro's animated TV picture.
 **Neither game's oracle run needs an instruction or a mode the CPU has not
 built.** Every stem either game retired under the oracle is one the
 lockstep counts as built (`test_fes_i386_lockstep.py`'s `SCOPE`), all of it
-in real mode. Neither RTL run entered protected mode or V86 before
-Wolfenstein 3D went astray.
+in real mode. Neither game's full RTL run entered protected mode or V86, or
+handed an instruction to the oracle.
 
 | | Ultima VI | Wolfenstein 3D |
 | --- | ---: | ---: |
@@ -98,20 +102,20 @@ pistol fired empty and the knife drawn. Ultima VII is not here: its
 memory manager needs HIMEMX and 2 MiB of XMS, which the fixture lacks, and it
 enters unreal mode.
 
-On the RTL, with Wolfenstein 3D's runs to 14.4899 s (the RTL's of `037248ffae`):
+On the RTL, through the runner, against the oracle's runs of the same length:
 
 | | Ultima VI, oracle | Ultima VI, RTL | Wolfenstein 3D, oracle | Wolfenstein 3D, RTL |
 | --- | ---: | ---: | ---: | ---: |
-| Instructions | 307,159,964 | 292,535,229, 0 on the oracle | 306,091,197 | 327,946,430, 0 on the oracle |
+| Instructions | 307,159,964 | 292,535,229, 0 on the oracle | 532,700,506 | 671,864,134, 0 on the oracle |
 | `C:\>` first shown | 2.400 s | 2.350 s | none (the game is the shell) | none |
-| ISA I/O, every access at its class time | isa8 233,881 at 74; isa16 270,336 at 38 | isa8 238,030; isa16 270,336 | isa8 667,209; isa16 354,304 | isa8 751,412; isa16 354,304 |
-| VGA port reads | 41,245,631 | 29,808,910 | 25,242,160 | 18,227,405 |
-| VGA port writes over their class time, net of FIFO waits | none | none; 1 byte and 1 word waited 6 clocks (`IOWAIT`) | none; 36 words waited 4 to 110 clocks | none; 31 bytes waited 6 to 8 clocks, 189 words 1 to 136 |
-| INTA, all at 146 clocks | 761 | 770 | 8,336 | 8,393 |
-| OPL2 writes; samples equal to Nuked-OPL3's | 3,813; all 795,454 | 3,895; all 795,454 | 1,270; all 720,378 | the oracle's 1,270, one pair in another order; all 720,378 |
-| Sound Blaster | not used | not used | 1 reset, 3 commands | the same |
-| VGA loads that never retired | — | 26 of 139,556 | — | 179 of 200,031 |
-| Final frame | the intro's den, the TV on | the same; differs only inside the TV picture (below) | E1M1's first view, fading in | the same view, further into the fade; the status bar garbled (below) |
+| ISA I/O, every access at its class time | isa8 233,881 at 74; isa16 270,336 at 38 | isa8 238,030; isa16 270,336 | isa8 826,427; isa16 361,472 | isa8 915,278; isa16 361,472 |
+| VGA port reads | 41,245,631 | 29,808,910 | 25,386,787 | 18,227,669 |
+| VGA port writes over their class time, net of FIFO waits | none | none; 1 byte and 1 word waited 6 clocks (`IOWAIT`) | none; 28 bytes waited 2 to 91 clocks, 36 words 4 to 110 | none; 13,618 bytes waited 1 to 175 clocks, 189 words 1 to 136 |
+| INTA, all at 146 clocks | 761 | 770 | 15,046 | 15,104 |
+| OPL2 writes; samples equal to Nuked-OPL3's | 3,813; all 795,454 | 3,895; all 795,454 | 4,802; all 1,193,181 | 4,910; all 1,193,181 |
+| Sound Blaster | not used | not used | 1 reset, 48 commands, 27,848 DMA cycles, 7 IRQs | 1 reset, 48 commands, 29,430 DMA cycles, 8 IRQs |
+| VGA loads that never retired | — | 26 of 139,556 | — | 34,294 of 252,098 |
+| Final frame | the intro's den, the TV on | the same; differs only inside the TV picture (below) | E1M1's first view, the knife drawn | the same, pixel for pixel, but for the status bar (below) |
 
 The games run to the time limit, so the counts are of different amounts of
 work on each CPU and say nothing about correctness. The final frames do:
@@ -119,34 +123,41 @@ in Ultima VI, 2,172 of the 128,000 pixels differ, all inside the TV's
 picture (x 233-282, y 104-173 of 320 × 400), which the intro animates; the
 rest of the frame is the oracle's, pixel for pixel.
 
-In Wolfenstein 3D both frames show E1M1's first view, the door ahead and a
-dead guard before it. 120,780 pixels differ, nearly all by a few levels of
-brightness: the RTL is further into the level's fade-in (34h against 30h,
-69h against 61h in each channel). Mapping each of the oracle's colours to
-the RTL's commonest at the same pixels leaves 2,298 pixels, all in the
-status bar (x 24-297, y 328-391): its numbers, face and weapon picture are
-garbled. FLOOR's 1 shows as two bars 4 pixels apart, and the 0, 3, 100% and
-8 are doubled the same way; the face's right half repeats in 4-pixel
-strips. On the port before `037248ffae`, 24 more were one column of the dead
-guard's sprite (x 152-153, y 232-243), light grey where the oracle's are
-dark, drawn from a span the stray bytes below had corrupted. The frame is
-otherwise the same on both ports, byte for byte.
+In Wolfenstein 3D both final frames show E1M1's first view: the door ahead,
+a dead guard before it, the knife drawn and no ammunition left. They are the
+same, pixel for pixel, but for 2,056 pixels, all in the status bar (x
+24-299, y 328-391): its numbers, face and weapon picture are garbled.
+FLOOR's 1 shows as two bars 4 pixels apart, and the 0, 3, 100% and 0 are
+doubled the same way; the face's right half repeats in 4-pixel strips.
 
-The game draws these with latch copies: a REP MOVSB from a copy of each
-picture in the VGA's memory to the screen, in write mode 1. Each element's
-read loads the VGA's four latches, one byte of each plane, 4 pixels, and its
-store writes them out. A MOVSB element is one uop (st2) that reads at M1 and
-writes at WB, and a VGA read freezes D to WB until it is answered. So
-element n's store waits in WB while element n+2's read is out, and writes on
-the edge M1 sends element n+3's. The VGA sees R0, R1, R2, W0, R3, W1 and so
-on: each byte takes the latches of the source byte two ahead, and a row's
-last three bytes all take its last. Taking the oracle's screen as the
-source, that fits every byte the bar's copies drew but the face's: the
-digits' and the key slot's 960 and the weapon picture's 576, which one
-element ahead fits in only 444. The face fits in 272 of 384, but its
-animation frame may differ from the oracle's. Its last three bytes are
-equal in every row, as the model has it, and in none of the oracle's. No
-other byte of the bar differs.
+The runs to 14.4899 s show the same. There the RTL is further into the
+level's fade-in than the oracle (34h against 30h, 69h against 61h in each
+channel), so 120,780 pixels differ, nearly all by a few levels of
+brightness. Mapping each of the oracle's colours to the RTL's commonest at
+the same pixels leaves 2,298, all in the status bar. On the port before
+`037248ffae`, 24 more were one column of the dead guard's sprite (x
+152-153, y 232-243), light grey where the oracle's are dark, drawn from a
+span the stray bytes below had corrupted. That frame is otherwise the same
+on both ports, byte for byte. To that time the RTL's OPL2 writes are the
+oracle's 1,270, one pair in another order, and the 24 s run's begin with
+them.
+
+The game draws the bar's pictures with latch copies: a REP MOVSB from a copy
+of each picture in the VGA's memory to the screen, in write mode 1. Each
+element's read loads the VGA's four latches, one byte of each plane, 4
+pixels, and its store writes them out. A MOVSB element is one uop (st2) that
+reads at M1 and writes at WB, and a VGA read freezes D to WB until it is
+answered. So element n's store waits in WB while element n+2's read is out,
+and writes on the edge M1 sends element n+3's. The VGA sees R0, R1, R2, W0,
+R3, W1 and so on: each byte takes the latches of the source byte two ahead,
+and a row's last three bytes all take its last. Taking the oracle's screen
+as the source, that fits every byte the bar's copies drew at 24 s: the
+digits' and the key slot's 960, the face's 384 and the weapon picture's 576,
+of which one element ahead fits only 138 of the face's and 512 of the
+weapon's. No other byte of the bar differs. At 14.4899 s it fits all but the
+face, whose animation frame there differs from the oracle's; even so, the
+face's last three bytes are equal in every row, as the model has it, and in
+none of the oracle's.
 
 This is the design's known gap, no uncached path, not the bench's: the port
 keeps the CPU's order, a store before a load sent on the same edge. The
@@ -336,15 +347,16 @@ faulted: a VGA read, with its effect on the latches, for an instruction that
 never runs. The bench's count of VGA loads that never retired already held
 these: on the old port, 15 at 614F:03A3 and 2 at 614F:034F, on wrong paths.
 
-On `037248ffae` the game runs to 14.4899 s with no stop, with
-`vga_faulted` 25 and `shadow_faults` 0. 18 of the faulted loads are at
-614F:03A3 and 2 at 614F:034F. The frame is the old port's but for the dead
-guard's sprite column, which now matches the oracle's. The OPL2 writes and
-the audio are the old port's, sample for sample. With a faulted load's read
-abandoned, the loads issued while it is out count as overlaps. The
-`OVERLAP` lines, one for each abandoned read a load was issued during, rise from 36 to 56, the 20
-more all for reads of A0288h, and `vga_overlaps`, which counts every load
-issued while an abandoned read is out, from 290 to 704.
+On `037248ffae` the game runs to 14.4899 s with no stop, and through the
+runner on to 24 s, with `vga_faulted` 25 at 14.4899 s and `shadow_faults` 0
+in both. 18 of the faulted loads are at 614F:03A3 and 2 at 614F:034F. The
+frame is the old port's but for the dead guard's sprite column, which now
+matches the oracle's. The OPL2 writes and the audio are the old port's,
+sample for sample. With a faulted load's read abandoned, the loads issued
+while it is out count as overlaps. The `OVERLAP` lines, one for each
+abandoned read a load was issued during, rise from 36 to 56, the 20 more all
+for reads of A0288h, and `vga_overlaps`, which counts every load issued
+while an abandoned read is out, from 290 to 704.
 
 ## The oracle hangs on an x87 escape
 
@@ -379,7 +391,7 @@ Not fixed here: it is the oracle adapter's.
 | --- | --- |
 | No uncached path | VGA loads on a wrong path reached the VGA (below). Wolfenstein 3D's latch copies read the VGA two elements ahead of their stores, garbling the status bar (above) |
 | No caches | Not exercised: the bench's memory has no latency |
-| No self-modifying-code detection | The bench counts each store into code the front end has fetched ahead of the next instruction (`smc_stores`), the bytes they land on (`smc_addresses`), and each instruction that retires over such a byte before a refetch (`smc_executed`). Ultima VI: 425,444 stores on six bytes, the boot's two and 1BCBCh-1BCBFh, from the shell's code at 1006:BC40 and BC45 at 3.93 s, as FreeCOM runs the typed command. No instruction retired over a stored byte. Nothing from Ultima VI's own code. Wolfenstein 3D to 14.49 s: 425,533 stores, all on one byte, 99EFBh, from FreeDOS's 8FE9:A04A from 0.30 s, as in the boot, where it is data inside a code segment. None executed. The game writes a RETF into a scaler before each sprite span and the old byte back after it (2000:037B and 2000:039D), but never into code already fetched |
+| No self-modifying-code detection | The bench counts each store into code the front end has fetched ahead of the next instruction (`smc_stores`), the bytes they land on (`smc_addresses`), and each instruction that retires over such a byte before a refetch (`smc_executed`). Ultima VI: 425,444 stores on six bytes, the boot's two and 1BCBCh-1BCBFh, from the shell's code at 1006:BC40 and BC45 at 3.93 s, as FreeCOM runs the typed command. No instruction retired over a stored byte. Nothing from Ultima VI's own code. Wolfenstein 3D to 24 s: 425,533 stores, all on one byte, 99EFBh, from FreeDOS's 8FE9:A04A from 0.30 s, as in the boot, where it is data inside a code segment, and none after the game starts. None executed. The game writes a RETF into a scaler before each sprite span and the old byte back after it (2000:037B and 2000:039D), but never into code already fetched |
 | No protected mode | Never entered, in either game; neither census has a protected-mode or V86 instruction |
 | No debug traps | TF was never set |
 | No double fault | No fault during a delivery |
@@ -399,7 +411,7 @@ cancelled and none overlapped).
 | Game | VGA loads | Never retired | Where |
 | --- | ---: | ---: | --- |
 | Ultima VI | 139,556 | 26, all on a wrong path | The boot's 22, and 4 at 3.95 s as the game starts: 3 from FreeDOS's kernel at 0070:0544 (`FF /3`, CALL FAR m16:16) reading A0A68h, and 1 from the game's code at 21D3:2005 reading A1951h |
-| Wolfenstein 3D, to 14.49 s | 200,031 | 179: 129 on a wrong path, 50 to a restart | The boot's BIOS sites; then the game's mode-X code. The 32 commonest sites, 143 loads: 51 on wrong paths in scaler code in segment 614F, which ends each call with a RETF, 20 of them the faulted loads above; 38 at `MOV r8,m8` loads in 2D73:0059-01D1, half on wrong paths and half lost to interrupt restarts; 12 at the VGA-to-VGA REP MOVSB at 2C0B:08F5, 8 of them to restarts, the first at 12.127 s; 12 at 2CBB:08B5, 6 to restarts; 10 at 5F1F:034B |
+| Wolfenstein 3D, 24 s | 252,098 | 34,294: 34,244 on a wrong path, 50 to a restart; 12,006 of them already faulted in D | The boot's BIOS sites; then the game's mode-X code. The 32 commonest sites, 34,252 loads: 30,457 on wrong paths in scaler code in segment 614F, which ends each call with a RETF, among them 8,671 at the AAS at 03A3 and 667 at the AAA at 034F, both unbuilt and so faulted; 3,335 on wrong paths at 5F1F:034B and 384 at 686F:0373 and 0385; 38 at `MOV r8,m8` loads in 2D73:0059-01D1, half on wrong paths and half lost to interrupt restarts; 12 at the VGA-to-VGA REP MOVSB at 2C0B:08F5, 8 of them to restarts, the first at 12.127 s; 12 at 2CBB:08B5, 6 to restarts. To 14.49 s there were 179 of 200,031: 51 at 614F and 10 at 5F1F:034B. The rest came in play, as each frame scales the sprites and the weapon |
 
 The boot's 22 come from the BIOS, at 0.06 s and 0.30 s. The front end
 fetches on past an unconditional JMP (F000:E3FE) and two IRETs (F000:FEE6,
@@ -411,11 +423,12 @@ code there since.
 
 In text mode such a read changes nothing. In mode 13h, mode X and the planar
 modes a read loads the VGA's four latches, which a later write-mode-1 store
-copies out, as Wolfenstein 3D's mode-X screen copies do. The bench does
-not tell whether any of Wolfenstein 3D's landed between such a load and its
-store. The design's uncached loads issue only when they are the oldest
-instruction, so none of these would reach the VGA, provided a uop already
-marked faulted sends none. That path comes before either game runs on a kit.
+copies out, as Wolfenstein 3D's mode-X screen copies do. The frames show
+none that landed between such a load and its store: every wrong byte of the
+status bar is the copies' own order (above). The design's uncached loads
+issue only when they are the oldest instruction, so none of these would
+reach the VGA, provided a uop already marked faulted sends none. That path
+comes before either game runs on a kit.
 
 ## Where the RTL's time went
 
@@ -427,10 +440,12 @@ intro spends 40% of the oracle's instructions in a three-instruction poll of
 the retrace bit: IN AL,DX (`EC`), TEST AL,imm (`A8`), JZ back (`74`), 41.2
 million times each. On the RTL every turn of that loop waits for its I/O
 cycle and then takes the JZ, which the CPU predicts not taken, resolves in
-EX and redirects from WB. In Wolfenstein 3D to 14.49 s it retired 7% more
-than the oracle, at 4.4 clocks an instruction against 4.7, and read the
-status port 28% fewer times. With no caches, these clocks are no
-measure of the CPU on a kit.
+EX and redirects from WB. In Wolfenstein 3D's 24 s it retired 26% more than
+the oracle, at 3.6 clocks an instruction against 4.5, and read the status
+port 28% fewer times. Nearly all of both runs' status reads come before
+14.49 s: after it the RTL read the port 264 times, and the oracle, which was
+further behind in E1M1's fade-in, 144,627. With no caches, these clocks are
+no measure of the CPU on a kit.
 
 ## The instruction mix
 
@@ -537,13 +552,19 @@ On Powerboat, one thread each, at loads from 5 to 60 on 24 threads:
 | Wolfenstein 3D, RTL, to 14.49 s, with registers and dumps | — | 88 |
 | Wolfenstein 3D, RTL, to 14.49 s, with two port-trace windows | 89 | 97 |
 | Wolfenstein 3D, RTL, to 14.49 s, port fixed again, with a history and dumps | 116 | 134 |
+| Wolfenstein 3D, RTL, 24 s, through the runner | 164 | 183 |
 | FreeDOS boot, RTL, 4.1 s | 30 | 32 |
 | Wolfenstein 3D, oracle, merged tip, 24 s | 77 | 127 |
 
 ## What comes next for Phase 3
 
-- The uncached path, so that loads on a wrong path no longer reach the VGA.
-  The sites above are its test cases.
+- The uncached path, so that loads on a wrong path no longer reach the VGA
+  and a load to the VGA waits for the stores before it. The sites above and
+  Wolfenstein 3D's status bar are its test cases. M1 should also send no
+  load for a uop D has already marked faulted (`dmem_read`, which lacks the
+  fault check `m2_load` has).
+- The oracle adapter should bound an x87 escape's wait, so a stop on a
+  second escape cannot hang the bench.
 - Ultima VII needs a fixture with HIMEMX, and then protected-mode entry (LGDT,
   MOV CR0, segment loads from descriptors) for its unreal mode, none of which
   these games touch.
