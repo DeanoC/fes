@@ -74,18 +74,18 @@ type initialTargetControl struct {
 	kind           string
 }
 
-func (c *initialTargetControl) InspectCoreData(_ context.Context, path, id, root, gameID string) (misterruntime.Protocol2Response, error) {
+func (c *initialTargetControl) InspectCoreData(_ context.Context, path, id, root string) (misterruntime.Protocol2Response, error) {
 	i, err := corepackageInspection(path)
 	if err != nil {
 		return misterruntime.Protocol2Response{}, err
 	}
 	return misterruntime.Protocol2Response{OK: true, CoreData: &protocol.CoreData{PackageID: id, CoreID: i.Descriptor.Core.ID, Mode: "volatile", Revision: "absent", PaddleSpeed: protocol.PaddleNormal}}, nil
 }
-func (c *initialTargetControl) UpdateCoreSettings(context.Context, string, string, string, protocol.CoreSettingsUpdate) (misterruntime.Protocol2Response, error) {
+func (c *initialTargetControl) UpdateCoreSettings(context.Context, string, string, string, string, protocol.PaddleSpeed) (misterruntime.Protocol2Response, error) {
 	c.t.Fatal("settings mutation during initial disk launch")
 	return misterruntime.Protocol2Response{}, nil
 }
-func (c *initialTargetControl) LoadLibraryCore(context.Context, string, string, string, string) (misterruntime.Protocol2Response, error) {
+func (c *initialTargetControl) LoadLibraryCore(context.Context, string, string, string) (misterruntime.Protocol2Response, error) {
 	c.t.Fatal("non-atomic library load")
 	return misterruntime.Protocol2Response{}, nil
 }
@@ -182,7 +182,7 @@ func TestInitialSTMediaTargetAtomicDispatchAndLostReply(t *testing.T) {
 						var attempted bool
 						var failure *protocol.APIError
 						if kind == "plain" {
-							active, attempted, failure = r.LoadLibraryCoreOwned(context.Background(), context.Background(), context.Background(), int64(len(transport.Data)), bytes.NewReader(transport.Data), inspection.PackageID, "")
+							active, attempted, failure = r.LoadLibraryCoreOwned(context.Background(), context.Background(), context.Background(), int64(len(transport.Data)), bytes.NewReader(transport.Data), inspection.PackageID)
 						} else {
 							active, attempted, failure = r.LoadComposedCoreOwned(context.Background(), context.Background(), context.Background(), int64(len(transport.Data)), bytes.NewReader(transport.Data), inspection.PackageID)
 						}
@@ -267,7 +267,7 @@ func TestInitialSTMediaGenerationFenceBeforeConfirmation(t *testing.T) {
 			root := t.TempDir()
 			r := misterruntime.NewRuntime(c, "", time.Millisecond, 20*time.Millisecond, misterruntime.WithCorePackageRoot(root))
 			defer r.Stop(context.Background())
-			_, attempted, failure := r.LoadLibraryCoreOwned(context.Background(), context.Background(), context.Background(), int64(len(transport.Data)), bytes.NewReader(transport.Data), staged.PackageID, "")
+			_, attempted, failure := r.LoadLibraryCoreOwned(context.Background(), context.Background(), context.Background(), int64(len(transport.Data)), bytes.NewReader(transport.Data), staged.PackageID)
 			if failure == nil || !attempted || c.initialCalls != 1 {
 				t.Fatal("stale generation confirmed or replayed", failure, attempted, c.initialCalls)
 			}

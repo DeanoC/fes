@@ -290,13 +290,3 @@ func TestLibraryPartsClientRequiresDataRootAndExactReturnedTuple(t *testing.T) {
 		}
 	}
 }
-
-func TestComputer11PersistentPartsShellUsesSupportedMediaWritePair(t *testing.T) {
-	descriptor := corepackage.Descriptor{ABI: corepackage.Contract{ID: "fes.computer", Major: 1, Minor: 1}, Interfaces: []corepackage.Interface{
-		{ID: protocol.AtariStFloppyInterface().ID, Major: 1, Minor: 0},
-		{ID: protocol.AtariStFloppyWriteInterface().ID, Major: 1, Minor: 0},
-	}}
-	if !descriptorMediaWrite(descriptor) {
-		t.Fatal("fes.computer 1.1 persistent parts shell rejected its Atari ST write pair")
-	}
-}

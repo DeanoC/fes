@@ -40,9 +40,6 @@ func TestCoreLoadRejectsActiveReplyAfterLeaseLoss(t *testing.T) {
 						if r.Header.Get(targetclient.KitLeaseHeader) != "owned" {
 							t.Error("load did not use its grant")
 						}
-						if route == "library" && r.Header.Get("X-FogCast-Game-ID") != "ultima-vi" {
-							t.Errorf("library game identity = %q", r.Header.Get("X-FogCast-Game-ID"))
-						}
 						if lose {
 							client.InvalidateKitSession()
 						}
@@ -63,7 +60,7 @@ func TestCoreLoadRejectsActiveReplyAfterLeaseLoss(t *testing.T) {
 				case "development":
 					result, err = client.LoadCore(context.Background(), 1, strings.NewReader("x"))
 				case "library":
-					result, err = client.LoadLibraryCore(context.Background(), 1, strings.NewReader("x"), status.CorePackage.PackageID, "ultima-vi")
+					result, err = client.LoadLibraryCore(context.Background(), 1, strings.NewReader("x"), status.CorePackage.PackageID)
 				case "parts":
 					result, err = client.LoadLibraryPartsCore(context.Background(), 1, strings.NewReader("x"), status.CorePackage.PackageID)
 				}

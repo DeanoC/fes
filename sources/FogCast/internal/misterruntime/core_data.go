@@ -11,38 +11,12 @@ import (
 
 const CoreDataRoot = "/media/fat/fogcast/core-data"
 
-type ataDiskLoadRequest struct {
-	Path      string
-	DataRoot  string
-	Selection protocol.AtaDiskSelection
-}
-
-func (d *ataDiskLoadRequest) valid() bool {
-	return d != nil && validRuntimePath(d.Path) && d.DataRoot == MediaDataRoot && d.Selection.Valid()
-}
-
 func validateCoreDataShape(raw json.RawMessage) error {
-	fields, err := exactRawObject(raw, []string{"package_id", "core_id", "layout", "mode", "revision"}, []string{"paddle_speed", "best_rally", "game_id", "machine"})
+	fields, err := exactRawObject(raw, []string{"package_id", "core_id", "layout", "mode", "revision", "paddle_speed", "best_rally"}, nil)
 	if err != nil {
 		return err
 	}
-	if err = requireRawKinds(fields, map[string]rawKind{"package_id": rawString, "core_id": rawString, "layout": rawNullableObject, "mode": rawString, "revision": rawString}); err != nil {
-		return err
-	}
-	_, hasGameID := fields["game_id"]
-	_, hasMachine := fields["machine"]
-	if hasGameID || hasMachine {
-		if !hasGameID || !hasMachine || fields["paddle_speed"] != nil || fields["best_rally"] != nil {
-			return errInvalidRuntimeResponse
-		}
-		if err = requireRawKinds(fields, map[string]rawKind{"game_id": rawString, "machine": rawObject}); err != nil {
-			return err
-		}
-		machine, err := exactRawObject(fields["machine"], []string{"preset", "frequency", "code_profile", "turbo", "sb_base", "sb_irq", "sb_dma"}, nil)
-		if err != nil || requireRawKinds(machine, map[string]rawKind{"preset": rawUnsigned, "frequency": rawUnsigned, "code_profile": rawUnsigned, "turbo": rawUnsigned, "sb_base": rawUnsigned, "sb_irq": rawUnsigned, "sb_dma": rawUnsigned}) != nil {
-			return errInvalidRuntimeResponse
-		}
-	} else if err = requireRawKinds(fields, map[string]rawKind{"paddle_speed": rawUnsigned, "best_rally": rawUnsigned}); err != nil {
+	if err = requireRawKinds(fields, map[string]rawKind{"package_id": rawString, "core_id": rawString, "layout": rawNullableObject, "mode": rawString, "revision": rawString, "paddle_speed": rawUnsigned, "best_rally": rawUnsigned}); err != nil {
 		return err
 	}
 	if !isNull(fields["layout"]) {
@@ -52,35 +26,26 @@ func validateCoreDataShape(raw json.RawMessage) error {
 }
 
 type coreDataRequest struct {
-	Protocol         int                            `json:"protocol"`
-	Operation        string                         `json:"operation"`
-	PackagePath      string                         `json:"package_path"`
-	PackageID        string                         `json:"package_id"`
-	DataRoot         string                         `json:"data_root"`
-	GameID           string                         `json:"game_id,omitempty"`
-	ExpectedRevision string                         `json:"expected_revision,omitempty"`
-	PaddleSpeed      *protocol.PaddleSpeed          `json:"paddle_speed,omitempty"`
-	Machine          *protocol.PC386MachineSettings `json:"machine,omitempty"`
+	Protocol         int                   `json:"protocol"`
+	Operation        string                `json:"operation"`
+	PackagePath      string                `json:"package_path"`
+	PackageID        string                `json:"package_id"`
+	DataRoot         string                `json:"data_root"`
+	ExpectedRevision string                `json:"expected_revision,omitempty"`
+	PaddleSpeed      *protocol.PaddleSpeed `json:"paddle_speed,omitempty"`
 }
 
-func (client *Client) InspectCoreData(ctx context.Context, path, id, root, gameID string) (Protocol2Response, error) {
-	return client.coreData(ctx, coreDataRequest{Protocol: 2, Operation: "inspect_core_data", PackagePath: path, PackageID: id, DataRoot: root, GameID: gameID})
+func (client *Client) InspectCoreData(ctx context.Context, path, id, root string) (Protocol2Response, error) {
+	return client.coreData(ctx, coreDataRequest{Protocol: 2, Operation: "inspect_core_data", PackagePath: path, PackageID: id, DataRoot: root})
 }
-func (client *Client) UpdateCoreSettings(ctx context.Context, path, id, root string, update protocol.CoreSettingsUpdate) (Protocol2Response, error) {
-	if !update.Valid() {
+func (client *Client) UpdateCoreSettings(ctx context.Context, path, id, root, revision string, speed protocol.PaddleSpeed) (Protocol2Response, error) {
+	if !protocol.ValidCoreDataRevision(revision) || !speed.Valid() {
 		return Protocol2Response{}, errInvalidRuntimeRequest
 	}
-	req := coreDataRequest{Protocol: 2, Operation: "update_core_settings", PackagePath: path, PackageID: id, DataRoot: root, GameID: update.GameID, ExpectedRevision: update.ExpectedRevision, Machine: update.Machine}
-	if update.Machine == nil {
-		speed := update.PaddleSpeed
-		req.PaddleSpeed = &speed
-	}
-	return client.coreData(ctx, req)
+	return client.coreData(ctx, coreDataRequest{Protocol: 2, Operation: "update_core_settings", PackagePath: path, PackageID: id, DataRoot: root, ExpectedRevision: revision, PaddleSpeed: &speed})
 }
 func (client *Client) coreData(ctx context.Context, req coreDataRequest) (Protocol2Response, error) {
-	if !validRuntimePath(req.PackagePath) || !validRuntimePath(req.DataRoot) || !protocol2Hex64.MatchString(req.PackageID) ||
-		(req.GameID != "" && protocol.ValidateGameID(req.GameID) != nil) ||
-		(req.Operation == "update_core_settings" && ((req.Machine == nil) == (req.PaddleSpeed == nil))) {
+	if !validRuntimePath(req.PackagePath) || !validRuntimePath(req.DataRoot) || !protocol2Hex64.MatchString(req.PackageID) {
 		return Protocol2Response{}, errInvalidRuntimeRequest
 	}
 	line, _, err := client.callRawTracked(ctx, req) // Never replay a possibly applied settings mutation.
@@ -96,38 +61,28 @@ func (client *Client) coreData(ctx context.Context, req coreDataRequest) (Protoc
 	}
 	return response, nil
 }
-func (client *Client) LoadLibraryCore(ctx context.Context, path, id, root, gameID string) (Protocol2Response, error) {
-	return client.loadCoreOperation(ctx, path, id, root, gameID)
-}
-func (client *Client) LoadLibraryCoreWithAtaDisk(ctx context.Context, path, id, root, gameID string,
-	disk ataDiskLoadRequest) (Protocol2Response, error) {
-	if !disk.valid() || protocol.ValidateGameID(gameID) != nil {
-		return Protocol2Response{}, errInvalidRuntimeRequest
-	}
-	return client.loadCoreOperationWithAtaDisk(ctx, path, id, root, gameID, disk)
+func (client *Client) LoadLibraryCore(ctx context.Context, path, id, root string) (Protocol2Response, error) {
+	return client.loadCoreOperation(ctx, path, id, root)
 }
 
 type protocol2DataControl interface {
-	InspectCoreData(context.Context, string, string, string, string) (Protocol2Response, error)
-	UpdateCoreSettings(context.Context, string, string, string, protocol.CoreSettingsUpdate) (Protocol2Response, error)
+	InspectCoreData(context.Context, string, string, string) (Protocol2Response, error)
+	UpdateCoreSettings(context.Context, string, string, string, string, protocol.PaddleSpeed) (Protocol2Response, error)
 }
 type protocol2LibraryControl interface {
-	LoadLibraryCore(context.Context, string, string, string, string) (Protocol2Response, error)
-}
-type protocol2LibraryAtaControl interface {
-	LoadLibraryCoreWithAtaDisk(context.Context, string, string, string, string, ataDiskLoadRequest) (Protocol2Response, error)
+	LoadLibraryCore(context.Context, string, string, string) (Protocol2Response, error)
 }
 
-func (r *Runtime) InspectCoreData(ctx context.Context, size int64, body io.Reader, id, gameID string) (protocol.CoreDataInspection, *protocol.APIError) {
-	return r.coreDataOperation(ctx, size, body, id, gameID, nil)
+func (r *Runtime) InspectCoreData(ctx context.Context, size int64, body io.Reader, id string) (protocol.CoreDataInspection, *protocol.APIError) {
+	return r.coreDataOperation(ctx, size, body, id, nil)
 }
 func (r *Runtime) UpdateCoreSettings(ctx context.Context, size int64, body io.Reader, update protocol.CoreSettingsUpdate) (protocol.CoreDataInspection, *protocol.APIError) {
 	if !update.Valid() {
 		return protocol.CoreDataInspection{}, &protocol.APIError{Code: protocol.CodeBadRequest, Message: "core settings request is invalid", Phase: "request"}
 	}
-	return r.coreDataOperation(ctx, size, body, update.ExpectedPackageID, update.GameID, &update)
+	return r.coreDataOperation(ctx, size, body, update.ExpectedPackageID, &update)
 }
-func (r *Runtime) coreDataOperation(ctx context.Context, size int64, body io.Reader, id, gameID string, update *protocol.CoreSettingsUpdate) (result protocol.CoreDataInspection, apiErr *protocol.APIError) {
+func (r *Runtime) coreDataOperation(ctx context.Context, size int64, body io.Reader, id string, update *protocol.CoreSettingsUpdate) (result protocol.CoreDataInspection, apiErr *protocol.APIError) {
 	control, ok := r.control.(protocol2DataControl)
 	if !ok || r.corePackageRoot == "" {
 		return result, unsupportedOperationError()
@@ -149,22 +104,11 @@ func (r *Runtime) coreDataOperation(ctx context.Context, size int64, body io.Rea
 	if staged.PackageID != id {
 		return result, &protocol.APIError{Code: protocol.CodeInvalidArchive, Message: "package identity differs from request", Phase: "admission"}
 	}
-	dataGameID := ""
-	if pc386MachineRecordPackage(staged.Descriptor) {
-		if protocol.ValidateGameID(gameID) != nil || (update != nil && update.Machine == nil) {
-			return result, &protocol.APIError{Code: protocol.CodeBadRequest, Message: "core data game identity or machine settings are invalid", Phase: "request"}
-		}
-		dataGameID = gameID
-	} else if update != nil && update.Machine != nil {
-		return result, &protocol.APIError{Code: protocol.CodeBadRequest, Message: "machine settings do not match the package layout", Phase: "request"}
-	}
 	var response Protocol2Response
 	if update == nil {
-		response, err = control.InspectCoreData(ctx, staged.Directory, id, CoreDataRoot, dataGameID)
+		response, err = control.InspectCoreData(ctx, staged.Directory, id, CoreDataRoot)
 	} else {
-		runtimeUpdate := *update
-		runtimeUpdate.GameID = dataGameID
-		response, err = control.UpdateCoreSettings(ctx, staged.Directory, id, CoreDataRoot, runtimeUpdate)
+		response, err = control.UpdateCoreSettings(ctx, staged.Directory, id, CoreDataRoot, update.ExpectedRevision, update.PaddleSpeed)
 	}
 	if err != nil {
 		return result, unavailableError()
@@ -176,41 +120,16 @@ func (r *Runtime) coreDataOperation(ctx context.Context, size int64, body io.Rea
 		return result, unavailableError()
 	}
 	result = protocol.CoreDataInspection{CoreData: *response.CoreData, Descriptor: staged.Descriptor}
-	if result.PackageID != id || !result.Valid() || result.GameID != dataGameID || (update != nil && (result.Mode != "persistent" || result.Revision == "absent" ||
-		(update.Machine != nil && (result.Machine == nil || *result.Machine != *update.Machine)) ||
-		(update.Machine == nil && result.PaddleSpeed != update.PaddleSpeed))) {
+	if result.PackageID != id || !result.Valid() || (update != nil && (result.Mode != "persistent" || result.Revision == "absent" || result.PaddleSpeed != update.PaddleSpeed)) {
 		return protocol.CoreDataInspection{}, unavailableError()
 	}
 	return result, nil
 }
-func pc386MachineRecordPackage(descriptor corepackage.Descriptor) bool {
-	if !protocol.ComputerMediaABI(descriptor.ABI.ID, descriptor.ABI.Major, descriptor.ABI.Minor) {
-		return false
-	}
-	for _, contract := range descriptor.Interfaces {
-		if contract.ID == "fes.pc386.machine" && contract.Major == 1 && contract.Minor == 0 {
-			return true
-		}
-	}
-	return false
-}
-
-func (r *Runtime) LoadLibraryCoreOwned(admission, observation, owner context.Context, size int64, body io.Reader, id, gameID string) (CoreActivation, bool, *protocol.APIError) {
+func (r *Runtime) LoadLibraryCoreOwned(admission, observation, owner context.Context, size int64, body io.Reader, id string) (CoreActivation, bool, *protocol.APIError) {
 	if !protocol2Hex64.MatchString(id) {
 		return CoreActivation{}, false, &protocol.APIError{Code: protocol.CodeBadRequest, Message: "package identity is invalid", Phase: "request"}
 	}
-	return r.loadCoreOwned(admission, observation, owner, size, body, id, gameID)
-}
-
-func (r *Runtime) LoadLibraryCoreOwnedWithAtaDisk(admission, observation, owner context.Context,
-	size int64, body io.Reader, id, gameID, path string, selection protocol.AtaDiskSelection) (CoreActivation, bool, *protocol.APIError) {
-	if !protocol2Hex64.MatchString(id) || protocol.ValidateGameID(gameID) != nil ||
-		!validRuntimePath(path) || !selection.Valid() {
-		return CoreActivation{}, false, &protocol.APIError{Code: protocol.CodeBadRequest,
-			Message: "library ATA disk request is invalid", Phase: "request"}
-	}
-	disk := &ataDiskLoadRequest{Path: path, DataRoot: MediaDataRoot, Selection: selection}
-	return r.loadCoreOwnedMode(admission, observation, owner, size, body, id, false, gameID, disk)
+	return r.loadCoreOwned(admission, observation, owner, size, body, id)
 }
 
 func mapCoreDataError(remote *Protocol2Error) *protocol.APIError {

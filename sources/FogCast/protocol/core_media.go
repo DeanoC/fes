@@ -32,7 +32,7 @@ type CoreMediaCapability struct {
 // or transport semantics. Optional declarations still require active runtime
 // support at launch.
 func DeclaredCoreMediaCapabilities(descriptor corepackage.Descriptor) []CoreMediaCapability {
-	if ComputerMediaABI(descriptor.ABI.ID, descriptor.ABI.Major, descriptor.ABI.Minor) {
+	if ComputerABI(descriptor.ABI.ID, descriptor.ABI.Major, descriptor.ABI.Minor) {
 		return declaredComputerMedia(descriptor)
 	}
 	result := make([]CoreMediaCapability, 0)

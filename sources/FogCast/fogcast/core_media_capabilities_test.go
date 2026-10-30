@@ -173,7 +173,7 @@ func (c *offlineCapabilitiesClient) InspectCore(context.Context, int64, io.Reade
 	return protocol.CoreInspection{}, errors.New("target offline")
 }
 
-func (c *offlineCapabilitiesClient) InspectCoreData(context.Context, int64, io.Reader, string, string) (protocol.CoreDataInspection, error) {
+func (c *offlineCapabilitiesClient) InspectCoreData(context.Context, int64, io.Reader, string) (protocol.CoreDataInspection, error) {
 	c.dataCalls++
 	return protocol.CoreDataInspection{}, errors.New("target offline")
 }

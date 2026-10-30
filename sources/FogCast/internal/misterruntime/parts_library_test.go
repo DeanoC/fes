@@ -88,7 +88,7 @@ func (c *libraryPartsControl) LoadPartsCore(context.Context, string, string, str
 	c.developerCalls++
 	return misterruntime.Protocol2Response{}, fmt.Errorf("unexpected developer dispatch")
 }
-func (c *libraryPartsControl) InspectCoreData(ctx context.Context, path, id, root, gameID string) (misterruntime.Protocol2Response, error) {
+func (c *libraryPartsControl) InspectCoreData(ctx context.Context, path, id, root string) (misterruntime.Protocol2Response, error) {
 	c.dataCalls++
 	c.root = root
 	if c.dataError != nil {
@@ -101,7 +101,7 @@ func (c *libraryPartsControl) InspectCoreData(ctx context.Context, path, id, roo
 	data := protocol.CoreData{PackageID: id, CoreID: inspection.Descriptor.Core.ID, Mode: "volatile", Revision: "absent", PaddleSpeed: 1}
 	return misterruntime.Protocol2Response{OK: true, CoreData: &data}, nil
 }
-func (*libraryPartsControl) UpdateCoreSettings(context.Context, string, string, string, protocol.CoreSettingsUpdate) (misterruntime.Protocol2Response, error) {
+func (*libraryPartsControl) UpdateCoreSettings(context.Context, string, string, string, string, protocol.PaddleSpeed) (misterruntime.Protocol2Response, error) {
 	panic("unexpected settings")
 }
 func (c *libraryPartsControl) LoadLibraryPartsCore(ctx context.Context, path, id, root, payload string, parts []misterruntime.PartPath, receipt expansion.PartsComposition) (misterruntime.Protocol2Response, error) {

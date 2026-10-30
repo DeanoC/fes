@@ -108,8 +108,7 @@ type coreEntryMedia struct {
 	// unit names the fes.computer media unit a removable disk is inserted
 	// into; selected writable ST disks are included in ROM activation before
 	// CPU release. Nil keeps the launch-time load_media delivery.
-	unit    *uint8
-	ataDisk *protocol.AtaDiskSelection
+	unit *uint8
 }
 
 func (m *coreEntryMedia) Close() error {
@@ -206,18 +205,7 @@ func (s *Service) readCoreEntryMedia(ctx context.Context, descriptor corepackage
 		reader, size = io.NopCloser(bytes.NewReader(image)), int64(len(image))
 	}
 	// OpenCoreMedia returns a verified private snapshot, not a live SQL cursor.
-	result := &coreEntryMedia{ReadCloser: reader, size: size,
-		stream: capability.Interface == protocol.MediaStreamInterface(), unit: capability.Unit}
-	if capability.Interface == protocol.AtaDiskInterface() {
-		cylinders, heads, sectors, ok := protocol.AtaDiskGeometry(size)
-		if !ok {
-			_ = result.Close()
-			return nil, protocol.DiskMediaRequestError()
-		}
-		result.ataDisk = &protocol.AtaDiskSelection{BaseMediaID: id, Size: uint32(size),
-			Cylinders: cylinders, Heads: heads, SectorsPerTrack: sectors}
-	}
-	return result, nil
+	return &coreEntryMedia{ReadCloser: reader, size: size, stream: capability.Interface == protocol.MediaStreamInterface(), unit: capability.Unit}, nil
 }
 
 // spectrumCassetteStream reads a stored .tzx, .tap, .pzx or .csw image and
