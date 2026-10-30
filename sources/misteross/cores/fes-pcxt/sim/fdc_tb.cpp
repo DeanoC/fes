@@ -255,11 +255,34 @@ int main(int argc,char **argv) {
     b.check(r==std::vector<uint8_t>({0x20,1}),"failed seek erased earlier completion");
     b.wait_irq(1000);b.sense(0x49,1);
 
+    std::cerr << "stage: Exact seek timing\n";
+    // The former timer loaded (distance + 1) * 14318 and decremented once
+    // per enabled guest clock. Freeze guest enables during the command so
+    // the expected initial value and each subsequent IRQ edge are exact.
+    auto exact_seek = [&](unsigned target, unsigned distance) {
+        b.d.guest_ce=0;b.send({0x0f,0,target});
+        uint32_t remaining=(distance+1)*14318u;
+        b.check(b.d.observed_seek_ticks==remaining,"seek initial interval differs from original timer");
+        b.check(!b.d.observed_seek_irq,"seek completed before first enabled tick");
+        while(remaining) {
+            if ((remaining & 1023u)==0) {
+                b.d.guest_ce=0;for(unsigned i=0;i<3;++i)b.tick();
+                b.check(b.d.observed_seek_ticks==remaining && !b.d.observed_seek_irq,"seek advanced during disabled guest clock");
+            }
+            b.d.guest_ce=1;b.tick();--remaining;
+            b.check(b.d.observed_seek_ticks==remaining,"seek countdown differs from original timer");
+            b.check(bool(b.d.observed_seek_irq)==(remaining==0),"seek IRQ changed on wrong guest tick");
+        }
+        b.d.guest_ce=0;for(unsigned i=0;i<8;++i)b.tick();
+        b.check(b.d.irq&0x40,"seek IRQ did not reach ISA boundary");
+        b.d.guest_ce=1;
+        b.sense(0x20,target);
+    };
+    exact_seek(1,0); // A same-cylinder seek still consumes one step interval.
+
     std::cerr << "stage: Maximum seek\n";
     // Maximum seek time must not wrap a 19-bit counter.
-    b.send({0x0f,0,39});
-    b.check(b.d.observed_seek_ticks>524287,"maximum seek time overflow");
-    b.wait_irq(600000);b.sense(0x20,39);
+    exact_seek(39,38);
 
     std::cerr << "stage: An eager read command\n";
     // An eager read command must wait for a busy drive to finish seeking;
@@ -272,6 +295,16 @@ int main(int argc,char **argv) {
     b.send({0,1,0,1,2,9,0x2a,0xff});b.bytes(18*512,512);b.wait_irq();r=b.result(7);
     b.check(r==std::vector<uint8_t>({0,0,0,1,0,2,2}),"deferred read used wrong cylinder");
     b.check(b.d.irq&0x40,"result consumption cleared pending seek IRQ");b.sense(0x20,1);
+
+    std::cerr << "stage: Reset during seek\n";
+    b.d.guest_ce=0;b.send({0x0f,0,3});
+    b.check(b.d.observed_seek_ticks==3u*14318u,"reset test seek did not start");
+    b.out(0x3f2,0); // Controller reset cancels the in-flight seek.
+    b.d.guest_ce=1;for(unsigned i=0;i<50000;++i)b.tick();
+    b.check(!b.d.observed_seek_irq && !(b.d.irq&0x40),"reset seek produced a stale completion");
+    b.d.reset=1;b.tick();
+    b.check(b.d.observed_seek_ticks==0 && !b.d.observed_seek_irq,"global reset did not clear seek timer");
+    b.d.reset=0;
     std::cout << "PASS XT floppy ISA controller: " << b.dma_count << " DMA read bytes, "
               << b.reads << " media transfers, " << b.ticks << " guest ticks\n";
 }

@@ -42,7 +42,12 @@ module pcxt_fdc_card (
     reg [7:0] queued_st0;
     reg [7:0] queued_target;
     reg [7:0] cylinder, seek_target;
-    reg [19:0] seek_ticks;
+    // Count one fixed step interval at a time.  Keeping the remaining steps
+    // separate avoids a wide distance-by-duration multiplier in the seek
+    // launch path while preserving the same guest-enable completion edge.
+    reg [7:0] seek_steps;
+    reg [13:0] seek_phase;
+    wire seek_complete = seek_phase == 14'd1 && seek_steps == 0;
     reg [7:0] read_cylinder, read_sector, read_eot, read_head;
     reg read_mt, lost_ready;
     reg [9:0] lba;
@@ -139,7 +144,8 @@ module pcxt_fdc_card (
                 queued_seek <= 1; queued_failed <= 0; queued_target <= target;
             end else begin
                 seek_target <= target;
-                seek_ticks <= (20'(distance) + 20'd1) * 20'(STEP_TICKS);
+                seek_steps <= distance;
+                seek_phase <= STEP_TICKS;
                 seeking <= 1;
             end
             state <= IDLE;
@@ -166,7 +172,7 @@ module pcxt_fdc_card (
             sense_irq_pending <= 0; result_irq_pending <= 0; sense_valid <= 0;
             sense_st0 <= 0; sense_cylinder <= 0; motor_ticks <= 0;
             seeking <= 0; queued_seek <= 0; queued_failed <= 0; queued_st0 <= 0; queued_target <= 0;
-            dma_mode <= 0; cylinder <= 0; seek_target <= 0; seek_ticks <= 0;
+            dma_mode <= 0; cylinder <= 0; seek_target <= 0; seek_steps <= 0; seek_phase <= 0;
             read_cylinder <= 0; read_sector <= 0; read_eot <= 0; read_head <= 0; read_mt <= 0; lost_ready <= 0;
             lba <= 0; byte_index <= 0; byte_ticks <= 0; data_byte <= 0;
             data_valid <= 0; fetch_pending <= 0;
@@ -177,9 +183,13 @@ module pcxt_fdc_card (
                 if (!motor_on) motor_ticks <= 0;
                 else if (!motor_ready) motor_ticks <= motor_ticks + 1'b1;
                 if (state == READ_DATA && byte_ticks != 0) byte_ticks <= byte_ticks - 1'b1;
-                if (seeking && motor_ready && seek_ticks != 0) begin
-                    seek_ticks <= seek_ticks - 1'b1;
-                    if (seek_ticks == 1) begin
+                if (seeking && motor_ready && seek_phase != 0) begin
+                    if (seek_phase != 1) seek_phase <= seek_phase - 1'b1;
+                    else if (seek_steps != 0) begin
+                        seek_steps <= seek_steps - 1'b1;
+                        seek_phase <= STEP_TICKS;
+                    end else begin
+                        seek_phase <= 0;
                         seeking <= 0; cylinder <= seek_target;
                         // Completion status is latched below with priority over
                         // an earlier Sense Interrupt acknowledgement.
@@ -195,10 +205,8 @@ module pcxt_fdc_card (
                     sense_valid <= 1; sense_irq_pending <= 1;
                 end else begin
                     seek_target <= queued_target;
-                    if (cylinder > queued_target)
-                        seek_ticks <= (20'(cylinder - queued_target) + 20'd1) * 20'(STEP_TICKS);
-                    else
-                        seek_ticks <= (20'(queued_target - cylinder) + 20'd1) * 20'(STEP_TICKS);
+                    seek_steps <= cylinder > queued_target ? cylinder - queued_target : queued_target - cylinder;
+                    seek_phase <= STEP_TICKS;
                     seeking <= 1;
                 end
             end
@@ -358,7 +366,7 @@ module pcxt_fdc_card (
             // earlier pending/no-pending sense on the same fabric edge.
             // The separate result IRQ latch keeps an unread early 0x80 result
             // from clearing a later seek completion.
-            if (guest_ce && seeking && motor_ready && seek_ticks == 1 &&
+            if (guest_ce && seeking && motor_ready && seek_complete &&
                 !(commit && dor_io && write_cycle && !wdata[2])) begin
                 sense_cylinder <= seek_target; sense_st0 <= 8'h20;
                 sense_valid <= 1; sense_irq_pending <= 1;
