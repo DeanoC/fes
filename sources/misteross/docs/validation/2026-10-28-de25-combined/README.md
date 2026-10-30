@@ -1,34 +1,53 @@
-# DE25 combined HPS/local-display validation — 2026-10-28
+# DE25 combined HPS/local-display validation — refreshed 2026-10-30
 
-Two combined GHRD/display diagnostic SOFs compile from producer
-`ec3ab70b608eb53a0b845d4462941f8a832af451` with Quartus Prime Pro
-26.3.0 Build 114. These are **host-only diagnostics with failed overall design
-closure**, not accepted DE25 boot images or interactive MENU firmware.
-All reported constrained STA rows are nonnegative with zero TNS; external IO
-timing and retained HPS/debug reset findings remain open. No timing constraints
-were relaxed, output delays fabricated or Design Assistant violations waived.
+Both combined GHRD/display diagnostic SOFs were rebuilt from source commit
+`dd4dc6084abef010fa82c274e9d579d97e322a37` with Quartus Prime Pro 26.3.0 Build
+114. This revision includes the probe `CLEAR` guard requiring
+`new_errors == 0`. These are **host-only diagnostics**: Quartus timing closure
+passes, but its overall Design Closure Summary fails because Design Assistant
+findings and external IO timing remain open. They are not accepted DE25 boot
+images or interactive MENU firmware. No constraints were relaxed, output delays
+fabricated or Design Assistant violations waived.
 
-The producer follows merge `8bdefb4ab1fe0becbc1da758af16e6c2f5f0ca69`,
-which combines the HPS/probe foundation and standalone display work. The
-retained clean checkout is `out/work/de25-combined-ec3ab70b60`; actual compiler
-inputs and outputs are in separate `out/de25-combined-menu-ec3ab70b60/` and
-`out/de25-combined-idle-ec3ab70b60/` directories. Menu was built first, followed
-by idle, with two CPU workers per compile. The FPGA agent's idle launcher
-session was 64358 and exited zero; the parent launched menu in session 77544.
-Exact tool/idle launcher commands, log hashes, output locations, all 76 STA
-summary rows and report/source/handoff bindings are in
+The producer follows merge `8bdefb4ab1fe0becbc1da758af16e6c2f5f0ca69`, which
+combines the HPS/probe foundation and standalone display work. Menu was built
+first, followed by idle, from the same clean source revision with the pinned
+Terasic archive (`f79f0eff3b0f9d042fdb61ddcf43efec77b0ebc13248eea100b94e47a1189b66`).
+The retained compiler inputs and outputs are under
+`out/de25-combined-refresh/menu-pattern/` and `out/de25-combined-refresh/idle/`;
+each output keeps its captured `functional-source/`, snapshot and reports. The
+Quartus setup script and wrapper were `/data/altera_pro/26.3/qinit.sh` and
+`/data/altera_pro/26.3/quartus/bin/quartus_sh`. The exact commands, source and
+report bindings, all 76 STA rows and per-clock Fmax results are in
 [timing-summary.json](timing-summary.json).
+
+The builds used the README flow:
+
+```sh
+source /data/altera_pro/26.3/qinit.sh
+export QUARTUS_ROOTDIR=/data/altera_pro/26.3/quartus
+make -C sources/misteross/boards/de25nano/combined build MODE=menu-pattern \
+  QUARTUS_ROOTDIR="$QUARTUS_ROOTDIR" \
+  VENDOR_ARCHIVE="$PWD/out/de25-combined-refresh/DE25-Nano_revB_v.1.0.0_ResourcePackage.zip" \
+  OUTPUT="$PWD/out/de25-combined-refresh/menu-pattern"
+make -C sources/misteross/boards/de25nano/combined build MODE=idle \
+  QUARTUS_ROOTDIR="$QUARTUS_ROOTDIR" \
+  VENDOR_ARCHIVE="$PWD/out/de25-combined-refresh/DE25-Nano_revB_v.1.0.0_ResourcePackage.zip" \
+  OUTPUT="$PWD/out/de25-combined-refresh/idle"
+```
 
 | Final result | Menu-pattern | Idle |
 | --- | ---: | ---: |
 | Full compilation errors / warnings | 0 / 304 | 0 / 303 |
 | Constrained STA summary rows | 38 | 38 |
-| Setup minimum (ns) | 3.129 | 3.319 |
+| Timing Closure | Pass | Pass |
+| Overall Design Closure | **Fail** | **Fail** |
+| Setup minimum (ns) | 2.960 | 3.256 |
 | Hold minimum (ns) | 0.000 | 0.000 |
-| Recovery minimum (ns) | 7.057 | 7.554 |
-| Removal minimum (ns) | 0.031 | 0.069 |
+| Recovery minimum (ns) | 7.616 | 7.298 |
+| Removal minimum (ns) | 0.010 | 0.120 |
 | Minimum pulse-width slack (ns) | 0.220 | 0.220 |
-| ALMs / registers | 11,369 / 22,291 | 11,152 / 21,832 |
+| ALMs / registers | 11,391 / 22,231 | 11,213 / 21,812 |
 | RAM blocks / logical RAM bits | 134 / 2,123,264 | 131 / 2,098,688 |
 | HPS / PLLs / DSP blocks | 1 / 3 / 0 | 1 / 3 / 0 |
 | Actual clock / constrained status rows | 41 / 41 | 41 / 41 |
@@ -36,12 +55,29 @@ summary rows and report/source/handoff bindings are in
 | Unconstrained inputs / outputs (setup and hold) | 2 / 30 | 2 / 30 |
 | Paths from / to unconstrained IO pairs | 9 / 4,651 | 9 / 921 |
 
+All 38 constrained summary rows per mode have nonnegative slack and zero TNS.
+Fmax below is copied from each final `golden_top.sta.rpt`; it is the report's
+same-clock Fmax and is not an external IO timing result or board signoff.
+
+| Mode | Clock | Fmax | Worst-case model |
+| --- | --- | ---: | --- |
+| Menu-pattern | `altera_reserved_tck` | 20.12 MHz | Slow fix4 100C |
+| Menu-pattern | `pll_inst|iopll_0_outclk0` | 142.05 MHz | Slow fix4 0C |
+| Menu-pattern | `fes_video_inst|video_clock|iopll_0_outclk0` | 275.25 MHz | Slow fix4 0C |
+| Menu-pattern | `adv7513_config` | 313.77 MHz | Slow fix4 0C |
+| Menu-pattern | `fes_video_inst|video_clock|iopll_0_refclk` | 605.69 MHz | Slow fix4a 0C |
+| Idle | `altera_reserved_tck` | 20.12 MHz | Slow fix4 100C |
+| Idle | `pll_inst|iopll_0_outclk0` | 148.28 MHz | Slow fix4 0C |
+| Idle | `adv7513_config` | 311.24 MHz | Slow fix4 0C |
+| Idle | `fes_video_inst|video_clock|iopll_0_refclk` | 414.08 MHz | Slow fix4 0C |
+| Idle | `fes_video_inst|video_clock|iopll_0_outclk0` | 543.18 MHz | Slow fix4 0C |
+
 The final artifact in each output is `hps/project/output_files/golden_top.sof`:
 
 | Mode | SHA256 |
 | --- | --- |
-| Menu-pattern | `eab5618183dacf4e154de7b92840344efc38d3527261762edd70f3790e8b3940` |
-| Idle | `f479941844f2d9eb5db36a42dbf0a96d07e2f8c9e565b2fba818d579ed26db86` |
+| Menu-pattern | `718ddcaeb8e95274c68f6e1c70a4c0ae3d0f84a24b68202969c8965f9373bc55` |
+| Idle | `193878325983065d46f93b4cf838627b01307a595a09419de1c4c5bf501d93a2` |
 
 Both actual final clock tables preserve all 35 HPS baseline clock names,
 types, periods and frequencies from producer
@@ -102,12 +138,13 @@ compilation. Copied HPS sources, derived video/core/reset RTL and local SDC
 match their receipts and the exact RTL used in the passing idle/menu video
 benches. Original HPS/EMIF module parameters and vendor boot software hashes
 remain unchanged after both full compiles. All compiled report and generated
-handoff/SDC manifest hashes match their build receipts. The 114 actual fabric
-simulation input hashes from the earlier ten-case probe/interconnect bench
-also match both final projects exactly; that reuses the existing narrow-AXI,
-lane-order, error-propagation and drain checks without claiming a new hardware
-test. Seven preparation/guard tests pass, and both real-video mode benches
-pass with modeled PLL/configuration/I2C boundaries.
+handoff/SDC manifest hashes match their build receipts. A fresh ten-case
+generated-interconnect simulation passed; all 114 simulation input hashes,
+including probe SHA-256 `4afe3497bca4bb991e855d1c40bd7e8e1d97ea9b943d40083f44eddede7c2d52`,
+match both final projects. The direct probe RTL simulation passed all 15
+groups. Seven combined preparation tests and 21 HPS preparation tests passed.
+The exact video/reset RTL inputs still match the earlier passing idle/menu
+video benches, which use modeled PLL/configuration/I2C boundaries.
 
 Generated boot handoff identity is retained separately: idle matches the
 earlier 1,629-byte handoff exactly; menu differs only at byte offsets

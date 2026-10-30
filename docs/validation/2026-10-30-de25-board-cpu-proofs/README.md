@@ -128,10 +128,17 @@ session hits the unchanged 1800-second outer watchdog after both BASIC RUNs
 have printed 7, before the full final-return observation. It is a rejected
 complete-session candidate. The other board completes the combined matrix.
 Only the unfinished board/model is selected for a separate replay using
-`select_suite.py prepare` followed by `select_suite.py clients`, each with
-`--board TRWU8CBL --model combined` and a fresh output directory; the exact executables, seed, guest bounds, API timeouts and
+`select_suite.py prepare` followed by `select_suite.py clients`, both with
+`--board TRWU8CBL --model combined` and the same output directory. `prepare`
+creates that directory and `clients` reads its `prepared.json`; use one fresh
+path for the pair. The exact executables, seed, guest bounds, API timeouts and
 1800-second outer watchdog stay unchanged. Passing controller, internal-RAM,
 composition and unit results are retained, rather than repeated.
+
+The current `replay.py` puts `wrong-build` first and the long `session` last so
+cheap setup/refusal checks finish before another BASIC run. The retained replay
+receipts record the original script hash in `replay-source.json`; this ordering
+change applies to future retries and does not relabel the completed runs.
 
 This establishes physical **CPU** execution and deterministic composition.
 The ZX81, keyboard, loader, RAM personas, mailbox and renderer remain in host

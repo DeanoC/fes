@@ -1,4 +1,10 @@
-# DE25 ZX81 HPS computer simulation
+# DE25 ZX81 HPS historical computer simulation
+
+The retained machine and endpoint logs predate the complete-frame HDMI gate.
+They describe only their recorded source inputs. The later [BASIC round-trip
+proof](../../../../../../docs/validation/2026-10-30-de25-zx81-load-roundtrip/README.md)
+exercises the machine and client after the frame-boundary gate was added; the
+current `computer_tb.cpp` checks that readiness changes only at a frame tick.
 
 These are host simulations of the native Avalon computer leaf, its actual
 `fes.computer` mailbox, HID mapper, CRC media transfer, tape store, NMOS Z80,
@@ -59,9 +65,9 @@ of the three guard lines. Every other byte matches. The
 [elaboration receipt](default-elaboration-binding.json) records both the
 initial unequal comparison and this exact source-location audit. The raw
 [diff log](default-elaboration-diff.log.gz) is compressed without changing its
-bytes. Full machine execution was not repeated after that guard or the runner
-refactor; the endpoint smoke exercises the final runner and current leaf with
-a nonzero identity.
+bytes. Full machine execution was not repeated for this historical source
+snapshot after the BUILD_ID guard or runner refactor. Later evidence is recorded
+separately above and must not be attributed to these retained logs.
 
 [input-hashes.json](input-hashes.json) records the later committed reference
 `786e6383b32617af8baeb32e9de6cf99231a19f9`, 22 matching current input files,

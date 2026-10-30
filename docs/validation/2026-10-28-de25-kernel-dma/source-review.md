@@ -24,7 +24,7 @@ fabric validation. The
 13–31, emits guarded, header-independent unsigned 32-bit `#define` values
 using the existing uppercase fabric macro naming rule. It rejects normalized
 macro and guard collisions. The kernel consumes the canonical
-[`fes_de25_ddr_probe.h`](https://github.com/DeanoC/fes/blob/45c2dfc247eccaae2556798a039a9390eaa15a6c/image/kernel/de25-dma/generated/fes_de25_ddr_probe.h),
+[`fes_de25_ddr_probe.h`](../../../image/kernel/de25-dma/generated/fes_de25_ddr_probe.h),
 not a hand-maintained copy of C++ constants. Emission adds no SoC map, GP ABI,
 runtime capability, device binding or DMA admission.
 

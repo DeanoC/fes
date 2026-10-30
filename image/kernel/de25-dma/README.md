@@ -95,8 +95,8 @@ allocation becomes releasable and the engine can accept a new grant.
 
 Exposed DMA holds an independent allocation reference and module pin alongside
 the file, inode and device references. Errors, missing/changed epochs, failed
-drain or failed cleanup retain these references and mark uncertainty. Last close
-retries stop/drain; it cannot free uncertain exposed storage. No timeout, frame
+drain or failed cleanup retain these references and mark uncertainty. Final close
+makes one stop/drain attempt; it cannot free uncertain exposed storage. No timeout, frame
 completion or client-close path declares outstanding traffic gone. Actual reset
 recovery and device detach qualification remain future work.
 

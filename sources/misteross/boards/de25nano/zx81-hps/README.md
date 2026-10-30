@@ -114,6 +114,9 @@ HOLD neutralization, malformed-access faults and stopped-clock reset behavior.
 The focused video bench checks every displayed image pixel across three clock
 ratios with randomized unwritten RAM, plus startup, malformed lines, cropped/short
 frames, HOLD, stopped clocks, and stopped-clock epoch reset.
+The board bench also checks asynchronous reset and PLL-loss blanking while
+preserving an active HDMI sync pulse, then resumes data only at a complete line
+boundary using digital PLL signals.
 Memory uses behavioral RTL; HPS, physical M20K, PLL, I2C and HDMI are not modeled.
 Compiled generation separately checks the real HPS-LW route, both PLL rates
 and the slave map against all inherited peripherals.

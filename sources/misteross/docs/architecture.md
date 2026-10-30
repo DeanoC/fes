@@ -19,58 +19,6 @@ selection and transfer. libmister-runtime programs the FPGA.
 
 ## DE25-Nano board diagnostic
 
-The [HPS-controlled base/persona diagnostic](../boards/de25nano/link-proof/README.md)
-preserves the Terasic HPS/DDR base and adds one 100 MHz PR slot plus a generated
-lightweight-bridge control endpoint. Registered boundaries support sequenced
-freeze/drain/reset and an identity-checked resume. The shared
-`fes.fabric.de25-pr-control` constants also drive the native runtime's injected
-control/configuration interface. Its production device constructor stays closed.
-A stdlib-only Go executable binds format-2 descriptors and opaque payloads to
-the exact root QDB, slot, control build ID and persona hardware ID, then creates
-a deterministic deployment bundle. It does not use the Cyclone V CRAM codec.
-Native/AArch64 runtime co-simulation uses the actual endpoint RTL and a persona
-selection mux; it does not model SDM execution. No production package, physical
-programming backend or hardware acceptance is added by this diagnostic.
-
-The opt-in [ZX81 RAM-pack profile](../boards/de25nano/link-proof/zx81-ram/README.md)
-keeps the actual ZX81 machine, NMOS CPU, firmware and 1 KiB RAM static, with
-empty-slot and actual 16 KiB RAM-pack personas. The registered 46/20-bit
-expansion bus takes four elapsed cycles; diagnostic retirement takes five so
-LAST_DATA observes the real machine peek after the external RAM pipeline.
-Selection resets the machine; freeze captures an idle CPU memory request and
-drains writes/read responses before its acknowledgement, independently of CPU
-reset-enable latency.
-It reuses the 64-byte control map without changing the counter profile. This
-is an off-board RAM-only PR proof, with no HPS computer mailbox, keyboard/tape
-transport, display, package admission or physical programming backend.
-
-The [combined ZX81 profile](../boards/de25nano/link-proof/zx81-computer/README.md)
-adds the actual HPS computer mailbox, keyboard/tape delivery and coherent 720p
-renderer to that PR RAM bus. It reuses the HPS computer recipe from captured
-source bytes. The CPU runs only with a healthy transport, PR RUNNING and mailbox
-RUN; every reset/HOLD/freeze captures an idle memory request before drain.
-Computer and PR control share the source-bound build identity but keep their
-separate generated register maps. The actual native and AArch64 C++ clients
-exercise both endpoints in one RTL model; only persona selection is modeled.
-The static base and both personas require fresh compilation/root/POF identity
-and composition checks. There is no SDM executor or production admission.
-
-The standalone [three-memory RAM Tester](../boards/de25nano/ramtest/README.md)
-adds separate destructive FPGA LPDDR4 B and board SDRAM endpoints to the pinned
-GHRD. It preserves the vendor B memory/PHY recipe and uses a custom fixed-50-MHz
-controller for the two SDRAM chip selects. HPS grant-checking RTL is simulated,
-but its destructive engine is disabled in the board top pending a real kernel
-allocation/binding/drain contract. The shared fabric constants and explicit
-JTAG controller add no package, runtime admission or physical qualification.
-
-Its generated FPGA-B transport check uses the real endpoint wrapper and
-unaltered Avalon128-to-AXI256 packet/width adapters against an independent AXI
-memory model. It verifies lanes, byte enables, command stability, errors,
-STOP/drain and reset containment. Unexpected controller responses exercise
-the generated simulation assertion with no assertion disabled. The selected
-transport elaborates without hard RAM primitives; this is not full peripheral
-CSR routing, HPS memory admission, controller/PHY or physical qualification.
-
 `boards/de25nano/` is an independent FPGA-only bring-up project for
 `A5EB013BB23BE4SCS` with Quartus Prime Pro 26.3.0. Its 50 MHz input and
 active-low LED pins follow Terasic's revision B resource package; the shared
@@ -81,11 +29,6 @@ the vendor ASx4 configuration scheme and 125 MHz initialization clock.
 The Verilator bench exercises reset hold/release, the clock divider and LED
 sequence using a functional configuration endpoint model. Compilation
 produces a JTAG `.sof`, retains the compiler reports, and never programs hardware.
-
-The HPS-controlled ZX81 diagnostic connects the existing fabric JTAG master
-to its peripheral bridge at `0x00100000`; its computer occupies the translated
-`0x00110300` 32-byte window. Generated handoff checks require this actual route
-and span. This maintenance path adds no DDR master or CPU physical mapping.
 
 The separate [`boards/de25nano/hps/`](../boards/de25nano/hps/README.md) lane
 extracts a locked Terasic GHRD into a fresh private project and adds a small
@@ -141,7 +84,10 @@ the ZX81 with the preserved GHRD. A 32-bit Avalon endpoint at peripheral offset
 It reuses the current `fes_computer_mailbox`, HID mapper and CRC-checked tape
 store. Control and the machine share 100 MHz, with 13/200 ULA enables; the
 renderer remains at 74.25 MHz. Readiness crosses a two-stage pixel-clock
-synchronizer, and the video mask changes only at the renderer's frame tick.
+synchronizer, and the computer's first-picture mask changes only at the
+renderer frame tick. The board shell blanks RGB/DE on pixel reset or PLL loss,
+then changes HDMI visibility and resumes picture only after a complete HS
+pulse outside VS; active sync is not reset-gated.
 No control CCB is required and stopped PIX
 does not stop command completion or CPU/tape progress. Partial/busy/malformed
 accesses and later peripheral resets permanently fault this diagnostic,
@@ -152,16 +98,7 @@ Generated constants and an offline injectable Python client add no runtime
 admission, physical MMIO address or boot image. Shared production RTL is unchanged.
 The board tape adapter uses two explicit even/odd simple-dual-port M20K banks
 with common-clock old-data reads, while retaining the exact portable module
-in its native simulation branch. Its board-local video renderer replaces the
-single capture array with two packed monochrome M20K banks. Source completion
-publishes a bank through a request/acknowledgement crossing; scanout swaps only
-at a complete 720p frame boundary and acknowledges before the source may reuse
-the previous bank. Startup and epoch reset hide unwritten storage. Whole rows
-up to 328×270 are captured, excess rows cropped, and absent bottom rows displayed
-as paper. Stopped clocks preserve ownership; HOLD aborts partial capture.
-The local SDC checks exact synchronizer/metadata endpoints and bounds the held
-row-count bus without cutting whole clocks. Digital simulation does not accept
-physical M20K timing, MTBF, clock recovery or HDMI.
+in its native simulation branch.
 
 The same endpoint/machine also serves the native `De25Computer` client through
 the private-socket co-simulation in `zx81-hps/client_proof.py`. It snapshots the
@@ -191,9 +128,12 @@ opt-in; existing consumers retain their default configuration.
 
 Both crossing bridges share initial configuration reset. Later pixel PLL-lock
 loss latches a fault without resetting live bridge queues; the endpoint stops
-and drains when its clock resumes. HDMI visibility crosses a two-stage
-pixel-clock synchronizer and changes after a complete horizontal sync pulse
-while VS is inactive, preserving complete DE/HS/VS pulses. The producer retains
+and drains when its clock resumes. The DE25 endpoint keeps its fixed raster and
+raw HS/VS running through stop, fault and reset while pixel data stays blank.
+HDMI visibility crosses a two-stage pixel-clock synchronizer and changes after
+a complete horizontal sync pulse while VS is inactive; lock/reset loss blanks
+RGB/DE immediately and picture resumes only after that safe boundary. The
+producer retains
 generated topology and response checks, native RTL tests and a simulation
 helper for the generated two-clock interconnect with explicitly modeled M20K
 storage. FIFO/controller logic remains generated; primitive equivalence and
@@ -209,17 +149,21 @@ identity 2 exclusively. Both Python and CLI entrypoints default to 2 and reject
 other identity versions. Quartus oracle and board-firmware records retain their
 current evidence schema. Rebuilt script closures receive new identities;
 existing artifacts and caches are never relabelled or deleted.
-ZX81, SMS, SG-1000, Apple II, C64, Spectrum, Atari ST and the factory Coleco
-cartridge use format 3 to seal one ROM map. ROM-less producers keep format 2.
+ZX81, SMS, SG-1000, Apple II, C64, Spectrum and Atari ST use format 3 to seal
+one ROM map. The factory Coleco package and its MegaCart development producer
+use format 4 for two ordered ROM sources and one sealed map. ROM-less producers
+keep format 2.
 The external `build-inputs.json` record is format 2.
 `build_identity` still hashes a format-1 record with the original full-record
 SHA256; a format-2 record uses the domain-separated functional projection.
 
 The package exporter and inspector also recognize format 4 with two ordered ROM
-requirements and one sealed map. The Coleco MegaCart development producer
-(`scripts/build_fes_coleco_megacart.py`) emits that format. The factory Coleco
-recipe emits format 3. Which format a new core uses, and when an older
-format is retired, is [core alignment](../../../docs/core-alignment.md).
+requirements and one sealed map. The factory Coleco recipe selects
+`scripts/build_fes_coleco_socket_v2.py` with native video; it requires an exact
+8 KiB `coleco-bios` and 16 KiB `coleco-cart`. The Coleco MegaCart development
+producer (`scripts/build_fes_coleco_megacart.py`) also emits format 4. Which
+format a new core uses, and when an older format is retired, is
+[core alignment](../../../docs/core-alignment.md).
 
 Record 2 keeps repository/revision and `source_path` as original build provenance, but derives
 its embedded 128-bit ID from a domain-separated functional projection excluding
@@ -584,6 +528,14 @@ budget. Chip clock pulse width, load, turnaround and board/PVT qualification
 remain separate checks. Reuse this machinery with a core's actual primitive
 configuration and evidenced board inputs; neither internal Fmax nor a
 historical RAM Tester hardware pass supplies another core's external timing.
+
+The PC/XT retained-route uncertainty screen is
+`scripts/screen_fes_pcxt_uncertainty.py`. It reads explicit TimeQuest increments
+for each clock edge pair at all four corners and subtracts their conservative
+maxima from every paired native setup/hold row. Missing budgets and unpaired
+rows remain explicit failures. The diagnostic binds the original producer RBF
+and embedded report to the clock-branch reference; it neither changes the
+compiler model nor supplies external board requirements or hardware acceptance.
 
 ### HPS DDR ports
 
@@ -1160,16 +1112,18 @@ and is not FogCast format-3.
 `cores/fes-coleco` is the next FES emulator bring-up after Pong and ZX81. It
 uses the [MiSTer ColecoVision core](https://github.com/MiSTer-devel/ColecoVision_MiSTer)
 as a system reference, but is a reduced Verilog-first adapter around the
-shared `fes.application` 1.0 mailbox, with `fes.gamepad.ports` and
-`fes.keypad.ports` 1.0, fixed video, blob and blob-stream media, and optional
-`fes.firmware.blob` 1.0. A/B map to Fire 1/2; the
-twelve keypad bits represent 0..9, *, #. Each active-high full-state write
-addresses port 0 or 1. HOLD neutralizes both controllers. The console-owned
-staging RAM preserves registered media-copy timing. The first slice contains a TV80
-Z80-compatible CPU, the Coleco reset/cartridge/RAM map, a shared TMS9918-style
+shared `fes.application` 1.0 ABI. The factory recipe selects the v2 native-video
+producer and seals a format-4 package with an exact 8 KiB `coleco-bios` and
+16 KiB `coleco-cart` in one ROM map. It does not advertise blob-media,
+blob-stream or firmware-mailbox interfaces; native video parts are required,
+and the Coleco expansion bus is optional. The RTL and mailbox simulations also
+retain the older media and firmware paths described below. A/B map to Fire 1/2;
+the twelve keypad bits represent 0..9, *, #. Each active-high full-state write
+addresses port 0 or 1. HOLD neutralizes both controllers. The machine contains
+a TV80 Z80-compatible CPU, Coleco reset/cartridge/RAM map, shared TMS9918-style
 renderer for Graphics I, Graphics II, Text and Multicolor on the fixed
-256×192 logical raster, two active-low controller views and the FES fixed-video
-shell. A raw 1–32 KiB cartridge image uses the fixed
+256×192 logical raster, two active-low controller views and the FES video path.
+In mailbox diagnostics, a raw 1–32 KiB cartridge image uses the fixed
 `0x8000–0xffff` aperture. Images up to 16 KiB preserve the prior C000 mirror;
 larger images use all fifteen address bits and return FF beyond committed length.
 The shared stream endpoint validates ordered chunks and complete CRC before
@@ -1180,19 +1134,19 @@ The shared 32-bit fractional raster enable emits 4,024,320 logical samples per
 second from each core's configured system clock; 256 samples × 262 lines gives
 a nominal 60 Hz frame cadence independent of CPU and HDMI pixel clocks. This
 models frame/line pacing, not composite sync, half-lines or cycle-perfect raster
-effects. The development Coleco machine edge has an inactive vacant response
-and masks expansion read claims to `0x2000–0x5fff` or unclaimed I/O. The
-physical socket is behind `FES_COLECO_EXPANSION_DEV`. The development producer
-authenticates `toolchain.lock` and seals a timed shell with a
-reserved `24 1 28 11` placement region containing only pinned boundary FFs.
-It declares optional `fes.expansion.coleco-bus` 1.0. The diagnostic module
-uses the frozen shell and restores the system PLL's
-second output from exact routed metadata. The integrated shell/cart has no
-outside CRAM changes. Its producer permits only the two fixed response-stub
-changes declared by `fes.coleco.response-boundary/4` if a route needs them,
-alongside the CPU-bus rectangle; the linker rejects every other outside change.
-The selected factory recipe and FES registration remain unchanged. External
-bus mastering, video/audio takeover, bank switching and retail-cartridge
+effects. The factory v2 Coleco shell includes the optional
+`fes.expansion.coleco-bus` interface and masks expansion read claims to
+`0x2000–0x5fff`. The separate v1 expansion diagnostic retains an inactive
+vacant response and, behind `FES_COLECO_EXPANSION_DEV`, claims reads below
+`0x8000` (`0x0000–0x7fff`) or unclaimed I/O. Its development producer
+authenticates `toolchain.lock` and seals a timed shell with a reserved
+`24 1 28 11` placement region containing only pinned boundary FFs. The
+diagnostic module uses the frozen shell and restores the system PLL's second
+output from exact routed metadata. The integrated shell/cart has no outside
+CRAM changes. Its producer permits only the two fixed response-stub changes declared by
+`fes.coleco.response-boundary/4` if a route needs them, alongside the CPU-bus
+rectangle; the linker rejects every other outside change. External bus
+mastering, video/audio takeover, bank switching and retail-cartridge
 compatibility remain outside this slice.
 
 Graphics I groups color entries by eight character patterns. Graphics II uses
@@ -1213,57 +1167,49 @@ Every sprite column and magnified repeat has a separate line-bank read before
 its write decision. Priority and collision use that pixel's metadata rather
 than the previous address or a same-port read-during-write result.
 
-The default reset ROM is an open `JP 0x8000` shim, not a Coleco BIOS. Quartus
-(`set_parameter -name ENABLE_FIRMWARE 1`) and OSS (`chparam -set ENABLE_FIRMWARE 1`)
-synthesize the shared mailbox overlay into the 8 KiB aperture; host simulations
-keep `ENABLE_FIRMWARE` at its RTL default 0. The default package still ships the
-open shim and declares `fes.firmware.blob` 1.0 optional so BIOS-free titles share
-the bitstream. Runtime firmware is an exact 8192-byte begin/data/commit while
-reset is held; it is not cartridge media and does not release execution.
-Firmware mailbox behavior is software-tested; physical Coleco BIOS bind remains
-pending. The OSS producer's explicit `--bios PATH` option embeds a privately
-supplied 8192-byte BIOS using a read-only binary/HEX snapshot in ignored build
-output. Identity v2 binds both digests and the BIOS mode, and the producer
-rechecks the snapshot before and after compilation and before export. This
-variant declares `fes.coleco.private-bios` and exports only to
-`build/private-packages`, separate from the default image-selected package.
-The BIOS is a build input, not an extension to the cartridge media protocol.
-BIOS boot does not establish general retail-game compatibility; rendering and
-input require per-game validation.
+The tracked reset image used by host simulations is an open `JP 0x8000` shim,
+not a Coleco BIOS. The factory format-4 package instead seals a ROM map with an
+exact 8192-byte `coleco-bios` source at `0x0000–0x1fff` and an exact 16384-byte
+`coleco-cart` source mapped to `0x8000–0xbfff` and mirrored at
+`0xc000–0xffff`; the target links both before download.
+The package removes the firmware and media-mailbox interfaces. Quartus and
+mailbox simulations retain the `ENABLE_FIRMWARE` overlay for diagnostics, with
+an exact 8192-byte begin/data/commit while reset is held; it is not cartridge
+media and does not release execution. Firmware mailbox behavior is
+software-tested, but it is not the selected factory package contract. The OSS
+producer's explicit `--bios PATH` option remains a separate private build-time
+path using a read-only binary/HEX snapshot in ignored build output. Identity v2
+binds both digests and the BIOS mode, and the producer rechecks the snapshot
+before and after compilation and before export. This variant declares
+`fes.coleco.private-bios` and exports only to `build/private-packages`, separate
+from the selected factory package. BIOS boot does not establish general
+retail-game compatibility; rendering and input require per-game validation.
 
 The serial renderer, replicated VRAM, registered request/wait schedule, packed
 line banks, sequential clear and publication interlock are deliberate RTL
 scaling accommodations shared by both compiler lanes. The original procedural
 sprite loop expanded to roughly 42K mapped combinational cells; the registered
 one-column/repeat schedule fits the fixed system-clock budget. The Coleco OSS
-recipe uses its core-local lock with Yosys `e2d425de`, nextpnr-mistral
-`a93fe013` with `--router gpu`, HeAP timing weight 100, criticality
-exponent 5, and `--timing-allow-fail`, and Mistral
-`7ed06e21`; the selected toolchain enables the HIP device backend. Default
-place-and-route is first-to-pass: seeds 5, 4, 1, 2, 3, 12, 7 and 10 at
-weight 100, then the same seeds at weights 300 and 1000. nextpnr `a93fe013`
-times each GPU route with Mistral's analogue signoff model and re-routes
-near-critical nets when a clock misses, so the table-model and signoff
-results no longer diverge silently.
-`make build-fes-coleco BEST_FMAX=1` synthesizes once, then searches the
-weight list 10/100/300/1000/2000 and remaining seeds for the best Fmax on
-one HIP device (functional identity v2 rejects more than one);
-the winner is stored in route evidence, not written back into recipe
-constants (that would change `BUILD_ID`). Because the
-sealed build record changes the embedded `BUILD_ID`, the seed is part of the
-route recipe. The GPU router can report a provisional timing shortfall before
-its final repair/signoff pass; the allowance lets it complete, while the
-recipe's structured final `clk_sys` and `pixel_clk` evidence still has to meet
-the requested constraints. The Quartus wrapper retains the literal
+recipe uses its core-local lock: Yosys `5391eeb1`, nextpnr-mistral `bec82e36`
+with `--router gpu`, and Mistral `8fcc4cb4`. Its factory native-video
+first-pass search follows the configured seed order 3, 4, 5, 1, 2, 6, 7, 8,
+9 and 10 at HeAP timing weights 2000 then 1000, with criticality exponent 5
+and `--timing-allow-fail`; the CPU-only socket target uses weight 2000. The
+producer records the selected seed and weight in route evidence. The timing
+allowance permits route completion, while the recipe's structured final
+`clk_sys` and `pixel_clk` evidence still has to meet the requested constraints.
+The Quartus wrapper retains the literal
 `altsyncram` mode `NEW_DATA_NO_NBE_READ`; OSS preserves the registered
 semantic schedule rather than that vendor literal. No missing nextpnr BEL or
 pack feature is implied.
 
 The open diagnostics and focused simulations exercise CPU-driven VDP writes,
 controller modes, sprite status and the exact 720p frame in both conditional
-lanes. The build recipes require a clean checkout and seal format-2 packages;
-they never program hardware. Parent selection and exact-kit acceptance are
-recorded in the FES validation documents.
+lanes. The Quartus oracle seals a format-2 package. `make build-fes-coleco`
+seals a format-4 package with the CPU-only socket; the factory format-4 shell
+is sealed by `make build-fes-coleco-native-video`. These targets
+require a clean checkout and do not program hardware. Parent selection and
+exact-kit acceptance are recorded in the FES validation documents.
 
 ### OSS/Yosys/nextpnr workarounds
 
@@ -1285,12 +1231,14 @@ marked as path-specific are not requirements of the other lane.
 | Reset image | OSS consumes tracked byte-per-line `coleco_reset_rom.hex`; Quartus `altsyncram` consumes tracked range-form `coleco_reset_rom.mif`. This is a file-format split, not a different reset image. |
 | PLL and I²C | Both retain the two existing `altera_pll` wrappers. Quartus uses tri-state HDMI I²C; OSS uses `MISTRAL_IO` open-drain pads and the HPS I²C BEL `cyclonev_hps_interface_peripheral_i2c.52.60.0`. |
 | Constraints | OSS uses only its accepted pin QSF and 50 MHz `clocks-oss.sdc`; nextpnr derives PLL clocks. Quartus retains `HPS_LOCATION`, clock groups and the full SDC. |
-| Route pressure | The OSS reproduction is `5CSEBA6U23I7`, nextpnr `a93fe013`, `--router gpu`, seed 5 first (order 5, 4, 1, 2, 3, 12, 7, 10), HeAP timing weight 100 before 300 and 1000, criticality exponent 5, `--timing-allow-fail`, no `--tmg-ripup`, at 74.25 MHz. The embedded `BUILD_ID` makes the seed part of the route recipe. The GPU router can report a provisional timing shortfall before final repair; the allowance only permits that intermediate result, while the recipe requires final structured `clk_sys` and `pixel_clk` timing to pass. The sealed recipe requires `backend hip:<device> ready` and rejects CPU-reference fallback; no missing BEL or pack feature was identified. |
+| Route pressure | The OSS reproduction is `5CSEBA6U23I7`, nextpnr `bec82e36`, `--router gpu`, seed order 3, 4, 5, 1, 2, 6, 7, 8, 9, 10, HeAP timing weights 2000 then 1000 for the factory native-video shell (2000 for the CPU-only socket), criticality exponent 5, `--timing-allow-fail`, no `--tmg-ripup`, at 74.25 MHz. The route evidence records the selected seed and weight. The allowance permits route completion; final structured `clk_sys` and `pixel_clk` timing must still pass. The sealed producer requires its authenticated live GPU backend and rejects CPU-reference fallback; no missing BEL or pack feature was identified. |
 
-The concrete build entry points are `make build-fes-coleco-quartus` and
-`make build-fes-coleco`; both require a clean source checkout, seal format-2
-packages and never program hardware. Exact-artifact kit acceptance remains a
-separate FES integration step.
+The concrete build entry points are `make build-fes-coleco-quartus`,
+`make build-fes-coleco` and `make build-fes-coleco-native-video`. The Quartus
+oracle seals format 2; the v2 OSS target seals a format-4 CPU-only socket
+package, while the native-video target seals the factory format-4 package.
+These targets require a clean source checkout and never program hardware.
+Exact-artifact kit acceptance remains a separate FES integration step.
 
 The Opcode SGM candidate uses a separate development shell with a 31-bit
 request and 28-bit registered response. The response carries direct data,
@@ -1634,9 +1582,9 @@ The recipe requires `QUARTUS_ROOTDIR`, version 17.0.2, a clean checkout and
 tracked inputs. It writes canonical `build/fes-zx81-quartus/build-inputs.json`
 before compile, embeds that record's 128-bit id as `BUILD_ID`, runs
 `quartus_sh --flow compile top`, requires TimeQuest multicorner
-Setup/Hold/Recovery/Removal/Minimum Pulse Width worst-case slack ≥ 0 with
-the 52 MHz system clock and the derived 74.25/74.27 MHz pixel clock named,
-then seals `manifest.toml` + `core.rbf` through the existing format-2
+Setup/Hold/Recovery/Removal/Minimum Pulse Width worst-case slack ≥ 0, no
+illegal or unconstrained clocks, and the 52 MHz system clock and the
+derived 74.25/74.27 MHz pixel clock named, then seals `manifest.toml` + `core.rbf` through the existing format-2
 exporter. Failed compiles delete the RBF, manifest and passing summary.
 The command never programs hardware. Quartus remains the kit-proven
 bring-up lane.
@@ -2977,18 +2925,29 @@ fixes 8088 mode and native FLAGS, with a 100 MHz fabric clock and nominal
 4.772727 MHz guest clock. It handles READY, split byte cycles, LOCK and INTA.
 `cpu_roms` emits four byte lanes from the unchanged 4096-word microcode image.
 Each lane has a kept local address register, driven by the same next-PC value
-and reset as the CPU's microcode PC. The board supplies a dedicated 100 MHz
-ROM read clock at +90 degrees, giving address setup 2.5 ns and ROM read/output
-7.5 ns. Its separate SDRAM capture clock stays at +180 degrees. These are actual
-PLL outputs; the 100 MHz system and 74.25 MHz pixel targets are unchanged.
+and reset as the CPU's microcode PC. The intervening operand-phase system edge
+reads each ROM before the next execute edge captures its word. Address setup
+and ROM output paths each have a full 10 ns system cycle. The former +90-degree
+ROM clock and its private ports are removed. The separate SDRAM capture clock
+stays at +180 degrees; system and pixel targets remain 100 and 74.25 MHz.
 Operand selectors are decoded from the raw ROM read before independent
-system-edge output registers. Read latency, sequencer lead and instruction
-cycles are unchanged. Checks reconstruct all 4096 words from the byte lanes,
-prove the original PC/call-stack/stall control equations, and prove local
-address-copy equality after reset. Symbolic checks retain the actual read and
-output stages at 90/180/270 degrees, with arbitrary registered-address payloads.
-Both shorter address setup and longer ROM output paths require routed and
-Quartus qualification. The prefetch-empty flag compares its low pointer bits
+system-edge output registers. The EU alternates operand-read and
+execute/writeback phases on that physical clock. Four 16-bit operand registers
+separate selection from the ALU; a registered prefetch byte preserves dispatch
+when the BIU consumes it. Architectural state, local ROM addresses and
+word/control outputs advance together on execute edges. Reset initializes the
+outputs from the generated reset-entry word. The BIU and sticky completion
+capture remain active every physical cycle; a private strobe-valid signal
+prevents duplicate consumption of a held command. No new clock domain or
+multicycle exception is introduced. Sequencer lead is preserved, but maximum
+EU throughput becomes 50 million microwords per second and guest instruction
+latencies can increase. The `cpu-timing` simulation measures that tradeoff;
+unchanged pin clocks do not establish silicon cycle conformance. Checks
+reconstruct all 4096 words from the byte lanes, prove the original
+PC/call-stack/stall equations under execute holds, and prove local address-copy
+equality after reset. Symbolic checks retain the actual read and
+output stages across both phases, with arbitrary registered-address payloads
+and resets. Both full-cycle paths require fresh routed and Quartus qualification. The prefetch-empty flag compares its low pointer bits
 directly; all-input equivalence checks the original zero-difference equation.
 
 The same generator emits `mcl86_facts.vh` from every control word. Separate ADD
@@ -2998,10 +2957,10 @@ specialization covers arbitrary guest firmware and register values. A reserved
 jump-source hold is retained automatically if the image uses it. Exhaustive
 table checks and symbolic operand/jump-condition checks cover these boundaries. ADD controls use independent rising-edge register processes,
 preserved through synthesis, to separate their physical fanout from the full
-logic-operation muxes. The copies capture the same ROM stage on the same edge;
+logic-operation muxes. The copies capture the same ROM stage on the same enabled edge;
 symbolic read-alignment checks include both copies. DMA arbitration evaluates
 all four circular priority masks in parallel; whole-DMA sequential equivalence
-checks its state and interface against the original indexed priority loop.
+checks its state and interface against the original indexed priority loop. Mode validity and operation flags are decoded when the guest programs each channel. Twelve configuration bits remove mode-byte decoding from grant dispatch without changing arbitration, completion latency or reset behavior; sequential equivalence checks all DMA state and interface bits. Motherboard local reads retain their phase-8 sample in an independent byte register and copy it to the shared memory/ISA return register at phase-17 completion. The existing nine release clocks absorb this staging; CPU and DMA completion cycles are unchanged. An inductive check proves the original sampled byte and completed return value with the actual peripherals.
 
 Only the full logic operand-1 mux uses `pcxt_logic_operand1_mux` and the
 post-synthesis `synth/logic_operand1_map.v` map. Six parallel masked groups
@@ -3038,12 +2997,23 @@ its [wire contract](../../mister-packages/docs/pcxt-isa.md) defines handshakes,
 reset and side-effect ordering. The [core README](../cores/fes-pcxt/README.md)
 lists coverage and limitations.
 
-**The complete machine below remains a proposal.** `fes.pcxt` is the proposed
-package identity. The remaining HID keyboard frontend, disk
-controller, physical socket layout, package producer and sealed PC/XT package are not
-implemented yet. The fabric does not enable
-runtime activation or claim a linkable RBF. Existing linker layout admission
-remains closed until an exact shell and its physical sockets are qualified.
+**The full PC/XT product remains in development.** The registered `fes.pcxt`
+recipe now exports an installable format-2 diagnostic package with the standard
+identity/execution mailbox and fixed CGA Direct video. Its forwarded HDMI clock
+uses an 8.979 ns phase offset from pixel-data updates; the system and pixel
+rates do not change. Fixed video is inline in the RBF and needs no external
+video-part index. Keyboard, media and physical socket interfaces are not
+declared. The registered producer is Quartus, with the common 100 MHz package profile,
+proof-bound video mailbox constraints and phased HDMI. All declared seeds
+must pass reported internal checks; an independent first-seed rebuild must
+reproduce the RBF. Internal clock-validity checks must pass, and every unclocked
+register must belong to an elaborated HPS hard primitive. Functional identity
+binds the installed tools, actual Python interpreter/standard library, host
+helper/library bytes and full selected source closure. Retries retain each
+attempt beneath the build ID. External physical timing/reset qualification and
+exact-artifact hardware acceptance remain separate from this diagnostic seal.
+Existing linker layout admission remains closed until an exact shell and its
+physical sockets are qualified.
 
 The target is software for an IBM 5160-class machine, including bootable
 floppy games and DOS games that access hardware directly. The baseline is an
@@ -3065,6 +3035,48 @@ printed pages 1-27/28, 4-5 and 4-32/33; PPI mode control follows the
 [Intel 8255A data sheet](https://deramp.com/downloads/intel/8255.pdf). Adapter-specific manuals and chip
 datasheets must accompany later peripheral implementations. These references
 define behavior to reproduce, not permission to redistribute firmware.
+
+An experimental default-off `HALF_RATE_BOARD` diagnostic keeps the CPU and
+byte adapter at 100 MHz while the motherboard, ISA/storage and framebuffer
+capture run at 50 MHz. Held transaction snapshots and CPU falling-edge transfer
+registers connect the related domains; guest tick delivery preserves the
+nominal guest rate. The pixel clock remains 74.25 MHz. This experimental top
+forwards a second video PLL output at phase 8979 ps through a global buffer to
+HDMI; pixel state stays on phase zero and the receiver samples between updates.
+The default profile retains its common pixel/HDMI clock. Display dot and speaker
+sample generators use the board rate. The ordinary diagnostic producer selects
+the board50 pad constraints and explicit harmonic/FF-clear reference timing,
+with the cohort search budget fixed at zero. Timing failures remain fatal.
+A separately merged source/deassertion-validated FF reference confirms the
+unchanged model limits; physical reset qualification remains open. The
+[core guide](../cores/fes-pcxt/README.md#experimental-cpu100--board50-diagnostic)
+describes the regression and remaining physical gates. No accepted package or
+hardware status follows from this profile.
+
+The PC/XT HPS-I2C auditor binds the frozen route receipt to all four native
+enable/feedback identities and proves constant-low pad data without borrowing
+a fabric launch clock. The separate Quartus characterizer retains explicit OE
+buffers and complete four-corner 0/30 pF boundary observations. Unsupported
+native source waveforms remain unknown, and the reference's own routes grant
+no native fast-corner, hard-IP, board or hardware qualification. Both commands
+are host diagnostics described in the core guide.
+
+The separate `scripts/quartus_fes_pcxt.py` whole-board diagnostic elaborates
+the CPU100/board50 CGA Direct RTL with the PC/XT lock's Yosys, preserving large
+memories for Quartus 17.0.2 synthesis and fitting. It captures isolated sources,
+three declared seeds by default, all four operating conditions, clock-pair
+endpoint counts, setup/hold, recovery/removal, pulse widths and uncovered
+interfaces. Its initial SDC derives PLL clocks and uncertainty without timing
+exceptions or external budgets. A complete diagnostic capture can contain
+timing failures; it neither seals a package nor supplies physical acceptance.
+Its default-off `--video-mailbox-contract` mode additionally runs the captured
+ownership proof, verifies the declared chains and common reset assertion, and
+checks direct interstage paths at every corner. Its SDC false-paths only three
+asynchronous pairs: `received` to `ack_meta`, `sent` to `sent_meta`, and
+`machine_reset` to `hold_meta`. The held `published_bank` payload path to
+`front` remains timed with a one-pixel-period `set_max_delay`, matching the
+ownership proof's two-sample stability window. It adds no clock-group
+exception or physical acceptance.
 
 ### Machine partition and timing
 
@@ -3269,6 +3281,13 @@ complete rasters are 912×262 and 882×370; active regions are 640×200 (low-res
 pixels repeated) and 720×350. RGBI, DE, active-high HS/VS, SOF/EOL are sampled
 with each pixel enable, including blanking. Live palette/VRAM/register accesses
 change the running raster without BIOS interception or frame reconstruction.
+Each card captures its rendering inputs before colour selection. The complete
+pixel/DE/sync/SOF/EOL snapshot is emitted one system cycle later; cadence and
+pixel order are preserved. The MDA status nonzero predicate retains its original
+bus-visible cycle. A prepared memory-write/byte-select register keeps VRAM
+address/type decode off commit enables without adding a transaction cycle.
+Symbolic checks prove the retimed stream and status behavior for arbitrary
+inputs/reset, and the write eligibility at every possible endpoint commit.
 The card stream feeds `pcxt_video.sv`, a shell-owned adapter into the existing
 `fes.fabric.video.raster-rgb888` 1.0 interface. `pcxt_video_output.sv` selects the
 unchanged shared Direct or Scanlines part behind the existing two-register
@@ -3312,17 +3331,26 @@ I/O strobes and PIC/PIT/PPI chip selects are registered predictions of the
 existing state/phase decode, preserving every active/release cycle while
 removing that decode from the peripheral's same-cycle control path. Warm reset/HOLD
 preserve storage/refresh; HOLD resets the machine and mutes video.
-`make build-fes-pcxt CACHE_ROOT=/absolute/cache` retains each diagnostic
-synthesis/route attempt under `build/diagnostic/fes-pcxt/`; it exports no package.
-Its seed-1 route uses fixed timing weight 2000 and criticality exponent 5, with
-unchanged 100/74.25 MHz constraints. The producer preserves `gpu-run`'s ROCr
+`python3 scripts/build_fes_pcxt.py --cache-root /absolute/cache` retains each standalone
+diagnostic synthesis/route attempt under `build/diagnostic/fes-pcxt/`.
+`python3 scripts/core_dev.py prepare --core fes.pcxt --output out/pcxt-package`
+uses the registered Quartus producer to create an installable RBF and manifest
+under `build/packages/`. Export requires all declared timing seeds and the
+independent repeat to pass; missing or failing internal timing blocks it.
+The standalone nextpnr diagnostic's default seed-3 route uses fixed timing weight 2000 and criticality exponent 5,
+with unchanged 100/74.25 MHz constraints and the phase-shifted HDMI output.
+An explicit unsigned 64-bit `--seed` selects a reproducible diagnostic run; it
+does not start a seed search. The
+receipt binds that seed and all generated ROM/facts bytes. The producer preserves `gpu-run`'s ROCr
 lease mask while removing only an identical redundant HIP mask; route settings
 and visibility are recorded in the diagnostic receipt.
 The [board diagnostic guide](../cores/fes-pcxt/README.md#assembled-board-diagnostic)
 defines the firmware, clock/capture choices, profiles and test coverage.
 The existing Coleco/ST physical layouts are not admitted as PC/XT layouts.
-The new inline output changes neither linker/runtime policies nor the shared
-fabric definitions, and has no sealed RBF or hardware acceptance yet.
+The inline output changes neither linker/runtime policies nor the shared
+fabric definitions. The installable package remains diagnostic. Its dated
+acceptance record covers the named artifact's internal timing and hardware
+diagnostic, while whole-board physical qualification remains open.
 
 ### Emulated ISA expansion ports
 
@@ -3598,8 +3626,8 @@ Alternatively supply an already encoded format-3 manifest and `rom_map=path`.
 The CLI equivalents are `--rom-map`, `--rom-id`, and `--rom-role`. The map is
 snapshotted, validated, sealed read-only and compared during reuse alongside the
 manifest and RBF. Format-3 exporters are ZX81, SMS, SG-1000, Apple II, C64,
-Spectrum, Atari ST and the factory Coleco cartridge. ROM-less producers export
-format 2. The Coleco MegaCart development producer exports format 4.
+Spectrum and Atari ST. The factory Coleco and Coleco MegaCart development
+producers export format 4. ROM-less producers export format 2.
 
 Repository URI syntax uses the host-only vendored
 `rfc3986-validator` 0.1.1 module from

@@ -1,66 +1,81 @@
 {
-  "classification": "host-only combined HPS/local-display compile; design closure remains conditional",
+  "classification": "host-only combined HPS/local-display compile refreshed from the current PR source; constrained timing summaries pass, overall design closure remains failed, hardware acceptance not run",
   "execution": {
-    "cpu_workers_per_compile": 2,
-    "frozen_checkout": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-hps-display/out/work/de25-combined-ec3ab70b60",
+    "date": "2026-10-30",
     "gpu_jobs": false,
     "hardware_access": false,
     "idle": {
       "command": [
-        "python3",
-        "sources/misteross/boards/de25nano/combined/build.py",
+        "make",
+        "-C",
+        "sources/misteross/boards/de25nano/combined",
         "build",
-        "--mode",
-        "idle",
-        "--quartus-root",
-        "/data/altera_pro/26.3/quartus",
-        "--vendor-archive",
-        "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-linux-assessment/out/de25-linux-cache/DE25-Nano_revB_v.1.0.0_ResourcePackage.zip",
-        "--output",
-        "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-hps-display/out/de25-combined-idle-ec3ab70b60"
+        "MODE=idle",
+        "QUARTUS_ROOTDIR=/data/altera_pro/26.3/quartus",
+        "VENDOR_ARCHIVE=out/de25-combined-refresh/DE25-Nano_revB_v.1.0.0_ResourcePackage.zip",
+        "OUTPUT=out/de25-combined-refresh/idle"
       ],
-      "exec_session_id": 64358,
       "exit_code": 0,
-      "initiated_by": "FPGA agent",
-      "launcher_log": "/tmp/de25-combined-idle-build.log",
-      "launcher_log_sha256": "56d23ef5acf125eeb253e6270fa9f2a42a1d7287edf3e129c35e2bf78d59f8ed"
+      "output": "out/de25-combined-refresh/idle"
     },
     "menu": {
-      "exec_session_id": 77544,
-      "initiated_by": "parent agent",
-      "launcher_log": "/tmp/de25-combined-menu-build.log",
-      "launcher_log_sha256": "ee39bff740d75eb7f2fda41e3de708107ac36694cae90e7d1e308441e48260fc"
+      "command": [
+        "make",
+        "-C",
+        "sources/misteross/boards/de25nano/combined",
+        "build",
+        "MODE=menu-pattern",
+        "QUARTUS_ROOTDIR=/data/altera_pro/26.3/quartus",
+        "VENDOR_ARCHIVE=out/de25-combined-refresh/DE25-Nano_revB_v.1.0.0_ResourcePackage.zip",
+        "OUTPUT=out/de25-combined-refresh/menu-pattern"
+      ],
+      "exit_code": 0,
+      "output": "out/de25-combined-refresh/menu-pattern"
     },
-    "serialized_modes": [
+    "mode_order": [
       "menu-pattern",
       "idle"
-    ]
-  },
-  "extraction_script": {
-    "retained_path": "out/extract_combined.py",
-    "sha256": "a27507182eac82d3d2a05a2cf2db8b20e9257b2ee5cb12dd0b9afe6d140ed6d0"
+    ],
+    "quartus_sh": "/data/altera_pro/26.3/quartus/bin/quartus_sh",
+    "quartus_version": "Quartus Prime Pro 26.3.0 Build 114",
+    "quartus_worker_setting": "tool default; no explicit worker override",
+    "setup_script": "/data/altera_pro/26.3/qinit.sh",
+    "source_checkout": "current PR worktree; each build retains functional-source/ and snapshot.json",
+    "source_classification": "committed clean PR source snapshot",
+    "source_revision": "dd4dc6084abef010fa82c274e9d579d97e322a37",
+    "vendor_archive_sha256": "f79f0eff3b0f9d042fdb61ddcf43efec77b0ebc13248eea100b94e47a1189b66"
   },
   "focused_validation": {
+    "combined_preparation_tests": {
+      "command": "make -C sources/misteross/boards/de25nano/combined test",
+      "count": 7,
+      "result": "passed"
+    },
     "derived_video_modes": {
-      "log": "out/de25-combined-sim-01.log",
-      "log_sha256": "20b2b254cd040946cf54adc5e63b0d461f49db26e68cbe8bc28d4b71b59bd4e0",
+      "current_source_inputs_match": true,
       "modes": [
         "idle",
         "menu-pattern"
       ],
+      "previous_log_sha256": "20b2b254cd040946cf54adc5e63b0d461f49db26e68cbe8bc28d4b71b59bd4e0",
       "qualification": "real portable video/reset RTL; modeled PLL/configuration/I2C boundaries; exact compiled RTL equality checked per mode",
+      "result": "passed; current compiled video/reset RTL hashes match the passing earlier simulation"
+    },
+    "generated_interconnect_simulation": {
+      "cases_passed": 10,
+      "receipt": "out/de25-combined-refresh/interconnect/receipt.json",
+      "receipt_sha256": "f80ad447fb4b356fccd78c5a66eb1f8dc57d7e961d7fe957dbd14b2de13e006b",
+      "result": "passed",
+      "source_count": 114
+    },
+    "hps_preparation_tests": {
+      "command": "make -C sources/misteross/boards/de25nano/hps test",
+      "count": 21,
       "result": "passed"
     },
-    "initial_wrapper": {
-      "count": 7,
-      "log": "out/de25-combined-focused-01.log",
-      "log_sha256": "ca7d6feeda69dcd81056d0472d4717d58e5b0364b578e65b2d446f4add467118",
-      "result": "passed before new I2C guard test; final7 preparation tests recorded separately"
-    },
-    "preparation_tests": {
-      "count": 7,
-      "log": "out/de25-combined-preparation-03.log",
-      "log_sha256": "c54d7e7b58f53ce5b9e04b78c38b4f33fa15becdf5726a650c3c7a9ea8df123e",
+    "probe_rtl_simulation": {
+      "command": "make -C sources/misteross/boards/de25nano/hps sim-probe",
+      "groups_passed": 15,
       "result": "passed"
     }
   },
@@ -68,9 +83,10 @@
   "modes": [
     {
       "artifact": {
+        "bytes": 1591026,
         "matches_build_receipt": true,
-        "path": "hps/project/output_files/golden_top.sof",
-        "sha256": "eab5618183dacf4e154de7b92840344efc38d3527261762edd70f3790e8b3940"
+        "path": "project/output_files/golden_top.sof",
+        "sha256": "718ddcaeb8e95274c68f6e1c70a4c0ae3d0f84a24b68202969c8965f9373bc55"
       },
       "baseline_clock_comparison": {
         "added_clocks": [
@@ -211,24 +227,36 @@
       },
       "bindings": {
         "boot_handoff_sha256": "a17de6f2dbf5f4e93643b50b4c8291a33f930064f9a43bad3ece24e9c3dda04a",
-        "build_receipt_sha256": "6770b7177286ca11fa830abc9b2729f560790f81e940c257d08a6938bdf9f146",
+        "build_receipt_sha256": "83b044b3372bf1c1ce632507609eaa5741b949ddf3213cb115ef4fc17cf48309",
         "final_report_sha256": {
-          "golden_top.fit.rpt": "444fea5bfec0fad1c8f7c74340f5aa38ebc39e91040ef2468f4353690855c93b",
-          "golden_top.fit.summary": "c3460478b40564a1810d074c88bcf9749959d432d08314f79eefd17268d041a4",
-          "golden_top.pin": "9d0a0fa7a8dbd773bea3340d25a16ce9eb43fe1214e20d1ccce2cd470c8348c6",
-          "golden_top.sta.rpt": "9c5ddb9b79324f687ccb90ea9c28e1763dd59b03983a2b2a7e2b8aa9c70363b1",
-          "golden_top.sta.summary": "ce81efa5bad1f1a30839787ae0b0a6c67341011068c293618c3eb59e957e4a13",
-          "golden_top.syn.rpt": "5382447c3638cc37cb8be800490eebdb6a5ceb7fc11835968c3d97b030015d42",
-          "golden_top.tq.drc.signoff.rpt": "28cd51d70a1676f289db186ded4033604f3f63d124f4351d6eea3b8124ed5803"
+          "output_files/golden_top.asm.rpt": "3caa68745cdae73c474643cf0916d77ce2b87019c356dc5dcfdba13bfd2916a2",
+          "output_files/golden_top.drc.partitioned.rpt": "1475f3664d8f4f6322d54a3a667e851718d74dcf0f933bc50768b4ca6c5c169b",
+          "output_files/golden_top.drc.synthesized.rpt": "d6b26de55982a7a0f78da6c02f90ded256d799a19baec961a1b8daf523425429",
+          "output_files/golden_top.fit.finalize.rpt": "173fa58f51f2f56c94bc8a5fc0d02d1eeab9d25f8583d6d593122463b98f83a9",
+          "output_files/golden_top.fit.place.rpt": "293f18cde150572cd30377e7e549dfa1599f80e7ec0a71215e9a59eccbcb45cc",
+          "output_files/golden_top.fit.plan.rpt": "dfeed4a0ba07459e79108bb03433a46b3c7b5f49a95ff96567a4508665162a2b",
+          "output_files/golden_top.fit.retime.rpt": "426e95ab2c4107d70bc0acf99e07e69e4ccb6ea8ee4ff2fc305a9d0bb353984b",
+          "output_files/golden_top.fit.route.rpt": "f97beb56230e2a1a4d8d3e53b5a7718f49799b80ac750ee21ea596967814c111",
+          "output_files/golden_top.fit.rpt": "97cc1486221842fec1e267432947c5579cecfeb6382428ec65201c0928ffdbaf",
+          "output_files/golden_top.fit.summary": "ef81cb6f6296021973c470b31ba2624855eb8c51bde768cdd5c5c7afc6741109",
+          "output_files/golden_top.flow.rpt": "bd902be17e091d6fc8502ebd1075840e0b7a361018692972d7f058806a5f7697",
+          "output_files/golden_top.ipg.rpt": "4a38fb969e25155c7e4e1a9119cb8f68df75a803e79136ce2e7ec7ab03bb2873",
+          "output_files/golden_top.sdc_constraints.rpt": "2b67b487c41b1603b9c7d747bb83f9a3ffe28220bfe0373f871a3618fdfb0b59",
+          "output_files/golden_top.sta.rpt": "f38e318450ad4dca121f10f539dc5025605c59a8f64e6f3f9ef7d7e1d860bd11",
+          "output_files/golden_top.sta.summary": "d2fcc8fe7efa47617676dfd94d0979cee3fe7c28941b67e06bc537b16e73f19c",
+          "output_files/golden_top.syn.ae.rpt": "484310736ae90f4e81a84f897c77ffc0a0d59e46c5e44d2029a8e3149a901835",
+          "output_files/golden_top.syn.rpt": "4fce58822add41f5ae21eb3923b400159bc1a6de2dd768494b6c7e2b5b0142e1",
+          "output_files/golden_top.syn.summary": "3316fca889623a7f5e06468d6484a0c7e551cb9e2288f420f2f5083de62cf889",
+          "output_files/golden_top.tq.drc.signoff.rpt": "dc514e54655a12c862d5dcc4a6dd2eb19cebedc11b034c220bc40ba6686d96ee"
         },
-        "generation_sha256": "d2d9909f14082e4e6df0d1f89a0d9bb316bf60fde5de4b4c0499201c18b96e58",
+        "generation_sha256": "282fb276dfc8c732abf920a6d3492e8c0b9a41ff6461d4b90e16d79cea3534f9",
         "handoff_and_sdc_manifest_count": 363,
         "handoff_and_sdc_mismatches": [],
-        "inputs_sha256": "a6a3168e0d03f6457865b480a12b6d0b58e907bc09b102ac55ac160f36e89404",
+        "inputs_sha256": "51dc74d70eaa986f8a8c7a70b790b80b3ea672f63968ed63b946a1c2de096911",
         "report_manifest_count": 19,
         "report_mismatches": [],
-        "snapshot_sha256": "16fc80d3e9da78e8fba28ee4a1b6e396cd2583273ff7e67d564c64c09839d2b2",
-        "top_handoff_sha256": "37b093820f21fda019ebbc94686f24108a7daacaf1e2ee38da7218ba49ff1f2f"
+        "snapshot_sha256": "5f96a552322c694a7c92fd4e14e4b43630fb3f1ae25f51c26c8246f9822ecf2e",
+        "top_handoff_sha256": "c3587f6abda6fb3eafa3adeef61062f7e0431fdacfe3b68b3182149f810db2aa"
       },
       "boot_firmware_compatibility": "not-qualified",
       "boot_handoff_matches_baseline": false,
@@ -967,6 +995,225 @@
           "Setup": "4651"
         }
       ],
+      "ddr_fabric_simulation": {
+        "cases": [
+          {
+            "ar_stall_cycles": 1,
+            "avalon128_beats": 1,
+            "avalon_bursts": 1,
+            "avalon_error_beats": 0,
+            "axi256_beats": 1,
+            "axi_bursts": 1,
+            "axi_transactions": [
+              {
+                "address": 2147483648,
+                "beats": 1,
+                "bytes_per_beat": 16
+              }
+            ],
+            "case": "aligned-single",
+            "injected_axi_response": 0,
+            "r_stall_cycles": 0,
+            "status": "pass"
+          },
+          {
+            "ar_stall_cycles": 1,
+            "avalon128_beats": 1,
+            "avalon_bursts": 1,
+            "avalon_error_beats": 0,
+            "axi256_beats": 1,
+            "axi_bursts": 1,
+            "axi_transactions": [
+              {
+                "address": 2147483664,
+                "beats": 1,
+                "bytes_per_beat": 16
+              }
+            ],
+            "case": "upper-half-single",
+            "injected_axi_response": 0,
+            "r_stall_cycles": 0,
+            "status": "pass"
+          },
+          {
+            "ar_stall_cycles": 1,
+            "avalon128_beats": 3,
+            "avalon_bursts": 1,
+            "avalon_error_beats": 0,
+            "axi256_beats": 3,
+            "axi_bursts": 1,
+            "axi_transactions": [
+              {
+                "address": 2147483920,
+                "beats": 3,
+                "bytes_per_beat": 16
+              }
+            ],
+            "case": "upper-half-odd-three",
+            "injected_axi_response": 0,
+            "r_stall_cycles": 0,
+            "status": "pass"
+          },
+          {
+            "ar_stall_cycles": 1,
+            "avalon128_beats": 5,
+            "avalon_bursts": 1,
+            "avalon_error_beats": 0,
+            "axi256_beats": 5,
+            "axi_bursts": 1,
+            "axi_transactions": [
+              {
+                "address": 2147484160,
+                "beats": 5,
+                "bytes_per_beat": 16
+              }
+            ],
+            "case": "aligned-odd-five",
+            "injected_axi_response": 0,
+            "r_stall_cycles": 0,
+            "status": "pass"
+          },
+          {
+            "ar_stall_cycles": 1,
+            "avalon128_beats": 16,
+            "avalon_bursts": 1,
+            "avalon_error_beats": 0,
+            "axi256_beats": 16,
+            "axi_bursts": 1,
+            "axi_transactions": [
+              {
+                "address": 2147484432,
+                "beats": 16,
+                "bytes_per_beat": 16
+              }
+            ],
+            "case": "upper-half-sixteen",
+            "injected_axi_response": 0,
+            "r_stall_cycles": 0,
+            "status": "pass"
+          },
+          {
+            "ar_stall_cycles": 2,
+            "avalon128_beats": 17,
+            "avalon_bursts": 2,
+            "avalon_error_beats": 0,
+            "axi256_beats": 17,
+            "axi_bursts": 2,
+            "axi_transactions": [
+              {
+                "address": 2147484688,
+                "beats": 16,
+                "bytes_per_beat": 16
+              },
+              {
+                "address": 2147484944,
+                "beats": 1,
+                "bytes_per_beat": 16
+              }
+            ],
+            "case": "upper-half-seventeen",
+            "injected_axi_response": 0,
+            "r_stall_cycles": 0,
+            "status": "pass"
+          },
+          {
+            "ar_stall_cycles": 1,
+            "avalon128_beats": 3,
+            "avalon_bursts": 2,
+            "avalon_error_beats": 0,
+            "axi256_beats": 3,
+            "axi_bursts": 2,
+            "axi_transactions": [
+              {
+                "address": 2147487728,
+                "beats": 1,
+                "bytes_per_beat": 16
+              },
+              {
+                "address": 2147487744,
+                "beats": 2,
+                "bytes_per_beat": 16
+              }
+            ],
+            "case": "4k-upper-half-tail",
+            "injected_axi_response": 0,
+            "r_stall_cycles": 0,
+            "status": "pass"
+          },
+          {
+            "ar_stall_cycles": 2,
+            "avalon128_beats": 19,
+            "avalon_bursts": 2,
+            "avalon_error_beats": 0,
+            "axi256_beats": 19,
+            "axi_bursts": 2,
+            "axi_transactions": [
+              {
+                "address": 2147487696,
+                "beats": 3,
+                "bytes_per_beat": 16
+              },
+              {
+                "address": 2147487744,
+                "beats": 16,
+                "bytes_per_beat": 16
+              }
+            ],
+            "case": "4k-head-tail-nineteen",
+            "injected_axi_response": 0,
+            "r_stall_cycles": 0,
+            "status": "pass"
+          },
+          {
+            "ar_stall_cycles": 1,
+            "avalon128_beats": 3,
+            "avalon_bursts": 1,
+            "avalon_error_beats": 1,
+            "axi256_beats": 3,
+            "axi_bursts": 1,
+            "axi_transactions": [
+              {
+                "address": 2147484176,
+                "beats": 3,
+                "bytes_per_beat": 16
+              }
+            ],
+            "case": "slverr-upper-half",
+            "injected_axi_response": 2,
+            "r_stall_cycles": 0,
+            "status": "pass"
+          },
+          {
+            "ar_stall_cycles": 1,
+            "avalon128_beats": 3,
+            "avalon_bursts": 1,
+            "avalon_error_beats": 1,
+            "axi256_beats": 3,
+            "axi_bursts": 1,
+            "axi_transactions": [
+              {
+                "address": 2147484160,
+                "beats": 3,
+                "bytes_per_beat": 16
+              }
+            ],
+            "case": "decerr-aligned",
+            "injected_axi_response": 3,
+            "r_stall_cycles": 0,
+            "status": "pass"
+          }
+        ],
+        "probe_source_sha256": "4afe3497bca4bb991e855d1c40bd7e8e1d97ea9b943d40083f44eddede7c2d52",
+        "project_source_matches": [
+          "menu-pattern",
+          "idle"
+        ],
+        "qualification": "fresh 10-case Verilator simulation of current probe plus generated Avalon128-to-AXI256 interconnect; HPS, SMMU, firewall and physical DDR not modeled",
+        "receipt": "out/de25-combined-refresh/interconnect/receipt.json",
+        "receipt_sha256": "f80ad447fb4b356fccd78c5a66eb1f8dc57d7e961d7fe957dbd14b2de13e006b",
+        "source_count": 114,
+        "source_mismatches": []
+      },
       "ddr_scanout": false,
       "design_assistant": {
         "failed": [
@@ -1213,8 +1460,8 @@
         "Device": "A5EB013BB23BE4SCS",
         "Device Status": "Final",
         "Family": "Agilex 5",
-        "Fitter Status": "Successful - Wed Oct 28 18:52:00 2026",
-        "Logic utilization (in ALMs)": "11,369 / 46,800 ( 24 % )",
+        "Fitter Status": "Successful - Fri Oct 30 09:08:26 2026",
+        "Logic utilization (in ALMs)": "11,391 / 46,800 ( 24 % )",
         "Power Models": "Final",
         "Quartus Prime Version": "26.3.0 Build 114 10/14/2026 SC Pro Edition",
         "Revision Name": "golden_top",
@@ -1225,7 +1472,7 @@
         "Total PLLs": "3 / 11 ( 27 % )",
         "Total RAM Blocks": "134 / 358 ( 37 % )",
         "Total block memory bits": "2,123,264 / 7,331,840 ( 29 % )",
-        "Total dedicated logic registers": "22291",
+        "Total dedicated logic registers": "22231",
         "Total pins": "284 / 351 ( 81 % )"
       },
       "fitted_display_pins": {
@@ -1547,7 +1794,7 @@
         "mailbox_instance": "subsys_periph.fes_mailbox",
         "peripheral_offset": 65696,
         "physical_mailbox_address": "not-established",
-        "sha256": "37b093820f21fda019ebbc94686f24108a7daacaf1e2ee38da7218ba49ff1f2f",
+        "sha256": "c3587f6abda6fb3eafa3adeef61062f7e0431fdacfe3b68b3182149f810db2aa",
         "top_system_handoff": "qsys_top/qsys_top.sopcinfo"
       },
       "hardware_acceptance": "not-run",
@@ -1574,7 +1821,7 @@
       },
       "mode": "menu-pattern",
       "original_hps_emif_parameter_changes": {},
-      "output": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-hps-display/out/de25-combined-menu-ec3ab70b60",
+      "output": "out/de25-combined-refresh/menu-pattern",
       "post_compile_original_hps_emif_parameter_changes": {},
       "post_compile_vendor_boot_source_mismatches": [],
       "preserved_local_reset_registers": [
@@ -1615,226 +1862,12 @@
           "Register Name": "fes_top_reset_inst|sync_regs[0]"
         }
       ],
-      "producer_revision": "ec3ab70b608eb53a0b845d4462941f8a832af451",
+      "producer_revision": "dd4dc6084abef010fa82c274e9d579d97e322a37",
       "reset_constraint_messages": [
         "DE25 asynchronous human-visible LED output ports: 4 (expected 4)",
         "DE25 display reset ingress pins: 4 (expected 4)",
         "DE25 top reset asynchronous clear pins: 2 (expected 2); D and release fanout remain timed"
       ],
-      "reused_ddr_fabric_simulation": {
-        "cases": [
-          {
-            "ar_stall_cycles": 1,
-            "avalon128_beats": 1,
-            "avalon_bursts": 1,
-            "avalon_error_beats": 0,
-            "axi256_beats": 1,
-            "axi_bursts": 1,
-            "axi_transactions": [
-              {
-                "address": 2147483648,
-                "beats": 1,
-                "bytes_per_beat": 16
-              }
-            ],
-            "case": "aligned-single",
-            "injected_axi_response": 0,
-            "r_stall_cycles": 0,
-            "status": "pass"
-          },
-          {
-            "ar_stall_cycles": 1,
-            "avalon128_beats": 1,
-            "avalon_bursts": 1,
-            "avalon_error_beats": 0,
-            "axi256_beats": 1,
-            "axi_bursts": 1,
-            "axi_transactions": [
-              {
-                "address": 2147483664,
-                "beats": 1,
-                "bytes_per_beat": 16
-              }
-            ],
-            "case": "upper-half-single",
-            "injected_axi_response": 0,
-            "r_stall_cycles": 0,
-            "status": "pass"
-          },
-          {
-            "ar_stall_cycles": 1,
-            "avalon128_beats": 3,
-            "avalon_bursts": 1,
-            "avalon_error_beats": 0,
-            "axi256_beats": 3,
-            "axi_bursts": 1,
-            "axi_transactions": [
-              {
-                "address": 2147483920,
-                "beats": 3,
-                "bytes_per_beat": 16
-              }
-            ],
-            "case": "upper-half-odd-three",
-            "injected_axi_response": 0,
-            "r_stall_cycles": 0,
-            "status": "pass"
-          },
-          {
-            "ar_stall_cycles": 1,
-            "avalon128_beats": 5,
-            "avalon_bursts": 1,
-            "avalon_error_beats": 0,
-            "axi256_beats": 5,
-            "axi_bursts": 1,
-            "axi_transactions": [
-              {
-                "address": 2147484160,
-                "beats": 5,
-                "bytes_per_beat": 16
-              }
-            ],
-            "case": "aligned-odd-five",
-            "injected_axi_response": 0,
-            "r_stall_cycles": 0,
-            "status": "pass"
-          },
-          {
-            "ar_stall_cycles": 1,
-            "avalon128_beats": 16,
-            "avalon_bursts": 1,
-            "avalon_error_beats": 0,
-            "axi256_beats": 16,
-            "axi_bursts": 1,
-            "axi_transactions": [
-              {
-                "address": 2147484432,
-                "beats": 16,
-                "bytes_per_beat": 16
-              }
-            ],
-            "case": "upper-half-sixteen",
-            "injected_axi_response": 0,
-            "r_stall_cycles": 0,
-            "status": "pass"
-          },
-          {
-            "ar_stall_cycles": 2,
-            "avalon128_beats": 17,
-            "avalon_bursts": 2,
-            "avalon_error_beats": 0,
-            "axi256_beats": 17,
-            "axi_bursts": 2,
-            "axi_transactions": [
-              {
-                "address": 2147484688,
-                "beats": 16,
-                "bytes_per_beat": 16
-              },
-              {
-                "address": 2147484944,
-                "beats": 1,
-                "bytes_per_beat": 16
-              }
-            ],
-            "case": "upper-half-seventeen",
-            "injected_axi_response": 0,
-            "r_stall_cycles": 0,
-            "status": "pass"
-          },
-          {
-            "ar_stall_cycles": 1,
-            "avalon128_beats": 3,
-            "avalon_bursts": 2,
-            "avalon_error_beats": 0,
-            "axi256_beats": 3,
-            "axi_bursts": 2,
-            "axi_transactions": [
-              {
-                "address": 2147487728,
-                "beats": 1,
-                "bytes_per_beat": 16
-              },
-              {
-                "address": 2147487744,
-                "beats": 2,
-                "bytes_per_beat": 16
-              }
-            ],
-            "case": "4k-upper-half-tail",
-            "injected_axi_response": 0,
-            "r_stall_cycles": 0,
-            "status": "pass"
-          },
-          {
-            "ar_stall_cycles": 2,
-            "avalon128_beats": 19,
-            "avalon_bursts": 2,
-            "avalon_error_beats": 0,
-            "axi256_beats": 19,
-            "axi_bursts": 2,
-            "axi_transactions": [
-              {
-                "address": 2147487696,
-                "beats": 3,
-                "bytes_per_beat": 16
-              },
-              {
-                "address": 2147487744,
-                "beats": 16,
-                "bytes_per_beat": 16
-              }
-            ],
-            "case": "4k-head-tail-nineteen",
-            "injected_axi_response": 0,
-            "r_stall_cycles": 0,
-            "status": "pass"
-          },
-          {
-            "ar_stall_cycles": 1,
-            "avalon128_beats": 3,
-            "avalon_bursts": 1,
-            "avalon_error_beats": 1,
-            "axi256_beats": 3,
-            "axi_bursts": 1,
-            "axi_transactions": [
-              {
-                "address": 2147484176,
-                "beats": 3,
-                "bytes_per_beat": 16
-              }
-            ],
-            "case": "slverr-upper-half",
-            "injected_axi_response": 2,
-            "r_stall_cycles": 0,
-            "status": "pass"
-          },
-          {
-            "ar_stall_cycles": 1,
-            "avalon128_beats": 3,
-            "avalon_bursts": 1,
-            "avalon_error_beats": 1,
-            "axi256_beats": 3,
-            "axi_bursts": 1,
-            "axi_transactions": [
-              {
-                "address": 2147484160,
-                "beats": 3,
-                "bytes_per_beat": 16
-              }
-            ],
-            "case": "decerr-aligned",
-            "injected_axi_response": 3,
-            "r_stall_cycles": 0,
-            "status": "pass"
-          }
-        ],
-        "qualification": "prior actual-generated-fabric simulation; exact114-source equality checked after this full compile, no hardware/DMA admission",
-        "receipt": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-hps-interface/out/de25-ddr-interconnect-8f54e4f89e-03/receipt.json",
-        "receipt_sha256": "e27005a6faa4f0fd013c51dbab5e96066b2ff0adfd63fd20987d681db1556b2b",
-        "source_count": 114,
-        "source_mismatches": []
-      },
       "reused_video_simulation": {
         "bench_sha256": "a279823936f4ca64f24d7d3d7e3c194b94578a449200146558e692c652b70ecd",
         "boundary_models_sha256": "9d6b6251938e80c8398294d711898d73d53c8ea22400f7e63f34ee3c30704566",
@@ -1859,26 +1892,63 @@
       "sta": {
         "all_slack_nonnegative": true,
         "all_tns_zero": true,
+        "fmax_per_clock": [
+          {
+            "clock": "altera_reserved_tck",
+            "fmax": "20.12 MHz",
+            "note": "",
+            "restricted_fmax": "20.12 MHz",
+            "worst_case_operating_conditions": "Slow fix4 100C Model"
+          },
+          {
+            "clock": "pll_inst|iopll_0_outclk0",
+            "fmax": "142.05 MHz",
+            "note": "",
+            "restricted_fmax": "142.05 MHz",
+            "worst_case_operating_conditions": "Slow fix4 0C Model"
+          },
+          {
+            "clock": "fes_video_inst|video_clock|iopll_0_outclk0",
+            "fmax": "275.25 MHz",
+            "note": "",
+            "restricted_fmax": "275.25 MHz",
+            "worst_case_operating_conditions": "Slow fix4 0C Model"
+          },
+          {
+            "clock": "adv7513_config",
+            "fmax": "313.77 MHz",
+            "note": "",
+            "restricted_fmax": "313.77 MHz",
+            "worst_case_operating_conditions": "Slow fix4 0C Model"
+          },
+          {
+            "clock": "fes_video_inst|video_clock|iopll_0_refclk",
+            "fmax": "605.69 MHz",
+            "note": "",
+            "restricted_fmax": "605.69 MHz",
+            "worst_case_operating_conditions": "Slow fix4a 0C Model"
+          }
+        ],
         "minima_ns": {
           "Hold": 0.0,
           "Minimum Pulse Width": 0.22,
-          "Recovery": 7.057,
-          "Removal": 0.031,
-          "Setup": 3.129
+          "Recovery": 7.616,
+          "Removal": 0.01,
+          "Setup": 2.96
         },
         "row_count": 38,
         "rows": [
           {
             "clock": "pll_inst|iopll_0_outclk0",
             "corner": "Slow fix4 0C Model",
-            "slack_ns": 3.129,
+            "slack_ns": 2.96,
             "tns_ns": 0.0,
             "type": "Setup"
           },
           {
             "clock": "fes_video_inst|video_clock|iopll_0_outclk0",
             "corner": "Slow fix4 0C Model",
-            "slack_ns": 9.858,
+            "slack_ns": 9.835,
             "tns_ns": 0.0,
             "type": "Setup"
           },
@@ -1892,42 +1962,42 @@
           {
             "clock": "adv7513_config",
             "corner": "Slow fix4 0C Model",
-            "slack_ns": 16.686,
+            "slack_ns": 16.775,
             "tns_ns": 0.0,
             "type": "Setup"
           },
           {
             "clock": "fes_video_inst|video_clock|iopll_0_refclk",
-            "corner": "Slow fix4 0C Model",
-            "slack_ns": 18.329,
+            "corner": "Slow fix4a 0C Model",
+            "slack_ns": 18.349,
             "tns_ns": 0.0,
             "type": "Setup"
           },
           {
             "clock": "pll_inst|iopll_0_outclk0",
-            "corner": "Fast fix4 0C Model",
+            "corner": "Slow fix4a 0C Model",
             "slack_ns": 0.0,
-            "tns_ns": 0.0,
-            "type": "Hold"
-          },
-          {
-            "clock": "fes_video_inst|video_clock|iopll_0_outclk0",
-            "corner": "Fast fix4 0C Model",
-            "slack_ns": 0.094,
             "tns_ns": 0.0,
             "type": "Hold"
           },
           {
             "clock": "altera_reserved_tck",
             "corner": "Fast fix4 0C Model",
-            "slack_ns": 0.097,
+            "slack_ns": 0.07,
+            "tns_ns": 0.0,
+            "type": "Hold"
+          },
+          {
+            "clock": "fes_video_inst|video_clock|iopll_0_outclk0",
+            "corner": "Fast fix4 0C Model",
+            "slack_ns": 0.095,
             "tns_ns": 0.0,
             "type": "Hold"
           },
           {
             "clock": "adv7513_config",
             "corner": "Fast fix4 0C Model",
-            "slack_ns": 0.104,
+            "slack_ns": 0.103,
             "tns_ns": 0.0,
             "type": "Hold"
           },
@@ -1948,56 +2018,56 @@
           {
             "clock": "pll_inst|iopll_0_outclk0",
             "corner": "Slow fix4 0C Model",
-            "slack_ns": 7.057,
+            "slack_ns": 7.616,
             "tns_ns": 0.0,
             "type": "Recovery"
           },
           {
             "clock": "fes_video_inst|video_clock|iopll_0_refclk",
             "corner": "Slow fix4 0C Model",
-            "slack_ns": 18.097,
+            "slack_ns": 17.041,
             "tns_ns": 0.0,
             "type": "Recovery"
           },
           {
             "clock": "adv7513_config",
             "corner": "Slow fix4 0C Model",
-            "slack_ns": 18.323,
+            "slack_ns": 18.457,
             "tns_ns": 0.0,
             "type": "Recovery"
           },
           {
             "clock": "altera_reserved_tck",
             "corner": "Slow fix4 0C Model",
-            "slack_ns": 61.056,
+            "slack_ns": 61.06,
             "tns_ns": 0.0,
             "type": "Recovery"
           },
           {
             "clock": "adv7513_config",
             "corner": "Fast fix4 0C Model",
-            "slack_ns": 0.031,
+            "slack_ns": 0.01,
             "tns_ns": 0.0,
             "type": "Removal"
           },
           {
             "clock": "pll_inst|iopll_0_outclk0",
             "corner": "Fast fix4 0C Model",
-            "slack_ns": 0.159,
+            "slack_ns": 0.157,
             "tns_ns": 0.0,
             "type": "Removal"
           },
           {
             "clock": "altera_reserved_tck",
             "corner": "Fast fix4 0C Model",
-            "slack_ns": 0.167,
+            "slack_ns": 0.187,
             "tns_ns": 0.0,
             "type": "Removal"
           },
           {
             "clock": "fes_video_inst|video_clock|iopll_0_refclk",
             "corner": "Fast fix4 0C Model",
-            "slack_ns": 0.639,
+            "slack_ns": 1.142,
             "tns_ns": 0.0,
             "type": "Removal"
           },
@@ -2130,7 +2200,7 @@
           {
             "clock": "adv7513_config",
             "corner": "Slow fix4 0C Model",
-            "slack_ns": 50018.636,
+            "slack_ns": 50018.803,
             "tns_ns": 0.0,
             "type": "Minimum Pulse Width"
           }
@@ -2307,9 +2377,10 @@
     },
     {
       "artifact": {
+        "bytes": 1575244,
         "matches_build_receipt": true,
-        "path": "hps/project/output_files/golden_top.sof",
-        "sha256": "f479941844f2d9eb5db36a42dbf0a96d07e2f8c9e565b2fba818d579ed26db86"
+        "path": "project/output_files/golden_top.sof",
+        "sha256": "193878325983065d46f93b4cf838627b01307a595a09419de1c4c5bf501d93a2"
       },
       "baseline_clock_comparison": {
         "added_clocks": [
@@ -2450,24 +2521,36 @@
       },
       "bindings": {
         "boot_handoff_sha256": "d2a479eefd310505d9426efaf3bf81b1b2e95cc75e1ff3e5f1626fda3e43f81b",
-        "build_receipt_sha256": "88ba9a9cf35735043d28a238126b8a208710d32655452f0c2079e73bece8ef69",
+        "build_receipt_sha256": "81fa9586eb07372118e8f9c0f9af72c154da68cdc2882c89f8076fd844559017",
         "final_report_sha256": {
-          "golden_top.fit.rpt": "57dd690be89c556597d3f6ae3ecd9ebf0528004e8679629e08d429c45d97a064",
-          "golden_top.fit.summary": "df767c8ca03d06ea44bb114964107d90e137288b43a3647e1842fc5501ee3bcc",
-          "golden_top.pin": "9d0a0fa7a8dbd773bea3340d25a16ce9eb43fe1214e20d1ccce2cd470c8348c6",
-          "golden_top.sta.rpt": "088a83bbc7fba281d515bcc1ba5cad76d43b57231eb0f6086c7869d5598da0bc",
-          "golden_top.sta.summary": "b3301874422f7a6a414fdf0a59d484ccbbefbd2074f270ca92d075344e9208d1",
-          "golden_top.syn.rpt": "fc214af9344eb22f4d6281e51133221931641ff4366e267b0aa80ebd4588b67a",
-          "golden_top.tq.drc.signoff.rpt": "1acb5420941a464e70309fbd8132d6a11e35d29a0726d1dab8a247d3c68046dd"
+          "output_files/golden_top.asm.rpt": "8e708f9ccbe697a206fb4fee7c20d72542589c856ebd82a80a684727be7b0d8f",
+          "output_files/golden_top.drc.partitioned.rpt": "bf590fccf29a92699bd741a5e59a248362ff4d3258a6abf1da3cf9a204dd2166",
+          "output_files/golden_top.drc.synthesized.rpt": "c108a149be16d02f174650e30416e07c725e80db2301a632a1ceadb1c617611e",
+          "output_files/golden_top.fit.finalize.rpt": "4c0d2a266903c790f679c0cb2b0b69856e98024e25786049f4ad216d367b9d08",
+          "output_files/golden_top.fit.place.rpt": "0884f38d8288056f74e9a2d390d9dd575c1312b9b4eb5987ade318b8db4ab60f",
+          "output_files/golden_top.fit.plan.rpt": "5d70d100c4e44203f1b65d30e311e421473b8aeabcbe66217cf988f49f8fd7bd",
+          "output_files/golden_top.fit.retime.rpt": "7267b56a06017cb1c910d4f9c7f8f57bdf8954617dd7fd3dd7682cdb9a97b4dd",
+          "output_files/golden_top.fit.route.rpt": "965d5b67ba03cadb68ec7e0adaae0acab8469faa51ee40b22d9cbb20322ec5a4",
+          "output_files/golden_top.fit.rpt": "1d2e71b340fe97f2ad4678c9639594154e97f1f6ecd033b9e324bc2358981982",
+          "output_files/golden_top.fit.summary": "3b48fc7f50b04aade1c7d9479485cee1030f7cb291189fc30238fd96201fed10",
+          "output_files/golden_top.flow.rpt": "5eff0f2e09260593a5d1df5ac5d1b7a28476dcea269d310489819bc0cbe8b948",
+          "output_files/golden_top.ipg.rpt": "11dec22e6bac3ce09f2e30d9c53f2f5556b5fba26b1b9a9b20fcbb6bb9c438f3",
+          "output_files/golden_top.sdc_constraints.rpt": "c027112c9805bfce5abdaf08dc753e377681425871873ae436732310dc1e8389",
+          "output_files/golden_top.sta.rpt": "9f35c97436bb5820f2175b869b76d1e56cfd9c1060b1dfe9bacd22e4a8502090",
+          "output_files/golden_top.sta.summary": "44b1322217f7ceef50395f2da111aab1ee534a0fbaf65f20bb64342023f14baf",
+          "output_files/golden_top.syn.ae.rpt": "8e98d7e350531fc775d01ee2f0b8250cd826163b472a7d6981eeff05cb8f10e1",
+          "output_files/golden_top.syn.rpt": "98048bf992e6c94743b00aa6c4a2ab416673d7b18294b324ed9a4ada9e13c18f",
+          "output_files/golden_top.syn.summary": "67929033c0166b468e253835db3653abe4ecd7bf43b171457f460eb1c1f3548f",
+          "output_files/golden_top.tq.drc.signoff.rpt": "12256c818a55c57502c6c82f25f64616c99369d393eaa43ba142945c0dd8cb71"
         },
-        "generation_sha256": "3b10af749b23edc7da3e95f0d79e548a2da7b0c5a2f3de6903d94cc6977084ef",
+        "generation_sha256": "2e28df9c242b0dd3d3dabe161f0b2495b956483c932cd5cd15e77b6dbe434ad4",
         "handoff_and_sdc_manifest_count": 363,
         "handoff_and_sdc_mismatches": [],
-        "inputs_sha256": "ac6ca5864904b2868e47032a697da27968effe8ff86e60f0e7be62ebb6c107b1",
+        "inputs_sha256": "2b5ee296f08efb4812959b143f926386e6aa13119db41cbb374e25f41d545da8",
         "report_manifest_count": 19,
         "report_mismatches": [],
-        "snapshot_sha256": "16fc80d3e9da78e8fba28ee4a1b6e396cd2583273ff7e67d564c64c09839d2b2",
-        "top_handoff_sha256": "360d5f4c95c9723011c32ca4fa96dfe5c47f42540517eca56270edbd093d159e"
+        "snapshot_sha256": "5f96a552322c694a7c92fd4e14e4b43630fb3f1ae25f51c26c8246f9822ecf2e",
+        "top_handoff_sha256": "842e4c78d354bdcbeb5702a3eef607244a243d10facb387462e8e3dd62b13ef4"
       },
       "boot_firmware_compatibility": "not-qualified",
       "boot_handoff_matches_baseline": true,
@@ -3206,6 +3289,225 @@
           "Setup": "921"
         }
       ],
+      "ddr_fabric_simulation": {
+        "cases": [
+          {
+            "ar_stall_cycles": 1,
+            "avalon128_beats": 1,
+            "avalon_bursts": 1,
+            "avalon_error_beats": 0,
+            "axi256_beats": 1,
+            "axi_bursts": 1,
+            "axi_transactions": [
+              {
+                "address": 2147483648,
+                "beats": 1,
+                "bytes_per_beat": 16
+              }
+            ],
+            "case": "aligned-single",
+            "injected_axi_response": 0,
+            "r_stall_cycles": 0,
+            "status": "pass"
+          },
+          {
+            "ar_stall_cycles": 1,
+            "avalon128_beats": 1,
+            "avalon_bursts": 1,
+            "avalon_error_beats": 0,
+            "axi256_beats": 1,
+            "axi_bursts": 1,
+            "axi_transactions": [
+              {
+                "address": 2147483664,
+                "beats": 1,
+                "bytes_per_beat": 16
+              }
+            ],
+            "case": "upper-half-single",
+            "injected_axi_response": 0,
+            "r_stall_cycles": 0,
+            "status": "pass"
+          },
+          {
+            "ar_stall_cycles": 1,
+            "avalon128_beats": 3,
+            "avalon_bursts": 1,
+            "avalon_error_beats": 0,
+            "axi256_beats": 3,
+            "axi_bursts": 1,
+            "axi_transactions": [
+              {
+                "address": 2147483920,
+                "beats": 3,
+                "bytes_per_beat": 16
+              }
+            ],
+            "case": "upper-half-odd-three",
+            "injected_axi_response": 0,
+            "r_stall_cycles": 0,
+            "status": "pass"
+          },
+          {
+            "ar_stall_cycles": 1,
+            "avalon128_beats": 5,
+            "avalon_bursts": 1,
+            "avalon_error_beats": 0,
+            "axi256_beats": 5,
+            "axi_bursts": 1,
+            "axi_transactions": [
+              {
+                "address": 2147484160,
+                "beats": 5,
+                "bytes_per_beat": 16
+              }
+            ],
+            "case": "aligned-odd-five",
+            "injected_axi_response": 0,
+            "r_stall_cycles": 0,
+            "status": "pass"
+          },
+          {
+            "ar_stall_cycles": 1,
+            "avalon128_beats": 16,
+            "avalon_bursts": 1,
+            "avalon_error_beats": 0,
+            "axi256_beats": 16,
+            "axi_bursts": 1,
+            "axi_transactions": [
+              {
+                "address": 2147484432,
+                "beats": 16,
+                "bytes_per_beat": 16
+              }
+            ],
+            "case": "upper-half-sixteen",
+            "injected_axi_response": 0,
+            "r_stall_cycles": 0,
+            "status": "pass"
+          },
+          {
+            "ar_stall_cycles": 2,
+            "avalon128_beats": 17,
+            "avalon_bursts": 2,
+            "avalon_error_beats": 0,
+            "axi256_beats": 17,
+            "axi_bursts": 2,
+            "axi_transactions": [
+              {
+                "address": 2147484688,
+                "beats": 16,
+                "bytes_per_beat": 16
+              },
+              {
+                "address": 2147484944,
+                "beats": 1,
+                "bytes_per_beat": 16
+              }
+            ],
+            "case": "upper-half-seventeen",
+            "injected_axi_response": 0,
+            "r_stall_cycles": 0,
+            "status": "pass"
+          },
+          {
+            "ar_stall_cycles": 1,
+            "avalon128_beats": 3,
+            "avalon_bursts": 2,
+            "avalon_error_beats": 0,
+            "axi256_beats": 3,
+            "axi_bursts": 2,
+            "axi_transactions": [
+              {
+                "address": 2147487728,
+                "beats": 1,
+                "bytes_per_beat": 16
+              },
+              {
+                "address": 2147487744,
+                "beats": 2,
+                "bytes_per_beat": 16
+              }
+            ],
+            "case": "4k-upper-half-tail",
+            "injected_axi_response": 0,
+            "r_stall_cycles": 0,
+            "status": "pass"
+          },
+          {
+            "ar_stall_cycles": 2,
+            "avalon128_beats": 19,
+            "avalon_bursts": 2,
+            "avalon_error_beats": 0,
+            "axi256_beats": 19,
+            "axi_bursts": 2,
+            "axi_transactions": [
+              {
+                "address": 2147487696,
+                "beats": 3,
+                "bytes_per_beat": 16
+              },
+              {
+                "address": 2147487744,
+                "beats": 16,
+                "bytes_per_beat": 16
+              }
+            ],
+            "case": "4k-head-tail-nineteen",
+            "injected_axi_response": 0,
+            "r_stall_cycles": 0,
+            "status": "pass"
+          },
+          {
+            "ar_stall_cycles": 1,
+            "avalon128_beats": 3,
+            "avalon_bursts": 1,
+            "avalon_error_beats": 1,
+            "axi256_beats": 3,
+            "axi_bursts": 1,
+            "axi_transactions": [
+              {
+                "address": 2147484176,
+                "beats": 3,
+                "bytes_per_beat": 16
+              }
+            ],
+            "case": "slverr-upper-half",
+            "injected_axi_response": 2,
+            "r_stall_cycles": 0,
+            "status": "pass"
+          },
+          {
+            "ar_stall_cycles": 1,
+            "avalon128_beats": 3,
+            "avalon_bursts": 1,
+            "avalon_error_beats": 1,
+            "axi256_beats": 3,
+            "axi_bursts": 1,
+            "axi_transactions": [
+              {
+                "address": 2147484160,
+                "beats": 3,
+                "bytes_per_beat": 16
+              }
+            ],
+            "case": "decerr-aligned",
+            "injected_axi_response": 3,
+            "r_stall_cycles": 0,
+            "status": "pass"
+          }
+        ],
+        "probe_source_sha256": "4afe3497bca4bb991e855d1c40bd7e8e1d97ea9b943d40083f44eddede7c2d52",
+        "project_source_matches": [
+          "menu-pattern",
+          "idle"
+        ],
+        "qualification": "fresh 10-case Verilator simulation of current probe plus generated Avalon128-to-AXI256 interconnect; HPS, SMMU, firewall and physical DDR not modeled",
+        "receipt": "out/de25-combined-refresh/interconnect/receipt.json",
+        "receipt_sha256": "f80ad447fb4b356fccd78c5a66eb1f8dc57d7e961d7fe957dbd14b2de13e006b",
+        "source_count": 114,
+        "source_mismatches": []
+      },
       "ddr_scanout": false,
       "design_assistant": {
         "failed": [
@@ -3452,8 +3754,8 @@
         "Device": "A5EB013BB23BE4SCS",
         "Device Status": "Final",
         "Family": "Agilex 5",
-        "Fitter Status": "Successful - Wed Oct 28 19:00:35 2026",
-        "Logic utilization (in ALMs)": "11,152 / 46,800 ( 24 % )",
+        "Fitter Status": "Successful - Fri Oct 30 09:15:50 2026",
+        "Logic utilization (in ALMs)": "11,213 / 46,800 ( 24 % )",
         "Power Models": "Final",
         "Quartus Prime Version": "26.3.0 Build 114 10/14/2026 SC Pro Edition",
         "Revision Name": "golden_top",
@@ -3464,7 +3766,7 @@
         "Total PLLs": "3 / 11 ( 27 % )",
         "Total RAM Blocks": "131 / 358 ( 37 % )",
         "Total block memory bits": "2,098,688 / 7,331,840 ( 29 % )",
-        "Total dedicated logic registers": "21832",
+        "Total dedicated logic registers": "21812",
         "Total pins": "284 / 351 ( 81 % )"
       },
       "fitted_display_pins": {
@@ -3781,7 +4083,7 @@
         "mailbox_instance": "subsys_periph.fes_mailbox",
         "peripheral_offset": 65696,
         "physical_mailbox_address": "not-established",
-        "sha256": "360d5f4c95c9723011c32ca4fa96dfe5c47f42540517eca56270edbd093d159e",
+        "sha256": "842e4c78d354bdcbeb5702a3eef607244a243d10facb387462e8e3dd62b13ef4",
         "top_system_handoff": "qsys_top/qsys_top.sopcinfo"
       },
       "hardware_acceptance": "not-run",
@@ -3808,7 +4110,7 @@
       },
       "mode": "idle",
       "original_hps_emif_parameter_changes": {},
-      "output": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-hps-display/out/de25-combined-idle-ec3ab70b60",
+      "output": "out/de25-combined-refresh/idle",
       "post_compile_original_hps_emif_parameter_changes": {},
       "post_compile_vendor_boot_source_mismatches": [],
       "preserved_local_reset_registers": [
@@ -3849,226 +4151,12 @@
           "Register Name": "fes_video_inst|config_reset|sync_regs[0]"
         }
       ],
-      "producer_revision": "ec3ab70b608eb53a0b845d4462941f8a832af451",
+      "producer_revision": "dd4dc6084abef010fa82c274e9d579d97e322a37",
       "reset_constraint_messages": [
         "DE25 asynchronous human-visible LED output ports: 4 (expected 4)",
         "DE25 display reset ingress pins: 4 (expected 4)",
         "DE25 top reset asynchronous clear pins: 2 (expected 2); D and release fanout remain timed"
       ],
-      "reused_ddr_fabric_simulation": {
-        "cases": [
-          {
-            "ar_stall_cycles": 1,
-            "avalon128_beats": 1,
-            "avalon_bursts": 1,
-            "avalon_error_beats": 0,
-            "axi256_beats": 1,
-            "axi_bursts": 1,
-            "axi_transactions": [
-              {
-                "address": 2147483648,
-                "beats": 1,
-                "bytes_per_beat": 16
-              }
-            ],
-            "case": "aligned-single",
-            "injected_axi_response": 0,
-            "r_stall_cycles": 0,
-            "status": "pass"
-          },
-          {
-            "ar_stall_cycles": 1,
-            "avalon128_beats": 1,
-            "avalon_bursts": 1,
-            "avalon_error_beats": 0,
-            "axi256_beats": 1,
-            "axi_bursts": 1,
-            "axi_transactions": [
-              {
-                "address": 2147483664,
-                "beats": 1,
-                "bytes_per_beat": 16
-              }
-            ],
-            "case": "upper-half-single",
-            "injected_axi_response": 0,
-            "r_stall_cycles": 0,
-            "status": "pass"
-          },
-          {
-            "ar_stall_cycles": 1,
-            "avalon128_beats": 3,
-            "avalon_bursts": 1,
-            "avalon_error_beats": 0,
-            "axi256_beats": 3,
-            "axi_bursts": 1,
-            "axi_transactions": [
-              {
-                "address": 2147483920,
-                "beats": 3,
-                "bytes_per_beat": 16
-              }
-            ],
-            "case": "upper-half-odd-three",
-            "injected_axi_response": 0,
-            "r_stall_cycles": 0,
-            "status": "pass"
-          },
-          {
-            "ar_stall_cycles": 1,
-            "avalon128_beats": 5,
-            "avalon_bursts": 1,
-            "avalon_error_beats": 0,
-            "axi256_beats": 5,
-            "axi_bursts": 1,
-            "axi_transactions": [
-              {
-                "address": 2147484160,
-                "beats": 5,
-                "bytes_per_beat": 16
-              }
-            ],
-            "case": "aligned-odd-five",
-            "injected_axi_response": 0,
-            "r_stall_cycles": 0,
-            "status": "pass"
-          },
-          {
-            "ar_stall_cycles": 1,
-            "avalon128_beats": 16,
-            "avalon_bursts": 1,
-            "avalon_error_beats": 0,
-            "axi256_beats": 16,
-            "axi_bursts": 1,
-            "axi_transactions": [
-              {
-                "address": 2147484432,
-                "beats": 16,
-                "bytes_per_beat": 16
-              }
-            ],
-            "case": "upper-half-sixteen",
-            "injected_axi_response": 0,
-            "r_stall_cycles": 0,
-            "status": "pass"
-          },
-          {
-            "ar_stall_cycles": 2,
-            "avalon128_beats": 17,
-            "avalon_bursts": 2,
-            "avalon_error_beats": 0,
-            "axi256_beats": 17,
-            "axi_bursts": 2,
-            "axi_transactions": [
-              {
-                "address": 2147484688,
-                "beats": 16,
-                "bytes_per_beat": 16
-              },
-              {
-                "address": 2147484944,
-                "beats": 1,
-                "bytes_per_beat": 16
-              }
-            ],
-            "case": "upper-half-seventeen",
-            "injected_axi_response": 0,
-            "r_stall_cycles": 0,
-            "status": "pass"
-          },
-          {
-            "ar_stall_cycles": 1,
-            "avalon128_beats": 3,
-            "avalon_bursts": 2,
-            "avalon_error_beats": 0,
-            "axi256_beats": 3,
-            "axi_bursts": 2,
-            "axi_transactions": [
-              {
-                "address": 2147487728,
-                "beats": 1,
-                "bytes_per_beat": 16
-              },
-              {
-                "address": 2147487744,
-                "beats": 2,
-                "bytes_per_beat": 16
-              }
-            ],
-            "case": "4k-upper-half-tail",
-            "injected_axi_response": 0,
-            "r_stall_cycles": 0,
-            "status": "pass"
-          },
-          {
-            "ar_stall_cycles": 2,
-            "avalon128_beats": 19,
-            "avalon_bursts": 2,
-            "avalon_error_beats": 0,
-            "axi256_beats": 19,
-            "axi_bursts": 2,
-            "axi_transactions": [
-              {
-                "address": 2147487696,
-                "beats": 3,
-                "bytes_per_beat": 16
-              },
-              {
-                "address": 2147487744,
-                "beats": 16,
-                "bytes_per_beat": 16
-              }
-            ],
-            "case": "4k-head-tail-nineteen",
-            "injected_axi_response": 0,
-            "r_stall_cycles": 0,
-            "status": "pass"
-          },
-          {
-            "ar_stall_cycles": 1,
-            "avalon128_beats": 3,
-            "avalon_bursts": 1,
-            "avalon_error_beats": 1,
-            "axi256_beats": 3,
-            "axi_bursts": 1,
-            "axi_transactions": [
-              {
-                "address": 2147484176,
-                "beats": 3,
-                "bytes_per_beat": 16
-              }
-            ],
-            "case": "slverr-upper-half",
-            "injected_axi_response": 2,
-            "r_stall_cycles": 0,
-            "status": "pass"
-          },
-          {
-            "ar_stall_cycles": 1,
-            "avalon128_beats": 3,
-            "avalon_bursts": 1,
-            "avalon_error_beats": 1,
-            "axi256_beats": 3,
-            "axi_bursts": 1,
-            "axi_transactions": [
-              {
-                "address": 2147484160,
-                "beats": 3,
-                "bytes_per_beat": 16
-              }
-            ],
-            "case": "decerr-aligned",
-            "injected_axi_response": 3,
-            "r_stall_cycles": 0,
-            "status": "pass"
-          }
-        ],
-        "qualification": "prior actual-generated-fabric simulation; exact114-source equality checked after this full compile, no hardware/DMA admission",
-        "receipt": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-hps-interface/out/de25-ddr-interconnect-8f54e4f89e-03/receipt.json",
-        "receipt_sha256": "e27005a6faa4f0fd013c51dbab5e96066b2ff0adfd63fd20987d681db1556b2b",
-        "source_count": 114,
-        "source_mismatches": []
-      },
       "reused_video_simulation": {
         "bench_sha256": "a279823936f4ca64f24d7d3d7e3c194b94578a449200146558e692c652b70ecd",
         "boundary_models_sha256": "9d6b6251938e80c8398294d711898d73d53c8ea22400f7e63f34ee3c30704566",
@@ -4091,26 +4179,63 @@
       "sta": {
         "all_slack_nonnegative": true,
         "all_tns_zero": true,
+        "fmax_per_clock": [
+          {
+            "clock": "altera_reserved_tck",
+            "fmax": "20.12 MHz",
+            "note": "",
+            "restricted_fmax": "20.12 MHz",
+            "worst_case_operating_conditions": "Slow fix4 100C Model"
+          },
+          {
+            "clock": "pll_inst|iopll_0_outclk0",
+            "fmax": "148.28 MHz",
+            "note": "",
+            "restricted_fmax": "148.28 MHz",
+            "worst_case_operating_conditions": "Slow fix4 0C Model"
+          },
+          {
+            "clock": "adv7513_config",
+            "fmax": "311.24 MHz",
+            "note": "",
+            "restricted_fmax": "311.24 MHz",
+            "worst_case_operating_conditions": "Slow fix4 0C Model"
+          },
+          {
+            "clock": "fes_video_inst|video_clock|iopll_0_refclk",
+            "fmax": "414.08 MHz",
+            "note": "",
+            "restricted_fmax": "414.08 MHz",
+            "worst_case_operating_conditions": "Slow fix4 0C Model"
+          },
+          {
+            "clock": "fes_video_inst|video_clock|iopll_0_outclk0",
+            "fmax": "543.18 MHz",
+            "note": "",
+            "restricted_fmax": "543.18 MHz",
+            "worst_case_operating_conditions": "Slow fix4 0C Model"
+          }
+        ],
         "minima_ns": {
           "Hold": 0.0,
           "Minimum Pulse Width": 0.22,
-          "Recovery": 7.554,
-          "Removal": 0.069,
-          "Setup": 3.319
+          "Recovery": 7.298,
+          "Removal": 0.12,
+          "Setup": 3.256
         },
         "row_count": 38,
         "rows": [
           {
             "clock": "pll_inst|iopll_0_outclk0",
             "corner": "Slow fix4 0C Model",
-            "slack_ns": 3.319,
+            "slack_ns": 3.256,
             "tns_ns": 0.0,
             "type": "Setup"
           },
           {
             "clock": "fes_video_inst|video_clock|iopll_0_outclk0",
             "corner": "Slow fix4 0C Model",
-            "slack_ns": 11.281,
+            "slack_ns": 11.627,
             "tns_ns": 0.0,
             "type": "Setup"
           },
@@ -4124,20 +4249,20 @@
           {
             "clock": "adv7513_config",
             "corner": "Slow fix4 0C Model",
-            "slack_ns": 16.558,
+            "slack_ns": 16.508,
             "tns_ns": 0.0,
             "type": "Setup"
           },
           {
             "clock": "fes_video_inst|video_clock|iopll_0_refclk",
-            "corner": "Slow fix4 0C Model",
-            "slack_ns": 16.928,
+            "corner": "Slow fix4a 0C Model",
+            "slack_ns": 17.215,
             "tns_ns": 0.0,
             "type": "Setup"
           },
           {
             "clock": "pll_inst|iopll_0_outclk0",
-            "corner": "Slow fix4 0C Model",
+            "corner": "Slow fix4a 0C Model",
             "slack_ns": 0.0,
             "tns_ns": 0.0,
             "type": "Hold"
@@ -4145,28 +4270,28 @@
           {
             "clock": "altera_reserved_tck",
             "corner": "Fast fix4 0C Model",
-            "slack_ns": 0.096,
-            "tns_ns": 0.0,
-            "type": "Hold"
-          },
-          {
-            "clock": "fes_video_inst|video_clock|iopll_0_outclk0",
-            "corner": "Fast fix4 0C Model",
-            "slack_ns": 0.104,
+            "slack_ns": 0.095,
             "tns_ns": 0.0,
             "type": "Hold"
           },
           {
             "clock": "adv7513_config",
             "corner": "Fast fix4 0C Model",
-            "slack_ns": 0.106,
+            "slack_ns": 0.101,
+            "tns_ns": 0.0,
+            "type": "Hold"
+          },
+          {
+            "clock": "fes_video_inst|video_clock|iopll_0_outclk0",
+            "corner": "Fast fix4 0C Model",
+            "slack_ns": 0.105,
             "tns_ns": 0.0,
             "type": "Hold"
           },
           {
             "clock": "fes_video_inst|video_clock|iopll_0_refclk",
             "corner": "Fast fix4 0C Model",
-            "slack_ns": 0.107,
+            "slack_ns": 0.112,
             "tns_ns": 0.0,
             "type": "Hold"
           },
@@ -4180,56 +4305,56 @@
           {
             "clock": "pll_inst|iopll_0_outclk0",
             "corner": "Slow fix4 0C Model",
-            "slack_ns": 7.554,
-            "tns_ns": 0.0,
-            "type": "Recovery"
-          },
-          {
-            "clock": "adv7513_config",
-            "corner": "Slow fix4 0C Model",
-            "slack_ns": 18.085,
+            "slack_ns": 7.298,
             "tns_ns": 0.0,
             "type": "Recovery"
           },
           {
             "clock": "fes_video_inst|video_clock|iopll_0_refclk",
             "corner": "Slow fix4 0C Model",
-            "slack_ns": 18.254,
+            "slack_ns": 16.788,
+            "tns_ns": 0.0,
+            "type": "Recovery"
+          },
+          {
+            "clock": "adv7513_config",
+            "corner": "Slow fix4 0C Model",
+            "slack_ns": 18.134,
             "tns_ns": 0.0,
             "type": "Recovery"
           },
           {
             "clock": "altera_reserved_tck",
             "corner": "Slow fix4 0C Model",
-            "slack_ns": 60.937,
+            "slack_ns": 60.775,
             "tns_ns": 0.0,
             "type": "Recovery"
           },
           {
             "clock": "adv7513_config",
             "corner": "Fast fix4 0C Model",
-            "slack_ns": 0.069,
+            "slack_ns": 0.12,
             "tns_ns": 0.0,
             "type": "Removal"
           },
           {
             "clock": "pll_inst|iopll_0_outclk0",
             "corner": "Fast fix4 0C Model",
-            "slack_ns": 0.157,
+            "slack_ns": 0.158,
             "tns_ns": 0.0,
             "type": "Removal"
           },
           {
             "clock": "altera_reserved_tck",
             "corner": "Fast fix4 0C Model",
-            "slack_ns": 0.165,
+            "slack_ns": 0.167,
             "tns_ns": 0.0,
             "type": "Removal"
           },
           {
             "clock": "fes_video_inst|video_clock|iopll_0_refclk",
             "corner": "Fast fix4 0C Model",
-            "slack_ns": 0.208,
+            "slack_ns": 0.68,
             "tns_ns": 0.0,
             "type": "Removal"
           },
@@ -4362,7 +4487,7 @@
           {
             "clock": "adv7513_config",
             "corner": "Slow fix4 0C Model",
-            "slack_ns": 50018.732,
+            "slack_ns": 50018.685,
             "tns_ns": 0.0,
             "type": "Minimum Pulse Width"
           }
@@ -4506,5 +4631,5 @@
       "warm_reset_ack_n": "explicit constant1 (inactive); no global drain/reset acknowledgement or grant lifetime admission"
     }
   ],
-  "producer_revision": "ec3ab70b608eb53a0b845d4462941f8a832af451"
+  "producer_revision": "dd4dc6084abef010fa82c274e9d579d97e322a37"
 }

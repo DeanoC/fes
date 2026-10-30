@@ -137,7 +137,7 @@ def clients(args):
         remote = prepared[board.serial]['temporary_directory']
         results = []
         # Validate forwarding and build rejection before the expensive BASIC boot.
-        native.sort(key=lambda r: (r['scenario'] != 'wrong-build', r['scenario'] != 'session'))
+        native.sort(key=lambda r: (r['scenario'] == 'session', r['scenario'] != 'wrong-build'))
         for expected in native:
             scenario = expected['scenario']
             with tempfile.TemporaryDirectory(prefix='fes-de25-board-' + name + '-') as tmp:

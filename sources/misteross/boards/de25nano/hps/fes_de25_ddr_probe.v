@@ -171,7 +171,7 @@ module fes_de25_ddr_probe (
                 stopping <= 1'b1;
                 done <= 1'b0;
             end
-            if (command_clear && locally_idle) begin
+            if (command_clear && locally_idle && new_errors == 32'd0) begin
                 done <= 1'b0; fault <= 1'b0; cancelled <= 1'b0; stopping <= 1'b0;
                 completed_bytes <= 32'd0; accepted_bytes <= 32'd0;
                 checksum <= 32'd0; errors <= 32'd0; last_data <= 128'd0;

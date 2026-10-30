@@ -43,6 +43,12 @@
       "rule": "docs/**"
     },
     {
+      "path": "docs/validation/2026-10-30-de25-board-cpu-proofs/affected-checks-final.log.gz",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
       "path": "docs/validation/2026-10-30-de25-board-cpu-proofs/boards.json",
       "class": "none",
       "component": null,
@@ -80,6 +86,12 @@
     },
     {
       "path": "docs/validation/2026-10-30-de25-board-cpu-proofs/doc-links.log.gz",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-30-de25-board-cpu-proofs/doc-links-final.log.gz",
       "class": "none",
       "component": null,
       "rule": "docs/**"

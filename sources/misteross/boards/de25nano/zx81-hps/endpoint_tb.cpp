@@ -101,7 +101,7 @@ struct Board {
         check(read_word(FesDe25ComputerGpoOffset) == retained_gpo, "rejected access changed GPO");
         check(S(machine_reset) && !S(tape_ready) && S(safe_media_write_enable) == 0,
               "fault did not contain CPU and tape publication");
-        check(!t.video_rgb && !t.video_de && !t.video_hs && !t.video_vs, "fault did not blank video");
+        check(!t.video_rgb && !t.video_de, "fault did not blank video data");
         write_word(FesDe25ComputerGpoOffset, retained_gpo ^ FesComputerRequestMask, 2);
         check(read_word(FesDe25ComputerGpoOffset) == retained_gpo, "fault permitted a later GPO update");
     }
