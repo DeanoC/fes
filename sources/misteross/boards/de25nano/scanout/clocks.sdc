@@ -5,8 +5,10 @@ if {[get_collection_size $hdmi_config_clock] != 1} {error "DE25 scanout I2C cloc
 create_generated_clock -name adv7513_config -source [get_ports CLOCK0_50] -divide_by 5002 $hdmi_config_clock
 # Configuration release and PLL-lock monitoring only. Loss of pixel lock does
 # not reset either live PD crossing or the endpoint's outstanding accounting.
-set scanout_aclr [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|config_reset|sync_regs*|aclr fes_video_inst|lock_qualifier|sync_regs*|aclr soc_inst|subsys_periph|fes_scanout_pixel_reset|sync_regs*|aclr soc_inst|subsys_periph|fes_scanout_system_reset|sync_regs*|aclr}]
-set scanout_clrn [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|config_reset|sync_regs*|clrn fes_video_inst|lock_qualifier|sync_regs*|clrn soc_inst|subsys_periph|fes_scanout_pixel_reset|sync_regs*|clrn soc_inst|subsys_periph|fes_scanout_system_reset|sync_regs*|clrn}]
+# Qsys emits the two domain reset synchronizers as top-level reset controllers;
+# the reset-bridge modules themselves are pass-through cells.
+set scanout_aclr [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|config_reset|sync_regs*|aclr fes_video_inst|lock_qualifier|sync_regs*|aclr soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain*|aclr soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain*|aclr}]
+set scanout_clrn [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|config_reset|sync_regs*|clrn fes_video_inst|lock_qualifier|sync_regs*|clrn soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain*|clrn soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain*|clrn}]
 set scanout_clear_count [expr {[get_collection_size $scanout_aclr] + [get_collection_size $scanout_clrn]}]
 if {$scanout_clear_count != 8} {error "DE25 scanout requires exactly eight qualifier/reset-bridge clear pins"}
 if {[get_collection_size $scanout_aclr] > 0} {set_false_path -to $scanout_aclr}

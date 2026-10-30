@@ -14,16 +14,17 @@ struct Bench {
  uint64_t stop_cycle=0;
  bool freeze_monitor=false;
  std::deque<uint32_t> expected_diagnostic_data;
- uint64_t checked_diagnostic_data=0;
+ std::array<uint64_t,2> checked_diagnostic_data{};
  Bench(){d.clk=0;d.reset_n=0;d.persona_b=0;d.address=0;d.read=0;d.write=0;d.writedata=0;d.debug_bus=0;d.debug_request=0;d.eval();for(int i=0;i<8;i++)tick();d.reset_n=1;for(int i=0;i<16;i++)tick();need(d.frozen,"cold freeze missing");}
  void tick(){
   d.clk=0;d.eval();
   bool was_running=d.running, was_frozen=d.frozen;
   auto old_response=d.static_response, old_retired=d.retired;
-  if(!d.persona_b && d.running && d.diagnostic_req && d.diagnostic_address!=0){
+  if(d.running && d.diagnostic_req && d.diagnostic_address!=0){
    uint64_t request=d.machine_request;
    uint16_t checksum=uint16_t(request&0xffff)^uint16_t((request>>16)&0xffff)^uint16_t((request>>32)&0x3fff);
-   uint32_t expected=(uint32_t(checksum)<<16)|(uint32_t(checksum&0xff)<<8)|uint32_t(checksum>>8);
+   uint32_t expected=(uint32_t(checksum)<<16)|
+       (uint32_t(uint8_t(checksum)^d.peek_data)<<8)|uint32_t(checksum>>8);
    expected_diagnostic_data.push_back(expected);
   }
   if(d.memory_write){need(!d.frozen,"memory write after Frozen");writes++;last_write=cycles;}
@@ -40,7 +41,7 @@ struct Bench {
              <<" expected="<<std::hex<<expected_diagnostic_data.front()<<" actual="<<d.diagnostic_rsp_data
              <<" bus="<<d.machine_request<<std::dec<<"\n";
    need(d.diagnostic_rsp_data==expected_diagnostic_data.front(),"nonzero diagnostic response data led its request");
-   expected_diagnostic_data.pop_front();checked_diagnostic_data++;
+   expected_diagnostic_data.pop_front();checked_diagnostic_data[d.persona_b?1:0]++;
   }
   if(was_running&&!d.running)stop_cycle=cycles;
   if(!d.running && stop_cycle && cycles>stop_cycle+3)need(!d.memory_write,"bus write did not drain within three edges");
@@ -54,7 +55,7 @@ struct Bench {
  void select(bool ram){freeze_monitor=false;need(d.frozen,"selection while running");d.persona_b=ram;ramtop=0;observed=0;command(2,ram?0xc002b002:0xc001a001);need(d.running,"resume missing");}
  void boot(uint16_t expected){uint64_t start=cycles;for(unsigned i=0;i<770000000;i++){tick();if(observed==3&&ramtop==expected&&d.cpu_addr==0x04cf){ticks(10000);std::cout<<"BOOT persona="<<int(d.persona_b)<<" RAMTOP="<<std::hex<<ramtop<<std::dec<<" cycles="<<cycles-start<<" CPUwrite-observed=1\n";return;}}std::cerr<<"ramtop="<<std::hex<<ramtop<<" pc="<<d.cpu_addr<<std::dec<<" observed="<<observed<<"\n";throw std::runtime_error("BASIC RAM sizing failed");}
  uint8_t peek(unsigned offset){for(unsigned i=0;i<10000;i++){if(d.diagnostic_address==offset){ticks(7);auto v=d.peek_data;need((rd(36)&255)==v,"CSR LAST_DATA differs from real machine peek");return v;}tick();}throw std::runtime_error("peek scan timeout");}
- void freeze(){freeze_monitor=true;command(1,0);need(d.frozen,"freeze missing");if(!d.persona_b)need(checked_diagnostic_data>0,"nonzero persona response was not checked");need(expected_diagnostic_data.empty(),"diagnostic response data was not drained");freeze_cycle=cycles;auto old=writes;auto retired=d.retired;auto response=d.static_response;ticks(20);need(d.static_response==response,"response changed after Frozen");need(writes==old&&d.retired==retired,"activity after Frozen");std::cout<<"FREEZE cycles="<<freeze_cycle<<" lastRAMwrite="<<last_write<<" remainingWrites=0\n";}
+ void freeze(bool require_diagnostic_data=true){freeze_monitor=true;command(1,0);need(d.frozen,"freeze missing");if(require_diagnostic_data)need(checked_diagnostic_data[d.persona_b?1:0]>0,"nonzero persona response data was not checked");need(expected_diagnostic_data.empty(),"diagnostic response data was not drained");freeze_cycle=cycles;auto old=writes;auto retired=d.retired;auto response=d.static_response;ticks(20);need(d.static_response==response,"response changed after Frozen");need(writes==old&&d.retired==retired,"activity after Frozen");std::cout<<"FREEZE cycles="<<freeze_cycle<<" lastRAMwrite="<<last_write<<" remainingWrites=0\n";}
  uint64_t packed(unsigned a,unsigned data,bool write){return (1ull<<45)|(uint64_t(a&0x3fff)<<30)|(1ull<<25)|(3ull<<28)|(uint64_t(!write)<<27)|(uint64_t(data)<<16)|a;}
  void memory_test(){
   d.debug_bus=1;
@@ -81,4 +82,4 @@ struct Bench {
   d.debug_bus=0;
  }
 };
-int main(int argc,char**argv){std::cout.setf(std::ios::unitbuf);Verilated::commandArgs(argc,argv);try{Bench b;if(argc>1&&std::string(argv[1])=="--drain-only"){b.select(true);b.memory_test();b.select(true);b.ticks(5000);for(unsigned i=0;i<10000&&(b.d.static_response&255)==0x39;i++)b.tick();auto before=b.d.static_response&255;need(before!=0x39,"CPU freeze probe did not start with a different read byte");b.freeze();need((b.d.static_response&255)==0x39,"CPU-reset RAM read pipeline did not settle to address zero");std::cout<<"CPU_FREEZE beforeRead="<<before<<" afterRead="<<(b.d.static_response&255)<<" postFrozenChanges=0\n";std::cout<<"PASS isolated RAM write/response drain\n";return 0;}b.select(false);b.boot(0x4400);need(b.peek(4)==0x00&&b.peek(5)==0x44,"internal RAMTOP peek mismatch");b.freeze();b.select(true);b.boot(0x8000);need(b.peek(4)==0x00&&b.peek(5)==0x80,"pack RAMTOP peek mismatch");b.memory_test();b.select(false);b.boot(0x4400);need(b.peek(5)==0x44,"selection did not reset/re-size machine");b.freeze();std::cout<<"PASS actual ZX81 CPU+BASIC ROM, empty/RAM16K/reset/drain\n";}catch(const std::exception&e){std::cerr<<e.what()<<"\n";return 1;}}
+int main(int argc,char**argv){std::cout.setf(std::ios::unitbuf);Verilated::commandArgs(argc,argv);try{Bench b;if(argc>1&&std::string(argv[1])=="--drain-only"){b.select(true);b.memory_test();b.select(true);b.ticks(5000);for(unsigned i=0;i<10000&&(b.d.static_response&255)==0x39;i++)b.tick();auto before=b.d.static_response&255;need(before!=0x39,"CPU freeze probe did not start with a different read byte");b.freeze(false);need((b.d.static_response&255)==0x39,"CPU-reset RAM read pipeline did not settle to address zero");std::cout<<"CPU_FREEZE beforeRead="<<before<<" afterRead="<<(b.d.static_response&255)<<" postFrozenChanges=0\n";std::cout<<"PASS isolated RAM write/response drain\n";return 0;}b.select(false);b.boot(0x4400);need(b.peek(4)==0x00&&b.peek(5)==0x44,"internal RAMTOP peek mismatch");b.freeze();b.select(true);b.boot(0x8000);need(b.peek(4)==0x00&&b.peek(5)==0x80,"pack RAMTOP peek mismatch");b.memory_test();b.select(false);b.boot(0x4400);need(b.peek(5)==0x44,"selection did not reset/re-size machine");b.freeze();std::cout<<"PASS actual ZX81 CPU+BASIC ROM, empty/RAM16K/reset/drain\n";}catch(const std::exception&e){std::cerr<<e.what()<<"\n";return 1;}}

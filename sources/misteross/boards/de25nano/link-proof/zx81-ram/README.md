@@ -14,6 +14,8 @@ checked before preparation.
 
 The existing counter diagnostic remains the default. Its 64-byte control map,
 four-cycle diagnostic latency, source guards and memory checks are unchanged.
+The actual-ZX81 simulation independently checks every nonzero diagnostic data
+response in both the empty and RAM-pack personas, including the RAM peek byte.
 This profile has its own interface/source/control/base/root identity and
 persona names `zx81_empty` and `zx81_ram16k`. A/B hardware IDs retain their
 numeric values only within that new base identity.
