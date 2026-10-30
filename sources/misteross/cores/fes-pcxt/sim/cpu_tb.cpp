@@ -31,24 +31,27 @@ struct Bench {
     uint32_t delay=0, interrupt_delay=0, nmi_ticks=0, ce_count=0;
     unsigned wait_limit=0;
     uint8_t marker=0;
+    bool timing_mode=false, timing_interval_active=false;
+    unsigned timing_groups=0, interval_ticks=0, interval_ce=0;
     bool saw_reset_fetch=false, saw_io_ffff=false, saw_io_zero=false;
     bool halt_seen=false, halt_held=false;
 
-    explicit Bench(const std::vector<uint8_t>& image): rom(image) {}
+    explicit Bench(const std::vector<uint8_t>& image, bool timing=false): rom(image), timing_mode(timing) {}
     uint32_t random() { rng ^= rng << 13; rng ^= rng >> 17; rng ^= rng << 5; return rng; }
     Cycle signals() const { return {dut.address, uint8_t(dut.wdata), uint8_t(dut.kind),
                                    bool(dut.write_cycle), bool(dut.locked)}; }
-    void reset(unsigned waits, uint32_t seed) {
+    void reset(unsigned waits, uint32_t seed, unsigned reset_clocks=32) {
         memory.fill(0);
         std::copy(rom.begin(), rom.end(), memory.begin()+0xf0000);
         busy=local_pending=passed=false;
         ticks=transfers=inta=locked_memory=interrupt_delay=nmi_ticks=ce_count=0;
         marker=0; rng=seed; wait_limit=waits;
+        timing_groups=interval_ticks=interval_ce=0; timing_interval_active=false;
         saw_reset_fetch=saw_io_ffff=saw_io_zero=false;
         halt_seen=halt_held=false;
         dut.reset=1; dut.intr=0; dut.nmi=0; dut.inject=0;
         dut.memory_done=0; dut.memory_ready=0; dut.memory_rdata=0xff;
-        for (unsigned i=0;i<32;i++) { dut.clk=0; dut.eval(); dut.clk=1; dut.eval(); }
+        for (unsigned i=0;i<reset_clocks;i++) { dut.clk=0; dut.eval(); dut.clk=1; dut.eval(); }
         dut.reset=0;
     }
     uint8_t access(const Cycle& c) {
@@ -56,6 +59,22 @@ struct Bench {
         if (c.kind == 1) {
             require(c.address == 0x80 && c.write, "unexpected local I/O");
             marker=c.data;
+            if (timing_mode && marker>=0x50 && marker<=0x57) {
+                require(marker==0x50+2*timing_groups+unsigned(timing_interval_active),
+                        "timing marker out of order");
+                if (!(marker & 1)) {
+                    interval_ticks=ticks; interval_ce=ce_count; timing_interval_active=true;
+                }
+                else {
+                    require(interval_ticks!=0, "timing interval has no start");
+                    std::cout << "EU timing group=" << timing_groups
+                              << " core_cycles=" << ticks-interval_ticks
+                              << " guest_cycles=" << ce_count-interval_ce
+                              << " waits=" << wait_limit << '\n';
+                    timing_interval_active=false; ++timing_groups;
+                }
+                return 0xff;
+            }
             if (marker==0x40 || marker==0x41) interrupt_delay=0;
             if (marker == 0xee) throw std::runtime_error("diagnostic failure group " +
                                                         std::to_string(memory[0x201]));
@@ -125,14 +144,19 @@ struct Bench {
         while (!passed && !dut.fault && ticks < 2000000) tick();
         require(!dut.fault, "CPU stopped on fabric fault");
         require(passed, "diagnostic timeout at marker " + std::to_string(marker));
+        // The physical guest clock must remain independent of EU phases/waits.
+        require(ce_count == (uint64_t(ticks)*21/220+1)/2, "guest clock drift");
+        if (timing_mode) {
+            require(timing_groups==4, "missing timing workloads");
+            std::cout << "EU timing workloads passed: " << ticks << " fabric clocks\n";
+            return;
+        }
         require(inta==2, "INTR must produce exactly two INTA transactions");
         require(!dut.halted, "halted stayed set after interrupt wakeup");
         require(locked_memory>=2, "LOCK prefix missing from memory read/write");
         require(saw_reset_fetch && saw_io_ffff && saw_io_zero, "missing bus coverage");
         require(memory[0x500]==2 && memory[0x501]==1, "interrupt handlers/IRET");
         require(dut.irq==0x20 && dut.drq==2, "probe interrupt/DMA request propagation");
-        // Pin-clock frequency must be independent of bus stalls.
-        require(ce_count == (uint64_t(ticks)*21/220+1)/2, "guest clock drift");
         std::cout << "8088 diagnostic passed: " << transfers << " byte cycles, "
                   << ticks << " fabric clocks, wait limit " << wait_limit << '\n';
     }
@@ -140,15 +164,17 @@ struct Bench {
 int main(int argc, char** argv) {
     Verilated::commandArgs(argc, argv);
     try {
-        require(argc==2, "usage: Vcpu_top diagnostic.bin");
+        require(argc==2 || (argc==3 && std::string(argv[2])=="timing"),
+                "usage: Vcpu_top diagnostic.bin [timing]");
         std::ifstream input(argv[1], std::ios::binary);
         std::vector<uint8_t> rom((std::istreambuf_iterator<char>(input)), {});
         require(rom.size()==65536, "diagnostic ROM must be exactly 64 KiB");
-        Bench bench(rom);
+        Bench bench(rom, argc==3);
         for (unsigned wait : {0, 31, 173}) {
             bench.reset(wait, wait+1);
             bench.run();
         }
+        if (bench.timing_mode) return 0;
         // Cancel an in-flight fetch, then prove a fresh reset starts cleanly.
         for (unsigned phase : {1, 20, 100}) {
             bench.reset(250, phase);
@@ -157,6 +183,13 @@ int main(int argc, char** argv) {
             for (unsigned i=0;i<phase;i++) bench.tick();
             bench.reset(31, phase);
             bench.run();
+        }
+        // A short reset must replace a stale in-flight microword as well as
+        // the PC. Exercise it after actual execution, not just the first fetch.
+        for (unsigned width : {1, 2}) {
+            bench.reset(0, 1);
+            for (unsigned i=0;i<10000;i++) bench.tick();
+            bench.reset(0, 1, width); bench.run();
         }
         // A conflict must stop the CPU, with no repeated transfers; reset recovers.
         bench.reset(0, 1); bench.dut.inject=1;

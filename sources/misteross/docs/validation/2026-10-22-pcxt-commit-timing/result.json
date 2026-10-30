@@ -1,0 +1,282 @@
+{
+  "candidate": {
+    "fmax": {
+      "clk_pixel": {
+        "achieved": 83.35417175292969,
+        "constraint": 74.25006866455078
+      },
+      "clocks[0]": {
+        "achieved": 76.40586853027344,
+        "constraint": 100
+      },
+      "clocks[1]": {
+        "achieved": 273.97259521484375,
+        "constraint": 100
+      },
+      "clocks[2]": {
+        "achieved": 103.95010375976562,
+        "constraint": 100
+      }
+    },
+    "timing_summary": {
+      "clocks": {
+        "clk_pixel": {
+          "hold_wns_ns": 0.7070000171661377,
+          "setup_wns_ns": 1.4709999561309814
+        },
+        "clocks[0]": {
+          "hold_wns_ns": 0.7839999794960022,
+          "setup_wns_ns": -2.555000066757202
+        },
+        "clocks[1]": {
+          "hold_wns_ns": 5.724999904632568,
+          "setup_wns_ns": 3.174999952316284
+        },
+        "clocks[2]": {
+          "hold_wns_ns": 4.255000114440918,
+          "setup_wns_ns": 0.2849999964237213
+        }
+      },
+      "final_analogue_model": true
+    },
+    "worst": [
+      {
+        "launch": {
+          "cell": "system.storage.physical_MISTRAL_FF_Q",
+          "loc": [
+            28,
+            22
+          ],
+          "port": "CLK"
+        },
+        "capture": {
+          "cell": "SDRAM_A_MISTRAL_OB_PAD_10",
+          "loc": [
+            40,
+            81
+          ],
+          "port": "I"
+        },
+        "clock_from": "posedge clocks[0]",
+        "clock_to": "posedge clocks[0]",
+        "slack_ns": -2.5550003051757812,
+        "delay_by_type_ns": {
+          "clk-skew": -0.22499999403953552,
+          "clk-to-q": 0.7310000061988831,
+          "routing": 10.106000252068043,
+          "logic": 1.8230000436306,
+          "setup": 0.11999999731779099
+        }
+      },
+      {
+        "launch": {
+          "cell": "system.machine.cpu.cpu.u_eu_core.eu_register_dx_MISTRAL_FF_Q_1",
+          "loc": [
+            55,
+            20
+          ],
+          "port": "CLK"
+        },
+        "capture": {
+          "cell": "system.machine.cpu.cpu.u_eu_core.u_ucode_rom.bytes[3].read_address_MISTRAL_FF_Q_9",
+          "loc": [
+            53,
+            29
+          ],
+          "port": "DATAIN"
+        },
+        "clock_from": "posedge clocks[0]",
+        "clock_to": "posedge clocks[0]",
+        "slack_ns": -2.046000074595213,
+        "delay_by_type_ns": {
+          "clk-skew": 0.039000000804662704,
+          "clk-to-q": 0.7310000061988831,
+          "routing": 9.374000057578087,
+          "logic": 2.098000004887581,
+          "setup": -0.19599999487400055
+        }
+      },
+      {
+        "launch": {
+          "cell": "system.machine.cpu.cpu.u_eu_core.eu_register_dx_MISTRAL_FF_Q_1",
+          "loc": [
+            55,
+            20
+          ],
+          "port": "CLK"
+        },
+        "capture": {
+          "cell": "system.machine.cpu.cpu.u_eu_core.u_ucode_rom.bytes[0].read_address_MISTRAL_FF_Q_8",
+          "loc": [
+            53,
+            25
+          ],
+          "port": "DATAIN"
+        },
+        "clock_from": "posedge clocks[0]",
+        "clock_to": "posedge clocks[0]",
+        "slack_ns": -1.9580000415444374,
+        "delay_by_type_ns": {
+          "clk-skew": 0.06400000303983688,
+          "clk-to-q": 0.7310000061988831,
+          "routing": 9.261000022292137,
+          "logic": 2.098000004887581,
+          "setup": -0.19599999487400055
+        }
+      },
+      {
+        "launch": {
+          "cell": "system.machine.cpu.cpu.u_eu_core.eu_register_r0_MISTRAL_FF_Q_4",
+          "loc": [
+            48,
+            20
+          ],
+          "port": "CLK"
+        },
+        "capture": {
+          "cell": "system.machine.cpu.cpu.u_eu_core.eu_add_overflow16_fixed_MISTRAL_FF_Q",
+          "loc": [
+            42,
+            20
+          ],
+          "port": "DATAIN"
+        },
+        "clock_from": "posedge clocks[0]",
+        "clock_to": "posedge clocks[0]",
+        "slack_ns": -1.6150000570341945,
+        "delay_by_type_ns": {
+          "clk-skew": 0.006000000052154064,
+          "clk-to-q": 0.7310000061988831,
+          "routing": 7.6180000603199005,
+          "logic": 3.4559999853372574,
+          "setup": -0.19599999487400055
+        }
+      },
+      {
+        "launch": {
+          "cell": "system.machine.cpu.cpu.u_eu_core.eu_register_dx_MISTRAL_FF_Q_1",
+          "loc": [
+            55,
+            20
+          ],
+          "port": "CLK"
+        },
+        "capture": {
+          "cell": "system.machine.cpu.cpu.u_eu_core.u_ucode_rom.bytes[0].read_address_MISTRAL_FF_Q_10",
+          "loc": [
+            63,
+            24
+          ],
+          "port": "DATAIN"
+        },
+        "clock_from": "posedge clocks[0]",
+        "clock_to": "posedge clocks[0]",
+        "slack_ns": -1.5949999690055847,
+        "delay_by_type_ns": {
+          "clk-skew": 0.04500000178813934,
+          "clk-to-q": 0.7310000061988831,
+          "routing": 8.919999971985817,
+          "logic": 2.094999983906746,
+          "setup": -0.19599999487400055
+        }
+      }
+    ],
+    "worst_vram": {
+      "launch": {
+        "cell": "system.machine.isa.slots[0].genblk1.genblk1.probe.card.endpoint.valid_MISTRAL_FF_Q",
+        "loc": [
+          25,
+          19
+        ],
+        "port": "CLK"
+      },
+      "capture": {
+        "cell": "system.machine.isa.slots[1].cga.card.card.vram.2.0.0",
+        "loc": [
+          76,
+          9
+        ],
+        "port": "A1EN"
+      },
+      "clock_from": "posedge clocks[0]",
+      "clock_to": "posedge clocks[0]",
+      "slack_ns": 0.963000051677227,
+      "delay_by_type_ns": {
+        "clk-skew": 0.06400000303983688,
+        "clk-to-q": 0.7310000061988831,
+        "routing": 7.1519999504089355,
+        "logic": 0.949999988079071,
+        "setup": 0.14000000059604645
+      }
+    },
+    "receipt": {
+      "label": "candidate",
+      "argv": [
+        "/tmp/pcxt-commit-timing-20261022/nextpnr-mistral",
+        "--device",
+        "5CSEBA6U23I7",
+        "--json",
+        "synth.json",
+        "--qsf",
+        "/tmp/pcxt-commit-timing-20261022/source/sources/misteross/cores/fes-ramtest/constraints.qsf",
+        "--sdc",
+        "/tmp/pcxt-commit-timing-20261022/source/sources/misteross/boards/de10nano/clocks.sdc",
+        "--seed",
+        "1",
+        "--freq",
+        "100",
+        "--router",
+        "gpu",
+        "--placer-heap-timingweight",
+        "2000",
+        "--placer-heap-critexp",
+        "5",
+        "--rbf",
+        "diagnostic.rbf",
+        "--compress-rbf",
+        "--write",
+        "routed.json",
+        "--report",
+        "timing.json",
+        "--detailed-timing-report",
+        "--timing-report-paths",
+        "1024",
+        "--routed-endpoints",
+        "endpoints.json"
+      ],
+      "binary_sha256": "7573ad112fb71c05f05c22f1887ebae55a356ad2464aea3afe12302d2aa2bc85",
+      "synth_sha256": "ade504d78213ae90f0b6a4c6f7d7f2c93a19bf710928f069900a7edb3819c2fd",
+      "remaining_before": 1023.979731879472,
+      "timeout_active_seconds": 450,
+      "environment": {
+        "FES_GPU_LEASE_OWNER": "pcxt-agent",
+        "GPU_LEASE_MAX_PER_OWNER": "2",
+        "NEXTPNR_REQUIRE_GPU": "1"
+      },
+      "hardware": false,
+      "returncode": 1,
+      "elapsed_wall_seconds": 192.14092606585473,
+      "remaining_after": 831.8388058136172,
+      "artifacts": {
+        "timing.json": "5f48e70531460ceba41ee72db2b8521a37e005459a1bf55d32d19e2adfb79ec8",
+        "routed.json": "747e7724d99582a270fb6020e9c092362d71d25681539f1625c803b9e337c4c1",
+        "diagnostic.rbf": "99c879152806ca6d0d6bc60e0587da2ad64f31876e6dddcdcdd8d2f7cce9ec28",
+        "endpoints.json": "508fb1cc423cb17a36ed472186905b66de1df773b69e32e049794dc0a63671b2",
+        "nextpnr.log": "0049daf8735222ad1e9967da5ede200fe1a196791d5e11fd0ca7b89440b65ee1",
+        "invocation.json": "fd40461db9159aa204623bd8e4b68360cc06eaeaad8d37c78afad97ffba1e15d",
+        "synth.json": "ade504d78213ae90f0b6a4c6f7d7f2c93a19bf710928f069900a7edb3819c2fd",
+        "yosys.log": "31156a25202bc381f11d9210ff99ab75b5350618fc2a64ec064c871eecfe10fe",
+        "synth.ys": "8017cab9f9d914c829fe6a19ba5e02c5d44cf2b9f50efeb9604a59f7c3df5ac6",
+        "pcxt_diagnostic.hex": "f805c9370d589fce57dd5d685539a9841752b3f43757dc2c77c27e320866b013",
+        "diagnostic.bin": "afe432903f7911042397c6d645471e32bdece8e4c06fb38193dc0e870d27b85b",
+        "diagnostic.o": "508c69a6c8a2ffe4ec5e5ea56ef07b31db43fcfe60c5a0248ac9ac88db797ccc",
+        "mcl86_facts.vh": "2ae18c54651bd6a7870c886eeba9feceb0e812b25d250df0409f6858c82660e4",
+        "mcl86_ucode_byte3.mem": "f67eaa6a751041796da221bf760c9bc3b80a2cf77a2941344c9ee5eee85fd50d",
+        "mcl86_ucode_byte2.mem": "1ae5014d21bca2970a7a153ce209babf576278956234c1f6e463357ee1601549",
+        "mcl86_ucode_byte1.mem": "915ad321a1c9657afbc3455369642b35bae54abc697d3c8779039690c95e682d",
+        "mcl86_ucode_byte0.mem": "3d1820b7f3de4f2f9f1377c5c715f3eea75cc9664cb9d498e0c455d7936f73c2",
+        "mcl86_ucode.mem": "98c6a648c799fa656b44feba4747116a8ada91d964d1d1b0eda785fed28ec0d0"
+      }
+    }
+  }
+}
