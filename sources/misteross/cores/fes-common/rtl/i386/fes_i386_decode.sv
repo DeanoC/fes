@@ -901,7 +901,7 @@ module fes_i386_decode (
                     op = 5'd9;  // ALU_MOV
                     size = 2'd2;
                     mbytes = osz32 ? 3'd4 : 3'd2;
-                    mkind = 2'd1;
+                    mkind = reg_form ? 2'd0 : 2'd1;
                     sel_part = 1'b1;
                     s1_valid = 1'b1;
                     s1_idx = reg_f;

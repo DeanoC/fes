@@ -56,9 +56,10 @@
 //           anything retires. The RTL runs alone; the oracle is not stepped.
 //   reset-store a store waiting in WB must not write memory on a reset edge.
 //   directed  out-of-limit CALL rel and r/m, RET and JMP faults, divide errors,
+//             register-form BOUND #UD without its faulting uop's data read,
 //             count-zero REP MOVS with expand-down DS or ES, and a check that
-//             fetch, issue and data reads stay inactive after a handler HLT;
-//             an INT and a fault whose delivery faults must stop with nothing
+//             fetch, issue and data reads stay inactive after a handler HLT; an
+//             INT and a fault whose delivery faults must stop with nothing
 //             written.
 // Output: "FAIL <label> <field> <expected> <actual>..." per failing run, then
 // one JSON summary line. Exit status 1 on any failure.
@@ -198,6 +199,7 @@ public:
 
     Vfes_i386_cpu top;
     std::vector<uint8_t> ram;
+    std::vector<uint32_t> dmem_reads;
     IoSpace io;
     Pic pic;
     Latency fetch, data, port, inta;
@@ -230,6 +232,7 @@ public:
         top.mem_valid = 1;
         top.dmem_valid = 1;
         top.io_ack = 0;
+        dmem_reads.clear();
         step_writes.clear();
         io.log.clear();
         top.reset = 1;
@@ -305,6 +308,7 @@ public:
         // The data port reads, then the retiring store writes. Until a load's
         // bytes arrive the port carries garbage.
         if (dread) {
+            dmem_reads.push_back(daddr);
             uint64_t value = 0;
             for (int i = 0; i < 8; ++i) {
                 const uint64_t at = uint64_t(daddr) + i;
@@ -1529,12 +1533,13 @@ constexpr uint32_t HANDLER = 0x800;  // 0000:0800
 void run_fault_case(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
                     Summary &summary, const std::string &label, const std::vector<uint8_t> &code, State state,
                     bool nested, uint32_t stack_address = 0, const std::array<uint8_t, 4> *stack_value = nullptr,
-                    int expected = 13, bool allow_divergences = false) {
+                    int expected = 13, bool allow_divergences = false,
+                    uint32_t forbidden_dmem_read = UINT32_MAX) {
     const uint32_t code_base = state.seg[fes_i386::SEG_CS].base + state.eip;
     std::vector<std::pair<uint32_t, uint8_t>> image;
     for (size_t i = 0; i < code.size(); ++i) image.emplace_back(code_base + uint32_t(i), code[i]);
     image.emplace_back(HANDLER, 0xf4);
-    for (uint32_t vector : {0u, 12u, 13u}) {
+    for (uint32_t vector : {0u, 6u, 12u, 13u}) {
         image.emplace_back(vector * 4, uint8_t(HANDLER));
         image.emplace_back(vector * 4 + 1, uint8_t(HANDLER >> 8));
     }
@@ -1574,6 +1579,11 @@ void run_fault_case(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
         if ((rtl.state().gpr[fes_i386::REG_ESP] & 0xffff) != sp)
             out.add(label + ".esp", sp, rtl.state().gpr[fes_i386::REG_ESP] & 0xffff);
         if (rtl.top.trace_halt) check_halt_quiet(rtl, label, out);
+    }
+    if (forbidden_dmem_read != UINT32_MAX) {
+        const uint32_t address = forbidden_dmem_read & ~3u;
+        const auto reads = std::count(rtl.dmem_reads.begin(), rtl.dmem_reads.end(), address);
+        if (reads) out.add(label + ".dmem-read", 0, reads);
     }
 
     summary.cycles += rtl.cycles;
@@ -1677,6 +1687,17 @@ void run_fault_regressions(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, c
 
     // CALL EBX to the same target: #GP(0) before its push.
     run_fault_case(oracle, bus, rtl, entries, summary, "call-rm32-cs-limit", {0x66, 0xff, 0xd3, 0xf4}, jump, false);
+
+    // A register-form BOUND is #UD. With a 32-bit operand the faulting uop
+    // loads the upper bound at [BX+SI+4]; the later lower-bound uop's [BX+SI]
+    // read has a different bus address and cannot hide this assertion.
+    State bound_reg = call;
+    bound_reg.gpr[fes_i386::REG_EAX] = 0x1234;
+    bound_reg.gpr[fes_i386::REG_EBX] = 0x5000;
+    bound_reg.gpr[fes_i386::REG_ESI] = 0x0400;
+    bound_reg.gpr[fes_i386::REG_ESP] = 0x0200;
+    run_fault_case(oracle, bus, rtl, entries, summary, "bound-register-no-data-read",
+                   {0x66, 0x62, 0xc0, 0xf4}, bound_reg, false, 0, nullptr, 6, false, 0x5404);
 
     // INT 20h with SP 1: its probe raises #SS, whose delivery's probe faults
     // the same way.
