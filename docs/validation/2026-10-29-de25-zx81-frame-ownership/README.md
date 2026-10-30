@@ -27,6 +27,8 @@ rejection, excess-row cropping, a partial final line, stopped source/reader
 clocks, recovery, HOLD, and stopped-clock epoch reset with presentation held
 through the next raster boundary. Writer/displayed-bank exclusion and
 frame-boundary-only ownership transfer are checked throughout.
+The video-only rerun binds source revision `7443fc4ee0bdba050f0278f4bdf171034da310bb`;
+the compiler and client receipts remain bound to their earlier source revisions.
 
 [Client proof](client-proof.json) and [inputs](client-inputs.json) bind all 20
 native/static-AArch64 cases to the actual endpoint, mailbox, machine, firmware,
