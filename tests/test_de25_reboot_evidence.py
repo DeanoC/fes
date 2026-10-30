@@ -63,6 +63,47 @@ class De25RebootEvidenceTests(unittest.TestCase):
             with self.subTest(claim=claim):
                 self.assertIsNone(re.search(claim, self.normalized_readme, re.IGNORECASE))
 
+    def test_programmed_sof_identity_uses_retained_quartus_checksums(self):
+        self.assertNotIn("ram_sof_sha256", self.proof)
+        self.assertNotIn("stock_sof_sha256", self.proof)
+        self.assertEqual(
+            self.proof["programmed_sofs"],
+            {
+                "ram": {
+                    "quartus_checksum": "0x067AE616",
+                    "programmer_log": "ram-reload.log.gz",
+                },
+                "stock": {
+                    "quartus_checksum": "0x062BB4EF",
+                    "programmer_log": "stock-program.log.gz",
+                },
+            },
+        )
+        for variant, digest in (
+            ("ram", "2267ecc2e9e8dd08cd24e8d413ee7e704cc022863d5b761b6d6e6aa33a6bb64c"),
+            ("stock", "e71a72180cb77ddd05a9c2ae49afa739d74786f9366f00233fd27bbebff6ea09"),
+        ):
+            with self.subTest(variant=variant):
+                log_name = self.proof["programmed_sofs"][variant]["programmer_log"]
+                log = gzip.decompress((RECORD / log_name).read_bytes()).decode()
+                checksum = self.proof["programmed_sofs"][variant]["quartus_checksum"]
+                self.assertIn(checksum, log)
+                self.assertNotIn(digest, log)
+                self.assertNotIn(digest, self.readme)
+        self.assertIn("Neither log retains a SHA-256 digest", self.normalized_readme)
+
+    def test_physical_power_cycle_state_is_not_asserted_without_a_record(self):
+        self.assertEqual(
+            self.proof["physical_power_cycle_during_investigation"],
+            "not-recorded",
+        )
+        self.assertIn("does not establish whether a physical power cycle occurred", self.normalized_readme)
+        self.assertNotIn("without a power cycle", self.normalized_readme)
+
+        linux_guide = " ".join((ROOT / "docs/de25-linux.md").read_text().split())
+        self.assertIn("does not establish whether a physical power cycle occurred", linux_guide)
+        self.assertNotIn("recovers without a power cycle", linux_guide)
+
     def test_manifest_hashes_match_retained_record_files(self):
         manifest = json.loads((RECORD / "manifest.json").read_text())
         for filename, expected in manifest["file_sha256"].items():

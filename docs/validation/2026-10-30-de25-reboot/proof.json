@@ -42,17 +42,25 @@
   "stock_jtag_reload_boot": "c9752c17-0e36-4a99-a827-a5df078eff94",
   "ram_jtag_before_boot": "692fa087-6d2b-4218-80fc-93bd1004ae63",
   "ram_jtag_reload_boot": "b5b1bc13-1131-4bc0-86cb-52a0730d5d4e",
-  "ram_sof_sha256": "2267ecc2e9e8dd08cd24e8d413ee7e704cc022863d5b761b6d6e6aa33a6bb64c",
-  "stock_sof_sha256": "e71a72180cb77ddd05a9c2ae49afa739d74786f9366f00233fd27bbebff6ea09",
   "persistent_boot_changes": false,
   "hps_destructive_enabled": false,
   "reset_ack_or_constraints_changed": false,
   "recovery": "identical full SOF redelivery over explicit-cable JTAG; new UART/pinned SSH and exact RAM endpoint IDs verified",
-  "physical_power_cycle_during_investigation": false,
+  "physical_power_cycle_during_investigation": "not-recorded",
   "operator_state": {
     "board_claim": "not-recorded",
     "uart_ssh_jtag_sessions": "not-recorded",
     "top_board_state": "not-recorded",
     "factory_baseline_restore": "not-recorded"
+  },
+  "programmed_sofs": {
+    "ram": {
+      "quartus_checksum": "0x067AE616",
+      "programmer_log": "ram-reload.log.gz"
+    },
+    "stock": {
+      "quartus_checksum": "0x062BB4EF",
+      "programmer_log": "stock-program.log.gz"
+    }
   }
 }

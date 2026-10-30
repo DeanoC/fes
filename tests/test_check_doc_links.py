@@ -3,6 +3,7 @@ import hashlib
 import json
 import re
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -64,12 +65,15 @@ class De25PhysicalMemoryRecordTests(unittest.TestCase):
         scans = json.loads((self.record / 'scans.json').read_text())['results']
         sdram = {row['test']: row for row in scans if row['bank'] == 'sdram'}
         boundary = 1 << 26
-        self.assertEqual(sdram['smoke']['snapshot']['first_address'], 0)
         self.assertEqual(sdram['smoke']['length_bytes'], 4096)
         self.assertLess(sdram['smoke']['length_bytes'], boundary)
         self.assertEqual(sdram['full']['length_bytes'], 128 * 1024 * 1024)
         self.assertGreater(sdram['full']['length_bytes'], boundary)
 
+        smoke_script = (self.record / 'smoke-ram.tcl').read_text()
+        self.assertIn('de25ramtest::run $service 6ee668470911276a9e553d0025c7ef0b $bank 60000 10 4096', smoke_script)
+        jtag_script = (self.root / 'sources/misteross/boards/de25nano/ramtest/jtag.tcl').read_text()
+        self.assertRegex(jtag_script, r'BASE_OFFSET 0 BASE_HIGH_OFFSET 0')
         controller = (self.root / 'sources/misteross/boards/de25nano/ramtest/sdram.v').read_text()
         self.assertIn('word_addr<=write&&write_left!=0?write_next:address[26:1]', controller)
         self.assertRegex(controller, r'word_addr\[25\].*2\'b01:2\'b10')
@@ -88,11 +92,63 @@ class De25PhysicalMemoryRecordTests(unittest.TestCase):
         self.assertIn('does not establish that factory Linux completed a clean halt', report)
         self.assertNotRegex(report, r'Factory Linux is synced and gracefully halted')
 
+    def test_device_mask_claim_matches_retained_device_names(self):
+        hardware = json.loads((self.record / 'hardware.json').read_text())
+        board = hardware['board']
+        with gzip.open(self.record / 'factory-linked-services.log.gz', 'rt') as stream:
+            linked_services = stream.read()
+        with gzip.open(self.record / 'ramtest-program-with-spl.log.gz', 'rt') as stream:
+            programmer = stream.read()
+
+        self.assertEqual(board['system_console_device_path_pattern'], 'A5E(A013BB23B|B013BB23BCS)')
+        self.assertNotIn('R1', board['system_console_device_path_pattern'])
+        self.assertIn(f'/devices/{board["system_console_device_path_pattern"]}', linked_services)
+        self.assertIn(f'for device {board["programmer_device_name"]}@1', programmer)
+        self.assertEqual(board['silicon_suffix'], 'unconfirmed; retained device path has no R1 arm')
+
+        report = ' '.join((self.record / 'README.md').read_text().split())
+        self.assertIn('with no R1 arm', report)
+        self.assertNotIn('matches this part to both the CS and R1 masks', report)
+
+    def test_factory_restore_boot_identity_is_bound_to_ssh_not_uart(self):
+        restore = json.loads((self.record / 'restore.json').read_text())
+        with gzip.open(self.record / 'restore-reboot-uart.log.gz', 'rt') as stream:
+            uart = stream.read()
+        with gzip.open(self.record / 'restored-factory-linux.log.gz', 'rt') as stream:
+            ssh = stream.read()
+
+        self.assertEqual(restore['uart_factory_boot'], 'NOT_RETAINED')
+        self.assertEqual(restore['pinned_ssh_factory_boot'], 'PASS')
+        self.assertIn('reboot: Restarting system', uart)
+        self.assertNotIn(restore['factory_boot_id'], uart)
+        for value in (restore['factory_boot_id'], restore['factory_kernel'], restore['root']):
+            self.assertIn(value, ssh)
+
+        report = ' '.join((self.record / 'README.md').read_text().split())
+        self.assertIn('no subsequent factory boot transcript', report)
+        self.assertIn('The pinned-key SSH transcript records factory boot UUID', report)
+        self.assertNotIn('UART/pinned SSH checks', report)
+
+    def test_programmed_sof_identity_uses_logged_quartus_checksum(self):
+        hardware = json.loads((self.record / 'hardware.json').read_text())
+        programmed = hardware['programmed_sof']
+        self.assertEqual(programmed['programmer_log'], 'ramtest-program-with-spl.log.gz')
+        self.assertEqual(programmed['quartus_checksum'], '0x067AE616')
+        self.assertNotIn('sha256', programmed)
+        self.assertNotIn('bytes', programmed)
+
+        with gzip.open(self.record / programmed['programmer_log'], 'rt') as stream:
+            programmer = stream.read()
+        self.assertRegex(programmer, r'Using programming file .* with checksum 0x067AE616 for device A5EB013BB23BCS@1')
+        report = ' '.join((self.record / 'README.md').read_text().split())
+        self.assertIn('No SHA-256 or byte count for the generated SOF was retained', report)
+        self.assertNotIn('2267ecc2e9e8dd08cd24e8d413ee7e704cc022863d5b761b6d6e6aa33a6bb64c', report)
+
     def test_board_identity_and_release_claims_are_limited_to_retained_evidence(self):
         hardware = json.loads((self.record / 'hardware.json').read_text())
         board = hardware['board']
         self.assertEqual(board['quartus_cable'], 'DE25-Nano [3-11.3-iface0]')
-        self.assertEqual(board['jtag_idcode'], '4362c0dd')
+        self.assertNotIn('jtag_idcode', board)
         self.assertNotIn('usb_serial', board)
         self.assertNotIn('uid', board)
 
@@ -103,6 +159,14 @@ class De25PhysicalMemoryRecordTests(unittest.TestCase):
         self.assertNotIn('TRWU8CBL', report)
         self.assertNotIn('Both serial-specific status files record release', report)
 
+        guide = (self.root / 'docs/de25-linux.md').read_text()
+        self.assertNotIn('identified board', guide)
+        self.assertIn('do not bind this session to a USB serial or board UID', ' '.join(guide.split()))
+        self.assertNotIn('4362c0dd', (self.record / 'README.md').read_text())
+
+        checks_note = ' '.join((self.record / 'README.md').read_text().split())
+        self.assertIn('does not attest checks on this PR head', checks_note)
+
         with gzip.open(self.record / 'device-info-command-index2.log.gz', 'rt') as stream:
             failed_attempt = stream.read()
         self.assertIn('Error (213019)', failed_attempt)
@@ -112,6 +176,23 @@ class De25PhysicalMemoryRecordTests(unittest.TestCase):
         restore = json.loads((self.record / 'restore.json').read_text())
         self.assertIn('claim_released_utc', restore)
         self.assertIn('one claim-release timestamp', report)
+
+    def test_collector_cli_replays_retained_logs_to_exact_scans_json(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logs = Path(temp_dir) / 'logs'
+            logs.mkdir()
+            output = Path(temp_dir) / 'scans.json'
+            for name in ('smoke-ram.log', 'full-ram.log'):
+                with gzip.open(self.record / f'{name}.gz', 'rb') as source:
+                    (logs / name).write_bytes(source.read())
+
+            subprocess.run([
+                sys.executable,
+                str(self.record / 'collect.py'),
+                '--logs', str(logs),
+                '--output', str(output),
+            ], check=True, capture_output=True, text=True)
+            self.assertEqual(output.read_bytes(), (self.record / 'scans.json').read_bytes())
 
     def test_manifest_hashes_match_the_retained_evidence(self):
         manifest = json.loads((self.record / 'manifest.json').read_text())

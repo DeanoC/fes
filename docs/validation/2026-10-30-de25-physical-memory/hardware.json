@@ -4,14 +4,15 @@
   "source_producer": "43c248d2dfbad7fa2d0ef4c72fa006fe21214dc9",
   "board": {
     "quartus_cable": "DE25-Nano [3-11.3-iface0]",
-    "jtag_idcode": "4362c0dd",
+    "programmer_device_name": "A5EB013BB23BCS",
+    "system_console_device_path_pattern": "A5E(A013BB23B|B013BB23BCS)",
     "printed_opn": "unobserved beneath fan",
-    "silicon_suffix": "unconfirmed; CS and R1 table masks both match"
+    "silicon_suffix": "unconfirmed; retained device path has no R1 arm"
   },
   "original_sof_sha256": "5b4bf7192dc58a2be0e8ba9b811fcac4aa082ede105c78231dcec8ffd06e1778",
   "programmed_sof": {
-    "sha256": "2267ecc2e9e8dd08cd24e8d413ee7e704cc022863d5b761b6d6e6aa33a6bb64c",
-    "bytes": 2717323,
+    "quartus_checksum": "0x067AE616",
+    "programmer_log": "ramtest-program-with-spl.log.gz",
     "bootloader": "exact retained Terasic SPL; see bootloader-audit.json"
   },
   "build_id": "6ee668470911276a9e553d0025c7ef0b",

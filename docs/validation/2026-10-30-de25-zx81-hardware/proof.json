@@ -1,10 +1,17 @@
 {
-  "serial": "TRWU8J8G",
-  "boot_id": "74e2b65c-13f3-4881-9d54-397ac63d18e0",
+  "board_identity": {
+    "quartus_cable_name": "DE25-Nano [3-11.3-iface0]",
+    "fpga_part": "A5EB013BB23BCS",
+    "usb_serial": null,
+    "board_uid": null,
+    "jtag_idcode": null,
+    "physical_board_binding": "not-established"
+  },
+  "programmed_sof_quartus_checksum": "0x0649BFAE",
+  "programmer_log": "program.log.gz",
   "build_id": "489319c9b6eeb20f2b582dca10edf3cb",
   "client_sha256": "d353ad5673959fac9cea50ac34eb01035798d7857d6754d1df3d33b66121e88f",
   "saved_image_sha256": "b4e6e04e3063149a0e7232f23e4aa24b96d0631d557920e97c65d1e01dfb3c71",
-  "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
   "driver_sha256": "e9cb9aad914a633b8f9333b6f9e0dd432a761d654592a59cff875ad903d0f58a",
   "results": [
     {
