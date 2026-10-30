@@ -322,7 +322,7 @@ package for BIOS or DOS boot on hardware. The DOS package image is licensed
 GPL-2.0-or-later for the kernel and GPL-2.0 for FreeCOM; its source commits
 and SHA-256 are recorded in the core firmware notices. The diagnostic producer
 enables the `fes.computer` 1.1 path for live read-only floppy insertion and
-eject. On Kit B, the [media-enabled diagnostic](validation/2026-10-30-pcxt-floppy-media/result.json)
+eject. On Kit B, the [media-enabled diagnostic](validation/2026-10-30-pcxt-floppy-media/result-merged.json)
 accepted live inserts and ejects and verified one floppy sector through the
 guest FDC and DMA. This does not qualify a DOS boot, writes, the full floppy
 buffer, or external interface timing. Live insertion does not restart the
