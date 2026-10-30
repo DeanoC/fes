@@ -312,8 +312,11 @@ read-only XT floppy adapter using IRQ6 and DMA2 with a pinned FreeDOS 360 KiB
 FAT12 image loaded into an isolated SDRAM buffer; its whole-machine test checks a DOS prompt and
 directory listing. The registered diagnostic producer enables the
 `fes.computer` 1.1 media path for live read-only 360 KiB floppy insertion and
-eject. Neither
-simulation qualifies the diagnostic package for BIOS or DOS boot on hardware.
+eject. Neither simulation qualifies BIOS or DOS boot on hardware.
+On Kit B, the [media-enabled diagnostic](validation/2026-10-30-pcxt-floppy-media/result.json)
+accepted live inserts and ejects and verified one floppy sector through the
+guest FDC and DMA. This does not qualify a DOS boot, writes, the full floppy
+buffer, or external interface timing.
 Live insertion does not restart the guest; initial boot media or a guest retry
 path, an in-play display plane, write persistence, DOS/game compatibility,
 host keyboard and other profiles remain open. See the
