@@ -272,6 +272,9 @@ jobs:
           echo "VERILATOR_ROOT=$VERILATOR_ROOT" >> "$GITHUB_ENV"
           echo "$RUNNER_TEMP/fes-verilator/bin" >> "$GITHUB_PATH"
           bash scripts/ci_verilator.sh "$RUNNER_TEMP/fes-verilator" "$RUNNER_TEMP/fes-verilator-build"
+      - name: Install PC/XT floppy image tools
+        if: matrix.target == 'sim-fes-pcxt-dos'
+        run: sudo apt-get update && sudo apt-get install -y mtools
       - name: Simulate selected core scenarios
         env:
           TARGETS: ${{ matrix.target }}

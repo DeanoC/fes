@@ -4,8 +4,8 @@ This development slice runs an original diagnostic ROM on an 8088 CPU through
 an eight-slot virtual ISA backplane. The [machine design](../../docs/architecture.md#proposed-fes-ibm-pcxt-core)
 targets an 8088/8086 PC/XT with IBM graphics and extensions to the existing
 linkable-card mechanism. The motherboard slice adds memory decoding, an 8259A
-PIC, 8253 PIT, 8255 PPI, XT keyboard byte transport and speaker PCM, and a transaction-native 8237A DMA subset. Separate ISA CGA and MDA display cards add guest raster output. It has no
-HID keyboard frontend, disk controller, packaged BIOS or physical socket map. The
+PIC, 8253 PIT, 8255 PPI, XT keyboard byte transport and speaker PCM, and a transaction-native 8237A DMA subset. Separate ISA CGA and MDA display cards add guest raster output. An optional read-only XT floppy adapter is exercised in host simulation. The package has no
+HID keyboard frontend, floppy media transport, packaged BIOS or physical socket map. The
 registered `fes.pcxt` recipe builds a diagnostic package with fixed CGA Direct
 video and the standard identity/execution mailbox; it can start the built-in
 diagnostic, but cannot boot DOS or PC/XT games yet. The storage lane connects conventional RAM and firmware to the existing
@@ -504,9 +504,47 @@ python3 scripts/sim_fes_pcxt_bios.py --bios /absolute/GLABIOS_0.4.2_8X.ROM --fon
 
 The runner writes its input identity, trace and simulation outputs under
 `build/sim/fes-pcxt/bios/`; the firmware is an external simulation input, not
-part of the package. This is a host-only diagnostic. It does not implement
-floppy I/O, host HID delivery or DOS boot, and it does not qualify a routed
-artifact or a kit.
+part of the package. This host-only, diskless diagnostic does not exercise
+floppy I/O or DOS boot, and does not qualify a routed artifact or a kit.
+
+## XT floppy and DOS simulation
+
+The optional inline `pcxt_fdc_card` implements the read-only 765-family command
+subset for one XT drive. It exposes the XT adapter registers, IRQ6 and DMA2,
+with guest-time motor, seek and transfer timing. The supported commands include
+Specify, Sense Drive, Sense Interrupt, Recalibrate, Seek, Read ID and DMA-mode
+MFM Read Data; writes report write protection. The controller obtains bytes
+through a separate read service, not by intercepting BIOS disk calls or
+treating the disk as guest RAM. The supported image is a raw 360 KiB disk:
+40 cylinders, two heads, nine 512-byte sectors per track. It is not a complete
+765 model or a representation of flux-level copy protection.
+
+The DOS fixture uses the 8086-compatible FreeDOS kernel and FreeCOM selected
+and hashed in `sim/freedos.lock`, with a FAT12 boot sector assembled using the
+pinned NASM release. The image contains `FESXT.TXT` and is generated under
+`build/sim/fes-pcxt/freedos/`; third-party firmware and the image are not
+packaged. The builder needs mtools. Downloads occur only with `--download`,
+which fetches missing pinned sources and the assembler; cached inputs are
+verified before use.
+
+```sh
+# From sources/misteross; the DOS target permits fixture downloads.
+make sim-fes-pcxt-fdc
+make sim-fes-pcxt-dos
+# Or build the disk separately, then provide it and a cached BIOS explicitly:
+python3 scripts/build_pcxt_freedos_image.py --download
+python3 scripts/sim_fes_pcxt_dos.py --bios /absolute/GLABIOS_0.4.2_8X.ROM --disk /absolute/freedos-360.img
+```
+
+The whole-machine test loads the pinned GLaBIOS into modeled SDRAM, enables the
+floppy adapter and checks that the disk's boot sector arrives at `0000:7C00`.
+It is designed to require a DOS prompt, type `DIR` over the simulated XT
+keyboard and check `FESXT.TXT` in both text memory and the captured display.
+The runner validates the selected disk's boot code, FAT12 layout and file
+contents against the lock and records the actual disk hash. Outputs are under
+`build/sim/fes-pcxt/dos/`. This is host simulation; the registered diagnostic
+package does not connect the floppy media service. There is no PC floppy runtime
+media ABI, write persistence or hardware acceptance for this path.
 
 ## Assembled board diagnostic
 

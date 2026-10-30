@@ -307,9 +307,12 @@ The baseline image/bundle are retained and the kit is idle/lease-free.
 A host-only GLaBIOS XT/5160 POST fixture now drives the assembled machine's
 firmware loader, CGA font input and XT keyboard cable. It checks the 640 KiB
 diskless profile, keyboard self-test and a typed key; its inputs and intended
-checks are described in the core guide. This does not qualify the diagnostic
-package for BIOS boot on hardware. DOS/game compatibility, host keyboard,
-floppy and other profiles remain open. See the
+checks are described in the core guide. A separate host simulation adds a
+read-only XT floppy adapter using IRQ6 and DMA2 with a pinned FreeDOS 360 KiB
+FAT12 image; its whole-machine test is designed to check a DOS prompt and
+directory listing. Neither simulation qualifies the diagnostic package for
+BIOS or DOS boot on hardware. Runtime PC floppy media, write persistence,
+DOS/game compatibility, host keyboard and other profiles remain open. See the
 [PC/XT diagnostic guide](../sources/misteross/cores/fes-pcxt/README.md#assembled-board-diagnostic).
 
 ## pc386 machine, phases M1, M2 and M3

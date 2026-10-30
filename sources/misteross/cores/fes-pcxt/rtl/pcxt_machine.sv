@@ -1,8 +1,13 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Real 8088 + motherboard + registered ISA display cards. Storage/font external.
-module pcxt_machine #(parameter bit DIAGNOSTIC_PROBE = 0, SEPARATE_CPU_CLOCK = 0,
+module pcxt_machine #(parameter bit DIAGNOSTIC_PROBE = 0, SEPARATE_CPU_CLOCK = 0, FLOPPY = 0,
     parameter integer BOARD_CLOCK_HZ = 100000000, parameter [7:0] SWITCHES = 8'h2d) (
     input wire clk, clk_cpu, reset,
+    input wire media_present,
+    output wire media_read_valid,
+    output wire [18:0] media_read_addr,
+    input wire media_read_ready,
+    input wire [7:0] media_read_data,
     input wire keyboard_clock, keyboard_data,
     output wire keyboard_clock_low, keyboard_data_low, keyboard_clear,
     output wire memory_valid,
@@ -104,8 +109,10 @@ module pcxt_machine #(parameter bit DIAGNOSTIC_PROBE = 0, SEPARATE_CPU_CLOCK = 0
         .keyboard_clear(keyboard_clear), .keyboard_irq(),
         .speaker(), .audio_valid(audio_valid), .audio_sample(audio_sample), .intr(intr), .pit_out(), .pit_clock()
     );
-    pcxt_display_bus #(.DIAGNOSTIC_PROBE(DIAGNOSTIC_PROBE), .CLOCK_HZ(BOARD_CLOCK_HZ)) isa (
+    pcxt_display_bus #(.DIAGNOSTIC_PROBE(DIAGNOSTIC_PROBE), .FLOPPY(FLOPPY), .CLOCK_HZ(BOARD_CLOCK_HZ)) isa (
         .clk(clk), .reset(reset), .cycle_valid(isa_valid), .cycle_ready(isa_ready),
+        .media_present(media_present), .media_read_valid(media_read_valid),
+        .media_read_addr(media_read_addr), .media_read_ready(media_read_ready), .media_read_data(media_read_data),
         .cycle_address(address), .cycle_wdata(wdata), .cycle_kind(kind),
         .cycle_write(write_cycle), .cycle_aen(aen), .cycle_lock(locked),
         .cycle_dma_channel(dma_channel), .cycle_terminal_count(terminal_count), .guest_ce(board_guest_ce),

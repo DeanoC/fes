@@ -140,7 +140,9 @@ class SimulationMatrixTests(unittest.TestCase):
     def test_pcxt_bios_is_an_independent_required_scenario(self):
         rows = simulation_matrix(['pcxt'])['include']
         self.assertEqual(rows, [{'core': 'pcxt', 'target': 'sim-fes-pcxt'},
-                                {'core': 'pcxt', 'target': 'sim-fes-pcxt-bios'}])
+                                {'core': 'pcxt', 'target': 'sim-fes-pcxt-bios'},
+                                {'core': 'pcxt', 'target': 'sim-fes-pcxt-fdc'},
+                                {'core': 'pcxt', 'target': 'sim-fes-pcxt-dos'}])
 
     def test_selected_families_only_and_no_empty_placeholder(self):
         from scripts.ci_simulations import simulation_matrix

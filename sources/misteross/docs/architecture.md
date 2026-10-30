@@ -2934,8 +2934,8 @@ hash-pinned GLaBIOS XT/5160 ROM, an ASCII diagnostic font, and a timed XT
 keyboard, with no floppy installed. It loads the full top-aligned firmware
 window through the SDRAM controller; the BIOS runs on the RTL 8088. The test
 checks POST, the 640 KiB/CGA equipment profile, keyboard self-test and a typed
-key before bootstrap. This fixture is not a packaged BIOS, a host HID path, a
-floppy implementation, or kit acceptance. The diagnostic board ties its
+key before bootstrap. This diskless fixture is not a packaged BIOS, a host HID
+path or kit acceptance. The diagnostic board ties its
 keyboard cable inactive and retains its fixed glyph input.
 
 **The full PC/XT product remains in development.** The registered `fes.pcxt`
@@ -3428,6 +3428,15 @@ but require their own sound, IRQ and DMA qualification. Base audio is PC speaker
 
 ### FES integration and acceptance boundary
 
+The host simulation now has an optional inline XT 765-family adapter with a
+read-only command subset, IRQ6 and DMA2. Its separate byte service supplies a
+360 KiB raw image with 40 cylinders, two heads and nine 512-byte sectors per
+track. A pinned 8086-compatible FreeDOS image and GLaBIOS form a separate
+whole-machine test, intended to check the boot sector, DOS prompt and directory
+listing through the RTL machine. This service is not a runtime PC media ABI;
+the diagnostic package does not connect it. Writes, persistence, flux images
+and physical acceptance remain outside this simulation path.
+
 Use `fes.computer` and implemented keyboard/audio/video services where their
 contracts fit. PC floppy and hard-disk transports need new versioned shared
 media definitions and runtime support before a package advertises them. Media
@@ -3444,8 +3453,8 @@ warm guest reset, cold machine reset and physical Stop have distinct semantics.
 FogCast owns selection and sessions; the runtime owns upload and FPGA lifecycle.
 
 The transaction RTL lives under `cores/fes-pcxt/`; put a reusable CPU under
-`cores/fes-common/rtl/x86/` only when implemented. A future producer must use
-the shared locked HIP lane and authenticate firmware, character ROM, CPU mode,
+`cores/fes-common/rtl/x86/` only when implemented. A future BIOS/floppy producer
+must authenticate firmware, character ROM, CPU mode,
 adapter set, RAM geometry and disk-controller configuration. Resource estimates
 must account for CPU microcode/prefetch, adapter VRAM, SDRAM arbitration, frame
 capture, audio and reserved linkable socket fences. No fit or frequency is claimed.

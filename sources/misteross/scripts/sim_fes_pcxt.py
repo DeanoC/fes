@@ -61,6 +61,7 @@ DISPLAY_SOURCES = (
     'cores/fes-pcxt/expansions/pcxt_display_card.sv',
     'cores/fes-pcxt/expansions/pcxt_cga_card.sv',
     'cores/fes-pcxt/expansions/pcxt_mda_card.sv',
+    'cores/fes-pcxt/expansions/pcxt_fdc_card.sv',
     'cores/fes-pcxt/rtl/pcxt_display_bus.sv',
     'cores/fes-pcxt/sim/display_top.sv',
 )

@@ -74,7 +74,7 @@ def cga_colour(index):
     return bytes((r, g, b))
 
 
-def verify_post_frame(frame, cells, font):
+def verify_post_frame(frame, cells, font, label=b'GLaBIOS', target_row=None):
     """Compare POST glyph pixels, including foreground and background.
 
     The CGA source is 640x200, nearest-neighbour scaled into the centred
@@ -83,11 +83,14 @@ def verify_post_frame(frame, cells, font):
     """
     if len(frame) != 1280 * 720 * 3 or len(cells) != 80 * 25 * 2 or len(font) != 4096:
         raise ValueError('incorrect POST frame, text memory or font size')
-    label = b'GLaBIOS'
+    if not label or any(c < 32 or c > 126 for c in label):
+        raise ValueError('expected banner must be printable ASCII')
     rows = [cells[r * 160:(r + 1) * 160:2] for r in range(25)]
     locations = [(r, row.find(label)) for r, row in enumerate(rows) if label in row]
+    if target_row is not None:
+        locations = [location for location in locations if location[0] == target_row]
     if len(locations) != 1:
-        raise ValueError('POST text must contain one GLaBIOS banner')
+        raise ValueError('text must contain the expected banner on exactly one line')
     row, col = locations[0]
     expected = []
     for n, char in enumerate(label):

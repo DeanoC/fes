@@ -29,7 +29,7 @@ class TestChangedTest(unittest.TestCase):
         self.assertEqual(result["impact"]["cores"], ["pcxt"])
         targets = [c["argv"][1] for c in result["commands"]
                    if c["lane"] == "fpga" and c["argv"][0] == "make"]
-        self.assertEqual(targets, ["sim-fes-pcxt", "sim-fes-pcxt-bios"])
+        self.assertEqual(targets, ["sim-fes-pcxt", "sim-fes-pcxt-bios", "sim-fes-pcxt-fdc", "sim-fes-pcxt-dos"])
 
     def test_atari_st_and_68000_changes_select_machine_and_video_simulation(self):
         self.change("sources/misteross/cores/fes-common/rtl/fx68k/fx68k.sv")

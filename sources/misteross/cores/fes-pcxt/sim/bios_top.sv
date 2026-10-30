@@ -1,16 +1,20 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Real assembled machine. Observations below do not drive any guest state.
-module bios_top (
+module bios_top #(parameter bit WITH_FLOPPY = 0) (
     input wire clk, clk_pixel, cold_reset, reset_pixel, warm_reset,
     input wire firmware_valid,
     input wire [15:0] firmware_address,
     input wire [7:0] firmware_data,
     output wire firmware_ready, firmware_done, initialized, machine_reset, firmware_loaded,
+    input wire media_present, media_read_ready,
+    input wire [7:0] media_read_data,
+    output wire media_read_valid,
+    output wire [18:0] media_read_addr,
     input wire code_valid,
     input wire [7:0] code,
     output wire code_ready, keyboard_clock_low, keyboard_data_low, keyboard_clear,
     output wire [1:0] fault,
-    output wire halted, dma_owner, refresh_done,
+    output wire halted, dma_owner, refresh_done, dma2_done, fdc_irq,
     output wire [31:0] video_request,
     output wire [27:0] video_response,
     output wire sdram_clk, sdram_cke, sdram_ncs, sdram_nras, sdram_ncas, sdram_nwe,
@@ -42,10 +46,14 @@ module bios_top (
     always @(posedge clk) dq_rise <= dq_sample;
     always @(negedge clk) dq_fall <= dq_sample;
     /* verilator lint_off PINCONNECTEMPTY */
-    pcxt_system #(.DIAGNOSTIC_PROBE(0), .SWITCHES(8'h2c)) system (
+    pcxt_system #(.DIAGNOSTIC_PROBE(0), .FLOPPY(WITH_FLOPPY),
+                  .SWITCHES(WITH_FLOPPY ? 8'h2d : 8'h2c)) system (
         .clk_cpu(clk), .clk_pin(clk), .hold(1'b0), .audio_valid(), .audio_sample(),
         .cga_font_data(font[cga_font_address]), .mda_font_data(font[mda_font_address]), .*);
     /* verilator lint_on PINCONNECTEMPTY */
+    assign dma2_done = system.machine.isa_done && system.machine.aen &&
+                       system.machine.kind == 2'd3 && system.machine.dma_channel == 2'd2;
+    assign fdc_irq = system.machine.irq[6];
     assign bus_done = system.machine.completed;
     assign bus_address = system.machine.cycle_address;
     assign bus_kind = system.machine.cycle_kind;

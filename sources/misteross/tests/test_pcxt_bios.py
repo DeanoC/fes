@@ -84,6 +84,16 @@ class BiosFrameTest(unittest.TestCase):
                     frame[at:at+3] = b'\xff\xff\xff'
         proof = bios.verify_post_frame(bytes(frame), bytes(cells), bytes(font))
         self.assertGreaterEqual(proof['score'], 0.9)
+        # A volume label and a directory entry may contain the same text;
+        # the caller must choose the actual listing row explicitly.
+        duplicate = bytearray(cells)
+        for n, char in enumerate(label):
+            duplicate[2 * (160 + n)] = char
+            duplicate[2 * (160 + n) + 1] = 0x0f
+        with self.assertRaisesRegex(ValueError, 'exactly one line'):
+            bios.verify_post_frame(bytes(frame), bytes(duplicate), bytes(font))
+        selected = bios.verify_post_frame(bytes(frame), bytes(duplicate), bytes(font), label, 1)
+        self.assertGreaterEqual(selected['score'], 0.9)
         for blank in (bytes(len(frame)), bytes([255]) * len(frame)):
             with self.assertRaisesRegex(ValueError, 'does not render'):
                 bios.verify_post_frame(blank, bytes(cells), bytes(font))
