@@ -30,11 +30,10 @@ module fes_de25_scanout_board (
             if (first_lock_seen && !qualified_lock) fault <= 1'b1;
         end
     end
-    // A common cold reset asserts both sides of both PD bridges. Initial
-    // release waits for the first lock; later lock loss never erases traffic.
-    // This register already asserts asynchronously on top_reset_n. Drive its
-    // Q directly: re-ANDing that reset creates logic before the pixel-domain
-    // reset synchronizer even though the logical cold/startup behavior agrees.
+    // This asynchronous source asserts the child reset bridges immediately.
+    // Each bridge releases synchronously in its own receiving clock domain.
+    // Initial release waits for the first lock; later lock loss never erases
+    // traffic or resets either live bridge.
     assign scanout_reset_n = first_lock_seen;
     assign clock_fault = fault;
     I2C_HDMI_Config hdmi_config (.iCLK(CLOCK0_50), .iRST_N(config_reset_n),

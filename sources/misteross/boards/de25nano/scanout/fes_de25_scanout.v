@@ -125,11 +125,14 @@ module fes_de25_scanout (
         !clock_failed && memory_errors == 2'b00 && underflows == 32'd0 && !local_clear;
     assign video_rgb = video_enable ? rgb : 24'd0;
     assign video_de = video_enable && de;
-    assign video_hs = video_enable && hs;
-    assign video_vs = video_enable && vs;
+    // HS/VS are board timing, not scanout visibility. Keep them continuous
+    // while stopped, faulted or reset so the HDMI shell can finish each pulse.
+    assign video_hs = hs;
+    assign video_vs = vs;
 
     fes_menu_video #(.DYNAMIC_BASE(1'b1), .MAX_BURST_BEATS(8'd16),
-        .CHECK_RESPONSE(1'b1), .COMPLETE_FRAME_ACK(1'b1)) video (
+        .CHECK_RESPONSE(1'b1), .RESET_ABORTS_TRAFFIC(1'b1), .COMPLETE_FRAME_ACK(1'b1),
+        .PRESERVE_RASTER_ON_RESET(1'b1)) video (
         .clk(clk), .rst(!reset_n || local_clear), .enable(video_enable), .quiesce(!running),
         .window_base(grant_base), .window_base_valid(configured),
         .raster_h(11'd0), .raster_v(10'd0),
