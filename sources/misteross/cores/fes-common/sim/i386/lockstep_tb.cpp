@@ -85,6 +85,7 @@
 #include "Vfes_i386_cpu.h"
 #include "i386_oracle.h"
 #include "pc386_ddr_model.h"
+#include "smc_stale.h"
 #include "verilated.h"
 
 #include <algorithm>
@@ -324,7 +325,7 @@ public:
     uint64_t io_unstable = 0;        // I/O requests whose port, size or data changed before their ack
     // Self-modifying code: the bytes a retired store wrote into the blocks
     // the front end has fetched since it last fetched out of sequence, at or
-    // after the storing instruction, each with that instruction's start. A
+    // after the storing instruction, retaining every writer's start. A
     // block fetched as the store retires counts: the L1I reads it while it
     // still holds the old line. A fetch out of sequence clears them, as the
     // front end then refetches. An instruction other than the storing one
@@ -337,9 +338,7 @@ public:
     // begun that one, and DMA_WRITE, no instruction's, if not
     // (trace_smc_open): then that one must not run the old byte either.
     // length: an instruction's length, from ram.
-    static constexpr uint32_t DMA_WRITE = 0xffffffffu;
-    std::map<uint32_t, uint32_t> fetched_stores;
-    uint32_t fetch_lo = 0, fetch_end = 0;
+    SmcStaleTracker fetched_stores;
     std::optional<uint32_t> stale;
     std::optional<uint32_t> dma_landed;  // the byte a DMA write wrote on the last edge
     std::function<unsigned(uint32_t linear)> length;
@@ -378,8 +377,7 @@ public:
         mmio_log.clear();
         mmio_stores.clear();
         mmio_wrong = mmio_early = 0;
-        fetched_stores.clear();
-        fetch_lo = fetch_end = 0;
+        fetched_stores.reset();
         stale.reset();
         dma_landed.reset();
         dmem_reads.clear();
@@ -425,21 +423,17 @@ public:
         // The instruction retiring or storing now: the one after the last
         // retirement.
         const uint32_t current = top.arch_base[fes_i386::SEG_CS] + top.arch_eip;
-        if (dma_landed && !top.reset && *dma_landed >= current && *dma_landed >= fetch_lo && *dma_landed < fetch_end)
-            fetched_stores[*dma_landed] = top.trace_smc_open ? DMA_WRITE : current;
+        if (dma_landed && !top.reset)
+            fetched_stores.store(*dma_landed, top.trace_smc_open ? SmcStaleTracker::DMA_OWNER : current, current);
         dma_landed.reset();
         if (top.trace_fetch && !top.reset) {
             const uint32_t block = uint32_t(top.trace_fetch_block) << 4;
-            if (block != fetch_end) {
-                fetched_stores.clear();
-                fetch_lo = block;
-            }
-            fetch_end = block + 16;
+            fetched_stores.fetch(block);
         }
         if (store && !top.reset)
             for (int i = 0; i < 8; ++i) {
                 const uint32_t at = waddr + i;
-                if (wmask >> i & 1 && at >= current && at >= fetch_lo && at < fetch_end) fetched_stores[at] = current;
+                if (wmask >> i & 1) fetched_stores.store(at, current, current);
             }
         md_waits += top.trace_md_wait;  // this cycle, before the edge that ends it
         if (top.trace_mem_wait) {
@@ -561,13 +555,10 @@ public:
                 written.insert(at);
             }
         }
-        if (top.trace_retire && !top.trace_exception && !fetched_stores.empty() && !stale) {
+        if (top.trace_retire && !top.trace_exception && !stale) {
             const uint32_t end = current + (length ? length(current) : 15u);
-            for (auto byte = fetched_stores.lower_bound(current); byte != fetched_stores.end() && byte->first < end; ++byte)
-                if (byte->second != current) {
-                    stale = byte->first;
-                    break;
-                }
+            uint32_t first_stale = 0;
+            if (fetched_stores.executed(current, end, first_stale)) stale = first_stale;
         }
         ++cycles;
     }

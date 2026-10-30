@@ -132,7 +132,7 @@ class LockstepRunTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn(', 0 fail;', result.stdout)
         self.assertIn('directed cases: 39 pass, 0 fail', result.stdout)
-        self.assertIn('memory cases: 26 pass, 0 fail', result.stdout)
+        self.assertIn('memory cases (DMA, FLUSH): 26 pass, 0 fail', result.stdout)
         self.assertIn('trace unchanged', result.stdout)
         return result.stdout
 

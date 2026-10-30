@@ -599,7 +599,7 @@ public:
         io = inta = Pending::Idle;
         last_retire = m.cycles;
         retire_next = physical(s.seg[fes_i386::SEG_CS].base + s.eip, m.top.a20m);
-        stale.clear();
+        stale.reset();
     }
 
     // The architectural state, over the fields the RTL does not hold.
@@ -755,13 +755,15 @@ public:
         m.top.mem_valid = 0;
         replays += cpu.trace_replay;
         smc_restarts += cpu.trace_smc;
+        const uint32_t fetch_base = physical(block << 4, a20m);
+        auto smc_cycle = stale.begin_cycle(fetch, fetch_base);
 
         // Attribute a DMA write like the lockstep harness: when WB is open,
         // it must restart the next instruction; during an instruction that
         // instruction is allowed to finish.
         if (cpu.dma_done && dma_write && !resetting) {
             const uint32_t at = physical(dma_address, a20m);
-            if (stale.store(at, dma_owner, current, fetch_end)) {
+            if (smc_cycle.store(at, dma_owner, current)) {
                 if (smc_addresses.insert(at).second && smc_sites.size() < 24)
                     smc_sites.push_back(site("dma", current, at));
                 ++smc_stores;
@@ -777,17 +779,12 @@ public:
                 if (at >= RAM_BYTES || (at >= 0xa0000 && at < 0xc0000)) continue;
                 dirty[at >> 12] = true;
                 // Code the front end holds ahead of the next instruction.
-                if (stale.store(at, current, next, fetch_end)) {
+                if (smc_cycle.store(at, current, next)) {
                     if (smc_addresses.insert(at).second && smc_sites.size() < 24)
                         smc_sites.push_back(site("store", next, at));
                     ++smc_stores;
                 }
             }
-        }
-        if (fetch) {
-            const uint32_t base = physical(block << 4, a20m);
-            if (base != fetch_end) stale.clear();  // a redirect: the front end refetches
-            fetch_end = base + 16;
         }
         still = fetch || cpu.trace_dread || store || issued || cpu.io_ack || cpu.inta_ack || cpu.trace_retire
                 || !cpu.trace_mem_idle ? 0 : still + 1;
@@ -823,7 +820,6 @@ private:
     uint64_t mmio_start = 0, read_start = 0;
     uint32_t read_dword = 0;
     uint8_t read_enables = 0;
-    uint32_t fetch_end = 0;    // the end of the last block fetched
     uint32_t retire_next = 0;  // where the next instruction to retire starts
     SmcStaleTracker stale;  // bytes stored into fetched code since the last redirect
     uint64_t last_retire = 0;
