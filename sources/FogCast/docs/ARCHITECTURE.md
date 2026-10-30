@@ -957,9 +957,11 @@ A confirmed input Busy rejection retains only the latest absolute mouse button
 state for zero-motion reconciliation, bounded to 450 seconds and the same
 generation. Unbind, source closure or an ambiguous transport failure cancels
 it; relative motion is discarded.
-A bound-disk input fault captures and publishes before idle retirement; if that
-fails, the runtime retains RAM and ownership in recovery instead of replacing
-it with idle firmware.
+A bound-disk input fault captures and publishes before idle retirement. A
+persistent machine-data generation also saves on an input fault, including a
+pc386 session with an empty ATA unit. If capture or publication fails, the
+runtime retains RAM and ownership in recovery instead of replacing it with idle
+firmware.
 
 ## Other modes
 
@@ -2651,9 +2653,10 @@ SDL scancodes, and the kit maps evdev `KEY_*`. There is no per-core character
 map; the core owns characters, shifted symbols, repeat and reset chords. The host
 attaches input for these sessions even without controller ports and passes the
 events through `POST /api/v1/session/input/event` and the host stream unchanged.
-The 1.1 ABI retains its 1.0 keyboard and relative-mouse capabilities; an active
-`fes.mouse.relative` 1.0 interface receives the same supported-generation
-binding.
+The 1.1 ABI retains its 1.0 keyboard and relative-mouse capabilities; the
+session decoder, tenfoot input gates, and runtime response matcher recognize
+both 1.0 and 1.1. An active `fes.mouse.relative` 1.0 interface receives the
+same supported-generation binding.
 The browser's **Capture keyboard** session action forwards every key, including
 Escape and Backspace, until **Release keyboard**; Stop stays the Stop button.
 The browser posts these events one at a time in event order, so a release
@@ -3286,6 +3289,10 @@ current target, and exposes settings/progress APIs documented in
 Host code consumes the runtime's `persistence_layout` metadata without a second
 ABI registry. Selection rejects persistent-to-missing/different-layout changes,
 including when no record has yet been written, and checks durable target data.
+For pc386, the selected catalog game ID accompanies library launch, inspection,
+and machine-settings updates through the target agent to protocol 2. The
+`core_data` decoder and target client accept the `game_id` plus `machine` shape
+as well as Pong's paddle-speed and best-rally shape.
 
 `targetclient/core_data_client.go` sends bounded archives and expected package IDs to
 `internal/httpapi/core_data.go`; writes and library loads use the existing kit

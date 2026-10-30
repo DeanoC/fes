@@ -29,6 +29,12 @@ var (
 	coreEntryIDRE            = regexp.MustCompile(`^[a-z][a-z0-9_.-]{0,95}$`)
 )
 
+// CoreEntryGameID returns the stable identity used when a new core entry is
+// created for this core and title.
+func CoreEntryGameID(coreID, title string) string {
+	return GameID(CorePlatform, corePackageLibraryID, coreID+"\x00"+title, title)
+}
+
 // CoreEntry binds one stable catalog game identity and core ID to an explicit
 // installed package selection.
 type CoreEntry struct {
@@ -86,7 +92,7 @@ func (s *Store) createCoreEntry(ctx context.Context, title, coreID, packageID, m
 	// alone loses punctuation, case, non-ASCII text, and long suffixes. Existing
 	// rows retain their stored IDs; the core/title query below finds duplicates
 	// created by either identity scheme.
-	gameID := GameID(CorePlatform, corePackageLibraryID, coreID+"\x00"+title, title)
+	gameID := CoreEntryGameID(coreID, title)
 	entry := CoreEntry{GameID: gameID, Title: title, CoreID: coreID, PackageID: packageID, MediaRole: mediaRole, MediaID: mediaID, FirmwareRequired: firmwareRequired}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {

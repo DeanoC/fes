@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"regexp"
 	"sort"
+	"strconv"
 
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/protocol"
@@ -65,6 +66,24 @@ func (c *Client) LoadCore(ctx context.Context, size int64, content io.Reader) (p
 	return c.loadCore(ctx, size, content, "")
 }
 func (c *Client) loadCore(ctx context.Context, size int64, content io.Reader, libraryID string, composition ...bool) (protocol.Status, error) {
+	return c.loadCoreWithGameID(ctx, size, content, libraryID, "", composition...)
+}
+func (c *Client) loadCoreWithGameID(ctx context.Context, size int64, content io.Reader, libraryID, gameID string, composition ...bool) (protocol.Status, error) {
+	return c.loadCoreWithGameIDAndAtaDisk(ctx, size, content, libraryID, gameID, nil, nil, composition...)
+}
+
+// LoadLibraryCoreWithAtaDisk sends the selected base image before the package
+// bytes; the target API stages it locally and never accepts a caller path.
+func (c *Client) LoadLibraryCoreWithAtaDisk(ctx context.Context, size int64, content io.Reader,
+	id, gameID string, disk protocol.AtaDiskSelection, diskContent io.Reader) (protocol.Status, error) {
+	if id == "" || protocol.ValidateGameID(gameID) != nil || !disk.Valid() || diskContent == nil {
+		return protocol.Status{}, fmt.Errorf("library ATA disk request is invalid")
+	}
+	return c.loadCoreWithGameIDAndAtaDisk(ctx, size, content, id, gameID, &disk, diskContent)
+}
+
+func (c *Client) loadCoreWithGameIDAndAtaDisk(ctx context.Context, size int64, content io.Reader,
+	libraryID, gameID string, ataDisk *protocol.AtaDiskSelection, diskContent io.Reader, composition ...bool) (protocol.Status, error) {
 	composed := len(composition) == 1 && composition[0]
 	parts := len(composition) == 2 && composition[1]
 	limit := int64(corepackage.MaxROMInputSize)
@@ -74,7 +93,8 @@ func (c *Client) loadCore(ctx context.Context, size int64, content io.Reader, li
 	if parts {
 		limit = corepackage.MaxPartsArchiveSize
 	}
-	if size < 1 || size > limit || content == nil {
+	if size < 1 || size > limit || content == nil ||
+		(ataDisk != nil && (!ataDisk.Valid() || int64(ataDisk.Size) < protocol.AtaDiskMinBytes || diskContent == nil || libraryID == "" || protocol.ValidateGameID(gameID) != nil)) {
 		return protocol.Status{}, fmt.Errorf("development core input is invalid")
 	}
 	path := "/v1/development/core"
@@ -87,16 +107,32 @@ func (c *Client) loadCore(ctx context.Context, size int64, content io.Reader, li
 	if parts {
 		path = "/v1/library/core/parts"
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		c.endpoint(path, nil).String(), readOnlyReader{Reader: content})
+	var body io.Reader = readOnlyReader{Reader: content}
+	contentLength := size
+	if ataDisk != nil {
+		body = io.MultiReader(readOnlyReader{Reader: diskContent}, readOnlyReader{Reader: content})
+		contentLength += int64(ataDisk.Size)
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint(path, nil).String(), body)
 	if err != nil {
 		return protocol.Status{}, fmt.Errorf("create request: %w", err)
 	}
-	request.ContentLength = size
+	request.ContentLength = contentLength
 	request.Header.Set("Authorization", "Bearer "+c.token)
 	request.Header.Set("Content-Type", "application/octet-stream")
 	if libraryID != "" {
 		request.Header.Set("X-FogCast-Package-ID", libraryID)
+	}
+	if gameID != "" {
+		request.Header.Set("X-FogCast-Game-ID", gameID)
+	}
+	if ataDisk != nil {
+		request.Header.Set(protocol.CorePackageSizeHeader, strconv.FormatInt(size, 10))
+		request.Header.Set(protocol.AtaDiskSizeHeader, strconv.FormatUint(uint64(ataDisk.Size), 10))
+		request.Header.Set(protocol.AtaDiskBaseIDHeader, ataDisk.BaseMediaID)
+		request.Header.Set(protocol.AtaDiskCylindersHeader, strconv.FormatUint(uint64(ataDisk.Cylinders), 10))
+		request.Header.Set(protocol.AtaDiskHeadsHeader, strconv.FormatUint(uint64(ataDisk.Heads), 10))
+		request.Header.Set(protocol.AtaDiskSectorsHeader, strconv.FormatUint(uint64(ataDisk.SectorsPerTrack), 10))
 	}
 	if err := c.authorizeMutation(request); err != nil {
 		return protocol.Status{}, err
@@ -161,7 +197,8 @@ func validCorePackageStatus(status protocol.Status) bool {
 		if c.Layout == expansion.AtariStVideoLayout {
 			bound := protocol.MediaDataBound(value)
 			persistence := (value.PersistenceMode == "volatile" && !bound) || (value.PersistenceMode == "persistent" && bound)
-			if value.ABI != (protocol.RuntimeContract{ID: "fes.computer", Major: 1}) || value.ROMLink == nil || value.ROMLinks != nil || !persistence {
+			if !protocol.ComputerMediaABI(value.ABI.ID, int64(value.ABI.Major), int64(value.ABI.Minor)) ||
+				value.ROMLink == nil || value.ROMLinks != nil || !persistence {
 				return false
 			}
 		} else if value.ROMLink != nil || (value.ROMLinks != nil && c.Layout != expansion.ColecoNativeVideoLayout && c.Layout != expansion.ColecoVideoLayout) ||

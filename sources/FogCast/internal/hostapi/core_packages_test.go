@@ -143,8 +143,7 @@ func TestCorePackageReadRoutesRejectBodies(t *testing.T) {
 
 type coreDataAPIService struct {
 	coreLibraryAPIService
-	updates int
-	update  protocol.CoreSettingsUpdate
+	updates []protocol.CoreSettingsUpdate
 }
 
 func (s *coreDataAPIService) CoreSettings(context.Context, string) (fogcast.CoreDataResult, error) {
@@ -154,8 +153,7 @@ func (s *coreDataAPIService) CoreProgress(context.Context, string) (fogcast.Core
 	return fogcast.CoreDataResult{}, nil
 }
 func (s *coreDataAPIService) SetCoreSettings(_ context.Context, _ string, u protocol.CoreSettingsUpdate) (fogcast.CoreDataResult, error) {
-	s.updates++
-	s.update = u
+	s.updates = append(s.updates, u)
 	return fogcast.CoreDataResult{}, nil
 }
 func TestCoreDataAPIRequiresCompleteTypedCASAndEmptyReads(t *testing.T) {
@@ -167,12 +165,18 @@ func TestCoreDataAPIRequiresCompleteTypedCASAndEmptyReads(t *testing.T) {
 	}{
 		{"GET", "settings", "", 200}, {"GET", "progress", "", 200}, {"GET", "progress", "{}", 400},
 		{"PUT", "settings", `{"expected_package_id":"` + strings.Repeat("a", 64) + `","expected_revision":"absent","paddle_speed":2}`, 200},
+		{"PUT", "pc386/settings", `{"expected_package_id":"` + strings.Repeat("b", 64) + `","expected_revision":"absent","machine":{"preset":3,"frequency":250,"code_profile":1,"turbo":0,"sb_base":576,"sb_irq":5,"sb_dma":1}}`, 200},
 		{"PUT", "settings", `{"expected_package_id":"` + strings.Repeat("a", 64) + `","expected_revision":"absent"}`, 400},
 		{"PUT", "settings", `{"expected_package_id":"` + strings.Repeat("a", 64) + `","expected_revision":"absent","paddle_speed":null}`, 400},
 		{"PUT", "settings", `{"expected_package_id":"` + strings.Repeat("a", 64) + `","expected_revision":"absent","paddle_speed":3}`, 400},
 		{"PUT", "settings", `{"expected_package_id":"` + strings.Repeat("a", 64) + `","expected_revision":"absent","paddle_speed":1,"data_root":"/tmp"}`, 400},
 	} {
-		req := httptest.NewRequest(tc.method, "/api/v1/library/core-entries/core-pong/"+tc.path, strings.NewReader(tc.body))
+		gameID := "core-pong"
+		path := tc.path
+		if strings.HasPrefix(path, "pc386/") {
+			gameID, path = "ultima-vi", strings.TrimPrefix(path, "pc386/")
+		}
+		req := httptest.NewRequest(tc.method, "/api/v1/library/core-entries/"+gameID+"/"+path, strings.NewReader(tc.body))
 		req.Host = "127.0.0.1"
 		req.Header.Set("Content-Type", "application/json")
 		out := httptest.NewRecorder()
@@ -181,8 +185,9 @@ func TestCoreDataAPIRequiresCompleteTypedCASAndEmptyReads(t *testing.T) {
 			t.Fatalf("%s %s %s got %d %s", tc.method, tc.path, tc.body, out.Code, out.Body)
 		}
 	}
-	if s.updates != 1 || s.update.PaddleSpeed != 2 {
-		t.Fatalf("updates=%d update=%+v", s.updates, s.update)
+	if len(s.updates) != 2 || s.updates[0].PaddleSpeed != 2 || s.updates[0].Machine != nil ||
+		s.updates[1].GameID != "ultima-vi" || s.updates[1].Machine == nil || s.updates[1].Machine.Preset != 3 {
+		t.Fatalf("updates=%+v", s.updates)
 	}
 }
 

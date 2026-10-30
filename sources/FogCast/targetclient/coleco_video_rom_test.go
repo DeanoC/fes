@@ -60,7 +60,7 @@ func TestColecoROMLinksPartsClientUsesOrdinaryLibraryLoad(t *testing.T) {
 			if name == "parts endpoint" {
 				loaded, err = client.LoadLibraryPartsCore(context.Background(), 5, strings.NewReader("input"), value.PackageID)
 			} else {
-				loaded, err = client.LoadLibraryCore(context.Background(), 5, strings.NewReader("input"), value.PackageID)
+				loaded, err = client.LoadLibraryCore(context.Background(), 5, strings.NewReader("input"), value.PackageID, "")
 			}
 			if (err == nil) != accepted[name] {
 				t.Fatalf("error=%v", err)

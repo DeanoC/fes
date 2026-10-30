@@ -37,7 +37,7 @@ func (c *persistenceLibraryClient) InspectCore(ctx context.Context, n int64, r i
 	defer p.Cleanup()
 	return protocol.CoreInspection{PackageID: p.PackageID, Descriptor: p.Descriptor, Compatible: true, PersistenceLayout: c.layouts[p.PackageID]}, nil
 }
-func (c *persistenceLibraryClient) InspectCoreData(ctx context.Context, n int64, r io.Reader, id string) (protocol.CoreDataInspection, error) {
+func (c *persistenceLibraryClient) InspectCoreData(ctx context.Context, n int64, r io.Reader, id, gameID string) (protocol.CoreDataInspection, error) {
 	p, err := c.admit(ctx, n, r)
 	if err != nil {
 		return protocol.CoreDataInspection{}, err
@@ -67,7 +67,7 @@ func (c *persistenceLibraryClient) InspectCoreData(ctx context.Context, n int64,
 }
 func (c *persistenceLibraryClient) UpdateCoreSettings(ctx context.Context, n int64, r io.Reader, u protocol.CoreSettingsUpdate) (protocol.CoreDataInspection, error) {
 	c.mutateCalls++
-	result, err := c.InspectCoreData(ctx, n, r, u.ExpectedPackageID)
+	result, err := c.InspectCoreData(ctx, n, r, u.ExpectedPackageID, u.GameID)
 	if err != nil {
 		return result, err
 	}
@@ -80,7 +80,7 @@ func (c *persistenceLibraryClient) UpdateCoreSettings(ctx context.Context, n int
 	result.Revision = c.record.Revision
 	return result, nil
 }
-func (c *persistenceLibraryClient) LoadLibraryCore(ctx context.Context, n int64, r io.Reader, id string) (protocol.Status, error) {
+func (c *persistenceLibraryClient) LoadLibraryCore(ctx context.Context, n int64, r io.Reader, id, gameID string) (protocol.Status, error) {
 	c.libraryCalls++
 	return c.LoadCore(ctx, n, r)
 }

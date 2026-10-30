@@ -86,6 +86,16 @@ func TestAtariStSlotCompositionRoundTripAndSocketAdmission(t *testing.T) {
 	}
 }
 
+func TestComputer11SlotShellIsAccepted(t *testing.T) {
+	r, composition := slotResponse(t)
+	r.ActivePackage.Descriptor.ABI.Minor = 1
+	r.ActivePackage.Observed.ABI.Minor = 1
+	r.Capabilities.ABIs[0].Minor = 1
+	if !validSlotComposition(composition, *r.ActivePackage) || !validActivePackage(*r.ActivePackage, r.Capabilities) {
+		t.Fatal("fes.computer 1.1 slot shell was rejected")
+	}
+}
+
 func TestSlotComposedLoadRequestShapes(t *testing.T) {
 	r, c := slotResponse(t)
 	id := c.PackageID

@@ -125,7 +125,7 @@ func TestLibraryPersistenceDispatchKeepsDiagnostics(t *testing.T) {
 	if apiErr != nil {
 		t.Fatal(apiErr)
 	}
-	_, _, apiErr = runtime.LoadLibraryCoreOwned(context.Background(), context.Background(), context.Background(), int64(len(archive)), bytes.NewReader(archive), inspection.PackageID)
+	_, _, apiErr = runtime.LoadLibraryCoreOwned(context.Background(), context.Background(), context.Background(), int64(len(archive)), bytes.NewReader(archive), inspection.PackageID, "")
 	if apiErr != nil {
 		t.Fatal(apiErr)
 	}

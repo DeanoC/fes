@@ -33,7 +33,7 @@ func TestCoreDataProtocolAdmitsExactClosedDescriptor(t *testing.T) {
 func TestCoreDataRPCUsesTrustedRootAndOneMutation(t *testing.T) {
 	fixture := newSequenceSocketFixture(t, []string{dataResponse(t) + "\n"})
 	client := NewClient(fixture.path)
-	_, err := client.UpdateCoreSettings(context.Background(), "/tmp/package", fixturePackageID, "/media/fat/fogcast/core-data", "absent", 2)
+	_, err := client.UpdateCoreSettings(context.Background(), "/tmp/package", fixturePackageID, "/media/fat/fogcast/core-data", protocol.CoreSettingsUpdate{ExpectedPackageID: fixturePackageID, ExpectedRevision: "absent", PaddleSpeed: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,6 +47,68 @@ func TestCoreDataRPCUsesTrustedRootAndOneMutation(t *testing.T) {
 	}
 	if got["operation"] != "update_core_settings" || got["data_root"] != "/media/fat/fogcast/core-data" || got["expected_revision"] != "absent" || got["paddle_speed"] != float64(2) || got["package_id"] != fixturePackageID {
 		t.Fatal(got)
+	}
+}
+
+func TestLibraryLoadRPCForwardsGameIdentity(t *testing.T) {
+	idle := fixtureLines(t, "protocol-v2.jsonl")[1] + "\n"
+	fixture := newSequenceSocketFixture(t, []string{idle, idle})
+	client := NewClient(fixture.path)
+	_, err := client.LoadLibraryCore(context.Background(), "/tmp/package", fixturePackageID, CoreDataRoot, "ultima-vi")
+	if err == nil {
+		t.Fatal("idle response unexpectedly confirmed a library launch")
+	}
+	requests := fixture.wait(t)
+	if len(requests) != 2 {
+		t.Fatalf("requests %v", requests)
+	}
+	var got map[string]any
+	if json.Unmarshal([]byte(requests[1]), &got) != nil || got["operation"] != "load_library_core" ||
+		got["game_id"] != "ultima-vi" || got["data_root"] != CoreDataRoot {
+		t.Fatalf("library request %s", requests[1])
+	}
+}
+
+func TestLibraryLoadRPCForwardsSelectedAtaDisk(t *testing.T) {
+	idle := fixtureLines(t, "protocol-v2.jsonl")[1] + "\n"
+	fixture := newSequenceSocketFixture(t, []string{idle, idle})
+	client := NewClient(fixture.path)
+	cylinders, heads, sectors, ok := protocol.AtaDiskGeometry(protocol.AtaDiskMinBytes)
+	if !ok {
+		t.Fatal("ATA geometry unavailable")
+	}
+	disk := ataDiskLoadRequest{Path: "/tmp/selected-base.img", DataRoot: MediaDataRoot,
+		Selection: protocol.AtaDiskSelection{BaseMediaID: strings.Repeat("c", 64), Size: uint32(protocol.AtaDiskMinBytes),
+			Cylinders: cylinders, Heads: heads, SectorsPerTrack: sectors}}
+	_, err := client.LoadLibraryCoreWithAtaDisk(context.Background(), "/tmp/package", fixturePackageID,
+		CoreDataRoot, "ultima-vi", disk)
+	if err == nil {
+		t.Fatal("idle response unexpectedly confirmed a library launch")
+	}
+	requests := fixture.wait(t)
+	if len(requests) != 2 {
+		t.Fatalf("requests %v", requests)
+	}
+	var got struct {
+		Operation string `json:"operation"`
+		GameID    string `json:"game_id"`
+		DataRoot  string `json:"data_root"`
+		AtaDisk   struct {
+			Path            string `json:"path"`
+			Size            uint32 `json:"size"`
+			BaseMediaID     string `json:"base_media_id"`
+			DataRoot        string `json:"data_root"`
+			Cylinders       uint16 `json:"cylinders"`
+			Heads           uint16 `json:"heads"`
+			SectorsPerTrack uint16 `json:"sectors_per_track"`
+		} `json:"ata_disk"`
+	}
+	if json.Unmarshal([]byte(requests[1]), &got) != nil || got.Operation != "load_library_core" ||
+		got.GameID != "ultima-vi" || got.DataRoot != CoreDataRoot || got.AtaDisk.Path != disk.Path ||
+		got.AtaDisk.Size != disk.Selection.Size || got.AtaDisk.BaseMediaID != disk.Selection.BaseMediaID ||
+		got.AtaDisk.DataRoot != MediaDataRoot || got.AtaDisk.Cylinders != cylinders ||
+		got.AtaDisk.Heads != heads || got.AtaDisk.SectorsPerTrack != sectors {
+		t.Fatalf("library ATA request %s decoded as %+v", requests[1], got)
 	}
 }
 
@@ -70,6 +132,19 @@ func TestCoreDataDecoderConsumesRuntimePersistenceFixtures(t *testing.T) {
 	for i, line := range fixtureLines(t, "protocol-v2-persistence-responses.jsonl") {
 		if _, err := decodeProtocol2Response([]byte(line)); err != nil {
 			t.Fatalf("fixture line %d: %v", i+1, err)
+		}
+	}
+}
+
+func TestCoreDataDecoderConsumesPc386MachineFixtures(t *testing.T) {
+	for i, line := range fixtureLines(t, "protocol-v2-pc386-responses.jsonl")[:2] {
+		response, err := decodeProtocol2Response([]byte(line))
+		if err != nil {
+			t.Fatalf("fixture line %d: %v", i+1, err)
+		}
+		data := response.CoreData
+		if data == nil || !data.Valid() || data.GameID != "ultima-vi" || data.Machine == nil || data.Layout.ID != "fes.pc386.machine" {
+			t.Fatalf("fixture line %d decoded as %+v", i+1, data)
 		}
 	}
 }

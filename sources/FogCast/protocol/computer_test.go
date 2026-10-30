@@ -35,7 +35,7 @@ func TestDiskMediaProjectionFollowsTheFloppyContract(t *testing.T) {
 			Interfaces: []corepackage.Interface{{ID: "fes.media.blob", Major: 1, Required: true}}},
 		"floppy on simple computer": {ABI: corepackage.Contract{ID: "fes.simple-computer", Major: 1},
 			Interfaces: []corepackage.Interface{{ID: "fes.media.apple2-floppy", Major: 1, Required: true}}},
-		"future abi": {ABI: corepackage.Contract{ID: "fes.computer", Major: 1, Minor: 1},
+		"future abi": {ABI: corepackage.Contract{ID: "fes.computer", Major: 1, Minor: 2},
 			Interfaces: []corepackage.Interface{{ID: "fes.media.apple2-floppy", Major: 1, Required: true}}},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -43,6 +43,11 @@ func TestDiskMediaProjectionFollowsTheFloppyContract(t *testing.T) {
 				t.Fatalf("projected %+v", got)
 			}
 		})
+	}
+	minor11 := apple2Descriptor(corepackage.Interface{ID: "fes.media.apple2-floppy", Major: 1, Required: true})
+	minor11.ABI.Minor = 1
+	if got := DeclaredCoreMediaCapabilities(minor11); len(got) != 1 || got[0].Format != "apple2-dos-order" {
+		t.Fatalf("fes.computer 1.1 media projection %+v", got)
 	}
 }
 
@@ -172,6 +177,66 @@ func TestAtaDiskUnitContractAndPersistentStatus(t *testing.T) {
 	readyWithoutBinding.Persistence = nil
 	if readyWithoutBinding.Valid() {
 		t.Fatal("ready ATA disk without a durable binding was accepted")
+	}
+}
+
+func TestAtaDiskCapabilityIsProjectedOnlyForComputer11(t *testing.T) {
+	descriptor := corepackage.Descriptor{ABI: corepackage.Contract{ID: ComputerABIID, Major: 1, Minor: 1},
+		Interfaces: []corepackage.Interface{{ID: AtaDiskInterface().ID, Major: int64(AtaDiskInterface().Major), Required: true}}}
+	got := DeclaredCoreMediaCapabilities(descriptor)
+	if len(got) != 1 || got[0].Role != DiskRole || got[0].Format != "raw-ata-disk" ||
+		got[0].MinBytes != AtaDiskMinBytes || got[0].MaxBytes != AtaDiskMaxBytes ||
+		got[0].Interface != AtaDiskInterface() || got[0].Transport != "fes-computer-ata-disk-v1" ||
+		got[0].Unit == nil || *got[0].Unit != AtaDiskUnit {
+		t.Fatalf("computer 1.1 ATA capability = %+v", got)
+	}
+	descriptor.ABI.Minor = 0
+	if got := DeclaredCoreMediaCapabilities(descriptor); len(got) != 0 {
+		t.Fatalf("computer 1.0 projected an ATA capability: %+v", got)
+	}
+}
+
+func TestAtaDiskSelectionUsesBoundedConventionalGeometry(t *testing.T) {
+	base := strings.Repeat("c", 64)
+	for _, size := range []int64{AtaDiskMinBytes, 2 << 20, AtaDiskMaxBytes} {
+		cylinders, heads, sectors, ok := AtaDiskGeometry(size)
+		selection := AtaDiskSelection{BaseMediaID: base, Size: uint32(size), Cylinders: cylinders,
+			Heads: heads, SectorsPerTrack: sectors}
+		if !ok || !selection.Valid() {
+			t.Fatalf("size %d geometry %d/%d/%d rejected", size, cylinders, heads, sectors)
+		}
+	}
+	cylinders, heads, sectors, ok := AtaDiskGeometry(2 << 20)
+	if !ok {
+		t.Fatal("2 MiB geometry unavailable")
+	}
+	for name, mutate := range map[string]func(*AtaDiskSelection){
+		"too many cylinders": func(d *AtaDiskSelection) { d.Cylinders++ },
+		"too many heads":     func(d *AtaDiskSelection) { d.Heads++ },
+		"too many sectors":   func(d *AtaDiskSelection) { d.SectorsPerTrack++ },
+		"empty geometry":     func(d *AtaDiskSelection) { d.Cylinders = 0 },
+		"bad media identity": func(d *AtaDiskSelection) { d.BaseMediaID = "../disk" },
+	} {
+		t.Run(name, func(t *testing.T) {
+			disk := AtaDiskSelection{BaseMediaID: base, Size: 2 << 20, Cylinders: cylinders,
+				Heads: heads, SectorsPerTrack: sectors}
+			mutate(&disk)
+			if disk.Valid() {
+				t.Fatalf("invalid disk selection accepted: %+v", disk)
+			}
+		})
+	}
+}
+
+func TestMediaUnitKeepsLegacyUnitsVisibleOnComputer11(t *testing.T) {
+	unit := MediaUnitStatus{Unit: Apple2FloppyUnit, Interface: Apple2FloppyInterface(), MinBytes: 143360,
+		MaxBytes: 143360, ChunkBytes: 512, State: MediaUnitEmpty}
+	p := &CorePackageStatus{PackageID: strings.Repeat("a", 64), Generation: 3,
+		ABI:              RuntimeContract{ID: "fes.computer", Major: 1, Minor: 1},
+		ActiveInterfaces: []RuntimeInterface{{ID: Apple2FloppyInterface().ID, Major: 1}}, MediaUnits: []MediaUnitStatus{unit}}
+	got, ok := MediaUnit(p, Apple2FloppyUnit)
+	if !ok || got.Interface != unit.Interface || got.State != MediaUnitEmpty {
+		t.Fatalf("fes.computer 1.1 legacy media unit hidden: %+v %t", got, ok)
 	}
 }
 

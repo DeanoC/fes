@@ -26,11 +26,11 @@ type dataControl struct {
 	wrongMode               bool
 }
 
-func (c *dataControl) InspectCoreData(ctx context.Context, path, id, root string) (misterruntime.Protocol2Response, error) {
+func (c *dataControl) InspectCoreData(ctx context.Context, path, id, root, gameID string) (misterruntime.Protocol2Response, error) {
 	return c.data(path, id, root)
 }
-func (c *dataControl) UpdateCoreSettings(ctx context.Context, path, id, root, revision string, speed protocol.PaddleSpeed) (misterruntime.Protocol2Response, error) {
-	c.revision, c.speed = revision, speed
+func (c *dataControl) UpdateCoreSettings(ctx context.Context, path, id, root string, update protocol.CoreSettingsUpdate) (misterruntime.Protocol2Response, error) {
+	c.revision, c.speed = update.ExpectedRevision, update.PaddleSpeed
 	return c.data(path, id, root)
 }
 func (c *dataControl) data(path, id, root string) (misterruntime.Protocol2Response, error) {
@@ -66,7 +66,7 @@ func (c *dataControl) data(path, id, root string) (misterruntime.Protocol2Respon
 	}
 	return misterruntime.Protocol2Response{OK: true, CoreData: &data}, nil
 }
-func (c *dataControl) LoadLibraryCore(ctx context.Context, path, id, root string) (misterruntime.Protocol2Response, error) {
+func (c *dataControl) LoadLibraryCore(ctx context.Context, path, id, root, gameID string) (misterruntime.Protocol2Response, error) {
 	c.libraryCalls++
 	c.root = root
 	response, err := c.LoadCore(ctx, path, id)
@@ -106,7 +106,7 @@ func TestCoreDataAdapterStagesExactArchiveAndCleansEveryResult(t *testing.T) {
 			if kind == "update" || kind == "lost reply" {
 				_, apiErr = runtime.UpdateCoreSettings(context.Background(), int64(len(archive)), bytes.NewReader(archive), protocol.CoreSettingsUpdate{ExpectedPackageID: inspection.PackageID, ExpectedRevision: "absent", PaddleSpeed: 2})
 			} else {
-				_, apiErr = runtime.InspectCoreData(context.Background(), int64(len(archive)), bytes.NewReader(archive), inspection.PackageID)
+				_, apiErr = runtime.InspectCoreData(context.Background(), int64(len(archive)), bytes.NewReader(archive), inspection.PackageID, "")
 			}
 			if (kind == "invalid identity" || kind == "lost reply" || kind == "storage refused") != (apiErr != nil) {
 				t.Fatalf("error=%v", apiErr)
@@ -133,7 +133,7 @@ func TestLibraryCoreLoadIsExplicitAndDevelopmentRemainsVolatile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, _, apiErr := runtime.LoadLibraryCoreOwned(context.Background(), context.Background(), context.Background(), int64(len(archive)), bytes.NewReader(archive), inspection.PackageID)
+	_, _, apiErr := runtime.LoadLibraryCoreOwned(context.Background(), context.Background(), context.Background(), int64(len(archive)), bytes.NewReader(archive), inspection.PackageID, "")
 	if apiErr != nil || control.libraryCalls != 1 {
 		t.Fatalf("library=%d err=%v", control.libraryCalls, apiErr)
 	}
@@ -161,7 +161,7 @@ func TestCoreDataCleanupFailureRemainsOwnedAndVisible(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	result, apiErr := runtime.InspectCoreData(context.Background(), int64(len(archive)), bytes.NewReader(archive), inspection.PackageID)
+	result, apiErr := runtime.InspectCoreData(context.Background(), int64(len(archive)), bytes.NewReader(archive), inspection.PackageID, "")
 	if apiErr == nil || apiErr.Phase != "recovery" || result.PackageID != "" {
 		t.Fatalf("result=%+v err=%v", result, apiErr)
 	}
@@ -190,7 +190,7 @@ func TestLibraryLoadRejectsReturnedPersistenceModeMismatch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, attempted, apiErr := runtime.LoadLibraryCoreOwned(context.Background(), context.Background(), context.Background(), int64(len(archive)), bytes.NewReader(archive), inspection.PackageID)
+	_, attempted, apiErr := runtime.LoadLibraryCoreOwned(context.Background(), context.Background(), context.Background(), int64(len(archive)), bytes.NewReader(archive), inspection.PackageID, "")
 	if apiErr == nil || !attempted {
 		t.Fatalf("mode mismatch attempted=%t err=%v", attempted, apiErr)
 	}

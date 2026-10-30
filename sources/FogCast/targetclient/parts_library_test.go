@@ -1,12 +1,14 @@
 package targetclient_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -104,5 +106,56 @@ func TestLibraryPartsClientUsesSharedKitLease(t *testing.T) {
 	_, err := client.LoadLibraryPartsCore(context.Background(), 5, strings.NewReader("parts"), strings.Repeat("a", 64))
 	if err != nil || calls.Load() != 1 {
 		t.Fatalf("err=%v calls=%d", err, calls.Load())
+	}
+}
+
+func TestLibraryAtaDiskLoadCarriesGameAndSelectedDiskBeforePackage(t *testing.T) {
+	id := strings.Repeat("a", 64)
+	base := strings.Repeat("c", 64)
+	gameID := "ultima-vi"
+	cylinders, heads, sectors, ok := protocol.AtaDiskGeometry(protocol.AtaDiskMinBytes)
+	if !ok {
+		t.Fatal("ATA geometry unavailable")
+	}
+	disk := protocol.AtaDiskSelection{BaseMediaID: base, Size: uint32(protocol.AtaDiskMinBytes), Cylinders: cylinders,
+		Heads: heads, SectorsPerTrack: sectors}
+	noSave := false
+	unit := protocol.MediaUnitStatus{Unit: protocol.AtaDiskUnit, Interface: protocol.AtaDiskInterface(),
+		MinBytes: uint32(protocol.AtaDiskMinBytes), MaxBytes: uint32(protocol.AtaDiskMaxBytes),
+		ChunkBytes: protocol.AtaDiskChunkBytes, State: protocol.MediaUnitReady, Saveable: &noSave,
+		Persistence: &protocol.MediaDataStatus{Mode: "persistent", GameID: gameID, BaseMediaID: base, Revision: "absent"}}
+	status := protocol.Status{State: protocol.StateActive, Development: true, CorePackage: &protocol.CorePackageStatus{
+		PackageID: id, Generation: 7, ABI: protocol.RuntimeContract{ID: "fes.computer", Major: 1, Minor: 1},
+		BuildID: strings.Repeat("b", 32), PersistenceMode: "persistent",
+		ActiveInterfaces: []protocol.RuntimeInterface{{ID: protocol.AtaDiskInterface().ID, Major: protocol.AtaDiskInterface().Major}},
+		MediaUnits:       []protocol.MediaUnitStatus{unit},
+	}}
+	packageBytes := []byte("package archive")
+	diskBytes := bytes.Repeat([]byte{0x5a}, int(disk.Size))
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Errorf("read body: %v", err)
+		}
+		if r.URL.Path != "/v1/library/core/load" || r.ContentLength != int64(len(packageBytes)+len(diskBytes)) ||
+			r.Header.Get("X-FogCast-Package-ID") != id || r.Header.Get("X-FogCast-Game-ID") != gameID ||
+			r.Header.Get(protocol.CorePackageSizeHeader) != strconv.Itoa(len(packageBytes)) ||
+			r.Header.Get(protocol.AtaDiskSizeHeader) != strconv.Itoa(int(disk.Size)) ||
+			r.Header.Get(protocol.AtaDiskBaseIDHeader) != base ||
+			r.Header.Get(protocol.AtaDiskCylindersHeader) != strconv.Itoa(int(cylinders)) ||
+			r.Header.Get(protocol.AtaDiskHeadsHeader) != strconv.Itoa(int(heads)) ||
+			r.Header.Get(protocol.AtaDiskSectorsHeader) != strconv.Itoa(int(sectors)) ||
+			!bytes.Equal(body, append(append([]byte(nil), diskBytes...), packageBytes...)) {
+			t.Errorf("request path=%s length=%d headers=%v body=%q", r.URL.Path, r.ContentLength, r.Header, body)
+		}
+		_ = json.NewEncoder(w).Encode(status)
+	}))
+	defer server.Close()
+	baseURL, _ := url.Parse(server.URL)
+	client := targetclient.NewClient(baseURL, "secret", server.Client())
+	got, err := client.LoadLibraryCoreWithAtaDisk(context.Background(), int64(len(packageBytes)),
+		bytes.NewReader(packageBytes), id, gameID, disk, bytes.NewReader(diskBytes))
+	if err != nil || got.CorePackage == nil || got.CorePackage.PackageID != id {
+		t.Fatalf("load status=%+v err=%v", got, err)
 	}
 }
