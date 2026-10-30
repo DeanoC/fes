@@ -283,6 +283,7 @@ int main(int argc,char **argv) {
     std::cerr << "stage: Maximum seek\n";
     // Maximum seek time must not wrap a 19-bit counter.
     exact_seek(39,38);
+    exact_seek(0,39); // Reverse direction and the maximum 40-step interval.
 
     std::cerr << "stage: An eager read command\n";
     // An eager read command must wait for a busy drive to finish seeking;

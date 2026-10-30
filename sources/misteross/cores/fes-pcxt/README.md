@@ -158,13 +158,16 @@ clock/constraint checks, missing coverage inventory or changed repeat RBF.
 Unclocked registers must belong to the two elaborated HPS hard primitives;
 their HPS timing remains outside the diagnostic qualification. The resulting format-2
 package remains an experimental diagnostic; external physical acceptance,
-BIOS/DOS, keyboard and disk support are separate.
+BIOS/DOS boot, keyboard and writable disk support are separate.
 
-The ROM displays static black/white stripes and then halts. Only after SDRAM,
-DMA, both display adapters and status polling pass does it draw a solid white
+The ROM displays black/white stripes. Only after SDRAM, the applicable DMA
+probe, both display adapters and status polling pass does it draw a solid white
 16-dot by 8-line block at the CGA image's top left and write `AA` to RAM `00600`.
-A halt, fixed picture, rejected private debug read or no keyboard response is
-not independently a failure. The package exposes no keyboard/debug interface.
+With the floppy enabled, it then polls for media and checks one sector using
+the FDC and DMA. A matching diagnostic image adds a 64-by-32 white block at
+x=64; ejection or a mismatch clears it. The first sector's bytes are
+`(11 + 37 * index) mod 256`, with a 360 KiB image size. This marker checks one
+sector, not the complete floppy. The package exposes no keyboard/debug interface.
 
 For a leased kit run, use a private host and the normal package acceptance
 path; do not replace the shared host. Capture three complete HDMI frames after
@@ -601,10 +604,11 @@ mutes the video, while the raster, complete framebuffer ownership and physical
 refresh continue. The two video domains receive coordinated cold resets.
 
 `firmware/diagnostic.S` is assembled with GNU x86 `as`/`ld` at build time.
-It programs both display cards, checks VRAM mirrors, transfers eight bytes
-from ISA to SDRAM and four distinct bytes back to the same probe, and enables
-PIT1/DMA0 refresh before enabling either display. The cold-start pattern thus
-requires DMA success; warm HOLD may still repeat the previous complete frame
+It programs both display cards, checks VRAM mirrors and enables PIT1/DMA0
+refresh before enabling either display. In the standalone profile it also
+transfers bytes in both directions through the ISA DMA probe. The floppy and
+probe cannot share DMA2, so the media-enabled profile instead verifies FDC/DMA
+with the diagnostic disk after startup. Warm HOLD may still repeat the previous complete frame
 until new capture, as described above. A RAM success marker is checked by simulation. Each font
 address supplies the original diagnostic glyph byte `81` (two vertical strokes),
 so no IBM ROM/font is bundled. The reusable system exposes the firmware byte

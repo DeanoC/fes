@@ -2667,6 +2667,7 @@ sim-fes-pcxt-media:
 	$(require_local_sim)
 	VERILATOR="$(VERILATOR)" $(PYTHON) scripts/sim_fes_pcxt_mailbox.py
 	VERILATOR="$(VERILATOR)" $(PYTHON) scripts/sim_fes_pcxt_media.py
+	VERILATOR="$(VERILATOR)" $(PYTHON) scripts/sim_fes_pcxt_media_diag.py
 
 sim-fes-pcxt-dos:
 	$(require_local_sim)
