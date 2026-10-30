@@ -1,7 +1,7 @@
 # Embedded FES base
 
-This directory develops the Linux-free DE25-Nano base while hardware is in
-transit. Its first target is emulation, not a flashable DE25 image. FES owns
+This directory develops the Linux-free DE25-Nano base. Its first target is
+emulation, not a flashable DE25 image. FES owns
 the base image; FogCast owns tenfoot and its application services; the runtime
 owns FPGA programming, reset, input delivery and DMA lifetime.
 
@@ -10,7 +10,8 @@ TF-A source variant and an FPGA identity/read-drain endpoint. The experimental
 [native endpoint](tamago/nativefabric/README.md) now connects their protocols
 to the existing lifecycle and tenfoot model actor through injected hooks. Host
 tests use the actual firmware functions and RTL with simulated platform services;
-Nano discovery remains read-only until board routing/reset/memory is qualified.
+the native image's Nano discovery remains read-only until board routing, reset
+and memory are qualified.
 
 The initial [feasibility study](../../docs/design/de25-embedded-os.md) exercised
 a small protocol probe. This work goes further: retain the actual tenfoot

@@ -54,6 +54,9 @@ It does not prove containment of inherited masters, firmware operation, physical
 MMIO, a Nano profile, reset lifetime or production admission. The overlay never
 programs hardware. The hardware-independent verifier also exercises the same
 Avalon adapter through the native Go control code.
+The [physical diagnostic](../../../docs/validation/2026-10-30-de25-embedded-control-hardware/README.md)
+checks that endpoint and its local responder on one exact DE25 SOF through JTAG;
+it does not change the physical-DDR, firmware or package-admission boundaries.
 
 ## Functional input identity
 

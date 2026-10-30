@@ -1,0 +1,22 @@
+{
+  "status": "prepared",
+  "board_revision": "c413228810a4f9e74318f161e75c952327e08da8",
+  "overlay_revision": "cddc80f2655416e0a5196a5103885228f23fd83c",
+  "build_id": "0e92b175ecf825e682b4a036cc2c65b4",
+  "abi": 270544960,
+  "raw_sof_sha256": "496ad45e4ece69d38337fd22b340469d74790b9e0d1f330a338982c863504d3f",
+  "programmed_sof_sha256": "c3c176b0ee88e8c1313c2c85fddd9d95db7c376d6ec3e0de4cecca47497c48db",
+  "vendor_archive_sha256": "f79f0eff3b0f9d042fdb61ddcf43efec77b0ebc13248eea100b94e47a1189b66",
+  "spl_sha256": "096f53ea0bb0ba6e7449b2acf012eae734840dbcdd2943b506567bad2f72f823",
+  "spl_member": "Demonstration/SoC_FPGA/GHRD/software/u-boot/spl/u-boot-spl-dtb.hex",
+  "vendor_reference_sof_sha256": "e71a72180cb77ddd05a9c2ae49afa739d74786f9366f00233fd27bbebff6ea09",
+  "vendor_reference_sof_member": "Demonstration/SoC_FPGA/GHRD/output_files/golden_top_hps.sof",
+  "generation_sha256": "a92eeed3085d715d55b2c1c42ace4ea3612f021a29bb89712c7c06dd6720e834",
+  "input_sha256": "914b7b7ab91eddb8622c04d1f78e3716e6ae26e0db75aacb0cbc67c71b1fdea8",
+  "sta_summary_sha256": "6b54950993ce67652bae17e0c4c91a621ae87d688c44a306c99aa26b50bf453e",
+  "baseline_sta_sha256": "d538b7e2ff7d3ce7aaf4bd97e8df77d7f5d7db3752987d7f3b65ac34358d72db",
+  "baseline_summary_rows": 46,
+  "timing_summary_rows": 46,
+  "minimum_reported_slack": "0.000",
+  "scope": "temporary diagnostic SOF with on-chip responder; no package, DDR master, global containment or whole-board timing acceptance"
+}
