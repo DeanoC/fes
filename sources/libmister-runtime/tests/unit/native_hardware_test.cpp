@@ -3138,7 +3138,14 @@ void TestPc386AtaDiskLaunchSaveAndRestore()
 	}
 	assert(ata_resumed && data_resumed);
 	assert(chmod(record_directory.c_str(), 0700) == 0);
+	// The resumed guest can change CMOS before retrying Stop. The retry must
+	// capture this new state rather than reuse the failed save's frozen words.
+	endpoint.machine_words[8 + 0x20] = 0x5a;
 	assert(fixture.runtime.Stop().ok());
+	mister::CoreData retried_machine;
+	assert(fixture.runtime.InspectCoreData(package.path, opened.package_id, data.path,
+		"ultima-vi", &retried_machine).ok());
+	assert(retried_machine.words[8 + 0x20] == 0x5a);
 	std::unique_ptr<AtaDeltaFile> file;
 	assert(AtaDeltaFile::Open(media.path, identity, size, &file).ok());
 	AtaDiskDelta saved;

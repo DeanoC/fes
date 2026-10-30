@@ -448,9 +448,13 @@ Error NativeHardware::RestoreInput(std::uint64_t generation)
 			return resumed;
 	}
 	// Some persistent computer packages have no host input recipe. Their
-	// machine record still needs Resume after a failed save.
-	if (!has_active_input_recipe_)
+	// machine record still needs Resume after a failed save, and once it has
+	// resumed the guest may change RAM before the next save attempt.
+	if (!has_active_input_recipe_) {
+		core_snapshot_.clear();
+		core_data_flushed_ = false;
 		return {};
+	}
 	CoreDriver* const driver = active_driver_;
 	const CoreDriverContext context = active_context_;
 	const std::shared_ptr<std::atomic<bool>> identity_verified =
