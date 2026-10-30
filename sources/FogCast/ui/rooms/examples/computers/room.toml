@@ -1,7 +1,7 @@
 id = "example.computers"
 title = "Systems"
 author = "FogCast"
-description = "Prepared playable systems, models and editions, with their setup workbenches."
+description = "Prepared playable systems, models and editions, with their system setup."
 version = 1
 main = "main.lua"
 

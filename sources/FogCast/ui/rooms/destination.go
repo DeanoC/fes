@@ -364,7 +364,7 @@ func ApplyForeignLease(d Destination, foreign bool) Destination {
 	d.NextAction = ""
 	if state == AvailReady && len(choices) == 1 {
 		d.GameID = choices[0].ID
-		if title := strings.TrimSpace(choices[0].Title); title != "" {
+		if title := strings.TrimSpace(preparedGameTitle(choices[0])); title != "" {
 			d.Label = title
 		}
 		if system := strings.TrimSpace(choices[0].System); system != "" {
@@ -410,6 +410,10 @@ func matchingGames(games []hostclient.Game, query string) []hostclient.Game {
 	for _, g := range games {
 		if q == "" || strings.Contains(normalizeTitle(g.Title), q) {
 			out = append(out, g)
+			continue
+		}
+		if display := preparedGameTitle(g); display != g.Title && strings.Contains(normalizeTitle(display), q) {
+			out = append(out, g)
 		}
 	}
 	return out
@@ -423,6 +427,10 @@ func exactTitleMatches(games []hostclient.Game, query string) []hostclient.Game 
 	var out []hostclient.Game
 	for _, g := range games {
 		if normalizeTitle(g.Title) == q {
+			out = append(out, g)
+			continue
+		}
+		if display := preparedGameTitle(g); display != g.Title && normalizeTitle(display) == q {
 			out = append(out, g)
 		}
 	}
@@ -457,7 +465,7 @@ func ApplyEditionPreference(d Destination, gameID string) Destination {
 		}
 		d.GameID = g.ID
 		d.Matches = []hostclient.Game{g}
-		d.Label = g.Title
+		d.Label = preparedGameTitle(g)
 		d.System = g.System
 		state, picked := ClassifyGames([]hostclient.Game{g}, "")
 		d.Availability = state
@@ -758,4 +766,14 @@ func (d Destination) Game() (hostclient.Game, bool) {
 // Set reports whether the room has published a selected location.
 func (d Destination) Set() bool {
 	return d.Kind != "" || d.Availability != "" || strings.TrimSpace(d.Label) != "" || strings.TrimSpace(d.GameID) != "" || strings.TrimSpace(d.RoomID) != "" || strings.TrimSpace(d.LauncherAction) != "" || strings.TrimSpace(d.PackageID) != "" || strings.TrimSpace(d.CoreID) != ""
+}
+
+// displayDestination keeps label projection separate from the raw candidates
+// used by classification, saved edition selection and launch.
+func displayDestination(d Destination) Destination {
+	if game, ok := d.Game(); ok {
+		game.Title = d.Label
+		d.Label = preparedGameTitle(game)
+	}
+	return d
 }

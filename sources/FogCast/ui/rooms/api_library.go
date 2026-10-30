@@ -7,6 +7,7 @@ import (
 	lua "github.com/yuin/gopher-lua"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/corenames"
 )
 
 var errNoServices = errors.New("library is not available in this launcher")
@@ -191,7 +192,7 @@ func (r *Instance) gameRow(g hostclient.Game, withVariants bool) *lua.LTable {
 	L := r.L
 	t := L.NewTable()
 	t.RawSetString("id", lua.LString(g.ID))
-	t.RawSetString("title", lua.LString(g.Title))
+	t.RawSetString("title", lua.LString(preparedGameTitle(g)))
 	t.RawSetString("system", lua.LString(g.System))
 	if coreID := strings.TrimSpace(g.CoreID); coreID != "" {
 		t.RawSetString("core_id", lua.LString(coreID))
@@ -308,4 +309,12 @@ func (r *Instance) collectionsTable(collections []hostclient.Collection) *lua.LT
 		t.Append(row)
 	}
 	return t
+}
+
+// preparedGameTitle is a display projection; cached source rows keep their title.
+func preparedGameTitle(game hostclient.Game) string {
+	if game.System == "fpga" {
+		return corenames.EntryTitle(game.CoreID, game.Title)
+	}
+	return game.Title
 }

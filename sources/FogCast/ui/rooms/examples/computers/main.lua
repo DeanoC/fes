@@ -5,9 +5,8 @@ local color = require "util.color"
 
 -- Leave room for Tenfoot's status row below the list viewport.
 local DEST = 180
--- List colours match the other console rooms: a dark plate, light unfocused
--- ink, and dark ink on the accent bar. Row text sets its own colour because
--- the sofa label is meant for the dark shell.
+-- Systems uses a dark plate, light unfocused ink and dark ink on the
+-- selected row. The setup page carries the family and model selectors.
 local PLATE = "#1C2420"
 local INK = "#F0F4F1"
 local FOCUS_INK = "#141916"
@@ -18,13 +17,12 @@ local SETUP = {
   ["fes.zx80"] = "example.hardware",
   ["fes.ts1000"] = "example.hardware",
   ["fes.ts1500"] = "example.hardware",
-  ["fes.c64"] = "example.c64",
 }
 local focus = "list"
 
 local list
 local rows
-local status = "Looking for prepared computers…"
+local status = "Looking for prepared systems…"
 local load_err
 local library_generation = 0
 
@@ -41,7 +39,10 @@ local function short_id(id)
 end
 
 local function base_label(g)
-  local label = machine_of(g) .. "  ·  " .. (g.title or g.id)
+  local machine = machine_of(g)
+  local title = g.title or ""
+  local label = machine
+  if title ~= "" and title ~= machine then label = machine .. "  ·  " .. title end
   if g.region and g.region ~= "" then
     label = label .. " (" .. g.region .. ")"
   end
@@ -81,18 +82,36 @@ local function build(games)
 end
 
 local function show(games)
+  local selected_id, selected_index
+  if list then
+    local selected
+    selected, selected_index = list:selected()
+    if type(selected) == "table" then selected_id = selected.id end
+  end
   rows = build(games)
   status = ""
-  local h = math.max(52, room.height - 140 - DEST)
+  local h = math.max(64, room.height - 148 - DEST)
   if list then
     list:set_items(rows)
+    if selected_index then
+      list.focus = selected_index
+      if selected_id then
+        for i, item in ipairs(rows) do
+          if item.id == selected_id then
+            list.focus = i
+            break
+          end
+        end
+      end
+      list:clamp()
+    end
     return
   end
   list = List.new{
     id = "computers",
-    x = 64, y = 140,
-    w = math.min(920, room.width - 128),
-    h = h, row_h = 56, size = 22,
+    x = 48, y = 148,
+    w = room.width - 96,
+    h = h, row_h = 64, size = 24,
     items = rows,
   }
 end
@@ -155,8 +174,7 @@ end
 
 local function open_setup()
   if rows == nil then return false end
-  if #rows == 0 then rooms.open("example.system") return true end
-  if not list then return false end
+  if not list or not list:selected() then rooms.open("example.system") return true end
   local item = list:selected()
   if type(item) ~= "table" then return false end
   local room_id = SETUP[item.core_id or ""] or "example.system"
@@ -164,7 +182,7 @@ local function open_setup()
   return true
 end
 
-function load()
+local function refresh()
   library_generation = library_generation + 1
   local generation = library_generation
   library.query({
@@ -186,9 +204,8 @@ function load()
   end)
 end
 
-function on_resume()
-  load()
-end
+function load() refresh() end
+function on_resume() refresh() end
 
 function on_input(cmd)
   if focus == "setup" then
@@ -228,24 +245,32 @@ end
 
 function draw()
   gfx.clear(room.theme.background)
-  gfx.rect(0, 0, room.width, 112, color.shade(room.theme.background, 0.7))
-  gfx.rect(0, 112, room.width, 4, room.theme.accent)
-  gfx.text("Systems", 64, 28, { size = 40, bold = true, color = room.theme.accent })
+  gfx.rect(0, 0, room.width, 124, color.shade(room.theme.background, 0.7))
+  gfx.rect(0, 124, room.width, 4, room.theme.accent)
+  gfx.text("Systems", 48, 24, { size = 40, bold = true, color = room.theme.accent })
   local note = status
   if load_err then
     note = load_err
   elseif rows and #rows == 0 and status == "" then
     note = "No prepared systems yet. Add a system to get started."
   elseif rows and #rows > 0 and status == "" then
-    note = "Confirm starts. Set up opens its workbench."
+    note = "Confirm starts. Set up opens system setup."
   end
-  gfx.text(note, 64, 76, { size = 16, color = STATUS })
+  gfx.text(note, 48, 82, { size = 22, max_w = room.width - 96, color = STATUS })
   if rows ~= nil then
-    local x, y, w, h = 980, 24, 180, 48
+    local x, y, w, h = room.width - 228, 24, 180, 52
     local fill = focus == "setup" and room.theme.accent or PLATE
     local ink = focus == "setup" and FOCUS_INK or INK
     gfx.rect(x, y, w, h, fill)
-    gfx.text(rows and #rows > 0 and "Set up" or "Add system", x + 16, y + 12, { size = 22, color = ink, bold = focus == "setup" })
+    local label = rows and #rows > 0 and "Set up" or "Add system"
+    local _, th = gfx.measure(label, 24, focus == "setup")
+    gfx.text(label, x + 16, y + math.floor((h - th) / 2), { size = 24, max_w = w - 32, color = ink, bold = focus == "setup" })
+    if focus == "setup" then
+      gfx.rect(x, y, w, 2, "#FFFFFF")
+      gfx.rect(x, y + h - 2, w, 2, "#FFFFFF")
+      gfx.rect(x, y, 2, h, "#FFFFFF")
+      gfx.rect(x + w - 2, y, 2, h, "#FFFFFF")
+    end
     gfx.hit("setup", x, y, w, h)
   end
   if list then
@@ -253,8 +278,8 @@ function draw()
       label = function(item) return item.label end,
       background = PLATE,
       color = INK,
-      focus_color = room.theme.accent,
-      focus_text = FOCUS_INK,
+      focus_color = focus == "list" and room.theme.accent or "#303E35",
+      focus_text = focus == "list" and FOCUS_INK or INK,
     }
   end
 end

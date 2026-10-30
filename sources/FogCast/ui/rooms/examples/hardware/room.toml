@@ -1,5 +1,5 @@
 id = "example.hardware"
-title = "The Sinclair workbench"
+title = "Sinclair setup"
 author = "FES"
 description = "Set up your ZX81, ZX80 or Timex Sinclair, fit an expansion and choose a cassette before starting."
 version = 1

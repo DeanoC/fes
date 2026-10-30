@@ -161,7 +161,15 @@ func (a *App) RoomPickerOpen() bool {
 }
 
 func (a *App) roomsAvailableLocked() bool {
-	return a.roomsIndex != nil && len(a.roomsIndex.Packs) > 0
+	if a.roomsIndex == nil {
+		return false
+	}
+	for _, pack := range a.roomsIndex.Packs {
+		if userFacingRoom(pack.ID) {
+			return true
+		}
+	}
+	return false
 }
 
 func (a *App) showHomeLocked() {
@@ -326,6 +334,12 @@ func (a *App) resolveHomeRoomLocked(id string) (rooms.Pack, string, bool) {
 	if !rooms.ValidRoomID(id) {
 		return rooms.Pack{}, "invalid id", false
 	}
+	if !userFacingRoom(id) {
+		if id == colecoArcadeRoomID {
+			return rooms.Pack{}, "internal browser", false
+		}
+		return rooms.Pack{}, "internal setup", false
+	}
 	if a.roomsIndex == nil {
 		return rooms.Pack{}, "missing", false
 	}
@@ -391,6 +405,7 @@ func (a *App) closeRoomLocked() {
 	if a.room == nil {
 		return
 	}
+	a.leaveBrowseActionsLocked()
 	id := a.room.ID()
 	a.room.Close()
 	a.room = nil
@@ -448,7 +463,7 @@ func (a *App) resizeRoomsLocked() {
 // status and hints in the reserved footer instead of over those controls.
 func roomHasWorkbenchFooter(id string) bool {
 	switch id {
-	case hardwareRoomID, systemRoomID, "example.c64":
+	case hardwareRoomID, systemRoomID:
 		return true
 	default:
 		return false

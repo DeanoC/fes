@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/corenames"
 	"github.com/DeanoC/FogCast/internal/zx81family"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/storage"
@@ -283,10 +284,7 @@ func (a *App) refreshInstalledCoreSetupLocked() {
 	if coreID == "" {
 		return
 	}
-	label := coreID
-	if variant, ok := zx81family.ByID(coreID); ok {
-		label = variant.Label
-	}
+	label := corenames.Name(coreID, "")
 	s.Online = false
 	s.Ref = nil
 	s.Setup = nil
@@ -322,10 +320,7 @@ func (a *App) refreshInstalledCoreSetupLocked() {
 				skipped++
 				continue
 			}
-			packageLabel := p.Name
-			if zx81family.Known(coreID) {
-				packageLabel = label
-			}
+			packageLabel := corenames.Name(coreID, p.Name)
 			if packageLabel == "" {
 				packageLabel = coreID
 			}

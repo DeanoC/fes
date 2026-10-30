@@ -33,6 +33,48 @@ func waitCoreLibrary(t *testing.T, a *App) {
 	t.Fatal("library request stalled")
 }
 
+func TestInstalledSetupUsesPlainSystemNameWithoutChangingPackageChoice(t *testing.T) {
+	pkg := strings.Repeat("a", 64)
+	decorated := "FES ZX Spectrum +2A/+3 1.2.3 · " + pkg[:8]
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/library/core-entries":
+			json.NewEncoder(w).Encode(map[string]any{"entries": []any{}})
+		case "/api/v1/core-packages":
+			json.NewEncoder(w).Encode(map[string]any{"packages": []any{}})
+		case "/api/v1/core-packages/" + pkg:
+			json.NewEncoder(w).Encode(map[string]any{"package_id": pkg, "descriptor": map[string]any{
+				"core": map[string]string{"id": "fes.spectrum-plus3", "name": "FES ZX Spectrum +2A/+3"},
+				"abi":  map[string]any{"id": "fes.computer", "major": 1},
+			}})
+		case "/api/v1/core-packages/" + pkg + "/media-capabilities":
+			json.NewEncoder(w).Encode(map[string]any{"package_id": pkg, "media": []any{}})
+		default:
+			t.Errorf("setup renamed or mutated an artifact: %s %s", r.Method, r.URL.Path)
+			http.Error(w, "unexpected", http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
+	ref := hostclient.CoreReference{CoreID: "fes.spectrum-plus3", PackageID: pkg}
+	app.coreLibrary = coreLibraryState{Open: true, Online: true, InstalledSetup: true, FilterCoreID: ref.CoreID,
+		Cores: []hostclient.AvailableCore{{CoreReference: ref, Label: decorated, ArtifactState: "installed"}}}
+	app.mu.Lock()
+	rows := app.coreLibraryRowsLocked()
+	if len(rows) != 3 || !strings.Contains(rows[2].Name, decorated) || app.coreLibrarySnapshotLocked().Title != "ZX Spectrum +3" {
+		t.Fatalf("version selector or model heading lost identity: rows=%+v title=%q", rows, app.coreLibrarySnapshotLocked().Title)
+	}
+	app.coreLibrary.Index = 2
+	app.handleCoreLibraryLocked(CmdSelect)
+	app.mu.Unlock()
+	waitCoreLibrary(t, app)
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	if app.coreLibrary.Setup == nil || app.coreLibrary.Ref.PackageID != pkg || app.coreLibrary.Title != "ZX Spectrum +3" || app.coreLibrarySnapshotLocked().Title != "Set up ZX Spectrum +3" {
+		t.Fatalf("decorated package label became the setup title: %+v", app.coreLibrary)
+	}
+}
+
 func TestCoreLibraryBusyActionReportsThatItWasNotStarted(t *testing.T) {
 	a := NewApp(nil, 1280, 720, 10)
 	var started atomic.Bool

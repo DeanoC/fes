@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/corenames"
 	"github.com/DeanoC/FogCast/internal/zx81family"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/storage"
@@ -140,11 +141,11 @@ func (a *App) coreLibrarySnapshotLocked() FirmwarePickerSnapshot {
 		} else if variant, ok := zx81family.ByID(s.FilterCoreID); ok {
 			title = variant.Label
 		} else {
-			title = s.FilterCoreID
+			title = corenames.Name(s.FilterCoreID, "")
 		}
 	}
 	if s.Ref != nil {
-		title = "Set up " + s.Label
+		title = "Set up " + corenames.Name(s.Ref.CoreID, s.Label)
 	}
 	if s.PickID != "" {
 		title = "Choose " + strings.TrimPrefix(strings.TrimPrefix(s.PickID, "rom:"), "media:")
@@ -391,8 +392,8 @@ func (a *App) handleCoreLibraryLocked(cmd Command) {
 		s.Setup = nil
 		s.Index = 0
 		s.ROMs = map[string]string{}
-		s.Title = r.Label
-		s.Label = r.Label
+		s.Title = corenames.Name(r.CoreID, r.Label)
+		s.Label = corenames.Name(r.CoreID, r.Label)
 		s.MediaID = ""
 		s.MediaRole = ""
 		if r.ArtifactState == "installed" {
