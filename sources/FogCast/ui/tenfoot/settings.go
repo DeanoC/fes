@@ -1785,7 +1785,7 @@ func (a *App) settingsHomeValueLocked() string {
 		return "Library (no rooms installed)"
 	}
 	if a.homeRooms {
-		return fmt.Sprintf("Rooms (%d)", a.roomsIndex.ValidCount())
+		return fmt.Sprintf("Rooms (%d)", a.publicRoomCountLocked())
 	}
 	return "Library"
 }

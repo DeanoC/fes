@@ -17,8 +17,8 @@ function M.new(opts)
     cell_w = opts.cell_w or 160,
     cell_h = opts.cell_h or 220,
     gap = opts.gap or 16,
-    label_h = opts.label_h or 28,
-    size = opts.size or 16,
+    label_h = opts.label_h or 48,
+    size = opts.size or 22,
     items = opts.items or {},
     focus = 1,
     scroll_row = 0,
@@ -140,7 +140,11 @@ function Grid:draw(opts)
   local accent = opts.focus_color or room.theme.accent
   local plate = opts.plate or "#20242c"
   local text = opts.color or room.theme.label
-  gfx.clip(self.x, self.y, self.w, self.h)
+  local label_plate = opts.label_plate or plate
+  local _, regular_h = gfx.measure("Ag", self.size, false)
+  local _, bold_h = gfx.measure("Ag", self.size, true)
+  -- The focus ring extends four pixels beyond the card itself.
+  gfx.clip(self.x - 4, self.y - 4, self.w + 8, self.h + 8)
   local first = self.scroll_row * self.cols + 1
   local last = math.min(#self.items, (self.scroll_row + self.rows_visible) * self.cols)
   for i = first, last do
@@ -171,7 +175,10 @@ function Grid:draw(opts)
         gfx.text(initials(label(item, i, focused)), cx, cy + art_h / 2 - 16, { size = 32, bold = true, align = "center", max_w = self.cell_w, color = "#7a8090" })
       end
       if not opts.hide_labels then
-        gfx.text(label(item, i, focused), cx, cy + art_h + 6, { size = self.size, align = "center", max_w = self.cell_w, color = text, bold = focused })
+        gfx.rect(cx, cy + art_h, self.cell_w, self.label_h, label_plate)
+        local th = focused and bold_h or regular_h
+        gfx.text(label(item, i, focused), cx + 10, cy + art_h + math.floor((self.label_h - th) / 2),
+          { size = self.size, align = "center", max_w = math.max(1, self.cell_w - 20), color = text, bold = focused })
       end
       gfx.hit(self:hit_id(i), cx, cy, self.cell_w, self.cell_h)
     end

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/corenames"
 	"github.com/DeanoC/FogCast/internal/zx81family"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/storage"
@@ -26,7 +27,7 @@ type coreLibraryState struct {
 	Label, Title, Status, Path, PickID, MediaID, MediaRole string
 	Files                                                  []FirmwarePickerRow
 	FilterCoreID, HardwareMode                             string
-	HardwareGameID, HardwarePackageID                      string
+	HardwareGameID, HardwarePackageID, HardwareCoreID      string
 	ExpectedMediaID                                        string
 	InstalledSetup                                         bool
 	SetupFamilyPicker                                      bool
@@ -140,11 +141,11 @@ func (a *App) coreLibrarySnapshotLocked() FirmwarePickerSnapshot {
 		} else if variant, ok := zx81family.ByID(s.FilterCoreID); ok {
 			title = variant.Label
 		} else {
-			title = s.FilterCoreID
+			title = corenames.Name(s.FilterCoreID, "")
 		}
 	}
 	if s.Ref != nil {
-		title = "Set up " + s.Label
+		title = "Set up " + corenames.Name(s.Ref.CoreID, s.Label)
 	}
 	if s.PickID != "" {
 		title = "Choose " + strings.TrimPrefix(strings.TrimPrefix(s.PickID, "rom:"), "media:")
@@ -170,6 +171,7 @@ func (a *App) resetCoreLibraryLocked() {
 	a.coreLibrary.InstalledSetup = false
 	a.coreLibrary.SetupFamilyPicker = false
 	a.coreLibrary.HardwareMode = ""
+	a.coreLibrary.HardwareCoreID = ""
 	a.coreLibrary.FilterCoreID = ""
 	a.coreLibrary.Open = true
 	a.coreLibrary.Index = 0
@@ -390,8 +392,8 @@ func (a *App) handleCoreLibraryLocked(cmd Command) {
 		s.Setup = nil
 		s.Index = 0
 		s.ROMs = map[string]string{}
-		s.Title = r.Label
-		s.Label = r.Label
+		s.Title = corenames.Name(r.CoreID, r.Label)
+		s.Label = corenames.Name(r.CoreID, r.Label)
 		s.MediaID = ""
 		s.MediaRole = ""
 		if r.ArtifactState == "installed" {

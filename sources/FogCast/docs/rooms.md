@@ -1,11 +1,9 @@
 # Rooms: scriptable menu screens for the tenfoot launcher
 
-A room is a self-contained, creator-defined screen: a Mario overworld whose
-nodes launch different games on different cores, an AmigaOS-style desktop of
-strategy titles, one console's library in its own colours, or every system
-whose video chip descends from the TMS9918. Rooms complement the flat library
-browser: the library is still there for "everything", rooms are for curated,
-styled slices.
+A room is a self-contained tenfoot screen with its own presentation and local
+navigation. Built-in Home and Systems lead to the library and model-specific
+setup pages. Independently installed rooms can provide curated collections,
+maps or other presentations through the same sandboxed API.
 
 The intended explore-and-play experience is specified in
 [rooms-experience.md](rooms-experience.md). Logical actions map to common
@@ -31,7 +29,7 @@ The directory precedence is `-rooms DIR`, `tenfoot.json` `rooms_dir`,
 `FOGCAST_ROOMS`, then `<UserConfigDir>/FogCast/rooms` (next to
 `tenfoot.json`). On a kit the default is `/media/fat/fogcast/state/FogCast/rooms`.
 
-The embedded examples (`ui/rooms/examples`, ids `example.*`) are always
+The built-in rooms (`ui/rooms/examples`, ids `example.*`) are always
 listed. A user pack with the same id replaces an embedded one.
 
 First-party source packs declare the same `example.*` ids as the built-in
@@ -83,8 +81,8 @@ gamepad (a shortcut, not the only Home route). When `home` is `rooms`
 and `home_room` names a pack that can be opened, start and Home open
 that room as the root and clear the nested stack. Home does not toggle
 the picker in that case; if that root room is already showing, Home
-stays there. Otherwise Home lists pinned rooms, recently played games,
-every installed room, and the full library. Selecting a room opens it
+stays there. Otherwise the Menu lists pinned rooms, recently played games, Home, Systems,
+installed presentation rooms and the full library. Selecting a room opens it
 (first visit uses the authored start; later visits restore the last
 valid location). Settings has a **Home** row: Left/Right chooses the
 start screen (`library` or `rooms`, persisted as `home` in
@@ -101,7 +99,7 @@ missing or invalid, or the room cannot be created, the Home picker is
 shown. The id and reason are written to stderr and posted once per
 start or Home attempt as `ui.home_room_fallback` (`room`, `reason`).
 They are not shown on the TV. Back inside a nested room pops as usual.
-Back at the home-room root opens the Home picker. While a session is
+Back at the home-room root opens Menu. While a session is
 active, Home keeps the playing-view path and does not substitute
 `home_room`.
 
@@ -140,8 +138,8 @@ mario-world/
 `room.toml` (unknown keys are rejected):
 
 ```toml
-id = "mario-world"          # [a-z0-9][a-z0-9._-]{0,63}
-title = "Mushroom Kingdom"
+id = "my-collection"          # [a-z0-9][a-z0-9._-]{0,63}
+title = "My collection"
 author = "you"
 description = "shown in the picker"
 version = 1
@@ -168,7 +166,7 @@ geometry. The hero uses the light seed roles in
 [the FES visual language](../../../docs/ux/visual-language.md); the room
 should paint the card in the same surface colour (`#FFFCF5`). A room too
 small for the hero (under 480×360) keeps the strip. Kit Home
-(`example.fes-cores`) still draws the Library, Rooms and Settings routes
+(`example.fes-cores`) still draws the Library, Systems and Settings routes
 and the visible cores above that strip, with pointer hits and a focus mark.
 When those routes do not fit on one row they stack, and Direction follows
 that column into the shelf. A row that fits keeps Left and Right, as the
@@ -279,9 +277,9 @@ Platform `tags` classify hardware (`cpu:z80`, `vdp:tms9918-family`,
 
 The selected location the launcher uses for the compact info panel, Confirm,
 and Details. Loading results must not move the player’s selection; publish
-the current node after a match lands, do not refocus. Lobby, Workbench, and
-TMS9918 Family publish too, so the strip is present in those rooms as well
-as Mushroom Kingdom.
+the current destination after a match lands, without moving focus. Built-in
+Home publishes its selected machine to the hero panel; installed authored
+rooms can use the compact destination panel.
 
 `destination.set{kind, label, system, game_id, room_id, action, package_id,
 core_id, launchable, block, needs, inputs, query, platform, matches,
@@ -356,7 +354,7 @@ room. Tenfoot connects the socket when it is started with `-gfx menu-display`. A
 focus. `matches` is the viable play rows when any can play. `candidates`
 is the full set: a blocked sibling stays Unavailable with its `reason`
 and is not a choice. Rooms that keep the classify result should publish
-`candidates` (see Mushroom Kingdom) so a refresh can reclassify a sibling
+`candidates` so a refresh can reclassify a sibling
 that becomes viable. `destination.play_history(game_or_facts)`
 returns `{played, completed, line}` from play facts; `completed` is true
 only when the facts include an explicit completion record. Published
@@ -396,7 +394,9 @@ a launch is not Completed.
 On a host launcher `kit` is nil. When the launcher injects a client,
 `kit.cores(function(rows, err) end)` lists installed cores on a later tick.
 Each row is `{package_id, core_id, name, needs, launchable, block, inputs}`.
-`name` is the manifest name. `needs` is `none`, `media`, `firmware`, `parts`
+`name` is the plain model name for a registered first-party core, or the supplied
+manifest name for an unknown core. The local-control protocol retains raw
+metadata; this is the room presentation adapter. `needs` is `none`, `media`, `firmware`, `parts`
 or `unsupported`. `block` is empty when `launchable` is true. `inputs` lists
 `keyboard` when the package requires `fes.keyboard.hid`, or when it requires
 plain `fes.keyboard` 1.0 together with `fes.video.session-display` 1.0 and
@@ -516,23 +516,25 @@ and navigation. They do not lock or unlock destinations. A path on the map
 is not a gate unless the room script adds that mechanic itself. See
 [rooms-experience.md](rooms-experience.md) §2.
 
-## Examples (`ui/rooms/examples`)
+## Built-in rooms (`ui/rooms/examples`)
 
-| id | shows |
+The launcher ships two navigation screens, two internal setup templates, and
+an internal Coleco title browser opened from the Coleco tile on Home. Old demo
+rooms and the separate C64 wrapper are removed. Independently installed room
+packs still use the same authoring, install, rollback and nested-room APIs.
+
+| id | purpose |
 | --- | --- |
-| `example.lobby` | every installed room in a list; publishes Library / room destinations for the compact strip |
-| `example.mario-world` | nodemap overworld; nodes resolved by search across arcade/NES/GB/SNES; five availability states on the compact panel; `store` remembers the node; the island opens a nested room |
-| `example.mario-sports` | nested room; client-side keyword filter over a cross-system query; publishes the focused title |
-| `example.console-snes` | one platform, themed header; Tab (`search`) hands off to the library shelf; Y is Details |
-| `example.tms-vdp` | platform tags → two-pane platform/game browser; unresolved platform rows and game destinations on the compact strip |
-| `example.coleco-arcade` | curated Coleco arcade ports (Donkey Kong, Carnival, Zaxxon, Congo Bongo, Frogger) resolved from installed `fes.coleco` entries on the `fpga` platform using `core_ids`; missing titles are skipped; publishes the focused game |
-| `example.workbench` | AmigaOS 1.3 desktop drawn from rects; collection with genre fallback; publishes the focused drawer title |
-| `example.computers` | Systems shelf for all registered playable system/model entries. Grouped editions and saved expansion rows retain the exact game ID. Confirm launches; Set up opens the selected workbench. Add system remains available with an empty library |
-| `example.c64` | Shared system workbench with Commodore 64 selected: saved entries/editions, next-start D64 and real expansion sockets, launch/stop and capability-gated live disk controls |
-| `example.system` | Shared workbench for 12 system families and their hardware variants. Next system changes families; Variant chooses the ZX81 or Spectrum model within one workbench and remembers each family's last choice. Saved entries, title editions, setup, declared media and expansion sockets retain exact core/package identities; configuration stays in the library |
-| `example.fes-cores` | kit **Home** in the `hero` layout: a shelf of installed cores (manifest names verbatim, fallback motifs chosen from the core id and required inputs), the FES hero for the selection, and Library / Rooms / Settings routes one Up away in the hero and on one compact row. A stacked compact column walks Down and Up through those routes and then the cores. Checking while `kit.cores` resolves; the last selected installed package is restored on a later visit from `package_id` in the room state file (`/media/fat/fogcast/state/FogCast/rooms/example.fes-cores.state.json` on a kit). A fresh visit, or a saved package that is missing or unavailable, opens on the first installed core. Selecting an omitted core does not replace that saved package. An empty or unlistable kit, and a shelf whose every row is an omission, focuses the Library route. The shelf count is installed packages. Blocked cores do not launch: a blocked tile shows "Needs a cartridge", "Needs firmware", "Display setup incomplete", or "Hardware unavailable". An optional core omitted from the image is listed from `unavailable-cores.json` with that hardware block, and its Details name the core and the block without a package id. With no kit socket the room and the compact strip both say cores are not available here. Tenfoot on `-gfx menu-display` launches a core through the local-control socket |
+| `example.fes-cores` | **Home**: installed machines and prepared systems, with Library / Systems / Settings routes, readable readiness and direct Play / Details actions. Machine names use the selected core's plain model name; raw package names and build tags stay metadata. Selection persists by package ID. |
+| `example.computers` | **Systems**: prepared systems, models and editions. Confirm launches; Set up opens the selected model's setup. Add system stays available with an empty library. |
+| `example.system` | Internal **System setup** template for 12 families and their hardware variants. Next system changes family; Variant chooses the model. Entry, edition, media and expansion selections keep exact core/package identities. |
+| `example.hardware` | Internal **Sinclair setup** template with the rear-connector shelf and cassette controls for ZX81, ZX80, TS1000 and TS1500. |
+| `example.coleco-arcade` | Internal Coleco title browser opened from Home. It lists installed `fes.coleco` entries matching the arcade titles and skips titles absent from the library. |
 
-Run them against a host:
+Only Home, Systems and independently installed presentation rooms appear in the
+room/default-start pickers. Setup templates open from Systems or the active
+session and cannot be selected as a startup screen. A saved reference to a
+removed room follows the normal missing-room fallback; no legacy alias is kept.
 
 ```sh
 make build-fogcast-tenfoot

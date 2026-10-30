@@ -1103,19 +1103,17 @@ package reports a conflict without overwriting it.
 The embedded **Systems** room (`example.computers`) lists prepared playable
 library systems and their grouped editions. Confirm uses `session.launch`.
 **Set up** opens the selected entry's workbench with `room.initial_game_id`
-and `room.initial_core_id`; a loaded empty library offers **Add system**. The
-shelf reloads its entries when it resumes from a nested workbench, so systems
-added during setup appear on return. Setup navigation stays unavailable while
-the shelf or its editions are loading. Each refresh ignores its older query and
-edition replies. A failed refresh clears the rows and selection and shows its
-error; a later successful refresh clears the error and restores the current
-entries. **Add system** opens the general workbench when the refreshed shelf is
-empty. ZX81-family
-entries retain `example.hardware`; Commodore 64 uses `example.c64`, a configured
-entrypoint for the shared `widgets.system_workbench` implementation.
-`example.system` exposes that implementation for every registered playable
+and `room.initial_core_id`; a loaded empty library offers **Add system**. Setup
+navigation stays unavailable while the shelf or its editions are loading. ZX81-family
+entries use `example.hardware`; Commodore 64 and other families use
+`example.system` with the selected core and game IDs. The shared
+`widgets.system_workbench` implementation covers every registered playable
 system and model, including the Spectrum models, Apple II, Atari ST, consoles,
 ROM-less games and utilities.
+Resume refreshes retain the selected game ID when title order changes and keep
+the prior row position, clamped to the new list, if that game disappears. A
+failed refresh clears both the shelf rows and list widget so Set up cannot open
+a stale entry.
 
 The shared workbench chooses a system family, a hardware variant, a saved entry
 and a grouped title edition. `systems.families` and `systems.family_by_core`
@@ -1140,6 +1138,8 @@ without inventing topology from the system label. Resume rereads both library
 entries and hardware while retaining the chosen entry/edition. Each library
 refresh ignores replies from older requests; a failed refresh clears the
 catalog and keeps its error visible while the user changes variants or systems.
+The hardware room drops an in-flight snapshot when a newer read is queued, so
+the older result cannot replace the requested machine before the follow-up read.
 Closing the room saves the current navigation selection. Unsupported core IDs
 are shown as unsupported instead of being treated as ZX81.
 All three workbench room IDs reserve the native 52 px status/hint footer
@@ -1246,7 +1246,7 @@ rejected. Neither is a kit mutation.
 TV overscan insets, sofa layout (`grid`, `shelf`, or `list`), the local
 attract on/off gate, reduced motion, the look name, the optional debug HUD, and Home
 (`home` start screen, optional `home_room` id, plus `pinned_rooms`) are local to the tenfoot process (CLI `-safe-area` /
-`-layout` / `-no-attract` / `-theme` / `-debug-hud` / `-home` / `-home-room` and optional `tenfoot.json` prefs). When `home` is `rooms` and `home_room` names a pack that can be opened, start and Home open that room as the root; otherwise the Home overlay lists pinned rooms, recently played games, installed rooms, and the library. A library or recents read that fails in the network stack shows the temporary unreachable copy and retries with the presentation backoff, from 400 ms up to 8 s, until the host answers or the load is replaced. A host API error is not retried. An empty catalog stays the empty-library copy. The retry does not launch a title. On `menu-display`, a rooms home with no room selected by flag, saved preferences or `FOGCAST_HOME_ROOM` defaults to kit Home (`example.fes-cores`, titled Home). That room uses `destination_panel = "hero"`: tenfoot draws the selected core's title, required inputs, readiness, "Plays on this TV" and its actions in a large FES-owned panel (`ui/tenfoot/room_hero.go`, geometry `rooms.HeroPanel`), the room draws the shelf, artwork motifs and the Library / Rooms / Settings routes, and the footer shows full-size prompts and only actionable status. Details keeps the kit's verbatim block when the column has to drop lines to fit. On a content box under 480×360, `room.hero` is nil and the room draws a compact list of the visible cores and those same routes above the destination strip, each with a pointer hit. When those routes do not fit on one row they stack, and Direction walks Library, Rooms, Settings and then the cores; Up from the first core returns to Settings. A compact row that fits, and the hero, keep Left and Right along the routes and the shelf. Confirm while the core list is still Checking is acknowledged and not queued. Changing Home from Library to Rooms in Settings applies that same default for the rest of the session. The implicit room stays out of `tenfoot.json`. An already selected room stays selected. Library home is unchanged. Load/update/draw and asynchronous room callback errors identify their callback; deadline-expiry errors also report elapsed wall time and, on Linux, the script run's wall time with the callback thread's own CPU time and its voluntary/involuntary context switches over that run, so a kit report separates slow script work from waiting for a CPU (`ui/rooms/thread_usage.go`). Elapsed covers the whole callback, including pinning and sampling its OS thread and the cleanup after the script; the callback deadline starts with it and the soft and hard budget checks compare it. A room retired after consecutive soft overruns lists each overrun's elapsed time with that script-run usage, the process-wide Go GC cycles completed during that run (context beside those times, not pause time inside the callbacks), and the most images the launcher had already been asked to fetch, so a kit report can correlate GC or decode contention with the script's own work (`ui/rooms/overrun_streak.go`). Scheduler pauses count against the unchanged callback deadline. Installed-core listing retries transient startup socket/time-out and catalog-warming failures for up to 60 seconds; leaving the room cancels those reads. Back opens the Home overlay, retaining library navigation. Opening the Library from a room, the Home overlay's Library row or Recents suspends that room and its nested parents instead of closing them (`ui/tenfoot/library_return.go`); Back from the Library resumes the same instance with its selection, and Home reclaims a suspended home room and resumes it; either way the Library's Details, filters and view overlays close first. A Library refusal is cleared on that return, so the resumed room does not show it as a launch failure. Opening another room discards the suspended one. Library Details shows the focused title's readiness pill, block headline and the launcher's own reason (`classifyLibraryGame` with the snapshot's `KitPlay`: `libraryPlayDestination` plus the paired kit's unknown status or foreign lease, checked in the same order as Confirm; in a room, a chosen edition is classified itself). The Library header's readiness word, list rows and cover cells use the same classifier. A Ready title on a paired client that is not host-only also says "Plays on this TV", because a paired launch targets that kit, the creator beside the title, and offers A only for what Confirm will do (play, or import the Coleco BIOS). A blocked Confirm opens Details for the title that was refused, including a Home recent that is not the focused Library row. Favorite, pointer confirm, and presentation for that Details follow the same title. When a paired kit cannot report its status, the headline is that unknown status. Cancelling the BIOS picker returns to that Details. A Coleco BIOS import also refreshes a suspended room's cached titles, so Back shows the updated readiness. Library cells that cannot play carry a labelled tag from that classifier, keeping a catalog reason such as Needs BIOS, and missing art names the platform. Other backends keep their existing defaults. A room may publish an allowlisted `settings` action; Confirm opens Settings when the launcher can, and otherwise shows a short status. There is no host
+`-layout` / `-no-attract` / `-theme` / `-debug-hud` / `-home` / `-home-room` and optional `tenfoot.json` prefs). When `home` is `rooms` and `home_room` names a pack that can be opened, start and Home open that room as the root; otherwise the Home overlay lists pinned rooms, recently played games, installed rooms, and the library. A library or recents read that fails in the network stack shows the temporary unreachable copy and retries with the presentation backoff, from 400 ms up to 8 s, until the host answers or the load is replaced. A host API error is not retried. An empty catalog stays the empty-library copy. The retry does not launch a title. On `menu-display`, a rooms home with no room selected by flag, saved preferences or `FOGCAST_HOME_ROOM` defaults to kit Home (`example.fes-cores`, titled Home). That room uses `destination_panel = "hero"`: tenfoot draws the selected core's title, required inputs, readiness, "Plays on this TV" and its actions in a large FES-owned panel (`ui/tenfoot/room_hero.go`, geometry `rooms.HeroPanel`), the room draws the shelf, artwork motifs and the Library / Systems / Settings routes, and the footer shows full-size prompts and only actionable status. Details keeps the kit's verbatim block when the column has to drop lines to fit. On a content box under 480×360, `room.hero` is nil and the room draws a compact list of the visible cores and those same routes above the destination strip, each with a pointer hit. When those routes do not fit on one row they stack, and Direction walks Library, Systems, Settings and then the cores; Up from the first core returns to Settings. A compact row that fits, and the hero, keep Left and Right along the routes and the shelf. Confirm while the core list is still Checking is acknowledged and not queued. Changing Home from Library to Rooms in Settings applies that same default for the rest of the session. The implicit room stays out of `tenfoot.json`. An already selected room stays selected. Library home is unchanged. Load/update/draw and asynchronous room callback errors identify their callback; deadline-expiry errors also report elapsed wall time and, on Linux, the script run's wall time with the callback thread's own CPU time and its voluntary/involuntary context switches over that run, so a kit report separates slow script work from waiting for a CPU (`ui/rooms/thread_usage.go`). Elapsed covers the whole callback, including pinning and sampling its OS thread and the cleanup after the script; the callback deadline starts with it and the soft and hard budget checks compare it. A room retired after consecutive soft overruns lists each overrun's elapsed time with that script-run usage, the process-wide Go GC cycles completed during that run (context beside those times, not pause time inside the callbacks), and the most images the launcher had already been asked to fetch, so a kit report can correlate GC or decode contention with the script's own work (`ui/rooms/overrun_streak.go`). Scheduler pauses count against the unchanged callback deadline. Installed-core listing retries transient startup socket/time-out and catalog-warming failures for up to 60 seconds; leaving the room cancels those reads. Back opens the Home overlay, retaining library navigation. Opening the Library from a room, the Home overlay's Library row or Recents suspends that room and its nested parents instead of closing them (`ui/tenfoot/library_return.go`); Back from the Library resumes the same instance with its selection, and Home reclaims a suspended home room and resumes it; either way the Library's Details, filters and view overlays close first. A Library refusal is cleared on that return, so the resumed room does not show it as a launch failure. Opening another room discards the suspended one. Library Details shows the focused title's readiness pill, block headline and the launcher's own reason (`classifyLibraryGame` with the snapshot's `KitPlay`: `libraryPlayDestination` plus the paired kit's unknown status or foreign lease, checked in the same order as Confirm; in a room, a chosen edition is classified itself). The Library header's readiness word, list rows and cover cells use the same classifier. A Ready title on a paired client that is not host-only also says "Plays on this TV", because a paired launch targets that kit, the creator beside the title, and offers A only for what Confirm will do (play, or import the Coleco BIOS). A blocked Confirm opens Details for the title that was refused, including a Home recent that is not the focused Library row. Favorite, pointer confirm, and presentation for that Details follow the same title. When a paired kit cannot report its status, the headline is that unknown status. Cancelling the BIOS picker returns to that Details. A Coleco BIOS import also refreshes a suspended room's cached titles, so Back shows the updated readiness. Library cells that cannot play carry a labelled tag from that classifier, keeping a catalog reason such as Needs BIOS, and missing art names the platform. Other backends keep their existing defaults. A room may publish an allowlisted `settings` action; Confirm opens Settings when the launcher can, and otherwise shows a short status. There is no host
 safe-area or layout API. Host attract idle, preferred regions, selected target, library roots, and
 targets use the existing public library settings endpoints. Tenfoot can add,
 edit, and remove targets from the sofa settings overlay. Agent secrets are
@@ -1471,6 +1471,52 @@ elapsed time. A loading Select+Start chord stops after the runtime reports
 The configured FogCast service still supplies library/setup operations and
 the host session path still launches games. Cached offline titles remain
 browse-only. This option does not install or select menu firmware in an image.
+
+The built-in room set contains Home, Systems, System setup and Sinclair setup.
+The last two are internal templates opened with an exact model/entry, excluded
+from room and default-home pickers. Home routes directly to Systems. The old
+Lobby, Amiga Workbench, Mario, SNES, TMS and Coleco demo rooms and redundant
+C64 wrapper are removed; the installed-room framework and public widgets stay.
+Systems rereads its playable shelf on resume after nested setup and ignores
+callbacks from earlier refreshes. Sinclair setup queues a refresh requested
+during a read and performs it after the current snapshot arrives.
+Missing saved-home IDs use the existing fallback without replacement aliases.
+
+`internal/corenames` supplies plain display names for 18 exact first-party
+core IDs. Unknown systems retain their supplied name; this table does not admit
+packages or media. Installed-core protocol metadata stays verbatim. The room
+adapters project machine names and recognize only known model aliases followed
+by reserved HIL issue/timestamp or generated semantic-version/8-hex suffixes.
+A private UI matcher recognizes the historical generated-label shape; package
+admission and version validation stay unchanged.
+Genuine game/custom titles, raw catalog rows/candidates, stored titles and all
+launch/ROM/media/expansion/session identities remain intact. Classify and saved
+edition projections retain that same visible name. Native Library paints only
+visible row titles through the helper; Snapshot keeps its shared raw catalog,
+without a full-catalog naming pass. Setup default titles use the exact core ID's
+plain name, while installed-version rows retain actual version/hash detail.
+
+Tenfoot's shared Library and Details chrome uses the warm FES paper, ink and
+forest-green action roles, proportional Go faces, opaque title plates and a
+focus outline separate from readiness. The native Library header reserves
+116 px for identity, metadata and readable hints. Its footer reserves space for
+the selected title and visible actions. Default/Night Library backgrounds use
+warm paper; Arcade and custom resolved backgrounds keep their look. Authored
+rooms retain their own palettes, with larger label plates and footer-safe
+content. Workshop secondary and disabled actions use neutral surfaces; Start
+(or Set up for an empty system) is the dominant action. Running and saved
+next-start setup remain distinct.
+
+`ui/tenfoot/browse_actions.go` owns launcher-local action focus. Direct Confirm
+on a Ready item still launches. Down from Library's bottom visible row enters
+Play/Details; Left/Right selects an action, Up/Back returns to the same item.
+On Home, Up from the shelf enters hero actions and another Up reaches the
+header; Down/Back returns to the shelf. `Snapshot.BrowseActions` feeds paint and
+contextual hints. The captured destination, readiness intent, room/client and
+session generation must still match before activation. The builtin Home room
+accepts private hover IDs to synchronize its shelf outline, without changing
+the public Lua API or destination schema. Opening Details preserves the browse
+selection and position.
 
 Tenfoot looks are data-driven. `ui/theme` loads colour, spacing,
 typography roles, cover-chrome, vignette, bezel, and cabinet tokens from a built-in name (`default`,
@@ -3076,7 +3122,10 @@ Interrupted import reads preserve cancellation and deadline errors through the
 service boundary rather than classifying them as invalid media.
 
 `protocol/core_media.go` projects supported transport semantics from exact
-package ABI/interface declarations, never core IDs. The offline
+package ABI/interface declarations. When a shared unit has machine-specific
+source images, its capability also reports that format: `fes.zx80` uses raw
+`.o` files for next-start setup, while ZX81 and Timex packages use `.p` files.
+The offline
 `core-media-capabilities` API/CLI separates `import_max_bytes` storage policy
 from each role's `min_bytes`/`max_bytes`, format and transport. It explicitly
 reports `source:declared-contract` and `compatibility:unknown`: this is not
@@ -3525,8 +3574,9 @@ retains the captured package and previous media ID for compare-and-swap; expansi
 import does not fit the asset. Catalogue schema 16 adds optional `in_progress`
 presentation, without changing immutable admission or shared wire definitions.
 The hardware projection carries each setup's core ID through the tenfoot action;
-bundled starter cassettes appear only for `fes.zx81`. ZX80 and Timex setups still
-load their game-scoped saved programs and can import a selected `.p`. Machine-bound
+bundled starter cassettes appear only for `fes.zx81`. ZX80 next-start setup
+imports raw `.o` cassettes; ZX81 and Timex setups import `.p` programs. The
+live-media selector continues to admit `.p` only. Machine-bound
 tape-shelf reads apply the same starter filter, including the live picker.
 The workbench may suggest a same-target ZX81 package with required
 session-display, HPS DDR and ABI-specific media interfaces when the selected

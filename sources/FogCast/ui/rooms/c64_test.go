@@ -102,14 +102,14 @@ func loadC64(t *testing.T, svc Services, initialGameID ...string) *Instance {
 
 func loadC64WithSessionState(t *testing.T, svc Services, state string, initialGameID ...string) *Instance {
 	t.Helper()
-	pack := examplePack(t, "example.c64")
-	if !pack.Valid() || pack.Title != "Commodore 64" {
+	pack := examplePack(t, "example.system")
+	if !pack.Valid() {
 		t.Fatalf("pack %+v", pack.Manifest)
 	}
 	if _, ok := svc.(HardwareServices); !ok {
 		svc = c64ServicesWithEmptyHardware{Services: svc}
 	}
-	opts := Options{Services: svc, Width: 1280, Height: 720}
+	opts := Options{Services: svc, InitialCoreID: "fes.c64", Width: 1280, Height: 720}
 	if len(initialGameID) > 0 {
 		opts.InitialGameID = initialGameID[0]
 	}
@@ -162,13 +162,13 @@ func TestC64RoomShowsSavedSocketsAndDiskThenLaunches(t *testing.T) {
 		"1541", "unit 0",
 		"Tape .tap and .t64: not on this core",
 		"Cartridge file .crt: not on this core",
-		"Package", shortID(pkg),
+		"Saved for next start",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("frame missing %q\n%s", want, text)
 		}
 	}
-	for _, absent := range []string{slot, disk, pkg, "FES Pong", "REU", ".crt "} {
+	for _, absent := range []string{slot, disk, pkg, shortID(pkg), "FES Pong", "REU", ".crt "} {
 		if strings.Contains(text, absent) {
 			t.Fatalf("frame includes %q\n%s", absent, text)
 		}
@@ -219,8 +219,8 @@ func TestC64RoomChooseDiskUsesTheRunningSession(t *testing.T) {
 func TestC64RoomRefreshesControlsWhenSessionStateChanges(t *testing.T) {
 	game := preparedComputer("fpga-c64-game", "Impossible Mission", "fes.c64")
 	host := &c64Host{fakeServices: fakeServices{games: []hostclient.Game{game}}}
-	pack := examplePack(t, "example.c64")
-	r := newRoom(t, pack, Options{Services: host, Width: 1280, Height: 720})
+	pack := examplePack(t, "example.system")
+	r := newRoom(t, pack, Options{Services: host, InitialCoreID: "fes.c64", Width: 1280, Height: 720})
 	r.SetSessionState("idle")
 	if err := r.Load(); err != nil {
 		t.Fatal(err)
@@ -321,12 +321,22 @@ func TestC64RoomFiltersLargeLibraryAndFetchesSelectedGameBeyondLimit(t *testing.
 	svc := &fakeServices{games: games}
 
 	r := loadC64(t, svc, selected.ID)
-	stepUntil(t, r, func(f Frame) bool {
+	frame := stepUntil(t, r, func(f Frame) bool {
 		return strings.Contains(frameText(f), selected.Title)
 	})
+	if strings.Contains(frameText(frame), "Other core title") {
+		t.Fatal("another family's entries appeared in the C64 selection")
+	}
 	queries := svc.recorded()
-	if len(queries) != 1 || queries[0].Platform != "fpga" || len(queries[0].CoreIDs) != 1 || queries[0].CoreIDs[0] != "fes.c64" {
-		t.Fatalf("C64 query did not filter prepared core rows: %+v", queries)
+	if len(queries) != 1 || queries[0].Platform != "fpga" || len(queries[0].CoreIDs) != 18 {
+		t.Fatalf("shared workbench query did not filter registered core rows: %+v", queries)
+	}
+	foundC64 := false
+	for _, coreID := range queries[0].CoreIDs {
+		foundC64 = foundC64 || coreID == "fes.c64"
+	}
+	if !foundC64 {
+		t.Fatal("shared workbench query omitted C64 entries")
 	}
 	if limits := svc.recordedQueryLimits(); len(limits) != 1 || limits[0] != 2000 {
 		t.Fatalf("C64 query limit = %v, want [2000]", limits)
@@ -390,7 +400,7 @@ func TestC64RoomDisablesLiveControlsAfterRefreshFailure(t *testing.T) {
 func TestC64RoomEmptyLibraryDoesNotLaunch(t *testing.T) {
 	r := loadC64(t, &fakeServices{})
 	frame := stepUntil(t, r, func(f Frame) bool {
-		return strings.Contains(frameText(f), "No Commodore 64 entries yet.") && strings.Contains(frameText(f), "Start machine")
+		return strings.Contains(frameText(f), "Set up this system to begin") && strings.Contains(frameText(f), "Start machine")
 	})
 	assertRowContrast(t, frame)
 	text := frameText(frame)

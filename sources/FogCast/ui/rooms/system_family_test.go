@@ -36,7 +36,7 @@ func TestSpectrumFamilyVariantKeepsExactSavedSetup(t *testing.T) {
 			return strings.Contains(frameText(f), game.Title) && strings.Contains(frameText(f), "Set up system")
 		})
 		text := frameText(frame)
-		for _, want := range []string{"ZX Spectrum", "Variant:", game.MediaID[:8], game.SlotExpansions[0].ExpansionID[:8]} {
+		for _, want := range []string{"ZX SPECTRUM SETUP", "Variant:", game.MediaID[:8], game.SlotExpansions[0].ExpansionID[:8]} {
 			if !strings.Contains(text, want) {
 				t.Fatalf("variant %s missing %q:\n%s", game.CoreID, want, text)
 			}
@@ -120,7 +120,7 @@ func TestSpectrumFamilyEmptyVariantOffersOnlySetup(t *testing.T) {
 	})
 	r.Activate("variant")
 	frame := stepUntil(t, r, func(f Frame) bool {
-		return strings.Contains(frameText(f), "No ZX Spectrum 128K entries yet.") && strings.Contains(frameText(f), "Set up system")
+		return strings.Contains(frameText(f), "ZX Spectrum 128K") && strings.Contains(frameText(f), "Set up this system to begin") && strings.Contains(frameText(f), "Set up system")
 	})
 	if strings.Contains(frameText(frame), game.MediaID[:8]) {
 		t.Fatal("empty variant inherited the other model's medium")
@@ -152,10 +152,12 @@ func TestFamilyVariantSelectionSurvivesRoomReopen(t *testing.T) {
 	r := open("fes.spectrum")
 	r.Activate("variant") // 128K
 	stepUntil(t, r, func(f Frame) bool {
-		return strings.Contains(frameText(f), "No ZX Spectrum 128K entries yet.") && strings.Contains(frameText(f), "Set up system")
+		return strings.Contains(frameText(f), "ZX Spectrum 128K") && strings.Contains(frameText(f), "Set up this system to begin") && strings.Contains(frameText(f), "Set up system")
 	})
 	r.Activate("system") // Apple II
-	stepUntil(t, r, func(f Frame) bool { return strings.Contains(frameText(f), "No Apple II entries yet.") })
+	stepUntil(t, r, func(f Frame) bool {
+		return strings.Contains(frameText(f), "Apple II") && strings.Contains(frameText(f), "Set up this system to begin")
+	})
 	r.Close()
 	reopened := open("")
 	for i := 0; i < 12; i++ {

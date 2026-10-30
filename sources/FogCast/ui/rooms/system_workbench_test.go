@@ -152,7 +152,13 @@ func TestSystemWorkbenchResumeRefreshesAddedLibraryEntries(t *testing.T) {
 	game := preparedComputer("new-title", "New title", "fes.apple2")
 	svc := &fakeServices{details: map[string]hostclient.Game{}}
 	r := loadSystemWorkbench(t, svc, "", game.CoreID)
-	stepUntil(t, r, func(f Frame) bool { return strings.Contains(frameText(f), "No Apple II entries yet.") })
+	stepUntil(t, r, func(f Frame) bool {
+		return strings.Contains(frameText(f), "Set up this system to begin") && strings.Contains(frameText(f), "Set up system")
+	})
+	r.Input("select")
+	if acts := r.TakeActions(); len(acts) != 1 || acts[0].Kind != ActionHardwareSetup || acts[0].CoreID != game.CoreID {
+		t.Fatalf("empty workbench Confirm must offer setup for this system: %+v", acts)
+	}
 	// A setup operation adds an entry while the workbench is covered by its
 	// native picker. Resuming must reread library entries as well as hardware.
 	svc.mu.Lock()
@@ -171,7 +177,7 @@ func TestSystemWorkbenchResumeRefreshesAddedLibraryEntries(t *testing.T) {
 	r.Step(time.Unix(3, 0))
 }
 
-type delayedFirstLibraryQueryServices struct {
+type delayedFirstWorkbenchQueryServices struct {
 	*fakeServices
 	firstResult []hostclient.Game
 	started     chan struct{}
@@ -181,7 +187,7 @@ type delayedFirstLibraryQueryServices struct {
 	releaseOnce sync.Once
 }
 
-func (s *delayedFirstLibraryQueryServices) QueryGames(ctx context.Context, q hostclient.GameListQuery, limit int) ([]hostclient.Game, error) {
+func (s *delayedFirstWorkbenchQueryServices) QueryGames(ctx context.Context, q hostclient.GameListQuery, limit int) ([]hostclient.Game, error) {
 	s.mu.Lock()
 	s.calls++
 	first := s.calls == 1
@@ -198,11 +204,11 @@ func (s *delayedFirstLibraryQueryServices) QueryGames(ctx context.Context, q hos
 	return s.fakeServices.QueryGames(ctx, q, limit)
 }
 
-func (s *delayedFirstLibraryQueryServices) releaseFirst() {
+func (s *delayedFirstWorkbenchQueryServices) releaseFirst() {
 	s.releaseOnce.Do(func() { close(s.release) })
 }
 
-type delayedLibraryGameServices struct {
+type delayedWorkbenchGameServices struct {
 	*fakeServices
 	blockedID   string
 	detail      hostclient.Game
@@ -213,7 +219,7 @@ type delayedLibraryGameServices struct {
 	releaseOnce sync.Once
 }
 
-func (s *delayedLibraryGameServices) Game(ctx context.Context, id string) (hostclient.Game, error) {
+func (s *delayedWorkbenchGameServices) Game(ctx context.Context, id string) (hostclient.Game, error) {
 	if id != s.blockedID {
 		return s.fakeServices.Game(ctx, id)
 	}
@@ -228,11 +234,11 @@ func (s *delayedLibraryGameServices) Game(ctx context.Context, id string) (hostc
 	}
 }
 
-func (s *delayedLibraryGameServices) releaseDetail() {
+func (s *delayedWorkbenchGameServices) releaseDetail() {
 	s.releaseOnce.Do(func() { close(s.release) })
 }
 
-func stepUntilLibrarySignal(t *testing.T, r *Instance, signal <-chan struct{}, description string) {
+func stepUntilWorkbenchSignal(t *testing.T, r *Instance, signal <-chan struct{}, description string) {
 	t.Helper()
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
@@ -247,7 +253,7 @@ func stepUntilLibrarySignal(t *testing.T, r *Instance, signal <-chan struct{}, d
 	t.Fatalf("%s did not arrive", description)
 }
 
-func waitForLibraryPending(t *testing.T, r *Instance, game bool) {
+func waitForWorkbenchPending(t *testing.T, r *Instance, game bool) {
 	t.Helper()
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
@@ -271,7 +277,7 @@ func waitForLibraryPending(t *testing.T, r *Instance, game bool) {
 func TestSystemWorkbenchIgnoresStaleLibraryQuery(t *testing.T) {
 	old := preparedComputer("old-catalog-title", "Old catalog title", "fes.apple2")
 	newer := preparedComputer("new-catalog-title", "New catalog title", "fes.apple2")
-	svc := &delayedFirstLibraryQueryServices{
+	svc := &delayedFirstWorkbenchQueryServices{
 		fakeServices: &fakeServices{games: []hostclient.Game{newer}},
 		firstResult:  []hostclient.Game{old},
 		started:      make(chan struct{}),
@@ -279,11 +285,11 @@ func TestSystemWorkbenchIgnoresStaleLibraryQuery(t *testing.T) {
 	}
 	defer svc.releaseFirst()
 	r := loadSystemWorkbench(t, svc, "", "fes.apple2")
-	stepUntilLibrarySignal(t, r, svc.started, "initial library query")
+	stepUntilWorkbenchSignal(t, r, svc.started, "initial library query")
 	r.Resume()
 	stepUntil(t, r, func(f Frame) bool { return frameHas(f, newer.Title) })
 	svc.releaseFirst()
-	waitForLibraryPending(t, r, false)
+	waitForWorkbenchPending(t, r, false)
 	frame := r.Step(time.Now())
 	if !frameHas(frame, newer.Title) || frameHas(frame, old.Title) {
 		t.Fatalf("stale query replaced the refreshed workbench:\n%s", frameText(frame))
@@ -296,7 +302,7 @@ func TestSystemWorkbenchIgnoresStaleEditionCallback(t *testing.T) {
 	detail := old
 	detail.Title = "Old grouped detail"
 	newer := preparedComputer("new-edition-title", "New edition title", "fes.apple2")
-	svc := &delayedLibraryGameServices{
+	svc := &delayedWorkbenchGameServices{
 		fakeServices: &fakeServices{games: []hostclient.Game{old}},
 		blockedID:    old.ID,
 		detail:       detail,
@@ -306,7 +312,7 @@ func TestSystemWorkbenchIgnoresStaleEditionCallback(t *testing.T) {
 	}
 	defer svc.releaseDetail()
 	r := loadSystemWorkbench(t, svc, "", "fes.apple2")
-	stepUntilLibrarySignal(t, r, svc.started, "grouped-edition lookup")
+	stepUntilWorkbenchSignal(t, r, svc.started, "grouped-edition lookup")
 	svc.mu.Lock()
 	svc.games = []hostclient.Game{newer}
 	svc.mu.Unlock()
@@ -318,7 +324,7 @@ func TestSystemWorkbenchIgnoresStaleEditionCallback(t *testing.T) {
 	case <-time.After(3 * time.Second):
 		t.Fatal("grouped-edition lookup did not return")
 	}
-	waitForLibraryPending(t, r, true)
+	waitForWorkbenchPending(t, r, true)
 	frame := r.Step(time.Now())
 	if !frameHas(frame, newer.Title) || frameHas(frame, old.Title) || frameHas(frame, detail.Title) {
 		t.Fatalf("stale edition callback replaced the refreshed workbench:\n%s", frameText(frame))
@@ -372,38 +378,6 @@ func TestSystemWorkbenchSuccessfulRefreshClearsLibraryError(t *testing.T) {
 	}
 }
 
-func TestSystemWorkbenchSavesPlacedSelectionOnUnload(t *testing.T) {
-	game := preparedComputer("placed-setup", "Placed setup", "fes.apple2")
-	path := filepath.Join(t.TempDir(), "room.json")
-	r := newRoom(t, examplePack(t, "example.system"), Options{
-		Services:  c64ServicesWithEmptyHardware{Services: &fakeServices{games: []hostclient.Game{game}}},
-		StorePath: path, Width: 1280, Height: 720, InitialGameID: game.ID, InitialCoreID: game.CoreID,
-	})
-	r.SetSessionState("idle")
-	if err := r.Load(); err != nil {
-		t.Fatal(err)
-	}
-	stepUntil(t, r, func(f Frame) bool { return frameHas(f, game.Title) })
-	r.Close()
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var state struct {
-		Navigation struct {
-			CoreID    string `json:"core_id"`
-			GameID    string `json:"game_id"`
-			EditionID string `json:"edition_id"`
-		} `json:"navigation"`
-	}
-	if err := json.Unmarshal(data, &state); err != nil {
-		t.Fatal(err)
-	}
-	if state.Navigation.CoreID != game.CoreID || state.Navigation.GameID != game.ID || state.Navigation.EditionID != game.ID {
-		t.Fatalf("unload did not save the placed selection: %+v", state.Navigation)
-	}
-}
-
 func TestSystemWorkbenchFailedRefreshPreservesSelectionOnUnload(t *testing.T) {
 	game := preparedComputer("saved-after-error", "Saved after error", "fes.apple2")
 	path := filepath.Join(t.TempDir(), "room.json")
@@ -446,6 +420,38 @@ func TestSystemWorkbenchFailedRefreshPreservesSelectionOnUnload(t *testing.T) {
 	choice := state.Navigation.CoreChoices[game.CoreID]
 	if state.Navigation.CoreID != game.CoreID || state.Navigation.GameID != game.ID || state.Navigation.EditionID != game.ID || choice.GameID != game.ID || choice.EditionID != game.ID {
 		t.Fatalf("failed refresh erased saved selection: navigation=%+v core choice=%+v", state.Navigation, choice)
+	}
+}
+
+func TestSystemWorkbenchSavesPlacedSelectionOnUnload(t *testing.T) {
+	game := preparedComputer("placed-setup", "Placed setup", "fes.apple2")
+	path := filepath.Join(t.TempDir(), "room.json")
+	r := newRoom(t, examplePack(t, "example.system"), Options{
+		Services:  c64ServicesWithEmptyHardware{Services: &fakeServices{games: []hostclient.Game{game}}},
+		StorePath: path, Width: 1280, Height: 720, InitialGameID: game.ID, InitialCoreID: game.CoreID,
+	})
+	r.SetSessionState("idle")
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	stepUntil(t, r, func(f Frame) bool { return frameHas(f, game.Title) })
+	r.Close()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var state struct {
+		Navigation struct {
+			CoreID    string `json:"core_id"`
+			GameID    string `json:"game_id"`
+			EditionID string `json:"edition_id"`
+		} `json:"navigation"`
+	}
+	if err := json.Unmarshal(data, &state); err != nil {
+		t.Fatal(err)
+	}
+	if state.Navigation.CoreID != game.CoreID || state.Navigation.GameID != game.ID || state.Navigation.EditionID != game.ID {
+		t.Fatalf("unload did not save the placed selection: %+v", state.Navigation)
 	}
 }
 

@@ -22,8 +22,8 @@ selected variant supplies its own setup, media guidance and library entries.
 chooses one of that entry's grouped library editions. Changing a family or
 variant only changes navigation: it does not rewrite a saved package, ROM,
 medium or expansion, or replace a running machine. Installed packages and their
-manifests still determine what can launch. `example.c64` uses the same
-workbench with Commodore 64 selected.
+manifests still determine what can launch. Commodore 64 opens this same
+template with its exact selected core and entry; there is no separate C64 room.
 
 **Set up system** lists installed package versions for the selected core and
 reads their sealed ROM requirements. Choose the required files and add a
@@ -63,12 +63,13 @@ nor establish hardware acceptance of an installed core or software bundle.
 
 ## Sinclair ZX81 workbench
 
-**The Sinclair ZX81 workbench** (`example.hardware`) retains its specialist
+**Sinclair setup** (`example.hardware`) retains its specialist
 rear-connector shelf, admitted expansion previews and attributed starter
 cassettes. **Set up ZX81** chooses ZX81, ZX80, TS1000 or TS1500, then an
 installed sealed package and its BASIC ROM. Prepared ZX81-family rows open
-this workbench; the general workbench remains available from Rooms. The
-Amiga-themed `example.workbench` is a separate room.
+this setup; other families use the shared System setup template. Both templates
+open through Systems or the running session, rather than appearing as duplicate
+rooms or startup choices.
 
 ## Use the Sinclair workbench
 
