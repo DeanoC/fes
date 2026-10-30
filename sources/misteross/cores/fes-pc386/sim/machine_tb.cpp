@@ -68,6 +68,7 @@
 #include "opl2_reference.h"
 #include "pc386_ddr_model.h"
 #include "pc386_presenter_model.h"
+#include "smc_stale.h"
 #include "verilated.h"
 
 #include <cstdint>
@@ -655,6 +656,8 @@ public:
         const uint64_t wdata = cpu.trace_store_data;
         const uint8_t wmask = cpu.trace_store_mask;
         const bool a20m = m.top.a20m;
+        const uint32_t current = physical(cpu.arch_base[fes_i386::SEG_CS] + cpu.arch_eip, a20m);
+        const uint32_t dma_owner = cpu.trace_smc_open ? 0xffffffffu : current;
         // I/O and INTA: acknowledge on this edge what the machine completed
         // after the last; a request after an acknowledge is the next access.
         cpu.io_ack = 0;
@@ -711,6 +714,8 @@ public:
         m.top.dma_rdata = cpu.dma_rdata;
         m.top.flush_done = cpu.flush_done;
         m.top.eval();
+        const bool dma_write = m.top.dma_valid && m.top.dma_write;
+        const uint32_t dma_address = m.top.dma_address;
         if (m.top.mem_valid && !mmio_presented) {
             mmio_presented = true;
             mmio_start = m.cycles;
@@ -751,6 +756,18 @@ public:
         replays += cpu.trace_replay;
         smc_restarts += cpu.trace_smc;
 
+        // Attribute a DMA write like the lockstep harness: when WB is open,
+        // it must restart the next instruction; during an instruction that
+        // instruction is allowed to finish.
+        if (cpu.dma_done && dma_write && !resetting) {
+            const uint32_t at = physical(dma_address, a20m);
+            if (stale.store(at, dma_owner, current, fetch_end)) {
+                if (smc_addresses.insert(at).second && smc_sites.size() < 24)
+                    smc_sites.push_back(site("dma", current, at));
+                ++smc_stores;
+            }
+        }
+
         // The CPU's ports before its edge: the retiring store, then the fetch.
         if (store && !resetting) {
             const uint32_t next = physical(cpu.arch_base[fes_i386::SEG_CS] + cpu.arch_eip, a20m);
@@ -760,10 +777,9 @@ public:
                 if (at >= RAM_BYTES || (at >= 0xa0000 && at < 0xc0000)) continue;
                 dirty[at >> 12] = true;
                 // Code the front end holds ahead of the next instruction.
-                if (at >= next && at < fetch_end && fetch_end - next <= SMC_WINDOW) {
+                if (stale.store(at, current, next, fetch_end)) {
                     if (smc_addresses.insert(at).second && smc_sites.size() < 24)
                         smc_sites.push_back(site("store", next, at));
-                    stale.insert(at);
                     ++smc_stores;
                 }
             }
@@ -781,12 +797,10 @@ public:
             if (cpu.arch_eflags & 0x100) ++tf_retired;
             const uint32_t start = retire_next;
             retire_next = physical(cpu.arch_base[fes_i386::SEG_CS] + cpu.arch_eip, a20m);
-            if (!stale.empty() && !cpu.trace_exception) {
-                auto byte = stale.lower_bound(start);
-                if (byte != stale.end() && *byte < start + 15 && *byte < start + length(start)) {
-                    ++smc_executed;
-                    if (smc_sites.size() < 24) smc_sites.push_back(site("executed", start, *byte));
-                }
+            uint32_t byte = 0;
+            if (!cpu.trace_exception && stale.executed(start, start + length(start), byte)) {
+                ++smc_executed;
+                if (smc_sites.size() < 24) smc_sites.push_back(site("executed", start, byte));
             }
         }
     }
@@ -811,7 +825,7 @@ private:
     uint8_t read_enables = 0;
     uint32_t fetch_end = 0;    // the end of the last block fetched
     uint32_t retire_next = 0;  // where the next instruction to retire starts
-    std::set<uint32_t> stale;  // bytes stored into fetched code since the last redirect
+    SmcStaleTracker stale;  // bytes stored into fetched code since the last redirect
     uint64_t last_retire = 0;
 
     // The I/O or INTA cycle the machine completed on its last edge.
@@ -857,7 +871,6 @@ public:
     }
 
 private:
-    static constexpr uint32_t SMC_WINDOW = 96;
     std::string site(const char *kind, uint32_t instruction, uint32_t address) const {
         char text[96];
         std::snprintf(text, sizeof text, "%s %llu %04x:%08x %08x %08x", kind, (unsigned long long)m.cycles,

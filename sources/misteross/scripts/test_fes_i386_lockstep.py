@@ -187,8 +187,8 @@ def run_memory(testbench: str, env: dict) -> dict:
     if result.returncode not in (0, 1):
         raise LockstepError(f'memory cases: testbench exited with {result.returncode}\n{result.stderr[-4000:]}')
     summary, failures = parse_output(result.stdout)
-    if summary['runs'] != 24:
-        raise LockstepError(f'memory cases: testbench ran {summary["runs"]} of 24 cases')
+    if summary['runs'] != 26:
+        raise LockstepError(f'memory cases: testbench ran {summary["runs"]} of 26 cases')
     return {'summary': summary, 'failures': failures}
 
 
@@ -198,8 +198,8 @@ def run_directed(testbench: str, env: dict) -> dict:
     if result.returncode not in (0, 1):
         raise LockstepError(f'directed cases: testbench exited with {result.returncode}\n{result.stderr[-4000:]}')
     summary, failures = parse_output(result.stdout)
-    if summary['runs'] != 38:
-        raise LockstepError(f'directed cases: testbench ran {summary["runs"]} of 38 cases')
+    if summary['runs'] != 39:
+        raise LockstepError(f'directed cases: testbench ran {summary["runs"]} of 39 cases')
     return {'summary': summary, 'failures': failures}
 
 

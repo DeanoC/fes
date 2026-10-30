@@ -747,12 +747,15 @@ after a storing instruction (from `eip_next`) keep what the front end holds.
 A store with no byte past them (`wb_q16`, worked out in EX), which may lie
 behind them, its own encoding among them, where nothing younger is, needs no
 restart. One with a byte past them restarts the first instruction that
-reaches past them (`smc_defer`, with the window's end in `smc_t`), checked as
+reaches past them (`smc_defer`, with the window end plus one in `smc_t`), checked as
 each instruction's first uop enters WB, as a 386 refetches once it runs past
 its queue: a HLT in the window still halts, as the corpus's 386EX does after
 a REP that stores over it. A byte the front end has not fetched yet is read
-new. A DMA write restarts the next instruction not begun under either
-profile. While WB is empty, that is the one whose first uop enters WB next,
+new. A second queue16 store during an active deferral retains the first
+threshold and can refetch one instruction early relative to that later
+store's window; this is conservative for coherence. A DMA write restarts the
+next instruction not begun under either profile. While WB is empty, that is
+the one whose first uop enters WB next,
 if the last uop WB took ended an instruction (`smc_first`) and that one's
 uncached load has not started to read its device (`uc_live`, or the L1D's
 `unc_start` on the cycle it starts, when D to WB are frozen); otherwise the

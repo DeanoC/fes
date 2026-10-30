@@ -8,6 +8,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -223,6 +224,20 @@ class BootReportTest(unittest.TestCase):
                 self.assertTrue(any(expected in failure for failure in failures), failures)
                 if wrong_classification:
                     self.assertFalse(any(wrong_classification in failure for failure in failures), failures)
+
+
+@unittest.skipUnless(shutil.which(os.environ.get('CXX', 'c++')), 'requires a C++ compiler')
+class SmcStaleTrackerTest(unittest.TestCase):
+    def test_rep_dma_and_long_fetch_store_attribution(self):
+        with tempfile.TemporaryDirectory(prefix='pc386-smc-stale-') as directory:
+            binary = Path(directory) / 'smc-stale-test'
+            source = sim.CORE / 'sim/smc_stale_tb.cpp'
+            compiler = shutil.which(os.environ.get('CXX', 'c++'))
+            result = subprocess.run([compiler, '-std=c++17', '-Wall', '-Wextra', '-Werror', str(source), '-o', str(binary)],
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            result = subprocess.run([str(binary)], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
 
 @unittest.skipUnless(VERILATOR, 'requires Verilator')
