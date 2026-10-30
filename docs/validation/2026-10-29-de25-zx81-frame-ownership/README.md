@@ -30,8 +30,10 @@ frame-boundary-only ownership transfer are checked throughout. After the
 reader resumes, the stopped-reader case also verifies that the queued seed-5
 frame became the displayed bank, rather than merely checking that it was not
 overwritten while pending.
-The video-only rerun binds source revision `7443fc4ee0bdba050f0278f4bdf171034da310bb`;
-the compiler and client receipts remain bound to their earlier source revisions.
+The video-only rerun binds source revision
+`ed1472ba7bccfeba038d7d89ec8733791b70f7a1`. The Quartus and client receipts
+below remain bound to their earlier source revisions and do not validate the
+post-merge RTL/constraint combination.
 
 [Client proof](client-proof.json) and [inputs](client-inputs.json) bind all 20
 native/static-AArch64 cases to the actual endpoint, mailbox, machine, firmware,
