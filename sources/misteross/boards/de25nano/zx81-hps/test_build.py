@@ -2,6 +2,7 @@
 import hashlib
 import importlib.util
 import io
+import json
 from contextlib import redirect_stderr
 from pathlib import Path
 import tempfile
@@ -65,6 +66,98 @@ class HpsZX81BuildTests(unittest.TestCase):
         self.assertNotIn("sources/misteross/cores/fes-zx81/rtl/fes_computer_gp.v", sources)
         for name in required:
             self.assertEqual(sources[name], (B.ROOT / name).read_bytes())
+
+    def test_current_visibility_and_readiness_cdc_cuts_are_narrow_and_fail_closed(self):
+        sdc = B.capture()[B.BOARD + "zx81-hps/clocks.sdc"].decode()
+        self.assertIn(
+            "set computer_visible_head [get_pins -compatibility_mode -nocase -nowarn "
+            "{fes_video_inst|visible_sync[0]|d}]", sdc)
+        self.assertIn("if {[get_collection_size $computer_visible_head] != 1}", sdc)
+        self.assertIn("set_false_path -to $computer_visible_head", sdc)
+        self.assertIn("set computer_video_ready_head [get_pins", sdc)
+        self.assertIn("{soc_inst|subsys_periph|fes_computer|fes_computer|transport_ready_meta|d}]", sdc)
+        self.assertIn("if {[get_collection_size $computer_video_ready_head] != 1}", sdc)
+        self.assertIn("set_false_path -to $computer_video_ready_head", sdc)
+        self.assertIn("Keep synchronizer stage-to-stage, frame-gate and output paths timed.", sdc)
+        self.assertNotIn("set_clock_groups", sdc)
+
+    def test_frame_ownership_constraints_and_reset_pin_counts_match_rtl(self):
+        sdc = B.capture()[B.BOARD + "zx81-hps/clocks.sdc"].decode()
+        self.assertIn("if {$computer_clear_count != 4}", sdc)
+        self.assertIn("request {*|video|request} {*|video|request_sync[0]}", sdc)
+        self.assertIn("acknowledge {*|video|acknowledge} {*|video|acknowledge_sync[0]}", sdc)
+        self.assertIn("if {[get_collection_size $owner_rows_source] != 9 || [get_collection_size $owner_rows_sink] != 9}", sdc)
+        self.assertIn("if {[get_collection_size $owner_reset_pins] != 4}", sdc)
+        self.assertIn("sys_release*|aclr", sdc)
+        self.assertIn("pix_release*|aclr", sdc)
+        self.assertIn("Keep synchronizer stage-to-stage, frame-gate and output paths timed.", sdc)
+        self.assertNotIn("set_clock_groups", sdc)
+
+    def test_historical_quartus_report_is_not_presented_as_current_head_evidence(self):
+        record = B.ROOT / "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps"
+        producer_inputs = json.loads((record / "compiled-5a7382c4b5/reports/inputs.json").read_text())
+        selected = producer_inputs["functional_snapshot_sha256"]
+        drifted = {
+            name for name, recorded in selected.items()
+            if hashlib.sha256((B.ROOT / name).read_bytes()).hexdigest() != recorded
+        }
+        self.assertTrue({
+            B.BOARD + "zx81-hps/board.v",
+            B.BOARD + "zx81-hps/clocks.sdc",
+            B.BOARD + "zx81-hps/fes_de25_computer.v",
+        } <= drifted)
+        report = " ".join((record / "README.md").read_text().split())
+        self.assertIn("**Evidence status:** historical producer", report)
+        self.assertIn("not compiled from the current branch", report)
+        self.assertIn("not valid for SRAM testing the current source", report)
+        self.assertIn("does not validate the current HPS or scanout false-path selectors", report)
+
+    def test_simulation_receipts_are_scoped_to_historical_sources(self):
+        record = B.ROOT / "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation"
+        source_head = "d715651b4171da7a69fa0d896dc1bd67168dd064"
+        reference = "786e6383b32617af8baeb32e9de6cf99231a19f9"
+        leaf_path = B.BOARD + "zx81-hps/fes_de25_computer.v"
+        current_leaf = B.ROOT / leaf_path
+        current_leaf_bytes = current_leaf.read_bytes()
+        self.assertEqual(len(current_leaf_bytes), 9183)
+        self.assertEqual(hashlib.sha256(current_leaf_bytes).hexdigest(),
+                         "e19e0795ee456c6586c3d951509c600e28f79b2bc8920ba79bcccd26272a1188")
+
+        inputs = json.loads((record / "input-hashes.json").read_text())
+        self.assertEqual(inputs["reference_commit"], reference)
+        self.assertIn(source_head, inputs["source_scope"])
+        self.assertNotIn("functional_current_sources", inputs)
+        recorded = inputs["functional_reference_sources"]
+        self.assertEqual(len(recorded), 22)
+        drifted = {
+            item["path"] for item in recorded
+            if hashlib.sha256((B.ROOT / item["path"]).read_bytes()).hexdigest() != item["sha256"]
+        }
+        self.assertEqual(drifted, {
+            leaf_path,
+            B.BOARD + "zx81-hps/computer_tb.cpp",
+            B.BOARD + "zx81-hps/sim.py",
+            B.BOARD + "zx81-hps/build.py",
+        })
+
+        report = " ".join((record / "README.md").read_text().split())
+        self.assertIn(f"PR head `{source_head}`", report)
+        self.assertIn("18 of those 22 files still match", report)
+        self.assertIn("does not exercise the current PR leaf", report)
+        self.assertNotIn("22 matching current input files", report)
+        for changed_name in ("fes_de25_computer.v", "computer_tb.cpp", "sim.py", "build.py"):
+            self.assertIn(f"`{changed_name}`", report)
+
+        leaf_binding = json.loads((record / "leaf-build-id-binding.json").read_text())
+        self.assertEqual(leaf_binding["guarded_reference_leaf_sha256"],
+                         "26ce1e51454000f2762045cc442fbbae881404a98b94334eea8ba11e43a9ad0a")
+        self.assertNotIn("current_leaf_sha256", leaf_binding)
+        self.assertIn("not the current PR leaf", leaf_binding["evidence_scope"])
+        elaboration = json.loads((record / "default-elaboration-binding.json").read_text())
+        self.assertEqual(elaboration["elaborated_reference_leaf_sha256"],
+                         leaf_binding["guarded_reference_leaf_sha256"])
+        self.assertNotIn("current_leaf_sha256", elaboration)
+        self.assertIn("does not describe the current PR leaf", elaboration["evidence_scope"])
 
     def test_selected_revision_capture_reads_git_blobs_instead_of_working_files(self):
         sources = B.capture()

@@ -1,12 +1,13 @@
 {
   "classification": "Host simulation evidence. Original runs used working-copy sources; this is a later binding to a committed reference, not an original-run commit claim.",
   "reference_commit": "786e6383b32617af8baeb32e9de6cf99231a19f9",
+  "source_scope": "functional_reference_sources bind the 22 functional files at reference_commit. This source list is historical and does not describe PR source head d715651b4171da7a69fa0d896dc1bd67168dd064, where 18 files match and four differ.",
   "machine_build_id": "00000000000000000000000000000000",
   "endpoint_build_id": "00112233445566778899aabbccddeeff",
   "original_machine_runner_sha256_recorded_before_refactor": "974b3a0ff27bfb39ec1c410cf701a8e49aa961fb848011f17c5a074e3fade208",
-  "machine_leaf_selection": "Original selected 8479-byte preguard leaf differs from current8615-byte leaf; see preserved leaf-build-id-binding and default-elaboration-binding receipts. Reconstructed preguard SHA is not an independently captured original source hash.",
+  "machine_leaf_selection": "Original selected 8479-byte preguard leaf differs from the 8615-byte guarded leaf at reference_commit; see preserved leaf-build-id-binding and default-elaboration-binding receipts. Reconstructed preguard SHA is not an independently captured original source hash.",
   "machine_cpp_binding": "Fourteen default-ID generated C++/headers match after only private Mdir path normalization and exactly four documented VL_FATAL_MT diagnostic origin line8to11 updates. Full machine execution was not repeated.",
-  "functional_current_sources": [
+  "functional_reference_sources": [
     {
       "path": "sources/misteross/boards/de25nano/zx81-hps/fes_de25_computer.v",
       "bytes": 8615,

@@ -28,6 +28,16 @@ class ScanoutBuildTests(unittest.TestCase):
         with mock.patch.object(B, "capture", return_value=self.sources):
             return B.prepare(self.fixture.archive, self.root / "prepared", revision)
 
+    def test_visibility_cdc_cut_targets_only_the_first_synchronizer_d_pin(self):
+        sdc = self.sources[B.BOARD + "scanout/clocks.sdc"].decode()
+        self.assertIn(
+            "set scanout_visible_head [get_pins -compatibility_mode -nocase -nowarn "
+            "{fes_video_inst|visible_sync[0]|d}]", sdc)
+        self.assertIn("if {[get_collection_size $scanout_visible_head] != 1}", sdc)
+        self.assertIn("set_false_path -to $scanout_visible_head", sdc)
+        self.assertIn("Cut only the first synchronizer D input", sdc)
+        self.assertNotIn("set_clock_groups", sdc)
+
     def test_actual_preparation_replaces_pattern_with_response_preserving_real_scanout(self):
         output, _, hps, _ = self.prepare()
         project = output / "combined/hps/project"

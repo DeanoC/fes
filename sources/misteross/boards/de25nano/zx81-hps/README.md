@@ -136,6 +136,9 @@ HDMI/I2C timing, MTBF, the inherited DJ24 voltage discrepancy, firmware pairing
 and global reset lifetime remain open. Serial/DHCP/SSH Linux boot is a separate
 first-board check. No image, device tree or installed bundle is changed here.
 
-[Validation and exact artifact](../../../docs/validation/2026-10-29-de25-zx81-hps/README.md)
-records the successful producer, failed capacity candidate, simulation binding,
-software checks and the remaining physical acceptance gates.
+[Validation record](../../../docs/validation/2026-10-29-de25-zx81-hps/README.md)
+preserves the successful historical producer, failed capacity candidate,
+simulation binding, software checks and remaining acceptance gates. Its SOF and
+STA predate the current HDMI-sync source and constraint changes; the SOF is not
+retained in this checkout and must not be used to test the current branch. Build
+a fresh source-bound SOF and STA before any SRAM test.

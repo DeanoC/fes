@@ -9,6 +9,13 @@ if {$computer_clear_count != 4} {error "DE25 computer requires four HDMI reset i
 if {[get_collection_size $computer_aclr] > 0} {set_false_path -to $computer_aclr}
 if {[get_collection_size $computer_clrn] > 0} {set_false_path -to $computer_clrn}
 post_message -type info "DE25 computer HDMI reset ingress pins: $computer_clear_count (expected4)"
+# pixel_reset_n can assert asynchronously. Cut only the first visibility
+# synchronizer D pin; stage0->1 and the line-boundary/output logic stay timed.
+set computer_visible_head [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|visible_sync[0]|d}]
+if {[get_collection_size $computer_visible_head] != 1} {error "DE25 computer HDMI visibility synchronizer ingress changed"}
+set_false_path -to $computer_visible_head
+post_message -type info "DE25 computer HDMI visibility CDC ingress: one stage0 D pin"
+
 # The computer runs on the preserved peripheral clock. No new GP control CDC,
 # clock groups, FIFO cuts or external HDMI/I2C delay assumptions are introduced.
 
