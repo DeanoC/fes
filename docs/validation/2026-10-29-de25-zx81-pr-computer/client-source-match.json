@@ -1,0 +1,9 @@
+{
+  "compiler_source_revision": "c7a991110c993f69ad1a94af504679289aae4c9e",
+  "client_source_revision": "c7a991110c993f69ad1a94af504679289aae4c9e",
+  "production_source_files": 58,
+  "test_runtime_source_files": 47,
+  "production_source_hashes_equal": true,
+  "current_test_runtime_source_hashes_equal": true,
+  "build_id": "9e73d6d51866d75050e13fc8f7773680"
+}

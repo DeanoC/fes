@@ -41,9 +41,10 @@ for {set bit 0} {$bit < 46} {incr bit} {lappend bus_ingress_names [format {slot_
 lappend logical_groups bus_ingress {slot_inst|core|bus_q[*]} $bus_ingress_names
 # Every response bit terminates in a protected static register. Require
 # the complete packed contract even where the persona's source is constant.
+if {![info exists ::fes_zx81_static_prefix]} {set ::fes_zx81_static_prefix {zx81_static|}}
 set bus_egress_names {}
-for {set bit 0} {$bit < 20} {incr bit} {lappend bus_egress_names [format {zx81_static|response_q[%d]} $bit]}
-lappend logical_groups bus_egress {zx81_static|response_q[*]} $bus_egress_names
+for {set bit 0} {$bit < 20} {incr bit} {lappend bus_egress_names [format {%sresponse_q[%d]} $::fes_zx81_static_prefix $bit]}
+lappend logical_groups bus_egress [format {%sresponse_q[*]} $::fes_zx81_static_prefix] $bus_egress_names
 set boundary_groups {}
 foreach {name pattern canonical} $logical_groups {
     set nodes [get_registers $pattern]

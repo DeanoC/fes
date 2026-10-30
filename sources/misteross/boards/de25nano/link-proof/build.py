@@ -205,6 +205,22 @@ def hps_boot_packaging(output: Path) -> dict:
             "vendor_recipe": blob(output, output / names[1])}
 
 
+def design_assistant_findings(output: Path, revision: str) -> list[dict]:
+    drc = (output / "output_files" / f"{revision}.tq.drc.signoff.rpt").read_text()
+    failures = []
+    for rule, severity, violations, waived in re.findall(
+            r"^; ([A-Z]+-[0-9]+[^;]*?)\s*;\s*(Critical|High|Medium|Low)\s*;\s*([0-9]+)\s*;\s*([0-9]+)\s*;", drc, re.MULTILINE):
+        if int(waived):
+            raise BuildError("proof must not contain waived Design Assistant findings")
+        if int(violations):
+            failures.append({"rule": rule.strip(), "severity": severity, "violations": int(violations)})
+            if rule.startswith("BBD-60000 "):
+                raise BuildError(f"{revision}: PR boundary is not directly registered")
+            if severity in ("Critical", "High") and not rule.startswith(("TMC-20011 ", "TMC-20012 ")):
+                raise BuildError(f"{revision}: unqualified internal Design Assistant failure {rule}")
+    return failures
+
+
 def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
     verifier = capture()
     if not verifier["committed"]:
@@ -284,19 +300,7 @@ def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
         summaries[revision]["static_memory"] = [row for row in all_memories if row not in memories]
         summaries[revision]["regions"] = regions
         summaries[revision]["partition_reuse"] = report_table(fit, "Partial Reconfiguration and Periphery Reuse Statistics")
-        drc = (output / "output_files" / f"{revision}.tq.drc.signoff.rpt").read_text()
-        failures = []
-        for rule, severity, violations, waived in re.findall(
-                r"^; ([A-Z]+-[0-9]+[^;]*?)\s*;\s*(Critical|High|Medium|Low)\s*;\s*([0-9]+)\s*;\s*([0-9]+)\s*;", drc, re.MULTILINE):
-            if int(waived):
-                raise BuildError("proof must not contain waived Design Assistant findings")
-            if int(violations):
-                failures.append({"rule": rule.strip(), "severity": severity, "violations": int(violations)})
-                if rule.startswith("BBD-60000 "):
-                    raise BuildError(f"{revision}: PR boundary is not directly registered")
-                if severity in ("Critical", "High") and not rule.startswith(("TMC-20011 ", "TMC-20012 ")):
-                    raise BuildError(f"{revision}: unqualified internal Design Assistant failure {rule}")
-        summaries[revision]["unwaived_design_assistant_findings"] = failures
+        summaries[revision]["unwaived_design_assistant_findings"] = design_assistant_findings(output, revision)
         sta_report = (output / "output_files" / f"{revision}.sta.rpt").read_text()
         summaries[revision]["metastability"] = {
             "status": next(row["Result Flag"] for row in summaries[revision]["closure"]
@@ -486,11 +490,12 @@ def capture() -> dict:
         paths += PROFILE.source_paths()
     files = {p.relative_to(repository).as_posix(): p.read_bytes() for p in paths}
     if PROFILE is not None:
-        name = (BOARD / "zx81-ram/profile.py").relative_to(repository).as_posix()
+        profile_path = Path(PROFILE.__file__)
+        name = profile_path.relative_to(repository).as_posix()
         if files[name] != PROFILE.selected_source_bytes:
             raise BuildError("profile source changed after selection")
         # Execute the captured bytes; callbacks and recorded source are identical.
-        PROFILE = load_profile(BOARD / "zx81-ram/profile.py", files[name])
+        PROFILE = load_profile(profile_path, files[name])
     committed = True
     for name, data in files.items():
         result = subprocess.run(["git", "show", f"{revision}:{name}"], cwd=repository,
@@ -521,7 +526,7 @@ def write_revisions(project: Path, region: dict, build_id: str) -> None:
         'set_instance_assignment -name NOT_GATE_PUSH_BACK OFF -to "soc_inst|subsys_periph|fes_pr_control|fes_pr_control|slot_reset"\n'
         f'set_global_assignment -name VERILOG_MACRO "FES_DE25_PR_BUILD_ID=128\'h{build_id}"\n')
     if PROFILE is not None:
-        common += PROFILE.qsf()
+        common += PROFILE.qsf(build_id)
     lines = common.splitlines()
     constraints = "\n".join(line for line in lines if line.startswith("set_global_assignment -name SDC_FILE ")) + "\n"
     common = "\n".join(line for line in lines if not line.startswith("set_global_assignment -name SDC_FILE ")) + "\n"
@@ -566,7 +571,10 @@ def prepare(output: Path, placement: str, routing: str, archive: Path | None = N
     retained.write_bytes(archive.read_bytes())
     hps.source_identity = lambda: {"fes_revision": frozen["revision"],
         "source_classification": "committed" if frozen["committed"] else "working-copy-diagnostic"}
-    hps_output = hps.prepare_project(retained, output / "hps")
+    if PROFILE is not None and hasattr(PROFILE, "prepare_base"):
+        hps_output = PROFILE.prepare_base(retained, output, frozen)
+    else:
+        hps_output = hps.prepare_project(retained, output / "hps")
     project = hps_output / "project"
     emif_reference_clock = remove_duplicate_emif_clock(project)
     local = project / "fes_link"
@@ -648,6 +656,8 @@ set_interface_property fes_pr_diagnostic EXPORT_OF subsys_periph.fes_pr_diagnost
         inputs["profile"] = PROFILE.identity
         inputs["interface"] = PROFILE.interface
     inputs["control_build_id"] = sha(canonical(inputs))[:32]
+    if PROFILE is not None and hasattr(PROFILE, "bind_identity"):
+        PROFILE.bind_identity(project, inputs["control_build_id"])
     write_revisions(project, region, inputs["control_build_id"])
     inputs["project_sha256"] = {path.relative_to(project).as_posix(): sha(path.read_bytes())
         for path in local.rglob("*") if path.is_file()}
@@ -656,6 +666,9 @@ set_interface_property fes_pr_diagnostic EXPORT_OF subsys_periph.fes_pr_diagnost
     if PROFILE is not None:
         for name in ("zx8x.hex", "zx8x.mif"):
             inputs["project_sha256"][name] = sha((project / name).read_bytes())
+    if PROFILE is not None and hasattr(PROFILE, "extra_project_inputs"):
+        for path in PROFILE.extra_project_inputs(project):
+            inputs["project_sha256"][path.relative_to(project).as_posix()] = sha(path.read_bytes())
     inputs["qpf"] = verify_qpf(project)
     inputs["source_closure_sha256"] = sha(canonical(inputs))
     (project / "inputs.json").write_bytes(canonical(inputs) + b"\n")
@@ -705,6 +718,8 @@ def generate_hps(project: Path, tools: dict[str, Path], version: str) -> None:
         raise BuildError("actual HPS bridge PR control aperture differs")
     handoff["pr_control"] = {"module": modules[0].get("path"), "peripheral_offset": inputs["control_peripheral_offset"],
                              "clock_hz": 100000000, "physical_mmio": "not-established"}
+    if PROFILE is not None and hasattr(PROFILE, "verify_generation"):
+        handoff["profile"] = PROFILE.verify_generation(project, hps)
     (project / "hps-handoff.json").write_bytes(canonical(handoff) + b"\n")
     write_revisions(project, inputs["region"], inputs["control_build_id"])
     for name in ("base.qsf", "persona_a.qsf", "persona_b.qsf"):
@@ -770,6 +785,9 @@ def compile_project(output: Path, tools: dict[str, Path], version: str, only: st
                 "status": "passed", "timing_script_sha256": sha(script.read_bytes()),
                 "paths_sha256": sha((output / "timing-base-preflight/boundary-paths.tsv").read_bytes()),
                 "quartus_sta_sha256": selected_tools["quartus_sta"], "root_qdb_sha256": root_qdb_hash}) + b"\n")
+        if revision == "base":
+            # Internal CDC/reset/boundary failures must stop before personas.
+            design_assistant_findings(output, revision)
         if revision == "base" and only == "base":
             return
     # Keep vendor metadata/integrity checks and opaque payloads together. A
@@ -814,7 +832,7 @@ def main() -> int:
     parser.add_argument("--placement")
     parser.add_argument("--routing")
     parser.add_argument("--only", choices=("base",))
-    parser.add_argument("--profile", choices=("zx81-ram",))
+    parser.add_argument("--profile", choices=("zx81-ram", "zx81-computer"))
     args = parser.parse_args()
     if args.profile:
         global PROFILE
@@ -822,7 +840,7 @@ def main() -> int:
     try:
         if args.action == "sim":
             if PROFILE is not None:
-                raise BuildError("run zx81-ram/sim.py for the actual ZX81 profile simulation")
+                raise BuildError("run " + ("zx81-ram/sim.py" if args.profile == "zx81-ram" else "zx81-computer/proof.py") + " for the actual ZX81 profile")
             simulate(args.output.resolve())
         elif args.action == "verify":
             tools, version = toolchain(args.quartus_root)

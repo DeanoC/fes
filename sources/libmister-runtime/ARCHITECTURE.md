@@ -43,7 +43,10 @@ constructed by the production factory or exposed by the runtime daemon.
 `fes.fabric.de25-computer` register map. It reuses the abstract `Mmio` and
 `Clock` interfaces with resource-relative offsets. There is no Linux MMIO
 constructor, physical base, daemon operation or platform/profile admission for
-this client. Its only current callers are the scripted-register unit tests.
+this client. Its callers are scripted-register unit tests and the native/AArch64
+DE25 ZX81 co-simulation in `misteross/boards/de25nano/zx81-hps/client_proof.py`.
+That test connects the actual client to the endpoint/machine RTL, with explicit
+simulation-time advances and separately labeled observation/transport faults.
 The production factory and its exact ARMv7/DE10 guard above are unchanged.
 
 The client requires an explicit nonzero 128-bit build ID, bridge identity and

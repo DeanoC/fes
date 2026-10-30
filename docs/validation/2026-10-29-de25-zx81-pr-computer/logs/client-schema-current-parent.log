@@ -1,0 +1,8 @@
+test_result_requires_complete_exact_scenario_and_counts (test_client_proof.NativeClientProofTests.test_result_requires_complete_exact_scenario_and_counts) ... ok
+test_session_requires_full_loader_and_visible_frames (test_client_proof.NativeClientProofTests.test_session_requires_full_loader_and_visible_frames) ... ok
+test_source_capture_contains_real_client_and_machine (test_client_proof.NativeClientProofTests.test_source_capture_contains_real_client_and_machine) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.445s
+
+OK

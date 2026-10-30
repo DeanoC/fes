@@ -1,0 +1,34 @@
+{
+  "focused_final": {
+    "tests": 32,
+    "result": "passed",
+    "source_revision": "ec14fda2964fd4fba1f5d3396bc70b754a0e1d29"
+  },
+  "affected_aggregate": {
+    "result": "failed",
+    "parent": {
+      "tests": 967,
+      "skipped": 1,
+      "failures": 0
+    },
+    "fpga": {
+      "tests": 1456,
+      "skipped": 35,
+      "failures": 1,
+      "all_de25_tests_passed": true
+    },
+    "started_at_revision": "67068382b7a12047dad227077bd57c4b05e7fec3",
+    "source_during_later_tests": "ec14fda2964fd4fba1f5d3396bc70b754a0e1d29",
+    "boundary": "Timing constraints were strengthened during the later tests. Runtime C++, RTL, firmware and test bytes did not change. This is not a final-publication-head aggregate pass."
+  },
+  "lease_fixture_failure": {
+    "issue": "https://github.com/DeanoC/fes/issues/1271",
+    "test": "test_route_lease_uses_a_free_gpu_instead_of_the_argv_device",
+    "observed": "held owner was None rather than blocker",
+    "unchanged_from_parent": true,
+    "isolated_retry": "passed",
+    "parent_control": "passed",
+    "whole_17_test_file_retry": "passed"
+  },
+  "hardware": "not-run"
+}

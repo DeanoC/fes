@@ -1,0 +1,40 @@
+{
+  "compiler_source": "c7a991110c993f69ad1a94af504679289aae4c9e",
+  "client_source": "c7a991110c993f69ad1a94af504679289aae4c9e",
+  "build_id": "9e73d6d51866d75050e13fc8f7773680",
+  "scope": "common prepared HDL/header bytes and decoded actual generated MIF versus selected model HEX; memory behavioral in simulation; HPS interconnect and SDM not simulated",
+  "matching_hdl_headers": {
+    "fes_mailbox/board.v": "a0d7f396a31746a1fa6a977f24d9aeef09a2f38a68537a50f85e7524ea08ff0b",
+    "fes_mailbox/fes_computer_mailbox.v": "e89431a63c4b91bef2ac377ceeeec5cea67d3aa3ad09a3f518cfdb579aa1daa0",
+    "fes_mailbox/fes_de25_computer.v": "12999cc89c4ebfc228bd3e533190c267e09b492edf74e234c829843ed22e2fbb",
+    "fes_mailbox/fes_z80_alu.sv": "c7ce86810a6537150ccc482b91135031422c10ff4de257a6d4d8e54f3a4f43d9",
+    "fes_mailbox/fes_z80_bus.sv": "1946158638c97ee46f993b4a53e168cd4f44f209af01b4be0f11faa69c331b2a",
+    "fes_mailbox/fes_z80_engine.sv": "f40dad3d2b4909c4b93fa507479a417ad9b197d708580d8cc100f8f46954113b",
+    "fes_mailbox/fes_z80_nmos.sv": "d09a07cb9fcadf0c7811132dfe830554f0185f964a36c52fdc3792ad7e1ef1c0",
+    "fes_mailbox/generated/fes_computer.vh": "fd64d373df04b1ec3220938c95cb598a4e448f9b78a6d789e0fc5cec535dfc59",
+    "fes_mailbox/generated/fes_de25_computer.vh": "f3825ee0ca22930ab63a7b1a78f4c8b37235914f289e838e4413436bfe95dc40",
+    "fes_mailbox/tape_store.v": "f8f9c1b7635d33853cca4f69a41b0a1f7d5afcec32ea00c1c7dfa7a5ad08361f",
+    "fes_mailbox/video.v": "a59b68c567785de5b23ecced277d39549a95fcc409da27a09144f6392dc3706a",
+    "fes_mailbox/zx81_bus_pack.vh": "dbe3e58505b27a71362a602b1bc4e8c2249a0407d42abb52a56da8deab5cbfb0",
+    "fes_mailbox/zx81_dpram.v": "a72d4bb2c2311813f07575c12ea96e51d1269882eed795753c3061b30c006038",
+    "fes_mailbox/zx81_dpram_de25.v": "c8b6b1e922633255c43e099eb6047bd3d84b57eafba7fdcb53c0836f03e11ea2",
+    "fes_mailbox/zx81_keyboard.v": "684185761646e975608fd29c57366d50c12d8710d36e5c69696baf1ae453b45f",
+    "fes_mailbox/zx81_machine.sv": "37744e9b25bb44e600d7e843bff4722d4db70cf614514dd04ef6e5368627187d",
+    "fes_mailbox/zx81_machine_clock.v": "d222d14bc64a9f7dd9cf1e3bad33be7708a70e0bfc94a9a6bf713d4d5ebbd501",
+    "fes_mailbox/zx81_model.vh": "c421b4ec19d294bc6e2dc98562ebf99fb9ce1100efa78fea1ed15ffabd2c3d2f",
+    "fes_mailbox/zx81_tape_store.v": "796fdc6a9b1f044f96431ce64ab0f73a5676790770f7c814bb387c4df6a475fb",
+    "fes_mailbox/zx81_tape_store_de25.v": "f8f9c1b7635d33853cca4f69a41b0a1f7d5afcec32ea00c1c7dfa7a5ad08361f",
+    "fes_link/generated/fes_de25_pr_control.vh": "04763cefbcde93ce16a4cb331aca510166e003d3fd2d3f8eaaf57111d62ebdcd",
+    "fes_link/personas.v": "3fd8458daff777af33fa5899f02e51fc6276f93cd91c8744566e0ad8b544fa77",
+    "fes_link/shell.v": "e0b4207781738bb1d3ee5517c804d59b1051352f686d75c3204b4244cae2fd7d",
+    "fes_link/zx81_ram_pack.v": "152b345eebc2d6db3a1cc5073fbde2072cf1e821819a2b475b4cd01b76359dec"
+  },
+  "rom": {
+    "decoded_bytes": 16384,
+    "decoded_sha256": "d2529188bae9fcacc3853e757de030b648d211db67384d44ad44271b7b923763",
+    "generated_mif_sha256": "9115ae7756e6d3da9a7dcaca08d22b19c92905b70c34a80007d50a05bc2924cb",
+    "selected_model_hex_sha256": "6dd6f7466dfee3bd1f52675a3875d865bf18974d75b2ced48c870cdfed50d48d",
+    "generated_mif_equals_model_hex_values": true,
+    "note": "The client component also retains an unused source HEX with FF tail; the executed model reads the padded project-root HEX. Quartus reads the generated component MIF."
+  }
+}
