@@ -222,11 +222,12 @@ panics before publishing artifact receipts. This test kernel's configuration
 and device differ from the board's preserved kernel and FPGA. It establishes
 no board module-loadability, stream translation or physical DMA visibility.
 
-Hardware integration still needs a compatible firmware/SOF pair and the real
-DMA device/stream binding, firewall coverage and global reset/drain lifetime.
-Interactive MENU additionally needs allocated-buffer scanout, ordered
-frame-boundary completion and the pixel-clock crossing. The existing AArch64
-runtime guard continues to refuse DE25 hardware access.
+Hardware integration still needs a compatible firmware/SOF pair, the real
+DMA device/stream binding, firewall coverage, global reset/drain lifetime, a
+serial boot and bounded read probe. Interactive MENU additionally needs
+allocated-buffer scanout, ordered frame-boundary completion and the pixel-clock
+crossing. The existing AArch64 runtime guard continues to refuse DE25 hardware
+access.
 
 ## Validation and the board gate
 

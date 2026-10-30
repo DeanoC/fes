@@ -1,0 +1,32 @@
+{
+  "tested": {
+    "version": 1,
+    "generation": 490,
+    "selected": "eeccbf60270ba0b809a319057107c3670bfad2ba44b53885a72ca7d33babddd0",
+    "previous": "2c8383a5af21aced799017d063b517ee1bfad45ae742b8f2ff76f09e915cbb2a",
+    "active_bundle": "eeccbf60270ba0b809a319057107c3670bfad2ba44b53885a72ca7d33babddd0",
+    "base_identity": "f904961e008a972db8f06f1bb47aff9631123d67215b9f4157ea1fbee83b98d4",
+    "acceptance_receipt": {
+      "id": "ee77b9fc64ebf2c542063641001d34dd8ea4036afadc80f7aa3be6f83c16ae06",
+      "candidate": "eeccbf60270ba0b809a319057107c3670bfad2ba44b53885a72ca7d33babddd0",
+      "requester": "codex-pr1182",
+      "expected_generation": 489,
+      "result": "accepted"
+    }
+  },
+  "restored": {
+    "version": 1,
+    "generation": 491,
+    "selected": "b5f6d8e54731b2b5356f7e475a87771fa88da0902af18083dddde05263b89176",
+    "previous": "eeccbf60270ba0b809a319057107c3670bfad2ba44b53885a72ca7d33babddd0",
+    "active_bundle": "b5f6d8e54731b2b5356f7e475a87771fa88da0902af18083dddde05263b89176",
+    "base_identity": "f904961e008a972db8f06f1bb47aff9631123d67215b9f4157ea1fbee83b98d4",
+    "acceptance_receipt": {
+      "id": "be7c8bcc3be98f224ebfefadc6e2a307ffc17895012d8ff3223a5c7cdcf30e56",
+      "candidate": "b5f6d8e54731b2b5356f7e475a87771fa88da0902af18083dddde05263b89176",
+      "requester": "codex-pr1182-restore",
+      "expected_generation": 490,
+      "result": "accepted"
+    }
+  }
+}

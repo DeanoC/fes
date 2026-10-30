@@ -1,0 +1,201 @@
+{
+  "scope": "Matched guest-clock throughput measurement using exact e0bb reference RTL and current two-phase RTL, identical workload image/testbench; not silicon cycle conformance.",
+  "baseline_receipt": "timing-frozen-baseline/receipt.json",
+  "rows": [
+    {
+      "workload": "128 NOP",
+      "wait_limit": 0,
+      "baseline": {
+        "core_cycles": 11146,
+        "guest_cycles": 532
+      },
+      "two_phase": {
+        "core_cycles": 12090,
+        "guest_cycles": 577
+      },
+      "fabric_ratio": 1.0846940606495603
+    },
+    {
+      "workload": "64 dependent ADD and 32 ADC",
+      "wait_limit": 0,
+      "baseline": {
+        "core_cycles": 20282,
+        "guest_cycles": 968
+      },
+      "two_phase": {
+        "core_cycles": 26840,
+        "guest_cycles": 1281
+      },
+      "fabric_ratio": 1.3233408934030175
+    },
+    {
+      "workload": "128 dependent INC/LOOP",
+      "wait_limit": 0,
+      "baseline": {
+        "core_cycles": 54728,
+        "guest_cycles": 2612
+      },
+      "two_phase": {
+        "core_cycles": 73459,
+        "guest_cycles": 3506
+      },
+      "fabric_ratio": 1.342256249086391
+    },
+    {
+      "workload": "256-word REP MOVSW",
+      "wait_limit": 0,
+      "baseline": {
+        "core_cycles": 134745,
+        "guest_cycles": 6431
+      },
+      "two_phase": {
+        "core_cycles": 156305,
+        "guest_cycles": 7460
+      },
+      "fabric_ratio": 1.1600059371405247
+    },
+    {
+      "workload": "128 NOP",
+      "wait_limit": 31,
+      "baseline": {
+        "core_cycles": 12416,
+        "guest_cycles": 593
+      },
+      "two_phase": {
+        "core_cycles": 12318,
+        "guest_cycles": 588
+      },
+      "fabric_ratio": 0.9921069587628866
+    },
+    {
+      "workload": "64 dependent ADD and 32 ADC",
+      "wait_limit": 31,
+      "baseline": {
+        "core_cycles": 22370,
+        "guest_cycles": 1067
+      },
+      "two_phase": {
+        "core_cycles": 26806,
+        "guest_cycles": 1279
+      },
+      "fabric_ratio": 1.1983012963790791
+    },
+    {
+      "workload": "128 dependent INC/LOOP",
+      "wait_limit": 31,
+      "baseline": {
+        "core_cycles": 59777,
+        "guest_cycles": 2853
+      },
+      "two_phase": {
+        "core_cycles": 75813,
+        "guest_cycles": 3618
+      },
+      "fabric_ratio": 1.268263713468391
+    },
+    {
+      "workload": "256-word REP MOVSW",
+      "wait_limit": 31,
+      "baseline": {
+        "core_cycles": 143999,
+        "guest_cycles": 6872
+      },
+      "two_phase": {
+        "core_cycles": 165567,
+        "guest_cycles": 7902
+      },
+      "fabric_ratio": 1.1497788179084576
+    },
+    {
+      "workload": "128 NOP",
+      "wait_limit": 173,
+      "baseline": {
+        "core_cycles": 22126,
+        "guest_cycles": 1056
+      },
+      "two_phase": {
+        "core_cycles": 22253,
+        "guest_cycles": 1062
+      },
+      "fabric_ratio": 1.0057398535659405
+    },
+    {
+      "workload": "64 dependent ADD and 32 ADC",
+      "wait_limit": 173,
+      "baseline": {
+        "core_cycles": 40560,
+        "guest_cycles": 1935
+      },
+      "two_phase": {
+        "core_cycles": 40560,
+        "guest_cycles": 1935
+      },
+      "fabric_ratio": 1.0
+    },
+    {
+      "workload": "128 dependent INC/LOOP",
+      "wait_limit": 173,
+      "baseline": {
+        "core_cycles": 84851,
+        "guest_cycles": 4050
+      },
+      "two_phase": {
+        "core_cycles": 86482,
+        "guest_cycles": 4128
+      },
+      "fabric_ratio": 1.0192219302070689
+    },
+    {
+      "workload": "256-word REP MOVSW",
+      "wait_limit": 173,
+      "baseline": {
+        "core_cycles": 217983,
+        "guest_cycles": 10403
+      },
+      "two_phase": {
+        "core_cycles": 240899,
+        "guest_cycles": 11497
+      },
+      "fabric_ratio": 1.1051274640682989
+    }
+  ],
+  "nominal_pin_clock_unchanged": true,
+  "architectural_results": "All four self-checking workloads pass for all three waits in both CPUs.",
+  "baseline_receipt_sha256": "f12d1849beb26b3a0b9a6a8729646fc59521da9e5e5d23b79b65bdc77f595b73",
+  "baseline_source": {
+    "revision": "e0bb083d37de176947f28e9f8f2ab640423347ec",
+    "component_tree": "22457bf46d4eafe4bb591d2ac56243d63312b63d",
+    "archive_sha256": "da021089dcd84b7f44de0fa9b31ee5f619b6a098fc8a39a6cba4c2dd0310cfc9",
+    "source_root": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-two-phase-eu-20261023/source-baseline/sources/misteross",
+    "scope": "Frozen committed module bytes for matched diagnostic synthesis; no production/toolchain or hardware acceptance."
+  },
+  "testbench_source": {
+    "revision": "47563669b31270fd95396eabafc5194dddd17e70",
+    "component_tree": "93b1530cfc01450d116963e70c374cc9ac05b1f3",
+    "archive_sha256": "5a146a666e020334dfaa957d46d806f1cb7492f8f39ba3d7f8e5acaaf2c92894",
+    "source_root": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-two-phase-eu-20261023/source-candidate/sources/misteross",
+    "scope": "Frozen committed module bytes for matched diagnostic synthesis; no production/toolchain or hardware acceptance."
+  },
+  "candidate_receipt": "timing-frozen-candidate/receipt.json",
+  "candidate_receipt_sha256": "10448d3a59ff430183695b1177c828b1fef402c1b20a132ab2c3aed6297c3d7b",
+  "candidate_source": {
+    "revision": "47563669b31270fd95396eabafc5194dddd17e70",
+    "component_tree": "93b1530cfc01450d116963e70c374cc9ac05b1f3",
+    "archive_sha256": "5a146a666e020334dfaa957d46d806f1cb7492f8f39ba3d7f8e5acaaf2c92894",
+    "source_root": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-two-phase-eu-20261023/source-candidate/sources/misteross",
+    "scope": "Frozen committed module bytes for matched diagnostic synthesis; no production/toolchain or hardware acceptance."
+  },
+  "system_rom_followup": {
+    "source": {
+      "revision": "be56eb29f72d72ba06c8b9b2521d815be1df203c",
+      "component_tree": "e358176aafda7781ecbd732ac3d4966ea0b406f5",
+      "archive_sha256": "5273032a37c644d679727acaeb020ddc779698d4fe82974ae064d451dfca074b",
+      "source_root": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-two-phase-eu-20261023/source-system-rom/sources/misteross",
+      "scope": "Frozen committed module bytes for matched diagnostic synthesis; no production/toolchain or hardware acceptance."
+    },
+    "simulation_log": "system-rom-all-simulation.log",
+    "simulation_log_sha256": "b99eb2ead31558c049575a29fb34d75479c1660ecc06fc45f459cb110fbb2038",
+    "all_12_intervals_exactly_match_initial_two_phase_candidate": true,
+    "hardware": false
+  }
+}

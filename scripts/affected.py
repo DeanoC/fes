@@ -13,10 +13,10 @@ except ImportError:
 MODULE_ROOTS = {'host': 'sources/FogCast', 'runtime': 'sources/libmister-runtime',
                 'contracts': 'sources/mister-packages', 'fpga': 'sources/misteross'}
 LANES = ('parent', 'host', 'runtime', 'contracts', 'fpga')
-# Simulation families include the standalone CPU; it has no play-package recipe.
+# z80 and pc386 are simulation-only families; PC/XT also has a package producer.
 CORES = ('demo', 'pong', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'menu', 'z80', 'atari-st', 'ramtest', 'riscv', 'pcxt',
          'pc386')
-SIMULATION_ONLY_CORES = frozenset({'z80', 'pcxt', 'pc386'})
+SIMULATION_ONLY_CORES = frozenset({'z80', 'pc386'})
 EXPANSION_ROOT = 'sources/misteross/expansion'
 # Parent-owned orchestration, test and assembly roots contain no component
 # sources, so their changes select only the parent lane. Matching is the exact
@@ -38,7 +38,8 @@ SOFTWARE_CI_INPUTS = frozenset({
 # misteross unittest suite runs (about two minutes); tool-dependent cases skip.
 FPGA_SOFTWARE_TESTS = ('test_*.py',)
 FPGA_PRODUCER_HELPERS = {
-    'bootstrap.sh',
+    'bootstrap.sh', 'audit_fes_pcxt_cdc.py', 'quartus_fes_pcxt.py', 'build_fes_pcxt_quartus.py', 'pcxt_quartus_mailbox.py',
+    'audit_fes_pcxt_hps_i2c.py', 'characterize_fes_pcxt_hps_i2c.py', 'screen_fes_pcxt_uncertainty.py',
     'synth_fes_native_video.py', 'synth_fes_pcxt.py', 'build_fes_pcxt.py', 'build_fes_coleco_socket_v2.py',
     'build_video_part.py', 'video_parts.py', 'native_video_parts.py', 'native_video_clock.py',
     'build_fes_catch.py', 'rom_map.py', 'rom_map_oracle.py',
@@ -86,7 +87,7 @@ SHARED_RTL = {
     'fes_audio_output.v': ('zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'atari-st'),
     'fes_sn76489.sv': ('coleco', 'sg1000'),
     'fes_z80_ce.sv': COLECO_CONSUMERS,
-    'fes_computer_mailbox.v': ('apple2', 'c64', 'spectrum', 'atari-st', 'zx81'),
+    'fes_computer_mailbox.v': ('apple2', 'c64', 'spectrum', 'atari-st', 'zx81', 'pcxt'),
     't80pa.v': ('coleco', 'sms'),
     'fes_video_part_direct.v': ('coleco', 'atari-st', 'pcxt'),
     'fes_video_part_scanlines.v': ('coleco', 'atari-st', 'pcxt'),

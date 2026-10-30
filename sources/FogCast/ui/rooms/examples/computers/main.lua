@@ -1,8 +1,5 @@
--- Computers: prepared ZX81 and Commodore 64 library entries.
--- Confirm stays here and calls session.launch. Set up opens that row's
--- workbench: the ZX81 workbench or the Commodore 64 setup room.
--- This room does not publish a destination or name hardware the library
--- did not return.
+-- Prepared systems launch through the ordinary library. Set up opens the
+-- selected system's workbench, including models and saved-media controls.
 local List = require "widgets.list"
 local color = require "util.color"
 
@@ -15,12 +12,12 @@ local PLATE = "#1C2420"
 local INK = "#F0F4F1"
 local FOCUS_INK = "#141916"
 local STATUS = "#C5D4CB"
-local MACHINES = {
-  ["fes.zx81"] = "ZX81",
-  ["fes.c64"] = "Commodore 64",
-}
+local systems = require "systems"
 local SETUP = {
   ["fes.zx81"] = "example.hardware",
+  ["fes.zx80"] = "example.hardware",
+  ["fes.ts1000"] = "example.hardware",
+  ["fes.ts1500"] = "example.hardware",
   ["fes.c64"] = "example.c64",
 }
 local focus = "list"
@@ -29,10 +26,12 @@ local list
 local rows
 local status = "Looking for prepared computers…"
 local load_err
+local library_generation = 0
 
 local function machine_of(g)
   if type(g) ~= "table" then return nil end
-  return MACHINES[g.core_id or ""]
+  local value = systems.by_id[g.core_id or ""]
+  return value and value.label or nil
 end
 
 local function short_id(id)
@@ -52,20 +51,20 @@ end
 local function add_rows(out, g)
   if not machine_of(g) or not g.launchable or not g.id or g.id == "" then return end
   local label = base_label(g)
-  out[#out + 1] = { id = g.id, core_id = g.core_id, label = label }
   local seen = {}
   if g.expansion_id and g.expansion_id ~= "" then
     seen[g.expansion_id] = true
-    out[#out + 1] = { id = g.id, core_id = g.core_id, label = label .. "  ·  Expansion " .. short_id(g.expansion_id) }
+    label = label .. "  ·  Expansion " .. short_id(g.expansion_id)
   end
   for _, slot in ipairs(g.slot_expansions or {}) do
     local eid = slot.expansion_id or ""
     if eid ~= "" and not seen[eid] then
       seen[eid] = true
       local n = slot.slot or 0
-      out[#out + 1] = { id = g.id, core_id = g.core_id, label = label .. "  ·  Slot " .. tostring(n) .. " " .. short_id(eid) }
+      label = label .. "  ·  Slot " .. tostring(n) .. " " .. short_id(eid)
     end
   end
+  out[#out + 1] = { id = g.id, core_id = g.core_id, label = label }
 end
 
 local function build(games)
@@ -108,7 +107,7 @@ local function prepared_from(games)
   return out
 end
 
-local function resolve(games)
+local function resolve(games, generation)
   local prepared = prepared_from(games)
   local pending = 0
   local replacements = {}
@@ -120,6 +119,7 @@ local function resolve(games)
       local id = g.id
       local fallback = g
       library.game(id, function(detail, err)
+        if generation ~= library_generation then return end
         if detail and not err and detail.id and detail.id ~= "" then
           replacements[id] = detail
         else
@@ -154,30 +154,40 @@ local function launch_selected()
 end
 
 local function open_setup()
+  if rows == nil then return false end
+  if #rows == 0 then rooms.open("example.system") return true end
   if not list then return false end
   local item = list:selected()
   if type(item) ~= "table" then return false end
-  local room_id = SETUP[item.core_id or ""]
-  if not room_id then return false end
-  rooms.open(room_id, { game_id = item.id })
+  local room_id = SETUP[item.core_id or ""] or "example.system"
+  rooms.open(room_id, { game_id = item.id, core_id = item.core_id })
   return true
 end
 
 function load()
+  library_generation = library_generation + 1
+  local generation = library_generation
   library.query({
     platform = "fpga",
-    core_ids = { "fes.zx81", "fes.c64" },
+    core_ids = systems.ids,
     sort = "title",
     limit = 2000,
   }, function(games, err)
+    if generation ~= library_generation then return end
     if err then
       load_err = err
       status = ""
       rows = {}
+      if list then list:set_items(rows) end
       return
     end
-    resolve(games)
+    load_err = nil
+    resolve(games, generation)
   end)
+end
+
+function on_resume()
+  load()
 end
 
 function on_input(cmd)
@@ -190,8 +200,8 @@ function on_input(cmd)
     if cmd == "right" then return true end
     return false
   end
-  if cmd == "right" and rows and #rows > 0 then
-    focus = "setup"
+  if cmd == "right" then
+    if rows ~= nil then focus = "setup" end
     return true
   end
   if list and list:input(cmd) then return true end
@@ -200,12 +210,13 @@ function on_input(cmd)
 end
 
 function on_hover(id)
-  if id == "setup" then focus = "setup" return end
+  if id == "setup" and rows ~= nil then focus = "setup" return end
   if list and list:on_hover(id) then focus = "list" end
 end
 
 function on_activate(id)
   if id == "setup" then
+    if rows == nil then return end
     focus = "setup"
     open_setup()
     return
@@ -219,22 +230,22 @@ function draw()
   gfx.clear(room.theme.background)
   gfx.rect(0, 0, room.width, 112, color.shade(room.theme.background, 0.7))
   gfx.rect(0, 112, room.width, 4, room.theme.accent)
-  gfx.text("Computers", 64, 28, { size = 40, bold = true, color = room.theme.accent })
+  gfx.text("Systems", 64, 28, { size = 40, bold = true, color = room.theme.accent })
   local note = status
   if load_err then
     note = load_err
   elseif rows and #rows == 0 and status == "" then
-    note = "No prepared ZX81 or Commodore 64 entries yet."
+    note = "No prepared systems yet. Add a system to get started."
   elseif rows and #rows > 0 and status == "" then
     note = "Confirm starts. Set up opens its workbench."
   end
   gfx.text(note, 64, 76, { size = 16, color = STATUS })
-  if rows and #rows > 0 then
+  if rows ~= nil then
     local x, y, w, h = 980, 24, 180, 48
     local fill = focus == "setup" and room.theme.accent or PLATE
     local ink = focus == "setup" and FOCUS_INK or INK
     gfx.rect(x, y, w, h, fill)
-    gfx.text("Set up", x + 16, y + 12, { size = 22, color = ink, bold = focus == "setup" })
+    gfx.text(rows and #rows > 0 and "Set up" or "Add system", x + 16, y + 12, { size = 22, color = ink, bold = focus == "setup" })
     gfx.hit("setup", x, y, w, h)
   end
   if list then

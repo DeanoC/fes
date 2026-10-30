@@ -256,7 +256,7 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-apple2/rtl/apple2_machine.sv': {'apple2'},
             'cores/fes-c64/rtl/c64_machine.sv': {'c64'},
             'cores/fes-common/rtl/cpu6502/cpu6502.v': {'apple2', 'c64'},
-            'cores/fes-common/rtl/fes_computer_mailbox.v': {'apple2', 'c64', 'spectrum', 'atari-st', 'zx81'},
+            'cores/fes-common/rtl/fes_computer_mailbox.v': {'apple2', 'c64', 'spectrum', 'atari-st', 'zx81', 'pcxt'},
             'cores/fes-common/rtl/t80pa.v': {'coleco', 'sms'},
             'scripts/apple2_slots.py': {'apple2'},
             'scripts/build_apple2_slot_card.py': {'apple2'},
@@ -317,7 +317,8 @@ class AffectedTests(unittest.TestCase):
                      'tests/test_export_core_package.py', 'tests/test_coleco_sim_shards.py',
                      'scripts/rom_map.py', 'scripts/rom_map_oracle.py', 'tests/test_rom_map.py',
                      'tests/test_core_package_v3.py', 'scripts/build_fes_atari_st_oss.py',
-                     'tests/test_atari_st_producer.py', 'tests/test_atari_st_slot_card.py'):
+                     'tests/test_atari_st_producer.py', 'tests/test_atari_st_slot_card.py',
+                     'scripts/build_fes_pcxt_quartus.py'):
             with self.subTest(path=path):
                 result = plan(['sources/misteross/' + path])
                 self.assertTrue(result['lanes']['fpga'])
@@ -351,6 +352,15 @@ class AffectedTests(unittest.TestCase):
                 result = plan(['sources/misteross' + ('/' + path if path else '')])
                 self.assertEqual(set(result['cores']), set(CORES))
                 self.assertTrue(result['lanes']['fpga'])
+
+    def test_pcxt_diagnostic_helpers_run_software_without_core_simulations(self):
+        for name in ('audit_fes_pcxt_cdc.py', 'quartus_fes_pcxt.py', 'pcxt_quartus_mailbox.py',
+                     'audit_fes_pcxt_hps_i2c.py', 'characterize_fes_pcxt_hps_i2c.py',
+                     'screen_fes_pcxt_uncertainty.py'):
+            with self.subTest(script=name):
+                selected = plan(['sources/misteross/scripts/' + name])
+                self.assertTrue(selected['lanes']['fpga'])
+                self.assertEqual(selected['cores'], [])
 
     def test_misteross_tests_run_software_without_simulations(self):
         for path in ('tests/test_new_behavior.py', 'tests/producer_fixture.py',

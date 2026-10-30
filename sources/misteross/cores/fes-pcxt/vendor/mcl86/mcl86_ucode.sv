@@ -36,7 +36,8 @@
 //   split into four byte-wide block ROMs. Each word is one microinstruction;
 //   the field layout lives in mcl86_eu_core.sv, which decodes it.
 //
-//   The read is REGISTERED, and that one clock of latency is what gives the EU
+//   The read is REGISTERED and advances with the EU execute enable. One
+//   microword of read latency is what gives the EU
 //   sequencer its two-microword lead over the word it is executing. Do not
 //   "optimize" this into an asynchronous read: the microcode, the pipeline stall
 //   on taken jumps, and every microcode-address marker in the EU assume it.
@@ -59,11 +60,10 @@
 `default_nettype none
 `timescale 1ns/1ps
 
-module mcl86_ucode (
+module mcl86_ucode #(parameter [31:0] RESET_WORD = 32'b0) (
     input wire clk,
-    // One read edge between successive system edges; the board uses +90 deg.
-    input wire clk_rom,
     input wire reset,
+    input wire advance, // One microword every two system cycles
     // Same next-PC value that the EU captures on this system edge.
     input wire [11:0] next_addr,
     output logic [31:0] dout,
@@ -72,13 +72,14 @@ module mcl86_ucode (
 );
     logic [31:0] data_half;
     // Four independent address registers give each 8-bit ROM lane a local
-    // driver. They capture the EU's next PC on the same edge as the real PC;
-    // no additional address/read cycle is introduced.
+    // driver. They capture the EU's next PC on the same execute edge as the real PC;
+    // The intervening operand edge reads these addresses before the next
+    // execute edge captures the word. Both paths have a full physical cycle.
     generate for (genvar lane = 0; lane < 4; lane = lane + 1) begin: bytes
         reg [11:0] read_address;
         (* keep *) always_ff @(posedge clk) begin : read_address_output
             if (reset) read_address <= 12'h020;
-            else read_address <= next_addr;
+            else if (advance) read_address <= next_addr;
         end
         logic [7:0] rom[0:4095];
         initial begin
@@ -87,22 +88,27 @@ module mcl86_ucode (
             else if (lane == 2) $readmemh("mcl86_ucode_byte2.mem", rom);
             else $readmemh("mcl86_ucode_byte3.mem", rom);
         end
-        always_ff @(posedge clk_rom) begin : read_mem
+        always_ff @(posedge clk) begin : read_mem
             data_half[lane*8 +: 8] <= rom[read_address];
         end
     end endgenerate
     always_ff @(posedge clk) begin : read_data_output
-        dout <= data_half;
+        if (reset) dout <= RESET_WORD;
+        else if (advance) dout <= data_half;
     end
     // Decode the same immutable microword before the system output registers.
     // Separate kept processes preserve local controls for ADD and logic uses.
     wire [31:0] select_half = {(16'h1 << data_half[23:20]),
                              (16'h1 << data_half[19:16])};
     (* keep *) always_ff @(posedge clk) begin : read_select_output
-        {operand_select0, operand_select1} <= select_half;
+        if (reset) {operand_select0, operand_select1} <=
+            {(16'h1 << RESET_WORD[23:20]), (16'h1 << RESET_WORD[19:16])};
+        else if (advance) {operand_select0, operand_select1} <= select_half;
     end
     (* keep *) always_ff @(posedge clk) begin : read_add_select_output
-        {add_select0, add_select1} <= select_half;
+        if (reset) {add_select0, add_select1} <=
+            {(16'h1 << RESET_WORD[23:20]), (16'h1 << RESET_WORD[19:16])};
+        else if (advance) {add_select0, add_select1} <= select_half;
     end
 endmodule
 
