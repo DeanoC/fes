@@ -19,6 +19,9 @@
 #include "de25_dma_internal.h"
 
 static_assert(FES_DE25_DDR_PROBE_DMA_ADDRESS_BITS == 32);
+static_assert(FES_DE25_DMA_FRAME_BYTES <= FES_DE25_DMA_SLOT_BYTES);
+static_assert(FES_DE25_DMA_SLOTS * FES_DE25_DMA_SLOT_BYTES ==
+	      FES_DE25_DMA_ALLOCATION_BYTES);
 
 struct fes_de25_dma_mm {
 	struct list_head link;
@@ -220,7 +223,7 @@ static int fes_de25_dma_mmap(struct file *file, struct vm_area_struct *vma)
 {
 	struct fes_de25_dma *grant = file->private_data;
 	struct fes_de25_dma_mm *entry;
-	bool found = false;
+	bool found = false, added = false;
 	int ret = 0;
 
 	if (!(vma->vm_flags & VM_SHARED) || (vma->vm_flags & VM_EXEC) ||
@@ -246,6 +249,7 @@ static int fes_de25_dma_mmap(struct file *file, struct vm_area_struct *vma)
 		mmgrab(vma->vm_mm);
 		entry->mm = vma->vm_mm;
 		list_add_tail(&entry->link, &grant->mms);
+		added = true;
 	}
 	/* vma_init supplied the kernel's empty generic dummy operations. This
 	 * fresh file mmap callback owns vm_ops; clear that sentinel before the
@@ -271,6 +275,11 @@ static int fes_de25_dma_mmap(struct file *file, struct vm_area_struct *vma)
 		vma->vm_ops = &fes_de25_dma_vm_ops;
 	}
 out:
+	if (ret && added) {
+		list_del(&entry->link);
+		mmdrop(entry->mm);
+		kfree(entry);
+	}
 	mutex_unlock(&grant->lock);
 #if IS_ENABLED(CONFIG_FES_DE25_DMA_KUNIT_TEST)
 	/* Pause only the test callback, after PTE installation but before the
