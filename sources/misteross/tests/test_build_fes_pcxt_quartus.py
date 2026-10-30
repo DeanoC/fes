@@ -1,8 +1,11 @@
 """Quartus package gates must preserve timing failures and artifact identity."""
 import json
+import os
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
+import tomllib
 import unittest
 from unittest import mock
 from scripts import build_fes_pcxt_quartus as producer
@@ -194,6 +197,65 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'BUILD_ID'):
             producer.board.elaboration(producer.ROOT, producer.ROOT / 'build',
                                        producer.ROOT / 'unused-library', package_profile=True)
+
+    def test_yosys_elaborates_diagnostic_and_dos_package_profiles(self):
+        toolchain = tomllib.loads((producer.ROOT / 'cores/fes-pcxt/toolchain.lock').read_text())
+        quartus_lock = tomllib.loads((producer.ROOT / 'cores/fes-pcxt/quartus.lock').read_text())
+        expected_sha = quartus_lock['yosys_sha256']
+        expected_commit = toolchain['tool']['yosys']['commit']
+        configured = os.environ.get('FES_PCXT_YOSYS')
+        candidates = [Path(configured)] if configured else []
+        if not candidates:
+            toolchain_root = os.environ.get('FES_TOOLCHAIN_ROOT')
+            if toolchain_root:
+                candidates.append(Path(toolchain_root) / 'bin/yosys')
+            candidates.append(producer.ROOT / 'build/toolchain/fes-pcxt/bin/yosys')
+            cache_root = os.environ.get('FES_TOOLCHAIN_CACHE_ROOT') or os.environ.get('CACHE_ROOT')
+            if cache_root:
+                candidates.extend(sorted(Path(cache_root).glob('slots/*/install/bin/yosys')))
+            system_yosys = shutil.which('yosys')
+            if system_yosys:
+                candidates.append(Path(system_yosys))
+
+        yosys = None
+        for candidate in candidates:
+            if candidate.is_file() and producer.sha(candidate) == expected_sha:
+                version = subprocess.check_output([str(candidate), '-V'], text=True).strip()
+                if 'git sha1 ' + expected_commit[:9] in version:
+                    yosys = candidate.resolve()
+                    break
+        if yosys is None:
+            if configured:
+                self.fail('FES_PCXT_YOSYS does not match the locked PC/XT Yosys')
+            self.skipTest('locked PC/XT Yosys is not installed; set FES_PCXT_YOSYS to run this check')
+
+        library = yosys.parent.parent / 'share/yosys/intel_alm/common/megafunction_bb.v'
+        self.assertTrue(library.is_file(), f'missing locked Yosys library: {library}')
+        for dos_profile in (False, True):
+            profile = 'dos' if dos_profile else 'diagnostic'
+            with self.subTest(profile=profile), tempfile.TemporaryDirectory(
+                    prefix='pcxt-yosys-elaboration-') as directory:
+                work = Path(directory)
+                dos_inputs = producer.board.prepare_elaboration_inputs(
+                    producer.ROOT, work, dos_profile=dos_profile)
+                if dos_profile:
+                    self.assertTrue(dos_inputs)
+                    self.assertFalse(list(work.glob('pcxt_diagnostic.bank*.hex')))
+                    self.assertTrue((work / 'pcxt_glabios.bank0.hex').is_file())
+                    self.assertTrue((work / 'pcxt_freedos_disk.hex').is_file())
+                else:
+                    self.assertFalse(dos_inputs)
+                    self.assertTrue((work / 'pcxt_diagnostic.bank0.hex').is_file())
+                    self.assertFalse((work / 'pcxt_freedos_disk.hex').exists())
+
+                program = producer.board.elaboration(
+                    producer.ROOT, work, library, package_profile=True,
+                    build_id='1234567890abcdef' * 2, dos_profile=dos_profile)
+                (work / 'elaborate.ys').write_text(program)
+                result = subprocess.run([str(yosys), '-s', 'elaborate.ys'], cwd=work,
+                                        capture_output=True, text=True, timeout=600, check=False)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                producer.board.validate_renaming(work, package_profile=True)
 
 
 if __name__ == '__main__':

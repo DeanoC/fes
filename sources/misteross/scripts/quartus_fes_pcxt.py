@@ -96,7 +96,7 @@ def elaboration(source: Path, work: Path, library: Path, *, package_profile=Fals
             raise ValueError('package profile requires an explicit BUILD_ID')
         parameters += " -set ENABLE_FES_COMPUTER 1 -set PHASED_HDMI_CLOCK 1 -set BUILD_ID 128'h" + build_id
     return (
-        f'read_verilog -lib {quote(library)}; read_verilog -sv '
+        f'read_verilog -lib {quote(library)}; read_verilog -sv -defer '
         + ' '.join('-I ' + str(p) for p in includes) + ' '
         + ' '.join(quote(source / p) for p in (str(ADAPTERS), *RTL))
         + '; chparam ' + parameters + ' top; '
@@ -114,6 +114,48 @@ def elaboration(source: Path, work: Path, library: Path, *, package_profile=Fals
         # parameter metadata, which Quartus needs on PLL integer parameters.
         'rename -unescape; write_json elaborated.json; '
         'write_verilog -noattr elaborated.v\n')
+
+
+def prepare_elaboration_inputs(source: Path, work: Path, *, dos_profile=False) -> dict:
+    """Generate the profile's real ROM, microcode and disk inputs in work."""
+    spec = importlib.util.spec_from_file_location('pcxt_frozen_inputs', source / 'scripts/sim_fes_pcxt.py')
+    generator = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(generator)
+    for vendor in ('kf8259', 'kf8253', 'kf8255'):
+        generator.verify_vendor(vendor)
+    if not dos_profile:
+        generator.board_inputs(work)
+        return {}
+
+    generator.cpu_roms(work)
+    core = source / CORE
+    metadata = json.loads((core / 'firmware/hardware-dos.json').read_text())
+    bios_spec = json.loads((core / 'sim/bios.lock').read_text())
+    bios_path = core / metadata['bios']['file']
+    disk_path = core / metadata['floppy']['file']
+    bios = bios_path.read_bytes()
+    disk = disk_path.read_bytes()
+    if (len(bios) != metadata['bios']['size']
+            or sha(bios_path) != metadata['bios']['sha256']
+            or bios_spec['bios']['sha256'] != metadata['bios']['sha256']
+            or len(disk) != metadata['floppy']['size']
+            or sha(disk_path) != metadata['floppy']['sha256']):
+        raise ValueError('DOS BIOS or floppy image differs from its locked provenance')
+    firmware = bytes([0xff]) * (65536 - len(bios)) + bios
+    generator.boot_roms(work, firmware, prefix='pcxt_glabios')
+    font = bytearray(4096)
+    offset = bios_spec['ascii_font']['rom_offset']
+    for char in range(128):
+        font[char * 16:char * 16 + 8] = bios[offset + char * 8:offset + char * 8 + 8]
+    (work / 'pcxt_glabios_font.hex').write_text(''.join(f'{byte:02x}\n' for byte in font))
+    (work / 'pcxt_freedos_disk.hex').write_text(''.join(f'{byte:02x}\n' for byte in disk))
+    return {
+        'freedos_image_sha256': metadata['floppy']['sha256'],
+        'glabios_rom_sha256': metadata['bios']['sha256'],
+        'glabios_font_sha256': hashlib.sha256(font).hexdigest(),
+        'loaded_into_sdram_before_cpu_release': True,
+        'guest_disk_reads_use_sdram_media_path': True,
+    }
 
 
 def validate_renaming(work: Path, *, package_profile=False) -> dict:
@@ -371,42 +413,9 @@ def main(argv=None) -> int:
             record['mailbox_proof_log_sha256'] = sha(source / 'mailbox-proofs.log')
         work = output / 'elaboration'
         work.mkdir()
-        spec = importlib.util.spec_from_file_location('pcxt_frozen_inputs', source / 'scripts/sim_fes_pcxt.py')
-        generator = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(generator)
-        for vendor in ('kf8259', 'kf8253', 'kf8255'):
-            generator.verify_vendor(vendor)
-        if args.dos_profile:
-            generator.cpu_roms(work)
-            core = source / CORE
-            metadata = json.loads((core / 'firmware/hardware-dos.json').read_text())
-            bios_spec = json.loads((core / 'sim/bios.lock').read_text())
-            bios_path = core / metadata['bios']['file']
-            disk_path = core / metadata['floppy']['file']
-            bios = bios_path.read_bytes()
-            disk = disk_path.read_bytes()
-            if (len(bios) != metadata['bios']['size']
-                    or sha(bios_path) != metadata['bios']['sha256']
-                    or bios_spec['bios']['sha256'] != metadata['bios']['sha256']
-                    or len(disk) != metadata['floppy']['size']
-                    or sha(disk_path) != metadata['floppy']['sha256']):
-                raise ValueError('DOS BIOS or floppy image differs from its locked provenance')
-            firmware = bytes([0xff]) * (65536 - len(bios)) + bios
-            generator.boot_roms(work, firmware, prefix='pcxt_glabios')
-            font = bytearray(4096)
-            offset = bios_spec['ascii_font']['rom_offset']
-            for char in range(128):
-                font[char * 16:char * 16 + 8] = bios[offset + char * 8:offset + char * 8 + 8]
-            (work / 'pcxt_glabios_font.hex').write_text(''.join(f'{byte:02x}\n' for byte in font))
-            (work / 'pcxt_freedos_disk.hex').write_text(''.join(f'{byte:02x}\n' for byte in disk))
-            record['hardware_dos_inputs'] = {
-                'freedos_image_sha256': metadata['floppy']['sha256'],
-                'glabios_rom_sha256': metadata['bios']['sha256'],
-                'glabios_font_sha256': hashlib.sha256(font).hexdigest(),
-                'loaded_into_sdram_before_cpu_release': True,
-                'guest_disk_reads_use_sdram_media_path': True}
-        else:
-            generator.board_inputs(work)
+        dos_inputs = prepare_elaboration_inputs(source, work, dos_profile=args.dos_profile)
+        if dos_inputs:
+            record['hardware_dos_inputs'] = dos_inputs
         (work / 'elaborate.ys').write_text(elaboration(
             source, work, library, package_profile=args.package_profile,
             build_id=args.build_id, dos_profile=args.dos_profile))
