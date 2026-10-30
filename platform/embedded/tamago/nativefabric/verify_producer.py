@@ -23,6 +23,30 @@ spec.loader.exec_module(producer)
 def sha(path): return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+def check_tool_search_order(out):
+    # A later simulator directory may also contain g++; the selected earlier
+    # compiler must still win in the producer's controlled build environment.
+    early, late = out / "search-order" / "early", out / "search-order" / "late"
+    early.mkdir(parents=True)
+    late.mkdir()
+    for path in (early / "g++", late / "g++", late / "verilator", late / "verilator_bin", late / "make"):
+        path.touch()
+        path.chmod(0o755)
+    paths = {"g++": early / "g++", "verilator": late / "verilator",
+             "verilator_bin": late / "verilator_bin", "make": late / "make"}
+    previous = os.environ.get("PATH")
+    try:
+        os.environ["PATH"] = os.pathsep.join((str(early), str(late)))
+        controlled = producer.build_environment(paths)["PATH"]
+    finally:
+        if previous is None:
+            os.environ.pop("PATH", None)
+        else:
+            os.environ["PATH"] = previous
+    if shutil.which("g++", path=controlled) != str(early / "g++"):
+        raise RuntimeError("controlled PATH changed the selected compiler")
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--output", type=Path, default=ROOT / "out" / ("de25-producer-check-" + uuid.uuid4().hex))
@@ -32,6 +56,11 @@ def main():
     if ".." in out.parts or any(x.is_symlink() for x in (out, *out.parents)) or not out.is_relative_to(ROOT / "out") or out.exists():
         p.error("output must be a fresh private directory beneath out/")
     out.mkdir(parents=True)
+    check_tool_search_order(out)
+    native_env = dict(os.environ)
+    for name in ("GOOS", "GOARCH", "GOARM", "GOAMD64", "GOARM64", "GOOSPKG", "GOFLAGS", "GOTOOLCHAIN",
+                 "MAKEFLAGS", "MFLAGS", "MAKELEVEL", "GNUMAKEFLAGS", "PYTHON"):
+        native_env.pop(name, None)
     files = {HERE / "verify_producer.py"}
     for directory in (HERE, TAMAGO / "embeddedcontrol", TAMAGO / "fabricmodel"):
         files.update(x for x in directory.rglob("*.go") if x.is_file())
@@ -40,7 +69,7 @@ def main():
     def run(label, argv, *, cwd=ROOT, extra_env=None, expect=0):
         argv = [str(x) for x in argv]
         commands.append({"label": label, "cwd": str(cwd), "argv": argv})
-        env = dict(os.environ, **(extra_env or {}))
+        env = dict(native_env, **(extra_env or {}))
         result = subprocess.run(argv, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=180)
         (out / (label + ".log")).write_bytes(result.stdout)
         if (result.returncode == 0) != (expect == 0):
@@ -110,14 +139,14 @@ def main():
     if producer.build_identity(producer.encode_build_record(fields)) == first["build_id"]:
         raise RuntimeError("source digest did not enter the functional build ID")
 
-    root = subprocess.check_output(["go", "env", "GOROOT"], cwd=TAMAGO, env=dict(os.environ, GOWORK="off"), text=True).strip()
+    root = subprocess.check_output(["go", "env", "GOROOT"], cwd=TAMAGO, env=dict(native_env, GOWORK="off"), text=True).strip()
     go = Path(root) / "bin/go"
     run("native-binding", [go, "test", "-race", "-count=1", "-timeout", "45s", "-v", "-run", "^TestProducedIdentityBindsNativeControl$", "./nativefabric"], cwd=TAMAGO,
         extra_env={"FES_DE25_PRODUCER_DIR": str(a), "GOWORK": "off", "GOTOOLCHAIN": "local", "GOPROXY": "off", "GOSUMDB": "off"})
     if sources != {str(x.relative_to(ROOT)): sha(x) for x in sorted(files)}:
         raise RuntimeError("native integration sources changed during verification")
     report = {"status": "passed", "classification": "host-only producer simulation and native Go control; no RBF or hardware acceptance",
-              "commands": commands, "first": first, "second": second, "go_sha256": sha(go.resolve()),
+              "tool_search_order": "passed", "commands": commands, "first": first, "second": second, "go_sha256": sha(go.resolve()),
               "native_source_sha256": sources,
               "logs_sha256": {name: sha(out / (name + ".log")) for name in ("first-build", "second-build", "first-verify", "wrong-live-id", "wrong-live-abi", "wrong-descriptor", "wrong-record", "wrong-live-binding", "wrong-artifact", "native-binding")},
               "limitations": ["host executables are not RBFs or FES packages", "no Nano source pinout, actual producer, physical timing or hardware qualification", "record/tool hashes are diagnostic correlations, not authenticated production seals"]}

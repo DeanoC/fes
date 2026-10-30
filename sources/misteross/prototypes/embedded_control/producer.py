@@ -71,14 +71,28 @@ def executable(name: str) -> Path:
     value = shutil.which(name)
     if value is None:
         raise ValueError(f"required simulation tool is missing: {name}")
-    path = Path(value).resolve()
+    # Keep the discovered link path: the build's PATH must resolve g++ and
+    # Verilator to the same files whose bytes are recorded here.
+    path = Path(value).absolute()
     if not path.is_file():
         raise ValueError(f"simulation tool is not a file: {name}")
     return path
 
 
 def build_environment(paths: dict[str, Path]) -> dict[str, str]:
-    return {"PATH": os.pathsep.join(dict.fromkeys([str(paths[k].parent) for k in ("verilator", "g++", "make")] + ["/usr/bin", "/bin"])), "LC_ALL": "C"}
+    # Preserve the caller's search order when retaining just the selected tool
+    # directories. Reordering those directories could silently change which
+    # compiler make invokes when two directories contain a g++ executable.
+    parents = {path.parent for name, path in paths.items() if name != "python"}
+    ordered = [str(Path(part or ".").absolute()) for part in os.defpath.split(os.pathsep)]
+    search = [str(Path(part or ".").absolute()) for part in os.environ.get("PATH", os.defpath).split(os.pathsep)]
+    directories = list(dict.fromkeys([part for part in search if Path(part) in parents] + ordered))
+    env = {"PATH": os.pathsep.join(directories), "LC_ALL": "C"}
+    for name in ("g++", "make"):
+        found = shutil.which(name, path=env["PATH"])
+        if found is None or Path(found).absolute() != paths[name]:
+            raise ValueError(f"controlled PATH changes the selected {name}")
+    return env
 
 
 def first_line(command: list[str], env: dict[str, str]) -> str:
@@ -100,9 +114,17 @@ def support_hash(root: Path) -> str:
 
 
 def tools_snapshot() -> tuple[dict[str, str], dict[str, Path]]:
-    paths = {name: executable(name) for name in ("verilator", "verilator_bin", "g++", "make")}
+    paths = {name: executable(name) for name in ("verilator", "g++", "make")}
+    # The installed Verilator wrapper prefers the compiler beside its resolved
+    # executable and only searches PATH when that sibling is absent.
+    sibling = paths["verilator"].resolve().parent / "verilator_bin"
+    paths["verilator_bin"] = sibling if sibling.is_file() and os.access(sibling, os.X_OK) else executable("verilator_bin")
     paths["python"] = Path(sys.executable).resolve()
     env = build_environment(paths)
+    if not (sibling.is_file() and os.access(sibling, os.X_OK)):
+        found = shutil.which("verilator_bin", path=env["PATH"])
+        if found is None or Path(found).absolute() != paths["verilator_bin"]:
+            raise ValueError("controlled PATH changes the selected Verilator compiler")
     config = subprocess.check_output([str(paths["verilator"]), "-V"], env=env, text=True, timeout=15)
     root = next((line.split("=", 1)[1].strip() for line in config.splitlines()
                  if line.strip().startswith("VERILATOR_ROOT") and "=" in line and line.split("=", 1)[1].strip()), None)
