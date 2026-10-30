@@ -156,6 +156,14 @@ class ScanoutBuildTests(unittest.TestCase):
         self.assertIn("(* preserve, dont_merge *) reg [1:0] pixel_reset_sync;", endpoint)
         self.assertNotRegex(endpoint, r"\(\*[^)]*\basync_reg\b[^)]*\)\s*reg\s+\[1:0\]\s+pixel_reset_sync")
 
+    def test_sticky_clock_fault_crossing_is_marked_for_mtbf_analysis(self):
+        endpoint = (SCANOUT / "fes_de25_scanout.v").read_text()
+        self.assertRegex(endpoint, r'\(\*[^)]*\basync_reg\s*=\s*"true"[^)]*\*\)\s*reg\s+\[1:0\]\s+clock_fault_sync;')
+        self.assertIn("clock_fault_sync <= {clock_fault_sync[0], clock_fault};", endpoint)
+        constraints = (SCANOUT / "clocks.sdc").read_text()
+        self.assertIn("clock_fault_sync[0]|d", constraints)
+        self.assertIn("set_false_path -from $scanout_fault_source -to $scanout_fault_head", constraints)
+
     def test_postcompile_pll_mutation_is_rejected_with_failed_receipt_retained(self):
         output, _, hps, display = self.prepare()
         directory = output / "combined/hps"

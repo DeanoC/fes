@@ -30,7 +30,10 @@ module fes_de25_scanout (
     reg [31:0] grant_base, grant_span, accepted_sequence, displayed_sequence, errors;
     reg [63:0] generation;
     reg local_clear;
-    (* preserve, dont_merge *) reg [1:0] clock_fault_sync;
+    // This 100 MHz sticky-fault level crosses into the pixel domain. Identify
+    // both data stages for Quartus synchronizer/MTBF analysis; the reset chain
+    // below is intentionally inferred from its asynchronous-clear structure.
+    (* preserve, dont_merge, async_reg = "true" *) reg [1:0] clock_fault_sync;
     reg [31:0] snapshot_serial;
     reg [31:0] frozen [0:12];
     integer field, lane;
