@@ -82,6 +82,11 @@ The Verilator bench exercises reset hold/release, the clock divider and LED
 sequence using a functional configuration endpoint model. Compilation
 produces a JTAG `.sof`, retains the compiler reports, and never programs hardware.
 
+The HPS-controlled ZX81 diagnostic connects the existing fabric JTAG master
+to its peripheral bridge at `0x00100000`; its computer occupies the translated
+`0x00110300` 32-byte window. Generated handoff checks require this actual route
+and span. This maintenance path adds no DDR master or CPU physical mapping.
+
 The separate [`boards/de25nano/hps/`](../boards/de25nano/hps/README.md) lane
 extracts a locked Terasic GHRD into a fresh private project and adds a small
 Avalon-MM mailbox through its existing lightweight HPS bridge. Shared fabric
