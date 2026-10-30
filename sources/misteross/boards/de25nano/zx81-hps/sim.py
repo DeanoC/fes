@@ -43,6 +43,9 @@ def prepare(bench, output=None):
 
 
 def run(bench):
+    if bench == "board":
+        run_board()
+        return
     output, sources = prepare(bench)
     parameters = ["-GBUILD_ID=128'h00112233445566778899aabbccddeeff"] if bench == "endpoint" else []
     testbench = HERE / ("endpoint_tb.cpp" if bench == "endpoint" else "computer_tb.cpp")
@@ -60,11 +63,27 @@ def run(bench):
     print(f"DE25 computer {bench} simulation elapsed: {time.monotonic() - started:.3f} seconds; output {output}", flush=True)
 
 
+def run_board():
+    parent = ROOT / "build/sim/de25-zx81-hps"
+    parent.mkdir(parents=True, exist_ok=True)
+    output = Path(tempfile.mkdtemp(prefix="board-", dir=parent))
+    print(f"DE25 board simulation directory: {output}", flush=True)
+    board = HERE / "board.v"
+    display_models = ROOT / "boards/de25nano/display/sim_models.v"
+    reset = ROOT / "boards/de25nano/hps/fes_de25_top_reset.v"
+    subprocess.run(["verilator", "--cc", "--exe", "--build", "-O2",
+                    "--public-flat-rw", "-Wno-DECLFILENAME",
+                    "--top-module", "fes_de25_zx81_board", "--Mdir", str(output),
+                    str(board), str(display_models), str(reset), str(HERE / "board_tb.cpp")],
+                   cwd=ROOT, check=True)
+    subprocess.run([str(output / "Vfes_de25_zx81_board")], cwd=output, check=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--bench", choices=("all", "endpoint", "machine"), default="all")
+    parser.add_argument("--bench", choices=("all", "endpoint", "machine", "board"), default="all")
     selected = parser.parse_args().bench
-    for bench in (("endpoint", "machine") if selected == "all" else (selected,)):
+    for bench in (("endpoint", "machine", "board") if selected == "all" else (selected,)):
         run(bench)
 
 

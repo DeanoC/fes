@@ -41,10 +41,26 @@ module fes_de25_scanout_board (
         .I2C_SCLK(HDMI_I2C_SCL), .I2C_SDAT(HDMI_I2C_SDA),
         .HDMI_TX_INT(HDMI_TX_INT), .READY());
     assign {HDMI_MCLK, HDMI_SCLK, HDMI_LRCLK, HDMI_I2S} = 4'b0000;
-    wire visible = scanout_reset_n && pixel_locked && qualified_lock && !fault;
+    wire visible_request = scanout_reset_n && pixel_locked && qualified_lock && !fault;
+    (* async_reg = "true" *) reg [1:0] visible_sync = 2'b00;
+    reg previous_hs = 1'b0;
+    reg visible_line = 1'b0;
+    reg video_active = 1'b0;
+    always @(posedge pixel_clk) begin
+        visible_sync <= {visible_sync[0], visible_request};
+        previous_hs <= video_hs;
+        // Apply visibility after the complete sync pulse, in the horizontal
+        // porch. Hold it through vertical sync so VS cannot be clipped.
+        if (previous_hs && !video_hs && !video_vs) begin
+            visible_line <= visible_sync[1];
+            video_active <= visible_sync[1];
+        end else if (!visible_sync[1]) video_active <= 1'b0;
+    end
     assign HDMI_TX_CLK = pixel_clk;
-    assign HDMI_TX_D = visible ? video_rgb : 24'd0;
-    assign HDMI_TX_DE = visible && video_de;
-    assign HDMI_TX_HS = visible && video_hs;
-    assign HDMI_TX_VS = visible && video_vs;
+    // Data blanks immediately on reset/lock loss, then waits for a safe line
+    // boundary before it can return. Sync keeps using the unmasked raster.
+    assign HDMI_TX_D = visible_request && visible_sync[1] && video_active && visible_line ? video_rgb : 24'd0;
+    assign HDMI_TX_DE = visible_request && visible_sync[1] && video_active && visible_line && video_de;
+    assign HDMI_TX_HS = visible_line && video_hs;
+    assign HDMI_TX_VS = visible_line && video_vs;
 endmodule

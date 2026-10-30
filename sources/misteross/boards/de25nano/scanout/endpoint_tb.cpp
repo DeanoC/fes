@@ -219,6 +219,68 @@ static void disabled_and_snapshot() {
     auto empty = e.snapshot(); equal(empty.generation(), 0, "CLEAR generation");
     equal(empty.status(), FES_DE25_SCANOUT_STATUS_DRAINED, "CLEAR empty state");
 }
+static void raster_sync_runs_while_disabled_and_survives_reset() {
+    Endpoint e;
+    bool previous_hs = false, reset_during_hs = false;
+    unsigned hsync_pixels = 0;
+    for (unsigned cycle = 0; cycle < 2000; ++cycle) {
+        e.idle();
+        const bool hs = e.dut.video_hs;
+        if (hs) {
+            if (!previous_hs) hsync_pixels = 0;
+            ++hsync_pixels;
+            if (hsync_pixels == 5) {
+                e.dut.reset_n = 0; e.dut.eval();
+                require(e.dut.video_hs, "endpoint reset clipped an active HS pulse");
+                reset_during_hs = true;
+            }
+        } else if (previous_hs) {
+            break;
+        }
+        previous_hs = hs;
+    }
+    require(reset_during_hs, "test did not assert reset inside an HS pulse");
+    equal(hsync_pixels, 40, "continuous disabled/reset HS width");
+    require(!e.dut.video_de && !e.dut.video_rgb, "disabled/reset endpoint exposed pixel data");
+
+    e.dut.reset_n = 1; e.dut.eval();
+    bool previous_vs = false, reset_during_vs = false;
+    unsigned vsync_pixels = 0;
+    for (unsigned cycle = 0; cycle < 20000; ++cycle) {
+        e.idle();
+        const bool vs = e.dut.video_vs;
+        if (vs) {
+            if (!previous_vs) vsync_pixels = 0;
+            ++vsync_pixels;
+            if (vsync_pixels == 100) {
+                e.dut.reset_n = 0; e.dut.eval();
+                require(e.dut.video_vs, "endpoint reset clipped an active VS pulse");
+                reset_during_vs = true;
+            }
+        } else if (previous_vs) {
+            break;
+        }
+        previous_vs = vs;
+    }
+    require(reset_during_vs, "test did not assert reset inside a VS pulse");
+    equal(vsync_pixels, 5u * 1650u, "continuous VS width across endpoint reset");
+}
+static void clock_fault_does_not_shorten_active_hsync() {
+    Endpoint e; Descriptor d; e.submit(d);
+    while (e.dut.video_hs) e.idle();
+    for (unsigned cycle = 0; cycle < 2000 && !e.dut.video_hs; ++cycle) e.idle();
+    require(e.dut.video_hs, "enabled endpoint never reached horizontal sync");
+
+    unsigned hsync_pixels = 0;
+    while (e.dut.video_hs) {
+        ++hsync_pixels;
+        if (hsync_pixels == 5) e.dut.clock_fault = 1;
+        e.idle();
+    }
+    equal(hsync_pixels, 40, "clock fault shortened active HS pulse");
+    require(e.dut.video_de == 0 && e.dut.video_rgb == 0,
+            "clock fault left endpoint pixel data visible");
+}
 static void two_complete_frames(bool zero_latency) {
     Endpoint e; Descriptor d; e.zero_latency = zero_latency; e.check_pixels = true; e.submit(d);
     auto accepted = e.snapshot(); equal(accepted.accepted(), 1, "first acceptance"); equal(accepted.displayed(), 0, "early completion");
@@ -344,6 +406,8 @@ int main(int argc, char** argv) {
     try {
 #define RUN(name) do { name(); ++groups; std::cout << "PASS " #name "\n"; } while (0)
         RUN(disabled_and_snapshot);
+        RUN(raster_sync_runs_while_disabled_and_survives_reset);
+        RUN(clock_fault_does_not_shorten_active_hsync);
         two_complete_frames(false); ++groups; std::cout << "PASS two_complete_frames_delayed\n";
         two_complete_frames(true); ++groups; std::cout << "PASS two_complete_frames_zero_latency\n";
         RUN(stop_keeps_stalled_command_and_accepted_responses);
