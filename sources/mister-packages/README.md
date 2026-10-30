@@ -56,6 +56,12 @@ defines diagnostic register constants for its three memory channels. Its
 generated consumers stay in the [DE25 board diagnostic](../misteross/boards/de25nano/ramtest/README.md);
 the definition creates no core package, runtime ABI or ownership of HPS DDR.
 
+[`fes.fabric.de25-pr-control`](packages/fabric/fes_fabric_de25_pr_control.yaml)
+defines the diagnostic HPS-controlled freeze/drain/reset/resume contract for one
+DE25 PR slot. [DE25 PR control](docs/de25-pr-control.md) specifies its base and
+persona identity checks, command completion and permanent fault rules. It
+does not admit physical programming or a production device backend.
+
 The programming registry contains `fes-gp-v1` for `fes.simple-game`,
 `fes.simple-computer`, `fes.application` and `fes.computer`, plus the diagnostic-only
 `development-contained-v1`. Conventional game profile/source pins and the

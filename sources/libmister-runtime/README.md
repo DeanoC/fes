@@ -16,13 +16,25 @@ its existing unavailable-hardware adapter and local protocol after refusal;
 it advertises no programming capabilities. An AArch64 compile or QEMU software
 test does not add DE25 hardware support.
 
+The internal `De25PrControl` diagnostic consumes the generated DE25 PR-control
+register contract through an exclusive injected `Mmio` backend and an injected
+persona-configuration operation. It validates the selected base identity,
+freezes and drains before configuration, and resumes only after the expected
+persona's identity response. Uncertain completion permanently poisons the
+controller. Native/AArch64 tests and actual-RTL co-simulation exercise this
+protocol; they add no device opener, daemon operation, programming profile or
+production hardware admission. See the
+[shared control contract](../mister-packages/docs/de25-pr-control.md).
+
 The separate native `De25Computer` diagnostic client uses resource-relative,
 ordered 32-bit register operations for `fes.fabric.de25-computer`. It requires
 the selected nonzero build ID and exact ZX81 capabilities before hold/run,
 full HID state or CRC/chunked tape delivery. Each command has one atomic GPO
 write; an uncertain completion permanently poisons the client without replay.
-Only scripted-register consumers currently construct it. It has no physical
-MMIO backend, daemon command, programming profile or production factory path;
+Scripted-register unit tests and the DE25 ZX81 client/RTL co-simulation construct
+it. The latter executes the real client natively and under AArch64 QEMU against
+the real endpoint and machine RTL. It has no physical MMIO backend, daemon
+command, programming profile or production factory path;
 the ARMv7/DE10 guard above remains the production gate.
 
 Raw RBF loading is an explicit, idle-only hardware diagnostic using

@@ -1,0 +1,9 @@
+{
+  "kind": "off-board base plus PR personas and exact imported root QDB; not an appliance image",
+  "file": "out/de25-zx81-pr-computer-artifacts.tar.gz",
+  "bytes": 23398825,
+  "sha256": "93eb79723a910e99b62875bb269a17c0da5828de256abea9415c5dd75e9aad9f",
+  "compiler_source_revision": "c7a991110c993f69ad1a94af504679289aae4c9e",
+  "hardware_acceptance": "not-run",
+  "boot_firmware_pairing": "not-qualified"
+}

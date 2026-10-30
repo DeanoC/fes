@@ -1,0 +1,28 @@
+test_actual_persona_transition_rtl (test_de25nano_link_proof.LinkProofTests.test_actual_persona_transition_rtl) ... ok
+test_control_proof_rejects_missing_or_wrong_scenario_results (test_de25nano_link_proof.LinkProofTests.test_control_proof_rejects_missing_or_wrong_scenario_results) ... ok
+test_native_runtime_controls_actual_endpoint_rtl (test_de25nano_link_proof.LinkProofTests.test_native_runtime_controls_actual_endpoint_rtl) ... ok
+test_project_preparation_preserves_exact_part_and_root_import (test_de25nano_link_proof.LinkProofTests.test_project_preparation_preserves_exact_part_and_root_import) ... ok
+test_target_composition_and_rejection_controls (test_de25nano_link_proof.LinkProofTests.test_target_composition_and_rejection_controls) ... ok
+test_zx81_profile_cannot_silently_run_counter_simulation (test_de25nano_link_proof.LinkProofTests.test_zx81_profile_cannot_silently_run_counter_simulation) ... ok
+test_captured_profile_is_executed_and_load_drift_rejected (de25_zx81_pr_profile_tests.ProfileTests.test_captured_profile_is_executed_and_load_drift_rejected) ... ok
+test_counter_profile_keeps_four_cycles_and_no_zx81_sources (de25_zx81_pr_profile_tests.ProfileTests.test_counter_profile_keeps_four_cycles_and_no_zx81_sources) ... ok
+test_mutated_memory_guard_fails_closed (de25_zx81_pr_profile_tests.ProfileTests.test_mutated_memory_guard_fails_closed) ... ok
+test_real_sources_derive_only_board_memory_and_peek_capture (de25_zx81_pr_profile_tests.ProfileTests.test_real_sources_derive_only_board_memory_and_peek_capture) ... ok
+test_synthesis_preflight_rejects_incomplete_protection_or_inversion (de25_zx81_pr_profile_tests.ProfileTests.test_synthesis_preflight_rejects_incomplete_protection_or_inversion) ... ok
+test_captured_input_mutation_is_rejected (de25_link_recipe_tests.RecipeTests.test_captured_input_mutation_is_rejected) ... ok
+test_fitted_region_checks_import_label_and_exact_coordinates (de25_link_recipe_tests.RecipeTests.test_fitted_region_checks_import_label_and_exact_coordinates) ... ok
+test_hps_archive_is_required_before_output_creation (de25_link_recipe_tests.RecipeTests.test_hps_archive_is_required_before_output_creation) ... ok
+test_hps_packaging_binds_vendor_bootloader_and_recipe (de25_link_recipe_tests.RecipeTests.test_hps_packaging_binds_vendor_bootloader_and_recipe) ... ok
+test_negative_timing_is_rejected (de25_link_recipe_tests.RecipeTests.test_negative_timing_is_rejected) ... ok
+test_only_exact_duplicate_emif_clock_is_removed (de25_link_recipe_tests.RecipeTests.test_only_exact_duplicate_emif_clock_is_removed) ... ok
+test_pfg_integrity_requires_explicit_success (de25_link_recipe_tests.RecipeTests.test_pfg_integrity_requires_explicit_success) ... ok
+test_pfg_zero_exit_text_must_not_hide_errors (de25_link_recipe_tests.RecipeTests.test_pfg_zero_exit_text_must_not_hide_errors) ... ok
+test_real_preparation_declares_both_personas_reconfigurable (de25_link_recipe_tests.RecipeTests.test_real_preparation_declares_both_personas_reconfigurable) ... ok
+test_region_command_injection_rejected_before_output (de25_link_recipe_tests.RecipeTests.test_region_command_injection_rejected_before_output) ... ok
+test_tool_qpf_metadata_may_change_but_revision_selection_may_not (de25_link_recipe_tests.RecipeTests.test_tool_qpf_metadata_may_change_but_revision_selection_may_not) ... ok
+test_vendor_decoded_pof_device_and_uniqueness (de25_link_recipe_tests.RecipeTests.test_vendor_decoded_pof_device_and_uniqueness) ... ok
+
+----------------------------------------------------------------------
+Ran 23 tests in 6.019s
+
+OK

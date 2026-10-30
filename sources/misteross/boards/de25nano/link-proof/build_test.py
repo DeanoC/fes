@@ -13,17 +13,42 @@ SPEC.loader.exec_module(build)
 class RecipeTests(unittest.TestCase):
     def test_real_preparation_declares_both_personas_reconfigurable(self):
         with tempfile.TemporaryDirectory() as tmp:
-            output = build.prepare(Path(tmp)/"project", "X2 Y7 X26 Y12", "X1 Y6 X27 Y13")
+            output = Path(tmp)
+            (output / "golden_top.qsf").write_text(
+                'set_global_assignment -name DEVICE A5EB013BB23BE4SCS\n'
+                'set_global_assignment -name TOP_LEVEL_ENTITY golden_top\n'
+                'set_global_assignment -name SDC_FILE ghrd_timing.sdc\n')
+            build.write_revisions(output, {"placement": "X2 Y7 X26 Y12", "routing": "X1 Y6 X27 Y13"}, "1" * 32)
             for revision in ("base", "persona_a", "persona_b"):
                 qsf = (output/f"{revision}.qsf").read_text()
                 self.assertIn("PARTIAL_RECONFIGURATION_PARTITION ON -to slot_inst", qsf)
                 self.assertIn("ENABLE_PR_POF_ID ON", qsf)
                 self.assertIn("NUM_PARALLEL_PROCESSORS 2", qsf)
                 self.assertIn(f"DEVICE {build.DEVICE}", qsf)
+                self.assertIn('SDC_FILE ghrd_timing.sdc', qsf)
+                self.assertIn('NOT_GATE_PUSH_BACK OFF -to "soc_inst|subsys_periph|fes_pr_control|fes_pr_control|slot_reset"', qsf)
+                self.assertIn('VERILOG_MACRO "FES_DE25_PR_BUILD_ID=128\'h' + '1' * 32 + '"', qsf)
                 if revision != "base":
-                    self.assertLess(qsf.index("QDB_FILE_PARTITION"), qsf.index("SDC_FILE"))
                     self.assertIn("root_partition.qdb -to |", qsf)
-            build.verify_project(output, json.loads((output/"inputs.json").read_text()))
+            self.assertNotIn("VIRTUAL_PIN", (output / "base.qsf").read_text())
+
+    def test_only_exact_duplicate_emif_clock_is_removed(self):
+        duplicate = 'create_clock -name EMIF_REF_CLOCK -period "166.6666MHz" [get_ports LPDDR4A_REFCLK_p]'
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp)
+            path = output / "ghrd_timing.sdc"
+            source = '# retained vendor timing\n' + duplicate + '\nsource ./jtag.sdc\n'
+            path.write_text(source)
+            receipt = build.remove_duplicate_emif_clock(output)
+            self.assertEqual(receipt["owner"], build.EMIF_REFERENCE_CLOCK)
+            self.assertEqual(receipt["period_ns"], "6.000")
+            self.assertEqual(path.read_text(), source.replace(duplicate,
+                '# Generated EMIF SDC owns the 6.000 ns LPDDR4A reference clock.'))
+            for changed in ('', source + duplicate + '\n', source.replace('166.6666MHz', '150MHz'),
+                            source.replace('LPDDR4A_REFCLK_p', 'OTHER_REFCLK_p')):
+                path.write_text(changed)
+                with self.assertRaises(build.BuildError):
+                    build.remove_duplicate_emif_clock(output)
 
     def test_tool_qpf_metadata_may_change_but_revision_selection_may_not(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -79,6 +104,57 @@ class RecipeTests(unittest.TestCase):
                 with self.assertRaises(build.BuildError):
                     build.vendor_pof(log)
 
+    def test_pfg_zero_exit_text_must_not_hide_errors(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            log = Path(tmp)/"info.log"
+            valid = f"Device name: {build.DEVICE}\nPOF0 region ID: 0x01000000\nPOF0 hash: {'A'*64}\n"
+            missing = "Error\nError info: The SOF file is incomplete.\nError detail: HPS is present but bootloader information is missing\n"
+            for failure in (missing, 'Error (19192): incomplete\n', 'Error: bad image\n',
+                            'Info: Programming File Generator was unsuccessful.\n'):
+                log.write_text(valid + failure)
+                with self.assertRaises(build.BuildError):
+                    build.vendor_pof(log)
+            log.write_text(valid + missing)
+            self.assertEqual(build.vendor_pof(log, allow_missing_bootloader=True)["hash"], 'a'*64)
+            for unexpected in (valid, valid + missing + 'Error: another error\n'):
+                log.write_text(unexpected)
+                with self.assertRaises(build.BuildError):
+                    build.vendor_pof(log, allow_missing_bootloader=True)
+            log.write_text(valid + 'Error Detection CRC\n')
+            build.vendor_pof(log)
+
+    def test_pfg_integrity_requires_explicit_success(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            log = Path(tmp)/"integrity.log"
+            log.write_text('   Integrity status: OK\n')
+            build.vendor_integrity(log)
+            for text in ('', 'Integrity status: FAILED\n', 'Integrity status: OK\nError: bad image\n',
+                         'Integrity status: OK\nIntegrity status: OK\n'):
+                log.write_text(text)
+                with self.assertRaises(build.BuildError):
+                    build.vendor_integrity(log)
+
+    def test_hps_packaging_binds_vendor_bootloader_and_recipe(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)/'project'; project.mkdir()
+            boot = project/'software/u-boot/spl/u-boot-spl-dtb.hex'
+            boot.parent.mkdir(parents=True); boot.write_bytes(b'captured bootloader')
+            recipe = project/'sof_with_hps.bat'
+            recipe.write_text(r'%QUARTUS_ROOTDIR%\bin64\quartus_pfg -c output_files\golden_top.sof output_files\golden_top_hps.sof -o hps_path=software\u-boot\spl\u-boot-spl-dtb.hex' + '\n\npause\n')
+            hashes = {p.relative_to(project).as_posix():build.sha(p.read_bytes()) for p in (boot,recipe)}
+            metadata = project.parent/'vendor-inputs.json'
+            metadata.write_text(json.dumps({'source_sha256':hashes}))
+            self.assertEqual(build.hps_boot_packaging(project)['bootloader']['sha256'], hashes[boot.relative_to(project).as_posix()])
+            boot.write_bytes(b'different bootloader')
+            with self.assertRaises(build.BuildError):
+                build.hps_boot_packaging(project)
+            boot.write_bytes(b'captured bootloader')
+            recipe.write_text(recipe.read_text().replace('golden_top.sof','different.sof'))
+            hashes['sof_with_hps.bat'] = build.sha(recipe.read_bytes())
+            metadata.write_text(json.dumps({'source_sha256':hashes}))
+            with self.assertRaises(build.BuildError):
+                build.hps_boot_packaging(project)
+
     def test_negative_timing_is_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp); (out/"output_files").mkdir()
@@ -86,6 +162,13 @@ class RecipeTests(unittest.TestCase):
             (out/"output_files/base.sta.rpt").write_text("")
             with self.assertRaises(build.BuildError):
                 build.timing_summary(out, "base")
+
+    def test_hps_archive_is_required_before_output_creation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "project"
+            with self.assertRaises(build.BuildError):
+                build.prepare(output, "X2 Y7 X26 Y12", "X1 Y6 X27 Y13")
+            self.assertFalse(output.exists())
 
 
 if __name__ == "__main__":

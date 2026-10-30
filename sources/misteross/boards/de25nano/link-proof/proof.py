@@ -67,13 +67,15 @@ def inspect_bundle(path: Path, manifest_path: Path, manifest: dict, persona: dic
     steps = [
         {"action": "load-base", "artifact": "base.rbf", "sha256": base["sha256"], "size": base["size"]},
         {"action": "load-persona", "artifact": "slot0/persona.rbf", "sha256": persona["sha256"],
-         "size": persona["size"], "region_id": persona["region_id"], "persona": persona["id"]},
+         "size": persona["size"], "region_id": persona["region_id"], "persona": persona["id"],
+         "hardware_id": persona["hardware_id"]},
     ]
-    identity = {"shell_id": manifest["shell"]["id"], "descriptor_sha256": digest(descriptor), "steps": steps}
-    plan = {"format": 1, "kind": "fes.de25-pr-proof-deployment", "diagnostic_only": True,
-            "physical_acceptance": "not-run", "controller": "not-implemented", "monolithic_rbf": False,
+    identity = {"shell_id": manifest["shell"]["id"], "control_build_id": manifest["shell"]["control_build_id"],
+                "descriptor_sha256": digest(descriptor), "steps": steps}
+    plan = {"format": 2, "kind": "fes.de25-pr-proof-deployment", "diagnostic_only": True,
+            "physical_acceptance": "not-run", "controller": "runtime-protocol-only", "monolithic_rbf": False,
             "device": manifest["device"], **identity,
-            "composition_id": digest(b"fes-de25-pr-deployment-v1\0" + canonical(identity))}
+            "composition_id": digest(b"fes-de25-pr-deployment-v2\0" + canonical(identity))}
     if contents["deployment.json"] != canonical(plan) + b"\n":
         raise ValueError("bundle plan differs from independently computed load order/identity")
     return {"sha256": digest(path.read_bytes()), "size": path.stat().st_size,

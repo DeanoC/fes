@@ -1,0 +1,7 @@
+test_route_lease_uses_a_free_gpu_instead_of_the_argv_device (tests.test_gpu_lease_runner.PerInvocationGpuLeaseTests.test_route_lease_uses_a_free_gpu_instead_of_the_argv_device)
+A --gpu-device argument must not pin the lease while another GPU is free. ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 0.267s
+
+OK

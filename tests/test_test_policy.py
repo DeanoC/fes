@@ -25,6 +25,14 @@ RACE = ['go', 'test', '-race', '-short', '-timeout', '30m']
 
 
 class SelectTestModesTests(unittest.TestCase):
+    def test_de25_pr_control_selects_diagnostic_checks_without_expensive_core_modes(self):
+        definition = 'sources/mister-packages/packages/fabric/fes_fabric_de25_pr_control.yaml'
+        paths = [definition, 'sources/misteross/boards/de25nano/link-proof/fpga/control.v',
+                 'sources/libmister-runtime/src/native/de25_pr_control.cpp']
+        self.assertEqual(test_policy.select_test_modes(paths), ALL_FALSE)
+        self.assertEqual(test_policy.select_test_modes(
+            [*paths, definition.replace('pr_control.yaml', 'pr_control_other.yaml')]), ALL_TRUE)
+
     def test_standalone_de25_ramtest_does_not_admit_de10_or_shared_contracts(self):
         definition = 'sources/mister-packages/packages/fabric/fes_fabric_de25_ramtest.yaml'
         diagnostic = [definition, 'sources/misteross/boards/de25nano/ramtest/endpoint.v',

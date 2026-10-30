@@ -92,6 +92,7 @@ class ConsistencyTest(unittest.TestCase):
             'packages/fabric/fes_fabric_de25_scanout.yaml',
             'packages/fabric/fes_fabric_de25_computer.yaml',
             'packages/fabric/fes_fabric_de25_ramtest.yaml',
+            'packages/fabric/fes_fabric_de25_pr_control.yaml',
             'packages/fabric/fes_fabric_video_native_pixels.yaml',
             'packages/fabric/fes_fabric_video_raster_rgb888.yaml',
             'packages/fabric/fes_fabric_atari_st_bus.yaml',

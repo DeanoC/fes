@@ -1,0 +1,502 @@
+{
+  "base": "c81f37d681bc0e4d684d0ce770e471dd7462bd68",
+  "checkout_head": "84cb18d70bb54aa31bbeecfce28ad1f6d9c683c7",
+  "commands": [
+    {
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "cwd": ".",
+      "files": [
+        "tests/test_affected.py"
+      ],
+      "label": "test_affected.py",
+      "lane": "always",
+      "tools": [
+        "/usr/bin/python3"
+      ]
+    },
+    {
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "cwd": ".",
+      "files": [
+        "tests/test_test_changed.py"
+      ],
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "tools": [
+        "/usr/bin/python3"
+      ]
+    },
+    {
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "c81f37d681bc0e4d684d0ce770e471dd7462bd68",
+        "--head",
+        "84cb18d70bb54aa31bbeecfce28ad1f6d9c683c7"
+      ],
+      "cwd": ".",
+      "files": [],
+      "label": "committed whitespace",
+      "lane": "always",
+      "tools": [
+        "/usr/bin/python3"
+      ]
+    },
+    {
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "cwd": ".",
+      "files": [],
+      "label": "working whitespace",
+      "lane": "always",
+      "tools": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"docs/de25-linux.md\", \"docs/validation/2026-10-29-de25-native-control/README.md\", \"docs/validation/2026-10-29-de25-native-control/agent-cli.log\", \"docs/validation/2026-10-29-de25-native-control/agent-runtime-tests.log\", \"docs/validation/2026-10-29-de25-native-control/checks.json\", \"docs/validation/2026-10-29-de25-native-control/de25_computer_test.log\", \"docs/validation/2026-10-29-de25-native-control/hil-plan.json\", \"docs/validation/2026-10-29-de25-native-control/production_hardware_test.log\", \"docs/validation/2026-10-29-de25-native-control/runtime.json\", \"docs/validation/2026-10-29-de25-native-control/software-checks.json\", \"docs/validation/2026-10-29-de25-native-control/source-binding.json\", \"docs/validation/2026-10-29-de25-native-control/tenfoot-base-control.log\", \"docs/validation/2026-10-29-de25-native-control/tenfoot-candidate-control.log\", \"docs/validation/2026-10-29-de25-native-control/test-changed-failure.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/README.md\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/checks.json\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/fixture-refactor.json\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/hil-plan.json\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/inputs.json\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-ambiguous-write-client.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-ambiguous-write-server.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-bad-signature-client.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-bad-signature-server.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-held-word-change-client.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-held-word-change-server.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-late-ack-client.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-late-ack-server.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-late-reset-client.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-late-reset-server.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-missing-ack-client.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-missing-ack-server.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-post-write-reset-client.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-post-write-reset-server.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-session-client.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-session-server.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-tape-bounds-client.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-tape-bounds-server.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-wrong-build-client.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-wrong-build-server.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/doclinks.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/focused-tests.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-ambiguous-write-client.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-ambiguous-write-server.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-bad-signature-client.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-bad-signature-server.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-held-word-change-client.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-held-word-change-server.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-late-ack-client.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-late-ack-server.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-late-reset-client.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-late-reset-server.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-missing-ack-client.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-missing-ack-server.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-post-write-reset-client.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-post-write-reset-server.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-session-client.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-session-server.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-tape-bounds-client.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-tape-bounds-server.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-wrong-build-client.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-wrong-build-server.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/proof.json\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/README.md\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/artifact-archive.json\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/check.log\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/client-inputs.json\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/client-proof.json\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/client-source-match.json\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/compile.log.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/compiler-build.json\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/compiler-generation.json\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/compiler-inputs.json\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/compiler-quartus-version.txt\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/doc-links.log\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/README.md\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/compile.log.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/compiler-build.json\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/compiler-generation.json\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/compiler-inputs.json\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/compiler-quartus-version.txt\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/golden_top.fit.place.rpt.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/golden_top.sta.rpt.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/golden_top.sta.summary.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/golden_top.syn.rpt.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/net-delay-Fast_fix4_0C_Model.txt.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/net-delay-Slow_fix4_0C_Model.txt.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/net-delay-Slow_fix4_100C_Model.txt.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/net-delay-Slow_fix4a_0C_Model.txt.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/owner-paths.tsv\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/signoff-drc.rpt.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/strengthened-constraints-drc.rpt.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/timing-summary.json\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/video-timing-audit.log.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/video-timing-audit.tcl\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/golden_top.fit.place.rpt.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/golden_top.sta.rpt.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/golden_top.sta.summary.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/golden_top.syn.rpt.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/golden_top.tq.drc.signoff.rpt.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/hil-plan.json\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/net-delay-Fast_fix4_0C_Model.txt.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/net-delay-Slow_fix4_0C_Model.txt.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/net-delay-Slow_fix4_100C_Model.txt.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/net-delay-Slow_fix4a_0C_Model.txt.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/owner-paths.tsv\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/software/checks.json\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/software/focused-final.log.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/software/lease-clean-parent-control.log\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/software/lease-focused-retry.log.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/software/lease-suite-retry.log.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/software/test-changed.log.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/timing-summary.json\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/video-timing-audit.log.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/video-timing-audit.tcl\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/video.json\", \"scripts/consistency.py\", \"scripts/de25_first_boot.py\", \"scripts/de25_runtime.py\", \"scripts/hil_plan.py\", \"sources/libmister-runtime/ARCHITECTURE.md\", \"sources/libmister-runtime/Makefile\", \"sources/libmister-runtime/README.md\", \"sources/libmister-runtime/docs/support-matrix.md\", \"sources/libmister-runtime/scripts/check-active-tree.sh\", \"sources/libmister-runtime/src/native/de25_computer.cpp\", \"sources/libmister-runtime/src/native/de25_computer.hpp\", \"sources/libmister-runtime/src/native/generated/fes_de25_computer.hpp\", \"sources/libmister-runtime/tests/unit/de25_computer_test.cpp\", \"sources/mister-packages/README.md\", \"sources/misteross/boards/de25nano/link-proof/build.py\", \"sources/misteross/boards/de25nano/link-proof/zx81-computer/README.md\", \"sources/misteross/boards/de25nano/link-proof/zx81-computer/client.cpp\", \"sources/misteross/boards/de25nano/link-proof/zx81-computer/profile.py\", \"sources/misteross/boards/de25nano/link-proof/zx81-computer/proof.py\", \"sources/misteross/boards/de25nano/link-proof/zx81-computer/server.cpp\", \"sources/misteross/boards/de25nano/link-proof/zx81-computer/sim.hpp\", \"sources/misteross/boards/de25nano/link-proof/zx81-computer/sim_top.v\", \"sources/misteross/boards/de25nano/link-proof/zx81-computer/timing.tcl\", \"sources/misteross/boards/de25nano/link-proof/zx81-computer/wire.hpp\", \"sources/misteross/boards/de25nano/link-proof/zx81-ram/profile.py\", \"sources/misteross/boards/de25nano/link-proof/zx81-ram/timing.tcl\", \"sources/misteross/boards/de25nano/zx81-hps/Makefile\", \"sources/misteross/boards/de25nano/zx81-hps/README.md\", \"sources/misteross/boards/de25nano/zx81-hps/build.py\", \"sources/misteross/boards/de25nano/zx81-hps/client_proof.py\", \"sources/misteross/boards/de25nano/zx81-hps/clocks.sdc\", \"sources/misteross/boards/de25nano/zx81-hps/computer_sim.hpp\", \"sources/misteross/boards/de25nano/zx81-hps/computer_tb.cpp\", \"sources/misteross/boards/de25nano/zx81-hps/cosim/client.cpp\", \"sources/misteross/boards/de25nano/zx81-hps/cosim/server.cpp\", \"sources/misteross/boards/de25nano/zx81-hps/cosim/wire.hpp\", \"sources/misteross/boards/de25nano/zx81-hps/fes_de25_computer.v\", \"sources/misteross/boards/de25nano/zx81-hps/fes_de25_computer_hw.tcl\", \"sources/misteross/boards/de25nano/zx81-hps/sim.py\", \"sources/misteross/boards/de25nano/zx81-hps/test_build.py\", \"sources/misteross/boards/de25nano/zx81-hps/test_client_proof.py\", \"sources/misteross/boards/de25nano/zx81-hps/video.v\", \"sources/misteross/boards/de25nano/zx81-hps/video_sim.py\", \"sources/misteross/boards/de25nano/zx81-hps/video_tb.cpp\", \"sources/misteross/docs/architecture.md\", \"sources/misteross/tests/test_de25nano_zx81_computer.py\", \"sources/misteross/tests/test_de25nano_zx81_hps.py\", \"tests/test_de25_first_boot.py\", \"tests/test_hil_plan.py\"]"
+      ],
+      "cwd": ".",
+      "files": [
+        "scripts/parent_tests.py",
+        "tests"
+      ],
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "tools": [
+        "/usr/bin/python3",
+        "sh"
+      ]
+    },
+    {
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "cwd": ".",
+      "files": [
+        "scripts/consistency.py"
+      ],
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "tools": [
+        "/usr/bin/python3",
+        "go"
+      ]
+    },
+    {
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/host_tests.py",
+        "--ui-if-needed",
+        "--paths-json",
+        "[\"docs/de25-linux.md\", \"docs/validation/2026-10-29-de25-native-control/README.md\", \"docs/validation/2026-10-29-de25-native-control/agent-cli.log\", \"docs/validation/2026-10-29-de25-native-control/agent-runtime-tests.log\", \"docs/validation/2026-10-29-de25-native-control/checks.json\", \"docs/validation/2026-10-29-de25-native-control/de25_computer_test.log\", \"docs/validation/2026-10-29-de25-native-control/hil-plan.json\", \"docs/validation/2026-10-29-de25-native-control/production_hardware_test.log\", \"docs/validation/2026-10-29-de25-native-control/runtime.json\", \"docs/validation/2026-10-29-de25-native-control/software-checks.json\", \"docs/validation/2026-10-29-de25-native-control/source-binding.json\", \"docs/validation/2026-10-29-de25-native-control/tenfoot-base-control.log\", \"docs/validation/2026-10-29-de25-native-control/tenfoot-candidate-control.log\", \"docs/validation/2026-10-29-de25-native-control/test-changed-failure.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/README.md\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/checks.json\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/fixture-refactor.json\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/hil-plan.json\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/inputs.json\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-ambiguous-write-client.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-ambiguous-write-server.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-bad-signature-client.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-bad-signature-server.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-held-word-change-client.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-held-word-change-server.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-late-ack-client.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-late-ack-server.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-late-reset-client.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-late-reset-server.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-missing-ack-client.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-missing-ack-server.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-post-write-reset-client.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-post-write-reset-server.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-session-client.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-session-server.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-tape-bounds-client.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-tape-bounds-server.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-wrong-build-client.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-wrong-build-server.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/doclinks.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/focused-tests.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-ambiguous-write-client.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-ambiguous-write-server.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-bad-signature-client.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-bad-signature-server.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-held-word-change-client.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-held-word-change-server.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-late-ack-client.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-late-ack-server.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-late-reset-client.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-late-reset-server.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-missing-ack-client.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-missing-ack-server.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-post-write-reset-client.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-post-write-reset-server.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-session-client.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-session-server.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-tape-bounds-client.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-tape-bounds-server.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-wrong-build-client.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-wrong-build-server.log\", \"docs/validation/2026-10-29-de25-zx81-client-rtl/proof.json\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/README.md\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/artifact-archive.json\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/check.log\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/client-inputs.json\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/client-proof.json\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/client-source-match.json\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/compile.log.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/compiler-build.json\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/compiler-generation.json\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/compiler-inputs.json\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/compiler-quartus-version.txt\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/doc-links.log\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/README.md\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/compile.log.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/compiler-build.json\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/compiler-generation.json\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/compiler-inputs.json\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/compiler-quartus-version.txt\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/golden_top.fit.place.rpt.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/golden_top.sta.rpt.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/golden_top.sta.summary.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/golden_top.syn.rpt.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/net-delay-Fast_fix4_0C_Model.txt.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/net-delay-Slow_fix4_0C_Model.txt.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/net-delay-Slow_fix4_100C_Model.txt.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/net-delay-Slow_fix4a_0C_Model.txt.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/owner-paths.tsv\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/signoff-drc.rpt.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/strengthened-constraints-drc.rpt.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/timing-summary.json\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/video-timing-audit.log.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/video-timing-audit.tcl\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/golden_top.fit.place.rpt.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/golden_top.sta.rpt.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/golden_top.sta.summary.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/golden_top.syn.rpt.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/golden_top.tq.drc.signoff.rpt.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/hil-plan.json\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/net-delay-Fast_fix4_0C_Model.txt.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/net-delay-Slow_fix4_0C_Model.txt.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/net-delay-Slow_fix4_100C_Model.txt.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/net-delay-Slow_fix4a_0C_Model.txt.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/owner-paths.tsv\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/software/checks.json\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/software/focused-final.log.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/software/lease-clean-parent-control.log\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/software/lease-focused-retry.log.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/software/lease-suite-retry.log.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/software/test-changed.log.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/timing-summary.json\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/video-timing-audit.log.gz\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/video-timing-audit.tcl\", \"docs/validation/2026-10-29-de25-zx81-frame-ownership/video.json\", \"scripts/consistency.py\", \"scripts/de25_first_boot.py\", \"scripts/de25_runtime.py\", \"scripts/hil_plan.py\", \"sources/libmister-runtime/ARCHITECTURE.md\", \"sources/libmister-runtime/Makefile\", \"sources/libmister-runtime/README.md\", \"sources/libmister-runtime/docs/support-matrix.md\", \"sources/libmister-runtime/scripts/check-active-tree.sh\", \"sources/libmister-runtime/src/native/de25_computer.cpp\", \"sources/libmister-runtime/src/native/de25_computer.hpp\", \"sources/libmister-runtime/src/native/generated/fes_de25_computer.hpp\", \"sources/libmister-runtime/tests/unit/de25_computer_test.cpp\", \"sources/mister-packages/README.md\", \"sources/misteross/boards/de25nano/link-proof/build.py\", \"sources/misteross/boards/de25nano/link-proof/zx81-computer/README.md\", \"sources/misteross/boards/de25nano/link-proof/zx81-computer/client.cpp\", \"sources/misteross/boards/de25nano/link-proof/zx81-computer/profile.py\", \"sources/misteross/boards/de25nano/link-proof/zx81-computer/proof.py\", \"sources/misteross/boards/de25nano/link-proof/zx81-computer/server.cpp\", \"sources/misteross/boards/de25nano/link-proof/zx81-computer/sim.hpp\", \"sources/misteross/boards/de25nano/link-proof/zx81-computer/sim_top.v\", \"sources/misteross/boards/de25nano/link-proof/zx81-computer/timing.tcl\", \"sources/misteross/boards/de25nano/link-proof/zx81-computer/wire.hpp\", \"sources/misteross/boards/de25nano/link-proof/zx81-ram/profile.py\", \"sources/misteross/boards/de25nano/link-proof/zx81-ram/timing.tcl\", \"sources/misteross/boards/de25nano/zx81-hps/Makefile\", \"sources/misteross/boards/de25nano/zx81-hps/README.md\", \"sources/misteross/boards/de25nano/zx81-hps/build.py\", \"sources/misteross/boards/de25nano/zx81-hps/client_proof.py\", \"sources/misteross/boards/de25nano/zx81-hps/clocks.sdc\", \"sources/misteross/boards/de25nano/zx81-hps/computer_sim.hpp\", \"sources/misteross/boards/de25nano/zx81-hps/computer_tb.cpp\", \"sources/misteross/boards/de25nano/zx81-hps/cosim/client.cpp\", \"sources/misteross/boards/de25nano/zx81-hps/cosim/server.cpp\", \"sources/misteross/boards/de25nano/zx81-hps/cosim/wire.hpp\", \"sources/misteross/boards/de25nano/zx81-hps/fes_de25_computer.v\", \"sources/misteross/boards/de25nano/zx81-hps/fes_de25_computer_hw.tcl\", \"sources/misteross/boards/de25nano/zx81-hps/sim.py\", \"sources/misteross/boards/de25nano/zx81-hps/test_build.py\", \"sources/misteross/boards/de25nano/zx81-hps/test_client_proof.py\", \"sources/misteross/boards/de25nano/zx81-hps/video.v\", \"sources/misteross/boards/de25nano/zx81-hps/video_sim.py\", \"sources/misteross/boards/de25nano/zx81-hps/video_tb.cpp\", \"sources/misteross/docs/architecture.md\", \"sources/misteross/tests/test_de25nano_zx81_computer.py\", \"sources/misteross/tests/test_de25nano_zx81_hps.py\", \"tests/test_de25_first_boot.py\", \"tests/test_hil_plan.py\"]"
+      ],
+      "cwd": ".",
+      "files": [
+        "scripts/host_tests.py",
+        "sources/FogCast/Makefile",
+        "sources/FogCast/go.mod",
+        "sources/FogCast/appliance/go.mod",
+        "sources/misteross/expansion/go.mod"
+      ],
+      "host_ui": {
+        "boundary_scheduled": false,
+        "command_scheduled": true,
+        "reason": "UI/API, production/full or uncertain inputs",
+        "required": true,
+        "scheduled": true,
+        "target": "test-ui"
+      },
+      "label": "host Go and UI tests",
+      "lane": "host",
+      "tools": [
+        "/usr/bin/python3",
+        "cc",
+        "go",
+        "make",
+        "node",
+        "rg",
+        "sh"
+      ]
+    },
+    {
+      "argv": [
+        "make",
+        "-j2",
+        "test"
+      ],
+      "cwd": "sources/libmister-runtime",
+      "files": [
+        "Makefile"
+      ],
+      "label": "runtime software tests",
+      "lane": "runtime",
+      "tools": [
+        "ar",
+        "c++",
+        "c++filt",
+        "make",
+        "nm",
+        "rg",
+        "sh"
+      ]
+    },
+    {
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "cwd": "sources/misteross",
+      "files": [
+        "tests/test_*.py"
+      ],
+      "label": "test_*.py",
+      "lane": "fpga",
+      "tools": [
+        "/usr/bin/python3",
+        "strace"
+      ]
+    }
+  ],
+  "format": 1,
+  "head": "84cb18d70bb54aa31bbeecfce28ad1f6d9c683c7",
+  "impact": {
+    "always": [
+      "planner tests",
+      "diff whitespace checks"
+    ],
+    "cores": [],
+    "lanes": {
+      "contracts": false,
+      "fpga": true,
+      "host": true,
+      "parent": true,
+      "runtime": true
+    },
+    "not_run": [
+      "FPGA synthesis/place-and-route",
+      "cold image builds",
+      "hardware acceptance"
+    ],
+    "paths": [
+      "docs/de25-linux.md",
+      "docs/validation/2026-10-29-de25-native-control/README.md",
+      "docs/validation/2026-10-29-de25-native-control/agent-cli.log",
+      "docs/validation/2026-10-29-de25-native-control/agent-runtime-tests.log",
+      "docs/validation/2026-10-29-de25-native-control/checks.json",
+      "docs/validation/2026-10-29-de25-native-control/de25_computer_test.log",
+      "docs/validation/2026-10-29-de25-native-control/hil-plan.json",
+      "docs/validation/2026-10-29-de25-native-control/production_hardware_test.log",
+      "docs/validation/2026-10-29-de25-native-control/runtime.json",
+      "docs/validation/2026-10-29-de25-native-control/software-checks.json",
+      "docs/validation/2026-10-29-de25-native-control/source-binding.json",
+      "docs/validation/2026-10-29-de25-native-control/tenfoot-base-control.log",
+      "docs/validation/2026-10-29-de25-native-control/tenfoot-candidate-control.log",
+      "docs/validation/2026-10-29-de25-native-control/test-changed-failure.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/README.md",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/checks.json",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/fixture-refactor.json",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/hil-plan.json",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/inputs.json",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-ambiguous-write-client.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-ambiguous-write-server.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-bad-signature-client.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-bad-signature-server.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-held-word-change-client.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-held-word-change-server.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-late-ack-client.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-late-ack-server.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-late-reset-client.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-late-reset-server.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-missing-ack-client.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-missing-ack-server.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-post-write-reset-client.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-post-write-reset-server.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-session-client.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-session-server.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-tape-bounds-client.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-tape-bounds-server.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-wrong-build-client.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/aarch64-cortex-a76-wrong-build-server.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/doclinks.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/focused-tests.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-ambiguous-write-client.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-ambiguous-write-server.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-bad-signature-client.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-bad-signature-server.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-held-word-change-client.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-held-word-change-server.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-late-ack-client.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-late-ack-server.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-late-reset-client.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-late-reset-server.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-missing-ack-client.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-missing-ack-server.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-post-write-reset-client.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-post-write-reset-server.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-session-client.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-session-server.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-tape-bounds-client.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-tape-bounds-server.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-wrong-build-client.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/logs/native-wrong-build-server.log",
+      "docs/validation/2026-10-29-de25-zx81-client-rtl/proof.json",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/README.md",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/artifact-archive.json",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/check.log",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/client-inputs.json",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/client-proof.json",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/client-source-match.json",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/compile.log.gz",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/compiler-build.json",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/compiler-generation.json",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/compiler-inputs.json",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/compiler-quartus-version.txt",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/doc-links.log",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/README.md",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/compile.log.gz",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/compiler-build.json",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/compiler-generation.json",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/compiler-inputs.json",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/compiler-quartus-version.txt",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/golden_top.fit.place.rpt.gz",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/golden_top.sta.rpt.gz",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/golden_top.sta.summary.gz",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/golden_top.syn.rpt.gz",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/net-delay-Fast_fix4_0C_Model.txt.gz",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/net-delay-Slow_fix4_0C_Model.txt.gz",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/net-delay-Slow_fix4_100C_Model.txt.gz",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/net-delay-Slow_fix4a_0C_Model.txt.gz",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/owner-paths.tsv",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/signoff-drc.rpt.gz",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/strengthened-constraints-drc.rpt.gz",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/timing-summary.json",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/video-timing-audit.log.gz",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/failed-first-constraints/video-timing-audit.tcl",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/golden_top.fit.place.rpt.gz",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/golden_top.sta.rpt.gz",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/golden_top.sta.summary.gz",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/golden_top.syn.rpt.gz",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/golden_top.tq.drc.signoff.rpt.gz",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/hil-plan.json",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/net-delay-Fast_fix4_0C_Model.txt.gz",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/net-delay-Slow_fix4_0C_Model.txt.gz",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/net-delay-Slow_fix4_100C_Model.txt.gz",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/net-delay-Slow_fix4a_0C_Model.txt.gz",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/owner-paths.tsv",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/software/checks.json",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/software/focused-final.log.gz",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/software/lease-clean-parent-control.log",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/software/lease-focused-retry.log.gz",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/software/lease-suite-retry.log.gz",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/software/test-changed.log.gz",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/timing-summary.json",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/video-timing-audit.log.gz",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/video-timing-audit.tcl",
+      "docs/validation/2026-10-29-de25-zx81-frame-ownership/video.json",
+      "scripts/consistency.py",
+      "scripts/de25_first_boot.py",
+      "scripts/de25_runtime.py",
+      "scripts/hil_plan.py",
+      "sources/libmister-runtime/ARCHITECTURE.md",
+      "sources/libmister-runtime/Makefile",
+      "sources/libmister-runtime/README.md",
+      "sources/libmister-runtime/docs/support-matrix.md",
+      "sources/libmister-runtime/scripts/check-active-tree.sh",
+      "sources/libmister-runtime/src/native/de25_computer.cpp",
+      "sources/libmister-runtime/src/native/de25_computer.hpp",
+      "sources/libmister-runtime/src/native/generated/fes_de25_computer.hpp",
+      "sources/libmister-runtime/tests/unit/de25_computer_test.cpp",
+      "sources/mister-packages/README.md",
+      "sources/misteross/boards/de25nano/link-proof/build.py",
+      "sources/misteross/boards/de25nano/link-proof/zx81-computer/README.md",
+      "sources/misteross/boards/de25nano/link-proof/zx81-computer/client.cpp",
+      "sources/misteross/boards/de25nano/link-proof/zx81-computer/profile.py",
+      "sources/misteross/boards/de25nano/link-proof/zx81-computer/proof.py",
+      "sources/misteross/boards/de25nano/link-proof/zx81-computer/server.cpp",
+      "sources/misteross/boards/de25nano/link-proof/zx81-computer/sim.hpp",
+      "sources/misteross/boards/de25nano/link-proof/zx81-computer/sim_top.v",
+      "sources/misteross/boards/de25nano/link-proof/zx81-computer/timing.tcl",
+      "sources/misteross/boards/de25nano/link-proof/zx81-computer/wire.hpp",
+      "sources/misteross/boards/de25nano/link-proof/zx81-ram/profile.py",
+      "sources/misteross/boards/de25nano/link-proof/zx81-ram/timing.tcl",
+      "sources/misteross/boards/de25nano/zx81-hps/Makefile",
+      "sources/misteross/boards/de25nano/zx81-hps/README.md",
+      "sources/misteross/boards/de25nano/zx81-hps/build.py",
+      "sources/misteross/boards/de25nano/zx81-hps/client_proof.py",
+      "sources/misteross/boards/de25nano/zx81-hps/clocks.sdc",
+      "sources/misteross/boards/de25nano/zx81-hps/computer_sim.hpp",
+      "sources/misteross/boards/de25nano/zx81-hps/computer_tb.cpp",
+      "sources/misteross/boards/de25nano/zx81-hps/cosim/client.cpp",
+      "sources/misteross/boards/de25nano/zx81-hps/cosim/server.cpp",
+      "sources/misteross/boards/de25nano/zx81-hps/cosim/wire.hpp",
+      "sources/misteross/boards/de25nano/zx81-hps/fes_de25_computer.v",
+      "sources/misteross/boards/de25nano/zx81-hps/fes_de25_computer_hw.tcl",
+      "sources/misteross/boards/de25nano/zx81-hps/sim.py",
+      "sources/misteross/boards/de25nano/zx81-hps/test_build.py",
+      "sources/misteross/boards/de25nano/zx81-hps/test_client_proof.py",
+      "sources/misteross/boards/de25nano/zx81-hps/video.v",
+      "sources/misteross/boards/de25nano/zx81-hps/video_sim.py",
+      "sources/misteross/boards/de25nano/zx81-hps/video_tb.cpp",
+      "sources/misteross/docs/architecture.md",
+      "sources/misteross/tests/test_de25nano_zx81_computer.py",
+      "sources/misteross/tests/test_de25nano_zx81_hps.py",
+      "tests/test_de25_first_boot.py",
+      "tests/test_hil_plan.py"
+    ],
+    "reasons": [
+      "scripts/consistency.py: parent orchestration/tests/assembly; component sources unchanged",
+      "scripts/de25_first_boot.py: parent orchestration/tests/assembly; component sources unchanged",
+      "scripts/de25_runtime.py: parent orchestration/tests/assembly; component sources unchanged",
+      "scripts/hil_plan.py: parent orchestration/tests/assembly; component sources unchanged",
+      "sources/libmister-runtime/Makefile: runtime, host protocol consumers and parent integration",
+      "sources/libmister-runtime/scripts/check-active-tree.sh: runtime, host protocol consumers and parent integration",
+      "sources/libmister-runtime/src/native/de25_computer.cpp: runtime, host protocol consumers and parent integration",
+      "sources/libmister-runtime/src/native/de25_computer.hpp: runtime, host protocol consumers and parent integration",
+      "sources/libmister-runtime/src/native/generated/fes_de25_computer.hpp: runtime, host protocol consumers and parent integration",
+      "sources/libmister-runtime/tests/unit/de25_computer_test.cpp: native runtime tests and parent integration; host inputs unchanged",
+      "sources/misteross/boards/de25nano/link-proof/build.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/link-proof/zx81-computer/client.cpp: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/link-proof/zx81-computer/profile.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/link-proof/zx81-computer/proof.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/link-proof/zx81-computer/server.cpp: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/link-proof/zx81-computer/sim.hpp: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/link-proof/zx81-computer/sim_top.v: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/link-proof/zx81-computer/timing.tcl: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/link-proof/zx81-computer/wire.hpp: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/link-proof/zx81-ram/profile.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/link-proof/zx81-ram/timing.tcl: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/Makefile: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/build.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/client_proof.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/clocks.sdc: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/computer_sim.hpp: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/computer_tb.cpp: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/cosim/client.cpp: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/cosim/server.cpp: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/cosim/wire.hpp: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/fes_de25_computer.v: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/fes_de25_computer_hw.tcl: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/sim.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/test_build.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/test_client_proof.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/video.v: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/video_sim.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/video_tb.cpp: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/tests/test_de25nano_zx81_computer.py: FPGA producer/package software tests; RTL unchanged",
+      "sources/misteross/tests/test_de25nano_zx81_hps.py: FPGA producer/package software tests; RTL unchanged",
+      "tests/test_de25_first_boot.py: parent orchestration/tests/assembly; component sources unchanged",
+      "tests/test_hil_plan.py: parent orchestration/tests/assembly; component sources unchanged"
+    ],
+    "skipped": [
+      "contracts"
+    ],
+    "test_modes": {
+      "full_race": false,
+      "media": false,
+      "video": false
+    }
+  },
+  "limits": [
+    "FPGA synthesis/place-and-route",
+    "cold image builds",
+    "hardware acceptance",
+    "platform/image packaging suite",
+    "required browser integration suite",
+    "committed-source/release validation (make check remains separate)"
+  ],
+  "local_paths": [],
+  "merge_base": "c81f37d681bc0e4d684d0ce770e471dd7462bd68",
+  "results": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "host Go and UI tests",
+      "lane": "host",
+      "returncode": 0
+    },
+    {
+      "label": "runtime software tests",
+      "lane": "runtime",
+      "returncode": 0
+    },
+    {
+      "label": "test_*.py",
+      "lane": "fpga",
+      "returncode": 0
+    }
+  ],
+  "root": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-pr-computer",
+  "status": "passed"
+}

@@ -5,6 +5,9 @@ import tempfile
 from environment import build_environment
 
 GENERATED = (
+    ('emit-verilog', 'packages/fabric/fes_fabric_de25_pr_control.yaml', 'misteross', 'boards/de25nano/link-proof/generated/fes_de25_pr_control.vh'),
+    ('emit-cpp', 'packages/fabric/fes_fabric_de25_pr_control.yaml', 'misteross', 'boards/de25nano/link-proof/generated/fes_de25_pr_control.hpp'),
+    ('emit-cpp', 'packages/fabric/fes_fabric_de25_pr_control.yaml', 'libmister-runtime', 'src/native/generated/fes_de25_pr_control.hpp'),
     ('emit-verilog', 'packages/fabric/fes_fabric_de25_ramtest.yaml', 'misteross', 'boards/de25nano/ramtest/generated/fes_de25_ramtest.vh'),
     ('emit-cpp', 'packages/fabric/fes_fabric_de25_ramtest.yaml', 'misteross', 'boards/de25nano/ramtest/generated/fes_de25_ramtest.hpp'),
     ('emit-verilog', 'packages/fabric/fes_fabric_de25_computer.yaml', 'misteross', 'boards/de25nano/zx81-hps/generated/fes_de25_computer.vh'),

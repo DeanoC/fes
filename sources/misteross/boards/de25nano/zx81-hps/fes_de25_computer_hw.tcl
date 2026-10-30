@@ -18,7 +18,7 @@ add_fileset_file zx81_machine_clock.v VERILOG PATH zx81_machine_clock.v
 add_fileset_file zx81_keyboard.v VERILOG PATH zx81_keyboard.v
 add_fileset_file zx81_tape_store_de25.v VERILOG PATH zx81_tape_store_de25.v
 add_fileset_file zx81_dpram_de25.v VERILOG PATH zx81_dpram_de25.v
-add_fileset_file zx81_video_720p_de25.v VERILOG PATH zx81_video_720p_de25.v
+add_fileset_file video.v VERILOG PATH video.v
 foreach name {fes_z80_alu fes_z80_engine fes_z80_bus fes_z80_nmos} {
     add_fileset_file ${name}.sv SYSTEM_VERILOG PATH ${name}.sv
 }
@@ -65,3 +65,12 @@ add_interface_port video video_rgb rgb Output 24
 add_interface_port video video_de de Output 1
 add_interface_port video video_hs hs Output 1
 add_interface_port video video_vs vs Output 1
+
+add_parameter EXTERNAL_RAM INTEGER 0
+set_parameter_property EXTERNAL_RAM HDL_PARAMETER true
+add_interface expansion conduit end
+set_interface_property expansion associatedClock clk
+foreach {port direction width} {expansion_running Input 1 diagnostic_address Input 8 expansion_response Input 20 expansion_request Output 46 memory_peek Output 8} {
+    add_interface_port expansion $port $port $direction $width
+}
+add_fileset_file zx81_bus_pack.vh VERILOG_INCLUDE PATH zx81_bus_pack.vh

@@ -554,6 +554,7 @@ class HilPlanTest(unittest.TestCase):
                  'sources/mister-packages/packages/fabric/fes_fabric_de25_scanout.yaml',
                  'sources/mister-packages/packages/fabric/fes_fabric_de25_computer.yaml',
                  'sources/mister-packages/packages/fabric/fes_fabric_de25_ramtest.yaml',
+                 'sources/mister-packages/packages/fabric/fes_fabric_de25_pr_control.yaml',
                  'image/kernel/de25-dma/de25_dma.c',
                  *['sources/misteross/boards/de25nano/' + name
                    for name in ('blinky.sv', 'pins.qsf', 'clocks.sdc', 'Makefile',
@@ -563,6 +564,10 @@ class HilPlanTest(unittest.TestCase):
         result = planner.plan(paths, texts={})
         self.assertEqual(result['decision'], 'NO_DEPLOY_CHANGE')
         self.assertTrue(all(row['class'] == 'none' for row in result['rows']))
+        self.assertEqual(planner.plan([
+            'sources/mister-packages/packages/fabric/fes_fabric_de25_pr_control.yaml',
+            'sources/libmister-runtime/src/native/de25_pr_control.cpp'], texts={})['decision'],
+            'OVERLAY mister-runtime')
         for path in ('sources/mister-packages/packages/board/de10_nano.yaml',
                      'sources/mister-packages/packages/board/de25_nano_other.yaml',
                      'sources/mister-packages/packages/platform/de25_nano.yaml',

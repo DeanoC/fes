@@ -4,12 +4,14 @@
 // reconfiguration; no local reset is allowed to manufacture a new GP epoch.
 `include "generated/fes_de25_computer.vh"
 `include "fes_computer.vh"
+`include "zx81_bus_pack.vh"
 `ifndef FES_DE25_COMPUTER_BUILD_ID
 `define FES_DE25_COMPUTER_BUILD_ID 128'h00000000000000000000000000000000
 `endif
 
 module fes_de25_computer #(
-    parameter [127:0] BUILD_ID = `FES_DE25_COMPUTER_BUILD_ID
+    parameter [127:0] BUILD_ID = `FES_DE25_COMPUTER_BUILD_ID,
+    parameter EXTERNAL_RAM = 0
 ) (
     input wire clk,
     input wire reset_n,
@@ -27,7 +29,12 @@ module fes_de25_computer #(
     output wire [23:0] video_rgb,
     output wire video_de,
     output wire video_hs,
-    output wire video_vs
+    output wire video_vs,
+    input wire expansion_running,
+    input wire [7:0] diagnostic_address,
+    input wire [19:0] expansion_response,
+    output wire [45:0] expansion_request,
+    output wire [7:0] memory_peek
 );
     reg first_seen = 1'b0;
     reg healthy = 1'b0;
@@ -57,7 +64,7 @@ module fes_de25_computer #(
     wire exec_reset;
     wire [143:0] keyboard_rows;
     wire [39:0] keyboard;
-    wire machine_reset = !transport_ready || exec_reset;
+    wire machine_reset = !transport_ready || exec_reset || (EXTERNAL_RAM && !expansion_running);
     wire [13:0] media_write_addr;
     wire [15:0] media_write_data;
     wire [1:0] media_write_enable;
@@ -80,6 +87,29 @@ module fes_de25_computer #(
 `else
     localparam FIRMWARE_INIT = "zx8x.hex";
 `endif
+
+    wire [15:0] bus_address;
+    wire [7:0] bus_data;
+    wire bus_mreq_n, bus_iorq_n, bus_rd_n, bus_wr_n, bus_m1_n, bus_rfsh_n, bus_clock;
+    wire [15:0] peek_address = EXTERNAL_RAM ? {8'h40, diagnostic_address} : 16'd0;
+    wire [19:0] machine_response;
+    generate if (EXTERNAL_RAM) begin : external_bus
+        (* preserve, dont_merge, noprune *) reg [45:0] bus_request = 0;
+        (* preserve, dont_merge *) reg [19:0] response_q = 0;
+        always @(posedge clk) begin
+            response_q <= expansion_response;
+            // Fence the whole CPU bus independently of enable-scheduled CPU
+            // reset. The existing PR drain/settle contract then retires it.
+            bus_request <= {!machine_reset, bus_clock, peek_address[13:0],
+                !machine_reset ? {bus_rfsh_n, bus_m1_n, bus_wr_n, bus_rd_n,
+                    bus_iorq_n, bus_mreq_n, bus_data, bus_address} : {6'b111111, 24'd0}};
+        end
+        assign expansion_request = bus_request;
+        assign machine_response = response_q;
+    end else begin : internal_bus
+        assign expansion_request = 46'd0;
+        assign machine_response = 20'd0;
+    end endgenerate
 
     // These two registers deliberately have different reset behavior. The
     // first qualified release arms the epoch. A later reset clears healthy
@@ -161,7 +191,7 @@ module fes_de25_computer #(
         .write_addr(media_write_addr), .write_data(media_write_data),
         .write_enable(safe_media_write_enable), .tape_addr(tape_addr),
         .tape_ready(tape_ready_stored), .tape_size(tape_size), .tape_data(tape_data));
-    zx81_machine #(.EXTERNAL_RAM(0), .FIRMWARE_INIT(FIRMWARE_INIT),
+    zx81_machine #(.EXTERNAL_RAM(EXTERNAL_RAM), .FIRMWARE_INIT(FIRMWARE_INIT),
         .CLOCK_NUMERATOR(13), .CLOCK_DENOMINATOR(200)) machine (
         .clk_sys(clk), .reset(machine_reset), .keyboard(keyboard),
         .tape_ready(tape_ready), .tape_size(tape_size), .tape_data(tape_data),
@@ -169,22 +199,35 @@ module fes_de25_computer #(
         .save_ready(), .save_busy(), .save_changed(), .save_size(), .save_addr(14'd0), .save_q(),
         .ce_6m5(ce_6m5), .video_pixel(video_pixel), .hblank(hblank), .vblank(vblank),
         .hsync_out(), .vsync_out(), .halt_n(halt_n), .cpu_addr(cpu_addr),
-        .peek_addr(16'd0), .peek_data(), .ram_address(), .ram_write_data(), .ram_write_enable(),
+        .peek_addr(peek_address), .peek_data(memory_peek), .ram_address(), .ram_write_data(), .ram_write_enable(),
         .external_ram_data(8'hff), .external_peek_data(8'hff),
-        .bus_addr(), .bus_wdata(), .bus_mreq_n(), .bus_iorq_n(), .bus_rd_n(), .bus_wr_n(),
-        .bus_m1_n(), .bus_rfsh_n(), .bus_cpu_clock(), .bus_rdata(8'hff), .bus_peek_data(8'hff),
-        .bus_dsel(1'b0), .bus_romcs(1'b0), .bus_wait(1'b0), .bus_ram_present(1'b0));
-    zx81_video_720p video (
-        .clk_sys(clk), .ce_6m5(ce_6m5), .zx_pixel(video_pixel), .hblank(hblank), .vblank(vblank),
-        .pixel_clk(pixel_clk), .red(red), .green(green), .blue(blue), .de(de), .hsync(hs), .vsync(vs),
-        .frame_tick(), .raster_h(), .raster_v(), .src_x_max(), .src_y_max());
-    (* altera_attribute="-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *)
-    reg [1:0] pixel_transport_ready_sync = 2'b00;
-    always @(posedge pixel_clk or negedge reset_n) begin
-        if (!reset_n) pixel_transport_ready_sync <= 2'b00;
-        else pixel_transport_ready_sync <= {pixel_transport_ready_sync[0], transport_ready};
-    end
+        .bus_addr(bus_address), .bus_wdata(bus_data), .bus_mreq_n(bus_mreq_n), .bus_iorq_n(bus_iorq_n),
+        .bus_rd_n(bus_rd_n), .bus_wr_n(bus_wr_n), .bus_m1_n(bus_m1_n), .bus_rfsh_n(bus_rfsh_n),
+        .bus_cpu_clock(bus_clock), .bus_rdata(machine_response[`ZX81_BUS_DRD]),
+        .bus_peek_data(machine_response[`ZX81_BUS_PEEK_D]), .bus_dsel(machine_response[`ZX81_BUS_DSEL]),
+        .bus_romcs(machine_response[`ZX81_BUS_ROMCS]), .bus_wait(machine_response[`ZX81_BUS_WAIT]),
+        .bus_ram_present(machine_response[`ZX81_BUS_RAM_PRESENT]));
+    // Register the source before crossing domains; release the destination's
+    // reset locally. Common reset still asserts with both clocks stopped.
+    (* preserve, dont_merge *) reg pixel_transport_ready_source = 0;
+    always @(posedge clk or negedge reset_n)
+        if (!reset_n) pixel_transport_ready_source <= 0;
+        else pixel_transport_ready_source <= transport_ready;
+    (* async_reg="true", altera_attribute="-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *)
+    reg [1:0] pixel_transport_reset_release = 0;
+    always @(posedge pixel_clk or negedge reset_n)
+        if (!reset_n) pixel_transport_reset_release <= 0;
+        else pixel_transport_reset_release <= {pixel_transport_reset_release[0], 1'b1};
+    (* async_reg="true", altera_attribute="-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *)
+    reg [1:0] pixel_transport_ready_sync = 0;
+    always @(posedge pixel_clk or negedge pixel_transport_reset_release[1])
+        if (!pixel_transport_reset_release[1]) pixel_transport_ready_sync <= 0;
+        else pixel_transport_ready_sync <= {pixel_transport_ready_sync[0], pixel_transport_ready_source};
     wire pixel_transport_ready = pixel_transport_ready_sync[1];
+    fes_de25_zx81_video video (
+        .reset_n(pixel_transport_ready), .held(machine_reset),
+        .clk_sys(clk), .ce_6m5(ce_6m5), .zx_pixel(video_pixel), .hblank(hblank), .vblank(vblank),
+        .pixel_clk(pixel_clk), .red(red), .green(green), .blue(blue), .de(de), .hsync(hs), .vsync(vs));
     assign video_rgb = pixel_transport_ready ? {red, green, blue} : 24'd0;
     assign video_de = pixel_transport_ready && de;
     assign video_hs = pixel_transport_ready && hs;

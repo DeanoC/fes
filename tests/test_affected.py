@@ -11,6 +11,15 @@ from scripts.affected import (changed_paths, plan, LANES, CORES, MODULE_ROOTS,
 
 
 class AffectedTests(unittest.TestCase):
+    def test_de25_pr_control_tracks_generated_rtl_and_native_controller(self):
+        definition = 'sources/mister-packages/packages/fabric/fes_fabric_de25_pr_control.yaml'
+        result = plan([definition])
+        self.assertEqual({lane for lane, enabled in result['lanes'].items() if enabled},
+                         {'parent', 'contracts', 'fpga', 'runtime'})
+        self.assertEqual(result['cores'], [])
+        self.assertFalse(any(result['test_modes'].values()))
+        self.assertEqual(set(plan([definition, definition.replace('pr_control.yaml', 'pr_control_other.yaml')])['cores']), set(CORES))
+
     def test_de25_ramtest_definition_has_only_standalone_generated_consumers(self):
         definition = 'sources/mister-packages/packages/fabric/fes_fabric_de25_ramtest.yaml'
         source = Path(__file__).resolve().parents[1] / 'scripts/consistency.py'
