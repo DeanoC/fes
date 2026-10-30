@@ -1513,9 +1513,9 @@ The recipe requires `QUARTUS_ROOTDIR`, version 17.0.2, a clean checkout and
 tracked inputs. It writes canonical `build/fes-zx81-quartus/build-inputs.json`
 before compile, embeds that record's 128-bit id as `BUILD_ID`, runs
 `quartus_sh --flow compile top`, requires TimeQuest multicorner
-Setup/Hold/Recovery/Removal/Minimum Pulse Width worst-case slack ≥ 0 with
-the 52 MHz system clock and the derived 74.25/74.27 MHz pixel clock named,
-then seals `manifest.toml` + `core.rbf` through the existing format-2
+Setup/Hold/Recovery/Removal/Minimum Pulse Width worst-case slack ≥ 0, no
+illegal or unconstrained clocks, and the 52 MHz system clock and the
+derived 74.25/74.27 MHz pixel clock named, then seals `manifest.toml` + `core.rbf` through the existing format-2
 exporter. Failed compiles delete the RBF, manifest and passing summary.
 The command never programs hardware. Quartus remains the kit-proven
 bring-up lane.
