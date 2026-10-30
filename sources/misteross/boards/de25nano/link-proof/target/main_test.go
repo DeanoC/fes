@@ -57,8 +57,9 @@ func fixture(t *testing.T) (string, artifacts) {
 		Shell: shellIdentity{ControlBuildID: "112233445566778899aabbccddeeff00", SourceRevision: strings.Repeat("1", 40), SourceClosureSHA256: identity("source"), RootQDBSHA256: identity("root"),
 			InterfaceSHA256: identity("interface"), ClockResetSHA256: identity("clock-reset"), Base: blob{Path: "base.rbf", Size: int64(len(files["base.rbf"])), SHA256: digest(files["base.rbf"])},
 			VendorPOF: vendorPOF{RegionID: "0x01000000", Hash: identity("pof"), InfoSHA256: identity("base-info")}},
-		Region:     regionIdentity{ID: "slot0", Instance: "slot_inst", Placement: "X10 Y20 X12 Y24", Routing: "X9 Y19 X13 Y25"},
-		Acceptance: acceptance{Physical: "not-run", Timing: "passed", BasePersonaCompatibility: "pfg-info-pof0-match"}}
+		Region: regionIdentity{ID: "slot0", Instance: "slot_inst", Placement: "X10 Y20 X12 Y24", Routing: "X9 Y19 X13 Y25"},
+		Acceptance: acceptance{Physical: "not-run", Timing: "passed-constrained-internal-only",
+			DesignClosure: "failed", BasePersonaCompatibility: "pfg-info-pof0-match"}}
 	for _, id := range []string{"a", "b"} {
 		name := "persona_" + id + ".rbf"
 		hardware := uint32(0xc001a001)
@@ -203,6 +204,8 @@ func TestRefusesInvalidContractEvenWithFreshShellID(t *testing.T) {
 		"missing tool identity":               func(a *artifacts) { a.Tool.QuartusPfgSHA256 = "" },
 		"physical qualification claim":        func(a *artifacts) { a.Acceptance.Physical = "passed" },
 		"failed timing":                       func(a *artifacts) { a.Acceptance.Timing = "failed" },
+		"missing design closure status":       func(a *artifacts) { a.Acceptance.DesignClosure = "" },
+		"unknown design closure status":       func(a *artifacts) { a.Acceptance.DesignClosure = "unknown" },
 		"compatibility absent":                func(a *artifacts) { a.Acceptance.BasePersonaCompatibility = "unchecked" },
 		"unknown region":                      func(a *artifacts) { a.Region.ID = "slot1" },
 		"unbounded region":                    func(a *artifacts) { a.Region.Routing = "X0 Y0 X999999 Y999999" },
