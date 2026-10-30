@@ -1,0 +1,59 @@
+{
+  "serial": "TRWU8J8G",
+  "boot_id": "74e2b65c-13f3-4881-9d54-397ac63d18e0",
+  "build_id": "489319c9b6eeb20f2b582dca10edf3cb",
+  "client_sha256": "d353ad5673959fac9cea50ac34eb01035798d7857d6754d1df3d33b66121e88f",
+  "saved_image_sha256": "b4e6e04e3063149a0e7232f23e4aa24b96d0631d557920e97c65d1e01dfb3c71",
+  "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+  "driver_sha256": "e9cb9aad914a633b8f9333b6f9e0dd432a761d654592a59cff875ad903d0f58a",
+  "results": [
+    {
+      "scenario": "wrong-build",
+      "client": {
+        "scenario": "wrong-build",
+        "status": "passed",
+        "register_reads": 242,
+        "register_writes": 16,
+        "basic_output_observed": false
+      },
+      "proxy": {
+        "reads": 242,
+        "writes": 16,
+        "status": "completed"
+      }
+    },
+    {
+      "scenario": "control",
+      "client": {
+        "scenario": "control",
+        "status": "passed",
+        "register_reads": 8267,
+        "register_writes": 551,
+        "basic_output_observed": false
+      },
+      "proxy": {
+        "reads": 8267,
+        "writes": 551,
+        "status": "completed"
+      }
+    },
+    {
+      "scenario": "basic-keys",
+      "client": {
+        "scenario": "basic-keys",
+        "status": "passed",
+        "register_reads": 1982,
+        "register_writes": 132,
+        "basic_output_observed": false
+      },
+      "proxy": {
+        "reads": 1982,
+        "writes": 132,
+        "status": "completed"
+      }
+    }
+  ],
+  "cpu_physical_mmio": false,
+  "fpga_access": "actual selected fabric JTAG master",
+  "basic_output_observed": false
+}

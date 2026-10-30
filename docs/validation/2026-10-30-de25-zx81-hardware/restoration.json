@@ -1,0 +1,10 @@
+{
+  "serial": "TRWU8J8G",
+  "state": "awaiting requested bottom-board physical power cycle",
+  "factory_restored": false,
+  "claim_released": false,
+  "owned_uploads_removed": true,
+  "owned_uart_ssh_proxy_sessions_closed": true,
+  "hardware_jtag_master_claims_closed": true,
+  "hdmi_output": "unobserved; connection question pending"
+}

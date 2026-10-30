@@ -69,6 +69,10 @@ The existing fabric JTAG master also reaches the peripheral bridge at
 Generation verifies the actual elaborated route, full 32-byte span and
 translated address map. This is an explicit maintenance path; it establishes
 no CPU physical address or production MMIO admission.
+The [physical control diagnostic](../../../../../docs/validation/2026-10-30-de25-zx81-hardware/README.md)
+records the actual AArch64 client reaching this FPGA path, including identity
+refusal, CRC tape delivery/eject, HID and HOLD/RUN. BASIC/HDMI output remains a
+separate observed-picture check.
 [DE25 computer](../../../../mister-packages/docs/de25-computer.md) owns its
 register contract. It accepts exactly one full-word GPO submission with a new
 request toggle; the host waits for the matching GPI ACK before another command.
