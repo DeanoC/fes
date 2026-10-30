@@ -1,0 +1,4 @@
+=== RUN   TestProducedIdentityBindsNativeControl
+--- PASS: TestProducedIdentityBindsNativeControl (0.00s)
+PASS
+ok  	github.com/DeanoC/fes/platform/embedded/tamago/nativefabric	1.015s
