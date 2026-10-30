@@ -488,9 +488,11 @@ exists ([firmware](#firmware)).
 
 The runtime seeds the clock from the kit's local time at every launch, before
 release, through `fes.rtc.wall-clock` 1.0: four words of binary year, month,
-day, hour, minute, second and weekday. The RTC converts to BCD or binary and
-12- or 24-hour form according to its current register B. A guest that sets the
-time keeps it until Stop; the next launch takes the kit's time again.
+day, hour, minute, second and weekday. The runtime computes the weekday from
+the date. Like an MC146818, the RTC stores the weekday as given and does not
+check it against the date. The RTC converts to BCD or binary and 12- or 24-hour
+form according to its current register B. A guest that sets the time keeps it
+until Stop; the next launch takes the kit's time again.
 
 ### Persistence
 
@@ -890,18 +892,19 @@ offset `0x08000000`, maximum 134,217,728 bytes (128 MiB), chunk 65,536 bytes.
 
 | Operation | Meaning |
 | --- | --- |
-| DiskInfo | Fields: minimum and maximum bytes, chunk size, state (absent, empty, loading, verifying, ready), flags (dirty, frozen, writer busy), change epoch |
+| DiskInfo | Fields: minimum and maximum bytes, chunk size, state (absent, empty, loading, ready, verifying), flags (dirty, frozen, writer busy, CRC error), change epoch |
 | DiskControl prepare | Held execution only. The unit becomes loading; the ATA device reports no drive |
-| DiskCommit words | Size in sectors, cylinders, heads, sectors per track, CRC-32 of the image |
-| DiskControl commit | The core reads the whole region on port 2, computing CRC-32 (about 0.2 s for 128 MiB at 700 MB/s), and becomes ready on a match. A mismatch leaves it loading with an error flag. The runtime polls DiskInfo |
+| DiskCommit words | Size in sectors, cylinders, heads, sectors per track, CRC-32 of the committed sectors |
+| DiskControl commit | The core reads exactly the committed sector count from the window on port 2 and computes CRC-32 (about 0.2 s for 128 MiB at 700 MB/s). A match makes it ready; a mismatch leaves it loading with the CRC error flag. The runtime polls DiskInfo |
 | DiskControl eject | Held execution only. A hard disk is fixed while running |
 | DiskControl freeze, resume, saved | Freeze fences new sector writes (a write command stays BSY), drains an accepted one and ACKs. Saved clears the dirty bits and keeps the fence, as for the [ST capture](../../mister-packages/docs/computer-io.md#writable-st-image-capture) |
 | DiskDirty | Reads the dirty map, 16 chunks per word, while frozen |
 
 The size is a multiple of 512 bytes from 1 MiB to 128 MiB. 128 MiB is also the
 largest FAT16 volume with 2 KiB clusters. CRC-32 is the CRC-32/IEEE the media
-units use; the core computing it is what lets the contract claim an
-FPGA-side integrity check ([core media](../../../docs/core-media-evolution.md#transfer-and-lifecycle)).
+units use, over exactly `sectors * 512` bytes from the window; the core
+computing it is what lets the contract claim an FPGA-side integrity check
+([core media](../../../docs/core-media-evolution.md#transfer-and-lifecycle)).
 It also proves that the runtime's cache clean reached DDR.
 
 ### How FogCast prepares and attaches the image
@@ -1204,25 +1207,28 @@ It declares, all required:
 | `fes.memory.hps-ddr` 1.0 | 12 | Exists |
 | `fes.video.session-display` 1.0 | 13 | Exists |
 | `fes.fabric.video.display-plane` 1.0 | None (manifest only) | Exists |
-| `fes.media.ata-disk` 1.0 | 15 | New |
-| `fes.persistence.words` 1.0 | 16 | New on `fes.computer` |
-| `fes.rtc.wall-clock` 1.0 | 17 | New |
-| `fes.pc386.machine` 1.0 layout | 18 | New |
+| `fes.media.ata-disk` 1.0 | 16 | New |
+| `fes.persistence.words` 1.0 | 17 | New on `fes.computer` |
+| `fes.rtc.wall-clock` 1.0 | 18 | New |
+| `fes.pc386.machine` 1.0 layout | 19 | New |
 
-**The capability word is full.** `fes.computer` 1.0 uses bits 0–14 of its
-single 16-bit capability word, and identity has no spare word. The decision is
+**The capability word is full.** `fes.computer` 1.0 uses bits 0–15 of its
+single 16-bit capability word (bit 15 is the Spectrum disk), and identity has
+no spare word. The decision is
 `fes.computer` 1.1, which adds identity word 16 for capability bits 16–31.
 Older runtimes reject ABI 1.1 at compatibility, before programming, which is
 the normal refusal path. A new `fes.pc` ABI was the alternative; it would have
 duplicated keyboard, mouse, media and display semantics only because one
 identity word ran out.
 
-Opcodes for 1.1, avoiding the display's 18–21 (the YAML fixes the final
-numbers):
+Opcodes for 1.1, avoiding the display's 18–21, as
+[`fes_computer.yaml`](../../mister-packages/packages/abi/fes_computer.yaml)
+fixes them; [computer I/O](../../mister-packages/docs/computer-io.md#ata-hard-disk)
+has the field rules:
 
 | Opcode | Name | Index | Argument |
 | --- | --- | --- | --- |
-| 16 | DiskInfo | unit × 8 + field | 0 |
+| 16 | DiskInfo | unit × 8 + field (chunk size is field 4, in sectors) | 0 |
 | 17 | DiskControl | unit | 0 prepare, 1 commit, 2 eject, 3 freeze, 4 resume, 5 saved |
 | 22 | DiskCommit | word 0–7 | size low and high, cylinders, heads, sectors, CRC low and high, 0 |
 | 23 | DiskDirty | word 0–127 | 0; response is 16 chunk bits |
@@ -1235,7 +1241,7 @@ own `toolchain.lock`.
 
 ### mister-packages adds
 
-- `fes_computer.yaml` 1.1: identity word 16, bits 15–18, the opcodes, disk
+- `fes_computer.yaml` 1.1: identity word 16, bits 16–19, the opcodes, disk
   window offset, maximum and chunk constants, CMOS and settings word counts.
 - `computer-io.md`: the disk, persistence and wall-clock sections; the mouse
   dy sign.
