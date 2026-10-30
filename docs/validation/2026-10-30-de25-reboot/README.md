@@ -24,8 +24,8 @@ outside Git.
    over JTAG: initial boot succeeds; the same ordinary Linux cold reboot ends
    at `reboot: Restarting system` with no new SPL/login in the capture window.
    This control contains no FES RAM engine or FES warm-reset acknowledgement
-   patch. Loading the identical SOF again restores Ubuntu over UART and SSH,
-   without a power cycle or persistent change.
+   patch. Loading the same SOF again restores Ubuntu over UART and SSH.
+   No persistent change is recorded.
 3. The exact RAM-test SOF from [the physical memory record](../2026-10-30-de25-physical-memory/README.md)
    is tested with both local engines idle/calibrated and HPS writes disabled.
    Cold reboot repeats the stall. The same full SOF is reloaded for recovery;
@@ -78,11 +78,14 @@ reset/drain admission and the FES rootfs remain outside this diagnostic.
 ## Evidence and handoff
 
 [proof.json](proof.json) binds the six observed boot UUIDs, three reset controls,
-exact stock/RAM SOF hashes, unchanged reset/DMA policy and no-power-cycle
-recovery. [stock-image.json](stock-image.json) binds the unmodified vendor
-member to the locked ZIP. [firmware-review.json](firmware-review.json) pins the
-supporting published ATF source. The compressed console/SSH/programmer logs
-retain the observations; private network tokens are redacted.
+programmed-SOF Quartus checksums, unchanged reset/DMA policy and SOF-redelivery
+recovery. The RAM programming log records checksum `0x067AE616`; the stock
+programming log records `0x062BB4EF`. Neither log retains a SHA-256 digest for
+the programmed SOF. The record does not establish whether a physical power
+cycle occurred. [stock-image.json](stock-image.json) binds the unmodified
+vendor member to the locked ZIP. [firmware-review.json](firmware-review.json)
+pins the supporting published ATF source. The compressed console/SSH/programmer
+logs retain the observations; private network tokens are redacted.
 
 Affected planner/metadata/whitespace checks and documentation links pass. The
 record-scope regression test is `python3 tests/test_de25_reboot_evidence.py`.

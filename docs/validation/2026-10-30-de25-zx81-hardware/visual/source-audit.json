@@ -18,7 +18,6 @@
     "runtime_source_sha256": "d0f914e46d914c5f768b9e86112d4f21c3b9359e2c904c4945ed847893785b4f"
   },
   "fpga_source_revision": "0534e1ec71e04a00b377e4dd0be8d64391b1dbb5",
-  "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
   "visual_client_modifier_staging": {
     "source_revision": "143a883cdfedd66cc28f68089e28e211daa9dafd",
     "source_sha256": "614b879ff77ab5afc546020f38da9efe2ef43f20ae163191aeb4b9377afd40a4",
@@ -32,5 +31,6 @@
     "runtime_source_sha256": "d0f914e46d914c5f768b9e86112d4f21c3b9359e2c904c4945ed847893785b4f"
   },
   "console_source_sha256": "9169865bdd0c9cb83182442e733126232075d0d1a03f24f078169a353961cbcf",
-  "console_startup_note": "Bounded discovery only; control protocol unchanged. Original run02 console source is frozen at 75d626d27."
+  "console_startup_note": "Bounded discovery only; control protocol unchanged. Original run02 console source is frozen at 75d626d27.",
+  "programmed_sof_quartus_checksum": "0x0649BFAE"
 }

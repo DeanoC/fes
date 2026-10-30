@@ -16,13 +16,15 @@ No later source or artifact inherits these results.
 
 ## Image and board identity
 
-[hardware.json](hardware.json) records the Quartus cable name, JTAG ID `4362c0dd`,
-source producer, boot identity and programmed image. The programmer log names
-part `A5EB013BB23BCS`; Quartus's own programming table matches this ID to both
-the CS and R1 masks. The printed suffix remains unconfirmed, and the USB serial
-and board UID are not asserted because neither appears in a retained transcript.
-The programmer accepts the diagnostic image without `--force`. This does not
-qualify every SCS or R1 part or prove the full ordering code.
+[hardware.json](hardware.json) records the Quartus cable name, source producer,
+boot identity and programmed image. The programmer log names part
+`A5EB013BB23BCS`. The retained System Console device path is
+`A5E(A013BB23B|B013BB23BCS)`; its alternatives end in `A013BB23B` and
+`B013BB23BCS`, with no R1 arm. The printed suffix remains unconfirmed, and the
+USB serial and board UID are not asserted because neither appears in a retained
+transcript. The JTAG IDCODE is also omitted because no retained transcript
+records it. The programmer accepts the diagnostic image without `--force`. This
+does not qualify every SCS or R1 part or prove the full ordering code.
 
 The original final SOF, build, generation, inputs and compiler logs match all
 six hashes from the [published compiler record](../../../sources/misteross/docs/validation/2026-10-29-de25-ramtest/artifact.json).
@@ -40,11 +42,13 @@ command and SPL match the locked Terasic ZIP; [bootloader-audit.json](bootloader
 records the exact entries and hashes. The vendor ZIP SHA-256 is
 `f79f0eff3b0f9d042fdb61ddcf43efec77b0ebc13248eea100b94e47a1189b66`.
 
-The actually programmed SOF SHA-256 is
-`2267ecc2e9e8dd08cd24e8d413ee7e704cc022863d5b761b6d6e6aa33a6bb64c`.
-The original compile output remains unchanged. No JIC, flash operation,
-SD rewrite or boot-configuration change is involved. Reproduce the conversion
-in a fresh private output, using the verified original project:
+The programming transcript records Quartus checksum `0x067AE616` for the
+generated SOF and its path; [hardware.json](hardware.json) binds that checksum
+to the retained transcript. No SHA-256 or byte count for the generated SOF was
+retained, so this record makes no digest-level replay-binding claim for the
+programmed file. The original compile output remains unchanged. No JIC, flash
+operation, SD rewrite or boot-configuration change is involved. Reproduce the
+conversion in a fresh private output, using the verified original project:
 
 ```sh
 quartus_pfg -c /absolute/project/output_files/golden_top.sof \
@@ -125,6 +129,11 @@ and requires exact build IDs, disabled HPS, generation/sequence, success bits,
 zero errors/faults/bad bits, seven-pattern byte totals and 1,024 samples.
 It performs no hardware access. The compressed smoke and full logs retain
 original console bytes and their SHA-256 hashes match the parsed record.
+The retained [affected-checks transcript](affected-checks.log.gz) is preparation
+evidence from base `300bf1c3ea67ce81b11ef2e442882de2eff5c224`; its recorded head,
+checkout head and merge base all identify that base, and its evidence paths are
+local to the preparation workspace. It does not attest checks on this PR head;
+those are reported by the PR's GitHub check runs.
 
 | Bank / range | Written bytes | Read bytes | Result |
 | --- | ---: | ---: | --- |
@@ -148,13 +157,18 @@ SPL or RTL cause. There is no factory-only software-reboot control yet.
 [Issue #1291](https://github.com/DeanoC/fes/issues/1291) tracks that separate
 qualification. The passing memory scans do not qualify software reset.
 
-A physical power cycle restores the factory boot. [restore.json](restore.json)
-records the new factory boot UUID, UART/pinned SSH checks, root and kernel, and
-the restored factory SLD design hash. System Console refuses linking the test
-image to that distinct factory design. This verifies restoration from the
-untouched factory boot media; it does not attest their complete byte digests.
-The redacted restore logs retain both the software-reboot failure and physical
-recovery. Temporary USB node ownership is restored, all recorded sessions and
-master claims are closed, no proof software was uploaded, and the one recorded
-claim is released. No serial-specific status transcript is retained. DE10 Kits
-A/B and GPU/harness processes were not touched.
+A physical power cycle restores the factory boot. The retained UART capture is
+for the failed software reboot and ends at `reboot: Restarting system`; it has
+no subsequent factory boot transcript. The pinned-key SSH transcript records
+factory boot UUID `b8e89f9f-9dc1-4fa5-874c-3adf3aa6da67`, kernel
+`6.12.11-gd7d192a9ddd9`, and root `/dev/mmcblk0p2 ext3`. The restored factory
+SLD design hash is also retained, and System Console refuses linking the test
+image to that distinct factory design. [restore.json](restore.json) records the
+SSH boot check and explicitly marks UART boot evidence as not retained. This
+verifies restoration from the untouched factory boot media; it does not attest
+their complete byte digests. The redacted restore logs retain the software-
+reboot failure and SSH recovery evidence. Temporary USB node ownership is
+restored, all recorded sessions and master claims are closed, no proof software
+was uploaded, and the one recorded claim is released. No serial-specific status
+transcript is retained. DE10 Kits A/B and GPU/harness processes were not
+touched.

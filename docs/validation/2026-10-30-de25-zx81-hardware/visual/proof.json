@@ -1,14 +1,11 @@
 {
-  "serial": "TRWU8J8G",
   "classification": "physical FPGA control plus separately inspected HDMI BASIC LOAD/run/edit/reload/run/list diagnostic",
   "protocol_receipts": [
     {
-      "serial": "TRWU8J8G",
-      "boot_id": "74e2b65c-13f3-4881-9d54-397ac63d18e0",
       "build_id": "489319c9b6eeb20f2b582dca10edf3cb",
       "client_sha256": "b962c9c86fe21f60b8a930f83c90b2ac7e31fe791638b8212d76f3893043cff6",
       "saved_image_sha256": "b4e6e04e3063149a0e7232f23e4aa24b96d0631d557920e97c65d1e01dfb3c71",
-      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "programmed_sof_quartus_checksum": "0x0649BFAE",
       "driver_sha256": "0280cd154fafcf8cf1e637877486e0ff9eee31f26209ce73b4865049657ffe90",
       "results": [
         {
@@ -33,12 +30,10 @@
       "step_label": "key-1-retry"
     },
     {
-      "serial": "TRWU8J8G",
-      "boot_id": "74e2b65c-13f3-4881-9d54-397ac63d18e0",
       "build_id": "489319c9b6eeb20f2b582dca10edf3cb",
       "client_sha256": "b962c9c86fe21f60b8a930f83c90b2ac7e31fe791638b8212d76f3893043cff6",
       "saved_image_sha256": "b4e6e04e3063149a0e7232f23e4aa24b96d0631d557920e97c65d1e01dfb3c71",
-      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "programmed_sof_quartus_checksum": "0x0649BFAE",
       "driver_sha256": "0280cd154fafcf8cf1e637877486e0ff9eee31f26209ce73b4865049657ffe90",
       "results": [
         {
@@ -63,12 +58,10 @@
       "step_label": "print-key-bounded"
     },
     {
-      "serial": "TRWU8J8G",
-      "boot_id": "74e2b65c-13f3-4881-9d54-397ac63d18e0",
       "build_id": "489319c9b6eeb20f2b582dca10edf3cb",
       "client_sha256": "b962c9c86fe21f60b8a930f83c90b2ac7e31fe791638b8212d76f3893043cff6",
       "saved_image_sha256": "b4e6e04e3063149a0e7232f23e4aa24b96d0631d557920e97c65d1e01dfb3c71",
-      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "programmed_sof_quartus_checksum": "0x0649BFAE",
       "driver_sha256": "0280cd154fafcf8cf1e637877486e0ff9eee31f26209ce73b4865049657ffe90",
       "results": [
         {
@@ -93,12 +86,10 @@
       "step_label": "seven-key"
     },
     {
-      "serial": "TRWU8J8G",
-      "boot_id": "74e2b65c-13f3-4881-9d54-397ac63d18e0",
       "build_id": "489319c9b6eeb20f2b582dca10edf3cb",
       "client_sha256": "b962c9c86fe21f60b8a930f83c90b2ac7e31fe791638b8212d76f3893043cff6",
       "saved_image_sha256": "b4e6e04e3063149a0e7232f23e4aa24b96d0631d557920e97c65d1e01dfb3c71",
-      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "programmed_sof_quartus_checksum": "0x0649BFAE",
       "driver_sha256": "0280cd154fafcf8cf1e637877486e0ff9eee31f26209ce73b4865049657ffe90",
       "results": [
         {
@@ -123,12 +114,10 @@
       "step_label": "enter-line"
     },
     {
-      "serial": "TRWU8J8G",
-      "boot_id": "74e2b65c-13f3-4881-9d54-397ac63d18e0",
       "build_id": "489319c9b6eeb20f2b582dca10edf3cb",
       "client_sha256": "b962c9c86fe21f60b8a930f83c90b2ac7e31fe791638b8212d76f3893043cff6",
       "saved_image_sha256": "b4e6e04e3063149a0e7232f23e4aa24b96d0631d557920e97c65d1e01dfb3c71",
-      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "programmed_sof_quartus_checksum": "0x0649BFAE",
       "driver_sha256": "0280cd154fafcf8cf1e637877486e0ff9eee31f26209ce73b4865049657ffe90",
       "results": [
         {
@@ -153,12 +142,10 @@
       "step_label": "run-key-refreshed"
     },
     {
-      "serial": "TRWU8J8G",
-      "boot_id": "74e2b65c-13f3-4881-9d54-397ac63d18e0",
       "build_id": "489319c9b6eeb20f2b582dca10edf3cb",
       "client_sha256": "b962c9c86fe21f60b8a930f83c90b2ac7e31fe791638b8212d76f3893043cff6",
       "saved_image_sha256": "b4e6e04e3063149a0e7232f23e4aa24b96d0631d557920e97c65d1e01dfb3c71",
-      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "programmed_sof_quartus_checksum": "0x0649BFAE",
       "driver_sha256": "0280cd154fafcf8cf1e637877486e0ff9eee31f26209ce73b4865049657ffe90",
       "results": [
         {
@@ -183,12 +170,10 @@
       "step_label": "run-enter"
     },
     {
-      "serial": "TRWU8J8G",
-      "boot_id": "74e2b65c-13f3-4881-9d54-397ac63d18e0",
       "build_id": "489319c9b6eeb20f2b582dca10edf3cb",
       "client_sha256": "b962c9c86fe21f60b8a930f83c90b2ac7e31fe791638b8212d76f3893043cff6",
       "saved_image_sha256": "b4e6e04e3063149a0e7232f23e4aa24b96d0631d557920e97c65d1e01dfb3c71",
-      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "programmed_sof_quartus_checksum": "0x0649BFAE",
       "driver_sha256": "0280cd154fafcf8cf1e637877486e0ff9eee31f26209ce73b4865049657ffe90",
       "results": [
         {
@@ -213,12 +198,10 @@
       "step_label": "media-load"
     },
     {
-      "serial": "TRWU8J8G",
-      "boot_id": "74e2b65c-13f3-4881-9d54-397ac63d18e0",
       "build_id": "489319c9b6eeb20f2b582dca10edf3cb",
       "client_sha256": "b962c9c86fe21f60b8a930f83c90b2ac7e31fe791638b8212d76f3893043cff6",
       "saved_image_sha256": "b4e6e04e3063149a0e7232f23e4aa24b96d0631d557920e97c65d1e01dfb3c71",
-      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "programmed_sof_quartus_checksum": "0x0649BFAE",
       "driver_sha256": "0280cd154fafcf8cf1e637877486e0ff9eee31f26209ce73b4865049657ffe90",
       "results": [
         {
@@ -243,12 +226,10 @@
       "step_label": "load-key"
     },
     {
-      "serial": "TRWU8J8G",
-      "boot_id": "74e2b65c-13f3-4881-9d54-397ac63d18e0",
       "build_id": "489319c9b6eeb20f2b582dca10edf3cb",
       "client_sha256": "b962c9c86fe21f60b8a930f83c90b2ac7e31fe791638b8212d76f3893043cff6",
       "saved_image_sha256": "b4e6e04e3063149a0e7232f23e4aa24b96d0631d557920e97c65d1e01dfb3c71",
-      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "programmed_sof_quartus_checksum": "0x0649BFAE",
       "driver_sha256": "0280cd154fafcf8cf1e637877486e0ff9eee31f26209ce73b4865049657ffe90",
       "results": [
         {
@@ -273,12 +254,10 @@
       "step_label": "load-quote-one"
     },
     {
-      "serial": "TRWU8J8G",
-      "boot_id": "74e2b65c-13f3-4881-9d54-397ac63d18e0",
       "build_id": "489319c9b6eeb20f2b582dca10edf3cb",
       "client_sha256": "b962c9c86fe21f60b8a930f83c90b2ac7e31fe791638b8212d76f3893043cff6",
       "saved_image_sha256": "b4e6e04e3063149a0e7232f23e4aa24b96d0631d557920e97c65d1e01dfb3c71",
-      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "programmed_sof_quartus_checksum": "0x0649BFAE",
       "driver_sha256": "0280cd154fafcf8cf1e637877486e0ff9eee31f26209ce73b4865049657ffe90",
       "results": [
         {
@@ -303,12 +282,10 @@
       "step_label": "load-quote-two"
     },
     {
-      "serial": "TRWU8J8G",
-      "boot_id": "74e2b65c-13f3-4881-9d54-397ac63d18e0",
       "build_id": "489319c9b6eeb20f2b582dca10edf3cb",
       "client_sha256": "b962c9c86fe21f60b8a930f83c90b2ac7e31fe791638b8212d76f3893043cff6",
       "saved_image_sha256": "b4e6e04e3063149a0e7232f23e4aa24b96d0631d557920e97c65d1e01dfb3c71",
-      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "programmed_sof_quartus_checksum": "0x0649BFAE",
       "driver_sha256": "0280cd154fafcf8cf1e637877486e0ff9eee31f26209ce73b4865049657ffe90",
       "results": [
         {
@@ -337,12 +314,10 @@
       "argument": "unused",
       "started_unix": 1793379679.615724,
       "completed_unix": 1793379688.0551906,
-      "serial": "TRWU8J8G",
-      "boot_id": "74e2b65c-13f3-4881-9d54-397ac63d18e0",
       "build_id": "489319c9b6eeb20f2b582dca10edf3cb",
       "client_sha256": "93de2d86bf4cc730414d12cc0532c1199a06693f4971f7a03a85be8059866813",
       "saved_image_sha256": "b4e6e04e3063149a0e7232f23e4aa24b96d0631d557920e97c65d1e01dfb3c71",
-      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "programmed_sof_quartus_checksum": "0x0649BFAE",
       "driver_sha256": "46ea3ef035f28ce0e6ceb18c792e1b1fb92d930a466d5a11c55da85da705cbf7",
       "results": [
         {
@@ -371,12 +346,10 @@
       "argument": "unused",
       "started_unix": 1793379696.1080472,
       "completed_unix": 1793379713.1598825,
-      "serial": "TRWU8J8G",
-      "boot_id": "74e2b65c-13f3-4881-9d54-397ac63d18e0",
       "build_id": "489319c9b6eeb20f2b582dca10edf3cb",
       "client_sha256": "93de2d86bf4cc730414d12cc0532c1199a06693f4971f7a03a85be8059866813",
       "saved_image_sha256": "b4e6e04e3063149a0e7232f23e4aa24b96d0631d557920e97c65d1e01dfb3c71",
-      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "programmed_sof_quartus_checksum": "0x0649BFAE",
       "driver_sha256": "46ea3ef035f28ce0e6ceb18c792e1b1fb92d930a466d5a11c55da85da705cbf7",
       "results": [
         {
@@ -405,12 +378,10 @@
       "argument": "0d,13s,13s",
       "started_unix": 1793379717.1952271,
       "completed_unix": 1793379728.1154652,
-      "serial": "TRWU8J8G",
-      "boot_id": "74e2b65c-13f3-4881-9d54-397ac63d18e0",
       "build_id": "489319c9b6eeb20f2b582dca10edf3cb",
       "client_sha256": "93de2d86bf4cc730414d12cc0532c1199a06693f4971f7a03a85be8059866813",
       "saved_image_sha256": "b4e6e04e3063149a0e7232f23e4aa24b96d0631d557920e97c65d1e01dfb3c71",
-      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "programmed_sof_quartus_checksum": "0x0649BFAE",
       "driver_sha256": "46ea3ef035f28ce0e6ceb18c792e1b1fb92d930a466d5a11c55da85da705cbf7",
       "results": [
         {
@@ -439,12 +410,10 @@
       "argument": "28",
       "started_unix": 1793379735.390851,
       "completed_unix": 1793379744.4893553,
-      "serial": "TRWU8J8G",
-      "boot_id": "74e2b65c-13f3-4881-9d54-397ac63d18e0",
       "build_id": "489319c9b6eeb20f2b582dca10edf3cb",
       "client_sha256": "93de2d86bf4cc730414d12cc0532c1199a06693f4971f7a03a85be8059866813",
       "saved_image_sha256": "b4e6e04e3063149a0e7232f23e4aa24b96d0631d557920e97c65d1e01dfb3c71",
-      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "programmed_sof_quartus_checksum": "0x0649BFAE",
       "driver_sha256": "46ea3ef035f28ce0e6ceb18c792e1b1fb92d930a466d5a11c55da85da705cbf7",
       "results": [
         {
@@ -473,12 +442,10 @@
       "argument": "15,28",
       "started_unix": 1793379780.7043777,
       "completed_unix": 1793379790.227218,
-      "serial": "TRWU8J8G",
-      "boot_id": "74e2b65c-13f3-4881-9d54-397ac63d18e0",
       "build_id": "489319c9b6eeb20f2b582dca10edf3cb",
       "client_sha256": "93de2d86bf4cc730414d12cc0532c1199a06693f4971f7a03a85be8059866813",
       "saved_image_sha256": "b4e6e04e3063149a0e7232f23e4aa24b96d0631d557920e97c65d1e01dfb3c71",
-      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "programmed_sof_quartus_checksum": "0x0649BFAE",
       "driver_sha256": "46ea3ef035f28ce0e6ceb18c792e1b1fb92d930a466d5a11c55da85da705cbf7",
       "results": [
         {
@@ -507,12 +474,10 @@
       "argument": "1f,08,28",
       "started_unix": 1793379797.8610086,
       "completed_unix": 1793379807.7679675,
-      "serial": "TRWU8J8G",
-      "boot_id": "74e2b65c-13f3-4881-9d54-397ac63d18e0",
       "build_id": "489319c9b6eeb20f2b582dca10edf3cb",
       "client_sha256": "93de2d86bf4cc730414d12cc0532c1199a06693f4971f7a03a85be8059866813",
       "saved_image_sha256": "b4e6e04e3063149a0e7232f23e4aa24b96d0631d557920e97c65d1e01dfb3c71",
-      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "programmed_sof_quartus_checksum": "0x0649BFAE",
       "driver_sha256": "46ea3ef035f28ce0e6ceb18c792e1b1fb92d930a466d5a11c55da85da705cbf7",
       "results": [
         {
@@ -541,12 +506,10 @@
       "argument": "unused",
       "started_unix": 1793379815.946203,
       "completed_unix": 1793379832.7343173,
-      "serial": "TRWU8J8G",
-      "boot_id": "74e2b65c-13f3-4881-9d54-397ac63d18e0",
       "build_id": "489319c9b6eeb20f2b582dca10edf3cb",
       "client_sha256": "93de2d86bf4cc730414d12cc0532c1199a06693f4971f7a03a85be8059866813",
       "saved_image_sha256": "b4e6e04e3063149a0e7232f23e4aa24b96d0631d557920e97c65d1e01dfb3c71",
-      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "programmed_sof_quartus_checksum": "0x0649BFAE",
       "driver_sha256": "46ea3ef035f28ce0e6ceb18c792e1b1fb92d930a466d5a11c55da85da705cbf7",
       "results": [
         {
@@ -575,12 +538,10 @@
       "argument": "0d,13s,13s,28",
       "started_unix": 1793379837.4818022,
       "completed_unix": 1793379849.036308,
-      "serial": "TRWU8J8G",
-      "boot_id": "74e2b65c-13f3-4881-9d54-397ac63d18e0",
       "build_id": "489319c9b6eeb20f2b582dca10edf3cb",
       "client_sha256": "93de2d86bf4cc730414d12cc0532c1199a06693f4971f7a03a85be8059866813",
       "saved_image_sha256": "b4e6e04e3063149a0e7232f23e4aa24b96d0631d557920e97c65d1e01dfb3c71",
-      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "programmed_sof_quartus_checksum": "0x0649BFAE",
       "driver_sha256": "46ea3ef035f28ce0e6ceb18c792e1b1fb92d930a466d5a11c55da85da705cbf7",
       "results": [
         {
@@ -609,12 +570,10 @@
       "argument": "15,28",
       "started_unix": 1793379857.1722174,
       "completed_unix": 1793379866.4345796,
-      "serial": "TRWU8J8G",
-      "boot_id": "74e2b65c-13f3-4881-9d54-397ac63d18e0",
       "build_id": "489319c9b6eeb20f2b582dca10edf3cb",
       "client_sha256": "93de2d86bf4cc730414d12cc0532c1199a06693f4971f7a03a85be8059866813",
       "saved_image_sha256": "b4e6e04e3063149a0e7232f23e4aa24b96d0631d557920e97c65d1e01dfb3c71",
-      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "programmed_sof_quartus_checksum": "0x0649BFAE",
       "driver_sha256": "46ea3ef035f28ce0e6ceb18c792e1b1fb92d930a466d5a11c55da85da705cbf7",
       "results": [
         {
@@ -643,12 +602,10 @@
       "argument": "0e,28",
       "started_unix": 1793379925.0006173,
       "completed_unix": 1793379934.5242603,
-      "serial": "TRWU8J8G",
-      "boot_id": "74e2b65c-13f3-4881-9d54-397ac63d18e0",
       "build_id": "489319c9b6eeb20f2b582dca10edf3cb",
       "client_sha256": "93de2d86bf4cc730414d12cc0532c1199a06693f4971f7a03a85be8059866813",
       "saved_image_sha256": "b4e6e04e3063149a0e7232f23e4aa24b96d0631d557920e97c65d1e01dfb3c71",
-      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "programmed_sof_quartus_checksum": "0x0649BFAE",
       "driver_sha256": "46ea3ef035f28ce0e6ceb18c792e1b1fb92d930a466d5a11c55da85da705cbf7",
       "results": [
         {

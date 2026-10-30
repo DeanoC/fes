@@ -1,9 +1,10 @@
 # Physical ZX81 HDMI observations
 
-These native captured frames belong to the unchanged programmed SOF
-`cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784`,
-FPGA source `0534e1ec71e04a00b377e4dd0be8d64391b1dbb5`, computer build
-`489319c9b6eeb20f2b582dca10edf3cb`, bottom board `TRWU8J8G`.
+These native captured frames belong to the SOF recorded by the retained
+programmer log with Quartus checksum `0x0649BFAE`, FPGA source
+`0534e1ec71e04a00b377e4dd0be8d64391b1dbb5`, and computer build
+`489319c9b6eeb20f2b582dca10edf3cb`. The retained logs do not bind the
+session to a USB serial, board UID or JTAG IDCODE.
 The diagnostic AArch64 visual client is separately bound in
 [source-audit.json](source-audit.json). Its additional `key`, `media` and
 `reset` operations are maintenance test controls, not a production launcher.
@@ -28,16 +29,18 @@ Observed sequence:
 4. [Actual RUN output](run-seven.png): `7` displayed and completion report
    `0/1`, after R and ENTER. This is physical BASIC execution evidence.
 
-Only the explicit claimed-board JTAG master is used. Some fresh System Console
+Only the explicit JTAG master is used. Some fresh System Console
 instances initially report the selected device absent before any control
 write or client start. Failed setup logs are retained; their owned uploads are
 removed. A bounded discovery refresh now allows up to ten seconds to find the
 same explicit device, then fails closed. It never substitutes another device,
 changes FPGA configuration or retries an uncertain control write.
 
-This is physical diagnostic evidence for this board and exact image. It does
-not qualify HDMI electrical timing, audio, HPS CPU MMIO/DMA, PR personas,
-production FES packaging, or the complete printed FPGA part family.
+This is physical diagnostic evidence for the loaded image identified by the
+retained Quartus checksum. It does not establish the board's USB serial, UID or
+JTAG IDCODE, and does not qualify HDMI electrical timing, audio, HPS CPU
+MMIO/DMA, PR personas, production FES packaging, or the complete printed FPGA
+part family.
 
 The first LOAD attempt is retained as [load-result.png](load-result.png):
 the command reads `LOAD PP` with a syntax marker. The real per-row JTAG
@@ -76,10 +79,12 @@ control command deadline or retries writes.
 [cleanup.json](cleanup.json) verifies all 25 exact owned temporary upload
 directories absent. All owned clients, SSH forwards, JTAG masters and finite
 captures exit. The shared capture producer/viewer remains running under the
-user's ownership; its current capture format is left alone. Linux is synced
-and asked to halt for the requested factory power cycle. The later factory power cycle is verified through UART, pinned SSH and the
-original factory SLD identity; the final [restoration receipt](../restoration.json)
-records release and restored USB permissions.
+user's ownership; its current capture format is left alone. Linux is asked to
+halt for the requested factory power cycle; the retained boot log reports an
+unclean journal and does not establish a graceful halt. The later factory power
+cycle is verified through UART, pinned SSH and the original factory SLD
+identity; the final [restoration receipt](../restoration.json) records release
+and restored USB permissions.
 
 The frozen `visual-step.py` runner produced the initial RUN receipts;
 `visual-step-v2.py` adds explicit input arguments and start/completion times

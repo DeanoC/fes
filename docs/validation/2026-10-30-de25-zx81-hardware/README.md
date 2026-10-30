@@ -11,10 +11,12 @@ the stored `1 PRINT 7` line and the actual RUN result `7` with completion
 report `0/1` on the physical HDMI output. The original three protocol-only
 receipts remain unchanged and do not themselves claim visual observations.
 
-Board: USB serial `TRWU8J8G`, bottom board, UID `79B9468337C3A50B`, JTAG ID
-`4362c0dd`. The full printed OPN is hidden by its fan and remains unconfirmed.
-Quartus accepts the SCS-target diagnostic without `--force`; this observation
-is bound to that board/UID and exact image, not a full SCS/R1 family.
+The retained programmer transcript identifies Quartus cable
+`DE25-Nano [3-11.3-iface0]` and FPGA part `A5EB013BB23BCS`. It contains no USB
+serial, board UID or JTAG IDCODE, so this session is not bound to a particular
+DE25 board. The full printed OPN remains hidden by its fan and unconfirmed.
+Quartus accepts the SCS-target diagnostic without `--force`; this does not
+qualify a full SCS/R1 family.
 
 ## Missing route and the corrected artifact
 
@@ -46,17 +48,18 @@ changed by the route addition.
 
 The unchanged locked Terasic SPL is combined into a separate full SOF, using
 the [verified vendor recipe](../2026-10-30-de25-physical-memory/README.md).
-The actually programmed image is SHA-256
-`cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784`.
-Its computer build ID is `489319c9b6eeb20f2b582dca10edf3cb`.
+The retained [programmer log](program.log.gz) records Quartus checksum
+`0x0649BFAE` for the loaded SOF. It does not retain a SHA-256 digest for that
+programmed file. Its computer build ID is `489319c9b6eeb20f2b582dca10edf3cb`.
 The compiler's original receipts retain their original off-board acceptance
 fields; these later physical observations are recorded separately.
 
-Linux is synced and gracefully halted before each volatile load. The accepted
-image boots the existing factory Ubuntu SD to UART and pinned-key SSH, kernel
-`6.12.11-gd7d192a9ddd9`, root `/dev/mmcblk0p2` ext3, boot UUID
-`74e2b65c-13f3-4881-9d54-397ac63d18e0`. Flash, SD and boot configuration are
-not rewritten. The [cold-reset investigation](../2026-10-30-de25-reboot/README.md)
+The accepted image boots the existing factory Ubuntu SD to UART and
+pinned-key SSH, kernel `6.12.11-gd7d192a9ddd9`, root `/dev/mmcblk0p2` ext3.
+The retained boot log says the journal was `corrupted or uncleanly shut down`;
+this record does not claim a graceful Linux halt before the load. It also does
+not assert a boot UUID absent from that capture. Flash, SD and boot configuration
+are not rewritten. The [cold-reset investigation](../2026-10-30-de25-reboot/README.md)
 provides the supported same-SOF JTAG reload recovery.
 
 ## Physical client and observations
@@ -74,7 +77,7 @@ individual visual steps, instantiates the real C++ protocol consumer with real
 monotonic time and bounded Unix-socket IO. A private SSH Unix-socket forward
 connects it to [proxy.py](proxy.py) and [registers.tcl](registers.tcl) on the
 host. The host links the actual loaded SOF metadata, selects the explicit
-claimed-board fabric master and checks the endpoint ID/version. Only six
+JTAG fabric master and checks the endpoint ID/version. Only six
 aligned computer CSR reads and the full-word GPO write are admitted. The
 public client checks the selected full build identity. JTAG master closure is
 positively acknowledged before each proxy publishes completion; uncertainty
