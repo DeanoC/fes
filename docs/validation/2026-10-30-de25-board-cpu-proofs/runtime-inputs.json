@@ -20,7 +20,8 @@
     "decoded_bytes_sha256": "d2529188bae9fcacc3853e757de030b648d211db67384d44ad44271b7b923763",
     "matches_prior_compiler_model_ROM_audit": true,
     "prior_audit": "docs/validation/2026-10-29-de25-zx81-pr-computer/rtl-source-match.json",
-    "note": "Source unreachable FF tail is padded to zero in selected model HEX, as in prior compiler/model audit; full decoded selected ROM identity matches."
+    "note": "Source unreachable FF tail is padded to zero in selected model HEX, as in prior compiler/model audit; full decoded selected ROM identity matches.",
+    "prior_audit_revision": "725532742eaf4e8c51ff42f9875c543a3268a364"
   },
   {
     "model": "control",

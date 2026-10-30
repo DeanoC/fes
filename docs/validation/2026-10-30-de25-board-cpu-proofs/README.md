@@ -2,6 +2,11 @@
 
 Owner: FES integration evidence, using the retained misteross and runtime proof
 artifacts. Base: `725532742eaf4e8c51ff42f9875c543a3268a364` (#1283).
+Normal merge `c707a41970` incorporates the later parent
+`b21d90a5940ba93b4265335aa463e6b65d710649`. The proof remains bound to its
+original selected executable/model/artifact snapshots and script producer
+`8554a92b4`. Later parent RTL, descriptor validation and refreshed Quartus
+artifacts are not physically qualified by these older binary results.
 The two boards are identified by USB UART serials `TRWU8J8G` and `TRWU8CBL`.
 Both run the original Ubuntu 22.04.3 image, AArch64 kernel
 `6.12.11-gd7d192a9ddd9`, with four online CPUs. Executables run directly on those
@@ -77,10 +82,17 @@ python3 replay.py prepare --config /private/boards.json \
 python3 replay.py clients --config /private/boards.json \
   --retained /absolute/fes/out/dev --output /new/private/run
 python3 composition.py --config /private/boards.json \
-  --retained /absolute/fes/out/dev --output /new/private/run --root /absolute/fes
+  --retained /absolute/fes/out/dev --output /new/private/run --root /absolute/frozen-proof-source
 python3 software.py --config /private/boards.json \
   --inputs /absolute/verified-runtime-inputs --output /new/private/run
 ```
+
+For composition replay, `--root` must point to a checkout of `8554a92b4`
+(or its unchanged composer source at `725532742`), not a later parent checkout.
+The composer source hashes are checked before execution; later descriptor
+validation changes correctly fail that check. Reference-audit entries pin the
+published revision as well as the path and bytes, since some parent validation
+files have subsequently been replaced.
 
 The private config contains a `known_hosts` path and a `boards` array. Each
 board supplies `serial`, `ip`, `mac`, `boot_id`, `user` and `password`, established

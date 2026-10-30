@@ -2,36 +2,43 @@
   {
     "published": "docs/validation/2026-10-30-de25-zx81-load-roundtrip/internal-proof.json",
     "sha256": "502bb07660ab38b3ba5961261aa621f75b16a197f43a7d28189a9d8d1c376d1f",
-    "retained_matches_published": true
+    "retained_matches_published": true,
+    "published_revision": "725532742eaf4e8c51ff42f9875c543a3268a364"
   },
   {
     "published": "docs/validation/2026-10-30-de25-zx81-load-roundtrip/combined-proof.json",
     "sha256": "a594a7956355dd72588f1a55e2c2b4280663a23ec16f3e7db3e710f96f24d4a5",
-    "retained_matches_published": true
+    "retained_matches_published": true,
+    "published_revision": "725532742eaf4e8c51ff42f9875c543a3268a364"
   },
   {
     "published": "sources/misteross/docs/validation/2026-10-29-de25-pr-control/control-proof.json",
     "sha256": "f5a269edf34eb2db95405d2243d4309fc3bd6d0c358c96bfa596e242253e8d3b",
-    "retained_matches_published": true
+    "retained_matches_published": true,
+    "published_revision": "725532742eaf4e8c51ff42f9875c543a3268a364"
   },
   {
     "published": "sources/misteross/docs/validation/2026-10-29-de25-pr-control/composition-proof.json",
     "sha256": "44a74c3c148b5c181c617c4859c83b306da5f4bf17234a9ec28e95cb4ad47995",
-    "retained_matches_published": true
+    "retained_matches_published": true,
+    "published_revision": "725532742eaf4e8c51ff42f9875c543a3268a364"
   },
   {
     "published": "sources/misteross/docs/validation/2026-10-29-de25-zx81-ram-pr/composition/proof.json",
     "sha256": "01e8eafa7f811518fc139dfd00e986187dbd4d0120f603ec2a026ab4ceef1caf",
-    "retained_matches_published": true
+    "retained_matches_published": true,
+    "published_revision": "725532742eaf4e8c51ff42f9875c543a3268a364"
   },
   {
     "published": "docs/validation/2026-10-29-de25-zx81-pr-computer/composition-proof.json",
     "sha256": "4d425c374e5cb55a4314ffbc12591f3bd8d4dfe13e4bf1a180189958e7fd01fa",
-    "retained_matches_published": true
+    "retained_matches_published": true,
+    "published_revision": "725532742eaf4e8c51ff42f9875c543a3268a364"
   },
   {
     "published": "docs/validation/2026-10-29-de25-native-control/runtime.json",
     "sha256": "4fee875c5f4fbda9f6455a2b47e59e6be01ec44fa8cd54d9602226cdaf6c766c",
-    "retained_matches_published": true
+    "retained_matches_published": true,
+    "published_revision": "725532742eaf4e8c51ff42f9875c543a3268a364"
   }
 ]
