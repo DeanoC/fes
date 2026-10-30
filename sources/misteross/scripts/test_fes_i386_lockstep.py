@@ -116,10 +116,9 @@ SCOPE: frozenset[str] = frozenset([
     '62',
     # DAA, DAS, AAA and AAS.
     '27', '2F', '37', '3F',
+    # CLTS and WAIT.
+    '0F06', '9B',
 ])
-# Files of an in-scope opcode whose forms are not built yet: POP m with
-# 32-bit addressing, whose ESP base would read ESP after the pop.
-UNBUILT_FILES: frozenset[str] = frozenset(['678F', '67668F'])
 
 
 class LockstepError(RuntimeError):
@@ -128,7 +127,7 @@ class LockstepError(RuntimeError):
 
 def in_scope(stem: str) -> bool:
     """Whether this build executes the stem's instructions."""
-    return vectors.base_opcode(stem) in SCOPE and stem not in UNBUILT_FILES
+    return vectors.base_opcode(stem) in SCOPE
 
 
 # Opcodes whose MOO stem carries the ModRM reg field, as lockstep_tb.cpp's

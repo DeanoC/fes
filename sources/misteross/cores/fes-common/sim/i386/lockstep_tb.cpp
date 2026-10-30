@@ -213,6 +213,7 @@ public:
         for (int n = 0; n < 8; ++n) top.init_gpr[n] = s.gpr[n];
         top.init_eflags = s.eflags;
         top.init_eip = s.eip;
+        top.init_cr0 = s.cr0;
         for (int n = 0; n < 6; ++n) {
             set16(top.init_sel, n, s.seg[n].selector);
             top.init_base[n] = s.seg[n].base;
@@ -378,6 +379,7 @@ public:
         for (int n = 0; n < 8; ++n) s.gpr[n] = top.arch_gpr[n];
         s.eflags = top.arch_eflags & EFLAGS_MASK;
         s.eip = top.arch_eip;
+        s.cr0 = top.arch_cr0;
         for (int n = 0; n < 6; ++n) {
             s.seg[n].selector = get16(top.arch_sel, n);
             s.seg[n].base = top.arch_base[n];
@@ -719,6 +721,9 @@ struct Fields {
 
 // ---- Comparison ----------------------------------------------------------------------
 
+// The CR0 bits the CPU holds: MP and TS.
+constexpr uint32_t CR0_HELD = 0xa;
+
 const char *const GPR_NAMES[8] = {"eax", "ecx", "edx", "ebx", "esp", "ebp", "esi", "edi"};
 const char *const SEG_NAMES[6] = {"es", "cs", "ss", "ds", "fs", "gs"};
 
@@ -737,6 +742,7 @@ void compare(const State &want, const State &got, const Fields &skip, const std:
         if (!skip.has(GPR_NAMES[n]) && want.gpr[n] != got.gpr[n]) out.add(at + GPR_NAMES[n], want.gpr[n], got.gpr[n]);
     const uint32_t mask = EFLAGS_MASK & ~skip.eflags;
     if ((want.eflags & mask) != (got.eflags & mask)) out.add(at + "eflags", want.eflags & mask, got.eflags & mask);
+    if (!skip.has("cr0") && ((want.cr0 ^ got.cr0) & CR0_HELD)) out.add(at + "cr0", want.cr0 & CR0_HELD, got.cr0 & CR0_HELD);
     for (int n = 0; n < 6; ++n) {
         if (skip.has(SEG_NAMES[n])) continue;
         const auto &w = want.seg[n], &g = got.seg[n];
@@ -755,6 +761,7 @@ void adopt(State &oracle_state, const State &rtl, const Fields &fields) {
         oracle_state.eflags = (oracle_state.eflags & ~EFLAGS_MASK) | (rtl.eflags & EFLAGS_MASK);
         oracle_state.eip = rtl.eip;
         for (int n = 0; n < 6; ++n) oracle_state.seg[n] = rtl.seg[n];
+        oracle_state.cr0 = (oracle_state.cr0 & ~CR0_HELD) | (rtl.cr0 & CR0_HELD);
         return;
     }
     oracle_state.eflags = (oracle_state.eflags & ~fields.eflags) | (rtl.eflags & fields.eflags);
@@ -1025,6 +1032,7 @@ bool branch_taken(const uint8_t *code, const State &s, bool code32, bool &taken)
              op == 0xca || op == 0xcb || op == 0xcc || op == 0xcd || op == 0xce || op == 0xcf)
         taken = true;
     else if (op == 0xff && ((code[i + 1] >> 3) & 7) >= 2 && ((code[i + 1] >> 3) & 7) <= 5) taken = true;
+    else if (op == 0x0f && code[i + 1] == 0x06) taken = true;  // CLTS, which this build ends with a jump
     else if (op == 0xe2) taken = count != 1;
     else if (op == 0xe1) taken = count != 1 && zf;
     else if (op == 0xe0) taken = count != 1 && !zf;
@@ -1947,6 +1955,8 @@ public:
                 items.push_back(Item{{0xfb}, -1, 0, 0});
                 items.push_back(Item{{0xf4}, -1, 0, 0});
             } else if (kind < 37) shadow_block();
+            else if (kind < 38) fpu_block();
+            else if (kind < 39) items.push_back(Item{popm32_block(), -1, 0, 0});
             else items.push_back(Item{instruction(false), -1, 0, 0});
         }
         items.push_back(Item{{0xf4}, -1, 0, 0});
@@ -2690,6 +2700,62 @@ private:
         }
     }
 
+    // POP m with 32-bit addressing: ESP set below 10000h (now and then to
+    // 0, so the pop wraps a 16-bit stack's SP from FFFEh or FFFCh to 0), a
+    // value pushed, then popped to [ESP + disp8], [ESP + r * scale + disp8]
+    // or [r + disp8]; each address through ESP reads it after the pop. A
+    // register r is first set to a small value. ESP scaled by an invalid
+    // SIB is left out: the divergence list leaves an invalid SIB to the
+    // corpus, so the oracle would take the RTL's results. One item, so no
+    // branch lands between.
+    std::vector<uint8_t> popm32_block() {
+        std::vector<uint8_t> out;
+        const bool os32 = pick(2);
+        auto size = [&]() {
+            if (os32) out.push_back(0x66);
+        };
+        auto value = [&](uint32_t v, unsigned bytes) {
+            for (unsigned n = 0; n < bytes; ++n) out.push_back(uint8_t(v >> (8 * n)));
+        };
+        auto set = [&](unsigned r, uint32_t v) {  // MOV r32, imm32
+            out.insert(out.end(), {0x66, uint8_t(0xb8 + r)});
+            value(v, 4);
+        };
+        set(4, pick(3) == 0 ? 0 : uint32_t(pick(0x10000)));
+        unsigned r = pick(8);
+        while (r == 4) r = pick(8);
+        const unsigned form = pick(3), scale = pick(4);
+        if (form != 0) set(r, pick(0x400));
+        size();
+        out.push_back(0x68);
+        value(uint32_t(rng()), os32 ? 4 : 2);
+        size();
+        out.insert(out.end(), {0x67, 0x8f});
+        if (form == 0) {
+            out.insert(out.end(), {0x44, 0x24});  // [ESP + disp8]
+        } else if (form == 1) {
+            out.insert(out.end(), {0x44, uint8_t((scale << 6) | (r << 3) | 4)});  // [ESP + r * scale + disp8]
+        } else {
+            out.push_back(uint8_t(0x40 | r));  // [r + disp8]
+        }
+        out.push_back(byte());
+        return out;
+    }
+
+    // CLTS, WAIT, or CLTS then WAIT, now and then with a prefix. WAIT
+    // raises #NM, which ends the program, when it started with MP and TS set
+    // (run_random) and no CLTS has run.
+    void fpu_block() {
+        static const uint8_t harmless[] = {0x26, 0x2e, 0x36, 0x3e, 0x64, 0x65, 0x66, 0x67};
+        const unsigned form = pick(3);
+        auto add = [&](std::vector<uint8_t> bytes) {
+            if (pick(6) == 0) bytes.insert(bytes.begin(), harmless[pick(8)]);
+            items.push_back(Item{bytes, -1, 0, 0});
+        };
+        if (form != 1) add({0x0f, 0x06});
+        if (form != 0) add({0x9b});
+    }
+
     // BOUND of a register a MOV sets, against bounds two MOVs store at a
     // direct offset first: mostly around the register's value, at an edge
     // now and then, and rarely past one (#BR, which ends the program). Now
@@ -2990,8 +3056,11 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
     for (uint64_t n = 0; n < programs; ++n) {
         State state;
         for (auto &r : state.gpr) r = uint32_t(random());
-        // Every arithmetic flag, IF and DF at random; TF stays clear.
+        // Every arithmetic flag, IF and DF at random; TF stays clear. CR0's
+        // MP and TS at random, so a quarter of the programs raise #NM at a
+        // WAIT that no CLTS precedes.
         state.eflags = (uint32_t(random()) & 0x0ed5) | 0x2;
+        state.cr0 = uint32_t(random()) & CR0_HELD;
         for (int k = 0; k < 6; ++k) state.seg[k] = fes_i386::real_mode_segment(uint16_t(random()));
         state.eip = 0x100 + uint32_t(random() % 0xd000);
         const uint32_t base = state.seg[fes_i386::SEG_CS].base + state.eip;
