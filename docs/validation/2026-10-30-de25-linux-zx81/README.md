@@ -97,7 +97,9 @@ three-second clip of the user's `/dev/v4l/by-id/fes-ms2109-hil` feed, YUYV
 establish native HDMI electrical timing. The producer and remote viewer are
 untouched. [initial-native-proof.json](initial-native-proof.json) retains the
 command receipts and native frame/clip hashes. Counters are client-side MMIO
-call counts, not an independent physical bus trace. JTAG is not used for control.
+call counts, not an independent physical bus trace. The receipt
+`jtag_transactions_during_client=0` describes owned JTAG control work, not an
+independent physical JTAG trace. JTAG is not used for control.
 
 After the proof, the CPU is held, the exact temporary upload directory is
 removed and its absence checked, and owned clients/SSH/JTAG/UART/captures exit.
@@ -159,5 +161,21 @@ and releases it. Those checks are retained separately in
 
 The CPU is held, all exact owned upload directories and target log files are
 removed, all native clients/forwards/JTAG masters close, and Linux is synced
-and shut down. Factory FPGA restoration and the final recorded baseline/release
-are pending. No final release is claimed before that physical verification.
+and shut down. The user explicitly chooses the verified FES Linux card as the new bottom-board
+baseline, preserving the original factory Ubuntu card as rollback media. The
+first reported power cycle still leaves the temporary design loaded and no
+Linux login; this unsuccessful restoration check is retained. After removal
+of USB and any separate power, UART and pinned SSH verify new boot UUID
+`58cb032f-6994-4c3f-a951-6e9e85b7a834`, the corrected installed-file hashes and
+replacement-card CID. The factory FPGA SLD hash `7BD008B4D4BF4BC62777` is
+restored, and diagnostic linking is refused against `7CC83C41D576CEEB4B4D`.
+This verifies the factory configuration identity, not all QSPI flash bytes.
+
+[handoff.json](handoff.json) records the approved new baseline, restored factory
+FPGA, preserved factory SD rollback, closed task sessions and release. USB
+permissions return to root:root 0664; no task runtime/hardware lease remains.
+The bottom board is released and running the headless FES Linux baseline.
+Earlier cleanup receipts retain their pre-restoration pending state; this later
+handoff records completion. No FES software bundle is installed by the headless
+image. The baseline boots the factory FPGA configuration; programming ZX81
+from Linux and normal FES library/MENU launch remain the next integration work.

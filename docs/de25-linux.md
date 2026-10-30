@@ -85,7 +85,8 @@ and refuses other boards before loading drivers or constructing hardware.
 
 The [2026-10-28 AArch64 software validation record](validation/2026-10-28-de25-aarch64-runtime/README.md)
 retains the selected C++ SDK/image and runtime receipts, QEMU test logs, native
-retry and CI evidence. Physical boot of the FES image remains pending.
+retry and CI evidence. That record covers userspace software only; the later physical Linux/native-control
+record below adds board boot and direct CPU control.
 
 The [2026-10-30 physical CPU proof](validation/2026-10-30-de25-board-cpu-proofs/README.md)
 runs retained AArch64 executables directly on both boards using their factory

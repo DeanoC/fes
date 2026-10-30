@@ -28,7 +28,7 @@
   "physical_direct_cpu_basic_sequence": "passed on initial and corrected FES rootfs images",
   "physical_negative_boot_address_build_and_exclusive_owner": "passed",
   "production_runtime_admission": false,
-  "factory_fpga_restore_and_baseline_release": "pending",
+  "factory_fpga_restore_and_baseline_release": "passed; user-approved corrected FES Linux baseline with restored factory FPGA, original factory SD retained as rollback",
   "parent_make_check_after_merging_parent": "passed; 37 generated consumers/37 fixture copies",
   "merged_parent_evidence_and_link_checks": "passed",
   "tested_parent_merge": "3867713d14545e7fd1a50ac72187e5b0d6ddde13"
