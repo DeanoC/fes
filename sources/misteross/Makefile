@@ -141,6 +141,7 @@ help:
 		"  sim-fes-pcxt  Test the PC/XT ISA fabric, waits, IRQ and DMA transactions" \
 		"  sim-fes-pcxt-bios  Boot the pinned XT BIOS through SDRAM (downloads fixture)" \
 		"  sim-fes-pcxt-fdc  Test the XT floppy adapter over ISA/DMA" \
+		"  sim-fes-pcxt-media  Test runtime XT floppy upload and replacement" \
 		"  sim-fes-pcxt-dos  Boot the pinned 8088 FreeDOS floppy (downloads fixtures)" \
 		"  sim-fes-pc386  Check pc386 devices, audio, OPL2, presenter, display plane on port 2 and the M4 diagnostic machine" \
 		"  sim-fes-pc386-boot  Boot the Bochs BIOS and FreeDOS on the pc386 machine with the oracle CPU; replay its VGA trace" \
@@ -2657,10 +2658,15 @@ sim-fes-pcxt-bios:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_pcxt_bios.py --download --verilator "$(VERILATOR)"
 
-.PHONY: sim-fes-pcxt-fdc sim-fes-pcxt-dos
+.PHONY: sim-fes-pcxt-fdc sim-fes-pcxt-media sim-fes-pcxt-dos
 sim-fes-pcxt-fdc:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_pcxt_fdc.py --verilator "$(VERILATOR)"
+
+sim-fes-pcxt-media:
+	$(require_local_sim)
+	VERILATOR="$(VERILATOR)" $(PYTHON) scripts/sim_fes_pcxt_mailbox.py
+	VERILATOR="$(VERILATOR)" $(PYTHON) scripts/sim_fes_pcxt_media.py
 
 sim-fes-pcxt-dos:
 	$(require_local_sim)

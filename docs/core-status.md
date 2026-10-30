@@ -309,10 +309,14 @@ firmware loader, CGA font input and XT keyboard cable. It checks the 640 KiB
 diskless profile, keyboard self-test and a typed key; its inputs and intended
 checks are described in the core guide. A separate host simulation adds a
 read-only XT floppy adapter using IRQ6 and DMA2 with a pinned FreeDOS 360 KiB
-FAT12 image loaded into an isolated SDRAM buffer; its whole-machine test is designed to check a DOS prompt and
-directory listing. Neither simulation qualifies the diagnostic package for
-BIOS or DOS boot on hardware. Runtime PC floppy media, write persistence,
-DOS/game compatibility, host keyboard and other profiles remain open. See the
+FAT12 image loaded into an isolated SDRAM buffer; its whole-machine test checks a DOS prompt and
+directory listing. An opt-in `fes.computer` 1.1 media path supports live
+read-only 360 KiB floppy insertion and eject in host simulation and runtime;
+the registered diagnostic package does not advertise that interface. Neither
+simulation qualifies the diagnostic package for BIOS or DOS boot on hardware.
+Live insertion does not restart the guest; initial boot media or a guest retry
+path, an in-play display plane, write persistence, DOS/game compatibility,
+host keyboard and other profiles remain open. See the
 [PC/XT diagnostic guide](../sources/misteross/cores/fes-pcxt/README.md#assembled-board-diagnostic).
 
 ## pc386 machine, phases M1 to M4

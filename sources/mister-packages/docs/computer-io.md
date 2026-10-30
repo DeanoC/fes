@@ -1,4 +1,4 @@
-# Home-computer I/O 1.0
+# Home-computer I/O 1.0 and 1.1
 
 `fes.computer` ABI 1.0, live tag 4, is approved on `fes-gp-v1`.
 [The YAML](../packages/abi/fes_computer.yaml) owns constants, emitted as
@@ -7,6 +7,12 @@
 unchanged. The consumers are the FES Apple II, the FES ZX Spectrum and the
 FES Commodore 64 and Atari 520ST. These definitions and the synthetic fixtures do not
 establish consumer or hardware acceptance.
+
+ABI 1.1 extends identity with a second capability word. It leaves the 1.0
+identity, opcodes and existing capability meanings unchanged. Endpoints opt
+in explicitly; 1.0 endpoints continue to report minor 0 and reject identity
+index 16. A host admits an endpoint only when it supports the declared ABI
+minor and compares every capability word required by that minor.
 
 A home computer differs from the existing ABIs in three ways: it has a full
 keyboard, it keeps running while media is changed, and it may have several
@@ -34,6 +40,7 @@ removable media by unit.
 | fes.video.session-display | 13 | In-session HDMI plane. Reuses menu opcodes 18–21. Advertised with the DDR window, and only on a computer that implements the plane |
 | fes.media.zx81-tape-write | 14 | Writable extension to the ZX81 tape. Captures the BASIC SAVE image; it does not require a loaded cassette |
 | fes.media.spectrum-disk | 15 | Media unit 1, beside the Spectrum tape: one raw track disk image, 8192..2834432 bytes |
+| fes.media.pcxt-floppy | 16 | Media unit 0: one read-only 360 KiB raw XT floppy; requires ABI 1.1 |
 
 A session display is also declared with the manifest-only
 `fes.fabric.video.display-plane` 1.0, which has no capability bit; see
@@ -62,10 +69,15 @@ toggle, then with the toggle inverted, and wait for GPI ACK bit 23 to equal the
 new toggle. GPI bits 31:24 are signature 0xf5, bit 22 is error, bits 15:0 the
 response. Successful mutating requests return zero.
 
-Identity is opcode 1 with index 0..15 and argument 0. The words are: 0/1 magic
+Identity is opcode 1 with index 0..15 and argument 0 in ABI 1.0. The words are: 0/1 magic
 0x4546/0x3153; 2/3 transport 1/0; 4 ABI tag 4; 5/6 ABI 1/0; 7 capabilities;
 8..15 build ID, two bytes per word, first byte low. Compare identity with the
 exact manifest before release or any input or media delivery.
+ABI 1.1 keeps those words at the same indices and adds index 16 as capability
+bits 16..31 (bit 0 of the returned word is capability bit 16). The minor at
+index 6 is 1. Index 16 is invalid on ABI 1.0; index 17 and above are invalid
+on ABI 1.1. A host reads the high capability word only after observing and
+accepting minor 1, and rejects any undeclared or unsupported live bits.
 
 Errors are invalid opcode=1, invalid index=2, invalid argument=3, invalid
 state=4. An opcode whose capability is absent returns invalid opcode. Every
@@ -74,7 +86,7 @@ in the order written below; the first failing check determines the error.
 
 | Opcode | Name | Index | Argument |
 | --- | --- | --- | --- |
-| 1 | Identity | word 0..15 | 0 |
+| 1 | Identity | word 0..15 (1.0), 0..16 (1.1) | 0 |
 | 2 | Execution | 0 | 0 hold reset, 1 release |
 | 3 | KeyboardHid | row 0..8 | 16-bit row state |
 | 4 | ControllerButtons | port 0..1 | 8-bit button mask |
@@ -364,6 +376,21 @@ Backend wait states do not alter mailbox framing: a successful MediaData
 acknowledgement follows its complete storage write, including a byte pair
 split across two memory words at an odd chunk boundary. Rejected requests
 acknowledge normally without writing. CPU Hold does not cancel media traffic.
+
+### fes.media.pcxt-floppy 1.0
+
+Unit 0 accepts exactly 368,640 bytes (Info minimum = maximum = 368,640): a
+raw 360 KiB XT floppy with 40 cylinders, two heads, nine sectors per track
+and 512 bytes per sector. Byte offset is
+`((cylinder * 2 + head) * 9 + sector - 1) * 512`, with cylinders 0..39,
+heads 0..1 and sectors 1..9. The medium is read-only; drive A reports write
+protection and drive B is absent. Flux or track images and other geometries
+are not this interface. Capability bit 16 identifies it and requires ABI 1.1.
+It shares unit 0 with the other computer media interfaces, so a shell may
+declare only one. The generic Begin, Data, Commit and Eject rules above apply
+while execution is held or running. A successful Data acknowledgement follows
+all accepted physical writes, and a removed or loading unit is not presented
+to the floppy controller.
 
 ## Audio
 

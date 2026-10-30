@@ -33,10 +33,11 @@ public:
 		unsigned opcode, index, argument;
 	};
 
-	ComputerEndpoint(std::uint16_t capabilities,
+	ComputerEndpoint(std::uint32_t capabilities,
 		std::map<unsigned, std::pair<std::uint32_t, std::uint32_t>> units,
-		const std::string& build_id = "00112233445566778899aabbccddeeff")
-		: capabilities_(capabilities)
+		const std::string& build_id = "00112233445566778899aabbccddeeff",
+		std::uint16_t abi_minor = 0)
+		: capabilities_(capabilities), abi_minor_(abi_minor)
 	{
 		for (const auto& unit : units) {
 			Unit value;
@@ -57,9 +58,14 @@ public:
 		using namespace mister::native::generated;
 		enum { opcode_error = 1, index_error = 2, argument_error = 3, state_error = 4 };
 		if (op == FesComputerOpcodeIdentity) {
-			if (index >= 16) return {index_error, 0};
+			if (index > FesComputerIdentityCapabilitiesHighIndex ||
+				(index == FesComputerIdentityCapabilitiesHighIndex && abi_minor_ < FesComputerExtendedAbiMinor))
+				return {index_error, 0};
 			if (arg) return {argument_error, 0};
-			const std::uint16_t words[8] = {0x4546, 0x3153, 1, 0, 4, 1, 0, capabilities_};
+			if (index == FesComputerIdentityCapabilitiesHighIndex)
+				return {0, static_cast<std::uint16_t>(capabilities_ >> 16)};
+			const std::uint16_t words[8] = {0x4546, 0x3153, 1, 0, 4, 1, abi_minor_,
+				static_cast<std::uint16_t>(capabilities_)};
 			return {0, index < 8 ? words[index] : build_words_[index - 8]};
 		}
 		if (op == FesComputerOpcodeExecution) {
@@ -156,10 +162,10 @@ public:
 			return {0, static_cast<std::uint16_t>(pair)};
 		}
 		const bool media_opcode = op >= FesComputerOpcodeMediaInfo && op <= FesComputerOpcodeMediaEject;
-		const unsigned media_bits = FesComputerCapabilityMediaApple2Floppy |
+		const std::uint32_t media_bits = FesComputerCapabilityMediaApple2Floppy |
 			FesComputerCapabilityMediaC64Disk | FesComputerCapabilityMediaSpectrumTape |
 			FesComputerCapabilityMediaAtariStFloppy | FesComputerCapabilityMediaZx81Tape |
-			FesComputerCapabilityMediaSpectrumDisk;
+			FesComputerCapabilityMediaSpectrumDisk | FesComputerCapabilityMediaPcxtFloppy;
 		if (media_opcode && !(capabilities_ & media_bits))
 			return {opcode_error, 0};
 		if (op == FesComputerOpcodeMediaInfo) {
@@ -380,7 +386,8 @@ private:
 		ordinal_ = 0;
 	}
 
-	std::uint16_t capabilities_;
+	std::uint32_t capabilities_;
+	std::uint16_t abi_minor_;
 	std::vector<std::uint16_t> build_words_;
 	std::map<unsigned, Unit> units_;
 	int begin_unit_ = -1;

@@ -35,7 +35,7 @@ func TestDiskMediaProjectionFollowsTheFloppyContract(t *testing.T) {
 			Interfaces: []corepackage.Interface{{ID: "fes.media.blob", Major: 1, Required: true}}},
 		"floppy on simple computer": {ABI: corepackage.Contract{ID: "fes.simple-computer", Major: 1},
 			Interfaces: []corepackage.Interface{{ID: "fes.media.apple2-floppy", Major: 1, Required: true}}},
-		"future abi": {ABI: corepackage.Contract{ID: "fes.computer", Major: 1, Minor: 1},
+		"future abi": {ABI: corepackage.Contract{ID: "fes.computer", Major: 1, Minor: 2},
 			Interfaces: []corepackage.Interface{{ID: "fes.media.apple2-floppy", Major: 1, Required: true}}},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -43,6 +43,49 @@ func TestDiskMediaProjectionFollowsTheFloppyContract(t *testing.T) {
 				t.Fatalf("projected %+v", got)
 			}
 		})
+	}
+}
+
+func TestPcxtFloppyRequiresExtendedComputerAndExactGeometry(t *testing.T) {
+	descriptor := apple2Descriptor(corepackage.Interface{ID: PcxtFloppyInterface().ID, Major: 1, Required: true})
+	if got := DeclaredCoreMediaCapabilities(descriptor); len(got) != 0 {
+		t.Fatalf("1.0 advertised extended floppy: %+v", got)
+	}
+	descriptor.ABI.Minor = 1
+	got := DeclaredCoreMediaCapabilities(descriptor)
+	if len(got) != 1 || got[0].Format != "pcxt-floppy" || got[0].MinBytes != 368640 || got[0].MaxBytes != 368640 || got[0].Interface != PcxtFloppyInterface() {
+		t.Fatalf("PC floppy projection: %+v", got)
+	}
+	if !ComputerABI("fes.computer", 1, 0) || !ComputerABI("fes.computer", 1, 1) || ComputerABI("fes.computer", 1, 2) || ComputerABI("fes.computer", 1, -1) {
+		t.Fatal("computer ABI admission differs")
+	}
+	for _, name := range []string{"boot.img", "DOS.IMA"} {
+		if !AdmitPcxtFloppyName(name) || !AdmitLiveMediaName(name) {
+			t.Fatalf("PC floppy name rejected: %q", name)
+		}
+	}
+	for _, name := range []string{"disk.st", "disk.img.gz", "../disk.img", `dir\disk.ima`} {
+		if AdmitPcxtFloppyName(name) {
+			t.Fatalf("PC floppy name accepted: %q", name)
+		}
+	}
+	unit := MediaUnitStatus{Unit: PcxtFloppyUnit, Interface: PcxtFloppyInterface(), MinBytes: 368640, MaxBytes: 368640, ChunkBytes: 512, State: MediaUnitReady}
+	status := computerStatus(unit)
+	status.CorePackage.ActiveInterfaces = []RuntimeInterface{{ID: PcxtFloppyInterface().ID, Major: 1}}
+	if _, ok := MediaUnit(status.CorePackage, 0); ok {
+		t.Fatal("1.0 live identity accepted extended floppy")
+	}
+	status.CorePackage.ABI.Minor = 1
+	binding := MediaUnitBinding{PackageID: status.CorePackage.PackageID, Generation: 3}
+	if !binding.Matches(status) || !binding.AcceptsSize(status, 368640) || binding.AcceptsSize(status, 368639) {
+		t.Fatal("PC floppy binding or exact-size admission differs")
+	}
+	for _, change := range []func(*MediaUnitStatus){func(u *MediaUnitStatus) { u.MinBytes-- }, func(u *MediaUnitStatus) { u.MaxBytes++ }, func(u *MediaUnitStatus) { u.Unit = 1 }, func(u *MediaUnitStatus) { u.ChunkBytes = 256 }} {
+		bad := unit
+		change(&bad)
+		if bad.Valid() {
+			t.Fatalf("invalid PC floppy unit accepted: %+v", bad)
+		}
 	}
 }
 

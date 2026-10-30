@@ -21,12 +21,14 @@ func loadFesComputer(t *testing.T) *ABIFile {
 
 func TestFesComputerContract(t *testing.T) {
 	abi := loadFesComputer(t)
-	if abi.ID != "fes.computer" || abi.Tag != 4 || abi.Major != 1 || abi.Minor != 0 {
+	if abi.ID != "fes.computer" || abi.Tag != 4 || abi.Major != 1 || abi.Minor != 1 {
 		t.Fatalf("ABI identity %s tag %d %d.%d", abi.ID, abi.Tag, abi.Major, abi.Minor)
 	}
 	for name, want := range map[string]uint32{
 		"FesComputerAbiTag": uint32(abi.Tag), "FesComputerAbiMajor": uint32(abi.Major),
-		"FesComputerAbiMinor": uint32(abi.Minor), "FesComputerSignature": 0xf5000000,
+		"FesComputerAbiMinor": 0, "FesComputerExtendedAbiMinor": uint32(abi.Minor),
+		"FesComputerIdentityCapabilitiesHighIndex": 16, "FesComputerIdentityExtendedWordCount": 17,
+		"FesComputerSignature":         0xf5000000,
 		"FesComputerOpcodeKeyboardHid": 3, "FesComputerOpcodeControllerButtons": 4,
 		"FesComputerOpcodeMediaInfo": 5, "FesComputerOpcodeMediaBegin": 6,
 		"FesComputerOpcodeMediaChunk": 7, "FesComputerOpcodeMediaData": 8,
@@ -42,6 +44,7 @@ func TestFesComputerContract(t *testing.T) {
 		"FesComputerSpectrumTapeUnit": 0, "FesComputerSpectrumTapeMinBytes": 10,
 		"FesComputerSpectrumTapeMaxBytes": 16777216,
 		"FesComputerC64DiskUnit":          0, "FesComputerC64DiskBytes": 174848,
+		"FesComputerPcxtFloppyUnit": 0, "FesComputerPcxtFloppyBytes": 368640,
 		"FesComputerAtariStFloppyUnit": 0, "FesComputerAtariStFloppyBytes": 737280,
 		"FesComputerAtariStFloppyGeometryMinBytes": 368640, "FesComputerAtariStFloppyGeometryMaxBytes": 839680,
 		"FesComputerAtariStFloppyGeometryMinTracks": 80, "FesComputerAtariStFloppyGeometryMaxTracks": 82,
@@ -68,6 +71,7 @@ func TestFesComputerContract(t *testing.T) {
 		{"fes.media.atari-st-floppy-geometry", 10, 1}, {"fes.media.zx81-tape", 11, 1},
 		{"fes.memory.hps-ddr", 12, 1}, {"fes.video.session-display", 13, 1},
 		{"fes.media.zx81-tape-write", 14, 1}, {"fes.media.spectrum-disk", 15, 1},
+		{"fes.media.pcxt-floppy", 16, 1},
 	}
 	if len(abi.Interfaces) != len(want) {
 		t.Fatalf("interfaces = %+v", abi.Interfaces)

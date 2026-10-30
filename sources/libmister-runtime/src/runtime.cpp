@@ -83,7 +83,8 @@ std::vector<SupportedInterface> ActiveInterfaces(
 	std::vector<SupportedInterface> result;
 	for (const SupportedABI& abi : capabilities.abis) {
 		if (abi.id != descriptor.abi.id || abi.major != descriptor.abi.major ||
-			abi.minor != descriptor.abi.minor) continue;
+			(abi.minor != descriptor.abi.minor &&
+				!(abi.id == native::generated::FesComputerABIID && descriptor.abi.minor < abi.minor))) continue;
 		for (const CoreInterface& declared : descriptor.interfaces) {
 			for (const SupportedInterface& supported : abi.interfaces) {
 				if (declared.id == supported.id &&

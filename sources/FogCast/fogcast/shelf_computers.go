@@ -82,11 +82,14 @@ func (s *Service) ShelfComputers(ctx context.Context) ([]ShelfComputer, error) {
 }
 
 func shelfPlayableABI(abi corepackage.Contract) bool {
+	if abi.ID == "fes.computer" {
+		return protocol.ComputerABI(abi.ID, abi.Major, abi.Minor)
+	}
 	if abi.Major != 1 || abi.Minor != 0 {
 		return false
 	}
 	switch abi.ID {
-	case "fes.application", "fes.simple-game", "fes.simple-computer", "fes.computer":
+	case "fes.application", "fes.simple-game", "fes.simple-computer":
 		return true
 	default:
 		return false

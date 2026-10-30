@@ -298,12 +298,11 @@ that fixture is not a production firmware admission path.
 
 The optional floppy profile uses physical SDRAM byte addresses
 `100000–159FFF` for a read-only 360 KiB image, outside the guest address map.
-Its separate upload port accepts ordered bytes only while reset is asserted;
-the system holds the machine in reset and hides the medium until every byte,
-including the last physical write, has completed. Warm reset retains the
-image; cold reset invalidates it. CPU/DMA and floppy reads share the controller
-with bounded arbitration and refresh. A fixed boot image cannot be replaced
-without cold reset; this is not a runtime mount or eject interface.
+Ordered host uploads can run while the guest runs, and the medium stays hidden
+until every byte has physically completed and the mailbox commits the image.
+CPU/DMA, floppy reads and uploads share the controller with bounded arbitration
+and refresh; an outstanding floppy read drains before an overwrite. Warm reset
+retains the image and cold reset invalidates it.
 
 `cold_reset` restarts controller initialization and cancels all responses. It
 must assert during startup; the caller holds the CPU/motherboard reset until
@@ -545,18 +544,33 @@ python3 scripts/build_pcxt_freedos_image.py --download
 python3 scripts/sim_fes_pcxt_dos.py --bios /absolute/GLABIOS_0.4.2_8X.ROM --disk /absolute/freedos-360.img
 ```
 
-The whole-machine test loads the pinned GLaBIOS and complete floppy image
-through the real SDRAM controller, enables the floppy adapter and checks that
+The optional `ENABLE_PCXT_MEDIA` shell profile connects `fes.computer` 1.1's
+`fes.media.pcxt-floppy` unit 0 through a little-endian mailbox writer to this
+SDRAM buffer. Begin and eject hide the medium without resetting the running
+guest; aborted uploads can be ejected and restarted. This path accepts only
+the 360 KiB raw geometry and reports write protection. The standard diagnostic
+package does not enable this profile or advertise PC floppy media. Inserting a
+disk into a running guest does not reset it or automatically restart its boot.
+The current shell also lacks a session-display plane and a host keyboard path;
+a bootable package needs an initial-media or guest retry/reset path as well as
+those interfaces.
+
+The whole-machine test loads the pinned GLaBIOS and sends the complete floppy
+image through the runtime mailbox and real SDRAM controller before releasing
+the guest, enables the floppy adapter and checks that
 the disk's boot sector arrives at `0000:7C00` through DMA2. It compares every
 uploaded byte and every returned disk byte with the selected image, and checks
 that warm reset retains the medium and cold reset invalidates its admission.
 It is designed to require a DOS prompt, type `DIR` over the simulated XT
 keyboard and check `FESXT.TXT` in both text memory and the captured display.
 The runner validates the selected disk's boot code, FAT12 layout and file
-contents against the lock and records the actual disk hash. Outputs are under
+contents against the lock and records the actual disk hash. It also ejects,
+abandons a partial transfer and reloads the image while the DOS session runs.
+`make sim-fes-pcxt-media` covers identity, mailbox reset, live replacement,
+odd chunk boundaries and host/guest SDRAM contention. Outputs are under
 `build/sim/fes-pcxt/dos/`. This is host simulation; the registered diagnostic
-package does not connect the floppy media service. There is no PC floppy runtime
-media ABI, write persistence or hardware acceptance for this path.
+package does not connect the floppy media service. There is no bootable package,
+write persistence or hardware acceptance for this path.
 
 ## Assembled board diagnostic
 

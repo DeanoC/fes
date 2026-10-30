@@ -142,6 +142,7 @@ class SimulationMatrixTests(unittest.TestCase):
         self.assertEqual(rows, [{'core': 'pcxt', 'target': 'sim-fes-pcxt'},
                                 {'core': 'pcxt', 'target': 'sim-fes-pcxt-bios'},
                                 {'core': 'pcxt', 'target': 'sim-fes-pcxt-fdc'},
+                                {'core': 'pcxt', 'target': 'sim-fes-pcxt-media'},
                                 {'core': 'pcxt', 'target': 'sim-fes-pcxt-dos'}])
 
     def test_selected_families_only_and_no_empty_placeholder(self):

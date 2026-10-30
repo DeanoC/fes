@@ -94,7 +94,7 @@ int main(int argc, char **argv) {
             if(d.keyboard_clock_low) {if(held<2000000)++held;}
             else {if(held>=2000000)keys.push_back(0xaa);held=0;}
         }
-        d.code_valid=!keys.empty();d.code=keys.empty()?0:keys.front();
+        d.code_valid=!keys.empty();d.key_code=keys.empty()?0:keys.front();
         if(cycles%50000000==0) {
             std::cerr<<"cycles="<<cycles<<" IP="<<std::hex<<ip<<" BP="<<flags<<std::dec
                      <<" IO="<<io_count<<" BAT="<<bat_reads<<"\n";
@@ -103,8 +103,8 @@ int main(int argc, char **argv) {
         require(d.fault==0,"CPU/ISA/DMA fault",cycles);
         require(cycles<2000000000ULL,"BIOS POST timeout",cycles);
     };
-    d.cold_reset=d.reset_pixel=1;d.warm_reset=0;d.hold=0;d.firmware_valid=0;d.code_valid=0;d.code=0;
-    d.media_present=0;d.disk_load_valid=0;d.disk_load_address=0;d.disk_load_data=0;
+    d.cold_reset=d.reset_pixel=1;d.warm_reset=0;d.hold=0;d.firmware_valid=0;d.code_valid=0;d.key_code=0;
+    d.media_present=0;d.disk_restart=0;d.disk_load_valid=0;d.disk_load_address=0;d.disk_load_data=0;d.media_gpo=0;
     for(unsigned i=0;i<32;++i)step();
     ram.cold_reset();d.cold_reset=d.reset_pixel=0;
     while(!d.initialized)step();

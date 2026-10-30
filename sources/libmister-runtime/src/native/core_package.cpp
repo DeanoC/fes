@@ -946,7 +946,7 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 	}
 	if (descriptor.abi.id == FesComputerABIID &&
 		descriptor.abi.major == FesComputerABIMajor) {
-		if (descriptor.abi.minor > FesComputerABIMinor || !descriptor.core.system.empty())
+		if (descriptor.abi.minor > FesComputerExtendedAbiMinor || !descriptor.core.system.empty())
 			return CompatibilityError(ErrorCode::unsupported_abi,
 				"unsupported FES computer ABI or system declaration");
 		// Execution is released right after identity: there is no media gate
@@ -973,6 +973,7 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 			const bool media = interface.id == FesComputerInterfaceMediaApple2FloppyID ||
 				interface.id == FesComputerInterfaceMediaC64DiskID ||
 				interface.id == FesComputerInterfaceMediaAtariStFloppyID ||
+				interface.id == FesComputerInterfaceMediaPcxtFloppyID ||
 				interface.id == FesComputerInterfaceMediaSpectrumTapeID ||
 				interface.id == FesComputerInterfaceMediaZx81TapeID;
 			const bool known = interface.id == FesComputerInterfaceVideoFixed720p60ID ||
@@ -1003,6 +1004,10 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 			if (!interface.required)
 				return CompatibilityError(ErrorCode::unsupported_interface,
 					"computer operational interfaces must be required when declared");
+			if (interface.id == FesComputerInterfaceMediaPcxtFloppyID &&
+				descriptor.abi.minor < FesComputerExtendedAbiMinor)
+				return CompatibilityError(ErrorCode::unsupported_abi,
+					"PC/XT floppy requires FES computer extended identity");
 			if (interface.id == FesComputerInterfaceVideoFixed720p60ID) video = true;
 			if (interface.id == FesComputerInterfaceMemoryHpsDdrID) ddr = true;
 			if (interface.id == FesComputerInterfaceVideoSessionDisplayID) display = true;

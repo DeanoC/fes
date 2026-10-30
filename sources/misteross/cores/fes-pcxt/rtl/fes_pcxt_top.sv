@@ -5,6 +5,7 @@ module top #(
     parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0,
     parameter bit PHASED_HDMI_CLOCK = 0,
     parameter bit ENABLE_FES_COMPUTER = 0,
+    parameter bit ENABLE_PCXT_MEDIA = 0,
     parameter [127:0] BUILD_ID = 128'h00000000000000000000000000000000
 ) (
     input wire FPGA_CLK1_50,
@@ -79,21 +80,45 @@ module top #(
         assign board_reset_live = sys_reset[1];
     end endgenerate
     wire exec_reset;
+    wire media_present, disk_restart, disk_load_valid, disk_load_ready, disk_load_done, disk_loaded;
+    wire [18:0] disk_load_address;
+    wire [7:0] disk_load_data;
     generate if (ENABLE_FES_COMPUTER) begin: fes_computer_runtime
         wire [31:0] fpga_to_hps, hps_to_fpga;
         cyclonev_hps_interface_mpu_general_purpose hps_gp (
             .gp_in(fpga_to_hps), .gp_out(hps_to_fpga));
-        fes_computer_mailbox gp_mailbox (
-            .clk(clk), .gpo(hps_to_fpga), .build_id(BUILD_ID), .gpi(fpga_to_hps),
-            .exec_reset(exec_reset), .keyboard_rows(), .controller_buttons(),
-            .mouse_valid(), .mouse_dx(), .mouse_dy(), .mouse_buttons(), .mouse_ready(1'b0),
-            .media_write_addr(), .media_write_data(), .media_write_enable(),
-            .media_write_ready(1'b1), .media_write_busy(1'b0), .media_changed(1'b0),
-            .media_frozen(), .media_read_req(), .media_read_addr(),
-            .media_read_ready(1'b0), .media_read_data(8'd0),
-            .unit0_state(), .unit0_size());
+        if (ENABLE_PCXT_MEDIA) begin: pcxt_floppy
+            wire [18:0] source_addr;
+            wire [15:0] source_data;
+            wire [1:0] source_enable, unit_state;
+            wire source_ready;
+            fes_computer_mailbox_pcxt gp_mailbox (
+                .clk(clk_memory), .gpo(hps_to_fpga), .build_id(BUILD_ID), .gpi(fpga_to_hps),
+                .exec_reset(exec_reset), .media_reset(board_reset_live),
+                .media_write_addr(source_addr), .media_write_data(source_data),
+                .media_write_enable(source_enable), .media_write_ready(source_ready),
+                .media_write_busy(1'b0), .unit0_state(unit_state), .unit0_size());
+            pcxt_media media (
+                .clk(clk_memory), .cold_reset(board_reset_live), .unit_state(unit_state),
+                .source_addr(source_addr), .source_data(source_data), .source_enable(source_enable),
+                .source_ready(source_ready), .disk_restart(disk_restart), .media_present(media_present),
+                .disk_loaded(disk_loaded), .disk_valid(disk_load_valid), .disk_address(disk_load_address),
+                .disk_data(disk_load_data), .disk_ready(disk_load_ready), .disk_done(disk_load_done));
+        end else begin: diagnostic_mailbox
+            fes_computer_mailbox gp_mailbox (
+                .clk(clk), .gpo(hps_to_fpga), .build_id(BUILD_ID), .gpi(fpga_to_hps),
+                .exec_reset(exec_reset), .keyboard_rows(), .controller_buttons(),
+                .mouse_valid(), .mouse_dx(), .mouse_dy(), .mouse_buttons(), .mouse_ready(1'b0),
+                .media_write_addr(), .media_write_data(), .media_write_enable(),
+                .media_write_ready(1'b1), .media_write_busy(1'b0), .media_changed(1'b0),
+                .media_frozen(), .media_read_req(), .media_read_addr(),
+                .media_read_ready(1'b0), .media_read_data(8'd0),
+                .unit0_state(), .unit0_size());
+            assign {media_present,disk_restart,disk_load_valid,disk_load_address,disk_load_data} = '0;
+        end
     end else begin: standalone_diagnostic
         assign exec_reset = 1'b0;
+        assign {media_present,disk_restart,disk_load_valid,disk_load_address,disk_load_data} = '0;
     end endgenerate
     wire firmware_valid, firmware_ready, firmware_done;
     wire [15:0] firmware_address;
@@ -106,9 +131,11 @@ module top #(
     wire [15:0] dq_out, dq_sample;
     wire dq_oe;
     /* verilator lint_off PINCONNECTEMPTY */
-    pcxt_system #(.MDA(MDA), .SCANLINES(SCANLINES), .HALF_RATE_BOARD(HALF_RATE_BOARD), .EXTERNAL_CS_REGISTER(HALF_RATE_BOARD)) system (
-        .media_present(1'b0), .disk_load_valid(1'b0), .disk_load_address(19'b0),
-        .disk_load_data(8'b0), .disk_load_ready(), .disk_load_done(), .disk_loaded(),
+    pcxt_system #(.MDA(MDA), .SCANLINES(SCANLINES), .HALF_RATE_BOARD(HALF_RATE_BOARD),
+                  .FLOPPY(ENABLE_FES_COMPUTER && ENABLE_PCXT_MEDIA), .EXTERNAL_CS_REGISTER(HALF_RATE_BOARD)) system (
+        .media_present(media_present), .disk_restart(disk_restart), .disk_load_valid(disk_load_valid),
+        .disk_load_address(disk_load_address), .disk_load_data(disk_load_data),
+        .disk_load_ready(disk_load_ready), .disk_load_done(disk_load_done), .disk_loaded(disk_loaded),
         .keyboard_clock(1'b1), .keyboard_data(1'b0),
         .keyboard_clock_low(), .keyboard_data_low(), .keyboard_clear(),
         .cga_font_address(), .mda_font_address(),

@@ -214,14 +214,13 @@ func zx81SessionDisplayDescriptor(descriptor corepackage.Descriptor, activeInter
 	ddr := interfaceAvailable("fes.memory.hps-ddr")
 	blob := interfaceAvailable("fes.media.blob")
 	tape := interfaceAvailable("fes.media.zx81-tape")
-	media := descriptor.ABI.Major == 1 && descriptor.ABI.Minor == 0 &&
-		((descriptor.ABI.ID == "fes.simple-computer" && blob) || (descriptor.ABI.ID == "fes.computer" && tape))
+	media := (descriptor.ABI == (corepackage.Contract{ID: "fes.simple-computer", Major: 1}) && blob) ||
+		(corepackage.SupportedComputerABI(descriptor.ABI) && tape)
 	return display && ddr && media
 }
 
 func zx81RearSocket(descriptor corepackage.Descriptor) bool {
-	if descriptor.ABI.Major != 1 || descriptor.ABI.Minor != 0 ||
-		(descriptor.ABI.ID != "fes.simple-computer" && descriptor.ABI.ID != "fes.computer") {
+	if descriptor.ABI != (corepackage.Contract{ID: "fes.simple-computer", Major: 1}) && !corepackage.SupportedComputerABI(descriptor.ABI) {
 		return false
 	}
 	for _, contract := range descriptor.Interfaces {

@@ -44,7 +44,7 @@ struct Simulation {
         return result;
     }
     void disk_load(unsigned a, unsigned data, unsigned hold=0) {
-        d.disk_load_address=a; d.disk_load_data=data; d.disk_load_valid=1;
+        d.disk_load_address=a; d.disk_load_data=data; d.disk_load_valid=1; d.eval();
         for(unsigned i=0; !d.disk_load_ready && i<1000; ++i) step();
         require(d.disk_load_ready,"disk upload admission timeout",cycles); step();
         d.disk_load_address=0; d.disk_load_data=~data; // accepted payload is retained
@@ -149,9 +149,10 @@ int main(int argc,char** argv) {
     require(!d.disk_load_ready && !d.disk_load_done && s.ram.writes==writes,
             "out-of-range upload accepted",s.cycles);
     d.disk_load_valid=0; d.reset=0; s.step();
-    d.disk_load_address=0; d.disk_load_valid=1; s.idle(80);
-    require(!d.disk_load_ready && !d.disk_load_done,"live disk upload admitted",s.cycles);
-    d.disk_load_valid=0; s.step();
+    // Runtime upload is allowed while the guest runs; its accepted write
+    // uses the same physical buffer and does not reset the guest.
+    s.disk_load(6,0x79,35);
+    require(s.disk_read(6)==0x79,"live disk upload did not complete",s.cycles);
     for(unsigned a: {0u,1u,2u,3u,0x1ffffu,0x20000u,0x3ffffu,0x40000u,0x59ffeu,0x59fffu})
         require(s.disk_read(a,35)==((a^0x5b)&255),"disk byte/physical mapping",s.cycles);
     reads=s.ram.reads;
@@ -165,7 +166,7 @@ int main(int argc,char** argv) {
     d.reset=1; d.media_read_addr=0; d.media_read_valid=1;
     reads=s.ram.reads; s.idle(80);
     require(!d.media_read_ready && s.ram.reads==reads,"disk read admitted during reset",s.cycles);
-    d.media_read_valid=0;
+    d.media_read_valid=0; d.eval();
     d.firmware_address=0x4321; d.firmware_data=0xe1; d.firmware_valid=1;
     d.disk_load_address=4; d.disk_load_data=0x71; d.disk_load_valid=1; d.eval();
     require(d.firmware_ready && !d.disk_load_ready,"simultaneous upload priority",s.cycles);
@@ -193,6 +194,24 @@ int main(int argc,char** argv) {
     d.disk_load_valid=0; s.step();
     require(s.request(0xf4321)==0xe1 && s.disk_read(4)==0x71 && s.disk_read(5)==0x72,
             "contending/retired uploads corrupted data",s.cycles);
+    // Ejection can race an accepted device byte. Do not overwrite while its
+    // request is held, including the completion cycle.
+    d.media_read_addr=1; d.media_read_valid=1;
+    d.disk_load_address=7; d.disk_load_data=0x73; d.disk_load_valid=1;
+    d.eval();
+    bool fetched=false;
+    for(unsigned i=0;i<1000 && !fetched;++i) {
+        require(!d.disk_load_ready,"upload passed outstanding media read",s.cycles);
+        s.step(); fetched=d.media_read_ready;
+    }
+    require(fetched && d.media_read_data==0x5a,"pending media read did not drain",s.cycles);
+    require(!d.disk_load_ready,"upload passed held completed media request",s.cycles);
+    d.media_read_valid=0; d.eval();
+    for(unsigned i=0;!d.disk_load_ready && i<1000;++i) s.step();
+    require(d.disk_load_ready,"upload did not resume after media drain",s.cycles);
+    s.step(); d.disk_load_valid=0;
+    for(unsigned i=0;!d.disk_load_done && i<1000;++i) s.step();
+    require(d.disk_load_done && s.disk_read(7)==0x73,"upload after media drain",s.cycles);
     // An accepted media read drains on warm reset but must never report a
     // stale completion, even if reset releases before the SDRAM response.
     for(unsigned offset=0;offset<80;++offset) {

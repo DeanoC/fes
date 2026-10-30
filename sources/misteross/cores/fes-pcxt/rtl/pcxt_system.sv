@@ -5,11 +5,12 @@ module pcxt_system #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0, 
     parameter [7:0] SWITCHES = 8'h2d) (
     input wire clk, clk_cpu, clk_pixel, clk_pin, cold_reset, reset_pixel, warm_reset, hold,
     input wire media_present,
+    input wire disk_restart,
     input wire disk_load_valid,
     output wire disk_load_ready, disk_load_done,
     input wire [18:0] disk_load_address,
     input wire [7:0] disk_load_data,
-    output reg disk_loaded,
+    output wire disk_loaded,
     input wire keyboard_clock, keyboard_data,
     output wire keyboard_clock_low, keyboard_data_low, keyboard_clear,
     output wire [11:0] cga_font_address, mda_font_address,
@@ -53,24 +54,27 @@ module pcxt_system #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0, 
     assign firmware_ready = loader_ready && !firmware_loaded && !loading &&
                             firmware_address == next_address;
     assign firmware_done = loader_done;
-    // A disk is visible only after its entire 360 KiB image has completed
-    // ordered physical writes. Cold reset invalidates the image; warm reset
-    // retains it. Invalid or out-of-order requests are never acknowledged.
-    localparam [18:0] DISK_LAST = 19'h59fff;
-    reg [18:0] disk_next_address;
-    reg disk_loading;
     wire disk_storage_ready, disk_storage_done;
-    wire disk_storage_valid = FLOPPY && disk_load_valid && !disk_loaded && !disk_loading &&
-                              disk_load_address == disk_next_address;
-    assign disk_load_ready = FLOPPY && disk_storage_ready && !disk_loaded && !disk_loading &&
-                             disk_load_address == disk_next_address;
-    assign disk_load_done = disk_storage_done;
+    wire disk_storage_valid;
+    generate if (FLOPPY) begin: floppy_loader
+        pcxt_disk_loader loader (
+            .clk(clk), .cold_reset(cold_reset), .restart(disk_restart),
+            .load_valid(disk_load_valid), .load_ready(disk_load_ready), .load_done(disk_load_done),
+            .load_address(disk_load_address), .loaded(disk_loaded),
+            .storage_valid(disk_storage_valid), .storage_ready(disk_storage_ready), .storage_done(disk_storage_done)
+        );
+    end else begin: no_floppy_loader
+        assign disk_loaded = 1'b0;
+        assign disk_load_ready = 1'b0;
+        assign disk_load_done = 1'b0;
+        assign disk_storage_valid = 1'b0;
+        wire unused_disk = &{1'b0, disk_restart, disk_load_valid, disk_storage_ready, disk_storage_done};
+    end endgenerate
     // Keep the storage/firmware status decode out of the motherboard's reset
     // fanout and PIC priority logic. All execution participants share this
     // registered reset; storage cold reset remains immediate and independent.
     always @(posedge clk)
-        machine_reset <= cold_reset || warm_reset || hold || !firmware_loaded || !initialized ||
-                         (FLOPPY && !disk_loaded);
+        machine_reset <= cold_reset || warm_reset || hold || !firmware_loaded || !initialized;
     always @(posedge clk) begin
         if (cold_reset) begin firmware_loaded <= 0; next_address <= 0; loading <= 0; end
         else begin
@@ -79,17 +83,6 @@ module pcxt_system #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0, 
                 loading <= 0;
                 if (&next_address) firmware_loaded <= 1;
                 else next_address <= next_address + 1'b1;
-            end
-        end
-    end
-    always @(posedge clk) begin
-        if (cold_reset) begin disk_loaded <= 0; disk_next_address <= 0; disk_loading <= 0; end
-        else begin
-            if (disk_storage_valid && disk_storage_ready) disk_loading <= 1;
-            if (disk_storage_done) begin
-                disk_loading <= 0;
-                if (disk_next_address == DISK_LAST) disk_loaded <= 1;
-                else disk_next_address <= disk_next_address + 1'b1;
             end
         end
     end

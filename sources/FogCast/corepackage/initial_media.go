@@ -53,7 +53,7 @@ func inspectInitialMedia(d Descriptor, media *InitialMedia) (*initialMediaReceip
 // ValidateWritableAtariStLibraryDiskPackage checks the descriptor contract
 // required to bind and persist a library drive-A disk.
 func ValidateWritableAtariStLibraryDiskPackage(d Descriptor) error {
-	if d.Format != 3 || d.ROM == nil || d.ROM.Role != "firmware" || d.Core.ID != "fes.atari-st" || d.ABI != (Contract{ID: "fes.computer", Major: 1}) {
+	if d.Format != 3 || d.ROM == nil || d.ROM.Role != "firmware" || d.Core.ID != "fes.atari-st" || !SupportedComputerABI(d.ABI) {
 		return errors.New("initial disk requires a format-3 ST computer firmware package")
 	}
 	base, write := false, false

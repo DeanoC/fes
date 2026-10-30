@@ -14,7 +14,7 @@ namespace generated {
 
 constexpr const char* FesComputerABIID = "fes.computer";
 constexpr std::uint16_t FesComputerABIMajor = 1u;
-constexpr std::uint16_t FesComputerABIMinor = 0u;
+constexpr std::uint16_t FesComputerABIMinor = 1u;
 constexpr std::uint16_t FesComputerABITag = 4u;
 constexpr std::uint32_t FesComputerSignature = 0xf5000000u;
 constexpr std::uint32_t FesComputerRequestMask = 0x80000000u;
@@ -31,6 +31,7 @@ constexpr std::uint32_t FesComputerTransportMinor = 0x0u;
 constexpr std::uint32_t FesComputerAbiTag = 0x4u;
 constexpr std::uint32_t FesComputerAbiMajor = 0x1u;
 constexpr std::uint32_t FesComputerAbiMinor = 0x0u;
+constexpr std::uint32_t FesComputerExtendedAbiMinor = 0x1u;
 constexpr std::uint32_t FesComputerIdentityMagic0Index = 0x0u;
 constexpr std::uint32_t FesComputerIdentityMagic1Index = 0x1u;
 constexpr std::uint32_t FesComputerIdentityTransportMajorIndex = 0x2u;
@@ -41,6 +42,8 @@ constexpr std::uint32_t FesComputerIdentityAbiMinorIndex = 0x6u;
 constexpr std::uint32_t FesComputerIdentityCapabilitiesIndex = 0x7u;
 constexpr std::uint32_t FesComputerIdentityBuildIDStartIndex = 0x8u;
 constexpr std::uint32_t FesComputerIdentityWordCount = 0x10u;
+constexpr std::uint32_t FesComputerIdentityCapabilitiesHighIndex = 0x10u;
+constexpr std::uint32_t FesComputerIdentityExtendedWordCount = 0x11u;
 constexpr std::uint32_t FesComputerOpcodeIdentity = 0x1u;
 constexpr std::uint32_t FesComputerOpcodeExecution = 0x2u;
 constexpr std::uint32_t FesComputerOpcodeKeyboardHid = 0x3u;
@@ -135,6 +138,8 @@ constexpr std::uint32_t FesComputerZx81TapeLayoutMajor = 0x1u;
 constexpr std::uint32_t FesComputerZx81TapeLayoutMinor = 0x0u;
 constexpr std::uint32_t FesComputerC64DiskUnit = 0x0u;
 constexpr std::uint32_t FesComputerC64DiskBytes = 0x2ab00u;
+constexpr std::uint32_t FesComputerPcxtFloppyUnit = 0x0u;
+constexpr std::uint32_t FesComputerPcxtFloppyBytes = 0x5a000u;
 constexpr std::uint32_t FesComputerSpectrumDiskUnit = 0x1u;
 constexpr std::uint32_t FesComputerSpectrumDiskMinBytes = 0x2000u;
 constexpr std::uint32_t FesComputerSpectrumDiskMaxBytes = 0x2b4000u;
@@ -214,6 +219,10 @@ constexpr const char* FesComputerInterfaceMediaSpectrumDiskID = "fes.media.spect
 constexpr std::uint16_t FesComputerInterfaceMediaSpectrumDiskMajor = 1u;
 constexpr std::uint16_t FesComputerInterfaceMediaSpectrumDiskMinor = 0u;
 constexpr std::uint32_t FesComputerCapabilityMediaSpectrumDisk = 0x8000u;
+constexpr const char* FesComputerInterfaceMediaPcxtFloppyID = "fes.media.pcxt-floppy";
+constexpr std::uint16_t FesComputerInterfaceMediaPcxtFloppyMajor = 1u;
+constexpr std::uint16_t FesComputerInterfaceMediaPcxtFloppyMinor = 0u;
+constexpr std::uint32_t FesComputerCapabilityMediaPcxtFloppy = 0x10000u;
 
 } // namespace generated
 } // namespace native

@@ -355,11 +355,13 @@ bit 11 and the shared running-machine display layout. It is distinct from the
 idle MENU capability at bit 9. The in-tree runtime consumer revision is
 recorded in `testdata/oracles/fes-application-session-display.json`.
 
-`packages/abi/fes_computer.yaml` adds ABI `fes.computer` 1.0, tag 4, on
+`packages/abi/fes_computer.yaml` defines ABI `fes.computer` through 1.1, tag 4, on
 `fes-gp-v1`, with the `FesComputer` prefix. It carries USB HID key state,
 controller ports, fixed audio and removable media units that transfer and eject
 while execution runs. See [home-computer I/O](computer-io.md). It adds one
-registry pair and no manifest-schema change.
+registry pair and no manifest-schema change. Version 1.1 adds identity index
+16 for the upper capability word; 1.0 endpoints retain their exact identity.
+The read-only `fes.media.pcxt-floppy` requires 1.1 and uses capability bit 16.
 
 The optional registry extension `fes.media.blob-stream` 1.0 uses capability
 bit 3 and opcodes 7..12. See [the stream wire contract](media-stream.md).

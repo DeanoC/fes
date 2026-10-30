@@ -8,7 +8,7 @@ description: >-
   transfers and eject while execution runs, so a medium can be changed without
   resetting the machine. Transport bits match the other FES GP ABIs.
 major: 1
-minor: 0
+minor: 1
 tag: 4
 constants:
   - name: FesComputerSignature
@@ -41,6 +41,10 @@ constants:
     value: 1
   - name: FesComputerAbiMinor
     value: 0
+  # Existing endpoints continue to identify as 1.0. Extended endpoints
+  # explicitly opt into 1.1 and expose the second capability word.
+  - name: FesComputerExtendedAbiMinor
+    value: 1
   - name: FesComputerIdentityMagic0Index
     value: 0
   - name: FesComputerIdentityMagic1Index
@@ -61,6 +65,10 @@ constants:
     value: 8
   - name: FesComputerIdentityWordCount
     value: 16
+  - name: FesComputerIdentityCapabilitiesHighIndex
+    value: 16
+  - name: FesComputerIdentityExtendedWordCount
+    value: 17
   - name: FesComputerOpcodeIdentity
     value: 1
   - name: FesComputerOpcodeExecution
@@ -265,6 +273,12 @@ constants:
     value: 0
   - name: FesComputerC64DiskBytes
     value: 174848
+  # fes.media.pcxt-floppy 1.0: one read-only 40x2x9x512 raw disk.
+  # It requires the extended 1.1 identity and capability bit 16.
+  - name: FesComputerPcxtFloppyUnit
+    value: 0
+  - name: FesComputerPcxtFloppyBytes
+    value: 368640
   # fes.media.spectrum-disk 1.0: unit 1, a raw track image (FogCast
   # internal/spectrumdisks): 8 or 16 KiB slots, a header and at most 86
   # cylinders of two sides. Capability bit 15. A Spectrum shell may declare it beside
@@ -373,3 +387,7 @@ interfaces:
     major: 1
     minor: 0
     capability_bit: 15
+  - id: fes.media.pcxt-floppy
+    major: 1
+    minor: 0
+    capability_bit: 16

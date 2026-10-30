@@ -36,12 +36,12 @@ type SlotCompositionBundle struct {
 	Payload     []byte
 }
 
-// slotCompositionShell admits the indexed slot bus of an exact fes.computer
-// 1.0 shell. The single-socket ZX81 and Coleco buses never qualify.
+// slotCompositionShell admits the indexed slot bus of a supported fes.computer
+// shell. The single-socket ZX81 and Coleco buses never qualify.
 func slotCompositionShell(inspection Inspection, payload []byte) (expansion.Shell, error) {
 	d := inspection.Descriptor
-	if d.ABI.ID != "fes.computer" || d.ABI.Major != 1 || d.ABI.Minor != 0 {
-		return expansion.Shell{}, errors.New("slot composition requires the fes.computer 1.0 ABI")
+	if !SupportedComputerABI(d.ABI) {
+		return expansion.Shell{}, errors.New("slot composition requires a supported fes.computer ABI")
 	}
 	var found string
 	for _, i := range d.Interfaces {

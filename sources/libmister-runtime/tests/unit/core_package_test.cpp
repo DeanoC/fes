@@ -1001,7 +1001,21 @@ void TestComputerCompatibilityComposesRecognizedInterfaces()
 	}
 	auto minor = descriptor;
 	minor.abi.minor = 1;
+	assert(check(minor).ok());
+	minor.abi.minor = 2;
 	assert(check(minor).code == mister::ErrorCode::unsupported_abi);
+	auto pcxt = video;
+	pcxt.abi.minor = 1;
+	pcxt.interfaces.push_back({"fes.media.pcxt-floppy", 1, 0, true});
+	assert(check(pcxt).ok());
+	pcxt.abi.minor = 0;
+	assert(check(pcxt).code == mister::ErrorCode::unsupported_abi);
+	pcxt.abi.minor = 1;
+	pcxt.interfaces.back().required = false;
+	assert(check(pcxt).code == mister::ErrorCode::unsupported_interface);
+	pcxt.interfaces.back().required = true;
+	pcxt.interfaces.push_back({"fes.media.apple2-floppy", 1, 0, true});
+	assert(check(pcxt).code == mister::ErrorCode::unsupported_interface);
 	auto system = descriptor;
 	system.core.system = "apple2";
 	assert(check(system).code == mister::ErrorCode::unsupported_abi);

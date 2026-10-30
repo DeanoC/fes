@@ -87,7 +87,8 @@ MEMORY_SOURCES = (
 SYSTEM_SOURCES = (SOURCES[:4] + DISPLAY_SOURCES[:-1] + CHIPSET_SOURCES[:-1] +
                   tuple(s for s in CPU_SOURCES if s.endswith('.sv') and not s.endswith('/cpu_top.sv')) +
                   MEMORY_SOURCES[:2] + VIDEO_SOURCES[:-1] +
-                  ('cores/fes-pcxt/rtl/pcxt_machine.sv', 'cores/fes-pcxt/rtl/pcxt_system.sv',
+                  ('cores/fes-pcxt/rtl/pcxt_machine.sv', 'cores/fes-pcxt/rtl/pcxt_disk_loader.sv', 'cores/fes-pcxt/rtl/pcxt_system.sv',
+                   'cores/fes-pcxt/rtl/pcxt_media_writer.sv', 'cores/fes-pcxt/rtl/pcxt_media.sv',
                    'cores/fes-pcxt/rtl/pcxt_boot.sv'))
 
 

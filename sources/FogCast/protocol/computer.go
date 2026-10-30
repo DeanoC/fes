@@ -16,7 +16,8 @@ import (
 // Home-computer ABI (fes.computer 1.0) contracts. Values come from the
 // mister-packages emitter; FogCast never infers them from a core ID.
 const (
-	ComputerABIID = generated.FesComputerABIID
+	ComputerABIID         = generated.FesComputerABIID
+	ComputerExtendedMinor = int64(generated.FesComputerExtendedAbiMinor)
 	// KeyboardHIDRows is the fes.keyboard.hid 1.0 row count: eight
 	// Keyboard/Keypad usage rows followed by the modifier row.
 	KeyboardHIDRows = int(generated.FesComputerKeyboardRowCount)
@@ -71,6 +72,9 @@ const (
 	AtariStFloppyGeometryMaxBytes int64 = int64(generated.FesComputerAtariStFloppyGeometryMaxBytes)
 	// AtariStFloppyUnit is the media unit fes.media.atari-st-floppy occupies.
 	AtariStFloppyUnit uint8 = uint8(generated.FesComputerAtariStFloppyUnit)
+	// PcxtFloppyBytes is the exact size of a 40-track double-sided XT floppy.
+	PcxtFloppyBytes int64 = int64(generated.FesComputerPcxtFloppyBytes)
+	PcxtFloppyUnit  uint8 = uint8(generated.FesComputerPcxtFloppyUnit)
 	// ComputerMediaTransport names the fes.computer media-unit delivery.
 	ComputerMediaTransport = "fes-computer-media-unit-v1"
 	// MediaUnitHeader carries the addressed unit on target media requests.
@@ -206,6 +210,11 @@ func AtariStFloppyInterface() RuntimeContract {
 	return RuntimeContract{ID: generated.FesComputerInterfaceMediaAtariStFloppyID, Major: generated.FesComputerInterfaceMediaAtariStFloppyMajor, Minor: generated.FesComputerInterfaceMediaAtariStFloppyMinor}
 }
 
+// PcxtFloppyInterface is the unit-0 read-only raw PC/XT floppy contract.
+func PcxtFloppyInterface() RuntimeContract {
+	return RuntimeContract{ID: generated.FesComputerInterfaceMediaPcxtFloppyID, Major: generated.FesComputerInterfaceMediaPcxtFloppyMajor, Minor: generated.FesComputerInterfaceMediaPcxtFloppyMinor}
+}
+
 func AtariStFloppyGeometryInterface() RuntimeContract {
 	return RuntimeContract{ID: generated.FesComputerInterfaceMediaAtariStFloppyGeometryID, Major: generated.FesComputerInterfaceMediaAtariStFloppyGeometryMajor, Minor: generated.FesComputerInterfaceMediaAtariStFloppyGeometryMinor}
 }
@@ -217,9 +226,9 @@ func AdmitAtariStFloppySize(size int64) bool {
 	return ok
 }
 
-// ComputerABI reports the exact fes.computer 1.0 contract.
+// ComputerABI reports the supported fes.computer ABI versions.
 func ComputerABI(id string, major, minor int64) bool {
-	return id == ComputerABIID && major == int64(generated.FesComputerABIMajor) && minor == int64(generated.FesComputerABIMinor)
+	return id == ComputerABIID && major == int64(generated.FesComputerABIMajor) && minor >= 0 && minor <= int64(generated.FesComputerExtendedAbiMinor)
 }
 
 func activeComputer(p *CorePackageStatus) bool {
@@ -292,6 +301,9 @@ func (u MediaUnitStatus) Valid() bool {
 		return u.Interface == AtariStFloppyInterface() && u.Unit == AtariStFloppyUnit &&
 			((int64(u.MinBytes) == AtariStFloppyBytes && int64(u.MaxBytes) == AtariStFloppyBytes) ||
 				(int64(u.MinBytes) == AtariStFloppyGeometryMinBytes && int64(u.MaxBytes) == AtariStFloppyGeometryMaxBytes))
+	case PcxtFloppyInterface().ID:
+		return u.Interface == PcxtFloppyInterface() && u.Unit == PcxtFloppyUnit &&
+			int64(u.MinBytes) == PcxtFloppyBytes && int64(u.MaxBytes) == PcxtFloppyBytes
 	}
 	if u.Interface.ID == SpectrumTapeInterface().ID {
 		return u.Interface == SpectrumTapeInterface() && u.Unit == SpectrumTapeUnit &&
@@ -316,6 +328,9 @@ func MediaUnit(p *CorePackageStatus, unit uint8) (MediaUnitStatus, bool) {
 	}
 	for _, u := range p.MediaUnits {
 		if u.Unit == unit && u.Valid() && activeInterface(p, u.Interface) {
+			if u.Interface == PcxtFloppyInterface() && uint32(p.ABI.Minor) < generated.FesComputerExtendedAbiMinor {
+				continue
+			}
 			if u.Interface == AtariStFloppyInterface() && int64(u.MaxBytes) != AtariStFloppyBytes && !AtariStFloppyGeometryCapable(p) {
 				continue
 			}
@@ -338,6 +353,7 @@ func declaredComputerMedia(descriptor corepackage.Descriptor) []CoreMediaCapabil
 	tape := SpectrumTapeInterface()
 	disk := C64DiskInterface()
 	stFloppy := AtariStFloppyInterface()
+	pcxtFloppy := PcxtFloppyInterface()
 	for _, contract := range descriptor.Interfaces {
 		switch {
 		case contract.ID == floppy.ID && contract.Major == int64(floppy.Major) && contract.Minor == int64(floppy.Minor):
@@ -359,6 +375,11 @@ func declaredComputerMedia(descriptor corepackage.Descriptor) []CoreMediaCapabil
 			result = append(result, CoreMediaCapability{Role: DiskRole, Format: "atari-st-floppy",
 				MinBytes: minBytes, MaxBytes: maxBytes, Interface: stFloppy,
 				Transport: ComputerMediaTransport, Unit: &unit, Extensions: []string{".st"}})
+		case descriptor.ABI.Minor >= int64(generated.FesComputerExtendedAbiMinor) && contract.Required && contract.ID == pcxtFloppy.ID && contract.Major == int64(pcxtFloppy.Major) && contract.Minor == int64(pcxtFloppy.Minor):
+			unit := PcxtFloppyUnit
+			result = append(result, CoreMediaCapability{Role: DiskRole, Format: "pcxt-floppy",
+				MinBytes: PcxtFloppyBytes, MaxBytes: PcxtFloppyBytes, Interface: pcxtFloppy,
+				Transport: ComputerMediaTransport, Unit: &unit, Extensions: []string{".img", ".ima"}})
 		}
 		if contract.ID == tape.ID && contract.Major == int64(tape.Major) && contract.Minor == int64(tape.Minor) {
 			// The library holds tape images, and snapshots where the package
@@ -547,9 +568,22 @@ func AdmitAtariStFloppyName(name string) bool {
 	return strings.ToLower(filepath.Ext(name)) == ".st"
 }
 
+// AdmitPcxtFloppyName accepts raw PC floppy image basenames.
+func AdmitPcxtFloppyName(name string) bool {
+	if name == "" || strings.ContainsAny(name, `/\`) || name != filepath.Base(name) {
+		return false
+	}
+	switch strings.ToLower(filepath.Ext(name)) {
+	case ".img", ".ima":
+		return true
+	default:
+		return false
+	}
+}
+
 // AdmitComputerDiskName accepts a supported home-computer disk image name.
 func AdmitComputerDiskName(name string) bool {
-	return AdmitDiskMediaName(name) || AdmitC64DiskName(name) || AdmitAtariStFloppyName(name)
+	return AdmitDiskMediaName(name) || AdmitC64DiskName(name) || AdmitAtariStFloppyName(name) || AdmitPcxtFloppyName(name)
 }
 
 // AdmitLiveMediaName accepts the names of every live media form: ZX81 tapes,
@@ -622,7 +656,7 @@ func MediaUnitIdentityError() *APIError {
 
 // DiskMediaRequestError is the live-media refusal for home-computer disks.
 func DiskMediaRequestError() *APIError {
-	return &APIError{Code: CodeBadRequest, Message: "live disk media requires .dsk/.do (143360 bytes), .d64 (174848 bytes), or raw .st (720 KiB, or a declared 80..82-track, 1..2-head, 9..10-sector layout)", Phase: "request"}
+	return &APIError{Code: CodeBadRequest, Message: "live disk media requires .dsk/.do (143360 bytes), .d64 (174848 bytes), .img/.ima (368640 bytes), or raw .st (720 KiB, or a declared 80..82-track, 1..2-head, 9..10-sector layout)", Phase: "request"}
 }
 
 // CassetteMediaRequestError is the live-media refusal for Spectrum tapes.
