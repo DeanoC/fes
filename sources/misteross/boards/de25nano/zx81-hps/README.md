@@ -57,6 +57,12 @@ SOF is `hps/project/output_files/golden_top.sof` under that output. Source,
 vendor, generated clocks/handoff, tool and artifact identities are retained.
 The build ID is a source/vendor/recipe fingerprint, not a sealed package ID.
 
+JTAG loading requires a complete SOF with the preserved Terasic SPL. After an
+HPS cold reset, FPGA-first JTAG cannot redeliver that loader automatically;
+reload the exact complete SOF as documented in the
+[cold-reset investigation](../../../../../docs/validation/2026-10-30-de25-reboot/README.md).
+This starts a new FPGA/client epoch and does not admit warm reset or HPS DMA.
+
 The endpoint sits at peripheral-relative offset `0x10300`, span 32 bytes.
 [DE25 computer](../../../../mister-packages/docs/de25-computer.md) owns its
 register contract. It accepts exactly one full-word GPO submission with a new

@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "file_sha256": {
+    "README.md": "8e015232644850f20960a2e6d1ac0979d64ca29450111c3836cb53eee3a74cdd",
+    "affected-checks.log.gz": "74d19380f8e00edde5d34eadeeb30f8455f497e447e37b8aad7de232baf94abe",
+    "doc-links.log.gz": "fed796b817bcb10b7f738dccb756ec8e5712bd6cdef190b239be64a8cdfa72a8",
+    "factory-after.log.gz": "bac35e8a1f403896dc66240437c553992aed67e40cec11920ef7a531d5911c19",
+    "factory-before.log.gz": "86c9e90c10314ce6fa22c5b8699b639aaf29844042d4f93dfd5ca1cf2fa6386e",
+    "factory-firmware.log.gz": "be393a1978bfab604f4bb6320516b335bdec01c1168d9e9ba1edd23f9095276f",
+    "factory-reboot-uart.log.gz": "149bdd8300973f9059f7125dff816c87f79be1636747a2503cc8b89c0a3f9adc",
+    "firmware-review.json": "30aeb946d3398ef9698f1bbf067a517c3da8146f5474ebca7fd1993ffdb8f25f",
+    "proof.json": "971c6834994c3c89038d6ed76f0e913c6a907a96332d27c20a71eb1498947d78",
+    "ram-before-reset-endpoints.log.gz": "b6247d5b4bbb73d969d12f760e1ffca8b023558d320936be143eb3d2751acda6",
+    "ram-before-reset.log.gz": "1164ea3a43947d6403db7cd7467bd965d2f86c07bbc015a011d853307323b81f",
+    "ram-cold-reset-uart.log.gz": "7eae30a7ddc1161c8ff9f03141c1294404dd314acea87fe795270c3affea2255",
+    "ram-reload-after.log.gz": "f50cee7bdb3ccaac2a643c49b5c0c63ddc2faa4d0724c2bf7ea2b8d4bde5ce5e",
+    "ram-reload-endpoints.log.gz": "b6247d5b4bbb73d969d12f760e1ffca8b023558d320936be143eb3d2751acda6",
+    "ram-reload-uart.log.gz": "aa4a892cd87143ccfcd758be8c5177c5feabd2da120617d3938cc2883012beec",
+    "ram-reload.log.gz": "568123d2ce5e740ae67b1ec234e3c52a9c9b5995a83cc7a928a5a88875221b6b",
+    "ram-sof-info.log.gz": "ef8c65dd10f17b3d6af25dc0e10a74baa804d13727598c12c40b85c4e1f73096",
+    "stock-after-reset-sdm.log.gz": "2727b70263fc2f13692db443409501d346dc6d1b2c9c87f149541fe1517333bf",
+    "stock-image.json": "5b647f31ddb21d362dd9497abf18ff4e639af118a71756e6b17e67963af517ee",
+    "stock-jtag-before.log.gz": "13466201afc5049f835722ad5c01c52f7dd0e06b10c6cc5f629a4ed42953c828",
+    "stock-program.log.gz": "6ed654c7a45ae84e115bd4d7d564e897077f84674ff3da2b9cfb4e228419815a",
+    "stock-reboot-uart.log.gz": "5fcf7d866349a386f1c885d8eda071a301d9afd949ca3aa900503268f0e618d5",
+    "stock-reload-after.log.gz": "780561ca5b2b5b30ae656b073631ef9b43a70a299be89cfe5a3c618f984c5d97",
+    "stock-reload-uart.log.gz": "69103d5fa2fa5f8b900c924a50ba72748f12fc5fca367922750be949ad6d44e1",
+    "stock-reload.log.gz": "1717ba4efe7d9c9b1486253813d1bdec73321a8d67a0d5b53c63f26e15145c3e",
+    "stock-sof-info.log.gz": "560caa2994a1cf75828b54ddca7df6831b47ca5ea5238e11334e3e493ff8c69b"
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "format": 1,
+  "issue": 1291,
+  "base_revision": "7634cb82dcbd88951ccbde72623dcfaecceccb51",
+  "board_usb_serial": "TRWU8J8G",
+  "board_uid": "79B9468337C3A50B",
+  "experiments": [
+    {
+      "configuration": "factory-qspi",
+      "capture_seconds": 80,
+      "ordinary_linux_reboot_mode": "cold",
+      "watchdog_warning": true,
+      "spl_after_reboot": true,
+      "new_login_in_capture": true
+    },
+    {
+      "configuration": "unmodified-vendor-jtag",
+      "capture_seconds": 80,
+      "ordinary_linux_reboot_mode": "cold",
+      "watchdog_warning": true,
+      "spl_after_reboot": false,
+      "new_login_in_capture": false
+    },
+    {
+      "configuration": "exact-ramtest-jtag",
+      "capture_seconds": 75,
+      "ordinary_linux_reboot_mode": "cold",
+      "watchdog_warning": true,
+      "spl_after_reboot": false,
+      "new_login_in_capture": false
+    }
+  ],
+  "factory_before_boot": "b8e89f9f-9dc1-4fa5-874c-3adf3aa6da67",
+  "factory_after_boot": "42f8c2a0-04ea-479d-881d-8cb814cfd753",
+  "stock_jtag_before_boot": "3f33437b-0aea-43f9-8521-78623fc2f119",
+  "stock_jtag_reload_boot": "c9752c17-0e36-4a99-a827-a5df078eff94",
+  "ram_jtag_before_boot": "692fa087-6d2b-4218-80fc-93bd1004ae63",
+  "ram_jtag_reload_boot": "b5b1bc13-1131-4bc0-86cb-52a0730d5d4e",
+  "ram_sof_sha256": "2267ecc2e9e8dd08cd24e8d413ee7e704cc022863d5b761b6d6e6aa33a6bb64c",
+  "stock_sof_sha256": "e71a72180cb77ddd05a9c2ae49afa739d74786f9366f00233fd27bbebff6ea09",
+  "persistent_boot_changes": false,
+  "hps_destructive_enabled": false,
+  "reset_ack_or_constraints_changed": false,
+  "recovery": "identical full SOF redelivery over explicit-cable JTAG; new UART/pinned SSH and exact RAM endpoint IDs verified",
+  "physical_power_cycle_during_investigation": false,
+  "board_claim": "retained by same owner for immediately following ZX81 test"
+}
