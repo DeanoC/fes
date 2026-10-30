@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"image"
 	"image/color"
 	"io"
@@ -156,7 +157,7 @@ func TestWorkshopLaunchRetryRepeatsFailedPackageSelection(t *testing.T) {
 	app.startLaunchGameWithPackageLocked(game, nextPackage, oldPackage)
 	app.mu.Unlock()
 
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		app.mu.Lock()
 		phase := app.launch.Phase
@@ -174,7 +175,7 @@ func TestWorkshopLaunchRetryRepeatsFailedPackageSelection(t *testing.T) {
 	app.handleLaunchOverlayLocked(CmdSelect) // Enter on "Select retry".
 	app.mu.Unlock()
 
-	deadline = time.Now().Add(2 * time.Second)
+	deadline = time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		app.mu.Lock()
 		phase := app.launch.Phase
@@ -257,7 +258,7 @@ func TestWorkshopLaunchRetryRecoversCommittedSelectionWithLostReply(t *testing.T
 	app.startLaunchGameWithPackageLocked(game, nextPackage, oldPackage)
 	app.mu.Unlock()
 
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		app.mu.Lock()
 		phase := app.launch.Phase
@@ -275,7 +276,7 @@ func TestWorkshopLaunchRetryRecoversCommittedSelectionWithLostReply(t *testing.T
 	app.handleLaunchOverlayLocked(CmdSelect)
 	app.mu.Unlock()
 
-	deadline = time.Now().Add(2 * time.Second)
+	deadline = time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		app.mu.Lock()
 		phase := app.launch.Phase
@@ -534,7 +535,7 @@ func countUIPosts(posts []UIEvent, kind string) int {
 
 func waitForUIPost(t *testing.T, h *roomHost, kind string) UIEvent {
 	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		for _, ev := range h.uiPostsSnapshot() {
 			if ev.Kind == kind {
@@ -567,7 +568,7 @@ func (h *roomHost) preferenceCount() int {
 
 func waitForPrefs(t *testing.T, h *roomHost, n int) {
 	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		if h.preferenceCount() >= n {
 			return
@@ -666,7 +667,7 @@ func roomFrameHasClip(ops []rooms.Op) bool {
 
 func waitFor(t *testing.T, app *App, what string, pred func(Snapshot) bool) Snapshot {
 	t.Helper()
-	deadline := time.Now().Add(4 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		app.Tick(time.Now())
 		snap := app.Snapshot()

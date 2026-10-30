@@ -2,6 +2,7 @@ package tenfoot
 
 import (
 	"encoding/json"
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -38,7 +39,7 @@ func TestVideoPreferenceUsesHouseholdPatchAndUpdatesOnlyAfterSuccess(t *testing.
 			app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 1)
 			now := time.Now()
 			app.HandleCommand(CmdSettings, now)
-			waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool { return snap.Settings.Open && !snap.Settings.Loading })
+			waitSnapshot(t, app, func(snap Snapshot) bool { return snap.Settings.Open && !snap.Settings.Loading })
 			if got := settingsRowByID(t, app, "video-profile").Value; got != "Direct" {
 				t.Fatal(got)
 			}
@@ -46,10 +47,10 @@ func TestVideoPreferenceUsesHouseholdPatchAndUpdatesOnlyAfterSuccess(t *testing.
 			app.HandleCommand(CmdSelect, now)
 			select {
 			case <-patched:
-			case <-time.After(2 * time.Second):
+			case <-time.After(testwait.Timeout):
 				t.Fatal("video preference PATCH missing")
 			}
-			waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool { return !snap.Settings.Busy })
+			waitSnapshot(t, app, func(snap Snapshot) bool { return !snap.Settings.Busy })
 			want := "Direct"
 			if succeeds {
 				want = "Scanlines"
