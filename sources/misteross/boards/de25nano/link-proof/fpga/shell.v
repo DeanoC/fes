@@ -52,7 +52,10 @@ module fes_link_shell #(
     always @(posedge clk) begin
         response_valid_q <= rsp_valid;
         response_data_q <= rsp_data;
-        response_has_request_q <= rsp_valid && pending != 0;
+        // Keep the PR port directly registered at the static boundary. The
+        // marker captures whether a request was already outstanding on the
+        // edge that captures rsp_valid into response_valid_q.
+        response_has_request_q <= pending != 0;
     end
     wire [31:0] faults = fault_flags | ((first_seen && !healthy) ?
         `FES_DE25_PR_CONTROL_FAULT_RESET : 32'd0);
@@ -82,7 +85,7 @@ module fes_link_shell #(
     wire retire_valid = response_valid_q && response_active;
     // The fixed-latency slot can never answer a request accepted on this edge.
     wire valid_reply = retire_valid && pending != 0 && response_has_request_q;
-    wire unsolicited_reply = retire_valid && !response_has_request_q;
+    wire unsolicited_reply = retire_valid && (!response_has_request_q || pending == 0);
     reg [31:0] read_value;
     reg read_address_valid;
     reg [31:0] access_fault;
