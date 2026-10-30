@@ -93,10 +93,18 @@ int main(int argc, char** argv) {
     b.cycles(2048); check(b.retired == held_retired, "CPU retired instructions while HOLD was asserted");
     check(b.read(regs::FesDe25ComputerFaultOffset) == 0, "valid machine session ended with transport faults");
     check(SIGNAL(video_ready_frame), "video was not enabled after the complete-frame handoff");
+    const uint64_t active_deadline = b.system_edges + 2000000;
+    while (!t.video_de && b.system_edges < active_deadline) b.step();
+    check(t.video_de, "could not reach active video before transport loss");
+    const uint32_t active_rgb = t.video_rgb;
     t.reset_n = 0; t.eval();
-    check(SIGNAL(video_ready_frame), "system-domain readiness changed the pixel gate asynchronously");
+    check(SIGNAL(video_ready_frame) && t.video_de && t.video_rgb == active_rgb,
+          "transport loss cut active DE/RGB before the frame boundary");
     bool video_disabled_at_frame = false;
-    for (uint64_t pixel = 0; pixel < 2u * 1650u * 750u; ++pixel) {
+    // Computer::step advances one edge from either clock. Bound this in system
+    // cycles so the loop covers at least two complete pixel frames.
+    const uint64_t video_gate_deadline = b.system_edges + 4000000;
+    while (SIGNAL(video_ready_frame) && b.system_edges < video_gate_deadline) {
         const bool frame_boundary = SIGNAL(video__DOT__frame_tick);
         b.step();
         if (!SIGNAL(video_ready_frame)) {

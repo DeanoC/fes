@@ -80,7 +80,12 @@ struct Computer {
     }
 
     void pixel_sample() {
-        if (!t.reset_n) { frame_started = false; previous_vs = true; return; }
+        if (!SIGNAL(video_ready_frame)) {
+            check(!t.video_rgb && !t.video_de && !t.video_hs && !t.video_vs,
+                  "closed frame gate exposed a partial raster");
+            frame_started = false; previous_vs = false; frame_pixels = 0;
+            return;
+        }
         if (t.video_vs && !previous_vs) {
             if (frame_started) {
                 check(frame_pixels == 1650u * 750u, "720p frame is not 1650x750 pixel edges");

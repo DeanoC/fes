@@ -1,0 +1,177 @@
+{
+  "evidence_class": "final routed four-corner diagnostic; no physical acceptance",
+  "source_revision": "ec14fda2964fd4fba1f5d3396bc70b754a0e1d29",
+  "corner_count": 4,
+  "paired_rows": 104,
+  "groups": {
+    "acknowledge_tail": {
+      "setup": {
+        "rows": 4,
+        "min_slack_ns": 9.542
+      },
+      "hold": {
+        "rows": 4,
+        "min_slack_ns": 0.118
+      }
+    },
+    "metadata": {
+      "setup": {
+        "rows": 36,
+        "min_slack_ns": 3.659
+      },
+      "hold": {
+        "rows": 36,
+        "min_slack_ns": 0.011
+      }
+    },
+    "pixel_release": {
+      "setup": {
+        "rows": 4,
+        "min_slack_ns": 12.947
+      },
+      "hold": {
+        "rows": 4,
+        "min_slack_ns": 0.132
+      }
+    },
+    "request_tail": {
+      "setup": {
+        "rows": 4,
+        "min_slack_ns": 12.961
+      },
+      "hold": {
+        "rows": 4,
+        "min_slack_ns": 0.124
+      }
+    },
+    "system_release": {
+      "setup": {
+        "rows": 4,
+        "min_slack_ns": 9.561
+      },
+      "hold": {
+        "rows": 4,
+        "min_slack_ns": 0.111
+      }
+    }
+  },
+  "metadata_data_delay_max_ns": 3.907,
+  "audit_sha256": "09becc0487f3b339a60b8ab8d62127c0bb9b88e07c82ed45d713e990f5d72c94",
+  "sof_sha256": "fe91af9119df01b3173391f5c6017f86a0379ffefc078afb8b6f6024e9aa23fd",
+  "renderer_memory": {
+    "kind": "M20K simple-dual-port dual-clock",
+    "logical_bits": 177120,
+    "words": 22140,
+    "width": 8,
+    "m20k_blocks": 11
+  },
+  "hold_minimum_note": "Displayed global 0.000 ns is rounded; compiler timing is not physical or positive-margin signoff.",
+  "constrained_summary_minima_ns": {
+    "Setup": 1.662,
+    "Hold": 0.0,
+    "Recovery": 7.421,
+    "Removal": 0.066,
+    "Setup Data Delay": 6.097,
+    "Minimum Pulse Width": 0.22
+  },
+  "timing_closure": "Pass",
+  "datapath_skew_net_delay": "Pass",
+  "overall_design_closure": "Fail",
+  "failed_design_assistant_rules": [
+    {
+      "rule": "TMC-20012",
+      "name": "Missing Output Delay Constraint",
+      "severity": "High",
+      "violations": 30,
+      "waived": 0
+    },
+    {
+      "rule": "TMC-20011",
+      "name": "Missing Input Delay Constraint",
+      "severity": "High",
+      "violations": 2,
+      "waived": 0
+    },
+    {
+      "rule": "LNT-30023",
+      "name": "Reset Nets with Polarity Conflict",
+      "severity": "Medium",
+      "violations": 2,
+      "waived": 0
+    },
+    {
+      "rule": "RDC-50003",
+      "name": "Multiple Asynchronous Reset Synchronizers in the Same Clock Domain",
+      "severity": "Medium",
+      "violations": 2,
+      "waived": 0
+    },
+    {
+      "rule": "RES-50101",
+      "name": "Intra-Clock False Path Reset Synchronizer",
+      "severity": "Low",
+      "violations": 3,
+      "waived": 0
+    }
+  ],
+  "cdc_50003": {
+    "rule": "CDC-50003",
+    "name": "CE-Type CDC Transfer with Insufficient Constraints",
+    "severity": "High",
+    "violations": 0,
+    "waived": 0
+  },
+  "unconstrained": {
+    "Unconstrained Clocks": {
+      "setup": 0,
+      "hold": 0
+    },
+    "Unconstrained Input Ports": {
+      "setup": 2,
+      "hold": 2
+    },
+    "Unconstrained Output Ports": {
+      "setup": 30,
+      "hold": 30
+    },
+    "Paths from Unconstrained Input Ports (Pairs-Only)": {
+      "setup": 9,
+      "hold": 9
+    },
+    "Paths to Unconstrained Output Ports (Pairs-Only)": {
+      "setup": 2581,
+      "hold": 2581
+    }
+  },
+  "fitter_memory_row": [
+    "soc_inst|subsys_periph|fes_computer|fes_computer|video|fb_rtl_0|auto_generated|altera_syncram_impl1|ALTERA_SYNCRAM",
+    "M20K",
+    "Simple Dual Port",
+    "Dual Clocks",
+    "22140",
+    "8",
+    "22140",
+    "8",
+    "yes",
+    "no",
+    "yes",
+    "no",
+    "177120",
+    "22140",
+    "8",
+    "22140",
+    "8",
+    "177120",
+    "11.000",
+    "0.000",
+    "None",
+    "M20K_X92_Y21_N0, M20K_X92_Y18_N0, M20K_X92_Y16_N0, M20K_X92_Y15_N0, M20K_X92_Y23_N0, M20K_X92_Y24_N0, M20K_X92_Y17_N0, M20K_X92_Y25_N0, M20K_X92_Y20_N0, M20K_X92_Y22_N0, M20K_X92_Y19_N0",
+    "Don't care",
+    "New data",
+    "New data",
+    "Off",
+    "No",
+    "High Speed",
+    "Yes"
+  ]
+}

@@ -98,7 +98,19 @@ Generated constants and an offline injectable Python client add no runtime
 admission, physical MMIO address or boot image. Shared production RTL is unchanged.
 The board tape adapter uses two explicit even/odd simple-dual-port M20K banks
 with common-clock old-data reads, while retaining the exact portable module
-in its native simulation branch.
+in its native simulation branch. Its board-local video renderer replaces the
+single capture array with two packed monochrome M20K banks. Source completion
+publishes a bank through a request/acknowledgement crossing; scanout swaps only
+at a complete 720p frame boundary and acknowledges before the source may reuse
+the previous bank. Startup and epoch reset hide unwritten storage. On transport
+loss, capture and publish ownership reset asynchronously while scanout retains
+the current frame until the synchronized frame gate closes at a raster
+boundary. Whole rows up to 328×270 are captured, excess rows cropped, and
+absent bottom rows displayed as paper. Stopped clocks preserve ownership; HOLD
+aborts partial capture.
+The local SDC checks exact synchronizer/metadata endpoints and bounds the held
+row-count bus without cutting whole clocks. Digital simulation does not accept
+physical M20K timing, MTBF, clock recovery or HDMI.
 
 The same endpoint/machine also serves the native `De25Computer` client through
 the private-socket co-simulation in `zx81-hps/client_proof.py`. It snapshots the

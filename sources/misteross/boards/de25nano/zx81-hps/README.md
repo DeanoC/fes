@@ -3,7 +3,7 @@
 This Quartus Pro 26.3 lane adds a ZX81 computer endpoint to the locked Terasic
 SCS GHRD. The lightweight HPS bridge can issue the existing `fes.computer`
 keyboard, execution and CRC-checked tape commands. The real NMOS Z80, 16 KiB
-RAM and BASIC ROM drive the existing 720p renderer. Audio, SAVE, expansion,
+RAM and BASIC ROM drive the board-local 720p renderer. Audio, SAVE, expansion,
 gamepads and the session-display plane are disabled.
 
 The GHRD's HPS/LPDDR4 configuration, debug paths, inherited DDR probe and boot
@@ -15,8 +15,26 @@ pixel-clock synchronizer, and the computer's first-picture mask changes only
 at the renderer's frame tick. The board shell tracks pixel reset/PLL lock:
 RGB and DE blank immediately, while sync visibility and picture resume wait for
 a complete horizontal sync pulse outside vertical sync. Pixel-clock loss does
-not stop CPU, control or tape. Capture storage has no complete-frame ownership
-and its dual-clock collisions/startup/tearing remain unqualified.
+not stop CPU, control or tape. The renderer packs eight monochrome pixels per
+RAM word in two 328×270 M20K banks. Capture publishes only completed 328-pixel
+rows, crops excess rows at 270, and renders any missing bottom rows as white
+paper. Partial first/final source lines are excluded; malformed complete lines
+reject the whole capture. Output stays black until the first complete capture.
+
+A request/acknowledgement handshake keeps the published bank immutable until
+scanout switches at a 720p frame boundary. A slow or stopped reader makes the
+source skip whole frames; a stopped source repeats the last completed picture.
+HOLD aborts partial capture and retains the last completed picture. A transport
+epoch reset asynchronously invalidates capture and publish ownership even with
+clocks stopped. Scanout retains its selected bank through the current raster
+frame and hides it at the synchronized frame boundary. Each domain releases
+reset through its own two-stage synchronizer.
+DE, sync and the scaled pixel selector share the RAM's registered read latency.
+The two single-bit crossings cut only their first synchronizer stages. The
+held row-count metadata has explicit 10 ns net-delay, datapath-delay,
+maximum-skew and maximum-path bounds. No whole clock group is cut. Physical
+M20K, metastability/MTBF, PLL recovery and external HDMI acceptance remain
+board-validation work.
 
 Tape storage uses two explicit even/odd M20K banks with common-clock
 simple dual ports and old-data reads. A guarded board wrapper retains the
@@ -29,6 +47,7 @@ Run here:
 ```sh
 make test
 make sim
+make video-sim  # focused frame ownership/clock/reset checks
 make project VENDOR_ARCHIVE=/absolute/DE25-Nano_revB_v.1.0.0_ResourcePackage.zip
 make build QUARTUS_ROOTDIR=/absolute/altera_pro/26.3 \
   VENDOR_ARCHIVE=/absolute/DE25-Nano_revB_v.1.0.0_ResourcePackage.zip
@@ -79,6 +98,9 @@ machine, ROM and renderer, plus the HDMI shell's lock/reset gating. It includes
 cold BASIC/editor boot, actual key-driven
 LOAD and ordered RAM-write verification, CRC failures, stopped PIX operation,
 HOLD neutralization, malformed-access faults and stopped-clock reset behavior.
+The focused video bench checks every displayed image pixel across three clock
+ratios with randomized unwritten RAM, plus startup, malformed lines, cropped/short
+frames, HOLD, stopped clocks, and stopped-clock epoch reset.
 Memory uses behavioral RTL; HPS, physical M20K, PLL, I2C and HDMI are not modeled.
 Compiled generation separately checks the real HPS-LW route, both PLL rates
 and the slave map against all inherited peripherals.

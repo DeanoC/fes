@@ -31,6 +31,12 @@ class ComputerClientTests(unittest.TestCase):
 
 class ComputerSimulationTests(unittest.TestCase):
     @unittest.skipUnless(shutil.which("verilator") and shutil.which("c++"), "requires Verilator and C++")
+    def test_complete_frame_ownership_and_clock_recovery(self):
+        result = subprocess.run([sys.executable, "video_sim.py"], cwd=BOARD,
+                                capture_output=True, text=True, timeout=180)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    @unittest.skipUnless(shutil.which("verilator") and shutil.which("c++"), "requires Verilator and C++")
     def test_actual_native_client_and_rtl_transport(self):
         directory = Path(tempfile.mkdtemp(prefix="fes-de25-client-proof-"))
         args = [sys.executable, "client_proof.py", "--native-only", "--allow-working-copy",

@@ -9,11 +9,45 @@ if {$computer_clear_count != 4} {error "DE25 computer requires four HDMI reset i
 if {[get_collection_size $computer_aclr] > 0} {set_false_path -to $computer_aclr}
 if {[get_collection_size $computer_clrn] > 0} {set_false_path -to $computer_clrn}
 post_message -type info "DE25 computer HDMI reset ingress pins: $computer_clear_count (expected4)"
+# The computer runs on the preserved peripheral clock. No new GP control CDC,
+# clock groups, FIFO cuts or external HDMI/I2C delay assumptions are introduced.
+
 # Readiness is a monotonic control level crossing from the 100 MHz endpoint to
 # its pixel-domain frame gate. Cut only its asynchronous synchronizer ingress.
 set computer_video_ready_head [get_pins -compatibility_mode -nocase -nowarn {soc_inst|subsys_periph|fes_computer|fes_computer|transport_ready_meta|d}]
 if {[get_collection_size $computer_video_ready_head] != 1} {error "DE25 computer video readiness synchronizer ingress changed"}
 set_false_path -to $computer_video_ready_head
 post_message -type info "DE25 computer video readiness CDC ingress: one stage0 D pin"
+
+# Cut only each first synchronizer D, never the second stage or whole clocks.
+foreach {label launch first} {
+    request {*|video|request} {*|video|request_sync[0]}
+    acknowledge {*|video|acknowledge} {*|video|acknowledge_sync[0]}
+} {
+    set owner_launch [get_registers $launch]
+    set owner_first [get_registers $first]
+    if {[get_collection_size $owner_launch] != 1 || [get_collection_size $owner_first] != 1} {
+        error "DE25 video $label synchronizer endpoints changed"
+    }
+    set_false_path -from $owner_launch -to $owner_first
+}
+# Row count is held from before the two-stage request crossing until ACK.
+# Its physical flight must fit one system period (less than two pixel periods).
+set owner_rows_source [get_registers {*|video|published_rows[*]}]
+set owner_rows_sink [get_registers {*|video|front_rows[*]}]
+if {[get_collection_size $owner_rows_source] != 9 || [get_collection_size $owner_rows_sink] != 9} {
+    error "DE25 video row-count endpoints changed"
+}
+set_net_delay -max 10.000 -from $owner_rows_source -to $owner_rows_sink
+set_data_delay 10.000 -from $owner_rows_source -to $owner_rows_sink
+set_max_skew 10.000 -from $owner_rows_source -to $owner_rows_sink
+set_max_delay 10.000 -from $owner_rows_source -to $owner_rows_sink
+set_min_delay 0.000 -from $owner_rows_source -to $owner_rows_sink
+# Raw epoch reset enters two per-domain release chains. Recovery/removal from
+# their locally synchronized outputs to owner state remain timed.
+set owner_reset_pins [get_pins -compatibility_mode -nocase -nowarn {*|video|sys_release*|aclr *|video|pix_release*|aclr *|video|sys_release*|clrn *|video|pix_release*|clrn}]
+if {[get_collection_size $owner_reset_pins] != 4} {error "DE25 video reset release ingress changed"}
+set_false_path -to $owner_reset_pins
+post_message -type info "DE25 video: 2 first-stage crossings, 9 bounded metadata bits, 4 reset ingress pins"
 # Keep synchronizer stage-to-stage, frame-gate and output paths timed. Do not
 # add clock groups, FIFO cuts or external HDMI/I2C delay assumptions.
