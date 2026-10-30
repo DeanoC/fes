@@ -100,6 +100,9 @@ pixel-reset synchronizer clear pins, plus the dedicated sticky-fault
 synchronizer's first D ingress; subsequent stages and release fanout remain
 timed. No HDMI IO delays are fabricated.
 
+The fresh [reset and MTBF review build](../../../docs/validation/2026-10-30-de25-scanout-review/README.md)
+binds these checks to the current Quartus-generated project and SOF.
+
 Native tests exercise the real reader/video/control RTL with the same guarded
 M20K hint adaptation used by the build. They cover complete frames and lane
 ordering with delayed/zero-latency responses, descriptor/sequence/slot checks,
