@@ -67,9 +67,11 @@ python3 proof.py --artifacts /absolute/new-build/hps/project/artifacts.json \
 
 The builder freezes all selected production sources and executes captured
 profile bytes. Real base/A/B fitting, internal five-category timing, physical
-boundary setup/hold, M20K/fitter-selected firmware initialization inspection, imported-root preservation and
-vendor POF0/integrity checks precede artifact composition. The standard native
-and emulated AArch64 composer retains exact opaque Quartus payload bytes.
+boundary setup/hold, M20K/fitter-selected firmware initialization inspection,
+the independent firmware audit, imported-root preservation and vendor
+POF0/integrity checks precede artifact composition. The audit receipt is part
+of `build.json`. The standard native and emulated AArch64 composer retains
+exact opaque Quartus payload bytes.
 
 This RAM-only profile adds no computer mailbox, keyboard/tape transport,
 video output, physical address, SDM executor or production package. Simulation

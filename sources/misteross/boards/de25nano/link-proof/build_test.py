@@ -163,6 +163,32 @@ class RecipeTests(unittest.TestCase):
             with self.assertRaises(build.BuildError):
                 build.timing_summary(out, "base")
 
+    def test_source_closure_seal_recomputes_final_inputs(self):
+        inputs = {"project_sha256": {"base.qsf": "a" * 64},
+                  "qpf": {"sha256": "b" * 64, "version": "26.3"}}
+        build.reseal_source_closure(inputs)
+        build.verify_source_closure(inputs)
+        self.assertEqual(inputs["source_closure_sha256"], build.source_closure_sha256(inputs))
+        inputs["qpf"]["sha256"] = "c" * 64
+        with self.assertRaises(build.BuildError):
+            build.verify_source_closure(inputs)
+
+    def test_persona_partition_reuse_requires_full_root_preservation(self):
+        rows = [{"Statistic": "Total Preserved Core Logic", "root_partition": "99.17%"},
+                {"Statistic": "Total Preserved Core Logic", "root_partition": "100.00%"}]
+        self.assertEqual(build.verify_partition_reuse(rows, "persona_b")["status"], "passed")
+        rows[-1]["root_partition"] = "99.99%"
+        with self.assertRaises(build.BuildError):
+            build.verify_partition_reuse(rows, "persona_b")
+
+    def test_design_closure_failure_is_not_reported_as_internal_timing_failure(self):
+        rows = [{"Panel Name": "Design Closure Summary", "Result Flag": "Fail"}]
+        self.assertEqual(build.design_closure_status(rows), "failed")
+        self.assertEqual(build.design_closure_status(
+            [{"Panel Name": "Design Closure Summary", "Result Flag": "Pass"}]), "passed")
+        with self.assertRaises(build.BuildError):
+            build.design_closure_status([])
+
     def test_hps_archive_is_required_before_output_creation(self):
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp) / "project"

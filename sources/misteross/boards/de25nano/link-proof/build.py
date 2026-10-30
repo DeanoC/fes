@@ -47,6 +47,20 @@ def sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def source_closure_sha256(inputs: dict) -> str:
+    return sha(canonical({key: value for key, value in inputs.items()
+                          if key != "source_closure_sha256"}))
+
+
+def reseal_source_closure(inputs: dict) -> None:
+    inputs["source_closure_sha256"] = source_closure_sha256(inputs)
+
+
+def verify_source_closure(inputs: dict) -> None:
+    if inputs.get("source_closure_sha256") != source_closure_sha256(inputs):
+        raise BuildError("source closure seal does not match final compiler inputs")
+
+
 def verify_files(directory: Path, expected: dict[str, str]) -> None:
     for name, wanted in expected.items():
         if sha((directory / name).read_bytes()) != wanted:
@@ -76,6 +90,7 @@ def verify_qpf(directory: Path) -> dict:
 def verify_project(directory: Path, inputs: dict) -> None:
     verify_files(directory, inputs["project_sha256"])
     verify_qpf(directory)
+    verify_source_closure(inputs)
 
 
 def verify_hps_inputs(project: Path) -> None:
@@ -142,12 +157,37 @@ def timing_summary(output: Path, revision: str) -> dict:
             raise BuildError(f"{revision}: illegal or unconstrained clocks")
     if any(row.get("Status") != "Constrained" for row in clocks):
         raise BuildError(f"{revision}: clock coverage is incomplete")
-    return {"status": "passed", "scope": "constrained-internal-timing-only",
+    closure = report_table(report, "Design Closure Summary")
+    return {"status": "passed-constrained-internal-only", "scope": "constrained-internal-timing-only",
             "rows": rows, "coverage": coverage, "clocks": clocks,
-            "closure": report_table(report, "Design Closure Summary"),
+            "closure": closure, "design_closure_status": design_closure_status(closure),
             "external_io": "preserved-vendor-HPS-and-memory-IO-not-physical-timing-qualification",
             "report_sha256": {f"{revision}.sta.summary": sha(summary.encode()),
                               f"{revision}.sta.rpt": sha(report.encode())}}
+
+
+def design_closure_status(rows: list[dict[str, str]]) -> str:
+    matches = [row.get("Result Flag") for row in rows
+               if row.get("Panel Name") == "Design Closure Summary"]
+    if len(matches) != 1 or matches[0] not in ("Pass", "Fail"):
+        raise BuildError("missing or ambiguous overall Design Closure status")
+    return "passed" if matches[0] == "Pass" else "failed"
+
+
+def verify_partition_reuse(rows: list[dict[str, str]], revision: str) -> dict[str, str]:
+    preserved = [row for row in rows
+                 if row.get("Statistic") == "Total Preserved Core Logic"]
+    if len(preserved) != 2 or "root_partition" not in preserved[-1]:
+        raise BuildError(f"{revision}: missing include/exclude partition reuse evidence")
+    value = preserved[-1]["root_partition"].removesuffix("%")
+    try:
+        percent = Decimal(value)
+    except Exception as error:
+        raise BuildError(f"{revision}: invalid preserved root percentage") from error
+    if revision != "base" and percent != 100:
+        raise BuildError(f"{revision}: final root logic is not fully preserved outside PR sub-blocks")
+    return {"status": "not-applicable-base" if revision == "base" else "passed",
+            "root_preserved_core_logic_excluding_pr_subblocks": preserved[-1]["root_partition"]}
 
 
 def pfg_report(log: Path, *, allow_missing_bootloader: bool = False) -> str:
@@ -300,6 +340,8 @@ def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
         summaries[revision]["static_memory"] = [row for row in all_memories if row not in memories]
         summaries[revision]["regions"] = regions
         summaries[revision]["partition_reuse"] = report_table(fit, "Partial Reconfiguration and Periphery Reuse Statistics")
+        summaries[revision]["partition_reuse_status"] = verify_partition_reuse(
+            summaries[revision]["partition_reuse"], revision)
         summaries[revision]["unwaived_design_assistant_findings"] = design_assistant_findings(output, revision)
         sta_report = (output / "output_files" / f"{revision}.sta.rpt").read_text()
         summaries[revision]["metastability"] = {
@@ -337,6 +379,17 @@ def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
         # unsigned files. Preserve its output; POF matching above is separate.
         run([str(tools["quartus_pfg"]), "--compare", str(directory / "base.rbf"),
              str(output / "output_files" / f"{revision}.slot0.pmsf")], output, f"{revision}-compare.log")
+    profile_audit_path = None
+    if PROFILE is not None and getattr(PROFILE, "audit_path", None) is not None:
+        repository = Path(subprocess.check_output(
+            ["git", "rev-parse", "--show-toplevel"], cwd=BOARD, text=True).strip())
+        frozen_audit = output.parent.parent / "functional-source" / PROFILE.audit_path.resolve().relative_to(repository)
+        if not frozen_audit.is_file():
+            raise BuildError("profile audit source is missing from the frozen source set")
+        audit = load_hps(frozen_audit)
+        audit_receipt = audit.audit_project(output)
+        profile_audit_path = directory / "memory-audit.json"
+        profile_audit_path.write_bytes(canonical(audit_receipt) + b"\n")
     if tool_hashes(tools) != selected_tools:
         raise BuildError("Quartus executable closure changed during verification")
     verify_project(output, inputs)
@@ -361,7 +414,9 @@ def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
                   "clock_reset_sha256": reset_hash, "base": blob(output, directory / "base.rbf"),
                   "vendor_pof": base_pof, "control_build_id": inputs["control_build_id"]},
         "region": inputs["region"], "personas": [],
-        "acceptance": {"physical": "not-run", "timing": "passed",
+        "acceptance": {"physical": "not-run", "timing": "passed-constrained-internal-only",
+                       "design_closure": "failed" if any(
+                           row["design_closure_status"] == "failed" for row in summaries.values()) else "passed",
                        "base_persona_compatibility": "pfg-info-pof0-match"}}
     descriptor["shell"]["id"] = sha(b"fes-de25-pr-shell-v2\0" + canonical(
         {key: descriptor[key] for key in ("device", "tool", "shell", "region")}))
@@ -381,13 +436,17 @@ def collect(output: Path, tools: dict[str, Path], version: str) -> Path:
              "quartus_version": version, "tool_sha256": selected_tools,
              "control_build_id": inputs["control_build_id"],
              "qpf_initial": inputs.get("qpf"), "qpf_final": verify_qpf(output),
-             "compiler_status": "passed", "timing_status": "passed",
+             "compiler_status": "passed", "timing_status": "passed-constrained-internal-only",
+             "design_closure_status": "failed" if any(
+                 row["design_closure_status"] == "failed" for row in summaries.values()) else "passed",
              "compatibility_status": "pfg-info-pof0-match", "hardware_acceptance": "not-run",
              "artifact_manifest": blob(output, manifest), "root_qdb": root_qdb,
              "root_qdb_baseline": blob(output, baseline_path),
              "timing": summaries, "compiled_report_sha256": raw_hashes,
              "compatibility_scope": "matching vendor-decoded POF0 region/hash and exact imported root QDB; no SDM execution",
              "pfg_compare_scope": "retained vendor output; unsigned owner-key field absent, not a complete pairing check"}
+    if profile_audit_path is not None:
+        build["profile_audit"] = blob(output, profile_audit_path)
     build["verification_recipe"] = {"source_revision": verifier["revision"],
         "source_committed": verifier["committed"],
         "source_sha256": {name: sha(data) for name, data in verifier["files"].items()},
@@ -670,7 +729,7 @@ set_interface_property fes_pr_diagnostic EXPORT_OF subsys_periph.fes_pr_diagnost
         for path in PROFILE.extra_project_inputs(project):
             inputs["project_sha256"][path.relative_to(project).as_posix()] = sha(path.read_bytes())
     inputs["qpf"] = verify_qpf(project)
-    inputs["source_closure_sha256"] = sha(canonical(inputs))
+    reseal_source_closure(inputs)
     (project / "inputs.json").write_bytes(canonical(inputs) + b"\n")
     return project
 
@@ -733,6 +792,7 @@ def generate_hps(project: Path, tools: dict[str, Path], version: str) -> None:
     if not generated:
         raise BuildError("HPS generation produced no selected source closure")
     (project / "generated-inputs.json").write_bytes(canonical(generated) + b"\n")
+    reseal_source_closure(inputs)
     (project / "inputs.json").write_bytes(canonical(inputs) + b"\n")
 
 
