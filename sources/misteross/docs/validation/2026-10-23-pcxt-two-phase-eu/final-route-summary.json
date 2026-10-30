@@ -1,0 +1,558 @@
+{
+  "scope": "Implemented two-phase EU and system-clock ROM; complete native routed CPU capture inventory at100MHz passes for seed1. Whole-board timing and physical acceptance remain open.",
+  "source": {
+    "baseline": {
+      "revision": "e0bb083d37de176947f28e9f8f2ab640423347ec",
+      "component_tree": "22457bf46d4eafe4bb591d2ac56243d63312b63d",
+      "archive_sha256": "da021089dcd84b7f44de0fa9b31ee5f619b6a098fc8a39a6cba4c2dd0310cfc9",
+      "source_root": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-two-phase-eu-20261023/source-baseline/sources/misteross",
+      "scope": "Frozen committed module bytes for matched diagnostic synthesis; no production/toolchain or hardware acceptance."
+    },
+    "candidate": {
+      "revision": "47563669b31270fd95396eabafc5194dddd17e70",
+      "component_tree": "93b1530cfc01450d116963e70c374cc9ac05b1f3",
+      "archive_sha256": "5a146a666e020334dfaa957d46d806f1cb7492f8f39ba3d7f8e5acaaf2c92894",
+      "source_root": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-two-phase-eu-20261023/source-candidate/sources/misteross",
+      "scope": "Frozen committed module bytes for matched diagnostic synthesis; no production/toolchain or hardware acceptance."
+    },
+    "system-rom-verified": {
+      "revision": "be56eb29f72d72ba06c8b9b2521d815be1df203c",
+      "component_tree": "e358176aafda7781ecbd732ac3d4966ea0b406f5",
+      "archive_sha256": "5273032a37c644d679727acaeb020ddc779698d4fe82974ae064d451dfca074b",
+      "source_root": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-two-phase-eu-20261023/source-system-rom/sources/misteross",
+      "scope": "Frozen committed module bytes for matched diagnostic synthesis; no production/toolchain or hardware acceptance."
+    }
+  },
+  "metrics": {
+    "baseline": {
+      "rows": 17199,
+      "setup_timed": 17194,
+      "setup_failures": 143,
+      "setup_wns_ps": -1200,
+      "hold_related": 17194,
+      "hold_failures": 0,
+      "hold_min_ps": 781,
+      "unsupported": 105,
+      "complete": false,
+      "groups": {
+        "CPU": {
+          "rows": 2981,
+          "setup_timed": 2981,
+          "setup_failures": 78,
+          "setup_wns_ps": -1200,
+          "hold_related": 2981,
+          "hold_failures": 0,
+          "hold_min_ps": 851
+        },
+        "PIC": {
+          "rows": 948,
+          "setup_timed": 948,
+          "setup_failures": 2,
+          "setup_wns_ps": -201,
+          "hold_related": 948,
+          "hold_failures": 0,
+          "hold_min_ps": 982
+        },
+        "display": {
+          "rows": 2642,
+          "setup_timed": 2642,
+          "setup_failures": 18,
+          "setup_wns_ps": -945,
+          "hold_related": 2642,
+          "hold_failures": 0,
+          "hold_min_ps": 796
+        },
+        "other": {
+          "rows": 10628,
+          "setup_timed": 10623,
+          "setup_failures": 45,
+          "setup_wns_ps": -603,
+          "hold_related": 10623,
+          "hold_failures": 0,
+          "hold_min_ps": 781
+        }
+      }
+    },
+    "candidate": {
+      "rows": 17709,
+      "setup_timed": 17704,
+      "setup_failures": 40,
+      "setup_wns_ps": -1801,
+      "hold_related": 17704,
+      "hold_failures": 0,
+      "hold_min_ps": 796,
+      "unsupported": 105,
+      "complete": false,
+      "groups": {
+        "CPU": {
+          "rows": 3491,
+          "setup_timed": 3491,
+          "setup_failures": 6,
+          "setup_wns_ps": -422,
+          "hold_related": 3491,
+          "hold_failures": 0,
+          "hold_min_ps": 796
+        },
+        "PIC": {
+          "rows": 195,
+          "setup_timed": 195,
+          "setup_failures": 0,
+          "setup_wns_ps": 650,
+          "hold_related": 195,
+          "hold_failures": 0,
+          "hold_min_ps": 1182
+        },
+        "display": {
+          "rows": 2642,
+          "setup_timed": 2642,
+          "setup_failures": 14,
+          "setup_wns_ps": -1801,
+          "hold_related": 2642,
+          "hold_failures": 0,
+          "hold_min_ps": 834
+        },
+        "other": {
+          "rows": 11381,
+          "setup_timed": 11376,
+          "setup_failures": 20,
+          "setup_wns_ps": -1670,
+          "hold_related": 11376,
+          "hold_failures": 0,
+          "hold_min_ps": 828
+        }
+      }
+    },
+    "system-rom-verified": {
+      "rows": 17709,
+      "setup_timed": 17704,
+      "setup_failures": 72,
+      "setup_wns_ps": -1575,
+      "hold_related": 17704,
+      "hold_failures": 0,
+      "hold_min_ps": 789,
+      "unsupported": 105,
+      "complete": false,
+      "groups": {
+        "CPU": {
+          "rows": 3491,
+          "setup_timed": 3491,
+          "setup_failures": 0,
+          "setup_wns_ps": 934,
+          "hold_related": 3491,
+          "hold_failures": 0,
+          "hold_min_ps": 802
+        },
+        "PIC": {
+          "rows": 195,
+          "setup_timed": 195,
+          "setup_failures": 0,
+          "setup_wns_ps": 1245,
+          "hold_related": 195,
+          "hold_failures": 0,
+          "hold_min_ps": 1102
+        },
+        "display": {
+          "rows": 2642,
+          "setup_timed": 2642,
+          "setup_failures": 27,
+          "setup_wns_ps": -1575,
+          "hold_related": 2642,
+          "hold_failures": 0,
+          "hold_min_ps": 829
+        },
+        "other": {
+          "rows": 11381,
+          "setup_timed": 11376,
+          "setup_failures": 45,
+          "setup_wns_ps": -968,
+          "hold_related": 11376,
+          "hold_failures": 0,
+          "hold_min_ps": 789
+        }
+      }
+    }
+  },
+  "clock_contract": {
+    "removed_obsolete_ROM_clock_aliases": [
+      "clocks[2]",
+      "memory_clock_outclk_2"
+    ],
+    "all_surviving_clocks_exact": true,
+    "clocks": {
+      "baseline": {
+        "FPGA_CLK1_50": [
+          20000,
+          20000,
+          10000,
+          10000,
+          10000,
+          10000,
+          0,
+          ""
+        ],
+        "FPGA_CLK1_50_MISTRAL_IB_PAD_O": [
+          20000,
+          20000,
+          10000,
+          10000,
+          10000,
+          10000,
+          0,
+          ""
+        ],
+        "clk_pixel": [
+          13468,
+          13468,
+          6734,
+          6734,
+          6734,
+          6734,
+          0,
+          ""
+        ],
+        "clocks[0]": [
+          10000,
+          10000,
+          5000,
+          5000,
+          5000,
+          5000,
+          0,
+          "memory_clock"
+        ],
+        "clocks[1]": [
+          10000,
+          10000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          "memory_clock"
+        ],
+        "clocks[2]": [
+          10000,
+          10000,
+          5000,
+          5000,
+          5000,
+          5000,
+          2500,
+          "memory_clock"
+        ],
+        "memory_clock_outclk": [
+          10000,
+          10000,
+          5000,
+          5000,
+          5000,
+          5000,
+          0,
+          "memory_clock"
+        ],
+        "memory_clock_outclk_1": [
+          10000,
+          10000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          "memory_clock"
+        ],
+        "memory_clock_outclk_2": [
+          10000,
+          10000,
+          5000,
+          5000,
+          5000,
+          5000,
+          2500,
+          "memory_clock"
+        ],
+        "video_clock_outclk": [
+          13468,
+          13468,
+          6734,
+          6734,
+          6734,
+          6734,
+          0,
+          ""
+        ]
+      },
+      "candidate": {
+        "FPGA_CLK1_50": [
+          20000,
+          20000,
+          10000,
+          10000,
+          10000,
+          10000,
+          0,
+          ""
+        ],
+        "FPGA_CLK1_50_MISTRAL_IB_PAD_O": [
+          20000,
+          20000,
+          10000,
+          10000,
+          10000,
+          10000,
+          0,
+          ""
+        ],
+        "clk_pixel": [
+          13468,
+          13468,
+          6734,
+          6734,
+          6734,
+          6734,
+          0,
+          ""
+        ],
+        "clocks[0]": [
+          10000,
+          10000,
+          5000,
+          5000,
+          5000,
+          5000,
+          0,
+          "memory_clock"
+        ],
+        "clocks[1]": [
+          10000,
+          10000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          "memory_clock"
+        ],
+        "clocks[2]": [
+          10000,
+          10000,
+          5000,
+          5000,
+          5000,
+          5000,
+          2500,
+          "memory_clock"
+        ],
+        "memory_clock_outclk": [
+          10000,
+          10000,
+          5000,
+          5000,
+          5000,
+          5000,
+          0,
+          "memory_clock"
+        ],
+        "memory_clock_outclk_1": [
+          10000,
+          10000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          "memory_clock"
+        ],
+        "memory_clock_outclk_2": [
+          10000,
+          10000,
+          5000,
+          5000,
+          5000,
+          5000,
+          2500,
+          "memory_clock"
+        ],
+        "video_clock_outclk": [
+          13468,
+          13468,
+          6734,
+          6734,
+          6734,
+          6734,
+          0,
+          ""
+        ]
+      },
+      "system-rom-verified": {
+        "FPGA_CLK1_50": [
+          20000,
+          20000,
+          10000,
+          10000,
+          10000,
+          10000,
+          0,
+          ""
+        ],
+        "FPGA_CLK1_50_MISTRAL_IB_PAD_O": [
+          20000,
+          20000,
+          10000,
+          10000,
+          10000,
+          10000,
+          0,
+          ""
+        ],
+        "clk_pixel": [
+          13468,
+          13468,
+          6734,
+          6734,
+          6734,
+          6734,
+          0,
+          ""
+        ],
+        "clocks[0]": [
+          10000,
+          10000,
+          5000,
+          5000,
+          5000,
+          5000,
+          0,
+          "memory_clock"
+        ],
+        "clocks[1]": [
+          10000,
+          10000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          "memory_clock"
+        ],
+        "memory_clock_outclk": [
+          10000,
+          10000,
+          5000,
+          5000,
+          5000,
+          5000,
+          0,
+          "memory_clock"
+        ],
+        "memory_clock_outclk_1": [
+          10000,
+          10000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          "memory_clock"
+        ],
+        "video_clock_outclk": [
+          13468,
+          13468,
+          6734,
+          6734,
+          6734,
+          6734,
+          0,
+          ""
+        ]
+      }
+    }
+  },
+  "system_rom_cpu_windows": {
+    "[[\"clocks[0]\", 0], [\"clocks[0]\", 0]]": {
+      "rows": 3491,
+      "setup_failures": 0,
+      "setup_wns_ps": 934
+    }
+  },
+  "system_rom_cpu_unsupported": [],
+  "full_endpoint_union_rows": 20598,
+  "receipts": {
+    "baseline": {
+      "path": "route-baseline/receipt.json",
+      "sha256": "91c3ee643a97812e23e06ddf40c8f12f825598ae4027cfad572440125ee3068c"
+    },
+    "candidate": {
+      "path": "route-candidate/receipt.json",
+      "sha256": "737806b265cdf018980566df957bc71282a85d61987a68b5c819bc7ecfb6443d"
+    },
+    "system-rom-verified": {
+      "path": "route-system-rom-verified/receipt.json",
+      "sha256": "f0d09d36a991519d92440d3faf600d1d397b042369b0158a9d56f974fb26a0ee"
+    }
+  },
+  "clean_native_returncode": 1,
+  "clean_collector_postflight_identity_pass": true,
+  "final_artifacts": {
+    "routed.json": "7e0c784f45ff7ad4f5a409624583b68aa390b284c9b43a2eabca3567cf82dd6d",
+    "diagnostic.rbf": "fb474b4596486096c5aa0ad32b8aacb1c2216b70ec9747f5a1092680d18eb3ee",
+    "timing.json": "1fc8aa82984dfae6f883cae5f2c6bf5444d2914cae52a2a4df397accc67b7dad",
+    "endpoints.json": "42f705b6b5e18ed897c683a9e268287a4e0d3758ffdfee30d9f35e3dbb50474a",
+    "timing-state.json": "3e2f3cdd0089a814e2cedd0371be6051674101a24b6fd28186b5a60cfb46a460"
+  },
+  "synthesis_receipt_sha256": "8b953e6fc8fdfc31730ecfbcce2fb546d180df44c3c809cb876e13724c829b56",
+  "mapped_clock_check": {
+    "scope": "Mapped system-clock-ROM architecture; no physical signoff.",
+    "source": {
+      "revision": "be56eb29f72d72ba06c8b9b2521d815be1df203c",
+      "component_tree": "e358176aafda7781ecbd732ac3d4966ea0b406f5",
+      "archive_sha256": "5273032a37c644d679727acaeb020ddc779698d4fe82974ae064d451dfca074b",
+      "source_root": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-two-phase-eu-20261023/source-system-rom/sources/misteross",
+      "scope": "Frozen committed module bytes for matched diagnostic synthesis; no production/toolchain or hardware acceptance."
+    },
+    "synth_sha256": "8d6fc0f603e1a19a60df192715d5eb0f4724cc9d32aee3711ae5ba70d2a2e554",
+    "system_clock_bits": [
+      140
+    ],
+    "all_16_cpu_ROM_clock_ports_are_system_clock": true,
+    "all_CPU_FFs_use_system_clock": true,
+    "CPU_FF_count": 1215,
+    "removed_dedicated_ROM_PLL_output": true
+  },
+  "clean_repeat": {
+    "scope": "The clean repeat exactly reproduces the complete native outputs of the original collector-rejected execution; the original receipt stays rejected.",
+    "files": {
+      "diagnostic.rbf": {
+        "byte_exact": true,
+        "original_sha256": "fb474b4596486096c5aa0ad32b8aacb1c2216b70ec9747f5a1092680d18eb3ee",
+        "repeat_sha256": "fb474b4596486096c5aa0ad32b8aacb1c2216b70ec9747f5a1092680d18eb3ee"
+      },
+      "timing.json": {
+        "byte_exact": true,
+        "original_sha256": "1fc8aa82984dfae6f883cae5f2c6bf5444d2914cae52a2a4df397accc67b7dad",
+        "repeat_sha256": "1fc8aa82984dfae6f883cae5f2c6bf5444d2914cae52a2a4df397accc67b7dad"
+      },
+      "endpoints.json": {
+        "byte_exact": true,
+        "original_sha256": "42f705b6b5e18ed897c683a9e268287a4e0d3758ffdfee30d9f35e3dbb50474a",
+        "repeat_sha256": "42f705b6b5e18ed897c683a9e268287a4e0d3758ffdfee30d9f35e3dbb50474a"
+      }
+    },
+    "clean_receipt_postflight_identity_pass": true,
+    "hardware": false
+  },
+  "accounting": {
+    "completed_route_search_receipts": 81,
+    "prior_80_prefix_exact": true,
+    "all_81_receipt_objects_hashes_and_Decimal_charges_verified": true,
+    "prior_journal_sha256": "b5f59e6265a6994bbeed41c401212ccc42df65809b5ef4d8e7fa4b8c8be4c13a",
+    "journal_sha256": "8921a45b61e629f27fb00be964bc7e1e0d0d24d40fc0eab675662f014cde325a",
+    "new_charge_seconds": "1075.4388689822517",
+    "cumulative_charge_seconds": "90896.13443564576979",
+    "scope": "Exactly one fresh system-clock-ROM full route; no host proof/build/synthesis charges."
+  },
+  "physical_coverage_complete": false,
+  "two_of_three_gate_passed": false,
+  "production_lock_changed": false,
+  "shared_contract_changed": false,
+  "hardware": false
+}

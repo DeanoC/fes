@@ -220,5 +220,37 @@ class HeadlessBuildTests(unittest.TestCase):
                 self.assertFalse((output / name).exists())
 
 
+class RootfsIdentityTests(unittest.TestCase):
+    PASSWORD = b"$6$selected-root-hash"
+
+    def valid_files(self):
+        return {
+            "/etc/fes-board": b"de25-nano\n",
+            "/etc/hostname": b"fes-de25-nano\n",
+            "/etc/network/interfaces": b"auto eth0\niface eth0 inet dhcp\n",
+            "/etc/inittab": b"ttyS0::respawn:/sbin/getty -L ttyS0 115200 vt100\n",
+            "/etc/init.d/S50dropbear": b"start-stop-daemon -S --exec /usr/sbin/dropbear\n",
+            "/etc/shadow": b"root:$6$selected-root-hash:20000:0:99999:7:::\n"
+                           b"other:$6$selected-root-hash:20000:0:99999:7:::\n",
+        }
+
+    def test_accepts_exact_board_identity_active_network_and_root_hash(self):
+        BUILD.validate_rootfs_configuration(self.valid_files(), self.PASSWORD)
+
+    def test_rejects_identity_prefixes_commented_dhcp_and_shadow_hash_on_other_user(self):
+        invalid_values = [
+            ("/etc/fes-board", b"not-de25-nano\n"),
+            ("/etc/hostname", b"not-fes-de25-nano\n"),
+            ("/etc/network/interfaces", b"# iface eth0 inet dhcp\n"),
+            ("/etc/shadow", b"root:$6$wrong-root-hash:20000:0:99999:7:::\n"
+             b"other:$6$selected-root-hash:20000:0:99999:7:::\n"),
+        ]
+        for path, contents in invalid_values:
+            files = self.valid_files()
+            files[path] = contents
+            with self.subTest(path=path), self.assertRaises(ValueError):
+                BUILD.validate_rootfs_configuration(files, self.PASSWORD)
+
+
 if __name__ == "__main__":
     unittest.main()

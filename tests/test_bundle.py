@@ -432,6 +432,13 @@ assert Path(producer.__file__).resolve() == Path(sys.argv[3]).resolve()
 authenticate = getattr(producer, sys.argv[2])
 inspect.signature(authenticate).bind(
     Path.cwd(), cache_root=Path("unused-cache-probe"))
+if sys.argv[6] == "quartus":
+    assert producer.LOCK == sys.argv[4]
+    assert producer.selected_recipe(Path.cwd())["toolchain"] == "quartus"
+    inspect.signature(producer.execution_inputs).bind({}, {}, 0)
+    inspect.signature(producer.create_build_record).bind(
+        Path.cwd(), "repository", "revision", {}, identity_version=2, execution={})
+    raise SystemExit(0)
 class Selected(Exception):
     pass
 def request_from_environment(root, lock_path=None, **kwargs):
@@ -455,7 +462,7 @@ assert lock == expected == pnr_recipe.lock_path(Path.cwd(), sys.argv[5]).resolve
                 self.assertIn('--cache-root', help_text)
                 subprocess.run(
                     [sys.executable, '-c', probe, recipe.producer_module, recipe.authenticate,
-                     str(source / recipe.producer_script), recipe.lock_path, recipe.core_id],
+                     str(source / recipe.producer_script), recipe.lock_path, recipe.core_id, recipe.toolchain],
                     cwd=source, check=True, capture_output=True, text=True, timeout=30)
         common = Path(subprocess.check_output(
             ['git', '-C', root, 'rev-parse', '--path-format=absolute', '--git-common-dir'], text=True).strip())

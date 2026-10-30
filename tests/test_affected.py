@@ -1,3 +1,4 @@
+import ast
 import subprocess
 import os
 import re
@@ -76,6 +77,27 @@ class AffectedTests(unittest.TestCase):
         self.assertEqual(result['cores'], [])
         self.assertFalse(any(result['test_modes'].values()))
 
+    def test_de25_ddr_definition_consumers_are_standalone_only(self):
+        definition = 'sources/mister-packages/packages/fabric/fes_fabric_de25_ddr_probe.yaml'
+        source = Path(__file__).resolve().parents[1] / 'scripts/consistency.py'
+        registry = next(node.value for node in ast.parse(source.read_text()).body
+                        if isinstance(node, ast.Assign) and
+                        any(isinstance(name, ast.Name) and name.id == 'GENERATED' for name in node.targets))
+        consumers = [(module, path) for _, source, module, path in ast.literal_eval(registry)
+                     if 'sources/mister-packages/' + source == definition]
+        self.assertEqual(set(consumers), {
+            ('misteross', 'boards/de25nano/hps/generated/fes_de25_ddr_probe.vh'),
+            ('misteross', 'boards/de25nano/hps/generated/fes_de25_ddr_probe.hpp'),
+        })
+        result = plan([definition])
+        self.assertEqual({lane for lane, enabled in result['lanes'].items() if enabled},
+                         {'parent', 'contracts', 'fpga'})
+        self.assertEqual(result['cores'], [])
+        self.assertFalse(any(result['test_modes'].values()))
+        for other in (definition.replace('ddr_probe', 'ddr_probe_other'),
+                      'sources/mister-packages/packages/abi/fes_application.yaml'):
+            with self.subTest(other=other):
+                self.assertEqual(set(plan([definition, other])['cores']), set(CORES))
     def test_parent_owned_roots_select_only_the_parent_lane(self):
         self.assertEqual(PARENT_ROOTS,
                          ('scripts', 'tests', 'image', 'platform', 'profiles', 'containers'))
@@ -235,7 +257,7 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-apple2/rtl/apple2_machine.sv': {'apple2'},
             'cores/fes-c64/rtl/c64_machine.sv': {'c64'},
             'cores/fes-common/rtl/cpu6502/cpu6502.v': {'apple2', 'c64'},
-            'cores/fes-common/rtl/fes_computer_mailbox.v': {'apple2', 'c64', 'spectrum', 'atari-st', 'zx81', 'pc386'},
+            'cores/fes-common/rtl/fes_computer_mailbox.v': {'apple2', 'c64', 'spectrum', 'atari-st', 'zx81', 'pc386', 'pcxt'},
             'cores/fes-common/rtl/t80pa.v': {'coleco', 'sms'},
             'scripts/apple2_slots.py': {'apple2'},
             'scripts/build_apple2_slot_card.py': {'apple2'},
@@ -298,7 +320,7 @@ class AffectedTests(unittest.TestCase):
                      'scripts/rom_map.py', 'scripts/rom_map_oracle.py', 'tests/test_rom_map.py',
                      'tests/test_core_package_v3.py', 'scripts/build_fes_atari_st_oss.py',
                      'tests/test_atari_st_producer.py', 'tests/test_atari_st_slot_card.py',
-                     'scripts/build_fes_pc386_oss.py', 'scripts/synth_fes_pc386.py'):
+                     'scripts/build_fes_pc386_oss.py', 'scripts/synth_fes_pc386.py', 'scripts/build_fes_pcxt_quartus.py'):
             with self.subTest(path=path):
                 result = plan(['sources/misteross/' + path])
                 self.assertTrue(result['lanes']['fpga'])
@@ -332,6 +354,15 @@ class AffectedTests(unittest.TestCase):
                 result = plan(['sources/misteross' + ('/' + path if path else '')])
                 self.assertEqual(set(result['cores']), set(CORES))
                 self.assertTrue(result['lanes']['fpga'])
+
+    def test_pcxt_diagnostic_helpers_run_software_without_core_simulations(self):
+        for name in ('audit_fes_pcxt_cdc.py', 'quartus_fes_pcxt.py', 'pcxt_quartus_mailbox.py',
+                     'audit_fes_pcxt_hps_i2c.py', 'characterize_fes_pcxt_hps_i2c.py',
+                     'screen_fes_pcxt_uncertainty.py'):
+            with self.subTest(script=name):
+                selected = plan(['sources/misteross/scripts/' + name])
+                self.assertTrue(selected['lanes']['fpga'])
+                self.assertEqual(selected['cores'], [])
 
     def test_misteross_tests_run_software_without_simulations(self):
         for path in ('tests/test_new_behavior.py', 'tests/producer_fixture.py',
