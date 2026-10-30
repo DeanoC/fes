@@ -79,8 +79,11 @@ documents the vendor `quartus_pfg` conversion with the unchanged, locked
 Terasic SPL into a separate SOF. That exact image boots the factory SD and
 passes 4-KiB and full-bank scans of FPGA LPDDR4 B and both SDRAM chip selects
 on one USB/UID-identified board. The printed SCS/R1 suffix remains unconfirmed.
-Software reboot does not return within the captured interval and requires a
-manual power cycle; reset qualification remains open. This is a physical
+The [cold-reset investigation](../../../../../docs/validation/2026-10-30-de25-reboot/README.md)
+identifies the documented FPGA-first JTAG bootloader-redelivery limitation:
+after a cold reset, reload the exact complete SOF to resume the diagnostic.
+This recovery does not require a power cycle or relax the inactive warm-reset
+acknowledgement; global reset/drain qualification remains open. This is a physical
 diagnostic, not production HPS/DMA, electrical or whole-board acceptance.
 
 The scan engine writes and verifies zero, ones, alternating data, walking-bit,

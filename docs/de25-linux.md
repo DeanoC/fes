@@ -100,6 +100,11 @@ records a volatile JTAG RAM-Tester load with the preserved Terasic SPL on one
 identified board, local LPDDR4 B/SDRAM checks and factory-SD Linux boot. HPS DMA,
 production runtime loading and the FES image remain outside that diagnostic.
 
+The [cold-reset investigation](validation/2026-10-30-de25-reboot/README.md)
+separates working factory-QSPI reboot from FPGA-first JTAG bootloader delivery.
+After a diagnostic cold reset, reload the exact bootloader-complete SOF; this
+recovers without a power cycle and preserves the closed warm-reset/DMA gates.
+
 ## Image artifacts
 
 The image output contains:
