@@ -1288,8 +1288,10 @@ Error NativeHardware::LoadAtaDisk(FesGpCoreDriver& driver, PreparedAtaDisk& disk
 				return Error{};
 			});
 	}
+	// Phase identity marks the base file itself as wrong; a CRC the core does
+	// not match is input, since the file can be right and the window wrong.
 	if (error.ok() && Sha256Hex(base_hash.Final()) != disk.identity.base_media_id)
-		error = {ErrorCode::corrupt_data, "ATA disk image differs from its base identity", "input"};
+		error = {ErrorCode::corrupt_data, "ATA disk image differs from its base identity", "identity"};
 	if (error.ok())
 		error = driver.CommitAtaDisk(disk.image.size / generated::FesComputerAtaDiskSectorBytes,
 			disk.image.cylinders, disk.image.heads, disk.image.sectors_per_track, crc ^ 0xffffffffu, deadline);

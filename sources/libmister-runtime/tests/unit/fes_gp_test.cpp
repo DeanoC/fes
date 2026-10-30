@@ -3210,9 +3210,10 @@ void TestPc386AtaDiskCommitPollAndDirtyMap()
 	}
 	crc ^= 0xffffffffu;
 	assert(f.driver.AtaDiskControl(FesComputerDiskControlPrepare, kComputerDeadline).ok());
-	// A wrong CRC ends the poll with the unit loading.
-	assert(f.driver.CommitAtaDisk(4096, 4, 16, 63, crc ^ 1, kComputerDeadline).code ==
-		mister::ErrorCode::corrupt_data);
+	// A wrong CRC ends the poll with the unit loading. It is input, not
+	// identity: the staged file can be right while the window is wrong.
+	const mister::Error crc_error = f.driver.CommitAtaDisk(4096, 4, 16, 63, crc ^ 1, kComputerDeadline);
+	assert(crc_error.code == mister::ErrorCode::corrupt_data && crc_error.phase == "input");
 	assert(f.endpoint.disk_state == 2 && f.endpoint.disk_error);
 	assert(f.driver.AtaDiskControl(FesComputerDiskControlPrepare, kComputerDeadline).ok());
 	f.endpoint.after_disk_commit = [&] {
