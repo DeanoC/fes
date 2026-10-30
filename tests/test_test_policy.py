@@ -28,6 +28,8 @@ class SelectTestModesTests(unittest.TestCase):
     def test_embedded_producer_simulation_does_not_select_extended_builds(self):
         for path in ('sources/misteross/prototypes/embedded_control/producer.py',
                      'sources/misteross/prototypes/embedded_control/embedded_producer_top.sv',
+                     'sources/misteross/prototypes/de25_board_control/fes_de25_embedded.sv',
+                     'sources/misteross/prototypes/de25_board_control/verify.py',
                      'platform/embedded/tamago/nativefabric/producer_integration_test.go',
                      'platform/embedded/tamago/nativefabric/verify_producer.py'):
             with self.subTest(path=path):

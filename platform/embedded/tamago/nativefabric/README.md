@@ -84,3 +84,9 @@ standalone simulation producer with two ABI values, checks record/artifact and
 live-ID mismatches, and tests its produced model through this Go adapter. The
 producer emits a host executable and diagnostic descriptor, not an FPGA image or
 a FES package. Its verification executes that local host executable.
+
+The DE25 board-control overlay has a separate Avalon wrapper and a bounded
+on-chip responder. Its standalone verifier drives that actual wrapper through
+this adapter and tests a mismatched identity, enable, disable and drain. A
+generated-project run uses the board producer's own diagnostic fingerprint;
+neither run supplies a physical CPU mapping or an admitted Nano package.

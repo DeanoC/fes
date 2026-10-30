@@ -80,6 +80,12 @@ def plan(root, base, head="HEAD", jobs=2, full=False):
                 tools=["go", "cc", "c++", "g++", "make", "verilator", "verilator_bin", "git"],
                 files=["sources/misteross/prototypes/embedded_control/producer.py",
                        "platform/embedded/tamago/nativefabric/verify_producer.py"])
+        if any(affected.embedded_board_control_check_input(path) for path in impact["paths"]):
+            add("parent", "DE25 Avalon control and native integration", ".",
+                [sys.executable, "sources/misteross/prototypes/de25_board_control/verify.py", "--standalone"],
+                tools=["go", "cc", "c++", "g++", "make", "verilator", "verilator_bin", "git"],
+                files=["sources/misteross/prototypes/de25_board_control/verify.py",
+                       "sources/misteross/prototypes/de25_board_control/fes_de25_embedded.sv"])
     if impact["lanes"]["host"]:
         host_run = [sys.executable, "scripts/host_tests.py", "--ui-if-needed"]
         if impact["test_modes"]["full_race"]:

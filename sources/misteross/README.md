@@ -27,6 +27,9 @@ The experimental embedded control/drain RTL is a standalone component under
 prepared TF-A functions. It has no RBF producer or shipped-core consumer.
 The [identity producer prototype](docs/architecture.md#embedded-control-endpoint)
 builds a source-bound host simulation of that component, not a DE25 bitstream.
+The separate [DE25 board-control diagnostic](prototypes/de25_board_control/README.md)
+can overlay the endpoint on an explicitly selected board build for integration
+experiments; it does not create a production package or program a board.
 
 ## What this module does not do
 

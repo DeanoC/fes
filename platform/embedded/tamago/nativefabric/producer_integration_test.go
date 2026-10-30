@@ -26,6 +26,31 @@ type producedProbe struct {
 	command *exec.Cmd
 }
 
+func startProducedProbe(t *testing.T, artifact string) *producedProbe {
+	t.Helper()
+	p := &producedProbe{command: exec.Command(artifact, "--serve")}
+	var err error
+	if p.input, err = p.command.StdinPipe(); err != nil {
+		t.Fatal(err)
+	}
+	stdout, err := p.command.StdoutPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.output = bufio.NewReader(stdout)
+	p.command.Stderr = os.Stderr
+	if err = p.command.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		p.input.Close()
+		if err := p.command.Wait(); err != nil {
+			t.Errorf("producer probe: %v", err)
+		}
+	})
+	return p
+}
+
 func (p *producedProbe) call(format string, args ...any) ([]uint64, error) {
 	if _, err := fmt.Fprintf(p.input, format+"\n", args...); err != nil {
 		return nil, err
@@ -130,25 +155,7 @@ func TestProducedIdentityBindsNativeControl(t *testing.T) {
 	if err != nil || expected != want {
 		t.Fatalf("admission identity %+v: %v", expected, err)
 	}
-	p := &producedProbe{command: exec.Command(artifact, "--serve")}
-	if p.input, err = p.command.StdinPipe(); err != nil {
-		t.Fatal(err)
-	}
-	stdout, err := p.command.StdoutPipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	p.output = bufio.NewReader(stdout)
-	p.command.Stderr = os.Stderr
-	if err = p.command.Start(); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		p.input.Close()
-		if err := p.command.Wait(); err != nil {
-			t.Errorf("producer probe: %v", err)
-		}
-	})
+	p := startProducedProbe(t, artifact)
 	control := embeddedcontrol.Control{IO: p}
 	if err = control.Verify(expected); err != nil {
 		t.Fatalf("live producer identity: %v", err)
@@ -171,5 +178,51 @@ func TestProducedIdentityBindsNativeControl(t *testing.T) {
 	}
 	if err = control.Drained(expected, 42, 7); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// The board producer supplies a source-bound diagnostic fingerprint, not an
+// admitted Nano package. This drives the native adapter through the actual
+// Avalon wrapper's Verilator model, without assuming a CPU physical address.
+func TestBoardAvalonIdentityBindsNativeControl(t *testing.T) {
+	artifact := os.Getenv("FES_DE25_BOARD_CONTROL_PROBE")
+	if artifact == "" {
+		t.Skip("run the DE25 board-control verifier for this integration")
+	}
+	words, err := BuildWords(os.Getenv("FES_DE25_BOARD_CONTROL_ID"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	abi, err := strconv.ParseUint(os.Getenv("FES_DE25_BOARD_CONTROL_ABI"), 10, 32)
+	if err != nil || abi == 0 {
+		t.Fatalf("invalid diagnostic control ABI: %v", err)
+	}
+	want := embeddedcontrol.Identity{ABI: uint32(abi), Build: words}
+	p := startProducedProbe(t, artifact)
+	control := embeddedcontrol.Control{IO: p}
+	if err = control.Verify(want); err != nil {
+		t.Fatalf("board Avalon live identity: %v", err)
+	}
+	wrong := want
+	wrong.Build[0] ^= 1
+	if err = control.Verify(wrong); !errors.Is(err, embeddedcontrol.ErrIdentity) {
+		t.Fatalf("wrong board build accepted: %v", err)
+	}
+	wrong = want
+	wrong.ABI ^= 1
+	if err = control.Verify(wrong); !errors.Is(err, embeddedcontrol.ErrIdentity) {
+		t.Fatalf("wrong board ABI accepted: %v", err)
+	}
+	if err = control.Enable(want, 42); err != nil {
+		t.Fatal(err)
+	}
+	if err = control.Disable(want, 42, 7); err != nil {
+		t.Fatal(err)
+	}
+	if err = control.Drained(want, 42, 7); err != nil {
+		t.Fatal(err)
+	}
+	if err = p.Write32(0xfc, 0); err == nil {
+		t.Fatal("invalid Avalon diagnostic register accepted")
 	}
 }

@@ -34,6 +34,17 @@ def embedded_producer_input(path):
     return path.startswith('sources/misteross/prototypes/embedded_control/')
 
 
+def embedded_board_control_input(path):
+    return path.startswith('sources/misteross/prototypes/de25_board_control/')
+
+
+def embedded_board_control_check_input(path):
+    return (embedded_board_control_input(path) or path in EMBEDDED_CONTROL_INPUTS or
+            path in ('platform/embedded/tamago/nativefabric/producer_integration_test.go',
+                     'platform/embedded/tamago/embeddedcontrol/control.go',
+                     'platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_control.go'))
+
+
 def embedded_producer_check_input(path):
     return (embedded_control_input(path) or embedded_producer_input(path) or
             path in ('platform/embedded/tamago/nativefabric/binding.go',
@@ -165,7 +176,7 @@ def fpga_cores(path):
     """
     relative = Path(path).relative_to(MODULE_ROOTS['fpga'])
     parts = relative.parts
-    if path in EMBEDDED_CONTROL_INPUTS or embedded_producer_input(path):
+    if path in EMBEDDED_CONTROL_INPUTS or embedded_producer_input(path) or embedded_board_control_input(path):
         return (), 'standalone embedded-control endpoint; no shipped core consumer'
     if relative.as_posix() == 'cores/fes-pong/rtl/pixel_pll.v':
         return ('demo', 'pong', 'ramtest', 'riscv'), 'shared fixed-raster clock consumers'
@@ -323,7 +334,7 @@ def plan(paths):
                 selected.add('contracts')
             reasons.append(f'{path}: embedded firmware/RTL integration; no shipped core consumer')
             continue
-        if embedded_producer_input(path):
+        if embedded_producer_input(path) or embedded_board_control_input(path):
             selected.update(('parent', 'fpga'))
             reasons.append(f'{path}: standalone embedded producer simulation; no shipped core consumer')
             continue

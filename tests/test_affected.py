@@ -19,6 +19,15 @@ class AffectedTests(unittest.TestCase):
                 self.assertEqual(r['cores'], [])
                 self.assertEqual({k for k, v in r['lanes'].items() if v}, {'parent', 'fpga'})
 
+    def test_de25_embedded_board_diagnostic_has_no_shipped_core_consumer(self):
+        for path in ('sources/misteross/prototypes/de25_board_control/build.py',
+                     'sources/misteross/prototypes/de25_board_control/fes_de25_embedded.sv',
+                     'sources/misteross/prototypes/de25_board_control/verify.py'):
+            with self.subTest(path=path):
+                result = plan([path])
+                self.assertEqual(result['cores'], [])
+                self.assertEqual({k for k, v in result['lanes'].items() if v}, {'parent', 'fpga'})
+
     def test_embedded_control_has_only_its_standalone_consumer(self):
         for path in ('sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv',
                      'sources/misteross/cores/fes-common/generated/fes_embedded_control.vh',

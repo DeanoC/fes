@@ -40,6 +40,21 @@ see the [contract](../../mister-packages/docs/embedded-control.md) and
 [verifier](../../../platform/embedded/firmware/README.md). This simulation is
 not an RBF, timing result or hardware acceptance.
 
+The separate `prototypes/de25_board_control` overlay builds a private copy of
+an explicitly selected DE25 ZX81 diagnostic producer and adds an Avalon
+aperture for this endpoint. It includes its adapter and endpoint sources in
+the board producer's existing source/vendor fingerprint, and supplies that
+same fingerprint to the computer and embedded-control endpoints. The fingerprint
+is diagnostic, not the canonical record or a sealed package identity. The
+overlay records its board and overlay revisions separately. Generated handoff
+checks the 256-byte peripheral-relative window, its clock/reset and the JTAG
+route; a JTAG address is not a CPU physical address. A small on-chip responder
+exercises held addresses, partial bursts and faults without connecting to DDR.
+It does not prove containment of inherited masters, firmware operation, physical
+MMIO, a Nano profile, reset lifetime or production admission. The overlay never
+programs hardware. The hardware-independent verifier also exercises the same
+Avalon adapter through the native Go control code.
+
 ## Functional input identity
 
 Pong, ZX81, Coleco, SMS, SG-1000, Catch and all demo variants use functional
