@@ -1,6 +1,6 @@
 # Home-computer I/O
 
-The `fes.computer` 1.0 ABI uses identity tag 4 on the existing `fes-gp-v1`
+The `fes.computer` 1.0 and 1.1 ABIs use identity tag 4 on the existing `fes-gp-v1`
 programming profile and GP transport. The authoritative wire contract is
 mister-packages [home-computer I/O](../../mister-packages/docs/computer-io.md);
 the constants are generated from `packages/abi/fes_computer.yaml` into
@@ -8,7 +8,8 @@ the constants are generated from `packages/abi/fes_computer.yaml` into
 ([pathfinder contract](../../../docs/superpowers/specs/2026-09-26-apple2-pathfinder-design.md)),
 the FES ZX Spectrum
 ([pathfinder contract](../../../docs/superpowers/specs/2026-09-28-spectrum-pathfinder-design.md))
-the FES Commodore 64 and the FES Atari 520ST.
+the FES Commodore 64 and the FES Atari 520ST. A PC/XT media endpoint is
+under development and is exercised in host simulation.
 Existing `fes.simple-game`, `fes.simple-computer` and `fes.application`
 packages keep their requirements, wire identities and startup behavior.
 
@@ -25,13 +26,15 @@ and exact-artifact acceptance.
 ## Admission
 
 A package declares `fes.computer` major 1 with `fes-gp-v1`. Minor versions
-above 0 and any `core.system` value are rejected. `fes.video.fixed-720p60` 1.0
+0 and 1 are supported; versions above 1 and any `core.system` value are rejected. `fes.video.fixed-720p60` 1.0
 is required. The recognized operational set is `fes.video.fixed-720p60`,
 `fes.keyboard.hid`, `fes.gamepad.ports`, `fes.audio.pcm-s16-stereo-48k`,
 `fes.media.apple2-floppy`, `fes.media.zx81-tape`, `fes.media.c64-disk`
-`fes.media.atari-st-floppy` and `fes.media.spectrum-disk`, each 1.0, and
+`fes.media.atari-st-floppy`, `fes.media.pcxt-floppy` and
+`fes.media.spectrum-disk`, each 1.0, and
 `fes.media.spectrum-tape` 2.0; each must be declared required when present. A
-shell declares at most one unit-0 medium, and `fes.media.spectrum-disk` only
+shell declares at most one unit-0 medium. The PC/XT floppy requires
+`fes.computer` 1.1; `fes.media.spectrum-disk` is supported only
 beside `fes.media.spectrum-tape` and `fes.memory.hps-ddr`. `fes.expansion.apple2-bus` 1.0,
 `fes.expansion.spectrum-bus` 1.0, `fes.expansion.c64-bus` 1.0 and
 `fes.expansion.atari-st-bus` 1.0 are manifest-only buses and must be optional.
@@ -49,13 +52,14 @@ after identity and has no media gate that could hold a linked cartridge.
 Firmware ROM packages activate through `load_rom_core`,
 `load_rom_library_core` or `load_rom_composed_core` with the existing
 `rom_link` receipt. The ABI has no core-scoped persistence interface; an
-explicit initial library disk or later library insertion supplies disk
-persistence and changes the active persistence mode.
+explicit writable ST initial library disk or later library insertion supplies
+disk persistence and changes the active persistence mode. The PC/XT medium is
+read-only and does not use that initial-library-disk path.
 
 Native capabilities advertise the ABI with every recognized interface:
 
 ```json
-{"id":"fes.computer","major":1,"minor":0,"interfaces":[{"id":"fes.audio.pcm-s16-stereo-48k","major":1,"minor":0},{"id":"fes.expansion.apple2-bus","major":1,"minor":0},{"id":"fes.expansion.atari-st-bus","major":1,"minor":0},{"id":"fes.expansion.c64-bus","major":1,"minor":0},{"id":"fes.expansion.spectrum-bus","major":1,"minor":0},{"id":"fes.gamepad.ports","major":1,"minor":0},{"id":"fes.keyboard.hid","major":1,"minor":0},{"id":"fes.media.apple2-floppy","major":1,"minor":0},{"id":"fes.media.atari-st-floppy","major":1,"minor":0},{"id":"fes.media.c64-disk","major":1,"minor":0},{"id":"fes.media.spectrum-disk","major":1,"minor":0},{"id":"fes.media.spectrum-snapshot","major":1,"minor":0},{"id":"fes.media.spectrum-snapshot-128","major":1,"minor":0},{"id":"fes.media.spectrum-snapshot-plus3","major":1,"minor":0},{"id":"fes.media.spectrum-tape","major":2,"minor":0},{"id":"fes.media.zx81-tape","major":1,"minor":0},{"id":"fes.video.fixed-720p60","major":1,"minor":0}]}
+{"id":"fes.computer","major":1,"minor":1,"interfaces":[{"id":"fes.audio.pcm-s16-stereo-48k","major":1,"minor":0},{"id":"fes.expansion.apple2-bus","major":1,"minor":0},{"id":"fes.expansion.atari-st-bus","major":1,"minor":0},{"id":"fes.expansion.c64-bus","major":1,"minor":0},{"id":"fes.expansion.spectrum-bus","major":1,"minor":0},{"id":"fes.gamepad.ports","major":1,"minor":0},{"id":"fes.keyboard.hid","major":1,"minor":0},{"id":"fes.media.apple2-floppy","major":1,"minor":0},{"id":"fes.media.atari-st-floppy","major":1,"minor":0},{"id":"fes.media.c64-disk","major":1,"minor":0},{"id":"fes.media.pcxt-floppy","major":1,"minor":0},{"id":"fes.media.spectrum-disk","major":1,"minor":0},{"id":"fes.media.spectrum-snapshot","major":1,"minor":0},{"id":"fes.media.spectrum-snapshot-128","major":1,"minor":0},{"id":"fes.media.spectrum-snapshot-plus3","major":1,"minor":0},{"id":"fes.media.spectrum-tape","major":2,"minor":0},{"id":"fes.media.zx81-tape","major":1,"minor":0},{"id":"fes.video.fixed-720p60","major":1,"minor":0}]}
 ```
 
 `fes.memory.hps-ddr` 1.0 is added, and sorted with the rest, when the boot
@@ -68,13 +72,15 @@ computer that does not implement the plane leaves the session-display bit clear.
 
 ## Lifecycle
 
-Identity must equal the manifest: tag 4, ABI 1.0, build ID, and live
-capability bits in the registered mask equal to the declared required
-recognized set. Bits outside that mask are ignored, as for applications. Discovery
-then reads MediaInfo fields 0 through 5 for every declared media unit.
+Identity must equal the manifest: tag 4, the declared ABI version and build ID.
+For 1.0, the registered low capability bits must equal the declared required
+recognized set. Version 1.1 retains those identity words and reads word 16 for
+the high capability bits: bit 16 identifies `fes.media.pcxt-floppy`. The entire
+high word must equal the declared set, so unknown or undeclared bits fail
+identity. Discovery then reads MediaInfo fields 0 through 5 for every declared
+media unit.
 `fes.media.apple2-floppy`, `fes.media.spectrum-tape`, `fes.media.zx81-tape`,
-`fes.media.c64-disk`
-and `fes.media.atari-st-floppy`
+`fes.media.c64-disk`, `fes.media.atari-st-floppy` and `fes.media.pcxt-floppy`
 are each unit 0, and a shell declares one of them; `fes.media.spectrum-disk`
 is unit 1. Each declared unit must be present
 and empty, with 512-byte chunks and 1 <= minimum <= maximum <=
@@ -82,13 +88,15 @@ and empty, with 512-byte chunks and 1 <= minimum <= maximum <=
 mismatch. The runtime does not substitute interface sizes for live Info: an
 Apple II core reports 143,360 for both limits, a Spectrum core reports 1 and
 65,536, and a Commodore 64 core reports 174,848 for both limits. The Atari ST
-contract requires exactly 737,280 for both limits at discovery and before
-each insertion; a changed limit is rejected before MediaBegin and follows
-the same failure-eject behavior as other live transfer failures.
+legacy contract requires exactly 737,280 for both limits; its geometry
+extension has different declared limits as described below. The PC/XT contract
+requires exactly 368,640 bytes for both limits: 40 cylinders, two heads, nine
+512-byte sectors per track. The runtime checks those limits at discovery and
+before insertion, rejecting a mismatch before MediaBegin.
 
 After verified identity the ADV7513 audio packets follow the audio
-declaration exactly as for applications. An explicit initial library disk is
-uploaded and confirmed ready before Start; otherwise the drive stays empty.
+declaration exactly as for applications. An explicit ST initial library disk
+is uploaded and confirmed ready before Start; otherwise the drive stays empty.
 Start sends only Execution release, with no media gate and no neutral writes,
 because programming starts held with neutral input. No evdev
 input worker is opened. Stop and replacement send Execution hold before
@@ -158,7 +166,9 @@ never repeated. If that eject also fails the message gains
 `"; media eject failed: <cause>"` and the unit is reported `loading`
 (not known to be ready). Execution stays released and the generation stays
 active in every case; `eject_media` or another `insert_media` re-establishes
-the unit.
+the unit. Inserting a PC/XT disk into a running empty drive does not restart
+the guest or automatically retry a failed boot. A boot path needs suitable
+initial-media handling or an explicit guest retry or warm reset.
 
 ### `eject_media`
 
@@ -253,7 +263,7 @@ ready confirmation, ejection and socket composition; hardware acceptance is
 pending.
 
 Single-socket ZX81 composition admits optional `fes.expansion.zx81-bus` 1.0
-or 2.0 on `fes.simple-computer` 1.0 and `fes.computer` 1.0. Coleco requests
+or 2.0 on `fes.simple-computer` 1.0 and supported `fes.computer` 1.0 or 1.1. Coleco requests
 stay on `fes.application`. Neither shape composes the other bus.
 
 ## Evidence
@@ -264,7 +274,9 @@ identity, HID deltas, controller ports, release, hold and live media
 transfers against it, including the synthetic 1..1030-byte unit, CRC, lost and
 rejected requests and failed cleanup. Admission, protocol, runtime binding,
 multi-slot composition and a runtime lifecycle over native hardware are
-covered. No hardware support is claimed.
+covered. The PC/XT endpoint and 360 KiB insertion also have host simulation
+coverage; the diagnostic package does not yet expose this endpoint and no
+physical PC/XT media acceptance is claimed.
 
 Stop and core replacement save before programming. Successful programming
 retires the previous disk's in-memory binding, including when Stop returns to
