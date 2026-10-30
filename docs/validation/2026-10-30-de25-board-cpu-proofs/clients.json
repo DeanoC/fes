@@ -1,0 +1,606 @@
+[
+  {
+    "status": "passed",
+    "board": "TRWU8J8G",
+    "kind": "internal",
+    "execution": "physical-DE25-AArch64-client-to-host-RTL-over-SSH-Unix-forward",
+    "physical_FPGA": "not-run",
+    "memory": "host-behavioral-RTL",
+    "reference_receipt_sha256": "502bb07660ab38b3ba5961261aa621f75b16a197f43a7d28189a9d8d1c376d1f",
+    "client_sha256": "9c8e800c52756728cfb46b8783c12f009ed10626321cd2987967b6bd3d852b62",
+    "server_sha256": "afa1b814eb0dd60420cdf47fc89cc9e9acf0e3c4e5153249b31d3b49bf90395e",
+    "driver_sha256": "0eae6c12d75aaaa4655965c040811e3ce91403fe62d31028b28d48fab9294ca2",
+    "results": [
+      {
+        "board": "TRWU8J8G",
+        "scenario": "wrong-build",
+        "result": "passed",
+        "writes": 16,
+        "image_bytes": 0,
+        "loaded_bytes": 0,
+        "complete_frames": 0,
+        "host_elapsed_seconds": 1.348
+      },
+      {
+        "board": "TRWU8J8G",
+        "scenario": "session",
+        "result": "passed",
+        "writes": 1475,
+        "image_bytes": 923,
+        "loaded_bytes": 923,
+        "complete_frames": 637,
+        "roundtrip": {
+          "saved_bytes": 923,
+          "loads": 2,
+          "runs": 2,
+          "printed_value": 7,
+          "editor_returns": 24,
+          "saved_cdflag": 64,
+          "reload_removed_edit": true
+        },
+        "saved_image_sha256": "b4e6e04e3063149a0e7232f23e4aa24b96d0631d557920e97c65d1e01dfb3c71",
+        "host_elapsed_seconds": 1402.994
+      },
+      {
+        "board": "TRWU8J8G",
+        "scenario": "tape-bounds",
+        "result": "passed",
+        "writes": 8989,
+        "image_bytes": 0,
+        "loaded_bytes": 0,
+        "complete_frames": 0,
+        "host_elapsed_seconds": 41.593
+      },
+      {
+        "board": "TRWU8J8G",
+        "scenario": "bad-signature",
+        "result": "passed",
+        "writes": 23,
+        "image_bytes": 0,
+        "loaded_bytes": 0,
+        "complete_frames": 0,
+        "host_elapsed_seconds": 0.749
+      },
+      {
+        "board": "TRWU8J8G",
+        "scenario": "missing-ack",
+        "result": "passed",
+        "writes": 23,
+        "image_bytes": 0,
+        "loaded_bytes": 0,
+        "complete_frames": 0,
+        "host_elapsed_seconds": 0.825
+      },
+      {
+        "board": "TRWU8J8G",
+        "scenario": "late-ack",
+        "result": "passed",
+        "writes": 23,
+        "image_bytes": 0,
+        "loaded_bytes": 0,
+        "complete_frames": 0,
+        "host_elapsed_seconds": 0.868
+      },
+      {
+        "board": "TRWU8J8G",
+        "scenario": "post-write-reset",
+        "result": "passed",
+        "writes": 23,
+        "image_bytes": 0,
+        "loaded_bytes": 0,
+        "complete_frames": 0,
+        "host_elapsed_seconds": 0.71
+      },
+      {
+        "board": "TRWU8J8G",
+        "scenario": "ambiguous-write",
+        "result": "passed",
+        "writes": 23,
+        "image_bytes": 0,
+        "loaded_bytes": 0,
+        "complete_frames": 0,
+        "host_elapsed_seconds": 1.017
+      },
+      {
+        "board": "TRWU8J8G",
+        "scenario": "held-word-change",
+        "result": "passed",
+        "writes": 23,
+        "image_bytes": 0,
+        "loaded_bytes": 0,
+        "complete_frames": 0,
+        "host_elapsed_seconds": 0.709
+      },
+      {
+        "board": "TRWU8J8G",
+        "scenario": "late-reset",
+        "result": "passed",
+        "writes": 22,
+        "image_bytes": 0,
+        "loaded_bytes": 0,
+        "complete_frames": 0,
+        "host_elapsed_seconds": 1.129
+      }
+    ]
+  },
+  {
+    "status": "passed",
+    "board": "TRWU8J8G",
+    "kind": "combined",
+    "execution": "physical-DE25-AArch64-client-to-host-RTL-over-SSH-Unix-forward",
+    "physical_FPGA": "not-run",
+    "memory": "host-behavioral-RTL",
+    "reference_receipt_sha256": "a594a7956355dd72588f1a55e2c2b4280663a23ec16f3e7db3e710f96f24d4a5",
+    "client_sha256": "6cc3b4478d65b55cc109cbe4b7bc2473881968bbe12c30a3ef7728b24fe4d75a",
+    "server_sha256": "b4e6969bcfd34e6b26d6d5df2fcdd9367b1bcf87e8d2f8f934b5cea6cc7e7dbe",
+    "driver_sha256": "0eae6c12d75aaaa4655965c040811e3ce91403fe62d31028b28d48fab9294ca2",
+    "results": [
+      {
+        "board": "TRWU8J8G",
+        "scenario": "wrong-build",
+        "result": "passed",
+        "callbacks": 0,
+        "loaded_bytes": 0,
+        "interrupted_bytes": 0,
+        "ramtop_empty": 0,
+        "ramtop_16k": 0,
+        "writes": 0,
+        "host_elapsed_seconds": 1.171
+      },
+      {
+        "board": "TRWU8J8G",
+        "scenario": "session",
+        "result": "passed",
+        "callbacks": 3,
+        "loaded_bytes": 923,
+        "interrupted_bytes": 9,
+        "ramtop_empty": 17408,
+        "ramtop_16k": 32768,
+        "writes": 1548,
+        "roundtrip": {
+          "saved_bytes": 923,
+          "loads": 2,
+          "runs": 2,
+          "printed_value": 7,
+          "editor_returns": 24,
+          "saved_cdflag": 64,
+          "reload_removed_edit": true
+        },
+        "saved_image_sha256": "b4e6e04e3063149a0e7232f23e4aa24b96d0631d557920e97c65d1e01dfb3c71",
+        "host_elapsed_seconds": 1797.289
+      },
+      {
+        "board": "TRWU8J8G",
+        "scenario": "program-failure",
+        "result": "passed",
+        "callbacks": 1,
+        "loaded_bytes": 0,
+        "interrupted_bytes": 0,
+        "ramtop_empty": 0,
+        "ramtop_16k": 0,
+        "writes": 25,
+        "host_elapsed_seconds": 1.07
+      },
+      {
+        "board": "TRWU8J8G",
+        "scenario": "wrong-persona",
+        "result": "passed",
+        "callbacks": 1,
+        "loaded_bytes": 0,
+        "interrupted_bytes": 0,
+        "ramtop_empty": 0,
+        "ramtop_16k": 0,
+        "writes": 27,
+        "host_elapsed_seconds": 1.112
+      },
+      {
+        "board": "TRWU8J8G",
+        "scenario": "ambiguous-write",
+        "result": "passed",
+        "callbacks": 0,
+        "loaded_bytes": 0,
+        "interrupted_bytes": 0,
+        "ramtop_empty": 0,
+        "ramtop_16k": 0,
+        "writes": 24,
+        "host_elapsed_seconds": 0.807
+      },
+      {
+        "board": "TRWU8J8G",
+        "scenario": "missing-response",
+        "result": "passed",
+        "callbacks": 1,
+        "loaded_bytes": 0,
+        "interrupted_bytes": 0,
+        "ramtop_empty": 0,
+        "ramtop_16k": 0,
+        "writes": 27,
+        "host_elapsed_seconds": 2.451
+      },
+      {
+        "board": "TRWU8J8G",
+        "scenario": "late-reset",
+        "result": "passed",
+        "callbacks": 0,
+        "loaded_bytes": 0,
+        "interrupted_bytes": 0,
+        "ramtop_empty": 0,
+        "ramtop_16k": 0,
+        "writes": 23,
+        "host_elapsed_seconds": 0.802
+      }
+    ]
+  },
+  {
+    "status": "passed",
+    "board": "TRWU8J8G",
+    "kind": "control",
+    "execution": "physical-DE25-AArch64-client-to-host-RTL-over-SSH-Unix-forward",
+    "physical_FPGA": "not-run",
+    "memory": "host-behavioral-RTL",
+    "reference_receipt_sha256": "f5a269edf34eb2db95405d2243d4309fc3bd6d0c358c96bfa596e242253e8d3b",
+    "client_sha256": "f3603a0dbdf037b0e6896f05ff55a821519cf8415c96fd9d9869fcbb1fd46595",
+    "server_sha256": "3ccdb7a5e1cca99930364c9f91f900b00d777cee0a58a2eaabf4b6683960f6bd",
+    "driver_sha256": "0eae6c12d75aaaa4655965c040811e3ce91403fe62d31028b28d48fab9294ca2",
+    "results": [
+      {
+        "board": "TRWU8J8G",
+        "scenario": "wrong-build",
+        "result": "passed",
+        "writes": 0,
+        "logical_selections": 0,
+        "host_elapsed_seconds": 1.127
+      },
+      {
+        "board": "TRWU8J8G",
+        "scenario": "success",
+        "result": "passed",
+        "writes": 14,
+        "logical_selections": 3,
+        "host_elapsed_seconds": 0.88
+      },
+      {
+        "board": "TRWU8J8G",
+        "scenario": "program-failure",
+        "result": "passed",
+        "writes": 2,
+        "logical_selections": 0,
+        "host_elapsed_seconds": 0.693
+      },
+      {
+        "board": "TRWU8J8G",
+        "scenario": "wrong-persona",
+        "result": "passed",
+        "writes": 4,
+        "logical_selections": 1,
+        "host_elapsed_seconds": 0.68
+      },
+      {
+        "board": "TRWU8J8G",
+        "scenario": "ambiguous-write",
+        "result": "passed",
+        "writes": 2,
+        "logical_selections": 0,
+        "host_elapsed_seconds": 0.664
+      },
+      {
+        "board": "TRWU8J8G",
+        "scenario": "missing-response",
+        "result": "passed",
+        "writes": 4,
+        "logical_selections": 1,
+        "host_elapsed_seconds": 1.155
+      },
+      {
+        "board": "TRWU8J8G",
+        "scenario": "late-reset",
+        "result": "passed",
+        "writes": 0,
+        "logical_selections": 0,
+        "host_elapsed_seconds": 1.005
+      }
+    ]
+  },
+  {
+    "status": "passed",
+    "board": "TRWU8CBL",
+    "kind": "internal",
+    "execution": "physical-DE25-AArch64-client-to-host-RTL-over-SSH-Unix-forward",
+    "physical_FPGA": "not-run",
+    "memory": "host-behavioral-RTL",
+    "reference_receipt_sha256": "502bb07660ab38b3ba5961261aa621f75b16a197f43a7d28189a9d8d1c376d1f",
+    "client_sha256": "9c8e800c52756728cfb46b8783c12f009ed10626321cd2987967b6bd3d852b62",
+    "server_sha256": "afa1b814eb0dd60420cdf47fc89cc9e9acf0e3c4e5153249b31d3b49bf90395e",
+    "driver_sha256": "0eae6c12d75aaaa4655965c040811e3ce91403fe62d31028b28d48fab9294ca2",
+    "results": [
+      {
+        "board": "TRWU8CBL",
+        "scenario": "wrong-build",
+        "result": "passed",
+        "writes": 16,
+        "image_bytes": 0,
+        "loaded_bytes": 0,
+        "complete_frames": 0,
+        "host_elapsed_seconds": 1.25
+      },
+      {
+        "board": "TRWU8CBL",
+        "scenario": "session",
+        "result": "passed",
+        "writes": 1475,
+        "image_bytes": 923,
+        "loaded_bytes": 923,
+        "complete_frames": 637,
+        "roundtrip": {
+          "saved_bytes": 923,
+          "loads": 2,
+          "runs": 2,
+          "printed_value": 7,
+          "editor_returns": 24,
+          "saved_cdflag": 64,
+          "reload_removed_edit": true
+        },
+        "saved_image_sha256": "b4e6e04e3063149a0e7232f23e4aa24b96d0631d557920e97c65d1e01dfb3c71",
+        "host_elapsed_seconds": 1456.233
+      },
+      {
+        "board": "TRWU8CBL",
+        "scenario": "tape-bounds",
+        "result": "passed",
+        "writes": 8989,
+        "image_bytes": 0,
+        "loaded_bytes": 0,
+        "complete_frames": 0,
+        "host_elapsed_seconds": 44.016
+      },
+      {
+        "board": "TRWU8CBL",
+        "scenario": "bad-signature",
+        "result": "passed",
+        "writes": 23,
+        "image_bytes": 0,
+        "loaded_bytes": 0,
+        "complete_frames": 0,
+        "host_elapsed_seconds": 0.766
+      },
+      {
+        "board": "TRWU8CBL",
+        "scenario": "missing-ack",
+        "result": "passed",
+        "writes": 23,
+        "image_bytes": 0,
+        "loaded_bytes": 0,
+        "complete_frames": 0,
+        "host_elapsed_seconds": 1.182
+      },
+      {
+        "board": "TRWU8CBL",
+        "scenario": "late-ack",
+        "result": "passed",
+        "writes": 23,
+        "image_bytes": 0,
+        "loaded_bytes": 0,
+        "complete_frames": 0,
+        "host_elapsed_seconds": 0.84
+      },
+      {
+        "board": "TRWU8CBL",
+        "scenario": "post-write-reset",
+        "result": "passed",
+        "writes": 23,
+        "image_bytes": 0,
+        "loaded_bytes": 0,
+        "complete_frames": 0,
+        "host_elapsed_seconds": 0.773
+      },
+      {
+        "board": "TRWU8CBL",
+        "scenario": "ambiguous-write",
+        "result": "passed",
+        "writes": 23,
+        "image_bytes": 0,
+        "loaded_bytes": 0,
+        "complete_frames": 0,
+        "host_elapsed_seconds": 0.771
+      },
+      {
+        "board": "TRWU8CBL",
+        "scenario": "held-word-change",
+        "result": "passed",
+        "writes": 23,
+        "image_bytes": 0,
+        "loaded_bytes": 0,
+        "complete_frames": 0,
+        "host_elapsed_seconds": 0.729
+      },
+      {
+        "board": "TRWU8CBL",
+        "scenario": "late-reset",
+        "result": "passed",
+        "writes": 22,
+        "image_bytes": 0,
+        "loaded_bytes": 0,
+        "complete_frames": 0,
+        "host_elapsed_seconds": 1.032
+      }
+    ]
+  },
+  {
+    "status": "passed",
+    "board": "TRWU8CBL",
+    "kind": "combined",
+    "execution": "physical-DE25-AArch64-client-to-host-RTL-over-SSH-Unix-forward",
+    "physical_FPGA": "not-run",
+    "memory": "host-behavioral-RTL",
+    "reference_receipt_sha256": "a594a7956355dd72588f1a55e2c2b4280663a23ec16f3e7db3e710f96f24d4a5",
+    "client_sha256": "6cc3b4478d65b55cc109cbe4b7bc2473881968bbe12c30a3ef7728b24fe4d75a",
+    "server_sha256": "b4e6969bcfd34e6b26d6d5df2fcdd9367b1bcf87e8d2f8f934b5cea6cc7e7dbe",
+    "driver_sha256": "0eae6c12d75aaaa4655965c040811e3ce91403fe62d31028b28d48fab9294ca2",
+    "results": [
+      {
+        "board": "TRWU8CBL",
+        "scenario": "wrong-build",
+        "result": "passed",
+        "callbacks": 0,
+        "loaded_bytes": 0,
+        "interrupted_bytes": 0,
+        "ramtop_empty": 0,
+        "ramtop_16k": 0,
+        "writes": 0,
+        "host_elapsed_seconds": 1.356
+      },
+      {
+        "board": "TRWU8CBL",
+        "scenario": "session",
+        "result": "passed",
+        "callbacks": 3,
+        "loaded_bytes": 923,
+        "interrupted_bytes": 9,
+        "ramtop_empty": 17408,
+        "ramtop_16k": 32768,
+        "writes": 1548,
+        "roundtrip": {
+          "saved_bytes": 923,
+          "loads": 2,
+          "runs": 2,
+          "printed_value": 7,
+          "editor_returns": 24,
+          "saved_cdflag": 64,
+          "reload_removed_edit": true
+        },
+        "saved_image_sha256": "b4e6e04e3063149a0e7232f23e4aa24b96d0631d557920e97c65d1e01dfb3c71",
+        "host_elapsed_seconds": 1507.506
+      },
+      {
+        "board": "TRWU8CBL",
+        "scenario": "program-failure",
+        "result": "passed",
+        "callbacks": 1,
+        "loaded_bytes": 0,
+        "interrupted_bytes": 0,
+        "ramtop_empty": 0,
+        "ramtop_16k": 0,
+        "writes": 25,
+        "host_elapsed_seconds": 0.756
+      },
+      {
+        "board": "TRWU8CBL",
+        "scenario": "wrong-persona",
+        "result": "passed",
+        "callbacks": 1,
+        "loaded_bytes": 0,
+        "interrupted_bytes": 0,
+        "ramtop_empty": 0,
+        "ramtop_16k": 0,
+        "writes": 27,
+        "host_elapsed_seconds": 0.831
+      },
+      {
+        "board": "TRWU8CBL",
+        "scenario": "ambiguous-write",
+        "result": "passed",
+        "callbacks": 0,
+        "loaded_bytes": 0,
+        "interrupted_bytes": 0,
+        "ramtop_empty": 0,
+        "ramtop_16k": 0,
+        "writes": 24,
+        "host_elapsed_seconds": 1.096
+      },
+      {
+        "board": "TRWU8CBL",
+        "scenario": "missing-response",
+        "result": "passed",
+        "callbacks": 1,
+        "loaded_bytes": 0,
+        "interrupted_bytes": 0,
+        "ramtop_empty": 0,
+        "ramtop_16k": 0,
+        "writes": 27,
+        "host_elapsed_seconds": 2.609
+      },
+      {
+        "board": "TRWU8CBL",
+        "scenario": "late-reset",
+        "result": "passed",
+        "callbacks": 0,
+        "loaded_bytes": 0,
+        "interrupted_bytes": 0,
+        "ramtop_empty": 0,
+        "ramtop_16k": 0,
+        "writes": 23,
+        "host_elapsed_seconds": 1.138
+      }
+    ]
+  },
+  {
+    "status": "passed",
+    "board": "TRWU8CBL",
+    "kind": "control",
+    "execution": "physical-DE25-AArch64-client-to-host-RTL-over-SSH-Unix-forward",
+    "physical_FPGA": "not-run",
+    "memory": "host-behavioral-RTL",
+    "reference_receipt_sha256": "f5a269edf34eb2db95405d2243d4309fc3bd6d0c358c96bfa596e242253e8d3b",
+    "client_sha256": "f3603a0dbdf037b0e6896f05ff55a821519cf8415c96fd9d9869fcbb1fd46595",
+    "server_sha256": "3ccdb7a5e1cca99930364c9f91f900b00d777cee0a58a2eaabf4b6683960f6bd",
+    "driver_sha256": "0eae6c12d75aaaa4655965c040811e3ce91403fe62d31028b28d48fab9294ca2",
+    "results": [
+      {
+        "board": "TRWU8CBL",
+        "scenario": "wrong-build",
+        "result": "passed",
+        "writes": 0,
+        "logical_selections": 0,
+        "host_elapsed_seconds": 1.021
+      },
+      {
+        "board": "TRWU8CBL",
+        "scenario": "success",
+        "result": "passed",
+        "writes": 14,
+        "logical_selections": 3,
+        "host_elapsed_seconds": 0.837
+      },
+      {
+        "board": "TRWU8CBL",
+        "scenario": "program-failure",
+        "result": "passed",
+        "writes": 2,
+        "logical_selections": 0,
+        "host_elapsed_seconds": 0.666
+      },
+      {
+        "board": "TRWU8CBL",
+        "scenario": "wrong-persona",
+        "result": "passed",
+        "writes": 4,
+        "logical_selections": 1,
+        "host_elapsed_seconds": 0.712
+      },
+      {
+        "board": "TRWU8CBL",
+        "scenario": "ambiguous-write",
+        "result": "passed",
+        "writes": 2,
+        "logical_selections": 0,
+        "host_elapsed_seconds": 0.901
+      },
+      {
+        "board": "TRWU8CBL",
+        "scenario": "missing-response",
+        "result": "passed",
+        "writes": 4,
+        "logical_selections": 1,
+        "host_elapsed_seconds": 1.101
+      },
+      {
+        "board": "TRWU8CBL",
+        "scenario": "late-reset",
+        "result": "passed",
+        "writes": 0,
+        "logical_selections": 0,
+        "host_elapsed_seconds": 2.609
+      }
+    ]
+  }
+]

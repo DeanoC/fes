@@ -7,6 +7,24 @@ Both run the original Ubuntu 22.04.3 image, AArch64 kernel
 `6.12.11-gd7d192a9ddd9`, with four online CPUs. Executables run directly on those
 CPUs, without QEMU. Temporary test files do not replace the factory image.
 
+## Results
+
+[All 48 client/RTL cases](clients.json), [24 exact bundles and 36 rejected
+compositions](composition.json), and [both software suites](software.json) pass.
+The four retained SAVE images are identical 923-byte files, SHA-256
+`b4e6e04e3063149a0e7232f23e4aa24b96d0631d557920e97c65d1e01dfb3c71`.
+The accepted isolated combined session on `TRWU8CBL` takes 1507.506 host seconds,
+inside the unchanged 1800-second bound. Elapsed times include host simulation
+and SSH; they are not board CPU or FPGA performance measurements.
+
+[Board metadata](boards.json), the [published-reference audit](reference-audit.json),
+[model initialization inputs](runtime-inputs.json), [execution-script identities](replay-source.json)
+and the [manifest](manifest.json) bind the evidence. Replay scripts were frozen
+at `8554a92b47290475d02099b15c5d4b77fa118ebf`. [Remote cleanup](cleanup.json)
+removes owned proof files and failed-fixture partial files; [release metadata](released.json)
+records completion of both serial-specific claims. Factory images and boot
+settings remain as found; no task UART or SSH session remains.
+
 ## What this establishes
 
 Three format-2 composition profiles run on each board: counter personas,
@@ -29,7 +47,9 @@ LOAD/RUN, store a `2 REM` edit after RUN, reload without reset and RUN again.
 Each requires output 7 twice, 24 editor returns and removal of the intervening
 edit. SAVE bytes must match the retained native image. Combined sessions also
 retain empty/RAM/empty selection, interrupted third LOAD/freeze and final
-1-KiB BASIC boot. Guest and host watchdogs are unchanged from #1283.
+1-KiB BASIC boot. Full BASIC sessions retain #1283's 1800-second outer host
+watchdog. Guest phase bounds and API/socket timeouts remain unchanged in the
+retained executables.
 
 Seven retained C++ unit binaries per board pass: runtime, protocol, injected
 MMIO, fake FPGA manager, 64-bit offsets, production-adapter refusal and scripted

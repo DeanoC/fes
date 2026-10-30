@@ -1,0 +1,33 @@
+[
+  {
+    "board": "TRWU8J8G",
+    "owned_temporary_directories_removed": [
+      "/tmp/fes-de25-cpu-oPyvez4z",
+      "/tmp/fes-de25-cpu-gkWZCvsW"
+    ],
+    "owned_crash_reports_removed": [],
+    "failed_fixture_partial_directory_removed": [
+      "/tmp/libmister-protocol-rom.uKTUtU"
+    ],
+    "unmatched_partial_candidates": 0,
+    "architecture": "aarch64",
+    "kernel": "6.12.11-gd7d192a9ddd9",
+    "boot_id": "be6220ac-54d2-43a4-9dd0-6d87b9faa8d0"
+  },
+  {
+    "board": "TRWU8CBL",
+    "owned_temporary_directories_removed": [
+      "/tmp/fes-de25-cpu-DbFQlzQi",
+      "/tmp/fes-de25-cpu-tIKYTsFK",
+      "/tmp/fes-de25-cpu-fKhCgL9Q"
+    ],
+    "owned_crash_reports_removed": [],
+    "failed_fixture_partial_directory_removed": [
+      "/tmp/libmister-protocol-rom.JQHGjg"
+    ],
+    "unmatched_partial_candidates": 0,
+    "architecture": "aarch64",
+    "kernel": "6.12.11-gd7d192a9ddd9",
+    "boot_id": "2d6e38de-dd92-491e-8dcf-1cb1c45491f3"
+  }
+]

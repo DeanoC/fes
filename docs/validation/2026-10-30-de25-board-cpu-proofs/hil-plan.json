@@ -1,0 +1,169 @@
+{
+  "rows": [
+    {
+      "path": "docs/de25-linux.md",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-30-de25-board-cpu-proofs/README.md",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-30-de25-board-cpu-proofs/TRWU8CBL-combined-saved.p",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-30-de25-board-cpu-proofs/TRWU8CBL-internal-saved.p",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-30-de25-board-cpu-proofs/TRWU8J8G-combined-saved.p",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-30-de25-board-cpu-proofs/TRWU8J8G-internal-saved.p",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-30-de25-board-cpu-proofs/affected-checks.log.gz",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-30-de25-board-cpu-proofs/boards.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-30-de25-board-cpu-proofs/cleanup.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-30-de25-board-cpu-proofs/clients.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-30-de25-board-cpu-proofs/composition.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-30-de25-board-cpu-proofs/composition.py",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-30-de25-board-cpu-proofs/consistency.log.gz",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-30-de25-board-cpu-proofs/doc-links.log.gz",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-30-de25-board-cpu-proofs/host-cleanup.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-30-de25-board-cpu-proofs/manifest.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-30-de25-board-cpu-proofs/passing-logs.tar.gz",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-30-de25-board-cpu-proofs/reference-audit.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-30-de25-board-cpu-proofs/released.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-30-de25-board-cpu-proofs/replay-source.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-30-de25-board-cpu-proofs/replay.py",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-30-de25-board-cpu-proofs/runtime-inputs.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-30-de25-board-cpu-proofs/select_suite.py",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-30-de25-board-cpu-proofs/selected-retry.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-30-de25-board-cpu-proofs/setup-failures.tar.gz",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-30-de25-board-cpu-proofs/software.json",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "docs/validation/2026-10-30-de25-board-cpu-proofs/software.py",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    }
+  ],
+  "class": "none",
+  "components": [],
+  "decision": "NO_DEPLOY_CHANGE"
+}
