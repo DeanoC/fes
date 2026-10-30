@@ -3,17 +3,23 @@ add_instance fes_pixel_clk altera_clock_bridge 19.2.0
 set_instance_parameter_value fes_pixel_clk EXPLICIT_CLOCK_RATE 74250000
 add_interface fes_scanout_pixel_clk clock sink
 set_interface_property fes_scanout_pixel_clk EXPORT_OF fes_pixel_clk.in_clk
-add_instance fes_scanout_reset altera_reset_bridge 19.2.0
-set_instance_parameter_value fes_scanout_reset ACTIVE_LOW_RESET 1
-set_instance_parameter_value fes_scanout_reset SYNCHRONOUS_EDGES none
-set_instance_parameter_value fes_scanout_reset O_SYNCHRONOUS_EDGES none
-set_instance_parameter_value fes_scanout_reset NUM_RESET_OUTPUTS 1
-set_instance_parameter_value fes_scanout_reset USE_RESET_REQUEST 0
-add_interface fes_scanout_reset reset sink
-set_interface_property fes_scanout_reset EXPORT_OF fes_scanout_reset.in_reset
+foreach {instance clock edges} {
+    fes_scanout_pixel_reset fes_pixel_clk.out_clk deassert
+    fes_scanout_system_reset periph_clk.out_clk deassert
+} {
+    add_instance $instance altera_reset_bridge 19.2.0
+    set_instance_parameter_value $instance ACTIVE_LOW_RESET 1
+    set_instance_parameter_value $instance SYNCHRONOUS_EDGES $edges
+    set_instance_parameter_value $instance O_SYNCHRONOUS_EDGES $edges
+    set_instance_parameter_value $instance NUM_RESET_OUTPUTS 1
+    set_instance_parameter_value $instance USE_RESET_REQUEST 0
+    add_connection $clock $instance.clk
+    add_interface $instance reset sink
+    set_interface_property $instance EXPORT_OF $instance.in_reset
+}
 add_instance fes_scanout fes_de25_scanout 1.0
 add_connection fes_pixel_clk.out_clk fes_scanout.clk
-add_connection fes_scanout_reset.out_reset fes_scanout.reset
+add_connection fes_scanout_pixel_reset.out_reset fes_scanout.reset
 add_interface fes_scanout_video conduit end
 set_interface_property fes_scanout_video EXPORT_OF fes_scanout.video
 add_interface fes_scanout_clock_fault conduit end
@@ -29,10 +35,15 @@ foreach {instance width address_bits max_burst response_depth} {
             MASTER_SYNC_DEPTH 2 SLAVE_SYNC_DEPTH 2 ENABLE_RESPONSE 1 SYNC_RESET 0 PIPELINE_ENABLE 0] {
         set_instance_parameter_value $instance $name $value
     }
-    # Both sides assert from this one cold/configuration reset source. Software
-    # STOP/CLEAR and post-startup pixel-lock loss never reset these bridges.
-    add_connection fes_scanout_reset.out_reset $instance.s0_reset
-    add_connection fes_scanout_reset.out_reset $instance.m0_reset
+    # Reset release follows each side's own clock. STOP/CLEAR and post-startup
+    # pixel-lock loss never reset these bridges.
+    if {$instance eq "fes_ctrl_cdc"} {
+        add_connection fes_scanout_system_reset.out_reset $instance.s0_reset
+        add_connection fes_scanout_pixel_reset.out_reset $instance.m0_reset
+    } else {
+        add_connection fes_scanout_pixel_reset.out_reset $instance.s0_reset
+        add_connection fes_scanout_system_reset.out_reset $instance.m0_reset
+    }
 }
 add_connection periph_clk.out_clk fes_ctrl_cdc.s0_clk
 add_connection fes_pixel_clk.out_clk fes_ctrl_cdc.m0_clk

@@ -133,7 +133,8 @@ def prepare(archive, output=None, revision=None):
     for name, value in (("ACTIVE_LOW_RESET", "1"), ("SYNCHRONOUS_EDGES", "none"),
                         ("O_SYNCHRONOUS_EDGES", "none"), ("NUM_RESET_OUTPUTS", "1"), ("USE_RESET_REQUEST", "0")):
         exports += "set_instance_parameter_value fes_scanout_top_reset " + name + " " + value + "\n"
-    exports += "add_connection fes_scanout_top_reset.out_reset subsys_periph.fes_scanout_reset\n"
+    exports += "add_connection fes_scanout_top_reset.out_reset subsys_periph.fes_scanout_pixel_reset\n"
+    exports += "add_connection fes_scanout_top_reset.out_reset subsys_periph.fes_scanout_system_reset\n"
     exports += "add_interface fes_scanout_reset reset sink\nset_interface_property fes_scanout_reset EXPORT_OF fes_scanout_top_reset.in_reset\n"
     for name, kind in (("fes_scanout_pixel_clk", "clock sink"),
                        ("fes_scanout_video", "conduit end"), ("fes_scanout_clock_fault", "conduit end")):
@@ -151,6 +152,8 @@ def prepare(archive, output=None, revision=None):
     inputs["scanout"] = {"peripheral_offset": int(offset[1], 16), "default_enabled": False,
         "pixel_hz": 74250000, "system_hz": 100000000, "control_bridge": "mm_ccb19.4.1 DATA32 RESPONSE1",
         "memory_bridge": "mm_ccb19.4.1 DATA128 RESPONSE1 MAX16", "allocation_bytes": 8388608,
+        "reset_release": {"assertion": "asynchronous",
+            "deassertion": {"pixel": "synchronous to 74250000 Hz", "peripheral": "synchronous to 100000000 Hz"}},
         "source_sha256": {staged_names[name]: hps.digest(local / staged_names[name]) for name in LOCAL} |
                          {name: hps.digest(local / name) for name in ("fes_menu_reader_de25.v", "fes_menu_video.v")},
         "compiled_top_sha256": hps.digest(project / "golden_top.v"), "rendered_integration_sha256": hps.digest(project / "integrate-mailbox.tcl"),
@@ -183,11 +186,12 @@ def require_parameters(actual, expected, name):
     return {key: actual[key] for key in expected}
 
 
-def verify_reset_bridge(project, module, hps):
+def verify_reset_bridge(project, module, hps, synchronous_edges="NONE"):
     if module is None or module.get("kind") != "altera_reset_bridge" or module.get("version") != "19.2.0":
         raise ValueError("generated scanout reset bridge version/kind differs")
     actual, source = referenced_parameters(project, module, hps)
-    checked = require_parameters(actual, {"ACTIVE_LOW_RESET": 1, "SYNCHRONOUS_EDGES": "none",
+    checked = require_parameters(actual, {"ACTIVE_LOW_RESET": 1,
+        "SYNCHRONOUS_EDGES": synchronous_edges.lower(),
         "NUM_RESET_OUTPUTS": 1, "USE_RESET_REQUEST": 0}, module.get("path"))
     definition = ET.fromstring(module.findtext("parameter[@name='componentDefinition']/value"))
     for name, direction in (("in_reset", "Input"), ("out_reset", "Output")):
@@ -195,11 +199,12 @@ def verify_reset_bridge(project, module, hps):
         if len(points) != 1 or hps.component_ports(module, name) != {"reset_n": (direction, 1)}:
             raise ValueError("generated scanout reset bridge polarity differs")
         edges = points[0].findtext("parameters/parameterValueMap/entry[key='synchronousEdges']/value")
-        if edges != "NONE":
+        if edges != synchronous_edges:
             raise ValueError("generated scanout reset bridge synchronization differs")
     # O_SYNCHRONOUS_EDGES is DERIVED (not stored in .ip). Verify the actual
     # elaborated output interface rather than substituting a guessed default.
-    checked["O_SYNCHRONOUS_EDGES"] = "none (elaborated output synchronousEdges=NONE)"
+    checked["O_SYNCHRONOUS_EDGES"] = synchronous_edges.lower() + \
+        " (elaborated output synchronousEdges=" + synchronous_edges + ")"
     return {"parameters": checked, "logical_view": source}
 
 
@@ -233,20 +238,35 @@ def verify_handoff(project, hps):
               ("subsys_periph_fes_pixel_clk.out_clk", "fes_ctrl_cdc.m0_clk", 74250000),
               ("subsys_periph_fes_pixel_clk.out_clk", "fes_mem_cdc.s0_clk", 74250000),
               ("subsys_periph_periph_clk.out_clk", "fes_mem_cdc.m0_clk", 100000000),
-              ("subsys_periph_fes_pixel_clk.out_clk", "fes_scanout.clk", 74250000))
+              ("subsys_periph_fes_pixel_clk.out_clk", "fes_scanout.clk", 74250000),
+              ("subsys_periph_fes_pixel_clk.out_clk", "fes_scanout_pixel_reset.clk", 74250000),
+              ("subsys_periph_periph_clk.out_clk", "fes_scanout_system_reset.clk", 100000000))
     for start, end, rate in clocks:
         item = connections.get(("clock", start, "subsys_periph_" + end))
         if item is None or item.findtext("parameter[@name='clockRateSysInfo']/value") != str(rate):
             raise ValueError("generated scanout clock differs: " + end)
-    for sink in ("fes_ctrl_cdc.s0_reset", "fes_ctrl_cdc.m0_reset", "fes_mem_cdc.s0_reset", "fes_mem_cdc.m0_reset", "fes_scanout.reset"):
-        if ("reset", "subsys_periph_fes_scanout_reset.out_reset", "subsys_periph_" + sink) not in connections:
-            raise ValueError("generated scanout bridge common reset differs: " + sink)
+    reset_routes = (
+        ("subsys_periph_fes_scanout_system_reset.out_reset", "subsys_periph_fes_ctrl_cdc.s0_reset"),
+        ("subsys_periph_fes_scanout_pixel_reset.out_reset", "subsys_periph_fes_ctrl_cdc.m0_reset"),
+        ("subsys_periph_fes_scanout_pixel_reset.out_reset", "subsys_periph_fes_mem_cdc.s0_reset"),
+        ("subsys_periph_fes_scanout_system_reset.out_reset", "subsys_periph_fes_mem_cdc.m0_reset"),
+        ("subsys_periph_fes_scanout_pixel_reset.out_reset", "subsys_periph_fes_scanout.reset"))
+    for start, end in reset_routes:
+        if ("reset", start, end) not in connections:
+            raise ValueError("generated scanout domain reset differs: " + end)
     reset_source = modules.get("fes_scanout_top_reset")
+    top_reset_routes = (
+        ("reset", "fes_scanout_top_reset.out_reset", "subsys_periph_fes_scanout_pixel_reset.in_reset"),
+        ("reset", "fes_scanout_top_reset.out_reset", "subsys_periph_fes_scanout_system_reset.in_reset"))
     if (reset_source is None or reset_source.get("kind") != "altera_reset_bridge" or
-            ("reset", "fes_scanout_top_reset.out_reset", "subsys_periph_fes_scanout_reset.in_reset") not in connections):
+            any(route not in connections for route in top_reset_routes)):
         raise ValueError("generated top scanout interconnect reset source differs")
-    reset_bridges = {name: verify_reset_bridge(project, modules.get(name), hps)
-                     for name in ("fes_scanout_top_reset", "subsys_periph.fes_scanout_reset")}
+    reset_bridges = {
+        "fes_scanout_top_reset": verify_reset_bridge(project, reset_source, hps),
+        "subsys_periph.fes_scanout_pixel_reset": verify_reset_bridge(
+            project, modules.get("subsys_periph.fes_scanout_pixel_reset"), hps, "DEASSERT"),
+        "subsys_periph.fes_scanout_system_reset": verify_reset_bridge(
+            project, modules.get("subsys_periph.fes_scanout_system_reset"), hps, "DEASSERT")}
     bridge_parameters = {}
     for name, width, address_bits, burst, depth in (("fes_ctrl_cdc", 32, 7, 1, 4), ("fes_mem_cdc", 128, 32, 16, 32)):
         module = modules.get("subsys_periph." + name)
@@ -269,7 +289,7 @@ def verify_handoff(project, hps):
         "pixel_hz": 74250000, "memory_hz": 100000000, "bridge_parameters": bridge_parameters,
         "read_only_master_ports": expected_master, "csr_write_completion": True,
         "peripheral_slave_map": probe["peripheral_slave_map"], "ddr_scanout": True,
-        "top_reset_source": "fes_scanout_top_reset.out_reset -> subsys_periph_fes_scanout_reset.in_reset",
+        "top_reset_source": "fes_scanout_top_reset.out_reset -> pixel and 100 MHz reset bridge inputs",
         "reset_bridges": reset_bridges,
         "runtime_admission": "not-qualified", "global_reset_ownership": "not-qualified"}
 
