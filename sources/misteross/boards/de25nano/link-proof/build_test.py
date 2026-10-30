@@ -28,13 +28,14 @@ class RecipeTests(unittest.TestCase):
                          {name: build.sha(data) for name, data in frozen["files"].items()})
 
         runtime = root / "sources/libmister-runtime"
+        hps_cosim = build.BOARD.parent / "zx81-hps/cosim"
         paths = list(combined.glob("*.cpp")) + list(combined.glob("*.hpp"))
         paths += [combined / "sim_top.v", combined / "proof.py"]
         paths += list((runtime / "src/native").rglob("*.hpp"))
+        paths += list(hps_cosim.glob("*.hpp"))
         paths += [runtime / "include/libmister-runtime/runtime.h",
                   runtime / "src/native/de25_computer.cpp",
                   runtime / "src/native/de25_pr_control.cpp",
-                  build.BOARD.parent / "zx81-hps/cosim/wire.hpp",
                   build.BOARD.parent / "zx81-hps/client_proof.py"]
         runtime_hashes = {path.relative_to(root).as_posix(): build.sha(path.read_bytes()) for path in paths}
         self.assertTrue(receipt["test_source_committed"])

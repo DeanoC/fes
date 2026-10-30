@@ -3,8 +3,8 @@
   "issue": 1274,
   "owner": "misteross",
   "task_base": "0e81447dc19f8f1167ce67d110b5c14e054f2d77",
-  "integrated_parent": "54c9b6ce6716dcde188c08cae43de5f6943e53b7",
-  "client_RTL_producer": "a05bd205c6929a72d5c070d353c8ea37203fd665",
+  "integrated_parent": "73ee2ea85c2ac543747318ea1c59eebae5225d68",
+  "client_RTL_producer": "75abf6dfa9912e6c3c45c825a53f4ae1a26f2d01",
   "evidence_class": "off-board native and emulated AArch64 actual-client/RTL simulation; not hardware acceptance",
   "no_new_Quartus_artifact": true,
   "software_logs": {
@@ -25,9 +25,9 @@
     "cdflag-control.json": "703c2a4602dc0bf022446ee95da3552bb265e01e2ea2f17b8fe217c4d3070b23",
     "check-final3.log.gz": "d842ff24b9bb583d9f7ea60f054595b47a65fdcae4bf44b6b2bc61937d07e704",
     "combined-aarch64-cortex-a76-saved.p": "b4e6e04e3063149a0e7232f23e4aa24b96d0631d557920e97c65d1e01dfb3c71",
-    "combined-logs.tar.gz": "d3f2703ebb214782676180f9fe04a3ff1ebe68a1036dc859cd9a1d80f7f852c7",
+    "combined-logs.tar.gz": "378d7bcc91e879fa8215260864724cf8f6d405eafbe595409a9920ec9b940caa",
     "combined-native-saved.p": "b4e6e04e3063149a0e7232f23e4aa24b96d0631d557920e97c65d1e01dfb3c71",
-    "combined-proof.json": "a594a7956355dd72588f1a55e2c2b4280663a23ec16f3e7db3e710f96f24d4a5",
+    "combined-proof.json": "98990304e8f5593b10c1f36aa650d174ceca5d7cba6e224d6ca0e3be65c1d0a4",
     "compiler-input-comparison.json": "4f0d15f4c20cf2f5bbf1ca5b1c530f6fa2a1c2d1e84b1992586cb1b89f9ab83b",
     "diagnostic-controls.tar.gz": "f05866b24f83bd2ec0b169b50fb2bdd0011b504e7196cf274e8902ea1c73607e",
     "doc-links-final4.log.gz": "1e12022ea113bbe7b474498de6dd7146f10a8a1d34db9a5ffedfbdff29da1e99",
@@ -39,7 +39,9 @@
     "line-completion-control.json": "918136b034fca61e53a23d5da4135d2112aa5170c93f4b5032ec9aa34db65318",
     "rejected-candidates.json": "5406e7b21fb2de52157cefa931dbb6ad374b1e3ef8d700598433e3c2e3eb5c90",
     "schema-final4.log.gz": "c15a73a62b6c7d985c0743963133db19cc7332a2591f9346bc4e432767ced597",
-    "source-match.json": "bb86070fc4636af8a37b20f9d388d9db3b1596680fcf24a90108918f5da08e75",
+    "source-match.json": "972256ccba7edf1d5d12b4ad2ca9e3249786d36faf7373b0b4047739f005fe37",
     "test-changed-final3.log.gz": "03e773cb2a76f830da9ec55253513f84fd74789d70d769c1350238d36027e1a6"
-  }
+  },
+  "internal_client_RTL_producer": "a05bd205c6929a72d5c070d353c8ea37203fd665",
+  "combined_client_RTL_producer": "75abf6dfa9912e6c3c45c825a53f4ae1a26f2d01"
 }
