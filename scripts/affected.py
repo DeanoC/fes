@@ -82,12 +82,12 @@ SHARED_RTL = {
     'fes_computer_gp.v': COLECO_CONSUMERS,
     'fes_application_gp.v': ('demo', 'coleco', 'menu', 'ramtest', 'riscv'),
     'fes_video_720p.v': ('demo', 'pong', 'ramtest', 'riscv'),
-    'fes_audio_i2s.v': ('demo', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'atari-st'),
+    'fes_audio_i2s.v': ('demo', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'atari-st', 'pc386'),
     'fes_audio_pll.v': ('demo',),
-    'fes_audio_output.v': ('zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'atari-st'),
+    'fes_audio_output.v': ('zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'atari-st', 'pc386'),
     'fes_sn76489.sv': ('coleco', 'sg1000'),
     'fes_z80_ce.sv': COLECO_CONSUMERS,
-    'fes_computer_mailbox.v': ('apple2', 'c64', 'spectrum', 'atari-st', 'zx81', 'pcxt'),
+    'fes_computer_mailbox.v': ('apple2', 'c64', 'spectrum', 'atari-st', 'zx81', 'pc386', 'pcxt'),
     't80pa.v': ('coleco', 'sms'),
     'fes_video_part_direct.v': ('coleco', 'atari-st', 'pcxt'),
     'fes_video_part_scanlines.v': ('coleco', 'atari-st', 'pcxt'),
@@ -106,7 +106,7 @@ ATARI_ST_SCRIPTS = frozenset({'atari_st_slot.py', 'build_atari_st_slot_card.py',
 # the FPGA software lane.
 I386_SCRIPTS = frozenset({'fes_i386_oracle.py', 'test_fes_i386_vectors.py', 'test_fes_i386_test386.py',
                           'test_fes_i386_frontend.py', 'test_fes_i386_lockstep.py', 'benchmark_fes_i386.py',
-                          'quartus_fes_i386.py'})
+                          'quartus_fes_i386.py', 'fes_i386_ucode.py'})
 
 
 def fpga_cores(path):
@@ -203,10 +203,10 @@ def fpga_cores(path):
             return ('spectrum',), 'Spectrum socket recipe'
         if parts[1] in ATARI_ST_SCRIPTS:
             return ('atari-st',), 'Atari ST socket/card/ROM test recipe'
-        if parts[1] in ('build_pc386_firmware.py', 'build_pc386_freedos_image.py'):
-            return ('pc386',), 'pc386 firmware and simulation disk recipes'
-        if parts[1] == 'synth_fes_pc386.py':
-            return (), 'pc386 diagnostic synthesis recipe; no simulation reads it'
+        if parts[1] in ('build_pc386_firmware.py', 'build_pc386_freedos_image.py', 'pc386_diag.py'):
+            return ('pc386',), 'pc386 firmware, simulation disk and diagnostic program recipes'
+        if parts[1] in ('synth_fes_pc386.py', 'build_fes_pc386_oss.py'):
+            return (), 'pc386 diagnostic synthesis recipe and producer; no simulation reads them'
         if parts[1] in I386_SCRIPTS:
             return (), 'i386 oracle, corpus runners, RTL checks and timing harness; no core consumer'
     if parts and parts[0] == 'tests':

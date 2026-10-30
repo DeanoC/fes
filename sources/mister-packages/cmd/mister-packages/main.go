@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/DeanoC/mister-packages/internal/emitc"
 	"github.com/DeanoC/mister-packages/internal/emitcpp"
 	"github.com/DeanoC/mister-packages/internal/emitgo"
 	"github.com/DeanoC/mister-packages/internal/emitverilog"
@@ -40,6 +41,17 @@ func run(command string, args []string) error {
 			return err
 		}
 		return reportPath(path)
+	case "emit-c":
+		path, err := inputPath(args)
+		if err != nil {
+			return err
+		}
+		text, err := emitCPath(path)
+		if err != nil {
+			return err
+		}
+		fmt.Print(text)
+		return nil
 	case "emit-cpp":
 		path, err := inputPath(args)
 		if err != nil {
@@ -159,6 +171,21 @@ func reportPath(path string) error {
 	default:
 		return fmt.Errorf("%s: kind %q is not board or platform", path, kind)
 	}
+}
+
+func emitCPath(path string) (string, error) {
+	kind, err := pack.PeekKind(path)
+	if err != nil {
+		return "", err
+	}
+	if kind != "fabric" {
+		return "", fmt.Errorf("%s: emit-c expects kind fabric, got %q", path, kind)
+	}
+	fabric, err := pack.LoadFabric(path)
+	if err != nil {
+		return "", err
+	}
+	return emitc.GenerateFabric(fabric)
 }
 
 func emitGoPath(path string) (string, error) {
@@ -287,6 +314,7 @@ func usage() {
 Commands:
   validate [package.yaml]
   report [package.yaml]
+  emit-c <fabric.yaml>
   emit-cpp [package.yaml]
   emit-go [abi.yaml|programming.yaml]
 	emit-verilog [abi.yaml|fabric.yaml]

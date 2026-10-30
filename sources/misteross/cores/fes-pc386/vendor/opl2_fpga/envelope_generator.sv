@@ -188,7 +188,7 @@ module envelope_generator
     );
 
     mem_single_bank #(
-        .DATA_WIDTH($bits(state_t)),
+        .DATA_WIDTH(4),                 // $bits(state_t)
         .DEPTH(NUM_OPERATORS_PER_BANK),
         .OUTPUT_DELAY(0),
         .DEFAULT_VALUE(RELEASE)

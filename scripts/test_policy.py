@@ -96,6 +96,8 @@ def _classify(path):
     # It consumes no DE10 image, core package, runtime or media assembly input.
     if _under(path, 'image/de25-nano') and '..' not in Path(path).parts:
         return dict.fromkeys(TEST_MODE_KEYS, False)
+    if _under(path, 'image/kernel/de25-dma') and '..' not in Path(path).parts:
+        return dict.fromkeys(TEST_MODE_KEYS, False)
     if path in (DE25_BOARD_DEFINITION, DE25_DDR_PROBE_DEFINITION):
         return dict.fromkeys(TEST_MODE_KEYS, False)
     if _under(path, 'sources/mister-packages'):

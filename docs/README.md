@@ -21,6 +21,7 @@ a dated record. A dated record is not the schedule.
 | Build, provision or verify a flashable disk | [Bootable media](bootable-media.md) |
 | Build the headless DE25-Nano AArch64 Linux diagnostic | [DE25-Nano Linux](de25-linux.md) |
 | Prepare the DE25 HPS/DDR diagnostic and MENU allocation contract | [DE25 DDR](../sources/mister-packages/docs/de25-ddr.md) |
+| Build combined DE25 HPS/HDMI or test Linux DMA ownership under QEMU | [Combined diagnostic](../sources/misteross/boards/de25nano/combined/README.md), [DMA ownership](../image/kernel/de25-dma/README.md) |
 | Publish a versioned appliance image | [Appliance releases](appliance-releases.md) |
 | Share the kit | [Kit sharing](kit-sharing.md) |
 | Work in misteross | [misteross README](../sources/misteross/README.md): OSS place-and-route experiments, or a described core |
@@ -109,6 +110,11 @@ The [pc386 M3 audio record](validation/2026-10-26-pc386-m3-audio/summary.md)
 checks the OPL2 sample for sample against Nuked-OPL3, the Sound Blaster DSP's
 DMA and IRQ sequences, and start-up audio from the sound exercise and games
 on the oracle machine. It is host-only simulation evidence.
+The [pc386 M4 Quartus record](validation/2026-10-29-pc386-m4-quartus/summary.md)
+seals the M4 diagnostic package with Quartus 17.0.2 at its 61.44 MHz system
+clock, with every analysis met, after one ATA read-path change; the latest
+seal, with #1226's review fixes, passed every M4 diagnostic program and 201
+machine resets on Kit B.
 
 Ownership that has already landed is [component boundaries](component-boundaries.md)
 and the [project map](project-map.md). [Structure](fes-structure.md) only

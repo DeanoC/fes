@@ -307,9 +307,9 @@ The baseline image/bundle are retained and the kit is idle/lease-free.
 BIOS/DOS/game compatibility, keyboard and other profiles remain open. See the
 [PC/XT diagnostic guide](../sources/misteross/cores/fes-pcxt/README.md#assembled-board-diagnostic).
 
-## pc386 machine, phases M1, M2 and M3
+## pc386 machine, phases M1 to M4
 
-pc386 is outside the factory/package set and has no shell or producer. Its AT
+pc386 is outside the factory/package set. Its AT
 core (PICs, 8254, DMA, 8042, RTC/CMOS, ATA) runs the Bochs BIOS, the LGPL
 VGABios and FreeDOS 1.4 to a working prompt in host simulation, with the Bochs
 oracle as CPU; `make sim-fes-pc386` runs the device, DSP, OPL2, presenter and
@@ -323,8 +323,15 @@ the [M1 record](validation/2026-10-26-pc386-m1-freedos-boot/summary.md) and the
 [M2 record](validation/2026-10-26-pc386-m2-vga/summary.md) and the
 [M3 audio record](validation/2026-10-26-pc386-m3-audio/summary.md); the
 [AT core M10K record](validation/2026-10-27-pc386-at-core-m10k/summary.md) has the
-AT core's current synthesis figures. The RTL CPU in the machine, mailbox,
-routed result and hardware remain open.
+AT core's current synthesis figures. Phase M4's
+development package `fes.pc386-diag` (`make build-fes-pc386-diag`, not
+registered) is the machine without its CPU on a DE10-Nano: a bus master runs
+diagnostic commands from the HPS DDR window in the CPU's place
+([M4 record](validation/2026-10-28-pc386-m4-diagnostic/summary.md)). Its
+nextpnr routes miss both clocks; sealed with Quartus 17.0.2, it passed every
+diagnostic program on Kit B on 2026-10-29. The RTL
+CPU in the machine, the `fes.computer` 1.1 mailbox and the disk round trip
+with the runtime remain open.
 
 ## Not implemented, or not this package
 

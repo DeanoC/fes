@@ -177,7 +177,7 @@ Vendor, FPGA part, clocks, and pins. Pins are descriptive; this schema
 does not generate XDC or Quartus constraints.
 
 `validate` and `report` accept a standalone board without a platform, SoC or
-CPU definition. `emit-cpp`, `emit-go` and `emit-verilog` do not accept boards.
+CPU definition. `emit-c`, `emit-cpp`, `emit-go` and `emit-verilog` do not accept boards.
 Board identifiers follow the ABI identifier grammar. Vendor, FPGA family and
 device are required. At least one clock is required, and each clock names its
 physical pin, I/O standard and positive frequency in Hz. Every additional pin
@@ -304,6 +304,12 @@ fields. `validate` accepts fabric packages and `emit-verilog` emits guarded
 constant includes using the existing naming rules. `emit-cpp` emits the same
 constants for a fabric contract the runtime also reads, such as
 [`fes.fabric.video.display-plane`](../packages/fabric/fes_fabric_video_display_plane.yaml).
+`emit-c` accepts only fabric packages and emits standalone guarded C headers,
+with no system includes. Constant names use the existing uppercase Verilog
+macro naming rule; each value is an unsigned 32-bit hexadecimal literal such
+as `#define FES_DE25_DDR_PROBE_IDENTITY 0x44323550U`. The include guard derives
+from the package ID and major version, with a `_H` suffix. Duplicate normalized
+macro names, including collisions with that guard, are rejected.
 This path does not generate RTL modules, connections, constraints, or host
 Go/C++ admission tables.
 
