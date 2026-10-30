@@ -30,15 +30,15 @@ struct Bench {
         if (sn == now) { if (sys_running) { t.clk_sys = !t.clk_sys; sr = t.clk_sys; } sn += sh; }
         if (pn == now) { if (pix_running) { t.pixel_clk = !t.pixel_clk; pr = t.pixel_clk; } pn += ph; }
         unsigned h = R(horizontal), v = R(vertical), front = R(front);
-        bool valid = R(front_valid);
+        bool valid = R(display_valid);
+        unsigned display_front = R(front);
         bool req = R(request), ack = R(acknowledge);
         if (sr && R(sample)) {
             check(R(write_address) < 41u*270u*2u, "write address outside storage");
-            check(!valid || R(writer) != front, "writer touched the displayed bank");
+            check(!valid || R(writer) != display_front, "writer touched the displayed bank");
             check(!R(pending), "writer touched a published bank");
         }
         t.eval();
-        const bool active = t.reset_n && !R(pix_reset);
         if (sr) {
             ++sys_edges;
             if (t.reset_n && req != R(request)) {
@@ -49,22 +49,20 @@ struct Bench {
         }
         if (pr) {
             ++pixel_edges;
-            if (active) {
-                check(bool(t.de) == (h < 1280 && v < 720), "DE/RAM latency mismatch");
-                check(bool(t.hsync) == (h >= 1390 && h < 1430), "HS geometry mismatch");
-                check(bool(t.vsync) == (v >= 725 && v < 730), "VS geometry mismatch");
-                bool image = h >= 312 && h < 968 && v >= 90 && v < 630;
-                unsigned x = image ? (h-312)/2 : 0, y = image ? (v-90)/2 : 0;
-                bool bright = image && valid && (y >= bank_rows[front] || !ink(bank_seed[front], x, y));
-                check(t.red == (bright ? 255 : 0) && t.green == t.red && t.blue == t.red,
-                      "display pixel differs from the complete published source frame");
-                if (image && valid) ++samples;
-                if (R(front) != front || R(acknowledge) != ack) {
-                    check(h == 1649 && v == 749, "bank changed within an output frame");
-                    check(R(front_rows) == bank_rows[R(front)], "frame metadata crossed incoherently");
-                    ++swaps;
-                }
-            } else check(!t.de && !t.red, "reset exposed uninitialised memory");
+            check(bool(t.de) == (h < 1280 && v < 720), "DE/RAM latency mismatch");
+            check(bool(t.hsync) == (h >= 1390 && h < 1430), "HS geometry mismatch");
+            check(bool(t.vsync) == (v >= 725 && v < 730), "VS geometry mismatch");
+            bool image = h >= 312 && h < 968 && v >= 90 && v < 630;
+            unsigned x = image ? (h-312)/2 : 0, y = image ? (v-90)/2 : 0;
+            bool bright = image && valid && (y >= bank_rows[display_front] || !ink(bank_seed[display_front], x, y));
+            check(t.red == (bright ? 255 : 0) && t.green == t.red && t.blue == t.red,
+                  "display pixel differs from the complete published source frame");
+            if (image && valid) ++samples;
+            if (R(front) != front || R(acknowledge) != ack) {
+                check(h == 1649 && v == 749, "bank changed within an output frame");
+                check(R(front_rows) == bank_rows[R(front)], "frame metadata crossed incoherently");
+                ++swaps;
+            }
         }
     }
     void cycles(uint64_t n) { auto end=sys_edges+n; while(sys_edges<end) step(); }
@@ -80,15 +78,38 @@ struct Bench {
         if(finish) { t.vblank=1; cycles(4); }
     }
     void reset_stopped() {
-        // Assert and release with no edges in either domain. Async assertion
-        // must invalidate both bank owners before either clock can return.
+        // A terminal epoch reset invalidates owners while stopped, but the
+        // selected scanout bank remains visible until the next frame boundary.
         sys_running=false; pix_running=false;
+        const bool had_picture = R(display_valid);
+        const bool held_de = t.de, held_hs = t.hsync, held_vs = t.vsync;
+        const uint8_t held_red = t.red;
         t.reset_n=0; t.eval();
-        check(!R(front_valid) && !R(request) && !R(acknowledge) && !t.red,
-              "stopped-clock reset retained an ownership epoch");
+        check(!R(front_valid) && !R(request) && !R(acknowledge) &&
+              R(display_valid) == had_picture && t.de == held_de &&
+              t.hsync == held_hs && t.vsync == held_vs && t.red == held_red,
+              "stopped-clock reset changed presentation before a raster boundary");
+        // The integrated computer sim checks the real full-raster wait. Here
+        // place the raster on its boundary to exercise the invalidation edge
+        // without adding another 1.2M-pixel wait to each clock-ratio case.
+        R(horizontal)=1649; R(vertical)=749;
+        R(de_q)=0; R(hs_q)=0; R(vs_q)=0;
+        R(image_q)=0; R(valid_q)=0; R(stored_q)=0; R(bit_q)=0;
+        t.eval();
+        pix_running=true;
+        bool cleared_at_boundary = false;
+        const uint64_t deadline = pixel_edges + 3;
+        while (pixel_edges < deadline && !cleared_at_boundary) {
+            const bool boundary = R(boundary);
+            const uint64_t before = pixel_edges;
+            step();
+            if (boundary && pixel_edges != before) cleared_at_boundary = true;
+        }
+        check(cleared_at_boundary && !R(display_valid),
+              "reset did not hide the last presented frame at a raster boundary");
+        pixels(2);
+        check(!R(front_valid) && !t.red, "reader replayed an old frame after boundary reset");
         t.reset_n=1; t.eval();
-        pix_running=true; pixels(32);
-        check(!R(front_valid) && !t.red, "reader replayed an old frame after reset");
         sys_running=true; cycles(8);
     }
     void run() {
@@ -125,7 +146,7 @@ struct Bench {
         frame(13,17,328,false); reset_stopped();
         frame(14); pixels(1650*750*2);
         std::printf("PASS DE25 video: sys-half=%u pix-half=%u publications=%u swaps=%u checked-pixels=%llu; "
-                    "startup, geometry, scaled edges, short/long lines, clock loss, HOLD and stopped-clock reset\n",
+                    "startup, geometry, scaled edges, short/long lines, clock loss, HOLD, and reset-boundary presentation\n",
                     sh,ph,publications,swaps,(unsigned long long)samples);
     }
 };

@@ -19,14 +19,14 @@ internal 16 KiB RAM; it is not the separate reconfigurable RAM-only base.
 
 ## Digital evidence
 
-[Video results](video.json) record 21,048,359 checked image pixels across three
+[Video results](video.json) record 21,048,339 checked image pixels across three
 independent clock ratios, with randomized unwritten RAM. Every displayed pixel
 must match one completed patterned source frame. Checks cover the first/last
 scaled pixels, aligned DE/sync, missing rows rendered as paper, malformed line
 rejection, excess-row cropping, a partial final line, stopped source/reader
-clocks, recovery, HOLD, and reset asserted/released while both clocks stop.
-Writer/displayed-bank exclusion and frame-boundary-only ownership transfer
-are checked throughout.
+clocks, recovery, HOLD, and stopped-clock epoch reset with presentation held
+through the next raster boundary. Writer/displayed-bank exclusion and
+frame-boundary-only ownership transfer are checked throughout.
 
 [Client proof](client-proof.json) and [inputs](client-inputs.json) bind all 20
 native/static-AArch64 cases to the actual endpoint, mailbox, machine, firmware,

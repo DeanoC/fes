@@ -24,9 +24,11 @@ reject the whole capture. Output stays black until the first complete capture.
 A request/acknowledgement handshake keeps the published bank immutable until
 scanout switches at a 720p frame boundary. A slow or stopped reader makes the
 source skip whole frames; a stopped source repeats the last completed picture.
-HOLD aborts partial capture and retains the last completed picture. The shared
-transport epoch reset asynchronously invalidates both owners even with clocks
-stopped; each domain releases reset through its own two-stage synchronizer.
+HOLD aborts partial capture and retains the last completed picture. A transport
+epoch reset asynchronously invalidates capture and publish ownership even with
+clocks stopped. Scanout retains its selected bank through the current raster
+frame and hides it at the synchronized frame boundary. Each domain releases
+reset through its own two-stage synchronizer.
 DE, sync and the scaled pixel selector share the RAM's registered read latency.
 The two single-bit crossings cut only their first synchronizer stages. The
 held row-count metadata has explicit 10 ns net-delay, datapath-delay,

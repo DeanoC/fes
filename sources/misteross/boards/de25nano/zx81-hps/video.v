@@ -92,11 +92,15 @@ module fes_de25_zx81_video (
     reg [9:0] vertical = 0;
     reg front = 0, front_valid = 0;
     reg [8:0] front_rows = 0;
+    // Keep the last presented bank selected until the frame gate closes. The
+    // transport epoch resets ownership asynchronously, but must not blank the
+    // current scanout between pixels.
+    reg display_valid = 0;
     wire boundary = horizontal == 1649 && vertical == 749;
     assign frame_tick = boundary;
-    // Keep raster timing running while transport readiness resets the frame
-    // owners. The synchronized frame gate can then disable or re-enable output
-    // only on a complete output-frame boundary.
+    // Keep raster timing and the presented bank running while transport
+    // readiness resets the frame owners. Presentation is invalidated at the
+    // same frame boundary where the synchronized frame gate disables output.
     always @(posedge pixel_clk) begin
         horizontal <= horizontal == 1649 ? 11'd0 : horizontal + 1'b1;
         if (horizontal == 1649) vertical <= vertical == 749 ? 10'd0 : vertical + 1'b1;
@@ -121,26 +125,36 @@ module fes_de25_zx81_video (
     always @(posedge pixel_clk or negedge pix_release[1]) begin
         if (!pix_release[1]) begin
             acknowledge <= 0;
-            front <= 0; front_valid <= 0; front_rows <= 0;
-            image_q <= 0; valid_q <= 0; stored_q <= 0;
-            bit_q <= 0;
+            front_valid <= 0;
         end else begin
             if (boundary && request_sync[1] != acknowledge) begin
-                front <= request_sync[1]; front_valid <= 1;
-                front_rows <= published_rows;
+                front_valid <= 1;
                 acknowledge <= request_sync[1];
             end
-            image_q <= image;
-            valid_q <= front_valid;
-            stored_q <= source_y < front_rows;
-            bit_q <= source_x[2:0];
         end
     end
-    wire bright = reset_n && image_q && valid_q && (!stored_q || !fb_q[bit_q]);
+
+    // The scanout pipeline is not reset with the frame owners. It continues
+    // presenting the immutable front bank through the current raster frame,
+    // then hides it when the transport epoch is invalid at a frame boundary.
+    always @(posedge pixel_clk) begin
+        if (pix_reset && boundary) display_valid <= 0;
+        else if (!pix_reset && boundary && request_sync[1] != acknowledge) begin
+            front <= request_sync[1];
+            front_rows <= published_rows;
+            display_valid <= 1;
+        end
+        image_q <= image;
+        valid_q <= display_valid;
+        stored_q <= source_y < front_rows;
+        bit_q <= source_x[2:0];
+    end
+
+    wire bright = image_q && valid_q && (!stored_q || !fb_q[bit_q]);
     assign red = bright ? 8'hff : 8'h00;
     assign green = red;
     assign blue = red;
-    assign de = !pix_reset && de_q;
+    assign de = de_q;
     assign hsync = hs_q;
     assign vsync = vs_q;
 endmodule
