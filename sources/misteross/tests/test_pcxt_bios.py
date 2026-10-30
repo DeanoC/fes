@@ -56,3 +56,36 @@ class BiosInputsTest(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError, 'missing'):
                         bios.fixture_inputs(work)
                     network.assert_not_called()
+
+
+class BiosFrameTest(unittest.TestCase):
+    def test_text_and_font_must_reach_video_output(self):
+        cells = bytearray(80 * 25 * 2)
+        font = bytearray(4096)
+        label = b'GLaBIOS'
+        for n, char in enumerate(label):
+            cells[2 * (80 + n)] = char
+            cells[2 * (80 + n) + 1] = 0x0f
+            for y in range(8):
+                font[char * 16 + y] = (0x81 >> (y % 4)) | (0x81 << (y % 4)) & 255
+        frame = bytearray(1280 * 720 * 3)
+        for y in range(720):
+            sy = y * 200 // 720
+            row, gy = divmod(sy, 8)
+            if row != 1:
+                continue
+            for x in range(160, 160 + 84):
+                sx = (x - 160) * 640 // 960
+                col, gx = divmod(sx, 8)
+                if col >= len(label):
+                    continue
+                if font[label[col] * 16 + gy] & (0x80 >> gx):
+                    at = (y * 1280 + x) * 3
+                    frame[at:at+3] = b'\xff\xff\xff'
+        proof = bios.verify_post_frame(bytes(frame), bytes(cells), bytes(font))
+        self.assertGreaterEqual(proof['score'], 0.9)
+        for blank in (bytes(len(frame)), bytes([255]) * len(frame)):
+            with self.assertRaisesRegex(ValueError, 'does not render'):
+                bios.verify_post_frame(blank, bytes(cells), bytes(font))
+        with self.assertRaisesRegex(ValueError, 'font lacks'):
+            bios.verify_post_frame(bytes(frame), bytes(cells), bytes(4096))

@@ -481,7 +481,8 @@ ISA CGA card, SDRAM controller and Direct video pipeline with the stock GLaBIOS
 profile has 640 KiB RAM, CGA and no floppy drive. The test intends to check
 that the BIOS reaches its bootstrap entry without a POST error, detects the
 expected RAM and display, receives the XT keyboard self-test byte and records
-an A make/break in its keyboard buffer. The firmware and keyboard events use
+an A make/break in its keyboard buffer. Its captured 720p banner is compared
+against the selected font and video text attributes. The firmware and keyboard events use
 the loader and cable interfaces; BIOS instructions and interrupts run on the
 RTL machine without firmware-call interception.
 

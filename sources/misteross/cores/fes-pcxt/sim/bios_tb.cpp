@@ -29,9 +29,11 @@ int main(int argc, char **argv) {
     auto word=[&](unsigned a) {return byte(a) | (byte(a+1) << 8);};
     auto screen=[&] {
         std::string text;
+        std::ofstream cells("screen.bin", std::ios::binary);
         for(unsigned y=0;y<25;++y) {
             for(unsigned x=0;x<80;++x) {
                 d.text_address=y*80+x;d.eval();unsigned c=d.text_word&255;
+                cells.put(char(c)); cells.put(char(d.text_word >> 8));
                 text+=char(c>=32 && c<127?c:' ');
             }
             text+='\n';
@@ -123,7 +125,7 @@ int main(int argc, char **argv) {
     const auto text=screen();
     require(text.find("GLaBIOS")!=std::string::npos && text.find("640")!=std::string::npos,
             "BIOS POST text missing",cycles);
-    require(text.find("Post Error")==std::string::npos,"POST error text",cycles);
+    require(text.find("POST Error")==std::string::npos,"POST error text",cycles);
     unsigned lit = 0;
     for (size_t i=0; i<frame.size(); i+=3)
         if (frame[i] > 32 || frame[i+1] > 32 || frame[i+2] > 32) ++lit;
