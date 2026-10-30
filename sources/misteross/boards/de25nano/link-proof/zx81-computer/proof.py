@@ -65,6 +65,7 @@ def execute(args):
     paths = list(HERE.glob("*.cpp")) + list(HERE.glob("*.hpp")) + [HERE / "sim_top.v", HERE / "proof.py"]
     runtime = ROOT / "sources/libmister-runtime"
     paths += list((runtime / "src/native").rglob("*.hpp"))
+    paths += list((HERE.parent.parent / "zx81-hps/cosim").glob("*.hpp"))
     paths += [runtime / "include/libmister-runtime/runtime.h", runtime / "src/native/de25_computer.cpp", runtime / "src/native/de25_pr_control.cpp",
               HERE.parent.parent / "zx81-hps/cosim/wire.hpp", HERE.parent.parent / "zx81-hps/client_proof.py"]
     captured = {}
@@ -117,9 +118,14 @@ def execute(args):
                         while not endpoint.exists():
                             if server.poll() is not None or time.monotonic()>until:raise ValueError("combined RTL server did not start")
                             time.sleep(.01)
-                        result=json.loads(helpers.run([*command,str(endpoint),scenario,args.build_id],logs/f"{architecture}-{scenario}-client.log",timeout=1800))
+                        result=json.loads(helpers.run([*command,str(endpoint),scenario,args.build_id,str(logs/f"{architecture}-saved.p")],logs/f"{architecture}-{scenario}-client.log",timeout=1800))
                         if result['scenario']!=scenario or result['result']!='passed':raise ValueError("wrong proof result")
-                        if scenario=='session' and (result['callbacks']!=4 or result['loaded_bytes']!=910 or not 8<=result['interrupted_bytes']<910 or result['ramtop_empty']!=0x4400 or result['ramtop_16k']!=0x8000):raise ValueError("incomplete real session evidence")
+                        if scenario=='session' and (result['callbacks']!=3 or result['roundtrip']['loads']!=2 or result['roundtrip']['runs']!=2 or not result['roundtrip']['reload_removed_edit'] or result['loaded_bytes']!=result['roundtrip']['saved_bytes'] or not 8<=result['interrupted_bytes']<result['loaded_bytes'] or result['ramtop_empty']!=0x4400 or result['ramtop_16k']!=0x8000):raise ValueError("incomplete real session evidence")
+                        if scenario=='session':
+                            helpers.check_roundtrip(result['roundtrip'],result['loaded_bytes'])
+                            data=(logs/f"{architecture}-saved.p").read_bytes()
+                            if len(data)!=result['loaded_bytes'] or data[0x403b-0x4009]!=0x40:raise ValueError('retained SAVE image differs')
+                            result['saved_image_sha256']=helpers.sha(data)
                         if server.wait(timeout=10):raise ValueError("combined RTL server failed")
                         rows.append(dict(architecture=architecture,**result))
                     finally:

@@ -121,6 +121,14 @@ client/RTL integration, without modeling HPS bridge accesses, SDM programming,
 physical memory primitives or a hardware bus-access deadline.
 The [native/AArch64 client proof](../../../../../docs/validation/2026-10-29-de25-zx81-client-rtl/README.md)
 records the complete session, uncertainty cases and frozen source/tool hashes.
+The functional session types `1 PRINT 7`, captures the real ROM SAVE emitter,
+loads and runs that image, accepts a `2 REM` edit, then reloads and reruns without
+reset. Both runs must print 7 and return to the editor; reload must remove line 2.
+The private SAVE-RAM observation creates a test fixture; it adds no SAVE download
+API or advertised target capability. Raw live-memory snapshots are not loadable
+tape fixtures: their active-display CDFLAG differs from actual SAVE output.
+The separate maximum-byte-transfer test uses synthetic data to check bounds;
+it does not claim a BASIC program round-trip.
 
 `test_tape_store.py` compares the board primitive branch, native branch and
 portable store using an explicitly supplied vendor `altera_mf.v` model, or

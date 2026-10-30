@@ -2,6 +2,7 @@
 // Actual endpoint/machine RTL; only clocks and observations live in this server.
 #include "../computer_sim.hpp"
 #include "wire.hpp"
+#include "basic_observer.hpp"
 #include <chrono>
 #include <cstring>
 #include <sys/socket.h>
@@ -57,6 +58,8 @@ int main(int argc, char** argv) {
                         t.reset_n = 0; b.cycles(4); t.reset_n = 1; b.cycles(4);
                     }
                 }
+            } else if (op >= basic::WaitLine && op <= basic::WaitPrint) {
+                result=basic::observe(b,op,arg,value,captured);
             } else if (op == wire::Advance) {
                 wire::need(arg <= 800000000, "advance exceeds test budget"); b.cycles(arg);
             } else if (op == wire::State) {
@@ -83,14 +86,8 @@ int main(int argc, char** argv) {
             } else if (op == wire::Reset) {
                 b.expect_running = false;
                 t.reset_n = 0; b.cycles(4); t.reset_n = 1; b.cycles(4);
-            } else if (op == wire::CaptureNew) {
-                const auto end = b.word(0x4014);
-                wire::need(end > 0x4009 && end < 0x8000, "NEW image bounds invalid");
-                captured.clear();
-                for (unsigned at = 0x4009; at < end; ++at) captured.push_back(b.peek(at));
-                result = captured.size();
             } else if (op == wire::BeginLoad) {
-                wire::need(!captured.empty(), "no captured NEW image");
+                wire::need(!captured.empty(), "no captured ROM SAVE image");
                 b.expected_load = captured; b.loaded_bytes = 0;
             } else if (op == wire::WaitEditor) {
                 b.idle_seen = false;

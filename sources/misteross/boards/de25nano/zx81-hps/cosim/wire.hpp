@@ -9,7 +9,7 @@
 namespace wire {
 enum Op : std::uint32_t {
     Read = 1, Write, Advance, State, PeekRam, PeekTape, PixelClock, Reset,
-    CaptureNew, BeginLoad, WaitEditor, WaitToken, WaitLoaded, WaitPicture,
+    BeginLoad, WaitEditor, WaitToken, WaitLoaded, WaitPicture,
     ExpectRunning, Fault, Done
 };
 enum Field : std::uint32_t {
@@ -44,3 +44,7 @@ struct Reply {
     std::uint64_t cycles = 0, retired = 0;
 };
 } // namespace wire
+
+namespace basic {
+enum Op : unsigned { WaitLine=201, HasLine, WaitSaved, CaptureSaved, PeekSaved, WaitPrint };
+}

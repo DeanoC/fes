@@ -33,10 +33,14 @@ python3 proof.py --artifacts /absolute/new-build/hps/project/artifacts.json \
 `zx81-computer/proof.py --help` lists the explicit SDK image, read-only volume,
 compiler and QEMU arguments for static AArch64 execution. Both actual C++
 clients operate separate resources in one actual RTL model. The session
-selects empty/RAM/fresh RAM/empty, observes CPU-written RAMTOP 0x4400/0x8000/0x4400,
-delivers a real BASIC LOAD through the RAM persona, and freezes a later load
-in flight after a fresh RAM boot. The loaded NEW snapshot is not required to
-return to the keyboard editor. Callback failure, wrong persona/build, uncertain writes, missing
+selects empty/RAM/empty and observes CPU-written RAMTOP 0x4400/0x8000/0x4400.
+Through actual HID commands it types `1 PRINT 7` and `SAVE "A"`. The ROM SAVE
+emitter provides the unmodified .p fixture; no guest-memory patch is used.
+Two real LOAD/RUN cycles must print 7 and return to the editor. An intervening
+`2 REM` line proves keyboard input after RUN, and reload must remove that edit
+without a reset or persona change. A final incomplete LOAD is interrupted by
+PR freeze. This replaces the invalid raw-NEW snapshot and fresh-boot workaround.
+Callback failure, wrong persona/build, uncertain writes, missing
 responses and actual later reset must leave execution held and prevent retries.
 Pixel-clock loss must not block selection, control, tape upload or CPU progress.
 Simulation-only observations advance clocks and inspect state; they never

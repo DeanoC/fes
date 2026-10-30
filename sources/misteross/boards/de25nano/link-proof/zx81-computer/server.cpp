@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "sim.hpp"
+#include "../../zx81-hps/cosim/basic_observer.hpp"
 #include "verilated.h"
 #include <cstring>
 #include <sys/socket.h>
@@ -30,6 +31,7 @@ int main(int argc,char**argv){
                 b.configuration_window=true;t.persona_b=arg==0xc002b002u;++b.selections;b.ramtop=0;b.ramtop_writes=0;
                 b.expect_load=false;b.tape_tag[0]=b.tape_tag[1]=false;b.cycles(8);
             }else if(op==combined::DropResponse){t.drop_response=arg!=0;b.cycles(1);
+            }else if(op>=basic::WaitLine&&op<=basic::WaitPrint){result=basic::observe(b,op,arg,value,b.captured);
             }else if(op==wire::Advance){wire::need(arg<=800000000,"advance budget exceeded");b.cycles(arg);
             }else if(op==wire::PixelClock){b.pixel.running=arg!=0;
             }else if(op==wire::Reset){t.reset_n=0;b.cycles(4);t.reset_n=1;b.cycles(4);
@@ -55,10 +57,7 @@ int main(int argc,char**argv){
                 default:throw std::runtime_error("unknown field");
                 }
             }else if(op==wire::PeekRam){wire::need(arg>=0x4000&&arg<0x8000,"RAM observation range");result=b.peek(arg);
-            }else if(op==wire::CaptureNew){
-                unsigned end=b.word(0x4014);wire::need(end>0x4009&&end<0x8000,"NEW image bounds");
-                b.captured.clear();for(unsigned a=0x4009;a<end;++a)b.captured.push_back(b.peek(a));result=b.captured.size();
-            }else if(op==wire::BeginLoad){wire::need(!b.captured.empty(),"no NEW image");b.loaded_bytes=0;b.expect_load=true;
+            }else if(op==wire::BeginLoad){wire::need(!b.captured.empty(),"no ROM SAVE image");b.loaded_bytes=0;b.expect_load=true;
             }else if(op==combined::WaitRamtop){
                 b.wait_editor(770000000,arg);wire::need(b.word(0x4004)==arg,"actual RAMTOP differs from CPU write observation");result=b.ramtop;
                 std::printf("PASS real BASIC RAMTOP=%04x CPUwrite-observed cycles=%llu\n",result,(unsigned long long)b.system_edges);

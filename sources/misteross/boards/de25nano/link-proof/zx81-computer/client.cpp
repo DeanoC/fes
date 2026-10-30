@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "wire.hpp"
+#include "../../zx81-hps/cosim/basic.hpp"
 #include "native/de25_computer.hpp"
 #include "native/de25_pr_control.hpp"
 #include "native/generated/fes_computer.hpp"
@@ -46,24 +47,14 @@ public:
     Error Read32(uint32_t a,uint32_t*out)override{auto r=link.call(pr?unsigned(combined::PrRead):unsigned(wire::Read),a);*out=r.value;return r.status?Error{ErrorCode::io_failed,"register read","combined"}:Error{};}
     Error Write32(uint32_t a,uint32_t v)override{auto r=link.call(pr?unsigned(combined::PrWrite):unsigned(wire::Write),a,v);return r.status||fail_write?Error{ErrorCode::io_failed,"ambiguous applied write","combined"}:Error{};}
 };
-static void key(De25Computer& computer,Link&io,KeyboardHidRows rows){
-    okay(computer.SetKeyboardHid(rows,io.deadline()),"HID");io.call(wire::Advance,100100);
-}
-static void type_load(De25Computer& computer,Link&io){
-    KeyboardHidRows j{};j[0]=1u<<13;key(computer,io,j);io.call(wire::WaitToken,0xef,1);key(computer,io,{});io.call(wire::WaitEditor,160000000);
-    KeyboardHidRows quote{};quote[1]=1u<<3;quote[8]=2;
-    for(unsigned n=1;n<=2;++n){key(computer,io,quote);io.call(wire::WaitToken,0x0b,n);key(computer,io,{});io.call(wire::WaitEditor,160000000);}
-    io.call(wire::WaitPicture,2);
-    KeyboardHidRows enter{};enter[2]=1u<<8;okay(computer.SetKeyboardHid(enter,io.deadline()),"LOAD ENTER");
-}
 int main(int argc,char**argv){
     try{
-        wire::need(argc==4,"expected socket scenario build-id");Link io(argv[1]);Registers computer_io(io,false),pr_io(io,true);
+        wire::need(argc==4||argc==5,"expected socket scenario build-id");Link io(argv[1]);Registers computer_io(io,false),pr_io(io,true);
         De25Computer computer(computer_io,io);De25PrControl pr(pr_io,io);De25PrIdentity identity;
         std::string scenario=argv[2],build=argv[3],selected=build;
         if(scenario=="wrong-build")selected[0]=selected[0]=='0'?'1':'0';
         auto identified=pr.Identify(selected,io.deadline(),&identity);
-        unsigned callbacks=0,loaded=0,interrupted=0,ramtop_a=0,ramtop_b=0;
+        unsigned callbacks=0,loaded=0,interrupted=0,ramtop_a=0,ramtop_b=0;basic::Result roundtrip;
         auto configure=[&](unsigned persona){++callbacks;io.call(combined::Select,persona);return Error{};};
         if(scenario=="wrong-build"){
             wire::need(!identified.ok()&&pr.Poisoned()&&io.state(combined::PrWrites)==0,"wrong build mutated PR endpoint");
@@ -86,22 +77,11 @@ int main(int argc,char**argv){
                 okay(pr.Reconfigure(FesDe25PrControlPersonaB,[&]{return configure(FesDe25PrControlPersonaB);},io.deadline()),"RAM selection with stopped PIX");
                 okay(computer.Run(io.deadline()),"RAM RUN");io.call(wire::PixelClock,1);
                 std::cerr<<"BOOT 16K\n";ramtop_b=io.call(combined::WaitRamtop,0x8000).value;
-                unsigned size=io.call(wire::CaptureNew).value;std::vector<unsigned char> image;
-                for(unsigned at=0;at<size;++at)image.push_back(io.call(wire::PeekRam,0x4009+at).value);
-                io.call(wire::PixelClock,0);okay(computer.LoadTape(image,io.deadline(),127),"CRC tape upload");
-                auto before=io.call(wire::State,wire::MachineReset).retired;io.call(wire::Advance,500000);
-                wire::need(io.call(wire::State,wire::MachineReset).retired>before,"pixel stop blocked CPU");io.call(wire::PixelClock,1);
-                std::cerr<<"LOAD full\n";io.call(wire::BeginLoad);type_load(computer,io);loaded=io.call(wire::WaitLoaded).value;
-                wire::need(loaded==size,"external LOAD incomplete");key(computer,io,{});
-                // A loaded NEW snapshot is not an editor-return contract. Boot
-                // a fresh RAM selection before exercising another real LOAD.
-                okay(computer.Hold(io.deadline()),"HOLD before second RAM boot");
-                okay(pr.Reconfigure(FesDe25PrControlPersonaB,[&]{return configure(FesDe25PrControlPersonaB);},io.deadline()),"fresh RAM selection");
-                okay(computer.Run(io.deadline()),"fresh RAM RUN");
-                wire::need(io.call(combined::WaitRamtop,0x8000).value==ramtop_b,"RAM re-selection did not reboot/re-size");
-                okay(computer.LoadTape(image,io.deadline(),127),"second CRC tape upload");
+                basic::Session session(computer,[&](unsigned op,unsigned a,unsigned v){return io.call(op,a,v);},[&]{return io.deadline();});
+                roundtrip=session.roundtrip();loaded=roundtrip.image.size();unsigned size=loaded;
+                if(argc==5)roundtrip.save(argv[4]);
                 // Interrupt a second real LOAD with the PR freeze request.
-                std::cerr<<"LOAD interrupted\n";io.call(wire::BeginLoad);type_load(computer,io);io.call(combined::WaitSomeLoad,8);
+                std::cerr<<"LOAD interrupted\n";io.call(wire::BeginLoad);session.load_command();io.call(combined::WaitSomeLoad,8);
                 okay(pr.Freeze(io.deadline()),"freeze during real loader writes");
                 interrupted=io.state(wire::LoadedBytes);
                 wire::need(interrupted>=8&&interrupted<size,"freeze did not interrupt an incomplete real LOAD");
@@ -134,6 +114,6 @@ int main(int argc,char**argv){
             }
         }
         auto final=io.call(wire::Done);
-        std::cout<<"{\"scenario\":\""<<scenario<<"\",\"result\":\"passed\",\"callbacks\":"<<callbacks<<",\"loaded_bytes\":"<<loaded<<",\"interrupted_bytes\":"<<interrupted<<",\"ramtop_empty\":"<<ramtop_a<<",\"ramtop_16k\":"<<ramtop_b<<",\"writes\":"<<final.writes<<"}\n";
+        std::cout<<"{\"scenario\":\""<<scenario<<"\",\"result\":\"passed\",\"callbacks\":"<<callbacks<<",\"loaded_bytes\":"<<loaded<<",\"interrupted_bytes\":"<<interrupted<<",\"ramtop_empty\":"<<ramtop_a<<",\"ramtop_16k\":"<<ramtop_b<<",\"writes\":"<<final.writes;if(scenario=="session")std::cout<<",\"roundtrip\":"<<roundtrip.json();std::cout<<"}\n";
     }catch(const std::exception&e){std::cerr<<"FAIL combined client: "<<e.what()<<"\n";return 1;}
 }

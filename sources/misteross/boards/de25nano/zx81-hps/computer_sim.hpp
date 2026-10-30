@@ -65,6 +65,9 @@ struct Computer {
     }
     ~Computer() { t.final(); }
 
+    bool saved_ready() const {return SIGNAL(machine__DOT__save_ready_r);}
+    unsigned saved_size() const {return SIGNAL(machine__DOT__save_len);}
+    uint8_t saved(unsigned at) const {return SIGNAL(machine__DOT__save_ram__DOT__ram)[at];}
     uint8_t peek(uint16_t address) const {
         return SIGNAL(machine__DOT__builtin_ram__DOT__ram_block__DOT__ram)[address & 0x3fff];
     }
@@ -74,8 +77,9 @@ struct Computer {
     unsigned token_count(uint8_t token) const {
         const uint16_t eline = word(0x4014);
         unsigned count = 0;
-        for (unsigned at = eline; at < unsigned(eline) + 32 && at < 0x8000; ++at)
-            count += peek(at) == token;
+        for (unsigned at = eline; at < unsigned(eline) + 32 && at < 0x8000; ++at) {
+            const auto byte=peek(at);if(byte==0x76)break;count+=byte==token;
+        }
         return count;
     }
 

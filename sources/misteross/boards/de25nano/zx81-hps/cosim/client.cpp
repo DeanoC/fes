@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // The real runtime client controls RTL through test-only, resource-relative IO.
 #include "wire.hpp"
+#include "basic.hpp"
 #include "native/de25_computer.hpp"
 #include "native/generated/fes_de25_computer.hpp"
 #include "native/generated/fes_computer.hpp"
@@ -85,13 +86,7 @@ static void keyboard(De25Computer& computer, Transport& io, const KeyboardHidRow
         (std::uint64_t(io.state(wire::KeyboardHigh)) << 32);
     wire::need(actual == matrix, "HID matrix differs from requested keys");
 }
-static void type(De25Computer& computer, Transport& io, const KeyboardHidRows& rows,
-    std::uint64_t matrix, std::uint8_t token, unsigned count) {
-    keyboard(computer, io, rows, matrix);
-    io.command(wire::WaitToken, token, count);
-    keyboard(computer, io, {}, 0xffffffffffull);
-    io.command(wire::WaitEditor, 160000000);
-}
+
 static void check_tape(Transport& io, const std::vector<std::uint8_t>& image) {
     wire::need(io.state(wire::TapeReady), "tape not ready after upload");
     for (unsigned i = 0; i < image.size(); ++i)
@@ -100,12 +95,12 @@ static void check_tape(Transport& io, const std::vector<std::uint8_t>& image) {
 
 int main(int argc, char** argv) {
     try {
-        wire::need(argc == 4, "expected socket, scenario, selected build ID");
+        wire::need(argc == 4 || argc == 5, "expected socket, scenario, selected build ID");
         Transport io(argv[1]); De25Computer computer(io, io); De25ComputerIdentity identity;
         const std::string scenario = argv[2]; std::string selected = argv[3];
         if (scenario == "wrong-build") selected[0] = selected[0] == '0' ? '1' : '0';
         const auto identified = computer.Identify(selected, deadline(io), &identity);
-        std::uint32_t image_bytes = 0, loaded_bytes = 0, complete_frames = 0;
+        std::uint32_t image_bytes = 0, loaded_bytes = 0, complete_frames = 0; basic::Result roundtrip;
         if (scenario == "wrong-build") {
             wire::need(!identified.ok(), "wrong build accepted"); poisoned(computer, io);
         } else {
@@ -118,28 +113,10 @@ int main(int argc, char** argv) {
                 wire::need(rejection == FesComputerErrorInvalidOpcode && !computer.Poisoned(), "known rejection poisoned link");
                 okay(computer.Run(deadline(io)), "run"); io.command(wire::ExpectRunning, 1);
                 io.command(wire::WaitEditor, 770000000);
-                image_bytes = io.command(wire::CaptureNew).value;
-                std::vector<std::uint8_t> image;
-                for (unsigned at = 0; at < image_bytes; ++at)
-                    image.push_back(io.command(wire::PeekRam, 0x4009 + at).value);
-                io.command(wire::PixelClock, 0);
-                const auto before_stall = io.retired();
-                okay(computer.LoadTape(image, deadline(io), 127), "CRC/chunked tape upload"); check_tape(io, image);
-                io.command(wire::Advance, 500000);
-                wire::need(io.retired() > before_stall && !io.state(wire::MachineReset), "pixel stall stopped CPU");
-                io.command(wire::PixelClock, 1);
-                KeyboardHidRows j{}; j[0] = 1u << 13;
-                KeyboardHidRows quote{}; quote[1] = 1u << 3; quote[8] = 2;
-                type(computer, io, j, 0xffffffffffull & ~(1ull << 33), 0xef, 1);
-                type(computer, io, quote, 0xffffffffffull & ~(1ull << 0) & ~(1ull << 25), 0x0b, 1);
-                type(computer, io, quote, 0xffffffffffull & ~(1ull << 0) & ~(1ull << 25), 0x0b, 2);
-                io.command(wire::WaitPicture, 2);
-                io.command(wire::BeginLoad);
-                KeyboardHidRows enter{}; enter[2] = 1u << 8;
-                keyboard(computer, io, enter, 0xffffffffffull & ~(1ull << 30));
-                loaded_bytes = io.command(wire::WaitLoaded).value;
-                wire::need(loaded_bytes == image.size(), "incomplete BASIC LOAD");
-                keyboard(computer, io, {}, 0xffffffffffull);
+                basic::Session session(computer,[&](unsigned op,unsigned a,unsigned v){return io.command(op,a,v);},[&]{return deadline(io);});
+                roundtrip=session.roundtrip();image_bytes=roundtrip.image.size();loaded_bytes=image_bytes;
+                if(argc==5)roundtrip.save(argv[4]);
+                KeyboardHidRows j{};j[0]=1u<<13;
                 okay(computer.EjectTape(deadline(io)), "live eject");
                 wire::need(!io.state(wire::TapeReady) && !io.state(wire::MachineReset), "eject changed execution");
                 keyboard(computer, io, j, 0xffffffffffull & ~(1ull << 33));
@@ -195,7 +172,9 @@ int main(int argc, char** argv) {
         wire::need(end.writes == io.attempted_writes(), "RTL write count differs from client attempts");
         std::cout << "{\"scenario\":\"" << scenario << "\",\"result\":\"passed\",\"writes\":" << end.writes
                   << ",\"image_bytes\":" << image_bytes << ",\"loaded_bytes\":" << loaded_bytes
-                  << ",\"complete_frames\":" << complete_frames << "}\n";
+                  << ",\"complete_frames\":" << complete_frames;
+        if(scenario=="session")std::cout<<",\"roundtrip\":"<<roundtrip.json();
+        std::cout<<"}\n";
         return 0;
     } catch (const std::exception& error) { std::cerr << "native client: " << error.what() << "\n"; return 1; }
 }

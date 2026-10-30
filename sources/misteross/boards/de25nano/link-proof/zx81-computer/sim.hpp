@@ -34,6 +34,9 @@ struct Computer {
         t.eval();cycles(8);t.reset_n=1;t.eval();cycles(16);
         wire::need(t.frozen&&t.slot_reset&&!t.running,"cold PR owner not frozen");
     }
+    bool saved_ready() const {return C(machine__DOT__save_ready_r);}
+    unsigned saved_size() const {return C(machine__DOT__save_len);}
+    uint8_t saved(unsigned at) const {return C(machine__DOT__save_ram__DOT__ram)[at];}
     uint8_t peek(unsigned address) const {
         if(t.persona_b) return B(ram_pack__DOT__memory__DOT__memory__DOT__ram)[address&0x3fff];
         return C(machine__DOT__expansion_ram__DOT__internal_ram__DOT__ram)[address&1023];
@@ -41,7 +44,9 @@ struct Computer {
     uint16_t word(unsigned address) const {return peek(address)|(unsigned(peek(address+1))<<8);}
     unsigned token_count(unsigned token) const {
         auto at=word(0x4014);unsigned n=0;
-        for(unsigned end=std::min<unsigned>(at+32,0x8000);at<end;++at)n+=peek(at)==token;
+        for(unsigned end=std::min<unsigned>(at+32,0x8000);at<end;++at){
+            unsigned byte=peek(at);if(byte==0x76)break;n+=byte==token;
+        }
         return n;
     }
     void pixel_sample() {

@@ -85,8 +85,17 @@ def tape_maximum() -> int:
     return int(values[0], 16)
 
 
+def check_roundtrip(result: dict, image_bytes: int) -> None:
+    expected={'saved_bytes':image_bytes,'loads':2,'runs':2,'editor_returns':24,
+              'saved_cdflag':0x40,'printed_value':7,'reload_removed_edit':True}
+    if result!=expected or any(type(result[k]) is not type(v) for k,v in expected.items()):
+        raise ValueError('incomplete BASIC SAVE/load/run/reload/editor evidence')
+
+
 def validate_result(result: dict, scenario: str) -> None:
-    if set(result) != {"scenario", "result", "writes", "image_bytes", "loaded_bytes", "complete_frames"}:
+    expected_fields={"scenario", "result", "writes", "image_bytes", "loaded_bytes", "complete_frames"}
+    if scenario=="session":expected_fields.add("roundtrip")
+    if set(result) != expected_fields:
         raise ValueError("incomplete or unknown result fields")
     if result["scenario"] != scenario or result["result"] != "passed": raise ValueError("wrong scenario result")
     for name in ("writes", "image_bytes", "loaded_bytes", "complete_frames"):
@@ -94,7 +103,10 @@ def validate_result(result: dict, scenario: str) -> None:
     if scenario == "session":
         if not 1 <= result["image_bytes"] <= tape_maximum() or result["loaded_bytes"] != result["image_bytes"] or result["complete_frames"] < 2:
             raise ValueError("session lacks complete real-machine evidence")
-        expected = 115 + upload_writes(result["image_bytes"])
+        check_roundtrip(result['roundtrip'],result['image_bytes'])
+        # 17 typed tokens have down/up states, seven ENTER/release pairs,
+        # nine full HID rows per state, plus identity/execution/eject controls.
+        expected = 475 + 2*upload_writes(result["image_bytes"])
     else:
         if any(result[name] for name in ("image_bytes", "loaded_bytes", "complete_frames")):
             raise ValueError("non-session result claims machine evidence")
@@ -189,9 +201,13 @@ def execute(args) -> dict:
                         while not endpoint.exists():
                             if server.poll() is not None or time.monotonic() >= limit: raise ValueError("RTL server did not start")
                             time.sleep(0.01)
-                        result = json.loads(run([*command, str(endpoint), scenario, args.build_id],
+                        result = json.loads(run([*command, str(endpoint), scenario, args.build_id, str(logs/f"{architecture}-saved.p")],
                                                 logs / f"{architecture}-{scenario}-client.log", timeout=900))
                         validate_result(result, scenario)
+                        if scenario=='session':
+                            data=(logs/f"{architecture}-saved.p").read_bytes()
+                            if len(data)!=result['image_bytes'] or data[0x403b-0x4009]!=0x40:raise ValueError('retained SAVE image differs')
+                            result['saved_image_sha256']=sha(data)
                         if server.wait(timeout=10): raise ValueError("RTL server failed")
                         rows.append({"architecture": architecture, **result})
                     finally:
