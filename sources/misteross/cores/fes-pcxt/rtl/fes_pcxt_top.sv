@@ -3,6 +3,7 @@
 // runtime mailbox so the target can start the built-in diagnostic ROM.
 module top #(
     parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0,
+    parameter bit HARDWARE_DOS = 0,
     parameter bit PHASED_HDMI_CLOCK = 0,
     parameter bit ENABLE_FES_COMPUTER = 0,
     parameter [127:0] BUILD_ID = 128'h00000000000000000000000000000000
@@ -95,29 +96,57 @@ module top #(
     end else begin: standalone_diagnostic
         assign exec_reset = 1'b0;
     end endgenerate
-    wire firmware_valid, firmware_ready, firmware_done;
+    wire firmware_valid, firmware_ready, firmware_done, firmware_loaded;
     wire [15:0] firmware_address;
     wire [7:0] firmware_data;
-    pcxt_boot boot (.clk(clk_memory), .cold_reset(board_reset_live), .enable(!exec_reset),
+    pcxt_boot #(.ROM_PREFIX(HARDWARE_DOS ? "pcxt_glabios" : "pcxt_diagnostic")) boot (
+        .clk(clk_memory), .cold_reset(board_reset_live), .enable(!exec_reset),
         .valid(firmware_valid), .ready(firmware_ready), .done(firmware_done),
         .address(firmware_address), .data(firmware_data));
+    wire disk_load_valid, disk_load_ready, disk_load_done, disk_loaded;
+    wire [18:0] disk_load_address;
+    wire [7:0] disk_load_data;
+    generate if (HARDWARE_DOS) begin: dos_disk_boot
+        pcxt_disk_boot disk_boot (
+            .clk(clk_memory), .cold_reset(board_reset_live), .enable(firmware_loaded),
+            .valid(disk_load_valid), .ready(disk_load_ready), .done(disk_load_done),
+            .address(disk_load_address), .data(disk_load_data), .finished());
+    end else begin: no_disk_boot
+        assign disk_load_valid = 1'b0;
+        assign disk_load_address = 19'b0;
+        assign disk_load_data = 8'b0;
+    end endgenerate
     wire [31:0] video_request;
     wire [27:0] video_response;
     wire [15:0] dq_out, dq_sample;
     wire dq_oe;
     /* verilator lint_off PINCONNECTEMPTY */
-    pcxt_system #(.MDA(MDA), .SCANLINES(SCANLINES), .HALF_RATE_BOARD(HALF_RATE_BOARD), .EXTERNAL_CS_REGISTER(HALF_RATE_BOARD)) system (
-        .media_present(1'b0), .disk_load_valid(1'b0), .disk_load_address(19'b0),
-        .disk_load_data(8'b0), .disk_load_ready(), .disk_load_done(), .disk_loaded(),
+    wire [11:0] cga_font_address, mda_font_address;
+    wire [7:0] cga_font_data, mda_font_data;
+    generate if (HARDWARE_DOS) begin: dos_font
+        reg [7:0] glyphs [0:4095];
+        initial $readmemh("pcxt_glabios_font.hex", glyphs);
+        assign cga_font_data = glyphs[cga_font_address];
+        assign mda_font_data = glyphs[mda_font_address];
+    end else begin: diagnostic_font
+        assign cga_font_data = 8'h81;
+        assign mda_font_data = 8'h81;
+    end endgenerate
+    pcxt_system #(.MDA(MDA), .SCANLINES(SCANLINES), .HALF_RATE_BOARD(HALF_RATE_BOARD),
+                  .EXTERNAL_CS_REGISTER(HALF_RATE_BOARD), .FLOPPY(HARDWARE_DOS),
+                  .DIAGNOSTIC_PROBE(!HARDWARE_DOS)) system (
+        .media_present(HARDWARE_DOS), .disk_load_valid(disk_load_valid), .disk_load_address(disk_load_address),
+        .disk_load_data(disk_load_data), .disk_load_ready(disk_load_ready), .disk_load_done(disk_load_done),
+        .disk_loaded(disk_loaded),
         .keyboard_clock(1'b1), .keyboard_data(1'b0),
         .keyboard_clock_low(), .keyboard_data_low(), .keyboard_clear(),
-        .cga_font_address(), .mda_font_address(),
-        .cga_font_data(8'h81), .mda_font_data(8'h81),
+        .cga_font_address(cga_font_address), .mda_font_address(mda_font_address),
+        .cga_font_data(cga_font_data), .mda_font_data(mda_font_data),
         .clk(clk_memory), .clk_cpu(clk), .clk_pixel(clk_pixel), .clk_pin(clk_memory), .cold_reset(board_reset_live),
         .reset_pixel(pixel_reset[1]), .warm_reset(exec_reset), .hold(1'b0),
         .firmware_valid(firmware_valid), .firmware_ready(firmware_ready),
         .firmware_done(firmware_done), .firmware_address(firmware_address), .firmware_data(firmware_data),
-        .firmware_loaded(), .initialized(), .machine_reset(), .fault(), .halted(),
+        .firmware_loaded(firmware_loaded), .initialized(), .machine_reset(), .fault(), .halted(),
         .dma_owner(), .refresh_done(), .audio_valid(), .audio_sample(),
         .video_request(video_request), .video_response(video_response),
         .sdram_clk(SDRAM_CLK), .sdram_cke(SDRAM_CKE), .sdram_ncs(controller_cs),

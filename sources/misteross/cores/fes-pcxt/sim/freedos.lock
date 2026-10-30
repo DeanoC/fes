@@ -1,5 +1,15 @@
 {
   "release": "FreeDOS 1.4",
+  "package_image": {
+    "file": "firmware/freedos-1.4-xt-360.img",
+    "bytes": 368640,
+    "sha256": "140a2d0a507f7452790e73416dd4dab2c66a89e09a71e26b2ca8f95d1f3c5e5c",
+    "license": "GPL-2.0-or-later kernel and GPL-2.0 FreeCOM",
+    "source_urls": [
+      "https://gitlab.com/FreeDOS/base/kernel.git",
+      "https://gitlab.com/FreeDOS/base/freecom.git"
+    ]
+  },
   "packages": {
     "kernel": {
       "repository": "https://gitlab.com/FreeDOS/base/kernel.git",

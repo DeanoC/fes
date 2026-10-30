@@ -2956,6 +2956,20 @@ exact-artifact hardware acceptance remain separate from this diagnostic seal.
 Existing linker layout admission remains closed until an exact shell and its
 physical sockets are qualified.
 
+The independent `fes.pcxt-dos` recipe selects the default-off `HARDWARE_DOS`
+top parameter. It enables the GLaBIOS XT/5160 ROM, the read-only floppy
+controller, and a reset-only upload of the pinned 360 KiB FreeDOS image into
+SDRAM. Guest reads use the same SDRAM media-read path exercised by the floppy
+simulation; no simulation-only shortcut is part of the package. The floppy
+image is assembled from FreeDOS kernel 2043 (GPL-2.0-or-later) and FreeCOM
+0.86a (GPL-2.0). Its exact source commits and SHA-256 are recorded in the core
+firmware notices and `sim/freedos.lock`. The registered recipe points its HIL
+gate at `scripts/pcxt_dos_hil_acceptance.py`, preferring Kit B and then Kit A.
+That checker requires at least three full, changing 16:9 HDMI captures and
+matches the final `A:\>` text using the font from the locked ROM. Static
+signatures fail. Passing this prompt check is DOS boot evidence only; external
+SDRAM/HDMI/HPS/reset qualification and broader compatibility remain separate.
+
 The target is software for an IBM 5160-class machine, including bootable
 floppy games and DOS games that access hardware directly. The baseline is an
 8088 at nominal 4.77 MHz, 640 KiB conventional RAM, CGA, PC speaker and an

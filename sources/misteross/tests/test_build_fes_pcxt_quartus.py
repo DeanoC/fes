@@ -15,7 +15,7 @@ class PCXTQuartusPackageTests(unittest.TestCase):
                 'elaboration': {'hps_primitive_instances': {
                     'hdmi_i2c': 'cyclonev_hps_interface_peripheral_i2c',
                     'fes_computer_runtime_hps_gp': 'cyclonev_hps_interface_mpu_general_purpose'}},
-                'profile': {'HALF_RATE_BOARD': 0, 'ENABLE_FES_COMPUTER': 1}, 'runs': [{
+                'profile': {'HALF_RATE_BOARD': 0, 'ENABLE_FES_COMPUTER': 1, 'HARDWARE_DOS': 0}, 'runs': [{
                     'seed': 1, 'capture_complete': True, 'reported_endpoint_checks_pass': True,
                     'minimum_pulse_width': {str(c): {'failures': 0} for c in range(4)},
                     'mailbox_interstage': [{'slack_ns': '0.123'} for _ in range(24)],
@@ -32,6 +32,7 @@ class PCXTQuartusPackageTests(unittest.TestCase):
                      lambda s: s['runs'][0]['mailbox_interstage'][0].update(slack_ns='-0.000'),
                      lambda s: s['runs'][0]['timing_coverage_issues'].update(generated_clock=1),
                      lambda s: s['profile'].update(HALF_RATE_BOARD=1),
+                     lambda s: s['profile'].update(HARDWARE_DOS=1),
                      lambda s: s.update(video_mailbox_contract=False),
                      lambda s: s['runs'].clear()]
         for mutate in mutations:
@@ -39,6 +40,25 @@ class PCXTQuartusPackageTests(unittest.TestCase):
             mutate(summary)
             with self.subTest(mutation=mutate), self.assertRaises(producer.BuildError):
                 producer.require_timing(summary, [1])
+
+    def test_dos_profile_is_explicit_in_the_timing_record(self):
+        summary = self.summary()
+        summary['profile']['HARDWARE_DOS'] = 1
+        producer.require_timing(summary, [1], dos_profile=True)
+        with self.assertRaises(producer.BuildError):
+            producer.require_timing(summary, [1])
+
+        summary['profile']['HARDWARE_DOS'] = 0
+        with self.assertRaises(producer.BuildError):
+            producer.require_timing(summary, [1], dos_profile=True)
+
+    def test_dos_assets_match_redistribution_provenance_locks(self):
+        metadata, font = producer.dos_assets(producer.ROOT)
+        self.assertEqual(metadata['floppy']['sha256'],
+                         '140a2d0a507f7452790e73416dd4dab2c66a89e09a71e26b2ca8f95d1f3c5e5c')
+        self.assertEqual([source['license'] for source in metadata['floppy']['sources']],
+                         ['GPL-2.0-or-later', 'GPL-2.0'])
+        self.assertEqual(len(font), 4096)
 
     def test_invalid_internal_clocks_and_unknown_unclocked_registers_reject(self):
         for key in ('reference_pin', 'pll_cross_check', 'uncertainty', 'partial_input_delay',
@@ -156,6 +176,12 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         self.assertIn('-set HALF_RATE_BOARD 0', program)
         self.assertIn('-set ENABLE_FES_COMPUTER 1', program)
         self.assertIn('-set PHASED_HDMI_CLOCK 1', program)
+        dos_program = producer.board.elaboration(producer.ROOT, producer.ROOT / 'build',
+                                                 producer.ROOT / 'unused-library',
+                                                 package_profile=True,
+                                                 build_id='1234567890abcdef'*2,
+                                                 dos_profile=True)
+        self.assertIn('-set HARDWARE_DOS 1', dos_program)
         self.assertIn("-set BUILD_ID 128'h" + '1234567890abcdef'*2, program)
         with self.assertRaisesRegex(ValueError, 'BUILD_ID'):
             producer.board.elaboration(producer.ROOT, producer.ROOT / 'build',

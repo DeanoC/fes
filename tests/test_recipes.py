@@ -100,6 +100,15 @@ class RecipeRegistryTest(unittest.TestCase):
         env = recipes.producer_environment({"FES_TOOLCHAIN_GPU_ROUTER": "HIP"}, recipe)
         self.assertNotIn("FES_TOOLCHAIN_GPU_ROUTER", env)
 
+    def test_pcxt_dos_recipe_selects_hardware_check_and_kit_preference(self):
+        recipe = recipes.recipe_for("fes.pcxt-dos")
+        self.assertEqual(recipe.producer_module, "scripts.build_fes_pcxt_quartus")
+        self.assertEqual(recipe.producer_arguments, ("--dos-profile",))
+        self.assertEqual(dict(recipe.producer_options), {"dos_profile": True})
+        self.assertEqual(recipe.hil_check, "scripts/pcxt_dos_hil_acceptance.py")
+        self.assertEqual(recipe.hil_kits, ("B", "A"))
+        self.assertEqual(recipe.quartus["seeds"], [1, 2, 3])
+
     def test_atari_st_registered_producer_has_bounded_selection(self):
         recipe = recipes.recipe_for("fes.atari-st")
         self.assertEqual(recipe.producer_module, "scripts.build_fes_atari_st_oss")

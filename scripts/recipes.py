@@ -95,11 +95,14 @@ class Format2Recipe:
     optional: bool = False
     toolchain: str = "oss"
     quartus: dict | None = None
+    hil_check: str | None = None
+    hil_kits: tuple[str, ...] = ()
 
 
 REGISTRY_PATH = Path(__file__).resolve().parents[1] / "config/core-recipes.toml"
 _OPTIONAL_RECIPE_FIELDS = frozenset({
-    "producer_arguments", "producer_options", "video_profiles", "optional", "toolchain", "quartus"})
+    "producer_arguments", "producer_options", "video_profiles", "optional", "toolchain", "quartus",
+    "hil_check", "hil_kits"})
 _VIDEO_ARGUMENT = {
     "--native-video-socket": ("native_video", True),
     "--video-socket": ("video_socket", True),
@@ -234,6 +237,8 @@ def load_recipes(path=REGISTRY_PATH):
         arguments = entry.get("producer_arguments", [])
         options = entry.get("producer_options", {})
         profiles = entry.get("video_profiles", [])
+        hil_check = entry.get("hil_check")
+        hil_kits = entry.get("hil_kits", [])
         if (not isinstance(arguments, list) or any(not isinstance(value, str) or not value
                 or any(ord(c) < 32 or ord(c) == 127 for c in value) for value in arguments)):
             raise ValueError("invalid producer arguments")
@@ -250,9 +255,15 @@ def load_recipes(path=REGISTRY_PATH):
             raise ValueError("invalid producer options")
         if profiles not in ([], ["direct", "scanlines"]):
             raise ValueError("video profiles must select direct and scanlines in order")
+        if hil_check is not None and (not isinstance(hil_check, str) or not _relative_path(hil_check)):
+            raise ValueError("HIL check must be a safe repository-relative path")
+        if (not isinstance(hil_kits, list) or any(not isinstance(kit, str) or kit not in ("A", "B") for kit in hil_kits)
+                or len(hil_kits) != len(set(hil_kits))
+                or (hil_kits and hil_check is None)):
+            raise ValueError("HIL kits require a check and unique kit identifiers")
         arguments, options = align_video_producer_choice(arguments, options)
         entry.update(producer_arguments=tuple(arguments), producer_options=tuple(sorted(options.items())),
-                     video_profiles=tuple(profiles))
+                     video_profiles=tuple(profiles), hil_kits=tuple(hil_kits))
         core_id = entry["core_id"]
         if not re.fullmatch(r"fes\.[a-z0-9]+(?:[._-][a-z0-9]+)*", core_id):
             raise ValueError("invalid recipe core_id")

@@ -4,17 +4,21 @@ This development slice runs an original diagnostic ROM on an 8088 CPU through
 an eight-slot virtual ISA backplane. The [machine design](../../docs/architecture.md#proposed-fes-ibm-pcxt-core)
 targets an 8088/8086 PC/XT with IBM graphics and extensions to the existing
 linkable-card mechanism. The motherboard slice adds memory decoding, an 8259A
-PIC, 8253 PIT, 8255 PPI, XT keyboard byte transport and speaker PCM, and a transaction-native 8237A DMA subset. Separate ISA CGA and MDA display cards add guest raster output. An optional read-only XT floppy adapter is exercised in host simulation. The package has no
-HID keyboard frontend, floppy media transport, packaged BIOS or physical socket map. The
-registered `fes.pcxt` recipe builds a diagnostic package with fixed CGA Direct
-video and the standard identity/execution mailbox; it can start the built-in
-diagnostic, but cannot boot DOS or PC/XT games yet. The storage lane connects conventional RAM and firmware to the existing
+PIC, 8253 PIT, 8255 PPI, XT keyboard byte transport and speaker PCM, and a transaction-native 8237A DMA subset. Separate ISA CGA and MDA display cards add guest raster output. An optional read-only XT floppy adapter is exercised in host simulation. The diagnostic package has no
+HID keyboard frontend, runtime floppy media transport or physical socket map.
+The registered `fes.pcxt` recipe builds a diagnostic package with fixed CGA
+Direct video and the standard identity/execution mailbox. The separate
+`fes.pcxt-dos` recipe enables the GLaBIOS XT/5160 ROM and read-only floppy
+controller, loads its pinned FreeDOS 1.4 boot image into SDRAM through the
+physical loader used by the SDRAM floppy path, and boots DOS. The storage lane
+connects conventional RAM and firmware to the existing
 addon SDRAM controller and boots the display diagnostic through its physical
 command interface in host simulation. The normal package producer is Quartus Lite 17.0.2, with a common 100 MHz
 CPU/motherboard/SDRAM clock and 74.25 MHz CGA Direct output. It requires
 all declared seeds to pass reported internal setup, hold, recovery, removal
 and pulse-width checks, plus a byte-identical independent seed-1 rebuild.
-External SDRAM/HDMI, HPS and physical reset qualification remain open.
+External SDRAM/HDMI, HPS and physical reset qualification remain open for both
+packages. The DOS variant still requires exact-artifact hardware acceptance.
 Nextpnr is an advisory diagnostic, not the normal package producer.
 The existing RAM Tester
 [external timing model](../../docs/architecture.md#sdram-external-timing-model)
@@ -34,6 +38,25 @@ the four reset-chain and six video-crossing FFs.
 A scoped reset exception would additionally require validation of the complete
 chain, its synchronous consumers and timed interstage paths; the attribute alone
 is not a timing waiver.
+
+### FreeDOS hardware package
+
+The `fes.pcxt-dos` recipe selects `HARDWARE_DOS` and keeps the diagnostic
+profile unchanged. It loads the locked GLaBIOS ROM and a 360 KiB FreeDOS
+floppy image. At cold start, the image bytes are written in order to SDRAM by
+`pcxt_system`; guest floppy reads then use the existing SDRAM media-read
+interface. The variant does not use a simulation-only disk model and has no
+floppy write path. Its FreeDOS image is assembled from FreeDOS kernel 2043 and
+FreeCOM 0.86a. Source commits, licences and image SHA-256 are recorded in
+[`firmware/THIRD-PARTY-NOTICES.md`](firmware/THIRD-PARTY-NOTICES.md) and
+`sim/freedos.lock`.
+
+The recipe registers `scripts/pcxt_dos_hil_acceptance.py` with preferred kit
+order B then A. The hardware check requires at least three complete changing
+captures and glyph-matches the final CGA `A:\>` prompt against the font
+embedded in the locked BIOS ROM. It rejects a static signature and reports a
+DOS boot prompt only; it does not qualify external timing, whole-board IO,
+reset or broader PC/XT compatibility. A build or seal does not imply a kit run.
 
 ### Experimental CPU100 / board50 diagnostic
 
