@@ -9,7 +9,6 @@ import tomllib
 import unittest
 from unittest import mock
 from scripts import build_fes_pcxt_quartus as producer
-from scripts import sim_fes_pcxt as generator
 from scripts.export_core_package import build_identity, encode_build_record, _validate_build_record
 
 
@@ -234,45 +233,6 @@ class PCXTQuartusPackageTests(unittest.TestCase):
             producer.board.elaboration(producer.ROOT, producer.ROOT / 'build',
                                        producer.ROOT / 'unused-library', package_profile=True)
 
-    def test_package_elaboration_with_real_profile_inputs(self):
-        candidate = os.environ.get('FES_PCXT_YOSYS') or os.environ.get('YOSYS') or 'yosys'
-        yosys_name = shutil.which(candidate)
-        if not yosys_name:
-            self.skipTest('Yosys is required for real package elaboration')
-        yosys = Path(yosys_name).resolve()
-        library = yosys.parent.parent / 'share/yosys/intel_alm/common/megafunction_bb.v'
-        if not library.is_file():
-            self.skipTest('Yosys Intel megafunction library is required')
-        for dos_profile in (False, True):
-            with self.subTest(dos_profile=dos_profile), tempfile.TemporaryDirectory(prefix='pcxt-profile-elab-') as directory:
-                work = Path(directory)
-                inputs = producer.board.prepare_elaboration_inputs(producer.ROOT, work, generator,
-                                                                    dos_profile=dos_profile)
-                disk = work / 'pcxt_freedos_disk.hex'
-                self.assertEqual(disk.exists(), dos_profile)
-                if dos_profile:
-                    self.assertEqual(inputs['freedos_image_sha256'], producer.dos_assets(producer.ROOT)[0]['floppy']['sha256'])
-                    for bank in range(8):
-                        self.assertEqual((work / f'pcxt_diagnostic.bank{bank}.hex').read_bytes(),
-                                         (work / f'pcxt_glabios.bank{bank}.hex').read_bytes())
-                else:
-                    self.assertEqual(inputs, {})
-                program = producer.board.elaboration(producer.ROOT, work, library, package_profile=True,
-                    build_id='1234567890abcdef' * 2, dos_profile=dos_profile)
-                self.assertEqual('pcxt_disk_boot.sv' in program, dos_profile)
-                self.assertEqual('pcxt_xt_keyboard_bat.sv' in program, dos_profile)
-                script = work / 'elaborate.ys'
-                script.write_text(program)
-                result = subprocess.run([str(yosys), '-s', str(script)], cwd=work,
-                                        capture_output=True, text=True, timeout=300)
-                self.assertEqual(result.returncode, 0, result.stdout[-4000:] + result.stderr[-4000:])
-                self.assertTrue((work / 'elaborated.json').is_file())
-                self.assertTrue((work / 'elaborated.v').is_file())
-                producer.board.validate_renaming(work, package_profile=True)
-                before = json.loads((work / 'before-names.json').read_text())['modules']['top']
-                after = json.loads((work / 'elaborated.json').read_text())['modules']['top']
-                producer.board.validate_mailbox(before, after, half_rate_board=False)
-
     def test_manifest_declares_the_actual_media_enabled_identity(self):
         record = producer.create_build_record(producer.ROOT, 'https://github.com/DeanoC/fes.git',
             'a'*40, {'quartus': 'pinned', 'yosys': 'pinned'}, execution={'toolchain': 'quartus'})
@@ -303,6 +263,85 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         self.assertEqual(manifest['core']['id'], 'fes.pcxt-dos')
         self.assertEqual(manifest['abi'], {'id': 'fes.computer', 'major': 1, 'minor': 0})
         self.assertEqual([i['id'] for i in manifest['interfaces']], ['fes.video.fixed-720p60'])
+
+    def test_yosys_bus_hold_rewrite_runs_after_deferred_hierarchy(self):
+        program = producer.board.elaboration(producer.ROOT, producer.ROOT / 'build',
+                                             producer.ROOT / 'unused-library',
+                                             package_profile=True,
+                                             build_id='1234567890abcdef'*2)
+        hierarchy = program.index('hierarchy -check -top top;')
+        bus_hold = program.index('setparam -set enable_bus_hold "FALSE" t:altiobuf_bidir;')
+        self.assertLess(hierarchy, bus_hold)
+
+    def test_yosys_elaborates_diagnostic_and_dos_package_profiles(self):
+        toolchain = tomllib.loads((producer.ROOT / 'cores/fes-pcxt/toolchain.lock').read_text())
+        quartus_lock = tomllib.loads((producer.ROOT / 'cores/fes-pcxt/quartus.lock').read_text())
+        expected_sha = quartus_lock['yosys_sha256']
+        expected_commit = toolchain['tool']['yosys']['commit']
+        configured = os.environ.get('FES_PCXT_YOSYS')
+        candidates = [Path(configured)] if configured else []
+        if not candidates:
+            toolchain_root = os.environ.get('FES_TOOLCHAIN_ROOT')
+            if toolchain_root:
+                candidates.append(Path(toolchain_root) / 'bin/yosys')
+            candidates.append(producer.ROOT / 'build/toolchain/fes-pcxt/bin/yosys')
+            cache_root = os.environ.get('FES_TOOLCHAIN_CACHE_ROOT') or os.environ.get('CACHE_ROOT')
+            if cache_root:
+                candidates.extend(sorted(Path(cache_root).glob('slots/*/install/bin/yosys')))
+            system_yosys = shutil.which('yosys')
+            if system_yosys:
+                candidates.append(Path(system_yosys))
+
+        yosys = None
+        for candidate in candidates:
+            if candidate.is_file() and producer.sha(candidate) == expected_sha:
+                version = subprocess.check_output([str(candidate), '-V'], text=True).strip()
+                if 'git sha1 ' + expected_commit[:9] in version:
+                    yosys = candidate.resolve()
+                    break
+        if yosys is None:
+            if configured:
+                self.fail('FES_PCXT_YOSYS does not match the locked PC/XT Yosys')
+            self.skipTest('locked PC/XT Yosys is not installed; set FES_PCXT_YOSYS to run this check')
+
+        library = yosys.parent.parent / 'share/yosys/intel_alm/common/megafunction_bb.v'
+        self.assertTrue(library.is_file(), f'missing locked Yosys library: {library}')
+        for dos_profile in (False, True):
+            profile = 'dos' if dos_profile else 'diagnostic'
+            with self.subTest(profile=profile), tempfile.TemporaryDirectory(
+                    prefix='pcxt-yosys-elaboration-') as directory:
+                work = Path(directory)
+                dos_inputs = producer.board.prepare_elaboration_inputs(
+                    producer.ROOT, work, dos_profile=dos_profile)
+                if dos_profile:
+                    self.assertTrue(dos_inputs)
+                    self.assertFalse(list(work.glob('pcxt_diagnostic.bank*.hex')))
+                    self.assertTrue((work / 'pcxt_glabios.bank0.hex').is_file())
+                    self.assertTrue((work / 'pcxt_freedos_disk.hex').is_file())
+                else:
+                    self.assertFalse(dos_inputs)
+                    self.assertTrue((work / 'pcxt_diagnostic.bank0.hex').is_file())
+                    self.assertFalse((work / 'pcxt_freedos_disk.hex').exists())
+
+                program = producer.board.elaboration(
+                    producer.ROOT, work, library, package_profile=True,
+                    build_id='1234567890abcdef' * 2, dos_profile=dos_profile)
+                self.assertEqual('pcxt_disk_boot.sv' in program, dos_profile)
+                self.assertEqual('pcxt_xt_keyboard_bat.sv' in program, dos_profile)
+                self.assertEqual('c:dos_font.glyphs' in program, dos_profile)
+                (work / 'elaborate.ys').write_text(program)
+                result = subprocess.run([str(yosys), '-s', 'elaborate.ys'], cwd=work,
+                                        capture_output=True, text=True, timeout=600, check=False)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                producer.board.validate_renaming(work, package_profile=True)
+                before = json.loads((work / 'before-names.json').read_text())['modules']['top']
+                after = json.loads((work / 'elaborated.json').read_text())['modules']['top']
+                producer.board.validate_mailbox(before, after, half_rate_board=False)
+                elaborated_verilog = (work / 'elaborated.v').read_text()
+                bus_hold_parameters = elaborated_verilog.count('.enable_bus_hold("FALSE")')
+                self.assertEqual(bus_hold_parameters, 16,
+                                 f'{profile} Quartus elaboration has {bus_hold_parameters}/16 '
+                                 'altiobuf_bidir cells with enable_bus_hold="FALSE"')
 
 
 if __name__ == '__main__':
