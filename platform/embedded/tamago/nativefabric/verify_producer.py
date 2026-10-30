@@ -114,18 +114,17 @@ def main():
     (scratch / "build-inputs.json").write_bytes(original_record + b" ")
     reject("wrong-record", [sys.executable, PRODUCER, "verify", "--output", scratch], "build-input record is not canonical")
     (scratch / "build-inputs.json").write_bytes(original_record)
-    # Even a self-consistent altered record/descriptor must fail against the
-    # identity actually compiled into the retained model.
+    # Even a self-consistent altered source record/descriptor with the same
+    # ABI must fail against the build ID actually compiled into the model.
     changed = json.loads(original_record)
-    changed["parameters"]["control_abi"] += 1
+    changed["source_inputs"][producer.RTL] = "f" * 64
     changed_record = producer.encode_build_record(changed)
     changed_descriptor = json.loads(original_descriptor)
-    changed_descriptor["control_abi"] += 1
     changed_descriptor["build_id"] = producer.build_identity(changed_record)
     changed_descriptor["build_inputs_sha256"] = hashlib.sha256(changed_record).hexdigest()
     (scratch / "build-inputs.json").write_bytes(changed_record)
     (scratch / "descriptor.json").write_bytes(producer.canonical(changed_descriptor))
-    reject("wrong-live-binding", [sys.executable, PRODUCER, "verify", "--output", scratch], "live simulation rejected descriptor identity")
+    reject("wrong-live-binding", [sys.executable, PRODUCER, "verify", "--output", scratch], "live simulation rejected descriptor identity: FAIL live build identity mismatch")
     (scratch / "build-inputs.json").write_bytes(original_record)
     (scratch / "descriptor.json").write_bytes(original_descriptor)
     artifact = scratch / producer.ARTIFACT
