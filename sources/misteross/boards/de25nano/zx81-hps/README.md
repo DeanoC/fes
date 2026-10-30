@@ -10,7 +10,9 @@ The GHRD's HPS/LPDDR4 configuration, debug paths, inherited DDR probe and boot
 data remain selected. The new computer path adds no DMA master or DDR access.
 It runs entirely on the existing 100 MHz peripheral clock, using 13/200
 enables for the unchanged 6.5 MHz ULA and 3.25 MHz CPU. HDMI uses its separate
-74.25 MHz PLL. Pixel-clock loss blanks output while CPU, control and tape
+74.25 MHz PLL. Transport readiness crosses a two-stage pixel-clock
+synchronizer, and the RGB/DE/HS/VS mask changes only at the renderer's 720p
+frame boundary. Pixel-clock loss blanks output while CPU, control and tape
 continue. The renderer packs eight monochrome pixels per RAM word in two
 328×270 M20K banks. Capture publishes only completed 328-pixel rows, crops
 excess rows at 270, and renders any missing bottom rows as white paper.
