@@ -85,7 +85,15 @@ and refuses other boards before loading drivers or constructing hardware.
 
 The [2026-10-28 AArch64 software validation record](validation/2026-10-28-de25-aarch64-runtime/README.md)
 retains the selected C++ SDK/image and runtime receipts, QEMU test logs, native
-retry and CI evidence. Physical DE25 boot remains pending.
+retry and CI evidence. Physical boot of the FES image remains pending.
+
+The [2026-10-30 physical CPU proof](validation/2026-10-30-de25-board-cpu-proofs/README.md)
+runs retained AArch64 executables directly on both boards using their factory
+Ubuntu images. It checks deterministic base/persona composition, runtime unit
+tests and actual C++ controllers. The controller clients reach frozen RTL
+simulations on the host through private SSH-forwarded Unix sockets. This adds
+physical CPU execution evidence; FPGA programming, physical MMIO/DDR and the
+FES image remain separate qualification steps.
 
 ## Image artifacts
 
