@@ -68,6 +68,7 @@
 #include "opl2_reference.h"
 #include "pc386_ddr_model.h"
 #include "pc386_presenter_model.h"
+#include "smc_stale.h"
 #include "verilated.h"
 
 #include <cstdint>
@@ -533,6 +534,7 @@ public:
         }
         cpu.attr_upper = map;
         cpu.ram_top = RAM_BYTES >> 20;
+        cpu.queue16 = 0;  // the coherent profile
         cpu.cold_reset = 1;
         cpu.reset = 1;
         for (int n = 0; n < 3; ++n) {
@@ -551,6 +553,7 @@ public:
     uint64_t parked_clocks = 0;  // clocks only the machine ran (see run)
     uint64_t vga_loads = 0;      // MMIO reads the VGA took
     uint64_t replays = 0;        // instructions restarted for an MMIO load not the oldest
+    uint64_t smc_restarts = 0;   // ... for self-modifying code
     // Self-modifying code: a store into a block the front end has fetched,
     // ahead of the next instruction, and an instruction that then retires
     // over a byte so stored before the front end next redirects (and so
@@ -596,7 +599,7 @@ public:
         io = inta = Pending::Idle;
         last_retire = m.cycles;
         retire_next = physical(s.seg[fes_i386::SEG_CS].base + s.eip, m.top.a20m);
-        stale.clear();
+        stale.reset();
     }
 
     // The architectural state, over the fields the RTL does not hold.
@@ -653,6 +656,8 @@ public:
         const uint64_t wdata = cpu.trace_store_data;
         const uint8_t wmask = cpu.trace_store_mask;
         const bool a20m = m.top.a20m;
+        const uint32_t current = physical(cpu.arch_base[fes_i386::SEG_CS] + cpu.arch_eip, a20m);
+        const uint32_t dma_owner = cpu.trace_smc_open ? 0xffffffffu : current;
         // I/O and INTA: acknowledge on this edge what the machine completed
         // after the last; a request after an acknowledge is the next access.
         cpu.io_ack = 0;
@@ -709,6 +714,8 @@ public:
         m.top.dma_rdata = cpu.dma_rdata;
         m.top.flush_done = cpu.flush_done;
         m.top.eval();
+        const bool dma_write = m.top.dma_valid && m.top.dma_write;
+        const uint32_t dma_address = m.top.dma_address;
         if (m.top.mem_valid && !mmio_presented) {
             mmio_presented = true;
             mmio_start = m.cycles;
@@ -747,6 +754,21 @@ public:
         answers();
         m.top.mem_valid = 0;
         replays += cpu.trace_replay;
+        smc_restarts += cpu.trace_smc;
+        const uint32_t fetch_base = physical(block << 4, a20m);
+        auto smc_cycle = stale.begin_cycle(fetch, fetch_base);
+
+        // Attribute a DMA write like the lockstep harness: when WB is open,
+        // it must restart the next instruction; during an instruction that
+        // instruction is allowed to finish.
+        if (cpu.dma_done && dma_write && !resetting) {
+            const uint32_t at = physical(dma_address, a20m);
+            if (smc_cycle.store(at, dma_owner, current)) {
+                if (smc_addresses.insert(at).second && smc_sites.size() < 24)
+                    smc_sites.push_back(site("dma", current, at));
+                ++smc_stores;
+            }
+        }
 
         // The CPU's ports before its edge: the retiring store, then the fetch.
         if (store && !resetting) {
@@ -757,18 +779,12 @@ public:
                 if (at >= RAM_BYTES || (at >= 0xa0000 && at < 0xc0000)) continue;
                 dirty[at >> 12] = true;
                 // Code the front end holds ahead of the next instruction.
-                if (at >= next && at < fetch_end && fetch_end - next <= SMC_WINDOW) {
+                if (smc_cycle.store(at, current, next)) {
                     if (smc_addresses.insert(at).second && smc_sites.size() < 24)
                         smc_sites.push_back(site("store", next, at));
-                    stale.insert(at);
                     ++smc_stores;
                 }
             }
-        }
-        if (fetch) {
-            const uint32_t base = physical(block << 4, a20m);
-            if (base != fetch_end) stale.clear();  // a redirect: the front end refetches
-            fetch_end = base + 16;
         }
         still = fetch || cpu.trace_dread || store || issued || cpu.io_ack || cpu.inta_ack || cpu.trace_retire
                 || !cpu.trace_mem_idle ? 0 : still + 1;
@@ -778,12 +794,10 @@ public:
             if (cpu.arch_eflags & 0x100) ++tf_retired;
             const uint32_t start = retire_next;
             retire_next = physical(cpu.arch_base[fes_i386::SEG_CS] + cpu.arch_eip, a20m);
-            if (!stale.empty() && !cpu.trace_exception) {
-                auto byte = stale.lower_bound(start);
-                if (byte != stale.end() && *byte < start + 15 && *byte < start + length(start)) {
-                    ++smc_executed;
-                    if (smc_sites.size() < 24) smc_sites.push_back(site("executed", start, *byte));
-                }
+            uint32_t byte = 0;
+            if (!cpu.trace_exception && stale.executed(start, start + length(start), byte)) {
+                ++smc_executed;
+                if (smc_sites.size() < 24) smc_sites.push_back(site("executed", start, byte));
             }
         }
     }
@@ -806,9 +820,8 @@ private:
     uint64_t mmio_start = 0, read_start = 0;
     uint32_t read_dword = 0;
     uint8_t read_enables = 0;
-    uint32_t fetch_end = 0;    // the end of the last block fetched
     uint32_t retire_next = 0;  // where the next instruction to retire starts
-    std::set<uint32_t> stale;  // bytes stored into fetched code since the last redirect
+    SmcStaleTracker stale;  // bytes stored into fetched code since the last redirect
     uint64_t last_retire = 0;
 
     // The I/O or INTA cycle the machine completed on its last edge.
@@ -854,7 +867,6 @@ public:
     }
 
 private:
-    static constexpr uint32_t SMC_WINDOW = 96;
     std::string site(const char *kind, uint32_t instruction, uint32_t address) const {
         char text[96];
         std::snprintf(text, sizeof text, "%s %llu %04x:%08x %08x %08x", kind, (unsigned long long)m.cycles,
@@ -1286,14 +1298,14 @@ int main(int argc, char **argv) {
             for (const std::string &note : notes) std::printf("NOTE %s\n", note.c_str());
             std::printf("RTL retired=%llu oracle_steps=%llu protected_steps=%llu parked_clocks=%llu tf_retired=%llu "
                         "vga_loads=%llu replays=%llu port0_reads=%llu port0_writes=%llu smc_stores=%llu "
-                        "smc_addresses=%zu smc_executed=%llu\n",
+                        "smc_addresses=%zu smc_executed=%llu smc_restarts=%llu\n",
                         (unsigned long long)rtl->retired, (unsigned long long)oracle_steps,
                         (unsigned long long)protected_steps, (unsigned long long)rtl->parked_clocks,
                         (unsigned long long)rtl->tf_retired, (unsigned long long)rtl->vga_loads,
                         (unsigned long long)rtl->replays, (unsigned long long)rtl->port0.beats_read,
                         (unsigned long long)rtl->port0.beats_written,
                         (unsigned long long)rtl->smc_stores, rtl->smc_addresses.size(),
-                        (unsigned long long)rtl->smc_executed);
+                        (unsigned long long)rtl->smc_executed, (unsigned long long)rtl->smc_restarts);
             steps += rtl->retired;
         }
         for (const auto &[key, count] : machine.io_times)

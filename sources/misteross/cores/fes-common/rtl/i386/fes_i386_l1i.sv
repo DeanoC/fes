@@ -28,8 +28,9 @@
 // set as it enters WB, and WB's commit clears the valid bit of a way that
 // holds its line, on the next edge (the clear is registered, so the 512
 // valid bits' enables do not wait on the commit). A store whose lanes run
-// into the next line clears that line's set. Instructions already past F2,
-// and a fetch in F2 the cycle after the commit, are not checked yet.
+// into the next line clears that line's set. The bytes already fetched,
+// a block F2 reads the cycle after the commit among them, are fes_i386_cpu's
+// to check (Self-modifying code there).
 module fes_i386_l1i import fes_i386_pkg::*; (
     input  logic             clk,
     input  logic             reset,

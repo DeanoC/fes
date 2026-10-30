@@ -295,7 +295,30 @@ modified code runs. Two profiles:
 `queue16` exists for the anti-debugging idiom that patches the next
 instruction and expects the old one to run; a debugger's single step flushes
 the queue and exposes the patch. Real 386 queue contents depend on bus timing,
-so no profile is exact. It is a per-game core setting.
+so no profile is exact. It is a per-game core setting. `coherent` is more
+coherent than a 386, which runs the bytes it has queued until a jump: code
+that detects the prefetch queue, or patches the next instruction to catch a
+debugger, takes the patched path under it.
+
+Under both profiles the instruction that stores completes as it was decoded,
+as the 386EX does, and a byte the front end has not fetched yet reads new.
+Under `queue16` a store past the 16 bytes takes effect for the first
+instruction that reaches past them, as a 386 refetches once it runs past its
+queue, so a HLT within them still halts. A jump, a fault, an interrupt or an
+uncached load's replay ends the window, as a jump empties a 386's queue. The
+lockstep checks `coherent` against Bochs and `queue16` against the
+SingleStepTests corpus, a 386EX's, whose REP MOVS and STOS over their own
+encoding and the bytes after it halt on the HLT the 386EX had queued
+([record](validation/2026-10-29-i386-smc.md)).
+
+A DMA write into the bytes in flight restarts the next instruction not yet
+begun, under either profile: the first whose first uop has not entered WB
+and whose uncached load has not read its device. An instruction restarted
+for self-modifying code is not restarted again before it enters WB, so a
+stream of DMA writes cannot hold the CPU. A write that lands while it
+refetches restarts the instruction after it instead, and may leave it
+running bytes from before that write: a bounded staleness, kept for forward
+progress.
 
 ### FPU
 
@@ -436,6 +459,7 @@ the same RTL input; #1115, #1141 and #1143 use Yosys `238eac9a49`.
 | Earlier near-stack slice after its review fix ([#1141](https://github.com/DeanoC/fes/pull/1141), [record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-stack.md#the-review-fix-routed-and-on-the-netlist)) | 68.89, 70.38, 74.12, 68.02 MHz | 103.69, 99.80, 99.44, 102.13 MHz | AG, DC, Q, Q on nextpnr; Q on every Quartus seed |
 | Far-transfer slice ([#1143](https://github.com/DeanoC/fes/pull/1143), [record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-far.md#result)) | 69.43, 70.48, 74.40, 70.34 MHz | 103.73, 98.34, 100.78, 104.47 MHz | D, Q, DC, DC on nextpnr; Q on every Quartus seed |
 | Memory path, slice 1 ([#1230](https://github.com/DeanoC/fes/pull/1230), [record](validation/2026-10-28-i386-memory-path.md#quartus)); Quartus with #1184's mapping at 120 MHz | 47.50, 48.70, 48.51, 48.40 MHz | 99.85, 100.76, 99.59, 101.19 MHz; after its review fix 98.85, 101.39, 94.82, 97.71 | D, D, MEM, MEM on nextpnr; EX, Q, F1, Q on Quartus; after the fix F1, Q, MEM, EX |
+| Self-modifying code, slice 2 ([#1234](https://github.com/DeanoC/fes/pull/1234), [record](validation/2026-10-29-i386-smc.md#quartus)); Quartus as slice 1 | 43.99, 38.12, 44.80, 43.36 MHz | 99.96, 100.40, 98.73, 101.14 MHz; with both review fixes 99.99, 99.57, 102.12, 99.44 | MEM, MEM, EX, MEM on nextpnr; F2, D, F2, Q on Quartus; with the fixes F2, Q, EX, Q |
 
 - **Far-transfer nextpnr result:** the four seeds average 71.2 MHz. D limits seed 1,
   Q seed 2, and DC seeds 3 and 4.
@@ -447,7 +471,9 @@ the same RTL input; #1115, #1141 and #1143 use Yosys `238eac9a49`.
   own logic, in M1, costs nothing measurable, and the L1I's hit select,
   which it does not change, falls 3 to 4 MHz and limits two seeds. Its
   nextpnr routes average 48.3 MHz, against the base's 61.5: wire, which
-  Quartus does not show.
+  Quartus does not show. Slice 2, the self-modifying-code check, averages
+  100.1 MHz, and 100.3 with both slices' review fixes; that L1I hit path,
+  into F2, limits two of its seeds before the fixes and one after.
 - **The last nextpnr clock before the memory path** is 69.43–74.40 MHz, the
   far-transfer slice's, not the historical 62.6–64.8 MHz #1115 result. About
   80 MHz remains a target. The place-and-route gap remains tracked as
@@ -1010,11 +1036,21 @@ updates hold the L2's DMA port between their read and their write.
   faster tier in front of DDR, not a replacement. DDR jitter costs speed only; nothing
   in the machine times itself by memory latency.
 - **Self-modifying code:** every committed store looks up the L1I tags through
-  port B and invalidates a hit. In the same cycle it compares its physical line
-  with the lines of the instructions in flight from F2 to WB. A hit flushes the
-  younger instructions and refetches, except for bytes the `queue16` profile
-  exempts. Fetch from the snooped set waits for the lookup. DMA writes into
-  code take the same in-flight check and the L2 back-invalidation.
+  port B and invalidates a hit on the edge after it. Fetch is sequential with
+  no prediction and every redirect comes from WB, so the instructions in
+  flight after the one in WB are one run of lines, from CS.base + EIP to the
+  block F1 loads next. Each committed store, and each DMA write, compares its
+  line with that run, by line bits 19:5 as two carry chains, with registers
+  in and registers out. A hit restarts an instruction after it through the
+  uncached load's replay path: the next one under `coherent` or for DMA, once
+  the storing instruction ends, or for DMA at once while WB is empty between
+  instructions and the next has read no device; under `queue16`, none for a
+  store within or behind the 16 bytes after the storing instruction, and the
+  first one to reach past them otherwise. The restart refetches after the L1I
+  has cleared the line, and the fill waits for the store's write-buffer
+  entry. With prediction the run is no longer one stretch, and the check
+  needs the predicted path's lines; with the L2, DMA writes into code take
+  the same check and the L2 back-invalidation.
 
 ### Memory slices
 
@@ -1025,8 +1061,10 @@ lockstep, the FreeDOS boot on the RTL CPU and a record timed with Quartus:
    ([record](validation/2026-10-28-i386-memory-path.md)): both L1s as above,
    filled straight from port 0; the write buffer; uncached MMIO with replay;
    read-only RAM and holes; DMA and FLUSH; the store snoop of the L1I.
-2. **Self-modifying code in flight**: each committed store against the lines
-   of the instructions from F2 to WB, the `coherent` and `queue16` profiles.
+2. **Self-modifying code in flight**
+   ([record](validation/2026-10-29-i386-smc.md)): each committed store and
+   DMA write against the lines of the instructions from F2 to WB, the
+   `coherent` and `queue16` profiles.
 3. **L2**: 128 KiB between the L1s and port 0, DMA and FLUSH through it, a
    CPU reset that keeps it; write-buffer forwarding to a missing load.
 4. **The kit's line fills**: the DDR check above through the CPU path on
@@ -1247,7 +1285,10 @@ below are the plan for the complete CPU and machine.
    15,321,783 random retirements, also on the Yosys `238eac9a49` netlist
    ([far-transfer record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-far.md#checks)). The complete cache,
    interrupt, I/O and protected-mode cases remain as those paths are built.
-6. **Directed tests (planned):** both self-modifying-code profiles, A20 toggling,
+   Random programs rewrite later instructions under `coherent`, directed
+   cases cover both self-modifying-code profiles, and the corpus runs under
+   `queue16` ([record](validation/2026-10-29-i386-smc.md#checks)).
+6. **Directed tests (planned):** A20 toggling,
    DMA against CPU stores (randomised), unreal mode, 16-bit wrap cases, page
    faults inside REP, segment-limit edges, LOCK against DMA, governor pacing,
    every no-387 ESC form with the common FPU-detection routines, dirty L2 lines
@@ -1349,6 +1390,16 @@ Settled on 2026-10-29:
   ([memory types](#memory-types),
   [record](validation/2026-10-28-i386-memory-path.md#timing)). With paging,
   the DTLB's page reaches M1's compare a stage earlier than the design had it.
+- Self-modifying code is checked against one run of lines, from CS.base + EIP
+  to the block F1 loads next, which sequential fetch makes the whole of what
+  is in flight, rather than against each stage's lines. A hit restarts an
+  instruction through the replay path once the storing instruction has
+  ended, rather than flushing on the spot, so the decision reaches only
+  registers and the storing instruction completes as decoded. The corpus, a
+  386EX's, runs under `queue16`; random programs and directed cases check
+  `coherent` against Bochs
+  ([self-modifying code](#self-modifying-code),
+  [record](validation/2026-10-29-i386-smc.md)).
 
 No decision is open.
 

@@ -61,6 +61,7 @@ module fes_i386_l1d import fes_i386_pkg::*; (
     output logic             valid,
     output logic [7:0][7:0]  rdata,
     output logic             replay,
+    output logic             unc_start,  // an uncached load starts to read its device (start_u)
     // Stores: the one entering WB (its address on the edge D to WB advance),
     // the one in WB (for the probe's re-read), and the one WB commits now.
     input  logic [31:0]      st_ex_addr,
@@ -283,6 +284,7 @@ module fes_i386_l1d import fes_i386_pkg::*; (
     assign start_c = state == L_IDLE && go && !unc;
     assign start_u = state == L_UNC && oldest;
     assign start = start_c || start_u;
+    assign unc_start = start_u;
     assign set_valid = state == L_VALID && !spoilt && !spoil;
     assign wr_tag = state == L_TAGS;
     assign refresh = state == L_REFRESH;

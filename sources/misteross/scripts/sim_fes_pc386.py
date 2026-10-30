@@ -378,6 +378,11 @@ def run_machine(testbench: Path, suite: str, arguments: list[str], images: dict)
     for counter in ('scanout_underflows', 'capture_drops', 'present_underflows', 'plane_underflows'):
         if report['vga'].get(counter):
             report['failures'].append(f'VGA {counter}: {report["vga"][counter]}')
+    # The coherent profile: no instruction runs bytes from before a store into them.
+    executed = (report.get('rtl') or {}).get('counters', {}).get('smc_executed')
+    if executed:
+        report['failures'].append(f'the RTL ran {executed} instructions over bytes stored after it fetched them: '
+                                  f'{[site for site in report["rtl"]["smc"] if site["event"] == "executed"]}')
     return report
 
 

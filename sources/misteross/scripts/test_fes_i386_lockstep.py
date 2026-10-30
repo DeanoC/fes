@@ -180,14 +180,15 @@ def run_reset_store(testbench: str, env: dict) -> dict:
 
 def run_memory(testbench: str, env: dict) -> dict:
     """DMA and FLUSH against the caches and the write buffer (lockstep_tb.cpp's
-    run_memory_cases): four cases, and eight store-to-load forwarding cases."""
+    run_memory_cases): four cases, eight store-to-load forwarding cases, and six DMA sweeps under
+    each profile."""
     env = dict(env, FES_I386_MODE='memory', FES_I386_LATENCY='1')
     result = subprocess.run([testbench], env=env, capture_output=True, text=True)
     if result.returncode not in (0, 1):
         raise LockstepError(f'memory cases: testbench exited with {result.returncode}\n{result.stderr[-4000:]}')
     summary, failures = parse_output(result.stdout)
-    if summary['runs'] != 14:
-        raise LockstepError(f'memory cases: testbench ran {summary["runs"]} of 14 cases')
+    if summary['runs'] != 26:
+        raise LockstepError(f'memory cases: testbench ran {summary["runs"]} of 26 cases')
     return {'summary': summary, 'failures': failures}
 
 
@@ -197,8 +198,8 @@ def run_directed(testbench: str, env: dict) -> dict:
     if result.returncode not in (0, 1):
         raise LockstepError(f'directed cases: testbench exited with {result.returncode}\n{result.stderr[-4000:]}')
     summary, failures = parse_output(result.stdout)
-    if summary['runs'] != 17:
-        raise LockstepError(f'directed cases: testbench ran {summary["runs"]} of 17 cases')
+    if summary['runs'] != 39:
+        raise LockstepError(f'directed cases: testbench ran {summary["runs"]} of 39 cases')
     return {'summary': summary, 'failures': failures}
 
 
@@ -419,17 +420,18 @@ def main() -> int:
                        'retired_to_hlt': summary['halts'], 'interrupts': summary['interrupts'], 'faults': summary['faults'],
                        'retirements': summary['retirements'], 'io_accesses': summary['io_accesses'],
                        'mmio_runs': summary['mmio_runs'], 'mmio_accesses': summary['mmio_accesses'],
-                       'replays': summary['replays'], 'cycles': summary['cycles']})
+                       'replays': summary['replays'], 'smc_restarts': summary['smc_restarts'],
+                       'cycles': summary['cycles']})
         corpus_failures += result['failures']
     totals = sum(by_opcode.values(), Counter())
     fault_vectors = sum((Counter(result['summary']['fault_vectors']) for result in corpus_results), Counter())
     divergences = sum((Counter(result['summary']['divergence_retirements']) for result in corpus_results), Counter())
     random_totals = sum((Counter({key: result['summary'][key] for key in
                                   ('runs', 'passed', 'failed', 'retirements', 'cycles', 'halts', 'faults',
-                                   'double_faults', 'retire_limits', 'smc_stops', 'load_wait_cycles', 'io_accesses',
+                                   'double_faults', 'retire_limits', 'load_wait_cycles', 'io_accesses',
                                    'external_interrupts', 'nmis', 'rep_interrupts', 'vector_moved_stops',
-                                   'window_code_stops', 'stray_stops', 'mmio_runs', 'mmio_accesses', 'replays',
-                                   'port0_reads', 'port0_writes')})
+                                   'window_code_stops', 'code_store_stops', 'stray_stops', 'mmio_runs',
+                                   'mmio_accesses', 'replays', 'smc_restarts', 'port0_reads', 'port0_writes')})
                          for result in random_results),
                          Counter())
     random_failures = [line for result in random_results + steady_results for line in result['failures']]
@@ -442,7 +444,7 @@ def main() -> int:
                                   for result in steady_results), Counter()).items()))
             for key in ('sequential', 'prefixed', 'lea', 'selector', 'after_taken', 'after_not_taken',
                         'shift_consumer', 'after_shift', 'store_load', 'after_store', 'address', 'after_segment',
-                        'after_stack', 'stack_stack', 'several', 'after_string', 'after_io', 'memory')}
+                        'after_stack', 'stack_stack', 'several', 'after_string', 'after_io', 'memory', 'smc')}
     held = hold_failures(gaps)
     unbuilt_failures = [line for result in unbuilt_results for line in result['failures']]
     unbuilt_runs = sum(result['summary']['runs'] for result in unbuilt_results)
@@ -474,18 +476,21 @@ def main() -> int:
           f"interrupt's handler, {totals['faults']} in an exception's handler "
           f"{dict(fault_vectors)}), {totals['failed']} fail; {totals['retirements']} retirements and "
           f"{totals['io_accesses']} I/O accesses compared; {totals['mmio_runs']} with the MMIO window, "
-          f"{totals['mmio_accesses']} MMIO bytes and {totals['replays']} replays")
+          f"{totals['mmio_accesses']} MMIO bytes and {totals['replays']} replays; {totals['smc_restarts']} "
+          f"restarts for self-modifying code (queue16)")
     if random_results:
         print(f"random: {len(random_results)} seeds x {args.random_programs} programs, {random_totals['retirements']} "
               f"retirements: {random_totals['passed']} pass ({random_totals['halts']} to HLT, {random_totals['faults']} "
               f"at a delivered exception, {random_totals['double_faults']} at a fault in a delivery, "
-              f"{random_totals['retire_limits']} at the retirement limit, {random_totals['smc_stops']} at a "
-              f"store into their code, {random_totals['vector_moved_stops']} at an interrupt whose vector they had "
+              f"{random_totals['retire_limits']} at the retirement limit, "
+              f"{random_totals['vector_moved_stops']} at an interrupt whose vector they had "
               f"rewritten, {random_totals['window_code_stops']} at code in the MMIO window, "
+              f"{random_totals['code_store_stops']} at a store into their code other than their rewrites, "
               f"{random_totals['stray_stops']} at code outside the program or TF set, after control data read "
               f"back from mixed memory; "
               f"{random_totals['mmio_runs']} with the window, {random_totals['mmio_accesses']} MMIO bytes and "
-              f"{random_totals['replays']} replays; {random_totals['load_wait_cycles']} cycles waiting for memory; "
+              f"{random_totals['replays']} replays; {random_totals['smc_restarts']} restarts for self-modifying "
+              f"code; {random_totals['load_wait_cycles']} cycles waiting for memory; "
               f"{random_totals['io_accesses']} I/O accesses compared; {random_totals['external_interrupts']} INTRs "
               f"and {random_totals['nmis']} NMIs taken, {random_totals['rep_interrupts']} of them between a REP "
               f"string's elements), {random_totals['failed']} fail; "
