@@ -1,0 +1,583 @@
+{
+  "base": "c5189ef504b01276651ee531c81d23db90ff7b1a",
+  "implementation_commit": "95016eac34e8a632b034e6e96208d69f0ec9433a",
+  "test_environment_commit": "71d5f8a30cb01437ff4d8c443fe5173f65688f71",
+  "classification": "host/RTL integration and AArch64 firmware component cross-build; no hardware acceptance",
+  "integration": {
+    "status": "passed",
+    "classification": "actual RTL plus patched TF-A C functions with simulated platform operations; no hardware acceptance",
+    "commands": [
+      [
+        "cc",
+        "-std=c11",
+        "-Wall",
+        "-Werror",
+        "-fsanitize=undefined",
+        "-fno-sanitize-recover=all",
+        "-I/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/platform/embedded/firmware/tests",
+        "-c",
+        "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/embedded-endpoint-reviewed/tfa_subset.c",
+        "-o",
+        "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/embedded-endpoint-reviewed/tfa_subset.o"
+      ],
+      [
+        "out/de25-os-tools/zephyr-sdk-0.17.4/aarch64-zephyr-elf/bin/aarch64-zephyr-elf-g++",
+        "-std=c++14",
+        "-ffreestanding",
+        "-fno-exceptions",
+        "-fno-rtti",
+        "-mgeneral-regs-only",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-c",
+        "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/platform/embedded/firmware/control.cpp",
+        "-o",
+        "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/embedded-endpoint-reviewed/control-aarch64.o"
+      ],
+      [
+        "verilator",
+        "--cc",
+        "--exe",
+        "--build",
+        "--top-module",
+        "fes_embedded_control",
+        "-Wall",
+        "--Mdir",
+        "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/embedded-endpoint-reviewed/obj",
+        "-I/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/sources/misteross/cores/fes-common/generated",
+        "-GBUILD_ID=128'h00112233445566778899aabbccddeeff",
+        "-CFLAGS",
+        "-std=c++14 -O2 -fsanitize=undefined -fno-sanitize-recover=all -I/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/platform/embedded/firmware",
+        "-LDFLAGS",
+        "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/embedded-endpoint-reviewed/tfa_subset.o -fsanitize=undefined",
+        "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv",
+        "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/platform/embedded/firmware/control.cpp",
+        "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/platform/embedded/firmware/tests/endpoint_tb.cpp"
+      ],
+      [
+        "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/embedded-endpoint-reviewed/obj/Vfes_embedded_control"
+      ]
+    ],
+    "source_sha256": {
+      "platform/embedded/firmware/control.hpp": "c84f8c5aebb8a15286651b1536e78121b690ff4778dc1ca393d8bb8d56064bb0",
+      "platform/embedded/firmware/control.cpp": "897bd6cab9addd84efd3be52d0ddfb51fbb217bb9f626a0bf244af78107297d4",
+      "platform/embedded/firmware/tests/contained_path.hpp": "c3e9da659c491930bc33c1cffb27a72d490035635077933079a6b18f43726dd0",
+      "platform/embedded/firmware/tests/tfa_stubs.h": "9e50b34543eb6a176196fba2504ba85a181086fe6c52eed451382b6fc4a42f8c",
+      "platform/embedded/firmware/tests/endpoint_tb.cpp": "b2d374ab4ec3cc036636c8d752c812ee0995524aafcf40ccac5b8b7f9f95c941",
+      "platform/embedded/firmware/verify.py": "d92202fb69d11875b8d75f5bd268186119402b7d7141badad1764c9fa6f455fd",
+      "platform/embedded/firmware/prepare_tfa.py": "824061231bf3bea2253e6bca5aa06b34db50a6a1e0b8fa8baab9a0f6ab2de99f",
+      "platform/embedded/firmware/generated/fes_embedded_control.hpp": "8856d106e50c7b3a8394c8e1442568446087195dfd3e6f3099ad63931dd41df1",
+      "sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv": "95bc4ef8f470612d71dfa2737e96a988e8a8508e5db56857455bf294654667f3",
+      "sources/misteross/cores/fes-common/generated/fes_embedded_control.vh": "20e1f042865b54a4cc6a7334b874fedc9f95aa87deb2757ce04a35cc023fc597"
+    },
+    "reference_git_blob": "3c223c1498e3a412e075e4f921cd78acd3d0fcd6",
+    "reference_sha256": "92607ef0382fd57501c38f254b04c246e94fff1f1d60bb97e3d3d1284dbbf17a",
+    "patched_tfa_sha256": "e619a7c8f9dbea4abff2506b214e1194a61731385cf57c0a64416706fa5b2cb5",
+    "cross_compiler_sha256": "b8ba7a41f241215b37e2ffb1518541b2f433d280a27c4e9aa22432facc1e37b2",
+    "aarch64_object_sha256": "d24e53ca4041044d9ff3851fa50a69c6dcd847046088c81a3e654433579a268b",
+    "not_run": [],
+    "checks": [
+      "PASS actual-TFA-contained-reload",
+      "PASS AXI-fault-reset-generation-cookie",
+      "PASS identity-firmware-deadline-failures",
+      "PASS outstanding-queue-and-CSR-backpressure",
+      "PASS forwarding-profile-and-late-response",
+      "PASS simultaneous-AR-RLAST-and-256-beat-burst"
+    ]
+  },
+  "prepared_firmware": {
+    "reference_git_blob": "3c223c1498e3a412e075e4f921cd78acd3d0fcd6",
+    "source_path": "plat/intel/soc/common/socfpga_sip_svc.c",
+    "reference_sha256": "92607ef0382fd57501c38f254b04c246e94fff1f1d60bb97e3d3d1284dbbf17a",
+    "patched_sha256": "e619a7c8f9dbea4abff2506b214e1194a61731385cf57c0a64416706fa5b2cb5",
+    "patch_sha256": "aab72a143494973ed21100d5428343d280ad8d9b87f5d201283d40e9a110ef09",
+    "preparer_sha256": "824061231bf3bea2253e6bca5aa06b34db50a6a1e0b8fa8baab9a0f6ab2de99f",
+    "contract_header_sha256": "8856d106e50c7b3a8394c8e1442568446087195dfd3e6f3099ad63931dd41df1",
+    "classification": "prepared TF-A source only; not boot or hardware acceptance",
+    "limitations": [
+      "explicit bridge enable still requires exclusive runtime sequencing and board readback",
+      "control-only bridge routing and DDR remapper behaviour require board qualification"
+    ]
+  },
+  "bl31": {
+    "source_commit": "4ec2948fe3f65dba2f19e691e702f7de2949179c",
+    "patched_source_sha256": "e619a7c8f9dbea4abff2506b214e1194a61731385cf57c0a64416706fa5b2cb5",
+    "prepared_report_sha256": "01f12d1844f1952c67984c72e405aec571ccc0de7e29869ce4b10c060fed4986",
+    "command": [
+      "make",
+      "-C",
+      "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/embedded-tfa-source",
+      "-j2",
+      "PLAT=agilex5",
+      "CROSS_COMPILE=/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/zephyr-sdk-0.17.4/aarch64-zephyr-elf/bin/aarch64-zephyr-elf-",
+      "bl31"
+    ],
+    "status": "cross-built",
+    "classification": "Agilex 5 BL31 component; not complete DE25 boot image or hardware acceptance",
+    "compiler_sha256": "9ae7b315c42ce62b5911f30dc4be8268be5bb355bec26ffaf576295a7711a812",
+    "artifact_sha256": {
+      "out/embedded-tfa-source/build/agilex5/release/bl31/bl31.elf": "ed981a5a36a113a0ba6f4e44ff564423e695d4b5f067927a8b228b294eed9c39",
+      "out/embedded-tfa-source/build/agilex5/release/bl31.bin": "d3672a26ac9224dffd2b5442de6a740096eac6dc3c246602f7f8ea551f97b038"
+    },
+    "entry": "0x80000000",
+    "compiler_version": "aarch64-zephyr-elf-gcc (Zephyr SDK 0.17.4) 12.2.0"
+  },
+  "affected_checks_original_run": {
+    "format": 1,
+    "root": "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os",
+    "base": "c5189ef504b01276651ee531c81d23db90ff7b1a",
+    "head": "95016eac34e8a632b034e6e96208d69f0ec9433a",
+    "checkout_head": "95016eac34e8a632b034e6e96208d69f0ec9433a",
+    "merge_base": "c5189ef504b01276651ee531c81d23db90ff7b1a",
+    "local_paths": [],
+    "impact": {
+      "lanes": {
+        "parent": true,
+        "host": true,
+        "runtime": true,
+        "contracts": true,
+        "fpga": true
+      },
+      "skipped": [],
+      "cores": [],
+      "test_modes": {
+        "video": true,
+        "media": true,
+        "full_race": true
+      },
+      "paths": [
+        "platform/embedded/README.md",
+        "platform/embedded/firmware/README.md",
+        "platform/embedded/firmware/control.cpp",
+        "platform/embedded/firmware/control.hpp",
+        "platform/embedded/firmware/generated/fes_embedded_control.hpp",
+        "platform/embedded/firmware/prepare_tfa.py",
+        "platform/embedded/firmware/tests/contained_path.hpp",
+        "platform/embedded/firmware/tests/endpoint_tb.cpp",
+        "platform/embedded/firmware/tests/tfa_stubs.h",
+        "platform/embedded/firmware/verify.py",
+        "platform/embedded/tamago/sdm/README.md",
+        "scripts/affected.py",
+        "scripts/consistency.py",
+        "scripts/test_changed.py",
+        "sources/mister-packages/README.md",
+        "sources/mister-packages/docs/embedded-control.md",
+        "sources/mister-packages/packages/fabric/fes_fabric_embedded_control.yaml",
+        "sources/mister-packages/testdata/oracles/fes-embedded-control.json",
+        "sources/misteross/README.md",
+        "sources/misteross/cores/fes-common/generated/fes_embedded_control.vh",
+        "sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv",
+        "sources/misteross/docs/architecture.md",
+        "tests/test_affected.py",
+        "tests/test_consistency.py",
+        "tests/test_embedded_firmware.py"
+      ],
+      "reasons": [
+        "platform/embedded/firmware/control.cpp: embedded firmware/RTL integration; no shipped core consumer",
+        "platform/embedded/firmware/control.hpp: embedded firmware/RTL integration; no shipped core consumer",
+        "platform/embedded/firmware/generated/fes_embedded_control.hpp: embedded firmware/RTL integration; no shipped core consumer",
+        "platform/embedded/firmware/prepare_tfa.py: embedded firmware/RTL integration; no shipped core consumer",
+        "platform/embedded/firmware/tests/contained_path.hpp: embedded firmware/RTL integration; no shipped core consumer",
+        "platform/embedded/firmware/tests/endpoint_tb.cpp: embedded firmware/RTL integration; no shipped core consumer",
+        "platform/embedded/firmware/tests/tfa_stubs.h: embedded firmware/RTL integration; no shipped core consumer",
+        "platform/embedded/firmware/verify.py: embedded firmware/RTL integration; no shipped core consumer",
+        "scripts/affected.py: parent orchestration/tests/assembly; component sources unchanged",
+        "scripts/consistency.py: parent orchestration/tests/assembly; component sources unchanged",
+        "scripts/test_changed.py: software CI infrastructure; RTL unchanged",
+        "sources/mister-packages/packages/fabric/fes_fabric_embedded_control.yaml: embedded firmware/RTL integration; no shipped core consumer",
+        "sources/mister-packages/testdata/oracles/fes-embedded-control.json: embedded firmware/RTL integration; no shipped core consumer",
+        "sources/misteross/cores/fes-common/generated/fes_embedded_control.vh: embedded firmware/RTL integration; no shipped core consumer",
+        "sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv: embedded firmware/RTL integration; no shipped core consumer",
+        "tests/test_affected.py: parent orchestration/tests/assembly; component sources unchanged",
+        "tests/test_consistency.py: parent orchestration/tests/assembly; component sources unchanged",
+        "tests/test_embedded_firmware.py: parent orchestration/tests/assembly; component sources unchanged"
+      ],
+      "always": [
+        "planner tests",
+        "diff whitespace checks"
+      ],
+      "not_run": [
+        "FPGA synthesis/place-and-route",
+        "cold image builds",
+        "hardware acceptance"
+      ]
+    },
+    "commands": [
+      {
+        "lane": "always",
+        "label": "test_affected.py",
+        "cwd": ".",
+        "argv": [
+          "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/venv/bin/python",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_affected.py",
+          "-v"
+        ],
+        "tools": [
+          "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/venv/bin/python"
+        ],
+        "files": [
+          "tests/test_affected.py"
+        ]
+      },
+      {
+        "lane": "always",
+        "label": "test_test_changed.py",
+        "cwd": ".",
+        "argv": [
+          "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/venv/bin/python",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_test_changed.py",
+          "-v"
+        ],
+        "tools": [
+          "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/venv/bin/python"
+        ],
+        "files": [
+          "tests/test_test_changed.py"
+        ]
+      },
+      {
+        "lane": "always",
+        "label": "committed whitespace",
+        "cwd": ".",
+        "argv": [
+          "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/venv/bin/python",
+          "scripts/check_diff.py",
+          "--base",
+          "c5189ef504b01276651ee531c81d23db90ff7b1a",
+          "--head",
+          "95016eac34e8a632b034e6e96208d69f0ec9433a"
+        ],
+        "tools": [
+          "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/venv/bin/python"
+        ],
+        "files": []
+      },
+      {
+        "lane": "always",
+        "label": "working whitespace",
+        "cwd": ".",
+        "argv": [
+          "git",
+          "diff",
+          "--check",
+          "HEAD",
+          "--"
+        ],
+        "tools": [
+          "git"
+        ],
+        "files": []
+      },
+      {
+        "lane": "parent",
+        "label": "parent Python regressions",
+        "cwd": ".",
+        "argv": [
+          "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/venv/bin/python",
+          "scripts/parent_tests.py",
+          "--video",
+          "true",
+          "--media",
+          "true",
+          "--paths-json",
+          "[\"platform/embedded/README.md\", \"platform/embedded/firmware/README.md\", \"platform/embedded/firmware/control.cpp\", \"platform/embedded/firmware/control.hpp\", \"platform/embedded/firmware/generated/fes_embedded_control.hpp\", \"platform/embedded/firmware/prepare_tfa.py\", \"platform/embedded/firmware/tests/contained_path.hpp\", \"platform/embedded/firmware/tests/endpoint_tb.cpp\", \"platform/embedded/firmware/tests/tfa_stubs.h\", \"platform/embedded/firmware/verify.py\", \"platform/embedded/tamago/sdm/README.md\", \"scripts/affected.py\", \"scripts/consistency.py\", \"scripts/test_changed.py\", \"sources/mister-packages/README.md\", \"sources/mister-packages/docs/embedded-control.md\", \"sources/mister-packages/packages/fabric/fes_fabric_embedded_control.yaml\", \"sources/mister-packages/testdata/oracles/fes-embedded-control.json\", \"sources/misteross/README.md\", \"sources/misteross/cores/fes-common/generated/fes_embedded_control.vh\", \"sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv\", \"sources/misteross/docs/architecture.md\", \"tests/test_affected.py\", \"tests/test_consistency.py\", \"tests/test_embedded_firmware.py\"]"
+        ],
+        "tools": [
+          "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/venv/bin/python",
+          "docker",
+          "sh"
+        ],
+        "files": [
+          "scripts/parent_tests.py",
+          "tests"
+        ]
+      },
+      {
+        "lane": "parent",
+        "label": "working-tree generated consumer consistency",
+        "cwd": ".",
+        "argv": [
+          "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/venv/bin/python",
+          "-c",
+          "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+        ],
+        "tools": [
+          "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/venv/bin/python",
+          "go"
+        ],
+        "files": [
+          "scripts/consistency.py"
+        ]
+      },
+      {
+        "lane": "host",
+        "label": "host Go and UI tests",
+        "cwd": ".",
+        "argv": [
+          "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/venv/bin/python",
+          "scripts/host_tests.py",
+          "--ui-if-needed",
+          "--full"
+        ],
+        "tools": [
+          "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/venv/bin/python",
+          "cc",
+          "go",
+          "make",
+          "node",
+          "rg",
+          "sh"
+        ],
+        "files": [
+          "scripts/host_tests.py",
+          "sources/FogCast/Makefile",
+          "sources/FogCast/go.mod",
+          "sources/FogCast/appliance/go.mod",
+          "sources/misteross/expansion/go.mod"
+        ],
+        "host_ui": {
+          "required": true,
+          "scheduled": true,
+          "boundary_scheduled": false,
+          "command_scheduled": true,
+          "target": "test-ui",
+          "reason": "UI/API, production/full or uncertain inputs"
+        }
+      },
+      {
+        "lane": "runtime",
+        "label": "runtime software tests",
+        "cwd": "sources/libmister-runtime",
+        "argv": [
+          "make",
+          "-j2",
+          "test"
+        ],
+        "tools": [
+          "ar",
+          "c++",
+          "c++filt",
+          "make",
+          "nm",
+          "rg",
+          "sh"
+        ],
+        "files": [
+          "Makefile"
+        ]
+      },
+      {
+        "lane": "contracts",
+        "label": "contract schemas and generated fixtures",
+        "cwd": "sources/mister-packages",
+        "argv": [
+          "make",
+          "test",
+          "PYTHON=/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/venv/bin/python"
+        ],
+        "tools": [
+          "go",
+          "make"
+        ],
+        "files": [
+          "Makefile"
+        ]
+      },
+      {
+        "lane": "fpga",
+        "label": "embedded firmware and identity/drain RTL integration",
+        "cwd": ".",
+        "argv": [
+          "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/venv/bin/python",
+          "platform/embedded/firmware/verify.py"
+        ],
+        "tools": [
+          "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/venv/bin/python",
+          "c++",
+          "cc",
+          "verilator"
+        ],
+        "files": [
+          "platform/embedded/firmware/verify.py",
+          "sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv"
+        ]
+      },
+      {
+        "lane": "fpga",
+        "label": "test_*.py",
+        "cwd": "sources/misteross",
+        "argv": [
+          "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/venv/bin/python",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_*.py",
+          "-v"
+        ],
+        "tools": [
+          "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/venv/bin/python",
+          "strace"
+        ],
+        "files": [
+          "tests/test_*.py"
+        ]
+      }
+    ],
+    "limits": [
+      "FPGA synthesis/place-and-route",
+      "cold image builds",
+      "hardware acceptance",
+      "platform/image packaging suite",
+      "required browser integration suite",
+      "committed-source/release validation (make check remains separate)"
+    ],
+    "status": "failed",
+    "results": [
+      {
+        "label": "test_affected.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "test_test_changed.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "committed whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "working whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "parent Python regressions",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "working-tree generated consumer consistency",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "host Go and UI tests",
+        "lane": "host",
+        "returncode": 0
+      },
+      {
+        "label": "runtime software tests",
+        "lane": "runtime",
+        "returncode": 0
+      },
+      {
+        "label": "contract schemas and generated fixtures",
+        "lane": "contracts",
+        "returncode": 0
+      },
+      {
+        "label": "embedded firmware and identity/drain RTL integration",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "label": "test_*.py",
+        "lane": "fpga",
+        "returncode": 1
+      }
+    ],
+    "not_started": []
+  },
+  "affected_checks_reconciled": {
+    "status": "passed with isolated failed-lane retry",
+    "reason": "relative PYTHON exported by root make leaked into nested module recipes; executor now removes it while preserving explicit interpreter argv",
+    "fpga_retry": {
+      "status": "passed",
+      "tests": 1368,
+      "skipped": 35,
+      "cwd": "sources/misteross",
+      "command": [
+        "env",
+        "-u",
+        "PYTHON",
+        "-u",
+        "MAKEFLAGS",
+        "-u",
+        "MFLAGS",
+        "-u",
+        "MAKELEVEL",
+        "-u",
+        "GNUMAKEFLAGS",
+        "/home/deano/.codex/worktrees/7680/fes/out/dev/de25-embedded-os/out/de25-os-tools/venv/bin/python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py",
+        "-v"
+      ]
+    },
+    "environment_regressions": {
+      "status": "passed",
+      "tests": 31
+    },
+    "generated_consistency": "passed on test environment commit",
+    "source_continuity": "misteross bytes identical to implementation; integration source hashes verified unchanged; successful lanes not repeated"
+  },
+  "source_subset_sha256": "85c8e5dbaa17551f742040782359a2cc0be66c114e27fd2e8a0b3df701d1ccca",
+  "logs_sha256": {
+    "out/embedded-endpoint-reviewed/checks.log": "3ce77244977e982b82ba4e4d309f601f4f729864b4d6331576861740f806ea93",
+    "out/embedded-endpoint-reviewed/firmware-functions.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "out/embedded-endpoint-reviewed/cross-control.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "out/embedded-endpoint-reviewed/verilator-build.log": "2a792f6779c69713e75c1d639b435063a02a38785cc1ec9d7d545bced59e50a6",
+    "out/embedded-tfa-build-final.log": "7d9644c0de9601ac5f020107f8e3f6c97274d9fdbce6f53aa55294140183585f",
+    "out/embedded-endpoint-committed-tests.log": "27421b66a1d2bcbd785a3e851f32a00a05481d894da4e63f50918efe5ed72b1f",
+    "out/embedded-endpoint-check-committed.log": "9ab22d26b78730e9e842e1b00be311645eeb5a53bfba513efd2c74069ac4f832",
+    "out/embedded-endpoint-deadcode.log": "dc3fad4360e3c9bd3eee93b08d776c5f85d7d60401dc37837a319f986f7e696a",
+    "out/embedded-endpoint-fpga-retry.log": "4b2746c91bc7b8fce4e9f2365018e46f9181580d0f76236b73839c5b96b36f74",
+    "out/embedded-endpoint-env-tests.log": "1cadf310f0b51ca7f72001e9a65648af4af580633846971bd113e5d1b6edf50d",
+    "out/embedded-endpoint-env-check.log": "9ab22d26b78730e9e842e1b00be311645eeb5a53bfba513efd2c74069ac4f832"
+  },
+  "preliminary_failures": [
+    {
+      "path": "out/embedded-endpoint-test-changed.log",
+      "reason": "required test Python dependencies absent; installed the repository pinned requirements in private test venv"
+    },
+    {
+      "path": "out/embedded-endpoint-test-changed-2.log",
+      "reason": "new FES generated-consumer fixture map and unstaged source provenance"
+    },
+    {
+      "path": "out/embedded-endpoint-test-changed-final.log",
+      "reason": "video provenance fixtures require committed FPGA bytes; rerun on implementation commit without relaxing checks"
+    }
+  ],
+  "limitations": [
+    "No SMC instruction or actual SDM/bridge/DDR operations executed",
+    "BL31 is not a complete DE25 boot image; CSR bridge/reset/clock/DDR integration and boot qualification remain",
+    "Only one single-ID AXI read port is drained; other masters need independent containment",
+    "No Nano package producer, playable ABI registration, FPGA timing result or native mutating binding",
+    "Firmware marker is a local experimental capability tuple, not authenticated firmware measurement"
+  ]
+}
