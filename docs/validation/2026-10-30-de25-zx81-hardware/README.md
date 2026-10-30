@@ -6,11 +6,10 @@ master. All three cases pass: wrong-build refusal/poisoning, command/tape/HID
 control, and BASIC keystroke delivery. No simulation, simulated clock advance,
 CPU physical mapping or production runtime constructor participates.
 
-**BASIC execution and the HDMI picture are not observed by this protocol.**
-The final sequence delivers `1 PRINT 7`, ENTER, RUN, ENTER, but acknowledged
-HID/RUN commands alone do not prove that the ROM executed or displayed 7.
-A screen/capture check is requested separately; the record does not substitute
-the earlier host RTL observations for physical output.
+The later [captured visual sequence](visual/README.md) observes the ROM prompt,
+the stored `1 PRINT 7` line and the actual RUN result `7` with completion
+report `0/1` on the physical HDMI output. The original three protocol-only
+receipts remain unchanged and do not themselves claim visual observations.
 
 Board: USB serial `TRWU8J8G`, bottom board, UID `79B9468337C3A50B`, JTAG ID
 `4362c0dd`. The full printed OPN is hidden by its fan and remains unconfirmed.
@@ -70,7 +69,8 @@ retained SDK/compiler identities and native/static build hashes are retained
 with the result. Native compilation checks the diagnostic source; the actual
 physical cases use the AArch64 executable.
 
-[client.cpp](client.cpp) instantiates the real C++ protocol consumer with real
+The original source pinned above, extended in [client.cpp](client.cpp) for
+individual visual steps, instantiates the real C++ protocol consumer with real
 monotonic time and bounded Unix-socket IO. A private SSH Unix-socket forward
 connects it to [proxy.py](proxy.py) and [registers.tcl](registers.tcl) on the
 host. The host links the actual loaded SOF metadata, selects the explicit
@@ -103,9 +103,10 @@ and final board release are recorded separately when verified.
 ## Scope and remaining checks
 
 This is an explicit physical maintenance diagnostic, not a production launch
-profile or FES package. CPU MMIO/DMA, PR persona loading, audio, visual BASIC,
-HDMI capture/timing/electrical acceptance, warm/global reset drain, FES rootfs
-and the complete BASIC load/run/reload proof remain separate. Neither an ACK
+profile or FES package. CPU MMIO/DMA, PR persona loading, audio,
+HDMI timing/electrical acceptance, warm/global reset drain, FES rootfs
+and production FES deployment remain separate. The exact-image physical BASIC
+load/run/edit/reload/run proof now passes with captured output. Neither an ACK
 nor prior simulation results substitute for those observations. The top board
 and DE10 Kits A/B are not used. No GPU or harness process is changed.
 
@@ -125,10 +126,14 @@ inputs, not an unqualified later source revision.
 
 ## Current physical handoff
 
-All owned test uploads are removed and all SSH/proxy/JTAG master sessions
-closed. The bottom board still has the tested image running; its claim remains
-with this task while the requested factory power cycle is pending. No factory
-restore or final release is claimed yet. [restoration.json](restoration.json)
-records that gate explicitly. HDMI connectivity/output is also unconfirmed;
-the requested picture check remains open. These limitations do not change the
-three completed physical protocol cases.
+All owned test uploads are removed and all SSH/proxy/JTAG master/UART sessions
+closed. After the user's bottom-board power cycle, UART and freshly pinned SSH
+verify factory Linux boot `fa431b85-38f2-4c27-b160-17f96356454b`, the unchanged
+kernel and factory SD root. The FPGA has original factory SLD hash
+`7BD008B4D4BF4BC62777`, and rejects linking to the diagnostic metadata with hash
+`7CC83C41D576CEEB4B4D`. This is factory identity/boot verification, not an
+independent digest of all factory flash bytes. Temporary USB permissions are
+restored to root:root 0664; the board is idle, lease-free and released.
+[restoration.json](restoration.json) retains the verified handoff.
+The user's shared MS2109 producer/viewer is left running. The complete captured
+physical BASIC LOAD/run/edit/reload/run proof is in [visual/README.md](visual/README.md).

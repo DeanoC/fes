@@ -1,10 +1,23 @@
 {
   "serial": "TRWU8J8G",
-  "state": "awaiting requested bottom-board physical power cycle",
-  "factory_restored": false,
-  "claim_released": false,
+  "state": "factory QSPI FPGA and factory SD Linux restored and verified; claim released",
+  "factory_restored": true,
+  "claim_released": true,
   "owned_uploads_removed": true,
   "owned_uart_ssh_proxy_sessions_closed": true,
   "hardware_jtag_master_claims_closed": true,
-  "hdmi_output": "unobserved; connection question pending"
+  "hdmi_output": "captured physical BASIC LOAD/run/edit/reload/run/list passed through MS2109 shared feed",
+  "owned_visual_upload_directories_verified_absent": 25,
+  "linux_restoration_preparation": "sync and graceful shutdown requested; SSH closes remotely",
+  "verified_utc": "2026-10-30T17:07:56.974494+00:00",
+  "factory_boot_id": "fa431b85-38f2-4c27-b160-17f96356454b",
+  "factory_sld_hash": "7BD008B4D4BF4BC62777",
+  "diagnostic_sld_hash": "7CC83C41D576CEEB4B4D",
+  "uart_and_pinned_ssh_verified": true,
+  "kernel": "6.12.11-gd7d192a9ddd9",
+  "root": "/dev/mmcblk0p2 ext3",
+  "usb_node_permissions_restored": "root:root 0664",
+  "all_owned_test_connections_closed": true,
+  "test_engines_idle_and_no_task_lease": true,
+  "shared_capture_producer_and_viewer_untouched": true
 }

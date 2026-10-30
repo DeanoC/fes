@@ -13,7 +13,12 @@ while {[lsearch -exact [get_service_paths device] $device] < 0 && [clock millise
 if {[lsearch -exact [get_service_paths device] $device] < 0} {error "claimed device absent after bounded discovery"}
 design_link $design $device
 set service $env(FES_DE25_MASTER)
-if {[lsearch -exact [get_service_paths master] $service] < 0} {error "explicit fabric CSR master absent"}
+set master_deadline [expr {[clock milliseconds] + 10000}]
+while {[lsearch -exact [get_service_paths master] $service] < 0 && [clock milliseconds] < $master_deadline} {
+    after 100
+    update
+}
+if {[lsearch -exact [get_service_paths master] $service] < 0} {error "explicit fabric CSR master absent after bounded discovery"}
 set base $env(FES_DE25_BASE)
 set master [claim_service master $service de25-zx81-hardware]
 try {
