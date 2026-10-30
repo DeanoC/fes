@@ -12,6 +12,13 @@ post_message -type info "DE25 computer HDMI reset ingress pins: $computer_clear_
 # The computer runs on the preserved peripheral clock. No new GP control CDC,
 # clock groups, FIFO cuts or external HDMI/I2C delay assumptions are introduced.
 
+# Readiness is a monotonic control level crossing from the 100 MHz endpoint to
+# its pixel-domain frame gate. Cut only its asynchronous synchronizer ingress.
+set computer_video_ready_head [get_pins -compatibility_mode -nocase -nowarn {soc_inst|subsys_periph|fes_computer|fes_computer|transport_ready_meta|d}]
+if {[get_collection_size $computer_video_ready_head] != 1} {error "DE25 computer video readiness synchronizer ingress changed"}
+set_false_path -to $computer_video_ready_head
+post_message -type info "DE25 computer video readiness CDC ingress: one stage0 D pin"
+
 # Cut only each first synchronizer D, never the second stage or whole clocks.
 foreach {label launch first} {
     request {*|video|request} {*|video|request_sync[0]}
@@ -42,3 +49,5 @@ set owner_reset_pins [get_pins -compatibility_mode -nocase -nowarn {*|video|sys_
 if {[get_collection_size $owner_reset_pins] != 4} {error "DE25 video reset release ingress changed"}
 set_false_path -to $owner_reset_pins
 post_message -type info "DE25 video: 2 first-stage crossings, 9 bounded metadata bits, 4 reset ingress pins"
+# Keep synchronizer stage-to-stage, frame-gate and output paths timed. Do not
+# add clock groups, FIFO cuts or external HDMI/I2C delay assumptions.

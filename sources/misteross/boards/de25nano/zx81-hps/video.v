@@ -5,7 +5,7 @@ module fes_de25_zx81_video (
     input wire clk_sys, reset_n, held, ce_6m5, zx_pixel, hblank, vblank,
     input wire pixel_clk,
     output wire [7:0] red, green, blue,
-    output wire de, hsync, vsync
+    output wire de, hsync, vsync, frame_tick
 );
     localparam WIDTH = 328, HEIGHT = 270, STRIDE = WIDTH / 8, WORDS = STRIDE * HEIGHT;
     (* ramstyle = "M20K" *) reg [7:0] fb [0:WORDS*2-1];
@@ -93,6 +93,14 @@ module fes_de25_zx81_video (
     reg front = 0, front_valid = 0;
     reg [8:0] front_rows = 0;
     wire boundary = horizontal == 1649 && vertical == 749;
+    assign frame_tick = boundary;
+    // Keep raster timing running while transport readiness resets the frame
+    // owners. The synchronized frame gate can then disable or re-enable output
+    // only on a complete output-frame boundary.
+    always @(posedge pixel_clk) begin
+        horizontal <= horizontal == 1649 ? 11'd0 : horizontal + 1'b1;
+        if (horizontal == 1649) vertical <= vertical == 749 ? 10'd0 : vertical + 1'b1;
+    end
     wire image = horizontal >= 312 && horizontal < 968 && vertical >= 90 && vertical < 630;
     wire [8:0] source_x = (horizontal - 11'd312) >> 1;
     wire [8:0] source_y = (vertical - 10'd90) >> 1;
@@ -105,23 +113,23 @@ module fes_de25_zx81_video (
     // last scaled pixels. Missing rows are paper; no stale RAM is selected.
     reg image_q = 0, valid_q = 0, stored_q = 0;
     reg de_q = 0, hs_q = 0, vs_q = 0;
+    always @(posedge pixel_clk) begin
+        de_q <= horizontal < 1280 && vertical < 720;
+        hs_q <= horizontal >= 1390 && horizontal < 1430;
+        vs_q <= vertical >= 725 && vertical < 730;
+    end
     always @(posedge pixel_clk or negedge pix_release[1]) begin
         if (!pix_release[1]) begin
-            horizontal <= 0; vertical <= 0; acknowledge <= 0;
+            acknowledge <= 0;
             front <= 0; front_valid <= 0; front_rows <= 0;
             image_q <= 0; valid_q <= 0; stored_q <= 0;
-            de_q <= 0; hs_q <= 0; vs_q <= 0; bit_q <= 0;
+            bit_q <= 0;
         end else begin
-            horizontal <= horizontal == 1649 ? 11'd0 : horizontal + 1'b1;
-            if (horizontal == 1649) vertical <= vertical == 749 ? 10'd0 : vertical + 1'b1;
             if (boundary && request_sync[1] != acknowledge) begin
                 front <= request_sync[1]; front_valid <= 1;
                 front_rows <= published_rows;
                 acknowledge <= request_sync[1];
             end
-            de_q <= horizontal < 1280 && vertical < 720;
-            hs_q <= horizontal >= 1390 && horizontal < 1430;
-            vs_q <= vertical >= 725 && vertical < 730;
             image_q <= image;
             valid_q <= front_valid;
             stored_q <= source_y < front_rows;
@@ -132,7 +140,7 @@ module fes_de25_zx81_video (
     assign red = bright ? 8'hff : 8'h00;
     assign green = red;
     assign blue = red;
-    assign de = reset_n && de_q;
-    assign hsync = reset_n && hs_q;
-    assign vsync = reset_n && vs_q;
+    assign de = !pix_reset && de_q;
+    assign hsync = hs_q;
+    assign vsync = vs_q;
 endmodule

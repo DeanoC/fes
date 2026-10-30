@@ -24,8 +24,23 @@ module fes_de25_zx81_board (
         .I2C_SCLK(HDMI_I2C_SCL), .I2C_SDAT(HDMI_I2C_SDA), .HDMI_TX_INT(HDMI_TX_INT), .READY());
     assign {HDMI_MCLK, HDMI_SCLK, HDMI_LRCLK, HDMI_I2S} = 4'b0000;
     assign HDMI_TX_CLK = pixel_clk;
-    assign HDMI_TX_DE = pixel_reset_n && video_de;
-    assign HDMI_TX_HS = pixel_reset_n && video_hs;
-    assign HDMI_TX_VS = pixel_reset_n && video_vs;
-    assign HDMI_TX_D = pixel_reset_n ? video_rgb : 24'd0;
+    wire visible_request = pixel_reset_n;
+    (* async_reg = "true" *) reg [1:0] visible_sync = 2'b00;
+    reg previous_hs = 1'b0;
+    reg visible_line = 1'b0;
+    reg video_active = 1'b0;
+    always @(posedge pixel_clk) begin
+        visible_sync <= {visible_sync[0], visible_request};
+        previous_hs <= video_hs;
+        // Blank data immediately on lock/reset loss. Re-enable only after a
+        // complete HS pulse in the horizontal porch, outside vertical sync.
+        if (previous_hs && !video_hs && !video_vs) begin
+            visible_line <= visible_sync[1];
+            video_active <= visible_sync[1];
+        end else if (!visible_sync[1]) video_active <= 1'b0;
+    end
+    assign HDMI_TX_DE = visible_request && visible_sync[1] && visible_line && video_active && video_de;
+    assign HDMI_TX_HS = visible_line && video_hs;
+    assign HDMI_TX_VS = visible_line && video_vs;
+    assign HDMI_TX_D = visible_request && visible_sync[1] && visible_line && video_active ? video_rgb : 24'd0;
 endmodule

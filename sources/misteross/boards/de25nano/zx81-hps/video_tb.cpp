@@ -30,7 +30,7 @@ struct Bench {
         if (sn == now) { if (sys_running) { t.clk_sys = !t.clk_sys; sr = t.clk_sys; } sn += sh; }
         if (pn == now) { if (pix_running) { t.pixel_clk = !t.pixel_clk; pr = t.pixel_clk; } pn += ph; }
         unsigned h = R(horizontal), v = R(vertical), front = R(front);
-        bool valid = R(front_valid), active = t.reset_n && !R(pix_reset);
+        bool valid = R(front_valid);
         bool req = R(request), ack = R(acknowledge);
         if (sr && R(sample)) {
             check(R(write_address) < 41u*270u*2u, "write address outside storage");
@@ -38,6 +38,7 @@ struct Bench {
             check(!R(pending), "writer touched a published bank");
         }
         t.eval();
+        const bool active = t.reset_n && !R(pix_reset);
         if (sr) {
             ++sys_edges;
             if (t.reset_n && req != R(request)) {

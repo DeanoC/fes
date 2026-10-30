@@ -93,16 +93,40 @@ class ScanoutBuildTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "bad actual bridge"):
                 B.generate(output, combined, hps, display, None, "test")
 
-    def test_top_interconnect_gets_real_common_reset_source_without_changing_board_port(self):
+    def test_board_domain_synchronizers_feed_exported_qsys_reset_fanout(self):
         output, _, _, _ = self.prepare()
         project = output / "combined/hps/project"
         script = (project / "integrate-mailbox.tcl").read_text()
-        self.assertIn("add_instance fes_scanout_top_reset altera_reset_bridge 19.2.0", script)
-        self.assertIn("add_connection fes_scanout_top_reset.out_reset subsys_periph.fes_scanout_reset", script)
-        self.assertIn("fes_scanout_reset EXPORT_OF fes_scanout_top_reset.in_reset", script)
-        self.assertNotIn("fes_scanout_reset EXPORT_OF subsys_periph.fes_scanout_reset", script)
-        self.assertNotIn("add_connection rst_in.out_reset subsys_periph.fes_scanout_reset", script)
-        self.assertIn(".fes_scanout_reset_reset_n (scanout_reset_n)", (project / "golden_top.v").read_text())
+        self.assertNotIn("fes_scanout_top_reset", script)
+        self.assertIn("fes_scanout_pixel_reset EXPORT_OF subsys_periph.fes_scanout_pixel_reset", script)
+        self.assertIn("fes_scanout_system_reset EXPORT_OF fes_scanout_system_reset_source.in_reset", script)
+        self.assertIn("add_connection fes_scanout_system_reset_source.out_reset subsys_periph.fes_scanout_system_reset", script)
+        top = (project / "golden_top.v").read_text()
+        self.assertIn(".fes_scanout_pixel_reset_reset_n (scanout_pixel_reset_n)", top)
+        self.assertIn(".fes_scanout_system_reset_reset_n (scanout_system_reset_n)", top)
+        self.assertIn(".pixel_reset_n(scanout_pixel_reset_n)", top)
+        self.assertIn(".system_reset_n(scanout_system_reset_n)", top)
+        integrate = (project / "fes_mailbox/scanout_integrate.tcl").read_text()
+        self.assertIn("set_instance_parameter_value $instance SYNCHRONOUS_EDGES none", integrate)
+        self.assertNotIn("deassert", integrate.lower())
+        self.assertIn("add_connection fes_scanout_system_reset.out_reset $instance.s0_reset", integrate)
+        self.assertIn("add_connection fes_scanout_pixel_reset.out_reset $instance.m0_reset", integrate)
+        self.assertEqual(B.verify_reset_synchronizers(project)["sdc_clear_pins"], 8)
+
+    def test_generation_reset_guard_rejects_missing_chain_or_stale_sdc_targets(self):
+        output, _, _, _ = self.prepare()
+        project = output / "combined/hps/project"
+        board_path = project / "fes_mailbox/fes_de25_scanout_board.v"
+        original_board = board_path.read_text()
+        board_path.write_text(original_board.replace(".clk(pixel_clk)", ".clk(system_clk)", 1))
+        with self.assertRaisesRegex(ValueError, "missing actual pixel_clk scanout reset synchronizer"):
+            B.verify_reset_synchronizers(project)
+        board_path.write_text(original_board)
+        sdc_path = project / "fes_mailbox/clocks.sdc"
+        original_sdc = sdc_path.read_text()
+        sdc_path.write_text(original_sdc.replace("fes_video_inst|fes_scanout_pixel_reset|sync_regs*|aclr", "soc_inst|subsys_periph|fes_scanout_pixel_reset|sync_regs*|aclr", 1))
+        with self.assertRaisesRegex(ValueError, "does not constrain the actual fes_scanout_pixel_reset chain"):
+            B.verify_reset_synchronizers(project)
 
     def test_postcompile_pll_mutation_is_rejected_with_failed_receipt_retained(self):
         output, _, hps, display = self.prepare()
@@ -118,9 +142,11 @@ class ScanoutBuildTests(unittest.TestCase):
                 B.compile_project(output, hps, display, None)
         self.assertFalse(json.loads((directory / "build.json").read_text())["post_compile_pixel_pll_parameters_unchanged"])
 
-    def reset_fixture(self, parameters=None, output_edges="NONE", output_role="reset_n"):
+    def reset_fixture(self, parameters=None, output_edges=None, output_role="reset_n"):
         expected = {"ACTIVE_LOW_RESET": "1", "SYNCHRONOUS_EDGES": "none", "NUM_RESET_OUTPUTS": "1", "USE_RESET_REQUEST": "0"}
         expected.update(parameters or {})
+        if output_edges is None:
+            output_edges = expected["SYNCHRONOUS_EDGES"].upper()
         source = self.root / "child/ip/reset.ip"
         source.parent.mkdir(parents=True, exist_ok=True)
         source.write_bytes(self.fixture.hps.component_xml(tuple(expected.items())))
@@ -128,7 +154,7 @@ class ScanoutBuildTests(unittest.TestCase):
         for name, value in (("logicalView", "ip/reset.ip"), ("componentDefinition", "<componentDefinition><boundary><interfaces>" +
             ''.join(f'<interface><name>{name}</name><ports><port><role>{role}</role><direction>{direction}</direction><width>1</width></port></ports>'
                     f'<parameters><parameterValueMap><entry><key>synchronousEdges</key><value>{edges}</value></entry></parameterValueMap></parameters></interface>'
-                    for name, direction, role, edges in (("in_reset", "Input", "reset_n", "NONE"),
+                    for name, direction, role, edges in (("in_reset", "Input", "reset_n", expected["SYNCHRONOUS_EDGES"].upper()),
                                                         ("out_reset", "Output", output_role, output_edges))) +
             "</interfaces></boundary></componentDefinition>")):
             ET.SubElement(ET.SubElement(module, "parameter", {"name": name}), "value").text = value
@@ -137,12 +163,16 @@ class ScanoutBuildTests(unittest.TestCase):
     def test_actual_logical_view_parameters_and_derived_reset_polarity_edges_are_guarded(self):
         hps = self.fixture.hps.BUILD
         self.assertEqual(B.verify_reset_bridge(self.root, self.reset_fixture(), hps)["parameters"]["ACTIVE_LOW_RESET"], "1")
+        deassert = self.reset_fixture({"SYNCHRONOUS_EDGES": "deassert"}, output_edges="DEASSERT")
+        self.assertEqual(B.verify_reset_bridge(self.root, deassert, hps, "DEASSERT")["parameters"]["SYNCHRONOUS_EDGES"], "deassert")
         for name, value in (("ACTIVE_LOW_RESET", "0"), ("SYNCHRONOUS_EDGES", "deassert"),
                             ("NUM_RESET_OUTPUTS", "2"), ("USE_RESET_REQUEST", "1")):
             with self.subTest(name=name), self.assertRaisesRegex(ValueError, "parameters differ"):
                 B.verify_reset_bridge(self.root, self.reset_fixture({name: value}), hps)
         with self.assertRaisesRegex(ValueError, "synchronization differs"):
             B.verify_reset_bridge(self.root, self.reset_fixture(output_edges="DEASSERT"), hps)
+        with self.assertRaisesRegex(ValueError, "synchronization differs"):
+            B.verify_reset_bridge(self.root, self.reset_fixture({"SYNCHRONOUS_EDGES": "deassert"}, output_edges="NONE"), hps, "DEASSERT")
         with self.assertRaisesRegex(ValueError, "polarity differs"):
             B.verify_reset_bridge(self.root, self.reset_fixture(output_role="reset"), hps)
         module = self.reset_fixture()

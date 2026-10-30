@@ -247,7 +247,9 @@ Error De25Computer::SetKeyboardHid(const KeyboardHidRows& rows, std::uint64_t de
 	// interval before a caller can immediately replace this complete snapshot.
 	std::this_thread::sleep_until(std::min(wall_deadline_,
 		std::chrono::steady_clock::now() + std::chrono::milliseconds(2)));
-	return CheckDeadline();
+	// Every row is already acknowledged. Settling is only a pacing delay; an
+	// expired command deadline here cannot make the completed snapshot uncertain.
+	return {};
 }
 Error De25Computer::LoadTape(const std::vector<std::uint8_t>& bytes, std::uint64_t deadline, std::uint16_t chunk_bytes)
 {

@@ -183,14 +183,23 @@ public:
         }
         throw std::runtime_error("full-frame completion absent");
     }
-    void wait_request() {
-        for (unsigned i = 0; i < 100000 && !dut.avm_read; ++i) idle();
+    void wait_request(unsigned limit = 100000) {
+        for (unsigned i = 0; i < limit && !dut.avm_read; ++i) idle();
         require(dut.avm_read, "no memory command");
     }
     void stop_and_drain() {
         command(FES_DE25_SCANOUT_COMMAND_STOP); stall = false; responses = true;
         const auto state = wait_status(FES_DE25_SCANOUT_STATUS_DRAINED);
         equal(state.outstanding(), 0, "drained outstanding"); require(pending.empty() && !dut.avm_read, "drain hid traffic");
+    }
+    void reset_epoch() {
+        dut.reset_n = 0; dut.eval();
+        // The scanout reset also resets both mm_ccb sides, dropping this
+        // accepted burst and its unread responses.
+        pending.clear(); held_ = false; have_frame_ = false; bounded_ = false;
+        allowed_slots_ = 0; frame_start_ = 0; next_address_ = 0;
+        idle(2);
+        dut.reset_n = 1; dut.eval(); idle(4);
     }
 private:
     bool held_ = false, bounded_ = false, have_frame_ = false;
@@ -218,6 +227,68 @@ static void disabled_and_snapshot() {
     e.stop_and_drain(); e.command(FES_DE25_SCANOUT_COMMAND_CLEAR);
     auto empty = e.snapshot(); equal(empty.generation(), 0, "CLEAR generation");
     equal(empty.status(), FES_DE25_SCANOUT_STATUS_DRAINED, "CLEAR empty state");
+}
+static void raster_sync_runs_while_disabled_and_survives_reset() {
+    Endpoint e;
+    bool previous_hs = false, reset_during_hs = false;
+    unsigned hsync_pixels = 0;
+    for (unsigned cycle = 0; cycle < 2000; ++cycle) {
+        e.idle();
+        const bool hs = e.dut.video_hs;
+        if (hs) {
+            if (!previous_hs) hsync_pixels = 0;
+            ++hsync_pixels;
+            if (hsync_pixels == 5) {
+                e.dut.reset_n = 0; e.dut.eval();
+                require(e.dut.video_hs, "endpoint reset clipped an active HS pulse");
+                reset_during_hs = true;
+            }
+        } else if (previous_hs) {
+            break;
+        }
+        previous_hs = hs;
+    }
+    require(reset_during_hs, "test did not assert reset inside an HS pulse");
+    equal(hsync_pixels, 40, "continuous disabled/reset HS width");
+    require(!e.dut.video_de && !e.dut.video_rgb, "disabled/reset endpoint exposed pixel data");
+
+    e.dut.reset_n = 1; e.dut.eval();
+    bool previous_vs = false, reset_during_vs = false;
+    unsigned vsync_pixels = 0;
+    for (unsigned cycle = 0; cycle < 20000; ++cycle) {
+        e.idle();
+        const bool vs = e.dut.video_vs;
+        if (vs) {
+            if (!previous_vs) vsync_pixels = 0;
+            ++vsync_pixels;
+            if (vsync_pixels == 100) {
+                e.dut.reset_n = 0; e.dut.eval();
+                require(e.dut.video_vs, "endpoint reset clipped an active VS pulse");
+                reset_during_vs = true;
+            }
+        } else if (previous_vs) {
+            break;
+        }
+        previous_vs = vs;
+    }
+    require(reset_during_vs, "test did not assert reset inside a VS pulse");
+    equal(vsync_pixels, 5u * 1650u, "continuous VS width across endpoint reset");
+}
+static void clock_fault_does_not_shorten_active_hsync() {
+    Endpoint e; Descriptor d; e.submit(d);
+    while (e.dut.video_hs) e.idle();
+    for (unsigned cycle = 0; cycle < 2000 && !e.dut.video_hs; ++cycle) e.idle();
+    require(e.dut.video_hs, "enabled endpoint never reached horizontal sync");
+
+    unsigned hsync_pixels = 0;
+    while (e.dut.video_hs) {
+        ++hsync_pixels;
+        if (hsync_pixels == 5) e.dut.clock_fault = 1;
+        e.idle();
+    }
+    equal(hsync_pixels, 40, "clock fault shortened active HS pulse");
+    require(e.dut.video_de == 0 && e.dut.video_rgb == 0,
+            "clock fault left endpoint pixel data visible");
 }
 static void two_complete_frames(bool zero_latency) {
     Endpoint e; Descriptor d; e.zero_latency = zero_latency; e.check_pixels = true; e.submit(d);
@@ -255,6 +326,45 @@ static void stop_keeps_stalled_command_and_accepted_responses() {
     equal(pending.generation(), d.generation, "STOP lost ownership generation"); equal(pending.outstanding(), beats, "accepted response budget");
     equal(pending.displayed(), 0, "STOP acknowledged incomplete frame");
     e.stop_and_drain(); equal(e.returned, beats, "not all accepted responses retired");
+}
+static void reset_midburst_restores_idle_submit_and_clear() {
+    Endpoint e; Descriptor d; e.responses = false; e.submit(d); e.wait_request();
+    e.idle();
+    auto active = e.snapshot();
+    require(active.outstanding() != 0, "test did not leave an accepted burst in flight");
+    require(!e.pending.empty(), "test did not retain the burst's unread responses");
+
+    e.reset_epoch();
+    auto reset = e.snapshot();
+    require(reset.status() & FES_DE25_SCANOUT_STATUS_DRAINED, "reset did not return to drained idle");
+    equal(reset.outstanding(), 0, "reset retained an old response budget");
+    require(!e.dut.avm_read, "reset left an old memory command asserted");
+    equal(e.dut.avm_address, 0, "reset retained an old memory address");
+    equal(e.dut.avm_burstcount, 0, "reset retained an old burst length");
+
+    d.generation += 1; d.sequence = 1;
+    e.stall = true; e.responses = false; e.submit(d); e.wait_request(2000000);
+    auto accepted = e.snapshot();
+    equal(accepted.accepted(), d.sequence, "SUBMIT after reset was not accepted");
+    require(!accepted.errors(), "SUBMIT after reset reported a fault");
+    e.command(FES_DE25_SCANOUT_COMMAND_STOP);
+    e.stall = false; e.responses = true; e.idle(64);
+    e.stop_and_drain();
+    e.command(FES_DE25_SCANOUT_COMMAND_CLEAR);
+    auto cleared = e.snapshot();
+    require(cleared.status() & FES_DE25_SCANOUT_STATUS_DRAINED, "CLEAR after reset was not drained");
+    equal(cleared.generation(), 0, "CLEAR after reset retained the grant");
+    equal(cleared.errors(), 0, "CLEAR after reset retained errors");
+}
+static void reset_cancels_a_stalled_command() {
+    Endpoint e; Descriptor d; e.stall = true; e.responses = false; e.submit(d); e.wait_request();
+    require(e.dut.avm_read, "test did not hold an unaccepted command");
+    e.reset_epoch();
+    const auto reset = e.snapshot();
+    require(reset.status() & FES_DE25_SCANOUT_STATUS_DRAINED, "reset did not retire a stalled command");
+    require(!e.dut.avm_read, "reset reissued a previously stalled command");
+    equal(e.dut.avm_address, 0, "stalled reset retained address");
+    equal(e.dut.avm_burstcount, 0, "stalled reset retained burst length");
 }
 static void boundaries_and_low_iova() {
     for (const std::uint64_t base : {0ull, 0x10000020ull, 0xff800000ull}) {
@@ -344,9 +454,13 @@ int main(int argc, char** argv) {
     try {
 #define RUN(name) do { name(); ++groups; std::cout << "PASS " #name "\n"; } while (0)
         RUN(disabled_and_snapshot);
+        RUN(raster_sync_runs_while_disabled_and_survives_reset);
+        RUN(clock_fault_does_not_shorten_active_hsync);
         two_complete_frames(false); ++groups; std::cout << "PASS two_complete_frames_delayed\n";
         two_complete_frames(true); ++groups; std::cout << "PASS two_complete_frames_zero_latency\n";
         RUN(stop_keeps_stalled_command_and_accepted_responses);
+        RUN(reset_midburst_restores_idle_submit_and_clear);
+        RUN(reset_cancels_a_stalled_command);
         RUN(boundaries_and_low_iova);
         RUN(invalid_descriptors_never_fetch);
         RUN(pending_and_sequence_errors);

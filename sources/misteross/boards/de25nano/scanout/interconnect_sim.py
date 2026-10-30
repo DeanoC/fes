@@ -350,11 +350,11 @@ def wrapper(periph_source, memory_source, memory_module):
                 raise ValueError("pixel clock port changed")
             value = "clk_pixel"
             handled.add("pixel")
-        elif name == "fes_scanout_reset_reset_n":
+        elif name in ("fes_scanout_pixel_reset_reset_n", "fes_scanout_system_reset_reset_n"):
             if (direction, width) != ("input", ""):
-                raise ValueError("common reset port changed")
+                raise ValueError("domain reset port changed: " + name)
             value = "reset_n"
-            handled.add("reset")
+            handled.add("pixel_reset" if name == "fes_scanout_pixel_reset_reset_n" else "system_reset")
         elif name == "fes_scanout_clock_fault_export":
             if (direction, width) != ("input", ""):
                 raise ValueError("clock fault port changed")
@@ -373,7 +373,7 @@ def wrapper(periph_source, memory_source, memory_module):
         else:
             value = ""
         pconnections.append(f" .{name}({value})")
-    if handled != {"pixel", "reset", "fault", "rgb", "de", "hs", "vs"}:
+    if handled != {"pixel", "pixel_reset", "system_reset", "fault", "rgb", "de", "hs", "vs"}:
         raise ValueError(f"missing scanout conduits: {handled}")
     if not re.search(r"\bperipheral_subsys_fes_scanout\s+fes_scanout\s*\(", uncomment(periph_source)):
         raise ValueError("unsupported generated endpoint instance identity")
