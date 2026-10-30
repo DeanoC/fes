@@ -25,6 +25,8 @@ The experimental embedded control/drain RTL is a standalone component under
 `cores/fes-common/rtl/fes_embedded_control.sv`. The FES
 [firmware verifier](../../platform/embedded/firmware/README.md) tests it against
 prepared TF-A functions. It has no RBF producer or shipped-core consumer.
+The [identity producer prototype](docs/architecture.md#embedded-control-endpoint)
+builds a source-bound host simulation of that component, not a DE25 bitstream.
 
 ## What this module does not do
 

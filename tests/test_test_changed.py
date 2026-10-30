@@ -16,6 +16,17 @@ def git(root, *args):
 
 
 class TestChangedTest(unittest.TestCase):
+    def test_embedded_producer_schedules_native_identity_integration(self):
+        self.change("sources/misteross/prototypes/embedded_control/producer.py")
+        result = self.plan()
+        self.assertEqual(result["impact"]["cores"], [])
+        command = next(c for c in result["commands"] if c["label"] == "embedded producer identity and native control integration")
+        self.assertIn("--allow-dirty", command["argv"])
+        git(self.root, "add", ".")
+        git(self.root, "commit", "-qm", "producer")
+        command = next(c for c in self.plan()["commands"] if c["label"] == "embedded producer identity and native control integration")
+        self.assertNotIn("--allow-dirty", command["argv"])
+
     def test_native_fabric_changes_schedule_injected_firmware_rtl_integration(self):
         self.change("platform/embedded/tamago/nativefabric/endpoint.go")
         result = self.plan()

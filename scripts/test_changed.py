@@ -73,6 +73,13 @@ def plan(root, base, head="HEAD", jobs=2, full=False):
                 tools=["go", "cc", "c++", "verilator"],
                 files=["platform/embedded/tamago/nativefabric/verify.py",
                        "platform/embedded/firmware/tests/native_rpc.cpp"])
+        if any(affected.embedded_producer_check_input(path) for path in impact["paths"]):
+            add("parent", "embedded producer identity and native control integration", ".",
+                [sys.executable, "platform/embedded/tamago/nativefabric/verify_producer.py",
+                 *(["--allow-dirty"] if local else [])],
+                tools=["go", "cc", "c++", "g++", "make", "verilator", "verilator_bin", "git"],
+                files=["sources/misteross/prototypes/embedded_control/producer.py",
+                       "platform/embedded/tamago/nativefabric/verify_producer.py"])
     if impact["lanes"]["host"]:
         host_run = [sys.executable, "scripts/host_tests.py", "--ui-if-needed"]
         if impact["test_modes"]["full_race"]:

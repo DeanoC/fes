@@ -78,3 +78,9 @@ actual tenfoot model actor with the race detector. Its platform transport and
 SDM/bridge operations are simulated; it does not execute an EL3 SMC or touch a
 board. The six small `nativefabriccheck` cases also run in the TamaGo `fabric`
 QEMU diagnostic using software hooks.
+
+`python3 platform/embedded/tamago/nativefabric/verify_producer.py` builds the
+standalone simulation producer with two ABI values, checks record/artifact and
+live-ID mismatches, and tests its produced model through this Go adapter. The
+producer emits a host executable and diagnostic descriptor, not an FPGA image or
+a FES package. Its verification executes that local host executable.

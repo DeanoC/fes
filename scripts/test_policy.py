@@ -87,6 +87,11 @@ def _documentation(path):
 def _classify(path):
     if path == '<new-branch>':
         return dict.fromkeys(TEST_MODE_KEYS, True)
+    # This prototype builds only a host simulation and cannot affect the
+    # video producer or the deployed image/media assembly.
+    if (path in ('platform/embedded/tamago/nativefabric/producer_integration_test.go',
+                     'platform/embedded/tamago/nativefabric/verify_producer.py')):
+        return dict.fromkeys(TEST_MODE_KEYS, False)
     if _under(path, 'sources/mister-packages'):
         if path.endswith(('.go', '/go.mod', '/go.sum')):
             # Generator/tooling code is checked against committed consumers;

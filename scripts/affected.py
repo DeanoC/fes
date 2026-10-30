@@ -30,6 +30,28 @@ def embedded_control_input(path):
     return path in EMBEDDED_CONTROL_INPUTS or path.startswith('platform/embedded/firmware/')
 
 
+def embedded_producer_input(path):
+    return path.startswith('sources/misteross/prototypes/embedded_control/')
+
+
+def embedded_producer_check_input(path):
+    return (embedded_control_input(path) or embedded_producer_input(path) or
+            path in ('platform/embedded/tamago/nativefabric/binding.go',
+                     'platform/embedded/tamago/nativefabric/binding_test.go',
+                     'platform/embedded/tamago/nativefabric/endpoint.go',
+                     'platform/embedded/tamago/nativefabric/endpoint_test.go',
+                     'platform/embedded/tamago/nativefabric/producer_integration_test.go',
+                     'platform/embedded/tamago/nativefabric/verify_producer.py',
+                     'platform/embedded/tamago/fabricmodel/model.go',
+                     'platform/embedded/tamago/embeddedcontrol/control.go',
+                     'platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_control.go',
+                     'sources/misteross/scripts/export_core_package.py',
+                     'sources/misteross/scripts/core_package.py',
+                     'sources/misteross/scripts/compiler_read_audit.py',
+                     'sources/misteross/scripts/source_repository.py',
+                     'sources/misteross/scripts/rfc3986_validator.py'))
+
+
 def native_fabric_input(path):
     return (embedded_control_input(path) or
             path.startswith(('platform/embedded/tamago/embeddedcontrol/',
@@ -143,7 +165,7 @@ def fpga_cores(path):
     """
     relative = Path(path).relative_to(MODULE_ROOTS['fpga'])
     parts = relative.parts
-    if path in EMBEDDED_CONTROL_INPUTS:
+    if path in EMBEDDED_CONTROL_INPUTS or embedded_producer_input(path):
         return (), 'standalone embedded-control endpoint; no shipped core consumer'
     if relative.as_posix() == 'cores/fes-pong/rtl/pixel_pll.v':
         return ('demo', 'pong', 'ramtest', 'riscv'), 'shared fixed-raster clock consumers'
@@ -300,6 +322,10 @@ def plan(paths):
             if path.startswith(MODULE_ROOTS['contracts'] + '/'):
                 selected.add('contracts')
             reasons.append(f'{path}: embedded firmware/RTL integration; no shipped core consumer')
+            continue
+        if embedded_producer_input(path):
+            selected.update(('parent', 'fpga'))
+            reasons.append(f'{path}: standalone embedded producer simulation; no shipped core consumer')
             continue
         owner = next((module for module, prefix in MODULE_ROOTS.items()
                       if path == prefix or path.startswith(prefix + '/')), None)

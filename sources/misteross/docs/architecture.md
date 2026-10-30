@@ -25,7 +25,16 @@ Its CSR constants come from the separate `fes.fabric.embedded.control` package.
 It holds an offered AR through disable, drains accepted bursts, and makes read
 protocol faults sticky. It is single-clock; board interconnect/CDC, DDR window
 validation, global containment, scanout and Nano pin/clock/reset glue are not
-provided. No existing core or producer includes it. FES integrates its Verilator
+provided. No shipped core or production producer includes it. The standalone
+`prototypes/embedded_control/producer.py` producer creates a format-2 functional
+input record, derives its 128-bit ID with the existing `build_identity`, and
+passes that ID and an explicit experimental ABI value into a simulation top
+that instantiates the endpoint. It emits a host executable and diagnostic
+descriptor under FES `out/`; verification compares the record, artifact hash,
+live identity and held-read drain. The FES native integration check reads the
+same descriptor and exercises the Go control adapter against that model.
+This is an experimental simulation, not a package, RBF, authenticated toolchain
+seal or board producer. FES also integrates its Verilator
 test with the portable firmware adapter and actual prepared TF-A C functions;
 see the [contract](../../mister-packages/docs/embedded-control.md) and
 [verifier](../../../platform/embedded/firmware/README.md). This simulation is

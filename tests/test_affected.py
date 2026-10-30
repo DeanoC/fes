@@ -10,6 +10,15 @@ from scripts.affected import (changed_paths, plan, LANES, CORES, MODULE_ROOTS,
 
 
 class AffectedTests(unittest.TestCase):
+    def test_embedded_producer_is_a_standalone_simulation(self):
+        for path in ('sources/misteross/prototypes/embedded_control/producer.py',
+                     'sources/misteross/prototypes/embedded_control/embedded_producer_top.sv',
+                     'sources/misteross/prototypes/embedded_control/probe.cpp'):
+            with self.subTest(path=path):
+                r = plan([path])
+                self.assertEqual(r['cores'], [])
+                self.assertEqual({k for k, v in r['lanes'].items() if v}, {'parent', 'fpga'})
+
     def test_embedded_control_has_only_its_standalone_consumer(self):
         for path in ('sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv',
                      'sources/misteross/cores/fes-common/generated/fes_embedded_control.vh',

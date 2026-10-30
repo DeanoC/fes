@@ -25,6 +25,15 @@ RACE = ['go', 'test', '-race', '-short', '-timeout', '30m']
 
 
 class SelectTestModesTests(unittest.TestCase):
+    def test_embedded_producer_simulation_does_not_select_extended_builds(self):
+        for path in ('sources/misteross/prototypes/embedded_control/producer.py',
+                     'sources/misteross/prototypes/embedded_control/embedded_producer_top.sv',
+                     'platform/embedded/tamago/nativefabric/producer_integration_test.go',
+                     'platform/embedded/tamago/nativefabric/verify_producer.py'):
+            with self.subTest(path=path):
+                self.assertEqual(test_policy.select_test_modes([path]), ALL_FALSE)
+        self.assertTrue(test_policy.select_test_modes(['sources/misteross/cores/fes-common/rtl/unknown.sv'])['video'])
+
     def test_ordinary_and_policy_only_changes_select_no_extended_mode(self):
         for path in ('sources/FogCast/internal/hostapi/ui_app.js',
                      'sources/FogCast/catalog/query_test.go',
