@@ -100,10 +100,12 @@ def elaboration(source: Path, work: Path, library: Path, *, package_profile=Fals
         + ' '.join('-I ' + str(p) for p in includes) + ' '
         + ' '.join(quote(source / p) for p in (str(ADAPTERS), *RTL))
         + '; chparam ' + parameters + ' top; '
+        'hierarchy -check -top top; '
         # Both libraries spell disabled bus hold differently: OFF is the
         # board's Yosys primitive value, FALSE is Quartus's accepted spelling.
+        # Apply this after hierarchy because the RTL is read with -defer.
         'setparam -set enable_bus_hold "FALSE" t:altiobuf_bidir; '
-        'hierarchy -check -top top; proc -norom; flatten; opt -purge; '
+        'proc -norom; flatten; opt -purge; '
         # Combining byte writes before Verilog export lets Quartus infer the
         # existing dual-read VRAMs, including their OLD_DATA collision rules.
         # Small control arrays with multiple write processes become FFs.

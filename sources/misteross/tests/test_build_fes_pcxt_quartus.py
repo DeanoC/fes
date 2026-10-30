@@ -198,6 +198,15 @@ class PCXTQuartusPackageTests(unittest.TestCase):
             producer.board.elaboration(producer.ROOT, producer.ROOT / 'build',
                                        producer.ROOT / 'unused-library', package_profile=True)
 
+    def test_yosys_bus_hold_rewrite_runs_after_deferred_hierarchy(self):
+        program = producer.board.elaboration(producer.ROOT, producer.ROOT / 'build',
+                                             producer.ROOT / 'unused-library',
+                                             package_profile=True,
+                                             build_id='1234567890abcdef'*2)
+        hierarchy = program.index('hierarchy -check -top top;')
+        bus_hold = program.index('setparam -set enable_bus_hold "FALSE" t:altiobuf_bidir;')
+        self.assertLess(hierarchy, bus_hold)
+
     def test_yosys_elaborates_diagnostic_and_dos_package_profiles(self):
         toolchain = tomllib.loads((producer.ROOT / 'cores/fes-pcxt/toolchain.lock').read_text())
         quartus_lock = tomllib.loads((producer.ROOT / 'cores/fes-pcxt/quartus.lock').read_text())
@@ -256,6 +265,11 @@ class PCXTQuartusPackageTests(unittest.TestCase):
                                         capture_output=True, text=True, timeout=600, check=False)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 producer.board.validate_renaming(work, package_profile=True)
+                elaborated_verilog = (work / 'elaborated.v').read_text()
+                bus_hold_parameters = elaborated_verilog.count('.enable_bus_hold("FALSE")')
+                self.assertEqual(bus_hold_parameters, 16,
+                                 f'{profile} Quartus elaboration has {bus_hold_parameters}/16 '
+                                 'altiobuf_bidir cells with enable_bus_hold="FALSE"')
 
 
 if __name__ == '__main__':
