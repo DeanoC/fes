@@ -46,13 +46,24 @@ module top #(
     wire [31:0] fpga_to_hps, hps_to_fpga;
     cyclonev_hps_interface_mpu_general_purpose hps_gp (.gp_in(fpga_to_hps), .gp_out(hps_to_fpga));
 
-    wire hdmi_scl_low, hdmi_sda_low, hdmi_scl_in, hdmi_sda_in;
+    // Quartus drives the open-drain I2C pins from the hard block. The OSS
+    // lane keeps explicit pads and the fixed Cyclone V I2C site.
+    wire hdmi_scl_low, hdmi_sda_low;
+`ifdef QUARTUS
+    cyclonev_hps_interface_peripheral_i2c hdmi_i2c (
+        .scl(HDMI_I2C_SCL), .sda(HDMI_I2C_SDA), .out_clk(hdmi_scl_low), .out_data(hdmi_sda_low)
+    );
+    assign HDMI_I2C_SCL = hdmi_scl_low ? 1'b0 : 1'bz;
+    assign HDMI_I2C_SDA = hdmi_sda_low ? 1'b0 : 1'bz;
+`else
+    wire hdmi_scl_in, hdmi_sda_in;
     MISTRAL_IO hdmi_scl_pad (.I(1'b0), .OE(hdmi_scl_low), .O(hdmi_scl_in), .PAD(HDMI_I2C_SCL));
     MISTRAL_IO hdmi_sda_pad (.I(1'b0), .OE(hdmi_sda_low), .O(hdmi_sda_in), .PAD(HDMI_I2C_SDA));
     (* BEL = "cyclonev_hps_interface_peripheral_i2c.52.60.0" *)
     cyclonev_hps_interface_peripheral_i2c hdmi_i2c (
         .scl(hdmi_scl_in), .sda(hdmi_sda_in), .out_clk(hdmi_scl_low), .out_data(hdmi_sda_low)
     );
+`endif
 
     wire exec_reset;
     wire display_request, display_response_valid, display_response_error, display_quiesced;
@@ -91,13 +102,20 @@ module top #(
     wire [63:0] p2_writedata, p2_readdata;
     wire [27:0] video;
     wire signed [15:0] sample;
-    pc386_diag #(
+    // The Quartus seal reads the machine as the netlist Yosys elaborates with
+    // these rates (scripts/build_fes_pc386_quartus.py), so there it takes no
+    // parameters.
+    pc386_diag
+`ifndef QUARTUS
+    #(
         .ISA_N(ISA_N), .ISA_D(ISA_D), .PIT_N(PIT_N), .PIT_D(PIT_D), .RTC_N(RTC_N), .RTC_D(RTC_D),
         .US_N(US_N), .US_D(US_D), .DMA_N(DMA_N), .DMA_D(DMA_D), .DOT0_N(DOT0_N), .DOT0_D(DOT0_D),
         .DOT1_N(DOT1_N), .DOT1_D(DOT1_D), .OPL2_N(OPL2_N), .OPL2_D(OPL2_D),
         .AUDIO_N(AUDIO_N), .AUDIO_D(AUDIO_D), .ATA_RESET_CLOCKS(ATA_RESET_CLOCKS),
         .TIMEOUT_CLOCKS(TIMEOUT_CLOCKS)
-    ) diag (
+    )
+`endif
+    diag (
         .clk(clk_sys), .pixel_clk(pixel_clk), .pixel_locked(pixel_locked),
         .p0_reset(p0_reset), .p1_reset(p1_reset), .p2_reset(p2_reset),
         .display_request(display_request), .display_opcode(display_opcode), .display_index(display_index),
