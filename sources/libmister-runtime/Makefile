@@ -149,6 +149,13 @@ $(DAEMON): $(DAEMON_OBJECTS) $(ARCHIVE)
 		$(DAEMON_ARCHIVE_LINK) \
 		$(LDFLAGS) $(LDLIBS) -o "$@"
 
+.PHONY: de25-computer
+de25-computer: $(BUILD_DIR)/tools/de25-computer
+
+$(BUILD_DIR)/tools/de25-computer: tools/de25_computer_client.cpp src/native/de25_computer.cpp src/native/linux/mmio.cpp src/native/de25_computer.hpp src/native/generated/fes_de25_computer.hpp
+	@mkdir -p $(dir $@)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) tools/de25_computer_client.cpp src/native/de25_computer.cpp src/native/linux/mmio.cpp -o $@
+
 menu-pattern-client: $(BUILD_DIR)/tools/menu-pattern-client
 
 $(BUILD_DIR)/tools/menu-pattern-client: tools/menu_pattern_client.cpp src/daemon/menu_frame_transport.cpp src/daemon/json.cpp

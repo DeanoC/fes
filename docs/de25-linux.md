@@ -171,7 +171,9 @@ The [2026-10-28 boot-contract inspection](validation/2026-10-28-de25-boot-contra
 retains the exact report, firmware-source review and remaining pairing gates.
 
 The serial console is `ttyS0` at 115200 baud. Ethernet requests an address by
-DHCP on `eth0`. The development login is `root` with password `1`, matching the
+DHCP on `eth0`. If the first discovery window expires while the PHY or switch
+is settling, the DHCP client backgrounds and continues retrying while boot
+proceeds. The development login is `root` with password `1`, matching the
 existing FES development convention. Dropbear creates the board's SSH host keys
 on the writable root filesystem at first boot; no shared host key is shipped.
 `/etc/fes-board` identifies this root filesystem as `de25-nano`.
@@ -219,6 +221,10 @@ the board's public SSH host key over the trusted serial console and verify its
 fingerprint before creating a dedicated `known_hosts` file. For example,
 `dropbearkey -y -f /etc/dropbear/dropbear_ed25519_host_key` prints the public key
 and fingerprint; retain the public key with the exact SSH hostname/IP token.
+Dropbear may defer key creation until its first incoming connection. If that
+key is absent, generate it once through the trusted serial console with
+`dropbearkey -t ed25519 -f /etc/dropbear/dropbear_ed25519_host_key`, then print
+and pin its public key before opening SSH. Keep an existing key across reboots.
 The dedicated file must contain exactly one unhashed `host algorithm key`
 entry (`[host]:port` for a nondefault port). There is no automatic key enrollment
 or `ssh-keyscan` trust step.

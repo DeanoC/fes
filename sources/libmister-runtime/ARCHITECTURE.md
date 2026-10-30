@@ -83,6 +83,16 @@ transfer is reported without automatic commit/eject/replay or execution release.
 These checks establish software protocol behavior, not firmware/MMIO/reset or
 physical keyboard/tape/display acceptance.
 
+The separately invoked `de25-computer` maintenance CLI wraps `LinuxMmio` with
+resource-relative access checks and ordered barriers. Before any register
+access it requires AArch64 Linux, root, the FES DE25 rootfs/model, the exact
+selected boot UUID and an explicit CPU resource base. It acquires a cooperating
+exclusive lock, checks endpoint ID/version, and uses `De25Computer` for control.
+The probe operation makes no control writes. This utility does not construct
+production hardware or establish programming, reset fencing or package support.
+Its MMIO mapping cannot interrupt a stalled bus access, so it is confined to
+an exclusively owned, externally verified configured diagnostic epoch.
+
 ## Package lifecycle
 
 The package inspector reads format 4's two named ROM sources and sealed map
