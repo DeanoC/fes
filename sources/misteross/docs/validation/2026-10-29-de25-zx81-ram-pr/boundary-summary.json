@@ -1,0 +1,182 @@
+{
+  "base": {
+    "groups": {
+      "address_ingress": {
+        "hold_min_ns": 0.173,
+        "physical_endpoints": 8,
+        "rows": 64,
+        "setup_min_ns": 9.021
+      },
+      "bus_egress": {
+        "hold_min_ns": 0.263,
+        "physical_endpoints": 20,
+        "rows": 160,
+        "setup_min_ns": 8.434
+      },
+      "bus_ingress": {
+        "hold_min_ns": 0.13,
+        "physical_endpoints": 46,
+        "rows": 368,
+        "setup_min_ns": 8.674
+      },
+      "data_egress": {
+        "hold_min_ns": 0.327,
+        "physical_endpoints": 32,
+        "rows": 256,
+        "setup_min_ns": 8.137
+      },
+      "request_ingress": {
+        "hold_min_ns": 0.556,
+        "physical_endpoints": 1,
+        "rows": 8,
+        "setup_min_ns": 8.314
+      },
+      "reset_ingress": {
+        "hold_min_ns": 0.403,
+        "physical_endpoints": 1,
+        "rows": 8,
+        "setup_min_ns": 8.826
+      },
+      "reset_release": {
+        "hold_min_ns": 0.099,
+        "physical_endpoints": 1,
+        "rows": 8,
+        "setup_min_ns": 9.603
+      },
+      "valid_egress": {
+        "hold_min_ns": 0.483,
+        "physical_endpoints": 1,
+        "rows": 8,
+        "setup_min_ns": 8.533
+      }
+    },
+    "paths_sha256": "847410f58a3e7c9b1923369d31dc37788f4f0546df82f613e743784fe346e67f",
+    "published_corners": [
+      "Fast fix4 0C Model",
+      "Slow fix4 0C Model",
+      "Slow fix4 100C Model",
+      "Slow fix4a 0C Model"
+    ],
+    "rows": 880
+  },
+  "persona_a": {
+    "groups": {
+      "address_ingress": {
+        "hold_min_ns": 0.173,
+        "physical_endpoints": 8,
+        "rows": 64,
+        "setup_min_ns": 9.0
+      },
+      "bus_egress": {
+        "hold_min_ns": 0.257,
+        "physical_endpoints": 20,
+        "rows": 160,
+        "setup_min_ns": 8.264
+      },
+      "bus_ingress": {
+        "hold_min_ns": 0.13,
+        "physical_endpoints": 46,
+        "rows": 368,
+        "setup_min_ns": 8.674
+      },
+      "data_egress": {
+        "hold_min_ns": 0.382,
+        "physical_endpoints": 32,
+        "rows": 256,
+        "setup_min_ns": 7.955
+      },
+      "request_ingress": {
+        "hold_min_ns": 0.557,
+        "physical_endpoints": 1,
+        "rows": 8,
+        "setup_min_ns": 8.317
+      },
+      "reset_ingress": {
+        "hold_min_ns": 0.401,
+        "physical_endpoints": 1,
+        "rows": 8,
+        "setup_min_ns": 8.805
+      },
+      "reset_release": {
+        "hold_min_ns": 0.099,
+        "physical_endpoints": 1,
+        "rows": 8,
+        "setup_min_ns": 9.603
+      },
+      "valid_egress": {
+        "hold_min_ns": 0.552,
+        "physical_endpoints": 1,
+        "rows": 8,
+        "setup_min_ns": 8.389
+      }
+    },
+    "paths_sha256": "659507e38aece63176422bd5d06886cf245c6f4eab5b988d832aeb0ea8b8ae6f",
+    "published_corners": [
+      "Fast fix4 0C Model",
+      "Slow fix4 0C Model",
+      "Slow fix4 100C Model",
+      "Slow fix4a 0C Model"
+    ],
+    "rows": 880
+  },
+  "persona_b": {
+    "groups": {
+      "address_ingress": {
+        "hold_min_ns": 0.173,
+        "physical_endpoints": 8,
+        "rows": 64,
+        "setup_min_ns": 8.997
+      },
+      "bus_egress": {
+        "hold_min_ns": 0.3,
+        "physical_endpoints": 20,
+        "rows": 160,
+        "setup_min_ns": 8.21
+      },
+      "bus_ingress": {
+        "hold_min_ns": 0.131,
+        "physical_endpoints": 49,
+        "rows": 392,
+        "setup_min_ns": 8.671
+      },
+      "data_egress": {
+        "hold_min_ns": 0.371,
+        "physical_endpoints": 32,
+        "rows": 256,
+        "setup_min_ns": 7.867
+      },
+      "request_ingress": {
+        "hold_min_ns": 0.557,
+        "physical_endpoints": 1,
+        "rows": 8,
+        "setup_min_ns": 8.317
+      },
+      "reset_ingress": {
+        "hold_min_ns": 0.4,
+        "physical_endpoints": 1,
+        "rows": 8,
+        "setup_min_ns": 8.802
+      },
+      "reset_release": {
+        "hold_min_ns": 0.099,
+        "physical_endpoints": 1,
+        "rows": 8,
+        "setup_min_ns": 9.603
+      },
+      "valid_egress": {
+        "hold_min_ns": 0.512,
+        "physical_endpoints": 1,
+        "rows": 8,
+        "setup_min_ns": 8.439
+      }
+    },
+    "paths_sha256": "e1b995b2bf9dda37247047a7b0c2e3e0a28a34582d5d08d22c36ec50395cb6cc",
+    "published_corners": [
+      "Fast fix4 0C Model",
+      "Slow fix4 0C Model",
+      "Slow fix4 100C Model",
+      "Slow fix4a 0C Model"
+    ],
+    "rows": 904
+  }
+}

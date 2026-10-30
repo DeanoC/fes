@@ -21,11 +21,11 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[4]
 BOARD = "sources/misteross/boards/de25nano/"
 LOCAL = ("build.py", "board.v", "clocks.sdc", "integrate.tcl",
-         "fes_de25_computer.v", "fes_de25_computer_hw.tcl", "tape_store.v",
+         "fes_de25_computer.v", "fes_de25_computer_hw.tcl", "tape_store.v", "video.v",
          "generated/fes_de25_computer.vh", "generated/fes_de25_computer.hpp",
          "generated/fes_computer.vh")
 CORE_FILES = ("zx81_machine.sv", "zx81_machine_clock.v", "zx81_dpram.v",
-              "zx81_video_720p.v", "zx81_model.vh", "zx81_keyboard.v",
+              "zx81_model.vh", "zx81_bus_pack.vh", "zx81_keyboard.v",
               "zx81_tape_store.v", "zx8x.mif", "zx8x.hex")
 
 
@@ -41,7 +41,6 @@ def load(path, name):
 
 ZX81 = load(HERE.parent / "zx81/build.py", "de25_computer_zx81_helpers")
 retarget_ram = ZX81.retarget_ram
-retarget_video = ZX81.retarget_video
 
 
 def retarget_tape(source, replacement=None):
@@ -106,6 +105,11 @@ def prepare(archive, output=None, revision=None):
         output = Path(tempfile.mkdtemp(prefix="run-", dir=base))
     else:
         output = Path(output).resolve(); output.mkdir(parents=True, exist_ok=False)
+    return prepare_captured(archive, output, sources, selected)
+
+
+def prepare_captured(archive, output, sources, selected):
+    """Prepare a caller-owned private output from explicitly captured bytes."""
     snapshot = output / "functional-source"
     for name, data in sources.items():
         p = snapshot / name; p.parent.mkdir(parents=True, exist_ok=True); p.write_bytes(data)
@@ -144,7 +148,7 @@ def prepare(archive, output=None, revision=None):
         files[name + ".sv"] = sources["sources/misteross/cores/fes-common/rtl/z80/" + name + ".sv"]
     files["fes_computer_mailbox.v"] = sources["sources/misteross/cores/fes-common/rtl/fes_computer_mailbox.v"]
     repairs = {}
-    for name, transform in (("zx81_dpram", helpers.retarget_ram), ("zx81_video_720p", helpers.retarget_video),
+    for name, transform in (("zx81_dpram", helpers.retarget_ram),
                             ("zx81_tape_store", lambda source: retarget_tape(source, files["tape_store.v"]))):
         files[name + "_de25.v"], repairs[name] = transform(files[name + ".v"])
     for name, data in files.items():

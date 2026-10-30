@@ -1,5 +1,10 @@
 # DE25 HPS-controlled base/persona diagnostic
 
+The opt-in [ZX81 RAM-pack profile](zx81-ram/README.md) keeps the actual machine
+static and switches an empty slot or 16 KiB expansion. It has a separate
+source/interface identity and diagnostic-only evidence; the counter proof
+below remains the default.
+
 This diagnostic builds a preserved Terasic HPS/DDR base and two interchangeable
 PR personas for `A5EB013BB23BE4SCS`. An HPS lightweight-bridge endpoint owns the
 single slot's freeze, drain, reset, identity probe and resume sequence. Both

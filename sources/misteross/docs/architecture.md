@@ -32,6 +32,29 @@ Native/AArch64 runtime co-simulation uses the actual endpoint RTL and a persona
 selection mux; it does not model SDM execution. No production package, physical
 programming backend or hardware acceptance is added by this diagnostic.
 
+The opt-in [ZX81 RAM-pack profile](../boards/de25nano/link-proof/zx81-ram/README.md)
+keeps the actual ZX81 machine, NMOS CPU, firmware and 1 KiB RAM static, with
+empty-slot and actual 16 KiB RAM-pack personas. The registered 46/20-bit
+expansion bus takes four elapsed cycles; diagnostic retirement takes five so
+LAST_DATA observes the real machine peek after the external RAM pipeline.
+Selection resets the machine; freeze captures an idle CPU memory request and
+drains writes/read responses before its acknowledgement, independently of CPU
+reset-enable latency.
+It reuses the 64-byte control map without changing the counter profile. This
+is an off-board RAM-only PR proof, with no HPS computer mailbox, keyboard/tape
+transport, display, package admission or physical programming backend.
+
+The [combined ZX81 profile](../boards/de25nano/link-proof/zx81-computer/README.md)
+adds the actual HPS computer mailbox, keyboard/tape delivery and coherent 720p
+renderer to that PR RAM bus. It reuses the HPS computer recipe from captured
+source bytes. The CPU runs only with a healthy transport, PR RUNNING and mailbox
+RUN; every reset/HOLD/freeze captures an idle memory request before drain.
+Computer and PR control share the source-bound build identity but keep their
+separate generated register maps. The actual native and AArch64 C++ clients
+exercise both endpoints in one RTL model; only persona selection is modeled.
+The static base and both personas require fresh compilation/root/POF identity
+and composition checks. There is no SDM executor or production admission.
+
 The standalone [three-memory RAM Tester](../boards/de25nano/ramtest/README.md)
 adds separate destructive FPGA LPDDR4 B and board SDRAM endpoints to the pinned
 GHRD. It preserves the vendor B memory/PHY recipe and uses a custom fixed-50-MHz
@@ -122,7 +145,25 @@ Generated constants and an offline injectable Python client add no runtime
 admission, physical MMIO address or boot image. Shared production RTL is unchanged.
 The board tape adapter uses two explicit even/odd simple-dual-port M20K banks
 with common-clock old-data reads, while retaining the exact portable module
-in its native simulation branch.
+in its native simulation branch. Its board-local video renderer replaces the
+single capture array with two packed monochrome M20K banks. Source completion
+publishes a bank through a request/acknowledgement crossing; scanout swaps only
+at a complete 720p frame boundary and acknowledges before the source may reuse
+the previous bank. Startup and epoch reset hide unwritten storage. Whole rows
+up to 328×270 are captured, excess rows cropped, and absent bottom rows displayed
+as paper. Stopped clocks preserve ownership; HOLD aborts partial capture.
+The local SDC checks exact synchronizer/metadata endpoints and bounds the held
+row-count bus without cutting whole clocks. Digital simulation does not accept
+physical M20K timing, MTBF, clock recovery or HDMI.
+
+The same endpoint/machine also serves the native `De25Computer` client through
+the private-socket co-simulation in `zx81-hps/client_proof.py`. It snapshots the
+actual runtime and RTL sources, runs native and static AArch64 clients against
+one Verilated model, and checks real BASIC/HID/tape/RAM behavior plus uncertain
+transactions and resets. Simulation controls advance clocks and inspect state;
+they do not generate the client's mailbox commands. The existing board bench
+shares those clock and observation helpers. This remains software/RTL evidence
+with behavioral memory and no physical HPS/MMIO or programming backend.
 
 [`boards/de25nano/combined/`](../boards/de25nano/combined/README.md) composes
 that local display with the preserved GHRD HPS/LPDDR4, mailbox and read-only
