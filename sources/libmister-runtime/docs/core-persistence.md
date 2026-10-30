@@ -109,9 +109,12 @@ serialize file operations and compare-and-swap. A failure before rename leaves
 the old record; a directory-sync failure after rename reports uncertain
 durability and permits only an old or complete new record. Retry rereads and
 validates the current file. Successful Stop is the normal durability boundary.
-A post-start input fault also captures persistent machine data or bound media
-before idle retirement, including pc386 when the ATA unit is empty. Startup and
-failed activation do not save guest state.
+A post-start input fault also captures bound media or a `fes.computer` machine
+record (the pc386, with its ATA unit bound, empty or undeclared) before idle
+retirement; Pong progress is saved only at Stop. Startup and failed activation
+do not save the machine record; an ambiguous release with a bound disk still
+fault-saves that disk. When the record's publication fails, `recover_idle`
+still idles and the unsaved record is lost, as it is after a failed Stop.
 
 When publication fails, explicit GP resume must succeed before recovery
 continues. For a package with a host input recipe, the same input generation

@@ -1890,7 +1890,7 @@ Error FesGpCoreDriver::CaptureData(
 	// An input fault can leave the shared mailbox poisoned. Realign from the
 	// live ACK and verify this is still the same core before freezing its data.
 	Error error = RecoverComputerMailbox(deadline);
-	if (!error.ok()) return WithPhase(error, "core_data");
+	if (!error.ok()) return error;
 	freeze_attempted_ = true;
 	error = DataControl(FesGpDataFreeze, deadline);
 	std::vector<std::uint16_t> snapshot;
@@ -1978,6 +1978,10 @@ Error FesGpCoreDriver::ReadAtaDiskInfo(std::uint64_t deadline, AtaDiskInfo* info
 Error FesGpCoreDriver::AtaDiskControl(std::uint16_t argument, std::uint64_t deadline)
 {
 	if (!ata_disk_) return {ErrorCode::unsupported_interface, "ATA disk is unavailable", "input"};
+	// A fault save freezes the disk after an input fault may have poisoned
+	// the mailbox, so realign and reidentify first, as media operations do.
+	Error error = RecoverComputerMailbox(deadline);
+	if (!error.ok()) return error;
 	return ComputerCommand(FesComputerOpcodeDiskControl, FesComputerAtaDiskUnit, argument, deadline);
 }
 
@@ -2021,6 +2025,8 @@ Error FesGpCoreDriver::ReadAtaDirty(std::uint64_t deadline, std::vector<std::uin
 {
 	if (!ata_disk_ || !chunks) return {ErrorCode::unsupported_interface, "ATA disk is unavailable", "input"};
 	chunks->clear();
+	const Error recovered = RecoverComputerMailbox(deadline);
+	if (!recovered.ok()) return recovered;
 	for (std::uint32_t word = 0; word < FesComputerAtaDiskDirtyWordCount; ++word) {
 		std::uint16_t bits = 0;
 		const Error error = gp_.Exchange(FesComputerOpcodeDiskDirty, static_cast<std::uint8_t>(word), 0,

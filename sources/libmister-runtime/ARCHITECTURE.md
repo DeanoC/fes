@@ -464,12 +464,18 @@ programming failures keep the existing invalidation of unsafe active-core
 metadata.
 
 Bound-disk input faults revoke asynchronous input and capture/publish before
-idle programming. Persistent machine-data generations also capture on input
-fault, including pc386 when its ATA unit is empty. A failed capture or
-publication retains RAM, package and generation in reboot-required recovery;
-it cannot program idle or replay the fault. `recover_idle` also refuses to
-destroy retained bound disk RAM. Startup, failed activation and volatile fault
-cleanup do not publish records.
+idle programming. A persistent `fes.computer` machine record (the pc386) is
+also captured on input fault, with its ATA unit bound, empty or undeclared;
+Pong progress keeps Stop as its only boundary. The fault save first realigns
+a mailbox the fault poisoned and reidentifies the core, as live media
+operations do. A failed capture or publication retains RAM, package,
+generation and binding in reboot-required recovery; it cannot program idle or
+replay the fault. `recover_idle` also refuses to destroy retained bound disk
+RAM, but a retained machine record does not block it: after a diskless pc386
+fault whose record publish failed, `recover_idle` idles and the unsaved record
+is lost, as after a failed Stop. Startup and failed activation do not save the
+machine record; an ambiguous release with a bound disk still fault-saves that
+disk. Volatile fault cleanup publishes nothing.
 These paths have host test coverage;
 physical acceptance remains separate.
 
@@ -506,9 +512,10 @@ no host input recipe still resume their machine-data snapshot. Snapshots are
 invalidated only after restoration succeeds. Unsafe resume
 retains persistent package/generation metadata in `reboot_required` and leaves
 the complete snapshot owned by native hardware. Successful Stop remains the
-normal durability boundary; a post-start input fault also saves persistent
-machine data or disk data before idling. Startup and failed activation do not
-capture guest state.
+normal durability boundary; a post-start input fault also saves a bound disk
+or a `fes.computer` machine record before idling. Startup and failed
+activation do not save the machine record; an ambiguous release with a bound
+disk still fault-saves that disk.
 Legacy cartridge `SaveFile`, SNES SRAM transport and `.srm` launch handling
 have been retired. Existing user save files are not deleted or migrated by
 this cleanup; described packages use their explicit persistence contracts.

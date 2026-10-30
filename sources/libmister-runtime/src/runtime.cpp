@@ -1269,20 +1269,25 @@ public:
 			"media unit is not declared by the active computer", "compatibility"};
 	}
 
+	// Caller holds mutex_. A fes.computer package is persistent through its
+	// record layout (the pc386 machine) or through a bound persistent unit.
+	void RecomputeComputerPersistence()
+	{
+		if (status_.active_package.descriptor.abi.id != native::generated::FesComputerABIID) return;
+		const bool persistent_record = status_.core_data.mode == "persistent" &&
+			!status_.core_data.layout.id.empty();
+		status_.core_data.mode = persistent_record ? "persistent" : "volatile";
+		for (const auto& media : status_.capabilities.media_units)
+			if (media.persistence_mode == "persistent") status_.core_data.mode = "persistent";
+	}
+
 	void FinishMediaUnit(bool recompute_persistence)
 	{
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
 			// Publish the driver's unit state from its last live exchange.
 			status_.capabilities.media_units = hardware_.capabilities().media_units;
-			if (recompute_persistence &&
-				status_.active_package.descriptor.abi.id == native::generated::FesComputerABIID) {
-				const bool persistent_record = status_.core_data.mode == "persistent" &&
-					!status_.core_data.layout.id.empty();
-				status_.core_data.mode = persistent_record ? "persistent" : "volatile";
-				for (const auto& media : status_.capabilities.media_units)
-					if (media.persistence_mode == "persistent") status_.core_data.mode = "persistent";
-			}
+			if (recompute_persistence) RecomputeComputerPersistence();
 			busy_ = false;
 		}
 		condition_.notify_all();
@@ -1306,13 +1311,7 @@ public:
 				std::lock_guard<std::mutex> lock(mutex_);
 				status_.error = save_error;
 				status_.capabilities.media_units = hardware_.capabilities().media_units;
-				if (status_.active_package.descriptor.abi.id == native::generated::FesComputerABIID) {
-					const bool persistent_record = status_.core_data.mode == "persistent" &&
-						!status_.core_data.layout.id.empty();
-					status_.core_data.mode = persistent_record ? "persistent" : "volatile";
-					for (const auto& media : status_.capabilities.media_units)
-						if (media.persistence_mode == "persistent") status_.core_data.mode = "persistent";
-				}
+				RecomputeComputerPersistence();
 				busy_ = false;
 			}
 			condition_.notify_all();
@@ -1457,7 +1456,10 @@ public:
 				pending_fault_generation_ = 0;
 				system = status_.system;
 				core = status_.core;
-				durable_state = status_.core_data.mode == "persistent";
+				// A persistent fes.computer record (the pc386 machine) is
+				// captured too; Pong progress keeps its Stop-only boundary.
+				durable_state = status_.core_data.mode == "persistent" &&
+					status_.active_package.descriptor.abi.id == native::generated::FesComputerABIID;
 				for (const auto& media : status_.capabilities.media_units)
 					if (media.persistence_mode == "persistent") durable_state = true;
 				if (durable_state) retained = status_;
