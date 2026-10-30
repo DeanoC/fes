@@ -138,6 +138,10 @@ The [physical Linux/native-control record](validation/2026-10-30-de25-linux-zx81
 retains the initial FES boot, DHCP failure, direct CPU control, observed BASIC
 sequence, separate image/client identities and remaining image qualification.
 
+The [normal Linux kit acceptance map](design/de25-linux-platform.md) tracks the
+remaining managed workflow. The [Linux FPGA-manager bring-up](validation/2026-10-30-de25-linux-fpga/README.md)
+records successful driver probing and the current core-transfer/cleanup failure.
+
 ## Image artifacts
 
 The image output contains:

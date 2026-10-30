@@ -1,0 +1,11 @@
+/dts-v1/;
+/plugin/;
+/ {
+    fragment@0 {
+        target-path = "/fpga-region";
+        __overlay__ {
+            firmware-name = "fes-c134-zx81.core.rbf";
+            config-complete-timeout-us = <30000000>;
+        };
+    };
+};

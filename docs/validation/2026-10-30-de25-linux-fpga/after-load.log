@@ -1,0 +1,32 @@
+58cb032f-6994-4c3f-a951-6e9e85b7a834
+write
+[    2.029452] Run /sbin/init as init process
+[    2.033542]   with arguments:
+[    2.033545]     /sbin/init
+[    2.033548]   with environment:
+[    2.033551]     HOME=/
+[    2.033554]     TERM=linux
+[    2.034457] usb 1-1: new high-speed USB device number 2 using dwc2
+[    2.166515] EXT4-fs (mmcblk0p2): re-mounted e9deed4d-82ac-4051-8f03-1f6f10fd5d1e r/w. Quota mode: none.
+[    2.235689] hub 1-1:1.0: USB hub found
+[    2.239669] hub 1-1:1.0: 4 ports detected
+[    2.526450] usb 1-1.3: new full-speed USB device number 3 using dwc2
+[    3.258430] random: crng init done
+[    3.311673] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-0
+[    3.320236] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-1
+[    3.328792] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-2
+[    3.337396] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-3
+[    3.346015] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-4
+[    3.354501] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-5
+[    3.363154] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-6
+[    3.371655] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-7
+[    3.444669] socfpga-dwmac 10810000.ethernet eth0: PHY [stmmac-0:01] driver [Micrel KSZ9031 Gigabit PHY] (irq=POLL)
+[    3.455049] socfpga-dwmac 10810000.ethernet eth0: No Safety Features support found
+[    3.462610] socfpga-dwmac 10810000.ethernet eth0: IEEE 1588-2008 Advanced Timestamp supported
+[    3.471496] socfpga-dwmac 10810000.ethernet eth0: registered PTP clock
+[    3.478047] socfpga-dwmac 10810000.ethernet eth0: configuring for phy/rgmii link mode
+[    7.587339] socfpga-dwmac 10810000.ethernet eth0: Link is Up - 1Gbps/Full - flow control rx/tx
+[ 1159.351866] fpga_manager fpga0: Stratix10 SOC FPGA Manager registered
+[ 1160.852555] of-fpga-region fpga-region: FPGA Region probed
+[ 1245.971487] fpga_manager fpga0: writing fes-c134-zx81.core.rbf to Stratix10 SOC FPGA Manager
+[ 1253.090490] Stratix10 SoC FPGA manager firmware:svc:fpga-mgr: timeout waiting for svc layer buffers

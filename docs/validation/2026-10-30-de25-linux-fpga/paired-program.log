@@ -1,0 +1,40 @@
+Info (19848): Regular SEU info => 2 sector(s), 2 thread(s), 10000000 interval time in microsecond(s)
+Info (19848): IO hash is CB15853F37FF5910DA8A2E623712C38E5DEF1944BA1106B165BBE942A94B751E
+Info (19848): Keyed hash is 0D1AEDDF6B0D4DD5431C38580B2FF1E2862B0F128F1B1433BE1A9CE86F0D613B
+Info (19848): IO hash is CB15853F37FF5910DA8A2E623712C38E5DEF1944BA1106B165BBE942A94B751E
+Info (19848): Keyed hash is 1C5D1E948897C738CFEC170037E270CDA96BEA284B20F522B1714A1A7D0BA0E5
+Info (19848): Design hash is A6CC41B2495A2B51DA7FF86EFAFD2C590F1D4DDF741A7AC9A4C9FDCA589506BE
+Info (19848): IO hash is CB15853F37FF5910DA8A2E623712C38E5DEF1944BA1106B165BBE942A94B751E
+Info (19848): Keyed hash is FE04F8D3DF744C3E288FBD130409FD0E27764A1D26DA6E14ADCBD119EC2EBEF5
+Info: *******************************************************************
+Info: Running Quartus Prime Programmer
+    Info: Version 26.3.0 Build 114 10/14/2026 SC Pro Edition
+    Info: Copyright (C) 2026  Altera Corporation. All rights reserved.
+    Info: Your use of Altera Corporation's design tools, logic functions 
+    Info: and other software and tools, and any partner logic 
+    Info: functions, and any output files from any of the foregoing 
+    Info: (including device programming or simulation files), and any 
+    Info: associated documentation or information are expressly subject 
+    Info: to the terms and conditions of the Altera Program License 
+    Info: Subscription Agreement, the Altera Quartus Prime License Agreement,
+    Info: the Altera IP License Agreement, or other applicable license
+    Info: agreement, including, without limitation, that your use is for
+    Info: the sole purpose of programming logic devices manufactured by
+    Info: Altera and sold by Altera or its authorized distributors.  Please
+    Info: refer to the Altera Software License Subscription Agreements 
+    Info: on the Quartus Prime software download page.
+    Info: Processing started: Fri Oct 30 20:56:36 2026
+    Info: System process ID: 4133435
+Info: Command: quartus_pgm -c "DE25-Nano [3-11.3-iface0]" -m JTAG -o p;/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hardware/out/zx81-jtag-with-spl.sof@1
+Info (213045): Using programming cable "DE25-Nano [3-11.3-iface0]"
+Info (213011): Using programming file /home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hardware/out/zx81-jtag-with-spl.sof with checksum 0x0649BFAE for device A5EB013BB23BCS@1
+Info (209060): Started Programmer operation at Fri Oct 30 20:56:39 2026
+Info (18942): Configuring device index 1
+Info (18943): Configuration succeeded at device index 1
+Info (209011): Successfully performed operation(s)
+Info (209061): Ended Programmer operation at Fri Oct 30 20:56:42 2026
+Info: Quartus Prime Programmer was successful. 0 errors, 0 warnings
+    Info: Peak virtual memory: 2150 megabytes
+    Info: Processing ended: Fri Oct 30 20:56:42 2026
+    Info: Elapsed time: 00:00:06
+    Info: System process ID: 4133435
