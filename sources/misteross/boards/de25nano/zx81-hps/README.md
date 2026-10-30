@@ -167,3 +167,32 @@ selects this component's `EXTERNAL_RAM=1` parameter and its registered expansion
 conduit. It gates execution with PR RUNNING as well as the mailbox's RUN and
 transport health; freeze registers a complete idle memory request. This
 standalone diagnostic retains its internal-RAM selection and no PR control.
+
+## HPS-first Linux loading candidate
+
+For the Linux FPGA-manager path, explicitly select the HPS-first profile:
+
+```sh
+python3 build.py build --hps-first --quartus-root /absolute/altera_pro/26.3 \
+  --vendor-archive /absolute/DE25-Nano_revB_v.1.0.0_ResourcePackage.zip \
+  --output /absolute/new-private-linux-output
+```
+
+The profile adds the documented `HPS_INITIALIZATION "HPS FIRST"` assignment,
+binds that choice into the computer build identity and records it with captured
+inputs. Default maintenance builds explicitly select `AFTER INIT_DONE` and retain
+the FPGA-first JTAG flow. RTL, clocks, memory and endpoint contracts are shared.
+No timing or reset constraint is relaxed.
+
+After full compilation, the HPS-first profile enriches the SOF with the preserved
+Terasic SPL and asks Quartus PFG for the documented HPS split. The output `hps/`
+contains `linux-complete.sof`, `linux-boot.hps.jic`, `linux-boot.core.rbf` and
+`linux-programming.json`, binding roles, source/build identity and exact hashes.
+The JIC is a prepared QSPI candidate only; the builder invokes no programmer.
+HPS boot compatibility, Linux fabric load and production runtime admission remain
+unqualified until their separate physical checks pass. Persistent flash changes
+require explicit authorization and a concrete rollback procedure.
+
+The existing FPGA-first SOF is rejected by PFG's HPS split with error 19921.
+Merely asking for a core-only RBF does not establish a valid Linux-loading pair;
+see [the failed hardware attempts](../../../../../docs/validation/2026-10-30-de25-linux-fpga/README.md).
