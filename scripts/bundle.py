@@ -86,7 +86,9 @@ from scripts.functional_execution import execution_environment, execution_inputs
 with tempfile.TemporaryDirectory(prefix="fes-canonical-home-") as home:
     paths = {name: tool.path for name, tool in tools.items()}
     environment = execution_environment(Path(home), paths)
-    options["execution"] = execution_inputs(paths, environment, 0)
+    options["execution"] = (producer.execution_inputs(paths, environment, 0)
+                            if hasattr(producer, "execution_inputs")
+                            else execution_inputs(paths, environment, 0))
 sys.stdout.buffer.write(producer.create_build_record(root, repository, revision, identities, **options))
 '''
     cache_root = str(recipe.cache_root)
@@ -99,6 +101,8 @@ sys.stdout.buffer.write(producer.create_build_record(root, repository, revision,
         parsed = json.loads(record)
     except (OSError, subprocess.CalledProcessError, UnicodeDecodeError,
             json.JSONDecodeError) as error:
+        if recipe.toolchain == "quartus":
+            raise ValueError(f"cannot authenticate {recipe.core_id} Quartus inputs; set QUARTUS_ROOTDIR and FES_PCXT_YOSYS to the pinned installations") from error
         raise ValueError(
             f"cannot derive authenticated {recipe.core_id} build inputs in {source}; "
             f"inspect the producer error and, if the shared toolchain slot is missing, run "

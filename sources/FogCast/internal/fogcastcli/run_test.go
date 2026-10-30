@@ -350,20 +350,27 @@ func TestPublicCoreRecognizesSharedSMSCore(t *testing.T) {
 	}
 }
 
-func TestRunUsesDefaultPathsAndOverridesOnlyConfig(t *testing.T) {
+func TestRunUsesDefaultOrResolvedConfigPaths(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	wantDefault := fogcast.Paths{
-		CorePackages:    filepath.Join(home, ".local", "share", "fogcast", "core-packages"),
-		Config:          filepath.Join(home, ".config", "fogcast", "config.toml"),
-		Index:           filepath.Join(home, ".local", "share", "fogcast", "library.sqlite3"),
-		Staging:         filepath.Join(home, ".cache", "fogcast", "staging"),
-		MetadataRoot:    filepath.Join(home, ".cache", "fogcast", "metadata"),
-		UserLibrary:     filepath.Join(home, ".local", "share", "fogcast", "library-user.sqlite3"),
-		LibrarySettings: filepath.Join(home, ".local", "share", "fogcast", "library-settings.json"),
-		MediaIndex:      filepath.Join(home, ".local", "share", "fogcast", "library-media.sqlite3"),
-		MediaCache:      filepath.Join(home, ".cache", "fogcast", "library-media"),
+	wantDefault, err := fogcast.DefaultPaths()
+	if err != nil {
+		t.Fatal(err)
 	}
+	configDir := t.TempDir()
+	privateConfig := filepath.Join(configDir, "private.toml")
+	if err := os.WriteFile(privateConfig, []byte("token = \"test\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	customConfig := filepath.Join(configDir, "custom.toml")
+	customState := filepath.Join(configDir, "custom-state")
+	customStaging := filepath.Join(configDir, "custom-staging")
+	customBody := "state = " + quoteCLIConfigPath(customState) + "\nstaging = " + quoteCLIConfigPath(customStaging) + "\ntoken = \"test\"\n"
+	if err := os.WriteFile(customConfig, []byte(customBody), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	wantPrivate := configScopedPaths(privateConfig, filepath.Join(configDir, "state"), filepath.Join(configDir, "staging"))
+	wantCustom := configScopedPaths(customConfig, customState, customStaging)
 
 	for _, test := range []struct {
 		name string
@@ -371,7 +378,8 @@ func TestRunUsesDefaultPathsAndOverridesOnlyConfig(t *testing.T) {
 		want fogcast.Paths
 	}{
 		{name: "default", args: []string{"games"}, want: wantDefault},
-		{name: "explicit config", args: []string{"--config", "relative/private.toml", "games"}, want: fogcast.Paths{CorePackages: wantDefault.CorePackages, Config: "relative/private.toml", Index: wantDefault.Index, Staging: wantDefault.Staging, MetadataRoot: wantDefault.MetadataRoot, UserLibrary: wantDefault.UserLibrary, LibrarySettings: wantDefault.LibrarySettings, MediaIndex: wantDefault.MediaIndex, MediaCache: wantDefault.MediaCache}},
+		{name: "explicit config", args: []string{"--config", privateConfig, "games"}, want: wantPrivate},
+		{name: "explicit storage", args: []string{"--config", customConfig, "games"}, want: wantCustom},
 		{name: "explicit empty config", args: []string{"--config", "", "games"}, want: fogcast.Paths{CorePackages: wantDefault.CorePackages, Config: "", Index: wantDefault.Index, Staging: wantDefault.Staging, MetadataRoot: wantDefault.MetadataRoot, UserLibrary: wantDefault.UserLibrary, LibrarySettings: wantDefault.LibrarySettings, MediaIndex: wantDefault.MediaIndex, MediaCache: wantDefault.MediaCache}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -385,6 +393,25 @@ func TestRunUsesDefaultPathsAndOverridesOnlyConfig(t *testing.T) {
 			}
 		})
 	}
+}
+
+func configScopedPaths(configPath, state, staging string) fogcast.Paths {
+	root := filepath.Dir(state)
+	return fogcast.Paths{
+		Config:          configPath,
+		Index:           filepath.Join(state, "library.sqlite3"),
+		Staging:         staging,
+		MetadataRoot:    filepath.Join(root, "metadata"),
+		UserLibrary:     filepath.Join(state, "library-user.sqlite3"),
+		LibrarySettings: filepath.Join(state, "library-settings.json"),
+		MediaIndex:      filepath.Join(state, "library-media.sqlite3"),
+		MediaCache:      filepath.Join(root, "media-cache"),
+		CorePackages:    filepath.Join(state, "core-packages"),
+	}
+}
+
+func quoteCLIConfigPath(path string) string {
+	return "\"" + filepath.ToSlash(path) + "\""
 }
 
 func TestRunScanHumanAndJSONOutputExposeCountersNotPrivatePaths(t *testing.T) {

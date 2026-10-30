@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Reusable complete diagnostic: byte loader, real motherboard/storage and one
 // selected video pipeline. Board pads and PLL/reset synchronizers are external.
-module pcxt_system #(parameter bit MDA = 0, SCANLINES = 0) (
-    input wire clk, clk_rom, clk_pixel, clk_pin, cold_reset, reset_pixel, warm_reset, hold,
+module pcxt_system #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0, EXTERNAL_CS_REGISTER = 0) (
+    input wire clk, clk_cpu, clk_pixel, clk_pin, cold_reset, reset_pixel, warm_reset, hold,
     input wire firmware_valid,
     output wire firmware_ready, firmware_done,
     input wire [15:0] firmware_address,
@@ -56,8 +56,9 @@ module pcxt_system #(parameter bit MDA = 0, SCANLINES = 0) (
         end
     end
     /* verilator lint_off PINCONNECTEMPTY */
-    pcxt_machine #(.DIAGNOSTIC_PROBE(1)) machine (
-        .clk(clk), .clk_rom(clk_rom), .reset(machine_reset), .memory_valid(memory_valid),
+    pcxt_machine #(.DIAGNOSTIC_PROBE(1), .SEPARATE_CPU_CLOCK(HALF_RATE_BOARD),
+                   .BOARD_CLOCK_HZ(HALF_RATE_BOARD ? 50000000 : 100000000)) machine (
+        .clk(clk), .clk_cpu(clk_cpu), .reset(machine_reset), .memory_valid(memory_valid),
         .memory_ready(memory_ready), .memory_done(memory_done), .memory_rdata(memory_rdata),
         .address(address), .wdata(wdata), .write_cycle(write_cycle), .fault(fault),
         .guest_ce(), .halted(halted), .accepted(), .completed(), .cycle_kind(), .cycle_rdata(),
@@ -68,7 +69,7 @@ module pcxt_system #(parameter bit MDA = 0, SCANLINES = 0) (
         .dma_owner(dma_owner), .refresh_done(refresh_done), .audio_valid(audio_valid), .audio_sample(audio_sample)
     );
     /* verilator lint_on PINCONNECTEMPTY */
-    pcxt_memory storage (
+    pcxt_memory #(.HALF_RATE_CONTROLLER(HALF_RATE_BOARD), .EXTERNAL_CS_REGISTER(EXTERNAL_CS_REGISTER)) storage (
         .clk(clk), .clk_pin(clk_pin), .cold_reset(cold_reset), .reset(machine_reset),
         .initialized(initialized), .memory_valid(memory_valid), .memory_ready(memory_ready),
         .address(address), .wdata(wdata), .write_cycle(write_cycle), .memory_done(memory_done), .memory_rdata(memory_rdata),

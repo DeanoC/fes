@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 `include "fes_pcxt_isa.vh"
 // Shared implementation behind separately instantiated CGA/MDA ISA cards.
-// 100 MHz fabric. The font is a separate combinational ROM supplied by the shell;
+// Parameterized board fabric. The font is a separate combinational ROM supplied by the shell;
 // address = character*16 + row, MSB is the leftmost dot. No IBM ROM is bundled.
 module pcxt_display_card #(
-    parameter bit MDA = 0
+    parameter bit MDA = 0,
+    parameter integer CLOCK_HZ = 100000000
 ) (
     input wire clk, reset,
     input wire [47:0] request,
@@ -43,11 +44,19 @@ module pcxt_display_card #(
     reg [15:0] cpu_word, video_word;
     wire [WORD_BITS-1:0] cpu_address = address[WORD_BITS:1];
     wire [12:0] display_address = !MDA && mode[1] ? {ra[0], ma[11:0]} : ma[12:0];
+    // Prepare byte-write eligibility while the endpoint decodes/prepares the
+    // held request. Commit cannot occur until that preparation has completed.
+    reg mem_write_eligible, mem_write_high;
+    always @(posedge clk) begin : prepare_vram_write
+        mem_write_eligible <= active && kind == 0 &&
+            address[19:15] == (MDA ? 5'b10110 : 5'b10111) && writing;
+        mem_write_high <= address[0];
+    end
     always @(posedge clk) begin
         cpu_word <= vram[cpu_address];
         video_word <= vram[display_address[WORD_BITS-1:0]];
-        if (!clear && commit && mem_select && writing) begin
-            if (address[0]) vram[cpu_address][15:8] <= wdata;
+        if (commit && mem_write_eligible) begin
+            if (mem_write_high) vram[cpu_address][15:8] <= wdata;
             else vram[cpu_address][7:0] <= wdata;
         end
     end
@@ -63,7 +72,7 @@ module pcxt_display_card #(
         io_data = 8'hff;
         if (!port[3] && port[0]) io_data = crtc_data;
         else if (port == 10) begin
-            if (MDA) io_data = {4'hf, (rgbi != 0), 2'b00, crtc_hs};
+            if (MDA) io_data = {4'hf, status_video, 2'b00, crtc_hs};
             else io_data = {4'b0, crtc_vs, !light_pen_switch, pen_latched, !crtc_de};
         end
     end
@@ -82,10 +91,18 @@ module pcxt_display_card #(
     // Fractional master-dot enables: CGA 14.318180 MHz, MDA 16.257 MHz.
     reg [26:0] phase;
     localparam integer DOT_RATE = MDA ? 16257000 : 14318180;
-    localparam integer DOT_WRAP = 100000000 - DOT_RATE;
-    // Decode the wrap from the current phase, in parallel with both sums.
-    // This keeps a full-width add out of the CRTC clock-enable path.
-    wire dot_ce = phase >= 27'(DOT_WRAP);
+    localparam integer DOT_WRAP = CLOCK_HZ - DOT_RATE;
+    initial begin
+        if (CLOCK_HZ < 2*DOT_RATE || CLOCK_HZ > 134217728)
+            $fatal(1, "Unsupported board clock for the dot-enable accumulator");
+    end
+    reg dot_ce;
+    // Predict the wrap flag for the next phase, keeping the comparison out
+    // of downstream CRTC enables without shifting a single master-dot pulse.
+    always @(posedge clk) begin : predict_dot_enable
+        if (clear) dot_ce <= 0;
+        else dot_ce <= !dot_ce && phase >= 27'(DOT_WRAP - DOT_RATE);
+    end
     reg [3:0] dot;
     wire [3:0] last_dot = MDA ? 4'd8 : mode[0] ? 4'd7 : 4'd15;
     wire char_ce = dot_ce && dot == last_dot;
@@ -100,57 +117,103 @@ module pcxt_display_card #(
     reg first_pixel;
     reg [4:0] blink_frames;
     assign font_address = {video_word[7:0], MDA ? ra[3:0] : {1'b0, ra[2:0]}};
-    wire [3:0] glyph_dot = MDA || mode[0] ? dot : {1'b0, dot[3:1]};
-    wire glyph = glyph_dot < 8 ? font_data[3'd7-glyph_dot[2:0]] :
-                 MDA && video_word[7:5] == 3'b110 && font_data[0];
-    wire [7:0] attribute = video_word[15:8];
-    wire blink_hidden = mode[5] && attribute[7] && blink_frames[4];
-    wire [15:0] graphics_word = {video_word[7:0], video_word[15:8]};
-    wire [1:0] pair_colour = 2'(graphics_word >> (4'd14-{dot[3:1],1'b0}));
+    // One physical-cycle renderer pipeline. Capture all rendering inputs on
+    // every clock so dot enable does not become another high-fanout enable.
+    // The valid bit and raster markers travel with the same pixel snapshot.
+    reg [46:0] render_inputs;
+    reg [4:0] render_markers;
+    reg render_valid;
+    wire [15:0] render_word;
+    wire [7:0] render_font;
+    wire [3:0] render_dot;
+    wire [4:0] render_ra;
+    wire [5:0] render_mode, render_colour;
+    wire render_cursor, render_blink;
+    wire render_de, render_hs, render_vs, render_sof, render_eol;
+    assign {render_word, render_font, render_dot, render_ra, render_mode,
+            render_colour, render_cursor, render_blink} = render_inputs;
+    assign {render_de, render_hs, render_vs, render_sof, render_eol} = render_markers;
+    always @(posedge clk) begin : display_input_stage
+        render_inputs <= {video_word, font_data, dot, ra, mode, colour, cursor, blink_frames[4]};
+        render_markers <= {crtc_de, crtc_hs, crtc_vs, first_pixel, dot == last_dot && line_end};
+        render_valid <= !clear && dot_ce;
+    end
+
+    // Preserve the original MDA status-read cycle despite the stream latency.
+    // Only the nonzero predicate is needed; cursor overrides attributes.
+    wire status_glyph = dot < 8 ? font_data[3'd7-dot[2:0]] :
+                        video_word[7:5] == 3'b110 && font_data[0];
+    wire status_ink = (status_glyph || (video_word[10:8] == 1 &&
+                      video_word[14:12] == 0 && ra == 13)) &&
+                      !(mode[5] && video_word[15] && blink_frames[4]);
+    wire status_nonzero = mode[3] && crtc_de && (cursor ||
+        ((video_word[14:12] == 7 && video_word[10:8] == 0) ? !status_ink :
+         ((video_word[14:12] != 0 || video_word[10:8] != 0) && status_ink)));
+    reg status_video;
+    always @(posedge clk) begin : mda_status_stage
+        if (clear) status_video <= 0;
+        else if (dot_ce) status_video <= status_nonzero;
+    end
+
+    wire [3:0] glyph_dot = MDA || render_mode[0] ? render_dot : {1'b0, render_dot[3:1]};
+    wire glyph = glyph_dot < 8 ? render_font[3'd7-glyph_dot[2:0]] :
+                 MDA && render_word[7:5] == 3'b110 && render_font[0];
+    wire [7:0] attribute = render_word[15:8];
+    wire blink_hidden = render_mode[5] && attribute[7] && render_blink;
+    wire [15:0] graphics_word = {render_word[7:0], render_word[15:8]};
+    wire [1:0] pair_colour = 2'(graphics_word >> (4'd14-{render_dot[3:1],1'b0}));
     reg [3:0] pixel;
     reg ink;
     always @* begin
-        pixel = !MDA && !mode[0] && !mode[4] ? colour[3:0] : 4'b0;
+        pixel = !MDA && !render_mode[0] && !render_mode[4] ? render_colour[3:0] : 4'b0;
         ink = 0;
-        if (crtc_de) begin
-            if (!MDA && mode[1]) begin
-                if (mode[4]) pixel = graphics_word[4'd15-dot] ? colour[3:0] : 4'b0;
-                else if (pair_colour == 0) pixel = colour[3:0];
-                else if (mode[2]) begin
+        if (render_de) begin
+            if (!MDA && render_mode[1]) begin
+                if (render_mode[4]) pixel = graphics_word[4'd15-render_dot] ? render_colour[3:0] : 4'b0;
+                else if (pair_colour == 0) pixel = render_colour[3:0];
+                else if (render_mode[2]) begin
                     case (pair_colour)
-                        1: pixel = {colour[4],3'd3};
-                        2: pixel = {colour[4],3'd4};
-                        default: pixel = {colour[4],3'd7};
+                        1: pixel = {render_colour[4],3'd3};
+                        2: pixel = {render_colour[4],3'd4};
+                        default: pixel = {render_colour[4],3'd7};
                     endcase
-                end else pixel = {colour[4], pair_colour[1], pair_colour[0], colour[5]};
+                end else pixel = {render_colour[4], pair_colour[1], pair_colour[0], render_colour[5]};
             end else if (MDA) begin
-                ink = (glyph || (attribute[2:0] == 1 && attribute[6:4] == 0 && ra == 13)) && !blink_hidden;
+                ink = (glyph || (attribute[2:0] == 1 && attribute[6:4] == 0 && render_ra == 13)) && !blink_hidden;
                 // 00/08/80/88 invisible; 70/78/F0/F8 reverse, remaining attributes normal.
                 if (attribute[6:4] == 7 && attribute[2:0] == 0)
                     pixel = ink ? 4'b0 : 4'd7;
                 else if (attribute[6:4] == 0 && attribute[2:0] == 0) pixel = 0;
                 else pixel = ink ? (attribute[3] ? 4'd15 : 4'd7) : 4'b0;
-                if (cursor) pixel = attribute[3] ? 4'd15 : 4'd7;
+                if (render_cursor) pixel = attribute[3] ? 4'd15 : 4'd7;
             end else begin
-                pixel = (glyph && !blink_hidden) || cursor ? attribute[3:0] :
-                         {attribute[7] && !mode[5], attribute[6:4]};
+                pixel = (glyph && !blink_hidden) || render_cursor ? attribute[3:0] :
+                         {attribute[7] && !render_mode[5], attribute[6:4]};
             end
         end
-        if (!mode[3]) pixel = 0;
+        if (!render_mode[3]) pixel = 0;
+    end
+    always @(posedge clk) begin : display_output_stage
+        if (clear) begin
+            pixel_ce <= 0; de <= 0; hs <= 0; vs <= 0;
+            sof <= 0; eol <= 0; rgbi <= 0;
+        end else begin
+            pixel_ce <= render_valid;
+            sof <= 0; eol <= 0;
+            if (render_valid) begin
+                rgbi <= pixel; de <= render_de; hs <= render_hs; vs <= render_vs;
+                sof <= render_sof; eol <= render_eol;
+            end
+        end
     end
     always @(posedge clk) begin
         if (clear) begin
-            phase <= 0; dot <= 0; pixel_ce <= 0; de <= 0; hs <= 0; vs <= 0;
-            sof <= 0; eol <= 0; rgbi <= 0; first_pixel <= 1; blink_frames <= 0;
+            phase <= 0; dot <= 0; first_pixel <= 1; blink_frames <= 0;
         end else begin
             phase <= dot_ce ? phase - 27'(DOT_WRAP) : phase + 27'(DOT_RATE);
-            pixel_ce <= dot_ce;
-            sof <= 0; eol <= 0;
             if (dot_ce) begin
                 dot <= dot >= last_dot ? 4'b0 : dot + 1'b1;
-                rgbi <= pixel; de <= crtc_de; hs <= crtc_hs; vs <= crtc_vs;
-                sof <= first_pixel; first_pixel <= 0;
-                eol <= dot == last_dot && line_end;
+                first_pixel <= 0;
                 if (char_ce && frame_end) begin
                     first_pixel <= 1; blink_frames <= blink_frames + 1'b1;
                 end

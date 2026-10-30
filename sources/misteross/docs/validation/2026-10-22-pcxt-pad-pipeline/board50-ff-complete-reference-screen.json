@@ -1,0 +1,707 @@
+{
+  "schema": 1,
+  "scope": "Record complete FF reference, native structural cuts and bounded sensitivities.",
+  "base_fes_commit": "9aec31017041763b6f2e5cca296fb555838c14cf",
+  "nextpnr_reference_base": "03f39e460c2a7d323372f0bc4681d7cfd62371be",
+  "nextpnr_reference_commit": "a718d09f06610d2fa14a43aaeb4d4f207317666e",
+  "nextpnr_reference_branch": "test/ff-core-reference",
+  "nextpnr_reference_PR": "https://github.com/DeanoC/nextpnr/pull/305",
+  "mistral_corner_commit": "d8b07450982fa53e1efaae76e4706fe51e1a2be1",
+  "native_ff_constants": {
+    "setup_ps": -196,
+    "hold_ps": 270,
+    "clock_to_q_min_ps": 731,
+    "clock_to_q_max_ps": 731
+  },
+  "clocks_MHz": {
+    "cpu": 100,
+    "board": 50,
+    "pixel": 74.25
+  },
+  "host_tests": {
+    "CTest_tests": 1,
+    "python_regressions": 10,
+    "passed": true
+  },
+  "reference": {
+    "device": "5CSEBA6U23I7",
+    "quartus_version": "Quartus Prime Shell\nVersion 17.0.2 Build 602 07/19/2017 SJ Lite Edition\nCopyright (C) 2017  Intel Corporation. All rights reserved.\n",
+    "cases": {
+      "lab-base-slots": {
+        "observations": 2560,
+        "configuration_FFs": 80,
+        "source_sha256": {
+          "top.sv": "8eacf54f7dd7cee55072a963852dc89c66fe20975e4c050bd06f88d22af8d012",
+          "top.qsf": "f2e22dc905660400b915c7ddfa1dcc6b2c3bab0ee720a495e4a2461fbeba5440",
+          "top.qpf": "7a131c9521f2b7da8012faedb841cfe89996b4569c20130b402c5f0133da4a56",
+          "clocks.sdc": "f28bb8decbaf4d903b79fe90df4090e38301e7b74d54e2d9b25305186735c63c"
+        },
+        "fresh_rbf_sha256": "bb21ab7b18e4f5107c56e961041a174c73dcc2b6063ac4fcd2be247cea34fb88",
+        "retained_rbf_identical": true,
+        "largest_local_value_change_ns": 0.0,
+        "fresh_input_binding_sha256": "9b175b1be46ef7d864b4b003e8ec7cd76539106cc910ff81365388fa40ea9dde"
+      },
+      "lab-base-slots-ce": {
+        "observations": 3840,
+        "configuration_FFs": 120,
+        "source_sha256": {
+          "top.sv": "8e974dc98efe1b792f1479c3b15a5673c5cb72a23298f098c0dcc8fabfcb9ce4",
+          "top.qsf": "2dc65b5a26b8bd912d4c073bbe435f2d6dd3460ee401b01991993c359f8227bf",
+          "top.qpf": "7a131c9521f2b7da8012faedb841cfe89996b4569c20130b402c5f0133da4a56",
+          "clocks.sdc": "f28bb8decbaf4d903b79fe90df4090e38301e7b74d54e2d9b25305186735c63c"
+        },
+        "fresh_rbf_sha256": "c7616a2d3642ae4d566edab49ab417d47e918d90a848906343383a7f9adc3354",
+        "retained_rbf_identical": true,
+        "largest_local_value_change_ns": 0.0,
+        "fresh_input_binding_sha256": "0ab9b8fbc078e275e3328db7ffd378800bee3a62818decda84094e66f9ee39e7"
+      },
+      "lab-negative": {
+        "observations": 8640,
+        "configuration_FFs": 120,
+        "source_sha256": {
+          "top.sv": "1693da5f94c3077aa53cce4724bd9b151d9b0f6a1abd9376041022f781d1798f",
+          "top.qsf": "1aafa8aaa3e13e1f65937f6ec4cc86cd69e80bf2442856a7566a8fd410839d0e",
+          "top.qpf": "7a131c9521f2b7da8012faedb841cfe89996b4569c20130b402c5f0133da4a56",
+          "clocks.sdc": "f28bb8decbaf4d903b79fe90df4090e38301e7b74d54e2d9b25305186735c63c"
+        },
+        "fresh_rbf_sha256": "308f8eab0eb9a4838442ad345b6600b11fca736d16b7017e30cd94d7f13817be",
+        "retained_rbf_identical": true,
+        "largest_local_value_change_ns": 0.0,
+        "fresh_input_binding_sha256": "2e24b0b12aff072f3cc118054c995d3d7953863706b6976db1ae1bc9c07050c8"
+      },
+      "lab-negative-plain": {
+        "observations": 5760,
+        "configuration_FFs": 120,
+        "source_sha256": {
+          "top.sv": "355bc48cf196f310956145d8205d4c3d28db4459ff5cf9e073ef6bc60d3f7c1e",
+          "top.qsf": "1aafa8aaa3e13e1f65937f6ec4cc86cd69e80bf2442856a7566a8fd410839d0e",
+          "top.qpf": "7a131c9521f2b7da8012faedb841cfe89996b4569c20130b402c5f0133da4a56",
+          "clocks.sdc": "f28bb8decbaf4d903b79fe90df4090e38301e7b74d54e2d9b25305186735c63c"
+        },
+        "fresh_rbf_sha256": "15528968f76376dc7de1fa316ad4ba26b7251cc45974b594cff183b877a80086",
+        "retained_rbf_identical": true,
+        "largest_local_value_change_ns": 0.0,
+        "fresh_input_binding_sha256": "ffe3132a45b5bc81e756487eb22a4a367d7d598e45ad82c465a08a6b6c82bef0"
+      },
+      "lab-negative-sclr": {
+        "observations": 7680,
+        "configuration_FFs": 120,
+        "source_sha256": {
+          "top.sv": "6c9af815f0195a0322997548e6c7662c616a9383f4b7bd80f6f4c482103f6d93",
+          "top.qsf": "1aafa8aaa3e13e1f65937f6ec4cc86cd69e80bf2442856a7566a8fd410839d0e",
+          "top.qpf": "7a131c9521f2b7da8012faedb841cfe89996b4569c20130b402c5f0133da4a56",
+          "clocks.sdc": "f28bb8decbaf4d903b79fe90df4090e38301e7b74d54e2d9b25305186735c63c"
+        },
+        "fresh_rbf_sha256": "1ac8437e26ba4391503bd583ad95f4ca7cad538e906b5363937915f8aab36ff0",
+        "retained_rbf_identical": true,
+        "largest_local_value_change_ns": 0.0,
+        "fresh_input_binding_sha256": "4177b2c583299a54b8047d3060c9213db16ab48f4732a380dff7f73873d7f012"
+      },
+      "lab-positive": {
+        "observations": 8640,
+        "configuration_FFs": 120,
+        "source_sha256": {
+          "top.sv": "4fe9b9c165794df543e8c2aca00ca41cd50b456698762471d0f33ab161f79eda",
+          "top.qsf": "1aafa8aaa3e13e1f65937f6ec4cc86cd69e80bf2442856a7566a8fd410839d0e",
+          "top.qpf": "7a131c9521f2b7da8012faedb841cfe89996b4569c20130b402c5f0133da4a56",
+          "clocks.sdc": "f28bb8decbaf4d903b79fe90df4090e38301e7b74d54e2d9b25305186735c63c"
+        },
+        "fresh_rbf_sha256": "cb759d411b6decd8621a0fd71a01fe4cff8da4b3a51fe833f4e46a187ed12f8a",
+        "retained_rbf_identical": true,
+        "largest_local_value_change_ns": 0.0,
+        "fresh_input_binding_sha256": "ca205d840985a661019791b6992becb047645e1b155c49d2f2eb1571a0e1c0e0"
+      },
+      "lab-positive-plain": {
+        "observations": 5760,
+        "configuration_FFs": 120,
+        "source_sha256": {
+          "top.sv": "345ca2e12e75e16807193028a8150798a44755c12786db5e5c162a2fa9d82ae2",
+          "top.qsf": "1aafa8aaa3e13e1f65937f6ec4cc86cd69e80bf2442856a7566a8fd410839d0e",
+          "top.qpf": "7a131c9521f2b7da8012faedb841cfe89996b4569c20130b402c5f0133da4a56",
+          "clocks.sdc": "f28bb8decbaf4d903b79fe90df4090e38301e7b74d54e2d9b25305186735c63c"
+        },
+        "fresh_rbf_sha256": "bacf4a97861a1b390605077d7954d37718d95b037a2757c86ef6b3df9117a95a",
+        "retained_rbf_identical": true,
+        "largest_local_value_change_ns": 0.0,
+        "fresh_input_binding_sha256": "22cd1278bd9f0165e6fc49ca7d5583fcef764edc720a93e9fbef1ca70a00a2f1"
+      },
+      "lab-positive-sclr": {
+        "observations": 7680,
+        "configuration_FFs": 120,
+        "source_sha256": {
+          "top.sv": "ab1826bc3192ab6f63c122b84c3c2156cf7e6520da7596f938bf5909b979dc09",
+          "top.qsf": "1aafa8aaa3e13e1f65937f6ec4cc86cd69e80bf2442856a7566a8fd410839d0e",
+          "top.qpf": "7a131c9521f2b7da8012faedb841cfe89996b4569c20130b402c5f0133da4a56",
+          "clocks.sdc": "f28bb8decbaf4d903b79fe90df4090e38301e7b74d54e2d9b25305186735c63c"
+        },
+        "fresh_rbf_sha256": "928c51af3ec50b6bd6d3747ec8fcb36d23716b36067bb3be1d0a101bc77e15f0",
+        "retained_rbf_identical": true,
+        "largest_local_value_change_ns": 0.0,
+        "fresh_input_binding_sha256": "3561297b3cfe36f0206639aa8270c50e0628f89446ab6d34646130fff975a6d0"
+      },
+      "mlab-base-slots": {
+        "observations": 2560,
+        "configuration_FFs": 80,
+        "source_sha256": {
+          "top.sv": "8eacf54f7dd7cee55072a963852dc89c66fe20975e4c050bd06f88d22af8d012",
+          "top.qsf": "d92080e45b6504eeaa2fabff089f289cff346384d1190f4a32847071d171067d",
+          "top.qpf": "7a131c9521f2b7da8012faedb841cfe89996b4569c20130b402c5f0133da4a56",
+          "clocks.sdc": "f28bb8decbaf4d903b79fe90df4090e38301e7b74d54e2d9b25305186735c63c"
+        },
+        "fresh_rbf_sha256": "8e648c7b7dc9a3d0d91994f071b2b79f9945180489229b56f74ed68e1a04c6fb",
+        "retained_rbf_identical": true,
+        "largest_local_value_change_ns": 0.0,
+        "fresh_input_binding_sha256": "7b5f965e0bc3bf332bf409363b7e31aaab84dd5d22d27b48cf2e0c1c4d8cfcd3"
+      },
+      "mlab-base-slots-ce": {
+        "observations": 3840,
+        "configuration_FFs": 120,
+        "source_sha256": {
+          "top.sv": "8e974dc98efe1b792f1479c3b15a5673c5cb72a23298f098c0dcc8fabfcb9ce4",
+          "top.qsf": "2cd5f4046922af634167cf32c4b07649dc050fa4ccf4bb4134b549e38a96a7e4",
+          "top.qpf": "7a131c9521f2b7da8012faedb841cfe89996b4569c20130b402c5f0133da4a56",
+          "clocks.sdc": "f28bb8decbaf4d903b79fe90df4090e38301e7b74d54e2d9b25305186735c63c"
+        },
+        "fresh_rbf_sha256": "ee6e1aafacb222cb2deed99a522665bd2cd76989930fe395ff2ae9323f2fe832",
+        "retained_rbf_identical": true,
+        "largest_local_value_change_ns": 0.0,
+        "fresh_input_binding_sha256": "84b135f4a0213f156f98d5aa31c085cd128e1d74871311ada6b24903e947bbd3"
+      },
+      "mlab-negative": {
+        "observations": 8640,
+        "configuration_FFs": 120,
+        "source_sha256": {
+          "top.sv": "1693da5f94c3077aa53cce4724bd9b151d9b0f6a1abd9376041022f781d1798f",
+          "top.qsf": "b721c30f6ae95c2fdcde911b69a56cc7f2f42b855f80b442fb80f70b4e0d6e91",
+          "top.qpf": "7a131c9521f2b7da8012faedb841cfe89996b4569c20130b402c5f0133da4a56",
+          "clocks.sdc": "f28bb8decbaf4d903b79fe90df4090e38301e7b74d54e2d9b25305186735c63c"
+        },
+        "fresh_rbf_sha256": "4f60b991ebce3f5ec4dc866953da8b75df3a2e5f0aedd96fcea5d623daa94433",
+        "retained_rbf_identical": true,
+        "largest_local_value_change_ns": 0.0,
+        "fresh_input_binding_sha256": "f3f09738911bd762a160b7609521c43cdfbe87dd35a9acda485fe630e335637f"
+      },
+      "mlab-negative-plain": {
+        "observations": 5760,
+        "configuration_FFs": 120,
+        "source_sha256": {
+          "top.sv": "355bc48cf196f310956145d8205d4c3d28db4459ff5cf9e073ef6bc60d3f7c1e",
+          "top.qsf": "b721c30f6ae95c2fdcde911b69a56cc7f2f42b855f80b442fb80f70b4e0d6e91",
+          "top.qpf": "7a131c9521f2b7da8012faedb841cfe89996b4569c20130b402c5f0133da4a56",
+          "clocks.sdc": "f28bb8decbaf4d903b79fe90df4090e38301e7b74d54e2d9b25305186735c63c"
+        },
+        "fresh_rbf_sha256": "42424aeb7efc77162b82fdfbf34266d283e8dbb373554c80002eeff55e50758a",
+        "retained_rbf_identical": true,
+        "largest_local_value_change_ns": 0.0,
+        "fresh_input_binding_sha256": "3b4bc29b4871cb298015db5d1aa8f7e13b7e4d3aadf5f6fb980cbde47ef6c121"
+      },
+      "mlab-negative-sclr": {
+        "observations": 7680,
+        "configuration_FFs": 120,
+        "source_sha256": {
+          "top.sv": "6c9af815f0195a0322997548e6c7662c616a9383f4b7bd80f6f4c482103f6d93",
+          "top.qsf": "b721c30f6ae95c2fdcde911b69a56cc7f2f42b855f80b442fb80f70b4e0d6e91",
+          "top.qpf": "7a131c9521f2b7da8012faedb841cfe89996b4569c20130b402c5f0133da4a56",
+          "clocks.sdc": "f28bb8decbaf4d903b79fe90df4090e38301e7b74d54e2d9b25305186735c63c"
+        },
+        "fresh_rbf_sha256": "899970a21a89fa87f94f2800f669e68cea90465976dbb98e35b2ef45f55b57c1",
+        "retained_rbf_identical": true,
+        "largest_local_value_change_ns": 0.0,
+        "fresh_input_binding_sha256": "4c892d3559f11c49e25e2e3a2c24b01a04c19047dbfe92ac7b6eb86dacde4cb3"
+      },
+      "mlab-positive": {
+        "observations": 8640,
+        "configuration_FFs": 120,
+        "source_sha256": {
+          "top.sv": "4fe9b9c165794df543e8c2aca00ca41cd50b456698762471d0f33ab161f79eda",
+          "top.qsf": "b721c30f6ae95c2fdcde911b69a56cc7f2f42b855f80b442fb80f70b4e0d6e91",
+          "top.qpf": "7a131c9521f2b7da8012faedb841cfe89996b4569c20130b402c5f0133da4a56",
+          "clocks.sdc": "f28bb8decbaf4d903b79fe90df4090e38301e7b74d54e2d9b25305186735c63c"
+        },
+        "fresh_rbf_sha256": "985fb3582bee886cddded9e6b4c1861d17e29eb03359c671a9e1b8ef8bfe8efe",
+        "retained_rbf_identical": true,
+        "largest_local_value_change_ns": 0.0,
+        "fresh_input_binding_sha256": "ada1e48d0eff19e210af1ceef5dd4a5564cfe7bb1d66aa812f4e1fe9d2d5ab43"
+      },
+      "mlab-positive-plain": {
+        "observations": 5760,
+        "configuration_FFs": 120,
+        "source_sha256": {
+          "top.sv": "345ca2e12e75e16807193028a8150798a44755c12786db5e5c162a2fa9d82ae2",
+          "top.qsf": "b721c30f6ae95c2fdcde911b69a56cc7f2f42b855f80b442fb80f70b4e0d6e91",
+          "top.qpf": "7a131c9521f2b7da8012faedb841cfe89996b4569c20130b402c5f0133da4a56",
+          "clocks.sdc": "f28bb8decbaf4d903b79fe90df4090e38301e7b74d54e2d9b25305186735c63c"
+        },
+        "fresh_rbf_sha256": "351bd1af0ccf8f06b908cdc1522ce3fd5da4e3d63ac5603ba1de8b4fe4bc8f35",
+        "retained_rbf_identical": true,
+        "largest_local_value_change_ns": 0.0,
+        "fresh_input_binding_sha256": "a2a66eb3b44dd9aaf4337f351c906b01ac5e9a9c81a09d9750ab822c31f175f8"
+      },
+      "mlab-positive-sclr": {
+        "observations": 7680,
+        "configuration_FFs": 120,
+        "source_sha256": {
+          "top.sv": "ab1826bc3192ab6f63c122b84c3c2156cf7e6520da7596f938bf5909b979dc09",
+          "top.qsf": "b721c30f6ae95c2fdcde911b69a56cc7f2f42b855f80b442fb80f70b4e0d6e91",
+          "top.qpf": "7a131c9521f2b7da8012faedb841cfe89996b4569c20130b402c5f0133da4a56",
+          "clocks.sdc": "f28bb8decbaf4d903b79fe90df4090e38301e7b74d54e2d9b25305186735c63c"
+        },
+        "fresh_rbf_sha256": "823a3bb4a87cc8bf8cec98b0155ac7d495fc03be5e998831a640ec94287fca0c",
+        "retained_rbf_identical": true,
+        "largest_local_value_change_ns": 0.0,
+        "fresh_input_binding_sha256": "8fe70e5c549a3f816ec51964ec92f9e184f0832c3c95f91bd3549013c1611aff"
+      }
+    },
+    "observations": 101120,
+    "fresh_source_bound_full_rebuild_pass": true,
+    "source_file_sha256": {
+      "out/pcxt-whole-board-closure-20261023/nextpnr-ff-core-reference/mistral/tests/ff-core/reference.py": "4acca13bc2eb1cbe8e891f69949be955f23bfb3201c70002f4790fe87cd4e6f4",
+      "out/pcxt-whole-board-closure-20261023/nextpnr-ff-core-reference/mistral/tests/ff-core/characterize.py": "19e067f23f8237da2ea520bf4daf1bcbd159b1da1c5e74465147ae471ba75401",
+      "out/pcxt-whole-board-closure-20261023/nextpnr-ff-core-reference/mistral/tests/ff-core/config.cc": "f2bdb69db9f2c9c507368d2e42c83fb6ce1deea32107f6b9b5bb40a7646fd230",
+      "out/pcxt-whole-board-closure-20261023/nextpnr-ff-core-reference/mistral/tests/ff-core/test_reference.py": "d07477d461a74c464acac212484818598f7ec04fb86bf78940e7c3082336cb80",
+      "out/pcxt-whole-board-closure-20261023/nextpnr-ff-core-reference/mistral/tests/ff-core/manifest.json": "bc27084693ab95163f82ed28b98e797582623524be04a9f0644bcc948898b85a",
+      "out/pcxt-whole-board-closure-20261023/nextpnr-ff-core-reference/mistral/tests/ff-core/reference-summary.json": "98d737cd7edb31556ccd8c2b696b631bdc86a142b5ee19979d7ca757689a68a1",
+      "out/pcxt-whole-board-closure-20261023/nextpnr-ff-core-reference/mistral/tests/ff-core/reference.json.gz": "a758688f8495048ec0e15f44857d677fa031550bef7a3384606d1c1797f264e9"
+    }
+  },
+  "native_structural_cuts": {
+    "1": {
+      "FFs": 4067,
+      "counts": {
+        "CLK": {
+          "total": 4067,
+          "physical": 4067
+        },
+        "DATAIN": {
+          "total": 4067,
+          "physical": 1222
+        },
+        "ENA": {
+          "total": 3088,
+          "physical": 3088
+        },
+        "SCLR": {
+          "total": 2579,
+          "physical": 2579
+        },
+        "ACLR": {
+          "total": 629,
+          "physical": 629
+        }
+      },
+      "capture_sha256": "f25c037a8b460014bd3e3311c4e2b20649a3fbfeaca6d272af38e064e1368bc4",
+      "physical_port_types": {
+        "CLKIN": 4067,
+        "DATAIN": 6296,
+        "F0": 414,
+        "E0": 225,
+        "F1": 399,
+        "E1": 184
+      },
+      "active_negative_clock_clear_FFs": 0
+    },
+    "2": {
+      "FFs": 4067,
+      "counts": {
+        "CLK": {
+          "total": 4067,
+          "physical": 4067
+        },
+        "DATAIN": {
+          "total": 4067,
+          "physical": 1066
+        },
+        "ENA": {
+          "total": 3088,
+          "physical": 3088
+        },
+        "SCLR": {
+          "total": 2579,
+          "physical": 2579
+        },
+        "ACLR": {
+          "total": 629,
+          "physical": 629
+        }
+      },
+      "capture_sha256": "fefeb998c2ea4365252d184e5b6f08371d1bbfaef5d9f79bf62c8ba444b69a22",
+      "physical_port_types": {
+        "CLKIN": 4067,
+        "DATAIN": 6296,
+        "F1": 366,
+        "F0": 403,
+        "E1": 130,
+        "E0": 167
+      },
+      "active_negative_clock_clear_FFs": 0
+    },
+    "3": {
+      "FFs": 4067,
+      "counts": {
+        "CLK": {
+          "total": 4067,
+          "physical": 4067
+        },
+        "DATAIN": {
+          "total": 4067,
+          "physical": 1079
+        },
+        "ENA": {
+          "total": 3088,
+          "physical": 3088
+        },
+        "SCLR": {
+          "total": 2579,
+          "physical": 2579
+        },
+        "ACLR": {
+          "total": 629,
+          "physical": 629
+        }
+      },
+      "capture_sha256": "8b7eee5d7fb25d68df8c21ce36888ab1186b26917f875238eb296fcaf67cf728",
+      "physical_port_types": {
+        "CLKIN": 4067,
+        "DATAIN": 6296,
+        "F1": 368,
+        "F0": 349,
+        "E0": 190,
+        "E1": 172
+      },
+      "active_negative_clock_clear_FFs": 0
+    }
+  },
+  "native_clock_alias": "Default assign_control_sets routes the common CLKA through virtual CLK0; the actual physical CLK/ENA index is read from RBF bits and is not inferred from that virtual name.",
+  "native_structural_cut_receipt_sha256": "3e664e014b113ebe6b32ce30f4f5e3ed54b5e37ef4409fcf4092107f711e2adc",
+  "diagnostic_replays": [
+    {
+      "seed": 1,
+      "corner": "min100",
+      "FF_pin_reference_sensitivity": true,
+      "returncode": 0,
+      "elapsed_seconds": 13.413040584004193,
+      "paired": 17709,
+      "unpaired": 9,
+      "setup_min_ns": 2.430000066757202,
+      "hold_min_ns": 0.08100000023841858,
+      "failing_setup": 0,
+      "failing_hold": 0,
+      "negative_hold": 0,
+      "postflight_identity_pass": true,
+      "rbf_identical": true,
+      "incomplete_analogue_simulations": 0,
+      "receipt": "out/pcxt-whole-board-closure-20261023/native-route-ff-complete-sensitivity-20261026/seed1-min100-pinFFref/receipt.json",
+      "receipt_sha256": "77ba73cca909414473d9a60b654255f84181493d6387b0926de8c04007119261",
+      "timing_json_sha256": "b18d62b0a2bd6400bd247154015998c2f2a0344e33cd4439b610b76c60c99ef8"
+    },
+    {
+      "seed": 1,
+      "corner": "minn40",
+      "FF_pin_reference_sensitivity": true,
+      "returncode": 1,
+      "elapsed_seconds": 14.734626864999882,
+      "paired": 17709,
+      "unpaired": 9,
+      "setup_min_ns": 2.8459999561309814,
+      "hold_min_ns": 0,
+      "failing_setup": 0,
+      "failing_hold": 1,
+      "negative_hold": 0,
+      "postflight_identity_pass": true,
+      "rbf_identical": true,
+      "incomplete_analogue_simulations": 0,
+      "receipt": "out/pcxt-whole-board-closure-20261023/native-route-ff-complete-sensitivity-20261026/seed1-minn40-pinFFref/receipt.json",
+      "receipt_sha256": "84a1b9819b960560dac1674eaa49466ce8ab8636490a1f95f729cadc07e11043",
+      "timing_json_sha256": "ba9cea579ba6251a34965a76a45287acf76945c150691a3744f6393abedf90d4"
+    },
+    {
+      "seed": 1,
+      "corner": "slow100",
+      "FF_pin_reference_sensitivity": false,
+      "returncode": 0,
+      "elapsed_seconds": 15.4886651659981,
+      "paired": 17709,
+      "unpaired": 9,
+      "setup_min_ns": 1.343000054359436,
+      "hold_min_ns": 0.7080000042915344,
+      "failing_setup": 0,
+      "failing_hold": 0,
+      "negative_hold": 0,
+      "postflight_identity_pass": true,
+      "rbf_identical": true,
+      "incomplete_analogue_simulations": 0,
+      "receipt": "out/pcxt-whole-board-closure-20261023/native-route-ff-complete-sensitivity-20261026/seed1-slow100/receipt.json",
+      "receipt_sha256": "0878cc42de0584a96e2f10a0df37676d4821280971ae5b7c9abf84e9359431ad",
+      "timing_json_sha256": "cdfd062a657df2bc3eab55636eff982e6ef301971ea7725e835ef21d795b5fc2"
+    },
+    {
+      "seed": 1,
+      "corner": "slow100",
+      "FF_pin_reference_sensitivity": true,
+      "returncode": 0,
+      "elapsed_seconds": 24.84715618500195,
+      "paired": 17709,
+      "unpaired": 9,
+      "setup_min_ns": 0.7179999947547913,
+      "hold_min_ns": 0.2549999952316284,
+      "failing_setup": 0,
+      "failing_hold": 0,
+      "negative_hold": 0,
+      "postflight_identity_pass": true,
+      "rbf_identical": true,
+      "incomplete_analogue_simulations": 0,
+      "receipt": "out/pcxt-whole-board-closure-20261023/native-route-ff-complete-sensitivity-20261026/seed1-slow100-pinFFref/receipt.json",
+      "receipt_sha256": "4a6c100a0f7d69a2b56e21306a7e54de0a66e27832a4b115ff5580a48aac5460",
+      "timing_json_sha256": "a129d8e48a794b7a13feb2d47494819895d50c2a312f2f6649baa9df156ef99d"
+    },
+    {
+      "seed": 1,
+      "corner": "slown40",
+      "FF_pin_reference_sensitivity": true,
+      "returncode": 0,
+      "elapsed_seconds": 14.593025466994732,
+      "paired": 17709,
+      "unpaired": 9,
+      "setup_min_ns": 1.1039999723434448,
+      "hold_min_ns": 0.2669999897480011,
+      "failing_setup": 0,
+      "failing_hold": 0,
+      "negative_hold": 0,
+      "postflight_identity_pass": true,
+      "rbf_identical": true,
+      "incomplete_analogue_simulations": 0,
+      "receipt": "out/pcxt-whole-board-closure-20261023/native-route-ff-complete-sensitivity-20261026/seed1-slown40-pinFFref/receipt.json",
+      "receipt_sha256": "a7aab6a0146af05dd90c4455fd5d978d8acd2cb493e58ccbb55c813f574706d5",
+      "timing_json_sha256": "2dcb67acd3b889bbf0f41c0fba31e796d33c014fe683bb11da06c5b39b6e8982"
+    },
+    {
+      "seed": 2,
+      "corner": "min100",
+      "FF_pin_reference_sensitivity": true,
+      "returncode": 0,
+      "elapsed_seconds": 11.264126408001175,
+      "paired": 17709,
+      "unpaired": 9,
+      "setup_min_ns": 3.069000005722046,
+      "hold_min_ns": 0.210999995470047,
+      "failing_setup": 0,
+      "failing_hold": 0,
+      "negative_hold": 0,
+      "postflight_identity_pass": true,
+      "rbf_identical": true,
+      "incomplete_analogue_simulations": 0,
+      "receipt": "out/pcxt-whole-board-closure-20261023/native-route-ff-complete-sensitivity-20261026/seed2-min100-pinFFref/receipt.json",
+      "receipt_sha256": "7f15538e2e1499c6220631fb527bc2a580a98e56693d6b4261618e023fa1fd4d",
+      "timing_json_sha256": "34f5ecdd00382422f939738e613bd9d02fe120328fb00dd0159c09dfd0e85bdf"
+    },
+    {
+      "seed": 2,
+      "corner": "minn40",
+      "FF_pin_reference_sensitivity": true,
+      "returncode": 0,
+      "elapsed_seconds": 13.559695666001062,
+      "paired": 17709,
+      "unpaired": 9,
+      "setup_min_ns": 3.302999973297119,
+      "hold_min_ns": 0.18400000035762787,
+      "failing_setup": 0,
+      "failing_hold": 0,
+      "negative_hold": 0,
+      "postflight_identity_pass": true,
+      "rbf_identical": true,
+      "incomplete_analogue_simulations": 0,
+      "receipt": "out/pcxt-whole-board-closure-20261023/native-route-ff-complete-sensitivity-20261026/seed2-minn40-pinFFref/receipt.json",
+      "receipt_sha256": "ad0702d9d975a35d42c1dbe571f7ea05c3591611fa791fb4f15a3ab6b9f55e6d",
+      "timing_json_sha256": "699654221063191396a9973172a8ff61f6aa9a187a8fff0ca22abfca5228dff0"
+    },
+    {
+      "seed": 2,
+      "corner": "slow100",
+      "FF_pin_reference_sensitivity": false,
+      "returncode": 0,
+      "elapsed_seconds": 14.492674045999593,
+      "paired": 17709,
+      "unpaired": 9,
+      "setup_min_ns": 1.815999984741211,
+      "hold_min_ns": 0.7720000147819519,
+      "failing_setup": 0,
+      "failing_hold": 0,
+      "negative_hold": 0,
+      "postflight_identity_pass": true,
+      "rbf_identical": true,
+      "incomplete_analogue_simulations": 0,
+      "receipt": "out/pcxt-whole-board-closure-20261023/native-route-ff-complete-sensitivity-20261026/seed2-slow100/receipt.json",
+      "receipt_sha256": "e4601dadfb82347eaa78f6a2cf2a5c6da0e1dbd15c8e3892c3a1cc97ac95bae8",
+      "timing_json_sha256": "d33df669de471652589bb333b458a254c67ea47bd50fa6835cae536d66d483a9"
+    },
+    {
+      "seed": 2,
+      "corner": "slow100",
+      "FF_pin_reference_sensitivity": true,
+      "returncode": 0,
+      "elapsed_seconds": 13.966812542006664,
+      "paired": 17709,
+      "unpaired": 9,
+      "setup_min_ns": 1.5420000553131104,
+      "hold_min_ns": 0.3240000009536743,
+      "failing_setup": 0,
+      "failing_hold": 0,
+      "negative_hold": 0,
+      "postflight_identity_pass": true,
+      "rbf_identical": true,
+      "incomplete_analogue_simulations": 0,
+      "receipt": "out/pcxt-whole-board-closure-20261023/native-route-ff-complete-sensitivity-20261026/seed2-slow100-pinFFref/receipt.json",
+      "receipt_sha256": "54d68a48f437d257a351904e8fe76c66efc7c23aac1468e5d3a82310346272b8",
+      "timing_json_sha256": "49fb3939449d7c7500526a88c636882f44378cc45a8cd44548674f39640d5098"
+    },
+    {
+      "seed": 2,
+      "corner": "slown40",
+      "FF_pin_reference_sensitivity": true,
+      "returncode": 0,
+      "elapsed_seconds": 13.058794895994652,
+      "paired": 17709,
+      "unpaired": 9,
+      "setup_min_ns": 1.9160000085830688,
+      "hold_min_ns": 0.3050000071525574,
+      "failing_setup": 0,
+      "failing_hold": 0,
+      "negative_hold": 0,
+      "postflight_identity_pass": true,
+      "rbf_identical": true,
+      "incomplete_analogue_simulations": 0,
+      "receipt": "out/pcxt-whole-board-closure-20261023/native-route-ff-complete-sensitivity-20261026/seed2-slown40-pinFFref/receipt.json",
+      "receipt_sha256": "1d7ecddda4a0ba5a7a75e1a9e5ad6a532ee32e39eee83cccd4af744b8458493f",
+      "timing_json_sha256": "a8a8741198491baf7d229db8efc8f9e3d5508d33bff6904e7fe1a2fd8bc6e6b1"
+    },
+    {
+      "seed": 3,
+      "corner": "min100",
+      "FF_pin_reference_sensitivity": true,
+      "returncode": 0,
+      "elapsed_seconds": 10.511966218997259,
+      "paired": 17709,
+      "unpaired": 9,
+      "setup_min_ns": 2.6519999504089355,
+      "hold_min_ns": 0.1289999932050705,
+      "failing_setup": 0,
+      "failing_hold": 0,
+      "negative_hold": 0,
+      "postflight_identity_pass": true,
+      "rbf_identical": true,
+      "incomplete_analogue_simulations": 0,
+      "receipt": "out/pcxt-whole-board-closure-20261023/native-route-ff-complete-sensitivity-20261026/seed3-min100-pinFFref/receipt.json",
+      "receipt_sha256": "10e7f952f05c999f70415cc9526b24d391185e6ec61664147ffe2fdd6d74fc4d",
+      "timing_json_sha256": "c9121acac71c081999b95f0f8c054b63a60639e5e54521a29205c3df3ea82914"
+    },
+    {
+      "seed": 3,
+      "corner": "minn40",
+      "FF_pin_reference_sensitivity": true,
+      "returncode": 0,
+      "elapsed_seconds": 11.129784741999174,
+      "paired": 17709,
+      "unpaired": 9,
+      "setup_min_ns": 3.0320000648498535,
+      "hold_min_ns": 0.04800000041723251,
+      "failing_setup": 0,
+      "failing_hold": 0,
+      "negative_hold": 0,
+      "postflight_identity_pass": true,
+      "rbf_identical": true,
+      "incomplete_analogue_simulations": 0,
+      "receipt": "out/pcxt-whole-board-closure-20261023/native-route-ff-complete-sensitivity-20261026/seed3-minn40-pinFFref/receipt.json",
+      "receipt_sha256": "6cda395502e3af6418357a99a45ee7611156aebfba285b5e3f6add17e5f31a9b",
+      "timing_json_sha256": "87923729dab8fe8a7626b139127d1c22722886855cf2aa3227bec6c9ddaed62d"
+    },
+    {
+      "seed": 3,
+      "corner": "slow100",
+      "FF_pin_reference_sensitivity": false,
+      "returncode": 0,
+      "elapsed_seconds": 13.20516154699726,
+      "paired": 17709,
+      "unpaired": 9,
+      "setup_min_ns": 1.649999976158142,
+      "hold_min_ns": 0.7829999923706055,
+      "failing_setup": 0,
+      "failing_hold": 0,
+      "negative_hold": 0,
+      "postflight_identity_pass": true,
+      "rbf_identical": true,
+      "incomplete_analogue_simulations": 0,
+      "receipt": "out/pcxt-whole-board-closure-20261023/native-route-ff-complete-sensitivity-20261026/seed3-slow100/receipt.json",
+      "receipt_sha256": "26236b5d3b19de5f1096f3fdd9ebab54874ad725fd7fb6f7f21377f0077d9b61",
+      "timing_json_sha256": "b18f6f877d9a26b4c5a26fb1ee687d6bfec25ee8f3c507389b9e5a9ff27b42dd"
+    },
+    {
+      "seed": 3,
+      "corner": "slow100",
+      "FF_pin_reference_sensitivity": true,
+      "returncode": 0,
+      "elapsed_seconds": 11.292883734000497,
+      "paired": 17709,
+      "unpaired": 9,
+      "setup_min_ns": 1.024999976158142,
+      "hold_min_ns": 0.31200000643730164,
+      "failing_setup": 0,
+      "failing_hold": 0,
+      "negative_hold": 0,
+      "postflight_identity_pass": true,
+      "rbf_identical": true,
+      "incomplete_analogue_simulations": 0,
+      "receipt": "out/pcxt-whole-board-closure-20261023/native-route-ff-complete-sensitivity-20261026/seed3-slow100-pinFFref/receipt.json",
+      "receipt_sha256": "47c3c23eec5e3bba05d2b9280687b23743f3d221c21af5cd5485b9fc5318f949",
+      "timing_json_sha256": "4f5e95c84092d14a1fe62a9099abe6940eaa06c66a2802427d06838aad17b9f8"
+    },
+    {
+      "seed": 3,
+      "corner": "slown40",
+      "FF_pin_reference_sensitivity": true,
+      "returncode": 0,
+      "elapsed_seconds": 10.769725289996131,
+      "paired": 17709,
+      "unpaired": 9,
+      "setup_min_ns": 1.4329999685287476,
+      "hold_min_ns": 0.2980000078678131,
+      "failing_setup": 0,
+      "failing_hold": 0,
+      "negative_hold": 0,
+      "postflight_identity_pass": true,
+      "rbf_identical": true,
+      "incomplete_analogue_simulations": 0,
+      "receipt": "out/pcxt-whole-board-closure-20261023/native-route-ff-complete-sensitivity-20261026/seed3-slown40-pinFFref/receipt.json",
+      "receipt_sha256": "2304f8632ad7dea4c94eb2aca3a2950c5fd29209a1aa0d97ce1da55fcdb58e5d",
+      "timing_json_sha256": "e9af6f5fc51267677b474b116799bb64ce1472ed4a80359dc0f083ff69935bf5"
+    }
+  ],
+  "diagnostic_build_sha256": "1ddbfa0182ebde03e7d6ece83cf9f8ce441e69b5250e15d2bf86d835236ecead",
+  "sensitivity_limits": [
+    "FF pin-to-virtual timing equivalence remains unqualified.",
+    "Other primitive cell, PLL, pad, and HPS/OE source models remain incomplete.",
+    "The 170/270 ps positive-clear reference is retained; no negative-clock clear is active in these native designs.",
+    "A zero hold slack is rejected by the native timer and remains a failed case."
+  ],
+  "evidence_sha256": {
+    "out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/record-ff-complete-evidence.py": "9a3b07407b531e4c520fc7a91a8fbbb3e2ae52e1382e68605cde6cdba0e8acb8",
+    "out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/ff-core-reference-ctest-final.log": "6c3d4f12440d628050d8269c2bac42fd81bb2d21c9ca32ddbff21aa9a7f269bb",
+    "out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/ff-core-reference-fresh.log": "accd57764832adedd57b1c7bbe32d47178792342277f49a462c6d15210afce20",
+    "out/pcxt-whole-board-closure-20261023/ff-core-reference-fresh-20261026/reference.json.gz": "b642e6cbf5b0987968311e08fdd79945eaa1b0491560413d95cf70885727fef4",
+    "out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/ff-complete-sensitivity-build.log": "a303c35080c403a74edd52e5ad9a99b66131ba6f1dadbfd59c58fdc38b8d35dc",
+    "out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/ff-complete-sensitivity-run.log": "1da7650cf82b67c6dc3f549c5cf0ed1b0a8aa68a4bf5873db46ed3571d36c127",
+    "out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/build-ff-complete-sensitivity.py": "ce5f30b2acbd905f7c84e2385fd5f50915b5139acc645703c21b7edfd4ea2af9",
+    "out/pcxt-whole-board-closure-20261023/native-route-ff-complete-sensitivity-20261026/run.py": "f1ccb709a41169bbfce779146575b6b74625b6002ebfe2e6d6f868345b6db461",
+    "out/pcxt-whole-board-closure-20261023/native-route-ff-complete-sensitivity-20261026/build.json": "1ddbfa0182ebde03e7d6ece83cf9f8ce441e69b5250e15d2bf86d835236ecead",
+    "out/pcxt-whole-board-closure-20261023/native-route-ff-complete-sensitivity-20261026/table.json": "1ee580ca314b6b08f913aea8efdfc80d60f5778a0527220873bbabfe89f50d2a",
+    "out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/native-ff-boundary-cuts-checked-v3/receipt.json": "3e664e014b113ebe6b32ce30f4f5e3ed54b5e37ef4409fcf4092107f711e2adc",
+    "out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/native-ff-boundary-cuts-checked-v3.cc": "64a1f5cb23536a9780baf8af266bcb99ddecf4c44a8df5ed3ebe664f332fa41f",
+    "out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/build-native-ff-boundary-cuts-checked-v3.py": "e917daa38077eb792ce85625de5683246353c5baec138fba193835853d39669f"
+  },
+  "native_search_journal_entries": 133,
+  "toolchain_lock_changed": false,
+  "hardware": false,
+  "physical_qualified": false,
+  "native_fast_corner_qualified": false,
+  "whole_board_closed": false,
+  "runtime_or_shared_contract_changed": false
+}

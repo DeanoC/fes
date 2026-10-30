@@ -264,7 +264,7 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 		pairedLaunch := r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/launch"
 		pairedMedia := launcherLiveMutation(r.Method, r.URL.Path)
 		pairedStorage := storageOperation(r.Method, r.URL.Path) || r.Method == http.MethodPut && r.URL.Path == "/api/v1/library/firmware"
-		pairedImport := r.Method == http.MethodPost && (r.URL.Path == "/api/v1/core-media" || launcherTapeImportPath(r.URL.Path))
+		pairedImport := r.Method == http.MethodPost && (r.URL.Path == "/api/v1/core-media" || r.URL.Path == "/api/v1/core-expansions" || r.URL.Path == "/api/v1/library/atari-st-disks" || launcherTapeImportPath(r.URL.Path))
 		if !pairedRead && !pairedStop && !pairedLaunch && !pairedMedia && !pairedImport && !pairedStorage {
 			a.targetMu.Lock()
 			defer a.targetMu.Unlock()
@@ -319,7 +319,7 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 			a.routes.ServeHTTP(w, r)
 			return
 		}
-		if r.Method == http.MethodPut && launcherExpansionSelectionPath(r.URL.Path) {
+		if r.Method == http.MethodPut && (launcherExpansionSelectionPath(r.URL.Path) || launcherSlotExpansionSelectionPath(r.URL.Path)) {
 			// The body stays the caller's exact selection. This does not
 			// rewrite a target or move the foreground host selection.
 			a.routes.ServeHTTP(w, r)
@@ -345,9 +345,9 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 			a.routes.ServeHTTP(w, r)
 			return
 		}
-		if r.Method == http.MethodPost && r.URL.Path == "/api/v1/library/core-entries" {
-			// Setup-room Add game creates one entry. The body stays the
-			// caller's title and package. Compatibility checks must use this
+		if r.Method == http.MethodPost && (r.URL.Path == "/api/v1/library/core-entries" || r.URL.Path == "/api/v1/core-catalog/install" || r.URL.Path == "/api/v1/core-catalog/entries") {
+			// System setup installs a package or creates one entry. The body
+			// retains the selected catalog and package. Compatibility uses this
 			// kit, even when another target remains foreground.
 			r = r.WithContext(fogcast.WithSessionTarget(r.Context(), name))
 			a.routes.ServeHTTP(w, r)
@@ -429,10 +429,10 @@ func launcherPairedRead(method, path string) bool {
 		return false
 	}
 	switch path {
-	case "/api/v1/kit/software/releases", "/api/v1/games", "/api/v1/platforms", "/api/v1/health", "/api/v1/status", "/api/v1/session/input", "/api/v1/launcher/kit-lease", "/api/v1/library/attract", "/api/v1/library/cache", "/api/v1/library/collections", "/api/v1/library/core-entries", "/api/v1/library/facets", "/api/v1/library/hardware", "/api/v1/library/titles", "/api/v1/library/zx81-tapes", "/api/v1/core-packages":
+	case "/api/v1/core-catalog", "/api/v1/core-expansions", "/api/v1/library/firmware", "/api/v1/kit/software/releases", "/api/v1/games", "/api/v1/platforms", "/api/v1/health", "/api/v1/status", "/api/v1/session/input", "/api/v1/launcher/kit-lease", "/api/v1/library/attract", "/api/v1/library/cache", "/api/v1/library/collections", "/api/v1/library/core-entries", "/api/v1/library/facets", "/api/v1/library/hardware", "/api/v1/library/titles", "/api/v1/library/zx81-tapes", "/api/v1/core-packages":
 		return true
 	}
-	return launcherArtworkPath(path) || launcherPresentationGamePath(path) || launcherGamePath(path) || launcherCoreEntryPath(path) || launcherCorePackageReadPath(path) || launcherROMSelectionPath(path)
+	return launcherArtworkPath(path) || launcherPresentationGamePath(path) || launcherGamePath(path) || launcherCoreEntryPath(path) || launcherCorePackageReadPath(path) || launcherROMSelectionPath(path) || launcherExpansionReadPath(path) || launcherCoreCatalogSetupPath(path)
 }
 
 func launcherGamePath(path string) bool {
@@ -568,7 +568,7 @@ func launcherOperation(method, path string) bool {
 	if launcherLiveMutation(method, path) || method == http.MethodPost && launcherTapeImportPath(path) {
 		return true
 	}
-	if method == http.MethodPut && launcherExpansionSelectionPath(path) {
+	if method == http.MethodPut && (launcherExpansionSelectionPath(path) || launcherSlotExpansionSelectionPath(path)) {
 		return true
 	}
 	if method == http.MethodPut && launcherROMSelectionPath(path) {
@@ -581,10 +581,18 @@ func launcherOperation(method, path string) bool {
 		return true
 	}
 	switch method + " " + path {
-	case "GET /api/v1/kit/software/releases", "GET /api/v1/games", "GET /api/v1/platforms", "GET /api/v1/health", "GET /api/v1/launcher/kit-lease", "GET /api/v1/status", "GET /api/v1/session", "GET /api/v1/session/input", "GET /api/v1/library/attract", "GET /api/v1/library/cache", "GET /api/v1/library/collections", "GET /api/v1/library/core-entries", "GET /api/v1/library/facets", "GET /api/v1/library/hardware", "GET /api/v1/library/titles", "GET /api/v1/library/zx81-tapes", "GET /api/v1/core-packages", "GET /api/v1/mesh/content/source", "GET /api/v1/mesh/content/object", "POST /api/v1/session/launch", "POST /api/v1/session/stop", "POST /api/v1/core-media", "POST /api/v1/library/core-entries":
+	case "GET /api/v1/core-catalog", "POST /api/v1/core-catalog/install", "POST /api/v1/core-catalog/entries", "POST /api/v1/library/atari-st-disks", "GET /api/v1/core-expansions", "POST /api/v1/core-expansions", "GET /api/v1/library/firmware", "GET /api/v1/kit/software/releases", "GET /api/v1/games", "GET /api/v1/platforms", "GET /api/v1/health", "GET /api/v1/launcher/kit-lease", "GET /api/v1/status", "GET /api/v1/session", "GET /api/v1/session/input", "GET /api/v1/library/attract", "GET /api/v1/library/cache", "GET /api/v1/library/collections", "GET /api/v1/library/core-entries", "GET /api/v1/library/facets", "GET /api/v1/library/hardware", "GET /api/v1/library/titles", "GET /api/v1/library/zx81-tapes", "GET /api/v1/core-packages", "GET /api/v1/mesh/content/source", "GET /api/v1/mesh/content/object", "POST /api/v1/session/launch", "POST /api/v1/session/stop", "POST /api/v1/core-media", "POST /api/v1/library/core-entries":
 		return true
 	}
-	return method == http.MethodGet && (launcherArtworkPath(path) || launcherPresentationGamePath(path) || launcherGamePath(path) || launcherCoreEntryPath(path) || launcherCorePackageReadPath(path) || launcherROMSelectionPath(path))
+	return method == http.MethodGet && (launcherArtworkPath(path) || launcherPresentationGamePath(path) || launcherGamePath(path) || launcherCoreEntryPath(path) || launcherCorePackageReadPath(path) || launcherROMSelectionPath(path) || launcherExpansionReadPath(path) || launcherCoreCatalogSetupPath(path))
+}
+
+func launcherCoreCatalogSetupPath(path string) bool {
+	const prefix, suffix = "/api/v1/core-catalog/", "/setup"
+	if !strings.HasPrefix(path, prefix) || !strings.HasSuffix(path, suffix) {
+		return false
+	}
+	return catalogCoreRE.MatchString(strings.TrimSuffix(strings.TrimPrefix(path, prefix), suffix))
 }
 
 func launcherCoreEntryPath(path string) bool {
@@ -637,9 +645,8 @@ func launcherCoreMediaSelectionPath(path string) bool {
 	return game != "" && !strings.Contains(game, "/") && protocol.ValidateGameID(game) == nil
 }
 
-// launcherExpansionSelectionPath admits one next-start write: the
-// single-entry expansion selection. Slot writes, presentation edits and
-// any extra suffix stay outside the launcher.
+// launcherExpansionSelectionPath admits the single-socket next-start selection.
+// Multi-socket writes are admitted separately, with an explicit physical slot.
 func launcherExpansionSelectionPath(path string) bool {
 	const prefix = "/api/v1/library/core-entries/"
 	const suffix = "/expansion"
@@ -651,6 +658,25 @@ func launcherExpansionSelectionPath(path string) bool {
 		return false
 	}
 	return protocol.ValidateGameID(game) == nil
+}
+
+func launcherExpansionReadPath(path string) bool {
+	const prefix = "/api/v1/library/core-entries/"
+	if !strings.HasPrefix(path, prefix) {
+		return false
+	}
+	for _, suffix := range []string{"/expansion", "/expansions"} {
+		if strings.HasSuffix(path, suffix) {
+			return launcherCoreEntryPath(strings.TrimSuffix(path, suffix))
+		}
+	}
+	return false
+}
+
+func launcherSlotExpansionSelectionPath(path string) bool {
+	const marker = "/expansions/"
+	base, slot, ok := strings.Cut(path, marker)
+	return ok && launcherCoreEntryPath(base) && len(slot) == 1 && slot[0] >= '1' && slot[0] <= '7'
 }
 
 func launcherLiveMutation(method, path string) bool {

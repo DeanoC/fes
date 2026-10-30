@@ -35,7 +35,7 @@ pass does not prove the missing Ready Details route.
 ## First slice: native Home
 
 Accept one real supported title through room-driven tenfoot native Home. Retain
-Library, Rooms, Settings and Utilities access. Streaming, progress migration and
+Library, Systems, Menu, Settings and Utilities access. Streaming, progress migration and
 Studio implementation are outside this slice.
 
 | Journey | Expected result | Evidence to collect |

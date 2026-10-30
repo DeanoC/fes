@@ -143,7 +143,7 @@ help:
 		"  sim-fes-pc386-sound  Boot FreeDOS and run the audio start-up exercise; writes sound.wav" \
 		"  sim-fes-pc386-vga  Check the pc386 presenter and plane, run the VGA test disk, replay its VGA trace against Bochs" \
 		"  synth-fes-pc386  Synthesize and pack the pc386 machine without the CPU (needs CACHE_ROOT)" \
-		"  build-fes-pcxt  Autonomous PC/XT board diagnostic (local toolchain-fes-pcxt, or CACHE_ROOT=)" \
+		"  build-fes-pcxt  Quartus PC/XT diagnostic package (QUARTUS_ROOTDIR and pinned Yosys)" \
 		"  sim-fes-atari-st  Test the Atari 520ST CPU, memory, peripherals, media and video" \
 		"  build-fes-atari-st  Seal the Atari 520ST with HIP nextpnr (ST_VIDEO_OUTPUT=direct|scanlines)" \
 		"  build-fes-atari-st-card  Seal a probe in ST_SHELL/ST_PACKAGE socket 1" \
@@ -2670,7 +2670,7 @@ synth-fes-pcxt-isa:
 	@test -n "$(CACHE_ROOT)" || { echo 'Set CACHE_ROOT to the authenticated compiler cache'; exit 1; }
 	$(SHARED_MAKE_ENV)$(PYTHON) scripts/synth_fes_pcxt.py --cache-root "$(CACHE_ROOT)"
 
-# Autonomous board diagnostic; no package export or programming.
+# Quartus diagnostic package; OSS tools remain available for advisory probes.
 PCXT_GPU_ROUTER ?= HIP
 .PHONY: build-fes-pcxt toolchain-fes-pcxt
 toolchain-fes-pcxt:
@@ -2679,7 +2679,7 @@ toolchain-fes-pcxt:
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
 build-fes-pcxt:
-	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_pcxt.py$(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE), --cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",) --gpu-router "$(PCXT_GPU_ROUTER)" $(PCXT_BUILD_ARGS)
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_pcxt_quartus.py$(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE), --cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",) $(PCXT_BUILD_ARGS)
 
 .PHONY: sim-fes-c64-session
 sim-fes-c64-session:

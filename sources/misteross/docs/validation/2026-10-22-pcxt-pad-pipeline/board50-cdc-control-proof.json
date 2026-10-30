@@ -1,0 +1,295 @@
+{
+  "scope": "Host-only digital ownership safety and native first-capture reset-cone timing. No source RTL or route change, exceptions, physical or hardware signoff.",
+  "base_fes_commit": "91b4582961b66367fedd718f9c83e5594e160432",
+  "source_sha256": {
+    "sources/misteross/tests/test_pcxt_video_mailbox.py": "8992cb2daa96a0a764c0665bb87acb60ed60a832e33276a5b21ad68acc8d1029",
+    "sources/misteross/scripts/audit_fes_pcxt_cdc.py": "337a2b4466638eaf33c48c92e67ab2db4635dc17c158b3d5b689263f7abebdb9",
+    "sources/misteross/tests/test_pcxt_cdc_audit.py": "7e9a256c331c52429a270ef98d5cca5f29774a55c2597ce939e512206a3811ab",
+    "sources/misteross/tests/fixtures/pcxt_cdc_board50.json.gz": "6359f1748b97d0a9bf52f103905e0ef0084e007e33db32aec27e9e2d5e0df73b",
+    "sources/misteross/cores/fes-pcxt/rtl/pcxt_video.sv": "5a2b2f3448b6270835b01237ede4a3cb202a18f40bc82f3016069b0e6ab8b78c"
+  },
+  "tools": {
+    "yosys": {
+      "sha256": "132c532dc925b167a6af1157c93521809720def93467fab1e5ef900cbaa4957c",
+      "version": "Yosys 0.69+ (git sha1 3a5accbd7, Release, GNU /usr/bin/c++ 14.2.0) [github.com/DeanoC/yosys at HEAD]"
+    },
+    "yosys_abc": {
+      "sha256": "9810a14bc5b954adea149e3dac19d73b72849482be04af79996c588e1c256d2f",
+      "version": "======== ABC command line \"version\"\nUC Berkeley, ABC 1.01 (compiled Oct 24 2026 15:01:13)"
+    }
+  },
+  "digital_projection": {
+    "source": "actual pcxt_video.sv CGA/MDA ownership logic",
+    "clock_model": "arbitrary source/pixel edge ordering and stalls, including simultaneous edges",
+    "first_stage_sampling": "arbitrary additional sampling stalls; no analogue metastability model",
+    "frame_tail_and_output_sof": "position comparator and output SOF overapproximated; other actual eligibility/queue guards retained",
+    "ram": "outputs anyseq; contents, commit timing and pixel fidelity unproved here",
+    "reset": "both logical domains reset together; physical reset phase/independent reset unproved",
+    "safety": [
+      "bank identifier held while waiting",
+      "valid and separate source write/published/front bank identifiers",
+      "source front matches display front when mailbox retired",
+      "front changes only on adoption",
+      "identifier/toggle stable for two prior pixel samples before adoption"
+    ],
+    "reachability": "bounded24-step witness queues, publishes, adopts, acknowledges and republishes; no liveness claim",
+    "engine": "ABC PDR for unbounded safety; Yosys SAT for witness"
+  },
+  "proof_cases": [
+    {
+      "case": "cga",
+      "mda": 0,
+      "mutation": null,
+      "status": "unbounded_safety_proved",
+      "files_sha256": {
+        "abc.log": "e0763ad9b25ff62dbaa55a58a427e461f3f9ebde53136ff8acbd3355e43ca615",
+        "proof.aig": "6ebc439def7f35b2e09cc65af415aa9285d72c2f117fe3737803eb325014ed16",
+        "proof.sv": "edf48f8b67869e7483adf3644d82b5512927e61ec72e8088bfea6ba9cf4f89f2",
+        "yosys.log": "0e4c86221e8c7ee7376fe99fd381d08417a39aeadf606f62edf3e0d0d8b57ba2"
+      }
+    },
+    {
+      "case": "mda",
+      "mda": 1,
+      "mutation": null,
+      "status": "unbounded_safety_proved",
+      "files_sha256": {
+        "abc.log": "2c3d2fedee0a4cdf93dba78f5471aa7577e3fc2fd49445ad731d67dcc6737927",
+        "proof.aig": "9a3ce8fcb65ac218c87220f6b128f38073a8667cb2964f385a62fa8846c0ca75",
+        "proof.sv": "c7918d646575b7e70e08833c395514cc113475e1ce55b26f621aeae7cc9f82cd",
+        "yosys.log": "9d0567141eeaec3484a21647af9803729950df63a22a467ede25b0ea93cc3a34"
+      }
+    },
+    {
+      "case": "reachability",
+      "mda": 0,
+      "mutation": null,
+      "status": "witness",
+      "files_sha256": {
+        "proof.sv": "1ce803b71958e9a7905dd5084dbe6af93647e0c7455ac1a01247453a06a4ba99",
+        "yosys.log": "515ae3906ea427647009b274d709eeb46d3f7566d14eb712eeeb3961b3a622cd"
+      }
+    },
+    {
+      "case": "changed-pending-bank",
+      "mda": 0,
+      "mutation": "change_pending_bank",
+      "status": "counterexample",
+      "files_sha256": {
+        "abc.log": "b0bd8bcb746c41b6c5a762654ff4024529f20d3e51debf34b15e3155ba5a4baf",
+        "proof.aig": "129154f8386aee31e4092794ad9c72f38fe8c07f90c6d51cf293156129ca348b",
+        "proof.sv": "fa66ee02d70d4504c6cfc3df3e05c2123315bfdf44d46dfcbcd3f1d7c8c77fe0",
+        "yosys.log": "050a427ea36dcdd0b2f410a5649db37d7bf3554067484a626ae9838f6e2424b9"
+      }
+    },
+    {
+      "case": "shortened-synchronizer",
+      "mda": 0,
+      "mutation": "bypass_toggle_synchronizer",
+      "status": "counterexample",
+      "files_sha256": {
+        "abc.log": "5019c5b73f76a37f1d3feb57e08032199cd3f49c7a5a61de89dd3c8175be6a22",
+        "proof.aig": "ad4a3dbd34b51bee7642a4b103d87e51ed8fe9d0a38b8979a5d0cb662890c695",
+        "proof.sv": "2367effc83f74396e0a911c19a226461911a20e95e7e36794d631f765a28ca5c",
+        "yosys.log": "d6439875ead0f69fd544807ed6348b02d0b7c335b6eea96c746498a578efa81c"
+      }
+    }
+  ],
+  "reset_consumer_timing": [
+    {
+      "seed": 1,
+      "audit_sha256": "c163bc09ce5dfbfce1be4ec708f464337c141842217f0f95206184eb2364e29e",
+      "source_bindings": {
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/route-board50-reset-ref-v2-seed1/routed.json": "c5d901ee580b9b31f4b485e96a00065505510227a6b9e971aab77593d3a18fb0",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/route-board50-reset-ref-v2-seed1/timing.json": "80af723eddbc0be5b13e06bd7098632be9f823e712f0f5eadc6063af801af6bb",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/route-board50-reset-ref-v2-seed1/receipt.json": "36a31f804dd132431d8cc8729a8809ef5026f28a0d7c7bace9e9a7fe4bfe9b5e"
+      },
+      "cone_checks": 1021,
+      "unique_terminal_ports": 919,
+      "setup_min_ns": 6.578000068664551,
+      "hold_min_ns": 0.9309999942779541,
+      "async_clear_consumers": 2,
+      "cones": [
+        {
+          "tail": "locked_MISTRAL_FF_ACLR",
+          "clock": "clocks[2]",
+          "asynchronous_clear_consumers": 2,
+          "setup_min_ns": 9.579999923706055,
+          "hold_min_ns": 1.027999997138977,
+          "terminal_count": 500,
+          "ports": {
+            "ENA": 141,
+            "SCLR": 176,
+            "DATAIN": 181,
+            "ACLR": 2
+          }
+        },
+        {
+          "tail": "locked_MISTRAL_FF_ACLR_1_Q_MISTRAL_FF_DATAIN",
+          "clock": "clk_pixel",
+          "asynchronous_clear_consumers": 0,
+          "setup_min_ns": 6.578000068664551,
+          "hold_min_ns": 1.440999984741211,
+          "terminal_count": 259,
+          "ports": {
+            "SCLR": 195,
+            "ENA": 63,
+            "DATAIN": 1
+          }
+        },
+        {
+          "tail": "locked_MISTRAL_FF_ACLR_Q_MISTRAL_FF_ACLR",
+          "clock": "clocks[2]",
+          "asynchronous_clear_consumers": 0,
+          "setup_min_ns": 9.579999923706055,
+          "hold_min_ns": 0.9309999942779541,
+          "terminal_count": 262,
+          "ports": {
+            "ENA": 153,
+            "SCLR": 43,
+            "DATAIN": 66
+          }
+        }
+      ]
+    },
+    {
+      "seed": 2,
+      "audit_sha256": "7061a1ae6e0d67ce9ab50be30392c9300bcf61303c6105f9075ea4199e687049",
+      "source_bindings": {
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/route-board50-reset-ref-v2-seed2/routed.json": "40d900fdcdaad47999ce62191cc12ba00753baec13f05dd8ff7f72908b5d1517",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/route-board50-reset-ref-v2-seed2/timing.json": "717a0daa84333aff81de96a6ddfcb0c8205796ad15e8d29db0f3c8fd7df07509",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/route-board50-reset-ref-v2-seed2/receipt.json": "a9f7c5a4003d24be60e10f4c870078f1e8e6b57798652f63d40b84c75728ad8a"
+      },
+      "cone_checks": 1021,
+      "unique_terminal_ports": 919,
+      "setup_min_ns": 5.179999828338623,
+      "hold_min_ns": 1.0479999780654907,
+      "async_clear_consumers": 2,
+      "cones": [
+        {
+          "tail": "locked_MISTRAL_FF_ACLR",
+          "clock": "clocks[2]",
+          "asynchronous_clear_consumers": 2,
+          "setup_min_ns": 10.534000396728516,
+          "hold_min_ns": 1.0479999780654907,
+          "terminal_count": 500,
+          "ports": {
+            "ENA": 141,
+            "SCLR": 176,
+            "DATAIN": 181,
+            "ACLR": 2
+          }
+        },
+        {
+          "tail": "locked_MISTRAL_FF_ACLR_1_Q_MISTRAL_FF_DATAIN",
+          "clock": "clk_pixel",
+          "asynchronous_clear_consumers": 0,
+          "setup_min_ns": 5.179999828338623,
+          "hold_min_ns": 1.5420000553131104,
+          "terminal_count": 259,
+          "ports": {
+            "SCLR": 195,
+            "ENA": 63,
+            "DATAIN": 1
+          }
+        },
+        {
+          "tail": "locked_MISTRAL_FF_ACLR_Q_MISTRAL_FF_ACLR",
+          "clock": "clocks[2]",
+          "asynchronous_clear_consumers": 0,
+          "setup_min_ns": 10.770000457763672,
+          "hold_min_ns": 1.0520000457763672,
+          "terminal_count": 262,
+          "ports": {
+            "ENA": 153,
+            "SCLR": 43,
+            "DATAIN": 66
+          }
+        }
+      ]
+    },
+    {
+      "seed": 3,
+      "audit_sha256": "d6f58f3808bf8105c0d41130b465a746a9d6aff4da1a69f01c080cc1d259953c",
+      "source_bindings": {
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/route-board50-reset-ref-v2-seed3/routed.json": "ff1912fa87d7d63c3df63ce575b5d7e23b6865fb33ef9ba81a6170b3c4c6347e",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/route-board50-reset-ref-v2-seed3/timing.json": "5d31d023e01def1303b330af356a61830aec9973c0d35361da873f3323a3555a",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/route-board50-reset-ref-v2-seed3/receipt.json": "6d1c72551fb14206836e41a684f2e6f9145b6e8210756b97973b170e32585d16"
+      },
+      "cone_checks": 1021,
+      "unique_terminal_ports": 919,
+      "setup_min_ns": 6.7230000495910645,
+      "hold_min_ns": 0.9340000152587891,
+      "async_clear_consumers": 2,
+      "cones": [
+        {
+          "tail": "locked_MISTRAL_FF_ACLR",
+          "clock": "clocks[2]",
+          "asynchronous_clear_consumers": 2,
+          "setup_min_ns": 10.319000244140625,
+          "hold_min_ns": 0.9459999799728394,
+          "terminal_count": 500,
+          "ports": {
+            "ENA": 141,
+            "SCLR": 176,
+            "DATAIN": 181,
+            "ACLR": 2
+          }
+        },
+        {
+          "tail": "locked_MISTRAL_FF_ACLR_1_Q_MISTRAL_FF_DATAIN",
+          "clock": "clk_pixel",
+          "asynchronous_clear_consumers": 0,
+          "setup_min_ns": 6.7230000495910645,
+          "hold_min_ns": 1.059999942779541,
+          "terminal_count": 259,
+          "ports": {
+            "SCLR": 195,
+            "ENA": 63,
+            "DATAIN": 1
+          }
+        },
+        {
+          "tail": "locked_MISTRAL_FF_ACLR_Q_MISTRAL_FF_ACLR",
+          "clock": "clocks[2]",
+          "asynchronous_clear_consumers": 0,
+          "setup_min_ns": 11.052000045776367,
+          "hold_min_ns": 0.9340000152587891,
+          "terminal_count": 262,
+          "ports": {
+            "ENA": 153,
+            "SCLR": 43,
+            "DATAIN": 66
+          }
+        }
+      ]
+    }
+  ],
+  "same_consumer_identities_all_three": true,
+  "focused_tests": {
+    "count": 22,
+    "status": "PASS",
+    "log_sha256": "6f20ee2eb9f8ab08f7a76cdfe484bc6a71ac0c1fd3b8a96e6ece5d25486d7d0a"
+  },
+  "retained_exploration": "Initial k-induction cannot discharge arbitrary-stall invariants; final PDR proves safety. Two AIG-lowering attempts reject unsupported enabled FFs/unknown bits before correction; all logs retained. No production RTL change.",
+  "remaining": [
+    "919 distinct terminal ports have native timing rows; the 1021 overlapping cone checks are not distinct paths.",
+    "Two related asynchronous clear consumers retain pulse/control obligations; consumer policy and exceptions remain unqualified.",
+    "Four raw PLL clear rows, three asynchronous video entries and two bank crossings are not waived.",
+    "Analogue metastability/MTBF, physical bundled-data delay/skew, waveform and fitted-board IO/chip/load/flight/CS2 inputs remain open."
+  ],
+  "physical_qualified": false,
+  "hardware": false,
+  "route_receipt_count_unchanged": 121,
+  "stable_source_verification": {
+    "commit": "485165b3ec",
+    "make_check": "PASS: 21 consumers/37 fixtures",
+    "affected_run": "PASS on host:843 parent cases and 1323 component cases; 53 optional/tool/oracle skips.",
+    "focused_run": "PASS: 22 cases with pinned Yosys/ABC; includes four otherwise-skipped mailbox test methods.",
+    "logs_sha256": {
+      "board50-control-proof-test-changed-host.log": "cb594114d3e5e0a89259cc552537ba211ce0ef1daead2aac8524f71ccf1fc0d7",
+      "board50-control-proof-check.log": "7e64928b0bfda0f6d4e520886eb05d607384f0d95ecdc94235608f71a0fc183f",
+      "board50-control-proof-stable-focused.log": "1bafb550d3710410f0df55d8d136a0b7e69ceebd69c0fc5a4ddd12c0afa118fa"
+    }
+  }
+}

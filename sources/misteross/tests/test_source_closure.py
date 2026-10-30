@@ -2,13 +2,14 @@
 import json
 import os
 from pathlib import Path
+import re
 import tempfile
 import unittest
 from unittest.mock import patch
 
 from scripts.compiler_read_audit import ReadAuditError, python_source_guard, verify_traces
 from scripts.functional_execution import AuditedRoots, source_roots_for_inputs, source_roots_for_producer
-from scripts.source_closure import ROOT, imports, load_manifest, minimize
+from scripts.source_closure import ROOT, covered, imports, load_manifest, minimize
 from scripts.closure_tools.manifest import check, derive, static, main
 from scripts import export_core_package as exporter
 from tests import test_export_core_package as fixtures
@@ -43,6 +44,14 @@ class ManifestTests(unittest.TestCase):
             for source in display_sources:
                 self.assertTrue(any(source == root or source.startswith(root + '/') for root in roots),
                                 (producer, source))
+
+    def test_pcxt_quartus_captures_the_complete_core_and_board_inputs(self):
+        from scripts import build_fes_pcxt_quartus as producer
+        roots = producer.source_roots(ROOT)
+        for path in producer.board.input_paths(ROOT):
+            self.assertTrue(covered(str(path), roots), path)
+        self.assertIn('cores/fes-pcxt', roots)
+        self.assertIn(producer.RECIPE, roots)
 
     def test_manifest_rejects_unsorted_or_escaping_roots(self):
         with tempfile.TemporaryDirectory() as temp:
