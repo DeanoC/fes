@@ -13,6 +13,19 @@ SPEC.loader.exec_module(SUPPORT_MATRIX)
 
 
 class SupportMatrixTests(unittest.TestCase):
+    def test_pcxt_dos_is_an_experimental_unaccepted_quartus_recipe(self):
+        data = SUPPORT_MATRIX.load_json(ROOT)
+        row = next(row for row in data['cores'] if row['id'] == 'fes.pcxt-dos')
+        self.assertTrue(row['recipe'])
+        self.assertEqual('bring-up', row['tier'])
+        self.assertEqual('quartus', row['primary_toolchain'])
+        self.assertIsNone(row['library_standing'])  # Not a catalog entry.
+        self.assertIn('Experimental', row['notes'])
+        self.assertIsNone(row['signals']['last_hil_pass'])
+        self.assertIn('no exact-artifact hardware acceptance', row['features'])
+        self.assertEqual('Quartus', SUPPORT_MATRIX.de10_cell(row))
+        self.assertIn('| PC/XT (FreeDOS) | Bring-up | Quartus |', SUPPORT_MATRIX.render(data))
+
     def test_de25_cell_is_blank_for_rows_without_board_bitstreams(self):
         data = SUPPORT_MATRIX.load_json(ROOT)
         by_id = {row['id']: row for row in data['cores']}

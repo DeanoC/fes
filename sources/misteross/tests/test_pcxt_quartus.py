@@ -107,7 +107,7 @@ class QuartusElaborationTests(unittest.TestCase):
             (source / 'adapter.v').write_text('// no boundary wrapper in this focused fixture\n')
             (source / 'top.sv').write_text('''
 `include "fixture.vh"
-module top #(parameter MDA=0, SCANLINES=0, HALF_RATE_BOARD=0)(
+module top #(parameter MDA=0, SCANLINES=0, HALF_RATE_BOARD=0, HARDWARE_DOS=0)(
  input clk, we, high_byte, input [12:0] a,b, input[7:0] data,
  output reg[15:0] q_a,q_b, output pll_clock, locked);
 reg[15:0] memory[0:`WORDS-1];

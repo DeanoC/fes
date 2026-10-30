@@ -35,7 +35,8 @@ from scripts.pcxt_quartus_mailbox import validate_mailbox
 
 ROOT = Path(__file__).resolve().parents[1]
 CORE = Path('cores/fes-pcxt')
-RTL = SYSTEM_SOURCES + ('cores/fes-common/rtl/fes_computer_mailbox.v',
+RTL = SYSTEM_SOURCES + ('cores/fes-pcxt/rtl/pcxt_disk_boot.sv',
+                        'cores/fes-common/rtl/fes_computer_mailbox.v',
                         str(CORE / 'rtl/fes_pcxt_top.sv'))
 ADAPTERS = CORE / 'quartus/adapters.v'
 AUDIT = CORE / 'quartus/audit.tcl'
@@ -78,7 +79,10 @@ def capture_sources(root: Path, output: Path) -> tuple[Path, dict[str, str]]:
     return frozen, identities
 
 
-def elaboration(source: Path, work: Path, library: Path, *, package_profile=False, build_id=None) -> str:
+def elaboration(source: Path, work: Path, library: Path, *, package_profile=False, build_id=None,
+                dos_profile=False) -> str:
+    if dos_profile and not package_profile:
+        raise ValueError('DOS profile requires the package profile')
     includes = [source / 'cores/fes-common/generated', work]
     includes += [source / ('cores/fes-common/vendor' if name in SHARED_VENDORS else CORE / 'vendor') / name
                  for name in CHIP_VENDORS]
@@ -88,10 +92,12 @@ def elaboration(source: Path, work: Path, library: Path, *, package_profile=Fals
         raise ValueError('Yosys include directories must not contain whitespace, quotes or semicolons')
     quote = lambda p: '"' + str(p).replace('\\', '\\\\').replace('"', '\\"') + '"'
     parameters = '-set MDA 0 -set SCANLINES 0 -set HALF_RATE_BOARD ' + ('0' if package_profile else '1')
+    parameters += ' -set HARDWARE_DOS ' + ('1' if dos_profile else '0')
     if package_profile:
         if not isinstance(build_id, str) or not re.fullmatch('[0-9a-f]{32}', build_id):
             raise ValueError('package profile requires an explicit BUILD_ID')
-        parameters += " -set ENABLE_FES_COMPUTER 1 -set ENABLE_PCXT_MEDIA 1 -set PHASED_HDMI_CLOCK 1 -set BUILD_ID 128'h" + build_id
+        parameters += (" -set ENABLE_FES_COMPUTER 1 -set ENABLE_PCXT_MEDIA " +
+                       ('0' if dos_profile else '1') + " -set PHASED_HDMI_CLOCK 1 -set BUILD_ID 128'h" + build_id)
     return (
         f'read_verilog -lib {quote(library)}; read_verilog -sv '
         + ' '.join('-I ' + str(p) for p in includes) + ' '
@@ -300,6 +306,8 @@ def main(argv=None) -> int:
                         help='prove and bind the held video mailbox before applying its scoped diagnostic SDC')
     parser.add_argument('--output', type=Path, help='new output directory; existing evidence is never overwritten')
     parser.add_argument('--package-profile', action='store_true')
+    parser.add_argument('--dos-profile', action='store_true',
+                        help='elaborate the FreeDOS ROM and SDRAM floppy hardware profile')
     parser.add_argument('--build-id')
     args = parser.parse_args(argv)
     if args.package_profile and not args.video_mailbox_contract:
@@ -309,12 +317,16 @@ def main(argv=None) -> int:
         parser.error('seeds must be distinct positive signed 32-bit integers')
     if args.threads < 1:
         parser.error('--threads must be positive')
-    record = {'classification': 'whole-board Quartus diagnostic; not physical acceptance',
+    if args.dos_profile and not args.package_profile:
+        parser.error('DOS profile requires --package-profile')
+    record = {'classification': ('whole-board Quartus hardware DOS package profile; not physical acceptance'
+                                 if args.dos_profile else 'whole-board Quartus diagnostic; not physical acceptance'),
               'toolchain': 'quartus', 'video_mailbox_contract': args.video_mailbox_contract,
               'whole_board_qualified': False, 'device': DEVICE, 'seeds': seeds,
               'profile': {'MDA': 0, 'SCANLINES': 0, 'HALF_RATE_BOARD': int(not args.package_profile),
                           'ENABLE_FES_COMPUTER': int(args.package_profile),
-                          'ENABLE_PCXT_MEDIA': int(args.package_profile), 'BUILD_ID': args.build_id},
+                          'ENABLE_PCXT_MEDIA': int(args.package_profile and not args.dos_profile),
+                          'HARDWARE_DOS': int(args.dos_profile), 'BUILD_ID': args.build_id},
               'clock_targets_mhz': {'cpu': 100, 'board': 100 if args.package_profile else 50, 'pixel': 74.25},
               'operations': [], 'runs': [], 'hardware': False, 'status': 'preparing'}
     output = None
@@ -368,8 +380,40 @@ def main(argv=None) -> int:
         spec.loader.exec_module(generator)
         for vendor in ('kf8259', 'kf8253', 'kf8255'):
             generator.verify_vendor(vendor)
-        generator.board_inputs(work)
-        (work / 'elaborate.ys').write_text(elaboration(source, work, library, package_profile=args.package_profile, build_id=args.build_id))
+        if args.dos_profile:
+            generator.cpu_roms(work)
+            core = source / CORE
+            metadata = json.loads((core / 'firmware/hardware-dos.json').read_text())
+            bios_spec = json.loads((core / 'sim/bios.lock').read_text())
+            bios_path = core / metadata['bios']['file']
+            disk_path = core / metadata['floppy']['file']
+            bios = bios_path.read_bytes()
+            disk = disk_path.read_bytes()
+            if (len(bios) != metadata['bios']['size']
+                    or sha(bios_path) != metadata['bios']['sha256']
+                    or bios_spec['bios']['sha256'] != metadata['bios']['sha256']
+                    or len(disk) != metadata['floppy']['size']
+                    or sha(disk_path) != metadata['floppy']['sha256']):
+                raise ValueError('DOS BIOS or floppy image differs from its locked provenance')
+            firmware = bytes([0xff]) * (65536 - len(bios)) + bios
+            generator.boot_roms(work, firmware, prefix='pcxt_glabios')
+            font = bytearray(4096)
+            offset = bios_spec['ascii_font']['rom_offset']
+            for char in range(128):
+                font[char * 16:char * 16 + 8] = bios[offset + char * 8:offset + char * 8 + 8]
+            (work / 'pcxt_glabios_font.hex').write_text(''.join(f'{byte:02x}\n' for byte in font))
+            (work / 'pcxt_freedos_disk.hex').write_text(''.join(f'{byte:02x}\n' for byte in disk))
+            record['hardware_dos_inputs'] = {
+                'freedos_image_sha256': metadata['floppy']['sha256'],
+                'glabios_rom_sha256': metadata['bios']['sha256'],
+                'glabios_font_sha256': hashlib.sha256(font).hexdigest(),
+                'loaded_into_sdram_before_cpu_release': True,
+                'guest_disk_reads_use_sdram_media_path': True}
+        else:
+            generator.board_inputs(work)
+        (work / 'elaborate.ys').write_text(elaboration(
+            source, work, library, package_profile=args.package_profile,
+            build_id=args.build_id, dos_profile=args.dos_profile))
         run([str(yosys), '-s', 'elaborate.ys'], work, 'elaborate.log', record)
         record['elaboration'] = validate_renaming(work, package_profile=args.package_profile)
         if args.video_mailbox_contract:

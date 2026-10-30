@@ -288,6 +288,7 @@ class AffectedTests(unittest.TestCase):
             'scripts/sim_fes_pcxt_fdc.py': {'pcxt'},
             'scripts/sim_fes_pcxt_media.py': {'pcxt'},
             'scripts/sim_fes_pcxt_media_diag.py': {'pcxt'},
+            'scripts/sim_fes_pcxt_embedded_boot.py': {'pcxt'},
             'scripts/sim_fes_pcxt_mailbox.py': {'pcxt'},
             'scripts/sim_fes_pcxt_dos.py': {'pcxt'},
             'scripts/build_pcxt_freedos_image.py': {'pcxt'},

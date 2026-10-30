@@ -92,13 +92,13 @@ SYSTEM_SOURCES = (SOURCES[:4] + DISPLAY_SOURCES[:-1] + CHIPSET_SOURCES[:-1] +
                    'cores/fes-pcxt/rtl/pcxt_boot.sv'))
 
 
-def boot_roms(output, data):
+def boot_roms(output, data, prefix='pcxt_diagnostic'):
     """Emit eight contiguous 8 KiB banks for the local-address boot ROMs."""
     if len(data) != 65536:
         raise ValueError('PC/XT diagnostic must be exactly 64 KiB')
     for bank in range(8):
         payload = data[bank * 8192:(bank + 1) * 8192]
-        (output / f'pcxt_diagnostic.bank{bank}.hex').write_text(
+        (output / f'{prefix}.bank{bank}.hex').write_text(
             ''.join(f'{byte:02x}\n' for byte in payload))
 
 

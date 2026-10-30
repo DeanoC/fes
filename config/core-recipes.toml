@@ -1731,6 +1731,28 @@ seeds = [1, 2, 3]
 threads = 2
 
 [[recipes]]
+core_id = "fes.pcxt-dos"
+identity_version = 2
+toolchain = "quartus"
+producer_script = "scripts/build_fes_pcxt_quartus.py"
+producer_module = "scripts.build_fes_pcxt_quartus"
+authenticate = "authenticate_tools"
+lock_path = "cores/fes-pcxt/quartus.lock"
+selection_filename = "fes-pcxt-dos.package-selection.toml"
+package_dir_env = "FES_PCXT_DOS_PACKAGE_DIR"
+package_selection_env = "FES_PCXT_DOS_PACKAGE_SELECTION"
+quartus_role = "FreeDOS SDRAM floppy hardware package producer"
+producer_arguments = ["--dos-profile"]
+producer_options = { dos_profile = true }
+hil_check = "scripts/pcxt_dos_hil_acceptance.py"
+hil_kits = ["B", "A"]
+
+[recipes.quartus]
+version = "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition"
+seeds = [1, 2, 3]
+threads = 2
+
+[[recipes]]
 core_id = "fes.ramtest"
 identity_version = 2
 producer_script = "scripts/build_fes_ramtest.py"

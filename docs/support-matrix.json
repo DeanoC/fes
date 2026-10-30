@@ -1595,8 +1595,8 @@
       "primary_toolchain": "quartus",
       "router": "Quartus is the normal diagnostic package producer. Nextpnr remains an explicit advisory diagnostic.",
       "quartus": "Quartus (primary, policy). policy: Deano 2026-10-29. Quartus Lite 17.0.2 Build 602: common 100 MHz package profile, three-seed reported internal timing gate and independent RBF repeat. External IO/HPS/reset and exact-artifact hardware acceptance remain separate.",
-      "features": "Media: diagnostic firmware byte port only. No disk controller and no sealed firmware map. Input: no HID keyboard frontend. HDMI: diagnostic 720p RGB on the DE10-Nano shell (CGA or MDA, Direct or Scanlines). No runtime ABI. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
-      "notes": "Registered Quartus format-2 diagnostic package outside the bootstrap image. Independently reviewed package 9d46fefc49f516b2 passes the CGA Direct completion-picture and normal launch/Stop diagnostic on Kit A. Whole-board physical qualification, BIOS/DOS, keyboard and disks remain open.",
+      "features": "Media: read-only 360 KiB floppy through fes.computer 1.1 live media, with a guest FDC/DMA diagnostic. Input: no HID keyboard frontend. HDMI: fixed CGA Direct 720p diagnostic on the DE10-Nano shell. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
+      "notes": "Experimental Quartus format-2 diagnostic package outside the bootstrap image. Pre-merge media-enabled package 77dcd89004849e16fad039515797b29afd98593c6f89b16654ff1d207887ea3a was tested on Kit B with empty, wrong, matching and ejected disks; that evidence applies only to that artifact. Whole-board physical qualification, a bootable BIOS path, host keyboard and write support remain open.",
       "evidence": [
         "sources/misteross/cores/fes-pcxt/README.md",
         "sources/misteross/cores/fes-pcxt/toolchain.lock",
@@ -1633,6 +1633,71 @@
         "media_gen": "diagnostic",
         "image_role": "none",
         "catalog_standing": "experimental"
+      },
+      "quartus_lock": {
+        "path": "sources/misteross/cores/fes-pcxt/quartus.lock",
+        "version": "17.0.2 Build 602"
+      }
+    },
+    {
+      "id": "fes.pcxt-dos",
+      "label": "`fes.pcxt-dos`",
+      "tier": "bring-up",
+      "covers": [],
+      "paths": [],
+      "recipe": true,
+      "optional": false,
+      "quartus_role": "FreeDOS SDRAM floppy hardware package producer",
+      "recipe_gpu_router": null,
+      "producer_script": "scripts/build_fes_pcxt_quartus.py",
+      "library_standing": null,
+      "in_bootstrap_image": false,
+      "oss_lock": {
+        "path": "sources/misteross/cores/fes-pcxt/toolchain.lock",
+        "yosys": "3a5accbd",
+        "mistral": "9ab65220",
+        "nextpnr": "2fa5ec4c"
+      },
+      "board": "de10",
+      "primary_toolchain": "quartus",
+      "router": "Quartus is the fixed-image FreeDOS package producer. Nextpnr remains advisory for the PC/XT core.",
+      "quartus": "Quartus (primary, policy). policy: Deano 2026-10-29. The fixed-image DOS recipe uses Quartus Lite 17.0.2 Build 602, a three-seed reported internal timing gate and an independent RBF repeat. Exact-artifact hardware acceptance remains open.",
+      "features": "Media: bundled read-only 360 KiB FreeDOS floppy copied into SDRAM before CPU release; no runtime floppy insertion or write persistence. Input: no host HID keyboard frontend. HDMI: CGA Direct 720p. The BIOS and DOS boot are exercised in simulation; the package has no exact-artifact hardware acceptance.",
+      "notes": "Experimental bring-up recipe outside the bootstrap image. It is not listed in the core catalog and has no catalog standing. A prompt or directory result on a physical kit has not been established for this package.",
+      "evidence": [
+        "sources/misteross/cores/fes-pcxt/README.md",
+        "sources/misteross/cores/fes-pcxt/quartus.lock",
+        "sources/misteross/cores/fes-pcxt/firmware/hardware-dos.json",
+        "sources/misteross/scripts/build_fes_pcxt_quartus.py",
+        "config/core-recipes.toml",
+        "docs/core-status.md",
+        "docs/design/quartus-cores.md"
+      ],
+      "tier_role": "bring-up",
+      "family": "pc",
+      "variant": "XT FreeDOS",
+      "display": "PC/XT (FreeDOS)",
+      "signals": {
+        "as_of": "2026-10-29",
+        "window_start": "2026-08-30",
+        "recent_cutoff": "2026-10-16",
+        "catalog_weight": "weak",
+        "last_rtl_change": "2026-10-21",
+        "last_rtl_sha": "e9ece2993",
+        "last_rtl_subject": "PC/XT: assemble SDRAM and ISA graphics in a diagnostic board shell (#836)",
+        "last_host_change": null,
+        "last_host_sha": null,
+        "last_host_subject": null,
+        "last_hil_pass": null,
+        "hil_note": null,
+        "hil_scope": null,
+        "open_issues": [
+          "#840",
+          "#835"
+        ],
+        "media_gen": "diagnostic",
+        "image_role": "none",
+        "catalog_standing": null
       },
       "quartus_lock": {
         "path": "sources/misteross/cores/fes-pcxt/quartus.lock",

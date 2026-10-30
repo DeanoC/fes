@@ -56,7 +56,8 @@ Atari ST is still the only optional recipe (`FES_SKIP_OPTIONAL_CORES`). That fla
 | `fes.riscv` | Aging | OSS | Quartus | pad, HDMI | [README](../sources/misteross/cores/fes-riscv/README.md) |
 | `fes.demo`, `fes.demo-media`, `fes.demo-audio` | Reference | OSS | Quartus | pad, HDMI | [cores](../sources/misteross/docs/cores.md) |
 | `cores/pong` simulation | Reference | — | — | — | [cores](../sources/misteross/docs/cores.md) |
-| PC/XT | Bring-up | Quartus | Quartus | HDMI | [README](../sources/misteross/cores/fes-pcxt/README.md) |
+| PC/XT | Bring-up | Quartus | Quartus | disk, HDMI | [README](../sources/misteross/cores/fes-pcxt/README.md) |
+| PC/XT (FreeDOS) | Bring-up | Quartus | Quartus | disk, HDMI | [README](../sources/misteross/cores/fes-pcxt/README.md) |
 | pc386 | Bring-up | — | — | sim | [README](../sources/misteross/cores/fes-pc386/README.md) |
 | `fes_i386_cpu` | Shared | — | — | — | [design](../sources/misteross/docs/i386-cpu-design.md) |
 | `fes_z80_nmos` / `fes_z80_fast` | Shared | — | — | — | [README](../sources/misteross/cores/fes-common/rtl/z80/README.md) |
