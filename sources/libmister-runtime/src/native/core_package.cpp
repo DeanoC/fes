@@ -964,6 +964,7 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 		bool spectrum_tape = false;
 		bool spectrum_disk = false;
 		bool second_word = false;
+		bool ata_disk = false;
 		int media_units = 0;
 		int buses = 0;
 		for (const auto& interface : descriptor.interfaces) {
@@ -972,6 +973,7 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 				interface.id == kAtariStExpansionBusID ||
 				interface.id == kSpectrumExpansionBusID;
 			const bool media = interface.id == FesComputerInterfaceMediaApple2FloppyID ||
+				interface.id == FesComputerInterfaceMediaAtaDiskID ||
 				interface.id == FesComputerInterfaceMediaC64DiskID ||
 				interface.id == FesComputerInterfaceMediaAtariStFloppyID ||
 				interface.id == FesComputerInterfaceMediaSpectrumTapeID ||
@@ -1017,9 +1019,11 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 			if (interface.id == FesComputerInterfaceMediaSpectrumTapeID) spectrum_tape = true;
 			if (interface.id == FesComputerInterfaceMediaSpectrumDiskID) spectrum_disk = true;
 			// Capability bits 16..31 are identity word 16, which only 1.1 has.
-			if (interface.id == FesComputerInterfacePersistenceWordsID ||
+			if (interface.id == FesComputerInterfaceMediaAtaDiskID ||
+				interface.id == FesComputerInterfacePersistenceWordsID ||
 				interface.id == FesComputerInterfacePc386MachineID ||
 				interface.id == FesComputerInterfaceRtcWallClockID) second_word = true;
+			if (interface.id == FesComputerInterfaceMediaAtaDiskID) ata_disk = true;
 		}
 		if (second_word && descriptor.abi.minor < 1)
 			return CompatibilityError(ErrorCode::unsupported_abi,
@@ -1044,6 +1048,10 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 		if (spectrum_disk && (!spectrum_tape || !ddr))
 			return CompatibilityError(ErrorCode::unsupported_interface,
 				"Spectrum disk requires the Spectrum tape and HPS DDR");
+		// The hard disk's image lives in the core's HPS DDR window.
+		if (ata_disk && !ddr)
+			return CompatibilityError(ErrorCode::unsupported_interface,
+				"ATA disk requires HPS DDR");
 		if (media_units > 1 || buses > 1)
 			return CompatibilityError(ErrorCode::unsupported_interface,
 				"computer declares more than one unit-0 medium or expansion bus");

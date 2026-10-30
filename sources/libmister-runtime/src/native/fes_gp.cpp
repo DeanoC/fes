@@ -147,8 +147,8 @@ constexpr std::uint16_t kComputerCapabilityMask = static_cast<std::uint16_t>(
 	FesComputerCapabilityMemoryHpsDdr | FesComputerCapabilityVideoSessionDisplay);
 // Identity word 16 (ABI 1.1) carries capability bits 16..31.
 constexpr std::uint16_t kComputerHighCapabilityMask = static_cast<std::uint16_t>(
-	(FesComputerCapabilityPersistenceWords | FesComputerCapabilityRtcWallClock |
-	 FesComputerCapabilityPc386Machine) >> 16);
+	(FesComputerCapabilityMediaAtaDisk | FesComputerCapabilityPersistenceWords |
+	 FesComputerCapabilityRtcWallClock | FesComputerCapabilityPc386Machine) >> 16);
 
 std::uint64_t AddDeadline(std::uint64_t now, std::uint64_t duration)
 {
@@ -494,6 +494,8 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 			else if (interface.id == FesComputerInterfaceVideoSessionDisplayID &&
 				interface.required && interface.major == 1 && interface.minor == 0)
 				capabilities |= FesComputerCapabilityVideoSessionDisplay;
+			else if (interface.id == FesComputerInterfaceMediaAtaDiskID)
+				capabilities |= FesComputerCapabilityMediaAtaDisk;
 			else if (interface.id == FesComputerInterfacePersistenceWordsID)
 				capabilities |= FesComputerCapabilityPersistenceWords;
 			else if (interface.id == FesComputerInterfacePc386MachineID)
@@ -737,6 +739,7 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 	}
 	home_computer_ = error.ok() && context.descriptor->abi.id == FesComputerABIID;
 	wall_clock_ = false;
+	ata_disk_ = false;
 	keyboard_hid_ = false;
 	mouse_relative_ = false;
 	floppy_write_ = false;
@@ -755,6 +758,7 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 			if (interface.id == FesComputerInterfaceMediaZx81TapeWriteID) tape_write_ = true;
 			if (interface.id == FesComputerInterfaceGamepadPortsID) controller_ports_ = true;
 			if (interface.id == FesComputerInterfaceRtcWallClockID) wall_clock_ = true;
+			if (interface.id == FesComputerInterfaceMediaAtaDiskID) ata_disk_ = true;
 			if (interface.id == FesComputerInterfaceMediaApple2FloppyID ||
 				interface.id == FesComputerInterfaceMediaSpectrumTapeID ||
 				interface.id == FesComputerInterfaceMediaSpectrumDiskID ||
@@ -811,12 +815,26 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 			unit.chunk_bytes = info.chunk_bytes;
 			unit.state = MediaUnitState::empty;
 		}
+		// A freshly programmed disk is empty with the contract's limits.
+		if (error.ok() && ata_disk_) {
+			AtaDiskInfo info;
+			error = ReadAtaDiskInfo(deadline, &info);
+			if (error.ok() && (info.state != FesComputerMediaStateEmpty ||
+				info.minimum != FesComputerAtaDiskMinBytes || info.maximum != FesComputerAtaDiskMaxBytes ||
+				info.chunk_sectors != FesComputerAtaDiskChunkSectors))
+				error = Mismatch("invalid live ATA disk",
+					"empty disk of 1..128 MiB with 128-sector chunks",
+					"state=" + std::to_string(info.state) + " minimum=" + std::to_string(info.minimum) +
+						" maximum=" + std::to_string(info.maximum) + " chunk=" +
+						std::to_string(info.chunk_sectors));
+		}
 		if (!error.ok()) {
 			keyboard_hid_ = false;
 			mouse_relative_ = false;
 			floppy_write_ = false;
 			tape_write_ = false;
 			wall_clock_ = false;
+			ata_disk_ = false;
 			media_units_.clear();
 		}
 	}
@@ -975,10 +993,10 @@ CoreDriverResult FesGpCoreDriver::Gameplay(std::uint16_t argument,
 	std::uint16_t response = 0;
 	const Error error = gp_.Exchange(static_cast<std::uint8_t>(FesGpOpcodeGameplay),
 		static_cast<std::uint8_t>(FesGpControlIndex), argument, deadline, &response);
-	if (!error.ok()) return {error, true, ""};
+	if (!error.ok()) return {error, true, "", false, gp_.Poisoned()};
 	if (response != 0)
-		return {{ErrorCode::io_failed, "FES GP gameplay response is invalid"}, true, ""};
-	return {{}, true, ""};
+		return {{ErrorCode::io_failed, "FES GP gameplay response is invalid"}, true, "", false, true};
+	return {{}, true, "", false, true};
 }
 
 CoreDriverResult FesGpCoreDriver::NeutralizeKeyboard(std::uint64_t deadline)
@@ -1932,6 +1950,82 @@ Error FesGpCoreDriver::SetWallClock(const std::tm& local, std::uint64_t deadline
 	for (std::uint8_t index = 0; index < FesComputerWallClockWordCount && error.ok(); ++index)
 		error = ComputerCommand(FesComputerOpcodeWallClock, index, words[index], deadline);
 	return WithPhase(error, "transport");
+}
+
+Error FesGpCoreDriver::ReadAtaDiskInfo(std::uint64_t deadline, AtaDiskInfo* info)
+{
+	if (!ata_disk_ || !info) return {ErrorCode::unsupported_interface, "ATA disk is unavailable", "input"};
+	std::uint16_t words[FesComputerDiskInfoStride] = {};
+	for (std::uint8_t field = 0; field < FesComputerDiskInfoStride; ++field) {
+		const Error error = gp_.Exchange(FesComputerOpcodeDiskInfo, field, 0, deadline, &words[field]);
+		if (!error.ok()) return WithPhase(error, "input");
+	}
+	info->minimum = words[FesComputerDiskInfoMinLoField] |
+		(static_cast<std::uint32_t>(words[FesComputerDiskInfoMinHiField]) << 16);
+	info->maximum = words[FesComputerDiskInfoMaxLoField] |
+		(static_cast<std::uint32_t>(words[FesComputerDiskInfoMaxHiField]) << 16);
+	info->chunk_sectors = words[FesComputerDiskInfoChunkSectorsField];
+	info->state = words[FesComputerDiskInfoStateField];
+	info->flags = words[FesComputerDiskInfoFlagsField];
+	info->epoch = words[FesComputerDiskInfoEpochField];
+	return {};
+}
+
+Error FesGpCoreDriver::AtaDiskControl(std::uint16_t argument, std::uint64_t deadline)
+{
+	if (!ata_disk_) return {ErrorCode::unsupported_interface, "ATA disk is unavailable", "input"};
+	return ComputerCommand(FesComputerOpcodeDiskControl, FesComputerAtaDiskUnit, argument, deadline);
+}
+
+Error FesGpCoreDriver::CommitAtaDisk(std::uint32_t sectors, std::uint16_t cylinders, std::uint16_t heads,
+	std::uint16_t sectors_per_track, std::uint32_t crc, std::uint64_t deadline)
+{
+	if (!ata_disk_) return {ErrorCode::unsupported_interface, "ATA disk is unavailable", "input"};
+	const std::uint16_t words[FesComputerDiskCommitWordCount] = {
+		static_cast<std::uint16_t>(sectors), static_cast<std::uint16_t>(sectors >> 16),
+		cylinders, heads, sectors_per_track,
+		static_cast<std::uint16_t>(crc), static_cast<std::uint16_t>(crc >> 16), 0};
+	Error error;
+	for (std::uint8_t word = 0; word < FesComputerDiskCommitWordCount && error.ok(); ++word)
+		error = ComputerCommand(FesComputerOpcodeDiskCommit, word, words[word], deadline);
+	if (error.ok()) error = AtaDiskControl(FesComputerDiskControlCommit, deadline);
+	// The core reads the whole image from DDR (about 0.2 s for 128 MiB).
+	while (error.ok()) {
+		std::uint16_t state = 0;
+		error = gp_.Exchange(FesComputerOpcodeDiskInfo, FesComputerDiskInfoStateField, 0, deadline, &state);
+		if (!error.ok() || state == FesComputerMediaStateReady) break;
+		if (state != FesComputerDiskStateVerifying) {
+			constexpr std::uint16_t kCrcErrorFlag = 1u << 3;
+			std::uint16_t flags = 0;
+			error = gp_.Exchange(FesComputerOpcodeDiskInfo, FesComputerDiskInfoFlagsField, 0, deadline, &flags);
+			if (error.ok()) {
+				if (flags & kCrcErrorFlag)
+					error = {ErrorCode::corrupt_data, "the core reported an ATA disk image CRC mismatch", "input"};
+				else
+					error = {ErrorCode::io_failed,
+						"the core left ATA disk verification without reporting ready or a CRC error", "input"};
+			}
+			break;
+		}
+		const std::uint64_t now = gp_.NowMs();
+		error = gp_.WaitUntilMs(now + 10 < deadline ? now + 10 : deadline, deadline);
+	}
+	return WithPhase(error, "input");
+}
+
+Error FesGpCoreDriver::ReadAtaDirty(std::uint64_t deadline, std::vector<std::uint32_t>* chunks)
+{
+	if (!ata_disk_ || !chunks) return {ErrorCode::unsupported_interface, "ATA disk is unavailable", "input"};
+	chunks->clear();
+	for (std::uint32_t word = 0; word < FesComputerAtaDiskDirtyWordCount; ++word) {
+		std::uint16_t bits = 0;
+		const Error error = gp_.Exchange(FesComputerOpcodeDiskDirty, static_cast<std::uint8_t>(word), 0,
+			deadline, &bits);
+		if (!error.ok()) return WithPhase(error, "input");
+		for (std::uint32_t bit = 0; bit < FesComputerAtaDiskDirtyChunksPerWord; ++bit)
+			if (bits & (1u << bit)) chunks->push_back(word * FesComputerAtaDiskDirtyChunksPerWord + bit);
+	}
+	return {};
 }
 
 Error FesGpCoreDriver::ResumeData(const CoreDriverContext&, std::uint64_t deadline)

@@ -491,7 +491,7 @@ func validateProtocol2Shape(line []byte) error {
 			return err
 		}
 		if err := eachRaw(raw, func(item json.RawMessage) error {
-			unit, err := exactRawObject(item, []string{"unit", "interface", "min_bytes", "max_bytes", "chunk_bytes", "state"}, []string{"persistence"})
+			unit, err := exactRawObject(item, []string{"unit", "interface", "min_bytes", "max_bytes", "chunk_bytes", "state"}, []string{"persistence", "saveable"})
 			if err != nil {
 				return err
 			}
@@ -504,6 +504,11 @@ func validateProtocol2Shape(line []byte) error {
 					return err
 				}
 				if err = requireRawKinds(binding, map[string]rawKind{"mode": rawString, "game_id": rawString, "base_media_id": rawString, "revision": rawString}); err != nil {
+					return err
+				}
+			}
+			if raw, ok := unit["saveable"]; ok {
+				if err := requireRawKind(raw, rawBoolean); err != nil {
 					return err
 				}
 			}
@@ -1184,12 +1189,14 @@ func validSupportedInterfaces(interfaces []Protocol2Interface) bool {
 func validMediaUnits(response Protocol2Response) bool {
 	active := response.ActivePackage
 	if active == nil || !positive(response.Generation) ||
-		!protocol.ComputerABI(active.Descriptor.ABI.ID, active.Descriptor.ABI.Major, active.Descriptor.ABI.Minor) {
+		!protocol.ComputerMediaABI(active.Descriptor.ABI.ID, active.Descriptor.ABI.Major, active.Descriptor.ABI.Minor) {
 		return false
 	}
-	bound := false
+	packageStatus := computerMediaStatus(response).CorePackage
 	for index, unit := range response.Capabilities.MediaUnits {
-		if !unit.Valid() || (index > 0 && response.Capabilities.MediaUnits[index-1].Unit >= unit.Unit) {
+		if !unit.Valid() || (unit.Interface == protocol.AtaDiskInterface() &&
+			!protocol.ComputerAtaDiskABI(active.Descriptor.ABI.ID, active.Descriptor.ABI.Major, active.Descriptor.ABI.Minor)) ||
+			(index > 0 && response.Capabilities.MediaUnits[index-1].Unit >= unit.Unit) {
 			return false
 		}
 		found := false
@@ -1206,15 +1213,12 @@ func validMediaUnits(response Protocol2Response) bool {
 				return false
 			}
 		}
-		if unit.Persistence != nil {
-			bound = true
+		if unit.Persistence != nil && (active.PersistenceMode != "persistent" || !protocol.PersistentMediaUnitCapable(packageStatus, unit)) {
+			return false
 		}
 	}
-	p := computerMediaStatus(response).CorePackage
-	if bound && (!protocol.MediaWriteCapable(p) || active.PersistenceMode != "persistent") {
-		return false
-	}
-	if active.PersistenceMode == "persistent" && !bound {
+	if active.PersistenceMode == "persistent" &&
+		(!protocol.PersistentMediaStatusValid(packageStatus) || !descriptorPersistentMedia(active.Descriptor, response.Capabilities.MediaUnits)) {
 		return false
 	}
 	return true
@@ -1258,14 +1262,9 @@ func validSlotComposition(c expansion.SlotComposition, active Protocol2ActivePac
 }
 
 func validActivePackage(active Protocol2ActivePackage, capabilities Protocol2Capabilities) bool {
-	if protocol.ComputerABI(active.Descriptor.ABI.ID, active.Descriptor.ABI.Major, active.Descriptor.ABI.Minor) && active.PersistenceMode == "persistent" {
-		bound := false
-		for _, u := range capabilities.MediaUnits {
-			if u.Persistence != nil && u.Valid() {
-				bound = true
-			}
-		}
-		if !bound || !descriptorMediaWrite(active.Descriptor) {
+	if protocol.ComputerMediaABI(active.Descriptor.ABI.ID, active.Descriptor.ABI.Major, active.Descriptor.ABI.Minor) && active.PersistenceMode == "persistent" {
+		status := protocol2MediaStatus(active, capabilities)
+		if !protocol.PersistentMediaStatusValid(status) || !descriptorPersistentMedia(active.Descriptor, capabilities.MediaUnits) {
 			return false
 		}
 	}
@@ -1539,4 +1538,49 @@ func descriptorMediaWrite(d corepackage.Descriptor) bool {
 		}
 	}
 	return protocol.ComputerABI(d.ABI.ID, d.ABI.Major, d.ABI.Minor) && base && write
+}
+
+func descriptorAtaDisk(d corepackage.Descriptor) bool {
+	if !protocol.ComputerAtaDiskABI(d.ABI.ID, d.ABI.Major, d.ABI.Minor) {
+		return false
+	}
+	for _, i := range d.Interfaces {
+		if i.ID == protocol.AtaDiskInterface().ID && i.Major == int64(protocol.AtaDiskInterface().Major) && i.Minor == int64(protocol.AtaDiskInterface().Minor) {
+			return true
+		}
+	}
+	return false
+}
+
+func descriptorPersistentMedia(d corepackage.Descriptor, units []protocol.MediaUnitStatus) bool {
+	for _, unit := range units {
+		if unit.Persistence != nil {
+			switch unit.Interface {
+			case protocol.AtariStFloppyInterface():
+				return descriptorMediaWrite(d)
+			case protocol.AtaDiskInterface():
+				return descriptorAtaDisk(d)
+			default:
+				return false
+			}
+		}
+	}
+	for _, unit := range units {
+		if unit.Interface == protocol.AtaDiskInterface() && unit.Persistence == nil &&
+			(unit.State == protocol.MediaUnitEmpty || unit.State == protocol.MediaUnitLoading) {
+			return descriptorAtaDisk(d)
+		}
+	}
+	return false
+}
+
+func protocol2MediaStatus(active Protocol2ActivePackage, capabilities Protocol2Capabilities) *protocol.CorePackageStatus {
+	interfaces := make([]protocol.RuntimeInterface, len(capabilities.ActiveInterfaces))
+	for index, value := range capabilities.ActiveInterfaces {
+		interfaces[index] = protocol.RuntimeInterface{ID: value.ID, Major: value.Major, Minor: value.Minor}
+	}
+	return &protocol.CorePackageStatus{
+		ABI:              protocol.RuntimeContract{ID: active.Descriptor.ABI.ID, Major: uint16(active.Descriptor.ABI.Major), Minor: uint16(active.Descriptor.ABI.Minor)},
+		ActiveInterfaces: interfaces, MediaUnits: capabilities.MediaUnits, PersistenceMode: active.PersistenceMode,
+	}
 }

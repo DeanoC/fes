@@ -44,7 +44,7 @@ std::string Controller::Handle(const std::string& line)
 	case Operation::load_library_core:
 		result =
 			runtime_.LoadLibraryCore(request.package_path, request.package_id, request.data_root,
-				request.game_id);
+				request.game_id, request.has_ata_disk ? &request.ata_disk : nullptr);
 		EmitFifoConsume("load_library_core", result.ok());
 		break;
 	case Operation::inspect_core_data:

@@ -59,6 +59,8 @@ struct Request {
 	std::string expected_revision;
 	std::string game_id;
 	CoreSettingsUpdate settings;
+	bool has_ata_disk = false;
+	AtaDiskImage ata_disk;
 	std::uint64_t keyboard_matrix = 0;
 	std::uint8_t controller_port = 0;
 	std::uint16_t controller_buttons = 0;

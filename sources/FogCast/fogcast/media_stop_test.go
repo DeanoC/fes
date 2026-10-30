@@ -149,7 +149,7 @@ func TestScopedDiskStopUsesOwnBindingWhileHostOnlyPlayContinues(t *testing.T) {
 			s.targetClients["sibling"] = targetclient.NewClient(sibling, "secret", httpClient)
 			s.plays["sibling"] = targetPlay{execution: ExecutionFPGANative, packageID: p.PackageID, packageGeneration: p.Generation}
 			s.activeExecution, s.activeTarget, s.activeGameID = ExecutionHostOnly, "host", "local-game"
-			s.connection = TargetConnection{mediaDataBound: !persistent}
+			s.connection = TargetConnection{persistentMediaBound: !persistent}
 			status, err := s.StopTarget(context.Background(), "sibling")
 			if err != nil || status.State != protocol.StateIdle || healths != 1 || statuses != 1 || stops != 1 {
 				t.Fatal(status, err, healths, statuses, stops)

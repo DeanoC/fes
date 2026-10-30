@@ -84,7 +84,7 @@ public:
 		: opener_(), mmio_(), clock_(), fpga_(mmio_, clock_),
 		  i2c_(clock_),
 		  fes_gp_(mmio_, clock_), fes_gp_driver_(fes_gp_),
- menu_display_(fes_gp_,clock_),menu_window_(),
+ menu_display_(fes_gp_,clock_),menu_window_(),disk_window_(),
 		  idle_video_(i2c_, clock_, log,
 			  native::Menu720p60Recipe()),
 		  game_video_(i2c_, clock_, log, native::Menu720p60Recipe()),
@@ -95,7 +95,7 @@ public:
 			  MISTER_RUNTIME_IDLE_RBF, timeouts_, &fes_gp_driver_,
 			  {"/tmp/fogcast-development/core-packages",
 			   "/usr/share/mister-runtime/core-packages"},
-			  native::SplashIdle(),&menu_display_,&menu_window_) {}
+			  native::SplashIdle(),&menu_display_,&menu_window_,&disk_window_) {}
 
 	void SetFaultSink(HardwareFaultSink* sink) override
 	{
@@ -138,6 +138,11 @@ public:
 	Error RefreshCoreData(AdmittedCorePackage* package, CoreData* output) override
 	{
 		return hardware_.RefreshCoreData(package, output);
+	}
+	Error PrepareAtaDisk(AdmittedCorePackage* package, const std::string& game_id,
+		const AtaDiskImage& image) override
+	{
+		return hardware_.PrepareAtaDisk(package, game_id, image);
 	}
 	Error PrepareInitialComputerMedia(AdmittedCorePackage* package, const InitialComputerMedia& media) override
 	{ return hardware_.PrepareInitialComputerMedia(package, media); }
@@ -248,6 +253,7 @@ private:
 	native::FesGpCoreDriver fes_gp_driver_;
  native::MenuDisplayDriver menu_display_;
  native::MenuWindow menu_window_;
+ native::DiskWindow disk_window_;
 	native::SplashVideoBringup idle_video_;
 	native::FixedVideoBringup game_video_;
 	native::LinuxInput input_device_;

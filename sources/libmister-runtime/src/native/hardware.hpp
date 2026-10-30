@@ -6,6 +6,7 @@
 #include "libmister-runtime/runtime.h"
 #include "native/core_driver.hpp"
 #include "native/idle_recipe.hpp"
+#include "native/ata_disk.hpp"
 #include "native/media_data.hpp"
 
 #include <atomic>
@@ -27,6 +28,8 @@ struct InputDeviceIdentity;
 class VideoBringup;
 class MenuDisplayDriver;
 class MenuWindow;
+class DiskWindow;
+class FesGpCoreDriver;
 
 class Clock {
 public:
@@ -74,7 +77,8 @@ public:
 		LogSink&, std::string idle_rbf, NativeTimeouts, CoreDriver* fes_gp_driver,
 		std::vector<std::string> package_roots = {},
 		IdleRecipe idle_recipe = SplashIdle(),
- MenuDisplayDriver* menu_display = nullptr,MenuWindow* menu_window = nullptr);
+ MenuDisplayDriver* menu_display = nullptr,MenuWindow* menu_window = nullptr,
+		DiskWindow* disk_window = nullptr);
 	~NativeHardware();
 	void SetFaultSink(HardwareFaultSink*) override;
 	HardwareResult LoadIdle() override;
@@ -99,6 +103,7 @@ public:
 		CorePackageInspection*) override;
 	Error PrepareCoreData(AdmittedCorePackage*, const std::string&, const std::string&, CoreData*) override;
 	Error RefreshCoreData(AdmittedCorePackage*, CoreData*) override;
+	Error PrepareAtaDisk(AdmittedCorePackage*, const std::string&, const AtaDiskImage&) override;
 	Error PrepareInitialComputerMedia(AdmittedCorePackage*, const InitialComputerMedia&) override;
 	Error RefreshInitialComputerMedia(AdmittedCorePackage*) override;
 	Error InspectCoreData(const std::string&, const std::string&, const std::string&,
@@ -143,6 +148,7 @@ private:
  Error ReleaseControllers();
  MenuDisplayDriver* menu_display_;
  MenuWindow* menu_window_;
+ DiskWindow* disk_window_;
  MenuDisplayStatus menu_status_;
  std::string menu_directory_,menu_package_id_;
  std::uint8_t menu_slot_=0;
@@ -195,6 +201,15 @@ private:
     std::uint32_t media_base_size_ = 0;
     bool media_data_flushed_ = false;
     bool media_image_uncertain_ = false;
+	Error LoadAtaDisk(FesGpCoreDriver&, PreparedAtaDisk&);
+	Error FlushAtaDiskSave();
+	void ForgetAtaDisk();
+	std::unique_ptr<AtaDeltaFile> ata_delta_file_;
+	AtaDiskDelta ata_delta_;
+	MediaDataIdentity ata_identity_;
+	std::uint32_t ata_size_ = 0;
+	bool ata_ready_ = false;
+	bool ata_flushed_ = false;
 };
 
 } // namespace native

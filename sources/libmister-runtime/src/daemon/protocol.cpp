@@ -12,6 +12,7 @@
 #include "native/generated/fes_simple_computer.hpp"
 #include "native/generated/fes_application.hpp"
 #include "native/generated/fes_computer.hpp"
+#include "native/ata_disk.hpp"
 #include "native/media_data.hpp"
 #include "native/pc386_machine.hpp"
 
@@ -623,6 +624,7 @@ bool TryEncodeV2Response(bool ok, const Status& status, const std::string& versi
 			output.Append(std::to_string(unit.chunk_bytes));
 			output.Append(",\"state\":");
 			AppendQuoted(&output, MediaUnitStateName(unit.state));
+			if (!unit.saveable) output.Append(",\"saveable\":false");
             if(unit.persistence_mode=="persistent") {
                 output.Append(",\"persistence\":{\"mode\":\"persistent\",\"game_id\":"); AppendQuoted(&output,unit.game_id);
                 output.Append(",\"base_media_id\":"); AppendQuoted(&output,unit.base_media_id);
@@ -1166,10 +1168,41 @@ Error ParseRequest(const std::string& line, Request* request)
 			// game_id keys a fes.computer package's per-game record; a pc386
 			// update carries machine settings instead of Pong's paddle speed.
 			const bool machine = Find(root, "machine") != nullptr;
+			const bool load = operation->string_value == "load_library_core";
 			const char* const fields[] = {"protocol", "operation", "package_path", "package_id",
-				"data_root", "game_id", "expected_revision", machine ? "machine" : "paddle_speed"};
-			if (!HasOnly(root, fields, update ? 8 : 6, &error))
+				"data_root", "game_id", update ? "expected_revision" : "ata_disk",
+				machine ? "machine" : "paddle_speed"};
+			if (!HasOnly(root, fields, update ? 8 : load ? 7 : 6, &error))
 				return error;
+			if (const auto* disk = Find(root, "ata_disk")) {
+				// The staged base image of a fes.media.ata-disk package and its
+				// game's chunk-delta root; it binds to the request's game_id.
+				const char* keys[] = {"path", "size", "base_media_id", "data_root", "cylinders", "heads",
+					"sectors_per_track"};
+				if (disk->type != json::Type::object || !HasOnly(*disk, keys, 7, &error))
+					return Invalid("invalid ATA disk");
+				const std::string *path = nullptr, *base = nullptr, *media_root = nullptr;
+				if (!StringMember(*disk, "path", &path, &error) || !StringMember(*disk, "base_media_id", &base, &error) ||
+					!StringMember(*disk, "data_root", &media_root, &error)) return error;
+				const auto* size = Find(*disk, "size");
+				const auto* cylinders = Find(*disk, "cylinders");
+				const auto* heads = Find(*disk, "heads");
+				const auto* sectors = Find(*disk, "sectors_per_track");
+				if (!Path(*path) || !Path(*media_root) || !PackageID(*base) || !Find(root, "game_id") ||
+					!BoundedInteger(size, 0, native::generated::FesComputerAtaDiskMaxBytes) ||
+					!BoundedInteger(cylinders, 0, 0xffff) || !BoundedInteger(heads, 0, 0xffff) ||
+					!BoundedInteger(sectors, 0, 0xffff) ||
+					!native::ValidAtaDiskGeometry(static_cast<std::uint64_t>(size->integer_value),
+						static_cast<std::uint32_t>(cylinders->integer_value),
+						static_cast<std::uint32_t>(heads->integer_value),
+						static_cast<std::uint32_t>(sectors->integer_value)))
+					return Invalid("invalid ATA disk paths, identity or geometry");
+				parsed.has_ata_disk = true;
+				parsed.ata_disk = {*path, static_cast<std::uint32_t>(size->integer_value), *base, *media_root,
+					static_cast<std::uint16_t>(cylinders->integer_value),
+					static_cast<std::uint16_t>(heads->integer_value),
+					static_cast<std::uint16_t>(sectors->integer_value)};
+			}
 			if (const auto* game = Find(root, "game_id")) {
 				if (game->type != json::Type::string || !native::ValidLibraryGameID(game->string_value))
 					return Invalid("invalid core-data game identity");

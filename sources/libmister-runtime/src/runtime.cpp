@@ -370,7 +370,7 @@ public:
 		const std::string& data_root = "", const CoreCompositionRequest* composition = nullptr,
 		const std::string& programmed_path = "", const std::string& programmed_sha256 = "", const CoreROMLink* rom_link = nullptr,
 		const CoreROMLinks* rom_links = nullptr, const InitialComputerMedia* initial_media = nullptr,
-		const std::string& game_id = "")
+		const std::string& game_id = "", const AtaDiskImage* disk = nullptr)
 	{
 		LogRecord rejection;
 		bool rejected = false;
@@ -432,7 +432,9 @@ public:
 		data.package_id = package->info().package_id;
 		data.core_id = package->info().declared_core;
 		if (!data_root.empty()) {
-			const Error prepared = hardware_.PrepareCoreData(package.get(), data_root, game_id, &data);
+			Error prepared = hardware_.PrepareCoreData(package.get(), data_root, game_id, &data);
+			if (prepared.ok() && disk != nullptr)
+				prepared = hardware_.PrepareAtaDisk(package.get(), game_id, *disk);
 			if (!prepared.ok()) {
 				{
 					std::lock_guard<std::mutex> lock(mutex_);
@@ -974,7 +976,7 @@ public:
 		const Error error = hardware_.InsertComputerMedia(unit, path, size);
 		if (error.code == ErrorCode::save_failed)
 			return RestoreAfterSaveFailure("insert_media", system, core, generation, error);
-		FinishMediaUnit();
+		FinishMediaUnit(error.code != ErrorCode::unsupported_interface);
 		Log("insert_media", system, core, error.ok() ? "running" : "request", error);
 		return error;
 	}
@@ -998,7 +1000,7 @@ public:
 		const Error error = hardware_.InsertLibraryComputerMedia(unit, path, size, root, binding);
 		if (error.code == ErrorCode::save_failed && error.phase != "request")
 			return RestoreAfterSaveFailure("insert_library_media", system, core, generation, error);
-		FinishMediaUnit();
+		FinishMediaUnit(error.code != ErrorCode::unsupported_interface);
 		Log("insert_library_media", system, core, error.ok() ? "running" : "request", error);
 		return error;
 	}
@@ -1013,8 +1015,13 @@ public:
 			const Error rejected = AdmitMediaUnit(package_id, generation, unit);
 			if (!rejected.ok()) return rejected;
 			bool persistent = false;
-			for (const auto& media : status_.capabilities.media_units)
-				if (media.unit == unit && media.persistence_mode == "persistent") persistent = true;
+			for (const auto& media : status_.capabilities.media_units) {
+				if (media.unit != unit) continue;
+				if (!media.saveable)
+					return {ErrorCode::unsupported_interface,
+						"media unit does not support an explicit save while the computer is running", "compatibility"};
+				if (media.persistence_mode == "persistent") persistent = true;
+			}
 			if (!persistent) return {ErrorCode::unsupported_interface,
 				"media has no library data binding", "compatibility"};
 			busy_ = true; system = status_.system; core = status_.core;
@@ -1034,7 +1041,7 @@ public:
 			busy_ = true; system = status_.system; core = status_.core;
 		}
 		const Error error = hardware_.CaptureZx81Tape(path);
-		FinishMediaUnit();
+		FinishMediaUnit(error.code != ErrorCode::unsupported_interface);
 		Log("capture_zx81_tape", system, core, error.ok() ? "running" : "request", error);
 		return error;
 	}
@@ -1053,7 +1060,7 @@ public:
 		const Error error = hardware_.AcknowledgeZx81Tape();
 		if (error.code == ErrorCode::save_failed)
 			return RestoreAfterSaveFailure("acknowledge_zx81_tape", system, core, generation, error);
-		FinishMediaUnit();
+		FinishMediaUnit(error.code != ErrorCode::unsupported_interface);
 		Log("acknowledge_zx81_tape", system, core, error.ok() ? "running" : "request", error);
 		return error;
 	}
@@ -1076,7 +1083,7 @@ public:
 		const Error error = hardware_.EjectComputerMedia(unit);
 		if (error.code == ErrorCode::save_failed)
 			return RestoreAfterSaveFailure("eject_media", system, core, generation, error);
-		FinishMediaUnit();
+		FinishMediaUnit(error.code != ErrorCode::unsupported_interface);
 		Log("eject_media", system, core, error.ok() ? "running" : "request", error);
 		return error;
 	}
@@ -1262,13 +1269,14 @@ public:
 			"media unit is not declared by the active computer", "compatibility"};
 	}
 
-	void FinishMediaUnit()
+	void FinishMediaUnit(bool recompute_persistence)
 	{
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
 			// Publish the driver's unit state from its last live exchange.
 			status_.capabilities.media_units = hardware_.capabilities().media_units;
-			if (status_.active_package.descriptor.abi.id == native::generated::FesComputerABIID) {
+			if (recompute_persistence &&
+				status_.active_package.descriptor.abi.id == native::generated::FesComputerABIID) {
 				status_.core_data.mode = "volatile";
 				for (const auto& media : status_.capabilities.media_units)
 					if (media.persistence_mode == "persistent") status_.core_data.mode = "persistent";
@@ -1545,11 +1553,12 @@ Error Runtime::LoadComposedCore(const std::string& directory, const std::string&
 	return impl_->LoadCore(directory, id, "", &request);
 }
 Error Runtime::LoadLibraryCore(const std::string& directory, const std::string& id,
-	const std::string& root, const std::string& game_id)
+	const std::string& root, const std::string& game_id, const AtaDiskImage* disk)
 {
-	if (!ValidAbsolutePath(root))
-		return Invalid("invalid core-data root");
-	return impl_->LoadCore(directory, id, root, nullptr, "", "", nullptr, nullptr, nullptr, game_id);
+	if (!ValidAbsolutePath(root) || (disk && (game_id.empty() || !ValidAbsolutePath(disk->path) ||
+		!ValidAbsolutePath(disk->data_root))))
+		return Invalid("invalid core-data root or ATA disk");
+	return impl_->LoadCore(directory, id, root, nullptr, "", "", nullptr, nullptr, nullptr, game_id, disk);
 }
 Error Runtime::LoadLibraryPartsCore(const std::string& directory, const std::string& id,
 	const std::string& root, const CoreCompositionRequest& request)

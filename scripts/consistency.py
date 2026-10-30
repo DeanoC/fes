@@ -76,6 +76,8 @@ COMPONENT_FIXTURES = (
      'FogCast', 'internal/misterruntime/testdata/protocol-v2-pc386-responses.jsonl'),
     ('libmister-runtime', 'tests/fixtures/protocol-v2-computer-responses.jsonl',
      'FogCast', 'internal/misterruntime/testdata/protocol-v2-computer-responses.jsonl'),
+    ('libmister-runtime', 'tests/fixtures/protocol-v2-live-computer-statuses.jsonl',
+     'FogCast', 'internal/misterruntime/testdata/protocol-v2-live-computer-statuses.jsonl'),
     ('libmister-runtime', 'tests/fixtures/protocol-v2.jsonl',
      'FogCast', 'internal/misterruntime/testdata/protocol-v2.jsonl'),
     ('libmister-runtime', 'tests/fixtures/protocol-v2-edge-responses.jsonl',
