@@ -92,6 +92,58 @@ class De25PhysicalMemoryRecordTests(unittest.TestCase):
         self.assertIn('does not establish that factory Linux completed a clean halt', report)
         self.assertNotRegex(report, r'Factory Linux is synced and gracefully halted')
 
+    def test_device_mask_claim_matches_retained_device_names(self):
+        hardware = json.loads((self.record / 'hardware.json').read_text())
+        board = hardware['board']
+        with gzip.open(self.record / 'factory-linked-services.log.gz', 'rt') as stream:
+            linked_services = stream.read()
+        with gzip.open(self.record / 'ramtest-program-with-spl.log.gz', 'rt') as stream:
+            programmer = stream.read()
+
+        self.assertEqual(board['system_console_device_path_pattern'], 'A5E(A013BB23B|B013BB23BCS)')
+        self.assertNotIn('R1', board['system_console_device_path_pattern'])
+        self.assertIn(f'/devices/{board["system_console_device_path_pattern"]}', linked_services)
+        self.assertIn(f'for device {board["programmer_device_name"]}@1', programmer)
+        self.assertEqual(board['silicon_suffix'], 'unconfirmed; retained device path has no R1 arm')
+
+        report = ' '.join((self.record / 'README.md').read_text().split())
+        self.assertIn('with no R1 arm', report)
+        self.assertNotIn('matches this part to both the CS and R1 masks', report)
+
+    def test_factory_restore_boot_identity_is_bound_to_ssh_not_uart(self):
+        restore = json.loads((self.record / 'restore.json').read_text())
+        with gzip.open(self.record / 'restore-reboot-uart.log.gz', 'rt') as stream:
+            uart = stream.read()
+        with gzip.open(self.record / 'restored-factory-linux.log.gz', 'rt') as stream:
+            ssh = stream.read()
+
+        self.assertEqual(restore['uart_factory_boot'], 'NOT_RETAINED')
+        self.assertEqual(restore['pinned_ssh_factory_boot'], 'PASS')
+        self.assertIn('reboot: Restarting system', uart)
+        self.assertNotIn(restore['factory_boot_id'], uart)
+        for value in (restore['factory_boot_id'], restore['factory_kernel'], restore['root']):
+            self.assertIn(value, ssh)
+
+        report = ' '.join((self.record / 'README.md').read_text().split())
+        self.assertIn('no subsequent factory boot transcript', report)
+        self.assertIn('The pinned-key SSH transcript records factory boot UUID', report)
+        self.assertNotIn('UART/pinned SSH checks', report)
+
+    def test_programmed_sof_identity_uses_logged_quartus_checksum(self):
+        hardware = json.loads((self.record / 'hardware.json').read_text())
+        programmed = hardware['programmed_sof']
+        self.assertEqual(programmed['programmer_log'], 'ramtest-program-with-spl.log.gz')
+        self.assertEqual(programmed['quartus_checksum'], '0x067AE616')
+        self.assertNotIn('sha256', programmed)
+        self.assertNotIn('bytes', programmed)
+
+        with gzip.open(self.record / programmed['programmer_log'], 'rt') as stream:
+            programmer = stream.read()
+        self.assertRegex(programmer, r'Using programming file .* with checksum 0x067AE616 for device A5EB013BB23BCS@1')
+        report = ' '.join((self.record / 'README.md').read_text().split())
+        self.assertIn('No SHA-256 or byte count for the generated SOF was retained', report)
+        self.assertNotIn('2267ecc2e9e8dd08cd24e8d413ee7e704cc022863d5b761b6d6e6aa33a6bb64c', report)
+
     def test_board_identity_and_release_claims_are_limited_to_retained_evidence(self):
         hardware = json.loads((self.record / 'hardware.json').read_text())
         board = hardware['board']
