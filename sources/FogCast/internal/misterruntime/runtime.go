@@ -237,15 +237,15 @@ func (r *Runtime) inspectStagedCore(ctx context.Context, staged corepackage.Stag
 
 func (r *Runtime) LoadCoreOwned(admission, observation, operationOwner context.Context,
 	size int64, content io.Reader) (activation CoreActivation, attempted bool, apiErr *protocol.APIError) {
-	return r.loadCoreOwned(admission, observation, operationOwner, size, content, "")
+	return r.loadCoreOwned(admission, observation, operationOwner, size, content, "", "")
 }
 func (r *Runtime) LoadComposedCoreOwned(admission, observation, operationOwner context.Context, size int64, content io.Reader, libraryID string) (CoreActivation, bool, *protocol.APIError) {
-	return r.loadCoreOwnedMode(admission, observation, operationOwner, size, content, libraryID, true)
+	return r.loadCoreOwnedMode(admission, observation, operationOwner, size, content, libraryID, true, "", nil)
 }
-func (r *Runtime) loadCoreOwned(admission, observation, operationOwner context.Context, size int64, content io.Reader, libraryID string) (activation CoreActivation, attempted bool, apiErr *protocol.APIError) {
-	return r.loadCoreOwnedMode(admission, observation, operationOwner, size, content, libraryID, false)
+func (r *Runtime) loadCoreOwned(admission, observation, operationOwner context.Context, size int64, content io.Reader, libraryID, gameID string) (activation CoreActivation, attempted bool, apiErr *protocol.APIError) {
+	return r.loadCoreOwnedMode(admission, observation, operationOwner, size, content, libraryID, false, gameID, nil)
 }
-func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner context.Context, size int64, content io.Reader, libraryID string, composed bool, partsMode ...bool) (activation CoreActivation, attempted bool, apiErr *protocol.APIError) {
+func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner context.Context, size int64, content io.Reader, libraryID string, composed bool, libraryGameID string, ataDisk *ataDiskLoadRequest, partsMode ...bool) (activation CoreActivation, attempted bool, apiErr *protocol.APIError) {
 	if r.corePackageRoot == "" {
 		return CoreActivation{}, false, unsupportedOperationError()
 	}
@@ -392,6 +392,10 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 	if (staged.Descriptor.ROM != nil && staged.ROMLink == nil) || (staged.Descriptor.Format == 4 && staged.ROMLinks == nil) {
 		return CoreActivation{}, false, &protocol.APIError{Code: protocol.CodeInvalidArchive, Message: "ROM-bearing package requires selected ROM input", Phase: "admission"}
 	}
+	if ataDisk != nil && (!ataDisk.valid() || !pc386MachineRecordPackage(staged.Descriptor) || libraryID == "") {
+		return CoreActivation{}, false, &protocol.APIError{Code: protocol.CodeBadRequest,
+			Message: "ATA disk selection does not match the library package", Phase: "request"}
+	}
 	if admission.Err() != nil || observation.Err() != nil || operationOwner.Err() != nil {
 		return CoreActivation{}, false, unavailableError()
 	}
@@ -404,6 +408,14 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 			mapProtocol2Error(inspection.CompatibilityError)
 	}
 	expectedMode := "volatile"
+	dataGameID := ""
+	if inspection.PersistenceLayout != nil && inspection.PersistenceLayout.ID == "fes.pc386.machine" &&
+		protocol.ComputerMediaABI(inspection.Descriptor.ABI.ID, inspection.Descriptor.ABI.Major, inspection.Descriptor.ABI.Minor) {
+		if protocol.ValidateGameID(libraryGameID) != nil {
+			return CoreActivation{}, false, &protocol.APIError{Code: protocol.CodeBadRequest, Message: "core data game identity is invalid", Phase: "request"}
+		}
+		dataGameID = libraryGameID
+	}
 	if libraryID != "" && (!composed || parts) {
 		inspector, ok := r.control.(protocol2DataControl)
 		if !ok {
@@ -414,7 +426,7 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 				return CoreActivation{}, false, unsupportedOperationError()
 			}
 		}
-		data, err := inspector.InspectCoreData(admission, staged.Directory, staged.PackageID, CoreDataRoot)
+		data, err := inspector.InspectCoreData(admission, staged.Directory, staged.PackageID, CoreDataRoot, dataGameID)
 		if err != nil {
 			return CoreActivation{}, false, unavailableError()
 		}
@@ -531,7 +543,17 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 		response, callErr = r.control.(protocol2CompositionControl).LoadComposedCore(operationOwner, staged.Directory, staged.PackageID, staged.ExpansionDirectory, staged.PayloadPath, *staged.Composition)
 		r.noteDispatch("load_composed_core", callErr == nil)
 	} else if libraryID != "" {
-		response, callErr = r.control.(protocol2LibraryControl).LoadLibraryCore(operationOwner, staged.Directory, staged.PackageID, CoreDataRoot)
+		if ataDisk != nil {
+			loader, ok := r.control.(protocol2LibraryAtaControl)
+			if !ok {
+				return CoreActivation{}, false, unsupportedOperationError()
+			}
+			response, callErr = loader.LoadLibraryCoreWithAtaDisk(operationOwner, staged.Directory,
+				staged.PackageID, CoreDataRoot, dataGameID, *ataDisk)
+		} else {
+			response, callErr = r.control.(protocol2LibraryControl).LoadLibraryCore(operationOwner,
+				staged.Directory, staged.PackageID, CoreDataRoot, dataGameID)
+		}
 		r.noteDispatch("load_library_core", callErr == nil)
 	} else {
 		response, callErr = control.LoadCore(operationOwner, staged.Directory, staged.PackageID)
@@ -615,7 +637,8 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 		!reflect.DeepEqual(response.ActivePackage.PartsComposition, staged.PartsComposition) ||
 		!reflect.DeepEqual(response.ActivePackage.ROMLink, staged.ROMLink) ||
 		!reflect.DeepEqual(response.ActivePackage.ROMLinks, staged.ROMLinks) ||
-		response.Generation == nil || *response.Generation == 0 || (!initialMediaMatches(response, staged.InitialMedia) || !initialMediaGenerationMatches(response, before, staged.InitialMedia)) {
+		response.Generation == nil || *response.Generation == 0 || (!initialMediaMatches(response, staged.InitialMedia) || !initialMediaGenerationMatches(response, before, staged.InitialMedia)) ||
+		!ataDiskLoadMatches(response, ataDisk, libraryGameID) {
 		r.retainRetired(staged)
 		cleanupStaged = false
 		return CoreActivation{}, true, unavailableError()
@@ -631,6 +654,21 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 	r.replaceActivePackage(staged)
 	cleanupStaged = false
 	return activation, true, nil
+}
+
+func ataDiskLoadMatches(response Protocol2Response, disk *ataDiskLoadRequest, gameID string) bool {
+	if disk == nil {
+		return true
+	}
+	for _, unit := range response.Capabilities.MediaUnits {
+		if unit.Unit != protocol.AtaDiskUnit {
+			continue
+		}
+		return unit.Interface == protocol.AtaDiskInterface() && unit.State == protocol.MediaUnitReady &&
+			unit.Persistence != nil && unit.Persistence.Mode == "persistent" &&
+			unit.Persistence.GameID == gameID && unit.Persistence.BaseMediaID == disk.Selection.BaseMediaID
+	}
+	return false
 }
 
 func replacementBarrierError() *protocol.APIError {

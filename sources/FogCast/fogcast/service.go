@@ -2001,7 +2001,16 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 			}
 			status, err = composed.LoadComposedCore(ctx, size, content, selected.entry.PackageID)
 		} else {
-			status, err = library.LoadLibraryCore(ctx, size, content, selected.entry.PackageID)
+			if selected.ataDisk != nil {
+				ataLoader, ok := client.(libraryAtaDiskClient)
+				if !ok || selected.ataDisk.ataDisk == nil {
+					return protocol.Status{}, corePackageRequestFailure(canonicalError(protocol.CodeUnsupportedOperation, nil))
+				}
+				status, err = ataLoader.LoadLibraryCoreWithAtaDisk(ctx, size, content,
+					selected.entry.PackageID, selected.entry.GameID, *selected.ataDisk.ataDisk, selected.ataDisk)
+			} else {
+				status, err = library.LoadLibraryCore(ctx, size, content, selected.entry.PackageID, selected.entry.GameID)
+			}
 		}
 	} else {
 		status, err = loader.LoadCore(ctx, size, content)
@@ -2022,7 +2031,8 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 		return protocol.Status{}, canonicalError(protocol.CodeInternal, nil)
 	}
 
-	if selected.entry != nil && (status.CorePackage.PackageID != selected.entry.PackageID || !selected.matchesLoadedIdentity(status.CorePackage)) {
+	if selected.entry != nil && (status.CorePackage.PackageID != selected.entry.PackageID ||
+		!selected.matchesLoadedIdentity(status.CorePackage) || !matchesLoadedAtaDisk(status.CorePackage, selected.entry.GameID, selected.ataDisk)) {
 		rejection := &protocol.APIError{Code: protocol.CodeUnrecognizedCore, Message: "activated package differs from selected library package", Phase: "identity", Expected: selected.entry.PackageID, Observed: status.CorePackage.PackageID}
 		recoveryCtx, recoveryCancel := serviceTimeout(parent, s.coreLoadReconcileTimeout)
 		recovered, stopErr := client.Stop(recoveryCtx)
@@ -2810,13 +2820,13 @@ func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration,
 		// Reuse discovery admission's existing Status. Legacy address-only
 		// Stop never acquires a new status dependency; a remembered package
 		// may be observed directly while lifecycle admission is held.
-		boundDisk := discoveryAdmission && s.TargetConnection().mediaDataBound
+		boundDisk := discoveryAdmission && s.TargetConnection().persistentMediaBound
 		saving, canSave := client.(interface {
 			StopWithMediaSave(context.Context) (protocol.Status, error)
 		})
 		if describedPackage && !discoveryAdmission {
 			observed, observeErr := client.Status(ctx)
-			boundDisk = observeErr == nil && protocol.MediaDataBound(observed.CorePackage)
+			boundDisk = observeErr == nil && protocol.PersistentMediaBound(observed.CorePackage)
 		}
 		if boundDisk {
 			if timeout < 150*time.Second {

@@ -46,6 +46,14 @@ func computerResponse(t *testing.T) Protocol2Response {
 	return r
 }
 
+func computerResponse11(t *testing.T) Protocol2Response {
+	r := computerResponse(t)
+	r.ActivePackage.Descriptor.ABI.Minor = 1
+	r.ActivePackage.Observed.ABI.Minor = 1
+	r.Capabilities.ABIs[0].Minor = 1
+	return r
+}
+
 func atariStComputerResponse(t *testing.T) Protocol2Response {
 	t.Helper()
 	r := computerResponse(t)
@@ -185,7 +193,7 @@ func TestC64StatusReportsInsertedMediaUnit(t *testing.T) {
 }
 
 func TestSetKeyboardHIDRequestAndResponse(t *testing.T) {
-	r := computerResponse(t)
+	r := computerResponse11(t)
 	id := r.ActivePackage.PackageID
 	fixture := newSequenceSocketFixture(t, []string{responseLine(t, r) + "\n"})
 	rows := KeyboardHIDRows{0x0010, 0, 0, 0x0100, 0, 0, 0, 0, 0x0002}
@@ -213,9 +221,9 @@ func TestSetKeyboardHIDRequestAndResponse(t *testing.T) {
 }
 
 func TestComputerMediaRequestShapes(t *testing.T) {
-	r := computerResponse(t)
+	r := computerResponse11(t)
 	id := r.ActivePackage.PackageID
-	ready := computerResponse(t)
+	ready := computerResponse11(t)
 	ready.Capabilities.MediaUnits[0].State = "ready"
 	fixture := newSequenceSocketFixture(t, []string{responseLine(t, ready) + "\n", responseLine(t, r) + "\n"})
 	client := NewClient(fixture.path)
@@ -245,6 +253,20 @@ func TestComputerMediaRequestShapes(t *testing.T) {
 		if err := call(); err != errInvalidRuntimeRequest {
 			t.Fatalf("invalid media request: %v", err)
 		}
+	}
+}
+
+func TestSendMouseRelativeAcceptsComputer11Reply(t *testing.T) {
+	r := computerResponse11(t)
+	id := r.ActivePackage.PackageID
+	fixture := newSequenceSocketFixture(t, []string{responseLine(t, r) + "\n"})
+	if _, err := NewClient(fixture.path).SendMouseRelative(context.Background(), id, 7, -3, 4, 1); err != nil {
+		t.Fatalf("accepted 1.1 mouse response rejected: %v", err)
+	}
+	requests := fixture.wait(t)
+	want := `{"protocol":2,"operation":"send_mouse_relative","package_id":"` + id + `","expected_generation":7,"dx":-3,"dy":4,"buttons":1}`
+	if len(requests) != 1 || requests[0] != want {
+		t.Fatalf("request %q", requests)
 	}
 }
 

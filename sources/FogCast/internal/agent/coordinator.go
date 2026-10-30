@@ -278,9 +278,13 @@ func (c *Coordinator) LoadDevelopmentRBF(parent context.Context, size int64, con
 }
 
 func (c *Coordinator) LoadCore(parent context.Context, size int64, content io.Reader) (protocol.Status, *protocol.APIError) {
-	return c.loadCore(parent, size, content, "")
+	return c.loadCore(parent, size, content, "", "")
 }
-func (c *Coordinator) loadCore(parent context.Context, size int64, content io.Reader, libraryID string, composition ...bool) (protocol.Status, *protocol.APIError) {
+func (c *Coordinator) loadCore(parent context.Context, size int64, content io.Reader, libraryID, gameID string, composition ...bool) (protocol.Status, *protocol.APIError) {
+	return c.loadCoreRequest(parent, size, content, libraryID, gameID, nil, composition...)
+}
+func (c *Coordinator) loadCoreRequest(parent context.Context, size int64, content io.Reader,
+	libraryID, gameID string, ataDisk *targetAtaDisk, composition ...bool) (protocol.Status, *protocol.APIError) {
 	c.record(flightdiag.KindFenceProgram, "ok", map[string]any{"operation": "core_package", "size": size})
 	if !c.begin() {
 		return c.Status(), &protocol.APIError{Code: protocol.CodeBusy, Message: "another launch or stop transition is running"}
@@ -317,12 +321,19 @@ func (c *Coordinator) loadCore(parent context.Context, size int64, content io.Re
 			return c.Status(), &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"}
 		}
 		activation, attempted, apiErr = composed.LoadComposedCoreOwned(parent, observation, c.operationContext, size, content, libraryID)
+	} else if libraryID != "" && ataDisk != nil {
+		library, ok := c.runtime.(libraryAtaDiskRuntime)
+		if !ok {
+			return c.Status(), &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"}
+		}
+		activation, attempted, apiErr = library.LoadLibraryCoreOwnedWithAtaDisk(parent, observation,
+			c.operationContext, size, content, libraryID, gameID, ataDisk.path, ataDisk.selection)
 	} else if libraryID != "" {
 		library, ok := c.runtime.(libraryCoreRuntime)
 		if !ok {
 			return c.Status(), &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"}
 		}
-		activation, attempted, apiErr = library.LoadLibraryCoreOwned(parent, observation, c.operationContext, size, content, libraryID)
+		activation, attempted, apiErr = library.LoadLibraryCoreOwned(parent, observation, c.operationContext, size, content, libraryID, gameID)
 	} else {
 		activation, attempted, apiErr = runtime.LoadCoreOwned(parent, observation, c.operationContext, size, content)
 	}
@@ -434,7 +445,7 @@ func (c *Coordinator) stopLocked(parent context.Context) (protocol.Status, *prot
 	stopping.LastError = nil
 	c.set(stopping)
 	stopBudget := c.stopTimeout
-	if protocol.MediaDataBound(current.CorePackage) && stopBudget < 135*time.Second {
+	if protocol.PersistentMediaBound(current.CorePackage) && stopBudget < 135*time.Second {
 		stopBudget = 135 * time.Second
 	}
 	var observed string

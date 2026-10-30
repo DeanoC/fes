@@ -3,6 +3,7 @@
 #include "libmister-runtime/runtime.h"
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <vector>
@@ -59,5 +60,23 @@ private:
  mutable std::mutex mutex_;
  int grant_=-1;
  bool blitter_=false;
+};
+// The fes.media.ata-disk region of the window, written at launch and read
+// back at Stop through short grants taken in turn. Revoking each grant writes
+// back and invalidates its lines in L1 and the PL310 before the next is
+// taken, so no CPU line of the region outlives an access: a read grant taken
+// after the core's writes have stopped sees DDR, never an older cached line.
+class DiskWindow final {
+public:
+ DiskWindow();
+ explicit DiskWindow(MenuWindowOperations&);
+ DiskWindow(const DiskWindow&)=delete;
+ DiskWindow& operator=(const DiskWindow&)=delete;
+ // Grants and maps [offset, offset+bytes) of the window, calls use, then
+ // unmaps, revokes and closes. offset and bytes are page aligned.
+ Error Access(std::uint64_t offset,std::size_t bytes,const std::function<Error(unsigned char*)>& use);
+private:
+ std::unique_ptr<MenuWindowOperations> owned_;
+ MenuWindowOperations* operations_;
 };
 } }

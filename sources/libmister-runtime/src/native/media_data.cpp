@@ -74,7 +74,7 @@ bool Decimal(const std::string& text, std::size_t begin, std::size_t end)
 }
 bool StaleMediaTemporary(const std::string& name)
 {
-	static const char* prefixes[] = {".record-", ".probe-"};
+	static const char* prefixes[] = {".record-", ".probe-", ".chunk-"};
 	for (const char* prefix : prefixes) {
 		const std::size_t length = std::strlen(prefix);
 		if (name.compare(0, length, prefix) != 0)
@@ -132,18 +132,10 @@ Error SweepStaleMediaTemps(int directory)
 }
  } // namespace
 bool ValidMediaDataIdentity(const MediaDataIdentity& id) {
-    if (id.unit!=0 || id.core_id.empty() || id.core_id.size()>96 ||
-        id.game_id.empty() || id.game_id.size()>256 || !Digest(id.base_media_id)) return false;
+    if (id.unit!=0 || id.core_id.empty() || id.core_id.size()>96 || !Digest(id.base_media_id)) return false;
     if (id.core_id.front()<'a'||id.core_id.front()>'z') return false;
     for(char c:id.core_id) if(!((c>='a'&&c<='z')||(c>='0'&&c<='9')||c=='.'||c=='_'||c=='-')) return false;
-    if (id.game_id.front()=='-'||id.game_id.back()=='-') return false;
-    bool hyphen=false;
-    for(char c:id.game_id) {
-        if(!((c>='a'&&c<='z')||(c>='0'&&c<='9')||c=='-')) return false;
-        if(c=='-'&&hyphen) return false;
-        hyphen=c=='-';
-    }
-    return true;
+    return ValidLibraryGameID(id.game_id);
 }
 std::string MediaDataNamespace(const MediaDataIdentity& id) {
     const std::string name=std::string("fes-media-data-v1")+'\0'+id.core_id+'\0'+id.game_id+'\0'+
@@ -237,6 +229,16 @@ MediaDataFile::~MediaDataFile()
 Error MediaDataFile::Open(
 	const std::string& root, const MediaDataIdentity& id, std::unique_ptr<MediaDataFile>* output)
 {
+	if (!output)
+		return Bad("invalid media-data root or identity");
+	int directory = -1;
+	const Error error = OpenMediaDataNamespace(root, id, &directory);
+	if (error.ok())
+		output->reset(new MediaDataFile(directory, id));
+	return error;
+}
+Error OpenMediaDataNamespace(const std::string& root, const MediaDataIdentity& id, int* output)
+{
 	if (!output || !ValidMediaDataIdentity(id) || root.empty() || root[0] != '/' || root.size() > 4095 ||
 		root.find('\0') != std::string::npos)
 		return Bad("invalid media-data root or identity");
@@ -272,7 +274,7 @@ Error MediaDataFile::Open(
 	Error swept = SweepStaleMediaTemps(opened.value);
 	if (!swept.ok())
 		return swept;
-	output->reset(new MediaDataFile(opened.value, id));
+	*output = opened.value;
 	opened.value = -1;
 	return {};
 }

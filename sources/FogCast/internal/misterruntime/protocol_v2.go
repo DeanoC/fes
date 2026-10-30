@@ -148,15 +148,23 @@ func (client *Client) LoadCore(ctx context.Context, path, packageID string) (Pro
 func (client *Client) loadCoreWithStatus(ctx context.Context, path, packageID string) (Protocol2Response, Protocol2Response, error) {
 	return client.loadCoreWithRoot(ctx, path, packageID, "")
 }
-func (client *Client) loadCoreOperation(ctx context.Context, path, id, root string) (Protocol2Response, error) {
-	if !validRuntimePath(root) {
+func (client *Client) loadCoreOperation(ctx context.Context, path, id, root, gameID string) (Protocol2Response, error) {
+	if !validRuntimePath(root) || (gameID != "" && protocol.ValidateGameID(gameID) != nil) {
 		return Protocol2Response{}, errInvalidRuntimeRequest
 	}
-	response, _, err := client.loadCoreWithRoot(ctx, path, id, root)
+	response, _, err := client.loadCoreWithComposition(ctx, path, id, root, "", "", nil, gameID)
+	return response, err
+}
+func (client *Client) loadCoreOperationWithAtaDisk(ctx context.Context, path, id, root, gameID string,
+	disk ataDiskLoadRequest) (Protocol2Response, error) {
+	if !validRuntimePath(root) || !disk.valid() || protocol.ValidateGameID(gameID) != nil {
+		return Protocol2Response{}, errInvalidRuntimeRequest
+	}
+	response, _, err := client.loadCoreWithComposition(ctx, path, id, root, "", "", nil, gameID, &disk)
 	return response, err
 }
 func (client *Client) loadCoreWithRoot(ctx context.Context, path, packageID, root string) (Protocol2Response, Protocol2Response, error) {
-	return client.loadCoreWithComposition(ctx, path, packageID, root, "", "", nil)
+	return client.loadCoreWithComposition(ctx, path, packageID, root, "", "", nil, "")
 }
 func (client *Client) LoadInitializedCore(ctx context.Context, path, packageID, programmedPath, programmedSHA string) (Protocol2Response, error) {
 	return client.loadInitialized(ctx, path, packageID, "", "", "", nil, programmedPath, programmedSHA, "load_initialized_core")
@@ -351,12 +359,33 @@ func (client *Client) LoadComposedCore(ctx context.Context, path, packageID, exp
 	if !validRuntimePath(expansionPath) || !validRuntimePath(payloadPath) || !validComposition(composition, packageID) {
 		return Protocol2Response{}, errInvalidRuntimeRequest
 	}
-	response, _, err := client.loadCoreWithComposition(ctx, path, packageID, "", expansionPath, payloadPath, &composition)
+	response, _, err := client.loadCoreWithComposition(ctx, path, packageID, "", expansionPath, payloadPath, &composition, "")
 	return response, err
 }
-func (client *Client) loadCoreWithComposition(ctx context.Context, path, packageID, root, expansionPath, payloadPath string, composition *expansion.Composition) (Protocol2Response, Protocol2Response, error) {
+
+type protocol2AtaDisk struct {
+	Path            string `json:"path"`
+	Size            uint32 `json:"size"`
+	BaseMediaID     string `json:"base_media_id"`
+	DataRoot        string `json:"data_root"`
+	Cylinders       uint16 `json:"cylinders"`
+	Heads           uint16 `json:"heads"`
+	SectorsPerTrack uint16 `json:"sectors_per_track"`
+}
+
+func (client *Client) loadCoreWithComposition(ctx context.Context, path, packageID, root, expansionPath, payloadPath string, composition *expansion.Composition, gameID string, ataDisks ...*ataDiskLoadRequest) (Protocol2Response, Protocol2Response, error) {
 	if !validRuntimePath(path) || !protocol2Hex64.MatchString(packageID) {
 		return Protocol2Response{}, Protocol2Response{}, errInvalidRuntimeRequest
+	}
+	if len(ataDisks) > 1 || (len(ataDisks) == 1 && (root == "" || !ataDisks[0].valid())) {
+		return Protocol2Response{}, Protocol2Response{}, errInvalidRuntimeRequest
+	}
+	var disk *protocol2AtaDisk
+	if len(ataDisks) == 1 {
+		selection := ataDisks[0].Selection
+		disk = &protocol2AtaDisk{Path: ataDisks[0].Path, Size: selection.Size,
+			BaseMediaID: selection.BaseMediaID, DataRoot: ataDisks[0].DataRoot,
+			Cylinders: selection.Cylinders, Heads: selection.Heads, SectorsPerTrack: selection.SectorsPerTrack}
 	}
 	before, err := client.Protocol2Status(ctx)
 	if err != nil {
@@ -375,10 +404,12 @@ func (client *Client) loadCoreWithComposition(ctx context.Context, path, package
 		PackagePath   string                 `json:"package_path"`
 		PackageID     string                 `json:"package_id"`
 		DataRoot      string                 `json:"data_root,omitempty"`
+		GameID        string                 `json:"game_id,omitempty"`
 		ExpansionPath string                 `json:"expansion_path,omitempty"`
 		PayloadPath   string                 `json:"payload_path,omitempty"`
 		Composition   *expansion.Composition `json:"composition,omitempty"`
-	}{Protocol: 2, Operation: operation, PackagePath: path, PackageID: packageID, DataRoot: root, ExpansionPath: expansionPath, PayloadPath: payloadPath, Composition: composition})
+		AtaDisk       *protocol2AtaDisk      `json:"ata_disk,omitempty"`
+	}{Protocol: 2, Operation: operation, PackagePath: path, PackageID: packageID, DataRoot: root, GameID: gameID, ExpansionPath: expansionPath, PayloadPath: payloadPath, Composition: composition, AtaDisk: disk})
 	if err != nil {
 		return Protocol2Response{}, before, protocol2MutationError{error: err, attempted: attempted}
 	}
@@ -513,7 +544,7 @@ func validateProtocol2Shape(line []byte) error {
 			return err
 		}
 		if err := eachRaw(raw, func(item json.RawMessage) error {
-			unit, err := exactRawObject(item, []string{"unit", "interface", "min_bytes", "max_bytes", "chunk_bytes", "state"}, []string{"persistence"})
+			unit, err := exactRawObject(item, []string{"unit", "interface", "min_bytes", "max_bytes", "chunk_bytes", "state"}, []string{"persistence", "saveable"})
 			if err != nil {
 				return err
 			}
@@ -526,6 +557,11 @@ func validateProtocol2Shape(line []byte) error {
 					return err
 				}
 				if err = requireRawKinds(binding, map[string]rawKind{"mode": rawString, "game_id": rawString, "base_media_id": rawString, "revision": rawString}); err != nil {
+					return err
+				}
+			}
+			if raw, ok := unit["saveable"]; ok {
+				if err := requireRawKind(raw, rawBoolean); err != nil {
 					return err
 				}
 			}
@@ -1165,15 +1201,29 @@ func validProtocol2Error(remote Protocol2Error) bool {
 
 func validCapabilities(capabilities Protocol2Capabilities) bool {
 	if !sortedUniqueStrings(capabilities.ProgrammingProfiles) ||
-		!sort.SliceIsSorted(capabilities.ABIs, func(i, j int) bool { return capabilities.ABIs[i].ID < capabilities.ABIs[j].ID }) {
+		!sort.SliceIsSorted(capabilities.ABIs, func(i, j int) bool {
+			a, b := capabilities.ABIs[i], capabilities.ABIs[j]
+			if a.ID != b.ID {
+				return a.ID < b.ID
+			}
+			if a.Major != b.Major {
+				return a.Major < b.Major
+			}
+			return a.Minor < b.Minor
+		}) {
 		return false
 	}
-	seen := map[string]bool{}
+	type abiVersion struct {
+		id           string
+		major, minor uint16
+	}
+	seen := map[abiVersion]bool{}
 	for _, abi := range capabilities.ABIs {
-		if seen[abi.ID] || !validContract(abi.ID, abi.Major, abi.Minor) || !validSupportedInterfaces(abi.Interfaces) {
+		version := abiVersion{id: abi.ID, major: abi.Major, minor: abi.Minor}
+		if seen[version] || !validContract(abi.ID, abi.Major, abi.Minor) || !validSupportedInterfaces(abi.Interfaces) {
 			return false
 		}
-		seen[abi.ID] = true
+		seen[version] = true
 	}
 	return validSupportedInterfaces(capabilities.ActiveInterfaces)
 }
@@ -1197,12 +1247,14 @@ func validSupportedInterfaces(interfaces []Protocol2Interface) bool {
 func validMediaUnits(response Protocol2Response) bool {
 	active := response.ActivePackage
 	if active == nil || !positive(response.Generation) ||
-		!protocol.ComputerABI(active.Descriptor.ABI.ID, active.Descriptor.ABI.Major, active.Descriptor.ABI.Minor) {
+		!protocol.ComputerMediaABI(active.Descriptor.ABI.ID, active.Descriptor.ABI.Major, active.Descriptor.ABI.Minor) {
 		return false
 	}
-	bound := false
+	packageStatus := computerMediaStatus(response).CorePackage
 	for index, unit := range response.Capabilities.MediaUnits {
-		if !unit.Valid() || (index > 0 && response.Capabilities.MediaUnits[index-1].Unit >= unit.Unit) {
+		if !unit.Valid() || (unit.Interface == protocol.AtaDiskInterface() &&
+			!protocol.ComputerAtaDiskABI(active.Descriptor.ABI.ID, active.Descriptor.ABI.Major, active.Descriptor.ABI.Minor)) ||
+			(index > 0 && response.Capabilities.MediaUnits[index-1].Unit >= unit.Unit) {
 			return false
 		}
 		found := false
@@ -1219,27 +1271,24 @@ func validMediaUnits(response Protocol2Response) bool {
 				return false
 			}
 		}
-		if unit.Persistence != nil {
-			bound = true
+		if unit.Persistence != nil && (active.PersistenceMode != "persistent" || !protocol.PersistentMediaUnitCapable(packageStatus, unit)) {
+			return false
 		}
 	}
-	p := computerMediaStatus(response).CorePackage
-	if bound && (!protocol.MediaWriteCapable(p) || active.PersistenceMode != "persistent") {
-		return false
-	}
-	if active.PersistenceMode == "persistent" && !bound {
+	if active.PersistenceMode == "persistent" &&
+		(!protocol.PersistentMediaStatusValid(packageStatus) || !descriptorPersistentMedia(active.Descriptor, response.Capabilities.MediaUnits)) {
 		return false
 	}
 	return true
 }
 
-// validSlotComposition binds a v2 tuple to an exact fes.computer 1.0 shell
+// validSlotComposition binds a v2 tuple to a supported fes.computer shell
 // declaring one optional slot bus; every slot is a physical socket.
 func validSlotComposition(c expansion.SlotComposition, active Protocol2ActivePackage) bool {
 	id, err := expansion.SlotCompositionID(c.PackageID, c.Expansions, c.PayloadSHA256)
 	if err != nil || id != c.ID || c.PackageID != active.PackageID || !protocol2Hex64.MatchString(c.ShellSHA256) ||
 		c.ShellSHA256 != active.Descriptor.Payload.SHA256 || c.PayloadSize < 40408 || c.PayloadSize > corepackage.MaxPayloadSize ||
-		(active.PersistenceMode == "persistent" && !descriptorMediaWrite(active.Descriptor)) || !protocol.ComputerABI(active.Descriptor.ABI.ID, active.Descriptor.ABI.Major, active.Descriptor.ABI.Minor) {
+		(active.PersistenceMode == "persistent" && !descriptorMediaWrite(active.Descriptor)) || !protocol.ComputerMediaABI(active.Descriptor.ABI.ID, active.Descriptor.ABI.Major, active.Descriptor.ABI.Minor) {
 		return false
 	}
 	var bus string
@@ -1271,14 +1320,9 @@ func validSlotComposition(c expansion.SlotComposition, active Protocol2ActivePac
 }
 
 func validActivePackage(active Protocol2ActivePackage, capabilities Protocol2Capabilities) bool {
-	if protocol.ComputerABI(active.Descriptor.ABI.ID, active.Descriptor.ABI.Major, active.Descriptor.ABI.Minor) && active.PersistenceMode == "persistent" {
-		bound := false
-		for _, u := range capabilities.MediaUnits {
-			if u.Persistence != nil && u.Valid() {
-				bound = true
-			}
-		}
-		if !bound || !descriptorMediaWrite(active.Descriptor) {
+	if protocol.ComputerMediaABI(active.Descriptor.ABI.ID, active.Descriptor.ABI.Major, active.Descriptor.ABI.Minor) && active.PersistenceMode == "persistent" {
+		status := protocol2MediaStatus(active, capabilities)
+		if !protocol.PersistentMediaStatusValid(status) || !descriptorPersistentMedia(active.Descriptor, capabilities.MediaUnits) {
 			return false
 		}
 	}
@@ -1551,5 +1595,50 @@ func descriptorMediaWrite(d corepackage.Descriptor) bool {
 			write = true
 		}
 	}
-	return protocol.ComputerABI(d.ABI.ID, d.ABI.Major, d.ABI.Minor) && base && write
+	return protocol.ComputerMediaABI(d.ABI.ID, d.ABI.Major, d.ABI.Minor) && base && write
+}
+
+func descriptorAtaDisk(d corepackage.Descriptor) bool {
+	if !protocol.ComputerAtaDiskABI(d.ABI.ID, d.ABI.Major, d.ABI.Minor) {
+		return false
+	}
+	for _, i := range d.Interfaces {
+		if i.ID == protocol.AtaDiskInterface().ID && i.Major == int64(protocol.AtaDiskInterface().Major) && i.Minor == int64(protocol.AtaDiskInterface().Minor) {
+			return true
+		}
+	}
+	return false
+}
+
+func descriptorPersistentMedia(d corepackage.Descriptor, units []protocol.MediaUnitStatus) bool {
+	for _, unit := range units {
+		if unit.Persistence != nil {
+			switch unit.Interface {
+			case protocol.AtariStFloppyInterface():
+				return descriptorMediaWrite(d)
+			case protocol.AtaDiskInterface():
+				return descriptorAtaDisk(d)
+			default:
+				return false
+			}
+		}
+	}
+	for _, unit := range units {
+		if unit.Interface == protocol.AtaDiskInterface() && unit.Persistence == nil &&
+			(unit.State == protocol.MediaUnitEmpty || unit.State == protocol.MediaUnitLoading) {
+			return descriptorAtaDisk(d)
+		}
+	}
+	return false
+}
+
+func protocol2MediaStatus(active Protocol2ActivePackage, capabilities Protocol2Capabilities) *protocol.CorePackageStatus {
+	interfaces := make([]protocol.RuntimeInterface, len(capabilities.ActiveInterfaces))
+	for index, value := range capabilities.ActiveInterfaces {
+		interfaces[index] = protocol.RuntimeInterface{ID: value.ID, Major: value.Major, Minor: value.Minor}
+	}
+	return &protocol.CorePackageStatus{
+		ABI:              protocol.RuntimeContract{ID: active.Descriptor.ABI.ID, Major: uint16(active.Descriptor.ABI.Major), Minor: uint16(active.Descriptor.ABI.Minor)},
+		ActiveInterfaces: interfaces, MediaUnits: capabilities.MediaUnits, PersistenceMode: active.PersistenceMode,
+	}
 }

@@ -924,8 +924,8 @@ It also proves that the runtime's cache clean reached DDR.
   1. checks identity and releases the DDR ports;
   2. restores the `fes.pc386.machine` record and seeds the wall clock;
   3. sends prepare;
-  4. grants the region, zero-fills it, writes the base image, skipping all-zero
-     chunks, applies the saved delta's chunks, cleans and revokes the grant;
+  4. grants the region, writes every byte of the base image, applies the saved
+     delta's chunks, cleans and revokes the grant;
   5. sends the geometry and the CRC of what it wrote, commits, and polls until
      ready;
   6. releases execution.
@@ -1005,14 +1005,16 @@ ID, unit, base-image SHA-256), layout `fes.ata-disk.delta` 1.0:
   then an ascending list of chunk indices each with the SHA-256 of its 64 KiB
   of data, then a SHA-256 of the manifest.
 - Chunk data lives in content-addressed files beside it.
-- **Saving** (at Stop, and before eject): freeze; read the dirty map and the
-  existing manifest (empty on the first save); grant the region, invalidate the
-  HPS caches for it and read the dirty chunks; write and sync each new chunk
+- **Saving** (at Stop and fault cleanup only): freeze; read the dirty map and the
+  existing manifest (empty on the first save); grant the region (no line of
+  it is cached, see below) and read the dirty chunks; write and sync each new chunk
   file; replace those indices in the existing manifest, retaining entries for
   unchanged chunks; publish the merged manifest with the existing
   temporary-file, rename and directory-sync rule; send Saved to clear the dirty
   bits; delete chunk files the published manifest does not name, under the
   namespace lock.
+- The disk is fixed while the computer runs. Insert, eject and explicit media
+  save are refused; periodic checkpoints during play remain future work.
 - **Restoring** applies the manifest's chunks over the base, as in launch step
   4.
 
@@ -1022,10 +1024,12 @@ is the manifest's SHA-256. A corrupt manifest or chunk blocks the launch and is
 never replaced silently, as for every media record. Periodic checkpoints while
 playing stay future work, as the persistence page says.
 
-The read-back needs one kit-software addition: fes-window has CLEAN and REVOKE
-but no invalidate, and a cached mapping must not return stale lines after the
-FPGA has written DDR. The runtime takes the read grant only after Freeze ACKs
-and invalidates the range first.
+The read-back needs no new fes-window operation. A cached mapping must not
+return stale lines after the FPGA has written DDR, and none can exist: every
+grant the runtime takes is revoked when the access ends, and REVOKE writes
+back and invalidates the grant's lines in L1 and the PL310. The runtime takes
+the read grants only after Freeze ACKs, so nothing caches a line of the region
+between the core's last write and the read.
 
 FogCast offers "reset disk" (discard the delta, after confirmation) and, as
 follow-up, "save as new image" (base plus delta as a new immutable asset).
@@ -1253,10 +1257,11 @@ own `toolchain.lock`.
 ### libmister-runtime adds
 
 - `fes.computer` 1.1 identity and admission.
-- The ATA disk loader and saver: window grant, zero-skip load, delta apply,
-  clean, commit with CRC, poll; freeze, dirty map, invalidate, read, publish
-  the delta, Saved.
-- An invalidate operation in fes-window (kit software, not the image).
+- The ATA disk loader and saver: window grant, complete base-image write, delta apply,
+  clean, commit with CRC, poll; freeze, dirty map, read, publish the delta,
+  Saved.
+- Short fes-window grants for the disk region; REVOKE's write-back and
+  invalidate keeps the read-back coherent, so fes-window needs no new operation.
 - `fes.persistence.words` on `fes.computer`, keyed by core ID and game ID, with
   the `fes.pc386.machine` layout's validation.
 - Wall-clock seeding at launch.

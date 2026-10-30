@@ -342,6 +342,30 @@ func TestProtocol2RejectsContradictoryCompatibilityAndActiveEvidence(t *testing.
 	}
 }
 
+func TestProtocol2CapabilitiesAllowDistinctVersionsOfOneABI(t *testing.T) {
+	capabilities := Protocol2Capabilities{
+		ProgrammingProfiles: []string{"fes-gp-v1"},
+		ABIs: []Protocol2ABI{
+			{ID: "fes.computer", Major: 1, Minor: 0},
+			{ID: "fes.computer", Major: 1, Minor: 1},
+		},
+	}
+	if !validCapabilities(capabilities) {
+		t.Fatal("distinct advertised ABI versions were rejected")
+	}
+	capabilities.ABIs = append(capabilities.ABIs, capabilities.ABIs[1])
+	if validCapabilities(capabilities) {
+		t.Fatal("duplicate advertised ABI version was accepted")
+	}
+	capabilities.ABIs = []Protocol2ABI{
+		{ID: "fes.computer", Major: 1, Minor: 1},
+		{ID: "fes.computer", Major: 1, Minor: 0},
+	}
+	if validCapabilities(capabilities) {
+		t.Fatal("out-of-order ABI versions were accepted")
+	}
+}
+
 func TestProtocol2ActivePackageRequiresRegistryAndProfileObservationSemantics(t *testing.T) {
 	lines := fixtureLines(t, "protocol-v2.jsonl")
 	fes := lines[5]

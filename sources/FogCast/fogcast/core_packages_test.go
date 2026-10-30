@@ -573,7 +573,7 @@ func TestActivatedLibraryPackageRetainsFailedHostCleanup(t *testing.T) {
 	}
 }
 
-func (c *packageLibraryClient) InspectCoreData(ctx context.Context, n int64, r io.Reader, id string) (protocol.CoreDataInspection, error) {
+func (c *packageLibraryClient) InspectCoreData(ctx context.Context, n int64, r io.Reader, id, gameID string) (protocol.CoreDataInspection, error) {
 	staged, err := corepackage.Stage(ctx, os.TempDir(), n, r)
 	if err != nil {
 		return protocol.CoreDataInspection{}, err
@@ -584,6 +584,6 @@ func (c *packageLibraryClient) InspectCoreData(ctx context.Context, n int64, r i
 func (c *packageLibraryClient) UpdateCoreSettings(context.Context, int64, io.Reader, protocol.CoreSettingsUpdate) (protocol.CoreDataInspection, error) {
 	return protocol.CoreDataInspection{}, errors.New("unexpected settings write")
 }
-func (c *packageLibraryClient) LoadLibraryCore(ctx context.Context, n int64, r io.Reader, id string) (protocol.Status, error) {
+func (c *packageLibraryClient) LoadLibraryCore(ctx context.Context, n int64, r io.Reader, id, gameID string) (protocol.Status, error) {
 	return c.LoadCore(ctx, n, r)
 }

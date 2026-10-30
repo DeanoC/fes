@@ -946,8 +946,7 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 	}
 	if (descriptor.abi.id == FesComputerABIID &&
 		descriptor.abi.major == FesComputerABIMajor) {
-		// The driver reads the ABI 1.0 identity, words 0..15.
-		if (descriptor.abi.minor > 0 || !descriptor.core.system.empty())
+		if (descriptor.abi.minor > FesComputerABIMinor || !descriptor.core.system.empty())
 			return CompatibilityError(ErrorCode::unsupported_abi,
 				"unsupported FES computer ABI or system declaration");
 		// Execution is released right after identity: there is no media gate
@@ -964,6 +963,8 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 		bool zx81_tape_write = false;
 		bool spectrum_tape = false;
 		bool spectrum_disk = false;
+		bool second_word = false;
+		bool ata_disk = false;
 		int media_units = 0;
 		int buses = 0;
 		for (const auto& interface : descriptor.interfaces) {
@@ -972,6 +973,7 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 				interface.id == kAtariStExpansionBusID ||
 				interface.id == kSpectrumExpansionBusID;
 			const bool media = interface.id == FesComputerInterfaceMediaApple2FloppyID ||
+				interface.id == FesComputerInterfaceMediaAtaDiskID ||
 				interface.id == FesComputerInterfaceMediaC64DiskID ||
 				interface.id == FesComputerInterfaceMediaAtariStFloppyID ||
 				interface.id == FesComputerInterfaceMediaSpectrumTapeID ||
@@ -988,6 +990,9 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 				interface.id == FesComputerInterfaceMemoryHpsDdrID ||
 				interface.id == FesComputerInterfaceVideoSessionDisplayID ||
 				interface.id == kDisplayPlaneInterfaceID ||
+				interface.id == FesComputerInterfacePersistenceWordsID ||
+				interface.id == FesComputerInterfacePc386MachineID ||
+				interface.id == FesComputerInterfaceRtcWallClockID ||
 				media;
 			const bool supported = (known || bus) && ComputerInterfaceCurrent(interface);
 			if (!supported && interface.required)
@@ -1013,7 +1018,16 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 			if (interface.id == FesComputerInterfaceMediaZx81TapeWriteID) zx81_tape_write = true;
 			if (interface.id == FesComputerInterfaceMediaSpectrumTapeID) spectrum_tape = true;
 			if (interface.id == FesComputerInterfaceMediaSpectrumDiskID) spectrum_disk = true;
+			// Capability bits 16..31 are identity word 16, which only 1.1 has.
+			if (interface.id == FesComputerInterfaceMediaAtaDiskID ||
+				interface.id == FesComputerInterfacePersistenceWordsID ||
+				interface.id == FesComputerInterfacePc386MachineID ||
+				interface.id == FesComputerInterfaceRtcWallClockID) second_word = true;
+			if (interface.id == FesComputerInterfaceMediaAtaDiskID) ata_disk = true;
 		}
+		if (second_word && descriptor.abi.minor < 1)
+			return CompatibilityError(ErrorCode::unsupported_abi,
+				"computer capability bits 16..31 require ABI 1.1");
 		bool writable = false, geometry = false, st_medium = false;
 		for (const auto& interface : descriptor.interfaces) {
 			geometry |= interface.id == FesComputerInterfaceMediaAtariStFloppyGeometryID && interface.required && interface.major == 1 && interface.minor == 0;
@@ -1034,6 +1048,10 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 		if (spectrum_disk && (!spectrum_tape || !ddr))
 			return CompatibilityError(ErrorCode::unsupported_interface,
 				"Spectrum disk requires the Spectrum tape and HPS DDR");
+		// The hard disk's image lives in the core's HPS DDR window.
+		if (ata_disk && !ddr)
+			return CompatibilityError(ErrorCode::unsupported_interface,
+				"ATA disk requires HPS DDR");
 		if (media_units > 1 || buses > 1)
 			return CompatibilityError(ErrorCode::unsupported_interface,
 				"computer declares more than one unit-0 medium or expansion bus");
@@ -1165,6 +1183,11 @@ Error CorePersistenceLayout(const CoreDescriptor& descriptor, VersionedContract*
 	if (!output)
 		return {ErrorCode::invalid_request, "missing persistence layout output"};
 	*output = {};
+	// One registered layout per registry: Pong's progress on fes.simple-game,
+	// the pc386 machine record on fes.computer.
+	const bool computer = descriptor.abi.id == generated::FesComputerABIID;
+	const std::string layout_id = computer ? generated::FesComputerInterfacePc386MachineID :
+		generated::FesGpInterfacePongProgressID;
 	bool words = false;
 	unsigned layouts = 0;
 	for (const auto& interface : descriptor.interfaces) {
@@ -1176,11 +1199,9 @@ Error CorePersistenceLayout(const CoreDescriptor& descriptor, VersionedContract*
 					"unsupported persistence transport declaration", "compatibility"};
 			words = true;
 		}
-		if (interface.id == generated::FesGpInterfacePongProgressID) {
+		if (interface.id == layout_id) {
 			++layouts;
-			if (!interface.required ||
-				interface.major != generated::FesGpInterfacePongProgressMajor ||
-				interface.minor != generated::FesGpInterfacePongProgressMinor)
+			if (!interface.required || interface.major != 1 || interface.minor != 0)
 				return {ErrorCode::unsupported_interface,
 					"unsupported persistence layout declaration", "compatibility"};
 			*output = {interface.id, interface.major, interface.minor};

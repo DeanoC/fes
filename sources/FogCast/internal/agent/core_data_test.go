@@ -46,7 +46,7 @@ type serializedDataRuntime struct {
 	writes  int
 }
 
-func (r *serializedDataRuntime) InspectCoreData(ctx context.Context, n int64, body io.Reader, id string) (protocol.CoreDataInspection, *protocol.APIError) {
+func (r *serializedDataRuntime) InspectCoreData(ctx context.Context, n int64, body io.Reader, id, gameID string) (protocol.CoreDataInspection, *protocol.APIError) {
 	close(r.started)
 	select {
 	case <-r.release:
@@ -65,7 +65,7 @@ func TestCoreDataOperationsShareTargetLifecycleAndRefuseRecoveryWrites(t *testin
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		coordinator.InspectCoreData(context.Background(), 1, strings.NewReader("p"), strings.Repeat("a", 64))
+		coordinator.InspectCoreData(context.Background(), 1, strings.NewReader("p"), strings.Repeat("a", 64), "")
 	}()
 	<-runtime.started
 	_, err := coordinator.UpdateCoreSettings(context.Background(), 1, strings.NewReader("p"), protocol.CoreSettingsUpdate{ExpectedPackageID: strings.Repeat("a", 64), ExpectedRevision: "absent", PaddleSpeed: 1})

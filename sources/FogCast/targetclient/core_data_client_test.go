@@ -49,7 +49,7 @@ func TestCoreDataClientBindsPackageAndDoesNotReplayMutation(t *testing.T) {
 			if kind == "write" || kind == "lost reply" {
 				_, err = client.UpdateCoreSettings(context.Background(), 7, strings.NewReader("package"), protocol.CoreSettingsUpdate{ExpectedPackageID: id, ExpectedRevision: "absent", PaddleSpeed: 2})
 			} else {
-				_, err = client.InspectCoreData(context.Background(), 7, strings.NewReader("package"), id)
+				_, err = client.InspectCoreData(context.Background(), 7, strings.NewReader("package"), id, "")
 			}
 			if (kind == "wrong identity" || kind == "lost reply") != (err != nil) {
 				t.Fatalf("err=%v", err)
@@ -144,10 +144,57 @@ func TestCoreDataClientRejectsMissingDurableFields(t *testing.T) {
 			}))
 			defer server.Close()
 			base, _ := url.Parse(server.URL)
-			_, err := targetclient.NewClient(base, "secret", server.Client()).InspectCoreData(context.Background(), 7, strings.NewReader("package"), data.PackageID)
+			_, err := targetclient.NewClient(base, "secret", server.Client()).InspectCoreData(context.Background(), 7, strings.NewReader("package"), data.PackageID, "")
 			if err == nil {
 				t.Fatal("accepted incomplete data")
 			}
 		})
+	}
+}
+
+func TestPc386CoreDataClientCarriesGameIdentityAndSettings(t *testing.T) {
+	id := strings.Repeat("a", 64)
+	gameID := "ultima-vi"
+	machine := protocol.PC386MachineSettings{Preset: 3, Frequency: 250, CodeProfile: 1, SBBase: 0x240, SBIRQ: 5, SBDMA: 1}
+	descriptor := validCoreInspectionDescriptor()
+	descriptor.Core.ID = "fes.pc386"
+	descriptor.ABI = corepackage.Contract{ID: "fes.computer", Major: 1, Minor: 1}
+	descriptor.Interfaces = append(descriptor.Interfaces, corepackage.Interface{ID: "fes.pc386.machine", Major: 1, Required: true})
+	var raw []byte
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-FogCast-Game-ID") != gameID || r.Header.Get("X-FogCast-Package-ID") != id {
+			t.Errorf("identity headers: %v", r.Header)
+		}
+		if r.URL.Path == "/v1/library/core/settings" {
+			if r.Header.Get("X-FogCast-PC386-Machine") != `{"preset":3,"frequency":250,"code_profile":1,"turbo":0,"sb_base":576,"sb_irq":5,"sb_dma":1}` {
+				t.Errorf("machine header %q", r.Header.Get("X-FogCast-PC386-Machine"))
+			}
+		}
+		_, _ = w.Write(raw)
+	}))
+	defer server.Close()
+	base, _ := url.Parse(server.URL)
+	client := targetclient.NewClient(base, "secret", server.Client())
+	writeResponse := func(revision string) {
+		t.Helper()
+		result := protocol.CoreDataInspection{CoreData: protocol.CoreData{PackageID: id, CoreID: "fes.pc386",
+			Layout: &protocol.RuntimeContract{ID: "fes.pc386.machine", Major: 1}, Mode: "persistent", Revision: revision,
+			GameID: gameID, Machine: &machine}, Descriptor: descriptor}
+		var err error
+		raw, err = json.Marshal(result)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeResponse("absent")
+	inspected, err := client.InspectCoreData(context.Background(), 7, strings.NewReader("package"), id, gameID)
+	if err != nil || inspected.GameID != gameID || inspected.Machine == nil {
+		t.Fatalf("inspect=%+v error=%v", inspected, err)
+	}
+	writeResponse(strings.Repeat("d", 64))
+	updated, err := client.UpdateCoreSettings(context.Background(), 7, strings.NewReader("package"), protocol.CoreSettingsUpdate{
+		ExpectedPackageID: id, ExpectedRevision: "absent", GameID: gameID, Machine: &machine})
+	if err != nil || updated.GameID != gameID || updated.Machine == nil || *updated.Machine != machine {
+		t.Fatalf("update=%+v error=%v", updated, err)
 	}
 }
