@@ -118,16 +118,19 @@ class ScanoutBuildTests(unittest.TestCase):
     def test_sdc_targets_the_generated_pixel_and_system_reset_synchronizers(self):
         sdc = (B.HERE / "clocks.sdc").read_text()
         for controller in ("rst_controller_001", "rst_controller_002"):
-            self.assertIn(
-                f"soc_inst|{controller}|alt_rst_sync_uq1|"
-                "altera_reset_synchronizer_int_chain*|aclr",
-                sdc,
-            )
-            self.assertIn(
-                f"soc_inst|{controller}|alt_rst_sync_uq1|"
-                "altera_reset_synchronizer_int_chain*|clrn",
-                sdc,
-            )
+            for stage in (0, 1):
+                self.assertIn(
+                    f"soc_inst|{controller}|alt_rst_sync_uq1|"
+                    f"altera_reset_synchronizer_int_chain[{stage}]|aclr",
+                    sdc,
+                )
+                self.assertIn(
+                    f"soc_inst|{controller}|alt_rst_sync_uq1|"
+                    f"altera_reset_synchronizer_int_chain[{stage}]|clrn",
+                    sdc,
+                )
+        self.assertNotIn("altera_reset_synchronizer_int_chain*|aclr", sdc)
+        self.assertNotIn("altera_reset_synchronizer_int_chain*|clrn", sdc)
         self.assertIn("if {$scanout_clear_count != 8}", sdc)
         self.assertNotIn("fes_scanout_pixel_reset|sync_regs*", sdc)
         self.assertNotIn("fes_scanout_system_reset|sync_regs*", sdc)
