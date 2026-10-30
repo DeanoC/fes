@@ -33,17 +33,24 @@ public:
     uint64_t last_refresh_any_chip = 0, min_refresh_gap = UINT64_MAX;
     bool after_refresh = false;
     bool precharged = false, initialized = false;
+    bool restart_pending = false;
     struct RamWrite { unsigned address, data, lanes; };
     std::vector<RamWrite> ram_writes;
 
-    // A cold FPGA reset restarts initialization but does not erase chip RAM.
-    // Keep open-bank/recovery state until the controller's PRECHARGE ALL.
-    void cold_reset() {
-        initialized=false; precharged=false; last_refresh=0;
-        last_refresh_any_chip=0;
-    }
+    // FPGA reset is not a reset pin on the SDRAM. A command already in the
+    // output pipeline may retire before CKE falls. Start checking the new
+    // initialization sequence at that observed pin boundary, retaining bank
+    // recovery and chip RAM until the controller's PRECHARGE ALL.
+    void cold_reset() { restart_pending = true; }
     uint16_t tick(const Dut &dut) {
         ++cycle;
+        if (restart_pending && !dut.sdram_cke) {
+            initialized = false;
+            precharged = false;
+            last_refresh = 0;
+            last_refresh_any_chip = 0;
+            restart_pending = false;
+        }
         for (unsigned i = mask_history.size() - 1; i; --i)
             mask_history[i] = mask_history[i - 1];
         // Physical MiSTer addon: chip masks share the high row-address pins.

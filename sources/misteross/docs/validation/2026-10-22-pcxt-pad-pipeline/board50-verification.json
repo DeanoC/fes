@@ -1,0 +1,778 @@
+{
+  "scope": "Completion of stable committed CPU100/board50 diagnostic checks. No physical whole-board or hardware acceptance.",
+  "tested_source_commit": "959bc4f7b230e921258b55b8cb0db987117d4e5f",
+  "affected_result": {
+    "format": 1,
+    "root": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board",
+    "base": "a17b334f0109ad90a9d152b45ce8c358c735f90b",
+    "head": "959bc4f7b230e921258b55b8cb0db987117d4e5f",
+    "checkout_head": "959bc4f7b230e921258b55b8cb0db987117d4e5f",
+    "merge_base": "a17b334f0109ad90a9d152b45ce8c358c735f90b",
+    "local_paths": [],
+    "impact": {
+      "lanes": {
+        "parent": true,
+        "host": false,
+        "runtime": false,
+        "contracts": false,
+        "fpga": true
+      },
+      "skipped": [
+        "host",
+        "runtime",
+        "contracts"
+      ],
+      "cores": [
+        "pcxt"
+      ],
+      "test_modes": {
+        "video": true,
+        "media": false,
+        "full_race": false
+      },
+      "paths": [
+        "sources/misteross/cores/fes-pcxt/README.md",
+        "sources/misteross/cores/fes-pcxt/constraints-board50.qsf",
+        "sources/misteross/cores/fes-pcxt/expansions/pcxt_cga_card.sv",
+        "sources/misteross/cores/fes-pcxt/expansions/pcxt_display_card.sv",
+        "sources/misteross/cores/fes-pcxt/expansions/pcxt_mda_card.sv",
+        "sources/misteross/cores/fes-pcxt/rtl/fes_pcxt_top.sv",
+        "sources/misteross/cores/fes-pcxt/rtl/pcxt_display_bus.sv",
+        "sources/misteross/cores/fes-pcxt/rtl/pcxt_machine.sv",
+        "sources/misteross/cores/fes-pcxt/rtl/pcxt_memory.sv",
+        "sources/misteross/cores/fes-pcxt/rtl/pcxt_motherboard.sv",
+        "sources/misteross/cores/fes-pcxt/rtl/pcxt_speaker.sv",
+        "sources/misteross/cores/fes-pcxt/rtl/pcxt_system.sv",
+        "sources/misteross/cores/fes-pcxt/sim/clock_bridge_tb.cpp",
+        "sources/misteross/cores/fes-pcxt/sim/display_machine_top.sv",
+        "sources/misteross/cores/fes-pcxt/sim/speaker_tb.cpp",
+        "sources/misteross/cores/fes-pcxt/sim/system_tb.cpp",
+        "sources/misteross/cores/fes-pcxt/sim/system_top.sv",
+        "sources/misteross/docs/architecture.md",
+        "sources/misteross/docs/validation/2026-10-22-pcxt-pad-pipeline/board50-candidate.json",
+        "sources/misteross/docs/validation/2026-10-22-pcxt-pad-pipeline/continued-runs.jsonl",
+        "sources/misteross/docs/validation/2026-10-22-pcxt-pad-pipeline/whole-board-pipeline.md",
+        "sources/misteross/scripts/build_fes_pcxt.py",
+        "sources/misteross/scripts/sim_fes_pcxt.py",
+        "sources/misteross/tests/test_pcxt_counter_equivalence.py",
+        "sources/misteross/tests/test_pcxt_dot_enable.py",
+        "sources/misteross/tests/test_pcxt_toolchain.py"
+      ],
+      "reasons": [
+        "sources/misteross/cores/fes-pcxt/constraints-board50.qsf: core family and dependent consumers",
+        "sources/misteross/cores/fes-pcxt/expansions/pcxt_cga_card.sv: core family and dependent consumers",
+        "sources/misteross/cores/fes-pcxt/expansions/pcxt_display_card.sv: core family and dependent consumers",
+        "sources/misteross/cores/fes-pcxt/expansions/pcxt_mda_card.sv: core family and dependent consumers",
+        "sources/misteross/cores/fes-pcxt/rtl/fes_pcxt_top.sv: core family and dependent consumers",
+        "sources/misteross/cores/fes-pcxt/rtl/pcxt_display_bus.sv: core family and dependent consumers",
+        "sources/misteross/cores/fes-pcxt/rtl/pcxt_machine.sv: core family and dependent consumers",
+        "sources/misteross/cores/fes-pcxt/rtl/pcxt_memory.sv: core family and dependent consumers",
+        "sources/misteross/cores/fes-pcxt/rtl/pcxt_motherboard.sv: core family and dependent consumers",
+        "sources/misteross/cores/fes-pcxt/rtl/pcxt_speaker.sv: core family and dependent consumers",
+        "sources/misteross/cores/fes-pcxt/rtl/pcxt_system.sv: core family and dependent consumers",
+        "sources/misteross/cores/fes-pcxt/sim/clock_bridge_tb.cpp: core family and dependent consumers",
+        "sources/misteross/cores/fes-pcxt/sim/display_machine_top.sv: core family and dependent consumers",
+        "sources/misteross/cores/fes-pcxt/sim/speaker_tb.cpp: core family and dependent consumers",
+        "sources/misteross/cores/fes-pcxt/sim/system_tb.cpp: core family and dependent consumers",
+        "sources/misteross/cores/fes-pcxt/sim/system_top.sv: core family and dependent consumers",
+        "sources/misteross/scripts/build_fes_pcxt.py: FPGA producer/package software tests; RTL unchanged",
+        "sources/misteross/scripts/sim_fes_pcxt.py: pcxt simulation recipe",
+        "sources/misteross/tests/test_pcxt_counter_equivalence.py: FPGA producer/package software tests; RTL unchanged",
+        "sources/misteross/tests/test_pcxt_dot_enable.py: FPGA producer/package software tests; RTL unchanged",
+        "sources/misteross/tests/test_pcxt_toolchain.py: FPGA producer/package software tests; RTL unchanged"
+      ],
+      "always": [
+        "planner tests",
+        "diff whitespace checks"
+      ],
+      "not_run": [
+        "FPGA synthesis/place-and-route",
+        "cold image builds",
+        "hardware acceptance"
+      ]
+    },
+    "commands": [
+      {
+        "lane": "always",
+        "label": "test_affected.py",
+        "cwd": ".",
+        "argv": [
+          "/usr/bin/python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_affected.py",
+          "-v"
+        ],
+        "tools": [
+          "/usr/bin/python3"
+        ],
+        "files": [
+          "tests/test_affected.py"
+        ]
+      },
+      {
+        "lane": "always",
+        "label": "test_test_changed.py",
+        "cwd": ".",
+        "argv": [
+          "/usr/bin/python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_test_changed.py",
+          "-v"
+        ],
+        "tools": [
+          "/usr/bin/python3"
+        ],
+        "files": [
+          "tests/test_test_changed.py"
+        ]
+      },
+      {
+        "lane": "always",
+        "label": "committed whitespace",
+        "cwd": ".",
+        "argv": [
+          "/usr/bin/python3",
+          "scripts/check_diff.py",
+          "--base",
+          "a17b334f0109ad90a9d152b45ce8c358c735f90b",
+          "--head",
+          "959bc4f7b230e921258b55b8cb0db987117d4e5f"
+        ],
+        "tools": [
+          "/usr/bin/python3"
+        ],
+        "files": []
+      },
+      {
+        "lane": "always",
+        "label": "working whitespace",
+        "cwd": ".",
+        "argv": [
+          "git",
+          "diff",
+          "--check",
+          "HEAD",
+          "--"
+        ],
+        "tools": [
+          "git"
+        ],
+        "files": []
+      },
+      {
+        "lane": "parent",
+        "label": "parent Python regressions",
+        "cwd": ".",
+        "argv": [
+          "/usr/bin/python3",
+          "scripts/parent_tests.py",
+          "--video",
+          "true",
+          "--media",
+          "false",
+          "--paths-json",
+          "[\"sources/misteross/cores/fes-pcxt/README.md\", \"sources/misteross/cores/fes-pcxt/constraints-board50.qsf\", \"sources/misteross/cores/fes-pcxt/expansions/pcxt_cga_card.sv\", \"sources/misteross/cores/fes-pcxt/expansions/pcxt_display_card.sv\", \"sources/misteross/cores/fes-pcxt/expansions/pcxt_mda_card.sv\", \"sources/misteross/cores/fes-pcxt/rtl/fes_pcxt_top.sv\", \"sources/misteross/cores/fes-pcxt/rtl/pcxt_display_bus.sv\", \"sources/misteross/cores/fes-pcxt/rtl/pcxt_machine.sv\", \"sources/misteross/cores/fes-pcxt/rtl/pcxt_memory.sv\", \"sources/misteross/cores/fes-pcxt/rtl/pcxt_motherboard.sv\", \"sources/misteross/cores/fes-pcxt/rtl/pcxt_speaker.sv\", \"sources/misteross/cores/fes-pcxt/rtl/pcxt_system.sv\", \"sources/misteross/cores/fes-pcxt/sim/clock_bridge_tb.cpp\", \"sources/misteross/cores/fes-pcxt/sim/display_machine_top.sv\", \"sources/misteross/cores/fes-pcxt/sim/speaker_tb.cpp\", \"sources/misteross/cores/fes-pcxt/sim/system_tb.cpp\", \"sources/misteross/cores/fes-pcxt/sim/system_top.sv\", \"sources/misteross/docs/architecture.md\", \"sources/misteross/docs/validation/2026-10-22-pcxt-pad-pipeline/board50-candidate.json\", \"sources/misteross/docs/validation/2026-10-22-pcxt-pad-pipeline/continued-runs.jsonl\", \"sources/misteross/docs/validation/2026-10-22-pcxt-pad-pipeline/whole-board-pipeline.md\", \"sources/misteross/scripts/build_fes_pcxt.py\", \"sources/misteross/scripts/sim_fes_pcxt.py\", \"sources/misteross/tests/test_pcxt_counter_equivalence.py\", \"sources/misteross/tests/test_pcxt_dot_enable.py\", \"sources/misteross/tests/test_pcxt_toolchain.py\"]"
+        ],
+        "tools": [
+          "/usr/bin/python3",
+          "sh"
+        ],
+        "files": [
+          "scripts/parent_tests.py",
+          "tests"
+        ]
+      },
+      {
+        "lane": "parent",
+        "label": "working-tree generated consumer consistency",
+        "cwd": ".",
+        "argv": [
+          "/usr/bin/python3",
+          "-c",
+          "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+        ],
+        "tools": [
+          "/usr/bin/python3",
+          "go"
+        ],
+        "files": [
+          "scripts/consistency.py"
+        ]
+      },
+      {
+        "lane": "fpga",
+        "label": "test_*.py",
+        "cwd": "sources/misteross",
+        "argv": [
+          "/usr/bin/python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_*.py",
+          "-v"
+        ],
+        "tools": [
+          "/usr/bin/python3",
+          "strace"
+        ],
+        "files": [
+          "tests/test_*.py"
+        ]
+      },
+      {
+        "lane": "fpga",
+        "label": "pcxt RTL simulation",
+        "cwd": "sources/misteross",
+        "argv": [
+          "make",
+          "sim-fes-pcxt",
+          "PYTHON=/usr/bin/python3"
+        ],
+        "tools": [
+          "c++",
+          "make",
+          "verilator"
+        ],
+        "files": [
+          "Makefile"
+        ]
+      }
+    ],
+    "limits": [
+      "FPGA synthesis/place-and-route",
+      "cold image builds",
+      "hardware acceptance",
+      "platform/image packaging suite",
+      "required browser integration suite",
+      "committed-source/release validation (make check remains separate)"
+    ],
+    "status": "passed",
+    "results": [
+      {
+        "label": "test_affected.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "test_test_changed.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "committed whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "working whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "parent Python regressions",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "working-tree generated consumer consistency",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "test_*.py",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "label": "pcxt RTL simulation",
+        "lane": "fpga",
+        "returncode": 0
+      }
+    ]
+  },
+  "parent_tests": 842,
+  "component_cases": 1301,
+  "initial_component_skips": 49,
+  "yosys_dependent_skips_completed": 48,
+  "remaining_optional_oracle_skips": 1,
+  "yosys_completion": {
+    "first_targeted_attempt": {
+      "source_commit": "959bc4f7b230e921258b55b8cb0db987117d4e5f",
+      "test_ids": [
+        "test_build_fes_apple2.Apple2YosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+        "test_build_fes_c64.C64YosysM10kTests.test_full_synth_has_live_memory_clocks",
+        "test_build_fes_c64.C64YosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+        "test_build_fes_sg1000.Sg1000YosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+        "test_build_fes_sms.SmsYosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+        "test_build_fes_zx81_oss.Zx81YosysM10kTests.test_mapped_shell_has_no_async_m10k",
+        "test_coleco_megacart_build.ColecoMegacartYosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+        "test_pcxt_boundary_equivalence.BoundaryEquivalenceTest.test_all_request_response_and_reset_sequences",
+        "test_pcxt_counter_equivalence.CounterEquivalenceTest.test_cpu_phase_pin_clock_and_guest_enable_are_cycle_exact",
+        "test_pcxt_counter_equivalence.CounterEquivalenceTest.test_display_phase_and_enable_are_cycle_exact",
+        "test_pcxt_counter_equivalence.CounterEquivalenceTest.test_precomputed_decrements_are_current_at_every_count_edge",
+        "test_pcxt_counter_equivalence.CounterEquivalenceTest.test_saturating_binary_and_bcd_one_and_two_steps",
+        "test_pcxt_counter_equivalence.CounterEquivalenceTest.test_terminal_flags_preserve_next_count_period_and_mode2_output",
+        "test_pcxt_cpu_selection.CpuSelectionTest.test_jump_boolean_for_all_states",
+        "test_pcxt_cpu_selection.CpuSelectionTest.test_local_rom_addresses_match_the_microcode_pc_after_reset",
+        "test_pcxt_cpu_selection.CpuSelectionTest.test_microcode_next_address_matches_original_sequencer",
+        "test_pcxt_cpu_selection.CpuSelectionTest.test_microcode_pc_stack_and_stall_match_original",
+        "test_pcxt_cpu_selection.CpuSelectionTest.test_operand_values_for_every_selection_and_register_value",
+        "test_pcxt_cpu_selection.CpuSelectionTest.test_prefetch_empty_for_every_pointer_value",
+        "test_pcxt_cpu_selection.CpuSelectionTest.test_rom_contents_and_two_phase_registered_read_alignment",
+        "test_pcxt_display_pipeline.DisplayPipelineTest.test_cga_and_mda_all_inputs_resets_and_markers",
+        "test_pcxt_display_pipeline.DisplayPipelineTest.test_prepared_write_eligibility_matches_every_committed_request",
+        "test_pcxt_display_pipeline.DisplayPipelineTest.test_rejects_undelayed_frame_marker",
+        "test_pcxt_dma_mode_decode.DmaModeDecodeTest.test_all_state_and_interface_bits",
+        "test_pcxt_dma_mode_decode.DmaModeDecodeTest.test_wrong_programmed_channel_rejected",
+        "test_pcxt_dma_mode_decode.DmaModeDecodeTest.test_wrong_reset_decode_rejected",
+        "test_pcxt_dma_priority.DmaPriorityTest.test_whole_dma_state_and_interface_equivalence",
+        "test_pcxt_dma_snapshot.DmaSnapshotTest.test_state_and_valid_transaction_equivalence",
+        "test_pcxt_dma_snapshot.DmaSnapshotTest.test_wrong_terminal_count_rejected",
+        "test_pcxt_dma_snapshot.DmaSnapshotTest.test_wrong_transfer_address_rejected",
+        "test_pcxt_dot_enable.DotEnableTest.test_reset_and_inductive_pulse_identity_for_both_rates",
+        "test_pcxt_dot_enable.DotEnableTest.test_wrong_threshold_rejected_for_both_rates",
+        "test_pcxt_endpoint_equivalence.EndpointEquivalenceTest.test_all_streams_after_reset",
+        "test_pcxt_endpoint_equivalence.EndpointEquivalenceTest.test_rejects_repeated_commit",
+        "test_pcxt_eu_pipeline.EuPipelineTest.test_biu_strobe_is_masked_and_completion_captures_every_clock",
+        "test_pcxt_eu_pipeline.EuPipelineTest.test_operand_read_execute_and_alu_for_arbitrary_data_and_resets",
+        "test_pcxt_eu_pipeline.EuPipelineTest.test_rom_word_and_all_controls_hold_and_advance_together",
+        "test_pcxt_motherboard_pins.MotherboardPinTest.test_unbounded_original_pin_equations_after_reset",
+        "test_pcxt_motherboard_read_snapshot.MotherboardReadSnapshotTest.test_late_peripheral_sample_rejected",
+        "test_pcxt_motherboard_read_snapshot.MotherboardReadSnapshotTest.test_original_read_sample_and_completed_payload",
+        "test_pcxt_motherboard_read_snapshot.MotherboardReadSnapshotTest.test_wrong_completed_payload_rejected",
+        "test_pcxt_operand1_map.MuxMapTest.test_native_truth_tables_and_two_level_data_paths",
+        "test_pcxt_operand1_map.MuxMapTest.test_zero_selectors_and_data_disconnect_only_inactive_input_arcs",
+        "test_pcxt_pic_priority.PicPriorityTest.test_all_requests_masks_rotations_and_nested_modes",
+        "test_pcxt_region_decode.RegionDecodeTest.test_all_addresses_kinds_and_write_directions",
+        "test_pcxt_region_decode.RegionDecodeTest.test_ram_hole_admission_mutation_rejected",
+        "test_pcxt_reset_metadata.ResetMetadataTest.test_async_intent_reaches_ffs_without_logic_changes",
+        "test_pcxt_rom_clock_map.RomClockMapTest.test_only_disabled_write_clock_is_rebound"
+      ],
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "-v",
+        "test_build_fes_apple2.Apple2YosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+        "test_build_fes_c64.C64YosysM10kTests.test_full_synth_has_live_memory_clocks",
+        "test_build_fes_c64.C64YosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+        "test_build_fes_sg1000.Sg1000YosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+        "test_build_fes_sms.SmsYosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+        "test_build_fes_zx81_oss.Zx81YosysM10kTests.test_mapped_shell_has_no_async_m10k",
+        "test_coleco_megacart_build.ColecoMegacartYosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+        "test_pcxt_boundary_equivalence.BoundaryEquivalenceTest.test_all_request_response_and_reset_sequences",
+        "test_pcxt_counter_equivalence.CounterEquivalenceTest.test_cpu_phase_pin_clock_and_guest_enable_are_cycle_exact",
+        "test_pcxt_counter_equivalence.CounterEquivalenceTest.test_display_phase_and_enable_are_cycle_exact",
+        "test_pcxt_counter_equivalence.CounterEquivalenceTest.test_precomputed_decrements_are_current_at_every_count_edge",
+        "test_pcxt_counter_equivalence.CounterEquivalenceTest.test_saturating_binary_and_bcd_one_and_two_steps",
+        "test_pcxt_counter_equivalence.CounterEquivalenceTest.test_terminal_flags_preserve_next_count_period_and_mode2_output",
+        "test_pcxt_cpu_selection.CpuSelectionTest.test_jump_boolean_for_all_states",
+        "test_pcxt_cpu_selection.CpuSelectionTest.test_local_rom_addresses_match_the_microcode_pc_after_reset",
+        "test_pcxt_cpu_selection.CpuSelectionTest.test_microcode_next_address_matches_original_sequencer",
+        "test_pcxt_cpu_selection.CpuSelectionTest.test_microcode_pc_stack_and_stall_match_original",
+        "test_pcxt_cpu_selection.CpuSelectionTest.test_operand_values_for_every_selection_and_register_value",
+        "test_pcxt_cpu_selection.CpuSelectionTest.test_prefetch_empty_for_every_pointer_value",
+        "test_pcxt_cpu_selection.CpuSelectionTest.test_rom_contents_and_two_phase_registered_read_alignment",
+        "test_pcxt_display_pipeline.DisplayPipelineTest.test_cga_and_mda_all_inputs_resets_and_markers",
+        "test_pcxt_display_pipeline.DisplayPipelineTest.test_prepared_write_eligibility_matches_every_committed_request",
+        "test_pcxt_display_pipeline.DisplayPipelineTest.test_rejects_undelayed_frame_marker",
+        "test_pcxt_dma_mode_decode.DmaModeDecodeTest.test_all_state_and_interface_bits",
+        "test_pcxt_dma_mode_decode.DmaModeDecodeTest.test_wrong_programmed_channel_rejected",
+        "test_pcxt_dma_mode_decode.DmaModeDecodeTest.test_wrong_reset_decode_rejected",
+        "test_pcxt_dma_priority.DmaPriorityTest.test_whole_dma_state_and_interface_equivalence",
+        "test_pcxt_dma_snapshot.DmaSnapshotTest.test_state_and_valid_transaction_equivalence",
+        "test_pcxt_dma_snapshot.DmaSnapshotTest.test_wrong_terminal_count_rejected",
+        "test_pcxt_dma_snapshot.DmaSnapshotTest.test_wrong_transfer_address_rejected",
+        "test_pcxt_dot_enable.DotEnableTest.test_reset_and_inductive_pulse_identity_for_both_rates",
+        "test_pcxt_dot_enable.DotEnableTest.test_wrong_threshold_rejected_for_both_rates",
+        "test_pcxt_endpoint_equivalence.EndpointEquivalenceTest.test_all_streams_after_reset",
+        "test_pcxt_endpoint_equivalence.EndpointEquivalenceTest.test_rejects_repeated_commit",
+        "test_pcxt_eu_pipeline.EuPipelineTest.test_biu_strobe_is_masked_and_completion_captures_every_clock",
+        "test_pcxt_eu_pipeline.EuPipelineTest.test_operand_read_execute_and_alu_for_arbitrary_data_and_resets",
+        "test_pcxt_eu_pipeline.EuPipelineTest.test_rom_word_and_all_controls_hold_and_advance_together",
+        "test_pcxt_motherboard_pins.MotherboardPinTest.test_unbounded_original_pin_equations_after_reset",
+        "test_pcxt_motherboard_read_snapshot.MotherboardReadSnapshotTest.test_late_peripheral_sample_rejected",
+        "test_pcxt_motherboard_read_snapshot.MotherboardReadSnapshotTest.test_original_read_sample_and_completed_payload",
+        "test_pcxt_motherboard_read_snapshot.MotherboardReadSnapshotTest.test_wrong_completed_payload_rejected",
+        "test_pcxt_operand1_map.MuxMapTest.test_native_truth_tables_and_two_level_data_paths",
+        "test_pcxt_operand1_map.MuxMapTest.test_zero_selectors_and_data_disconnect_only_inactive_input_arcs",
+        "test_pcxt_pic_priority.PicPriorityTest.test_all_requests_masks_rotations_and_nested_modes",
+        "test_pcxt_region_decode.RegionDecodeTest.test_all_addresses_kinds_and_write_directions",
+        "test_pcxt_region_decode.RegionDecodeTest.test_ram_hole_admission_mutation_rejected",
+        "test_pcxt_reset_metadata.ResetMetadataTest.test_async_intent_reaches_ffs_without_logic_changes",
+        "test_pcxt_rom_clock_map.RomClockMapTest.test_only_disabled_write_clock_is_rebound"
+      ],
+      "reason": "Run only the48 Yosys-dependent component cases skipped when the authenticated compiler was absent from PATH; preserve original broad run and its separate optional oracle skip.",
+      "completed": true,
+      "returncode": 1,
+      "log_sha256": "4821150db36e341a9067f2d080a178fd25368c742ba03cf9b55b3e76836e75cb"
+    },
+    "correct_module_root_retry": {
+      "source_commit": "959bc4f7b230e921258b55b8cb0db987117d4e5f",
+      "reason": "Seven selected tests failed imports because the first targeted rerun used the tests directory instead of module root. Rerun only these seven with package-qualified IDs and the canonical module cwd; all original logs remain.",
+      "test_ids": [
+        "test_build_fes_apple2.Apple2YosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+        "test_build_fes_c64.C64YosysM10kTests.test_full_synth_has_live_memory_clocks",
+        "test_build_fes_c64.C64YosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+        "test_build_fes_sg1000.Sg1000YosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+        "test_build_fes_sms.SmsYosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+        "test_build_fes_zx81_oss.Zx81YosysM10kTests.test_mapped_shell_has_no_async_m10k",
+        "test_coleco_megacart_build.ColecoMegacartYosysM10kTests.test_mapped_netlist_has_no_async_m10k"
+      ],
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "-v",
+        "tests.test_build_fes_apple2.Apple2YosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+        "tests.test_build_fes_c64.C64YosysM10kTests.test_full_synth_has_live_memory_clocks",
+        "tests.test_build_fes_c64.C64YosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+        "tests.test_build_fes_sg1000.Sg1000YosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+        "tests.test_build_fes_sms.SmsYosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+        "tests.test_build_fes_zx81_oss.Zx81YosysM10kTests.test_mapped_shell_has_no_async_m10k",
+        "tests.test_coleco_megacart_build.ColecoMegacartYosysM10kTests.test_mapped_netlist_has_no_async_m10k"
+      ],
+      "returncode": 0,
+      "log_sha256": "30096cf8bf266588cf63b389bbd25374c5aa368b30746f750e6633983c5f9fc6"
+    },
+    "combined_all48_pass": true
+  },
+  "pcxt_suites": 21,
+  "parent_consistency": "passed;21generated consumers and37fixture copies",
+  "public_synthesis_comparison": {
+    "scope": "Fresh ordinary authenticated synthesis-only producer of committed CPU100/board50 profile versus frozen three-seed candidate. Entire JSON comparison normalizes only source/output path prefixes; no fields, source lines, nets, cells or parameters are dropped. This is synthesis identity, not a new route or exact-artifact hardware acceptance.",
+    "equal_entire_json_after_only_path_prefix_normalization": true,
+    "selected_commit": "959bc4f7b230e921258b55b8cb0db987117d4e5f",
+    "selected_producer_receipt_sha256": "cc92e68ebee3fd43a2ac334da9cc1d4be728ea70616e2bfe77631cf20e3c1468",
+    "selected_synth_sha256": "72fbc9b202f55e5f22cea1adcb3892bd048ce187a1401988e9635de03b872be8",
+    "frozen_synth_sha256": "43e3d377229b0f3582fb15739312b9757313602c8d8ad7019f855803144d93e5",
+    "frozen_receipt_sha256": "a991d1e4fed21a981bbff00fcd073abaf8b2f1dd6be44d75e5271483b238d325",
+    "selected_producer_output": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/build/diagnostic/fes-pcxt/cga/direct/20261024T190417Z-7d6ac629",
+    "generated_roms_equal": true,
+    "hardware": false
+  },
+  "physical_boundary_inventory": {
+    "scope": "Structural external-pad and nonconstant asynchronous-clear inventory from actual new board50 native artifact. Enumerates every top-level pad and all FF ACLR connections; not an architecture STA coverage export and supplies no timing requirements or qualification.",
+    "file_sha256": "637c3a287ca5b3ea7b059a2fd250edd44024e278320b3695e4bf19a2c416abf5",
+    "external_pad_count": 70,
+    "pad_type_counts": {
+      "MISTRAL_SDRIO": 16,
+      "MISTRAL_IO": 2,
+      "MISTRAL_SDROUT": 20,
+      "MISTRAL_OB": 30,
+      "MISTRAL_DDROUT": 1,
+      "MISTRAL_IB": 1
+    },
+    "nonconstant_async_clear_count": 629,
+    "reset_model_boundary": "Native MISTRAL_FF ACLR is intentionally treated as a synchronous setup/hold port in mistral/delay.cc.625 of629 nonconstant ACLR endpoints have paired native rows;4 PLL-driven clears are unpaired. These are not recovery/removal or MTBF signoff.",
+    "unpaired_rows": [
+      {
+        "net": "system.video.adapter.ack_meta_MISTRAL_FF_Q$ROUTETHRU$conn$Q",
+        "driver": "system.video.adapter.ack_meta_MISTRAL_FF_Q$ROUTETHRU",
+        "cell": "system.video.adapter.ack_meta_MISTRAL_FF_Q",
+        "delay": [
+          2.7720000743865967,
+          2.796999931335449
+        ],
+        "event": "posedge clocks[2]",
+        "hold_checked": false,
+        "hold_slack_ns": null,
+        "launch_event": "posedge clk_pixel",
+        "port": "DATAIN",
+        "setup_checked": false,
+        "setup_slack_ns": null
+      },
+      {
+        "net": "locked",
+        "driver": "locked_MISTRAL_ALUT2_Q",
+        "cell": "locked_MISTRAL_FF_ACLR_1_Q_MISTRAL_FF_DATAIN",
+        "delay": [
+          3.0460000038146973,
+          3.8949999809265137
+        ],
+        "event": "posedge clk_pixel",
+        "hold_checked": false,
+        "hold_slack_ns": null,
+        "launch_event": "<async>",
+        "port": "ACLR",
+        "setup_checked": false,
+        "setup_slack_ns": null
+      },
+      {
+        "net": "locked",
+        "driver": "locked_MISTRAL_ALUT2_Q",
+        "cell": "locked_MISTRAL_FF_ACLR_1",
+        "delay": [
+          3.0460000038146973,
+          3.8949999809265137
+        ],
+        "event": "posedge clk_pixel",
+        "hold_checked": false,
+        "hold_slack_ns": null,
+        "launch_event": "<async>",
+        "port": "ACLR",
+        "setup_checked": false,
+        "setup_slack_ns": null
+      },
+      {
+        "net": "locked",
+        "driver": "locked_MISTRAL_ALUT2_Q",
+        "cell": "locked_MISTRAL_FF_ACLR_DATAIN_MISTRAL_FF_Q",
+        "delay": [
+          3.8489999771118164,
+          4.697999954223633
+        ],
+        "event": "posedge clocks[2]",
+        "hold_checked": false,
+        "hold_slack_ns": null,
+        "launch_event": "<async>",
+        "port": "ACLR",
+        "setup_checked": false,
+        "setup_slack_ns": null
+      },
+      {
+        "net": "locked",
+        "driver": "locked_MISTRAL_ALUT2_Q",
+        "cell": "locked_MISTRAL_FF_ACLR",
+        "delay": [
+          3.8489999771118164,
+          4.697999954223633
+        ],
+        "event": "posedge clocks[2]",
+        "hold_checked": false,
+        "hold_slack_ns": null,
+        "launch_event": "<async>",
+        "port": "ACLR",
+        "setup_checked": false,
+        "setup_slack_ns": null
+      },
+      {
+        "net": "system.video.adapter.front_MISTRAL_FF_Q$ROUTETHRU$conn$Q",
+        "driver": "system.video.adapter.front_MISTRAL_FF_Q$ROUTETHRU",
+        "cell": "system.video.adapter.front_MISTRAL_FF_Q",
+        "delay": [
+          3.178999900817871,
+          3.2009999752044678
+        ],
+        "event": "posedge clk_pixel",
+        "hold_checked": false,
+        "hold_slack_ns": null,
+        "launch_event": "posedge clocks[2]",
+        "port": "DATAIN",
+        "setup_checked": false,
+        "setup_slack_ns": null
+      },
+      {
+        "net": "system.video.adapter.front_MISTRAL_FF_Q_1$ROUTETHRU$conn$Q",
+        "driver": "system.video.adapter.front_MISTRAL_FF_Q_1$ROUTETHRU",
+        "cell": "system.video.adapter.front_MISTRAL_FF_Q_1",
+        "delay": [
+          3.2090001106262207,
+          3.2300000190734863
+        ],
+        "event": "posedge clk_pixel",
+        "hold_checked": false,
+        "hold_slack_ns": null,
+        "launch_event": "posedge clocks[2]",
+        "port": "DATAIN",
+        "setup_checked": false,
+        "setup_slack_ns": null
+      },
+      {
+        "net": "system.machine.board.audio.reset",
+        "driver": "system.machine.board.audio.reset_MISTRAL_NOT_Q",
+        "cell": "system.video.adapter.hold_meta_MISTRAL_FF_Q",
+        "delay": [
+          3.61299991607666,
+          3.6410000324249268
+        ],
+        "event": "posedge clk_pixel",
+        "hold_checked": false,
+        "hold_slack_ns": null,
+        "launch_event": "posedge clocks[2]",
+        "port": "DATAIN",
+        "setup_checked": false,
+        "setup_slack_ns": null
+      },
+      {
+        "net": "system.video.adapter.sent_meta_MISTRAL_FF_Q$ROUTETHRU$conn$Q",
+        "driver": "system.video.adapter.sent_meta_MISTRAL_FF_Q$ROUTETHRU",
+        "cell": "system.video.adapter.sent_meta_MISTRAL_FF_Q",
+        "delay": [
+          2.88100004196167,
+          2.9059998989105225
+        ],
+        "event": "posedge clk_pixel",
+        "hold_checked": false,
+        "hold_slack_ns": null,
+        "launch_event": "posedge clocks[2]",
+        "port": "DATAIN",
+        "setup_checked": false,
+        "setup_slack_ns": null
+      }
+    ]
+  },
+  "forwarded_clock_fitted_reference": {
+    "scope": "Correlated same-corner fitted50MHz forwarded-clock pulse bounds for reference RBF and declared30pF. Common clock translation cancels. Native full-board clock fanout and real board/load/jitter differ; not a qualified native waveform or chip/kit acceptance model.",
+    "reference_rbf_sha256": "f26ffc806b608b172cc5bbf1fb8cc6562f97584b59b6f46783270554a7402b06",
+    "corners": {
+      "7_slow_1100mv_100c": {
+        "edges": {
+          "rise_setup": {
+            "arrival_ns": 23.613,
+            "launch_ns": 10.0,
+            "offset_ns": 13.613,
+            "report_sha256": "ddb323cdee74e16fe522f7f7fe2474c8df94e507795d5a85c0d42d162281c5c2"
+          },
+          "rise_hold": {
+            "arrival_ns": 22.107,
+            "launch_ns": 10.0,
+            "offset_ns": 12.107,
+            "report_sha256": "de873361572012f729d509d15f5337659af31dbaaa4cf88029c5c2d541fc9aff"
+          },
+          "fall_setup": {
+            "arrival_ns": 13.331,
+            "launch_ns": 0.0,
+            "offset_ns": 13.331,
+            "report_sha256": "9737d65253835e3a3b11d6024d3c03014b0e6823a2d37d51029f6a6afedf7385"
+          },
+          "fall_hold": {
+            "arrival_ns": 11.8,
+            "launch_ns": 0.0,
+            "offset_ns": 11.8,
+            "report_sha256": "5c23db02c134809bd44aba72ac5f0fa3158d1d290695a26795be3702c5e0c489"
+          }
+        },
+        "fitted_same_corner_pulse_bounds": {
+          "high_min_ns": 8.187000000000001,
+          "low_min_ns": 8.776
+        }
+      },
+      "7_slow_1100mv_-40c": {
+        "edges": {
+          "rise_setup": {
+            "arrival_ns": 23.091,
+            "launch_ns": 10.0,
+            "offset_ns": 13.091000000000001,
+            "report_sha256": "b3387d6f74351befb2c9aebbd927ecaaec759fa8a2a62c812c2988631170f5de"
+          },
+          "rise_hold": {
+            "arrival_ns": 21.781,
+            "launch_ns": 10.0,
+            "offset_ns": 11.780999999999999,
+            "report_sha256": "b614b830d00ac60d14f9dcb7c6a2c018b39a2cf5d3193d38e38055d5241ba10f"
+          },
+          "fall_setup": {
+            "arrival_ns": 12.939,
+            "launch_ns": 0.0,
+            "offset_ns": 12.939,
+            "report_sha256": "8d8f72a4ec7179a4a479174ca8b8c535ac30c9dc32ce913ed87a8571d0607573"
+          },
+          "fall_hold": {
+            "arrival_ns": 11.609,
+            "launch_ns": 0.0,
+            "offset_ns": 11.609,
+            "report_sha256": "3ef6dbfbdfc624434210d67603fe0d874f2aafdc2a112f37e67da85dea7016b4"
+          }
+        },
+        "fitted_same_corner_pulse_bounds": {
+          "high_min_ns": 8.518,
+          "low_min_ns": 8.841999999999999
+        }
+      },
+      "MIN_fast_1100mv_100c": {
+        "edges": {
+          "rise_setup": {
+            "arrival_ns": 17.517,
+            "launch_ns": 10.0,
+            "offset_ns": 7.5169999999999995,
+            "report_sha256": "45c82485b5f9f544da0554257fc526bfef73dc2a3cf0938b57f001f3fc0a76d2"
+          },
+          "rise_hold": {
+            "arrival_ns": 16.853,
+            "launch_ns": 10.0,
+            "offset_ns": 6.8530000000000015,
+            "report_sha256": "e8304c3abd59bff3d6a8db38476728cb99ec24e8c9efcbbcb57a68466fe4c689"
+          },
+          "fall_setup": {
+            "arrival_ns": 7.223,
+            "launch_ns": 0.0,
+            "offset_ns": 7.223,
+            "report_sha256": "b9b0dac9477186b2277ee4b070dacdc5a400b8f6a12e01b9360ffe53bfa2c77b"
+          },
+          "fall_hold": {
+            "arrival_ns": 6.552,
+            "launch_ns": 0.0,
+            "offset_ns": 6.552,
+            "report_sha256": "1a9e319ce8d63f58d81abe0a911088faaaf4299a85ed07a5b9601a08b0a39012"
+          }
+        },
+        "fitted_same_corner_pulse_bounds": {
+          "high_min_ns": 9.035,
+          "low_min_ns": 9.630000000000003
+        }
+      },
+      "MIN_fast_1100mv_-40c": {
+        "edges": {
+          "rise_setup": {
+            "arrival_ns": 16.722,
+            "launch_ns": 10.0,
+            "offset_ns": 6.722000000000001,
+            "report_sha256": "8d4386d2d9406b1082c063f6f3fcae170cd23cbc9d2eb3a2bfc468a09d8df251"
+          },
+          "rise_hold": {
+            "arrival_ns": 16.11,
+            "launch_ns": 10.0,
+            "offset_ns": 6.109999999999999,
+            "report_sha256": "4ac6329893fb6617bb34d9ebf46559b7f8cfb83f7cbcdc46686f47702a59704b"
+          },
+          "fall_setup": {
+            "arrival_ns": 6.537,
+            "launch_ns": 0.0,
+            "offset_ns": 6.537,
+            "report_sha256": "8f0c04559555c75bee59fe0cff1bd9a1c50d218ecf6a629a206015badda845b2"
+          },
+          "fall_hold": {
+            "arrival_ns": 5.918,
+            "launch_ns": 0.0,
+            "offset_ns": 5.918,
+            "report_sha256": "81f6589922922efcc360da3646d7b25ce8ebddf0ec0c5be62f8de397f7b473e7"
+          }
+        },
+        "fitted_same_corner_pulse_bounds": {
+          "high_min_ns": 9.195999999999998,
+          "low_min_ns": 9.573
+        }
+      }
+    },
+    "minimum_fitted_high_or_low_ns": 8.187000000000001,
+    "published_chip_minimum_high_low_ns": 2,
+    "native_or_physical_waveform_qualified": false,
+    "hardware": false
+  },
+  "logs_sha256": {
+    "board50-test-changed.log": "84d3819a270ab7c016e7796f7c503144683e3a7469fd2d0fdecbef5830879da5",
+    "board50-parent-check.log": "7e64928b0bfda0f6d4e520886eb05d607384f0d95ecdc94235608f71a0fc183f",
+    "board50-yosys-rerun.log": "4821150db36e341a9067f2d080a178fd25368c742ba03cf9b55b3e76836e75cb",
+    "board50-yosys-import-retry.log": "30096cf8bf266588cf63b389bbd25374c5aa368b30746f750e6633983c5f9fc6",
+    "board50-public-synthesis.log": "024826f8cb1d6c0909e94df6010de0cec0c05f6c4c5d622c94d9c252cae9af12",
+    "board50-public-synthesis-cache-root.log": "9289d0b521e756979c35102f9db955a8908252fe6e68401ddd6df2faf00f4f44"
+  },
+  "next_integration_step": "Keep draft admission closed. Qualify complete IO/OE/feedback, reset/CDC and physical board/waveform contracts; integrate reviewed compiler pins and run a fresh normal producer plus exact-artifact/hardware gates.",
+  "hardware_evidence_class": "host-only checks and fitted reference characterization; no kit claimed or programmed",
+  "physical_whole_board_qualified": false,
+  "shared_or_runtime_contract_changes": false
+}

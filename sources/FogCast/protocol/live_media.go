@@ -47,11 +47,21 @@ func ComputerZx81TapeCapable(p *CorePackageStatus) bool {
 
 // AdmitTapeMediaName accepts only ZX81 .p / .P basenames.
 func AdmitTapeMediaName(name string) bool {
+	return admitTapeExt(name, ".p", ".P")
+}
+
+// AdmitZx80TapeMediaName accepts ZX80 .o / .O basenames. The ZX80 loader
+// treats the file as a raw image; a .p name stays on the ZX81 path.
+func AdmitZx80TapeMediaName(name string) bool {
+	return admitTapeExt(name, ".o", ".O")
+}
+
+func admitTapeExt(name, lower, upper string) bool {
 	if name == "" || strings.ContainsAny(name, `/\`) || name != filepath.Base(name) {
 		return false
 	}
 	ext := filepath.Ext(name)
-	return ext == ".p" || ext == ".P"
+	return ext == lower || ext == upper
 }
 
 // AdmitTapeMediaSize is the fes.media.blob 1.0 mailbox bound.

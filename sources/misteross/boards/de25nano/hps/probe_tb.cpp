@@ -318,6 +318,48 @@ static void unsolicited_response() {
     expect_equal(p.read(r::FesDe25DdrProbeChecksumOffset), 0, "unsolicited response changed checksum");
 }
 
+static void clear_does_not_erase_same_edge_fault(bool prior_response_error) {
+    Probe p; Descriptor d; d.bytes = 256;
+    if (prior_response_error) p.error_response = 0;
+    p.start(d); p.stall = false; p.responses = true;
+    const auto expected_status = r::FesDe25DdrProbeStatusIdle |
+        (prior_response_error ? r::FesDe25DdrProbeStatusFault : r::FesDe25DdrProbeStatusDone);
+    expect_equal(p.wait_idle(), expected_status, "setup operation status");
+
+    const auto completed = p.read(r::FesDe25DdrProbeCompletedBytesOffset);
+    const auto accepted = p.read(r::FesDe25DdrProbeAcceptedBytesOffset);
+    const auto checksum = p.read(r::FesDe25DdrProbeChecksumOffset);
+    std::array<std::uint32_t, 4> last{};
+    for (unsigned lane = 0; lane < last.size(); ++lane)
+        last[lane] = p.read(r::FesDe25DdrProbeLastData0Offset + lane * 4);
+
+    p.dut.address = r::FesDe25DdrProbeCommandOffset;
+    p.dut.writedata = r::FesDe25DdrProbeCommandClear;
+    p.dut.byteenable = 15;
+    p.dut.write = 1; p.dut.read = 0;
+    p.unsolicited = true;
+    p.tick();
+    require(!p.dut.readdatavalid, "same-edge CLEAR generated a control read response");
+    p.unsolicited = false;
+    p.idle();
+    expect_equal(p.read(r::FesDe25DdrProbeStatusOffset),
+          r::FesDe25DdrProbeStatusIdle | r::FesDe25DdrProbeStatusFault,
+          "same-edge fault was cleared");
+    const auto expected_errors = r::FesDe25DdrProbeErrorUnexpectedResponse |
+        (prior_response_error ? r::FesDe25DdrProbeErrorResponse : 0);
+    expect_equal(p.read(r::FesDe25DdrProbeErrorOffset), expected_errors,
+          "same-edge CLEAR lost fault reasons");
+    expect_equal(p.read(r::FesDe25DdrProbeCompletedBytesOffset), completed,
+          "same-edge CLEAR erased completion accounting");
+    expect_equal(p.read(r::FesDe25DdrProbeAcceptedBytesOffset), accepted,
+          "same-edge CLEAR erased accepted accounting");
+    expect_equal(p.read(r::FesDe25DdrProbeChecksumOffset), checksum,
+          "same-edge CLEAR erased checksum");
+    for (unsigned lane = 0; lane < last.size(); ++lane)
+        expect_equal(p.read(r::FesDe25DdrProbeLastData0Offset + lane * 4), last[lane],
+              "same-edge CLEAR erased last data");
+}
+
 int main(int argc, char** argv) {
     Verilated::commandArgs(argc, argv);
     try {
@@ -328,7 +370,9 @@ int main(int argc, char** argv) {
         busy_command_fault(r::FesDe25DdrProbeCommandClear, r::FesDe25DdrProbeErrorBusyCommand);
         busy_command_fault(3, r::FesDe25DdrProbeErrorCommand);
         response_error(0); response_error(15); unsolicited_response();
-        std::cout << "DE25 DDR probe: 13 groups passed (host RTL simulation only)\n";
+        clear_does_not_erase_same_edge_fault(false);
+        clear_does_not_erase_same_edge_fault(true);
+        std::cout << "DE25 DDR probe: 15 groups passed (host RTL simulation only)\n";
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "DE25 DDR probe: " << error.what() << '\n';

@@ -1,0 +1,500 @@
+{
+  "format": 1,
+  "scope": "Independent review of PC/XT PR #979 and refreshed Quartus diagnostic artifact",
+  "classification": "exact-artifact hardware diagnostic",
+  "pr": 979,
+  "main_base": "8cbc26a5d58b85924cb7ae84dcfc015638197f73",
+  "reviewed_head": "3c2edec1de7522927236aa6c42c04fca44d01d37",
+  "producer_revision": "38ef151bfa915f60e95c623ac526c0ecbd63e017",
+  "build_id": "799f77c2241b364217c6c404a7ef015e",
+  "package_id": "9d46fefc49f516b2092153f4e416fb584b0b4e9134b663f7dba9a865bf650060",
+  "archive": {
+    "path": "core.fcore",
+    "sha256": "fa222a77f5d17679dfabfac908bfce8aec70ff446f974ca89056e7d6b81e0008",
+    "size": 2829312
+  },
+  "payload_sha256": "3935c357b8bc3af5e7b25aaeebd2d473420f59de7e226f58f05ef49695c73e6b",
+  "build_inputs_sha256": "5d4933f57fc16937dc302eb56b849ca8c132a0ca22f129f23c43f928a49da023",
+  "prior_accepted_artifact_record": "result.json",
+  "independent_review": {
+    "reviewer": "independent Codex agent, fresh context, read-only review",
+    "initial_verdict": "request changes",
+    "final_verdict": "approved frozen fix diff committed as 38ef151bfa915f60e95c623ac526c0ecbd63e017",
+    "findings": [
+      {
+        "priority": "P2",
+        "problem": "Recorded PATH Python could differ from invoked sys.executable; runtime libraries were omitted",
+        "resolution": "Bind actual interpreter, standard-library support, helpers and dynamically resolved host/tool libraries"
+      },
+      {
+        "priority": "P2",
+        "problem": "Failed or interrupted compile prevented normal retry at the same build ID",
+        "resolution": "Each compile uses a fresh attempt directory beneath the ID and preserves prior evidence"
+      },
+      {
+        "priority": "P2",
+        "problem": "Invalid internal clock checks and arbitrary unclocked registers passed the package gate",
+        "resolution": "Reject internal issue classes and require complete unique no-clock inventories bound to actual HPS primitive instances"
+      },
+      {
+        "priority": "P2",
+        "problem": "A six-scanline prefix of the eight-line marker passed completion acceptance",
+        "resolution": "Verify an interior region of every marker scanline and reject every incomplete prefix"
+      }
+    ],
+    "validation": {
+      "parent_tests": 78,
+      "quartus_tests_with_selected_yosys": 29,
+      "acceptance_tests": 5,
+      "selected_yosys_rtl_proofs": 32,
+      "fogcast_launch_tests": "passed",
+      "cpu_timing_simulation": "passed"
+    },
+    "remaining_concrete_findings": []
+  },
+  "execution_identity": {
+    "version": 2,
+    "canonical_sha256": "7afee072d2e5732362856c60eb63f7811a964d9e947c08556d25df68cc012c90",
+    "descriptor_file": "review-runtime-inputs.json.gz",
+    "descriptor_sha256": "e38f4c42577e28bdbc63d93b3a269f46120d464f6a3eaba54b6abc857631114a",
+    "python": "/usr/bin/python3",
+    "python_support_files": 673,
+    "runtime_library_and_config_files": 366,
+    "helpers": 17
+  },
+  "hps_primitive_instances": {
+    "fes_computer_runtime_hps_gp": "cyclonev_hps_interface_mpu_general_purpose",
+    "hdmi_i2c": "cyclonev_hps_interface_peripheral_i2c"
+  },
+  "signoff": [
+    {
+      "seed": 1,
+      "reported_endpoint_checks_pass": true,
+      "checks": {
+        "setup": {
+          "worst_slack_ns": 1.388,
+          "failing_endpoints": 0
+        },
+        "hold": {
+          "worst_slack_ns": 0.136,
+          "failing_endpoints": 0
+        },
+        "recovery": {
+          "worst_slack_ns": 6.07,
+          "failing_endpoints": 0
+        },
+        "removal": {
+          "worst_slack_ns": 0.4,
+          "failing_endpoints": 0
+        }
+      },
+      "minimum_pulse_width": {
+        "7_slow_1100mv_-40c": {
+          "checks": 53853,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        },
+        "MIN_fast_1100mv_-40c": {
+          "checks": 53853,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        },
+        "7_slow_1100mv_100c": {
+          "checks": 53853,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        },
+        "MIN_fast_1100mv_100c": {
+          "checks": 53853,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        }
+      },
+      "timing_coverage_issues": {
+        "no_clock": 1234,
+        "multiple_clock": 0,
+        "generated_clock": 0,
+        "loops": 0,
+        "latches": 0,
+        "no_input_delay": 18,
+        "no_output_delay": 69,
+        "partial_input_delay": 0,
+        "partial_output_delay": 0,
+        "io_min_max_delay_consistency": 0,
+        "reference_pin": 0,
+        "pll_cross_check": 0,
+        "uncertainty": 0
+      },
+      "unclocked_hps_registers": 1234,
+      "mailbox_interstage_checks": 24,
+      "minimum_mailbox_interstage_slack_ns": 0.252
+    },
+    {
+      "seed": 2,
+      "reported_endpoint_checks_pass": true,
+      "checks": {
+        "setup": {
+          "worst_slack_ns": 1.043,
+          "failing_endpoints": 0
+        },
+        "hold": {
+          "worst_slack_ns": 0.12,
+          "failing_endpoints": 0
+        },
+        "recovery": {
+          "worst_slack_ns": 6.235,
+          "failing_endpoints": 0
+        },
+        "removal": {
+          "worst_slack_ns": 0.448,
+          "failing_endpoints": 0
+        }
+      },
+      "minimum_pulse_width": {
+        "7_slow_1100mv_-40c": {
+          "checks": 53933,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        },
+        "MIN_fast_1100mv_-40c": {
+          "checks": 53933,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        },
+        "7_slow_1100mv_100c": {
+          "checks": 53933,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        },
+        "MIN_fast_1100mv_100c": {
+          "checks": 53933,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        }
+      },
+      "timing_coverage_issues": {
+        "no_clock": 1234,
+        "multiple_clock": 0,
+        "generated_clock": 0,
+        "loops": 0,
+        "latches": 0,
+        "no_input_delay": 18,
+        "no_output_delay": 69,
+        "partial_input_delay": 0,
+        "partial_output_delay": 0,
+        "io_min_max_delay_consistency": 0,
+        "reference_pin": 0,
+        "pll_cross_check": 0,
+        "uncertainty": 0
+      },
+      "unclocked_hps_registers": 1234,
+      "mailbox_interstage_checks": 24,
+      "minimum_mailbox_interstage_slack_ns": 0.242
+    },
+    {
+      "seed": 3,
+      "reported_endpoint_checks_pass": true,
+      "checks": {
+        "setup": {
+          "worst_slack_ns": 1.324,
+          "failing_endpoints": 0
+        },
+        "hold": {
+          "worst_slack_ns": 0.098,
+          "failing_endpoints": 0
+        },
+        "recovery": {
+          "worst_slack_ns": 5.918,
+          "failing_endpoints": 0
+        },
+        "removal": {
+          "worst_slack_ns": 0.585,
+          "failing_endpoints": 0
+        }
+      },
+      "minimum_pulse_width": {
+        "7_slow_1100mv_-40c": {
+          "checks": 53903,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        },
+        "MIN_fast_1100mv_-40c": {
+          "checks": 53903,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        },
+        "7_slow_1100mv_100c": {
+          "checks": 53903,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        },
+        "MIN_fast_1100mv_100c": {
+          "checks": 53903,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        }
+      },
+      "timing_coverage_issues": {
+        "no_clock": 1234,
+        "multiple_clock": 0,
+        "generated_clock": 0,
+        "loops": 0,
+        "latches": 0,
+        "no_input_delay": 18,
+        "no_output_delay": 69,
+        "partial_input_delay": 0,
+        "partial_output_delay": 0,
+        "io_min_max_delay_consistency": 0,
+        "reference_pin": 0,
+        "pll_cross_check": 0,
+        "uncertainty": 0
+      },
+      "unclocked_hps_registers": 1234,
+      "mailbox_interstage_checks": 24,
+      "minimum_mailbox_interstage_slack_ns": 0.253
+    }
+  ],
+  "independent_repeat": {
+    "byte_identical": true,
+    "payload_sha256": "3935c357b8bc3af5e7b25aaeebd2d473420f59de7e226f58f05ef49695c73e6b",
+    "timing": {
+      "seed": 1,
+      "reported_endpoint_checks_pass": true,
+      "checks": {
+        "setup": {
+          "worst_slack_ns": 1.388,
+          "failing_endpoints": 0
+        },
+        "hold": {
+          "worst_slack_ns": 0.136,
+          "failing_endpoints": 0
+        },
+        "recovery": {
+          "worst_slack_ns": 6.07,
+          "failing_endpoints": 0
+        },
+        "removal": {
+          "worst_slack_ns": 0.4,
+          "failing_endpoints": 0
+        }
+      },
+      "minimum_pulse_width": {
+        "7_slow_1100mv_-40c": {
+          "checks": 53853,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        },
+        "MIN_fast_1100mv_100c": {
+          "checks": 53853,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        },
+        "7_slow_1100mv_100c": {
+          "checks": 53853,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        },
+        "MIN_fast_1100mv_-40c": {
+          "checks": 53853,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        }
+      },
+      "timing_coverage_issues": {
+        "no_clock": 1234,
+        "multiple_clock": 0,
+        "generated_clock": 0,
+        "loops": 0,
+        "latches": 0,
+        "no_input_delay": 18,
+        "no_output_delay": 69,
+        "partial_input_delay": 0,
+        "partial_output_delay": 0,
+        "io_min_max_delay_consistency": 0,
+        "reference_pin": 0,
+        "pll_cross_check": 0,
+        "uncertainty": 0
+      },
+      "unclocked_hps_registers": 1234,
+      "mailbox_interstage_checks": 24,
+      "minimum_mailbox_interstage_slack_ns": 0.252
+    }
+  },
+  "hardware": {
+    "kit": "A",
+    "classification": "exact-artifact hardware diagnostic",
+    "success": true,
+    "software_identity": {
+      "active_bundle": "b5f6d8e54731b2b5356f7e475a87771fa88da0902af18083dddde05263b89176",
+      "base_identity": "f904961e008a972db8f06f1bb47aff9631123d67215b9f4157ea1fbee83b98d4",
+      "host_api": "v1",
+      "target_api": "v1"
+    },
+    "host_binary_sha256": "e311669feec1c23ef85d8be1a1cf4a9eacd724d8911f7baf0c00ae06ea8f4aa9",
+    "normal_package_lifecycle": "import, compatibility, new library entry, launch, three captures and owned Stop passed",
+    "lifecycle_receipt_sha256": "21d87a0628bf77cbeef1bbf99cc08a02714e8a86729fb1c8b4b5c673c242d0bc",
+    "created_at_utc": "2026-10-29T19:45:24.888982+00:00",
+    "picture_result": {
+      "captures": [
+        {
+          "pattern_matches": true,
+          "width": 1920,
+          "height": 1080,
+          "mean_pixel_error": 24.389,
+          "worst_row_error": 24.422,
+          "completion_scanline_means": [
+            252.0,
+            252.0,
+            252.0,
+            252.0,
+            252.0,
+            252.0,
+            252.0,
+            252.0
+          ],
+          "completion_signature_verified": true,
+          "classification": "completed PC/XT hardware diagnostic picture",
+          "static_picture_expected": true,
+          "capture_sha256": "306e56477b529117399bd7b062ff4cb026ff438497988362570698e804bff098"
+        },
+        {
+          "pattern_matches": true,
+          "width": 1920,
+          "height": 1080,
+          "mean_pixel_error": 24.389,
+          "worst_row_error": 24.422,
+          "completion_scanline_means": [
+            252.0,
+            252.0,
+            252.0,
+            252.0,
+            252.0,
+            252.0,
+            252.0,
+            252.0
+          ],
+          "completion_signature_verified": true,
+          "classification": "completed PC/XT hardware diagnostic picture",
+          "static_picture_expected": true,
+          "capture_sha256": "306e56477b529117399bd7b062ff4cb026ff438497988362570698e804bff098"
+        },
+        {
+          "pattern_matches": true,
+          "width": 1920,
+          "height": 1080,
+          "mean_pixel_error": 24.389,
+          "worst_row_error": 24.422,
+          "completion_scanline_means": [
+            252.0,
+            252.0,
+            252.0,
+            252.0,
+            252.0,
+            252.0,
+            252.0,
+            252.0
+          ],
+          "completion_signature_verified": true,
+          "classification": "completed PC/XT hardware diagnostic picture",
+          "static_picture_expected": true,
+          "capture_sha256": "306e56477b529117399bd7b062ff4cb026ff438497988362570698e804bff098"
+        }
+      ],
+      "package_id": "9d46fefc49f516b2092153f4e416fb584b0b4e9134b663f7dba9a865bf650060",
+      "session_id": "0f0139a1-fa45-4197-a292-98c15572c3be",
+      "whole_board_qualified": false
+    },
+    "retained_capture": {
+      "file": "reviewed-cga-complete.png",
+      "sha256": "306e56477b529117399bd7b062ff4cb026ff438497988362570698e804bff098"
+    },
+    "private_home_and_catalog_verified": true,
+    "default_catalog_diagnostic_entry_absent": true,
+    "post_lease_state": "free",
+    "post_target_state": "idle",
+    "private_host_stopped": true,
+    "image_bundle_boot_changes": false
+  },
+  "diagnostic_driver_correction": {
+    "initial_attempt": "stopped before launch on duplicate-entry STALE_REVISION",
+    "cause": "the older local launcher inherited the default HOME despite using a separate config",
+    "correction": "use a dedicated per-run HOME and private catalog; verified the new package entry exists only there",
+    "cleanup": "removed only the unchanged original diagnostic entry and its single play record after exact identity/time/data checks; retained a restorable row snapshot and immutable package imports"
+  },
+  "software": {
+    "focused_parent_tests": 39,
+    "quartus_package_tests_with_actual_yosys": 29,
+    "acceptance_tests": 5,
+    "make_check": "passed; 23 generated consumers and 37 fixture copies",
+    "retained_report_revalidation": "all three previous seeds and the repeat pass the stricter coverage gate",
+    "documentation_links": "passed",
+    "ci": "live checks on the published PR head are authoritative",
+    "affected_parent_suite": {
+      "tests": 1124,
+      "skipped": 4,
+      "status": "passed"
+    },
+    "affected_fpga_suite": {
+      "tests": 1527,
+      "failures": 1,
+      "skipped": 13,
+      "failure": "test_build_fes_c64.C64YosysM10kTests.test_mapped_netlist_has_no_async_m10k: session display FIFO did not map to synchronous M10K",
+      "clean_main_control": {
+        "base": "8cbc26a5d58b85924cb7ae84dcfc015638197f73",
+        "source": "clean git archive of main, sources/misteross and config",
+        "same_yosys_binary": true,
+        "result": "same missing synchronous display FIFO assertion",
+        "tests": 1,
+        "failures": 1,
+        "seconds": 141.608,
+        "test": "tests.test_build_fes_c64.C64YosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+        "log_sha256": "1e93c12f98430652418961fb03399948b5b8d045e67c8a325af93df2af1a5b7d"
+      }
+    },
+    "retained_test_logs": [
+      {
+        "file": "review-test-changed.log.gz",
+        "sha256": "e012a0c786b505c03c248c17c66996e78794a2fe6ca3cd04ecd448f824987e22",
+        "uncompressed_sha256": "817ec7d60330fb9a20a34dbe5ba9dd5ae027877978f08c2340ee5de6ba70aeca"
+      },
+      {
+        "file": "review-main-c64-control.log.gz",
+        "sha256": "4948319c7c2803b870dceafd6c012af96c8b4e23556863fae6e39636c3c912c2",
+        "uncompressed_sha256": "1e93c12f98430652418961fb03399948b5b8d045e67c8a325af93df2af1a5b7d"
+      }
+    ],
+    "full_affected_suite": "failed only on the C64 assertion reproduced on clean main; not claimed green"
+  },
+  "contracts": {
+    "runtime_abi_changed": false,
+    "shared_hardware_contract_changed": false,
+    "existing_oss_functional_keys_changed": false
+  },
+  "whole_board_qualified": false,
+  "remaining": [
+    "external SDRAM/HDMI timing budgets",
+    "HPS timing coverage",
+    "physical reset/PLL relock/pulse/MTBF qualification",
+    "BIOS/DOS/input/disk compatibility outside this diagnostic"
+  ],
+  "retained_raw_evidence": {
+    "workspace": "/home/deano/.codex/worktrees/d92c/fes/out/dev/pcxt-evaluation",
+    "build_directory": "out/work/misteross-38ef151bfa915f60e95c623ac526c0ecbd63e017/sources/misteross/build/fes-pcxt-quartus/799f77c2241b364217c6c404a7ef015e/attempt-l2a469hm",
+    "prepared_directory": "out/quartus-independent-review",
+    "hardware_directory": "out/hardware/run-review-isolated",
+    "files": {
+      "out/work/misteross-38ef151bfa915f60e95c623ac526c0ecbd63e017/sources/misteross/build/fes-pcxt-quartus/799f77c2241b364217c6c404a7ef015e/attempt-l2a469hm/signoff/summary.json": "9e752a791a085dc727f23d5f1427933e16ca7a56639214d9ad18878daa015dd4",
+      "out/work/misteross-38ef151bfa915f60e95c623ac526c0ecbd63e017/sources/misteross/build/fes-pcxt-quartus/799f77c2241b364217c6c404a7ef015e/attempt-l2a469hm/repeat/summary.json": "e53f37bd43f4a8f8b3ee3b24e13d062dfb46b019719c7a484da07481b312a00e",
+      "out/work/misteross-38ef151bfa915f60e95c623ac526c0ecbd63e017/sources/misteross/build/fes-pcxt-quartus/799f77c2241b364217c6c404a7ef015e/attempt-l2a469hm/build-summary.json": "872487ce123e1b24bf2116829cf0166e26290d639509406089f88fde3956877a",
+      "out/quartus-independent-review/prepared.json": "8f90989cb29831ffb8a85322af8f515ef5a9401c95f5498a674fd1206af1369c",
+      "out/hardware/run-review-isolated/package-lifecycle.json": "21d87a0628bf77cbeef1bbf99cc08a02714e8a86729fb1c8b4b5c673c242d0bc",
+      "out/hardware/run-review-isolated/picture-acceptance.json": "785f2a048b32d37d6e9dd69aa1ecb1bd37e20f7f32aa0342859198b8744057e2",
+      "out/hardware/run-review-isolated/lease-after.json": "6cd858d4cc394b24fc2a4209ae2ba715a32b468b962e538b01befca512db638e",
+      "out/hardware/run-review-isolated/status-after.json": "2d8138a8502eae5c6b37559bdb3cf8f7f23dd148b9ba477b8a7bd7f7249eb785",
+      "out/hardware/run_pcxt_diagnostic.py": "ede084cb782abfdd70638af88b91c9d367dc0575970edbc0c41895098c775776",
+      "out/hardware/owned-default-catalog-entry-before-cleanup.json": "afdc8dcc0c1b19369e225162c78a73925b4ff5f206d941f8961d01b22ab80725",
+      "out/review-test-changed.log": "817ec7d60330fb9a20a34dbe5ba9dd5ae027877978f08c2340ee5de6ba70aeca",
+      "out/review-main-c64-control.log": "1e93c12f98430652418961fb03399948b5b8d045e67c8a325af93df2af1a5b7d"
+    }
+  }
+}

@@ -1,0 +1,120 @@
+------------------------------------------------------------
+Timing Analyzer Summary
+------------------------------------------------------------
+
+Type  : Setup 'pll_inst|iopll_0_outclk0'
+Slack : 3.423
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Setup 'altera_reserved_tck'
+Slack : 12.809
+TNS   : 0.000
+Corner: Slow fix4 100C Model
+
+Type  : Hold 'pll_inst|iopll_0_outclk0'
+Slack : 0.000
+TNS   : 0.000
+Corner: Slow fix4a 0C Model
+
+Type  : Hold 'altera_reserved_tck'
+Slack : 0.095
+TNS   : 0.000
+Corner: Fast fix4 0C Model
+
+Type  : Hold 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0'
+Slack : 0.376
+TNS   : 0.000
+Corner: Fast fix4 0C Model
+
+Type  : Recovery 'pll_inst|iopll_0_outclk0'
+Slack : 7.236
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Recovery 'altera_reserved_tck'
+Slack : 60.933
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Removal 'pll_inst|iopll_0_outclk0'
+Slack : 0.158
+TNS   : 0.000
+Corner: Fast fix4 0C Model
+
+Type  : Removal 'altera_reserved_tck'
+Slack : 0.188
+TNS   : 0.000
+Corner: Fast fix4 0C Model
+
+Type  : Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_clk_periph_0'
+Slack : 0.220
+TNS   : 0.000
+Corner: Slow fix4 100C Model
+
+Type  : Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_base_0'
+Slack : 0.272
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0'
+Slack : 0.419
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'EMIF_REF_CLOCK'
+Slack : 2.220
+TNS   : 0.000
+Corner: Slow fix4 100C Model
+
+Type  : Minimum Pulse Width 'pll_inst|iopll_0_outclk0'
+Slack : 4.385
+TNS   : 0.000
+Corner: Slow fix4a 0C Model
+
+Type  : Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_rxclk_gated'
+Slack : 4.905
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_rxclk_gated'
+Slack : 4.905
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_rxclk_gated'
+Slack : 4.905
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_rxclk_gated'
+Slack : 4.905
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_rxclk_gated'
+Slack : 4.905
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_rxclk_gated'
+Slack : 4.905
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0'
+Slack : 8.313
+TNS   : 0.000
+Corner: Slow fix4 100C Model
+
+Type  : Minimum Pulse Width 'pll_inst|iopll_0_refclk'
+Slack : 9.231
+TNS   : 0.000
+Corner: Slow fix4 100C Model
+
+Type  : Minimum Pulse Width 'altera_reserved_tck'
+Slack : 28.581
+TNS   : 0.000
+Corner: Slow fix4 100C Model
+
+------------------------------------------------------------

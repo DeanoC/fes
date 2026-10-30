@@ -640,6 +640,28 @@ static void rejects_invalid_mapping_shapes(struct kunit *test)
 	mmput(mm);
 }
 
+static void refused_mapping_releases_new_mm_reference(struct kunit *test)
+{
+	struct dma_fixture *fixture = test->priv;
+	struct mm_struct *mm = test_mm(test);
+	unsigned long address;
+	int refs;
+
+	if (!mm)
+		return;
+	kthread_use_mm(mm);
+	refs = atomic_read(&mm->mm_count);
+	fixture->observer.mmap_refuse = true;
+	address = vm_mmap(fixture->file, TEST_ADDRESS, PAGE_SIZE,
+			PROT_READ | PROT_WRITE, MAP_FIXED | MAP_SHARED, 0);
+	KUNIT_EXPECT_EQ(test, address, (unsigned long)-EOPNOTSUPP);
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_test_mmap_count(fixture->file), 0U);
+	KUNIT_EXPECT_EQ(test, atomic_read(&mm->mm_count), refs);
+	fixture->observer.mmap_refuse = false;
+	kthread_unuse_mm(mm);
+	mmput(mm);
+}
+
 struct race_context {
 	struct file *file;
 	struct mm_struct *mm;
@@ -749,6 +771,7 @@ static struct kunit_case fes_de25_dma_cases[] = {
 	KUNIT_CASE(poll_identity_rejects_before_register_effects),
 	KUNIT_CASE(coherent_mapping_uapi_and_revoke),
 	KUNIT_CASE(rejects_invalid_mapping_shapes),
+	KUNIT_CASE(refused_mapping_releases_new_mm_reference),
 	KUNIT_CASE(revoke_catches_inflight_mmap_link),
 	{ }
 };

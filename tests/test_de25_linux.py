@@ -13,5 +13,7 @@ def load(name, relative):
 
 
 VendorBootTests = load("de25_linux_boot_tests", "test_boot.py").VendorBootTests
-HeadlessBuildTests = load("de25_linux_build_tests", "test_build.py").HeadlessBuildTests
+BuildTests = load("de25_linux_build_tests", "test_build.py")
+HeadlessBuildTests = BuildTests.HeadlessBuildTests
+RootfsIdentityTests = BuildTests.RootfsIdentityTests
 RootfsTests = load("de25_linux_rootfs_tests", "rootfs/test_rootfs.py").RootfsTests

@@ -151,6 +151,54 @@ def fit_images(data):
     return nodes, images
 
 
+def uboot_commands(script):
+    """Split U-Boot commands while honoring quotes, escapes and comments."""
+    commands, current = [], []
+    quote = None
+    escaped = False
+    comment = False
+
+    def finish_command():
+        command = "".join(current).strip()
+        if command:
+            commands.append(command)
+        current.clear()
+
+    for char in script:
+        if comment:
+            if char in "\r\n":
+                comment = False
+                finish_command()
+            continue
+        if escaped:
+            current.append(char)
+            escaped = False
+            continue
+        if char == "\\":
+            current.append(char)
+            escaped = True
+            continue
+        if quote is not None:
+            current.append(char)
+            if char == quote:
+                quote = None
+            continue
+        if char in ("'", '"'):
+            quote = char
+            current.append(char)
+        elif char == "#":
+            comment = True
+        elif char in ";\r\n":
+            finish_command()
+        else:
+            current.append(char)
+
+    if quote is not None:
+        raise ValueError("unterminated quote in U-Boot script")
+    finish_command()
+    return commands
+
+
 def tree_summary(data):
     nodes, _ = parse_fdt(data)
     aliases = {name: strings(value)[0] for name, value in nodes.get("/aliases", {}).items()}
@@ -202,18 +250,15 @@ def inspect_boot(directory, lock, boot):
     script_nodes, script_images = fit_images(pinned_bytes("boot.scr.uimg"))
     script_name = strings(script_nodes["/images"]["default"])[0]
     script = script_images[script_name]["data"].decode("ascii")
-    commands = []
-    for line in script.splitlines():
-        line = line.split("#", 1)[0]
-        commands.extend(command.strip() for command in line.split(";") if command.strip())
-    bridge_commands = [command for command in commands if re.match(r"^bridge(?:\s|$)", command)]
-    bootargs_commands = [command for command in commands
-                         if re.match(r"^setenv\s+bootargs(?:\s|$)", command)]
+    commands = uboot_commands(script)
     expected_bootargs = 'setenv bootargs "console=ttyS0,115200 root=${mmcroot} rw rootwait"'
-    if (script_images[script_name]["type"] != "script" or bridge_commands != ["bridge enable"]
-            or bootargs_commands != [expected_bootargs]
-            or not any("socfpga_agilex5_de25_nano.dtb" in command.split() for command in commands)
-            or "booti ${kernel_addr_r} - ${fdt_addr_r}" not in commands):
+    expected_loads = [
+        "fatload mmc 0:1 ${kernel_addr_r} Image",
+        "fatload mmc 0:1 ${fdt_addr_r} socfpga_agilex5_de25_nano.dtb",
+    ]
+    expected_boot = "booti ${kernel_addr_r} - ${fdt_addr_r}"
+    expected_commands = ["bridge enable", expected_bootargs, *expected_loads, expected_boot]
+    if script_images[script_name]["type"] != "script" or commands != expected_commands:
         raise ValueError("pinned boot script contract differs")
     fit_nodes, images = fit_images(pinned_bytes("u-boot.itb"))
     selected = strings(fit_nodes["/configurations"]["default"])[0]
