@@ -60,6 +60,21 @@ class ImportWhitespaceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'trailing whitespace'):
             check_diff.check(self.root, '0' * 40, fallback_base=baseline)
 
+    def test_scoped_kernel_patch_whitespace_exemption(self):
+        (self.root / '.gitattributes').write_text(
+            'image/kernel/de25-fpga/bounded-claim.patch -whitespace\n')
+        patch = self.root / 'image/kernel/de25-fpga/bounded-claim.patch'
+        patch.parent.mkdir(parents=True)
+        patch.write_text(' @@ -1 +1 @@\n \tint kernel_value;\n \n')
+        self.commit('preserve upstream patch context')
+        check_diff.check(self.root, self.base)
+
+        sibling = patch.with_name('other.patch')
+        sibling.write_text(' @@ -1 +1 @@\n \tint unrelated_value;\n')
+        self.commit('keep sibling patches checked')
+        with self.assertRaisesRegex(ValueError, 'space before tab'):
+            check_diff.check(self.root, self.base)
+
     def test_new_branch_missing_fallback_fails_closed(self):
         with self.assertRaises(subprocess.CalledProcessError):
             check_diff.check(self.root, '0' * 40, fallback_base='refs/remotes/origin/missing')

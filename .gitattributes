@@ -4,3 +4,5 @@ docs/validation/** -whitespace
 docs/validation/**/*.md !whitespace
 sources/misteross/docs/validation/** -whitespace
 sources/misteross/docs/validation/**/*.md !whitespace
+# Preserve patch syntax that quotes whitespace-sensitive pinned kernel context.
+image/kernel/de25-fpga/bounded-claim.patch -whitespace
