@@ -28,10 +28,13 @@ python3 sources/misteross/prototypes/de25_board_control/build.py build \
   --quartus-root /absolute/altera_pro/26.3 --output out/de25-control-board
 python3 sources/misteross/prototypes/de25_board_control/verify.py \
   --project out/de25-control-board --output out/de25-control-board-check
+python3 sources/misteross/prototypes/de25_board_control/test_handoff.py \
+  --project out/de25-control-board --output out/de25-control-handoff-check
 ```
 
 `project` prepares source only; `generate` additionally validates the actual
-Platform Designer handoff; `build` compiles the SOF. Board and overlay commits,
+Platform Designer handoff; `build` compiles the SOF. The handoff test also
+checks that altered copies of that generated map or source are rejected. Board and overlay commits,
 all captured sources, vendor hash, generated maps and artifact evidence remain
 separately recorded. Working-tree overlay inputs require `--allow-dirty` and are
 labelled diagnostic. No command programs hardware, writes media, creates an RBF
