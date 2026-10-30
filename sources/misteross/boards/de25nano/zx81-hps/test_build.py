@@ -2,6 +2,7 @@
 import hashlib
 import importlib.util
 import io
+import json
 from contextlib import redirect_stderr
 from pathlib import Path
 import tempfile
@@ -57,6 +58,39 @@ class HpsZX81BuildTests(unittest.TestCase):
         self.assertNotIn("sources/misteross/cores/fes-zx81/rtl/fes_computer_gp.v", sources)
         for name in required:
             self.assertEqual(sources[name], (B.ROOT / name).read_bytes())
+
+    def test_current_visibility_and_readiness_cdc_cuts_are_narrow_and_fail_closed(self):
+        sdc = B.capture()[B.BOARD + "zx81-hps/clocks.sdc"].decode()
+        self.assertIn(
+            "set computer_visible_head [get_pins -compatibility_mode -nocase -nowarn "
+            "{fes_video_inst|visible_sync[0]|d}]", sdc)
+        self.assertIn("if {[get_collection_size $computer_visible_head] != 1}", sdc)
+        self.assertIn("set_false_path -to $computer_visible_head", sdc)
+        self.assertIn("set computer_video_ready_head [get_pins", sdc)
+        self.assertIn("{soc_inst|subsys_periph|fes_computer|fes_computer|transport_ready_meta|d}]", sdc)
+        self.assertIn("if {[get_collection_size $computer_video_ready_head] != 1}", sdc)
+        self.assertIn("set_false_path -to $computer_video_ready_head", sdc)
+        self.assertIn("Keep synchronizer stage-to-stage, frame-gate and output paths timed.", sdc)
+        self.assertNotIn("set_clock_groups", sdc)
+
+    def test_historical_quartus_report_is_not_presented_as_current_head_evidence(self):
+        record = B.ROOT / "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps"
+        producer_inputs = json.loads((record / "compiled-5a7382c4b5/reports/inputs.json").read_text())
+        selected = producer_inputs["functional_snapshot_sha256"]
+        drifted = {
+            name for name, recorded in selected.items()
+            if hashlib.sha256((B.ROOT / name).read_bytes()).hexdigest() != recorded
+        }
+        self.assertTrue({
+            B.BOARD + "zx81-hps/board.v",
+            B.BOARD + "zx81-hps/clocks.sdc",
+            B.BOARD + "zx81-hps/fes_de25_computer.v",
+        } <= drifted)
+        report = " ".join((record / "README.md").read_text().split())
+        self.assertIn("**Evidence status:** historical producer", report)
+        self.assertIn("not compiled from the current branch", report)
+        self.assertIn("not valid for SRAM testing the current source", report)
+        self.assertIn("does not validate the current HPS or scanout false-path selectors", report)
 
     def test_selected_revision_capture_reads_git_blobs_instead_of_working_files(self):
         sources = B.capture()
