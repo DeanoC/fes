@@ -1,8 +1,13 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Reusable complete diagnostic: byte loader, real motherboard/storage and one
 // selected video pipeline. Board pads and PLL/reset synchronizers are external.
-module pcxt_system #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0, EXTERNAL_CS_REGISTER = 0) (
+module pcxt_system #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0, EXTERNAL_CS_REGISTER = 0, DIAGNOSTIC_PROBE = 1,
+    parameter [7:0] SWITCHES = 8'h2d) (
     input wire clk, clk_cpu, clk_pixel, clk_pin, cold_reset, reset_pixel, warm_reset, hold,
+    input wire keyboard_clock, keyboard_data,
+    output wire keyboard_clock_low, keyboard_data_low, keyboard_clear,
+    output wire [11:0] cga_font_address, mda_font_address,
+    input wire [7:0] cga_font_data, mda_font_data,
     input wire firmware_valid,
     output wire firmware_ready, firmware_done,
     input wire [15:0] firmware_address,
@@ -56,15 +61,17 @@ module pcxt_system #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0, 
         end
     end
     /* verilator lint_off PINCONNECTEMPTY */
-    pcxt_machine #(.DIAGNOSTIC_PROBE(1), .SEPARATE_CPU_CLOCK(HALF_RATE_BOARD),
-                   .BOARD_CLOCK_HZ(HALF_RATE_BOARD ? 50000000 : 100000000)) machine (
+    pcxt_machine #(.DIAGNOSTIC_PROBE(DIAGNOSTIC_PROBE), .SEPARATE_CPU_CLOCK(HALF_RATE_BOARD),
+                   .BOARD_CLOCK_HZ(HALF_RATE_BOARD ? 50000000 : 100000000), .SWITCHES(SWITCHES)) machine (
         .clk(clk), .clk_cpu(clk_cpu), .reset(machine_reset), .memory_valid(memory_valid),
         .memory_ready(memory_ready), .memory_done(memory_done), .memory_rdata(memory_rdata),
         .address(address), .wdata(wdata), .write_cycle(write_cycle), .fault(fault),
         .guest_ce(), .halted(halted), .accepted(), .completed(), .cycle_kind(), .cycle_rdata(),
-        .cga_font_address(), .mda_font_address(),
-        // Original diagnostic glyph: two vertical strokes; not an IBM font.
-        .cga_font_data(8'h81), .mda_font_data(8'h81),
+        .keyboard_clock(keyboard_clock), .keyboard_data(keyboard_data),
+        .keyboard_clock_low(keyboard_clock_low), .keyboard_data_low(keyboard_data_low),
+        .keyboard_clear(keyboard_clear),
+        .cga_font_address(cga_font_address), .mda_font_address(mda_font_address),
+        .cga_font_data(cga_font_data), .mda_font_data(mda_font_data),
         .pixel_ce(pixel_ce), .de(de), .hs(hs), .vs(vs), .sof(sof), .eol(eol), .rgbi(rgbi),
         .dma_owner(dma_owner), .refresh_done(refresh_done), .audio_valid(audio_valid), .audio_sample(audio_sample)
     );

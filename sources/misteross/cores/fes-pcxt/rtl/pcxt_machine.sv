@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Real 8088 + motherboard + registered ISA display cards. Storage/font external.
 module pcxt_machine #(parameter bit DIAGNOSTIC_PROBE = 0, SEPARATE_CPU_CLOCK = 0,
-    parameter integer BOARD_CLOCK_HZ = 100000000) (
+    parameter integer BOARD_CLOCK_HZ = 100000000, parameter [7:0] SWITCHES = 8'h2d) (
     input wire clk, clk_cpu, reset,
+    input wire keyboard_clock, keyboard_data,
+    output wire keyboard_clock_low, keyboard_data_low, keyboard_clear,
     output wire memory_valid,
     input wire memory_ready, memory_done,
     input wire [7:0] memory_rdata,
@@ -95,10 +97,11 @@ module pcxt_machine #(parameter bit DIAGNOSTIC_PROBE = 0, SEPARATE_CPU_CLOCK = 0
         .terminal_count(terminal_count),
         .isa_valid(isa_valid), .isa_ready(isa_ready), .isa_done(isa_done),
         .isa_rdata(isa_rdata), .isa_fault(isa_fault), .isa_irq(irq[7:2]),
-        .switches(8'h2d), .parity_error(1'b0), .channel_error(1'b0),
+        .switches(SWITCHES), .parity_error(1'b0), .channel_error(1'b0),
         .parity_enable(), .channel_check_enable(),
-        .keyboard_clock(1'b1), .keyboard_data(1'b0),
-        .keyboard_clock_low(), .keyboard_data_low(), .keyboard_clear(), .keyboard_irq(),
+        .keyboard_clock(keyboard_clock), .keyboard_data(keyboard_data),
+        .keyboard_clock_low(keyboard_clock_low), .keyboard_data_low(keyboard_data_low),
+        .keyboard_clear(keyboard_clear), .keyboard_irq(),
         .speaker(), .audio_valid(audio_valid), .audio_sample(audio_sample), .intr(intr), .pit_out(), .pit_clock()
     );
     pcxt_display_bus #(.DIAGNOSTIC_PROBE(DIAGNOSTIC_PROBE), .CLOCK_HZ(BOARD_CLOCK_HZ)) isa (

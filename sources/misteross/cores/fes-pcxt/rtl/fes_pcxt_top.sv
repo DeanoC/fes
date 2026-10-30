@@ -107,6 +107,10 @@ module top #(
     wire dq_oe;
     /* verilator lint_off PINCONNECTEMPTY */
     pcxt_system #(.MDA(MDA), .SCANLINES(SCANLINES), .HALF_RATE_BOARD(HALF_RATE_BOARD), .EXTERNAL_CS_REGISTER(HALF_RATE_BOARD)) system (
+        .keyboard_clock(1'b1), .keyboard_data(1'b0),
+        .keyboard_clock_low(), .keyboard_data_low(), .keyboard_clear(),
+        .cga_font_address(), .mda_font_address(),
+        .cga_font_data(8'h81), .mda_font_data(8'h81),
         .clk(clk_memory), .clk_cpu(clk), .clk_pixel(clk_pixel), .clk_pin(clk_memory), .cold_reset(board_reset_live),
         .reset_pixel(pixel_reset[1]), .warm_reset(exec_reset), .hold(1'b0),
         .firmware_valid(firmware_valid), .firmware_ready(firmware_ready),

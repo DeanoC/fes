@@ -108,6 +108,10 @@ def plan(root, base, head="HEAD", jobs=2, full=False):
             add("fpga", core + " RTL simulation", fpga,
                 ["make", "sim-fes-" + core, "PYTHON=" + sys.executable],
                 tools=["verilator", "c++"], files=["Makefile"])
+            if core == "pcxt":
+                add("fpga", "pcxt BIOS POST RTL simulation", fpga,
+                    ["make", "sim-fes-pcxt-bios", "PYTHON=" + sys.executable],
+                    tools=["verilator", "c++"], files=["Makefile"])
             if core in ("sg1000", "sms"):
                 add("fpga", core + " OSS RTL simulation", fpga,
                     ["make", "sim-fes-" + core + "-oss", "PYTHON=" + sys.executable],

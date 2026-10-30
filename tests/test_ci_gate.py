@@ -137,6 +137,11 @@ class SimulationMatrixTests(unittest.TestCase):
         self.assertEqual({row['target'] for row in rows}, expected)
         self.assertTrue(all(row['core'] == 'coleco' for row in rows))
 
+    def test_pcxt_bios_is_an_independent_required_scenario(self):
+        rows = simulation_matrix(['pcxt'])['include']
+        self.assertEqual(rows, [{'core': 'pcxt', 'target': 'sim-fes-pcxt'},
+                                {'core': 'pcxt', 'target': 'sim-fes-pcxt-bios'}])
+
     def test_selected_families_only_and_no_empty_placeholder(self):
         from scripts.ci_simulations import simulation_matrix
         self.assertEqual(simulation_matrix([]), {'include': []})

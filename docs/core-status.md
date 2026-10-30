@@ -304,7 +304,12 @@ Kit A accepts package `9d46fefc49f516b2` through normal import/launch/Stop in a
 private host HOME/catalog: three captures match the static stripes and all eight
 firmware-completion scanlines.
 The baseline image/bundle are retained and the kit is idle/lease-free.
-BIOS/DOS/game compatibility, keyboard and other profiles remain open. See the
+A host-only GLaBIOS XT/5160 POST fixture now drives the assembled machine's
+firmware loader, CGA font input and XT keyboard cable. It checks the 640 KiB
+diskless profile, keyboard self-test and a typed key; its inputs and intended
+checks are described in the core guide. This does not qualify the diagnostic
+package for BIOS boot on hardware. DOS/game compatibility, host keyboard,
+floppy and other profiles remain open. See the
 [PC/XT diagnostic guide](../sources/misteross/cores/fes-pcxt/README.md#assembled-board-diagnostic).
 
 ## pc386 machine, phases M1, M2 and M3

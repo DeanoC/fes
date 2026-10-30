@@ -5,7 +5,7 @@ an eight-slot virtual ISA backplane. The [machine design](../../docs/architectur
 targets an 8088/8086 PC/XT with IBM graphics and extensions to the existing
 linkable-card mechanism. The motherboard slice adds memory decoding, an 8259A
 PIC, 8253 PIT, 8255 PPI, XT keyboard byte transport and speaker PCM, and a transaction-native 8237A DMA subset. Separate ISA CGA and MDA display cards add guest raster output. It has no
-HID keyboard frontend, disk controller, BIOS or physical socket map. The
+HID keyboard frontend, disk controller, packaged BIOS or physical socket map. The
 registered `fes.pcxt` recipe builds a diagnostic package with fixed CGA Direct
 video and the standard identity/execution mailbox; it can start the built-in
 diagnostic, but cannot boot DOS or PC/XT games yet. The storage lane connects conventional RAM and firmware to the existing
@@ -292,8 +292,9 @@ A separate firmware byte VALID/READY/DONE port writes the 64 KiB firmware
 window, with a 16-bit offset. It admits writes only while the machine's warm
 reset is asserted. The caller must wait for SDRAM `initialized`, load the
 complete firmware window and wait for the final DONE before releasing reset.
-There is no bundled BIOS, image validation, ROM sealing or production HPS
-loader in this slice. Shorter BIOS images need a separately specified mapping.
+There is no bundled BIOS, production ROM sealing or HPS loader in this slice.
+The BIOS POST simulation below specifies and checks its own shorter-ROM mapping;
+that fixture is not a production firmware admission path.
 
 `cold_reset` restarts controller initialization and cancels all responses. It
 must assert during startup; the caller holds the CPU/motherboard reset until
@@ -472,6 +473,40 @@ are under `build/synth/fes-pcxt/video-{cga,mda}/{direct,scanlines}/`. These synt
 one adapter plus shared effect, not the CPU, ISA cards, font ROM or board shell.
 They provide no routed timing, physical containment or hardware acceptance.
 
+## BIOS POST simulation
+
+`scripts/sim_fes_pcxt_bios.py` exercises the real assembled 8088, motherboard,
+ISA CGA card, SDRAM controller and Direct video pipeline with the stock GLaBIOS
+0.4.2 8088 XT/5160 ROM selected in `sim/bios.lock`. The simulated equipment
+profile has 640 KiB RAM, CGA and no floppy drive. The test intends to check
+that the BIOS reaches its bootstrap entry without a POST error, detects the
+expected RAM and display, receives the XT keyboard self-test byte and records
+an A make/break in its keyboard buffer. The firmware and keyboard events use
+the loader and cable interfaces; BIOS instructions and interrupts run on the
+RTL machine without firmware-call interception.
+
+The runner accepts only the exact BIOS bytes in the lock. It maps that 8 KiB
+ROM to the top of the 64 KiB firmware window and fills the rest with `FF`, then
+loads the complete window through the reset-only port. `--bios` supplies a
+local copy; `--download` explicitly fetches and verifies the selected release.
+The default simulation font derives the BIOS's lower 128 8-by-8 graphics glyphs
+into a 256-by-16-byte table, with the upper characters and unused rows blank.
+This is sufficient for readable ASCII during POST, not a complete CGA font.
+`--font` instead accepts an explicit 4096-byte normalized font.
+
+```sh
+# From sources/misteross; the first command explicitly permits a BIOS download.
+make sim-fes-pcxt-bios
+# Alternatively use a previously obtained exact copy and an optional font:
+python3 scripts/sim_fes_pcxt_bios.py --bios /absolute/GLABIOS_0.4.2_8X.ROM --font /absolute/cga-font.bin
+```
+
+The runner writes its input identity, trace and simulation outputs under
+`build/sim/fes-pcxt/bios/`; the firmware is an external simulation input, not
+part of the package. This is a host-only diagnostic. It does not implement
+floppy I/O, host HID delivery or DOS boot, and it does not qualify a routed
+artifact or a kit.
+
 ## Assembled board diagnostic
 
 `rtl/pcxt_machine.sv` owns the real 8088, motherboard and eight registered
@@ -507,9 +542,10 @@ PIT1/DMA0 refresh before enabling either display. The cold-start pattern thus
 requires DMA success; warm HOLD may still repeat the previous complete frame
 until new capture, as described above. A RAM success marker is checked by simulation. Each font
 address supplies the original diagnostic glyph byte `81` (two vertical strokes),
-so no IBM ROM/font is bundled. The reusable system retains an explicit firmware
-byte port for a later user-selected loader; no production HPS loader or sealed
-firmware map is claimed.
+so no IBM ROM/font is bundled. The reusable system exposes the firmware byte
+port, keyboard cable signals and font addresses/data to simulation or a future
+shell; the diagnostic board ties the keyboard inactive and supplies the same
+fixed glyph. No production HPS loader or sealed firmware map is claimed.
 
 `rtl/fes_pcxt_top.sv` supplies a 100 MHz controller clock, 180-degree 100 MHz
 fabric input capture clock, system-clock CPU ROM reads,
@@ -584,7 +620,7 @@ in parallel with next-count data. Guest-visible count/output updates and bus
 timing are unchanged.
 HDMI transmitter I2C uses the existing HPS peripheral bridge. The standalone
 `build_fes_pcxt.py` profile remains an autonomous power-on diagnostic without
-a runtime ABI, host session control or audio pins. The registered OSS package
+a runtime ABI, host session control or audio pins. The registered Quartus package
 producer enables only the standard execution mailbox and fixed video identity;
 keyboard and media interfaces remain disabled.
 

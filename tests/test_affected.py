@@ -281,6 +281,7 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-pcxt/rtl/pcxt_isa_bridge.sv': {'pcxt'},
             'cores/fes-common/generated/fes_pcxt_isa.vh': {'pcxt'},
             'scripts/sim_fes_pcxt.py': {'pcxt'},
+            'scripts/sim_fes_pcxt_bios.py': {'pcxt'},
             'cores/fes-common/vendor/kf8259/KF8259.sv': {'pcxt', 'pc386'},
             'cores/fes-common/vendor/kf8253/read_back.patch': {'pcxt', 'pc386'},
             'cores/fes-common/rtl/fes_dma8237.sv': {'pcxt', 'pc386'},

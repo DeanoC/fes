@@ -2920,6 +2920,16 @@ its [wire contract](../../mister-packages/docs/pcxt-isa.md) defines handshakes,
 reset and side-effect ordering. The [core README](../cores/fes-pcxt/README.md)
 lists coverage and limitations.
 
+The assembled machine exposes keyboard cable and font signals alongside the
+existing reset-only firmware byte port. A separate host simulation supplies a
+hash-pinned GLaBIOS XT/5160 ROM, an ASCII diagnostic font, and a timed XT
+keyboard, with no floppy installed. It loads the full top-aligned firmware
+window through the SDRAM controller; the BIOS runs on the RTL 8088. The test
+checks POST, the 640 KiB/CGA equipment profile, keyboard self-test and a typed
+key before bootstrap. This fixture is not a packaged BIOS, a host HID path, a
+floppy implementation, or kit acceptance. The diagnostic board ties its
+keyboard cable inactive and retains its fixed glyph input.
+
 **The full PC/XT product remains in development.** The registered `fes.pcxt`
 recipe now exports an installable format-2 diagnostic package with the standard
 identity/execution mailbox and fixed CGA Direct video. Its forwarded HDMI clock
