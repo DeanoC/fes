@@ -28,6 +28,23 @@ def run(*args, cwd=None):
 
 
 class HilPlanTest(unittest.TestCase):
+    def test_de25_linux_requires_its_own_full_image_boot_check(self):
+        planner = hil_module()
+        paths = ['image/de25-nano/build.py', 'image/de25-nano/boot.py',
+                 'image/de25-nano/vendor.lock.toml', 'image/de25-nano/rootfs/config']
+        result = planner.plan(paths, texts={})
+        self.assertEqual(result['decision'], 'FULL_IMAGE')
+        self.assertTrue(all(row['component'] == 'de25-nano-linux' for row in result['rows']))
+        self.assertEqual(planner.plan(['docs/de25-linux.md'], texts={})['decision'],
+                         'NO_DEPLOY_CHANGE')
+        for path, component in (('image/scripts/build-target-image.sh', 'image'),
+                                ('image/de25-nano-other/build.py', 'image'),
+                                ('boot-media.lock.toml', 'boot-media')):
+            with self.subTest(path=path):
+                mixed = planner.plan([*paths, path], texts={})
+                self.assertEqual(mixed['decision'], 'FULL_IMAGE')
+                self.assertEqual(mixed['rows'][-1]['component'], component)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
@@ -192,7 +209,7 @@ class HilPlanTest(unittest.TestCase):
 
     def test_ci_selection_scripts_are_none(self):
         plan = hil_module()
-        for name in ('affected', 'hil_plan', 'host_tests', 'test_changed'):
+        for name in ('affected', 'hil_plan', 'host_tests', 'test_changed', 'de25_runtime', 'de25_boot_contract'):
             path = f'scripts/{name}.py'
             with self.subTest(path=path):
                 row = plan.classify_path(path)

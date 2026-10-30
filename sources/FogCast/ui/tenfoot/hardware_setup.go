@@ -250,7 +250,7 @@ func (a *App) openInstalledCoreSetupLocked(coreID string) {
 	a.coreLibrary.FilterCoreID = coreID
 	a.coreLibrary.SetupFamilyPicker = coreID == ""
 	a.coreLibrary.Online = true
-	a.coreLibrary.Status = "Choose a ZX81-family machine…"
+	a.coreLibrary.Status = "Preparing system setup…"
 	if coreID != "" {
 		a.refreshInstalledCoreSetupLocked()
 	}

@@ -136,6 +136,53 @@ func TestSystemsRoomFailedRefreshClearsSetupSelection(t *testing.T) {
 	}
 }
 
+func TestComputersRoomRecoversAfterFailedRefresh(t *testing.T) {
+	old := preparedComputer("old-zx81-entry", "Old ZX81 entry", "fes.zx81")
+	newer := preparedComputer("new-c64-entry", "New C64 entry", "fes.c64")
+	svc := &fakeServices{games: []hostclient.Game{old}}
+	r := newRoom(t, examplePack(t, "example.computers"), Options{
+		Services: svc, Width: 1280, Height: 720,
+	})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	stepUntil(t, r, func(f Frame) bool { return frameHas(f, old.Title) })
+
+	refreshErr := fmt.Errorf("temporary shelf failure")
+	svc.mu.Lock()
+	svc.err = refreshErr
+	svc.mu.Unlock()
+	r.Resume()
+	failed := stepUntil(t, r, func(f Frame) bool { return frameHas(f, refreshErr.Error()) })
+	if frameHas(failed, old.Title) || !frameHas(failed, "Add system") {
+		t.Fatalf("failed refresh left stale rows or hid Add system:\n%s", frameText(failed))
+	}
+	if !r.Input("right") || !r.Input("select") {
+		t.Fatal("open Add system after a failed refresh")
+	}
+	actions := r.TakeActions()
+	if len(actions) != 1 || actions[0].Kind != ActionOpenRoom || actions[0].RoomID != "example.system" {
+		t.Fatalf("Add system opened a stale workbench: %+v", actions)
+	}
+
+	svc.mu.Lock()
+	svc.games = []hostclient.Game{newer}
+	svc.err = nil
+	svc.mu.Unlock()
+	r.Resume()
+	recovered := stepUntil(t, r, func(f Frame) bool { return frameHas(f, newer.Title) })
+	if frameHas(recovered, refreshErr.Error()) || frameHas(recovered, old.Title) || !frameHas(recovered, "Set up") {
+		t.Fatalf("successful refresh kept the old error or rows:\n%s", frameText(recovered))
+	}
+	if !r.Input("select") {
+		t.Fatal("open Set up after refresh recovery")
+	}
+	actions = r.TakeActions()
+	if len(actions) != 1 || actions[0].Kind != ActionOpenRoom || actions[0].RoomID != "example.system" || actions[0].InitialGameID != newer.ID || actions[0].InitialCoreID != newer.CoreID {
+		t.Fatalf("recovered shelf setup %+v", actions)
+	}
+}
+
 type delayedFirstSystemsQueryServices struct {
 	*fakeServices
 	firstResult []hostclient.Game

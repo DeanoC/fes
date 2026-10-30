@@ -356,6 +356,73 @@ func TestSystemWorkbenchLibraryErrorSurvivesModelNavigation(t *testing.T) {
 	}
 }
 
+func TestSystemWorkbenchSuccessfulRefreshClearsLibraryError(t *testing.T) {
+	game := preparedComputer("recovered-title", "Recovered title", "fes.apple2")
+	svc := &fakeServices{games: []hostclient.Game{game}}
+	r := loadSystemWorkbench(t, svc, "", game.CoreID)
+	stepUntil(t, r, func(f Frame) bool { return frameHas(f, game.Title) })
+
+	svc.mu.Lock()
+	svc.err = context.DeadlineExceeded
+	svc.mu.Unlock()
+	r.Resume()
+	stepUntil(t, r, func(f Frame) bool { return frameHas(f, context.DeadlineExceeded.Error()) })
+
+	svc.mu.Lock()
+	svc.err = nil
+	svc.mu.Unlock()
+	r.Resume()
+	frame := stepUntil(t, r, func(f Frame) bool { return frameHas(f, game.Title) })
+	if frameHas(frame, context.DeadlineExceeded.Error()) {
+		t.Fatalf("successful refresh left the previous library error visible:\n%s", frameText(frame))
+	}
+}
+
+func TestSystemWorkbenchFailedRefreshPreservesSelectionOnUnload(t *testing.T) {
+	game := preparedComputer("saved-after-error", "Saved after error", "fes.apple2")
+	path := filepath.Join(t.TempDir(), "room.json")
+	svc := &fakeServices{games: []hostclient.Game{game}}
+	r := newRoom(t, examplePack(t, "example.system"), Options{
+		Services:  c64ServicesWithEmptyHardware{Services: svc},
+		StorePath: path, Width: 1280, Height: 720, InitialGameID: game.ID, InitialCoreID: game.CoreID,
+	})
+	r.SetSessionState("idle")
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	stepUntil(t, r, func(f Frame) bool { return frameHas(f, game.Title) })
+
+	svc.mu.Lock()
+	svc.err = context.DeadlineExceeded
+	svc.mu.Unlock()
+	r.Resume()
+	stepUntil(t, r, func(f Frame) bool { return frameHas(f, context.DeadlineExceeded.Error()) })
+	r.Close()
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var state struct {
+		Navigation struct {
+			CoreID      string `json:"core_id"`
+			GameID      string `json:"game_id"`
+			EditionID   string `json:"edition_id"`
+			CoreChoices map[string]struct {
+				GameID    string `json:"game_id"`
+				EditionID string `json:"edition_id"`
+			} `json:"core_choices"`
+		} `json:"navigation"`
+	}
+	if err := json.Unmarshal(data, &state); err != nil {
+		t.Fatal(err)
+	}
+	choice := state.Navigation.CoreChoices[game.CoreID]
+	if state.Navigation.CoreID != game.CoreID || state.Navigation.GameID != game.ID || state.Navigation.EditionID != game.ID || choice.GameID != game.ID || choice.EditionID != game.ID {
+		t.Fatalf("failed refresh erased saved selection: navigation=%+v core choice=%+v", state.Navigation, choice)
+	}
+}
+
 func TestSystemWorkbenchSavesPlacedSelectionOnUnload(t *testing.T) {
 	game := preparedComputer("placed-setup", "Placed setup", "fes.apple2")
 	path := filepath.Join(t.TempDir(), "room.json")

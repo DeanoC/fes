@@ -1,0 +1,69 @@
+{
+  "board_build.py": {
+    "copied_sha256": "104fc74e5bf448396e3e078535615efd9ac30ce6d47cc1e96cf98a5622211d6c",
+    "git_sha256": "104fc74e5bf448396e3e078535615efd9ac30ce6d47cc1e96cf98a5622211d6c",
+    "matches_git": true
+  },
+  "build.py": {
+    "copied_sha256": "a6daf1ca93d4b4dce6a8e558c1351b2992e16ef5c1c9fb4b587fa22f52ec7273",
+    "git_sha256": "a6daf1ca93d4b4dce6a8e558c1351b2992e16ef5c1c9fb4b587fa22f52ec7273",
+    "matches_git": true
+  },
+  "clocks.sdc": {
+    "copied_sha256": "d4add41163090d41463018fa26bf144fd3726a05b9b1a94dc8397bef3eaae897",
+    "git_sha256": "d4add41163090d41463018fa26bf144fd3726a05b9b1a94dc8397bef3eaae897",
+    "matches_git": true
+  },
+  "derived_menu_reader": {
+    "compiled_derived_sha256": "66d1db21705cd356121aacd2a0f0002f9e625533bc3661a9db473722178aabd6",
+    "exact_patch": {
+      "after": "(* ramstyle = \"M20K\" *) reg [127:0] fifo [0:255];",
+      "before": "(* ramstyle = \"M10K\" *) reg [127:0] fifo [0:255];",
+      "derived": "fes_menu_reader_de25.v",
+      "derived_sha256": "66d1db21705cd356121aacd2a0f0002f9e625533bc3661a9db473722178aabd6",
+      "original": "fes_menu_reader.v",
+      "original_sha256": "0bd4f7d897d0569d030a6fc8028a59300a55cc7435cd97da2cbb40f934fe97f6"
+    },
+    "matches_reviewed_transformation": true,
+    "original_sha256": "0bd4f7d897d0569d030a6fc8028a59300a55cc7435cd97da2cbb40f934fe97f6"
+  },
+  "fes_de25_top_reset.v": {
+    "copied_sha256": "02b156aa9c08bbe5e1e4244f6c068fcfba84ea96f4132624d14de4034e79ce8a",
+    "git_sha256": "02b156aa9c08bbe5e1e4244f6c068fcfba84ea96f4132624d14de4034e79ce8a",
+    "matches_git": true
+  },
+  "fes_menu_pattern_memory.v": {
+    "copied_sha256": "3a03c36b8a23d2205f5a10a3da052beb744c64ddb8dfe64e8de2a2e8ec49e7b3",
+    "git_sha256": "3a03c36b8a23d2205f5a10a3da052beb744c64ddb8dfe64e8de2a2e8ec49e7b3",
+    "matches_git": true
+  },
+  "fes_menu_reader.v": {
+    "copied_sha256": "0bd4f7d897d0569d030a6fc8028a59300a55cc7435cd97da2cbb40f934fe97f6",
+    "git_sha256": "0bd4f7d897d0569d030a6fc8028a59300a55cc7435cd97da2cbb40f934fe97f6",
+    "matches_git": true
+  },
+  "fes_menu_video.v": {
+    "copied_sha256": "03e7bf254c1ecb58174d61fec01cf124a784b0c7b6867f043386d7c78d2b0c6b",
+    "git_sha256": "03e7bf254c1ecb58174d61fec01cf124a784b0c7b6867f043386d7c78d2b0c6b",
+    "matches_git": true
+  },
+  "fes_splash_core.v": {
+    "copied_sha256": "9740e47e25ffa8a9bd124339bcefd18a48c62ac5500f8d862e5abe435e50a7a6",
+    "git_sha256": "9740e47e25ffa8a9bd124339bcefd18a48c62ac5500f8d862e5abe435e50a7a6",
+    "matches_git": true
+  },
+  "top.v": {
+    "copied_sha256": "d974ad681412a7bec4c466a7c8ef76295fec4f791b6c83e8a9f1699003779530",
+    "git_sha256": "d974ad681412a7bec4c466a7c8ef76295fec4f791b6c83e8a9f1699003779530",
+    "matches_git": true
+  },
+  "vendor.lock.toml": {
+    "copied_sha256": "49cdc74e6e7b051c4cad17faf2ce91902dbc74e54a29b0ad4ff7846298ff95f3",
+    "git_sha256": "49cdc74e6e7b051c4cad17faf2ce91902dbc74e54a29b0ad4ff7846298ff95f3",
+    "matches_git": true
+  },
+  "vendor_i2c": {
+    "HDMI_I2C/I2C_Controller.v": true,
+    "HDMI_I2C/I2C_HDMI_Config.v": true
+  }
+}
