@@ -1,0 +1,46 @@
+{
+  "format": 1,
+  "base_revision": "300bf1c3ea67ce81b11ef2e442882de2eff5c224",
+  "source_producer": "43c248d2dfbad7fa2d0ef4c72fa006fe21214dc9",
+  "board": {
+    "usb_serial": "TRWU8J8G",
+    "physical_label": "bottom board (Deano)",
+    "jtag_idcode": "4362c0dd",
+    "uid": "79B9468337C3A50B",
+    "printed_opn": "unobserved beneath fan",
+    "silicon_suffix": "unconfirmed; CS and R1 table masks both match"
+  },
+  "original_sof_sha256": "5b4bf7192dc58a2be0e8ba9b811fcac4aa082ede105c78231dcec8ffd06e1778",
+  "programmed_sof": {
+    "sha256": "2267ecc2e9e8dd08cd24e8d413ee7e704cc022863d5b761b6d6e6aa33a6bb64c",
+    "bytes": 2717323,
+    "bootloader": "exact retained Terasic SPL; see bootloader-audit.json"
+  },
+  "build_id": "6ee668470911276a9e553d0025c7ef0b",
+  "programmer": "Quartus 26.3.0 Build 114",
+  "jtag_programming": "PASS; no force option",
+  "hps_destructive_enabled": false,
+  "boot": {
+    "temporary_sof_factory_sd_boot": "PASS; UART and pinned-key SSH",
+    "kernel": "6.12.11-gd7d192a9ddd9",
+    "architecture": "aarch64",
+    "root": "/dev/mmcblk0p2 ext3",
+    "temporary_sof_boot_id": "971c5c52-685c-4c62-97e8-e908937258ac"
+  },
+  "exclusions": [
+    "HPS DMA or destructive HPS test",
+    "CPU MMIO binding",
+    "partial reconfiguration/personas",
+    "FES rootfs image",
+    "HDMI, GPIO or reset/electrical qualification",
+    "printed OPN verification",
+    "later source or compiler artifact acceptance"
+  ],
+  "restore": "See restore.json; factory restored, claim released",
+  "scan_results": "scans.json",
+  "controller_source": {
+    "revision": "300bf1c3ea67ce81b11ef2e442882de2eff5c224",
+    "jtag_tcl_sha256": "2a27e7c80787fa0fe89bf2e6ab169c35cc37165da41a9e1c8b882a962f264c76",
+    "constants_sha256": "c3c5a4a89af13c031a3003fcc6d3a50bbf1776b55fde510e6477aba4e8788ad8"
+  }
+}

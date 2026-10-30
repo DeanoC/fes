@@ -73,6 +73,16 @@ receipt before claiming fitting, timing or protocol coverage. Compilation
 does not prove boot-handoff compatibility, pin/electrical safety, calibration,
 DRAM reliability, Linux DMA admission or physical board operation.
 
+The raw compiler SOF requires an HPS bootloader before JTAG programming;
+Quartus rejects it without one. The [physical diagnostic record](../../../../../docs/validation/2026-10-30-de25-physical-memory/README.md)
+documents the vendor `quartus_pfg` conversion with the unchanged, locked
+Terasic SPL into a separate SOF. That exact image boots the factory SD and
+passes 4-KiB and full-bank scans of FPGA LPDDR4 B and both SDRAM chip selects
+on one USB/UID-identified board. The printed SCS/R1 suffix remains unconfirmed.
+Software reboot does not return within the captured interval and requires a
+manual power cycle; reset qualification remains open. This is a physical
+diagnostic, not production HPS/DMA, electrical or whole-board acceptance.
+
 The scan engine writes and verifies zero, ones, alternating data, walking-bit,
 address and inverted-address patterns, then exercises byte enables. It checks
 memory read/write responses, preserves an accepted command under backpressure,

@@ -1,0 +1,17 @@
+{
+  "factory_boot_id": "b8e89f9f-9dc1-4fa5-874c-3adf3aa6da67",
+  "factory_kernel": "6.12.11-gd7d192a9ddd9",
+  "root": "/dev/mmcblk0p2 ext3",
+  "uart_and_pinned_ssh": "PASS",
+  "factory_sld_design_hash": "7BD008B4D4BF4BC62777",
+  "diagnostic_sld_design_hash": "B6DA42F85A025D87348A",
+  "factory_design_link_to_diagnostic": "refused: distinct design hash and visible SLD agents",
+  "restoration": "Deano physical power cycle from untouched factory QSPI/SD",
+  "software_reboot": "failed to return within 60-second passive UART capture; cause unestablished",
+  "reset_issue": "https://github.com/DeanoC/fes/issues/1291",
+  "claim_released_utc": "2026-10-30T15:33:00.802528+00:00",
+  "usb_node_ownership_restored": "root:root 0664",
+  "owned_target_uploads": 0,
+  "remaining_owned_sessions": 0,
+  "hps_destructive_enabled": false
+}

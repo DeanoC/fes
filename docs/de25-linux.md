@@ -95,6 +95,11 @@ simulations on the host through private SSH-forwarded Unix sockets. This adds
 physical CPU execution evidence; FPGA programming, physical MMIO/DDR and the
 FES image remain separate qualification steps.
 
+The [physical memory diagnostic](validation/2026-10-30-de25-physical-memory/README.md)
+records a volatile JTAG RAM-Tester load with the preserved Terasic SPL on one
+identified board, local LPDDR4 B/SDRAM checks and factory-SD Linux boot. HPS DMA,
+production runtime loading and the FES image remain outside that diagnostic.
+
 ## Image artifacts
 
 The image output contains:
