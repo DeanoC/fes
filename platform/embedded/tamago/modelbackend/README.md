@@ -1,7 +1,7 @@
 # Tenfoot software-model sessions
 
 This adapter connects the real tenfoot App, renderer and existing hostclient
-Play/Stop requests to retained ROM linking and the fabric lifecycle model. It
+Play/Stop requests to retained format-2 packages, ROM linking and the fabric lifecycle model. It
 runs on ordinary Go and native AArch64 TamaGo. It never constructs the physical
 runtime, programs an FPGA or emulates a game CPU. Its catalog contains synthetic
 ROM-link fixtures and is deliberately separate from the real network-host mode.
@@ -20,11 +20,13 @@ not the complete host service, game search, media picker or package installer.
 
 A single cooperative actor owns the controller. HTTP workers submit bounded
 requests and wait for a reply or cancellation. One preparation worker reads the
-selected archive and ROMs, checks the selected source digests, retains/links the
-bytes, and returns an opaque linked object. On TamaGo, its context yields at
-existing parser/linker cancellation checkpoints. The actor independently checks
-package and receipt admission before retiring any owner. Its event callback must
-return promptly and must not call blocking actor methods.
+selected archive and ROMs, checks the selected source digests and retains the
+package. Format 2 rejects a selected link receipt, composition, ROM sources or parts;
+formats 3/4 require the selected receipt and return an opaque linked object.
+On TamaGo, its context yields at existing parser/linker cancellation
+checkpoints. The actor independently checks package and applicable receipt
+admission before retiring any owner. Its event callback must return promptly
+and must not call blocking actor methods.
 
 Part archives are read against selected file digests and asset IDs, then retained
 and composed with the ROMs. The canonical part tuple and pre-ROM overlay identity
@@ -85,6 +87,12 @@ frame across admission, submit a stale Stop after relaunch, cancel a real HTTP
 request during preparation, and cancel after admission but before release.
 Linux-only tenfoot test dependencies are recorded in this module; they are not
 selected into the bare-metal image.
+
+The DE25 sealed-diagnostic verifier additionally drives the real tenfoot
+launch/return loop using its format-2 Nano package, explicit model-only policy,
+CPU hook adapter and simulated TF-A/RTL endpoint. Identity mismatch and missing
+policy/receipt errors are checked before release. This is host-model evidence;
+it does not enable a physical Nano programming profile.
 
 A native presenter error returns before `FinishFrame`, leaving the outstanding
 model preparation held. Close refuses that grant. A completed CPU copy in the

@@ -34,6 +34,12 @@ def run(label, args, cwd, env, output, expect=0, marker=None):
     return result.stdout.decode()
 
 
+def check_archive(path, expected):
+    import seal
+    if seal.read_package(path) != expected:
+        raise ValueError("sealed archive differs from package directory")
+
+
 def inputs_for(project):
     board = project / "board"
     inputs_path = board / "hps/inputs.json"
@@ -59,6 +65,9 @@ def inputs_for(project):
                 fields["parameters"].get("snapshot_sha256") != seal.snapshot_digest(sources) or
                 fields["parameters"].get("vendor_sha256") != inputs["vendor_archive_sha256"] or
                 fields["parameters"].get("board_revision") != identity["board_fes_revision"] or
+                fields["parameters"].get("control_abi") != identity["control_abi"] or
+                fields["parameters"].get("device") != seal.DEVICE or
+                fields["parameters"].get("classification") != "de25-two-revision-diagnostic" or
                 fields["revision"] != identity["overlay_fes_revision"] or
                 seal.build_identity(record) != build_id or identity.get("board_fingerprint") != fingerprint):
             raise ValueError("canonical diagnostic record differs from captured inputs")
@@ -69,9 +78,28 @@ def inputs_for(project):
             if hashlib.sha256(blob).hexdigest() != expected:
                 raise ValueError("captured source differs from recorded Git revision: " + name)
         result = json.loads((board / "hps/seal-result.json").read_text())
+        if not re.fullmatch(r"[0-9a-f]{64}", result["package_id"]):
+            raise ValueError("invalid sealed package ID")
         package = seal.read_package(board / "hps/packages" / result["package_id"])
+        check_archive(board / "hps/packages" / (result["package_id"] + ".fcore"), package)
+        build = json.loads((board / "hps/build.json").read_text())
+        if build["artifact"] != "project/output_files/golden_top.sof":
+            raise ValueError("unexpected diagnostic SOF path")
+        raw_sof = board / "hps" / build["artifact"]
+        combined = board / "hps/diagnostic-with-vendor-spl.sof"
+        payload = board / "hps/core.rbf"
+        spl = board / "hps/project/software/u-boot/spl/u-boot-spl-dtb.hex"
         if (package.package_id != result["package_id"] or package.fields["build"]["id"] != build_id or
                 package.fields["target"] != {"platform": seal.PLATFORM, "device": seal.DEVICE, "programming_profile": seal.PROFILE} or
+                package.fields["abi"] != {"id": seal.ABI, "major": 1, "minor": 0} or
+                package.fields["build"]["revision"] != fields["revision"] or
+                package.fields["build"]["recipe_sha256"] != fields["recipe_sha256"] or
+                result["build_id"] != build_id or result["rbf_size"] != len(package.payload_bytes) or
+                payload.read_bytes() != package.payload_bytes or
+                (board / "hps/packages" / (result["package_id"] + ".build-inputs.json")).read_bytes() != record or
+                build["inputs_sha256"] != sha(board / "hps/inputs.json") or
+                build["sha256"] != sha(raw_sof) or result["raw_sof_sha256"] != sha(raw_sof) or
+                result["combined_sof_sha256"] != sha(combined) or result["vendor_spl_sha256"] != sha(spl) or
                 result["build_inputs_sha256"] != identity["build_inputs_sha256"] or
                 result["rbf_sha256"] != package.fields["payload"]["sha256"]):
             raise ValueError("sealed package differs from the diagnostic build")

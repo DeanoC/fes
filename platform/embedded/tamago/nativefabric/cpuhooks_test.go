@@ -36,6 +36,20 @@ func (c *cpuTestTransport) Invoke(request [7]uint64) ([4]uint64, error) {
 }
 
 func TestCPUHooksValidateApertureAndPropagateTransportErrors(t *testing.T) {
+	for _, h := range []*CPUHooks{nil, {}} {
+		if _, err := h.Read32(0); err == nil {
+			t.Fatal("unconfigured read accepted")
+		}
+		if err := h.Write32(0, 0); err == nil {
+			t.Fatal("unconfigured write accepted")
+		}
+		if _, err := h.Invoke([7]uint64{}); err == nil {
+			t.Fatal("unconfigured firmware call accepted")
+		}
+		if _, err := h.Contain(); err == nil {
+			t.Fatal("unconfigured containment accepted")
+		}
+	}
 	f := &fake{control: true}
 	cpu := &cpuTestTransport{base: 0x40000000, device: f}
 	for _, pair := range [][2]uint64{{0, 256}, {1, 256}, {0x40000000, 0x4c}, {0x40000000, 260}, {math.MaxUint64 - 3, 256}} {

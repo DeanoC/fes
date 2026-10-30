@@ -36,6 +36,12 @@ type CPUHooks struct {
 	span     uint32
 }
 
+var errCPUHooksUnavailable = errors.New("native fabric: CPU hooks unavailable")
+
+func (h *CPUHooks) ready() bool {
+	return h != nil && h.cpu != nil && h.services != nil && h.base != 0 && h.span >= g.FesEmbeddedRegAckCookieHi+4
+}
+
 // NewCPUHooks deliberately supplies no Nano address or physical capability.
 // The caller must qualify the entire aperture and firmware before enabling it.
 func NewCPUHooks(cpu CPUTransport, services PlatformServices, base uint64, span uint32) (*CPUHooks, error) {
@@ -46,7 +52,7 @@ func NewCPUHooks(cpu CPUTransport, services PlatformServices, base uint64, span 
 }
 
 func (h *CPUHooks) address(offset uint32) (uint64, error) {
-	if h == nil || offset%4 != 0 || offset > g.FesEmbeddedRegAckCookieHi || offset > h.span-4 {
+	if !h.ready() || offset%4 != 0 || offset > g.FesEmbeddedRegAckCookieHi || offset > h.span-4 {
 		return 0, errors.New("native fabric: register outside control aperture")
 	}
 	return h.base + uint64(offset), nil
@@ -65,12 +71,45 @@ func (h *CPUHooks) Write32(offset, value uint32) error {
 	}
 	return h.cpu.WritePhysical32(address, value)
 }
-func (h *CPUHooks) Invoke(request [7]uint64) ([4]uint64, error) { return h.cpu.Invoke(request) }
+func (h *CPUHooks) Invoke(request [7]uint64) ([4]uint64, error) {
+	if !h.ready() {
+		return [4]uint64{}, errCPUHooksUnavailable
+	}
+	return h.cpu.Invoke(request)
+}
 func (h *CPUHooks) Resolve(i fabricmodel.Identity) (embeddedcontrol.Identity, error) {
+	if !h.ready() {
+		return embeddedcontrol.Identity{}, errCPUHooksUnavailable
+	}
 	return h.services.Resolve(i)
 }
-func (h *CPUHooks) Reserve(data []byte) (*Region, error)      { return h.services.Reserve(data) }
-func (h *CPUHooks) Save(i fabricmodel.Identity) (bool, error) { return h.services.Save(i) }
-func (h *CPUHooks) Contain() (bool, error)                    { return h.services.Contain() }
-func (h *CPUHooks) ControlOnly() (bool, error)                { return h.services.ControlOnly() }
-func (h *CPUHooks) ReleaseData() (bool, error)                { return h.services.ReleaseData() }
+func (h *CPUHooks) Reserve(data []byte) (*Region, error) {
+	if !h.ready() {
+		return nil, errCPUHooksUnavailable
+	}
+	return h.services.Reserve(data)
+}
+func (h *CPUHooks) Save(i fabricmodel.Identity) (bool, error) {
+	if !h.ready() {
+		return false, errCPUHooksUnavailable
+	}
+	return h.services.Save(i)
+}
+func (h *CPUHooks) Contain() (bool, error) {
+	if !h.ready() {
+		return false, errCPUHooksUnavailable
+	}
+	return h.services.Contain()
+}
+func (h *CPUHooks) ControlOnly() (bool, error) {
+	if !h.ready() {
+		return false, errCPUHooksUnavailable
+	}
+	return h.services.ControlOnly()
+}
+func (h *CPUHooks) ReleaseData() (bool, error) {
+	if !h.ready() {
+		return false, errCPUHooksUnavailable
+	}
+	return h.services.ReleaseData()
+}

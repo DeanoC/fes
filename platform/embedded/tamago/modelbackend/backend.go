@@ -102,8 +102,9 @@ type expectedSession struct {
 	Flight     string `json:"flight_id"`
 }
 type prepared struct {
-	linked *corepackage.LinkedArchive
-	err    error
+	archive *corepackage.Archive
+	linked  *corepackage.LinkedArchive
+	err     error
 }
 type pending struct {
 	composition *expansion.PartsComposition
@@ -160,7 +161,7 @@ func newBackend(policy runtimeadmission.Policy, config Config, read func(string)
 	entries := append([]Entry(nil), config.Entries...)
 	seen := map[string]bool{}
 	for i, e := range entries {
-		if e.ID == "" || seen[e.ID] || e.Path == "" || len(e.PackageID) != 64 || len(e.ReceiptSHA256) != 64 {
+		if e.ID == "" || seen[e.ID] || e.Path == "" || len(e.PackageID) != 64 || (e.ReceiptSHA256 != "" && len(e.ReceiptSHA256) != 64) {
 			return nil, errors.New("invalid model catalog entry")
 		}
 		if endpoint != nil && e.Fault != "" {
@@ -320,7 +321,7 @@ func (c *cooperativeContext) Err() error {
 	}
 	return c.Context.Err()
 }
-func (b *Backend) prepare(ctx context.Context, e Entry) (*corepackage.LinkedArchive, error) {
+func (b *Backend) prepare(ctx context.Context, e Entry) (*prepared, error) {
 	work, cancel := context.WithCancel(ctx)
 	defer cancel()
 	cooperative := &cooperativeContext{Context: work}
@@ -334,6 +335,19 @@ func (b *Backend) prepare(ctx context.Context, e Entry) (*corepackage.LinkedArch
 	}
 	if archive.Inspection().PackageID != e.PackageID {
 		return nil, errors.New("package selection changed")
+	}
+	if archive.Inspection().Descriptor.Format == 2 {
+		if e.ReceiptSHA256 != "" || e.CompositionID != "" || len(e.Sources) != 0 || len(e.Parts) != 0 {
+			return nil, errors.New("format-2 package cannot select ROM sources, parts, composition or a link receipt")
+		}
+		if e.Fault == "cancel" {
+			cancel()
+			return nil, cooperative.Err()
+		}
+		return &prepared{archive: archive}, nil
+	}
+	if len(e.ReceiptSHA256) != 64 {
+		return nil, errors.New("linked ROM package requires a receipt")
 	}
 	sources := []corepackage.ROMSource{}
 	for _, source := range e.Sources {
@@ -362,7 +376,11 @@ func (b *Backend) prepare(ctx context.Context, e Entry) (*corepackage.LinkedArch
 		}
 		parts = append(parts, corepackage.PartInput{ID: part.ID, Archive: data})
 	}
-	return archive.LinkROMs(cooperative, sources, parts...)
+	linked, err := archive.LinkROMs(cooperative, sources, parts...)
+	if err != nil {
+		return nil, err
+	}
+	return &prepared{linked: linked}, nil
 }
 
 func (b *Backend) run() {
@@ -479,7 +497,14 @@ func (b *Backend) run() {
 					job.ready = make(chan prepared, 1)
 					ready, entry := job.ready, job.entry
 					view.Launches++
-					go func() { linked, err := b.prepare(ctx, entry); ready <- prepared{linked, err} }()
+					go func() {
+						p, err := b.prepare(ctx, entry)
+						if err != nil {
+							ready <- prepared{err: err}
+							return
+						}
+						ready <- *p
+					}()
 				} else {
 					view.Stops++
 					err := b.controller.Stop(now, now+2*time.Second)
@@ -509,7 +534,13 @@ func (b *Backend) run() {
 						finish(p.err)
 						continue
 					}
-					image, err := b.gate.PrepareLinkedModel(p.linked, job.entry.PackageID, job.entry.ReceiptSHA256)
+					var image *fabricmodel.Image
+					var err error
+					if p.archive != nil {
+						image, err = b.gate.PrepareModel(p.archive, job.entry.PackageID)
+					} else {
+						image, err = b.gate.PrepareLinkedModel(p.linked, job.entry.PackageID, job.entry.ReceiptSHA256)
+					}
 					if err == nil && b.endpoint != nil {
 						err = b.endpoint.Preflight(image)
 					}
@@ -520,7 +551,9 @@ func (b *Backend) run() {
 						finish(err)
 						continue
 					}
-					job.composition = p.linked.Receipt().PartsComposition
+					if p.linked != nil {
+						job.composition = p.linked.Receipt().PartsComposition
+					}
 					job.started = true
 					b.emit("admitted", job.entry.ID, "", nil)
 				default:
@@ -570,7 +603,7 @@ func (b *Backend) run() {
 					game := ""
 					if job != nil {
 						game = job.entry.ID
-						target := command.ImageID == "model.linked"
+						target := command.ImageID == "model.linked" || command.ImageID == "model.package"
 						if !job.faultUsed {
 							switch {
 							case target && job.entry.Fault == "identity" && command.Operation == fabricmodel.Identify:
