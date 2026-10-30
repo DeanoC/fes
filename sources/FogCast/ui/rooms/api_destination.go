@@ -26,7 +26,7 @@ func (r *Instance) Destination() Destination {
 	if r == nil {
 		return Destination{}
 	}
-	return r.dest
+	return displayDestination(r.dest)
 }
 
 func (r *Instance) destinationSet(L *lua.LState) int {
@@ -225,6 +225,7 @@ func (r *Instance) candidateTable(d Destination) *lua.LTable {
 }
 
 func (r *Instance) destinationTable(d Destination) *lua.LTable {
+	d = displayDestination(d)
 	L := r.L
 	t := L.NewTable()
 	t.RawSetString("kind", lua.LString(d.Kind))

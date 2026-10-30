@@ -1,0 +1,359 @@
+{
+  "scope": "CPU100/board50 host-only synchronizer graph/interstage audit on the three retained successful native routes. No new routing, exceptions, producer acceptance, physical or hardware signoff.",
+  "base_fes_commit": "01284ea161772bb721bd298b7f386c4c920265ba",
+  "audit_script_sha256": "39aa1ca4ab19f994e68be61b44cc328742896afb42e3994de21497789302be01",
+  "same_six_chain_identities_all_three": true,
+  "stages_per_route": 12,
+  "reset_chains_per_route": 3,
+  "video_synchronizer_chains_per_route": 3,
+  "rows": [
+    {
+      "seed": 1,
+      "audit_sha256": "d207455f1b2106818971d237342583140ae9a7442e9c8cb89216bddc2d46b2ca",
+      "source_bindings": {
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/route-board50-reset-ref-v2-seed1/routed.json": "c5d901ee580b9b31f4b485e96a00065505510227a6b9e971aab77593d3a18fb0",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/route-board50-reset-ref-v2-seed1/timing.json": "80af723eddbc0be5b13e06bd7098632be9f823e712f0f5eadc6063af801af6bb",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/route-board50-reset-ref-v2-seed1/receipt.json": "36a31f804dd132431d8cc8729a8809ef5026f28a0d7c7bace9e9a7fe4bfe9b5e"
+      },
+      "minimum_interstage_setup_ns": 12.288000106811523,
+      "minimum_interstage_hold_ns": 0.8370000123977661,
+      "chains": [
+        {
+          "head": "locked_MISTRAL_FF_ACLR_DATAIN_MISTRAL_FF_Q",
+          "tail": "locked_MISTRAL_FF_ACLR",
+          "kind": "reset",
+          "clock": "clocks[2]",
+          "source": [
+            "$PACKER_VCC_DRV",
+            "Q"
+          ],
+          "setup_margin_ns": 18.88800048828125,
+          "hold_margin_ns": 1.00600004196167,
+          "identity_buffer_count": 1,
+          "tail_consumer_count": 188
+        },
+        {
+          "head": "locked_MISTRAL_FF_ACLR_1",
+          "tail": "locked_MISTRAL_FF_ACLR_1_Q_MISTRAL_FF_DATAIN",
+          "kind": "reset",
+          "clock": "clk_pixel",
+          "source": [
+            "$PACKER_VCC_DRV",
+            "Q"
+          ],
+          "setup_margin_ns": 12.352999687194824,
+          "hold_margin_ns": 1.0099999904632568,
+          "identity_buffer_count": 1,
+          "tail_consumer_count": 107
+        },
+        {
+          "head": "locked_MISTRAL_FF_ACLR_Q_MISTRAL_FF_ACLR_DATAIN_MISTRAL_FF_Q",
+          "tail": "locked_MISTRAL_FF_ACLR_Q_MISTRAL_FF_ACLR",
+          "kind": "reset",
+          "clock": "clocks[2]",
+          "source": [
+            "$PACKER_VCC_DRV",
+            "Q"
+          ],
+          "setup_margin_ns": 19.077999114990234,
+          "hold_margin_ns": 0.8479999899864197,
+          "identity_buffer_count": 0,
+          "tail_consumer_count": 57
+        },
+        {
+          "head": "system.video.adapter.ack_meta_MISTRAL_FF_Q",
+          "tail": "system.video.adapter.ack_sync_MISTRAL_FF_Q",
+          "kind": "video",
+          "clock": "clocks[2]",
+          "source": [
+            "system.video.adapter.received_MISTRAL_FF_Q",
+            "Q"
+          ],
+          "setup_margin_ns": 18.601999282836914,
+          "hold_margin_ns": 1.3029999732971191,
+          "identity_buffer_count": 1,
+          "tail_consumer_count": 2
+        },
+        {
+          "head": "system.video.adapter.hold_meta_MISTRAL_FF_Q",
+          "tail": "system.video.adapter.hold_sync_MISTRAL_FF_Q",
+          "kind": "video",
+          "clock": "clk_pixel",
+          "source": [
+            "system.machine.board.audio.reset_MISTRAL_NOT_Q",
+            "Q"
+          ],
+          "setup_margin_ns": 12.557000160217285,
+          "hold_margin_ns": 0.8370000123977661,
+          "identity_buffer_count": 0,
+          "tail_consumer_count": 1
+        },
+        {
+          "head": "system.video.adapter.sent_meta_MISTRAL_FF_Q",
+          "tail": "system.video.adapter.sent_sync_MISTRAL_FF_Q",
+          "kind": "video",
+          "clock": "clk_pixel",
+          "source": [
+            "system.video.adapter.sent_MISTRAL_FF_Q",
+            "Q"
+          ],
+          "setup_margin_ns": 12.288000106811523,
+          "hold_margin_ns": 1.0740000009536743,
+          "identity_buffer_count": 1,
+          "tail_consumer_count": 2
+        }
+      ]
+    },
+    {
+      "seed": 2,
+      "audit_sha256": "1be0381017c7ce19f0de8b5682cfaba978f09d6f721c0121adf4953e9a51ea56",
+      "source_bindings": {
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/route-board50-reset-ref-v2-seed2/routed.json": "40d900fdcdaad47999ce62191cc12ba00753baec13f05dd8ff7f72908b5d1517",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/route-board50-reset-ref-v2-seed2/timing.json": "717a0daa84333aff81de96a6ddfcb0c8205796ad15e8d29db0f3c8fd7df07509",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/route-board50-reset-ref-v2-seed2/receipt.json": "a9f7c5a4003d24be60e10f4c870078f1e8e6b57798652f63d40b84c75728ad8a"
+      },
+      "minimum_interstage_setup_ns": 12.324000358581543,
+      "minimum_interstage_hold_ns": 0.8199999928474426,
+      "chains": [
+        {
+          "head": "locked_MISTRAL_FF_ACLR_DATAIN_MISTRAL_FF_Q",
+          "tail": "locked_MISTRAL_FF_ACLR",
+          "kind": "reset",
+          "clock": "clocks[2]",
+          "source": [
+            "$PACKER_VCC_DRV",
+            "Q"
+          ],
+          "setup_margin_ns": 18.85300064086914,
+          "hold_margin_ns": 1.0470000505447388,
+          "identity_buffer_count": 1,
+          "tail_consumer_count": 188
+        },
+        {
+          "head": "locked_MISTRAL_FF_ACLR_1",
+          "tail": "locked_MISTRAL_FF_ACLR_1_Q_MISTRAL_FF_DATAIN",
+          "kind": "reset",
+          "clock": "clk_pixel",
+          "source": [
+            "$PACKER_VCC_DRV",
+            "Q"
+          ],
+          "setup_margin_ns": 12.333999633789062,
+          "hold_margin_ns": 1.031000018119812,
+          "identity_buffer_count": 1,
+          "tail_consumer_count": 107
+        },
+        {
+          "head": "locked_MISTRAL_FF_ACLR_Q_MISTRAL_FF_ACLR_DATAIN_MISTRAL_FF_Q",
+          "tail": "locked_MISTRAL_FF_ACLR_Q_MISTRAL_FF_ACLR",
+          "kind": "reset",
+          "clock": "clocks[2]",
+          "source": [
+            "$PACKER_VCC_DRV",
+            "Q"
+          ],
+          "setup_margin_ns": 17.85300064086914,
+          "hold_margin_ns": 2.0510001182556152,
+          "identity_buffer_count": 1,
+          "tail_consumer_count": 57
+        },
+        {
+          "head": "system.video.adapter.ack_meta_MISTRAL_FF_Q",
+          "tail": "system.video.adapter.ack_sync_MISTRAL_FF_Q",
+          "kind": "video",
+          "clock": "clocks[2]",
+          "source": [
+            "system.video.adapter.received_MISTRAL_FF_Q",
+            "Q"
+          ],
+          "setup_margin_ns": 18.91200065612793,
+          "hold_margin_ns": 1.0140000581741333,
+          "identity_buffer_count": 0,
+          "tail_consumer_count": 2
+        },
+        {
+          "head": "system.video.adapter.hold_meta_MISTRAL_FF_Q",
+          "tail": "system.video.adapter.hold_sync_MISTRAL_FF_Q",
+          "kind": "video",
+          "clock": "clk_pixel",
+          "source": [
+            "system.machine.board.audio.reset_MISTRAL_NOT_Q",
+            "Q"
+          ],
+          "setup_margin_ns": 12.324000358581543,
+          "hold_margin_ns": 1.0420000553131104,
+          "identity_buffer_count": 1,
+          "tail_consumer_count": 1
+        },
+        {
+          "head": "system.video.adapter.sent_meta_MISTRAL_FF_Q",
+          "tail": "system.video.adapter.sent_sync_MISTRAL_FF_Q",
+          "kind": "video",
+          "clock": "clk_pixel",
+          "source": [
+            "system.video.adapter.sent_MISTRAL_FF_Q",
+            "Q"
+          ],
+          "setup_margin_ns": 12.574000358581543,
+          "hold_margin_ns": 0.8199999928474426,
+          "identity_buffer_count": 0,
+          "tail_consumer_count": 2
+        }
+      ]
+    },
+    {
+      "seed": 3,
+      "audit_sha256": "30c0c0e1b487fba50fd25d45fa53274219eae30d9ade8c6f76d6a8decd2bb1b4",
+      "source_bindings": {
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/route-board50-reset-ref-v2-seed3/routed.json": "ff1912fa87d7d63c3df63ce575b5d7e23b6865fb33ef9ba81a6170b3c4c6347e",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/route-board50-reset-ref-v2-seed3/timing.json": "5d31d023e01def1303b330af356a61830aec9973c0d35361da873f3323a3555a",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/route-board50-reset-ref-v2-seed3/receipt.json": "6d1c72551fb14206836e41a684f2e6f9145b6e8210756b97973b170e32585d16"
+      },
+      "minimum_interstage_setup_ns": 12.267000198364258,
+      "minimum_interstage_hold_ns": 0.8579999804496765,
+      "chains": [
+        {
+          "head": "locked_MISTRAL_FF_ACLR_DATAIN_MISTRAL_FF_Q",
+          "tail": "locked_MISTRAL_FF_ACLR",
+          "kind": "reset",
+          "clock": "clocks[2]",
+          "source": [
+            "$PACKER_VCC_DRV",
+            "Q"
+          ],
+          "setup_margin_ns": 19.06800079345703,
+          "hold_margin_ns": 0.8579999804496765,
+          "identity_buffer_count": 0,
+          "tail_consumer_count": 188
+        },
+        {
+          "head": "locked_MISTRAL_FF_ACLR_1",
+          "tail": "locked_MISTRAL_FF_ACLR_1_Q_MISTRAL_FF_DATAIN",
+          "kind": "reset",
+          "clock": "clk_pixel",
+          "source": [
+            "$PACKER_VCC_DRV",
+            "Q"
+          ],
+          "setup_margin_ns": 12.300000190734863,
+          "hold_margin_ns": 1.0640000104904175,
+          "identity_buffer_count": 1,
+          "tail_consumer_count": 107
+        },
+        {
+          "head": "locked_MISTRAL_FF_ACLR_Q_MISTRAL_FF_ACLR_DATAIN_MISTRAL_FF_Q",
+          "tail": "locked_MISTRAL_FF_ACLR_Q_MISTRAL_FF_ACLR",
+          "kind": "reset",
+          "clock": "clocks[2]",
+          "source": [
+            "$PACKER_VCC_DRV",
+            "Q"
+          ],
+          "setup_margin_ns": 18.804000854492188,
+          "hold_margin_ns": 1.0959999561309814,
+          "identity_buffer_count": 1,
+          "tail_consumer_count": 57
+        },
+        {
+          "head": "system.video.adapter.ack_meta_MISTRAL_FF_Q",
+          "tail": "system.video.adapter.ack_sync_MISTRAL_FF_Q",
+          "kind": "video",
+          "clock": "clocks[2]",
+          "source": [
+            "system.video.adapter.received_MISTRAL_FF_Q",
+            "Q"
+          ],
+          "setup_margin_ns": 19.01099967956543,
+          "hold_margin_ns": 0.8920000195503235,
+          "identity_buffer_count": 1,
+          "tail_consumer_count": 2
+        },
+        {
+          "head": "system.video.adapter.hold_meta_MISTRAL_FF_Q",
+          "tail": "system.video.adapter.hold_sync_MISTRAL_FF_Q",
+          "kind": "video",
+          "clock": "clk_pixel",
+          "source": [
+            "system.machine.board.audio.reset_MISTRAL_NOT_Q",
+            "Q"
+          ],
+          "setup_margin_ns": 12.3149995803833,
+          "hold_margin_ns": 1.0570000410079956,
+          "identity_buffer_count": 1,
+          "tail_consumer_count": 1
+        },
+        {
+          "head": "system.video.adapter.sent_meta_MISTRAL_FF_Q",
+          "tail": "system.video.adapter.sent_sync_MISTRAL_FF_Q",
+          "kind": "video",
+          "clock": "clk_pixel",
+          "source": [
+            "system.video.adapter.sent_MISTRAL_FF_Q",
+            "Q"
+          ],
+          "setup_margin_ns": 12.267000198364258,
+          "hold_margin_ns": 1.1009999513626099,
+          "identity_buffer_count": 1,
+          "tail_consumer_count": 2
+        }
+      ]
+    }
+  ],
+  "focused_tests": {
+    "count": 12,
+    "status": "PASS",
+    "includes": [
+      "interstage fanout",
+      "inverted native buffer",
+      "clock mismatch",
+      "disabled enable",
+      "reset polarity mismatch",
+      "lost stage",
+      "missing pin map",
+      "cut timing check",
+      "wrong edge",
+      "negative/nonfinite margin",
+      "estimated timing rejection"
+    ]
+  },
+  "qualification": {
+    "chain_structure_valid": true,
+    "interstage_setup_hold_pass": true,
+    "timing_exception_valid": false,
+    "physical_qualified": false,
+    "hardware": false
+  },
+  "remaining": [
+    "Root PLL lock-to-ACLR release/pulse/slew/relock and MTBF",
+    "Safe downstream reset controls; synchronizer tails include additional ACLR consumers",
+    "Three asynchronous video chain entries and two bundled bank transfers; no protocol exception granted",
+    "External HDMI/HPS pad contracts and fitted board/load/flight/CS2/waveform requirements"
+  ],
+  "route_receipt_count_unchanged": 121,
+  "stable_source_verification": {
+    "commit": "a7a30a603c918e8170cf2a1a5bc43bc923977299",
+    "make_check": "PASS: 21 generated consumers and37 fixture copies",
+    "affected_initial_run": "FAIL in sandbox: parent990 tests,10 failures/136 errors,1 skip; local socket/cache permissions prevented116 unique cases. Component lane was not started. Original failure retained.",
+    "targeted_host_parent_retry": {
+      "cases": 116,
+      "status": "PASS",
+      "all_initial_failure_ids_covered": true
+    },
+    "remaining_component_lane": {
+      "cases": 1313,
+      "status": "PASS",
+      "existing_skips": 49,
+      "new_audit_tests_all_run": 12
+    },
+    "receipt_digest_negative_control": "PASS: corrupted digest rejects before any output",
+    "limits": "Host checks only. No new RTL/synthesis/route/hardware acceptance. Existing optional-tool/oracle skips remain explicit.",
+    "logs_sha256": {
+      "board50-cdc-test-changed.log": "e5cece656d3d304b9a502b36dca611ca31958bc0e8712905c59220572bb01f11",
+      "board50-cdc-sandbox-failed-tests.json": "3f09caf86e0fe13e041998a956ad1bc7e2838ece7c805c9585bf4bd3434f87a2",
+      "board50-cdc-parent-host-retry.log": "00a85fbbec7c306fa68d364811af706aa0e59512575cabdb367690231acb86b9",
+      "board50-cdc-component-tests.log": "774b199af359adb4e1e2d90f6e295d84777e725c3ed4cc99b63fbf6e7a31d5ab",
+      "board50-cdc-make-check.log": "7e64928b0bfda0f6d4e520886eb05d607384f0d95ecdc94235608f71a0fc183f",
+      "board50-cdc-receipt-negative.log": "dfea55fe6b84126bbb6f574156dfb55fbc4f72573c51fed71de5862aea48d388"
+    }
+  }
+}

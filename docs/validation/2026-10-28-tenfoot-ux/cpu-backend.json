@@ -1,0 +1,173 @@
+{
+  "scope": "Host comparative model update + Snapshot + warmed cached Go software renderer at 1280x720. Not network/media decode, kit input-to-scanout latency, or hardware/performance acceptance. Shared-host samples vary; no exclusive CPU lease. Before is task-owned git archive of b5ec777d624a1c9dfa589ffcb4ae70e94ae21a58; after is uncommitted UX diff on that base.",
+  "command": "go test ./ui/tenfoot -run '^$' -bench 'BenchmarkCPUBackend/(Static|Navigation|SettingsNavigation)/Cached$' -benchtime=500ms -count=3",
+  "results": {
+    "Static": {
+      "before": {
+        "ns_op_median": 95436,
+        "B_op_median": 20422,
+        "allocs_op_median": 84,
+        "samples": [
+          [
+            119380,
+            20423,
+            84
+          ],
+          [
+            95436,
+            20422,
+            84
+          ],
+          [
+            90741,
+            20422,
+            84
+          ]
+        ]
+      },
+      "after": {
+        "ns_op_median": 133049,
+        "B_op_median": 23089,
+        "allocs_op_median": 131,
+        "samples": [
+          [
+            463530,
+            23090,
+            131
+          ],
+          [
+            116387,
+            23089,
+            131
+          ],
+          [
+            133049,
+            23089,
+            131
+          ]
+        ]
+      },
+      "ns_change_percent": 39.41175237855737
+    },
+    "Navigation": {
+      "before": {
+        "ns_op_median": 768525,
+        "B_op_median": 26665,
+        "allocs_op_median": 112,
+        "samples": [
+          [
+            786820,
+            26529,
+            112
+          ],
+          [
+            768525,
+            26842,
+            112
+          ],
+          [
+            571672,
+            26665,
+            112
+          ]
+        ]
+      },
+      "after": {
+        "ns_op_median": 710457,
+        "B_op_median": 30793,
+        "allocs_op_median": 168,
+        "samples": [
+          [
+            837813,
+            30947,
+            168
+          ],
+          [
+            630359,
+            30793,
+            168
+          ],
+          [
+            710457,
+            30781,
+            168
+          ]
+        ]
+      },
+      "ns_change_percent": -7.555772421196449
+    },
+    "SettingsNavigation": {
+      "before": {
+        "ns_op_median": 747358,
+        "B_op_median": 34938,
+        "allocs_op_median": 292,
+        "samples": [
+          [
+            309392,
+            34938,
+            292
+          ],
+          [
+            747358,
+            34938,
+            292
+          ],
+          [
+            1060998,
+            34936,
+            292
+          ]
+        ]
+      },
+      "after": {
+        "ns_op_median": 799077,
+        "B_op_median": 35753,
+        "allocs_op_median": 285,
+        "samples": [
+          [
+            726157,
+            35755,
+            285
+          ],
+          [
+            928080,
+            35753,
+            285
+          ],
+          [
+            799077,
+            35752,
+            285
+          ]
+        ]
+      },
+      "ns_change_percent": 6.9202443808723535
+    }
+  },
+  "baseline_commit": "b5ec777d624a1c9dfa589ffcb4ae70e94ae21a58",
+  "after_source": "uncommitted tenfoot UX presentation and captured action navigation changes on baseline_commit",
+  "environment": {
+    "goos": "linux",
+    "goarch": "amd64",
+    "cpu": "Intel(R) Core(TM) Ultra 7 270K Plus",
+    "benchmark_logical_processors": 24,
+    "resolution": [
+      1280,
+      720
+    ],
+    "runs_per_scene": 3,
+    "benchtime": "500ms"
+  },
+  "limits": [
+    "Host-only comparison of model update, Snapshot and warmed cached Go software rendering.",
+    "Synthetic fixtures; no network, media decoding, input-device timing or physical presentation.",
+    "No kit input-to-scanout latency, performance qualification or hardware acceptance claim.",
+    "Shared-host CPU scheduling was not isolated; broad sample variation prevents causal speed or regression claims from medians alone.",
+    "Static final samples span 116387..463530 ns; baseline SettingsNavigation spans 309392..1060998 ns.",
+    "Per-frame identity construction was removed from unfocused browse snapshots; captured action identity and stale-selection guards remain."
+  ],
+  "log_names": {
+    "baseline": "out/ux-pass/cpu-backend-before.log",
+    "after": "out/ux-pass/cpu-backend-after-final.log"
+  }
+}
