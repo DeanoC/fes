@@ -7,6 +7,14 @@ The [source comparison](source-match.json) confirms identical selected compiler
 and recipe bytes in the verifier and publication tree. Later evidence/docs
 commits do not relabel the compiled artifact.
 
+The [current project inputs](compiler/inputs.json) were regenerated and resealed
+from PR source `ae8b394b61d815ab69eb090f5158e8fc2a0951c1` after the QSF/QPF
+rewrites. Their source-closure SHA-256 is
+`ea1dd0c7a1c5e40e185e5b98073d0de2617c7ab19e12a2aa442b7c7715fd3178`.
+This input receipt does not change the provenance of the compiled artifacts
+below: the base/A/B Quartus receipts remain from producer
+`918145ebb4efd6c6d3decd039a5f69468b3bf0f0`.
+
 The [profile guide](../../../boards/de25nano/link-proof/zx81-ram/README.md)
 describes this opt-in RAM-only diagnostic. It keeps the actual ZX81/NMOS CPU,
 firmware and 1 KiB RAM static, and switches an empty slot or actual

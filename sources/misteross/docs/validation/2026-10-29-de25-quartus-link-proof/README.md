@@ -116,12 +116,14 @@ completed database retains its reset chain, but this does not grant all-phase
 methodology closure. Both synchronizer chains are excluded from MTBF analysis;
 MTBF is not calculated. No clock or timing requirement was relaxed.
 
-Evidence class is compiler diagnostic plus host/QEMU software execution.
-Physical AArch64 execution, SDM loading, PR controller, freeze/drain/reset
-control, recovery, electrical behavior and exact-artifact board acceptance
-remain untested. No kit, image, boot configuration, flash or harness was touched.
-The next integration step is a separate runtime-owned PR loading/control path,
-then base/A/B load-and-switch acceptance on an identified SCS board.
+Evidence class is compiler diagnostic plus host/QEMU software execution. The
+runtime PR protocol controller, including freeze, drain, reset, recovery and
+identity checks, was exercised against the RTL in host and QEMU runs. Physical
+AArch64 execution, SDM loading, electrical behavior and exact-artifact board
+acceptance remain untested. No kit, image, boot configuration, flash or harness
+was touched. The next integration step is to connect the controller to the
+physical MMIO/SDM path and run base/A/B load-and-switch acceptance on an
+identified SCS board.
 
 The task worktree retains the compiler project and raw reports at
 `out/link-proof-final-4048ee2727/`, binaries/bundles/logs at

@@ -9,17 +9,20 @@ aborts partial capture while retaining the last completed picture.
 
 Scope: misteross's `boards/de25nano/zx81-hps/` diagnostic and its tests.
 Base: `b2070e3604f28d7515a74348a461c24404b3369c` (#1260).
-RTL/client-tested source: `67068382b7a12047dad227077bd57c4b05e7fec3`.
-Final compiler source: `ec14fda2964fd4fba1f5d3396bc70b754a0e1d29`.
-[Source matching](client-source-match.json) confirms 83 captured files match
-exactly; only the SDC file gained stronger datapath/skew constraints.
+The retained client proof used source `67068382b7a12047dad227077bd57c4b05e7fec3`
+and compiler source `ec14fda2964fd4fba1f5d3396bc70b754a0e1d29`; its
+[source match](client-source-match.json) is limited to those revisions.
+The current-head Quartus build and video simulation use
+`ae8b394b61d815ab69eb090f5158e8fc2a0951c1`. Their fresh
+[compiler inputs](compiler-inputs.json) include the updated `video.v`,
+`fes_de25_computer.v` and `clocks.sdc` bytes.
 The shared DE10 renderer, generated protocols, runtime admission, boot image
 and installed software are unchanged. This diagnostic retains its existing
 internal 16 KiB RAM; it is not the separate reconfigurable RAM-only base.
 
 ## Digital evidence
 
-[Video results](video.json) record 21,048,359 checked image pixels across three
+[Video results](video.json) record 21,567,202 checked image pixels across three
 independent clock ratios, with randomized unwritten RAM. Every displayed pixel
 must match one completed patterned source frame. Checks cover the first/last
 scaled pixels, aligned DE/sync, missing rows rendered as paper, malformed line
@@ -61,19 +64,19 @@ without changing RTL, clocks, seed, timeouts or adding waivers. Its completed
 compiler reports and remaining coverage limits must be read together;
 SOF generation alone is not timing or hardware acceptance.
 
-The final Quartus Pro 26.3 build succeeds with zero errors. The renderer is
+The current-head Quartus Pro 26.3 build succeeds with zero errors. The renderer is
 one 22,140×8 dual-clock simple-dual-port memory fitted into **11 M20Ks**
 (177,120 logical bits). [Timing summary](timing-summary.json) and
 [104 paired rows](owner-paths.tsv) cover every metadata bit and synchronizer
 and reset-release tail at all four published corners. Metadata data flight
-is at most **3.907 ns**, below its 10 ns bound. Setup/hold, datapath delay,
+is at most **4.231 ns**, below its 10 ns bound. Setup/hold, datapath delay,
 maximum skew and net delay pass; CDC-50003 has zero violations/waivers.
 
-The constrained global summary minima are 1.662 ns setup, displayed 0.000 ns
-hold, 7.421 ns recovery, 0.066 ns removal and 0.220 ns pulse width. The displayed
+The constrained global summary minima are 1.763 ns setup, displayed 0.000 ns
+hold, 7.427 ns recovery, 0.026 ns removal and 0.220 ns pulse width. The displayed
 zero is rounded, not a positive physical margin. **Overall Design Closure
 still fails**: two inputs and 30 outputs lack external delays (9 input and
-2,581 output path pairs). The inherited ROM-depth warning remains. Design
+2,494 output path pairs). The inherited ROM-depth warning remains. Design
 Assistant also retains two LNT-30023, two RDC-50003 and three RES-50101 findings,
 all unwaived. Relative to the earlier HPS base, the extra synchronous polarity
 finding concerns source VBLANK setting/clearing capture state; the extra reset
@@ -83,10 +86,12 @@ but this does not establish whole-board reset/clock recovery or MTBF.
 The full compressed reports are retained alongside the receipts.
 
 The local `out/de25-zx81-frame-ownership-artifacts.tar.gz` archive contains
-this JTAG SRAM diagnostic SOF and its compiler/client/timing receipts.
+the current-head JTAG SRAM diagnostic SOF and compiler/timing receipts. The
+client proof inside the historical receipts remains bound to its recorded
+older source.
 [Archive identity](artifact-archive.json) records its hash and size; raw vendor
 and FPGA payloads are not committed. SOF SHA-256:
-`fe91af9119df01b3173391f5c6017f86a0379ffefc078afb8b6f6024e9aa23fd`.
+`e89f5a8f9543d69794e581ac476433bb68dcd201cc083a893ef9366c5892f320`.
 
 ## First-board acceptance
 
@@ -103,8 +108,7 @@ loss/recovery and reset tests require a controlled board diagnostic; simulated
 clock stoppage does not establish them. No image, QSPI, boot configuration,
 kit or harness is changed by these build/proof commands.
 
-The next separate integration is to combine this mailbox/display machine with
-the [empty/16 KiB PR RAM proof](https://github.com/DeanoC/fes/pull/1269).
-That profile currently has no keyboard/tape mailbox or display, so its existing
-RBFs are not a combined ZX81 image. A combined static base needs fresh compiler,
-composition and client evidence; neither proof inherits the other's acceptance.
+The [combined ZX81/RAM computer evidence](../2026-10-29-de25-zx81-pr-computer/README.md)
+now records a separate current-head base and both RAM personas. The standalone
+frame and RAM profiles do not inherit one another's client or hardware
+acceptance; the combined artifact still needs its own board checks.

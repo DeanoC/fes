@@ -78,6 +78,7 @@ type persona struct {
 type acceptance struct {
 	Physical                 string `json:"physical"`
 	Timing                   string `json:"timing"`
+	DesignClosure            string `json:"design_closure"`
 	BasePersonaCompatibility string `json:"base_persona_compatibility"`
 }
 
@@ -262,7 +263,9 @@ func validate(a artifacts, expectedShell, expectedBase string, selections []stri
 		!hash64.MatchString(a.Tool.QuartusShSHA256) || !hash64.MatchString(a.Tool.QuartusAsmSHA256) || !hash64.MatchString(a.Tool.QuartusPfgSHA256) {
 		return selected, errors.New("unsupported or incomplete Quartus tool identity")
 	}
-	if a.Acceptance.Physical != "not-run" || a.Acceptance.Timing != "passed" || a.Acceptance.BasePersonaCompatibility != "pfg-info-pof0-match" {
+	if a.Acceptance.Physical != "not-run" || a.Acceptance.Timing != "passed-constrained-internal-only" ||
+		(a.Acceptance.DesignClosure != "passed" && a.Acceptance.DesignClosure != "failed") ||
+		a.Acceptance.BasePersonaCompatibility != "pfg-info-pof0-match" {
 		return selected, errors.New("proof requires retained compiler/timing checks and physical not-run boundary")
 	}
 	s := a.Shell

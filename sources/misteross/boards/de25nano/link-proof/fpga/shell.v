@@ -41,6 +41,7 @@ module fes_link_shell #(
     // Every PR egress terminates at a static-region data register.
     (* preserve, dont_merge *) reg response_valid_q = 0;
     (* preserve, dont_merge *) reg [31:0] response_data_q = 0;
+    reg response_has_request_q = 0;
 
     // A late peripheral reset cannot manufacture a fresh controller epoch.
     always @(posedge clk) if (reset_n) first_seen <= 1;
@@ -51,6 +52,10 @@ module fes_link_shell #(
     always @(posedge clk) begin
         response_valid_q <= rsp_valid;
         response_data_q <= rsp_data;
+        // Keep the PR port directly registered at the static boundary. The
+        // marker captures whether a request was already outstanding on the
+        // edge that captures rsp_valid into response_valid_q.
+        response_has_request_q <= pending != 0;
     end
     wire [31:0] faults = fault_flags | ((first_seen && !healthy) ?
         `FES_DE25_PR_CONTROL_FAULT_RESET : 32'd0);
@@ -79,7 +84,8 @@ module fes_link_shell #(
     wire response_active = state == RUNNING || state == DRAIN || state == PROBE;
     wire retire_valid = response_valid_q && response_active;
     // The fixed-latency slot can never answer a request accepted on this edge.
-    wire valid_reply = retire_valid && pending != 0;
+    wire valid_reply = retire_valid && pending != 0 && response_has_request_q;
+    wire unsolicited_reply = retire_valid && (!response_has_request_q || pending == 0);
     reg [31:0] read_value;
     reg read_address_valid;
     reg [31:0] access_fault;
@@ -195,12 +201,12 @@ module fes_link_shell #(
             end
         end
         if (faulted || access_fault != 0 ||
-            (ready && retire_valid && pending == 0) ||
+            (ready && unsolicited_reply) ||
             (ready && req && pending == 3'd7 && !valid_reply) ||
             (ready && busy && elapsed >= TIMEOUT_CYCLES - 1) ||
             (ready && state == PROBE && retire_valid && response_data_q != expected_persona)) begin
             fault_flags <= faults | access_fault |
-                ((ready && retire_valid && pending == 0) ||
+                ((ready && unsolicited_reply) ||
                  (ready && req && pending == 3'd7 && !valid_reply) ? `FES_DE25_PR_CONTROL_FAULT_PROTOCOL : 0) |
                 (ready && busy && elapsed >= TIMEOUT_CYCLES - 1 ? `FES_DE25_PR_CONTROL_FAULT_TIMEOUT : 0) |
                 (ready && state == PROBE && retire_valid && response_data_q != expected_persona ? `FES_DE25_PR_CONTROL_FAULT_PERSONA : 0);

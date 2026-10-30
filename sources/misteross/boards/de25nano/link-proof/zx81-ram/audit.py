@@ -42,12 +42,7 @@ def mif_bytes(source):
     return bytes(words[address] for address in range(8192))
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--project", required=True, type=Path)
-    parser.add_argument("--output", required=True, type=Path)
-    args = parser.parse_args()
-    project = args.project.resolve()
+def audit_project(project: Path) -> dict:
     inputs = json.loads((project / "inputs.json").read_bytes())
     source = project / "fes_link/zx8x.hex"
     expected = bytes(int(x, 16) for x in source.read_text().split())[:8192]
@@ -71,6 +66,15 @@ def main():
     receipt = {"status": "passed", "source_revision": inputs["source_revision"], "root_qdb_sha256": root,
         "audit_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(), "revisions": records,
         "hardware_acceptance": "not-run"}
+    return receipt
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--project", required=True, type=Path)
+    parser.add_argument("--output", required=True, type=Path)
+    args = parser.parse_args()
+    receipt = audit_project(args.project.resolve())
     args.output.write_bytes(build.canonical(receipt) + b'\n')
     print(args.output)
 if __name__ == "__main__": main()

@@ -41,7 +41,9 @@ interface/clock/reset, region and opaque payload hashes, plus the control build
 ID and each persona's hardware ID. The deployment plan carries those IDs for
 runtime control. It is not a merged RBF. Historical format-1, virtual-control
 artifacts remain identified by their original source record and are rejected
-by the current composer.
+by the current composer. Its timing status means constrained internal timing
+passed; overall Design Closure is recorded separately so open external-I/O
+coverage remains visible.
 
 Run from this directory with fresh output directories:
 

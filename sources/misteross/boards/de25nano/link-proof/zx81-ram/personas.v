@@ -19,6 +19,7 @@ module fes_link_zx81_persona #(
     reg valid_q, valid_r;
     reg [7:0] address_r;
     reg [15:0] checksum;
+    reg [31:0] response_data_q;
     wire [7:0] read_data, peek_data;
     wire write_enable = !reset_q && bus_q[`ZX81_BUS_RESET_N] &&
         !bus_q[`ZX81_BUS_MREQ_N] && !bus_q[`ZX81_BUS_WR_N] &&
@@ -45,7 +46,8 @@ module fes_link_zx81_persona #(
         address_r <= address_q;
         valid_r <= valid_q;
         rsp_valid <= valid_r && !reset_q;
-        rsp_data <= address_r == 0 ? ID : {checksum, checksum[7:0] ^ peek_data, checksum[15:8]};
+        response_data_q <= address_r == 0 ? ID : {checksum, checksum[7:0] ^ peek_data, checksum[15:8]};
+        rsp_data <= response_data_q;
         if (reset_q) begin valid_q <= 0; valid_r <= 0; rsp_valid <= 0; end
     end
 endmodule

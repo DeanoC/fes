@@ -54,7 +54,7 @@
           "ref_clk_n_div": 5
         },
         "hdl_sha256": "f53f0cb78d931e504fba954c0b2e3fb081edb4b6e1307c0fa0653bd93555978c",
-        "xml_sha256": "70146fc985722cadcd53e7b68be9688467268d1915d8e2bbfd83355fda2e194c"
+        "xml_sha256": "e9a13738377685c9bf467ad60638db1d2a86759a1a1c3c8c7995fe910719e056"
       },
       "system": {
         "clock_hz": 100000000,
@@ -67,7 +67,7 @@
           "ref_clk_n_div": 1
         },
         "hdl_sha256": "cf763293f0c822146318f52da4c176de8581357ffc5f2b8673e69d4255c2eb43",
-        "xml_sha256": "87bb2b9dab5dd2b720d987569c9753d180e19afbd2cec94eadc60a5d728ef7d4"
+        "xml_sha256": "75f70c5d3242f290364534b0433847bcca270476493d0c4ebd488cbd62b465f2"
       }
     }
   },
@@ -122,6 +122,6 @@
   "mailbox_instance": "subsys_periph.fes_mailbox",
   "peripheral_offset": 65696,
   "physical_mailbox_address": "not-established",
-  "sha256": "331b1bc75d990ae7f6a7585ae30e59e9f9649921e5bde9f262b0fa710c8ba4f6",
+  "sha256": "0e4d6d6c7c107e2ed019a84cdb716de5a9a55c487096761a22dbff982c20b2e3",
   "top_system_handoff": "qsys_top/qsys_top.sopcinfo"
 }
