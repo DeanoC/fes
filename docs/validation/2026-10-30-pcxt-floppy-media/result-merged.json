@@ -195,7 +195,7 @@
     "no DOS boot or write support was tested",
     "one sector was read on hardware; the rest of the 360 KiB buffer was not physically read back",
     "external SDRAM/HDMI/HPS and physical reset timing remain outside internal Quartus timing checks",
-    "the unchanged published SDRAM-only parent was not itself hardware tested"
+    "the parent PR's own diagnostic and DOS artifacts were not tested in this kit run"
   ],
   "parent_merge_note": "The prior pre-merge kit result remains in result.json; this test used the merged branch and its distinct exact artifact.",
   "embedded_dos_simulation": {
