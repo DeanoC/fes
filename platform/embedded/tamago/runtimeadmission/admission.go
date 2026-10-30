@@ -178,7 +178,10 @@ func (g *Gate) check(inspection corepackage.Inspection, expectedID string, linke
 
 // Admit performs every check before a lifecycle transition can retire input,
 // save the current owner, drain display or issue a model program command.
-func (g *Gate) admit(archive *corepackage.Archive, expectedID string) (*fabricmodel.Image, error) {
+// PrepareModel admits a retained format-2 package without touching the
+// current owner. It is limited to a trusted qemu-model-only policy; callers of
+// an injected endpoint must also perform that endpoint's preflight.
+func (g *Gate) PrepareModel(archive *corepackage.Archive, expectedID string) (*fabricmodel.Image, error) {
 	if archive == nil || !digestID(expectedID) {
 		return nil, reject("package_mismatch", "missing retained package or expected identity")
 	}
@@ -191,7 +194,7 @@ func (g *Gate) admit(archive *corepackage.Archive, expectedID string) (*fabricmo
 	}
 	d := inspection.Descriptor
 	// A deliberately small model bound, not the supported production RBF size.
-	if d.Payload.Size < 1 || d.Payload.Size > 1<<20 {
+	if d.Payload.Size < 1 || d.Payload.Size > fabricmodel.MaxImageBytes {
 		return nil, reject("model_limit", "payload exceeds software model bound")
 	}
 	payload, err := io.ReadAll(io.LimitReader(archive.Payload(), d.Payload.Size+1))
@@ -211,7 +214,7 @@ func (g *Gate) LoadModel(controller *fabricmodel.Controller, archive *corepackag
 	if controller == nil {
 		return reject("backend_unavailable", "missing model controller")
 	}
-	image, err := g.admit(archive, expectedID)
+	image, err := g.PrepareModel(archive, expectedID)
 	if err != nil {
 		return err
 	}

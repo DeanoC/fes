@@ -1,0 +1,40 @@
+//go:build tamago && arm64 && de25nano
+
+// SPDX-License-Identifier: GPL-3.0-or-later
+package de25nano
+
+import (
+	"errors"
+
+	"github.com/DeanoC/fes/platform/embedded/tamago/nativefabric"
+)
+
+// FabricCPUTransport is an unconfigured access primitive. No board aperture,
+// firmware capability, DDR reservation or containment is implied. It is not
+// constructed by the Nano boot path. Bus faults and a stuck SMC cannot be
+// recovered by this transport; only a qualified platform may call it.
+type FabricCPUTransport struct{}
+
+func (FabricCPUTransport) ReadPhysical32(address uint64) (uint32, error) {
+	if address == 0 || address%4 != 0 || uint64(uintptr(address)) != address {
+		return 0, errors.New("DE25: invalid physical register address")
+	}
+	return load32(uintptr(address)), nil
+}
+func (FabricCPUTransport) WritePhysical32(address uint64, value uint32) error {
+	if address == 0 || address%4 != 0 || uint64(uintptr(address)) != address {
+		return errors.New("DE25: invalid physical register address")
+	}
+	store32(uintptr(address), value)
+	return nil
+}
+func (FabricCPUTransport) Invoke(request [7]uint64) ([4]uint64, error) {
+	switch request[0] {
+	case 0xc2000300, 0xc2000001, 0x42000002, 0xc2000003, 0xc2000004:
+		return smc(request), nil
+	default:
+		return [4]uint64{}, errors.New("DE25: firmware call outside fabric protocol")
+	}
+}
+
+var _ nativefabric.CPUTransport = FabricCPUTransport{}

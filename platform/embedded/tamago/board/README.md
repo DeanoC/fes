@@ -16,7 +16,7 @@ All native applications now obtain peripherals through `board`.
 | USB input | xHCI plus shared HID decoder | DWC2 PIO for one direct low/full-speed boot keyboard; firmware ULPI/VBUS readiness required |
 | Network | VirtIO and existing Go IP/TCP stack | XGMAC 2.10, firmware-qualified PHY/RGMII and pinned DMA; static IPv4/1000-full only |
 | Display | RAMFB and tenfoot software renderer | Optional boot-firmware XRGB8888 window; pinned until reboot, no drain/reconfiguration |
-| FPGA | Software lifecycle model | Optional read-only TF-A SDM probe; physical configuration/identity/containment unavailable |
+| FPGA | Software lifecycle model | Optional read-only TF-A SDM probe; unconfigured CPU/SMC transport, with physical configuration and containment unavailable |
 
 Nano builds exclude VirtIO, xHCI, RAMFB and QEMU's DMA/page-table setup.
 The shared USB descriptor/report decoder remains usable in both builds.

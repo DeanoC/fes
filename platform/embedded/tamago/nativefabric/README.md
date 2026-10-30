@@ -5,7 +5,8 @@ to injected firmware calls, the generated FPGA identity/drain registers and
 platform-owned reservations. The optional `modelbackend.NewWithEndpoint`
 constructor drives it through the same actor and retained-package admission
 used by tenfoot's model sessions. It remains restricted to the
-`qemu-model-only` policy. There is no Nano programming profile or board binding.
+`qemu-model-only` policy. The Nano has no registered physical programming
+profile or automatically enabled board binding.
 
 Before an injected actor retires its current owner, it checks that the retained
 package's exact target, programming profile and ABI version have an explicitly
@@ -57,6 +58,14 @@ The tuple is an experimental compatibility marker, not firmware authentication.
 The mapping and package validation are not a cryptographic signature or a proof
 that a particular bitstream physically contains the declared build identity.
 
+`CPUHooks` composes an explicitly supplied absolute CPU control aperture and
+SMC transport with the platform's containment, save and memory services. It
+checks aperture alignment, overflow and control-register bounds before an
+access. Nano provides an unconfigured AArch64 transport using its ordered MMIO
+and existing SMC assembly; the boot path never constructs it. A cross-build does
+not qualify an address, and a bus fault or stalled SMC cannot be recovered by
+the transport. There is no default base address or bridge service.
+
 The FPGA endpoint covers one AXI read port; it is not a complete scanout engine
 or an address firewall. Native input neutralization, saves, frame handoff,
 real memory/cache ownership, full firmware boot and FPGA timing still require
@@ -88,5 +97,9 @@ a FES package. Its verification executes that local host executable.
 The DE25 board-control overlay has a separate Avalon wrapper and a bounded
 on-chip responder. Its standalone verifier drives that actual wrapper through
 this adapter and tests a mismatched identity, enable, disable and drain. A
-generated-project run uses the board producer's own diagnostic fingerprint;
-neither run supplies a physical CPU mapping or an admitted Nano package.
+generated-project run normally uses the board producer's diagnostic fingerprint.
+The opt-in sealed diagnostic builds a canonical ID into both FPGA endpoints
+and packages a full SoC RBF. Its separate verifier passes those retained bytes
+and exact package/build IDs through the native CPU hooks, prepared TF-A C and
+RTL in host simulation, including mismatch and interrupted-transfer cases.
+It supplies no physical CPU mapping, DDR containment or physical admission.

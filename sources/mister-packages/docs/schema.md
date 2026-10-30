@@ -22,6 +22,10 @@ non-MiSTer package may omit it, and `interfaces` may be empty.
   The TOML values must be integers, not integral floats or Booleans.
 - Payloads are named `core.rbf`, contain 1 through 33,554,432 bytes, and carry
   their exact size and lowercase SHA-256 digest.
+- Retained format-2 inspection recognizes the exact targets `de10_nano` /
+  `5CSEBA6U23I7` and `de25_nano` / `A5EB013BB23BE4SCS`. Recognition does not
+  register a programming profile or establish hardware compatibility. Formats
+  3 and 4 remain restricted to the Cyclone V target and its ROM-map encoding.
 - Build IDs are 32 lowercase hex digits. Revisions are full 40-hex Git commits,
   recipe hashes are 64 lowercase hex digits, repositories are HTTPS URLs without
   embedded credentials, and toolchain descriptions contain 1 through 1,024

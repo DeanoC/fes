@@ -4,7 +4,9 @@ This private overlay combines `fes_embedded_control` with an explicitly selected
 committed DE25 ZX81 diagnostic source snapshot. It uses the same board
 producer's source/vendor fingerprint for both its ZX81 computer and embedded
 control. The overlay and endpoint bytes enter that fingerprint before project
-generation. The fingerprint is not a sealed FES package identity.
+generation. The fingerprint is not a sealed FES package identity. An explicit
+`--sealed-diagnostic` build instead computes the existing canonical functional
+build ID before synthesis and installs it in both endpoints.
 
 The new 256-byte Avalon aperture is at peripheral-relative `0x10400`. The
 generated handoff must also show it at `0x00110400` in the existing JTAG master.
@@ -38,8 +40,36 @@ checks that altered copies of that generated map or source are rejected. Board a
 all captured sources, vendor hash, generated maps and artifact evidence remain
 separately recorded. Working-tree overlay inputs require `--allow-dirty` and are
 labelled diagnostic. No command programs hardware, writes media, creates an RBF
-or registers a FES profile. Timing, boot pairing, physical access, firmware
+or registers a FES profile in the default mode. Timing, boot pairing, physical access, firmware
 containment and board acceptance require separate evidence.
+
+For a content-sealed diagnostic format-2 package, add `--sealed-diagnostic` to
+the `build` command. This requires a clean checkout and uses the selected
+board commit, all captured source hashes, vendor archive hash, selected
+Quartus executable hashes and build parameters in the canonical record. The
+standard package exporter verifies the overlay source closure and emits a
+read-only package and build record under `board/hps/packages/`. The board
+source belongs to a second revision; the diagnostic verifier checks those
+captured bytes against that Git commit separately. The tool identities are not
+production toolchain authentication, and a hash is not a signature.
+
+The raw HPS SOF lacks bootloader data and Quartus refuses to convert it. The
+diagnostic conversion adds the vendor SPL from the locked archive and produces
+a full SoC RBF. Its effect on a running HPS and DDR has not been established:
+**do not physically reconfigure the board with this package**. Its profile and
+ABI are diagnostic and have no physical runtime registration. To exercise the
+sealed bytes and same live ID through simulated CPU/firmware/RTL:
+
+```sh
+python3 sources/misteross/prototypes/de25_board_control/verify_sealed.py \
+  --project out/de25-control-board --reference /path/to/pinned/socfpga_sip_svc.c \
+  --output out/de25-control-sealed-check
+```
+
+The model policy is explicitly `qemu-model-only`. The test uses the actual
+format-2 archive, prepared TF-A functions and endpoint RTL but simulated SDM,
+CPU accesses, memory and bridges. The separate Avalon model checks the board
+wrapper with the same build ID. None is a board acceptance or a boot image.
 
 `hardware.tcl` is a separately invoked System Console test for an explicitly
 selected and already configured device and fabric master. It checks all build

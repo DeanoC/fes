@@ -161,8 +161,12 @@ def _validate_fields(fields: object, payload: bytes | None) -> dict:
     _identifier(target["platform"], "target.platform")
     _string(target["device"], "target.device", nonempty=True)
     _identifier(target["programming_profile"], "target.programming_profile")
-    if target["platform"] != "de10_nano" or target["device"] != "5CSEBA6U23I7":
-        raise PackageError("target must be de10_nano device 5CSEBA6U23I7")
+    cyclone_v = target["platform"] == "de10_nano" and target["device"] == "5CSEBA6U23I7"
+    # Nano recognition is only for retained format-2 inspection. Formats 3/4
+    # describe a Cyclone V bitstream linker and cannot be applied to Agilex.
+    nano = format_version == 2 and target["platform"] == "de25_nano" and target["device"] == "A5EB013BB23BE4SCS"
+    if not cyclone_v and not nano:
+        raise PackageError("unsupported core package target")
 
     payload_fields = _exact_dict(root["payload"], {"file", "size", "sha256"}, set(), "payload")
     if payload_fields["file"] != "core.rbf":

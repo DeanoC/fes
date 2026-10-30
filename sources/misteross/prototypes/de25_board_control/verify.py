@@ -48,9 +48,38 @@ def inputs_for(project):
     fingerprint = hashlib.sha256(json.dumps({"source_sha256": sources,
         "vendor_sha256": inputs["vendor_archive_sha256"], "system_hz": 100000000,
         "pixel_hz": 74250000}, sort_keys=True).encode()).hexdigest()[:32]
-    if (fingerprint != identity["build_id"] or fingerprint != inputs["computer"]["build_id"] or
-            not re.fullmatch(r"[0-9a-f]{32}", fingerprint) or fingerprint == "0" * 32):
-        raise ValueError("board producer fingerprint does not bind both endpoints")
+    build_id = identity["build_id"]
+    if identity.get("build_inputs_sha256"):
+        sys.path.insert(0, str(HERE))
+        import seal
+        from scripts.export_core_package import verify_record_source_at_revision
+        record = (board / "hps/build-inputs.json").read_bytes()
+        fields = verify_record_source_at_revision(ROOT, record)
+        if (seal.encode_build_record(fields) != record or sha(board / "hps/build-inputs.json") != identity["build_inputs_sha256"] or
+                fields["parameters"].get("snapshot_sha256") != seal.snapshot_digest(sources) or
+                fields["parameters"].get("vendor_sha256") != inputs["vendor_archive_sha256"] or
+                fields["parameters"].get("board_revision") != identity["board_fes_revision"] or
+                fields["revision"] != identity["overlay_fes_revision"] or
+                seal.build_identity(record) != build_id or identity.get("board_fingerprint") != fingerprint):
+            raise ValueError("canonical diagnostic record differs from captured inputs")
+        for name, expected in sources.items():
+            revision = fields["revision"] if name in identity["source_sha256"] else identity["board_fes_revision"]
+            blob = subprocess.run(["git", "-C", str(ROOT), "show", revision + ":" + name],
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True).stdout
+            if hashlib.sha256(blob).hexdigest() != expected:
+                raise ValueError("captured source differs from recorded Git revision: " + name)
+        result = json.loads((board / "hps/seal-result.json").read_text())
+        package = seal.read_package(board / "hps/packages" / result["package_id"])
+        if (package.package_id != result["package_id"] or package.fields["build"]["id"] != build_id or
+                package.fields["target"] != {"platform": seal.PLATFORM, "device": seal.DEVICE, "programming_profile": seal.PROFILE} or
+                result["build_inputs_sha256"] != identity["build_inputs_sha256"] or
+                result["rbf_sha256"] != package.fields["payload"]["sha256"]):
+            raise ValueError("sealed package differs from the diagnostic build")
+    elif fingerprint != build_id:
+        raise ValueError("board producer fingerprint does not bind the endpoint")
+    if (build_id != inputs["computer"]["build_id"] or
+            not re.fullmatch(r"[0-9a-f]{32}", build_id) or build_id == "0" * 32):
+        raise ValueError("invalid or inconsistent build ID")
     local = board / "hps/project/fes_mailbox"
     mapped = {"fes_de25_embedded.sv": "sources/misteross/prototypes/de25_board_control/fes_de25_embedded.sv",
               "fes_de25_embedded_hw.tcl": "sources/misteross/prototypes/de25_board_control/fes_de25_embedded_hw.tcl",
@@ -63,7 +92,7 @@ def inputs_for(project):
     if sha(script) != inputs["computer"]["integration_sha256"]:
         raise ValueError("project integration script differs")
     qsf = (board / "hps/project/golden_top.qsf").read_text()
-    if qsf.count(f"FES_DE25_COMPUTER_BUILD_ID=128'h{fingerprint}") != 1:
+    if qsf.count(f"FES_DE25_COMPUTER_BUILD_ID=128'h{build_id}") != 1:
         raise ValueError("project build-ID macro differs")
     generated = generation["embedded_control"]
     if (generated["maps"]["lw"]["base"] != identity["peripheral_offset"] or

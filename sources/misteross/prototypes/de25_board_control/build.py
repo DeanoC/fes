@@ -2,7 +2,7 @@
 """Overlay the embedded-control diagnostic onto a frozen DE25 ZX81 producer.
 
 This builds a private, explicitly two-revision diagnostic; it never programs a
-board or emits a FES package. The inherited board fingerprint is not a seal.
+board. An opt-in canonical package is for model use only.
 """
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ OVERLAY = "sources/misteross/prototypes/de25_board_control/"
 ENDPOINT = "sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv"
 DEFINITION = "sources/misteross/cores/fes-common/generated/fes_embedded_control.vh"
 INPUTS = (OVERLAY + "build.py", OVERLAY + "fes_de25_embedded.sv",
-          OVERLAY + "fes_de25_embedded_hw.tcl", OVERLAY + "integrate.tcl", ENDPOINT, DEFINITION)
+          OVERLAY + "fes_de25_embedded_hw.tcl", OVERLAY + "integrate.tcl", OVERLAY + "seal.py", ENDPOINT, DEFINITION)
 BOOTSTRAP = ("build.py", "display/build.py", "zx81/build.py", "zx81-hps/build.py")
 BASE = 0x10400
 SPAN = 0x100
@@ -80,7 +80,7 @@ def replace_once(text, before, after):
     return text.replace(before, after)
 
 
-def overlay_project(output, board, sources, identity):
+def overlay_project(output, board, sources, identity, record=None):
     project = output / "hps/project"
     local = project / "fes_mailbox"
     wrapper = sources[OVERLAY + "fes_de25_embedded.sv"].decode()
@@ -105,6 +105,16 @@ def overlay_project(output, board, sources, identity):
         raise ValueError("board build-ID assignment differs from the retained input record")
     if not re.fullmatch(r"[0-9a-f]{32}", build_id) or build_id == "0" * 32:
         raise ValueError("board producer emitted an invalid build ID")
+    fingerprint = build_id
+    if record is not None:
+        import seal
+        build_id = seal.build_identity(record)
+        if build_id == "0" * 32:
+            raise ValueError("canonical build ID is zero")
+        qsf = replace_once(qsf, f"FES_DE25_COMPUTER_BUILD_ID=128'h{fingerprint}",
+                           f"FES_DE25_COMPUTER_BUILD_ID=128'h{build_id}")
+        (project / "golden_top.qsf").write_text(qsf)
+        inputs["computer"]["build_id"] = build_id
     inputs["computer"]["integration_sha256"] = digest(script.encode())
     inputs["embedded_control"] = {"build_id": build_id, "control_abi": CONTROL_ABI,
         "peripheral_offset": BASE, "span": SPAN,
@@ -112,8 +122,11 @@ def overlay_project(output, board, sources, identity):
         "source_sha256": {name: digest(sources[name]) for name in INPUTS},
         "physical_cpu_mmio": "not-established", "physical_ddr": "not-connected",
         "traffic": "bounded on-chip diagnostic responder", "package_admission": "not-qualified",
-        "identity_class": "board-producer source/vendor fingerprint; not a package seal",
+        "identity_class": "canonical functional build record; diagnostic only" if record else "board-producer source/vendor fingerprint; not a package seal",
+        "board_fingerprint": fingerprint,
         **identity}
+    if record is not None:
+        inputs["embedded_control"]["build_inputs_sha256"] = digest(record)
     inputs_file.write_text(json.dumps(inputs, indent=2, sort_keys=True) + "\n")
     return build_id
 
@@ -176,12 +189,17 @@ def main():
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--quartus-root", default=os.environ.get("QUARTUS_ROOTDIR", ""))
     parser.add_argument("--allow-dirty", action="store_true")
+    parser.add_argument("--sealed-diagnostic", action="store_true", help="build a committed diagnostic-only format-2 package")
     args = parser.parse_args()
     try:
         output = args.output.absolute()
         if ".." in output.parts or any(p.is_symlink() for p in (output, *output.parents)) or not output.is_relative_to(ROOT / "out") or output.exists():
             raise ValueError("output must be a fresh private directory under this worktree's out/")
+        if args.sealed_diagnostic and (args.action != "build" or args.allow_dirty):
+            raise ValueError("sealed diagnostic requires build and committed source")
         revision, state, overlay = capture_overlay(args.allow_dirty)
+        if args.sealed_diagnostic and git("status", "--porcelain", "--untracked-files=all").stdout:
+            raise ValueError("sealed diagnostic requires a clean checkout")
         output.mkdir(parents=True)
         board = load_builder(output, args.board_revision)
         sources = board.capture(args.board_revision)
@@ -192,7 +210,14 @@ def main():
                     "board_fes_revision": args.board_revision, "overlay_fes_revision": revision,
                     "overlay_source_state": state}
         result, hps, _ = board.prepare_captured(args.vendor_archive, output / "board", sources, selected)
-        build_id = overlay_project(result, board, sources, selected)
+        record = None
+        if args.sealed_diagnostic:
+            import seal
+            tool, version = hps.BOARD_BUILD.locate_quartus(args.quartus_root)
+            tools = seal.tool_snapshot(tool, version)
+            inputs = json.loads((result / "hps/inputs.json").read_text())
+            record = seal.make_record(inputs, revision, git("remote", "get-url", "origin").stdout.decode().strip(), tools)
+        build_id = overlay_project(result, board, sources, selected, record)
         print("DE25 embedded diagnostic:", result, "build ID:", build_id, flush=True)
         if args.action != "project":
             tool, version = hps.BOARD_BUILD.locate_quartus(args.quartus_root)
@@ -208,6 +233,11 @@ def main():
                 if checks != evidence["computer"]["pll_reviews"]:
                     raise ValueError("compile changed reviewed PLL identity")
                 print("Diagnostic SOF:", artifact, flush=True)
+                if record is not None:
+                    if (revision, state, overlay) != capture_overlay(False):
+                        raise ValueError("overlay source changed during build")
+                    sealed = seal.publish(result / "hps", artifact, args.vendor_archive, tool, record, tools, version)
+                    print("Diagnostic package:", sealed["package_id"], flush=True)
         if (revision, state, overlay) != capture_overlay(args.allow_dirty):
             raise ValueError("overlay source changed during the build")
         return 0
