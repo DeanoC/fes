@@ -467,9 +467,11 @@ constants:
     value: 8
   - name: FesComputerPc386CmosWordCount
     value: 64
-  # Presets 0 max, 1 286-12, 2 386SX-16, 3 386DX-25, 4 386DX-33, 5 386DX-40,
+  # PresetMaxPerformance is the named maximum-performance option (ID 0), not
+  # an upper bound. PresetCount is 8, so valid preset IDs are 0..7.
+  # Presets 1 286-12, 2 386SX-16, 3 386DX-25, 4 386DX-33, 5 386DX-40,
   # 6 486DX-33, 7 486DX2-66.
-  - name: FesComputerPc386PresetMax
+  - name: FesComputerPc386PresetMaxPerformance
     value: 0
   - name: FesComputerPc386PresetCount
     value: 8

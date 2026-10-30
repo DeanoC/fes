@@ -19,7 +19,7 @@ inline bool ValidPc386Machine(const std::vector<std::uint16_t>& w)
 		w[FesComputerPc386TurboIndex] > FesComputerPc386TurboMax ||
 		w[FesComputerPc386ReservedIndex] != 0 || w[FesComputerPc386SbDmaIndex] != FesComputerPc386SbDma)
 		return false;
-	if (frequency != 0 && (preset == FesComputerPc386PresetMax ||
+	if (frequency != 0 && (preset == FesComputerPc386PresetMaxPerformance ||
 		frequency < FesComputerPc386FrequencyMin || frequency > FesComputerPc386FrequencyMax))
 		return false;
 	const std::uint16_t base = w[FesComputerPc386SbBaseIndex];
