@@ -20,8 +20,8 @@ inputs and this branch head:
 | Selected file | Producer input | Current branch |
 | --- | --- | --- |
 | `boards/de25nano/zx81-hps/board.v` | `a0d7f396a31746a1fa6a977f24d9aeef09a2f38a68537a50f85e7524ea08ff0b` | `0fa7ca6959644f3233f9bedf9373ba40ed95930d64f68e394f8b14d5300e2e36` |
-| `boards/de25nano/zx81-hps/clocks.sdc` | `7dd4138b073207f00dc6f819134375322b2e09a20c809eb9347f872608e761fc` | `2e087043ea99e7e14c8773b08bfe97cc79d82b31b7009323f7dc19b65107ca5e` |
-| `boards/de25nano/zx81-hps/fes_de25_computer.v` | `26ce1e51454000f2762045cc442fbbae881404a98b94334eea8ba11e43a9ad0a` | `9f0f57bf95e9bf8f1d669b2e090a700d7cfbc3ee46a09ad17568f9bba79c04bd` |
+| `boards/de25nano/zx81-hps/clocks.sdc` | `7dd4138b073207f00dc6f819134375322b2e09a20c809eb9347f872608e761fc` | `6c2865ee2ed9ede5e4078f3ece8a74649c13907deb253bc95b9a936059b49a10` |
+| `boards/de25nano/zx81-hps/fes_de25_computer.v` | `26ce1e51454000f2762045cc442fbbae881404a98b94334eea8ba11e43a9ad0a` | `e19e0795ee456c6586c3d951509c600e28f79b2bc8920ba79bcccd26272a1188` |
 
 The shared `fes_menu_video.v` raster also changed after this producer and is
 not in its selected HPS input closure. Neither the retained SOF nor its timing
@@ -100,13 +100,17 @@ STA reports two unconstrained inputs/nine input path pairs and 30 outputs/
 3,927 output path pairs for setup and hold. MTBF models 24 of 40 found chains
 and excludes 16; it does not qualify the whole design or board.
 
-The current HPS SDC now cuts only the `visible_sync[0]` D pin, with an exact
-one-pin collection check; it also contains a first-stage-only readiness cut.
-The separate scanout SDC similarly cuts only its `visible_sync[0]` D pin.
-Those selectors and the current RTL were not compiled into the retained STA,
-so this report provides no timing evidence for them. A fresh Quartus build and
-STA run from the current source must confirm the collections resolve and that
-interstage and output paths remain timed before any SRAM test.
+For HDMI visibility, the current HPS SDC cuts only the `visible_sync[0]` D pin
+with an exact one-pin collection check; it also checks four HDMI reset ingress
+pins and has a first-stage-only readiness cut. The frame-owner constraints
+check both request/acknowledge crossings, bound all nine row-metadata bits,
+and require four reset ingress pins for its two domain synchronizers. The
+separate scanout SDC similarly cuts only its `visible_sync[0]` D pin and checks
+all eight qualifier/reset-synchronizer clear pins. None of these current
+selectors or constraints, nor the current RTL, were compiled into the retained
+STA, so this report provides no timing evidence for them. A fresh Quartus build
+and STA run from the current source must confirm the collections resolve and
+that interstage and output paths remain timed before any SRAM test.
 
 Physical HDMI/I2C timing, RAM/startup/collisions, CDC, the inherited DJ24
 voltage discrepancy, firmware pairing and global reset lifetime remain open.

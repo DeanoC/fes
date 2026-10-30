@@ -5,13 +5,13 @@ if {[get_collection_size $hdmi_config_clock] != 1} {error "DE25 scanout I2C cloc
 create_generated_clock -name adv7513_config -source [get_ports CLOCK0_50] -divide_by 5002 $hdmi_config_clock
 # Configuration release and PLL-lock monitoring only. Loss of pixel lock does
 # not reset either live PD crossing or the endpoint's outstanding accounting.
-set scanout_aclr [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|config_reset|sync_regs*|aclr fes_video_inst|lock_qualifier|sync_regs*|aclr}]
-set scanout_clrn [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|config_reset|sync_regs*|clrn fes_video_inst|lock_qualifier|sync_regs*|clrn}]
+set scanout_aclr [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|config_reset|sync_regs*|aclr fes_video_inst|lock_qualifier|sync_regs*|aclr fes_video_inst|fes_scanout_pixel_reset|sync_regs*|aclr fes_video_inst|fes_scanout_system_reset|sync_regs*|aclr}]
+set scanout_clrn [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|config_reset|sync_regs*|clrn fes_video_inst|lock_qualifier|sync_regs*|clrn fes_video_inst|fes_scanout_pixel_reset|sync_regs*|clrn fes_video_inst|fes_scanout_system_reset|sync_regs*|clrn}]
 set scanout_clear_count [expr {[get_collection_size $scanout_aclr] + [get_collection_size $scanout_clrn]}]
-if {$scanout_clear_count != 4} {error "DE25 scanout requires exactly four qualifier clear pins"}
+if {$scanout_clear_count != 8} {error "DE25 scanout requires exactly eight qualifier/reset-synchronizer clear pins"}
 if {[get_collection_size $scanout_aclr] > 0} {set_false_path -to $scanout_aclr}
 if {[get_collection_size $scanout_clrn] > 0} {set_false_path -to $scanout_clrn}
-post_message -type info "DE25 scanout qualifier clear pins: $scanout_clear_count (expected 4)"
+post_message -type info "DE25 scanout qualifier/reset-synchronizer clear pins: $scanout_clear_count (expected 8)"
 # A monotonic 100 MHz fault level crosses through its dedicated two-flop chain.
 # Cut only asynchronous ingress to stage0 D. Stage0->1 and fanout stay timed.
 set scanout_fault_source [get_registers {fes_video_inst|fault}]

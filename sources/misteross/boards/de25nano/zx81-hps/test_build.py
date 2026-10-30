@@ -38,6 +38,14 @@ class HpsZX81BuildTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "adaptation contract changed"):
             B.retarget_tape(original, replacement + b"\n`else\n")
 
+    def test_capture_selects_only_the_owned_board_renderer(self):
+        sources = B.capture()
+        self.assertIn(B.BOARD + "zx81-hps/video.v", sources)
+        self.assertNotIn("sources/misteross/cores/fes-zx81/rtl/zx81_video_720p.v", sources)
+        definition = sources[B.BOARD + "zx81-hps/fes_de25_computer_hw.tcl"].decode()
+        self.assertIn("add_fileset_file video.v VERILOG PATH video.v", definition)
+        self.assertNotIn("zx81_video_720p_de25", definition)
+
     def test_patch_anchor_must_exist_exactly_once(self):
         self.assertEqual(B.replace_once("before ANCHOR after", "ANCHOR", "replacement"),
                          "before replacement after")
@@ -73,6 +81,18 @@ class HpsZX81BuildTests(unittest.TestCase):
         self.assertIn("Keep synchronizer stage-to-stage, frame-gate and output paths timed.", sdc)
         self.assertNotIn("set_clock_groups", sdc)
 
+    def test_frame_ownership_constraints_and_reset_pin_counts_match_rtl(self):
+        sdc = B.capture()[B.BOARD + "zx81-hps/clocks.sdc"].decode()
+        self.assertIn("if {$computer_clear_count != 4}", sdc)
+        self.assertIn("request {*|video|request} {*|video|request_sync[0]}", sdc)
+        self.assertIn("acknowledge {*|video|acknowledge} {*|video|acknowledge_sync[0]}", sdc)
+        self.assertIn("if {[get_collection_size $owner_rows_source] != 9 || [get_collection_size $owner_rows_sink] != 9}", sdc)
+        self.assertIn("if {[get_collection_size $owner_reset_pins] != 4}", sdc)
+        self.assertIn("sys_release*|aclr", sdc)
+        self.assertIn("pix_release*|aclr", sdc)
+        self.assertIn("Keep synchronizer stage-to-stage, frame-gate and output paths timed.", sdc)
+        self.assertNotIn("set_clock_groups", sdc)
+
     def test_historical_quartus_report_is_not_presented_as_current_head_evidence(self):
         record = B.ROOT / "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps"
         producer_inputs = json.loads((record / "compiled-5a7382c4b5/reports/inputs.json").read_text())
@@ -99,9 +119,9 @@ class HpsZX81BuildTests(unittest.TestCase):
         leaf_path = B.BOARD + "zx81-hps/fes_de25_computer.v"
         current_leaf = B.ROOT / leaf_path
         current_leaf_bytes = current_leaf.read_bytes()
-        self.assertEqual(len(current_leaf_bytes), 9176)
+        self.assertEqual(len(current_leaf_bytes), 9183)
         self.assertEqual(hashlib.sha256(current_leaf_bytes).hexdigest(),
-                         "9f0f57bf95e9bf8f1d669b2e090a700d7cfbc3ee46a09ad17568f9bba79c04bd")
+                         "e19e0795ee456c6586c3d951509c600e28f79b2bc8920ba79bcccd26272a1188")
 
         inputs = json.loads((record / "input-hashes.json").read_text())
         self.assertEqual(inputs["reference_commit"], reference)

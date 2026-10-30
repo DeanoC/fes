@@ -106,12 +106,14 @@ def prepare(archive, output=None, revision=None):
     top = replace_once(top, "fes_de25_combined_video #(.MENU_PATTERN(1'b1)) fes_video_inst (",
         "fes_de25_scanout_board fes_video_inst (\n"
         "  .system_clk(system_clk_100_internal), .top_reset_n(top_reset_n),\n"
-        "  .pixel_clk(scanout_pixel_clk), .scanout_reset_n(scanout_reset_n), .clock_fault(scanout_clock_fault),\n"
+        "  .pixel_clk(scanout_pixel_clk), .pixel_reset_n(scanout_pixel_reset_n),\n"
+        "  .system_reset_n(scanout_system_reset_n), .clock_fault(scanout_clock_fault),\n"
         "  .video_rgb(scanout_rgb), .video_de(scanout_de), .video_hs(scanout_hs), .video_vs(scanout_vs),")
-    top = replace_once(top, "qsys_top soc_inst (", "wire scanout_pixel_clk, scanout_reset_n, scanout_clock_fault;\n"
+    top = replace_once(top, "qsys_top soc_inst (", "wire scanout_pixel_clk, scanout_pixel_reset_n, scanout_system_reset_n, scanout_clock_fault;\n"
         "wire [23:0] scanout_rgb;\nwire scanout_de, scanout_hs, scanout_vs;\nqsys_top soc_inst (\n"
         ".fes_scanout_pixel_clk_clk (scanout_pixel_clk),\n"
-        ".fes_scanout_reset_reset_n (scanout_reset_n),\n"
+        ".fes_scanout_pixel_reset_reset_n (scanout_pixel_reset_n),\n"
+        ".fes_scanout_system_reset_reset_n (scanout_system_reset_n),\n"
         ".fes_scanout_clock_fault_export (scanout_clock_fault),\n"
         ".fes_scanout_video_rgb (scanout_rgb), .fes_scanout_video_de (scanout_de),\n"
         ".fes_scanout_video_hs (scanout_hs), .fes_scanout_video_vs (scanout_vs),")
@@ -125,16 +127,20 @@ def prepare(archive, output=None, revision=None):
     anchor = "set_connection_parameter_value subsys_periph.fes_probe_mem/subsys_hps.f2sdram_adapter_axi4_sub baseAddress 0x0\n"
     script = replace_once(script, anchor, anchor + "add_connection subsys_periph.fes_scanout_mem subsys_hps.f2sdram_adapter_axi4_sub\n"
         "set_connection_parameter_value subsys_periph.fes_scanout_mem/subsys_hps.f2sdram_adapter_axi4_sub baseAddress 0x0\n")
-    # A real top-level reset source is required by the inserted memory
-    # interconnect. Merely exporting the child sink leaves its adapters without
-    # a source identity. Keep the same external common cold/first-lock signal.
+    # The inserted memory interconnect needs a root-level reset source. Its
+    # input is already synchronously released by the board's 100 MHz chain;
+    # the pixel-domain reset input is exported separately from its own chain.
     before = "save_system " + hps.tcl_word(project / "qsys_top.qsys") + "\n"
-    exports = "add_instance fes_scanout_top_reset altera_reset_bridge 19.2.0\n"
+    exports = "add_instance fes_scanout_system_reset_source altera_reset_bridge 19.2.0\n"
     for name, value in (("ACTIVE_LOW_RESET", "1"), ("SYNCHRONOUS_EDGES", "none"),
-                        ("O_SYNCHRONOUS_EDGES", "none"), ("NUM_RESET_OUTPUTS", "1"), ("USE_RESET_REQUEST", "0")):
-        exports += "set_instance_parameter_value fes_scanout_top_reset " + name + " " + value + "\n"
-    exports += "add_connection fes_scanout_top_reset.out_reset subsys_periph.fes_scanout_reset\n"
-    exports += "add_interface fes_scanout_reset reset sink\nset_interface_property fes_scanout_reset EXPORT_OF fes_scanout_top_reset.in_reset\n"
+                        ("O_SYNCHRONOUS_EDGES", "none"), ("NUM_RESET_OUTPUTS", "1"),
+                        ("USE_RESET_REQUEST", "0")):
+        exports += "set_instance_parameter_value fes_scanout_system_reset_source " + name + " " + value + "\n"
+    exports += "add_connection fes_scanout_system_reset_source.out_reset subsys_periph.fes_scanout_system_reset\n"
+    exports += "add_interface fes_scanout_system_reset reset sink\n"
+    exports += "set_interface_property fes_scanout_system_reset EXPORT_OF fes_scanout_system_reset_source.in_reset\n"
+    exports += "add_interface fes_scanout_pixel_reset reset sink\n"
+    exports += "set_interface_property fes_scanout_pixel_reset EXPORT_OF subsys_periph.fes_scanout_pixel_reset\n"
     for name, kind in (("fes_scanout_pixel_clk", "clock sink"),
                        ("fes_scanout_video", "conduit end"), ("fes_scanout_clock_fault", "conduit end")):
         exports += "add_interface " + name + " " + kind + "\nset_interface_property " + name + " EXPORT_OF subsys_periph." + name + "\n"
@@ -151,6 +157,9 @@ def prepare(archive, output=None, revision=None):
     inputs["scanout"] = {"peripheral_offset": int(offset[1], 16), "default_enabled": False,
         "pixel_hz": 74250000, "system_hz": 100000000, "control_bridge": "mm_ccb19.4.1 DATA32 RESPONSE1",
         "memory_bridge": "mm_ccb19.4.1 DATA128 RESPONSE1 MAX16", "allocation_bytes": 8388608,
+        "reset_release": {"assertion": "asynchronous",
+            "deassertion": {"pixel": "synchronous to 74250000 Hz", "peripheral": "synchronous to 100000000 Hz"}},
+        "reset_synchronizers": "board RTL two-stage chains; Qsys reset bridges are pass-through fanout",
         "source_sha256": {staged_names[name]: hps.digest(local / staged_names[name]) for name in LOCAL} |
                          {name: hps.digest(local / name) for name in ("fes_menu_reader_de25.v", "fes_menu_video.v")},
         "compiled_top_sha256": hps.digest(project / "golden_top.v"), "rendered_integration_sha256": hps.digest(project / "integrate-mailbox.tcl"),
@@ -183,11 +192,12 @@ def require_parameters(actual, expected, name):
     return {key: actual[key] for key in expected}
 
 
-def verify_reset_bridge(project, module, hps):
+def verify_reset_bridge(project, module, hps, synchronous_edges="NONE"):
     if module is None or module.get("kind") != "altera_reset_bridge" or module.get("version") != "19.2.0":
         raise ValueError("generated scanout reset bridge version/kind differs")
     actual, source = referenced_parameters(project, module, hps)
-    checked = require_parameters(actual, {"ACTIVE_LOW_RESET": 1, "SYNCHRONOUS_EDGES": "none",
+    checked = require_parameters(actual, {"ACTIVE_LOW_RESET": 1,
+        "SYNCHRONOUS_EDGES": synchronous_edges.lower(),
         "NUM_RESET_OUTPUTS": 1, "USE_RESET_REQUEST": 0}, module.get("path"))
     definition = ET.fromstring(module.findtext("parameter[@name='componentDefinition']/value"))
     for name, direction in (("in_reset", "Input"), ("out_reset", "Output")):
@@ -195,15 +205,74 @@ def verify_reset_bridge(project, module, hps):
         if len(points) != 1 or hps.component_ports(module, name) != {"reset_n": (direction, 1)}:
             raise ValueError("generated scanout reset bridge polarity differs")
         edges = points[0].findtext("parameters/parameterValueMap/entry[key='synchronousEdges']/value")
-        if edges != "NONE":
+        if edges != synchronous_edges:
             raise ValueError("generated scanout reset bridge synchronization differs")
     # O_SYNCHRONOUS_EDGES is DERIVED (not stored in .ip). Verify the actual
     # elaborated output interface rather than substituting a guessed default.
-    checked["O_SYNCHRONOUS_EDGES"] = "none (elaborated output synchronousEdges=NONE)"
+    checked["O_SYNCHRONOUS_EDGES"] = synchronous_edges.lower() + \
+        " (elaborated output synchronousEdges=" + synchronous_edges + ")"
     return {"parameters": checked, "logical_view": source}
 
 
+def verify_reset_synchronizers(project):
+    """Require real board RTL reset chains and constraints, not Qsys edge tags."""
+    def compact(path):
+        source = re.sub(r"//[^\n]*", "", path.read_text())
+        return re.sub(r"\s+", "", source)
+
+    board = compact(project / "fes_mailbox/fes_de25_scanout_board.v")
+    for instance, clock, output in (("fes_scanout_pixel_reset", "pixel_clk", "pixel_reset_n"),
+                                    ("fes_scanout_system_reset", "system_clk", "system_reset_n")):
+        expected = ("fes_de25_top_reset" + instance + "(.clk(" + clock + "),"
+                    ".ninit_done(!first_lock_seen),.pll_locked(1'b1),.reset_n(" + output + "));")
+        if expected not in board:
+            raise ValueError("missing actual " + clock + " scanout reset synchronizer")
+    top_reset = compact(project / "fes_mailbox/fes_de25_top_reset.v")
+    for statement in ("wireasync_reset_n=~ninit_done&pll_locked;",
+                      "reg[1:0]sync_regs;",
+                      "always@(posedgeclkornegedgeasync_reset_n)begin",
+                      "if(!async_reset_n)sync_regs<=2'b00;",
+                      "elsesync_regs<={sync_regs[0],1'b1};",
+                      "assignreset_n=sync_regs[1];"):
+        if statement not in top_reset:
+            raise ValueError("DE25 scanout reset chain is not asynchronous-assert/synchronous-release RTL")
+    if ("if(!top_reset_n)beginfirst_lock_seen<=1'b0;" not in board or
+            "if(qualified_lock)first_lock_seen<=1'b1;" not in board):
+        raise ValueError("scanout reset source no longer waits for first qualified lock")
+
+    top = compact(project / "golden_top.v")
+    for port in (".fes_scanout_pixel_reset_reset_n(scanout_pixel_reset_n),",
+                 ".fes_scanout_system_reset_reset_n(scanout_system_reset_n),",
+                 ".pixel_reset_n(scanout_pixel_reset_n),",
+                 ".system_reset_n(scanout_system_reset_n),"):
+        if port not in top:
+            raise ValueError("generated DE25 top does not connect both domain reset synchronizers")
+    integration = (project / "integrate-mailbox.tcl").read_text()
+    if ("set_interface_property fes_scanout_pixel_reset EXPORT_OF subsys_periph.fes_scanout_pixel_reset" not in integration or
+            "set_interface_property fes_scanout_system_reset EXPORT_OF fes_scanout_system_reset_source.in_reset" not in integration or
+            "add_connection fes_scanout_system_reset_source.out_reset subsys_periph.fes_scanout_system_reset" not in integration or
+            "set_instance_parameter_value fes_scanout_system_reset_source SYNCHRONOUS_EDGES none" not in integration):
+        raise ValueError("generated Qsys reset fanout does not preserve the synchronized domain inputs")
+    if "fes_scanout_top_reset" in integration:
+        raise ValueError("stale Qsys reset bridge still owns scanout reset release")
+
+    sdc = compact(project / "fes_mailbox/clocks.sdc")
+    for instance in ("fes_scanout_pixel_reset", "fes_scanout_system_reset"):
+        target = "fes_video_inst|" + instance + "|sync_regs*|"
+        if target + "aclr" not in sdc or target + "clrn" not in sdc:
+            raise ValueError("scanout SDC does not constrain the actual " + instance + " chain")
+    if "if{$scanout_clear_count!=8}" not in sdc:
+        raise ValueError("scanout SDC does not require all eight real reset-chain clear pins")
+    if "soc_inst|subsys_periph|fes_scanout_pixel_reset|sync_regs*" in sdc or \
+            "soc_inst|subsys_periph|fes_scanout_system_reset|sync_regs*" in sdc:
+        raise ValueError("scanout SDC still targets nonexistent Qsys reset registers")
+    return {"pixel_clock": "74250000 Hz", "system_clock": "100000000 Hz",
+            "assertion": "asynchronous", "deassertion": "synchronous per domain",
+            "sdc_clear_pins": 8}
+
+
 def verify_handoff(project, hps):
+    reset_synchronizers = verify_reset_synchronizers(project)
     tree = ET.parse(project / "qsys_top/qsys_top.sopcinfo")
     modules = {m.get("path"): m for m in tree.findall("module")}
     endpoint = modules.get("subsys_periph.fes_scanout")
@@ -238,15 +307,27 @@ def verify_handoff(project, hps):
         item = connections.get(("clock", start, "subsys_periph_" + end))
         if item is None or item.findtext("parameter[@name='clockRateSysInfo']/value") != str(rate):
             raise ValueError("generated scanout clock differs: " + end)
-    for sink in ("fes_ctrl_cdc.s0_reset", "fes_ctrl_cdc.m0_reset", "fes_mem_cdc.s0_reset", "fes_mem_cdc.m0_reset", "fes_scanout.reset"):
-        if ("reset", "subsys_periph_fes_scanout_reset.out_reset", "subsys_periph_" + sink) not in connections:
-            raise ValueError("generated scanout bridge common reset differs: " + sink)
-    reset_source = modules.get("fes_scanout_top_reset")
+    reset_routes = (
+        ("subsys_periph_fes_scanout_system_reset.out_reset", "subsys_periph_fes_ctrl_cdc.s0_reset"),
+        ("subsys_periph_fes_scanout_pixel_reset.out_reset", "subsys_periph_fes_ctrl_cdc.m0_reset"),
+        ("subsys_periph_fes_scanout_pixel_reset.out_reset", "subsys_periph_fes_mem_cdc.s0_reset"),
+        ("subsys_periph_fes_scanout_system_reset.out_reset", "subsys_periph_fes_mem_cdc.m0_reset"),
+        ("subsys_periph_fes_scanout_pixel_reset.out_reset", "subsys_periph_fes_scanout.reset"))
+    for start, end in reset_routes:
+        if ("reset", start, end) not in connections:
+            raise ValueError("generated scanout domain reset differs: " + end)
+    reset_source = modules.get("fes_scanout_system_reset_source")
+    system_source_route = ("reset", "fes_scanout_system_reset_source.out_reset",
+                           "subsys_periph_fes_scanout_system_reset.in_reset")
     if (reset_source is None or reset_source.get("kind") != "altera_reset_bridge" or
-            ("reset", "fes_scanout_top_reset.out_reset", "subsys_periph_fes_scanout_reset.in_reset") not in connections):
-        raise ValueError("generated top scanout interconnect reset source differs")
-    reset_bridges = {name: verify_reset_bridge(project, modules.get(name), hps)
-                     for name in ("fes_scanout_top_reset", "subsys_periph.fes_scanout_reset")}
+            system_source_route not in connections):
+        raise ValueError("generated system reset fanout source differs")
+    reset_bridges = {
+        "fes_scanout_system_reset_source": verify_reset_bridge(project, reset_source, hps),
+        "subsys_periph.fes_scanout_pixel_reset": verify_reset_bridge(
+            project, modules.get("subsys_periph.fes_scanout_pixel_reset"), hps),
+        "subsys_periph.fes_scanout_system_reset": verify_reset_bridge(
+            project, modules.get("subsys_periph.fes_scanout_system_reset"), hps)}
     bridge_parameters = {}
     for name, width, address_bits, burst, depth in (("fes_ctrl_cdc", 32, 7, 1, 4), ("fes_mem_cdc", 128, 32, 16, 32)):
         module = modules.get("subsys_periph." + name)
@@ -269,7 +350,8 @@ def verify_handoff(project, hps):
         "pixel_hz": 74250000, "memory_hz": 100000000, "bridge_parameters": bridge_parameters,
         "read_only_master_ports": expected_master, "csr_write_completion": True,
         "peripheral_slave_map": probe["peripheral_slave_map"], "ddr_scanout": True,
-        "top_reset_source": "fes_scanout_top_reset.out_reset -> subsys_periph_fes_scanout_reset.in_reset",
+        "top_reset_source": "board-owned pixel/system synchronizers -> Qsys reset fanout inputs",
+        "reset_synchronizers": reset_synchronizers,
         "reset_bridges": reset_bridges,
         "runtime_admission": "not-qualified", "global_reset_ownership": "not-qualified"}
 

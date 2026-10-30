@@ -11,6 +11,7 @@ module fes_menu_video #(
     parameter [0:0] DYNAMIC_BASE = 1'b0,
     parameter [7:0] MAX_BURST_BEATS = 8'd128,
     parameter [0:0] CHECK_RESPONSE = 1'b0,
+    parameter [0:0] RESET_ABORTS_TRAFFIC = 1'b0,
     // Board shells may need stable HDMI sync while resetting scanout ownership.
     // Keep the fixed raster free-running while the reader/video state resets.
     parameter [0:0] PRESERVE_RASTER_ON_RESET = 1'b0
@@ -103,7 +104,7 @@ module fes_menu_video #(
 
     fes_menu_reader #(.WINDOW_BASE(TEST_PATTERN ? 32'h00001000 : WINDOW_BASE),
         .DYNAMIC_BASE(DYNAMIC_BASE), .MAX_BURST_BEATS(MAX_BURST_BEATS),
-        .CHECK_RESPONSE(CHECK_RESPONSE)) reader (
+        .CHECK_RESPONSE(CHECK_RESPONSE), .RESET_ABORTS_TRAFFIC(RESET_ABORTS_TRAFFIC)) reader (
         .clk(clk), .rst(rst), .enable(reader_enable), .slot(fetch_slot),
         .window_base(TEST_PATTERN ? 32'h00001000 : window_base),
         .window_base_valid(TEST_PATTERN ? 1'b1 : window_base_valid),

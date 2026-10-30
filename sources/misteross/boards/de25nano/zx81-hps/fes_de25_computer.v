@@ -185,10 +185,11 @@ module fes_de25_computer #(
         .bus_addr(), .bus_wdata(), .bus_mreq_n(), .bus_iorq_n(), .bus_rd_n(), .bus_wr_n(),
         .bus_m1_n(), .bus_rfsh_n(), .bus_cpu_clock(), .bus_rdata(8'hff), .bus_peek_data(8'hff),
         .bus_dsel(1'b0), .bus_romcs(1'b0), .bus_wait(1'b0), .bus_ram_present(1'b0));
-    zx81_video_720p video (
+    fes_de25_zx81_video video (
+        .reset_n(transport_ready), .held(machine_reset),
         .clk_sys(clk), .ce_6m5(ce_6m5), .zx_pixel(video_pixel), .hblank(hblank), .vblank(vblank),
         .pixel_clk(pixel_clk), .red(red), .green(green), .blue(blue), .de(de), .hsync(hs), .vsync(vs),
-        .frame_tick(frame_tick), .raster_h(), .raster_v(), .src_x_max(), .src_y_max());
+        .frame_tick(frame_tick));
     assign video_rgb = video_ready_frame ? {red, green, blue} : 24'd0;
     assign video_de = video_ready_frame && de;
     assign video_hs = video_ready_frame && hs;

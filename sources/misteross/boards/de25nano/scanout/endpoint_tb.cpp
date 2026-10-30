@@ -183,14 +183,23 @@ public:
         }
         throw std::runtime_error("full-frame completion absent");
     }
-    void wait_request() {
-        for (unsigned i = 0; i < 100000 && !dut.avm_read; ++i) idle();
+    void wait_request(unsigned limit = 100000) {
+        for (unsigned i = 0; i < limit && !dut.avm_read; ++i) idle();
         require(dut.avm_read, "no memory command");
     }
     void stop_and_drain() {
         command(FES_DE25_SCANOUT_COMMAND_STOP); stall = false; responses = true;
         const auto state = wait_status(FES_DE25_SCANOUT_STATUS_DRAINED);
         equal(state.outstanding(), 0, "drained outstanding"); require(pending.empty() && !dut.avm_read, "drain hid traffic");
+    }
+    void reset_epoch() {
+        dut.reset_n = 0; dut.eval();
+        // The scanout reset also resets both mm_ccb sides, dropping this
+        // accepted burst and its unread responses.
+        pending.clear(); held_ = false; have_frame_ = false; bounded_ = false;
+        allowed_slots_ = 0; frame_start_ = 0; next_address_ = 0;
+        idle(2);
+        dut.reset_n = 1; dut.eval(); idle(4);
     }
 private:
     bool held_ = false, bounded_ = false, have_frame_ = false;
@@ -318,6 +327,45 @@ static void stop_keeps_stalled_command_and_accepted_responses() {
     equal(pending.displayed(), 0, "STOP acknowledged incomplete frame");
     e.stop_and_drain(); equal(e.returned, beats, "not all accepted responses retired");
 }
+static void reset_midburst_restores_idle_submit_and_clear() {
+    Endpoint e; Descriptor d; e.responses = false; e.submit(d); e.wait_request();
+    e.idle();
+    auto active = e.snapshot();
+    require(active.outstanding() != 0, "test did not leave an accepted burst in flight");
+    require(!e.pending.empty(), "test did not retain the burst's unread responses");
+
+    e.reset_epoch();
+    auto reset = e.snapshot();
+    require(reset.status() & FES_DE25_SCANOUT_STATUS_DRAINED, "reset did not return to drained idle");
+    equal(reset.outstanding(), 0, "reset retained an old response budget");
+    require(!e.dut.avm_read, "reset left an old memory command asserted");
+    equal(e.dut.avm_address, 0, "reset retained an old memory address");
+    equal(e.dut.avm_burstcount, 0, "reset retained an old burst length");
+
+    d.generation += 1; d.sequence = 1;
+    e.stall = true; e.responses = false; e.submit(d); e.wait_request(2000000);
+    auto accepted = e.snapshot();
+    equal(accepted.accepted(), d.sequence, "SUBMIT after reset was not accepted");
+    require(!accepted.errors(), "SUBMIT after reset reported a fault");
+    e.command(FES_DE25_SCANOUT_COMMAND_STOP);
+    e.stall = false; e.responses = true; e.idle(64);
+    e.stop_and_drain();
+    e.command(FES_DE25_SCANOUT_COMMAND_CLEAR);
+    auto cleared = e.snapshot();
+    require(cleared.status() & FES_DE25_SCANOUT_STATUS_DRAINED, "CLEAR after reset was not drained");
+    equal(cleared.generation(), 0, "CLEAR after reset retained the grant");
+    equal(cleared.errors(), 0, "CLEAR after reset retained errors");
+}
+static void reset_cancels_a_stalled_command() {
+    Endpoint e; Descriptor d; e.stall = true; e.responses = false; e.submit(d); e.wait_request();
+    require(e.dut.avm_read, "test did not hold an unaccepted command");
+    e.reset_epoch();
+    const auto reset = e.snapshot();
+    require(reset.status() & FES_DE25_SCANOUT_STATUS_DRAINED, "reset did not retire a stalled command");
+    require(!e.dut.avm_read, "reset reissued a previously stalled command");
+    equal(e.dut.avm_address, 0, "stalled reset retained address");
+    equal(e.dut.avm_burstcount, 0, "stalled reset retained burst length");
+}
 static void boundaries_and_low_iova() {
     for (const std::uint64_t base : {0ull, 0x10000020ull, 0xff800000ull}) {
         Endpoint e; Descriptor d; d.base = base; e.submit(d);
@@ -411,6 +459,8 @@ int main(int argc, char** argv) {
         two_complete_frames(false); ++groups; std::cout << "PASS two_complete_frames_delayed\n";
         two_complete_frames(true); ++groups; std::cout << "PASS two_complete_frames_zero_latency\n";
         RUN(stop_keeps_stalled_command_and_accepted_responses);
+        RUN(reset_midburst_restores_idle_submit_and_clear);
+        RUN(reset_cancels_a_stalled_command);
         RUN(boundaries_and_low_iova);
         RUN(invalid_descriptors_never_fetch);
         RUN(pending_and_sequence_errors);

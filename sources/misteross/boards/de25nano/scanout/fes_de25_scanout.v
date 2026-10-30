@@ -131,7 +131,7 @@ module fes_de25_scanout (
     assign video_vs = vs;
 
     fes_menu_video #(.DYNAMIC_BASE(1'b1), .MAX_BURST_BEATS(8'd16),
-        .CHECK_RESPONSE(1'b1), .COMPLETE_FRAME_ACK(1'b1),
+        .CHECK_RESPONSE(1'b1), .RESET_ABORTS_TRAFFIC(1'b1), .COMPLETE_FRAME_ACK(1'b1),
         .PRESERVE_RASTER_ON_RESET(1'b1)) video (
         .clk(clk), .rst(!reset_n || local_clear), .enable(video_enable), .quiesce(!running),
         .window_base(grant_base), .window_base_valid(configured),
