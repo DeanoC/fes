@@ -218,11 +218,13 @@ int main(int argc, char** argv) {
     // Exercise the physical key path, including its real 10ms stable interval.
     const uint64_t before_key = SIGNAL(keyboard);
     t.KEY = 1; // KEY1 low is NEWLINE; KEY0 stays released.
-    t.eval(); b.cycles(1000);
-    check(SIGNAL(keyboard) == before_key, "KEY1 bypassed the debounce interval");
-    b.cycles(744000);
+    t.eval(); b.cycles(2); // Allow the two-stage input synchronizer to settle.
+    check(SIGNAL(keyboard) == before_key, "KEY1 changed before synchronized debounce");
+    b.cycles(742499);
+    check(SIGNAL(keyboard) == before_key, "KEY1 accepted before the full 10ms debounce interval");
+    b.cycles(1);
     check(SIGNAL(keyboard) == (0xffffffffffull & ~(1ull << 30)),
-          "KEY1 did not select only the active-low NEWLINE matrix bit");
+          "KEY1 did not select NEWLINE at the 10ms debounce boundary");
     bool saw_rom_key = false;
     for (unsigned n = 0; n < 3000 && !saw_rom_key; ++n) {
         b.cycles(4096);
