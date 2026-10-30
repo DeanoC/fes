@@ -111,11 +111,13 @@ durability and permits only an old or complete new record. Retry rereads and
 validates the current file. Successful Stop is the durability boundary; startup,
 fault cleanup and failed activation do not save.
 
-When publication fails, explicit GP resume must succeed before the same input
-generation is reopened. Only after input has started does the runtime discard
-the old snapshot, so retry captures fresh progress. A complete snapshot remains
-retained when resume is unsafe. An ambiguous GP timeout poisons the exchange;
-there is no blind commit/resume retry or reset to hide failure.
+When publication fails, explicit GP resume must succeed before recovery
+continues. For a package with a host input recipe, the same input generation
+must start before the runtime discards the old snapshot; for a package without
+one, successful data resume is the boundary. Retry then captures fresh guest
+RAM. A complete snapshot remains retained when resume or input restoration is
+unsafe. An ambiguous GP timeout poisons the exchange; there is no blind
+commit/resume retry or reset to hide failure.
 
 ## Errors and recovery status
 

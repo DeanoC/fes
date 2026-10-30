@@ -142,9 +142,11 @@ has fenced the core's writes, so no line cached before them can exist) and
 written as a synced content-addressed file. The merged manifest is published
 against the revision read under the namespace lock, chunk files it does not
 name are deleted, and Saved is sent. A Stop with no dirty chunk publishes
-nothing. A failed save leaves the disk frozen and returns `save_failed`; the
-resumed game sends Resume first. An explicit initial library disk is
-uploaded and confirmed ready before Start; otherwise the drive stays empty.
+nothing. A failed save leaves the disk frozen and returns `save_failed`; recovery
+resumes the disk and any machine-data snapshot before restoring host input.
+Packages without a host input recipe still resume machine data. An explicit
+initial library disk is uploaded and confirmed ready before Start; otherwise
+the drive stays empty.
 Start sends only Execution release, with no media gate and no neutral writes,
 because programming starts held with neutral input. No evdev
 input worker is opened. Stop and replacement send Execution hold before
@@ -360,9 +362,11 @@ previous disk and generation.
 
 If execution release fails ambiguously after binding the disk, failed-launch
 cleanup first performs the existing fault-save capture and durable publication.
-The release command is never resent. Successful save allows idle replacement;
-failed save retains the newly selected package/generation and persistent disk
-in recovery, blocking generic idle programming and replacement.
+The release command is never resent. A completed release rejection proves the
+guest did not run and proceeds directly to idle cleanup; a lost or unstable
+acknowledgement still requires fault-save recovery. Successful save allows idle
+replacement; failed save retains the newly selected package/generation and
+persistent disk in recovery, blocking generic idle programming and replacement.
 
 Omitting this object preserves an empty volatile drive at launch: diskless
 boot to GEM remains supported even when the package requires both floppy

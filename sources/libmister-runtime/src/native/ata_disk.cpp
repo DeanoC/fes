@@ -188,7 +188,10 @@ Error DecodeAtaDelta(const std::vector<unsigned char>& bytes, const MediaDataIde
     if (!std::equal(checksum.begin(), checksum.end(), bytes.end() - 32))
         return Bad("ATA disk delta checksum mismatch");
     const std::uint32_t count = Get32(bytes, 120);
-    if (bytes.size() != 174 + 36 * std::size_t(count) || Get16(bytes, 110) != kLayout.size() ||
+    if (count > generated::FesComputerAtaDiskMaxChunks)
+        return Bad("invalid ATA disk delta chunk count");
+    const std::size_t chunk_count = static_cast<std::size_t>(count);
+    if (bytes.size() != 174 + 36 * chunk_count || Get16(bytes, 110) != kLayout.size() ||
         std::memcmp(bytes.data() + 124, kLayout.data(), kLayout.size()) != 0)
         return Bad("invalid ATA disk delta size or layout");
     auto core = Hash(identity.core_id.data(), identity.core_id.size());
@@ -207,7 +210,7 @@ Error DecodeAtaDelta(const std::vector<unsigned char>& bytes, const MediaDataIde
     delta.identity = identity;
     delta.base_size = base_size;
     std::int64_t previous = -1;
-    for (std::size_t at = 142; at < 142 + 36 * std::size_t(count); at += 36) {
+    for (std::size_t at = 142; at < 142 + 36 * chunk_count; at += 36) {
         const std::uint32_t index = Get32(bytes, at);
         if (std::int64_t(index) <= previous || index >= AtaDiskChunkCount(base_size))
             return Bad("invalid ATA disk delta chunk list");
@@ -344,10 +347,18 @@ Error AtaDeltaFile::Publish(const AtaDiskDelta& delta, const std::string& revisi
     if (current.revision != revision)
         return {ErrorCode::stale_revision, "media-data revision changed", "media_data"};
     for (const auto& chunk : delta.chunks) {
+        const std::string name = "chunk-" + chunk.sha256;
         struct stat st {};
-        if (fstatat(directory_, ("chunk-" + chunk.sha256).c_str(), &st, AT_SYMLINK_NOFOLLOW) != 0 ||
+        if (fstatat(directory_, name.c_str(), &st, AT_SYMLINK_NOFOLLOW) != 0 ||
             !S_ISREG(st.st_mode) || std::uint64_t(st.st_size) != AtaDiskChunkLength(base_size_, chunk.index))
             return Bad("ATA disk delta names a chunk that is not stored");
+        std::vector<unsigned char> stored;
+        bool missing = false;
+        error = ReadFile(directory_, name.c_str(), kChunk, &stored, &missing);
+        if (!error.ok()) return error;
+        if (missing || stored.size() != AtaDiskChunkLength(base_size_, chunk.index) ||
+            Sha256Hex(Hash(stored.data(), stored.size())) != chunk.sha256)
+            return Bad("ATA disk delta chunk differs from its manifest");
     }
     // Chunk renames reach the directory before the manifest that names them.
     if (fsync(directory_) != 0) return Io("cannot sync ATA disk delta chunks");

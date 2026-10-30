@@ -175,7 +175,7 @@ func (m MachineSettings) Valid() bool {
 	if uint32(m.Preset) >= generated.FesComputerPc386PresetCount || m.CodeProfile > 1 || m.Turbo > 1 {
 		return false
 	}
-	if m.Frequency != 0 && (uint32(m.Preset) == generated.FesComputerPc386PresetMax ||
+	if m.Frequency != 0 && (uint32(m.Preset) == generated.FesComputerPc386PresetMaxPerformance ||
 		uint32(m.Frequency) < generated.FesComputerPc386FrequencyMin || uint32(m.Frequency) > generated.FesComputerPc386FrequencyMax) {
 		return false
 	}

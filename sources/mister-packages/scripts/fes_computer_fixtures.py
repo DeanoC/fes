@@ -669,8 +669,7 @@ class Endpoint11(Endpoint):
             if arg == FREEZE:
                 if self.disk_state != READY:
                     return E_STATE, 0
-                if not self.frozen:
-                    self.frozen, self.saved = True, False
+                self.frozen, self.saved = True, False
                 if self.writer_busy:
                     self.guest_sector_write_complete()
                 return 0, 0
@@ -1042,6 +1041,9 @@ def disk_session() -> Session11:
     s.send("eject-unsaved", OP_DISK_CONTROL, 0, EJECT)
     s.send("prepare-unsaved", OP_DISK_CONTROL, 0, PREPARE)
     s.send("disk-saved", OP_DISK_CONTROL, 0, SAVED)
+    s.send("disk-freeze-after-saved", OP_DISK_CONTROL, 0, FREEZE)
+    s.send("eject-after-freeze-clears-saved", OP_DISK_CONTROL, 0, EJECT)
+    s.send("disk-saved-after-freeze", OP_DISK_CONTROL, 0, SAVED)
     s.send("dirty-after-saved", OP_DISK_DIRTY, 0, 0)
     s.send("flags-frozen", OP_DISK_INFO, 6, 0)
     s.send("disk-resume", OP_DISK_CONTROL, 0, RESUME)

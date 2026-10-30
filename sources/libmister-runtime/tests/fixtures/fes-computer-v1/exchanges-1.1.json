@@ -5162,13 +5162,52 @@
      "opcode": 17
     },
     {
-     "argument": 0,
+     "argument": 3,
      "data": 0,
      "error": 0,
      "gpi": 4118806528,
      "gpo": [
-      385875968,
-      2533359616
+      285212675,
+      2432696323
+     ],
+     "index": 0,
+     "name": "disk-freeze-after-saved",
+     "opcode": 17
+    },
+    {
+     "argument": 2,
+     "data": 4,
+     "error": 4,
+     "gpi": 4114612228,
+     "gpo": [
+      2432696322,
+      285212674
+     ],
+     "index": 0,
+     "name": "eject-after-freeze-clears-saved",
+     "opcode": 17
+    },
+    {
+     "argument": 5,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      285212677,
+      2432696325
+     ],
+     "index": 0,
+     "name": "disk-saved-after-freeze",
+     "opcode": 17
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2533359616,
+      385875968
      ],
      "index": 0,
      "name": "dirty-after-saved",
@@ -5178,27 +5217,14 @@
      "argument": 0,
      "data": 2,
      "error": 0,
-     "gpi": 4110417922,
+     "gpi": 4118806530,
      "gpo": [
-      2416312320,
-      268828672
+      268828672,
+      2416312320
      ],
      "index": 6,
      "name": "flags-frozen",
      "opcode": 16
-    },
-    {
-     "argument": 4,
-     "data": 0,
-     "error": 0,
-     "gpi": 4118806528,
-     "gpo": [
-      285212676,
-      2432696324
-     ],
-     "index": 0,
-     "name": "disk-resume",
-     "opcode": 17
     },
     {
      "argument": 4,
@@ -5210,6 +5236,19 @@
       285212676
      ],
      "index": 0,
+     "name": "disk-resume",
+     "opcode": 17
+    },
+    {
+     "argument": 4,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      285212676,
+      2432696324
+     ],
+     "index": 0,
      "name": "disk-resume-again",
      "opcode": 17
     },
@@ -5217,10 +5256,10 @@
      "argument": 1,
      "data": 0,
      "error": 0,
-     "gpi": 4118806528,
+     "gpi": 4110417920,
      "gpo": [
-      33554433,
-      2181038081
+      2181038081,
+      33554433
      ],
      "index": 0,
      "name": "release-again",
@@ -5230,10 +5269,10 @@
      "argument": 3,
      "data": 0,
      "error": 0,
-     "gpi": 4110417920,
+     "gpi": 4118806528,
      "gpo": [
-      2432696323,
-      285212675
+      285212675,
+      2432696323
      ],
      "index": 0,
      "name": "disk-freeze-for-stop",
@@ -5243,10 +5282,10 @@
      "argument": 0,
      "data": 128,
      "error": 0,
-     "gpi": 4118806656,
+     "gpi": 4110418048,
      "gpo": [
-      385875968,
-      2533359616
+      2533359616,
+      385875968
      ],
      "index": 0,
      "name": "dirty-word-0-for-stop",
@@ -5256,10 +5295,10 @@
      "argument": 5,
      "data": 0,
      "error": 0,
-     "gpi": 4110417920,
+     "gpi": 4118806528,
      "gpo": [
-      2432696325,
-      285212677
+      285212677,
+      2432696325
      ],
      "index": 0,
      "name": "disk-saved-for-stop",
@@ -5269,10 +5308,10 @@
      "argument": 0,
      "data": 0,
      "error": 0,
-     "gpi": 4118806528,
+     "gpi": 4110417920,
      "gpo": [
-      33554432,
-      2181038080
+      2181038080,
+      33554432
      ],
      "index": 0,
      "name": "hold-for-stop",
@@ -5282,10 +5321,10 @@
      "argument": 2,
      "data": 0,
      "error": 0,
-     "gpi": 4110417920,
+     "gpi": 4118806528,
      "gpo": [
-      2432696322,
-      285212674
+      285212674,
+      2432696322
      ],
      "index": 0,
      "name": "eject-after-saved",
@@ -5295,10 +5334,10 @@
      "argument": 0,
      "data": 1,
      "error": 0,
-     "gpi": 4118806529,
+     "gpi": 4110417921,
      "gpo": [
-      268763136,
-      2416246784
+      2416246784,
+      268763136
      ],
      "index": 5,
      "name": "state-empty",
@@ -5439,7 +5478,7 @@
      "sector": 512
     },
     {
-     "before": 109,
+     "before": 112,
      "kind": "sector-write",
      "sector": 1000
     }

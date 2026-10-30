@@ -874,18 +874,19 @@ offset `0x08000000`, maximum 134,217,728 bytes (128 MiB), chunk 65,536 bytes.
 
 | Operation | Meaning |
 | --- | --- |
-| DiskInfo | Fields: minimum and maximum bytes, chunk size, state (absent, empty, loading, ready, verifying), flags (dirty, frozen, writer busy), change epoch |
+| DiskInfo | Fields: minimum and maximum bytes, chunk size, state (absent, empty, loading, ready, verifying), flags (dirty, frozen, writer busy, CRC error), change epoch |
 | DiskControl prepare | Held execution only. The unit becomes loading; the ATA device reports no drive |
-| DiskCommit words | Size in sectors, cylinders, heads, sectors per track, CRC-32 of the image |
-| DiskControl commit | The core reads the whole region on port 2, computing CRC-32 (about 0.2 s for 128 MiB at 700 MB/s), and becomes ready on a match. A mismatch leaves it loading with an error flag. The runtime polls DiskInfo |
+| DiskCommit words | Size in sectors, cylinders, heads, sectors per track, CRC-32 of the committed sectors |
+| DiskControl commit | The core reads exactly the committed sector count from the window on port 2 and computes CRC-32 (about 0.2 s for 128 MiB at 700 MB/s). A match makes it ready; a mismatch leaves it loading with the CRC error flag. The runtime polls DiskInfo |
 | DiskControl eject | Held execution only. A hard disk is fixed while running |
 | DiskControl freeze, resume, saved | Freeze fences new sector writes (a write command stays BSY), drains an accepted one and ACKs. Saved clears the dirty bits and keeps the fence, as for the [ST capture](../../mister-packages/docs/computer-io.md#writable-st-image-capture) |
 | DiskDirty | Reads the dirty map, 16 chunks per word, while frozen |
 
 The size is a multiple of 512 bytes from 1 MiB to 128 MiB. 128 MiB is also the
 largest FAT16 volume with 2 KiB clusters. CRC-32 is the CRC-32/IEEE the media
-units use; the core computing it is what lets the contract claim an
-FPGA-side integrity check ([core media](../../../docs/core-media-evolution.md#transfer-and-lifecycle)).
+units use, over exactly `sectors * 512` bytes from the window; the core
+computing it is what lets the contract claim an FPGA-side integrity check
+([core media](../../../docs/core-media-evolution.md#transfer-and-lifecycle)).
 It also proves that the runtime's cache clean reached DDR.
 
 ### How FogCast prepares and attaches the image

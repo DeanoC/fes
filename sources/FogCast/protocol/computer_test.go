@@ -174,6 +174,23 @@ func TestAtaDiskUnitContractAndPersistentStatus(t *testing.T) {
 	}
 }
 
+func TestComputerInputCapabilitiesIncludeMinorOne(t *testing.T) {
+	p := computerStatus()
+	p.CorePackage.ActiveInterfaces = append(p.CorePackage.ActiveInterfaces,
+		RuntimeInterface{ID: MouseRelativeInterface().ID, Major: MouseRelativeInterface().Major,
+			Minor: MouseRelativeInterface().Minor})
+	for _, minor := range []uint16{0, 1} {
+		p.CorePackage.ABI.Minor = minor
+		if !KeyboardHIDCapable(p.CorePackage) || !MouseRelativeCapable(p.CorePackage) {
+			t.Fatalf("computer ABI minor %d lost keyboard or mouse input", minor)
+		}
+	}
+	p.CorePackage.ABI.Minor = 2
+	if KeyboardHIDCapable(p.CorePackage) || MouseRelativeCapable(p.CorePackage) {
+		t.Fatal("unsupported computer ABI minor received input bindings")
+	}
+}
+
 func TestZx81TapeProjection(t *testing.T) {
 	descriptor := apple2Descriptor(corepackage.Interface{ID: "fes.media.zx81-tape", Major: 1, Required: true})
 	got := DeclaredCoreMediaCapabilities(descriptor)

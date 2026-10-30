@@ -993,10 +993,10 @@ CoreDriverResult FesGpCoreDriver::Gameplay(std::uint16_t argument,
 	std::uint16_t response = 0;
 	const Error error = gp_.Exchange(static_cast<std::uint8_t>(FesGpOpcodeGameplay),
 		static_cast<std::uint8_t>(FesGpControlIndex), argument, deadline, &response);
-	if (!error.ok()) return {error, true, ""};
+	if (!error.ok()) return {error, true, "", false, gp_.Poisoned()};
 	if (response != 0)
-		return {{ErrorCode::io_failed, "FES GP gameplay response is invalid"}, true, ""};
-	return {{}, true, ""};
+		return {{ErrorCode::io_failed, "FES GP gameplay response is invalid"}, true, "", false, true};
+	return {{}, true, "", false, true};
 }
 
 CoreDriverResult FesGpCoreDriver::NeutralizeKeyboard(std::uint64_t deadline)

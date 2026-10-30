@@ -576,7 +576,8 @@ private:
 			}
 			if (arg == 3) {
 				if (disk_state != 3) return {state_error, 0};
-				if (!disk_frozen) { disk_frozen = true; disk_saved = false; }
+				disk_frozen = true;
+				disk_saved = false;
 				if (writer_busy) GuestSectorWriteComplete();  // the accepted write drains
 				return {0, 0};
 			}
