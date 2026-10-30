@@ -5,11 +5,13 @@ import importlib.util
 import io
 import json
 from pathlib import Path
+import re
 import socket
 import subprocess
 import sys
 import tempfile
 import threading
+import tarfile
 from types import SimpleNamespace
 import unittest
 from unittest import mock
@@ -20,6 +22,57 @@ SPEC.loader.exec_module(BUILD)
 
 
 class HeadlessBuildTests(unittest.TestCase):
+    def verify_rootfs_fixture(self, changed=None):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            (output / "rootfs.ext4").write_bytes(b"test ext4")
+            password = re.search(r'^BR2_TARGET_GENERIC_ROOT_PASSWD="(.+)"$',
+                                 (BUILD.LANE / "rootfs/defconfig").read_text(), re.M).group(1).replace("$$", "$").encode()
+            elf = bytearray(64)
+            elf[:6] = b"\x7fELF\x02\x01"
+            elf[18:20] = (183).to_bytes(2, "little")
+            files = {
+                "/etc/fes-board": b"de25-nano\n",
+                "/etc/hostname": b"fes-de25-nano\n",
+                "/etc/network/interfaces": b"auto eth0\niface eth0 inet dhcp\n",
+                "/etc/inittab": b"ttyS0::respawn:/sbin/getty -L ttyS0 115200 vt100\n",
+                "/etc/init.d/S50dropbear": b"#!/bin/sh\n/usr/sbin/dropbear\n",
+                "/etc/shadow": b"root:" + password + b":0:0:99999:7:::\n",
+                "/bin/busybox": bytes(elf),
+                "/usr/sbin/dropbear": bytes(elf),
+            }
+            if changed:
+                files.update(changed)
+            with tarfile.open(output / "rootfs.tar", "w") as archive:
+                for path in ("/bin/busybox", "/usr/sbin/dropbear"):
+                    item = tarfile.TarInfo(path.lstrip("/"))
+                    item.size = len(files[path])
+                    archive.addfile(item, io.BytesIO(files[path]))
+
+            def debugfs(_image, command):
+                return files[command.removeprefix("cat ")]
+
+            with mock.patch.object(BUILD, "run"), mock.patch.object(BUILD, "debugfs", side_effect=debugfs):
+                return BUILD.verify_rootfs(output)
+
+    def test_rootfs_verification_accepts_exact_identity_and_active_network_line(self):
+        self.assertEqual(self.verify_rootfs_fixture()["architecture"], "aarch64")
+
+    def test_rootfs_verification_rejects_identity_substrings_comments_and_nonroot_shadow_rows(self):
+        password = re.search(r'^BR2_TARGET_GENERIC_ROOT_PASSWD="(.+)"$',
+                             (BUILD.LANE / "rootfs/defconfig").read_text(), re.M).group(1).replace("$$", "$").encode()
+        cases = (
+            ({"/etc/fes-board": b"not-de25-nano\n"}, "rootfs identity differs: /etc/fes-board"),
+            ({"/etc/hostname": b"not-fes-de25-nano\n"}, "rootfs identity differs: /etc/hostname"),
+            ({"/etc/network/interfaces": b"# iface eth0 inet dhcp\n"},
+             "rootfs configuration differs: /etc/network/interfaces"),
+            ({"/etc/shadow": b"service:root:" + password + b":0:0:99999:7:::\n"},
+             "rootfs development login differs"),
+        )
+        for changed, error in cases:
+            with self.subTest(changed=changed), self.assertRaisesRegex(ValueError, error):
+                self.verify_rootfs_fixture(changed)
+
     def test_ssh_banner_framing_handles_fragmentation_and_binary_key_exchange(self):
         server, client = socket.socketpair()
         with server, client:

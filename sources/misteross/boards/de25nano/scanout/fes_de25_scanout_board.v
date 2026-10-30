@@ -4,7 +4,7 @@ module fes_de25_scanout_board (
     input wire CLOCK0_50, system_clk, top_reset_n, ninit_done, HDMI_TX_INT,
     input wire [23:0] video_rgb,
     input wire video_de, video_hs, video_vs,
-    output wire pixel_clk, scanout_reset_n, clock_fault,
+    output wire pixel_clk, pixel_reset_n, system_reset_n, clock_fault,
     output wire HDMI_TX_CLK, HDMI_TX_DE, HDMI_TX_HS, HDMI_TX_VS,
     output wire [23:0] HDMI_TX_D,
     output wire HDMI_I2C_SCL,
@@ -30,17 +30,22 @@ module fes_de25_scanout_board (
             if (first_lock_seen && !qualified_lock) fault <= 1'b1;
         end
     end
-    // This asynchronous source asserts the child reset bridges immediately.
-    // Each bridge releases synchronously in its own receiving clock domain.
+    // The Qsys reset bridges below are pass-through fanout only. These real
+    // two-stage chains assert asynchronously and release in their own domains.
     // Initial release waits for the first lock; later lock loss never erases
     // traffic or resets either live bridge.
-    assign scanout_reset_n = first_lock_seen;
+    fes_de25_top_reset fes_scanout_pixel_reset (
+        .clk(pixel_clk), .ninit_done(!first_lock_seen), .pll_locked(1'b1),
+        .reset_n(pixel_reset_n));
+    fes_de25_top_reset fes_scanout_system_reset (
+        .clk(system_clk), .ninit_done(!first_lock_seen), .pll_locked(1'b1),
+        .reset_n(system_reset_n));
     assign clock_fault = fault;
     I2C_HDMI_Config hdmi_config (.iCLK(CLOCK0_50), .iRST_N(config_reset_n),
         .I2C_SCLK(HDMI_I2C_SCL), .I2C_SDAT(HDMI_I2C_SDA),
         .HDMI_TX_INT(HDMI_TX_INT), .READY());
     assign {HDMI_MCLK, HDMI_SCLK, HDMI_LRCLK, HDMI_I2S} = 4'b0000;
-    wire visible_request = scanout_reset_n && pixel_locked && qualified_lock && !fault;
+    wire visible_request = pixel_reset_n && pixel_locked && qualified_lock && !fault;
     (* async_reg = "true" *) reg [1:0] visible_sync = 2'b00;
     reg previous_hs = 1'b0;
     reg visible_line = 1'b0;

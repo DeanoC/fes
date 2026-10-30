@@ -48,16 +48,18 @@ and all multiword identities in one pixel-clock observation; its serial
 changes only on the explicit snapshot command or cold reset.
 
 The external cold/configuration reset asserts both sides of both crossing
-bridges asynchronously. The child has separate reset bridges for the pixel
-and 100 MHz domains; each deasserts synchronously on its own clock. The pixel
-reset drives the endpoint and pixel-clock sides of both `mm_ccb` bridges. The
-100 MHz reset drives their peripheral-clock sides. The external source is the
-Q of the preserved first-lock register, which asserts asynchronously with the
-existing top reset. Initial release waits for the first qualified pixel PLL
-lock. Later PLL-lock loss latches a fault in the running 100 MHz domain and
-stops/drains the endpoint once the pixel clock resumes; it does **not** reset
-live FIFO or reader accounting. The DE25 scanout instance keeps its fixed
-raster and raw HS/VS running while the endpoint is stopped, faulted or reset.
+bridges asynchronously. The board module contains separate two-stage reset
+synchronizers for the pixel and 100 MHz domains; each releases on its own
+clock. Qsys reset bridges only fan out those synchronized levels and contain
+no reset flops. The pixel reset drives the endpoint and pixel-clock sides of
+both `mm_ccb` bridges. The 100 MHz reset drives their peripheral-clock sides.
+The asynchronous source is the Q of the preserved first-lock register, which
+clears asynchronously with the existing top reset. Initial release waits for
+the first qualified pixel PLL lock. Later PLL-lock loss latches a fault in the
+running 100 MHz domain and stops/drains the endpoint once the pixel clock
+resumes; it does **not** reset live FIFO or reader accounting. The DE25
+scanout instance keeps its fixed raster and raw HS/VS running while the
+endpoint is stopped, faulted or reset.
 HDMI data blanks on reset/lock loss, then visibility changes after a complete
 horizontal sync pulse while VS is inactive. This keeps DE, HS and VS gating
 away from active pixels and complete sync pulses, including a lock failure in
@@ -94,8 +96,9 @@ bridge parameters, response/write-completion interfaces, clocks and common
 reset connections, in addition to inherited mailbox/probe and HPS/EMIF
 checks. The pixel PLL parameters are checked after generation and compilation.
 Generated bridge FIFO constraints remain authoritative: no broad clock groups
-or pointer-path cuts are added. The board SDC cuts the four qualifier and four
-reset-bridge asynchronous clear pins, plus the first D ingress of the
+or pointer-path cuts are added. The board SDC cuts the eight asynchronous clear
+pins on the configuration, lock-qualification and two domain reset
+synchronizers, plus the first D ingress of the
 sticky-fault and HDMI-visibility synchronizers; later synchronizer stages,
 line gating and output paths remain timed. No HDMI IO delays are fabricated.
 

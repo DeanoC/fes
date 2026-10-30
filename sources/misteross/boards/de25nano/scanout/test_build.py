@@ -93,22 +93,40 @@ class ScanoutBuildTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "bad actual bridge"):
                 B.generate(output, combined, hps, display, None, "test")
 
-    def test_top_reset_source_feeds_both_domain_synchronizers_without_changing_board_port(self):
+    def test_board_domain_synchronizers_feed_exported_qsys_reset_fanout(self):
         output, _, _, _ = self.prepare()
         project = output / "combined/hps/project"
         script = (project / "integrate-mailbox.tcl").read_text()
-        self.assertIn("add_instance fes_scanout_top_reset altera_reset_bridge 19.2.0", script)
-        self.assertIn("add_connection fes_scanout_top_reset.out_reset subsys_periph.fes_scanout_pixel_reset", script)
-        self.assertIn("add_connection fes_scanout_top_reset.out_reset subsys_periph.fes_scanout_system_reset", script)
-        self.assertIn("fes_scanout_reset EXPORT_OF fes_scanout_top_reset.in_reset", script)
-        self.assertNotIn("fes_scanout_reset EXPORT_OF subsys_periph.fes_scanout_reset", script)
-        self.assertNotIn("add_connection rst_in.out_reset subsys_periph.fes_scanout_pixel_reset", script)
-        self.assertIn(".fes_scanout_reset_reset_n (scanout_reset_n)", (project / "golden_top.v").read_text())
+        self.assertNotIn("fes_scanout_top_reset", script)
+        self.assertIn("fes_scanout_pixel_reset EXPORT_OF subsys_periph.fes_scanout_pixel_reset", script)
+        self.assertIn("fes_scanout_system_reset EXPORT_OF fes_scanout_system_reset_source.in_reset", script)
+        self.assertIn("add_connection fes_scanout_system_reset_source.out_reset subsys_periph.fes_scanout_system_reset", script)
+        top = (project / "golden_top.v").read_text()
+        self.assertIn(".fes_scanout_pixel_reset_reset_n (scanout_pixel_reset_n)", top)
+        self.assertIn(".fes_scanout_system_reset_reset_n (scanout_system_reset_n)", top)
+        self.assertIn(".pixel_reset_n(scanout_pixel_reset_n)", top)
+        self.assertIn(".system_reset_n(scanout_system_reset_n)", top)
         integrate = (project / "fes_mailbox/scanout_integrate.tcl").read_text()
-        self.assertIn("fes_scanout_pixel_reset fes_pixel_clk.out_clk deassert", integrate)
-        self.assertIn("fes_scanout_system_reset periph_clk.out_clk deassert", integrate)
+        self.assertIn("set_instance_parameter_value $instance SYNCHRONOUS_EDGES none", integrate)
+        self.assertNotIn("deassert", integrate.lower())
         self.assertIn("add_connection fes_scanout_system_reset.out_reset $instance.s0_reset", integrate)
         self.assertIn("add_connection fes_scanout_pixel_reset.out_reset $instance.m0_reset", integrate)
+        self.assertEqual(B.verify_reset_synchronizers(project)["sdc_clear_pins"], 8)
+
+    def test_generation_reset_guard_rejects_missing_chain_or_stale_sdc_targets(self):
+        output, _, _, _ = self.prepare()
+        project = output / "combined/hps/project"
+        board_path = project / "fes_mailbox/fes_de25_scanout_board.v"
+        original_board = board_path.read_text()
+        board_path.write_text(original_board.replace(".clk(pixel_clk)", ".clk(system_clk)", 1))
+        with self.assertRaisesRegex(ValueError, "missing actual pixel_clk scanout reset synchronizer"):
+            B.verify_reset_synchronizers(project)
+        board_path.write_text(original_board)
+        sdc_path = project / "fes_mailbox/clocks.sdc"
+        original_sdc = sdc_path.read_text()
+        sdc_path.write_text(original_sdc.replace("fes_video_inst|fes_scanout_pixel_reset|sync_regs*|aclr", "soc_inst|subsys_periph|fes_scanout_pixel_reset|sync_regs*|aclr", 1))
+        with self.assertRaisesRegex(ValueError, "does not constrain the actual fes_scanout_pixel_reset chain"):
+            B.verify_reset_synchronizers(project)
 
     def test_postcompile_pll_mutation_is_rejected_with_failed_receipt_retained(self):
         output, _, hps, display = self.prepare()

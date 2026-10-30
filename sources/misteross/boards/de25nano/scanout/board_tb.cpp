@@ -36,13 +36,19 @@ int main(int argc, char** argv) {
     t.ninit_done = 1; t.top_reset_n = 0; t.HDMI_TX_INT = 1;
     t.video_rgb = 0x123456; t.video_de = 0; t.video_hs = 1; t.video_vs = 0;
     t.eval(); lock(false);
-    for (int i = 0; i < 4; ++i) { tick_system(); tick_pixel(); blank(); check(!t.scanout_reset_n, "cold bridge reset"); }
+    for (int i = 0; i < 4; ++i) { tick_system(); tick_pixel(); blank(); check(!t.pixel_reset_n && !t.system_reset_n, "cold domain reset"); }
     t.ninit_done = 0; t.top_reset_n = 1;
-    for (int i = 0; i < 4; ++i) { tick_system(); tick_pixel(); blank(); check(!t.scanout_reset_n, "wait first lock"); }
+    for (int i = 0; i < 4; ++i) { tick_system(); tick_pixel(); blank(); check(!t.pixel_reset_n && !t.system_reset_n, "wait first lock"); }
     lock(true);
-    tick_system(); check(!t.scanout_reset_n, "first qualifying edge cannot release bridges");
-    tick_system(); check(!t.scanout_reset_n, "first lock must be captured after qualification");
-    tick_system(); check(t.scanout_reset_n && !t.clock_fault, "initial qualified bridge release");
+    tick_system(); check(!t.pixel_reset_n && !t.system_reset_n, "first qualifying edge cannot release resets");
+    tick_system(); check(!t.pixel_reset_n && !t.system_reset_n, "first lock must be captured after qualification");
+    tick_system(); check(!t.pixel_reset_n && !t.system_reset_n, "domain resets assert until their local synchronizers run");
+    tick_system(); check(!t.pixel_reset_n && !t.system_reset_n, "system reset waits for its second local edge");
+    tick_system(); check(t.system_reset_n && !t.pixel_reset_n && !t.clock_fault,
+                         "100 MHz reset releases only after two system-clock edges");
+    tick_pixel(); check(!t.pixel_reset_n, "pixel reset waits for its second local edge");
+    tick_pixel(); check(t.pixel_reset_n && t.system_reset_n,
+                        "pixel reset releases only after two pixel-clock edges");
 
     // The request is synchronized first. It remains hidden through the active
     // HS pulse and becomes visible only in the following horizontal porch.
@@ -80,6 +86,8 @@ int main(int argc, char** argv) {
     lock(true);
     for (int i = 0; i < 4; ++i) tick_system();
     for (int i = 0; i < 4; ++i) { tick_pixel(); blank(); }
+    tick_system();
+    check(t.pixel_reset_n && t.system_reset_n, "both domain resets release after cold restart");
     t.video_hs = 0; t.video_vs = 0; tick_pixel();
     check(t.HDMI_TX_D == 0x123456, "visibility did not recover after cold reset");
     t.video_de = 1; t.video_hs = 1; t.video_vs = 1; tick_pixel();
@@ -88,13 +96,13 @@ int main(int argc, char** argv) {
     t.system_clk = 0; t.eval(); lock(false);
     check(!t.HDMI_TX_DE && !t.HDMI_TX_D && t.HDMI_TX_HS && t.HDMI_TX_VS,
           "PLL loss did not blank data while preserving sync");
-    check(t.scanout_reset_n, "PLL loss must not erase live CDC/accounting");
+    check(t.pixel_reset_n && t.system_reset_n, "PLL loss must not erase live CDC/accounting");
     lock(true);
-    check(t.scanout_reset_n, "relock must not reset bridges");
+    check(t.pixel_reset_n && t.system_reset_n, "relock must not reset bridges");
     tick_system(); check(t.clock_fault, "brief loss must latch on running system clock");
     for (int i = 0; i < 8; ++i) {
         tick_system();
-        check(t.scanout_reset_n && t.clock_fault, "sticky loss must not reset live bridges");
+        check(t.pixel_reset_n && t.system_reset_n && t.clock_fault, "sticky loss must not reset live bridges");
     }
     for (int i = 0; i < 4; ++i) {
         tick_pixel();
@@ -108,6 +116,6 @@ int main(int argc, char** argv) {
     blank();
 
     t.top_reset_n = 0; t.eval();
-    check(!t.scanout_reset_n && !t.clock_fault, "cold reset alone clears monitor epoch");
+    check(!t.pixel_reset_n && !t.system_reset_n && !t.clock_fault, "cold reset alone clears monitor epoch");
     std::puts("PASS board clock/lock simulation: pixel-synchronized HDMI gating changes only in horizontal porch; complete sync pulses preserved; modeled PLL boundary only");
 }

@@ -231,6 +231,25 @@ def debugfs(image, command):
     return result.stdout
 
 
+def require_exact_rootfs_file(path, contents, expected):
+    if contents != expected:
+        raise ValueError("rootfs identity differs: " + path)
+
+
+def require_active_rootfs_directive(path, contents, directive):
+    expected = directive.split()
+    active = [line.split(b"#", 1)[0].split() for line in contents.splitlines()]
+    if sum(tokens == expected for tokens in active) != 1:
+        raise ValueError("rootfs configuration differs: " + path)
+
+
+def require_rootfs_password(contents, password):
+    roots = [line.split(b":", 2) for line in contents.splitlines()
+             if line.split(b":", 1)[0] == b"root"]
+    if len(roots) != 1 or len(roots[0]) != 3 or roots[0][1] != password:
+        raise ValueError("rootfs development login differs from the selected configuration")
+
+
 def verify_rootfs(directory):
     image = directory / "rootfs.ext4"
     run(["e2fsck", "-fn", image], stdout=subprocess.DEVNULL)
@@ -238,10 +257,15 @@ def verify_rootfs(directory):
     dropbear = debugfs(image, "cat /usr/sbin/dropbear")
     elf_aarch64(busybox)
     elf_aarch64(dropbear)
-    for path, required in {
+    for path, expected in {
         "/etc/fes-board": b"de25-nano\n",
         "/etc/hostname": b"fes-de25-nano\n",
-        "/etc/network/interfaces": b"iface eth0 inet dhcp",
+    }.items():
+        require_exact_rootfs_file(path, debugfs(image, "cat " + path), expected)
+    require_active_rootfs_directive("/etc/network/interfaces",
+                                    debugfs(image, "cat /etc/network/interfaces"),
+                                    b"iface eth0 inet dhcp")
+    for path, required in {
         "/etc/inittab": b"ttyS0",
         "/etc/init.d/S50dropbear": b"dropbear",
     }.items():
@@ -249,8 +273,7 @@ def verify_rootfs(directory):
             raise ValueError("rootfs configuration differs: " + path)
     password = re.search(r'^BR2_TARGET_GENERIC_ROOT_PASSWD="(.+)"$',
                          (LANE / "rootfs/defconfig").read_text(), re.M).group(1).replace("$$", "$")
-    if b"root:" + password.encode() + b":" not in debugfs(image, "cat /etc/shadow"):
-        raise ValueError("rootfs development login differs from the selected configuration")
+    require_rootfs_password(debugfs(image, "cat /etc/shadow"), password.encode())
     if not re.search(rb"^ttyS0::respawn:.*getty\b.*\bttyS0\s+115200\b",
                      debugfs(image, "cat /etc/inittab"), re.M):
         raise ValueError("rootfs serial getty is not ttyS0 at 115200 baud")
