@@ -26,7 +26,7 @@ type coreLibraryState struct {
 	Label, Title, Status, Path, PickID, MediaID, MediaRole string
 	Files                                                  []FirmwarePickerRow
 	FilterCoreID, HardwareMode                             string
-	HardwareGameID, HardwarePackageID                      string
+	HardwareGameID, HardwarePackageID, HardwareCoreID      string
 	ExpectedMediaID                                        string
 	InstalledSetup                                         bool
 	SetupFamilyPicker                                      bool
@@ -170,6 +170,7 @@ func (a *App) resetCoreLibraryLocked() {
 	a.coreLibrary.InstalledSetup = false
 	a.coreLibrary.SetupFamilyPicker = false
 	a.coreLibrary.HardwareMode = ""
+	a.coreLibrary.HardwareCoreID = ""
 	a.coreLibrary.FilterCoreID = ""
 	a.coreLibrary.Open = true
 	a.coreLibrary.Index = 0
