@@ -10,6 +10,7 @@ using namespace fes::embedded;
 static void check(bool b,const char* s){if(!b)throw std::runtime_error(s);}
 struct World {
     bool held=false, control=true, disable_error=false, cancel_error=false, short_reply=false, async_error=false, bad_profile=false;
+    bool native_rpc=false;
     unsigned starts=0, data_enables=0, control_enables=0, bytes=0, completed=0;
     bool seen[16]{};
     std::deque<unsigned> responses;
@@ -26,13 +27,19 @@ extern "C" int mailbox_send_cmd(int,int command,const uint32_t*,unsigned,int,uin
     check(world.held,"CANCEL/RECONFIG before containment");
     if(command==MBOX_CMD_CANCEL)return world.cancel_error?-1:0;
     check(command==MBOX_RECONFIG,"unexpected mailbox command");
-    response[0]=2;response[1]=8;*count=world.short_reply?1:2;return 0;
+    response[0]=2;response[1]=world.native_rpc?4096:8;*count=world.short_reply?1:2;return 0;
 }
 extern "C" int mailbox_send_cmd_async(uint32_t*,int command,const uint32_t* a,unsigned count,int){
     check(world.held&&command==MBOX_RECONFIG_DATA&&count==3,"unsafe data submission");
-    check(a[1]>=0x16000000&&a[1]<0x16000080&&a[2]==8,"wrong SDM-relative subblock");
-    unsigned index=(a[1]-0x16000000)/8;
-    check(!world.seen[index],"accepted-BUSY buffer replayed");world.seen[index]=true;world.bytes+=8;
+    unsigned index=0;
+    if(world.native_rpc){
+        check(a[1]==0x16000000U+world.bytes&&a[2]>0&&a[2]<=4096,"wrong or replayed native subblock");
+        world.bytes+=a[2];
+    }else{
+        check(a[1]>=0x16000000&&a[1]<0x16000080&&a[2]==8,"wrong SDM-relative subblock");
+        index=(a[1]-0x16000000)/8;
+        check(!world.seen[index],"accepted-BUSY buffer replayed");world.seen[index]=true;world.bytes+=8;
+    }
     if(!world.async_error)world.responses.push_back(index);
     return world.async_error?-1:0;
 }
@@ -216,4 +223,5 @@ int main(){
         forwarding_and_admission();std::cout<<"PASS forwarding-profile-and-late-response\n";
         simultaneous_and_maximum_burst();std::cout<<"PASS simultaneous-AR-RLAST-and-256-beat-burst\n";
     }catch(const std::exception& e){std::cerr<<"FAIL "<<e.what()<<"\n";return 1;}
+    return 0;
 }

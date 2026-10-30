@@ -23,6 +23,9 @@ class EmbeddedFirmwareTests(unittest.TestCase):
         header = (ROOT/'platform/embedded/firmware/generated/fes_embedded_control.hpp').read_text()
         actual = {name:int(value,16) for name,value in re.findall(r'constexpr std::uint32_t (\w+) = 0x([0-9a-f]+)u;',header)}
         self.assertEqual(actual,oracle['constants'])
+        go_source = (ROOT/'platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_control.go').read_text()
+        go_constants = {name:int(value,16) for name,value in re.findall(r'(FesEmbedded\w+)\s+uint32\s+=\s+0x([0-9a-f]+)', go_source)}
+        self.assertEqual(go_constants, oracle['constants'])
         self.assertEqual(oracle['source']['commit'],'c5189ef504b01276651ee531c81d23db90ff7b1a')
         registers=[value for name,value in actual.items() if name.startswith('FesEmbeddedReg')]
         self.assertEqual(len(registers),len(set(registers)))

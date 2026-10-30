@@ -1,0 +1,273 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+package modelbackend
+
+import (
+	"bufio"
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"os/exec"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/ui/gfx"
+	"github.com/DeanoC/FogCast/ui/tenfoot"
+	"github.com/DeanoC/fes/platform/embedded/tamago/embeddedcontrol"
+	"github.com/DeanoC/fes/platform/embedded/tamago/fabricmodel"
+	"github.com/DeanoC/fes/platform/embedded/tamago/nativefabric"
+)
+
+type actorRPC struct {
+	t             *testing.T
+	cmd           *exec.Cmd
+	input         io.WriteCloser
+	output        *bufio.Reader
+	region        *nativefabric.Region
+	releases      int
+	writes, polls int
+	wrongIdentity bool
+	loseWrites    bool
+	reserved      chan struct{}
+}
+
+func TestInjectedEndpointDirect(t *testing.T) {
+	policy, config, read := fixtures(t)
+	config.Entries = config.Entries[:1]
+	r := newActorRPC(t)
+	endpoint, err := nativefabric.New(r, nativefabric.Options{DRAMBase: 0x80000000, ChunkBytes: 4096})
+	if err != nil {
+		t.Fatal(err)
+	}
+	backend, err := NewWithEndpoint(policy, config, read, nil, endpoint)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeBackend(t, backend)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	client := hostclient.NewClient("http://model.invalid", &http.Client{Transport: backend})
+	_, err = client.Launch(ctx, "model-normal")
+	if err != nil {
+		stats, _ := r.call("stats")
+		t.Fatalf("launch: %v %+v stats=%v writes=%d polls=%d", err, backend.View(), stats, r.writes, r.polls)
+	}
+	if backend.View().Status.State != fabricmodel.Running {
+		stats, _ := r.call("stats")
+		t.Fatalf("launch status: %+v stats=%v writes=%d polls=%d", backend.View(), stats, r.writes, r.polls)
+	}
+	prior, err := client.Session(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = client.StopExpectedStamped(ctx, prior, hostclient.ClientStamp{}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func newActorRPC(t *testing.T) *actorRPC {
+	t.Helper()
+	path := os.Getenv("FES_EMBEDDED_RPC")
+	if path == "" {
+		t.Skip("actual RTL integration needs FES_EMBEDDED_RPC")
+	}
+	r := &actorRPC{t: t, cmd: exec.Command(path)}
+	var err error
+	if r.input, err = r.cmd.StdinPipe(); err != nil {
+		t.Fatal(err)
+	}
+	out, err := r.cmd.StdoutPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.output = bufio.NewReader(out)
+	r.cmd.Stderr = os.Stderr
+	if err = r.cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		r.input.Close()
+		if err := r.cmd.Wait(); err != nil {
+			t.Errorf("test endpoint: %v", err)
+		}
+	})
+	return r
+}
+func (r *actorRPC) call(format string, args ...any) ([]uint64, error) {
+	if _, err := fmt.Fprintf(r.input, format+"\n", args...); err != nil {
+		return nil, err
+	}
+	line, err := r.output.ReadString('\n')
+	if err != nil {
+		return nil, err
+	}
+	fields := strings.Fields(line)
+	if len(fields) < 2 || fields[0] != "R" || fields[1] != "1" {
+		return nil, fmt.Errorf("endpoint returned %q", line)
+	}
+	var values []uint64
+	for _, s := range fields[2:] {
+		v, err := strconv.ParseUint(s, 16, 64)
+		if err != nil {
+			return nil, err
+		}
+		values = append(values, v)
+	}
+	return values, nil
+}
+func (r *actorRPC) Read32(o uint32) (uint32, error) {
+	v, err := r.call("read %x", o)
+	if err != nil {
+		return 0, err
+	}
+	return uint32(v[0]), nil
+}
+func (r *actorRPC) Write32(o, v uint32) error { _, err := r.call("write %x %x", o, v); return err }
+func (r *actorRPC) Invoke(q [7]uint64) ([4]uint64, error) {
+	if q[0] == 0x42000002 {
+		r.writes++
+	} else if q[0] == 0xc2000003 {
+		r.polls++
+	}
+	v, err := r.call("smc %x %x %x", q[0], q[1], q[2])
+	var out [4]uint64
+	copy(out[:], v)
+	return out, err
+}
+func (r *actorRPC) Resolve(i fabricmodel.Identity) (embeddedcontrol.Identity, error) {
+	v := embeddedcontrol.Identity{ABI: 1, Build: [4]uint32{0xccddeeff, 0x8899aabb, 0x44556677, 0x00112233}}
+	if r.wrongIdentity && i.Package.PackageID != "" {
+		v.Build[3] ^= 1
+	}
+	return v, nil
+}
+func (r *actorRPC) Reserve(data []byte) (*nativefabric.Region, error) {
+	if r.region != nil {
+		return nil, errors.New("test region already reserved")
+	}
+	region := &nativefabric.Region{Address: 0x96000000, Bytes: bytes.Clone(data)}
+	region.Release = func() error { r.releases++; r.region = nil; return nil }
+	r.region = region
+	if r.loseWrites && len(data) > 128 {
+		if _, err := r.call("lose"); err != nil {
+			return region, err
+		}
+		close(r.reserved)
+	}
+	return region, nil
+}
+func (r *actorRPC) Save(fabricmodel.Identity) (bool, error) { return true, nil }
+func (r *actorRPC) Contain() (bool, error)                  { _, err := r.call("contain"); return err == nil, err }
+func (r *actorRPC) ControlOnly() (bool, error)              { _, err := r.call("control"); return err == nil, err }
+func (r *actorRPC) ReleaseData() (bool, error)              { _, err := r.call("release"); return err == nil, err }
+
+func TestTenfootInjectedEndpointLaunchReturnAndIdentityFailure(t *testing.T) {
+	for _, wrong := range []bool{false, true} {
+		name := "launch-return"
+		if wrong {
+			name = "identity-failure"
+		}
+		t.Run(name, func(t *testing.T) {
+			policy, config, read := fixtures(t)
+			config.Entries = config.Entries[:1]
+			if wrong {
+				config.Entries[0].Check = "identity"
+			} else {
+				config.Entries[0].Check = "return"
+			}
+			r := newActorRPC(t)
+			r.wrongIdentity = wrong
+			endpoint, err := nativefabric.New(r, nativefabric.Options{DRAMBase: 0x80000000, ChunkBytes: 4096})
+			if err != nil {
+				t.Fatal(err)
+			}
+			backend, err := NewWithEndpoint(policy, config, read, nil, endpoint)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer closeBackend(t, backend)
+			device, err := gfx.NewSoftware(640, 480)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer device.Close()
+			app := tenfoot.NewApp(tenfoot.NewClient("http://model.invalid", &http.Client{Transport: backend, Timeout: 10 * time.Second}), 640, 480, 100)
+			if err = app.SetPreferenceStore(preferences{}); err != nil {
+				t.Fatal(err)
+			}
+			p := &scriptPlatform{app: app, backend: backend, entries: config.Entries, device: device}
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			if err = tenfoot.RunPlatform(ctx, app, device, p); err != nil {
+				stats, _ := r.call("stats")
+				t.Fatalf("%v stage=%d snapshot=%+v backend=%+v stats=%v writes=%d polls=%d", err, p.stage, app.Snapshot().Launch, backend.View(), stats, r.writes, r.polls)
+			}
+			if p.index != 1 || !p.sawPixels || backend.View().Status.State != fabricmodel.Idle {
+				t.Fatalf("case incomplete: %d %+v", p.index, backend.View())
+			}
+			stats, err := r.call("stats")
+			if err != nil {
+				t.Fatal(err)
+			}
+			expectedReleases := uint64(3)
+			if wrong {
+				expectedReleases = 2
+			}
+			if stats[0] != 3 || stats[1] != expectedReleases || r.releases != 3 {
+				t.Fatalf("program/release stats=%v buffer releases=%d", stats, r.releases)
+			}
+		})
+	}
+}
+
+func TestInjectedEndpointCancellationRetainsTransfer(t *testing.T) {
+	policy, config, read := fixtures(t)
+	config.Entries = config.Entries[:1]
+	r := newActorRPC(t)
+	r.loseWrites, r.reserved = true, make(chan struct{})
+	endpoint, err := nativefabric.New(r, nativefabric.Options{DRAMBase: 0x80000000, ChunkBytes: 4096})
+	if err != nil {
+		t.Fatal(err)
+	}
+	backend, err := NewWithEndpoint(policy, config, read, nil, endpoint)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		client := hostclient.NewClient("http://model.invalid", &http.Client{Transport: backend})
+		_, _ = client.Launch(ctx, "model-normal")
+		close(done)
+	}()
+	select {
+	case <-r.reserved:
+	case <-time.After(5 * time.Second):
+		t.Fatal("transfer did not start")
+	}
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("canceled launch did not return")
+	}
+	wait(t, func() bool { return backend.View().Status.State == fabricmodel.RebootRequired })
+	if r.region == nil || r.releases != 1 {
+		t.Fatal("canceled transfer released its region")
+	}
+	stats, err := r.call("stats")
+	if err != nil || stats[1] != 1 {
+		t.Fatalf("canceled target was released: %v %v", stats, err)
+	}
+	closeCtx, closeCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer closeCancel()
+	if err = backend.Close(closeCtx); !errors.Is(err, fabricmodel.ErrReboot) {
+		t.Fatalf("close discarded uncertain owner: %v", err)
+	}
+}

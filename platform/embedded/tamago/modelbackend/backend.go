@@ -19,6 +19,7 @@ import (
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/fes/platform/embedded/tamago/fabricmodel"
+	"github.com/DeanoC/fes/platform/embedded/tamago/nativefabric"
 	"github.com/DeanoC/fes/platform/embedded/tamago/runtimeadmission"
 	"github.com/DeanoC/misteross/expansion"
 )
@@ -121,6 +122,8 @@ type Backend struct {
 	composition *expansion.PartsComposition
 	gate        *runtimeadmission.Gate
 	controller  *fabricmodel.Controller
+	endpoint    *nativefabric.Endpoint
+	started     time.Time
 	entries     []Entry
 	read        func(string) ([]byte, error)
 	log         func(Event)
@@ -132,6 +135,21 @@ type Backend struct {
 }
 
 func New(policy runtimeadmission.Policy, config Config, read func(string) ([]byte, error), log func(Event)) (*Backend, error) {
+	return newBackend(policy, config, read, log, nil)
+}
+
+// NewWithEndpoint injects the contained firmware/control executor into the
+// existing model-only actor. The caller retains endpoint even if boot fails;
+// uncertain platform reservations must remain owned until reboot.
+func NewWithEndpoint(policy runtimeadmission.Policy, config Config, read func(string) ([]byte, error), log func(Event), endpoint *nativefabric.Endpoint) (*Backend, error) {
+	if endpoint == nil {
+		return nil, errors.New("injected native endpoint is required")
+	}
+	return newBackend(policy, config, read, log, endpoint)
+}
+
+func newBackend(policy runtimeadmission.Policy, config Config, read func(string) ([]byte, error), log func(Event), endpoint *nativefabric.Endpoint) (*Backend, error) {
+	started := time.Now()
 	if config.Scope != "qemu-model-only" || read == nil || len(config.Entries) == 0 || len(config.Entries) > 32 {
 		return nil, errors.New("invalid model session configuration")
 	}
@@ -144,6 +162,9 @@ func New(policy runtimeadmission.Policy, config Config, read func(string) ([]byt
 	for i, e := range entries {
 		if e.ID == "" || seen[e.ID] || e.Path == "" || len(e.PackageID) != 64 || len(e.ReceiptSHA256) != 64 {
 			return nil, errors.New("invalid model catalog entry")
+		}
+		if endpoint != nil && e.Fault != "" {
+			return nil, errors.New("model completion faults cannot be mixed with an injected endpoint")
 		}
 		switch e.Fault {
 		case "", "cancel", "identity", "program", "save":
@@ -166,7 +187,21 @@ func New(policy runtimeadmission.Policy, config Config, read func(string) ([]byt
 	if err = controller.Boot(0, 2*time.Second); err != nil {
 		return nil, err
 	}
-	for n := 0; n < 8; n++ {
+	if endpoint != nil {
+		if err = endpoint.SetClock(func() time.Duration { return time.Since(started) }); err != nil {
+			return nil, err
+		}
+	}
+	for n := 0; n < 4096 && controller.Status().State == fabricmodel.Changing; n++ {
+		if endpoint != nil {
+			if err = endpoint.Step(controller, time.Since(started)); err != nil {
+				return nil, err
+			}
+			if !endpoint.Progressed() {
+				runtime.Gosched()
+			}
+			continue
+		}
 		command, e := controller.Next(0)
 		if e != nil {
 			return nil, e
@@ -178,7 +213,13 @@ func New(policy runtimeadmission.Policy, config Config, read func(string) ([]byt
 			return nil, e
 		}
 	}
-	b := &Backend{gate: gate, controller: controller, entries: entries, read: read, log: log, calls: make(chan call, 8), done: make(chan struct{})}
+	if controller.Status().State != fabricmodel.Idle {
+		if endpoint != nil {
+			_ = endpoint.Cancel(controller, time.Since(started), fabricmodel.ErrDeadline)
+		}
+		return nil, errors.New("model idle boot did not complete within its step budget")
+	}
+	b := &Backend{gate: gate, controller: controller, endpoint: endpoint, started: started, entries: entries, read: read, log: log, calls: make(chan call, 8), done: make(chan struct{})}
 	b.publish(View{Status: controller.Status()}, expectedSession{})
 	go b.run()
 	return b, nil
@@ -328,7 +369,7 @@ func (b *Backend) run() {
 	defer close(b.done)
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
-	start := time.Now()
+	start := b.started
 	var job *pending
 	var closing *call
 	var session expectedSession
@@ -478,48 +519,84 @@ func (b *Backend) run() {
 				default:
 				}
 			}
-			command, err := b.controller.Next(now)
-			if err != nil && job != nil {
-				job.failure = err
-			}
-			if command != nil {
-				completion := fabricmodel.CompleteModel(*command)
-				game := ""
-				if job != nil {
-					game = job.entry.ID
-					target := command.ImageID == "model.linked"
-					if !job.faultUsed {
-						switch {
-						case target && job.entry.Fault == "identity" && command.Operation == fabricmodel.Identify:
-							completion.Identity.Package.ActivationReceiptSHA256 = "wrong model receipt"
-							job.faultUsed = true
-						case target && job.entry.Fault == "program" && command.Operation == fabricmodel.Program:
-							completion.ProgrammedDigest = [32]byte{}
-							job.faultUsed = true
-						case job.call.method == "stop" && active.Fault == "save" && command.Operation == fabricmodel.Save:
-							completion.Err = errors.New("injected model save failure")
-							active.Fault = ""
-							job.faultUsed = true
+			if b.endpoint != nil {
+				var err error
+				if job != nil && job.started && (job.call.ctx.Err() != nil || closing != nil) {
+					reason := job.call.ctx.Err()
+					if reason == nil {
+						reason = context.Canceled
+					}
+					err = b.endpoint.Cancel(b.controller, now, reason)
+				} else {
+					// Bound work per tick and yield immediately when waiting on
+					// external drain/firmware progress.
+					for n := 0; n < 32; n++ {
+						err = b.endpoint.Step(b.controller, time.Since(start))
+						if operation := b.endpoint.Issued(); operation != "" {
+							if operation == fabricmodel.Program {
+								view.Programs++
+							}
+							if operation == fabricmodel.Save {
+								view.Saves++
+							}
+							game := ""
+							if job != nil {
+								game = job.entry.ID
+							}
+							b.emit("command", game, operation, err)
+						}
+						if err != nil || !b.endpoint.Progressed() || b.controller.Status().State != fabricmodel.Changing {
+							break
 						}
 					}
-					if target && job.call.ctx.Err() != nil && (command.Operation == fabricmodel.Program || command.Operation == fabricmodel.Identify || command.Operation == fabricmodel.Release) {
-						completion.Err = job.call.ctx.Err()
-					}
-					if closing != nil && target && (command.Operation == fabricmodel.Program || command.Operation == fabricmodel.Identify || command.Operation == fabricmodel.Release) {
-						completion.Err = context.Canceled
-					}
 				}
-				if command.Operation == fabricmodel.Program {
-					view.Programs++
-				}
-				if command.Operation == fabricmodel.Save {
-					view.Saves++
-				}
-				err = b.controller.Complete(command.Token, completion, now)
 				if err != nil && job != nil {
 					job.failure = err
 				}
-				b.emit("command", game, command.Operation, err)
+			} else {
+				command, err := b.controller.Next(now)
+				if err != nil && job != nil {
+					job.failure = err
+				}
+				if command != nil {
+					completion := fabricmodel.CompleteModel(*command)
+					game := ""
+					if job != nil {
+						game = job.entry.ID
+						target := command.ImageID == "model.linked"
+						if !job.faultUsed {
+							switch {
+							case target && job.entry.Fault == "identity" && command.Operation == fabricmodel.Identify:
+								completion.Identity.Package.ActivationReceiptSHA256 = "wrong model receipt"
+								job.faultUsed = true
+							case target && job.entry.Fault == "program" && command.Operation == fabricmodel.Program:
+								completion.ProgrammedDigest = [32]byte{}
+								job.faultUsed = true
+							case job.call.method == "stop" && active.Fault == "save" && command.Operation == fabricmodel.Save:
+								completion.Err = errors.New("injected model save failure")
+								active.Fault = ""
+								job.faultUsed = true
+							}
+						}
+						if target && job.call.ctx.Err() != nil && (command.Operation == fabricmodel.Program || command.Operation == fabricmodel.Identify || command.Operation == fabricmodel.Release) {
+							completion.Err = job.call.ctx.Err()
+						}
+						if closing != nil && target && (command.Operation == fabricmodel.Program || command.Operation == fabricmodel.Identify || command.Operation == fabricmodel.Release) {
+							completion.Err = context.Canceled
+						}
+					}
+					if command.Operation == fabricmodel.Program {
+						view.Programs++
+					}
+					if command.Operation == fabricmodel.Save {
+						view.Saves++
+					}
+					err = b.controller.Complete(command.Token, completion, now)
+					if err != nil && job != nil {
+						job.failure = err
+					}
+					b.emit("command", game, command.Operation, err)
+				}
 			}
 			if job != nil && job.started && b.controller.Status().State != fabricmodel.Changing {
 				if job.failure == nil && job.call.method == "launch" && b.controller.Status().State == fabricmodel.Running {

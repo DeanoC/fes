@@ -8,6 +8,7 @@ import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/board"
 	"github.com/DeanoC/fes/platform/embedded/tamago/configcheck"
 	"github.com/DeanoC/fes/platform/embedded/tamago/fabricmodel"
+	"github.com/DeanoC/fes/platform/embedded/tamago/nativefabriccheck"
 )
 
 func main() {
@@ -29,6 +30,15 @@ func main() {
 		}
 	}); failures != 0 {
 		panic("contained configuration model checks failed")
+	}
+	if failures := nativefabriccheck.Run(func(name string, err error) {
+		if err != nil {
+			fmt.Printf("FES_NATIVE_FABRIC_CHECK %s FAIL %v\n", name, err)
+		} else {
+			fmt.Printf("FES_NATIVE_FABRIC_CHECK %s PASS\n", name)
+		}
+	}); failures != 0 {
+		panic("native injected fabric checks failed")
 	}
 	fmt.Println("FES_FABRIC_MODEL PASS hardware=none")
 }

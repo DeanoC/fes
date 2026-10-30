@@ -1,0 +1,67 @@
+# Native contained-fabric endpoint
+
+This experimental Go endpoint connects the existing `fabricmodel.Controller`
+to injected firmware calls, the generated FPGA identity/drain registers and
+platform-owned reservations. The optional `modelbackend.NewWithEndpoint`
+constructor drives it through the same actor and retained-package admission
+used by tenfoot's model sessions. It remains restricted to the
+`qemu-model-only` policy. There is no Nano programming profile or board binding.
+
+The controller remains the only lifecycle owner. It supplies the outgoing
+reader identity and generation, issues each command once and reserves the
+next display generation. The endpoint implements the command phases:
+
+1. Check the contained-firmware capability tuple before disabling the old
+   reader, then wait for its matching generation/cookie drain acknowledgement.
+2. Require the platform to prove containment of every other relevant master.
+3. Reserve DMA-visible storage for the admitted bytes and issue the real TF-A
+   full-configuration START/WRITE/COMPLETED_WRITE/ISDONE wire protocol. One
+   write is outstanding at a time; accepted BUSY is never replayed. CPU and
+   SDM-relative addresses remain distinct. The reserved bytes are released only
+   after their completion and successful configuration status.
+4. Require control-only bridge access, compare the entire live FPGA build and
+   ABI identity, enable the new reader generation, and separately release data
+   bridges. A wrong identity permits the controller's bounded idle recovery.
+
+Operations advance cooperatively. The actor limits work per tick and checks the
+same monotonic deadline between phases and again after synchronous completion.
+A deadline cannot interrupt a hook that does not return. An unknown firmware,
+drain, bridge, register, transfer or cancellation outcome enters reboot-required,
+prevents replay and retains issued commands and outstanding reservations.
+`NewWithEndpoint` callers must retain the endpoint until a physical reboot,
+including after constructor or Close errors. A known completed save failure
+preserves the old core, with input retired, as in the existing lifecycle.
+
+## Platform responsibilities
+
+Hooks are trusted and serialized. `Resolve` must bind the admitted descriptor to
+its intended 128-bit FPGA build and ABI identity; the software fixture's mapping
+is synthetic. `Reserve` must provide an exclusively owned, coherent, DMA-visible
+region whose mapping and bytes remain valid until its release. Its address and
+DRAM base are explicit inputs, not defaults. The platform must prove bridge-mask
+readback, clock/reset and DDR readiness, and containment of every other master.
+Control-only access must expose the CSR aperture without releasing data masters.
+These proofs are not supplied by the experiment or by the capability tuple.
+The tuple is an experimental compatibility marker, not firmware authentication.
+
+The FPGA endpoint covers one AXI read port; it is not a complete scanout engine
+or an address firewall. Native input neutralization, saves, frame handoff,
+real memory/cache ownership, full firmware boot and FPGA timing still require
+board integration and qualification. The existing Nano probe remains read-only.
+
+## Repeatable host check
+
+```sh
+python3 platform/embedded/tamago/nativefabric/verify.py \
+  --reference out/reference/socfpga_sip_svc.c \
+  --output out/native-fabric-check
+```
+
+Omitting `--reference` fetches and checks the exact pinned public TF-A source
+blob. The verifier rebuilds its actual configuration functions and the actual
+Verilator RTL, generates synthetic package/ROM fixtures through the existing
+runtime compatibility oracle and linker, and runs the native endpoint and
+actual tenfoot model actor with the race detector. Its platform transport and
+SDM/bridge operations are simulated; it does not execute an EL3 SMC or touch a
+board. The four small `nativefabriccheck` cases also run in the TamaGo `fabric`
+QEMU diagnostic using software hooks.

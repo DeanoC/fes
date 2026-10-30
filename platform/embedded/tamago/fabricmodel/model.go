@@ -101,6 +101,11 @@ type Command struct {
 	// DisplayGeneration identifies the reader being disabled by Drain, including
 	// a revoked plane whose old memory still cannot be reassigned.
 	DisplayGeneration uint64
+	// ReaderIdentity belongs to the outgoing image, not the requested target.
+	ReaderIdentity Identity
+	// NextDisplayGeneration is reserved by the controller for Release. An
+	// endpoint must bind its reader enable to this generation before release.
+	NextDisplayGeneration uint64
 	// Bytes is a private copy for this command. Mutation cannot alter admission.
 	Bytes []byte
 }
@@ -234,6 +239,16 @@ func (c *Controller) RecoverIdle(now, deadline time.Duration) error {
 	return c.begin(c.idle, Contain, now, deadline)
 }
 
+// AbortUncertain preserves ownership when a backend can no longer make a
+// reliable clock or completion observation. It uses the last accepted time;
+// it never turns a regressing clock into evidence that an operation finished.
+func (c *Controller) AbortUncertain(reason error) error {
+	if c.pending == nil || reason == nil {
+		return ErrStale
+	}
+	return c.fail(reason, c.lastTime, true)
+}
+
 func (c *Controller) fail(err error, now time.Duration, uncertain bool) error {
 	phase := c.pending.phase
 	recovery := c.pending.recovery
@@ -307,6 +322,16 @@ func (c *Controller) Next(now time.Duration) (*Command, error) {
 	cmd := Command{Token: Token{c.transitionID, c.sequence}, Operation: c.pending.phase, ImageID: image.id, Identity: image.identity}
 	if cmd.Operation == Drain {
 		cmd.DisplayGeneration = c.displayGeneration
+		if c.active == nil {
+			return nil, c.fail(errors.New("display reader has no image owner"), now, true)
+		}
+		cmd.ReaderIdentity = c.active.identity
+	}
+	if cmd.Operation == Release {
+		if c.generation == math.MaxUint64 || c.displayGeneration == math.MaxUint64 {
+			return nil, c.fail(ErrReboot, now, true)
+		}
+		cmd.NextDisplayGeneration = c.displayGeneration + 1
 	}
 	if cmd.Operation == Program {
 		cmd.Bytes = bytes.Clone(image.data)

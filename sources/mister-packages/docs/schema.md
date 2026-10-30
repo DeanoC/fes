@@ -290,6 +290,7 @@ fields. `validate` accepts fabric packages and `emit-verilog` emits guarded
 constant includes using the existing naming rules. `emit-cpp` emits the same
 constants for a fabric contract the runtime also reads, such as
 [`fes.fabric.video.display-plane`](../packages/fabric/fes_fabric_video_display_plane.yaml).
+`emit-go` can emit those same constants for the experimental native runtime.
 This path does not generate RTL modules, connections, constraints, or host
 Go/C++ admission tables.
 

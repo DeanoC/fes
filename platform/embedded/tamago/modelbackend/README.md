@@ -5,6 +5,9 @@ Play/Stop requests to retained ROM linking and the fabric lifecycle model. It
 runs on ordinary Go and native AArch64 TamaGo. It never constructs the physical
 runtime, programs an FPGA or emulates a game CPU. Its catalog contains synthetic
 ROM-link fixtures and is deliberately separate from the real network-host mode.
+`NewWithEndpoint` can inject the [contained native firmware/FPGA endpoint](../nativefabric/README.md)
+into that same actor for model-only integration tests. The caller retains the
+endpoint across failures so uncertain transfer reservations remain owned.
 
 `Backend` implements `http.RoundTripper`; tenfoot uses its existing in-process
 transport boundary. Unsupported endpoints fail locally rather than forwarding

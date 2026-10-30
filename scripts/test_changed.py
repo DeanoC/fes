@@ -67,6 +67,12 @@ def plan(root, base, head="HEAD", jobs=2, full=False):
         add("parent", "working-tree generated consumer consistency", ".",
             [sys.executable, "-c", "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"],
             tools=["go"], files=["scripts/consistency.py"])
+        if any(affected.native_fabric_input(path) for path in impact["paths"]):
+            add("parent", "native runtime firmware and FPGA launch integration", ".",
+                [sys.executable, "platform/embedded/tamago/nativefabric/verify.py"],
+                tools=["go", "cc", "c++", "verilator"],
+                files=["platform/embedded/tamago/nativefabric/verify.py",
+                       "platform/embedded/firmware/tests/native_rpc.cpp"])
     if impact["lanes"]["host"]:
         host_run = [sys.executable, "scripts/host_tests.py", "--ui-if-needed"]
         if impact["test_modes"]["full_race"]:

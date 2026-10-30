@@ -16,6 +16,13 @@ def git(root, *args):
 
 
 class TestChangedTest(unittest.TestCase):
+    def test_native_fabric_changes_schedule_injected_firmware_rtl_integration(self):
+        self.change("platform/embedded/tamago/nativefabric/endpoint.go")
+        result = self.plan()
+        self.assertTrue(any(c["label"] == "native runtime firmware and FPGA launch integration"
+                            for c in result["commands"]))
+        self.assertEqual(result["impact"]["cores"], [])
+
     def test_native_video_changes_run_frame_cdc_and_actual_vdp_oracles(self):
         self.change("sources/misteross/cores/fes-common/rtl/fes_native_video.v")
         result = self.plan()

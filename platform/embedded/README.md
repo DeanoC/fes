@@ -6,10 +6,11 @@ the base image; FogCast owns tenfoot and its application services; the runtime
 owns FPGA programming, reset, input delivery and DMA lifetime.
 
 The [contained firmware/RTL prototype](firmware/README.md) prepares a pinned
-TF-A source variant and tests its actual configuration functions against an
-FPGA identity/read-drain endpoint. BL31 and the portable adapter cross-build
-for AArch64. These are source/host integration results; the Nano backend still
-exposes only read-only discovery until board routing/reset/memory is qualified.
+TF-A source variant and an FPGA identity/read-drain endpoint. The experimental
+[native endpoint](tamago/nativefabric/README.md) now connects their protocols
+to the existing lifecycle and tenfoot model actor through injected hooks. Host
+tests use the actual firmware functions and RTL with simulated platform services;
+Nano discovery remains read-only until board routing/reset/memory is qualified.
 
 The initial [feasibility study](../../docs/design/de25-embedded-os.md) exercised
 a small protocol probe. This work goes further: retain the actual tenfoot

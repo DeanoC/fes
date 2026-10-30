@@ -28,6 +28,19 @@ EMBEDDED_CONTROL_INPUTS = frozenset({
 
 def embedded_control_input(path):
     return path in EMBEDDED_CONTROL_INPUTS or path.startswith('platform/embedded/firmware/')
+
+
+def native_fabric_input(path):
+    return (embedded_control_input(path) or
+            path.startswith(('platform/embedded/tamago/embeddedcontrol/',
+                             'platform/embedded/tamago/nativefabric/',
+                             'platform/embedded/tamago/nativefabriccheck/',
+                             'platform/embedded/tamago/fabricmodel/',
+                             'platform/embedded/tamago/modelbackend/',
+                             'platform/embedded/tamago/runtimeadmission/',
+                             'sources/mister-packages/internal/emitgo/')) or
+            path in ('sources/mister-packages/cmd/mister-packages/main.go',
+                     'platform/embedded/tamago/cmd/fabric/main.go'))
 # Parent-owned orchestration, test and assembly roots contain no component
 # sources, so their changes select only the parent lane. Matching is the exact
 # directory or directory + '/', keeping siblings like scripts-other unknown.
