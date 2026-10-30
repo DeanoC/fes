@@ -5,10 +5,11 @@ module pcxt_system #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0, 
     parameter [7:0] SWITCHES = 8'h2d) (
     input wire clk, clk_cpu, clk_pixel, clk_pin, cold_reset, reset_pixel, warm_reset, hold,
     input wire media_present,
-    output wire media_read_valid,
-    output wire [18:0] media_read_addr,
-    input wire media_read_ready,
-    input wire [7:0] media_read_data,
+    input wire disk_load_valid,
+    output wire disk_load_ready, disk_load_done,
+    input wire [18:0] disk_load_address,
+    input wire [7:0] disk_load_data,
+    output reg disk_loaded,
     input wire keyboard_clock, keyboard_data,
     output wire keyboard_clock_low, keyboard_data_low, keyboard_clear,
     output wire [11:0] cga_font_address, mda_font_address,
@@ -37,6 +38,9 @@ module pcxt_system #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0, 
     wire memory_valid, memory_ready, memory_done, write_cycle;
     wire [19:0] address;
     wire [7:0] wdata, memory_rdata;
+    wire media_read_valid, media_read_ready;
+    wire [18:0] media_read_addr;
+    wire [7:0] media_read_data;
     wire [1:0] pixel_ce, de, hs, vs, sof, eol;
     wire [7:0] rgbi;
     // Admit exactly one sequential 64 KiB image per cold start. Count completed
@@ -49,11 +53,24 @@ module pcxt_system #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0, 
     assign firmware_ready = loader_ready && !firmware_loaded && !loading &&
                             firmware_address == next_address;
     assign firmware_done = loader_done;
+    // A disk is visible only after its entire 360 KiB image has completed
+    // ordered physical writes. Cold reset invalidates the image; warm reset
+    // retains it. Invalid or out-of-order requests are never acknowledged.
+    localparam [18:0] DISK_LAST = 19'h59fff;
+    reg [18:0] disk_next_address;
+    reg disk_loading;
+    wire disk_storage_ready, disk_storage_done;
+    wire disk_storage_valid = FLOPPY && disk_load_valid && !disk_loaded && !disk_loading &&
+                              disk_load_address == disk_next_address;
+    assign disk_load_ready = FLOPPY && disk_storage_ready && !disk_loaded && !disk_loading &&
+                             disk_load_address == disk_next_address;
+    assign disk_load_done = disk_storage_done;
     // Keep the storage/firmware status decode out of the motherboard's reset
     // fanout and PIC priority logic. All execution participants share this
     // registered reset; storage cold reset remains immediate and independent.
     always @(posedge clk)
-        machine_reset <= cold_reset || warm_reset || hold || !firmware_loaded || !initialized;
+        machine_reset <= cold_reset || warm_reset || hold || !firmware_loaded || !initialized ||
+                         (FLOPPY && !disk_loaded);
     always @(posedge clk) begin
         if (cold_reset) begin firmware_loaded <= 0; next_address <= 0; loading <= 0; end
         else begin
@@ -65,11 +82,22 @@ module pcxt_system #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0, 
             end
         end
     end
+    always @(posedge clk) begin
+        if (cold_reset) begin disk_loaded <= 0; disk_next_address <= 0; disk_loading <= 0; end
+        else begin
+            if (disk_storage_valid && disk_storage_ready) disk_loading <= 1;
+            if (disk_storage_done) begin
+                disk_loading <= 0;
+                if (disk_next_address == DISK_LAST) disk_loaded <= 1;
+                else disk_next_address <= disk_next_address + 1'b1;
+            end
+        end
+    end
     /* verilator lint_off PINCONNECTEMPTY */
     pcxt_machine #(.DIAGNOSTIC_PROBE(DIAGNOSTIC_PROBE), .SEPARATE_CPU_CLOCK(HALF_RATE_BOARD), .FLOPPY(FLOPPY),
                    .BOARD_CLOCK_HZ(HALF_RATE_BOARD ? 50000000 : 100000000), .SWITCHES(SWITCHES)) machine (
         .clk(clk), .clk_cpu(clk_cpu), .reset(machine_reset), .memory_valid(memory_valid),
-        .media_present(media_present), .media_read_valid(media_read_valid),
+        .media_present(media_present && disk_loaded), .media_read_valid(media_read_valid),
         .media_read_addr(media_read_addr), .media_read_ready(media_read_ready), .media_read_data(media_read_data),
         .memory_ready(memory_ready), .memory_done(memory_done), .memory_rdata(memory_rdata),
         .address(address), .wdata(wdata), .write_cycle(write_cycle), .fault(fault),
@@ -89,6 +117,10 @@ module pcxt_system #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0, 
         .address(address), .wdata(wdata), .write_cycle(write_cycle), .memory_done(memory_done), .memory_rdata(memory_rdata),
         .firmware_valid(loader_valid), .firmware_ready(loader_ready), .firmware_address(firmware_address),
         .firmware_data(firmware_data), .firmware_done(loader_done),
+        .disk_load_valid(disk_storage_valid), .disk_load_ready(disk_storage_ready),
+        .disk_load_address(disk_load_address), .disk_load_data(disk_load_data), .disk_load_done(disk_storage_done),
+        .media_read_valid(media_read_valid), .media_read_addr(media_read_addr),
+        .media_read_ready(media_read_ready), .media_read_data(media_read_data),
         .sdram_clk(sdram_clk), .sdram_cke(sdram_cke), .sdram_ncs(sdram_ncs),
         .sdram_nras(sdram_nras), .sdram_ncas(sdram_ncas), .sdram_nwe(sdram_nwe),
         .sdram_ba(sdram_ba), .sdram_a(sdram_a), .sdram_dqml(sdram_dqml), .sdram_dqmh(sdram_dqmh),

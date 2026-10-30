@@ -280,8 +280,8 @@ payloads are retained independently of caller pins, with one completion and no
 repeat while VALID stays high. Reads select the requested halfword byte;
 DQM writes preserve its neighbour. Physical halfword offsets are guest byte
 addresses shifted right by one, interpreted in the controller's packed
-bank/row/column map. Only `00000–9FFFF` RAM and `F0000–FFFFF` firmware use
-storage. Defensive decode returns `FF` for ISA holes and suppresses ROM writes;
+bank/row/column map. The guest can address only `00000–9FFFF` RAM and
+`F0000–FFFFF` firmware. Defensive decode returns `FF` for ISA holes and suppresses ROM writes;
 video VRAM stays on the ISA cards. The router and defensive backend use
 A19:16 for these aligned 64 KiB regions (RAM below `A`, firmware at `F`),
 avoiding a wide carry-chain comparison in dispatch. Symbolic comparison with
@@ -295,6 +295,15 @@ complete firmware window and wait for the final DONE before releasing reset.
 There is no bundled BIOS, production ROM sealing or HPS loader in this slice.
 The BIOS POST simulation below specifies and checks its own shorter-ROM mapping;
 that fixture is not a production firmware admission path.
+
+The optional floppy profile uses physical SDRAM byte addresses
+`100000–159FFF` for a read-only 360 KiB image, outside the guest address map.
+Its separate upload port accepts ordered bytes only while reset is asserted;
+the system holds the machine in reset and hides the medium until every byte,
+including the last physical write, has completed. Warm reset retains the
+image; cold reset invalidates it. CPU/DMA and floppy reads share the controller
+with bounded arbitration and refresh. A fixed boot image cannot be replaced
+without cold reset; this is not a runtime mount or eject interface.
 
 `cold_reset` restarts controller initialization and cancels all responses. It
 must assert during startup; the caller holds the CPU/motherboard reset until
@@ -514,7 +523,7 @@ subset for one XT drive. It exposes the XT adapter registers, IRQ6 and DMA2,
 with guest-time motor, seek and transfer timing. The supported commands include
 Specify, Sense Drive, Sense Interrupt, Recalibrate, Seek, Read ID and DMA-mode
 MFM Read Data; writes report write protection. The controller obtains bytes
-through a separate read service, not by intercepting BIOS disk calls or
+through the SDRAM-backed read service, not by intercepting BIOS disk calls or
 treating the disk as guest RAM. The supported image is a raw 360 KiB disk:
 40 cylinders, two heads, nine 512-byte sectors per track. It is not a complete
 765 model or a representation of flux-level copy protection.
@@ -536,8 +545,11 @@ python3 scripts/build_pcxt_freedos_image.py --download
 python3 scripts/sim_fes_pcxt_dos.py --bios /absolute/GLABIOS_0.4.2_8X.ROM --disk /absolute/freedos-360.img
 ```
 
-The whole-machine test loads the pinned GLaBIOS into modeled SDRAM, enables the
-floppy adapter and checks that the disk's boot sector arrives at `0000:7C00`.
+The whole-machine test loads the pinned GLaBIOS and complete floppy image
+through the real SDRAM controller, enables the floppy adapter and checks that
+the disk's boot sector arrives at `0000:7C00` through DMA2. It compares every
+uploaded byte and every returned disk byte with the selected image, and checks
+that warm reset retains the medium and cold reset invalidates its admission.
 It is designed to require a DOS prompt, type `DIR` over the simulated XT
 keyboard and check `FESXT.TXT` in both text memory and the captured display.
 The runner validates the selected disk's boot code, FAT12 layout and file

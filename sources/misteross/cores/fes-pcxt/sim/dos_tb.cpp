@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Run a real BIOS and DOS on the assembled 8088. The only simulated devices
-// are physical SDRAM pins, a read-only disk byte service and an XT keyboard.
+// are physical SDRAM pins and an XT keyboard. The disk image is uploaded
+// through the machine's reset-only SDRAM loader before the CPU is released.
 #include "Vbios_top.h"
 #include "verilated.h"
 #include "memory_model.hpp"
@@ -29,7 +30,7 @@ int main(int argc, char **argv) {
     std::ofstream trace("bus.log");
     uint64_t cycles=0, post_cycle=0, boot_cycle=0, sector_cycle=0, prompt_cycle=0, dir_cycle=0;
     unsigned pixel_phase=0, held=0, bat_sent=0, bat_reads=0, key_reads=0, media_reads=0;
-    unsigned dma2_completions=0, irq6_edges=0, delay=0, pending_address=0;
+    unsigned dma2_completions=0, irq6_edges=0, pending_address=0;
     bool pending=false, last_dma=false, last_irq=false, post=false, boot=false, sector=false;
     bool prompt=false, directory=false, frame_complete=false, collecting=false;
     std::vector<unsigned char> frame(1280*720*3);
@@ -69,15 +70,17 @@ int main(int argc, char **argv) {
         }
     };
     auto step=[&] {
-        d.clk=0; d.media_read_ready=0;d.eval();
-        if(d.media_read_valid) {
-            if(!pending) {pending=true;pending_address=d.media_read_addr;delay=3;}
+        d.clk=0;d.eval();
+        if(d.cold_reset || d.warm_reset || d.machine_reset) pending=false;
+        else if(d.media_read_valid) {
+            if(!pending) {pending=true;pending_address=d.media_read_addr;}
             require(d.media_read_addr==pending_address,"floppy byte address changed while held",cycles);
             require(pending_address<disk.size(),"floppy read beyond image",cycles);
-            if(!delay) {d.media_read_data=disk[pending_address];d.media_read_ready=1;}
         } else require(!pending,"floppy byte request withdrawn",cycles);
         d.eval();d.dq_sample=ram.tick(d);d.eval();pixel_edge();
-        const bool media_taken=d.media_read_valid && d.media_read_ready;
+        const bool media_taken=!d.cold_reset && !d.warm_reset && !d.machine_reset &&
+                               d.media_read_valid && d.media_read_ready;
+        const unsigned media_data=d.media_read_data;
         const bool code_taken=d.code_valid && d.code_ready;
         const bool done=d.bus_done, wr=d.bus_write;
         const unsigned addr=d.bus_address, data=d.bus_data, kind=d.bus_kind;
@@ -85,7 +88,10 @@ int main(int argc, char **argv) {
         const unsigned ip=d.instruction_address, flags=d.post_flags;
         const bool dma=d.dma2_done, irq=d.fdc_irq;
         d.clk=1;d.eval();pixel_edge();++cycles;
-        if(media_taken) {pending=false;++media_reads;} else if(pending && delay) --delay;
+        if(media_taken) {
+            require(media_data==disk[pending_address],"SDRAM floppy byte differs from image",cycles);
+            pending=false;++media_reads;
+        }
         if(code_taken) {require(!keys.empty(),"keyboard accepted without offer",cycles);if(keys.front()==0xaa)++bat_sent;keys.pop_front();}
         if(dma && !last_dma)++dma2_completions;
         if(irq && !last_irq)++irq6_edges;
@@ -144,8 +150,8 @@ int main(int argc, char **argv) {
         require(d.fault==0,"CPU/ISA/DMA fault",cycles);
         require(cycles<6000000000ULL,"BIOS/DOS boot timeout",cycles);
     };
-    d.cold_reset=d.reset_pixel=1;d.warm_reset=0;d.firmware_valid=0;d.code_valid=0;d.code=0;
-    d.media_present=1;d.media_read_ready=0;d.media_read_data=0;
+    d.cold_reset=d.reset_pixel=1;d.warm_reset=0;d.hold=0;d.firmware_valid=0;d.code_valid=0;d.code=0;
+    d.media_present=0;d.disk_load_valid=0;d.disk_load_address=0;d.disk_load_data=0;
     for(unsigned i=0;i<32;++i)step();
     ram.cold_reset();d.cold_reset=d.reset_pixel=0;
     while(!d.initialized)step();
@@ -156,6 +162,36 @@ int main(int argc, char **argv) {
         step();d.firmware_valid=0;
         while(!d.firmware_done)step();
     }
+    // The read-only image is written through the actual SDRAM controller,
+    // with no direct fixture writes to its backing memory. FLOPPY keeps the
+    // machine held until the final upload completes even with hold released.
+    auto reject_upload=[&](unsigned address) {
+        d.disk_load_valid=0;step();
+        const auto before=ram.writes;
+        d.disk_load_address=address;d.disk_load_data=0x5a;d.disk_load_valid=1;d.eval();
+        for(unsigned i=0;i<8;++i) {
+            require(!d.disk_load_ready && !d.disk_load_done && d.machine_reset && !d.disk_loaded,
+                    "out-of-order disk upload was admitted",cycles);
+            step();
+        }
+        require(ram.writes==before,"invalid upload wrote SDRAM",cycles);
+        d.disk_load_valid=0;step();
+    };
+    reject_upload(1);
+    reject_upload(disk.size());
+    for(unsigned a=0;a<disk.size();++a) {
+        if(a==disk.size()/2)reject_upload(a+1);
+        require(d.machine_reset && !d.disk_loaded,"early CPU release during disk upload",cycles);
+        d.disk_load_address=a;d.disk_load_data=disk[a];d.disk_load_valid=1;d.eval();
+        while(!d.disk_load_ready)step();
+        step();d.disk_load_valid=0;
+        while(!d.disk_load_done)step();
+        require(d.machine_reset,"CPU released before completed disk upload",cycles);
+    }
+    for(unsigned a=0;a<disk.size();++a)
+        require(byte(0x100000+a)==disk[a],"uploaded disk differs in SDRAM",cycles);
+    while(!d.disk_loaded)step();
+    d.media_present=1;
     while(!(post && boot && sector && prompt && directory && frame_complete))step();
     require(bat_sent==1 && bat_reads==1,"keyboard self-test",cycles);
     require(key_reads>=8,"DIR make/break bytes not delivered",cycles);
@@ -163,17 +199,31 @@ int main(int argc, char **argv) {
     require((word(0x410)&0x31)==0x21,"CGA and one floppy equipment profile",cycles);
     require(irq6_edges>=2,"floppy interrupts not observed",cycles);
     screen();
+    // A warm reset keeps the loaded medium. A cold reset invalidates its
+    // admission state, so the next boot cannot use stale SDRAM contents.
+    d.warm_reset=1;
+    for(unsigned i=0;i<64;++i)step();
+    require(d.machine_reset && d.disk_loaded && d.firmware_loaded,"warm reset lost disk or firmware",cycles);
+    for(unsigned a=0;a<disk.size();++a)
+        require(byte(0x100000+a)==disk[a],"warm reset changed disk bytes",cycles);
+    d.warm_reset=0;d.cold_reset=1;ram.cold_reset();
+    for(unsigned i=0;i<64;++i)step();
+    require(d.machine_reset && !d.disk_loaded,"cold reset retained disk admission",cycles);
+    d.cold_reset=0;
+    while(!d.initialized)step();
+    require(d.machine_reset && !d.disk_loaded,"cold reset released without disk reload",cycles);
     std::ofstream picture("dos.ppm",std::ios::binary);
     picture<<"P6\n1280 720\n255\n";
     picture.write(reinterpret_cast<const char*>(frame.data()),frame.size());
     std::ofstream result("result-pending.json");
     result<<"{\"classification\":\"host simulation only\",\"ram_kib\":640,"
           <<"\"bat_reads\":"<<bat_reads<<",\"key_reads\":"<<key_reads
+          <<",\"disk_upload_bytes\":"<<disk.size()<<",\"disk_base\":1048576"
           <<",\"media_reads\":"<<media_reads<<",\"dma2_completions\":"<<dma2_completions
           <<",\"irq6_edges\":"<<irq6_edges<<",\"post_cycle\":"<<post_cycle
           <<",\"boot_cycle\":"<<boot_cycle<<",\"boot_sector_cycle\":"<<sector_cycle
           <<",\"prompt_cycle\":"<<prompt_cycle<<",\"dir_cycle\":"<<dir_cycle
           <<",\"cycles\":"<<cycles<<",\"sdram_refreshes\":"<<ram.refreshes<<"}\n";
-    std::cout<<"PASS XT: real BIOS -> DMA2 floppy boot -> DOS prompt -> typed DIR listing; "
+    std::cout<<"PASS XT: SDRAM floppy -> real BIOS -> DMA2 DOS boot -> typed DIR listing; "
              <<cycles<<" fabric clocks, "<<media_reads<<" disk bytes\n";
 }

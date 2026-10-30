@@ -1,13 +1,18 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Real assembled machine. Observations below do not drive any guest state.
 module bios_top #(parameter bit WITH_FLOPPY = 0) (
-    input wire clk, clk_pixel, cold_reset, reset_pixel, warm_reset,
+    input wire clk, clk_pixel, cold_reset, reset_pixel, warm_reset, hold,
     input wire firmware_valid,
     input wire [15:0] firmware_address,
     input wire [7:0] firmware_data,
     output wire firmware_ready, firmware_done, initialized, machine_reset, firmware_loaded,
-    input wire media_present, media_read_ready,
-    input wire [7:0] media_read_data,
+    input wire media_present,
+    input wire disk_load_valid,
+    input wire [18:0] disk_load_address,
+    input wire [7:0] disk_load_data,
+    output wire disk_load_ready, disk_load_done, disk_loaded,
+    output wire media_read_ready,
+    output wire [7:0] media_read_data,
     output wire media_read_valid,
     output wire [18:0] media_read_addr,
     input wire code_valid,
@@ -48,9 +53,13 @@ module bios_top #(parameter bit WITH_FLOPPY = 0) (
     /* verilator lint_off PINCONNECTEMPTY */
     pcxt_system #(.DIAGNOSTIC_PROBE(0), .FLOPPY(WITH_FLOPPY),
                   .SWITCHES(WITH_FLOPPY ? 8'h2d : 8'h2c)) system (
-        .clk_cpu(clk), .clk_pin(clk), .hold(1'b0), .audio_valid(), .audio_sample(),
+        .clk_cpu(clk), .clk_pin(clk), .audio_valid(), .audio_sample(),
         .cga_font_data(font[cga_font_address]), .mda_font_data(font[mda_font_address]), .*);
     /* verilator lint_on PINCONNECTEMPTY */
+    assign media_read_valid = system.media_read_valid;
+    assign media_read_addr = system.media_read_addr;
+    assign media_read_ready = system.media_read_ready;
+    assign media_read_data = system.media_read_data;
     assign dma2_done = system.machine.isa_done && system.machine.aen &&
                        system.machine.kind == 2'd3 && system.machine.dma_channel == 2'd2;
     assign fdc_irq = system.machine.irq[6];

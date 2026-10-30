@@ -103,8 +103,8 @@ int main(int argc, char **argv) {
         require(d.fault==0,"CPU/ISA/DMA fault",cycles);
         require(cycles<2000000000ULL,"BIOS POST timeout",cycles);
     };
-    d.cold_reset=d.reset_pixel=1;d.warm_reset=0;d.firmware_valid=0;d.code_valid=0;d.code=0;
-    d.media_present=0;d.media_read_ready=0;d.media_read_data=0;
+    d.cold_reset=d.reset_pixel=1;d.warm_reset=0;d.hold=0;d.firmware_valid=0;d.code_valid=0;d.code=0;
+    d.media_present=0;d.disk_load_valid=0;d.disk_load_address=0;d.disk_load_data=0;
     for(unsigned i=0;i<32;++i)step();
     ram.cold_reset();d.cold_reset=d.reset_pixel=0;
     while(!d.initialized)step();

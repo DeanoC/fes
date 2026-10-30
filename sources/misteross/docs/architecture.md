@@ -3429,9 +3429,14 @@ but require their own sound, IRQ and DMA qualification. Base audio is PC speaker
 ### FES integration and acceptance boundary
 
 The host simulation now has an optional inline XT 765-family adapter with a
-read-only command subset, IRQ6 and DMA2. Its separate byte service supplies a
-360 KiB raw image with 40 cylinders, two heads and nine 512-byte sectors per
-track. A pinned 8086-compatible FreeDOS image and GLaBIOS form a separate
+read-only command subset, IRQ6 and DMA2. Its byte service reads a 360 KiB raw
+image from physical SDRAM `100000–159FFF`, beyond the guest's address map.
+An ordered reset-only loader admits the whole image before the CPU is released;
+warm reset retains it, and cold reset invalidates it. CPU/DMA and media reads
+arbitrate for the controller while physical refresh continues. This fixed-image
+profile does not provide runtime replacement or eject. The image has 40
+cylinders, two heads and nine 512-byte sectors per track. A pinned
+8086-compatible FreeDOS image and GLaBIOS form a separate
 whole-machine test, intended to check the boot sector, DOS prompt and directory
 listing through the RTL machine. This service is not a runtime PC media ABI;
 the diagnostic package does not connect it. Writes, persistence, flux images
