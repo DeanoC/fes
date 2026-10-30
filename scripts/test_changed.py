@@ -83,7 +83,7 @@ def plan(root, base, head="HEAD", jobs=2, full=False):
         if any(affected.embedded_board_control_check_input(path) for path in impact["paths"]):
             add("parent", "DE25 Avalon control and native integration", ".",
                 [sys.executable, "sources/misteross/prototypes/de25_board_control/verify.py", "--standalone"],
-                tools=["go", "cc", "c++", "g++", "make", "verilator", "verilator_bin", "git"],
+                tools=["go", "cc", "c++", "g++", "make", "verilator", "verilator_bin", "git", "tclsh"],
                 files=["sources/misteross/prototypes/de25_board_control/verify.py",
                        "sources/misteross/prototypes/de25_board_control/fes_de25_embedded.sv"])
     if impact["lanes"]["host"]:

@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 import uuid
@@ -98,6 +99,10 @@ def main():
         output.mkdir(parents=True)
         source = (HERE / "probe.cpp").read_bytes()
         (output / "probe.cpp").write_bytes(source)
+        tcl_sources = {name: sha(HERE / name) for name in ("hardware.tcl", "sim_jtag.tcl")}
+        tcl = shutil.which("tclsh")
+        if tcl is None:
+            raise ValueError("tclsh is required for the diagnostic-script check")
         if project:
             endpoint = local / "fes_embedded_control.sv"
             wrapper = local / "fes_de25_embedded.sv"
@@ -130,6 +135,17 @@ def main():
         wrong = ("0" if build_id[0] != "0" else "1") + build_id[1:]
         run("wrong-id", [executable, wrong, str(abi)], ROOT, env, output, expect=1, marker="live build identity mismatch")
         run("wrong-abi", [executable, build_id, str(abi + 1)], ROOT, env, output, expect=1, marker="control ABI mismatch")
+        tcl_env = dict(os.environ, FES_MODEL=str(executable), FES_DIAGNOSTIC_SCRIPT=str(HERE / "hardware.tcl"),
+                       FES_DE25_SOF="simulation.sof", FES_DE25_DEVICE="simulated-device",
+                       FES_DE25_MASTER="simulated-master", FES_DE25_BASE="0x110400",
+                       FES_DE25_BUILD_ID=wrong, FES_DE25_ABI=str(abi))
+        run("jtag-wrong-id", [tcl, HERE / "sim_jtag.tcl"], ROOT, tcl_env, output, expect=1,
+            marker="FES_IDENTITY_REJECTED writes=0")
+        tcl_env["FES_DE25_BUILD_ID"] = build_id
+        result = run("jtag-model", [tcl, HERE / "sim_jtag.tcl"], ROOT, tcl_env, output,
+                     marker="FES_DIAGNOSTIC_PASS")
+        if "FES_DRAIN_PASS" not in result or "FES_FAULT_PASS" not in result or "FES_MASTER_CLOSED" not in result:
+            raise ValueError("JTAG diagnostic did not report all cases and closure")
         native_env = dict(os.environ)
         for name in ("GOOS", "GOARCH", "GOARM", "GOAMD64", "GOARM64", "GOOSPKG", "GOFLAGS", "GOTOOLCHAIN",
                      "MAKEFLAGS", "MFLAGS", "MAKELEVEL", "GNUMAKEFLAGS", "PYTHON"):
@@ -142,8 +158,8 @@ def main():
         go = Path(go_root) / "bin/go"
         run("native", [go, "test", "-race", "-count=1", "-timeout", "45s", "-v", "-run",
                        "^TestBoardAvalonIdentityBindsNativeControl$", "./nativefabric"], TAMAGO, native_env, output)
-        if (HERE / "probe.cpp").read_bytes() != source:
-            raise ValueError("probe source changed during verification")
+        if (HERE / "probe.cpp").read_bytes() != source or tcl_sources != {name: sha(HERE / name) for name in tcl_sources}:
+            raise ValueError("diagnostic test source changed during verification")
         if project:
             inputs_for(project)
         elif source_sha256 != {"endpoint": sha(ROOT / "sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv"),
@@ -156,12 +172,13 @@ def main():
                   "overlay_source_state": inputs["embedded_control"]["overlay_source_state"] if project else "working-tree",
                   "build_id": build_id, "control_abi": abi, "observed": observed,
                   "generated_routes": generation["embedded_control"] if project else None, "tools": tools,
-                  "go_sha256": sha(go.resolve()), "probe_source_sha256": hashlib.sha256(source).hexdigest(),
+                  "go_sha256": sha(go.resolve()), "tcl_sha256": sha(Path(tcl).resolve()),
+                  "probe_source_sha256": hashlib.sha256(source).hexdigest(), "tcl_source_sha256": tcl_sources,
                   "source_sha256": source_sha256, "model_sha256": sha(executable),
                   "project_inputs_sha256": sha(project / "board/hps/inputs.json") if project else None,
                   "generation_sha256": sha(project / "board/hps/generation.json") if project else None,
                   "command": [str(x) for x in command],
-                  "logs_sha256": {name: sha(output / (name + ".log")) for name in ("build", "model", "wrong-id", "wrong-abi", "native")},
+                  "logs_sha256": {name: sha(output / (name + ".log")) for name in ("build", "model", "wrong-id", "wrong-abi", "jtag-wrong-id", "jtag-model", "native")},
                   "limitations": ["host simulation only; no physical CPU MMIO or DDR path",
                                   "board source/vendor fingerprint is not a sealed FES package",
                                   "on-chip responder tests one reader; other FPGA masters are not contained"]}

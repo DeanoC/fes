@@ -40,3 +40,11 @@ separately recorded. Working-tree overlay inputs require `--allow-dirty` and are
 labelled diagnostic. No command programs hardware, writes media, creates an RBF
 or registers a FES profile. Timing, boot pairing, physical access, firmware
 containment and board acceptance require separate evidence.
+
+`hardware.tcl` is a separately invoked System Console test for an explicitly
+selected and already configured device and fabric master. It checks all build
+words and ABI before writes, then exercises the on-chip held-address, drain and
+response-fault cases. The portable verifier runs that same script against the
+Verilated Avalon model, including the no-write wrong-identity path. A real
+caller must bind the selected device and image, impose an external deadline,
+and handle any uncertain access without replaying it.

@@ -22,6 +22,7 @@ class TestChangedTest(unittest.TestCase):
         self.assertEqual(result["impact"]["cores"], [])
         command = next(c for c in result["commands"] if c["label"] == "DE25 Avalon control and native integration")
         self.assertIn("--standalone", command["argv"])
+        self.assertIn("tclsh", command["tools"])
 
     def test_embedded_producer_schedules_native_identity_integration(self):
         self.change("sources/misteross/prototypes/embedded_control/producer.py")
