@@ -137,8 +137,10 @@ and global reset lifetime remain open. Serial/DHCP/SSH Linux boot is a separate
 first-board check. No image, device tree or installed bundle is changed here.
 
 [Validation record](../../../docs/validation/2026-10-29-de25-zx81-hps/README.md)
-preserves the successful historical producer, failed capacity candidate,
-simulation binding, software checks and remaining acceptance gates. Its SOF and
-STA predate the current HDMI-sync source and constraint changes; the SOF is not
-retained in this checkout and must not be used to test the current branch. Build
-a fresh source-bound SOF and STA before any SRAM test.
+preserves both the historical producer and a fresh current-head SOF/STA receipt
+for `a4bd6fc2ba3cb480de5a9a8fb4ae23a8025a539e`. The older `5a7382c4` artifact
+does not cover the merged RTL. The new run passes constrained timing, while
+overall Design Closure remains **Fail** for unwaived Design Assistant findings
+and unconstrained I/O paths; see [issue #1284](https://github.com/DeanoC/fes/issues/1284).
+The current SOF remains a Quartus diagnostic and does not establish physical
+DE25 acceptance.

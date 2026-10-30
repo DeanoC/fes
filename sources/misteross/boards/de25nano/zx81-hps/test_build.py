@@ -93,24 +93,65 @@ class HpsZX81BuildTests(unittest.TestCase):
         self.assertIn("Keep synchronizer stage-to-stage, frame-gate and output paths timed.", sdc)
         self.assertNotIn("set_clock_groups", sdc)
 
-    def test_historical_quartus_report_is_not_presented_as_current_head_evidence(self):
+    def test_current_quartus_receipt_binds_merged_head_and_preserves_closure_fail(self):
         record = B.ROOT / "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps"
-        producer_inputs = json.loads((record / "compiled-5a7382c4b5/reports/inputs.json").read_text())
-        selected = producer_inputs["functional_snapshot_sha256"]
+        current = record / "compiled-a4bd6fc2ba"
+        expected_head = "a4bd6fc2ba3cb480de5a9a8fb4ae23a8025a539e"
+        old_build = json.loads((record / "compiled-5a7382c4b5/reports/build.json").read_text())
+        self.assertEqual(old_build["fes_revision"], "5a7382c4b5c17173f48bd074847acc0acc22de93")
+
+        inputs = json.loads((current / "reports/inputs.json").read_text())
+        build = json.loads((current / "reports/build.json").read_text())
+        artifact = json.loads((current / "artifact-receipt.json").read_text())
+        timing = json.loads((current / "final-timing-audit.json").read_text())
+        generated = json.loads((current / "generated-audit.json").read_text())
+        self.assertEqual(inputs["fes_revision"], expected_head)
+        self.assertEqual(build["fes_revision"], expected_head)
+        self.assertEqual(artifact["source_revision"], expected_head)
+        self.assertEqual(timing["source_revision"], expected_head)
+        self.assertEqual(generated["producer_revision"], expected_head)
+        self.assertEqual(artifact["artifact_sha256"], build["sha256"])
+        self.assertEqual(artifact["artifact_bytes"], 1765692)
+        self.assertEqual(artifact["quartus_version"].splitlines()[1],
+                         "Version 26.3.0 Build 114 10/14/2026 SC Pro Edition")
+
+        selected = inputs["functional_snapshot_sha256"]
         drifted = {
             name for name, recorded in selected.items()
             if hashlib.sha256((B.ROOT / name).read_bytes()).hexdigest() != recorded
         }
-        self.assertTrue({
-            B.BOARD + "zx81-hps/board.v",
-            B.BOARD + "zx81-hps/clocks.sdc",
-            B.BOARD + "zx81-hps/fes_de25_computer.v",
-        } <= drifted)
+        self.assertEqual(drifted, set())
+
+        sta = timing["timing"]
+        self.assertEqual(sta["exit_code"], 0)
+        self.assertTrue(sta["timing_requirements_met"])
+        self.assertEqual(sta["summary_rows"], 21)
+        self.assertTrue(sta["all_reported_slacks_nonnegative"])
+        self.assertEqual(sta["failing_paths"], [])
+        self.assertEqual(timing["closure"]["Design Closure Summary"], "Fail")
+        self.assertEqual(timing["closure"]["Timing Closure"], "Pass")
+        self.assertEqual(timing["design_assistant"]["failed_rules"], 7)
+        self.assertEqual(timing["design_assistant"]["total_waived"], 0)
+
         report = " ".join((record / "README.md").read_text().split())
-        self.assertIn("**Evidence status:** historical producer", report)
-        self.assertIn("not compiled from the current branch", report)
-        self.assertIn("not valid for SRAM testing the current source", report)
-        self.assertIn("does not validate the current HPS or scanout false-path selectors", report)
+        self.assertIn(f"current PR #1232 head after PR #1260 was squash-merged", report)
+        self.assertIn("Design Closure Summary: Fail", report)
+        self.assertIn("issue #1284", report)
+        self.assertNotIn("A fresh Quartus build", report)
+
+        manifest = record / "SHA256SUMS"
+        entries = {}
+        for line in manifest.read_text().splitlines():
+            digest, name = line.split("  ", 1)
+            entries[name] = digest
+        current_files = {
+            path.relative_to(record).as_posix()
+            for path in current.rglob("*") if path.is_file()
+        }
+        self.assertTrue(current_files <= set(entries))
+        for name, expected in entries.items():
+            actual = hashlib.sha256((record / name).read_bytes()).hexdigest()
+            self.assertEqual(actual, expected, name)
 
     def test_simulation_receipts_are_scoped_to_historical_sources(self):
         record = B.ROOT / "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation"

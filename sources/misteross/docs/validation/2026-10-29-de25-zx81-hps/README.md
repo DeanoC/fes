@@ -6,26 +6,107 @@ on the existing 100 MHz peripheral clock with 13/200 enables; HDMI retains
 its separate exact 74.25 MHz PLL. The new path adds no DMA master. The GHRD's
 HPS, LPDDR4, inherited probe/debug masters and boot files remain selected.
 
-Base: `1db4ba71e973aa01fc521fe42ed0a901061ad8b0`.
-Compiled producer: `5a7382c4b5c17173f48bd074847acc0acc22de93`.
+## Current post-merge Quartus evidence
 
-**Evidence status:** historical producer; not compiled from the current branch
-and not valid for SRAM testing the current source. The retained report does not
-validate the current HPS or scanout false-path selectors.
+The fresh build and full standalone STA below use clean committed source
+revision `a4bd6fc2ba3cb480de5a9a8fb4ae23a8025a539e`, the current PR #1232 head
+after PR #1260 was squash-merged. This is the successful SOF receipt for the
+current RTL and constraints. The older `compiled-5a7382c4b5` receipt remains
+historical and is kept only for its source and artifact history.
 
-The current branch changes three of the compiled producer's selected source
-files. The checksums below are full SHA-256 values from the retained producer
-inputs and this branch head:
+The build ran on Powerboat with Quartus Prime Pro 26.3. The exact version line
+was:
 
-| Selected file | Producer input | Current branch |
-| --- | --- | --- |
-| `boards/de25nano/zx81-hps/board.v` | `a0d7f396a31746a1fa6a977f24d9aeef09a2f38a68537a50f85e7524ea08ff0b` | `0fa7ca6959644f3233f9bedf9373ba40ed95930d64f68e394f8b14d5300e2e36` |
-| `boards/de25nano/zx81-hps/clocks.sdc` | `7dd4138b073207f00dc6f819134375322b2e09a20c809eb9347f872608e761fc` | `6c2865ee2ed9ede5e4078f3ece8a74649c13907deb253bc95b9a936059b49a10` |
-| `boards/de25nano/zx81-hps/fes_de25_computer.v` | `26ce1e51454000f2762045cc442fbbae881404a98b94334eea8ba11e43a9ad0a` | `e19e0795ee456c6586c3d951509c600e28f79b2bc8920ba79bcccd26272a1188` |
+```text
+Version 26.3.0 Build 114 10/14/2026 SC Pro Edition
+```
 
-The shared `fes_menu_video.v` raster also changed after this producer and is
-not in its selected HPS input closure. Neither the retained SOF nor its timing
-report validates that later shared-RTL change or the DE25 scanout source.
+The official Terasic rev. B resource ZIP was downloaded and matched the locked
+SHA-256 `f79f0eff3b0f9d042fdb61ddcf43efec77b0ebc13248eea100b94e47a1189b66`.
+From the repository root, the build command was:
+
+```sh
+source /data/altera_pro/26.3/qinit.sh
+make -C sources/misteross/boards/de25nano/zx81-hps build \
+  QUARTUS_ROOTDIR=/data/altera_pro/26.3 \
+  VENDOR_ARCHIVE=/home/deano/tmp/fixjob-fes-1232-20261030-185746/sources/misteross/build/vendor/DE25-Nano_revB_v.1.0.0_ResourcePackage.zip \
+  OUTPUT=/home/deano/tmp/fixjob-fes-1232-20261030-185746/sources/misteross/build/diagnostic/de25-zx81-hps-a4bd6fc2ba
+```
+
+Quartus full compilation succeeded with 0 errors and 332 warnings. It produced
+a 1,765,692-byte `golden_top.sof` with SHA-256
+`f6f3a6e2e866a112cb2a8d5de5d6300020a1c256bc2b57054ed1a77b9e460a78`. The SOF
+binary is not committed; the [artifact receipt](compiled-a4bd6fc2ba/artifact-receipt.json)
+binds its hash to the input manifest and build report.
+
+The full standalone post-fit multicorner STA command was:
+
+```sh
+source /data/altera_pro/26.3/qinit.sh
+cd sources/misteross/build/diagnostic/de25-zx81-hps-a4bd6fc2ba/hps/project
+/data/altera_pro/26.3/quartus/bin/quartus_sta \
+  --do_report_timing --multicorner=on --parallel=2 \
+  --rev=golden_top golden_top
+```
+
+It loaded Quartus's completed `final` database and exited 0 with 0 errors and
+1 warning. TimeQuest reported `Timing requirements were met`. Across the 21
+setup, hold, recovery and removal summary rows, every reported slack was
+nonnegative, every TNS was 0.000 ns, and every failing-endpoint count was zero.
+The worst displayed values were setup 1.608 ns, hold 0.000 ns, recovery
+7.343 ns, removal 0.009 ns, and minimum pulse width 0.220 ns. The displayed
+zero hold slack is rounded to three decimals and does not establish positive
+hold margin.
+
+| Clock | Setup slack | Hold slack | Recovery slack | Removal slack |
+| --- | --- | --- | --- | --- |
+| `adv7513_config` | 16.879 ns (Slow fix4 0C) | 0.070 ns (Fast fix4 0C) | 18.372 ns (Slow fix4 0C) | 0.009 ns (Fast fix4 0C) |
+| `altera_reserved_tck` | 12.809 ns (Slow fix4 100C) | 0.096 ns (Fast fix4 0C) | 60.118 ns (Slow fix4a 0C) | 0.157 ns (Fast fix4 0C) |
+| `fes_video_inst|video_clock|iopll_0_outclk0` | 3.204 ns (Slow fix4 0C) | 0.006 ns (Fast fix4 0C) | 12.486 ns (Slow fix4 0C) | 0.239 ns (Fast fix4 0C) |
+| `fes_video_inst|video_clock|iopll_0_refclk` | 18.297 ns (Slow fix4a 0C) | 0.108 ns (Fast fix4 0C) | 17.264 ns (Slow fix4 0C) | 0.326 ns (Fast fix4 0C) |
+| `pll_inst|iopll_0_outclk0` | 1.608 ns (Slow fix4a 0C) | 0.000 ns (Slow fix4a 0C) | 7.343 ns (Slow fix4 0C) | 0.164 ns (Fast fix4 0C) |
+| `soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0` | — | 0.376 ns (Fast fix4 0C) | — | — |
+
+The table groups all reported rows by clock; `—` means Quartus emitted no row
+for that clock/check pair. [per-clock-timing.csv](compiled-a4bd6fc2ba/per-clock-timing.csv)
+and [final-timing-audit.json](compiled-a4bd6fc2ba/final-timing-audit.json) retain
+the exact corner, TNS and failing-endpoint fields. The [full STA report](compiled-a4bd6fc2ba/reports/standalone-sta/golden_top.sta.rpt.gz)
+contains detailed worst paths. No constrained setup, hold, recovery or removal
+failing paths were reported.
+
+Overall **Design Closure Summary: Fail** remains visible. The same report says
+Timing Closure is Pass, Design Assistant Summary is High Severity Violations,
+and Unconstrained Paths is Fail. It reports 2 unconstrained inputs (9 input
+path pairs) and 30 unconstrained outputs (2,543 output path pairs) for setup
+and hold. The Design Assistant reported seven unwaived rule classes:
+
+| Rule | Severity | Violations |
+| --- | --- | ---: |
+| TMC-20012 — Missing Output Delay Constraint | High | 30 |
+| TMC-20011 — Missing Input Delay Constraint | High | 2 |
+| CDC-50011 — Combinational Logic Before Synchronizer Chain | High | 1 |
+| LNT-30023 — Reset Nets with Polarity Conflict | Medium | 2 |
+| RDC-50003 — Multiple Asynchronous Reset Synchronizers in the Same Clock Domain | Medium | 2 |
+| RES-50101 — Intra-Clock False Path Reset Synchronizer | Low | 3 |
+| CDC-50101 — Intra-Clock False Path Synchronizer | Low | 1 |
+
+There are zero waivers. The complete findings remain in the [Design Assistant
+report](compiled-a4bd6fc2ba/reports/standalone-sta/golden_top.tq.drc.signoff.rpt.gz)
+and follow-up tracking remains open in [issue #1284](https://github.com/DeanoC/fes/issues/1284).
+
+An initial standalone invocation included `--post_fpp` and Quartus rejected
+the incomplete periphery-placement database with Error 16546. That attempt is
+retained separately. The successful command above opened the completed `final`
+database; see the [successful STA log](compiled-a4bd6fc2ba/reports/standalone-sta.log.gz)
+and the [rejected attempt log](compiled-a4bd6fc2ba/reports/sta-post-fpp-rejected.log.gz).
+
+The source-bound generated-design audit also passed. The compiled SDC contains
+the current HDMI visibility and readiness synchronizer selectors, reset ingress
+checks, and frame-owner metadata constraints; see
+[generated-audit.json](compiled-a4bd6fc2ba/generated-audit.json). This is
+Quartus diagnostic evidence only. It is not a sealed package, runtime-admitted
+profile, or physical DE25 acceptance. No board, kit, image, SD card, QSPI or
+harness was touched.
 
 ## Functional and software evidence
 
@@ -41,87 +122,35 @@ The native simulations exercise behavioral memory and directly driven Avalon
 inputs, rather than Linux or the generated HPS interconnect. The supplied
 generic vendor RAM model reports an AUTO-family fallback; its functional
 comparison does not establish Agilex primitive or physical equivalence.
-The actual compiled RAM mapping is checked separately below. Unwritten tape
-bytes are not compared because the portable store leaves them undefined.
+Unwritten tape bytes are not compared because the portable store leaves them
+undefined.
 
-## Compiled artifact
+## Historical Quartus producer
 
-Quartus Pro 26.3.0 Build 114 completed with zero errors and 330 warnings for
-`A5EB013BB23BE4SCS`, seed 1 and two CPU workers on producer
-`5a7382c4b5c17173f48bd074847acc0acc22de93`. That build's SOF was 1,792,663
-bytes with SHA-256
-`6f1c6cf7cbcd8f27d9fa7a9fe8cadfa26179af5e6196ba39536bb32e1edf0b77`; the
-binary is not retained in this checkout. It is not a sealed package, an
-admitted runtime profile, or an artifact for the current branch head.
-
-[Artifact/source receipt](compiled-5a7382c4b5/artifact-receipt.json),
-[generated-design audit](compiled-5a7382c4b5/generated-README.md),
-[final timing audit](compiled-5a7382c4b5/final-timing-audit.json) and
-[raw reports](compiled-5a7382c4b5/reports/golden_top.sta.summary) bind this
-historical producer and artifact. Within that producer, forty prepared
-top/board/source/SDC/init/software files remain byte-identical. The complete
-QSF comparison permits only removal of
-the duplicate older tool-version declaration, four exact generated IP
-entries and the unchanged FAMILY line ending; clocks and constraints are not relaxed. The source fingerprint
-`a6b159e617d400d212240b31944cf377` is embedded as BUILD_ID.
-
-All 38 worst-corner STA summary rows have displayed nonnegative slack and
-zero TNS. These are aggregate worst-corner rows across four models.
-
-| Analysis | Minimum displayed slack, ns |
-| --- | ---: |
-| Setup | 1.630 |
-| Hold | 0.000 |
-| Recovery | 7.426 |
-| Removal | 0.122 |
-| Minimum pulse width | 0.220 |
-
-Hold is a rounded displayed zero, with no positive-margin claim. All 41
-clocks are constrained; all 35 baseline clock name/type/period/frequency
-tuples remain unchanged. Exact PLL counters establish 100 and 74.25 MHz.
-
-Fitter logic utilization is 13,895 ALMs, with 15,022 placed and 23,466 logic
-registers. It uses 279 of 358 M20Ks and 2,688,512 block-memory bits. Tape uses
-eight physical M20Ks, four per bank, with 131,072 bits and old-data reads.
-There are three PLLs and no DSP blocks. This includes the inherited GHRD.
+The earlier successful producer was `5a7382c4b5c17173f48bd074847acc0acc22de93`.
+Its 1,792,663-byte SOF had SHA-256
+`6f1c6cf7cbcd8f27d9fa7a9fe8cadfa26179af5e6196ba39536bb32e1edf0b77`; it is
+not the current-head artifact. Its [artifact receipt](compiled-5a7382c4b5/artifact-receipt.json),
+[timing audit](compiled-5a7382c4b5/final-timing-audit.json), and
+[raw reports](compiled-5a7382c4b5/reports/golden_top.sta.summary) remain
+historical evidence for that producer only.
 
 The [rejected first producer](failed-786e6383b3/README.md) expanded tape RAM
-into logic and failed capacity. Its reports, source identity and unsuccessful
-mapping remain recorded; it produced no SOF. The separate banked repair
-preserves the portable native branch verbatim and is part of producer `5a7382`.
+into logic and failed capacity. It produced no SOF. The separate banked repair
+preserves the portable native branch verbatim and was part of the historical
+`5a7382` producer.
 
 ## Open acceptance gates
 
-Overall Design Closure remains **FAIL**. Five unwaived classes remain:
-missing output delays (30), missing input delays (2), reset polarity (1),
-multiple reset synchronizers (1), and intra-clock reset false-path advisories
-(2). The reset groups are retained from the baseline. There are zero waivers.
-STA reports two unconstrained inputs/nine input path pairs and 30 outputs/
-3,927 output path pairs for setup and hold. MTBF models 24 of 40 found chains
-and excludes 16; it does not qualify the whole design or board.
-
-For HDMI visibility, the current HPS SDC cuts only the `visible_sync[0]` D pin
-with an exact one-pin collection check; it also checks four HDMI reset ingress
-pins and has a first-stage-only readiness cut. The frame-owner constraints
-check both request/acknowledge crossings, bound all nine row-metadata bits,
-and require four reset ingress pins for its two domain synchronizers. The
-separate scanout SDC similarly cuts only its `visible_sync[0]` D pin and checks
-all eight qualifier/reset-synchronizer clear pins. None of these current
-selectors or constraints, nor the current RTL, were compiled into the retained
-STA, so this report provides no timing evidence for them. A fresh Quartus build
-and STA run from the current source must confirm the collections resolve and
-that interstage and output paths remain timed before any SRAM test.
-
-Physical HDMI/I2C timing, RAM/startup/collisions, CDC, the inherited DJ24
+Physical HDMI/I2C timing, RAM/startup/collisions, CDC/MTBF, the inherited DJ24
 voltage discrepancy, firmware pairing and global reset lifetime remain open.
-Warm-reset ACK stays inactive. The local transport permanently contains
-later resets; that is not a fence for inherited masters. The client supplies
+Warm-reset ACK stays inactive. The local transport permanently contains later
+resets; that is not a fence for inherited masters. The client supplies
 offline regular-file/injected access only. Native bounded MMIO, physical
 device binding and production runtime admission remain closed.
 
-Strict deployment classification is `NO_DEPLOY_CHANGE`; this change creates
-no installed image or existing playable-core artifact. The next integration
-step for this diagnostic is a fresh Quartus build and timing review from the
-current source. Only that newly produced, source-bound SOF can proceed to a
-later controlled SRAM test of native register access, HID input, tape and HDMI.
-No board, kit, image, SD card, QSPI or harness was touched.
+Strict deployment classification is `NO_DEPLOY_CHANGE`; this diagnostic
+creates no installed image or existing playable-core artifact. The current
+SOF and STA cover the merged source revision named above, while Design Closure
+and physical acceptance remain open. Any future hardware investigation must
+use the exact source-bound artifact and retain these open findings.

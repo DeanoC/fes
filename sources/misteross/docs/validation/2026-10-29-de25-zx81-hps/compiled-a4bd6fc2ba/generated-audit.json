@@ -1,0 +1,99 @@
+{
+  "build_directory": "/home/deano/tmp/fixjob-fes-1232-20261030-185746/sources/misteross/build/diagnostic/de25-zx81-hps-a4bd6fc2ba/hps",
+  "build_id": "ba5cb51c029d5655f95f2824bfd6b136",
+  "build_id_elaborated_prefix_bits": 100,
+  "clock_routes": [
+    {
+      "end": "subsys_periph_periph_clk.in_clk",
+      "hz": 100000000,
+      "start": "clk_100.out_clk"
+    },
+    {
+      "end": "subsys_periph_fes_computer.clk",
+      "hz": 100000000,
+      "start": "subsys_periph_periph_clk.out_clk"
+    },
+    {
+      "end": "subsys_periph_fes_computer.pixel_clk",
+      "hz": 74250000,
+      "start": "subsys_periph_fes_computer_pixel_clk.out_clk"
+    }
+  ],
+  "evidence_class": "source and generated-HDL diagnostic; no hardware acceptance",
+  "evidence_sha256": {
+    "generation.json": "a2b51c69441f424369445d5556eab9c8e815fdc036406c9e075e84769f0de422",
+    "hps-emif-parameter-review.json": "5646923729a8d4be8315cab3d13a605718998b43466a806af3487c3d20798b11",
+    "inputs.json": "b90344d17effad5f13d99373e1311fd1de5f5fd4805fb8d79d061bd261003fa0",
+    "project/golden_top.qsf": "625438b682f470f9829b3f2969dafe3b5145ec41c40dbe665b3b2b6724f2a997",
+    "project/golden_top.v": "b6f5ac7a9dea7442468d2c3ad6b81354f5e79ab94605e5126d317c168c80af27",
+    "project/output_files/golden_top.syn.ae.rpt": "5b9eb8b612cd1184390bf6ce5b436e61ba51e470cd05d6293bbe18b239bf0305",
+    "project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/fes_de25_computer.v": "e19e0795ee456c6586c3d951509c600e28f79b2bc8920ba79bcccd26272a1188",
+    "project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/zx81_machine.sv": "37744e9b25bb44e600d7e843bff4722d4db70cf614514dd04ef6e5368627187d",
+    "project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/zx8x.mif": "ad341356e97fa931be11064a8d5b0418dd8fdcaf51205a3a2ff1efedc8173dc3",
+    "project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/synth/peripheral_subsys_fes_computer.v": "c11a8eff151cde993c8307abf18e54c0498d3737a4ed368c0334bb3df3e139f4",
+    "project/peripheral_subsys/peripheral_subsys/synth/peripheral_subsys.v": "d9dab5a24694932716c869d33453b1081eed35f8e3ba7fb8074e7f45e5c17cee",
+    "project/qsys_top/qsys_top.sopcinfo": "f81f8ba81ef097b32847c666b2536cab54b015cbc019cfc92f53dadca4bb2b4a",
+    "project/qsys_top/synth/qsys_top.v": "96d996ff8891eaca4796d80a1a888dd1d889188aa37253a740333588f2e87700",
+    "project/zx8x.hex": "93afab88ef8f12e6848700f4824f4268f193651657d23acbd30f8e9bb131131b",
+    "project/zx8x.mif": "ad341356e97fa931be11064a8d5b0418dd8fdcaf51205a3a2ff1efedc8173dc3",
+    "vendor-inputs.json": "ce04b2ae52aa1a79354d7e24d61ee05f697baf37417a135849263b218ad7e286"
+  },
+  "format": 1,
+  "machine_ula_ratio": [
+    13,
+    200
+  ],
+  "pll_reviews": {
+    "pixel": {
+      "counters": {
+        "fb_clk_fractional_div_den": 1,
+        "fb_clk_fractional_div_num": 1,
+        "fb_clk_fractional_div_value": 1,
+        "fb_clk_m_div": 297,
+        "out_clk_0_c_div": 40,
+        "ref_clk_n_div": 5
+      },
+      "hdl_sha256": "f53f0cb78d931e504fba954c0b2e3fb081edb4b6e1307c0fa0653bd93555978c",
+      "hz": 74250000,
+      "xml_sha256": "83d99b97b5d3cd6b2c11dbce9216e5b8445f4d1564fc0150397b623e80d04450"
+    },
+    "system": {
+      "counters": {
+        "fb_clk_fractional_div_den": 1,
+        "fb_clk_fractional_div_num": 1,
+        "fb_clk_fractional_div_value": 1,
+        "fb_clk_m_div": 64,
+        "out_clk_0_c_div": 32,
+        "ref_clk_n_div": 1
+      },
+      "hdl_sha256": "cf763293f0c822146318f52da4c176de8581357ffc5f2b8673e69d4255c2eb43",
+      "hz": 100000000,
+      "xml_sha256": "4cf2fafc15dce6db49aaa3270a6c0bf9eec0f29eca6965cf753c9824240e2f55"
+    }
+  },
+  "producer_revision": "a4bd6fc2ba3cb480de5a9a8fb4ae23a8025a539e",
+  "reset": "100MHz async assertion, deassert synchronization depth2",
+  "retained_boot_software_sha256": {
+    "software/hps_debug/README.md": "3712c47713d6ec9358834844beb6564e2933c2764444efc367021ae83f7368ef",
+    "software/hps_debug/build.sh": "f49ce3b45cb06d86d0e9cad7311484708a5c954e694f0ee9b0bccc37cfb23591",
+    "software/hps_debug/hps_wipe.s": "7ea170d8eebda9c8488caf9bd3533bd3c9e2a78a54d67922f42cba38717dcbc4",
+    "software/u-boot/spl/u-boot-spl-dtb.hex": "096f53ea0bb0ba6e7449b2acf012eae734840dbcdd2943b506567bad2f72f823"
+  },
+  "rom": {
+    "default_address_max": 8191,
+    "defined_mif_matches_hex": true,
+    "depth_warning": "design16384/MIF12288; undefined tail outside default13-bit ROM address",
+    "hex_bytes": 16384,
+    "mif_defined_bytes": 12288,
+    "reachable_bytes": 8192,
+    "reachable_sha256": "14ad84f4243efcd41587ff46ab932d11087043e8d455a1ed2a227b9657828dfa"
+  },
+  "selected_git_blob_count": 41,
+  "staged_file_count": 25,
+  "unchanged_hps_emif_top_connections": 53,
+  "unchanged_parameter_counts": {
+    "hps_subsys/ip/hps_subsys/agilex_hps.ip": 359,
+    "hps_subsys/ip/hps_subsys/f2sdram_adapter.ip": 1,
+    "hps_subsys/ip/qsys_top/emif_io96b_hps.ip": 137
+  }
+}

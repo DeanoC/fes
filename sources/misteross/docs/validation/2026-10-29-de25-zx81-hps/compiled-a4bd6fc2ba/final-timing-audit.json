@@ -1,0 +1,265 @@
+{
+  "artifact_sha256": "f6f3a6e2e866a112cb2a8d5de5d6300020a1c256bc2b57054ed1a77b9e460a78",
+  "closure": {
+    "Design Assistant Summary": "High Severity Violations",
+    "Design Closure Summary": "Fail",
+    "Double Data Rate (DDR) Summary": "Not Found",
+    "Hold Summary": "Pass",
+    "Max Clock Skew Summary": "Not Found",
+    "Max Skew Summary": "Pass",
+    "Metastability Summary": "Pass",
+    "Minimum Pulse Width Summary": "Pass",
+    "Net Delay Summary": "Pass",
+    "Receiver Input Skew Margin (RSKM) Summary": "Not Found",
+    "Recovery Data Delay Summary": "Not Found",
+    "Recovery Summary": "Pass",
+    "Removal Summary": "Pass",
+    "Setup Data Delay Summary": "Pass",
+    "Setup Summary": "Pass",
+    "Timing Closure": "Pass",
+    "Transmitter Channel-to-Channel Skew (TCCS) Summary": "Not Found",
+    "Unconstrained Paths": "Fail"
+  },
+  "design_assistant": {
+    "failed_rules": 7,
+    "findings": [
+      {
+        "name": "Missing Output Delay Constraint",
+        "rule": "TMC-20012",
+        "severity": "High",
+        "violations": 30,
+        "waived": 0
+      },
+      {
+        "name": "Missing Input Delay Constraint",
+        "rule": "TMC-20011",
+        "severity": "High",
+        "violations": 2,
+        "waived": 0
+      },
+      {
+        "name": "Combinational Logic Before Synchronizer Chain",
+        "rule": "CDC-50011",
+        "severity": "High",
+        "violations": 1,
+        "waived": 0
+      },
+      {
+        "name": "Reset Nets with Polarity Conflict",
+        "rule": "LNT-30023",
+        "severity": "Medium",
+        "violations": 2,
+        "waived": 0
+      },
+      {
+        "name": "Multiple Asynchronous Reset Synchronizers in the Same Clock Domain",
+        "rule": "RDC-50003",
+        "severity": "Medium",
+        "violations": 2,
+        "waived": 0
+      },
+      {
+        "name": "Intra-Clock False Path Reset Synchronizer",
+        "rule": "RES-50101",
+        "severity": "Low",
+        "violations": 3,
+        "waived": 0
+      },
+      {
+        "name": "Intra-Clock False Path Synchronizer",
+        "rule": "CDC-50101",
+        "severity": "Low",
+        "violations": 1,
+        "waived": 0
+      }
+    ],
+    "follow_up": "https://github.com/DeanoC/fes/issues/1284",
+    "rules_enabled": 85,
+    "summary": "High Severity Violations",
+    "total_violations": 41,
+    "total_waived": 0
+  },
+  "format": 1,
+  "quartus_version": "Version 26.3.0 Build 114 10/14/2026 SC Pro Edition",
+  "source_revision": "a4bd6fc2ba3cb480de5a9a8fb4ae23a8025a539e",
+  "timing": {
+    "all_failing_endpoint_counts_zero": true,
+    "all_reported_slacks_nonnegative": true,
+    "all_reported_tns_zero": true,
+    "command": [
+      "/data/altera_pro/26.3/quartus/bin/quartus_sta",
+      "--do_report_timing",
+      "--multicorner=on",
+      "--parallel=2",
+      "--rev=golden_top",
+      "golden_top"
+    ],
+    "errors": 0,
+    "exit_code": 0,
+    "failing_paths": [],
+    "final_database_loaded": true,
+    "per_clock": {
+      "adv7513_config": {
+        "Hold": {
+          "corner": "Fast fix4 0C Model",
+          "failing_endpoints": 0,
+          "slack_ns": "0.070",
+          "tns_ns": "0.000"
+        },
+        "Recovery": {
+          "corner": "Slow fix4 0C Model",
+          "failing_endpoints": 0,
+          "slack_ns": "18.372",
+          "tns_ns": "0.000"
+        },
+        "Removal": {
+          "corner": "Fast fix4 0C Model",
+          "failing_endpoints": 0,
+          "slack_ns": "0.009",
+          "tns_ns": "0.000"
+        },
+        "Setup": {
+          "corner": "Slow fix4 0C Model",
+          "failing_endpoints": 0,
+          "slack_ns": "16.879",
+          "tns_ns": "0.000"
+        }
+      },
+      "altera_reserved_tck": {
+        "Hold": {
+          "corner": "Fast fix4 0C Model",
+          "failing_endpoints": 0,
+          "slack_ns": "0.096",
+          "tns_ns": "0.000"
+        },
+        "Recovery": {
+          "corner": "Slow fix4a 0C Model",
+          "failing_endpoints": 0,
+          "slack_ns": "60.118",
+          "tns_ns": "0.000"
+        },
+        "Removal": {
+          "corner": "Fast fix4 0C Model",
+          "failing_endpoints": 0,
+          "slack_ns": "0.157",
+          "tns_ns": "0.000"
+        },
+        "Setup": {
+          "corner": "Slow fix4 100C Model",
+          "failing_endpoints": 0,
+          "slack_ns": "12.809",
+          "tns_ns": "0.000"
+        }
+      },
+      "fes_video_inst|video_clock|iopll_0_outclk0": {
+        "Hold": {
+          "corner": "Fast fix4 0C Model",
+          "failing_endpoints": 0,
+          "slack_ns": "0.006",
+          "tns_ns": "0.000"
+        },
+        "Recovery": {
+          "corner": "Slow fix4 0C Model",
+          "failing_endpoints": 0,
+          "slack_ns": "12.486",
+          "tns_ns": "0.000"
+        },
+        "Removal": {
+          "corner": "Fast fix4 0C Model",
+          "failing_endpoints": 0,
+          "slack_ns": "0.239",
+          "tns_ns": "0.000"
+        },
+        "Setup": {
+          "corner": "Slow fix4 0C Model",
+          "failing_endpoints": 0,
+          "slack_ns": "3.204",
+          "tns_ns": "0.000"
+        }
+      },
+      "fes_video_inst|video_clock|iopll_0_refclk": {
+        "Hold": {
+          "corner": "Fast fix4 0C Model",
+          "failing_endpoints": 0,
+          "slack_ns": "0.108",
+          "tns_ns": "0.000"
+        },
+        "Recovery": {
+          "corner": "Slow fix4 0C Model",
+          "failing_endpoints": 0,
+          "slack_ns": "17.264",
+          "tns_ns": "0.000"
+        },
+        "Removal": {
+          "corner": "Fast fix4 0C Model",
+          "failing_endpoints": 0,
+          "slack_ns": "0.326",
+          "tns_ns": "0.000"
+        },
+        "Setup": {
+          "corner": "Slow fix4a 0C Model",
+          "failing_endpoints": 0,
+          "slack_ns": "18.297",
+          "tns_ns": "0.000"
+        }
+      },
+      "pll_inst|iopll_0_outclk0": {
+        "Hold": {
+          "corner": "Slow fix4a 0C Model",
+          "failing_endpoints": 0,
+          "slack_ns": "0.000",
+          "tns_ns": "0.000"
+        },
+        "Recovery": {
+          "corner": "Slow fix4 0C Model",
+          "failing_endpoints": 0,
+          "slack_ns": "7.343",
+          "tns_ns": "0.000"
+        },
+        "Removal": {
+          "corner": "Fast fix4 0C Model",
+          "failing_endpoints": 0,
+          "slack_ns": "0.164",
+          "tns_ns": "0.000"
+        },
+        "Setup": {
+          "corner": "Slow fix4a 0C Model",
+          "failing_endpoints": 0,
+          "slack_ns": "1.608",
+          "tns_ns": "0.000"
+        }
+      },
+      "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0": {
+        "Hold": {
+          "corner": "Fast fix4 0C Model",
+          "failing_endpoints": 0,
+          "slack_ns": "0.376",
+          "tns_ns": "0.000"
+        }
+      }
+    },
+    "result": "successful",
+    "summary_rows": 21,
+    "timing_requirements_met": true,
+    "unconstrained_paths": {
+      "Paths from Unconstrained Input Ports (Pairs-Only)": {
+        "hold": 9,
+        "setup": 9
+      },
+      "Paths to Unconstrained Output Ports (Pairs-Only)": {
+        "hold": 2543,
+        "setup": 2543
+      },
+      "Unconstrained Input Ports": {
+        "hold": 2,
+        "setup": 2
+      },
+      "Unconstrained Output Ports": {
+        "hold": 30,
+        "setup": 30
+      }
+    },
+    "warnings": 1,
+    "working_directory": "hps/project"
+  }
+}
