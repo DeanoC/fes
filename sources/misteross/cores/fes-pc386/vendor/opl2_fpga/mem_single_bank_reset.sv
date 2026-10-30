@@ -62,12 +62,14 @@ module mem_single_bank_reset #(
     enum {
         IDLE,
         RESETTING
-    } state = IDLE, next_state;
+    } state, next_state;
+    initial state = IDLE;
 
     struct packed {
         logic [$clog2(DEPTH)-1:0] addr;
         logic reset_mem_done;
-    } self = 0, next_self;
+    } self, next_self;
+    initial self = 0;
 
     always_ff @(posedge clk) begin
         state <= next_state;

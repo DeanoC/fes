@@ -28,6 +28,37 @@ type hardwareFixture struct {
 	saves            [][4]string
 }
 
+type delayedFirstHardwareServices struct {
+	*hardwareFixture
+	started     chan struct{}
+	release     chan struct{}
+	callMu      sync.Mutex
+	calls       int
+	startOnce   sync.Once
+	releaseOnce sync.Once
+}
+
+func (s *delayedFirstHardwareServices) Hardware(ctx context.Context) (hostclient.HardwareSnapshot, error) {
+	snapshot, err := s.hardwareFixture.Hardware(ctx)
+	s.callMu.Lock()
+	s.calls++
+	first := s.calls == 1
+	s.callMu.Unlock()
+	if first {
+		s.startOnce.Do(func() { close(s.started) })
+		select {
+		case <-s.release:
+		case <-ctx.Done():
+			return hostclient.HardwareSnapshot{}, ctx.Err()
+		}
+	}
+	return snapshot, err
+}
+
+func (s *delayedFirstHardwareServices) releaseFirst() {
+	s.releaseOnce.Do(func() { close(s.release) })
+}
+
 func (s *hardwareFixture) Hardware(context.Context) (hostclient.HardwareSnapshot, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
@@ -77,6 +108,80 @@ func loadHardware(t *testing.T, svc Services, pack Pack) *Instance {
 	}
 	stepUntil(t, r, func(f Frame) bool { return frameHas(f, "Fits this machine") })
 	return r
+}
+
+func TestHardwareRoomQueuesRefreshRequestedDuringRead(t *testing.T) {
+	svc := &delayedFirstHardwareServices{
+		hardwareFixture: hardwareData(false),
+		started:         make(chan struct{}),
+		release:         make(chan struct{}),
+	}
+	defer svc.releaseFirst()
+	r := newRoom(t, examplePack(t, "example.hardware"), Options{Services: svc, StorePath: filepath.Join(t.TempDir(), "room.json")})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-svc.started:
+	case <-time.After(3 * time.Second):
+		t.Fatal("initial hardware read did not start")
+	}
+	r.Resume()
+	svc.hardwareFixture.lock.Lock()
+	svc.value.Machines[0].Title = "Updated custom setup"
+	svc.hardwareFixture.lock.Unlock()
+	svc.releaseFirst()
+	stepUntil(t, r, func(f Frame) bool { return frameHas(f, "Updated custom setup") })
+	svc.callMu.Lock()
+	calls := svc.calls
+	svc.callMu.Unlock()
+	if calls != 2 {
+		t.Fatalf("hardware reads = %d, want initial plus queued refresh", calls)
+	}
+}
+
+func TestHardwareRoomDropsSnapshotSupersededByQueuedRefresh(t *testing.T) {
+	stale := hardwareData(false).value.Machines[0]
+	stale.GameID = "stale-in-flight"
+	stale.Title = "Stale in-flight setup"
+	selected := stale
+	selected.GameID = "selected-setup"
+	selected.Title = "Selected setup"
+	fixture := hardwareData(false)
+	fixture.value.Machines = []hostclient.HardwareMachine{stale}
+	svc := &delayedFirstHardwareServices{
+		hardwareFixture: fixture,
+		started:         make(chan struct{}),
+		release:         make(chan struct{}),
+	}
+	defer svc.releaseFirst()
+	r := newRoom(t, examplePack(t, "example.hardware"), Options{
+		Services: svc, StorePath: filepath.Join(t.TempDir(), "room.json"), InitialGameID: selected.GameID,
+	})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-svc.started:
+	case <-time.After(3 * time.Second):
+		t.Fatal("initial hardware read did not start")
+	}
+	r.Resume()
+
+	fixture.lock.Lock()
+	fixture.value.Machines = []hostclient.HardwareMachine{stale, selected}
+	fixture.lock.Unlock()
+	svc.releaseFirst()
+	frame := stepUntil(t, r, func(f Frame) bool { return frameHas(f, selected.Title) })
+	if frameHas(frame, stale.Title) {
+		t.Fatalf("superseded snapshot changed the initial selection:\n%s", frameText(frame))
+	}
+	svc.callMu.Lock()
+	calls := svc.calls
+	svc.callMu.Unlock()
+	if calls != 2 {
+		t.Fatalf("hardware reads = %d, want initial plus queued refresh", calls)
+	}
 }
 
 func TestHardwareRoomSavesDraftWithoutChangingActiveMachine(t *testing.T) {
@@ -139,6 +244,52 @@ func TestHardwareRoomUsesInitialGameIDInsteadOfSavedNavigation(t *testing.T) {
 	frame := stepUntil(t, r, func(f Frame) bool { return frameHas(f, "Selected ZX81") })
 	if frameHas(frame, "My ZX81") {
 		t.Fatalf("workbench ignored the selected entry\n%s", frameText(frame))
+	}
+}
+
+func TestSinclairWorkshopUsesSelectedModel(t *testing.T) {
+	for _, tc := range []struct{ core, label, mark string }{
+		{"fes.zx80", "Sinclair ZX80", "ZX80"},
+		{"fes.ts1000", "Timex Sinclair 1000", "TS1000"},
+		{"fes.ts1500", "Timex Sinclair 1500", "TS1500"},
+	} {
+		t.Run(tc.core, func(t *testing.T) {
+			s := hardwareData(false)
+			s.value.Machines[0].CoreID = tc.core
+			s.value.Machines[0].Title = "My " + tc.label
+			r := newRoom(t, examplePack(t, "example.hardware"), Options{
+				Services: s, Width: 1280, Height: 720, InitialCoreID: tc.core, InitialGameID: s.value.Machines[0].GameID,
+			})
+			if err := r.Load(); err != nil {
+				t.Fatal(err)
+			}
+			frame := stepUntil(t, r, func(f Frame) bool { return frameHas(f, "Set up "+tc.mark) })
+			if !frameHas(frame, tc.label+" setup") || !frameHas(frame, strings.ToUpper(tc.label)) || frameHas(frame, "Sinclair ZX81 setup") {
+				t.Fatalf("wrong model branding:\n%s", frameText(frame))
+			}
+			r.Activate("setup_library")
+			acts := r.TakeActions()
+			if len(acts) != 1 || acts[0].Kind != ActionHardwareSetup || acts[0].CoreID != tc.core {
+				t.Fatalf("wrong model setup action: %+v", acts)
+			}
+		})
+	}
+}
+
+func TestSinclairWorkshopMissingModelKeepsItsName(t *testing.T) {
+	s := hardwareData(false)
+	s.value.Machines = nil
+	r := newRoom(t, examplePack(t, "example.hardware"), Options{
+		Services: s, Width: 1280, Height: 720, InitialCoreID: "fes.ts1500", InitialGameID: "missing-timex",
+	})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	frame := stepUntil(t, r, func(f Frame) bool {
+		return frameHas(f, "The selected Timex Sinclair 1500 setup is no longer available.")
+	})
+	if !frameHas(frame, "Timex Sinclair 1500 setup") || frameHas(frame, "ZX81") {
+		t.Fatalf("missing model showed another machine:\n%s", frameText(frame))
 	}
 }
 
@@ -239,7 +390,7 @@ func TestHardwareRoomReadOnlyHostKeepsInspection(t *testing.T) {
 	s.value.Session.CorePackage.Composition.ExpansionID = strings.Repeat("b", 64)
 	r := loadHardware(t, s, examplePack(t, "example.hardware"))
 	f := r.Step(time.Now())
-	if !frameHas(f, "Restart needed: the running machine still uses its old setup.") || !frameHas(f, "Open the ZX81 Workshop on the host computer to choose Fit & save.") {
+	if !frameHas(f, "Restart needed: the running machine still uses its old setup.") || !frameHas(f, "Open the Sinclair ZX81 setup on the host computer to choose Fit & save.") {
 		t.Fatal("read-only setup did not name the host computer")
 	}
 	if !frameHas(f, "Stopping clears memory") || !frameHas(f, "Stop machine") {
@@ -811,7 +962,7 @@ func TestHardwareRoomColdOpenIsStaged(t *testing.T) {
 	if r.Err() != nil {
 		t.Fatal(r.Err())
 	}
-	if len(first.Ops) > 8 || frameHas(first, "Import expansion") || frameHas(first, "Setup preview") || !frameHas(first, "ZX81 Workshop") {
+	if len(first.Ops) > 8 || frameHas(first, "Import expansion") || frameHas(first, "Setup preview") || !frameHas(first, "Sinclair ZX81 setup") {
 		t.Fatalf("cold first draw built the workshop: ops=%d", len(first.Ops))
 	}
 	var sawUpper bool

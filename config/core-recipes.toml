@@ -1,4 +1,6 @@
-# FES package producers (ZX81, SMS, SG-1000, Apple II and Coleco format 3; ROM-less cores format 2); paths are relative to the selected misteross source.
+# FES package producers (format 2: ROM-less cores; format 3: ZX81, SMS,
+# SG-1000, Apple II, C64, Spectrum, Atari ST; format 4: Coleco). Paths are
+# relative to the selected misteross source.
 version = 1
 
 [[recipes]]
@@ -1709,6 +1711,24 @@ mistral_dsp_signed_lanes = false
 set = []
 gpu_required = false
 router2_profile = "unset"
+
+[[recipes]]
+core_id = "fes.pcxt"
+identity_version = 2
+toolchain = "quartus"
+producer_script = "scripts/build_fes_pcxt_quartus.py"
+producer_module = "scripts.build_fes_pcxt_quartus"
+authenticate = "authenticate_tools"
+lock_path = "cores/fes-pcxt/quartus.lock"
+selection_filename = "fes-pcxt.package-selection.toml"
+package_dir_env = "FES_PCXT_PACKAGE_DIR"
+package_selection_env = "FES_PCXT_PACKAGE_SELECTION"
+quartus_role = "primary diagnostic package producer"
+
+[recipes.quartus]
+version = "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition"
+seeds = [1, 2, 3]
+threads = 2
 
 [[recipes]]
 core_id = "fes.ramtest"

@@ -155,6 +155,7 @@ type CorePackageStatus struct {
 	MediaUnits       []MediaUnitStatus             `json:"media_units,omitempty"`
 	PersistenceMode  string                        `json:"persistence_mode,omitempty"`
 	PackageID        string                        `json:"package_id"`
+	CoreID           string                        `json:"core_id,omitempty"`
 	ImageSHA256      string                        `json:"image_sha256,omitempty"`
 	Generation       uint64                        `json:"generation"`
 	ABI              RuntimeContract               `json:"abi"`

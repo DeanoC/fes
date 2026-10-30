@@ -2074,6 +2074,7 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 			play.gameID, play.system, play.coreID = selected.entry.GameID, catalog.CorePlatform, selected.entry.CoreID
 			play.packageID, play.packageGeneration = selected.entry.PackageID, status.CorePackage.Generation
 		}
+		status = attachSavedCoreID(status, play)
 		s.plays[keepTarget] = play
 		if s.activeExecution != ExecutionHostOnly {
 			s.activeTarget = keepTarget
@@ -2091,6 +2092,7 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 		play.gameID, play.system, play.coreID = selected.entry.GameID, catalog.CorePlatform, selected.entry.CoreID
 		play.packageID, play.packageGeneration = selected.entry.PackageID, status.CorePackage.Generation
 	}
+	status = attachSavedCoreID(status, play)
 	s.plays[keepTarget] = play
 	s.clearNonHostForegroundLocked()
 	if s.activeExecution != ExecutionHostOnly {
@@ -2313,6 +2315,7 @@ func (s *Service) statusPairedTarget(parent context.Context, targetID string) (p
 			status.CorePackage.PackageID == play.packageID && status.CorePackage.Generation == play.packageGeneration
 	}
 	if hasPlay && matchingPackage && (status.State == protocol.StateActive || status.State == protocol.StateStopping) {
+		status = attachSavedCoreID(status, play)
 		if status.GameID == nil && play.gameID != "" {
 			status.GameID = stringPtr(play.gameID)
 		}
@@ -2459,6 +2462,7 @@ func (s *Service) statusTarget(parent context.Context, target string) (protocol.
 				status.CorePackage.PackageID == play.packageID && status.CorePackage.Generation == play.packageGeneration
 		}
 		if hasPlay && matchingPackage && (status.State == protocol.StateActive || status.State == protocol.StateStopping) {
+			status = attachSavedCoreID(status, play)
 			if status.GameID == nil && play.gameID != "" {
 				status.GameID = stringPtr(play.gameID)
 			}
@@ -2489,6 +2493,16 @@ func (s *Service) statusTarget(parent context.Context, target string) (protocol.
 	}
 	s.executionMu.Unlock()
 	return status, nil
+}
+
+func attachSavedCoreID(status protocol.Status, play targetPlay) protocol.Status {
+	if status.CorePackage == nil || status.CorePackage.CoreID != "" || play.coreID == "" {
+		return status
+	}
+	corePackage := *status.CorePackage
+	corePackage.CoreID = play.coreID
+	status.CorePackage = &corePackage
+	return status
 }
 
 // adoptObservedKit records the kit observation. A failed development status

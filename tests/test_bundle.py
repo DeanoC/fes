@@ -157,6 +157,184 @@ for core_id, module_name, options in json.loads(sys.argv[1]):
                     module.resolve_core_package(source, 'd' * 40, selection_path,
                         recipe=module.recipe_for('fes.pong'))
 
+    def test_package_resolution_records_rom_map_digest_for_format_3_and_4(self):
+        module = self.module()
+        for manifest_format in (3, 4):
+            with self.subTest(format=manifest_format), tempfile.TemporaryDirectory() as temporary:
+                source = Path(temporary)
+                store = source / 'build/packages'
+                store.mkdir(parents=True)
+                identity = 'a' * 64
+                record = b'{"format":2,"repository":"https://github.com/DeanoC/fes.git","revision":"cccccccccccccccccccccccccccccccccccccccc","source_inputs":{"x":"y"},"source_path":"sources/misteross"}\n'
+                sidecar = store / f'{identity}.build-inputs.json'
+                sidecar.write_bytes(record)
+                sidecar.chmod(0o444)
+                package = store / identity
+                package.mkdir()
+                (package / 'manifest.toml').write_bytes(b'manifest')
+                (package / 'core.rbf').write_bytes(b'payload')
+                (package / 'rom-map.json').write_bytes(b'rom-map')
+                payload_sha = hashlib.sha256(b'payload').hexdigest()
+                rom_map_sha = hashlib.sha256(b'rom-map').hexdigest()
+                inspected = {
+                    'package_id': identity,
+                    'manifest': {'core': {'id': 'fes.coleco'}, 'format': manifest_format,
+                                 'payload': {'sha256': payload_sha},
+                                 'build': {'revision': 'c' * 40}},
+                    'manifest_sha256': hashlib.sha256(b'manifest').hexdigest(),
+                    'core_rbf_sha256': payload_sha,
+                    'rom_map_sha256': rom_map_sha,
+                }
+                with patch.object(module, 'canonical_package_record', return_value=record), \
+                     patch.object(module, '_inspect_package_candidate', return_value=inspected), \
+                     patch.object(module, '_build_package', side_effect=AssertionError('unexpected build')):
+                    resolved = module.resolve_core_package(source, 'd' * 40, source / 'selection.toml',
+                        recipe=module.recipe_for('fes.coleco'))
+                self.assertEqual(resolved['inputs']['rom_map_sha256'], rom_map_sha)
+
+    def test_package_inspection_requires_rom_map_digest_for_format_3_and_4(self):
+        module = self.module()
+        base = {'package_id': 'a' * 64, 'manifest_sha256': 'b' * 64, 'core_rbf_sha256': 'c' * 64}
+        recipe = module.recipe_for('fes.coleco')
+        for manifest_format in (3, 4):
+            for with_digest in (True, False):
+                with self.subTest(format=manifest_format, rom_map_sha256=with_digest), \
+                     tempfile.TemporaryDirectory() as temporary:
+                    package = Path(temporary) / ('a' * 64)
+                    package.mkdir()
+                    for name in ('manifest.toml', 'core.rbf', 'rom-map.json'):
+                        (package / name).write_bytes(b'x')
+                        (package / name).chmod(0o444)
+                    package.chmod(0o555)
+                    (Path(temporary) / 'record.json').write_bytes(b'{}')
+                    (Path(temporary) / 'record.json').chmod(0o444)
+                    inspected = dict(base, manifest={'format': manifest_format})
+                    if with_digest:
+                        inspected['rom_map_sha256'] = 'd' * 64
+                    completed = subprocess.CompletedProcess([], 0, stdout=json.dumps(inspected), stderr='')
+                    try:
+                        with patch.object(module.subprocess, 'run', return_value=completed):
+                            call = lambda: module._inspect_package_candidate(
+                                Path(temporary), package, Path(temporary) / 'record.json', recipe=recipe)
+                            if with_digest:
+                                self.assertEqual(call(), inspected)
+                            else:
+                                with self.assertRaisesRegex(ValueError, 'unexpected result'):
+                                    call()
+                    finally:
+                        package.chmod(0o755)
+
+    def test_format4_inspection_program_reports_rom_map_digest(self):
+        module = self.module()
+        source = Path(__file__).resolve().parents[1] / 'sources/misteross'
+        recipe = module.recipe_for('fes.coleco')
+        with tempfile.TemporaryDirectory() as temporary:
+            create_package = r'''
+import hashlib
+import json
+import subprocess
+import sys
+import tomllib
+from pathlib import Path
+from scripts import build_fes_coleco_socket_v2 as producer
+from scripts.core_package import encode_manifest, package_identity
+from scripts.export_core_package import build_identity, encode_build_record
+
+source = Path.cwd()
+output = Path(sys.argv[1])
+output.mkdir(exist_ok=True)
+payload = b"synthetic Coleco format-4 inspection fixture"
+payload_sha256 = hashlib.sha256(payload).hexdigest()
+source_size = 8192 + 16384
+first_destination = 32 * 7605
+blocks = []
+for block_index in range(source_size // 1024):
+    words = [
+        [first_destination + block_index * 10240 + word * 40 + bit for bit in range(40)]
+        for word in range(256)
+    ]
+    blocks.append({
+        "bel": f"M10K.5.{block_index}.0",
+        "source_offset": block_index * 1024,
+        "word_bits": words,
+    })
+rom_map = {
+    "format": 1,
+    "device": "5CSEBA6U23I7",
+    "encoding": "m10k-1024x10-v1",
+    "base_sha256": payload_sha256,
+    "source_size": source_size,
+    "blocks": blocks,
+}
+rom_map_bytes = (json.dumps(rom_map, sort_keys=True, separators=(",", ":")) + "\n").encode()
+rom_map_sha256 = hashlib.sha256(rom_map_bytes).hexdigest()
+recipe_path = producer.RECIPE
+abi_path = producer.factory.ABI_DEFINITION
+source_roots = sorted({recipe_path, abi_path})
+revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=source, text=True).strip()
+source_inputs = {
+    path: hashlib.sha256(subprocess.check_output(
+        ["git", "show", f"{revision}:sources/misteross/{path}"], cwd=source)).hexdigest()
+    for path in source_roots
+}
+tools = {"mistral": "test fixture", "nextpnr-mistral": "test fixture", "yosys": "test fixture"}
+toolchain = "; ".join(f"{name} {tools[name]}" for name in sorted(tools))
+record = encode_build_record({
+    "format": 2,
+    "repository": "https://github.com/DeanoC/fes.git",
+    "revision": revision,
+    "source_path": "sources/misteross",
+    "source_roots": source_roots,
+    "source_inputs": source_inputs,
+    "recipe": recipe_path,
+    "recipe_sha256": source_inputs[recipe_path],
+    "abi_definition": abi_path,
+    "abi_definition_sha256": source_inputs[abi_path],
+    "dependencies": {},
+    "tools": tools,
+    "parameters": {"test_only": True},
+})
+record_path = output / "build-inputs.json"
+record_path.write_bytes(record)
+record_path.chmod(0o444)
+
+fixture = source / "tests/fixtures/core-bundle-v4/manifests/valid-basic.toml"
+manifest_fields = tomllib.loads(fixture.read_text(encoding="utf-8"))
+manifest_fields["core"].update(id="fes.coleco", name="ColecoVision", version="1.5.0")
+manifest_fields["payload"].update(size=len(payload), sha256=payload_sha256)
+manifest_fields["roms"][0].update(source_size=8192, source_offset=0)
+manifest_fields["roms"][1].update(source_size=16384, source_offset=8192)
+manifest_fields["rom_map"].update(size=len(rom_map_bytes), sha256=rom_map_sha256)
+manifest_fields["build"].update(
+    id=build_identity(record),
+    repository="https://github.com/DeanoC/fes.git",
+    revision=revision,
+    recipe_sha256=source_inputs[recipe_path],
+    toolchain=toolchain,
+)
+manifest = encode_manifest(manifest_fields)
+identity = package_identity(manifest, payload, rom_map_bytes, format_version=4)
+package = output / identity
+package.mkdir()
+for name, data in (("manifest.toml", manifest), ("core.rbf", payload), ("rom-map.json", rom_map_bytes)):
+    path = package / name
+    path.write_bytes(data)
+    path.chmod(0o444)
+package.chmod(0o555)
+print(json.dumps({"package": str(package), "record": str(record_path), "rom_map_sha256": rom_map_sha256}))
+'''
+            built = subprocess.run(
+                [sys.executable, '-c', create_package, temporary],
+                cwd=source, capture_output=True, text=True, timeout=30)
+            self.assertEqual(built.returncode, 0, built.stderr)
+            artifact = json.loads(built.stdout)
+            inspected = module._inspect_package_candidate(
+                source, Path(artifact['package']), Path(artifact['record']), recipe=recipe)
+
+        self.assertEqual(inspected['manifest']['format'], 4)
+        self.assertEqual(inspected['manifest']['core']['id'], 'fes.coleco')
+        self.assertEqual(inspected['rom_map_sha256'], artifact['rom_map_sha256'])
+
     def test_package_resolution_builds_once_when_no_canonical_candidate_exists(self):
         module = self.module()
         with tempfile.TemporaryDirectory() as temporary:
@@ -254,6 +432,13 @@ assert Path(producer.__file__).resolve() == Path(sys.argv[3]).resolve()
 authenticate = getattr(producer, sys.argv[2])
 inspect.signature(authenticate).bind(
     Path.cwd(), cache_root=Path("unused-cache-probe"))
+if sys.argv[6] == "quartus":
+    assert producer.LOCK == sys.argv[4]
+    assert producer.selected_recipe(Path.cwd())["toolchain"] == "quartus"
+    inspect.signature(producer.execution_inputs).bind({}, {}, 0)
+    inspect.signature(producer.create_build_record).bind(
+        Path.cwd(), "repository", "revision", {}, identity_version=2, execution={})
+    raise SystemExit(0)
 class Selected(Exception):
     pass
 def request_from_environment(root, lock_path=None, **kwargs):
@@ -277,7 +462,7 @@ assert lock == expected == pnr_recipe.lock_path(Path.cwd(), sys.argv[5]).resolve
                 self.assertIn('--cache-root', help_text)
                 subprocess.run(
                     [sys.executable, '-c', probe, recipe.producer_module, recipe.authenticate,
-                     str(source / recipe.producer_script), recipe.lock_path, recipe.core_id],
+                     str(source / recipe.producer_script), recipe.lock_path, recipe.core_id, recipe.toolchain],
                     cwd=source, check=True, capture_output=True, text=True, timeout=30)
         common = Path(subprocess.check_output(
             ['git', '-C', root, 'rev-parse', '--path-format=absolute', '--git-common-dir'], text=True).strip())

@@ -27,8 +27,12 @@ from sim_fes_pcxt import SYSTEM_SOURCES, CPU_MUX_MAP, board_inputs, verify_vendo
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLCHAIN_LOCK = 'cores/fes-pcxt/toolchain.lock'
-RTL = SYSTEM_SOURCES + ('cores/fes-pcxt/rtl/fes_pcxt_top.sv',)
+TARGET = '5CSEBA6U23I7'
+TOP = 'top'
+RTL = SYSTEM_SOURCES + ('cores/fes-common/rtl/fes_computer_mailbox.v',
+                        'cores/fes-pcxt/rtl/fes_pcxt_top.sv')
 QSF = 'cores/fes-ramtest/constraints.qsf'
+BOARD50_QSF = 'cores/fes-pcxt/constraints-board50.qsf'
 SDC = 'boards/de10nano/clocks.sdc'
 ROM_CLOCK_MAP = 'cores/fes-pcxt/synth/rom_clock_map.v'
 PLACER_TIMING_WEIGHT = 2000
@@ -45,14 +49,41 @@ def synthesis_command():
             SYNTHESIS + ' -run map_ffs:')
 
 
-def yosys_program(output, mda, scanlines, synthesis):
+def yosys_program(output, mda, scanlines, synthesis, half_rate_board=False,
+                  *, enable_fes_computer=False, build_id=None,
+                  phased_hdmi_clock=False):
     """Complete board Yosys script; run with cwd=output after board_inputs(output)."""
+    if build_id is not None and re.fullmatch(r'[0-9a-f]{32}', build_id) is None:
+        raise ValueError('PC/XT BUILD_ID must be 32 lowercase hexadecimal characters')
+    package_parameters = (' -set ENABLE_FES_COMPUTER 1' if enable_fes_computer else '')
+    if phased_hdmi_clock:
+        package_parameters += ' -set PHASED_HDMI_CLOCK 1'
+    if build_id is not None:
+        package_parameters += f" -set BUILD_ID 128'h{build_id}"
     return ('read_verilog -sv -I ' + str(ROOT / 'cores/fes-common/generated') + ' -I ' + str(output) + ' ' +
             ' '.join('-I ' + str(vendor_dir(n)) for n in CHIP_VENDORS) + ' ' +
             ' '.join(str(ROOT / s) for s in RTL) + '; ' +
-            f'chparam -set MDA {int(mda)} -set SCANLINES {int(scanlines)} top; ' +
+            f'chparam -set MDA {int(mda)} -set SCANLINES {int(scanlines)}' +
+            package_parameters +
+            (' -set HALF_RATE_BOARD 1' if half_rate_board else '') + ' top; ' +
             synthesis + '; techmap -map ' + str(ROOT / CPU_MUX_MAP) +
             '; techmap -map ' + str(ROOT / ROM_CLOCK_MAP) + '; hierarchy -top top; opt_clean; check -assert; stat; write_json synth.json')
+
+
+def nextpnr_command(executable, seed, half_rate_board=False):
+    qsf = BOARD50_QSF if half_rate_board else QSF
+    command = [str(executable), '--json', 'synth.json',
+               '--device', '5CSEBA6U23I7', '--qsf', str(ROOT / qsf), '--sdc', str(ROOT / SDC),
+               '--freq', '100', '--seed', str(seed), '--router', 'gpu',
+               '--placer-heap-timingweight', str(PLACER_TIMING_WEIGHT),
+               '--placer-heap-critexp', str(PLACER_CRITICALITY_EXPONENT),
+               '--rbf', 'diagnostic.rbf', '--compress-rbf', '--write', 'routed.json',
+               '--report', 'timing.json', '--detailed-timing-report', '--timing-report-paths',
+               '1024' if half_rate_board else '64']
+    if half_rate_board:
+        command += ['--phase-related-harmonic-clocks', '--mistral-ff-reset-reference',
+                    '--critical-cohort-budget', '0', '--critical-cohort-model-out', 'model.json']
+    return command
 
 
 def gpu_choice(gpu_router):
@@ -80,10 +111,17 @@ def main():
     parser.add_argument('--mda', action='store_true')
     parser.add_argument('--scanlines', action='store_true')
     parser.add_argument('--synth-only', action='store_true')
+    parser.add_argument('--half-rate-board', action='store_true',
+                        help='experimental CPU100/board50 diagnostic with explicit harmonic/reset-reference timing')
+    parser.add_argument('--seed', type=int, default=3,
+                        help='nextpnr seed (default: 3, passing CGA Direct diagnostic recipe)')
     parser.add_argument('--route-timeout', type=int, default=1800)
     args = parser.parse_args()
+    if not 0 <= args.seed < (1 << 64):
+        parser.error('--seed must be an unsigned 64-bit integer')
     if args.route_timeout <= 0:
         parser.error('--route-timeout must be positive')
+    qsf = BOARD50_QSF if args.half_rate_board else QSF
     tools = authenticate_tools(ROOT, args.cache_root, args.gpu_router)
     gpu_backend, _architectures, _configuration = gpu_choice(args.gpu_router)
     for name in CHIP_VENDORS:
@@ -93,7 +131,7 @@ def main():
     output.mkdir(parents=True)
     print(output, flush=True)
     # Headers, microcode and assembly are part of the diagnostic source record.
-    inputs = sorted(set(RTL) | {QSF, SDC, ROM_CLOCK_MAP, CPU_MUX_MAP, TOOLCHAIN_LOCK, 'scripts/build_fes_pcxt.py',
+    inputs = sorted(set(RTL) | {qsf, SDC, ROM_CLOCK_MAP, CPU_MUX_MAP, TOOLCHAIN_LOCK, 'scripts/build_fes_pcxt.py',
                     'scripts/sim_fes_pcxt.py', 'cores/fes-pcxt/firmware/diagnostic.S'} |
                     {str(p.relative_to(ROOT)) for p in (ROOT / 'cores/fes-common/generated').glob('*.vh')} |
                     {str(p.relative_to(ROOT)) for d in (ROOT / 'cores/fes-pcxt/vendor', *map(vendor_dir, SHARED_VENDORS))
@@ -105,7 +143,8 @@ def main():
                'revision': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
                'working_tree_changes': subprocess.check_output(['git', 'status', '--porcelain', '--', '.'], cwd=ROOT, text=True).splitlines(),
                'sources': sources, 'tools': {k: v.identity for k, v in tools.items()},
-               'mda': args.mda, 'scanlines': args.scanlines, 'seed': 1,
+               'mda': args.mda, 'scanlines': args.scanlines, 'seed': args.seed,
+               'half_rate_board': args.half_rate_board, 'qsf': qsf,
                'gpu_router': args.gpu_router, 'route_timeout_seconds': args.route_timeout,
                'route_timeout_basis': 'nextpnr work time; GPU lease waits excluded by the common runner',
                'placement': {'timing_weight': PLACER_TIMING_WEIGHT,
@@ -114,15 +153,17 @@ def main():
                           'no physical ISA containment', 'no sealed package or runtime ABI',
                           'Quartus qualification is a separate manual check',
                           'no hardware acceptance']}
+    if args.half_rate_board:
+        receipt['limits'].append('FF clear reference source/deassertion validation remains incomplete')
     def save():
         (output / 'diagnostic.json').write_text(json.dumps(receipt, indent=2, sort_keys=True) + '\n')
     save()
     try:
         board_inputs(output)
         receipt['generated_roms'] = {p.name: hashlib.sha256(p.read_bytes()).hexdigest()
-                                     for p in sorted(output.glob('*.mem'))}
+                                     for p in sorted([*output.glob('*.mem'), *output.glob('*.hex'), *output.glob('*.vh')])}
         save()
-        program = yosys_program(output, args.mda, args.scanlines, synthesis_command())
+        program = yosys_program(output, args.mda, args.scanlines, synthesis_command(), args.half_rate_board)
         with (output / 'yosys.log').open('w') as log:
             subprocess.run([str(tools['yosys'].path), '-p', program], cwd=output,
                            stdout=log, stderr=subprocess.STDOUT, check=True)
@@ -131,13 +172,7 @@ def main():
         receipt['status'] = 'synthesized'
         save()
         if not args.synth_only:
-            command = [str(tools['nextpnr-mistral'].path), '--json', 'synth.json',
-                       '--device', '5CSEBA6U23I7', '--qsf', str(ROOT / QSF), '--sdc', str(ROOT / SDC),
-                       '--freq', '100', '--seed', '1', '--router', 'gpu',
-                       '--placer-heap-timingweight', str(PLACER_TIMING_WEIGHT),
-                       '--placer-heap-critexp', str(PLACER_CRITICALITY_EXPONENT),
-                       '--rbf', 'diagnostic.rbf', '--compress-rbf', '--write', 'routed.json',
-                       '--report', 'timing.json', '--detailed-timing-report', '--timing-report-paths', '64']
+            command = nextpnr_command(tools['nextpnr-mistral'].path, args.seed, args.half_rate_board)
             env = dict(os.environ)
             env['NEXTPNR_REQUIRE_GPU'] = '1'
             receipt['route_command'] = command

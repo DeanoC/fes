@@ -86,7 +86,9 @@ from scripts.functional_execution import execution_environment, execution_inputs
 with tempfile.TemporaryDirectory(prefix="fes-canonical-home-") as home:
     paths = {name: tool.path for name, tool in tools.items()}
     environment = execution_environment(Path(home), paths)
-    options["execution"] = execution_inputs(paths, environment, 0)
+    options["execution"] = (producer.execution_inputs(paths, environment, 0)
+                            if hasattr(producer, "execution_inputs")
+                            else execution_inputs(paths, environment, 0))
 sys.stdout.buffer.write(producer.create_build_record(root, repository, revision, identities, **options))
 '''
     cache_root = str(recipe.cache_root)
@@ -99,6 +101,8 @@ sys.stdout.buffer.write(producer.create_build_record(root, repository, revision,
         parsed = json.loads(record)
     except (OSError, subprocess.CalledProcessError, UnicodeDecodeError,
             json.JSONDecodeError) as error:
+        if recipe.toolchain == "quartus":
+            raise ValueError(f"cannot authenticate {recipe.core_id} Quartus inputs; set QUARTUS_ROOTDIR and FES_PCXT_YOSYS to the pinned installations") from error
         raise ValueError(
             f"cannot derive authenticated {recipe.core_id} build inputs in {source}; "
             f"inspect the producer error and, if the shared toolchain slot is missing, run "
@@ -183,7 +187,7 @@ if (build["id"] != build_identity(record) or
 inspected = {"manifest": manifest, "package_id": package.package_id,
              "manifest_sha256": hashlib.sha256(package.manifest_bytes).hexdigest(),
              "core_rbf_sha256": hashlib.sha256(package.payload_bytes).hexdigest()}
-if manifest["format"] == 3:
+if manifest["format"] in (3, 4):
     inspected["rom_map_sha256"] = hashlib.sha256(package.rom_map_bytes).hexdigest()
 print(json.dumps(inspected, sort_keys=True))
 '''
@@ -197,7 +201,7 @@ print(json.dumps(inspected, sort_keys=True))
         raise ValueError(f"cached {recipe.core_id} package failed producer validation" +
                          (f": {detail}" if detail else "")) from error
     expected = {"manifest", "package_id", "manifest_sha256", "core_rbf_sha256"}
-    if inspected.get("manifest", {}).get("format") == 3:
+    if inspected.get("manifest", {}).get("format") in (3, 4):
         expected.add("rom_map_sha256")
     if set(inspected) != expected:
         raise ValueError("producer package inspection returned an unexpected result")
@@ -374,7 +378,7 @@ def resolve_core_package(source, mister_packages_revision, selection_path, force
         "manifest_sha256": manifest_sha256,
         "core_rbf_sha256": core_rbf_sha256,
     }
-    if manifest.get("format") == 3:
+    if manifest.get("format") in (3, 4):
         rom_map_sha256 = digest(package / "rom-map.json")
         if rom_map_sha256 != inspected.get("rom_map_sha256"):
             raise ValueError("selected package members changed after inspection")

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Byte bus router and first XT motherboard devices. All pins are synchronous
-// data at 100 MHz. Storage and ISA each accept one request and return one done;
+// data in the selected board clock domain. Storage and ISA each accept one request and return one done;
 // reset must cancel outstanding work in both downstream participants as well.
-module pcxt_motherboard (
+module pcxt_motherboard #(parameter integer CLOCK_HZ = 100000000) (
     input wire clk, reset, guest_ce,
     input wire cycle_valid,
     output wire cycle_ready,
@@ -48,6 +48,7 @@ module pcxt_motherboard (
                ISA_SEND=3'd3, ISA_WAIT=3'd4, LOCAL=3'd5, DONE=3'd6;
     reg [2:0] state;
     reg [4:0] phase;
+    reg [7:0] local_read_snapshot;
     reg select_pit, select_ppi, select_dma, select_page, select_inta;
     reg source_dma, inta_pending;
     reg [1:0] pit_divider;
@@ -64,8 +65,10 @@ module pcxt_motherboard (
     wire [7:0] request_wdata = dma_owner ? dma_wdata : cycle_wdata;
     wire [1:0] request_kind = dma_owner ? dma_kind : cycle_kind;
     wire request_write = dma_owner ? dma_write : cycle_write;
-    wire ram = request_kind == 0 && request_address < 20'ha0000;
-    wire rom = request_kind == 0 && request_address >= 20'hf0000;
+    // RAM and ROM bounds are aligned to 64 KiB; low address bits cannot
+    // affect dispatch. Keep this region decode out of a wide carry chain.
+    wire ram = request_kind == 0 && request_address[19:16] < 4'ha;
+    wire rom = request_kind == 0 && request_address[19:16] == 4'hf;
     // XT motherboard ignores A15:10. PIC uses A0; PIT/PPI use A1:0;
     // DMA uses A3:0 and the write-only page latch uses A1:0.
     wire pic = !dma_owner && request_kind == 1 && request_address[9:5] == 1;
@@ -178,17 +181,26 @@ module pcxt_motherboard (
             end
             LOCAL: begin
                 phase <= phase + 1'b1;
-                if (phase == 8 && !write_cycle) begin
-                    if (select_dma) cycle_rdata <= dma_reg_data;
-                    else if (select_page) cycle_rdata <= 8'hff;
-                    else if (select_ppi) cycle_rdata <= ppi_data;
-                    else if (select_pit) cycle_rdata <= pit_data;
-                    else cycle_rdata <= pic_bus_input ? 8'hff : pic_data;
+                if (phase == 17) begin
+                    if (!write_cycle) cycle_rdata <= local_read_snapshot;
+                    state <= DONE;
                 end
-                if (phase == 17) state <= DONE;
             end
             default: state <= IDLE;
         endcase
+    end
+
+    // Sample at the original read edge. The existing release interval lets
+    // this local mux settle before the shared memory/ISA return register.
+    always @(posedge clk) begin
+        if (reset) local_read_snapshot <= 8'hff;
+        else if (state == LOCAL && phase == 8 && !write_cycle) begin
+            if (select_dma) local_read_snapshot <= dma_reg_data;
+            else if (select_page) local_read_snapshot <= 8'hff;
+            else if (select_ppi) local_read_snapshot <= ppi_data;
+            else if (select_pit) local_read_snapshot <= pit_data;
+            else local_read_snapshot <= pic_bus_input ? 8'hff : pic_data;
+        end
     end
 
     pcxt_xtio xtio (
@@ -203,7 +215,7 @@ module pcxt_motherboard (
         .keyboard_irq(keyboard_irq), .pit_out2(pit_out[2]),
         .pit_gate2(pit_gate2), .speaker(speaker)
     );
-    pcxt_speaker audio (
+    pcxt_speaker #(.CLOCK_HZ(CLOCK_HZ)) audio (
         .clk(clk), .reset(reset), .speaker(speaker),
         .sample_valid(audio_valid), .sample(audio_sample)
     );

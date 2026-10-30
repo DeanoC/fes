@@ -206,6 +206,9 @@ func (s Snapshot) HeaderHint() string {
 		if s.RoomPicker.Open {
 			return roomPickerHint(kind)
 		}
+		if s.Session.Coleco && s.Room.ID == colecoArcadeRoomID {
+			return selectWord(kind) + " choose  " + backWord(kind) + " return to session  ·  Stop to play another cartridge"
+		}
 		return selectWord(kind) + " choose  " + backWord(kind) + " return to session  ·  Machine keeps running"
 	}
 	if s.GPUParked || s.Session.State == "active" || s.Session.RetryStop {
@@ -221,11 +224,26 @@ func (s Snapshot) HeaderHint() string {
 		}
 		if s.Session.HardwareRoom {
 			hint = strings.Replace(hint, "  "+layoutWord(kind)+" layout", "", 1)
-			label := "hardware room"
-			if s.Session.MediaSelector {
-				label = "change media"
+			if s.Session.Coleco && !s.Session.ControlsOpen {
+				switch kind {
+				case InputKeyboard:
+					hint += "  / change cartridge  ·  Home/F12 Coleco selector"
+				case InputMouse:
+					hint += "  Gamepad Guide changes cartridge  ·  Home Coleco selector"
+				default:
+					hint += "  GUIDE change cartridge  ·  Home Coleco selector"
+				}
+			} else {
+				label := strings.ToLower(playingRoomLabel(s.Session))
+				if s.Session.MediaSelector {
+					label = "change media"
+				}
+				word := hardwareRoomWord(kind)
+				if s.Session.KeypadSelect && word == "SELECT" {
+					word = "GUIDE"
+				}
+				hint += "  " + word + " " + label
 			}
-			hint += "  " + hardwareRoomWord(kind) + " " + label
 		}
 		if h := strings.TrimSpace(s.Session.InputHint); h != "" {
 			return hint + "  " + h
@@ -267,6 +285,14 @@ func (s Snapshot) HeaderHint() string {
 			return h
 		}
 		return tapePickerHint(kind)
+	}
+	if s.BrowseActions.Focused {
+		return browseActionsHint(s)
+	}
+	if !s.Room.Open && s.BrowseActions.Visible {
+		if _, hasSecondary := browseActionLabels(s.DetailPlay); hasSecondary {
+			return browseActionsClosedHint(s)
+		}
 	}
 	if s.Room.Open {
 		if s.Room.Err != "" {
@@ -346,6 +372,9 @@ func libraryDetailHint(kind InputKind, count int, d rooms.Destination) string {
 		parts = append(parts, selectWord(kind)+" import BIOS")
 	}
 	parts = append(parts, backWord(kind)+" back")
+	if kind == InputGamepad {
+		parts = append(parts, "Y search")
+	}
 	if count > 1 {
 		switch kind {
 		case InputKeyboard, InputMouse:

@@ -1,13 +1,15 @@
--- ColecoVision Arcade: a short cabinet of classic Coleco ports. Each title
--- is resolved from the library by search at load (game ids are path
--- derived, so rooms do not hard-code them). Missing titles are skipped so
--- the room still opens on a kit that only has some — or none — of them.
+-- ColecoVision Arcade: a short cabinet of classic Coleco ports. Installed
+-- core-package entries live on the FPGA catalog platform, so resolve by the
+-- package's core id as well as title (game ids are path-derived). Missing
+-- titles are skipped so the room still opens when only some are installed.
 -- Loading results never move the player's selection.
 local List = require "widgets.list"
 local color = require "util.color"
 
 local PLATFORM = "coleco"
-local DEST = 130
+local CORE_ID = "fes.coleco"
+local CORE_PLATFORM = "fpga"
+local DEST = 180
 local TMS = { "#21c842", "#54fcfc", "#e54c4c", "#e6c547" }
 
 local CABINETS = {
@@ -25,7 +27,7 @@ local status = "searching the library..."
 local function coleco_games(games)
   local out = {}
   for _, g in ipairs(games or {}) do
-    if g.system == PLATFORM then out[#out + 1] = g end
+    if g.core_id == CORE_ID then out[#out + 1] = g end
   end
   return out
 end
@@ -83,7 +85,7 @@ end
 
 local function resolve(cab)
   resolving = resolving + 1
-  library.query({ q = cab.search, platform = PLATFORM, limit = 20 }, function(games, err)
+  library.query({ q = cab.search, platform = CORE_PLATFORM, core_ids = { CORE_ID }, limit = 20 }, function(games, err)
     resolving = resolving - 1
     if not err and games then
       local result = destination.classify(coleco_games(games), { q = cab.search })
@@ -128,7 +130,7 @@ function on_input(cmd)
     return true
   end
   if cmd == "search" or cmd == "tab" then
-    rooms.open_library{ platform = PLATFORM, layout = "shelf" }
+    rooms.open_library{ platform = CORE_PLATFORM, core_ids = { CORE_ID }, layout = "shelf" }
     return true
   end
   return false
@@ -160,6 +162,10 @@ end
 
 function draw()
   local w, h = room.width, room.height
+  local shelf_hint = "Tab opens the Coleco shelf"
+  if session.state() == "active" then
+    shelf_hint = "Stop before opening the library"
+  end
   gfx.clear(room.theme.background)
   gfx.rect(0, 0, w, 96, color.shade(room.theme.background, 0.7))
   gfx.rect(0, 96, w, 4, room.theme.accent)
@@ -168,7 +174,7 @@ function draw()
   end
   gfx.text("COLECOVISION", 160, 16, { size = 34, bold = true, color = room.theme.accent })
   gfx.text("ARCADE CABINET", 160, 56, { size = 14, color = "#c8b88a" })
-  gfx.text(status .. "  ·  Tab opens the Coleco shelf", w - 32, 38, { size = 16, align = "right", color = "#c8b88a" })
+  gfx.text(status .. "  ·  " .. shelf_hint, w - 32, 38, { size = 16, align = "right", color = "#c8b88a" })
   if list then
     list:draw{ label = function(item) return item.label end, background = "#1c1810", focus_color = room.theme.accent, focus_text = "#14110c", color = "#f0e6c8" }
   end

@@ -1,10 +1,11 @@
 package tenfoot
 
 import (
-	"github.com/DeanoC/FogCast/hostclient"
 	"image"
 	"image/color"
 	"testing"
+
+	"github.com/DeanoC/FogCast/hostclient"
 
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/theme"
@@ -14,6 +15,57 @@ func testDrawGrid() Grid {
 	var g Grid
 	g.Layout(1280, 720)
 	return g
+}
+
+func TestRoomChromeFooterSeparatesStatusAndHintRows(t *testing.T) {
+	g := testDrawGrid()
+	statusY, hintY := roomChromeFooterRows(g)
+	if gap := hintY - statusY; gap < gfx.TextHeight(14)+4 {
+		t.Fatalf("room footer status and hint rows overlap: statusY=%d hintY=%d textHeight=%d", statusY, hintY, gfx.TextHeight(14))
+	}
+	if statusY+gfx.TextHeight(14) > g.footerY() || hintY+8 > g.footerY() {
+		t.Fatalf("room footer rows leave the room content: statusY=%d hintY=%d footerY=%d", statusY, hintY, g.footerY())
+	}
+}
+
+func TestNonHeroRoomFooterShowsActionableStatusOnly(t *testing.T) {
+	g := testDrawGrid()
+	base := Snapshot{
+		Grid:     g,
+		Room:     RoomSnapshot{Open: true, ID: colecoArcadeRoomID, Width: g.Width, Height: g.Height},
+		Health:   HealthSnapshot{Ready: true, TargetReachable: true, TargetReady: true, Line: "host ready · kit ready"},
+		KitLease: KitLeaseSnapshot{State: "free", Line: "lease free"},
+	}
+	cases := []struct {
+		name  string
+		setup func(*Snapshot)
+		want  string
+	}{
+		{name: "routine health and lease are hidden"},
+		{name: "local launch checking", setup: func(s *Snapshot) { s.Status = localLaunchCheckingCopy }, want: localLaunchCheckingCopy},
+		{name: "settings unavailable during play", setup: func(s *Snapshot) { s.Status = "Settings are unavailable during play." }, want: "Settings are unavailable during play."},
+		{name: "unsupported action", setup: func(s *Snapshot) { s.Status = "That action is not available." }, want: "That action is not available."},
+		{name: "local core status", setup: func(s *Snapshot) {
+			s.Status = "ZX Spectrum is still starting."
+			s.LocalCoreStatus = s.Status
+		}, want: "ZX Spectrum is still starting."},
+		{name: "Coleco session notice", setup: func(s *Snapshot) {
+			s.Room.DuringPlay = true
+			s.Room.Notice = colecoCartridgeSessionStatus
+			s.Session.Coleco = true
+		}, want: colecoCartridgeSessionStatus},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			snap := base
+			if tc.setup != nil {
+				tc.setup(&snap)
+			}
+			if got := renderRoomLabelSource(t, snap, "room-status"); got != tc.want {
+				t.Fatalf("non-hero footer status = %q, want %q", got, tc.want)
+			}
+		})
+	}
 }
 
 func testDrawRGBA(w, h int) *image.RGBA {
@@ -224,21 +276,27 @@ func TestUploadTextureRejectsEmpty(t *testing.T) {
 	}
 }
 
-func TestDrawFrameClearsWithThemeBackground(t *testing.T) {
+func TestLibraryDrawFrameUsesWarmFESBackground(t *testing.T) {
 	rec := gfx.NewRecorder()
 	snap := Snapshot{Grid: testDrawGrid()}
 	drawFrame(rec, snap, map[string]gpuTexture{}, map[string]gpuTexture{})
 	if len(rec.Calls) < 2 || rec.Calls[0].Op != "BeginFrame" || rec.Calls[1].Op != "Clear" {
 		t.Fatalf("ops %#v", rec.Ops())
 	}
-	if rec.Calls[1].Color != theme.Default().SofaBackground {
-		t.Fatalf("default sofa clear %+v", rec.Calls[1].Color)
+	if rec.Calls[1].Color != heroBackground {
+		t.Fatalf("default Library clear %+v", rec.Calls[1].Color)
+	}
+	rec = gfx.NewRecorder()
+	snap.Theme = theme.Night() // Provisioned sofa-dim resolves to Night.
+	drawFrame(rec, snap, map[string]gpuTexture{}, map[string]gpuTexture{})
+	if rec.Calls[1].Color != heroBackground {
+		t.Fatalf("provisioned Library clear %+v", rec.Calls[1].Color)
 	}
 	rec = gfx.NewRecorder()
 	snap.Theme = theme.Arcade()
 	drawFrame(rec, snap, map[string]gpuTexture{}, map[string]gpuTexture{})
 	if rec.Calls[1].Color != theme.Arcade().SofaBackground {
-		t.Fatalf("arcade sofa clear %+v", rec.Calls[1].Color)
+		t.Fatalf("Library clear %+v", rec.Calls[1].Color)
 	}
 	if theme.Arcade().SofaBackground == theme.Default().SofaBackground {
 		t.Fatal("arcade sofa must differ")

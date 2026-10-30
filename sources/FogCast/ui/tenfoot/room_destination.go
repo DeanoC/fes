@@ -59,7 +59,15 @@ func (a *App) roomDestinationLocked() rooms.Destination {
 		d.Status = localLaunchCheckingCopy
 		d.Action = rooms.CheckingAction
 	}
-	return a.applyKitDirectLocked(d)
+	d = a.applyKitDirectLocked(d)
+	if a.session.State == "active" && a.roomDuringPlay && a.room.ID() == colecoArcadeRoomID && a.colecoSessionLocked() &&
+		(d.Confirm() == rooms.ConfirmLaunch || d.Confirm() == rooms.ConfirmChoose) {
+		// This room browses other ROM-linked cartridges while the current one
+		// keeps running. Do not advertise its ordinary Ready / Play or choice copy.
+		d.Status = colecoRunningDestinationStatus
+		d.Action = colecoRunningDestinationAction
+	}
+	return d
 }
 
 // applyKitDirectLocked marks one present browse-only cartridge ready for
@@ -269,6 +277,12 @@ func (a *App) handleRoomLocked(cmd Command) {
 		if a.handleRoomDetailLocked(cmd) {
 			return
 		}
+	}
+	if a.handleBrowseActionsLocked(cmd) {
+		return
+	}
+	if cmd == CmdUp && a.enterBrowseActionsLocked(0) {
+		return
 	}
 	if cmd == CmdSearch || cmd == CmdDetails {
 		a.openRoomDetailsLocked()
@@ -529,7 +543,7 @@ func (a *App) openRoomDetailsForLocked(game hostclient.Game) {
 	a.carouselIndex = skipFailedCarousel(a.focusDetailLocked().ScreenshotIDs, a.shotFailedLocked, a.carouselIndex)
 }
 
-func (a *App) openNestedRoomLocked(id, initialGameID string) {
+func (a *App) openNestedRoomLocked(id, initialGameID string, initialCoreID ...string) {
 	if a.room == nil {
 		return
 	}
@@ -542,7 +556,7 @@ func (a *App) openNestedRoomLocked(id, initialGameID string) {
 	a.closeRoomOverlaysLocked()
 	a.room = nil
 	a.roomStack = append(a.roomStack, parent)
-	a.openRoomWithSelectionLocked(id, initialGameID)
+	a.openRoomWithSelectionLocked(id, initialGameID, initialCoreID...)
 	if a.room == nil {
 		a.roomStack = a.roomStack[:len(a.roomStack)-1]
 		a.room = parent
@@ -553,11 +567,15 @@ func (a *App) roomChoiceSnapshotLocked() RoomChoiceSnapshot {
 	if !a.roomChoiceOpen {
 		return RoomChoiceSnapshot{}
 	}
+	hint := roomChoiceHint(a.affinity.current.Kind)
+	if a.session.State == "active" && a.roomDuringPlay && a.room != nil && a.room.ID() == colecoArcadeRoomID && a.colecoSessionLocked() {
+		hint = colecoRunningDestinationAction
+	}
 	return RoomChoiceSnapshot{
 		Open:  true,
 		Index: a.roomChoiceIndex,
 		Rows:  append([]hostclient.Game(nil), a.roomChoice...),
-		Hint:  roomChoiceHint(a.affinity.current.Kind),
+		Hint:  hint,
 	}
 }
 

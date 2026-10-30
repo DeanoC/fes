@@ -30,11 +30,12 @@ programs the FPGA. misteross stops at the RBF. No build target programs a kit.
 go through FogCast as described packages; the contained development-RBF path
 serves experiments.
 
-ZX81, SMS, SG-1000, Apple II, C64, Spectrum, Atari ST and the factory Coleco
-shell seal format-3 packages containing a blank base RBF and an authenticated
-ROM map. ZX81 requires an exact 8192-byte firmware input; SMS requires an
-exact 32768-byte cartridge input; SG-1000 and Coleco require an exact
-16384-byte cartridge input. Map extraction checks the selected Mistral
+ZX81, SMS, SG-1000, Apple II, C64, Spectrum and Atari ST seal format-3 packages
+containing a blank base RBF and an authenticated ROM map. ZX81 requires an
+exact 8192-byte firmware input; SMS requires an exact 32768-byte cartridge
+input; SG-1000 requires an exact 16384-byte cartridge input. The factory
+Coleco producer seals format-4 packages with an exact 8192-byte `coleco-bios`
+and 16384-byte `coleco-cart`. Map extraction checks the selected Mistral
 database, routed ROM placements and blank INIT bits. ROM-less producers
 retain format 2. The Coleco MegaCart development producer emits format 4.
 Which format is current is the FES [core alignment](../../docs/core-alignment.md)
@@ -80,12 +81,15 @@ The PC/XT development slice runs an original diagnostic ROM on a pinned 8088
 through its motherboard, SDRAM and separate ISA CGA/MDA cards. The assembled
 system also exercises DMA and refresh while one selected display crosses into
 the shared Direct/Scanlines 720p output. `make sim-fes-pcxt` checks this on the
-host. `make build-fes-pcxt CACHE_ROOT=/absolute/toolchain-cache` builds an
-autonomous board diagnostic with PLLs, SDRAM pads/capture and HDMI, retaining
-source/tool receipts and failed or completed routes under
-`build/diagnostic/fes-pcxt/`. See the [core README](cores/fes-pcxt/README.md).
-Routed timing, SDRAM pad qualification, a sealed package, physically linkable ISA
-sockets, BIOS/DOS/game compatibility and hardware acceptance remain open.
+host. `make build-fes-pcxt CACHE_ROOT=/absolute/toolchain-cache` builds the
+normal Quartus diagnostic package, with authenticated tool/source identity,
+three timing seeds and an independent byte-identical rebuild under
+`build/fes-pcxt-quartus/`. The [core README](cores/fes-pcxt/README.md) describes
+tool selection and the separate advisory nextpnr diagnostic. The exact package
+in the [reviewed Kit A record](../../docs/validation/2026-10-29-pcxt-quartus-package/review-followup.json)
+passes the static picture/completion-block and launch/Stop checks. External
+SDRAM/HDMI timing, whole-board qualification, physically linkable ISA sockets
+and BIOS/DOS/game compatibility remain open.
 
 The pc386 machine's AT core (phase M1 of the [machine design](docs/pc386-machine-design.md))
 boots the Bochs BIOS and FreeDOS to a prompt in host simulation with the Bochs

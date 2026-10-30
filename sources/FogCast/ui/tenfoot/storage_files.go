@@ -194,12 +194,12 @@ func listDriveDir(ctx context.Context, manager *storage.Manager, client *Client,
 func tapePickerDriveRows(p *hostclient.SessionCorePackage, rows []FirmwarePickerRow) []TapePickerRow {
 	tapes := make([]TapePickerRow, 0, len(rows))
 	for _, row := range rows {
-		if row.Kind == tapePickerKindFile && !hostclient.AdmitRemovableMedia(p, row.Name, row.Size) {
+		if row.Kind == tapePickerKindFile && !admitSessionMedia(p, row.Name, row.Size) {
 			continue
 		}
 		tapes = append(tapes, TapePickerRow{Name: row.Name, Path: row.Path, Kind: row.Kind, Size: row.Size, Selectable: row.Kind == tapePickerKindFile})
 	}
-	return tapePickerFolderActions(tapes)
+	return tapePickerFolderActions(tapes, !hostclient.CartridgeSwapCapable(p))
 }
 
 func (a *App) loadDrivePickerDirLocked(path, destination string) {

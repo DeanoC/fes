@@ -1,0 +1,33 @@
+{
+  "source_commit": "9ab7e975cb249c97c4b95c52739800053b96ea7d",
+  "gallery_capture_count": 134,
+  "native_capture_count": 47,
+  "native_top_level_tests": 5,
+  "native_subtests": 45,
+  "native_package_elapsed_seconds": 4.992,
+  "native_tests": [
+    {
+      "Test": "TestHardwareRoomNativeRender",
+      "Elapsed": 1.87
+    },
+    {
+      "Test": "TestHomeLoungeNativeRender",
+      "Elapsed": 1.02
+    },
+    {
+      "Test": "TestLibraryNativeRender",
+      "Elapsed": 0.4
+    },
+    {
+      "Test": "TestRoomDetailsKeepsLongSummaryAndCuratorNoteInsidePane",
+      "Elapsed": 0.45
+    },
+    {
+      "Test": "TestNativeDialogRender",
+      "Elapsed": 1.17
+    }
+  ],
+  "live_source_touched": false,
+  "snapshot_temporary_test_removed": true,
+  "hardware_acceptance": false
+}

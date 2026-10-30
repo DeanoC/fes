@@ -35,6 +35,39 @@
 // list): AND, OR, XOR and TEST clear AF; a shift by a nonzero count sets AF;
 // shifts and rotates set OF and CF as fes_i386_shflags says.
 //
+// BT, BTS, BTR and BTC number their bit by the shifter's count, an
+// immediate or src2 (the bypass from WB included), mod the size: its
+// one-hot mask sets, clears or flips the bit in x for the result. CF is the
+// bit; OF, which the manual leaves undefined, the two bits below it XORed
+// (mod the size), as the 386EX makes it (Phase 0 divergence bit-test-of);
+// SF, ZF, AF and PF stay. BITDISP, a bit test's address displacement from
+// its register bit number in y, is wiring.
+//
+// BSF and BSR find y's lowest or highest set bit; a source of 0 sets ZF and
+// keeps the destination (a). Their other flags are the 386EX's (divergence
+// bsf-bsr-flags), which the manual leaves undefined:
+//   BSF: if bit 0 is set, CF is bit 1, PF the parity of y less 1, AF 1, SF
+//     the top bit's complement and OF the top bit; else PF is the index's
+//     parity and CF, AF, SF and OF are 0.
+//   BSR: CF is the bit below the index; PF the parity of y less 1; AF set
+//     when bits 3:0 are not all 0; SF the complement of y less 1's top bit;
+//     OF 1 at index 0, else the two bits below the index XORed. A source of
+//     0 clears CF, AF, SF and OF and sets PF.
+//
+// BOUND's compares subtract like CMP and write no flags. One raises #BR
+// (br) when x is below y, signed: when the carry out of the size, which is
+// not a borrow, differs from the top bits' propagate (y inverted), the SF
+// and OF a CMP would write differing.
+// DAA, DAS, AAA and AAS adjust AL (x) by AF and, for DAA and DAS, CF, both
+// from EX's running copy. Each adds to AL (DAA, AAA) or takes from it (DAS,
+// AAS) 6 when its low digit is above 9 or AF is set, and for DAA and DAS 60h
+// when AL is above 99h or CF is set; AF is whether 6 went in, CF whether 60h
+// did, or for DAS that or the borrow out of AL less 6. AAA and AAS carry that
+// byte's carry or borrow and 1 into AH, keep only AL's low digit, and set CF
+// as AF. The flags the manual leaves undefined are the 386EX's (divergences
+// daa-das-of, aaa-aas-flags): SF, ZF and PF of the byte the add makes, AL's
+// high digit and all, and OF its signed overflow.
+//
 // MUL, IMUL, DIV, IDIV, AAM and AAD take their flags from the multiply and
 // divide unit (fes_i386_muldiv, md_flags); their result comes through LEA's
 // select, from the pipe record's result field, which fes_i386_cpu fills
@@ -54,6 +87,7 @@ module fes_i386_ex (
     output logic [31:0]          result,
     output logic [17:0]          flags_out,
     output logic                 taken,
+    output logic                 br,          // BOUND's #BR
     output logic [31:0]          ind_target,  // RET, JMP r/m: the target's linear address and EIP
     output logic [31:0]          ind_eip,
     output logic                 sh_out0,
@@ -129,6 +163,121 @@ module fes_i386_ex (
     assign def_co = exc.ok && exc.f_shift && count != 5'd0;
     assign def_szap = def_co && exc.sh.szap;
 
+    // ---- Bit test and scan ----------------------------------------------------------
+    // The bit's one-hot mask, and the masks one and two below it, mod the size.
+    logic [4:0]  bit_n;
+    logic [31:0] bit_m, bit_m1, bit_m2, r_bt, r_btd;
+    logic        bt_cf, bt_of;
+    assign bit_n = count & {!exc.size16, 4'hf};
+    assign bit_m = 32'd1 << bit_n;
+    assign bit_m1 = exc.size16 ? {16'd0, bit_m[0], bit_m[15:1]} : {bit_m[0], bit_m[31:1]};
+    assign bit_m2 = exc.size16 ? {16'd0, bit_m[1:0], bit_m[15:2]} : {bit_m[1:0], bit_m[31:2]};
+    assign bt_cf = |(x & bit_m);
+    assign bt_of = |(x & bit_m1) ^ |(x & bit_m2);
+    assign r_bt = exc.bt_or ? x | bit_m : exc.bt_andn ? x & ~bit_m : x ^ bit_m;
+    // (n >> 4) * 2 or (n >> 5) * 4, signed, from src2 at its size.
+    assign r_btd = exc.src16 ? {{19{y[15]}}, y[15:4], 1'b0} : {{3{y[31]}}, y[31:5], 2'b00};
+    // The scan takes one-hot vectors of y's lowest and highest set bit, each
+    // from an OR of the bits on one side, so no index is decremented and no
+    // bit is selected by one: the index ORs out of the vector, and BSR's CF
+    // and OF are the vector ANDed with the bits below. y is 0 above its size.
+    logic [31:0] below, above, lo_one, hi_one;
+    always_comb
+        for (int i = 0; i < 32; i++) begin
+            below[i] = |(y & ((32'd1 << i) - 32'd1));
+            above[i] = |(y & ~((32'd2 << i) - 32'd1));
+        end
+    assign lo_one = y & ~below;
+    assign hi_one = y & ~above;
+    logic [4:0]  lo_n, hi_n, scan_n;
+    always_comb begin
+        lo_n = 5'd0;
+        hi_n = 5'd0;
+        for (int i = 0; i < 32; i++) begin
+            lo_n = lo_n | ({5{lo_one[i]}} & 5'(i));
+            hi_n = hi_n | ({5{hi_one[i]}} & 5'(i));
+        end
+    end
+    assign scan_n = exc.bsr ? hi_n : lo_n;
+    // The parity of BSF's index: whether its one-hot bit is one with an odd
+    // count of index bits.
+    localparam logic [31:0] ODD = 32'h9669_6996;
+    logic        scan_z, y_top, dec_pf, lo_odd, hi_cf, hi_of;
+    assign scan_z = y == 32'd0;
+    assign y_top = exc.size16 ? y[15] : y[31];
+    assign dec_pf = ~^(y[7:0] - 8'd1);
+    assign lo_odd = |(lo_one & ODD);
+    // The bit below BSR's index, and the two below it XORed (bit -1 is 0).
+    assign hi_cf = |(hi_one[31:1] & y[30:0]);
+    assign hi_of = hi_one[0] || |(hi_one[31:1] & (y[30:0] ^ {y[29:0], 1'b0}));
+    logic [17:0] scan_f;
+    always_comb begin
+        scan_f = flags_keep;
+        scan_f[ZF] = scan_z;
+        if (!exc.bsr) begin
+            scan_f[CF] = y[0] && y[1];
+            scan_f[PF] = y[0] ? dec_pf : !lo_odd;
+            scan_f[AF] = y[0];
+            scan_f[SF] = y[0] && !y_top;
+            scan_f[OF] = y[0] && y_top;
+        end else begin
+            scan_f[CF] = hi_cf;
+            scan_f[PF] = dec_pf;
+            scan_f[AF] = |y[3:0];
+            scan_f[SF] = !scan_z && !(y_top && (exc.size16 ? |y[14:0] : |y[30:0]));
+            scan_f[OF] = hi_of;
+        end
+    end
+
+    // ---- Decimal and ASCII adjusts ----------------------------------------------------
+    // Each digit's sum is a table, and the compares are spelled out, so no
+    // carry chain runs here. d0 and d1 are AL's digits; lo: 6 goes into the
+    // low digit, hi: 60h into AL; k: the low digit's carry or borrow, which
+    // the high digit takes with hi's 6. A digit plus or less 1, 6 and 7, mod
+    // 16, is entry d (bits 4d + 3 to 4d) of P1, P6, P7, M1, M6 and M7.
+    localparam logic [63:0] P1 = 64'h0fed_cba9_8765_4321, P6 = 64'h5432_10fe_dcba_9876,
+                            P7 = 64'h6543_210f_edcb_a987, M1 = 64'hedcb_a987_6543_210f,
+                            M6 = 64'h9876_5432_10fe_dcba, M7 = 64'h8765_4321_0fed_cba9;
+    function automatic logic [3:0] digit(input logic [63:0] t, input logic [3:0] d);
+        digit = t[{d, 2'b00} +: 4];
+    endfunction
+    logic [3:0] d0, d1, n0, n1;
+    logic       gt9, lo, hi, k, c8, bcd_cf;
+    assign d0 = x[3:0];
+    assign d1 = x[7:4];
+    assign gt9 = d0[3] && (d0[2] || d0[1]);
+    assign lo = gt9 || flags_in[AF];
+    assign hi = !exc.bcd_ax && (flags_in[CF] || (d1[3] && (d1[2] || d1[1])) || (d1 == 4'h9 && gt9));
+    // An add's low digit carries when it is above 9; a subtract's borrows
+    // when it is below 6 and takes 6.
+    assign k = exc.bcd_sub ? lo && !d0[3] && !(d0[2] && d0[1]) : gt9;
+    assign n0 = !lo ? d0 : digit(exc.bcd_sub ? M6 : P6, d0);
+    always_comb
+        case ({hi, k})
+            2'b00: n1 = d1;
+            2'b01: n1 = digit(exc.bcd_sub ? M1 : P1, d1);
+            2'b10: n1 = digit(exc.bcd_sub ? M6 : P6, d1);
+            default: n1 = digit(exc.bcd_sub ? M7 : P7, d1);
+        endcase
+    // The byte's carry or borrow, where 60h did not go in: AAA's and AAS's
+    // into AH, DAS's CF.
+    assign c8 = k && (exc.bcd_sub ? d1 == 4'h0 : d1 == 4'hf);
+    assign bcd_cf = hi || (exc.bcd_ax ? lo : c8);
+    // AH plus or less 1 (lo) and the carry or borrow (c8), which needs lo:
+    // a bit flips when every bit below it, or every bit from bit 1, is 1 (0
+    // for AAS).
+    logic [7:0] ah_h, ah_new;
+    logic       ah_1, ah_2;
+    assign ah_h = x[15:8] ^ {8{exc.bcd_sub}};
+    assign ah_1 = lo && !c8;
+    assign ah_2 = c8;
+    always_comb
+        for (int i = 0; i < 8; i++)
+            ah_new[i] = x[8 + i] ^ ((ah_1 && &(ah_h | ~((8'd1 << i) - 8'd1)))
+                                    || (ah_2 && i != 0 && &(ah_h | ~((8'd1 << i) - 8'd2))));
+    logic [15:0] bcd_r;
+    assign bcd_r = {ah_new, exc.bcd_ax ? 4'h0 : n1, n0};
+
     // ---- Result -------------------------------------------------------------------
     // Each lane ORs the sum, the shift and the other results, each gated by
     // its registered lane select, with the old value where the size leaves it.
@@ -142,7 +291,11 @@ module fes_i386_ex (
                    | ({32{exc.r_setcc}} & {31'b0, cc_true})
                    | ({32{exc.r_lahf}} & {24'b0, flags_in[7:6], 1'b0, flags_in[4], 1'b0, flags_in[2], 1'b1, flags_in[0]})
                    | ({32{exc.r_sign}} & {32{exc.src8 ? y[7] : exc.src16 ? y[15] : y[31]}})
-                   | ({32{exc.r_flags}} & {16'b0, flags_in[15:0]});
+                   | ({32{exc.r_flags}} & {16'b0, flags_in[15:0]})
+                   | ({32{exc.r_scan}} & (scan_z ? af : {27'b0, scan_n}))
+                   | ({32{exc.r_bcd}} & {16'b0, bcd_r})
+                   | ({32{exc.r_bt}} & r_bt)
+                   | ({32{exc.r_btd}} & r_btd);
     assign r_shift = out[32:1];
     assign result[7:0] = ({8{exc.add_lo}} & sum[7:0]) | ({8{exc.sh_lo}} & r_shift[7:0])
                        | ({8{exc.ot_lo}} & r_other[7:0]) | ({8{exc.kp_lo}} & af[7:0]);
@@ -205,13 +358,28 @@ module fes_i386_ex (
                 rest[IF] = 1'b0;
                 rest[TF] = 1'b0;
             end
-            if (exc.md_fl) begin
-                rest[CF] = md_flags[CF];
-                rest[PF] = md_flags[PF];
-                rest[AF] = md_flags[AF];
-                rest[ZF] = md_flags[ZF];
-                rest[SF] = md_flags[SF];
-                rest[OF] = md_flags[OF];
+            // The adjusts' flags take the multiply unit's select, which adds
+            // no step to the older flags' chain.
+            if (exc.md_fl || exc.r_bcd) begin
+                rest[CF] = exc.r_bcd ? bcd_cf : md_flags[CF];
+                rest[PF] = exc.r_bcd ? ~^{n1, n0} : md_flags[PF];
+                rest[AF] = exc.r_bcd ? lo : md_flags[AF];
+                rest[ZF] = exc.r_bcd ? {n1, n0} == 8'd0 : md_flags[ZF];
+                rest[SF] = exc.r_bcd ? n1[3] : md_flags[SF];
+                rest[OF] = exc.r_bcd ? (x[7] ^ n1[3]) && (n1[3] ^ exc.bcd_sub) : md_flags[OF];
+            end
+            // The bit test's and scan's flags come from y and x late, so last.
+            if (exc.f_bt) begin
+                rest[CF] = bt_cf;
+                rest[OF] = bt_of;
+            end
+            if (exc.r_scan) begin
+                rest[CF] = scan_f[CF];
+                rest[PF] = scan_f[PF];
+                rest[AF] = scan_f[AF];
+                rest[ZF] = scan_f[ZF];
+                rest[SF] = scan_f[SF];
+                rest[OF] = scan_f[OF];
             end
         end
     end
@@ -225,6 +393,8 @@ module fes_i386_ex (
         flags_out[PF] = arith ? ~^sum[7:0] : rest[PF];
     end
 
+    assign br = exc.ok && exc.bound && (sum[32] ^ p_top);
+
     // ---- Branches ---------------------------------------------------------------
     // LOOP's count reaches zero when it was one, so the decision needs no sum.
     logic count_one, count_zero;
@@ -232,8 +402,11 @@ module fes_i386_ex (
     assign count_zero = x == 32'd0;
     assign ind_target = sum[31:0];
     assign ind_eip = y;
+    // A REPE or REPNE CMPS or SCAS element ends the instruction, branching
+    // to the next, when its own compare's ZF says so.
     assign taken = exc.ok && ((exc.b_jcc && cc_true) || exc.b_jmp || exc.b_ind
                               || ((exc.b_loop || (exc.b_loope && flags_in[ZF]) || (exc.b_loopne && !flags_in[ZF]))
                                   && !count_one)
-                              || (exc.b_jcxz && count_zero));
+                              || (exc.b_jcxz && count_zero)
+                              || (exc.b_rpe && !add_zf) || (exc.b_rpne && add_zf));
 endmodule

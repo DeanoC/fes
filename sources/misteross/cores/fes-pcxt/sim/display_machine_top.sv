@@ -19,6 +19,6 @@ module display_machine_top (
     output wire [7:0] rgbi
 );
     /* verilator lint_off PINCONNECTEMPTY */
-    pcxt_machine machine (.clk_rom(~clk), .dma_owner(), .refresh_done(), .audio_valid(), .audio_sample(), .*);
+    pcxt_machine machine (.clk_cpu(clk),.dma_owner(), .refresh_done(), .audio_valid(), .audio_sample(), .*);
     /* verilator lint_on PINCONNECTEMPTY */
 endmodule

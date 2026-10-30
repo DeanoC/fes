@@ -36,7 +36,7 @@ module pc386_mixer (
 
     // ---- DC blocker ---------------------------------------------------------------
     reg signed [27:0] dc;
-    wire signed [27:0] mean = negative ? -28'(quotient) : 28'(quotient);
+    wire signed [27:0] mean = negative ? -(28'(quotient)) : 28'(quotient);
     wire signed [27:0] error = (mean <<< 8) - dc;
     wire signed [19:0] high_pass = 20'(error >>> 8);
 

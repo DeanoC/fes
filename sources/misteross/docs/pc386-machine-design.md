@@ -14,6 +14,18 @@ synthesis is the first area measurement ([budgets](#budgets)). Every other
 clock, area, bandwidth and latency figure below is a budget or an estimate
 unless it names a measurement. The milestone that measures one replaces it.
 
+Phase M4's diagnostic shell exists as RTL, a producer and a kit tool: the
+machine without its CPU in the development package `fes.pc386-diag`, with a
+bus master that runs commands from the DDR window in the CPU's place. Its
+nextpnr routes, the machine's first, miss both fixed clocks (about 40 of
+61.44 MHz system, 56 of 74.25 MHz pixel). Sealed with Quartus 17.0.2 instead
+([#1235](https://github.com/DeanoC/fes/issues/1235)), it passed every
+diagnostic program on Kit B: the VGA pictures on HDMI, speaker, DSP and OPL2
+audio, and the counters at zero
+([M4 record](../../../docs/validation/2026-10-28-pc386-m4-diagnostic/summary.md)).
+That run found the presenter's 720p timing following machine reset. It now
+follows the pixel PLL's lock alone.
+
 Phase M3's audio exists beside the AT core: the OPL2 import, Sound Blaster 2.0
 DSP and mixer pass their host simulation checks, including OPL2 sample
 comparison with Nuked-OPL3 and game start-up audio
@@ -303,7 +315,7 @@ cycles for 16-bit devices.
 | --- | --- | --- |
 | `isa8` | Every on-board chip, port 61h/92h/80h, ATA task file, Sound Blaster, OPL2 | 720 ns: six ISA clocks at 8.33 MHz |
 | `isa16` | ATA data port 1F0h | 360 ns: three ISA clocks |
-| `vga` | 3B0–3DF | Posted into the VGA FIFO (four clocks a byte at the CPU); reads wait for the FIFO to drain (six clocks a byte when it is empty) |
+| `vga` | 3B0–3DF | Posted into the VGA FIFO (four clocks a byte at the CPU, and a byte waits while the FIFO is full); reads wait for the FIFO to drain (six clocks a byte when it is empty) |
 
 The ISA figures come from the AT bus's default wait states: an ISA cycle is
 two bus clocks plus four wait states for 8-bit cycles and one for 16-bit
@@ -851,7 +863,9 @@ drive model. The Bochs BIOS lists that slave as "Unknown device".
   image, so a captured image never holds a torn sector (as for the
   [ST disk](../../mister-packages/docs/media-data.md)).
 - **Dirty tracking:** one bit per 64 KiB chunk of the image (2,048 bits for
-  128 MiB) in an M10K, set when a sector write reaches DDR.
+  128 MiB) in an M10K, set when a sector write reaches DDR. A word of the map
+  reads out two clocks after its index, and a sector's mark reaches it four
+  clocks after the store goes idle; a reset clears the map in 128 clocks.
 - **IDENTIFY** reports the geometry the runtime committed (below), the LBA
   capacity, and PIO 16-bit only.
 
@@ -1154,10 +1168,12 @@ replaces each row.
 the VGA needs at least 1,891 ALMs and 16 M10K (its small FIFOs each take a
 block), the presenter 826 ALMs, 8 M10K and five DSP blocks, the port 2 arbiter
 and plane bridge 199 ALMs and 6 M10K, the display plane 624 ALMs, 4 M10K and
-one DSP block. The M1 AT core needs at least 16,526 ALMs, more than three
-times its rows, because its memories (the ATA sector buffer and dirty map,
-CMOS, the 8042's RAM and FIFOs, the DMA register files) synthesize to
-flip-flops; they must move to M10K before the machine can fit beside the CPU.
+one DSP block. The M1 AT core needed at least 16,526 ALMs, more than three
+times its rows, because its memories synthesized to flip-flops. With the ATA
+sector buffer, dirty map and CMOS in M10K it needs at least 3,788 ALMs and
+4 M10K, inside its rows, and the machine-only blocks together need 7,331 ALMs
+and 38 M10K
+([record](../../../docs/validation/2026-10-27-pc386-at-core-m10k/summary.md#machine-only-synthesis)).
 
 The M10K margin leaves room for a VGA read cache or a larger L2 if profiles ask
 for either. The ALM margin is the tight one. With the CPU at 16,000 ALMs the
@@ -1314,6 +1330,21 @@ first playable.
 | M4 | Machine diagnostic shell on a kit: a development package where a mailbox-driven bus master stands in for the CPU and issues I/O and MMIO cycles | Hardware diagnostic: VGA modes captured from HDMI, OPL2 and DSP audio, a disk load and save round trip with the runtime, port 2 underflow counters at zero, load time measured | Before CPU Phase 3 |
 | M5 = CPU Phase 3 | The RTL CPU in the machine | FreeDOS boots in simulation with the RTL CPU; first sealed package; the four games pass the checks above on a kit, with both presets recorded | — |
 
+**M4 as built** ([README](../cores/fes-pc386/README.md#m4-diagnostic-shell)):
+the bus master takes its commands from a ring in the DDR window on port 0, not
+through the GP mailbox. During a package session the mailbox belongs to the
+runtime: its exchanges toggle one request bit and poison on a mismatch, so a
+second writer would break them, and `fes.computer` 1.0 has no opcode for
+arbitrary data. A raw development RBF would leave the mailbox free, but the
+runtime releases the DDR ports and brings up HDMI and audio only for an
+admitted package. The bus master's machine reset bypasses `fes_hps_ddr`'s
+guards, so it fences ports 1 and 2 to keep a reset from cutting a burst. Port 0
+reaches all of HPS DDR, so the bus master refuses a command whose range leaves
+the window or A0000h-BFFFFh, or that would alias another, and gives up one the
+machine never answers, as while it is held in reset. Until M0 the shell serves the ATA image port from port 0 and the HPS writes the
+image into the window directly; the disk round trip with the runtime waits for
+the M0 contracts.
+
 After first playable: CPU Phase 5 brings JEMM386 and Wolfenstein 3D with EMS;
 CPU Phase 6 wires FERR to IRQ13 and port F0h. Machine follow-ups wait for a
 title: OPL3 and Sound Blaster Pro, floppy, game port, MT-32 over MIDI,
@@ -1366,8 +1397,9 @@ No decision is open.
 
 ## Location
 
-The machine RTL goes in `cores/fes-pc386/` with `fes_pc386_top` as the shell,
-beside the CPU in `cores/fes-common/rtl/i386/`. The opl2_fpga import goes in
+The machine RTL goes in `cores/fes-pc386/` with `rtl/top.sv` as the shell
+(module `top`, as every FES producer names it), beside the CPU in
+`cores/fes-common/rtl/i386/`. The opl2_fpga import goes in
 `cores/fes-pc386/vendor/`. The KF8259 and KF8253 imports and the DMA
 controller moved from `cores/fes-pcxt/` to `cores/fes-common/` with M1
 (`vendor/kf8259`, `vendor/kf8253`, `rtl/fes_dma8237.sv`), since two cores share

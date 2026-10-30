@@ -39,6 +39,46 @@ func (r RoomPickerRow) isRoom() bool {
 	return r.Kind == HomeKindRoom || r.Kind == HomeKindPinned
 }
 
+// Internal screens are opened from their owning navigation flow, rather than
+// offered as independent destinations or default Home rooms.
+func userFacingRoom(id string) bool {
+	return id != systemRoomID && id != hardwareRoomID && id != colecoArcadeRoomID
+}
+
+func (a *App) hasColecoRoomOpenLocked() bool {
+	if a.room != nil && a.room.ID() == colecoArcadeRoomID {
+		return true
+	}
+	for _, parent := range a.roomStack {
+		if parent != nil && parent.ID() == colecoArcadeRoomID {
+			return true
+		}
+	}
+	if a.libraryReturn != nil {
+		if a.libraryReturn.room != nil && a.libraryReturn.room.ID() == colecoArcadeRoomID {
+			return true
+		}
+		for _, parent := range a.libraryReturn.stack {
+			if parent != nil && parent.ID() == colecoArcadeRoomID {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (a *App) publicRoomCountLocked() int {
+	count := 0
+	if a.roomsIndex != nil {
+		for _, p := range a.roomsIndex.Packs {
+			if userFacingRoom(p.ID) && p.Valid() {
+				count++
+			}
+		}
+	}
+	return count
+}
+
 func normalizePinnedRooms(ids []string) []string {
 	out := make([]string, 0, len(ids))
 	seen := map[string]struct{}{}
@@ -113,8 +153,17 @@ func (a *App) roomPickerRowsLocked() []RoomPickerRow {
 	pinnedSeen := map[string]struct{}{}
 	for _, id := range a.pinnedRooms {
 		id = strings.TrimSpace(id)
-		if id == "" {
+		if id == "" || !userFacingRoom(id) {
 			continue
+		}
+		if strings.HasPrefix(id, rooms.ExamplePrefix) {
+			installed := false
+			if a.roomsIndex != nil {
+				_, installed = a.roomsIndex.Find(id)
+			}
+			if !installed {
+				continue
+			}
 		}
 		if _, dup := pinnedSeen[id]; dup {
 			continue
@@ -135,7 +184,7 @@ func (a *App) roomPickerRowsLocked() []RoomPickerRow {
 		if id == "" {
 			continue
 		}
-		label := strings.TrimSpace(game.Title)
+		label := strings.TrimSpace(displayGameTitle(game))
 		if label == "" {
 			label = id
 		}
@@ -159,6 +208,10 @@ func (a *App) roomPickerRowsLocked() []RoomPickerRow {
 	rows = append(rows, recents)
 	if a.roomsIndex != nil {
 		for _, p := range a.roomsIndex.Packs {
+			colecoOrigin := p.ID == colecoArcadeRoomID && a.hasColecoRoomOpenLocked()
+			if !userFacingRoom(p.ID) && !colecoOrigin {
+				continue
+			}
 			row := a.packToHomeRow(p)
 			if a.room != nil && a.room.ID() == p.ID && a.room.Revision() != p.Revision {
 				row.Detail = "Update ready. Select to reload."
@@ -268,7 +321,9 @@ func (a *App) activateHomeRowLocked(row RoomPickerRow) {
 	case HomeKindLibrary:
 		a.roomPickerOpen = false
 		a.suspendRoomsForLibraryLocked()
+		a.libraryCoreIDs = nil
 		a.stampNavLocked("library")
+		a.reloadLocked()
 	case HomeKindRecents:
 		a.openRecentsFromHomeLocked()
 	case HomeKindRecent:
@@ -303,6 +358,7 @@ func (a *App) openRecentsFromHomeLocked() {
 	a.suspendRoomsForLibraryLocked()
 	a.roomPickerOpen = false
 	a.collectionID = "recents"
+	a.libraryCoreIDs = nil
 	a.normalizeSortForCollectionLocked()
 	a.stampNavLocked("home-recents")
 	a.reloadLocked()

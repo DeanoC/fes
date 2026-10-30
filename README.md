@@ -18,7 +18,8 @@ Agents: read [AGENTS.md](AGENTS.md), then the
 ## Documentation
 
 Start at the [documentation index](docs/README.md). Core ABI, interfaces and
-standing are the [core status](docs/core-status.md) matrix.
+standing are the [core status](docs/core-status.md) matrix. Boards, toolchains
+and support tiers are the [core support matrix](docs/support-matrix.md).
 
 - [DeepWiki](https://deepwiki.com/DeanoC/fes): Devin-generated guide to the FES codebase.
 - [Getting started](docs/getting-started.md): setup, build choices, running the host and common failures.
@@ -39,8 +40,8 @@ Main_MiSTer is an original implementation and test reference, not a production
 dependency. The target agent talks to the runtime's local socket; only the
 runtime controls hardware. The normal FES package route uses misteross's
 authenticated HIP/nextpnr producer. FES policy also allows labelled
-Quartus-built core variants (accepted in #1163). Current recipes still build
-only OSS packages; the variant selector and OSS-only image option are rollout
+Quartus-built core variants (accepted in #1163). Playable recipes use OSS packages; PC/XT selects a Quartus diagnostic package.
+The general variant selector and OSS-only image option are rollout
 work described in the design. See
 [Quartus-built cores](docs/design/quartus-cores.md).
 
@@ -184,7 +185,7 @@ The parent exposes one FES integration profile. Systems whose nextpnr route is
 not implemented yet are checked explicitly with Quartus when their recipe
 requires it; that check does not create an image package or change the default
 package-only path. The accepted policy also allows labelled Quartus variants,
-but no current recipe selects one; see
+with PC/XT selecting a Quartus diagnostic package; see
 [Quartus-built cores](docs/design/quartus-cores.md). Quartus is never an
 automatic fallback.
 

@@ -15,6 +15,7 @@ import (
 )
 
 const roomCoverWorkers = 4
+const runningMachineLibraryBlockedStatus = "Stop the running machine before opening the library."
 
 // RoomSnapshot is the frame-loop readable copy of the open room.
 type RoomSnapshot struct {
@@ -160,7 +161,15 @@ func (a *App) RoomPickerOpen() bool {
 }
 
 func (a *App) roomsAvailableLocked() bool {
-	return a.roomsIndex != nil && len(a.roomsIndex.Packs) > 0
+	if a.roomsIndex == nil {
+		return false
+	}
+	for _, pack := range a.roomsIndex.Packs {
+		if userFacingRoom(pack.ID) {
+			return true
+		}
+	}
+	return false
 }
 
 func (a *App) showHomeLocked() {
@@ -212,7 +221,7 @@ func (a *App) openRoomLocked(id string) {
 	a.openRoomWithSelectionLocked(id, "")
 }
 
-func (a *App) openRoomWithSelectionLocked(id, initialGameID string) {
+func (a *App) openRoomWithSelectionLocked(id, initialGameID string, initialCoreID ...string) {
 	pack, ok := a.roomsIndex.Find(id)
 	if !ok || !pack.Valid() {
 		a.roomErr = fmt.Sprintf("room %s is not installed", id)
@@ -220,23 +229,23 @@ func (a *App) openRoomWithSelectionLocked(id, initialGameID string) {
 		return
 	}
 	if pack.Revision != "" {
-		a.openInstalledRoomLocked(pack, false, initialGameID)
+		a.openInstalledRoomLocked(pack, false, initialGameID, initialCoreID...)
 		return
 	}
-	a.openValidRoomLocked(pack, initialGameID)
+	a.openValidRoomLocked(pack, initialGameID, initialCoreID...)
 }
 
 // openValidRoomLocked replaces the current room with pack. It reports
 // false only when rooms.New fails; a script error still leaves the
 // instance up so the existing error panel can show it.
-func (a *App) openValidRoomLocked(pack rooms.Pack, initialGameID string) bool {
+func (a *App) openValidRoomLocked(pack rooms.Pack, initialGameID string, initialCoreID ...string) bool {
 	a.discardLibraryOriginLocked()
 	a.closeRoomLocked()
 	a.closeRoomOverlaysLocked()
 	a.closeFiltersLocked()
 	a.closeCollectionOverlaysLocked()
 	a.searchOpen = false
-	inst, err := a.newRoomInstanceLocked(pack, initialGameID)
+	inst, err := a.newRoomInstanceLocked(pack, initialGameID, initialCoreID...)
 	if err != nil {
 		a.roomErr = err.Error()
 		a.status = a.roomErr
@@ -325,6 +334,12 @@ func (a *App) resolveHomeRoomLocked(id string) (rooms.Pack, string, bool) {
 	if !rooms.ValidRoomID(id) {
 		return rooms.Pack{}, "invalid id", false
 	}
+	if !userFacingRoom(id) {
+		if id == colecoArcadeRoomID {
+			return rooms.Pack{}, "internal browser", false
+		}
+		return rooms.Pack{}, "internal setup", false
+	}
 	if a.roomsIndex == nil {
 		return rooms.Pack{}, "missing", false
 	}
@@ -390,6 +405,7 @@ func (a *App) closeRoomLocked() {
 	if a.room == nil {
 		return
 	}
+	a.leaveBrowseActionsLocked()
 	id := a.room.ID()
 	a.room.Close()
 	a.room = nil
@@ -443,9 +459,20 @@ func (a *App) resizeRoomsLocked() {
 	}
 }
 
+// Workbenches draw their own action rows across the room body. Keep native
+// status and hints in the reserved footer instead of over those controls.
+func roomHasWorkbenchFooter(id string) bool {
+	switch id {
+	case hardwareRoomID, systemRoomID:
+		return true
+	default:
+		return false
+	}
+}
+
 func (a *App) roomContentSizeLocked(id string) (int, int) {
 	w, h := a.grid.contentWidth(), a.grid.contentHeight()
-	if id == hardwareRoomID {
+	if roomHasWorkbenchFooter(id) {
 		h = max(1, h-hardwareRoomFooterHeight)
 	}
 	return w, h
@@ -463,10 +490,14 @@ func (a *App) applyRoomActionsLocked() {
 		switch act.Kind {
 		case rooms.ActionHardwareSetup:
 			if a.session.State != "active" {
-				a.openZX81SetupLocked()
+				a.openInstalledCoreSetupLocked(act.CoreID)
 			}
 		case rooms.ActionHardwareTapes, rooms.ActionHardwareImportExpansion:
 			a.openHardwarePickerLocked(act)
+		case rooms.ActionHardwareMedia:
+			a.openSystemMediaLocked(act)
+		case rooms.ActionHardwareExpansions:
+			a.openSystemExpansionsLocked(act)
 		case rooms.ActionLaunch:
 			a.launchFromRoomWithPackageLocked(act.GameID, act.PackageID, act.ExpectedPackageID)
 		case rooms.ActionStop:
@@ -485,7 +516,7 @@ func (a *App) applyRoomActionsLocked() {
 			}
 			return
 		case rooms.ActionOpenRoom:
-			a.openNestedRoomLocked(act.RoomID, act.InitialGameID)
+			a.openNestedRoomLocked(act.RoomID, act.InitialGameID, act.InitialCoreID)
 			return
 		case rooms.ActionBack:
 			if a.roomDuringPlay {
@@ -516,7 +547,7 @@ func (a *App) dropRoomNavActionsLocked() {
 
 func (a *App) openLibraryFromRoomLocked(act rooms.Action) {
 	if a.sessionStopOfferedLocked() {
-		a.status = "Stop the running machine before opening the library."
+		a.status = runningMachineLibraryBlockedStatus
 		return
 	}
 	a.suspendRoomsForLibraryLocked()
@@ -524,6 +555,7 @@ func (a *App) openLibraryFromRoomLocked(act rooms.Action) {
 	a.syncGPUParkLocked()
 	a.roomPickerOpen = false
 	a.platformID = strings.TrimSpace(act.Platform)
+	a.libraryCoreIDs = append([]string(nil), act.CoreIDs...)
 	a.collectionID = strings.TrimSpace(act.Collection)
 	a.normalizeSortForCollectionLocked()
 	if layout := strings.TrimSpace(act.Layout); layout != "" {
@@ -690,6 +722,13 @@ func (a *App) roomSnapshotLocked(withImages bool) RoomSnapshot {
 		return RoomSnapshot{}
 	}
 	w, h := a.roomContentSizeLocked(a.room.ID())
+	notice := a.roomSessionNotice
+	if a.roomDuringPlay && a.room.ID() == colecoArcadeRoomID {
+		switch strings.TrimSpace(a.status) {
+		case colecoCartridgeSessionStatus, runningMachineLibraryBlockedStatus:
+			notice = strings.TrimSpace(a.status)
+		}
+	}
 	snap := RoomSnapshot{
 		Open:          true,
 		ID:            a.room.ID(),
@@ -705,7 +744,7 @@ func (a *App) roomSnapshotLocked(withImages bool) RoomSnapshot {
 		Parents:       a.roomParentIDsLocked(),
 		ReducedMotion: a.room.ReducedMotion(),
 		DuringPlay:    a.roomDuringPlay,
-		Notice:        a.roomSessionNotice,
+		Notice:        notice,
 	}
 	if a.room.Hero() {
 		_, snap.Hero = rooms.HeroPanel(w, h)
@@ -757,8 +796,12 @@ func roomPickerHint(kind InputKind) string {
 	return selectWord(kind) + " open  " + detailsWord(kind) + " pin  " + backWord(kind) + " close  " + settingsWord(kind) + " settings"
 }
 
-func (a *App) newRoomInstanceLocked(pack rooms.Pack, initialGameID string) (*rooms.Instance, error) {
+func (a *App) newRoomInstanceLocked(pack rooms.Pack, initialGameID string, initialCoreID ...string) (*rooms.Instance, error) {
 	w, h := a.roomContentSizeLocked(pack.ID)
+	coreID := ""
+	if len(initialCoreID) > 0 {
+		coreID = initialCoreID[0]
+	}
 	return rooms.New(pack, rooms.Options{
 		Width:                  w,
 		Height:                 h,
@@ -767,6 +810,7 @@ func (a *App) newRoomInstanceLocked(pack rooms.Pack, initialGameID string) (*roo
 		Theme:                  a.theme,
 		ReducedMotion:          a.reducedMotion,
 		InitialGameID:          initialGameID,
+		InitialCoreID:          coreID,
 		SessionDisplayRequired: a.needsSessionDisplayLocked(),
 		StorePath:              a.roomStorePathLocked(pack.ID),
 		Local:                  a.localCores,

@@ -59,7 +59,8 @@ implements it and supplies the platform objects the Bochs CPU links against.
   trap, NMI or INTR) and stops at the handler's first instruction, or executes
   one instruction. A faulting instruction delivers its exception within the
   step and does not retire. A REP string instruction retires in one step
-  unless a trap is pending between iterations. The result lists the events
+  unless an event is pending between iterations, which it then takes. The
+  result lists the events
   (exception, external interrupt, NMI, software interrupt), the linear and
   physical address and size of every write, and whether the CPU is halted or
   shut down.
@@ -71,6 +72,10 @@ implements it and supplies the platform objects the Bochs CPU links against.
   needs them. Other memory goes through `read()` and `write()`. INTR is a level
   sampled at instruction boundaries and acknowledged through
   `interrupt_acknowledge()`; NMI is an edge, blocked until IRET.
+- `set_iteration_hook()` names a function called after each iteration of a
+  REP string instruction a step runs, with the iterations the step has run
+  (Bochs's `BX_INSTR_REPEAT_ITERATION`). It may raise INTR or NMI, which the
+  instruction takes after that iteration unless it is the last.
 - `set_a20()` masks physical bit 20. `invalidate()` tells the oracle the
   harness changed memory behind it.
 - `decode()` returns Bochs' decode of one instruction without executing it:
@@ -229,14 +234,26 @@ the repository lock's older Yosys misreads the RTL's per-byte records.
 [`lockstep_tb.cpp`](lockstep_tb.cpp) runs `fes_i386_cpu` beside the oracle.
 The oracle steps one instruction and the RTL runs until it retires one; the
 two architectural states are then compared: EIP, the eight GPRs, EFLAGS bits
-0-17 and the six segment registers with their hidden caches. Memory writes
+0-17, the six segment registers with their hidden caches, and CR0's MP and
+TS, the CR0 bits the CPU holds. Memory writes
 are compared as each side reports them: each instruction must write the same
-bytes, with the same values, on both sides. An instruction that faults in
+bytes, with the same values, on both sides. So are I/O accesses, each
+instruction's in order, with their ports, lengths and data. Each side has its
+own I/O space (`IoSpace`): in corpus mode every port reads all ones and
+ignores writes, as the corpus's test bus did; in random programs each port
+holds a byte, which an OUT writes and an IN reads and then increments, a word
+or dword access covering the next ports, wrapping at 64K. An instruction that faults in
 the oracle must fault in the RTL with the same vector, nothing of it
 retired. Both deliver it, and the delivery is compared as a retirement, its
 frame included. A fault in a delivery, which the oracle shows as a second
 fault or a shutdown, must stop the RTL as not built (vector 8), with nothing
-of the instruction retired and nothing of the delivery written. HLT ends a
+of the instruction retired and nothing of the delivery written. What the
+instruction wrote before its fault may stand: ENTER's pushes, or a REP
+string's elements with their steps of ESI, EDI and ECX. Each byte the RTL
+wrote must be one the oracle wrote before its delivery began (each oracle
+event counts the writes before it), with the oracle's value unless the
+oracle's partial frame wrote it again. The RTL may write less: its far CALL
+and INT check their slots before they push, as the 386EX does. HLT ends a
 run on both sides. Every byte either side writes is
 cleared after the run.
 
@@ -247,7 +264,45 @@ and garbage on the port until the block arrives
 a load's bytes are memory as it was on the edge M1 sent the address, read
 before the store retiring on that edge writes, with garbage on the port until
 they arrive. The random runs report the cycles spent waiting for them. The
-model's `Latency` port class is what later slices' MMIO and I/O ports take.
+I/O port takes the same delay: a request completes 0-12 cycles after it
+rises, the access made then on the RTL's I/O space, with `io_ack` and IN's
+data on that edge and garbage in `io_rdata` otherwise. The request must hold
+its port, size and data until then. The runs report how many I/O accesses
+they compared. The model's `Latency` port class is what a later slice's MMIO
+port takes.
+
+Random programs also take interrupts, injected by the testbench:
+- **Each side has a PIC** (`Pic`): INTR, held until INTA returns the vector
+  and drops it, and NMI. The RTL's INTA completes after the same random
+  delay, and each step must make as many INTAs on each side, with INTR up.
+- **Alignment.** The RTL samples INTR and NMI as an instruction retires,
+  or a REP string's element; the oracle before the next instruction starts,
+  or after a REP string's iteration. Each step runs the RTL first. So an
+  interrupt for the boundary after a step reaches the RTL before its window
+  for that step, and the oracle after its first iteration if the step is a
+  REP string, else before the next step: both take it at the same boundary,
+  or both wait (IF clear, the shadow, NMI blocked) and look again at every
+  boundary after. A line raised on the RTL as a REP string's element m
+  retires (the testbench counts them by ECX, which each steps at WB) is
+  taken as element m + 1 retires, and the oracle raises it after iteration
+  m + 1 (`set_iteration_hook()`), or before its next step if the step does
+  not get there. The RTL's NMI is a one-cycle pulse, never raised on two
+  steps in a row.
+- **What is raised.** INTR now and then on vectors 8-15, more often after
+  STI, CLI, MOV SS, POP SS, POPF and IRET, whose boundaries are special, and
+  NMI rarely, but often after the handler's NOP, where it meets the one
+  being handled. A REP string of more than one element raises INTR after
+  one of its first 16 elements one time in two, and NMI one in eight; the
+  runs report how many interrupts were taken between elements
+  (`rep_interrupts`). The vectors' entries and NMI's point at a handler, NOP and
+  IRET, at FFFF:FFE0, above any program's code. A program may write over them. The run then
+  stops when an interrupt would go through the rewritten entry, before the
+  sides part (`vector_moved_stops`), since what runs next is data.
+- **HLT wakes.** The generator puts STI, HLT in programs now and then, and a
+  HLT before the program's last, with IF set, wakes on INTR.
+- **Per program,** the oracle is reset before its state is set, since
+  `set_state()` keeps a pending or blocked NMI, and each program's
+  interrupts come from their own seed, so `FES_I386_FIRST` reruns them.
 
 Where the oracle and SingleStepTests disagree, [`divergences.toml`](divergences.toml)
 says which side the FES CPU follows. For an entry that follows the corpus,
@@ -256,8 +311,9 @@ comparison with the oracle, and the oracle takes the RTL's values so both run
 on from the same state, memory included; the testbench works out each
 entry's opcode stem and `when` predicates from the instruction, as the
 vectors runner does. An entry that leaves every field to the corpus also
-decides whether the instruction faults and with which vector: the RTL's
-outcome stands. The corpus itself then checks those values. An entry's
+decides whether the instruction faults and with which vector, and whether
+the RTL halts after it: the RTL's outcome stands. The corpus itself then
+checks those values. An entry's
 `stack.flags` fields let a delivery's pushed FLAGS image differ in those
 flags, and the oracle takes the RTL's: a divide error pushes the flags the
 386EX's divide changed, where Bochs pushes them unchanged. Its `eflags`
@@ -268,8 +324,8 @@ fields may also differ when the delivery then faults (a double fault).
 | Source | What runs | Checked |
 | --- | --- | --- |
 | SingleStepTests/80386 | Every state of the instruction forms the CPU executes (the runner's `SCOPE` table), from its initial state to its HLT | Every retirement against the oracle, then the RTL's final state against the corpus's, undefined flags and RAM included |
-| Random programs | Register, immediate and 16-bit-addressed memory forms of the same instructions with segment, REP, 66h and 67h prefixes (and now and then a LOCK), forward branches, bounded LOOPs, backward jumps, pushes and pops, CALLs to subroutines that return with RET or RET imm16 (two deep, their bodies leaving ESP, SS and the return address alone), far CALLs returning with RETF or RETF imm16, through a pointer in the instruction or one stored just before, far JMPs, PUSH BP / MOV BP, SP / LEAVE frames, the far pointer loads, XCHG, MOV with a direct offset, XLAT, SALC, PUSH and POP r/m, CALL r/m near through a register or a stored pointer (until a far transfer moves CS), PUSHA and POPA, PUSHF/POPF pairs, interrupt blocks (SS above the vector table, the vector's entry stored as the handler's CS:IP, INT n, INT3 or INTO, and a handler that IRETs), MUL and IMUL in all three forms, AAM (now and then AAM 0) and AAD, and DIV and IDIV after a setup that keeps the quotient in range (AH or (E)DX cleared, or CBW, CWD or CDQ) by a register, now and then one loaded with a nonzero immediate just before, or a direct memory operand stored just before, a few without the setup, from random register states and zeroed memory. A far target is a CS:IP for the target's linear address, so the program's state is chosen before its layout | Every retirement against the oracle; a run stops at its HLT, a delivered exception, 2,000 retirements or a store into its own code, which needs self-modifying-code detection the RTL does not have yet. Two seeds run again without latency and must retire the same trace (a hash of every retirement's state) |
-| Directed faults | 66 E8 with a 32-bit target past FFFFh, a 32-bit RET to 10000h, and JMP EBX and CALL EBX to 10000h, with the #GP entry at a HLT; INT 20h at SP 1, and the 66 E8 case at SP 3, whose deliveries fault; divide errors, with the #DE entry at a HLT: DIV BL by zero, DIV BX overflowing, DIV of a zero word in memory, IDIV EBX overflowing, AAM 0, and IDIV BL of AX −129 by 1, which overflows only once the one the 386EX owes its one's complement is added | Bochs throughout, the divergence list applying; the fault (#GP(0) or #DE) delivered with the faulting CS:IP pushed, then the handler's HLT followed by 32 cycles with no fetch request, D issue or data read. The nested cases stop the RTL with nothing written |
+| Random programs | Register, immediate and 16-bit-addressed memory forms of the same instructions with segment, REP, 66h and 67h prefixes (and now and then a LOCK), forward branches, bounded LOOPs, backward jumps, pushes and pops, CALLs to subroutines that return with RET or RET imm16 (two deep, their bodies leaving ESP, SS and the return address alone), far CALLs returning with RETF or RETF imm16, through a pointer in the instruction or one stored just before, far JMPs, PUSH BP / MOV BP, SP / LEAVE frames, the far pointer loads, XCHG, MOV with a direct offset, XLAT, SALC, PUSH and POP r/m, POP m with 32-bit addressing after ESP is set below 10000h (now and then to 0, so the pop wraps SP) and a value pushed, to [ESP + disp8], [ESP + r * scale + disp8] or [r + disp8] with r set small first, CALL r/m near through a register or a stored pointer (until a far transfer moves CS), PUSHA and POPA, PUSHF/POPF pairs, interrupt blocks (SS above the vector table, the vector's entry stored as the handler's CS:IP, INT n, INT3 or INTO, and a handler that IRETs), MUL and IMUL in all three forms, AAM (now and then AAM 0) and AAD, and DIV and IDIV after a setup that keeps the quotient in range (AH or (E)DX cleared, or CBW, CWD or CDQ) by a register, now and then one loaded with a nonzero immediate just before, or a direct memory operand stored just before; a few without the setup; the string instructions with REP, REPE and REPNE (SI, DI and a CX of 0-9 set first, now and then CLD or STD; a quarter REP MOVS or CMPS over two seeded words at SI, overlapping within 4 bytes, with ES = DS set by PUSH DS / POP ES just before), ENTER / LEAVE frames at any nesting level, and IN and OUT of a byte, word or dword, imm8 and DX forms, on a few ports (DX = FFFFh among them, whose word wraps), now and then just after DX, AH or eAX is written, or REP INS and OUTS (and one without REP) of up to four elements with ES = DS, BT, BTS, BTR and BTC by an immediate (mostly below 32) or a register and BSF and BSR, DAA, DAS, AAA and AAS, half of them right after an ADD, ADC, SUB or SBB into AL, BOUND of a register just set against bounds stored just before at a direct offset (mostly around its value, now and then at an edge, rarely outside them for #BR, and rarely a register operand for #UD), CLTS, WAIT, and CLTS then WAIT (from CR0's MP and TS at random, so a WAIT that no CLTS precedes raises #NM in a quarter of the programs), STI, HLT, and the interrupt shadow's cases back to back (MOV SS twice, POP SS twice, MOV SS then STI, CLI then STI twice, STI then POP SS, or CLI and STI, MOV SS or POP SS just before a REP string), from random register states and zeroed memory. INTR and NMI are injected throughout (above). A far target is a CS:IP for the target's linear address, so the program's state is chosen before its layout | Every retirement against the oracle, an interrupt's delivery included; a run stops at its last HLT, a delivered exception, 2,000 retirements, a store into its own code, which needs self-modifying-code detection the RTL does not have yet, or an interrupt through a vector entry it rewrote. Two seeds run again without latency and must retire the same trace (a hash of every retirement's state) |
+| Directed checks | 66 E8 with a 32-bit target past FFFFh, a 32-bit RET to 10000h, and JMP EBX and CALL EBX to 10000h, with the #GP entry at a HLT; ENTER whose check of its final slot, at SP FFFFh, raises #SS; INT 20h at SP 1, the 66 E8 case at SP 3, and ENTER 0, 2 at SP 5 (its frame pointer's push straddles the wrap), whose deliveries fault; divide errors, with the #DE entry at a HLT: DIV BL by zero, DIV BX overflowing, DIV of a zero word in memory, IDIV EBX overflowing, AAM 0, and IDIV BL of AX −129 by 1, which overflows only once the one the 386EX owes its one's complement is added; and count-zero REP MOVS with expand-down DS and ES | Bochs throughout, the divergence list applying; the fault (#GP(0), #SS(0) or #DE) delivered with the faulting CS:IP pushed, then the handler's HLT followed by 32 cycles with no fetch request, D issue or data read. The nested cases stop the RTL with nothing of the delivery written. Both REP MOVS cases must retire as a NOP and reach the following HLT without an exception |
 
 The latency-free reruns also give the cycles between retirements: in
 sequence, after an instruction with more than one prefix, after a taken
@@ -288,7 +344,13 @@ has a bucket of its own, and so do MUL, IMUL, DIV, IDIV, AAM and AAD, which
 freeze D to WB while the multiply and divide unit works, and any
 retirement that waited for one (the CPU's `trace_md_wait`), since the uop
 in WB waits too. A store counts for the store holds only as an
-instruction's last uop (not XCHG's with memory, nor POP m's).
+instruction's last uop (not XCHG's with memory, nor POP m's, nor a string's
+or ENTER's). ENTER is left out of the stack hold as the later instruction.
+Anything within five instructions after a string has a bucket of its own:
+one that reads ESI, EDI or ECX waits in D until the string's last element
+retires. IN and OUT, which wait in WB for their access, are with the
+several-uop instructions, and the instruction after an I/O one, a string's
+included, has a bucket of its own: it waits in D until that retires.
 
 A fault or a software interrupt (INT n, INT3, INTO) is the corpus's
 exception: the run goes on into the handler, to its HLT, and the corpus's

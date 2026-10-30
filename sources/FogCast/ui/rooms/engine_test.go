@@ -59,16 +59,22 @@ func (f *fakeServices) QueryGames(_ context.Context, q hostclient.GameListQuery,
 	f.queries = append(f.queries, q)
 	f.queryLimits = append(f.queryLimits, max)
 	games := f.games
-	if len(q.CoreIDs) > 0 {
+	if q.Platform != "" || len(q.CoreIDs) > 0 {
 		wanted := make(map[string]struct{}, len(q.CoreIDs))
 		for _, coreID := range q.CoreIDs {
 			wanted[coreID] = struct{}{}
 		}
 		games = make([]hostclient.Game, 0)
 		for _, game := range f.games {
-			if _, ok := wanted[game.CoreID]; ok {
-				games = append(games, game)
+			if q.Platform != "" && game.System != q.Platform {
+				continue
 			}
+			if len(wanted) > 0 {
+				if _, ok := wanted[game.CoreID]; !ok {
+					continue
+				}
+			}
+			games = append(games, game)
 		}
 	}
 	if max > 0 && len(games) > max {
@@ -217,7 +223,7 @@ function on_input(cmd)
   if cmd == "select" then session.launch("snes-mario-abc123") return true end
   return false
 end
-function on_activate(id) rooms.open_library({platform = "snes"}) end
+function on_activate(id) rooms.open_library({platform = "fpga", core_ids = {"fes.coleco"}}) end
 function on_hover(id) hovered = id end
 function on_resume() resumed = true end
 `
@@ -277,7 +283,7 @@ func TestGoodRoomFrameAndActions(t *testing.T) {
 	}
 	r.Activate("node:1")
 	acts = r.TakeActions()
-	if len(acts) != 1 || acts[0].Kind != ActionOpenLibrary || acts[0].Platform != "snes" {
+	if len(acts) != 1 || acts[0].Kind != ActionOpenLibrary || acts[0].Platform != "fpga" || len(acts[0].CoreIDs) != 1 || acts[0].CoreIDs[0] != "fes.coleco" {
 		t.Fatalf("actions %+v", acts)
 	}
 	r.Hover("node:1")
@@ -1350,7 +1356,7 @@ function draw() end`
 		t.Fatal(err)
 	}
 	stepUntil(t, r, func(Frame) bool { return r.Destination().Kind == KindCore })
-	if err := r.CheckGlobal(`got_err == nil and got[1].package_id == "` + corePongID + `" and got[1].core_id == "fes.pong" and got[1].name == "FES Pong" and got[1].needs == "none" and got[1].launchable == true and (got[1].block == nil or got[1].block == "")`); err != nil {
+	if err := r.CheckGlobal(`got_err == nil and got[1].package_id == "` + corePongID + `" and got[1].core_id == "fes.pong" and got[1].name == "Pong" and got[1].needs == "none" and got[1].launchable == true and (got[1].block == nil or got[1].block == "")`); err != nil {
 		t.Fatal(err)
 	}
 	d := r.Destination()
