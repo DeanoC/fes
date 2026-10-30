@@ -86,6 +86,7 @@ class AffectedTests(unittest.TestCase):
         consumers = [(module, path) for _, source, module, path in ast.literal_eval(registry)
                      if 'sources/mister-packages/' + source == definition]
         self.assertEqual(set(consumers), {
+            ('FES', 'image/kernel/de25-dma/generated/fes_de25_ddr_probe.h'),
             ('misteross', 'boards/de25nano/hps/generated/fes_de25_ddr_probe.vh'),
             ('misteross', 'boards/de25nano/hps/generated/fes_de25_ddr_probe.hpp'),
         })
@@ -333,7 +334,7 @@ class AffectedTests(unittest.TestCase):
                      'scripts/fes_i386_oracle.py', 'scripts/test_fes_i386_vectors.py',
                      'scripts/test_fes_i386_test386.py', 'scripts/test_fes_i386_frontend.py',
                      'scripts/test_fes_i386_lockstep.py', 'scripts/quartus_fes_i386.py',
-                     'scripts/benchmark_fes_i386.py'):
+                     'scripts/benchmark_fes_i386.py', 'scripts/fes_i386_ucode.py'):
             with self.subTest(path=path):
                 result = plan(['sources/misteross/' + path])
                 self.assertEqual(result['cores'], [])

@@ -25,6 +25,7 @@ class ConsistencyTest(unittest.TestCase):
         self.sources = {name: self.root / name for name in ('FogCast', 'libmister-runtime', 'misteross', 'mister-packages')}
         for path in self.sources.values():
             path.mkdir()
+        self.sources['FES'] = self.root
         for _, _, component, destination in self.module.GENERATED:
             path = self.sources[component] / destination
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -84,7 +85,7 @@ class ConsistencyTest(unittest.TestCase):
 
     def test_selected_sources_and_validation_coverage(self):
         self.assertEqual(self.module.check(self.root, self.sources), {
-            'generated_files': 25, 'source_pin_copies': 0, 'fixture_copies': 37})
+            'generated_files': 26, 'source_pin_copies': 0, 'fixture_copies': 37})
         self.assertEqual({source for command, source in self.calls if command == 'validate'}, {
             'packages/fabric/fes_fabric_de25_hps_mailbox.yaml',
             'packages/fabric/fes_fabric_de25_ddr_probe.yaml',

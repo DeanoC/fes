@@ -203,6 +203,7 @@ class BootReportTest(unittest.TestCase):
         cases = (
             (RTL_BOOT_OUTPUT.replace('retired=42', 'retired=0'), 'no instructions', None),
             (RTL_BOOT_OUTPUT.replace('oracle_steps=0', 'oracle_steps=1'), 'oracle_steps=1', None),
+            (RTL_BOOT_OUTPUT.replace('protected_steps=0', 'protected_steps=1'), 'protected_steps=1', None),
             ('STOP stall 50 f000:00000000 00 00\n'
              'GAP stall 00 1 1 0 f000:00000000 50\n' + RTL_BOOT_OUTPUT, 'stall 00', 'unimplemented'),
             ('STOP unimplemented 50 f000:00000000 27 27\n'

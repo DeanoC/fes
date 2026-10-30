@@ -296,6 +296,7 @@ public:
     Pic pic;
     Latency port, inta, mmio;
     std::vector<MmioAccess> mmio_log;
+    std::vector<uint32_t> dmem_reads;  // byte addresses sent to the L1D
     uint64_t step = 0;                  // the lockstep step running
     std::deque<MmioAccess> mmio_stores; // MMIO bytes retired stores wrote, not yet at the device
     uint64_t mmio_wrong = 0;            // device writes no retired store made, or not in order
@@ -331,6 +332,7 @@ public:
         for (int n = 0; n < 8; ++n) top.init_gpr[n] = s.gpr[n];
         top.init_eflags = s.eflags;
         top.init_eip = s.eip;
+        top.init_cr0 = s.cr0;
         for (int n = 0; n < 6; ++n) {
             set16(top.init_sel, n, s.seg[n].selector);
             top.init_base[n] = s.seg[n].base;
@@ -348,6 +350,7 @@ public:
         mmio_log.clear();
         mmio_stores.clear();
         mmio_wrong = mmio_early = 0;
+        dmem_reads.clear();
         top.reset = 1;
         for (int n = 0; n < 3; ++n) clock();
         top.reset = 0;
@@ -382,6 +385,7 @@ public:
         top.clk = 0;
         top.eval();
         if (!top.reset) quiet = false;
+        if (top.trace_dread) dmem_reads.push_back(top.trace_dread_addr);
         const bool store = top.trace_store;
         const uint32_t waddr = top.trace_store_addr & ~3u;
         const uint64_t wdata = top.trace_store_data;
@@ -534,6 +538,7 @@ public:
         State s;
         for (int n = 0; n < 8; ++n) s.gpr[n] = top.arch_gpr[n];
         s.eflags = top.arch_eflags & EFLAGS_MASK;
+        s.cr0 = (s.cr0 & ~0xau) | (top.arch_cr0 & 0xau);
         s.eip = top.arch_eip;
         for (int n = 0; n < 6; ++n) {
             s.seg[n].selector = get16(top.arch_sel, n);
@@ -1801,12 +1806,12 @@ constexpr uint32_t HANDLER = 0x800;  // 0000:0800
 void run_fault_case(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
                     Summary &summary, const std::string &label, const std::vector<uint8_t> &code, State state,
                     bool nested, uint32_t stack_address = 0, const std::array<uint8_t, 4> *stack_value = nullptr,
-                    int expected = 13, bool allow_divergences = false) {
+                    int expected = 13, bool allow_divergences = false, uint32_t forbidden_dmem_read = UINT32_MAX) {
     const uint32_t code_base = state.seg[fes_i386::SEG_CS].base + state.eip;
     std::vector<std::pair<uint32_t, uint8_t>> image;
     for (size_t i = 0; i < code.size(); ++i) image.emplace_back(code_base + uint32_t(i), code[i]);
     image.emplace_back(HANDLER, 0xf4);
-    for (uint32_t vector : {0u, 12u, 13u}) {
+    for (uint32_t vector : {0u, 6u, 12u, 13u}) {
         image.emplace_back(vector * 4, uint8_t(HANDLER));
         image.emplace_back(vector * 4 + 1, uint8_t(HANDLER >> 8));
     }
@@ -1846,6 +1851,10 @@ void run_fault_case(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
         if ((rtl.state().gpr[fes_i386::REG_ESP] & 0xffff) != sp)
             out.add(label + ".esp", sp, rtl.state().gpr[fes_i386::REG_ESP] & 0xffff);
         if (rtl.top.trace_halt) check_halt_quiet(rtl, label, out);
+    }
+    if (forbidden_dmem_read != UINT32_MAX) {
+        const auto reads = std::count(rtl.dmem_reads.begin(), rtl.dmem_reads.end(), forbidden_dmem_read);
+        if (reads) out.add(label + ".dmem-read", 0, reads);
     }
 
     end_run(bus, rtl, outcome.halted, out);
@@ -1951,6 +1960,16 @@ void run_fault_regressions(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, c
 
     // CALL EBX to the same target: #GP(0) before its push.
     run_fault_case(oracle, bus, rtl, entries, summary, "call-rm32-cs-limit", {0x66, 0xff, 0xd3, 0xf4}, jump, false);
+
+    // Register-form BOUND is #UD. Its faulting uop must not read the address
+    // that would hold the upper bound for the memory form.
+    State bound_reg = call;
+    bound_reg.gpr[fes_i386::REG_EAX] = 0x1234;
+    bound_reg.gpr[fes_i386::REG_EBX] = 0x5000;
+    bound_reg.gpr[fes_i386::REG_ESI] = 0x0400;
+    bound_reg.gpr[fes_i386::REG_ESP] = 0x0200;
+    run_fault_case(oracle, bus, rtl, entries, summary, "bound-register-no-data-read",
+                   {0x66, 0x62, 0xc0, 0xf4}, bound_reg, false, 0, nullptr, 6, false, 0x5404);
 
     // INT 20h with SP 1: its probe raises #SS, whose delivery's probe faults
     // the same way.
@@ -3314,6 +3333,8 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
 //   dma-read-store  a store of A5h to 3000h, then JMP $; DMA reads 3000h as
 //                   soon as the store retires, with it still in the write
 //                   buffer: the read must return A5h
+//   dma-read-commit store and DMA are accepted on the same edge; the read
+//                   must wait for the store moving into the commit register
 //   flush           a store of 3Ch to 3001h, then JMP $; FLUSH as soon as it
 //                   retires: when FLUSH is done DDR must hold it
 // A store of CL, 0-3 NOPs, then a load of the byte it wrote, run twice in a
@@ -3345,6 +3366,7 @@ int run_forward_cases(Rtl &rtl, Summary &summary) {
         bool ah;      // the load is into AH, else AL
         int want;     // the byte the load must read; -1: the device's read of the stored byte
         uint8_t stored;
+        uint8_t initial = 0xaa;
     };
     // MOV DX, seg; MOV ES, DX
     auto es = [](uint16_t seg) { return std::vector<uint8_t>{0xba, uint8_t(seg), uint8_t(seg >> 8), 0x8e, 0xc2}; };
@@ -3365,6 +3387,11 @@ int run_forward_cases(Rtl &rtl, Summary &summary) {
         // MOV DX, FFFFh; MOV DS, DX / MOV [0010h], CL / MOV AL, ES:[0000h]
         {"fwd-a20", {0xba, 0xff, 0xff, 0x8e, 0xda}, {0x88, 0x0e, 0x10, 0x00}, {0x26, 0xa0, 0x00, 0x00}, true, 0, false,
          0x01, 0x01},
+        // Prime physical byte zero, then store AABBh at FFFFFh under A20M.
+        // The high byte wraps to zero; the following cached load must see it.
+        {"fwd-a20-cross", {0xba, 0xff, 0xff, 0x8e, 0xda, 0xba, 0xbb, 0xaa, 0xbf, 0x0f, 0x00,
+                            0x26, 0xa0, 0x00, 0x00},
+         {0x89, 0x15}, {0x26, 0xa0, 0x00, 0x00}, true, 0, false, 0xaa, 0xaa, 0x11},
         {"fwd-no-a20", {0xba, 0xff, 0xff, 0x8e, 0xda}, {0x88, 0x0e, 0x10, 0x00}, {0x26, 0xa0, 0x00, 0x00}, false, 0,
          false, 0xaa, 0x01},
     };
@@ -3382,7 +3409,7 @@ int run_forward_cases(Rtl &rtl, Summary &summary) {
                 code.insert(code.end(), c.load.begin(), c.load.end());
                 code.insert(code.end(), {0xe2, uint8_t(int(loop) - int(code.size() + 2)), 0xf4});
                 for (size_t i = 0; i < code.size(); ++i) rtl.poke(uint32_t(0x1000 + i), code[i]);
-                rtl.poke(c.at, 0xaa);
+                rtl.poke(c.at, c.initial);
                 rtl.top.a20m = c.a20m;
                 rtl.set_window(true);
                 rtl.start(state);
@@ -3428,6 +3455,7 @@ int run_memory_cases(Rtl &rtl, Summary &summary) {
         {"dma-write-code", {0xeb, 0xfe}},
         // MOV BYTE [3000h], A5h; L: JMP L
         {"dma-read-store", {0xc6, 0x06, 0x00, 0x30, 0xa5, 0xeb, 0xfe}},
+        {"dma-read-commit", {0xc6, 0x06, 0x00, 0x30, 0xa5, 0xeb, 0xfe}},
         // MOV BYTE [3001h], 3Ch; L: JMP L
         {"flush", {0xc6, 0x06, 0x01, 0x30, 0x3c, 0xeb, 0xfe}},
     };
@@ -3441,7 +3469,20 @@ int run_memory_cases(Rtl &rtl, Summary &summary) {
         std::string detail;
         for (int n = 0; n < 20000 && !ok; ++n) {
             rtl.clock();
-            if (label == "dma-write-data" || label == "dma-write-code") {
+            if (label == "dma-read-commit") {
+                // DMA must be pending before the store reaches WB. The CPU's
+                // EX trace gives the cycle immediately before its commit edge.
+                if (!asked && rtl.top.trace_ex_store) {
+                    asked = 1;
+                    rtl.dma_valid = true;
+                    rtl.dma_write = false;
+                    rtl.dma_address = 0x3000;
+                } else if (asked && !rtl.dma_valid) {
+                    ok = rtl.dma_result == 0xa5;
+                    detail = hex(rtl.dma_result);
+                    break;
+                }
+            } else if (label == "dma-write-data" || label == "dma-write-code") {
                 // Once the loop has run a while (its lines are cached), the DMA write.
                 if (n == 2000) {
                     rtl.dma_valid = true;

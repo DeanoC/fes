@@ -563,9 +563,10 @@ public:
     GuestMemory guest;
     pc386::Port0<GuestMemory> port0;
 
-    // A20 below the reset alias.
+    // A20 masking below the reset alias, matching fes_i386_pkg::phys.
     static uint32_t physical(uint32_t linear, bool a20m) {
-        return linear >= 0xffff0000u || !a20m ? linear : linear & ~(1u << 20);
+        if (linear >= 0xffff0000u) return 0xf0000u | (linear & 0xffffu);
+        return !a20m ? linear : linear & ~(1u << 20);
     }
     uint8_t read8(uint32_t paddr) {
         uint8_t *page = m.page(paddr, false);
@@ -578,6 +579,7 @@ public:
         for (int n = 0; n < 8; ++n) cpu.init_gpr[n] = s.gpr[n];
         cpu.init_eflags = s.eflags;
         cpu.init_eip = s.eip;
+        cpu.init_cr0 = s.cr0;
         for (int n = 0; n < 6; ++n) {
             set16(cpu.init_sel, n, s.seg[n].selector);
             cpu.init_base[n] = s.seg[n].base;
@@ -601,6 +603,7 @@ public:
     fes_i386::State state(fes_i386::State s) const {
         for (int n = 0; n < 8; ++n) s.gpr[n] = cpu.arch_gpr[n];
         s.eflags = cpu.arch_eflags & 0x3ffff;
+        s.cr0 = (s.cr0 & ~0xau) | (cpu.arch_cr0 & 0xau);
         s.eip = cpu.arch_eip;
         for (int n = 0; n < 6; ++n) {
             s.seg[n].selector = get16(cpu.arch_sel, n);
@@ -975,6 +978,10 @@ int main(int argc, char **argv) {
     Verilated::commandArgs(argc, argv);
     std::setvbuf(stdout, nullptr, _IOLBF, 0);
     try {
+        if (RtlCpu::physical(0xffff0000u, false) != 0xf0000u
+            || RtlCpu::physical(0xffffffffu, true) != 0xfffffu
+            || RtlCpu::physical(0x00100000u, true) != 0u)
+            throw std::runtime_error("pc386 RTL physical address translation self-check failed");
         Options options = parse(argc, argv);
         Machine machine(read_file(options.bios), read_file(options.vgabios), options.disk);
         if (!options.opl2_log.empty() && !(machine.opl2_log = std::fopen(options.opl2_log.c_str(), "w")))

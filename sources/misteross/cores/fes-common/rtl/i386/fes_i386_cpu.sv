@@ -59,6 +59,7 @@ module fes_i386_cpu #(
     input  logic             reset,
     input  logic [7:0][31:0] init_gpr,
     input  logic [31:0]      init_eflags,
+    input  logic [31:0]      init_cr0,     // of which this build holds MP and TS
     input  logic [31:0]      init_eip,
     input  logic [5:0][15:0] init_sel,     // fes_i386_pkg::seg_e order
     input  logic [5:0][31:0] init_base,
@@ -131,9 +132,11 @@ module fes_i386_cpu #(
     output logic             trace_fetch,          // F1 sent a block to the L1I (ditto) ...
     output logic [27:0]      trace_fetch_block,    // ... this one, linear address / 16
     output logic             trace_dread,          // M1 sent a load to the L1D (ditto)
+    output logic [31:0]      trace_dread_addr,     // ... its linear byte address
     output logic             trace_mem_wait,       // D to WB wait for the L1D or the write buffer, or F2 for the L1I
     output logic             trace_mem_idle,       // the bus interface has nothing to do or finish
     output logic             trace_replay,         // WB restarts an instruction for an uncached load
+    output logic             trace_ex_store,       // a store in EX, one stage before it can retire
     // The store WB commits: the bytes trace_store_mask names of the eight
     // from trace_store_addr's dword, at linear addresses.
     output logic             trace_store,
@@ -142,6 +145,7 @@ module fes_i386_cpu #(
     output logic [7:0]       trace_store_mask,
     output logic [7:0][31:0] arch_gpr,
     output logic [31:0]      arch_eflags,
+    output logic [31:0]      arch_cr0,     // MP and TS; the other bits 0
     output logic [31:0]      arch_eip,
     output logic [5:0][15:0] arch_sel,
     output logic [5:0][31:0] arch_base,
@@ -185,6 +189,9 @@ module fes_i386_cpu #(
     logic [5:0][31:0] seg_base, seg_limit;
     logic [15:0]      t0;  // microcode temporaries: a far transfer's selector and offset
     logic [31:0]      t1;
+    // CR0's MP and TS, all of CR0 this build holds: WAIT raises #NM when
+    // both are set, and CLTS clears TS. Nothing else writes them yet.
+    logic             cr0_mp, cr0_ts;
     // Each segment's limit less 0, 1 and 3, for 1-, 2- and 4-byte accesses,
     // and whether that is below zero, so the limit check is one compare.
     // Real-mode loads keep the limit, so only reset loads them.
@@ -303,7 +310,7 @@ module fes_i386_cpu #(
     logic       q_lea, q_has_base, q_has_index;
     logic [2:0] q_base, q_index;
     fes_i386_decode decode (
-        .q, .code32, .stack(dc_stack), .uop(q_uop), .opsize32(dc_q.opsize32), .lea(q_lea), .lea_early(dc_q.lea_early),
+        .q, .code32, .stack(dc_stack), .wait_nm(cr0_mp && cr0_ts), .uop(q_uop), .opsize32(dc_q.opsize32), .lea(q_lea), .lea_early(dc_q.lea_early),
         .lea_disp(dc_q.lea_disp), .branch(dc_branch), .consumes(dc_q.consumes), .reads_seg(dc_q.reads_seg),
         .seg_index(dc_q.seg_index), .stop(dc_q.stop), .stk(q_stk), .push_eip(dc_q.push_eip),
         .cs_base(dc_q.cs_base), .seq(q_seq), .sel_part(dc_q.sel_part), .far_jmp(dc_q.far_jmp), .far_chk(dc_q.far_chk),
@@ -341,6 +348,8 @@ module fes_i386_cpu #(
     assign dc_q.m_base = am_base;
     assign dc_q.m_has_index = am_has_index && !q_direct;
     assign dc_q.m_scale = am_scale;
+    assign dc_q.esp_adj = 6'd0;
+    assign dc_q.esp_wrap = 4'd0;
     assign dc_q.length = q.length;
     assign dc_q.seq = q_seq;
     assign dc_q.step = 3'd0;
@@ -561,9 +570,19 @@ module fes_i386_cpu #(
     // wrapped by address size.
     // The interrupt vector's entry is at vector * 4 (far_sel), its selector
     // at + 2.
+    // POP m's store through ESP reads ESP after the pop, which has not
+    // moved it: the store waits for T1, so every older uop has retired and
+    // ESP is the register file's. The displacement gains the operand size,
+    // scaled as ESP is (esp_adj), less 10000h so scaled (esp_wrap) when a
+    // 16-bit stack's SP wraps, which it does only from the top slot, since
+    // a slot past FFFFh faults first.
+    logic        sp_wraps;
+    logic [31:0] disp_add;
+    assign sp_wraps = !ss32 && (dc.opsize32 ? &gpr[4][15:2] : &gpr[4][15:1]);
+    assign disp_add = dc.sel_part ? st_size : {sp_wraps ? -{12'd0, dc.esp_wrap} : 16'd0, 10'd0, dc.esp_adj};
     assign lea_disp = dc.uop.mem.system ? {16'b0, dc.far_sel[15:2], dc.sel_part, 1'b0}
-                    : !dc.sel_part ? dc.lea_disp
-                    : dc.uop.mem.addr32 ? dc.lea_disp + st_size : {16'b0, dc.lea_disp[15:0] + st_size[15:0]};
+                    : !dc.sel_part && dc.esp_adj == 6'd0 ? dc.lea_disp
+                    : dc.uop.mem.addr32 ? dc.lea_disp + disp_add : {16'b0, dc.lea_disp[15:0] + disp_add[15:0]};
     assign consumes = dc.consumes;
     assign reads_seg = dc.reads_seg;
     assign seg_index = dc.seg_index;
@@ -1082,8 +1101,8 @@ module fes_i386_cpu #(
     // worked out as the store is in EX, or in M2 for a st2 uop): one to
     // read-only RAM or a hole is dropped, and MMIO is the device's, so the
     // load reads the memory or the device. An access that crosses a 1 MiB
-    // boundary under A20M, or into the reset alias, compares the bytes past
-    // it as if they followed on.
+    // boundary under A20M, or into the reset alias, translates every byte
+    // independently so the bytes after the wrap still match.
     function automatic logic [3:0] ram_bytes(input logic [31:0] a, input logic a20m_in,
                                              input logic [23:0][1:0] upper, input logic [6:0] top);
         fes_i386_pkg::attr_e at0, at1;
@@ -1092,17 +1111,28 @@ module fes_i386_cpu #(
         for (int k = 0; k < 4; k++)
             ram_bytes[k] = (6'(a[4:0]) + 6'(k) > 6'd31 ? at1 : at0) == fes_i386_pkg::ATTR_RAM;
     endfunction
-    logic [PA:0] m2_de, m2_dw, m2_dr;  // the load's physical address less the store's
     logic        m2_ve, m2_vw, m2_vr;
     logic [3:0]  m2_re, m2_rw, m2_rr;  // the store's bytes that write RAM
     logic [3:0]  ex_ram, wb_ram;       // ... for the store in EX, and in WB
-    logic [PA:0] m1_p;
-    assign m1_p = fes_i386_pkg::phys(m1_s.maddr, a20m);
+    logic [3:0][3:0] m2_hit_e, m2_hit_w, m2_hit_r;
+    logic [3:0][3:0] hit_e, hit_w, hit_r;
+    always_comb begin
+        for (int i = 0; i < 4; i++) begin
+            for (int k = 0; k < 4; k++) begin
+                hit_e[i][k] = fes_i386_pkg::phys(m1_s.maddr + 32'(i), a20m)
+                            == fes_i386_pkg::phys(m2_s.target + 32'(k), a20m);
+                hit_w[i][k] = fes_i386_pkg::phys(m1_s.maddr + 32'(i), a20m)
+                            == fes_i386_pkg::phys(saddr(ex_s) + 32'(k), a20m);
+                hit_r[i][k] = fes_i386_pkg::phys(m1_s.maddr + 32'(i), a20m)
+                            == fes_i386_pkg::phys(saddr(wb_s) + 32'(k), a20m);
+            end
+        end
+    end
     assign ex_ram = ram_bytes(saddr(ex_s), a20m, attr_upper, ram_top);
     always_ff @(posedge clk) if (!freeze) begin
-        m2_de <= m1_p - fes_i386_pkg::phys(m2_s.target, a20m);
-        m2_dw <= m1_p - fes_i386_pkg::phys(saddr(ex_s), a20m);
-        m2_dr <= m1_p - fes_i386_pkg::phys(saddr(wb_s), a20m);
+        m2_hit_e <= hit_e;
+        m2_hit_w <= hit_w;
+        m2_hit_r <= hit_r;
         m2_ve <= m2_s.valid && m2_s.uop.st2;
         m2_vw <= ex_s.valid && writes_mem(ex_s);
         m2_vr <= wb_s.valid && writes_mem(wb_s) && wb_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE;
@@ -1122,14 +1152,10 @@ module fes_i386_cpu #(
     logic        rt_valid;
     logic [3:0][7:0] ld_bytes;
 
-    // Load byte i is store byte k when the load's address less the store's is
-    // k - i: within -3..3, so its high bits are all zero or all one and its
-    // low three bits are k - i. long_*: the store writes byte k, to RAM.
-    logic       near_e, near_w, near_r;
+    // The hit matrices compare each byte's translated physical address, so
+    // A20M and the reset shadow are handled even when an access wraps.
+    // long_*: the store writes byte k, to RAM.
     logic [3:0] long_e, long_w, long_r;  // the store writes byte k
-    assign near_e = m2_ve && (m2_de[PA:2] == '0 || m2_de[PA:2] == '1);
-    assign near_w = m2_vw && (m2_dw[PA:2] == '0 || m2_dw[PA:2] == '1);
-    assign near_r = rt_valid && (m2_dr[PA:2] == '0 || m2_dr[PA:2] == '1);
     assign long_e = {{2{ex_s.uop.mem.bytes[2]}}, |ex_s.uop.mem.bytes[2:1], 1'b1} & m2_re;
     assign long_w = {{2{wb_s.uop.mem.bytes[2]}}, |wb_s.uop.mem.bytes[2:1], 1'b1} & m2_rw;
     assign long_r = {{2{rt_bytes[2]}}, |rt_bytes[2:1], 1'b1} & m2_rr;
@@ -1137,9 +1163,9 @@ module fes_i386_cpu #(
         logic [3:0] he, hw, hr;
         logic [7:0] port, from_e, from_w, from_r;
         for (genvar k = 0; k < 4; k++) begin : g_k
-            assign he[k] = near_e && long_e[k] && m2_de[2:0] == 3'(k - i);
-            assign hw[k] = near_w && long_w[k] && m2_dw[2:0] == 3'(k - i);
-            assign hr[k] = near_r && long_r[k] && m2_dr[2:0] == 3'(k - i);
+            assign he[k] = m2_ve && long_e[k] && m2_hit_e[i][k];
+            assign hw[k] = m2_vw && long_w[k] && m2_hit_w[i][k];
+            assign hr[k] = rt_valid && long_r[k] && m2_hit_r[i][k];
         end
         assign port = dmem_rdata[3'(m2_s.maddr[1:0]) + 3'(i)];
         assign from_e = ({8{he[0]}} & ex_s.ld[7:0]) | ({8{he[1]}} & ex_s.ld[15:8])
@@ -1210,7 +1236,7 @@ module fes_i386_cpu #(
         .yw({ex_s.exc.yw32, ex_s.exc.yw16, ex_s.exc.yw_lo, ex_s.exc.yw_hi, ex_s.exc.yl}), .ld_en(md_load), .last(md_last), .result(md_result),
         .de(md_de), .flags(md_flags), .hi(md_hi)
     );
-    logic        ex_taken, ex_sh_out0, ex_sh_outn, ex_sh_cfw, ex_sh_wide, ex_def_co, ex_def_szap;
+    logic        ex_taken, ex_br, ex_sh_out0, ex_sh_outn, ex_sh_cfw, ex_sh_wide, ex_def_co, ex_def_szap;
     logic [31:0] ex_ind_target, ex_ind_eip;
     pipe_t       ex_out;
 
@@ -1260,7 +1286,7 @@ module fes_i386_cpu #(
         .u(ex_s.uop), .exc(ex_s.exc), .a(ex_s.a), .xr(ex_s.x), .yr(ex_s.y), .wb(wb_s.result), .ld(ex_s.ld),
         .ag_result(ex_s.result), .flags_in(ex_flags), .flags_keep, .md_flags, .result(ex_result),
         .flags_out(ex_flags_out),
-.taken(ex_taken), .ind_target(ex_ind_target), .ind_eip(ex_ind_eip), .sh_out0(ex_sh_out0), .sh_outn(ex_sh_outn), .sh_cfw(ex_sh_cfw), .sh_wide(ex_sh_wide),
+.taken(ex_taken), .br(ex_br), .ind_target(ex_ind_target), .ind_eip(ex_ind_eip), .sh_out0(ex_sh_out0), .sh_outn(ex_sh_outn), .sh_cfw(ex_sh_cfw), .sh_wide(ex_sh_wide),
         .def_co(ex_def_co), .def_szap(ex_def_szap)
     );
     always_comb begin
@@ -1288,6 +1314,8 @@ module fes_i386_cpu #(
         // A faulting branch terminates the pipeline without redirecting to its
         // rejected target. This also covers faults already found in M1.
         ex_out.taken = ex_taken && ex_out.uop.ctl.fault == fes_i386_pkg::FAULT_NONE;
+        // BOUND's #BR, after the taken select, which a compare never sets.
+        if (ex_br && ex_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE) ex_out.uop.ctl.fault = fes_i386_pkg::FAULT_BR;
         ex_out.sh_out0 = ex_sh_out0;
         ex_out.sh_outn = ex_sh_outn;
         ex_out.sh_cfw = ex_sh_cfw;
@@ -1320,7 +1348,7 @@ module fes_i386_cpu #(
     end
 
     // ---- WB -----------------------------------------------------------------------
-    logic [2:0] wb_fault;
+    logic [3:0] wb_fault;
     // The segment register WB writes: the destination, or a second one with
     // the selector in T0 (a far pointer load) or c.
     logic        seg_w;
@@ -1329,7 +1357,7 @@ module fes_i386_cpu #(
     assign seg_w = wb_s.uop.dst.valid && wb_s.uop.dst.space == fes_i386_pkg::RS_SEG || wb_s.uop.seg2;
     assign seg_w_idx = wb_s.uop.seg2 ? wb_s.uop.seg2_idx : wb_s.uop.dst.index[2:0];
     assign seg_w_sel = !wb_s.uop.seg2 ? wb_s.result[15:0] : wb_s.uop.seg2_t ? t0 : wb_s.c[15:0];
-    assign wb_fault = 3'(wb_s.uop.ctl.fault);
+    assign wb_fault = wb_s.uop.ctl.fault;
     // The uop ends its instruction: its last, or INTO's JNO when taken.
     logic wb_eoi;
     assign wb_eoi = wb_s.uop.ctl.end_of_instruction || wb_s.taken && wb_s.uop.eoi_taken;
@@ -1358,7 +1386,7 @@ module fes_i386_cpu #(
     assign wb_sdata = wb_s.uop.io == 2'(fes_i386_pkg::IO_IN) ? io_data : wb_s.result;
 
     logic wb_store;
-    assign wb_store = wb_s.valid && !reset && !freeze && !halted && !int_take && wb_fault == 3'd0 && writes_mem(wb_s);
+    assign wb_store = wb_s.valid && !reset && !freeze && !halted && !int_take && wb_fault == fes_i386_pkg::FAULT_NONE && writes_mem(wb_s);
     logic [31:0] wb_saddr;
     assign wb_saddr = saddr(wb_s);
     assign dmem_write = wb_store;
@@ -1408,7 +1436,7 @@ module fes_i386_cpu #(
     assign ex_deliver = ex_out.uop.ctl.fault != fes_i386_pkg::FAULT_NONE
                      && ex_out.uop.ctl.fault != fes_i386_pkg::FAULT_UNIMPLEMENTED
                      && ex_out.uop.ctl.fault != fes_i386_pkg::FAULT_REPLAY;
-    assign exc_busy = exc_active && !(wb_s.valid && wb_fault == 3'd0 && wb_eoi);
+    assign exc_busy = exc_active && !(wb_s.valid && wb_fault == fes_i386_pkg::FAULT_NONE && wb_eoi);
     always_ff @(posedge clk) begin
         if (reset || wb_flush) begin
             wb_flushes <= 1'b0;
@@ -1449,7 +1477,7 @@ module fes_i386_cpu #(
     logic       nmi_q, nmi_pend, nmi_edge, nmi_block, movss_sh;
     logic [7:0] int_vec;
     logic       wb_commit, at_boundary, in_hlt, wb_ss_load, wb_sti, sh_ss, int_shadow, nmi_ok, int_if;
-    assign wb_commit = wb_s.valid && !halted && !freeze && !int_take && wb_fault == 3'd0;
+    assign wb_commit = wb_s.valid && !halted && !freeze && !int_take && wb_fault == fes_i386_pkg::FAULT_NONE;
     assign at_boundary = wb_commit && (wb_eoi || wb_s.uop.str_cx);
     assign in_hlt = hlt && !int_take;
     assign wb_ss_load = wb_s.uop.dst.valid && wb_s.uop.dst.space == fes_i386_pkg::RS_SEG
@@ -1504,6 +1532,8 @@ module fes_i386_cpu #(
             gpr <= init_gpr;
             eflags <= {init_eflags[17:2], 1'b1, init_eflags[0]};
             eip <= init_eip;
+            cr0_mp <= init_cr0[1];
+            cr0_ts <= init_cr0[3];
             seg_sel <= init_sel;
             seg_base <= init_base;
             seg_limit <= init_limit;
@@ -1530,15 +1560,18 @@ module fes_i386_cpu #(
         end else if (wb_s.valid && !halted && !freeze) begin
             if (exc_take) begin
                 exc_active <= 1'b1;
-                exc_vec <= wb_fault == 3'd1 ? 8'd6 : wb_fault == 3'd2 ? 8'd13 : wb_fault == 3'd3 ? 8'd7
-                         : wb_fault == 3'd6 ? 8'd0 : 8'd12;
-            end else if (wb_fault == 3'(fes_i386_pkg::FAULT_REPLAY)) begin
+                exc_vec <= wb_fault == fes_i386_pkg::FAULT_UD ? 8'd6
+                         : wb_fault == fes_i386_pkg::FAULT_GP0 ? 8'd13
+                         : wb_fault == fes_i386_pkg::FAULT_NM ? 8'd7
+                         : wb_fault == fes_i386_pkg::FAULT_DE ? 8'd0
+                         : wb_fault == fes_i386_pkg::FAULT_BR ? 8'd5 : 8'd12;
+            end else if (wb_fault == fes_i386_pkg::FAULT_REPLAY) begin
                 // A replay: nothing retires, and the front end restarts (rp_go).
-            end else if (wb_fault != 3'd0) begin
+            end else if (wb_fault != fes_i386_pkg::FAULT_NONE) begin
                 // An encoding not built, or a fault in a delivery.
                 halted <= 1'b1;
                 trace_unimplemented <= 1'b1;
-                exc_vec <= wb_fault == 3'd4 ? 8'd0 : 8'd8;
+                exc_vec <= wb_fault == fes_i386_pkg::FAULT_UNIMPLEMENTED ? 8'd0 : 8'd8;
             end else begin
                 trace_retire <= wb_eoi;
                 trace_exception <= wb_eoi && exc_active;
@@ -1559,6 +1592,8 @@ module fes_i386_cpu #(
                 if (wb_s.uop.str_si) gpr[6] <= str_wb_step(gpr[6], wb_str_by, wb_s.uop.mem.addr32);
                 if (wb_s.uop.str_di) gpr[7] <= str_wb_step(gpr[7], wb_str_by, wb_s.uop.mem.addr32);
                 if (wb_s.uop.str_cx) gpr[1] <= str_wb_step(gpr[1], 32'hffff_ffff, wb_s.uop.mem.addr32);
+                // CLTS, the one system uop.
+                if (wb_s.uop.cls == fes_i386_pkg::UOP_SYSTEM) cr0_ts <= 1'b0;
                 if (wb_s.uop.dst.valid && wb_s.uop.dst.space == fes_i386_pkg::RS_TEMP) begin
                     if (wb_s.uop.dst.index[3]) t1 <= wb_s.result;
                     else t0 <= wb_s.result[15:0];
@@ -1611,8 +1646,10 @@ module fes_i386_cpu #(
     assign trace_fetch = mem_load;
     assign trace_fetch_block = mem_block;
     assign trace_dread = dmem_read;
+    assign trace_dread_addr = dmem_addr;
     assign trace_mem_wait = m2_load && !dmem_valid || st_wait || !mem_valid;
     assign trace_replay = rp_go;
+    assign trace_ex_store = st_ex;
 
     fes_i386_l1i l1i (
         .clk, .reset, .a20m, .attr_upper, .ram_top, .mem_block, .mem_load, .mem_data, .mem_valid,
@@ -1647,6 +1684,7 @@ module fes_i386_cpu #(
 
     assign arch_gpr = gpr;
     assign arch_eflags = {14'd0, eflags};
+    assign arch_cr0 = {28'd0, cr0_ts, 1'b0, cr0_mp, 1'b0};
     assign arch_eip = eip;
     assign arch_sel = seg_sel;
     assign arch_base = seg_base;
