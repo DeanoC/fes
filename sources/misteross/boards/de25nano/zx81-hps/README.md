@@ -64,6 +64,11 @@ reload the exact complete SOF as documented in the
 This starts a new FPGA/client epoch and does not admit warm reset or HPS DMA.
 
 The endpoint sits at peripheral-relative offset `0x10300`, span 32 bytes.
+The existing fabric JTAG master also reaches the peripheral bridge at
+`0x00100000`, making the computer window `0x00110300` in that master only.
+Generation verifies the actual elaborated route, full 32-byte span and
+translated address map. This is an explicit maintenance path; it establishes
+no CPU physical address or production MMIO admission.
 [DE25 computer](../../../../mister-packages/docs/de25-computer.md) owns its
 register contract. It accepts exactly one full-word GPO submission with a new
 request toggle; the host waits for the matching GPI ACK before another command.

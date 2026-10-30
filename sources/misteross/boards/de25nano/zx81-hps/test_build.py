@@ -197,6 +197,15 @@ class HpsZX81BuildTests(unittest.TestCase):
             for key, value in parameters.items():
                 item = ET.SubElement(connection, "parameter", {"name": key})
                 ET.SubElement(item, "value").text = value
+        jtag_mapping = ET.fromstring(ET.tostring(mapping, encoding="unicode"))
+        for slave in jtag_mapping:
+            for address in ("start", "end"):
+                slave.set(address, hex(int(slave.get(address), 0) + 0x100000))
+        jtag = ET.SubElement(root, "connection", {"kind": "avalon", "start": "subsys_debug_fpga_m.master",
+                                                "end": "subsys_periph_pb_cpu_0.s0"})
+        for name, value in (("baseAddress", "0x100000"), ("addressMapSysInfo", ET.tostring(jtag_mapping, encoding="unicode"))):
+            item = ET.SubElement(jtag, "parameter", {"name": name})
+            ET.SubElement(item, "value").text = value
         ET.ElementTree(root).write(handoff)
         return project, handoff, root
 
@@ -208,6 +217,7 @@ class HpsZX81BuildTests(unittest.TestCase):
         self.assertEqual(result["physical_mmio"], "not-established")
         computer = next(row for row in result["peripheral_slave_map"] if row["name"].endswith("fes_computer.avs"))
         self.assertEqual((computer["base"], computer["span"]), (0x10300, 32))
+        self.assertEqual(result["jtag_computer_base"], 0x110300)
 
     def test_generated_computer_missing_routes_wrong_clock_base_or_overlapping_slave_fail(self):
         for index in range(4):
@@ -225,7 +235,7 @@ class HpsZX81BuildTests(unittest.TestCase):
             with self.subTest(field=field, route=route), self.assertRaisesRegex(ValueError, message):
                 B.verify_computer(project, HPS)
         project, handoff, root = self.sopc()
-        data = root.findall("connection")[-1].find("parameter/value")
+        data = root.findall("connection")[4].find("parameter/value")
         mapping = ET.fromstring(data.text)
         ET.SubElement(mapping, "slave", {"name": "unexpected.alias", "start": "0x10310", "end": "0x10330"})
         data.text = ET.tostring(mapping, encoding="unicode")
@@ -252,6 +262,24 @@ class HpsZX81BuildTests(unittest.TestCase):
             data.text = ET.tostring(definition, encoding="unicode")
             ET.ElementTree(root).write(handoff)
             with self.subTest(role=role), self.assertRaisesRegex(ValueError, "width/response interface differs"):
+                B.verify_computer(project, HPS)
+
+    def test_jtag_control_route_is_required_and_its_actual_window_is_checked(self):
+        for mutation, message in (("missing", "JTAG control bridge"), ("base", "JTAG control bridge"),
+                                  ("span", "JTAG computer slave")):
+            project, handoff, root = self.sopc()
+            route = root.findall("connection")[-1]
+            if mutation == "missing":
+                root.remove(route)
+            elif mutation == "base":
+                route.find("parameter[@name='baseAddress']/value").text = "0x0"
+            else:
+                data = route.find("parameter[@name='addressMapSysInfo']/value")
+                mapping = ET.fromstring(data.text)
+                next(s for s in mapping if s.get("name").endswith("fes_computer.avs")).set("end", "0x110310")
+                data.text = ET.tostring(mapping, encoding="unicode")
+            ET.ElementTree(root).write(handoff)
+            with self.subTest(mutation=mutation), self.assertRaisesRegex(ValueError, message):
                 B.verify_computer(project, HPS)
 
 

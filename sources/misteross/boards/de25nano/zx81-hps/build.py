@@ -20,6 +20,7 @@ import zipfile
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[4]
 BOARD = "sources/misteross/boards/de25nano/"
+JTAG_CONTROL_BRIDGE_BASE = 0x00100000
 LOCAL = ("build.py", "board.v", "clocks.sdc", "integrate.tcl",
          "fes_de25_computer.v", "fes_de25_computer_hw.tcl", "tape_store.v", "video.v",
          "generated/fes_de25_computer.vh", "generated/fes_de25_computer.hpp",
@@ -182,7 +183,10 @@ endmodule
     extra = extra.replace("@COMPUTER_BASE@", hex(offset))
     script = replace_once(script, "save_system $peripheral_system\n\n# Refresh", extra + "\nsave_system $peripheral_system\n\n# Refresh")
     anchor = "save_system " + hps.tcl_word(project / "qsys_top.qsys") + "\n"
-    exports = ""
+    exports = ("# Existing maintenance master gains peripheral control, not a new DDR master.\n"
+               "add_connection subsys_debug.fpga_m_master subsys_periph.pb_cpu_0_s0\n"
+               "set_connection_parameter_value subsys_debug.fpga_m_master/subsys_periph.pb_cpu_0_s0 "
+               f"baseAddress {hex(JTAG_CONTROL_BRIDGE_BASE)}\n")
     for name, kind in (("fes_computer_pixel_clk", "clock sink"), ("fes_computer_video", "conduit end")):
         exports += f"add_interface {name} {kind}\nset_interface_property {name} EXPORT_OF subsys_periph.{name}\n"
     script = replace_once(script, anchor, exports + anchor)
@@ -202,6 +206,7 @@ endmodule
     inputs = json.loads((directory / "inputs.json").read_text()); inputs.pop("base_revision", None); inputs.update(selected)
     inputs["functional_snapshot_sha256"] = {n: sha(d) for n, d in sources.items()}
     inputs["computer"] = {"peripheral_offset": offset, "span": transport_constant(definition, "SPAN"),
+        "jtag_control_bridge_base": JTAG_CONTROL_BRIDGE_BASE,
         "system_hz": 100000000, "pixel_hz": 74250000, "ula_ratio": [13, 200],
         "build_id": fingerprint, "reviewed_ram_changes": repairs, "reviewed_pll_change": pll_change,
         "pixel_pll_parameters": display.pll_parameters(pll),
@@ -270,7 +275,16 @@ def verify_computer(project, hps):
     regions = hps.peripheral_slave_map(lw.findtext("parameter[@name='addressMapSysInfo']/value"), hps.probe_base())
     region = [r for r in regions if r["name"] == "subsys_periph.fes_computer.avs"]
     if len(region) != 1 or region[0]["base"] != offset or region[0]["span"] != span: raise ValueError("computer slave span differs")
+    jtag = connections.get(("avalon", "subsys_debug_fpga_m.master", "subsys_periph_pb_cpu_0.s0"))
+    if jtag is None or int(jtag.findtext("parameter[@name='baseAddress']/value", "-1"), 0) != JTAG_CONTROL_BRIDGE_BASE:
+        raise ValueError("generated JTAG control bridge missing or base differs")
+    jtag_regions = hps.peripheral_slave_map(jtag.findtext("parameter[@name='addressMapSysInfo']/value"),
+                                          JTAG_CONTROL_BRIDGE_BASE + hps.probe_base())
+    jtag_region = [r for r in jtag_regions if r["name"] == "subsys_periph.fes_computer.avs"]
+    if len(jtag_region) != 1 or jtag_region[0]["base"] != JTAG_CONTROL_BRIDGE_BASE + offset or jtag_region[0]["span"] != span:
+        raise ValueError("generated JTAG computer slave span/base differs")
     return {"instance": component.get("path"), "peripheral_slave_map": regions,
+            "jtag_slave_map": jtag_regions, "jtag_computer_base": JTAG_CONTROL_BRIDGE_BASE + offset,
             "clock_hz": 100000000, "pixel_hz": 74250000, "physical_mmio": "not-established"}
 
 
