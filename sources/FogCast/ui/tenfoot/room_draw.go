@@ -429,7 +429,7 @@ func drawTapePicker(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 // drawRoomChrome keeps host/kit health, launch progress and the input hint
 // visible over any room without the library header.
 func drawRoomChrome(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, used map[string]struct{}) {
-	if snap.Room.ID == hardwareRoomID {
+	if roomHasWorkbenchFooter(snap.Room.ID) {
 		x, y := snap.Room.OffsetX, snap.Room.OffsetY+snap.Room.Height
 		fillRect(dev, float32(x), float32(y), float32(snap.Room.Width), hardwareRoomFooterHeight, 37, 48, 45, 255)
 		drawLabel(dev, labels, used, "hardware-status", x+16, y+6, snap.Room.Width-32, 15, hardwareRoomStatus(snap))

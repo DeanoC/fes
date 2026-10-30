@@ -221,6 +221,42 @@ function draw() gfx.clear("#101820") gfx.text("Coleco title selector", 20, 20, {
 	}
 }
 
+func TestColecoSelectorSkipsPlayingSetupPackageResolution(t *testing.T) {
+	var packageReads atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/v1/core-packages/") {
+			packageReads.Add(1)
+		}
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(server.Close)
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 20)
+	t.Cleanup(app.Stop)
+	app.SetRooms(rooms.NewIndex([]rooms.Pack{
+		testRoomPack(t, colecoArcadeRoomID, "function load() end\nfunction draw() end"),
+	}), "")
+	app.mu.Lock()
+	app.session = hostclient.SessionResult{
+		ID: "coleco-session", System: string(catalog.CorePlatform), State: "active",
+		CorePackage: &hostclient.SessionCorePackage{
+			PackageID: strings.Repeat("a", 64), CoreID: colecoCoreID,
+		},
+	}
+	app.openPlayingHardwareRoomLocked()
+	if app.room == nil || app.room.ID() != colecoArcadeRoomID {
+		app.mu.Unlock()
+		t.Fatalf("Coleco session opened room %v", app.room)
+	}
+	if app.playingSetupPending || app.playingSetupRequest != 0 {
+		app.mu.Unlock()
+		t.Fatal("Coleco selector started a playing-setup package lookup")
+	}
+	app.mu.Unlock()
+	if packageReads.Load() != 0 {
+		t.Fatalf("Coleco selector read %d running-package descriptors", packageReads.Load())
+	}
+}
+
 func TestColecoHomeReportsUnavailableSelector(t *testing.T) {
 	app := NewApp(nil, 1280, 720, 20)
 	t.Cleanup(app.Stop)
@@ -873,7 +909,9 @@ func TestHardwareRoomEntryReleasesHeldKeysBeforeMenu(t *testing.T) {
 	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
 	app.SetRooms(rooms.NewIndex([]rooms.Pack{testRoomPack(t, hardwareRoomID, liveHardwareTestScript)}), "")
 	app.mu.Lock()
-	app.session = hostclient.SessionResult{State: "active", CoreKeyboardHID: true, Input: &hostclient.SessionInput{State: "attached", Ready: true}}
+	app.games = []hostclient.Game{{ID: "zx81-game", CoreID: "fes.zx81"}}
+	app.session = hostclient.SessionResult{GameID: "zx81-game", State: "active", CoreKeyboardHID: true, Input: &hostclient.SessionInput{State: "attached", Ready: true}}
+	app.rememberPlayingSetupLocked("fes.zx81")
 	app.syncGPUParkLocked()
 	app.mu.Unlock()
 	if !app.HandlePlayHIDScancode("a", 0x04, true, time.Now()) {

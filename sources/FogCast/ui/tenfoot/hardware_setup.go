@@ -2,7 +2,9 @@ package tenfoot
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -237,32 +239,44 @@ func (a *App) zx81HardwareTapeRole(ctx context.Context, pkg string) (string, err
 	return role, nil
 }
 
-func (a *App) openZX81SetupLocked() {
+func (a *App) openInstalledCoreSetupLocked(coreID string) {
 	if a.client == nil {
 		a.status = "Host API is unavailable."
 		return
 	}
 	a.resetCoreLibraryLocked()
 	a.coreLibrary.InstalledSetup = true
-	a.coreLibrary.FilterCoreID = ""
+	a.coreLibrary.FilterCoreID = coreID
+	a.coreLibrary.SetupFamilyPicker = coreID == ""
 	a.coreLibrary.Online = true
-	a.coreLibrary.Status = "Choose a ZX81-family machine…"
+	a.coreLibrary.Status = "Preparing system setup…"
+	if coreID != "" {
+		a.refreshInstalledCoreSetupLocked()
+	}
 }
 
-func (a *App) refreshInstalledZX81Locked() {
+func (a *App) refreshInstalledCoreSetupLocked() {
 	s := &a.coreLibrary
-	variant, ok := zx81family.ByID(s.FilterCoreID)
-	if !ok {
+	coreID := s.FilterCoreID
+	if coreID == "" {
 		return
+	}
+	label := coreID
+	if variant, ok := zx81family.ByID(coreID); ok {
+		label = variant.Label
 	}
 	s.Online = false
 	s.Ref = nil
 	s.Setup = nil
 	s.Index = 0
-	s.Status = "Finding installed " + variant.Label + " packages…"
+	s.Status = "Finding installed " + label + " packages…"
 	var cores []hostclient.AvailableCore
-	standing := "experimental"
-	if variant.CoreID == "fes.zx81" {
+	skipped := 0
+	standing := "installed"
+	if variant, ok := zx81family.ByID(coreID); ok && variant.CoreID != "fes.zx81" {
+		standing = "experimental"
+	}
+	if coreID == "fes.zx81" {
 		standing = "supported"
 	}
 	a.coreLibraryAsyncLocked(func(ctx context.Context) error {
@@ -271,22 +285,47 @@ func (a *App) refreshInstalledZX81Locked() {
 			return err
 		}
 		for _, p := range library.Packages {
-			if p.CoreID != variant.CoreID {
+			if p.CoreID != coreID {
 				continue
 			}
-			setup, err := a.client.InstalledZX81Setup(ctx, p.PackageID)
+			setup, err := a.client.InstalledCoreSetup(ctx, p.PackageID)
 			if err != nil {
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+				var requestErr *url.Error
+				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || errors.As(err, &requestErr) {
+					return err
+				}
+				skipped++
 				continue
 			}
-			cores = append(cores, hostclient.AvailableCore{CoreReference: setup.CoreReference, Label: variant.Label + " " + p.Version + " · " + p.PackageID[:8], Standing: standing, ArtifactState: "installed"})
+			packageLabel := p.Name
+			if zx81family.Known(coreID) {
+				packageLabel = label
+			}
+			if packageLabel == "" {
+				packageLabel = coreID
+			}
+			cores = append(cores, hostclient.AvailableCore{CoreReference: setup.CoreReference, Label: packageLabel + " " + p.Version + " · " + p.PackageID[:8], Standing: standing, ArtifactState: "installed"})
 		}
 		return nil
 	}, func() {
 		s.Cores = cores
 		s.Online = true
-		s.Status = "Choose an installed " + variant.Label + " and its BASIC ROM. Adding a setup does not start it."
+		s.Status = "Choose an installed " + label + " and its required ROMs. Adding a setup does not start it."
 		if len(cores) == 0 {
-			s.Status = "No " + variant.Label + " with a sealed ROM requirement is installed. Browse published systems to install one."
+			s.Status = "No " + label + " package is installed. Browse published systems to install one."
+			if skipped > 0 {
+				s.Status = "No usable installed " + label + " package could be checked."
+			}
+		}
+		if skipped > 0 {
+			packages := "packages"
+			if skipped == 1 {
+				packages = "package"
+			}
+			s.Status += fmt.Sprintf(" Skipped %d %s that could not be checked. Refresh systems to retry.", skipped, packages)
 		}
 	})
 }

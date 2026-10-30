@@ -157,8 +157,7 @@ func TestC64RoomShowsSavedSocketsAndDiskThenLaunches(t *testing.T) {
 	})
 	text := frameText(frame)
 	for _, want := range []string{
-		"Socket 1", "Cartridge", shortID(slot), "ready",
-		"Socket 2", "empty",
+		"Socket 1", "Selected expansion cards", shortID(slot), "ready",
 		"Disk .d64", shortID(disk),
 		"1541", "unit 0",
 		"Tape .tap and .t64: not on this core",

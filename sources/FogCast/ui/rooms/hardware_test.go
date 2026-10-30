@@ -142,6 +142,52 @@ func TestHardwareRoomUsesInitialGameIDInsteadOfSavedNavigation(t *testing.T) {
 	}
 }
 
+func TestSinclairWorkshopUsesSelectedModel(t *testing.T) {
+	for _, tc := range []struct{ core, label, mark string }{
+		{"fes.zx80", "Sinclair ZX80", "ZX80"},
+		{"fes.ts1000", "Timex Sinclair 1000", "TS1000"},
+		{"fes.ts1500", "Timex Sinclair 1500", "TS1500"},
+	} {
+		t.Run(tc.core, func(t *testing.T) {
+			s := hardwareData(false)
+			s.value.Machines[0].CoreID = tc.core
+			s.value.Machines[0].Title = "My " + tc.label
+			r := newRoom(t, examplePack(t, "example.hardware"), Options{
+				Services: s, Width: 1280, Height: 720, InitialCoreID: tc.core, InitialGameID: s.value.Machines[0].GameID,
+			})
+			if err := r.Load(); err != nil {
+				t.Fatal(err)
+			}
+			frame := stepUntil(t, r, func(f Frame) bool { return frameHas(f, "Set up "+tc.mark) })
+			if !frameHas(frame, tc.mark+" Workshop") || !frameHas(frame, strings.ToUpper(tc.label)) || frameHas(frame, "ZX81 Workshop") {
+				t.Fatalf("wrong model branding:\n%s", frameText(frame))
+			}
+			r.Activate("setup_library")
+			acts := r.TakeActions()
+			if len(acts) != 1 || acts[0].Kind != ActionHardwareSetup || acts[0].CoreID != tc.core {
+				t.Fatalf("wrong model setup action: %+v", acts)
+			}
+		})
+	}
+}
+
+func TestSinclairWorkshopMissingModelKeepsItsName(t *testing.T) {
+	s := hardwareData(false)
+	s.value.Machines = nil
+	r := newRoom(t, examplePack(t, "example.hardware"), Options{
+		Services: s, Width: 1280, Height: 720, InitialCoreID: "fes.ts1500", InitialGameID: "missing-timex",
+	})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	frame := stepUntil(t, r, func(f Frame) bool {
+		return frameHas(f, "The selected Timex Sinclair 1500 setup is no longer available.")
+	})
+	if !frameHas(frame, "TS1500 Workshop") || frameHas(frame, "ZX81") {
+		t.Fatalf("missing model showed another machine:\n%s", frameText(frame))
+	}
+}
+
 func TestHardwareRoomFallsBackWhenInitialGameIDIsUnavailable(t *testing.T) {
 	s := hardwareData(false)
 	s.lock.Lock()
