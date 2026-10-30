@@ -86,6 +86,7 @@ class AffectedTests(unittest.TestCase):
         consumers = [(module, path) for _, source, module, path in ast.literal_eval(registry)
                      if 'sources/mister-packages/' + source == definition]
         self.assertEqual(set(consumers), {
+            ('FES', 'image/kernel/de25-dma/generated/fes_de25_ddr_probe.h'),
             ('misteross', 'boards/de25nano/hps/generated/fes_de25_ddr_probe.vh'),
             ('misteross', 'boards/de25nano/hps/generated/fes_de25_ddr_probe.hpp'),
         })

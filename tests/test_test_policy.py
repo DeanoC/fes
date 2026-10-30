@@ -25,6 +25,15 @@ RACE = ['go', 'test', '-race', '-short', '-timeout', '30m']
 
 
 class SelectTestModesTests(unittest.TestCase):
+    def test_private_de25_dma_test_kernel_has_no_appliance_media_consumer(self):
+        path = 'image/kernel/de25-dma/de25_dma.c'
+        self.assertEqual(test_policy.select_test_modes([path]), ALL_FALSE)
+        for other in ('image/kernel/fes-window/fes_window.c',
+                      'image/kernel/de25-dma-other/driver.c',
+                      'image/kernel/de25-dma/../fes-window/fes_window.c'):
+            with self.subTest(other=other):
+                self.assertTrue(test_policy.select_test_modes([path, other])['media'])
+
     def test_de25_linux_does_not_select_unrelated_de10_media_suites(self):
         de25 = ['image/de25-nano/build.py', 'image/de25-nano/vendor.lock.toml',
                 'image/de25-nano/rootfs/overlay/etc/inittab']
