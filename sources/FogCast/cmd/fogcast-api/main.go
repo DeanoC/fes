@@ -1201,9 +1201,9 @@ func runWithComposer(ctx context.Context, args []string, stdout, stderr io.Write
 		fmt.Fprintln(stderr, "fogcast-api: service opener is unavailable")
 		return 1
 	}
-	// An explicit config selects its own catalog stores. PathsForConfig
-	// honors absolute state and staging in that file; replacing only
-	// paths.Config left those stores on the default home catalog.
+	// An explicit custom config selects its own catalog stores. PathsForConfig
+	// honors absolute state and staging in that file; the canonical user config
+	// keeps default stores when a service overrides HOME.
 	configFile := strings.TrimSpace(*configPath)
 	var paths fogcast.Paths
 	if configFile != "" {

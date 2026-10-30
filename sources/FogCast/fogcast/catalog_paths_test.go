@@ -81,6 +81,61 @@ func TestPathsForConfigResolvesRelativeConfigPath(t *testing.T) {
 	}
 }
 
+func TestPathsForConfigKeepsDefaultStorageForHostConfigWithOverriddenHome(t *testing.T) {
+	accountHome := t.TempDir()
+	processHome := t.TempDir()
+	// The host passes its account config while the service HOME is isolated.
+	t.Setenv("HOME", processHome)
+	configDir := filepath.Join(accountHome, ".config", "fogcast")
+	if err := os.MkdirAll(configDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(configDir, "config.toml")
+	// Match the host config shape: library settings, with no state/staging keys.
+	config := `base_url = "http://127.0.0.1:8182"
+token = "test-token"
+request_timeout_seconds = 12
+upload_timeout_seconds = 60
+
+[[libraries]]
+id = "test"
+system = "snes"
+root = "/roms"
+`
+	if err := os.WriteFile(configPath, []byte(config), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := pathsForConfig(configPath, accountHome)
+	if err != nil {
+		t.Fatal(err)
+	}
+	share := filepath.Join(processHome, ".local", "share", "fogcast")
+	cache := filepath.Join(processHome, ".cache", "fogcast")
+	want := Paths{
+		Config:          configPath,
+		Index:           filepath.Join(share, "library.sqlite3"),
+		Staging:         filepath.Join(cache, "staging"),
+		MetadataRoot:    filepath.Join(cache, "metadata"),
+		UserLibrary:     filepath.Join(share, "library-user.sqlite3"),
+		LibrarySettings: filepath.Join(share, "library-settings.json"),
+		MediaIndex:      filepath.Join(share, "library-media.sqlite3"),
+		MediaCache:      filepath.Join(cache, "library-media"),
+		CorePackages:    filepath.Join(share, "core-packages"),
+	}
+	if got != want {
+		t.Fatalf("paths = %+v, want default storage with explicit config %+v", got, want)
+	}
+	for _, path := range []string{
+		filepath.Join(configDir, "state"),
+		filepath.Join(configDir, "staging"),
+	} {
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Fatalf("custom storage path %q = %v", path, err)
+		}
+	}
+}
+
 func TestPathsForConfigReadOnlyDirectoryDoesNotUseTheConfigDir(t *testing.T) {
 	dir := readOnlyConfigDir(t, "token = \"x\"\n")
 	configPath := filepath.Join(dir, "config.toml")
