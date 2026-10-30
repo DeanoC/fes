@@ -191,6 +191,11 @@ module pc386_machine #(
     always @(posedge pixel_clk) pixel_reset_sync <= {pixel_reset_sync[0], reset || !pixel_locked};
     wire pixel_reset = pixel_reset_sync[1];
     initial pixel_reset_sync = 2'b11;
+    // The 720p timing follows the pixel PLL alone, not the machine.
+    (* async_reg = "true" *) reg [1:0] timing_reset_sync;
+    always @(posedge pixel_clk) timing_reset_sync <= {timing_reset_sync[0], !pixel_locked};
+    wire timing_reset = timing_reset_sync[1];
+    initial timing_reset_sync = 2'b11;
 
     wire [28:0] present_address;
     wire [7:0] present_burstcount;
@@ -202,7 +207,7 @@ module pc386_machine #(
         .ddr_address(present_address), .ddr_burstcount(present_burstcount), .ddr_read(present_read),
         .ddr_waitrequest(present_waitrequest), .ddr_readdata(p2_readdata),
         .ddr_readdatavalid(present_readdatavalid),
-        .pixel_clk(pixel_clk), .pixel_reset(pixel_reset),
+        .pixel_clk(pixel_clk), .pixel_reset(pixel_reset), .timing_reset(timing_reset),
         .video(presenter_video), .underflows(present_underflows), .frames_shown(frames_shown)
     );
 

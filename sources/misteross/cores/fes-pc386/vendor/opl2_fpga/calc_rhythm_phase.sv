@@ -58,6 +58,7 @@ module calc_rhythm_phase
     input var operator_t op_type_p0,
     output logic [PHASE_FINAL_WIDTH-1:0] rhythm_phase_p3 = 0
 );
+    localparam OPERATOR_T_BITS = 3;           // $bits(operator_t)
     localparam PIPELINE_DELAY = 3;
     localparam NOISE_WIDTH = 23;
     logic [PHASE_FINAL_WIDTH-1:0] hh_phase_friend = 0;
@@ -69,7 +70,7 @@ module calc_rhythm_phase
     logic [NOISE_WIDTH-1:0] noise_next;
     logic [2:1] noise_p;
     logic [PIPELINE_DELAY:1] sample_clk_en_p;
-    logic [PIPELINE_DELAY:1] [$bits(operator_t)-1:0] op_type_p;
+    logic [PIPELINE_DELAY:1] [OPERATOR_T_BITS-1:0] op_type_p;
     logic [PIPELINE_DELAY:1] [OP_NUM_WIDTH-1:0] op_num_p;
 
     pipeline_sr #(
@@ -81,7 +82,7 @@ module calc_rhythm_phase
     );
 
     pipeline_sr #(
-        .DATA_WIDTH($bits(operator_t)),
+        .DATA_WIDTH(OPERATOR_T_BITS),
         .ENDING_CYCLE(PIPELINE_DELAY),
         .POR_VALUE(OP_NORMAL)
     ) op_type_sr (

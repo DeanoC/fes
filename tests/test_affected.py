@@ -229,9 +229,11 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-coleco/generated/fes_simple_computer.vh': {'coleco', 'sg1000', 'sms'},
             'cores/fes-common/rtl/fes_application_gp.v': {'demo', 'coleco', 'menu', 'ramtest', 'riscv'},
             'cores/fes-common/rtl/fes_video_720p.v': {'demo', 'pong', 'ramtest', 'riscv'},
-            'cores/fes-common/rtl/fes_audio_i2s.v': {'demo', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'atari-st'},
+            'cores/fes-common/rtl/fes_audio_i2s.v': {'demo', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'atari-st',
+                                                 'pc386'},
             'cores/fes-common/rtl/fes_audio_pll.v': {'demo'},
-            'cores/fes-common/rtl/fes_audio_output.v': {'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'atari-st'},
+            'cores/fes-common/rtl/fes_audio_output.v': {'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'atari-st',
+                                                    'pc386'},
             'cores/fes-common/rtl/fes_sn76489.sv': {'coleco', 'sg1000'},
             'cores/fes-common/rtl/fes_z80_ce.sv': {'coleco', 'sg1000', 'sms'},
             'cores/fes-pong/sim/board_models.v': {'demo', 'pong', 'riscv'},
@@ -256,7 +258,7 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-apple2/rtl/apple2_machine.sv': {'apple2'},
             'cores/fes-c64/rtl/c64_machine.sv': {'c64'},
             'cores/fes-common/rtl/cpu6502/cpu6502.v': {'apple2', 'c64'},
-            'cores/fes-common/rtl/fes_computer_mailbox.v': {'apple2', 'c64', 'spectrum', 'atari-st', 'zx81', 'pcxt'},
+            'cores/fes-common/rtl/fes_computer_mailbox.v': {'apple2', 'c64', 'spectrum', 'atari-st', 'zx81', 'pc386', 'pcxt'},
             'cores/fes-common/rtl/t80pa.v': {'coleco', 'sms'},
             'scripts/apple2_slots.py': {'apple2'},
             'scripts/build_apple2_slot_card.py': {'apple2'},
@@ -290,6 +292,7 @@ class AffectedTests(unittest.TestCase):
             'scripts/sim_fes_pc386.py': {'pc386'},
             'scripts/build_pc386_firmware.py': {'pc386'},
             'scripts/build_pc386_freedos_image.py': {'pc386'},
+            'scripts/pc386_diag.py': {'pc386'},
             'cores/fes-common/sim/riscv/rv32_model.h': {'riscv'},
             'cores/fes-riscv/firmware/firmware.S': {'riscv'},
             'scripts/sim_fes_riscv.py': {'riscv'},
@@ -318,7 +321,7 @@ class AffectedTests(unittest.TestCase):
                      'scripts/rom_map.py', 'scripts/rom_map_oracle.py', 'tests/test_rom_map.py',
                      'tests/test_core_package_v3.py', 'scripts/build_fes_atari_st_oss.py',
                      'tests/test_atari_st_producer.py', 'tests/test_atari_st_slot_card.py',
-                     'scripts/build_fes_pcxt_quartus.py'):
+                     'scripts/build_fes_pc386_oss.py', 'scripts/synth_fes_pc386.py', 'scripts/build_fes_pcxt_quartus.py'):
             with self.subTest(path=path):
                 result = plan(['sources/misteross/' + path])
                 self.assertTrue(result['lanes']['fpga'])

@@ -18,6 +18,13 @@ lint_off -rule PINCONNECTEMPTY -file "*/vendor/opl2_fpga/control_operators.sv"
 lint_off -rule LATCH -file "*/vendor/opl2_fpga/envelope_generator.sv"
 lint_off -rule UNOPTFLAT -file "*/vendor/opl2_fpga/channels.sv"
 lint_off -rule SYNCASYNCNET -file "*/rtl/pc386_machine.sv" -match "*reset*"
+lint_off -rule SYNCASYNCNET -file "*/rtl/pc386_diag.sv" -match "*reset*"
+// diag_tb watches the machine's side of the port fences.
+public_flat_rd -module "pc386_diag" -var "reset"
+public_flat_rd -module "pc386_diag" -var "machine_p*_read"
+public_flat_rd -module "pc386_diag" -var "machine_p*_readdatavalid"
+public_flat_rd -module "pc386_diag" -var "machine_p*_waitrequest"
+public_flat_rd -module "pc386_diag" -var "machine_p*_burstcount"
 // The shared display plane leaves its scanout's own raster outputs open.
 lint_off -rule PINCONNECTEMPTY -file "*/fes-common/rtl/fes_display_plane.v"
 lint_off -rule PINCONNECTEMPTY -file "*/fes-menu/rtl/fes_menu_video.v"
