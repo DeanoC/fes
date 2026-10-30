@@ -43,3 +43,9 @@ kernel headers/configuration is required. Booting the changed kernel and observi
 bounded overlay cleanup on the same physical failure remain required before
 shipping the recovery change. A synchronous secure-monitor call that never returns
 cannot be interrupted by this software polling deadline.
+
+An error callback or stopped service thread does not prove SDM/DMA quiescence.
+After a failed configuration, retain the manager and its allocated buffers until
+an independently verified reset/power transition fences that hardware epoch.
+Do not unload modules, recycle buffers, or retry configuration merely because
+the patched function returns. Normal runtime recovery still needs that fencing.

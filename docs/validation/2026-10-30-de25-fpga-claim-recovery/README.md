@@ -27,3 +27,7 @@ is unresolved. Before installation, prepare a distinct complete diagnostic kerne
 and its matching modules, preserve the approved rollback baseline, and verify
 bounded failure cleanup on the actual board. Do not represent this patch as
 successful Linux core loading or close [#1298](https://github.com/DeanoC/fes/issues/1298).
+
+Bounded error return is separate from hardware quiescence. This candidate does
+not establish that an outstanding SDM transfer has stopped; retain its buffers
+and require a verified reset boundary before retry/unload/reuse.
