@@ -401,9 +401,15 @@ func (s *Store) SelectCoreEntryMedia(ctx context.Context, gameID, expectedPackag
 			return CoreEntry{}, err
 		}
 	}
-	result, err := tx.ExecContext(ctx, `UPDATE core_entries SET media_role = ?, media_id = ?,
-		disk_cylinders = 0, disk_heads = 0, disk_sectors = 0 WHERE game_id = ? AND package_id = ? AND media_id = ?`,
-		mediaRole, mediaID, gameID, expectedPackageID, expectedMediaID)
+	// A geometry override belongs to its image: selecting the same image
+	// again keeps it, and any other selection clears it.
+	same := mediaRole == entry.MediaRole && mediaID == entry.MediaID
+	update := `UPDATE core_entries SET media_role = ?, media_id = ?,
+		disk_cylinders = 0, disk_heads = 0, disk_sectors = 0 WHERE game_id = ? AND package_id = ? AND media_id = ?`
+	if same {
+		update = `UPDATE core_entries SET media_role = ?, media_id = ? WHERE game_id = ? AND package_id = ? AND media_id = ?`
+	}
+	result, err := tx.ExecContext(ctx, update, mediaRole, mediaID, gameID, expectedPackageID, expectedMediaID)
 	if err != nil {
 		return CoreEntry{}, fmt.Errorf("update core entry media selection: %w", err)
 	}
@@ -417,6 +423,9 @@ func (s *Store) SelectCoreEntryMedia(ctx context.Context, gameID, expectedPackag
 	if err := tx.Commit(); err != nil {
 		return CoreEntry{}, fmt.Errorf("commit core entry media selection: %w", err)
 	}
-	entry.MediaRole, entry.MediaID, entry.DiskGeometry = mediaRole, mediaID, nil
+	entry.MediaRole, entry.MediaID = mediaRole, mediaID
+	if !same {
+		entry.DiskGeometry = nil
+	}
 	return entry, nil
 }

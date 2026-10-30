@@ -62,10 +62,21 @@ func TestHardDiskImportBoundsAndGeometryOverride(t *testing.T) {
 	if err != nil || got.DiskGeometry == nil || *got.DiskGeometry != *g {
 		t.Fatalf("reopened %+v %v", got, err)
 	}
-	// Selecting other media drops the override; clearing it with nil works too.
+	// Selecting the same image again keeps the override; selecting other
+	// media drops it.
+	again, err := reopened.SelectCoreEntryMedia(ctx, entry.GameID, pkg, media.MediaID, protocol.HardDiskRole, media.MediaID)
+	if err != nil || again.DiskGeometry == nil || *again.DiskGeometry != *g {
+		t.Fatalf("reselection dropped geometry: %+v %v", again, err)
+	}
+	if got, err := reopened.CoreEntry(ctx, entry.GameID); err != nil || got.DiskGeometry == nil || *got.DiskGeometry != *g {
+		t.Fatalf("reselection stored %+v %v", got, err)
+	}
 	cleared, err := reopened.SelectCoreEntryMedia(ctx, entry.GameID, pkg, media.MediaID, "", "")
 	if err != nil || cleared.DiskGeometry != nil {
 		t.Fatalf("media change kept geometry: %+v %v", cleared, err)
+	}
+	if got, err := reopened.CoreEntry(ctx, entry.GameID); err != nil || got.DiskGeometry != nil {
+		t.Fatalf("media change stored %+v %v", got, err)
 	}
 	if _, err := reopened.SetCoreEntryDiskGeometry(ctx, entry.GameID, pkg, media.MediaID, g); !errors.Is(err, ErrCoreEntryConflict) {
 		t.Fatalf("geometry without the image: %v", err)
