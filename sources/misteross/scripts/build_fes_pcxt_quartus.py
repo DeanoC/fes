@@ -223,7 +223,7 @@ def create_build_record(root, repository, revision, tool_identities, *, identity
     if dos_profile:
         metadata, font = dos_assets(root)
         parameters.update(freedos_image_sha256=metadata['floppy']['sha256'],
-                          freedos_source_urls=[item['url'] for item in metadata['floppy']['sources']],
+                          freedos_source_urls='; '.join(item['url'] for item in metadata['floppy']['sources']),
                           glabios_rom_sha256=metadata['bios']['sha256'],
                           glabios_font_sha256=hashlib.sha256(font).hexdigest())
     fields = {'format': 2, 'toolchain': 'quartus', 'repository': repository, 'revision': revision,

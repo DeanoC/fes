@@ -59,6 +59,14 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         self.assertEqual([source['license'] for source in metadata['floppy']['sources']],
                          ['GPL-2.0-or-later', 'GPL-2.0'])
         self.assertEqual(len(font), 4096)
+        record = producer.create_build_record(
+            producer.ROOT, 'https://github.com/DeanoC/fes.git', 'a' * 40,
+            {'quartus': 'pinned', 'yosys': 'pinned'},
+            execution={'toolchain': 'quartus', 'files': {}},
+            core_id='fes.pcxt-dos', dos_profile=True)
+        parameters = json.loads(record)['parameters']
+        self.assertEqual(parameters['freedos_source_urls'], '; '.join(
+            source['url'] for source in metadata['floppy']['sources']))
 
     def test_invalid_internal_clocks_and_unknown_unclocked_registers_reject(self):
         for key in ('reference_pin', 'pll_cross_check', 'uncertainty', 'partial_input_delay',
