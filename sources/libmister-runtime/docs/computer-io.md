@@ -129,10 +129,12 @@ fes-window grants of 4 MiB in turn: each 64 KiB chunk is the base's bytes, or
 the delta's chunk file when the manifest names it. It hashes the base as it
 reads it and CRC-32s what it writes. Each grant is revoked before the next,
 which writes back and invalidates its lines in L1 and the PL310. A base whose
-SHA-256 differs from `base_media_id`, a missing or altered chunk file, or a
-CRC the core does not match fails the launch with `corrupt_data`. Then
-DiskCommit words 0..7 and Commit, and DiskInfo is polled until the core's CRC
-pass ends. Status lists the disk as unit 0 with interface
+SHA-256 differs from `base_media_id` fails the launch with `corrupt_data` in
+phase `identity`: the staged file itself is wrong. A missing or altered chunk
+file fails it with `corrupt_data` in phase `media_data`, and a CRC the core
+does not match with `corrupt_data` in phase `input`, since the file can be
+right while the window is not. Then DiskCommit words 0..7 and Commit, and
+DiskInfo is polled until the core's CRC pass ends. Status lists the disk as unit 0 with interface
 `fes.media.ata-disk`, 65,536-byte chunks and its binding's revision. It is
 fixed: media insert, eject and save refuse it.
 

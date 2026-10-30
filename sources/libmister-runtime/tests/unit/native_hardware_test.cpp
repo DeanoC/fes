@@ -3215,8 +3215,8 @@ void TestPc386AtaDiskLaunchSaveAndRestore()
 	std::string changed = base;
 	changed[4096] ^= 1;
 	{ std::ofstream rewrite(disk.path, std::ios::binary | std::ios::trunc); rewrite << changed; }
-	assert(fixture.runtime.LoadLibraryCore(package.path, opened.package_id, data.path, "ultima-vi", &disk).code ==
-		mister::ErrorCode::corrupt_data);
+	const auto changed_base = fixture.runtime.LoadLibraryCore(package.path, opened.package_id, data.path, "ultima-vi", &disk);
+	assert(changed_base.code == mister::ErrorCode::corrupt_data && changed_base.phase == "identity");
 	{ std::ofstream rewrite(disk.path, std::ios::binary | std::ios::trunc); rewrite << base; }
 	const std::string ns = media.path + "/" + MediaDataNamespace(identity);
 	{ std::ofstream corrupt(ns + "/chunk-" + saved.chunks[1].sha256, std::ios::binary | std::ios::trunc); corrupt << "x"; }
