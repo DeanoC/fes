@@ -9,8 +9,8 @@ set design [design_load $env(FES_DE25_SOF)]
 set device $env(FES_DE25_DEVICE)
 set until [expr {[clock milliseconds] + 10000}]
 while {[lsearch -exact [get_service_paths device] $device] < 0 && [clock milliseconds] < $until} {
-    refresh_connections
     after 100
+    update
 }
 if {[lsearch -exact [get_service_paths device] $device] < 0} {error "explicit claimed board absent"}
 design_link $design $device
