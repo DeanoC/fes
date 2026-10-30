@@ -108,6 +108,11 @@ The [pc386 M3 audio record](validation/2026-10-26-pc386-m3-audio/summary.md)
 checks the OPL2 sample for sample against Nuked-OPL3, the Sound Blaster DSP's
 DMA and IRQ sequences, and start-up audio from the sound exercise and games
 on the oracle machine. It is host-only simulation evidence.
+The [pc386 M4 Quartus record](validation/2026-10-29-pc386-m4-quartus/summary.md)
+seals the M4 diagnostic package with Quartus 17.0.2 at its 61.44 MHz system
+clock, with every analysis met, after one ATA read-path change; the latest
+seal, with #1226's review fixes, passed every M4 diagnostic program and 201
+machine resets on Kit B.
 
 Ownership that has already landed is [component boundaries](component-boundaries.md)
 and the [project map](project-map.md). [Structure](fes-structure.md) only

@@ -192,11 +192,12 @@ def create_build_record(root, repository, revision, identities, *, identity_vers
 def synthesis_command(build_id: str, yosys: Path) -> tuple[str, ...]:
     if board.HEX32_RE.fullmatch(build_id) is None:
         raise board.BuildError("build ID must be 32 lowercase hexadecimal characters")
-    parameters = " ".join(f"-set {name} {value}" for name, value in guest_rates().items())
+    parameters = " ".join(f"-chparam {name} {value}" for name, value in guest_rates().items())
     program = (
         f"read_verilog -lib {DDR_ATOM}; "
         f"read_verilog -sv {' '.join(f'-I {path}' for path in INCLUDE_DIRS)} {' '.join(RTL_SOURCES)}; "
-        f"chparam -set BUILD_ID 128'h{build_id} -set SYSTEM_CLOCK \"{SYSTEM_CLOCK}\" {parameters} {board.TOP}; "
+        f"hierarchy -top {board.TOP} -chparam BUILD_ID 128'h{build_id} "
+        f"-chparam SYSTEM_CLOCK \"{SYSTEM_CLOCK}\" {parameters}; "
         f"synth_intel_alm -nolutram -top {board.TOP}; stat; write_json {OUTPUT.as_posix()}/synth.json"
     )
     return (str(yosys), "-p", program)

@@ -39,13 +39,16 @@ commands from the HPS DDR window in the CPU's place.
 | [`rtl/pc386_port_fence.sv`](rtl/pc386_port_fence.sv) | Keeps the bus master's machine reset from cutting a DDR burst on ports 1 and 2 |
 | [`rtl/pc386_snapshot.sv`](rtl/pc386_snapshot.sv) | Carries the presenter's and the plane's pixel-clock counters whole into the system clock |
 | [`rtl/pc386_system_pll.v`](rtl/pc386_system_pll.v) | The sealed system clock and the 12.288 MHz audio clock |
-| [`constraints-oss.qsf`](constraints-oss.qsf), [`toolchain.lock`](toolchain.lock) | Pins, and the core's lock (the i386 lock's nextpnr and Mistral, Yosys main) |
+| [`constraints-oss.qsf`](constraints-oss.qsf), [`toolchain.lock`](toolchain.lock) | Pins (both lanes), and the core's lock (the i386 lock's nextpnr and Mistral, Yosys main) |
+| [`clocks.sdc`](clocks.sdc) | The Quartus lane's clocks |
 | [`diagnostic/`](diagnostic/main.go) | `pc386-diag`, the kit tool that runs a diagnostic program through the ring |
 | [`sim/diag_tb.cpp`](sim/diag_tb.cpp) | `pc386_diag` with the DDR ports, running a diagnostic program as the kit tool does |
 | [`vendor/opl2_fpga/`](vendor/opl2_fpga/README.md) | The YM3812 import (LGPL-3.0), with the local changes that make it sample-exact |
 | [`vendor/nuked-opl3/`](vendor/nuked-opl3/README.md) | Nuked-OPL3 (LGPL-2.1), the OPL2 reference in simulation only |
 | [`firmware/`](firmware/) | Bochs ROM BIOS and LGPL VGABios sources, `source.json` manifests, `firmware.lock` |
-| [`sim/machine_tb.cpp`](sim/machine_tb.cpp) | `pc386_machine` with the Bochs oracle as CPU, guest memory and DDR models; records VGA traces and frames |
+| [`sim/machine_tb.cpp`](sim/machine_tb.cpp) | `pc386_machine` with the Bochs oracle as CPU, guest memory and DDR models; records VGA traces and frames. `--cpu rtl` runs `fes_i386_cpu` instead |
+| [`sim/pc386_rtl_cpu.sv`](sim/pc386_rtl_cpu.sv) | `fes_i386_cpu` with the byte count of its data-port load, for `--cpu rtl`'s VGA reads |
+| [`sim/rtl_stop_test.asm`](sim/rtl_stop_test.asm) | The stop test disk: instructions the RTL has not built, and a protected-mode stretch, for `--cpu rtl`'s stop path |
 | [`sim/devices_tb.cpp`](sim/devices_tb.cpp) | Directed checks of the AT core through its I/O port |
 | [`sim/audio_tb.cpp`](sim/audio_tb.cpp) | Directed checks of the DSP, the OPL2's AdLib port and the mixer, through the AT core |
 | [`sim/opl2_tb.cpp`](sim/opl2_tb.cpp) | The OPL2 against Nuked-OPL3, sample for sample, on random programs and captured port logs |
@@ -75,12 +78,15 @@ python3 scripts/sim_fes_pc386.py --suite audio          # DSP, OPL2 timers, mixe
 python3 scripts/sim_fes_pc386.py --suite opl2           # OPL2 against Nuked-OPL3, about 30 s
 python3 scripts/sim_fes_pc386.py --suite benches        # presenter, capture overflow recovery and display plane on port 2
 python3 scripts/sim_fes_pc386.py --suite boot --download  # BIOS POST to the FreeDOS prompt and its VGA replay
+python3 scripts/sim_fes_pc386.py --suite boot --cpu rtl   # the RTL must reach the prompt without stops, stalls or oracle steps
+python3 scripts/sim_fes_pc386.py --suite rtl-stops        # the RTL's stop path on the stop test disk, against the oracle
 python3 scripts/sim_fes_pc386.py --suite sound --download  # boot, then SOUND.COM; writes sound.wav
 python3 scripts/sim_fes_pc386.py --suite vga              # presenter, capture and plane benches, VGA test disk, replay
 python3 scripts/synth_fes_pc386.py --cache-root /abs/out/cache/misteross-toolchains  # machine-only synthesis
 python3 scripts/sim_fes_pc386.py --suite diag           # M4: the diagnostic programs on pc386_diag, about 1 min
 make toolchain-fes-pc386 CACHE_ROOT=/abs/out/cache/misteross-toolchains  # once per lock
 make build-fes-pc386-diag CACHE_ROOT=/abs/out/cache/misteross-toolchains # nextpnr lane (misses timing, #1235)
+make build-fes-pc386-diag-quartus CACHE_ROOT=/abs/out/cache/misteross-toolchains  # Quartus 17.0.2 lane (SEED=)
 ```
 
 The boot suite runs the locked BIOS and VGA BIOS on `pc386_machine`, boots the
@@ -113,6 +119,22 @@ captures stay outside the repository.
   boot calibrates against it; it sets how long the boot takes. IN, OUT and INTA
   run through the RTL inside the instruction and take its device time on top.
   A halted CPU lets the RTL run until INTR.
+- **RTL CPU (`--cpu rtl`).** [`fes_i386_cpu`](../fes-common/rtl/i386/) on the
+  system clock, its fetch and data ports on guest memory with no latency, its
+  I/O and INTA ports on the AT core, INTR from the PICs, A20M applied below the
+  reset alias. VGA stores post in order to the MMIO port as they retire; a VGA
+  load waits for its bytes, reading only those the load uses. The CPU has no
+  uncached path yet, so a VGA load on a wrong path still reaches the VGA; the
+  bench counts the loads whose uop never retired (`UNRETIRED`), and one whose
+  uop died as it was sent gives its bytes to no later load. An encoding the
+  CPU has not built stops it: the bench runs that instruction on the oracle
+  from the RTL's state, keeps the oracle running through protected mode and
+  V86, and restarts the RTL from the oracle's state. The boot suite's
+  `boot-rtl/report.json` lists the stops by stem, with the lockstep's scope.
+  For `--suite boot --cpu rtl`, any stop, stall or oracle step fails the run;
+  the RTL itself must reach the prompt.
+  While the CPU waits for an I/O cycle or sits in HLT with nothing in flight,
+  only the machine is clocked.
 - **Memory.** 16 MiB of host pages: the ROMs at F0000h (aliased at FFFF0000h)
   and C0000h are read-only, C8000h-EFFFFh is RAM. A0000h-BFFFFh is MMIO into
   the RTL VGA: each access becomes dword requests with byte enables in address
@@ -189,8 +211,10 @@ as wires would; the machine top level will instantiate both.
 
 - **Ports and FIFO.** VGA port writes and MMIO writes share a 16-entry FIFO
   and are processed in order; a port write completes in four clocks (a clock
-  later than the M1 stand-in, as the byte is posted through a register), a
-  port read waits until the FIFO has drained. An MMIO read also drains the
+  later than the M1 stand-in, as the byte is posted through a register), and
+  a byte waits while the FIFO is full. The machine bench reports those waits
+  apart from the class time (`IOWAIT`). A port read waits until the FIFO has
+  drained. An MMIO read also drains the
   write coalescer first.
 - **Planar logic.** One VRAM word write per clock: the bytes of a dword that
   share a planar offset (a chain-4 dword, an odd/even pair) go together, each
@@ -267,6 +291,19 @@ instead, it passed every diagnostic program on Kit B
 The presenter's 720p counters and syncs reset only on the pixel PLL's lock,
 so a machine reset leaves the HDMI signal running. On the first kit run they
 still followed the machine, and the sink re-locked after each machine reset.
+
+**Quartus lane.** [`scripts/build_fes_pc386_quartus.py`](../../scripts/build_fes_pc386_quartus.py)
+seals the same package with Quartus 17.0.2, labelled as a Quartus build
+([Quartus-built cores](../../../../docs/design/quartus-cores.md)). It takes
+the RTL, guest rates, core ID and interfaces from the OSS producer.
+- Quartus 17.0.2 rejects some of the machine's SystemVerilog, so the core's
+  locked Yosys elaborates `pc386_diag` at the guest rates and writes it as
+  Verilog. Memories with more than one write port and no `ramstyle` become
+  registers, and flattened names become plain identifiers. Quartus reads that
+  netlist and the shell's own files, with `QUARTUS` defined: the HDMI I2C pins
+  come from the hard block, and `pc386_diag` takes no parameters.
+- Every analysis must pass on every clock, and TimeQuest must analyse every
+  clock, or the build publishes nothing.
 
 A diagnostic program is the command list plus what the host does between
 commands: stage bytes into the window, mark a point, dump window bytes, dump
