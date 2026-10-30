@@ -127,7 +127,7 @@ module spike_cpu (
                  ^ trace_store_addr ^ trace_store_data[3:0] ^ trace_store_data[7:4] ^ {23'b0, trace_store, trace_store_mask}
                  ^ {ddr_address, ddr_read, ddr_write, trace_mem_idle, trace_issue} ^ {ddr_burstcount, 8'd0, ddr_byteenable}
                  ^ ddr_writedata[31:0] ^ ddr_writedata[63:32] ^ ddr_writedata[95:64] ^ ddr_writedata[127:96]
-                 ^ {mmio_address, mmio_valid, mmio_write} ^ {mmio_byteenable, 28'd0} ^ mmio_wdata
+                 ^ 32'({mmio_address, mmio_valid, mmio_write}) ^ {mmio_byteenable, 28'd0} ^ mmio_wdata
                  ^ {dma_rdata, dma_done, flush_done, 21'd0, trace_md_wait}
                  ^ io_wdata ^ {io_port, 11'b0, inta_req, io_req, io_write, io_size};
         for (int n = 0; n < 8; n++) observed ^= arch_gpr[n];
