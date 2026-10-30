@@ -2643,14 +2643,17 @@ general keyboard/mouse support. Shared controller ports are described below.
 
 ### Keyboard HID for home computers
 
-An active `fes.computer` 1.0 generation with `fes.keyboard.hid` 1.0 takes USB HID
-key state, not a machine-shaped matrix. Clients send physical keys as keyboard
+An active `fes.computer` 1.0 or 1.1 generation with `fes.keyboard.hid` 1.0
+takes USB HID key state, not a machine-shaped matrix. Clients send physical keys as keyboard
 events whose code is `0x1000 + usage` (`internal/hidkeys`; usages 0x04..0x7f and
 the modifiers 0xe0..0xe7): the browser maps `KeyboardEvent.code`, tenfoot uses
 SDL scancodes, and the kit maps evdev `KEY_*`. There is no per-core character
 map; the core owns characters, shifted symbols, repeat and reset chords. The host
 attaches input for these sessions even without controller ports and passes the
 events through `POST /api/v1/session/input/event` and the host stream unchanged.
+The 1.1 ABI retains its 1.0 keyboard and relative-mouse capabilities; an active
+`fes.mouse.relative` 1.0 interface receives the same supported-generation
+binding.
 The browser's **Capture keyboard** session action forwards every key, including
 Escape and Backspace, until **Release keyboard**; Stop stays the Stop button.
 The browser posts these events one at a time in event order, so a release

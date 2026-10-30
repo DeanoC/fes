@@ -3120,6 +3120,24 @@ void TestPc386AtaDiskLaunchSaveAndRestore()
 	endpoint.GuestSectorWrite(300, 0x22);
 	endpoint.GuestSectorWrite(size / 512 - 1, 0x33);  // in the 1536-byte tail chunk
 	const auto modified = region;
+	const std::string record_directory = data.path + "/games/" +
+		GameDataNamespace("fes.pc386", "ultima-vi");
+	assert(chmod(record_directory.c_str(), 0500) == 0);
+	const std::size_t failed_save_requests = endpoint.requests.size();
+	const auto failed_save = fixture.runtime.Stop();
+	assert(failed_save.code == mister::ErrorCode::save_failed);
+	assert(fixture.runtime.status().state == mister::State::running_development);
+	assert(!endpoint.disk_frozen && endpoint.data_snapshot.empty());
+	bool ata_resumed = false, data_resumed = false;
+	for (std::size_t at = failed_save_requests; at < endpoint.requests.size(); ++at) {
+		const auto& request = endpoint.requests[at];
+		ata_resumed = ata_resumed || (request.opcode == FesComputerOpcodeDiskControl &&
+			request.argument == FesComputerDiskControlResume);
+		data_resumed = data_resumed || (request.opcode == FesComputerOpcodeDataControl &&
+			request.argument == FesComputerDataResume);
+	}
+	assert(ata_resumed && data_resumed);
+	assert(chmod(record_directory.c_str(), 0700) == 0);
 	assert(fixture.runtime.Stop().ok());
 	std::unique_ptr<AtaDeltaFile> file;
 	assert(AtaDeltaFile::Open(media.path, identity, size, &file).ok());
@@ -3137,6 +3155,26 @@ void TestPc386AtaDiskLaunchSaveAndRestore()
 	// A Stop with no guest writes publishes nothing new.
 	assert(fixture.runtime.Stop().ok());
 	assert(file->Read(&saved).ok() && saved.chunks.size() == 3);
+	// A completed execution-release rejection proves the guest never ran. It
+	// must take idle cleanup without trying to capture a record while held.
+	bool rejected_release = false;
+	endpoint.reject_request = [&](const mister_test::ComputerEndpoint::Request& request) {
+		if (!rejected_release && request.opcode == FesComputerOpcodeExecution &&
+			request.argument == FesComputerExecutionRelease) {
+			rejected_release = true;
+			return 4u;
+		}
+		return 0u;
+	};
+	const std::size_t failed_start_requests = endpoint.requests.size();
+	const auto failed_start = fixture.runtime.LoadLibraryCore(package.path, opened.package_id,
+		data.path, "ultima-vi", &disk);
+	assert(rejected_release && failed_start.code == mister::ErrorCode::io_failed);
+	assert(fixture.runtime.status().state == mister::State::idle);
+	for (std::size_t at = failed_start_requests; at < endpoint.requests.size(); ++at)
+		assert(!(endpoint.requests[at].opcode == FesComputerOpcodeDiskControl &&
+			endpoint.requests[at].argument == FesComputerDiskControlFreeze));
+	endpoint.reject_request = {};
 	// A base that differs from its identity, or a corrupt chunk, blocks the launch.
 	std::string changed = base;
 	changed[4096] ^= 1;

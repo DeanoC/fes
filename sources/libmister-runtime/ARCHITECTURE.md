@@ -445,6 +445,8 @@ Stop and fault cleanup Freeze/drain the fixed ATA disk before capture, including
 when initial dirty flags are clear. Ordered snapshot chunks read committed disk
 RAM while CPU/video keep running. Publication precedes Saved; a failed capture
 keeps the disk frozen until the existing save-failure recovery resumes it.
+Publication rechecks each named chunk's length and content digest under the
+namespace lock before replacing the manifest.
 Insert, eject and explicit `save_media` reject the ATA unit while the computer
 runs. Status retains the disk's durable binding but reports `saveable:false`,
 so callers do not treat Stop-time persistence as a live checkpoint operation.
@@ -496,8 +498,10 @@ identity and data-info, before Start/input. Core driver methods `CaptureData`,
 The persistence interfaces keep base ABI and transport version 1.0 unchanged.
 
 `FlushSave` retains a complete host snapshot through publication failure.
-`RestoreInput` explicitly resumes GP before reopening the same generation;
-snapshots are invalidated only after input restoration succeeds. Unsafe resume
+`RestoreInput` resumes every flushed ATA disk and machine-data snapshot before
+reopening the same generation's host input. Persistent computer packages with
+no host input recipe still resume their machine-data snapshot. Snapshots are
+invalidated only after restoration succeeds. Unsafe resume
 retains persistent package/generation metadata in `reboot_required` and leaves
 the complete snapshot owned by native hardware. No fault/startup cleanup saves.
 Legacy cartridge `SaveFile`, SNES SRAM transport and `.srm` launch handling

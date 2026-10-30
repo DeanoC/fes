@@ -434,9 +434,9 @@ Error NativeHardware::RestoreInput(std::uint64_t generation)
 	}
 	if (!core_data_file_)
 		return {};
-	if (!has_active_input_recipe_ || active_driver_ == nullptr || generation == 0)
+	if (active_driver_ == nullptr || generation == 0)
 		return {ErrorCode::io_failed,
-			"active input cannot be restored", "input"};
+			"active persistent data cannot be restored", "core_data"};
 	if (input_open_)
 		return {ErrorCode::io_failed,
 			"active input was not fully stopped", "input"};
@@ -447,6 +447,10 @@ Error NativeHardware::RestoreInput(std::uint64_t generation)
 		if (!resumed.ok())
 			return resumed;
 	}
+	// Some persistent computer packages have no host input recipe. Their
+	// machine record still needs Resume after a failed save.
+	if (!has_active_input_recipe_)
+		return {};
 	CoreDriver* const driver = active_driver_;
 	const CoreDriverContext context = active_context_;
 	const std::shared_ptr<std::atomic<bool>> identity_verified =
@@ -1831,7 +1835,8 @@ HardwareResult NativeHardware::LoadCoreInternal(
 			Deadline(clock_, timeouts_.core_io_ms));
 		if (!started.error.ok()) return {WithPhase(std::move(started.error),
 			"transport"), true, identified.observed_core,
-			media_data_file_ != nullptr || ata_delta_file_ != nullptr};
+			(media_data_file_ != nullptr || ata_delta_file_ != nullptr) &&
+				started.execution_may_have_run};
   if(menu) {
    error=menu_display_->Enable(Deadline(clock_,timeouts_.core_io_ms));
    MenuDisplayInfo info;if(error.ok())error=menu_display_->ReadInfo(Deadline(clock_,timeouts_.core_io_ms),&info);

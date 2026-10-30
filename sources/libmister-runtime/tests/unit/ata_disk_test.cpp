@@ -3,6 +3,7 @@
 #include "native/ata_disk.hpp"
 #include "daemon/json.hpp"
 #include "native/sha256.hpp"
+#include <algorithm>
 #include <cassert>
 #include <cstdio>
 #include <dirent.h>
@@ -89,6 +90,28 @@ void GoldenDelta()
 	assert(DecodeAtaDelta(record, id, base_size + 512, &delta).code == ErrorCode::incompatible_data);
 }
 
+void WrappedChunkCount()
+{
+	const MediaDataIdentity identity{"fes.pc386", "ultima-vi", std::string(64, 'a'), 0};
+	AtaDiskDelta delta;
+	delta.identity = identity;
+	delta.base_size = 1u << 20;
+	delta.chunks = {{0, std::string(64, 'b')}};
+	std::vector<unsigned char> record;
+	assert(EncodeAtaDelta(delta, &record).ok());
+	// On 32-bit ARM this count wraps 36 * count to 32, making a 206-byte
+	// manifest appear to contain one chunk unless count is bounded first.
+	record.resize(206);
+	const std::uint32_t count = 119304648u;
+	for (unsigned byte = 0; byte < 4; ++byte)
+		record[120 + byte] = static_cast<unsigned char>(count >> (byte * 8));
+	std::vector<unsigned char> prefix(record.begin(), record.end() - 32);
+	const std::vector<unsigned char> checksum = Unhex(Digest(prefix));
+	std::copy(checksum.begin(), checksum.end(), record.end() - 32);
+	AtaDiskDelta rejected;
+	assert(DecodeAtaDelta(record, identity, 1u << 20, &rejected).code == ErrorCode::corrupt_data);
+}
+
 void SizesAndMerge()
 {
 	assert(ValidAtaDiskSize(1u << 20) && ValidAtaDiskSize(128u << 20) && !ValidAtaDiskSize((1u << 20) - 512) &&
@@ -147,6 +170,12 @@ void Store()
 	auto names = Names(dir);
 	assert(names.count("record.bin") && names.count("chunk-" + sha) && !names.count("chunk-" + old_five) &&
 		names.size() == 4);
+	// A same-size replacement must not be published under the old digest.
+	auto same_size_corrupt = replaced;
+	same_size_corrupt[0] ^= 1;
+	{ std::ofstream corrupt(dir + "/chunk-" + sha, std::ios::binary | std::ios::trunc);
+		corrupt.write(reinterpret_cast<const char*>(same_size_corrupt.data()), same_size_corrupt.size()); }
+	assert(file->Publish(second, second.revision, nullptr).code == ErrorCode::corrupt_data);
 	// A corrupt chunk file is corruption, never silently replaced.
 	{ std::ofstream corrupt(dir + "/chunk-" + sha, std::ios::binary | std::ios::trunc); corrupt << "bad"; }
 	assert(file->ReadChunk(second.chunks[1], &read).code == ErrorCode::corrupt_data);
@@ -187,6 +216,7 @@ void BaseImage()
 int main()
 {
 	GoldenDelta();
+	WrappedChunkCount();
 	SizesAndMerge();
 	Store();
 	BaseImage();

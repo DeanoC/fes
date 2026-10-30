@@ -270,14 +270,14 @@ func MouseRelativeInterface() RuntimeContract {
 }
 
 func MouseRelativeCapable(p *CorePackageStatus) bool {
-	return activeComputer(p) && activeInterface(p, MouseRelativeInterface())
+	return activeComputerMedia(p) && activeInterface(p, MouseRelativeInterface())
 }
 
-// KeyboardHIDCapable reports an active fes.computer 1.0 generation that
+// KeyboardHIDCapable reports an active supported fes.computer generation that
 // negotiated fes.keyboard.hid 1.0. Such sessions forward physical key state as
 // USB HID usages; the core owns every character mapping.
 func KeyboardHIDCapable(p *CorePackageStatus) bool {
-	return activeComputer(p) && activeInterface(p, KeyboardHIDInterface())
+	return activeComputerMedia(p) && activeInterface(p, KeyboardHIDInterface())
 }
 
 // MediaUnitStatus is one runtime-reported media unit. The runtime reads its
