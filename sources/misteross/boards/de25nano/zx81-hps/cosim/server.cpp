@@ -58,7 +58,7 @@ int main(int argc, char** argv) {
                         t.reset_n = 0; b.cycles(4); t.reset_n = 1; b.cycles(4);
                     }
                 }
-            } else if (op >= basic::WaitLine && op <= basic::WaitNewline) {
+            } else if (op >= basic::HasLine && op <= basic::WaitNewline) {
                 result=basic::observe(b,op,arg,value,captured);
             } else if (op == wire::Advance) {
                 wire::need(arg <= 800000000, "advance exceeds test budget"); b.cycles(arg);

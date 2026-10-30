@@ -46,5 +46,5 @@ struct Reply {
 } // namespace wire
 
 namespace basic {
-enum Op : unsigned { WaitLine=201, HasLine, WaitSaved, CaptureSaved, PeekSaved, WaitPrint, WaitNewline };
+enum Op : unsigned { HasLine=201, WaitSaved, CaptureSaved, PeekSaved, WaitPrint, WaitNewline };
 }

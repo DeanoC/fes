@@ -202,7 +202,10 @@ def execute(args) -> dict:
                             if server.poll() is not None or time.monotonic() >= limit: raise ValueError("RTL server did not start")
                             time.sleep(0.01)
                         result = json.loads(run([*command, str(endpoint), scenario, args.build_id, str(logs/f"{architecture}-saved.p")],
-                                                logs / f"{architecture}-{scenario}-client.log", timeout=900))
+                                                logs / f"{architecture}-{scenario}-client.log",
+                                                # Two LOAD/RUN cycles plus SAVE/edit add work;
+                                                # guest operation bounds remain unchanged.
+                                                timeout=1800 if scenario == "session" else 900))
                         validate_result(result, scenario)
                         if scenario=='session':
                             data=(logs/f"{architecture}-saved.p").read_bytes()

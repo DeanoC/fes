@@ -26,11 +26,6 @@ template<class Bench> bool printed(Bench&b,unsigned value){
 }
 template<class Bench> unsigned observe(Bench&b,unsigned op,unsigned arg,unsigned value,std::vector<unsigned char>&captured){
     if(op==WaitNewline){b.newline_seen=false;auto end=b.system_edges+25000000;while(!b.newline_seen&&b.system_edges<end)b.cycles(256);wire::need(b.newline_seen,"ROM did not accept ENTER");std::printf("PASS BASIC entered ROM newline handler\n");return 1;}
-    if(op==WaitLine){auto end=b.system_edges+40000000;while(!line(b,arg,value)&&b.system_edges<end)b.cycles(256);if(!line(b,arg,value)){
-            std::printf("BASIC line failure expected=%u DFILE=%04x E_LINE=%04x ERR_NR=%02x PPC=%04x bytes:",arg,b.word(0x400c),b.word(0x4014),b.peek(0x4000),b.word(0x4007));
-            for(unsigned n=0;n<32;++n)std::printf(" %02x",b.peek(0x407d+n));std::printf("\nEDIT:");for(unsigned n=0;n<20;++n)std::printf(" %02x",b.peek(b.word(0x4014)+n));std::printf(" LAST_K=%04x DEBOUNCE=%02x CDFLAG=%02x\n",b.word(0x4025),b.peek(0x4027),b.peek(0x403b));
-        }
-        wire::need(line(b,arg,value),"ROM did not store the BASIC line");std::printf("PASS BASIC stored line %u\n",arg);return 1;}
     if(op==HasLine)return line(b,arg,value);
     if(op==WaitSaved){auto end=b.system_edges+200000000;while(!b.saved_ready()&&b.system_edges<end)b.cycles(256);wire::need(b.saved_ready(),"ROM SAVE did not finish");std::printf("PASS ROM SAVE bytes=%u\n",b.saved_size());return b.saved_size();}
     if(op==CaptureSaved){wire::need(b.saved_ready()&&b.saved_size()>51&&b.saved_size()<=0x8000-0x4009,"invalid ROM SAVE image");captured.clear();for(unsigned n=0;n<b.saved_size();++n)captured.push_back(b.saved(n));wire::need(!(captured[0x403b-0x4009]&0x80),"ROM SAVE image has active display state");std::printf("PASS ROM SAVE captured CDFLAG=%02x\n",captured[0x403b-0x4009]);return captured.size();}

@@ -57,7 +57,7 @@ public:
         // Type 1 PRINT 7 through the actual HID client; the ROM tokenizes it.
         // A listing starts with 1, so it cannot satisfy the RUN output check.
         token(0x1e,0x1d);token(0x13,0xf5);token(0x24,0x23);
-        submit();command(WaitLine,1,0xf5);editor();
+        submit();editor();wire::need(command(HasLine,1,0xf5).value,"ROM did not store the PRINT line");
         // Only the real ROM SAVE emitter supplies a loadable .p image.
         token(0x16,0xf8);token(0x13,0x0b,1,true);token(0x04,0x26);token(0x13,0x0b,2,true);
         submit();command(WaitSaved);unsigned bytes=command(CaptureSaved).value;
@@ -73,7 +73,7 @@ public:
         // Prove post-RUN keyboard input by inserting a second line, then prove
         // a real reload removes it without resetting/reconfiguring the machine.
         token(0x1f,0x1e);token(0x08,0xea);
-        submit();command(WaitLine,2,0xea);editor();
+        submit();editor();wire::need(command(HasLine,2,0xea).value,"ROM did not store the post-RUN edit");
         okay(computer.LoadTape(evidence.image,deadline(),127));load();
         evidence.reload_removed_edit=!command(HasLine,2,0xea).value;
         wire::need(evidence.reload_removed_edit,"reload retained the post-RUN edit");run();
