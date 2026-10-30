@@ -186,8 +186,8 @@ def run_memory(testbench: str, env: dict) -> dict:
     if result.returncode not in (0, 1):
         raise LockstepError(f'memory cases: testbench exited with {result.returncode}\n{result.stderr[-4000:]}')
     summary, failures = parse_output(result.stdout)
-    if summary['runs'] != 12:
-        raise LockstepError(f'memory cases: testbench ran {summary["runs"]} of 12 cases')
+    if summary['runs'] != 14:
+        raise LockstepError(f'memory cases: testbench ran {summary["runs"]} of 14 cases')
     return {'summary': summary, 'failures': failures}
 
 
@@ -246,6 +246,24 @@ def verilate(verilator: str, linked: list[Path], jobs: int, yosys: str | None) -
     if result.returncode:
         raise LockstepError(f'verilator failed; see {log}\n' + '\n'.join(log.read_text().splitlines()[-30:]))
     return output / ('V' + TOP)
+
+
+def run_biu_dma_test(verilator: str, jobs: int) -> dict:
+    """Drive a DMA request and a committing store into the BIU on adjacent edges."""
+    output = OUTPUT / 'biu'
+    output.mkdir(parents=True, exist_ok=True)
+    command = [verilator, '--cc', '--exe', '--build', '-j', str(jobs), '-O3', '--top-module', 'fes_i386_biu',
+               '-Wall', '-Wno-fatal', '--Mdir', str(output), '-CFLAGS', '-std=c++17 -O2',
+               str(RTL / 'fes_i386_pkg.sv'), str(RTL / 'fes_i386_biu.sv'), str(SIM / 'biu_dma_tb.cpp')]
+    log = output / 'build.log'
+    with log.open('w') as stream:
+        result = subprocess.run(command, cwd=ROOT, stdout=stream, stderr=subprocess.STDOUT)
+    if result.returncode:
+        raise LockstepError(f'BIU DMA testbench build failed; see {log}\n'
+                            + '\n'.join(log.read_text().splitlines()[-30:]))
+    result = subprocess.run([str(output / 'Vfes_i386_biu')], cwd=ROOT, capture_output=True, text=True)
+    (output / 'run.log').write_text(result.stdout + result.stderr)
+    return {'exit': result.returncode, 'output': result.stdout.strip(), 'error': result.stderr.strip()}
 
 
 def hold_failures(gaps: dict) -> list[str]:
@@ -351,6 +369,7 @@ def main() -> int:
             report['yosys'] = yosys
         linked = oracle.link_inputs(args.jobs, args.download)
         testbench = str(verilate(verilator, linked, args.jobs, yosys))
+        biu_dma = run_biu_dma_test(verilator, args.jobs)
         env = dict(os.environ, FES_I386_DIVERGENCES=str(table), FES_I386_LATENCY='0' if args.no_latency else '1')
         reset_store = run_reset_store(testbench, env)
         directed = run_directed(testbench, env)
@@ -389,6 +408,8 @@ def main() -> int:
         return 2
 
     exit_code = 0
+    biu_dma_failures = [] if biu_dma['exit'] == 0 else [
+        f"BIU DMA/store test: {biu_dma['error'] or biu_dma['output'] or 'failed without output'}"]
     by_opcode: dict[str, Counter] = {}
     corpus_failures = []
     for result in corpus_results:
@@ -429,10 +450,11 @@ def main() -> int:
     reset_store_failures = reset_store['failures']
     directed_failures = directed['failures']
     memory_failures = memory['failures']
-    if (corpus_failures or random_failures or hash_mismatches or unbuilt_failures or reset_store_failures
+    if (biu_dma_failures or corpus_failures or random_failures or hash_mismatches or unbuilt_failures or reset_store_failures
             or directed_failures or memory_failures):
         exit_code = 1
     report.update({
+        'biu_dma_test': biu_dma,
         'reset_store': reset_store,
         'directed_cases': directed,
         'memory_cases': memory,
@@ -485,10 +507,11 @@ def main() -> int:
               f"{share(gaps['store_load'], 2)} two cycles apart; "
               f"{sum(gaps['after_store'].values())} others after a store, {share(gaps['after_store'], 1)} one cycle apart")
     print(f"unbuilt encodings: {unbuilt_runs} outside SCOPE, {len(unbuilt_failures)} not stopped as unimplemented")
+    print(f"BIU DMA/store: {biu_dma['output'] or 'FAIL'}")
     print(f"reset-store-on-reset: {reset_store['summary']['passed']} pass, {reset_store['summary']['failed']} fail")
     print(f"directed cases: {directed['summary']['passed']} pass, {directed['summary']['failed']} fail")
     print(f"memory cases (DMA, FLUSH): {memory['summary']['passed']} pass, {memory['summary']['failed']} fail")
-    for line in (reset_store_failures + directed_failures + memory_failures + unbuilt_failures + corpus_failures
+    for line in (biu_dma_failures + reset_store_failures + directed_failures + memory_failures + unbuilt_failures + corpus_failures
                  + random_failures)[:40]:
         print(line)
     print(('i386 lockstep FAILED' if exit_code else 'i386 lockstep passed')

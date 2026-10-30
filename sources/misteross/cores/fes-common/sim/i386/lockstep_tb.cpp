@@ -3333,8 +3333,6 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
 //   dma-read-store  a store of A5h to 3000h, then JMP $; DMA reads 3000h as
 //                   soon as the store retires, with it still in the write
 //                   buffer: the read must return A5h
-//   dma-read-commit store and DMA are accepted on the same edge; the read
-//                   must wait for the store moving into the commit register
 //   flush           a store of 3Ch to 3001h, then JMP $; FLUSH as soon as it
 //                   retires: when FLUSH is done DDR must hold it
 // A store of CL, 0-3 NOPs, then a load of the byte it wrote, run twice in a
@@ -3387,11 +3385,6 @@ int run_forward_cases(Rtl &rtl, Summary &summary) {
         // MOV DX, FFFFh; MOV DS, DX / MOV [0010h], CL / MOV AL, ES:[0000h]
         {"fwd-a20", {0xba, 0xff, 0xff, 0x8e, 0xda}, {0x88, 0x0e, 0x10, 0x00}, {0x26, 0xa0, 0x00, 0x00}, true, 0, false,
          0x01, 0x01},
-        // Prime physical byte zero, then store AABBh at FFFFFh under A20M.
-        // The high byte wraps to zero; the following cached load must see it.
-        {"fwd-a20-cross", {0xba, 0xff, 0xff, 0x8e, 0xda, 0xba, 0xbb, 0xaa, 0xbf, 0x0f, 0x00,
-                            0x26, 0xa0, 0x00, 0x00},
-         {0x89, 0x15}, {0x26, 0xa0, 0x00, 0x00}, true, 0, false, 0xaa, 0xaa, 0x11},
         {"fwd-no-a20", {0xba, 0xff, 0xff, 0x8e, 0xda}, {0x88, 0x0e, 0x10, 0x00}, {0x26, 0xa0, 0x00, 0x00}, false, 0,
          false, 0xaa, 0x01},
     };
@@ -3437,6 +3430,71 @@ int run_forward_cases(Rtl &rtl, Summary &summary) {
             std::cout << "FAIL memory:" << c.label << ' ' << detail << " 1 0\n";
         }
     }
+
+    // Prime line zero, then place the word store and aliased byte load
+    // back-to-back so the load reaches M2 while the crossing store commits.
+    // The second store byte maps from 100000h to physical zero under A20M.
+    State cross = state;
+    cross.seg[fes_i386::SEG_DS] = fes_i386::real_mode_segment(0xffff);
+    cross.gpr[fes_i386::REG_EDX] = 0xaabb;
+    cross.gpr[fes_i386::REG_EDI] = 0x000f;
+    const std::vector<uint8_t> crossing = {0x26, 0xa0, 0x00, 0x00,  // MOV AL, ES:[0000h]
+                                           0x89, 0x15,              // MOV [DI], DX (FFFFFh across A20M)
+                                           0x26, 0xa0, 0x00, 0x00,  // MOV AL, ES:[0000h]
+                                           0xf4};
+    for (size_t i = 0; i < crossing.size(); ++i) rtl.poke(uint32_t(0x1000 + i), crossing[i]);
+    rtl.poke(0, 0x11);
+    rtl.top.a20m = 1;
+    rtl.set_window(true);
+    rtl.start(cross);
+    for (int n = 0; n < 4000 && !rtl.top.trace_halt; ++n) rtl.clock();
+    const uint8_t got = uint8_t(rtl.state().gpr[fes_i386::REG_EAX]);
+    const bool passed = rtl.top.trace_halt && !rtl.top.trace_unimplemented && got == 0xaa;
+    ++summary.runs;
+    summary.cycles += rtl.cycles;
+    rtl.cycles = 0;
+    if (passed) ++summary.passed;
+    else {
+        ++summary.failed;
+        std::cout << "FAIL memory:fwd-a20-cross " << (rtl.top.trace_halt ? hex(got) : "no-halt")
+                  << " aa " << hex(got) << '\n';
+    }
+    rtl.top.a20m = 0;
+    rtl.set_window(false);
+    for (size_t i = 0; i < crossing.size(); ++i) rtl.poke(uint32_t(0x1000 + i), 0);
+    for (uint32_t address : rtl.written) rtl.poke(address, 0);
+    rtl.written.clear();
+
+    // The same stale-hit window at FFFF0000h, whose second store byte maps
+    // to the F0000h reset shadow. The first byte is above the physical range
+    // and is dropped; the second is RAM in this test's map.
+    State reset_cross = state;
+    reset_cross.seg[fes_i386::SEG_DS].base = 0xfffefff0;
+    reset_cross.seg[fes_i386::SEG_ES].base = 0x000f0000;
+    reset_cross.gpr[fes_i386::REG_EDX] = 0xaabb;
+    reset_cross.gpr[fes_i386::REG_EDI] = 0x000f;
+    for (size_t i = 0; i < crossing.size(); ++i) rtl.poke(uint32_t(0x1000 + i), crossing[i]);
+    rtl.poke(0x000f0000, 0x11);
+    rtl.top.a20m = 0;
+    rtl.set_window(true);
+    rtl.start(reset_cross);
+    for (int n = 0; n < 4000 && !rtl.top.trace_halt; ++n) rtl.clock();
+    const uint8_t reset_got = uint8_t(rtl.state().gpr[fes_i386::REG_EAX]);
+    const bool reset_passed = rtl.top.trace_halt && !rtl.top.trace_unimplemented && reset_got == 0xaa;
+    ++summary.runs;
+    summary.cycles += rtl.cycles;
+    rtl.cycles = 0;
+    if (reset_passed) ++summary.passed;
+    else {
+        ++summary.failed;
+        std::cout << "FAIL memory:fwd-reset-cross " << (rtl.top.trace_halt ? hex(reset_got) : "no-halt")
+                  << " aa " << hex(reset_got) << '\n';
+    }
+    rtl.set_window(false);
+    for (size_t i = 0; i < crossing.size(); ++i) rtl.poke(uint32_t(0x1000 + i), 0);
+    rtl.poke(0x000f0000, 0);
+    for (uint32_t address : rtl.written) rtl.poke(address, 0);
+    rtl.written.clear();
     return 0;
 }
 
@@ -3455,7 +3513,6 @@ int run_memory_cases(Rtl &rtl, Summary &summary) {
         {"dma-write-code", {0xeb, 0xfe}},
         // MOV BYTE [3000h], A5h; L: JMP L
         {"dma-read-store", {0xc6, 0x06, 0x00, 0x30, 0xa5, 0xeb, 0xfe}},
-        {"dma-read-commit", {0xc6, 0x06, 0x00, 0x30, 0xa5, 0xeb, 0xfe}},
         // MOV BYTE [3001h], 3Ch; L: JMP L
         {"flush", {0xc6, 0x06, 0x01, 0x30, 0x3c, 0xeb, 0xfe}},
     };
@@ -3469,20 +3526,7 @@ int run_memory_cases(Rtl &rtl, Summary &summary) {
         std::string detail;
         for (int n = 0; n < 20000 && !ok; ++n) {
             rtl.clock();
-            if (label == "dma-read-commit") {
-                // DMA must be pending before the store reaches WB. The CPU's
-                // EX trace gives the cycle immediately before its commit edge.
-                if (!asked && rtl.top.trace_ex_store) {
-                    asked = 1;
-                    rtl.dma_valid = true;
-                    rtl.dma_write = false;
-                    rtl.dma_address = 0x3000;
-                } else if (asked && !rtl.dma_valid) {
-                    ok = rtl.dma_result == 0xa5;
-                    detail = hex(rtl.dma_result);
-                    break;
-                }
-            } else if (label == "dma-write-data" || label == "dma-write-code") {
+            if (label == "dma-write-data" || label == "dma-write-code") {
                 // Once the loop has run a while (its lines are cached), the DMA write.
                 if (n == 2000) {
                     rtl.dma_valid = true;

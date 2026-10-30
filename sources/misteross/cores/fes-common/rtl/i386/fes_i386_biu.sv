@@ -168,12 +168,18 @@ module fes_i386_biu import fes_i386_pkg::*; #(
     // only).
     function automatic logic held(input logic [LW-1:0] line, input logic [1:0] h, input logic [2:0] n,
                                   input logic [3:0] mmio, input logic [3:0][LW-1:0] lines,
-                                  input logic [1:0] c_part, input logic [1:0] c_mmio, input logic [1:0][LW-1:0] c_line);
+                                  input logic [1:0] c_part, input logic [1:0] c_mmio, input logic [1:0][LW-1:0] c_line,
+                                  input logic [1:0] new_part, input logic [1:0] new_mmio,
+                                  input logic [1:0][LW-1:0] new_line);
         held = 1'b0;
         for (int k = 0; k < 4; k++)
             if (3'(2'(k - h)) < n && !mmio[k] && lines[k] == line) held = 1'b1;
         for (int k = 0; k < 2; k++)
             if (c_part[k] && !c_mmio[k] && c_line[k] == line) held = 1'b1;
+        // Also see the store retiring on this edge. It has not reached the
+        // commit register yet, but a bus read accepted now would pass it.
+        for (int k = 0; k < 2; k++)
+            if (new_part[k] && !new_mmio[k] && new_line[k] == line) held = 1'b1;
     endfunction
     logic c_valid;  // the commit register holds a store
     assign c_valid = part0 || part1;
@@ -217,11 +223,17 @@ module fes_i386_biu import fes_i386_pkg::*; #(
     logic d_ok, i_ok, dma_ok;
     assign d_ok = d_req && !reset && (d_mmio ? wb_empty
                                              : !held(d_addr[PA-3:3], head, count, e_mmio, e_line, {part1, part0},
-                                                     {c_mmio1, c_mmio0}, {c_line1, c_line0}));
+                                                     {c_mmio1, c_mmio0}, {c_line1, c_line0},
+                                                     {s_part1, s_part0}, {st_attr1 == ATTR_MMIO, st_attr0 == ATTR_MMIO},
+                                                     {st_line1, st_line0}));
     assign dma_ok = dma_busy && dma_ram && !held(dma_p[PA-1:5], head, count, e_mmio, e_line, {part1, part0},
-                                                 {c_mmio1, c_mmio0}, {c_line1, c_line0});
+                                                 {c_mmio1, c_mmio0}, {c_line1, c_line0},
+                                                 {s_part1, s_part0}, {st_attr1 == ATTR_MMIO, st_attr0 == ATTR_MMIO},
+                                                 {st_line1, st_line0});
     assign i_ok = i_req && !reset && !held(i_line, head, count, e_mmio, e_line, {part1, part0},
-                                           {c_mmio1, c_mmio0}, {c_line1, c_line0});
+                                           {c_mmio1, c_mmio0}, {c_line1, c_line0},
+                                           {s_part1, s_part0}, {st_attr1 == ATTR_MMIO, st_attr0 == ATTR_MMIO},
+                                           {st_line1, st_line0});
 
     logic eligible;
     assign eligible = count != 3'd0 && (count >= 3'd2 || e_mmio[head] || &e_mask[head] || age == 2'd2 || drain
