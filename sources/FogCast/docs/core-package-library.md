@@ -825,8 +825,10 @@ the digest, keeps the four most recently launched images under
 does not move the image again. Before writing an upload it removes unfinished
 uploads and all but the three most recent other images; a card that is still
 full answers `CACHE_FULL`. A staged copy that no longer matches its digest
-fails the runtime's base check at launch; the kit then removes it, so the next
-launch stages it again. The library load then carries
+fails the runtime's base check at launch (`corrupt_data`, phase `identity`);
+the kit then removes it, so the next launch stages it again. A CRC mismatch
+reported by the core (phase `input`) leaves the staged copy alone, since the
+file can be right while the DDR window is not. The library load then carries
 `X-FogCast-Library-Game`, `X-FogCast-Disk-Image` and `X-FogCast-Disk-Geometry`
 (`C/H/S`); the agent passes the staged path, geometry, game and media-data root
 to the runtime's `load_library_core`, which writes the image into the DDR window

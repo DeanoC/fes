@@ -67,15 +67,17 @@ func (c *machineLoadControl) LoadLibraryMachineCore(_ context.Context, _, _, _, 
 }
 
 // A staged image that no longer matches its digest fails the runtime's base
-// check. The agent removes it, so the next probe reports it missing and the
-// host stages it again; any other refusal leaves the staged image alone.
+// check (corrupt_data, phase identity). The agent removes it, so the next
+// probe reports it missing and the host stages it again. Any other refusal,
+// including the core's CRC mismatch, leaves the staged image alone.
 func TestMachineLoadRemovesACorruptStagedDisk(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
 		refusal Protocol2Error
 		removed bool
 	}{
-		{"base mismatch", Protocol2Error{Code: "corrupt_data", Message: "ATA disk image differs from its base identity", Phase: "input"}, true},
+		{"base mismatch", Protocol2Error{Code: "corrupt_data", Message: "ATA disk image differs from its base identity", Phase: "identity"}, true},
+		{"core CRC mismatch", Protocol2Error{Code: "corrupt_data", Message: "the core reported an ATA disk image CRC mismatch", Phase: "input"}, false},
 		{"corrupt delta", Protocol2Error{Code: "corrupt_data", Message: "bad ATA delta", Phase: "media_data"}, false},
 		{"io failure", Protocol2Error{Code: "io_failed", Message: "read failed", Phase: "input"}, false},
 	} {

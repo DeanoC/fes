@@ -618,9 +618,10 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 		apiErr := mapProtocol2Error(response.Error)
 		attempted = !protocol2PreMutationFailure(response.Error)
 		preserveInput = !attempted
-		if disk != nil && response.Error != nil && response.Error.Code == "corrupt_data" && response.Error.Phase == "input" {
-			// Only the ATA disk's base check reports corrupt input: the
-			// staged image no longer matches its digest.
+		if disk != nil && response.Error != nil && response.Error.Code == "corrupt_data" && response.Error.Phase == "identity" {
+			// The ATA disk's base check: the staged image no longer matches
+			// its digest. A CRC the core does not match is phase input; the
+			// file can be right then, so it stays.
 			r.removeCorruptStagedDisk(disk)
 			apiErr.Message = protocol.StagedDiskCorruptMessage
 		}
