@@ -151,6 +151,54 @@ def fit_images(data):
     return nodes, images
 
 
+def uboot_commands(script):
+    """Split U-Boot commands while honoring quotes, escapes and comments."""
+    commands, current = [], []
+    quote = None
+    escaped = False
+    comment = False
+
+    def finish_command():
+        command = "".join(current).strip()
+        if command:
+            commands.append(command)
+        current.clear()
+
+    for char in script:
+        if comment:
+            if char in "\r\n":
+                comment = False
+                finish_command()
+            continue
+        if escaped:
+            current.append(char)
+            escaped = False
+            continue
+        if char == "\\":
+            current.append(char)
+            escaped = True
+            continue
+        if quote is not None:
+            current.append(char)
+            if char == quote:
+                quote = None
+            continue
+        if char in ("'", '"'):
+            quote = char
+            current.append(char)
+        elif char == "#":
+            comment = True
+        elif char in ";\r\n":
+            finish_command()
+        else:
+            current.append(char)
+
+    if quote is not None:
+        raise ValueError("unterminated quote in U-Boot script")
+    finish_command()
+    return commands
+
+
 def tree_summary(data):
     nodes, _ = parse_fdt(data)
     aliases = {name: strings(value)[0] for name, value in nodes.get("/aliases", {}).items()}
@@ -202,9 +250,15 @@ def inspect_boot(directory, lock, boot):
     script_nodes, script_images = fit_images(pinned_bytes("boot.scr.uimg"))
     script_name = strings(script_nodes["/images"]["default"])[0]
     script = script_images[script_name]["data"].decode("ascii")
-    if (script_images[script_name]["type"] != "script" or "bridge enable;" not in script
-            or 'setenv bootargs "console=ttyS0,115200 root=${mmcroot} rw rootwait";' not in script
-            or "socfpga_agilex5_de25_nano.dtb" not in script or "booti ${kernel_addr_r} - ${fdt_addr_r}" not in script):
+    commands = uboot_commands(script)
+    expected_bootargs = 'setenv bootargs "console=ttyS0,115200 root=${mmcroot} rw rootwait"'
+    expected_loads = [
+        "fatload mmc 0:1 ${kernel_addr_r} Image",
+        "fatload mmc 0:1 ${fdt_addr_r} socfpga_agilex5_de25_nano.dtb",
+    ]
+    expected_boot = "booti ${kernel_addr_r} - ${fdt_addr_r}"
+    expected_commands = ["bridge enable", expected_bootargs, *expected_loads, expected_boot]
+    if script_images[script_name]["type"] != "script" or commands != expected_commands:
         raise ValueError("pinned boot script contract differs")
     fit_nodes, images = fit_images(pinned_bytes("u-boot.itb"))
     selected = strings(fit_nodes["/configurations"]["default"])[0]
@@ -217,7 +271,9 @@ def inspect_boot(directory, lock, boot):
             raise ValueError("FIT configuration references missing image")
     uboot_tree = tree_summary(images["fdt-0"]["data"])
     env = images["uboot"]["data"]
-    if b"mmcroot=/dev/mmcblk0p2\0" not in env:
+    root_entries = [entry for entry in env.split(b"\0")
+                    if entry.partition(b"=")[0] == b"mmcroot"]
+    if root_entries != [b"mmcroot=/dev/mmcblk0p2"]:
         raise ValueError("U-Boot root-device environment differs")
     return {"linux_device_tree": linux, "uboot_device_tree": uboot_tree,
             "fit_configuration": {"name": selected, **roles},

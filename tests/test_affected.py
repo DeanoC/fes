@@ -1,3 +1,4 @@
+import ast
 import subprocess
 import os
 import re
@@ -76,6 +77,27 @@ class AffectedTests(unittest.TestCase):
         self.assertEqual(result['cores'], [])
         self.assertFalse(any(result['test_modes'].values()))
 
+    def test_de25_ddr_definition_consumers_are_standalone_only(self):
+        definition = 'sources/mister-packages/packages/fabric/fes_fabric_de25_ddr_probe.yaml'
+        source = Path(__file__).resolve().parents[1] / 'scripts/consistency.py'
+        registry = next(node.value for node in ast.parse(source.read_text()).body
+                        if isinstance(node, ast.Assign) and
+                        any(isinstance(name, ast.Name) and name.id == 'GENERATED' for name in node.targets))
+        consumers = [(module, path) for _, source, module, path in ast.literal_eval(registry)
+                     if 'sources/mister-packages/' + source == definition]
+        self.assertEqual(set(consumers), {
+            ('misteross', 'boards/de25nano/hps/generated/fes_de25_ddr_probe.vh'),
+            ('misteross', 'boards/de25nano/hps/generated/fes_de25_ddr_probe.hpp'),
+        })
+        result = plan([definition])
+        self.assertEqual({lane for lane, enabled in result['lanes'].items() if enabled},
+                         {'parent', 'contracts', 'fpga'})
+        self.assertEqual(result['cores'], [])
+        self.assertFalse(any(result['test_modes'].values()))
+        for other in (definition.replace('ddr_probe', 'ddr_probe_other'),
+                      'sources/mister-packages/packages/abi/fes_application.yaml'):
+            with self.subTest(other=other):
+                self.assertEqual(set(plan([definition, other])['cores']), set(CORES))
     def test_parent_owned_roots_select_only_the_parent_lane(self):
         self.assertEqual(PARENT_ROOTS,
                          ('scripts', 'tests', 'image', 'platform', 'profiles', 'containers'))

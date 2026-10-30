@@ -169,6 +169,39 @@ trial watchdog reset preparation and software bundle identities target
 DE10-Nano. The DE25 image does not accept DE10 bundles or claim managed update,
 rollback, FPGA programming, HPS DDR or display compatibility.
 
+## DDR interface preparation without a board
+
+The [shared DE25 DDR contract](../sources/mister-packages/docs/de25-ddr.md)
+defines a bounded read-only probe ahead of interactive MENU integration.
+It uses the GHRD's 100 MHz F2SDRAM path and a separate lightweight control
+endpoint. The probe defaults to no reads; START snapshots one bounded DMA
+descriptor, CANCEL drains accepted reads, and response errors remain visible.
+Its local IDLE status does not certify recovery across a hard or warm reset.
+
+The offline descriptor planner checks that contract and prints a register-write
+plan without opening any device. For example, using an illustrative DMA bus
+address rather than an address obtained from a board:
+
+```sh
+python3 scripts/de25_dma_descriptor.py probe --dma-base 0x10000000 \
+  --grant-bytes 4096 --length 256 --generation 1 --sequence 1
+python3 scripts/de25_dma_descriptor.py frame --dma-base 0x10000000 \
+  --allocation-bytes 8388608 --slot 1 --generation 1 --sequence 1
+```
+
+The frame mode plans a read of one 1280×720 BGRX8888 slot inside a prospective
+kernel-owned two-slot allocation. It does not submit a frame for display.
+Both modes report `admission: not-qualified`: bounds and an architectural
+CPU address are insufficient to establish a Linux resource, allocated DMA
+backing, IOMMU stream mapping, firewall coverage or firmware compatibility.
+DMA bus addresses can be IOVAs and need not start at the physical DDR base.
+
+The next hardware integration needs the compatible HPS/DDR/display design,
+a Linux DMA driver with the actual stream binding, ordered publication and
+allocation lifetime, then a serial boot and bounded read probe. Interactive
+MENU additionally needs frame-boundary completion and the pixel-clock crossing.
+The existing AArch64 runtime guard continues to refuse DE25 hardware access.
+
 ## Validation and the board gate
 
 The [2026-10-28 host validation record](validation/2026-10-28-de25-headless-linux/README.md)

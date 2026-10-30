@@ -312,6 +312,10 @@ defines the standalone DE25-Nano HPS mailbox's diagnostic register constants.
 Its peripheral offset is relative to the copied vendor GHRD subsystem, not
 a Linux physical MMIO map or an activatable package interface.
 
+[`fabric/fes_fabric_de25_ddr_probe.yaml`](../packages/fabric/fes_fabric_de25_ddr_probe.yaml)
+defines the bounded read-only DDR diagnostic. [DE25 DDR](de25-ddr.md) describes
+its descriptor, local drain status and separate translation/firewall gates.
+
 [`fabric/fes_fabric_video_raster_rgb888.yaml`](../packages/fabric/fes_fabric_video_raster_rgb888.yaml)
 defines `fes.fabric.video.raster-rgb888` 1.0. See
 [timed video parts](video-parts.md) for bundled pixels/timing, CE-qualified

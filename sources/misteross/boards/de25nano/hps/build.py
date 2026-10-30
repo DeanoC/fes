@@ -27,7 +27,9 @@ BOARD_BUILD = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(BOARD_BUILD)
 SOURCES = ("build.py", "vendor.lock.toml", "integrate.tcl", "fes_de25_mailbox.v",
            "fes_de25_mailbox_hw.tcl", "generated/fes_de25_mailbox.vh",
-           "generated/fes_de25_mailbox.hpp", "fes_de25_top_reset.v", "fes_de25_top.sdc")
+           "generated/fes_de25_mailbox.hpp", "fes_de25_top_reset.v", "fes_de25_top.sdc",
+           "fes_de25_ddr_probe.v", "fes_de25_ddr_probe_hw.tcl",
+           "generated/fes_de25_ddr_probe.vh", "generated/fes_de25_ddr_probe.hpp")
 EXCLUDED_DIRECTORIES = {"output_files", "dni", "db", "incremental_db", "greybox_tmp"}
 SOURCE_SUFFIXES = {".qsys", ".ip", ".qpf", ".qsf", ".v", ".sv", ".svh", ".sdc",
                    ".tcl", ".hex", ".mif", ".info", ".sh", ".s", ".md", ".bat"}
@@ -92,6 +94,15 @@ def mailbox_base(definition=None):
                       definition, re.M)
     if not match:
         raise ValueError("generated mailbox peripheral offset is missing")
+    return int(match.group(1), 16)
+
+
+def probe_base(definition=None):
+    if definition is None:
+        definition = (HERE / "generated/fes_de25_ddr_probe.vh").read_text()
+    match = re.search(r"^`define FES_DE25_DDR_PROBE_PERIPHERAL_OFFSET 32'h([a-f0-9]{8})$", definition, re.M)
+    if not match:
+        raise ValueError("generated DDR probe peripheral offset is missing")
     return int(match.group(1), 16)
 
 
@@ -231,12 +242,35 @@ def module_parameters(path):
     return parameters
 
 
+def peripheral_slave_map(address_map, probe_offset):
+    # Source .qsys files do not necessarily materialize address spaces. Use
+    # the actual elaborated LW bridge map, including every reachable slave.
+    source = ET.fromstring(address_map)
+    regions = [{"name": s.get("name"), "base": int(s.get("start"), 0),
+                "span": int(s.get("end"), 0) - int(s.get("start"), 0)}
+               for s in source.findall("slave")]
+    if not regions:
+        raise ValueError("vendor peripheral slave map is empty")
+    probes = [r for r in regions if r["name"] == "subsys_periph.fes_ddr_probe.avs"]
+    if len(probes) != 1 or probes[0]["base"] != probe_offset or probes[0]["span"] != 128:
+        raise ValueError("generated DDR probe slave region differs")
+    regions.sort(key=lambda r: r["base"])
+    for index, region in enumerate(regions):
+        end = region["base"] + region["span"]
+        if region["span"] <= 0 or region["base"] < 0 or end > 1 << 32:
+            raise ValueError("invalid vendor peripheral slave region")
+        if index + 1 < len(regions) and end > regions[index + 1]["base"]:
+            raise ValueError("overlapping peripheral slave regions: " + region["name"])
+    return regions
+
+
 def prepare_project(archive, output=None, revision=None):
     # Read the selected commit's blobs once. Later working-tree or HEAD changes
     # cannot alter the RTL, vendor lock, helper, offset or integration script.
     sources = fes_sources(revision)
     selected = lock(sources["vendor.lock.toml"])
     offset = mailbox_base(sources["generated/fes_de25_mailbox.vh"].decode())
+    probe_offset = probe_base(sources["generated/fes_de25_ddr_probe.vh"].decode())
     helper_version = re.search(rb'^QUARTUS_VERSION = "([0-9.]+)"$', sources["board_build.py"], re.M)
     if not helper_version or helper_version.group(1).decode() != BOARD_BUILD.QUARTUS_VERSION:
         raise ValueError("selected board builder version differs from the invoking compiler helper")
@@ -271,7 +305,9 @@ def prepare_project(archive, output=None, revision=None):
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(data)
     integration = (local / "integrate.tcl").read_text().replace("@MAILBOX_BASE@", hex(offset))
+    integration = integration.replace("@PROBE_BASE@", hex(probe_offset))
     integration = integration.replace("@PERIPHERAL_SYSTEM@", tcl_word(project / "peripheral_subsys/peripheral_subsys.qsys"))
+    integration = integration.replace("@TOP_SYSTEM@", tcl_word(project / "qsys_top.qsys"))
     (project / "integrate-mailbox.tcl").write_text(integration)
     with (project / "golden_top.qsf").open("a") as source:
         source.write('\n# FES diagnostic compiler selection; hardware settings remain vendor-owned.\n'
@@ -286,6 +322,9 @@ def prepare_project(archive, output=None, revision=None):
               "vendor_archive_sha256": selected["archive"]["sha256"],
               "source_sha256": {name: digest(local / name) for name in sources},
               "mailbox_peripheral_offset": offset,
+              "probe_peripheral_offset": probe_offset,
+              "peripheral_slave_map": "pending elaborated Platform Designer handoff validation",
+              "probe_dma_admission": "descriptor-bounds-only; allocation/translation/lifetime not-qualified",
               "reviewed_constraint_repairs": constraints,
               "reviewed_top_reset_repairs": reset,
               "vendor_hps_emif_parameters": {
@@ -331,6 +370,62 @@ def verify_mailbox_handoff(project):
             "top_system_handoff": str(path.relative_to(project)), "sha256": digest(path)}
 
 
+def component_ports(module, interface):
+    data = module.findtext("parameter[@name='componentDefinition']/value")
+    if not data:
+        raise ValueError("generated component lacks interface definition: " + module.get("path", ""))
+    definition = ET.fromstring(data)
+    points = [item for item in definition.findall("boundary/interfaces/interface") if item.findtext("name") == interface]
+    if len(points) != 1:
+        raise ValueError("generated component interface changed: " + interface)
+    return {p.findtext("role"): (p.findtext("direction"), int(p.findtext("width"))) for p in points[0].findall("ports/port")}
+
+
+def verify_probe_handoff(project):
+    offset = probe_base((project / "fes_mailbox/generated/fes_de25_ddr_probe.vh").read_text())
+    tree = ET.parse(project / "qsys_top/qsys_top.sopcinfo")
+    modules = {m.get("path"): m for m in tree.findall("module")}
+    probe = modules.get("subsys_periph.fes_ddr_probe")
+    adapter = modules.get("subsys_hps.f2sdram_adapter")
+    if probe is None or probe.get("kind") != "fes_de25_ddr_probe" or probe.get("version") != "1.0" or adapter is None:
+        raise ValueError("generated DDR probe/adapter instances differ")
+    connections = {(c.get("kind"), c.get("start"), c.get("end")): c for c in tree.findall("connection")}
+    required = (
+        ("avalon", "subsys_periph_pb_cpu_0.m0", "subsys_periph_fes_ddr_probe.avs"),
+        ("avalon", "subsys_periph_fes_ddr_probe.avm", "subsys_hps_f2sdram_adapter.axi4_sub"),
+        ("avalon", "subsys_hps_f2sdram_adapter.axi4_man", "subsys_hps_agilex_hps.f2sdram"),
+        ("avalon", "ext_hps_f2sdram_master.expanded_master", "subsys_hps_f2sdram_adapter.axi4_sub"),
+        ("clock", "subsys_periph_periph_clk.out_clk", "subsys_periph_fes_ddr_probe.clk"),
+        ("reset", "subsys_periph_periph_rst_in.out_reset", "subsys_periph_fes_ddr_probe.reset"))
+    if any(key not in connections for key in required):
+        raise ValueError("generated DDR probe bridge/clock/reset/JTAG path differs")
+    def parameter(connection, name):
+        return connections[connection].findtext("parameter[@name='" + name + "']/value")
+    if (int(parameter(required[0], "baseAddress"), 0) != offset or
+            int(parameter(required[1], "baseAddress"), 0) != 0 or
+            parameter(required[4], "clockRateSysInfo") != "100000000"):
+        raise ValueError("generated DDR probe offset/clock/adapter base differs")
+    ports = component_ports(probe, "avm")
+    expected = {"address": ("Output", 32), "burstcount": ("Output", 5), "read": ("Output", 1),
+                "byteenable": ("Output", 16), "waitrequest": ("Input", 1), "readdata": ("Input", 128),
+                "readdatavalid": ("Input", 1), "response": ("Input", 2)}
+    if ports != expected:
+        raise ValueError("generated DDR probe read-only/response interface differs")
+    target = component_ports(adapter, "axi4_sub")
+    if target.get("rdata") != ("Output", 256) or target.get("araddr") != ("Input", 32) or target.get("rresp") != ("Output", 2):
+        raise ValueError("generated vendor F2SDRAM width/address/response contract differs")
+    lw = connections.get(("avalon", "subsys_hps_agilex_hps.lwhps2fpga", "subsys_periph_pb_cpu_0.s0"))
+    address_map = lw.findtext("parameter[@name='addressMapSysInfo']/value") if lw is not None else None
+    if not address_map:
+        raise ValueError("generated DDR probe LW slave map missing")
+    slave_map = peripheral_slave_map(address_map, offset)
+    return {"instance": probe.get("path"), "peripheral_offset": offset,
+            "clock_hz": 100000000, "read_master_data_bits": 128, "dma_address_bits": 32,
+            "response_bits": 2, "vendor_f2sdram_data_bits": 256,
+            "peripheral_slave_map": slave_map,
+            "physical_ddr_address": "not-established", "dma_admission": "not-qualified"}
+
+
 def generate_project(output, tool, version):
     project = output / "project"
     install = tool.parents[2]
@@ -364,7 +459,9 @@ def generate_project(output, tool, version):
     for name, expected in vendor["source_sha256"].items():
         if name.startswith("software/") and digest(project / name) != expected:
             raise ValueError("generation changed vendor boot data: " + name)
-    (output / "generation.json").write_text(json.dumps(verify_mailbox_handoff(project), indent=2, sort_keys=True) + "\n")
+    handoff = verify_mailbox_handoff(project)
+    handoff["ddr_probe"] = verify_probe_handoff(project)
+    (output / "generation.json").write_text(json.dumps(handoff, indent=2, sort_keys=True) + "\n")
 
 
 def compile_project(output, tool):
