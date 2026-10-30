@@ -31,3 +31,22 @@ successful Linux core loading or close [#1298](https://github.com/DeanoC/fes/iss
 Bounded error return is separate from hardware quiescence. This candidate does
 not establish that an outstanding SDM transfer has stopped; retain its buffers
 and require a verified reset boundary before retry/unload/reuse.
+
+## Complete diagnostic kernel prepared
+
+A distinct `6.12.11-fes-de25-claim1` Image and four matching FPGA modules now
+build from the same pinned kernel plus the candidate patch. `kernel-artifacts.json`
+identifies the config, patched file, builtin symbol inventory and all outputs.
+This kernel is not part of the SD image and has not booted on the board.
+
+The initial narrow module build failed because the Image target does not prepare
+the external-module symbol input and module linker script. The successful build
+uses the exact Image build's `vmlinux.symvers` as `Module.symvers`, runs
+`modules_prepare`, then builds the selected FPGA module directory without allowing
+unresolved symbols. All failure logs are retained. This does not reuse old vendor
+modules or suppress module-link checks.
+
+`make test-changed` against parent `c6e978159` passes, including selected parent
+Python/media checks and generated-consumer consistency. Documentation links and
+whitespace checks pass. No target deployment or FPGA qualification follows from
+these host checks.
