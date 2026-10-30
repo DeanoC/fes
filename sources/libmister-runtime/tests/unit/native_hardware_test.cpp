@@ -3016,8 +3016,35 @@ void TestPc386LibraryRecordAndWallClock()
 	mister::CoreData saved;
 	assert(fixture.runtime.InspectCoreData(package.path, id, data.path, "ultima-vi", &saved).ok());
 	assert(saved.words[8 + 0x20] == 0x5a && saved.words[0] == 1 && saved.revision != inspected.revision);
+	// A diskless 1.1 input fault still snapshots the durable machine record.
+	assert(fixture.runtime.LoadLibraryCore(package.path, id, data.path, "ultima-vii").ok());
+	assert(fixture.runtime.status().core_data.mode == "persistent" && fixture.runtime.status().capabilities.media_units.empty());
+	endpoint.GuestCmosWrite(0x40, 0x6b);
+	const auto fault_generation = fixture.runtime.status().generation;
+	bool input_failed = false;
+	endpoint.fail_after_request = [&](const mister_test::ComputerEndpoint::Request& request) {
+		if (request.opcode == FesComputerOpcodeKeyboardHid && !input_failed) {
+			input_failed = true;
+			return true;
+		}
+		return false;
+	};
+	assert(!fixture.runtime.SetKeyboardHid(id, fault_generation, mister::KeyboardHidRows{}).ok());
+	if (!WaitForState(fixture.runtime, mister::State::idle)) {
+		const auto failed = fixture.runtime.status();
+		std::fprintf(stderr, "pc386 input fault state=%u error=%s phase=%s\n",
+			static_cast<unsigned>(failed.state), failed.error.message.c_str(), failed.error.phase.c_str());
+		assert(false);
+	}
+	endpoint.fail_after_request = {};
+	assert(input_failed);
+	mister::CoreData fault_saved;
+	assert(fixture.runtime.InspectCoreData(package.path, id, data.path, "ultima-vii", &fault_saved).ok());
+	assert(fault_saved.words[8 + 0x20] == 0x6b && fault_saved.revision != "absent");
 	// Another game of the same package starts from the defaults.
 	assert(fixture.runtime.InspectCoreData(package.path, id, data.path, "ultima-vii", &inspected).ok());
+	assert(inspected.revision == fault_saved.revision && inspected.words[8 + 0x20] == 0x6b);
+	assert(fixture.runtime.InspectCoreData(package.path, id, data.path, "ultima-viii", &inspected).ok());
 	assert(inspected.revision == "absent" && inspected.words == Pc386MachineDefaults());
 	fixture.native.clock.has_local = false;
 	assert(fixture.runtime.LoadLibraryCore(package.path, id, data.path, "ultima-vi").code ==
@@ -3026,7 +3053,9 @@ void TestPc386LibraryRecordAndWallClock()
 	const std::string games = data.path + "/games/";
 	const std::string first = games + GameDataNamespace("fes.pc386", "ultima-vi");
 	assert(unlink((first + "/record.bin").c_str()) == 0 && rmdir(first.c_str()) == 0);
+	assert(unlink((games + GameDataNamespace("fes.pc386", "ultima-vii") + "/record.bin").c_str()) == 0);
 	assert(rmdir((games + GameDataNamespace("fes.pc386", "ultima-vii")).c_str()) == 0);
+	assert(rmdir((games + GameDataNamespace("fes.pc386", "ultima-viii")).c_str()) == 0);
 	assert(rmdir(games.c_str()) == 0);
 }
 

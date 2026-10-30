@@ -464,10 +464,12 @@ programming failures keep the existing invalidation of unsafe active-core
 metadata.
 
 Bound-disk input faults revoke asynchronous input and capture/publish before
-idle programming. A failed capture or publication retains RAM, package,
-generation and binding in reboot-required recovery; it cannot program idle or
-replay the fault. `recover_idle` also refuses to destroy retained bound disk
-RAM. Startup and volatile fault cleanup do not publish a disk.
+idle programming. Persistent machine-data generations also capture on input
+fault, including pc386 when its ATA unit is empty. A failed capture or
+publication retains RAM, package and generation in reboot-required recovery;
+it cannot program idle or replay the fault. `recover_idle` also refuses to
+destroy retained bound disk RAM. Startup, failed activation and volatile fault
+cleanup do not publish records.
 These paths have host test coverage;
 physical acceptance remains separate.
 
@@ -503,7 +505,10 @@ reopening the same generation's host input. Persistent computer packages with
 no host input recipe still resume their machine-data snapshot. Snapshots are
 invalidated only after restoration succeeds. Unsafe resume
 retains persistent package/generation metadata in `reboot_required` and leaves
-the complete snapshot owned by native hardware. No fault/startup cleanup saves.
+the complete snapshot owned by native hardware. Successful Stop remains the
+normal durability boundary; a post-start input fault also saves persistent
+machine data or disk data before idling. Startup and failed activation do not
+capture guest state.
 Legacy cartridge `SaveFile`, SNES SRAM transport and `.srm` launch handling
 have been retired. Existing user save files are not deleted or migrated by
 this cleanup; described packages use their explicit persistence contracts.

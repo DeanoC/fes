@@ -1277,7 +1277,9 @@ public:
 			status_.capabilities.media_units = hardware_.capabilities().media_units;
 			if (recompute_persistence &&
 				status_.active_package.descriptor.abi.id == native::generated::FesComputerABIID) {
-				status_.core_data.mode = "volatile";
+				const bool persistent_record = status_.core_data.mode == "persistent" &&
+					!status_.core_data.layout.id.empty();
+				status_.core_data.mode = persistent_record ? "persistent" : "volatile";
 				for (const auto& media : status_.capabilities.media_units)
 					if (media.persistence_mode == "persistent") status_.core_data.mode = "persistent";
 			}
@@ -1305,7 +1307,9 @@ public:
 				status_.error = save_error;
 				status_.capabilities.media_units = hardware_.capabilities().media_units;
 				if (status_.active_package.descriptor.abi.id == native::generated::FesComputerABIID) {
-					status_.core_data.mode = "volatile";
+					const bool persistent_record = status_.core_data.mode == "persistent" &&
+						!status_.core_data.layout.id.empty();
+					status_.core_data.mode = persistent_record ? "persistent" : "volatile";
 					for (const auto& media : status_.capabilities.media_units)
 						if (media.persistence_mode == "persistent") status_.core_data.mode = "persistent";
 				}
@@ -1434,7 +1438,7 @@ public:
 			std::string system;
 			std::string core;
 			Status retained;
-			bool bound_disk = false;
+			bool durable_state = false;
 			{
 				std::unique_lock<std::mutex> lock(mutex_);
 				condition_.wait(lock, [this]() {
@@ -1453,16 +1457,17 @@ public:
 				pending_fault_generation_ = 0;
 				system = status_.system;
 				core = status_.core;
+				durable_state = status_.core_data.mode == "persistent";
 				for (const auto& media : status_.capabilities.media_units)
-					if (media.persistence_mode == "persistent") bound_disk = true;
-				if (bound_disk) retained = status_;
+					if (media.persistence_mode == "persistent") durable_state = true;
+				if (durable_state) retained = status_;
 				status_ = FreshStatus(State::starting);
 				status_.execution = Execution::none;
 			}
 
 			Log("input_fault", system, core, "failure", fault.error);
 			Log("input_fault", system, core, "cleanup");
-			if (bound_disk) {
+			if (durable_state) {
 				const Error saved = hardware_.FlushFaultSave();
 				if (!saved.ok()) {
 					const Error recovery = IdleFailure(saved);

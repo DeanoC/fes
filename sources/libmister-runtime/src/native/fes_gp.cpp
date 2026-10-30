@@ -1887,8 +1887,12 @@ Error FesGpCoreDriver::CaptureData(
 {
 	if (!persistence_verified_ || reset_held_ || !output)
 		return Io("persistence snapshot is unavailable");
+	// An input fault can leave the shared mailbox poisoned. Realign from the
+	// live ACK and verify this is still the same core before freezing its data.
+	Error error = RecoverComputerMailbox(deadline);
+	if (!error.ok()) return WithPhase(error, "core_data");
 	freeze_attempted_ = true;
-	Error error = DataControl(FesGpDataFreeze, deadline);
+	error = DataControl(FesGpDataFreeze, deadline);
 	std::vector<std::uint16_t> snapshot;
 	for (std::uint16_t index = 0; index < data_.word_count && error.ok(); ++index) {
 		std::uint16_t value = 0;

@@ -108,8 +108,10 @@ complete writes, file sync, atomic rename and directory sync. Namespace locks
 serialize file operations and compare-and-swap. A failure before rename leaves
 the old record; a directory-sync failure after rename reports uncertain
 durability and permits only an old or complete new record. Retry rereads and
-validates the current file. Successful Stop is the durability boundary; startup,
-fault cleanup and failed activation do not save.
+validates the current file. Successful Stop is the normal durability boundary.
+A post-start input fault also captures persistent machine data or bound media
+before idle retirement, including pc386 when the ATA unit is empty. Startup and
+failed activation do not save guest state.
 
 When publication fails, explicit GP resume must succeed before recovery
 continues. For a package with a host input recipe, the same input generation
