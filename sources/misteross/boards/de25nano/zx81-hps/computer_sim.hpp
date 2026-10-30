@@ -44,7 +44,7 @@ static inline uint32_t crc32(const std::vector<uint8_t>& bytes) {
 struct Computer {
     Vfes_de25_computer t;
     Clock system{100000000}, pixel{74250000};
-    uint64_t system_edges = 0, retired = 0, source_ink = 0;
+    uint64_t system_edges = 0, pixel_edges = 0, retired = 0, source_ink = 0;
     uint64_t ula_enables = 0, cpu_positive = 0, cpu_negative = 0;
     uint64_t complete_frames = 0, picture_frames = 0, frame_pixels = 0;
     unsigned active = 0, hs = 0, vs = 0, ink = 0, paper = 0;
@@ -153,7 +153,7 @@ struct Computer {
                 ++loaded_bytes;
             }
         }
-        if (pix_rise) pixel_sample();
+        if (pix_rise) { ++pixel_edges; pixel_sample(); }
     }
     void cycles(uint64_t count) {
         const uint64_t until = system_edges + count;

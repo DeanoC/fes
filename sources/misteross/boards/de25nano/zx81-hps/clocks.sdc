@@ -49,10 +49,11 @@ post_message -type info "DE25 video: 2 first-stage crossings, 9 bounded metadata
 set computer_pixel_ready_source [get_registers {soc_inst|subsys_periph|fes_computer|fes_computer|pixel_transport_ready_source}]
 set computer_pixel_ready_stage0 [get_registers {soc_inst|subsys_periph|fes_computer|fes_computer|pixel_transport_ready_sync[0]}]
 set computer_pixel_ready_stage1 [get_registers {soc_inst|subsys_periph|fes_computer|fes_computer|pixel_transport_ready_sync[1]}]
+set computer_pixel_ready_gate [get_registers {soc_inst|subsys_periph|fes_computer|fes_computer|video_ready_frame}]
 set computer_pixel_ready_stage0_d [get_pins -compatibility_mode -nocase -nowarn {soc_inst|subsys_periph|fes_computer|fes_computer|pixel_transport_ready_sync[0]|D}]
 set computer_pixel_ready_aclr [get_pins -compatibility_mode -nocase -nowarn {soc_inst|subsys_periph|fes_computer|fes_computer|pixel_transport_reset_release[0]|aclr soc_inst|subsys_periph|fes_computer|fes_computer|pixel_transport_reset_release[1]|aclr}]
 set computer_pixel_ready_clrn [get_pins -compatibility_mode -nocase -nowarn {soc_inst|subsys_periph|fes_computer|fes_computer|pixel_transport_reset_release[0]|clrn soc_inst|subsys_periph|fes_computer|fes_computer|pixel_transport_reset_release[1]|clrn}]
-foreach computer_pixel_ready_nodes [list $computer_pixel_ready_source $computer_pixel_ready_stage0 $computer_pixel_ready_stage1 $computer_pixel_ready_stage0_d] {
+foreach computer_pixel_ready_nodes [list $computer_pixel_ready_source $computer_pixel_ready_stage0 $computer_pixel_ready_stage1 $computer_pixel_ready_gate $computer_pixel_ready_stage0_d] {
     if {[get_collection_size $computer_pixel_ready_nodes] != 1} {
         error "DE25 computer requires both pixel readiness synchronizer stages and the first-stage D pin"
     }
@@ -64,4 +65,4 @@ if {$computer_pixel_ready_clear_count != 2} {
 set_false_path -to $computer_pixel_ready_stage0_d
 if {[get_collection_size $computer_pixel_ready_aclr] > 0} {set_false_path -to $computer_pixel_ready_aclr}
 if {[get_collection_size $computer_pixel_ready_clrn] > 0} {set_false_path -to $computer_pixel_ready_clrn}
-post_message -type info "DE25 computer pixel readiness crossing: one first-stage ingress, timed stage-to-stage path"
+post_message -type info "DE25 computer pixel readiness crossing: one first-stage ingress, timed stage-to-stage and frame-gate paths"

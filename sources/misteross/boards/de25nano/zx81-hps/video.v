@@ -5,7 +5,7 @@ module fes_de25_zx81_video (
     input wire clk_sys, reset_n, held, ce_6m5, zx_pixel, hblank, vblank,
     input wire pixel_clk,
     output wire [7:0] red, green, blue,
-    output wire de, hsync, vsync
+    output wire de, hsync, vsync, frame_tick
 );
     localparam WIDTH = 328, HEIGHT = 270, STRIDE = WIDTH / 8, WORDS = STRIDE * HEIGHT;
     (* ramstyle = "M20K" *) reg [7:0] fb [0:WORDS*2-1];
@@ -93,6 +93,7 @@ module fes_de25_zx81_video (
     reg front = 0, front_valid = 0;
     reg [8:0] front_rows = 0;
     wire boundary = horizontal == 1649 && vertical == 749;
+    assign frame_tick = boundary;
     wire image = horizontal >= 312 && horizontal < 968 && vertical >= 90 && vertical < 630;
     wire [8:0] source_x = (horizontal - 11'd312) >> 1;
     wire [8:0] source_y = (vertical - 10'd90) >> 1;
@@ -100,32 +101,36 @@ module fes_de25_zx81_video (
         (image && source_y < front_rows ? source_y * STRIDE + (source_x >> 3) : 0);
     reg [7:0] fb_q;
     reg [2:0] bit_q = 0;
-    always @(posedge pixel_clk) fb_q <= fb[read_address];
-    // All controls share the RAM's one-edge latency, including the first and
-    // last scaled pixels. Missing rows are paper; no stale RAM is selected.
     reg image_q = 0, valid_q = 0, stored_q = 0;
     reg de_q = 0, hs_q = 0, vs_q = 0;
+    always @(posedge pixel_clk) fb_q <= fb[read_address];
+    // The raster and frame tick keep running while transport owners reset.
+    // This lets the outer readiness mask close cleanly at the next boundary.
+    always @(posedge pixel_clk) begin
+        horizontal <= horizontal == 1649 ? 11'd0 : horizontal + 1'b1;
+        if (horizontal == 1649) vertical <= vertical == 749 ? 10'd0 : vertical + 1'b1;
+    end
+    // All controls share the RAM's one-edge latency, including the first and
+    // last scaled pixels. Missing rows are paper; no stale RAM is selected.
     always @(posedge pixel_clk or negedge pix_release[1]) begin
         if (!pix_release[1]) begin
-            horizontal <= 0; vertical <= 0; acknowledge <= 0;
+            acknowledge <= 0;
             front <= 0; front_valid <= 0; front_rows <= 0;
-            image_q <= 0; valid_q <= 0; stored_q <= 0;
-            de_q <= 0; hs_q <= 0; vs_q <= 0; bit_q <= 0;
+            image_q <= 0; valid_q <= 0; stored_q <= 0; bit_q <= 0;
+            de_q <= 0; hs_q <= 0; vs_q <= 0;
         end else begin
-            horizontal <= horizontal == 1649 ? 11'd0 : horizontal + 1'b1;
-            if (horizontal == 1649) vertical <= vertical == 749 ? 10'd0 : vertical + 1'b1;
             if (boundary && request_sync[1] != acknowledge) begin
                 front <= request_sync[1]; front_valid <= 1;
                 front_rows <= published_rows;
                 acknowledge <= request_sync[1];
             end
-            de_q <= horizontal < 1280 && vertical < 720;
-            hs_q <= horizontal >= 1390 && horizontal < 1430;
-            vs_q <= vertical >= 725 && vertical < 730;
             image_q <= image;
             valid_q <= front_valid;
             stored_q <= source_y < front_rows;
             bit_q <= source_x[2:0];
+            de_q <= horizontal < 1280 && vertical < 720;
+            hs_q <= horizontal >= 1390 && horizontal < 1430;
+            vs_q <= vertical >= 725 && vertical < 730;
         end
     end
     wire bright = reset_n && image_q && valid_q && (!stored_q || !fb_q[bit_q]);

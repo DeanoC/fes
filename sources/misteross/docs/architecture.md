@@ -135,7 +135,9 @@ the ZX81 with the preserved GHRD. A 32-bit Avalon endpoint at peripheral offset
 0x10300 stores one atomic GPO command and exposes coherent GPI/status words.
 It reuses the current `fes_computer_mailbox`, HID mapper and CRC-checked tape
 store. Control and the machine share 100 MHz, with 13/200 ULA enables; the
-renderer remains at 74.25 MHz. No control CCB is required and stopped PIX
+renderer remains at 74.25 MHz. Readiness crosses a two-stage pixel-clock
+synchronizer, and the video mask changes only at the renderer's frame tick.
+No control CCB is required and stopped PIX
 does not stop command completion or CPU/tape progress. Partial/busy/malformed
 accesses and later peripheral resets permanently fault this diagnostic,
 retaining GPO/ACK state while holding CPU and masking tape writes/presentation.
@@ -183,8 +185,10 @@ back to the preserved F2SDRAM path. The shared reader/video extensions are
 opt-in; existing consumers retain their default configuration.
 
 Both crossing bridges share initial configuration reset. Later pixel PLL-lock
-loss blanks output and latches a fault without resetting live bridge queues;
-the endpoint stops and drains when its clock resumes. The producer retains
+loss latches a fault without resetting live bridge queues; the endpoint stops
+and drains when its clock resumes. HDMI visibility crosses a two-stage
+pixel-clock synchronizer and changes after a complete horizontal sync pulse
+while VS is inactive, preserving complete DE/HS/VS pulses. The producer retains
 generated topology and response checks, native RTL tests and a simulation
 helper for the generated two-clock interconnect with explicitly modeled M20K
 storage. FIFO/controller logic remains generated; primitive equivalence and

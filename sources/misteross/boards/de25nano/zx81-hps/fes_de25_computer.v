@@ -77,11 +77,12 @@ module fes_de25_computer #(
     wire [7:0] tape_data;
     wire [13:0] tape_addr;
     wire tape_busy;
-    wire ce_6m5, video_pixel, hblank, vblank;
+    wire ce_6m5, video_pixel, hblank, vblank, frame_tick;
     wire [15:0] cpu_addr;
     wire halt_n;
     wire [7:0] red, green, blue;
     wire de, hs, vs;
+    reg video_ready_frame = 1'b0;
 `ifdef QUARTUS
     localparam FIRMWARE_INIT = "zx8x.mif";
 `else
@@ -224,12 +225,17 @@ module fes_de25_computer #(
         if (!pixel_transport_reset_release[1]) pixel_transport_ready_sync <= 0;
         else pixel_transport_ready_sync <= {pixel_transport_ready_sync[0], pixel_transport_ready_source};
     wire pixel_transport_ready = pixel_transport_ready_sync[1];
+    // Keep the complete-frame capture path and change its external mask only
+    // at the renderer's raster boundary.
+    always @(posedge pixel_clk)
+        if (frame_tick) video_ready_frame <= pixel_transport_ready;
     fes_de25_zx81_video video (
-        .reset_n(pixel_transport_ready), .held(machine_reset),
+        .reset_n(reset_n), .held(machine_reset),
         .clk_sys(clk), .ce_6m5(ce_6m5), .zx_pixel(video_pixel), .hblank(hblank), .vblank(vblank),
-        .pixel_clk(pixel_clk), .red(red), .green(green), .blue(blue), .de(de), .hsync(hs), .vsync(vs));
-    assign video_rgb = pixel_transport_ready ? {red, green, blue} : 24'd0;
-    assign video_de = pixel_transport_ready && de;
-    assign video_hs = pixel_transport_ready && hs;
-    assign video_vs = pixel_transport_ready && vs;
+        .pixel_clk(pixel_clk), .red(red), .green(green), .blue(blue), .de(de), .hsync(hs), .vsync(vs),
+        .frame_tick(frame_tick));
+    assign video_rgb = video_ready_frame ? {red, green, blue} : 24'd0;
+    assign video_de = video_ready_frame && de;
+    assign video_hs = video_ready_frame && hs;
+    assign video_vs = video_ready_frame && vs;
 endmodule

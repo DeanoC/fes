@@ -108,9 +108,25 @@ int main(int argc, char** argv) {
     const uint64_t held_retired = b.retired;
     b.cycles(2048); check(b.retired == held_retired, "CPU retired instructions while HOLD was asserted");
     check(b.read(regs::FesDe25ComputerFaultOffset) == 0, "valid machine session ended with transport faults");
+    check(SIGNAL(video_ready_frame), "video was not enabled after the complete-frame handoff");
+    t.reset_n = 0; t.eval();
+    check(SIGNAL(video_ready_frame), "system-domain readiness changed the pixel gate asynchronously");
+    bool video_disabled_at_frame = false;
+    const uint64_t pixel_deadline = b.pixel_edges + 2u * 1650u * 750u;
+    while (b.pixel_edges < pixel_deadline) {
+        const bool frame_boundary = SIGNAL(video__DOT__frame_tick);
+        b.step();
+        if (!SIGNAL(video_ready_frame)) {
+            check(frame_boundary, "video readiness changed away from the frame boundary");
+            video_disabled_at_frame = true;
+            break;
+        }
+    }
+    check(video_disabled_at_frame && !t.video_rgb && !t.video_de && !t.video_hs && !t.video_vs,
+          "pixel-domain readiness did not blank at the next frame boundary");
     std::printf("PASS DE25 computer: %u GP requests through %u MMIO reads/%u writes, %u upload chunks, "
                 "%llu complete720p frames/%llu ink-paper frames; real ROM/HID/CRC/tape/RAM, live eject, HOLD neutrality; "
-                "direct digital clocks and behavioral RAM only\n",
+                "frame-boundary readiness gating, direct digital clocks and behavioral RAM only\n",
                 b.gp_requests, b.mmio_reads, b.mmio_writes, b.upload_chunks,
                 (unsigned long long)b.complete_frames, (unsigned long long)b.picture_frames);
 }
