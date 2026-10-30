@@ -16,13 +16,14 @@ No later source or artifact inherits these results.
 
 ## Image and board identity
 
-[hardware.json](hardware.json) records the Quartus cable name, JTAG ID `4362c0dd`,
-source producer, boot identity and programmed image. The programmer log names
-part `A5EB013BB23BCS`; Quartus's own programming table matches this ID to both
-the CS and R1 masks. The printed suffix remains unconfirmed, and the USB serial
-and board UID are not asserted because neither appears in a retained transcript.
-The programmer accepts the diagnostic image without `--force`. This does not
-qualify every SCS or R1 part or prove the full ordering code.
+[hardware.json](hardware.json) records the Quartus cable name, source producer,
+boot identity and programmed image. The programmer log names part
+`A5EB013BB23BCS`; Quartus's own programming table matches this part to both the
+CS and R1 masks. The printed suffix remains unconfirmed, and the USB serial and
+board UID are not asserted because neither appears in a retained transcript.
+The JTAG IDCODE is also omitted because no retained transcript records it. The
+programmer accepts the diagnostic image without `--force`. This does not qualify
+every SCS or R1 part or prove the full ordering code.
 
 The original final SOF, build, generation, inputs and compiler logs match all
 six hashes from the [published compiler record](../../../sources/misteross/docs/validation/2026-10-29-de25-ramtest/artifact.json).
@@ -125,6 +126,11 @@ and requires exact build IDs, disabled HPS, generation/sequence, success bits,
 zero errors/faults/bad bits, seven-pattern byte totals and 1,024 samples.
 It performs no hardware access. The compressed smoke and full logs retain
 original console bytes and their SHA-256 hashes match the parsed record.
+The retained [affected-checks transcript](affected-checks.log.gz) is preparation
+evidence from base `300bf1c3ea67ce81b11ef2e442882de2eff5c224`; its recorded head,
+checkout head and merge base all identify that base, and its evidence paths are
+local to the preparation workspace. It does not attest checks on this PR head;
+those are reported by the PR's GitHub check runs.
 
 | Bank / range | Written bytes | Read bytes | Result |
 | --- | ---: | ---: | --- |

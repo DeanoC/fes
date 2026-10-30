@@ -4,7 +4,6 @@
   "source_producer": "43c248d2dfbad7fa2d0ef4c72fa006fe21214dc9",
   "board": {
     "quartus_cable": "DE25-Nano [3-11.3-iface0]",
-    "jtag_idcode": "4362c0dd",
     "printed_opn": "unobserved beneath fan",
     "silicon_suffix": "unconfirmed; CS and R1 table masks both match"
   },
