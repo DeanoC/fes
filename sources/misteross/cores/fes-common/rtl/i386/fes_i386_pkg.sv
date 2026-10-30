@@ -128,6 +128,11 @@ package fes_i386_pkg;
     // UOP_SPECIAL.
     typedef enum logic [4:0] { SPECIAL_NOP, SPECIAL_HLT } special_op_e;
 
+    // UOP_SYSTEM. CLTS clears CR0.TS at WB. It is a jump to the next
+    // instruction (fes_i386_exctl b_jmp), so every instruction after it
+    // decodes once TS is clear.
+    typedef enum logic [4:0] { SYSOP_CLTS } system_op_e;
+
     // UOP_MUL and UOP_DIV, in EX's multiply and divide unit (fes_i386_muldiv).
     // HI writes the high half a two-destination MUL or DIV kept (EDX, DX);
     // LOAD gives a 16- or 32-bit DIV its dividend's high half (EDX), and
@@ -200,8 +205,11 @@ package fes_i386_pkg;
     // Faults decode finds; each travels with its uop and is taken at WB.
     // UNIMPLEMENTED is not architectural: an encoding this build does not
     // execute yet. WB stops on it, so a check never retires one silently.
-    // DE is the divide error EX finds (vector 0).
-    typedef enum logic [2:0] { FAULT_NONE, FAULT_UD, FAULT_GP0, FAULT_NM, FAULT_UNIMPLEMENTED, FAULT_SS0, FAULT_DE } fault_e;
+    // DE is the divide error EX finds (vector 0), BR BOUND's range check
+    // (vector 5), which EX finds too.
+    typedef enum logic [2:0] {
+        FAULT_NONE, FAULT_UD, FAULT_GP0, FAULT_NM, FAULT_UNIMPLEMENTED, FAULT_SS0, FAULT_DE, FAULT_BR
+    } fault_e;
 
     typedef struct packed {
         logic [3:0] cond;             // x86 condition code (tttn) for Jcc, SETcc
@@ -238,7 +246,10 @@ package fes_i386_pkg;
     // into its destination (EAX) or stores it (INS); OUT sends a (OUT) or its
     // result, the loaded value (OUTS). The port is src2's low half (DX), else
     // imm's. iret: IRET's last uop, which unblocks NMI as it retires.
+    // bound: BOUND's compare, which raises #BR at EX when x is below y,
+    // signed, and writes no flags.
     typedef struct packed {
+        logic        bound;
         logic        iret;
         logic [1:0]  io;
         logic        str_si;
@@ -325,6 +336,13 @@ package fes_i386_pkg;
         logic        m_has_index;
         logic [1:0]  m_scale;
         logic [2:0]  m_seg;
+        // POP m's store when its address reads ESP, which the 386 reads
+        // after the pop (SEQ_POPM): esp_adj, the operand size scaled as ESP
+        // is (by an invalid SIB's scale, else 1), which D adds to the
+        // displacement; esp_wrap, that scale, of 10000h, which D takes off
+        // when a 16-bit stack's SP wraps (fes_i386_cpu).
+        logic [5:0]  esp_adj;
+        logic [3:0]  esp_wrap;
         logic        index8;     // the index is its register's low byte, zero-extended (XLAT's AL)
         // The string engine (SEQ_STRING, SEQ_ENTER): D's copies of the next
         // source and destination offsets and of the count (fes_i386_cpu).
@@ -434,6 +452,9 @@ package fes_i386_pkg;
         logic        wr_cf;
         logic        wr_oszap;
         logic        iret;       // IRET's last uop (uop_t iret)
+        logic        rg;         // s1_idx and s2_idx are the instruction's register, which its first uop has in src1
+        logic        rm;         // the memory operand is the instruction's ModRM operand, not a stack slot
+        logic        bound;      // BOUND's compare (uop_t bound)
     } ucode_t;
 
     // The shifter's controls (fes_i386_shift), decoded in M2. sel gates
@@ -495,6 +516,7 @@ package fes_i386_pkg;
         logic       b_jcc, b_jmp, b_loop, b_loope, b_loopne, b_jcxz;
         logic       b_rpe, b_rpne;             // a string element ends REPE, REPNE (uop rep_stop)
         logic       b_ind;                     // RET, JMP r/m: the target is x (CS's base) + y (the EIP)
+        logic       bound;                     // BOUND's compare: #BR when x is below y, signed (uop bound)
         // The result (md) and the flags (md_fl) come from the multiply and
         // divide unit (fes_i386_muldiv); md_wait: it works over several
         // cycles, while D to WB freeze; md_de: the uop is a divide, which may

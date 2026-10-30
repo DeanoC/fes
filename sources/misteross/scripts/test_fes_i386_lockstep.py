@@ -112,12 +112,13 @@ SCOPE: frozenset[str] = frozenset([
     'E4', 'E5', 'E6', 'E7', 'EC', 'ED', 'EE', 'EF', '6C', '6D', '6E', '6F',
     # BT, BTS, BTR and BTC by an immediate and by a register; BSF and BSR.
     '0FBA.4', '0FBA.5', '0FBA.6', '0FBA.7', '0FA3', '0FAB', '0FB3', '0FBB', '0FBC', '0FBD',
+    # BOUND.
+    '62',
     # DAA, DAS, AAA and AAS.
     '27', '2F', '37', '3F',
+    # CLTS and WAIT.
+    '0F06', '9B',
 ])
-# Files of an in-scope opcode whose forms are not built yet: POP m with
-# 32-bit addressing, whose ESP base would read ESP after the pop.
-UNBUILT_FILES: frozenset[str] = frozenset(['678F', '67668F'])
 
 
 class LockstepError(RuntimeError):
@@ -126,7 +127,7 @@ class LockstepError(RuntimeError):
 
 def in_scope(stem: str) -> bool:
     """Whether this build executes the stem's instructions."""
-    return vectors.base_opcode(stem) in SCOPE and stem not in UNBUILT_FILES
+    return vectors.base_opcode(stem) in SCOPE
 
 
 # Opcodes whose MOO stem carries the ModRM reg field, as lockstep_tb.cpp's
@@ -182,8 +183,8 @@ def run_directed(testbench: str, env: dict) -> dict:
     if result.returncode not in (0, 1):
         raise LockstepError(f'directed cases: testbench exited with {result.returncode}\n{result.stderr[-4000:]}')
     summary, failures = parse_output(result.stdout)
-    if summary['runs'] != 16:
-        raise LockstepError(f'directed cases: testbench ran {summary["runs"]} of 16 cases')
+    if summary['runs'] != 17:
+        raise LockstepError(f'directed cases: testbench ran {summary["runs"]} of 17 cases')
     return {'summary': summary, 'failures': failures}
 
 

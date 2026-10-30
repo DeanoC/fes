@@ -56,9 +56,10 @@
 //           anything retires. The RTL runs alone; the oracle is not stepped.
 //   reset-store a store waiting in WB must not write memory on a reset edge.
 //   directed  out-of-limit CALL rel and r/m, RET and JMP faults, divide errors,
+//             register-form BOUND #UD without its faulting uop's data read,
 //             count-zero REP MOVS with expand-down DS or ES, and a check that
-//             fetch, issue and data reads stay inactive after a handler HLT;
-//             an INT and a fault whose delivery faults must stop with nothing
+//             fetch, issue and data reads stay inactive after a handler HLT; an
+//             INT and a fault whose delivery faults must stop with nothing
 //             written.
 // Output: "FAIL <label> <field> <expected> <actual>..." per failing run, then
 // one JSON summary line. Exit status 1 on any failure.
@@ -198,6 +199,7 @@ public:
 
     Vfes_i386_cpu top;
     std::vector<uint8_t> ram;
+    std::vector<uint32_t> dmem_reads;
     IoSpace io;
     Pic pic;
     Latency fetch, data, port, inta;
@@ -213,6 +215,7 @@ public:
         for (int n = 0; n < 8; ++n) top.init_gpr[n] = s.gpr[n];
         top.init_eflags = s.eflags;
         top.init_eip = s.eip;
+        top.init_cr0 = s.cr0;
         for (int n = 0; n < 6; ++n) {
             set16(top.init_sel, n, s.seg[n].selector);
             top.init_base[n] = s.seg[n].base;
@@ -229,6 +232,7 @@ public:
         top.mem_valid = 1;
         top.dmem_valid = 1;
         top.io_ack = 0;
+        dmem_reads.clear();
         step_writes.clear();
         io.log.clear();
         top.reset = 1;
@@ -304,6 +308,7 @@ public:
         // The data port reads, then the retiring store writes. Until a load's
         // bytes arrive the port carries garbage.
         if (dread) {
+            dmem_reads.push_back(daddr);
             uint64_t value = 0;
             for (int i = 0; i < 8; ++i) {
                 const uint64_t at = uint64_t(daddr) + i;
@@ -378,6 +383,7 @@ public:
         for (int n = 0; n < 8; ++n) s.gpr[n] = top.arch_gpr[n];
         s.eflags = top.arch_eflags & EFLAGS_MASK;
         s.eip = top.arch_eip;
+        s.cr0 = top.arch_cr0;
         for (int n = 0; n < 6; ++n) {
             s.seg[n].selector = get16(top.arch_sel, n);
             s.seg[n].base = top.arch_base[n];
@@ -719,6 +725,9 @@ struct Fields {
 
 // ---- Comparison ----------------------------------------------------------------------
 
+// The CR0 bits the CPU holds: MP and TS.
+constexpr uint32_t CR0_HELD = 0xa;
+
 const char *const GPR_NAMES[8] = {"eax", "ecx", "edx", "ebx", "esp", "ebp", "esi", "edi"};
 const char *const SEG_NAMES[6] = {"es", "cs", "ss", "ds", "fs", "gs"};
 
@@ -737,6 +746,7 @@ void compare(const State &want, const State &got, const Fields &skip, const std:
         if (!skip.has(GPR_NAMES[n]) && want.gpr[n] != got.gpr[n]) out.add(at + GPR_NAMES[n], want.gpr[n], got.gpr[n]);
     const uint32_t mask = EFLAGS_MASK & ~skip.eflags;
     if ((want.eflags & mask) != (got.eflags & mask)) out.add(at + "eflags", want.eflags & mask, got.eflags & mask);
+    if (!skip.has("cr0") && ((want.cr0 ^ got.cr0) & CR0_HELD)) out.add(at + "cr0", want.cr0 & CR0_HELD, got.cr0 & CR0_HELD);
     for (int n = 0; n < 6; ++n) {
         if (skip.has(SEG_NAMES[n])) continue;
         const auto &w = want.seg[n], &g = got.seg[n];
@@ -755,6 +765,7 @@ void adopt(State &oracle_state, const State &rtl, const Fields &fields) {
         oracle_state.eflags = (oracle_state.eflags & ~EFLAGS_MASK) | (rtl.eflags & EFLAGS_MASK);
         oracle_state.eip = rtl.eip;
         for (int n = 0; n < 6; ++n) oracle_state.seg[n] = rtl.seg[n];
+        oracle_state.cr0 = (oracle_state.cr0 & ~CR0_HELD) | (rtl.cr0 & CR0_HELD);
         return;
     }
     oracle_state.eflags = (oracle_state.eflags & ~fields.eflags) | (rtl.eflags & fields.eflags);
@@ -923,7 +934,7 @@ MemUse mem_use(const uint8_t *code) {
         m.reads = true;
         m.writes = reg != 7;
     } else if (op == 0x84 || op == 0x85 || op == 0x8a || op == 0x8b || op == 0x8e || op == 0xc4 || op == 0xc5 ||
-               op == 0x69 || op == 0x6b) {
+               op == 0x69 || op == 0x6b || op == 0x62) {
         m.reads = true;
     } else if (op == 0x88 || op == 0x89 || op == 0x8c || op == 0xc6 || op == 0xc7) {
         m.writes = true;
@@ -1025,6 +1036,7 @@ bool branch_taken(const uint8_t *code, const State &s, bool code32, bool &taken)
              op == 0xca || op == 0xcb || op == 0xcc || op == 0xcd || op == 0xce || op == 0xcf)
         taken = true;
     else if (op == 0xff && ((code[i + 1] >> 3) & 7) >= 2 && ((code[i + 1] >> 3) & 7) <= 5) taken = true;
+    else if (op == 0x0f && code[i + 1] == 0x06) taken = true;  // CLTS, which this build ends with a jump
     else if (op == 0xe2) taken = count != 1;
     else if (op == 0xe1) taken = count != 1 && zf;
     else if (op == 0xe0) taken = count != 1 && !zf;
@@ -1521,12 +1533,13 @@ constexpr uint32_t HANDLER = 0x800;  // 0000:0800
 void run_fault_case(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
                     Summary &summary, const std::string &label, const std::vector<uint8_t> &code, State state,
                     bool nested, uint32_t stack_address = 0, const std::array<uint8_t, 4> *stack_value = nullptr,
-                    int expected = 13, bool allow_divergences = false) {
+                    int expected = 13, bool allow_divergences = false,
+                    uint32_t forbidden_dmem_read = UINT32_MAX) {
     const uint32_t code_base = state.seg[fes_i386::SEG_CS].base + state.eip;
     std::vector<std::pair<uint32_t, uint8_t>> image;
     for (size_t i = 0; i < code.size(); ++i) image.emplace_back(code_base + uint32_t(i), code[i]);
     image.emplace_back(HANDLER, 0xf4);
-    for (uint32_t vector : {0u, 12u, 13u}) {
+    for (uint32_t vector : {0u, 6u, 12u, 13u}) {
         image.emplace_back(vector * 4, uint8_t(HANDLER));
         image.emplace_back(vector * 4 + 1, uint8_t(HANDLER >> 8));
     }
@@ -1566,6 +1579,11 @@ void run_fault_case(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
         if ((rtl.state().gpr[fes_i386::REG_ESP] & 0xffff) != sp)
             out.add(label + ".esp", sp, rtl.state().gpr[fes_i386::REG_ESP] & 0xffff);
         if (rtl.top.trace_halt) check_halt_quiet(rtl, label, out);
+    }
+    if (forbidden_dmem_read != UINT32_MAX) {
+        const uint32_t address = forbidden_dmem_read & ~3u;
+        const auto reads = std::count(rtl.dmem_reads.begin(), rtl.dmem_reads.end(), address);
+        if (reads) out.add(label + ".dmem-read", 0, reads);
     }
 
     summary.cycles += rtl.cycles;
@@ -1669,6 +1687,17 @@ void run_fault_regressions(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, c
 
     // CALL EBX to the same target: #GP(0) before its push.
     run_fault_case(oracle, bus, rtl, entries, summary, "call-rm32-cs-limit", {0x66, 0xff, 0xd3, 0xf4}, jump, false);
+
+    // A register-form BOUND is #UD. With a 32-bit operand the faulting uop
+    // loads the upper bound at [BX+SI+4]; the later lower-bound uop's [BX+SI]
+    // read has a different bus address and cannot hide this assertion.
+    State bound_reg = call;
+    bound_reg.gpr[fes_i386::REG_EAX] = 0x1234;
+    bound_reg.gpr[fes_i386::REG_EBX] = 0x5000;
+    bound_reg.gpr[fes_i386::REG_ESI] = 0x0400;
+    bound_reg.gpr[fes_i386::REG_ESP] = 0x0200;
+    run_fault_case(oracle, bus, rtl, entries, summary, "bound-register-no-data-read",
+                   {0x66, 0x62, 0xc0, 0xf4}, bound_reg, false, 0, nullptr, 6, false, 0x5404);
 
     // INT 20h with SP 1: its probe raises #SS, whose delivery's probe faults
     // the same way.
@@ -1947,6 +1976,8 @@ public:
                 items.push_back(Item{{0xfb}, -1, 0, 0});
                 items.push_back(Item{{0xf4}, -1, 0, 0});
             } else if (kind < 37) shadow_block();
+            else if (kind < 38) fpu_block();
+            else if (kind < 39) items.push_back(Item{popm32_block(), -1, 0, 0});
             else items.push_back(Item{instruction(false), -1, 0, 0});
         }
         items.push_back(Item{{0xf4}, -1, 0, 0});
@@ -2657,9 +2688,13 @@ private:
     // The microcode routines' instructions: PUSHA and POPA, alone or around
     // a body that leaves the stack alone; PUSHF and POPF only as such a pair
     // (a POPF of random data could set TF, and single-step traps are not
-    // built); or an interrupt block.
+    // built); an interrupt block; or BOUND.
     void ucode_block() {
-        const unsigned kind = pick(5);
+        const unsigned kind = pick(6);
+        if (kind == 5) {
+            items.push_back(Item{bound_block(), -1, 0, 0});
+            return;
+        }
         const bool os32 = pick(3) == 0;
         auto add = [&](std::vector<uint8_t> bytes) {
             if (os32) bytes.insert(bytes.begin(), 0x66);
@@ -2684,6 +2719,123 @@ private:
         } else {
             interrupt_block();
         }
+    }
+
+    // POP m with 32-bit addressing: ESP set below 10000h (now and then to
+    // 0, so the pop wraps a 16-bit stack's SP from FFFEh or FFFCh to 0), a
+    // value pushed, then popped to [ESP + disp8], [ESP + r * scale + disp8]
+    // or [r + disp8]; each address through ESP reads it after the pop. A
+    // register r is first set to a small value. ESP scaled by an invalid
+    // SIB is left out: the divergence list leaves an invalid SIB to the
+    // corpus, so the oracle would take the RTL's results. One item, so no
+    // branch lands between.
+    std::vector<uint8_t> popm32_block() {
+        std::vector<uint8_t> out;
+        const bool os32 = pick(2);
+        auto size = [&]() {
+            if (os32) out.push_back(0x66);
+        };
+        auto value = [&](uint32_t v, unsigned bytes) {
+            for (unsigned n = 0; n < bytes; ++n) out.push_back(uint8_t(v >> (8 * n)));
+        };
+        auto set = [&](unsigned r, uint32_t v) {  // MOV r32, imm32
+            out.insert(out.end(), {0x66, uint8_t(0xb8 + r)});
+            value(v, 4);
+        };
+        set(4, pick(3) == 0 ? 0 : uint32_t(pick(0x10000)));
+        unsigned r = pick(8);
+        while (r == 4) r = pick(8);
+        const unsigned form = pick(3), scale = pick(4);
+        if (form != 0) set(r, pick(0x400));
+        size();
+        out.push_back(0x68);
+        value(uint32_t(rng()), os32 ? 4 : 2);
+        size();
+        out.insert(out.end(), {0x67, 0x8f});
+        if (form == 0) {
+            out.insert(out.end(), {0x44, 0x24});  // [ESP + disp8]
+        } else if (form == 1) {
+            out.insert(out.end(), {0x44, uint8_t((scale << 6) | (r << 3) | 4)});  // [ESP + r * scale + disp8]
+        } else {
+            out.push_back(uint8_t(0x40 | r));  // [r + disp8]
+        }
+        out.push_back(byte());
+        return out;
+    }
+
+    // CLTS, WAIT, or CLTS then WAIT, now and then with a prefix. WAIT
+    // raises #NM, which ends the program, when it started with MP and TS set
+    // (run_random) and no CLTS has run.
+    void fpu_block() {
+        static const uint8_t harmless[] = {0x26, 0x2e, 0x36, 0x3e, 0x64, 0x65, 0x66, 0x67};
+        const unsigned form = pick(3);
+        auto add = [&](std::vector<uint8_t> bytes) {
+            if (pick(6) == 0) bytes.insert(bytes.begin(), harmless[pick(8)]);
+            items.push_back(Item{bytes, -1, 0, 0});
+        };
+        if (form != 1) add({0x0f, 0x06});
+        if (form != 0) add({0x9b});
+    }
+
+    // BOUND of a register a MOV sets, against bounds two MOVs store at a
+    // direct offset first: mostly around the register's value, at an edge
+    // now and then, and rarely past one (#BR, which ends the program). Now
+    // and then the register's MOV comes last, so the compares take it
+    // forwarded. Rarer still, a register operand (#UD). One item, so no
+    // branch lands between them.
+    std::vector<uint8_t> bound_block() {
+        std::vector<uint8_t> out;
+        const bool os32 = pick(3) == 0;
+        const unsigned z = os32 ? 4 : 2;
+        unsigned r = pick(8);
+        while (r == 4) r = pick(8);  // ESP stays the stack's
+        const uint16_t at = uint16_t(rng());
+        const uint32_t index = uint32_t(rng());
+        const int64_t i = os32 ? int64_t(int32_t(index)) : int64_t(int16_t(index));
+        const int64_t lowest = os32 ? INT32_MIN : INT16_MIN, highest = os32 ? INT32_MAX : INT16_MAX;
+        auto spread = [&]() -> int64_t {
+            return pick(4) == 0 ? 0 : pick(2) ? int64_t(pick(16)) : int64_t(rng() % (os32 ? 0x10000000u : 0x1000u));
+        };
+        int64_t lo = i - spread(), hi = i + spread();
+        const unsigned miss = pick(24);
+        if (miss == 0) {
+            lo = i + 1 + spread();
+            hi = lo + spread();
+        } else if (miss == 1) {
+            hi = i - 1 - spread();
+            lo = hi - spread();
+        }
+        lo = std::clamp(lo, lowest, highest);
+        hi = std::clamp(hi, lowest, highest);
+        auto size = [&]() {
+            if (os32) out.push_back(0x66);
+        };
+        auto value = [&](uint32_t v) {
+            for (unsigned n = 0; n < z; ++n) out.push_back(uint8_t(v >> (8 * n)));
+        };
+        auto set_index = [&]() {
+            size();
+            out.push_back(uint8_t(0xb8 + r));
+            value(index);
+        };
+        auto store = [&](uint16_t where, int64_t v) {
+            size();
+            out.insert(out.end(), {0xc7, 0x06, uint8_t(where), uint8_t(where >> 8)});
+            value(uint32_t(v));
+        };
+        const bool late = pick(4) == 0;
+        if (!late) set_index();
+        store(at, lo);
+        store(uint16_t(at + z), hi);
+        if (late) set_index();
+        size();
+        out.push_back(0x62);
+        if (pick(64) == 0) {
+            out.push_back(uint8_t(0xc0 | (r << 3) | pick(8)));
+        } else {
+            out.insert(out.end(), {uint8_t(0x06 | (r << 3)), uint8_t(at), uint8_t(at >> 8)});
+        }
+        return out;
     }
 
     // SS above the vector table, ES = 0, the vector's entry stored as the
@@ -2736,6 +2888,9 @@ private:
         const unsigned skip = pick(4);
         for (unsigned n = 0; n < skip; ++n) items.push_back(Item{instruction(false), -1, 0, 0});
         set_far_target(at, int(items.size()));
+        // No backward jump runs the transfer again: an indirect one would
+        // read its pointer from a DS the skipped code may have moved.
+        fence = int(items.size());
     }
 
     // JMP or CALL ptr16:16/32, its pointer filled in at layout.
@@ -2922,8 +3077,11 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
     for (uint64_t n = 0; n < programs; ++n) {
         State state;
         for (auto &r : state.gpr) r = uint32_t(random());
-        // Every arithmetic flag, IF and DF at random; TF stays clear.
+        // Every arithmetic flag, IF and DF at random; TF stays clear. CR0's
+        // MP and TS at random, so a quarter of the programs raise #NM at a
+        // WAIT that no CLTS precedes.
         state.eflags = (uint32_t(random()) & 0x0ed5) | 0x2;
+        state.cr0 = uint32_t(random()) & CR0_HELD;
         for (int k = 0; k < 6; ++k) state.seg[k] = fes_i386::real_mode_segment(uint16_t(random()));
         state.eip = 0x100 + uint32_t(random() % 0xd000);
         const uint32_t base = state.seg[fes_i386::SEG_CS].base + state.eip;
