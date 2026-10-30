@@ -118,28 +118,98 @@ func ParseDiskGeometry(value string) (DiskGeometry, bool) {
 	return DiskGeometry{Cylinders: fields[0], Heads: fields[1], SectorsPerTrack: fields[2]}, true
 }
 
-// InferDiskGeometry derives geometry from an image's first sector. Partition
-// entries whose end CHS is filled in name the heads and sectors per track the
-// table was written with; without one the image takes 16 heads and 63
-// sectors. Cylinders follow from the size, capped at 16383.
+// InferDiskGeometry derives the geometry an image's partition table was
+// written with. Each filled CHS field of a filled partition entry must decode
+// to that entry's start or end LBA under it; a cylinder past 1023 reads as
+// 1023. Several fits take the one the first entry's end implies. A table with
+// no CHS field takes 16 heads and 63 sectors. A table that fits no geometry,
+// fits only geometries with more heads than the disk reports, or fits several
+// without a preferred one is refused: the entry's override must name it.
+// Cylinders follow from the size, capped at 16383.
 func InferDiskGeometry(mbr []byte, size int64) (DiskGeometry, error) {
 	if !AdmitAtaDiskSize(size) {
 		return DiskGeometry{}, fmt.Errorf("hard-disk image must be 1 to 128 MiB in whole 512-byte sectors")
 	}
-	heads, sectors := uint16(16), uint16(63)
+	type chsField struct {
+		lba                    uint64
+		cylinder, head, sector uint64
+	}
+	var fields []chsField
+	preferred := DiskGeometry{}
 	if len(mbr) >= 512 && mbr[510] == 0x55 && mbr[511] == 0xaa {
 		for entry := 0; entry < 4; entry++ {
 			e := mbr[446+16*entry : 462+16*entry]
-			if e[4] == 0 || binary.LittleEndian.Uint32(e[12:]) == 0 {
+			start, count := uint64(binary.LittleEndian.Uint32(e[8:])), uint64(binary.LittleEndian.Uint32(e[12:]))
+			if e[4] == 0 || count == 0 {
 				continue
 			}
-			endHead, endSector := uint16(e[5]), uint16(e[6]&0x3f)
-			if endSector == 0 || endHead >= uint16(generated.FesComputerAtaDiskMaxHeads) {
-				continue
+			for _, at := range []struct {
+				chs []byte
+				lba uint64
+			}{{e[1:4], start}, {e[5:8], start + count - 1}} {
+				if at.chs[1]&0x3f == 0 {
+					continue
+				}
+				fields = append(fields, chsField{lba: at.lba, cylinder: uint64(at.chs[1]&0xc0)<<2 | uint64(at.chs[2]),
+					head: uint64(at.chs[0]), sector: uint64(at.chs[1] & 0x3f)})
 			}
-			heads, sectors = endHead+1, endSector
-			break
+			if preferred == (DiskGeometry{}) && e[6]&0x3f != 0 {
+				preferred = DiskGeometry{Heads: uint16(e[5]) + 1, SectorsPerTrack: uint16(e[6] & 0x3f)}
+			}
 		}
+	}
+	heads, sectors := uint16(16), uint16(63)
+	if len(fields) > 0 {
+		var fits, reportable []DiskGeometry
+		for h := uint64(1); h <= 255; h++ {
+			for spt := uint64(1); spt <= 63; spt++ {
+				fit := true
+				for _, f := range fields {
+					cylinder := f.lba / (h * spt)
+					if cylinder > 1023 {
+						fit = f.cylinder == 1023
+					} else {
+						fit = f.cylinder == cylinder && f.head == f.lba/spt%h && f.sector == f.lba%spt+1
+					}
+					if !fit {
+						break
+					}
+				}
+				if fit {
+					g := DiskGeometry{Heads: uint16(h), SectorsPerTrack: uint16(spt)}
+					fits = append(fits, g)
+					if uint32(h) <= generated.FesComputerAtaDiskMaxHeads {
+						reportable = append(reportable, g)
+					}
+				}
+			}
+		}
+		choose := func(candidates []DiskGeometry) (DiskGeometry, bool) {
+			if len(candidates) == 1 {
+				return candidates[0], true
+			}
+			for _, g := range candidates {
+				if g == preferred {
+					return g, true
+				}
+			}
+			return DiskGeometry{}, false
+		}
+		g, ok := choose(reportable)
+		switch {
+		case len(fits) == 0:
+			return DiskGeometry{}, fmt.Errorf("the partition table's CHS fields match no geometry, so set the entry's disk geometry")
+		case len(reportable) == 0:
+			written := fmt.Sprintf("more than %d heads", generated.FesComputerAtaDiskMaxHeads)
+			if g, ok = choose(fits); ok {
+				written = fmt.Sprintf("%d heads and %d sectors per track", g.Heads, g.SectorsPerTrack)
+			}
+			return DiskGeometry{}, fmt.Errorf("the partition table was written for %s, but the disk reports at most %d heads, so set the entry's disk geometry or repartition the image",
+				written, generated.FesComputerAtaDiskMaxHeads)
+		case !ok:
+			return DiskGeometry{}, fmt.Errorf("the partition table fits more than one geometry, so set the entry's disk geometry")
+		}
+		heads, sectors = g.Heads, g.SectorsPerTrack
 	}
 	cylinders := size / AtaDiskSectorBytes / int64(heads) / int64(sectors)
 	if max := int64(generated.FesComputerAtaDiskMaxCylinders); cylinders > max {

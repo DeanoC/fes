@@ -32,14 +32,74 @@ func (c *stagingClient) LoadLibraryMachineCore(context.Context, int64, io.Reader
 	return protocol.Status{}, nil
 }
 
-// A partitioned synthetic image: its MBR says 4 heads and 17 sectors.
+// partitionedImage is a synthetic image whose one partition a tool wrote
+// for 4 heads and 17 sectors: LBA 17 (0/1/1) to 2039 (29/3/17).
 func partitionedImage(size int) []byte {
 	data := make([]byte, size)
 	entry := data[446:462]
-	entry[4], entry[5], entry[6] = 0x06, 3, 17
-	binary.LittleEndian.PutUint32(entry[12:], 2000)
+	entry[1], entry[2], entry[3] = 1, 1, 0
+	entry[4], entry[5], entry[6], entry[7] = 0x06, 3, 17, 29
+	binary.LittleEndian.PutUint32(entry[8:], 17)
+	binary.LittleEndian.PutUint32(entry[12:], 2023)
 	data[510], data[511] = 0x55, 0xaa
 	return data
+}
+
+// linuxFdiskImage is a 16 MiB image partitioned by util-linux fdisk, which
+// writes 255 heads and 63 sectors: LBA 2048 (0/32/33) to 32767 (2/10/8).
+func linuxFdiskImage() []byte {
+	data := make([]byte, 16<<20)
+	entry := data[446:462]
+	entry[1], entry[2], entry[3] = 32, 33, 0
+	entry[4], entry[5], entry[6], entry[7] = 0x06, 10, 8, 2
+	binary.LittleEndian.PutUint32(entry[8:], 2048)
+	binary.LittleEndian.PutUint32(entry[12:], 30720)
+	data[510], data[511] = 0x55, 0xaa
+	return data
+}
+
+func TestHardDiskImportReportsGeometry(t *testing.T) {
+	ctx := context.Background()
+	store, err := catalog.Open(filepath.Join(t.TempDir(), "catalog.sqlite3"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	s := &Service{catalog: store}
+	image := partitionedImage(1 << 20)
+	media, created, err := s.ImportHardDiskMedia(ctx, int64(len(image)), bytes.NewReader(image))
+	if err != nil || !created || media.Geometry == nil || *media.Geometry != (protocol.DiskGeometry{Cylinders: 30, Heads: 4, SectorsPerTrack: 17}) || media.GeometryError != "" {
+		t.Fatalf("import %+v %v %v", media, created, err)
+	}
+	// The same bytes again report the same geometry from the stream.
+	if again, created, err := s.ImportHardDiskMedia(ctx, int64(len(image)), bytes.NewReader(image)); err != nil || created || again.Geometry == nil || *again.Geometry != *media.Geometry {
+		t.Fatalf("reimport %+v %v %v", again, created, err)
+	}
+	// A table written for more heads than the disk reports is stored, says
+	// why, and refuses the launch until the entry overrides it.
+	linux := linuxFdiskImage()
+	refused, _, err := s.ImportHardDiskMedia(ctx, int64(len(linux)), bytes.NewReader(linux))
+	if err != nil || refused.Geometry != nil || !strings.Contains(refused.GeometryError, "255 heads and 63 sectors") {
+		t.Fatalf("255-head import %+v %v", refused, err)
+	}
+	pkg := strings.Repeat("a", 64)
+	entry, err := store.CreateCoreMediaEntry(ctx, "Linux disk", "fes.pc386", pkg, protocol.HardDiskRole, refused.MediaID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var apiErr *protocol.APIError
+	if source, err := s.readHardDisk(ctx, entry); source != nil || !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeBadRequest || !strings.Contains(apiErr.Message, "255 heads") {
+		t.Fatalf("255-head launch %+v %v", source, err)
+	}
+	override := protocol.DiskGeometry{Cylinders: 2, Heads: 16, SectorsPerTrack: 63}
+	if entry, err = store.SetCoreEntryDiskGeometry(ctx, entry.GameID, pkg, refused.MediaID, &override); err != nil {
+		t.Fatal(err)
+	}
+	source, err := s.readHardDisk(ctx, entry)
+	if err != nil || source.disk.Geometry != override {
+		t.Fatalf("override launch %+v %v", source, err)
+	}
+	_ = source.Close()
 }
 
 func TestHardDiskLaunchGeometryAndStaging(t *testing.T) {

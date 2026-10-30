@@ -3,59 +3,104 @@ package protocol
 import (
 	"encoding/binary"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/DeanoC/FogCast/corepackage"
 )
 
-// mbr builds a synthetic master boot record with one partition entry.
-func mbr(endHead, endSector byte, sectors uint32) []byte {
+// chs encodes an LBA in the three-byte MBR form for heads/sectors, with a
+// cylinder past 1023 written as 1023 the way partitioning tools do.
+func chs(lba, heads, sectors uint32) [3]byte {
+	c, h, s := lba/(heads*sectors), lba/sectors%heads, lba%sectors+1
+	if c > 1023 {
+		c, h, s = 1023, heads-1, sectors
+	}
+	return [3]byte{byte(h), byte(s) | byte(c>>8)<<6, byte(c)}
+}
+
+type partition struct{ start, end, heads, sectors uint32 }
+
+// mbr builds a master boot record whose entries a tool wrote for each
+// partition's geometry.
+func mbr(partitions ...partition) []byte {
 	data := make([]byte, 512)
-	entry := data[446:462]
-	entry[0] = 0x80
-	entry[4] = 0x06 // FAT16
-	entry[5], entry[6], entry[7] = endHead, endSector, 0xff
-	binary.LittleEndian.PutUint32(entry[8:], 63)
-	binary.LittleEndian.PutUint32(entry[12:], sectors)
+	for i, p := range partitions {
+		entry := data[446+16*i : 462+16*i]
+		entry[4] = 0x06 // FAT16
+		first, last := chs(p.start, p.heads, p.sectors), chs(p.end, p.heads, p.sectors)
+		copy(entry[1:4], first[:])
+		copy(entry[5:8], last[:])
+		binary.LittleEndian.PutUint32(entry[8:], p.start)
+		binary.LittleEndian.PutUint32(entry[12:], p.end-p.start+1)
+	}
 	data[510], data[511] = 0x55, 0xaa
 	return data
 }
 
 func TestInferDiskGeometry(t *testing.T) {
+	const mib = 1 << 20
+	lbaOnly := mbr(partition{63, 64*mib/512 - 1, 16, 63})
+	for _, at := range []int{447, 448, 449, 451, 452, 453} {
+		lbaOnly[at] = 0
+	}
 	for _, tc := range []struct {
 		name string
 		mbr  []byte
 		size int64
 		want DiskGeometry
 	}{
-		{"partition-end-chs", mbr(15, 63, 100000), 64 << 20, DiskGeometry{130, 16, 63}},
-		{"dosbox-style-heads", mbr(63, 32, 100000), 128 << 20, DiskGeometry{128, 64 - 48, 32}},
-		{"no-signature", make([]byte, 512), 32 << 20, DiskGeometry{65, 16, 63}},
-		{"empty-table", mbr(0, 0, 0), 2 << 20, DiskGeometry{4, 16, 63}},
-		{"small-geometry", mbr(3, 17, 2000), 1 << 20, DiskGeometry{30, 4, 17}},
+		{"dos-fdisk-cylinder-aligned", mbr(partition{63, 130*16*63 - 1, 16, 63}), 64 * mib, DiskGeometry{130, 16, 63}},
+		// 204800 sectors are 203 cylinders and 176 sectors: the end is
+		// mid-cylinder, and its end CHS alone would read 3 heads, 50 sectors.
+		{"end-at-last-lba", mbr(partition{63, 100*mib/512 - 1, 16, 63}), 100 * mib, DiskGeometry{203, 16, 63}},
+		// Its CHS fields also fit 18..28 heads; only 16 can be reported.
+		{"mib-aligned-16-63", mbr(partition{2048, 32*mib/512 - 1, 16, 63}), 32 * mib, DiskGeometry{65, 16, 63}},
+		{"small-geometry", mbr(partition{17, 30*4*17 - 1, 4, 17}), 1 * mib, DiskGeometry{30, 4, 17}},
+		{"two-partitions", mbr(partition{63, 50*16*63 - 1, 16, 63}, partition{50 * 16 * 63, 130*16*63 - 1, 16, 63}), 64 * mib, DiskGeometry{130, 16, 63}},
+		// Past cylinder 1023 every CHS reads 1023; 2..7 heads fit, and the
+		// end's own heads and sectors pick 4/32.
+		{"cylinder-overflow", mbr(partition{32, 128*mib/512 - 1, 4, 32}), 128 * mib, DiskGeometry{2048, 4, 32}},
+		{"lba-only-entry", lbaOnly, 64 * mib, DiskGeometry{130, 16, 63}},
+		{"no-signature", make([]byte, 512), 32 * mib, DiskGeometry{65, 16, 63}},
+		{"empty-table", mbr(), 2 * mib, DiskGeometry{4, 16, 63}},
+		// The cylinder count is capped at 16383 and never exceeds the image.
+		{"cylinder-cap", mbr(partition{1, 128*mib/512 - 1, 1, 1}), 128 * mib, DiskGeometry{16383, 1, 1}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if tc.name == "dosbox-style-heads" {
-				// 64 heads cannot be reported; the entry is skipped and the
-				// default geometry applies.
-				tc.want = DiskGeometry{260, 16, 63}
-			}
 			got, err := InferDiskGeometry(tc.mbr, tc.size)
 			if err != nil || got != tc.want || !got.Valid(tc.size) {
 				t.Fatalf("got %+v %v, want %+v", got, err, tc.want)
 			}
 		})
 	}
-	if _, err := InferDiskGeometry(nil, 1<<20+1); err == nil {
-		t.Fatal("partial sector admitted")
-	}
-	if _, err := InferDiskGeometry(nil, 129<<20); err == nil {
-		t.Fatal("oversize image admitted")
-	}
-	// The cylinder count is capped at 16383 and never exceeds the image.
-	got, err := InferDiskGeometry(mbr(0, 1, 1), 128<<20)
-	if err != nil || got != (DiskGeometry{16383, 1, 1}) {
-		t.Fatalf("cap: %+v %v", got, err)
+	mismatched := mbr(partition{63, 64*mib/512 - 1, 16, 63})
+	mismatched[453] = 3 // end cylinder 3 cannot be the last LBA
+	misaligned := mbr(partition{63, 64*mib/512 - 1, 16, 63}, partition{0, 999, 16, 63})
+	misaligned[462+5], misaligned[462+6], misaligned[462+7] = 15, 63, 0 // the old end-head reading
+	for _, tc := range []struct {
+		name, want string
+		mbr        []byte
+		size       int64
+	}{
+		{"util-linux-255-63", "written for 255 heads and 63 sectors per track", mbr(partition{2048, 16*mib/512 - 1, 255, 63}), 16 * mib},
+		{"util-linux-255-63-64mib", "written for 255 heads and 63 sectors per track", mbr(partition{2048, 64*mib/512 - 1, 255, 63}), 64 * mib},
+		// Inside cylinder 0, 33..255 heads all fit and none is named.
+		{"util-linux-cylinder-0", "written for more than 16 heads", mbr(partition{63, 2047, 255, 63}), 1 * mib},
+		{"chs-disagrees-with-lba", "match no geometry", mismatched, 64 * mib},
+		{"entries-disagree", "match no geometry", misaligned, 64 * mib},
+		// Wholly inside cylinder 0 with 63 sectors, any head count above 1
+		// fits, and the end's own 2 heads and 38 sectors do not.
+		{"ambiguous", "more than one geometry", mbr(partition{63, 100, 16, 63}), 1 * mib},
+		{"partial-sector", "1 to 128 MiB", nil, 1*mib + 1},
+		{"oversize", "1 to 128 MiB", nil, 129 * mib},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := InferDiskGeometry(tc.mbr, tc.size)
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("got %+v %v, want an error naming %q", got, err, tc.want)
+			}
+		})
 	}
 }
 

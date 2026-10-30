@@ -790,21 +790,31 @@ curl -sS -X POST -H 'Content-Type: application/octet-stream' \
 ```
 
 The response is the stored media (`media_id`, `size`) plus the `geometry` the
-host infers from its master boot record: the first partition entry whose end
-CHS is filled in gives heads and sectors per track, otherwise 16 heads and 63
-sectors; cylinders follow from the size, capped at 16383. Select it with the
-usual `PUT .../core-entries/{game_id}/media` and `media_role:"hard-disk"`. An
-image whose partition table was written with another geometry takes an
-override for the next launch:
+host infers from its master boot record, which the library panel also shows.
+Every filled start or end CHS of a filled partition entry must decode to that
+entry's LBA (start, or start + count − 1) under the geometry, so a partition
+that does not end on a cylinder still names the heads and sectors per track it
+was written with. When several geometries fit, the first entry's end CHS read
+as the last head and sector of a cylinder picks one. A table with no filled
+CHS takes 16 heads and 63 sectors. Cylinders follow from the size, capped at
+16383. A table that fits no geometry, fits only geometries with more than 16
+heads (util-linux fdisk writes 255/63), or fits several without that pick is
+still stored: the response carries `geometry_error` in place of `geometry`,
+naming the table's geometry when it implies one, and the entry's launch is
+refused with that message until it has an override. Select the image with the
+usual `PUT .../core-entries/{game_id}/media` and `media_role:"hard-disk"`, then
+override the geometry for the next launch, here for a 64 MiB image written
+with 8 heads and 32 sectors per track:
 
 ```json
 PUT /api/v1/library/core-entries/{game_id}/disk-geometry
 {"expected_package_id":"<package>","expected_media_id":"<image>",
- "geometry":{"cylinders":520,"heads":16,"sectors_per_track":63}}
+ "geometry":{"cylinders":512,"heads":8,"sectors_per_track":32}}
 ```
 
-`geometry: null` restores inference, and selecting other media clears it.
-Cylinders × heads × sectors must fit the image.
+`geometry: null` restores inference. Selecting other media clears the override,
+and selecting the same image again keeps it. Cylinders × heads × sectors must
+fit the image. The panel shows an entry's override but cannot set one yet.
 
 At launch the host stages the image on the kit by SHA-256 (`POST
 /v1/library/disk-images/probe` and, only when the kit lacks it,

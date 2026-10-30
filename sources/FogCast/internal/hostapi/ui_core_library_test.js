@@ -240,7 +240,8 @@ test('unknown/malformed capability response fails closed for media selection',as
   assert.match(f.controller.snapshot().message,/Invalid declared/);
 });
 
-test('mounted panel uses literal text, locks controls and filters same-core versions',async()=>{
+// mountPanel mounts the library panel on a fake DOM and returns its nodes.
+function mountPanel(controller) {
   class Node {
     constructor() { this.hidden=true; this.open=false; this.listeners={}; this.children=[]; this.value=''; this.files=[]; }
     set textContent(value) { this.text=String(value); }
@@ -263,9 +264,13 @@ test('mounted panel uses literal text, locks controls and filters same-core vers
   const nodes=Object.fromEntries(ids.map(id=>[id,new Node()]));
   nodes['core-library'].querySelectorAll=()=>ids.filter(id=>!id.endsWith('status') && id!=='core-library').map(id=>nodes[id]);
   const document={getElementById:id=>nodes[id],createElement:()=>new Node()};
+  mount(document,controller);
+  return nodes;
+}
+test('mounted panel uses literal text, locks controls and filters same-core versions',async()=>{
   const f=fixture();
   f.db.entries[0].title='<img src=x onerror=alert(1)>';
-  mount(document,f.controller);
+  const nodes=mountPanel(f.controller);
   await f.controller.open(); await f.controller.selectEntry('entry');
   assert.ok(nodes['core-entry-select'].children[1].textContent.startsWith('<img'));
   assert.equal(nodes['core-package-select'].children.length,3);
@@ -486,4 +491,26 @@ test('blank ST disk binds a title and stays pending for a new one', async () => 
   assert.equal(bound.entries.find(entry => entry.game_id === 'entry').media_id, disk);
   assert.match(bound.message, /drive A/);
   assert.deepEqual(f.changed, [true]);
+});
+test('hard-disk import outlasts the request deadline and shows its geometry',async()=>{
+  const f=fixture({requestTimeoutMs:20});
+  f.db.entries[0].disk_geometry={cylinders:512,heads:8,sectors_per_track:32};
+  f.intercept((path,options)=>{
+    if (path.endsWith('/media-capabilities')) return response({...caps(A),media:[{role:'hard-disk',min_bytes:1<<20,max_bytes:128<<20,
+      transport:'fes-computer-ata-disk-window-v1',unit:0}]});
+    if (path !== '/api/v1/core-media/hard-disk') return undefined;
+    return new Promise(resolve=>setTimeout(()=>resolve(response({media_id:M,size:options.body.size,
+      geometry_error:'the partition table was written for 255 heads and 63 sectors per track'},201)),60));
+  });
+  const nodes=mountPanel(f.controller);
+  await f.controller.open(); await f.controller.selectEntry('entry');
+  assert.match(nodes['core-entry-current'].textContent,/disk geometry override 512\/8\/32/);
+  await f.controller.importMedia({size:16<<20});
+  assert.match(f.controller.snapshot().message,/Media stored by digest/);
+  assert.equal(f.calls.filter(c=>c.path==='/api/v1/core-media/hard-disk').length,1);
+  assert.match(nodes['core-media-status'].textContent,/No disk geometry: the partition table was written for 255 heads/);
+  f.intercept(path=>path==='/api/v1/core-media/hard-disk'?response({media_id:M,size:1<<20,
+    geometry:{cylinders:2,heads:16,sectors_per_track:63}},201):undefined);
+  await f.controller.importMedia({size:1<<20});
+  assert.match(nodes['core-media-status'].textContent,/Disk geometry 2\/16\/63 \(cylinders\/heads\/sectors\) from its partition table\./);
 });

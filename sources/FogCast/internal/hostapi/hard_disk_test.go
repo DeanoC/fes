@@ -25,7 +25,7 @@ func (s *hardDiskAPIService) ImportHardDiskMedia(_ context.Context, size int64, 
 	n, _ := io.Copy(io.Discard, body)
 	s.imported = n
 	return fogcast.HardDiskMedia{CoreMedia: catalog.CoreMedia{MediaID: strings.Repeat("c", 64), Size: n},
-		Geometry: protocol.DiskGeometry{Cylinders: 2, Heads: 16, SectorsPerTrack: 63}}, true, nil
+		Geometry: &protocol.DiskGeometry{Cylinders: 2, Heads: 16, SectorsPerTrack: 63}}, true, nil
 }
 func (s *hardDiskAPIService) SetCoreEntryDiskGeometry(_ context.Context, game, pkg, media string, g *protocol.DiskGeometry) (catalog.CoreEntry, error) {
 	s.geometry, s.cleared = g, g == nil
@@ -38,7 +38,7 @@ func TestHardDiskImportAndGeometryRoutes(t *testing.T) {
 	image := strings.Repeat("x", 33<<20)
 	out := mediaRequest(handler, "POST", "/api/v1/core-media/hard-disk", image, "application/octet-stream")
 	var value fogcast.HardDiskMedia
-	if out.Code != http.StatusCreated || json.Unmarshal(out.Body.Bytes(), &value) != nil || s.imported != 33<<20 || value.Geometry.Heads != 16 {
+	if out.Code != http.StatusCreated || json.Unmarshal(out.Body.Bytes(), &value) != nil || s.imported != 33<<20 || value.Geometry == nil || value.Geometry.Heads != 16 {
 		t.Fatalf("import %d %s", out.Code, out.Body)
 	}
 	// The general import keeps its 32 MiB bound; the hard-disk route keeps whole sectors.

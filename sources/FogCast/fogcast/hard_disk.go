@@ -20,55 +20,61 @@ type hardDiskCatalog interface {
 	SetCoreEntryDiskGeometry(context.Context, string, string, string, *protocol.DiskGeometry) (catalog.CoreEntry, error)
 }
 
-// HardDiskMedia is an imported raw image and the geometry inferred from its
-// master boot record.
+// hardDiskImportRate is the slowest link a hard-disk import is given time
+// for, about 1 Mbit/s: a 128 MiB image gets about 18 minutes.
+const hardDiskImportRate = 128 << 10
+
+// hardDiskImportBudget is the time an import of size bytes may take.
+func hardDiskImportBudget(size int64) time.Duration {
+	return time.Minute + time.Duration(size/hardDiskImportRate)*time.Second
+}
+
+// HardDiskMedia is an imported raw image and the geometry its master boot
+// record implies, or why it implies none. Such an image is still stored; its
+// entry needs a geometry override before it can launch.
 type HardDiskMedia struct {
 	catalog.CoreMedia
-	Geometry protocol.DiskGeometry `json:"geometry"`
+	Geometry      *protocol.DiskGeometry `json:"geometry,omitempty"`
+	GeometryError string                 `json:"geometry_error,omitempty"`
 }
 
 // ImportHardDiskMedia stores a raw hard-disk image of 1..128 MiB. It never
 // selects the image for an entry.
 func (s *Service) ImportHardDiskMedia(parent context.Context, size int64, body io.Reader) (HardDiskMedia, bool, error) {
 	store, ok := s.catalog.(hardDiskCatalog)
-	media, readable := s.catalog.(coreMediaCatalog)
-	if !ok || !readable {
+	if !ok {
 		return HardDiskMedia{}, false, canonicalError(protocol.CodeUnsupportedOperation, nil)
 	}
 	if !protocol.AdmitAtaDiskSize(size) {
 		return HardDiskMedia{}, false, &protocol.APIError{Code: protocol.CodeBadRequest, Phase: "request",
 			Message: "hard-disk image must be 1 to 128 MiB in whole 512-byte sectors"}
 	}
-	ctx, cancel := serviceTimeout(parent, max(s.uploadTimeout, hardDiskActivationBudget))
+	ctx, cancel := serviceTimeout(parent, max(s.uploadTimeout, hardDiskImportBudget(size)))
 	defer cancel()
-	value, created, err := store.ImportHardDiskMediaStream(ctx, size, body)
+	// The catalog hashes every byte it stores, so the master boot record is
+	// kept as it streams past rather than read back.
+	var first sectorCapture
+	value, created, err := store.ImportHardDiskMediaStream(ctx, size, io.TeeReader(body, &first))
 	if err != nil {
 		return HardDiskMedia{}, false, mapCoreMediaError(err)
 	}
-	opened, reader, err := media.OpenCoreMedia(ctx, value.MediaID)
-	if err != nil {
-		return HardDiskMedia{}, false, mapCoreMediaError(err)
+	media := HardDiskMedia{CoreMedia: value}
+	if geometry, err := protocol.InferDiskGeometry(first.sector, value.Size); err != nil {
+		media.GeometryError = err.Error()
+	} else {
+		media.Geometry = &geometry
 	}
-	geometry, err := readDiskGeometry(reader, opened.Size)
-	if closeErr := reader.Close(); err == nil && closeErr != nil {
-		err = canonicalError(protocol.CodeInternal, safeContextError(closeErr))
-	}
-	if err != nil {
-		return HardDiskMedia{}, false, err
-	}
-	return HardDiskMedia{CoreMedia: value, Geometry: geometry}, created, nil
+	return media, created, nil
 }
 
-func readDiskGeometry(reader io.Reader, size int64) (protocol.DiskGeometry, error) {
-	sector := make([]byte, protocol.AtaDiskSectorBytes)
-	if _, err := io.ReadFull(reader, sector); err != nil {
-		return protocol.DiskGeometry{}, canonicalError(protocol.CodeInternal, safeContextError(err))
+// sectorCapture keeps the first sector written to it.
+type sectorCapture struct{ sector []byte }
+
+func (c *sectorCapture) Write(p []byte) (int, error) {
+	if room := int(protocol.AtaDiskSectorBytes) - len(c.sector); room > 0 {
+		c.sector = append(c.sector, p[:min(room, len(p))]...)
 	}
-	geometry, err := protocol.InferDiskGeometry(sector, size)
-	if err != nil {
-		return protocol.DiskGeometry{}, &protocol.APIError{Code: protocol.CodeBadRequest, Phase: "request", Message: err.Error()}
-	}
-	return geometry, nil
+	return len(p), nil
 }
 
 // SetCoreEntryDiskGeometry overrides the inferred geometry of an entry's
@@ -115,8 +121,9 @@ func (d *hardDiskSource) Close() error {
 }
 
 // readHardDisk opens an entry's selected hard disk with its launch geometry:
-// the entry's override or the one its master boot record implies. No
-// selection launches with the drive empty.
+// the entry's override or the one its master boot record implies. A table
+// that implies none refuses the launch with the reason. No selection
+// launches with the drive empty.
 func (s *Service) readHardDisk(ctx context.Context, entry catalog.CoreEntry) (*hardDiskSource, error) {
 	if entry.MediaRole == "" && entry.MediaID == "" {
 		return nil, nil
@@ -144,8 +151,11 @@ func (s *Service) readHardDisk(ctx context.Context, entry catalog.CoreEntry) (*h
 	if entry.DiskGeometry != nil {
 		geometry, err = *entry.DiskGeometry, nil
 	}
+	if err != nil {
+		return nil, errors.Join(&protocol.APIError{Code: protocol.CodeBadRequest, Phase: "admission", Message: err.Error()}, reader.Close())
+	}
 	disk := protocol.StagedDisk{SHA256: media.MediaID, Size: media.Size, Geometry: geometry}
-	if err != nil || !disk.Valid() {
+	if !disk.Valid() {
 		return nil, errors.Join(protocol.HardDiskRequestError(), reader.Close())
 	}
 	return &hardDiskSource{disk: disk, reader: readCloser{Reader: io.MultiReader(bytes.NewReader(sector), reader), Closer: reader}}, nil
