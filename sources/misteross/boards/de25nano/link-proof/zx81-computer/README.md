@@ -52,3 +52,7 @@ Persona selection is a mux model, not SDM execution. RAM is behavioral in
 simulation. Production constructors, physical MMIO/device binding, global
 reset fencing and exact-board HDMI/DDR/PR acceptance remain open. Builds and
 proofs never program an FPGA, modify boot media or install software.
+
+The [BASIC round-trip record](../../../../../../docs/validation/2026-10-30-de25-zx81-load-roundtrip/README.md)
+tracks actual ROM SAVE, LOAD/RUN/reload and post-RUN input on native and
+emulated AArch64, including the rejected live-snapshot fixture from #1274.

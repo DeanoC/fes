@@ -1,0 +1,18 @@
+{
+  "client": 1,
+  "server": 0,
+  "classification": "diagnostic initial program storage only; 160M observation and PC trace, no final proof claim",
+  "program_stored_cycle": 388179944,
+  "neutral_editor_cycle": 433178600,
+  "entered_newline_cycle_approx": 333179944,
+  "partial_client_limitation": "Early return after storage omits WaitPicture; the later normal client picture-frame gate therefore rejects as expected. This control claims only the logged store/editor events.",
+  "sha256": {
+    "server": "4e80cef3ee099c2898f57e7e75856a69ad14138bf1cb965f7daf42252c19a7b7",
+    "client": "a06465d37db8d27d256dc0e7513ffa015e1c27b7aad5559bc07fd5d317f2e757",
+    "server.cpp": "cdf8ae351320cdda40239fcb0109778e6140c6943cec8b2041d39ef78679d0a7",
+    "client.cpp": "38a646a6ae0898bda735ff579ce65e6991a7d08813d5115f4550d610431e5c3c",
+    "basic.hpp": "f1f4e395b74d7fb72bf8957cc2d050f297d409c8de387ef73282c52ae24790f6",
+    "basic_observer.hpp": "0628ddf2e0b477bb5ad466e66c9e3a65d1330dab15c17d1b0b4289b1c117800b"
+  },
+  "model_archive_sha256": "931551ade5cbc4840f9d33f52a9bd7d41576955ee8f17ccfd03cf4b365373f43"
+}

@@ -121,7 +121,7 @@ injections alter read results or report uncertain writes after real RTL
 transactions; the reset cases assert the actual endpoint reset. This proves
 client/RTL integration, without modeling HPS bridge accesses, SDM programming,
 physical memory primitives or a hardware bus-access deadline.
-The [native/AArch64 client proof](../../../../../docs/validation/2026-10-29-de25-zx81-client-rtl/README.md)
+The [native/AArch64 client proof](../../../../../docs/validation/2026-10-30-de25-zx81-load-roundtrip/README.md)
 records the complete session, uncertainty cases and frozen source/tool hashes.
 The functional session types `1 PRINT 7`, captures the real ROM SAVE emitter,
 loads and runs that image, accepts a `2 REM` edit, then reloads and reruns without
