@@ -6,11 +6,13 @@ bootloader after a cold reset. Reloading the complete SOF is the supported
 recovery; a physical power cycle is not required to resume the diagnostic.
 No reset acknowledgement, bridge fence, constraint or firmware binary is changed.
 
-The bottom board is USB serial `TRWU8J8G`, UID `79B9468337C3A50B`, JTAG ID
-`4362c0dd`. Its printed SCS/R1 suffix remains hidden/unconfirmed. Tests preserve
-the original factory QSPI and Ubuntu SD, kernel `6.12.11-gd7d192a9ddd9`, root
-`/dev/mmcblk0p2` ext3, and strict UART-derived SSH identity. Private network
-addresses and credentials remain outside Git.
+The retained programmer logs identify Quartus cable
+`DE25-Nano [3-11.3-iface0]` and FPGA part `A5EB013BB23BCS`. They do not bind
+the session to a USB serial, board UID, or JTAG IDCODE. The printed SCS/R1
+suffix remains hidden/unconfirmed. The logs record the original factory QSPI
+and Ubuntu SD, kernel `6.12.11-gd7d192a9ddd9`, root `/dev/mmcblk0p2` ext3, and
+UART-derived SSH checks. Private network addresses and credentials remain
+outside Git.
 
 ## Controls and interpretation
 
@@ -82,11 +84,11 @@ member to the locked ZIP. [firmware-review.json](firmware-review.json) pins the
 supporting published ATF source. The compressed console/SSH/programmer logs
 retain the observations; private network tokens are redacted.
 
-Affected planner/metadata/whitespace checks and documentation links pass.
+Affected planner/metadata/whitespace checks and documentation links pass. The
+record-scope regression test is `python3 tests/test_de25_reboot_evidence.py`.
 No production module, FPGA RTL, constraints, firmware, shared definition or
-persistent boot state changes. Source base: `7634cb82dcbd`. The same owner
-retains the board claim for the immediately following authorized ZX81 test;
-all reboot-control UART, SSH and JTAG master sessions are closed. This phase
-finishes with the recovered RAM diagnostic running; the following phase must
-restore the designated factory baseline before final release. The top board
-is untouched. No harness, GPU or other owner's process is used.
+persistent boot state changes. Source base: `7634cb82dcbd`. The retained record
+ends after recovery of the RAM diagnostic. It does not record board-claim
+status, closure of reboot-control UART, SSH or JTAG master sessions, top-board
+state, or final factory-baseline restoration. Those states are not asserted
+here.

@@ -1,26 +1,28 @@
 # DE25 physical FPGA and local-memory diagnostic, 2026-10-30
 
-The bottom DE25 board, USB serial `TRWU8J8G`, loads the RAM Tester over JTAG
-and boots its existing factory Ubuntu SD image using the retained Terasic SPL.
+The board reached through Quartus cable `DE25-Nano [3-11.3-iface0]` loads the
+RAM Tester over JTAG and boots its existing factory Ubuntu SD image using the
+retained Terasic SPL.
 The 4-KiB tests and full-bank scans pass on both the 1-GiB FPGA LPDDR4 B and
 128-MiB SDRAM, with zero faults or data errors. The factory configuration is
-restored and both board claims are released.
+restored; `restore.json` records one claim release.
 
-This is physical diagnostic evidence for one board and one exact image. It
-changes no RTL, constraints, boot medium, runtime adapter, shared definition or
-production admission. The initial FES base is `300bf1c3ea67`; the actual compiled
-RAM producer remains `43c248d2dfbad7fa2d0ef4c72fa006fe21214dc9`. No later
-source or artifact inherits these results.
+This is physical diagnostic evidence from one programming session and one exact
+image. The retained transcripts do not bind the session to a USB serial or board
+UID. It changes no RTL, constraints, boot medium, runtime adapter, shared
+definition or production admission. The initial FES base is `300bf1c3ea67`; the
+actual compiled RAM producer remains `43c248d2dfbad7fa2d0ef4c72fa006fe21214dc9`.
+No later source or artifact inherits these results.
 
 ## Image and board identity
 
-[hardware.json](hardware.json) binds board UID `79B9468337C3A50B`, JTAG ID
-`4362c0dd`, source producer, boot identity and the programmed image. The
-printed part number is hidden by its fan. Quartus's own programming table
-matches this ID to both the CS and R1 masks; the printed suffix remains
-unconfirmed. The programmer accepts the diagnostic image without `--force`.
-This is a board/UID-specific observation, not qualification of every SCS or R1
-part or proof of the full ordering code.
+[hardware.json](hardware.json) records the Quartus cable name, JTAG ID `4362c0dd`,
+source producer, boot identity and programmed image. The programmer log names
+part `A5EB013BB23BCS`; Quartus's own programming table matches this ID to both
+the CS and R1 masks. The printed suffix remains unconfirmed, and the USB serial
+and board UID are not asserted because neither appears in a retained transcript.
+The programmer accepts the diagnostic image without `--force`. This does not
+qualify every SCS or R1 part or prove the full ordering code.
 
 The original final SOF, build, generation, inputs and compiler logs match all
 six hashes from the [published compiler record](../../../sources/misteross/docs/validation/2026-10-29-de25-ramtest/artifact.json).
@@ -74,9 +76,13 @@ zero data errors; the original controller also checks generation, sequence
 and frozen snapshot serials. Latency counters measure the diagnostic interface,
 not intrinsic DRAM latency or a CPU benchmark.
 
-Factory Linux is synced and gracefully halted before the test-image load.
-The combined SOF's Terasic bootloader then boots the existing SD kernel to its
-login prompt. UART and pinned-key SSH confirm Ubuntu 22.04.3, AArch64 kernel
+The recorded procedure says it ran `sync` and requested a graceful halt before
+the test-image load. However, the temporary-image boot log reports that
+`system.journal` was
+"corrupted or uncleanly shut down." The retained evidence therefore does not
+establish that factory Linux completed a clean halt. The combined SOF's Terasic
+bootloader then boots the existing SD kernel to its login prompt. UART and
+pinned-key SSH confirm Ubuntu 22.04.3, AArch64 kernel
 `6.12.11-gd7d192a9ddd9`, root `/dev/mmcblk0p2` ext3 and the temporary image's
 boot UUID. [temporary-sof-boot.log.gz](temporary-sof-boot.log.gz) retains the
 redacted boot log; [temporary-sof-linux.log.gz](temporary-sof-linux.log.gz)
@@ -86,15 +92,22 @@ it does not qualify the separately prepared FES rootfs or every firmware pair.
 
 ## Setup and remaining boundaries
 
-Before testing, `quartus_pgm --dev_info` loads a temporary helper, although
-identity was the intended query. The tool returns a UID and opaque identity,
-not the printed suffix. Subsequent old-address SSH and serial prompt checks
-fail. No current pre-helper Linux health capture exists, so those observations
-alone do not establish the cause. Deano power-cycles both boards in turn; both
-return to factory Linux. The other board (`TRWU8CBL`, top) receives only
-read-only identification and is released. Factory flash and SD contents are
-not rewritten. The helper/configuration logs are retained; this operation is
-explicitly not classified as read-only.
+Before testing, `quartus_pgm --dev_info` loads a temporary helper while querying
+device information; [device-info-scs.log.gz](device-info-scs.log.gz) retains
+that command transcript. Its generated `device-info.txt` is not retained, so
+this record does not establish a USB serial or board UID. A separate device
+index 2 information attempt failed: [device-info-command-index2.log.gz](device-info-command-index2.log.gz)
+records a JTAG scan failure (`213019`) and an illegal programming option
+(`213002`), but no command line or identity output. The successful index 1
+programming operation is retained separately in
+[ramtest-program-with-spl.log.gz](ramtest-program-with-spl.log.gz).
+
+Subsequent old-address SSH and serial prompt checks fail. No current pre-helper
+Linux health capture exists, so those observations alone do not establish the
+cause. Factory flash and SD contents are not rewritten. The helper/configuration
+logs are retained; this operation is explicitly not classified as read-only.
+`restore.json` has one claim-release timestamp; no second-board status transcript
+is present, so this record makes no second-board release claim.
 
 HPS DMA/physical CPU MMIO, partial reconfiguration/personas, ZX81 on the FPGA,
 FES-image boot, external timing/electrical margins, HDMI and global reset/drain
@@ -121,8 +134,11 @@ original console bytes and their SHA-256 hashes match the parsed record.
 | SDRAM / 134,217,728 bytes | 939,524,096 | 939,556,864 | PASS |
 
 Both full-bank endpoints finish with status 18 (DONE and calibrated, BUSY
-clear), fault/errors/bad-bits zero, generation 1 and sequence 3. The SDRAM
-range includes both physical chip selects. No physical HPS-memory test runs.
+clear), fault/errors/bad-bits zero, generation 1 and sequence 3. The 4,096-byte
+SDRAM smoke starts at address 0 and stays below byte-address bit 26, so it
+selects one chip. The 134,217,728-byte full SDRAM scan spans the 128-MiB range,
+crosses bit 26 and exercises both physical chip selects. No physical HPS-memory
+test runs.
 
 After all JTAG claims close, Linux `sync` and authenticated `sudo /sbin/reboot`
 shut down the temporary-image boot. The 60-second UART capture ends at
@@ -132,12 +148,13 @@ SPL or RTL cause. There is no factory-only software-reboot control yet.
 [Issue #1291](https://github.com/DeanoC/fes/issues/1291) tracks that separate
 qualification. The passing memory scans do not qualify software reset.
 
-Deano power-cycles the bottom board. [restore.json](restore.json) records the
-new factory boot UUID, UART/pinned SSH checks, root and kernel, and the
-restored factory SLD design hash. System Console refuses linking the test
+A physical power cycle restores the factory boot. [restore.json](restore.json)
+records the new factory boot UUID, UART/pinned SSH checks, root and kernel, and
+the restored factory SLD design hash. System Console refuses linking the test
 image to that distinct factory design. This verifies restoration from the
 untouched factory boot media; it does not attest their complete byte digests.
 The redacted restore logs retain both the software-reboot failure and physical
-recovery. Temporary USB node ownership is restored, all owned sessions/master
-claims are closed, and no proof software was uploaded. Both serial-specific
-status files record release. DE10 Kits A/B and GPU/harness processes were not touched.
+recovery. Temporary USB node ownership is restored, all recorded sessions and
+master claims are closed, no proof software was uploaded, and the one recorded
+claim is released. No serial-specific status transcript is retained. DE10 Kits
+A/B and GPU/harness processes were not touched.

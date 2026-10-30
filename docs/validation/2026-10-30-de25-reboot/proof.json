@@ -2,8 +2,14 @@
   "format": 1,
   "issue": 1291,
   "base_revision": "7634cb82dcbd88951ccbde72623dcfaecceccb51",
-  "board_usb_serial": "TRWU8J8G",
-  "board_uid": "79B9468337C3A50B",
+  "board_identity": {
+    "quartus_cable_name": "DE25-Nano [3-11.3-iface0]",
+    "fpga_part": "A5EB013BB23BCS",
+    "usb_serial": null,
+    "board_uid": null,
+    "jtag_idcode": null,
+    "physical_board_binding": "not-established"
+  },
   "experiments": [
     {
       "configuration": "factory-qspi",
@@ -43,5 +49,10 @@
   "reset_ack_or_constraints_changed": false,
   "recovery": "identical full SOF redelivery over explicit-cable JTAG; new UART/pinned SSH and exact RAM endpoint IDs verified",
   "physical_power_cycle_during_investigation": false,
-  "board_claim": "retained by same owner for immediately following ZX81 test"
+  "operator_state": {
+    "board_claim": "not-recorded",
+    "uart_ssh_jtag_sessions": "not-recorded",
+    "top_board_state": "not-recorded",
+    "factory_baseline_restore": "not-recorded"
+  }
 }

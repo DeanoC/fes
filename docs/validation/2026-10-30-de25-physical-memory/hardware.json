@@ -3,10 +3,8 @@
   "base_revision": "300bf1c3ea67ce81b11ef2e442882de2eff5c224",
   "source_producer": "43c248d2dfbad7fa2d0ef4c72fa006fe21214dc9",
   "board": {
-    "usb_serial": "TRWU8J8G",
-    "physical_label": "bottom board (Deano)",
+    "quartus_cable": "DE25-Nano [3-11.3-iface0]",
     "jtag_idcode": "4362c0dd",
-    "uid": "79B9468337C3A50B",
     "printed_opn": "unobserved beneath fan",
     "silicon_suffix": "unconfirmed; CS and R1 table masks both match"
   },
@@ -36,7 +34,7 @@
     "printed OPN verification",
     "later source or compiler artifact acceptance"
   ],
-  "restore": "See restore.json; factory restored, claim released",
+  "restore": "See restore.json; factory restored, one tracked claim released",
   "scan_results": "scans.json",
   "controller_source": {
     "revision": "300bf1c3ea67ce81b11ef2e442882de2eff5c224",

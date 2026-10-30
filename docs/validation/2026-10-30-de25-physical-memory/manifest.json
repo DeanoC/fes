@@ -3,7 +3,7 @@
   "base_revision": "300bf1c3ea67ce81b11ef2e442882de2eff5c224",
   "classification": "physical-board-diagnostic; not production signoff",
   "file_sha256": {
-    "README.md": "53b41f70392395c3f730ac0c1e00836a77b9be4959f28620cbe07aef6423d96c",
+    "README.md": "f1553f49ad9c766d6c65eba0dba95cb004b1243d095a281f6440f3acdde6c39a",
     "affected-checks.log.gz": "ba299c493aa88db3bca7964c633138b68c565c00d10a600a3a8da594c80780d9",
     "artifact-audit.json": "f2d272af5d92a69dad50314841a5f11e2a76f2395b62cac7a3e2c459b4299810",
     "bootloader-audit.json": "60e699ae9f9d4fa04db005827da3f7f3f99345f218539a3c426c40c17c5dae85",
@@ -16,7 +16,7 @@
     "factory-linked-services.log.gz": "fa7daa5afc1ee8654e05bff2ba13f5566d00c2aac88736bf54e4c8193aa749af",
     "full-ram.log.gz": "f95369a2332dbb7108504d1df14f591e29e8098a75daefae0a645d8170b45fd5",
     "full-ram.tcl": "9cca5c2341afaa70f9822a5f17b9ca47730bee7a43fd0bdf848539bab5c0dc0b",
-    "hardware.json": "45feec3b831fa96e994a9b7834d50cf866daa1e7843cce5f7a45aae17b05646f",
+    "hardware.json": "f19712e4cad53c10311603e600cfb9c89b4a17bcba9b69173b63300ed4f6dbc1",
     "identify-ram.log.gz": "b6247d5b4bbb73d969d12f760e1ffca8b023558d320936be143eb3d2751acda6",
     "identify-ram.tcl": "0c9d4c6442c54f42d8256984da510a46fe6efd3918d1093f0ab5a02e6448816e",
     "linked-services.log.gz": "95ad625a281f7b32521719d13a98b3e7ceae295f0e7f88c93d36d2dacfa4644b",
