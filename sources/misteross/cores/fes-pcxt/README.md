@@ -52,6 +52,9 @@ FreeCOM 0.86a. Source commits, licences and image SHA-256 are recorded in
 [`firmware/THIRD-PARTY-NOTICES.md`](firmware/THIRD-PARTY-NOTICES.md) and
 `sim/freedos.lock`.
 
+The DOS profile supplies an XT keyboard self-test response over the existing
+serial cable after the BIOS reset handshake. It does not yet accept host keys.
+
 The recipe registers `scripts/pcxt_dos_hil_acceptance.py` with preferred kit
 order B then A. The hardware check requires at least three complete changing
 captures and glyph-matches the final CGA `A:\>` prompt against the font
@@ -962,8 +965,9 @@ CTS, and clocks bits with 40 us high/low phases and at least 3 us data hold.
 Clock inhibit pauses transmission. READY also stays low while PB7 holds the
 receiver clear, so the frontend does not retire a byte the receiver cannot
 collect. A byte already accepted still finishes its frame. Reset cancels a partial frame. This is a
-single-byte transport: HID mapping, extended-key policy, typematic generation,
-keyboard reset/BAT responses and event queues remain future frontend work.
+single-byte transport. The DOS-only BAT responder sends the self-test byte
+after the reset handshake; HID mapping, extended-key policy, typematic
+generation and event queues remain future frontend work.
 It is not an AT 8042 or a PS/2 protocol endpoint.
 
 `pcxt_speaker.sv` integrates the gated PIT2 waveform over each 48 kHz sample

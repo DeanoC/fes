@@ -7,6 +7,7 @@
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <string>
 #include <vector>
 
 int main(int argc, char **argv) {
@@ -22,7 +23,25 @@ int main(int argc, char **argv) {
     uint32_t offered = 0, completed = 0;
     bool pending = false;
     uint64_t writes_before = 0;
-    bool check_upload = true;
+    bool check_upload = true, observe_boot = false;
+    bool post = false, boot = false, sector = false, prompt = false, last_irq = false;
+    unsigned bat_reads = 0, irq1_edges = 0;
+    uint64_t post_cycle = 0, boot_cycle = 0, sector_cycle = 0, prompt_cycle = 0;
+    auto byte = [&](unsigned address) { return (ram.words.at(address / 2) >> (8 * (address & 1))) & 0xff; };
+    auto word = [&](unsigned address) { return byte(address) | (byte(address + 1) << 8); };
+    auto screen = [&] {
+        std::string text;
+        for (unsigned y = 0; y < 25; ++y) {
+            for (unsigned x = 0; x < 80; ++x) {
+                d.text_address = y * 80 + x;
+                d.eval();
+                unsigned ch = d.text_word & 0xff;
+                text += char(ch >= 32 && ch < 127 ? ch : ' ');
+            }
+            text += '\n';
+        }
+        return text;
+    };
     auto step = [&] {
         d.clk = 0;
         pixel_phase += 1485;
@@ -32,6 +51,11 @@ int main(int argc, char **argv) {
         d.eval();
         const bool accept = d.disk_valid && d.disk_ready;
         const bool done = d.disk_done;
+        const bool consumed = d.instruction_consumed;
+        const unsigned ip = d.instruction_address, flags = d.post_flags;
+        const bool io_read = d.bus_done && d.bus_kind == 1 && !d.bus_write;
+        const unsigned address = d.bus_address, data = d.bus_data;
+        const bool irq = d.keyboard_irq;
         if (check_upload) {
             if (!d.disk_loaded) require(d.machine_reset, "CPU released before full disk", cycles);
             if (accept) {
@@ -57,8 +81,39 @@ int main(int argc, char **argv) {
         d.clk = 1;
         d.eval();
         ++cycles;
+        if (observe_boot) {
+            if (irq && !last_irq) ++irq1_edges;
+            last_irq = irq;
+            if (io_read && (address & 0x3ff) == 0x60 && data == 0xaa) ++bat_reads;
+            if (consumed) {
+                require(ip != 0xfe47a, "BIOS reported POST error", cycles);
+                if (ip == 0xfe49a && !post) {
+                    require(flags == 0 && bat_reads == 1 && irq1_edges >= 1,
+                            "POST did not receive keyboard BAT over IRQ1", cycles);
+                    post = true; post_cycle = cycles;
+                }
+                if (ip == 0xfe6f2 && !boot) { boot = true; boot_cycle = cycles; }
+                if (ip == 0x7c00 && !sector) {
+                    require(boot, "boot sector executed before BIOS bootstrap", cycles);
+                    for (unsigned i = 0; i < 512; ++i)
+                        require(byte(0x7c00 + i) == image[i], "BIOS loaded wrong boot sector", cycles);
+                    sector = true; sector_cycle = cycles;
+                }
+            }
+            if (cycles % 5000000 == 0) {
+                if (sector && screen().find("A:\\>") != std::string::npos) {
+                    prompt = true; prompt_cycle = cycles;
+                }
+                ram.ram_writes.clear();
+                if (cycles % 50000000 == 0)
+                    std::cerr << "cycles=" << cycles << " ip=" << std::hex << ip << std::dec
+                              << " bat=" << bat_reads << " irq1=" << irq1_edges
+                              << " post=" << post << " boot=" << boot << " sector=" << sector
+                              << " prompt=" << prompt << '\n';
+            }
+        }
         require(!d.fault, "CPU/ISA/DMA fault", cycles);
-        require(cycles < 100000000, "embedded boot timed out", cycles);
+        require(cycles < 6000000000ULL, "embedded DOS boot timed out", cycles);
     };
     auto run_until = [&](auto predicate, const char *what) {
         for (uint64_t i = 0; i < 45000000 && !predicate(); ++i) step();
@@ -76,6 +131,7 @@ int main(int argc, char **argv) {
     };
     poison();
     d.clk = d.clk_pixel = 0;
+    d.text_address = 0;
     d.cold_reset = d.reset_pixel = d.execution_hold = 1;
     for (unsigned i = 0; i < 32; ++i) step();
     ram.cold_reset();
@@ -107,6 +163,16 @@ int main(int argc, char **argv) {
             "cold restart ignored execution hold", cycles);
     d.execution_hold = 0;
     upload();
+    check_upload = false;
+    observe_boot = true;
+    while (!prompt) step();
+    require(post && boot && sector && bat_reads == 1 && irq1_edges >= 1,
+            "incomplete embedded BIOS/DOS boot", cycles);
+    require(word(0x413) == 640 && (word(0x410) & 0x31) == 0x21,
+            "BIOS equipment profile differs", cycles);
+    std::cout << "PASS PC/XT embedded DOS: keyboard BAT/IRQ1, POST, INT19, floppy boot sector "
+              << "and A: prompt; post=" << post_cycle << " boot=" << boot_cycle
+              << " sector=" << sector_cycle << " prompt=" << prompt_cycle << "\n";
     std::cout << "PASS PC/XT embedded DOS: two ROM-to-SDRAM floppy loads, "
               << image.size() << " checked bytes each, reset gating and warm/cold behavior; "
               << cycles << " clocks\n";

@@ -1,12 +1,15 @@
 """Quartus package gates must preserve timing failures and artifact identity."""
 import json
+import os
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 import tomllib
 import unittest
 from unittest import mock
 from scripts import build_fes_pcxt_quartus as producer
+from scripts import sim_fes_pcxt as generator
 from scripts.export_core_package import build_identity, encode_build_record, _validate_build_record
 
 
@@ -230,6 +233,45 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'BUILD_ID'):
             producer.board.elaboration(producer.ROOT, producer.ROOT / 'build',
                                        producer.ROOT / 'unused-library', package_profile=True)
+
+    def test_package_elaboration_with_real_profile_inputs(self):
+        candidate = os.environ.get('FES_PCXT_YOSYS') or os.environ.get('YOSYS') or 'yosys'
+        yosys_name = shutil.which(candidate)
+        if not yosys_name:
+            self.skipTest('Yosys is required for real package elaboration')
+        yosys = Path(yosys_name).resolve()
+        library = yosys.parent.parent / 'share/yosys/intel_alm/common/megafunction_bb.v'
+        if not library.is_file():
+            self.skipTest('Yosys Intel megafunction library is required')
+        for dos_profile in (False, True):
+            with self.subTest(dos_profile=dos_profile), tempfile.TemporaryDirectory(prefix='pcxt-profile-elab-') as directory:
+                work = Path(directory)
+                inputs = producer.board.prepare_elaboration_inputs(producer.ROOT, work, generator,
+                                                                    dos_profile=dos_profile)
+                disk = work / 'pcxt_freedos_disk.hex'
+                self.assertEqual(disk.exists(), dos_profile)
+                if dos_profile:
+                    self.assertEqual(inputs['freedos_image_sha256'], producer.dos_assets(producer.ROOT)[0]['floppy']['sha256'])
+                    for bank in range(8):
+                        self.assertEqual((work / f'pcxt_diagnostic.bank{bank}.hex').read_bytes(),
+                                         (work / f'pcxt_glabios.bank{bank}.hex').read_bytes())
+                else:
+                    self.assertEqual(inputs, {})
+                program = producer.board.elaboration(producer.ROOT, work, library, package_profile=True,
+                    build_id='1234567890abcdef' * 2, dos_profile=dos_profile)
+                self.assertEqual('pcxt_disk_boot.sv' in program, dos_profile)
+                self.assertEqual('pcxt_xt_keyboard_bat.sv' in program, dos_profile)
+                script = work / 'elaborate.ys'
+                script.write_text(program)
+                result = subprocess.run([str(yosys), '-s', str(script)], cwd=work,
+                                        capture_output=True, text=True, timeout=300)
+                self.assertEqual(result.returncode, 0, result.stdout[-4000:] + result.stderr[-4000:])
+                self.assertTrue((work / 'elaborated.json').is_file())
+                self.assertTrue((work / 'elaborated.v').is_file())
+                producer.board.validate_renaming(work, package_profile=True)
+                before = json.loads((work / 'before-names.json').read_text())['modules']['top']
+                after = json.loads((work / 'elaborated.json').read_text())['modules']['top']
+                producer.board.validate_mailbox(before, after, half_rate_board=False)
 
     def test_manifest_declares_the_actual_media_enabled_identity(self):
         record = producer.create_build_record(producer.ROOT, 'https://github.com/DeanoC/fes.git',

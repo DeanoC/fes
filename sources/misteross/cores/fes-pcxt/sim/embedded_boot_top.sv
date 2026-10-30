@@ -18,8 +18,23 @@ module embedded_boot_top (
     output wire sdram_dqml, sdram_dqmh,
     output wire [15:0] dq_out,
     output wire dq_oe,
-    input wire [15:0] dq_sample
+    input wire [15:0] dq_sample,
+    output wire bus_done, bus_write, keyboard_irq,
+    output wire [1:0] bus_kind,
+    output wire [19:0] bus_address, instruction_address,
+    output wire [7:0] bus_data,
+    output wire [15:0] post_flags,
+    output wire instruction_consumed,
+    input wire [10:0] text_address,
+    output wire [15:0] text_word
 );
+    wire keyboard_clock, keyboard_data, keyboard_clock_low, keyboard_data_low, keyboard_clear;
+    pcxt_xt_keyboard_bat keyboard (.clk(clk), .reset(machine_reset),
+        .clock_low(keyboard_clock_low), .data_low(keyboard_data_low), .keyboard_clear(keyboard_clear),
+        .keyboard_clock(keyboard_clock), .keyboard_data(keyboard_data));
+    wire [11:0] cga_font_address, mda_font_address;
+    reg [7:0] font [0:4095];
+    initial $readmemh("pcxt_glabios_font.hex", font);
     wire firmware_valid, firmware_ready, firmware_done;
     wire [7:0] firmware_data;
     pcxt_boot #(.ROM_PREFIX("pcxt_glabios")) boot (
@@ -48,9 +63,10 @@ module embedded_boot_top (
         .firmware_done(firmware_done), .firmware_address(firmware_address),
         .firmware_data(firmware_data), .firmware_loaded(firmware_loaded),
         .initialized(initialized), .machine_reset(machine_reset), .fault(fault),
-        .keyboard_clock(1'b1), .keyboard_data(1'b0), .keyboard_clock_low(),
-        .keyboard_data_low(), .keyboard_clear(), .cga_font_address(), .mda_font_address(),
-        .cga_font_data(8'h81), .mda_font_data(8'h81), .halted(), .dma_owner(),
+        .keyboard_clock(keyboard_clock), .keyboard_data(keyboard_data),
+        .keyboard_clock_low(keyboard_clock_low), .keyboard_data_low(keyboard_data_low),
+        .keyboard_clear(keyboard_clear), .cga_font_address(cga_font_address), .mda_font_address(mda_font_address),
+        .cga_font_data(font[cga_font_address]), .mda_font_data(font[mda_font_address]), .halted(), .dma_owner(),
         .refresh_done(), .audio_valid(), .audio_sample(), .video_request(), .video_response(),
         .sdram_clk(sdram_clk), .sdram_cke(sdram_cke), .sdram_ncs(sdram_ncs),
         .sdram_nras(sdram_nras), .sdram_ncas(sdram_ncas), .sdram_nwe(sdram_nwe),
@@ -58,4 +74,18 @@ module embedded_boot_top (
         .sdram_dqmh(sdram_dqmh), .dq_out(dq_out), .dq_oe(dq_oe),
         .dq_rise(dq_rise), .dq_fall(dq_fall));
     /* verilator lint_on PINCONNECTEMPTY */
+    assign bus_done = system.machine.completed;
+    assign bus_address = system.machine.cycle_address;
+    assign bus_kind = system.machine.cycle_kind;
+    assign bus_write = system.machine.cycle_write;
+    assign bus_data = system.machine.cycle_write ? system.machine.cycle_wdata : system.machine.cycle_rdata;
+    assign keyboard_irq = system.machine.board.keyboard_irq;
+    assign instruction_consumed = system.machine.cpu.cpu.u_biu_core.eu_biu_strobe == 2'b01 &&
+                                  !system.machine.cpu.cpu.u_biu_core.pfq_empty &&
+                                  !(system.machine.cpu.cpu.u_biu_core.eu_biu_req_caught &&
+                                    system.machine.cpu.cpu.u_biu_core.eu_biu_req_code == 5'h19);
+    assign instruction_address = {system.machine.cpu.cpu.u_biu_core.biu_register_cs, 4'b0} +
+                                 {4'b0, system.machine.cpu.cpu.u_biu_core.pfq_addr_out};
+    assign post_flags = system.machine.cpu.cpu.u_eu_core.eu_register_bp;
+    assign text_word = system.machine.isa.slots[1].cga.card.card.vram[{2'b0, text_address}];
 endmodule

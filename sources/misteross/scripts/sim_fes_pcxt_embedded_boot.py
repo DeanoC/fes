@@ -28,8 +28,14 @@ def main():
             raise ValueError(f'{kind} does not match the hardware DOS input lock')
         assets[kind] = data
     sim.boot_roms(build, firmware_window(assets['bios']), prefix='pcxt_glabios')
+    font = bytearray(4096)
+    offset = json.loads((ROOT / 'cores/fes-pcxt/sim/bios.lock').read_text())['ascii_font']['rom_offset']
+    for char in range(128):
+        font[char * 16:char * 16 + 8] = assets['bios'][offset + char * 8:offset + char * 8 + 8]
+    (build / 'pcxt_glabios_font.hex').write_text(''.join(f'{b:02x}\n' for b in font))
     (build / 'pcxt_freedos_disk.hex').write_text(''.join(f'{b:02x}\n' for b in assets['floppy']))
     sources = sim.SYSTEM_SOURCES + (sim.MEMORY_SOURCES[-1], 'cores/fes-pcxt/rtl/pcxt_disk_boot.sv',
+        'cores/fes-pcxt/rtl/pcxt_xt_keyboard_bat.sv',
         'cores/fes-pcxt/sim/embedded_boot_top.sv', 'cores/fes-pcxt/sim/embedded_boot_tb.cpp')
     subprocess.run([os.environ.get('VERILATOR', 'verilator'), '--cc', '--exe', '--build', '-j', '4', '-Wall',
         '--timescale-override', '1ns/1ps', str(ROOT / 'cores/fes-pcxt/sim/cpu.vlt'),

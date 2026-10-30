@@ -148,6 +148,20 @@ module top #(
     /* verilator lint_off PINCONNECTEMPTY */
     wire [11:0] cga_font_address, mda_font_address;
     wire [7:0] cga_font_data, mda_font_data;
+    wire machine_reset, keyboard_clock, keyboard_data;
+    wire keyboard_clock_low, keyboard_data_low, keyboard_clear;
+    generate if (HARDWARE_DOS) begin: dos_keyboard
+        pcxt_xt_keyboard_bat keyboard (
+            .clk(clk_memory), .reset(machine_reset),
+            .clock_low(keyboard_clock_low), .data_low(keyboard_data_low),
+            .keyboard_clear(keyboard_clear),
+            .keyboard_clock(keyboard_clock), .keyboard_data(keyboard_data)
+        );
+    end else begin: no_keyboard
+        assign keyboard_clock = 1'b1;
+        assign keyboard_data = 1'b0;
+        wire unused_keyboard = &{1'b0, machine_reset, keyboard_clock_low, keyboard_data_low, keyboard_clear};
+    end endgenerate
     generate if (HARDWARE_DOS) begin: dos_font
         reg [7:0] glyphs [0:4095];
         initial $readmemh("pcxt_glabios_font.hex", glyphs);
@@ -163,15 +177,15 @@ module top #(
         .media_present(media_present), .disk_restart(disk_restart), .disk_load_valid(disk_load_valid), .disk_load_address(disk_load_address),
         .disk_load_data(disk_load_data), .disk_load_ready(disk_load_ready), .disk_load_done(disk_load_done),
         .disk_loaded(disk_loaded),
-        .keyboard_clock(1'b1), .keyboard_data(1'b0),
-        .keyboard_clock_low(), .keyboard_data_low(), .keyboard_clear(),
+        .keyboard_clock(keyboard_clock), .keyboard_data(keyboard_data),
+        .keyboard_clock_low(keyboard_clock_low), .keyboard_data_low(keyboard_data_low), .keyboard_clear(keyboard_clear),
         .cga_font_address(cga_font_address), .mda_font_address(mda_font_address),
         .cga_font_data(cga_font_data), .mda_font_data(mda_font_data),
         .clk(clk_memory), .clk_cpu(clk), .clk_pixel(clk_pixel), .clk_pin(clk_memory), .cold_reset(board_reset_live),
         .reset_pixel(pixel_reset[1]), .warm_reset(exec_reset), .hold(HARDWARE_DOS && !disk_loaded),
         .firmware_valid(firmware_valid), .firmware_ready(firmware_ready),
         .firmware_done(firmware_done), .firmware_address(firmware_address), .firmware_data(firmware_data),
-        .firmware_loaded(firmware_loaded), .initialized(), .machine_reset(), .fault(), .halted(),
+        .firmware_loaded(firmware_loaded), .initialized(), .machine_reset(machine_reset), .fault(), .halted(),
         .dma_owner(), .refresh_done(), .audio_valid(), .audio_sample(),
         .video_request(video_request), .video_response(video_response),
         .sdram_clk(SDRAM_CLK), .sdram_cke(SDRAM_CKE), .sdram_ncs(controller_cs),

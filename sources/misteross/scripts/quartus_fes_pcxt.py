@@ -35,7 +35,9 @@ from scripts.pcxt_quartus_mailbox import validate_mailbox
 
 ROOT = Path(__file__).resolve().parents[1]
 CORE = Path('cores/fes-pcxt')
-RTL = SYSTEM_SOURCES + ('cores/fes-pcxt/rtl/pcxt_disk_boot.sv',
+DOS_RTL = ('cores/fes-pcxt/rtl/pcxt_disk_boot.sv',
+           'cores/fes-pcxt/rtl/pcxt_xt_keyboard_bat.sv')
+RTL = SYSTEM_SOURCES + DOS_RTL + (
                         'cores/fes-common/rtl/fes_computer_mailbox.v',
                         str(CORE / 'rtl/fes_pcxt_top.sv'))
 ADAPTERS = CORE / 'quartus/adapters.v'
@@ -79,6 +81,44 @@ def capture_sources(root: Path, output: Path) -> tuple[Path, dict[str, str]]:
     return frozen, identities
 
 
+def prepare_elaboration_inputs(source: Path, work: Path, generator, *, dos_profile=False) -> dict:
+    """Generate the selected profile's verified ROMs in the Yosys working directory."""
+    if not dos_profile:
+        generator.board_inputs(work)
+        return {}
+    generator.cpu_roms(work)
+    core = source / CORE
+    metadata = json.loads((core / 'firmware/hardware-dos.json').read_text())
+    bios_spec = json.loads((core / 'sim/bios.lock').read_text())
+    bios_path = core / metadata['bios']['file']
+    disk_path = core / metadata['floppy']['file']
+    bios = bios_path.read_bytes()
+    disk = disk_path.read_bytes()
+    if (len(bios) != metadata['bios']['size']
+            or sha(bios_path) != metadata['bios']['sha256']
+            or bios_spec['bios']['sha256'] != metadata['bios']['sha256']
+            or len(disk) != metadata['floppy']['size']
+            or sha(disk_path) != metadata['floppy']['sha256']):
+        raise ValueError('DOS BIOS or floppy image differs from its locked provenance')
+    firmware = bytes([0xff]) * (65536 - len(bios)) + bios
+    # Yosys reads pcxt_boot's default ROM_PREFIX while parsing the module,
+    # before it elaborates the instance override. Both names contain the same
+    # verified firmware; the DOS instance explicitly uses pcxt_glabios.
+    generator.boot_roms(work, firmware)
+    generator.boot_roms(work, firmware, prefix='pcxt_glabios')
+    font = bytearray(4096)
+    offset = bios_spec['ascii_font']['rom_offset']
+    for char in range(128):
+        font[char * 16:char * 16 + 8] = bios[offset + char * 8:offset + char * 8 + 8]
+    (work / 'pcxt_glabios_font.hex').write_text(''.join(f'{byte:02x}\n' for byte in font))
+    (work / 'pcxt_freedos_disk.hex').write_text(''.join(f'{byte:02x}\n' for byte in disk))
+    return {'freedos_image_sha256': metadata['floppy']['sha256'],
+            'glabios_rom_sha256': metadata['bios']['sha256'],
+            'glabios_font_sha256': hashlib.sha256(font).hexdigest(),
+            'loaded_into_sdram_before_cpu_release': True,
+            'guest_disk_reads_use_sdram_media_path': True}
+
+
 def elaboration(source: Path, work: Path, library: Path, *, package_profile=False, build_id=None,
                 dos_profile=False) -> str:
     if dos_profile and not package_profile:
@@ -98,10 +138,18 @@ def elaboration(source: Path, work: Path, library: Path, *, package_profile=Fals
             raise ValueError('package profile requires an explicit BUILD_ID')
         parameters += (" -set ENABLE_FES_COMPUTER 1 -set ENABLE_PCXT_MEDIA " +
                        ('0' if dos_profile else '1') + " -set PHASED_HDMI_CLOCK 1 -set BUILD_ID 128'h" + build_id)
+    selected_rtl = RTL if dos_profile else tuple(path for path in RTL if path not in DOS_RTL)
+    # The locked Yosys incorrectly drops the CGA font's asynchronous read
+    # driver when memory_dff processes that shared two-port font ROM. Collect
+    # it without read-FF merging, then retain memory_dff for every other RAM
+    # and ROM. Assert the exact exception so naming drift fails closed.
+    memory_pass = ('memory -nomap -nordff; select -assert-count 1 c:dos_font.glyphs; '
+                   'memory_dff t:$mem_v2 c:dos_font.glyphs %d; ' if dos_profile
+                   else 'memory -nomap; ')
     return (
         f'read_verilog -lib {quote(library)}; read_verilog -sv '
         + ' '.join('-I ' + str(p) for p in includes) + ' '
-        + ' '.join(quote(source / p) for p in (str(ADAPTERS), *RTL))
+        + ' '.join(quote(source / p) for p in (str(ADAPTERS), *selected_rtl))
         + '; chparam ' + parameters + ' top; '
         # Both libraries spell disabled bus hold differently: OFF is the
         # board's Yosys primitive value, FALSE is Quartus's accepted spelling.
@@ -110,7 +158,7 @@ def elaboration(source: Path, work: Path, library: Path, *, package_profile=Fals
         # Combining byte writes before Verilog export lets Quartus infer the
         # existing dual-read VRAMs, including their OLD_DATA collision rules.
         # Small control arrays with multiple write processes become FFs.
-        'memory -nomap; memory_map t:$mem_v2 r:SIZE<=32 %i; opt -purge; '
+        + memory_pass + 'memory_map t:$mem_v2 r:SIZE<=32 %i; opt -purge; '
         'check -assert; write_json before-names.json; '
         # Quartus 17 crashes on flattened array names. This changes names only.
         # Keep this in the SAME Yosys execution: a JSON round trip loses signed
@@ -380,37 +428,9 @@ def main(argv=None) -> int:
         spec.loader.exec_module(generator)
         for vendor in ('kf8259', 'kf8253', 'kf8255'):
             generator.verify_vendor(vendor)
+        inputs = prepare_elaboration_inputs(source, work, generator, dos_profile=args.dos_profile)
         if args.dos_profile:
-            generator.cpu_roms(work)
-            core = source / CORE
-            metadata = json.loads((core / 'firmware/hardware-dos.json').read_text())
-            bios_spec = json.loads((core / 'sim/bios.lock').read_text())
-            bios_path = core / metadata['bios']['file']
-            disk_path = core / metadata['floppy']['file']
-            bios = bios_path.read_bytes()
-            disk = disk_path.read_bytes()
-            if (len(bios) != metadata['bios']['size']
-                    or sha(bios_path) != metadata['bios']['sha256']
-                    or bios_spec['bios']['sha256'] != metadata['bios']['sha256']
-                    or len(disk) != metadata['floppy']['size']
-                    or sha(disk_path) != metadata['floppy']['sha256']):
-                raise ValueError('DOS BIOS or floppy image differs from its locked provenance')
-            firmware = bytes([0xff]) * (65536 - len(bios)) + bios
-            generator.boot_roms(work, firmware, prefix='pcxt_glabios')
-            font = bytearray(4096)
-            offset = bios_spec['ascii_font']['rom_offset']
-            for char in range(128):
-                font[char * 16:char * 16 + 8] = bios[offset + char * 8:offset + char * 8 + 8]
-            (work / 'pcxt_glabios_font.hex').write_text(''.join(f'{byte:02x}\n' for byte in font))
-            (work / 'pcxt_freedos_disk.hex').write_text(''.join(f'{byte:02x}\n' for byte in disk))
-            record['hardware_dos_inputs'] = {
-                'freedos_image_sha256': metadata['floppy']['sha256'],
-                'glabios_rom_sha256': metadata['bios']['sha256'],
-                'glabios_font_sha256': hashlib.sha256(font).hexdigest(),
-                'loaded_into_sdram_before_cpu_release': True,
-                'guest_disk_reads_use_sdram_media_path': True}
-        else:
-            generator.board_inputs(work)
+            record['hardware_dos_inputs'] = inputs
         (work / 'elaborate.ys').write_text(elaboration(
             source, work, library, package_profile=args.package_profile,
             build_id=args.build_id, dos_profile=args.dos_profile))
