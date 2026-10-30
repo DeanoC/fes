@@ -1,0 +1,31 @@
+{
+  "serial": "TRWU8J8G",
+  "boot_id": "c291b236-7eed-4e65-86c5-fb039dde3e68",
+  "results": [
+    {
+      "case": "wrong-boot",
+      "returncode": 1,
+      "stderr": "de25-computer: selected boot epoch differs",
+      "status": "expected-refusal"
+    },
+    {
+      "case": "wrong-cpu-address",
+      "returncode": 1,
+      "stderr": "de25-computer: invalid explicit CPU resource base",
+      "status": "expected-refusal"
+    },
+    {
+      "case": "wrong-build",
+      "returncode": 1,
+      "stderr": "de25-computer: DE25 mailbox identity/capabilities/build differ from selected artifact",
+      "status": "expected-refusal"
+    },
+    {
+      "case": "exclusive-owner",
+      "status": "expected-refusal",
+      "owner_status": 0,
+      "contender_status": 1,
+      "owner_output": "OWNER_STATUS=0 CONTENDER_STATUS=1\n{\"command\":\"keys\",\"status\":\"passed\",\"register_reads\":11134,\"register_writes\":742,\"physical_cpu_mmio\":true,\"production_runtime_admission\":false}\nde25-computer: computer already owned\n"
+    }
+  ]
+}

@@ -105,6 +105,38 @@ separates working factory-QSPI reboot from FPGA-first JTAG bootloader delivery.
 After a diagnostic cold reset, reload the exact bootloader-complete SOF; this
 recovers without a power cycle and preserves the closed warm-reset/DMA gates.
 
+## Board-local ZX81 maintenance
+
+The runtime's explicit `de25-computer` utility controls an already configured
+ZX81-HPS diagnostic directly from the DE25 CPU. It is built separately from
+the headless image with `make -C sources/libmister-runtime de25-computer`,
+selecting the retained AArch64 SDK compiler through `CXX` for board execution.
+The default host build supports help/early-refusal checks and does not open
+hardware on other architectures. This utility installs no daemon or core package.
+
+Before access, claim the board and bind the loaded full SOF, generated HPS
+handoff and selected computer build ID to that board's boot epoch. The audited
+ZX81-HPS design places the computer at CPU address `0x20010300`, span 32,
+through the HPS bridge at base zero plus peripheral offset `0x10300`.
+Its fabric JTAG address `0x00110300` belongs to a different master. The CPU
+bridge window follows Altera's [Agilex 5 Linux example](https://altera-fpga.github.io/rel-26.1.1/embedded-designs/agilex-5/e-series/premium-065a/fabric-config-linux/ug-fabric-config-linux-agx5e-premium-065a/);
+the actual generated connection/map and physical endpoint are checked separately.
+
+The CLI requires an explicit boot UUID, full computer build ID, CPU resource
+base and command. It checks the FES rootfs/model and boot epoch before opening
+registers and holds an exclusive cooperating maintenance lock. `probe` reads
+only endpoint ID/version, without identifying the computer build or writing
+control. `hold`, `run`, `reset`, `keys` and `media` additionally verify the
+selected computer build. Reset completion acknowledges execution control;
+observe the ROM prompt before typing LOAD or program input. Hardware bus stalls
+cannot be interrupted by these software deadlines. This is confined maintenance
+of an already verified, exclusively owned image; production MMIO, programming,
+reset fencing and package admission remain separate work.
+
+The [physical Linux/native-control record](validation/2026-10-30-de25-linux-zx81/README.md)
+retains the initial FES boot, DHCP failure, direct CPU control, observed BASIC
+sequence, separate image/client identities and remaining image qualification.
+
 ## Image artifacts
 
 The image output contains:
