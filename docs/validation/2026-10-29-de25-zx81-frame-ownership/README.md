@@ -26,7 +26,10 @@ scaled pixels, aligned DE/sync, missing rows rendered as paper, malformed line
 rejection, excess-row cropping, a partial final line, stopped source/reader
 clocks, recovery, HOLD, and stopped-clock epoch reset with presentation held
 through the next raster boundary. Writer/displayed-bank exclusion and
-frame-boundary-only ownership transfer are checked throughout.
+frame-boundary-only ownership transfer are checked throughout. After the
+reader resumes, the stopped-reader case also verifies that the queued seed-5
+frame became the displayed bank, rather than merely checking that it was not
+overwritten while pending.
 The video-only rerun binds source revision `7443fc4ee0bdba050f0278f4bdf171034da310bb`;
 the compiler and client receipts remain bound to their earlier source revisions.
 

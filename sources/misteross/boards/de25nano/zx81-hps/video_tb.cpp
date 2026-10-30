@@ -131,6 +131,9 @@ struct Bench {
         frame(5); before=publications;
         frame(6); frame(7); check(publications==before && R(pending), "stopped reader freed pending bank");
         pix_running=true; pixels(1650*750*2);
+        check(R(front_valid) && !R(pending) && R(front_rows)==270 &&
+              bank_seed[R(front)]==5,
+              "queued completed frame did not become the displayed bank after reader resumed");
         frame(8); pixels(1650*750*2);
         // The reader repeats the last complete image with the source stopped.
         sys_running=false; pixels(1650*750*2); sys_running=true;
