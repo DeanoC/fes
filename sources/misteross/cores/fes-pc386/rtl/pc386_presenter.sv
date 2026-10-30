@@ -24,7 +24,10 @@
 // not loaded in time shows black and counts as an underflow.
 //
 // video is the shell video word: RGB888 in 23..0 (red high), then DE, HS, VS
-// and CE, for fes_display_plane.
+// and CE, for fes_display_plane. The 720p counters and syncs reset only on
+// timing_reset (the pixel PLL's lock), so a machine reset never breaks the
+// HDMI signal; pixel_reset clears the picture state, which shows black until
+// the next frame setup.
 module pc386_presenter #(
     parameter [28:0] CAPTURE_BASE = 29'h06140000
 ) (
@@ -39,7 +42,7 @@ module pc386_presenter #(
     input wire ddr_waitrequest,
     input wire [63:0] ddr_readdata,
     input wire ddr_readdatavalid,
-    input wire pixel_clk, pixel_reset,
+    input wire pixel_clk, pixel_reset, timing_reset,
     output reg [27:0] video,
     output reg [31:0] underflows,
     output reg [31:0] frames_shown
@@ -55,7 +58,7 @@ module pc386_presenter #(
     reg [10:0] h;
     reg [9:0] v;
     always @(posedge pixel_clk) begin
-        if (pixel_reset) begin h <= 0; v <= 0; end
+        if (timing_reset) begin h <= 0; v <= 0; end
         else begin
             h <= h == H_LAST ? 11'd0 : h + 11'd1;
             if (h == H_LAST) v <= v == V_LAST ? 10'd0 : v + 10'd1;
@@ -315,7 +318,7 @@ module pc386_presenter #(
     end
     wire in_picture = h >= LEFT && h < LEFT + 11'd960 && v < 10'd720;
     always @(posedge pixel_clk) begin
-        if (pixel_reset) video <= 28'h8000000;
+        if (timing_reset) video <= 28'h8000000;
         else video <= {1'b1, v >= 10'd725 && v < 10'd730, h >= 11'd1390 && h < 11'd1430, h < 11'd1280 && v < 10'd720,
                        in_picture && showing && !row_blank ? picture : 24'd0};
     end

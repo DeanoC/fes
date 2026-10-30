@@ -5,15 +5,23 @@
   "description": "The MiSTer port of opl2_fpga (https://github.com/gtaylormb/opl2_fpga), the YM3812 cut of opl3_fpga. Only the synthesis core under channels is vendored; the host interface, clock divider, timers and LEDs are replaced by cores/fes-pc386/rtl/pc386_opl2.sv.",
   "reference": "Nuked-OPL3 765ec962e473aeb767e4cba74ffdc8f588ffbfe8 in OPL2 mode, default build (sample-exact; scripts/sim_fes_pc386.py --suite opl2)",
   "local_changes": [
+    "calc_envelope_shift.sv: EG_INC_STEP is a plain 16-bit localparam indexed by {rate_lo, eg_timer_lo}, the same bits a [3:0][3:0] typed localparam indexed [rate_lo][eg_timer_lo] reads; the locked Yosys rejects the typed 2-D localparam.",
     "calc_envelope_shift.sv: EG_INC_STEP packed in the order its [rate_lo][eg_timer_lo] index reads; upstream had rows and bits reversed, which gave rates 12-14 the wrong step.",
     "calc_phase_inc.sv: Vibrato offset added to the f-number before the block shift and multiplier, as Nuked-OPL3 does, instead of to the phase increment.",
+    "calc_rhythm_phase.sv: $bits(operator_t) is the constant 3 (OPERATOR_T_BITS), since the locked Yosys cannot take $bits of a type in an expression.",
     "calc_rhythm_phase.sv: Noise LFSR as Nuked-OPL3's 23-bit Fibonacci register stepping once per operator slot (36 per sample); top-cymbal phase latched only in rhythm mode.",
     "channels.sv: Channels 6-8 mix their second operator from the previous sample (Nuked-OPL3 OPL_QUIRK_CHANNELSAMPLEDELAY); channel sums are no longer doubled, so the output has Nuked-OPL3's scale.",
+    "channels.sv: state and self get their power-on values from initial statements instead of initializers on their anonymous enum and packed struct declarations, which the locked Yosys rejects. Same registers and values.",
     "control_operators.sv: NTS is latched per channel when its A0h-A8h or B0h-B8h register is written, which is when Nuked-OPL3 derives the key scale value.",
+    "control_operators.sv: the operator alignment assertion is simulation-only (`ifndef SYNTHESIS`), as Yosys has no concurrent assertions; $bits(fnum[9:8]) is the constant 2, since the locked Yosys cannot take $bits of a part select.",
     "envelope_generator.sv: The AM bit is pipelined to stage 2 with the operator; upstream read the register memory there, which by then shows the next operator.",
+    "envelope_generator.sv: the state memory's width is the constant 4 instead of $bits(state_t), which the locked Yosys cannot take in an expression.",
+    "mem_single_bank_reset.sv: state and self get their power-on values from initial statements instead of initializers on their anonymous enum and packed struct declarations, which the locked Yosys rejects. Same registers and values.",
     "operator.sv: In rhythm mode a drum operator is keyed by its drum bit OR its channel key-on, as Nuked-OPL3 ORs the two key sources.",
     "opl2_pkg.sv: INSTANTIATE_SAMPLE_DAC_CDC = 0: the sample stays in the machine clock domain; the mixer resamples it.",
+    "phase_generator.sv: $bits(operator_t) is the constant 3 (OPERATOR_T_BITS), since the locked Yosys cannot take $bits of a type in an expression.",
     "phase_generator.sv: Key-on resets the phase accumulator to this sample's increment, not zero, as Nuked-OPL3 resets then adds.",
+    "pipeline_sr.sv: The power-on value is an initial replication instead of a '{default: POR_VALUE} pattern on the output declaration, which the locked Yosys rejects on a packed array (DeanoC/yosys issue linked in the pc386 M4 record). Same registers and values.",
     "tremolo.sv: Tremolo rewritten to Nuked-OPL3's: position 0-209 stepping every 64 samples, depth shift 2 or 4, value for the next sample computed after the last operator.",
     "vibrato.sv: Vibrato rewritten to Nuked-OPL3's: eight positions stepping every 1024 samples, giving a signed f-number offset."
   ],
@@ -26,7 +34,7 @@
     {
       "path": "calc_envelope_shift.sv",
       "upstream_path": "src/calc_envelope_shift.sv",
-      "sha256": "5c1d3e0b6442b5579aac8a7c1fb8cbf5b5cb02b6db66d73a88cf70fa0b7ee064",
+      "sha256": "148e8a9e9d7cf5dc3dce43c4b5469df48dd9be6bc7b29561aa33932a2e730949",
       "upstream_sha256": "9ac8e66697d4dda48f60a76c63ee115716eacd99a28484ee5310255dfaf30741"
     },
     {
@@ -38,19 +46,19 @@
     {
       "path": "calc_rhythm_phase.sv",
       "upstream_path": "src/calc_rhythm_phase.sv",
-      "sha256": "2d1d1d55a70bbb7b2d6ebb6a425867eb0333f8cffcb138a31b41698a46bcfcc5",
+      "sha256": "76e002cbe36c14293e690efa17f5015b24c4d8a7041ffd24d2a0272cba4a3b04",
       "upstream_sha256": "212ad04f77933d2d5254d8ce902ac431c2415fb69aa2ff30c5b5938f043ecf36"
     },
     {
       "path": "channels.sv",
       "upstream_path": "src/channels.sv",
-      "sha256": "118e1814436a8f4b574155a3f83c3a4b87b124bb8ed7af7010b1d485191ce4ae",
+      "sha256": "fc50881f3f52bfaabaa1cc35f720d6306e90566bf6ec9c5aadb6ce4011b53837",
       "upstream_sha256": "fb739d78ad69eb407f27cdbe451957d8ca478909dff0991ce98138aec085a378"
     },
     {
       "path": "control_operators.sv",
       "upstream_path": "src/control_operators.sv",
-      "sha256": "ca66204f005e03452f7706f58cefecabfbdb6976d8fc5e158a560b1f1a9ed9da",
+      "sha256": "290b0017c8d187694569b3f75a9e2c3574741db5407588b6adcc11136e82ce4f",
       "upstream_sha256": "b1fdf7de931f3cf5502d1441949a0a61c406ffaffc4af394f17600dc5fb035ca"
     },
     {
@@ -61,7 +69,7 @@
     {
       "path": "envelope_generator.sv",
       "upstream_path": "src/envelope_generator.sv",
-      "sha256": "568588355b7179863224b474c29b388d33e8081beeaaa7b01f6bddf1c6045e14",
+      "sha256": "4be59e93d5eb7ffc0e781f1027cbde01ed899e066d7087c9274a8647cd6262cc",
       "upstream_sha256": "bb69d72c35a3a6f4aa6e4bee91e0c8a3bd6b4254691bbf003b91a517a7394b7e"
     },
     {
@@ -87,7 +95,8 @@
     {
       "path": "mem_single_bank_reset.sv",
       "upstream_path": "src/mem_single_bank_reset.sv",
-      "sha256": "eda3334f0a8ddcdb2ae6789b29031a2a7abd3074174c78d4e53cd7212664e7c2"
+      "sha256": "344f6153c89fdc6a1469c093f1b7a9a8d5fd4bcf4ed0777e46b8bf372744d26c",
+      "upstream_sha256": "eda3334f0a8ddcdb2ae6789b29031a2a7abd3074174c78d4e53cd7212664e7c2"
     },
     {
       "path": "operator.sv",
@@ -114,13 +123,14 @@
     {
       "path": "phase_generator.sv",
       "upstream_path": "src/phase_generator.sv",
-      "sha256": "72b31c6dc825e01cde66f14305781df4c5a975c042ef5c6b568985a8e4586908",
+      "sha256": "11841c5a1c9747dde8d83a4f326fa64b5256a5d3ef072e32d195dad06b2493ad",
       "upstream_sha256": "adf9ba1892ad71a07bf2d80ad7c8c117a4a16f5421efa48d89bf374289b1ca3f"
     },
     {
       "path": "pipeline_sr.sv",
       "upstream_path": "src/pipeline_sr.sv",
-      "sha256": "2b7d2b87b14644f45b354e2b8137054f85e86aabe1cf535b5036e74465e3af41"
+      "sha256": "66626b1c730792d9231c6b3adda8a31199386c1b0fede1040db19ee492eeb7e4",
+      "upstream_sha256": "2b7d2b87b14644f45b354e2b8137054f85e86aabe1cf535b5036e74465e3af41"
     },
     {
       "path": "tremolo.sv",

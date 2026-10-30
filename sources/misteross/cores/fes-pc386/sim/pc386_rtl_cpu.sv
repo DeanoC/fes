@@ -29,6 +29,7 @@ module pc386_rtl_cpu (
     output logic             dmem_read,
     output logic [3:0]       dmem_bytes,  // the load's bytes: 1, 2, 4, 6 or 8
     output logic [31:0]      dmem_eip,    // the load's instruction's EIP
+    output logic             dmem_awaited, // the load's uop has no fault yet, so M2 waits for its bytes
     output logic             edge_load,   // on the last edge: M1 sent a load
     output logic             edge_move,   // ... D to WB moved (no freeze)
     output logic             edge_commit, // ... WB committed its uop
@@ -70,6 +71,7 @@ module pc386_rtl_cpu (
     fes_i386_cpu cpu (.*);
     assign dmem_bytes = cpu.m1_s.uop.mem.bytes;
     assign dmem_eip = cpu.m1_s.eip;
+    assign dmem_awaited = cpu.m1_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE;
     always_ff @(posedge clk) begin
         edge_load <= dmem_read;
         edge_move <= !cpu.freeze;
