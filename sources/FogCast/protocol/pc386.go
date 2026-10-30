@@ -336,6 +336,15 @@ func LibraryMachineHeaders(h http.Header) (*LibraryMachineBinding, bool) {
 }
 
 // HardDiskRequestError refuses a hard-disk image or geometry the disk cannot hold.
+// Kit messages the host shows as they are. StagedDiskCorruptMessage follows a
+// launch whose staged image no longer matched its digest; the kit removed it,
+// so the next launch stages it again. DiskImageStorageFullMessage is an
+// upload that ran the SD card out of space.
+const (
+	StagedDiskCorruptMessage    = "the staged hard-disk image was corrupt and has been removed; launch again to stage it again"
+	DiskImageStorageFullMessage = "the kit's SD card has no room for this hard-disk image"
+)
+
 func HardDiskRequestError() *APIError {
 	return &APIError{Code: CodeBadRequest, Phase: "request",
 		Message: "hard-disk media requires a raw image of 1 to 128 MiB in whole 512-byte sectors, with at most 16383 cylinders, 16 heads and 63 sectors per track inside it"}

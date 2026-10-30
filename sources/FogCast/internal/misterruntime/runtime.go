@@ -618,6 +618,12 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 		apiErr := mapProtocol2Error(response.Error)
 		attempted = !protocol2PreMutationFailure(response.Error)
 		preserveInput = !attempted
+		if disk != nil && response.Error != nil && response.Error.Code == "corrupt_data" && response.Error.Phase == "input" {
+			// Only the ATA disk's base check reports corrupt input: the
+			// staged image no longer matches its digest.
+			r.removeCorruptStagedDisk(disk)
+			apiErr.Message = protocol.StagedDiskCorruptMessage
+		}
 		if response.Error != nil && response.Error.Phase == "core_data" && (response.Error.Code == "corrupt_data" || response.Error.Code == "incompatible_data" || response.Error.Code == "save_failed") && before != nil && sameProtocol2RuntimeState(*before, response) {
 			attempted = false
 			preserveInput = true

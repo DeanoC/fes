@@ -160,3 +160,60 @@ func TestHardDiskLaunchGeometryAndStaging(t *testing.T) {
 		t.Fatal("floppy role launched as a hard disk")
 	}
 }
+
+func TestMachineLoadIdentityRequiresTheBoundDisk(t *testing.T) {
+	noSave := false
+	sha := strings.Repeat("c", 64)
+	unit := protocol.MediaUnitStatus{Unit: protocol.AtaDiskUnit, Interface: protocol.AtaDiskInterface(), MinBytes: uint32(protocol.AtaDiskMinBytes),
+		MaxBytes: uint32(protocol.AtaDiskMaxBytes), ChunkBytes: protocol.AtaDiskChunkBytes, State: protocol.MediaUnitReady, Saveable: &noSave,
+		Persistence: &protocol.MediaDataStatus{Mode: "persistent", GameID: "ultima-vi", BaseMediaID: sha, Revision: "absent"}}
+	status := func(u *protocol.MediaUnitStatus) *protocol.CorePackageStatus {
+		p := &protocol.CorePackageStatus{PersistenceMode: "persistent", ABI: protocol.RuntimeContract{ID: protocol.ComputerABIID, Major: 1, Minor: 1},
+			ActiveInterfaces: []protocol.RuntimeInterface{{ID: protocol.AtaDiskInterface().ID, Major: protocol.AtaDiskInterface().Major}}}
+		if u != nil {
+			p.MediaUnits = []protocol.MediaUnitStatus{*u}
+		}
+		return p
+	}
+	withDisk := coreLoadSource{machine: &protocol.LibraryMachineBinding{GameID: "ultima-vi", Disk: &protocol.StagedDisk{SHA256: sha, Size: 1 << 20}}}
+	if !withDisk.matchesLoadedIdentity(status(&unit)) {
+		t.Fatal("the disk the host sent was refused")
+	}
+	for name, change := range map[string]func(*protocol.MediaUnitStatus){
+		"other game": func(u *protocol.MediaUnitStatus) {
+			u.Persistence = &protocol.MediaDataStatus{Mode: "persistent", GameID: "wolf3d", BaseMediaID: sha, Revision: "absent"}
+		},
+		"other image": func(u *protocol.MediaUnitStatus) {
+			u.Persistence = &protocol.MediaDataStatus{Mode: "persistent", GameID: "ultima-vi", BaseMediaID: strings.Repeat("d", 64), Revision: "absent"}
+		},
+		"unbound":     func(u *protocol.MediaUnitStatus) { u.Persistence = nil },
+		"empty drive": func(u *protocol.MediaUnitStatus) { u.State, u.Persistence = protocol.MediaUnitEmpty, nil },
+	} {
+		u := unit
+		change(&u)
+		if withDisk.matchesLoadedIdentity(status(&u)) {
+			t.Errorf("%s accepted", name)
+		}
+	}
+	if withDisk.matchesLoadedIdentity(status(nil)) {
+		t.Error("a load without the disk unit accepted")
+	}
+	// With no disk sent, the drive must be empty or absent.
+	diskless := coreLoadSource{machine: &protocol.LibraryMachineBinding{GameID: "ultima-vi"}}
+	empty := unit
+	empty.State, empty.Persistence = protocol.MediaUnitEmpty, nil
+	if !diskless.matchesLoadedIdentity(status(&empty)) || !diskless.matchesLoadedIdentity(status(nil)) {
+		t.Fatal("an empty drive was refused")
+	}
+	if diskless.matchesLoadedIdentity(status(&unit)) {
+		t.Fatal("a disk the host never sent was accepted")
+	}
+}
+
+func TestStagingKeepsTheKitStorageError(t *testing.T) {
+	full := &stagingClient{probeErr: &protocol.APIError{Code: protocol.CodeCacheFull, Message: protocol.DiskImageStorageFullMessage, Phase: "request"}}
+	var apiErr *protocol.APIError
+	if err := stageHardDisk(context.Background(), full, &hardDiskSource{}); !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeCacheFull || apiErr.Message != protocol.DiskImageStorageFullMessage {
+		t.Fatalf("full card %v", err)
+	}
+}

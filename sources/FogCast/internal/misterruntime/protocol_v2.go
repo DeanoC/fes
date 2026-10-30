@@ -1556,12 +1556,13 @@ func descriptorPersistentMedia(d corepackage.Descriptor, units []protocol.MediaU
 		}
 	}
 	for _, unit := range units {
-		if unit.Interface == protocol.AtaDiskInterface() && unit.Persistence == nil &&
-			(unit.State == protocol.MediaUnitEmpty || unit.State == protocol.MediaUnitLoading) {
-			return protocol.DeclaresAtaDisk(d)
+		if unit.Interface == protocol.AtaDiskInterface() {
+			return unit.Persistence == nil && (unit.State == protocol.MediaUnitEmpty || unit.State == protocol.MediaUnitLoading) &&
+				protocol.DeclaresAtaDisk(d)
 		}
 	}
-	return false
+	// With no disk, a pc386 machine record alone is persistent.
+	return protocol.DeclaresPc386Machine(d) && !protocol.DeclaresAtaDisk(d)
 }
 
 func protocol2MediaStatus(active Protocol2ActivePackage, capabilities Protocol2Capabilities) *protocol.CorePackageStatus {

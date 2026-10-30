@@ -4,11 +4,13 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/DeanoC/FogCast/protocol"
@@ -63,8 +65,9 @@ func (r *Runtime) DiskImage(ctx context.Context, sha string) (protocol.DiskImage
 	return protocol.DiskImageStatus{SHA256: sha, Size: size, Staged: true}, nil
 }
 
-// StageDiskImage writes body under its digest after verifying it, then keeps
-// only the most recently used images.
+// StageDiskImage writes body under its digest after verifying it. It first
+// makes room: a full card would otherwise fail every retry before anything
+// was evicted.
 func (r *Runtime) StageDiskImage(ctx context.Context, sha string, size int64, body io.Reader) (result protocol.DiskImageStatus, apiErr *protocol.APIError) {
 	if r.diskImageRoot == "" {
 		return result, unsupportedOperationError()
@@ -75,6 +78,7 @@ func (r *Runtime) StageDiskImage(ctx context.Context, sha string, size int64, bo
 	if err := os.MkdirAll(r.diskImageRoot, 0o700); err != nil {
 		return result, diskImageStorageError()
 	}
+	r.evictDiskImages(sha)
 	temporary, err := os.CreateTemp(r.diskImageRoot, ".stage-*")
 	if err != nil {
 		return result, diskImageStorageError()
@@ -87,14 +91,24 @@ func (r *Runtime) StageDiskImage(ctx context.Context, sha string, size int64, bo
 		}
 	}()
 	hash := sha256.New()
-	written, err := io.Copy(io.MultiWriter(temporary, hash), io.LimitReader(&contextReader{ctx: ctx, reader: body}, size+1))
+	file := &stageWriter{Writer: temporary}
+	written, err := io.Copy(io.MultiWriter(file, hash), io.LimitReader(&contextReader{ctx: ctx, reader: body}, size+1))
 	if err != nil {
+		if file.err != nil {
+			return result, diskImageWriteError(file.err)
+		}
 		return result, &protocol.APIError{Code: protocol.CodeTransferFailed, Message: "disk image upload did not complete", Phase: "request"}
 	}
 	if written != size || hex.EncodeToString(hash.Sum(nil)) != sha {
 		return result, &protocol.APIError{Code: protocol.CodeDigestMismatch, Message: "disk image bytes differ from their digest", Phase: "request"}
 	}
-	if temporary.Sync() != nil || temporary.Close() != nil || os.Rename(temporary.Name(), r.diskImagePath(sha)) != nil {
+	if err := temporary.Sync(); err != nil {
+		return result, diskImageWriteError(err)
+	}
+	if err := temporary.Close(); err != nil {
+		return result, diskImageWriteError(err)
+	}
+	if os.Rename(temporary.Name(), r.diskImagePath(sha)) != nil {
 		return result, diskImageStorageError()
 	}
 	keep = true
@@ -102,10 +116,42 @@ func (r *Runtime) StageDiskImage(ctx context.Context, sha string, size int64, bo
 		_ = directory.Sync()
 		_ = directory.Close()
 	}
-	r.evictDiskImages(sha)
 	return protocol.DiskImageStatus{SHA256: sha, Size: size, Staged: true}, nil
 }
 
+// stageWriter remembers a failed write, so a failure of the card is not
+// reported as a failed upload.
+type stageWriter struct {
+	io.Writer
+	err error
+}
+
+func (w *stageWriter) Write(p []byte) (int, error) {
+	n, err := w.Writer.Write(p)
+	if err != nil {
+		w.err = err
+	}
+	return n, err
+}
+
+func diskImageWriteError(err error) *protocol.APIError {
+	if errors.Is(err, syscall.ENOSPC) {
+		return &protocol.APIError{Code: protocol.CodeCacheFull, Message: protocol.DiskImageStorageFullMessage, Phase: "request"}
+	}
+	return diskImageStorageError()
+}
+
+// removeCorruptStagedDisk drops a staged image the runtime found differing
+// from its digest, so the probe stops reporting it and the next launch
+// stages it again.
+func (r *Runtime) removeCorruptStagedDisk(disk *ataDiskRequest) {
+	if disk != nil && disk.Path == r.diskImagePath(disk.BaseMediaID) {
+		_ = os.Remove(disk.Path)
+	}
+}
+
+// evictDiskImages removes uploads that never finished and all but the most
+// recently used diskImagesKept-1 images other than current.
 func (r *Runtime) evictDiskImages(current string) {
 	entries, err := os.ReadDir(r.diskImageRoot)
 	if err != nil {

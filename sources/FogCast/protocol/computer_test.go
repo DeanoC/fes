@@ -174,6 +174,27 @@ func TestAtaDiskUnitContractAndPersistentStatus(t *testing.T) {
 	}
 }
 
+func TestPc386MachineRecordAlonePersists(t *testing.T) {
+	machine := RuntimeInterface{ID: Pc386MachineInterface().ID, Major: Pc386MachineInterface().Major}
+	p := &CorePackageStatus{PackageID: strings.Repeat("a", 64), Generation: 3, PersistenceMode: "persistent",
+		ABI: RuntimeContract{ID: "fes.computer", Major: 1, Minor: 1}, ActiveInterfaces: []RuntimeInterface{machine}}
+	if !PersistentMediaStatusValid(p) || PersistentMediaBound(p) {
+		t.Fatal("a pc386 package without a disk was refused its machine record")
+	}
+	// A package with the disk must still report the disk's unit.
+	withDisk := *p
+	withDisk.ActiveInterfaces = []RuntimeInterface{machine, {ID: AtaDiskInterface().ID, Major: AtaDiskInterface().Major}}
+	legacy := *p
+	legacy.ABI.Minor = 0
+	recordless := *p
+	recordless.ActiveInterfaces = nil
+	for name, status := range map[string]*CorePackageStatus{"disk without its unit": &withDisk, "computer 1.0": &legacy, "no record": &recordless} {
+		if PersistentMediaStatusValid(status) {
+			t.Errorf("%s accepted as persistent", name)
+		}
+	}
+}
+
 func TestComputerInputCapabilitiesIncludeMinorOne(t *testing.T) {
 	p := computerStatus()
 	p.CorePackage.ActiveInterfaces = append(p.CorePackage.ActiveInterfaces,

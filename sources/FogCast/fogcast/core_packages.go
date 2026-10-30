@@ -387,6 +387,13 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 		if err := validateROMMediaContract(inspection.Descriptor); err != nil {
 			return coreLoadSource{}, err
 		}
+		if (protocol.DeclaresAtaDisk(inspection.Descriptor) || protocol.DeclaresPc386Machine(inspection.Descriptor)) &&
+			(inspection.Descriptor.ROM != nil || inspection.Descriptor.Format == 4) {
+			// Only the pc386 launch below sends the game and stages the disk;
+			// a ROM-linked launch would send neither.
+			return coreLoadSource{}, &protocol.APIError{Code: protocol.CodeBadRequest, Phase: "admission",
+				Message: "a package with a hard disk or a pc386 machine record cannot link a ROM"}
+		}
 		if protocol.RequiresCoreMedia(inspection.Descriptor) && !(inspection.Descriptor.ROM != nil && inspection.Descriptor.ROM.Role == "cartridge") && entry.MediaID == "" {
 			return coreLoadSource{}, &protocol.APIError{Code: protocol.CodeBadRequest, Phase: "admission",
 				Message: "application requires selected library media before launch"}
