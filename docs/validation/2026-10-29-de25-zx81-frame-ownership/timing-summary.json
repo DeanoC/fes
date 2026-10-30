@@ -1,63 +1,63 @@
 {
   "evidence_class": "final routed four-corner diagnostic; no physical acceptance",
-  "source_revision": "ec14fda2964fd4fba1f5d3396bc70b754a0e1d29",
+  "source_revision": "ae8b394b61d815ab69eb090f5158e8fc2a0951c1",
   "corner_count": 4,
   "paired_rows": 104,
   "groups": {
     "acknowledge_tail": {
       "setup": {
         "rows": 4,
-        "min_slack_ns": 9.542
+        "min_slack_ns": 9.39
       },
       "hold": {
         "rows": 4,
-        "min_slack_ns": 0.118
+        "min_slack_ns": 0.193
       }
     },
     "metadata": {
       "setup": {
         "rows": 36,
-        "min_slack_ns": 3.659
+        "min_slack_ns": 3.339
       },
       "hold": {
         "rows": 36,
-        "min_slack_ns": 0.011
+        "min_slack_ns": 0.008
       }
     },
     "pixel_release": {
       "setup": {
         "rows": 4,
-        "min_slack_ns": 12.947
+        "min_slack_ns": 13.0
       },
       "hold": {
         "rows": 4,
-        "min_slack_ns": 0.132
+        "min_slack_ns": 0.109
       }
     },
     "request_tail": {
       "setup": {
         "rows": 4,
-        "min_slack_ns": 12.961
+        "min_slack_ns": 12.847
       },
       "hold": {
         "rows": 4,
-        "min_slack_ns": 0.124
+        "min_slack_ns": 0.164
       }
     },
     "system_release": {
       "setup": {
         "rows": 4,
-        "min_slack_ns": 9.561
+        "min_slack_ns": 9.566
       },
       "hold": {
         "rows": 4,
-        "min_slack_ns": 0.111
+        "min_slack_ns": 0.109
       }
     }
   },
-  "metadata_data_delay_max_ns": 3.907,
-  "audit_sha256": "09becc0487f3b339a60b8ab8d62127c0bb9b88e07c82ed45d713e990f5d72c94",
-  "sof_sha256": "fe91af9119df01b3173391f5c6017f86a0379ffefc078afb8b6f6024e9aa23fd",
+  "metadata_data_delay_max_ns": 4.231,
+  "audit_sha256": "51396f049a6a503df6d1273bd762d5c7ce50843bd1f12c5094bc18f1365b8056",
+  "sof_sha256": "e89f5a8f9543d69794e581ac476433bb68dcd201cc083a893ef9366c5892f320",
   "renderer_memory": {
     "kind": "M20K simple-dual-port dual-clock",
     "logical_bits": 177120,
@@ -67,11 +67,11 @@
   },
   "hold_minimum_note": "Displayed global 0.000 ns is rounded; compiler timing is not physical or positive-margin signoff.",
   "constrained_summary_minima_ns": {
-    "Setup": 1.662,
+    "Setup": 1.763,
     "Hold": 0.0,
-    "Recovery": 7.421,
-    "Removal": 0.066,
-    "Setup Data Delay": 6.097,
+    "Recovery": 7.427,
+    "Removal": 0.026,
+    "Setup Data Delay": 5.774,
     "Minimum Pulse Width": 0.22
   },
   "timing_closure": "Pass",
@@ -79,39 +79,29 @@
   "overall_design_closure": "Fail",
   "failed_design_assistant_rules": [
     {
-      "rule": "TMC-20012",
-      "name": "Missing Output Delay Constraint",
+      "rule": "TMC-20012 - Missing Output Delay Constraint",
       "severity": "High",
-      "violations": 30,
-      "waived": 0
+      "violations": 30
     },
     {
-      "rule": "TMC-20011",
-      "name": "Missing Input Delay Constraint",
+      "rule": "TMC-20011 - Missing Input Delay Constraint",
       "severity": "High",
-      "violations": 2,
-      "waived": 0
+      "violations": 2
     },
     {
-      "rule": "LNT-30023",
-      "name": "Reset Nets with Polarity Conflict",
+      "rule": "LNT-30023 - Reset Nets with Polarity Conflict",
       "severity": "Medium",
-      "violations": 2,
-      "waived": 0
+      "violations": 2
     },
     {
-      "rule": "RDC-50003",
-      "name": "Multiple Asynchronous Reset Synchronizers in the Same Clock Domain",
+      "rule": "RDC-50003 - Multiple Asynchronous Reset Synchronizers in the Same Clock Domain",
       "severity": "Medium",
-      "violations": 2,
-      "waived": 0
+      "violations": 2
     },
     {
-      "rule": "RES-50101",
-      "name": "Intra-Clock False Path Reset Synchronizer",
+      "rule": "RES-50101 - Intra-Clock False Path Reset Synchronizer",
       "severity": "Low",
-      "violations": 3,
-      "waived": 0
+      "violations": 3
     }
   ],
   "cdc_50003": {
@@ -139,39 +129,39 @@
       "hold": 9
     },
     "Paths to Unconstrained Output Ports (Pairs-Only)": {
-      "setup": 2581,
-      "hold": 2581
+      "setup": 2494,
+      "hold": 2494
     }
   },
-  "fitter_memory_row": [
-    "soc_inst|subsys_periph|fes_computer|fes_computer|video|fb_rtl_0|auto_generated|altera_syncram_impl1|ALTERA_SYNCRAM",
-    "M20K",
-    "Simple Dual Port",
-    "Dual Clocks",
-    "22140",
-    "8",
-    "22140",
-    "8",
-    "yes",
-    "no",
-    "yes",
-    "no",
-    "177120",
-    "22140",
-    "8",
-    "22140",
-    "8",
-    "177120",
-    "11.000",
-    "0.000",
-    "None",
-    "M20K_X92_Y21_N0, M20K_X92_Y18_N0, M20K_X92_Y16_N0, M20K_X92_Y15_N0, M20K_X92_Y23_N0, M20K_X92_Y24_N0, M20K_X92_Y17_N0, M20K_X92_Y25_N0, M20K_X92_Y20_N0, M20K_X92_Y22_N0, M20K_X92_Y19_N0",
-    "Don't care",
-    "New data",
-    "New data",
-    "Off",
-    "No",
-    "High Speed",
-    "Yes"
-  ]
+  "fitter_memory_row": {
+    "Name": "soc_inst|subsys_periph|fes_computer|fes_computer|video|fb_rtl_0|auto_generated|altera_syncram_impl1|ALTERA_SYNCRAM",
+    "Type": "M20K",
+    "Mode": "Simple Dual Port",
+    "Clock Mode": "Dual Clocks",
+    "Port A Depth": "22140",
+    "Port A Width": "8",
+    "Port B Depth": "22140",
+    "Port B Width": "8",
+    "Port A Input Registers": "yes",
+    "Port A Output Registers": "no",
+    "Port B Input Registers": "yes",
+    "Port B Output Registers": "no",
+    "Logical Size": "177120",
+    "Implementation Port A Depth": "22140",
+    "Implementation Port A Width": "8",
+    "Implementation Port B Depth": "22140",
+    "Implementation Port B Width": "8",
+    "Implementation Bits": "177120",
+    "M20K blocks": "11.000",
+    "MLABs": "0.000",
+    "MIF": "None",
+    "Location": "M20K_X92_Y24_N0, M20K_X92_Y21_N0, M20K_X92_Y25_N0, M20K_X92_Y22_N0, M20K_X92_Y26_N0, M20K_X92_Y20_N0, M20K_X92_Y23_N0, M20K_X92_Y27_N0, M20K_X92_Y17_N0, M20K_X92_Y19_N0, M20K_X92_Y18_N0",
+    "Mixed Port RDW Mode": "Don't care",
+    "Port A RDW Mode": "New data",
+    "Port B RDW Mode": "New data",
+    "ECC Mode": "Off",
+    "ECC Pipeline Registers": "No",
+    "Performance Mode": "High Speed",
+    "Fits in MLABs": "Yes"
+  }
 }

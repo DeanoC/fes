@@ -115,6 +115,13 @@ int main(int argc,char **argv) {
     {Bench b;b.monitor=false;b.d.persona_b=1;b.command(2,1,0xc001a001);for(int n=0;n<20;n++)b.tick();b.fault(64);}
     {Bench b;b.monitor=false;b.d.drop_response=1;b.command(2,1,0xc001a001);for(int n=0;n<70;n++)b.tick();b.fault(32);need(b.read32(24)==0,"timeout acknowledged command");}
     {Bench b;b.monitor=false;b.command(2,1,0xc001a001);b.completed(1);b.d.inject_response=1;for(int n=0;n<3;n++)b.tick();b.fault(128);}
+    {Bench b;b.monitor=false;b.d.drop_response=1;b.command(2,1,0xc001a001);
+     for(int n=0;n<20&&!b.d.req;n++)b.tick();
+     need(b.d.req,"probe request absent for same-edge response test");
+     b.d.inject_response=1;b.tick();b.d.inject_response=0;
+     for(int n=0;n<10;n++)b.tick();
+     b.fault(128);
+     need(b.read32(24)==0&&b.read32(40)==0,"request-edge response completed the probe");}
     {Bench b;b.d.inject_response=1;for(int n=0;n<20;n++)b.tick();need(b.d.frozen && b.read32(20)==0,"frozen PR output noise was consumed");b.d.inject_response=0;b.command(2,1,0xc001a001);b.completed(1);}
     {Bench b;b.monitor=false;b.d.reset_n=0;b.d.eval();need(!b.d.frozen && !b.d.running,"stopped-clock reset did not revoke state");b.d.reset_n=1;for(int n=0;n<4;n++)b.tick();b.fault(1);b.write32(12,0,15,false);}
     {Bench b;b.monitor=false;need(b.read32(3)==0,"invalid address data");b.fault(16);}

@@ -7,22 +7,25 @@ mailbox RUN and PR RUNNING. HOLD/freeze registers an idle CPU bus before the
 existing drain/settle acknowledgement. Selection resets/reboots BASIC.
 
 Owner: misteross. Current base: `809e1b44b91093179b6e5e3d033ecad47c752410`
-(PR #1269). The task started at `c81f37d681bc0e4d684d0ce770e471dd7462bd68`.
-Normal dependency merges `d70e42a266` and `d38319471b` combine #1272/#1260 and
-absorb the updated RAM-persona parent, including its 16,375-byte tape bound.
-Final compiler and client producer: `c7a991110c993f69ad1a94af504679289aae4c9e`.
-The actual C++ controllers, shared definitions and 24-member runtime archive
-are unchanged from the current parent; runtime differences are documentation.
+(PR #1269). Dependency merges `d70e42a266` and `d38319471b` combine #1272/#1260
+and absorb the updated RAM-persona parent, including its 16,375-byte tape
+bound. The current-head Quartus producer is
+`ae8b394b61d815ab69eb090f5158e8fc2a0951c1`, with source-closure seal
+`5353a36fb0696f5d7aeacb7e74192079efa2723a0d7c34d197de2b95512a5c55`.
+The retained actual-client proof remains bound to producer
+`c7a991110c993f69ad1a94af504679289aae4c9e` and is not attributed to the
+current-head RTL or artifacts.
 
 ## Actual-client and RTL evidence
 
-[Fourteen native/static-AArch64 cases](client-proof.json) execute both actual
-C++ controllers against the actual combined endpoint/machine/persona RTL.
+[The retained fourteen native/static-AArch64 cases](client-proof.json) execute
+both actual C++ controllers against the producer recorded in that receipt.
 AArch64 runs under QEMU Cortex-A76 using the pinned SDK image and read-only
-volume recorded in the receipt; the executable is static ELF64 AArch64.
-Both architectures produce identical semantic results.
+volume recorded there; the executable is static ELF64 AArch64. These historical
+client results do not cover the current-head RTL changes.
 
-Each full session selects empty/RAM/fresh RAM/empty, observes CPU-written
+For those historical sessions, each full run selects
+empty/RAM/fresh RAM/empty, observes CPU-written
 RAMTOP 0x4400/0x8000/0x8000/0x4400, and performs a real 910-byte BASIC LOAD.
 All bytes must reach the actual persona RAM with the expected address/data.
 A second LOAD is frozen after **9 of 910 bytes**; writes stay stopped afterward.
@@ -38,34 +41,35 @@ retry. The uncertain-write injection concerns an applied PR argument write;
 it does not claim command-phase acceptance. The separate controller tests
 retain their wider protocol coverage.
 
-[Source matching](client-source-match.json) binds all 58 production source files
-to the compiler selection and checks the final test/runtime sources.
-[Prepared-input comparison](rtl-source-match.json) additionally matches 24
-HDL/header files and all 16,384 decoded selected ROM values between the model
-and generated Quartus component. The model reads the padded project-root HEX;
-an unused component HEX copy retains the original unreachable FF tail.
+[Current compiler source matching](compiler-source-match.json) verifies all
+59 captured source files and 63 prepared project inputs against the fresh
+`ae8b394b61d815ab69eb090f5158e8fc2a0951c1` build. This includes the current
+`video.v`, `fes_de25_computer.v` and `clocks.sdc`; the source-closure seal is
+computed after QSF/QPF rewrites. The 58-file client match and 24-file
+prepared-HDL/ROM comparison remain historical records for their named source.
 
 ## Compiler, timing and composition
 
 The [compiler receipt](compiler-build.json), [descriptor](compiler-artifacts.json)
 and [input matching](compiler-source-match.json) record three fresh, successful
-Quartus Pro 26.3.0 Build 114 flows. All 58 captured sources and 63 prepared inputs
-match. IP-XACT and generated HDL select EXTERNAL_RAM=1. Both endpoints use
-`9e73d6d51866d75050e13fc8f7773680`. The exact exported root QDB remains unchanged
-through both personas, and vendor-decoded POF0 region/hash matches the base.
+Quartus Pro 26.3.0 Build 114 flows from the current source head. All 59 captured
+sources and 63 prepared inputs match. IP-XACT and generated HDL select
+EXTERNAL_RAM=1. Both endpoints use `e464d3731229d920d1ebda6207f5b81e`. The
+exact exported root QDB remains unchanged through both personas, and
+vendor-decoded POF0 region/hash matches the base.
 All 46 request and 20 response registers remain protected, without inversion.
 The static 1 KiB RAM, padded ROM, 177,120-bit renderer, 131,072-bit tape store
 and separate 16 KiB persona map to M20K as required.
 
 All 41 reported timing rows per revision are nonnegative and all 41 clocks are
-constrained. Global minima are 1.410 ns setup, displayed 0.000 ns hold,
-6.989 ns recovery, 0.090 ns removal and 0.220 ns pulse width. The rounded zero
+constrained. Global minima are 1.683 ns setup, displayed 0.000 ns hold,
+7.137 ns recovery, 0.037 ns removal and 0.220 ns pulse width. The rounded zero
 is not positive physical margin. Registered PR boundary checks pass at all
-four published corners. [Additional frame/readiness audits](frame-timing.json)
+four published corners. [Current frame/readiness audits](frame-timing.json)
 cover **136 rows per revision**, including setup/hold and local readiness-reset
-recovery/removal. Metadata flight is at most 4.412 ns within its 10 ns bound.
-The focused minimum hold slack is 0.005 ns; local readiness reset minima are
-12.853 ns recovery and 0.167 ns removal. These are tool-model results.
+recovery/removal. Metadata flight is at most 4.034 ns within its 10 ns bound.
+The focused minimum hold slack is 0.010 ns; local readiness reset minima are
+12.677 ns recovery and 0.219 ns removal. These are tool-model results.
 
 Readiness now has a registered system-domain source, two pixel-domain data
 stages and locally synchronized reset release. Common reset still asserts
@@ -75,32 +79,30 @@ stop the base build before either persona. A [real-report control](real-drc-gate
 rejects the earlier failing base and accepts the corrected base.
 
 **Overall Design Closure remains FAIL**: two input and 30 output ports lack
-external delays (9 input and 2,420 output path pairs). Unwaived findings also
+external delays (9 input and 2,471 output path pairs). Unwaived findings also
 remain: two LNT-30023, two RDC-50003, three RES-50101, and one LNT-30010 where
 subsystem reset drives asynchronous clears and the PR first_seen enable.
 MTBF finds 46 chains and excludes 16. No clock, seed, region or timing requirement
 was relaxed. External IO, physical CDC/reset and whole-board timing remain open.
 
-[Composition](composition-proof.json) executes the actual new base/persona RBFs
-on native and emulated AArch64. Repeats and both architectures produce identical
-bundle bytes for each selection, with distinct composition IDs. All 12 identity
-or damaged-payload controls reject without publishing an output. The target
-composer does not invoke Quartus. POF/root matching does not prove SDM execution.
+[Current-head composition](composition-proof.json) executes the fresh base and
+personas natively and under QEMU Cortex-A76. Repeats and both architectures
+produce identical bundle bytes for each selection, with distinct composition
+IDs. All 12 identity or damaged-payload controls reject without publishing an
+output. The composer does not invoke Quartus, and POF/root matching does not
+prove SDM execution.
 
 ## Software and retained controls
 
-The [affected software campaign](software-checks.json) passes: parent Python,
-generated consistency, host Go/UI, runtime and 1,503 FPGA producer cases
-(35 environment skips); parent Python reports 1,128 cases with two skips.
-That campaign started at the earlier compiler source while test-only edits
-continued; it is not a frozen publication-head run. Later dependency and CDC
-changes use focused checks. Eighteen HPS cases at the dependency-refresh source
-`8ece36c4aa` cover the maximum LOAD ending at $7FFF. The final source uses five
-combined-profile cases, 23 link-builder cases, the corrected endpoint reset and
-readiness regression, native controller units, archive audit and the final
-14-case combined native/AArch64 proof. `make generate` changes zero files;
-`make check` verifies 37 consumers/37 fixture copies. Documentation links pass.
-Raw logs identify their source and scope; final-head CI is reported on the PR.
+The [affected software campaign](software-checks.json) is historical: its
+parent Python, generated consistency, host Go/UI, runtime and 1,503 FPGA
+producer cases (35 environment skips) started at an earlier compiler source.
+It is not a frozen publication-head run. For the review fix, 15 link-builder
+unit tests (including source-seal recomputation and partition-reuse rejection),
+five RAM-profile tests, the unsolicited-response Verilator case, the real-CPU
+RAM simulation and the 21,567,202-pixel current-head video simulation passed.
+The full current-head Quartus build and four-corner frame/readiness audits are
+recorded above. Documentation links were checked after these receipt updates.
 
 The initial parameter inspector expected old Qsys rather than IP-XACT; the next
 inspector expected a pipe rather than Quartus's generate-scope dot. Neither
@@ -132,7 +134,7 @@ Compressed archives retain compiler, software, composition and rejected-run logs
 
 ## Hardware boundary and next integration step
 
-[Archive identity](artifact-archive.json) records the local 23.4 MB artifact
+[Archive identity](artifact-archive.json) records the local 30.5 MB artifact
 archive `out/de25-zx81-pr-computer-artifacts.tar.gz` in this task worktree. It
 contains the base, both personas, HPS-enriched SOF, exact root QDB, captured
 source and producer receipts. Complete private outputs remain under `out/`.
