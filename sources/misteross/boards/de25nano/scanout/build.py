@@ -240,7 +240,7 @@ def verify_handoff(project, hps):
             raise ValueError("generated scanout control/memory route differs: " + start)
     pixel_clock_bridge = modules.get("fes_scanout_pixel_clock")
     if (pixel_clock_bridge is None or pixel_clock_bridge.get("kind") != "altera_clock_bridge" or
-            ("clock", "fes_scanout_pixel_clock.out_clk", "subsys_periph_fes_scanout_pixel_clk") not in connections):
+            ("clock", "fes_scanout_pixel_clock.out_clk", "subsys_periph_fes_pixel_clk.in_clk") not in connections):
         raise ValueError("generated top-level scanout clock bridge differs")
     clocks = (("subsys_periph_periph_clk.out_clk", "fes_ctrl_cdc.s0_clk", 100000000),
               ("subsys_periph_fes_pixel_clk.out_clk", "fes_ctrl_cdc.m0_clk", 74250000),
