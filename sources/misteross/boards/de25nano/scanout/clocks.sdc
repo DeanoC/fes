@@ -10,10 +10,10 @@ create_generated_clock -name adv7513_config -source [get_ports CLOCK0_50] -divid
 set scanout_aclr [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|config_reset|sync_regs*|aclr fes_video_inst|lock_qualifier|sync_regs*|aclr soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain*|aclr soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain*|aclr}]
 set scanout_clrn [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|config_reset|sync_regs*|clrn fes_video_inst|lock_qualifier|sync_regs*|clrn soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain*|clrn soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain*|clrn}]
 set scanout_clear_count [expr {[get_collection_size $scanout_aclr] + [get_collection_size $scanout_clrn]}]
+post_message -type info "DE25 scanout qualifier/reset-bridge clear pins: $scanout_clear_count (expected 8)"
 if {$scanout_clear_count != 8} {error "DE25 scanout requires exactly eight qualifier/reset-bridge clear pins"}
 if {[get_collection_size $scanout_aclr] > 0} {set_false_path -to $scanout_aclr}
 if {[get_collection_size $scanout_clrn] > 0} {set_false_path -to $scanout_clrn}
-post_message -type info "DE25 scanout qualifier/reset-bridge clear pins: $scanout_clear_count (expected 8)"
 # A monotonic 100 MHz fault level crosses through its dedicated two-flop chain.
 # Cut only asynchronous ingress to stage0 D. Stage0->1 and fanout stay timed.
 set scanout_fault_source [get_registers {fes_video_inst|fault}]
