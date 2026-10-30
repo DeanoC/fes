@@ -94,7 +94,13 @@ def vendor_files():
         "golden_top.v": TOP,
         "qsys_top.qsys": b'<system name="qsys_top"/>\n',
         "hps_subsys/hps_subsys.qsys": b'<system name="hps_subsys"/>\n',
-        "peripheral_subsys/peripheral_subsys.qsys": b'<system name="peripheral_subsys"/>\n',
+        "peripheral_subsys/peripheral_subsys.qsys": (
+            '<system xmlns:ip="' + IP + '"><ip:addressSpace><ip:name>pb_cpu_0.m0</ip:name><ip:segments>' +
+            ''.join(f'<ip:segment><ip:name>{name}</ip:name><ip:addressOffset>{hex(base)}</ip:addressOffset>'
+                    f'<ip:range>{hex(span)}</ip:range></ip:segment>' for name, base, span in
+                    (("sysid.control_slave", 0x10000, 8), ("button_pio.s1", 0x10060, 16),
+                     ("dipsw_pio.s1", 0x10070, 16), ("led_pio.s1", 0x10080, 16))) +
+            '</ip:segments></ip:addressSpace></system>').encode(),
         "ghrd_timing.sdc": (
             b'# 50MHz board input clock, 150MHz for EMIF refclk\n'
             b'create_clock -name MAIN_CLOCK -period 20 [get_ports CLOCK2_50]\n'
@@ -127,13 +133,42 @@ def handoff_tree():
     root = ET.Element("EnsembleReport", {"name": "qsys_top", "kind": "qsys_top"})
     ET.SubElement(root, "module", {"name": "subsys_periph_fes_mailbox",
                   "path": "subsys_periph.fes_mailbox", "kind": "fes_de25_mailbox", "version": "1.0"})
+    def module(path, kind, interface, ports):
+        item = ET.SubElement(root, "module", {"name": path.replace('.', '_'), "path": path, "kind": kind, "version": "1.0"})
+        definition = ET.Element("componentDefinition")
+        point = ET.SubElement(ET.SubElement(ET.SubElement(definition, "boundary"), "interfaces"), "interface")
+        ET.SubElement(point, "name").text = interface
+        listing = ET.SubElement(point, "ports")
+        for role, direction, width in ports:
+            port = ET.SubElement(listing, "port")
+            for key, value in (("role", role), ("direction", direction), ("width", str(width))):
+                ET.SubElement(port, key).text = value
+        parameter = ET.SubElement(item, "parameter", {"name": "componentDefinition"})
+        ET.SubElement(parameter, "value").text = ET.tostring(definition, encoding="unicode")
+    module("subsys_periph.fes_ddr_probe", "fes_de25_ddr_probe", "avm", (
+        ("address", "Output", 32), ("burstcount", "Output", 5), ("read", "Output", 1),
+        ("byteenable", "Output", 16), ("waitrequest", "Input", 1), ("readdata", "Input", 128),
+        ("readdatavalid", "Input", 1), ("response", "Input", 2)))
+    module("subsys_hps.f2sdram_adapter", "f2sdram_adapter", "axi4_sub", (
+        ("araddr", "Input", 32), ("rdata", "Output", 256), ("rresp", "Output", 2)))
     identities = (
-        ("avalon", "subsys_hps_agilex_hps.lwhps2fpga", "subsys_periph_pb_cpu_0.s0", {}),
+        ("avalon", "subsys_hps_agilex_hps.lwhps2fpga", "subsys_periph_pb_cpu_0.s0", {
+            "addressMapSysInfo": '<address-map>' + ''.join(
+                f'<slave name="subsys_periph.{name}" start="{hex(base)}" end="{hex(base + span)}"/>'
+                for name, base, span in (("sysid.control_slave", 0x10000, 8), ("button_pio.s1", 0x10060, 16),
+                    ("dipsw_pio.s1", 0x10070, 16), ("led_pio.s1", 0x10080, 16),
+                    ("fes_mailbox.avs", BUILD.mailbox_base(), 32), ("fes_ddr_probe.avs", BUILD.probe_base(), 128))) + '</address-map>'}),
         ("avalon", "subsys_periph_pb_cpu_0.m0", "subsys_periph_fes_mailbox.avs",
          {"baseAddress": hex(BUILD.mailbox_base())}),
         ("clock", "subsys_periph_periph_clk.out_clk", "subsys_periph_fes_mailbox.clk",
          {"clockRateSysInfo": "100000000"}),
         ("reset", "subsys_periph_periph_rst_in.out_reset", "subsys_periph_fes_mailbox.reset", {}),
+        ("avalon", "subsys_periph_pb_cpu_0.m0", "subsys_periph_fes_ddr_probe.avs", {"baseAddress": hex(BUILD.probe_base())}),
+        ("avalon", "subsys_periph_fes_ddr_probe.avm", "subsys_hps_f2sdram_adapter.axi4_sub", {"baseAddress": "0x0"}),
+        ("avalon", "subsys_hps_f2sdram_adapter.axi4_man", "subsys_hps_agilex_hps.f2sdram", {"baseAddress": "0x0"}),
+        ("avalon", "ext_hps_f2sdram_master.expanded_master", "subsys_hps_f2sdram_adapter.axi4_sub", {"baseAddress": "0x0"}),
+        ("clock", "subsys_periph_periph_clk.out_clk", "subsys_periph_fes_ddr_probe.clk", {"clockRateSysInfo": "100000000"}),
+        ("reset", "subsys_periph_periph_rst_in.out_reset", "subsys_periph_fes_ddr_probe.reset", {}),
     )
     for kind, start, end, parameters in identities:
         connection = ET.SubElement(root, "connection", {"kind": kind, "start": start, "end": end})
@@ -190,10 +225,11 @@ class HpsBuildTests(unittest.TestCase):
         path = project / "qsys_top/qsys_top.sopcinfo"
         path.parent.mkdir(parents=True, exist_ok=True)
         (tree or handoff_tree()).write(path, encoding="utf-8", xml_declaration=True)
-        header = project / "fes_mailbox/generated/fes_de25_mailbox.vh"
-        if not header.exists():
-            header.parent.mkdir(parents=True, exist_ok=True)
-            header.write_bytes((HERE / "generated/fes_de25_mailbox.vh").read_bytes())
+        for name in ("fes_de25_mailbox.vh", "fes_de25_ddr_probe.vh"):
+            header = project / "fes_mailbox/generated" / name
+            if not header.exists():
+                header.parent.mkdir(parents=True, exist_ok=True)
+                header.write_bytes((HERE / "generated" / name).read_bytes())
         return path
 
     def test_selected_commit_blobs_ignore_later_working_tree_changes(self):
@@ -222,7 +258,8 @@ class HpsBuildTests(unittest.TestCase):
         # Model source edits or a checkout advancing after the driver captures
         # its revision. Neither the lock, offset, script nor RTL may come from it.
         for name in ("fes_de25_mailbox.v", "generated/fes_de25_mailbox.vh",
-                     "integrate.tcl", "vendor.lock.toml", "fes_de25_top_reset.v", "fes_de25_top.sdc"):
+                     "integrate.tcl", "vendor.lock.toml", "fes_de25_top_reset.v", "fes_de25_top.sdc",
+                     "fes_de25_ddr_probe.v", "fes_de25_ddr_probe_hw.tcl", "generated/fes_de25_ddr_probe.vh"):
             (hps / name).write_text("later working-tree input; must never be selected\n")
         output = self.root / "frozen-project"
         with mock.patch.object(BUILD, "ROOT", repository), mock.patch.object(BUILD, "HERE", hps):
@@ -234,6 +271,7 @@ class HpsBuildTests(unittest.TestCase):
         self.assertEqual(inputs["source_classification"], "committed")
         self.assertEqual(inputs["vendor_archive_sha256"], selected["archive"]["sha256"])
         self.assertEqual(inputs["mailbox_peripheral_offset"], BUILD.mailbox_base())
+        self.assertEqual(inputs["probe_peripheral_offset"], BUILD.probe_base())
         self.assertIn(hex(BUILD.mailbox_base()), (output / "project/integrate-mailbox.tcl").read_text())
 
     def test_source_change_during_preparation_stops_before_ip_generation(self):
@@ -462,6 +500,59 @@ class HpsBuildTests(unittest.TestCase):
         self.assertEqual(inventory["submodule/emif_0_lpddr4/PHY_REFCLK_FREQ_MHZ"], "166.6666")
         recorded = json.loads((output / "inputs.json").read_text())
         self.assertEqual(recorded["vendor_hps_emif_parameters"][EMIF], inventory)
+
+    def test_probe_preparation_checks_all_peripheral_slaves_and_exports_response_master(self):
+        archive, selected, files = self.archive()
+        output = self.prepare(archive, selected)
+        inputs = json.loads((output / "inputs.json").read_text())
+        self.assertIn("pending", inputs["peripheral_slave_map"])
+        self.write_handoff(output / "project")
+        regions = BUILD.verify_probe_handoff(output / "project")["peripheral_slave_map"]
+        self.assertEqual(len(regions), 6)
+        self.assertEqual(regions[-1], {"name": "subsys_periph.fes_ddr_probe.avs", "base": 0x10100, "span": 128})
+        script = (output / "project/integrate-mailbox.tcl").read_text()
+        self.assertIn("baseAddress 0x10100", script)
+        self.assertIn("EXPORT_OF fes_ddr_probe.avm", script)
+        self.assertIn("subsys_periph.fes_probe_mem subsys_hps.f2sdram_adapter_axi4_sub", script)
+        self.assertNotIn("@TOP_SYSTEM@", script)
+        hw = (output / "project/fes_mailbox/fes_de25_ddr_probe_hw.tcl").read_text()
+        self.assertIn("avm avm_response response Input 2", hw)
+        self.assertNotIn("avm avm_write", hw)
+        tree = handoff_tree()
+        item = tree.getroot().find("connection/parameter[@name='addressMapSysInfo']/value")
+        item.text = item.text.replace('start="0x10080" end="0x10090"', 'start="0x10100" end="0x10110"')
+        self.write_handoff(output / "project", tree)
+        with self.assertRaisesRegex(ValueError, "overlapping peripheral"):
+            BUILD.verify_probe_handoff(output / "project")
+
+    def test_probe_handoff_requires_read_response_width_clock_and_preserved_jtag_route(self):
+        project = self.root / "probe-handoff"
+        self.write_handoff(project)
+        verified = BUILD.verify_probe_handoff(project)
+        self.assertEqual(verified["read_master_data_bits"], 128)
+        self.assertEqual(verified["vendor_f2sdram_data_bits"], 256)
+        self.assertEqual(verified["response_bits"], 2)
+        for fault in ("response", "width", "jtag", "reset", "clock", "base"):
+            tree = handoff_tree()
+            root = tree.getroot()
+            if fault in ("response", "width"):
+                item = root.find("module[@path='subsys_periph.fes_ddr_probe']/parameter/value")
+                definition = ET.fromstring(item.text)
+                role = "response" if fault == "response" else "readdata"
+                port = next(p for p in definition.findall("boundary/interfaces/interface/ports/port") if p.findtext("role") == role)
+                port.find("width").text = "1" if fault == "response" else "64"
+                item.text = ET.tostring(definition, encoding="unicode")
+            elif fault == "jtag":
+                root.remove(root.find("connection[@start='ext_hps_f2sdram_master.expanded_master']"))
+            elif fault == "reset":
+                root.remove(root.find("connection[@end='subsys_periph_fes_ddr_probe.reset']"))
+            else:
+                name = "clockRateSysInfo" if fault == "clock" else "baseAddress"
+                end = "subsys_periph_fes_ddr_probe.clk" if fault == "clock" else "subsys_periph_fes_ddr_probe.avs"
+                root.find("connection[@end='" + end + "']/parameter[@name='" + name + "']/value").text = "0"
+            self.write_handoff(project, tree)
+            with self.subTest(fault=fault), self.assertRaisesRegex(ValueError, "DDR probe"):
+                BUILD.verify_probe_handoff(project)
 
     def test_generation_rejects_changed_original_hps_and_nested_ddr_parameters(self):
         cases = ((HPS, "H2F_Width", "64"), (EMIF, "MEM_CHANNEL_CS_WIDTH", "2"))

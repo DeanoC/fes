@@ -25,7 +25,7 @@ func (a *App) refreshInstalledRoomsLocked() bool {
 // Trial the selected pack with actual launcher services before retiring the
 // working instance. No queued room/session actions are applied on failure.
 // The return value reports trial success even if an action navigates elsewhere.
-func (a *App) openInstalledRoomLocked(pack rooms.Pack, root bool, initialGameID string) bool {
+func (a *App) openInstalledRoomLocked(pack rooms.Pack, root bool, initialGameID string, initialCoreID ...string) bool {
 	if a.sessionStopOfferedLocked() || a.launch.Phase == "launching" {
 		a.status = "Stop the running machine before updating a room."
 		return false
@@ -33,7 +33,7 @@ func (a *App) openInstalledRoomLocked(pack rooms.Pack, root bool, initialGameID 
 	if a.room != nil {
 		a.room.FlushState()
 	}
-	candidate, err := a.newRoomInstanceLocked(pack, initialGameID)
+	candidate, err := a.newRoomInstanceLocked(pack, initialGameID, initialCoreID...)
 	if err == nil {
 		candidate.StageState()
 		candidate.SetSessionState(a.session.State)
@@ -52,7 +52,7 @@ func (a *App) openInstalledRoomLocked(pack rooms.Pack, root bool, initialGameID 
 		a.refreshInstalledRoomsLocked()
 		if a.room == nil && rollbackErr == nil {
 			if fallback, ok := a.roomsIndex.Find(pack.ID); ok && fallback.Valid() {
-				a.openRoomWithSelectionLocked(pack.ID, initialGameID)
+				a.openRoomWithSelectionLocked(pack.ID, initialGameID, initialCoreID...)
 			}
 		}
 		a.status = fmt.Sprintf("Room update failed: %v. Previous selection restored.", err)

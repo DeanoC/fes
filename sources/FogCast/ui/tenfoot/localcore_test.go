@@ -1340,7 +1340,7 @@ func TestFreshLauncherAdoptsSurvivingLocalRunAndChordStopsIt(t *testing.T) {
 	base := time.Unix(4000, 0)
 	app.Tick(base)
 	waitFor(t, app, "surviving run adopted", func(s Snapshot) bool {
-		return adoptedInUseScreen(s) && s.LocalCoreTitle == "fes.pong" && s.LocalCorePresentsPaused && s.LocalCoreLateAdopt
+		return adoptedInUseScreen(s) && s.LocalCoreTitle == "Pong" && s.LocalCorePresentsPaused && s.LocalCoreLateAdopt
 	})
 	app.mu.Lock()
 	gotGen := app.localLeaseGeneration
@@ -1473,7 +1473,7 @@ func TestLauncherStartupAdoptsActiveRunShowsInUseAndStops(t *testing.T) {
 		return s.Room.Open && adoptedInUseScreen(s) && launchOverlayCopy(s).Visible && s.LocalCorePresentsPaused && s.LocalCoreLateAdopt
 	})
 	copy := launchOverlayCopy(snap)
-	if copy.Heading != rooms.InUseStatus || copy.Phase != rooms.InUseDetail || !strings.Contains(copy.Hint, "Select+Start") || copy.Title != "fes.pong" {
+	if copy.Heading != rooms.InUseStatus || copy.Phase != rooms.InUseDetail || !strings.Contains(copy.Hint, "Select+Start") || copy.Title != "Pong" {
 		t.Fatalf("in use screen %+v", copy)
 	}
 	if fake.launchCount() != 0 {
@@ -1632,7 +1632,7 @@ func TestLauncherStartupDefersStopUntilRunning(t *testing.T) {
 	t.Cleanup(app.Stop)
 	app.Tick(time.Unix(10, 0))
 	waitFor(t, app, "launching generation watched", func(s Snapshot) bool {
-		return s.LocalCorePhase == localPhaseLaunching && s.LocalCorePresentsPaused && s.LocalCoreLateAdopt && strings.Contains(s.Status, "Starting fes.pong")
+		return s.LocalCorePhase == localPhaseLaunching && s.LocalCorePresentsPaused && s.LocalCoreLateAdopt && strings.Contains(s.Status, "Starting Pong")
 	})
 	if fake.stopCount() != 0 {
 		t.Fatal("watched launch was stopped")
@@ -1763,7 +1763,7 @@ func TestLauncherStartupStoppingResumesThenChordStops(t *testing.T) {
 	t.Cleanup(app.Stop)
 	app.Tick(time.Unix(10, 0))
 	waitFor(t, app, "stopping generation watched", func(s Snapshot) bool {
-		return s.LocalCorePhase == localPhaseStopping && s.LocalCorePresentsPaused && s.LocalCoreLateAdopt && strings.Contains(s.Status, "Stopping fes.pong")
+		return s.LocalCorePhase == localPhaseStopping && s.LocalCorePresentsPaused && s.LocalCoreLateAdopt && strings.Contains(s.Status, "Stopping Pong")
 	})
 	if !app.HandleLocalPad(padButton(remoteinput.ButtonA, true), time.Unix(11, 0)) {
 		t.Fatal("menu took the pad while stop was in progress")

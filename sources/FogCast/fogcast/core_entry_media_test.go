@@ -53,6 +53,11 @@ func colecoLibraryPackageContractsFixture(t *testing.T, abi, interfaces string) 
 	if err != nil {
 		t.Fatal(err)
 	}
+	return testCorePackageArchive(t, manifest, payload)
+}
+
+func testCorePackageArchive(t *testing.T, manifest, payload []byte) []byte {
+	t.Helper()
 	var out bytes.Buffer
 	for _, entry := range []struct {
 		name string

@@ -1,0 +1,181 @@
+{
+  "source_commit": "b1397abc6f78f1cc8e15f1c344c1e4375a0512ac",
+  "previous_source_commit": "b3ff95896edd1643a4d1f532cb4b8f9c7cb2915f",
+  "capture_comparison": {
+    "gallery": {
+      "old_count": 86,
+      "final_count": 86,
+      "identical": 49,
+      "changed": [
+        "hardware-1024x600.png",
+        "hardware-1280x720.png",
+        "hardware-empty-1024x600.png",
+        "hardware-empty-1280x720.png",
+        "hardware-focus-1280x720.png",
+        "native-collections-1024x600.png",
+        "native-collections-1280x720.png",
+        "native-filters-1024x600.png",
+        "native-filters-1280x720.png",
+        "native-firmware-picker-1024x600.png",
+        "native-firmware-picker-1280x720.png",
+        "native-keyboard-1024x600.png",
+        "native-keyboard-1280x720.png",
+        "native-library-grid-1024x600.png",
+        "native-library-grid-1280x720.png",
+        "native-library-list-1024x600.png",
+        "native-library-list-1280x720.png",
+        "native-library-long-1024x600.png",
+        "native-library-long-1280x720.png",
+        "native-library-shelf-1024x600.png",
+        "native-library-shelf-1280x720.png",
+        "native-live-media-1024x600.png",
+        "native-live-media-1280x720.png",
+        "native-rooms-menu-1024x600.png",
+        "native-rooms-menu-1280x720.png",
+        "native-settings-1024x600.png",
+        "native-settings-1280x720.png",
+        "native-storage-1024x600.png",
+        "native-storage-1280x720.png",
+        "native-system-media-1024x600.png",
+        "native-system-media-1280x720.png",
+        "native-systems-picker-1024x600.png",
+        "native-systems-picker-1280x720.png",
+        "overlay-zx81-1024x600.png",
+        "overlay-zx81-1280x720.png",
+        "running-zx81-1024x600.png",
+        "running-zx81-1280x720.png"
+      ],
+      "added": [],
+      "removed": []
+    },
+    "native": {
+      "old_count": 47,
+      "final_count": 47,
+      "identical": 37,
+      "changed": [
+        "home-launching-1280x720.png",
+        "library-grid-1024x600.png",
+        "library-grid-1280x720.png",
+        "library-list-1280x720.png",
+        "library-shelf-1280x720.png",
+        "native-files-1280x720.png",
+        "native-home-1280x720.png",
+        "native-settings-1024x600.png",
+        "native-settings-1280x720.png",
+        "native-setup-1280x720.png"
+      ],
+      "added": [],
+      "removed": []
+    }
+  },
+  "reference_count": 13,
+  "changed_reference_count": 7,
+  "references": [
+    {
+      "reference": "docs/ux/references/tenfoot-polish/home-1280x720.png",
+      "capture": "out/ux-pass/names/delivered-gallery/fes-cores-1280x720.png",
+      "sha256": "216bc3db3021fbea9ce4d9b23991078740123f7e5468072b802ad2693f9bdb32",
+      "previous_sha256": "216bc3db3021fbea9ce4d9b23991078740123f7e5468072b802ad2693f9bdb32",
+      "changed": false,
+      "bytes": 51098
+    },
+    {
+      "reference": "docs/ux/references/tenfoot-polish/library-1280x720.png",
+      "capture": "out/ux-pass/names/delivered-gallery/native-library-actions-details-1280x720.png",
+      "sha256": "b738543ce21b18598d8262f608f2c8c138a202e6f066f88ee0a5dd38cdaa9399",
+      "previous_sha256": "b738543ce21b18598d8262f608f2c8c138a202e6f066f88ee0a5dd38cdaa9399",
+      "changed": false,
+      "bytes": 34166
+    },
+    {
+      "reference": "docs/ux/references/tenfoot-polish/system-1024x600.png",
+      "capture": "out/ux-pass/names/delivered-gallery/system-1024x600.png",
+      "sha256": "690ea63e5d2475f7a8c84bb939b080a7bd10c4625c45dc2c81dd439c9bc152a4",
+      "previous_sha256": "690ea63e5d2475f7a8c84bb939b080a7bd10c4625c45dc2c81dd439c9bc152a4",
+      "changed": false,
+      "bytes": 60572
+    },
+    {
+      "reference": "docs/ux/references/tenfoot-polish/workshop-1280x720.png",
+      "capture": "out/ux-pass/names/delivered-native/hardware-idle-1280x720.png",
+      "sha256": "c9b1f7c1bc63fbce946b7edba29e883f8b356404ba38e2050d2ba6c39da8d7d7",
+      "previous_sha256": "c9b1f7c1bc63fbce946b7edba29e883f8b356404ba38e2050d2ba6c39da8d7d7",
+      "changed": false,
+      "bytes": 257260
+    },
+    {
+      "reference": "docs/ux/references/tenfoot-polish/settings-1024x600.png",
+      "capture": "out/ux-pass/names/delivered-gallery/native-settings-1024x600.png",
+      "sha256": "cbee7ca103b9b8ae8febefb576942cf1090dd00dcc197aa93aa4c6fd7eb65e7a",
+      "previous_sha256": "c20147eb815ea7ebee05119f4be4cdb0b516a7e51199c8adeebfbb942118f345",
+      "changed": true,
+      "bytes": 54567
+    },
+    {
+      "reference": "docs/ux/references/tenfoot-polish/details-notes-1024x600.png",
+      "capture": "out/ux-pass/names/delivered-native/home-curator-notes-1024x600.png",
+      "sha256": "1f9779a3d066bd3320ea48cc357d9223389a774d730b5a97149f5d33e987a4a5",
+      "previous_sha256": "1f9779a3d066bd3320ea48cc357d9223389a774d730b5a97149f5d33e987a4a5",
+      "changed": false,
+      "bytes": 45224
+    },
+    {
+      "reference": "docs/ux/references/tenfoot-polish/systems-1280x720.png",
+      "capture": "out/ux-pass/names/delivered-gallery/computers-1280x720.png",
+      "sha256": "e602a5e4f97ba5b063cdd914ea6bf78b86618d45b13b8c916326a203afea984a",
+      "previous_sha256": "e602a5e4f97ba5b063cdd914ea6bf78b86618d45b13b8c916326a203afea984a",
+      "changed": false,
+      "bytes": 54374
+    },
+    {
+      "reference": "docs/ux/references/tenfoot-polish/contact-rooms-1280x720.jpg",
+      "capture": "out/ux-pass/names/delivered-gallery/contact-rooms-1280x720.jpg",
+      "sha256": "f7d68685bd5ec2d1a41e73121c135218c8ebd48dc40dff32161a284d5c000979",
+      "previous_sha256": "aadcad32f2ec8cf8c70af895c7a8894fc080547d32552d42c42fa4dc581d99b0",
+      "changed": true,
+      "bytes": 89546
+    },
+    {
+      "reference": "docs/ux/references/tenfoot-polish/contact-rooms-1024x600.jpg",
+      "capture": "out/ux-pass/names/delivered-gallery/contact-rooms-1024x600.jpg",
+      "sha256": "d7eb761df5d248b7673d71c19893284eb7b327d4902bd9eefbb855c101a996b1",
+      "previous_sha256": "3cb8e42fd828eae0550fda33cc1dba1cd22dbd91192146a4b7bf5c1135bfa2d5",
+      "changed": true,
+      "bytes": 95773
+    },
+    {
+      "reference": "docs/ux/references/tenfoot-polish/contact-variants-1280x720.jpg",
+      "capture": "out/ux-pass/names/delivered-gallery/contact-variants-1280x720.jpg",
+      "sha256": "52ae1ef0381c74256874c2df7ca698cc6e5ef241a98008bded2c1448a94b4398",
+      "previous_sha256": "1f9fe8279c722a6fd28632733a3c03c977ef8b300895fddf6aae397e030ff97e",
+      "changed": true,
+      "bytes": 283658
+    },
+    {
+      "reference": "docs/ux/references/tenfoot-polish/contact-variants-1024x600.jpg",
+      "capture": "out/ux-pass/names/delivered-gallery/contact-variants-1024x600.jpg",
+      "sha256": "6f5f4980cbccfe9619987d43addbcb6dc5c827963a405abfd2639e2760a1df34",
+      "previous_sha256": "761f7a249d3f1a80d026f9bac15931925a5567b8577f867fb863403f814666e0",
+      "changed": true,
+      "bytes": 298644
+    },
+    {
+      "reference": "docs/ux/references/tenfoot-polish/contact-native-1280x720.jpg",
+      "capture": "out/ux-pass/names/delivered-gallery/contact-native-1280x720.jpg",
+      "sha256": "5bbdd51a4bff23b4b8dc58b169fb93af5ff7c68ae02d18197843e0268b2713bc",
+      "previous_sha256": "eb3a417e304f0cb811a9fbf4c1f792c57b9530e58c728f8f8e5015d59c81ed40",
+      "changed": true,
+      "bytes": 335489
+    },
+    {
+      "reference": "docs/ux/references/tenfoot-polish/contact-native-1024x600.jpg",
+      "capture": "out/ux-pass/names/delivered-gallery/contact-native-1024x600.jpg",
+      "sha256": "cf3cd2a149e9455067913adc512b76cdd5506311f256a70fdf541f885411a931",
+      "previous_sha256": "3f882810c11883b9e83f1aa5434da820d68bfc8013e1ea5c6dbe3372df37d091",
+      "changed": true,
+      "bytes": 393486
+    }
+  ],
+  "obsolete_world_reference_absent": true,
+  "difference_review": "Updated i/Y Details prompt and closed-row hint in native Library backgrounds; asynchronous Sinclair illustration readiness and launch-progress segment retain identical controls. See source-bound render logs."
+}

@@ -1,0 +1,311 @@
+{
+  "scope": "Host-only checkpoint replay with optimistic AS4C32M16SB-6TIN CL2 requirements, declared30pF, zero board flight, uncertainty and CS2 inverter delay. No new full native route, recipe gate, or physical/hardware acceptance.",
+  "base_fes_commit": "84f0c6e911",
+  "compiler_source": "fdf0462df26d18bfb308248249e1798a0b58667c",
+  "compiler_sha256": "f07480f365b12401d3f9805ced153b4e77fcba4ce3698520423de4fae07f0da0",
+  "source_routed_sha256": "c5d901ee580b9b31f4b485e96a00065505510227a6b9e971aab77593d3a18fb0",
+  "rbf_sha256": "4017b155e0a9852efed3708d4f6a32323daaf5c466f41176fea7bb70be03fb56",
+  "byte_identical_replay_rbf": true,
+  "only_37_pad_profile_load_attributes_added": true,
+  "registered_output_pads": 37,
+  "all_have_constant_enables": true,
+  "external_channels": {
+    "PAD$timing$write$data$external": 36,
+    "PAD$timing$write$oe$external": 16,
+    "PAD$timing$read$rise$register": 16,
+    "PAD$timing$write$rise$external": 1,
+    "PAD$timing$write$fall$external": 1
+  },
+  "chip_budget": {
+    "scope": "Optimistic declared chip reference, not measured kit bounds or hardware acceptance. Direct CS only: CS2 inverter unqualified. No board flight, uncertainty or margin. Fabric-clock constraints include actual routed clock-to-pad interval once.",
+    "clock_rise_ns": [
+      1.2589999437332153,
+      6.796999931335449
+    ],
+    "chip_ns": {
+      "tAC": 6,
+      "tOH": 2.5,
+      "tSU": 1.5,
+      "tH": 0.8
+    },
+    "budgets_ns": {
+      "input": [
+        3.7589999437332153,
+        12.79699993133545
+      ],
+      "output": [
+        -7.596999931335449,
+        0.24100005626678467
+      ]
+    },
+    "source_reference_tcl_sha256": "8edba7356c0077413013d81204e94779295b0034da392030c2fd7fab3f4948b1",
+    "source_report_sha256": "839eb02f97e5a754c8974894f1ea1b8e00c5c9b94070d7dc7c12ca0c0a643191",
+    "sdc_sha256": "a9903b62f4178ac389789a36e8a1b8a51cef3629264fc35e41df6834672e5608"
+  },
+  "groups": {
+    "read": {
+      "channels": 16,
+      "setup_min_ns": 6.50600004196167,
+      "hold_min_ns": 2.568000078201294
+    },
+    "write": {
+      "channels": 52,
+      "setup_min_ns": 2.816999912261963,
+      "hold_min_ns": 3.506999969482422
+    }
+  },
+  "native_original_identities_retained": 17718,
+  "replay_endpoint_rows": 17817,
+  "unpaired": [
+    [
+      "system.video.adapter.ack_meta_MISTRAL_FF_Q",
+      "DATAIN",
+      "posedge clk_pixel",
+      "posedge clocks[2]"
+    ],
+    [
+      "locked_MISTRAL_FF_ACLR_1_Q_MISTRAL_FF_DATAIN",
+      "ACLR",
+      "<async>",
+      "posedge clk_pixel"
+    ],
+    [
+      "locked_MISTRAL_FF_ACLR_1",
+      "ACLR",
+      "<async>",
+      "posedge clk_pixel"
+    ],
+    [
+      "locked_MISTRAL_FF_ACLR_DATAIN_MISTRAL_FF_Q",
+      "ACLR",
+      "<async>",
+      "posedge clocks[2]"
+    ],
+    [
+      "locked_MISTRAL_FF_ACLR",
+      "ACLR",
+      "<async>",
+      "posedge clocks[2]"
+    ],
+    [
+      "system.video.adapter.front_MISTRAL_FF_Q",
+      "DATAIN",
+      "posedge clocks[2]",
+      "posedge clk_pixel"
+    ],
+    [
+      "system.video.adapter.front_MISTRAL_FF_Q_1",
+      "DATAIN",
+      "posedge clocks[2]",
+      "posedge clk_pixel"
+    ],
+    [
+      "system.video.adapter.hold_meta_MISTRAL_FF_Q",
+      "DATAIN",
+      "posedge clocks[2]",
+      "posedge clk_pixel"
+    ],
+    [
+      "system.video.adapter.sent_meta_MISTRAL_FF_Q",
+      "DATAIN",
+      "posedge clocks[2]",
+      "posedge clk_pixel"
+    ],
+    [
+      "HDMI_TX_DE_MISTRAL_OB_PAD",
+      "I",
+      "posedge clk_pixel",
+      "<async>"
+    ],
+    [
+      "HDMI_TX_D_MISTRAL_OB_PAD",
+      "I",
+      "posedge clk_pixel",
+      "<async>"
+    ],
+    [
+      "HDMI_TX_D_MISTRAL_OB_PAD_1",
+      "I",
+      "posedge clk_pixel",
+      "<async>"
+    ],
+    [
+      "HDMI_TX_D_MISTRAL_OB_PAD_10",
+      "I",
+      "posedge clk_pixel",
+      "<async>"
+    ],
+    [
+      "HDMI_TX_D_MISTRAL_OB_PAD_11",
+      "I",
+      "posedge clk_pixel",
+      "<async>"
+    ],
+    [
+      "HDMI_TX_D_MISTRAL_OB_PAD_12",
+      "I",
+      "posedge clk_pixel",
+      "<async>"
+    ],
+    [
+      "HDMI_TX_D_MISTRAL_OB_PAD_13",
+      "I",
+      "posedge clk_pixel",
+      "<async>"
+    ],
+    [
+      "HDMI_TX_D_MISTRAL_OB_PAD_14",
+      "I",
+      "posedge clk_pixel",
+      "<async>"
+    ],
+    [
+      "HDMI_TX_D_MISTRAL_OB_PAD_15",
+      "I",
+      "posedge clk_pixel",
+      "<async>"
+    ],
+    [
+      "HDMI_TX_D_MISTRAL_OB_PAD_16",
+      "I",
+      "posedge clk_pixel",
+      "<async>"
+    ],
+    [
+      "HDMI_TX_D_MISTRAL_OB_PAD_17",
+      "I",
+      "posedge clk_pixel",
+      "<async>"
+    ],
+    [
+      "HDMI_TX_D_MISTRAL_OB_PAD_18",
+      "I",
+      "posedge clk_pixel",
+      "<async>"
+    ],
+    [
+      "HDMI_TX_D_MISTRAL_OB_PAD_19",
+      "I",
+      "posedge clk_pixel",
+      "<async>"
+    ],
+    [
+      "HDMI_TX_D_MISTRAL_OB_PAD_2",
+      "I",
+      "posedge clk_pixel",
+      "<async>"
+    ],
+    [
+      "HDMI_TX_D_MISTRAL_OB_PAD_20",
+      "I",
+      "posedge clk_pixel",
+      "<async>"
+    ],
+    [
+      "HDMI_TX_D_MISTRAL_OB_PAD_21",
+      "I",
+      "posedge clk_pixel",
+      "<async>"
+    ],
+    [
+      "HDMI_TX_D_MISTRAL_OB_PAD_22",
+      "I",
+      "posedge clk_pixel",
+      "<async>"
+    ],
+    [
+      "HDMI_TX_D_MISTRAL_OB_PAD_23",
+      "I",
+      "posedge clk_pixel",
+      "<async>"
+    ],
+    [
+      "HDMI_TX_D_MISTRAL_OB_PAD_3",
+      "I",
+      "posedge clk_pixel",
+      "<async>"
+    ],
+    [
+      "HDMI_TX_D_MISTRAL_OB_PAD_4",
+      "I",
+      "posedge clk_pixel",
+      "<async>"
+    ],
+    [
+      "HDMI_TX_D_MISTRAL_OB_PAD_5",
+      "I",
+      "posedge clk_pixel",
+      "<async>"
+    ],
+    [
+      "HDMI_TX_D_MISTRAL_OB_PAD_6",
+      "I",
+      "posedge clk_pixel",
+      "<async>"
+    ],
+    [
+      "HDMI_TX_D_MISTRAL_OB_PAD_7",
+      "I",
+      "posedge clk_pixel",
+      "<async>"
+    ],
+    [
+      "HDMI_TX_D_MISTRAL_OB_PAD_8",
+      "I",
+      "posedge clk_pixel",
+      "<async>"
+    ],
+    [
+      "HDMI_TX_D_MISTRAL_OB_PAD_9",
+      "I",
+      "posedge clk_pixel",
+      "<async>"
+    ],
+    [
+      "HDMI_TX_HS_MISTRAL_OB_PAD",
+      "I",
+      "posedge clk_pixel",
+      "<async>"
+    ],
+    [
+      "HDMI_TX_VS_MISTRAL_OB_PAD",
+      "I",
+      "posedge clk_pixel",
+      "<async>"
+    ],
+    [
+      "SDRAM_DQMH_MISTRAL_OB_PAD",
+      "I",
+      "posedge clocks[2]",
+      "<async>"
+    ],
+    [
+      "SDRAM_DQML_MISTRAL_OB_PAD",
+      "I",
+      "posedge clocks[2]",
+      "<async>"
+    ]
+  ],
+  "complete_original_row_timing_unchanged": false,
+  "timing_difference_note": "Reload recalculates analogue minimum intervals and slacks. These values must not replace the original fresh-route timing or be counted as a fresh-route cohort.",
+  "hardware": false,
+  "physical_whole_board_qualified": false,
+  "route_receipts_unchanged": 121,
+  "private_dynamic_ce_port": "2f52b11 (unpublished, unnecessary for current board50; full build and reference corruption checks completed, no new native route launched)",
+  "remaining": [
+    "16 DQ read/36data/16OE/two clock channels are covered only under a fitted reference envelope.",
+    "Two physical mask-mirror pads are unregistered and fabric-driven, not constants; standard MiSTer SDRAM uses A11/A12 for chip DQM. Fitted connectivity remains to be verified.",
+    "38 unpaired report rows: existing four PLL clears/five video CDC rows plus29 unconstrained output-pad rows exposed by IO instrumentation. No cuts or waivers.",
+    "Actual board loads/flight/skew, CS2 inverter, waveform, reset/CDC/MTBF and complete HDMI/HPS contracts remain open."
+  ],
+  "artifacts_sha256": {
+    "board50-sdram-chip-reference/instrumented.json": "f493af560f06abe3743e6fa12b019adde3e94dc99f6b01c1f23abe5e819d8e74",
+    "board50-sdram-chip-reference/chip-reference.sdc": "a9903b62f4178ac389789a36e8a1b8a51cef3629264fc35e41df6834672e5608",
+    "board50-sdram-chip-reference/timing.json": "2a236646a1a898e632e6260a70cfbffab66741bec5ed9806b5a18c81cd9e915c",
+    "board50-sdram-chip-reference/nextpnr.log": "348b3e06aca5bf6aa55a4dd8642fdee250d6feb230ee2c311c1cca6afb837f6b",
+    "board50-sdram-io-coverage/input-binding.json": "6c8ea889bace014dcb51b82fb3b64a5ad53ad399cbfa62ccf78434c7cbd14e3b",
+    "board50-sdram-io-coverage/synthetic.sdc": "8d2e99d38ae61d3133dd22d6cf7b6b2425c0033e2619e961b06a987d07bf0764",
+    "board50-sdram-io-coverage/timing.json": "839eb02f97e5a754c8974894f1ea1b8e00c5c9b94070d7dc7c12ca0c0a643191",
+    "board50-sdram-io-coverage/nextpnr.log": "a7699ad73acc78bb6becdaaaf5015d991a8300ee7912810ed791e8505ec7a4bc"
+  }
+}

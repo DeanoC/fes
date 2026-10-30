@@ -1,0 +1,555 @@
+{
+  "acceptance": {
+    "boot_firmware_compatibility": "not-qualified",
+    "dma_admission": "not-qualified",
+    "hardware": "not-run",
+    "physical_ddr_address": "not-established"
+  },
+  "artifact": {
+    "path": "project/output_files/golden_top.sof",
+    "sha256": "e9ca0b6e7d138e73d9e20c9ba0707aa0c96481e1460e909d3700cac7f38cb1b2",
+    "size_bytes": 1553247
+  },
+  "board": "de25_nano",
+  "build": {
+    "build_receipt_sha256": "e29184dbeac3d18955315c6a7bedbe642185a89bc81c820522f8e8671041dcee",
+    "errors": 0,
+    "generation_sha256": "4363b6bc90a9a3d531ea90b3cc1bfa0cbacba17909e123de98c12bd80323787d",
+    "inputs_sha256": "0cf533beef65063fb54c605df96273a6de308386401fdb95a15eb622a2a52e7e",
+    "report_sha256": {
+      "golden_top.asm.rpt": "f449e43cf8398699d812c7310c9ebbfcc36ecf500842602200df71c1c76859f9",
+      "golden_top.drc.partitioned.rpt": "7206a2f6552d0054060770b25b9950a8e87ed970cea31dfdbff679e8f40c8181",
+      "golden_top.drc.synthesized.rpt": "d9dd3bb766c9054eabb3cc0b07b1ca4f760fafd6571a00191818080ca5caa0e0",
+      "golden_top.fit.finalize.rpt": "9d7ac5c8ec2aadf88b80888702cfb62e07fa58f5e4318586e20ed255dc667b1c",
+      "golden_top.fit.place.rpt": "fa045e93cbd5b060774a6c1af40b31297dfa7524207f5779bc4ddf1991c6a553",
+      "golden_top.fit.plan.rpt": "b7a97b80fbf8ffde21df1a2abb3779c37be07dc1022ba30a58e7d6033b3a0c7d",
+      "golden_top.fit.retime.rpt": "a1a2a4c2745a8bc3201fe970f007a1bc0a320abba98accf864a412ab582d5b70",
+      "golden_top.fit.route.rpt": "74b9884c62abe56bd8d5aa70f80bc7b70ed6355fbcda56b6a478b8750251c3e0",
+      "golden_top.fit.rpt": "536d446a169c01d5a671db832c2b1f6d26720bb3d111550823610d34842a4659",
+      "golden_top.fit.summary": "e98f8cc17ab5dfb01a60abfb22fae72ad1ddaceebc3eeea5400e26d2de09d4b4",
+      "golden_top.flow.rpt": "171f7c7acc5659429766e6cf454e090ebb3b95c92820ce43fcea7c7b936826d7",
+      "golden_top.ipg.rpt": "e4026adcc0a98e29198ae1db05e5b4a63503c1eb091976a73e791525832eaaa7",
+      "golden_top.sdc_constraints.rpt": "04e66d57ec9203e629d1f76df1d53a74201231a58d8d150d3a62d86f246e3902",
+      "golden_top.sta.rpt": "58c4b9f39ba7820d0ccff4e27d6eb0d357ea203d75327310e393ead3eea00137",
+      "golden_top.sta.summary": "cfd698c40fc91bc76126e1b796b3bc4ec7df86fb617e1d84332b61a5af4b25b3",
+      "golden_top.syn.ae.rpt": "c3c28541f31e0e1a46b1c0b240b0089a7c3e7a8775241989d762407974a456f5",
+      "golden_top.syn.rpt": "093ed7df99d7a5a030fdf97ef19dcf46d297bcdf34efd2b53f6dc3c04a067e01",
+      "golden_top.syn.summary": "192c31aeb820afe60466b5bec1551d9361a624508ca017bde7a467e332494f96",
+      "golden_top.tq.drc.signoff.rpt": "8910aae89f69977e84eef60da42063a55dbbab7731f6c6252feb7affe4fb7f96"
+    },
+    "status": "pass",
+    "top_system_handoff_sha256": "bbcb85bd91fc2693558d25ff72ada05bcd42299d994faea907c5ed939a63e904",
+    "warnings": 308
+  },
+  "classification": "host-only Quartus and simulation evidence; no physical or DMA acceptance",
+  "clocks": [
+    {
+      "frequency": "16.0 MHz",
+      "name": "altera_reserved_tck",
+      "period_ns": "62.500",
+      "type": "Base"
+    },
+    {
+      "frequency": "166.67 MHz",
+      "name": "EMIF_REF_CLOCK",
+      "period_ns": "6.000",
+      "type": "Base"
+    },
+    {
+      "frequency": "100.0 MHz",
+      "name": "internal_clk",
+      "period_ns": "10.000",
+      "type": "Base"
+    },
+    {
+      "frequency": "50.0 MHz",
+      "name": "pll_inst|iopll_0_m_cnt_clk",
+      "period_ns": "20.000",
+      "type": "Generated"
+    },
+    {
+      "frequency": "50.0 MHz",
+      "name": "pll_inst|iopll_0_n_cnt_clk",
+      "period_ns": "20.000",
+      "type": "Generated"
+    },
+    {
+      "frequency": "100.0 MHz",
+      "name": "pll_inst|iopll_0_outclk0",
+      "period_ns": "10.000",
+      "type": "Generated"
+    },
+    {
+      "frequency": "50.0 MHz",
+      "name": "pll_inst|iopll_0_refclk",
+      "period_ns": "20.000",
+      "type": "Base"
+    },
+    {
+      "frequency": "50.0 MHz",
+      "name": "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0",
+      "period_ns": "20.000",
+      "type": "Generated"
+    },
+    {
+      "frequency": "666.67 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_c0_cntr_0",
+      "period_ns": "1.500",
+      "type": "Generated"
+    },
+    {
+      "frequency": "166.67 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_c1_cntr_0",
+      "period_ns": "6.000",
+      "type": "Generated"
+    },
+    {
+      "frequency": "100.0 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_byte_rx_gated",
+      "period_ns": "10.000",
+      "type": "Generated"
+    },
+    {
+      "frequency": "100.0 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_rxclk_gated",
+      "period_ns": "10.000",
+      "type": "Base"
+    },
+    {
+      "frequency": "100.0 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_byte_rx_gated",
+      "period_ns": "10.000",
+      "type": "Generated"
+    },
+    {
+      "frequency": "100.0 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_rxclk_gated",
+      "period_ns": "10.000",
+      "type": "Base"
+    },
+    {
+      "frequency": "100.0 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_byte_rx_gated",
+      "period_ns": "10.000",
+      "type": "Generated"
+    },
+    {
+      "frequency": "100.0 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_rxclk_gated",
+      "period_ns": "10.000",
+      "type": "Base"
+    },
+    {
+      "frequency": "100.0 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_byte_rx_gated",
+      "period_ns": "10.000",
+      "type": "Generated"
+    },
+    {
+      "frequency": "100.0 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_rxclk_gated",
+      "period_ns": "10.000",
+      "type": "Base"
+    },
+    {
+      "frequency": "100.0 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_byte_rx_gated",
+      "period_ns": "10.000",
+      "type": "Generated"
+    },
+    {
+      "frequency": "100.0 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_rxclk_gated",
+      "period_ns": "10.000",
+      "type": "Base"
+    },
+    {
+      "frequency": "100.0 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_byte_rx_gated",
+      "period_ns": "10.000",
+      "type": "Generated"
+    },
+    {
+      "frequency": "100.0 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_rxclk_gated",
+      "period_ns": "10.000",
+      "type": "Base"
+    },
+    {
+      "frequency": "1333.0 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[0]_in",
+      "period_ns": "0.750",
+      "type": "Base"
+    },
+    {
+      "frequency": "1333.0 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[0]_nff",
+      "period_ns": "0.750",
+      "type": "Generated"
+    },
+    {
+      "frequency": "1333.0 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[1]_in",
+      "period_ns": "0.750",
+      "type": "Base"
+    },
+    {
+      "frequency": "1333.0 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[1]_nff",
+      "period_ns": "0.750",
+      "type": "Generated"
+    },
+    {
+      "frequency": "1333.0 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[2]_in",
+      "period_ns": "0.750",
+      "type": "Base"
+    },
+    {
+      "frequency": "1333.0 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[2]_nff",
+      "period_ns": "0.750",
+      "type": "Generated"
+    },
+    {
+      "frequency": "1333.0 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[3]_in",
+      "period_ns": "0.750",
+      "type": "Base"
+    },
+    {
+      "frequency": "1333.0 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[3]_nff",
+      "period_ns": "0.750",
+      "type": "Generated"
+    },
+    {
+      "frequency": "666.67 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0",
+      "period_ns": "1.500",
+      "type": "Generated"
+    },
+    {
+      "frequency": "166.67 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_sync_0",
+      "period_ns": "6.000",
+      "type": "Generated"
+    },
+    {
+      "frequency": "166.67 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_pll_ncntr",
+      "period_ns": "6.000",
+      "type": "Generated"
+    },
+    {
+      "frequency": "1333.33 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_base_0",
+      "period_ns": "0.750",
+      "type": "Generated"
+    },
+    {
+      "frequency": "1333.33 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_clk_periph_0",
+      "period_ns": "0.750",
+      "type": "Generated"
+    }
+  ],
+  "coverage": [
+    {
+      "hold": 0,
+      "property": "Illegal Clocks",
+      "setup": 0
+    },
+    {
+      "hold": 0,
+      "property": "Unconstrained Clocks",
+      "setup": 0
+    },
+    {
+      "hold": 0,
+      "property": "Unconstrained Input Ports",
+      "setup": 0
+    },
+    {
+      "hold": 0,
+      "property": "Paths from Unconstrained Input Ports (Pairs-Only)",
+      "setup": 0
+    },
+    {
+      "hold": 0,
+      "property": "Unconstrained Output Ports",
+      "setup": 0
+    },
+    {
+      "hold": 0,
+      "property": "Paths to Unconstrained Output Ports (Pairs-Only)",
+      "setup": 0
+    }
+  ],
+  "ddr_probe_simulation": {
+    "command": "make -C sources/misteross/boards/de25nano/hps sim",
+    "interconnect_cases": 10,
+    "interconnect_probe_source_matches_build": true,
+    "interconnect_receipt_sha256": "d67f512599334cac40c9579d9c9670ed1a66e8303ea4d78e47702bd0403e7369",
+    "interconnect_sources": 114,
+    "probe_groups": 15,
+    "result": "pass"
+  },
+  "design_assistant": {
+    "closure": "FAIL",
+    "failed_rule_classes": [
+      {
+        "name": "Missing Output Delay Constraint",
+        "rule": "TMC-20012",
+        "severity": "High",
+        "violations": 1,
+        "waived": 0
+      },
+      {
+        "name": "Reset Nets with Polarity Conflict",
+        "rule": "LNT-30023",
+        "severity": "Medium",
+        "violations": 1,
+        "waived": 0
+      },
+      {
+        "name": "Multiple Asynchronous Reset Synchronizers in the Same Clock Domain",
+        "rule": "RDC-50003",
+        "severity": "Medium",
+        "violations": 1,
+        "waived": 0
+      },
+      {
+        "name": "Intra-Clock False Path Reset Synchronizer",
+        "rule": "RES-50101",
+        "severity": "Low",
+        "violations": 2,
+        "waived": 0
+      }
+    ],
+    "waivers_applied": 0
+  },
+  "device": "A5EB013BB23BE4SCS",
+  "diagnostic_only": true,
+  "fit": {
+    "Device": "A5EB013BB23BE4SCS",
+    "Device Status": "Final",
+    "Family": "Agilex 5",
+    "Fitter Status": "Successful - Fri Oct 30 01:35:19 2026",
+    "Logic utilization (in ALMs)": "10,918 / 46,800 ( 23 % )",
+    "Power Models": "Final",
+    "Quartus Prime Version": "26.3.0 Build 114 10/14/2026 SC Pro Edition",
+    "Revision Name": "golden_top",
+    "Timing Models": "Final",
+    "Top-level Entity Name": "golden_top",
+    "Total DSP Blocks": "0 / 188 ( 0 % )",
+    "Total HSSI HPS": "1 / 1 ( 100 % )",
+    "Total PLLs": "2 / 11 ( 18 % )",
+    "Total RAM Blocks": "131 / 358 ( 37 % )",
+    "Total block memory bits": "2,098,688 / 7,331,840 ( 29 % )",
+    "Total dedicated logic registers": "21659",
+    "Total pins": "284 / 351 ( 81 % )"
+  },
+  "format": 1,
+  "metastability": {
+    "excluded_counts": [
+      18
+    ],
+    "found_counts": [
+      42
+    ],
+    "modeled_count": 24,
+    "qualification": "partial compiler model; excluded chains and physical behavior not qualified",
+    "reported_model_years": [
+      "1e+09"
+    ],
+    "shortest_register_counts": [
+      2
+    ],
+    "timing_violation_counts": [
+      0
+    ]
+  },
+  "producer_revision": "ae47a408588a41dddfb45ea0df4003a5ec3485db",
+  "source_binding": {
+    "probe_rtl_sha256": "4afe3497bca4bb991e855d1c40bd7e8e1d97ea9b943d40083f44eddede7c2d52",
+    "probe_tb_sha256": "15ac69bcf589eb2db3c41db03e96247a030f27c8479bd8ed8b946f4c307935a7",
+    "working_tree_probe_rtl_matches": true
+  },
+  "sta": {
+    "all_rows_nonnegative": true,
+    "all_tns_zero": true,
+    "minima_ns": {
+      "Hold": 0.0,
+      "Minimum Pulse Width": 0.22,
+      "Recovery": 7.236,
+      "Removal": 0.158,
+      "Setup": 3.423
+    },
+    "row_count": 23,
+    "rows": [
+      {
+        "clock": "pll_inst|iopll_0_outclk0",
+        "corner": "Slow fix4 0C Model",
+        "slack_ns": 3.423,
+        "tns_ns": 0.0,
+        "type": "Setup"
+      },
+      {
+        "clock": "altera_reserved_tck",
+        "corner": "Slow fix4 100C Model",
+        "slack_ns": 12.809,
+        "tns_ns": 0.0,
+        "type": "Setup"
+      },
+      {
+        "clock": "pll_inst|iopll_0_outclk0",
+        "corner": "Slow fix4a 0C Model",
+        "slack_ns": 0.0,
+        "tns_ns": 0.0,
+        "type": "Hold"
+      },
+      {
+        "clock": "altera_reserved_tck",
+        "corner": "Fast fix4 0C Model",
+        "slack_ns": 0.095,
+        "tns_ns": 0.0,
+        "type": "Hold"
+      },
+      {
+        "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0",
+        "corner": "Fast fix4 0C Model",
+        "slack_ns": 0.376,
+        "tns_ns": 0.0,
+        "type": "Hold"
+      },
+      {
+        "clock": "pll_inst|iopll_0_outclk0",
+        "corner": "Slow fix4 0C Model",
+        "slack_ns": 7.236,
+        "tns_ns": 0.0,
+        "type": "Recovery"
+      },
+      {
+        "clock": "altera_reserved_tck",
+        "corner": "Slow fix4 0C Model",
+        "slack_ns": 60.933,
+        "tns_ns": 0.0,
+        "type": "Recovery"
+      },
+      {
+        "clock": "pll_inst|iopll_0_outclk0",
+        "corner": "Fast fix4 0C Model",
+        "slack_ns": 0.158,
+        "tns_ns": 0.0,
+        "type": "Removal"
+      },
+      {
+        "clock": "altera_reserved_tck",
+        "corner": "Fast fix4 0C Model",
+        "slack_ns": 0.188,
+        "tns_ns": 0.0,
+        "type": "Removal"
+      },
+      {
+        "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_clk_periph_0",
+        "corner": "Slow fix4 100C Model",
+        "slack_ns": 0.22,
+        "tns_ns": 0.0,
+        "type": "Minimum Pulse Width"
+      },
+      {
+        "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_base_0",
+        "corner": "Slow fix4 0C Model",
+        "slack_ns": 0.272,
+        "tns_ns": 0.0,
+        "type": "Minimum Pulse Width"
+      },
+      {
+        "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0",
+        "corner": "Slow fix4 0C Model",
+        "slack_ns": 0.419,
+        "tns_ns": 0.0,
+        "type": "Minimum Pulse Width"
+      },
+      {
+        "clock": "EMIF_REF_CLOCK",
+        "corner": "Slow fix4 100C Model",
+        "slack_ns": 2.22,
+        "tns_ns": 0.0,
+        "type": "Minimum Pulse Width"
+      },
+      {
+        "clock": "pll_inst|iopll_0_outclk0",
+        "corner": "Slow fix4a 0C Model",
+        "slack_ns": 4.385,
+        "tns_ns": 0.0,
+        "type": "Minimum Pulse Width"
+      },
+      {
+        "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_rxclk_gated",
+        "corner": "Slow fix4 0C Model",
+        "slack_ns": 4.905,
+        "tns_ns": 0.0,
+        "type": "Minimum Pulse Width"
+      },
+      {
+        "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_rxclk_gated",
+        "corner": "Slow fix4 0C Model",
+        "slack_ns": 4.905,
+        "tns_ns": 0.0,
+        "type": "Minimum Pulse Width"
+      },
+      {
+        "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_rxclk_gated",
+        "corner": "Slow fix4 0C Model",
+        "slack_ns": 4.905,
+        "tns_ns": 0.0,
+        "type": "Minimum Pulse Width"
+      },
+      {
+        "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_rxclk_gated",
+        "corner": "Slow fix4 0C Model",
+        "slack_ns": 4.905,
+        "tns_ns": 0.0,
+        "type": "Minimum Pulse Width"
+      },
+      {
+        "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_rxclk_gated",
+        "corner": "Slow fix4 0C Model",
+        "slack_ns": 4.905,
+        "tns_ns": 0.0,
+        "type": "Minimum Pulse Width"
+      },
+      {
+        "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_rxclk_gated",
+        "corner": "Slow fix4 0C Model",
+        "slack_ns": 4.905,
+        "tns_ns": 0.0,
+        "type": "Minimum Pulse Width"
+      },
+      {
+        "clock": "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0",
+        "corner": "Slow fix4 100C Model",
+        "slack_ns": 8.313,
+        "tns_ns": 0.0,
+        "type": "Minimum Pulse Width"
+      },
+      {
+        "clock": "pll_inst|iopll_0_refclk",
+        "corner": "Slow fix4 100C Model",
+        "slack_ns": 9.231,
+        "tns_ns": 0.0,
+        "type": "Minimum Pulse Width"
+      },
+      {
+        "clock": "altera_reserved_tck",
+        "corner": "Slow fix4 100C Model",
+        "slack_ns": 28.581,
+        "tns_ns": 0.0,
+        "type": "Minimum Pulse Width"
+      }
+    ]
+  },
+  "tool_version": "Quartus Prime Shell\nVersion 26.3.0 Build 114 10/14/2026 SC Pro Edition\nCopyright (C) 2026  Altera Corporation. All rights reserved."
+}

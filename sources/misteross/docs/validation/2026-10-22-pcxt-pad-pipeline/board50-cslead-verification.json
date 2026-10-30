@@ -1,0 +1,354 @@
+{
+  "scope": "Verification of committed CPU100/board50 early-CS candidate, with native route audits, actual-stage digital proof and ordinary authenticated synthesis comparison. No whole-board physical or hardware acceptance.",
+  "synthesis_parameters": {
+    "MDA": 0,
+    "SCANLINES": 0,
+    "HALF_RATE_BOARD": 1
+  },
+  "base_fes_commit": "485165b3ecf9462013e1af7b720b709c8175f234",
+  "validated_source": "695036ff4863af9345def69c85d4f12790b630b8",
+  "make_check": "PASS: 21 generated consumers and 37 fixture copies",
+  "affected_run": {
+    "status": "passed",
+    "results": [
+      {
+        "label": "test_affected.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "test_test_changed.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "committed whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "working whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "parent Python regressions",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "working-tree generated consumer consistency",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "test_*.py",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "label": "atari-st RTL simulation",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "label": "pcxt RTL simulation",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "label": "ramtest RTL simulation",
+        "lane": "fpga",
+        "returncode": 0
+      }
+    ],
+    "unittest_summaries": [
+      [
+        "19",
+        "0.108s"
+      ],
+      [
+        "26",
+        "0.447s"
+      ],
+      [
+        "1",
+        "0.000s"
+      ],
+      [
+        "843",
+        "827.640s"
+      ],
+      [
+        "1326",
+        "239.941s"
+      ]
+    ],
+    "selected_cores": [
+      "atari-st",
+      "pcxt",
+      "ramtest"
+    ],
+    "limits": [
+      "FPGA synthesis/place-and-route",
+      "cold image builds",
+      "hardware acceptance",
+      "platform/image packaging suite",
+      "required browser integration suite",
+      "committed-source/release validation (make check remains separate)"
+    ],
+    "formal_note": "Default PATH skips optional Yosys/ABC tests; all three new CS methods explicitly pass with pinned tools. Four mailbox methods and eighteen reset-audit methods were also explicitly validated at unchanged source 485165b3ec."
+  },
+  "focused_CS_tests": {
+    "count": 3,
+    "status": "PASS",
+    "actual_final_register_projected": true
+  },
+  "logs_sha256": {
+    "board50-cslead-test-changed-host.log": "4c746c5b806e8f675b55fcc99fc7ae31cab022ef252dae3d410bfb6a4200522c",
+    "board50-cslead-check.log": "7e64928b0bfda0f6d4e520886eb05d607384f0d95ecdc94235608f71a0fc183f",
+    "board50-cslead-stable-focused.log": "2461982b2eab90898e2833c39b7dfa10fc2b8f7eec209a4fedb365e55a1e8b47"
+  },
+  "source_sha256": {
+    "sources/misteross/cores/fes-pcxt/rtl/fes_pcxt_top.sv": "2de973ca42a5e2844b63a4a9d3ff7e70002b22f71795c15194c1fd22d9c7252a",
+    "sources/misteross/cores/fes-pcxt/rtl/pcxt_memory.sv": "82bb400b17ebe84b6beed6ded828229f001da4b1ecf66556bba8c9a42a0b49ea",
+    "sources/misteross/cores/fes-pcxt/rtl/pcxt_system.sv": "334c3444e7dee658f977e139d1589d10d55e513ace90ce152f19f0dd5a246acb",
+    "sources/misteross/cores/fes-ramtest/rtl/sdram_addon_port.v": "e3ccc890531752d3fd8274ddbfac4401c79374cab80e7404f8825760da002a08",
+    "sources/misteross/tests/test_pcxt_cs_phase.py": "69521e746db8ada9262217da0bff13150f118cd4c17059e9357a913d2be08c44",
+    "sources/misteross/scripts/audit_fes_pcxt_cdc.py": "337a2b4466638eaf33c48c92e67ab2db4635dc17c158b3d5b689263f7abebdb9"
+  },
+  "public_synthesis": {
+    "scope": "Fresh authenticated synthesis-only producer of committed CPU100/board50 early-CS profile versus frozen three-seed native cohort. Entire JSON comparison normalizes only source/output path prefixes; no fields, source lines, nets, cells or parameters are dropped. Synthesis identity only, not a new native route or hardware acceptance.",
+    "equal_entire_json_after_only_path_prefix_normalization": true,
+    "selected_commit": "695036ff4863af9345def69c85d4f12790b630b8",
+    "selected_producer_receipt_sha256": "3c0ff473cc02df257476ef6124fd6cee7f60cace4d20cb039cb407ed08a057c1",
+    "selected_synth_sha256": "f5de736009bd2bd9141b37e57be27c55044df86dbc1b7a660725d22ba860fe6b",
+    "frozen_synth_sha256": "5d3623ff28080c5008e667b1c9cc8458d27b4269492fe04aee3b29ad369a19ac",
+    "frozen_receipt_sha256": "cb21a4f4c1c1fafce3808147fd35838e201fe32e809820d54975e73dcc9e1ff6",
+    "selected_producer_output": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/build/diagnostic/fes-pcxt/cga/direct/20261025T061835Z-2cc398a0",
+    "generated_roms_equal": true,
+    "hardware": false
+  },
+  "functional_proof": {
+    "revision": "695036ff4863af9345def69c85d4f12790b630b8",
+    "source_sha256": {
+      "sources/misteross/tests/test_pcxt_cs_phase.py": "69521e746db8ada9262217da0bff13150f118cd4c17059e9357a913d2be08c44",
+      "sources/misteross/cores/fes-pcxt/rtl/fes_pcxt_top.sv": "2de973ca42a5e2844b63a4a9d3ff7e70002b22f71795c15194c1fd22d9c7252a",
+      "sources/misteross/cores/fes-ramtest/rtl/sdram_addon_port.v": "e3ccc890531752d3fd8274ddbfac4401c79374cab80e7404f8825760da002a08"
+    },
+    "cases": [
+      {
+        "name": "default",
+        "result": "Bad output is identically zero.",
+        "artifacts": {
+          "proof.json": "f9ccde402d003f1ca7cda5c856000373a650626c26c70eb3b48282e9ccb6f50f",
+          "proof.aig": "811399d29277f5d8ba9b74a559b9c8743acf7efe425fdb433bf10c1c62a5e0eb",
+          "result.txt": "f8a07401ef95fbdacfa795a635a6d29ea16cdb83553d802988748c2a2d33fb7d",
+          "proof.sv": "ff525a468104b69d2bb2dc73fea0366e3a223f82a02c54d2a8bc65858c25355d",
+          "yosys.log": "c1f718c7b9fd5428e95e7d70bb758d304d32750c3d624b4c7dc95a3f324cfa6d"
+        }
+      },
+      {
+        "name": "early",
+        "result": "======== ABC command line \"read_aiger proof.aig; pdr\"\nInvariant F[3] : 6 clauses with 0 flops (out of 8) (cex = 0, ave = 5.75)\nVerification of invariant with 6 clauses was successful.  Time =     0.00 sec\nProperty proved.  Time =     0.01 sec",
+        "artifacts": {
+          "abc.log": "158f3c0c1186bbdca1a9db51d872658bfc5a9320244d59e8512d55c176c4f26a",
+          "proof.json": "69274a1d52f76399f1f020c05e8a6186622e1b3508dcd77fcf2f7d2385520838",
+          "proof.aig": "1f436981a9d6da869a0f37b906a38d15887aaaa48ff9917c57dc8e14ebbb82d1",
+          "result.txt": "158f3c0c1186bbdca1a9db51d872658bfc5a9320244d59e8512d55c176c4f26a",
+          "proof.sv": "8b96d675fbe2bc2b987308fbae172e5331a01af164f0c6cc1c2bc861126021f4",
+          "yosys.log": "7ef340dbb4148b4dcf9c40930f77380634039f3b605fa11989470c5979f7d97d"
+        }
+      },
+      {
+        "name": "missing-stage",
+        "result": "======== ABC command line \"read_aiger proof.aig; pdr\"\nOutput 0 of miter \"proof\" was asserted in frame 5.  Time =     0.02 sec",
+        "artifacts": {
+          "abc.log": "794f6ae679165fe55bc10e73fd9e5673d4ccab9ff6221a1142e9498d703caafc",
+          "proof.json": "88b3e3eb088a76789461bba005f2051d78700f464ab7083f5065aa25985102b3",
+          "proof.aig": "c471f3b42faa07ac9d7d08e01244016f4be893e10e373fa1086e68962b072edb",
+          "result.txt": "794f6ae679165fe55bc10e73fd9e5673d4ccab9ff6221a1142e9498d703caafc",
+          "proof.sv": "772a43b9f835b8d7363723a306c6dd579e2dfb57de71040b783a1769803ce7e5",
+          "yosys.log": "e66be17989e1c51318a6f99a6440505674d158d9228fa82f9e92f42bb7964c5e"
+        }
+      }
+    ],
+    "scope": "Actual final top-level CS register and shared controller IO stage projected onto ordered board/chip/early events; no physical propagation model."
+  },
+  "native_reset_and_clock_audits": [
+    {
+      "seed": 1,
+      "cdc_audit_sha256": "92e19c1101a8cf1e2f57ec47fd41bb5fc9037c5b6863f94724ba328bf8d74625",
+      "clock_audit_sha256": "877b1d40bebce86de58dd8df957a6d762feee214ccbf154f41bf7998c05438e3",
+      "inputs_sha256": {
+        "out/pcxt-whole-board-closure-20261023/route-board50-cslead2ns-seed1/routed.json": "489e3e1c614a9aeade0aec34480b63182addd98185fa1819b4644c0546feacb1",
+        "out/pcxt-whole-board-closure-20261023/route-board50-cslead2ns-seed1/timing.json": "ef360f93fd1bac62d3c117216816407c2e60371aab210522687e5ec5149beab7",
+        "out/pcxt-whole-board-closure-20261023/route-board50-cslead2ns-seed1/receipt.json": "31ebbfb78aebb5718b82584106bff5bf8ddb500db8e930e2556936b70611b72d"
+      },
+      "reset_consumer_checks": 1021,
+      "unique_consumer_ports": 919,
+      "setup_min_ns": 6.552999973297119,
+      "hold_min_ns": 1,
+      "async_clear_consumers": 2,
+      "all_five_clock_tree_bindings_match_rbf": true,
+      "memory_pll": {
+        "M": 20,
+        "N": 2,
+        "vco_mhz": 500.0,
+        "outputs": [
+          {
+            "output": 0,
+            "counter": 6,
+            "period_ns": 10.0,
+            "phase_ns": 0.0
+          },
+          {
+            "output": 1,
+            "counter": 7,
+            "period_ns": 20.0,
+            "phase_ns": 10.0
+          },
+          {
+            "output": 2,
+            "counter": 5,
+            "period_ns": 20.0,
+            "phase_ns": 0.0
+          },
+          {
+            "output": 3,
+            "counter": 8,
+            "period_ns": 20.0,
+            "phase_ns": 18.0
+          }
+        ]
+      },
+      "CS_is_only_new_clock_consumer": [
+        "SDRAM_nCS_MISTRAL_OB_PAD"
+      ],
+      "negative_clock_controls_rejected": [
+        "missing CS branch binding",
+        "incorrect CS counter phase"
+      ]
+    },
+    {
+      "seed": 2,
+      "cdc_audit_sha256": "375f12f8baeb01ff219a8561b5b59378e8c4b6e418877e9b5cd1e83eb35f4af0",
+      "clock_audit_sha256": "afcffdcb7488ef5d5e9df3d6af3b3e02fa266caeb6314ca343a7a0ab77532c0e",
+      "inputs_sha256": {
+        "out/pcxt-whole-board-closure-20261023/route-board50-cslead2ns-seed2/routed.json": "023101270b5b8cf9c02a2fc80a495d6e269a06333af300402caff7fed1ecff8a",
+        "out/pcxt-whole-board-closure-20261023/route-board50-cslead2ns-seed2/timing.json": "18dae6f1914dde11021ae7e50741f31b0459e2bf3da92f207f0103d90c1568a5",
+        "out/pcxt-whole-board-closure-20261023/route-board50-cslead2ns-seed2/receipt.json": "1e2bfcb262d0f46108ab92a7e91617476f8166f00fd24351ec6988e96fa3028d"
+      },
+      "reset_consumer_checks": 1021,
+      "unique_consumer_ports": 919,
+      "setup_min_ns": 6.145999908447266,
+      "hold_min_ns": 0.8700000047683716,
+      "async_clear_consumers": 2,
+      "all_five_clock_tree_bindings_match_rbf": true,
+      "memory_pll": {
+        "M": 20,
+        "N": 2,
+        "vco_mhz": 500.0,
+        "outputs": [
+          {
+            "output": 0,
+            "counter": 6,
+            "period_ns": 10.0,
+            "phase_ns": 0.0
+          },
+          {
+            "output": 1,
+            "counter": 7,
+            "period_ns": 20.0,
+            "phase_ns": 10.0
+          },
+          {
+            "output": 2,
+            "counter": 5,
+            "period_ns": 20.0,
+            "phase_ns": 0.0
+          },
+          {
+            "output": 3,
+            "counter": 8,
+            "period_ns": 20.0,
+            "phase_ns": 18.0
+          }
+        ]
+      },
+      "CS_is_only_new_clock_consumer": [
+        "SDRAM_nCS_MISTRAL_OB_PAD"
+      ],
+      "negative_clock_controls_rejected": [
+        "missing CS branch binding",
+        "incorrect CS counter phase"
+      ]
+    },
+    {
+      "seed": 3,
+      "cdc_audit_sha256": "155fe35d862e0b0030cbb7933671f8106f921dd9c068c1b2f0410641b1caecef",
+      "clock_audit_sha256": "a78d71e17e241bf70be6833ccc4a335edd121ff1f8b425debac64ed8d7fa954b",
+      "inputs_sha256": {
+        "out/pcxt-whole-board-closure-20261023/route-board50-cslead2ns-seed3/routed.json": "0fe1cf615d15c30515c819d8bf60e7cbc6b72d59c6a3b97151b6f8dd59e97ad0",
+        "out/pcxt-whole-board-closure-20261023/route-board50-cslead2ns-seed3/timing.json": "8f9e1503d7c1803b3fe6c8307766eedeb9a1c6c7e5a56e0bdc34bc5cce59f82b",
+        "out/pcxt-whole-board-closure-20261023/route-board50-cslead2ns-seed3/receipt.json": "20d6d910a65443ce5e38c88ae688dd7b147a1c533ca4e0edd5422fd6e651a38f"
+      },
+      "reset_consumer_checks": 1021,
+      "unique_consumer_ports": 919,
+      "setup_min_ns": 6.611999988555908,
+      "hold_min_ns": 0.9309999942779541,
+      "async_clear_consumers": 2,
+      "all_five_clock_tree_bindings_match_rbf": true,
+      "memory_pll": {
+        "M": 20,
+        "N": 2,
+        "vco_mhz": 500.0,
+        "outputs": [
+          {
+            "output": 0,
+            "counter": 6,
+            "period_ns": 10.0,
+            "phase_ns": 0.0
+          },
+          {
+            "output": 1,
+            "counter": 7,
+            "period_ns": 20.0,
+            "phase_ns": 10.0
+          },
+          {
+            "output": 2,
+            "counter": 5,
+            "period_ns": 20.0,
+            "phase_ns": 0.0
+          },
+          {
+            "output": 3,
+            "counter": 8,
+            "period_ns": 20.0,
+            "phase_ns": 18.0
+          }
+        ]
+      },
+      "CS_is_only_new_clock_consumer": [
+        "SDRAM_nCS_MISTRAL_OB_PAD"
+      ],
+      "negative_clock_controls_rejected": [
+        "missing CS branch binding",
+        "incorrect CS counter phase"
+      ]
+    }
+  ],
+  "same_reset_consumer_identities_all_three": true,
+  "fresh_four_counter_reference": "board50-cslead-quartus-reference.json",
+  "remaining": [
+    "Native nine unpaired reset/video entries retain physical obligations; no exceptions or failure override.",
+    "Paired native uncertainty screen is partial; no native fast-corner calibration or physical waveform/MTBF qualification.",
+    "Fitted addon, board flight/load/inverter slew and HDMI/HPS interface contracts remain open.",
+    "Reviewed compiler integration and fresh ordinary route producer/exact-artifact hardware acceptance remain open."
+  ],
+  "route_receipts": 124,
+  "hardware_class": "host-only checks and routed/compiler reference diagnostics; no hardware run",
+  "physical_qualified": false,
+  "hardware": false
+}

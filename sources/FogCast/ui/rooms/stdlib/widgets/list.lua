@@ -15,9 +15,9 @@ function M.new(opts)
     id = opts.id or "list",
     x = opts.x or 0, y = opts.y or 0,
     w = opts.w or 400, h = opts.h or 400,
-    row_h = opts.row_h or 44,
-    size = opts.size or 20,
-    pad = opts.pad or 16,
+    row_h = opts.row_h or 56,
+    size = opts.size or 24,
+    pad = opts.pad or 20,
     items = opts.items or {},
     focus = 1,
     scroll = 0,
@@ -110,6 +110,8 @@ function List:draw(opts)
   local accent = opts.focus_color or room.theme.accent
   local text = opts.color or room.theme.label
   local focus_text = opts.focus_text or "#101418"
+  local _, regular_h = gfx.measure("Ag", self.size, false)
+  local _, bold_h = gfx.measure("Ag", self.size, true)
   for row = 0, vis do
     local i = self.scroll + row + 1
     local item = self.items[i]
@@ -122,7 +124,8 @@ function List:draw(opts)
     elseif opts.row_color then
       gfx.rect(self.x, y, self.w, self.row_h, opts.row_color)
     end
-    gfx.text(label(item, i, focused), self.x + self.pad, y + math.floor((self.row_h - self.size) / 2) - 2,
+    local text_h = focused and bold_h or regular_h
+    gfx.text(label(item, i, focused), self.x + self.pad, y + math.floor((self.row_h - text_h) / 2),
       { size = self.size, color = focused and focus_text or text, max_w = self.w - self.pad * 2, bold = focused })
     gfx.hit(self:hit_id(i), self.x, y, self.w, self.row_h)
   end

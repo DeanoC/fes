@@ -1,4 +1,4 @@
-# DE25-Nano HPS mailbox diagnostic
+# DE25-Nano HPS mailbox and read-only DDR probe
 
 This standalone diagnostic adds a small Avalon-MM register block to the
 lightweight HPS bridge in Terasic's pinned revision-B GHRD. It preserves the
@@ -7,6 +7,48 @@ scratch register, clock counter and ready status are defined by
 [`fes.fabric.de25-hps-mailbox`](../../../../mister-packages/packages/fabric/fes_fabric_de25_hps_mailbox.yaml).
 This is a diagnostic register interface; it does not declare a FES GP ABI,
 runtime programming profile or Linux physical MMIO address.
+
+The separate `fes.fabric.de25-ddr-probe` endpoint occupies 128 bytes at
+peripheral-relative offset `0x10100`. Elaborated handoff validation checks
+this range against every reachable peripheral slave, including the mailbox;
+project-only preparation records that check as pending. Its 32-bit control
+slave and 128-bit, byte-addressed read master share the existing 100 MHz
+clock. The master exports a two-bit Avalon response and connects through
+generated Platform Designer width/protocol adaptation to the unchanged
+256-bit AXI F2SDRAM adapter. The vendor JTAG access path remains selected;
+the new master has no write ports. This is not the DE10 DDR wrapper or GP ABI.
+
+START snapshots the staged grant bus base/span, read offset/length, nonzero
+64-bit generation and nonzero sequence. Base upper bits must be zero, the
+grant base is 32-byte aligned, and span/offset/length are 16-byte aligned.
+Length/span must be nonzero; 33-bit sums enforce both grant and transfer
+bounds, including an end exactly at `2^32`. Low bus addresses are permitted;
+the circuit does not equate a DMA bus address with a CPU physical address.
+The register map and bit values come from the shared generated definition.
+
+Only one burst is outstanding, with at most 16 128-bit beats and no crossing
+of a 4 KiB boundary. Read address/burst stay stable under waitrequest,
+including after CANCEL or a busy-command fault. CANCEL stops new commands
+and drains every accepted response before IDLE. Missing responses keep BUSY
+asserted indefinitely; no timeout claims a drain. Response errors latch a
+fault and drain the current burst. Completed bytes count returned beats;
+accepted bytes count accepted bursts; the checksum XORs all four 32-bit
+words of each returned beat. Last-data registers preserve lane order.
+
+DONE means successful completion only. Cancel/error drains end in locally
+IDLE with their sticky flags, without DONE. Idle CANCEL is a no-op. START
+requires idle/fault-free state; busy START/CLEAR and invalid commands fault
+without orphaning traffic. CLEAR is accepted only while locally idle and
+clears result/status registers while retaining the staged descriptor.
+Stage writes honor byte enables and may occur during BUSY; the active
+snapshot remains immutable. Reserved/read-only writes are ignored.
+
+These descriptor checks confer no DMA allocation, SID/translation/firewall,
+cache-coherency or lifetime permission. Local IDLE proves no owned request
+or response remains; hard/warm reset cannot prove old external traffic has
+drained. The pinned HPS warm-reset request/acknowledge is unconnected.
+Actual allocation and bridge/reset lifetime coordination remain external
+gates before hardware activation. No physical DDR address is selected.
 
 From this directory:
 
@@ -28,6 +70,20 @@ vendor lock, generated constants and integration script select the project.
 `generate` adds the component through Quartus 26.3's Platform Designer API,
 clears IP generation directories and regenerates the project IP. `build` then
 compiles with two CPU workers. Neither command programs a device or writes flash.
+
+After IP generation, test the actual generated 128-bit Avalon to 256-bit AXI
+transport with a fresh private simulation output:
+
+```sh
+python3 interconnect_sim.py --project /absolute/generated-hps/project \
+  --output /absolute/new-interconnect-simulation
+```
+
+The helper snapshots unchanged generated dependencies and records their hashes,
+the compiler command and per-case AXI traces. It checks narrow-read footprints,
+lane order, boundary splits and SLVERR/DECERR propagation using the real probe.
+It models the AXI responder, without the HPS, translation, firewall or physical
+DDR. Direct probe simulation covers cancellation/reset accounting separately.
 
 The mailbox occupies 32 bytes at relative peripheral-bridge offset `0x100a0`,
 after the vendor's existing system-ID and PIO blocks. All offsets below are
@@ -51,6 +107,11 @@ every byte-enable combination and every byte address in the endpoint span.
 reset/PLL-lock input combinations, asynchronous assertion at startup and with
 the clock stopped high or low, held reset, release on exactly the second
 rising edge, and interrupted release/relock.
+It additionally runs `make sim-probe`, which exercises the actual probe RTL
+with stalls, byte enables, descriptor bounds, low bus addresses, snapshot
+isolation, lane/checksum checks, burst boundaries, cancellation and missing
+or erroneous responses. A modeled bus does not establish actual DDR access;
+the generated interconnect's response preservation must be checked separately.
 
 The board-local reset module combines configuration reset (`ninit_done`) and
 loss of PLL lock, asserts asynchronously and releases through a preserved
