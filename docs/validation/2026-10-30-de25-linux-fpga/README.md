@@ -88,3 +88,27 @@ before another Linux load. Actual HPS-first boot/transfer still needs physical
 verification. Keep the independently reproduced service cleanup hang and its
 [recovery candidate](https://github.com/DeanoC/fes/pull/1300) separate
 from a claim that the transfer cause is fixed.
+
+## Post-shutdown recovery inspection
+
+A later trusted UART inspection still observes no FES login. Read-only
+`CONFIG_STATUS` on the exact claimed bottom-board cable succeeds without a
+helper image. Quartus decodes `STATE=IDLE`, `MSEL=AS_FAST_POR`, `nSTATUS=1`,
+`nCONFIG=1`, `CONF_DONE=1` and `INIT_DONE=1`; the raw response and tool decoding
+are retained. This proves the SDM responds and reports user mode. It does not
+prove Linux restarted, identify a new boot epoch, or verify the factory FPGA
+baseline. No fabric CPU registers are accessed.
+
+The installed programmer help confirms `R` means erase. Its `--initcfg` option
+applies after programming configuration devices; it does not document a
+standalone flash-restart operation. Neither is used for recovery. The
+[Agilex 5 RSU operation requirements](https://docs.altera.com/r/docs/813773/25.1/device-configuration-user-guide-agilextm-5-fpgas-and-socs/operation-commands)
+restrict RSU commands to an RSU image loaded from QSPI in AS mode. The temporary
+JTAG image and factory flash layout have not established that prerequisite.
+No RSU command or guessed flash offset is sent. A documented nCONFIG or verified
+board-power transition remains the restoration boundary for this state.
+
+Only the claimed board's USB permissions are changed temporarily for the two
+read-only queries and restored to root:root 0664 afterward. UART closes; there
+is no remaining owned hardware session. The physical power-cycle request stays
+pending, and the board claim remains held until restoration is verified.
