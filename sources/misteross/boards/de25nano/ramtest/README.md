@@ -77,8 +77,11 @@ The raw compiler SOF requires an HPS bootloader before JTAG programming;
 Quartus rejects it without one. The [physical diagnostic record](../../../../../docs/validation/2026-10-30-de25-physical-memory/README.md)
 documents the vendor `quartus_pfg` conversion with the unchanged, locked
 Terasic SPL into a separate SOF. That exact image boots the factory SD and
-passes 4-KiB and full-bank scans of FPGA LPDDR4 B and both SDRAM chip selects
-on one USB/UID-identified board. The printed SCS/R1 suffix remains unconfirmed.
+passes 4-KiB smoke and full-bank scans of FPGA LPDDR4 B and SDRAM. Only the
+full 128-MiB SDRAM scan crosses byte-address bit 26 and exercises both physical
+chip selects. The retained transcript identifies the Quartus cable and target
+part, but does not record the USB serial or board UID. The printed SCS/R1 suffix
+remains unconfirmed.
 Software reboot does not return within the captured interval and requires a
 manual power cycle; reset qualification remains open. This is a physical
 diagnostic, not production HPS/DMA, electrical or whole-board acceptance.
