@@ -11,6 +11,37 @@ SPEC.loader.exec_module(build)
 
 
 class RecipeTests(unittest.TestCase):
+    def test_combined_client_proof_receipt_matches_captured_sources(self):
+        combined = build.BOARD / "zx81-computer"
+        build.PROFILE = build.load_profile(combined / "profile.py")
+        try:
+            frozen = build.capture()
+        finally:
+            build.PROFILE = None
+
+        root = frozen["repository"]
+        receipt_path = root / "docs/validation/2026-10-30-de25-zx81-load-roundtrip/combined-proof.json"
+        receipt = json.loads(receipt_path.read_text())
+        self.assertEqual(receipt["status"], "passed")
+        self.assertTrue(receipt["production_source_committed"])
+        self.assertEqual(receipt["compiler_source_sha256"],
+                         {name: build.sha(data) for name, data in frozen["files"].items()})
+
+        runtime = root / "sources/libmister-runtime"
+        paths = list(combined.glob("*.cpp")) + list(combined.glob("*.hpp"))
+        paths += [combined / "sim_top.v", combined / "proof.py"]
+        paths += list((runtime / "src/native").rglob("*.hpp"))
+        paths += [runtime / "include/libmister-runtime/runtime.h",
+                  runtime / "src/native/de25_computer.cpp",
+                  runtime / "src/native/de25_pr_control.cpp",
+                  build.BOARD.parent / "zx81-hps/cosim/wire.hpp",
+                  build.BOARD.parent / "zx81-hps/client_proof.py"]
+        runtime_hashes = {path.relative_to(root).as_posix(): build.sha(path.read_bytes()) for path in paths}
+        self.assertTrue(receipt["test_source_committed"])
+        self.assertEqual(receipt["test_runtime_source_sha256"], runtime_hashes)
+        self.assertEqual(len(receipt["results"]), 14)
+        self.assertTrue(all(result["result"] == "passed" for result in receipt["results"]))
+
     def test_real_preparation_declares_both_personas_reconfigurable(self):
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp)

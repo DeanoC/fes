@@ -80,7 +80,7 @@ int main(int argc,char**argv){
                 basic::Session session(computer,[&](unsigned op,unsigned a,unsigned v){return io.call(op,a,v);},[&]{return io.deadline();});
                 roundtrip=session.roundtrip();loaded=roundtrip.image.size();unsigned size=loaded;
                 if(argc==5)roundtrip.save(argv[4]);
-                // Interrupt a second real LOAD with the PR freeze request.
+                // Interrupt a third real LOAD with the PR freeze request.
                 std::cerr<<"LOAD interrupted\n";io.call(wire::BeginLoad);session.load_command(false);io.call(combined::WaitSomeLoad,8);
                 okay(pr.Freeze(io.deadline()),"freeze during real loader writes");
                 interrupted=io.state(wire::LoadedBytes);
