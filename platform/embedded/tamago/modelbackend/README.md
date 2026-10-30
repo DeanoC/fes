@@ -8,6 +8,9 @@ ROM-link fixtures and is deliberately separate from the real network-host mode.
 `NewWithEndpoint` can inject the [contained native firmware/FPGA endpoint](../nativefabric/README.md)
 into that same actor for model-only integration tests. The caller retains the
 endpoint across failures so uncertain transfer reservations remain owned.
+The injected path checks its explicit identity profile and admitted programmed
+digest before it retires the old owner; model-only package compatibility does
+not qualify a physical Nano producer.
 
 `Backend` implements `http.RoundTripper`; tenfoot uses its existing in-process
 transport boundary. Unsupported endpoints fail locally rather than forwarding

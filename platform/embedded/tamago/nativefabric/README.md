@@ -7,6 +7,14 @@ constructor drives it through the same actor and retained-package admission
 used by tenfoot's model sessions. It remains restricted to the
 `qemu-model-only` policy. There is no Nano programming profile or board binding.
 
+Before an injected actor retires its current owner, it checks that the retained
+package's exact target, programming profile and ABI version have an explicitly
+supplied identity profile. The profile gives the FPGA control ABI personality;
+there is no inferred mapping from a GP ABI tag. It also checks the admitted
+programmed-byte digest. The endpoint decodes all 32 lowercase hexadecimal build
+ID digits into the control registers' low-word-first order. Unmapped targets,
+malformed IDs and digest mismatches reject without disabling the old reader.
+
 The controller remains the only lifecycle owner. It supplies the outgoing
 reader identity and generation, issues each command once and reserves the
 next display generation. The endpoint implements the command phases:
@@ -34,15 +42,20 @@ preserves the old core, with input retired, as in the existing lifecycle.
 
 ## Platform responsibilities
 
-Hooks are trusted and serialized. `Resolve` must bind the admitted descriptor to
-its intended 128-bit FPGA build and ABI identity; the software fixture's mapping
-is synthetic. `Reserve` must provide an exclusively owned, coherent, DMA-visible
+Hooks are trusted and serialized. `Resolve` supplies identity only for the
+unpackaged idle/software-model fixtures. Admitted packages instead use the
+retained descriptor and an explicit `IdentityProfile`; callers must qualify
+each association against its actual producer. The test-only DE10 tuple is not
+a Nano profile and does not prove that an existing core includes the endpoint.
+`Reserve` must provide an exclusively owned, coherent, DMA-visible
 region whose mapping and bytes remain valid until its release. Its address and
 DRAM base are explicit inputs, not defaults. The platform must prove bridge-mask
 readback, clock/reset and DDR readiness, and containment of every other master.
 Control-only access must expose the CSR aperture without releasing data masters.
 These proofs are not supplied by the experiment or by the capability tuple.
 The tuple is an experimental compatibility marker, not firmware authentication.
+The mapping and package validation are not a cryptographic signature or a proof
+that a particular bitstream physically contains the declared build identity.
 
 The FPGA endpoint covers one AXI read port; it is not a complete scanout engine
 or an address firewall. Native input neutralization, saves, frame handoff,
@@ -63,5 +76,5 @@ Verilator RTL, generates synthetic package/ROM fixtures through the existing
 runtime compatibility oracle and linker, and runs the native endpoint and
 actual tenfoot model actor with the race detector. Its platform transport and
 SDM/bridge operations are simulated; it does not execute an EL3 SMC or touch a
-board. The four small `nativefabriccheck` cases also run in the TamaGo `fabric`
+board. The six small `nativefabriccheck` cases also run in the TamaGo `fabric`
 QEMU diagnostic using software hooks.

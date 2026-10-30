@@ -68,7 +68,7 @@ def main():
     rpc_dir = output / "rpc"
     run("rpc-build", ["verilator", "--cc", "--exe", "--build", "--top-module", "fes_embedded_control", "-Wall",
         "--Mdir", rpc_dir, "-I" + str(FPGA / "cores/fes-common/generated"),
-        "-GBUILD_ID=128'h00112233445566778899aabbccddeeff",
+        "-GBUILD_ID=128'h0123456789abcdef0123456789abcdef",
         "-CFLAGS", "-std=c++14 -O2 -fsanitize=undefined -fno-sanitize-recover=all -I" + str(FIRMWARE),
         "-LDFLAGS", str(firmware_out / "tfa_subset.o") + " -fsanitize=undefined",
         FPGA / "cores/fes-common/rtl/fes_embedded_control.sv", FIRMWARE / "control.cpp", FIRMWARE / "tests/native_rpc.cpp"])
@@ -80,8 +80,8 @@ def main():
     run("session-fixtures", [helper, fixture_dir, output / "admission-oracle"])
 
     test_env = {"FES_EMBEDDED_RPC": str(rpc_dir / "Vfes_embedded_control"), "FES_MODEL_FIXTURES": str(fixture_dir)}
-    run("native-tests", [go, "test", "-race", "-count=1", "-timeout", "90s", "-v", "./nativefabric", "./nativefabriccheck", "./embeddedcontrol/...", "./fabricmodel"], cwd=TAMAGO, extra_env=test_env)
-    run("tenfoot-tests", [go, "test", "-race", "-count=1", "-timeout", "90s", "-v", "-run", "^Test(InjectedEndpointDirect|InjectedEndpointCancellationRetainsTransfer|TenfootInjectedEndpointLaunchReturnAndIdentityFailure)$", "./modelbackend"], cwd=TAMAGO, extra_env=test_env)
+    run("native-tests", [go, "test", "-race", "-count=1", "-timeout", "90s", "-v", "./nativefabric", "./nativefabriccheck", "./embeddedcontrol/...", "./fabricmodel", "./runtimeadmission"], cwd=TAMAGO, extra_env=test_env)
+    run("tenfoot-tests", [go, "test", "-race", "-count=1", "-timeout", "90s", "-v", "./modelbackend"], cwd=TAMAGO, extra_env=test_env)
     if sources != {str(p.relative_to(ROOT)): sha(p) for p in sorted(files)} or fixture_snapshot != {str(p.relative_to(ROOT)): sha(p) for p in fixture_sources if p.is_file() and p.is_relative_to(ROOT)}:
         raise RuntimeError("source changed during verification")
     report = {

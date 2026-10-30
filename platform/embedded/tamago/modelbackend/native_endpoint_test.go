@@ -20,6 +20,7 @@ import (
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/tenfoot"
 	"github.com/DeanoC/fes/platform/embedded/tamago/embeddedcontrol"
+	g "github.com/DeanoC/fes/platform/embedded/tamago/embeddedcontrol/generated"
 	"github.com/DeanoC/fes/platform/embedded/tamago/fabricmodel"
 	"github.com/DeanoC/fes/platform/embedded/tamago/nativefabric"
 )
@@ -32,16 +33,22 @@ type actorRPC struct {
 	region        *nativefabric.Region
 	releases      int
 	writes, polls int
+	programs      int
 	wrongIdentity bool
 	loseWrites    bool
 	reserved      chan struct{}
+}
+
+func actorOptions() nativefabric.Options {
+	return nativefabric.Options{DRAMBase: 0x80000000, ChunkBytes: 4096,
+		IdentityProfiles: []nativefabric.IdentityProfile{{Platform: "de10_nano", Device: "5CSEBA6U23I7", ProgrammingProfile: "fes-gp-v1", ABI: "fes.simple-game", Major: 1, Minor: 0, ControlABI: 1}}}
 }
 
 func TestInjectedEndpointDirect(t *testing.T) {
 	policy, config, read := fixtures(t)
 	config.Entries = config.Entries[:1]
 	r := newActorRPC(t)
-	endpoint, err := nativefabric.New(r, nativefabric.Options{DRAMBase: 0x80000000, ChunkBytes: 4096})
+	endpoint, err := nativefabric.New(r, actorOptions())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +133,11 @@ func (r *actorRPC) Read32(o uint32) (uint32, error) {
 	if err != nil {
 		return 0, err
 	}
-	return uint32(v[0]), nil
+	value := uint32(v[0])
+	if r.wrongIdentity && r.programs == 2 && o == g.FesEmbeddedRegBuild3 {
+		value ^= 1
+	}
+	return value, nil
 }
 func (r *actorRPC) Write32(o, v uint32) error { _, err := r.call("write %x %x", o, v); return err }
 func (r *actorRPC) Invoke(q [7]uint64) ([4]uint64, error) {
@@ -134,6 +145,8 @@ func (r *actorRPC) Invoke(q [7]uint64) ([4]uint64, error) {
 		r.writes++
 	} else if q[0] == 0xc2000003 {
 		r.polls++
+	} else if q[0] == 0xc2000001 {
+		r.programs++
 	}
 	v, err := r.call("smc %x %x %x", q[0], q[1], q[2])
 	var out [4]uint64
@@ -141,11 +154,7 @@ func (r *actorRPC) Invoke(q [7]uint64) ([4]uint64, error) {
 	return out, err
 }
 func (r *actorRPC) Resolve(i fabricmodel.Identity) (embeddedcontrol.Identity, error) {
-	v := embeddedcontrol.Identity{ABI: 1, Build: [4]uint32{0xccddeeff, 0x8899aabb, 0x44556677, 0x00112233}}
-	if r.wrongIdentity && i.Package.PackageID != "" {
-		v.Build[3] ^= 1
-	}
-	return v, nil
+	return embeddedcontrol.Identity{ABI: 1, Build: [4]uint32{0x89abcdef, 0x01234567, 0x89abcdef, 0x01234567}}, nil
 }
 func (r *actorRPC) Reserve(data []byte) (*nativefabric.Region, error) {
 	if r.region != nil {
@@ -183,7 +192,7 @@ func TestTenfootInjectedEndpointLaunchReturnAndIdentityFailure(t *testing.T) {
 			}
 			r := newActorRPC(t)
 			r.wrongIdentity = wrong
-			endpoint, err := nativefabric.New(r, nativefabric.Options{DRAMBase: 0x80000000, ChunkBytes: 4096})
+			endpoint, err := nativefabric.New(r, actorOptions())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -231,7 +240,7 @@ func TestInjectedEndpointCancellationRetainsTransfer(t *testing.T) {
 	config.Entries = config.Entries[:1]
 	r := newActorRPC(t)
 	r.loseWrites, r.reserved = true, make(chan struct{})
-	endpoint, err := nativefabric.New(r, nativefabric.Options{DRAMBase: 0x80000000, ChunkBytes: 4096})
+	endpoint, err := nativefabric.New(r, actorOptions())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -270,4 +279,41 @@ func TestInjectedEndpointCancellationRetainsTransfer(t *testing.T) {
 	if err = backend.Close(closeCtx); !errors.Is(err, fabricmodel.ErrReboot) {
 		t.Fatalf("close discarded uncertain owner: %v", err)
 	}
+}
+
+func TestInjectedEndpointRejectsUnmappedPackageBeforeRetiringOwner(t *testing.T) {
+	policy, config, read := fixtures(t)
+	config.Entries = config.Entries[:1]
+	r := newActorRPC(t)
+	options := actorOptions()
+	options.IdentityProfiles[0].Device = "unrelated-device"
+	endpoint, err := nativefabric.New(r, options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	backend, err := NewWithEndpoint(policy, config, read, nil, endpoint)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeBackend(t, backend)
+	before := backend.View().Status
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	client := hostclient.NewClient("http://model.invalid", &http.Client{Transport: backend})
+	_, _ = client.Launch(ctx, "model-normal")
+	if got := backend.View().Status; got != before {
+		t.Fatalf("unmapped package changed owner: before=%+v after=%+v", before, got)
+	}
+	stats, err := r.call("stats")
+	if err != nil || stats[0] != 1 || stats[1] != 1 || r.releases != 1 {
+		t.Fatalf("unmapped package touched hardware: %v %v", stats, err)
+	}
+	s, err := endpointSnapshot(r)
+	if err != nil || s.Status != 1 || s.Generation != before.DisplayGeneration {
+		t.Fatalf("outgoing reader changed: %+v %v", s, err)
+	}
+}
+
+func endpointSnapshot(r *actorRPC) (embeddedcontrol.Snapshot, error) {
+	return (embeddedcontrol.Control{IO: r}).Snapshot()
 }

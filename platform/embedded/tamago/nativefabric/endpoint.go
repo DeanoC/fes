@@ -6,6 +6,7 @@ package nativefabric
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math"
@@ -35,8 +36,8 @@ type Region struct {
 // Hooks are trusted, serialized, synchronous and bounded-return operations.
 // Contain and ControlOnly must check the bridge masks and all other masters;
 // ControlOnly admits only HPS-to-FPGA CSR while data masters remain contained.
-// Save reports whether an error is a known, completed result. Resolve binds an
-// admitted model identity to the intended full FPGA build/ABI identity.
+// Save reports whether an error is a known, completed result. Resolve applies
+// only to unpackaged model/idle images; admitted packages use explicit profiles.
 type Hooks interface {
 	embeddedcontrol.IO
 	Invoke([7]uint64) ([4]uint64, error)
@@ -49,8 +50,9 @@ type Hooks interface {
 }
 
 type Options struct {
-	DRAMBase   uint64
-	ChunkBytes int
+	DRAMBase         uint64
+	ChunkBytes       int
+	IdentityProfiles []IdentityProfile
 }
 
 type Endpoint struct {
@@ -78,6 +80,20 @@ func New(hooks Hooks, options Options) (*Endpoint, error) {
 	if hooks == nil || options.DRAMBase == 0 || options.ChunkBytes <= 0 || options.ChunkBytes > 0xffff0 {
 		return nil, errors.New("native fabric: explicit hooks, DRAM base and bounded chunk required")
 	}
+	if len(options.IdentityProfiles) > 64 {
+		return nil, errors.New("native fabric: too many identity profiles")
+	}
+	for i, profile := range options.IdentityProfiles {
+		if !profileValid(profile) {
+			return nil, errors.New("native fabric: invalid identity profile")
+		}
+		for _, previous := range options.IdentityProfiles[:i] {
+			if sameProfile(profile, previous) {
+				return nil, errors.New("native fabric: duplicate identity profile")
+			}
+		}
+	}
+	options.IdentityProfiles = append([]IdentityProfile(nil), options.IdentityProfiles...)
 	return &Endpoint{hooks: hooks, ctrl: embeddedcontrol.Control{IO: hooks}, options: options}, nil
 }
 
@@ -202,6 +218,9 @@ func (e *Endpoint) firmware() error {
 	return nil
 }
 func (e *Endpoint) resolve(id fabricmodel.Identity) (embeddedcontrol.Identity, error) {
+	if id.Package != (fabricmodel.PackageIdentity{}) {
+		return e.packageIdentity(id.Package)
+	}
 	identity, err := e.hooks.Resolve(id)
 	if err == nil && (identity.ABI == 0 || identity.Build == [4]uint32{}) {
 		return identity, errors.New("native fabric: empty FPGA identity")
@@ -353,6 +372,14 @@ func (e *Endpoint) program() (bool, fabricmodel.Completion) {
 			return failed(errors.New("native fabric: empty image"), false)
 		}
 		e.imageHash = sha256.Sum256(c.Bytes)
+		if c.Identity.Package != (fabricmodel.PackageIdentity{}) {
+			if _, err := e.packageIdentity(c.Identity.Package); err != nil {
+				return failed(err, false)
+			}
+			if hex.EncodeToString(e.imageHash[:]) != c.Identity.Package.ProgrammedSHA256 {
+				return failed(errors.New("native fabric: programming bytes differ from admitted digest"), false)
+			}
+		}
 		region, err := e.hooks.Reserve(c.Bytes)
 		if region != nil {
 			e.retained = append(e.retained, region)

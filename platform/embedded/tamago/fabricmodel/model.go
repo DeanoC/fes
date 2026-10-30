@@ -34,6 +34,7 @@ type Identity struct {
 // identity. It is not a physical GP response or a shortened build identifier.
 type PackageIdentity struct {
 	PackageID, CoreID, ABI, BuildID           string
+	Platform, Device, ProgrammingProfile      string
 	ActivationReceiptSHA256, ProgrammedSHA256 string
 	Major, Minor                              uint16
 }
@@ -67,6 +68,15 @@ func Prepare(id string, data []byte, digest [32]byte, identity Identity, idle bo
 }
 
 func (i *Image) valid() bool { return i != nil && sha256.Sum256(i.data) == i.digest }
+
+// Binding returns a value copy of the retained identity and digest. The
+// validity check detects any change to the private admitted bytes.
+func (i *Image) Binding() (Identity, [32]byte, bool) {
+	if !i.valid() {
+		return Identity{}, [32]byte{}, false
+	}
+	return i.identity, i.digest, true
+}
 
 type State string
 

@@ -183,7 +183,9 @@ func TestPolicyAndMetadataArePrivate(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if c.Status().State != fabricmodel.Running || c.Status().Package != observed || observed.PackageID != id || observed.BuildID != a.Inspection().Descriptor.Build.ID {
+	d := a.Inspection().Descriptor
+	if c.Status().State != fabricmodel.Running || c.Status().Package != observed || observed.PackageID != id || observed.BuildID != d.Build.ID ||
+		observed.Platform != d.Target.Platform || observed.Device != d.Target.Device || observed.ProgrammingProfile != d.Target.ProgrammingProfile || observed.ProgrammedSHA256 != d.Payload.SHA256 {
 		t.Fatal("lost full binding")
 	}
 }

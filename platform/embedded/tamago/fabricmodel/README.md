@@ -70,7 +70,7 @@ The same native diagnostic also runs six [contained configuration checks](../sdm
 They exercise a hypothetical held-bridge TF-A endpoint through this controller,
 including accepted-BUSY buffer ownership and full launch/return. The reference
 TF-A v2.12 programming behaviour remains unsupported, with no physical binding.
-Four further native checks drive the [injected firmware/FPGA endpoint](../nativefabric/README.md)
+Six further native checks drive the [injected firmware/FPGA endpoint](../nativefabric/README.md)
 through this controller with software platform hooks. Host integration also
 exercises the actual patched firmware functions and Verilated endpoint.
 

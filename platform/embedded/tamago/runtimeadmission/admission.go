@@ -202,7 +202,8 @@ func (g *Gate) admit(archive *corepackage.Archive, expectedID string) (*fabricmo
 	if int64(len(payload)) != d.Payload.Size || hex.EncodeToString(sum[:]) != d.Payload.SHA256 {
 		return nil, reject("package_mismatch", "retained payload mismatch")
 	}
-	binding := fabricmodel.PackageIdentity{PackageID: expectedID, CoreID: d.Core.ID, ABI: d.ABI.ID, Major: uint16(d.ABI.Major), Minor: uint16(d.ABI.Minor), BuildID: d.Build.ID}
+	binding := fabricmodel.PackageIdentity{PackageID: expectedID, CoreID: d.Core.ID, ABI: d.ABI.ID, Major: uint16(d.ABI.Major), Minor: uint16(d.ABI.Minor), BuildID: d.Build.ID,
+		Platform: d.Target.Platform, Device: d.Target.Device, ProgrammingProfile: d.Target.ProgrammingProfile, ProgrammedSHA256: d.Payload.SHA256}
 	return fabricmodel.Prepare("model.package", payload, sum, fabricmodel.Identity{ABI: 1, Core: 1, Build: 1, Package: binding}, false)
 }
 
@@ -223,12 +224,22 @@ func (g *Gate) LoadLinkedModel(controller *fabricmodel.Controller, linked *corep
 	if controller == nil {
 		return reject("backend_unavailable", "missing model controller")
 	}
+	image, err := g.PrepareLinkedModel(linked, expectedID, expectedReceipt)
+	if err != nil {
+		return err
+	}
+	return controller.Load(image, now, deadline)
+}
+
+// PrepareLinkedModel completes admission without retiring the current owner.
+// An injected endpoint can reject an unsupported hardware identity before Load.
+func (g *Gate) PrepareLinkedModel(linked *corepackage.LinkedArchive, expectedID, expectedReceipt string) (*fabricmodel.Image, error) {
 	if !digestID(expectedReceipt) || linked.ReceiptSHA256() != expectedReceipt {
-		return reject("receipt_mismatch", "linked ROM activation receipt differs from request")
+		return nil, reject("receipt_mismatch", "linked ROM activation receipt differs from request")
 	}
 	inspection := linked.Inspection()
 	if err := g.check(inspection, expectedID, true); err != nil {
-		return err
+		return nil, err
 	}
 	r := linked.Receipt()
 	var size int64
@@ -239,27 +250,28 @@ func (g *Gate) LoadLinkedModel(controller *fabricmodel.Controller, linked *corep
 	case inspection.Descriptor.Format == 4 && r.ROMLinks != nil && r.ROMLink == nil && r.ROMLinks.ValidFor(inspection.Descriptor):
 		size, digest = r.ROMLinks.ProgrammedSize, r.ROMLinks.ProgrammedSHA256
 	default:
-		return reject("receipt_mismatch", "missing or invalid linked ROM identity")
+		return nil, reject("receipt_mismatch", "missing or invalid linked ROM identity")
 	}
 	if r.PackageID != expectedID {
-		return reject("receipt_mismatch", "receipt package identity mismatch")
+		return nil, reject("receipt_mismatch", "receipt package identity mismatch")
 	}
 	if size < 1 || size > fabricmodel.MaxImageBytes {
-		return reject("model_limit", "linked output exceeds software model bound")
+		return nil, reject("model_limit", "linked output exceeds software model bound")
 	}
 	payload, err := io.ReadAll(io.LimitReader(linked.Programmed(), size+1))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	sum := sha256.Sum256(payload)
 	if int64(len(payload)) != size || hex.EncodeToString(sum[:]) != digest {
-		return reject("receipt_mismatch", "linked programming bytes differ from receipt")
+		return nil, reject("receipt_mismatch", "linked programming bytes differ from receipt")
 	}
 	d := inspection.Descriptor
-	binding := fabricmodel.PackageIdentity{PackageID: expectedID, CoreID: d.Core.ID, ABI: d.ABI.ID, Major: uint16(d.ABI.Major), Minor: uint16(d.ABI.Minor), BuildID: d.Build.ID, ActivationReceiptSHA256: expectedReceipt, ProgrammedSHA256: digest}
+	binding := fabricmodel.PackageIdentity{PackageID: expectedID, CoreID: d.Core.ID, ABI: d.ABI.ID, Major: uint16(d.ABI.Major), Minor: uint16(d.ABI.Minor), BuildID: d.Build.ID,
+		Platform: d.Target.Platform, Device: d.Target.Device, ProgrammingProfile: d.Target.ProgrammingProfile, ActivationReceiptSHA256: expectedReceipt, ProgrammedSHA256: digest}
 	image, err := fabricmodel.Prepare("model.linked", payload, sum, fabricmodel.Identity{ABI: 1, Core: 1, Build: 1, Package: binding}, false)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return controller.Load(image, now, deadline)
+	return image, nil
 }

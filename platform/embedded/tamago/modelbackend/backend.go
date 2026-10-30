@@ -509,7 +509,14 @@ func (b *Backend) run() {
 						finish(p.err)
 						continue
 					}
-					if err := b.gate.LoadLinkedModel(b.controller, p.linked, job.entry.PackageID, job.entry.ReceiptSHA256, now, now+2*time.Second); err != nil {
+					image, err := b.gate.PrepareLinkedModel(p.linked, job.entry.PackageID, job.entry.ReceiptSHA256)
+					if err == nil && b.endpoint != nil {
+						err = b.endpoint.Preflight(image)
+					}
+					if err == nil {
+						err = b.controller.Load(image, now, now+2*time.Second)
+					}
+					if err != nil {
 						finish(err)
 						continue
 					}

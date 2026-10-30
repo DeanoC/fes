@@ -28,7 +28,7 @@ type rpcHooks struct {
 	wrongIdentity, foreign bool
 }
 
-var rtlIdentity = embeddedcontrol.Identity{ABI: 1, Build: [4]uint32{0xccddeeff, 0x8899aabb, 0x44556677, 0x00112233}}
+var rtlIdentity = embeddedcontrol.Identity{ABI: 1, Build: [4]uint32{0x89abcdef, 0x01234567, 0x89abcdef, 0x01234567}}
 
 func newRPC(t *testing.T) *rpcHooks {
 	t.Helper()

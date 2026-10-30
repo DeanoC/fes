@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/embeddedcontrol"
@@ -159,6 +160,19 @@ func image(value byte, id string, idle bool) *fabricmodel.Image {
 	}
 	return i
 }
+
+func packageImage() *fabricmodel.Image {
+	data := bytes.Repeat([]byte{2}, 128)
+	digest := sha256.Sum256(data)
+	pkg := fabricmodel.PackageIdentity{PackageID: strings.Repeat("a", 64), CoreID: "test.core",
+		Platform: "test-board", Device: "test-device", ProgrammingProfile: "test-profile", ABI: "test.abi", Major: 1,
+		BuildID: "0000def000009abc0000567800001234", ProgrammedSHA256: fmt.Sprintf("%x", digest)}
+	i, err := fabricmodel.Prepare("model.game", data, digest, fabricmodel.Identity{ABI: 1, Core: 1, Build: 2, Package: pkg}, false)
+	if err != nil {
+		panic(err)
+	}
+	return i
+}
 func runCase(fault string) error {
 	idle := image(1, "model.idle", true)
 	c, err := fabricmodel.New(idle, time.Second)
@@ -167,7 +181,11 @@ func runCase(fault string) error {
 	}
 	s := &simulator{control: true}
 	s.init()
-	endpoint, err := nativefabric.New(s, nativefabric.Options{DRAMBase: 0x80000000, ChunkBytes: 32})
+	options := nativefabric.Options{DRAMBase: 0x80000000, ChunkBytes: 32}
+	if fault == "package" {
+		options.IdentityProfiles = []nativefabric.IdentityProfile{{Platform: "test-board", Device: "test-device", ProgrammingProfile: "test-profile", ABI: "test.abi", Major: 1, ControlABI: 1}}
+	}
+	endpoint, err := nativefabric.New(s, options)
 	if err != nil {
 		return err
 	}
@@ -196,7 +214,20 @@ func runCase(fault string) error {
 	if fault == "" {
 		s.regs[g.FesEmbeddedRegPending/4] = 1
 	}
-	if err = c.Load(image(2, "model.game", false), now, now+time.Second); err != nil {
+	target := image(2, "model.game", false)
+	if fault == "package" || fault == "unmapped" {
+		target = packageImage()
+		before := c.Status()
+		if err = endpoint.Preflight(target); fault == "unmapped" {
+			if err == nil || c.Status() != before || s.programs != 1 || s.disables != 0 {
+				return errors.New("unmapped package retired the old owner")
+			}
+			return nil
+		} else if err != nil {
+			return err
+		}
+	}
+	if err = c.Load(target, now, now+time.Second); err != nil {
 		return err
 	}
 	if fault == "" {
@@ -246,7 +277,7 @@ func runCase(fault string) error {
 
 // Run executes the same controlled software cases on host and TamaGo.
 func Run(report func(string, error)) int {
-	cases := []struct{ name, fault string }{{"launch-return-drain", ""}, {"unknown-firmware", "firmware"}, {"foreign-completion", "foreign"}, {"identity-recovery", "identity"}}
+	cases := []struct{ name, fault string }{{"launch-return-drain", ""}, {"unknown-firmware", "firmware"}, {"foreign-completion", "foreign"}, {"identity-recovery", "identity"}, {"bound-package", "package"}, {"unmapped-package", "unmapped"}}
 	failures := 0
 	for _, c := range cases {
 		err := runCase(c.fault)
