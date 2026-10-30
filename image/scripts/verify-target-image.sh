@@ -322,6 +322,8 @@ verify_root() {
 /usr/share/mister-runtime/build-inputs
 /etc/init.d/S15fes-ethaddr
 /etc/init.d/S20mister-network
+/etc/init.d/S21fes-time
+/usr/sbin/ntpd
 /etc/init.d/S40fes-kit-software
 /etc/init.d/S49fogcast-target-smoke
 /usr/sbin/fes-kit-software
