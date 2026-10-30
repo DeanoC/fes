@@ -68,7 +68,7 @@ int main(int argc,char** argv) {
         auto deadline=[&](){return io.NowMs()+60000;};
         const std::string scenario=argv[3];std::string selected=argv[2];
         require(selected.size()==32 && selected.find_first_not_of("0123456789abcdefABCDEF")==std::string::npos,"expected 128-bit hexadecimal build ID");
-        require(scenario=="wrong-build" || scenario=="control" || scenario=="basic-keys" || scenario=="key" || scenario=="reset" || scenario=="media","unknown hardware scenario");
+        require(scenario=="wrong-build" || scenario=="control" || scenario=="basic-keys" || scenario=="key" || scenario=="keys" || scenario=="reset" || scenario=="media","unknown hardware scenario");
         if(scenario=="wrong-build") selected[0]=selected[0]=='0'?'1':'0';
         const auto identified=computer.Identify(selected,deadline(),&identity);
         if(scenario=="wrong-build") {
@@ -76,13 +76,23 @@ int main(int argc,char** argv) {
             const auto before=io.writes;require(!computer.Run(deadline()).ok(),"poisoned client ran");require(io.writes==before,"poisoned client wrote again");
         } else {
             okay(identified);require(identity.build_id==selected,"selected build differs");
-            if(scenario=="key") {
-                std::string argument=argv[4];const bool shift=!argument.empty() && argument.back()=='s';if(shift)argument.pop_back();
-                require(!argument.empty() && argument.find_first_not_of("0123456789abcdefABCDEF")==std::string::npos,"expected hexadecimal HID usage and optional s");
-                const auto usage=std::stoul(argument,nullptr,16);require(usage>=4 && usage<128,"HID usage out of range");
-                KeyboardHidRows rows{};rows[usage/16]=1u<<(usage%16);if(shift)rows[8]=2;
-                okay(computer.SetKeyboardHid(rows,deadline()));std::this_thread::sleep_for(std::chrono::milliseconds(150));
-                okay(computer.SetKeyboardHid({},deadline()));
+            if(scenario=="key" || scenario=="keys") {
+                auto key=[&](std::string argument) {
+                    const bool shift=!argument.empty() && argument.back()=='s';if(shift)argument.pop_back();
+                    require(!argument.empty() && argument.find_first_not_of("0123456789abcdefABCDEF")==std::string::npos,"expected hexadecimal HID usage and optional s");
+                    const auto usage=std::stoul(argument,nullptr,16);require(usage>=4 && usage<128,"HID usage out of range");
+                    KeyboardHidRows modifiers{};if(shift)modifiers[8]=2;
+                    // JTAG row writes exceed the mapper's settling interval.
+                    // Establish modifiers before exposing any ordinary key.
+                    if(shift)okay(computer.SetKeyboardHid(modifiers,deadline()));
+                    auto rows=modifiers;rows[usage/16]=1u<<(usage%16);
+                    okay(computer.SetKeyboardHid(rows,deadline()));std::this_thread::sleep_for(std::chrono::milliseconds(150));
+                    okay(computer.SetKeyboardHid(modifiers,deadline()));
+                    if(shift)okay(computer.SetKeyboardHid({},deadline()));
+                    std::this_thread::sleep_for(std::chrono::milliseconds(150));
+                };
+                std::string arguments=argv[4];std::size_t begin=0;
+                do {const auto end=arguments.find(',',begin);key(arguments.substr(begin,end-begin));if(end==std::string::npos)break;require(scenario=="keys","single key expected");begin=end+1;} while(true);
             } else if(scenario=="media") {
                 std::ifstream stream(argv[4],std::ios::binary);require(bool(stream),"saved image missing");
                 std::vector<std::uint8_t> image((std::istreambuf_iterator<char>(stream)),{});

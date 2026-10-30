@@ -5,7 +5,12 @@ foreach name {FES_DE25_SOF FES_DE25_DEVICE FES_DE25_MASTER FES_DE25_BASE FES_DE2
 }
 set design [design_load $env(FES_DE25_SOF)]
 set device $env(FES_DE25_DEVICE)
-if {[lsearch -exact [get_service_paths device] $device] < 0} {error "claimed device absent"}
+set discovery_deadline [expr {[clock milliseconds] + 10000}]
+while {[lsearch -exact [get_service_paths device] $device] < 0 && [clock milliseconds] < $discovery_deadline} {
+    refresh_connections
+    after 100
+}
+if {[lsearch -exact [get_service_paths device] $device] < 0} {error "claimed device absent after bounded discovery"}
 design_link $design $device
 set service $env(FES_DE25_MASTER)
 if {[lsearch -exact [get_service_paths master] $service] < 0} {error "explicit fabric CSR master absent"}
