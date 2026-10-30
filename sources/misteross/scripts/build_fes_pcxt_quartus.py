@@ -184,7 +184,7 @@ def create_build_record(root, repository, revision, tool_identities, *, identity
               'dependencies': {}, 'tools': dict(tool_identities),
               'parameters': {'device': board.DEVICE, 'core_id': 'fes.pcxt',
                   'half_rate_board': False, 'phased_hdmi_clock': True,
-                  'enable_fes_computer': True, 'video_mailbox_contract': True,
+                  'enable_fes_computer': True, 'enable_pcxt_media': True, 'video_mailbox_contract': True,
                   'system_clock_hz': 100000000, 'pixel_clock_hz': 74250000,
                   'hdmi_phase_ps': 8979, 'diagnostic_completion_marker': True,
                   'quartus_recipe_sha256': hashlib.sha256(json.dumps(entry, sort_keys=True).encode()).hexdigest(),
@@ -197,6 +197,7 @@ def require_timing(summary, seeds):
             or not summary.get('video_mailbox_contract')
             or summary.get('profile', {}).get('HALF_RATE_BOARD') != 0
             or summary.get('profile', {}).get('ENABLE_FES_COMPUTER') != 1
+            or summary.get('profile', {}).get('ENABLE_PCXT_MEDIA') != 1
             or len(summary.get('runs', [])) != len(seeds)
             or summary.get('elaboration', {}).get('hps_primitive_instances') != {
                 'hdmi_i2c': 'cyclonev_hps_interface_peripheral_i2c',
@@ -226,8 +227,9 @@ def manifest(record, payload):
                  'description': 'Quartus 8088 SDRAM/DMA diagnostic with a static CGA completion signature'},
         'target': {'platform': 'de10_nano', 'device': board.DEVICE, 'programming_profile': 'fes-gp-v1'},
         'payload': {'file': 'core.rbf', 'size': payload.stat().st_size, 'sha256': sha(payload)},
-        'abi': {'id': 'fes.computer', 'major': 1, 'minor': 0},
-        'interfaces': [{'id': 'fes.video.fixed-720p60', 'major': 1, 'minor': 0, 'required': True}],
+        'abi': {'id': 'fes.computer', 'major': 1, 'minor': 1},
+        'interfaces': [{'id': 'fes.video.fixed-720p60', 'major': 1, 'minor': 0, 'required': True},
+                       {'id': 'fes.media.pcxt-floppy', 'major': 1, 'minor': 0, 'required': True}],
         'build': {'id': build_identity(record), 'repository': fields['repository'],
                   'revision': fields['revision'], 'recipe_sha256': fields['recipe_sha256'],
                   'toolchain': '; '.join(f'{k} {fields["tools"][k]}' for k in sorted(fields['tools']))}})
@@ -279,7 +281,7 @@ def build(root=ROOT, *, package_output=None, cache_root=None, identity_version=2
             'internal_timing_pass': True, 'repeat_rbf_sha256': sha(repeated),
             'whole_board_qualified': False, 'hardware_acceptance': False,
             'limits': ['external IO/HPS timing and physical reset qualification remain open',
-                       'BIOS, DOS, keyboard and disk are not implemented']}, indent=2) + '\n')
+                       'BIOS, DOS boot, host keyboard and in-play display plane are not implemented']}, indent=2) + '\n')
         package = export_package(encoded, payload, Path(package_output or root / 'build/packages'))
     return package
 

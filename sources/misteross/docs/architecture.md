@@ -2943,8 +2943,9 @@ recipe now exports an installable format-2 diagnostic package with the standard
 identity/execution mailbox and fixed CGA Direct video. Its forwarded HDMI clock
 uses an 8.979 ns phase offset from pixel-data updates; the system and pixel
 rates do not change. Fixed video is inline in the RBF and needs no external
-video-part index. Keyboard, media and physical socket interfaces are not
-declared. The registered producer is Quartus, with the common 100 MHz package profile,
+video-part index. The `fes.computer` 1.1 mailbox declares one read-only 360 KiB
+PC/XT floppy unit; keyboard and physical socket interfaces are not declared.
+The registered producer is Quartus, with the common 100 MHz package profile,
 proof-bound video mailbox constraints and phased HDMI. All declared seeds
 must pass reported internal checks; an independent first-seed rebuild must
 reproduce the RBF. Internal clock-validity checks must pass, and every unclocked

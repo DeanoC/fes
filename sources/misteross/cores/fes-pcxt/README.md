@@ -5,9 +5,9 @@ an eight-slot virtual ISA backplane. The [machine design](../../docs/architectur
 targets an 8088/8086 PC/XT with IBM graphics and extensions to the existing
 linkable-card mechanism. The motherboard slice adds memory decoding, an 8259A
 PIC, 8253 PIT, 8255 PPI, XT keyboard byte transport and speaker PCM, and a transaction-native 8237A DMA subset. Separate ISA CGA and MDA display cards add guest raster output. An optional read-only XT floppy adapter is exercised in host simulation. The package has no
-HID keyboard frontend, floppy media transport, packaged BIOS or physical socket map. The
-registered `fes.pcxt` recipe builds a diagnostic package with fixed CGA Direct
-video and the standard identity/execution mailbox; it can start the built-in
+HID keyboard frontend, packaged BIOS or physical socket map. The registered
+`fes.pcxt` recipe builds a diagnostic package with fixed CGA Direct video and
+the `fes.computer` 1.1 mailbox, including read-only 360 KiB floppy media; it can start the built-in
 diagnostic, but cannot boot DOS or PC/XT games yet. The storage lane connects conventional RAM and firmware to the existing
 addon SDRAM controller and boots the display diagnostic through its physical
 command interface in host simulation. The normal package producer is Quartus Lite 17.0.2, with a common 100 MHz
@@ -548,8 +548,8 @@ The optional `ENABLE_PCXT_MEDIA` shell profile connects `fes.computer` 1.1's
 `fes.media.pcxt-floppy` unit 0 through a little-endian mailbox writer to this
 SDRAM buffer. Begin and eject hide the medium without resetting the running
 guest; aborted uploads can be ejected and restarted. This path accepts only
-the 360 KiB raw geometry and reports write protection. The standard diagnostic
-package does not enable this profile or advertise PC floppy media. Inserting a
+the 360 KiB raw geometry and reports write protection. The registered diagnostic
+package enables this profile and advertises PC floppy media. Inserting a
 disk into a running guest does not reset it or automatically restart its boot.
 The current shell also lacks a session-display plane and a host keyboard path;
 a bootable package needs an initial-media or guest retry/reset path as well as
@@ -569,7 +569,7 @@ abandons a partial transfer and reloads the image while the DOS session runs.
 `make sim-fes-pcxt-media` covers identity, mailbox reset, live replacement,
 odd chunk boundaries and host/guest SDRAM contention. Outputs are under
 `build/sim/fes-pcxt/dos/`. This is host simulation; the registered diagnostic
-package does not connect the floppy media service. There is no bootable package,
+package still runs its built-in diagnostic firmware. There is no bootable package,
 write persistence or hardware acceptance for this path.
 
 ## Assembled board diagnostic
@@ -686,8 +686,8 @@ timing are unchanged.
 HDMI transmitter I2C uses the existing HPS peripheral bridge. The standalone
 `build_fes_pcxt.py` profile remains an autonomous power-on diagnostic without
 a runtime ABI, host session control or audio pins. The registered Quartus package
-producer enables only the standard execution mailbox and fixed video identity;
-keyboard and media interfaces remain disabled.
+producer enables the standard execution mailbox, fixed video identity and
+read-only floppy media; the keyboard interface remains disabled.
 
 ```sh
 # From sources/misteross; no shared compiler cache environment for simulations.

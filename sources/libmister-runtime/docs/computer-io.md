@@ -275,7 +275,7 @@ transfers against it, including the synthetic 1..1030-byte unit, CRC, lost and
 rejected requests and failed cleanup. Admission, protocol, runtime binding,
 multi-slot composition and a runtime lifecycle over native hardware are
 covered. The PC/XT endpoint and 360 KiB insertion also have host simulation
-coverage; the diagnostic package does not yet expose this endpoint and no
+coverage. The diagnostic package producer enables this endpoint, but no
 physical PC/XT media acceptance is claimed.
 
 Stop and core replacement save before programming. Successful programming
