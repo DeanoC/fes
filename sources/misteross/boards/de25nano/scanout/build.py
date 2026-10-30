@@ -136,9 +136,13 @@ def prepare(archive, output=None, revision=None):
     exports += "add_connection fes_scanout_top_reset.out_reset subsys_periph.fes_scanout_pixel_reset\n"
     exports += "add_connection fes_scanout_top_reset.out_reset subsys_periph.fes_scanout_system_reset\n"
     exports += "add_interface fes_scanout_reset reset sink\nset_interface_property fes_scanout_reset EXPORT_OF fes_scanout_top_reset.in_reset\n"
-    for name, kind in (("fes_scanout_pixel_clk", "clock sink"),
-                       ("fes_scanout_video", "conduit end"), ("fes_scanout_clock_fault", "conduit end")):
-        exports += "add_interface " + name + " " + kind + "\nset_interface_property " + name + " EXPORT_OF subsys_periph." + name + "\n"
+    exports += "add_instance fes_scanout_pixel_clock altera_clock_bridge 19.2.0\n"
+    exports += "set_instance_parameter_value fes_scanout_pixel_clock EXPLICIT_CLOCK_RATE 74250000\n"
+    exports += "add_connection fes_scanout_pixel_clock.out_clk subsys_periph.fes_scanout_pixel_clk\n"
+    exports += "add_interface fes_scanout_pixel_clk clock sink\n"
+    exports += "set_interface_property fes_scanout_pixel_clk EXPORT_OF fes_scanout_pixel_clock.in_clk\n"
+    for name in ("fes_scanout_video", "fes_scanout_clock_fault"):
+        exports += "add_interface " + name + " conduit end\nset_interface_property " + name + " EXPORT_OF subsys_periph." + name + "\n"
     script = replace_once(script, before, exports + before)
     (project / "integrate-mailbox.tcl").write_text(script)
     inputs = json.loads(original_inputs)
@@ -234,6 +238,10 @@ def verify_handoff(project, hps):
         item = connections.get(("avalon", start, end))
         if item is None or int(item.findtext("parameter[@name='baseAddress']/value"), 0) != (offset if index == 0 else 0):
             raise ValueError("generated scanout control/memory route differs: " + start)
+    pixel_clock_bridge = modules.get("fes_scanout_pixel_clock")
+    if (pixel_clock_bridge is None or pixel_clock_bridge.get("kind") != "altera_clock_bridge" or
+            ("clock", "fes_scanout_pixel_clock.out_clk", "subsys_periph_fes_scanout_pixel_clk") not in connections):
+        raise ValueError("generated top-level scanout clock bridge differs")
     clocks = (("subsys_periph_periph_clk.out_clk", "fes_ctrl_cdc.s0_clk", 100000000),
               ("subsys_periph_fes_pixel_clk.out_clk", "fes_ctrl_cdc.m0_clk", 74250000),
               ("subsys_periph_fes_pixel_clk.out_clk", "fes_mem_cdc.s0_clk", 74250000),
@@ -291,6 +299,7 @@ def verify_handoff(project, hps):
         "peripheral_slave_map": probe["peripheral_slave_map"], "ddr_scanout": True,
         "top_reset_source": "fes_scanout_top_reset.out_reset -> pixel and 100 MHz reset bridge inputs",
         "reset_bridges": reset_bridges,
+        "top_pixel_clock_bridge": "74.25 MHz clock bridge drives the nested pixel-clock sink",
         "runtime_admission": "not-qualified", "global_reset_ownership": "not-qualified"}
 
 
