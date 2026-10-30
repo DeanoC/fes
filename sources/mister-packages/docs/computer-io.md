@@ -450,7 +450,9 @@ and an argument above 5 is invalid.
 - **Freeze** (3): requires ready (invalid state otherwise), held or
   released. It fences new guest sector writes (a write command waits with BSY
   set), waits until an accepted write has reached the image and then ACKs.
-  Repeating it changes nothing. A new freeze clears an earlier Saved.
+  Every successful Freeze clears an earlier Saved acknowledgement, including
+  when the disk is already frozen. Repeating Freeze otherwise leaves the
+  existing fence in place.
 - **Resume** (4): always valid and idempotent; it releases the fence and
   forgets Saved.
 - **Saved** (5): requires frozen (invalid state otherwise) and no busy

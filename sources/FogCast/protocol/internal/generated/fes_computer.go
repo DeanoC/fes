@@ -218,7 +218,7 @@ const (
 	FesComputerPc386ReservedIndex                       uint32 = 0x7
 	FesComputerPc386CmosStartIndex                      uint32 = 0x8
 	FesComputerPc386CmosWordCount                       uint32 = 0x40
-	FesComputerPc386PresetMax                           uint32 = 0x0
+	FesComputerPc386PresetMaxPerformance                uint32 = 0x0
 	FesComputerPc386PresetCount                         uint32 = 0x8
 	FesComputerPc386FrequencyMin                        uint32 = 0xa
 	FesComputerPc386FrequencyMax                        uint32 = 0x3e8

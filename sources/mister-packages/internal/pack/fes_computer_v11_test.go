@@ -192,9 +192,7 @@ func (m *v11Model) step(op, index, arg uint32, identity []uint16) (uint16, uint1
 			if m.disk != stateReady {
 				return 4, 0
 			}
-			if !m.frozen {
-				m.frozen, m.saved = true, false
-			}
+			m.frozen, m.saved = true, false
 			if m.writerBusy {
 				if err := m.finishSectorWrite(); err != nil {
 					return 4, 0
@@ -569,6 +567,21 @@ func TestFesComputer11WriterBusyGuards(t *testing.T) {
 		}
 		if m.saved || !m.writerBusy || !m.dirty[1] {
 			t.Fatalf("rejected Saved changed state: saved=%t busy=%t dirty=%v", m.saved, m.writerBusy, m.dirty)
+		}
+	})
+
+	t.Run("freeze revokes saved eject authorization", func(t *testing.T) {
+		m := newReadyDisk()
+		m.legacy.held = true
+		m.frozen, m.saved = true, true
+		if code, _ := m.step(17, 0, 3, nil); code != 0 {
+			t.Fatalf("repeat Freeze error %d, want success", code)
+		}
+		if !m.frozen || m.saved {
+			t.Fatalf("Freeze did not clear Saved: frozen=%t saved=%t", m.frozen, m.saved)
+		}
+		if code, _ := m.step(17, 0, 2, nil); code != 4 {
+			t.Fatalf("Eject after repeat Freeze error %d, want state error", code)
 		}
 	})
 
