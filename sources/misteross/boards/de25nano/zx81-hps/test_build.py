@@ -92,6 +92,53 @@ class HpsZX81BuildTests(unittest.TestCase):
         self.assertIn("not valid for SRAM testing the current source", report)
         self.assertIn("does not validate the current HPS or scanout false-path selectors", report)
 
+    def test_simulation_receipts_are_scoped_to_historical_sources(self):
+        record = B.ROOT / "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation"
+        source_head = "d715651b4171da7a69fa0d896dc1bd67168dd064"
+        reference = "786e6383b32617af8baeb32e9de6cf99231a19f9"
+        leaf_path = B.BOARD + "zx81-hps/fes_de25_computer.v"
+        current_leaf = B.ROOT / leaf_path
+        current_leaf_bytes = current_leaf.read_bytes()
+        self.assertEqual(len(current_leaf_bytes), 9176)
+        self.assertEqual(hashlib.sha256(current_leaf_bytes).hexdigest(),
+                         "9f0f57bf95e9bf8f1d669b2e090a700d7cfbc3ee46a09ad17568f9bba79c04bd")
+
+        inputs = json.loads((record / "input-hashes.json").read_text())
+        self.assertEqual(inputs["reference_commit"], reference)
+        self.assertIn(source_head, inputs["source_scope"])
+        self.assertNotIn("functional_current_sources", inputs)
+        recorded = inputs["functional_reference_sources"]
+        self.assertEqual(len(recorded), 22)
+        drifted = {
+            item["path"] for item in recorded
+            if hashlib.sha256((B.ROOT / item["path"]).read_bytes()).hexdigest() != item["sha256"]
+        }
+        self.assertEqual(drifted, {
+            leaf_path,
+            B.BOARD + "zx81-hps/computer_tb.cpp",
+            B.BOARD + "zx81-hps/sim.py",
+            B.BOARD + "zx81-hps/build.py",
+        })
+
+        report = " ".join((record / "README.md").read_text().split())
+        self.assertIn(f"PR head `{source_head}`", report)
+        self.assertIn("18 of those 22 files still match", report)
+        self.assertIn("does not exercise the current PR leaf", report)
+        self.assertNotIn("22 matching current input files", report)
+        for changed_name in ("fes_de25_computer.v", "computer_tb.cpp", "sim.py", "build.py"):
+            self.assertIn(f"`{changed_name}`", report)
+
+        leaf_binding = json.loads((record / "leaf-build-id-binding.json").read_text())
+        self.assertEqual(leaf_binding["guarded_reference_leaf_sha256"],
+                         "26ce1e51454000f2762045cc442fbbae881404a98b94334eea8ba11e43a9ad0a")
+        self.assertNotIn("current_leaf_sha256", leaf_binding)
+        self.assertIn("not the current PR leaf", leaf_binding["evidence_scope"])
+        elaboration = json.loads((record / "default-elaboration-binding.json").read_text())
+        self.assertEqual(elaboration["elaborated_reference_leaf_sha256"],
+                         leaf_binding["guarded_reference_leaf_sha256"])
+        self.assertNotIn("current_leaf_sha256", elaboration)
+        self.assertIn("does not describe the current PR leaf", elaboration["evidence_scope"])
+
     def test_selected_revision_capture_reads_git_blobs_instead_of_working_files(self):
         sources = B.capture()
         selected = "b" * 40
