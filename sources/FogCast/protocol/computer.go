@@ -245,10 +245,6 @@ func ComputerAtaDiskABI(id string, major, minor int64) bool {
 	return ComputerMediaABI(id, major, minor) && minor >= 1
 }
 
-func activeComputer(p *CorePackageStatus) bool {
-	return p != nil && ComputerABI(p.ABI.ID, int64(p.ABI.Major), int64(p.ABI.Minor))
-}
-
 func activeComputerMedia(p *CorePackageStatus) bool {
 	return p != nil && ComputerMediaABI(p.ABI.ID, int64(p.ABI.Major), int64(p.ABI.Minor))
 }
