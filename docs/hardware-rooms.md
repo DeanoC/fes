@@ -1,21 +1,77 @@
-# Hardware rooms: the Sinclair ZX81 workbench
+# Hardware rooms and system workbenches
 
-The tenfoot Home screen includes **The Sinclair ZX81 workbench** (`example.hardware`).
-It shows the household's existing ZX81 core entries, the rear expansion
-connector, installed expansions admitted for the exact selected package, and
-prelaunch cassette selection. **Set up ZX81** first asks which machine — ZX81,
-ZX80, TS1000 or TS1500 — then lists installed packages of that core and creates
-a library entry from an installed sealed package and an explicitly selected
-household BASIC ROM. This
-uses the local library APIs even when the published-core catalogue is unavailable;
-published Systems remains an optional installation route. No hardware is fabricated when the
-library is empty. The Amiga-themed `example.workbench` remains a separate room. **Computers** (`example.computers`) is a shelf of prepared ZX81 and Commodore 64 library entries. Confirm launches the focused row through `session.launch`. **Set up** opens that row's workbench: `example.hardware` for ZX81 and `example.c64` for Commodore 64.
+The tenfoot **Systems** room (`example.computers`) lists prepared playable
+library entries and their editions. Confirm starts the focused entry through
+`session.launch`; **Set up** opens its workbench with the selected game and
+core IDs. With no entries, **Add system** opens the system workbench so setup
+remains available. Home also includes prepared host-library systems beside
+kit-local installed packages.
 
-## Commodore 64 setup
+## System workbench
 
-`example.c64` lists prepared `fes.c64` library entries. **Next machine** and **Next edition** choose among those entries and their grouped editions. Socket 1, socket 2, and any other saved expansion are shown from `slot_expansions` and `expansion_id` already on the entry. The saved disk is the entry's `media_id` when `media_role` is `disk`, shown as a short prefix. This core's media unit is a 1541 `.d64` on unit 0. `.tap`, `.t64`, and `.crt` are not offered. **Start machine** calls `session.launch`. While that entry is running and the session reports removable media, **Choose disk** calls `session.open_tape` for the live disk picker. **Stop machine** uses the ordinary stop path. The room does not invent an REU or another drive.
+`example.system` covers the ZX81 family, Commodore 64, the Spectrum 48K/128K/+3
+and Pentagon models, Apple II, Atari ST, ColecoVision, Sega Master System,
+SG-1000, Pong, Catch, RAM Tester and RISC-V. **Next system** chooses one of
+12 system families. **Variant** chooses a model within that family's workbench:
+Spectrum has 48K, 128K, +3 and Pentagon 128; the ZX81 family has ZX81, ZX80,
+TS1000 and TS1500. Each family remembers its last browsed variant. Single-model
+families have no variant selector. The family stays in the header while the
+selected variant supplies its own setup, media guidance and library entries.
 
-## Use the workbench
+**Next machine** chooses a saved entry for that variant; **Next edition**
+chooses one of that entry's grouped library editions. Changing a family or
+variant only changes navigation: it does not rewrite a saved package, ROM,
+medium or expansion, or replace a running machine. Installed packages and their
+manifests still determine what can launch. Commodore 64 opens this same
+template with its exact selected core and entry; there is no separate C64 room.
+
+**Set up system** lists installed package versions for the selected core and
+reads their sealed ROM requirements. Choose the required files and add a
+library entry. The installed-package route needs no published catalogue;
+**Browse published systems** and **Settings → Systems** also provide the
+published installation and setup route. Firmware replacement remains an
+explicit household action. File selection uses the launcher's existing local
+and saved-drive picker. Setup does not start a machine.
+
+**Media for next start** reads the exact entry's installed-package media
+capabilities. It offers the declared tape, snapshot, disk or blob roles and
+checks their formats and sizes before import. Saving compares the displayed
+package and previous media ID; another client's edit requires a refresh.
+Cartridge ROMs are chosen through setup when the package uses linked ROMs.
+C64 uses a 1541 `.d64`, Apple II uses `.dsk`/`.do`, Atari ST uses `.st`, and
+Spectrum formats follow the selected model's declared capabilities. No
+unsupported medium is enabled by its filename alone.
+
+**Expansion sockets** reads the selected package's real socket topology and
+saved choices. Import an archive for that exact package and socket, then
+select it in a separate action to save it for the next start. Remove clears
+only the selected socket. The host rechecks compatibility and the previous
+selection. The room shows selected cards without inventing empty slots or
+features from a system name; a package without a supported socket says so.
+
+**Start machine**, **Stop machine** and **Return to play** use the existing
+session lifecycle. A live media button is enabled only for the running entry
+when its active package supports the operation. Kit HDMI additionally needs
+the session-display plane. The kit opens its live picker directly; a host
+window opens the active system's workbench. Session, target, package and
+generation guards preserve the running machine during media changes. Failed
+hardware reads disable live controls until a successful refresh. Returning
+from setup refreshes entries and saved selections while retaining navigation.
+
+These are UI and host-software changes. They neither rebuild core packages
+nor establish hardware acceptance of an installed core or software bundle.
+
+## Sinclair ZX81 workbench
+
+**Sinclair setup** (`example.hardware`) retains its specialist
+rear-connector shelf, admitted expansion previews and attributed starter
+cassettes. **Set up ZX81** chooses ZX81, ZX80, TS1000 or TS1500, then an
+installed sealed package and its BASIC ROM. Prepared ZX81-family rows open
+this setup; other families use the shared System setup template. Both templates
+open through Systems or the running session, rather than appearing as duplicate
+rooms or startup choices.
+
+## Use the Sinclair workbench
 
 The room follows the Retro Workshop direction in [the UX brief](ux/README.md).
 The setup column shows **Running**, **Next start** and, while an unsaved card is
@@ -118,14 +174,16 @@ Local readiness does not assert that a kit is connected or available. The
 session is a separate observation; connection loss leaves it unavailable,
 not optimistically stopped or ejected.
 
-`PUT /api/v1/library/core-entries/{game_id}/expansion` remains the sole fitting
-operation. It requires the exact `package_id`, `expected_expansion_id` and new
+`PUT /api/v1/library/core-entries/{game_id}/expansion` fits a single rear
+connector; `PUT /api/v1/library/core-entries/{game_id}/expansions/{slot}` fits
+a declared physical slot. It requires the exact `package_id`, `expected_expansion_id` and new
 `expansion_id` (empty removes). The host verifies the immutable expansion
 against the selected shell and compares the old selection before writing.
 `GET /api/v1/library/hardware` advertises that write as `expansion_selection`.
-The paired launcher admits this one PUT after the bearer and paired-target
-checks and forwards the body unchanged. It does not admit slot writes,
-presentation edits, other library writes, or a different foreground target.
+The paired launcher admits setup, package installation, bounded media and
+expansion imports, ROM/media selections, and declared slot writes after its
+bearer and paired-target checks. Presentation edits and host filesystem
+settings remain host operations.
 Stale clients refresh instead of overwriting another client's setup. A failed
 or ambiguous save is not replayed by the room.
 
@@ -156,8 +214,11 @@ separate from socket or card readiness. An explicit false keeps the shelf
 inspectable and tells the operator to save Next start on the host computer's
 ZX81 Workshop. An omitted field means an older host: a paired kit treats it
 as read-only, and an unpaired host keeps the existing save.
-`hardware.setup()`, `hardware.open_tapes(selection)` and
-`hardware.import_expansion(selection)` dispatch typed launcher actions. Lua has
+`hardware.setup({core_id=...})`, `hardware.open_media(selection)` and
+`hardware.open_expansions(selection)` dispatch the general workbench's typed
+launcher actions. Calling `hardware.setup()` without options retains the ZX81
+family selector. `hardware.open_tapes(selection)` and
+`hardware.import_expansion(selection)` retain the specialist ZX81 actions. Lua has
 no network API. `GET /api/v1/library/zx81-tapes` lists starter metadata;
 `POST /api/v1/library/zx81-tapes/{tape_id}/import` imports only that exact embedded
 asset through the ordinary media store. Neither endpoint selects or launches it.
@@ -175,28 +236,14 @@ the machine. The target operation requires
 the existing kit lease. The runtime admits immutable full frames only while the
 plane is open and revokes their separate display generation on close, replacement
 or Stop. A display fault disables only that plane; idle recovery cannot replace
-the running core. Paired launchers have access to hardware/starter reads, exact
-starter imports, tape imports of 1..16384 bytes, captured live operations, and
-the single-entry next-start expansion PUT. Other library writes and host
-filesystem settings remain host operations.
+the running core. Paired launchers use the same guarded setup, import and saved-selection
+operations as the host UI. Their live mutations remain bound to the paired
+kit and captured play. Host filesystem settings remain host operations.
 
-## Design provenance and next families
+## Evidence
 
-This is the working first slice of the 26 September 2026 hardware-room design,
-originally explored with an Apple II Plus concept. Its durable decisions are
-retained here: machine-centred illustration, an inspectable shelf, host-owned
-configuration, clear restart consequences, live media and retained focus.
-The original ignored `out/design/2026-09-26-hardware-room` preview had simulated
-hardware and no backend; its browser checks are not acceptance of this room.
-
-The implementation was rebased conceptually on FES
-`aaf32d3f290ba67929e751a2436ebedf658fbf40`, rather than the design's `566e6660`.
-Selected source now contains separate Apple II work, but this room offers only
-ZX81. It neither exposes nor accepts Apple II cards/drives. A later machine
-family must project its real admitted topology and capabilities through the
-host; the single ZX81 connector does not imply multi-card composition. Coleco
-and the Apple II Plus remain later room integrations. Disk writes, tape
-transport, arbitrary hot-plugging and RAM snapshots are outside this slice.
-
-The software checks and remaining native/controller/kit gates are recorded in
-[hardware-room verification](validation/2026-09-27-hardware-room.md).
+The machine-centred illustration, inspectable shelf, host-owned selections,
+clear restart consequences and retained focus come from the original ZX81
+room. Its dated [hardware-room verification](validation/2026-09-27-hardware-room.md)
+accepts only the artifacts named there. General workbench software checks do
+not extend that hardware evidence to other systems, packages or bundles.

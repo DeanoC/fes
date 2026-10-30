@@ -409,6 +409,8 @@ def _registry() -> tuple[dict, dict[str, dict], dict[str, str]]:
     pins = {}
     for entry in entries:
         core_id = entry.get("core_id")
+        if entry.get("toolchain", "oss") == "quartus":
+            continue
         pnr = entry.get("pnr")
         if not isinstance(core_id, str) or not isinstance(pnr, dict):
             raise RecipeError("every registered core must have a [recipes.pnr] table")

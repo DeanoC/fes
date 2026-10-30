@@ -5,6 +5,8 @@ import tempfile
 from environment import build_environment
 
 GENERATED = (
+    ('emit-verilog', 'packages/fabric/fes_fabric_de25_ddr_probe.yaml', 'misteross', 'boards/de25nano/hps/generated/fes_de25_ddr_probe.vh'),
+    ('emit-cpp', 'packages/fabric/fes_fabric_de25_ddr_probe.yaml', 'misteross', 'boards/de25nano/hps/generated/fes_de25_ddr_probe.hpp'),
     ('emit-verilog', 'packages/fabric/fes_fabric_de25_hps_mailbox.yaml', 'misteross', 'boards/de25nano/hps/generated/fes_de25_mailbox.vh'),
     ('emit-cpp', 'packages/fabric/fes_fabric_de25_hps_mailbox.yaml', 'misteross', 'boards/de25nano/hps/generated/fes_de25_mailbox.hpp'),
     ('emit-verilog', 'packages/fabric/fes_fabric_video_raster_rgb888.yaml', 'misteross', 'cores/fes-common/generated/fes_video_part.vh'),

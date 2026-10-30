@@ -532,8 +532,9 @@ host API). A firmware-required title with an empty household BIOS slot is
 selected location. Room logical-action bindings live in
 [rooms-controller-bindings.md](../rooms-controller-bindings.md). Packs are
 one directory each under `-rooms DIR`, `FOGCAST_ROOMS`, `tenfoot.json`
-`rooms_dir`, or `<config>/FogCast/rooms`; the embedded `example.*` rooms
-are always available. Scripts are sandboxed Lua that record a display list
+`rooms_dir`, or `<config>/FogCast/rooms`; built-ins are Home, Systems and
+the internal System/Sinclair setup templates. These four built-ins remain
+available offline. Scripts are sandboxed Lua that record a display list
 replayed through `gfx.Device`, so rooms work on every backend. See
 [rooms](../rooms.md) for the pack format, Lua API, stdlib widgets and
 budgets.
