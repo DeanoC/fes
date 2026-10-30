@@ -159,6 +159,14 @@ END prompt steps=42 cycles=100 seconds=0.001
 
 
 class BootReportTest(unittest.TestCase):
+    def test_rtl_gap_built_status_uses_lockstep_scope(self):
+        for stem in ('27', '0F06', '9B', '62', '0FA3', '0FAB', '0FB3', '0FBB', '8F', '6762'):
+            with self.subTest(stem=stem):
+                self.assertTrue(sim.rtl_gap('unimplemented', stem, 1, 1, 0, 'f000:00000000', 50)['built'])
+        for stem in ('0F07', '0FBA.0', '0F01.4'):
+            with self.subTest(stem=stem):
+                self.assertFalse(sim.rtl_gap('unimplemented', stem, 1, 1, 0, 'f000:00000000', 50)['built'])
+
     def test_parse(self):
         report = sim.parse_boot(BOOT_OUTPUT)
         self.assertEqual(report['post'], [{'code': '00', 'cycle': 11397}])

@@ -18,6 +18,7 @@ from scripts.build_fes_zx81 import (
     validate_timing_report,
 )
 from scripts.export_core_package import build_identity
+from tests.quartus_timing_fixture import assert_timing_gate
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -131,17 +132,8 @@ class BuildFesZx81Tests(unittest.TestCase):
         with self.assertRaises(BuildError):
             require_clocks("Fmax 52.224 MHz only")
 
-    def test_multicorner_slack_must_be_nonnegative(self) -> None:
-        report = (
-            "Worst-case Slack                                            ; 3.093 ; 0.161 ; 12.713   ; 1.115   ; 0.961               ;\n"
-            "Design-wide TNS                                             ; 0.0   ; 0.0   ; 0.0      ; 0.0     ; 0.0                 ;\n"
-        )
-        timing = validate_timing_report(report)
-        self.assertEqual(len(timing), 5)
-        self.assertEqual(timing[0]["type"], "Setup")
-        self.assertEqual(timing[0]["slack_ns"], 3.093)
-        with self.assertRaises(BuildError):
-            validate_timing_report(report.replace("3.093", "-0.1", 1))
+    def test_quartus_timing_gate_requires_every_clock_analysed(self) -> None:
+        assert_timing_gate(self, validate_timing_report, BuildError)
         with self.assertRaises(BuildError):
             validate_timing_report("no summary")
 

@@ -221,7 +221,7 @@ python3 scripts/de25_kernel_test.py run --image-output out/de25-nano-linux-cxx \
 The runner requires clean committed sources, the locked SDK/vendor Image and
 the pinned Linux 6.12.11 source commit. The existing builder supplies QEMU;
 the compile and boot run with container networking disabled. It checks all
-sixteen required ownership cases and rejects raw kernel warnings, oopses and
+seventeen required ownership cases and rejects raw kernel warnings, oopses and
 panics before publishing artifact receipts. This test kernel's configuration
 and device differ from the board's preserved kernel and FPGA. It establishes
 no board module-loadability, stream translation or physical DMA visibility.
@@ -238,9 +238,10 @@ from the image and runtime.
 Hardware integration still needs a compatible firmware/SOF pair and the real
 DMA device/stream binding, bounded register-access behavior, firewall coverage
 and global reset/drain lifetime, a serial boot and bounded read probe.
-Interactive MENU also needs the production presenter integration and
-exact-artifact physical DMA/HDMI acceptance. The existing AArch64 runtime guard
-continues to refuse DE25 hardware access.
+Interactive MENU also needs the production presenter integration,
+allocated-buffer scanout, ordered frame-boundary completion, the pixel-clock
+crossing and exact-artifact physical DMA/HDMI acceptance. The existing AArch64
+runtime guard continues to refuse DE25 hardware access.
 
 ## Validation and the board gate
 
