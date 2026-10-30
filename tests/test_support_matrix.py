@@ -19,7 +19,7 @@ class SupportMatrixTests(unittest.TestCase):
         self.assertTrue(row['recipe'])
         self.assertEqual('bring-up', row['tier'])
         self.assertEqual('quartus', row['primary_toolchain'])
-        self.assertIsNone(row['library_standing'])  # Not a catalog entry.
+        self.assertEqual('experimental', row['library_standing'])
         self.assertIn('Experimental', row['notes'])
         self.assertIsNone(row['signals']['last_hil_pass'])
         self.assertIn('no exact-artifact hardware acceptance', row['features'])

@@ -67,9 +67,11 @@ def source_roots(root):
     return sorted(roots)
 
 
-def _require_clean_source(root, *, identity_version=2):
+def _require_clean_source(root, *, identity_version=2, dos_profile=False):
     if identity_version != 2:
         raise BuildError('PC/XT requires functional identity version 2')
+    if not isinstance(dos_profile, bool):
+        raise BuildError('PC/XT DOS profile must be a boolean')
     return require_clean_source(Path(root), pinned_inputs=(RECIPE, LOCK, ABI))
 
 
