@@ -2,6 +2,8 @@
 
 // Package sdm implements read-only Agilex SDM discovery through TF-A's SiP
 // mailbox service. Configuration status is not a core identity or DMA proof.
+// Its separate ConfigModel describes a hypothetical contained configuration
+// endpoint; that model never invokes firmware or authorizes physical access.
 package sdm
 
 import (

@@ -28,6 +28,10 @@ retiring the existing owner. A renderer preparation has an opaque, single-use
 display-generation token. A pending transition blocks new preparations and
 waits for the existing one to finish. `FinishFrame` needs explicit quiescence
 from its trusted backend; timeout alone cannot release memory ownership.
+`Drain` separately identifies the old reader's display generation, including
+after the plane was revoked. Completion needs both explicit quiescence and
+that exact generation. A generic success reply or stale acknowledgement cannot
+advance to containment or programming; the command and images remain held.
 
 The ordinary replacement order is:
 
@@ -57,10 +61,15 @@ network server, owner registry, on-disk save format or production recovery path.
 
 ## Validation and remaining work
 
-Eleven invariant checks run in both the host suite and the native image:
+Thirteen invariant checks run in both the host suite and the native image:
 boot ordering, immutable admission, save-before-replace, single issue/completion,
 identity-before-release, unknown save retention, known save failure, failed drain,
-abandoned frame, session-frame fault and bounded/explicit recovery.
+explicit/generation-bound drain, revoked-reader identity, abandoned frame,
+session-frame fault and bounded/explicit recovery.
+The same native diagnostic also runs six [contained configuration checks](../sdm/README.md#configuration-protocol-model).
+They exercise a hypothetical held-bridge TF-A endpoint through this controller,
+including accepted-BUSY buffer ownership and full launch/return. The reference
+TF-A v2.12 programming behaviour remains unsupported, with no physical binding.
 
 From the FES root:
 
@@ -75,8 +84,9 @@ The checks advance a controlled clock; executing them on QEMU does not turn
 their deadlines into physical timing evidence. A separate host regression
 checks retention of the exact issued buffer after an uncertain program result.
 
-The model is independent of tenfoot's real ramfb output. It does not establish
+The model's grants bracket tenfoot's RAMFB copies in the explicit Play backend;
+the separate `fabric` diagnostic needs no scanout device. Neither establishes
 that a hardware backend can drain an AXI master, retain DDR through SDM
 configuration, perform input neutralization, publish saves, or verify an Agilex
 identity. Those require the actual runtime and board/firmware implementation.
-Tenfoot Play remains unavailable in this prototype.
+Tenfoot model Play/Back is available; physical FPGA Play remains unavailable.

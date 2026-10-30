@@ -73,6 +73,63 @@ func sameOperations(got []Operation, want ...Operation) bool {
 	return true
 }
 
+func checkDrainAcknowledgement() error {
+	for _, bad := range []Completion{{}, {Quiescent: true}, {DisplayGeneration: 1}, {Quiescent: true, DisplayGeneration: 2}} {
+		c, now, err := booted()
+		if err != nil {
+			return err
+		}
+		if err = c.Load(sampleImage("model.drain-ack", false), *now, *now+time.Second); err != nil {
+			return err
+		}
+		command, err := c.Next(*now)
+		if err != nil || command == nil || command.Operation != Drain || command.DisplayGeneration != 1 {
+			return errors.New("drain did not identify owned reader")
+		}
+		if err = c.Complete(command.Token, bad, *now); err == nil || c.Status().State != RebootRequired || c.issued == nil || len(c.held) == 0 {
+			return errors.New("missing/stale drain evidence released memory")
+		}
+		if !errors.Is(c.RecoverIdle(*now, *now+time.Second), ErrReboot) {
+			return errors.New("unresolved drain permitted recovery")
+		}
+	}
+	return nil
+}
+
+func checkRevokedReaderGeneration() error {
+	c, now, err := running()
+	if err != nil {
+		return err
+	}
+	generation := c.Status().DisplayGeneration
+	frame, err := c.BeginFrame()
+	if err != nil {
+		return err
+	}
+	if err = c.FinishFrame(frame, Completion{Err: errors.New("known frame failure"), Quiescent: true}); err == nil || c.Status().DisplayGeneration != 0 {
+		return errors.New("frame fault did not revoke plane")
+	}
+	if err = c.Stop(*now, *now+time.Second); err != nil {
+		return err
+	}
+	for range 3 {
+		command, err := c.Next(*now)
+		if err != nil || command == nil {
+			return errors.New("revoked display transition stalled")
+		}
+		if command.Operation == Drain {
+			if command.DisplayGeneration != generation {
+				return errors.New("revocation lost the reader's owned generation")
+			}
+			return c.Complete(command.Token, CompleteModel(*command), *now)
+		}
+		if err = c.Complete(command.Token, CompleteModel(*command), *now); err != nil {
+			return err
+		}
+	}
+	return errors.New("revoked reader was not drained")
+}
+
 // RunChecks exercises the same controller on a host or native Go image. It
 // returns failures and never emits a physical-device operation.
 func RunChecks(report func(string, error)) int {
@@ -98,6 +155,8 @@ func RunChecks(report func(string, error)) int {
 			}
 			return nil
 		}},
+		{"explicit-drain-ack", checkDrainAcknowledgement},
+		{"revoked-reader-generation", checkRevokedReaderGeneration},
 		{"immutable-admission", func() error {
 			c, now, err := booted()
 			if err != nil {

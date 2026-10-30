@@ -23,7 +23,7 @@ held-frame behavior. They do not establish a physical scanout drain.
 
 ## Nano firmware contract
 
-Schema 4 adds `display` and `handoff.display_platform_ready`. Disabled display
+The current schema-5 profile includes `display` and `handoff.display_platform_ready`. Disabled display
 is `null` with readiness false. Enabling it requires exactly these fields:
 
 - `base`, `size`: a dedicated, 2 MiB-aligned, **4 MiB** HPS DDR reservation,

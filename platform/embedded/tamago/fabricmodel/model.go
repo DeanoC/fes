@@ -98,6 +98,9 @@ type Command struct {
 	Operation Operation
 	ImageID   string
 	Identity  Identity
+	// DisplayGeneration identifies the reader being disabled by Drain, including
+	// a revoked plane whose old memory still cannot be reassigned.
+	DisplayGeneration uint64
 	// Bytes is a private copy for this command. Mutation cannot alter admission.
 	Bytes []byte
 }
@@ -107,11 +110,13 @@ type Completion struct {
 	// Uncertain means the backend may still own memory or be executing the
 	// command. An error alone describes a known completed failure.
 	Uncertain bool
-	// Quiescent is required for Contain: the backend has proved no fabric/DMA
-	// owner can still access the old memory. Timeout is not such proof.
-	Quiescent        bool
-	ProgrammedDigest [32]byte
-	Identity         Identity
+	// Quiescent is required for Drain and Contain. Drain additionally requires
+	// an acknowledgement for the issued DisplayGeneration. A CPU copy, barrier
+	// or timeout cannot establish that the reader stopped accessing memory.
+	Quiescent         bool
+	DisplayGeneration uint64
+	ProgrammedDigest  [32]byte
+	Identity          Identity
 }
 
 type Status struct {
@@ -300,6 +305,9 @@ func (c *Controller) Next(now time.Duration) (*Command, error) {
 		image = c.active
 	}
 	cmd := Command{Token: Token{c.transitionID, c.sequence}, Operation: c.pending.phase, ImageID: image.id, Identity: image.identity}
+	if cmd.Operation == Drain {
+		cmd.DisplayGeneration = c.displayGeneration
+	}
 	if cmd.Operation == Program {
 		cmd.Bytes = bytes.Clone(image.data)
 	}
@@ -325,6 +333,11 @@ func (c *Controller) Complete(token Token, result Completion, now time.Duration)
 	}
 	if result.Err != nil {
 		return c.fail(result.Err, now, result.Uncertain || phase == Drain || phase == Contain)
+	}
+	// Validate drain evidence before dropping the issued command. An absent,
+	// stale or partial acknowledgement leaves ownership unresolved.
+	if phase == Drain && (!result.Quiescent || c.issued.DisplayGeneration == 0 || result.DisplayGeneration != c.issued.DisplayGeneration) {
+		return c.fail(errors.New("display drain did not acknowledge the owned generation"), now, true)
 	}
 	c.issued = nil
 	switch phase {
@@ -434,6 +447,8 @@ func (c *Controller) CheckInput(coreGeneration uint64) error {
 // the emulated endpoint and must never be used as a physical completion proof.
 func CompleteModel(cmd Command) Completion {
 	switch cmd.Operation {
+	case Drain:
+		return Completion{Quiescent: true, DisplayGeneration: cmd.DisplayGeneration}
 	case Contain:
 		return Completion{Quiescent: true}
 	case Program:

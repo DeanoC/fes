@@ -31,6 +31,9 @@ bring-up commands. No physical Nano boot has been tested.
 The Nano-only `fpga` program cross-builds a read-only TF-A SDM mailbox probe.
 It reports silicon IDCODE and configuration status, without programming,
 opening bridges or establishing a live package identity. See [SDM](sdm/README.md).
+The QEMU `fabric` diagnostic also models the dedicated configuration protocol
+under a hypothetical held-bridge firmware contract. Its generation-bound drain,
+buffer ownership and identity-before-release checks do not enable Nano programming.
 
 ## Build and run
 
