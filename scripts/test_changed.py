@@ -91,6 +91,12 @@ def plan(root, base, head="HEAD", jobs=2, full=False):
             ["make", "test", "PYTHON=" + sys.executable], tools=["go"], files=["Makefile"])
     if impact["lanes"]["fpga"]:
         fpga = affected.MODULE_ROOTS["fpga"]
+        if any(affected.embedded_control_input(path) for path in impact["paths"]):
+            add("fpga", "embedded firmware and identity/drain RTL integration", ".",
+                [sys.executable, "platform/embedded/firmware/verify.py"],
+                tools=["cc", "c++", "verilator"],
+                files=["platform/embedded/firmware/verify.py",
+                       "sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv"])
         # Shared native contract/transport changes need their frame and CDC
         # oracle even before the experimental path becomes a factory recipe.
         if "coleco" in impact["cores"]:

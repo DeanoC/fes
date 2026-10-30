@@ -18,6 +18,16 @@ CORES = ('demo', 'pong', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'sp
          'pc386')
 SIMULATION_ONLY_CORES = frozenset({'z80', 'pcxt', 'pc386'})
 EXPANSION_ROOT = 'sources/misteross/expansion'
+EMBEDDED_CONTROL_INPUTS = frozenset({
+    'sources/mister-packages/packages/fabric/fes_fabric_embedded_control.yaml',
+    'sources/mister-packages/testdata/oracles/fes-embedded-control.json',
+    'sources/misteross/cores/fes-common/generated/fes_embedded_control.vh',
+    'sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv',
+})
+
+
+def embedded_control_input(path):
+    return path in EMBEDDED_CONTROL_INPUTS or path.startswith('platform/embedded/firmware/')
 # Parent-owned orchestration, test and assembly roots contain no component
 # sources, so their changes select only the parent lane. Matching is the exact
 # directory or directory + '/', keeping siblings like scripts-other unknown.
@@ -120,6 +130,8 @@ def fpga_cores(path):
     """
     relative = Path(path).relative_to(MODULE_ROOTS['fpga'])
     parts = relative.parts
+    if path in EMBEDDED_CONTROL_INPUTS:
+        return (), 'standalone embedded-control endpoint; no shipped core consumer'
     if relative.as_posix() == 'cores/fes-pong/rtl/pixel_pll.v':
         return ('demo', 'pong', 'ramtest', 'riscv'), 'shared fixed-raster clock consumers'
     if relative.as_posix() == 'cores/fes-ramtest/rtl/sdram_addon_port.v':
@@ -269,6 +281,12 @@ def plan(paths):
         if path == EXPANSION_ROOT or path.startswith(EXPANSION_ROOT + '/'):
             selected.update(('parent', 'host'))
             reasons.append(f'{path}: shared Go expansion linker and host/target consumers; RTL unchanged')
+            continue
+        if embedded_control_input(path):
+            selected.update(('parent', 'fpga'))
+            if path.startswith(MODULE_ROOTS['contracts'] + '/'):
+                selected.add('contracts')
+            reasons.append(f'{path}: embedded firmware/RTL integration; no shipped core consumer')
             continue
         owner = next((module for module, prefix in MODULE_ROOTS.items()
                       if path == prefix or path.startswith(prefix + '/')), None)

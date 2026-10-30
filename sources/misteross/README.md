@@ -21,6 +21,10 @@ Build contracts — identity, lanes, compilers, package bytes — live in
 Per-experiment results live in [the experiment catalog](docs/oss-experiments.md).
 Files under `docs/validation/` are dated records, not current instructions.
 The doc index is [docs/README.md](docs/README.md).
+The experimental embedded control/drain RTL is a standalone component under
+`cores/fes-common/rtl/fes_embedded_control.sv`. The FES
+[firmware verifier](../../platform/embedded/firmware/README.md) tests it against
+prepared TF-A functions. It has no RBF producer or shipped-core consumer.
 
 ## What this module does not do
 

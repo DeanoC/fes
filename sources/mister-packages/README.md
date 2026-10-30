@@ -18,6 +18,9 @@ support. Historical oracle records remain provenance.
 The runtime owns physical programming and compatibility admission; FogCast
 owns library/session context; misteross owns source builds and RBF provenance.
 Shared persistence layouts and wire contracts remain here.
+The experimental [embedded identity/drain contract](docs/embedded-control.md)
+generates constants for a standalone FPGA endpoint and FES firmware adapter.
+It registers no production ABI or Nano programming profile.
 
 Run `make test` with Python `jsonschema` available and Go installed.
 Use `make fixtures` to regenerate canonical fixtures and `make check-fixtures`

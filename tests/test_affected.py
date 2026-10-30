@@ -10,6 +10,18 @@ from scripts.affected import (changed_paths, plan, LANES, CORES, MODULE_ROOTS,
 
 
 class AffectedTests(unittest.TestCase):
+    def test_embedded_control_has_only_its_standalone_consumer(self):
+        for path in ('sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv',
+                     'sources/misteross/cores/fes-common/generated/fes_embedded_control.vh',
+                     'platform/embedded/firmware/control.cpp'):
+            with self.subTest(path=path):
+                r = plan([path])
+                self.assertEqual(r['cores'], [])
+                self.assertEqual({k for k,v in r['lanes'].items() if v}, {'parent','fpga'})
+        r = plan(['sources/mister-packages/packages/fabric/fes_fabric_embedded_control.yaml'])
+        self.assertEqual(r['cores'], [])
+        self.assertEqual({k for k,v in r['lanes'].items() if v}, {'parent','fpga','contracts'})
+        self.assertEqual(set(plan(['sources/misteross/cores/fes-common/rtl/unknown.sv'])['cores']), set(CORES))
     def test_fpga_software_test_patterns_match_current_files(self):
         root = Path(__file__).resolve().parents[1] / 'sources/misteross/tests'
         for pattern in FPGA_SOFTWARE_TESTS:

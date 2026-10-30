@@ -17,6 +17,20 @@ mechanisms in the tree.
 Network deployment and target lifecycle are outside this module. FogCast owns
 selection and transfer. libmister-runtime programs the FPGA.
 
+## Embedded control endpoint
+
+The experimental `fes_embedded_control` component supplies immutable build/ABI
+identity and generation/cookie-bound drain for one single-ID AXI read port.
+Its CSR constants come from the separate `fes.fabric.embedded.control` package.
+It holds an offered AR through disable, drains accepted bursts, and makes read
+protocol faults sticky. It is single-clock; board interconnect/CDC, DDR window
+validation, global containment, scanout and Nano pin/clock/reset glue are not
+provided. No existing core or producer includes it. FES integrates its Verilator
+test with the portable firmware adapter and actual prepared TF-A C functions;
+see the [contract](../../mister-packages/docs/embedded-control.md) and
+[verifier](../../../platform/embedded/firmware/README.md). This simulation is
+not an RBF, timing result or hardware acceptance.
+
 ## Functional input identity
 
 Pong, ZX81, Coleco, SMS, SG-1000, Catch and all demo variants use functional

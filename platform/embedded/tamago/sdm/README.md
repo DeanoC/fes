@@ -82,6 +82,13 @@ even after tenfoot exits; a successful CPU copy cannot release it. No new GP
 register layout, live firmware identity, drain implementation, Nano bitstream,
 or compatible boot firmware is supplied here.
 
+The separate [firmware/RTL prototype](../../firmware/README.md) now supplies a
+contained TF-A source variant, relative identity/drain CSR contract, portable
+adapter and single-port FPGA read-drain implementation. It cross-builds and
+passes host RTL/source integration, but supplies no Nano SoC glue, full boot
+image or TamaGo programming binding. `ConfigModel` remains a software model;
+that work does not admit its hypothetical endpoint as installed firmware.
+
 ## Configuration protocol model
 
 `ConfigModel` is an event-driven model of START, WRITE, COMPLETED_WRITE and
