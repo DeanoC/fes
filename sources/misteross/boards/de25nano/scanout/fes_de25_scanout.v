@@ -31,9 +31,11 @@ module fes_de25_scanout (
     reg [63:0] generation;
     reg local_clear;
     // This 100 MHz sticky-fault level crosses into the pixel domain. Identify
-    // both data stages for Quartus synchronizer/MTBF analysis; the reset chain
-    // below is intentionally inferred from its asynchronous-clear structure.
-    (* preserve, dont_merge, async_reg = "true" *) reg [1:0] clock_fault_sync;
+    // only the first data stage for Quartus synchronizer/MTBF analysis; the
+    // reset chain below is inferred from its asynchronous-clear structure.
+    (* preserve, dont_merge,
+       altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED" *) reg clock_fault_meta;
+    (* preserve, dont_merge *) reg clock_fault_sync;
     reg [31:0] snapshot_serial;
     reg [31:0] frozen [0:12];
     integer field, lane;
@@ -74,7 +76,7 @@ module fes_de25_scanout (
     wire legal_clear = clear_command && drained;
     // The board source is sticky too; retaining this bit independently makes
     // a fault irrevocable locally even if its external level later recovers.
-    wire clock_failed = clock_fault_sync[1] || |(errors & `FES_DE25_SCANOUT_ERROR_CLOCK);
+    wire clock_failed = clock_fault_sync || |(errors & `FES_DE25_SCANOUT_ERROR_CLOCK);
     wire [32:0] staged_end = {1'b0, staged[0]} + {1'b0, staged[2]};
     wire descriptor_valid = staged[1] == 32'd0 && staged[0][4:0] == 5'd0 &&
         staged[2] == `FES_DE25_SCANOUT_ALLOCATION_BYTES && staged_end <= 33'h100000000 &&
@@ -161,8 +163,12 @@ module fes_de25_scanout (
 
     always @(posedge clk or negedge pixel_reset_n) begin
         if (!pixel_reset_n) begin
-            clock_fault_sync <= 2'b00;
-        end else clock_fault_sync <= {clock_fault_sync[0], clock_fault};
+            clock_fault_meta <= 1'b0;
+            clock_fault_sync <= 1'b0;
+        end else begin
+            clock_fault_meta <= clock_fault;
+            clock_fault_sync <= clock_fault_meta;
+        end
     end
     always @(posedge clk or negedge pixel_reset_n) begin
         if (!pixel_reset_n) begin

@@ -158,10 +158,17 @@ class ScanoutBuildTests(unittest.TestCase):
 
     def test_sticky_clock_fault_crossing_is_marked_for_mtbf_analysis(self):
         endpoint = (SCANOUT / "fes_de25_scanout.v").read_text()
-        self.assertRegex(endpoint, r'\(\*[^)]*\basync_reg\s*=\s*"true"[^)]*\*\)\s*reg\s+\[1:0\]\s+clock_fault_sync;')
-        self.assertIn("clock_fault_sync <= {clock_fault_sync[0], clock_fault};", endpoint)
+        self.assertRegex(
+            endpoint,
+            r'\(\*[^)]*altera_attribute\s*=\s*"-name SYNCHRONIZER_IDENTIFICATION FORCED"[^)]*\*\)\s*reg\s+clock_fault_meta;',
+        )
+        self.assertIn("reg clock_fault_meta;", endpoint)
+        self.assertIn("reg clock_fault_sync;", endpoint)
+        self.assertIn("clock_fault_meta <= clock_fault;", endpoint)
+        self.assertIn("clock_fault_sync <= clock_fault_meta;", endpoint)
+        self.assertNotRegex(endpoint, r"\(\*[^)]*\basync_reg\b[^)]*\*\)")
         constraints = (SCANOUT / "clocks.sdc").read_text()
-        self.assertIn("clock_fault_sync[0]|d", constraints)
+        self.assertIn("clock_fault_meta|d", constraints)
         self.assertIn("set_false_path -from $scanout_fault_source -to $scanout_fault_head", constraints)
 
     def test_postcompile_pll_mutation_is_rejected_with_failed_receipt_retained(self):
