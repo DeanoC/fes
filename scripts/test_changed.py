@@ -164,7 +164,9 @@ def execute(result):
     # These are native software tests even when the shell was used to cross-build.
     # Each lane is a standalone test command; inherited parent make flags can
     # add directory chatter to nested `make -n` output and break exact recipes.
-    for key in ("GOOS", "GOARCH", "GOARM", "MAKEFLAGS", "MFLAGS", "MAKELEVEL", "GNUMAKEFLAGS"):
+    # The selected interpreter is explicit in lane argv; an inherited relative
+    # PYTHON override is invalid after changing into a component directory.
+    for key in ("GOOS", "GOARCH", "GOARM", "MAKEFLAGS", "MFLAGS", "MAKELEVEL", "GNUMAKEFLAGS", "PYTHON"):
         environment.pop(key, None)
     result["results"] = []
     for command in result["commands"]:
