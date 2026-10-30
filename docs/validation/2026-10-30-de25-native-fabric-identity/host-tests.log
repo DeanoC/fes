@@ -1,0 +1,114 @@
+=== RUN   TestBuildIDWordOrderAndRejection
+--- PASS: TestBuildIDWordOrderAndRejection (0.00s)
+=== RUN   TestPreflightBindsExactProfileBuildAndPayload
+=== RUN   TestPreflightBindsExactProfileBuildAndPayload/core-id
+=== RUN   TestPreflightBindsExactProfileBuildAndPayload/build-id
+=== RUN   TestPreflightBindsExactProfileBuildAndPayload/platform
+=== RUN   TestPreflightBindsExactProfileBuildAndPayload/device
+=== RUN   TestPreflightBindsExactProfileBuildAndPayload/programming-profile
+=== RUN   TestPreflightBindsExactProfileBuildAndPayload/payload-digest
+=== RUN   TestPreflightBindsExactProfileBuildAndPayload/abi
+=== RUN   TestPreflightBindsExactProfileBuildAndPayload/abi-major
+=== RUN   TestPreflightBindsExactProfileBuildAndPayload/abi-minor
+=== RUN   TestPreflightBindsExactProfileBuildAndPayload/activation-receipt
+=== RUN   TestPreflightBindsExactProfileBuildAndPayload/package-id
+--- PASS: TestPreflightBindsExactProfileBuildAndPayload (0.00s)
+    --- PASS: TestPreflightBindsExactProfileBuildAndPayload/core-id (0.00s)
+    --- PASS: TestPreflightBindsExactProfileBuildAndPayload/build-id (0.00s)
+    --- PASS: TestPreflightBindsExactProfileBuildAndPayload/platform (0.00s)
+    --- PASS: TestPreflightBindsExactProfileBuildAndPayload/device (0.00s)
+    --- PASS: TestPreflightBindsExactProfileBuildAndPayload/programming-profile (0.00s)
+    --- PASS: TestPreflightBindsExactProfileBuildAndPayload/payload-digest (0.00s)
+    --- PASS: TestPreflightBindsExactProfileBuildAndPayload/abi (0.00s)
+    --- PASS: TestPreflightBindsExactProfileBuildAndPayload/abi-major (0.00s)
+    --- PASS: TestPreflightBindsExactProfileBuildAndPayload/abi-minor (0.00s)
+    --- PASS: TestPreflightBindsExactProfileBuildAndPayload/activation-receipt (0.00s)
+    --- PASS: TestPreflightBindsExactProfileBuildAndPayload/package-id (0.00s)
+=== RUN   TestProfileValidationRejectsAmbiguity
+--- PASS: TestProfileValidationRejectsAmbiguity (0.00s)
+=== RUN   TestLaunchReturnUsesFirmwareAndGenerationBoundDrain
+--- PASS: TestLaunchReturnUsesFirmwareAndGenerationBoundDrain (0.00s)
+=== RUN   TestFailuresKeepOwnershipAndNeverReleaseTarget
+=== RUN   TestFailuresKeepOwnershipAndNeverReleaseTarget/firmware
+=== RUN   TestFailuresKeepOwnershipAndNeverReleaseTarget/stale
+=== RUN   TestFailuresKeepOwnershipAndNeverReleaseTarget/contain
+=== RUN   TestFailuresKeepOwnershipAndNeverReleaseTarget/start
+=== RUN   TestFailuresKeepOwnershipAndNeverReleaseTarget/foreign
+=== RUN   TestFailuresKeepOwnershipAndNeverReleaseTarget/control
+=== RUN   TestFailuresKeepOwnershipAndNeverReleaseTarget/release
+--- PASS: TestFailuresKeepOwnershipAndNeverReleaseTarget (0.00s)
+    --- PASS: TestFailuresKeepOwnershipAndNeverReleaseTarget/firmware (0.00s)
+    --- PASS: TestFailuresKeepOwnershipAndNeverReleaseTarget/stale (0.00s)
+    --- PASS: TestFailuresKeepOwnershipAndNeverReleaseTarget/contain (0.00s)
+    --- PASS: TestFailuresKeepOwnershipAndNeverReleaseTarget/start (0.00s)
+    --- PASS: TestFailuresKeepOwnershipAndNeverReleaseTarget/foreign (0.00s)
+    --- PASS: TestFailuresKeepOwnershipAndNeverReleaseTarget/control (0.00s)
+    --- PASS: TestFailuresKeepOwnershipAndNeverReleaseTarget/release (0.00s)
+=== RUN   TestIdentityMismatchPerformsOneContainedIdleRecovery
+--- PASS: TestIdentityMismatchPerformsOneContainedIdleRecovery (0.00s)
+=== RUN   TestDeadlineAndMutationRetainPendingRegion
+=== RUN   TestDeadlineAndMutationRetainPendingRegion/lost
+=== RUN   TestDeadlineAndMutationRetainPendingRegion/mutation
+--- PASS: TestDeadlineAndMutationRetainPendingRegion (0.00s)
+    --- PASS: TestDeadlineAndMutationRetainPendingRegion/lost (0.00s)
+    --- PASS: TestDeadlineAndMutationRetainPendingRegion/mutation (0.00s)
+=== RUN   TestSaveFailureRetainsRunningOwner
+--- PASS: TestSaveFailureRetainsRunningOwner (0.00s)
+=== RUN   TestCancellationAndRegressingClockRetainUnresolvedTransfer
+=== RUN   TestCancellationAndRegressingClockRetainUnresolvedTransfer/cancel
+=== RUN   TestCancellationAndRegressingClockRetainUnresolvedTransfer/clock
+--- PASS: TestCancellationAndRegressingClockRetainUnresolvedTransfer (0.00s)
+    --- PASS: TestCancellationAndRegressingClockRetainUnresolvedTransfer/cancel (0.00s)
+    --- PASS: TestCancellationAndRegressingClockRetainUnresolvedTransfer/clock (0.00s)
+=== RUN   TestEndpointCannotSwitchControllers
+--- PASS: TestEndpointCannotSwitchControllers (0.00s)
+=== RUN   TestDeadlineAfterSlowEnablePreventsDataRelease
+--- PASS: TestDeadlineAfterSlowEnablePreventsDataRelease (0.00s)
+=== RUN   TestActualFirmwareRTLLaunchReturnAndFailures
+=== RUN   TestActualFirmwareRTLLaunchReturnAndFailures/launch-return-drains-accepted-read
+=== RUN   TestActualFirmwareRTLLaunchReturnAndFailures/unknown-firmware-before-disable
+=== RUN   TestActualFirmwareRTLLaunchReturnAndFailures/foreign-completion-retains-memory
+=== RUN   TestActualFirmwareRTLLaunchReturnAndFailures/wrong-identity-recovers-idle
+--- PASS: TestActualFirmwareRTLLaunchReturnAndFailures (0.03s)
+    --- PASS: TestActualFirmwareRTLLaunchReturnAndFailures/launch-return-drains-accepted-read (0.02s)
+    --- PASS: TestActualFirmwareRTLLaunchReturnAndFailures/unknown-firmware-before-disable (0.01s)
+    --- PASS: TestActualFirmwareRTLLaunchReturnAndFailures/foreign-completion-retains-memory (0.00s)
+    --- PASS: TestActualFirmwareRTLLaunchReturnAndFailures/wrong-identity-recovers-idle (0.01s)
+PASS
+ok  	github.com/DeanoC/fes/platform/embedded/tamago/nativefabric	1.047s
+=== RUN   TestNativeFabricChecks
+--- PASS: TestNativeFabricChecks (0.00s)
+PASS
+ok  	github.com/DeanoC/fes/platform/embedded/tamago/nativefabriccheck	1.015s
+?   	github.com/DeanoC/fes/platform/embedded/tamago/embeddedcontrol	[no test files]
+?   	github.com/DeanoC/fes/platform/embedded/tamago/embeddedcontrol/generated	[no test files]
+=== RUN   TestLifecycleInvariants
+--- PASS: TestLifecycleInvariants (0.00s)
+=== RUN   TestUnknownProgramRetainsIssuedBuffer
+--- PASS: TestUnknownProgramRetainsIssuedBuffer (0.00s)
+PASS
+ok  	github.com/DeanoC/fes/platform/embedded/tamago/fabricmodel	1.019s
+=== RUN   TestRejectBeforeOwnerMutation
+=== RUN   TestRejectBeforeOwnerMutation/target
+=== RUN   TestRejectBeforeOwnerMutation/profile
+=== RUN   TestRejectBeforeOwnerMutation/abi-minor
+=== RUN   TestRejectBeforeOwnerMutation/interface-minor
+=== RUN   TestRejectBeforeOwnerMutation/missing-decision
+=== RUN   TestRejectBeforeOwnerMutation/runtime-reject
+=== RUN   TestRejectBeforeOwnerMutation/wrong-package-decision
+--- PASS: TestRejectBeforeOwnerMutation (0.00s)
+    --- PASS: TestRejectBeforeOwnerMutation/target (0.00s)
+    --- PASS: TestRejectBeforeOwnerMutation/profile (0.00s)
+    --- PASS: TestRejectBeforeOwnerMutation/abi-minor (0.00s)
+    --- PASS: TestRejectBeforeOwnerMutation/interface-minor (0.00s)
+    --- PASS: TestRejectBeforeOwnerMutation/missing-decision (0.00s)
+    --- PASS: TestRejectBeforeOwnerMutation/runtime-reject (0.00s)
+    --- PASS: TestRejectBeforeOwnerMutation/wrong-package-decision (0.00s)
+=== RUN   TestNanoRecognitionDoesNotAdmitIntoExistingBackend
+--- PASS: TestNanoRecognitionDoesNotAdmitIntoExistingBackend (0.00s)
+=== RUN   TestPolicyAndMetadataArePrivate
+--- PASS: TestPolicyAndMetadataArePrivate (0.00s)
+=== RUN   TestPolicyCannotNamePhysicalScope
+--- PASS: TestPolicyCannotNamePhysicalScope (0.00s)
+PASS
+ok  	github.com/DeanoC/fes/platform/embedded/tamago/runtimeadmission	1.024s

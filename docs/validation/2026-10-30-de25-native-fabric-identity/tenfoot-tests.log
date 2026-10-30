@@ -1,0 +1,28 @@
+=== RUN   TestTenfootLaunchReturnAndFailures
+--- PASS: TestTenfootLaunchReturnAndFailures (10.91s)
+=== RUN   TestHeldFrameAndStaleStop
+--- PASS: TestHeldFrameAndStaleStop (1.64s)
+=== RUN   TestCanceledRequestPreservesOwner
+--- PASS: TestCanceledRequestPreservesOwner (0.14s)
+=== RUN   TestCloseRefusesOutstandingFrame
+--- PASS: TestCloseRefusesOutstandingFrame (0.76s)
+=== RUN   TestCancelAfterAdmissionRecoversBeforeRelease
+--- PASS: TestCancelAfterAdmissionRecoversBeforeRelease (0.81s)
+=== RUN   TestBadPartPreservesRunningComposition
+--- PASS: TestBadPartPreservesRunningComposition (6.41s)
+=== RUN   TestFailedScanoutPreservesOutstandingFrame
+--- PASS: TestFailedScanoutPreservesOutstandingFrame (0.01s)
+=== RUN   TestInjectedEndpointDirect
+--- PASS: TestInjectedEndpointDirect (1.20s)
+=== RUN   TestTenfootInjectedEndpointLaunchReturnAndIdentityFailure
+=== RUN   TestTenfootInjectedEndpointLaunchReturnAndIdentityFailure/launch-return
+=== RUN   TestTenfootInjectedEndpointLaunchReturnAndIdentityFailure/identity-failure
+--- PASS: TestTenfootInjectedEndpointLaunchReturnAndIdentityFailure (2.41s)
+    --- PASS: TestTenfootInjectedEndpointLaunchReturnAndIdentityFailure/launch-return (1.22s)
+    --- PASS: TestTenfootInjectedEndpointLaunchReturnAndIdentityFailure/identity-failure (1.20s)
+=== RUN   TestInjectedEndpointCancellationRetainsTransfer
+--- PASS: TestInjectedEndpointCancellationRetainsTransfer (0.73s)
+=== RUN   TestInjectedEndpointRejectsUnmappedPackageBeforeRetiringOwner
+--- PASS: TestInjectedEndpointRejectsUnmappedPackageBeforeRetiringOwner (0.72s)
+PASS
+ok  	github.com/DeanoC/fes/platform/embedded/tamago/modelbackend	26.797s
