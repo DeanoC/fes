@@ -12,15 +12,17 @@
     "manager_registration": "passed",
     "factory_baseline_linux_load": "failed",
     "matching_baseline_linux_load": "failed",
-    "final_factory_restoration": "pending"
+    "final_factory_restoration": "pending",
+    "supported_hps_split": "rejected-FPGA-first-input"
   },
   "logs_sha256": {
-    "README.md": "21fc6c14a0a78f11cf8510c53273818fef3f3b3a9025be0e500ac85076727dbd",
+    "README.md": "2043970aa23f4c8f2afa63b205c100087081f86d32e60f274e4e6a0b13476b95",
     "after-load.log": "f2f467a811e56fee8cf21b6d395fbeb89ca1c9a7601decf0b98cc60673dcd159",
     "artifacts.json": "e269ffa77d3008db8a3c333030503d14729d2b8f9298804442d4471c640bec96",
     "baseline-manager.log": "606f9fcfc946a49fbca76fcf15ec1a286d9fbcfbdca82761f5e7e395949b8d84",
     "cold-restoration.log": "6cad0b2a826132c9d04452a584ada74bf6d6e4c547c7e58ac0f832bf2cd49a95",
     "factory-restoration.log": "6b8dbe10875d397518477a145b28b3fa91c2080696f7c741411c859bbbca8872",
+    "hps-split-rejection.log": "a6634daa94dc4c1b8aa8c67aea9cf574fbd89af34fcf16ec2c9a5385d1c70488",
     "load-fpga-bridge.log": "5e83b93a76f91688eb6a351f3cafd6c1b2a8ea931833ec7401fb453d4097ebe0",
     "load-fpga-region.log": "35af81e519a7cc9df01d3dfe8cf964fd3db6932ed2214b7e6d6f846795239008",
     "load-of-fpga-region.log": "083afe3553833b8dc95a44d362666261e0b5cb2ade070f09c17d33f0da3c6e5c",
