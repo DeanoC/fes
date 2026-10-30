@@ -822,13 +822,20 @@ At launch the host stages the image on the kit by SHA-256 (`POST
 `X-FogCast-Disk-Image`, and the upload needs the kit lease). The kit verifies
 the digest, keeps the four most recently launched images under
 `/media/fat/fogcast/disk-images/`, and reuses a staged copy, so relaunching
-does not move the image again. The library load then carries
+does not move the image again. Before writing an upload it removes unfinished
+uploads and all but the three most recent other images; a card that is still
+full answers `CACHE_FULL`. A staged copy that no longer matches its digest
+fails the runtime's base check at launch; the kit then removes it, so the next
+launch stages it again. The library load then carries
 `X-FogCast-Library-Game`, `X-FogCast-Disk-Image` and `X-FogCast-Disk-Geometry`
 (`C/H/S`); the agent passes the staged path, geometry, game and media-data root
 to the runtime's `load_library_core`, which writes the image into the DDR window
 before release. The launch has a 300 s activation budget. An entry with no
-image launches with the drive empty. A kit whose agent predates these routes
-answers 404, which the host reports as `UNSUPPORTED_OPERATION`.
+image launches with the drive empty. When a disk is bound, a kit whose agent
+predates these routes answers the probe with 404, which the host reports as
+`UNSUPPORTED_OPERATION`. With no disk there is no probe: an older agent
+ignores `X-FogCast-Library-Game`, and its runtime's own refusal of the
+package comes back instead.
 
 The disk is fixed: there is no live insert, eject or save for it. Stop saves
 the guest's changes as the runtime's per-game chunk delta, and the base image
