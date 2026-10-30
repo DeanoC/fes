@@ -71,3 +71,20 @@ lead rather than a tested fix for the Terasic kernel. A separate
 [Altera firmware erratum](https://community.altera.com/kb/knowledge-base/why-does-linux-fail-to-configure-the-fpga-with-error-arm-smmu-v3-16000000-iommu-/351547)
 reports a similar transfer timeout with explicit SMMU faults; those fault lines
 were not observed here, so that root cause is not established.
+
+## Supported HPS split rejects the attempted input
+
+A later off-board PFG comparison requests the documented HPS split of the
+same complete SOF, using `hps=on`, MT25QU128 and the configured SCS flash loader.
+PFG refuses it with error 19921: this design's HPS configuration order is not
+HPS first. No JIC is programmed and no hardware is accessed by that comparison.
+The successful earlier `hps_core_only=on` conversion therefore did not establish
+an input pair supported by the documented Linux flow.
+
+This is a concrete configuration gate for the next build: use the documented
+[HPS_INITIALIZATION](https://docs.altera.com/r/docs/683296/25.3/quartus-prime-pro-edition-settings-file-reference-manual/hps_initialization)
+assignment with `HPS FIRST`, compile it and require the supported split to pass
+before another Linux load. Actual HPS-first boot/transfer still needs physical
+verification. Keep the independently reproduced service cleanup hang and its
+[recovery candidate](https://github.com/DeanoC/fes/pull/1300) separate
+from a claim that the transfer cause is fixed.
