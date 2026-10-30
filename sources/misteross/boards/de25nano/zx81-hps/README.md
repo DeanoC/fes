@@ -123,7 +123,8 @@ The [native/AArch64 client proof](../../../../../docs/validation/2026-10-29-de25
 records the complete session, uncertainty cases and frozen source/tool hashes.
 The functional session types `1 PRINT 7`, captures the real ROM SAVE emitter,
 loads and runs that image, accepts a `2 REM` edit, then reloads and reruns without
-reset. Both runs must print 7 and return to the editor; reload must remove line 2.
+reset. ENTER is released after the CPU enters the ROM newline handler, before
+waiting for command completion. Both runs must print 7 and return to the editor; reload must remove line 2.
 The private SAVE-RAM observation creates a test fixture; it adds no SAVE download
 API or advertised target capability. Raw live-memory snapshots are not loadable
 tape fixtures: their active-display CDFLAG differs from actual SAVE output.

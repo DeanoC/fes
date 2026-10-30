@@ -31,7 +31,7 @@ int main(int argc,char**argv){
                 b.configuration_window=true;t.persona_b=arg==0xc002b002u;++b.selections;b.ramtop=0;b.ramtop_writes=0;
                 b.expect_load=false;b.tape_tag[0]=b.tape_tag[1]=false;b.cycles(8);
             }else if(op==combined::DropResponse){t.drop_response=arg!=0;b.cycles(1);
-            }else if(op>=basic::WaitLine&&op<=basic::WaitPrint){result=basic::observe(b,op,arg,value,b.captured);
+            }else if(op>=basic::WaitLine&&op<=basic::WaitNewline){result=basic::observe(b,op,arg,value,b.captured);
             }else if(op==wire::Advance){wire::need(arg<=800000000,"advance budget exceeded");b.cycles(arg);
             }else if(op==wire::PixelClock){b.pixel.running=arg!=0;
             }else if(op==wire::Reset){t.reset_n=0;b.cycles(4);t.reset_n=1;b.cycles(4);

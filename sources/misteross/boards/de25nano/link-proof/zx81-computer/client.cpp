@@ -81,7 +81,7 @@ int main(int argc,char**argv){
                 roundtrip=session.roundtrip();loaded=roundtrip.image.size();unsigned size=loaded;
                 if(argc==5)roundtrip.save(argv[4]);
                 // Interrupt a second real LOAD with the PR freeze request.
-                std::cerr<<"LOAD interrupted\n";io.call(wire::BeginLoad);session.load_command();io.call(combined::WaitSomeLoad,8);
+                std::cerr<<"LOAD interrupted\n";io.call(wire::BeginLoad);session.load_command(false);io.call(combined::WaitSomeLoad,8);
                 okay(pr.Freeze(io.deadline()),"freeze during real loader writes");
                 interrupted=io.state(wire::LoadedBytes);
                 wire::need(interrupted>=8&&interrupted<size,"freeze did not interrupt an incomplete real LOAD");

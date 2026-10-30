@@ -25,6 +25,7 @@ struct Computer {
     unsigned mmio_writes=0,mmio_reads=0,pr_writes=0,selections=0,loaded_bytes=0;
     unsigned active=0,hs=0,vs=0,ink=0,paper=0,ramtop=0,ramtop_writes=0;
     bool frame_started=false,previous_vs=true,inspect_picture=false,idle_seen=false;
+    bool newline_seen=false;
     bool tape_tag[2]{},expect_load=false,configuration_window=false;
     std::vector<uint8_t> captured;
     Computer() {
@@ -89,6 +90,7 @@ struct Computer {
         t.eval();
         if(sr){
             ++system_edges;retired+=C(machine__DOT__cpu__DOT__retired)!=0;
+            if(C(cpu_addr)==0x060c&&!C(machine__DOT__nM1))newline_seen=true;
             if(!C(machine_reset)&&C(cpu_addr)==0x04cf&&word(0x4025)==0xffff&&peek(0x4027)==0)idle_seen=true;
             if(!C(machine_reset)&&C(ce_6m5)&&!C(hblank)&&!C(vblank)&&C(video_pixel))++source_ink;
             if(running&&!t.running)stop_edge=system_edges;

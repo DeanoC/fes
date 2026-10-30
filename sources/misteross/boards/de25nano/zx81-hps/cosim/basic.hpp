@@ -38,32 +38,33 @@ public:
         keys(rows);command(wire::WaitToken,expected,count);neutral();editor();
     }
     void enter(){mister::KeyboardHidRows rows{};rows[2]=1u<<8;okay(computer.SetKeyboardHid(rows,deadline()));}
-    void load_command(){
+    void submit(){enter();command(WaitNewline);neutral();}
+    void load_command(bool complete=true){
         token(0x0d,0xef);token(0x13,0x0b,1,true);token(0x13,0x0b,2,true);
-        command(wire::WaitPicture,2);enter();
+        command(wire::WaitPicture,2);if(complete)submit();else enter();
     }
     void load(){
         command(wire::BeginLoad);load_command();
         wire::need(command(wire::WaitLoaded).value==evidence.image.size(),"BASIC LOAD byte count differs from ROM SAVE");
-        neutral();editor();++evidence.loads;
+        editor();++evidence.loads;
         wire::need(command(HasLine,1,0xf5).value,"LOAD lost the PRINT program");
     }
     void run(){
-        token(0x15,0xf7);enter();evidence.printed_value=command(WaitPrint,7).value;neutral();editor();++evidence.runs;
+        token(0x15,0xf7);submit();evidence.printed_value=command(WaitPrint,7).value;editor();++evidence.runs;
         command(wire::WaitPicture,2);
     }
     Result roundtrip(){
         // Type 1 PRINT 7 through the actual HID client; the ROM tokenizes it.
         // A listing starts with 1, so it cannot satisfy the RUN output check.
         token(0x1e,0x1d);token(0x13,0xf5);token(0x24,0x23);
-        enter();command(WaitLine,1,0xf5);neutral();editor();
+        submit();command(WaitLine,1,0xf5);editor();
         // Only the real ROM SAVE emitter supplies a loadable .p image.
         token(0x16,0xf8);token(0x13,0x0b,1,true);token(0x04,0x26);token(0x13,0x0b,2,true);
-        enter();command(WaitSaved);unsigned bytes=command(CaptureSaved).value;
+        submit();command(WaitSaved);unsigned bytes=command(CaptureSaved).value;
         for(unsigned n=0;n<bytes;++n)evidence.image.push_back(command(PeekSaved,n).value);
         evidence.saved_cdflag=evidence.image.at(0x403b-0x4009);
         wire::need(!(evidence.saved_cdflag&0x80),"ROM SAVE retained the live SLOW display flag");
-        neutral();editor();
+        editor();
         // Pixel-clock loss cannot block the real CRC/chunked upload or CPU.
         command(wire::PixelClock,0);auto before=command(wire::State,wire::MachineReset).retired;
         okay(computer.LoadTape(evidence.image,deadline(),127));command(wire::Advance,500000);
@@ -72,7 +73,7 @@ public:
         // Prove post-RUN keyboard input by inserting a second line, then prove
         // a real reload removes it without resetting/reconfiguring the machine.
         token(0x1f,0x1e);token(0x08,0xea);
-        enter();command(WaitLine,2,0xea);neutral();editor();
+        submit();command(WaitLine,2,0xea);editor();
         okay(computer.LoadTape(evidence.image,deadline(),127));load();
         evidence.reload_removed_edit=!command(HasLine,2,0xea).value;
         wire::need(evidence.reload_removed_edit,"reload retained the post-RUN edit");run();

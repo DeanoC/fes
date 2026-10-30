@@ -49,6 +49,7 @@ struct Computer {
     uint64_t complete_frames = 0, picture_frames = 0, frame_pixels = 0;
     unsigned active = 0, hs = 0, vs = 0, ink = 0, paper = 0;
     bool frame_started = false, previous_vs = true, inspect_picture = false;
+    bool newline_seen=false;
     bool idle_seen = false, halt_seen = false, expect_running = false, toggle = false;
     std::array<uint16_t, 9> hid{};
     std::vector<uint8_t> expected_load;
@@ -137,6 +138,7 @@ struct Computer {
             ++system_edges;
             if (expect_running) check(!SIGNAL(machine_reset), "MMIO, HID, media or stopped pixel clock reset execution");
             if (SIGNAL(machine__DOT__cpu__DOT__retired)) ++retired;
+            if(SIGNAL(cpu_addr)==0x060c&&!SIGNAL(machine__DOT__nM1))newline_seen=true;
             ula_enables += SIGNAL(machine__DOT__ce_6m5) != 0;
             cpu_positive += SIGNAL(machine__DOT__ce_cpu_p) != 0;
             cpu_negative += SIGNAL(machine__DOT__ce_cpu_n) != 0;
