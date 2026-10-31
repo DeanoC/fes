@@ -1,0 +1,25 @@
+{
+  "source_revision": "0cb5468434a5a30f35ede28857a9da4f4ad608a8",
+  "command": [
+    "python3",
+    "scripts/de25_kernel_test.py",
+    "run",
+    "--cache",
+    "/home/deano/fes/out/cache/de25-linux-kernel.git",
+    "--image-output",
+    "/home/deano/fes/out/artifacts/de25-kernel-modules/0da63d1044cc7ecf9908efba52af17b3e55e6271/linux-image",
+    "--output",
+    "out/guard-transport-kunit",
+    "--jobs",
+    "8"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-linux-platform/out/guard-transport-source",
+  "started_utc": "2026-10-31T14:42:01.890561+00:00",
+  "time_cap_seconds": 3600,
+  "hardware_access": "not-performed",
+  "pid": 2791031,
+  "state": "passed",
+  "elapsed_seconds": 63.3,
+  "heartbeat_utc": "2026-10-31T14:43:05.235081+00:00",
+  "returncode": 0
+}
