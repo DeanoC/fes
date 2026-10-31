@@ -19,6 +19,7 @@ ROOT = HERE.parents[4]
 BOARD = "sources/misteross/boards/de25nano/"
 LOCAL = ("build.py", "linux_dma.py", "integrate.tcl", "clocks.sdc", "fes_de25_scanout.v",
          "fes_de25_scanout_hw.tcl", "fes_de25_scanout_board.v",
+         "fes_de25_scanout_guard.v", "fes_de25_scanout_guard_hw.tcl",
          "generated/fes_de25_scanout.vh", "generated/fes_de25_scanout.h")
 
 
@@ -167,7 +168,7 @@ def prepare(archive, output=None, revision=None, *, hps_first=False, linux_dma=F
                     "warm_reset_ack_n", "debug_paths")}
     inputs["combined_display"].update(mode="allocated-buffer-scanout", ddr_scanout=True, runtime_menu=False)
     inputs["scanout"] = {"hps_initialization": boot_order, "peripheral_offset": int(offset[1], 16), "default_enabled": False,
-        "pixel_hz": 74250000, "system_hz": 100000000, "control_bridge": "mm_ccb19.4.1 DATA32 RESPONSE1",
+        "pixel_hz": 74250000, "system_hz": 100000000, "control_bridge": "system100 bounded guard -> mm_ccb19.4.1 DATA32 RESPONSE1",
         "memory_bridge": "mm_ccb19.4.1 DATA128 RESPONSE1 MAX16", "allocation_bytes": 8388608,
         "reset_release": {"assertion": "asynchronous",
             "deassertion": {"pixel": "synchronous to 74250000 Hz", "peripheral": "synchronous to 100000000 Hz"}},
@@ -244,7 +245,8 @@ def verify_handoff(project, hps):
             control_ports.get("writeresponsevalid") != ("Output", 1) or control_ports.get("response") != ("Output", 2)):
         raise ValueError("generated scanout CSR completion/width differs")
     connections = {(c.get("kind"), c.get("start"), c.get("end")): c for c in tree.findall("connection")}
-    routes = (("subsys_periph_pb_cpu_0.m0", "subsys_periph_fes_ctrl_cdc.s0"),
+    routes = (("subsys_periph_pb_cpu_0.m0", "subsys_periph_fes_scanout_guard.avs"),
+              ("subsys_periph_fes_scanout_guard.avm", "subsys_periph_fes_ctrl_cdc.s0"),
               ("subsys_periph_fes_ctrl_cdc.m0", "subsys_periph_fes_scanout.avs"),
               ("subsys_periph_fes_scanout.avm", "subsys_periph_fes_mem_cdc.s0"),
               ("subsys_periph_fes_mem_cdc.m0", "subsys_hps_f2sdram_adapter.axi4_sub"))
@@ -258,7 +260,8 @@ def verify_handoff(project, hps):
     if (pixel_clock_bridge is None or pixel_clock_bridge.get("kind") != "altera_clock_bridge" or
             ("clock", "fes_scanout_pixel_clock.out_clk", "subsys_periph_fes_pixel_clk.in_clk") not in connections):
         raise ValueError("generated top-level scanout clock bridge differs")
-    clocks = (("subsys_periph_periph_clk.out_clk", "fes_ctrl_cdc.s0_clk", 100000000),
+    clocks = (("subsys_periph_periph_clk.out_clk", "fes_scanout_guard.clk", 100000000),
+              ("subsys_periph_periph_clk.out_clk", "fes_ctrl_cdc.s0_clk", 100000000),
               ("subsys_periph_fes_pixel_clk.out_clk", "fes_ctrl_cdc.m0_clk", 74250000),
               ("subsys_periph_fes_pixel_clk.out_clk", "fes_mem_cdc.s0_clk", 74250000),
               ("subsys_periph_periph_clk.out_clk", "fes_mem_cdc.m0_clk", 100000000),
@@ -270,6 +273,7 @@ def verify_handoff(project, hps):
         if item is None or item.findtext("parameter[@name='clockRateSysInfo']/value") != str(rate):
             raise ValueError("generated scanout clock differs: " + end)
     reset_routes = (
+        ("subsys_periph_periph_rst_in.out_reset", "subsys_periph_fes_scanout_guard.reset"),
         ("subsys_periph_fes_scanout_system_reset.out_reset", "subsys_periph_fes_ctrl_cdc.s0_reset"),
         ("subsys_periph_fes_scanout_pixel_reset.out_reset", "subsys_periph_fes_ctrl_cdc.m0_reset"),
         ("subsys_periph_fes_scanout_pixel_reset.out_reset", "subsys_periph_fes_mem_cdc.s0_reset"),
@@ -280,6 +284,7 @@ def verify_handoff(project, hps):
             raise ValueError("generated scanout domain reset differs: " + end)
     reset_source = modules.get("fes_scanout_top_reset")
     top_reset_routes = (
+        ("subsys_periph_periph_rst_in.out_reset", "subsys_periph_fes_scanout_guard.reset"),
         ("reset", "fes_scanout_top_reset.out_reset", "subsys_periph_fes_scanout_pixel_reset.in_reset"),
         ("reset", "fes_scanout_top_reset.out_reset", "subsys_periph_fes_scanout_system_reset.in_reset"))
     if (reset_source is None or reset_source.get("kind") != "altera_reset_bridge" or
@@ -303,15 +308,27 @@ def verify_handoff(project, hps):
         actual, source = referenced_parameters(project, module, hps)
         checked = require_parameters(actual, expected, name)
         bridge_parameters[name] = {"parameters": checked, "logical_view": source}
+    guard = modules.get("subsys_periph.fes_scanout_guard")
+    if guard is None or guard.get("kind") != "fes_de25_scanout_guard" or guard.get("version") != "1.0":
+        raise ValueError("generated scanout system-clock guard differs")
+    for interface, direction, address_bits in (("avs", "Input", 8), ("avm", "Output", 7)):
+        actual_ports = hps.component_ports(guard, interface)
+        reverse = "Output" if direction == "Input" else "Input"
+        expected_ports = {"address": (direction, address_bits), "read": (direction, 1),
+            "write": (direction, 1), "byteenable": (direction, 4), "writedata": (direction, 32),
+            "waitrequest": (reverse, 1), "readdata": (reverse, 32), "readdatavalid": (reverse, 1),
+            "writeresponsevalid": (reverse, 1), "response": (reverse, 2)}
+        if actual_ports != expected_ports:
+            raise ValueError("generated scanout guard ports differ: " + interface)
     # The inherited handoff check already validates all elaborated LW regions
     # pairwise for overlap. Require the actual scanout leaf region too.
     probe = hps.verify_probe_handoff(project)
-    regions = [r for r in probe["peripheral_slave_map"] if r["name"] == "subsys_periph.fes_scanout.avs"]
-    if len(regions) != 1 or regions[0]["base"] != offset or regions[0]["span"] != 128:
+    regions = [r for r in probe["peripheral_slave_map"] if r["name"] == "subsys_periph.fes_scanout_guard.avs"]
+    if len(regions) != 1 or regions[0]["base"] != offset or regions[0]["span"] != 256:
         raise ValueError("generated scanout LW leaf region differs")
     return {"instance": "subsys_periph.fes_scanout", "peripheral_offset": offset,
         "pixel_hz": 74250000, "memory_hz": 100000000, "bridge_parameters": bridge_parameters,
-        "read_only_master_ports": expected_master, "csr_write_completion": True,
+        "read_only_master_ports": expected_master, "csr_write_completion": True, "control_guard": "100 MHz bounded, sticky poison, no cancellation or drain inference",
         "peripheral_slave_map": probe["peripheral_slave_map"], "ddr_scanout": True,
         "top_reset_source": "fes_scanout_top_reset.out_reset -> pixel and 100 MHz reset bridge inputs",
         "reset_bridges": reset_bridges,

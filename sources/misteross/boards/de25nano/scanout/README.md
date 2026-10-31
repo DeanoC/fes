@@ -31,7 +31,8 @@ or DMA permission and do not change the installed QSPI baseline.
 
 The [shared scanout contract](../../../../mister-packages/docs/de25-scanout.md)
 owns register offsets, generation/sequence rules and allocation lifetime.
-The new 128-byte slave is at lightweight peripheral offset `0x10200`.
+The CPU-facing 256-byte control slave is at lightweight peripheral offset
+`0x10200`; its lower 128 bytes forward to the pixel-domain endpoint.
 One immutable, dynamically supplied 8 MiB DMA grant contains two 4 MiB slots
 for 1280×720 BGRX8888 frames. Base address zero is allowed; physical backing,
 translation and permission are separate admission requirements. The first
@@ -40,7 +41,21 @@ displayed sequences are distinct. Only a complete frame without missing
 pixels or response errors acknowledges a flip; software retains the prior
 slot until that completion. One flip may be pending.
 
-Control registers, video and reader all use the 74.25 MHz pixel clock.
+The endpoint control registers, video and reader use the 74.25 MHz pixel clock.
+A system-clock control guard sits before the control crossing. Its upper-half
+identity, status, faults and write-once epoch registers remain local at 100 MHz.
+It uses the inherited peripheral reset, independently of initial pixel PLL lock.
+A request completes for the CPU within 100,000 system cycles after acceptance,
+including when the downstream command or response is stalled. A timeout or
+transport error permanently poisons the guard. An unaccepted downstream command
+remains asserted with stable payload until acceptance; a late response is consumed
+without a second CPU response. Poison prevents every subsequent endpoint access.
+CPU responses remain OKAY with dummy zero read data on failure to avoid a bus
+exception; software must validate local identity, epoch and faults before and
+after endpoint access. Successful bus completion alone proves nothing. The guard
+never resets a bridge or reports DMA drain. Its bound assumes the system clock,
+peripheral bus and reset release continue to operate.
+
 Explicit `mm_ccb` 19.4.1 bridges carry ordered 32-bit control traffic from
 100 MHz and 128-bit memory traffic back to 100 MHz, then into the existing
 256-bit F2SDRAM adapter. Both bridges preserve two-bit responses; the CSR
@@ -129,7 +144,10 @@ bursts followed by SUBMIT/CLEAR, missing responses, underflow, response errors
 and sticky clock failure. Separate benches cover the exact
 last-pixel submission corner, full HS/VS continuity through endpoint disable
 and reset, clock-shell startup/brief unlock/relock, and pixel-domain HDMI
-gating at a complete sync boundary using digital PLL/I2C models. The generated-interconnect
+gating at a complete sync boundary using digital PLL/I2C models. The actual guard
+RTL bench covers acceptance stalls, absent/late/error/wrong-kind responses,
+exact-deadline completion, stable retained commands, permanent poison and local
+register access throughout downstream uncertainty. The generated-interconnect
 helper tests the actual two-clock bridges and width adapter after generation;
 none of these modeled checks establishes physical memory or HDMI operation.
 
@@ -161,7 +179,7 @@ SMMU address USER ports, drives the generated nonsecure stream ID 13 in bits
 Only the captured `f2sdram_SMMU` false-to-true HPS parameter change is permitted;
 other HPS/EMIF or boot-data changes still fail. This profile remains unadmitted:
 all inherited F2SDRAM masters share the selected context. It establishes no
-kernel device, firmware translation, bounded control access or global
+kernel device, firmware translation, physically qualified bounded control access or global
 master/drain/reset lifetime. The kernel production probe remains closed.
 
 The [Linux-DMA profile compilation record](../../../../../docs/validation/2026-10-31-de25-linux-dma/README.md)

@@ -79,6 +79,50 @@ completion. An unexpected response breaks ownership accounting: it is terminal,
 never reports Drained and cannot be cleared locally. The outstanding count
 includes a presented but unaccepted burst, so it cannot hide stalled traffic.
 
+## System-clock control guard
+
+The CPU-facing control window is 256 bytes. Its lower 128 bytes forward to the
+unchanged pixel endpoint ABI 1.0; the upper half implements a distinct guard
+identity/version on the 100 MHz peripheral clock. The guard uses the inherited
+peripheral reset, so its release does not wait for pixel PLL lock.
+
+| Offset | Guard register |
+| --- | --- |
+| `80`, `84` | Identity `0x44324744`, version `0x00010000` |
+| `88`, `8c` | Live status, sticky faults |
+| `90` | Nonzero 32-bit software epoch, write once until peripheral reset |
+| `94` | Timeout bound in system cycles (100,000) |
+
+Status bits are Poisoned `1`, Pending downstream transaction `2`, Accepted
+by downstream `4`, EpochSet `8`. Fault bits are Timeout `1`, downstream
+Response error `2`, UnexpectedResponse `4`, invalid Access `8`. Reads/writes
+must be aligned full words; other accesses poison without forwarding. Only the
+epoch is writable locally, exactly once with a nonzero value; local fault/status
+has no clear command. Epoch is an exclusive kernel owner's identity marker,
+not proof of endpoint reset, DMA drain, domain lifetime or allocation ownership.
+A new owner must refuse a nonzero preexisting epoch; reuse/wrap is forbidden.
+
+Every accepted endpoint transaction receives a CPU completion within the selected
+system-cycle bound. A valid downstream response on the deadline wins over timeout.
+Missing acceptance, missing response, transport errors or malformed responses latch
+permanent poison. The CPU sees OKAY and zero data on failure rather than an external
+bus abort. A driver must check guard identity, epoch and faults before and after
+ordered endpoint I/O; zero data must never stand in for endpoint success. Local
+reads complete on the next system clock, subject only to a previously accepted
+CPU transaction's bounded completion. Bus waitrequest serializes CPU transactions.
+
+Timeout does not cancel a downstream request: address, data, byte enables and
+read/write remain stable until acceptance. A late response retires the downstream
+transaction without another CPU response, while poison remains. All subsequent
+endpoint requests receive bounded dummy responses and cannot reach the crossing.
+An unexpected response cannot discharge the pending transaction unless it matches
+its accepted command kind. No local operation resets the crossing, manufactures
+Drained, frees memory or permits replay. Physical DMA uncertainty still requires
+retaining grants and their device/domain resources. The bound assumes a running
+system clock and peripheral bus; it does not cover a stopped system oscillator,
+asserted system reset or board reconfiguration. Those remain separate lifecycle
+gates. The guard is not yet physically qualified or admitted by a kernel backend.
+
 ## Clock and reset boundary
 
 Registers, video and reader share the 74.25 MHz pixel clock. Two explicit

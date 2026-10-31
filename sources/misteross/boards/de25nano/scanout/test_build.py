@@ -59,6 +59,19 @@ class ScanoutBuildTests(unittest.TestCase):
         self.assertEqual((project / self.fixture.hps.EMIF).read_bytes(), self.fixture.files[self.fixture.hps.EMIF])
         self.assertEqual((project / self.fixture.hps.BOOT).read_bytes(), self.fixture.files[self.fixture.hps.BOOT])
 
+    def test_guard_sits_before_pixel_crossing_on_independent_system_clock_and_reset(self):
+        output, _, _, _ = self.prepare()
+        project = output / "combined/hps/project"
+        script = (project / "integrate-mailbox.tcl").read_text()
+        self.assertIn("add_connection pb_cpu_0.m0 fes_scanout_guard.avs", script)
+        self.assertIn("add_connection fes_scanout_guard.avm fes_ctrl_cdc.s0", script)
+        self.assertIn("add_connection periph_clk.out_clk fes_scanout_guard.clk", script)
+        self.assertIn("add_connection periph_rst_in.out_reset fes_scanout_guard.reset", script)
+        self.assertNotIn("add_connection fes_scanout_system_reset.out_reset fes_scanout_guard.reset", script)
+        self.assertNotIn("add_connection pb_cpu_0.m0 fes_ctrl_cdc.s0", script)
+        self.assertEqual((project / "fes_mailbox/fes_de25_scanout_guard.v").read_bytes(),
+                         self.sources[B.BOARD + "scanout/fes_de25_scanout_guard.v"])
+
     def test_source_snapshot_survives_later_working_source_mutation(self):
         revision = "a" * 40
         output, _, _, _ = self.prepare(revision)
@@ -79,7 +92,7 @@ class ScanoutBuildTests(unittest.TestCase):
         output, _, _, _ = self.prepare()
         project = output / "combined/hps/project"
         script = (project / "integrate-mailbox.tcl").read_text()
-        self.assertIn("pb_cpu_0.m0/fes_ctrl_cdc.s0 baseAddress 0x10300", script)
+        self.assertIn("pb_cpu_0.m0/fes_scanout_guard.avs baseAddress 0x10300", script)
         self.assertNotIn("@SCANOUT_BASE@", script)
         self.assertIn("subsys_periph.fes_scanout_mem/subsys_hps.f2sdram_adapter_axi4_sub baseAddress 0x0", script)
         self.assertEqual(json.loads((project.parent / "inputs.json").read_text())["scanout"]["peripheral_offset"], 0x10300)
