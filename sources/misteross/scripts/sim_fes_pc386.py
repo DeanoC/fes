@@ -612,7 +612,7 @@ def parse_system(text: str) -> dict:
     """system_tb's lines."""
     report = {'identity': None, 'restore_cycle': None, 'clock_cycle': None, 'crc_rejected': None, 'disk': None,
               'release_cycle': None, 'post': [], 'debug': [], 'counters': [], 'prompt_cycle': None, 'screen': [],
-              'status': None, 'save': None, 'record': None, 'roundtrip': None, 'record_checks': [],
+              'status': None, 'save': None, 'record': None, 'roundtrip': None, 'record_checks': [], 'write_test': None,
               'mailbox': None, 'end': None}
     for line in text.splitlines():
         kind, _, rest = line.partition(' ')
@@ -645,9 +645,12 @@ def parse_system(text: str) -> dict:
                                 for key, value in (field.split('=') for field in rest.split())}
         elif kind == 'SAVE':
             fields = dict(field.split('=') for field in rest.split())
+            chunks = lambda value: [] if value == '-' else [int(c) for c in value.split(',')]
             report['save'] = {'dirty': int(fields['dirty']), 'epoch': int(fields['epoch']),
-                              'changed_bytes': int(fields['changed_bytes']),
-                              'chunks': [] if fields['chunks'] == '-' else [int(c) for c in fields['chunks'].split(',')]}
+                              'changed_bytes': int(fields['changed_bytes']), 'chunks': chunks(fields['chunks']),
+                              'changed_chunks': chunks(fields['changed_chunks'])}
+        elif kind == 'WRITE-TEST':
+            report['write_test'] = None if rest == 'absent' else int(rest)
         elif kind in ('RECORD', 'ROUNDTRIP'):
             report[kind.lower()] = [int(word) for word in rest.split()]
         elif kind == 'CHECK':
@@ -674,6 +677,8 @@ def system_failures(report: dict) -> list[str]:
         failures.append(f'the system did not reach the prompt: {end.get("reason")}')
     if report.get('crc_rejected') is None:
         failures.append('a wrong CRC was not rejected')
+    if report.get('write_test') is None:
+        failures.append("the bench did not give the boot its disk write (the fixture's AUTOEXEC.BAT)")
     status = report.get('status')
     if status is None:
         return failures + ['system_tb printed no status words']

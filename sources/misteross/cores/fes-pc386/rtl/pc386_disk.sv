@@ -16,8 +16,9 @@
 // CRC-32/IEEE over them, a word per beat, first byte lowest. It then pulses
 // verify_done, with verify_match when the CRC is crc, and waits for verify to
 // fall. The drive is absent while the unit verifies, so it asks nothing; the
-// pass keeps the port until every beat it asked for has returned, also when
-// verify falls early. reset is port 2's.
+// pass starts only while the drive presents nothing, keeps a read it presented
+// until the port takes it, and keeps the port until every beat it asked for
+// has returned, also when verify falls early. reset is port 2's.
 module pc386_disk (
     input wire clk, reset,
     input wire verify,
@@ -61,7 +62,7 @@ module pc386_disk (
     reg [31:0] state;
     wire [24:0] total = {sectors[18:0], 6'd0};
     wire owed = beats != {issued, 6'd0};
-    wire pass_read = passing && verify && issued != sectors[18:0];
+    wire pass_read = passing && issued != sectors[18:0];
     wire pass_port = passing || owed;  // the pass owns the port
     wire taken = aux_read && !aux_waitrequest;
 
@@ -81,7 +82,7 @@ module pc386_disk (
             passing <= 0; finished <= 0; issued <= 0; beats <= 0; state <= 0; verify_match <= 0;
         end else begin
             if (!verify) finished <= 0;
-            if (verify && !passing && !finished && !owed) begin
+            if (verify && !passing && !finished && !owed && !disk_valid) begin
                 passing <= 1; issued <= 0; beats <= 0; state <= 32'hffffffff;
             end
             if (taken && pass_port) issued <= issued + 1'b1;
@@ -89,7 +90,8 @@ module pc386_disk (
                 beats <= beats + 1'b1;
                 state <= crc32_word(state, readdata);
             end
-            if (passing && !verify) passing <= 0;   // abandoned: the owed beats drain
+            // Abandoned: once no read waits on the port, the owed beats drain.
+            if (passing && !verify && !(aux_read && aux_waitrequest)) passing <= 0;
             else if (passing && beats == total && !owed) begin
                 passing <= 0; finished <= 1;
                 verify_done <= 1;

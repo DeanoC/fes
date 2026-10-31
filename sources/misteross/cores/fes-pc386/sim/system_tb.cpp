@@ -13,10 +13,12 @@
 //      loading with the CRC error flag; then the right CRC, polling DiskInfo
 //      until the core's pass ends; Execution release.
 //
-// It then follows the boot until the prompt. At Stop it saves as the runtime
-// does: DiskControl Freeze, the 128 DiskDirty words, the dirty chunks read
-// from the window, Saved; DataControl Freeze and the 72 DataReads; Execution
-// hold. Last it restores that record into the held machine, releases it until
+// It then follows the boot until the prompt. So that the boot writes the disk,
+// the bench's copy of the FreeDOS fixture runs MD C:\M5 in AUTOEXEC.BAT in
+// place of PATH C:\ (the same length, so the file's size stands). At Stop it
+// saves as the runtime does: DiskControl Freeze, the 128 DiskDirty words, the
+// dirty chunks read from the window, Saved; DataControl Freeze and the 72
+// DataReads; Execution hold. Every chunk the guest changed must be dirty. Last it restores that record into the held machine, releases it until
 // the RTC's CMOS setup is done, and reads the record back, so the CMOS bytes
 // make the round trip through the RTC. Nothing else reaches inside the
 // system, and no oracle backs the CPU: a CPU stop ends the run. fes_hps_ddr is
@@ -25,6 +27,7 @@
 // the presenter and plane load port 2 as on a kit.
 //
 // It prints:
+//   WRITE-TEST <offset>|absent              where the AUTOEXEC.BAT change went
 //   IDENTITY <17 words>                     identity words 0-16
 //   RESTORE <cycle>                          the record committed
 //   CLOCK <cycle>                            the wall clock applied
@@ -37,7 +40,8 @@
 //   PROMPT <cycle>                           the prompt on the screen's last row
 //   SCREEN <row> |<80 characters>|           the text screen at the end, from VRAM
 //   STATUS <field>=<value> ...               the status words at the end
-//   SAVE dirty=<n> chunks=<list> epoch=<n>   the Stop's disk save
+//   SAVE dirty=<n> chunks=<list> epoch=<n> changed_bytes=<n> changed_chunks=<list>
+//                                            the Stop's disk save
 //   RECORD <72 words>                        the Stop's record
 //   ROUNDTRIP <72 words>                     the record after the restore and setup
 //   CHECK <PASS|FAIL> <what>                 the record and round-trip checks
@@ -137,6 +141,7 @@ public:
         sys_ps = 1e12 / clock_hz;
         limit = uint64_t(limit_seconds * clock_hz);
         geometry();
+        write_test();
     }
 
     std::string run() {
@@ -183,6 +188,7 @@ private:
     double sys_ps = 0, now_ps = 0, pixel_ps = 0;
     uint64_t cycles = 0, limit = 0, progress_at = 0, retired = 0, last_screen = 0;
     int last_post = -1, checks_failed = 0;
+    bool write_tested = false;
     uint64_t counters[5] = {};
     bool prompt_seen = false, toggle = false;
 
@@ -199,6 +205,19 @@ private:
     }
 
     // A held port is not driven: its guard answers the master.
+    // The fixture's AUTOEXEC.BAT (build_pc386_freedos_image.py) with MD C:\M5
+    // for PATH C:\: the directory's entry and cluster are guest sector writes.
+    void write_test() {
+        static const char before[] = "@ECHO OFF\r\nPROMPT $P$G\r\nPATH C:\\\r\nVER\r\n";
+        static const char after[] = "@ECHO OFF\r\nPROMPT $P$G\r\nMD C:\\M5\r\nVER\r\n";
+        const size_t length = sizeof before - 1;
+        auto at = std::search(image.begin(), image.end(), before, before + length);
+        if (at == image.end()) { std::printf("WRITE-TEST absent\n"); return; }
+        std::copy(after, after + length, at);
+        write_tested = true;
+        std::printf("WRITE-TEST %zu\n", size_t(at - image.begin()));
+    }
+
     void clock() {
         bool held = hold_sync[1];
         top.p0_reset = top.p1_reset = top.p2_reset = held;
@@ -355,18 +374,28 @@ private:
             for (unsigned bit = 0; bit < 16; ++bit)
                 if (bits & (1u << bit)) chunks.push_back(word * 16u + bit);
         }
-        std::string list;
+        // What the guest changed, chunk by chunk, against the image staged.
+        std::vector<unsigned> changed_chunks;
         size_t changed = 0;
-        for (unsigned chunk : chunks) {
-            list += (list.empty() ? "" : ",") + std::to_string(chunk);
-            // What the runtime would store: the chunk as the window holds it.
-            size_t at = size_t(chunk) * CHUNK, length = std::min<size_t>(CHUNK, image.size() - at);
-            for (size_t n = 0; n < length; ++n) changed += window.byte(IMAGE + uint32_t(at + n)) != image[at + n];
+        for (size_t at = 0; at < image.size(); at += CHUNK) {
+            size_t length = std::min<size_t>(CHUNK, image.size() - at), differ = 0;
+            for (size_t n = 0; n < length; ++n) differ += window.byte(IMAGE + uint32_t(at + n)) != image[at + n];
+            if (differ) changed_chunks.push_back(unsigned(at / CHUNK));
+            changed += differ;
         }
+        auto join_chunks = [](const std::vector<unsigned> &list) {
+            std::string text;
+            for (unsigned chunk : list) text += (text.empty() ? "" : ",") + std::to_string(chunk);
+            return text.empty() ? std::string("-") : text;
+        };
         uint16_t epoch = exchange(OP_DISK_INFO, 7, 0);
         exchange(OP_DISK_CONTROL, 0, SAVED);
-        std::printf("SAVE dirty=%zu chunks=%s epoch=%u changed_bytes=%zu\n", chunks.size(),
-                    list.empty() ? "-" : list.c_str(), epoch, changed);
+        std::printf("SAVE dirty=%zu chunks=%s epoch=%u changed_bytes=%zu changed_chunks=%s\n", chunks.size(),
+                    join_chunks(chunks).c_str(), epoch, changed, join_chunks(changed_chunks).c_str());
+        check(std::includes(chunks.begin(), chunks.end(), changed_chunks.begin(), changed_chunks.end()),
+              "every chunk the guest changed is in the dirty map");
+        if (write_tested)
+            check(!changed_chunks.empty() && epoch != 0, "MD C:\\M5 wrote the disk, and the epoch counted it");
         check(exchange(OP_DISK_DIRTY, 0, 0) == 0 && (exchange(OP_DISK_INFO, 6, 0) & 1) == 0,
               "Saved clears the dirty map and flag");
 

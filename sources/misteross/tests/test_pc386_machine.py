@@ -299,7 +299,8 @@ class PresenterBenchTest(unittest.TestCase):
         self.assertEqual(len(report['checks']), 14)
 
 
-SYSTEM_OUTPUT = """IDENTITY 17734 12627 1 0 4 1 1 12297 26437 291 52617 1158 61715 2469 13863 3702 15
+SYSTEM_OUTPUT = """WRITE-TEST 444436
+IDENTITY 17734 12627 1 0 4 1 1 12297 26437 291 52617 1158 61715 2469 13863 3702 15
 RESTORE 9000
 CLOCK 9400
 CRC-REJECTED 600000 flags=8
@@ -311,7 +312,7 @@ COUNTER cpu_resets=1 200000000
 PROMPT 300000000
 SCREEN 0 |C:\\>                                                                             |
 STATUS running=1 halted=1 stopped=0 a20m=0 intr=0 post=00 cpu_resets=1 retired=50000000 cs=0070 vector=00 eip=00001234 frames_shown=600 scanout_underflows=0 capture_drops=0 present_underflows=0 plane_underflows=0 samples=480000 dma_cycles=0 opl2_samples=0
-SAVE dirty=1 chunks=0 epoch=3 changed_bytes=12
+SAVE dirty=1 chunks=0 epoch=3 changed_bytes=12 changed_chunks=0
 CHECK PASS Saved clears the dirty map and flag
 RECORD 0 0 0 0 576 5 1 0
 CHECK PASS the record keeps the restored settings
@@ -339,7 +340,9 @@ class SystemTest(unittest.TestCase):
         self.assertEqual(report['status']['cs'], 0x70)
         self.assertEqual(report['status']['eip'], 0x1234)
         self.assertEqual(report['status']['retired'], 50000000)
-        self.assertEqual(report['save'], {'dirty': 1, 'epoch': 3, 'changed_bytes': 12, 'chunks': [0]})
+        self.assertEqual(report['save'], {'dirty': 1, 'epoch': 3, 'changed_bytes': 12, 'chunks': [0],
+                                          'changed_chunks': [0]})
+        self.assertEqual(report['write_test'], 444436)
         self.assertEqual(report['record'][:8], [0, 0, 0, 0, 576, 5, 1, 0])
         self.assertEqual(len(report['record_checks']), 3)
         self.assertEqual(report['end'], {'reason': 'prompt', 'cycles': 303000000, 'seconds': 4.932})
@@ -353,6 +356,7 @@ class SystemTest(unittest.TestCase):
             (SYSTEM_OUTPUT.replace('DEBUG BIOS', 'DEBUG PANIC: BIOS'), 'panic'),
             (SYSTEM_OUTPUT.replace('retired=50000000', 'retired=0'), 'retired nothing'),
             (SYSTEM_OUTPUT.replace('CRC-REJECTED 600000 flags=8\n', ''), 'wrong CRC'),
+            (SYSTEM_OUTPUT.replace('WRITE-TEST 444436', 'WRITE-TEST absent'), 'disk write'),
             (SYSTEM_OUTPUT.replace('CHECK PASS the record keeps', 'CHECK FAIL the record keeps'),
              'record check failed: the record keeps'),
             (SYSTEM_OUTPUT.replace('ROUNDTRIP 0 0 0 0 576 5 1 0\n', ''), 'did not save'),
