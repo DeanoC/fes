@@ -7,17 +7,20 @@ create_generated_clock -name adv7513_config -source [get_ports CLOCK0_50] -divid
 # Loss of pixel lock does not reset either live PD crossing or the endpoint's
 # outstanding accounting. Qsys emits the two domain reset synchronizers as
 # top-level reset controllers; the reset-bridge modules themselves are
-# pass-through cells. The two visibility-synchronizer clears complete the
-# asynchronous clear set.
-set scanout_aclr [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|config_reset|sync_regs*|aclr fes_video_inst|lock_qualifier|sync_regs*|aclr soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[0]|aclr soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]|aclr soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[0]|aclr soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]|aclr fes_video_inst|visible_sync[0]|aclr fes_video_inst|visible_sync[1]|aclr}]
-set scanout_clrn [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|config_reset|sync_regs*|clrn fes_video_inst|lock_qualifier|sync_regs*|clrn soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[0]|clrn soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]|clrn soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[0]|clrn soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]|clrn fes_video_inst|visible_sync[0]|clrn fes_video_inst|visible_sync[1]|clrn}]
+# pass-through cells. The pixel-domain visibility release, which lock loss
+# clears at once, completes the asynchronous clear set.
+set scanout_aclr [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|config_reset|sync_regs*|aclr fes_video_inst|lock_qualifier|sync_regs*|aclr soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[0]|aclr soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]|aclr soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[0]|aclr soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]|aclr fes_video_inst|visible_release|sync_regs*|aclr}]
+set scanout_clrn [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|config_reset|sync_regs*|clrn fes_video_inst|lock_qualifier|sync_regs*|clrn soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[0]|clrn soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]|clrn soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[0]|clrn soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]|clrn fes_video_inst|visible_release|sync_regs*|clrn}]
 set scanout_clear_count [expr {[get_collection_size $scanout_aclr] + [get_collection_size $scanout_clrn]}]
 post_message -type info "DE25 scanout qualifier/reset-bridge/visibility clear pins: $scanout_clear_count (expected 10)"
 if {$scanout_clear_count != 10} {error "DE25 scanout requires exactly ten qualifier/reset-bridge/visibility clear pins"}
 if {[get_collection_size $scanout_aclr] > 0} {set_false_path -to $scanout_aclr}
 if {[get_collection_size $scanout_clrn] > 0} {set_false_path -to $scanout_clrn}
-# The registered data/DE gate clears from visible_sync[1], a pixel-clock
-# register, so its recovery and removal stay timed. Only check that it exists.
+# The visibility synchronizer clears from the release's pixel-clock output and
+# the registered data/DE gate from visible_sync[1], so their recovery and
+# removal stay timed. Only check that the clear pins exist.
+set scanout_visible_clear [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|visible_sync[0]|aclr fes_video_inst|visible_sync[1]|aclr fes_video_inst|visible_sync[0]|clrn fes_video_inst|visible_sync[1]|clrn}]
+if {[get_collection_size $scanout_visible_clear] != 2} {error "DE25 scanout visibility synchronizer clear pins changed"}
 set scanout_gate_clear [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|video_active|aclr fes_video_inst|video_active|clrn}]
 if {[get_collection_size $scanout_gate_clear] != 1} {error "DE25 scanout data/DE gate clear pin changed"}
 # A monotonic 100 MHz fault level crosses through its dedicated two-flop chain.
@@ -27,12 +30,13 @@ set scanout_fault_head [get_pins -compatibility_mode -nocase {soc_inst|subsys_pe
 if {[get_collection_size $scanout_fault_source] != 1 || [get_collection_size $scanout_fault_head] != 1} {error "DE25 scanout fault synchronizer ingress changed"}
 set_false_path -from $scanout_fault_source -to $scanout_fault_head
 post_message -type info "DE25 scanout fault CDC ingress: one source and one stage0 D pin"
-# The system/PLL visibility request crosses into the pixel-clock HDMI gate.
-# Cut only the first synchronizer D input; its next stage and line-boundary
-# gate remain timed in the pixel domain.
+# The registered system-domain visibility request crosses into the
+# pixel-clock HDMI gate. Cut only its path to the first synchronizer D input;
+# the next stage and line-boundary gate remain timed in the pixel domain.
+set scanout_visible_source [get_registers {fes_video_inst|visible_request}]
 set scanout_visible_head [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|visible_sync[0]|d}]
-if {[get_collection_size $scanout_visible_head] != 1} {error "DE25 scanout visibility synchronizer ingress changed"}
-set_false_path -to $scanout_visible_head
-post_message -type info "DE25 scanout visibility CDC ingress: one stage0 D pin"
+if {[get_collection_size $scanout_visible_source] != 1 || [get_collection_size $scanout_visible_head] != 1} {error "DE25 scanout visibility synchronizer ingress changed"}
+set_false_path -from $scanout_visible_source -to $scanout_visible_head
+post_message -type info "DE25 scanout visibility CDC ingress: one source and one stage0 D pin"
 # No clock groups or FIFO pointer cuts: mm_ccb owns its CDC constraints.
 # External HDMI/I2C delay and electrical contracts remain unqualified.

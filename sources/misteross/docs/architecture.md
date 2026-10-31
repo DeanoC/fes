@@ -143,9 +143,10 @@ Both crossing bridges share initial configuration reset. Later pixel PLL-lock
 loss latches a fault without resetting live bridge queues; the endpoint stops
 and drains when its clock resumes. The DE25 endpoint keeps its fixed raster and
 raw HS/VS running through stop, fault and reset while pixel data stays blank.
-HDMI data/DE use registered pixel-domain visibility state. A qualified-lock
-reset asynchronously clears its two-stage pixel-clock synchronizer on reset or
-lock loss, while release passes through the pixel domain; the data/DE gate
+HDMI data/DE use registered pixel-domain visibility state. A registered
+100 MHz request crosses into a two-stage pixel-clock synchronizer. Reset or
+lock loss clears a pixel-domain reset release at once, which clears that
+synchronizer, while release passes through the pixel domain; the data/DE gate
 blanks immediately and picture resumes only after a complete horizontal sync
 pulse while VS is inactive. The
 producer retains

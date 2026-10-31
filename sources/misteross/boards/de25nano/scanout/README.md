@@ -59,9 +59,11 @@ stops/drains the endpoint once the pixel clock resumes; it does **not** reset
 live FIFO or reader accounting. The DE25 scanout instance keeps its fixed
 raster and raw HS/VS running while the endpoint is stopped, faulted or reset.
 HDMI data/DE at the pins use registered pixel-domain visibility state. The
-visibility synchronizer asynchronously asserts from the qualified lock signal
-and releases through its pixel-clock stages; data blanks immediately on lock
-loss or reset while HS/VS finish their current pulses. Visibility returns after
+visibility request is a 100 MHz register, so one source crosses into a
+two-stage pixel synchronizer. Loss of the qualified lock clears a pixel-domain
+reset release at once, even with the pixel clock stopped, and that release
+clears the synchronizer; it releases through pixel-clock stages. Data blanks
+immediately on lock loss or reset while HS/VS finish their current pulses. Visibility returns after
 a complete horizontal sync pulse while VS is inactive. This keeps DE, HS and VS
 gating away from active pixels and complete sync pulses, including a lock
 failure in the middle of HS. No asynchronous fault, lock or reset term is
@@ -102,12 +104,13 @@ Generated bridge FIFO constraints remain authoritative: no broad clock groups
 or pointer-path cuts are added. The board SDC cuts ten asynchronous clear
 pins: four on the configuration and lock-qualification synchronizers, four on
 the generated pixel and 100 MHz reset-bridge synchronizers, and two on the
-visibility synchronizer. The registered data/DE gate clears from that
-synchronizer's pixel-clock output, so its recovery and removal stay timed; the
-SDC only checks that its clear pin exists. It also cuts
-only the first D ingress of the sticky-fault and HDMI-visibility
-synchronizers; later synchronizer stages, line gating and output paths remain
-timed. Generation rejects a board whose data/DE pins are not driven by the
+pixel-domain visibility release. The visibility synchronizer clears from that
+release and the registered data/DE gate from the synchronizer, both
+pixel-clock registers, so their recovery and removal stay timed; the SDC only
+checks that those clear pins exist. It also cuts only the path from each
+registered source to the first D input of the sticky-fault and
+HDMI-visibility synchronizers; later synchronizer stages, line gating and
+output paths remain timed. Generation rejects a board whose data/DE pins are not driven by the
 registered gate or an SDC that does not name all ten clear pins. No HDMI IO
 delays are fabricated.
 
