@@ -1,0 +1,16 @@
+{
+  "source_revision": "d64ced1eabf3e514626cd8563e6cb68dba68e3d0",
+  "command": [
+    "python3",
+    "out/owner-client-build-d64ced1ea-v2/run.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-linux-platform",
+  "started_utc": "2026-10-31T17:11:54.763833+00:00",
+  "time_cap_seconds": 300,
+  "hardware_access": "not-performed",
+  "pid": 3962586,
+  "state": "passed",
+  "elapsed_seconds": 7.9,
+  "heartbeat_utc": "2026-10-31T17:12:02.618658+00:00",
+  "returncode": 0
+}
