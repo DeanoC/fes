@@ -5938,6 +5938,7 @@
         settingsSelectedTargetRow = targetSettingsRowByName(nodes.settingsSelectedTarget && nodes.settingsSelectedTarget.value);
       }
       touchSettingsRow(row, 'targets');
+      if (selectedRow === row) settingsTouched.add('selectedTarget');
     });
     address.addEventListener('input', () => touchSettingsRow(row, 'targets'));
     row._fogcastAgentDirty = false;
@@ -6044,8 +6045,9 @@
       }
     }
     // A merged target list can add names, so the picker always refreshes.
-    // The user's pick stays when they changed it or edited the targets.
-    const keepSelected = !untouched('selectedTarget') || !untouched('targets');
+    // Keep an explicit selection (including a rename of that selected row);
+    // otherwise use the server's selected target.
+    const keepSelected = !untouched('selectedTarget');
     refreshSelectedTargetOptions(keepSelected
       ? nodes.settingsSelectedTarget && nodes.settingsSelectedTarget.value
       : settings && settings.selected_target);
@@ -6060,6 +6062,10 @@
 
   function clearSettingsTouched() {
     settingsTouched.clear();
+    [nodes.settingsLibraries, nodes.settingsTargets].forEach(container => {
+      if (!container) return;
+      Array.from(container.children).forEach(row => { row._fogcastTouched = false; });
+    });
     settingsRemovedRows.libraries.clear();
     settingsRemovedRows.targets.clear();
   }
@@ -6083,7 +6089,6 @@
       if (nodes.saveSettings) nodes.saveSettings.disabled = false;
     } catch (error) {
       if (loadToken !== settingsLoadToken || !settingsIsOpen()) return;
-      fillSettingsForm(null, true);
       if (nodes.saveSettings) nodes.saveSettings.disabled = true;
       if (nodes.settingsMessage) {
         nodes.settingsMessage.textContent = privacyMessage(error, 'Library settings could not be loaded.');

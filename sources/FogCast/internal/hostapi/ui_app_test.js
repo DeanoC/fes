@@ -4649,6 +4649,235 @@ test('held settings GET merges rows the user did not edit', async () => {
   assert.equal(put.selected_target, 'dev');
 });
 
+test('settings reopen clears row edits and additions from the previous open', async () => {
+  let releaseGet;
+  const held = new Promise(resolve => { releaseGet = resolve; });
+  let settingsGets = 0;
+  const settings = {
+    attract_idle_seconds: 60,
+    preferred_regions: ['usa'],
+    libraries: [
+      { id: 'snes-main', system: 'snes', root: '/library/SNES' },
+      { id: 'nes-main', system: 'nes', root: '/library/NES' },
+    ],
+    targets: [
+      { name: 'dev', address: 'http://192.0.2.10:8182', enabled: false, agent_configured: false },
+      { name: 'lab', address: 'http://192.0.2.12:8182', enabled: false, agent_configured: false },
+    ],
+    selected_target: 'dev',
+    systems: [{ id: 'snes', label: 'SNES' }, { id: 'nes', label: 'NES' }],
+  };
+  const { document, calls } = await runKeyboardApp({
+    settings,
+    onSettings: async ({ options }) => {
+      if (options && options.method && options.method !== 'GET') return;
+      settingsGets += 1;
+      if (settingsGets === 3) await held;
+    },
+  });
+  await settleBrowser();
+  await document.nodes.get('open-settings').click();
+  await waitForCondition(() => document.nodes.get('settings-libraries').children.length === 2, 'settings rows did not render');
+
+  const oldLibrary = document.nodes.get('settings-libraries').children[0]._fogcastFields.root;
+  oldLibrary.value = '/library/discarded';
+  oldLibrary.dispatchEvent({ type: 'input' });
+  document.nodes.get('add-library').click();
+  document.nodes.get('settings-libraries').children[2]._fogcastFields.root.value = '/library/local-only';
+
+  const oldTarget = document.nodes.get('settings-targets').children[0]._fogcastFields.address;
+  oldTarget.value = 'http://192.0.2.99:8182';
+  oldTarget.dispatchEvent({ type: 'input' });
+  document.nodes.get('add-target').click();
+  document.nodes.get('settings-targets').children[2]._fogcastFields.name.value = 'local-only';
+  document.nodes.get('close-settings').click();
+
+  document.nodes.get('open-settings').click();
+  await waitForCondition(() => settingsGets === 3, 'reopen settings GET not sent');
+  const nextLibrary = document.nodes.get('settings-libraries').children[1]._fogcastFields.root;
+  nextLibrary.value = '/library/second-open';
+  nextLibrary.dispatchEvent({ type: 'input' });
+  const nextTarget = document.nodes.get('settings-targets').children[1]._fogcastFields.address;
+  nextTarget.value = 'http://192.0.2.22:8182';
+  nextTarget.dispatchEvent({ type: 'input' });
+
+  settings.libraries = [
+    { id: 'snes-main', system: 'snes', root: '/library/SNES-server' },
+    { id: 'nes-main', system: 'nes', root: '/library/NES-server' },
+    { id: 'gb-main', system: 'nes', root: '/library/GB' },
+  ];
+  settings.targets = [
+    { name: 'dev', address: 'http://192.0.2.10:8182', enabled: false, agent_configured: false },
+    { name: 'lab', address: 'http://192.0.2.12:8182', enabled: false, agent_configured: false },
+    { name: 'den', address: 'http://192.0.2.11:8182', enabled: false, agent_configured: false },
+  ];
+  releaseGet();
+  await settleBrowser();
+
+  assert.deepEqual(Array.from(document.nodes.get('settings-libraries').children).map(row => [
+    row.getAttribute('data-library-id'), row._fogcastFields.root.value,
+  ]), [
+    ['snes-main', '/library/SNES-server'],
+    ['nes-main', '/library/second-open'],
+    ['gb-main', '/library/GB'],
+  ]);
+  assert.deepEqual(Array.from(document.nodes.get('settings-targets').children).map(row => [
+    row._fogcastFields.name.value, row._fogcastFields.address.value,
+  ]), [
+    ['dev', 'http://192.0.2.10:8182'],
+    ['lab', 'http://192.0.2.22:8182'],
+    ['den', 'http://192.0.2.11:8182'],
+  ]);
+
+  document.nodes.get('save-settings').click();
+  await waitForCondition(() => calls.some(call => call.path === '/api/v1/library/settings' && call.options && call.options.method === 'PUT'), 'settings PUT not sent');
+  const put = JSON.parse(calls.find(call => call.path === '/api/v1/library/settings' && call.options && call.options.method === 'PUT').options.body);
+  assert.deepEqual(put.libraries.map(library => library.id), ['snes-main', 'nes-main', 'gb-main']);
+  assert.deepEqual(put.targets.map(target => target.name), ['dev', 'lab', 'den']);
+});
+
+test('failed settings GET leaves existing rows visible when a section is dirty', async () => {
+  let rejectGet;
+  const held = new Promise((_, reject) => { rejectGet = reject; });
+  let settingsGets = 0;
+  const settings = {
+    attract_idle_seconds: 60,
+    preferred_regions: ['usa'],
+    libraries: [
+      { id: 'snes-main', system: 'snes', root: '/library/SNES' },
+      { id: 'nes-main', system: 'nes', root: '/library/NES' },
+    ],
+    targets: [
+      { name: 'dev', address: 'http://192.0.2.10:8182', enabled: false, agent_configured: false },
+      { name: 'lab', address: 'http://192.0.2.12:8182', enabled: false, agent_configured: false },
+    ],
+    selected_target: 'dev',
+    systems: [{ id: 'snes', label: 'SNES' }, { id: 'nes', label: 'NES' }],
+  };
+  const { document } = await runKeyboardApp({
+    settings,
+    onSettings: async ({ options }) => {
+      if (options && options.method && options.method !== 'GET') return;
+      settingsGets += 1;
+      if (settingsGets === 3) await held;
+    },
+  });
+  await settleBrowser();
+  await document.nodes.get('open-settings').click();
+  await waitForCondition(() => document.nodes.get('settings-libraries').children.length === 2, 'settings rows did not render');
+  document.nodes.get('close-settings').click();
+
+  document.nodes.get('open-settings').click();
+  await waitForCondition(() => settingsGets === 3, 'reopen settings GET not sent');
+  const first = document.nodes.get('settings-libraries').children[0]._fogcastFields.root;
+  first.value = '/library/current-edit';
+  first.dispatchEvent({ type: 'input' });
+  rejectGet(new Error('settings unavailable'));
+  await waitForCondition(
+    () => document.nodes.get('settings-message').textContent !== '',
+    'settings load error was not shown',
+  );
+
+  assert.equal(document.nodes.get('settings-libraries').children.length, 2);
+  assert.equal(document.nodes.get('settings-libraries').children[0]._fogcastFields.root.value, '/library/current-edit');
+  assert.equal(document.nodes.get('settings-libraries').children[1]._fogcastFields.root.value, '/library/NES');
+  assert.equal(document.nodes.get('settings-targets').children.length, 2);
+  assert.equal(document.nodes.get('save-settings').disabled, true);
+});
+
+test('held settings GET uses the server selected target when another target row was edited', async () => {
+  let releaseGet;
+  const held = new Promise(resolve => { releaseGet = resolve; });
+  let settingsGets = 0;
+  const settings = {
+    attract_idle_seconds: 60,
+    preferred_regions: ['usa'],
+    libraries: [],
+    targets: [
+      { name: 'dev', address: 'http://192.0.2.10:8182', enabled: false, agent_configured: false },
+      { name: 'lab', address: 'http://192.0.2.12:8182', enabled: false, agent_configured: false },
+    ],
+    selected_target: 'dev',
+    systems: [],
+  };
+  const { document, calls } = await runKeyboardApp({
+    settings,
+    onSettings: async ({ options }) => {
+      if (options && options.method && options.method !== 'GET') return;
+      settingsGets += 1;
+      if (settingsGets === 3) await held;
+    },
+  });
+  await settleBrowser();
+  await document.nodes.get('open-settings').click();
+  await waitForCondition(() => document.nodes.get('settings-targets').children.length === 2, 'settings rows did not render');
+  document.nodes.get('close-settings').click();
+
+  document.nodes.get('open-settings').click();
+  await waitForCondition(() => settingsGets === 3, 'reopen settings GET not sent');
+  const labAddress = document.nodes.get('settings-targets').children[1]._fogcastFields.address;
+  labAddress.value = 'http://192.0.2.22:8182';
+  labAddress.dispatchEvent({ type: 'input' });
+  settings.targets = [
+    { name: 'den', address: 'http://192.0.2.11:8182', enabled: false, agent_configured: false },
+    { name: 'lab', address: 'http://192.0.2.12:8182', enabled: false, agent_configured: false },
+  ];
+  settings.selected_target = 'lab';
+  releaseGet();
+  await settleBrowser();
+
+  assert.deepEqual(Array.from(document.nodes.get('settings-targets').children).map(row => row._fogcastFields.name.value), ['den', 'lab']);
+  assert.equal(document.nodes.get('settings-selected-target').value, 'lab');
+  document.nodes.get('save-settings').click();
+  await waitForCondition(() => calls.some(call => call.path === '/api/v1/library/settings' && call.options && call.options.method === 'PUT'), 'settings PUT not sent');
+  const put = JSON.parse(calls.find(call => call.path === '/api/v1/library/settings' && call.options && call.options.method === 'PUT').options.body);
+  assert.equal(put.selected_target, 'lab');
+});
+
+test('held settings GET keeps selection on a locally renamed selected target', async () => {
+  let releaseGet;
+  const held = new Promise(resolve => { releaseGet = resolve; });
+  let settingsGets = 0;
+  const settings = {
+    attract_idle_seconds: 60,
+    preferred_regions: ['usa'],
+    libraries: [],
+    targets: [
+      { name: 'dev', address: 'http://192.0.2.10:8182', enabled: false, agent_configured: false },
+      { name: 'lab', address: 'http://192.0.2.12:8182', enabled: false, agent_configured: false },
+    ],
+    selected_target: 'dev',
+    systems: [],
+  };
+  const { document } = await runKeyboardApp({
+    settings,
+    onSettings: async ({ options }) => {
+      if (options && options.method && options.method !== 'GET') return;
+      settingsGets += 1;
+      if (settingsGets === 3) await held;
+    },
+  });
+  await settleBrowser();
+  await document.nodes.get('open-settings').click();
+  await waitForCondition(() => document.nodes.get('settings-targets').children.length === 2, 'settings rows did not render');
+  document.nodes.get('close-settings').click();
+
+  document.nodes.get('open-settings').click();
+  await waitForCondition(() => settingsGets === 3, 'reopen settings GET not sent');
+  const selectedName = document.nodes.get('settings-targets').children[0]._fogcastFields.name;
+  selectedName.value = 'dev-local';
+  selectedName.dispatchEvent({ type: 'input' });
+  settings.targets = [
+    { name: 'lab', address: 'http://192.0.2.12:8182', enabled: false, agent_configured: false },
+    { name: 'dev', address: 'http://192.0.2.10:8182', enabled: false, agent_configured: false },
+  ];
+  releaseGet();
+  await settleBrowser();
+
+  assert.deepEqual(Array.from(document.nodes.get('settings-targets').children).map(row => row._fogcastFields.name.value), ['lab', 'dev-local']);
+  assert.equal(document.nodes.get('settings-selected-target').value, 'dev-local');
+});
+
 test('stale settings save does not refill a reopened form', async () => {
   let releaseSave;
   const held = new Promise(resolve => { releaseSave = resolve; });
