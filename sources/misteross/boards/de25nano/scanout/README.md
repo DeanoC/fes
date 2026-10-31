@@ -150,3 +150,6 @@ discrepancy and external IO timing, physical CDC/MTBF and exact-artifact board
 acceptance remain gates. Warm-reset ACK stays inactive: probe/scanout-local
 drain cannot acknowledge the retained JTAG and HPS-origin paths. No SD card,
 QSPI, hardware, kit or harness is touched by this build lane.
+
+The [HPS-first compilation record](../../../docs/validation/2026-10-31-de25-scanout-linux/README.md)
+retains the exact source/artifacts and open timing, boot and DMA gates.
