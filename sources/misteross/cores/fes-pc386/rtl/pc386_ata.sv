@@ -20,6 +20,16 @@
 // image; no seek or rotation time is modelled. Each sector store sets the
 // dirty bit of its 64 KiB chunk.
 //
+// fes.media.ata-disk's fence (frozen) holds new guest sector writes back at a
+// block boundary: a write command, or its next block, waits with BSY set. A
+// block the guest has started runs to its end, since the host moves a whole
+// DRQ block without reading status. fenced reports that the fence is up and
+// that no write the drive accepted is still on its way to the image
+// (writer_busy covers the stores and their dirty marks); written pulses as a
+// store's mark reaches the map. Machine reset leaves the map alone: only
+// dirty_clear (and configuration) clears it, which dirty_clearing covers.
+// The shell resets the machine only while writer_busy is low.
+//
 // The buffer and the dirty map are M10K with registered reads. The data port
 // reads the buffer word at the guest's pointer, re-read every clock: the
 // pointer moves only at a device cycle's access, 36 clocks or more apart. A
@@ -27,8 +37,8 @@
 // fourth of each 64-bit word, so the buffer takes only whole words; a data-port
 // read during a write command, a protocol error, returns no defined data. The
 // store engine presents each word's address a clock before it issues the word.
-// A sector store marks its chunk by read-modify-write two clocks later, and a
-// reset clears the map over 128 clocks; dirty_word is the word at dirty_index
+// A sector store marks its chunk by read-modify-write two clocks later, and
+// dirty_clear clears the map over 128 clocks; dirty_word is the word at dirty_index
 // two clocks before, held over a read that met a mark (M10K leaves that read
 // undefined). A mark therefore reaches dirty_word four clocks after the store
 // goes idle: a reader that waits for the stores to drain waits four more.
@@ -61,7 +71,14 @@ module pc386_ata #(
     input wire [63:0] disk_rdata,
     // Dirty map, 16 chunks per word, two clocks after the index.
     input wire [6:0] dirty_index,
-    output reg [15:0] dirty_word
+    output reg [15:0] dirty_word,
+    // fes.media.ata-disk's fence, map clear and writer
+    input wire frozen,
+    input wire dirty_clear,
+    output wire dirty_clearing,
+    output wire writer_busy,
+    output wire fenced,
+    output wire written
 );
     localparam [7:0] ABRT = 8'h04, IDNF = 8'h10;
 
@@ -126,14 +143,20 @@ module pc386_ata #(
     end
 
     // Dirty map: a sector store marks its chunk in two clocks, ahead of dirty_index.
-    reg mark_read, mark_write, clearing;
+    reg mark_read, mark_write;
+    reg clearing = 1'b1;                 // from configuration, and after dirty_clear
     reg host_read;                       // last clock's map read was dirty_index's, with no write
-    reg [6:0] mark_index, dirty_clear;
+    reg [6:0] mark_index;
+    reg [6:0] clear_index = 7'd0;
     reg [3:0] mark_bit;
     wire [15:0] dirty_read;
     wire dirty_write = clearing || mark_write;
+    assign dirty_clearing = clearing;
+    assign writer_busy = queued != 2'b00 || store_state != ENGINE_IDLE || mark_read || mark_write;
+    assign fenced = frozen && !writer_busy && !(phase == WRITE && drq);
+    assign written = mark_write;
     pc386_ram #(.WIDTH(16), .DEPTH(128)) dirty (
-        .clk(clk), .write(dirty_write), .waddress(clearing ? dirty_clear : mark_index),
+        .clk(clk), .write(dirty_write), .waddress(clearing ? clear_index : mark_index),
         .wdata(clearing ? 16'h0000 : dirty_read | (16'h0001 << mark_bit)), .wbyteenable(1'b1),
         .read(1'b1), .raddress(mark_read ? mark_index : dirty_index), .rdata(dirty_read)
     );
@@ -243,6 +266,11 @@ module pc386_ata #(
         host_read <= !mark_read && !dirty_write;
         if (clearing) dirty_word <= 16'h0000;
         else if (host_read) dirty_word <= dirty_read;
+        if (clearing) begin
+            clear_index <= clear_index + 1'b1;
+            if (clear_index == 7'd127) clearing <= 0;
+        end
+        if (dirty_clear) begin clearing <= 1; clear_index <= 0; end
         if (reset) begin
             features <= 0; count <= 1; number <= 1; cylinder_low <= 0; cylinder_high <= 0; drive_head <= 0;
             error <= 8'h01; nien <= 0; srst <= 0;
@@ -256,12 +284,7 @@ module pc386_ata #(
             disk_valid <= 0; disk_write <= 0; disk_address <= 0; disk_wdata <= 0;
             gathered <= 0; deferred <= 0; deferred_address <= 0;
             mark_read <= 0; mark_write <= 0; mark_index <= 0; mark_bit <= 0;
-            clearing <= 1; dirty_clear <= 0;
         end else begin
-            if (clearing) begin
-                dirty_clear <= dirty_clear + 1'b1;
-                if (dirty_clear == 7'd127) clearing <= 0;
-            end
             mark_write <= mark_read;
             mark_read <= 0;
             if (!fetch_fill) deferred <= 0;
@@ -377,6 +400,8 @@ module pc386_ata #(
                     if (left == 1) begin
                         drq <= 0; phase <= IDLE; pending_interrupt <= 1;
                     end else if (block_left == 1 || queued[!half]) begin
+                        // The next block, or a half still storing, waits under
+                        // BSY; the fence holds the next block back too.
                         drq <= 0; busy <= 1;
                         announce <= block_left == 1;
                         if (block_left == 1) block_left <= {4'b0, block} > left - 1'b1 ? 5'(left - 1'b1) : block;
@@ -412,8 +437,9 @@ module pc386_ata #(
                         pointer <= 0; half <= 0;
                         loaded <= 0; fetch_half <= 0; store_half <= 0;
                         if (opcode == 8'h30 || opcode == 8'h31 || opcode == 8'hc5) begin
+                            // The first block opens at once, or once the fence drops.
                             store_lba <= start;
-                            busy <= 0; drq <= 1; phase <= WRITE;
+                            busy <= frozen; drq <= !frozen; announce <= 0; phase <= WRITE;
                         end else begin
                             fetch_lba <= start; fetch_left <= total;
                             announce <= 1; phase <= READ;
@@ -430,7 +456,7 @@ module pc386_ata #(
                 end else begin
                     count <= 0; busy <= 0; pending_interrupt <= 1; phase <= IDLE;
                 end
-                WRITE: if (busy && !queued[half]) begin
+                WRITE: if (busy && !queued[half] && !frozen) begin
                     busy <= 0; drq <= 1;
                     if (announce) pending_interrupt <= 1;
                 end

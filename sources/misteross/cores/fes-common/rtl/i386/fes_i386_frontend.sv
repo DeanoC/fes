@@ -12,6 +12,7 @@ module fes_i386_frontend import fes_i386_pkg::*; (
     input  logic                   code32,
     output logic [27:0]            mem_block,
     output logic                   mem_load,
+    output logic [27:0]            fetch_next,  // the block F1 loads next, unless a redirect comes first
     input  logic [15:0][7:0]       mem_data,
     input  logic                   mem_valid,
     output logic                   q_valid,
@@ -27,8 +28,8 @@ module fes_i386_frontend import fes_i386_pkg::*; (
     logic [31:0][3:0]  avail;
 
     fes_i386_fetchbuf fetch (
-        .clk, .reset, .redirect, .redirect_linear, .code32, .mem_block, .mem_load, .mem_data, .mem_valid,
-        .release_half, .q_half(start_half), .half_valid, .fill_bytes, .half_block,
+        .clk, .reset, .redirect, .redirect_linear, .code32, .mem_block, .mem_load, .fetch_next, .mem_data,
+        .mem_valid, .release_half, .q_half(start_half), .half_valid, .fill_bytes, .half_block,
         .bytes, .dec, .avail
     );
 

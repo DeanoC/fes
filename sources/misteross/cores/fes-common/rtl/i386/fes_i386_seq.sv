@@ -248,6 +248,7 @@ module fes_i386_seq (
         n.uop.io = 2'd0;
         n.uop.iret = 1'b0;
         n.uop.bound = 1'b0;
+        n.uop.bound_pair = 1'b0;
         // The rewritten fields, from the first uop.
         n.uop.sp_write = d0.uop.sp_write;
         n.uop.cls = d0.uop.cls;

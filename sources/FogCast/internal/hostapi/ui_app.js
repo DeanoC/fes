@@ -345,6 +345,18 @@
     if (source.firmware_ready === true || source.firmware_ready === false) record.firmware_ready = source.firmware_ready;
     if (source.rom_required === true || source.rom_required === false) record.rom_required = source.rom_required;
     if (source.rom_ready === true || source.rom_ready === false) record.rom_ready = source.rom_ready;
+    const expansionID = optionalCatalogText(source.expansion_id);
+    if (expansionID) record.expansion_id = expansionID;
+    if (source.expansion_ready === true || source.expansion_ready === false) record.expansion_ready = source.expansion_ready;
+    if (Array.isArray(source.slot_expansions)) {
+      // Keep every card, even a malformed one, so an unreadable card still
+      // blocks Play the way Go Game.LaunchBlock does.
+      record.slot_expansions = Object.freeze(source.slot_expansions.map(card => Object.freeze({
+        slot: card && Number.isSafeInteger(card.slot) ? card.slot : 0,
+        expansion_id: card && typeof card.expansion_id === 'string' ? card.expansion_id.trim() : '',
+        ready: Boolean(card) && card.ready === true,
+      })));
+    }
     if (typeof source.rom_id === 'string' && source.rom_id.trim()) record.rom_id = source.rom_id.trim();
     if (typeof source.rom_media_id === 'string' && source.rom_media_id.trim()) record.rom_media_id = source.rom_media_id.trim();
     if (typeof source.rom_role === 'string' && source.rom_role.trim()) record.rom_role = source.rom_role.trim();
@@ -670,15 +682,44 @@
     return '';
   }
 
+  // playLookup indexes titles and game rows once, for callers that resolve
+  // many games against the same catalog (every card in a render). It answers
+  // as titleForGame and findGameRow(choiceGameRows(game, games), id) do: the
+  // first title that names the game, and the last row for an id, with the
+  // open game and its variants last.
+  function playLookup(titles, games) {
+    const byGame = new Map();
+    (Array.isArray(titles) ? titles : []).forEach(title => {
+      if (!title) return;
+      const ids = [title.title_id];
+      (Array.isArray(title.options) ? title.options : []).forEach(option => {
+        if (option) ids.push(option.source_game_id);
+      });
+      ids.forEach(id => {
+        if (typeof id === 'string' && !byGame.has(id)) byGame.set(id, title);
+      });
+    });
+    const rows = new Map();
+    choiceGameRows(null, games).forEach(row => rows.set(row.id, row));
+    return {
+      title: game => (game && byGame.get(game.id)) || null,
+      row: (game, id) => findGameRow(choiceGameRows(game, []), id) || rows.get(id) || null,
+    };
+  }
+
   // resolvePlay classifies the viable backends. The open catalog row is chosen
   // only when the household or the user actually picked that source.
-  function resolvePlay(game, titles, picks, games, resolutionState) {
+  function resolvePlay(game, titles, picks, games, resolutionState, lookup) {
     if (resolutionState && resolutionState !== 'ready') {
       return { game, options: [], choice: { resolutionState } };
     }
-    const title = titleForGame(titles, game);
-    const rows = choiceGameRows(game, games);
-    const options = viableTitleOptions(title, rows);
+    lookup = lookup || playLookup(titles, games);
+    const title = lookup.title(game);
+    const row = id => lookup.row(game, id);
+    const options = titleOptionList(title).filter(option => {
+      const found = row(option.source_game_id);
+      return Boolean(found) && launchBlockReason(found) === '';
+    });
     if (options.length > 1) {
       const saved = savedSourceGameID(title, game, picks, options);
       if (!saved) {
@@ -688,10 +729,10 @@
           choice: { needsChoice: true, choiceReason: 'This title can play in more than one way. Choose one.' },
         };
       }
-      return { game: findGameRow(rows, saved) || game, options, choice: {} };
+      return { game: row(saved) || game, options, choice: {} };
     }
     if (options.length === 1) {
-      return { game: findGameRow(rows, options[0].source_game_id) || game, options, choice: {} };
+      return { game: row(options[0].source_game_id) || game, options, choice: {} };
     }
     return { game, options, choice: {} };
   }
@@ -708,8 +749,11 @@
     return Boolean(game) && game.state === 'invalid' && game.root_online !== false;
   }
 
-  function coverStatusLabel(game) {
-    return playAvailability(game).label;
+  // coverStatusLabel takes the card's resolvePlay result when the renderer
+  // has one, so a card agrees with the play pane on Needs a choice (#424).
+  function coverStatusLabel(game, play) {
+    if (!play) return playAvailability(game).label;
+    return playAvailability(play.game || game, play.choice).label;
   }
 
   function isSessionPlayingCard(session, game, sessionLive, sessionAuthority) {
@@ -844,12 +888,12 @@
     return variantLabelText(game, keepMatchingTitle);
   }
 
-  function coverHoverMeta(game, view) {
+  function coverHoverMeta(game, view, play) {
     const bits = [systemLabel(game.system)];
     if (game && game.region) bits.push(regionLabel(game.region));
     const year = (game && game.year) || catalogYear(view);
     if (year && year !== '—') bits.push(year);
-    bits.push(coverStatusLabel(game));
+    bits.push(coverStatusLabel(game, play));
     return bits.join(' · ');
   }
 
@@ -866,6 +910,13 @@
     if (game.state === 'missing' || game.root_online !== true) return 'This game’s source is offline.';
     if (game.state === 'invalid') return 'This ROM can’t be read.';
     if (game.state !== 'available') return 'This game isn’t ready to launch.';
+    // Same expansion gates as Go Game.LaunchBlock, before firmware and ROM.
+    if (typeof game.expansion_id === 'string' && game.expansion_id.trim() && game.expansion_ready !== true) {
+      return 'Needs an expansion';
+    }
+    if (Array.isArray(game.slot_expansions) && game.slot_expansions.some(card => !card || card.ready !== true)) {
+      return 'Needs an expansion';
+    }
     if (game.firmware_required === true && game.firmware_ready !== true) {
       return game.rom_role === 'firmware'
         ? 'Required machine firmware is missing. Import it before Play.'
@@ -3668,6 +3719,8 @@
     titlesPath,
     parseLibraryTitles,
     playChoiceFor,
+    playLookup,
+    resolvePlay,
     collectionIDFromName,
     uniqueCollectionID,
     parseCollection,
@@ -3694,6 +3747,9 @@
   let settingsCleanGeneration = 0;
   let settingsLoadToken = 0;
   const settingsTouched = new Set();
+  // Library ids and target names the user removed while a settings GET was
+  // held. A held GET keeps them out of the merged rows (#448).
+  const settingsRemovedRows = { libraries: new Set(), targets: new Set() };
   let settingsSelectedTargetRow = null;
   let searchTimer = null;
   let attractIdleHydrated = false;
@@ -5059,6 +5115,7 @@
 
   function renderCard(view, liveGame, parent, pane, homeCoord) {
     const game = view.live;
+    const play = cardPlay(game);
     const presentation = view.presentation;
     const selected = isSelectedGame(state.selectedLiveGame, game);
     const homeSelected = pane !== 'home' || !homeCoord
@@ -5091,7 +5148,7 @@
       const labels = collectionLabels(game, state.collections);
       if (labels.length) bits.push(labels[0]);
       if (labels.length > 1) bits.push(`+${labels.length - 1}`);
-      bits.push(coverStatusLabel(game));
+      bits.push(coverStatusLabel(game, play));
       body.appendChild(element('p', 'game-meta', bits.join(' · ')));
       if (game.favorite === true) body.appendChild(element('p', 'game-row-favorite', 'Favorite'));
       if (game.variant_count > 1) {
@@ -5100,7 +5157,7 @@
       card.appendChild(body);
     } else {
       card.appendChild(element('h3', '', cardTitle(game)));
-      card.appendChild(element('p', 'game-meta', coverHoverMeta(game, view)));
+      card.appendChild(element('p', 'game-meta', coverHoverMeta(game, view, play)));
       if (presentation.isFallback) {
         card.appendChild(element('p', 'fallback-note', 'Using local catalog data'));
       } else {
@@ -5126,6 +5183,19 @@
     });
     (parent || nodes.list).appendChild(card);
     if (coverMarks) scheduleCardMarksClearance(card, coverMarks);
+  }
+
+  // Cards resolve against the catalog the play pane uses. The lookup is built
+  // once per catalog snapshot, not once per card.
+  let cardPlayCache = null;
+  function cardPlay(game) {
+    const titles = state.libraryTitles;
+    const games = state.games;
+    const extra = state.playOptionRows;
+    if (!cardPlayCache || cardPlayCache.titles !== titles || cardPlayCache.games !== games || cardPlayCache.extra !== extra) {
+      cardPlayCache = { titles, games, extra, lookup: playLookup(titles, [...(games || []), ...(extra || [])]) };
+    }
+    return resolvePlay(game, titles, state.playPicks, null, '', cardPlayCache.lookup);
   }
 
   function launchControl(game) {
@@ -5711,6 +5781,46 @@
     bumpSettingsGeneration();
   }
 
+  // touchSettingsRow marks one library or target row as edited, so a held
+  // settings GET refills every other row of that section.
+  function touchSettingsRow(row, section) {
+    row._fogcastTouched = true;
+    touchSettings(section);
+  }
+
+  function settingsRowKey(row, section) {
+    if (!row) return '';
+    return section === 'libraries' ? row.getAttribute('data-library-id') || '' : row._fogcastOriginalName || '';
+  }
+
+  // mergeSettingsRows rebuilds a touched section from the GET: edited rows
+  // keep the user's values, rows the user removed stay out, rows added in
+  // this form follow, and every other row comes from the response.
+  function mergeSettingsRows(container, section, items, keyOf, render) {
+    const current = Array.from(container.children);
+    const edited = new Map();
+    const added = [];
+    current.forEach(row => {
+      if (!row._fogcastTouched) return;
+      const key = settingsRowKey(row, section);
+      if (key) edited.set(key, row);
+      else added.push(row);
+    });
+    const removed = settingsRemovedRows[section];
+    const seen = new Set();
+    const rows = [];
+    items.forEach(item => {
+      const key = keyOf(item);
+      if (key && removed.has(key)) return;
+      if (key) seen.add(key);
+      rows.push((key && edited.get(key)) || render(item));
+    });
+    edited.forEach((row, key) => {
+      if (!seen.has(key)) rows.push(row);
+    });
+    container.replaceChildren(...rows, ...added);
+  }
+
   function settingsRequestExpired(generation) {
     return generation !== settingsGeneration || !settingsIsOpen();
   }
@@ -5726,7 +5836,10 @@
   function removeSettingsRow(container, row) {
     if (!container || !row) return;
     container.replaceChildren(...Array.from(container.children).filter(child => child !== row));
-    touchSettings(container === nodes.settingsLibraries ? 'libraries' : 'targets');
+    const section = container === nodes.settingsLibraries ? 'libraries' : 'targets';
+    const key = settingsRowKey(row, section);
+    if (key) settingsRemovedRows[section].add(key);
+    touchSettings(section);
   }
 
   function renderLibraryRow(library, systems) {
@@ -5747,8 +5860,8 @@
     const remove = element('button', 'button secondary compact settings-remove', 'Remove');
     remove.type = 'button';
     remove.addEventListener('click', () => removeSettingsRow(nodes.settingsLibraries, row));
-    system.addEventListener('change', () => touchSettings('libraries'));
-    root.addEventListener('input', () => touchSettings('libraries'));
+    system.addEventListener('change', () => touchSettingsRow(row, 'libraries'));
+    root.addEventListener('input', () => touchSettingsRow(row, 'libraries'));
     row._fogcastFields = { system, root };
     row.appendChild(settingsField('System', system));
     row.appendChild(settingsField('Folder', root));
@@ -5824,16 +5937,17 @@
       } else {
         settingsSelectedTargetRow = targetSettingsRowByName(nodes.settingsSelectedTarget && nodes.settingsSelectedTarget.value);
       }
-      touchSettings('targets');
+      touchSettingsRow(row, 'targets');
+      if (selectedRow === row) settingsTouched.add('selectedTarget');
     });
-    address.addEventListener('input', () => touchSettings('targets'));
+    address.addEventListener('input', () => touchSettingsRow(row, 'targets'));
     row._fogcastAgentDirty = false;
     row._fogcastAgentClear = false;
     agent.addEventListener('input', () => {
       row._fogcastAgentDirty = agent.value !== '';
       row._fogcastAgentClear = false;
       clearAgent.textContent = 'Clear agent';
-      touchSettings('targets');
+      touchSettingsRow(row, 'targets');
     });
     clearAgent.addEventListener('click', () => {
       row._fogcastAgentClear = !row._fogcastAgentClear;
@@ -5841,9 +5955,9 @@
       agent.value = '';
       agent.placeholder = row._fogcastAgentClear ? 'Will clear' : 'Stored';
       clearAgent.textContent = row._fogcastAgentClear ? 'Keep agent' : 'Clear agent';
-      touchSettings('targets');
+      touchSettingsRow(row, 'targets');
     });
-    enabled.addEventListener('change', () => touchSettings('targets'));
+    enabled.addEventListener('change', () => touchSettingsRow(row, 'targets'));
     const prepare = element('button', 'button secondary compact settings-prepare', target && target.target_id ? 'Identity ready' : 'Prepare identity');
     prepare.type = 'button';
     prepare.disabled = Boolean(target && target.target_id);
@@ -5883,8 +5997,9 @@
     if (!nodes.settingsLibraries) return;
     const settings = controller.getState().librarySettings;
     const systems = settings && Array.isArray(settings.systems) ? settings.systems : [];
-    nodes.settingsLibraries.appendChild(renderLibraryRow({}, systems));
-    touchSettings('libraries');
+    const row = renderLibraryRow({}, systems);
+    nodes.settingsLibraries.appendChild(row);
+    touchSettingsRow(row, 'libraries');
   }
 
   function addTargetSettingsRow() {
@@ -5900,7 +6015,7 @@
     row._fogcastOriginalName = '';
     nodes.settingsTargets.appendChild(row);
     refreshSelectedTargetOptions(nodes.settingsSelectedTarget && nodes.settingsSelectedTarget.value);
-    touchSettings('targets');
+    touchSettingsRow(row, 'targets');
   }
 
   function fillSettingsForm(settings, preserveTouched = false) {
@@ -5914,26 +6029,45 @@
       nodes.settingsPreferredRegions.value = regions.join(', ');
     }
     const systems = settings && Array.isArray(settings.systems) ? settings.systems : [];
-    if (nodes.settingsLibraries && untouched('libraries')) {
+    if (nodes.settingsLibraries) {
       const libraries = settings && Array.isArray(settings.libraries) ? settings.libraries : [];
-      nodes.settingsLibraries.replaceChildren(...libraries.map(library => renderLibraryRow(library, systems)));
+      const render = library => renderLibraryRow(library, systems);
+      if (untouched('libraries')) nodes.settingsLibraries.replaceChildren(...libraries.map(render));
+      else mergeSettingsRows(nodes.settingsLibraries, 'libraries', libraries, library => (library && library.id) || '', render);
     }
-    if (nodes.settingsTargets && untouched('targets')) {
+    if (nodes.settingsTargets) {
       const targets = settings && Array.isArray(settings.targets) ? settings.targets : [];
-      settingsSelectedTargetRow = null;
-      nodes.settingsTargets.replaceChildren(...targets.map(renderTargetRow));
+      if (untouched('targets')) {
+        settingsSelectedTargetRow = null;
+        nodes.settingsTargets.replaceChildren(...targets.map(renderTargetRow));
+      } else {
+        mergeSettingsRows(nodes.settingsTargets, 'targets', targets, target => (target && target.name) || '', renderTargetRow);
+      }
     }
-    if (untouched('targets')) {
-      const selected = untouched('selectedTarget') ? settings && settings.selected_target : nodes.settingsSelectedTarget && nodes.settingsSelectedTarget.value;
-      refreshSelectedTargetOptions(selected);
-    }
+    // A merged target list can add names, so the picker always refreshes.
+    // Keep an explicit selection (including a rename of that selected row);
+    // otherwise use the server's selected target.
+    const keepSelected = !untouched('selectedTarget');
+    refreshSelectedTargetOptions(keepSelected
+      ? nodes.settingsSelectedTarget && nodes.settingsSelectedTarget.value
+      : settings && settings.selected_target);
     settingsSelectedTargetRow = targetSettingsRowByName(nodes.settingsSelectedTarget && nodes.settingsSelectedTarget.value);
     if (nodes.settingsHostHealth) {
       nodes.settingsHostHealth.textContent = nodes.health ? nodes.health.textContent : '';
     }
     if (nodes.settingsMessage) nodes.settingsMessage.textContent = '';
     if (!preserveTouched || settingsTouched.size === 0) settingsCleanGeneration = settingsGeneration;
-    if (!preserveTouched) settingsTouched.clear();
+    if (!preserveTouched) clearSettingsTouched();
+  }
+
+  function clearSettingsTouched() {
+    settingsTouched.clear();
+    [nodes.settingsLibraries, nodes.settingsTargets].forEach(container => {
+      if (!container) return;
+      Array.from(container.children).forEach(row => { row._fogcastTouched = false; });
+    });
+    settingsRemovedRows.libraries.clear();
+    settingsRemovedRows.targets.clear();
   }
 
   async function openSettings() {
@@ -5945,7 +6079,7 @@
     keyboardPane = 'settings';
     writePaneAttribute();
     bumpSettingsGeneration();
-    settingsTouched.clear();
+    clearSettingsTouched();
     const loadToken = ++settingsLoadToken;
     resetAttractTimer();
     try {
@@ -5955,7 +6089,6 @@
       if (nodes.saveSettings) nodes.saveSettings.disabled = false;
     } catch (error) {
       if (loadToken !== settingsLoadToken || !settingsIsOpen()) return;
-      fillSettingsForm(null, true);
       if (nodes.saveSettings) nodes.saveSettings.disabled = true;
       if (nodes.settingsMessage) {
         nodes.settingsMessage.textContent = privacyMessage(error, 'Library settings could not be loaded.');

@@ -55,6 +55,8 @@ const {
   sourceLabel,
   playAvailability,
   playChoiceFor,
+  playLookup,
+  resolvePlay,
   launchBlockReason,
   collectionIDFromName,
   uniqueCollectionID,
@@ -967,6 +969,38 @@ test('canonical title id stays a choice until the household picks a backend', ()
   assert.equal(playChoiceFor(skewed, [title], {}, [skewed, emu]).needsChoice, undefined);
   assert.equal(playChoiceFor(checking, [title], {}, [checking, emu]).needsChoice, undefined);
   assert.equal(playChoiceFor(fpga, [title], {}, [fpga]).needsChoice, undefined);
+});
+
+// A card resolves the same choice as the play pane: a dual-ready title with
+// no saved pick says Needs a choice, not Ready (#424).
+test('card status follows the play pane choice', () => {
+  const fpga = dataStormPlayRow(dataStormFPGA, 'fpga_native');
+  const emu = dataStormPlayRow(dataStormEmu, 'native_emu');
+  const titles = [dataStormTitle(true)];
+  const games = [fpga, emu];
+  const lookup = playLookup(titles, games);
+  const unpicked = resolvePlay(fpga, titles, {}, null, '', lookup);
+  assert.equal(coverStatusLabel(fpga), 'Ready');
+  assert.equal(coverStatusLabel(fpga, unpicked), 'Needs a choice');
+  assert.equal(coverStatusLabel(emu, resolvePlay(emu, titles, {}, null, '', lookup)), 'Needs a choice');
+  const picked = resolvePlay(fpga, titles, { 'data storm': dataStormEmu }, null, '', lookup);
+  assert.equal(coverStatusLabel(fpga, picked), 'Ready');
+  assert.equal(picked.game, emu);
+  // The prebuilt lookup answers as the per-call path does.
+  for (const [game, picks] of [[fpga, {}], [emu, {}], [fpga, { 'data storm': dataStormEmu }]]) {
+    const plain = resolvePlay(game, titles, picks, games);
+    const indexed = resolvePlay(game, titles, picks, null, '', lookup);
+    assert.deepEqual(indexed.choice, plain.choice);
+    assert.equal(indexed.game, plain.game);
+    assert.deepEqual(indexed.options, plain.options);
+  }
+  // One viable backend is Ready; an unready expansion is not viable (#423).
+  const blocked = { ...emu, expansion_id: 'sms-expansion', expansion_ready: false };
+  const single = resolvePlay(fpga, titles, {}, [fpga, blocked]);
+  assert.equal(coverStatusLabel(fpga, single), 'Ready');
+  assert.equal(coverStatusLabel(blocked, resolvePlay(blocked, titles, {}, [fpga, blocked])), 'Ready');
+  assert.equal(coverStatusLabel(blocked), 'Unavailable');
+  assert.equal(coverHoverMeta(fpga, null, unpicked), 'Sega Master System · Needs a choice');
 });
 
 async function openDataStorm(fpga, emu, preferences, extraRoutes = {}) {
@@ -4533,6 +4567,317 @@ test('settings GET fills untouched fields without overwriting typed fields', asy
   assert.equal(document.nodes.get('settings-preferred-regions').value, 'japan');
 });
 
+// One edited library or target row must not hide rows a held GET added or
+// changed elsewhere, and Save must not drop them (#448).
+test('held settings GET merges rows the user did not edit', async () => {
+  let releaseGet;
+  const held = new Promise(resolve => { releaseGet = resolve; });
+  let settingsGets = 0;
+  const settings = {
+    attract_idle_seconds: 60,
+    preferred_regions: ['usa'],
+    libraries: [
+      { id: 'snes-main', system: 'snes', root: '/library/SNES' },
+      { id: 'nes-main', system: 'nes', root: '/library/NES' },
+      { id: 'old-main', system: 'nes', root: '/library/Old' },
+    ],
+    targets: [
+      { name: 'dev', address: 'http://192.0.2.10:8182', enabled: false, agent_configured: false },
+      { name: 'lab', address: 'http://192.0.2.12:8182', enabled: false, agent_configured: false },
+    ],
+    selected_target: 'dev',
+    systems: [{ id: 'snes', label: 'SNES' }, { id: 'nes', label: 'NES' }],
+  };
+  const { document, calls } = await runKeyboardApp({
+    settings,
+    onSettings: async ({ options }) => {
+      if (options && options.method && options.method !== 'GET') return;
+      settingsGets += 1;
+      if (settingsGets === 3) await held;
+    },
+  });
+  await settleBrowser();
+  await document.nodes.get('open-settings').click();
+  await waitForCondition(() => document.nodes.get('settings-libraries').children.length === 3, 'settings rows did not render');
+  await pressKey(document, 'Escape', document.nodes.get('settings-attract-idle'));
+
+  const opening = document.nodes.get('open-settings').click();
+  await waitForCondition(() => settingsGets === 3, 'reopen settings GET not sent');
+  // Another client changes the household while this GET is held.
+  settings.libraries = [
+    { id: 'snes-main', system: 'snes', root: '/library/SNES-elsewhere' },
+    { id: 'nes-main', system: 'nes', root: '/library/NES-moved' },
+    { id: 'old-main', system: 'nes', root: '/library/Old' },
+    { id: 'gb-main', system: 'nes', root: '/library/GB' },
+  ];
+  settings.targets = [
+    { name: 'dev', address: 'http://192.0.2.10:8182', enabled: false, agent_configured: false },
+    { name: 'lab', address: 'http://192.0.2.99:8182', enabled: true, agent_configured: false },
+    { name: 'den', address: 'http://192.0.2.11:8182', enabled: false, agent_configured: false },
+  ];
+  const libraries = () => Array.from(document.nodes.get('settings-libraries').children);
+  const targets = () => Array.from(document.nodes.get('settings-targets').children);
+  const snes = libraries()[0]._fogcastFields;
+  snes.root.value = '/library/SNES-mine';
+  snes.root.dispatchEvent({ type: 'input' });
+  libraries()[2].children.find(child => String(child.className).includes('settings-remove')).click();
+  const dev = targets()[0]._fogcastFields;
+  dev.address.value = 'http://192.0.2.20:8182';
+  dev.address.dispatchEvent({ type: 'input' });
+  releaseGet();
+  await opening;
+  await settleBrowser();
+
+  assert.deepEqual(libraries().map(row => [row.getAttribute('data-library-id'), row._fogcastFields.root.value]), [
+    ['snes-main', '/library/SNES-mine'],
+    ['nes-main', '/library/NES-moved'],
+    ['gb-main', '/library/GB'],
+  ]);
+  assert.deepEqual(targets().map(row => [row._fogcastFields.name.value, row._fogcastFields.address.value, row._fogcastFields.enabled.checked]), [
+    ['dev', 'http://192.0.2.20:8182', false],
+    ['lab', 'http://192.0.2.99:8182', true],
+    ['den', 'http://192.0.2.11:8182', false],
+  ]);
+  assert.deepEqual(Array.from(document.nodes.get('settings-selected-target').children).map(option => option.value), ['dev', 'lab', 'den']);
+
+  await document.nodes.get('save-settings').click();
+  await waitForCondition(() => calls.some(call => call.path === '/api/v1/library/settings' && call.options && call.options.method === 'PUT'), 'settings PUT not sent');
+  const put = JSON.parse(calls.find(call => call.path === '/api/v1/library/settings' && call.options && call.options.method === 'PUT').options.body);
+  assert.deepEqual(put.libraries.map(library => library.id), ['snes-main', 'nes-main', 'gb-main']);
+  assert.deepEqual(put.targets.map(target => target.name), ['dev', 'lab', 'den']);
+  assert.equal(put.targets[1].address, 'http://192.0.2.99:8182');
+  assert.equal(put.selected_target, 'dev');
+});
+
+test('settings reopen clears row edits and additions from the previous open', async () => {
+  let releaseGet;
+  const held = new Promise(resolve => { releaseGet = resolve; });
+  let settingsGets = 0;
+  const settings = {
+    attract_idle_seconds: 60,
+    preferred_regions: ['usa'],
+    libraries: [
+      { id: 'snes-main', system: 'snes', root: '/library/SNES' },
+      { id: 'nes-main', system: 'nes', root: '/library/NES' },
+    ],
+    targets: [
+      { name: 'dev', address: 'http://192.0.2.10:8182', enabled: false, agent_configured: false },
+      { name: 'lab', address: 'http://192.0.2.12:8182', enabled: false, agent_configured: false },
+    ],
+    selected_target: 'dev',
+    systems: [{ id: 'snes', label: 'SNES' }, { id: 'nes', label: 'NES' }],
+  };
+  const { document, calls } = await runKeyboardApp({
+    settings,
+    onSettings: async ({ options }) => {
+      if (options && options.method && options.method !== 'GET') return;
+      settingsGets += 1;
+      if (settingsGets === 3) await held;
+    },
+  });
+  await settleBrowser();
+  await document.nodes.get('open-settings').click();
+  await waitForCondition(() => document.nodes.get('settings-libraries').children.length === 2, 'settings rows did not render');
+
+  const oldLibrary = document.nodes.get('settings-libraries').children[0]._fogcastFields.root;
+  oldLibrary.value = '/library/discarded';
+  oldLibrary.dispatchEvent({ type: 'input' });
+  document.nodes.get('add-library').click();
+  document.nodes.get('settings-libraries').children[2]._fogcastFields.root.value = '/library/local-only';
+
+  const oldTarget = document.nodes.get('settings-targets').children[0]._fogcastFields.address;
+  oldTarget.value = 'http://192.0.2.99:8182';
+  oldTarget.dispatchEvent({ type: 'input' });
+  document.nodes.get('add-target').click();
+  document.nodes.get('settings-targets').children[2]._fogcastFields.name.value = 'local-only';
+  document.nodes.get('close-settings').click();
+
+  document.nodes.get('open-settings').click();
+  await waitForCondition(() => settingsGets === 3, 'reopen settings GET not sent');
+  const nextLibrary = document.nodes.get('settings-libraries').children[1]._fogcastFields.root;
+  nextLibrary.value = '/library/second-open';
+  nextLibrary.dispatchEvent({ type: 'input' });
+  const nextTarget = document.nodes.get('settings-targets').children[1]._fogcastFields.address;
+  nextTarget.value = 'http://192.0.2.22:8182';
+  nextTarget.dispatchEvent({ type: 'input' });
+
+  settings.libraries = [
+    { id: 'snes-main', system: 'snes', root: '/library/SNES-server' },
+    { id: 'nes-main', system: 'nes', root: '/library/NES-server' },
+    { id: 'gb-main', system: 'nes', root: '/library/GB' },
+  ];
+  settings.targets = [
+    { name: 'dev', address: 'http://192.0.2.10:8182', enabled: false, agent_configured: false },
+    { name: 'lab', address: 'http://192.0.2.12:8182', enabled: false, agent_configured: false },
+    { name: 'den', address: 'http://192.0.2.11:8182', enabled: false, agent_configured: false },
+  ];
+  releaseGet();
+  await settleBrowser();
+
+  assert.deepEqual(Array.from(document.nodes.get('settings-libraries').children).map(row => [
+    row.getAttribute('data-library-id'), row._fogcastFields.root.value,
+  ]), [
+    ['snes-main', '/library/SNES-server'],
+    ['nes-main', '/library/second-open'],
+    ['gb-main', '/library/GB'],
+  ]);
+  assert.deepEqual(Array.from(document.nodes.get('settings-targets').children).map(row => [
+    row._fogcastFields.name.value, row._fogcastFields.address.value,
+  ]), [
+    ['dev', 'http://192.0.2.10:8182'],
+    ['lab', 'http://192.0.2.22:8182'],
+    ['den', 'http://192.0.2.11:8182'],
+  ]);
+
+  document.nodes.get('save-settings').click();
+  await waitForCondition(() => calls.some(call => call.path === '/api/v1/library/settings' && call.options && call.options.method === 'PUT'), 'settings PUT not sent');
+  const put = JSON.parse(calls.find(call => call.path === '/api/v1/library/settings' && call.options && call.options.method === 'PUT').options.body);
+  assert.deepEqual(put.libraries.map(library => library.id), ['snes-main', 'nes-main', 'gb-main']);
+  assert.deepEqual(put.targets.map(target => target.name), ['dev', 'lab', 'den']);
+});
+
+test('failed settings GET leaves existing rows visible when a section is dirty', async () => {
+  let rejectGet;
+  const held = new Promise((_, reject) => { rejectGet = reject; });
+  let settingsGets = 0;
+  const settings = {
+    attract_idle_seconds: 60,
+    preferred_regions: ['usa'],
+    libraries: [
+      { id: 'snes-main', system: 'snes', root: '/library/SNES' },
+      { id: 'nes-main', system: 'nes', root: '/library/NES' },
+    ],
+    targets: [
+      { name: 'dev', address: 'http://192.0.2.10:8182', enabled: false, agent_configured: false },
+      { name: 'lab', address: 'http://192.0.2.12:8182', enabled: false, agent_configured: false },
+    ],
+    selected_target: 'dev',
+    systems: [{ id: 'snes', label: 'SNES' }, { id: 'nes', label: 'NES' }],
+  };
+  const { document } = await runKeyboardApp({
+    settings,
+    onSettings: async ({ options }) => {
+      if (options && options.method && options.method !== 'GET') return;
+      settingsGets += 1;
+      if (settingsGets === 3) await held;
+    },
+  });
+  await settleBrowser();
+  await document.nodes.get('open-settings').click();
+  await waitForCondition(() => document.nodes.get('settings-libraries').children.length === 2, 'settings rows did not render');
+  document.nodes.get('close-settings').click();
+
+  document.nodes.get('open-settings').click();
+  await waitForCondition(() => settingsGets === 3, 'reopen settings GET not sent');
+  const first = document.nodes.get('settings-libraries').children[0]._fogcastFields.root;
+  first.value = '/library/current-edit';
+  first.dispatchEvent({ type: 'input' });
+  rejectGet(new Error('settings unavailable'));
+  await waitForCondition(
+    () => document.nodes.get('settings-message').textContent !== '',
+    'settings load error was not shown',
+  );
+
+  assert.equal(document.nodes.get('settings-libraries').children.length, 2);
+  assert.equal(document.nodes.get('settings-libraries').children[0]._fogcastFields.root.value, '/library/current-edit');
+  assert.equal(document.nodes.get('settings-libraries').children[1]._fogcastFields.root.value, '/library/NES');
+  assert.equal(document.nodes.get('settings-targets').children.length, 2);
+  assert.equal(document.nodes.get('save-settings').disabled, true);
+});
+
+test('held settings GET uses the server selected target when another target row was edited', async () => {
+  let releaseGet;
+  const held = new Promise(resolve => { releaseGet = resolve; });
+  let settingsGets = 0;
+  const settings = {
+    attract_idle_seconds: 60,
+    preferred_regions: ['usa'],
+    libraries: [],
+    targets: [
+      { name: 'dev', address: 'http://192.0.2.10:8182', enabled: false, agent_configured: false },
+      { name: 'lab', address: 'http://192.0.2.12:8182', enabled: false, agent_configured: false },
+    ],
+    selected_target: 'dev',
+    systems: [],
+  };
+  const { document, calls } = await runKeyboardApp({
+    settings,
+    onSettings: async ({ options }) => {
+      if (options && options.method && options.method !== 'GET') return;
+      settingsGets += 1;
+      if (settingsGets === 3) await held;
+    },
+  });
+  await settleBrowser();
+  await document.nodes.get('open-settings').click();
+  await waitForCondition(() => document.nodes.get('settings-targets').children.length === 2, 'settings rows did not render');
+  document.nodes.get('close-settings').click();
+
+  document.nodes.get('open-settings').click();
+  await waitForCondition(() => settingsGets === 3, 'reopen settings GET not sent');
+  const labAddress = document.nodes.get('settings-targets').children[1]._fogcastFields.address;
+  labAddress.value = 'http://192.0.2.22:8182';
+  labAddress.dispatchEvent({ type: 'input' });
+  settings.targets = [
+    { name: 'den', address: 'http://192.0.2.11:8182', enabled: false, agent_configured: false },
+    { name: 'lab', address: 'http://192.0.2.12:8182', enabled: false, agent_configured: false },
+  ];
+  settings.selected_target = 'lab';
+  releaseGet();
+  await settleBrowser();
+
+  assert.deepEqual(Array.from(document.nodes.get('settings-targets').children).map(row => row._fogcastFields.name.value), ['den', 'lab']);
+  assert.equal(document.nodes.get('settings-selected-target').value, 'lab');
+  document.nodes.get('save-settings').click();
+  await waitForCondition(() => calls.some(call => call.path === '/api/v1/library/settings' && call.options && call.options.method === 'PUT'), 'settings PUT not sent');
+  const put = JSON.parse(calls.find(call => call.path === '/api/v1/library/settings' && call.options && call.options.method === 'PUT').options.body);
+  assert.equal(put.selected_target, 'lab');
+});
+
+test('held settings GET keeps selection on a locally renamed selected target', async () => {
+  let releaseGet;
+  const held = new Promise(resolve => { releaseGet = resolve; });
+  let settingsGets = 0;
+  const settings = {
+    attract_idle_seconds: 60,
+    preferred_regions: ['usa'],
+    libraries: [],
+    targets: [
+      { name: 'dev', address: 'http://192.0.2.10:8182', enabled: false, agent_configured: false },
+      { name: 'lab', address: 'http://192.0.2.12:8182', enabled: false, agent_configured: false },
+    ],
+    selected_target: 'dev',
+    systems: [],
+  };
+  const { document } = await runKeyboardApp({
+    settings,
+    onSettings: async ({ options }) => {
+      if (options && options.method && options.method !== 'GET') return;
+      settingsGets += 1;
+      if (settingsGets === 3) await held;
+    },
+  });
+  await settleBrowser();
+  await document.nodes.get('open-settings').click();
+  await waitForCondition(() => document.nodes.get('settings-targets').children.length === 2, 'settings rows did not render');
+  document.nodes.get('close-settings').click();
+
+  document.nodes.get('open-settings').click();
+  await waitForCondition(() => settingsGets === 3, 'reopen settings GET not sent');
+  const selectedName = document.nodes.get('settings-targets').children[0]._fogcastFields.name;
+  selectedName.value = 'dev-local';
+  selectedName.dispatchEvent({ type: 'input' });
+  settings.targets = [
+    { name: 'lab', address: 'http://192.0.2.12:8182', enabled: false, agent_configured: false },
+    { name: 'dev', address: 'http://192.0.2.10:8182', enabled: false, agent_configured: false },
+  ];
+  releaseGet();
+  await settleBrowser();
+
+  assert.deepEqual(Array.from(document.nodes.get('settings-targets').children).map(row => row._fogcastFields.name.value), ['lab', 'dev-local']);
+  assert.equal(document.nodes.get('settings-selected-target').value, 'dev-local');
+});
+
 test('stale settings save does not refill a reopened form', async () => {
   let releaseSave;
   const held = new Promise(resolve => { releaseSave = resolve; });
@@ -8005,9 +8350,9 @@ test('Cover and Home show non-hover favorite offline and playing marks', async (
   assert.match(css, /\.game-card \.game-meta\s*\{[^}]*white-space:\s*nowrap/);
   assert.match(css, /--list-row-height:\s*72px/);
   assert.match(css, /--list-row-stride:\s*78px/);
-  assert.match(app, /bits\.push\(coverStatusLabel\(game\)\)/);
+  assert.match(app, /bits\.push\(coverStatusLabel\(game, play\)\)/);
   assert.match(app, /\[shownPlay\.label, 'Status'\]/);
-  assert.match(app, /coverHoverMeta\(game, view\)/);
+  assert.match(app, /coverHoverMeta\(game, view, play\)/);
   assert.match(app, /\(game && game\.year\) \|\| catalogYear\(view\)/);
   assert.match(app, /dumpFlagLabels\(game\)/);
   assert.match(app, /function dumpFlagLabels\(game\)/);
@@ -11136,7 +11481,7 @@ test('detail facts show Source ZIP or ROM and omit unknown kind', async () => {
   assert.match(app, /content_prepared: contentPrepared/);
   assert.doesNotMatch(app, /game\.content_prepared/);
   assert.doesNotMatch(app, /game\.execution/);
-  assert.match(app, /coverHoverMeta\(game, view\)/);
+  assert.match(app, /coverHoverMeta\(game, view, play\)/);
   assert.doesNotMatch(app, /bits\.push\(sourceKindLabel/);
   assert.match(css, /--list-row-height:\s*72px/);
   assert.match(css, /--list-row-stride:\s*78px/);
@@ -11576,8 +11921,8 @@ test('detail dump identity Status and Collections follow the selected variant be
   assert.doesNotMatch(app, /'Staging'/);
   assert.doesNotMatch(app, /'Prepared'/);
   assert.doesNotMatch(app, /'On demand'/);
-  assert.match(app, /bits\.push\(coverStatusLabel\(game\)\)/);
-  assert.match(app, /coverHoverMeta\(game, view\)/);
+  assert.match(app, /bits\.push\(coverStatusLabel\(game, play\)\)/);
+  assert.match(app, /coverHoverMeta\(game, view, play\)/);
   assert.match(app, /function collectionLabels\(game/);
   assert.match(css, /--list-row-height:\s*72px/);
   assert.match(css, /--list-row-stride:\s*78px/);

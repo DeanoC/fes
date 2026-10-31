@@ -97,7 +97,23 @@ module pc386_at_core #(
     input wire disk_ready, disk_rvalid,
     input wire [63:0] disk_rdata,
     input wire [6:0] dirty_index,
-    output wire [15:0] dirty_word
+    output wire [15:0] dirty_word,
+    // fes.media.ata-disk's fence, map clear and writer (pc386_ata)
+    input wire disk_frozen,
+    input wire disk_dirty_clear,
+    output wire disk_dirty_clearing,
+    output wire disk_writer_busy,
+    output wire disk_fenced,
+    output wire disk_written,
+    // The fes.pc386.machine record's CMOS words (pc386_rtc)
+    output wire record_write,
+    output wire [6:0] record_index,
+    output wire [7:0] record_byte,
+    output wire record_load,
+    output wire [5:0] record_pair,
+    input wire [15:0] record_word,
+    input wire [2:0] record_clock_index,
+    output wire [15:0] record_clock_pair
 );
     // ---- I/O decoder ----------------------------------------------------
     wire [15:0] port;
@@ -304,7 +320,10 @@ module pc386_at_core #(
         .disk_heads({3'b000, disk_heads}), .disk_spt({2'b00, disk_spt}),
         .sb_base_high(sb_base_high), .sb_irq(sb_irq), .sb_dma(sb_dma),
         .wall_valid(wall_valid), .wall_year(wall_year), .wall_month(wall_month), .wall_day(wall_day),
-        .wall_hour(wall_hour), .wall_minute(wall_minute), .wall_second(wall_second), .wall_weekday(wall_weekday)
+        .wall_hour(wall_hour), .wall_minute(wall_minute), .wall_second(wall_second), .wall_weekday(wall_weekday),
+        .record_write(record_write), .record_index(record_index), .record_byte(record_byte),
+        .record_load(record_load), .record_pair(record_pair), .record_word(record_word),
+        .record_clock_index(record_clock_index), .record_clock_pair(record_clock_pair)
     );
 
     // ---- ATA ----------------------------------------------------------------
@@ -317,7 +336,9 @@ module pc386_at_core #(
         .present(disk_present), .sectors(disk_sectors), .cylinders(disk_cylinders), .heads(disk_heads), .spt(disk_spt),
         .disk_valid(disk_valid), .disk_write(disk_write), .disk_address(disk_address), .disk_wdata(disk_wdata),
         .disk_ready(disk_ready), .disk_rvalid(disk_rvalid), .disk_rdata(disk_rdata),
-        .dirty_index(dirty_index), .dirty_word(dirty_word)
+        .dirty_index(dirty_index), .dirty_word(dirty_word),
+        .frozen(disk_frozen), .dirty_clear(disk_dirty_clear), .dirty_clearing(disk_dirty_clearing),
+        .writer_busy(disk_writer_busy), .fenced(disk_fenced), .written(disk_written)
     );
 
     // ---- Read data ----------------------------------------------------------
