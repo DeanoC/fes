@@ -48,11 +48,40 @@ class De25PhysicalMemoryEvidenceTests(unittest.TestCase):
         digest = hashlib.sha256((EVIDENCE / 'README.md').read_bytes()).hexdigest()
         self.assertEqual(manifest['file_sha256']['README.md'], digest)
 
-    def test_reboot_commands_are_reported_without_claiming_a_transcript(self):
-        readme = (EVIDENCE / 'README.md').read_text()
-        normalized = re.sub(r'\s+', ' ', readme)
-        self.assertIn('the recorded operator procedure says Linux `sync`', normalized)
-        self.assertIn('no command transcript is retained', normalized)
+    def test_boot_uuid_is_attributed_to_ssh(self):
+        hardware = json.loads((EVIDENCE / 'hardware.json').read_text())
+        self.assertEqual(hardware['boot']['temporary_sof_boot_id'], BOOT_UUID)
+        self.assertEqual(hardware['boot']['temporary_sof_boot_id_source'],
+                         'temporary-sof-linux.log.gz (pinned-key SSH)')
+        normalized = re.sub(r'\s+', ' ', (EVIDENCE / 'README.md').read_text())
+        self.assertIn('The UART transcript records Ubuntu 22.04.3', normalized)
+        self.assertIn('The pinned-key SSH transcript records that boot UUID', normalized)
+
+    def test_reboot_claim_is_limited_to_the_retained_uart_bytes(self):
+        uart = gzip.decompress(
+            (EVIDENCE / 'restore-reboot-uart.log.gz').read_bytes()
+        ).decode(errors='replace')
+        self.assertIn('reboot: Restarting system', uart)
+        restore = json.loads((EVIDENCE / 'restore.json').read_text())
+        self.assertIn('no subsequent boot', restore['software_reboot'])
+        self.assertNotIn('60-second', restore['software_reboot'])
+        normalized = re.sub(r'\s+', ' ', (EVIDENCE / 'README.md').read_text())
+        self.assertIn('do not retain the Linux commands that initiated shutdown', normalized)
+        self.assertIn('document the capture duration, or include a subsequent boot', normalized)
+        self.assertNotIn('operator procedure', normalized)
+        self.assertNotIn('Linux `sync` and authenticated `sudo /sbin/reboot`', normalized)
+
+    def test_failed_device_info_log_does_not_name_a_device_index(self):
+        failed = gzip.decompress(
+            (EVIDENCE / 'device-info-command-failed.log.gz').read_bytes()
+        ).decode(errors='replace')
+        self.assertIn('Error (213019)', failed)
+        self.assertIn('Error (213002)', failed)
+        self.assertNotRegex(failed, r'device index [0-9]+|@[0-9]+|--device\s*=?\s*[0-9]+')
+        normalized = re.sub(r'\s+', ' ', (EVIDENCE / 'README.md').read_text())
+        self.assertIn('does not establish which index was queried', normalized)
+        self.assertIn('[config-status-device1.log.gz](config-status-device1.log.gz)', normalized)
+        self.assertNotIn('device-info-command-index2', normalized)
 
 
 if __name__ == '__main__':
