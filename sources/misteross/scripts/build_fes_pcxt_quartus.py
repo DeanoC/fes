@@ -223,7 +223,7 @@ def create_build_record(root, repository, revision, tool_identities, *, identity
     parameters = {'device': board.DEVICE, 'core_id': core_id,
                   'hardware_dos': dos_profile,
                   'half_rate_board': False, 'phased_hdmi_clock': True,
-                  'enable_fes_computer': True, 'enable_pcxt_media': dos_profile,
+                  'enable_fes_computer': True, 'enable_pcxt_media': True,
                   'diagnostic_completion_marker': not dos_profile,
                   'video_mailbox_contract': True,
                   'system_clock_hz': 100000000, 'pixel_clock_hz': 74250000,
@@ -249,7 +249,7 @@ def require_timing(summary, seeds, *, dos_profile=False):
             or summary.get('profile', {}).get('HALF_RATE_BOARD') != 0
             or summary.get('profile', {}).get('ENABLE_FES_COMPUTER') != 1
             or summary.get('profile', {}).get('HARDWARE_DOS') != int(dos_profile)
-            or summary.get('profile', {}).get('ENABLE_PCXT_MEDIA') != int(dos_profile)
+            or summary.get('profile', {}).get('ENABLE_PCXT_MEDIA') != 1
             or len(summary.get('runs', [])) != len(seeds)
             or summary.get('elaboration', {}).get('hps_primitive_instances') != {
                 'hdmi_i2c': 'cyclonev_hps_interface_peripheral_i2c',
@@ -278,7 +278,7 @@ def manifest(record, payload, *, dos_profile=False, metadata=None):
     expected_core_id = 'fes.pcxt-dos' if dos_profile else 'fes.pcxt'
     if (not isinstance(dos_profile, bool) or parameters.get('core_id') != expected_core_id
             or parameters.get('hardware_dos') is not dos_profile
-            or parameters.get('enable_pcxt_media') is not dos_profile):
+            or parameters.get('enable_pcxt_media') is not True):
         raise BuildError('PC/XT manifest profile does not match its build record')
     if dos_profile:
         description = ('XT-compatible BIOS and read-only 360 KiB floppy loaded '
@@ -287,15 +287,14 @@ def manifest(record, payload, *, dos_profile=False, metadata=None):
                 'description': description}
     else:
         core = {'id': 'fes.pcxt', 'name': 'FES PC/XT Diagnostic', 'version': '0.2.0',
-                'description': 'Quartus 8088 SDRAM/DMA diagnostic with a static CGA completion signature'}
+                'description': 'Quartus 8088 SDRAM/DMA diagnostic with a runtime floppy sector check'}
     interfaces = [{'id': 'fes.video.fixed-720p60', 'major': 1, 'minor': 0, 'required': True}]
-    if dos_profile:
-        interfaces.append({'id': 'fes.media.pcxt-floppy', 'major': 1, 'minor': 0, 'required': True})
+    interfaces.append({'id': 'fes.media.pcxt-floppy', 'major': 1, 'minor': 0, 'required': True})
     return encode_manifest({'format': 2,
         'core': core,
         'target': {'platform': 'de10_nano', 'device': board.DEVICE, 'programming_profile': 'fes-gp-v1'},
         'payload': {'file': 'core.rbf', 'size': payload.stat().st_size, 'sha256': sha(payload)},
-        'abi': {'id': 'fes.computer', 'major': 1, 'minor': 1 if dos_profile else 0},
+        'abi': {'id': 'fes.computer', 'major': 1, 'minor': 1},
         'interfaces': interfaces,
         'build': {'id': build_identity(record), 'repository': fields['repository'],
                   'revision': fields['revision'], 'recipe_sha256': fields['recipe_sha256'],
