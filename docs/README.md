@@ -19,6 +19,7 @@ a dated record. A dated record is not the schedule.
 | Decide whether a PR needs a full image for hardware testing | [HIL plan](hil-plan.md) |
 | See which module owns a change | [Project map](project-map.md), [component boundaries](component-boundaries.md) |
 | Build, provision or verify a flashable disk | [Bootable media](bootable-media.md) |
+| Track DE25 parity with the normal managed Linux kit | [Linux platform acceptance](design/de25-linux-platform.md) |
 | Build the headless DE25-Nano AArch64 Linux diagnostic | [DE25-Nano Linux](de25-linux.md) |
 | Prepare the DE25 HPS/DDR diagnostic and MENU allocation contract | [DE25 DDR](../sources/mister-packages/docs/de25-ddr.md) |
 | Build combined DE25 HPS/HDMI or test Linux DMA ownership under QEMU | [Combined diagnostic](../sources/misteross/boards/de25nano/combined/README.md), [DMA ownership](../image/kernel/de25-dma/README.md) |

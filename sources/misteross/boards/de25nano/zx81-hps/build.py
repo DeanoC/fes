@@ -94,7 +94,7 @@ def transport_constant(source, name):
     return int(values[0], 16)
 
 
-def prepare(archive, output=None, revision=None):
+def prepare(archive, output=None, revision=None, *, hps_first=False):
     sources = capture(revision)
     selected = {"fes_revision": revision, "source_classification": "committed"} if revision else identity()
     if revision is None:
@@ -106,11 +106,14 @@ def prepare(archive, output=None, revision=None):
         output = Path(tempfile.mkdtemp(prefix="run-", dir=base))
     else:
         output = Path(output).resolve(); output.mkdir(parents=True, exist_ok=False)
-    return prepare_captured(archive, output, sources, selected)
+    return prepare_captured(archive, output, sources, selected, hps_first=hps_first)
 
 
-def prepare_captured(archive, output, sources, selected):
+def prepare_captured(archive, output, sources, selected, *, hps_first=False):
     """Prepare a caller-owned private output from explicitly captured bytes."""
+    if type(hps_first) is not bool:
+        raise ValueError("HPS-first selection must be boolean")
+    boot_order = "HPS FIRST" if hps_first else "AFTER INIT_DONE"
     snapshot = output / "functional-source"
     for name, data in sources.items():
         p = snapshot / name; p.parent.mkdir(parents=True, exist_ok=True); p.write_bytes(data)
@@ -158,7 +161,8 @@ def prepare_captured(archive, output, sources, selected):
     for name in names[2:]: (local / Path(name).name).write_bytes(vendor[name])
     for name in ("zx8x.mif", "zx8x.hex"): (project / name).write_bytes(files[name])
     fingerprint = sha(json.dumps({"source_sha256": {n: sha(d) for n, d in sources.items()},
-        "vendor_sha256": sha(archive_bytes), "system_hz": 100000000, "pixel_hz": 74250000}, sort_keys=True).encode())[:32]
+        "vendor_sha256": sha(archive_bytes), "system_hz": 100000000, "pixel_hz": 74250000,
+        "hps_initialization": boot_order}, sort_keys=True).encode())[:32]
     top = (project / "golden_top.v").read_text()
     top = replace_once(top, ".ninit_done_ninit_done                     (ninit_done),", ".ninit_done_ninit_done                     (ninit_done),\n"
         ".h2f_warm_reset_handshake_reset_req (),\n.h2f_warm_reset_handshake_reset_ack (1'b1),")
@@ -191,10 +195,14 @@ endmodule
         exports += f"add_interface {name} {kind}\nset_interface_property {name} EXPORT_OF subsys_periph.{name}\n"
     script = replace_once(script, anchor, exports + anchor)
     (project / "integrate-mailbox.tcl").write_text(script)
+    if re.search(r"(?m)^\s*set_global_assignment\s+-name\s+HPS_INITIALIZATION\b",
+                 (project / "golden_top.qsf").read_text()):
+        raise ValueError("vendor already selects HPS initialization; review before overriding")
     with (project / "golden_top.qsf").open("a") as qsf:
         qsf.write("\n# FES HPS-controlled ZX81 diagnostic; no runtime admission.\n"
             "set_global_assignment -name VERILOG_MACRO QUARTUS=1\n"
             "set_global_assignment -name SEED 1\n"
+            f'set_global_assignment -name HPS_INITIALIZATION "{boot_order}"\n'
             f"set_global_assignment -name VERILOG_MACRO \"FES_DE25_COMPUTER_BUILD_ID=128'h{fingerprint}\"\n"
             "set_global_assignment -name IP_FILE sys_pll.ip\n"
             "set_global_assignment -name VERILOG_FILE fes_mailbox/board.v\n"
@@ -205,7 +213,7 @@ endmodule
             "set_global_assignment -name SDC_FILE fes_mailbox/clocks.sdc\n")
     inputs = json.loads((directory / "inputs.json").read_text()); inputs.pop("base_revision", None); inputs.update(selected)
     inputs["functional_snapshot_sha256"] = {n: sha(d) for n, d in sources.items()}
-    inputs["computer"] = {"peripheral_offset": offset, "span": transport_constant(definition, "SPAN"),
+    inputs["computer"] = {"hps_initialization": boot_order, "peripheral_offset": offset, "span": transport_constant(definition, "SPAN"),
         "jtag_control_bridge_base": JTAG_CONTROL_BRIDGE_BASE,
         "system_hz": 100000000, "pixel_hz": 74250000, "ula_ratio": [13, 200],
         "build_id": fingerprint, "reviewed_ram_changes": repairs, "reviewed_pll_change": pll_change,
@@ -298,17 +306,56 @@ def generate(output, hps, tool, version):
     (directory / "generation.json").write_text(json.dumps(generation, indent=2, sort_keys=True) + "\n")
 
 
+
+def package_hps_first(output, hps, tool, artifact):
+    """Create explicit phase artifacts without invoking a programmer."""
+    directory = output / "hps"
+    project = directory / "project"
+    inputs = json.loads((directory / "inputs.json").read_text())
+    if inputs["computer"].get("hps_initialization") != "HPS FIRST":
+        raise ValueError("Linux core packaging requires captured HPS-first configuration")
+    if re.findall(r'^set_global_assignment -name HPS_INITIALIZATION "([^"\n]+)"$',
+                  (project / "golden_top.qsf").read_text(), re.M) != ["HPS FIRST"]:
+        raise ValueError("project HPS-first assignment differs from captured recipe")
+    pfg = tool.with_name("quartus_pfg")
+    boot = project / "software/u-boot/spl/u-boot-spl-dtb.hex"
+    complete = directory / "linux-complete.sof"
+    hps.run_logged([pfg, "-c", artifact, complete, "-o", "hps_path=" + str(boot)],
+                   project, directory / "linux-enrich.log")
+    hps.run_logged([pfg, "-c", complete, directory / "linux-boot.jic",
+                    "-o", "device=MT25QU128", "-o", "flash_loader=A5EB013BB23BE4SCS",
+                    "-o", "mode=ASX4", "-o", "hps=on"],
+                   project, directory / "linux-split.log")
+    artifacts = {}
+    for name, role in (("linux-complete.sof", "volatile-JTAG-recovery-candidate"),
+                       ("linux-boot.hps.jic", "HPS-first-QSPI-candidate-not-programmed"),
+                       ("linux-boot.core.rbf", "Linux-fabric-configuration-candidate")):
+        path = directory / name
+        if not path.is_file() or path.is_symlink() or not path.stat().st_size:
+            raise ValueError("missing regular nonempty HPS-first artifact: " + name)
+        artifacts[name] = {"role": role, "size": path.stat().st_size, "sha256": hps.digest(path)}
+    record = {"format": 1, "classification": "unadmitted-HPS-first-diagnostic",
+              "fes_revision": inputs["fes_revision"], "computer_build_id": inputs["computer"]["build_id"],
+              "hps_initialization": "HPS FIRST", "bootloader_sha256": hps.digest(boot),
+              "compiled_sof_sha256": hps.digest(artifact), "artifacts": artifacts,
+              "hardware_programming": "not-performed", "boot_compatibility": "not-qualified",
+              "Linux_load_acceptance": "not-qualified", "production_admission": False}
+    (directory / "linux-programming.json").write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("project", "generate", "build"))
     parser.add_argument("--vendor-archive", type=Path, required=True)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--hps-first", action="store_true",
+                        help="prepare HPS-first diagnostic and separate Linux core RBF; never program flash")
     parser.add_argument("--quartus-root", default=os.environ.get("QUARTUS_ROOTDIR", ""))
     args = parser.parse_args(argv)
     try:
         selected = identity(); revision = selected.get("fes_revision") if args.action != "project" else None
         if args.action != "project" and not revision: raise ValueError("computer build requires clean committed source")
-        output, hps, helpers = prepare(args.vendor_archive, args.output, revision)
+        output, hps, helpers = prepare(args.vendor_archive, args.output, revision, hps_first=args.hps_first)
         print("HPS ZX81 diagnostic: " + str(output), flush=True)
         if args.action != "project":
             if identity() != selected: raise ValueError("source changed before generation")
@@ -320,6 +367,8 @@ def main(argv=None):
                 project = output / "hps/project"
                 actual = {"system": pll_review(project / "ip/pll", 100000000), "pixel": pll_review(project / "sys_pll", 74250000)}
                 if actual != generation["computer"]["pll_reviews"]: raise ValueError("compile changed PLL identity")
+                if args.hps_first:
+                    package_hps_first(output, hps, tool, artifact)
                 print("Diagnostic SOF: " + str(artifact), flush=True)
     except (OSError, ValueError, KeyError, zipfile.BadZipFile, subprocess.CalledProcessError) as error:
         parser.exit(1, "de25-zx81-hps: " + str(error) + "\n")

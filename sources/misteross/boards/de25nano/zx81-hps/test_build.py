@@ -2,6 +2,7 @@
 import hashlib
 import importlib.util
 import io
+import json
 from contextlib import redirect_stderr
 from pathlib import Path
 import tempfile
@@ -97,6 +98,67 @@ class HpsZX81BuildTests(unittest.TestCase):
                 self.assertEqual(caught.exception.code, 1)
                 self.assertIn("requires clean committed source", error.getvalue())
                 prepare.assert_not_called()
+
+    def linux_fixture(self, order="HPS FIRST"):
+        directory = self.root / "hps"
+        project = directory / "project"
+        boot = project / "software/u-boot/spl/u-boot-spl-dtb.hex"
+        boot.parent.mkdir(parents=True)
+        boot.write_bytes(b"locked-vendor-loader-fixture")
+        (project / "golden_top.qsf").write_text(
+            f'set_global_assignment -name HPS_INITIALIZATION "{order}"\n')
+        (directory / "inputs.json").write_text(json.dumps({
+            "fes_revision": "a" * 40,
+            "computer": {"hps_initialization": order, "build_id": "b" * 32}}))
+        artifact = project / "fixture.sof"
+        artifact.write_bytes(b"synthetic-not-a-bitstream")
+        return directory, project, artifact
+
+    def test_linux_packaging_refuses_fpga_first_before_tools(self):
+        _, _, artifact = self.linux_fixture("AFTER INIT_DONE")
+        with mock.patch.object(HPS, "run_logged") as run:
+            with self.assertRaisesRegex(ValueError, "requires captured HPS-first"):
+                B.package_hps_first(self.root, HPS, Path("/tool/quartus_sh"), artifact)
+            run.assert_not_called()
+
+    def test_linux_packaging_checks_project_mode_before_tools(self):
+        _, project, artifact = self.linux_fixture()
+        with (project / "golden_top.qsf").open("a") as stream:
+            stream.write('set_global_assignment -name HPS_INITIALIZATION "AFTER INIT_DONE"\n')
+        with mock.patch.object(HPS, "run_logged") as run:
+            with self.assertRaisesRegex(ValueError, "assignment differs"):
+                B.package_hps_first(self.root, HPS, Path("/tool/quartus_sh"), artifact)
+            run.assert_not_called()
+
+    def test_linux_packaging_binds_phase_artifacts_without_programmer(self):
+        directory, project, artifact = self.linux_fixture()
+        calls = []
+        def run(argv, cwd, log):
+            self.assertEqual(Path(argv[0]).name, "quartus_pfg")
+            self.assertEqual(cwd, project)
+            calls.append(list(map(str, argv)))
+            if len(calls) == 1:
+                Path(argv[3]).write_bytes(b"synthetic-complete")
+            else:
+                self.assertIn("hps=on", argv)
+                (directory / "linux-boot.hps.jic").write_bytes(b"synthetic-phase1")
+                (directory / "linux-boot.core.rbf").write_bytes(b"synthetic-phase2")
+        with mock.patch.object(HPS, "run_logged", side_effect=run):
+            B.package_hps_first(self.root, HPS, Path("/tool/quartus_sh"), artifact)
+        receipt = json.loads((directory / "linux-programming.json").read_text())
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(receipt["hardware_programming"], "not-performed")
+        self.assertFalse(receipt["production_admission"])
+        for name, item in receipt["artifacts"].items():
+            self.assertEqual(item["sha256"], HPS.digest(directory / name))
+        self.assertEqual(len(receipt["artifacts"]), 3)
+
+    def test_linux_packaging_does_not_publish_missing_split_outputs(self):
+        directory, _, artifact = self.linux_fixture()
+        with mock.patch.object(HPS, "run_logged"):
+            with self.assertRaisesRegex(ValueError, "missing regular nonempty"):
+                B.package_hps_first(self.root, HPS, Path("/tool/quartus_sh"), artifact)
+        self.assertFalse((directory / "linux-programming.json").exists())
 
     def pll(self, name="pixel", rate=74250000, m=297, n=5, c=40):
         folder = self.root / name

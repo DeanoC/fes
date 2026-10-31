@@ -1,0 +1,46 @@
+{
+  "classification": "hardware-diagnostic",
+  "software_changes": false,
+  "shared_contract_changes": false,
+  "checks": {
+    "doc_links": "passed",
+    "test_changed_parent_b3a25c26d": "passed",
+    "consistency": "passed",
+    "whitespace": "passed"
+  },
+  "hardware": {
+    "manager_registration": "passed",
+    "factory_baseline_linux_load": "failed",
+    "matching_baseline_linux_load": "failed",
+    "final_factory_restoration": "pending",
+    "supported_hps_split": "rejected-FPGA-first-input",
+    "post_shutdown_sdm_query": "passed-read-only; no-Linux-boot-verified"
+  },
+  "logs_sha256": {
+    "README.md": "e4ab3cb328335c078b7068039e17de9cf704002cc8e2ea2bf12b48e6dd74e7b9",
+    "after-load.log": "f2f467a811e56fee8cf21b6d395fbeb89ca1c9a7601decf0b98cc60673dcd159",
+    "artifacts.json": "e269ffa77d3008db8a3c333030503d14729d2b8f9298804442d4471c640bec96",
+    "baseline-manager.log": "606f9fcfc946a49fbca76fcf15ec1a286d9fbcfbdca82761f5e7e395949b8d84",
+    "cold-restoration.log": "6cad0b2a826132c9d04452a584ada74bf6d6e4c547c7e58ac0f832bf2cd49a95",
+    "factory-restoration.log": "6b8dbe10875d397518477a145b28b3fa91c2080696f7c741411c859bbbca8872",
+    "hps-split-rejection.log": "a6634daa94dc4c1b8aa8c67aea9cf574fbd89af34fcf16ec2c9a5385d1c70488",
+    "load-fpga-bridge.log": "5e83b93a76f91688eb6a351f3cafd6c1b2a8ea931833ec7401fb453d4097ebe0",
+    "load-fpga-region.log": "35af81e519a7cc9df01d3dfe8cf964fd3db6932ed2214b7e6d6f846795239008",
+    "load-of-fpga-region.log": "083afe3553833b8dc95a44d362666261e0b5cb2ade070f09c17d33f0da3c6e5c",
+    "load-stratix10-soc.log": "63e4dfbe38d1044043235154f42e7d90c87396c8ece6dbc8886afa6ab77b482d",
+    "manager-result.log": "3b959790cbfe06b8b10d49519a8848761e6bb4b45b90952336d4ce08c59362be",
+    "paired-cleanup.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "paired-final-poweroff.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "paired-manager-result.log": "df37c8ac394eb5f6e81cbfd1087747e9f757d07be7f0960259c78e8ad7071c79",
+    "paired-program.log": "aed09000e9c37c62fe460e4420fa87d87caccc1cbd52414ee0e10ead7808f11e",
+    "paired-state.log": "8bfbe1bf5793a0b72e29864bc5154c4e1501efb1eafe6ff52c743900240dedd4",
+    "paired-transfer-stacks.log": "bd955657877a5f1fb56bec7f74b07285b9c73c912b3445ffe01376ef20d962f6",
+    "post-shutdown-config-status.log": "b1ac192ff164e86b9cbc6eeca694fe781792b78da43f6233bd65fe9afe6f685a",
+    "post-shutdown-decoded-status.log": "b78145cdd17d98b7868892b6692fd5efc6216f467b194c44e88be5600e70d516",
+    "pre-shutdown-cleanup.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "shutdown-check.log": "6bc88b1bb3f2153bdf8268ad44330ef1b3f5549070f70300cf239db568d0a6a6",
+    "transfer-stacks.log": "999c3208f182264fc894881ddf2f7e990bb1a2f8c1ec7fc6a6b25c0a3fdf9b0b",
+    "zx81-core-conversion-full.log": "216ddecf8db06d2a356bd349c408aef56635d1ab328a7bf4c9c938f91d57922b",
+    "zx81-linux.dts": "c39a2bfb4fa778fe850b4498c6dd58a3c8c863e0932df46004e6f29087ac43ed"
+  }
+}
