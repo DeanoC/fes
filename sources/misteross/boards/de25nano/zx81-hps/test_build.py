@@ -333,7 +333,7 @@ class HpsZX81BuildTests(unittest.TestCase):
         definition_path.parent.mkdir(parents=True, exist_ok=True)
         definition_path.write_bytes((HERE / "generated/fes_de25_computer.vh").read_bytes())
         root = ET.Element("Ensemble")
-        module = ET.SubElement(root, "module", {"path": "subsys_periph.fes_computer", "kind": "fes_de25_computer", "version": "1.0"})
+        module = ET.SubElement(root, "module", {"path": "subsys_periph.fes_computer", "kind": "fes_de25_computer", "version": "1.1"})
         definition = ET.Element("component")
         boundary = ET.SubElement(ET.SubElement(definition, "boundary"), "interfaces")
         point = ET.SubElement(boundary, "interface")
@@ -413,7 +413,7 @@ class HpsZX81BuildTests(unittest.TestCase):
 
     def test_generated_computer_version_and_native_response_ports_are_required(self):
         project, handoff, root = self.sopc()
-        root.find("module").set("version", "2.0")
+        root.find("module").set("version", "1.0")
         ET.ElementTree(root).write(handoff)
         with self.assertRaisesRegex(ValueError, "endpoint/version"):
             B.verify_computer(project, HPS)

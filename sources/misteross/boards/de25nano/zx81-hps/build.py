@@ -258,7 +258,7 @@ def verify_computer(project, hps):
     tree = ET.parse(project / "qsys_top/qsys_top.sopcinfo")
     modules = {m.get("path"): m for m in tree.findall("module")}
     component = modules.get("subsys_periph.fes_computer")
-    if component is None or component.get("kind") != "fes_de25_computer" or component.get("version") != "1.0":
+    if component is None or component.get("kind") != "fes_de25_computer" or component.get("version") != "1.1":
         raise ValueError("missing generated computer endpoint/version")
     ports = hps.component_ports(component, "avs")
     if ports != {"address": ("Input", 5), "read": ("Input", 1), "write": ("Input", 1),
