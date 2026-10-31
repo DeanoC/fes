@@ -206,3 +206,12 @@ require explicit authorization and a concrete rollback procedure.
 The existing FPGA-first SOF is rejected by PFG's HPS split with error 19921.
 Merely asking for a core-only RBF does not establish a valid Linux-loading pair;
 see [the failed hardware attempts](../../../../../docs/validation/2026-10-30-de25-linux-fpga/README.md).
+
+The current endpoint is fabric1.1. It exports board video readiness through
+read-only offset24: vendor HDMI configuration completion and the complete-line
+PLL/reset gate cross as one synchronized bit to the control clock. The HPS
+component conduit carries that input from the board wrapper. Managed runtime
+Start waits for this field; it does not configure ADV7513 from Linux. Board and
+endpoint simulations test synchronization and loss/recovery. PLL and HDMI
+configuration are digital models there; new matching FPGA build and physical
+acceptance remain outstanding. Older fabric1.0 receipts remain historical.

@@ -37,6 +37,8 @@ public:
 		De25ComputerIdentity*, De25TapeInfo* tape = nullptr);
 	Error Hold(std::uint64_t deadline_ms);
 	Error Run(std::uint64_t deadline_ms);
+	// Read-only startup gate for board-owned HDMI completion.
+	Error WaitVideoReady(std::uint64_t deadline_ms);
 	Error SetKeyboardHid(const KeyboardHidRows&, std::uint64_t deadline_ms);
 	Error LoadTape(const std::vector<std::uint8_t>&, std::uint64_t deadline_ms,
 		std::uint16_t chunk_bytes = 512);

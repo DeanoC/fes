@@ -7,12 +7,12 @@ description: >-
   addresses. Atomic GPO submission, sticky fault containment and identity do
   not confer runtime, firmware, MMIO lifetime or board admission.
 major: 1
-minor: 0
+minor: 1
 constants:
   - name: FesDe25ComputerIdentity
     value: 0x44325a58
   - name: FesDe25ComputerVersion
-    value: 0x00010000
+    value: 0x00010001
   - name: FesDe25ComputerIdOffset
     value: 0
   - name: FesDe25ComputerVersionOffset
@@ -25,6 +25,10 @@ constants:
     value: 16
   - name: FesDe25ComputerFaultOffset
     value: 20
+  - name: FesDe25ComputerVideoStatusOffset
+    value: 24
+  - name: FesDe25ComputerVideoReady
+    value: 1
   - name: FesDe25ComputerSpan
     value: 32
   - name: FesDe25ComputerAddressBits

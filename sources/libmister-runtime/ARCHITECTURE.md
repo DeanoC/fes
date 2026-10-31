@@ -835,3 +835,12 @@ same object from the archive; no second parser or policy path is introduced.
 The production-hardware test links the complete library objects, including the
 parser, on AArch64 as well as native hosts. The archive audit requires exactly
 28 members and explicitly names the DE25 programmer as a file-I/O owner.
+
+DE25 computer fabric1.1 adds read-only video status at offset24. The board
+qualifies vendor HDMI initialization with PLL/reset and its complete-line gate;
+only that one-bit result crosses to the MMIO clock. Managed Start polls it
+within the existing absolute deadline before Run. Readiness errors report no
+execution release; a late/failed Run retains its existing uncertainty semantics.
+The resource remains32 bytes and the maintenance read allowlist expands to
+seven registers. Exact version matching rejects older images before control.
+This does not select the production factory or accept a physical display.

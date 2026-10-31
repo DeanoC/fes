@@ -122,3 +122,7 @@ seed, and the `fes.ata-disk.delta` chunk record in [media data](docs/media-data.
 [PC/XT ISA fabric](docs/pcxt-isa.md) defines the internal byte-transaction
 prepare/commit boundary for PC/XT expansion development. Its generated Verilog
 consumer adds no GP capability, physical layout or activation support.
+
+DE25 computer fabric1.1 exposes board-owned HDMI readiness at offset24. The
+single synchronized bit gates managed Start; it confers no physical video or
+production construction acceptance. See docs/de25-computer.md.

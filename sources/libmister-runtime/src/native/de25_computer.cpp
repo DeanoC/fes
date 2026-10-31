@@ -236,6 +236,23 @@ Error De25Computer::Run(std::uint64_t deadline)
 	std::lock_guard<std::mutex> lock(mutex_); Error e = RequireIdentity(); if (!e.ok()) return e;
 	e = Begin(deadline); return e.ok() ? Mutate(FesComputerOpcodeExecution, FesComputerControlIndex, FesComputerExecutionRelease) : e;
 }
+Error De25Computer::WaitVideoReady(std::uint64_t deadline)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    Error error = RequireIdentity(); if (!error.ok()) return error;
+    error = Begin(deadline); if (!error.ok()) return error;
+    for (;;) {
+        std::uint32_t status = 0, video = 0;
+        error = Status(&status); if (!error.ok()) return error;
+        if (status & FesDe25ComputerStatusBusy)
+            return Fail("DE25 video check found an outstanding command");
+        error = Read(FesDe25ComputerVideoStatusOffset, &video); if (!error.ok()) return error;
+        if (video & ~FesDe25ComputerVideoReady)
+            return Fail("DE25 video readiness has unknown status bits");
+        if (video & FesDe25ComputerVideoReady) return {};
+        std::this_thread::sleep_for(std::chrono::microseconds(100));
+    }
+}
 Error De25Computer::SetKeyboardHid(const KeyboardHidRows& rows, std::uint64_t deadline)
 {
 	std::lock_guard<std::mutex> lock(mutex_);

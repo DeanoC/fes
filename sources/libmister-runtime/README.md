@@ -70,7 +70,7 @@ the ARMv7/DE10 guard above remains the production gate.
 
 `make de25-computer` builds an explicit maintenance CLI for an already loaded
 ZX81-HPS image on the FES DE25 rootfs. It uses the existing Linux MMIO adapter
-with a six-register read allowlist and only one full-word GPO write address.
+with a seven-register read allowlist and only one full-word GPO write address.
 The caller supplies the selected boot UUID, full core build ID and audited CPU
 resource base. It refuses other architectures, rootfs/model identities and
 boot epochs, and holds an exclusive local maintenance lock. `probe` reads only
@@ -194,3 +194,9 @@ The production library includes the existing JSON parser shared by the daemon
 and DE25 kernel-receipt checks. Linking the library does not require a separate
 daemon parser object. The exact archive and raw-I/O ownership audits include
 the DE25 driver/programmer and retain missing-member negative checks.
+
+The DE25 managed Start waits for the exact fabric1.1 video-ready register
+before releasing execution. Missing readiness, reserved bits or a failed read
+send no Run command. The board owns HDMI initialization; this read-only gate
+adds no Linux I2C recipe. New RTL/driver bytes have software coverage only
+until their matching bitstream and board acceptance are complete.

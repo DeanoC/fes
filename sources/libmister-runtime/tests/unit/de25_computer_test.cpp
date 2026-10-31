@@ -37,6 +37,7 @@ public:
 	std::array<std::uint16_t, 16> identity{{0x4546, 0x3153, 1, 0, 4, 1, 0, 0x803,
 		0x1100, 0x3322, 0x5544, 0x7766, 0x9988, 0xbbaa, 0xddcc, 0xffee}};
 	std::uint32_t gpo = 0, gpi = 0xf5000000, fault = 0;
+	std::uint32_t video_status = FesDe25ComputerVideoReady; unsigned video_reads = 0, video_after = 0;
 	std::uint32_t bridge_id = FesDe25ComputerIdentity, version = FesDe25ComputerVersion;
 	std::uint32_t minimum = 1, maximum = FesDe25ComputerZx81TapeMaxBytes;
 	std::uint16_t state = FesComputerMediaStateEmpty, max_chunk = 512;
@@ -62,6 +63,8 @@ public:
 		case FesDe25ComputerIdOffset: *value = bridge_id; break;
 		case FesDe25ComputerVersionOffset: *value = version; break;
 		case FesDe25ComputerFaultOffset: *value = fault; break;
+		case FesDe25ComputerVideoStatusOffset:
+			++video_reads; *value = video_after && video_reads >= video_after ? FesDe25ComputerVideoReady : video_status; break;
 		case FesDe25ComputerGpoOffset: *value = gpo ^ (change_payload && !writes.empty() ? 1u : 0u); break;
 		case FesDe25ComputerStatusOffset:
 			*value = (ready ? FesDe25ComputerStatusReady : 0) | status_extra | (fault ? FesDe25ComputerStatusFault : 0) |
@@ -394,8 +397,28 @@ void TestUnitMediaSnapshotAndStickyFailure() {
 	assert(f.bridge.writes.size() == uncertain); // no speculative cleanup/replay
 	selected.BeginSession(); assert(selected.media_units().empty());
 }
+void TestManagedStartWaitsForVideoWithoutCommands() {
+    for (unsigned kind = 0; kind < 3; ++kind) {
+        Fixture f; De25ComputerCoreDriver driver(f.client);
+        auto descriptor = DriverDescriptor(); CoreDriverContext context;
+        context.descriptor = &descriptor; context.expected_core = "zx81";
+        assert(driver.Identify(context, 1000000).error.ok());
+        const auto before = f.bridge.writes.size();
+        f.bridge.video_status = kind == 2 ? 2 : 0;
+        if (kind == 0) f.bridge.video_after = 4;
+        auto result = driver.Start(context, kind == 0 ? 1000000 : f.clock.time + 50);
+        if (kind == 0) {
+            assert(result.error.ok() && !f.bridge.hold_state && f.bridge.video_reads == 4);
+            assert(f.bridge.writes.size() == before + 1);
+        } else {
+            assert(!result.error.ok() && !result.mutation_attempted && !result.execution_may_have_run);
+            assert(f.bridge.hold_state && f.bridge.writes.size() == before && f.client.Poisoned());
+        }
+    }
+}
 } // namespace
 int main() {
+	TestManagedStartWaitsForVideoWithoutCommands();
 	TestUnitMediaSnapshotAndStickyFailure();
 	TestCoreDriverLifecycleAndLiveMedia(); TestCoreDriverRejectsDescriptorAndRetainsTransportFault();
 	TestAtomicIdentityAndControl(); TestCompletedKeyboardSnapshotSurvivesSettleDeadline();
@@ -403,5 +426,5 @@ int main() {
 	TestOddTapeAndCrc(); TestMaximumTapeChunkOrdinals(); TestHealthyRejectionsDoNotReplayOrPoison();
 	TestUncertainCommandsNeverReplay(); TestBusyAndIdleToggleMismatchRefuseBeforeWrite();
 	TestBoundedMissingAckAndStalledClock(); TestAcknowledgedCommitMustBecomeReady(); TestOneSerializedClientOwnership(); TestLateSuccessfulAckIsUncertain();
-	std::puts("de25_computer_test: 16 groups passed (scripted registers; no hardware admission)");
+	std::puts("de25_computer_test: 17 groups passed (scripted registers; no hardware admission)");
 }

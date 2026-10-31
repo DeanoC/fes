@@ -51,7 +51,7 @@ public:
     ~Registers() override {if(lease_>=0)close(lease_);}
     std::uint64_t NowMs() const override {return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();}
     Error Read32(std::uint32_t offset,std::uint32_t* value) override {
-        if(offset>FesDe25ComputerFaultOffset || (offset&3u))return {ErrorCode::io_failed,"outside computer read registers"};
+        if(offset>FesDe25ComputerVideoStatusOffset || (offset&3u))return {ErrorCode::io_failed,"outside computer read registers"};
         __sync_synchronize();auto e=physical_.Read32(base_+offset,value);__sync_synchronize();++reads;return e;
     }
     Error Write32(std::uint32_t offset,std::uint32_t value) override {

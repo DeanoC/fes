@@ -3814,3 +3814,10 @@ Quiesce halts the blitter at a row boundary, and its ACK waits for scanout and
 both blitter ports to drain before execution hold. Runtime buffer
 transport/admission and exact-artifact menu acceptance are not established by
 source simulations.
+
+DE25 ZX81-HPS fabric1.1 returns board-owned HDMI readiness at offset24.
+The generated PD component1.1 connects the wrapper completion output back to
+the control endpoint. A pixel-domain qualification and control-domain two-flop
+crossing expose one bit, without extending Linux I2C ownership. Digital board
+and endpoint tests cover this boundary; no new timing or physical acceptance
+is implied by the source change.

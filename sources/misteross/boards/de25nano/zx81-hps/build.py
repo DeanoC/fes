@@ -166,13 +166,14 @@ def prepare_captured(archive, output, sources, selected, *, hps_first=False):
     top = (project / "golden_top.v").read_text()
     top = replace_once(top, ".ninit_done_ninit_done                     (ninit_done),", ".ninit_done_ninit_done                     (ninit_done),\n"
         ".h2f_warm_reset_handshake_reset_req (),\n.h2f_warm_reset_handshake_reset_ack (1'b1),")
-    top = replace_once(top, "qsys_top soc_inst (", "wire computer_pixel_clk;\nwire [23:0] computer_rgb;\nwire computer_de, computer_hs, computer_vs;\nqsys_top soc_inst (\n"
+    top = replace_once(top, "qsys_top soc_inst (", "wire computer_pixel_clk;\nwire [23:0] computer_rgb;\nwire computer_de, computer_hs, computer_vs, computer_video_ready;\nqsys_top soc_inst (\n"
         ".fes_computer_pixel_clk_clk(computer_pixel_clk),\n.fes_computer_video_rgb(computer_rgb),\n"
-        ".fes_computer_video_de(computer_de), .fes_computer_video_hs(computer_hs), .fes_computer_video_vs(computer_vs),")
+        ".fes_computer_video_de(computer_de), .fes_computer_video_hs(computer_hs), .fes_computer_video_vs(computer_vs),\n.fes_computer_video_ready(computer_video_ready),")
     top = replace_once(top, "endmodule", """
 fes_de25_zx81_board fes_video_inst (
  .CLOCK0_50(CLOCK0_50), .ninit_done(ninit_done), .pixel_clk(computer_pixel_clk),
  .video_rgb(computer_rgb), .video_de(computer_de), .video_hs(computer_hs), .video_vs(computer_vs),
+ .video_ready(computer_video_ready),
  .HDMI_TX_INT(HDMI_TX_INT), .HDMI_TX_CLK(HDMI_TX_CLK), .HDMI_TX_DE(HDMI_TX_DE),
  .HDMI_TX_HS(HDMI_TX_HS), .HDMI_TX_VS(HDMI_TX_VS), .HDMI_TX_D(HDMI_TX_D),
  .HDMI_I2C_SCL(HDMI_I2C_SCL), .HDMI_I2C_SDA(HDMI_I2C_SDA),

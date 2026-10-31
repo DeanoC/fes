@@ -72,6 +72,8 @@ CoreDriverResult De25ComputerCoreDriver::Start(const CoreDriverContext& context,
 	std::uint64_t deadline)
 {
 	Error error = Context(context); if (!error.ok()) return {error, false, ""};
+	error = client_.WaitVideoReady(deadline);
+	if (!error.ok()) return {error, false, core_};
 	error = client_.Run(deadline);
 	CoreDriverResult result{error, true, core_};
 	result.execution_may_have_run = error.ok() || client_.Poisoned();

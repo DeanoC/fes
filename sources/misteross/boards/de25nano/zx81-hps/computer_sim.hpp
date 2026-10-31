@@ -57,7 +57,7 @@ struct Computer {
     unsigned mmio_reads = 0, mmio_writes = 0, gp_requests = 0, upload_chunks = 0;
 
     Computer() {
-        t.clk = 0; t.pixel_clk = 0; t.reset_n = 0;
+        t.clk = 0; t.pixel_clk = 0; t.reset_n = 0; t.video_ready = 1;
         t.address = 0; t.read = 0; t.write = 0; t.byteenable = 0; t.writedata = 0;
         t.eval();
         cycles(4);
