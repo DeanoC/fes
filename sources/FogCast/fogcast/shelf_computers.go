@@ -83,7 +83,7 @@ func (s *Service) ShelfComputers(ctx context.Context) ([]ShelfComputer, error) {
 
 func shelfPlayableABI(abi corepackage.Contract) bool {
 	if abi.ID == "fes.computer" {
-		return protocol.ComputerABI(abi.ID, abi.Major, abi.Minor)
+		return protocol.ComputerMediaABI(abi.ID, abi.Major, abi.Minor)
 	}
 	if abi.Major != 1 || abi.Minor != 0 {
 		return false

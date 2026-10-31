@@ -137,8 +137,8 @@ func validCorePackageStatus(status protocol.Status) bool {
 		return false
 	}
 	value := status.CorePackage
-	if protocol.ComputerABI(value.ABI.ID, int64(value.ABI.Major), int64(value.ABI.Minor)) &&
-		value.PersistenceMode == "persistent" && !protocol.MediaDataBound(value) {
+	if protocol.ComputerMediaABI(value.ABI.ID, int64(value.ABI.Major), int64(value.ABI.Minor)) &&
+		value.PersistenceMode == "persistent" && !protocol.PersistentMediaStatusValid(value) {
 		return false
 	}
 	if r := value.ROMLink; r != nil {
@@ -161,7 +161,7 @@ func validCorePackageStatus(status protocol.Status) bool {
 		if c.Layout == expansion.AtariStVideoLayout {
 			bound := protocol.MediaDataBound(value)
 			persistence := (value.PersistenceMode == "volatile" && !bound) || (value.PersistenceMode == "persistent" && bound)
-			if !protocol.ComputerABI(value.ABI.ID, int64(value.ABI.Major), int64(value.ABI.Minor)) || value.ROMLink == nil || value.ROMLinks != nil || !persistence {
+			if !protocol.ComputerMediaABI(value.ABI.ID, int64(value.ABI.Major), int64(value.ABI.Minor)) || value.ROMLink == nil || value.ROMLinks != nil || !persistence {
 				return false
 			}
 		} else if value.ROMLink != nil || (value.ROMLinks != nil && c.Layout != expansion.ColecoNativeVideoLayout && c.Layout != expansion.ColecoVideoLayout) ||
@@ -176,7 +176,8 @@ func validCorePackageStatus(status protocol.Status) bool {
 	}
 	for index, unit := range value.MediaUnits {
 		if !unit.Valid() || (index > 0 && value.MediaUnits[index-1].Unit >= unit.Unit) ||
-			(unit.Persistence != nil && (value.PersistenceMode != "persistent" || !protocol.MediaWriteCapable(value))) {
+			(unit.Interface == protocol.AtaDiskInterface() && !protocol.ComputerAtaDiskABI(value.ABI.ID, int64(value.ABI.Major), int64(value.ABI.Minor))) ||
+			(unit.Persistence != nil && (value.PersistenceMode != "persistent" || !protocol.PersistentMediaUnitCapable(value, unit))) {
 			return false
 		}
 		if unit.Interface == protocol.PcxtFloppyInterface() {

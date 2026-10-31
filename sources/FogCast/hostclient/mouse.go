@@ -27,7 +27,7 @@ func (c *Client) SendMouseRelativeForSession(ctx context.Context, session Sessio
 
 func sessionHasMouseBinding(session SessionResult) bool {
 	core := session.CorePackage
-	if core == nil || !protocol.ComputerABI(core.ABI.ID, int64(core.ABI.Major), int64(core.ABI.Minor)) || core.Generation == 0 || len(core.PackageID) != 64 || strings.ToLower(core.PackageID) != core.PackageID {
+	if core == nil || !protocol.ComputerMediaABI(core.ABI.ID, int64(core.ABI.Major), int64(core.ABI.Minor)) || core.Generation == 0 || len(core.PackageID) != 64 || strings.ToLower(core.PackageID) != core.PackageID {
 		return false
 	}
 	if _, err := hex.DecodeString(core.PackageID); err != nil {

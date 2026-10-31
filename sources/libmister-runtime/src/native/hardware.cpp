@@ -8,6 +8,7 @@
 #include "native/core_driver.hpp"
 #include "native/core_package.hpp"
 #include "native/core_composition.hpp"
+#include "native/ata_disk.hpp"
 #include "native/core_data.hpp"
 #include "native/media_data.hpp"
 #include "native/diagnostic.hpp"
@@ -29,6 +30,7 @@
 #include "native/video.hpp"
 
 #include <algorithm>
+#include <cstring>
 #include <array>
 #include <atomic>
 #include <cctype>
@@ -271,6 +273,7 @@ public:
 	CoreROMLink rom_link_;
 	CoreROMLinks rom_links_;
 	std::unique_ptr<PreparedInitialMedia> initial_media_;
+	std::unique_ptr<PreparedAtaDisk> ata_disk_;
 	CoreComposition composition() const override { return composition_ ? composition_->info : CoreComposition{}; }
 };
 
@@ -281,8 +284,9 @@ NativeHardware::NativeHardware(ArtifactOpener& opener, FpgaManager& fpga,
 	InputSession& input, const InputDeviceIdentity& input_identity, Clock& clock,
 	LogSink& log, std::string idle_rbf, NativeTimeouts timeouts,
 	CoreDriver* fes_gp_driver, std::vector<std::string> package_roots,
-	IdleRecipe idle_recipe,MenuDisplayDriver* menu_display,MenuWindow* menu_window)
-	: menu_display_(menu_display),menu_window_(menu_window),opener_(opener), fpga_(fpga), idle_video_(idle_video),
+	IdleRecipe idle_recipe,MenuDisplayDriver* menu_display,MenuWindow* menu_window,
+	DiskWindow* disk_window)
+	: menu_display_(menu_display),menu_window_(menu_window),disk_window_(disk_window),opener_(opener), fpga_(fpga), idle_video_(idle_video),
 	  game_video_(game_video), input_(input), input_identity_(input_identity),
 	  clock_(clock), log_(log), idle_rbf_(std::move(idle_rbf)),
 	  idle_recipe_(std::move(idle_recipe)),
@@ -345,6 +349,8 @@ Error NativeHardware::FlushSave()
 	}
     const Error media = FlushMediaSave();
     if (!media.ok()) return media;
+    const Error disk = FlushAtaDiskSave();
+    if (!disk.ok()) return disk;
 	if (core_data_file_) {
 		if (core_data_flushed_)
 			return {};
@@ -352,12 +358,18 @@ Error NativeHardware::FlushSave()
 		if (error.ok() && core_snapshot_.empty())
 			error = active_driver_->CaptureData(
 				active_context_, Deadline(clock_, timeouts_.core_io_ms), &core_snapshot_);
-		if (error.ok() && core_snapshot_.size() != generated::FesGpPongProgressWordCount)
+		const std::size_t words = durable_data_.game_id.empty() ?
+			generated::FesGpPongProgressWordCount : generated::FesComputerPc386MachineWordCount;
+		if (error.ok() && core_snapshot_.size() != words)
 			error = {ErrorCode::save_failed, "incomplete core-data snapshot", "core_data"};
 		if (error.ok()) {
 			CoreData snapshot = durable_data_;
-			snapshot.paddle_speed = core_snapshot_[generated::FesGpPongPaddleSpeedIndex];
-			snapshot.best_rally = core_snapshot_[generated::FesGpPongBestRallyIndex];
+			if (snapshot.game_id.empty()) {
+				snapshot.paddle_speed = core_snapshot_[generated::FesGpPongPaddleSpeedIndex];
+				snapshot.best_rally = core_snapshot_[generated::FesGpPongBestRallyIndex];
+			} else {
+				snapshot.words = core_snapshot_;
+			}
 			// Reopen after uncertain publication; never mistake a cached revision for
 			// the current complete record on retry.
 			CoreData current;
@@ -413,11 +425,18 @@ Error NativeHardware::RestoreInput(std::uint64_t generation)
         media_snapshot_.clear(); media_data_flushed_ = false;
         return {};
     }
+	if (ata_delta_file_) {
+		auto* driver = active_driver_ == fes_gp_driver_ ? dynamic_cast<FesGpCoreDriver*>(fes_gp_driver_) : nullptr;
+		if (!driver || generation == 0) return {ErrorCode::io_failed, "active ATA disk cannot be resumed", "media_data"};
+		const Error resumed = driver->AtaDiskControl(generated::FesComputerDiskControlResume, Deadline(clock_, timeouts_.core_io_ms));
+		if (!resumed.ok()) return resumed;
+		ata_flushed_ = false;
+	}
 	if (!core_data_file_)
 		return {};
-	if (!has_active_input_recipe_ || active_driver_ == nullptr || generation == 0)
+	if (active_driver_ == nullptr || generation == 0)
 		return {ErrorCode::io_failed,
-			"active input cannot be restored", "input"};
+			"active persistent data cannot be restored", "core_data"};
 	if (input_open_)
 		return {ErrorCode::io_failed,
 			"active input was not fully stopped", "input"};
@@ -427,6 +446,14 @@ Error NativeHardware::RestoreInput(std::uint64_t generation)
 			active_driver_->ResumeData(active_context_, Deadline(clock_, timeouts_.core_io_ms));
 		if (!resumed.ok())
 			return resumed;
+	}
+	// Some persistent computer packages have no host input recipe. Their
+	// machine record still needs Resume after a failed save, and once it has
+	// resumed the guest may change RAM before the next save attempt.
+	if (!has_active_input_recipe_) {
+		core_snapshot_.clear();
+		core_data_flushed_ = false;
+		return {};
 	}
 	CoreDriver* const driver = active_driver_;
 	const CoreDriverContext context = active_context_;
@@ -475,6 +502,7 @@ CoreDriver* NativeHardware::ResolveDriver(ProgrammingProfile profile) const
 void NativeHardware::ForgetActiveCore()
 {
     ForgetMediaData();
+    ForgetAtaDisk();
 	session_display_focused_ = false;
 	active_driver_ = nullptr;
 	active_context_ = {};
@@ -606,14 +634,14 @@ Error NativeHardware::InspectCorePackage(const std::string& directory,
 	return {};
 }
 
-Error NativeHardware::PrepareCoreData(
-	AdmittedCorePackage* package, const std::string& root, CoreData* output)
+Error NativeHardware::PrepareCoreData(AdmittedCorePackage* package, const std::string& root,
+	const std::string& game_id, CoreData* output)
 {
-	return PrepareCoreDataInternal(package, root, output, true);
+	return PrepareCoreDataInternal(package, root, game_id, output, true);
 }
 
-Error NativeHardware::PrepareCoreDataInternal(
-	AdmittedCorePackage* package, const std::string& root, CoreData* output, bool writable)
+Error NativeHardware::PrepareCoreDataInternal(AdmittedCorePackage* package,
+	const std::string& root, const std::string& game_id, CoreData* output, bool writable)
 {
 	auto admitted = dynamic_cast<NativeAdmittedCore*>(package);
 	if (!admitted || !output)
@@ -623,10 +651,16 @@ Error NativeHardware::PrepareCoreDataInternal(
 	if (!error.ok())
 		return error;
 	const std::string& id = admitted->opened_.descriptor.core.id;
+	// A fes.computer record belongs to one library game; Pong's to its core.
+	const bool per_game = !layout.id.empty() &&
+		admitted->opened_.descriptor.abi.id == generated::FesComputerABIID;
+	if (per_game ? !ValidLibraryGameID(game_id) : !game_id.empty())
+		return {ErrorCode::invalid_request, "core-data game identity does not fit the package", "core_data"};
 	if (core_data_file_ && durable_data_.core_id == id && layout.id.empty())
 		return {ErrorCode::incompatible_data, "active namespace requires persistence", "core_data"};
 	std::unique_ptr<CoreDataFile> file;
-	error = CoreDataFile::Open(root, id, &file);
+	error = per_game ? CoreDataFile::OpenGame(root, id, game_id, &file) :
+		CoreDataFile::Open(root, id, &file);
 	CoreData data;
 	if (error.ok())
 		error = file->Read(&data);
@@ -669,37 +703,59 @@ Error NativeHardware::RefreshCoreData(AdmittedCorePackage* package, CoreData* ou
 	*output = std::move(data);
 	return {};
 }
-Error NativeHardware::InspectCoreData(
-	const std::string& path, const std::string& id, const std::string& root, CoreData* output)
+Error NativeHardware::InspectCoreData(const std::string& path, const std::string& id,
+	const std::string& root, const std::string& game_id, CoreData* output)
 {
 	std::unique_ptr<AdmittedCorePackage> admitted;
 	// Library parts preflight inspects a native shell's namespace without
 	// activating it. Composition remains mandatory on every native load path.
 	Error error = AdmitCorePackageInternal(path, id, true, &admitted);
 	if (error.ok())
-		error = PrepareCoreDataInternal(admitted.get(), root, output, false);
+		error = PrepareCoreDataInternal(admitted.get(), root, game_id, output, false);
 	return error;
 }
 Error NativeHardware::UpdateCoreSettings(const std::string& path, const std::string& id,
-	const std::string& root, const std::string& revision, std::uint16_t speed, CoreData* output)
+	const std::string& root, const std::string& game_id, const std::string& revision,
+	const CoreSettingsUpdate& update, CoreData* output)
 {
-	if (speed > generated::FesGpPongPaddleSpeedFast)
+	if (!update.pc386 && update.paddle_speed > generated::FesGpPongPaddleSpeedFast)
 		return {ErrorCode::invalid_request, "invalid paddle speed", "request"};
 	std::unique_ptr<AdmittedCorePackage> package;
 	Error error = AdmitCorePackage(path, id, &package);
 	if (!error.ok())
 		return error;
-	if (active_package_ && active_package_->info().declared_core == package->info().declared_core)
+	VersionedContract layout;
+	error = CorePersistenceLayout(package->info().descriptor, &layout);
+	if (!error.ok())
+		return error;
+	const bool per_game = !layout.id.empty() &&
+		package->info().descriptor.abi.id == generated::FesComputerABIID;
+	if (per_game ? !ValidLibraryGameID(game_id) : !game_id.empty())
+		return {ErrorCode::invalid_request, "core-data game identity does not fit the package", "core_data"};
+	if (active_package_ && active_package_->info().declared_core == package->info().declared_core &&
+		(game_id.empty() || durable_data_.game_id == game_id))
 		return {ErrorCode::busy, "core-data namespace is active", "core_data"};
 	CoreData data;
-	error = PrepareCoreData(package.get(), root, &data);
+	error = PrepareCoreData(package.get(), root, game_id, &data);
 	if (!error.ok())
 		return error;
 	auto admitted = dynamic_cast<NativeAdmittedCore*>(package.get());
 	if (!admitted->data_file_)
 		return {
 			ErrorCode::unsupported_interface, "package has no persistent settings", "core_data"};
-	data.paddle_speed = speed;
+	if (update.pc386 != !data.game_id.empty())
+		return {ErrorCode::invalid_request, "settings do not match the package's layout", "request"};
+	if (update.pc386) {
+		// Settings for the next launch; the machine's CMOS words stay.
+		const Pc386MachineSettings& m = update.machine;
+		const std::uint16_t settings[] = {m.preset, m.frequency, m.code_profile, m.turbo,
+			m.sb_base, m.sb_irq, m.sb_dma, 0};
+		std::copy(std::begin(settings), std::end(settings), data.words.begin());
+		if (!ValidPc386Machine(data.words))
+			return {ErrorCode::invalid_request, "invalid pc386 machine settings", "request"};
+	} else {
+		data.paddle_speed = update.paddle_speed;
+	}
 	CoreData published;
 	error = admitted->data_file_->Persist(data, revision, &published);
 	if (error.ok()) {
@@ -797,9 +853,7 @@ Capabilities NativeHardware::capabilities() const
 		SupportedABI computer_io;
 		computer_io.id = generated::FesComputerABIID;
 		computer_io.major = generated::FesComputerABIMajor;
-		// The driver also verifies the 1.1 high capability word for the
-		// declared PC/XT floppy; unimplemented 1.1 interfaces are not listed.
-		computer_io.minor = generated::FesComputerABIMinor;
+		computer_io.minor = 0;
 		computer_io.interfaces = {
 			{kApple2ExpansionBusID, 1, 0},
 			{kAtariStExpansionBusID, 1, 0},
@@ -825,9 +879,6 @@ Capabilities NativeHardware::capabilities() const
 			{generated::FesComputerInterfaceMediaAtariStFloppyID,
 				generated::FesComputerInterfaceMediaAtariStFloppyMajor,
 				generated::FesComputerInterfaceMediaAtariStFloppyMinor},
-			{generated::FesComputerInterfaceMediaPcxtFloppyID,
-				generated::FesComputerInterfaceMediaPcxtFloppyMajor,
-				generated::FesComputerInterfaceMediaPcxtFloppyMinor},
 			{generated::FesComputerInterfaceMediaAtariStFloppyGeometryID, 1, 0},
             {generated::FesComputerInterfaceMediaAtariStFloppyWriteID,
                 generated::FesComputerInterfaceMediaAtariStFloppyWriteMajor,
@@ -865,14 +916,47 @@ Capabilities NativeHardware::capabilities() const
 		}
 		std::sort(computer_io.interfaces.begin(), computer_io.interfaces.end(),
 			[](const SupportedInterface& a, const SupportedInterface& b) { return a.id < b.id; });
+		// 1.1 adds identity word 16 and its interfaces. Each minor is its own
+		// entry, so a 1.0 package keeps matching its exact ABI.
+		SupportedABI computer_11 = computer_io;
+		computer_11.minor = generated::FesComputerABIMinor;
+		computer_11.interfaces.push_back({generated::FesComputerInterfacePersistenceWordsID, 1, 0});
+		computer_11.interfaces.push_back({generated::FesComputerInterfacePc386MachineID, 1, 0});
+		computer_11.interfaces.push_back({generated::FesComputerInterfaceRtcWallClockID, 1, 0});
+		computer_11.interfaces.push_back({generated::FesComputerInterfaceMediaPcxtFloppyID,
+			generated::FesComputerInterfaceMediaPcxtFloppyMajor,
+			generated::FesComputerInterfaceMediaPcxtFloppyMinor});
+		if (fpga_.BootHpsDdrLayout() && disk_window_)
+			computer_11.interfaces.push_back({generated::FesComputerInterfaceMediaAtaDiskID, 1, 0});
+		std::sort(computer_11.interfaces.begin(), computer_11.interfaces.end(),
+			[](const SupportedInterface& a, const SupportedInterface& b) { return a.id < b.id; });
+		result.abis.insert(result.abis.begin(), std::move(computer_11));
 		result.abis.insert(result.abis.begin(), std::move(computer_io));
 		std::sort(result.abis.begin(), result.abis.end(),
-			[](const SupportedABI& a, const SupportedABI& b) { return a.id < b.id; });
+			[](const SupportedABI& a, const SupportedABI& b) {
+				if (a.id != b.id) return a.id < b.id;
+				if (a.major != b.major) return a.major < b.major;
+				return a.minor < b.minor; });
 		if (active_driver_ == fes_gp_driver_) {
 			MediaStreamInfo info;
 			const auto* driver = dynamic_cast<FesGpCoreDriver*>(fes_gp_driver_);
 			if (driver != nullptr && driver->home_computer())
 				result.media_units = driver->media_units();
+            if (driver != nullptr && driver->home_computer() && driver->AtaDiskCapable()) {
+                MediaUnitCapability unit;
+                unit.unit = generated::FesComputerAtaDiskUnit;
+                unit.interface = {generated::FesComputerInterfaceMediaAtaDiskID, 1, 0};
+                unit.min_bytes = generated::FesComputerAtaDiskMinBytes;
+                unit.max_bytes = generated::FesComputerAtaDiskMaxBytes;
+                unit.chunk_bytes = generated::FesComputerAtaDiskChunkBytes;
+                unit.state = ata_ready_ ? MediaUnitState::ready : MediaUnitState::empty;
+                unit.saveable = false;
+                if (ata_delta_file_) {
+                    unit.persistence_mode = "persistent"; unit.game_id = ata_identity_.game_id;
+                    unit.base_media_id = ata_identity_.base_media_id; unit.revision = ata_delta_.revision;
+                }
+                result.media_units.insert(result.media_units.begin(), unit);
+            }
             if (media_data_file_) for (auto& unit : result.media_units) {
                 if (unit.unit == durable_media_.identity.unit) {
                     unit.persistence_mode="persistent"; unit.game_id=durable_media_.identity.game_id;
@@ -1138,6 +1222,138 @@ Error NativeHardware::EjectComputerMedia(std::uint8_t unit)
         ejected.phase = "media_data";
     }
     return ejected;
+}
+
+Error NativeHardware::PrepareAtaDisk(AdmittedCorePackage* package, const std::string& game_id,
+	const AtaDiskImage& image)
+{
+	auto admitted = dynamic_cast<NativeAdmittedCore*>(package);
+	if (!admitted) return {ErrorCode::invalid_request, "invalid admitted ATA disk request", "admission"};
+	const CoreDescriptor& descriptor = admitted->opened_.descriptor;
+	bool declared = false;
+	for (const auto& interface : descriptor.interfaces)
+		declared |= interface.id == generated::FesComputerInterfaceMediaAtaDiskID && interface.required;
+	if (!declared || descriptor.abi.id != generated::FesComputerABIID)
+		return {ErrorCode::unsupported_interface, "package has no ATA disk", "admission"};
+	if (!ValidAtaDiskGeometry(image.size, image.cylinders, image.heads, image.sectors_per_track))
+		return {ErrorCode::invalid_request, "invalid ATA disk size or geometry", "admission"};
+	auto prepared = std::unique_ptr<PreparedAtaDisk>(new PreparedAtaDisk);
+	prepared->image = image;
+	prepared->identity = {descriptor.core.id, game_id, image.base_media_id, 0};
+	if (!ValidMediaDataIdentity(prepared->identity))
+		return {ErrorCode::invalid_request, "invalid ATA disk binding", "admission"};
+	Error error = AtaBaseImage::Open(image.path, image.size, &prepared->base);
+	if (error.ok()) error = AtaDeltaFile::Open(image.data_root, prepared->identity, image.size, &prepared->file);
+	AtaDiskDelta delta;
+	if (error.ok()) error = prepared->file->Read(&delta);
+	if (error.ok()) error = prepared->file->CheckWritable();
+	if (!error.ok()) return error;
+	admitted->ata_disk_ = std::move(prepared);
+	return {};
+}
+
+// Held, after identity: Prepare; the base image with the delta's chunks
+// over it, written through the window in turn while the base's SHA-256 and
+// the image's CRC-32 are computed; DiskCommit with that CRC; ready.
+Error NativeHardware::LoadAtaDisk(FesGpCoreDriver& driver, PreparedAtaDisk& disk)
+{
+	const std::uint64_t deadline = Deadline(clock_, timeouts_.media_io_ms);
+	Error error = disk.file->Read(&ata_delta_);
+	if (error.ok()) error = driver.AtaDiskControl(generated::FesComputerDiskControlPrepare, deadline);
+	if (!error.ok()) return error;
+	constexpr std::uint32_t kChunk = generated::FesComputerAtaDiskChunkBytes;
+	constexpr std::uint32_t kGrant = 64 * kChunk;  // 4 MiB a grant
+	Sha256 base_hash;
+	// CRC-32/IEEE a byte at a time: up to 128 MiB per launch on the HPS.
+	std::uint32_t crc_table[256];
+	for (std::uint32_t n = 0; n < 256; ++n) {
+		std::uint32_t c = n;
+		for (unsigned bit = 0; bit < 8; ++bit) c = (c >> 1) ^ ((c & 1u) ? 0xedb88320u : 0u);
+		crc_table[n] = c;
+	}
+	std::uint32_t crc = 0xffffffffu;
+	std::vector<unsigned char> chunk(kChunk), replaced;
+	std::size_t next = 0;
+	for (std::uint32_t offset = 0; offset < disk.image.size && error.ok(); offset += kGrant) {
+		const std::uint32_t span = std::min(kGrant, disk.image.size - offset);
+		// Grants are page aligned; the image is whole sectors, so round up.
+		const std::uint32_t mapped = (span + 4095u) & ~4095u;
+		error = disk_window_->Access(generated::FesComputerAtaDiskWindowOffset + offset, mapped,
+			[&](unsigned char* window) {
+				for (std::uint32_t at = 0; at < span; at += kChunk) {
+					const std::uint32_t index = (offset + at) / kChunk;
+					const std::uint32_t length = AtaDiskChunkLength(disk.image.size, index);
+					Error read = disk.base->Read(offset + at, chunk.data(), length);
+					if (!read.ok()) return read;
+					base_hash.Update(chunk.data(), length);
+					const unsigned char* bytes = chunk.data();
+					if (next < ata_delta_.chunks.size() && ata_delta_.chunks[next].index == index) {
+						read = disk.file->ReadChunk(ata_delta_.chunks[next++], &replaced);
+						if (!read.ok()) return read;
+						bytes = replaced.data();
+					}
+					std::memcpy(window + at, bytes, length);
+					for (std::uint32_t i = 0; i < length; ++i)
+						crc = crc_table[(crc ^ bytes[i]) & 0xffu] ^ (crc >> 8);
+				}
+				return Error{};
+			});
+	}
+	// Phase identity marks the base file itself as wrong; a CRC the core does
+	// not match is input, since the file can be right and the window wrong.
+	if (error.ok() && Sha256Hex(base_hash.Final()) != disk.identity.base_media_id)
+		error = {ErrorCode::corrupt_data, "ATA disk image differs from its base identity", "identity"};
+	if (error.ok())
+		error = driver.CommitAtaDisk(disk.image.size / generated::FesComputerAtaDiskSectorBytes,
+			disk.image.cylinders, disk.image.heads, disk.image.sectors_per_track, crc ^ 0xffffffffu, deadline);
+	return error;
+}
+
+// Freeze; the dirty map; the dirty chunks read from the window and stored;
+// the merged manifest published; Saved. The disk stays frozen after a
+// failure until RestoreInput resumes it.
+Error NativeHardware::FlushAtaDiskSave()
+{
+	if (!ata_delta_file_ || ata_flushed_) return {};
+	auto* driver = active_driver_ == fes_gp_driver_ ? dynamic_cast<FesGpCoreDriver*>(fes_gp_driver_) : nullptr;
+	if (!driver || !driver->AtaDiskCapable() || !disk_window_)
+		return {ErrorCode::save_failed, "active ATA disk cannot be saved", "media_data"};
+	const std::uint64_t deadline = Deadline(clock_, timeouts_.media_io_ms);
+	std::vector<std::uint32_t> dirty;
+	Error error = driver->AtaDiskControl(generated::FesComputerDiskControlFreeze, deadline);
+	if (error.ok()) error = driver->ReadAtaDirty(deadline, &dirty);
+	constexpr std::uint32_t kChunk = generated::FesComputerAtaDiskChunkBytes;
+	std::vector<AtaDeltaChunk> changed;
+	for (std::uint32_t index : dirty) {
+		if (!error.ok()) break;
+		const std::uint32_t length = AtaDiskChunkLength(ata_size_, index);
+		if (!length) { error = {ErrorCode::save_failed, "dirty chunk past the ATA disk image", "media_data"}; break; }
+		std::string sha256;
+		error = disk_window_->Access(generated::FesComputerAtaDiskWindowOffset + std::uint64_t(index) * kChunk,
+			kChunk, [&](unsigned char* window) { return ata_delta_file_->WriteChunk(window, length, &sha256); });
+		if (error.ok()) changed.push_back({index, sha256});
+	}
+	AtaDiskDelta current;
+	if (error.ok()) error = ata_delta_file_->Read(&current);
+	if (error.ok() && !changed.empty())
+		error = ata_delta_file_->Publish(MergeAtaDelta(current, changed), current.revision, &ata_delta_);
+	if (error.ok()) error = driver->AtaDiskControl(generated::FesComputerDiskControlSaved, deadline);
+	if (!error.ok()) {
+		error.code = ErrorCode::save_failed;
+		return WithPhase(error, "media_data");
+	}
+	ata_flushed_ = true;
+	return {};
+}
+
+void NativeHardware::ForgetAtaDisk()
+{
+	ata_delta_file_.reset();
+	ata_delta_ = {};
+	ata_identity_ = {};
+	ata_size_ = 0;
+	ata_ready_ = false;
+	ata_flushed_ = false;
 }
 
 void NativeHardware::ForgetMediaData()
@@ -1504,6 +1720,7 @@ HardwareResult NativeHardware::LoadCoreInternal(
 	// Programming retired the former core's disk ownership. Its record remains,
 	// but only explicit insertion may bind the new core to that namespace.
 	ForgetMediaData();
+	ForgetAtaDisk();
 	menu_unsafe_=false;
 	admitted->driver_->BeginSession();
 	admitted->context_.generation = generation;
@@ -1548,11 +1765,38 @@ HardwareResult NativeHardware::LoadCoreInternal(
   if(!error.ok()){menu_unsafe_=true;return {error,true,identified.observed_core};}
  }
 	if (admitted->data_file_) {
-		error = admitted->driver_->RestoreData(admitted->context_,
-			{admitted->data_.paddle_speed, admitted->data_.best_rally},
+		const std::vector<std::uint16_t> words = admitted->data_.game_id.empty() ?
+			std::vector<std::uint16_t>{admitted->data_.paddle_speed, admitted->data_.best_rally} :
+			admitted->data_.words;
+		error = admitted->driver_->RestoreData(admitted->context_, words,
 			Deadline(clock_, timeouts_.core_io_ms));
 		if (!error.ok())
 			return {WithPhase(error, "core_data"), true, identified.observed_core};
+	}
+	if (auto* driver = fes_gp ? dynamic_cast<FesGpCoreDriver*>(admitted->driver_) : nullptr) {
+		// The machine's clock starts from the kit's local time at every launch.
+		std::tm local {};
+		if (driver->WallClockCapable()) {
+			error = clock_.LocalTime(&local) ? driver->SetWallClock(local,
+				Deadline(clock_, timeouts_.core_io_ms)) :
+				Error{ErrorCode::io_failed, "kit local time is unavailable", "transport"};
+			if (!error.ok()) return {error, true, identified.observed_core};
+		}
+	}
+	if (admitted->ata_disk_) {
+		auto* driver = dynamic_cast<FesGpCoreDriver*>(admitted->driver_);
+		if (!driver || !driver->AtaDiskCapable() || !disk_window_)
+			return {{ErrorCode::unsupported_interface, "ATA disk contract is unavailable", "input"},
+				true, identified.observed_core};
+		error = LoadAtaDisk(*driver, *admitted->ata_disk_);
+		log_.Write({"load_core", admitted->opened_.descriptor.core.system,
+			identified.observed_core, "ata_disk", error});
+		if (!error.ok()) return {WithPhase(error, "input"), true, identified.observed_core};
+		ata_delta_file_ = std::move(admitted->ata_disk_->file);
+		ata_identity_ = admitted->ata_disk_->identity;
+		ata_size_ = admitted->ata_disk_->image.size;
+		ata_ready_ = true;
+		admitted->ata_disk_.reset();
 	}
 	if (admitted->initial_media_) {
 		auto* driver = dynamic_cast<FesGpCoreDriver*>(admitted->driver_);
@@ -1607,7 +1851,9 @@ HardwareResult NativeHardware::LoadCoreInternal(
 		CoreDriverResult started = admitted->driver_->Start(admitted->context_,
 			Deadline(clock_, timeouts_.core_io_ms));
 		if (!started.error.ok()) return {WithPhase(std::move(started.error),
-			"transport"), true, identified.observed_core, media_data_file_ != nullptr};
+			"transport"), true, identified.observed_core,
+			(media_data_file_ != nullptr || ata_delta_file_ != nullptr) &&
+				started.execution_may_have_run};
   if(menu) {
    error=menu_display_->Enable(Deadline(clock_,timeouts_.core_io_ms));
    MenuDisplayInfo info;if(error.ok())error=menu_display_->ReadInfo(Deadline(clock_,timeouts_.core_io_ms),&info);
@@ -1791,6 +2037,7 @@ HardwareResult NativeHardware::LoadSplashIdle()
 			quiesce_mutation || programmed.mutation_attempted, ""};
 	}
  ForgetMediaData();
+ ForgetAtaDisk();
  menu_unsafe_=false;session_display_focused_=false;
  if(menu_status_.session)menu_status_={};else menu_status_.available=false;
 	const VideoResult video = idle_video_.BringUp(idle_recipe_,
@@ -1977,6 +2224,7 @@ HardwareResult NativeHardware::LoadContainedDevelopmentRBF(const std::string& rb
 	}
 
 	ForgetMediaData();
+	ForgetAtaDisk();
 	CoreDriver* driver = ResolveDriver(profile);
 	if (driver == nullptr)
 		return {{ErrorCode::unsupported_abi,

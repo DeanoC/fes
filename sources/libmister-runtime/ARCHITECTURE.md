@@ -362,6 +362,29 @@ against an independent reference endpoint. See
 [home-computer I/O](docs/computer-io.md) for the exact protocol shapes. This
 path has host software coverage only.
 
+The capability registry advertises `fes.computer` 1.0 and 1.1 as separate
+version entries, ordered by ID, major and minor. A package's exact version
+selects its matching entry. `fes.computer` 1.1 adds identity word 16,
+the 17th identity word, compared like word 7 against the registered bits
+16..31. Its `fes.persistence.words` registry has one layout,
+`fes.pc386.machine` 1.0: the driver moves its 72 words on opcodes 24..27 with
+the `fes.simple-game` freeze, begin and commit rules, and the record is keyed
+by core and library game under `<data_root>/games/`. `fes.rtc.wall-clock` 1.0
+takes the kit's local time from the hardware clock while held, after the
+record restore and before Start. `fes.media.ata-disk` 1.0 is written into
+the DDR window through short fes-window grants (`DiskWindow`) from the staged
+base image and the game's `fes.ata-disk.delta` chunks, committed with the CRC
+the core recomputes, and saved at Stop as content-addressed dirty chunks under
+a merged manifest. Host coverage only.
+
+Compatibility admission requires `fes.persistence.words` to pair with exactly
+one registered layout before programming, including volatile developer loads
+that omit a data root.
+
+An empty ATA unit does not remove the pc386 package's persistent core-data
+mode. Rejected insert/eject operations for that fixed unit leave the package's
+persistence mode unchanged.
+
 `fes.media.atari-st-floppy` 1.0 uses capability bit 7 and unit 0. Discovery
 and every insertion without the geometry extension require live minimum and maximum sizes of 737,280 bytes,
 with 512-byte chunks. A changed limit is rejected before MediaBegin. The same
@@ -444,17 +467,17 @@ uncertain durability and does not authorize removal.
 The shared `media-data-v1` fixture checks independent header, checksum,
 revision and namespace bytes.
 
-Stop, eject and replacement always Freeze/drain before capture, including when
-initial dirty flags are clear. Ordered snapshot chunks read committed disk RAM
-while CPU/video keep running. Publication precedes Saved; Saved authorizes the
-next destructive Begin/Eject while still frozen. There is no Resume gap before
-removal. `save_media` publishes a checkpoint and explicitly resumes. A save
-failure resumes the existing disk with its binding and generation; an
-unconfirmed Resume retains that ownership in reboot-required recovery. Failed
-ejects reobserve the live unit without replay: confirmed empty retires the
-binding, while ready retains it. Ambiguous failed replacement also compares a
-frozen capture with the saved old image before resuming its namespace; different
-or unresolved bytes require recovery.
+Stop and fault cleanup Freeze/drain the fixed ATA disk before capture, including
+when initial dirty flags are clear. Ordered snapshot chunks read committed disk
+RAM while CPU/video keep running. Publication precedes Saved; a failed capture
+keeps the disk frozen until the existing save-failure recovery resumes it.
+Publication rechecks each named chunk's length and content digest under the
+namespace lock before replacing the manifest.
+Insert, eject and explicit `save_media` reject the ATA unit while the computer
+runs. Status retains the disk's durable binding but reports `saveable:false`,
+so callers do not treat Stop-time persistence as a live checkpoint operation.
+Periodic checkpoints remain future work. Writable Atari ST media retains its
+separate eject/replacement and explicit checkpoint behavior.
 
 Successful FPGA programming retires the former disk binding, captured bytes
 and durable revision from memory. This includes Stop to the configured menu
@@ -467,10 +490,18 @@ programming failures keep the existing invalidation of unsafe active-core
 metadata.
 
 Bound-disk input faults revoke asynchronous input and capture/publish before
-idle programming. A failed capture or publication retains RAM, package,
+idle programming. A persistent `fes.computer` machine record (the pc386) is
+also captured on input fault, with its ATA unit bound, empty or undeclared;
+Pong progress keeps Stop as its only boundary. The fault save first realigns
+a mailbox the fault poisoned and reidentifies the core, as live media
+operations do. A failed capture or publication retains RAM, package,
 generation and binding in reboot-required recovery; it cannot program idle or
 replay the fault. `recover_idle` also refuses to destroy retained bound disk
-RAM. Startup and volatile fault cleanup do not publish a disk.
+RAM, but a retained machine record does not block it: after a diskless pc386
+fault whose record publish failed, `recover_idle` idles and the unsaved record
+is lost, as after a failed Stop. Startup and failed activation do not save the
+machine record; an ambiguous release with a bound disk still fault-saves that
+disk. Volatile fault cleanup publishes nothing.
 These paths have host test coverage;
 physical acceptance remains separate.
 
@@ -501,10 +532,16 @@ identity and data-info, before Start/input. Core driver methods `CaptureData`,
 The persistence interfaces keep base ABI and transport version 1.0 unchanged.
 
 `FlushSave` retains a complete host snapshot through publication failure.
-`RestoreInput` explicitly resumes GP before reopening the same generation;
-snapshots are invalidated only after input restoration succeeds. Unsafe resume
+`RestoreInput` resumes every flushed ATA disk and machine-data snapshot before
+reopening the same generation's host input. Persistent computer packages with
+no host input recipe still resume their machine-data snapshot. Snapshots are
+invalidated only after restoration succeeds. Unsafe resume
 retains persistent package/generation metadata in `reboot_required` and leaves
-the complete snapshot owned by native hardware. No fault/startup cleanup saves.
+the complete snapshot owned by native hardware. Successful Stop remains the
+normal durability boundary; a post-start input fault also saves a bound disk
+or a `fes.computer` machine record before idling. Startup and failed
+activation do not save the machine record; an ambiguous release with a bound
+disk still fault-saves that disk.
 Legacy cartridge `SaveFile`, SNES SRAM transport and `.srm` launch handling
 have been retired. Existing user save files are not deleted or migrated by
 this cleanup; described packages use their explicit persistence contracts.

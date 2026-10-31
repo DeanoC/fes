@@ -1027,7 +1027,7 @@ func (s *Service) DevelopmentSessionState(ctx context.Context) (bool, string, er
 func RecognizedPlayABI(id string, major, minor int64) bool {
 	switch id {
 	case "fes.computer":
-		return protocol.ComputerABI(id, major, minor)
+		return protocol.ComputerMediaABI(id, major, minor)
 	case "fes.simple-computer", "fes.simple-game", "fes.application":
 		return major == 1 && minor == 0
 	default:
@@ -2812,13 +2812,13 @@ func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration,
 		// Reuse discovery admission's existing Status. Legacy address-only
 		// Stop never acquires a new status dependency; a remembered package
 		// may be observed directly while lifecycle admission is held.
-		boundDisk := discoveryAdmission && s.TargetConnection().mediaDataBound
+		boundDisk := discoveryAdmission && s.TargetConnection().persistentMediaBound
 		saving, canSave := client.(interface {
 			StopWithMediaSave(context.Context) (protocol.Status, error)
 		})
 		if describedPackage && !discoveryAdmission {
 			observed, observeErr := client.Status(ctx)
-			boundDisk = observeErr == nil && protocol.MediaDataBound(observed.CorePackage)
+			boundDisk = observeErr == nil && protocol.PersistentMediaBound(observed.CorePackage)
 		}
 		if boundDisk {
 			if timeout < 150*time.Second {

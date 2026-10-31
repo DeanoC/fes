@@ -28,8 +28,57 @@ func AtariStFloppyWriteInterface() RuntimeContract {
 	return RuntimeContract{ID: generated.FesComputerInterfaceMediaAtariStFloppyWriteID, Major: generated.FesComputerInterfaceMediaAtariStFloppyWriteMajor, Minor: generated.FesComputerInterfaceMediaAtariStFloppyWriteMinor}
 }
 func MediaWriteCapable(p *CorePackageStatus) bool {
-	return activeComputer(p) && activeInterface(p, AtariStFloppyInterface()) && activeInterface(p, AtariStFloppyWriteInterface())
+	return p != nil && ComputerMediaABI(p.ABI.ID, int64(p.ABI.Major), int64(p.ABI.Minor)) &&
+		activeInterface(p, AtariStFloppyInterface()) && activeInterface(p, AtariStFloppyWriteInterface())
 }
+
+// PersistentMediaUnitCapable admits a durable binding only for the writable
+// ST floppy or the fixed ATA disk, whose binding cannot be checkpointed live.
+func PersistentMediaUnitCapable(p *CorePackageStatus, unit MediaUnitStatus) bool {
+	if !activeComputerMedia(p) || unit.Persistence == nil || !unit.Valid() || !activeInterface(p, unit.Interface) {
+		return false
+	}
+	switch unit.Interface {
+	case AtariStFloppyInterface():
+		return unit.Unit == AtariStFloppyUnit && MediaWriteCapable(p)
+	case AtaDiskInterface():
+		return ComputerAtaDiskABI(p.ABI.ID, int64(p.ABI.Major), int64(p.ABI.Minor)) && unit.Unit == AtaDiskUnit && !unit.CanSave()
+	default:
+		return false
+	}
+}
+
+// PersistentMediaBound reports any valid durable disk binding, including the
+// pc386 fixed disk. MediaDataBound remains the ST live-save predicate.
+func PersistentMediaBound(p *CorePackageStatus) bool {
+	if !activeComputerMedia(p) {
+		return false
+	}
+	for _, unit := range p.MediaUnits {
+		if PersistentMediaUnitCapable(p, unit) {
+			return true
+		}
+	}
+	return false
+}
+
+// PersistentMediaStatusValid accepts a bound persistent unit or the empty
+// fixed ATA unit reported before a library disk is loaded.
+func PersistentMediaStatusValid(p *CorePackageStatus) bool {
+	if !activeComputerMedia(p) {
+		return false
+	}
+	if PersistentMediaBound(p) {
+		return true
+	}
+	if !ComputerAtaDiskABI(p.ABI.ID, int64(p.ABI.Major), int64(p.ABI.Minor)) {
+		return false
+	}
+	unit, ok := MediaUnit(p, AtaDiskUnit)
+	return ok && unit.Interface == AtaDiskInterface() && !unit.CanSave() && unit.Persistence == nil &&
+		(unit.State == MediaUnitEmpty || unit.State == MediaUnitLoading)
+}
+
 func MediaDataBound(p *CorePackageStatus) bool {
 	if !MediaWriteCapable(p) {
 		return false
@@ -54,7 +103,7 @@ func (b MediaUnitBinding) MatchesForSave(s Status) bool {
 		return false
 	}
 	u, ok := MediaUnit(s.CorePackage, b.Unit)
-	return ok && u.State == MediaUnitReady && u.Persistence != nil && u.Persistence.Valid()
+	return ok && u.CanSave() && u.State == MediaUnitReady && u.Persistence != nil && u.Persistence.Valid()
 }
 
 // MatchesSaveResult requires a confirmed, error-free checkpoint for the same
@@ -101,6 +150,10 @@ func CloneMediaUnits(units []MediaUnitStatus) []MediaUnitStatus {
 	}
 	out := append([]MediaUnitStatus(nil), units...)
 	for i := range out {
+		if saveable := out[i].Saveable; saveable != nil {
+			copy := *saveable
+			out[i].Saveable = &copy
+		}
 		if p := out[i].Persistence; p != nil {
 			copy := *p
 			out[i].Persistence = &copy
