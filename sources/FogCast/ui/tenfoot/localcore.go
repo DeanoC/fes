@@ -508,10 +508,13 @@ func localCartridgeCore(system string) string {
 var errQueuedLaunchStopped = errors.New("queued launch stopped")
 
 // launchAfterWarm polls the read-only list while the agent warms its catalog,
-// then asks the agent to launch against the finished list. A queued launch
-// from a remembered tile still fails closed when the package is gone or
-// blocked. A stop request (F12, Guide, Select+Start) during catalog warm ends
-// the queue before any launch request is submitted.
+// then asks the agent to launch against the finished list. Any list error is
+// retried until the budget runs out: a rescan can time out the 3s list or
+// briefly drop the socket, and neither says the package is gone (#1317). A
+// queued launch from a remembered tile still fails closed when the launch
+// itself finds the package gone or blocked. A stop request (F12, Guide,
+// Select+Start) during catalog warm ends the queue before any launch request
+// is submitted.
 func (a *App) launchAfterWarm(client rooms.LocalCores, packageID string, gen uint64) (localcores.LaunchResult, error) {
 	deadline := time.Now().Add(localWarmLaunchBudget)
 	for {
@@ -531,9 +534,6 @@ func (a *App) launchAfterWarm(client rooms.LocalCores, packageID string, gen uin
 		if stopped {
 			return localcores.LaunchResult{}, errQueuedLaunchStopped
 		}
-		if err != nil && !errors.Is(err, localcores.ErrWarming) {
-			return localcores.LaunchResult{}, err
-		}
 		if err == nil {
 			a.mu.Lock()
 			stopped = a.localGen != gen || a.localStopAfterStart
@@ -547,7 +547,10 @@ func (a *App) launchAfterWarm(client rooms.LocalCores, packageID string, gen uin
 			}
 		}
 		if !time.Now().Before(deadline) {
-			return localcores.LaunchResult{}, localcores.ErrWarming
+			if err == nil {
+				err = localcores.ErrWarming
+			}
+			return localcores.LaunchResult{}, err
 		}
 		time.Sleep(localWarmLaunchEvery)
 	}
