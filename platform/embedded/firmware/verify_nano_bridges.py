@@ -52,12 +52,13 @@ def build(reference, output, run):
     flags = ["-std=c11", "-Wall", "-Wextra", "-Werror", "-fsanitize=undefined", "-fno-sanitize-recover=all", "-I" + str(HERE), "-I" + str(HERE / "tests")]
     run("nano-driver-compile", ["cc", *flags, "-c", source, "-o", output / "driver.o"])
     run("nano-service-compile", ["cc", *flags, "-c", HERE / "nano_bridges.c", "-o", output / "service.o"])
-    run("nano-driver-link", ["cc", *flags, output / "driver.o", output / "service.o", HERE / "tests/nano_bridge_driver_test.c", "-o", output / "driver-test"])
+    run("nano-boot-compile", ["cc", *flags, "-c", HERE / "nano_boot.c", "-o", output / "boot.o"])
+    run("nano-driver-link", ["cc", *flags, output / "driver.o", output / "service.o", output / "boot.o", HERE / "tests/nano_bridge_driver_test.c", "-o", output / "driver-test"])
     run("nano-driver-cases", [output / "driver-test"])
     return {"source_sha256": hashlib.sha256(raw).hexdigest(), "pinned_headers_sha256": headers,
             "driver_transformation_sha256": hashlib.sha256(patched.encode()).hexdigest(),
             "generated_driver_sha256": sha(source), "driver_object_sha256": sha(output / "driver.o"),
-            "service_object_sha256": sha(output / "service.o"), "cases": 18}
+            "service_object_sha256": sha(output / "service.o"), "boot_object_sha256": sha(output / "boot.o"), "cases": 18}
 
 
 def main():
@@ -69,7 +70,7 @@ def main():
     if ".." in output.parts or any(p.is_symlink() for p in (output, *output.parents)) or not output.is_relative_to(ROOT / "out") or output.exists():
         parser.error("output must be a fresh private directory beneath out/")
     output.mkdir()
-    files = [HERE / name for name in ("nano_bridges.c", "nano_bridges.h", "prepare_tfa.py", "verify.py", "verify_nano_bridges.py", "tests/terasic_reset_test.h", "nano_bridge_diag.inc", "nano_bridge_diag.h", "tests/nano_bridge_fixture.h", "tests/nano_bridge_fixture.inc", "tests/nano_bridge_driver_test.c")]
+    files = [HERE / name for name in ("nano_bridges.c", "nano_bridges.h", "nano_boot.c", "nano_boot.h", "prepare_tfa.py", "verify.py", "verify_nano_bridges.py", "tests/terasic_reset_test.h", "nano_bridge_diag.inc", "nano_bridge_diag.h", "tests/nano_bridge_fixture.h", "tests/nano_bridge_fixture.inc", "tests/nano_bridge_driver_test.c")]
     sources = {str(p.relative_to(ROOT)): sha(p) for p in files}
     commands = []
     def run(label, command):

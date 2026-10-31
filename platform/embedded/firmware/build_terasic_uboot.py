@@ -87,7 +87,11 @@ def main():
     parser.add_argument("--jobs", type=int, default=2)
     parser.add_argument("--native-entry-build", type=Path,
                         help="bind the dedicated serial-only Nano handoff to this entry image")
+    parser.add_argument("--network-recovery", action="store_true",
+                        help="separate vendor Ethernet/TFTP and SD-writing recovery loader; manual prompt only")
     args = parser.parse_args()
+    if args.network_recovery and args.native_entry_build is not None:
+        parser.error("network recovery and native handoff are separate boot profiles")
     repo = args.reference_repo.resolve()
     bl31_build = args.bl31_build.absolute()
     output = args.output.absolute()
@@ -136,6 +140,14 @@ def main():
     build.mkdir()
     (build / "bl31.bin").write_bytes(blob)
     native = None
+    recovery = None
+    recovery_hash = None
+    if args.network_recovery:
+        recovery_path = HERE.parent / "nano/recovery.py"
+        spec = importlib.util.spec_from_file_location("fes_nano_recovery", recovery_path)
+        recovery = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(recovery)
+        recovery_hash = sha(recovery_path)
     build_repo = repo
     if args.native_entry_build is not None:
         entry_build = args.native_entry_build.absolute()
@@ -157,6 +169,16 @@ def main():
             subprocess.run(argv, cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
     base = [make, "-C", build_repo, "O=" + str(build), "CROSS_COMPILE=" + args.cross_prefix]
     run("defconfig", [*base, "socfpga_agilex5_de25_nano_defconfig"])
+    if recovery is not None:
+        configure = [build_repo / "scripts/config", "--file", build / ".config"]
+        for name in recovery.DISABLE:
+            run("recovery-disable-" + name, [*configure, "-d", name])
+        for name in recovery.ENABLE:
+            run("recovery-enable-" + name, [*configure, "-e", name])
+        run("recovery-bootcmd", [*configure, "--set-str", "BOOTCOMMAND", ""])
+        run("recovery-bootdelay", [*configure, "--set-val", "BOOTDELAY", "-1"])
+        run("recovery-localversion", [*configure, "--set-str", "LOCALVERSION", "-fes-nano-recovery"])
+        run("recovery-olddefconfig", [*base, "olddefconfig"])
     if native is not None:
         configure = [build_repo / "scripts/config", "--file", build / ".config"]
         for name in nano_prepare.DISABLE:
@@ -168,6 +190,8 @@ def main():
         run("config-localversion", [*configure, "--set-str", "LOCALVERSION", "-fes-nano-" + native["build_id"]])
         run("olddefconfig", [*base, "olddefconfig"])
     config = (build / ".config").read_text()
+    if recovery is not None:
+        recovery.check(config)
     if ("CONFIG_SPL_ATF=y\n" not in config or "CONFIG_CMD_ELF=y\n" not in config or
             "# CONFIG_ARMV8_SWITCH_TO_EL1 is not set\n" not in config):
         raise ValueError("unexpected vendor bootloader configuration")
@@ -246,6 +270,18 @@ def main():
         report["limitations"] = ["live memory/CPU/peripheral gate has not been executed on a Nano",
                                  "requires this exact SPL paired to FPGA SOF and this exact FIT on test media",
                                  "source-derived serial probe only; no native SD, USB, network, display or programming"]
+    if recovery is not None:
+        if sha(recovery_path) != recovery_hash:
+            raise ValueError("recovery profile changed during compilation")
+        report["classification"] = "off-board Nano Ethernet/SD-writing recovery U-Boot; no native handoff or board acceptance"
+        report["network_recovery"] = {"profile_sha256": recovery_hash, "manual_prompt": True,
+                                       "automatic_writes": False, "random_mac": False,
+                                       "sd_dma": False, "native_handoff": False}
+        report["config_sha256"] = sha(build / ".config")
+        report["limitations"] = ["requires matching SPL/SOF and explicit test-card preparation",
+                                  "Ethernet PHY/link, supplied stable MAC and SD writes remain untested on Nano",
+                                  "SD writes are manual U-Boot commands; no atomic update/rollback implementation",
+                                  "JTAG can recover a loader; no direct JTAG SD block writer is supplied"]
     (output / "result.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
     print("Built experimental FIT:", fit)
 

@@ -52,7 +52,7 @@ def reset_source(data):
 
 
 def inputs():
-    return [HERE / name for name in ("prepare_nano_owned.py", "verify.py", "nano_bridges.c", "nano_bridges.h", "nano_bridge_sip.c", "nano_bridge_sip.h", "nano_bridge_platform.h", "nano_bridge_platform.inc", "nano_owned_sip.inc", "generated/fes_embedded_bridges.h")]
+    return [HERE / name for name in ("prepare_nano_owned.py", "verify.py", "nano_bridges.c", "nano_bridges.h", "nano_boot.c", "nano_boot.h", "nano_bridge_sip.c", "nano_bridge_sip.h", "nano_bridge_platform.h", "nano_bridge_platform.inc", "nano_owned_sip.inc", "generated/fes_embedded_bridges.h")]
 
 
 def install(source):
@@ -62,14 +62,14 @@ def install(source):
     service.write_bytes(service_source(original))
     reset.write_bytes(reset_source(raw))
     include = source / "plat/intel/soc/common/include"
-    for name in ("nano_bridges.h", "nano_bridge_sip.h", "nano_bridge_platform.h"):
+    for name in ("nano_bridges.h", "nano_bridge_sip.h", "nano_bridge_platform.h", "nano_boot.h"):
         (include / name).write_bytes((HERE / name).read_bytes())
     (include / "generated").mkdir(exist_ok=True)
     (include / "generated/fes_embedded_bridges.h").write_bytes((HERE / "generated/fes_embedded_bridges.h").read_bytes())
-    for name in ("nano_bridges.c", "nano_bridge_sip.c"):
+    for name in ("nano_bridges.c", "nano_bridge_sip.c", "nano_boot.c"):
         (source / "plat/intel/soc/common" / name).write_bytes((HERE / name).read_bytes())
     mk = source / MAKEFILE
-    mk.write_text(mk.read_text() + "\nBL31_SOURCES += plat/intel/soc/common/nano_bridges.c plat/intel/soc/common/nano_bridge_sip.c\n")
+    mk.write_text(mk.read_text() + "\nBL31_SOURCES += plat/intel/soc/common/nano_bridges.c plat/intel/soc/common/nano_bridge_sip.c plat/intel/soc/common/nano_boot.c\n")
     setup = source / SETUP
     text = setup.read_text()
     marker = "\tsocfpga_delay_timer_init();\n"

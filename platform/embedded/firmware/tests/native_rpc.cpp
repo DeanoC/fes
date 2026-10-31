@@ -83,7 +83,7 @@ int main() {
 #ifdef FES_TEST_NANO_BRIDGES
             } else if (op=="bridge-boot") {
                 in >> std::hex >> x >> y >> z;
-                int status=fes_nano_fixture_boot(x,y,z);
+                int status=fes_nano_fixture_boot_handoff(x,y,z);
                 if (!status) {world.held=(x&13U)==13U;world.control=(x&2U)==0;}
                 std::cout << "R " << (status==0) << std::endl;
             } else if (op=="bridge-fault") {

@@ -81,7 +81,7 @@ def main():
         reference = args.reset_reference or args.reference.parent / "soc/socfpga_reset_manager.c"
         nano = verify_nano_bridges.build(reference.absolute(), output / "nano-driver", run)
         engine, binding = verify_owned_sip.build(args.reference.absolute(), firmware_out / "tfa_subset.c", output, run)
-        objects = engine + [output / "nano-driver/driver.o", output / "nano-driver/service.o"]
+        objects = engine + [output / "nano-driver/driver.o", output / "nano-driver/service.o", output / "nano-driver/boot.o"]
         nano["owned_sip"] = binding
 
     rpc_dir = output / "rpc"

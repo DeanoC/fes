@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: BSD-3-Clause */
 /* Compiled with actual pinned vendor functions by verify_nano_bridges.py. */
 #include "nano_bridge_fixture.h"
+#include "nano_boot.h"
 #include <assert.h>
 
 static struct {
@@ -101,6 +102,39 @@ int fes_nano_fixture_boot(unsigned reset, unsigned cold, unsigned fabric)
     fes_nano_fixture_service = (struct fes_nano_bridges){0}; /* simulated reboot */
     struct fes_nano_bridge_ops ops = {0, owns, read_reset, masters, stop, disable, enable};
     return fes_nano_bridges_init(&fes_nano_fixture_service, ops, 17, 3, fabric, cold);
+}
+static struct fes_nano_boot boot_handoff;
+static int quiesce_all(void *context, uint32_t mask)
+{ assert(mask == FES_NANO_PRODUCERS_ALL); return stop(context); }
+static int quiescent_all(void *context, uint32_t *mask)
+{ (void)context; *mask = registers.masters ? FES_NANO_PRODUCERS_ALL : 0; return 0; }
+static int per0(void *context, uint32_t *value)
+{ (void)context; *value = registers.masters ? FES_NANO_MASTER_RESET : 0; return 0; }
+static int per0_assert(void *context, uint32_t mask)
+{ (void)context; (void)mask; return registers.masters ? 0 : -1; }
+static void barrier(void *context) { (void)context; }
+static void wait_master(void *context) { (void)context; }
+int fes_nano_fixture_boot_handoff(unsigned reset, unsigned cold, unsigned fabric)
+{
+    /* This is the host's simulated secure boot entry, never a SiP operation.
+     * Register/reset details are modeled; standalone boot tests exercise the
+     * independent quiescence and reset-write ordering in detail. */
+    int status = fes_nano_fixture_boot(reset, cold, fabric);
+    if (status) return status;
+    fes_nano_fixture_service = (struct fes_nano_bridges){0};
+    boot_handoff = (struct fes_nano_boot){0};
+    struct fes_nano_boot_record record = {0};
+    struct fes_nano_boot_policy policy = {0};
+    record.magic = FES_NANO_BOOT_MAGIC; record.version = FES_NANO_BOOT_VERSION;
+    record.size = sizeof(record); record.owner = 17; record.epoch = 3;
+    record.chain[0] = policy.chain[0] = 0x42;
+    record.history = policy.history = cold ? FES_NANO_BOOT_NEVER_ENABLED : FES_NANO_BOOT_ACTIVE;
+    record.fabric = policy.fabric = fabric;
+    record.producers = policy.producers = FES_NANO_PRODUCERS_ALL;
+    policy.qualifications = FES_NANO_BOOT_QUALIFIED;
+    struct fes_nano_master_ops m = {0, owns, quiesce_all, quiescent_all, per0, per0_assert, barrier, wait_master};
+    struct fes_nano_bridge_ops raw = {0, 0, read_reset, 0, 0, disable, enable};
+    return fes_nano_boot_accept(&boot_handoff, &fes_nano_fixture_service, &record, &policy, m, raw);
 }
 void fes_nano_fixture_fault(unsigned fault)
 {

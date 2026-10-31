@@ -1,9 +1,11 @@
 /* SPDX-License-Identifier: BSD-3-Clause */
 /* Included after the pinned raw driver in the reset-manager translation unit. */
 #include <lib/spinlock.h>
+#include <arch_helpers.h>
 #include "nano_bridge_platform.h"
 
 struct fes_nano_bridges fes_nano_owned_bridges;
+static struct fes_nano_boot fes_nano_owned_boot;
 static spinlock_t fes_nano_owned_lock;
 void fes_nano_bridge_platform_lock(void) { spin_lock(&fes_nano_owned_lock); }
 void fes_nano_bridge_platform_unlock(void) { spin_unlock(&fes_nano_owned_lock); }
@@ -11,6 +13,7 @@ void fes_nano_bridge_platform_invalidate(void)
 {
     fes_nano_bridge_platform_lock();
     fes_nano_owned_bridges.failed = 1;
+    fes_nano_boot_invalidate(&fes_nano_owned_boot);
     fes_nano_bridge_platform_unlock();
 }
 
@@ -37,25 +40,49 @@ static int fes_nano_owned_disable(void *context, uint32_t mask, unsigned fabric)
     fes_nano_bridge_diag_reset();
     return fes_nano_raw_disable(mask);
 }
-int fes_nano_bridge_platform_bind(struct fes_nano_bridge_ops ops, uint64_t owner,
-                                 uint64_t epoch, unsigned fabric, unsigned never_enabled)
+static int fes_nano_owned_per0(void *context, uint32_t *value)
+{ (void)context; *value = mmio_read_32(SOCFPGA_RSTMGR(PER0MODRST)); return 0; }
+static int fes_nano_owned_assert(void *context, uint32_t mask)
+{ (void)context; mmio_setbits_32(SOCFPGA_RSTMGR(PER0MODRST), mask); return 0; }
+static void fes_nano_owned_barrier(void *context) { (void)context; dsbsy(); }
+static void fes_nano_owned_wait(void *context) { (void)context; udelay(10); }
+
+int fes_nano_bridge_platform_handoff(const struct fes_nano_boot_record *record,
+                                     const struct fes_nano_boot_policy *policy, struct fes_nano_master_ops masters)
 {
     int result;
-    ops.read_reset = fes_nano_owned_reset;
-    ops.enable = fes_nano_owned_enable;
-    ops.disable = fes_nano_owned_disable;
+    struct fes_nano_bridge_ops raw = {0};
+    raw.read_reset = fes_nano_owned_reset;
+    raw.enable = fes_nano_owned_enable;
+    raw.disable = fes_nano_owned_disable;
+    masters.read_per0 = fes_nano_owned_per0;
+    masters.assert_per0 = fes_nano_owned_assert;
+    masters.barrier = fes_nano_owned_barrier;
+    masters.wait = fes_nano_owned_wait;
     fes_nano_bridge_platform_lock();
-    result = fes_nano_bridges_init(&fes_nano_owned_bridges, ops, owner, epoch, fabric, never_enabled);
+    result = fes_nano_boot_accept(&fes_nano_owned_boot, &fes_nano_owned_bridges, record, policy, masters, raw);
     fes_nano_bridge_platform_unlock();
     return result;
 }
+__attribute__((weak)) int fes_nano_platform_boot_record(struct fes_nano_boot_record *record,
+                    struct fes_nano_boot_policy *policy, struct fes_nano_master_ops *masters)
+{
+    /* Replaced only by reviewed secure board code. Reset bits and an NS
+     * descriptor cannot fill the SPL/Boot ROM history and master-drain gaps. */
+    (void)record; (void)policy; (void)masters;
+    return 0;
+}
 void fes_nano_bridge_platform_setup(void)
 {
-    /* A reset snapshot is not a trusted never-enabled history. No callback
-     * set is qualified for the pinned SPL/Boot ROM boundary yet. Keep the
-     * service uninitialized and expose the explicit NOT_READY reply. */
-    NOTICE("FES_NANO_OWNED_BOOT proof=unavailable reset=%08x\n",
-           mmio_read_32(SOCFPGA_RSTMGR(BRGMODRST)));
+    struct fes_nano_boot_record record = {0};
+    struct fes_nano_boot_policy policy = {0};
+    struct fes_nano_master_ops masters = {0};
+    int available = fes_nano_platform_boot_record(&record, &policy, &masters);
+    int result = -1;
+    if (available == 1) result = fes_nano_bridge_platform_handoff(&record, &policy, masters);
+    else if (available != 0) fes_nano_bridge_platform_invalidate();
+    NOTICE("FES_NANO_OWNED_BOOT provider=%d result=%d reset=%08x\n",
+           available, result, mmio_read_32(SOCFPGA_RSTMGR(BRGMODRST)));
 }
 
 /* Legacy and alternate SiP callers cannot bypass the owned channel. The

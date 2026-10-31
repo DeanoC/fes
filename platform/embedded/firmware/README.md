@@ -167,14 +167,36 @@ python3 platform/embedded/firmware/build_terasic.py \
   --nano-owned-bridges --output out/fresh-owned-bl31
 ```
 
-This builds a controlled BL31 component, not a bootable candidate. Its setup
-only reads and logs reset state. It deliberately leaves the service
-uninitialized: Snapshot returns the recognized `NOT_READY` reply until trusted
-secure boot code calls `fes_nano_bridge_platform_bind` with qualified callbacks
-and proof. Non-secure callers cannot initialize it. The pinned HPS-first path
+This builds a controlled BL31 component, not a bootable candidate. Its default
+secure provider supplies no evidence, so Snapshot returns the recognized
+`NOT_READY` reply. Reviewed secure boot code can provide a record, independent
+qualified platform policy and complete producer callbacks through
+`fes_nano_platform_boot_record`; `fes_nano_bridge_platform_handoff` consumes
+that evidence once. Non-secure callers cannot initialize it. The pinned HPS-first path
 does not establish the required never-enabled history or whole-board master
 containment. Closed reset bits alone cannot supply that proof. The host tests
 inject trusted initialization; the real build does not.
+
+`nano_boot.c` validates the record's chain identity, owner, epoch, exact version
+and complete producer inventory against independent secure policy. The record
+cannot grant its own qualification. Unknown/partial initial state, missing
+qualification and failed/replayed handoffs reject. Consumed inputs are copied;
+later caller mutation cannot change the authority. This is a secure C interface,
+not a signed boot attestation or a new SiP initialization command.
+
+Its master-stop callbacks first stop new requests and require an independent
+drained-producer bitmap for all HPS masters, other CPUs and fabric producers.
+Only then do they assert functional resets followed by OCP resets and check
+fresh readback. The installed TF-A adapter supplies the real PER0 register
+operations, barriers and bounded delays. Board-specific ownership, quiesce and
+drain observation remain unqualified; no default fabric/master proof exists.
+Control-only access may arm a new reader while data bridges remain held; an
+active close instead needs a fresh producer-stop receipt. Ownership loss,
+timeouts, restarted producers and readback failures retire the provider.
+HPS peripheral resets stay held: this provider targets the serial-only native
+probe. Qualified per-device resume is still required for native USB/SD/network
+operation after programming. The separate recovery loader does not select it.
+See the [handoff and recovery validation](../../../docs/validation/2026-10-31-de25-trusted-handoff/README.md).
 
 Build receipts distinguish `strict` from `owned-unready` mode. The U-Boot/card
 packaging gate requires explicit `strict` mode and rejects this unready variant.

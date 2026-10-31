@@ -1,5 +1,11 @@
 # Nano serial probe boot chain
 
+The separate [secure handoff and network recovery prototype](../../../docs/validation/2026-10-31-de25-trusted-handoff/README.md)
+adds a recovery loader with Ethernet/TFTP and SD writing at a manual prompt.
+It prepares a regular-file test-card image and matching recovery SOF; its
+Ethernet and SD-writing paths still require a bounded Nano trial. This keeps
+recovery independent of the owned native firmware's unqualified boot proof.
+
 The [first TRWU8CBL trial](../../../docs/validation/2026-10-31-de25-nano-serial-test/README.md)
 booted the matched chain but stopped at the bridge service/readback gate;
 native execution remains pending. Factory Linux was restored without a power cycle.
