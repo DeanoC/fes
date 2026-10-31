@@ -946,7 +946,8 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 	}
 	if (descriptor.abi.id == FesComputerABIID &&
 		descriptor.abi.major == FesComputerABIMajor) {
-		if (descriptor.abi.minor > FesComputerABIMinor || !descriptor.core.system.empty())
+		// The driver reads the ABI 1.0 identity, words 0..15.
+		if (descriptor.abi.minor > 0 || !descriptor.core.system.empty())
 			return CompatibilityError(ErrorCode::unsupported_abi,
 				"unsupported FES computer ABI or system declaration");
 		// Execution is released right after identity: there is no media gate

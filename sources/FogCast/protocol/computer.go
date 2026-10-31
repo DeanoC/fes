@@ -219,7 +219,7 @@ func AdmitAtariStFloppySize(size int64) bool {
 
 // ComputerABI reports the exact fes.computer 1.0 contract.
 func ComputerABI(id string, major, minor int64) bool {
-	return id == ComputerABIID && major == int64(generated.FesComputerABIMajor) && minor == int64(generated.FesComputerABIMinor)
+	return id == ComputerABIID && major == int64(generated.FesComputerABIMajor) && minor == 0
 }
 
 func activeComputer(p *CorePackageStatus) bool {

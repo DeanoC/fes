@@ -103,6 +103,13 @@ Required `fes.media.atari-st-floppy-geometry` 1.0 adds capability 10 for bounded
 Legacy 720 KiB behavior and durable record bytes remain unchanged; nonlegacy
 saved records use layout 1.1. See [computer I/O](docs/computer-io.md).
 
+`fes.computer` 1.1 adds identity word 16 for capability bits 16..31 and the
+pc386 contracts on them: the `fes.media.ata-disk` hard disk that the runtime
+writes into the DDR window, `fes.persistence.words` with the
+`fes.pc386.machine` layout keyed per library game, the `fes.rtc.wall-clock`
+seed, and the `fes.ata-disk.delta` chunk record in [media data](docs/media-data.md).
+1.0 endpoints and manifests are unchanged. See [computer I/O](docs/computer-io.md).
+
 [PC/XT ISA fabric](docs/pcxt-isa.md) defines the internal byte-transaction
 prepare/commit boundary for PC/XT expansion development. Its generated Verilog
 consumer adds no GP capability, physical layout or activation support.

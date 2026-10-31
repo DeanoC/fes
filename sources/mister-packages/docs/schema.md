@@ -467,6 +467,13 @@ read and resume, including invalid requests. It leaves the original volatile
 `python3 scripts/core_persistence_fixtures.py`, or use `--check` to compare.
 These fixtures establish byte contracts, not hardware acceptance.
 
+`fes.computer` 1.1 registers `fes.persistence.words` 1.0 (bit 17) with the
+same semantics on opcodes 24..27 and one layout, `fes.pc386.machine` 1.0
+(bit 19, tag 3, 72 words). Its record is keyed by core ID and library game
+ID: the `FESGAME1` envelope in [computer I/O](computer-io.md#persistence-words).
+`testdata/core-persistence-v1/pc386-machine.json` holds its valid and
+rejected vectors, from the same script.
+
 Application menu display `fes.video.menu-display` 1.0 uses capability bit 9
 and opcodes 18–21. It is an additive required-when-present interface; no
 manifest schema or ABI-major change is needed. Fixed geometry, bounded slot
