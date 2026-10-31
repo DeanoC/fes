@@ -60,6 +60,10 @@ normal platform admission. Software deadlines cannot interrupt a stalled
 configfs close, secure call or shared-service mutex. Physical failure fencing
 and allocated-DMA qualification remain separate open gates.
 
+The [2026-10-31 physical programmer diagnostic](../../docs/validation/2026-10-31-de25-runtime-programmer/README.md)
+records two known-core loads and BASIC7 at the selected C++/kernel bytes. It
+does not admit the production factory or qualify failure/DMA recovery.
+
 ## DE25 PR-control diagnostic
 
 `De25PrControl` is a separate internal diagnostic protocol consumer. Its caller

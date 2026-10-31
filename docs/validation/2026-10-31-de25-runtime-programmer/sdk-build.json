@@ -1,0 +1,13 @@
+{
+  "compiler": "aarch64-buildroot-linux-gnu-g++.br_real (Buildroot 2021.02.4) 9.4.0",
+  "sdk_sha256": "7912076c08d93c8d8c28c0ef81bd406abf6b1acb9e01ccac37d44307e39759a7",
+  "classification": "AArch64 static archive/daemon and source-bound physical harness; QEMU filesystem tests",
+  "source_revision": "1a3e2b86086733d39b0a5311600b1f3ec9c6e098",
+  "files": {
+    "board-adapter": "5003019ada7a418e41c67e30ef8cf472881ef6a5814cf5db47132a38bbeaa13c",
+    "board-adapter.cpp": "04e8a6b791be9efa46ec7e14367b7a2ce100f9158d4de7c067ae42fe8fc44301",
+    "native/libmister-runtime.a": "7b29c1477278a64ed3f762857c3790ee1cb1381b257278e3183d1168c29a3a03",
+    "native/mister-runtime": "1addd2999e5684811b8c921872fd3b35cbc501e7131c5f7b2ca5a301831f0020",
+    "native/tests/unit/de25_fpga_manager_test": "e52877d55971e31eea362f1120868f650bad1d6163cf29e3586e1766ba232323"
+  }
+}

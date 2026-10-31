@@ -507,3 +507,7 @@ The HIL planner reports `FULL_IMAGE` with component `de25-nano-linux` for
 `image/de25-nano/` changes. That identifies this DE25 image's boot check; it does
 not select a DE10 kit software bundle or establish acceptance of the default
 FES image.
+
+The [runtime programmer diagnostic](validation/2026-10-31-de25-runtime-programmer/README.md)
+records actual kernel-backed C++ programming and BASIC7 on the owner kernel.
+Production core-driver/catalog/MENU integration and physical recovery gates remain open.
