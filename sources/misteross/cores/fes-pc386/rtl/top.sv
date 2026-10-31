@@ -5,13 +5,13 @@
 `define FES_PC386_BUILD_ID 128'h00000000000000000000000000000000
 `endif
 
-// DE10-Nano shell of the pc386 M4 diagnostic package (fes.computer 1.0;
-// docs/pc386-machine-design.md, phase M4). The mailbox carries identity,
-// execution and the session-display plane. The machine runs at SYSTEM_CLOCK
-// with pc386_bus_master in the CPU's place, taking its commands from a ring in
-// the DDR window (pc386_bus_master.sv). All three HPS DDR ports are in the
-// system clock. 720p60 HDMI comes from the presenter through the plane; the
-// mixer's 48 kHz samples leave through I2S.
+// DE10-Nano shell of the pc386 package (fes.computer 1.1;
+// docs/pc386-machine-design.md, phase M5). pc386_system holds the mailbox,
+// the machine and fes_i386_cpu, all at SYSTEM_CLOCK: identity, execution, the
+// session-display plane, the ATA disk the runtime writes into the DDR window,
+// the fes.pc386.machine record and the wall clock. Its ddr_hold holds every
+// HPS DDR port, which are all in the system clock. 720p60 HDMI comes from the
+// presenter through the plane; the mixer's 48 kHz samples leave through I2S.
 module top #(
     parameter [127:0] BUILD_ID = `FES_PC386_BUILD_ID,
     parameter SYSTEM_CLOCK = "61.44 MHz",
@@ -24,8 +24,7 @@ module top #(
     parameter integer DOT1_N = 14161, DOT1_D = 30720,
     parameter integer OPL2_N = 875, OPL2_D = 1081344,
     parameter integer AUDIO_N = 1, AUDIO_D = 1280,
-    parameter integer ATA_RESET_CLOCKS = 615,
-    parameter integer TIMEOUT_CLOCKS = 6_144_000
+    parameter integer ATA_RESET_CLOCKS = 615
 ) (
     input  wire        FPGA_CLK1_50,
     output wire        HDMI_TX_CLK,
@@ -65,28 +64,7 @@ module top #(
     );
 `endif
 
-    wire exec_reset;
-    wire display_request, display_response_valid, display_response_error, display_quiesced;
-    wire [6:0] display_opcode;
-    wire [7:0] display_index;
-    wire [15:0] display_argument, display_response_data;
-    /* verilator lint_off PINCONNECTEMPTY */
-    fes_computer_mailbox_core #(.ENABLE_AUDIO(1), .ENABLE_SESSION_DISPLAY(1)) gp_mailbox (
-        .clk(clk_sys), .gpo(hps_to_fpga), .build_id(BUILD_ID), .gpi(fpga_to_hps),
-        .exec_reset(exec_reset), .keyboard_rows(), .controller_buttons(),
-        .mouse_valid(), .mouse_dx(), .mouse_dy(), .mouse_buttons(), .mouse_ready(1'b0),
-        .media_write_addr(), .media_write_data(), .media_write_enable(), .media_write_unit(),
-        .media_write_ready(1'b0), .media_write_busy(1'b0), .media_changed(1'b0), .media_frozen(),
-        .media_read_req(), .media_read_addr(), .media_read_ready(1'b0), .media_read_data(8'd0),
-        .save_ready(1'b0), .save_busy(1'b0), .save_size(15'd0),
-        .unit0_state(), .unit0_size(), .unit1_state(), .unit1_size(),
-        .display_request(display_request), .display_opcode(display_opcode),
-        .display_index(display_index), .display_argument(display_argument),
-        .display_response_valid(display_response_valid), .display_response_error(display_response_error),
-        .display_response_data(display_response_data), .display_quiesced(display_quiesced)
-    );
-    /* verilator lint_on PINCONNECTEMPTY */
-
+    wire exec_reset, ddr_hold;
     wire p0_reset, p0_drained, p0_read, p0_write, p0_waitrequest, p0_readdatavalid;
     wire [27:0] p0_address;
     wire [7:0] p0_burstcount;
@@ -105,23 +83,22 @@ module top #(
     // The Quartus seal reads the machine as the netlist Yosys elaborates with
     // these rates (scripts/build_fes_pc386_quartus.py), so there it takes no
     // parameters.
-    pc386_diag
+    pc386_system
 `ifndef QUARTUS
     #(
         .ISA_N(ISA_N), .ISA_D(ISA_D), .PIT_N(PIT_N), .PIT_D(PIT_D), .RTC_N(RTC_N), .RTC_D(RTC_D),
         .US_N(US_N), .US_D(US_D), .DMA_N(DMA_N), .DMA_D(DMA_D), .DOT0_N(DOT0_N), .DOT0_D(DOT0_D),
         .DOT1_N(DOT1_N), .DOT1_D(DOT1_D), .OPL2_N(OPL2_N), .OPL2_D(OPL2_D),
-        .AUDIO_N(AUDIO_N), .AUDIO_D(AUDIO_D), .ATA_RESET_CLOCKS(ATA_RESET_CLOCKS),
-        .TIMEOUT_CLOCKS(TIMEOUT_CLOCKS)
+        .AUDIO_N(AUDIO_N), .AUDIO_D(AUDIO_D), .ATA_RESET_CLOCKS(ATA_RESET_CLOCKS)
     )
 `endif
-    diag (
+    /* verilator lint_off PINCONNECTEMPTY */
+    system (
         .clk(clk_sys), .pixel_clk(pixel_clk), .pixel_locked(pixel_locked),
+        .gpo(hps_to_fpga), .build_id(BUILD_ID), .gpi(fpga_to_hps),
+        .exec_reset(exec_reset), .ddr_hold(ddr_hold),
         .p0_reset(p0_reset), .p1_reset(p1_reset), .p2_reset(p2_reset),
-        .display_request(display_request), .display_opcode(display_opcode), .display_index(display_index),
-        .display_argument(display_argument), .display_response_valid(display_response_valid),
-        .display_response_error(display_response_error), .display_response_data(display_response_data),
-        .display_quiesced(display_quiesced), .video(video), .sample(sample),
+        .video(video), .sample(sample), .status(), .debug_valid(), .debug_byte(),
         .p0_address(p0_address), .p0_burstcount(p0_burstcount), .p0_read(p0_read), .p0_write(p0_write),
         .p0_writedata(p0_writedata), .p0_byteenable(p0_byteenable), .p0_waitrequest(p0_waitrequest),
         .p0_readdata(p0_readdata), .p0_readdatavalid(p0_readdatavalid),
@@ -132,9 +109,10 @@ module top #(
         .p2_writedata(p2_writedata), .p2_byteenable(p2_byteenable), .p2_waitrequest(p2_waitrequest),
         .p2_readdata(p2_readdata), .p2_readdatavalid(p2_readdatavalid)
     );
+    /* verilator lint_on PINCONNECTEMPTY */
 
     fes_hps_ddr memory (
-        .hold(exec_reset),
+        .hold(ddr_hold),
         .p0_clk(clk_sys), .p0_reset(p0_reset), .p0_drained(p0_drained),
         .p0_address(p0_address), .p0_burstcount(p0_burstcount),
         .p0_waitrequest(p0_waitrequest), .p0_readdata(p0_readdata),

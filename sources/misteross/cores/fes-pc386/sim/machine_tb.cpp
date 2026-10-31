@@ -144,6 +144,7 @@ public:
         std::memcpy(rom_vga.data(), vgabios.data(), vgabios.size());
         geometry();
         top.reset = 1;
+        top.port2_reset = 1;
         top.pixel_locked = 0;
         top.disk_present = 1;
         top.disk_sectors = uint32_t(image.size() / 512);
@@ -156,6 +157,7 @@ public:
         top.sb_base_high = 0x22; top.sb_irq = 7; top.sb_dma = 1;
         for (int n = 0; n < 4; ++n) clock();
         top.reset = 0;
+        top.port2_reset = 0;
         // Let the CMOS configuration land before the CPU leaves reset.
         while (top.cmos_busy) clock();
         // Seed the wall clock: 2026-10-26 12:00:00, a Monday.

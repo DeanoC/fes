@@ -1,0 +1,61 @@
+{
+ "kit": "B",
+ "run": "m5k1",
+ "package": "538773ad935d95a3541b8c0c8ea41da9a6eb51882944d0d56be6519b7dce0763",
+ "disk": "freedos.img (FreeDOS 1.4 fixture, sha256 b9d365498e7a158f...)",
+ "load_seconds": 5.88,
+ "boot": {
+  "exit": 0,
+  "seconds": 3.65
+ },
+ "stop": {
+  "state": "idle"
+ },
+ "after": {
+  "agent": "idle",
+  "lease": "revoking"
+ },
+ "host_lines": [
+  "ATTACH 8 004a311b",
+  "CONFIG 679168",
+  "POST 00 680737",
+  "DEBUG BIOS BUILD DATE: 10/26/26",
+  "POST 31 711820",
+  "POST 41 715383",
+  "POST 77 716673",
+  "DEBUG VGABios ID: vgabios.c 2026-08-07",
+  "DEBUG ata0-0: PCHS=65/16/63 translation=none LCHS=65/16/63",
+  "DEBUG IDE time out",
+  "DEBUG Booting from 0000:7c00",
+  "PROMPT 3212637",
+  "STATUS running=1 debug_bytes=148 debug_drops=0 halted=0 stopped=0 a20m=0 intr=0 post=77 cpu_resets=0 retired=45710361 cs=f000 vector=08 eip=0000e857 frames_shown=155 scanout_underflows=0 capture_drops=0 present_underflows=0 plane_underflows=0 samples=124110 dma_cycles=0 opl2_samples=128547",
+  "END prompt seconds=3.265"
+ ],
+ "screen": [
+  " . https://bochs.sourceforge.io                                                 ",
+  " . https://www.nongnu.org/vgabios                                               ",
+  "                                                                                ",
+  "Bochs 3.1 BIOS - build: 10/26/26                                                ",
+  "Options: eltorito                                                               ",
+  "                                                                                ",
+  "ata0 master: FES pc386 ATA disk ATA-4 Hard-Disk (  31 MBytes)                   ",
+  "ata0  slave: Unknown device                                                     ",
+  "                                                                                ",
+  "Booting from Hard Disk...                                                       ",
+  "................................................................................",
+  "FreeDOS kernel 2043 (build 2043 OEM:0xfd) [compiled May 14 2021]                ",
+  "Kernel compatibility 7.10 - WATCOMC - 80386 CPU required - FAT32 support        ",
+  "                                                                                ",
+  "(C) Copyright 1995-2012 Pasquale J. Villani and The FreeDOS Project.            ",
+  "All Rights Reserved. This is free software and comes with ABSOLUTELY NO         ",
+  "WARRANTY; you can redistribute it and/or modify it under the terms of the       ",
+  "GNU General Public License as published by the Free Software Foundation;        ",
+  "either version 2, or (at your option) any later version.                        ",
+  "C: HD1, Pri[ 1], CHS=    0-1-1, start=     0 MB, size=    31 MB                 ",
+  "                                                                                ",
+  "FreeCom version 0.86 - WATCOMC - XMS_Swap [Dec 30 2024 22:10:51]                ",
+  "                                                                                ",
+  "FreeCom version 0.86 - WATCOMC - XMS_Swap [Dec 30 2024 22:10:51]                ",
+  "C:\\>                                                                            "
+ ]
+}

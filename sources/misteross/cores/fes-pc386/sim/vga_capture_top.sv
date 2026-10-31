@@ -17,7 +17,7 @@ module vga_capture_top (
     wire [9:0] frame_width, frame_height;
 
     pc386_vga_scanout scanout (
-        .clk(clk), .reset(reset), .misc(8'd0), .video_enable(1'b1), .seq_reset(2'b11),
+        .clk(clk), .reset(reset), .misc(8'd0), .video_enable(1'b1), .crtc_written(1'b1), .seq_reset(2'b11),
         .seq_clocking(8'h01), .char_map(6'd0), .shift_mode(2'b00), .graphics(1'b1),
         .crtc0(8'd160), .crtc1(8'd159), .crtc6(8'd2), .crtc7(8'd0), .crtc8(8'd0), .crtc9(8'd0),
         .crtc10(8'h20), .crtc11(8'd0), .crtc12(8'd0), .crtc13(8'd0), .crtc14(8'd0), .crtc15(8'd0),

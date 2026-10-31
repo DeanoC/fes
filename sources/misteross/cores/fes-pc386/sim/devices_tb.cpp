@@ -53,6 +53,10 @@ struct Bench {
     uint64_t pending_address = 0;
     int64_t held_read_lba = -1;
     std::function<void()> each_clock;
+    // The fes.pc386.machine record's CMOS words, as fes_computer_storage keeps
+    // them: the RTC's byte writes, and its load a clock after each read.
+    uint16_t record[64] = {};
+    unsigned written = 0;  // disk_written pulses
 
     Bench() {
         top.reset = 1;
@@ -101,8 +105,16 @@ struct Bench {
         top.vga_rdata = 0x42;
         vga_answered = top.vga_valid && top.vga_done;
         if (each_clock) each_clock();
+        uint16_t loaded = record[top.record_pair & 63];
+        if (top.record_write) {
+            unsigned shift = 8 * (top.record_index & 1);
+            record[top.record_index >> 1] = uint16_t(record[top.record_index >> 1] & ~(0xff << shift) |
+                                                     top.record_byte << shift);
+        }
+        written += top.disk_written;
         top.clk = 1; top.eval();
         top.clk = 0; top.eval();
+        top.record_word = loaded;
         ++cycles;
     }
     void run(uint64_t n) { for (uint64_t i = 0; i < n; ++i) clock(); }
@@ -354,8 +366,10 @@ void kbc(Bench &b) {
     uint8_t ack = b.in(0x60);
     b.wait([&] { return (b.in(0x64) & 1) != 0; }, 2000000);
     uint8_t bat = b.in(0x60);
+    // The byte time is BYTE_US ticks of the 1 us enable, so it is 1 ms less
+    // up to one tick (100 clocks), as the enable's phase falls.
     check("keyboard FF: FA no sooner than one PS/2 byte time (1 ms), then AA", ack == 0xfa && bat == 0xaa &&
-          ack_time >= 100000, hex(ack) + " " + hex(bat) + " " + std::to_string(ack_time));
+          ack_time > 100000 - 100, hex(ack) + " " + hex(bat) + " " + std::to_string(ack_time));
 
     // Translation and IRQ1.
     pic_init(b);
@@ -826,21 +840,109 @@ void ata(Bench &b) {
           b.in(0x1f2) == 1 && b.in(0x1f3) == 1 && b.in(0x1f4) == 0 && b.in(0x1f5) == 0 && (b.in(0x1f7) & 0xc1) == 0x40);
 }
 
-// After the other checks: a machine reset clears the dirty map over 128 clocks.
-void dirty_reset(Bench &b) {
+// After the other checks: what a machine reset keeps and what the
+// fes.computer 1.1 shell clears.
+void disk_and_record(Bench &b) {
+    // The RTC writes every CMOS RAM byte to the record and loads it back
+    // after a reset; the clock's registers carry over, as an MC146818's do,
+    // but for PIE, AIE, UIE and SQWE.
+    b.cmos_write(0x50, 0x5a);
+    check("a guest CMOS write reaches the record", (b.record[0x28] & 0xff) == 0x5a, hex(b.record[0x28]));
+    check("the configuration and checksum bytes reach the record",
+          (b.record[0x09] & 0xff) == 0xf0 && b.record[0x17] == uint16_t(b.cmos(0x2e) | b.cmos(0x2f) << 8),
+          hex(b.record[0x09]) + " " + hex(b.record[0x17]));
+    b.record[0x30] = 0x3c3c;  // 60h-61h as a restore would leave them: rewritten from the straps
+    b.cmos_write(0x0b, 0x7a);  // PIE, AIE, UIE, SQWE, binary, 24-hour
+    uint8_t year = b.cmos(0x09);
+    b.top.dirty_index = 0;
+    b.run(2);
+    uint16_t map = b.top.dirty_word;
     b.top.reset = 1;
     b.run(4);
     b.top.reset = 0;
-    uint64_t released = b.cycles;
     while (b.top.cmos_busy) b.clock();
-    b.run(10);
-    bool clear = b.cycles - released > 130;
-    for (uint8_t index : {0, 1}) {
-        b.top.dirty_index = index;
-        b.run(2);
-        clear &= b.top.dirty_word == 0;
-    }
-    check("a reset clears the dirty map", clear, std::to_string(b.cycles - released) + " " + hex(b.top.dirty_word));
+    b.run(4);
+    check("CMOS RAM comes back from the record after a reset, and the setup rewrites the straps",
+          b.cmos(0x50) == 0x5a && b.cmos(0x60) == 0x22 && b.cmos(0x61) == 0x07, hex(b.cmos(0x50)));
+    check("a reset clears B's interrupt enables and SQWE and keeps the clock", b.cmos(0x0b) == 0x02 &&
+          b.cmos(0x09) == year, hex(b.cmos(0x0b)) + " " + hex(b.cmos(0x09)));
+    check("a reset leaves the dirty map", b.top.dirty_word == map && map != 0, hex(map));
+    b.top.disk_dirty_clear = 1;
+    b.clock();
+    b.top.disk_dirty_clear = 0;
+    uint64_t asked = b.cycles;
+    b.wait([&] { return !b.top.disk_dirty_clearing; }, 1000);
+    b.run(4);
+    check("dirty_clear clears the map over 128 clocks", b.top.dirty_word == 0 && b.cycles - asked >= 128,
+          std::to_string(b.cycles - asked) + " " + hex(b.top.dirty_word));
+
+    // The record reads 00h-0Dh as the guest does, two at a time, and reading
+    // C that way leaves its flags for the guest.
+    b.cmos_write(0x05, 0x17);
+    b.top.record_clock_index = 2;  // 04h, 05h
+    b.clock();
+    uint16_t hours = b.top.record_clock_pair;
+    bool same = hours == uint16_t(b.cmos(0x04) | b.cmos(0x05) << 8);
+    b.cmos(0x0c);
+    b.top.record_clock_index = 6;  // 0Ch, 0Dh
+    bool flagged = b.wait([&] { return (b.top.record_clock_pair & 0xff) != 0; }, 100000);
+    uint16_t flags = b.top.record_clock_pair;
+    b.run(4);
+    bool kept = b.top.record_clock_pair == flags;
+    uint8_t read = b.cmos(0x0c);
+    b.clock();
+    check("the record reads the clock's registers as the guest does, without clearing C",
+          same && (hours >> 8) == 0x17 && flagged && (flags >> 8) == 0x80 && kept && read == (flags & 0xff) &&
+              (b.top.record_clock_pair & 0xff) == 0,
+          hex(hours) + " " + hex(flags) + " " + hex(read) + " " + hex(b.top.record_clock_pair));
+
+    // The fence holds a write command back under BSY; the drive is fenced at
+    // once while idle.
+    b.out(0x3f6, 0x02);  // nIEN
+    b.top.disk_frozen = 1;
+    b.run(2);
+    bool fenced_idle = b.top.disk_fenced;
+    unsigned before = b.written;
+    b.out(0x1f2, 1); b.out(0x1f3, 44); b.out(0x1f4, 1); b.out(0x1f5, 0); b.out(0x1f6, 0xe0);  // LBA 300
+    b.out(0x1f7, 0x30);
+    bool held = !b.wait([&] { return (b.in(0x1f7) & 0x88) != 0x80; }, 5000);
+    check("a write command waits under BSY while frozen, and the drive stays fenced", fenced_idle && held &&
+          b.top.disk_fenced, hex(b.in(0x1f7)));
+    b.top.disk_frozen = 0;
+    bool opened = b.wait([&] { return (b.in(0x1f7) & 0x88) == 0x08; }, 5000);
+    for (int n = 0; n < 256; ++n) b.outw(0x1f0, uint16_t(0x3000 + n));
+    bool busy = b.top.disk_writer_busy;
+    b.wait([&] { return !b.top.disk_writer_busy; }, 5000);
+    b.top.dirty_index = 0;
+    b.run(4);
+    check("Resume opens the block; its store reports busy, then lands once with its mark",
+          opened && busy && b.written == before + 1 && b.top.dirty_word == 0x0004 &&
+          b.image[300 * 512] == 0x00 && b.image[300 * 512 + 1] == 0x30,
+          std::to_string(b.written - before) + " " + hex(b.top.dirty_word));
+
+    // A block the guest has begun runs to its end; the next waits for Resume.
+    b.out(0x1f2, 4); b.out(0x1f7, 0xc6);  // SET MULTIPLE 4
+    b.wait([&] { return (b.in(0x1f7) & 0x80) == 0; }, 1000);
+    b.out(0x1f2, 8); b.out(0x1f3, 0x90); b.out(0x1f4, 1); b.out(0x1f6, 0xe0);  // LBA 400
+    b.out(0x1f7, 0xc5);
+    b.wait([&] { return (b.in(0x1f7) & 0x88) == 0x08; }, 5000);
+    for (int n = 0; n < 256; ++n) b.outw(0x1f0, uint16_t(0x4000 + n));
+    b.top.disk_frozen = 1;
+    b.run(2);
+    bool open_block = !b.top.disk_fenced;
+    for (int sector = 1; sector < 4; ++sector)
+        for (int n = 0; n < 256; ++n) b.outw(0x1f0, uint16_t(0x4000 + sector * 0x100 + n));
+    bool block_held = !b.wait([&] { return (b.in(0x1f7) & 0x88) != 0x80; }, 5000);
+    b.wait([&] { return b.top.disk_fenced; }, 5000);
+    bool whole = b.image[403 * 512 + 1] == 0x43 && b.image[404 * 512 + 1] == 0x00;
+    check("Freeze mid-block: the block runs to its end, then the next waits under BSY and the drive is fenced",
+          open_block && block_held && b.top.disk_fenced && whole, hex(b.in(0x1f7)));
+    b.top.disk_frozen = 0;
+    b.wait([&] { return (b.in(0x1f7) & 0x88) == 0x08; }, 5000);
+    for (int sector = 4; sector < 8; ++sector)
+        for (int n = 0; n < 256; ++n) b.outw(0x1f0, uint16_t(0x4000 + sector * 0x100 + n));
+    b.wait([&] { return !b.top.disk_writer_busy; }, 5000);
+    check("Resume opens the next block", b.image[407 * 512 + 1] == 0x47 && (b.in(0x1f7) & 0xc9) == 0x40);
 }
 
 }  // namespace
@@ -857,7 +959,7 @@ int main(int argc, char **argv) {
         rtc(b);
         ata(b);
         pit(b);
-        dirty_reset(b);
+        disk_and_record(b);
     }
     std::printf("%s %d failure(s)\n", failures ? "FAIL" : "PASS", failures);
     return failures ? 1 : 0;

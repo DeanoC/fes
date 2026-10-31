@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 `include "fes_computer.vh"
 
-// One-request-at-a-time HPS GPO/GPI mailbox for fes.computer 1.0
+// One-request-at-a-time HPS GPO/GPI mailbox for fes.computer 1.0 and 1.1
 // (mister-packages docs/computer-io.md). The endpoint implements identity,
 // execution, USB HID key rows, two controller ports and media unit 0. The
 // core owns media storage: accepted data words appear on the write port for
@@ -18,6 +18,13 @@
 // so the idle tie lives in that wrapper. ZX81 instantiates this module and
 // connects the plane. Verilator -Wall rejects a first module whose name
 // differs from the filename, so that check is off for the core only.
+// ENABLE_ATA_DISK, ENABLE_PERSISTENCE, ENABLE_PC386_MACHINE and
+// ENABLE_WALL_CLOCK are the 1.1 interfaces on capability bits 16..19. Any of
+// them makes the endpoint minor 1, answering identity word 16; their opcodes
+// go to fes_computer_storage over the storage port, held until it replies,
+// as the menu opcodes go to the display plane. The persistence opcodes need
+// both of its bits. execution_accepted pulses for every accepted Execution
+// request, which closes that endpoint's restore staging.
 /* verilator lint_off DECLFILENAME */
 module fes_computer_mailbox_core #(
     parameter bit ENABLE_KEYBOARD = 0,
@@ -34,6 +41,10 @@ module fes_computer_mailbox_core #(
     parameter bit ENABLE_ATARI_ST_FLOPPY_GEOMETRY = 0,
     parameter bit ENABLE_ZX81_TAPE_WRITE = 0,
     parameter bit ENABLE_SPECTRUM_DISK = 0,
+    parameter bit ENABLE_ATA_DISK = 0,
+    parameter bit ENABLE_PERSISTENCE = 0,
+    parameter bit ENABLE_PC386_MACHINE = 0,
+    parameter bit ENABLE_WALL_CLOCK = 0,
     parameter bit ENABLE_MEDIA_BACKPRESSURE = 0,
     parameter integer MEDIA_AW = 18,
     parameter [31:0] UNIT0_MIN = `FES_COMPUTER_APPLE2_FLOPPY_BYTES,
@@ -81,7 +92,16 @@ module fes_computer_mailbox_core #(
     input  wire         display_response_valid,
     input  wire         display_response_error,
     input  wire [15:0]  display_response_data,
-    input  wire         display_quiesced
+    input  wire         display_quiesced,
+    // fes.computer 1.1 storage requests, held until the reply.
+    output reg          storage_request,
+    output reg  [6:0]   storage_opcode,
+    output reg  [7:0]   storage_index,
+    output reg  [15:0]  storage_argument,
+    input  wire         storage_response_valid,
+    input  wire         storage_response_error,
+    input  wire [15:0]  storage_response_data,
+    output reg          execution_accepted
 );
     // Unit 0 is one drive. A shell enables one of the three media parameters.
     localparam bit MEDIA = ENABLE_APPLE2_FLOPPY | ENABLE_C64_DISK | ENABLE_SPECTRUM_TAPE | ENABLE_ZX81_TAPE | ENABLE_ATARI_ST_FLOPPY;
@@ -109,6 +129,15 @@ module fes_computer_mailbox_core #(
         (UNIT1 ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_SPECTRUM_DISK_CAPABILITY_MASK) : 16'd0) |
         (ENABLE_SESSION_DISPLAY ? 16'(`FES_COMPUTER_INTERFACE_MEMORY_HPS_DDR_CAPABILITY_MASK) : 16'd0) |
         (ENABLE_SESSION_DISPLAY ? 16'(`FES_COMPUTER_INTERFACE_VIDEO_SESSION_DISPLAY_CAPABILITY_MASK) : 16'd0);
+    // Identity word 16: capabilities 16..31.
+    localparam [31:0] CAPABILITIES_1_1 =
+        (ENABLE_ATA_DISK ? `FES_COMPUTER_INTERFACE_MEDIA_ATA_DISK_CAPABILITY_MASK : 32'd0) |
+        (ENABLE_PERSISTENCE ? `FES_COMPUTER_INTERFACE_PERSISTENCE_WORDS_CAPABILITY_MASK : 32'd0) |
+        (ENABLE_WALL_CLOCK ? `FES_COMPUTER_INTERFACE_RTC_WALL_CLOCK_CAPABILITY_MASK : 32'd0) |
+        (ENABLE_PC386_MACHINE ? `FES_COMPUTER_INTERFACE_PC386_MACHINE_CAPABILITY_MASK : 32'd0);
+    localparam [15:0] CAPABILITIES_HIGH = CAPABILITIES_1_1[31:16];
+    localparam bit MINOR_1 = CAPABILITIES_HIGH != 16'd0;
+    localparam bit DATA = ENABLE_PERSISTENCE && ENABLE_PC386_MACHINE;
     localparam [15:0] E_OPCODE = 16'(`FES_COMPUTER_ERROR_INVALID_OPCODE);
     localparam [15:0] E_INDEX = 16'(`FES_COMPUTER_ERROR_INVALID_INDEX);
     localparam [15:0] E_ARGUMENT = 16'(`FES_COMPUTER_ERROR_INVALID_ARGUMENT);
@@ -220,9 +249,9 @@ module fes_computer_mailbox_core #(
                 8'd3: identity_word = 16'(`FES_COMPUTER_TRANSPORT_MINOR);
                 8'd4: identity_word = 16'(`FES_COMPUTER_ABI_TAG);
                 8'd5: identity_word = 16'(`FES_COMPUTER_ABI_MAJOR);
-                // The ABI 1.0 identity: every capability here fits word 7.
-                8'd6: identity_word = 16'd0;
+                8'd6: identity_word = {15'd0, MINOR_1};
                 8'd7: identity_word = CAPABILITIES;
+                8'd16: identity_word = CAPABILITIES_HIGH;
                 8'd8: identity_word = {identity[119:112], identity[127:120]};
                 8'd9: identity_word = {identity[103:96], identity[111:104]};
                 8'd10: identity_word = {identity[87:80], identity[95:88]};
@@ -317,11 +346,17 @@ module fes_computer_mailbox_core #(
         display_index = 8'd0;
         display_argument = 16'd0;
         display_wait = 1'b0;
+        storage_request = 1'b0;
+        storage_opcode = 7'd0;
+        storage_index = 8'd0;
+        storage_argument = 16'd0;
+        execution_accepted = 1'b0;
     end
 
     always @(posedge clk) begin
         request_meta <= request_toggle;
         request_sync <= request_meta;
+        execution_accepted <= 1'b0;
         if (SNAPSHOT && media_changed) begin
             snapshot_dirty <= 1'b1;
             saved_authorized <= 1'b0;
@@ -343,6 +378,13 @@ module fes_computer_mailbox_core #(
                 display_request <= 1'b0;
                 display_wait <= 1'b0;
             end
+        end else if (storage_request) begin
+            if (storage_response_valid) begin
+                acknowledged_toggle <= request_sync;
+                response_error <= storage_response_error;
+                response_data <= storage_response_data;
+                storage_request <= 1'b0;
+            end
         end else if (request && (!ENABLE_MEDIA_BACKPRESSURE || !data_ok || media_write_ready) &&
             (!mouse_ok || mouse_ready) && (!freeze_ok || (media_frozen && !snap_busy)) &&
             (!snapshot_data_ok || snapshot_complete)) begin
@@ -353,7 +395,7 @@ module fes_computer_mailbox_core #(
                 defer_ack = 1'b0;
             case (opcode)
                 7'(`FES_COMPUTER_OPCODE_IDENTITY): begin
-                    if (index >= 8'd16) reject(E_INDEX);
+                    if (index > (MINOR_1 ? 8'd16 : 8'd15)) reject(E_INDEX);
                     else if (argument != 16'd0) reject(E_ARGUMENT);
                     else response_data <= identity_word(index, build_id);
                 end
@@ -366,8 +408,10 @@ module fes_computer_mailbox_core #(
                         exec_reset <= 1'b1;
                         keyboard_rows <= 144'd0;
                         controller_buttons <= 16'd0;
+                        execution_accepted <= 1'b1;
                     end else begin
                         exec_reset <= 1'b0;
+                        execution_accepted <= 1'b1;
                     end
                 end
                 7'(`FES_COMPUTER_OPCODE_KEYBOARD_HID): begin
@@ -676,6 +720,27 @@ module fes_computer_mailbox_core #(
                         display_wait <= 1'b1;
                     end
                 end
+                7'(`FES_COMPUTER_OPCODE_DISK_INFO),
+                7'(`FES_COMPUTER_OPCODE_DISK_CONTROL),
+                7'(`FES_COMPUTER_OPCODE_DISK_COMMIT),
+                7'(`FES_COMPUTER_OPCODE_DISK_DIRTY),
+                7'(`FES_COMPUTER_OPCODE_DATA_CONTROL),
+                7'(`FES_COMPUTER_OPCODE_DATA_READ),
+                7'(`FES_COMPUTER_OPCODE_DATA_WRITE),
+                7'(`FES_COMPUTER_OPCODE_DATA_INFO),
+                7'(`FES_COMPUTER_OPCODE_WALL_CLOCK): begin
+                    if (opcode >= 7'(`FES_COMPUTER_OPCODE_DATA_CONTROL) &&
+                        opcode <= 7'(`FES_COMPUTER_OPCODE_DATA_INFO) ? !DATA :
+                        opcode == 7'(`FES_COMPUTER_OPCODE_WALL_CLOCK) ? !ENABLE_WALL_CLOCK : !ENABLE_ATA_DISK)
+                        reject(E_OPCODE);
+                    else begin
+                        defer_ack = 1'b1;
+                        storage_request <= 1'b1;
+                        storage_opcode <= opcode;
+                        storage_index <= index;
+                        storage_argument <= argument;
+                    end
+                end
                 default: reject(E_OPCODE);
             endcase
                 if (!defer_ack)
@@ -741,6 +806,10 @@ module fes_computer_mailbox #(
     wire unused_write_unit;
     wire [1:0] unused_unit1_state;
     wire [31:0] unused_unit1_size;
+    wire unused_storage_request, unused_execution_accepted;
+    wire [6:0] unused_storage_opcode;
+    wire [7:0] unused_storage_index;
+    wire [15:0] unused_storage_argument;
     /* verilator lint_on UNUSEDSIGNAL */
     fes_computer_mailbox_core #(
         .ENABLE_KEYBOARD(ENABLE_KEYBOARD),
@@ -779,6 +848,10 @@ module fes_computer_mailbox #(
         .display_request(unused_display_request), .display_opcode(unused_display_opcode),
         .display_index(unused_display_index), .display_argument(unused_display_argument),
         .display_response_valid(1'b0), .display_response_error(1'b0),
-        .display_response_data(16'd0), .display_quiesced(1'b1)
+        .display_response_data(16'd0), .display_quiesced(1'b1),
+        .storage_request(unused_storage_request), .storage_opcode(unused_storage_opcode),
+        .storage_index(unused_storage_index), .storage_argument(unused_storage_argument),
+        .storage_response_valid(1'b0), .storage_response_error(1'b0), .storage_response_data(16'd0),
+        .execution_accepted(unused_execution_accepted)
     );
 endmodule

@@ -1,0 +1,6235 @@
+{
+ "abi": {
+  "id": "fes.computer",
+  "major": 1,
+  "minor": 1,
+  "tag": 4
+ },
+ "description": "Synthetic fes.computer 1.1 wire fixtures; never deploy.",
+ "scenarios": [
+  {
+   "abi_minor": 0,
+   "build_id": "00112233445566778899aabbccddeeff",
+   "capabilities": 19,
+   "description": "A 1.0 endpoint under a 1.1 runtime: identity stops at word 15 and the 1.1 opcodes are absent.",
+   "exchanges": [
+    {
+     "argument": 0,
+     "data": 17734,
+     "error": 0,
+     "gpi": 4118824262,
+     "gpo": [
+      16777216,
+      2164260864
+     ],
+     "index": 0,
+     "name": "identity-00",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 12627,
+     "error": 0,
+     "gpi": 4110430547,
+     "gpo": [
+      2164326400,
+      16842752
+     ],
+     "index": 1,
+     "name": "identity-01",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 0,
+     "gpi": 4118806529,
+     "gpo": [
+      16908288,
+      2164391936
+     ],
+     "index": 2,
+     "name": "identity-02",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2164457472,
+      16973824
+     ],
+     "index": 3,
+     "name": "identity-03",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 4,
+     "error": 0,
+     "gpi": 4118806532,
+     "gpo": [
+      17039360,
+      2164523008
+     ],
+     "index": 4,
+     "name": "identity-04",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 0,
+     "gpi": 4110417921,
+     "gpo": [
+      2164588544,
+      17104896
+     ],
+     "index": 5,
+     "name": "identity-05",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      17170432,
+      2164654080
+     ],
+     "index": 6,
+     "name": "identity-06",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 19,
+     "error": 0,
+     "gpi": 4110417939,
+     "gpo": [
+      2164719616,
+      17235968
+     ],
+     "index": 7,
+     "name": "identity-07",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 4352,
+     "error": 0,
+     "gpi": 4118810880,
+     "gpo": [
+      17301504,
+      2164785152
+     ],
+     "index": 8,
+     "name": "identity-08",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 13090,
+     "error": 0,
+     "gpi": 4110431010,
+     "gpo": [
+      2164850688,
+      17367040
+     ],
+     "index": 9,
+     "name": "identity-09",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 21828,
+     "error": 0,
+     "gpi": 4118828356,
+     "gpo": [
+      17432576,
+      2164916224
+     ],
+     "index": 10,
+     "name": "identity-10",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 30566,
+     "error": 0,
+     "gpi": 4110448486,
+     "gpo": [
+      2164981760,
+      17498112
+     ],
+     "index": 11,
+     "name": "identity-11",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 39304,
+     "error": 0,
+     "gpi": 4118845832,
+     "gpo": [
+      17563648,
+      2165047296
+     ],
+     "index": 12,
+     "name": "identity-12",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 48042,
+     "error": 0,
+     "gpi": 4110465962,
+     "gpo": [
+      2165112832,
+      17629184
+     ],
+     "index": 13,
+     "name": "identity-13",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 56780,
+     "error": 0,
+     "gpi": 4118863308,
+     "gpo": [
+      17694720,
+      2165178368
+     ],
+     "index": 14,
+     "name": "identity-14",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 65518,
+     "error": 0,
+     "gpi": 4110483438,
+     "gpo": [
+      2165243904,
+      17760256
+     ],
+     "index": 15,
+     "name": "identity-15",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 2,
+     "error": 2,
+     "gpi": 4123000834,
+     "gpo": [
+      17825792,
+      2165309440
+     ],
+     "index": 16,
+     "name": "identity-16-rejected",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 1,
+     "gpi": 4114612225,
+     "gpo": [
+      2416246784,
+      268763136
+     ],
+     "index": 5,
+     "name": "disk-info-absent",
+     "opcode": 16
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 1,
+     "gpi": 4123000833,
+     "gpo": [
+      285212672,
+      2432696320
+     ],
+     "index": 0,
+     "name": "disk-control-absent",
+     "opcode": 17
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 1,
+     "gpi": 4114612225,
+     "gpo": [
+      2516582400,
+      369098752
+     ],
+     "index": 0,
+     "name": "disk-commit-absent",
+     "opcode": 22
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 1,
+     "gpi": 4123000833,
+     "gpo": [
+      385875968,
+      2533359616
+     ],
+     "index": 0,
+     "name": "disk-dirty-absent",
+     "opcode": 23
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 1,
+     "gpi": 4114612225,
+     "gpo": [
+      2600468480,
+      452984832
+     ],
+     "index": 0,
+     "name": "data-info-absent",
+     "opcode": 27
+    },
+    {
+     "argument": 1,
+     "data": 1,
+     "error": 1,
+     "gpi": 4123000833,
+     "gpo": [
+      402653185,
+      2550136833
+     ],
+     "index": 0,
+     "name": "data-control-absent",
+     "opcode": 24
+    },
+    {
+     "argument": 2026,
+     "data": 1,
+     "error": 1,
+     "gpi": 4114612225,
+     "gpo": [
+      2617247722,
+      469764074
+     ],
+     "index": 0,
+     "name": "wall-clock-absent",
+     "opcode": 28
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      84213760,
+      2231697408
+     ],
+     "index": 5,
+     "name": "media-info-present",
+     "opcode": 5
+    }
+   ],
+   "final": {
+    "controller_ports": [
+     0,
+     0
+    ],
+    "disk_dirty_chunks": [],
+    "disk_epoch": 0,
+    "disk_flags": 0,
+    "disk_geometry": [],
+    "disk_state": 1,
+    "held": true,
+    "keyboard_rows": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "mouse_buttons": 0,
+    "mouse_motion": [
+     0,
+     0
+    ],
+    "persistent_words": [
+     0,
+     0,
+     0,
+     0,
+     544,
+     7,
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "unit_sha_crc32": {},
+    "unit_states": {},
+    "wall_clock": []
+   },
+   "identity_word_count": 16,
+   "initial_request_toggle": false,
+   "machine_events": [],
+   "name": "minor-0-endpoint",
+   "units": [],
+   "verify_reads": 1,
+   "window": {
+    "bytes": 0,
+    "pattern": "(offset * 7 + (offset >> 11)) & 255"
+   }
+  },
+  {
+   "abi_minor": 1,
+   "build_id": "00112233445566778899aabbccddeeff",
+   "capabilities": 995595,
+   "description": "Restore of the fes.pc386.machine record and the wall-clock seed while held, then the record snapshot at Stop with a guest CMOS change.",
+   "exchanges": [
+    {
+     "argument": 0,
+     "data": 17734,
+     "error": 0,
+     "gpi": 4118824262,
+     "gpo": [
+      16777216,
+      2164260864
+     ],
+     "index": 0,
+     "name": "identity-00",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 12627,
+     "error": 0,
+     "gpi": 4110430547,
+     "gpo": [
+      2164326400,
+      16842752
+     ],
+     "index": 1,
+     "name": "identity-01",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 0,
+     "gpi": 4118806529,
+     "gpo": [
+      16908288,
+      2164391936
+     ],
+     "index": 2,
+     "name": "identity-02",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2164457472,
+      16973824
+     ],
+     "index": 3,
+     "name": "identity-03",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 4,
+     "error": 0,
+     "gpi": 4118806532,
+     "gpo": [
+      17039360,
+      2164523008
+     ],
+     "index": 4,
+     "name": "identity-04",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 0,
+     "gpi": 4110417921,
+     "gpo": [
+      2164588544,
+      17104896
+     ],
+     "index": 5,
+     "name": "identity-05",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 0,
+     "gpi": 4118806529,
+     "gpo": [
+      17170432,
+      2164654080
+     ],
+     "index": 6,
+     "name": "identity-06",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 12555,
+     "error": 0,
+     "gpi": 4110430475,
+     "gpo": [
+      2164719616,
+      17235968
+     ],
+     "index": 7,
+     "name": "identity-07",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 4352,
+     "error": 0,
+     "gpi": 4118810880,
+     "gpo": [
+      17301504,
+      2164785152
+     ],
+     "index": 8,
+     "name": "identity-08",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 13090,
+     "error": 0,
+     "gpi": 4110431010,
+     "gpo": [
+      2164850688,
+      17367040
+     ],
+     "index": 9,
+     "name": "identity-09",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 21828,
+     "error": 0,
+     "gpi": 4118828356,
+     "gpo": [
+      17432576,
+      2164916224
+     ],
+     "index": 10,
+     "name": "identity-10",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 30566,
+     "error": 0,
+     "gpi": 4110448486,
+     "gpo": [
+      2164981760,
+      17498112
+     ],
+     "index": 11,
+     "name": "identity-11",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 39304,
+     "error": 0,
+     "gpi": 4118845832,
+     "gpo": [
+      17563648,
+      2165047296
+     ],
+     "index": 12,
+     "name": "identity-12",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 48042,
+     "error": 0,
+     "gpi": 4110465962,
+     "gpo": [
+      2165112832,
+      17629184
+     ],
+     "index": 13,
+     "name": "identity-13",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 56780,
+     "error": 0,
+     "gpi": 4118863308,
+     "gpo": [
+      17694720,
+      2165178368
+     ],
+     "index": 14,
+     "name": "identity-14",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 65518,
+     "error": 0,
+     "gpi": 4110483438,
+     "gpo": [
+      2165243904,
+      17760256
+     ],
+     "index": 15,
+     "name": "identity-15",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 15,
+     "error": 0,
+     "gpi": 4118806543,
+     "gpo": [
+      17825792,
+      2165309440
+     ],
+     "index": 16,
+     "name": "identity-16",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 2,
+     "error": 2,
+     "gpi": 4114612226,
+     "gpo": [
+      2165374976,
+      17891328
+     ],
+     "index": 17,
+     "name": "identity-17-rejected",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 1,
+     "gpi": 4123000833,
+     "gpo": [
+      84213760,
+      2231697408
+     ],
+     "index": 5,
+     "name": "legacy-media-absent",
+     "opcode": 5
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 1,
+     "gpi": 4114612225,
+     "gpo": [
+      2348810240,
+      201326592
+     ],
+     "index": 0,
+     "name": "legacy-snapshot-absent",
+     "opcode": 12
+    },
+    {
+     "argument": 0,
+     "data": 72,
+     "error": 0,
+     "gpi": 4118806600,
+     "gpo": [
+      452984832,
+      2600468480
+     ],
+     "index": 0,
+     "name": "data-info-0",
+     "opcode": 27
+    },
+    {
+     "argument": 0,
+     "data": 3,
+     "error": 0,
+     "gpi": 4110417923,
+     "gpo": [
+      2600534016,
+      453050368
+     ],
+     "index": 1,
+     "name": "data-info-1",
+     "opcode": 27
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 0,
+     "gpi": 4118806529,
+     "gpo": [
+      453115904,
+      2600599552
+     ],
+     "index": 2,
+     "name": "data-info-2",
+     "opcode": 27
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2600665088,
+      453181440
+     ],
+     "index": 3,
+     "name": "data-info-3",
+     "opcode": 27
+    },
+    {
+     "argument": 0,
+     "data": 2,
+     "error": 2,
+     "gpi": 4123000834,
+     "gpo": [
+      453246976,
+      2600730624
+     ],
+     "index": 4,
+     "name": "data-info-index-rejected",
+     "opcode": 27
+    },
+    {
+     "argument": 1,
+     "data": 3,
+     "error": 3,
+     "gpi": 4114612227,
+     "gpo": [
+      2600468481,
+      452984833
+     ],
+     "index": 0,
+     "name": "data-info-argument-rejected",
+     "opcode": 27
+    },
+    {
+     "argument": 0,
+     "data": 4,
+     "error": 4,
+     "gpi": 4123000836,
+     "gpo": [
+      419430400,
+      2566914048
+     ],
+     "index": 0,
+     "name": "data-read-before-freeze",
+     "opcode": 25
+    },
+    {
+     "argument": 3,
+     "data": 4,
+     "error": 4,
+     "gpi": 4114612228,
+     "gpo": [
+      2583691267,
+      436207619
+     ],
+     "index": 0,
+     "name": "data-write-before-begin",
+     "opcode": 26
+    },
+    {
+     "argument": 0,
+     "data": 4,
+     "error": 4,
+     "gpi": 4123000836,
+     "gpo": [
+      402653184,
+      2550136832
+     ],
+     "index": 0,
+     "name": "data-freeze-while-held",
+     "opcode": 24
+    },
+    {
+     "argument": 1,
+     "data": 2,
+     "error": 2,
+     "gpi": 4114612226,
+     "gpo": [
+      2550202369,
+      402718721
+     ],
+     "index": 1,
+     "name": "data-control-index-rejected",
+     "opcode": 24
+    },
+    {
+     "argument": 4,
+     "data": 3,
+     "error": 3,
+     "gpi": 4123000835,
+     "gpo": [
+      402653188,
+      2550136836
+     ],
+     "index": 0,
+     "name": "data-control-argument-rejected",
+     "opcode": 24
+    },
+    {
+     "argument": 1,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2550136833,
+      402653185
+     ],
+     "index": 0,
+     "name": "data-begin",
+     "opcode": 24
+    },
+    {
+     "argument": 0,
+     "data": 2,
+     "error": 2,
+     "gpi": 4123000834,
+     "gpo": [
+      440926208,
+      2588409856
+     ],
+     "index": 72,
+     "name": "data-write-index-rejected",
+     "opcode": 26
+    },
+    {
+     "argument": 3,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2583691267,
+      436207619
+     ],
+     "index": 0,
+     "name": "data-write-00",
+     "opcode": 26
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      436273152,
+      2583756800
+     ],
+     "index": 1,
+     "name": "data-write-01",
+     "opcode": 26
+    },
+    {
+     "argument": 1,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2583822337,
+      436338689
+     ],
+     "index": 2,
+     "name": "data-write-02",
+     "opcode": 26
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      436404224,
+      2583887872
+     ],
+     "index": 3,
+     "name": "data-write-03",
+     "opcode": 26
+    },
+    {
+     "argument": 576,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2583953984,
+      436470336
+     ],
+     "index": 4,
+     "name": "data-write-04",
+     "opcode": 26
+    },
+    {
+     "argument": 5,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      436535301,
+      2584018949
+     ],
+     "index": 5,
+     "name": "data-write-05",
+     "opcode": 26
+    },
+    {
+     "argument": 1,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2584084481,
+      436600833
+     ],
+     "index": 6,
+     "name": "data-write-06",
+     "opcode": 26
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      436666368,
+      2584150016
+     ],
+     "index": 7,
+     "name": "data-write-07",
+     "opcode": 26
+    },
+    {
+     "argument": 12299,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2584227851,
+      436744203
+     ],
+     "index": 8,
+     "name": "data-write-08",
+     "opcode": 26
+    },
+    {
+     "argument": 31317,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      436828757,
+      2584312405
+     ],
+     "index": 9,
+     "name": "data-write-09",
+     "opcode": 26
+    },
+    {
+     "argument": 50335,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2584396959,
+      436913311
+     ],
+     "index": 10,
+     "name": "data-write-10",
+     "opcode": 26
+    },
+    {
+     "argument": 3817,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      436932329,
+      2584415977
+     ],
+     "index": 11,
+     "name": "data-write-11",
+     "opcode": 26
+    },
+    {
+     "argument": 22579,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2584500275,
+      437016627
+     ],
+     "index": 12,
+     "name": "data-write-12",
+     "opcode": 26
+    },
+    {
+     "argument": 41597,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      437101181,
+      2584584829
+     ],
+     "index": 13,
+     "name": "data-write-13",
+     "opcode": 26
+    },
+    {
+     "argument": 60615,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2584669383,
+      437185735
+     ],
+     "index": 14,
+     "name": "data-write-14",
+     "opcode": 26
+    },
+    {
+     "argument": 13841,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      437204497,
+      2584688145
+     ],
+     "index": 15,
+     "name": "data-write-15",
+     "opcode": 26
+    },
+    {
+     "argument": 32859,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2584772699,
+      437289051
+     ],
+     "index": 16,
+     "name": "data-write-16",
+     "opcode": 26
+    },
+    {
+     "argument": 51877,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      437373605,
+      2584857253
+     ],
+     "index": 17,
+     "name": "data-write-17",
+     "opcode": 26
+    },
+    {
+     "argument": 5359,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2584876271,
+      437392623
+     ],
+     "index": 18,
+     "name": "data-write-18",
+     "opcode": 26
+    },
+    {
+     "argument": 24121,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      437476921,
+      2584960569
+     ],
+     "index": 19,
+     "name": "data-write-19",
+     "opcode": 26
+    },
+    {
+     "argument": 43139,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2585045123,
+      437561475
+     ],
+     "index": 20,
+     "name": "data-write-20",
+     "opcode": 26
+    },
+    {
+     "argument": 62157,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      437646029,
+      2585129677
+     ],
+     "index": 21,
+     "name": "data-write-21",
+     "opcode": 26
+    },
+    {
+     "argument": 15383,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2585148439,
+      437664791
+     ],
+     "index": 22,
+     "name": "data-write-22",
+     "opcode": 26
+    },
+    {
+     "argument": 34401,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      437749345,
+      2585232993
+     ],
+     "index": 23,
+     "name": "data-write-23",
+     "opcode": 26
+    },
+    {
+     "argument": 53419,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2585317547,
+      437833899
+     ],
+     "index": 24,
+     "name": "data-write-24",
+     "opcode": 26
+    },
+    {
+     "argument": 6901,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      437852917,
+      2585336565
+     ],
+     "index": 25,
+     "name": "data-write-25",
+     "opcode": 26
+    },
+    {
+     "argument": 25663,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2585420863,
+      437937215
+     ],
+     "index": 26,
+     "name": "data-write-26",
+     "opcode": 26
+    },
+    {
+     "argument": 44681,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      438021769,
+      2585505417
+     ],
+     "index": 27,
+     "name": "data-write-27",
+     "opcode": 26
+    },
+    {
+     "argument": 63699,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2585589971,
+      438106323
+     ],
+     "index": 28,
+     "name": "data-write-28",
+     "opcode": 26
+    },
+    {
+     "argument": 16925,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      438125085,
+      2585608733
+     ],
+     "index": 29,
+     "name": "data-write-29",
+     "opcode": 26
+    },
+    {
+     "argument": 35943,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2585693287,
+      438209639
+     ],
+     "index": 30,
+     "name": "data-write-30",
+     "opcode": 26
+    },
+    {
+     "argument": 54961,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      438294193,
+      2585777841
+     ],
+     "index": 31,
+     "name": "data-write-31",
+     "opcode": 26
+    },
+    {
+     "argument": 8443,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2585796859,
+      438313211
+     ],
+     "index": 32,
+     "name": "data-write-32",
+     "opcode": 26
+    },
+    {
+     "argument": 27205,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      438397509,
+      2585881157
+     ],
+     "index": 33,
+     "name": "data-write-33",
+     "opcode": 26
+    },
+    {
+     "argument": 46223,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2585965711,
+      438482063
+     ],
+     "index": 34,
+     "name": "data-write-34",
+     "opcode": 26
+    },
+    {
+     "argument": 65241,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      438566617,
+      2586050265
+     ],
+     "index": 35,
+     "name": "data-write-35",
+     "opcode": 26
+    },
+    {
+     "argument": 18467,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2586069027,
+      438585379
+     ],
+     "index": 36,
+     "name": "data-write-36",
+     "opcode": 26
+    },
+    {
+     "argument": 37485,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      438669933,
+      2586153581
+     ],
+     "index": 37,
+     "name": "data-write-37",
+     "opcode": 26
+    },
+    {
+     "argument": 56503,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2586238135,
+      438754487
+     ],
+     "index": 38,
+     "name": "data-write-38",
+     "opcode": 26
+    },
+    {
+     "argument": 9729,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      438773249,
+      2586256897
+     ],
+     "index": 39,
+     "name": "data-write-39",
+     "opcode": 26
+    },
+    {
+     "argument": 28747,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2586341451,
+      438857803
+     ],
+     "index": 40,
+     "name": "data-write-40",
+     "opcode": 26
+    },
+    {
+     "argument": 47765,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      438942357,
+      2586426005
+     ],
+     "index": 41,
+     "name": "data-write-41",
+     "opcode": 26
+    },
+    {
+     "argument": 1247,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2586445023,
+      438961375
+     ],
+     "index": 42,
+     "name": "data-write-42",
+     "opcode": 26
+    },
+    {
+     "argument": 20009,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      439045673,
+      2586529321
+     ],
+     "index": 43,
+     "name": "data-write-43",
+     "opcode": 26
+    },
+    {
+     "argument": 39027,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2586613875,
+      439130227
+     ],
+     "index": 44,
+     "name": "data-write-44",
+     "opcode": 26
+    },
+    {
+     "argument": 58045,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      439214781,
+      2586698429
+     ],
+     "index": 45,
+     "name": "data-write-45",
+     "opcode": 26
+    },
+    {
+     "argument": 11271,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2586717191,
+      439233543
+     ],
+     "index": 46,
+     "name": "data-write-46",
+     "opcode": 26
+    },
+    {
+     "argument": 30289,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      439318097,
+      2586801745
+     ],
+     "index": 47,
+     "name": "data-write-47",
+     "opcode": 26
+    },
+    {
+     "argument": 49307,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2586886299,
+      439402651
+     ],
+     "index": 48,
+     "name": "data-write-48",
+     "opcode": 26
+    },
+    {
+     "argument": 2789,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      439421669,
+      2586905317
+     ],
+     "index": 49,
+     "name": "data-write-49",
+     "opcode": 26
+    },
+    {
+     "argument": 21551,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2586989615,
+      439505967
+     ],
+     "index": 50,
+     "name": "data-write-50",
+     "opcode": 26
+    },
+    {
+     "argument": 40569,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      439590521,
+      2587074169
+     ],
+     "index": 51,
+     "name": "data-write-51",
+     "opcode": 26
+    },
+    {
+     "argument": 59587,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2587158723,
+      439675075
+     ],
+     "index": 52,
+     "name": "data-write-52",
+     "opcode": 26
+    },
+    {
+     "argument": 12813,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      439693837,
+      2587177485
+     ],
+     "index": 53,
+     "name": "data-write-53",
+     "opcode": 26
+    },
+    {
+     "argument": 31831,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2587262039,
+      439778391
+     ],
+     "index": 54,
+     "name": "data-write-54",
+     "opcode": 26
+    },
+    {
+     "argument": 50849,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      439862945,
+      2587346593
+     ],
+     "index": 55,
+     "name": "data-write-55",
+     "opcode": 26
+    },
+    {
+     "argument": 4331,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2587365611,
+      439881963
+     ],
+     "index": 56,
+     "name": "data-write-56",
+     "opcode": 26
+    },
+    {
+     "argument": 23093,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      439966261,
+      2587449909
+     ],
+     "index": 57,
+     "name": "data-write-57",
+     "opcode": 26
+    },
+    {
+     "argument": 42111,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2587534463,
+      440050815
+     ],
+     "index": 58,
+     "name": "data-write-58",
+     "opcode": 26
+    },
+    {
+     "argument": 61129,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      440135369,
+      2587619017
+     ],
+     "index": 59,
+     "name": "data-write-59",
+     "opcode": 26
+    },
+    {
+     "argument": 14355,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2587637779,
+      440154131
+     ],
+     "index": 60,
+     "name": "data-write-60",
+     "opcode": 26
+    },
+    {
+     "argument": 33373,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      440238685,
+      2587722333
+     ],
+     "index": 61,
+     "name": "data-write-61",
+     "opcode": 26
+    },
+    {
+     "argument": 52391,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2587806887,
+      440323239
+     ],
+     "index": 62,
+     "name": "data-write-62",
+     "opcode": 26
+    },
+    {
+     "argument": 5873,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      440342257,
+      2587825905
+     ],
+     "index": 63,
+     "name": "data-write-63",
+     "opcode": 26
+    },
+    {
+     "argument": 24635,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2587910203,
+      440426555
+     ],
+     "index": 64,
+     "name": "data-write-64",
+     "opcode": 26
+    },
+    {
+     "argument": 43653,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      440511109,
+      2587994757
+     ],
+     "index": 65,
+     "name": "data-write-65",
+     "opcode": 26
+    },
+    {
+     "argument": 62671,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2588079311,
+      440595663
+     ],
+     "index": 66,
+     "name": "data-write-66",
+     "opcode": 26
+    },
+    {
+     "argument": 15897,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      440614425,
+      2588098073
+     ],
+     "index": 67,
+     "name": "data-write-67",
+     "opcode": 26
+    },
+    {
+     "argument": 34915,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2588182627,
+      440698979
+     ],
+     "index": 68,
+     "name": "data-write-68",
+     "opcode": 26
+    },
+    {
+     "argument": 53933,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      440783533,
+      2588267181
+     ],
+     "index": 69,
+     "name": "data-write-69",
+     "opcode": 26
+    },
+    {
+     "argument": 7415,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2588286199,
+      440802551
+     ],
+     "index": 70,
+     "name": "data-write-70",
+     "opcode": 26
+    },
+    {
+     "argument": 2,
+     "data": 4,
+     "error": 4,
+     "gpi": 4123000836,
+     "gpo": [
+      402653186,
+      2550136834
+     ],
+     "index": 0,
+     "name": "data-commit-incomplete",
+     "opcode": 24
+    },
+    {
+     "argument": 26177,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2588370497,
+      440886849
+     ],
+     "index": 71,
+     "name": "data-write-71",
+     "opcode": 26
+    },
+    {
+     "argument": 560,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      436470320,
+      2583953968
+     ],
+     "index": 4,
+     "name": "stage-invalid-sb-base",
+     "opcode": 26
+    },
+    {
+     "argument": 2,
+     "data": 3,
+     "error": 3,
+     "gpi": 4114612227,
+     "gpo": [
+      2550136834,
+      402653186
+     ],
+     "index": 0,
+     "name": "commit-invalid-sb-base",
+     "opcode": 24
+    },
+    {
+     "argument": 576,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      436470336,
+      2583953984
+     ],
+     "index": 4,
+     "name": "restore-sb-base",
+     "opcode": 26
+    },
+    {
+     "argument": 9,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2584018953,
+      436535305
+     ],
+     "index": 5,
+     "name": "stage-invalid-sb-irq",
+     "opcode": 26
+    },
+    {
+     "argument": 2,
+     "data": 3,
+     "error": 3,
+     "gpi": 4123000835,
+     "gpo": [
+      402653186,
+      2550136834
+     ],
+     "index": 0,
+     "name": "commit-invalid-sb-irq",
+     "opcode": 24
+    },
+    {
+     "argument": 5,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2584018949,
+      436535301
+     ],
+     "index": 5,
+     "name": "restore-sb-irq",
+     "opcode": 26
+    },
+    {
+     "argument": 3,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      436600835,
+      2584084483
+     ],
+     "index": 6,
+     "name": "stage-invalid-sb-dma",
+     "opcode": 26
+    },
+    {
+     "argument": 2,
+     "data": 3,
+     "error": 3,
+     "gpi": 4114612227,
+     "gpo": [
+      2550136834,
+      402653186
+     ],
+     "index": 0,
+     "name": "commit-invalid-sb-dma",
+     "opcode": 24
+    },
+    {
+     "argument": 1,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      436600833,
+      2584084481
+     ],
+     "index": 6,
+     "name": "restore-sb-dma",
+     "opcode": 26
+    },
+    {
+     "argument": 8,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2583691272,
+      436207624
+     ],
+     "index": 0,
+     "name": "stage-invalid-preset",
+     "opcode": 26
+    },
+    {
+     "argument": 2,
+     "data": 3,
+     "error": 3,
+     "gpi": 4123000835,
+     "gpo": [
+      402653186,
+      2550136834
+     ],
+     "index": 0,
+     "name": "commit-invalid-preset",
+     "opcode": 24
+    },
+    {
+     "argument": 3,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2583691267,
+      436207619
+     ],
+     "index": 0,
+     "name": "restore-preset",
+     "opcode": 26
+    },
+    {
+     "argument": 2,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      436338690,
+      2583822338
+     ],
+     "index": 2,
+     "name": "stage-invalid-profile",
+     "opcode": 26
+    },
+    {
+     "argument": 2,
+     "data": 3,
+     "error": 3,
+     "gpi": 4114612227,
+     "gpo": [
+      2550136834,
+      402653186
+     ],
+     "index": 0,
+     "name": "commit-invalid-profile",
+     "opcode": 24
+    },
+    {
+     "argument": 1,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      436338689,
+      2583822337
+     ],
+     "index": 2,
+     "name": "restore-profile",
+     "opcode": 26
+    },
+    {
+     "argument": 2,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2583887874,
+      436404226
+     ],
+     "index": 3,
+     "name": "stage-invalid-turbo",
+     "opcode": 26
+    },
+    {
+     "argument": 2,
+     "data": 3,
+     "error": 3,
+     "gpi": 4123000835,
+     "gpo": [
+      402653186,
+      2550136834
+     ],
+     "index": 0,
+     "name": "commit-invalid-turbo",
+     "opcode": 24
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2583887872,
+      436404224
+     ],
+     "index": 3,
+     "name": "restore-turbo",
+     "opcode": 26
+    },
+    {
+     "argument": 1,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      436666369,
+      2584150017
+     ],
+     "index": 7,
+     "name": "stage-invalid-reserved",
+     "opcode": 26
+    },
+    {
+     "argument": 2,
+     "data": 3,
+     "error": 3,
+     "gpi": 4114612227,
+     "gpo": [
+      2550136834,
+      402653186
+     ],
+     "index": 0,
+     "name": "commit-invalid-reserved",
+     "opcode": 24
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      436666368,
+      2584150016
+     ],
+     "index": 7,
+     "name": "restore-reserved",
+     "opcode": 26
+    },
+    {
+     "argument": 9,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2583756809,
+      436273161
+     ],
+     "index": 1,
+     "name": "stage-invalid-frequency-low",
+     "opcode": 26
+    },
+    {
+     "argument": 2,
+     "data": 3,
+     "error": 3,
+     "gpi": 4123000835,
+     "gpo": [
+      402653186,
+      2550136834
+     ],
+     "index": 0,
+     "name": "commit-invalid-frequency-low",
+     "opcode": 24
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2583756800,
+      436273152
+     ],
+     "index": 1,
+     "name": "restore-frequency-low",
+     "opcode": 26
+    },
+    {
+     "argument": 1001,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      436274153,
+      2583757801
+     ],
+     "index": 1,
+     "name": "stage-invalid-frequency-high",
+     "opcode": 26
+    },
+    {
+     "argument": 2,
+     "data": 3,
+     "error": 3,
+     "gpi": 4114612227,
+     "gpo": [
+      2550136834,
+      402653186
+     ],
+     "index": 0,
+     "name": "commit-invalid-frequency-high",
+     "opcode": 24
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      436273152,
+      2583756800
+     ],
+     "index": 1,
+     "name": "restore-frequency-high",
+     "opcode": 26
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2583691264,
+      436207616
+     ],
+     "index": 0,
+     "name": "stage-preset-max",
+     "opcode": 26
+    },
+    {
+     "argument": 250,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      436273402,
+      2583757050
+     ],
+     "index": 1,
+     "name": "stage-frequency-override",
+     "opcode": 26
+    },
+    {
+     "argument": 2,
+     "data": 3,
+     "error": 3,
+     "gpi": 4114612227,
+     "gpo": [
+      2550136834,
+      402653186
+     ],
+     "index": 0,
+     "name": "commit-override-under-max",
+     "opcode": 24
+    },
+    {
+     "argument": 3,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      436207619,
+      2583691267
+     ],
+     "index": 0,
+     "name": "restore-preset",
+     "opcode": 26
+    },
+    {
+     "argument": 2,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2550136834,
+      402653186
+     ],
+     "index": 0,
+     "name": "data-commit",
+     "opcode": 24
+    },
+    {
+     "argument": 0,
+     "data": 4,
+     "error": 4,
+     "gpi": 4123000836,
+     "gpo": [
+      436207616,
+      2583691264
+     ],
+     "index": 0,
+     "name": "data-write-after-commit",
+     "opcode": 26
+    },
+    {
+     "argument": 2,
+     "data": 4,
+     "error": 4,
+     "gpi": 4114612228,
+     "gpo": [
+      2550136834,
+      402653186
+     ],
+     "index": 0,
+     "name": "data-commit-again",
+     "opcode": 24
+    },
+    {
+     "argument": 7178,
+     "data": 2,
+     "error": 2,
+     "gpi": 4123000834,
+     "gpo": [
+      469834762,
+      2617318410
+     ],
+     "index": 1,
+     "name": "clock-word-1-first",
+     "opcode": 28
+    },
+    {
+     "argument": 0,
+     "data": 2,
+     "error": 2,
+     "gpi": 4114612226,
+     "gpo": [
+      2617507840,
+      470024192
+     ],
+     "index": 4,
+     "name": "clock-index-rejected",
+     "opcode": 28
+    },
+    {
+     "argument": 1979,
+     "data": 3,
+     "error": 3,
+     "gpi": 4123000835,
+     "gpo": [
+      469764027,
+      2617247675
+     ],
+     "index": 0,
+     "name": "clock-year-low",
+     "opcode": 28
+    },
+    {
+     "argument": 2100,
+     "data": 3,
+     "error": 3,
+     "gpi": 4114612227,
+     "gpo": [
+      2617247796,
+      469764148
+     ],
+     "index": 0,
+     "name": "clock-year-high",
+     "opcode": 28
+    },
+    {
+     "argument": 2025,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      469764073,
+      2617247721
+     ],
+     "index": 0,
+     "name": "clock-year-first",
+     "opcode": 28
+    },
+    {
+     "argument": 2026,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2617247722,
+      469764074
+     ],
+     "index": 0,
+     "name": "clock-year-restart",
+     "opcode": 28
+    },
+    {
+     "argument": 7682,
+     "data": 3,
+     "error": 3,
+     "gpi": 4123000835,
+     "gpo": [
+      469835266,
+      2617318914
+     ],
+     "index": 1,
+     "name": "clock-february-30",
+     "opcode": 28
+    },
+    {
+     "argument": 269,
+     "data": 3,
+     "error": 3,
+     "gpi": 4114612227,
+     "gpo": [
+      2617311501,
+      469827853
+     ],
+     "index": 1,
+     "name": "clock-month-13",
+     "opcode": 28
+    },
+    {
+     "argument": 10,
+     "data": 3,
+     "error": 3,
+     "gpi": 4123000835,
+     "gpo": [
+      469827594,
+      2617311242
+     ],
+     "index": 1,
+     "name": "clock-day-0",
+     "opcode": 28
+    },
+    {
+     "argument": 7178,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2617318410,
+      469834762
+     ],
+     "index": 1,
+     "name": "clock-month-day",
+     "opcode": 28
+    },
+    {
+     "argument": 1061,
+     "data": 2,
+     "error": 2,
+     "gpi": 4123000834,
+     "gpo": [
+      469959717,
+      2617443365
+     ],
+     "index": 3,
+     "name": "clock-word-out-of-order",
+     "opcode": 28
+    },
+    {
+     "argument": 1304,
+     "data": 3,
+     "error": 3,
+     "gpi": 4114612227,
+     "gpo": [
+      2617378072,
+      469894424
+     ],
+     "index": 2,
+     "name": "clock-hour-24",
+     "opcode": 28
+    },
+    {
+     "argument": 15374,
+     "data": 3,
+     "error": 3,
+     "gpi": 4123000835,
+     "gpo": [
+      469908494,
+      2617392142
+     ],
+     "index": 2,
+     "name": "clock-minute-60",
+     "opcode": 28
+    },
+    {
+     "argument": 1294,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2617378062,
+      469894414
+     ],
+     "index": 2,
+     "name": "clock-hour-minute",
+     "opcode": 28
+    },
+    {
+     "argument": 1084,
+     "data": 3,
+     "error": 3,
+     "gpi": 4123000835,
+     "gpo": [
+      469959740,
+      2617443388
+     ],
+     "index": 3,
+     "name": "clock-second-60",
+     "opcode": 28
+    },
+    {
+     "argument": 37,
+     "data": 3,
+     "error": 3,
+     "gpi": 4114612227,
+     "gpo": [
+      2617442341,
+      469958693
+     ],
+     "index": 3,
+     "name": "clock-weekday-0",
+     "opcode": 28
+    },
+    {
+     "argument": 2085,
+     "data": 3,
+     "error": 3,
+     "gpi": 4123000835,
+     "gpo": [
+      469960741,
+      2617444389
+     ],
+     "index": 3,
+     "name": "clock-weekday-8",
+     "opcode": 28
+    },
+    {
+     "argument": 1061,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2617443365,
+      469959717
+     ],
+     "index": 3,
+     "name": "clock-second-weekday",
+     "opcode": 28
+    },
+    {
+     "argument": 7178,
+     "data": 2,
+     "error": 2,
+     "gpi": 4123000834,
+     "gpo": [
+      469834762,
+      2617318410
+     ],
+     "index": 1,
+     "name": "clock-word-1-after-apply",
+     "opcode": 28
+    },
+    {
+     "argument": 2028,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2617247724,
+      469764076
+     ],
+     "index": 0,
+     "name": "leap-year",
+     "opcode": 28
+    },
+    {
+     "argument": 7426,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      469835010,
+      2617318658
+     ],
+     "index": 1,
+     "name": "leap-day",
+     "opcode": 28
+    },
+    {
+     "argument": 1,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2181038081,
+      33554433
+     ],
+     "index": 0,
+     "name": "release",
+     "opcode": 2
+    },
+    {
+     "argument": 2026,
+     "data": 4,
+     "error": 4,
+     "gpi": 4123000836,
+     "gpo": [
+      469764074,
+      2617247722
+     ],
+     "index": 0,
+     "name": "clock-while-running",
+     "opcode": 28
+    },
+    {
+     "argument": 1,
+     "data": 4,
+     "error": 4,
+     "gpi": 4114612228,
+     "gpo": [
+      2550136833,
+      402653185
+     ],
+     "index": 0,
+     "name": "data-begin-while-running",
+     "opcode": 24
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      402653184,
+      2550136832
+     ],
+     "index": 0,
+     "name": "data-freeze",
+     "opcode": 24
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2550136832,
+      402653184
+     ],
+     "index": 0,
+     "name": "data-freeze-again",
+     "opcode": 24
+    },
+    {
+     "argument": 0,
+     "data": 2,
+     "error": 2,
+     "gpi": 4123000834,
+     "gpo": [
+      424148992,
+      2571632640
+     ],
+     "index": 72,
+     "name": "data-read-index-rejected",
+     "opcode": 25
+    },
+    {
+     "argument": 1,
+     "data": 3,
+     "error": 3,
+     "gpi": 4114612227,
+     "gpo": [
+      2566914049,
+      419430401
+     ],
+     "index": 0,
+     "name": "data-read-argument-rejected",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 3,
+     "error": 0,
+     "gpi": 4118806531,
+     "gpo": [
+      419430400,
+      2566914048
+     ],
+     "index": 0,
+     "name": "data-read-00",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 250,
+     "error": 0,
+     "gpi": 4110418170,
+     "gpo": [
+      2566979584,
+      419495936
+     ],
+     "index": 1,
+     "name": "data-read-01",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 0,
+     "gpi": 4118806529,
+     "gpo": [
+      419561472,
+      2567045120
+     ],
+     "index": 2,
+     "name": "data-read-02",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2567110656,
+      419627008
+     ],
+     "index": 3,
+     "name": "data-read-03",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 576,
+     "error": 0,
+     "gpi": 4118807104,
+     "gpo": [
+      419692544,
+      2567176192
+     ],
+     "index": 4,
+     "name": "data-read-04",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 5,
+     "error": 0,
+     "gpi": 4110417925,
+     "gpo": [
+      2567241728,
+      419758080
+     ],
+     "index": 5,
+     "name": "data-read-05",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 0,
+     "gpi": 4118806529,
+     "gpo": [
+      419823616,
+      2567307264
+     ],
+     "index": 6,
+     "name": "data-read-06",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2567372800,
+      419889152
+     ],
+     "index": 7,
+     "name": "data-read-07",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 12377,
+     "error": 0,
+     "gpi": 4118818905,
+     "gpo": [
+      419954688,
+      2567438336
+     ],
+     "index": 8,
+     "name": "data-read-08",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 31317,
+     "error": 0,
+     "gpi": 4110449237,
+     "gpo": [
+      2567503872,
+      420020224
+     ],
+     "index": 9,
+     "name": "data-read-09",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 50335,
+     "error": 0,
+     "gpi": 4118856863,
+     "gpo": [
+      420085760,
+      2567569408
+     ],
+     "index": 10,
+     "name": "data-read-10",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 3817,
+     "error": 0,
+     "gpi": 4110421737,
+     "gpo": [
+      2567634944,
+      420151296
+     ],
+     "index": 11,
+     "name": "data-read-11",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 22579,
+     "error": 0,
+     "gpi": 4118829107,
+     "gpo": [
+      420216832,
+      2567700480
+     ],
+     "index": 12,
+     "name": "data-read-12",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 41597,
+     "error": 0,
+     "gpi": 4110459517,
+     "gpo": [
+      2567766016,
+      420282368
+     ],
+     "index": 13,
+     "name": "data-read-13",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 60615,
+     "error": 0,
+     "gpi": 4118867143,
+     "gpo": [
+      420347904,
+      2567831552
+     ],
+     "index": 14,
+     "name": "data-read-14",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 13841,
+     "error": 0,
+     "gpi": 4110431761,
+     "gpo": [
+      2567897088,
+      420413440
+     ],
+     "index": 15,
+     "name": "data-read-15",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 32859,
+     "error": 0,
+     "gpi": 4118839387,
+     "gpo": [
+      420478976,
+      2567962624
+     ],
+     "index": 16,
+     "name": "data-read-16",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 51877,
+     "error": 0,
+     "gpi": 4110469797,
+     "gpo": [
+      2568028160,
+      420544512
+     ],
+     "index": 17,
+     "name": "data-read-17",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 5359,
+     "error": 0,
+     "gpi": 4118811887,
+     "gpo": [
+      420610048,
+      2568093696
+     ],
+     "index": 18,
+     "name": "data-read-18",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 24121,
+     "error": 0,
+     "gpi": 4110442041,
+     "gpo": [
+      2568159232,
+      420675584
+     ],
+     "index": 19,
+     "name": "data-read-19",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 43139,
+     "error": 0,
+     "gpi": 4118849667,
+     "gpo": [
+      420741120,
+      2568224768
+     ],
+     "index": 20,
+     "name": "data-read-20",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 62157,
+     "error": 0,
+     "gpi": 4110480077,
+     "gpo": [
+      2568290304,
+      420806656
+     ],
+     "index": 21,
+     "name": "data-read-21",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 15383,
+     "error": 0,
+     "gpi": 4118821911,
+     "gpo": [
+      420872192,
+      2568355840
+     ],
+     "index": 22,
+     "name": "data-read-22",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 34401,
+     "error": 0,
+     "gpi": 4110452321,
+     "gpo": [
+      2568421376,
+      420937728
+     ],
+     "index": 23,
+     "name": "data-read-23",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 53419,
+     "error": 0,
+     "gpi": 4118859947,
+     "gpo": [
+      421003264,
+      2568486912
+     ],
+     "index": 24,
+     "name": "data-read-24",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 6901,
+     "error": 0,
+     "gpi": 4110424821,
+     "gpo": [
+      2568552448,
+      421068800
+     ],
+     "index": 25,
+     "name": "data-read-25",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 25663,
+     "error": 0,
+     "gpi": 4118832191,
+     "gpo": [
+      421134336,
+      2568617984
+     ],
+     "index": 26,
+     "name": "data-read-26",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 44681,
+     "error": 0,
+     "gpi": 4110462601,
+     "gpo": [
+      2568683520,
+      421199872
+     ],
+     "index": 27,
+     "name": "data-read-27",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 63699,
+     "error": 0,
+     "gpi": 4118870227,
+     "gpo": [
+      421265408,
+      2568749056
+     ],
+     "index": 28,
+     "name": "data-read-28",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 16925,
+     "error": 0,
+     "gpi": 4110434845,
+     "gpo": [
+      2568814592,
+      421330944
+     ],
+     "index": 29,
+     "name": "data-read-29",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 35943,
+     "error": 0,
+     "gpi": 4118842471,
+     "gpo": [
+      421396480,
+      2568880128
+     ],
+     "index": 30,
+     "name": "data-read-30",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 54961,
+     "error": 0,
+     "gpi": 4110472881,
+     "gpo": [
+      2568945664,
+      421462016
+     ],
+     "index": 31,
+     "name": "data-read-31",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 8443,
+     "error": 0,
+     "gpi": 4118814971,
+     "gpo": [
+      421527552,
+      2569011200
+     ],
+     "index": 32,
+     "name": "data-read-32",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 27205,
+     "error": 0,
+     "gpi": 4110445125,
+     "gpo": [
+      2569076736,
+      421593088
+     ],
+     "index": 33,
+     "name": "data-read-33",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 46223,
+     "error": 0,
+     "gpi": 4118852751,
+     "gpo": [
+      421658624,
+      2569142272
+     ],
+     "index": 34,
+     "name": "data-read-34",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 65241,
+     "error": 0,
+     "gpi": 4110483161,
+     "gpo": [
+      2569207808,
+      421724160
+     ],
+     "index": 35,
+     "name": "data-read-35",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 18467,
+     "error": 0,
+     "gpi": 4118824995,
+     "gpo": [
+      421789696,
+      2569273344
+     ],
+     "index": 36,
+     "name": "data-read-36",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 37485,
+     "error": 0,
+     "gpi": 4110455405,
+     "gpo": [
+      2569338880,
+      421855232
+     ],
+     "index": 37,
+     "name": "data-read-37",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 56503,
+     "error": 0,
+     "gpi": 4118863031,
+     "gpo": [
+      421920768,
+      2569404416
+     ],
+     "index": 38,
+     "name": "data-read-38",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 9729,
+     "error": 0,
+     "gpi": 4110427649,
+     "gpo": [
+      2569469952,
+      421986304
+     ],
+     "index": 39,
+     "name": "data-read-39",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 28762,
+     "error": 0,
+     "gpi": 4118835290,
+     "gpo": [
+      422051840,
+      2569535488
+     ],
+     "index": 40,
+     "name": "data-read-40",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 47765,
+     "error": 0,
+     "gpi": 4110465685,
+     "gpo": [
+      2569601024,
+      422117376
+     ],
+     "index": 41,
+     "name": "data-read-41",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 1247,
+     "error": 0,
+     "gpi": 4118807775,
+     "gpo": [
+      422182912,
+      2569666560
+     ],
+     "index": 42,
+     "name": "data-read-42",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 20009,
+     "error": 0,
+     "gpi": 4110437929,
+     "gpo": [
+      2569732096,
+      422248448
+     ],
+     "index": 43,
+     "name": "data-read-43",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 39027,
+     "error": 0,
+     "gpi": 4118845555,
+     "gpo": [
+      422313984,
+      2569797632
+     ],
+     "index": 44,
+     "name": "data-read-44",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 58045,
+     "error": 0,
+     "gpi": 4110475965,
+     "gpo": [
+      2569863168,
+      422379520
+     ],
+     "index": 45,
+     "name": "data-read-45",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 11271,
+     "error": 0,
+     "gpi": 4118817799,
+     "gpo": [
+      422445056,
+      2569928704
+     ],
+     "index": 46,
+     "name": "data-read-46",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 30289,
+     "error": 0,
+     "gpi": 4110448209,
+     "gpo": [
+      2569994240,
+      422510592
+     ],
+     "index": 47,
+     "name": "data-read-47",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 49307,
+     "error": 0,
+     "gpi": 4118855835,
+     "gpo": [
+      422576128,
+      2570059776
+     ],
+     "index": 48,
+     "name": "data-read-48",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 2789,
+     "error": 0,
+     "gpi": 4110420709,
+     "gpo": [
+      2570125312,
+      422641664
+     ],
+     "index": 49,
+     "name": "data-read-49",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 21551,
+     "error": 0,
+     "gpi": 4118828079,
+     "gpo": [
+      422707200,
+      2570190848
+     ],
+     "index": 50,
+     "name": "data-read-50",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 40569,
+     "error": 0,
+     "gpi": 4110458489,
+     "gpo": [
+      2570256384,
+      422772736
+     ],
+     "index": 51,
+     "name": "data-read-51",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 59587,
+     "error": 0,
+     "gpi": 4118866115,
+     "gpo": [
+      422838272,
+      2570321920
+     ],
+     "index": 52,
+     "name": "data-read-52",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 12813,
+     "error": 0,
+     "gpi": 4110430733,
+     "gpo": [
+      2570387456,
+      422903808
+     ],
+     "index": 53,
+     "name": "data-read-53",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 31831,
+     "error": 0,
+     "gpi": 4118838359,
+     "gpo": [
+      422969344,
+      2570452992
+     ],
+     "index": 54,
+     "name": "data-read-54",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 50849,
+     "error": 0,
+     "gpi": 4110468769,
+     "gpo": [
+      2570518528,
+      423034880
+     ],
+     "index": 55,
+     "name": "data-read-55",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 4331,
+     "error": 0,
+     "gpi": 4118810859,
+     "gpo": [
+      423100416,
+      2570584064
+     ],
+     "index": 56,
+     "name": "data-read-56",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 23093,
+     "error": 0,
+     "gpi": 4110441013,
+     "gpo": [
+      2570649600,
+      423165952
+     ],
+     "index": 57,
+     "name": "data-read-57",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 42111,
+     "error": 0,
+     "gpi": 4118848639,
+     "gpo": [
+      423231488,
+      2570715136
+     ],
+     "index": 58,
+     "name": "data-read-58",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 61129,
+     "error": 0,
+     "gpi": 4110479049,
+     "gpo": [
+      2570780672,
+      423297024
+     ],
+     "index": 59,
+     "name": "data-read-59",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 14355,
+     "error": 0,
+     "gpi": 4118820883,
+     "gpo": [
+      423362560,
+      2570846208
+     ],
+     "index": 60,
+     "name": "data-read-60",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 33373,
+     "error": 0,
+     "gpi": 4110451293,
+     "gpo": [
+      2570911744,
+      423428096
+     ],
+     "index": 61,
+     "name": "data-read-61",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 52391,
+     "error": 0,
+     "gpi": 4118858919,
+     "gpo": [
+      423493632,
+      2570977280
+     ],
+     "index": 62,
+     "name": "data-read-62",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 5873,
+     "error": 0,
+     "gpi": 4110423793,
+     "gpo": [
+      2571042816,
+      423559168
+     ],
+     "index": 63,
+     "name": "data-read-63",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 24635,
+     "error": 0,
+     "gpi": 4118831163,
+     "gpo": [
+      423624704,
+      2571108352
+     ],
+     "index": 64,
+     "name": "data-read-64",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 43653,
+     "error": 0,
+     "gpi": 4110461573,
+     "gpo": [
+      2571173888,
+      423690240
+     ],
+     "index": 65,
+     "name": "data-read-65",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 62671,
+     "error": 0,
+     "gpi": 4118869199,
+     "gpo": [
+      423755776,
+      2571239424
+     ],
+     "index": 66,
+     "name": "data-read-66",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 15897,
+     "error": 0,
+     "gpi": 4110433817,
+     "gpo": [
+      2571304960,
+      423821312
+     ],
+     "index": 67,
+     "name": "data-read-67",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 34915,
+     "error": 0,
+     "gpi": 4118841443,
+     "gpo": [
+      423886848,
+      2571370496
+     ],
+     "index": 68,
+     "name": "data-read-68",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 53933,
+     "error": 0,
+     "gpi": 4110471853,
+     "gpo": [
+      2571436032,
+      423952384
+     ],
+     "index": 69,
+     "name": "data-read-69",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 7415,
+     "error": 0,
+     "gpi": 4118813943,
+     "gpo": [
+      424017920,
+      2571501568
+     ],
+     "index": 70,
+     "name": "data-read-70",
+     "opcode": 25
+    },
+    {
+     "argument": 0,
+     "data": 26177,
+     "error": 0,
+     "gpi": 4110444097,
+     "gpo": [
+      2571567104,
+      424083456
+     ],
+     "index": 71,
+     "name": "data-read-71",
+     "opcode": 25
+    },
+    {
+     "argument": 3,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      402653187,
+      2550136835
+     ],
+     "index": 0,
+     "name": "data-resume",
+     "opcode": 24
+    },
+    {
+     "argument": 0,
+     "data": 4,
+     "error": 4,
+     "gpi": 4114612228,
+     "gpo": [
+      2566914048,
+      419430400
+     ],
+     "index": 0,
+     "name": "data-read-after-resume",
+     "opcode": 25
+    },
+    {
+     "argument": 3,
+     "data": 4,
+     "error": 4,
+     "gpi": 4123000836,
+     "gpo": [
+      402653187,
+      2550136835
+     ],
+     "index": 0,
+     "name": "data-resume-again",
+     "opcode": 24
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2550136832,
+      402653184
+     ],
+     "index": 0,
+     "name": "data-freeze-for-stop",
+     "opcode": 24
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      33554432,
+      2181038080
+     ],
+     "index": 0,
+     "name": "hold",
+     "opcode": 2
+    },
+    {
+     "argument": 0,
+     "data": 4,
+     "error": 4,
+     "gpi": 4114612228,
+     "gpo": [
+      2566914048,
+      419430400
+     ],
+     "index": 0,
+     "name": "data-read-after-hold",
+     "opcode": 25
+    }
+   ],
+   "final": {
+    "controller_ports": [
+     0,
+     0
+    ],
+    "disk_dirty_chunks": [],
+    "disk_epoch": 0,
+    "disk_flags": 0,
+    "disk_geometry": [],
+    "disk_state": 1,
+    "held": true,
+    "keyboard_rows": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "mouse_buttons": 0,
+    "mouse_motion": [
+     0,
+     0
+    ],
+    "persistent_words": [
+     3,
+     250,
+     1,
+     0,
+     576,
+     5,
+     1,
+     0,
+     12377,
+     31317,
+     50335,
+     3817,
+     22579,
+     41597,
+     60615,
+     13841,
+     32859,
+     51877,
+     5359,
+     24121,
+     43139,
+     62157,
+     15383,
+     34401,
+     53419,
+     6901,
+     25663,
+     44681,
+     63699,
+     16925,
+     35943,
+     54961,
+     8443,
+     27205,
+     46223,
+     65241,
+     18467,
+     37485,
+     56503,
+     9729,
+     42330,
+     47765,
+     1247,
+     20009,
+     39027,
+     58045,
+     11271,
+     30289,
+     49307,
+     2789,
+     21551,
+     40569,
+     59587,
+     12813,
+     31831,
+     50849,
+     4331,
+     23093,
+     42111,
+     61129,
+     14355,
+     33373,
+     52391,
+     5873,
+     24635,
+     43653,
+     62671,
+     15897,
+     34915,
+     53933,
+     7415,
+     26177
+    ],
+    "unit_sha_crc32": {},
+    "unit_states": {},
+    "wall_clock": [
+     2026,
+     10,
+     28,
+     14,
+     5,
+     37,
+     4
+    ]
+   },
+   "identity_word_count": 17,
+   "initial_request_toggle": false,
+   "machine_events": [
+    {
+     "before": 164,
+     "byte": 64,
+     "kind": "cmos-write",
+     "value": 90
+    },
+    {
+     "before": 164,
+     "byte": 0,
+     "kind": "cmos-write",
+     "value": 89
+    },
+    {
+     "before": 165,
+     "byte": 65,
+     "kind": "cmos-write",
+     "value": 165
+    }
+   ],
+   "name": "pc386-persistence-and-wall-clock",
+   "units": [],
+   "verify_reads": 1,
+   "window": {
+    "bytes": 0,
+    "pattern": "(offset * 7 + (offset >> 11)) & 255"
+   }
+  },
+  {
+   "abi_minor": 1,
+   "build_id": "00112233445566778899aabbccddeeff",
+   "capabilities": 995595,
+   "description": "A 2 MiB image in the synthetic window: prepare, geometry and CRC, a failed and a matching commit with polling, guest writes, then freeze, dirty map and Saved.",
+   "exchanges": [
+    {
+     "argument": 0,
+     "data": 17734,
+     "error": 0,
+     "gpi": 4118824262,
+     "gpo": [
+      16777216,
+      2164260864
+     ],
+     "index": 0,
+     "name": "identity-00",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 12627,
+     "error": 0,
+     "gpi": 4110430547,
+     "gpo": [
+      2164326400,
+      16842752
+     ],
+     "index": 1,
+     "name": "identity-01",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 0,
+     "gpi": 4118806529,
+     "gpo": [
+      16908288,
+      2164391936
+     ],
+     "index": 2,
+     "name": "identity-02",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2164457472,
+      16973824
+     ],
+     "index": 3,
+     "name": "identity-03",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 4,
+     "error": 0,
+     "gpi": 4118806532,
+     "gpo": [
+      17039360,
+      2164523008
+     ],
+     "index": 4,
+     "name": "identity-04",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 0,
+     "gpi": 4110417921,
+     "gpo": [
+      2164588544,
+      17104896
+     ],
+     "index": 5,
+     "name": "identity-05",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 0,
+     "gpi": 4118806529,
+     "gpo": [
+      17170432,
+      2164654080
+     ],
+     "index": 6,
+     "name": "identity-06",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 12555,
+     "error": 0,
+     "gpi": 4110430475,
+     "gpo": [
+      2164719616,
+      17235968
+     ],
+     "index": 7,
+     "name": "identity-07",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 4352,
+     "error": 0,
+     "gpi": 4118810880,
+     "gpo": [
+      17301504,
+      2164785152
+     ],
+     "index": 8,
+     "name": "identity-08",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 13090,
+     "error": 0,
+     "gpi": 4110431010,
+     "gpo": [
+      2164850688,
+      17367040
+     ],
+     "index": 9,
+     "name": "identity-09",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 21828,
+     "error": 0,
+     "gpi": 4118828356,
+     "gpo": [
+      17432576,
+      2164916224
+     ],
+     "index": 10,
+     "name": "identity-10",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 30566,
+     "error": 0,
+     "gpi": 4110448486,
+     "gpo": [
+      2164981760,
+      17498112
+     ],
+     "index": 11,
+     "name": "identity-11",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 39304,
+     "error": 0,
+     "gpi": 4118845832,
+     "gpo": [
+      17563648,
+      2165047296
+     ],
+     "index": 12,
+     "name": "identity-12",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 48042,
+     "error": 0,
+     "gpi": 4110465962,
+     "gpo": [
+      2165112832,
+      17629184
+     ],
+     "index": 13,
+     "name": "identity-13",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 56780,
+     "error": 0,
+     "gpi": 4118863308,
+     "gpo": [
+      17694720,
+      2165178368
+     ],
+     "index": 14,
+     "name": "identity-14",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 65518,
+     "error": 0,
+     "gpi": 4110483438,
+     "gpo": [
+      2165243904,
+      17760256
+     ],
+     "index": 15,
+     "name": "identity-15",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 15,
+     "error": 0,
+     "gpi": 4118806543,
+     "gpo": [
+      17825792,
+      2165309440
+     ],
+     "index": 16,
+     "name": "identity-16",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2415919104,
+      268435456
+     ],
+     "index": 0,
+     "name": "disk-info-field0",
+     "opcode": 16
+    },
+    {
+     "argument": 0,
+     "data": 16,
+     "error": 0,
+     "gpi": 4118806544,
+     "gpo": [
+      268500992,
+      2415984640
+     ],
+     "index": 1,
+     "name": "disk-info-field1",
+     "opcode": 16
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2416050176,
+      268566528
+     ],
+     "index": 2,
+     "name": "disk-info-field2",
+     "opcode": 16
+    },
+    {
+     "argument": 0,
+     "data": 2048,
+     "error": 0,
+     "gpi": 4118808576,
+     "gpo": [
+      268632064,
+      2416115712
+     ],
+     "index": 3,
+     "name": "disk-info-field3",
+     "opcode": 16
+    },
+    {
+     "argument": 0,
+     "data": 128,
+     "error": 0,
+     "gpi": 4110418048,
+     "gpo": [
+      2416181248,
+      268697600
+     ],
+     "index": 4,
+     "name": "disk-info-field4",
+     "opcode": 16
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 0,
+     "gpi": 4118806529,
+     "gpo": [
+      268763136,
+      2416246784
+     ],
+     "index": 5,
+     "name": "disk-info-field5",
+     "opcode": 16
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2416312320,
+      268828672
+     ],
+     "index": 6,
+     "name": "disk-info-field6",
+     "opcode": 16
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      268894208,
+      2416377856
+     ],
+     "index": 7,
+     "name": "disk-info-field7",
+     "opcode": 16
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2416771072,
+      269287424
+     ],
+     "index": 13,
+     "name": "disk-info-unit1-absent",
+     "opcode": 16
+    },
+    {
+     "argument": 0,
+     "data": 2,
+     "error": 2,
+     "gpi": 4123000834,
+     "gpo": [
+      272629760,
+      2420113408
+     ],
+     "index": 64,
+     "name": "disk-info-unit-out-of-range",
+     "opcode": 16
+    },
+    {
+     "argument": 1,
+     "data": 3,
+     "error": 3,
+     "gpi": 4114612227,
+     "gpo": [
+      2416246785,
+      268763137
+     ],
+     "index": 5,
+     "name": "disk-info-argument-rejected",
+     "opcode": 16
+    },
+    {
+     "argument": 4096,
+     "data": 4,
+     "error": 4,
+     "gpi": 4123000836,
+     "gpo": [
+      369102848,
+      2516586496
+     ],
+     "index": 0,
+     "name": "disk-commit-word-before-prepare",
+     "opcode": 22
+    },
+    {
+     "argument": 0,
+     "data": 2,
+     "error": 2,
+     "gpi": 4114612226,
+     "gpo": [
+      2432761856,
+      285278208
+     ],
+     "index": 1,
+     "name": "disk-control-unit-rejected",
+     "opcode": 17
+    },
+    {
+     "argument": 6,
+     "data": 3,
+     "error": 3,
+     "gpi": 4123000835,
+     "gpo": [
+      285212678,
+      2432696326
+     ],
+     "index": 0,
+     "name": "disk-control-argument-rejected",
+     "opcode": 17
+    },
+    {
+     "argument": 3,
+     "data": 4,
+     "error": 4,
+     "gpi": 4114612228,
+     "gpo": [
+      2432696323,
+      285212675
+     ],
+     "index": 0,
+     "name": "disk-freeze-empty",
+     "opcode": 17
+    },
+    {
+     "argument": 5,
+     "data": 4,
+     "error": 4,
+     "gpi": 4123000836,
+     "gpo": [
+      285212677,
+      2432696325
+     ],
+     "index": 0,
+     "name": "disk-saved-unfrozen",
+     "opcode": 17
+    },
+    {
+     "argument": 0,
+     "data": 4,
+     "error": 4,
+     "gpi": 4114612228,
+     "gpo": [
+      2533359616,
+      385875968
+     ],
+     "index": 0,
+     "name": "disk-dirty-unfrozen",
+     "opcode": 23
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      285212672,
+      2432696320
+     ],
+     "index": 0,
+     "name": "disk-prepare",
+     "opcode": 17
+    },
+    {
+     "argument": 0,
+     "data": 2,
+     "error": 0,
+     "gpi": 4110417922,
+     "gpo": [
+      2416246784,
+      268763136
+     ],
+     "index": 5,
+     "name": "disk-state-loading",
+     "opcode": 16
+    },
+    {
+     "argument": 1,
+     "data": 4,
+     "error": 4,
+     "gpi": 4123000836,
+     "gpo": [
+      285212673,
+      2432696321
+     ],
+     "index": 0,
+     "name": "disk-commit-without-words",
+     "opcode": 17
+    },
+    {
+     "argument": 0,
+     "data": 2,
+     "error": 2,
+     "gpi": 4114612226,
+     "gpo": [
+      2517106688,
+      369623040
+     ],
+     "index": 8,
+     "name": "disk-commit-word-index-rejected",
+     "opcode": 22
+    },
+    {
+     "argument": 0,
+     "data": 2,
+     "error": 2,
+     "gpi": 4123000834,
+     "gpo": [
+      369164288,
+      2516647936
+     ],
+     "index": 1,
+     "name": "disk-commit-word-1-first",
+     "opcode": 22
+    },
+    {
+     "argument": 4096,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2516586496,
+      369102848
+     ],
+     "index": 0,
+     "name": "size-lo",
+     "opcode": 22
+    },
+    {
+     "argument": 4,
+     "data": 3,
+     "error": 3,
+     "gpi": 4123000835,
+     "gpo": [
+      369164292,
+      2516647940
+     ],
+     "index": 1,
+     "name": "size-oversize",
+     "opcode": 22
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2516647936,
+      369164288
+     ],
+     "index": 1,
+     "name": "size-hi",
+     "opcode": 22
+    },
+    {
+     "argument": 0,
+     "data": 3,
+     "error": 3,
+     "gpi": 4123000835,
+     "gpo": [
+      369229824,
+      2516713472
+     ],
+     "index": 2,
+     "name": "cylinders-zero",
+     "opcode": 22
+    },
+    {
+     "argument": 16384,
+     "data": 3,
+     "error": 3,
+     "gpi": 4114612227,
+     "gpo": [
+      2516729856,
+      369246208
+     ],
+     "index": 2,
+     "name": "cylinders-over-16383",
+     "opcode": 22
+    },
+    {
+     "argument": 5,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      369229829,
+      2516713477
+     ],
+     "index": 2,
+     "name": "cylinders-five",
+     "opcode": 22
+    },
+    {
+     "argument": 17,
+     "data": 3,
+     "error": 3,
+     "gpi": 4114612227,
+     "gpo": [
+      2516779025,
+      369295377
+     ],
+     "index": 3,
+     "name": "heads-17",
+     "opcode": 22
+    },
+    {
+     "argument": 16,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      369295376,
+      2516779024
+     ],
+     "index": 3,
+     "name": "heads",
+     "opcode": 22
+    },
+    {
+     "argument": 63,
+     "data": 3,
+     "error": 3,
+     "gpi": 4114612227,
+     "gpo": [
+      2516844607,
+      369360959
+     ],
+     "index": 4,
+     "name": "chs-over-size",
+     "opcode": 22
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      285212672,
+      2432696320
+     ],
+     "index": 0,
+     "name": "re-prepare",
+     "opcode": 17
+    },
+    {
+     "argument": 4096,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2516586496,
+      369102848
+     ],
+     "index": 0,
+     "name": "commit-word-0",
+     "opcode": 22
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      369164288,
+      2516647936
+     ],
+     "index": 1,
+     "name": "commit-word-1",
+     "opcode": 22
+    },
+    {
+     "argument": 4,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2516713476,
+      369229828
+     ],
+     "index": 2,
+     "name": "commit-word-2",
+     "opcode": 22
+    },
+    {
+     "argument": 16,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      369295376,
+      2516779024
+     ],
+     "index": 3,
+     "name": "commit-word-3",
+     "opcode": 22
+    },
+    {
+     "argument": 0,
+     "data": 3,
+     "error": 3,
+     "gpi": 4114612227,
+     "gpo": [
+      2516844544,
+      369360896
+     ],
+     "index": 4,
+     "name": "spt-zero",
+     "opcode": 22
+    },
+    {
+     "argument": 64,
+     "data": 3,
+     "error": 3,
+     "gpi": 4123000835,
+     "gpo": [
+      369360960,
+      2516844608
+     ],
+     "index": 4,
+     "name": "spt-64",
+     "opcode": 22
+    },
+    {
+     "argument": 63,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2516844607,
+      369360959
+     ],
+     "index": 4,
+     "name": "spt",
+     "opcode": 22
+    },
+    {
+     "argument": 63409,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      369489841,
+      2516973489
+     ],
+     "index": 5,
+     "name": "crc-lo-wrong",
+     "opcode": 22
+    },
+    {
+     "argument": 54977,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2517030593,
+      369546945
+     ],
+     "index": 6,
+     "name": "crc-hi",
+     "opcode": 22
+    },
+    {
+     "argument": 1,
+     "data": 3,
+     "error": 3,
+     "gpi": 4123000835,
+     "gpo": [
+      369557505,
+      2517041153
+     ],
+     "index": 7,
+     "name": "reserved-nonzero",
+     "opcode": 22
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2517041152,
+      369557504
+     ],
+     "index": 7,
+     "name": "reserved",
+     "opcode": 22
+    },
+    {
+     "argument": 4096,
+     "data": 2,
+     "error": 2,
+     "gpi": 4123000834,
+     "gpo": [
+      369102848,
+      2516586496
+     ],
+     "index": 0,
+     "name": "commit-word-after-complete",
+     "opcode": 22
+    },
+    {
+     "argument": 1,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2432696321,
+      285212673
+     ],
+     "index": 0,
+     "name": "disk-commit-mismatch",
+     "opcode": 17
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      268828672,
+      2416312320
+     ],
+     "index": 6,
+     "name": "flags-verifying-no-error",
+     "opcode": 16
+    },
+    {
+     "argument": 0,
+     "data": 4,
+     "error": 0,
+     "gpi": 4110417924,
+     "gpo": [
+      2416246784,
+      268763136
+     ],
+     "index": 5,
+     "name": "poll-verifying",
+     "opcode": 16
+    },
+    {
+     "argument": 0,
+     "data": 2,
+     "error": 0,
+     "gpi": 4118806530,
+     "gpo": [
+      268763136,
+      2416246784
+     ],
+     "index": 5,
+     "name": "poll-loading",
+     "opcode": 16
+    },
+    {
+     "argument": 0,
+     "data": 8,
+     "error": 0,
+     "gpi": 4110417928,
+     "gpo": [
+      2416312320,
+      268828672
+     ],
+     "index": 6,
+     "name": "flags-error",
+     "opcode": 16
+    },
+    {
+     "argument": 3,
+     "data": 4,
+     "error": 4,
+     "gpi": 4123000836,
+     "gpo": [
+      285212675,
+      2432696323
+     ],
+     "index": 0,
+     "name": "freeze-after-mismatch",
+     "opcode": 17
+    },
+    {
+     "argument": 4096,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2516586496,
+      369102848
+     ],
+     "index": 0,
+     "name": "retry-commit-word-0",
+     "opcode": 22
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      369164288,
+      2516647936
+     ],
+     "index": 1,
+     "name": "retry-commit-word-1",
+     "opcode": 22
+    },
+    {
+     "argument": 4,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2516713476,
+      369229828
+     ],
+     "index": 2,
+     "name": "retry-commit-word-2",
+     "opcode": 22
+    },
+    {
+     "argument": 16,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      369295376,
+      2516779024
+     ],
+     "index": 3,
+     "name": "retry-commit-word-3",
+     "opcode": 22
+    },
+    {
+     "argument": 63,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2516844607,
+      369360959
+     ],
+     "index": 4,
+     "name": "retry-commit-word-4",
+     "opcode": 22
+    },
+    {
+     "argument": 63408,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      369489840,
+      2516973488
+     ],
+     "index": 5,
+     "name": "retry-commit-word-5",
+     "opcode": 22
+    },
+    {
+     "argument": 54977,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2517030593,
+      369546945
+     ],
+     "index": 6,
+     "name": "retry-commit-word-6",
+     "opcode": 22
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      369557504,
+      2517041152
+     ],
+     "index": 7,
+     "name": "retry-commit-word-7",
+     "opcode": 22
+    },
+    {
+     "argument": 1,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2432696321,
+      285212673
+     ],
+     "index": 0,
+     "name": "disk-commit",
+     "opcode": 17
+    },
+    {
+     "argument": 0,
+     "data": 4,
+     "error": 0,
+     "gpi": 4118806532,
+     "gpo": [
+      268763136,
+      2416246784
+     ],
+     "index": 5,
+     "name": "poll-verifying-again",
+     "opcode": 16
+    },
+    {
+     "argument": 0,
+     "data": 3,
+     "error": 0,
+     "gpi": 4110417923,
+     "gpo": [
+      2416246784,
+      268763136
+     ],
+     "index": 5,
+     "name": "poll-ready",
+     "opcode": 16
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      268828672,
+      2416312320
+     ],
+     "index": 6,
+     "name": "flags-clear",
+     "opcode": 16
+    },
+    {
+     "argument": 4096,
+     "data": 4,
+     "error": 4,
+     "gpi": 4114612228,
+     "gpo": [
+      2516586496,
+      369102848
+     ],
+     "index": 0,
+     "name": "commit-word-while-ready",
+     "opcode": 22
+    },
+    {
+     "argument": 1,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      33554433,
+      2181038081
+     ],
+     "index": 0,
+     "name": "release",
+     "opcode": 2
+    },
+    {
+     "argument": 0,
+     "data": 4,
+     "error": 4,
+     "gpi": 4114612228,
+     "gpo": [
+      2432696320,
+      285212672
+     ],
+     "index": 0,
+     "name": "prepare-while-running",
+     "opcode": 17
+    },
+    {
+     "argument": 2,
+     "data": 4,
+     "error": 4,
+     "gpi": 4123000836,
+     "gpo": [
+      285212674,
+      2432696322
+     ],
+     "index": 0,
+     "name": "eject-while-running",
+     "opcode": 17
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 0,
+     "gpi": 4110417921,
+     "gpo": [
+      2416312320,
+      268828672
+     ],
+     "index": 6,
+     "name": "flags-dirty",
+     "opcode": 16
+    },
+    {
+     "argument": 0,
+     "data": 4,
+     "error": 0,
+     "gpi": 4118806532,
+     "gpo": [
+      268894208,
+      2416377856
+     ],
+     "index": 7,
+     "name": "epoch",
+     "opcode": 16
+    },
+    {
+     "argument": 0,
+     "data": 5,
+     "error": 0,
+     "gpi": 4110417925,
+     "gpo": [
+      2416312320,
+      268828672
+     ],
+     "index": 6,
+     "name": "flags-writer-busy",
+     "opcode": 16
+    },
+    {
+     "argument": 5,
+     "data": 4,
+     "error": 4,
+     "gpi": 4123000836,
+     "gpo": [
+      285212677,
+      2432696325
+     ],
+     "index": 0,
+     "name": "disk-saved-busy-writer",
+     "opcode": 17
+    },
+    {
+     "argument": 0,
+     "data": 4,
+     "error": 0,
+     "gpi": 4110417924,
+     "gpo": [
+      2416377856,
+      268894208
+     ],
+     "index": 7,
+     "name": "epoch-before-freeze-drain",
+     "opcode": 16
+    },
+    {
+     "argument": 3,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      285212675,
+      2432696323
+     ],
+     "index": 0,
+     "name": "disk-freeze-drain",
+     "opcode": 17
+    },
+    {
+     "argument": 0,
+     "data": 3,
+     "error": 0,
+     "gpi": 4110417923,
+     "gpo": [
+      2416312320,
+      268828672
+     ],
+     "index": 6,
+     "name": "flags-drained-frozen",
+     "opcode": 16
+    },
+    {
+     "argument": 0,
+     "data": 5,
+     "error": 0,
+     "gpi": 4118806533,
+     "gpo": [
+      268894208,
+      2416377856
+     ],
+     "index": 7,
+     "name": "epoch-after-freeze-drain",
+     "opcode": 16
+    },
+    {
+     "argument": 0,
+     "data": 21,
+     "error": 0,
+     "gpi": 4110417941,
+     "gpo": [
+      2533359616,
+      385875968
+     ],
+     "index": 0,
+     "name": "dirty-after-freeze-drain",
+     "opcode": 23
+    },
+    {
+     "argument": 3,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      285212675,
+      2432696323
+     ],
+     "index": 0,
+     "name": "disk-freeze-again",
+     "opcode": 17
+    },
+    {
+     "argument": 0,
+     "data": 3,
+     "error": 0,
+     "gpi": 4110417923,
+     "gpo": [
+      2416312320,
+      268828672
+     ],
+     "index": 6,
+     "name": "flags-dirty-frozen",
+     "opcode": 16
+    },
+    {
+     "argument": 0,
+     "data": 2,
+     "error": 2,
+     "gpi": 4123000834,
+     "gpo": [
+      394264576,
+      2541748224
+     ],
+     "index": 128,
+     "name": "dirty-index-rejected",
+     "opcode": 23
+    },
+    {
+     "argument": 1,
+     "data": 3,
+     "error": 3,
+     "gpi": 4114612227,
+     "gpo": [
+      2533359617,
+      385875969
+     ],
+     "index": 0,
+     "name": "dirty-argument-rejected",
+     "opcode": 23
+    },
+    {
+     "argument": 0,
+     "data": 21,
+     "error": 0,
+     "gpi": 4118806549,
+     "gpo": [
+      385875968,
+      2533359616
+     ],
+     "index": 0,
+     "name": "dirty-word-0",
+     "opcode": 23
+    },
+    {
+     "argument": 0,
+     "data": 32768,
+     "error": 0,
+     "gpi": 4110450688,
+     "gpo": [
+      2533425152,
+      385941504
+     ],
+     "index": 1,
+     "name": "dirty-word-1",
+     "opcode": 23
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      386007040,
+      2533490688
+     ],
+     "index": 2,
+     "name": "dirty-word-2",
+     "opcode": 23
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2541682688,
+      394199040
+     ],
+     "index": 127,
+     "name": "dirty-word-127",
+     "opcode": 23
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      33554432,
+      2181038080
+     ],
+     "index": 0,
+     "name": "hold",
+     "opcode": 2
+    },
+    {
+     "argument": 2,
+     "data": 4,
+     "error": 4,
+     "gpi": 4114612228,
+     "gpo": [
+      2432696322,
+      285212674
+     ],
+     "index": 0,
+     "name": "eject-unsaved",
+     "opcode": 17
+    },
+    {
+     "argument": 0,
+     "data": 4,
+     "error": 4,
+     "gpi": 4123000836,
+     "gpo": [
+      285212672,
+      2432696320
+     ],
+     "index": 0,
+     "name": "prepare-unsaved",
+     "opcode": 17
+    },
+    {
+     "argument": 5,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2432696325,
+      285212677
+     ],
+     "index": 0,
+     "name": "disk-saved",
+     "opcode": 17
+    },
+    {
+     "argument": 3,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      285212675,
+      2432696323
+     ],
+     "index": 0,
+     "name": "disk-freeze-after-saved",
+     "opcode": 17
+    },
+    {
+     "argument": 2,
+     "data": 4,
+     "error": 4,
+     "gpi": 4114612228,
+     "gpo": [
+      2432696322,
+      285212674
+     ],
+     "index": 0,
+     "name": "eject-after-freeze-clears-saved",
+     "opcode": 17
+    },
+    {
+     "argument": 5,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      285212677,
+      2432696325
+     ],
+     "index": 0,
+     "name": "disk-saved-after-freeze",
+     "opcode": 17
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2533359616,
+      385875968
+     ],
+     "index": 0,
+     "name": "dirty-after-saved",
+     "opcode": 23
+    },
+    {
+     "argument": 0,
+     "data": 2,
+     "error": 0,
+     "gpi": 4118806530,
+     "gpo": [
+      268828672,
+      2416312320
+     ],
+     "index": 6,
+     "name": "flags-frozen",
+     "opcode": 16
+    },
+    {
+     "argument": 4,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2432696324,
+      285212676
+     ],
+     "index": 0,
+     "name": "disk-resume",
+     "opcode": 17
+    },
+    {
+     "argument": 4,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      285212676,
+      2432696324
+     ],
+     "index": 0,
+     "name": "disk-resume-again",
+     "opcode": 17
+    },
+    {
+     "argument": 1,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2181038081,
+      33554433
+     ],
+     "index": 0,
+     "name": "release-again",
+     "opcode": 2
+    },
+    {
+     "argument": 3,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      285212675,
+      2432696323
+     ],
+     "index": 0,
+     "name": "disk-freeze-for-stop",
+     "opcode": 17
+    },
+    {
+     "argument": 0,
+     "data": 128,
+     "error": 0,
+     "gpi": 4110418048,
+     "gpo": [
+      2533359616,
+      385875968
+     ],
+     "index": 0,
+     "name": "dirty-word-0-for-stop",
+     "opcode": 23
+    },
+    {
+     "argument": 5,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      285212677,
+      2432696325
+     ],
+     "index": 0,
+     "name": "disk-saved-for-stop",
+     "opcode": 17
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2181038080,
+      33554432
+     ],
+     "index": 0,
+     "name": "hold-for-stop",
+     "opcode": 2
+    },
+    {
+     "argument": 2,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      285212674,
+      2432696322
+     ],
+     "index": 0,
+     "name": "eject-after-saved",
+     "opcode": 17
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 0,
+     "gpi": 4110417921,
+     "gpo": [
+      2416246784,
+      268763136
+     ],
+     "index": 5,
+     "name": "state-empty",
+     "opcode": 16
+    }
+   ],
+   "final": {
+    "controller_ports": [
+     0,
+     0
+    ],
+    "disk_dirty_chunks": [],
+    "disk_epoch": 6,
+    "disk_flags": 0,
+    "disk_geometry": [],
+    "disk_state": 1,
+    "held": true,
+    "keyboard_rows": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "mouse_buttons": 0,
+    "mouse_motion": [
+     0,
+     0
+    ],
+    "persistent_words": [
+     0,
+     0,
+     0,
+     0,
+     544,
+     7,
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "unit_sha_crc32": {},
+    "unit_states": {},
+    "wall_clock": []
+   },
+   "identity_word_count": 17,
+   "initial_request_toggle": false,
+   "machine_events": [
+    {
+     "before": 83,
+     "kind": "sector-write",
+     "sector": 0
+    },
+    {
+     "before": 83,
+     "kind": "sector-write",
+     "sector": 300
+    },
+    {
+     "before": 83,
+     "kind": "sector-write",
+     "sector": 4095
+    },
+    {
+     "before": 83,
+     "kind": "sector-write",
+     "sector": 301
+    },
+    {
+     "before": 85,
+     "kind": "sector-write-begin",
+     "sector": 512
+    },
+    {
+     "before": 112,
+     "kind": "sector-write",
+     "sector": 1000
+    }
+   ],
+   "name": "pc386-ata-disk",
+   "units": [],
+   "verify_reads": 1,
+   "window": {
+    "bytes": 2097152,
+    "pattern": "(offset * 7 + (offset >> 11)) & 255"
+   }
+  },
+  {
+   "abi_minor": 1,
+   "build_id": "00112233445566778899aabbccddeeff",
+   "capabilities": 471307,
+   "description": "Persistence and its pc386 layout capability must be advertised together.",
+   "exchanges": [
+    {
+     "argument": 0,
+     "data": 17734,
+     "error": 0,
+     "gpi": 4118824262,
+     "gpo": [
+      16777216,
+      2164260864
+     ],
+     "index": 0,
+     "name": "identity-00",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 12627,
+     "error": 0,
+     "gpi": 4110430547,
+     "gpo": [
+      2164326400,
+      16842752
+     ],
+     "index": 1,
+     "name": "identity-01",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 0,
+     "gpi": 4118806529,
+     "gpo": [
+      16908288,
+      2164391936
+     ],
+     "index": 2,
+     "name": "identity-02",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2164457472,
+      16973824
+     ],
+     "index": 3,
+     "name": "identity-03",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 4,
+     "error": 0,
+     "gpi": 4118806532,
+     "gpo": [
+      17039360,
+      2164523008
+     ],
+     "index": 4,
+     "name": "identity-04",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 0,
+     "gpi": 4110417921,
+     "gpo": [
+      2164588544,
+      17104896
+     ],
+     "index": 5,
+     "name": "identity-05",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 0,
+     "gpi": 4118806529,
+     "gpo": [
+      17170432,
+      2164654080
+     ],
+     "index": 6,
+     "name": "identity-06",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 12555,
+     "error": 0,
+     "gpi": 4110430475,
+     "gpo": [
+      2164719616,
+      17235968
+     ],
+     "index": 7,
+     "name": "identity-07",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 4352,
+     "error": 0,
+     "gpi": 4118810880,
+     "gpo": [
+      17301504,
+      2164785152
+     ],
+     "index": 8,
+     "name": "identity-08",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 13090,
+     "error": 0,
+     "gpi": 4110431010,
+     "gpo": [
+      2164850688,
+      17367040
+     ],
+     "index": 9,
+     "name": "identity-09",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 21828,
+     "error": 0,
+     "gpi": 4118828356,
+     "gpo": [
+      17432576,
+      2164916224
+     ],
+     "index": 10,
+     "name": "identity-10",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 30566,
+     "error": 0,
+     "gpi": 4110448486,
+     "gpo": [
+      2164981760,
+      17498112
+     ],
+     "index": 11,
+     "name": "identity-11",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 39304,
+     "error": 0,
+     "gpi": 4118845832,
+     "gpo": [
+      17563648,
+      2165047296
+     ],
+     "index": 12,
+     "name": "identity-12",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 48042,
+     "error": 0,
+     "gpi": 4110465962,
+     "gpo": [
+      2165112832,
+      17629184
+     ],
+     "index": 13,
+     "name": "identity-13",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 56780,
+     "error": 0,
+     "gpi": 4118863308,
+     "gpo": [
+      17694720,
+      2165178368
+     ],
+     "index": 14,
+     "name": "identity-14",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 65518,
+     "error": 0,
+     "gpi": 4110483438,
+     "gpo": [
+      2165243904,
+      17760256
+     ],
+     "index": 15,
+     "name": "identity-15",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 7,
+     "error": 0,
+     "gpi": 4118806535,
+     "gpo": [
+      17825792,
+      2165309440
+     ],
+     "index": 16,
+     "name": "identity-16",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 1,
+     "gpi": 4114612225,
+     "gpo": [
+      2600468480,
+      452984832
+     ],
+     "index": 0,
+     "name": "data-info-with-unpaired-capability",
+     "opcode": 27
+    },
+    {
+     "argument": 1,
+     "data": 1,
+     "error": 1,
+     "gpi": 4123000833,
+     "gpo": [
+      402653185,
+      2550136833
+     ],
+     "index": 0,
+     "name": "data-begin-with-unpaired-capability",
+     "opcode": 24
+    }
+   ],
+   "final": {
+    "controller_ports": [
+     0,
+     0
+    ],
+    "disk_dirty_chunks": [],
+    "disk_epoch": 0,
+    "disk_flags": 0,
+    "disk_geometry": [],
+    "disk_state": 1,
+    "held": true,
+    "keyboard_rows": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "mouse_buttons": 0,
+    "mouse_motion": [
+     0,
+     0
+    ],
+    "persistent_words": [
+     0,
+     0,
+     0,
+     0,
+     544,
+     7,
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "unit_sha_crc32": {},
+    "unit_states": {},
+    "wall_clock": []
+   },
+   "identity_word_count": 17,
+   "initial_request_toggle": false,
+   "machine_events": [],
+   "name": "persistence-without-layout",
+   "units": [],
+   "verify_reads": 1,
+   "window": {
+    "bytes": 0,
+    "pattern": "(offset * 7 + (offset >> 11)) & 255"
+   }
+  },
+  {
+   "abi_minor": 1,
+   "build_id": "00112233445566778899aabbccddeeff",
+   "capabilities": 864523,
+   "description": "Persistence and its pc386 layout capability must be advertised together.",
+   "exchanges": [
+    {
+     "argument": 0,
+     "data": 17734,
+     "error": 0,
+     "gpi": 4118824262,
+     "gpo": [
+      16777216,
+      2164260864
+     ],
+     "index": 0,
+     "name": "identity-00",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 12627,
+     "error": 0,
+     "gpi": 4110430547,
+     "gpo": [
+      2164326400,
+      16842752
+     ],
+     "index": 1,
+     "name": "identity-01",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 0,
+     "gpi": 4118806529,
+     "gpo": [
+      16908288,
+      2164391936
+     ],
+     "index": 2,
+     "name": "identity-02",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2164457472,
+      16973824
+     ],
+     "index": 3,
+     "name": "identity-03",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 4,
+     "error": 0,
+     "gpi": 4118806532,
+     "gpo": [
+      17039360,
+      2164523008
+     ],
+     "index": 4,
+     "name": "identity-04",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 0,
+     "gpi": 4110417921,
+     "gpo": [
+      2164588544,
+      17104896
+     ],
+     "index": 5,
+     "name": "identity-05",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 0,
+     "gpi": 4118806529,
+     "gpo": [
+      17170432,
+      2164654080
+     ],
+     "index": 6,
+     "name": "identity-06",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 12555,
+     "error": 0,
+     "gpi": 4110430475,
+     "gpo": [
+      2164719616,
+      17235968
+     ],
+     "index": 7,
+     "name": "identity-07",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 4352,
+     "error": 0,
+     "gpi": 4118810880,
+     "gpo": [
+      17301504,
+      2164785152
+     ],
+     "index": 8,
+     "name": "identity-08",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 13090,
+     "error": 0,
+     "gpi": 4110431010,
+     "gpo": [
+      2164850688,
+      17367040
+     ],
+     "index": 9,
+     "name": "identity-09",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 21828,
+     "error": 0,
+     "gpi": 4118828356,
+     "gpo": [
+      17432576,
+      2164916224
+     ],
+     "index": 10,
+     "name": "identity-10",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 30566,
+     "error": 0,
+     "gpi": 4110448486,
+     "gpo": [
+      2164981760,
+      17498112
+     ],
+     "index": 11,
+     "name": "identity-11",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 39304,
+     "error": 0,
+     "gpi": 4118845832,
+     "gpo": [
+      17563648,
+      2165047296
+     ],
+     "index": 12,
+     "name": "identity-12",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 48042,
+     "error": 0,
+     "gpi": 4110465962,
+     "gpo": [
+      2165112832,
+      17629184
+     ],
+     "index": 13,
+     "name": "identity-13",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 56780,
+     "error": 0,
+     "gpi": 4118863308,
+     "gpo": [
+      17694720,
+      2165178368
+     ],
+     "index": 14,
+     "name": "identity-14",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 65518,
+     "error": 0,
+     "gpi": 4110483438,
+     "gpo": [
+      2165243904,
+      17760256
+     ],
+     "index": 15,
+     "name": "identity-15",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 13,
+     "error": 0,
+     "gpi": 4118806541,
+     "gpo": [
+      17825792,
+      2165309440
+     ],
+     "index": 16,
+     "name": "identity-16",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 1,
+     "gpi": 4114612225,
+     "gpo": [
+      2600468480,
+      452984832
+     ],
+     "index": 0,
+     "name": "data-info-with-unpaired-capability",
+     "opcode": 27
+    },
+    {
+     "argument": 1,
+     "data": 1,
+     "error": 1,
+     "gpi": 4123000833,
+     "gpo": [
+      402653185,
+      2550136833
+     ],
+     "index": 0,
+     "name": "data-begin-with-unpaired-capability",
+     "opcode": 24
+    }
+   ],
+   "final": {
+    "controller_ports": [
+     0,
+     0
+    ],
+    "disk_dirty_chunks": [],
+    "disk_epoch": 0,
+    "disk_flags": 0,
+    "disk_geometry": [],
+    "disk_state": 1,
+    "held": true,
+    "keyboard_rows": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "mouse_buttons": 0,
+    "mouse_motion": [
+     0,
+     0
+    ],
+    "persistent_words": [
+     0,
+     0,
+     0,
+     0,
+     544,
+     7,
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "unit_sha_crc32": {},
+    "unit_states": {},
+    "wall_clock": []
+   },
+   "identity_word_count": 17,
+   "initial_request_toggle": false,
+   "machine_events": [],
+   "name": "layout-without-persistence",
+   "units": [],
+   "verify_reads": 1,
+   "window": {
+    "bytes": 0,
+    "pattern": "(offset * 7 + (offset >> 11)) & 255"
+   }
+  }
+ ]
+}

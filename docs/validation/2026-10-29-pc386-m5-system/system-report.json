@@ -1,0 +1,109 @@
+{
+  "attach_cycle": 48,
+  "config_cycle": 48,
+  "post": [
+    {
+      "code": "00",
+      "cycle": 4240
+    },
+    {
+      "code": "21",
+      "cycle": 1839280
+    },
+    {
+      "code": "31",
+      "cycle": 1904816
+    },
+    {
+      "code": "41",
+      "cycle": 2166976
+    },
+    {
+      "code": "71",
+      "cycle": 2232512
+    },
+    {
+      "code": "77",
+      "cycle": 2298048
+    }
+  ],
+  "debug": [
+    "BIOS BUILD DATE: 10/26/26",
+    "VGABios ID: vgabios.c 2026-08-07",
+    "ata0-0: PCHS=65/16/63 translation=none LCHS=65/16/63",
+    "IDE time out",
+    "Booting from 0000:7c00"
+  ],
+  "counters": [],
+  "prompt_cycle": 156672000,
+  "screen": [
+    " . https://bochs.sourceforge.io                                                 ",
+    " . https://www.nongnu.org/vgabios                                               ",
+    "                                                                                ",
+    "Bochs 3.1 BIOS - build: 10/26/26                                                ",
+    "Options: eltorito                                                               ",
+    "                                                                                ",
+    "ata0 master: FES pc386 ATA disk ATA-4 Hard-Disk (  31 MBytes)                   ",
+    "ata0  slave: Unknown device                                                     ",
+    "                                                                                ",
+    "Booting from Hard Disk...                                                       ",
+    "................................................................................",
+    "FreeDOS kernel 2043 (build 2043 OEM:0xfd) [compiled May 14 2021]                ",
+    "Kernel compatibility 7.10 - WATCOMC - 80386 CPU required - FAT32 support        ",
+    "                                                                                ",
+    "(C) Copyright 1995-2012 Pasquale J. Villani and The FreeDOS Project.            ",
+    "All Rights Reserved. This is free software and comes with ABSOLUTELY NO         ",
+    "WARRANTY; you can redistribute it and/or modify it under the terms of the       ",
+    "GNU General Public License as published by the Free Software Foundation;        ",
+    "either version 2, or (at your option) any later version.                        ",
+    "C: HD1, Pri[ 1], CHS=    0-1-1, start=     0 MB, size=    31 MB                 ",
+    "                                                                                ",
+    "FreeCom version 0.86 - WATCOMC - XMS_Swap [Dec 30 2024 22:10:51]                ",
+    "                                                                                ",
+    "FreeCom version 0.86 - WATCOMC - XMS_Swap [Dec 30 2024 22:10:51]                ",
+    "C:\\>                                                                            "
+  ],
+  "status": {
+    "running": 1,
+    "debug_bytes": 148,
+    "debug_drops": 0,
+    "halted": 0,
+    "stopped": 0,
+    "a20m": 0,
+    "intr": 0,
+    "post": 119,
+    "cpu_resets": 0,
+    "retired": 45534556,
+    "cs": 1540,
+    "vector": 8,
+    "eip": 5103,
+    "frames_shown": 156,
+    "scanout_underflows": 0,
+    "capture_drops": 0,
+    "present_underflows": 0,
+    "plane_underflows": 0,
+    "samples": 124776,
+    "dma_cycles": 0,
+    "opl2_samples": 129236
+  },
+  "end": {
+    "reason": "prompt",
+    "cycles": 159744000,
+    "seconds": 2.6
+  },
+  "command": [
+    "build/sim/fes-pc386/system/obj/Vpc386_system",
+    "--disk",
+    "build/sim/fes-pc386/freedos.img",
+    "--clock-hz",
+    "61440000",
+    "--limit-seconds",
+    "12"
+  ],
+  "exit": 0,
+  "failures": [],
+  "checks": [
+    "{'reason': 'prompt', 'cycles': 159744000, 'seconds': 2.6}",
+    "{'running': 1, 'debug_bytes': 148, 'debug_drops': 0, 'halted': 0, 'stopped': 0, 'a20m': 0, 'intr': 0, 'post': 119, 'cpu_resets': 0, 'retired': 45534556, 'cs': 1540, 'vector': 8, 'eip': 5103, 'frames_shown': 156, 'scanout_underflows': 0, 'capture_drops': 0, 'present_underflows': 0, 'plane_underflows': 0, 'samples': 124776, 'dma_cycles': 0, 'opl2_samples': 129236}"
+  ]
+}
