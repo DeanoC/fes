@@ -85,14 +85,16 @@ the test-image load. However, the temporary-image boot log reports that
 `system.journal` was
 "corrupted or uncleanly shut down." The retained evidence therefore does not
 establish that factory Linux completed a clean halt. The combined SOF's Terasic
-bootloader then boots the existing SD kernel to its login prompt. UART and
-pinned-key SSH confirm Ubuntu 22.04.3, AArch64 kernel
-`6.12.11-gd7d192a9ddd9`, root `/dev/mmcblk0p2` ext3 and the temporary image's
-boot UUID. [temporary-sof-boot.log.gz](temporary-sof-boot.log.gz) retains the
-redacted boot log; [temporary-sof-linux.log.gz](temporary-sof-linux.log.gz)
-retains the SSH observations. Credentials and private network addresses stay
-outside Git. This establishes this diagnostic/SPL/factory-SD boot observation;
-it does not qualify the separately prepared FES rootfs or every firmware pair.
+bootloader then boots the existing SD kernel to its login prompt. The UART
+transcript records Ubuntu 22.04.3, AArch64 kernel
+`6.12.11-gd7d192a9ddd9` and root `/dev/mmcblk0p2` ext3, but not the temporary
+image's boot UUID. The pinned-key SSH transcript records that boot UUID along
+with the kernel and root, but does not identify the Ubuntu release.
+[temporary-sof-boot.log.gz](temporary-sof-boot.log.gz) retains the redacted UART
+boot log; [temporary-sof-linux.log.gz](temporary-sof-linux.log.gz) retains the
+SSH observations. Credentials and private network addresses stay outside Git.
+This establishes this diagnostic/SPL/factory-SD boot observation; it does not
+qualify the separately prepared FES rootfs or every firmware pair.
 
 ## Setup and remaining boundaries
 
@@ -149,11 +151,12 @@ selects one chip. The 134,217,728-byte full SDRAM scan spans the 128-MiB range,
 crosses bit 26 and exercises both physical chip selects. No physical HPS-memory
 test runs.
 
-After all JTAG claims close, Linux `sync` and authenticated `sudo /sbin/reboot`
-shut down the temporary-image boot. The 60-second UART capture ends at
-`watchdog0: watchdog did not stop!` and `reboot: Restarting system`, without a
-subsequent boot. This is an observed failure, not a diagnosed watchdog, SDM,
-SPL or RTL cause. There is no factory-only software-reboot control yet.
+After the recorded JTAG sessions close, the retained 60-second UART capture
+shows systemd entering shutdown and ends at `watchdog0: watchdog did not stop!`
+and `reboot: Restarting system`. It does not retain the Linux commands that
+initiated shutdown, and it contains no subsequent boot. This is an observed
+failure, not a diagnosed watchdog, SDM, SPL or RTL cause. There is no
+factory-only software-reboot control yet.
 [Issue #1291](https://github.com/DeanoC/fes/issues/1291) tracks that separate
 qualification. The passing memory scans do not qualify software reset.
 

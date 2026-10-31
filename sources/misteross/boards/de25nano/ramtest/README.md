@@ -76,7 +76,8 @@ DRAM reliability, Linux DMA admission or physical board operation.
 The raw compiler SOF requires an HPS bootloader before JTAG programming;
 Quartus rejects it without one. The [physical diagnostic record](../../../../../docs/validation/2026-10-30-de25-physical-memory/README.md)
 documents the vendor `quartus_pfg` conversion with the unchanged, locked
-Terasic SPL into a separate SOF. That exact image boots the factory SD and
+Terasic SPL into a separate SOF. The programmed SOF, identified by Quartus
+checksum `0x067AE616` in the retained transcript, boots the factory SD and
 passes 4-KiB smoke and full-bank scans of FPGA LPDDR4 B and SDRAM. Only the
 full 128-MiB SDRAM scan crosses byte-address bit 26 and exercises both physical
 chip selects. The retained transcript identifies the Quartus cable and target

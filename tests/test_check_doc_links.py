@@ -64,6 +64,7 @@ class De25PhysicalMemoryRecordTests(unittest.TestCase):
     def test_sdram_chip_select_claim_matches_scan_extent_and_controller(self):
         scans = json.loads((self.record / 'scans.json').read_text())['results']
         sdram = {row['test']: row for row in scans if row['bank'] == 'sdram'}
+        full_rows = {row['bank']: row for row in scans if row['test'] == 'full'}
         boundary = 1 << 26
         self.assertEqual(sdram['smoke']['length_bytes'], 4096)
         self.assertLess(sdram['smoke']['length_bytes'], boundary)
@@ -72,6 +73,19 @@ class De25PhysicalMemoryRecordTests(unittest.TestCase):
 
         smoke_script = (self.record / 'smoke-ram.tcl').read_text()
         self.assertIn('de25ramtest::run $service 6ee668470911276a9e553d0025c7ef0b $bank 60000 10 4096', smoke_script)
+        full_script = (self.record / 'full-ram.tcl').read_text()
+        full_lengths = re.search(r'foreach \{bank length\} \{([^}]*)\}', full_script)
+        self.assertIsNotNone(full_lengths)
+        full_values = full_lengths.group(1).split()
+        self.assertEqual(len(full_values) % 2, 0)
+        script_capacities = {
+            full_values[index]: int(full_values[index + 1])
+            for index in range(0, len(full_values), 2)
+        }
+        self.assertEqual(script_capacities, {
+            bank: full_rows[bank]['length_bytes'] for bank in ('fpga', 'sdram')
+        })
+        self.assertIn('100 $length', full_script)
         jtag_script = (self.root / 'sources/misteross/boards/de25nano/ramtest/jtag.tcl').read_text()
         self.assertRegex(jtag_script, r'BASE_OFFSET 0 BASE_HIGH_OFFSET 0')
         controller = (self.root / 'sources/misteross/boards/de25nano/ramtest/sdram.v').read_text()
@@ -143,6 +157,40 @@ class De25PhysicalMemoryRecordTests(unittest.TestCase):
         report = ' '.join((self.record / 'README.md').read_text().split())
         self.assertIn('No SHA-256 or byte count for the generated SOF was retained', report)
         self.assertNotIn('2267ecc2e9e8dd08cd24e8d413ee7e704cc022863d5b761b6d6e6aa33a6bb64c', report)
+        ramtest_guide = ' '.join((self.root / 'sources/misteross/boards/de25nano/ramtest/README.md').read_text().split())
+        self.assertIn('programmed SOF, identified by Quartus checksum `0x067AE616`', ramtest_guide)
+        self.assertNotIn('That exact image boots the factory SD', ramtest_guide)
+
+    def test_temporary_boot_claim_matches_separate_uart_and_ssh_evidence(self):
+        hardware = json.loads((self.record / 'hardware.json').read_text())
+        boot = hardware['boot']
+        self.assertEqual(boot['temporary_sof_boot_id_source'], 'temporary-sof-linux.log.gz (pinned-key SSH)')
+        with gzip.open(self.record / 'temporary-sof-boot.log.gz', 'rb') as stream:
+            uart = stream.read().replace(b'\0', b'').decode('utf-8', 'replace')
+        with gzip.open(self.record / 'temporary-sof-linux.log.gz', 'rb') as stream:
+            ssh = stream.read().replace(b'\0', b'').decode('utf-8', 'replace')
+
+        self.assertIn('Ubuntu 22.04.3', uart)
+        self.assertIn(boot['kernel'], uart)
+        self.assertIn('/dev/mmcblk0p2', uart)
+        self.assertIn('ext3', uart)
+        self.assertNotIn(boot['temporary_sof_boot_id'], uart)
+        self.assertNotIn('Ubuntu', ssh)
+        for value in (boot['temporary_sof_boot_id'], boot['kernel'], boot['root']):
+            self.assertIn(value, ssh)
+
+        report = ' '.join((self.record / 'README.md').read_text().split())
+        self.assertIn('The UART transcript records Ubuntu 22.04.3', report)
+        self.assertIn('The pinned-key SSH transcript records that boot UUID', report)
+        self.assertNotIn('UART and pinned-key SSH confirm Ubuntu', report)
+
+    def test_reboot_claim_matches_retained_uart_capture(self):
+        with gzip.open(self.record / 'restore-reboot-uart.log.gz', 'rb') as stream:
+            uart = stream.read().replace(b'\0', b'').decode('utf-8', 'replace')
+        self.assertIn('reboot: Restarting system', uart)
+        report = ' '.join((self.record / 'README.md').read_text().split())
+        self.assertIn('does not retain the Linux commands that initiated shutdown', report)
+        self.assertNotIn('Linux `sync` and authenticated `sudo /sbin/reboot`', report)
 
     def test_board_identity_and_release_claims_are_limited_to_retained_evidence(self):
         hardware = json.loads((self.record / 'hardware.json').read_text())

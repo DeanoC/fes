@@ -24,7 +24,8 @@
     "kernel": "6.12.11-gd7d192a9ddd9",
     "architecture": "aarch64",
     "root": "/dev/mmcblk0p2 ext3",
-    "temporary_sof_boot_id": "971c5c52-685c-4c62-97e8-e908937258ac"
+    "temporary_sof_boot_id": "971c5c52-685c-4c62-97e8-e908937258ac",
+    "temporary_sof_boot_id_source": "temporary-sof-linux.log.gz (pinned-key SSH)"
   },
   "exclusions": [
     "HPS DMA or destructive HPS test",
