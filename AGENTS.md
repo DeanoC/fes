@@ -10,6 +10,66 @@ Nobody touches Deano's harness (~/harnesses on Powerboat) or its processes.
 
 A core's locked nextpnr is only its last known good, not a required pin. If a newer nextpnr closes that core's timing, move the lock forward instead of changing RTL to fit the old version. Timing and seal checks still apply.
 
+## PR workflow: lanes, merge gate, review, stacks, HIL, ops
+
+This section is the shared rulebook for every agent (Codex, Cursor, Claude, Grok Bot) in DeanoC/fes, nextpnr, yosys and mistral.
+
+### Lanes and labels
+- `lane:lander`: Lander's team drives the PR to merge (fixes, review, CI, HIL).
+- `lane:deano`: Deano and his side agents own it. Lander's team does not touch it.
+- `needs:design`: too big for a merge-fix. Add it together with `lane:deano` to hand a PR back.
+- An unlabelled ready PR counts as `lane:lander`.
+- Draft means only "not ready for review". It is not an ownership signal.
+- To hand off, swap the lane label and comment why and what is left.
+- Take `lane:deano` work only when Deano assigned it to you.
+
+### Merge gate
+Merge only when all of these hold:
+- The head SHA is exactly the one checked.
+- CI is green (`gh pr checks N | grep -viE 'pass|skipping'` prints nothing).
+- 0 unresolved review threads.
+- A clean SuperGrok or Codex review on the exact head.
+- HIL is PASS on the exact head, N/A, or waived. pc386/i386 need no HIL. DE25 HIL is waived until Deano says the boards are ready. A pass on a diagnostic build does not count.
+- The base branch is live, and no open PR uses this head branch as its base.
+- Stacks merge top-down. After each merge, the next PR's tree must equal the reviewed tree, or it needs a fresh review.
+
+Lander merges directly with `gh pr merge N --squash --match-head-commit <sha>` and sends Deano an FYI.
+
+### Review
+- One full review, then re-reviews check only the fix.
+- P3s never block. File a follow-up issue instead.
+- Budget is 2 review rounds. After that the PR goes to one owner for a bigger fix, or to `needs:design` + `lane:deano`.
+
+### Stacks
+- Max stack depth is 2. Land deeper work on main behind feature flags.
+- One owning agent per stack, end to end.
+- Batch fixes. Merge main in only when there is a conflict.
+- A clean review carries over across base-only merges when CI is green.
+
+### HIL
+- Run HIL in parallel with review. Use kit A if kit B is busy.
+- Stop after 2 FAILs on the same head and fix instead.
+- Report HIL as started only once a kit is locked and flashed.
+- Restore kits to the latest main HIL baseline afterwards. Baselines only promote from main.
+
+### Toolchains
+- Quartus is primary for DE25, pc386 and PC/XT. nextpnr is advisory for those.
+- DE25 is Quartus-only.
+
+### Hard rules
+- No rebase, force-push or amend.
+- Never relax timing or seal checks.
+- Do not close PRs without Deano's OK.
+
+### Ops
+- Check disk before launching a job. Refuse under 30G free.
+- Every job needs a heartbeat and a Quartus time cap, and notifies on finish or fail.
+- When stuck or looping, change approach and say what changed.
+
+### Machines
+- Powerboat does HIL, the kits and capture. DE25 capture is `/dev/v4l/by-id/fes-ms2109-hil`; never open the raw MS2109 device.
+- The 3090 box is becoming the second Quartus/CI builder.
+
 ## PR scope
 
 - One scope per PR. Don't bundle unrelated fixes.
