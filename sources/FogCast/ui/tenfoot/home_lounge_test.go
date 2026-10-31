@@ -233,21 +233,21 @@ func roomTextHasPrefix(s Snapshot, prefix string) bool {
 // catalog read is still filling after health reports ready (#764).
 type warmingLocalCores struct {
 	*fakeLocalCores
-	warm         atomic.Bool
-	warmLaunches atomic.Int32
+	warm      atomic.Bool
+	warmLists atomic.Int32
 }
 
 func (w *warmingLocalCores) List(ctx context.Context) ([]localcores.Core, error) {
 	if !w.warm.Load() {
+		w.warmLists.Add(1)
 		return nil, localcores.ErrWarming
 	}
 	return w.fakeLocalCores.List(ctx)
 }
 
-// Launch answers warming like the agent, then checks the finished list.
+// Launch checks the finished list after its read-only warm poll succeeds.
 func (w *warmingLocalCores) Launch(ctx context.Context, id string) (localcores.LaunchResult, error) {
 	if !w.warm.Load() {
-		w.warmLaunches.Add(1)
 		return localcores.LaunchResult{}, localcores.ErrWarming
 	}
 	cores, _ := w.fakeLocalCores.List(ctx)
@@ -285,6 +285,7 @@ func rememberedZX81(t *testing.T, dir string) localcores.Core {
 		"package_id":      zx81.PackageID,
 		"package_name":    "Sinclair ZX81",
 		"package_core_id": zx81.CoreID,
+		"package_inputs":  []string{"keyboard"},
 	})
 	return zx81
 }
@@ -304,12 +305,15 @@ func TestHomeConfirmOnRememberedCoreStartsOnceListed(t *testing.T) {
 	if c := heroDestinationCopy(snap); c.State != heroStateChecking || c.Primary != "Play" || c.Headline != rooms.CorePendingStatus {
 		t.Fatalf("pending hero %+v", c)
 	}
+	if got := snap.Room.Destination.Inputs; len(got) != 1 || got[0] != "keyboard" || heroDestinationCopy(snap).Meta != "Needs a keyboard" {
+		t.Fatalf("pending ZX81 input needs = %v; hero=%+v", got, heroDestinationCopy(snap))
+	}
 	if !roomTextHasPrefix(snap, "Sinclair ZX81") {
 		t.Fatal("the pending card is not drawn on the shelf")
 	}
 	app.HandleCommand(CmdSelect, time.Now())
 	waitFor(t, app, "queued launch", func(s Snapshot) bool {
-		return s.LocalCorePhase == localPhaseLaunching && fake.warmLaunches.Load() >= 2
+		return s.LocalCorePhase == localPhaseLaunching && fake.warmLists.Load() >= 2
 	})
 	fake.setStatus(localcores.RunStatus{Generation: strings.Repeat("a", 64), Phase: "running", Running: true, PackageID: zx81.PackageID})
 	fake.warm.Store(true)
@@ -335,7 +339,9 @@ func TestHomeQueuedLaunchFailsClosedWhenTheRememberedCoreIsGone(t *testing.T) {
 	app := startHomeLoungeIn(t, dir, fake, 1280, 720)
 	waitFor(t, app, "pending card", func(s Snapshot) bool { return s.Room.Destination.CorePending })
 	app.HandleCommand(CmdSelect, time.Now())
-	waitFor(t, app, "queued launch", func(s Snapshot) bool { return fake.warmLaunches.Load() >= 1 })
+	waitFor(t, app, "queued launch", func(s Snapshot) bool {
+		return s.LocalCorePhase == localPhaseLaunching && fake.warmLists.Load() >= 2
+	})
 	fake.warm.Store(true)
 	waitFor(t, app, "refused and listed", func(s Snapshot) bool {
 		return s.LocalCorePhase == "" && s.LocalCoreStatus != "" && !s.Room.Destination.CorePending
@@ -382,6 +388,55 @@ func TestHomeRemembersTheOpeningCoreForThePendingCard(t *testing.T) {
 	})
 }
 
+func TestHomePersistsSelectedInputNeedsForTheNextPendingCard(t *testing.T) {
+	dir := t.TempDir()
+	cores := homeFixtureCores()
+	first := startHomeLoungeIn(t, dir, &fakeLocalCores{cores: cores}, 1280, 720)
+	waitFor(t, first, "opening core", func(s Snapshot) bool { return s.Room.Destination.Label == "Pong" })
+	first.HandleCommand(CmdRight, time.Now())
+	waitFor(t, first, "ZX81 selection", func(s Snapshot) bool { return s.Room.Destination.PackageID == cores[1].PackageID })
+	waitHomeStore(t, first, dir, "ZX81 input needs", func(saved map[string]any) bool {
+		inputs, ok := saved["package_inputs"].([]any)
+		if !ok {
+			return false
+		}
+		for _, input := range inputs {
+			if input == "keyboard" {
+				return saved["package_id"] == cores[1].PackageID
+			}
+		}
+		return false
+	})
+
+	warming := &warmingLocalCores{fakeLocalCores: &fakeLocalCores{cores: cores}}
+	app := startHomeLoungeIn(t, dir, warming, 1280, 720)
+	snap := waitFor(t, app, "remembered ZX81 pending card", func(s Snapshot) bool {
+		d := s.Room.Destination
+		return d.CorePending && d.PackageID == cores[1].PackageID
+	})
+	if got := snap.Room.Destination.Inputs; len(got) != 1 || got[0] != "keyboard" || heroDestinationCopy(snap).Meta != "Needs a keyboard" {
+		t.Fatalf("remembered pending card input needs = %v; hero=%+v", got, heroDestinationCopy(snap))
+	}
+}
+
+func TestHomeOpeningCoreIsOnDiskBeforePlay(t *testing.T) {
+	dir := t.TempDir()
+	cores := homeFixtureCores()
+	app := startHomeLoungeIn(t, dir, &fakeLocalCores{cores: cores}, 1280, 720)
+	waitFor(t, app, "opening core", func(s Snapshot) bool { return s.Room.Destination.PackageID == cores[0].PackageID })
+	app.HandleCommand(CmdSelect, time.Now())
+	waitFor(t, app, "opening core launch", func(s Snapshot) bool { return s.LocalCorePhase == localPhaseRunning })
+	path := filepath.Join(dir, "rooms", installedCoresHomeID+".state.json")
+	var saved map[string]any
+	data, err := os.ReadFile(path)
+	if err != nil || json.Unmarshal(data, &saved) != nil {
+		t.Fatalf("opening selection was not saved before Play: %s %v", data, err)
+	}
+	if saved["package_id"] != cores[0].PackageID || saved["package_name"] != "Pong" {
+		t.Fatalf("saved opening selection = %v", saved)
+	}
+}
+
 func TestHomeStopCancelsAQueuedLaunch(t *testing.T) {
 	dir := t.TempDir()
 	rememberedZX81(t, dir)
@@ -390,7 +445,7 @@ func TestHomeStopCancelsAQueuedLaunch(t *testing.T) {
 	waitFor(t, app, "pending card", func(s Snapshot) bool { return s.Room.Destination.CorePending })
 	app.HandleCommand(CmdSelect, time.Now())
 	waitFor(t, app, "queued launch", func(s Snapshot) bool {
-		return s.LocalCorePhase == localPhaseLaunching && fake.warmLaunches.Load() >= 1
+		return s.LocalCorePhase == localPhaseLaunching && fake.warmLists.Load() >= 2
 	})
 	if !app.RequestLocalStop() {
 		t.Fatal("stop request was not taken")

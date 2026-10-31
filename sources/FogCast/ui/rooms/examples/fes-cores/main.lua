@@ -197,6 +197,7 @@ local function publish()
       package_id = core.package_id,
       label = core.name,
       pending = true,
+      inputs = core.inputs,
     }
   elseif core and core.core_id == "fes.coleco" then
     destination.set{ kind = "room", room_id = COLECO_ARCADE, label = core.name }
@@ -255,8 +256,8 @@ local function keep_visible()
   if first < 1 then first = 1 end
 end
 
--- The selection is saved once browsing settles: store.set writes a file,
--- and the kit's storage should not see one write per Left/Right press.
+-- Shelf changes are saved once browsing settles to limit storage writes.
+-- The opening selection commits immediately when the finished list arrives.
 -- An omitted optional core is not a selection: remembering it would replace
 -- the last installed package Home should restore.
 local pending_save = nil
@@ -268,9 +269,29 @@ local function save(entry)
   store.set("package_id", entry.id)
   store.set("package_name", entry.name)
   store.set("package_core_id", entry.core_id)
+  store.set("package_inputs", entry.inputs or {})
 end
 
-local function remember()
+local function saved_inputs(inputs)
+  local out, seen = {}, {}
+  for _, name in ipairs(inputs or {}) do
+    if (name == "keyboard" or name == "mouse") and not seen[name] then
+      out[#out + 1] = name
+      seen[name] = true
+    end
+  end
+  return out
+end
+
+local function same_inputs(a, b)
+  if type(a) ~= "table" or #a ~= #b then return false end
+  for i, name in ipairs(b) do
+    if a[i] ~= name then return false end
+  end
+  return true
+end
+
+local function remember(commit)
   local core = selected_core()
   if core and not omitted(core) and not core.pending then
     -- Only a launchable kit core can be shown as a pending card: a host
@@ -279,12 +300,21 @@ local function remember()
     local name = core.name or ""
     if core.host_launch or core.core_id == "fes.coleco" or not core.launchable then name = "" end
     local core_id = core.core_id or ""
+    local inputs = saved_inputs(core.inputs)
     if store.get("package_id", "") == core.package_id and store.get("package_name", "") == name
-      and store.get("package_core_id", "") == core_id then
+      and store.get("package_core_id", "") == core_id
+      and same_inputs(store.get("package_inputs", {}), inputs) then
       pending_save = nil
       return
     end
-    pending_save = { id = core.package_id, core_id = core_id, name = name, wait = SAVE_AFTER }
+    local entry = { id = core.package_id, core_id = core_id, name = name, inputs = inputs }
+    if commit then
+      save(entry)
+      pending_save = nil
+    else
+      entry.wait = SAVE_AFTER
+      pending_save = entry
+    end
   end
 end
 
@@ -312,13 +342,14 @@ local function remembered_card()
   if type(name) ~= "string" or name == "" then return nil end
   local core_id = store.get("package_core_id", "")
   if type(core_id) ~= "string" then core_id = "" end
+  local inputs = saved_inputs(store.get("package_inputs", {}))
   return { {
     package_id = id,
     core_id = core_id,
     name = name,
     pending = true,
     launchable = true,
-    inputs = {},
+    inputs = inputs,
   } }
 end
 
@@ -370,8 +401,8 @@ function load()
         choose_opening()
         keep_visible()
         -- Save the opening card too, so a player who only presses A still
-        -- gets a pending card next visit.
-        remember()
+        -- gets a durable pending card next visit.
+        remember(true)
       end
       publish()
     end

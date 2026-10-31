@@ -874,13 +874,44 @@ func TestMenuLaunchWaitsForFrameDrainAndPause(t *testing.T) {
 	}
 }
 
+func TestQueuedStopDuringWarmListDoesNotPostLaunch(t *testing.T) {
+	app := NewApp(nil, 1280, 720, 50)
+	defer app.Stop()
+	app.mu.Lock()
+	app.localGen = 7
+	app.localPhase = localPhaseLaunching
+	app.mu.Unlock()
+
+	fake := &stopOnWarmListLocalCores{fakeLocalCores: &fakeLocalCores{}, app: app}
+	_, err := app.launchAfterWarm(fake, tenfootPongID, 7)
+	if !errors.Is(err, errQueuedLaunchStopped) {
+		t.Fatalf("launch result after Stop during warm list = %v", err)
+	}
+	if n := fake.launchCount(); n != 0 {
+		t.Fatalf("Stop during warm list posted %d launches", n)
+	}
+}
+
+type stopOnWarmListLocalCores struct {
+	*fakeLocalCores
+	app *App
+}
+
+func (f *stopOnWarmListLocalCores) List(ctx context.Context) ([]localcores.Core, error) {
+	if !f.app.RequestLocalStop() {
+		return nil, errors.New("Stop did not own the queued launch")
+	}
+	return f.fakeLocalCores.List(ctx)
+}
+
 func TestQueuedLocalPlayReadinessFollowsAgentDecision(t *testing.T) {
 	for _, tc := range []struct {
 		name        string
 		launchErr   error
 		wantRunning bool
 	}{
-		{name: "rejected", launchErr: localcores.ErrNotFound},
+		{name: "package disappeared", launchErr: localcores.ErrNotFound},
+		{name: "software admission fence", launchErr: localcores.ErrInUse},
 		{name: "accepted", wantRunning: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -905,10 +936,18 @@ func TestQueuedLocalPlayReadinessFollowsAgentDecision(t *testing.T) {
 			requireLauncherReady(t, readyPath, true)
 
 			fake := &fakeLocalCores{}
-			agent := &warmingDecisionLocalCores{fakeLocalCores: fake, secondLaunch: make(chan struct{}), outcome: tc.launchErr}
-			var releaseOnce sync.Once
-			releaseLaunch := func() { releaseOnce.Do(func() { close(agent.secondLaunch) }) }
-			defer releaseLaunch()
+			agent := &warmingDecisionLocalCores{
+				fakeLocalCores: fake,
+				secondList:     make(chan struct{}),
+				releaseList:    make(chan struct{}),
+				launchStarted:  make(chan struct{}),
+				releaseLaunch:  make(chan struct{}),
+				outcome:        tc.launchErr,
+			}
+			var listOnce, launchOnce sync.Once
+			openList := func() { listOnce.Do(func() { close(agent.releaseList) }) }
+			finishLaunch := func() { launchOnce.Do(func() { close(agent.releaseLaunch) }) }
+			defer func() { openList(); finishLaunch() }()
 			app := NewApp(nil, 1280, 720, 50)
 			defer app.Stop()
 			app.SetMenuDisplay(dev)
@@ -928,12 +967,21 @@ func TestQueuedLocalPlayReadinessFollowsAgentDecision(t *testing.T) {
 			}
 			requireLauncherReady(t, readyPath, true)
 			app.completeLocalLaunchHandoff(nil)
-			waitFor(t, app, "warming launch request", func(Snapshot) bool { return fake.launchCount() == 1 })
+			select {
+			case <-agent.secondList:
+			case <-time.After(testwait.Timeout):
+				t.Fatal("launch did not wait on the catalog list")
+			}
 			requireLauncherReady(t, readyPath, true)
-			waitFor(t, app, "queued launch retry", func(Snapshot) bool { return fake.launchCount() == 2 })
+			openList()
+			select {
+			case <-agent.launchStarted:
+			case <-time.After(testwait.Timeout):
+				t.Fatal("launch was not posted after catalog readiness")
+			}
 			requireLauncherReady(t, readyPath, true)
 
-			releaseLaunch()
+			finishLaunch()
 			if tc.wantRunning {
 				waitFor(t, app, "accepted launch", func(s Snapshot) bool { return s.LocalCorePhase == localPhaseRunning })
 				requireLauncherReady(t, readyPath, false)
@@ -961,22 +1009,37 @@ func requireLauncherReady(t *testing.T, path string, want bool) {
 
 type warmingDecisionLocalCores struct {
 	*fakeLocalCores
-	secondLaunch chan struct{}
-	outcome      error
+	secondList    chan struct{}
+	releaseList   chan struct{}
+	launchStarted chan struct{}
+	releaseLaunch chan struct{}
+	listCalls     int
+	outcome       error
+}
+
+func (f *warmingDecisionLocalCores) List(ctx context.Context) ([]localcores.Core, error) {
+	f.mu.Lock()
+	f.listCalls++
+	attempt := f.listCalls
+	f.mu.Unlock()
+	if attempt == 1 {
+		return nil, localcores.ErrWarming
+	}
+	if attempt == 2 {
+		close(f.secondList)
+		<-f.releaseList
+	}
+	return f.fakeLocalCores.List(ctx)
 }
 
 func (f *warmingDecisionLocalCores) Launch(_ context.Context, id string) (localcores.LaunchResult, error) {
 	f.mu.Lock()
 	f.launches = append(f.launches, id)
-	attempt := len(f.launches)
+	outcome := f.outcome
 	f.mu.Unlock()
-	if attempt == 1 {
-		return localcores.LaunchResult{}, localcores.ErrWarming
-	}
-	if attempt == 2 && f.secondLaunch != nil {
-		<-f.secondLaunch
-	}
-	return localcores.LaunchResult{Core: localcores.Core{PackageID: id}, Generation: strings.Repeat("a", 64)}, f.outcome
+	close(f.launchStarted)
+	<-f.releaseLaunch
+	return localcores.LaunchResult{Core: localcores.Core{PackageID: id}, Generation: strings.Repeat("a", 64)}, outcome
 }
 
 func TestMenuPauseFailureClearsLaunchBeforeResume(t *testing.T) {
@@ -1036,6 +1099,7 @@ func TestDeferredLocalStopDispatchesAfterRunning(t *testing.T) {
 	waitFor(t, app, "pong tile", func(s Snapshot) bool { return s.Room.Open && s.Room.Destination.Label == "FES Pong" })
 	app.HandleCommand(CmdSelect, time.Unix(100, 0))
 	waitFor(t, app, "armed frame", func(s Snapshot) bool { return s.LocalCorePhase == localPhaseLaunching && launchOverlayCopy(s).Visible })
+	waitFor(t, app, "launch in progress", func(Snapshot) bool { return fake.launchCount() == 1 })
 	now := time.Now()
 	app.HandleLocalPad(padButton(remoteinput.ButtonSelect, true), now)
 	app.HandleLocalPad(padButton(remoteinput.ButtonStart, true), now.Add(time.Millisecond))

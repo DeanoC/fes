@@ -2591,12 +2591,15 @@ list. A launch that arrives while the warm is still running returns the same
 HTTP 503 `{"error":"warming"}`, claims no lease, and does not program a core.
 The kit-local client returns `warming` as soon as that response arrives, as it
 does for a list, so the caller can retry. It does not treat the response as an
-unavailable agent and does not reconcile it as a lost launch. A successful list is
-the finished catalog, not a partial one. The list handler waits on the
-request context, so a client disconnect ends that wait and leaves the warm
-running. One catalog scan runs
-at a time. A fingerprint change while that scan is in progress waits for it to
-finish, then scans once more when the tree still differs. Durable listing
+unavailable agent and does not reconcile it as a lost launch. Home's queued
+Play polls the read-only list before posting Launch, so Stop during catalog
+warm ends the queue before any core load. If the catalog starts warming again
+between the successful list and Launch, it waits for another successful list
+before retrying. A successful list is the finished catalog, not a partial one.
+The list handler waits on the request context, so a client disconnect ends
+that wait and leaves the warm running. One catalog scan runs at a time. A
+fingerprint change while that scan is in progress waits for it to finish, then
+scans once more when the tree still differs. Durable listing
 reuses the byte verification recorded at install, reopen, warm-up, or the last
 fingerprint miss while the sealed archive and member fingerprint (size,
 mtime, ctime, device, inode, mode, and directory entries) still matches, and
@@ -2659,7 +2662,11 @@ selected removable media, package composition, and the format-2 ZX81 machine
 ROM linker. The format-2 ZX81 local row is blocked because local `LoadCore`
 loads only the installed archive and does not splice the machine ROM. If
 kit-local listing fails, Home still reads the host shelf and shows any
-available host cards; with no host cards, it shows the kit-listing error.
+available host cards; with no host cards, it shows the kit-listing error. Once
+the opening selection is listed, Home persists it in that frame so a player
+can press Play immediately and still get the remembered pending card next
+time. Later shelf navigation keeps its one-second save debounce. The saved card
+also carries the package's keyboard and mouse needs into its pending display.
 
 ### Home-computer packages and slot cards
 
