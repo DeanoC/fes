@@ -22,6 +22,36 @@ def results_for(selected=(), cores=(), modes=None):
     return results
 
 
+class TierTests(unittest.TestCase):
+    def test_smoke_tier_swaps_only_slow_families(self):
+        from scripts.ci_simulations import SMOKE_TARGETS
+        for core in CORES:
+            smoke = [r['target'] for r in simulation_matrix([core], 'smoke')['include']]
+            full = [r['target'] for r in simulation_matrix([core], 'full')['include']]
+            if core in SMOKE_TARGETS:
+                self.assertEqual(smoke, list(SMOKE_TARGETS[core]))
+                self.assertNotEqual(smoke, full)
+            else:
+                self.assertEqual(smoke, full)
+        self.assertEqual(simulation_matrix(['c64']), simulation_matrix(['c64'], 'full'))
+        with self.assertRaises(ValueError):
+            simulation_matrix(['c64'], 'quick')
+
+    def test_gate_ties_the_tier_to_the_event(self):
+        results = results_for(('parent', 'fpga'), ('c64',))
+        require_success(results, 'push')
+        with self.assertRaises(ValueError):
+            require_success(results, 'pull_request')
+        outputs = results['plan']['outputs']
+        outputs['sim_tier'] = 'smoke'
+        outputs['simulations'] = json.dumps(simulation_matrix(['c64'], 'smoke'))
+        require_success(results, 'pull_request')
+        require_success(results, 'merge_group')
+        for event in ('push', 'schedule', 'workflow_dispatch'):
+            with self.subTest(event=event), self.assertRaises(ValueError):
+                require_success(results, event)
+
+
 class GateTests(unittest.TestCase):
     def test_menu_has_a_required_simulation_job(self):
         self.assertEqual(simulation_matrix(['menu']),
