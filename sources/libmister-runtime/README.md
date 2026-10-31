@@ -27,7 +27,8 @@ Unsuccessful, partial or late programming poisons that context and preserves
 configuration/firmware; destruction never unloads it. A new context refuses an
 existing runtime overlay, including after a late successful kernel callback.
 Restart adoption and bounded whole-load recovery remain unfinished. Software
-unit coverage is separate from exact-artifact physical adapter acceptance.
+unit coverage is separate from physical adapter acceptance; the dated record
+identifies the exact kernel, adapter and known BRAM core tested on the board.
 
 The internal `De25PrControl` diagnostic consumes the generated DE25 PR-control
 register contract through an exclusive injected `Mmio` backend and an injected
