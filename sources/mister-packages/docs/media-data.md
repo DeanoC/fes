@@ -138,14 +138,14 @@ Restoring writes the base image and then every named chunk over it. A chunk
 file that is missing or whose bytes do not match its hash is corruption: it
 blocks the launch like a corrupt manifest and is never replaced silently.
 
-Saving at Stop, and before an eject, reads the core's dirty map after
+Saving at Stop reads the core's dirty map after
 Freeze, reads those chunks from the window, writes and syncs each new chunk
 file under a private temporary name, then merges the new indices into the
 existing manifest, keeping entries for chunks the guest did not touch.
 The merged manifest is published with the temporary-file, rename and
 directory-sync rule above, under the namespace lock and against the
-expected revision. Only then does the core receive Saved. Last, still under
-the lock, chunk files the published manifest does not name are deleted.
+expected revision. Still under the lock, chunk files the published manifest
+does not name are deleted. Only then does the core receive Saved.
 Opening the namespace also removes leftover private temporaries named
 `.chunk-<pid>-<sequence>`. A whole-image record would rewrite up to 128 MiB
 at every Stop after a game install; the delta writes only changed chunks.

@@ -120,16 +120,18 @@ func TestSessionAttachesComputerKeyboardHIDInput(t *testing.T) {
 	for name, tc := range map[string]struct {
 		interfaces []protocol.RuntimeInterface
 		gamepad    bool
+		minor      uint16
 		attach     bool
 	}{
-		"keyboard only":  {[]protocol.RuntimeInterface{{ID: "fes.keyboard.hid", Major: 1}}, false, true},
-		"keyboard ports": {[]protocol.RuntimeInterface{{ID: "fes.gamepad.ports", Major: 1}, {ID: "fes.keyboard.hid", Major: 1}}, true, true},
-		"future hid":     {[]protocol.RuntimeInterface{{ID: "fes.keyboard.hid", Major: 2}}, false, false},
+		"keyboard only":  {[]protocol.RuntimeInterface{{ID: "fes.keyboard.hid", Major: 1}}, false, 0, true},
+		"keyboard ports": {[]protocol.RuntimeInterface{{ID: "fes.gamepad.ports", Major: 1}, {ID: "fes.keyboard.hid", Major: 1}}, true, 0, true},
+		"computer 1.1":   {[]protocol.RuntimeInterface{{ID: "fes.keyboard.hid", Major: 1}}, false, 1, true},
+		"future hid":     {[]protocol.RuntimeInterface{{ID: "fes.keyboard.hid", Major: 2}}, false, 0, false},
 	} {
 		t.Run(name, func(t *testing.T) {
 			core := "fes.apple2"
 			status := protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &core, CorePackage: &protocol.CorePackageStatus{
-				PackageID: strings.Repeat("a", 64), Generation: 2, Gamepad: tc.gamepad, ABI: protocol.RuntimeContract{ID: "fes.computer", Major: 1},
+				PackageID: strings.Repeat("a", 64), Generation: 2, Gamepad: tc.gamepad, ABI: protocol.RuntimeContract{ID: "fes.computer", Major: 1, Minor: tc.minor},
 				ActiveInterfaces: tc.interfaces}}
 			input := &portsRemoteInput{fakeRemoteInput: fakeRemoteInput{status: host.RemoteInputStatus{State: host.RemoteInputDetached}}}
 			response := serve(t, hostapi.New(&fakeService{status: status}, hostapi.WithRemoteInput(input)), http.MethodGet, "/api/v1/session")

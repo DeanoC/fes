@@ -18,10 +18,25 @@ struct MediaDiskRecord {
     std::string revision = "absent";
     MediaDataLayout layout = MediaDataLayout::atari_st;
 };
+// Lowercase letters, digits and single inner hyphens, at most 256 bytes.
+inline bool ValidLibraryGameID(const std::string& game) {
+    if (game.empty() || game.size()>256 || game.front()=='-' || game.back()=='-') return false;
+    bool hyphen=false;
+    for(char c:game) {
+        if(!((c>='a'&&c<='z')||(c>='0'&&c<='9')||c=='-')) return false;
+        if(c=='-'&&hyphen) return false;
+        hyphen=c=='-';
+    }
+    return true;
+}
 bool ValidMediaDataIdentity(const MediaDataIdentity&);
 std::string MediaDataNamespace(const MediaDataIdentity&);
 Error EncodeMediaData(const MediaDiskRecord&, std::vector<unsigned char>*);
 Error DecodeMediaData(const std::vector<unsigned char>&, const MediaDataIdentity&, MediaDiskRecord*);
+// The no-follow namespace directory of an identity under root, created when
+// absent, with leftover private save, probe and chunk temporaries removed
+// under its lock. The caller owns the descriptor.
+Error OpenMediaDataNamespace(const std::string& root, const MediaDataIdentity&, int* directory);
 // Separate immutable-source disk namespace; neither package versions nor
 // video/firmware selection name it. Open takes the namespace lock and
 // removes leftover private save and probe files. Read reopens the complete

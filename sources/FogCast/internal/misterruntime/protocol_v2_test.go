@@ -85,6 +85,12 @@ func TestProtocol2DecoderRejectsClosedShapeAndSemanticViolations(t *testing.T) {
 	}
 }
 
+func TestProtocol2ErrorAcceptsMediaDataPhase(t *testing.T) {
+	if !validProtocol2Error(Protocol2Error{Code: "corrupt_data", Message: "bad ATA chunk", Phase: "media_data"}) {
+		t.Fatal("rejected media_data error phase")
+	}
+}
+
 func TestLoadCoreNegotiatesReadOnlyThenMutatesExactlyOnce(t *testing.T) {
 	lines := fixtureLines(t, "protocol-v2.jsonl")
 	fixture := newSequenceSocketFixture(t, []string{lines[1] + "\n", lines[5] + "\n"})
@@ -339,6 +345,30 @@ func TestProtocol2RejectsContradictoryCompatibilityAndActiveEvidence(t *testing.
 				t.Fatalf("error=%v", err)
 			}
 		})
+	}
+}
+
+func TestProtocol2CapabilitiesAllowDistinctVersionsOfOneABI(t *testing.T) {
+	capabilities := Protocol2Capabilities{
+		ProgrammingProfiles: []string{"fes-gp-v1"},
+		ABIs: []Protocol2ABI{
+			{ID: "fes.computer", Major: 1, Minor: 0},
+			{ID: "fes.computer", Major: 1, Minor: 1},
+		},
+	}
+	if !validCapabilities(capabilities) {
+		t.Fatal("distinct advertised ABI versions were rejected")
+	}
+	capabilities.ABIs = append(capabilities.ABIs, capabilities.ABIs[1])
+	if validCapabilities(capabilities) {
+		t.Fatal("duplicate advertised ABI version was accepted")
+	}
+	capabilities.ABIs = []Protocol2ABI{
+		{ID: "fes.computer", Major: 1, Minor: 1},
+		{ID: "fes.computer", Major: 1, Minor: 0},
+	}
+	if validCapabilities(capabilities) {
+		t.Fatal("out-of-order ABI versions were accepted")
 	}
 }
 

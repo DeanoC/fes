@@ -36,6 +36,12 @@ func TestObserveRuntimeInputBindsComputerKeyboardHID(t *testing.T) {
 	if err != nil || obs.KeyboardHID == nil || obs.Binding != nil || !obs.Active {
 		t.Fatalf("keyboard-only observation %+v %v", obs, err)
 	}
+	computer11 := response("fes.computer", "fes.keyboard.hid", "fes.mouse.relative")
+	computer11.ActivePackage.Descriptor.ABI.Minor = 1
+	obs, err = observeRuntimeInput(context.Background(), misterruntime.NewRuntime(observationControl{response: computer11}, "", 0, 0))
+	if err != nil || obs.KeyboardHID == nil || obs.Mouse == nil || obs.KeyboardHID.Generation != 4 || obs.Mouse.Generation != 4 {
+		t.Fatalf("computer 1.1 input observation %+v %v", obs, err)
+	}
 	obs, err = observeRuntimeInput(context.Background(), misterruntime.NewRuntime(observationControl{response: response("fes.simple-computer", "fes.keyboard.hid")}, "", 0, 0))
 	if err != nil || obs.KeyboardHID != nil {
 		t.Fatalf("HID outside fes.computer bound: %+v %v", obs, err)
