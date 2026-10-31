@@ -34,10 +34,17 @@ of the four games, which are the next M5 slice.
 
 - FES branch `deano/pc386-m5-input`, cut from main `16afcb7cc` (#1268's
   squash). Its first two commits are the slice; the record follows them.
-- RTL revision `b8cfc9668`: sealed, and on the kit as run m5i2. The
-  simulations ran on local commits on #1268's head `dd5d076f8`, whose
-  `sources/misteross` tree is byte-identical to `b8cfc9668`'s (`git diff` is
-  empty). The squash carried #1268's head unchanged into that tree.
+- RTL revision `b8cfc9668`: sealed, and on the kit as run m5i2. Devices,
+  storage, the system suite and the Python tests ran on `b8cfc9668`'s
+  `sources/misteross` tree. That is the branch itself for devices, storage
+  and the Python tests. The system suite ran on a local merge of the slice
+  with #1268's head `dd5d076f8`, whose tree is byte-identical (`git diff` is
+  empty), since the squash carried #1268's head unchanged.
+- The machine-bench suites (boot on both CPUs, rtl-stops, sound, vga, audio,
+  opl2, benches) ran earlier on the slice, on #1268's head `df4091741`.
+  After those runs, only three things changed: `pc386_system.sv`'s mouse wire
+  signedness, `fes_computer_storage.v` (#1268's last fix) and the system
+  bench. None of them is in those benches' RTL or test benches.
 - Run m5i1 used an earlier seal of the same RTL on #1268's previous head
   `df4091741`. The two differ in one pinned input, `fes_computer_storage.v`,
   from #1268's last fix.
@@ -136,8 +143,8 @@ The system bench drives the whole shell as the runtime does, with the RTL CPU:
   clock checks.
 
 The oracle machine bench gives the same two lines from `machine_tb --mouse`
-and named keys. 46 Python tests, the support matrix and FogCast's 323 browser
-UI tests pass.
+and named keys. 46 Python tests, the support matrix and FogCast's browser UI
+suite (`Makefile` line 51, 373 tests) pass.
 
 ## Quartus seal
 
