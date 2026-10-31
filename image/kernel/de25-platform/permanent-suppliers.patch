@@ -1,0 +1,30 @@
+--- a/drivers/fpga/of-fpga-region.c
++++ b/drivers/fpga/of-fpga-region.c
+@@ -449,6 +449,7 @@
+ 	.remove_new = of_fpga_region_remove,
+ 	.driver = {
+ 		.name	= "of-fpga-region",
++		.suppress_bind_attrs = IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM),
+ 		.of_match_table = of_match_ptr(fpga_region_of_match),
+ 	},
+ };
+--- a/drivers/fpga/stratix10-soc.c
++++ b/drivers/fpga/stratix10-soc.c
+@@ -550,6 +550,7 @@
+ 	.remove_new = s10_remove,
+ 	.driver = {
+ 		.name	= "Stratix10 SoC FPGA manager",
++		.suppress_bind_attrs = IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM),
+ 		.of_match_table = of_match_ptr(s10_of_match),
+ 	},
+ };
+--- a/drivers/firmware/stratix10-svc.c
++++ b/drivers/firmware/stratix10-svc.c
+@@ -3693,6 +3693,7 @@
+ 	.remove_new = stratix10_svc_drv_remove,
+ 	.driver = {
+ 		.name = "stratix10-svc",
++		.suppress_bind_attrs = IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM),
+ 		.of_match_table = stratix10_svc_drv_match,
+ 	},
+ };

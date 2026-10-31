@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "kernel_revision": "d7d192a9ddd955fe206aa350afed8f82e368a74c",
+  "files": {
+    "drivers/fpga/of-fpga-region.c": {
+      "before_sha256": "5dbc8e9bf7a2eb30fdd9db3491455cdbf4ec95a93feec4ca73665e8dc702da52",
+      "after_sha256": "275642d50ee9e8392c74f5abbb281db8a68731c566eca1ea22c1e37b22332e97"
+    },
+    "drivers/fpga/stratix10-soc.c": {
+      "before_sha256": "26a525c7138b2dd04735e1cc3b458cec115102a1c00c6c51c4abf4e3ae7b6b44",
+      "after_sha256": "8ff8de4c1e2a91395b79f5db12f828240f24224d7013a2bda07cf3f5ab833963"
+    },
+    "drivers/firmware/stratix10-svc.c": {
+      "before_sha256": "493301f526657473b05700ba54bea38d1b63d43a99a341e78c338e0908ca9f4a",
+      "after_sha256": "dc3214b2e4d836969fad62db5e39a56c211aa85647001b1720f77ce5cf17ebce"
+    }
+  },
+  "patch_sha256": "18e0df7a9c99a6f4241734c8c63dc22a76b71e6fd623af66f55f5a95ba0c3342",
+  "unchanged_supplier_sources": {
+    "drivers/iommu/arm/arm-smmu-v3/arm-smmu-v3.c": "98d64761da20ab9d4e6b8fac163fb4de11402c6ccdea26a84f59257dbd83323a",
+    "drivers/clk/socfpga/clk-agilex5.c": "65b805f28a29d342eb9076415f3f0ab4668ddd88cb0686139161cb4e9d7aeb41"
+  }
+}
