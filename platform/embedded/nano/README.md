@@ -8,6 +8,9 @@ adds separate firmware-return and reset-state records in a matched boot chain.
 The [completed diagnostic trial](../../../docs/validation/2026-10-31-de25-bridge-trial/README.md)
 reported firmware error `4` with matching bridge reset bits; native handoff
 remains rejected and the factory baseline has been restored.
+The [firmware-stage trace](../../../docs/validation/2026-10-31-de25-firmware-first-failure/README.md)
+now identifies the first timeout as the initial FPGA acknowledgment during
+FPGA-to-HPS disable; native entry remains blocked.
 
 This prepares the first Linux-free CPU/RAM/UART test on **TRWU8CBL** using the
 pinned Terasic TF-A and U-Boot sources. It produces a matched FPGA-first SOF,

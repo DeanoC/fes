@@ -51,6 +51,10 @@ or that a partial enable can be safely reversed. The bounded
 [Nano bridge trial](../../../docs/validation/2026-10-31-de25-bridge-trial/README.md)
 returned firmware error `4` with the required reset bits already set. Native
 handoff and physical drain remain unqualified.
+The [subsequent firmware-stage trace](../../../docs/validation/2026-10-31-de25-firmware-first-failure/README.md)
+identifies stage 3, `f2s_fpga_ack_set`, with `-ETIMEDOUT` (`-60`): the initial
+FPGA acknowledgment was absent while the request bit was set. The reason for
+the missing acknowledgment is still unresolved.
 
 The contained Terasic probe now records the first failed disable poll and
 immediately samples `HDSKACK`, `HDSKREQ` and `BRGMODRST`, before subsequent

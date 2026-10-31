@@ -38,7 +38,7 @@
     "spl_sha256": "7573a051e5650383fbe7ca67dc9dfbaf80eee38f7661a78e08d18a88573a0010"
   },
   "build_id": "7445df506d2befe3",
-  "classification": "matched first-failed-handshake diagnostic; physical trial awaiting test-card insertion",
+  "classification": "physical first failure isolated to FPGA-to-HPS initial FPGA acknowledgement timeout; native handoff rejected; factory baseline restored",
   "diagnostics": {
     "agilex5_stages": 6,
     "cookie": "0x46455344",
@@ -230,6 +230,114 @@
       "bytes": 877480,
       "sha256": "baab6b40bf93e94355627c4ab919e2c73105834b33c2edb4d4d6395e9cfc25e3"
     },
+    "trial/baseline-console.log": {
+      "bytes": 1444,
+      "sha256": "cd92e349dbba4947f26203994c905fb614f5c0b1231c6321927328bed903fb10"
+    },
+    "trial/baseline.json": {
+      "bytes": 488,
+      "sha256": "d8e07621101b572a33212db546a8f763af8146010621cd6b103c198dd0b06022"
+    },
+    "trial/baseline_serial.py": {
+      "bytes": 3758,
+      "sha256": "82cd6aa4a11d112b0661bed3fea13eed1cae3e298c3245c874cb606b1040c115"
+    },
+    "trial/native-console.log": {
+      "bytes": 2939,
+      "sha256": "09779cd4a51d54c05ead32dee9c341eba3a4835849ba772a7d043d6fa89f09e5"
+    },
+    "trial/native-jtag-query.log": {
+      "bytes": 1690,
+      "sha256": "38d804ec7882762e59cebf326d87308a640d281e8653ea44e28c5a306b29eba1"
+    },
+    "trial/native-program.log": {
+      "bytes": 2923,
+      "sha256": "b7bd8d29caf788a543819fc80d1f7078afa16869ff8efae343a3036ec313be26"
+    },
+    "trial/native-result.json": {
+      "bytes": 1333,
+      "sha256": "e298f3e676a2024b7cb0757c8be858339721c50ece2b3b76fc1d43624f486716"
+    },
+    "trial/original-card-restored.json": {
+      "bytes": 135,
+      "sha256": "7fb612ecdde7be88d1f513af06e8ebbf44b999583ceb449f628dc1007ba954bd"
+    },
+    "trial/prepare_spare.py": {
+      "bytes": 3344,
+      "sha256": "a905f86125ae5710363823839a553aab1b019a73e5de3bce6ed8001a7b9c4d59"
+    },
+    "trial/probe-verification.json": {
+      "bytes": 510,
+      "sha256": "0f91f4da76d344244845c4c9989c383f75747bb687dc3f032bf4ddf0f80d2913"
+    },
+    "trial/probe_serial.py": {
+      "bytes": 9403,
+      "sha256": "add8a36d6e1de43ed728dd0b24ab0d82756b5e4cd25464f034e0efb29ae0d399"
+    },
+    "trial/recover_serial.py": {
+      "bytes": 4429,
+      "sha256": "c953791ed277ee4bf58f62c202da348a516c2336e28e09ffcb6a8eabf5766bc0"
+    },
+    "trial/recovery-capture-gap.txt": {
+      "bytes": 535,
+      "sha256": "4480c044ea45d1e0edf9ad292df95245c809c801e24515195b37705f4921f208"
+    },
+    "trial/recovery-jtag-query.log": {
+      "bytes": 1690,
+      "sha256": "f6857eeff8fc83c3916f1165414aab08b2e5bd5b3ef0045ab81d11eabbfdad86"
+    },
+    "trial/recovery-program.log": {
+      "bytes": 2935,
+      "sha256": "5ae46b8583686fb08e57d3d9a7d01f865ba5224123847391db8a064d0709d418"
+    },
+    "trial/recovery-result.json": {
+      "bytes": 842,
+      "sha256": "14b01fd3d52e2574aa55117bfe2a9df0cf6e4864cf33fb20e37a71242e59c7e7"
+    },
+    "trial/released.json": {
+      "bytes": 299,
+      "sha256": "7652ea40984cf8e6ccb2f925eea46e1bef55f71ba641a1d0e647566984d685ac"
+    },
+    "trial/restored-console.log": {
+      "bytes": 1444,
+      "sha256": "45d7c5126006c268db3ec9fa46ebf9a85d2647d148a2510b385273983f49c3b8"
+    },
+    "trial/restored-result.json": {
+      "bytes": 996,
+      "sha256": "c6356b6795c42622d29ececce4bb8d3ddc069f8428077f7e59f1a84293afba98"
+    },
+    "trial/restored-result.original.json": {
+      "bytes": 629,
+      "sha256": "c6d271be9f167e8e5180f276552eeaf1d4eb5f17431b34ee4134f895a97666f5"
+    },
+    "trial/shutdown-console.log": {
+      "bytes": 7828,
+      "sha256": "70fd8c5b75a6ac57bc1711cdfae94d9551cbf760e3c7591f091d4cad031622b1"
+    },
+    "trial/shutdown.json": {
+      "bytes": 82,
+      "sha256": "dd4ab9415e6d6ae3f6166bf65da9e9421ca8d243318a90fd768fd75594dd3b2a"
+    },
+    "trial/shutdown_serial.py": {
+      "bytes": 3650,
+      "sha256": "c2d5ca791172d8c80dd9c67c8f863fce60bbb102c14e1ad15f7f990c76026823"
+    },
+    "trial/software-checks-passed.json": {
+      "bytes": 1011,
+      "sha256": "dcd8844bfa8d0daa694a0a03f241e4c674bfba20341f9e424097b150bbb50b70"
+    },
+    "trial/spare-write.json": {
+      "bytes": 1163,
+      "sha256": "104c978ef6e18ab1edf42c2e8bb3248a53efa38ba13703a7ac5dda8981d06a36"
+    },
+    "trial/test-card-inserted.json": {
+      "bytes": 135,
+      "sha256": "e5d3c0cfda3c02c0e9b8bca879e9e84a0518ee8114786ef080976d5dedf5285e"
+    },
+    "trial/verify_factory.py": {
+      "bytes": 3894,
+      "sha256": "796e309b342cee07dc792722afc26eb5f7fd4adab5f6d67ee9bd8834bbdc49ba"
+    },
     "uboot/build.log": {
       "bytes": 35213,
       "sha256": "8bde6ac2ee9baa8acef2b1dfbe591a4f37990e4c5c340d8b54432e997cc2b152"
@@ -369,15 +477,83 @@
   },
   "format": 1,
   "hardware": {
-    "candidate_programmed": false,
+    "after_remove_phase_reached": false,
+    "bridge_details": [
+      {
+        "captured": "1",
+        "error": "-60",
+        "failure_ack": "00000000",
+        "failure_req": "00000004",
+        "failure_reset": "0000000f",
+        "name": "f2s_fpga_ack_set",
+        "phase": "before-load",
+        "stage": "3",
+        "tag": "46424431",
+        "valid": "1"
+      }
+    ],
+    "bridge_results": [
+      {
+        "after": "0000000f",
+        "before": "0000000f",
+        "mask": "0000000f",
+        "observation": "firmware_error",
+        "phase": "before-load",
+        "reset_mismatch": "0",
+        "smc": "4",
+        "smc_error": "1",
+        "smc_hex": "00000004"
+      }
+    ],
+    "candidate_programmed": true,
     "card_refreshed_and_raw_readback_verified": true,
+    "errno_name": "ETIMEDOUT",
     "factory_baseline_verified": true,
-    "linux_cleanly_halted": true,
+    "failure_name": "f2s_fpga_ack_set",
+    "fesboot_attempts": 1,
+    "first_failed_stage": 3,
+    "global_containment_or_drain_accepted": false,
+    "later_poll_failures_observed": false,
+    "matching_spl_and_full_uboot": true,
+    "native_entry_reached": false,
     "native_handoff_accepted": false,
+    "poll_budget_ms": 1000,
+    "required_ack_mask": 4,
+    "required_ack_value": 4,
+    "retried_after_rejection": false,
+    "sampled_ack": 0,
+    "sampled_bridge_reset": 15,
+    "sampled_request": 4,
     "serial": "TRWU8CBL",
-    "test_card_insertion_pending": true
+    "signed_error": -60,
+    "why_ack_absent_known": false
   },
   "implementation_commit": "3baa85a23",
+  "preparation_commit": "df67caa85",
+  "private_files_excluded": [
+    "login credentials",
+    "card-prefix backups"
+  ],
+  "restoration": {
+    "after_boot_uuid": "7d003c64-ad2a-4557-9b39-cd9c630ffa03",
+    "autonomous_qspi_power_on_boot_accepted": false,
+    "before_boot_uuid": "fc82bf95-030e-4fb9-beba-4692fba0100f",
+    "claim_released": true,
+    "factory_card_reimaged": false,
+    "flash_programmed": false,
+    "fresh_authentication_verified_restoration": true,
+    "new_uart": "ttyUSB1",
+    "new_usb_node": "/dev/bus/usb/003/044",
+    "new_usb_owner_mode": "root:root 0664",
+    "old_usb_node": "/dev/bus/usb/003/037",
+    "original_factory_card_identity_capacity_kernel_root_model_matched": true,
+    "physical_power_cycle_confirmed": null,
+    "power_cycle_requested_by_agent": false,
+    "recovery_raw_console_gap": true,
+    "reference_sof_programming_succeeded": true,
+    "uart_logged_out_and_closed": true,
+    "usb_reenumerated": true
+  },
   "retained_directory": "/home/deano/fes-retained/de25-nano-first-failure-20261031",
   "sd_image_bytes": 150994944,
   "sd_image_sha256": "0804f88b6b43b26151c80d80a6846d3a993ccf7468cf520c67c273b696c09a6a",

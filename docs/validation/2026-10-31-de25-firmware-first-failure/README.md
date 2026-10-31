@@ -1,11 +1,16 @@
-# First failed Nano firmware handshake: matched diagnostic preparation
+# First failed Nano firmware handshake: FPGA acknowledgment timeout
 
 Base: `8cae215984968769184e1081ed862fb56180e1a6`. Implementation:
 `3baa85a23`, with final helper whitespace/source identity at
 `2f47358b438931579673ff85299ec598f34c5354`. This follows the
 [physical bridge trial](../2026-10-31-de25-bridge-trial/README.md), which returned
 firmware error `4` while the required reset bits matched before/after.
-The failing firmware substage remains a physical question.
+The matched physical trace now identifies the first failing substage as
+`f2s_fpga_ack_set`: the initial FPGA acknowledgment wait during FPGA-to-HPS
+bridge disable. The pinned firmware returned `-ETIMEDOUT` (`-60`) and the
+loader rejected before native entry. Factory Linux was subsequently verified
+restored and the top kit released. Why the acknowledgment is absent remains
+unresolved.
 
 The contained Terasic reset routine now preserves a snapshot immediately after
 its first failed disable poll. It records the stage, signed error, `HDSKACK`,
@@ -69,7 +74,7 @@ the existing package checks. The matched test kit is retained under
 `/home/deano/fes-retained/de25-nano-first-failure-20261031/test-kit/`; its files
 are read-only. [evidence.json](evidence.json) binds all selected files and logs.
 
-## Physical trial state
+## Physical trial and first failure
 
 The user connected the previously authorized 4 GB spare. It was reidentified
 as USB reader `000000000819`, 3,980,394,496 bytes at `/dev/sda`, and unmounted.
@@ -77,18 +82,65 @@ The overwritten prefix was backed up privately and the new image's raw
 readback matches the digest above. Original/private prefix backups are retained
 separately and excluded from published diagnostic evidence.
 
-TRWU8CBL is claimed. Authenticated factory baseline checks matched kernel,
+TRWU8CBL was claimed. Authenticated factory baseline checks matched kernel,
 root filesystem, original card CID/capacity and board model, with boot UUID
-`fc82bf95-030e-4fb9-beba-4692fba0100f`. Linux has cleanly powered off and the
-UART client is closed. The user has been asked to insert the refreshed spare,
-preserve the original card and leave power unchanged. No candidate programming
-or native launch has happened in this trial yet.
+`fc82bf95-030e-4fb9-beba-4692fba0100f`. Linux cleanly powered off and the user
+confirmed insertion of the refreshed spare while preserving the original.
 
-After insertion, use only the exact top cable/FPGA ID and UART interface,
-require fresh matching SPL/full U-Boot banners plus the vendor prompt, and
-issue `fesboot` once. Preserve the existing 90/45/45-second programming/boot/
-launch bounds. Retain both `RESULT` and `DETAIL` records; any rejection or
-missing completion ends the attempt. Restore the original factory card and
-exact vendor-reference SOF, verify the fresh factory boot and card identity,
-close owned clients, restore temporary permissions and release the claim.
-Native activation, drain, peripheral operation and tenfoot remain unqualified.
+Only the exact top cable `DE25-Nano [3-11.1-iface0]`, FPGA ID `4362C0DD` and
+UART interface `if02` at 115200 were used. Volatile programming and fresh
+matching SPL/full U-Boot banners passed. At the vendor prompt, `fesboot` was
+issued exactly once within the existing 90/45/45-second programming/boot/launch
+bounds. The diagnostic produced:
+
+```text
+FES_NANO_BRIDGE RESULT phase=before-load smc=4 smc_hex=00000004 mask=0000000f before=0000000f after=0000000f smc_error=1 reset_mismatch=0
+FES_NANO_BRIDGE DETAIL phase=before-load tag=46424431 valid=1 captured=1 stage=3 name=f2s_fpga_ack_set error=-60 failure_ack=00000000 failure_req=00000004 failure_reset=0000000f
+FES_NANO_HANDOFF REJECT bridge phase=before-load smc_error=1 reset_mismatch=0
+### ERROR ### Please RESET the board ###
+```
+
+The new versioned detail was physically returned through the EL3 SMC path.
+Stage 3 polls `HDSKACK` mask `0x4` for value `0x4` after setting
+`HDSKREQ.FPGAHSREQ`. The pinned poll has a 1,000-iteration budget with a 1 ms
+delay per unsuccessful read and returns `-ETIMEDOUT`; that firmware's errno
+header defines `ETIMEDOUT` as `60`. At the first failure snapshot, ACK was
+`0`, request was `4` and bridge reset was `0x0f`. Reset bits also matched
+before and after the full service, so this remains a handshake timeout rather
+than a reset mismatch.
+
+This identifies the first failed wait, not the cause of the missing
+acknowledgment or every later poll outcome. Native entry, the `after-remove`
+gate and all four handoff/entry/Go success markers were absent. The loader
+parked before entry-file read and peripheral-reset sequencing. There was no
+retry, reset-state shortcut or service-error waiver. Native activation, drain,
+peripheral operation and tenfoot remain unqualified.
+
+## Verified recovery and capture limitation
+
+The user confirmed restoration of the original factory card. Programming the
+exact vendor reference SOF succeeded. During recovery, the top USB device
+re-enumerated from `003/037` to `003/044`, and UART `if02` became `ttyUSB1`.
+The one-off recovery helper failed cleanup on the vanished old USB node before
+saving its raw console and receipt. The programmer logs survived; the missing
+raw recovery boot capture is explicitly recorded rather than reconstructed.
+
+A separate fresh UART authentication on the stable serial-ID path verified
+kernel `6.12.11-gd7d192a9ddd9`, root `/dev/mmcblk0p2 ext3`, the original card
+CID/capacity and Nano model, with new boot UUID
+`7d003c64-ad2a-4557-9b39-cd9c630ffa03`. The qualified recovery receipt supersedes
+the generic helper's original no-power-cycle wording. No physical power cycle
+was requested, and a physical power event was not independently confirmed.
+Autonomous QSPI boot is not claimed.
+
+The fresh session logged out and closed. The new verified top USB node has
+its baseline `root:root 0664` permissions; the old node no longer exists.
+Owned programmer clients finished, the shared JTAG broker was left running,
+and the top claim was released. Flash and the factory card were not programmed
+or reimaged; normal Linux login/shutdown may update accounting. No other kit
+programming or harness operation was performed.
+
+The next investigation is the reference FPGA's acknowledgment path and the
+vendor sequence for an already-reset bridge. Cold/closed and active/draining
+states need separate evidence before changing admission. Matching reset bits
+alone do not justify accepting the missing acknowledgment.
