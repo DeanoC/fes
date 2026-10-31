@@ -797,6 +797,8 @@ Capabilities NativeHardware::capabilities() const
 		SupportedABI computer_io;
 		computer_io.id = generated::FesComputerABIID;
 		computer_io.major = generated::FesComputerABIMajor;
+		// The driver also verifies the 1.1 high capability word for the
+		// declared PC/XT floppy; unimplemented 1.1 interfaces are not listed.
 		computer_io.minor = generated::FesComputerABIMinor;
 		computer_io.interfaces = {
 			{kApple2ExpansionBusID, 1, 0},

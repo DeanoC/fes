@@ -212,7 +212,7 @@ int main(int argc, char **argv) {
         exchange(9,0,0);
         require(d.media_state==3,"committed disk not ready",cycles);
     };
-    require(exchange(1,6,0)==1 && exchange(1,16,0)==1,"runtime PC floppy identity",cycles);
+    require(exchange(1,6,0)==1 && exchange(1,16,0)==16,"runtime PC floppy identity",cycles);
     exchange(2,0,1); // Start before loading; the physical-media gate keeps the CPU held.
     // An abandoned partial image must be hidden and restart from offset zero.
     begin_image();chunk(0,3);exchange(10,0,0);

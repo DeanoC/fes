@@ -75,7 +75,7 @@ computer that does not implement the plane leaves the session-display bit clear.
 Identity must equal the manifest: tag 4, the declared ABI version and build ID.
 For 1.0, the registered low capability bits must equal the declared required
 recognized set. Version 1.1 retains those identity words and reads word 16 for
-the high capability bits: bit 16 identifies `fes.media.pcxt-floppy`. The entire
+the high capability bits: bit 20 identifies `fes.media.pcxt-floppy`. The entire
 high word must equal the declared set, so unknown or undeclared bits fail
 identity. Discovery then reads MediaInfo fields 0 through 5 for every declared
 media unit.

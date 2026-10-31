@@ -69,7 +69,7 @@ static uint32_t crc32() {
 int main(int argc,char **argv) {
     Verilated::commandArgs(argc,argv);
     Test t;
-    require(t.good(1,6)==1 && t.good(1,7)==1 && t.good(1,16)==1,"1.1 capability identity");
+    require(t.good(1,6)==1 && t.good(1,7)==1 && t.good(1,16)==16,"1.1 capability identity");
     t.bad(1,17,0,2);
     require(t.good(5,0)==0xa000 && t.good(5,1)==5 && t.good(5,2)==0xa000 &&
             t.good(5,3)==5 && t.good(5,4)==512 && t.good(5,5)==1,"PC floppy geometry and empty state");
@@ -94,7 +94,7 @@ int main(int argc,char **argv) {
     t.d.media_reset=1; for(int i=0;i<4;++i)t.tick();
     require(t.d.unit0_state==1 && t.d.unit0_size==0 && !t.d.exec_reset,"reset invalidation/execution");
     t.d.media_reset=0; for(int i=0;i<5;++i)t.tick();
-    require(t.good(1,16)==1 && t.good(5,5)==1,"identity or empty state changed after reset");
+    require(t.good(1,16)==16 && t.good(5,5)==1,"identity or empty state changed after reset");
     t.bad(9,0,0,4);
     // Partially collected header is cancelled and a fresh Begin starts at 0.
     t.good(6,0,0xa000); t.good(6,1,5);

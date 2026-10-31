@@ -2396,7 +2396,7 @@ std::vector<std::uint16_t> ComputerWords(std::uint16_t capabilities)
 	auto words = IdentityWords("00112233445566778899aabbccddeeff");
 	words[FesGpIdentityAbiTagIndex] = FesComputerAbiTag;
 	words[FesGpIdentityAbiMajorIndex] = FesComputerAbiMajor;
-	words[FesGpIdentityAbiMinorIndex] = FesComputerAbiMinor;
+	words[FesGpIdentityAbiMinorIndex] = 0;
 	words[FesGpIdentityCapabilitiesIndex] = capabilities;
 	return words;
 }
@@ -2650,6 +2650,9 @@ void TestAtariStFloppyDiscoveryAndLiveInsert()
 
 void TestPcxtFloppyDiscoveryAndLiveInsert()
 {
+	// The PC/XT bit must remain distinct from pc386 ATA in identity word 16.
+	assert(FesComputerCapabilityMediaPcxtFloppy == (1u << 20));
+	assert(FesComputerCapabilityMediaAtaDisk == (1u << 16));
 	auto descriptor = ComputerDescriptor({FesComputerInterfaceVideoFixed720p60ID,
 		FesComputerInterfaceMediaPcxtFloppyID});
 	descriptor.core.id = "fes.pcxt";
@@ -2657,7 +2660,8 @@ void TestPcxtFloppyDiscoveryAndLiveInsert()
 	const std::uint32_t caps = FesComputerCapabilityVideoFixed720p60 |
 		FesComputerCapabilityMediaPcxtFloppy;
 	for (const auto wrong : {FesComputerCapabilityVideoFixed720p60,
-		caps | 0x20000u, caps | FesComputerCapabilityKeyboardHid}) {
+		caps | FesComputerCapabilityMediaAtaDisk, caps | 0x20000u,
+		caps | FesComputerCapabilityKeyboardHid}) {
 		ComputerFixture f(wrong, {{0, {FesComputerPcxtFloppyBytes, FesComputerPcxtFloppyBytes}}}, descriptor);
 		const auto result = f.driver.Identify(f.context, kComputerDeadline);
 		assert(result.error.code == mister::ErrorCode::core_mismatch && !result.safe_to_quiesce);
