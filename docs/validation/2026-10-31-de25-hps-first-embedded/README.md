@@ -5,6 +5,12 @@ work. It does not establish that the images can be booted, that DDR survives
 FPGA reconfiguration, or that the physical CPU can access the endpoint. The
 existing physical runtime continues to reject the Nano diagnostic target.
 
+**Later workspace recovery:** the task worktree and its ignored `out/`
+directory were removed after this record was written. The hashes and results
+below survive in Git, but the referenced local package, phase-one file and
+captured logs have not been recovered. They must not be treated as available
+artifacts or as a match for the newer vendor firmware candidate.
+
 The FES base was `dbd47a222`. The FPGA package producer used committed overlay
 revision `524d87c29` and the separately captured board producer revision
 `79d616e85e19d65f0d645b67a85ffe7e142dcdfc`. The latter supplies the

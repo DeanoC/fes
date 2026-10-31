@@ -47,9 +47,9 @@ poll can overwrite an earlier timeout. The Terasic variant also transforms that
 exact reset-manager source to preserve the first reported error, and tests the
 actual vendor and modified functions with simulated handshake results. Those
 tests do not establish that physical bridges or their traffic have drained,
-or that a partial enable can be safely reversed. The current firmware remains a
-diagnostic and must not be used for a board trial until its boot handoff,
-bridge sequencing and readback are qualified.
+or that a partial enable can be safely reversed. The current firmware is not
+ready for a board trial; it needs a reviewed boot handoff and a procedure to
+verify bridge sequencing, readback and recovery.
 
 It preserves accepted-BUSY and completion-address semantics. The existing
 `HPS_SET_BRIDGES` service still exists; this is an exclusive trusted-runtime
