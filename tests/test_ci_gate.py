@@ -1,20 +1,22 @@
 import copy
 import json
 import unittest
+from unittest.mock import patch
 
 from scripts.affected import CORES, LANES
 from scripts.ci_gate import JOB_LANES, require_success, validate_plan
 from scripts.ci_simulations import simulation_matrix
 
 
-def results_for(selected=(), cores=(), modes=None):
+def results_for(selected=(), cores=(), modes=None, tier='full'):
     lanes = {lane: lane in selected for lane in LANES}
     if modes is None:
         modes = {'video': False, 'media': False, 'full_race': False}
     results = {'plan': {'result': 'success', 'outputs': {
         'lanes': json.dumps(lanes), 'cores': json.dumps(list(cores)),
         'test_modes': json.dumps(modes),
-        'simulations': json.dumps(simulation_matrix(list(cores)))}}}
+        'sim_tier': tier,
+        'simulations': json.dumps(simulation_matrix(list(cores), tier))}}}
     results.update({job: {'result': 'success' if lanes[lane] else 'skipped'}
                     for job, lane in JOB_LANES.items()})
     results['simulation-tools'] = {'result': 'success' if cores else 'skipped'}
@@ -184,15 +186,16 @@ class SimulationMatrixTests(unittest.TestCase):
 class ObservationTests(unittest.TestCase):
     def test_only_validated_intentional_skips_are_omitted(self):
         from scripts.ci_gate import observation_checks
-        results = results_for(('parent', 'host'))
-        checks = observation_checks(results)
-        self.assertEqual({check['name'] for check in checks},
-                         {'plan', 'parent-tests', 'consistency', 'host'})
-        self.assertTrue(all(check['result'] == 'success' for check in checks))
-        results['host']['result'] = 'skipped'
-        checks = observation_checks(results)
-        self.assertIn({'name': 'host', 'result': 'skipped'}, checks)
-        self.assertEqual(len(checks), len(results) + 1)
+        with patch.dict('os.environ', {'GITHUB_EVENT_NAME': 'pull_request'}):
+            results = results_for(('parent', 'host'), tier='smoke')
+            checks = observation_checks(results)
+            self.assertEqual({check['name'] for check in checks},
+                             {'plan', 'parent-tests', 'consistency', 'host'})
+            self.assertTrue(all(check['result'] == 'success' for check in checks))
+            results['host']['result'] = 'skipped'
+            checks = observation_checks(results)
+            self.assertIn({'name': 'host', 'result': 'skipped'}, checks)
+            self.assertEqual(len(checks), len(results) + 1)
 
 
     def test_invalid_plan_with_successful_jobs_records_gate_failure(self):
