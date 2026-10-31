@@ -24,7 +24,7 @@ boots FreeDOS in simulation with no oracle behind the CPU.
     design's estimate for the first playable machine was about 77% of the
     ALMs.
 - **Kit B, run m5k1.** A core-only run of the sealed package, with
-  [`pc386-host`](../../../sources/misteross/cores/fes-pc386/host/main.go) on
+  [`pc386-host`](https://github.com/DeanoC/fes/blob/c97eee0b6f/sources/misteross/cores/fes-pc386/host/main.go) on
   the HPS staging the FreeDOS fixture through `/dev/mem`.
   - The kit printed the same BIOS lines as the simulation, then reached the
     prompt 2.53 s after the configuration, 45,710,361 instructions retired.
@@ -124,7 +124,7 @@ the VGA trace replay matches Bochs.
   96 KiB of M10K in front of port 0. It answers the L1s' reads of
   C0000h-C7FFFh and F0000h-FFFFFh in command order, until the CPU has an L2
   and its memory router.
-- **[`pc386_host_link`](../../../sources/misteross/cores/fes-pc386/rtl/pc386_host_link.sv):**
+- **[`pc386_host_link`](https://github.com/DeanoC/fes/blob/c97eee0b6f/sources/misteross/cores/fes-pc386/rtl/pc386_host_link.sv):**
   the M0 stand-in on port 2.
   - The HPS stages the ATA image and a configuration block (straps, disk
     geometry, wall clock) in the window, and the machine waits in reset for
@@ -134,7 +134,7 @@ the VGA trace replay matches Bochs.
   - The ATA image moves to port 2, as the design's table has it, as the
     arbiter's lowest-priority master.
 - **[`system_tb`](../../../sources/misteross/cores/fes-pc386/sim/system_tb.cpp)
-  and [`pc386-host`](../../../sources/misteross/cores/fes-pc386/host/main.go):**
+  and [`pc386-host`](https://github.com/DeanoC/fes/blob/c97eee0b6f/sources/misteross/cores/fes-pc386/host/main.go):**
   the same host in simulation and on a kit.
 - **Sealer.** [`build_fes_pc386_quartus.py`](../../../sources/misteross/scripts/build_fes_pc386_quartus.py)
   seals `pc386_system`, its ROM read from the locked images. The summary
