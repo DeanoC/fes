@@ -18,6 +18,14 @@ type IdentityProfile struct {
 	Platform, Device, ProgrammingProfile, ABI string
 	Major, Minor                              uint16
 	ControlABI                                uint32
+	RequireBootHandoff                        bool
+}
+
+// BootHandoffVerifier must compare the admitted package against a trusted
+// observation of the running HPS boot configuration. A package or receipt by
+// itself is not evidence of what booted the board.
+type BootHandoffVerifier interface {
+	VerifyBootHandoff(fabricmodel.PackageIdentity) error
 }
 
 func profileValid(p IdentityProfile) bool {
@@ -82,6 +90,22 @@ func (e *Endpoint) packageIdentity(p fabricmodel.PackageIdentity) (embeddedcontr
 	return embeddedcontrol.Identity{}, fmt.Errorf("native fabric: no explicit identity profile for %s/%s/%s %s %d.%d", p.Platform, p.Device, p.ProgrammingProfile, p.ABI, p.Major, p.Minor)
 }
 
+func (e *Endpoint) verifyBootHandoff(p fabricmodel.PackageIdentity) error {
+	for _, profile := range e.options.IdentityProfiles {
+		if profile.Platform == p.Platform && profile.Device == p.Device && profile.ProgrammingProfile == p.ProgrammingProfile && profile.ABI == p.ABI && profile.Major == p.Major && profile.Minor == p.Minor {
+			if !profile.RequireBootHandoff {
+				return nil
+			}
+			verifier, ok := e.hooks.(BootHandoffVerifier)
+			if !ok {
+				return errors.New("native fabric: boot handoff verifier unavailable")
+			}
+			return verifier.VerifyBootHandoff(p)
+		}
+	}
+	return errors.New("native fabric: no identity profile for boot handoff")
+}
+
 // Preflight checks an already admitted image before the controller retires the
 // current owner. It does not perform I/O or establish producer authenticity.
 func (e *Endpoint) Preflight(image *fabricmodel.Image) error {
@@ -96,6 +120,9 @@ func (e *Endpoint) Preflight(image *fabricmodel.Image) error {
 		return errors.New("native fabric: image lacks admitted package binding")
 	}
 	if _, err := e.packageIdentity(id.Package); err != nil {
+		return err
+	}
+	if err := e.verifyBootHandoff(id.Package); err != nil {
 		return err
 	}
 	if hex.EncodeToString(digest[:]) != id.Package.ProgrammedSHA256 {

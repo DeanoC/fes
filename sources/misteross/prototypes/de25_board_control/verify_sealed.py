@@ -122,6 +122,10 @@ def main():
                       "-LDFLAGS", str(firmware_out / "tfa_subset.o") + " -fsanitize=undefined",
                       FPGA / "cores/fes-common/rtl/fes_embedded_control.sv", FIRMWARE / "control.cpp", FIRMWARE / "tests/native_rpc.cpp"])
     test_env = {"FES_DE25_SEALED_PACKAGE": str(package), "FES_SEALED_TFA_RPC": str(model / "Vfes_embedded_control")}
+    hps_first = seal.boot_order(inputs) == "HPS FIRST"
+    if hps_first:
+        test_env.update({"FES_DE25_HPS_PAIR": str(project / "board/hps/hps-first-pair.json"),
+                         "FES_DE25_HPS_PHASE1": str(project / "board/hps/hps-first.hps.rbf")})
     run("native", [go, "test", "-race", "-count=1", "-timeout", "180s", "-v", "-run", "^TestSealedNanoPackageNativeFirmwareCycle$", "./nativefabric"], TAMAGO, test_env)
     run("tenfoot", [go, "test", "-race", "-count=1", "-timeout", "180s", "-v", "-run", "^TestSealedNanoTenfootModel$", "./modelbackend"], TAMAGO, test_env)
     # The nested verifier discovers Go again. Prefer the already selected
@@ -132,14 +136,18 @@ def main():
         raise ValueError("verification source changed during the run")
     verifier.inputs_for(project)
     firmware = json.loads((firmware_out / "result.json").read_text())
-    report = {"status": "passed", "classification": "sealed full-SoC diagnostic package through simulated CPU, TF-A functions and RTL; no physical configuration",
+    report = {"status": "passed", "classification": "sealed " + ("HPS-first core" if hps_first else "full-SoC") + " diagnostic package through simulated CPU, TF-A functions and RTL; no physical configuration",
               "package_id": result["package_id"], "build_id": result["build_id"], "rbf_sha256": result["rbf_sha256"],
               "archive_sha256": sha(package), "record_sha256": result["build_inputs_sha256"],
               "firmware_reference_git_blob": firmware["reference_git_blob"], "firmware_patched_sha256": firmware["patched_tfa_sha256"],
               "rpc_sha256": sha(model / "Vfes_embedded_control"), "go_sha256": sha(go.resolve()), "source_sha256": sources,
               "oracle_sha256": sha(oracle), "oracle_dependencies_sha256": dep_hashes, "existing_runtime_decision": decision,
               "commands": commands, "log_sha256": {name: sha(output / (name + ".log")) for name in ("firmware", "rpc-build", "native", "tenfoot", "board-rtl", "oracle-nano")},
-              "limitations": ["transport, memory, bridges and SDM simulated", "full SoC RBF includes vendor SPL; not qualified for running-HPS reconfiguration", "no physical CPU register mapping, DDR path or global containment proof"]}
+              "limitations": ["transport, memory, bridges, boot handoff and SDM simulated",
+                              "HPS-first pair not booted or qualified on this board" if hps_first else "full SoC RBF includes vendor SPL; not qualified for running-HPS reconfiguration",
+                              "no physical CPU register mapping, DDR path or global containment proof"]}
+    if hps_first:
+        report["hps_first_pair_sha256"] = result["hps_first_pair_sha256"]
     (output / "result.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
     print("PASS:", output)
 

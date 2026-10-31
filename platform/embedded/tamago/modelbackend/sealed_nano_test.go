@@ -4,6 +4,9 @@ package modelbackend
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"os"
@@ -24,6 +27,8 @@ type sealedActorCPU struct {
 	*actorRPC
 	base     uint64
 	identity embeddedcontrol.Identity
+	pair     *nativefabric.HPSFirstPair
+	boot     *nativefabric.HPSFirstHandoff
 }
 
 func (a *sealedActorCPU) ReadPhysical32(address uint64) (uint32, error) {
@@ -41,6 +46,12 @@ func (a *sealedActorCPU) WritePhysical32(address uint64, value uint32) error {
 func (a *sealedActorCPU) Resolve(fabricmodel.Identity) (embeddedcontrol.Identity, error) {
 	return a.identity, nil
 }
+func (a *sealedActorCPU) VerifyBootHandoff(id fabricmodel.PackageIdentity) error {
+	if a.pair == nil || a.boot == nil {
+		return errors.New("simulated boot handoff missing")
+	}
+	return nativefabric.VerifyHPSFirstPair(*a.pair, *a.boot, id)
+}
 
 func TestSealedNanoTenfootModel(t *testing.T) {
 	packagePath, rpcPath := os.Getenv("FES_DE25_SEALED_PACKAGE"), os.Getenv("FES_SEALED_TFA_RPC")
@@ -56,7 +67,7 @@ func TestSealedNanoTenfootModel(t *testing.T) {
 		t.Fatal(err)
 	}
 	i, d := archive.Inspection(), archive.Inspection().Descriptor
-	if d.Format != 2 || d.Target.Platform != "de25_nano" || d.Target.Device != "A5EB013BB23BE4SCS" || d.Target.ProgrammingProfile != "de25-embedded-diagnostic-v1" || d.ABI.ID != "fes.de25-embedded-diagnostic" {
+	if d.Format != 2 || d.Target.Platform != "de25_nano" || d.Target.Device != "A5EB013BB23BE4SCS" || (d.Target.ProgrammingProfile != "de25-embedded-diagnostic-v1" && d.Target.ProgrammingProfile != nativefabric.HPSFirstDiagnosticProfile) || d.ABI.ID != "fes.de25-embedded-diagnostic" {
 		t.Fatalf("unexpected diagnostic package: %+v", d)
 	}
 	words, err := nativefabric.BuildWords(d.Build.ID)
@@ -64,8 +75,33 @@ func TestSealedNanoTenfootModel(t *testing.T) {
 		t.Fatal(err)
 	}
 	identity := embeddedcontrol.Identity{ABI: 0x10203040, Build: words}
+	var pair *nativefabric.HPSFirstPair
+	var boot *nativefabric.HPSFirstHandoff
+	if d.Target.ProgrammingProfile == nativefabric.HPSFirstDiagnosticProfile {
+		raw, err := os.ReadFile(os.Getenv("FES_DE25_HPS_PAIR"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		pair = new(nativefabric.HPSFirstPair)
+		if err = json.Unmarshal(raw, pair); err != nil {
+			t.Fatal(err)
+		}
+		phase1, err := os.ReadFile(os.Getenv("FES_DE25_HPS_PHASE1"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		sum := sha256.Sum256(phase1)
+		if pair.Phase1Size != int64(len(phase1)) || pair.Phase1SHA256 != hex.EncodeToString(sum[:]) {
+			t.Fatal("phase-one artifact differs from pair")
+		}
+		boot = &nativefabric.HPSFirstHandoff{BootOrder: "HPS FIRST", Phase1SHA256: pair.Phase1SHA256, HPSIOHash: pair.HPSIOHash, PFGIdentity: pair.PFGIdentity}
+	}
 	t.Setenv("FES_EMBEDDED_RPC", rpcPath)
-	for _, scenario := range []string{"launch-return", "wrong-live-id", "missing-model-decision", "unexpected-receipt", "unexpected-source", "unexpected-part", "unexpected-composition"} {
+	scenarios := []string{"launch-return", "wrong-live-id", "missing-model-decision", "unexpected-receipt", "unexpected-source", "unexpected-part", "unexpected-composition"}
+	if pair != nil {
+		scenarios = append(scenarios, "missing-boot-handoff", "wrong-boot-handoff")
+	}
+	for _, scenario := range scenarios {
 		t.Run(scenario, func(t *testing.T) {
 			policy := runtimeadmission.Policy{Scope: "qemu-model-only", RuntimeID: strings.Repeat("a", 64),
 				Target:    runtimeadmission.Target{Platform: d.Target.Platform, Device: d.Target.Device},
@@ -78,6 +114,9 @@ func TestSealedNanoTenfootModel(t *testing.T) {
 			if scenario == "missing-model-decision" {
 				check = "preserve"
 				policy.Decisions = nil
+			}
+			if scenario == "missing-boot-handoff" || scenario == "wrong-boot-handoff" {
+				check = "preserve"
 			}
 			entry := Entry{ID: "nano-sealed", Title: "Nano diagnostic", Path: "nano.fcore", PackageID: i.PackageID, Check: check}
 			if scenario == "unexpected-receipt" {
@@ -99,12 +138,22 @@ func TestSealedNanoTenfootModel(t *testing.T) {
 			config := Config{Scope: "qemu-model-only", Entries: []Entry{entry}}
 			r := newActorRPC(t)
 			r.wrongIdentity = scenario == "wrong-live-id"
-			cpu := &sealedActorCPU{actorRPC: r, base: 0x40000000, identity: identity}
+			cpu := &sealedActorCPU{actorRPC: r, base: 0x40000000, identity: identity, pair: pair}
+			if boot != nil {
+				copy := *boot
+				cpu.boot = &copy
+			}
+			if scenario == "missing-boot-handoff" {
+				cpu.boot = nil
+			}
+			if scenario == "wrong-boot-handoff" {
+				cpu.boot.HPSIOHash = strings.Repeat("f", 64)
+			}
 			hooks, err := nativefabric.NewCPUHooks(cpu, cpu, cpu.base, 256)
 			if err != nil {
 				t.Fatal(err)
 			}
-			profile := nativefabric.IdentityProfile{Platform: d.Target.Platform, Device: d.Target.Device, ProgrammingProfile: d.Target.ProgrammingProfile, ABI: d.ABI.ID, Major: uint16(d.ABI.Major), Minor: uint16(d.ABI.Minor), ControlABI: identity.ABI}
+			profile := nativefabric.IdentityProfile{Platform: d.Target.Platform, Device: d.Target.Device, ProgrammingProfile: d.Target.ProgrammingProfile, ABI: d.ABI.ID, Major: uint16(d.ABI.Major), Minor: uint16(d.ABI.Minor), ControlABI: identity.ABI, RequireBootHandoff: pair != nil}
 			endpoint, err := nativefabric.New(hooks, nativefabric.Options{DRAMBase: 0x80000000, ChunkBytes: 65536, IdentityProfiles: []nativefabric.IdentityProfile{profile}})
 			if err != nil {
 				t.Fatal(err)

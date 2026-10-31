@@ -77,6 +77,16 @@ func (h *CPUHooks) Invoke(request [7]uint64) ([4]uint64, error) {
 	}
 	return h.cpu.Invoke(request)
 }
+func (h *CPUHooks) VerifyBootHandoff(p fabricmodel.PackageIdentity) error {
+	if !h.ready() {
+		return errCPUHooksUnavailable
+	}
+	verifier, ok := h.services.(BootHandoffVerifier)
+	if !ok {
+		return errors.New("native fabric: platform boot handoff unavailable")
+	}
+	return verifier.VerifyBootHandoff(p)
+}
 func (h *CPUHooks) Resolve(i fabricmodel.Identity) (embeddedcontrol.Identity, error) {
 	if !h.ready() {
 		return embeddedcontrol.Identity{}, errCPUHooksUnavailable

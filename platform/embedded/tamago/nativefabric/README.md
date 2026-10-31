@@ -15,6 +15,13 @@ there is no inferred mapping from a GP ABI tag. It also checks the admitted
 programmed-byte digest. The endpoint decodes all 32 lowercase hexadecimal build
 ID digits into the control registers' low-word-first order. Unmapped targets,
 malformed IDs and digest mismatches reject without disabling the old reader.
+The experimental HPS-first diagnostic profile also requires an injected trusted
+boot-handoff verifier. It checks the exact package, programmed digest, phase-one
+hash, HPS I/O hash and PFG identity before retiring the old owner and again
+before firmware START. A changed or unavailable handoff fails closed; after a
+reservation is staged, an uncertain failure keeps it owned. The supplied
+handoff in tests is simulated, and the unsigned producer sidecar does not prove
+which phase-one image actually booted the board.
 
 The controller remains the only lifecycle owner. It supplies the outgoing
 reader identity and generation, issues each command once and reserves the
@@ -103,3 +110,5 @@ and packages a full SoC RBF. Its separate verifier passes those retained bytes
 and exact package/build IDs through the native CPU hooks, prepared TF-A C and
 RTL in host simulation, including mismatch and interrupted-transfer cases.
 It supplies no physical CPU mapping, DDR containment or physical admission.
+The HPS-first variant packages the FPGA core half, with a separately hashed
+phase-one half and the matched HPS I/O hash. No board has booted that pair.

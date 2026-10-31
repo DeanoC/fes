@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import importlib.util
+import inspect
 import json
 import os
 from pathlib import Path
@@ -190,6 +191,7 @@ def main():
     parser.add_argument("--quartus-root", default=os.environ.get("QUARTUS_ROOTDIR", ""))
     parser.add_argument("--allow-dirty", action="store_true")
     parser.add_argument("--sealed-diagnostic", action="store_true", help="build a committed diagnostic-only format-2 package")
+    parser.add_argument("--hps-first", action="store_true", help="select the captured board producer's HPS-first profile")
     args = parser.parse_args()
     try:
         output = args.output.absolute()
@@ -209,7 +211,12 @@ def main():
         selected = {"source_classification": "two-revision-diagnostic",
                     "board_fes_revision": args.board_revision, "overlay_fes_revision": revision,
                     "overlay_source_state": state}
-        result, hps, _ = board.prepare_captured(args.vendor_archive, output / "board", sources, selected)
+        if args.hps_first:
+            if "hps_first" not in inspect.signature(board.prepare_captured).parameters:
+                raise ValueError("selected board revision does not support HPS-first preparation")
+            result, hps, _ = board.prepare_captured(args.vendor_archive, output / "board", sources, selected, hps_first=True)
+        else:
+            result, hps, _ = board.prepare_captured(args.vendor_archive, output / "board", sources, selected)
         record = None
         if args.sealed_diagnostic:
             import seal

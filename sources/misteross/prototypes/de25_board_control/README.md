@@ -53,12 +53,32 @@ source belongs to a second revision; the diagnostic verifier checks those
 captured bytes against that Git commit separately. The tool identities are not
 production toolchain authentication, and a hash is not a signature.
 
-The raw HPS SOF lacks bootloader data and Quartus refuses to convert it. The
-diagnostic conversion adds the vendor SPL from the locked archive and produces
-a full SoC RBF. Its effect on a running HPS and DDR has not been established:
-**do not physically reconfigure the board with this package**. Its profile and
-ABI are diagnostic and have no physical runtime registration. To exercise the
-sealed bytes and same live ID through simulated CPU/firmware/RTL:
+The default FPGA-first diagnostic conversion adds the vendor SPL from the locked
+archive and produces a full SoC RBF. Its effect on a running HPS and DDR has not
+been established: **do not physically reconfigure the board with this package**.
+Its profile and ABI are diagnostic and have no physical runtime registration.
+
+To prepare a separate HPS-first candidate, select a board revision whose captured
+producer supports `--hps-first` and add `--hps-first --sealed-diagnostic` to the
+build command. The build selects `HPS_INITIALIZATION "HPS FIRST"` before
+synthesis, includes that order in the functional identity, and uses Quartus PFG
+to produce `hps-first.hps.rbf` and `hps-first.core.rbf`. It inspects both
+outputs and requires their reported device and HPS I/O hashes to match the
+assembler report. The format-2 archive contains the **core** RBF; the unsigned
+`hps-first-pair.json` binds its package/build IDs to the exact phase-one file,
+HPS I/O hash and PFG identity. These are diagnostic artifacts, not a booted or
+qualified configuration. The producer does not write flash or program a board.
+An unrelated earlier Linux experiment suffered a transfer timeout and a stuck
+cleanup; HPS-first build success does not resolve that hardware failure.
+
+The runtime's experimental HPS-first identity profile requires a trusted
+platform handoff matching that pair before retirement of the old owner and
+again before firmware START. The current test handoff is simulated. A sidecar
+or package cannot prove what actually booted a board, and no physical boot
+handoff provider or physical programming profile is registered here.
+
+To exercise either sealed package and the same live ID through simulated
+CPU/firmware/RTL:
 
 ```sh
 python3 sources/misteross/prototypes/de25_board_control/verify_sealed.py \

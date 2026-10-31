@@ -91,7 +91,9 @@ selected into the bare-metal image.
 The DE25 sealed-diagnostic verifier additionally drives the real tenfoot
 launch/return loop using its format-2 Nano package, explicit model-only policy,
 CPU hook adapter and simulated TF-A/RTL endpoint. Identity mismatch and missing
-policy/receipt errors are checked before release. This is host-model evidence;
+policy/receipt errors are checked before release. The HPS-first diagnostic
+also rejects a missing or mismatched simulated boot handoff before retirement.
+This is host-model evidence;
 it does not enable a physical Nano programming profile.
 
 A native presenter error returns before `FinishFrame`, leaving the outstanding

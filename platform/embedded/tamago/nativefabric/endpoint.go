@@ -87,6 +87,9 @@ func New(hooks Hooks, options Options) (*Endpoint, error) {
 		if !profileValid(profile) {
 			return nil, errors.New("native fabric: invalid identity profile")
 		}
+		if profile.Platform == "de25_nano" && profile.ProgrammingProfile == HPSFirstDiagnosticProfile && !profile.RequireBootHandoff {
+			return nil, errors.New("native fabric: HPS-first diagnostic requires boot handoff verification")
+		}
 		for _, previous := range options.IdentityProfiles[:i] {
 			if sameProfile(profile, previous) {
 				return nil, errors.New("native fabric: duplicate identity profile")
@@ -376,6 +379,9 @@ func (e *Endpoint) program() (bool, fabricmodel.Completion) {
 			if _, err := e.packageIdentity(c.Identity.Package); err != nil {
 				return failed(err, false)
 			}
+			if err := e.verifyBootHandoff(c.Identity.Package); err != nil {
+				return failed(err, false)
+			}
 			if hex.EncodeToString(e.imageHash[:]) != c.Identity.Package.ProgrammedSHA256 {
 				return failed(errors.New("native fabric: programming bytes differ from admitted digest"), false)
 			}
@@ -405,6 +411,11 @@ func (e *Endpoint) program() (bool, fabricmodel.Completion) {
 	case "start":
 		if !e.stable() {
 			return failed(errors.New("native fabric: staged image changed"), true)
+		}
+		if c.Identity.Package != (fabricmodel.PackageIdentity{}) {
+			if err := e.verifyBootHandoff(c.Identity.Package); err != nil {
+				return failed(err, true)
+			}
 		}
 		r, err := e.call([7]uint64{start})
 		if err != nil || r[0] != 0 || !plain(r) {

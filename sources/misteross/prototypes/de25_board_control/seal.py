@@ -11,6 +11,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -20,7 +21,7 @@ HERE = Path(__file__).resolve().parent
 MISTEROSS = HERE.parents[1]
 ROOT = MISTEROSS.parents[1]
 sys.path.insert(0, str(MISTEROSS))
-from scripts.core_package import encode_manifest, read_package
+from scripts.core_package import encode_manifest, package_identity, read_package
 from scripts.export_core_package import build_identity, encode_build_record, export_package, source_input_closure
 from scripts.source_repository import canonical_repository
 
@@ -33,9 +34,21 @@ ROOTS = sorted(("sources/misteross/prototypes/de25_board_control",
 PLATFORM = "de25_nano"
 DEVICE = "A5EB013BB23BE4SCS"
 PROFILE = "de25-embedded-diagnostic-v1"
+HPS_PROFILE = "de25-embedded-hps-first-diagnostic-v1"
 ABI = "fes.de25-embedded-diagnostic"
 CONTROL_ABI = 0x10203040
 SPL_MEMBER = "Demonstration/SoC_FPGA/GHRD/software/u-boot/spl/u-boot-spl-dtb.hex"
+
+
+def boot_order(inputs):
+    order = inputs.get("computer", {}).get("hps_initialization", "AFTER INIT_DONE")
+    if order not in ("HPS FIRST", "AFTER INIT_DONE"):
+        raise ValueError("unsupported HPS initialization order")
+    return order
+
+
+def profile_for(inputs):
+    return HPS_PROFILE if boot_order(inputs) == "HPS FIRST" else PROFILE
 
 
 def sha(data):
@@ -75,6 +88,7 @@ def make_record(inputs, revision, repository, tools):
     if not sources or not inputs["board_fes_revision"] or inputs["overlay_source_state"] != "committed":
         raise ValueError("sealed diagnostic requires committed, captured sources")
     closure = source_input_closure(ROOT, ROOTS)
+    order = boot_order(inputs)
     fields = {
         "format": 2, "repository": canonical_repository(repository), "revision": revision, "source_path": ".",
         "recipe": RECIPE, "recipe_sha256": closure[RECIPE], "abi_definition": DEFINITION,
@@ -84,7 +98,8 @@ def make_record(inputs, revision, repository, tools):
                        "snapshot_sha256": snapshot_digest(sources), "vendor_sha256": inputs["vendor_archive_sha256"],
                        "device": DEVICE, "control_abi": CONTROL_ABI, "peripheral_offset": 0x10400,
                        "system_hz": 100000000, "pixel_hz": 74250000,
-                       "spl_member": SPL_MEMBER, "conversion": "sof+hps-hex-to-sof;sof-to-rbf"},
+                       "spl_member": SPL_MEMBER, "hps_initialization": order,
+                       "conversion": "hps-first-split-rbf-v1" if order == "HPS FIRST" else "sof+hps-hex-to-sof;sof-to-rbf"},
     }
     return encode_build_record(fields)
 
@@ -107,13 +122,40 @@ def publish(output, artifact, archive, tool, record, expected_tools, version):
             raise ValueError("project SPL differs from captured vendor archive")
     pfg = tool.with_name("quartus_pfg")
     combined, payload = output / "diagnostic-with-vendor-spl.sof", output / "core.rbf"
+    order = boot_order(inputs)
+    qsf = (output / "project/golden_top.qsf").read_text()
+    assigned = re.findall(r'(?m)^\s*set_global_assignment\s+-name\s+HPS_INITIALIZATION\s+"([^"\n]+)"\s*$', qsf)
+    if (order == "HPS FIRST" and assigned != [order]) or (order != "HPS FIRST" and assigned not in ([], [order])):
+        raise ValueError("project HPS initialization differs from captured build inputs")
     commands = [[str(pfg), "-c", str(artifact), str(combined), "-o", "hps_path=" + str(spl)],
-                [str(pfg), "-c", str(combined), str(payload)]]
+                ([str(pfg), "-c", str(artifact), str(output / "hps-first.rbf"), "-o", "hps_path=" + str(spl), "-o", "hps=on"]
+                 if order == "HPS FIRST" else [str(pfg), "-c", str(combined), str(payload)])]
     for i, command in enumerate(commands):
-        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False)
+        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False, env=dict(os.environ, LC_ALL="C"))
         (output / f"pfg-{i}.log").write_bytes(result.stdout)
         if result.returncode:
             raise ValueError("diagnostic RBF conversion failed; see pfg log")
+    phase1 = output / "hps-first.hps.rbf"
+    core = output / "hps-first.core.rbf"
+    io_hash = None
+    if order == "HPS FIRST":
+        for part in (phase1, core):
+            if part.is_symlink() or not part.is_file() or part.stat().st_size == 0:
+                raise ValueError("missing or invalid HPS-first split artifact")
+        hashes = []
+        for label, path in (("hps", phase1), ("core", core)):
+            command = [str(pfg), "-i", str(path)]
+            commands.append(command)
+            result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False, env=dict(os.environ, LC_ALL="C"))
+            (output / f"pfg-info-{label}.log").write_bytes(result.stdout)
+            if result.returncode:
+                raise ValueError("cannot inspect HPS-first artifact")
+            hashes.append(parse_pfg_info(result.stdout.decode(errors="strict")))
+        assembly = parse_assembler_hash((output / "project/output_files/golden_top.asm.rpt").read_text())
+        if hashes[0] != hashes[1] or hashes[0] != assembly:
+            raise ValueError("HPS-first split and assembler HPS IO hashes differ")
+        io_hash = hashes[0]
+        payload.write_bytes(core.read_bytes())
     data = payload.read_bytes()
     if not data:
         raise ValueError("empty diagnostic RBF")
@@ -122,18 +164,50 @@ def publish(output, artifact, archive, tool, record, expected_tools, version):
         "format": 2,
         "core": {"id": "fes.de25-embedded-diagnostic", "name": "DE25 embedded control diagnostic",
                  "description": "Exploratory diagnostic; not qualified for physical reconfiguration.", "version": "0.1.0"},
-        "target": {"platform": PLATFORM, "device": DEVICE, "programming_profile": PROFILE},
+        "target": {"platform": PLATFORM, "device": DEVICE, "programming_profile": profile_for(inputs)},
         "payload": {"file": "core.rbf", "size": len(data), "sha256": sha(data)},
         "abi": {"id": ABI, "major": 1, "minor": 0}, "interfaces": [],
         "build": {"id": build_identity(record), "repository": fields["repository"], "revision": fields["revision"],
                   "recipe_sha256": fields["recipe_sha256"], "toolchain": expected_tools["quartus-version"]},
     })
+    pair = None
+    if order == "HPS FIRST":
+        pair = {"format": 1, "classification": "unqualified-hps-first-diagnostic",
+                "package_id": package_identity(manifest, data), "build_id": build_identity(record),
+                "build_inputs_sha256": sha(record), "hps_io_hash": io_hash,
+                "pfg_identity": expected_tools["quartus-pfg"], "quartus_version": expected_tools["quartus-version"],
+                "phase1_sha256": sha(phase1.read_bytes()), "phase1_size": phase1.stat().st_size,
+                "core_sha256": sha(data), "core_size": len(data), "vendor_spl_sha256": sha(spl.read_bytes())}
+        pair_bytes = (json.dumps(pair, sort_keys=True, separators=(",", ":")) + "\n").encode()
+        pair_path = output / "hps-first-pair.json"
+        with pair_path.open("xb") as stream:
+            stream.write(pair_bytes)
+        pair_path.chmod(0o444)
     directory = export_package(manifest, payload, output / "packages")
     package = read_package(directory)
+    if pair is not None and pair["package_id"] != package.package_id:
+        raise ValueError("HPS-first pair package identity differs")
     result = {"classification": "sealed diagnostic only; physical HPS reconfiguration not qualified",
               "build_id": build_identity(record), "build_inputs_sha256": sha(record),
               "package_id": package.package_id, "rbf_sha256": sha(data), "rbf_size": len(data),
               "raw_sof_sha256": sha(artifact.read_bytes()), "combined_sof_sha256": sha(combined.read_bytes()),
               "vendor_spl_sha256": sha(spl.read_bytes()), "commands": commands}
+    if pair is not None:
+        result["hps_first_pair_sha256"] = sha(pair_bytes)
     (output / "seal-result.json").write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
     return result
+
+
+def parse_pfg_info(text):
+    hashes = re.findall(r"(?m)^HPS IO hash:\s*([0-9A-Fa-f]{64})\s*$", text)
+    devices = re.findall(r"(?m)^Device name:\s*(\S+)\s*$", text)
+    if len(hashes) != 1 or devices != [DEVICE]:
+        raise ValueError("PFG did not report one exact device and HPS IO hash")
+    return hashes[0].lower()
+
+
+def parse_assembler_hash(text):
+    hashes = re.findall(r"(?mi)^\s*;\s*HPS IO hash\s*;\s*([0-9a-f]{64})\s*;", text)
+    if len(hashes) != 1:
+        raise ValueError("assembler did not report one HPS IO hash")
+    return hashes[0].lower()

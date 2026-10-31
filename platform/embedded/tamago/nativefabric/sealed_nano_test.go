@@ -6,6 +6,8 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -34,6 +36,8 @@ type sealedRPC struct {
 	region                            *Region
 	programs, reads, writes, releases int
 	wrongIdentity, lose               bool
+	pair                              *HPSFirstPair
+	boot                              *HPSFirstHandoff
 }
 
 func newSealedRPC(t *testing.T, identity embeddedcontrol.Identity) *sealedRPC {
@@ -131,6 +135,12 @@ func (r *sealedRPC) Invoke(q [7]uint64) ([4]uint64, error) {
 func (r *sealedRPC) Resolve(fabricmodel.Identity) (embeddedcontrol.Identity, error) {
 	return r.identity, nil
 }
+func (r *sealedRPC) VerifyBootHandoff(id fabricmodel.PackageIdentity) error {
+	if r.pair == nil || r.boot == nil {
+		return errors.New("simulated boot handoff missing")
+	}
+	return VerifyHPSFirstPair(*r.pair, *r.boot, id)
+}
 func (r *sealedRPC) Reserve(data []byte) (*Region, error) {
 	if r.region != nil {
 		return nil, errors.New("reservation still held")
@@ -166,7 +176,7 @@ func sealedFixture(t *testing.T) (*corepackage.Archive, runtimeadmission.Policy,
 	}
 	i := archive.Inspection()
 	d := i.Descriptor
-	if d.Format != 2 || d.Target.Platform != "de25_nano" || d.Target.Device != "A5EB013BB23BE4SCS" || d.Target.ProgrammingProfile != "de25-embedded-diagnostic-v1" || d.ABI.ID != "fes.de25-embedded-diagnostic" || d.ABI.Major != 1 || d.ABI.Minor != 0 {
+	if d.Format != 2 || d.Target.Platform != "de25_nano" || d.Target.Device != "A5EB013BB23BE4SCS" || (d.Target.ProgrammingProfile != "de25-embedded-diagnostic-v1" && d.Target.ProgrammingProfile != HPSFirstDiagnosticProfile) || d.ABI.ID != "fes.de25-embedded-diagnostic" || d.ABI.Major != 1 || d.ABI.Minor != 0 {
 		t.Fatalf("unexpected diagnostic package: %+v", d)
 	}
 	words, err := BuildWords(d.Build.ID)
@@ -180,6 +190,30 @@ func sealedFixture(t *testing.T) (*corepackage.Archive, runtimeadmission.Policy,
 		Drivers:   []runtimeadmission.Driver{{Profile: d.Target.ProgrammingProfile, ABI: runtimeadmission.Contract{ID: d.ABI.ID, Major: d.ABI.Major, Minor: d.ABI.Minor}}},
 		Decisions: []runtimeadmission.Decision{{PackageID: i.PackageID, Code: "none"}}}
 	return archive, policy, identity, body
+}
+
+func simulatedHPSBoot(t *testing.T, required bool) (*HPSFirstPair, *HPSFirstHandoff) {
+	t.Helper()
+	if !required {
+		return nil, nil
+	}
+	raw, err := os.ReadFile(os.Getenv("FES_DE25_HPS_PAIR"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var pair HPSFirstPair
+	if err = json.Unmarshal(raw, &pair); err != nil {
+		t.Fatal(err)
+	}
+	phase1, err := os.ReadFile(os.Getenv("FES_DE25_HPS_PHASE1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(phase1)
+	if pair.Phase1Size != int64(len(phase1)) || pair.Phase1SHA256 != hex.EncodeToString(sum[:]) {
+		t.Fatal("phase-one artifact differs from pair")
+	}
+	return &pair, &HPSFirstHandoff{BootOrder: "HPS FIRST", Phase1SHA256: pair.Phase1SHA256, HPSIOHash: pair.HPSIOHash, PFGIdentity: pair.PFGIdentity}
 }
 
 func TestSealedNanoPackageNativeFirmwareCycle(t *testing.T) {
@@ -214,18 +248,27 @@ func TestSealedNanoPackageNativeFirmwareCycle(t *testing.T) {
 	for _, scenario := range []string{"launch-return", "wrong-live-id", "lost-firmware-transfer"} {
 		t.Run(scenario, func(t *testing.T) {
 			r := newSealedRPC(t, identity)
+			d := archive.Inspection().Descriptor
+			r.pair, r.boot = simulatedHPSBoot(t, d.Target.ProgrammingProfile == HPSFirstDiagnosticProfile)
 			hooks, err := NewCPUHooks(r, r, r.base, 256)
 			if err != nil {
 				t.Fatal(err)
 			}
-			d := archive.Inspection().Descriptor
-			profile := IdentityProfile{Platform: d.Target.Platform, Device: d.Target.Device, ProgrammingProfile: d.Target.ProgrammingProfile, ABI: d.ABI.ID, Major: 1, ControlABI: identity.ABI}
+			profile := IdentityProfile{Platform: d.Target.Platform, Device: d.Target.Device, ProgrammingProfile: d.Target.ProgrammingProfile, ABI: d.ABI.ID, Major: 1, ControlABI: identity.ABI, RequireBootHandoff: r.pair != nil}
 			endpoint, err := New(hooks, Options{DRAMBase: 0x80000000, ChunkBytes: 65536, IdentityProfiles: []IdentityProfile{profile}})
 			if err != nil {
 				t.Fatal(err)
 			}
 			if err = endpoint.Preflight(image); err != nil {
 				t.Fatal(err)
+			}
+			if r.boot != nil {
+				correct := *r.boot
+				r.boot.HPSIOHash = strings.Repeat("f", 64)
+				if endpoint.Preflight(image) == nil || r.reads != 0 || r.writes != 0 || r.programs != 0 {
+					t.Fatal("mismatched HPS handoff reached CPU")
+				}
+				*r.boot = correct
 			}
 			wrong := profile
 			wrong.Device += "-other"

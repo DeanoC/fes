@@ -51,9 +51,12 @@ def inputs_for(project):
     sources = inputs["functional_snapshot_sha256"]
     if not sources or any(sha(snapshot / name) != expected for name, expected in sources.items()):
         raise ValueError("functional source snapshot differs")
-    fingerprint = hashlib.sha256(json.dumps({"source_sha256": sources,
+    fingerprint_fields = {"source_sha256": sources,
         "vendor_sha256": inputs["vendor_archive_sha256"], "system_hz": 100000000,
-        "pixel_hz": 74250000}, sort_keys=True).encode()).hexdigest()[:32]
+        "pixel_hz": 74250000}
+    if "hps_initialization" in inputs["computer"]:
+        fingerprint_fields["hps_initialization"] = inputs["computer"]["hps_initialization"]
+    fingerprint = hashlib.sha256(json.dumps(fingerprint_fields, sort_keys=True).encode()).hexdigest()[:32]
     build_id = identity["build_id"]
     if identity.get("build_inputs_sha256"):
         sys.path.insert(0, str(HERE))
@@ -90,7 +93,7 @@ def inputs_for(project):
         payload = board / "hps/core.rbf"
         spl = board / "hps/project/software/u-boot/spl/u-boot-spl-dtb.hex"
         if (package.package_id != result["package_id"] or package.fields["build"]["id"] != build_id or
-                package.fields["target"] != {"platform": seal.PLATFORM, "device": seal.DEVICE, "programming_profile": seal.PROFILE} or
+                package.fields["target"] != {"platform": seal.PLATFORM, "device": seal.DEVICE, "programming_profile": seal.profile_for(inputs)} or
                 package.fields["abi"] != {"id": seal.ABI, "major": 1, "minor": 0} or
                 package.fields["build"]["revision"] != fields["revision"] or
                 package.fields["build"]["recipe_sha256"] != fields["recipe_sha256"] or
@@ -103,6 +106,30 @@ def inputs_for(project):
                 result["build_inputs_sha256"] != identity["build_inputs_sha256"] or
                 result["rbf_sha256"] != package.fields["payload"]["sha256"]):
             raise ValueError("sealed package differs from the diagnostic build")
+        if seal.boot_order(inputs) == "HPS FIRST":
+            pair_path = board / "hps/hps-first-pair.json"
+            raw = pair_path.read_bytes()
+            pair = json.loads(raw)
+            phase1 = board / "hps/hps-first.hps.rbf"
+            core = board / "hps/hps-first.core.rbf"
+            keys = {"format", "classification", "package_id", "build_id", "build_inputs_sha256", "hps_io_hash",
+                    "pfg_identity", "quartus_version", "phase1_sha256", "phase1_size", "core_sha256", "core_size", "vendor_spl_sha256"}
+            hashes = [seal.parse_pfg_info((board / f"hps/pfg-info-{name}.log").read_text()) for name in ("hps", "core")]
+            hashes.append(seal.parse_assembler_hash((board / "hps/project/output_files/golden_top.asm.rpt").read_text()))
+            if (set(pair) != keys or raw != (json.dumps(pair, sort_keys=True, separators=(",", ":")) + "\n").encode() or
+                    pair["format"] != 1 or pair["classification"] != "unqualified-hps-first-diagnostic" or
+                    fields["parameters"].get("hps_initialization") != "HPS FIRST" or
+                    fields["parameters"].get("conversion") != "hps-first-split-rbf-v1" or
+                    pair["package_id"] != package.package_id or pair["build_id"] != build_id or
+                    pair["build_inputs_sha256"] != identity["build_inputs_sha256"] or
+                    pair["phase1_sha256"] != sha(phase1) or pair["phase1_size"] != phase1.stat().st_size or
+                    pair["core_sha256"] != sha(core) or pair["core_size"] != core.stat().st_size or
+                    core.read_bytes() != package.payload_bytes or pair["vendor_spl_sha256"] != sha(spl) or
+                    pair["pfg_identity"] != fields["tools"]["quartus-pfg"] or
+                    pair["quartus_version"] != fields["tools"]["quartus-version"] or
+                    any(h != pair["hps_io_hash"] for h in hashes) or
+                    result.get("hps_first_pair_sha256") != hashlib.sha256(raw).hexdigest()):
+                raise ValueError("HPS-first pair differs from package or reported hardware hashes")
     elif fingerprint != build_id:
         raise ValueError("board producer fingerprint does not bind the endpoint")
     if (build_id != inputs["computer"]["build_id"] or
@@ -122,6 +149,9 @@ def inputs_for(project):
     qsf = (board / "hps/project/golden_top.qsf").read_text()
     if qsf.count(f"FES_DE25_COMPUTER_BUILD_ID=128'h{build_id}") != 1:
         raise ValueError("project build-ID macro differs")
+    if inputs["computer"].get("hps_initialization") == "HPS FIRST" and re.findall(
+            r'(?m)^\s*set_global_assignment\s+-name\s+HPS_INITIALIZATION\s+"([^"\n]+)"\s*$', qsf) != ["HPS FIRST"]:
+        raise ValueError("project HPS-first assignment differs")
     generated = generation["embedded_control"]
     if (generated["maps"]["lw"]["base"] != identity["peripheral_offset"] or
         generated["maps"]["lw"]["span"] != identity["span"] or
@@ -130,8 +160,7 @@ def inputs_for(project):
         raise ValueError("generated control maps differ")
     changed = dict(sources)
     changed[mapped["fes_de25_embedded.sv"]] = "f" * 64
-    modified = hashlib.sha256(json.dumps({"source_sha256": changed, "vendor_sha256": inputs["vendor_archive_sha256"],
-        "system_hz": 100000000, "pixel_hz": 74250000}, sort_keys=True).encode()).hexdigest()[:32]
+    modified = hashlib.sha256(json.dumps(dict(fingerprint_fields, source_sha256=changed), sort_keys=True).encode()).hexdigest()[:32]
     if modified == fingerprint:
         raise ValueError("board fingerprint did not respond to endpoint source")
     return inputs, generation, local
@@ -237,7 +266,7 @@ def main():
                   "command": [str(x) for x in command],
                   "logs_sha256": {name: sha(output / (name + ".log")) for name in ("build", "model", "wrong-id", "wrong-abi", "jtag-wrong-id", "jtag-model", "native")},
                   "limitations": ["host simulation only; no physical CPU MMIO or DDR path",
-                                  "board source/vendor fingerprint is not a sealed FES package",
+                                  "sealed hashes do not authenticate the producer or prove the running boot" if inputs and inputs["embedded_control"].get("build_inputs_sha256") else "board source/vendor fingerprint is not a sealed FES package",
                                   "on-chip responder tests one reader; other FPGA masters are not contained"]}
         (output / "result.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
         print("PASS:", output)
