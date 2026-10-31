@@ -4,11 +4,11 @@
 docs/pc386-machine-design.md, phase M5 (= CPU Phase 3): pc386_system, the
 machine (AT core, VGA, capture, presenter, the display plane on DDR port 2,
 OPL2, Sound Blaster DSP, mixer) with fes_i386_cpu, its L1s and bus interface
-on DDR port 0, behind fes.computer 1.0 with the session-display plane, HPS
-DDR and 48 kHz audio. The Bochs BIOS and the LGPL VGABios are M10K contents
-of the RBF (pc386_rom.sv), from the images scripts/build_pc386_firmware.py
-builds and firmware.lock pins. Until the M0 contracts, the HPS stages the
-disk and the machine's configuration in the DDR window (pc386_host_link.sv).
+on DDR port 0, behind fes.computer 1.1: the session-display plane, HPS DDR,
+48 kHz audio, the ATA disk the runtime writes into the DDR window, the
+fes.pc386.machine record and the wall clock. The Bochs BIOS and the LGPL
+VGABios are M10K contents of the RBF (pc386_rom.sv), from the images
+scripts/build_pc386_firmware.py builds and firmware.lock pins.
 The system clock is sealed at SYSTEM_CLOCK_HZ and every guest time base is a
 rational enable of it, set here from that frequency. It is a development
 package, labelled a Quartus build (docs/design/quartus-cores.md) and not
@@ -83,7 +83,6 @@ I386 = "cores/fes-common/rtl/i386"
 SHELL_SOURCES = (
     "cores/fes-pc386/rtl/pc386_system_pll.v",
     "cores/fes-common/rtl/pixel_pll.v",
-    "cores/fes-common/rtl/fes_computer_mailbox.v",
     "cores/fes-common/rtl/fes_audio_output.v",
     "cores/fes-common/rtl/fes_audio_i2s.v",
     "cores/fes-common/rtl/fes_hps_ddr.v",
@@ -112,6 +111,8 @@ MACHINE_SOURCES = (
     "cores/fes-menu/rtl/fes_menu_control.v",
     "cores/fes-menu/rtl/fes_menu_video.v",
     "cores/fes-menu/rtl/fes_menu_reader.v",
+    "cores/fes-common/rtl/fes_computer_mailbox.v",
+    "cores/fes-common/rtl/fes_computer_storage.v",
     f"{OPL2}/opl2_pkg.sv",
     *(f"{OPL2}/{name}.sv" for name in (
         "pipeline_sr", "mem_simple_dual_port", "mem_simple_dual_port_async_read", "mem_single_bank",
@@ -119,7 +120,7 @@ MACHINE_SOURCES = (
         "calc_phase_inc", "calc_envelope_shift", "calc_rhythm_phase", "envelope_generator", "phase_generator",
         "operator", "control_operators", "dac_prep", "channels")),
     *(f"cores/fes-pc386/rtl/{name}.sv" for name in (
-        "pc386_opl2", "pc386_sb", "pc386_mixer", "pc386_audio", "pc386_rom", "pc386_host_link", "pc386_snapshot",
+        "pc386_opl2", "pc386_sb", "pc386_mixer", "pc386_audio", "pc386_rom", "pc386_disk", "pc386_snapshot",
         "pc386_system")),
 )
 MACHINE_TOP = "pc386_system"
@@ -164,10 +165,11 @@ UNDERSCORE_KEYWORDS = frozenset({
 })
 CORE = {"id": "fes.pc386", "name": "FES pc386", "version": "0.1.0",
         "description": "A 386 AT: fes_i386_cpu, the Bochs BIOS and LGPL VGABios, VGA at 720p, OPL2 and Sound "
-                       "Blaster 2.0. Development only: the HPS stages the disk and the machine's configuration "
-                       "in the DDR window, and there is no keyboard or mouse yet."}
+                       "Blaster 2.0, and a hard disk of up to 128 MiB with its saves. Development only: "
+                       "there is no keyboard or mouse yet."}
 INTERFACES = ("fes.video.fixed-720p60", "fes.audio.pcm-s16-stereo-48k", "fes.memory.hps-ddr",
-              "fes.video.session-display", "fes.fabric.video.display-plane")
+              "fes.video.session-display", "fes.fabric.video.display-plane", "fes.media.ata-disk",
+              "fes.persistence.words", "fes.rtc.wall-clock", "fes.pc386.machine")
 # Every guest time base as a rational enable of the system clock
 # (docs/pc386-machine-design.md, "Clocks and timing"): N/D = rate / clock.
 GUEST_RATES = {
@@ -295,7 +297,7 @@ def record_fields(root: Path, repository: str, revision: str, identities: dict[s
             "guest_rates": json.dumps(guest_rates(), sort_keys=True, separators=(",", ":")),
             "cpu": "fes_i386_cpu, its L1I, L1D and bus interface on DDR port 0 at window offset 0x04000000",
             "firmware": json.dumps(firmware_digests(root), sort_keys=True, separators=(",", ":")),
-            "host_link": "pc386_host_link configuration, status and debug blocks at window offset 0x01000000",
+            "ata_disk": "the image at window offset 0x08000000 on DDR port 2 (pc386_disk)",
             # The script with its source list named, which is too long for a parameter.
             "machine_netlist": machine_program(Path(MACHINE_NETLIST), "$MACHINE_SOURCES"),
             "machine_sources_sha256": hashlib.sha256("\n".join(MACHINE_SOURCES).encode()).hexdigest(),
@@ -476,7 +478,7 @@ def manifest(record: bytes, evidence: dict, repository: str, revision: str, iden
         "core": core,
         "target": {"platform": "de10_nano", "device": board.TARGET, "programming_profile": "fes-gp-v1"},
         "payload": {"file": "core.rbf", **evidence["rbf"]},
-        "abi": {"id": "fes.computer", "major": 1, "minor": 0},
+        "abi": {"id": "fes.computer", "major": 1, "minor": 1},
         "interfaces": [{"id": name, "major": 1, "minor": 0, "required": True} for name in INTERFACES],
         "build": {"id": build_identity(record), "repository": repository, "revision": revision,
                   "recipe_sha256": json.loads(record)["recipe_sha256"], "toolchain": toolchain_label(identities)},

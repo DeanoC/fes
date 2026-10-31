@@ -1,24 +1,39 @@
 // SPDX-License-Identifier: MIT
+`include "fes_computer.vh"
+
 // pc386 system (docs/pc386-machine-design.md, phase M5 = CPU Phase 3): the
 // machine and its audio with fes_i386_cpu, its L1s and bus interface on DDR
-// port 0. The shell (top.sv) adds the PLLs, the fes.computer mailbox,
-// fes_hps_ddr and the HDMI and I2S pins; everything here runs in clk except
-// the plane's pixel side.
+// port 0, behind the fes.computer 1.1 mailbox. The shell (top.sv) adds the
+// PLLs, the HPS GP interface, fes_hps_ddr and the HDMI and I2S pins;
+// everything here runs in clk except the plane's pixel side.
 //
 //   port 0  the CPU: guest RAM at window offset 0x04000000, and the firmware
 //           ROM (pc386_rom) in front of it
 //   port 1  VRAM
-//   port 2  plane, presenter, capture; pc386_host_link's single beats: the
-//           ATA image, its configuration, status and debug blocks
+//   port 2  plane, presenter, capture; pc386_disk: the ATA image at window
+//           offset 0x08000000 and its CRC pass
 //
-// p0_reset..p2_reset are fes_hps_ddr's per-port execution resets. The
-// machine stays in reset until pc386_host_link has the HPS's configuration,
-// and the CPU until the RTC has its wall clock and CMOS setup. After that
-// the only reset is the CPU's own, from the AT core (8042, port 92h), which
-// asserts FLUSH first: it holds the CPU at least 4 clocks and until its
-// memory is idle, and the machine, its DDR ports and port 0's reads in
-// flight carry on. Every guest time base is a rational enable of clk; the
-// producer sets each N/D pair from the sealed frequency.
+// The mailbox (fes_computer_mailbox_core) answers identity, execution and the
+// session-display plane, and hands the ATA disk, the fes.pc386.machine record
+// and the wall clock to fes_computer_storage. The record's settings are the
+// machine's straps at each release: the self-modifying-code profile and the
+// Sound Blaster's port, IRQ and DMA; the governor's preset, frequency and
+// turbo words wait for the CPU's governor. Its CMOS words are what the RTC
+// loads after reset and writes back. The wall clock reaches the RTC once its
+// CMOS setup is done, and the CPU starts after that.
+//
+// Hold stops the CPU at once: its warm reset lets port 0's traffic finish.
+// Once the CPU has been held 4 clocks with its memory idle and the drive has
+// landed every sector it accepted (drained), ddr_hold makes fes_hps_ddr hold
+// every port, and once port 0 has taken the hold the machine is reset with
+// them (machine_held). While the disk verifies, ddr_hold is low so that the
+// CRC pass can read port 2; the machine stays in reset. p0_reset..p2_reset
+// are fes_hps_ddr's per-port resets. After release the only reset is the
+// CPU's own, from the AT core (8042, port 92h), which asserts FLUSH first: it
+// holds the CPU at least 4 clocks and until its memory is idle, and the
+// machine, its DDR ports and port 0's reads in flight carry on. Every guest
+// time base is a rational enable of clk; the producer sets each N/D pair
+// from the sealed frequency.
 module pc386_system #(
     parameter integer ISA_N = 1, ISA_D = 12,
     parameter integer PIT_N = 21, PIT_D = 880,
@@ -33,18 +48,32 @@ module pc386_system #(
     parameter ROM_HEX = "build/firmware/pc386/pc386-rom.hex"
 ) (
     input wire clk, pixel_clk, pixel_locked,
+    // The HPS's GP mailbox
+    input wire [31:0] gpo,
+    input wire [127:0] build_id,
+    output wire [31:0] gpi,
+    // Held execution (the audio's silence), fes_hps_ddr's hold and its resets
+    output wire exec_reset,
+    output reg ddr_hold,
     input wire p0_reset, p1_reset, p2_reset,
-    // Display plane control (fes.video.session-display) and output
-    input wire display_request,
-    input wire [6:0] display_opcode,
-    input wire [7:0] display_index,
-    input wire [15:0] display_argument,
-    output wire display_response_valid, display_response_error,
-    output wire [15:0] display_response_data,
-    output wire display_quiesced,
+    // The plane's output, in pixel_clk
     output wire [27:0] video,
     // Mixer output at 48 kHz
     output wire signed [15:0] sample,
+    // What the system does, for system_tb; the shell leaves these open.
+    //   0  flags [7:0] (halted, stopped, A20M, INTR, running), last POST code
+    //      [15:8], CPU resets [23:16], instructions retired [63:32]
+    //   1  CS [15:0], the last exception or interrupt vector delivered [31:24],
+    //      EIP [63:32]
+    //   2  720p frames shown [31:0], scanout underflows [63:32]
+    //   3  capture drops [31:0], presenter underflows [63:32]
+    //   4  plane underflows [31:0], mixer samples [63:32]
+    //   5  8237 memory cycles [31:0], OPL2 samples [63:32]
+    // The presenter's and the plane's counters run in pixel_clk and cross
+    // whole (pc386_snapshot). debug_byte is each debug-port byte.
+    output wire [6*64-1:0] status,
+    output wire debug_valid,
+    output wire [7:0] debug_byte,
     // DDR port 0
     output wire [27:0] p0_address,
     output wire [7:0] p0_burstcount,
@@ -73,11 +102,106 @@ module pc386_system #(
     input wire [63:0] p2_readdata,
     input wire p2_readdatavalid
 );
+    // ---- The mailbox and its storage endpoint
+    wire display_request, display_response_valid, display_response_error, display_quiesced;
+    wire [6:0] display_opcode;
+    wire [7:0] display_index;
+    wire [15:0] display_argument, display_response_data;
+    wire storage_request, storage_response_valid, storage_response_error, execution_accepted;
+    wire [6:0] storage_opcode;
+    wire [7:0] storage_index;
+    wire [15:0] storage_argument, storage_response_data;
+    /* verilator lint_off PINCONNECTEMPTY */
+    fes_computer_mailbox_core #(
+        .ENABLE_AUDIO(1), .ENABLE_SESSION_DISPLAY(1), .ENABLE_ATA_DISK(1), .ENABLE_PERSISTENCE(1),
+        .ENABLE_PC386_MACHINE(1), .ENABLE_WALL_CLOCK(1)
+    ) gp_mailbox (
+        .clk(clk), .gpo(gpo), .build_id(build_id), .gpi(gpi),
+        .exec_reset(exec_reset), .keyboard_rows(), .controller_buttons(),
+        .mouse_valid(), .mouse_dx(), .mouse_dy(), .mouse_buttons(), .mouse_ready(1'b0),
+        .media_write_addr(), .media_write_data(), .media_write_enable(), .media_write_unit(),
+        .media_write_ready(1'b0), .media_write_busy(1'b0), .media_changed(1'b0), .media_frozen(),
+        .media_read_req(), .media_read_addr(), .media_read_ready(1'b0), .media_read_data(8'd0),
+        .save_ready(1'b0), .save_busy(1'b0), .save_size(15'd0),
+        .unit0_state(), .unit0_size(), .unit1_state(), .unit1_size(),
+        .display_request(display_request), .display_opcode(display_opcode),
+        .display_index(display_index), .display_argument(display_argument),
+        .display_response_valid(display_response_valid), .display_response_error(display_response_error),
+        .display_response_data(display_response_data), .display_quiesced(display_quiesced),
+        .storage_request(storage_request), .storage_opcode(storage_opcode), .storage_index(storage_index),
+        .storage_argument(storage_argument), .storage_response_valid(storage_response_valid),
+        .storage_response_error(storage_response_error), .storage_response_data(storage_response_data),
+        .execution_accepted(execution_accepted)
+    );
+    /* verilator lint_on PINCONNECTEMPTY */
+
+    wire [2:0] disk_state;
+    wire [31:0] disk_sectors, disk_crc;
+    wire [15:0] disk_cylinders;
+    wire [4:0] disk_heads;
+    wire [5:0] disk_spt;
+    wire disk_verify_done, disk_verify_match, disk_frozen, disk_fenced, disk_writer_busy, disk_written;
+    wire disk_dirty_clear, disk_dirty_clearing;
+    wire [6:0] dirty_index;
+    wire [15:0] dirty_word;
+    wire [127:0] settings;
+    wire record_write, record_load;
+    wire [6:0] record_index;
+    wire [7:0] record_byte;
+    wire [5:0] record_pair;
+    wire [15:0] record_word;
+    wire wall_apply;
+    wire [15:0] wall_year;
+    wire [7:0] wall_month, wall_day, wall_hour, wall_minute, wall_second, wall_weekday;
+    fes_computer_storage #(.ENABLE_ATA_DISK(1), .ENABLE_DATA(1), .ENABLE_WALL_CLOCK(1)) storage (
+        .clk(clk), .request(storage_request), .opcode(storage_opcode), .index(storage_index),
+        .argument(storage_argument), .response_valid(storage_response_valid),
+        .response_error(storage_response_error), .response_data(storage_response_data),
+        .exec_reset(exec_reset), .execution_accepted(execution_accepted),
+        .disk_state(disk_state), .disk_sectors(disk_sectors), .disk_cylinders(disk_cylinders),
+        .disk_heads(disk_heads), .disk_spt(disk_spt), .disk_crc(disk_crc),
+        .disk_verify_done(disk_verify_done), .disk_verify_match(disk_verify_match),
+        .disk_frozen(disk_frozen), .disk_fenced(disk_fenced), .disk_busy(disk_writer_busy),
+        .disk_written(disk_written), .disk_clear(disk_dirty_clear), .disk_clearing(disk_dirty_clearing),
+        .disk_dirty_index(dirty_index), .disk_dirty_word(dirty_word),
+        .machine_settings(settings), .cmos_write(record_write), .cmos_byte_index(record_index),
+        .cmos_byte(record_byte), .cmos_load(record_load), .cmos_load_pair(record_pair),
+        .cmos_load_word(record_word),
+        .wall_apply(wall_apply), .wall_year(wall_year), .wall_month(wall_month), .wall_day(wall_day),
+        .wall_hour(wall_hour), .wall_minute(wall_minute), .wall_second(wall_second),
+        .wall_weekday(wall_weekday)
+    );
+    wire verifying = disk_state == 3'(`FES_COMPUTER_DISK_STATE_VERIFYING);
+    wire disk_present = disk_state == 3'(`FES_COMPUTER_MEDIA_STATE_READY);
+    // The settings words: 2 the code profile, 4-6 the Sound Blaster's port,
+    // IRQ and DMA channel.
+    wire queue16 = settings[32];
+    wire [7:0] sb_base_high = settings[75:68];
+    wire [7:0] sb_irq = settings[87:80];
+    wire [7:0] sb_dma = settings[103:96];
+
+    // ---- Hold and the machine reset
+    wire cpu_mem_idle, rom_idle;
+    reg [2:0] quiet = 3'd0;               // clocks the CPU has been held, to 4
+    reg drained = 1'b1, machine_held = 1'b1;
+    initial ddr_hold = 1'b1;
+    always @(posedge clk) begin
+        quiet <= !exec_reset ? 3'd0 : quiet == 3'd4 ? 3'd4 : quiet + 3'd1;
+        drained <= exec_reset && (drained || (quiet == 3'd4 && cpu_mem_idle && rom_idle && !disk_writer_busy));
+        machine_held <= drained && (machine_held || p0_reset);
+        ddr_hold <= drained && !verifying;
+    end
+    // An applied wall clock waits for the RTC's CMOS setup after release.
+    reg wall_pending = 1'b0, wall_valid = 1'b0;
+    always @(posedge clk) begin
+        wall_valid <= 0;
+        if (wall_apply) wall_pending <= 1;
+        else if (wall_pending && !reset && !cmos_busy) begin wall_valid <= 1; wall_pending <= 0; end
+    end
     // One register drives the machine reset: the imported chips take it
     // asynchronously.
-    wire machine_hold, cpu_hold;
     reg reset = 1'b1;
-    always @(posedge clk) reset <= machine_hold || p0_reset || p1_reset || p2_reset;
+    always @(posedge clk) reset <= machine_held || p0_reset || p1_reset || p2_reset;
 
     wire io_valid, io_write, inta_valid, io_busy, io_done, inta_done, intr, a20m;
     wire [15:0] io_port;
@@ -99,25 +223,14 @@ module pc386_system #(
     wire sound_access, sound_write, sound_adlib;
     wire [3:0] sound_address;
     wire [7:0] sound_wdata, sound_rdata;
-    wire post_valid, debug_valid;
-    wire [7:0] post_code, debug_byte;
+    wire post_valid;
+    wire [7:0] post_code;
     wire [15:0] debug_port;
     wire key_ready;
-    wire [15:0] base_kib, extended_kib, above16m_64k;
-    wire [7:0] sb_base_high, sb_irq, sb_dma;
     wire cmos_busy;
-    wire wall_valid;
-    wire [15:0] wall_year;
-    wire [7:0] wall_month, wall_day, wall_hour, wall_minute, wall_second, wall_weekday;
-    wire disk_present, queue16;
-    wire [31:0] disk_sectors;
-    wire [15:0] disk_cylinders;
-    wire [4:0] disk_heads;
-    wire [5:0] disk_spt;
     wire disk_valid, disk_write, disk_ready, disk_rvalid;
     wire [23:0] disk_address;
     wire [63:0] disk_wdata, disk_rdata;
-    wire [15:0] dirty_word;
     wire frame_start, frame_done, start_latched;
     wire [15:0] frame_count;
     wire [1:0] frame_buffer;
@@ -125,6 +238,7 @@ module pc386_system #(
     wire [31:0] scanout_underflows, capture_drops, present_underflows, plane_underflows, frames_shown;
     wire [27:0] presenter_video;
     wire [28:0] aux_address;
+    wire [7:0] aux_burstcount;
     wire aux_read, aux_write, aux_waitrequest, aux_readdatavalid;
     wire [63:0] aux_writedata;
     wire [7:0] aux_byteenable;
@@ -165,7 +279,8 @@ module pc386_system #(
         .debug_valid(debug_valid), .debug_port(debug_port), .debug_byte(debug_byte),
         .key_valid(1'b0), .key_code(8'd0), .key_ready(key_ready),
         .mouse_valid(1'b0), .mouse_dx(8'sd0), .mouse_dy(8'sd0), .mouse_buttons(2'b00),
-        .base_kib(base_kib), .extended_kib(extended_kib), .above16m_64k(above16m_64k),
+        // 640 KiB and 15 MiB of extended memory: 16 MiB of RAM, ram_top below.
+        .base_kib(16'd640), .extended_kib(16'd15360), .above16m_64k(16'd0),
         .sb_base_high(sb_base_high), .sb_irq(sb_irq), .sb_dma(sb_dma), .cmos_busy(cmos_busy),
         .wall_valid(wall_valid), .wall_year(wall_year), .wall_month(wall_month), .wall_day(wall_day),
         .wall_hour(wall_hour), .wall_minute(wall_minute), .wall_second(wall_second), .wall_weekday(wall_weekday),
@@ -173,14 +288,19 @@ module pc386_system #(
         .disk_heads(disk_heads), .disk_spt(disk_spt),
         .disk_valid(disk_valid), .disk_write(disk_write), .disk_address(disk_address), .disk_wdata(disk_wdata),
         .disk_ready(disk_ready), .disk_rvalid(disk_rvalid), .disk_rdata(disk_rdata),
-        .dirty_index(7'd0), .dirty_word(dirty_word),
+        .dirty_index(dirty_index), .dirty_word(dirty_word),
+        .disk_frozen(disk_frozen), .disk_dirty_clear(disk_dirty_clear), .disk_dirty_clearing(disk_dirty_clearing),
+        .disk_writer_busy(disk_writer_busy), .disk_fenced(disk_fenced), .disk_written(disk_written),
+        .record_write(record_write), .record_index(record_index), .record_byte(record_byte),
+        .record_load(record_load), .record_pair(record_pair), .record_word(record_word),
         .p1_address(p1_address), .p1_burstcount(p1_burstcount), .p1_read(p1_read), .p1_write(p1_write),
         .p1_writedata(p1_writedata), .p1_byteenable(p1_byteenable), .p1_waitrequest(p1_waitrequest),
         .p1_readdata(p1_readdata), .p1_readdatavalid(p1_readdatavalid),
         .p2_address(p2_address), .p2_burstcount(p2_burstcount), .p2_read(p2_read), .p2_write(p2_write),
         .p2_writedata(p2_writedata), .p2_byteenable(p2_byteenable), .p2_waitrequest(p2_waitrequest),
         .p2_readdata(p2_readdata), .p2_readdatavalid(p2_readdatavalid),
-        .aux_address(aux_address), .aux_read(aux_read), .aux_write(aux_write), .aux_writedata(aux_writedata),
+        .aux_address(aux_address), .aux_burstcount(aux_burstcount), .aux_read(aux_read), .aux_write(aux_write),
+        .aux_writedata(aux_writedata),
         .aux_byteenable(aux_byteenable), .aux_waitrequest(aux_waitrequest), .aux_readdatavalid(aux_readdatavalid),
         .display_request(display_request), .display_opcode(display_opcode), .display_index(display_index),
         .display_argument(display_argument), .display_response_valid(display_response_valid),
@@ -215,19 +335,20 @@ module pc386_system #(
     assign sample = held;
 
     // ---- The CPU
-    // It leaves reset once the machine has, the RTC has its wall clock and
-    // its CMOS setup is done (started). The AT core's CPU reset pulse holds
-    // it again for at least 4 clocks and until its memory is idle.
-    wire cpu_mem_idle, rom_idle, cpu_halt, cpu_stopped, cpu_retire;
+    // It leaves reset once the machine has, the RTC's CMOS setup is done and
+    // it has any wall clock the runtime sent (started), and Hold stops it at
+    // once. The AT core's CPU reset pulse holds it again for at least 4 clocks
+    // and until its memory is idle.
+    wire cpu_halt, cpu_stopped, cpu_retire;
     reg started, cpu_cold, cpu_reset;
     reg [2:0] stretch;
     always @(posedge clk) begin
         cpu_cold <= reset;
-        cpu_reset <= reset || !started || stretch != 3'd0;
+        cpu_reset <= reset || exec_reset || !started || stretch != 3'd0;
         if (reset) begin
             started <= 0; stretch <= 0;
         end else begin
-            if (!cpu_hold && !cmos_busy) started <= 1;
+            if (!cmos_busy && !wall_pending && !wall_valid) started <= 1;
             if (machine_cpu_reset) stretch <= 3'd4;
             else if (stretch != 3'd0 && (stretch != 3'd1 || (cpu_mem_idle && rom_idle))) stretch <= stretch - 3'd1;
         end
@@ -331,17 +452,7 @@ module pc386_system #(
         .m_readdata(p0_readdata), .m_readdatavalid(p0_readdatavalid), .idle(rom_idle)
     );
 
-    // ---- What the status block reports (pc386_host_link words 2-7):
-    //   2  flags [7:0] (halted, stopped, A20M, INTR), last POST code [15:8],
-    //      CPU resets [23:16], instructions retired [63:32]
-    //   3  CS [15:0], the last exception or interrupt vector delivered [31:24],
-    //      EIP [63:32]
-    //   4  720p frames shown [31:0], scanout underflows [63:32]
-    //   5  capture drops [31:0], presenter underflows [63:32]
-    //   6  plane underflows [31:0], mixer samples [63:32]
-    //   7  8237 memory cycles [31:0], OPL2 samples [63:32]
-    // The presenter's and the plane's counters run in pixel_clk and cross
-    // whole (pc386_snapshot).
+    // ---- The status words
     wire [31:0] present_underflows_sys, plane_underflows_sys, frames_shown_sys;
     pc386_snapshot #(.W(96)) pixel_counts (
         .source_clk(pixel_clk), .value({frames_shown, plane_underflows, present_underflows}),
@@ -360,30 +471,27 @@ module pc386_system #(
             if (machine_cpu_reset) cpu_resets <= cpu_resets + 8'd1;
             if (post_valid) last_post <= post_code;
         end
-    wire [6*64-1:0] observe = {
+    assign status = {
         opl2_samples, dma_cycles, samples, plane_underflows_sys, present_underflows_sys, capture_drops,
         scanout_underflows, frames_shown_sys, cpu_eip, cpu_vector, 8'd0, cpu_sel[1],
-        retired, 8'd0, cpu_resets, last_post, 4'd0, intr, a20m, cpu_stopped, cpu_halt
+        retired, 8'd0, cpu_resets, last_post, 3'd0, !reset, intr, a20m, cpu_stopped, cpu_halt
     };
 
-    pc386_host_link link (
-        .clk(clk), .reset(p2_reset), .machine_hold(machine_hold), .cpu_hold(cpu_hold),
-        .base_kib(base_kib), .extended_kib(extended_kib), .above16m_64k(above16m_64k),
-        .sb_base_high(sb_base_high), .sb_irq(sb_irq), .sb_dma(sb_dma),
-        .disk_present(disk_present), .queue16(queue16), .disk_sectors(disk_sectors),
-        .disk_cylinders(disk_cylinders), .disk_heads(disk_heads), .disk_spt(disk_spt),
-        .cmos_busy(cmos_busy), .wall_valid(wall_valid), .wall_year(wall_year), .wall_month(wall_month),
-        .wall_day(wall_day), .wall_hour(wall_hour), .wall_minute(wall_minute), .wall_second(wall_second),
-        .wall_weekday(wall_weekday),
+    // ---- The ATA image and the CRC pass on port 2
+    pc386_disk disk (
+        .clk(clk), .reset(p2_reset), .verify(verifying), .sectors(disk_sectors), .crc(disk_crc),
+        .verify_done(disk_verify_done), .verify_match(disk_verify_match),
         .disk_valid(disk_valid), .disk_write(disk_write), .disk_address(disk_address), .disk_wdata(disk_wdata),
         .disk_ready(disk_ready), .disk_rvalid(disk_rvalid), .disk_rdata(disk_rdata),
-        .debug_valid(debug_valid), .debug_byte(debug_byte), .observe(observe),
-        .address(aux_address), .read(aux_read), .write(aux_write), .writedata(aux_writedata),
-        .byteenable(aux_byteenable), .waitrequest(aux_waitrequest), .readdata(p2_readdata),
-        .readdatavalid(aux_readdatavalid)
+        .aux_address(aux_address), .aux_burstcount(aux_burstcount), .aux_read(aux_read), .aux_write(aux_write),
+        .aux_writedata(aux_writedata), .aux_byteenable(aux_byteenable), .aux_waitrequest(aux_waitrequest),
+        .aux_readdatavalid(aux_readdatavalid), .readdata(p2_readdata)
     );
 
+    // The governor's words (0 preset, 1 frequency, 3 turbo) have no consumer yet.
     wire unused = ^{dma_ack_tc, start_latched, frame_start, frame_done, presenter_video, debug_port, opl2_sample,
-                    dsp_dac, key_ready, dirty_word, frame_count, frame_buffer, frame_width, frame_height,
-                    nmi_mask, cpu_mmio_address[fes_i386_pkg::PA-3:15], cpu_sel[5:2], cpu_sel[0]};
+                    dsp_dac, key_ready, frame_count, frame_buffer, frame_width, frame_height,
+                    nmi_mask, cpu_mmio_address[fes_i386_pkg::PA-3:15], cpu_sel[5:2], cpu_sel[0],
+                    settings[31:0], settings[63:48], settings[127:104], settings[47:33], settings[79:76],
+                    settings[67:64], settings[95:88]};
 endmodule

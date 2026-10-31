@@ -20,23 +20,23 @@ Quartus 17.0.2.
 | [`rtl/pc386_sysctl.sv`](rtl/pc386_sysctl.sv) | Ports 61h, 92h and 80h |
 | [`rtl/pc386_kbc.sv`](rtl/pc386_kbc.sv) | 8042, PS/2 keyboard and PS/2 aux mouse |
 | [`rtl/pc386_rtc.sv`](rtl/pc386_rtc.sv) | MC146818A clock with 128 bytes of CMOS and the configuration bytes |
-| [`rtl/pc386_ata.sv`](rtl/pc386_ata.sv) | ATA disk with a two-sector buffer on a 64-bit image port and the dirty map |
+| [`rtl/pc386_ata.sv`](rtl/pc386_ata.sv) | ATA disk with a two-sector buffer on a 64-bit image port, the dirty map and the save fence |
 | [`rtl/pc386_rate.sv`](rtl/pc386_rate.sv) | Rational clock enable for every guest time base |
 | [`rtl/pc386_vga.sv`](rtl/pc386_vga.sv) | VGA registers, the port and MMIO FIFO, planar read and write logic, the write coalescer, the port 1 arbiter |
 | [`rtl/pc386_vga_scanout.sv`](rtl/pc386_vga_scanout.sv) | CRTC raster at the guest dot clock, line prefetch, attribute controller, DAC, capture writer |
 | [`rtl/pc386_presenter.sv`](rtl/pc386_presenter.sv) | Area-weighted scaling of the newest capture to 960 x 720 in the 720p raster |
 | [`rtl/pc386_plane_bridge.sv`](rtl/pc386_plane_bridge.sv) | The display plane's reads on port 2: clock crossing, 128-to-64-bit beats, the plane's port guard |
-| [`rtl/pc386_port2.sv`](rtl/pc386_port2.sv) | DDR port 2 arbiter: plane, presenter, capture, then the shell's single beats |
+| [`rtl/pc386_port2.sv`](rtl/pc386_port2.sv) | DDR port 2 arbiter: plane, presenter, capture, then the shell's reads and single-beat writes |
 | [`rtl/pc386_machine.sv`](rtl/pc386_machine.sv) | The machine without the CPU: AT core, VGA, presenter, port 2, display plane |
 | [`rtl/pc386_ram.sv`](rtl/pc386_ram.sv) | Inferred RAMs and FIFOs: one clock, two clocks, show-ahead |
 | [`rtl/pc386_audio.sv`](rtl/pc386_audio.sv) | Audio beside the AT core: the OPL2 and DSP on its sound port, IRQ routing, the mixer |
 | [`rtl/pc386_opl2.sv`](rtl/pc386_opl2.sv) | OPL2: the [opl2_fpga import](vendor/opl2_fpga/README.md) behind the AdLib port, with status, timers and the 49,715.9 Hz enable |
 | [`rtl/pc386_sb.sv`](rtl/pc386_sb.sv) | Sound Blaster 2.0 DSP, version 2.01: commands, DMA on channel 1, IRQ |
 | [`rtl/pc386_mixer.sv`](rtl/pc386_mixer.sv) | Box-filter resampler of speaker, OPL2 and DSP to 48 kHz, gains, DC blocker |
-| [`rtl/top.sv`](rtl/top.sv) | The board shell: PLLs, the `fes.computer` mailbox, HDMI I2C, `fes_hps_ddr`, 720p HDMI and I2S |
-| [`rtl/pc386_system.sv`](rtl/pc386_system.sv) | The machine, its audio and `fes_i386_cpu`: the CPU's resets, I/O and INTA handshake, attribute map, what the status block reports |
+| [`rtl/top.sv`](rtl/top.sv) | The board shell: PLLs, the HPS GP interface, HDMI I2C, `fes_hps_ddr`, 720p HDMI and I2S |
+| [`rtl/pc386_system.sv`](rtl/pc386_system.sv) | The `fes.computer` 1.1 mailbox and [storage endpoint](../fes-common/rtl/fes_computer_storage.v), the machine, its audio and `fes_i386_cpu`: Hold and the DDR ports' hold, the record's settings, the CPU's resets, I/O and INTA handshake, attribute map, the status words |
 | [`rtl/pc386_rom.sv`](rtl/pc386_rom.sv) | The BIOS and VGA BIOS in M10K, answering the CPU's port 0 reads of their ranges |
-| [`rtl/pc386_host_link.sv`](rtl/pc386_host_link.sv) | The HPS's link through the DDR window until M0: configuration, status, debug ring, the ATA image on port 2 |
+| [`rtl/pc386_disk.sv`](rtl/pc386_disk.sv) | The ATA image at window offset 128 MiB on port 2: the drive's image port and Commit's CRC pass |
 | [`rtl/pc386_snapshot.sv`](rtl/pc386_snapshot.sv) | Carries the presenter's and the plane's pixel-clock counters whole into the system clock |
 | [`rtl/pc386_system_pll.v`](rtl/pc386_system_pll.v) | The sealed system clock and the 12.288 MHz audio clock |
 | [`constraints-oss.qsf`](constraints-oss.qsf), [`toolchain.lock`](toolchain.lock) | Pins (both lanes), and the core's lock (the i386 lock's nextpnr and Mistral, Yosys main) |
@@ -45,8 +45,7 @@ Quartus 17.0.2.
 | [`vendor/nuked-opl3/`](vendor/nuked-opl3/README.md) | Nuked-OPL3 (LGPL-2.1), the OPL2 reference in simulation only |
 | [`firmware/`](firmware/) | Bochs ROM BIOS and LGPL VGABios sources, `source.json` manifests, `firmware.lock` |
 | [`sim/machine_tb.cpp`](sim/machine_tb.cpp) | `pc386_machine` with the Bochs oracle as CPU, guest memory and DDR models; records VGA traces and frames. `--cpu rtl` runs `fes_i386_cpu` instead |
-| [`sim/system_tb.cpp`](sim/system_tb.cpp) | `pc386_system` with all three DDR ports on one window model, and a host that uses only the window, as the kit's does |
-| [`host/`](host/main.go) | `pc386-host`, the kit tool that stages the disk and configuration and follows the status block and debug ring, as `system_tb`'s host does |
+| [`sim/system_tb.cpp`](sim/system_tb.cpp) | `pc386_system` with all three DDR ports on one window model, and a host that launches and stops it as libmister-runtime does, through the mailbox and the window |
 | [`sim/rtl_stop_test.asm`](sim/rtl_stop_test.asm) | The stop test disk: SMSW and MOV CR0 stops, LMSW, and the protected-mode oracle stretch for `--cpu rtl` |
 | [`sim/devices_tb.cpp`](sim/devices_tb.cpp) | Directed checks of the AT core through its I/O port |
 | [`sim/audio_tb.cpp`](sim/audio_tb.cpp) | Directed checks of the DSP, the OPL2's AdLib port and the mixer, through the AT core |
@@ -73,6 +72,7 @@ shared [`fes_dma8237.sv`](../fes-common/rtl/fes_dma8237.sv) with AT parameters.
 python3 scripts/build_pc386_firmware.py --download     # dev86, then both ROMs, checked against the lock
 python3 scripts/build_pc386_freedos_image.py --download  # the FreeDOS fixture in build/
 python3 scripts/sim_fes_pc386.py --suite devices        # directed device checks, about 10 s
+python3 scripts/sim_fes_pc386.py --suite storage        # the fes.computer 1.1 golden exchanges, about 2 min
 python3 scripts/sim_fes_pc386.py --suite audio          # DSP, OPL2 timers, mixer, about 1 min
 python3 scripts/sim_fes_pc386.py --suite opl2           # OPL2 against Nuked-OPL3, about 30 s
 python3 scripts/sim_fes_pc386.py --suite benches        # presenter, capture overflow recovery and display plane on port 2
@@ -251,8 +251,9 @@ as wires would; the machine top level will instantiate both.
 
 ## M5 system
 
-`fes.pc386` is a format-2 `fes.computer` 1.0 development package: fixed 720p60
-video, 48 kHz audio, HPS DDR and the session-display plane, with
+`fes.pc386` is a format-2 `fes.computer` 1.1 development package: fixed 720p60
+video, 48 kHz audio, HPS DDR, the session-display plane, the ATA hard disk,
+the `fes.pc386.machine` record and the wall clock, with
 [`pc386_system`](rtl/pc386_system.sv) below the board shell.
 
 - **CPU.** `fes_i386_cpu` with its L1I, L1D and bus interface fills and
@@ -275,20 +276,37 @@ video, 48 kHz audio, HPS DDR and the session-display plane, with
   command order. The reset alias at FFFF0000h is the CPU's own mapping onto
   F0000h.
 - **Ports.** Port 0 is the CPU's alone. Port 1 is VRAM. Port 2 carries the
-  plane, presenter and capture, and at the lowest priority the ATA image and
-  the host link's blocks, as single beats.
-- **Host link.** Until the `fes.computer` 1.1 contracts (M0) land, the HPS
-  stages the disk and the machine's settings in the DDR window
-  ([`pc386_host_link`](rtl/pc386_host_link.sv) has the layout). Out of reset
-  the link announces itself with a new epoch; the HPS writes the ATA image at
-  128 MiB and a configuration block: base and extended memory, the Sound
-  Blaster's port, IRQ and DMA, the disk geometry, the self-modifying-code
-  profile and the wall clock. The machine stays in reset until that block
-  arrives, and the CPU until the RTC has its CMOS setup and wall clock. The
-  link then writes a status block about every millisecond (the CPU's CS:EIP,
-  instructions retired, halt and stop, the last vector it delivered, POST
-  code, CPU resets, frame and underflow counters, audio samples) and the
-  debug-port bytes to a 4 KiB ring.
+  plane, presenter and capture, and at the lowest priority the ATA image:
+  the drive's single beats, and the CRC pass's bursts of one sector.
+- **fes.computer 1.1.** The mailbox
+  ([`fes_computer_mailbox_core`](../fes-common/rtl/fes_computer_mailbox.v))
+  answers identity word 16 with capabilities 16-19 and hands the disk, record
+  and wall-clock opcodes to
+  [`fes_computer_storage`](../fes-common/rtl/fes_computer_storage.v), as the
+  runtime drives them ([computer I/O](../../../libmister-runtime/docs/computer-io.md#ata-hard-disk)):
+  - *Disk.* The runtime writes the image into the window at 128 MiB while
+    execution is held. Commit's CRC pass ([`pc386_disk`](rtl/pc386_disk.sv))
+    reads `sectors` x 512 bytes on port 2 in bursts of a sector, a word per
+    beat; while it runs the DDR ports are out of hold, the machine still in
+    reset. The drive appears only while the unit is ready, with the committed
+    geometry. Freeze raises [`pc386_ata`](rtl/pc386_ata.sv)'s fence: a write
+    command, or its next block, waits under BSY, a block the guest has begun
+    runs to its end, and the ACK waits for every accepted sector to land with
+    its dirty mark. The map survives machine resets; Prepare, Eject and Saved
+    clear it.
+  - *Record.* Settings words 2 and 4-6 are the CPU's self-modifying-code
+    profile and the Sound Blaster's port, IRQ and DMA at each release; the
+    governor's preset, frequency and turbo words are kept for the governor,
+    which the CPU does not have yet. The RTC loads CMOS 0Eh-7Fh from the
+    record after every reset, then writes its configuration bytes, and every
+    byte written to its RAM goes to the record. 00h-0Dh are the clock's
+    registers, not RAM, and stay out of it; the clock is battery-backed, so a
+    machine reset clears only B's interrupt enables, SQWE and the flags.
+  - *Wall clock.* An applied clock reaches the RTC once its CMOS setup is
+    done after release, and the CPU starts after that.
+  - *Hold.* The CPU stops at once; the machine resets once the CPU's memory
+    is idle and the drive has landed every sector it accepted, after
+    `fes_hps_ddr` has taken the hold (`ddr_hold`).
 - **Clock.** The system clock is sealed at 61.44 MHz, a multiple of the
   12.288 MHz audio clock and above twice the 28.322 MHz dot clock that the
   scanout needs.
@@ -298,13 +316,19 @@ video, 48 kHz audio, HPS DDR and the session-display plane, with
 
 The system suite runs `pc386_system` alone with
 [`sim/system_tb.cpp`](sim/system_tb.cpp): the three DDR ports on one window
-model, the pixel clock throughout, and a host that does only what the kit's
-host can, through the window. It stages the FreeDOS fixture and the
-configuration, follows the POST codes and debug text, and reads the screen
-from VRAM. The CPU must reach the prompt alone, with no oracle behind it,
-and every underflow counter must stay at zero. On a kit, with the package
-running, [`pc386-host`](host/main.go) `boot DISK` does the same through
-`/dev/mem` and prints the same lines.
+model, the pixel clock throughout, and a host that does what libmister-runtime
+does for a library launch, through the GP mailbox and the window only:
+identity, the record restore, the wall clock, Prepare, the FreeDOS fixture
+into the window, a Commit with a wrong CRC that must leave the unit loading
+with its error flag, the right one with DiskInfo polled until ready, and
+release. It follows the POST codes, debug text and status words, and reads
+the screen from VRAM. The CPU must reach the prompt alone, with no oracle
+behind it, and every underflow counter must stay at zero. Then it stops as
+the runtime does (disk Freeze, DiskDirty, Saved; record Freeze and reads;
+Hold), checks the record (the restored settings and CMOS byte, CMOS 60h-62h,
+the configuration bytes and checksum), and makes the record's round trip
+through the RTC. The storage suite replays every scenario of the 1.1 golden
+exchanges against the mailbox and the storage endpoint.
 
 **Quartus lane.** [`scripts/build_fes_pc386_quartus.py`](../../scripts/build_fes_pc386_quartus.py)
 seals the package with Quartus 17.0.2, labelled as a Quartus build
@@ -333,6 +357,5 @@ runtime, waits on the M0 contracts either way.
 ## Not built yet
 
 The HID nine-row keyboard model and typematic repeat, so the package has no
-keyboard or mouse yet; the `fes.mouse.relative` and `fes.computer` 1.1
-mailbox wiring (disk prepare, commit with CRC, freeze, DiskDirty read-out,
-persistence, wall clock), which replaces the host link; the CPU's L2.
+keyboard or mouse yet; the `fes.mouse.relative` wiring; the CPU's governor,
+which the record's preset, frequency and turbo words wait for; the CPU's L2.

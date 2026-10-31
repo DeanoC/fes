@@ -11,10 +11,18 @@
 // update. PF, AF and UF set IRQF, and IRQ8, when their enable is set; reading
 // C clears them. DSE is stored but never adjusts the clock (recorded deviation).
 //
-// After a machine reset the CMOS RAM is cleared and the configuration bytes
-// are written from the config inputs (10h, 12h, 14h-18h, 19h-23h, 2Dh,
-// 30h-31h, 34h-35h, 38h-3Dh, 3Fh, 60h-62h), then the 10h-2Dh checksum into
-// 2Eh-2Fh. busy is high until that has finished.
+// CMOS 0Eh-7Fh persists in the fes.pc386.machine record (fes_computer_storage):
+// after a machine reset the RTC loads those bytes from the record's words
+// (record_load, the pair at record_pair a clock later), writes the
+// configuration bytes from the config inputs (10h, 12h, 14h-18h, 19h-23h,
+// 2Dh, 30h-31h, 34h-35h, 38h-3Dh, 3Fh, 60h-62h), then the 10h-2Dh checksum
+// into 2Eh and 2Fh. busy is high until that has finished. Every byte written
+// to the RAM, by the setup, the guest or the century, goes to the record as
+// well (record_write). 00h-0Dh are the clock's registers, not RAM: the record
+// neither gives them nor takes them. The clock is battery-backed, as an
+// MC146818 is: a machine reset clears only PIE, AIE, UIE and SQWE and the
+// flags, as its RESET pin does, and the time, alarms, A and B carry over.
+// The clock does not run while the machine is held; the wall clock sets it.
 //
 // CMOS is an M10K of 64 byte pairs with registered reads: 71h reads the pair
 // at the index, re-read every clock, and the checksum reads one pair ahead
@@ -42,7 +50,14 @@ module pc386_rtc #(
     // fes.rtc.wall-clock: binary fields, taken when valid pulses.
     input wire wall_valid,
     input wire [15:0] wall_year,
-    input wire [7:0] wall_month, wall_day, wall_hour, wall_minute, wall_second, wall_weekday
+    input wire [7:0] wall_month, wall_day, wall_hour, wall_minute, wall_second, wall_weekday,
+    // The record's CMOS words: the bytes written here, and the load after reset
+    output wire record_write,
+    output wire [6:0] record_index,
+    output wire [7:0] record_byte,
+    output wire record_load,
+    output wire [5:0] record_pair,
+    input wire [15:0] record_word
 );
     reg [6:0] index;
     reg [5:0] second, minute;
@@ -108,12 +123,15 @@ module pc386_rtc #(
         alarm_match = alarm[7:6] == 2'b11 || alarm == now;
     endfunction
 
-    // Configuration writes after reset, then the checksum.
-    localparam CLEAR = 2'd0, CONFIGURE = 2'd1, CHECKSUM = 2'd2, READY = 2'd3;
-    reg [1:0] setup;
-    reg [6:0] step;
+    // After reset: the record's pairs 07h-3Fh, the configuration writes, then
+    // the checksum.
+    localparam LOAD = 2'd0, CONFIGURE = 2'd1, CHECKSUM = 2'd2, READY = 2'd3;
+    reg [1:0] setup = LOAD;
+    reg [6:0] step = 7'd7;
     reg [15:0] sum;
     assign busy = setup != READY;
+    assign record_load = !reset && setup == LOAD && step <= 7'd63;
+    assign record_pair = step[5:0];
     reg [7:0] config_address, config_value;
     always @* begin
         config_address = 8'hff;
@@ -158,12 +176,18 @@ module pc386_rtc #(
     wire guest_store = selected_register && write && index >= 7'h0e;
     reg century_store;
     reg [7:0] century_byte;
-    // CMOS: the clear, configuration and checksum writes, then the guest's,
-    // then the century byte's.
-    reg ram_write;
+    // CMOS: the record's pairs, the configuration and checksum writes, then
+    // the guest's, then the century byte's. Every write but the load is one
+    // byte, at byte_index, and goes to the record.
+    reg ram_write, byte_write;
     reg [5:0] ram_waddress, ram_raddress;
     reg [15:0] ram_wdata;
     reg [1:0] ram_lanes;
+    reg [6:0] byte_index;
+    reg [7:0] byte_value;
+    assign record_write = byte_write;
+    assign record_index = byte_index;
+    assign record_byte = byte_value;
     wire [15:0] ram_pair;
     wire [7:0] ram_byte = ram_pair[8 * index[0] +: 8];
     pc386_ram #(.WIDTH(16), .DEPTH(64), .BYTES(2)) ram (
@@ -171,30 +195,32 @@ module pc386_rtc #(
         .read(1'b1), .raddress(ram_raddress), .rdata(ram_pair)
     );
     always @* begin
-        ram_write = 1;
-        ram_waddress = step[6:1];
-        ram_wdata = 16'h0000;
-        ram_lanes = 2'b11;
+        byte_write = 0;
+        byte_index = 7'h00;
+        byte_value = 8'h00;
         case (setup)
-            CLEAR: begin end
+            LOAD: begin end
             CONFIGURE: begin
-                ram_write = !config_address[7];
-                ram_waddress = config_address[6:1];
-                ram_wdata = {2{config_value}};
-                ram_lanes = config_address[0] ? 2'b10 : 2'b01;
+                byte_write = !config_address[7];
+                byte_index = config_address[6:0];
+                byte_value = config_value;
             end
             CHECKSUM: begin
-                ram_write = step > 7'h2d;
-                ram_waddress = 6'h17;                // 2Eh high byte, 2Fh low
-                ram_wdata = {sum[7:0], sum[15:8]};
+                byte_write = step > 7'h2d;
+                byte_index = step == 7'h2e ? 7'h2e : 7'h2f;  // 2Eh high byte, 2Fh low
+                byte_value = step == 7'h2e ? sum[15:8] : sum[7:0];
             end
             default: begin
-                ram_write = guest_store || century_store;
-                ram_waddress = guest_store ? index[6:1] : 6'h19;
-                ram_wdata = guest_store ? {2{wdata}} : {2{century_byte}};
-                ram_lanes = guest_store ? (index[0] ? 2'b10 : 2'b01) : 2'b01;
+                byte_write = guest_store || century_store;
+                byte_index = guest_store ? index : 7'h32;
+                byte_value = guest_store ? wdata : century_byte;
             end
         endcase
+        // The load writes each pair a clock after its record read.
+        ram_write = setup == LOAD ? step >= 7'd8 : byte_write;
+        ram_waddress = setup == LOAD ? 6'(step - 7'd1) : byte_index[6:1];
+        ram_wdata = setup == LOAD ? record_word : {2{byte_value}};
+        ram_lanes = setup == LOAD ? 2'b11 : byte_index[0] ? 2'b10 : 2'b01;
         // The checksum's first pair is read on the last configuration clock.
         ram_raddress = index[6:1];
         if (setup == CONFIGURE && step == 7'd30) ram_raddress = 6'h08;
@@ -226,31 +252,35 @@ module pc386_rtc #(
         endcase
     end
 
+    // The battery-backed state starts at configuration.
+    initial begin
+        second = 0; minute = 0; hour = 0; day = 1; month = 1; weekday = 7; year = 0;
+        alarm_second = 0; alarm_minute = 0; alarm_hour = 0;
+        divider = 3'b010; rate = 4'b0110; control_b = 8'h02; chain = 0;
+    end
+
     always @(posedge clk) begin
         if (reset) begin
             index <= 0; nmi_mask <= 0;
-            second <= 0; minute <= 0; hour <= 0; day <= 1; month <= 1; weekday <= 7; year <= 0;
-            alarm_second <= 0; alarm_minute <= 0; alarm_hour <= 0;
-            divider <= 3'b010; rate <= 4'b0110; control_b <= 8'h02;
-            pf <= 0; af <= 0; uf <= 0; chain <= 0;
-            setup <= CLEAR; step <= 0; sum <= 0;
+            control_b[6:3] <= 4'b0000;  // PIE, AIE, UIE, SQWE
+            pf <= 0; af <= 0; uf <= 0;
+            setup <= LOAD; step <= 7'd7; sum <= 0;
             century_rest <= 0; century <= 0; century_pending <= 0;
             century_store <= 0; century_byte <= 0;
         end else begin
             case (setup)
-                CLEAR: begin
+                LOAD: begin
                     step <= step + 1'b1;
-                    if (step == 7'd127) begin setup <= CONFIGURE; step <= 0; end
+                    if (step == 7'd64) begin setup <= CONFIGURE; step <= 0; end
                 end
                 CONFIGURE: begin
                     step <= step + 1'b1;
                     if (step == 7'd30) begin setup <= CHECKSUM; step <= 7'h10; sum <= 0; end
                 end
                 CHECKSUM: begin
-                    if (step <= 7'h2d) begin
-                        sum <= sum + {8'b0, ram_pair[8 * step[0] +: 8]};
-                        step <= step + 1'b1;
-                    end else setup <= READY;
+                    if (step <= 7'h2d) sum <= sum + {8'b0, ram_pair[8 * step[0] +: 8]};
+                    step <= step + 1'b1;
+                    if (step == 7'h2f) setup <= READY;
                 end
                 default: begin end
             endcase
