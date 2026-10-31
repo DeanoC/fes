@@ -7,10 +7,12 @@ decode, D's address forwarding and the AG address unit. The current CPU slice
 executes register, immediate and memory-operand forms, models variable data
 port latency, and includes near stack and control-transfer operations (PUSH,
 POP, CALL rel, RET, LEAVE and JMP r/m), plus real-mode far JMP/CALL/RETF and
-LES, LDS, LSS, LFS and LGS. Its Verilator checks pass against Bochs on RTL and
-Yosys's netlist; the latest lockstep scope is 1,369,500 corpus states and
-15,321,783 random retirements ([far-transfer record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-far.md#checks)).
-The complete L1D/L2 cache and DDR integration are not present.
+LES, LDS, LSS, LFS and LGS. The current memory slice adds L1I, L1D and the bus
+interface on HPS DDR port 0; its recorded RTL and netlist lockstep covers
+1,744,099 corpus states and 32,000 random programs, and the RTL machine bench
+boots FreeDOS ([memory-path record](validation/2026-10-28-i386-memory-path.md)).
+The L2 cache and measurements of DDR and SDRAM line fills through the CPU
+remain.
 
 Three rounds of four-seed routed spikes measured the front end, D+AG, and the
 M2 model, with per-stage timing endpoints recorded: the
@@ -1317,7 +1319,7 @@ below are the plan for the complete CPU and machine.
 | Milestone | Content | Exit |
 | --- | --- | --- |
 | Phase 0 | Oracle adapter and corpus runners | **Complete:** Bochs is selected; both corpora run against it and known divergences have deciding cases |
-| Phase 1 | Real-mode pipeline: twelve stages, data-port latency model, static not-taken prediction and real-mode microcode | **In progress:** the first [memory slice](#memory-slices) puts the L1I, the L1D and the bus interface on DDR port 0, with uncached MMIO, DMA and FLUSH ([record](validation/2026-10-28-i386-memory-path.md)). DC decodes ahead of D; the current slice includes register, immediate and memory-operand forms, a D–WB load freeze, near stack operations, real-mode far JMP/CALL/RETF and LES/LDS/LSS/LFS/LGS. Its lockstep passes 1,369,500 corpus states and 15,321,783 random retirements. The latest whole-CPU record is the far-transfer slice: nextpnr routes are 69.43, 70.48, 74.40 and 70.34 MHz (D, Q, DC, DC); Quartus routes are 103.73, 98.34, 100.78 and 104.47 MHz (Q on every seed). The complete L1D/L2 caches, DDR integration and real-mode microcode remain. Extend lockstep and route coverage as slices land. Exit requires full real-mode lockstep, whole-CPU routed fmax and area, and DDR and SDRAM line-fill measurements through the CPU path against the [DDR check](#l2-and-coherence) ([far-transfer record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-far.md#result)) |
+| Phase 1 | Real-mode pipeline: twelve stages, data-port latency model, static not-taken prediction and real-mode microcode | **In progress:** the first [memory slice](#memory-slices) puts L1I, L1D and the bus interface on DDR port 0, with uncached MMIO, DMA and FLUSH ([record](validation/2026-10-28-i386-memory-path.md)). That record covers 1,744,099 corpus states, 32,000 random programs, and an RTL machine boot of FreeDOS. DC decodes ahead of D; the current slice includes register, immediate and memory-operand forms, a D–WB load freeze, near stack operations, real-mode far JMP/CALL/RETF and LES/LDS/LSS/LFS/LGS. The latest whole-CPU Quartus and nextpnr results still come from the earlier far-transfer slice and do not time the memory slice. L2, real-mode microcode and measurements of DDR and SDRAM line fills through the CPU remain. Extend lockstep and route coverage as slices land. Exit requires full real-mode lockstep, whole-CPU routed fmax and area, and DDR and SDRAM line-fill measurements through the CPU path against the [DDR check](#l2-and-coherence) ([far-transfer record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-far.md#result)) |
 | Phase 2 | Protected mode without V86 or paging: descriptor loads, privilege, gates, exceptions, debug registers. Enough for unreal mode and DOS extenders | test386.asm's real- and protected-mode parts pass in RTL; random protected-mode lockstep clean |
 | Phase 3 | First playable: the CPU in `fes.pc386` with the scope the acceptance games set, L2 on DDR, the open BIOS, the governor | FreeDOS boots in simulation; first sealed package; Wolfenstein 3D, Ultima VI and both Ultima VII games play on a kit, with the two presets recorded |
 | Phase 4 | Speed: BTB, return stack, early ALU, real-mode far-branch prediction | Each feature with its microbenchmark and period-benchmark change, and the Wolfenstein 3D frame rate from captured frames before and after |

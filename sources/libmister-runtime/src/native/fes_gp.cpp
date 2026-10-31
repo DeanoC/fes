@@ -1953,7 +1953,8 @@ Error FesGpCoreDriver::SetWallClock(const std::tm& local, std::uint64_t deadline
 	Error error;
 	for (std::uint8_t index = 0; index < FesComputerWallClockWordCount && error.ok(); ++index)
 		error = ComputerCommand(FesComputerOpcodeWallClock, index, words[index], deadline);
-	return WithPhase(error, "transport");
+	if (!error.ok()) error.phase = "transport";
+	return error;
 }
 
 Error FesGpCoreDriver::ReadAtaDiskInfo(std::uint64_t deadline, AtaDiskInfo* info)

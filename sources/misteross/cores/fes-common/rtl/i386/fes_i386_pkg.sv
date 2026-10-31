@@ -261,6 +261,7 @@ package fes_i386_pkg;
     // signed, and writes no flags.
     typedef struct packed {
         logic        bound;
+        logic        bound_pair;  // first BOUND memory access: validate both slots before reading
         logic        iret;
         logic [1:0]  io;
         logic        str_si;

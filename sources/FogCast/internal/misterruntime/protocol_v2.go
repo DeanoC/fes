@@ -1322,7 +1322,11 @@ func validSlotComposition(c expansion.SlotComposition, active Protocol2ActivePac
 func validActivePackage(active Protocol2ActivePackage, capabilities Protocol2Capabilities) bool {
 	if protocol.ComputerMediaABI(active.Descriptor.ABI.ID, active.Descriptor.ABI.Major, active.Descriptor.ABI.Minor) && active.PersistenceMode == "persistent" {
 		status := protocol2MediaStatus(active, capabilities)
-		if !protocol.PersistentMediaStatusValid(status) || !descriptorPersistentMedia(active.Descriptor, capabilities.MediaUnits) {
+		persistentMedia := protocol.PersistentMediaStatusValid(status) &&
+			descriptorPersistentMedia(active.Descriptor, capabilities.MediaUnits)
+		persistentMachineData := len(capabilities.MediaUnits) == 0 &&
+			!descriptorAtaDisk(active.Descriptor) && descriptorPersistentMachineData(active.Descriptor)
+		if !persistentMedia && !persistentMachineData {
 			return false
 		}
 	}
@@ -1608,6 +1612,22 @@ func descriptorAtaDisk(d corepackage.Descriptor) bool {
 		}
 	}
 	return false
+}
+
+func descriptorPersistentMachineData(d corepackage.Descriptor) bool {
+	if !protocol.ComputerAtaDiskABI(d.ABI.ID, d.ABI.Major, d.ABI.Minor) {
+		return false
+	}
+	words, machine := false, false
+	for _, i := range d.Interfaces {
+		switch i.ID {
+		case "fes.persistence.words":
+			words = i.Required && i.Major == 1 && i.Minor == 0
+		case "fes.pc386.machine":
+			machine = i.Required && i.Major == 1 && i.Minor == 0
+		}
+	}
+	return words && machine
 }
 
 func descriptorPersistentMedia(d corepackage.Descriptor, units []protocol.MediaUnitStatus) bool {

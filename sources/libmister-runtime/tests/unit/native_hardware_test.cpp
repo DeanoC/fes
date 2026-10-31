@@ -2984,6 +2984,17 @@ void TestPc386LibraryRecordAndWallClock()
 	OpenedCorePackage opened;
 	assert(OpenCorePackage(package.path, "", &opened).ok());
 	const std::string id = opened.package_id;
+	auto remove_interface = [](auto* descriptor, const std::string& interface_id) {
+		auto& interfaces = descriptor->interfaces;
+		interfaces.erase(std::remove_if(interfaces.begin(), interfaces.end(),
+			[&](const auto& interface) { return interface.id == interface_id; }), interfaces.end());
+	};
+	auto without_machine_layout = opened.descriptor;
+	remove_interface(&without_machine_layout, FesComputerInterfacePc386MachineID);
+	assert(!CheckCoreCompatibility(without_machine_layout).ok());
+	auto without_persistence_transport = opened.descriptor;
+	remove_interface(&without_persistence_transport, FesComputerInterfacePersistenceWordsID);
+	assert(!CheckCoreCompatibility(without_persistence_transport).ok());
 	// The record is per game: a pc386 package needs a game, Pong never takes one.
 	assert(fixture.runtime.LoadLibraryCore(package.path, id, data.path).code ==
 		mister::ErrorCode::invalid_request);
@@ -3008,6 +3019,8 @@ void TestPc386LibraryRecordAndWallClock()
 
 	assert(fixture.runtime.LoadLibraryCore(package.path, id, data.path, "ultima-vi").ok());
 	assert(!endpoint.held && fixture.runtime.status().core_data.mode == "persistent");
+	assert(fixture.runtime.UpdateCoreSettings(package.path, id, data.path, "", "absent",
+		settings, &inspected).code == mister::ErrorCode::invalid_request);
 	assert(endpoint.machine_words == inspected.words);
 	assert(endpoint.clock == std::vector<unsigned>({2026, 10, 28, 14, 5, 37, 4}));
 	// Restore and the clock both precede release.
@@ -3239,6 +3252,41 @@ void TestPc386AtaDiskLaunchSaveAndRestore()
 	const std::string games = data.path + "/games/";
 	const std::string record = games + GameDataNamespace("fes.pc386", "ultima-vi");
 	assert(unlink((record + "/record.bin").c_str()) == 0 && rmdir(record.c_str()) == 0 && rmdir(games.c_str()) == 0);
+
+	// If restoring the machine record fails after a Stop save failure, the
+	// fixed disk must remain frozen until reboot recovery.
+	assert(fixture.runtime.LoadLibraryCore(package.path, opened.package_id, data.path,
+		"ultima-vi", &disk).ok());
+	endpoint.GuestSectorWrite(1, 0x44);
+	assert(chmod(record_directory.c_str(), 0500) == 0);
+	const std::size_t failed_resume_requests = endpoint.requests.size();
+	endpoint.fail_after_request = [](const mister_test::ComputerEndpoint::Request& request) {
+		return request.opcode == FesComputerOpcodeDataControl &&
+			request.argument == FesComputerDataResume;
+	};
+	const auto failed_resume = fixture.runtime.Stop();
+	assert(failed_resume.code == mister::ErrorCode::idle_failed && failed_resume.phase == "recovery");
+	assert(fixture.runtime.status().state == mister::State::reboot_required && endpoint.disk_frozen);
+	bool data_resume_attempted = false;
+	for (std::size_t at = failed_resume_requests; at < endpoint.requests.size(); ++at) {
+		const auto& request = endpoint.requests[at];
+		data_resume_attempted |= request.opcode == FesComputerOpcodeDataControl &&
+			request.argument == FesComputerDataResume;
+		assert(!(request.opcode == FesComputerOpcodeDiskControl &&
+			request.argument == FesComputerDiskControlResume));
+	}
+	assert(data_resume_attempted);
+	endpoint.fail_after_request = {};
+	assert(chmod(record_directory.c_str(), 0700) == 0);
+	file.reset();
+	assert(AtaDeltaFile::Open(media.path, identity, size, &file).ok());
+	assert(file->Read(&saved).ok());
+	file.reset();
+	assert(unlink((ns + "/record.bin").c_str()) == 0);
+	for (const auto& entry : saved.chunks) assert(unlink((ns + "/chunk-" + entry.sha256).c_str()) == 0);
+	assert(rmdir(ns.c_str()) == 0);
+	if (unlink((record_directory + "/record.bin").c_str()) != 0) assert(errno == ENOENT);
+	assert(rmdir(record_directory.c_str()) == 0 && rmdir(games.c_str()) == 0);
 }
 
 void TestPersistentReplacementRefreshAndSaveFailureResume()

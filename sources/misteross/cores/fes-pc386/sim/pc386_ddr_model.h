@@ -186,7 +186,7 @@ private:
 
 // Port 0: 128-bit beats on word addresses (byte address / 16), for any
 // Verilated top with fes_i386_cpu's ddr_* port names. Memory is anything
-// with uint8_t *at(uint32_t window_offset). fixed gives every read the
+// with uint8_t *at(uint32_t window_offset, bool write). fixed gives every read the
 // median latency and never refuses or gaps, for runs whose timing must not
 // vary.
 template <typename Memory> class Port0 {
@@ -198,10 +198,14 @@ public:
     // command the master presents, if the port accepts it.
     template <typename Top> void drive(Top &top, uint64_t cycle) {
         uint32_t draw_wait = random.next(), draw_gap = random.next(), draw_latency = random.next();
+        if (refused && !(presented(top) == held))
+            throw std::runtime_error(name + ": a command changed or withdrawn under waitrequest at clock " +
+                                     std::to_string(cycle));
+        refused = false;
         top.ddr_readdatavalid = 0;
         if (!reads.empty() && reads.front().ready <= cycle && (fixed || (draw_gap & 15) != 0)) {
             Burst &burst = reads.front();
-            const uint8_t *beat = at(burst.address + burst.done);
+            const uint8_t *beat = at(burst.address + burst.done, false);
             for (int word = 0; word < 4; ++word) {
                 uint32_t value;
                 std::memcpy(&value, beat + 4 * word, 4);
@@ -213,12 +217,18 @@ public:
         }
         bool refuse = (!fixed && (draw_wait & 15) == 0) || reads.size() >= 14;
         top.ddr_waitrequest = refuse;
-        if (refuse) return;
+        if (refuse) {
+            if (top.ddr_read || top.ddr_write) {
+                held = presented(top);
+                refused = true;
+            }
+            return;
+        }
         if (top.ddr_read) {
             if (write_left) throw std::runtime_error(name + ": read during a write burst");
             unsigned beats = top.ddr_burstcount;
             if (beats == 0 || beats > 128) throw std::runtime_error(name + ": bad read burst length");
-            at(top.ddr_address + beats - 1);
+            at(top.ddr_address + beats - 1, false);
             unsigned roll = draw_latency % 1000;
             unsigned latency = fixed ? 18 : roll < 1 ? 52 + (draw_latency >> 10) % 84 :
                                roll < 10 ? 47 + (draw_latency >> 10) % 5 : 18 + (draw_latency >> 10) % 2;
@@ -231,10 +241,14 @@ public:
                 write_beats = write_left;
                 if (write_left == 0 || write_left > 128) throw std::runtime_error(name + ": bad write burst length");
                 ++commands;
+            } else if (top.ddr_address != write_address || top.ddr_burstcount != write_beats) {
+                throw std::runtime_error(name + ": a write burst cut short, then another begun at clock " +
+                                         std::to_string(cycle));
             }
-            uint8_t *target = at(write_address + (write_beats - write_left));
+            uint8_t *target = at(write_address + (write_beats - write_left), true);
             for (int lane = 0; lane < 16; ++lane)
-                if (top.ddr_byteenable & (1u << lane)) target[lane] = uint8_t(top.ddr_writedata[lane / 4] >> (8 * (lane % 4)));
+                if (target && (top.ddr_byteenable & (1u << lane)))
+                    target[lane] = uint8_t(top.ddr_writedata[lane / 4] >> (8 * (lane % 4)));
             ++beats_written;
             --write_left;
         }
@@ -249,11 +263,30 @@ private:
         uint32_t address;
         unsigned beats, done;
     };
-    uint8_t *at(uint32_t word) {
+    struct Command {
+        bool read, write;
+        uint32_t address;
+        uint8_t burstcount, byteenable;
+        uint64_t writedata[4];
+        bool operator==(const Command &other) const {
+            return read == other.read && write == other.write && address == other.address &&
+                   burstcount == other.burstcount &&
+                   (!write || (byteenable == other.byteenable &&
+                               std::memcmp(writedata, other.writedata, sizeof writedata) == 0));
+        }
+    };
+    template <typename Top> static Command presented(const Top &top) {
+        return {bool(top.ddr_read), bool(top.ddr_write), uint32_t(top.ddr_address), uint8_t(top.ddr_burstcount),
+                uint8_t(top.ddr_byteenable), {uint64_t(top.ddr_writedata[0]), uint64_t(top.ddr_writedata[1]),
+                                              uint64_t(top.ddr_writedata[2]), uint64_t(top.ddr_writedata[3])}};
+    }
+    uint8_t *at(uint32_t word, bool write) {
         uint64_t byte = uint64_t(word) * 16;
         if (byte < WINDOW_BASE || byte + 16 > uint64_t(WINDOW_BASE) + WINDOW_BYTES)
             throw std::runtime_error(name + ": command outside the DDR window");
-        return memory.at(uint32_t(byte - WINDOW_BASE));
+        uint8_t *result = memory.at(uint32_t(byte - WINDOW_BASE), write);
+        if (!result && !write) throw std::runtime_error(name + ": read from unmapped memory");
+        return result;
     }
     Memory &memory;
     Random random;
@@ -261,6 +294,8 @@ private:
     std::deque<Burst> reads;
     unsigned write_left = 0, write_beats = 0;
     uint32_t write_address = 0;
+    bool refused = false;
+    Command held{};
 };
 
 // VRAM as the RTL keeps it: word w (planes 0-3) at window offset 0x800000 + 4w.

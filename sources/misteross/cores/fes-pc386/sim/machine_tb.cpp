@@ -509,10 +509,11 @@ public:
 // the ROM images, which the CPU only reads.
 struct GuestMemory {
     Machine &m;
-    uint8_t *at(uint32_t offset) {
+    uint8_t *at(uint32_t offset, bool write) {
         const uint32_t paddr = offset - pc386::GUEST_OFFSET;
-        uint8_t *page = offset >= pc386::GUEST_OFFSET ? m.page(paddr, false) : nullptr;
-        if (!page) throw std::runtime_error("port 0 outside guest memory: " + std::to_string(paddr));
+        uint8_t *page = offset >= pc386::GUEST_OFFSET ? m.page(paddr, write) : nullptr;
+        if (!page && !write) throw std::runtime_error("port 0 outside guest memory: " + std::to_string(paddr));
+        if (!page) return nullptr;
         return page + (paddr & 0xfff);
     }
 };

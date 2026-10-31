@@ -1023,7 +1023,7 @@ void TestComputerCompatibilityComposesRecognizedInterfaces()
 		disk.interfaces.push_back({"fes.media.apple2-floppy", 1, 0, true});
 		assert(check(disk).code == mister::ErrorCode::unsupported_interface);
 	}
-	for (const auto* id : {"fes.persistence.words", "fes.pc386.machine", "fes.rtc.wall-clock"}) {
+	for (const auto* id : {"fes.rtc.wall-clock"}) {
 		auto high = descriptor;
 		high.abi.minor = 1;
 		high.interfaces.push_back({id, 1, 0, true});
@@ -1033,6 +1033,25 @@ void TestComputerCompatibilityComposesRecognizedInterfaces()
 		high.interfaces.back().required = true;
 		high.abi.minor = 0;
 		assert(check(high).code == mister::ErrorCode::unsupported_abi);
+	}
+	for (const auto* id : {"fes.persistence.words", "fes.pc386.machine"}) {
+		auto high = descriptor;
+		high.abi.minor = 1;
+		high.interfaces.push_back({id, 1, 0, true});
+		assert(check(high).code == mister::ErrorCode::unsupported_interface);
+		high.abi.minor = 0;
+		assert(check(high).code == mister::ErrorCode::unsupported_abi);
+	}
+	auto persistent = descriptor;
+	persistent.abi.minor = 1;
+	persistent.interfaces.push_back({"fes.persistence.words", 1, 0, true});
+	persistent.interfaces.push_back({"fes.pc386.machine", 1, 0, true});
+	assert(check(persistent).ok());
+	for (const auto* id : {"fes.persistence.words", "fes.pc386.machine"}) {
+		auto incomplete = persistent;
+		incomplete.interfaces.erase(std::remove_if(incomplete.interfaces.begin(), incomplete.interfaces.end(),
+			[&](const Interface& interface) { return interface.id == id; }), incomplete.interfaces.end());
+		assert(check(incomplete).code == mister::ErrorCode::unsupported_interface);
 	}
 	auto system = descriptor;
 	system.core.system = "apple2";

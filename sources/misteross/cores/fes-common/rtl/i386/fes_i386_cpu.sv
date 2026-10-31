@@ -1086,7 +1086,18 @@ module fes_i386_cpu #(
     logic m1_probe_bad;
     assign m1_probe_bad = m1_s.uop.probe == fes_i386_pkg::PROBE_INT && !m1_s.uop.mem.addr32
                        && m1_s.moff[15:0] > 16'hfffa && m1_s.moff[0];
-    assign m1_limit = m1_s.uop.mem.kind != fes_i386_pkg::MEM_NONE && (m1_s.moff > m1_s.mlimit || m1_s.mtiny);
+    logic [31:0] m1_bound_low;
+    logic        m1_bound_wrap;
+    // BOUND's first load is the upper slot, addressed one operand past the
+    // lower slot. Check the whole pair before touching either slot: the lower
+    // offset may have wrapped while forming this upper address, and reading
+    // the upper slot first could otherwise cause an MMIO side effect before
+    // the lower slot raises #GP/#SS.
+    assign m1_bound_low = m1_s.uop.mem.addr32 ? m1_s.moff - 32'(m1_s.uop.mem.bytes)
+                                               : {16'd0, m1_s.moff[15:0] - 16'(m1_s.uop.mem.bytes)};
+    assign m1_bound_wrap = m1_bound_low > m1_s.mlimit || m1_s.mtiny;
+    assign m1_limit = m1_s.uop.mem.kind != fes_i386_pkg::MEM_NONE
+                   && (m1_s.moff > m1_s.mlimit || m1_s.mtiny || m1_s.uop.bound_pair && m1_bound_wrap);
     always_comb begin
         m1_out = capture(m1_s, 3'd3, wb_s.result);
         m1_out.pbad = m1_probe_bad;
