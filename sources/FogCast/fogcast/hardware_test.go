@@ -192,11 +192,11 @@ func TestShelfComputerRequiresNativeVideoAdmission(t *testing.T) {
 func TestZX81RearSocketAdmitsComputerAndLegacyShells(t *testing.T) {
 	bus := corepackage.Interface{ID: expansion.Slot, Major: 2}
 	for _, abi := range []string{"fes.computer", "fes.simple-computer"} {
-		if !zx81RearSocket(corepackage.Descriptor{ABI: corepackage.Contract{ID: abi, Major: 1}, Interfaces: []corepackage.Interface{bus}}) {
+		if !corepackage.RearExpansionSocket(corepackage.Descriptor{ABI: corepackage.Contract{ID: abi, Major: 1}, Interfaces: []corepackage.Interface{bus}}) {
 			t.Fatalf("%s rear socket rejected", abi)
 		}
 	}
-	if zx81RearSocket(corepackage.Descriptor{ABI: corepackage.Contract{ID: "fes.application", Major: 1}, Interfaces: []corepackage.Interface{bus}}) {
+	if corepackage.RearExpansionSocket(corepackage.Descriptor{ABI: corepackage.Contract{ID: "fes.application", Major: 1}, Interfaces: []corepackage.Interface{bus}}) {
 		t.Fatal("application ABI accepted as a ZX81 rear socket")
 	}
 }

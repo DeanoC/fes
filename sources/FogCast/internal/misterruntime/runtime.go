@@ -943,13 +943,30 @@ func (r *Runtime) adoptActivePackage(adopted []corepackage.Staged, activeIndex i
 	}
 }
 
+// ExpansionSocketReceipt is the running receipt for a package's rear socket.
+// A load that succeeded with no composition had none staged and none echoed
+// by the runtime (the load is refused otherwise), so the socket is reported
+// empty. For a ZX81 RomInit load this rests on the host staging no
+// composition, the same trust a composed RomInit receipt already has: the
+// kit checks the programmed image against its receipt, not the package
+// payload. A composed, slotted or parts load is not reported here.
+func ExpansionSocketReceipt(activation CoreActivation) string {
+	if activation.Composition != nil || activation.SlotComposition != nil || activation.PartsComposition != nil {
+		return ""
+	}
+	if !corepackage.RearExpansionSocket(activation.Descriptor) {
+		return ""
+	}
+	return protocol.ExpansionSocketEmpty
+}
+
 func corePackageStatus(activation CoreActivation) *protocol.CorePackageStatus {
 	interfaces := make([]protocol.RuntimeInterface, len(activation.ActiveInterfaces))
 	for index, value := range activation.ActiveInterfaces {
 		interfaces[index] = protocol.RuntimeInterface{ID: value.ID, Major: value.Major, Minor: value.Minor}
 	}
 	return &protocol.CorePackageStatus{PartsComposition: clonePartsComposition(activation.PartsComposition), ROMLink: cloneROMLink(activation.ROMLink), ROMLinks: cloneROMLinks(activation.ROMLinks), Composition: cloneComposition(activation.Composition), PackageID: activation.PackageID, CoreID: activation.Descriptor.Core.ID, Generation: activation.Generation, PersistenceMode: activation.PersistenceMode,
-		SlotComposition: cloneSlotComposition(activation.SlotComposition), MediaUnits: cloneMediaUnits(activation.MediaUnits),
+		SlotComposition: cloneSlotComposition(activation.SlotComposition), ExpansionSocket: ExpansionSocketReceipt(activation), MediaUnits: cloneMediaUnits(activation.MediaUnits),
 		MediaStream: activation.MediaStream,
 		ABI:         protocol.RuntimeContract{ID: activation.Descriptor.ABI.ID, Major: uint16(activation.Descriptor.ABI.Major), Minor: uint16(activation.Descriptor.ABI.Minor)},
 		BuildID:     activation.Descriptor.Build.ID, ActiveInterfaces: interfaces, Gamepad: activation.Gamepad}

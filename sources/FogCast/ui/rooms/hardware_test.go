@@ -89,7 +89,7 @@ func hardwareData(active bool) *hardwareFixture {
 		Session: &hostclient.SessionResult{State: "idle"},
 	}}
 	if active {
-		s.value.Session = &hostclient.SessionResult{ID: "still-the-same-session", Target: "fixture", GameID: "zx81-workbench", State: "active", CorePackage: &hostclient.SessionCorePackage{PackageID: pkg, Generation: 1, Composition: &hostclient.SessionComposition{PackageID: pkg}, ABI: hostclient.SessionCoreABI{ID: "fes.simple-computer", Major: 1}, ActiveInterfaces: []hostclient.SessionCoreInterface{{ID: "fes.media.blob", Major: 1}}}}
+		s.value.Session = &hostclient.SessionResult{ID: "still-the-same-session", Target: "fixture", GameID: "zx81-workbench", State: "active", CorePackage: &hostclient.SessionCorePackage{PackageID: pkg, Generation: 1, ExpansionSocket: protocol.ExpansionSocketEmpty, ABI: hostclient.SessionCoreABI{ID: "fes.simple-computer", Major: 1}, ActiveInterfaces: []hostclient.SessionCoreInterface{{ID: "fes.media.blob", Major: 1}}}}
 	}
 	return s
 }
@@ -388,7 +388,9 @@ func TestHardwareRoomReadOnlyHostKeepsInspection(t *testing.T) {
 	unsupported := false
 	s := hardwareData(true)
 	s.value.ExpansionSelection = &unsupported
-	s.value.Session.CorePackage.Composition.ExpansionID = strings.Repeat("b", 64)
+	fitted := s.value.Session.CorePackage
+	fitted.ExpansionSocket = ""
+	fitted.Composition = &hostclient.SessionComposition{PackageID: fitted.PackageID, ExpansionID: strings.Repeat("b", 64)}
 	r := loadHardware(t, s, examplePack(t, "example.hardware"))
 	f := r.Step(time.Now())
 	if !frameHas(f, "Restart needed: the running machine still uses its old setup.") || !frameHas(f, "Open the Sinclair ZX81 setup on the host computer to choose Fit & save.") {
@@ -528,17 +530,24 @@ func TestHardwareRoomHostSessionUnavailableAndMissingFirmware(t *testing.T) {
 }
 
 func TestHardwareRoomDoesNotInventMissingComposition(t *testing.T) {
-	for _, mismatch := range []bool{false, true} {
-		t.Run(fmt.Sprint(mismatch), func(t *testing.T) {
+	for _, receipt := range []string{"none", "mismatch", "fitted-and-empty"} {
+		t.Run(receipt, func(t *testing.T) {
 			s := hardwareData(true)
-			if mismatch {
-				s.value.Session.CorePackage.Composition.PackageID = strings.Repeat("c", 64)
-			} else {
-				s.value.Session.CorePackage.Composition = nil
+			c := s.value.Session.CorePackage
+			switch receipt {
+			case "none":
+				// An older agent sends neither a composition nor a socket receipt.
+				c.ExpansionSocket = ""
+			case "mismatch":
+				c.ExpansionSocket = ""
+				c.Composition = &hostclient.SessionComposition{PackageID: strings.Repeat("c", 64), ExpansionID: strings.Repeat("d", 64)}
+			case "fitted-and-empty":
+				// A composition for another package is not overruled by the empty flag.
+				c.Composition = &hostclient.SessionComposition{PackageID: strings.Repeat("c", 64), ExpansionID: strings.Repeat("d", 64)}
 			}
 			r := loadHardware(t, s, examplePack(t, "example.hardware"))
 			f := r.Step(time.Now())
-			if !frameHas(f, "Running: Hardware unavailable") || frameHas(f, "Running: Empty socket") || frameHas(f, "Restart needed") {
+			if !frameHas(f, "Machine running · setup unavailable") || frameHas(f, "Running: Empty socket") || frameHas(f, "Restart needed") {
 				t.Fatal("missing or mismatched receipt treated as known hardware")
 			}
 			r.Activate("power")

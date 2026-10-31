@@ -381,6 +381,7 @@ func (c *Coordinator) loadBoundCore(parent context.Context, size int64, content 
 		Composition:      activation.Composition,
 		PartsComposition: activation.PartsComposition,
 		SlotComposition:  activation.SlotComposition,
+		ExpansionSocket:  misterruntime.ExpansionSocketReceipt(activation),
 		MediaStream:      activation.MediaStream,
 		MediaUnits:       activation.MediaUnits,
 		PackageID:        activation.PackageID, CoreID: activation.Descriptor.Core.ID, Generation: activation.Generation,

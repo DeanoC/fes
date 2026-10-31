@@ -61,6 +61,14 @@ func TestHardwareHostClientKeepsDraftSeparateFromActiveReceipt(t *testing.T) {
 	if view.ExpansionSelection == nil || !*view.ExpansionSelection {
 		t.Fatal("host listener did not advertise expansion selection")
 	}
+	// A verified empty socket from the agent reaches the Workshop as-is.
+	s.status.CorePackage.Composition = nil
+	s.status.CorePackage.ExpansionSocket = protocol.ExpansionSocketEmpty
+	if view, err = client.Hardware(ctx); err != nil || view.Session == nil || view.Session.CorePackage.Composition != nil || view.Session.CorePackage.ExpansionSocket != protocol.ExpansionSocketEmpty {
+		t.Fatalf("empty socket receipt lost: %+v %v", view.Session, err)
+	}
+	s.status.CorePackage.Composition = &expansion.Composition{PackageID: packageID, ExpansionID: cardID}
+	s.status.CorePackage.ExpansionSocket = ""
 	if value, err := client.SelectCoreEntryExpansion(ctx, gameID, packageID, "", cardID); err != nil || value.ExpansionID != cardID {
 		t.Fatalf("fit %+v %v", value, err)
 	}
