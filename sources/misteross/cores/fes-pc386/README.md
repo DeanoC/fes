@@ -328,7 +328,8 @@ the runtime does (disk Freeze, DiskDirty, Saved; record Freeze and reads;
 Hold), checks the record (the restored settings and CMOS byte, CMOS 60h-62h,
 the configuration bytes and checksum), and makes the record's round trip
 through the RTC. The storage suite replays every scenario of the 1.1 golden
-exchanges against the mailbox and the storage endpoint.
+exchanges against the mailbox and the storage endpoint. The [1.1 record](../../../../docs/validation/2026-10-31-pc386-m5-computer11/summary.md)
+has the seal and the Kit B run through the runtime's library launch.
 
 **Quartus lane.** [`scripts/build_fes_pc386_quartus.py`](../../scripts/build_fes_pc386_quartus.py)
 seals the package with Quartus 17.0.2, labelled as a Quartus build
