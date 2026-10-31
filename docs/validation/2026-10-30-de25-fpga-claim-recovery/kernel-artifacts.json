@@ -1,0 +1,43 @@
+{
+  "classification": "host-built diagnostic kernel; not booted",
+  "patch_source_commit": "519a5dd26",
+  "release": "6.12.11-fes-de25-claim1",
+  "builder_image": "sha256:ea200655b92ab1211bc8b326c6e799815f1d648b2d5e5a6c982f597cb2b9650d",
+  "sdk_sha256": "526aa1624677f77ace7057112f9c9f5ac8afcf79ba2c78161fe1a43c6dea2bd1",
+  "kernel_revision": "d7d192a9ddd955fe206aa350afed8f82e368a74c",
+  "hardware_access": "none",
+  "files": {
+    "arch/arm64/boot/Image": {
+      "size": 46699008,
+      "sha256": "8f252665ca5840af15c4d3ff5160d4e6ebea26235afaf3d6a8cd51477812c94c"
+    },
+    ".config": {
+      "size": 301813,
+      "sha256": "25735ff3bf00244d4fe73ac7430e07f65c8817e0422f319ca368d48ad671c1cf"
+    },
+    "vmlinux.symvers": {
+      "size": 792248,
+      "sha256": "fa0787119ea100145802399767256f4bbd33460c1d64585ecdf8bce191398ee6"
+    },
+    "drivers/firmware/stratix10-svc.c": {
+      "size": 119895,
+      "sha256": "db18f9db8cf9f42d34e30b728d089d0747f013b47d3239f976ff0f3e8cbd72fd"
+    },
+    "drivers/fpga/stratix10-soc.ko": {
+      "size": 181984,
+      "sha256": "6ecbedcff3a037f05c78cfb72126ae738507a2847608b999ba3dd2013935f98f"
+    },
+    "drivers/fpga/fpga-bridge.ko": {
+      "size": 134056,
+      "sha256": "91bdca413e60c063945b2cd66f4d0438e81ee382078d449825968d24bd76f7c3"
+    },
+    "drivers/fpga/fpga-region.ko": {
+      "size": 117880,
+      "sha256": "c63b827153e75152e6be1221c57721d5235b3cc8dad51802bc88ed012f98541f"
+    },
+    "drivers/fpga/of-fpga-region.ko": {
+      "size": 122784,
+      "sha256": "83e58da66c7b029c0d715d10c5b34d118cbac9a10e5f153c9b5ea153f39c4716"
+    }
+  }
+}
