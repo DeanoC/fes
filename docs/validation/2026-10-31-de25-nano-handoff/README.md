@@ -1,5 +1,10 @@
 # Nano memory/device handoff and matched test files
 
+Hardware follow-up: the [first TRWU8CBL trial](../2026-10-31-de25-nano-serial-test/README.md)
+booted this exact candidate but rejected the first bridge containment check.
+Native execution did not start; factory Linux was restored and verified.
+The preparation results below describe the earlier off-board work.
+
 Base: `b7bb73a42d55347e055ace95a41cd15d2846d153`. Scope: prepare the first
 serial-only Linux-free probe on TRWU8CBL. No kit, UART, JTAG, flash or physical
 card was contacted or changed during this work. The executable hardware gate

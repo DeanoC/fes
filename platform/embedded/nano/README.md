@@ -1,5 +1,9 @@
 # Nano serial probe boot chain
 
+The [first TRWU8CBL trial](../../../docs/validation/2026-10-31-de25-nano-serial-test/README.md)
+booted the matched chain but stopped at the bridge service/readback gate;
+native execution remains pending. Factory Linux was restored without a power cycle.
+
 This prepares the first Linux-free CPU/RAM/UART test on **TRWU8CBL** using the
 pinned Terasic TF-A and U-Boot sources. It produces a matched FPGA-first SOF,
 SPL, FIT, native entry and regular-file test SD image. The actual memory and
@@ -102,7 +106,7 @@ its readiness declarations become valid only after the live gate passes.
    cable. Require JTAG ID `4362C0DD`. Preserve the original serial log throughout.
 4. Require the U-Boot banner's `-fes-nano-<build_id>` suffix to match
    `BOOTCHAIN.JSON`. An unexpected loader, FIT, fallback or banner stops the test.
-   At the prompt issue `fesboot` once. Retain the live memory map and all gate
+   At the `SOCFPGA_AGILEX5 # ` prompt issue `fesboot` once. Retain the live memory map and all gate
    output. Acceptance requires `FES_NANO_HANDOFF PASS serial-only`, the entry
    handoff markers, and `FES_NATIVE_GO_PROBE PASS os=tamago board=de25-nano`.
 5. After the pass or a contained failure, restore the original factory SD and
