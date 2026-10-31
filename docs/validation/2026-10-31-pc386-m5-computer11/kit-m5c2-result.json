@@ -1,0 +1,80 @@
+{
+ "kit": "B",
+ "run": "m5c2",
+ "package": "6823af437fea2625157c2fc9ba68c5d51f4e055c1d9a7dc60e24fc73196b4974.fcore",
+ "disk": "freedos-md-m5.img",
+ "game": "pc386-m5c-freedos",
+ "disk_sha256": "64cf7a4db08809afd9a4d658355f64edfbf805acce657e50b5bb4f221bd1cd7e",
+ "initial_record": {
+  "revision": "8c4549b4db19732895bd783534564f43b3ed22de790872fb44bc2fbd191a36ea",
+  "mode": "persistent",
+  "game_id": "pc386-m5c-freedos",
+  "machine": {
+   "preset": 0,
+   "frequency": 0,
+   "code_profile": 0,
+   "turbo": 0,
+   "sb_base": 576,
+   "sb_irq": 5,
+   "sb_dma": 1
+  }
+ },
+ "settings": {
+  "revision": "8c4549b4db19732895bd783534564f43b3ed22de790872fb44bc2fbd191a36ea",
+  "machine": {
+   "preset": 0,
+   "frequency": 0,
+   "code_profile": 0,
+   "turbo": 0,
+   "sb_base": 576,
+   "sb_irq": 5,
+   "sb_dma": 1
+  }
+ },
+ "first_load": {
+  "state": "active"
+ },
+ "first_load_seconds": 9.68,
+ "first_stop": {
+  "state": "idle"
+ },
+ "saved_record": {
+  "revision": "0a08f41c171ff1a696e90e860aab9f4de5910fd2f77701eb2a13d92b7f25f7a5",
+  "mode": "persistent",
+  "game_id": "pc386-m5c-freedos",
+  "machine": {
+   "preset": 0,
+   "frequency": 0,
+   "code_profile": 0,
+   "turbo": 0,
+   "sb_base": 576,
+   "sb_irq": 5,
+   "sb_dma": 1
+  }
+ },
+ "second_load": {
+  "state": "active"
+ },
+ "second_load_seconds": 8.9,
+ "second_stop": {
+  "state": "idle"
+ },
+ "final_record": {
+  "revision": "0a08f41c171ff1a696e90e860aab9f4de5910fd2f77701eb2a13d92b7f25f7a5",
+  "mode": "persistent",
+  "game_id": "pc386-m5c-freedos",
+  "machine": {
+   "preset": 0,
+   "frequency": 0,
+   "code_profile": 0,
+   "turbo": 0,
+   "sb_base": 576,
+   "sb_irq": 5,
+   "sb_dma": 1
+  }
+ },
+ "after": {
+  "agent": "idle",
+  "lease": "free"
+ }
+}

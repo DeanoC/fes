@@ -142,11 +142,12 @@ MACHINE_RTL = AT_RTL + (
     ROOT / 'cores/fes-menu/rtl/fes_menu_video.v',
     ROOT / 'cores/fes-menu/rtl/fes_menu_reader.v',
 )
-# The M5 system below the board shell: the machine, its audio, fes_i386_cpu,
-# the firmware ROM on port 0 and the host link (pc386_system.sv), at the
-# sealed clock.
-SYSTEM_RTL = (*dict.fromkeys(CPU_RTL + MACHINE_RTL + AUDIO_RTL), CORE / 'rtl/pc386_rom.sv',
-              CORE / 'rtl/pc386_host_link.sv', CORE / 'rtl/pc386_snapshot.sv', CORE / 'rtl/pc386_system.sv')
+# The M5 system below the board shell: the fes.computer 1.1 mailbox and its
+# storage endpoint, the machine, its audio, fes_i386_cpu, the firmware ROM on
+# port 0 and the disk's port 2 master (pc386_system.sv), at the sealed clock.
+SYSTEM_RTL = (*dict.fromkeys(CPU_RTL + MACHINE_RTL + AUDIO_RTL), COMMON / 'rtl/fes_computer_mailbox.v',
+              COMMON / 'rtl/fes_computer_storage.v', CORE / 'rtl/pc386_rom.sv', CORE / 'rtl/pc386_disk.sv',
+              CORE / 'rtl/pc386_snapshot.sv', CORE / 'rtl/pc386_system.sv')
 # I/O completion, request clock to done clock: each device cycle's class time
 # (isa8 72 clocks, isa16 36 at 100 MHz) plus one clock to take the request and
 # one to report it. 1F0h with a dword is one word cycle and two byte cycles
@@ -609,14 +610,23 @@ def run_benches(args) -> dict:
 
 def parse_system(text: str) -> dict:
     """system_tb's lines."""
-    report = {'attach_cycle': None, 'config_cycle': None, 'post': [], 'debug': [], 'counters': [],
-              'prompt_cycle': None, 'screen': [], 'status': None, 'end': None}
+    report = {'identity': None, 'restore_cycle': None, 'clock_cycle': None, 'crc_rejected': None, 'disk': None,
+              'release_cycle': None, 'post': [], 'debug': [], 'counters': [], 'prompt_cycle': None, 'screen': [],
+              'status': None, 'save': None, 'record': None, 'roundtrip': None, 'record_checks': [], 'write_test': None,
+              'mailbox': None, 'end': None}
     for line in text.splitlines():
         kind, _, rest = line.partition(' ')
-        if kind == 'ATTACH':
-            report['attach_cycle'] = int(rest.split()[0])
-        elif kind == 'CONFIG':
-            report['config_cycle'] = int(rest)
+        if kind == 'IDENTITY':
+            report['identity'] = [int(word) for word in rest.split()]
+        elif kind in ('RESTORE', 'CLOCK', 'RELEASE'):
+            report[{'RESTORE': 'restore_cycle', 'CLOCK': 'clock_cycle', 'RELEASE': 'release_cycle'}[kind]] = int(rest)
+        elif kind == 'CRC-REJECTED':
+            cycle, flags = rest.split()
+            report['crc_rejected'] = {'cycle': int(cycle), 'flags': int(flags.split('=')[1])}
+        elif kind == 'DISK':
+            cycle, *fields = rest.split()
+            report['disk'] = {'cycle': int(cycle), **{key: int(value) for key, value in
+                                                     (field.split('=') for field in fields)}}
         elif kind == 'POST':
             code, cycle = rest.split()
             report['post'].append({'code': code, 'cycle': int(cycle)})
@@ -633,6 +643,21 @@ def parse_system(text: str) -> dict:
         elif kind == 'STATUS':
             report['status'] = {key: int(value, 16) if key in ('post', 'cs', 'vector', 'eip') else int(value)
                                 for key, value in (field.split('=') for field in rest.split())}
+        elif kind == 'SAVE':
+            fields = dict(field.split('=') for field in rest.split())
+            chunks = lambda value: [] if value == '-' else [int(c) for c in value.split(',')]
+            report['save'] = {'dirty': int(fields['dirty']), 'epoch': int(fields['epoch']),
+                              'changed_bytes': int(fields['changed_bytes']), 'chunks': chunks(fields['chunks']),
+                              'changed_chunks': chunks(fields['changed_chunks'])}
+        elif kind == 'WRITE-TEST':
+            report['write_test'] = None if rest == 'absent' else int(rest)
+        elif kind in ('RECORD', 'ROUNDTRIP'):
+            report[kind.lower()] = [int(word) for word in rest.split()]
+        elif kind == 'CHECK':
+            verdict, _, what = rest.partition(' ')
+            report['record_checks'].append({'pass': verdict == 'PASS', 'check': what})
+        elif kind == 'MAILBOX':
+            report['mailbox'] = rest
         elif kind == 'END':
             reason, *fields = rest.split()
             values = dict(field.split('=') for field in fields)
@@ -641,17 +666,25 @@ def parse_system(text: str) -> dict:
 
 
 def system_failures(report: dict) -> list[str]:
-    """The system boot must reach the prompt with the CPU alone and every counter at zero."""
+    """The runtime's launch must stage the disk through the mailbox and its CRC
+    pass, the system must reach the prompt with the CPU alone and every counter
+    at zero, and the Stop's disk save and record must check out."""
     failures = []
+    if report.get('mailbox'):
+        failures.append(f'mailbox: {report["mailbox"]}')
     end = report.get('end') or {}
     if end.get('reason') != 'prompt':
         failures.append(f'the system did not reach the prompt: {end.get("reason")}')
+    if report.get('crc_rejected') is None:
+        failures.append('a wrong CRC was not rejected')
+    if report.get('write_test') is None:
+        failures.append("the bench did not give the boot its disk write (the fixture's AUTOEXEC.BAT)")
     status = report.get('status')
     if status is None:
-        return failures + ['system_tb printed no status block']
+        return failures + ['system_tb printed no status words']
     if status['stopped']:
         failures.append(f'the CPU stopped at {status["cs"]:04x}:{status["eip"]:08x}, vector {status["vector"]:02x}')
-    for counter in ('debug_drops', 'scanout_underflows', 'capture_drops', 'present_underflows', 'plane_underflows'):
+    for counter in ('scanout_underflows', 'capture_drops', 'present_underflows', 'plane_underflows'):
         if status[counter]:
             failures.append(f'{counter}={status[counter]}')
     if not status['retired']:
@@ -659,12 +692,17 @@ def system_failures(report: dict) -> list[str]:
     panics = [line for line in report['debug'] if 'PANIC' in line.upper()]
     if panics:
         failures.append(f'BIOS panic: {panics[:4]}')
+    if end.get('reason') == 'prompt':
+        if report.get('save') is None or report.get('roundtrip') is None:
+            failures.append('the Stop did not save the disk and the record')
+        failures += [f'record check failed: {check["check"]}' for check in report['record_checks'] if not check['pass']]
     return failures
 
 
 def run_system(args) -> dict:
     """FreeDOS to the prompt on pc386_system, everything below top.sv, with the
-    DDR ports on one window model and a host that only uses the window."""
+    DDR ports on one window model and a host that does the runtime's launch
+    and Stop through the mailbox and the window."""
     from scripts import build_fes_pc386_quartus as producer
     images = firmware.images(args.download, args.jobs)
     rom = firmware.write_rom_hex(images)
@@ -689,7 +727,8 @@ def run_system(args) -> dict:
     report['failures'] = system_failures(report)
     if run.returncode and not report['failures']:
         report['failures'].append(f'system_tb exited {run.returncode}: {run.stderr.strip()[-400:]}')
-    report['checks'] = [f'{report["end"]}', f'{report["status"]}']
+    report['checks'] = [f'{report["end"]}', f'{report["status"]}', f'{report["save"]}',
+                        *(f'{"PASS" if c["pass"] else "FAIL"} {c["check"]}' for c in report['record_checks'])]
     return report
 
 
@@ -728,6 +767,35 @@ def run_vga(args, linked: list[Path]) -> dict:
     for bench in benches.values():
         report['failures'] += bench['failures']
     return report
+
+
+# The fes.computer 1.1 golden exchanges (mister-packages
+# testdata/fes-computer-v1/exchanges-1.1.json) and the endpoint parameter of
+# each live capability bit the scenarios advertise. Bit 12 (HPS DDR) comes
+# with the session display.
+STORAGE_EXCHANGES = COMMON / 'generated/computer-exchanges-1.1.json'
+STORAGE_RTL = (COMMON / 'rtl/fes_computer_mailbox.v', COMMON / 'rtl/fes_computer_storage.v',
+               COMMON / 'sim/computer_storage_top.sv')
+STORAGE_PARAMETERS = {1: 'ENABLE_KEYBOARD', 3: 'ENABLE_AUDIO', 4: 'ENABLE_APPLE2_FLOPPY', 8: 'ENABLE_MOUSE',
+                      13: 'ENABLE_SESSION_DISPLAY', 16: 'ENABLE_ATA_DISK', 17: 'ENABLE_PERSISTENCE',
+                      18: 'ENABLE_WALL_CLOCK', 19: 'ENABLE_PC386_MACHINE'}
+
+
+def run_storage(args) -> dict:
+    """Replays every scenario of the 1.1 exchanges against fes_computer_mailbox_core
+    and fes_computer_storage, compiled with that scenario's interfaces."""
+    scenarios = json.loads(STORAGE_EXCHANGES.read_text())['scenarios']
+    checks, failures = [], []
+    for number, scenario in enumerate(scenarios):
+        capabilities = scenario['capabilities']
+        parameters = {name: "1'b1" for bit, name in STORAGE_PARAMETERS.items() if capabilities >> bit & 1}
+        binary = verilate(args.verilator, f'storage-{number}', 'computer_storage_top', STORAGE_RTL,
+                          COMMON / 'sim/computer_storage_tb.cpp', [], args.jobs, parameters)
+        result = subprocess.run([str(binary), str(STORAGE_EXCHANGES), str(number)], capture_output=True, text=True)
+        (OUTPUT / f'storage-{number}' / 'storage.log').write_text(result.stdout + result.stderr)
+        line = f'{scenario["name"]}: {(result.stdout or result.stderr).strip()}'
+        (checks if result.returncode == 0 else failures).append(line)
+    return {'checks': checks, 'failures': failures}
 
 
 def run_devices(args) -> dict:
@@ -951,8 +1019,9 @@ def run_game(args, linked: list[Path]) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--suite', choices=('devices', 'audio', 'opl2', 'benches', 'boot', 'rtl-stops', 'sound', 'game',
-                                            'vga', 'system', 'all'), default='all', help='simulation suite to run')
+    parser.add_argument('--suite', choices=('devices', 'storage', 'audio', 'opl2', 'benches', 'boot', 'rtl-stops',
+                                            'sound', 'game', 'vga', 'system', 'all'), default='all',
+                        help='simulation suite to run')
     parser.add_argument('--download', action='store_true', help='fetch Bochs, dev86, FreeDOS and NASM if missing')
     parser.add_argument('--rebuild-image', action='store_true', help='rebuild the FreeDOS fixture')
     parser.add_argument('--limit-seconds', type=float, default=None, help='simulated seconds before giving up')
@@ -978,7 +1047,8 @@ def main() -> int:
         return 2
     failed = False
     try:
-        suites = ('devices', 'audio', 'opl2', 'benches', 'boot', 'vga', 'sound') if args.suite == 'all' else (args.suite,)
+        suites = ('devices', 'storage', 'audio', 'opl2', 'benches', 'boot', 'vga', 'sound') if args.suite == 'all' \
+            else (args.suite,)
         for suite in suites:
             args.limit_seconds = limit_seconds or (14 if suite == 'sound' else 8 if suite == 'boot' else
                                                    2 if suite == 'rtl-stops' else 12)
@@ -986,6 +1056,8 @@ def main() -> int:
             args.expect = expect or ('SOUND DONE' if suite == 'sound' else 'bytes free')
             if suite == 'devices':
                 report = run_devices(args)
+            elif suite == 'storage':
+                report = run_storage(args)
             elif suite == 'audio':
                 report = run_audio(args)
             elif suite == 'opl2':
@@ -1010,6 +1082,9 @@ def main() -> int:
                 for row in report['screen']:
                     print('|' + row + '|')
                 print('STATUS', report['status'])
+                print('DISK', report['disk'], 'SAVE', report['save'])
+                for check in report['record_checks']:
+                    print('CHECK', 'PASS' if check['pass'] else 'FAIL', check['check'])
                 print('END', report['end'])
             elif suite in ('boot', 'vga', 'sound', 'game'):
                 for row in report['screen']:
