@@ -31,7 +31,7 @@ FPGA ownership transitions must account for this lifetime before physical launch
 
 ## Explicit firmware profile
 
-Schema 4 includes `network` and the boolean `handoff.ethernet_platform_ready`.
+Schema 6 includes `network` and the boolean `handoff.ethernet_platform_ready`.
 `network: null` with readiness false disables Ethernet without touching its
 controller or mapping an arena. With readiness true, `network` has exactly:
 

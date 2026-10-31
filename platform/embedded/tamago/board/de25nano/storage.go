@@ -12,8 +12,8 @@ import (
 
 type registers struct{}
 
-func load32(uintptr) uint32
-func store32(uintptr, uint32)
+func load32(addr uintptr) uint32
+func store32(addr uintptr, value uint32)
 func (registers) Read32(offset uint32) uint32  { return load32(0x10808000 + uintptr(offset)) }
 func (registers) Write32(offset, value uint32) { store32(0x10808000+uintptr(offset), value) }
 func (registers) Now() time.Time               { return time.Now() }

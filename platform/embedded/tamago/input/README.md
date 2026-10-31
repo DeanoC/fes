@@ -1,8 +1,8 @@
 # Interactive serial input
 
 `UART.Poll(now)` reads at most 64 available bytes from the selected console
-without waiting for input: QEMU PL011 or the Nano firmware-selected UART. It returns normalized key names
-and printable ASCII text. The embedding UI decides whether text is a
+without waiting for input: QEMU PL011 or the Nano firmware-selected UART. It
+returns normalized key names and printable ASCII text. The embedding UI decides whether text is a
 shortcut or goes to an active text field. Key names can be passed to
 `tenfoot.CommandFromKey`.
 
