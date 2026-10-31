@@ -17,7 +17,7 @@
     "post_shutdown_sdm_query": "passed-read-only; no-Linux-boot-verified"
   },
   "logs_sha256": {
-    "README.md": "e4ab3cb328335c078b7068039e17de9cf704002cc8e2ea2bf12b48e6dd74e7b9",
+    "README.md": "2f3472e922a46cdc7d3116c4fcb12ecddcb54074f6185b497727486a7a248740",
     "after-load.log": "f2f467a811e56fee8cf21b6d395fbeb89ca1c9a7601decf0b98cc60673dcd159",
     "artifacts.json": "e269ffa77d3008db8a3c333030503d14729d2b8f9298804442d4471c640bec96",
     "baseline-manager.log": "606f9fcfc946a49fbca76fcf15ec1a286d9fbcfbdca82761f5e7e395949b8d84",

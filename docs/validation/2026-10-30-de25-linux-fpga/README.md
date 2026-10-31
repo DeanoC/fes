@@ -12,17 +12,24 @@ They were uploaded to a private temporary directory and loaded explicitly.
 The manager registered as `fpga0` and the region as `region0`, with Linux and
 SSH remaining responsive in the same boot epoch.
 
-Quartus 26.3 rejected core-only RBF conversion of the raw SOF. Conversion of
-the previously qualified bootloader-complete SOF succeeded, without warnings,
-using `quartus_pfg -c INPUT.sof OUTPUT.rbf -o hps_core_only=on`.
-The retained logs and artifact hashes identify both inputs and output.
+The retained PFG logs show two different operations on
+`zx81-jtag-with-spl.sof`. `zx81-core-conversion-full.log` records a successful
+`hps_core_only=on` conversion to `out/zx81-with-spl.rbf`; it does not record a
+rejected core-only conversion. `hps-split-rejection.log` records a separate
+request for `out/split-comparison/zx81.jic` with `hps=on`, which Quartus
+rejects with error 19921 because the design is not HPS first. `artifacts.json`
+records one SOF hash and one RBF hash without filenames. The retained DTS asks
+Linux for `fes-c134-zx81.core.rbf`, a different filename from the successful
+PFG output. These records do not establish that the RBF hash matches the bytes
+Linux attempted to load.
 
 A minimal target-path overlay requested that core image through the Linux
 FPGA manager. The vendor driver reported `timeout waiting for svc layer buffers`.
 The overlay close remained blocked in `stratix10_svc_done` -> `kthread_stop`;
-the manager state remained `write`. The owned SSH client timed out after 55s.
-A fresh SSH connection and UART login prompt confirmed Linux remained alive.
-No CPU fabric register access followed this failed load.
+the manager state remained `write`. `after-load.log` retains the boot UUID,
+manager state and kernel failure. The claimed 55-second duration and follow-up
+SSH/UART observations are not present in the retained logs, so this record does
+not rely on them. No CPU fabric register access followed this failed load.
 
 This does not yet identify whether the transfer failure comes from the factory
 FPGA boot configuration, its firmware pairing, the converted artifact, or the
@@ -30,11 +37,10 @@ vendor driver. The service's data-claim polling loop also needs investigation:
 its busy-result path does not observe a stop request or an elapsed deadline.
 Do not infer successful fabric loading from successful module probing.
 
-Before shutdown, the temporary firmware search path was cleared and all uploaded
-modules, overlay and bitstream files removed. No boot configuration, SD image,
-QSPI, managed software, or other board was modified. A physical baseline
-restoration passed after the first test. A second restoration is pending after
-the matching-configuration comparison below.
+The retained `pre-shutdown-cleanup.log` is empty, so it does not verify removal
+of uploaded files or restoration of the temporary firmware search path. The
+first test's restoration is recorded separately below. Restoration after the
+matching-configuration comparison remains pending.
 
 The procedure follows Altera's
 [Linux fabric configuration example](https://altera-fpga.github.io/rel-26.1.1/embedded-designs/agilex-5/e-series/premium-065a/fabric-config-linux/ug-fabric-config-linux-agx5e-premium-065a/).
@@ -43,27 +49,28 @@ existing factory configuration. Those starting states are not equivalent.
 
 ## Matching-configuration comparison
 
-The first physical power cycle restored the approved FES Linux image and
-factory FPGA SLD identity. Linux had no loaded modules or firmware search-path
-override. After observed graceful power-down, the known complete ZX81 SOF was
-loaded through the exact claimed cable. Quartus reports success with zero
-errors/warnings; the same FES card boots with the matching configuration.
+The paired programmer log records Quartus reporting success with zero
+errors/warnings when loading the known complete ZX81 SOF through the claimed
+cable. The retained logs do not include a UART transcript of graceful
+power-down or prove that the later boot began with no modules or firmware
+search-path override.
 
-The same four modules register the manager and region. The same core RBF and
-overlay produce the same buffer timeout and blocked cleanup. Linux and SSH
-remain responsive with the new boot UUID. This rules out a simple distinction
-between these two starting configurations; it does not qualify either for
-Linux core loading. No CPU fabric registers are accessed. Both failures are
-tracked in [#1298](https://github.com/DeanoC/fes/issues/1298).
+The paired state and stack logs record the manager/region registration and a
+repeated buffer timeout with blocked cleanup. They do not bind the loaded RBF
+bytes to the recorded RBF hash or prove an identical artifact across attempts.
+These logs show a repeated failure, but do not isolate boot-state or exact-RBF
+equivalence. No CPU fabric registers are accessed. Both failures are tracked
+in [#1298](https://github.com/DeanoC/fes/issues/1298).
 
-The initial SSH connection after the second boot timed out; a later connection
-passed the physical-UART-derived identity guard before modules were loaded.
-This startup failure is retained privately; it is not a configuration result.
+`shutdown-check.log` contains only an SSH connection-timeout message; it does
+not retain timing details or a UART transcript. The reported identity-guard
+retry is not evidenced in this directory and is not treated as a configuration
+result.
 
-Temporary uploaded files and the firmware search override were removed again.
-The final passive UART capture observes `Power down` before requesting a full
-physical power removal. Factory QSPI and the approved SD image remain intact;
-restoration of the running FPGA configuration must still be verified.
+`paired-cleanup.log` and `paired-final-poweroff.log` are empty. They do not
+verify file cleanup, firmware-path restoration, a passive `Power down` UART
+line, or full physical power removal. The running FPGA configuration still
+needs restoration verification.
 
 Altera's [posted polling fix](https://lists.openwall.net/linux-kernel/2026/10/23/612)
 addresses the same cleanup failure on a newer driver base. It is an investigation
@@ -91,7 +98,7 @@ from a claim that the transfer cause is fixed.
 
 ## Post-shutdown recovery inspection
 
-A later trusted UART inspection still observes no FES login. Read-only
+A UART transcript for this inspection was not retained. Read-only
 `CONFIG_STATUS` on the exact claimed bottom-board cable succeeds without a
 helper image. Quartus decodes `STATE=IDLE`, `MSEL=AS_FAST_POR`, `nSTATUS=1`,
 `nCONFIG=1`, `CONF_DONE=1` and `INIT_DONE=1`; the raw response and tool decoding
@@ -108,7 +115,7 @@ JTAG image and factory flash layout have not established that prerequisite.
 No RSU command or guessed flash offset is sent. A documented nCONFIG or verified
 board-power transition remains the restoration boundary for this state.
 
-Only the claimed board's USB permissions are changed temporarily for the two
-read-only queries and restored to root:root 0664 afterward. UART closes; there
-is no remaining owned hardware session. The physical power-cycle request stays
-pending, and the board claim remains held until restoration is verified.
+The retained evidence does not record USB permission changes/restoration,
+UART closure or release of the board claim. The physical power-cycle request
+stays pending, and restoration of the running FPGA configuration remains
+unverified.
