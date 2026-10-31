@@ -64,6 +64,7 @@ class KernelPlatformTests(unittest.TestCase):
         text += ''.join('# CONFIG_' + n + ' is not set\n' for n in platform.DISABLED)
         text += 'CONFIG_LOCALVERSION="-fes-de25-owner"\n'
         platform.verify_config(text)
+        platform.verify_config(text.replace('# CONFIG_FES_DE25_DMA_KUNIT_TEST is not set\n', ''))
         for changed in (text.replace('CONFIG_FES_DE25_DMA=y', 'CONFIG_FES_DE25_DMA=m'),
                         text.replace('# CONFIG_FES_DE25_DMA_KUNIT_TEST is not set',
                                      'CONFIG_FES_DE25_DMA_KUNIT_TEST=y')):

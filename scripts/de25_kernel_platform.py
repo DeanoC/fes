@@ -90,7 +90,9 @@ def verify_config(text):
         if "CONFIG_" + name + "=y\n" not in text:
             raise ValueError("required built-in setting missing: " + name)
     for name in DISABLED:
-        if "# CONFIG_" + name + " is not set\n" not in text:
+        # Invisible symbols can be absent when their dependency is disabled.
+        # Any assigned value is refused; canonical false is absent or not-set.
+        if re.search(r"^CONFIG_" + name + r"=", text, re.M):
             raise ValueError("forbidden configuration enabled: " + name)
     if 'CONFIG_LOCALVERSION="-fes-de25-owner"\n' not in text:
         raise ValueError("kernel release suffix differs")
@@ -127,6 +129,7 @@ def inside(jobs, revision):
     command = ["make", "-C", kernel, "O=" + str(build), "ARCH=arm64",
                "CROSS_COMPILE=" + str(prefix), "LOCALVERSION=", "DTC_FLAGS=-@"]
     dep.checked([*command, "olddefconfig"], env=env)
+    shutil.copyfile(config, export / "configured.config")
     verify_config(config.read_text())
     dep.checked([*command, "-j" + str(jobs), "Image", DTB], env=env)
     release = subprocess.check_output([*map(str, command), "-s", "kernelrelease"], env=env, text=True).strip().splitlines()[-1]
