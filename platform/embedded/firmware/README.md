@@ -109,6 +109,51 @@ The validation record includes a successful `PLAT=agilex5 bl31` AArch64 build
 from the actual TF-A v2.12 tree with this prepared source. BL31 alone does not
 configure Nano DDR, select its UART/PHYs or provide a complete boot chain.
 
+## Unbound Nano bridge service
+
+`nano_bridges.c` implements the owner/generation checks behind the native
+platform's bridge contract. Its operations are injected and must be serialized,
+bounded-return and qualified by trusted boot/platform code. There are no default
+MMIO addresses, ownership callbacks or never-enabled boot proof. Unknown closed
+and partial initial reset states reject. Lost ownership, incomplete producer
+containment, driver errors and changed reset/master readback retire the service.
+Control-only and data opening validate their exact masks and order.
+
+Configuration uses `fes_nano_bridges_configuration_guard` to check an already
+owned closed state without issuing another shutdown. In control-only recovery,
+data paths stay reset: the service closes only the control path and explicitly
+returns retained data containment, with zero fresh fabric/data ACK claims.
+An active data shutdown still requires the full hardware-drain sequence.
+
+The opt-in `nano_bridge_driver_source` transformation preserves the pinned
+vendor driver and first-error checks while gating only optional fabric warning
+writes/polls on an injected, qualified capability. It covers enable as well as
+disable. Hardware flush/fence polls stay mandatory. The normal source
+transformations and `build_terasic.py` do not select this driver or service.
+
+```sh
+python3 platform/embedded/firmware/verify_nano_bridges.py \
+  --reference out/terasic-git-restore-tfa/plat/intel/soc/common/soc/socfpga_reset_manager.c \
+  --output out/fresh-nano-bridge-service
+python3 platform/embedded/tamago/nativefabric/verify.py \
+  --reference out/terasic-git-restore-tfa/plat/intel/soc/common/socfpga_sip_svc.c \
+  --reset-reference out/terasic-git-restore-tfa/plat/intel/soc/common/soc/socfpga_reset_manager.c \
+  --nano-bridge-service --output out/fresh-nano-bridge-integration
+```
+
+The first command executes the actual driver C with injected registers. The
+second links the C service/driver into the native test transport, uses the
+closure guard for prepared TF-A START, and tests the existing controller and
+tenfoot actor with actual FPGA RTL. The register, ownership, memory and SDM
+responses are models. See the [service validation](../../../docs/validation/2026-10-31-de25-nano-bridge-service/README.md).
+
+No real SiP dispatch, trusted boot initialization, whole-board master-stop
+callback or Nano binding is installed. The selected BL31 and U-Boot gate retain
+the strict behavior measured on the board. Linking this service into a future
+BL31 requires routing every relevant bridge/configuration mutation through its
+ownership checks and establishing the boot proof. Source-producer hashes have
+changed, so earlier build receipts must not be reused as current build evidence.
+
 ## Board-specific off-board candidate
 
 The two build commands below require clean checkouts of the exact Terasic

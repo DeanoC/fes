@@ -7,6 +7,13 @@
 #include <algorithm>
 #include <sstream>
 
+#ifdef FES_TEST_NANO_BRIDGES
+static void bridge_snapshot(const fes_nano_bridge_snapshot& s) {
+    std::cout << std::hex << " " << s.owner << " " << s.generation << " " << s.reset
+              << " " << s.fabric << " " << s.never_enabled << " " << s.masters_contained;
+}
+#endif
+
 int main() {
     try {
         Bench b;
@@ -60,6 +67,44 @@ int main() {
                 world.async_error=true;std::cout << "R 1" << std::endl;
             } else if (op=="stats") {
                 std::cout << "R 1 " << std::hex << world.starts << " " << world.data_enables << " " << world.bytes << std::dec << std::endl;
+#ifdef FES_TEST_NANO_BRIDGES
+            } else if (op=="bridge-boot") {
+                in >> std::hex >> x >> y >> z;
+                int status=fes_nano_fixture_boot(x,y,z);
+                if (!status) {world.held=(x&13U)==13U;world.control=(x&2U)==0;}
+                std::cout << "R " << (status==0) << std::endl;
+            } else if (op=="bridge-observe") {
+                fes_nano_bridge_snapshot s{};
+                int status=fes_nano_bridges_observe(&fes_nano_fixture_service,&s);
+                std::cout << "R " << (status==0);if(!status)bridge_snapshot(s);
+                std::cout << std::dec << std::endl;
+            } else if (op=="bridge-close") {
+                unsigned preserve=0;in >> std::hex >> x >> y >> z >> preserve;
+                fes_nano_bridge_closure c{};
+                int status=fes_nano_bridges_close(&fes_nano_fixture_service,x,y,z,preserve,&c);
+                std::cout << "R " << (status==0);
+                if(!status){
+                    world.held=true;world.control=false;bridge_snapshot(c.after);
+                    std::cout << " " << c.producers_quiescent << " " << c.fabric_acknowledged
+                              << " " << c.hardware_drained << " " << c.data_remained_contained;
+                }
+                std::cout << std::dec << std::endl;
+            } else if (op=="bridge-open") {
+                in >> std::hex >> x >> y >> z;fes_nano_bridge_snapshot s{};
+                int status=fes_nano_bridges_open(&fes_nano_fixture_service,x,y,z,&s);
+                if(!status){
+                    world.control=(s.reset&2U)==0;world.held=(s.reset&13U)==13U;
+                    if(z==2)++world.control_enables;else ++world.data_enables;
+                }
+                std::cout << "R " << (status==0);if(!status)bridge_snapshot(s);
+                std::cout << std::dec << std::endl;
+            } else if (op=="bridge-fault") {
+                in >> std::hex >> x;fes_nano_fixture_fault(x);std::cout << "R 1" << std::endl;
+            } else if (op=="bridge-stats") {
+                uint64_t counters[6]{};fes_nano_fixture_stats(counters);std::cout << "R 1" << std::hex;
+                for(auto value:counters)std::cout << " " << value;
+                std::cout << std::dec << std::endl;
+#endif
             } else throw std::runtime_error("unknown operation");
         }
     } catch (const std::exception& e) {std::cerr << "RPC FAIL " << e.what() << "\n";return 1;}

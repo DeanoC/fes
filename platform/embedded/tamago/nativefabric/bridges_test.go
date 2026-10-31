@@ -49,6 +49,9 @@ func (b *bridgeFixture) CloseBridges(r BridgeCloseRequest) (BridgeClosure, error
 	b.state.Generation++
 	b.state.ResetMask, b.state.NeverEnabled, b.state.MastersContained = 15, false, true
 	rc := BridgeClosure{After: b.state, ProducersQuiescent: true, FabricAcknowledged: r.RequireFabricHandshake, HardwareDrainedMask: 12}
+	if r.PreserveDataContainment {
+		rc.DataRemainedContained, rc.HardwareDrainedMask = true, 0
+	}
 	switch b.fault {
 	case "close":
 		return rc, errors.New("close outcome unknown")
@@ -58,6 +61,8 @@ func (b *bridgeFixture) CloseBridges(r BridgeCloseRequest) (BridgeClosure, error
 		rc.FabricAcknowledged = !rc.FabricAcknowledged
 	case "hardware":
 		rc.HardwareDrainedMask = 4
+	case "held-data":
+		rc.DataRemainedContained = !rc.DataRemainedContained
 	case "reset":
 		rc.After.ResetMask = 7
 	case "owner":
@@ -170,7 +175,7 @@ func TestCPUBridgeColdAndOwnedClosedAreIdempotent(t *testing.T) {
 
 func TestCPUBridgeActiveClosureRequiresIndependentEvidence(t *testing.T) {
 	for _, handshake := range []FabricHandshake{FabricHandshakeAbsent, FabricHandshakePresent} {
-		for _, fault := range []string{"", "close", "producer", "fabric", "hardware", "reset", "owner", "generation", "capability", "masters", "readback", "readback-reset"} {
+		for _, fault := range []string{"", "close", "producer", "fabric", "hardware", "held-data", "reset", "owner", "generation", "capability", "masters", "readback", "readback-reset"} {
 			t.Run(fmt.Sprintf("handshake-%d/%s", handshake, fault), func(t *testing.T) {
 				h, s := testCPUBridges(t, bridgeState(handshake))
 				s.bridgeFixture.fault = fault
@@ -187,6 +192,32 @@ func TestCPUBridgeActiveClosureRequiresIndependentEvidence(t *testing.T) {
 				assertBridgeRetired(t, h, s)
 			})
 		}
+	}
+}
+
+func TestCPUBridgeControlOnlyClosureDoesNotInventDataAcknowledgements(t *testing.T) {
+	for _, fault := range []string{"", "held-data", "fabric", "hardware"} {
+		t.Run(fault, func(t *testing.T) {
+			h, s := testCPUBridges(t, coldBridgeState(FabricHandshakePresent))
+			if _, err := h.Contain(); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := h.ControlOnly(); err != nil {
+				t.Fatal(err)
+			}
+			s.bridgeFixture.fault = fault
+			ok, err := h.Contain()
+			if fault == "" {
+				if !ok || err != nil || !s.requests[0].PreserveDataContainment || s.requests[0].RequireFabricHandshake {
+					t.Fatal("held data was reported as a new ACK", err)
+				}
+			} else {
+				if ok || err == nil {
+					t.Fatal("invented/missing held-data evidence accepted")
+				}
+				assertBridgeRetired(t, h, s)
+			}
+		})
 	}
 }
 

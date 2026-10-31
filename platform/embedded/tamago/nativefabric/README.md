@@ -91,7 +91,11 @@ compares the supplied prior snapshot, stops every producer, uses the optional
 fabric handshake when supported and requires an independent hardware-drain
 result. The returned ownership generation, masks and master containment must
 match a fresh observation. A known control-only state can be closed again for
-the controller's bounded identity recovery; it still requires closure evidence.
+the controller's bounded identity recovery. `PreserveDataContainment` is valid
+only for that same-owner state: the service closes the control path and returns
+`DataRemainedContained`, with zero fresh data/fabric ACK claims. The hooks reject
+that claim for an active data path and reject invented fresh ACKs on the held
+path. Active data shutdown still requires independent hardware drain.
 
 Control-only opening and data release validate their order, exact masks and
 fresh readback. Configuration SMCs require an owned fully closed state before
@@ -102,8 +106,11 @@ or a new production compatibility registry.
 
 The [contract validation](../../../../docs/validation/2026-10-31-de25-bridge-contract/README.md)
 exercises cold/closed, active, launch/return and failure paths without hardware.
-There is no Nano `BridgeServices` implementation or automatically enabled
-physical binding. The selected Terasic firmware's unconditional bridge polls
+The [unbound C Nano service](../../firmware/README.md#unbound-nano-bridge-service)
+now implements the provider behind this contract in host tests, including
+prepared TF-A START, vendor bridge functions and the tenfoot actor. It has no
+installed SiP dispatch or qualified boot initialization. There is no
+automatically enabled physical binding. The selected Terasic firmware's bridge polls
 and the native boot gate are unchanged; this does not fix or waive the
 physical stage-3 timeout. A real adapter still needs qualified boot history,
 handshake selection, hardware-drain implementation and ownership observation.

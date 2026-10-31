@@ -42,13 +42,17 @@ type BridgeSnapshot struct {
 type BridgeCloseRequest struct {
 	Before                 BridgeSnapshot
 	RequireFabricHandshake bool
+	// PreserveDataContainment is issued only from this owner's verified
+	// control-only state. No data bridge has reopened since its closure.
+	PreserveDataContainment bool
 }
 
 type BridgeClosure struct {
-	After               BridgeSnapshot
-	ProducersQuiescent  bool
-	FabricAcknowledged  bool
-	HardwareDrainedMask uint32
+	After                 BridgeSnapshot
+	ProducersQuiescent    bool
+	FabricAcknowledged    bool
+	HardwareDrainedMask   uint32
+	DataRemainedContained bool
 }
 
 type BridgeOpenRequest struct {
@@ -138,7 +142,8 @@ func (h *CPUHooks) Contain() (bool, error) {
 	if (h.bridge == nil && s.ResetMask != 0) || s.Generation == math.MaxUint64 {
 		return false, h.bridgeFailure("partial or exhausted bridge ownership")
 	}
-	request := BridgeCloseRequest{Before: s, RequireFabricHandshake: c.FabricHandshake == FabricHandshakePresent}
+	held := h.access == bridgesControlOnly
+	request := BridgeCloseRequest{Before: s, RequireFabricHandshake: !held && c.FabricHandshake == FabricHandshakePresent, PreserveDataContainment: held}
 	h.access = bridgesUnknown // invalidate prior proof before any mutation
 	closed, err := h.services.CloseBridges(request)
 	if err != nil {
@@ -148,8 +153,12 @@ func (h *CPUHooks) Contain() (bool, error) {
 	want := s
 	want.Generation++
 	want.ResetMask, want.NeverEnabled, want.MastersContained = c.Mask, false, true
-	if closed.After != want || !closed.ProducersQuiescent || closed.HardwareDrainedMask != c.HardwareDrainMask ||
-		closed.FabricAcknowledged != request.RequireFabricHandshake {
+	drain := c.HardwareDrainMask
+	if held {
+		drain = 0 // data stayed reset under this owner's preceding closure
+	}
+	if closed.After != want || !closed.ProducersQuiescent || closed.HardwareDrainedMask != drain ||
+		closed.FabricAcknowledged != request.RequireFabricHandshake || closed.DataRemainedContained != held {
 		return false, h.bridgeFailure("bridge closure lacks matching quiescence, handshake or hardware drain")
 	}
 	return h.bridgeReadback(want, bridgesClosed)

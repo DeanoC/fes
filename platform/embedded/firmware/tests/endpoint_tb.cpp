@@ -17,11 +17,19 @@ struct World {
     bool seen[16]{};
     std::deque<unsigned> responses;
 } world;
+#ifdef FES_TEST_NANO_BRIDGES
+#include "nano_bridge_fixture.h"
+extern "C" int socfpga_bridges_disable(uint32_t mask){
+    return (mask==~0U||mask==15U) ? fes_nano_bridges_configuration_guard(&fes_nano_fixture_service) : -1;
+}
+extern "C" int socfpga_bridges_enable(uint32_t){return -1;}
+#else
 extern "C" int socfpga_bridges_disable(uint32_t){if(world.disable_error)return -1;world.held=true;world.control=false;return 0;}
 extern "C" int socfpga_bridges_enable(uint32_t mask){
     if(mask==2){check(world.held,"control probe lost data containment");world.control=true;++world.control_enables;}
     else{world.held=false;world.control=true;++world.data_enables;}return 0;
 }
+#endif
 extern "C" uint32_t mmio_read_32(uintptr_t){return 0;}
 extern "C" void mmio_write_32(uintptr_t address,uint32_t value){check((address==2||address==3)&&value==DRAM_BASE,"unexpected remapper write");}
 extern "C" void mailbox_clear_response(void){}

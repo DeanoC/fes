@@ -183,6 +183,38 @@ def contained_terasic_reset(data):
     return text.encode()
 
 
+def nano_bridge_driver_source(data):
+    """Opt-in raw-driver prototype; capability is supplied by trusted code.
+
+    Not selected by contained_terasic_reset or the BL31 build recipe. Preserve
+    every hardware flush and first-error check; gate only the optional fabric
+    warning signals. The service owns the configured callback and its lifetime.
+    """
+    text = contained_terasic_reset(data).decode()
+    for start_marker, end_marker in (
+        ("int socfpga_bridges_enable(uint32_t mask)\n{", "int socfpga_bridge_nongraceful_disable(uint32_t mask)"),
+        ("int socfpga_bridges_disable(uint32_t mask)\n{", "/* CPUxRESETBASELOW */"),
+    ):
+        start, end = text.index(start_marker), text.index(end_marker)
+        body = text[start:end]
+        def optional_write(match):
+            call = match[0]
+            if re.search(r"RSTMGR_HDSK(?:EN|REQ|ACK)_FPGAHS", call):
+                return "if (fes_nano_bridge_fabric_handshake()) { " + call + " }"
+            return call
+        body = re.sub(r"mmio_(?:set|clr)bits_32\([^;]+;", optional_write, body)
+        def optional_poll(match):
+            call = match[1]
+            if re.search(r"RSTMGR_HDSKACK_FPGAHS", call):
+                return "ret = fes_nano_bridge_fabric_handshake() ? " + call + " : 0;"
+            return match[0]
+        body = re.sub(r"ret = (poll_idle_status\([^;]+\));", optional_poll, body)
+        text = text[:start] + body + text[end:]
+    text = text.replace("int socfpga_bridges_enable(uint32_t mask)\n{",
+                        "int fes_nano_bridge_fabric_handshake(void);\n\nint socfpga_bridges_enable(uint32_t mask)\n{", 1)
+    return text.encode()
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--reference", type=Path, required=True)

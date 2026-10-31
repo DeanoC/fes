@@ -49,6 +49,9 @@ func (a *sealedActorCPU) CloseBridges(r nativefabric.BridgeCloseRequest) (native
 	a.bridges.Generation++
 	a.bridges.ResetMask, a.bridges.NeverEnabled, a.bridges.MastersContained = 15, false, true
 	closed := nativefabric.BridgeClosure{After: a.bridges, ProducersQuiescent: true, FabricAcknowledged: r.RequireFabricHandshake, HardwareDrainedMask: 12}
+	if r.PreserveDataContainment {
+		closed.DataRemainedContained, closed.HardwareDrainedMask = true, 0
+	}
 	if a.programs != 0 {
 		switch a.bridgeFault {
 		case "hardware":

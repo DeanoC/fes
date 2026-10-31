@@ -197,7 +197,7 @@ func TestTenfootInjectedEndpointLaunchReturnAndIdentityFailure(t *testing.T) {
 				t.Fatal(err)
 			}
 			cpu := &sealedActorCPU{actorRPC: r, base: 0x40000000, identity: identity, bridges: actorBridgeState()}
-			hooks, err := nativefabric.NewCPUHooks(cpu, cpu, cpu.base, 256)
+			hooks, err := actorCPUHooks(t, cpu)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -255,7 +255,7 @@ func TestCPUBridgeFailureStopsActorBeforeProgramming(t *testing.T) {
 				t.Fatal(err)
 			}
 			cpu := &sealedActorCPU{actorRPC: r, base: 0x40000000, identity: identity, bridges: actorBridgeState(), bridgeFault: fault}
-			hooks, err := nativefabric.NewCPUHooks(cpu, cpu, cpu.base, 256)
+			hooks, err := actorCPUHooks(t, cpu)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -266,6 +266,12 @@ func TestCPUBridgeFailureStopsActorBeforeProgramming(t *testing.T) {
 			backend, err := NewWithEndpoint(policy, config, read, nil, endpoint)
 			if err != nil {
 				t.Fatal(err)
+			}
+			if os.Getenv("FES_NANO_BRIDGE_RPC") != "" {
+				code := map[string]int{"hardware": 1, "fabric": 2, "owner": 4}[fault]
+				if _, err = r.call("bridge-fault %x", code); err != nil {
+					t.Fatal(err)
+				}
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
