@@ -97,7 +97,7 @@ memory, so these proofs do not establish physical partial reconfiguration.
 
 ## Evidence boundaries
 
-Fresh Quartus Pro 26.3 builds on the preferred 3090 builder completed with the
+Initial Quartus Pro 26.3 builds on the preferred 3090 builder completed with the
 original constraints and no waivers:
 
 | Diagnostic | Producer | Build seconds | Reported timing rows | Failed signoff rules |
@@ -119,6 +119,35 @@ retention, not just the files copied into this documentation directory.
 The default and Linux DMA generated-interconnect simulations both pass their
 source-hash and transaction checks, using modeled M20K storage. Their receipts
 name the exact generated sources. Neither is a physical DDR/SMMU/firewall test.
+
+Concurrent commit `af83211cbb40f5207c2fdaf7f32a0462e2fd2da5` registers the
+visibility request and releases its clear in the pixel domain. It is preserved
+by normal merges `535631a10` and `21f50a8e2`, without rewriting either owner's
+history. The existing default scanout build at that exact producer was retained
+and independently verified: 528.3 seconds, 19 report hashes, 445 handoff/SDC
+hashes, 74 nonnegative reported timing rows and **five failed signoff rules**.
+`CDC-50001` and `RES-50001` now pass. Missing I/O delays, `RDC-50003`,
+`LNT-30023` and `RES-50101` remain open. Hold rounded to zero is not positive
+margin. `scanout-af832/` contains the original owner's job receipt, normalization
+record, reports and source-equivalence check: only the receipt test and its
+fixture differ in the FPGA module tree at the checked merge.
+
+The opt-in profile was rebuilt separately at `21f50a8e2`: 485.6 seconds,
+19 report hashes, 431 handoff/SDC hashes, 74 nonnegative reported timing rows
+and **four failed signoff rules**. The updated default and opt-in generated
+interconnects pass seven and eight cases respectively. Both consolidated
+branches also pass the source-matched composition gate, scanout construction/
+constraint checks and actual scanout RTL simulations after the merge; their
+receipts are under `visibility-delta/` and the child PR's dated record.
+These newer scanout results supersede the initial scanout compilation evidence
+for current input bytes. The ZX81 compiler input closure is unchanged.
+
+Review readiness is separate from merge acceptance. The broader compatibility
+runner is still active on frozen bring-up source `2243c34a2`, resuming the six
+unstarted core targets without repeating successful parent/host/runtime checks.
+Its full C64 aggregate includes many benches and has not yet completed. The
+current progress snapshot is not a passing result. CI, clean review, timing
+closure and exact-artifact board acceptance are not claimed by this record.
 
 The initial frozen consolidation producers are bring-up
 `2243c34a250867b324d6b26146fd32acdb778882` (base main

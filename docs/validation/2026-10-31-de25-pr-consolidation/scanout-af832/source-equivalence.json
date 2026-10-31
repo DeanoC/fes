@@ -1,0 +1,9 @@
+{
+  "producer": "af83211cbb40f5207c2fdaf7f32a0462e2fd2da5",
+  "checked_merge": "535631a1090366079cb6cbed01a2a9ce8589b74f",
+  "different_module_paths": [
+    "sources/misteross/boards/de25nano/link-proof/build_test.py",
+    "sources/misteross/tests/fixtures/de25-combined-proof.json"
+  ],
+  "classification": "all FPGA production and shared-package bytes identical; receipt gate and test fixture differ"
+}

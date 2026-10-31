@@ -1,0 +1,19 @@
+{
+  "source_revision": "2243c34a250867b324d6b26146fd32acdb778882",
+  "command": [
+    "python3",
+    "/home/deano/fes/out/dev/de25-pr-consolidation/out/consolidation-validation/resume_remaining.py",
+    "/home/deano/fes/out/dev/de25-pr-consolidation/out/consolidation-validation/bringup-affected/result.json",
+    "/home/deano/fes/out/dev/de25-pr-consolidation/out/consolidation-validation/bringup-remaining/result.json"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-pr-consolidation/out/consolidation-validation/bringup-source",
+  "started_utc": "2026-10-31T13:28:48.771996+00:00",
+  "time_cap_seconds": 7200,
+  "hardware_access": "not-performed",
+  "pid": 2407875,
+  "state": "running",
+  "elapsed_seconds": 1710.9,
+  "heartbeat_utc": "2026-10-31T13:57:19.685243+00:00",
+  "snapshot_utc": "2026-10-31T13:57:45.068687+00:00",
+  "scope": "broader compatibility checks still running; not an acceptance result"
+}
