@@ -31,7 +31,7 @@
 //        [--cycles-per-instruction N] [--prompt TEXT] [--type TEXT] [--expect TEXT]
 //        [--trace F] [--frames DIR] [--pixel-from S] [--until-debug TEXT]
 //        [--type-at S] [--key-gap S] [--wav F] [--opl2-log F] [--keys S:TEXT]... [--cpu oracle|rtl]
-//        [--census F] [--stop-history N] [--stop-dump ADDRESS:LENGTH]...
+//        [--census F]
 // A program on the disk marks a picture by writing "SNAP <name>" and a newline
 // to port E9h, then holding it; the bench takes the second capture after the
 // marker, runs the pixel clock for two 720p frames and compares the second
@@ -56,15 +56,6 @@
 //   PMODE <from> <to> <steps> <entry cs:eip> <exit cs:eip>   a stretch on the oracle
 //   GAP <kind> <stem> <stops> <sites> <executed> <first cs:eip> <first cycle>
 //   RTL <counter>=<n> ...                       retirements, oracle steps, waits
-// and with --stop-history N, at the first stop of the run:
-//   HISTORY <cycle> <start> <bytes> <cs>:<eip> <ss>:<esp> <vector|-> <register>=<value> ...
-//                                               each of the last N retirements: the linear address
-//                                               it started at, the bytes there at the stop, the
-//                                               state after it, the vector it delivered, and the
-//                                               general registers, DS and ES after it
-//   STOPSTATE <register>=<value> ...            the RTL's registers at the stop
-// and with --stop-dump, at the same stop, for each range (hexadecimal):
-//   DUMP <physical address> <bytes>             the range's memory, 16 bytes a line
 // --census F writes each stem the oracle retired, its count and its first
 // CS:EIP to F, ":pm" after a stem run in protected mode or V86: the whole
 // boot's instruction mix with the oracle as the CPU, the RTL's stops with it.
@@ -77,9 +68,9 @@
 #include "opl2_reference.h"
 #include "pc386_ddr_model.h"
 #include "pc386_presenter_model.h"
+#include "smc_stale.h"
 #include "verilated.h"
 
-#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -520,10 +511,16 @@ public:
 // the ROM images, which the CPU only reads.
 struct GuestMemory {
     Machine &m;
-    uint8_t *at(uint32_t offset) {
+    uint8_t *at(uint32_t offset, bool write) {
         const uint32_t paddr = offset - pc386::GUEST_OFFSET;
-        uint8_t *page = offset >= pc386::GUEST_OFFSET ? m.page(paddr, false) : nullptr;
-        if (!page) throw std::runtime_error("port 0 outside guest memory: " + std::to_string(paddr));
+        uint8_t *page = offset >= pc386::GUEST_OFFSET ? m.page(paddr, write) : nullptr;
+        const bool rom = (paddr >= 0xc0000 && paddr < 0xc8000) || (paddr >= 0xf0000 && paddr < 0x100000) ||
+                         paddr >= 0xffff0000u;
+        if (!page && (!write || !rom))
+            throw std::runtime_error(std::string(write ? "port 0 write to MMIO or unmapped memory: " :
+                                                          "port 0 read outside guest memory: ") +
+                                     std::to_string(paddr));
+        if (!page) return nullptr;
         return page + (paddr & 0xfff);
     }
 };
@@ -574,22 +571,13 @@ public:
     std::vector<std::string> smc_sites;  // the first stores and executions
     std::function<unsigned(uint32_t linear)> length;  // an instruction's length, from memory
     std::vector<bool> dirty;     // pages stored to since the oracle last ran
-    // The last retirements (--stop-history), a ring: the path into a stop.
-    struct Retirement {
-        uint64_t cycle;
-        uint32_t start, eip;
-        uint32_t gpr[8];
-        uint16_t cs, ss, ds, es;
-        int vector;  // the exception or interrupt it delivered, or -1
-    };
-    std::vector<Retirement> history;
-    uint64_t history_count = 0;
     GuestMemory guest;
     pc386::Port0<GuestMemory> port0;
 
-    // A20 below the reset alias.
+    // A20 masking below the reset alias, matching fes_i386_pkg::phys.
     static uint32_t physical(uint32_t linear, bool a20m) {
-        return linear >= 0xffff0000u || !a20m ? linear : linear & ~(1u << 20);
+        if (linear >= 0xffff0000u) return 0xf0000u | (linear & 0xffffu);
+        return !a20m ? linear : linear & ~(1u << 20);
     }
     uint8_t read8(uint32_t paddr) {
         uint8_t *page = m.page(paddr, false);
@@ -602,6 +590,7 @@ public:
         for (int n = 0; n < 8; ++n) cpu.init_gpr[n] = s.gpr[n];
         cpu.init_eflags = s.eflags;
         cpu.init_eip = s.eip;
+        cpu.init_cr0 = s.cr0;
         for (int n = 0; n < 6; ++n) {
             set16(cpu.init_sel, n, s.seg[n].selector);
             cpu.init_base[n] = s.seg[n].base;
@@ -618,13 +607,14 @@ public:
         io = inta = Pending::Idle;
         last_retire = m.cycles;
         retire_next = physical(s.seg[fes_i386::SEG_CS].base + s.eip, m.top.a20m);
-        stale.clear();
+        stale.reset();
     }
 
     // The architectural state, over the fields the RTL does not hold.
     fes_i386::State state(fes_i386::State s) const {
         for (int n = 0; n < 8; ++n) s.gpr[n] = cpu.arch_gpr[n];
         s.eflags = cpu.arch_eflags & 0x3ffff;
+        s.cr0 = (s.cr0 & ~0xau) | (cpu.arch_cr0 & 0xau);
         s.eip = cpu.arch_eip;
         for (int n = 0; n < 6; ++n) {
             s.seg[n].selector = get16(cpu.arch_sel, n);
@@ -674,6 +664,8 @@ public:
         const uint64_t wdata = cpu.trace_store_data;
         const uint8_t wmask = cpu.trace_store_mask;
         const bool a20m = m.top.a20m;
+        const uint32_t current = physical(cpu.arch_base[fes_i386::SEG_CS] + cpu.arch_eip, a20m);
+        const uint32_t dma_owner = cpu.trace_smc_open ? 0xffffffffu : current;
         // I/O and INTA: acknowledge on this edge what the machine completed
         // after the last; a request after an acknowledge is the next access.
         cpu.io_ack = 0;
@@ -730,6 +722,8 @@ public:
         m.top.dma_rdata = cpu.dma_rdata;
         m.top.flush_done = cpu.flush_done;
         m.top.eval();
+        const bool dma_write = m.top.dma_valid && m.top.dma_write;
+        const uint32_t dma_address = m.top.dma_address;
         if (m.top.mem_valid && !mmio_presented) {
             mmio_presented = true;
             mmio_start = m.cycles;
@@ -769,6 +763,20 @@ public:
         m.top.mem_valid = 0;
         replays += cpu.trace_replay;
         smc_restarts += cpu.trace_smc;
+        const uint32_t fetch_base = physical(block << 4, a20m);
+        auto smc_cycle = stale.begin_cycle(fetch, fetch_base);
+
+        // Attribute a DMA write like the lockstep harness: when WB is open,
+        // it must restart the next instruction; during an instruction that
+        // instruction is allowed to finish.
+        if (cpu.dma_done && dma_write && !resetting) {
+            const uint32_t at = physical(dma_address, a20m);
+            if (smc_cycle.store(at, dma_owner, current)) {
+                if (smc_addresses.insert(at).second && smc_sites.size() < 24)
+                    smc_sites.push_back(site("dma", current, at));
+                ++smc_stores;
+            }
+        }
 
         // The CPU's ports before its edge: the retiring store, then the fetch.
         if (store && !resetting) {
@@ -779,18 +787,12 @@ public:
                 if (at >= RAM_BYTES || (at >= 0xa0000 && at < 0xc0000)) continue;
                 dirty[at >> 12] = true;
                 // Code the front end holds ahead of the next instruction.
-                if (at >= next && at < fetch_end && fetch_end - next <= SMC_WINDOW) {
+                if (smc_cycle.store(at, current, next)) {
                     if (smc_addresses.insert(at).second && smc_sites.size() < 24)
                         smc_sites.push_back(site("store", next, at));
-                    stale.insert(at);
                     ++smc_stores;
                 }
             }
-        }
-        if (fetch) {
-            const uint32_t base = physical(block << 4, a20m);
-            if (base != fetch_end) stale.clear();  // a redirect: the front end refetches
-            fetch_end = base + 16;
         }
         still = fetch || cpu.trace_dread || store || issued || cpu.io_ack || cpu.inta_ack || cpu.trace_retire
                 || !cpu.trace_mem_idle ? 0 : still + 1;
@@ -800,20 +802,10 @@ public:
             if (cpu.arch_eflags & 0x100) ++tf_retired;
             const uint32_t start = retire_next;
             retire_next = physical(cpu.arch_base[fes_i386::SEG_CS] + cpu.arch_eip, a20m);
-            if (!history.empty()) {
-                Retirement &r = history[history_count++ % history.size()];
-                r = {m.cycles, start, cpu.arch_eip, {},
-                     get16(cpu.arch_sel, fes_i386::SEG_CS), get16(cpu.arch_sel, fes_i386::SEG_SS),
-                     get16(cpu.arch_sel, fes_i386::SEG_DS), get16(cpu.arch_sel, fes_i386::SEG_ES),
-                     cpu.trace_exception ? int(cpu.trace_vector) : -1};
-                for (int n = 0; n < 8; ++n) r.gpr[n] = cpu.arch_gpr[n];
-            }
-            if (!stale.empty() && !cpu.trace_exception) {
-                auto byte = stale.lower_bound(start);
-                if (byte != stale.end() && *byte < start + 15 && *byte < start + length(start)) {
-                    ++smc_executed;
-                    if (smc_sites.size() < 24) smc_sites.push_back(site("executed", start, *byte));
-                }
+            uint32_t byte = 0;
+            if (!cpu.trace_exception && stale.executed(start, start + length(start), byte)) {
+                ++smc_executed;
+                if (smc_sites.size() < 24) smc_sites.push_back(site("executed", start, byte));
             }
         }
     }
@@ -836,9 +828,8 @@ private:
     uint64_t mmio_start = 0, read_start = 0;
     uint32_t read_dword = 0;
     uint8_t read_enables = 0;
-    uint32_t fetch_end = 0;    // the end of the last block fetched
     uint32_t retire_next = 0;  // where the next instruction to retire starts
-    std::set<uint32_t> stale;  // bytes stored into fetched code since the last redirect
+    SmcStaleTracker stale;  // bytes stored into fetched code since the last redirect
     uint64_t last_retire = 0;
 
     // The I/O or INTA cycle the machine completed on its last edge.
@@ -861,8 +852,18 @@ public:
     // nothing is in flight on its ports, before the oracle runs or the CPU
     // restarts. Memory then holds every store the CPU retired.
     void settle() {
-        while (io == Pending::Issued && !m.top.io_done) m.clock();
-        while (inta == Pending::Issued && !m.top.inta_done) m.clock();
+        auto wait = [this](const char *what, const auto &done) {
+            const uint64_t start = m.cycles;
+            while (!done()) {
+                if (m.cycles - start >= STALL_CLOCKS)
+                    throw std::runtime_error(std::string(what) + " did not complete while settling");
+                m.clock();
+                answers();
+            }
+            answers();
+        };
+        if (io == Pending::Issued) wait("I/O", [this] { return m.top.io_done; });
+        if (inta == Pending::Issued) wait("INTA", [this] { return m.top.inta_done; });
         io = inta = Pending::Idle;
         cpu.reset = 1;
         resetting = true;
@@ -874,7 +875,6 @@ public:
     }
 
 private:
-    static constexpr uint32_t SMC_WINDOW = 96;
     std::string site(const char *kind, uint32_t instruction, uint32_t address) const {
         char text[96];
         std::snprintf(text, sizeof text, "%s %llu %04x:%08x %08x %08x", kind, (unsigned long long)m.cycles,
@@ -950,8 +950,6 @@ struct Options {
     double limit_seconds = 120, pixel_from = -1, type_at = -1, key_gap = 0.03;
     std::vector<std::pair<double, std::string>> keys;
     unsigned cycles_per_instruction = 4;
-    unsigned stop_history = 0;
-    std::vector<std::pair<uint32_t, uint32_t>> stop_dumps;
 };
 
 Options parse(int argc, char **argv) {
@@ -979,13 +977,6 @@ Options parse(int argc, char **argv) {
         else if (flag == "--opl2-log") options.opl2_log = value;
         else if (flag == "--cpu") options.cpu = value;
         else if (flag == "--census") options.census = value;
-        else if (flag == "--stop-history") options.stop_history = unsigned(std::stoul(value));
-        else if (flag == "--stop-dump") {
-            const size_t colon = value.find(':');
-            if (colon == std::string::npos) throw std::runtime_error("--stop-dump takes ADDRESS:LENGTH");
-            options.stop_dumps.emplace_back(uint32_t(std::stoul(value.substr(0, colon), nullptr, 16)),
-                                            uint32_t(std::stoul(value.substr(colon + 1), nullptr, 16)));
-        }
         else if (flag == "--keys") {
             size_t colon = value.find(':');
             if (colon == std::string::npos) throw std::runtime_error("--keys takes SECONDS:TEXT");
@@ -1007,6 +998,10 @@ int main(int argc, char **argv) {
     Verilated::commandArgs(argc, argv);
     std::setvbuf(stdout, nullptr, _IOLBF, 0);
     try {
+        if (RtlCpu::physical(0xffff0000u, false) != 0xf0000u
+            || RtlCpu::physical(0xffffffffu, true) != 0xfffffu
+            || RtlCpu::physical(0x00100000u, true) != 0u)
+            throw std::runtime_error("pc386 RTL physical address translation self-check failed");
         Options options = parse(argc, argv);
         Machine machine(read_file(options.bios), read_file(options.vgabios), options.disk);
         if (!options.opl2_log.empty() && !(machine.opl2_log = std::fopen(options.opl2_log.c_str(), "w")))
@@ -1029,7 +1024,6 @@ int main(int argc, char **argv) {
                 fes_i386::Decoded decoded = oracle->decode(bytes, 15, (rtl->cpu.arch_ar[0] >> 16) & 0x4000);  // CS.D
                 return decoded.complete ? unsigned(decoded.length) : 15u;
             };
-            rtl->history.resize(options.stop_history);
             rtl->start(oracle->get_state());
         }
         bool on_oracle = !rtl;
@@ -1057,40 +1051,6 @@ int main(int argc, char **argv) {
             fes_i386::Decoded decoded = oracle->decode(bytes, 15, s.seg[fes_i386::SEG_CS].ar & 0x4000);
             const unsigned length = decoded.complete ? decoded.length : 15;
             const std::string key = stem(bytes, length);
-            // --stop-history: the path into the run's first stop.
-            if (gaps.empty() && !rtl->history.empty()) {
-                static const char *const gprs[] = {"eax", "ecx", "edx", "ebx", "esp", "ebp", "esi", "edi"};
-                static const char *const segs[] = {"es", "cs", "ss", "ds", "fs", "gs"};
-                const uint64_t total = rtl->history_count, size = rtl->history.size();
-                for (uint64_t n = total - std::min(total, size); n < total; ++n) {
-                    const RtlCpu::Retirement &r = rtl->history[n % size];
-                    char vector[4] = "-";
-                    if (r.vector >= 0) std::snprintf(vector, sizeof vector, "%02x", r.vector);
-                    std::string code;
-                    for (unsigned k = 0, end = rtl->length(r.start); k < end; ++k) {
-                        char text[4];
-                        std::snprintf(text, sizeof text, "%02x", rtl->read8(RtlCpu::physical(r.start + k, machine.top.a20m)));
-                        code += text;
-                    }
-                    std::printf("HISTORY %llu %08x %s %04x:%08x %04x:%08x %s", (unsigned long long)r.cycle, r.start,
-                                code.c_str(), r.cs, r.eip, r.ss, r.gpr[fes_i386::REG_ESP], vector);
-                    for (int n = 0; n < 8; ++n)
-                        if (n != fes_i386::REG_ESP) std::printf(" %s=%08x", gprs[n], r.gpr[n]);
-                    std::printf(" ds=%04x es=%04x\n", r.ds, r.es);
-                }
-                std::printf("STOPSTATE");
-                for (int n = 0; n < 8; ++n) std::printf(" %s=%08x", gprs[n], s.gpr[n]);
-                std::printf(" eflags=%08x", s.eflags);
-                for (int n = 0; n < 6; ++n) std::printf(" %s=%04x", segs[n], s.seg[n].selector);
-                std::printf("\n");
-                for (const auto &[address, length] : options.stop_dumps)
-                    for (uint32_t line = 0; line < length; line += 16) {
-                        std::printf("DUMP %08x", address + line);
-                        for (uint32_t k = line; k < std::min(length, line + 16); ++k)
-                            std::printf(" %02x", rtl->read8(address + k));
-                        std::printf("\n");
-                    }
-            }
             Gap &gap = gaps[{kind, key}];
             if (!gap.stops) { gap.first_cycle = machine.cycles; gap.first_site = site(s); }
             if (gap.stops++ < 3) {
@@ -1190,7 +1150,7 @@ int main(int argc, char **argv) {
                             stretch_steps = 0;
                         }
                         // What the RTL cannot take from the oracle's state.
-                        if (state.idtr.base != 0 || state.idtr.limit != 0x3ff)
+                        if (state.idtr.base != 0 || state.idtr.limit != 0xffff)
                             notes.insert("real-mode IDTR moved");
                         if (state.cr0 & 0xe) notes.insert("CR0 MP, EM or TS set");
                         rtl->start(state);

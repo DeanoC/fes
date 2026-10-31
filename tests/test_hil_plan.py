@@ -209,7 +209,7 @@ class HilPlanTest(unittest.TestCase):
 
     def test_ci_selection_scripts_are_none(self):
         plan = hil_module()
-        for name in ('affected', 'hil_plan', 'host_tests', 'test_changed', 'de25_runtime', 'de25_boot_contract'):
+        for name in ('affected', 'hil_plan', 'host_tests', 'test_changed', 'de25_runtime', 'de25_boot_contract', 'de25_dma_descriptor', 'de25_kernel_test'):
             path = f'scripts/{name}.py'
             with self.subTest(path=path):
                 row = plan.classify_path(path)
@@ -549,6 +549,8 @@ class HilPlanTest(unittest.TestCase):
     def test_standalone_de25_bringup_has_no_deployed_consumer(self):
         planner = hil_module()
         paths = ['sources/mister-packages/packages/board/de25_nano.yaml',
+                 'sources/mister-packages/packages/fabric/fes_fabric_de25_ddr_probe.yaml',
+                 'image/kernel/de25-dma/de25_dma.c',
                  *['sources/misteross/boards/de25nano/' + name
                    for name in ('blinky.sv', 'pins.qsf', 'clocks.sdc', 'Makefile',
                                 'test_de25nano.py', 'sim/blinky_tb.cpp')]]
@@ -574,6 +576,7 @@ class HilPlanTest(unittest.TestCase):
             'sources/mister-packages/cmd/mister-packages/main.go',
             'sources/mister-packages/internal/pack/board.go',
             'sources/mister-packages/internal/pack/load.go',
+            'sources/mister-packages/internal/emitc/emitc.go',
             'sources/mister-packages/internal/pack/board_test.go',
             'sources/mister-packages/cmd/mister-packages/main_test.go',
             'sources/mister-packages/packages/board/de25_nano.yaml',
@@ -589,6 +592,8 @@ class HilPlanTest(unittest.TestCase):
         self.assertEqual(planner.plan([*paths, runtime_header], texts={})['decision'],
                          'OVERLAY mister-runtime')
         for path in ('sources/mister-packages/packages/abi/fes_application.yaml',
+                     'sources/mister-packages/internal/emitcpp/emitcpp.go',
+                     'sources/mister-packages/internal/emitc/other.go',
                      'sources/mister-packages/internal/pack/abi.go',
                      'sources/mister-packages/internal/pack/other.go'):
             with self.subTest(path=path):

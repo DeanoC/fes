@@ -1,0 +1,51 @@
+{
+  "cases": [
+    "binding_stays_closed",
+    "rejects_bad_publish_before_effects",
+    "kernel_owns_descriptor_and_drain_lifetime",
+    "failed_start_is_held_until_drain",
+    "unreadable_epoch_retains_exposed_storage",
+    "coherent_mapping_uapi_and_revoke",
+    "rejects_invalid_mapping_shapes",
+    "revoke_catches_inflight_mmap_link"
+  ],
+  "classification": "AArch64 QEMU kernel DMA ownership tests",
+  "command": [
+    "/usr/bin/python3",
+    "/build/linux/tools/testing/kunit/kunit.py",
+    "run",
+    "--arch=arm64",
+    "--cross_compile=/build/sdk/bin/aarch64-buildroot-linux-gnu-",
+    "--build_dir=/build/kunit",
+    "--kunitconfig=/build/linux/drivers/misc/fes-de25-dma/.kunitconfig",
+    "--jobs=8",
+    "--timeout=180",
+    "--json=/export/kunit.json",
+    "fes-de25-dma*"
+  ],
+  "compiler": "aarch64-buildroot-linux-gnu-gcc.br_real (Buildroot 2021.02.4) 9.4.0",
+  "dma_admission": "not-qualified",
+  "fes_revision": "45c2dfc247eccaae2556798a039a9390eaa15a6c",
+  "files": {
+    "de25_dma.o": "b7c0e5618d359637b954c1ed04686a378c8556c7595fed67e4834cd37ff35cce",
+    "de25_dma_test.o": "0bef17458ef9c186db7146d6117631c97d8d99744713a0437e1ea6ced674ff18",
+    "inputs.json": "f2a6201716623732031c50d587236d87bbb3df6aaa671eea9242aad71e944d66",
+    "kunit-Image": "f433508b8e877ff180447328c331d8d8a2439272975b0f4a8add97cca9c34f8d",
+    "kunit-raw.log": "87ee8e2841e61d42d5debffd9f183ff092aacab27770d54ac3172185fff7c681",
+    "kunit-run.log": "7d407bf027c1c2ec4f06b951c5576fc42a87518d264d3036e644baed3683ccff",
+    "kunit.config": "a0ea492994714343964f54f0ca354fe820d0079405baa11a7430d09b89f74e72",
+    "kunit.json": "49bf330297c7f7776c690309003bfbf65eb7a0fb3767754f7246771faf27a27c",
+    "vendor.config": "3ec2812cffb3c37bf677941283c9b65c3f5620b519cb58a4ded5f230cadbcdf7"
+  },
+  "hardware_access": "not-performed",
+  "kernel_revision": "d7d192a9ddd955fe206aa350afed8f82e368a74c",
+  "module_loadability_on_vendor_kernel": "not-tested",
+  "not_modeled": [
+    "DE25 HPS",
+    "FPGA",
+    "SMMU stream binding",
+    "firewall",
+    "physical DDR visibility"
+  ],
+  "qemu": "QEMU emulator version 7.2.22 (Debian 1:7.2+dfsg-7+deb12u18+b3)"
+}

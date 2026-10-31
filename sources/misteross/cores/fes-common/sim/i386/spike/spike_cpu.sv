@@ -25,7 +25,7 @@ module spike_cpu (
 
     // The reset state, held while reset is.
     logic [7:0][31:0] init_gpr;
-    logic [31:0]      init_eflags, init_eip;
+    logic [31:0]      init_eflags, init_eip, init_cr0;
     logic [5:0][15:0] init_sel, init_ar;
     logic [5:0][31:0] init_base, init_limit;
     logic             a20m, queue16;
@@ -36,6 +36,7 @@ module spike_cpu (
             init_gpr <= noise[511:256];
             init_eflags <= noise[415:384];
             init_eip <= noise[447:416];
+            init_cr0 <= noise[63:32];
             init_sel <= noise[479:384];
             init_base <= noise[447:256];
             init_limit <= noise[511:320];
@@ -90,19 +91,21 @@ module spike_cpu (
     logic [1:0]       io_size;
     logic [31:0]      io_wdata;
     logic             trace_retire, trace_halt, trace_exception, trace_unimplemented, trace_issue, trace_md_wait;
-    logic             trace_fetch, trace_dread, trace_mem_wait, trace_mem_idle, trace_replay, trace_smc, trace_store;
+    logic             trace_fetch, trace_dread, trace_mem_wait, trace_mem_idle, trace_replay, trace_smc, trace_smc_open,
+                      trace_store, trace_ex_store;
+    logic [31:0]      trace_dread_addr;
     logic [27:0]      trace_fetch_block;
     logic [31:0]      trace_store_addr;
     logic [7:0][7:0]  trace_store_data;
     logic [7:0]       trace_store_mask;
     logic [7:0]       trace_vector;
     logic [7:0][31:0] arch_gpr;
-    logic [31:0]      arch_eflags, arch_eip;
+    logic [31:0]      arch_eflags, arch_eip, arch_cr0;
     logic [5:0][15:0] arch_sel, arch_ar;
     logic [5:0][31:0] arch_base, arch_limit;
 
     fes_i386_cpu dut (
-        .clk, .cold_reset(reset), .reset, .init_gpr, .init_eflags, .init_eip, .init_sel, .init_base, .init_limit,
+        .clk, .cold_reset(reset), .reset, .init_gpr, .init_eflags, .init_eip, .init_cr0, .init_sel, .init_base, .init_limit,
         .init_ar, .a20m, .attr_upper(ATTR_UPPER), .ram_top(7'd16), .queue16,
         .ddr_address, .ddr_burstcount, .ddr_read, .ddr_write, .ddr_writedata, .ddr_byteenable, .ddr_waitrequest,
         .ddr_readdata, .ddr_readdatavalid,
@@ -111,18 +114,20 @@ module spike_cpu (
         .io_req, .io_write, .io_port, .io_size, .io_wdata, .io_ack, .io_rdata,
         .intr, .nmi, .inta_req, .inta_ack, .inta_vector, .trace_retire, .trace_exception, .trace_vector, .trace_halt,
         .trace_unimplemented, .trace_issue, .trace_md_wait, .trace_fetch, .trace_fetch_block, .trace_dread,
-        .trace_mem_wait, .trace_mem_idle, .trace_replay, .trace_smc, .trace_store, .trace_store_addr, .trace_store_data,
-        .trace_store_mask, .arch_gpr, .arch_eflags, .arch_eip, .arch_sel, .arch_base, .arch_limit, .arch_ar
+        .trace_mem_wait, .trace_mem_idle, .trace_replay, .trace_smc, .trace_smc_open, .trace_store, .trace_store_addr, .trace_store_data,
+        .trace_store_mask, .arch_gpr, .arch_eflags, .arch_eip, .arch_sel, .arch_base, .arch_limit, .arch_ar,
+        .trace_dread_addr, .trace_ex_store, .arch_cr0
     );
 
     logic [31:0] signature, observed;
     always_comb begin
         observed = arch_eflags ^ arch_eip ^ {20'b0, trace_retire, trace_halt, trace_exception, trace_unimplemented, trace_vector}
-                 ^ {trace_fetch_block, trace_fetch, trace_dread, trace_mem_wait, trace_replay ^ trace_smc}
+                 ^ {trace_fetch_block, trace_fetch, trace_dread, trace_mem_wait, trace_replay ^ trace_smc ^ trace_smc_open}
+                 ^ arch_cr0 ^ trace_dread_addr ^ {31'd0, trace_ex_store}
                  ^ trace_store_addr ^ trace_store_data[3:0] ^ trace_store_data[7:4] ^ {23'b0, trace_store, trace_store_mask}
                  ^ {ddr_address, ddr_read, ddr_write, trace_mem_idle, trace_issue} ^ {ddr_burstcount, 8'd0, ddr_byteenable}
                  ^ ddr_writedata[31:0] ^ ddr_writedata[63:32] ^ ddr_writedata[95:64] ^ ddr_writedata[127:96]
-                 ^ {mmio_address, mmio_valid, mmio_write} ^ {mmio_byteenable, 28'd0} ^ mmio_wdata
+                 ^ 32'({mmio_address, mmio_valid, mmio_write}) ^ {mmio_byteenable, 28'd0} ^ mmio_wdata
                  ^ {dma_rdata, dma_done, flush_done, 21'd0, trace_md_wait}
                  ^ io_wdata ^ {io_port, 11'b0, inta_req, io_req, io_write, io_size};
         for (int n = 0; n < 8; n++) observed ^= arch_gpr[n];

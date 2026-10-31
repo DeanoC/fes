@@ -24,6 +24,7 @@ module spike_frontend (
 
     logic [27:0]            mem_block;
     logic                   mem_load;
+    logic [27:0]            fetch_next;
     logic [15:0][7:0]       mem_data;
     logic                   redirect = 1'b1;
     logic [31:0]            redirect_linear;
@@ -83,7 +84,7 @@ module spike_frontend (
 
     // Every access hits; a miss has no refill here, so the data is always valid.
     fes_i386_frontend dut (
-        .clk, .reset, .redirect, .redirect_linear, .code32, .mem_block, .mem_load, .fetch_next(),
+        .clk, .reset, .redirect, .redirect_linear, .code32, .mem_block, .mem_load, .fetch_next,
         .mem_data, .mem_valid(1'b1), .q_valid, .q, .d_ready
     );
 

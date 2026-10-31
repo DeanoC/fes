@@ -490,9 +490,11 @@ exists ([firmware](#firmware)).
 
 The runtime seeds the clock from the kit's local time at every launch, before
 release, through `fes.rtc.wall-clock` 1.0: four words of binary year, month,
-day, hour, minute, second and weekday. The RTC converts to BCD or binary and
-12- or 24-hour form according to its current register B. A guest that sets the
-time keeps it until Stop; the next launch takes the kit's time again.
+day, hour, minute, second and weekday. The runtime computes the weekday from
+the date. Like an MC146818, the RTC stores the weekday as given and does not
+check it against the date. The RTC converts to BCD or binary and 12- or 24-hour
+form according to its current register B. A guest that sets the time keeps it
+until Stop; the next launch takes the kit's time again.
 
 ### Persistence
 
@@ -892,18 +894,19 @@ offset `0x08000000`, maximum 134,217,728 bytes (128 MiB), chunk 65,536 bytes.
 
 | Operation | Meaning |
 | --- | --- |
-| DiskInfo | Fields: minimum and maximum bytes, chunk size, state (absent, empty, loading, verifying, ready), flags (dirty, frozen, writer busy), change epoch |
+| DiskInfo | Fields: minimum and maximum bytes, chunk size, state (absent, empty, loading, ready, verifying), flags (dirty, frozen, writer busy, CRC error), change epoch |
 | DiskControl prepare | Held execution only. The unit becomes loading; the ATA device reports no drive |
-| DiskCommit words | Size in sectors, cylinders, heads, sectors per track, CRC-32 of the image |
-| DiskControl commit | The core reads the whole region on port 2, computing CRC-32 (about 0.2 s for 128 MiB at 700 MB/s), and becomes ready on a match. A mismatch leaves it loading with an error flag. The runtime polls DiskInfo |
+| DiskCommit words | Size in sectors, cylinders, heads, sectors per track, CRC-32 of the committed sectors |
+| DiskControl commit | The core reads exactly the committed sector count from the window on port 2 and computes CRC-32 (about 0.2 s for 128 MiB at 700 MB/s). A match makes it ready; a mismatch leaves it loading with the CRC error flag. The runtime polls DiskInfo |
 | DiskControl eject | Held execution only. A hard disk is fixed while running |
 | DiskControl freeze, resume, saved | Freeze fences new sector writes (a write command stays BSY), drains an accepted one and ACKs. Saved clears the dirty bits and keeps the fence, as for the [ST capture](../../mister-packages/docs/computer-io.md#writable-st-image-capture) |
 | DiskDirty | Reads the dirty map, 16 chunks per word, while frozen |
 
 The size is a multiple of 512 bytes from 1 MiB to 128 MiB. 128 MiB is also the
 largest FAT16 volume with 2 KiB clusters. CRC-32 is the CRC-32/IEEE the media
-units use; the core computing it is what lets the contract claim an
-FPGA-side integrity check ([core media](../../../docs/core-media-evolution.md#transfer-and-lifecycle)).
+units use, over exactly `sectors * 512` bytes from the window; the core
+computing it is what lets the contract claim an FPGA-side integrity check
+([core media](../../../docs/core-media-evolution.md#transfer-and-lifecycle)).
 It also proves that the runtime's cache clean reached DDR.
 
 ### How FogCast prepares and attaches the image
@@ -911,20 +914,22 @@ It also proves that the runtime's cache clean reached DDR.
 - **Import.** A pc386 library entry binds one immutable base image: a raw
   `.img`, size as above. FogCast's host storage stops at 32 MiB per asset
   today; this role raises it to 128 MiB.
-- **Geometry.** FogCast reads the MBR. If the partition entries' end CHS values
-  imply heads and sectors per track, it uses them; otherwise 16 heads and 63
-  sectors. Cylinders follow from the size, capped at 16,383. The entry can
-  override. IDENTIFY must report the geometry the partition table was written
-  with: the machine sets CMOS 39h to no translation, so INT 13h presents the
-  IDENTIFY geometry, and DOS addresses the disk in CHS through INT 13h.
+- **Geometry.** FogCast reads the MBR. If the partition entries' CHS values,
+  checked against their LBA values, imply heads and sectors per track, it uses
+  them; with no CHS values, 16 heads and 63 sectors. Cylinders follow from the
+  size, capped at 16,383. A table written for more than 16 heads, or one that
+  fits no geometry, needs the entry's override, which can also replace any
+  inferred geometry. IDENTIFY must report the geometry the partition table was
+  written with: the machine sets CMOS 39h to no translation, so INT 13h presents
+  the IDENTIFY geometry, and DOS addresses the disk in CHS through INT 13h.
 - **Staging.** FogCast stages the base image to the kit by SHA-256 and reuses
   a staged copy whose digest matches, so relaunching does not move 128 MiB.
 - **Launch.** The runtime:
   1. checks identity and releases the DDR ports;
   2. restores the `fes.pc386.machine` record and seeds the wall clock;
   3. sends prepare;
-  4. grants the region, zero-fills it, writes the base image, skipping all-zero
-     chunks, applies the saved delta's chunks, cleans and revokes the grant;
+  4. grants the region, writes every byte of the base image, applies the saved
+     delta's chunks, cleans and revokes the grant;
   5. sends the geometry and the CRC of what it wrote, commits, and polls until
      ready;
   6. releases execution.
@@ -1004,14 +1009,16 @@ ID, unit, base-image SHA-256), layout `fes.ata-disk.delta` 1.0:
   then an ascending list of chunk indices each with the SHA-256 of its 64 KiB
   of data, then a SHA-256 of the manifest.
 - Chunk data lives in content-addressed files beside it.
-- **Saving** (at Stop, and before eject): freeze; read the dirty map and the
-  existing manifest (empty on the first save); grant the region, invalidate the
-  HPS caches for it and read the dirty chunks; write and sync each new chunk
+- **Saving** (at Stop and fault cleanup only): freeze; read the dirty map and the
+  existing manifest (empty on the first save); grant the region (no line of
+  it is cached, see below) and read the dirty chunks; write and sync each new chunk
   file; replace those indices in the existing manifest, retaining entries for
   unchanged chunks; publish the merged manifest with the existing
   temporary-file, rename and directory-sync rule; send Saved to clear the dirty
   bits; delete chunk files the published manifest does not name, under the
   namespace lock.
+- The disk is fixed while the computer runs. Insert, eject and explicit media
+  save are refused; periodic checkpoints during play remain future work.
 - **Restoring** applies the manifest's chunks over the base, as in launch step
   4.
 
@@ -1021,10 +1028,12 @@ is the manifest's SHA-256. A corrupt manifest or chunk blocks the launch and is
 never replaced silently, as for every media record. Periodic checkpoints while
 playing stay future work, as the persistence page says.
 
-The read-back needs one kit-software addition: fes-window has CLEAN and REVOKE
-but no invalidate, and a cached mapping must not return stale lines after the
-FPGA has written DDR. The runtime takes the read grant only after Freeze ACKs
-and invalidates the range first.
+The read-back needs no new fes-window operation. A cached mapping must not
+return stale lines after the FPGA has written DDR, and none can exist: every
+grant the runtime takes is revoked when the access ends, and REVOKE writes
+back and invalidates the grant's lines in L1 and the PL310. The runtime takes
+the read grants only after Freeze ACKs, so nothing caches a line of the region
+between the core's last write and the read.
 
 FogCast offers "reset disk" (discard the delta, after confirmation) and, as
 follow-up, "save as new image" (base plus delta as a new immutable asset).
@@ -1206,25 +1215,28 @@ It declares, all required:
 | `fes.memory.hps-ddr` 1.0 | 12 | Exists |
 | `fes.video.session-display` 1.0 | 13 | Exists |
 | `fes.fabric.video.display-plane` 1.0 | None (manifest only) | Exists |
-| `fes.media.ata-disk` 1.0 | 15 | New |
-| `fes.persistence.words` 1.0 | 16 | New on `fes.computer` |
-| `fes.rtc.wall-clock` 1.0 | 17 | New |
-| `fes.pc386.machine` 1.0 layout | 18 | New |
+| `fes.media.ata-disk` 1.0 | 16 | New |
+| `fes.persistence.words` 1.0 | 17 | New on `fes.computer` |
+| `fes.rtc.wall-clock` 1.0 | 18 | New |
+| `fes.pc386.machine` 1.0 layout | 19 | New |
 
-**The capability word is full.** `fes.computer` 1.0 uses bits 0–14 of its
-single 16-bit capability word, and identity has no spare word. The decision is
+**The capability word is full.** `fes.computer` 1.0 uses bits 0–15 of its
+single 16-bit capability word (bit 15 is the Spectrum disk), and identity has
+no spare word. The decision is
 `fes.computer` 1.1, which adds identity word 16 for capability bits 16–31.
 Older runtimes reject ABI 1.1 at compatibility, before programming, which is
 the normal refusal path. A new `fes.pc` ABI was the alternative; it would have
 duplicated keyboard, mouse, media and display semantics only because one
 identity word ran out.
 
-Opcodes for 1.1, avoiding the display's 18–21 (the YAML fixes the final
-numbers):
+Opcodes for 1.1, avoiding the display's 18–21, as
+[`fes_computer.yaml`](../../mister-packages/packages/abi/fes_computer.yaml)
+fixes them; [computer I/O](../../mister-packages/docs/computer-io.md#ata-hard-disk)
+has the field rules:
 
 | Opcode | Name | Index | Argument |
 | --- | --- | --- | --- |
-| 16 | DiskInfo | unit × 8 + field | 0 |
+| 16 | DiskInfo | unit × 8 + field (chunk size is field 4, in sectors) | 0 |
 | 17 | DiskControl | unit | 0 prepare, 1 commit, 2 eject, 3 freeze, 4 resume, 5 saved |
 | 22 | DiskCommit | word 0–7 | size low and high, cylinders, heads, sectors, CRC low and high, 0 |
 | 23 | DiskDirty | word 0–127 | 0; response is 16 chunk bits |
@@ -1240,7 +1252,7 @@ DDR window ([M5 as built](#phases)).
 
 ### mister-packages adds
 
-- `fes_computer.yaml` 1.1: identity word 16, bits 15–18, the opcodes, disk
+- `fes_computer.yaml` 1.1: identity word 16, bits 16–19, the opcodes, disk
   window offset, maximum and chunk constants, CMOS and settings word counts.
 - `computer-io.md`: the disk, persistence and wall-clock sections; the mouse
   dy sign.
@@ -1252,10 +1264,11 @@ DDR window ([M5 as built](#phases)).
 ### libmister-runtime adds
 
 - `fes.computer` 1.1 identity and admission.
-- The ATA disk loader and saver: window grant, zero-skip load, delta apply,
-  clean, commit with CRC, poll; freeze, dirty map, invalidate, read, publish
-  the delta, Saved.
-- An invalidate operation in fes-window (kit software, not the image).
+- The ATA disk loader and saver: window grant, complete base-image write, delta apply,
+  clean, commit with CRC, poll; freeze, dirty map, read, publish the delta,
+  Saved.
+- Short fes-window grants for the disk region; REVOKE's write-back and
+  invalidate keeps the read-back coherent, so fes-window needs no new operation.
 - `fes.persistence.words` on `fes.computer`, keyed by core ID and game ID, with
   the `fes.pc386.machine` layout's validation.
 - Wall-clock seeding at launch.

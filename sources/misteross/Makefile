@@ -146,7 +146,7 @@ help:
 		"  sim-fes-pc386-vga  Check the pc386 presenter and plane, run the VGA test disk, replay its VGA trace against Bochs" \
 		"  synth-fes-pc386  Synthesize and pack the pc386 machine without the CPU (needs CACHE_ROOT)" \
 		"  build-fes-pc386-quartus  Seal fes.pc386, the machine with fes_i386_cpu, with Quartus 17.0.2 (CACHE_ROOT=, SEED=)" \
-		"  build-fes-pcxt  Autonomous PC/XT board diagnostic (local toolchain-fes-pcxt, or CACHE_ROOT=)" \
+		"  build-fes-pcxt  Quartus PC/XT diagnostic package (QUARTUS_ROOTDIR and pinned Yosys)" \
 		"  sim-fes-atari-st  Test the Atari 520ST CPU, memory, peripherals, media and video" \
 		"  build-fes-atari-st  Seal the Atari 520ST with HIP nextpnr (ST_VIDEO_OUTPUT=direct|scanlines)" \
 		"  build-fes-atari-st-card  Seal a probe in ST_SHELL/ST_PACKAGE socket 1" \
@@ -418,7 +418,8 @@ sim-fes-zx81-variants:
 		"$(CURDIR)/cores/fes-zx81/sim/tape_load_tb.cpp"
 	@build/sim/fes-zx81-variant-zx80-load/Vzx81_machine
 
-sim-fes-zx81: sim-fes-zx81-rom sim-fes-zx81-expansion sim-fes-display-plane sim-fes-zx81-session sim-fes-zx81-variants
+.PHONY: sim-fes-zx81-machine
+sim-fes-zx81-machine:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-zx81-machine
 	$(VERILATOR) --cc --exe --build --top-module zx81_machine -Wall \
@@ -433,6 +434,9 @@ sim-fes-zx81: sim-fes-zx81-rom sim-fes-zx81-expansion sim-fes-display-plane sim-
 		cores/fes-zx81/rtl/zx81_dpram.v \
 		"$(CURDIR)/cores/fes-zx81/sim/machine_tb.cpp"
 	@build/sim/fes-zx81-machine/Vzx81_machine
+
+sim-fes-zx81: sim-fes-zx81-rom sim-fes-zx81-machine sim-fes-zx81-expansion sim-fes-display-plane sim-fes-zx81-session sim-fes-zx81-variants
+	$(require_local_sim)
 	@mkdir -p build/sim/fes-zx81-save
 	$(VERILATOR) --cc --exe --build --top-module zx81_machine -Wall \
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
@@ -1513,7 +1517,15 @@ sim-fes-c64-frame:
 		"$(CURDIR)/cores/fes-c64/sim/frame_tb.cpp"
 	@build/sim/fes-c64-frame/Vc64_frame_store
 
-sim-fes-c64: sim-fes-c64-session sim-fes-c64-d021 sim-fes-c64-ba-timing sim-fes-c64-vic-timing sim-fes-c64-medium sim-fes-c64-medium-mailbox sim-fes-c64-sprite-pal sim-fes-c64-sid sim-fes-c64-open-graphics sim-fes-c64-graphics sim-fes-c64-border-position sim-fes-c64-scroll sim-fes-c64-graphics-modes sim-fes-c64-collision-cpu sim-fes-c64-collisions sim-fes-c64-sprite-video sim-fes-c64-border sim-fes-c64-readback c64-diagnostic sim-fes-c64-cia sim-fes-c64-cia-reference sim-fes-c64-color-ram sim-fes-c64-keyboard sim-fes-c64-vic sim-fes-c64-drive sim-fes-c64-gcr sim-fes-c64-checkpoint sim-fes-c64-rmw sim-fes-c64-sax sim-fes-c64-axs sim-fes-c64-axs-oracle sim-fes-c64-jsr sim-fes-c64-push sim-fes-c64-irq sim-fes-c64-nmi sim-fes-c64-ready sim-fes-c64-clock sim-fes-c64-cadence sim-fes-c64-sprite sim-fes-c64-video sim-fes-c64-rom sim-fes-c64-fetch sim-fes-c64-frame
+# The full c64 suite in four independent groups, so CI runs them as parallel
+# matrix rows; sim-fes-c64 still runs everything.
+.PHONY: sim-fes-c64-cpu-group sim-fes-c64-video-a-group sim-fes-c64-video-b-group sim-fes-c64-system-group sim-fes-c64-machine
+sim-fes-c64-cpu-group: sim-fes-c64-rmw sim-fes-c64-sax sim-fes-c64-axs sim-fes-c64-axs-oracle sim-fes-c64-jsr sim-fes-c64-push sim-fes-c64-irq sim-fes-c64-nmi sim-fes-c64-ready sim-fes-c64-clock sim-fes-c64-cadence
+sim-fes-c64-video-a-group: sim-fes-c64-d021 sim-fes-c64-ba-timing sim-fes-c64-vic-timing sim-fes-c64-sprite-pal sim-fes-c64-open-graphics sim-fes-c64-graphics sim-fes-c64-border-position sim-fes-c64-scroll sim-fes-c64-graphics-modes
+sim-fes-c64-video-b-group: sim-fes-c64-collision-cpu sim-fes-c64-collisions sim-fes-c64-sprite-video sim-fes-c64-border sim-fes-c64-readback sim-fes-c64-vic sim-fes-c64-sprite sim-fes-c64-video sim-fes-c64-fetch sim-fes-c64-frame
+sim-fes-c64-system-group: sim-fes-c64-session sim-fes-c64-medium sim-fes-c64-medium-mailbox sim-fes-c64-sid c64-diagnostic sim-fes-c64-cia sim-fes-c64-cia-reference sim-fes-c64-color-ram sim-fes-c64-keyboard sim-fes-c64-drive sim-fes-c64-gcr sim-fes-c64-checkpoint sim-fes-c64-rom sim-fes-c64-machine
+sim-fes-c64: sim-fes-c64-cpu-group sim-fes-c64-video-a-group sim-fes-c64-video-b-group sim-fes-c64-system-group
+sim-fes-c64-machine: c64-diagnostic
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-machine
 	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sim_top $(C64_VERILATOR_FLAGS) \
@@ -2685,7 +2697,7 @@ synth-fes-pcxt-isa:
 	@test -n "$(CACHE_ROOT)" || { echo 'Set CACHE_ROOT to the authenticated compiler cache'; exit 1; }
 	$(SHARED_MAKE_ENV)$(PYTHON) scripts/synth_fes_pcxt.py --cache-root "$(CACHE_ROOT)"
 
-# Autonomous board diagnostic; no package export or programming.
+# Quartus diagnostic package; OSS tools remain available for advisory probes.
 PCXT_GPU_ROUTER ?= HIP
 .PHONY: build-fes-pcxt toolchain-fes-pcxt
 toolchain-fes-pcxt:
@@ -2694,9 +2706,35 @@ toolchain-fes-pcxt:
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
 build-fes-pcxt:
-	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_pcxt.py$(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE), --cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",) --gpu-router "$(PCXT_GPU_ROUTER)" $(PCXT_BUILD_ARGS)
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_pcxt_quartus.py$(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE), --cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",) $(PCXT_BUILD_ARGS)
 
 .PHONY: sim-fes-c64-session
 sim-fes-c64-session:
 	$(require_local_sim)
 	$(PYTHON) -m scripts.sim_fes_c64_session --verilator "$(VERILATOR)"
+
+# PR-tier smoke simulations (scripts/ci_simulations.py SMOKE_TARGETS): each
+# proves boot or a few frames in a couple of minutes on a CI runner. The full
+# targets above run on push to main and in the nightly regression.
+.PHONY: sim-fes-zx81-smoke sim-fes-c64-smoke sim-fes-atari-st-smoke sim-fes-spectrum-smoke sim-fes-pcxt-smoke
+sim-fes-zx81-smoke: sim-fes-zx81-rom sim-fes-zx81-machine
+
+sim-fes-c64-smoke: c64-diagnostic
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-machine
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sim_top $(C64_VERILATOR_FLAGS) \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-machine" \
+		cores/fes-c64/sim/c64_sim_top.sv $(C64_RTL) \
+		"$(CURDIR)/cores/fes-c64/sim/machine_tb.cpp"
+	$(PYTHON) cores/fes-c64/sim/diagnostic_cases.py --case positive \
+		--model build/sim/fes-c64-machine/Vc64_sim_top --diagnostic-dir $(C64_DIAGNOSTIC)
+
+sim-fes-atari-st-smoke: sim-fes-atari-st-machine
+
+sim-fes-spectrum-smoke:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_spectrum.py --verilator "$(VERILATOR)" --model 48 --smoke
+
+sim-fes-pcxt-smoke:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_pcxt.py --suite system --verilator "$(VERILATOR)"

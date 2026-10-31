@@ -5,18 +5,18 @@ from pathlib import Path
 import subprocess
 
 try:
-    from scripts.test_policy import DE25_BOARD_DEFINITION, select_test_modes, validate_test_modes
+    from scripts.test_policy import DE25_BOARD_DEFINITION, DE25_DDR_PROBE_DEFINITION, select_test_modes, validate_test_modes
 except ImportError:
-    from test_policy import DE25_BOARD_DEFINITION, select_test_modes, validate_test_modes
+    from test_policy import DE25_BOARD_DEFINITION, DE25_DDR_PROBE_DEFINITION, select_test_modes, validate_test_modes
 
 # Logical module names survive the monorepo move; update only these roots.
 MODULE_ROOTS = {'host': 'sources/FogCast', 'runtime': 'sources/libmister-runtime',
                 'contracts': 'sources/mister-packages', 'fpga': 'sources/misteross'}
 LANES = ('parent', 'host', 'runtime', 'contracts', 'fpga')
-# Simulation families include the standalone CPU; it has no play-package recipe.
+# z80 and pc386 are simulation-only families; PC/XT also has a package producer.
 CORES = ('demo', 'pong', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'menu', 'z80', 'atari-st', 'ramtest', 'riscv', 'pcxt',
          'pc386')
-SIMULATION_ONLY_CORES = frozenset({'z80', 'pcxt', 'pc386'})
+SIMULATION_ONLY_CORES = frozenset({'z80', 'pc386'})
 EXPANSION_ROOT = 'sources/misteross/expansion'
 # Parent-owned orchestration, test and assembly roots contain no component
 # sources, so their changes select only the parent lane. Matching is the exact
@@ -28,7 +28,8 @@ CI_BROAD_INPUTS = frozenset({
     'scripts/ci_simulations.py', 'scripts/ci_verilator.sh',
 })
 SOFTWARE_CI_INPUTS = frozenset({
-    'Makefile', '.github/workflows/check.yml', 'scripts/test_changed.py',
+    'Makefile', '.github/workflows/check.yml', '.github/workflows/nightly.yml',
+    'scripts/test_changed.py',
     'scripts/test_policy.py',
 })
 
@@ -38,7 +39,8 @@ SOFTWARE_CI_INPUTS = frozenset({
 # misteross unittest suite runs (about two minutes); tool-dependent cases skip.
 FPGA_SOFTWARE_TESTS = ('test_*.py',)
 FPGA_PRODUCER_HELPERS = {
-    'bootstrap.sh',
+    'bootstrap.sh', 'audit_fes_pcxt_cdc.py', 'quartus_fes_pcxt.py', 'build_fes_pcxt_quartus.py', 'pcxt_quartus_mailbox.py',
+    'audit_fes_pcxt_hps_i2c.py', 'characterize_fes_pcxt_hps_i2c.py', 'screen_fes_pcxt_uncertainty.py',
     'synth_fes_native_video.py', 'synth_fes_pcxt.py', 'build_fes_pcxt.py', 'build_fes_coleco_socket_v2.py',
     'build_video_part.py', 'video_parts.py', 'native_video_parts.py', 'native_video_clock.py',
     'build_fes_catch.py', 'rom_map.py', 'rom_map_oracle.py',
@@ -86,7 +88,7 @@ SHARED_RTL = {
     'fes_audio_output.v': ('zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'atari-st', 'pc386'),
     'fes_sn76489.sv': ('coleco', 'sg1000'),
     'fes_z80_ce.sv': COLECO_CONSUMERS,
-    'fes_computer_mailbox.v': ('apple2', 'c64', 'spectrum', 'atari-st', 'zx81', 'pc386'),
+    'fes_computer_mailbox.v': ('apple2', 'c64', 'spectrum', 'atari-st', 'zx81', 'pc386', 'pcxt'),
     't80pa.v': ('coleco', 'sms'),
     'fes_video_part_direct.v': ('coleco', 'atari-st', 'pcxt'),
     'fes_video_part_scanlines.v': ('coleco', 'atari-st', 'pcxt'),
@@ -105,7 +107,7 @@ ATARI_ST_SCRIPTS = frozenset({'atari_st_slot.py', 'build_atari_st_slot_card.py',
 # the FPGA software lane.
 I386_SCRIPTS = frozenset({'fes_i386_oracle.py', 'test_fes_i386_vectors.py', 'test_fes_i386_test386.py',
                           'test_fes_i386_frontend.py', 'test_fes_i386_lockstep.py', 'benchmark_fes_i386.py',
-                          'quartus_fes_i386.py'})
+                          'quartus_fes_i386.py', 'fes_i386_ucode.py'})
 
 
 def fpga_cores(path):
@@ -282,6 +284,9 @@ def plan(paths):
         elif path == DE25_BOARD_DEFINITION:
             selected.update(('parent', 'contracts'))
             reasons.append(f'{path}: descriptive DE25-Nano board; no emitted or deployed consumers')
+        elif path == DE25_DDR_PROBE_DEFINITION:
+            selected.update(('parent', 'contracts', 'fpga'))
+            reasons.append(f'{path}: standalone DE25 DDR probe consumers; no existing core consumer')
         elif owner == 'contracts' and path.endswith(('.go', '/go.mod', '/go.sum')):
             selected.update(LANES)
             reasons.append(f'{path}: contract tooling software; generated RTL unchanged')

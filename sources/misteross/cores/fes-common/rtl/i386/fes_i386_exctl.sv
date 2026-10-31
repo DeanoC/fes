@@ -20,7 +20,8 @@ module fes_i386_exctl (
     output logic [31:0]            y
 );
     typedef fes_i386_pkg::uop_t uop_t;
-    localparam logic [2:0] C_ALU = 3'd0, C_SHIFT = 3'd1, C_MUL = 3'd2, C_DIV = 3'd3, C_BRANCH = 3'd4, C_SEGMENT = 3'd5;
+    localparam logic [2:0] C_ALU = 3'd0, C_SHIFT = 3'd1, C_MUL = 3'd2, C_DIV = 3'd3, C_BRANCH = 3'd4, C_SEGMENT = 3'd5,
+                           C_SYSTEM = 3'd6;
 
     function automatic logic [31:0] extract(input logic [31:0] v, input logic s8, input logic s16, input logic hi8);
         extract = s8 ? {24'b0, hi8 ? v[15:8] : v[7:0]} : s16 ? {16'b0, v[15:0]} : v;
@@ -29,7 +30,7 @@ module fes_i386_exctl (
     uop_t       u;
     logic [2:0] cls;
     logic [4:0] op;
-    logic       alu, arith, logic_op, incdec, neg, lnot, ext, size8, size16, src8, src16, w8, w16, bt, scan;
+    logic       alu, arith, logic_op, incdec, neg, lnot, ext, size8, size16, src8, src16, w8, w16, bt, scan, bcd;
     assign u = s.uop;
     assign cls = 3'(u.cls);
     assign op = u.op;
@@ -42,6 +43,7 @@ module fes_i386_exctl (
     assign lnot = alu && op == 5'd13;
     assign bt = alu && op >= 5'd19 && op <= 5'd22;   // BT, BTS, BTR, BTC
     assign scan = alu && (op == 5'd23 || op == 5'd24);  // BSF, BSR
+    assign bcd = alu && op >= 5'd25 && op <= 5'd28;    // DAA, DAS, AAA, AAS
     assign size8 = u.size == fes_i386_pkg::SIZE_8;
     assign size16 = u.size == fes_i386_pkg::SIZE_16;
     assign src8 = u.src_size == fes_i386_pkg::SIZE_8;
@@ -154,6 +156,10 @@ module fes_i386_exctl (
     assign c.r_btd = alu && op == 5'd18;
     assign c.r_scan = scan;
     assign c.bsr = op == 5'd24;
+    // DAA, DAS, AAA and AAS adjust x, AL or AX, in EX by its flags.
+    assign c.r_bcd = bcd;
+    assign c.bcd_sub = op == 5'd26 || op == 5'd28;  // DAS, AAS
+    assign c.bcd_ax = op == 5'd27 || op == 5'd28;   // AAA, AAS
 
     // ---- Flags --------------------------------------------------------------------
     // The flag instructions: CLC STC CMC CLI STI CLD STD SAHF (LAHF writes none).
@@ -181,7 +187,8 @@ module fes_i386_exctl (
     assign c.f_bt = bt && u.flags.write.cf;
 
     assign c.b_jcc = cls == C_BRANCH && op == 5'd0;
-    assign c.b_jmp = cls == C_BRANCH && op == 5'd1;
+    // CLTS (UOP_SYSTEM) jumps to the next instruction too.
+    assign c.b_jmp = cls == C_BRANCH && op == 5'd1 || cls == C_SYSTEM;
     assign c.b_loop = cls == C_BRANCH && op == 5'd6;
     assign c.b_loope = cls == C_BRANCH && op == 5'd7;
     assign c.b_loopne = cls == C_BRANCH && op == 5'd8;
@@ -189,6 +196,7 @@ module fes_i386_exctl (
     assign c.b_rpe = u.rep_stop[0];
     assign c.b_rpne = u.rep_stop[1];
     assign c.b_ind = ind;
+    assign c.bound = u.bound;
 
     // The shifter's selects (fes_i386_shift): direction, size and fill.
     localparam logic [4:0] ROL = 5'd0, ROR = 5'd1, RCL = 5'd2, RCR = 5'd3, SHL = 5'd4, SHR = 5'd5, SAL = 5'd6,

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -291,7 +292,7 @@ func installSMSCore(t *testing.T, packages, selections string) string {
 
 func waitForSocket(t *testing.T, path string) {
 	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		if info, err := os.Stat(path); err == nil && !info.IsDir() {
 			return

@@ -39,6 +39,7 @@ type Runtime struct {
 	healthTimeout      time.Duration
 	developmentRBFPath string
 	corePackageRoot    string
+	diskImageRoot      string
 	rebootCommand      string
 	packageMu          sync.Mutex
 	activePackage      *corepackage.Staged
@@ -88,7 +89,7 @@ func (r *Runtime) ConfigureCoreReplacementBarrier(barrier CoreReplacementBarrier
 }
 
 func NewRuntime(control Control, bootIDFile string, pollInterval, healthTimeout time.Duration, options ...RuntimeOption) *Runtime {
-	runtime := &Runtime{control: control, bootIDFile: bootIDFile, pollInterval: pollInterval, healthTimeout: healthTimeout, eventsPath: DefaultEventsPath, keyboardMatrix: 0xffffffffff}
+	runtime := &Runtime{control: control, bootIDFile: bootIDFile, pollInterval: pollInterval, healthTimeout: healthTimeout, eventsPath: DefaultEventsPath, keyboardMatrix: 0xffffffffff, diskImageRoot: DiskImageRoot}
 	for _, option := range options {
 		if option != nil {
 			option(runtime)
@@ -237,15 +238,15 @@ func (r *Runtime) inspectStagedCore(ctx context.Context, staged corepackage.Stag
 
 func (r *Runtime) LoadCoreOwned(admission, observation, operationOwner context.Context,
 	size int64, content io.Reader) (activation CoreActivation, attempted bool, apiErr *protocol.APIError) {
-	return r.loadCoreOwned(admission, observation, operationOwner, size, content, "")
+	return r.loadCoreOwned(admission, observation, operationOwner, size, content, "", nil)
 }
 func (r *Runtime) LoadComposedCoreOwned(admission, observation, operationOwner context.Context, size int64, content io.Reader, libraryID string) (CoreActivation, bool, *protocol.APIError) {
-	return r.loadCoreOwnedMode(admission, observation, operationOwner, size, content, libraryID, true)
+	return r.loadCoreOwnedMode(admission, observation, operationOwner, size, content, libraryID, nil, true)
 }
-func (r *Runtime) loadCoreOwned(admission, observation, operationOwner context.Context, size int64, content io.Reader, libraryID string) (activation CoreActivation, attempted bool, apiErr *protocol.APIError) {
-	return r.loadCoreOwnedMode(admission, observation, operationOwner, size, content, libraryID, false)
+func (r *Runtime) loadCoreOwned(admission, observation, operationOwner context.Context, size int64, content io.Reader, libraryID string, machine *protocol.LibraryMachineBinding) (activation CoreActivation, attempted bool, apiErr *protocol.APIError) {
+	return r.loadCoreOwnedMode(admission, observation, operationOwner, size, content, libraryID, machine, false)
 }
-func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner context.Context, size int64, content io.Reader, libraryID string, composed bool, partsMode ...bool) (activation CoreActivation, attempted bool, apiErr *protocol.APIError) {
+func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner context.Context, size int64, content io.Reader, libraryID string, machine *protocol.LibraryMachineBinding, composed bool, partsMode ...bool) (activation CoreActivation, attempted bool, apiErr *protocol.APIError) {
 	if r.corePackageRoot == "" {
 		return CoreActivation{}, false, unsupportedOperationError()
 	}
@@ -392,6 +393,28 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 	if (staged.Descriptor.ROM != nil && staged.ROMLink == nil) || (staged.Descriptor.Format == 4 && staged.ROMLinks == nil) {
 		return CoreActivation{}, false, &protocol.APIError{Code: protocol.CodeInvalidArchive, Message: "ROM-bearing package requires selected ROM input", Phase: "admission"}
 	}
+	// Only a fes.computer package with a per-game record takes a game.
+	pc386 := protocol.DeclaresPc386Machine(staged.Descriptor)
+	if machine != nil && (libraryID == "" || composed || parts || romInit != nil || staged.ROMLink != nil || staged.ROMLinks != nil || !pc386) {
+		return CoreActivation{}, false, &protocol.APIError{Code: protocol.CodeInvalidArchive, Message: "a library game and disk bind only a pc386 library package", Phase: "admission"}
+	}
+	if machine == nil && libraryID != "" && pc386 {
+		return CoreActivation{}, false, &protocol.APIError{Code: protocol.CodeBadRequest, Message: "a pc386 library launch requires its library game", Phase: "admission"}
+	}
+	if machine != nil && machine.Disk != nil && !protocol.DeclaresAtaDisk(staged.Descriptor) {
+		return CoreActivation{}, false, &protocol.APIError{Code: protocol.CodeInvalidArchive, Message: "package declares no hard disk", Phase: "admission"}
+	}
+	disk, diskErr := r.resolveStagedDisk(machine)
+	if diskErr != nil {
+		return CoreActivation{}, false, diskErr
+	}
+	if machine != nil {
+		_, loads := r.control.(protocol2MachineLibraryControl)
+		_, inspects := r.control.(protocol2MachineDataControl)
+		if !loads || !inspects {
+			return CoreActivation{}, false, unsupportedOperationError()
+		}
+	}
 	if admission.Err() != nil || observation.Err() != nil || operationOwner.Err() != nil {
 		return CoreActivation{}, false, unavailableError()
 	}
@@ -414,8 +437,17 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 				return CoreActivation{}, false, unsupportedOperationError()
 			}
 		}
-		data, err := inspector.InspectCoreData(admission, staged.Directory, staged.PackageID, CoreDataRoot)
+		var data Protocol2Response
+		var err error
+		if machine != nil {
+			data, err = r.control.(protocol2MachineDataControl).InspectMachineCoreData(admission, staged.Directory, staged.PackageID, CoreDataRoot, machine.GameID)
+		} else {
+			data, err = inspector.InspectCoreData(admission, staged.Directory, staged.PackageID, CoreDataRoot)
+		}
 		if err != nil {
+			return CoreActivation{}, false, unavailableError()
+		}
+		if machine != nil && (data.CoreData == nil || data.CoreData.GameID != machine.GameID) && data.OK {
 			return CoreActivation{}, false, unavailableError()
 		}
 		if !data.OK || data.Error != nil {
@@ -428,7 +460,7 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 		}
 		expectedMode = data.CoreData.Mode
 	}
-	if staged.InitialMedia != nil {
+	if staged.InitialMedia != nil || disk != nil {
 		expectedMode = "persistent"
 	}
 	var before *Protocol2Response
@@ -530,6 +562,9 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 	} else if composed {
 		response, callErr = r.control.(protocol2CompositionControl).LoadComposedCore(operationOwner, staged.Directory, staged.PackageID, staged.ExpansionDirectory, staged.PayloadPath, *staged.Composition)
 		r.noteDispatch("load_composed_core", callErr == nil)
+	} else if machine != nil {
+		response, callErr = r.control.(protocol2MachineLibraryControl).LoadLibraryMachineCore(operationOwner, staged.Directory, staged.PackageID, CoreDataRoot, machine.GameID, disk)
+		r.noteDispatch("load_library_core", callErr == nil)
 	} else if libraryID != "" {
 		response, callErr = r.control.(protocol2LibraryControl).LoadLibraryCore(operationOwner, staged.Directory, staged.PackageID, CoreDataRoot)
 		r.noteDispatch("load_library_core", callErr == nil)
@@ -583,6 +618,13 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 		apiErr := mapProtocol2Error(response.Error)
 		attempted = !protocol2PreMutationFailure(response.Error)
 		preserveInput = !attempted
+		if disk != nil && response.Error != nil && response.Error.Code == "corrupt_data" && response.Error.Phase == "identity" {
+			// The ATA disk's base check: the staged image no longer matches
+			// its digest. A CRC the core does not match is phase input; the
+			// file can be right then, so it stays.
+			r.removeCorruptStagedDisk(disk)
+			apiErr.Message = protocol.StagedDiskCorruptMessage
+		}
 		if response.Error != nil && response.Error.Phase == "core_data" && (response.Error.Code == "corrupt_data" || response.Error.Code == "incompatible_data" || response.Error.Code == "save_failed") && before != nil && sameProtocol2RuntimeState(*before, response) {
 			attempted = false
 			preserveInput = true
@@ -901,13 +943,30 @@ func (r *Runtime) adoptActivePackage(adopted []corepackage.Staged, activeIndex i
 	}
 }
 
+// ExpansionSocketReceipt is the running receipt for a package's rear socket.
+// A load that succeeded with no composition had none staged and none echoed
+// by the runtime (the load is refused otherwise), so the socket is reported
+// empty. For a ZX81 RomInit load this rests on the host staging no
+// composition, the same trust a composed RomInit receipt already has: the
+// kit checks the programmed image against its receipt, not the package
+// payload. A composed, slotted or parts load is not reported here.
+func ExpansionSocketReceipt(activation CoreActivation) string {
+	if activation.Composition != nil || activation.SlotComposition != nil || activation.PartsComposition != nil {
+		return ""
+	}
+	if !corepackage.RearExpansionSocket(activation.Descriptor) {
+		return ""
+	}
+	return protocol.ExpansionSocketEmpty
+}
+
 func corePackageStatus(activation CoreActivation) *protocol.CorePackageStatus {
 	interfaces := make([]protocol.RuntimeInterface, len(activation.ActiveInterfaces))
 	for index, value := range activation.ActiveInterfaces {
 		interfaces[index] = protocol.RuntimeInterface{ID: value.ID, Major: value.Major, Minor: value.Minor}
 	}
 	return &protocol.CorePackageStatus{PartsComposition: clonePartsComposition(activation.PartsComposition), ROMLink: cloneROMLink(activation.ROMLink), ROMLinks: cloneROMLinks(activation.ROMLinks), Composition: cloneComposition(activation.Composition), PackageID: activation.PackageID, CoreID: activation.Descriptor.Core.ID, Generation: activation.Generation, PersistenceMode: activation.PersistenceMode,
-		SlotComposition: cloneSlotComposition(activation.SlotComposition), MediaUnits: cloneMediaUnits(activation.MediaUnits),
+		SlotComposition: cloneSlotComposition(activation.SlotComposition), ExpansionSocket: ExpansionSocketReceipt(activation), MediaUnits: cloneMediaUnits(activation.MediaUnits),
 		MediaStream: activation.MediaStream,
 		ABI:         protocol.RuntimeContract{ID: activation.Descriptor.ABI.ID, Major: uint16(activation.Descriptor.ABI.Major), Minor: uint16(activation.Descriptor.ABI.Minor)},
 		BuildID:     activation.Descriptor.Build.ID, ActiveInterfaces: interfaces, Gamepad: activation.Gamepad}

@@ -21,7 +21,7 @@ func loadFesComputer(t *testing.T) *ABIFile {
 
 func TestFesComputerContract(t *testing.T) {
 	abi := loadFesComputer(t)
-	if abi.ID != "fes.computer" || abi.Tag != 4 || abi.Major != 1 || abi.Minor != 0 {
+	if abi.ID != "fes.computer" || abi.Tag != 4 || abi.Major != 1 || abi.Minor != 1 {
 		t.Fatalf("ABI identity %s tag %d %d.%d", abi.ID, abi.Tag, abi.Major, abi.Minor)
 	}
 	for name, want := range map[string]uint32{
@@ -48,6 +48,44 @@ func TestFesComputerContract(t *testing.T) {
 		"FesComputerAtariStFloppyGeometryMinHeads": 1, "FesComputerAtariStFloppyGeometryMaxHeads": 2,
 		"FesComputerAtariStFloppyGeometryMinSectors": 9, "FesComputerAtariStFloppyGeometryMaxSectors": 10,
 		"FesComputerAtariStFloppySectorBytes": 512, "FesComputerAtariStFloppyGeometryLayoutMinor": 1,
+		// ABI 1.1
+		"FesComputerIdentityWordCount": 16, "FesComputerIdentityCapabilitiesHighIndex": 16,
+		"FesComputerIdentityExtendedWordCount": 17,
+		"FesComputerOpcodeDiskInfo":            16, "FesComputerOpcodeDiskControl": 17,
+		"FesComputerOpcodeMenuInfo": 18, "FesComputerOpcodeMenuSubmit": 21,
+		"FesComputerOpcodeDiskCommit": 22, "FesComputerOpcodeDiskDirty": 23,
+		"FesComputerOpcodeDataControl": 24, "FesComputerOpcodeDataRead": 25,
+		"FesComputerOpcodeDataWrite": 26, "FesComputerOpcodeDataInfo": 27,
+		"FesComputerOpcodeWallClock": 28,
+		"FesComputerAtaDiskUnit":     0, "FesComputerAtaDiskWindowOffset": 0x08000000,
+		"FesComputerAtaDiskMinBytes": 1 << 20, "FesComputerAtaDiskMaxBytes": 128 << 20,
+		"FesComputerAtaDiskSectorBytes": 512, "FesComputerAtaDiskMinSectors": 2048,
+		"FesComputerAtaDiskMaxSectors": 262144, "FesComputerAtaDiskChunkBytes": 65536,
+		"FesComputerAtaDiskChunkSectors": 128, "FesComputerAtaDiskMaxChunks": 2048,
+		"FesComputerAtaDiskDirtyWordCount": 128, "FesComputerAtaDiskDirtyChunksPerWord": 16,
+		"FesComputerAtaDiskMaxCylinders": 16383, "FesComputerAtaDiskMaxHeads": 16,
+		"FesComputerAtaDiskMaxSectorsPerTrack": 63, "FesComputerDiskInfoStride": 8,
+		"FesComputerDiskInfoChunkSectorsField": 4, "FesComputerDiskInfoStateField": 5,
+		"FesComputerDiskInfoFlagsField": 6, "FesComputerDiskInfoEpochField": 7,
+		"FesComputerDiskStateVerifying": 4, "FesComputerMediaStateReady": 3,
+		"FesComputerDiskFlagDirtyMask": 1, "FesComputerDiskFlagFrozenMask": 2,
+		"FesComputerDiskFlagBusyMask": 4, "FesComputerDiskFlagErrorMask": 8,
+		"FesComputerDiskControlPrepare": 0, "FesComputerDiskControlCommit": 1,
+		"FesComputerDiskControlEject": 2, "FesComputerDiskControlFreeze": 3,
+		"FesComputerDiskControlResume": 4, "FesComputerDiskControlSaved": 5,
+		"FesComputerDiskCommitWordCount": 8, "FesComputerDiskCommitCRC32HiWord": 6,
+		"FesComputerDiskCommitReservedWord": 7,
+		"FesComputerDataFreeze":             0, "FesComputerDataBegin": 1, "FesComputerDataCommit": 2,
+		"FesComputerDataResume": 3, "FesComputerDataMaximumWords": 256,
+		"FesComputerPc386MachineTag": 3, "FesComputerPc386MachineWordCount": 72,
+		"FesComputerPc386CmosStartIndex": 8, "FesComputerPc386CmosWordCount": 64,
+		"FesComputerPc386PresetMaxPerformance": 0, "FesComputerPc386PresetCount": 8,
+		"FesComputerPc386FrequencyMin": 10,
+		"FesComputerPc386FrequencyMax": 1000, "FesComputerPc386SbBase220": 0x220,
+		"FesComputerPc386SbBase240": 0x240, "FesComputerPc386SbIrqMask": 0xac,
+		"FesComputerPc386SbIrqDefault": 7, "FesComputerPc386SbDma": 1,
+		"FesComputerWallClockWordCount": 4, "FesComputerWallClockMinYear": 1980,
+		"FesComputerWallClockMaxYear": 2099,
 	} {
 		got, ok := abi.Constant(name)
 		if !ok || got != want {
@@ -68,6 +106,8 @@ func TestFesComputerContract(t *testing.T) {
 		{"fes.media.atari-st-floppy-geometry", 10, 1}, {"fes.media.zx81-tape", 11, 1},
 		{"fes.memory.hps-ddr", 12, 1}, {"fes.video.session-display", 13, 1},
 		{"fes.media.zx81-tape-write", 14, 1}, {"fes.media.spectrum-disk", 15, 1},
+		{"fes.media.ata-disk", 16, 1}, {"fes.persistence.words", 17, 1},
+		{"fes.rtc.wall-clock", 18, 1}, {"fes.pc386.machine", 19, 1},
 	}
 	if len(abi.Interfaces) != len(want) {
 		t.Fatalf("interfaces = %+v", abi.Interfaces)

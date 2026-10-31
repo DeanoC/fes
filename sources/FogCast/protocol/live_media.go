@@ -35,7 +35,8 @@ func liveBlobCapable(p *CorePackageStatus) bool {
 }
 
 func liveComputerZx81TapeCapable(p *CorePackageStatus) bool {
-	return activeComputer(p) && activeInterface(p, Zx81TapeInterface())
+	return p != nil && ComputerABI(p.ABI.ID, int64(p.ABI.Major), int64(p.ABI.Minor)) &&
+		activeInterface(p, Zx81TapeInterface())
 }
 
 // ComputerZx81TapeCapable reports an active fes.computer 1.0 generation with
@@ -47,11 +48,21 @@ func ComputerZx81TapeCapable(p *CorePackageStatus) bool {
 
 // AdmitTapeMediaName accepts only ZX81 .p / .P basenames.
 func AdmitTapeMediaName(name string) bool {
+	return admitTapeExt(name, ".p", ".P")
+}
+
+// AdmitZx80TapeMediaName accepts ZX80 .o / .O basenames. The ZX80 loader
+// treats the file as a raw image; a .p name stays on the ZX81 path.
+func AdmitZx80TapeMediaName(name string) bool {
+	return admitTapeExt(name, ".o", ".O")
+}
+
+func admitTapeExt(name, lower, upper string) bool {
 	if name == "" || strings.ContainsAny(name, `/\`) || name != filepath.Base(name) {
 		return false
 	}
 	ext := filepath.Ext(name)
-	return ext == ".p" || ext == ".P"
+	return ext == lower || ext == upper
 }
 
 // AdmitTapeMediaSize is the fes.media.blob 1.0 mailbox bound.

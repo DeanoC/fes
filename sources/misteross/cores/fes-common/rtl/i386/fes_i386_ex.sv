@@ -54,6 +54,20 @@
 //     OF 1 at index 0, else the two bits below the index XORed. A source of
 //     0 clears CF, AF, SF and OF and sets PF.
 //
+// BOUND's compares subtract like CMP and write no flags. One raises #BR
+// (br) when x is below y, signed: when the carry out of the size, which is
+// not a borrow, differs from the top bits' propagate (y inverted), the SF
+// and OF a CMP would write differing.
+// DAA, DAS, AAA and AAS adjust AL (x) by AF and, for DAA and DAS, CF, both
+// from EX's running copy. Each adds to AL (DAA, AAA) or takes from it (DAS,
+// AAS) 6 when its low digit is above 9 or AF is set, and for DAA and DAS 60h
+// when AL is above 99h or CF is set; AF is whether 6 went in, CF whether 60h
+// did, or for DAS that or the borrow out of AL less 6. AAA and AAS carry that
+// byte's carry or borrow and 1 into AH, keep only AL's low digit, and set CF
+// as AF. The flags the manual leaves undefined are the 386EX's (divergences
+// daa-das-of, aaa-aas-flags): SF, ZF and PF of the byte the add makes, AL's
+// high digit and all, and OF its signed overflow.
+//
 // MUL, IMUL, DIV, IDIV, AAM and AAD take their flags from the multiply and
 // divide unit (fes_i386_muldiv, md_flags); their result comes through LEA's
 // select, from the pipe record's result field, which fes_i386_cpu fills
@@ -73,6 +87,7 @@ module fes_i386_ex (
     output logic [31:0]          result,
     output logic [17:0]          flags_out,
     output logic                 taken,
+    output logic                 br,          // BOUND's #BR
     output logic [31:0]          ind_target,  // RET, JMP r/m: the target's linear address and EIP
     output logic [31:0]          ind_eip,
     output logic                 sh_out0,
@@ -214,6 +229,55 @@ module fes_i386_ex (
         end
     end
 
+    // ---- Decimal and ASCII adjusts ----------------------------------------------------
+    // Each digit's sum is a table, and the compares are spelled out, so no
+    // carry chain runs here. d0 and d1 are AL's digits; lo: 6 goes into the
+    // low digit, hi: 60h into AL; k: the low digit's carry or borrow, which
+    // the high digit takes with hi's 6. A digit plus or less 1, 6 and 7, mod
+    // 16, is entry d (bits 4d + 3 to 4d) of P1, P6, P7, M1, M6 and M7.
+    localparam logic [63:0] P1 = 64'h0fed_cba9_8765_4321, P6 = 64'h5432_10fe_dcba_9876,
+                            P7 = 64'h6543_210f_edcb_a987, M1 = 64'hedcb_a987_6543_210f,
+                            M6 = 64'h9876_5432_10fe_dcba, M7 = 64'h8765_4321_0fed_cba9;
+    function automatic logic [3:0] digit(input logic [63:0] t, input logic [3:0] d);
+        digit = t[{d, 2'b00} +: 4];
+    endfunction
+    logic [3:0] d0, d1, n0, n1;
+    logic       gt9, lo, hi, k, c8, bcd_cf;
+    assign d0 = x[3:0];
+    assign d1 = x[7:4];
+    assign gt9 = d0[3] && (d0[2] || d0[1]);
+    assign lo = gt9 || flags_in[AF];
+    assign hi = !exc.bcd_ax && (flags_in[CF] || (d1[3] && (d1[2] || d1[1])) || (d1 == 4'h9 && gt9));
+    // An add's low digit carries when it is above 9; a subtract's borrows
+    // when it is below 6 and takes 6.
+    assign k = exc.bcd_sub ? lo && !d0[3] && !(d0[2] && d0[1]) : gt9;
+    assign n0 = !lo ? d0 : digit(exc.bcd_sub ? M6 : P6, d0);
+    always_comb
+        case ({hi, k})
+            2'b00: n1 = d1;
+            2'b01: n1 = digit(exc.bcd_sub ? M1 : P1, d1);
+            2'b10: n1 = digit(exc.bcd_sub ? M6 : P6, d1);
+            default: n1 = digit(exc.bcd_sub ? M7 : P7, d1);
+        endcase
+    // The byte's carry or borrow, where 60h did not go in: AAA's and AAS's
+    // into AH, DAS's CF.
+    assign c8 = k && (exc.bcd_sub ? d1 == 4'h0 : d1 == 4'hf);
+    assign bcd_cf = hi || (exc.bcd_ax ? lo : c8);
+    // AH plus or less 1 (lo) and the carry or borrow (c8), which needs lo:
+    // a bit flips when every bit below it, or every bit from bit 1, is 1 (0
+    // for AAS).
+    logic [7:0] ah_h, ah_new;
+    logic       ah_1, ah_2;
+    assign ah_h = x[15:8] ^ {8{exc.bcd_sub}};
+    assign ah_1 = lo && !c8;
+    assign ah_2 = c8;
+    always_comb
+        for (int i = 0; i < 8; i++)
+            ah_new[i] = x[8 + i] ^ ((ah_1 && &(ah_h | ~((8'd1 << i) - 8'd1)))
+                                    || (ah_2 && i != 0 && &(ah_h | ~((8'd1 << i) - 8'd2))));
+    logic [15:0] bcd_r;
+    assign bcd_r = {ah_new, exc.bcd_ax ? 4'h0 : n1, n0};
+
     // ---- Result -------------------------------------------------------------------
     // Each lane ORs the sum, the shift and the other results, each gated by
     // its registered lane select, with the old value where the size leaves it.
@@ -229,6 +293,7 @@ module fes_i386_ex (
                    | ({32{exc.r_sign}} & {32{exc.src8 ? y[7] : exc.src16 ? y[15] : y[31]}})
                    | ({32{exc.r_flags}} & {16'b0, flags_in[15:0]})
                    | ({32{exc.r_scan}} & (scan_z ? af : {27'b0, scan_n}))
+                   | ({32{exc.r_bcd}} & {16'b0, bcd_r})
                    | ({32{exc.r_bt}} & r_bt)
                    | ({32{exc.r_btd}} & r_btd);
     assign r_shift = out[32:1];
@@ -293,13 +358,15 @@ module fes_i386_ex (
                 rest[IF] = 1'b0;
                 rest[TF] = 1'b0;
             end
-            if (exc.md_fl) begin
-                rest[CF] = md_flags[CF];
-                rest[PF] = md_flags[PF];
-                rest[AF] = md_flags[AF];
-                rest[ZF] = md_flags[ZF];
-                rest[SF] = md_flags[SF];
-                rest[OF] = md_flags[OF];
+            // The adjusts' flags take the multiply unit's select, which adds
+            // no step to the older flags' chain.
+            if (exc.md_fl || exc.r_bcd) begin
+                rest[CF] = exc.r_bcd ? bcd_cf : md_flags[CF];
+                rest[PF] = exc.r_bcd ? ~^{n1, n0} : md_flags[PF];
+                rest[AF] = exc.r_bcd ? lo : md_flags[AF];
+                rest[ZF] = exc.r_bcd ? {n1, n0} == 8'd0 : md_flags[ZF];
+                rest[SF] = exc.r_bcd ? n1[3] : md_flags[SF];
+                rest[OF] = exc.r_bcd ? (x[7] ^ n1[3]) && (n1[3] ^ exc.bcd_sub) : md_flags[OF];
             end
             // The bit test's and scan's flags come from y and x late, so last.
             if (exc.f_bt) begin
@@ -325,6 +392,8 @@ module fes_i386_ex (
         flags_out[ZF] = arith ? add_zf : rest[ZF];
         flags_out[PF] = arith ? ~^sum[7:0] : rest[PF];
     end
+
+    assign br = exc.ok && exc.bound && (sum[32] ^ p_top);
 
     // ---- Branches ---------------------------------------------------------------
     // LOOP's count reaches zero when it was one, so the decision needs no sum.

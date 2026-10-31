@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import shutil
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -155,7 +156,7 @@ END prompt steps=69772120 cycles=290000013 seconds=2.900
 """
 
 RTL_BOOT_OUTPUT = """PROMPT 100
-RTL retired=42 oracle_steps=0 protected_steps=0 parked_clocks=0 tf_retired=0 vga_loads=0 replays=0 port0_reads=0 port0_writes=0 smc_stores=0 smc_addresses=0 smc_executed=0 smc_restarts=0
+RTL retired=42 oracle_steps=0 protected_steps=0 parked_clocks=0 tf_retired=0 vga_loads=0 replays=0 port0_reads=0 port0_writes=0 smc_stores=0 smc_addresses=0 smc_executed=0
 END prompt steps=42 cycles=100 seconds=0.001
 """
 
@@ -203,19 +204,51 @@ class BootReportTest(unittest.TestCase):
         self.assertEqual(sim.rtl_boot_failures(passed, 'oracle'), [])
 
         cases = (
-            (RTL_BOOT_OUTPUT.replace('retired=42', 'retired=0'), 'no instructions'),
-            (RTL_BOOT_OUTPUT.replace('oracle_steps=0', 'oracle_steps=1'), 'oracle_steps=1'),
+            (RTL_BOOT_OUTPUT.replace('retired=42', 'retired=0'), 'no instructions', None),
+            (RTL_BOOT_OUTPUT.replace('oracle_steps=0', 'oracle_steps=1'), 'oracle_steps=1', None),
+            (RTL_BOOT_OUTPUT.replace('protected_steps=0', 'protected_steps=1'), 'protected_steps=1', None),
             ('STOP stall 50 f000:00000000 00 00\n'
-             'GAP stall 00 1 1 0 f000:00000000 50\n' + RTL_BOOT_OUTPUT, 'stalled'),
+             'GAP stall 00 1 1 0 f000:00000000 50\n' + RTL_BOOT_OUTPUT, 'stall 00', 'unimplemented'),
             ('STOP unimplemented 50 f000:00000000 27 27\n'
-             'GAP unimplemented 27 1 1 0 f000:00000000 50\n' + RTL_BOOT_OUTPUT, 'stopped'),
-            (RTL_BOOT_OUTPUT.replace('PROMPT 100\n', '').replace('END prompt', 'END limit'), 'prompt'),
-            ('PROMPT 100\nEND prompt steps=42 cycles=100 seconds=0.001\n', 'counters'),
+             'GAP unimplemented 27 1 1 0 f000:00000000 50\n' + RTL_BOOT_OUTPUT,
+             'unimplemented 27', 'stall 00'),
+            (RTL_BOOT_OUTPUT.replace('PROMPT 100\n', '').replace('END prompt', 'END limit'), 'prompt', None),
+            ('PROMPT 100\nEND prompt steps=42 cycles=100 seconds=0.001\n', 'counters', None),
         )
-        for output, expected in cases:
+        for output, expected, wrong_classification in cases:
             with self.subTest(expected=expected):
                 failures = sim.rtl_boot_failures(sim.parse_boot(output), 'rtl')
                 self.assertTrue(any(expected in failure for failure in failures), failures)
+                if wrong_classification:
+                    self.assertFalse(any(wrong_classification in failure for failure in failures), failures)
+
+
+@unittest.skipUnless(shutil.which(os.environ.get('CXX', 'c++')), 'requires a C++ compiler')
+class SmcStaleTrackerTest(unittest.TestCase):
+    def test_fetch_timing_and_multiple_writer_attribution(self):
+        with tempfile.TemporaryDirectory(prefix='pc386-smc-stale-') as directory:
+            binary = Path(directory) / 'smc-stale-test'
+            source = sim.COMMON / 'sim/i386/smc_stale_tb.cpp'
+            compiler = shutil.which(os.environ.get('CXX', 'c++'))
+            result = subprocess.run([compiler, '-std=c++17', '-Wall', '-Wextra', '-Werror', str(source), '-o', str(binary)],
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            result = subprocess.run([str(binary)], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+
+@unittest.skipUnless(shutil.which(os.environ.get('CXX', 'c++')), 'requires a C++ compiler')
+class Port0ModelTest(unittest.TestCase):
+    def test_waitrequest_holds_all_sixteen_byte_enable_lanes(self):
+        with tempfile.TemporaryDirectory(prefix='pc386-port0-model-') as directory:
+            binary = Path(directory) / 'pc386-port0-model-test'
+            source = sim.CORE / 'sim/pc386_ddr_model_tb.cpp'
+            compiler = shutil.which(os.environ.get('CXX', 'c++'))
+            result = subprocess.run([compiler, '-std=c++17', '-Wall', '-Wextra', '-Werror', str(source), '-o', str(binary)],
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            result = subprocess.run([str(binary)], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
 
 @unittest.skipUnless(VERILATOR, 'requires Verilator')

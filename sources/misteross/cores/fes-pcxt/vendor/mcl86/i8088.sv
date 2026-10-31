@@ -86,7 +86,6 @@ module i8088
     (
         // System Interface
         input  wire         CORE_CLK,                             // High-speed core clock (4x-8x CPU frequency)
-        input  wire         CORE_CLK_ROM,                         // Same frequency, 180 degrees after CORE_CLK
         input  wire         CLK,                                  // CPU clock (4.77-10 MHz typical)
         input  wire         RESET,                                // Synchronous reset (active high)
         // Bus Control Interface
@@ -123,6 +122,7 @@ module i8088
     // Internal Interface Signals
     //--------------------------------------------------------------------------
     // BIU-EU Command and Control Interface
+    logic        t_eu_biu_strobe;                // One action edge per held EU command
     logic [15:0] t_eu_biu_command;               // EU command to BIU for bus operations
     logic [15:0] t_eu_biu_dataout;               // EU data output for BIU write operations
     logic [15:0] t_eu_register_r3;               // EU register R3 for BIU addressing
@@ -170,6 +170,7 @@ module i8088
         .LOCK_n                              ( lock_n                              ),
         .S6_3_MUX                            ( s6_3_mux                            ),
         .S2_S0_OUT                           ( s2_s0_out                           ),
+        .EU_BIU_STROBE                       ( t_eu_biu_strobe                     ),
         .EU_BIU_COMMAND                      ( t_eu_biu_command                    ),
         .EU_BIU_DATAOUT                      ( t_eu_biu_dataout                    ),
         .EU_REGISTER_R3                      ( t_eu_register_r3                    ),
@@ -212,10 +213,10 @@ module i8088
     mcl86_eu_core u_eu_core
     (
         .CORE_CLK_INT         ( CORE_CLK                                      ),
-        .CORE_CLK_ROM         ( CORE_CLK_ROM                                  ),
         .RESET_INT            ( RESET                                         ),
         .TEST_N_INT           ( 1'b0                                          ), // TEST pin tied low (not used)
         .FAKE286_FLAGS        ( fake286_flags                                 ),
+        .EU_BIU_STROBE        ( t_eu_biu_strobe                               ),
         .EU_BIU_COMMAND       ( t_eu_biu_command                              ),
         .EU_BIU_DATAOUT       ( t_eu_biu_dataout                              ),
         .EU_REGISTER_R3       ( t_eu_register_r3                              ),

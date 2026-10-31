@@ -3,6 +3,7 @@ package tenfoot
 import (
 	"context"
 	"fmt"
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"image"
 	"image/color"
 	"image/png"
@@ -151,7 +152,7 @@ func TestHardwareRoomNativeRender(t *testing.T) {
 				// Async image load is independent of the host read. Give its result
 				// a frame to arrive, while the no-artwork case proves the fallback.
 				if scene != "no-artwork" {
-					deadline := time.Now().Add(time.Second)
+					deadline := time.Now().Add(testwait.Timeout)
 					for len(inst.Images()) == 0 && time.Now().Before(deadline) {
 						time.Sleep(time.Millisecond)
 						app.Tick(time.Now())
@@ -271,6 +272,7 @@ func TestHardwareRoomReturnRefreshesProductionLua(t *testing.T) {
 	waitFor(t, app, "initial idle Start", func(s Snapshot) bool { return hasText(s, "Start machine") && hasText(s, "Next start: Empty socket") })
 	app.mu.Lock()
 	app.applySessionLocked(current)
+	app.rememberPlayingSetupLocked("fes.zx81")
 	app.openPlayingHardwareRoomLocked()
 	app.mu.Unlock()
 	waitFor(t, app, "fresh running Stop", func(s Snapshot) bool { return hasText(s, "Stop machine") && !hasText(s, "Start machine") })

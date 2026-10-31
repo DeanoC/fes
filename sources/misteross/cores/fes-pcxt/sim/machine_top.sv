@@ -1,8 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 module machine_top (
-`ifdef SYNTHESIS
-    input wire clk_rom,
-`endif
     input wire clk, reset,
     input wire code_valid,
     input wire [7:0] code,
@@ -26,9 +23,6 @@ module machine_top (
     output wire dma_owner, refresh_done, bus_locked,
     output wire [47:0] observed_request
 );
-`ifndef SYNTHESIS
-    wire clk_rom = ~clk;
-`endif
 
     wire [1:0] cpu_fault, dma_fault;
     assign fault = cpu_fault | dma_fault;
@@ -39,7 +33,6 @@ module machine_top (
     assign accepted = cycle_valid && cycle_ready;
     assign completed = cycle_done;
     pcxt_cpu cpu (
-        .clk_rom(clk_rom),
         .clk(clk), .reset(reset), .intr(intr), .nmi(1'b0),
         .cycle_valid(cycle_valid), .cycle_ready(cycle_ready),
         .cycle_address(cycle_address), .cycle_wdata(cycle_wdata),

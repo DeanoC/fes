@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
 
@@ -26,7 +27,7 @@ func (c *Client) SendMouseRelativeForSession(ctx context.Context, session Sessio
 
 func sessionHasMouseBinding(session SessionResult) bool {
 	core := session.CorePackage
-	if core == nil || core.ABI != (SessionCoreABI{ID: "fes.computer", Major: 1}) || core.Generation == 0 || len(core.PackageID) != 64 || strings.ToLower(core.PackageID) != core.PackageID {
+	if core == nil || !protocol.ComputerABI(core.ABI.ID, int64(core.ABI.Major), int64(core.ABI.Minor)) || core.Generation == 0 || len(core.PackageID) != 64 || strings.ToLower(core.PackageID) != core.PackageID {
 		return false
 	}
 	if _, err := hex.DecodeString(core.PackageID); err != nil {

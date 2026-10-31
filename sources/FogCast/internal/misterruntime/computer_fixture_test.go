@@ -11,7 +11,7 @@ import (
 // pass the strict protocol-2 decoder, including the v2 slot composition.
 func TestComputerDecoderConsumesRuntimeSerializerFixtures(t *testing.T) {
 	lines := fixtureLines(t, "protocol-v2-computer-responses.jsonl")
-	if len(lines) != 7 {
+	if len(lines) != 8 {
 		t.Fatalf("computer fixture rows=%d", len(lines))
 	}
 	for row, line := range lines {
@@ -21,10 +21,13 @@ func TestComputerDecoderConsumesRuntimeSerializerFixtures(t *testing.T) {
 		}
 		units := response.Capabilities.MediaUnits
 		switch row {
-		case 1, 2, 3, 4:
-			want := map[int]string{1: "empty", 2: "ready", 3: "loading", 4: "empty"}[row]
+		case 1, 2, 3, 4, 7:
+			want := map[int]string{1: "empty", 2: "ready", 3: "loading", 4: "empty", 7: "empty"}[row]
 			if len(units) != 1 || units[0].Unit != 0 || units[0].State != want {
 				t.Fatalf("row %d media units %+v", row, units)
+			}
+			if units[0].CanSave() {
+				t.Fatalf("row %d should explicitly disable live saves", row)
 			}
 		default:
 			if len(units) != 0 {

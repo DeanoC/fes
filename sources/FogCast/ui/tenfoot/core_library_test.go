@@ -3,7 +3,9 @@ package tenfoot
 import (
 	"context"
 	"encoding/json"
+	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"github.com/DeanoC/FogCast/protocol"
 	"io"
 	"net/http"
@@ -12,13 +14,14 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
 
 func waitCoreLibrary(t *testing.T, a *App) {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		a.mu.Lock()
 		busy := a.coreLibrary.Busy
@@ -30,6 +33,65 @@ func waitCoreLibrary(t *testing.T, a *App) {
 	}
 	t.Fatal("library request stalled")
 }
+
+func TestInstalledSetupUsesPlainSystemNameWithoutChangingPackageChoice(t *testing.T) {
+	pkg := strings.Repeat("a", 64)
+	decorated := "FES ZX Spectrum +2A/+3 1.2.3 · " + pkg[:8]
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/library/core-entries":
+			json.NewEncoder(w).Encode(map[string]any{"entries": []any{}})
+		case "/api/v1/core-packages":
+			json.NewEncoder(w).Encode(map[string]any{"packages": []any{}})
+		case "/api/v1/core-packages/" + pkg:
+			json.NewEncoder(w).Encode(map[string]any{"package_id": pkg, "descriptor": map[string]any{
+				"core": map[string]string{"id": "fes.spectrum-plus3", "name": "FES ZX Spectrum +2A/+3"},
+				"abi":  map[string]any{"id": "fes.computer", "major": 1},
+			}})
+		case "/api/v1/core-packages/" + pkg + "/media-capabilities":
+			json.NewEncoder(w).Encode(map[string]any{"package_id": pkg, "media": []any{}})
+		default:
+			t.Errorf("setup renamed or mutated an artifact: %s %s", r.Method, r.URL.Path)
+			http.Error(w, "unexpected", http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
+	ref := hostclient.CoreReference{CoreID: "fes.spectrum-plus3", PackageID: pkg}
+	app.coreLibrary = coreLibraryState{Open: true, Online: true, InstalledSetup: true, FilterCoreID: ref.CoreID,
+		Cores: []hostclient.AvailableCore{{CoreReference: ref, Label: decorated, ArtifactState: "installed"}}}
+	app.mu.Lock()
+	rows := app.coreLibraryRowsLocked()
+	if len(rows) != 3 || !strings.Contains(rows[2].Name, decorated) || app.coreLibrarySnapshotLocked().Title != "ZX Spectrum +3" {
+		t.Fatalf("version selector or model heading lost identity: rows=%+v title=%q", rows, app.coreLibrarySnapshotLocked().Title)
+	}
+	app.coreLibrary.Index = 2
+	app.handleCoreLibraryLocked(CmdSelect)
+	app.mu.Unlock()
+	waitCoreLibrary(t, app)
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	if app.coreLibrary.Setup == nil || app.coreLibrary.Ref.PackageID != pkg || app.coreLibrary.Title != "ZX Spectrum +3" || app.coreLibrarySnapshotLocked().Title != "Set up ZX Spectrum +3" {
+		t.Fatalf("decorated package label became the setup title: %+v", app.coreLibrary)
+	}
+}
+
+func TestCoreLibraryBusyActionReportsThatItWasNotStarted(t *testing.T) {
+	a := NewApp(nil, 1280, 720, 10)
+	var started atomic.Bool
+	a.mu.Lock()
+	a.coreLibrary.Busy = true
+	a.coreLibraryAsyncLocked(func(context.Context) error {
+		started.Store(true)
+		return nil
+	}, func() {})
+	status := a.coreLibrary.Status
+	a.mu.Unlock()
+	if started.Load() || status != "Please wait for the current library action to finish." {
+		t.Fatalf("busy action started=%v status=%q", started.Load(), status)
+	}
+}
+
 func TestCoreLibraryInstallAndOfflineBrowse(t *testing.T) {
 	installed := false
 	offline := false
@@ -230,6 +292,66 @@ func TestCoreLibraryBIOSNeedsExplicitHouseholdSelection(t *testing.T) {
 	}
 }
 
+func TestCoreLibraryInstalledCreationReportsOnlyTheAddedSetup(t *testing.T) {
+	const pkg = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	for _, mediaID := range []string{"", strings.Repeat("b", 64)} {
+		name := "without media"
+		if mediaID != "" {
+			name = "with media"
+		}
+		t.Run(name, func(t *testing.T) {
+			var creates atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/api/v1/library/core-entries":
+					if r.Method == http.MethodGet {
+						json.NewEncoder(w).Encode(map[string]any{"entries": []any{}})
+						return
+					}
+					var entry hostclient.CoreEntry
+					if err := json.NewDecoder(r.Body).Decode(&entry); err != nil {
+						t.Error(err)
+					}
+					if entry.PackageID != pkg || entry.Title != "My setup" || entry.MediaID != mediaID || (entry.MediaRole == "") != (mediaID == "") {
+						t.Errorf("creation lost selections: %+v", entry)
+					}
+					creates.Add(1)
+					entry.GameID, entry.CoreID = "my-setup", "fes.pong"
+					w.WriteHeader(http.StatusCreated)
+					json.NewEncoder(w).Encode(entry)
+				case "/api/v1/core-packages":
+					json.NewEncoder(w).Encode(map[string]any{"packages": []any{}})
+				case "/api/v1/games":
+					json.NewEncoder(w).Encode(map[string]any{"games": []any{}})
+				default:
+					t.Errorf("unexpected setup mutation or launch: %s %s", r.Method, r.URL.Path)
+					http.Error(w, "unexpected", http.StatusNotFound)
+				}
+			}))
+			defer server.Close()
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			a := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
+			a.ctx = ctx
+			ref := hostclient.CoreReference{CoreID: "fes.pong", PackageID: pkg}
+			setup := hostclient.CoreSetup{CoreReference: ref, Descriptor: corepackage.Descriptor{ABI: corepackage.Contract{ID: "fes.simple-game", Major: 1}}}
+			a.coreLibrary = coreLibraryState{Open: true, Online: true, InstalledSetup: true, Ref: &ref, Setup: &setup, Title: "My setup", MediaID: mediaID}
+			if mediaID != "" {
+				a.coreLibrary.MediaRole = "blob"
+			}
+			a.mu.Lock()
+			a.createCoreLibraryGameLocked()
+			a.mu.Unlock()
+			waitCoreLibrary(t, a)
+			a.mu.Lock()
+			defer a.mu.Unlock()
+			if creates.Load() != 1 || a.coreLibrary.Status != "Setup added to the library." {
+				t.Fatalf("misleading creation result: creates=%d status=%q", creates.Load(), a.coreLibrary.Status)
+			}
+		})
+	}
+}
+
 func TestCoreLibraryNavigationOwnsInputAndPointer(t *testing.T) {
 	a := NewApp(nil, 1280, 720, 10)
 	a.coreLibrary = coreLibraryState{Open: true, Online: true, Cores: []hostclient.AvailableCore{{Label: "SMS"}}}
@@ -282,7 +404,7 @@ func TestCoreLibraryPendingRequestAllowsCancel(t *testing.T) {
 	}
 	select {
 	case <-cancelled:
-	case <-time.After(3 * time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("request context not cancelled")
 	}
 }

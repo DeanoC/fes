@@ -278,6 +278,12 @@ func (a *App) handleRoomLocked(cmd Command) {
 			return
 		}
 	}
+	if a.handleBrowseActionsLocked(cmd) {
+		return
+	}
+	if cmd == CmdUp && a.enterBrowseActionsLocked(0) {
+		return
+	}
 	if cmd == CmdSearch || cmd == CmdDetails {
 		a.openRoomDetailsLocked()
 		return
@@ -537,7 +543,7 @@ func (a *App) openRoomDetailsForLocked(game hostclient.Game) {
 	a.carouselIndex = skipFailedCarousel(a.focusDetailLocked().ScreenshotIDs, a.shotFailedLocked, a.carouselIndex)
 }
 
-func (a *App) openNestedRoomLocked(id, initialGameID string) {
+func (a *App) openNestedRoomLocked(id, initialGameID string, initialCoreID ...string) {
 	if a.room == nil {
 		return
 	}
@@ -550,7 +556,7 @@ func (a *App) openNestedRoomLocked(id, initialGameID string) {
 	a.closeRoomOverlaysLocked()
 	a.room = nil
 	a.roomStack = append(a.roomStack, parent)
-	a.openRoomWithSelectionLocked(id, initialGameID)
+	a.openRoomWithSelectionLocked(id, initialGameID, initialCoreID...)
 	if a.room == nil {
 		a.roomStack = a.roomStack[:len(a.roomStack)-1]
 		a.room = parent

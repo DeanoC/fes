@@ -192,10 +192,20 @@ cancellation, physical refresh and two 8088 ISA display boots without a second
 firmware load. `synth_fes_pcxt.py --suite memory --cache-root /absolute/cache`
 emits a diagnostic backend/controller netlist; capture/pads are external and
 its DDR clock primitive remains unmapped.
+The registered `fes.pcxt` recipe exports a format-2 package that starts this
+built-in CGA Direct diagnostic through the standard `fes.computer` identity and
+execution mailbox. It declares fixed 720p60 video only; keyboard and media
+remain unavailable. Quartus is the registered package producer: all three
+seeds must pass the complete reported internal timing inventory and an
+independent seed-1 rebuild must reproduce the RBF. External IO/HPS/reset and
+exact-artifact hardware qualification remain separate. Its forwarded HDMI
+clock is phased 8979 ps after pixel-data updates so the receiver samples while
+pixel data is stable; this fixed-video output is inline and has no
+external video-parts index.
 The `system` and `system-mda` suites assemble CPU, motherboard, real SDRAM,
 DMA/refresh and one Direct/Scanlines pipeline, using the original diagnostic
-firmware copied through a gated boot loader. `make build-fes-pcxt
-CACHE_ROOT=/absolute/cache` attempts one bounded locked HIP board route; add
+firmware copied through a gated boot loader. `python3 scripts/build_fes_pcxt.py
+--cache-root /absolute/cache` attempts one bounded locked HIP board route; add
 `PCXT_BUILD_ARGS='--mda --scanlines'` for MDA Scanlines or `--synth-only` for a
 frontend probe. Separate run directories under `build/diagnostic/fes-pcxt/`
 retain firmware, source/tool receipts and synthesis/route evidence, including

@@ -21,10 +21,13 @@ RULES = [
         'scripts/test_policy.py', 'scripts/parent_tests.py', 'scripts/host_tests.py',
         'scripts/check_deadcode.py', 'scripts/check_diff.py',
         'scripts/check_doc_links.py', 'scripts/coordination.py', 'scripts/de25_runtime.py',
-        'scripts/de25_boot_contract.py',
+        'scripts/de25_boot_contract.py', 'scripts/de25_dma_descriptor.py', 'scripts/de25_kernel_test.py',
         'scripts/hil_plan.py', 'scripts/consistency.py', 'scripts/generate.py',
         'scripts/host_affected.py',
     )],
+    # This driver is exercised only in a private QEMU kernel. No appliance,
+    # image or software bundle installs or enables it.
+    ('image/kernel/de25-dma/**', 'none', None),
     # This separate headless image needs a DE25 serial/SSH boot check. It is
     # never installed as a DE10 kit software bundle or native-integration image.
     ('image/de25-nano/**', 'full', 'de25-nano-linux'),
@@ -48,12 +51,14 @@ RULES = [
     # Standalone DE25-Nano bring-up has no image, bundle or package consumer.
     # Its manual DE25 JTAG smoke check is separate from deployed DE10 kit HIL.
     ('sources/mister-packages/packages/board/de25_nano.yaml', 'none', None),
+    ('sources/mister-packages/packages/fabric/fes_fabric_de25_ddr_probe.yaml', 'none', None),
     ('sources/misteross/boards/de25nano/**', 'none', None),
     # These exact validation/generation tools have no deployed binary consumer.
     # A changed emitted artifact is classified through its actual consumer path.
     ('sources/mister-packages/cmd/mister-packages/main.go', 'none', None),
     ('sources/mister-packages/internal/pack/board.go', 'none', None),
     ('sources/mister-packages/internal/pack/load.go', 'none', None),
+    ('sources/mister-packages/internal/emitc/emitc.go', 'none', None),
     ('sources/mister-packages/**', 'full', 'package-format'),
     ('sources/libmister-runtime/**', 'overlay', 'mister-runtime'),
     ('sources/FogCast/cmd/mister-agent/**', 'overlay', 'mister-agent'),

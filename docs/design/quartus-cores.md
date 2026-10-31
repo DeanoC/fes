@@ -30,6 +30,14 @@ Two reasons:
   be confirmed during setup. Quartus Pro 24.1 or later is the first release
   that supports Agilex 5.
 
+PC/XT now selects a single Quartus diagnostic producer through the normal
+package-preparation path. Its lane-specific recipe omits GPU/nextpnr settings;
+functional records explicitly name Quartus and bind installed tool bytes.
+The complete reported internal timing gate and repeat-RBF check apply, while
+external interface/reset qualification and exact-artifact hardware acceptance
+remain open. This does not implement general dual-variant catalog selection
+or `FES_OSS_ONLY`.
+
 ## What this replaces
 
 Before this design the tree said the opposite in several places. These were

@@ -166,7 +166,7 @@ immediates), LEA, the shifts and rotates, SHLD and SHRD, SETcc, MOVZX and
 MOVSX, CBW/CWDE, CWD/CDQ, SAHF, LAHF, the flag set and clear instructions,
 NOP, HLT, the near JMP, Jcc, LOOP, LOOPE, LOOPNE and JCXZ, MUL, IMUL (all
 three forms), DIV, IDIV, AAM and AAD, BT, BTS, BTR and BTC by an immediate
-or a register, BSF and BSR, the stack operations below, and the
+or a register, BSF and BSR, DAA, DAS, AAA and AAS, the stack operations below, and the
 first uops of the string instructions and ENTER, with a ModRM memory
 operand wherever they take one. A memory operand is a load, a store,
 or both in one uop (read-modify-write), and stands for the register it
@@ -234,6 +234,16 @@ them, so a uop reads one at WB, or waits in D until its writers retire.
 - Far transfers are taken branches, with no prediction yet: each redirects
   from WB.
 
+**CR0, CLTS and WAIT.** CR0's MP and TS are all of CR0 the CPU holds,
+from `init_cr0`, shown in `arch_cr0`. WAIT is a NOP, or raises #NM when MP
+and TS are both set, which DC decodes after every other check, as the
+design's [FPU](../../../../docs/i386-cpu-design.md#fpu) section asks. CLTS
+clears TS at WB as a system uop that jumps to the next instruction, so
+every instruction after it decodes once TS is clear, and no wait in D
+follows it. The jump is not cut to 16 bits: a CLTS that ends at FFFFh
+leaves EIP 10000h, as any other instruction does. Nothing else writes MP
+or TS yet: MOV to CR0, LMSW and the ESC instructions are not built.
+
 **Small forms:**
 - XCHG of registers is three XORs that write no flags, each into the
   register the one before read; EX's arithmetic and logic flag selects
@@ -248,7 +258,12 @@ them, so a uop reads one at WB, or waits in D until its writers retire.
   it. POP m reads the stack's slot into T1 without moving ESP, stores T1 to
   the operand, whose address registers DC kept beside the stack uop's
   (`m_*`), then pops into nothing to step ESP, so a store that faults leaves
-  ESP as the 386EX does. POP m with 32-bit addressing is not built.
+  ESP as the 386EX does. A 32-bit address that reads ESP, as a base or as
+  the 386EX's scaled base of an invalid SIB, reads it after the pop, which
+  has not happened yet. The store waits for T1, so every older uop has
+  retired and ESP is the register file's: D adds the operand size, scaled
+  as ESP is, to the store's displacement (`esp_adj`), less 10000h so scaled
+  (`esp_wrap`) when a 16-bit stack's SP wraps from its top slot to 0.
 
 **Strings and ENTER** run on the string engine, as the design's string
 sequencer describes. While one runs, D keeps copies of the next source and
@@ -365,7 +380,9 @@ design's commit rules ask, and between a REP string's elements.
 every field and routine.
 - **Words.** A word is a `ucode_t`: the uop fields a routine sets. The
   operand size, the vector and the memory operand come from the instruction
-  in `dc`.
+  in `dc`. A word's memory operand is a stack slot, the vector's entry, or
+  the instruction's ModRM operand (`rm`); its registers are GPRs, or the
+  instruction's register (`rg`), which DC's first uop carries in src1.
 - **Issue.** DC decodes a routine's first uop, and `dc.upc` addresses the
   next word. Each later uop is a `SEQ_UCODE` step of the sequencer, so `dc`'s
   input select keeps its three sources.
@@ -396,6 +413,14 @@ every field and routine.
     and jump.
   - IRET reads its three slots, the FLAGS load checking the offset first,
     then jumps, stepping ESP at WB.
+  - BOUND loads its upper bound, past the lower by the operand size and
+    wrapped by address size, into T1, then compares the register with the
+    lower bound, which it loads, and T1 with the register. Each compare
+    raises #BR (vector 5) from EX's adder when its first operand is below
+    its second, signed, at the operand size, and writes no flag. Both
+    bounds load, and check their limits, before either compare, as the
+    386EX does: a bound past the limit raises #GP(0) or #SS(0) whatever
+    the register. A register operand is #UD.
 - **Flags in EX.** PUSHF and POPF are single uops. EX's flag operations give
   FLAGS' image and load the writable real-mode flags in its running copy, as
   INT's and IRET's do.
@@ -500,8 +525,13 @@ when the load is in M2, and the one in WB writes on the edge the port reads.
 **M2** aligns the 8 loaded bytes to the access and takes each byte an older
 store writes from that store: a MOVS element's store in EX first (its loaded
 value, `pipe_t` ld), then the store in WB, then the one that retired on the
-read edge. EX takes the value through its bypass selects, the
-ones a WB result uses, so EX's front stays one LUT level.
+read edge. M1 takes each distance between physical addresses, so a store and
+a load through two aliases of a byte (A20M, the reset alias) meet, and only
+a store's bytes that write RAM are taken (`ram_bytes`, worked out as the
+store is in EX, or in M2 for a MOVS element's): read-only RAM and holes drop
+the store, and a device answers for itself. EX takes the value through its
+bypass selects, the ones a WB result uses, so EX's front stays one LUT
+level.
 
 **EX** (`fes_i386_ex`) takes its selects registered: M2 decodes them from
 the uop (`fes_i386_exctl`), so no opcode compare sits on EX's data paths. M2
@@ -549,6 +579,17 @@ sets ZF and keeps the destination. Their other flags are the 386EX's, which
 `fes_i386_ex` lists, fitted to every SingleStepTests state of the two
 opcodes.
 
+**Decimal and ASCII adjusts.** DAA, DAS, AAA and AAS adjust AL in EX by AF
+and, for DAA and DAS, CF, read from EX's running copy, so D holds them behind
+a shift as flag readers. Each adds 6 to AL, or takes it away, when AL's low
+digit is above 9 or AF is set, and DAA and DAS 60h when AL is above 99h or
+CF is set; AAA and AAS carry into AH and keep AL's low digit. Each digit's
+sum is a table and the compares are spelled out, so the adjust adds no carry
+chain to EX. The flags the manual leaves undefined are the 386EX's:
+SF, ZF and PF of the byte the add or subtract makes, before AAA and AAS clear
+its high digit, and OF its signed overflow, fitted to every SingleStepTests
+state of the four opcodes. Their flags take the multiply unit's select in EX.
+
 **Branches** are predicted not taken. EX resolves them; a taken one redirects
 F1 from WB, where every younger uop is flushed, and clears D's forwarding
 tables. A fault, an unimplemented encoding or HLT stops D issuing after it.
@@ -558,9 +599,10 @@ retires and stops it. A fault is delivered:
   DC. A fault detected before EX changes no flags there, so its delivery
   starts with the earlier EFLAGS. A divide raises #DE in EX after its
   multiply/divide flags reach EX's running copy, so its delivery pushes those
-  flags, as the 386EX does. The cycle after, DC's skid takes the
-  exception's entry (`dc_exc`): a NOP, at length 0, that starts the ROM's
-  `vector` routine with the fault's vector, the one INTO enters.
+  flags, as the 386EX does; BOUND's #BR comes from EX too. The cycle after,
+  DC's skid takes the exception's entry (`dc_exc`): a NOP, at length 0,
+  that starts the ROM's `vector` routine with the fault's vector, the one
+  INTO enters.
 - **The frame.** D's EIP is the faulting instruction's, cut to 16 bits, so
   the routine pushes FLAGS, CS and that IP, and D's CS-limit check passes an
   EIP of 10000h left by an instruction that ends at FFFFh. The front end
@@ -576,9 +618,10 @@ a string element's steps of ESI, EDI and ECX, EFLAGS, EIP and stores, the result
 in its dword and the next (IN's data for INS), and I/O accesses. A real-mode segment load sets the base to selector * 16 and
 keeps the limit and attributes.
 
-**Reset and trace.** `init_*` is the architectural state reset loads; a
-machine ties it to the 386 reset state, and the lockstep harness to a test's
-state. `trace_*` and `arch_*` show each retirement.
+**Reset and trace.** `init_*` is the architectural state reset loads,
+CR0's MP and TS among it; a machine ties it to the 386 reset state, and the
+lockstep harness to a test's state. `trace_*` and `arch_*` show each
+retirement.
 
 ## Memory
 
@@ -643,9 +686,10 @@ a time (`serial`, until its last uop commits or anything else flushes), so
 its uncached loads reach M2 as the oldest. A CMPS element's second load still
 issues right behind its first (`x_prev`). Microcode writes nothing
 architectural before its last uop that can fault, so a restart is safe where
-a fault is; the one exception is ENTER with a nesting level, whose pushes
-come before its frame copies: a copy from MMIO that restarts ENTER repeats
-the pushes before it, with the same values. Loads whose data nothing uses
+a fault is, with two exceptions that repeat what they did with the same
+values: POPA writes each GPR as its load retires, and a restart pops them
+again from the same slots; ENTER with a nesting level pushes before its
+frame copies, and a copy from MMIO that restarts ENTER repeats the pushes. Loads whose data nothing uses
 (`pipe_t` `nodata`: INT's and a far CALL's probes, ENTER's last check, POP
 m's pop into nothing, the multiply and divide unit's LOAD and HI) touch
 nothing, so no device sees a read the instruction does not make.
@@ -678,13 +722,15 @@ unseen; `cold_reset` also empties the buffer.
 
 **Self-modifying code** (`fes_i386_cpu`). Fetch is sequential from the last
 redirect, and every redirect comes from WB, so the instructions after the
-one in WB are one run of lines: from CS.base + EIP (`start_linear`, a cycle
-old) to the block F1 loads next (`fetch_next`), which holds every block F2
+one in WB are one run of lines: from CS.base + EIP (`smc_lo`, a cycle old,
+except that on the cycle after a redirect it is the redirect's line, where F1
+has just loaded) to the block F1 loads next (`fetch_next`), which holds every block F2
 may still read from the L1I before a clear of a line there lands. A store WB
 commits into one of those lines, or a DMA write (the bus interface's
 `inv_valid`), may have changed bytes the front end holds. The CPU then
 restarts an instruction after it, under the coherent profile and for DMA the
-next one: `smc_pend` until the instruction in WB ends, `smc_due` after, and
+next one not begun: `smc_pend` until the instruction in WB ends, `smc_due`
+after, or at once while WB is empty between instructions (`smc_open`), and
 the next instruction's first uop takes `FAULT_REPLAY` as it enters WB, so WB
 flushes it and everything younger and the front end restarts at it through
 `start`, as for an uncached load but without serial issue. EX's running flags go back to EFLAGS, as for an interrupt, since that
@@ -694,21 +740,31 @@ for the store's write-buffer entry, so the instruction runs the new bytes
 decoded. Lines compare by bits 19:5 as two carry
 chains (a subtraction and its borrow), modulo 1 MiB, where linear and
 physical agree under A20M and for the shadow at FFFF0000h: an alias 1 MiB
-away, a line of data next to code, or a run that a backward redirect leaves
-wrapped restarts for nothing. Every input of the check is a register and its
-decision reaches only registers, so the freeze and WB's flush keep their
-depth. Under the `queue16` profile input, sampled at reset, the 16 bytes
+away, or a line of data next to code, restarts for nothing. Every input of
+the check but the L1D's `unc_start` is a register, and its decision reaches
+only registers, so the freeze and WB's flush keep their depth. Under the `queue16` profile input, sampled at reset, the 16 bytes
 after a storing instruction (from `eip_next`) keep what the front end holds.
 A store with no byte past them (`wb_q16`, worked out in EX), which may lie
 behind them, its own encoding among them, where nothing younger is, needs no
 restart. One with a byte past them restarts the first instruction that
-reaches past them (`smc_defer`, with the window's end in `smc_t`), checked as
+reaches past them (`smc_defer`, with the window end plus one in `smc_t`), checked as
 each instruction's first uop enters WB, as a 386 refetches once it runs past
 its queue: a HLT in the window still halts, as the corpus's 386EX does after
 a REP that stores over it. A byte the front end has not fetched yet is read
-new. A DMA write restarts the next instruction under either profile, and an
-uncached load replays rather than read while a restart may come.
-`trace_smc` marks each restart.
+new. A second queue16 store during an active deferral retains the first
+threshold and can refetch one instruction early relative to that later
+store's window; this is conservative for coherence. A DMA write restarts the
+next instruction not begun under either profile. While WB is empty, that is
+the one whose first uop enters WB next,
+if the last uop WB took ended an instruction (`smc_first`) and that one's
+uncached load has not started to read its device (`uc_live`, or the L1D's
+`unc_start` on the cycle it starts, when D to WB are frozen); otherwise the
+one after it. An instruction restarted for self-modifying code is not
+restarted again before it enters WB, so a stream of DMA writes cannot hold
+the CPU: it may run bytes from before a write that lands meanwhile, which
+restarts the one after it. An uncached load replays rather than read while a
+restart may come. `trace_smc` marks each restart, and `trace_smc_open` the
+cycles in which a DMA write would restart the next instruction.
 
 Not built yet: the L2, the TLBs and paging, critical-word-first fills, and
 forwarding from the write buffer to a load that misses (it waits for the

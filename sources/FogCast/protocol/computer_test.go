@@ -35,7 +35,7 @@ func TestDiskMediaProjectionFollowsTheFloppyContract(t *testing.T) {
 			Interfaces: []corepackage.Interface{{ID: "fes.media.blob", Major: 1, Required: true}}},
 		"floppy on simple computer": {ABI: corepackage.Contract{ID: "fes.simple-computer", Major: 1},
 			Interfaces: []corepackage.Interface{{ID: "fes.media.apple2-floppy", Major: 1, Required: true}}},
-		"future abi": {ABI: corepackage.Contract{ID: "fes.computer", Major: 1, Minor: 1},
+		"future abi": {ABI: corepackage.Contract{ID: "fes.computer", Major: 1, Minor: 2},
 			Interfaces: []corepackage.Interface{{ID: "fes.media.apple2-floppy", Major: 1, Required: true}}},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -111,6 +111,123 @@ func TestAtariStFloppyContract(t *testing.T) {
 	}
 }
 
+func TestAtaDiskUnitContractAndPersistentStatus(t *testing.T) {
+	noSave := false
+	unit := MediaUnitStatus{Unit: AtaDiskUnit, Interface: AtaDiskInterface(), MinBytes: uint32(AtaDiskMinBytes),
+		MaxBytes: uint32(AtaDiskMaxBytes), ChunkBytes: AtaDiskChunkBytes, State: MediaUnitEmpty, Saveable: &noSave}
+	if !unit.Valid() {
+		t.Fatal("empty fixed ATA unit refused")
+	}
+	p := &CorePackageStatus{PackageID: strings.Repeat("a", 64), Generation: 3,
+		ABI:              RuntimeContract{ID: "fes.computer", Major: 1, Minor: 1},
+		ActiveInterfaces: []RuntimeInterface{{ID: AtaDiskInterface().ID, Major: AtaDiskInterface().Major}}, MediaUnits: []MediaUnitStatus{unit}}
+	if !ComputerABI("fes.computer", 1, 0) || !ComputerABI("fes.computer", 1, 1) ||
+		ComputerABI("fes.computer", 1, 2) || ComputerABI("fes.computer", 2, 1) || !ComputerAtaDiskABI("fes.computer", 1, 1) ||
+		ComputerAtaDiskABI("fes.computer", 1, 0) || ComputerAtaDiskABI("fes.computer", 2, 1) {
+		t.Fatal("computer ABI support range is incorrect")
+	}
+	if got, ok := MediaUnit(p, AtaDiskUnit); !ok || got.State != MediaUnitEmpty || got.CanSave() ||
+		!PersistentMediaStatusValid(p) || PersistentMediaBound(p) || MediaDataBound(p) {
+		t.Fatalf("empty ATA status = %+v, found=%v", got, ok)
+	}
+	unit.State = MediaUnitReady
+	unit.Persistence = &MediaDataStatus{Mode: "persistent", GameID: "ultima-vi", BaseMediaID: strings.Repeat("c", 64), Revision: "absent"}
+	p.MediaUnits[0] = unit
+	if !unit.Valid() || !PersistentMediaStatusValid(p) || !PersistentMediaBound(p) || MediaDataBound(p) {
+		t.Fatalf("bound ATA status lost its fixed, non-saveable binding: %+v", unit)
+	}
+	legacy := *p
+	legacy.ABI.Minor = 0
+	if PersistentMediaStatusValid(&legacy) || PersistentMediaBound(&legacy) {
+		t.Fatal("ATA binding was accepted under the 1.0 computer ABI")
+	}
+	binding := MediaUnitBinding{PackageID: p.PackageID, Generation: p.Generation}
+	status := Status{State: StateActive, Development: true, CorePackage: p}
+	if binding.Matches(status) || binding.AcceptsSize(status, AtaDiskMinBytes) {
+		t.Fatal("fixed ATA disk entered the removable-media operation path")
+	}
+	for name, change := range map[string]func(*MediaUnitStatus){
+		"saveable omitted":      func(u *MediaUnitStatus) { u.Saveable = nil },
+		"saveable enabled":      func(u *MediaUnitStatus) { yes := true; u.Saveable = &yes },
+		"oversized limit":       func(u *MediaUnitStatus) { u.MaxBytes++ },
+		"short chunks":          func(u *MediaUnitStatus) { u.ChunkBytes = 512 },
+		"wrong unit":            func(u *MediaUnitStatus) { u.Unit = 1 },
+		"wrong interface minor": func(u *MediaUnitStatus) { u.Interface.Minor++ },
+	} {
+		t.Run(name, func(t *testing.T) {
+			bad := unit
+			change(&bad)
+			if bad.Valid() {
+				t.Fatalf("invalid ATA unit accepted: %+v", bad)
+			}
+		})
+	}
+	boundOnEmpty := unit
+	boundOnEmpty.State = MediaUnitEmpty
+	if boundOnEmpty.Valid() {
+		t.Fatal("empty ATA unit retained a durable binding")
+	}
+	readyWithoutBinding := unit
+	readyWithoutBinding.Persistence = nil
+	if readyWithoutBinding.Valid() {
+		t.Fatal("ready ATA disk without a durable binding was accepted")
+	}
+}
+
+func TestPc386MachineRecordAlonePersists(t *testing.T) {
+	machine := RuntimeInterface{ID: Pc386MachineInterface().ID, Major: Pc386MachineInterface().Major}
+	p := &CorePackageStatus{PackageID: strings.Repeat("a", 64), Generation: 3, PersistenceMode: "persistent",
+		ABI: RuntimeContract{ID: "fes.computer", Major: 1, Minor: 1}, ActiveInterfaces: []RuntimeInterface{machine}}
+	if !PersistentMediaStatusValid(p) || PersistentMediaBound(p) {
+		t.Fatal("a pc386 package without a disk was refused its machine record")
+	}
+	// A package with the disk must still report the disk's unit.
+	withDisk := *p
+	withDisk.ActiveInterfaces = []RuntimeInterface{machine, {ID: AtaDiskInterface().ID, Major: AtaDiskInterface().Major}}
+	legacy := *p
+	legacy.ABI.Minor = 0
+	recordless := *p
+	recordless.ActiveInterfaces = nil
+	for name, status := range map[string]*CorePackageStatus{"disk without its unit": &withDisk, "computer 1.0": &legacy, "no record": &recordless} {
+		if PersistentMediaStatusValid(status) {
+			t.Errorf("%s accepted as persistent", name)
+		}
+	}
+}
+
+func TestMediaUnitKeepsV10ContractsOnComputer11(t *testing.T) {
+	floppy := AtariStFloppyInterface()
+	unit := MediaUnitStatus{Unit: AtariStFloppyUnit, Interface: floppy,
+		MinBytes: uint32(AtariStFloppyBytes), MaxBytes: uint32(AtariStFloppyBytes),
+		ChunkBytes: ComputerMediaChunkBytes, State: MediaUnitEmpty}
+	p := &CorePackageStatus{
+		ABI:              RuntimeContract{ID: ComputerABIID, Major: 1, Minor: 1},
+		ActiveInterfaces: []RuntimeInterface{{ID: floppy.ID, Major: floppy.Major, Minor: floppy.Minor}},
+		MediaUnits:       []MediaUnitStatus{unit},
+	}
+	got, ok := MediaUnit(p, AtariStFloppyUnit)
+	if !ok || got.Interface != floppy || got.Unit != AtariStFloppyUnit {
+		t.Fatalf("1.1 package's active 1.0 floppy unit = %+v, found=%v", got, ok)
+	}
+}
+
+func TestComputerInputCapabilitiesIncludeMinorOne(t *testing.T) {
+	p := computerStatus()
+	p.CorePackage.ActiveInterfaces = append(p.CorePackage.ActiveInterfaces,
+		RuntimeInterface{ID: MouseRelativeInterface().ID, Major: MouseRelativeInterface().Major,
+			Minor: MouseRelativeInterface().Minor})
+	for _, minor := range []uint16{0, 1} {
+		p.CorePackage.ABI.Minor = minor
+		if !KeyboardHIDCapable(p.CorePackage) || !MouseRelativeCapable(p.CorePackage) {
+			t.Fatalf("computer ABI minor %d lost keyboard or mouse input", minor)
+		}
+	}
+	p.CorePackage.ABI.Minor = 2
+	if KeyboardHIDCapable(p.CorePackage) || MouseRelativeCapable(p.CorePackage) {
+		t.Fatal("unsupported computer ABI minor received input bindings")
+	}
+}
+
 func TestZx81TapeProjection(t *testing.T) {
 	descriptor := apple2Descriptor(corepackage.Interface{ID: "fes.media.zx81-tape", Major: 1, Required: true})
 	got := DeclaredCoreMediaCapabilities(descriptor)
@@ -130,20 +247,37 @@ func TestZx81TapeProjection(t *testing.T) {
 	if unit.Valid() {
 		t.Fatal("widened ZX81 tape unit accepted")
 	}
-	role, ok := ZX81TapeSelectionRole(got)
+	role, ok := ZX81FamilyTapeSelectionRole(got)
 	if !ok || role != CassetteRole {
 		t.Fatalf("tape-unit role = %q ok=%v", role, ok)
 	}
 	blob := []CoreMediaCapability{{Role: "blob", Format: "raw", Interface: RuntimeContract{ID: "fes.media.blob", Major: 1}}}
-	if role, ok = ZX81TapeSelectionRole(blob); !ok || role != "blob" {
+	if role, ok = ZX81FamilyTapeSelectionRole(blob); !ok || role != "blob" {
 		t.Fatalf("legacy blob role = %q ok=%v", role, ok)
 	}
 	both := append(append([]CoreMediaCapability{}, blob...), got...)
-	if role, ok = ZX81TapeSelectionRole(both); !ok || role != CassetteRole {
+	if role, ok = ZX81FamilyTapeSelectionRole(both); !ok || role != CassetteRole {
 		t.Fatalf("declared tape unit should win, role=%q ok=%v", role, ok)
 	}
-	if _, ok = ZX81TapeSelectionRole(DeclaredCoreMediaCapabilities(apple2Descriptor(corepackage.Interface{ID: "fes.media.spectrum-tape", Major: 2, Required: true}))); ok {
+	if _, ok = ZX81FamilyTapeSelectionRole(DeclaredCoreMediaCapabilities(apple2Descriptor(corepackage.Interface{ID: "fes.media.spectrum-tape", Major: 2, Required: true}))); ok {
 		t.Fatal("spectrum cassette is not a ZX81 .p role")
+	}
+}
+
+func TestZx80TapeProjection(t *testing.T) {
+	descriptor := apple2Descriptor(corepackage.Interface{ID: "fes.media.zx81-tape", Major: 1, Required: true})
+	descriptor.Core.ID = "fes.zx80"
+	got := DeclaredCoreMediaCapabilities(descriptor)
+	encoded, err := json.Marshal(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `[{"role":"cassette","format":"zx80-o","min_bytes":1,"max_bytes":16384,"interface":{"id":"fes.media.zx81-tape","major":1,"minor":0},"transport":"fes-computer-media-unit-v1","unit":0,"extensions":[".o"]}]`
+	if string(encoded) != want || !DeclaresZx81Tape(descriptor) || DeclaresDiskMedia(descriptor) {
+		t.Fatalf("projection %s", encoded)
+	}
+	if role, ok := ZX81FamilyTapeSelectionRole(got); !ok || role != CassetteRole {
+		t.Fatalf("tape-unit role = %q ok=%v", role, ok)
 	}
 }
 

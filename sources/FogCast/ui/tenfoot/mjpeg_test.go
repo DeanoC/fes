@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"github.com/DeanoC/FogCast/ui/shared"
 	"image/color"
 	"io"
@@ -168,7 +169,7 @@ func TestClientOpenSessionPreviewCancelClosesBody(t *testing.T) {
 	}
 	cancel()
 	_ = stream.Close()
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		if live.Load() == 0 {
 			return

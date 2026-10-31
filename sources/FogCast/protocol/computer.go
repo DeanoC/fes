@@ -13,7 +13,7 @@ import (
 	"github.com/DeanoC/FogCast/protocol/internal/generated"
 )
 
-// Home-computer ABI (fes.computer 1.0) contracts. Values come from the
+// Home-computer ABI (fes.computer 1.0 and 1.1) contracts. Values come from the
 // mister-packages emitter; FogCast never infers them from a core ID.
 const (
 	ComputerABIID = generated.FesComputerABIID
@@ -31,7 +31,7 @@ const (
 	Apple2FloppyBytes int64 = int64(generated.FesComputerApple2FloppyBytes)
 	// Apple2FloppyUnit is the media unit fes.media.apple2-floppy occupies.
 	Apple2FloppyUnit uint8 = uint8(generated.FesComputerApple2FloppyUnit)
-	// CassetteRole is the library media role of a Spectrum tape or ZX81 .p image.
+	// CassetteRole is the library media role of a home-computer cassette image.
 	CassetteRole = "cassette"
 	// SpectrumTapeMinBytes is the smallest fes.media.spectrum-tape PZX stream.
 	SpectrumTapeMinBytes int64 = int64(generated.FesComputerSpectrumTapeMinBytes)
@@ -52,9 +52,11 @@ const (
 	// SpectrumDiskImageMaxBytes is the largest .trd or .scl image the host
 	// converts into that raw track image.
 	SpectrumDiskImageMaxBytes int64 = spectrumdisks.MaxInputBytes
-	// Zx81TapeMinBytes is the smallest fes.media.zx81-tape image.
+	// Zx81TapeMinBytes is the smallest fes.media.zx81-tape image, including
+	// ZX81 .p and ZX80 .o files.
 	Zx81TapeMinBytes int64 = int64(generated.FesComputerZx81TapeMinBytes)
-	// Zx81TapeMaxBytes is the largest fes.media.zx81-tape image.
+	// Zx81TapeMaxBytes is the largest fes.media.zx81-tape image, including
+	// ZX81 .p and ZX80 .o files.
 	Zx81TapeMaxBytes int64 = int64(generated.FesComputerZx81TapeMaxBytes)
 	// Zx81TapeUnit is the media unit fes.media.zx81-tape occupies.
 	Zx81TapeUnit uint8 = uint8(generated.FesComputerZx81TapeUnit)
@@ -215,9 +217,15 @@ func AdmitAtariStFloppySize(size int64) bool {
 	return ok
 }
 
-// ComputerABI reports the exact fes.computer 1.0 contract.
+// ComputerABI reports a fes.computer contract FogCast speaks: 1.0, or 1.1,
+// which adds identity word 16 and the pc386 interfaces on bits 16..19.
 func ComputerABI(id string, major, minor int64) bool {
-	return id == ComputerABIID && major == int64(generated.FesComputerABIMajor) && minor == int64(generated.FesComputerABIMinor)
+	return id == ComputerABIID && major == int64(generated.FesComputerABIMajor) && minor >= 0 && minor <= int64(generated.FesComputerABIMinor)
+}
+
+// ComputerAtaDiskABI reports a supported fes.computer minor that includes ATA disks.
+func ComputerAtaDiskABI(id string, major, minor int64) bool {
+	return ComputerABI(id, major, minor) && minor >= 1
 }
 
 func activeComputer(p *CorePackageStatus) bool {
@@ -244,15 +252,15 @@ func MouseRelativeCapable(p *CorePackageStatus) bool {
 	return activeComputer(p) && activeInterface(p, MouseRelativeInterface())
 }
 
-// KeyboardHIDCapable reports an active fes.computer 1.0 generation that
+// KeyboardHIDCapable reports an active supported fes.computer generation that
 // negotiated fes.keyboard.hid 1.0. Such sessions forward physical key state as
 // USB HID usages; the core owns every character mapping.
 func KeyboardHIDCapable(p *CorePackageStatus) bool {
 	return activeComputer(p) && activeInterface(p, KeyboardHIDInterface())
 }
 
-// MediaUnitStatus is one runtime-reported removable-media drive. The runtime
-// reads it from live MediaInfo while a fes.computer generation is active.
+// MediaUnitStatus is one runtime-reported media unit. The runtime reads its
+// live state while a fes.computer generation is active.
 type MediaUnitStatus struct {
 	Unit        uint8            `json:"unit"`
 	Interface   RuntimeContract  `json:"interface"`
@@ -260,17 +268,45 @@ type MediaUnitStatus struct {
 	MaxBytes    uint32           `json:"max_bytes"`
 	ChunkBytes  uint32           `json:"chunk_bytes"`
 	State       string           `json:"state"`
+	Saveable    *bool            `json:"saveable,omitempty"`
 	Persistence *MediaDataStatus `json:"persistence,omitempty"`
 }
+
+// CanSave reports whether this unit supports an explicit in-session save.
+// Older status responses omit the field and retain their existing behavior.
+func (u MediaUnitStatus) CanSave() bool { return u.Saveable == nil || *u.Saveable }
 
 // Valid checks the unit against the ABI and, for known media interfaces, the
 // exact unit and size the interface defines.
 func (u MediaUnitStatus) Valid() bool {
-	if u.Persistence != nil && (u.Interface != AtariStFloppyInterface() || u.Unit != AtariStFloppyUnit || u.State != MediaUnitReady || !u.Persistence.Valid()) {
+	if u.Interface == AtaDiskInterface() && u.CanSave() {
 		return false
 	}
+	if u.Persistence != nil {
+		if u.Unit >= uint8(generated.FesComputerMediaUnitCount) || u.State != MediaUnitReady || !u.Persistence.Valid() {
+			return false
+		}
+		switch u.Interface {
+		case AtariStFloppyInterface():
+			if u.Unit != AtariStFloppyUnit {
+				return false
+			}
+		case AtaDiskInterface():
+			if u.Unit != AtaDiskUnit || u.CanSave() {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+	maxBytes := MaxComputerMediaBytes
+	chunkBytes := ComputerMediaChunkBytes
+	if u.Interface.ID == AtaDiskInterface().ID {
+		maxBytes = AtaDiskMaxBytes
+		chunkBytes = AtaDiskChunkBytes
+	}
 	if u.Unit >= uint8(generated.FesComputerMediaUnitCount) || u.MinBytes < generated.FesComputerMediaMinBytes ||
-		u.MinBytes > u.MaxBytes || int64(u.MaxBytes) > MaxComputerMediaBytes || u.ChunkBytes != ComputerMediaChunkBytes ||
+		u.MinBytes > u.MaxBytes || int64(u.MaxBytes) > maxBytes || u.ChunkBytes != chunkBytes ||
 		u.Interface.ID == "" || u.Interface.Major == 0 {
 		return false
 	}
@@ -290,6 +326,12 @@ func (u MediaUnitStatus) Valid() bool {
 		return u.Interface == AtariStFloppyInterface() && u.Unit == AtariStFloppyUnit &&
 			((int64(u.MinBytes) == AtariStFloppyBytes && int64(u.MaxBytes) == AtariStFloppyBytes) ||
 				(int64(u.MinBytes) == AtariStFloppyGeometryMinBytes && int64(u.MaxBytes) == AtariStFloppyGeometryMaxBytes))
+	case AtaDiskInterface().ID:
+		return u.Interface == AtaDiskInterface() && u.Unit == AtaDiskUnit &&
+			int64(u.MinBytes) == AtaDiskMinBytes && int64(u.MaxBytes) == AtaDiskMaxBytes &&
+			u.ChunkBytes == AtaDiskChunkBytes &&
+			((u.State == MediaUnitReady && u.Persistence != nil) ||
+				(u.Persistence == nil && (u.State == MediaUnitEmpty || u.State == MediaUnitLoading)))
 	}
 	if u.Interface.ID == SpectrumTapeInterface().ID {
 		return u.Interface == SpectrumTapeInterface() && u.Unit == SpectrumTapeUnit &&
@@ -314,6 +356,9 @@ func MediaUnit(p *CorePackageStatus, unit uint8) (MediaUnitStatus, bool) {
 	}
 	for _, u := range p.MediaUnits {
 		if u.Unit == unit && u.Valid() && activeInterface(p, u.Interface) {
+			if u.Interface == AtaDiskInterface() && !ComputerAtaDiskABI(p.ABI.ID, int64(p.ABI.Major), int64(p.ABI.Minor)) {
+				continue
+			}
 			if u.Interface == AtariStFloppyInterface() && int64(u.MaxBytes) != AtariStFloppyBytes && !AtariStFloppyGeometryCapable(p) {
 				continue
 			}
@@ -323,12 +368,20 @@ func MediaUnit(p *CorePackageStatus, unit uint8) (MediaUnitStatus, bool) {
 	return MediaUnitStatus{}, false
 }
 
-// declaredComputerMedia projects known media interfaces of an exact
-// fes.computer 1.0 descriptor.
+// declaredComputerMedia projects known media interfaces of a fes.computer
+// descriptor. The shared ZX81 tape unit has machine-specific source images:
+// ZX80 packages use raw .o images, while the ZX81 and Timex packages use .p
+// images.
 func declaredComputerMedia(descriptor corepackage.Descriptor) []CoreMediaCapability {
 	result := make([]CoreMediaCapability, 0)
 	if !ComputerABI(descriptor.ABI.ID, descriptor.ABI.Major, descriptor.ABI.Minor) {
 		return result
+	}
+	if DeclaresAtaDisk(descriptor) {
+		unit := AtaDiskUnit
+		result = append(result, CoreMediaCapability{Role: HardDiskRole, Format: "ata-disk-raw",
+			MinBytes: AtaDiskMinBytes, MaxBytes: AtaDiskMaxBytes, Interface: AtaDiskInterface(),
+			Transport: AtaDiskTransport, Unit: &unit, Extensions: []string{".img"}})
 	}
 	floppy := Apple2FloppyInterface()
 	tape := SpectrumTapeInterface()
@@ -388,9 +441,13 @@ func declaredComputerMedia(descriptor corepackage.Descriptor) []CoreMediaCapabil
 		zx81 := Zx81TapeInterface()
 		if contract.ID == zx81.ID && contract.Major == int64(zx81.Major) && contract.Minor == int64(zx81.Minor) {
 			unit := Zx81TapeUnit
-			result = append(result, CoreMediaCapability{Role: CassetteRole, Format: "zx81-p",
+			format, extensions := "zx81-p", []string{".p"}
+			if descriptor.Core.ID == "fes.zx80" {
+				format, extensions = "zx80-o", []string{".o"}
+			}
+			result = append(result, CoreMediaCapability{Role: CassetteRole, Format: format,
 				MinBytes: Zx81TapeMinBytes, MaxBytes: Zx81TapeMaxBytes, Interface: zx81,
-				Transport: ComputerMediaTransport, Unit: &unit, Extensions: []string{".p"}})
+				Transport: ComputerMediaTransport, Unit: &unit, Extensions: extensions})
 		}
 	}
 	return result
@@ -426,24 +483,26 @@ func DeclaresSpectrumTape(descriptor corepackage.Descriptor) bool {
 	return false
 }
 
-// DeclaresZx81Tape reports whether the descriptor has the ZX81 .p unit.
+// DeclaresZx81Tape reports whether the descriptor declares the
+// fes.media.zx81-tape unit.
 func DeclaresZx81Tape(descriptor corepackage.Descriptor) bool {
 	for _, capability := range declaredComputerMedia(descriptor) {
-		if capability.Format == "zx81-p" {
+		if capability.Format == "zx81-p" || capability.Format == "zx80-o" {
 			return true
 		}
 	}
 	return false
 }
 
-// ZX81TapeSelectionRole is the library role for a .p file on this package.
-// A declared fes.media.zx81-tape unit uses cassette. A legacy fes.media.blob
-// declaration uses blob. The tape unit wins when a package declares both.
-func ZX81TapeSelectionRole(media []CoreMediaCapability) (string, bool) {
+// ZX81FamilyTapeSelectionRole is the library role for a ZX81-family cassette
+// image. A declared fes.media.zx81-tape unit uses cassette. A legacy
+// fes.media.blob declaration uses blob. The tape unit wins when a package
+// declares both.
+func ZX81FamilyTapeSelectionRole(media []CoreMediaCapability) (string, bool) {
 	blob := RuntimeContract{ID: "fes.media.blob", Major: 1}
 	legacy := false
 	for _, cap := range media {
-		if cap.Role == CassetteRole && cap.Format == "zx81-p" && cap.Interface == Zx81TapeInterface() {
+		if cap.Role == CassetteRole && (cap.Format == "zx81-p" || cap.Format == "zx80-o") && cap.Interface == Zx81TapeInterface() {
 			return CassetteRole, true
 		}
 		if cap.Role == "blob" && cap.Interface == blob {
@@ -571,8 +630,9 @@ func (b MediaUnitBinding) Matches(s Status) bool {
 		s.CorePackage == nil || s.CorePackage.PackageID != b.PackageID || s.CorePackage.Generation != b.Generation {
 		return false
 	}
-	_, ok := MediaUnit(s.CorePackage, b.Unit)
-	return ok
+	// The fixed hard disk takes no live insert, eject or save; Stop saves it.
+	unit, ok := MediaUnit(s.CorePackage, b.Unit)
+	return ok && unit.Interface != AtaDiskInterface()
 }
 
 // AcceptsSize checks the exact byte count against the observed unit limits.

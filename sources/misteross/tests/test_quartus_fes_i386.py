@@ -46,6 +46,16 @@ class NamesTest(unittest.TestCase):
         self.assertEqual(oracle.node_label(ram, STAGES, names), 'F1')
         self.assertEqual(oracle.node_label('stimulus.lfsr[3]', STAGES, names), 'envelope')
 
+    def test_smc_state_registers_are_labeled_as_wb(self):
+        names = ('smc_defer', 'smc_chk', 'smc_first', 'uc_live', 'smc_lo', 'smc_t', 'wb_next_lin')
+        module = {'netnames': {}, 'cells': {}}
+        for bit, name in enumerate(names):
+            module['netnames'][f'dut.{name}'] = {'hide_name': 0, 'bits': [bit]}
+            module['cells'][f'dut.{name}_MISTRAL_FF'] = {
+                'type': 'MISTRAL_FF', 'connections': {'Q': [bit]}}
+        labels = benchmark.register_labels({'modules': {'top': module}}, 'top', STAGES)
+        self.assertEqual(set(labels.values()), {'WB'})
+
 
 class ParseTest(unittest.TestCase):
     def test_worst_path_per_stage_and_critical_points(self):

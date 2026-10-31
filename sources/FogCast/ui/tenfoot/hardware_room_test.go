@@ -1,8 +1,10 @@
 package tenfoot
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -221,6 +223,42 @@ function draw() gfx.clear("#101820") gfx.text("Coleco title selector", 20, 20, {
 	}
 }
 
+func TestColecoSelectorSkipsPlayingSetupPackageResolution(t *testing.T) {
+	var packageReads atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/v1/core-packages/") {
+			packageReads.Add(1)
+		}
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(server.Close)
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 20)
+	t.Cleanup(app.Stop)
+	app.SetRooms(rooms.NewIndex([]rooms.Pack{
+		testRoomPack(t, colecoArcadeRoomID, "function load() end\nfunction draw() end"),
+	}), "")
+	app.mu.Lock()
+	app.session = hostclient.SessionResult{
+		ID: "coleco-session", System: string(catalog.CorePlatform), State: "active",
+		CorePackage: &hostclient.SessionCorePackage{
+			PackageID: strings.Repeat("a", 64), CoreID: colecoCoreID,
+		},
+	}
+	app.openPlayingHardwareRoomLocked()
+	if app.room == nil || app.room.ID() != colecoArcadeRoomID {
+		app.mu.Unlock()
+		t.Fatalf("Coleco session opened room %v", app.room)
+	}
+	if app.playingSetupPending || app.playingSetupRequest != 0 {
+		app.mu.Unlock()
+		t.Fatal("Coleco selector started a playing-setup package lookup")
+	}
+	app.mu.Unlock()
+	if packageReads.Load() != 0 {
+		t.Fatalf("Coleco selector read %d running-package descriptors", packageReads.Load())
+	}
+}
+
 func TestColecoHomeReportsUnavailableSelector(t *testing.T) {
 	app := NewApp(nil, 1280, 720, 20)
 	t.Cleanup(app.Stop)
@@ -331,8 +369,8 @@ func TestColecoSelectorShowsStopGuidanceAndCannotLaunchWhileRunning(t *testing.T
 	if !strings.Contains(snap.HeaderHint(), "Stop") {
 		t.Fatalf("active-session selector hint omits Stop guidance: %q", snap.HeaderHint())
 	}
-	if got := renderRoomLabelSource(t, snap, "room-status"); !strings.Contains(got, "kit not ready") || !strings.Contains(got, "lease held") {
-		t.Fatalf("running status line = %q, want health and lease details before any refusal", got)
+	if got := renderRoomLabelSource(t, snap, "room-status"); got != "" {
+		t.Fatalf("running room footer exposed routine health and lease detail: %q", got)
 	}
 	statusY, hintY := roomChromeFooterRows(snap.Grid)
 	if hintY-statusY < gfx.TextHeight(14)+4 {
@@ -835,9 +873,12 @@ func TestParkedTapePickerIsPaintedAndPointerAccessible(t *testing.T) {
 	rec := gfx.NewRecorder()
 	labels := map[string]gpuTexture{}
 	presentFrame(rec, snap, map[string]gpuTexture{}, labels, false)
+	expected, _, _ := gfx.UIText(snap.TapePicker.Title, 28, gfx.WeightBold, panel.W-32)
 	painted := false
-	for key := range labels {
-		painted = painted || strings.HasPrefix(key, "tape-title\x1f")
+	for _, call := range rec.Calls {
+		if call.Op == "DrawMask" && expected != nil && call.Mask != nil && call.Mask.W == expected.W && call.Mask.H == expected.H && bytes.Equal(call.Mask.Pix, expected.Pix) {
+			painted = true
+		}
 	}
 	if !painted {
 		t.Fatal("parked tape controls not painted")
@@ -873,7 +914,9 @@ func TestHardwareRoomEntryReleasesHeldKeysBeforeMenu(t *testing.T) {
 	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
 	app.SetRooms(rooms.NewIndex([]rooms.Pack{testRoomPack(t, hardwareRoomID, liveHardwareTestScript)}), "")
 	app.mu.Lock()
-	app.session = hostclient.SessionResult{State: "active", CoreKeyboardHID: true, Input: &hostclient.SessionInput{State: "attached", Ready: true}}
+	app.games = []hostclient.Game{{ID: "zx81-game", CoreID: "fes.zx81"}}
+	app.session = hostclient.SessionResult{GameID: "zx81-game", State: "active", CoreKeyboardHID: true, Input: &hostclient.SessionInput{State: "attached", Ready: true}}
+	app.rememberPlayingSetupLocked("fes.zx81")
 	app.syncGPUParkLocked()
 	app.mu.Unlock()
 	if !app.HandlePlayHIDScancode("a", 0x04, true, time.Now()) {
@@ -935,7 +978,7 @@ func TestHardwareRoomQueuedInputDoesNotReachReplacementSession(t *testing.T) {
 	app.SendPlayHID(remoteinput.Event{Code: remoteinput.KeyA, Action: remoteinput.ActionPress})
 	select {
 	case <-first:
-	case <-time.After(time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("first key not sent")
 	}
 	app.SendPlayHID(remoteinput.Event{Code: remoteinput.KeyLeft, Action: remoteinput.ActionPress})
@@ -951,7 +994,7 @@ func TestHardwareRoomQueuedInputDoesNotReachReplacementSession(t *testing.T) {
 	app.mu.Unlock()
 	select {
 	case <-tail:
-	case <-time.After(time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("input queue did not drain")
 	}
 	mu.Lock()

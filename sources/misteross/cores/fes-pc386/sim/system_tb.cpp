@@ -56,6 +56,12 @@ struct Port0Signals {
     CData &ddr_readdatavalid;
 };
 
+// The window as pc386::Port0 reads and writes it: every offset is memory.
+struct Port0Memory {
+    pc386::Window &window;
+    uint8_t *at(uint32_t offset, bool) { return window.at(offset); }
+};
+
 pc386::PortSignals port1(Vpc386_system &top) {
     return {&top.p1_address, &top.p1_burstcount, &top.p1_read, &top.p1_write, &top.p1_writedata,
             &top.p1_byteenable, &top.p1_waitrequest, &top.p1_readdata, &top.p1_readdatavalid};
@@ -74,7 +80,7 @@ std::vector<uint8_t> read_file(const std::string &path) {
 class Bench {
 public:
     Bench(std::vector<uint8_t> image, uint32_t clock_hz, double limit_seconds, std::string prompt, uint64_t seed)
-        : ddr0{window, 0x5eed0020 ^ seed, "port 0"}, ddr1{window, 0x5eed0021 ^ seed, "port 1"},
+        : ddr0{port0_memory, 0x5eed0020 ^ seed, "port 0"}, ddr1{window, 0x5eed0021 ^ seed, "port 1"},
           ddr2{window, 0x5eed0022 ^ seed, "port 2"}, image(std::move(image)), clock_hz(clock_hz),
           prompt(std::move(prompt)) {
         if (this->image.size() % 512 || this->image.size() > (128u << 20)) throw std::runtime_error("bad disk image size");
@@ -104,9 +110,10 @@ public:
 private:
     Vpc386_system top;
     pc386::Window window;
+    Port0Memory port0_memory{window};
     Port0Signals p0{top.p0_address, top.p0_burstcount, top.p0_read, top.p0_write, top.p0_writedata,
                     top.p0_byteenable, top.p0_waitrequest, top.p0_readdata, top.p0_readdatavalid};
-    pc386::Port0<pc386::Window> ddr0;
+    pc386::Port0<Port0Memory> ddr0;
     pc386::Port ddr1;
     pc386::Port ddr2;
     std::vector<uint8_t> image;

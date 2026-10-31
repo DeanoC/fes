@@ -3,6 +3,7 @@ package tenfoot
 import (
 	"context"
 	"fmt"
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"image"
 	"image/png"
 	"io"
@@ -81,6 +82,9 @@ func libraryRenderApp(t *testing.T, w, h int, withArt bool) *App {
 
 func writeLibraryScreenshot(t *testing.T, app *App, name string) Snapshot {
 	t.Helper()
+	app.mu.Lock()
+	app.setSafeAreaPctLocked(DefaultSafeAreaPct, false)
+	app.mu.Unlock()
 	snap := app.Snapshot()
 	dev, err := gfx.NewSoftware(snap.Grid.Width, snap.Grid.Height)
 	if err != nil {
@@ -117,6 +121,28 @@ func TestLibraryNativeRender(t *testing.T) {
 	t.Run("grid", func(t *testing.T) {
 		writeLibraryScreenshot(t, libraryRenderApp(t, 1280, 720, true), "grid")
 	})
+	t.Run("grid-1024", func(t *testing.T) {
+		writeLibraryScreenshot(t, libraryRenderApp(t, 1024, 600, true), "grid")
+	})
+	for _, size := range [][2]int{{1280, 720}, {1024, 600}} {
+		t.Run(fmt.Sprintf("action-details-%d", size[0]), func(t *testing.T) {
+			app := libraryRenderApp(t, size[0], size[1], true)
+			app.mu.Lock()
+			if !app.enterBrowseActionsLocked(1) {
+				t.Fatal("Details action is unavailable")
+			}
+			app.mu.Unlock()
+			writeLibraryScreenshot(t, app, "action-details")
+		})
+	}
+	for _, mode := range []LayoutKind{LayoutShelf, LayoutList} {
+		t.Run(mode.String(), func(t *testing.T) {
+			app := libraryRenderApp(t, 1280, 720, true)
+			app.grid.Mode = mode
+			app.grid.Layout(1280, 720)
+			writeLibraryScreenshot(t, app, mode.String())
+		})
+	}
 	t.Run("blocked", func(t *testing.T) {
 		app := libraryRenderApp(t, 1280, 720, true)
 		app.HandleCommand(CmdRight, now)
@@ -149,15 +175,57 @@ func TestLibraryNativeRender(t *testing.T) {
 	})
 }
 
+func TestRoomDetailsKeepsLongSummaryAndCuratorNoteInsidePane(t *testing.T) {
+	for _, size := range [][2]int{{1024, 600}, {1280, 720}} {
+		t.Run(fmt.Sprintf("%dx%d", size[0], size[1]), func(t *testing.T) {
+			snap := libraryRenderApp(t, size[0], size[1], false).Snapshot()
+			snap.Grid.Safe = insetsFromPct(size[0], size[1], DefaultSafeAreaPct)
+			snap.Grid.Layout(size[0], size[1])
+			snap.Detail.Open, snap.Detail.Count = true, 1
+			snap.FocusDetail.Title = "A long selected title with a special anniversary edition and additional adventures"
+			snap.FocusDetail.Summary = strings.Repeat("A detailed history of this game and its many different adventures. ", 18)
+			snap.DetailPlay = rooms.Destination{Kind: rooms.KindGame, Availability: rooms.AvailUnavailable, Status: "Choose the required firmware before starting this title on the selected machine."}
+			snap.Room = RoomSnapshot{Open: true, Width: snap.Grid.contentWidth(), Height: snap.Grid.contentHeight(),
+				OffsetX: snap.Grid.contentLeft(), OffsetY: snap.Grid.contentTop(), Frame: rooms.Frame{HasClear: true, Clear: heroBackground},
+				Destination: rooms.Destination{History: rooms.History{Played: true, Completed: true}, NoteBy: "The room curator", Note: strings.Repeat("Look for the hidden route and explore the bonus stages. ", 8)}}
+			geom, ok := detailGeomOf(snap)
+			if !ok || geom.Carousel.W == 0 {
+				t.Fatal("fixture needs the narrow Details text column")
+			}
+			rec := gfx.NewRecorder()
+			labels := map[string]gpuTexture{}
+			drawDetail(rec, snap, labels, map[string]struct{}{}, map[string]gpuTexture{})
+			attribution, note := false, false
+			for key := range labels {
+				attribution = attribution || strings.HasPrefix(key, "d-note-attr\x1f")
+				note = note || strings.HasPrefix(key, "d-note-0\x1f")
+			}
+			if !attribution || !note {
+				t.Fatal("long general summary displaced the curator attribution or note")
+			}
+			for _, call := range rec.Calls {
+				if call.Op != "DrawMask" {
+					continue
+				}
+				if call.X < geom.Pane.X || call.Y < geom.Pane.Y || call.X+call.MaskSrc.Dx() > geom.Pane.X+geom.Pane.W || call.Y+call.MaskSrc.Dy() > geom.Pane.Y+geom.Pane.H {
+					t.Fatalf("Details text escapes its pane/safe area: x=%d y=%d mask=%v pane=%+v", call.X, call.Y, call.MaskSrc, geom.Pane)
+				}
+			}
+			writeHomeScreenshot(t, snap, "curator-notes")
+		})
+	}
+}
+
 func TestLibraryBackReturnsToTheSameHomeAndSelection(t *testing.T) {
 	app := startHomeLounge(t, &fakeLocalCores{cores: homeFixtureCores()}, 1280, 720)
-	waitFor(t, app, "pong", func(s Snapshot) bool { return s.Room.Destination.Label == "FES Pong" })
+	waitFor(t, app, "pong", func(s Snapshot) bool { return s.Room.Destination.Label == "Pong" })
 	app.HandleCommand(CmdRight, time.Now())
-	waitFor(t, app, "zx81", func(s Snapshot) bool { return s.Room.Destination.Label == "Zx81" })
+	waitFor(t, app, "zx81", func(s Snapshot) bool { return s.Room.Destination.Label == "Sinclair ZX81" })
 	app.mu.Lock()
 	home := app.room
 	app.mu.Unlock()
-	app.HandleCommand(CmdUp, time.Now())
+	app.HandleCommand(CmdUp, time.Now()) // Hero actions above the shelf.
+	app.HandleCommand(CmdUp, time.Now()) // Header routes above the actions.
 	waitFor(t, app, "library route", func(s Snapshot) bool { return s.Room.Destination.Label == "Library" })
 	app.HandleCommand(CmdSelect, time.Now())
 	snap := app.Snapshot()
@@ -173,18 +241,19 @@ func TestLibraryBackReturnsToTheSameHomeAndSelection(t *testing.T) {
 		t.Fatalf("Back did not resume the same Home instance (same=%v backTo=%q)", same, snap.LibraryBackTo)
 	}
 	app.HandleCommand(CmdDown, time.Now())
-	if got := waitFor(t, app, "shelf", func(s Snapshot) bool { return s.Room.Destination.Kind == "core" }); got.Room.Destination.Label != "Zx81" {
+	if got := waitFor(t, app, "shelf", func(s Snapshot) bool { return s.Room.Destination.Kind == "core" }); got.Room.Destination.Label != "Sinclair ZX81" {
 		t.Fatalf("Home lost its selection: %+v", got.Room.Destination)
 	}
 }
 
 func TestLibraryHomeKeyReclaimsTheSuspendedHome(t *testing.T) {
 	app := startHomeLounge(t, &fakeLocalCores{cores: homeFixtureCores()}, 1280, 720)
-	waitFor(t, app, "pong", func(s Snapshot) bool { return s.Room.Destination.Label == "FES Pong" })
+	waitFor(t, app, "pong", func(s Snapshot) bool { return s.Room.Destination.Label == "Pong" })
 	app.mu.Lock()
 	home := app.room
 	app.mu.Unlock()
-	app.HandleCommand(CmdUp, time.Now())
+	app.HandleCommand(CmdUp, time.Now()) // Hero actions above the shelf.
+	app.HandleCommand(CmdUp, time.Now()) // Header routes above the actions.
 	app.HandleCommand(CmdSelect, time.Now())
 	if app.Snapshot().Room.Open {
 		t.Fatal("Library did not open")
@@ -319,7 +388,7 @@ func TestBlockedLibraryConfirmDoesNotFailTheResumedHome(t *testing.T) {
 		app := libraryHomeApp(t, true)
 		block(app)
 		app.mu.Lock()
-		ready := availableGame("pong", "FES Pong", "pong")
+		ready := availableGame("pong", "Pong", "pong")
 		app.games = []hostclient.Game{ready}
 		app.grid.SetCount(1)
 		app.grid.Focus = 0
@@ -385,7 +454,7 @@ func TestDetailsClassifyTheChosenEditionAndPairedLease(t *testing.T) {
 	if c := detailReadiness(d); c.Headline != "Browse only" {
 		t.Fatalf("edition Details described the room destination: %+v", c)
 	}
-	if leased.Availability != rooms.AvailUnavailable || !leased.LeaseHeld || libraryDetailHint(InputGamepad, 0, leased) != "B back  GUIDE settings" {
+	if leased.Availability != rooms.AvailUnavailable || !leased.LeaseHeld || libraryDetailHint(InputGamepad, 0, leased) != "B back  Y search  GUIDE settings" {
 		t.Fatalf("paired foreign lease left a host-only title Ready: %+v", leased)
 	}
 }
@@ -506,7 +575,7 @@ func TestRecentDetailFavoriteAndClickStayOnThatTitle(t *testing.T) {
 	app.detailOpen = true
 
 	app.HandleCommand(CmdFavorite, time.Now())
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for {
 		snap := app.Snapshot()
 		app.mu.Lock()
@@ -605,7 +674,7 @@ func TestUnknownKitStatusNamesTheHeadline(t *testing.T) {
 	if d.Status != machineStatusUnknown || c.Headline != machineStatusUnknown || c.Headline == "Can't play here" || !strings.Contains(c.Explain, "Wait for the kit") {
 		t.Fatalf("unknown headline dest=%+v readiness=%+v", d, c)
 	}
-	if libraryDetailHint(InputGamepad, 0, d) != "B back  GUIDE settings" {
+	if libraryDetailHint(InputGamepad, 0, d) != "B back  Y search  GUIDE settings" {
 		t.Fatalf("unknown status offers an action: %q", libraryDetailHint(InputGamepad, 0, d))
 	}
 }

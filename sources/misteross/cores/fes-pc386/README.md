@@ -47,7 +47,7 @@ Quartus 17.0.2.
 | [`sim/machine_tb.cpp`](sim/machine_tb.cpp) | `pc386_machine` with the Bochs oracle as CPU, guest memory and DDR models; records VGA traces and frames. `--cpu rtl` runs `fes_i386_cpu` instead |
 | [`sim/system_tb.cpp`](sim/system_tb.cpp) | `pc386_system` with all three DDR ports on one window model, and a host that uses only the window, as the kit's does |
 | [`host/`](host/main.go) | `pc386-host`, the kit tool that stages the disk and configuration and follows the status block and debug ring, as `system_tb`'s host does |
-| [`sim/rtl_stop_test.asm`](sim/rtl_stop_test.asm) | The stop test disk: instructions the RTL has not built, and a protected-mode stretch, for `--cpu rtl`'s stop path |
+| [`sim/rtl_stop_test.asm`](sim/rtl_stop_test.asm) | The stop test disk: SMSW and MOV CR0 stops, LMSW, and the protected-mode oracle stretch for `--cpu rtl` |
 | [`sim/devices_tb.cpp`](sim/devices_tb.cpp) | Directed checks of the AT core through its I/O port |
 | [`sim/audio_tb.cpp`](sim/audio_tb.cpp) | Directed checks of the DSP, the OPL2's AdLib port and the mixer, through the AT core |
 | [`sim/opl2_tb.cpp`](sim/opl2_tb.cpp) | The OPL2 against Nuked-OPL3, sample for sample, on random programs and captured port logs |
@@ -131,7 +131,7 @@ captures stay outside the repository.
   mode and V86 (serving DMA and FLUSH itself meanwhile), and restarts the RTL
   from the oracle's state. The boot suite's `boot-rtl/report.json` lists the
   stops by stem, with the lockstep's scope. For `--suite boot --cpu rtl`, any
-  stop, stall or oracle step fails the run; the RTL itself must reach the
+  stop, stall or oracle step fails the run: the RTL itself must reach the
   prompt. While the CPU waits for an I/O cycle or sits in HLT with nothing in
   flight, only the machine is clocked.
 - **Memory.** 16 MiB of host pages: the ROMs at F0000h (aliased at FFFF0000h)

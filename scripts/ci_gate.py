@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from scripts.affected import CORES, LANES
-from scripts.ci_simulations import simulation_matrix
+from scripts.ci_simulations import TIERS, simulation_matrix, tier_for_event
 from scripts.test_policy import validate_test_modes
 
 JOB_LANES = {
@@ -27,7 +27,7 @@ def validate_plan(lanes, cores):
         raise ValueError('Simulation selections require the FPGA lane')
 
 
-def require_success(results):
+def require_success(results, event=None):
     expected = {'plan', 'simulation-tools', 'fpga-simulation', *JOB_LANES}
     if not isinstance(results, dict) or set(results) != expected:
         raise ValueError('Missing or unexpected CI job results')
@@ -39,7 +39,13 @@ def require_success(results):
     validate_plan(lanes, cores)
     modes = json.loads(outputs.get('test_modes', 'null'))
     validate_test_modes(modes, lanes)
-    if json.loads(outputs.get('simulations', 'null')) != simulation_matrix(cores):
+    tier = outputs.get('sim_tier', 'full')
+    if tier not in TIERS:
+        raise ValueError('Unknown simulation tier')
+    # Pull requests, the merge queue and pushes use smoke; manual and nightly runs use full.
+    if event is not None and tier != tier_for_event(event):
+        raise ValueError(f'{event} must run the {tier_for_event(event)} simulation tier, not {tier}')
+    if json.loads(outputs.get('simulations', 'null')) != simulation_matrix(cores, tier):
         raise ValueError('Simulation matrix does not cover the selected cores exactly')
     selected = {job: lanes[lane] for job, lane in JOB_LANES.items()}
     selected['simulation-tools'] = bool(cores)
@@ -58,7 +64,7 @@ def observation_checks(results):
                if job.get('result') in known else 'unknown'}
               for name, job in results.items()]
     try:
-        require_success(results)
+        require_success(results, os.environ.get('GITHUB_EVENT_NAME'))
     except (ValueError, TypeError, KeyError):
         return checks + [{'name': 'integration-gate', 'result': 'failure'}]
     return [check for check in checks if check['result'] != 'skipped']
@@ -76,7 +82,7 @@ def main():
         'checks': observation_checks(results),
     }
     Path('ci-observation.json').write_text(json.dumps(observation, sort_keys=True, indent=2) + '\n')
-    require_success(results)
+    require_success(results, os.environ.get('GITHUB_EVENT_NAME'))
     print('All planned software checks passed; omitted lanes are reported in the validated plan.')
 
 

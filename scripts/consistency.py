@@ -5,6 +5,9 @@ import tempfile
 from environment import build_environment
 
 GENERATED = (
+    ('emit-c', 'packages/fabric/fes_fabric_de25_ddr_probe.yaml', 'FES', 'image/kernel/de25-dma/generated/fes_de25_ddr_probe.h'),
+    ('emit-verilog', 'packages/fabric/fes_fabric_de25_ddr_probe.yaml', 'misteross', 'boards/de25nano/hps/generated/fes_de25_ddr_probe.vh'),
+    ('emit-cpp', 'packages/fabric/fes_fabric_de25_ddr_probe.yaml', 'misteross', 'boards/de25nano/hps/generated/fes_de25_ddr_probe.hpp'),
     ('emit-verilog', 'packages/fabric/fes_fabric_de25_hps_mailbox.yaml', 'misteross', 'boards/de25nano/hps/generated/fes_de25_mailbox.vh'),
     ('emit-cpp', 'packages/fabric/fes_fabric_de25_hps_mailbox.yaml', 'misteross', 'boards/de25nano/hps/generated/fes_de25_mailbox.hpp'),
     ('emit-verilog', 'packages/fabric/fes_fabric_video_raster_rgb888.yaml', 'misteross', 'cores/fes-common/generated/fes_video_part.vh'),
@@ -58,6 +61,7 @@ COPIED_FILES = (
     ('testdata/fes-simple-computer-v1/exchanges.json', 'libmister-runtime', 'tests/fixtures/fes-simple-computer-v1/exchanges.json'),
     ('testdata/fes-simple-computer-v1/exchanges.json', 'misteross', 'cores/fes-zx81/generated/exchanges.json'),
     ('testdata/fes-computer-v1/exchanges.json', 'libmister-runtime', 'tests/fixtures/fes-computer-v1/exchanges.json'),
+    ('testdata/fes-computer-v1/exchanges-1.1.json', 'libmister-runtime', 'tests/fixtures/fes-computer-v1/exchanges-1.1.json'),
     ('testdata/fes-computer-v1/exchanges.json', 'misteross', 'cores/fes-common/generated/computer-exchanges.json'),
     ('testdata/core-persistence-v1/exchanges.json', 'misteross', 'cores/fes-pong/generated/persistence-exchanges.json'),
     ('testdata/core-persistence-v1/records.json', 'FogCast', 'internal/misterruntime/testdata/core-persistence-v1/records.json'),
@@ -73,8 +77,12 @@ COMPONENT_FIXTURES = (
      'FogCast', 'internal/misterruntime/testdata/protocol-v2-media-stream-responses.jsonl'),
     ('libmister-runtime', 'tests/fixtures/protocol-v2-persistence-responses.jsonl',
      'FogCast', 'internal/misterruntime/testdata/protocol-v2-persistence-responses.jsonl'),
+    ('libmister-runtime', 'tests/fixtures/protocol-v2-pc386-responses.jsonl',
+     'FogCast', 'internal/misterruntime/testdata/protocol-v2-pc386-responses.jsonl'),
     ('libmister-runtime', 'tests/fixtures/protocol-v2-computer-responses.jsonl',
      'FogCast', 'internal/misterruntime/testdata/protocol-v2-computer-responses.jsonl'),
+    ('libmister-runtime', 'tests/fixtures/protocol-v2-live-computer-statuses.jsonl',
+     'FogCast', 'internal/misterruntime/testdata/protocol-v2-live-computer-statuses.jsonl'),
     ('libmister-runtime', 'tests/fixtures/protocol-v2.jsonl',
      'FogCast', 'internal/misterruntime/testdata/protocol-v2.jsonl'),
     ('libmister-runtime', 'tests/fixtures/protocol-v2-edge-responses.jsonl',

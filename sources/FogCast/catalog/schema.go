@@ -11,7 +11,7 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
-const schemaVersion = 18
+const schemaVersion = 19
 
 const schemaV8 = `
 CREATE TABLE core_media_chunks (
@@ -282,6 +282,32 @@ CREATE TABLE zx81_saves (
 PRAGMA user_version = 18;
 `
 
+// Schema 19 admits the hard-disk role and its CHS geometry override, with the
+// table rebuilt as in version 13. Zero geometry means the host infers it from
+// the image's master boot record at launch.
+const schemaV19 = `
+CREATE TABLE core_entries_v19 (
+  game_id TEXT PRIMARY KEY REFERENCES games(game_id) ON DELETE CASCADE,
+  core_id TEXT NOT NULL,
+  package_id TEXT NOT NULL,
+  media_role TEXT NOT NULL DEFAULT '',
+  media_id TEXT NOT NULL DEFAULT '',
+  firmware_required INTEGER NOT NULL DEFAULT 0,
+  disk_cylinders INTEGER NOT NULL DEFAULT 0,
+  disk_heads INTEGER NOT NULL DEFAULT 0,
+  disk_sectors INTEGER NOT NULL DEFAULT 0,
+  CHECK ((media_role = '' AND media_id = '') OR (media_role IN ('blob', 'disk', 'cassette', 'hard-disk') AND length(media_id) = 64)),
+  CHECK ((disk_cylinders = 0 AND disk_heads = 0 AND disk_sectors = 0) OR
+    (media_role = 'hard-disk' AND disk_cylinders BETWEEN 1 AND 16383 AND disk_heads BETWEEN 1 AND 16 AND disk_sectors BETWEEN 1 AND 63))
+);
+INSERT INTO core_entries_v19(game_id, core_id, package_id, media_role, media_id, firmware_required)
+  SELECT game_id, core_id, package_id, media_role, media_id, firmware_required FROM core_entries;
+DROP TABLE core_entries;
+ALTER TABLE core_entries_v19 RENAME TO core_entries;
+CREATE INDEX core_entries_core_id ON core_entries(core_id);
+PRAGMA user_version = 19;
+`
+
 func migrateCoreMedia(ctx context.Context, connection *sql.Conn) error {
 	if _, err := connection.ExecContext(ctx, schemaV7); err != nil {
 		return err
@@ -313,7 +339,7 @@ func migrate(ctx context.Context, connection *sql.Conn) (err error) {
 	if err := connection.QueryRowContext(ctx, "PRAGMA user_version").Scan(&current); err != nil {
 		return fmt.Errorf("read catalog schema version: %w", err)
 	}
-	if current < 15 {
+	if current < 19 {
 		if _, err := connection.ExecContext(ctx, "PRAGMA foreign_keys = OFF"); err != nil {
 			return fmt.Errorf("prepare catalog migration: %w", err)
 		}
@@ -456,6 +482,15 @@ func migrate(ctx context.Context, connection *sql.Conn) (err error) {
 	if version == 17 {
 		if _, err := connection.ExecContext(ctx, schemaV18); err != nil {
 			return fmt.Errorf("apply catalog schema version 18: %w", err)
+		}
+		version = 18
+	}
+	if version == 18 {
+		if _, err := connection.ExecContext(ctx, schemaV19); err != nil {
+			return fmt.Errorf("apply catalog schema version 19: %w", err)
+		}
+		if err := foreignKeyCheck(ctx, connection); err != nil {
+			return fmt.Errorf("apply catalog schema version 19: %w", err)
 		}
 	}
 	if _, err := connection.ExecContext(ctx, "COMMIT"); err != nil {

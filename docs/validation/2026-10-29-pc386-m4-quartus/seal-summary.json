@@ -1,5 +1,5 @@
 {
-  "build_id": "f1d64e7d3ca9e85cbe82487bbf2b68a8",
+  "build_id": "fa9fcda12ddccefa8675c795d4168290",
   "device": "5CSEBA6U23I7",
   "guest_rates": {
     "ATA_RESET_CLOCKS": 615,
@@ -19,6 +19,7 @@
     "PIT_N": 875,
     "RTC_D": 1875,
     "RTC_N": 1,
+    "TIMEOUT_CLOCKS": 6144000,
     "US_D": 1536,
     "US_N": 25
   },
@@ -49,13 +50,13 @@
     "cores/fes-menu/rtl/fes_menu_control.v": "cb34fde3607f1b63d9db3b1cc7eb6f3b721ddf46319de702e1ba1adce3bcf390",
     "cores/fes-menu/rtl/fes_menu_reader.v": "0bd4f7d897d0569d030a6fc8028a59300a55cc7435cd97da2cbb40f934fe97f6",
     "cores/fes-menu/rtl/fes_menu_video.v": "03e7bf254c1ecb58174d61fec01cf124a784b0c7b6867f043386d7c78d2b0c6b",
-    "cores/fes-pc386/clocks.sdc": "e1b512f4a56b1d043ecc9b7a1a4b55be7605cf81131fe2c7033a250180733327",
+    "cores/fes-pc386/clocks.sdc": "85f1425260656873bd4f6def0b55a5744d92b6c08866901b272c9c6da7c17aa0",
     "cores/fes-pc386/constraints-oss.qsf": "a03fc41279ec0e6e08bd65c82bc70579e861c64113b49d3b01ca6d010e87a739",
     "cores/fes-pc386/rtl/pc386_at_core.sv": "a3f2350875a3515d001c825bac567bcbef18c0d7860c48db5a6679a8014b9f45",
-    "cores/fes-pc386/rtl/pc386_ata.sv": "5513a394684d7b34352f8e29acbd15d242ab9bc70f21dee233305a322766ae10",
+    "cores/fes-pc386/rtl/pc386_ata.sv": "813cffca91121941a9d2d1604401270cabebc7b7dc9db1c01be154388e9cdddd",
     "cores/fes-pc386/rtl/pc386_audio.sv": "3e3d1f4f7e872b9c8e99356099ed110f7040928c32c5ba91a981276cc2a4993a",
-    "cores/fes-pc386/rtl/pc386_bus_master.sv": "ae8975d1b6a95b0b14c3c5336d5c72555afbf5a2af3ebdfcedcd321bcf34db2b",
-    "cores/fes-pc386/rtl/pc386_diag.sv": "4e4bb31ccde88d33c7ced3b8e2584e1f0f9fdb9eab9600bfb1447746a1e8fa72",
+    "cores/fes-pc386/rtl/pc386_bus_master.sv": "6838a310fde1c54d849928bb444fb8b8a18e3fe83d5b69bbdebdbd3d9816e4e5",
+    "cores/fes-pc386/rtl/pc386_diag.sv": "b9425d182fa43a5c24b595fdf354a51076d9b99048aa4739532d3b0348aa812d",
     "cores/fes-pc386/rtl/pc386_io.sv": "4ae84cced9c83f8e13b8811a6fcd43130f23f10e38931214d9505b4f19296ece",
     "cores/fes-pc386/rtl/pc386_kbc.sv": "72c209d8f40ee017784038ec36d73c1a51b0d333f993927daec40cfe660ca203",
     "cores/fes-pc386/rtl/pc386_machine.sv": "696b7aadb6be35cf3cfbfbbf1099a458cf2e59b9cc2cdc9afe25e6846f25a80b",
@@ -64,18 +65,19 @@
     "cores/fes-pc386/rtl/pc386_pic.sv": "46ac29f0f685a4a02cf3eaa157d758ec195a07fccdbf4e0475968d518360bc7e",
     "cores/fes-pc386/rtl/pc386_plane_bridge.sv": "1b9598fb76cfef94921abdffe1d3dc60964038c92d0fe3de07690f69949d86ad",
     "cores/fes-pc386/rtl/pc386_port2.sv": "ce48b631f6a67f665cb51f8f224c84cab08128f62de9cc95c090d8fcb592d19b",
-    "cores/fes-pc386/rtl/pc386_port_fence.sv": "8466a62e01f2e8a356f1c50dd89a51c19bac49b57aa47772a53e90d2bd8d3029",
+    "cores/fes-pc386/rtl/pc386_port_fence.sv": "f25b1f8597719dbad12a3db2e63dcfc785a62d9700220bf422d9050f32c43f89",
     "cores/fes-pc386/rtl/pc386_presenter.sv": "aed6df2bcb71cf1d975d5591d20d3c35258a25839743f088f9a29bc028a251b3",
-    "cores/fes-pc386/rtl/pc386_ram.sv": "8ee96e8ee346e645aa77784cc4175f75f6185087d476a4d38caecb1aa5acca5a",
+    "cores/fes-pc386/rtl/pc386_ram.sv": "81975edde360c52e8acbd0b924fc604e0aa1f26ec2b271b0f0d867f81b00927f",
     "cores/fes-pc386/rtl/pc386_rate.sv": "66b7dee8dc40c4fb0886f1c6ea623cda241275625823e3a7f48b8d122dd3b02e",
-    "cores/fes-pc386/rtl/pc386_rtc.sv": "215c4f2813c8db760034811cb58e242b427191533d748bc4d13344c9f2288bfc",
+    "cores/fes-pc386/rtl/pc386_rtc.sv": "63590cb978166b42fe23e34aabaf2d1cd6872fd6d5a6cefca8a8a9a66e5587dc",
     "cores/fes-pc386/rtl/pc386_sb.sv": "17c8287ad7f8def534ebb5f018e3fb498322b752779d717639212acaba28ad2b",
+    "cores/fes-pc386/rtl/pc386_snapshot.sv": "795254ffa671badf5c158abdc4b660461ad239683030546f4c5a9fd7bc5237c4",
     "cores/fes-pc386/rtl/pc386_sysctl.sv": "02832baa8b7878fcdb448108060162034327a160f79868d2109dc5bf7e5047b2",
     "cores/fes-pc386/rtl/pc386_system_pll.v": "b013b75f1a00f91a5093a35251aa239d6219f657cee4b584d2eef6837609e806",
     "cores/fes-pc386/rtl/pc386_vga.sv": "d2435faa3c0132f11e4c1d8d931768edc494202262db83334d3d3468b51e13bf",
     "cores/fes-pc386/rtl/pc386_vga_scanout.sv": "ba8b79749043468bf5195d148eced57697fcdf3dc9b54fae8dfbd3c6a58cf9d2",
     "cores/fes-pc386/rtl/top.sv": "d9f120a259c253c0a6d39e6554395d89c027644601ff1b409fdbe5eed9e2de6a",
-    "cores/fes-pc386/toolchain.lock": "d11a204668d47f318b4e9b60af9bc5f4c7f30bfd44bb4f3bf5e5b2e49dd8b8e1",
+    "cores/fes-pc386/toolchain.lock": "2ea5137758e1ed7e34a9f7a7c01a963299743a8820b35c08759e23f6d836f45b",
     "cores/fes-pc386/vendor/opl2_fpga/calc_envelope_shift.sv": "148e8a9e9d7cf5dc3dce43c4b5469df48dd9be6bc7b29561aa33932a2e730949",
     "cores/fes-pc386/vendor/opl2_fpga/calc_phase_inc.sv": "c3fd37a32e7950f1d392f2faad6212e82c88f5b8dea1a1bca576fa27be6630eb",
     "cores/fes-pc386/vendor/opl2_fpga/calc_rhythm_phase.sv": "76e002cbe36c14293e690efa17f5015b24c4d8a7041ffd24d2a0272cba4a3b04",
@@ -96,16 +98,16 @@
     "cores/fes-pc386/vendor/opl2_fpga/pipeline_sr.sv": "66626b1c730792d9231c6b3adda8a31199386c1b0fede1040db19ee492eeb7e4",
     "cores/fes-pc386/vendor/opl2_fpga/tremolo.sv": "6c7afcc694ad272155e0a812051d984b59115c4e4ea67bb76ac72ef6d53ac534",
     "cores/fes-pc386/vendor/opl2_fpga/vibrato.sv": "2d3c26c2a3c7184877194d857ad6ff03fd41d42b06d38b0c977d14a562f1e577",
-    "scripts/build_fes_pc386_oss.py": "3eba0202a11db123d1525750a04234c6e49b9f9d52a66d242853b7b69d002d82",
-    "scripts/build_fes_pc386_quartus.py": "0b9573eafa56889d768b06776a654d622f252c5cbc9ce92e102382a557c5e5f1",
+    "scripts/build_fes_pc386_oss.py": "76834a5c3c08ffce2ff39b75f8d6da55926ee0af1aab8e66159f1a390c5741ac",
+    "scripts/build_fes_pc386_quartus.py": "2601c7512827949199d417720dca90c41d4690362af32ebf97e86a19e9547152",
     "scripts/fes_build_common.py": "7a52bb11e96fed03587d1037d03cee32703ff1cdc3669bc851d8117ca1c60b94",
-    "scripts/pc386_diag.py": "208f4f134b90f378028c840d81235a3d758ad322c5b9a2e66cd48ce7308b0fd1",
+    "scripts/pc386_diag.py": "444ba72dd672115b822b8aec4a8b850bc4a5263700a2c38160ea4a3c48ea3b68",
     "scripts/quartus_tools.py": "d84ccb9b2dbcd519c565b2bcd886ed7bce48d6d274a537d7a9358ca6c8ca56b2",
     "scripts/source_provenance.py": "4ea875fb576bbe00d833fb2a78fcf938367bda0a6cb49f65b9c1735fcf832155"
   },
   "rbf": {
-    "sha256": "b723c56169d1507520b3b302369f2e6f1886e26abebdf6942a84878557468867",
-    "size": 2504420
+    "sha256": "19b717f5dbb1cd4a41aef2da48e4da5f457477ad774b492661f92eeb065b66b2",
+    "size": 2520204
   },
   "seed": 1,
   "status": "pass",
@@ -113,7 +115,7 @@
     "analyses": {
       "hold": {
         "tns_ns": 0.0,
-        "worst_slack_ns": 0.097
+        "worst_slack_ns": 0.044
       },
       "minimum_pulse_width": {
         "tns_ns": 0.0,
@@ -121,15 +123,15 @@
       },
       "recovery": {
         "tns_ns": 0.0,
-        "worst_slack_ns": 6.821
+        "worst_slack_ns": 6.694
       },
       "removal": {
         "tns_ns": 0.0,
-        "worst_slack_ns": 0.319
+        "worst_slack_ns": 0.274
       },
       "setup": {
         "tns_ns": 0.0,
-        "worst_slack_ns": 0.756
+        "worst_slack_ns": 1.233
       }
     },
     "clocks": {
@@ -148,10 +150,10 @@
     },
     "status": "pass"
   },
-  "toolchain": "Quartus Prime Lite 17.0.2 (version=17.0.2; sha256=71035cc10a244002d1b07bef128c7cd429f34ccd69b417c0a80f47c639d8ab93); machine elaborated by Yosys (commit=1f7d0273b55bd48343b149c86ca9766d6d48c174; sha256=21827ffba0d94a6385a52c9ec23130e388e53158315a6fef835660b76e476378)",
+  "toolchain": "Quartus Prime Lite 17.0.2 (version=17.0.2; sha256=71035cc10a244002d1b07bef128c7cd429f34ccd69b417c0a80f47c639d8ab93); machine elaborated by Yosys (commit=0a7927bf126eb3d868c50b3bb5e11b69ff656ea9; sha256=a535161b3c0f824634ba348a0f1f0cbe32eac5a68b13a19bc21b030dadd9763d)",
   "tools": {
     "quartus_sh": "version=17.0.2; sha256=71035cc10a244002d1b07bef128c7cd429f34ccd69b417c0a80f47c639d8ab93",
-    "yosys": "commit=1f7d0273b55bd48343b149c86ca9766d6d48c174; sha256=21827ffba0d94a6385a52c9ec23130e388e53158315a6fef835660b76e476378"
+    "yosys": "commit=0a7927bf126eb3d868c50b3bb5e11b69ff656ea9; sha256=a535161b3c0f824634ba348a0f1f0cbe32eac5a68b13a19bc21b030dadd9763d"
   },
   "top": "top"
 }

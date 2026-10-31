@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"image"
 	"image/color"
 	"image/png"
@@ -137,7 +138,7 @@ func newRoom(t *testing.T, p Pack, opts Options) *Instance {
 func stepUntil(t *testing.T, r *Instance, pred func(Frame) bool) Frame {
 	t.Helper()
 	now := time.Unix(1000, 0)
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		now = now.Add(16 * time.Millisecond)
 		f := r.Step(now)
@@ -1356,7 +1357,7 @@ function draw() end`
 		t.Fatal(err)
 	}
 	stepUntil(t, r, func(Frame) bool { return r.Destination().Kind == KindCore })
-	if err := r.CheckGlobal(`got_err == nil and got[1].package_id == "` + corePongID + `" and got[1].core_id == "fes.pong" and got[1].name == "FES Pong" and got[1].needs == "none" and got[1].launchable == true and (got[1].block == nil or got[1].block == "")`); err != nil {
+	if err := r.CheckGlobal(`got_err == nil and got[1].package_id == "` + corePongID + `" and got[1].core_id == "fes.pong" and got[1].name == "Pong" and got[1].needs == "none" and got[1].launchable == true and (got[1].block == nil or got[1].block == "")`); err != nil {
 		t.Fatal(err)
 	}
 	d := r.Destination()
@@ -1613,7 +1614,7 @@ function draw() end`
 	}()
 	select {
 	case <-done:
-	case <-time.After(3 * time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("DeliverCover blocked while the room was suspended")
 	}
 	r.Step(time.Unix(1, 0))
@@ -1769,7 +1770,7 @@ func TestKitCoresStartupRetryCancelsDuringWait(t *testing.T) {
 	fake := &warmThenCores{firstError: localcores.ErrUnavailable}
 	done := make(chan error, 1)
 	go func() { _, err := listLocalCores(ctx, fake, time.Minute); done <- err }()
-	deadline := time.Now().Add(time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for {
 		fake.mu.Lock()
 		calls := fake.calls
@@ -1788,7 +1789,7 @@ func TestKitCoresStartupRetryCancelsDuringWait(t *testing.T) {
 		if !errors.Is(err, context.Canceled) {
 			t.Fatal(err)
 		}
-	case <-time.After(time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("retry wait ignored cancellation")
 	}
 	fake.mu.Lock()

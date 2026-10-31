@@ -13,6 +13,7 @@ func TestAdmitTapeMediaName(t *testing.T) {
 		{"game.p", true},
 		{"Game.P", true},
 		{"game.P", true},
+		{"game.o", false},
 		{"game.tzx", false},
 		{"game.tap", false},
 		{".p", true},
@@ -23,6 +24,21 @@ func TestAdmitTapeMediaName(t *testing.T) {
 	} {
 		if AdmitTapeMediaName(tc.name) != tc.ok {
 			t.Fatalf("%q ok=%v", tc.name, AdmitTapeMediaName(tc.name))
+		}
+	}
+	for _, tc := range []struct {
+		name string
+		ok   bool
+	}{
+		{"dragons-add.o", true},
+		{"Dragons.O", true},
+		{"game.p", false},
+		{"game.O.p", false},
+		{"dir/dragons.o", false},
+		{"", false},
+	} {
+		if AdmitZx80TapeMediaName(tc.name) != tc.ok {
+			t.Fatalf("zx80 %q ok=%v", tc.name, AdmitZx80TapeMediaName(tc.name))
 		}
 	}
 }
@@ -59,7 +75,7 @@ func TestLiveMediaCapableAdmitsComputerZx81Tape(t *testing.T) {
 	if LiveMediaCapable(&CorePackageStatus{ABI: RuntimeContract{ID: "fes.computer", Major: 1}, ActiveInterfaces: []RuntimeInterface{{ID: SpectrumTapeInterface().ID, Major: 2}}}) {
 		t.Fatal("spectrum tape must not open the ZX81 tape picker")
 	}
-	if LiveMediaCapable(&CorePackageStatus{ABI: RuntimeContract{ID: "fes.computer", Major: 1, Minor: 1}, ActiveInterfaces: active}) {
+	if LiveMediaCapable(&CorePackageStatus{ABI: RuntimeContract{ID: "fes.computer", Major: 1, Minor: 2}, ActiveInterfaces: active}) {
 		t.Fatal("a later computer minor is a different contract")
 	}
 	later := []RuntimeInterface{{ID: tape.ID, Major: tape.Major, Minor: tape.Minor + 1}}

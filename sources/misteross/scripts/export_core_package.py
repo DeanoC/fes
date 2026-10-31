@@ -87,6 +87,10 @@ def _validate_build_record(fields: object) -> dict:
     }
     if isinstance(fields, dict) and fields.get("format") == 2:
         expected |= {"source_roots", "source_inputs", "source_path"}
+        if "toolchain" in fields:
+            if fields["toolchain"] != "quartus":
+                raise PackageExportError("explicit functional toolchain must be quartus")
+            expected.add("toolchain")
     if not isinstance(fields, dict) or set(fields) != expected:
         raise PackageExportError("build record has missing or unrecognized fields")
     if type(fields["format"]) is not int or fields["format"] not in (1, 2):

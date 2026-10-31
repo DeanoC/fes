@@ -1,25 +1,60 @@
 import copy
 import json
 import unittest
+from unittest.mock import patch
 
 from scripts.affected import CORES, LANES
 from scripts.ci_gate import JOB_LANES, require_success, validate_plan
 from scripts.ci_simulations import simulation_matrix
 
 
-def results_for(selected=(), cores=(), modes=None):
+def results_for(selected=(), cores=(), modes=None, tier='full'):
     lanes = {lane: lane in selected for lane in LANES}
     if modes is None:
         modes = {'video': False, 'media': False, 'full_race': False}
     results = {'plan': {'result': 'success', 'outputs': {
         'lanes': json.dumps(lanes), 'cores': json.dumps(list(cores)),
         'test_modes': json.dumps(modes),
-        'simulations': json.dumps(simulation_matrix(list(cores)))}}}
+        'sim_tier': tier,
+        'simulations': json.dumps(simulation_matrix(list(cores), tier))}}}
     results.update({job: {'result': 'success' if lanes[lane] else 'skipped'}
                     for job, lane in JOB_LANES.items()})
     results['simulation-tools'] = {'result': 'success' if cores else 'skipped'}
     results['fpga-simulation'] = {'result': 'success' if cores else 'skipped'}
     return results
+
+
+class TierTests(unittest.TestCase):
+    def test_smoke_tier_swaps_only_slow_families(self):
+        from scripts.ci_simulations import SMOKE_TARGETS
+        for core in CORES:
+            smoke = [r['target'] for r in simulation_matrix([core], 'smoke')['include']]
+            full = [r['target'] for r in simulation_matrix([core], 'full')['include']]
+            if core in SMOKE_TARGETS:
+                self.assertEqual(smoke, list(SMOKE_TARGETS[core]))
+                self.assertNotEqual(smoke, full)
+            else:
+                self.assertEqual(smoke, full)
+        self.assertEqual(simulation_matrix(['c64']), simulation_matrix(['c64'], 'full'))
+        with self.assertRaises(ValueError):
+            simulation_matrix(['c64'], 'quick')
+
+    def test_gate_ties_the_tier_to_the_event(self):
+        results = results_for(('parent', 'fpga'), ('c64',))
+        require_success(results, 'schedule')
+        require_success(results, 'workflow_dispatch')
+        for event in ('pull_request', 'merge_group', 'push'):
+            with self.subTest(event=event), self.assertRaises(ValueError):
+                require_success(results, event)
+        outputs = results['plan']['outputs']
+        outputs['sim_tier'] = 'smoke'
+        outputs['simulations'] = json.dumps(simulation_matrix(['c64'], 'smoke'))
+        require_success(results, 'pull_request')
+        require_success(results, 'merge_group')
+        require_success(results, 'push')
+        for event in ('schedule', 'workflow_dispatch'):
+            with self.subTest(event=event), self.assertRaises(ValueError):
+                require_success(results, event)
 
 
 class GateTests(unittest.TestCase):
@@ -137,6 +172,16 @@ class SimulationMatrixTests(unittest.TestCase):
         self.assertEqual({row['target'] for row in rows}, expected)
         self.assertTrue(all(row['core'] == 'coleco' for row in rows))
 
+    def test_coleco_smoke_is_five_jobs_and_oss_board_twins_are_full_only(self):
+        from scripts.ci_simulations import simulation_matrix
+        smoke = [row['target'] for row in simulation_matrix(['coleco'], 'smoke')['include']]
+        self.assertEqual(smoke, ['sim-fes-coleco-unit', 'sim-fes-coleco-unit-oss',
+                                 'sim-fes-coleco-board-graphics', 'sim-fes-coleco-diagnostic',
+                                 'sim-fes-coleco-sgm-integrated'])
+        full = {row['target'] for row in simulation_matrix(['coleco'], 'full')['include']}
+        self.assertTrue(set(smoke) <= full)
+        self.assertFalse(any(t.startswith('sim-fes-coleco-board-') and t.endswith('-oss') for t in smoke))
+
     def test_selected_families_only_and_no_empty_placeholder(self):
         from scripts.ci_simulations import simulation_matrix
         self.assertEqual(simulation_matrix([]), {'include': []})
@@ -154,15 +199,16 @@ class SimulationMatrixTests(unittest.TestCase):
 class ObservationTests(unittest.TestCase):
     def test_only_validated_intentional_skips_are_omitted(self):
         from scripts.ci_gate import observation_checks
-        results = results_for(('parent', 'host'))
-        checks = observation_checks(results)
-        self.assertEqual({check['name'] for check in checks},
-                         {'plan', 'parent-tests', 'consistency', 'host'})
-        self.assertTrue(all(check['result'] == 'success' for check in checks))
-        results['host']['result'] = 'skipped'
-        checks = observation_checks(results)
-        self.assertIn({'name': 'host', 'result': 'skipped'}, checks)
-        self.assertEqual(len(checks), len(results) + 1)
+        with patch.dict('os.environ', {'GITHUB_EVENT_NAME': 'pull_request'}):
+            results = results_for(('parent', 'host'), tier='smoke')
+            checks = observation_checks(results)
+            self.assertEqual({check['name'] for check in checks},
+                             {'plan', 'parent-tests', 'consistency', 'host'})
+            self.assertTrue(all(check['result'] == 'success' for check in checks))
+            results['host']['result'] = 'skipped'
+            checks = observation_checks(results)
+            self.assertIn({'name': 'host', 'result': 'skipped'}, checks)
+            self.assertEqual(len(checks), len(results) + 1)
 
 
     def test_invalid_plan_with_successful_jobs_records_gate_failure(self):
