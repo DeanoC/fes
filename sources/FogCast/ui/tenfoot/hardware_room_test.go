@@ -1003,3 +1003,40 @@ func TestHardwareRoomQueuedInputDoesNotReachReplacementSession(t *testing.T) {
 		t.Fatalf("old queued input reached replacement session: %+v", events)
 	}
 }
+
+// The surround hint says "Home or F12". A session with no live media still
+// opens its setup room on F12, and F12 is never forwarded to the core (#1132).
+func TestF12OpensSetupRoomWithoutLiveMedia(t *testing.T) {
+	var forwarded atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/session/input/event" {
+			forwarded.Add(1)
+		}
+		_, _ = io.WriteString(w, `{}`)
+	}))
+	t.Cleanup(server.Close)
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 20)
+	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
+	app.SetRooms(rooms.NewIndex([]rooms.Pack{testRoomPack(t, hardwareRoomID, liveHardwareTestScript)}), "")
+	app.mu.Lock()
+	app.games = []hostclient.Game{{ID: "zx81-game", CoreID: "fes.zx81"}}
+	app.session = hostclient.SessionResult{GameID: "zx81-game", State: "active", CoreKeyboardHID: true, Input: &hostclient.SessionInput{State: "attached", Ready: true}}
+	app.rememberPlayingSetupLocked("fes.zx81")
+	app.syncGPUParkLocked()
+	app.mu.Unlock()
+	if snap := app.Snapshot(); !snap.Session.HardwareRoom || snap.Session.MediaSelector || snap.Session.Coleco {
+		t.Fatalf("fixture should offer only the setup room: %+v", snap.Session)
+	}
+	if !app.HandlePlayHIDScancode("F12", hidKeyboardF12, true, time.Now()) || !app.Snapshot().Room.DuringPlay {
+		t.Fatal("F12 did not open the setup room")
+	}
+	if !app.HandlePlayHIDScancode("F12", hidKeyboardF12, false, time.Now()) {
+		t.Fatal("F12 release reached the core")
+	}
+	if forwarded.Load() != 0 {
+		t.Fatalf("F12 forwarded %d events to the core", forwarded.Load())
+	}
+	app.mu.Lock()
+	app.closeAllRoomsLocked()
+	app.mu.Unlock()
+}
