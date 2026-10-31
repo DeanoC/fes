@@ -145,23 +145,32 @@ type RuntimeInterface struct {
 	Minor uint16 `json:"minor"`
 }
 
+// ExpansionSocketEmpty is CorePackageStatus.ExpansionSocket for a verified
+// empty rear expansion socket.
+const ExpansionSocketEmpty = "empty"
+
 type CorePackageStatus struct {
 	PartsComposition *expansion.PartsComposition   `json:"parts_composition,omitempty"`
 	ROMLink          *corepackage.ROMLinkIdentity  `json:"rom_link,omitempty"`
 	ROMLinks         *corepackage.ROMLinksIdentity `json:"rom_links,omitempty"`
 	Composition      *expansion.Composition        `json:"composition,omitempty"`
 	SlotComposition  *expansion.SlotComposition    `json:"slot_composition,omitempty"`
-	MediaStream      *MediaStreamCapability        `json:"media_stream,omitempty"`
-	MediaUnits       []MediaUnitStatus             `json:"media_units,omitempty"`
-	PersistenceMode  string                        `json:"persistence_mode,omitempty"`
-	PackageID        string                        `json:"package_id"`
-	CoreID           string                        `json:"core_id,omitempty"`
-	ImageSHA256      string                        `json:"image_sha256,omitempty"`
-	Generation       uint64                        `json:"generation"`
-	ABI              RuntimeContract               `json:"abi"`
-	BuildID          string                        `json:"build_id"`
-	ActiveInterfaces []RuntimeInterface            `json:"active_interfaces"`
-	Gamepad          bool                          `json:"gamepad"`
+	// ExpansionSocket is ExpansionSocketEmpty when the loaded package has an
+	// optional rear expansion socket and this load verifiably fitted nothing
+	// to it. It is omitted otherwise, including by agents that predate it, so
+	// a reader without it must treat the running setup as unknown.
+	ExpansionSocket  string                 `json:"expansion_socket,omitempty"`
+	MediaStream      *MediaStreamCapability `json:"media_stream,omitempty"`
+	MediaUnits       []MediaUnitStatus      `json:"media_units,omitempty"`
+	PersistenceMode  string                 `json:"persistence_mode,omitempty"`
+	PackageID        string                 `json:"package_id"`
+	CoreID           string                 `json:"core_id,omitempty"`
+	ImageSHA256      string                 `json:"image_sha256,omitempty"`
+	Generation       uint64                 `json:"generation"`
+	ABI              RuntimeContract        `json:"abi"`
+	BuildID          string                 `json:"build_id"`
+	ActiveInterfaces []RuntimeInterface     `json:"active_interfaces"`
+	Gamepad          bool                   `json:"gamepad"`
 }
 
 type Status struct {
