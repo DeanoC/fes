@@ -92,6 +92,7 @@ fpga_manager.o
 hardware.o
 i2c.o
 input.o
+json.o
 linux_input.o
 media_data.o
 menu_display.o

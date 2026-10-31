@@ -828,3 +828,10 @@ extended live limits. Nonlegacy immutable bases require matching BPBs; saved
 records use minor 1, retain guest BPB edits, and must match the base length
 before restore. Legacy 737280-byte behavior and minor-0 bytes are unchanged.
 This extension has software coverage; no new hardware acceptance is claimed.
+
+The existing JSON parser is built once into the runtime archive because the
+DE25 programmer validates the kernel receipt through it. The daemon links that
+same object from the archive; no second parser or policy path is introduced.
+The production-hardware test links the complete library objects, including the
+parser, on AArch64 as well as native hosts. The archive audit requires exactly
+28 members and explicitly names the DE25 programmer as a file-I/O owner.

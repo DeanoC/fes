@@ -15,7 +15,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 UNITS = ("runtime_test", "protocol_test", "mmio_test", "fpga_manager_test",
-         "off_t_test", "production_hardware_test", "de25_computer_test", "core_package_test")
+         "off_t_test", "production_hardware_test", "de25_computer_test", "core_package_test", "de25_fpga_manager_test")
 GO_TESTS = (
     "TestClientRejectsWrongProtocolAndUnknownResponseFields",
     "TestClientRejectsInvalidDevelopmentRBFPathsBeforeDial",
