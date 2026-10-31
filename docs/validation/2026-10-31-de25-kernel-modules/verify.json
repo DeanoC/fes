@@ -1,0 +1,16 @@
+{
+  "architecture": "aarch64",
+  "console": "ttyS0:115200",
+  "ethernet": "eth0:dhcp",
+  "ssh": "dropbear",
+  "kernel_modules": {
+    "release": "6.12.11-gd7d192a9ddd9",
+    "modules": 4,
+    "autoload": "S15fpga"
+  },
+  "hardware_acceptance": "not-run",
+  "board": "de25-nano",
+  "recipe_sha256": "76e31b0d61937ab4cd6ad43b86c051519b8abc95694814180a5f7da9964f4d18",
+  "rootfs_sha256": "f3309cc3d9998f571e68639339c3ef1976dfe9565e1c662c05e8c402920cc2a9",
+  "image_sha256": "0d703468eeec8bddec2f591d7acd4cd3c674f94878ec589bca56a3fda22a4171"
+}
