@@ -191,6 +191,14 @@ class ScanoutBuildTests(unittest.TestCase):
         self.assertNotIn("fes_scanout_pixel_reset|sync_regs*", sdc)
         self.assertNotIn("fes_scanout_system_reset|sync_regs*", sdc)
 
+    def test_clock_fault_ingress_has_quartus_native_identification(self):
+        rtl = (B.HERE / "fes_de25_scanout.v").read_text()
+        self.assertIn('altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED"', rtl)
+        self.assertIn("reg clock_fault_meta;", rtl)
+        self.assertIn("clock_fault_meta <= clock_fault;", rtl)
+        self.assertIn("clock_fault_sync <= clock_fault_meta;", rtl)
+        self.assertIn("clock_fault_meta|d", (B.HERE / "clocks.sdc").read_text())
+
     def test_postcompile_pll_mutation_is_rejected_with_failed_receipt_retained(self):
         output, _, hps, display = self.prepare()
         directory = output / "combined/hps"

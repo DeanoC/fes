@@ -49,11 +49,13 @@ u64 fes_de25_dma_test_next_generation(atomic64_t *counter);
 struct completion;
 struct fes_de25_dma_test_observer {
 	unsigned int freed;
+	bool mmap_refuse;
 	struct completion *mmap_entered;
 	struct completion *mmap_release;
 	struct completion *revoked;
 };
 void fes_de25_dma_test_observe(struct file *file,
 		struct fes_de25_dma_test_observer *observer);
+unsigned int fes_de25_dma_test_mmap_count(struct file *file);
 #endif
 #endif
