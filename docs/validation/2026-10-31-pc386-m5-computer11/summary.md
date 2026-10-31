@@ -94,7 +94,8 @@ four games, the keyboard or the governor, which are later M5 work.
 | `--suite boot` (oracle CPU, `pc386_machine`) | FreeDOS prompt and `dir` at 4.3 s; VGA replay 85,234 events, no mismatch |
 | `--suite system` (`pc386_system`, RTL CPU, runtime protocol) | pass ([report](system-report.json)) |
 | `make sim-fes-apple2-mailbox`, Spectrum `mailbox_units` (1.0 replays) | pass |
-| `make sim-fes-zx81` | pass |
+| `make sim-fes-zx81`, `sim-fes-c64`, `sim-fes-spectrum`, `sim-fes-apple2` (the shells that gained tie-offs) | pass |
+| `parent_tests.py` over the branch's paths | pass |
 | misteross unit tests (`unittest discover`), FES `test_affected`, `test_test_changed`, `test_check_deadcode`, `consistency.py` | pass (1,570 misteross tests; 41 fixture copies match) |
 
 The 1.1 replay compares every GPI word but one. In the minor-0 scenario, the
@@ -228,7 +229,5 @@ directories on the kit. They are listed in the kit status entry.
   1.1 package needs a newer bundle. That is promotion of a main build after
   #1219 and #1222 (Lander's baseline), not this PR.
 - **Keyboard and mouse** (slice 2) and **the four games** (slice 4).
-- **Core sims of the other shells:** ZX81 passed here. The C64, Spectrum and
-  Apple II full sims were still running when this was written; those shells
-  only gained tie-offs, and CI runs them. The session-display menu opcodes, which
-  the runtime sends at launch, ran on the kit but not in the system bench.
+- The session-display menu opcodes, which the runtime sends at launch, ran
+  on the kit but not in the system bench.
