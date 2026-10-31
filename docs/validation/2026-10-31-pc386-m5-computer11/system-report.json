@@ -139,13 +139,13 @@
     5,
     1,
     0,
+    2,
     0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
+    18,
+    12551,
+    9744,
+    550,
+    32848,
     0,
     0,
     240,
@@ -213,13 +213,13 @@
     5,
     1,
     0,
+    2,
     0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
+    18,
+    12551,
+    9744,
+    550,
+    32768,
     0,
     0,
     240,
@@ -317,7 +317,11 @@
     },
     {
       "pass": true,
-      "check": "the record makes the round trip through the RTC"
+      "check": "CMOS 00h-0Dh are the clock's registers as the guest reads them (2026-10, B 02h, D 80h)"
+    },
+    {
+      "pass": true,
+      "check": "the record's settings and CMOS RAM make the round trip through the RTC"
     }
   ],
   "write_test": 444416,
@@ -351,6 +355,7 @@
     "PASS CMOS 12h and 15h-16h hold the disk and base memory",
     "PASS CMOS 2Eh-2Fh hold the checksum of 10h-2Dh",
     "PASS CMOS 32h holds the wall clock's century",
-    "PASS the record makes the round trip through the RTC"
+    "PASS CMOS 00h-0Dh are the clock's registers as the guest reads them (2026-10, B 02h, D 80h)",
+    "PASS the record's settings and CMOS RAM make the round trip through the RTC"
   ]
 }
