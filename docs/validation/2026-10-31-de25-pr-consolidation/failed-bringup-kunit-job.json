@@ -1,0 +1,25 @@
+{
+  "source_revision": "2243c34a250867b324d6b26146fd32acdb778882",
+  "command": [
+    "python3",
+    "scripts/de25_kernel_test.py",
+    "run",
+    "--cache",
+    "/home/deano/fes/out/cache/de25-linux-kernel.git",
+    "--image-output",
+    "/home/deano/fes/out/artifacts/de25-kernel-modules/0da63d1044cc7ecf9908efba52af17b3e55e6271/linux-image",
+    "--output",
+    "out/consolidation-kunit",
+    "--jobs",
+    "8"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-pr-consolidation/out/consolidation-validation/bringup-source",
+  "started_utc": "2026-10-31T12:42:50.678206+00:00",
+  "time_cap_seconds": 7200,
+  "hardware_access": "not-performed",
+  "pid": 2059032,
+  "state": "failed",
+  "elapsed_seconds": 103.6,
+  "heartbeat_utc": "2026-10-31T12:44:34.247908+00:00",
+  "returncode": 1
+}
