@@ -3269,7 +3269,7 @@ void TestPc386AtaDiskLaunchSaveAndRestore()
 #if defined(__linux__)
 	// One dirty-chunk rename and the pre-manifest sync succeed; fail the sync
 	// after the new manifest rename so retry must reread its visible revision.
-	fail_media_directory_sync_after = 3;
+	fail_media_directory_sync_after = 1;
 	const auto uncertain_ata_save = fixture.runtime.Stop();
 	assert(uncertain_ata_save.code == mister::ErrorCode::save_failed);
 	assert(fixture.runtime.status().state == mister::State::running_development && !endpoint.disk_frozen);
