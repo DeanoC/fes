@@ -333,6 +333,11 @@ eject. On Kit B, the [media-enabled diagnostic](validation/2026-10-30-pcxt-flopp
 accepted live inserts and ejects and verified one floppy sector through the
 guest FDC and DMA. That historical diagnostic does not qualify a DOS boot,
 writes, the full floppy buffer, or external interface timing. The diagnostic
+reread a matching sector on Kit B after merging #1286: exact package
+`65dd840f` from source `a54ea0cd` passed the empty, wrong, matching, eject and
+Stop sequence ([result](validation/2026-10-30-pcxt-floppy-media/result-current-parent-merge.json));
+the kit was restored and released. This is single-sector diagnostic evidence.
+The diagnostic
 runs its own firmware; inserting a disk does not restart its guest. An in-play
 display plane, write persistence, DOS/game compatibility and host keyboard
 remain open. See the
