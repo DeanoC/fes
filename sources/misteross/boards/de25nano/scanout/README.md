@@ -163,3 +163,6 @@ other HPS/EMIF or boot-data changes still fail. This profile remains unadmitted:
 all inherited F2SDRAM masters share the selected context. It establishes no
 kernel device, firmware translation, bounded control access or global
 master/drain/reset lifetime. The kernel production probe remains closed.
+
+The [Linux-DMA profile compilation record](../../../../../docs/validation/2026-10-31-de25-linux-dma/README.md)
+retains the actual stream wiring, kernel build, and open device/lifetime gates.
