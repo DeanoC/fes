@@ -1507,7 +1507,34 @@ static void permanent_owner_probe_refuses_unbound_device(struct kunit *test)
 	platform_device_unregister(pdev);
 }
 
+static void permanent_owner_checks_real_supplier_links(struct kunit *test)
+{
+	struct platform_device *consumer, *supplier;
+	struct device_link *link;
+
+	consumer = platform_device_register_simple("de25-owner-consumer", -1, NULL, 0);
+	KUNIT_ASSERT_FALSE(test, IS_ERR(consumer));
+	supplier = platform_device_register_simple("de25-owner-supplier", -1, NULL, 0);
+	if (IS_ERR(supplier)) {
+		KUNIT_FAIL(test, "supplier registration failed");
+		platform_device_unregister(consumer);
+		return;
+	}
+	link = device_link_add(&consumer->dev, &supplier->dev, DL_FLAG_STATELESS);
+	KUNIT_EXPECT_NOT_NULL(test, link);
+	if (link) {
+		/* An actual unbound supplier cannot retain the consumer's resources,
+		 * even though its permanent consumer/parent objects still exist.
+		 */
+		KUNIT_EXPECT_EQ(test, fes_de25_owner_test_dependencies(&consumer->dev), -EPROBE_DEFER);
+		device_link_del(link);
+	}
+	platform_device_unregister(supplier);
+	platform_device_unregister(consumer);
+}
+
 static struct kunit_case fes_de25_dma_cases[] = {
+	KUNIT_CASE(permanent_owner_checks_real_supplier_links),
 	KUNIT_CASE(permanent_owner_probe_refuses_unbound_device),
 	KUNIT_CASE(permanent_owner_rejects_topology_overrides),
 	KUNIT_CASE(permanent_owner_rejects_ancestor_mutation),

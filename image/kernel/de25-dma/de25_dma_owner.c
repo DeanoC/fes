@@ -18,6 +18,13 @@
 #include "de25_dma_guard.h"
 #include "de25_dma_owner.h"
 
+#if IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM)
+/* Deliberately pinned-kernel, built-in-only API. The owner must inspect the
+ * actual managed supplier graph, not guess dependencies from DT properties.
+ */
+#include "../../base/base.h"
+#endif
+
 struct fes_de25_owner {
 	struct device *dev;
 	struct iommu_domain *domain;
@@ -311,26 +318,67 @@ static bool permanent_node(struct device_node *node)
 	return true;
 }
 
-static int protected_driver_chain(struct device *dev)
+#if IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM)
+static int protected_dependencies(struct device *dev, struct device *probe,
+		unsigned int depth, unsigned int *remaining, bool supplier)
 {
-	struct device *parent;
-	int ret;
+	struct device_driver *driver;
+	struct device_link *link;
+	int ret = 0;
 
-	/* Probe already holds its own device lock. Never wait for an ancestor
-	 * lock while holding a child: supplier teardown can take the other order.
-	 */
-	for (parent = dev; parent; parent = parent->parent) {
-		if (parent->of_node && !permanent_node(parent->of_node))
-			return -EOPNOTSUPP;
-		if (!device_trylock(parent))
-			return -EPROBE_DEFER;
-		ret = parent->driver && (parent->driver->owner ||
-			!parent->driver->suppress_bind_attrs) ? -EOPNOTSUPP : 0;
-		device_unlock(parent);
+	if (!dev)
+		return 0;
+	if (depth == 32 || !*remaining)
+		return -ELOOP;
+	--*remaining;
+	if (dev->of_node && !permanent_node(dev->of_node))
+		return -EOPNOTSUPP;
+	if (dev != probe && !device_trylock(dev))
+		return -EPROBE_DEFER;
+	driver = dev->driver;
+	if (supplier && !driver)
+		ret = -EPROBE_DEFER;
+	else if (driver && (driver->owner || !driver->suppress_bind_attrs))
+		ret = -EOPNOTSUPP;
+	if (dev != probe)
+		device_unlock(dev);
+	if (ret)
+		return ret;
+	list_for_each_entry_rcu(link, &dev->links.suppliers, c_node) {
+		ret = protected_dependencies(link->supplier, probe, depth + 1, remaining, true);
 		if (ret)
 			return ret;
 	}
-	return 0;
+	ret = protected_dependencies(dev->parent, probe, depth + 1, remaining, false);
+	if (ret)
+		return ret;
+	/* Reject a binding changed while its own dependencies were checked. */
+	if (dev != probe && !device_trylock(dev))
+		return -EPROBE_DEFER;
+	ret = dev->driver == driver ? 0 : -EPROBE_DEFER;
+	if (dev != probe)
+		device_unlock(dev);
+	return ret;
+}
+#endif
+
+static int protected_driver_chain(struct device *dev, struct device *probe)
+{
+#if IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM)
+	unsigned int remaining = 256;
+	int index, ret;
+
+	/* Probe already holds its own device lock. Never wait on another device
+	 * under it: teardown can take the reverse order. SRCU retains link nodes
+	 * while walking parents and transitive suppliers; busy bindings defer.
+	 */
+	index = device_links_read_lock();
+	ret = protected_dependencies(dev, probe, 0, &remaining, false);
+	device_links_read_unlock(index);
+	return ret;
+#else
+	return -EOPNOTSUPP;
+#endif
 }
 
 static int protected_supplier(struct device_node *node)
@@ -343,7 +391,7 @@ static int protected_supplier(struct device_node *node)
 	pdev = of_find_device_by_node(node);
 	if (!pdev)
 		return -EPROBE_DEFER;
-	ret = protected_driver_chain(&pdev->dev);
+	ret = protected_driver_chain(&pdev->dev, NULL);
 	/* Recheck the supplier after its ancestor bindings have been checked. */
 	if (!ret) {
 		if (!device_trylock(&pdev->dev))
@@ -372,7 +420,7 @@ static int owner_validate(struct platform_device *pdev, struct fes_de25_owner *o
 
 	if (!permanent_node(dev->of_node) || !dev->driver || !dev->driver->suppress_bind_attrs)
 		return -EOPNOTSUPP;
-	ret = protected_driver_chain(dev->parent);
+	ret = protected_driver_chain(dev, dev);
 	if (ret)
 		return ret;
 	owner->domain = iommu_get_domain_for_dev(dev);
@@ -544,6 +592,11 @@ int fes_de25_owner_test_ancestor(struct fes_de25_owner *owner, unsigned long act
 	ret = notifier_to_errno(owner_notify(&owner->notifier, action, &data));
 	owner->test_region.parent = NULL;
 	return ret;
+}
+
+int fes_de25_owner_test_dependencies(struct device *dev)
+{
+	return protected_driver_chain(dev, NULL);
 }
 
 void fes_de25_owner_test_destroy(struct fes_de25_owner *owner)

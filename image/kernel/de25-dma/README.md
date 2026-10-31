@@ -203,7 +203,10 @@ whose group contains only this device. `fes,fpga-region` points to a permanent
 root-level `fpga-region` with a direct `fpga-mgr` and nonempty static
 `fpga-bridges`. SMMU, region, manager and bridge platform suppliers and their bound ancestors must be
 built-in drivers with sysfs bind/unbind disabled. The owner also disables these
-attributes. This preserves ordinary driver-core default-domain ownership and
+attributes. The built-in candidate also checks parent and transitive supplier
+bindings through the pinned driver-core device-link API under SRCU. Unbound or
+busy suppliers defer, and removable/dynamic suppliers are refused. This preserves
+ordinary driver-core default-domain ownership and
 prevents supported unbind/removal from dismantling resources under allocations.
 The current kernel does not meet that supplier contract and remains refused;
 there is no module parameter or DT waiver. Kernel-internal forceful teardown or

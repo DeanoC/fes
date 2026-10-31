@@ -21,6 +21,7 @@ int fes_de25_owner_test_reap(struct fes_de25_owner *owner);
 int fes_de25_owner_test_notify(struct fes_de25_owner *owner, unsigned long action);
 int fes_de25_owner_test_override(struct fes_de25_owner *owner, const char *name);
 int fes_de25_owner_test_ancestor(struct fes_de25_owner *owner, unsigned long action);
+int fes_de25_owner_test_dependencies(struct device *dev);
 void fes_de25_owner_test_destroy(struct fes_de25_owner *owner);
 #endif
 #endif
