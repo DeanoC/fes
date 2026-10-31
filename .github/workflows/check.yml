@@ -6,13 +6,16 @@ on:
   workflow_dispatch:
   merge_group:
   # The nightly regression (nightly.yml) calls this workflow for every core's
-  # full simulation suite; it replaces the former weekly schedule.
+  # full simulation suite (the only place full sims run); it replaces the
+  # former weekly schedule.
   workflow_call:
 permissions:
   contents: read
 concurrency:
   group: fes-ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name != 'merge_group' }}
+  # Only superseded pull-request runs are cancelled; main, merge-queue and
+  # nightly runs always finish.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   plan:
     runs-on: ubuntu-24.04
@@ -43,7 +46,7 @@ jobs:
           from scripts.ci_simulations import simulation_matrix, tier_for_event
           from scripts.test_policy import validate_test_modes
           plan = json.load(open('/tmp/affected.json'))
-          # Pull requests and the merge queue run smoke sims; main and nightly run full.
+          # Pull requests, the merge queue and main run smoke sims; nightly and manual runs run full.
           tier = tier_for_event(os.environ['EVENT'])
           validate_plan(plan['lanes'], plan['cores'])
           validate_test_modes(plan['test_modes'], plan['lanes'])

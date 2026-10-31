@@ -1520,7 +1520,15 @@ sim-fes-c64-frame:
 		"$(CURDIR)/cores/fes-c64/sim/frame_tb.cpp"
 	@build/sim/fes-c64-frame/Vc64_frame_store
 
-sim-fes-c64: sim-fes-c64-session sim-fes-c64-d021 sim-fes-c64-ba-timing sim-fes-c64-vic-timing sim-fes-c64-medium sim-fes-c64-medium-mailbox sim-fes-c64-sprite-pal sim-fes-c64-sid sim-fes-c64-open-graphics sim-fes-c64-graphics sim-fes-c64-border-position sim-fes-c64-scroll sim-fes-c64-graphics-modes sim-fes-c64-collision-cpu sim-fes-c64-collisions sim-fes-c64-sprite-video sim-fes-c64-border sim-fes-c64-readback c64-diagnostic sim-fes-c64-cia sim-fes-c64-cia-reference sim-fes-c64-color-ram sim-fes-c64-keyboard sim-fes-c64-vic sim-fes-c64-drive sim-fes-c64-gcr sim-fes-c64-checkpoint sim-fes-c64-rmw sim-fes-c64-sax sim-fes-c64-axs sim-fes-c64-axs-oracle sim-fes-c64-jsr sim-fes-c64-push sim-fes-c64-irq sim-fes-c64-nmi sim-fes-c64-ready sim-fes-c64-clock sim-fes-c64-cadence sim-fes-c64-sprite sim-fes-c64-video sim-fes-c64-rom sim-fes-c64-fetch sim-fes-c64-frame
+# The full c64 suite in four independent groups, so CI runs them as parallel
+# matrix rows; sim-fes-c64 still runs everything.
+.PHONY: sim-fes-c64-cpu-group sim-fes-c64-video-a-group sim-fes-c64-video-b-group sim-fes-c64-system-group sim-fes-c64-machine
+sim-fes-c64-cpu-group: sim-fes-c64-rmw sim-fes-c64-sax sim-fes-c64-axs sim-fes-c64-axs-oracle sim-fes-c64-jsr sim-fes-c64-push sim-fes-c64-irq sim-fes-c64-nmi sim-fes-c64-ready sim-fes-c64-clock sim-fes-c64-cadence
+sim-fes-c64-video-a-group: sim-fes-c64-d021 sim-fes-c64-ba-timing sim-fes-c64-vic-timing sim-fes-c64-sprite-pal sim-fes-c64-open-graphics sim-fes-c64-graphics sim-fes-c64-border-position sim-fes-c64-scroll sim-fes-c64-graphics-modes
+sim-fes-c64-video-b-group: sim-fes-c64-collision-cpu sim-fes-c64-collisions sim-fes-c64-sprite-video sim-fes-c64-border sim-fes-c64-readback sim-fes-c64-vic sim-fes-c64-sprite sim-fes-c64-video sim-fes-c64-fetch sim-fes-c64-frame
+sim-fes-c64-system-group: sim-fes-c64-session sim-fes-c64-medium sim-fes-c64-medium-mailbox sim-fes-c64-sid c64-diagnostic sim-fes-c64-cia sim-fes-c64-cia-reference sim-fes-c64-color-ram sim-fes-c64-keyboard sim-fes-c64-drive sim-fes-c64-gcr sim-fes-c64-checkpoint sim-fes-c64-rom sim-fes-c64-machine
+sim-fes-c64: sim-fes-c64-cpu-group sim-fes-c64-video-a-group sim-fes-c64-video-b-group sim-fes-c64-system-group
+sim-fes-c64-machine: c64-diagnostic
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-machine
 	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sim_top $(C64_VERILATOR_FLAGS) \
