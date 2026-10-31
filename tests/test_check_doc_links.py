@@ -156,6 +156,8 @@ class De25PhysicalMemoryRecordTests(unittest.TestCase):
         self.assertRegex(programmer, r'Using programming file .* with checksum 0x067AE616 for device A5EB013BB23BCS@1')
         report = ' '.join((self.record / 'README.md').read_text().split())
         self.assertIn('No SHA-256 or byte count for the generated SOF was retained', report)
+        self.assertNotIn('one exact image', report)
+        self.assertIn('generated SOF is identified in the retained programming transcript by its Quartus checksum only', report)
         self.assertNotIn('2267ecc2e9e8dd08cd24e8d413ee7e704cc022863d5b761b6d6e6aa33a6bb64c', report)
         ramtest_guide = ' '.join((self.root / 'sources/misteross/boards/de25nano/ramtest/README.md').read_text().split())
         self.assertIn('programmed SOF, identified by Quartus checksum `0x067AE616`', ramtest_guide)
@@ -188,9 +190,49 @@ class De25PhysicalMemoryRecordTests(unittest.TestCase):
         with gzip.open(self.record / 'restore-reboot-uart.log.gz', 'rb') as stream:
             uart = stream.read().replace(b'\0', b'').decode('utf-8', 'replace')
         self.assertIn('reboot: Restarting system', uart)
+        self.assertNotRegex(uart, r'60-second|capture duration')
+        restore = json.loads((self.record / 'restore.json').read_text())
+        self.assertIn('no subsequent boot', restore['software_reboot'])
+        self.assertNotIn('60-second', restore['software_reboot'])
         report = ' '.join((self.record / 'README.md').read_text().split())
-        self.assertIn('does not retain the Linux commands that initiated shutdown', report)
+        self.assertIn('do not retain the Linux commands that initiated shutdown', report)
+        self.assertIn('document the capture duration, or include a subsequent boot', report)
+        self.assertNotIn('retained 60-second UART capture', report)
+        self.assertNotIn('failed software reboot', report)
+        self.assertNotIn('software-reboot failure', report)
         self.assertNotIn('Linux `sync` and authenticated `sudo /sbin/reboot`', report)
+
+    def test_failed_device_info_log_does_not_establish_device_index(self):
+        with gzip.open(self.record / 'device-info-command-failed.log.gz', 'rt') as stream:
+            failed_attempt = stream.read()
+        self.assertIn('Error (213019)', failed_attempt)
+        self.assertIn('Error (213002)', failed_attempt)
+        self.assertRegex(failed_attempt, r'Programming option ei;[^;]+;1 is illegal')
+        self.assertNotRegex(failed_attempt, r'device index [0-9]+|@[0-9]+|--device\s*=?\s*[0-9]+')
+
+        with gzip.open(self.record / 'ramtest-program-with-spl.log.gz', 'rt') as stream:
+            programmer = stream.read()
+        self.assertIn('Configuring device index 1', programmer)
+        report = ' '.join((self.record / 'README.md').read_text().split())
+        self.assertIn('does not establish which index was queried', report)
+        self.assertNotIn('device index 2 information attempt failed', report)
+        self.assertNotIn('device-info-command-index2', report)
+
+    def test_configuration_status_transcript_is_cited(self):
+        with gzip.open(self.record / 'device-info-scs.log.gz', 'rt') as stream:
+            device_info = stream.read()
+        with gzip.open(self.record / 'config-status-device1.log.gz', 'rt') as stream:
+            config_status = stream.read()
+        with gzip.open(self.record / 'ramtest-program-with-spl.log.gz', 'rt') as stream:
+            programming = stream.read()
+
+        self.assertIn('17:08:01 2026', device_info)
+        self.assertIn('--device=1 --cmd_code=0x4', config_status)
+        self.assertIn('17:10:09 2026', config_status)
+        self.assertIn('17:19:45 2026', programming)
+        report = ' '.join((self.record / 'README.md').read_text().split())
+        self.assertIn('[config-status-device1.log.gz](config-status-device1.log.gz)', report)
+        self.assertIn('between the device-information and SPL-programming transcripts', report)
 
     def test_board_identity_and_release_claims_are_limited_to_retained_evidence(self):
         hardware = json.loads((self.record / 'hardware.json').read_text())
@@ -215,12 +257,7 @@ class De25PhysicalMemoryRecordTests(unittest.TestCase):
         checks_note = ' '.join((self.record / 'README.md').read_text().split())
         self.assertIn('does not attest checks on this PR head', checks_note)
 
-        with gzip.open(self.record / 'device-info-command-index2.log.gz', 'rt') as stream:
-            failed_attempt = stream.read()
-        self.assertIn('Error (213019)', failed_attempt)
-        self.assertIn('Error (213002)', failed_attempt)
-        self.assertNotIn('Info: Command:', failed_attempt)
-        self.assertIn('device index 2 information attempt failed', report)
+        self.assertIn('does not establish which index was queried', report)
         restore = json.loads((self.record / 'restore.json').read_text())
         self.assertIn('claim_released_utc', restore)
         self.assertIn('one claim-release timestamp', report)

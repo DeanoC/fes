@@ -7,12 +7,14 @@ The 4-KiB tests and full-bank scans pass on both the 1-GiB FPGA LPDDR4 B and
 128-MiB SDRAM, with zero faults or data errors. The factory configuration is
 restored; `restore.json` records one claim release.
 
-This is physical diagnostic evidence from one programming session and one exact
-image. The retained transcripts do not bind the session to a USB serial or board
-UID. It changes no RTL, constraints, boot medium, runtime adapter, shared
-definition or production admission. The initial FES base is `300bf1c3ea67`; the
-actual compiled RAM producer remains `43c248d2dfbad7fa2d0ef4c72fa006fe21214dc9`.
-No later source or artifact inherits these results.
+This is physical diagnostic evidence from one programming session. The generated
+SOF is identified in the retained programming transcript by its Quartus checksum
+only; no digest or byte count for that file was retained. The retained transcripts
+do not bind the session to a USB serial or board UID. It changes no RTL,
+constraints, boot medium, runtime adapter, shared definition or production
+admission. The initial FES base is `300bf1c3ea67`; the actual compiled RAM
+producer remains `43c248d2dfbad7fa2d0ef4c72fa006fe21214dc9`. No later source or
+artifact inherits these results.
 
 ## Image and board identity
 
@@ -101,17 +103,21 @@ qualify the separately prepared FES rootfs or every firmware pair.
 Before testing, `quartus_pgm --dev_info` loads a temporary helper while querying
 device information; [device-info-scs.log.gz](device-info-scs.log.gz) retains
 that command transcript. Its generated `device-info.txt` is not retained, so
-this record does not establish a USB serial or board UID. A separate device
-index 2 information attempt failed: [device-info-command-index2.log.gz](device-info-command-index2.log.gz)
+this record does not establish a USB serial or board UID. A separate information
+command failed: [device-info-command-failed.log.gz](device-info-command-failed.log.gz)
 records a JTAG scan failure (`213019`) and an illegal programming option
-(`213002`), but no command line or identity output. The successful index 1
-programming operation is retained separately in
-[ramtest-program-with-spl.log.gz](ramtest-program-with-spl.log.gz).
+(`213002`). Its echoed `ei;...;1` option ends in the device-name slot and does
+not identify a JTAG device index, so this transcript does not establish which
+index was queried. The successful index 1 programming operation is retained
+separately in [ramtest-program-with-spl.log.gz](ramtest-program-with-spl.log.gz).
 
-Subsequent old-address SSH and serial prompt checks fail. No current pre-helper
-Linux health capture exists, so those observations alone do not establish the
-cause. Factory flash and SD contents are not rewritten. The helper/configuration
-logs are retained; this operation is explicitly not classified as read-only.
+The separate successful configuration-status query on device index 1 and the
+same cable is retained in [config-status-device1.log.gz](config-status-device1.log.gz).
+It ran between the device-information and SPL-programming transcripts. Subsequent
+old-address SSH and serial prompt checks fail. No current pre-helper Linux health
+capture exists, so those observations alone do not establish the cause. Factory
+flash and SD contents are not rewritten. The helper and configuration logs are
+retained; this operation is explicitly not classified as read-only.
 `restore.json` has one claim-release timestamp; no second-board status transcript
 is present, so this record makes no second-board release claim.
 
@@ -151,17 +157,18 @@ selects one chip. The 134,217,728-byte full SDRAM scan spans the 128-MiB range,
 crosses bit 26 and exercises both physical chip selects. No physical HPS-memory
 test runs.
 
-After the recorded JTAG sessions close, the retained 60-second UART capture
-shows systemd entering shutdown and ends at `watchdog0: watchdog did not stop!`
-and `reboot: Restarting system`. It does not retain the Linux commands that
-initiated shutdown, and it contains no subsequent boot. This is an observed
-failure, not a diagnosed watchdog, SDM, SPL or RTL cause. There is no
-factory-only software-reboot control yet.
+After the recorded JTAG sessions close, the retained UART bytes show systemd
+entering shutdown and end at `watchdog0: watchdog did not stop!` and
+`reboot: Restarting system`. They do not retain the Linux commands that initiated
+shutdown, document the capture duration, or include a subsequent boot. The
+software-reboot attempt is therefore observed only through the restart message;
+no watchdog, SDM, SPL or RTL cause is established. There is no factory-only
+software-reboot control yet.
 [Issue #1291](https://github.com/DeanoC/fes/issues/1291) tracks that separate
 qualification. The passing memory scans do not qualify software reset.
 
 A physical power cycle restores the factory boot. The retained UART capture is
-for the failed software reboot and ends at `reboot: Restarting system`; it has
+for the software-reboot attempt and ends at `reboot: Restarting system`; it has
 no subsequent factory boot transcript. The pinned-key SSH transcript records
 factory boot UUID `b8e89f9f-9dc1-4fa5-874c-3adf3aa6da67`, kernel
 `6.12.11-gd7d192a9ddd9`, and root `/dev/mmcblk0p2 ext3`. The restored factory
@@ -170,7 +177,7 @@ image to that distinct factory design. [restore.json](restore.json) records the
 SSH boot check and explicitly marks UART boot evidence as not retained. This
 verifies restoration from the untouched factory boot media; it does not attest
 their complete byte digests. The redacted restore logs retain the software-
-reboot failure and SSH recovery evidence. Temporary USB node ownership is
+reboot attempt and SSH recovery evidence. Temporary USB node ownership is
 restored, all recorded sessions and master claims are closed, no proof software
 was uploaded, and the one recorded claim is released. No serial-specific status
 transcript is retained. DE10 Kits A/B and GPU/harness processes were not
