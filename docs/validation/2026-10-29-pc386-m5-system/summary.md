@@ -9,6 +9,13 @@ boots FreeDOS in simulation with no oracle behind the CPU. Kit B ran the
 29 October package. The 31 October seal, after the merge of #1230's head,
 has had no kit run.
 
+Slice 3 ([#1320](https://github.com/DeanoC/fes/pull/1320)) has since replaced
+the host link with the `fes.computer` 1.1 contracts on this branch. The seal
+that covers the branch's tree is in
+[its record](../2026-10-31-pc386-m5-computer11/summary.md#quartus-seal): build
+`d355dd17…`, package `6823af43…`, at `e6de1a468`. The two seals here are dated
+evidence for slice 1's RTL.
+
 - **Simulation.** The system bench runs `pc386_system` with all three DDR
   ports on one window model. Its host does only what a kit's host can,
   through the window: it stages the disk and configuration, then reads the
@@ -135,8 +142,7 @@ M5 work.
     the window.
 - **Main at `d6a5748f9`, 31 October.** Main squashed #1230 at `45af99a23`
   as `d37072612`. The merge adds only main's changes since `45af99a23`,
-  #1315 and #1321, which touch only FogCast, so the seal at `2c13827a2`
-  still covers the core.
+  #1315 and #1321, which touch only FogCast, so it changes no core source.
 
 The merged base passes on its own. `--suite boot --cpu rtl` on `machine_tb`
 reaches the prompt and lists `dir`, with 113,547,658 instructions retired.
@@ -250,7 +256,13 @@ and every pinned input's hash.
 - **31 October**, at `2c13827a2`, the merge of #1230's head:
   [`seal-summary-2026-10-31.json`](seal-summary-2026-10-31.json).
 - **29 October**, at `c97eee0b6f`: [`seal-summary.json`](seal-summary.json).
-  Kit B ran this package. It no longer describes the branch's RTL.
+  Kit B ran this package.
+
+Neither describes the branch's RTL since slice 3 landed. The seal that does is
+[the 1.1 record's](../2026-10-31-pc386-m5-computer11/summary.md#quartus-seal),
+at `e6de1a468`: build `d355dd17…`, package `6823af43…`, setup +1.420 ns,
+hold +0.113 ns. `sources/misteross` at the branch tip is byte-identical to
+`e6de1a468`'s.
 
 | | Seal, 31 October | Seal, 29 October | Earlier fit, Yosys `1f7d0273` | Earlier fit, with the underflow change |
 | --- | --- | --- | --- | --- |
@@ -331,8 +343,6 @@ bundle install and no image or boot change.
 
 - **No keyboard or mouse.** The HID row model is not built, so the kit run
   could not type at the prompt.
-- **The `fes.computer` 1.1 contracts (M0)** will replace the host link,
-  together with the disk round trip with the runtime.
 - **The four games**, with both presets.
 - **The i386 lock** still pins Yosys `238eac9a`, four commits behind the
   pc386 lock's `0a7927bf`, which now elaborates the CPU for the seal. The
