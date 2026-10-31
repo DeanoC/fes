@@ -27,12 +27,24 @@ struct device { int unused; };
 struct completion { int unused; };
 struct s10_priv { struct { struct device *dev; } client; struct completion status_return_completion; unsigned long status; void *chan; };
 struct fpga_manager { struct s10_priv *priv; };
-static unsigned long jiffies;
+static unsigned long fake_jiffies;
+static int clock_reads;
 static int sends, waits, claims, dones, scenario;
 static bool free_buffers;
 static struct s10_priv priv;
 static struct fpga_manager manager = { &priv };
 static char data[8];
+static inline unsigned long clock_now(void)
+{
+ if (scenario == 12) {
+  clock_reads++;
+  if (clock_reads == 1) return 0;
+  if (clock_reads <= 3) return 29;
+  return 31;
+ }
+ return fake_jiffies;
+}
+#define jiffies clock_now()
 static void reinit_completion(struct completion *c) { (void)c; }
 static bool test_and_clear_bit(int n, unsigned long *bits) { bool v = *bits & (1UL << n); *bits &= ~(1UL << n); return v; }
 static void s10_receive_callback(void) {}
@@ -43,7 +55,7 @@ static int s10_send_buf(struct fpga_manager *m, const char *buf, size_t count)
  if (scenario == 1) return -ENOMEM;
  if (scenario == 2 || scenario == 3) return -ENOBUFS;
  if (scenario == 7 && sends == 2) return -EIO;
- if (scenario == 10) jiffies += 30;
+ if (scenario == 10) fake_jiffies += 30;
  return count < 4 ? (int)count : 4;
 }
 static int s10_get_unlocked_buffer_count(struct fpga_manager *m) { (void)m; return free_buffers ? 4 : 0; }
@@ -51,9 +63,9 @@ static int s10_svc_send_msg(struct s10_priv *p, int cmd, void *payload, int size
 { (void)p; (void)payload; (void)size; (void)cb; assert(cmd == COMMAND_RECONFIG_DATA_CLAIM); claims++; return scenario == 8 ? -EIO : 0; }
 static long wait_for_completion_timeout(struct completion *c, unsigned long timeout)
 {
- (void)c; assert(timeout > 0 && timeout <= 5); waits++;
- if (scenario == 2 || scenario == 6) { jiffies += timeout; return 0; }
- jiffies++;
+ (void)c; assert(timeout > 0 && timeout <= 5); if (scenario == 12) assert(timeout == 1); waits++;
+ if (scenario == 2 || scenario == 6) { fake_jiffies += timeout; return 0; }
+ fake_jiffies++;
  if (scenario == 9) return timeout; // completion with no recognized status
  if (scenario == 4 || scenario == 5) priv.status |= 1UL << SVC_STATUS_ERROR;
  if (claims || scenario == 5) { priv.status |= 1UL << SVC_STATUS_BUFFER_DONE; free_buffers = true; }
@@ -64,7 +76,7 @@ static void stratix10_svc_done(void *c) { (void)c; dones++; }
 #include "write-function.c"
 static void run(int which, int expected, int max_sends)
 {
- scenario=which; sends=waits=claims=dones=0; free_buffers=false; priv.status=0; jiffies=which==11 ? ULONG_MAX-2 : 0;
+ scenario=which; clock_reads=0; sends=waits=claims=dones=0; free_buffers=false; priv.status=0; fake_jiffies=which==11 ? ULONG_MAX-2 : 0;
  assert(s10_ops_write(&manager, data, sizeof(data)) == expected);
  assert(sends <= max_sends); assert(dones == (expected != 0));
  if (which==1) assert(sends==1 && waits==0);
@@ -81,6 +93,6 @@ int main(int argc, char **argv)
  run(0,0,2); run(1,-ENOMEM,1); run(2,-ETIMEDOUT,1);
  run(3,-ETIMEDOUT,30); run(4,-EFAULT,1); run(5,-EFAULT,1);
  run(6,-ETIMEDOUT,1); run(7,-EIO,2); run(8,-EIO,2);
- run(9,-ETIMEDOUT,2); run(10,-ETIMEDOUT,1); run(11,0,2);
+ run(12,-ETIMEDOUT,1); run(9,-ETIMEDOUT,2); run(10,-ETIMEDOUT,1); run(11,0,2);
  return 0;
 }

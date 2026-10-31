@@ -71,11 +71,11 @@ python3 image/kernel/de25-fpga/verify_write.py \
 The runner authenticates the complete original source and platform patch,
 applies its manager section without fuzz and authenticates the complete result.
 It compiles the actual changed write function against injected clock, service,
-completion and callback helpers. Twelve cases cover normal transfer, permanent
+completion and callback helpers. Thirteen cases cover normal transfer, permanent
 ENOMEM, silent backpressure, repeated backpressure notifications, error combined
 with either progress bit, missing callbacks, EIO after partial submission,
-claim-command failure, spurious completions, expiry inside submission and clock
-wrap. The unmodified function must hang on permanent ENOMEM under a one-second
+claim-command failure, spurious completions, expiry inside submission, clock wrap and expiry between budget reads.
+A single sampled clock supplies both the expiry check and remaining wait. The unmodified function must hang on permanent ENOMEM under a one-second
 owned-child timeout. A profile-disabled positive transfer also passes.
 
 These are host function tests. They do not prove real kernel scheduling,

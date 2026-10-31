@@ -8,7 +8,7 @@
 +#include <linux/jiffies.h>
 @@ -328,0 +330,3 @@
 +	unsigned long deadline = jiffies + msecs_to_jiffies(30000);
-+	unsigned long remaining;
++	unsigned long remaining, now;
 +	bool bounded = IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM);
 @@ -334,0 +339,7 @@
 +		/* Bound total transfer time, including full queues and callbacks.
@@ -36,16 +36,17 @@
 +				count -= sent;
 +				buf += sent;
 +			}
-@@ -354,0 +373,8 @@
+@@ -354,0 +373,9 @@
 +		remaining = S10_BUFFER_TIMEOUT;
 +		if (bounded) {
-+			if (time_after_eq(jiffies, deadline)) {
++			now = jiffies;
++			if (time_after_eq(now, deadline)) {
 +				ret = -ETIMEDOUT;
 +				break;
 +			}
-+			remaining = min(remaining, deadline - jiffies);
++			remaining = min(remaining, deadline - now);
 +		}
-@@ -356,2 +382,7 @@
+@@ -356,2 +383,7 @@
 -				&priv->status_return_completion,
 -				S10_BUFFER_TIMEOUT);
 +				&priv->status_return_completion, remaining);
@@ -55,7 +56,7 @@
 +			ret = -EFAULT;
 +			break;
 +		}
-@@ -552,0 +584 @@
+@@ -552,0 +585 @@
 +		.suppress_bind_attrs = IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM),
 --- a/drivers/firmware/stratix10-svc.c
 +++ b/drivers/firmware/stratix10-svc.c

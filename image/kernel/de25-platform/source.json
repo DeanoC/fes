@@ -8,7 +8,7 @@
     },
     "drivers/fpga/stratix10-soc.c": {
       "before_sha256": "26a525c7138b2dd04735e1cc3b458cec115102a1c00c6c51c4abf4e3ae7b6b44",
-      "after_sha256": "c65111f4dd9571f39a803836640b35c1834d96ab06c9f4bd1a1bd1726a0b05a9"
+      "after_sha256": "107a14c3d05f774aac529525d06ffe2fa963f3d2989f3a041f61acc871b7881a"
     },
     "drivers/firmware/stratix10-svc.c": {
       "before_sha256": "493301f526657473b05700ba54bea38d1b63d43a99a341e78c338e0908ca9f4a",
@@ -19,7 +19,7 @@
       "after_sha256": "240a9828c2818fbdc33761d5e0aeea50d5d538ee5d8b2e9218f48bc4ff1e288c"
     }
   },
-  "patch_sha256": "9589b1b54b53df95728a2468de167581afd20cbf317dc8f8668588cc88e7d7f7",
+  "patch_sha256": "1c1f35891bd9c88206dccf6768894bb78eda56143bdfded90e0db8e14c4ab07b",
   "unchanged_supplier_sources": {
     "drivers/iommu/arm/arm-smmu-v3/arm-smmu-v3.c": "98d64761da20ab9d4e6b8fac163fb4de11402c6ccdea26a84f59257dbd83323a",
     "drivers/clk/socfpga/clk-agilex5.c": "65b805f28a29d342eb9076415f3f0ab4668ddd88cb0686139161cb4e9d7aeb41"
