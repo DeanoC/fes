@@ -16,19 +16,19 @@ import (
 )
 
 func TestSTROMPartsClientUsesOrdinaryLibraryLoadAndRejectsMixedReceipts(t *testing.T) {
-	for _, name := range []string{"paired", "persistent disk", "computer 1.1 persistent disk", "persistent disk without parts", "bad disk revision", "read-only disk", "missing ROM", "wrong ABI", "foreign layout", "wrong identity", "persistent without disk", "persistent without disk or parts", "ROM-less parts endpoint"} {
+	for _, name := range []string{"paired", "persistent disk", "computer 1.1", "computer 1.1 persistent ST disk", "persistent disk without parts", "bad disk revision", "read-only disk", "missing ROM", "wrong ABI", "foreign layout", "wrong identity", "persistent without disk", "persistent without disk or parts", "ROM-less parts endpoint"} {
 		t.Run(name, func(t *testing.T) {
 			status := libraryPartsStatus()
 			value := status.CorePackage
 			value.ABI = protocol.RuntimeContract{ID: "fes.computer", Major: 1}
-			if name == "computer 1.1 persistent disk" {
+			if name == "computer 1.1" || name == "computer 1.1 persistent ST disk" {
 				value.ABI.Minor = 1
 			}
 			c := value.PartsComposition
 			c.Layout = expansion.AtariStVideoLayout
 			c.ID, _ = expansion.PartsCompositionID(c.PackageID, c.Layout, c.Parts, c.PayloadSHA256)
 			value.ROMLink = &corepackage.ROMLinkIdentity{ROMID: "atari-st-firmware", Role: "firmware", MapSHA256: strings.Repeat("a", 64), SourceSHA256: strings.Repeat("b", 64), SourceSize: 192 << 10, ProgrammedSHA256: strings.Repeat("f", 64), ProgrammedSize: 50000}
-			if name == "persistent disk" || name == "computer 1.1 persistent disk" || name == "persistent disk without parts" || name == "bad disk revision" || name == "read-only disk" {
+			if name == "persistent disk" || name == "computer 1.1 persistent ST disk" || name == "persistent disk without parts" || name == "bad disk revision" || name == "read-only disk" {
 				value.PersistenceMode = "persistent"
 				value.ActiveInterfaces = []protocol.RuntimeInterface{{ID: protocol.AtariStFloppyInterface().ID, Major: 1}, {ID: protocol.AtariStFloppyWriteInterface().ID, Major: 1}, {ID: "fes.video.fixed-720p60", Major: 1}}
 				value.MediaUnits = []protocol.MediaUnitStatus{{Interface: protocol.AtariStFloppyInterface(), MinBytes: uint32(protocol.AtariStFloppyBytes), MaxBytes: uint32(protocol.AtariStFloppyBytes), ChunkBytes: 512, State: protocol.MediaUnitReady, Persistence: &protocol.MediaDataStatus{Mode: "persistent", GameID: "st-desktop", BaseMediaID: strings.Repeat("9", 64), Revision: "absent"}}}
@@ -78,7 +78,7 @@ func TestSTROMPartsClientUsesOrdinaryLibraryLoadAndRejectsMixedReceipts(t *testi
 			} else {
 				_, err = client.LoadLibraryCore(context.Background(), 5, strings.NewReader("input"), value.PackageID)
 			}
-			if (err == nil) != (name == "paired" || name == "persistent disk" || name == "computer 1.1 persistent disk" || name == "persistent disk without parts") || calls != 1 {
+			if (err == nil) != (name == "paired" || name == "persistent disk" || name == "computer 1.1" || name == "persistent disk without parts") || calls != 1 {
 				t.Fatalf("error=%v calls=%d", err, calls)
 			}
 		})
