@@ -147,7 +147,7 @@ exit "$TEST_IP_STATUS"
     def test_invalid_inputs_never_change_network(self):
         cases = [(value, self.CID, "de25-nano") for value in
                  ("", "broken", "00:00:00:00:00:00", "ff:ff:ff:ff:ff:ff",
-                  "01:00:00:00:00:01", "b2:xx:54:6c:7e:4f")]
+                  "01:00:00:00:00:01", "b2:xx:54:6c:7e:4f", "b2:::54:6c:7e:4f")]
         cases += [("b2:f9:54:6c:7e:4f", value, "de25-nano") for value in
                   (None, "", "0" * 32, "f" * 32, "z" * 32, "a" * 31, "a" * 33)]
         cases.append(("b2:f9:54:6c:7e:4f", self.CID, "de10-nano"))

@@ -14,7 +14,9 @@ case "$address" in
     ??:??:??:??:??:??) ;;
     *) fail 'invalid Ethernet address' ;;
 esac
-case "$address" in *[!0-9a-f:]*) fail 'invalid Ethernet address' ;; esac
+digits=$(printf '%s' "$address" | tr -d ':')
+[ "${#digits}" = 12 ] || fail 'invalid Ethernet address'
+case "$digits" in *[!0-9a-f]*) fail 'invalid Ethernet address' ;; esac
 [ "$address" != 00:00:00:00:00:00 ] || fail 'zero Ethernet address'
 first=${address%%:*}
 [ "$((0x$first & 1))" = 0 ] || fail 'multicast Ethernet address'

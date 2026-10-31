@@ -28,13 +28,15 @@ import boot
 
 PROFILE = 'image/kernel/de25-platform'
 IMAGE = 'fes-de25-owner.img'
+NETWORK_ID = 'etc/init.d/S38fes-network-id'
+NETWORK_ID_SOURCE = 'image/de25-nano/rootfs/overlay/' + NETWORK_ID
 OWNER_MDEV_RULE = (b'# Preserve the permanent owner control permissions after mdev scanning.\n'
                    b'fes-de25-scanout root:root 600 @chmod 600 /dev/fes-de25-scanout\n')
 RECIPE_FILES = ('scripts/de25_owner_image.py', 'scripts/media_container.py',
                 'scripts/de25_kernel_test.py', 'scripts/de25_kernel_platform.py',
                 'scripts/de25_boot_contract.py', 'scripts/de25_first_boot.py',
                 'image/de25-nano/build.py', 'image/de25-nano/boot.py',
-                'image/de25-nano/kernel_modules.py', PROFILE + '/S15fpga')
+                'image/de25-nano/kernel_modules.py', PROFILE + '/S15fpga', NETWORK_ID_SOURCE)
 
 
 def recipe_key():
@@ -125,7 +127,8 @@ def root_changes(base_record, kernel_record, revision, base_mdev):
                 'base_producer': base_record['fes_revision'], 'normal_runtime_admission': 'closed',
                 'programming_contract': kernel_record['programming_contract'],
                 'kernel_notes_sha256': kernel_record['kernel_notes_sha256']}
-    return {'etc/fes-kernel-release': ((kernel.RELEASE + '\n').encode(), 0o644),
+    return {NETWORK_ID: ((ROOT / NETWORK_ID_SOURCE).read_bytes(), 0o755),
+            'etc/fes-kernel-release': ((kernel.RELEASE + '\n').encode(), 0o644),
             'etc/init.d/S15fpga': ((ROOT / PROFILE / 'S15fpga').read_bytes(), 0o755),
             'etc/mdev.conf': (OWNER_MDEV_RULE + base_mdev, 0o644),
             'usr/share/fes/kernel-modules.json': ((json.dumps(manifest, indent=2, sort_keys=True) + '\n').encode(), 0o644)}
@@ -135,8 +138,11 @@ def rewritten_tar(source, destination, additions, epoch):
     removed = []
     with tarfile.open(source) as old, tarfile.open(destination, 'w', format=tarfile.PAX_FORMAT) as new:
         index = members(old)
-        if not set(additions) <= set(index):
+        missing = set(additions) - set(index)
+        if missing - {NETWORK_ID}:
             raise ValueError('expected base configuration paths missing')
+        if NETWORK_ID in missing and ('etc/init.d' not in index or not index['etc/init.d'].isdir()):
+            raise ValueError('network initialization directory missing')
         for name, item in index.items():
             if name == 'lib/modules' or name.startswith('lib/modules/'):
                 removed.append((name, item.isdir()))

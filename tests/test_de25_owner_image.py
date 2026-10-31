@@ -17,6 +17,8 @@ class CandidateArchiveTests(unittest.TestCase):
         record = json.loads(changes['usr/share/fes/kernel-modules.json'][0])
         self.assertEqual(record['programming_contract'], owner.PROGRAMMING_CONTRACT)
         self.assertEqual(record['kernel_notes_sha256'], 'e' * 64)
+        self.assertEqual(changes[owner.NETWORK_ID],
+                         ((owner.ROOT / owner.NETWORK_ID_SOURCE).read_bytes(), 0o755))
         self.assertEqual(changes['etc/mdev.conf'], (owner.OWNER_MDEV_RULE + base, 0o644))
         self.assertIn(b'@chmod 600 /dev/fes-de25-scanout', changes['etc/mdev.conf'][0])
         with self.assertRaisesRegex(ValueError, 'already contains'):
@@ -59,6 +61,28 @@ class CandidateArchiveTests(unittest.TestCase):
                 self.assertEqual(items['etc/fes-kernel-release'].mtime, 1751459412)
             with tarfile.open(original) as archive:
                 self.assertEqual(archive.extractfile('./etc/fes-kernel-release').read(), b'old\n')
+
+    def test_new_network_script_requires_real_init_directory_and_preserves_mode(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            original, output = root / 'source.tar', root / 'candidate.tar'
+            for parent_type in (None, tarfile.SYMTYPE, tarfile.DIRTYPE):
+                with tarfile.open(original, 'w') as archive:
+                    self.add(archive, 'lib/modules/vendor.ko')
+                    if parent_type is not None:
+                        self.add(archive, 'etc/init.d', type=parent_type, linkname='elsewhere')
+                additions = {owner.NETWORK_ID: (b'#!/bin/sh\nexit 0\n', 0o755)}
+                if parent_type != tarfile.DIRTYPE:
+                    with self.assertRaisesRegex(ValueError, 'directory missing'):
+                        owner.rewritten_tar(original, output, additions, 1751459412)
+                else:
+                    owner.rewritten_tar(original, output, additions, 1751459412)
+                    with tarfile.open(output) as archive:
+                        item = archive.getmember('./' + owner.NETWORK_ID)
+                        self.assertEqual(item.mode, 0o755)
+                        self.assertEqual(archive.extractfile(item).read(), additions[owner.NETWORK_ID][0])
+                    with self.assertRaisesRegex(ValueError, 'configuration paths missing'):
+                        owner.rewritten_tar(original, output, {'etc/unexpected': (b'x', 0o644)}, 1)
 
     def test_traversal_and_command_characters_are_refused(self):
         for name in ('/etc/passwd', '../outside', './lib/modules/../../etc/shadow', 'x;rm /y', 'name with space'):
