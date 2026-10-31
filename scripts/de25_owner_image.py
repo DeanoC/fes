@@ -180,9 +180,11 @@ def prepare_boot(base, candidate, output, epoch):
     tree = output / 'boot'
     shutil.copytree(base / 'vendor-boot', tree)
     for source, name in [('Image', 'Image'), ('de25-owner.dtb', 'socfpga_agilex5_de25_nano.dtb')]:
+        (tree / name).chmod(0o644)
         shutil.copyfile(candidate / source, tree / name)
         os.utime(tree / name, (epoch, epoch))
     prefix = tree / 'vendor-boot-prefix.bin'
+    prefix.chmod(0o644)
     vendor = boot.load_lock()
     offset = vendor['partitions'][0]['start_sector'] * 512
     device = str(prefix) + '@@' + str(offset)
