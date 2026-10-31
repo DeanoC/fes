@@ -1,6 +1,7 @@
 {
+  "evidence_scope": "Historical default-ID elaboration using the 8615-byte leaf at reference commit 786e6383b32617af8baeb32e9de6cf99231a19f9; it predates the HDMI frame gate at PR head d715651b4171da7a69fa0d896dc1bd67168dd064 and does not describe the current PR leaf.",
   "tested_mdir": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/sources/misteross/build/sim/de25-zx81-hps/computer-vg771n3e",
-  "current_elaboration_mdir": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/sources/misteross/build/sim/de25-zx81-hps/default-elaboration-binding-zh9m26xl",
+  "comparison_elaboration_mdir": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/sources/misteross/build/sim/de25-zx81-hps/default-elaboration-binding-zh9m26xl",
   "normalization": "Only private Mdir absolute path bytes replaced by <PRIVATE_MDIR>. No code, line numbers, constants, names or other bytes normalized.",
   "all_generated_cpp_and_headers_equal": false,
   "files": [
@@ -117,7 +118,7 @@
       "guard_diagnostic_source_line_updates": 0
     }
   ],
-  "current_leaf_sha256": "26ce1e51454000f2762045cc442fbbae881404a98b94334eea8ba11e43a9ad0a",
+  "elaborated_reference_leaf_sha256": "26ce1e51454000f2762045cc442fbbae881404a98b94334eea8ba11e43a9ad0a",
   "build_id": "00000000000000000000000000000000",
   "command": [
     "verilator",

@@ -1,9 +1,11 @@
 # Native binding after the tape storage repair
 
 This audit binds the original passing full-machine simulation to repaired
-producer `5a7382c4b5c17173f48bd074847acc0acc22de93`. It generates the current
-default-zero-BUILD_ID Verilator model and compares it with the exact retained
-C++ and headers that produced [the original machine pass](../machine.log).
+producer `5a7382c4b5c17173f48bd074847acc0acc22de93`. It generates that
+producer snapshot's default-zero-BUILD_ID Verilator model and compares it with
+the exact retained C++ and headers that produced [the original machine
+pass](../machine.log). This snapshot predates the HDMI frame gate at PR head
+`d715651b4171da7a69fa0d896dc1bd67168dd064`; it is not current-source evidence.
 Elaboration takes 0.174 seconds; full machine execution is not repeated.
 
 The earlier [786e6383b3 candidate](../../failed-786e6383b3/README.md) failed

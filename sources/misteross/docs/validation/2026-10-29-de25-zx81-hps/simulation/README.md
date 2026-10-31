@@ -1,10 +1,14 @@
 # DE25 ZX81 HPS historical computer simulation
 
-The retained machine and endpoint logs predate the complete-frame HDMI gate.
-They describe only their recorded source inputs. The later [BASIC round-trip
-proof](../../../../../../docs/validation/2026-10-30-de25-zx81-load-roundtrip/README.md)
+The retained machine and endpoint logs in this directory predate the
+complete-frame HDMI gate. They remain historical host simulation evidence for
+their recorded source inputs and do not describe the current source. The later
+[BASIC round-trip proof](../../../../../../docs/validation/2026-10-30-de25-zx81-load-roundtrip/README.md)
 exercises the machine and client after the frame-boundary gate was added; the
-current `computer_tb.cpp` checks that readiness changes only at a frame tick.
+current `computer_tb.cpp` checks that readiness changes only at a frame tick,
+and the current endpoint fault regression reaches an active rendered frame
+before checking that transport loss blanks sync and data at the next frame
+boundary.
 
 These are host simulations of the native Avalon computer leaf, its actual
 `fes.computer` mailbox, HID mapper, CRC media transfer, tape store, NMOS Z80,
@@ -48,14 +52,19 @@ epoch state and suppression of late media writes after a transport fault.
 
 ## Source binding
 
-The original full-machine run selected an **8,479-byte preguard leaf**. A
-later BUILD_ID macro guard makes the current leaf 8,615 bytes, SHA-256
-`26ce1e51454000f2762045cc442fbbae881404a98b94334eea8ba11e43a9ad0a`.
-Both select a zero default identity. The [leaf receipt](leaf-build-id-binding.json)
-preserves this mismatch; its reconstructed preguard hash is not an
-independently captured original source hash. The original
-[Verilator input metadata](machine-verilator-files.dat) preserves the selected
-size and command.
+The original full-machine run selected an **8,479-byte preguard leaf**. The
+later BUILD_ID comparison used the 8,615-byte guarded leaf recorded at
+reference commit `786e6383b32617af8baeb32e9de6cf99231a19f9`, SHA-256
+`26ce1e51454000f2762045cc442fbbae881404a98b94334eea8ba11e43a9ad0a`. That
+leaf is not the current leaf: at reviewed PR #1232 source head
+`d715651b4171da7a69fa0d896dc1bd67168dd064` it was 9,176 bytes with SHA-256
+`9f0f57bf95e9bf8f1d669b2e090a700d7cfbc3ee46a09ad17568f9bba79c04bd`. The
+original machine run and guarded-reference comparison both used a zero default
+identity. The [leaf receipt](leaf-build-id-binding.json)
+preserves the original selection and later guarded-reference comparison; its
+reconstructed preguard hash is not an independently captured original source
+hash. The original [Verilator input metadata](machine-verilator-files.dat)
+preserves the selected size and command.
 
 A fresh default-ID elaboration was compared with the generated C++ and
 headers that produced the passing machine run. Across all 14 files, the only
@@ -63,15 +72,21 @@ differences after private output-path normalization are four `VL_FATAL_MT`
 convergence-diagnostic source origins changing from line 8 to line 11 because
 of the three guard lines. Every other byte matches. The
 [elaboration receipt](default-elaboration-binding.json) records both the
-initial unequal comparison and this exact source-location audit. The raw
-[diff log](default-elaboration-diff.log.gz) is compressed without changing its
-bytes. Full machine execution was not repeated for this historical source
-snapshot after the BUILD_ID guard or runner refactor. Later evidence is recorded
-separately above and must not be attributed to these retained logs.
+initial unequal comparison and this exact source-location audit for the
+reference-commit leaf. The raw [diff log](default-elaboration-diff.log.gz) is
+compressed without changing its bytes. Full machine execution was not repeated
+for this historical source snapshot after the BUILD_ID guard or runner
+refactor. The retained endpoint smoke also predates the frame gate and does not
+exercise the current leaf. Later evidence is recorded separately above and
+must not be attributed to these retained logs.
 
-[input-hashes.json](input-hashes.json) records the later committed reference
-`786e6383b32617af8baeb32e9de6cf99231a19f9`, 22 matching current input files,
-the selected ROM/header/binary identities and three adapted RAM sources.
+[input-hashes.json](input-hashes.json) records 22 functional source files at
+reference commit `786e6383b32617af8baeb32e9de6cf99231a19f9`, plus the selected
+ROM/header/binary identities and three adapted RAM sources. At reviewed PR
+#1232 source head `d715651b4171da7a69fa0d896dc1bd67168dd064`, 18 of those 22
+files still matched; `fes_de25_computer.v`, `computer_tb.cpp`, `sim.py` and
+`build.py` differed. The manifest describes its reference commit, not current
+inputs.
 The original machine invocation used the existing ZX81 RAM/video helpers and
 a guarded tape-hint adaptation supplied by its launcher. All three selected
 adapted files were subsequently verified byte-for-byte against the final

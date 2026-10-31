@@ -12,25 +12,30 @@ It runs entirely on the existing 100 MHz peripheral clock, using 13/200
 enables for the unchanged 6.5 MHz ULA and 3.25 MHz CPU. HDMI uses its separate
 74.25 MHz PLL. Transport readiness crosses a two-stage pixel-clock
 synchronizer, and the RGB/DE/HS/VS mask changes only at the renderer's 720p
-frame boundary. Pixel-clock loss blanks output while CPU, control and tape
-continue. The renderer packs eight monochrome pixels per RAM word in two
-328×270 M20K banks. Capture publishes only completed 328-pixel rows, crops
-excess rows at 270, and renders any missing bottom rows as white paper.
+frame boundary. The board shell tracks pixel reset/PLL lock: RGB and DE blank
+immediately, while sync visibility and picture resume wait for a complete
+horizontal sync pulse outside vertical sync. Pixel-clock loss does not stop
+CPU, control or tape. The renderer packs eight monochrome pixels per RAM word
+in two 328×270 M20K banks. Capture publishes only completed 328-pixel rows,
+crops excess rows at 270, and renders any missing bottom rows as white paper.
 Partial first/final source lines are excluded; malformed complete lines reject
 the whole capture. Output stays black until the first complete capture.
 
 A request/acknowledgement handshake keeps the published bank immutable until
 scanout switches at a 720p frame boundary. A slow or stopped reader makes the
 source skip whole frames; a stopped source repeats the last completed picture.
-HOLD aborts partial capture and retains the last completed picture. The shared
-transport epoch reset asynchronously invalidates both owners even with clocks
-stopped; each domain releases reset through its own two-stage synchronizer.
+HOLD aborts partial capture and retains the last completed picture. An
+endpoint reset asynchronously invalidates capture and publish ownership even
+with clocks stopped. The raster, sync and selected scanout bank keep running
+through the current frame; presentation is hidden at the frame boundary where
+the synchronized readiness gate closes. Each domain releases reset through
+its own two-stage synchronizer.
 DE, sync and the scaled pixel selector share the RAM's registered read latency.
 The two single-bit crossings cut only their first synchronizer stages. The
 held row-count metadata has explicit 10 ns net-delay, datapath-delay,
-maximum-skew and maximum-path bounds. No whole
-clock group is cut. Physical M20K, metastability/MTBF, PLL recovery and external
-HDMI acceptance remain board-validation work.
+maximum-skew and maximum-path bounds. No whole clock group is cut. Physical
+M20K, metastability/MTBF, PLL recovery and external HDMI acceptance remain
+board-validation work.
 
 Tape storage uses two explicit even/odd M20K banks with common-clock
 simple dual ports and old-data reads. A guarded board wrapper retains the
@@ -108,12 +113,14 @@ width/order, bounded MMIO, firmware/device binding and a production runtime
 profile remain board-validation work.
 
 The simulation exercises the real endpoint, mailbox, HID mapper, tape store,
-machine, ROM and renderer. It includes cold BASIC/editor boot, actual key-driven
+machine, ROM and renderer, plus the HDMI shell's lock/reset gating. It includes
+cold BASIC/editor boot, actual key-driven
 LOAD and ordered RAM-write verification, CRC failures, stopped PIX operation,
 HOLD neutralization, malformed-access faults and stopped-clock reset behavior.
 The focused video bench checks every displayed image pixel across three clock
 ratios with randomized unwritten RAM, plus startup, malformed lines, cropped/short
-frames, HOLD, stopped clocks, and stopped-clock epoch reset.
+frames, HOLD, stopped clocks, stopped-clock epoch reset with presentation held
+through the next raster boundary, and queued-frame recovery.
 The board bench also checks asynchronous reset and PLL-loss blanking while
 preserving an active HDMI sync pulse, then resumes data only at a complete line
 boundary using digital PLL signals.

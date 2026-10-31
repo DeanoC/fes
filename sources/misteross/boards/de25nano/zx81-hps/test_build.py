@@ -67,6 +67,104 @@ class HpsZX81BuildTests(unittest.TestCase):
         for name in required:
             self.assertEqual(sources[name], (B.ROOT / name).read_bytes())
 
+    def test_readiness_cdc_cut_is_narrow_and_same_domain_visibility_stays_timed(self):
+        sdc = B.capture()[B.BOARD + "zx81-hps/clocks.sdc"].decode()
+        self.assertIn("{soc_inst|subsys_periph|fes_computer|fes_computer|pixel_transport_ready_sync[0]|D}", sdc)
+        self.assertIn("set_false_path -to $computer_pixel_ready_stage0_d", sdc)
+        self.assertIn("if {$computer_pixel_ready_clear_count != 2}", sdc)
+        self.assertIn("pixel_transport_reset_release[0]|aclr", sdc)
+        self.assertIn("pixel_transport_reset_release[1]|aclr", sdc)
+        self.assertIn("Stage-to-stage paths and both generated clocks stay timed", sdc)
+        # The board's pixel_reset_n is released by a pixel-clock chain whose
+        # clear pins are already cut, so its visibility synchronizer D path is
+        # same-domain and must remain timed.
+        self.assertNotIn("visible_sync", sdc)
+        self.assertNotIn("transport_ready_meta", sdc)
+        self.assertNotIn("set_clock_groups", sdc)
+
+    def test_frame_ownership_constraints_and_reset_pin_counts_match_rtl(self):
+        sdc = B.capture()[B.BOARD + "zx81-hps/clocks.sdc"].decode()
+        self.assertIn("if {$computer_clear_count != 4}", sdc)
+        self.assertIn("request {*|video|request} {*|video|request_sync[0]}", sdc)
+        self.assertIn("acknowledge {*|video|acknowledge} {*|video|acknowledge_sync[0]}", sdc)
+        self.assertIn("if {[get_collection_size $owner_rows_source] != 9 || [get_collection_size $owner_rows_sink] != 9}", sdc)
+        self.assertIn("if {[get_collection_size $owner_reset_pins] != 4}", sdc)
+        self.assertIn("sys_release*|aclr", sdc)
+        self.assertIn("pix_release*|aclr", sdc)
+        self.assertNotIn("set_clock_groups", sdc)
+
+    def test_historical_quartus_report_is_not_presented_as_current_head_evidence(self):
+        record = B.ROOT / "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps"
+        producer_inputs = json.loads((record / "compiled-5a7382c4b5/reports/inputs.json").read_text())
+        selected = producer_inputs["functional_snapshot_sha256"]
+        drifted = {
+            name for name, recorded in selected.items()
+            if not (B.ROOT / name).is_file() or
+            hashlib.sha256((B.ROOT / name).read_bytes()).hexdigest() != recorded
+        }
+        self.assertTrue({
+            B.BOARD + "zx81-hps/board.v",
+            B.BOARD + "zx81-hps/clocks.sdc",
+            B.BOARD + "zx81-hps/fes_de25_computer.v",
+        } <= drifted)
+        report = " ".join((record / "README.md").read_text().split())
+        self.assertIn("**Evidence status:** historical producer", report)
+        self.assertIn("not compiled from the current branch", report)
+        self.assertIn("not valid for SRAM testing the current source", report)
+        self.assertIn("does not validate the current HPS or scanout false-path selectors", report)
+        self.assertNotIn("Later evidence commits do not change the producer's 41 selected input files", report)
+        manifest = record / "SHA256SUMS"
+        for line in manifest.read_text().splitlines():
+            digest, name = line.split("  ", 1)
+            self.assertEqual(hashlib.sha256((record / name).read_bytes()).hexdigest(), digest, name)
+
+    def test_simulation_receipts_are_scoped_to_historical_sources(self):
+        record = B.ROOT / "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation"
+        source_head = "d715651b4171da7a69fa0d896dc1bd67168dd064"
+        reference = "786e6383b32617af8baeb32e9de6cf99231a19f9"
+        reference_leaf = "26ce1e51454000f2762045cc442fbbae881404a98b94334eea8ba11e43a9ad0a"
+        leaf_path = B.BOARD + "zx81-hps/fes_de25_computer.v"
+        self.assertNotEqual(hashlib.sha256((B.ROOT / leaf_path).read_bytes()).hexdigest(), reference_leaf)
+
+        inputs = json.loads((record / "input-hashes.json").read_text())
+        self.assertEqual(inputs["reference_commit"], reference)
+        self.assertIn(source_head, inputs["source_scope"])
+        self.assertNotIn("functional_current_sources", inputs)
+        recorded = inputs["functional_reference_sources"]
+        self.assertEqual(len(recorded), 22)
+        drifted = {
+            item["path"] for item in recorded
+            if hashlib.sha256((B.ROOT / item["path"]).read_bytes()).hexdigest() != item["sha256"]
+        }
+        self.assertTrue({
+            leaf_path,
+            B.BOARD + "zx81-hps/computer_tb.cpp",
+            B.BOARD + "zx81-hps/sim.py",
+            B.BOARD + "zx81-hps/build.py",
+        } <= drifted)
+
+        report = " ".join((record / "README.md").read_text().split())
+        self.assertIn(f"PR #1232 source head `{source_head}`", report)
+        self.assertIn("18 of those 22 files still matched", report)
+        self.assertIn("does not exercise the current leaf", report)
+        self.assertNotIn("22 matching current input files", report)
+        for changed_name in ("fes_de25_computer.v", "computer_tb.cpp", "sim.py", "build.py"):
+            self.assertIn(f"`{changed_name}`", report)
+
+        leaf_binding = json.loads((record / "leaf-build-id-binding.json").read_text())
+        self.assertEqual(leaf_binding["guarded_reference_leaf_sha256"], reference_leaf)
+        self.assertNotIn("current_leaf_sha256", leaf_binding)
+        self.assertIn("not the current PR leaf", leaf_binding["evidence_scope"])
+        elaboration = json.loads((record / "default-elaboration-binding.json").read_text())
+        self.assertEqual(elaboration["elaborated_reference_leaf_sha256"],
+                         leaf_binding["guarded_reference_leaf_sha256"])
+        self.assertNotIn("current_leaf_sha256", elaboration)
+        self.assertIn("does not describe the current PR leaf", elaboration["evidence_scope"])
+        for directory in (record, record / "repair-binding"):
+            for line in (directory / "SHA256SUMS").read_text().splitlines():
+                digest, name = line.split("  ", 1)
+                self.assertEqual(hashlib.sha256((directory / name).read_bytes()).hexdigest(), digest, name)
+
     def test_selected_revision_capture_reads_git_blobs_instead_of_working_files(self):
         sources = B.capture()
         selected = "b" * 40

@@ -92,8 +92,19 @@ module fes_de25_zx81_video (
     reg [9:0] vertical = 0;
     reg front = 0, front_valid = 0;
     reg [8:0] front_rows = 0;
+    // Keep the last presented bank selected until the frame gate closes. The
+    // transport epoch resets ownership asynchronously, but must not blank the
+    // current scanout between pixels.
+    reg display_valid = 0;
     wire boundary = horizontal == 1649 && vertical == 749;
     assign frame_tick = boundary;
+    // Keep raster timing and the presented bank running while transport
+    // readiness resets the frame owners. Presentation is invalidated at the
+    // same frame boundary where the synchronized frame gate disables output.
+    always @(posedge pixel_clk) begin
+        horizontal <= horizontal == 1649 ? 11'd0 : horizontal + 1'b1;
+        if (horizontal == 1649) vertical <= vertical == 749 ? 10'd0 : vertical + 1'b1;
+    end
     wire image = horizontal >= 312 && horizontal < 968 && vertical >= 90 && vertical < 630;
     wire [8:0] source_x = (horizontal - 11'd312) >> 1;
     wire [8:0] source_y = (vertical - 10'd90) >> 1;
@@ -101,38 +112,44 @@ module fes_de25_zx81_video (
         (image && source_y < front_rows ? source_y * STRIDE + (source_x >> 3) : 0);
     reg [7:0] fb_q;
     reg [2:0] bit_q = 0;
-    reg image_q = 0, valid_q = 0, stored_q = 0;
-    reg de_q = 0, hs_q = 0, vs_q = 0;
     always @(posedge pixel_clk) fb_q <= fb[read_address];
-    // The raster and frame tick keep running while transport owners reset.
-    // This lets the outer readiness mask close cleanly at the next boundary.
-    always @(posedge pixel_clk) begin
-        horizontal <= horizontal == 1649 ? 11'd0 : horizontal + 1'b1;
-        if (horizontal == 1649) vertical <= vertical == 749 ? 10'd0 : vertical + 1'b1;
-    end
     // All controls share the RAM's one-edge latency, including the first and
     // last scaled pixels. Missing rows are paper; no stale RAM is selected.
+    reg image_q = 0, valid_q = 0, stored_q = 0;
+    reg de_q = 0, hs_q = 0, vs_q = 0;
+    always @(posedge pixel_clk) begin
+        de_q <= horizontal < 1280 && vertical < 720;
+        hs_q <= horizontal >= 1390 && horizontal < 1430;
+        vs_q <= vertical >= 725 && vertical < 730;
+    end
     always @(posedge pixel_clk or negedge pix_release[1]) begin
         if (!pix_release[1]) begin
             acknowledge <= 0;
-            front <= 0; front_valid <= 0; front_rows <= 0;
-            image_q <= 0; valid_q <= 0; stored_q <= 0; bit_q <= 0;
-            de_q <= 0; hs_q <= 0; vs_q <= 0;
+            front_valid <= 0;
         end else begin
             if (boundary && request_sync[1] != acknowledge) begin
-                front <= request_sync[1]; front_valid <= 1;
-                front_rows <= published_rows;
+                front_valid <= 1;
                 acknowledge <= request_sync[1];
             end
-            image_q <= image;
-            valid_q <= front_valid;
-            stored_q <= source_y < front_rows;
-            bit_q <= source_x[2:0];
-            de_q <= horizontal < 1280 && vertical < 720;
-            hs_q <= horizontal >= 1390 && horizontal < 1430;
-            vs_q <= vertical >= 725 && vertical < 730;
         end
     end
+
+    // The scanout pipeline is not reset with the frame owners. It continues
+    // presenting the immutable front bank through the current raster frame,
+    // then hides it when the transport epoch is invalid at a frame boundary.
+    always @(posedge pixel_clk) begin
+        if (pix_reset && boundary) display_valid <= 0;
+        else if (!pix_reset && boundary && request_sync[1] != acknowledge) begin
+            front <= request_sync[1];
+            front_rows <= published_rows;
+            display_valid <= 1;
+        end
+        image_q <= image;
+        valid_q <= display_valid;
+        stored_q <= source_y < front_rows;
+        bit_q <= source_x[2:0];
+    end
+
     wire bright = image_q && valid_q && (!stored_q || !fb_q[bit_q]);
     assign red = bright ? 8'hff : 8'h00;
     assign green = red;

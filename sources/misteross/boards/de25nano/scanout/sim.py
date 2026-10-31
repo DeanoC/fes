@@ -17,6 +17,8 @@ def run(case, top, rtl, bench, extra=(), shared=True):
     adapted = output / "fes_menu_reader_de25.v"; adapted.write_bytes(reader)
     subprocess.run(["verilator", "--cc", "--exe", "--build", "--public-flat-rw", "-O3", "-Wall",
         "-Wno-PINCONNECTEMPTY", "-Wno-UNUSEDSIGNAL", "-Wno-DECLFILENAME", "--top-module", top,
+        # Async assertion with clocked release is intentional in the visibility reset chain.
+        "-Wno-SYNCASYNCNET",
         "--Mdir", str(output), "-I" + str(HERE), "-CFLAGS", "-O2 -I" + str(HERE),
         *extra, *([str(adapted), str(MISTEROSS / "cores/fes-menu/rtl/fes_menu_video.v")] if shared else []),
         *map(str, rtl), str(HERE / bench)], check=True)

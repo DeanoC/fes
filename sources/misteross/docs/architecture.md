@@ -98,7 +98,20 @@ Generated constants and an offline injectable Python client add no runtime
 admission, physical MMIO address or boot image. Shared production RTL is unchanged.
 The board tape adapter uses two explicit even/odd simple-dual-port M20K banks
 with common-clock old-data reads, while retaining the exact portable module
-in its native simulation branch.
+in its native simulation branch. Its board-local video renderer replaces the
+single capture array with two packed monochrome M20K banks. Source completion
+publishes a bank through a request/acknowledgement crossing; scanout swaps only
+at a complete 720p frame boundary and acknowledges before the source may reuse
+the previous bank. Startup and epoch reset hide unwritten storage. On an
+endpoint reset, capture and publish ownership reset asynchronously while the
+raster, sync and selected bank keep running until the synchronized frame gate
+closes at a raster boundary; other transport faults hold the machine and close
+the same gate. Whole rows up to 328×270 are captured, excess rows cropped, and
+absent bottom rows displayed as paper. Stopped clocks preserve ownership; HOLD
+aborts partial capture.
+The local SDC checks exact synchronizer/metadata endpoints and bounds the held
+row-count bus without cutting whole clocks. Digital simulation does not accept
+physical M20K timing, MTBF, clock recovery or HDMI.
 
 The same endpoint/machine also serves the native `De25Computer` client through
 the private-socket co-simulation in `zx81-hps/client_proof.py`. It snapshots the
@@ -130,9 +143,11 @@ Both crossing bridges share initial configuration reset. Later pixel PLL-lock
 loss latches a fault without resetting live bridge queues; the endpoint stops
 and drains when its clock resumes. The DE25 endpoint keeps its fixed raster and
 raw HS/VS running through stop, fault and reset while pixel data stays blank.
-HDMI visibility crosses a two-stage pixel-clock synchronizer and changes after
-a complete horizontal sync pulse while VS is inactive; lock/reset loss blanks
-RGB/DE immediately and picture resumes only after that safe boundary. The
+HDMI data/DE use registered pixel-domain visibility state. A qualified-lock
+reset asynchronously clears its two-stage pixel-clock synchronizer on reset or
+lock loss, while release passes through the pixel domain; the data/DE gate
+blanks immediately and picture resumes only after a complete horizontal sync
+pulse while VS is inactive. The
 producer retains
 generated topology and response checks, native RTL tests and a simulation
 helper for the generated two-clock interconnect with explicitly modeled M20K

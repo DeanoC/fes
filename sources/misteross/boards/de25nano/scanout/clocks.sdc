@@ -3,15 +3,17 @@
 set hdmi_config_clock [get_registers {fes_video_inst|hdmi_config|mI2C_CTRL_CLK}]
 if {[get_collection_size $hdmi_config_clock] != 1} {error "DE25 scanout I2C clock register changed"}
 create_generated_clock -name adv7513_config -source [get_ports CLOCK0_50] -divide_by 5002 $hdmi_config_clock
-# Configuration release and PLL-lock monitoring only. Loss of pixel lock does
-# not reset either live PD crossing or the endpoint's outstanding accounting.
-# Qsys emits the two domain reset synchronizers as top-level reset controllers;
-# the reset-bridge modules themselves are pass-through cells.
-set scanout_aclr [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|config_reset|sync_regs*|aclr fes_video_inst|lock_qualifier|sync_regs*|aclr soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[0]|aclr soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]|aclr soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[0]|aclr soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]|aclr}]
-set scanout_clrn [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|config_reset|sync_regs*|clrn fes_video_inst|lock_qualifier|sync_regs*|clrn soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[0]|clrn soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]|clrn soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[0]|clrn soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]|clrn}]
+# Configuration release, PLL-lock monitoring, visibility CDC and output gate.
+# Loss of pixel lock does not reset either live PD crossing or the endpoint's
+# outstanding accounting. Qsys emits the two domain reset synchronizers as
+# top-level reset controllers; the reset-bridge modules themselves are
+# pass-through cells. The two visibility-synchronizer clears and the
+# registered data/DE gate clear complete the asynchronous clear set.
+set scanout_aclr [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|config_reset|sync_regs*|aclr fes_video_inst|lock_qualifier|sync_regs*|aclr soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[0]|aclr soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]|aclr soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[0]|aclr soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]|aclr fes_video_inst|visible_sync[0]|aclr fes_video_inst|visible_sync[1]|aclr fes_video_inst|video_active|aclr}]
+set scanout_clrn [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|config_reset|sync_regs*|clrn fes_video_inst|lock_qualifier|sync_regs*|clrn soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[0]|clrn soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]|clrn soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[0]|clrn soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]|clrn fes_video_inst|visible_sync[0]|clrn fes_video_inst|visible_sync[1]|clrn fes_video_inst|video_active|clrn}]
 set scanout_clear_count [expr {[get_collection_size $scanout_aclr] + [get_collection_size $scanout_clrn]}]
-post_message -type info "DE25 scanout qualifier/reset-bridge clear pins: $scanout_clear_count (expected 8)"
-if {$scanout_clear_count != 8} {error "DE25 scanout requires exactly eight qualifier/reset-bridge clear pins"}
+post_message -type info "DE25 scanout qualifier/reset-bridge/visibility clear pins: $scanout_clear_count (expected 11)"
+if {$scanout_clear_count != 11} {error "DE25 scanout requires exactly eleven qualifier/reset-bridge/visibility clear pins"}
 if {[get_collection_size $scanout_aclr] > 0} {set_false_path -to $scanout_aclr}
 if {[get_collection_size $scanout_clrn] > 0} {set_false_path -to $scanout_clrn}
 # A monotonic 100 MHz fault level crosses through its dedicated two-flop chain.

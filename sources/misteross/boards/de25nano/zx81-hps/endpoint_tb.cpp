@@ -93,7 +93,7 @@ struct Board {
         check(false, "GP command did not acknowledge within the native bound");
         return 0;
     }
-    void check_fault(uint32_t mask, uint32_t retained_gpo) {
+    void check_fault(uint32_t mask, uint32_t retained_gpo, bool require_video_blank = true) {
         const uint32_t status = read_word(FesDe25ComputerStatusOffset);
         check((status & FesDe25ComputerStatusFault) && !(status & FesDe25ComputerStatusReady),
               "fault did not withdraw transport readiness");
@@ -101,7 +101,8 @@ struct Board {
         check(read_word(FesDe25ComputerGpoOffset) == retained_gpo, "rejected access changed GPO");
         check(S(machine_reset) && !S(tape_ready) && S(safe_media_write_enable) == 0,
               "fault did not contain CPU and tape publication");
-        check(!t.video_rgb && !t.video_de, "fault did not blank video data");
+        if (require_video_blank)
+            check(!t.video_rgb && !t.video_de, "fault did not blank video data");
         write_word(FesDe25ComputerGpoOffset, retained_gpo ^ FesComputerRequestMask, 2);
         check(read_word(FesDe25ComputerGpoOffset) == retained_gpo, "fault permitted a later GPO update");
     }
@@ -292,6 +293,37 @@ static void malformed_accesses() {
     std::puts("PASS DE25 computer: partial, same-toggle, read-only/reserved/misaligned accesses fail closed");
 }
 
+static void active_frame_fault_blanks_at_frame_boundary() {
+    Board b; auto& t = b.t;
+    b.exchange(FesComputerOpcodeExecution, 0, 1);
+    unsigned cycles = 0;
+    while (!S(video_ready_frame) && cycles < 1300000) { b.cycle(); ++cycles; }
+    check(S(video_ready_frame), "renderer did not complete a frame before the fault check");
+    while (!t.video_de && cycles < 1300100) { b.cycle(); ++cycles; }
+    check(t.video_de, "frame gate did not expose active DE before the fault check");
+    const uint32_t active_rgb = t.video_rgb;
+    const uint32_t retained_gpo = b.read_word(FesDe25ComputerGpoOffset);
+    b.write_word(FesDe25ComputerGpoOffset, retained_gpo ^ FesComputerRequestMask, 2, 1);
+    check(S(video_ready_frame) && t.video_de && t.video_rgb == active_rgb,
+          "transport fault cut the active frame before its boundary");
+    b.check_fault(FesDe25ComputerFaultPartial, retained_gpo, false);
+
+    bool disabled_at_frame = false;
+    const unsigned frame_deadline = cycles + 1250000;
+    while (S(video_ready_frame) && cycles < frame_deadline) {
+        const bool frame_boundary = S(video__DOT__frame_tick);
+        b.cycle(); ++cycles;
+        if (!S(video_ready_frame)) {
+            check(frame_boundary, "fault blanking changed away from the frame boundary");
+            disabled_at_frame = true;
+            break;
+        }
+    }
+    check(disabled_at_frame && !t.video_rgb && !t.video_de && !t.video_hs && !t.video_vs,
+          "frame gate did not blank sync and data after a fault on a rendered frame");
+    std::puts("PASS DE25 computer: an active rendered frame survives transport fault until the frame boundary");
+}
+
 static void reset_faults_and_late_media() {
     for (unsigned stopped_level : {0u, 1u}) {
         Board b; auto& t = b.t;
@@ -331,5 +363,6 @@ int main(int argc, char** argv) {
     identity_keyboard_media();
     atomic_response_and_busy_fault();
     malformed_accesses();
+    active_frame_fault_blanks_at_frame_boundary();
     reset_faults_and_late_media();
 }
