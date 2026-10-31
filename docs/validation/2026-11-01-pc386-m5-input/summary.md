@@ -25,8 +25,9 @@ The system simulation does the same through the GP mailbox, as the runtime
 does, with the RTL CPU, and gets the same two lines. Quartus 17.0.2 sealed the
 package at 61.44 MHz with every analysis met.
 
-The same package also made a disk save round trip on Kit B. A command typed
-at the prompt wrote the disk, Stop saved the change, and a relaunch from the
+The slice's package from before Codex's review fixes, which has the same
+storage RTL, also made a disk save round trip on Kit B. A command typed at
+the prompt wrote the disk, Stop saved the change, and a relaunch from the
 saved delta found it. This is the first kit run of #1268's last storage fix
 ([#1334](https://github.com/DeanoC/fes/issues/1334)).
 
@@ -39,20 +40,22 @@ of the four games, which are the next M5 slice.
 
 - FES branch `deano/pc386-m5-input`, cut from main `16afcb7cc` (#1268's
   squash). Its first two commits are the slice; the record follows them.
-- RTL revision `b8cfc9668`: sealed, and on the kit as run m5i2. Devices,
-  storage, the system suite and the Python tests ran on `b8cfc9668`'s
-  `sources/misteross` tree. That is the branch itself for devices, storage
-  and the Python tests. The system suite ran on a local merge of the slice
-  with #1268's head `dd5d076f8`, whose tree is byte-identical (`git diff` is
-  empty), since the squash carried #1268's head unchanged.
-- The machine-bench suites (boot on both CPUs, rtl-stops, sound, vga, audio,
-  opl2, benches) ran earlier on the slice, on #1268's head `df4091741`.
-  After those runs, only three things changed: `pc386_system.sv`'s mouse wire
-  signedness, `fes_computer_storage.v` (#1268's last fix) and the system
-  bench. None of them is in those benches' RTL or test benches.
-- Run m5i1 used an earlier seal of the same RTL on #1268's previous head
-  `df4091741`. The two differ in one pinned input, `fes_computer_storage.v`,
-  from #1268's last fix.
+- RTL revision `5328606ca`, which has Codex's two review fixes in
+  `pc386_kbc.sv` (below). It is sealed, and on the kit as runs m5i4 and m5i5.
+  Devices, the system suite and the oracle boot ran on it.
+- RTL revision `b8cfc9668`, before those fixes. Its seal is on the kit as
+  runs m5i2, m5i3 and m5i6. Storage and the Python tests ran on its tree, and
+  the review fixes touch neither.
+- The other machine-bench suites (boot `--cpu rtl`, rtl-stops, sound, vga,
+  audio, opl2, benches) ran earlier on the slice, on #1268's head
+  `df4091741`. After them, three things changed outside the review fixes:
+  `pc386_system.sv`'s mouse wire signedness, `fes_computer_storage.v`
+  (#1268's last fix) and the system bench. None of these is in those
+  benches' RTL or test benches. The review fixes change the 8042's F5 and F6
+  and the mouse's handling of button changes. These benches do not exercise
+  those paths; the devices suite, the oracle boot and the system suite do,
+  and they ran on `5328606ca`.
+- Run m5i1 used an earlier seal on #1268's previous head `df4091741`.
 - Verilator 5.032 on Powerboat. The seal used Quartus Prime Lite 17.0.2, with
   the netlist from the pc386 lock's Yosys `0a7927bf`. The keyboard bench's
   reference came from a Linux 6.12 source tree.
@@ -77,6 +80,9 @@ of the four games, which are the next M5 slice.
     ((8 + A) × 2^B / 240 s), exact on average. FF, F5 and F6 restore 2Bh and
     stop the repeat. A repeat that falls due while the keyboard's FIFO is full
     is sent once, not queued.
+  - As in Bochs's keyboard, F5 and F6 empty the keyboard's output buffer, and
+    F6 turns scanning back on after F5. The first version left it off; this
+    was Codex's finding.
   - The PS/2 keyboard keeps F3's argument apart from ED's LED byte.
   - The machine's development-only set 2 key port is gone. `pc386_at_core`,
     `pc386_machine` and every bench above the 8042 type through rows.
@@ -85,6 +91,16 @@ of the four games, which are the next M5 slice.
   runtime's acknowledge therefore never reports a packet the device did not
   take. The device's accumulator is wider than a packet: the runtime's −128
   per axis negates to +128.
+  - Codex's other finding: a button-down and button-up taken before the
+    device could report (sample interval running, or FIFO full) merged into
+    the up, so the click was lost.
+  - Now, while streaming, a second button change that arrives before the
+    first is reported sends the pending packet at once, outside the sample
+    interval. `mouse_ready` is low only while that packet cannot be queued,
+    which lasts a few milliseconds while the guest reads.
+  - With reporting off, or in remote mode, changes still merge as a mouse's
+    do. The runtime treats an acknowledge stalled past 100 ms as a fault, so
+    the device never waits on a guest that is not reading.
 - **Identity.** The mailbox has `ENABLE_KEYBOARD` and `ENABLE_MOUSE` set. Word 7
   is `0x310b` (video, keyboard, audio, mouse, HPS DDR, session display), the
   low word the golden 1.1 pc386 scenarios already advertise, so the fixture
@@ -105,7 +121,7 @@ Every pc386 suite passes on the slice's tree:
 
 | Suite | Result |
 | --- | --- |
-| devices | 120 checks: 95 directed device checks, of which the keyboard ones now type through rows, plus 25 for the keyboard model |
+| devices | 122 checks: 97 directed device checks, of which the keyboard ones now type through rows, plus 25 for the keyboard model |
 | storage | Every 1.1 golden scenario, and the prepare-drain check |
 | audio, opl2, benches | Pass, unchanged |
 | boot (oracle CPU) | The prompt at 2.4 s; `dir` typed through rows lists the disk; the VGA replay matches |
@@ -137,6 +153,15 @@ In `devices_tb`, with XLAT on:
 - Sixteen keys in one change fill the FIFO behind the 8042's buffer without
   losing F2's reply or EE's echo.
 - A mouse move of −128 arrives as −128 on X and +128 on Y.
+- With the 8042's aux interface off, moves fill the device's FIFO. A
+  button-down is taken, and the button-up is held until there is room. The
+  guest then reads four move packets, `09 01 00` (the down, with the fifth
+  move), then `08 00 00`: both edges and every count.
+- F5, a key press that is not seen, F6, then a key press that arrives as
+  `30`/`B0`.
+
+Both review checks fail on `b8cfc9668`'s `pc386_kbc.sv`: the click vanished,
+and the keyboard stayed silent after F6.
 
 The system bench drives the whole shell as the runtime does, with the RTL CPU:
 - Identity word 7 reads `0x310b` and word 16 `0x000f`.
@@ -153,21 +178,24 @@ suite (`Makefile` line 51, 373 tests) pass.
 
 ## Quartus seal
 
-`make build-fes-pc386-quartus` at seed 1 and `b8cfc9668`:
-[`seal-summary.json`](seal-summary.json). The checkout stayed clean.
+`make build-fes-pc386-quartus` at seed 1 and `5328606ca`:
+[`seal-summary.json`](seal-summary.json). Each checkout stayed clean.
 
-| | Seal, `b8cfc9668` | Before #1268's last fix (run m5i1) | #1268's 1.1 seal |
+| | Seal, `5328606ca` | `b8cfc9668` (runs m5i2, m5i3, m5i6) | #1268's 1.1 seal |
 | --- | --- | --- | --- |
-| Build ID, package | `09d8ac6f…`, `7ad66fc9…` | `83d8f241…`, `c164d9ca…` | `d355dd17…`, `6823af43…` |
-| System Fmax, slow corners | 71.48-71.74 MHz | 72.55-72.72 MHz | 70.86-71.66 MHz |
-| Pixel Fmax | 80.78-81.15 MHz | 75.58-76.74 MHz | 83.03-84.13 MHz |
-| Setup, hold slack | +1.084, +0.096 ns | +0.233, +0.097 ns | +1.420, +0.113 ns |
-| Recovery, removal, pulse width | +7.150, +0.285, +1.122 ns | +7.582, +0.388, +1.122 ns | +7.851, +0.460, +1.122 ns |
-| ALMs | 25,097 of 41,910 (60%) | 25,148 | 24,246 |
-| Registers | 22,992 | 22,971 | 22,252 |
+| Build ID, package | `55ff1537…`, `52ab1d11…` | `09d8ac6f…`, `7ad66fc9…` | `d355dd17…`, `6823af43…` |
+| System Fmax, slow corners | 72.94-73.22 MHz | 71.48-71.74 MHz | 70.86-71.66 MHz |
+| Pixel Fmax | 78.10-78.59 MHz | 80.78-81.15 MHz | 83.03-84.13 MHz |
+| Setup, hold slack | +0.660, +0.116 ns | +1.084, +0.096 ns | +1.420, +0.113 ns |
+| Recovery, removal, pulse width | +7.589, +0.274, +1.122 ns | +7.150, +0.285, +1.122 ns | +7.851, +0.460, +1.122 ns |
+| ALMs | 24,987 of 41,910 (60%) | 25,097 | 24,246 |
+| Registers | 22,956 | 22,992 | 22,252 |
 | RAM blocks | 254 of 553 | 254 | 254 |
 | DSP blocks | 30 of 112 | 30 | 29 |
-| RBF | 3,542,652 bytes, SHA-256 `c98d5e8d…` | 3,492,300 bytes | 3,492,112 bytes |
+| RBF | 3,530,876 bytes, SHA-256 `e4c91b37…` | 3,542,652 bytes | 3,492,112 bytes |
+
+Run m5i1's seal (`83d8f241…`, package `c164d9ca…`, before #1268's last fix)
+had setup +0.233 ns, all on the pixel clock.
 
 Every fit passes every analysis on the 61.44 MHz system clock and the
 74.25 MHz pixel clock. Against #1268's seal, the slice adds about 850 ALMs,
@@ -175,19 +203,22 @@ Every fit passes every analysis on the 61.44 MHz system clock and the
 the slice's only multiply, so it is the likely user of that block; the
 flattened fit report does not name it. Setup slack depends on placement of
 the pixel clock's presenter path. It varied by 0.85 ns between the two seals
-of this RTL, so this run's +1.084 ns is not a regression.
-The two seals of this RTL differ in one pinned input, `fes_computer_storage.v`.
+of the slice, so neither +0.660 nor +1.084 ns is a regression.
+`5328606ca`'s seal differs from `b8cfc9668`'s in one pinned input,
+`pc386_kbc.sv`. `b8cfc9668`'s differs from m5i1's in one,
+`fes_computer_storage.v`.
 
 ## Kit B
 
-Three runs, each claimed in Kit B's status file and released FREE with its
+Six runs, each claimed in Kit B's status file and released FREE with its
 baseline unchanged:
-- run m5i1, 22:37-22:38 EET on 31 October, with package `c164d9ca…`, before
-  #1268's last fix;
-- run m5i2, 00:04-00:05 EET on 1 November, with the seal's exact package
-  `7ad66fc9…`;
-- run m5i3, 00:13-00:14 EET on 1 November, the save round trip with the same
-  package.
+- run m5i4, 00:36-00:37 EET on 1 November, with the seal's exact package
+  `52ab1d11…`: typing and the mouse;
+- run m5i5, 00:38-00:39, the same package, with fast clicks;
+- runs m5i2 (00:04, typing and the mouse), m5i3 (00:13, the save round trip)
+  and m5i6 (00:40, fast clicks), with `b8cfc9668`'s package `7ad66fc9…`;
+- run m5i1, 22:37 on 31 October, with package `c164d9ca…`, before #1268's
+  last fix.
 
 - **Core-only.** The kits' baseline software (bundle `8dd4dc87`, main
   `e3e1439d`) already carries the 1.1 runtime, the agent's disk-image routes
@@ -197,33 +228,44 @@ baseline unchanged:
   INPUT.COM (SHA-256 `51f3c8fe…`) and loaded the package as library game
   `pc386-m5i-freedos` with the disk (`/v1/library/core/load`). The runtime
   admitted it with `fes.keyboard.hid` and `fes.mouse.relative` among its
-  active interfaces ([`kit-m5i2-result.json`](kit-m5i2-result.json)).
+  active interfaces ([`kit-m5i4-result.json`](kit-m5i4-result.json)).
 - **Input.** The driver used the agent's remote-input stream, as FogCast's
   host does for a session: `/v1/input/attach`, `CONNECT /v1/input/stream`,
   the bridge hello, then 52-byte frames. Keys were HID usage frames held
   60 ms. Mouse frames carried the system bench's ten packets 60 ms apart.
   Enter after `input` was held 300 ms, through INPUT.COM's init (#1330).
-- **Result** ([`kit-m5i2-report.png`](kit-m5i2-report.png)), the same in
-  both runs:
+- **Result** ([`kit-m5i4-report.png`](kit-m5i4-report.png)), the same in
+  runs m5i1, m5i2 and m5i4:
   - `echo M5:Kb!` printed `M5:Kb!`.
   - X held 1.6 s printed 14 x's: the make, the first repeat at 500 ms, then
     10.9 per second.
   - INPUT.COM printed `MOUSE X=+172 Y=-72 LEFT=2/2 RIGHT=1/1 PACKETS=10` and
     `KEYS 48E0 3B00 53E0 1E41`, exactly as in simulation.
+- **Fast clicks** (runs m5i5 and m5i6).
+  - The ten packets became three left clicks and a right click, sent back to
+    back with no delay between frames.
+  - Both packages printed `MOUSE X=+0 Y=+0 LEFT=3/3 RIGHT=1/1 PACKETS=8`
+    ([`kit-m5i5-clicks.png`](kit-m5i5-clicks.png)).
+  - The path from Powerboat through the agent and the runtime spaces frames
+    beyond the device's 10 ms sample interval. So on the kit even the earlier
+    RTL kept these clicks, and the runs show no regression rather than the
+    fix. The fix's evidence is the devices check above.
 - **Save round trip** (run m5i3, [`kit-m5i3-result.json`](kit-m5i3-result.json)).
   This run used a new library game, `pc386-m5i3-save`, and the same staged
   disk. It covers [#1334](https://github.com/DeanoC/fes/issues/1334): #1268's
   last fix clears the dirty flag when Prepare or Eject drains the writer, and
-  the earlier sealed package `6823af43…` did not contain it.
+  the earlier sealed package `6823af43…` did not contain it. Its package
+  `7ad66fc9…` has that fix and the same storage RTL as the final seal, which
+  changes only `pc386_kbc.sv`.
   - The first launch typed `md m5` at the prompt. FreeDOS created `C:\M5`, and
     Stop saved the disk's 4 dirty chunks and the record.
   - The relaunch went through Prepare and Commit, from the base image plus
     that delta. `md m5` typed again printed `MKDIR failed for 'm5'.`
     ([`kit-m5i3-relaunch.png`](kit-m5i3-relaunch.png)): the directory came back.
 - **Left on the kit.** The staged disk and each game's core data stay in
-  FogCast's data directories: 4 new paths in m5i1, none new in m5i2 (it
-  reused them), and 8 in m5i3 (the new game's record, and its saved delta's
-  4 chunks).
+  FogCast's data directories: 4 new paths in m5i1, 8 in m5i3 (the new
+  game's record, and its saved delta's 4 chunks), and none in the other
+  runs, which reused them.
 
 The Powerboat helpers that type through tenfoot (hilpad) do not reach a
 session the agent launched directly: tenfoot forwards only for a host

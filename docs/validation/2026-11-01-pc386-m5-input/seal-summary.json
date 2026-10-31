@@ -1,5 +1,5 @@
 {
-  "build_id": "09d8ac6f89f823fd67a62035333f12d7",
+  "build_id": "55ff1537ab961da30a2dcd7bcabc3998",
   "device": "5CSEBA6U23I7",
   "firmware": {
     "bios": "8caa3f2f4090dc069212ddf97df714db8ba2eb8dbc610bb786b0587b9a01eeda",
@@ -88,7 +88,7 @@
     "cores/fes-pc386/rtl/pc386_disk.sv": "e2c2a27bec76e935c8071acc0b9a612884f118c011e5ccdc0750fcdac2db2883",
     "cores/fes-pc386/rtl/pc386_hid_keyboard.sv": "029b07d957219f87bc1a8dea27849ebe634d8f50a93d0ea339f17e8fd6b96192",
     "cores/fes-pc386/rtl/pc386_io.sv": "4ae84cced9c83f8e13b8811a6fcd43130f23f10e38931214d9505b4f19296ece",
-    "cores/fes-pc386/rtl/pc386_kbc.sv": "154a9d8aeb81c5785d901632fee347ab197b55acb949169ac0241e6ec759f99e",
+    "cores/fes-pc386/rtl/pc386_kbc.sv": "1233328c553e07d6d81829f757e9c89d97f628c7a78d7ac3bf31b821707895b9",
     "cores/fes-pc386/rtl/pc386_machine.sv": "1f72755c6d82661fef8756edea9868d9865ee496fd68a6ec0a3246544f653839",
     "cores/fes-pc386/rtl/pc386_mixer.sv": "6cf73e73456398105aa8eb2a221405d11540c90d4e5133b34a23330d72bd67d8",
     "cores/fes-pc386/rtl/pc386_opl2.sv": "562407033afcf45ea015bfe211ba00c3a57255d29ba21dcc3e688a3acc9e03de",
@@ -136,13 +136,13 @@
     "scripts/source_provenance.py": "4ea875fb576bbe00d833fb2a78fcf938367bda0a6cb49f65b9c1735fcf832155"
   },
   "rbf": {
-    "sha256": "c98d5e8da508ccf729f37b6cf6136fab81f05372fd309097fa21af943ed62f48",
-    "size": 3542652
+    "sha256": "e4c91b379a828f637f7584241a4e537397c241ec4b7da7a9d8c0bc3120a285b2",
+    "size": 3530876
   },
   "resources": {
     "alms": {
       "available": 41910,
-      "used": 25097
+      "used": 24987
     },
     "block_memory_bits": {
       "available": 5662720,
@@ -157,7 +157,7 @@
       "used": 254
     },
     "registers": {
-      "used": 22992
+      "used": 22956
     }
   },
   "seed": 1,
@@ -166,7 +166,7 @@
     "analyses": {
       "hold": {
         "tns_ns": 0.0,
-        "worst_slack_ns": 0.096
+        "worst_slack_ns": 0.116
       },
       "minimum_pulse_width": {
         "tns_ns": 0.0,
@@ -174,15 +174,15 @@
       },
       "recovery": {
         "tns_ns": 0.0,
-        "worst_slack_ns": 7.15
+        "worst_slack_ns": 7.589
       },
       "removal": {
         "tns_ns": 0.0,
-        "worst_slack_ns": 0.285
+        "worst_slack_ns": 0.274
       },
       "setup": {
         "tns_ns": 0.0,
-        "worst_slack_ns": 1.084
+        "worst_slack_ns": 0.66
       }
     },
     "clocks": {
