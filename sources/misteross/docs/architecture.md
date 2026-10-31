@@ -3027,12 +3027,14 @@ exceptions or external budgets. A complete diagnostic capture can contain
 timing failures; it neither seals a package nor supplies physical acceptance.
 Its default-off `--video-mailbox-contract` mode additionally runs the captured
 ownership proof, verifies the declared chains and common reset assertion, and
-checks direct interstage paths at every corner. Its SDC false-paths only three
-asynchronous pairs: `received` to `ack_meta`, `sent` to `sent_meta`, and
-`machine_reset` to `hold_meta`. The held `published_bank` payload path to
-`front` remains timed with a one-pixel-period `set_max_delay`, matching the
-ownership proof's two-sample stability window. It adds no clock-group
-exception or physical acceptance.
+checks direct interstage paths at every corner. Its generated QSF identifies
+the six mailbox stages with Quartus 17's `SYNCHRONIZER_IDENTIFICATION FORCED`
+assignment so fitter logic duplication cannot replicate the synchronizers.
+Its SDC false-paths only three asynchronous pairs: `received` to `ack_meta`,
+`sent` to `sent_meta`, and `machine_reset` to `hold_meta`. The held
+`published_bank` payload path to `front` remains timed with a one-pixel-period
+`set_max_delay`, matching the ownership proof's two-sample stability window.
+It adds no clock-group exception or physical acceptance.
 
 ### Machine partition and timing
 

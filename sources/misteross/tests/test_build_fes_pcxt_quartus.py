@@ -213,6 +213,21 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         experimental = producer.board.project_qsf(producer.ROOT, 1, 2)
         self.assertIn('FAST_INPUT_REGISTER ON -to SDRAM_DQ', experimental)
 
+    def test_mailbox_contract_identifies_only_its_synchronizer_stages(self):
+        qsf = producer.board.project_qsf(
+            producer.ROOT, 1, 2, package_profile=True, video_mailbox_contract=True)
+        expected = {
+            f'set_instance_assignment -name SYNCHRONIZER_IDENTIFICATION FORCED '
+            f'-to system_video_adapter_{role}_{stage}'
+            for role in ('ack', 'sent', 'hold') for stage in ('meta', 'sync')}
+        assignments = {line for line in qsf.splitlines()
+                       if 'SYNCHRONIZER_IDENTIFICATION' in line}
+        self.assertEqual(assignments, expected)
+        self.assertNotIn('ALLOW_REGISTER_DUPLICATION OFF', qsf)
+
+        without_contract = producer.board.project_qsf(producer.ROOT, 1, 2, package_profile=True)
+        self.assertNotIn('SYNCHRONIZER_IDENTIFICATION', without_contract)
+
     def test_package_elaboration_embeds_the_exact_build_id(self):
         program = producer.board.elaboration(producer.ROOT, producer.ROOT / 'build',
                                              producer.ROOT / 'unused-library',

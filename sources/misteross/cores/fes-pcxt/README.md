@@ -153,7 +153,9 @@ not qualify the package configuration.
 `--video-mailbox-contract` is a separate diagnostic opt-in. It runs the real
 CGA/MDA ownership proofs from the captured sources, binds the declarations
 through portable naming, checks the three exclusive two-stage chains and
-their common PLL-lock reset assertion, then applies `quartus/mailbox.sdc`.
+their common PLL-lock reset assertion, marks the six stages with Quartus 17's
+`SYNCHRONIZER_IDENTIFICATION FORCED` assignment to protect them from fitter
+duplication, then applies `quartus/mailbox.sdc`.
 It false-paths only three asynchronous pairs: `received` to `ack_meta`, `sent`
 to `sent_meta`, and `machine_reset` to `hold_meta`. The ownership proof checks
 that each bank stays stable for two pixel samples before adoption; a one-pixel-

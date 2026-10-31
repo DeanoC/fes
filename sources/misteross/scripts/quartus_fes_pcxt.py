@@ -216,7 +216,8 @@ def validate_renaming(work: Path, *, package_profile=False) -> dict:
             'hps_primitive_instances': hps}
 
 
-def project_qsf(source: Path, seed: int, threads: int, *, package_profile=False) -> str:
+def project_qsf(source: Path, seed: int, threads: int, *, package_profile=False,
+                video_mailbox_contract=False) -> str:
     lines = [
         'set_global_assignment -name FAMILY "Cyclone V"',
         f'set_global_assignment -name DEVICE {DEVICE}',
@@ -233,6 +234,15 @@ def project_qsf(source: Path, seed: int, threads: int, *, package_profile=False)
         'HPSINTERFACEPERIPHERALI2C_X52_Y60_N111 -entity top -to hdmi_i2c',
         (source / (PACKAGE_PINS if package_profile else PINS)).read_text(),
     ]
+    if video_mailbox_contract:
+        # Quartus 17 does not infer its fitter-protection policy from Yosys's
+        # portable async_reg marker. Identify only the six proven mailbox
+        # stages so router logic duplication cannot replicate a synchronizer.
+        lines.extend(
+            f'set_instance_assignment -name SYNCHRONIZER_IDENTIFICATION FORCED '
+            f'-to system_video_adapter_{role}_{stage}'
+            for role in ('ack', 'sent', 'hold')
+            for stage in ('meta', 'sync'))
     return '\n'.join(lines) + '\n'
 
 
@@ -443,7 +453,9 @@ def main(argv=None) -> int:
             shutil.copy2(work / 'elaborated.v', fit / 'elaborated.v')
             shutil.copy2(source / AUDIT, fit / 'audit.tcl')
             (fit / 'top.qpf').write_text('QUARTUS_VERSION = "17.0";\nPROJECT_REVISION = "top";\n')
-            (fit / 'top.qsf').write_text(project_qsf(source, seed, args.threads, package_profile=args.package_profile))
+            (fit / 'top.qsf').write_text(project_qsf(
+                source, seed, args.threads, package_profile=args.package_profile,
+                video_mailbox_contract=args.video_mailbox_contract))
             (fit / 'clocks.sdc').write_text(SDC)
             if args.video_mailbox_contract:
                 shutil.copy2(source / MAILBOX, fit / 'mailbox.sdc')
