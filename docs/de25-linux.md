@@ -433,8 +433,11 @@ receipt refusals. The later
 boots the candidate, identifies and protects the real SMMU's parent bus, and
 preserves the owner node's mode 600 through mdev. The corrected kernel and
 root metadata survive two software reboots, with actual preconfiguration
-open/ioctl/capability tests passing on the board. Physical DMA, FPGA loading
-under this kernel and managed FES runtime acceptance remain open. The running
+open/ioctl/capability tests passing on the board. The subsequent
+[owner-kernel ZX81 hardware proof](validation/2026-10-31-de25-owner-zx81/README.md)
+loads the known core twice through Linux, captures BASIC 7 → 9 → 7 through
+edit/reload, and verifies another software reboot and SSH recovery. Physical
+DMA and managed FES runtime acceptance remain open. The running
 card was updated by verified files after the first full-image write; this does
 not attest the whole writable SD as the final offline image.
 
@@ -465,7 +468,8 @@ retains the exact image, verification and QEMU receipts plus the exported SDK
 probe. That record is off-board evidence; the later
 [HPS-first hardware record](validation/2026-10-31-de25-hps-first-hardware/README.md)
 demonstrates FES Linux boot, Linux FPGA loading and native ZX81 BASIC on its
-named diagnostic artifacts. It does not accept this new kernel or managed runtime.
+named diagnostic artifacts. The later owner-kernel record above extends the
+Linux load/control proof to this kernel; managed runtime acceptance remains open.
 
 The [scanout ownership record](validation/2026-10-28-de25-scanout/README.md)
 retains the sixteen actual AArch64 kernel cases and links the generated

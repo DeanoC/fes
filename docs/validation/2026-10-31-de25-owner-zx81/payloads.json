@@ -1,0 +1,22 @@
+{
+  "zx81.rbf": {
+    "size": 1990656,
+    "sha256": "7130375986bd59633d856beb6cf69db238432a06b84fa0ba1900ffd556ca180a"
+  },
+  "de25-computer": {
+    "size": 2004952,
+    "sha256": "0e1bcdb1a3351d184f8e1e1817c42e390785d261bae631063de0311cb7d06315"
+  },
+  "zx81.dtbo": {
+    "size": 249,
+    "sha256": "3710d9a287112b2f3a5a4eaddb5ce2c13a75c7b0e07ac69f34c7d7b883c0b5aa"
+  },
+  "seven.p": {
+    "size": 923,
+    "sha256": "b4e6e04e3063149a0e7232f23e4aa24b96d0631d557920e97c65d1e01dfb3c71"
+  },
+  "owner-check": {
+    "size": 835304,
+    "sha256": "b5db0fc187290073086714b94ccbdd6729011cd20c781e4e7730028f931d0032"
+  }
+}
