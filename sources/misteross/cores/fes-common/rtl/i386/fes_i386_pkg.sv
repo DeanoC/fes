@@ -206,9 +206,20 @@ package fes_i386_pkg;
     // UNIMPLEMENTED is not architectural: an encoding this build does not
     // execute yet. WB stops on it, so a check never retires one silently.
     // DE is the divide error EX finds (vector 0), BR BOUND's range check
-    // (vector 5), which EX finds too.
-    typedef enum logic [2:0] {
-        FAULT_NONE, FAULT_UD, FAULT_GP0, FAULT_NM, FAULT_UNIMPLEMENTED, FAULT_SS0, FAULT_DE, FAULT_BR
+    // (vector 5), which EX finds too. REPLAY is not architectural either:
+    // an uncached load that was not the oldest uop when it reached M2
+    // (fes_i386_l1d), which WB restarts from its instruction instead of
+    // delivering anything.
+    typedef enum logic [3:0] {
+        FAULT_NONE          = 4'd0,
+        FAULT_UD            = 4'd1,
+        FAULT_GP0           = 4'd2,
+        FAULT_NM            = 4'd3,
+        FAULT_UNIMPLEMENTED = 4'd4,
+        FAULT_SS0           = 4'd5,
+        FAULT_DE            = 4'd6,
+        FAULT_BR            = 4'd7,
+        FAULT_REPLAY        = 4'd8
     } fault_e;
 
     typedef struct packed {
@@ -250,6 +261,7 @@ package fes_i386_pkg;
     // signed, and writes no flags.
     typedef struct packed {
         logic        bound;
+        logic        bound_pair;  // first BOUND memory access: validate both slots before reading
         logic        iret;
         logic [1:0]  io;
         logic        str_si;
@@ -278,6 +290,31 @@ package fes_i386_pkg;
         flags_t      flags;
         control_t    ctl;
     } uop_t;
+
+    // ---- Memory -------------------------------------------------------------------
+    // Guest physical addresses are PA bits wide (64 MiB of RAM at most); a
+    // line is 32 bytes. The attribute map (docs/i386-cpu-design.md, "Memory
+    // types"): RAM, read-only RAM (cacheable, writes dropped), uncached MMIO,
+    // or a hole (reads FFh, writes dropped).
+    localparam int PA = 26;
+    typedef enum logic [1:0] { ATTR_RAM, ATTR_ROM, ATTR_MMIO, ATTR_HOLE } attr_e;
+
+    // The physical address of a linear one with paging off: A20M masks bit 20,
+    // and FFFF0000h-FFFFFFFFh reads the F0000h shadow (the reset fetch).
+    // above: the address is past PA bits, a hole unless it is that alias.
+    function automatic logic [PA:0] phys(input logic [31:0] linear, input logic a20m);
+        if (linear[31:16] == 16'hffff) phys = {1'b0, 10'h00f, linear[15:0]};
+        else phys = {|linear[31:PA], linear[PA-1:21], linear[20] && !a20m, linear[19:0]};
+    endfunction
+
+    // The attribute of a physical address (with phys's above bit): 640 KiB to
+    // 1 MiB by the machine's map, 16 KiB a slot from A0000h; RAM elsewhere
+    // below ram_top MiB.
+    function automatic attr_e attr(input logic [PA:0] p, input logic [23:0][1:0] upper, input logic [6:0] ram_top);
+        if (p[PA] || {1'b0, p[PA-1:20]} >= ram_top) attr = ATTR_HOLE;
+        else if (p[PA-1:20] != '0 || p[19:14] < 6'd40) attr = ATTR_RAM;
+        else attr = attr_e'(upper[5'(p[19:14] - 6'd40)]);
+    endfunction
 
     // ---- Pipeline ---------------------------------------------------------------
 
@@ -551,6 +588,8 @@ package fes_i386_pkg;
         logic [31:0] mlimit;      // D: its segment's limit less the access's bytes but one
         logic        mtiny;       // D: ... which is below zero: every access faults
         logic        pbad;        // M1: a probe's slots straddle the 64 KiB wrap (#SS at M2)
+        logic        nodata;      // D: a load whose data nothing uses, made for its limit check (fes_i386_cpu):
+                                  // the L1D reads nothing for it
         fault_e      dfault;      // D: the fault of a second address's limit check (uop st2), which M1
                                   // takes when the first passes
         logic [31:0] ld;          // M2: the loaded value, zero-extended (fes_i386_exctl xl, yl)

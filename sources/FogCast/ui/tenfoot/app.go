@@ -2906,14 +2906,18 @@ func (a *App) HandlePlayHIDScancode(name string, usage uint8, down bool, now tim
 	if mediaSelectorKey(name, usage) {
 		// F12 is the running selector. A kit-local core keeps it as Stop.
 		// Every other session consumes the key, including an empty tape and
-		// a folder that has no .p files, so it is never forwarded.
+		// a folder that has no .p files, so it is never forwarded. With no
+		// media selector to open, F12 opens the running room as Home does,
+		// which the surround hint advertises (#1132).
 		if a.localCoreOwnsInput() {
 			if down {
 				a.RequestLocalStop()
 			}
 			return true
 		}
-		a.openRunningMediaSelector(down, now)
+		if !a.openRunningMediaSelector(down, now) {
+			a.handlePlayingRoomKey("home", down, now)
+		}
 		return true
 	}
 	if a.handlePlayingRoomKey(name, down, now) {

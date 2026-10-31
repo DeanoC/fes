@@ -37,6 +37,7 @@ module fes_i386_fetchbuf import fes_i386_pkg::*; (
     input  logic              code32,
     output logic [27:0]       mem_block,
     output logic              mem_load,
+    output logic [27:0]       fetch_next,     // the block F1 loads next, unless a redirect comes first
     input  logic [15:0][7:0]  mem_data,
     input  logic              mem_valid,
     input  logic [1:0]        release_half,   // Q left this half on this edge
@@ -71,6 +72,7 @@ module fes_i386_fetchbuf import fes_i386_pkg::*; (
     assign fill_bytes = l2_bytes;
     assign mem_load = redirect || f2_advance;
     assign mem_block = redirect ? redirect_linear[31:4] : fetch_block;
+    assign fetch_next = fetch_block;
 
     // L1: the decoders on F2's block behind the previous block's bytes 12-15.
     lclass_t [15:0] new_cls;

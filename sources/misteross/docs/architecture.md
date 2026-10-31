@@ -1513,6 +1513,19 @@ write-data word stay on the live GPO. `make sim-fes-atari-st-mailbox-direct` rep
 mailbox vectors and the commands ST uses, including a completed snapshot
 read, against both endpoints and fails if they diverge. Other shells keep
 `fes_computer_mailbox` or the core.
+The core is `fes.computer` 1.0 unless a shell enables a 1.1 interface:
+`ENABLE_ATA_DISK`, `ENABLE_PERSISTENCE`, `ENABLE_PC386_MACHINE` or
+`ENABLE_WALL_CLOCK` makes it minor 1, answering identity word 16 with
+capabilities 16..19. It hands their opcodes to `fes_computer_storage`
+(`rtl/fes_computer_storage.v`) and holds each until the reply, as it holds the
+menu opcodes for the display plane. That endpoint owns the ATA disk's unit
+state, staged geometry, fence, dirty flag and epoch, the 72 words of the
+`fes.pc386.machine` record with its Freeze snapshot and restore staging, and
+the wall clock; the shell owns the image in the DDR window, the CRC pass and
+the dirty map. The pc386 shell is the only 1.1 consumer. Its storage suite
+(`scripts/sim_fes_pc386.py --suite storage`) replays every scenario of the
+1.1 golden exchanges, `cores/fes-common/generated/computer-exchanges-1.1.json`,
+compiled with that scenario's interfaces; the bench plays the machine's side.
 `cores/fes-zx81/rtl/fes_computer_gp.v` remains the session-harness mailbox on
 the older `fes.simple-computer` 1.0 transport. It holds execution in reset, keeps eight active-low
 keyboard rows at `0x1f`, and accepts a 1..16384-byte media blob through

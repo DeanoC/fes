@@ -42,7 +42,7 @@ def require_success(results, event=None):
     tier = outputs.get('sim_tier', 'full')
     if tier not in TIERS:
         raise ValueError('Unknown simulation tier')
-    # Only pull requests and the merge queue may use the smoke tier.
+    # Pull requests, the merge queue and pushes use smoke; manual and nightly runs use full.
     if event is not None and tier != tier_for_event(event):
         raise ValueError(f'{event} must run the {tier_for_event(event)} simulation tier, not {tier}')
     if json.loads(outputs.get('simulations', 'null')) != simulation_matrix(cores, tier):

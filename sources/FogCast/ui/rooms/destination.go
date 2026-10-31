@@ -120,6 +120,10 @@ type Destination struct {
 	CoreID         string
 	CoreLaunchable bool
 	CoreBlock      string
+	// CorePending is a remembered package shown before the kit has listed
+	// its cores. Confirm queues a launch that the kit accepts only once
+	// listing finishes and the package is still installed and launchable.
+	CorePending bool
 	// CoreNeeds is the kit inventory's requirement class for a core
 	// ("none", "media", "firmware", "parts", "unsupported", "unavailable").
 	// "unavailable" is an omitted optional core. It has a synthetic package
@@ -515,6 +519,8 @@ const (
 	InUseDetail = "Someone else is playing on this machine. You can play when they're done."
 	// CheckingStatus is the sofa sentence while play is still unresolved.
 	CheckingStatus = "Still resolving whether this title can play here."
+	// CorePendingStatus is a remembered core while the kit lists its cores.
+	CorePendingStatus = "Still checking this kit's machines."
 	// CheckingAction is Confirm on Checking: wait, never launch.
 	CheckingAction = "Wait. Do not launch."
 	// EditionChoiceStatus is Needs a choice among playable editions.
@@ -571,6 +577,11 @@ func (d *Destination) FillCopy() {
 		}
 		return
 	case KindCore:
+		if d.CorePending {
+			d.Status = CorePendingStatus
+			d.Action = "Play"
+			return
+		}
 		if d.CoreLaunchable {
 			d.Status = "Ready to play."
 			d.Action = "Play"
@@ -657,6 +668,9 @@ func (d Destination) Confirm() ConfirmIntent {
 	case KindCore:
 		if d.LeaseHeld {
 			return ConfirmExplain
+		}
+		if d.CorePending {
+			return ConfirmLaunchCore
 		}
 		if d.Availability == AvailChecking {
 			return ConfirmWait

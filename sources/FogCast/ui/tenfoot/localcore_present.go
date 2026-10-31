@@ -67,7 +67,7 @@ func (h *presentHold) skip(ctx context.Context, dev gfx.Device, snap Snapshot) (
 			pauseCtx, cancel := context.WithTimeout(parent, 2*time.Second)
 			err := md.WaitIdle(pauseCtx)
 			if err == nil {
-				err = md.Pause(pauseCtx)
+				err = md.PauseForLaunch(pauseCtx)
 			}
 			cancel()
 			if err != nil {

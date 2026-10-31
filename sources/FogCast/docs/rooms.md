@@ -283,7 +283,7 @@ rooms can use the compact destination panel.
 
 `destination.set{kind, label, system, game_id, room_id, action, package_id,
 core_id, launchable, block, needs, inputs, query, platform, matches,
-resolving, missing, status, note, note_by}` publishes one location.
+resolving, missing, pending, status, note, note_by}` publishes one location.
 `inputs` lists required input devices (`keyboard`, `mouse`; anything else
 is ignored) so FES can say so before Play. A pad is not listed: its
 presence does not establish a mapping. With `resolving=true`, `status`
@@ -348,7 +348,17 @@ reconciled, a launchable core is Checking rather than Ready. Activating a
 launchable core calls the injected local-control client's Launch. With no
 client that activation returns an error and does not panic. `in_use` and
 `blocked` from the socket are returned the same way and do not fail the
-room. Tenfoot connects the socket when it is started with `-gfx menu-display`. A host session leaves it unset. Kit Home says "Installed machines appear here on an FES kit." when no client is present and focuses its Library route.
+room.
+
+`pending = true` on a core is a package the room remembers but the kit has
+not listed yet (the agent is still warming its catalog). It is Checking
+("Still checking this kit's machines."), and Confirm still queues Play:
+tenfoot asks the socket again while it answers `warming`, for up to 60
+seconds, and the agent starts the package only if the finished list has it
+launchable. A missing or blocked package then fails like any other launch.
+A held lease explains instead of queuing. Kit Home shows its last selected
+package this way, so A on the opening card is not lost during the warm.
+Tenfoot connects the socket when it is started with `-gfx menu-display`. A host session leaves it unset. Kit Home says "Installed machines appear here on an FES kit." when no client is present and focuses its Library route.
 
 `destination.classify(games, {q=})` returns that result without changing
 focus. `matches` is the viable play rows when any can play. `candidates`
@@ -466,8 +476,17 @@ Session fields are
 prevent a missing receipt from being mistaken for an empty connector or a
 supported tape or disk path. `removable_available` is true for a running
 package that reports a supported unit, including a Commodore 64 `.d64`.
-`hardware_known` requires a composition receipt naming the active package;
-a missing or mismatched receipt is displayed as unavailable hardware.
+`hardware_known` requires the kit's receipt for this load: a composition
+naming the active package (its `expansion_id` is the fitted card), or
+`core_package.expansion_socket = "empty"`, which the agent reports when a
+package with an optional rear socket loaded with no composition, slot or
+parts receipt. The runtime refuses a load whose echoed composition differs
+from the staged one, so the load had none; for a ZX81 RomInit load this
+rests on the host staging none, as a composed receipt does. `expansion_id`
+is then empty.
+A missing or mismatched receipt, including from an agent that predates
+`expansion_socket`, reads "Machine running · setup unavailable" while that
+machine is current. The saved Next start setup is never used instead.
 
 `hardware.select_expansion({game_id=..., package_id=...,
 expected_expansion_id=..., expansion_id=...}, function(selection, err) ... end)`

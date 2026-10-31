@@ -61,6 +61,9 @@ func detailReadiness(d rooms.Destination) readinessCopy {
 	c := readinessCopy{State: heroState(d.Availability)}
 	switch d.Kind {
 	case rooms.KindCore:
+		if d.Confirm() == rooms.ConfirmLaunchCore && d.CorePending {
+			return readinessCopy{State: heroStateChecking, Headline: strings.TrimSpace(d.Status), Explain: heroPendingCopy}
+		}
 		if d.Confirm() == rooms.ConfirmLaunchCore {
 			return readinessCopy{State: heroStateReady, Headline: heroPlaysOnThisTV}
 		}

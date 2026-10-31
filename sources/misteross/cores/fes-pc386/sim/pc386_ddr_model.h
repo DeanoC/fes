@@ -1,16 +1,20 @@
 // SPDX-License-Identifier: MIT
-// HPS DDR window and 64-bit Avalon-MM port model for the pc386 benches.
+// HPS DDR window and Avalon-MM port models for the pc386 and i386 benches:
+// Port, a 64-bit port (1 or 2), and Port0, the 128-bit port 0.
 //
-// Read latency follows the Kit B measurement with Linux idle
+// Port's read latency follows the Kit B measurement with Linux idle
 // (https://github.com/DeanoC/fes/pull/1076, port 1 at 100 MHz): first data
 // 17-18 clocks after the command for most reads, 32-51 for about 1.5% and
-// 54-79 for 0.1%. Beats of a burst then come one a clock with an occasional
-// gap. The port refuses a command at random about one clock in sixteen and
-// while 14 reads are pending, as fes-menu's controller model does. Every draw
-// comes from a seeded generator, consumed once per clock, so two benches that
-// drive a port identically see identical timing.
+// 54-79 for 0.1%. Port0's follows the Kit A measurement of port 0 with Linux
+// idle (same PR): 18-19 clocks for most reads, 47-51 for the slowest 1%, and
+// a tail to the worst seen, 135. Beats of a burst then come one a clock with
+// an occasional gap. A port refuses a command at random about one clock in
+// sixteen and while 14 reads are pending, as fes-menu's controller model
+// does. Every draw comes from a seeded generator, consumed once per clock, so
+// two benches that drive a port identically see identical timing. The clock
+// counts are 100 MHz ones: at a slower port clock they overstate latency.
 //
-// The port holds its masters to Avalon-MM, as the HPS controller needs: a
+// The 64-bit Port holds its master to Avalon-MM, as the HPS controller needs: a
 // command it refused comes again unchanged on the next clock, no read starts
 // inside a write burst, and every beat of a write burst carries its first
 // beat's address and length, so a burst cut short and followed by another
@@ -34,6 +38,7 @@ constexpr uint32_t VRAM_OFFSET = 0x00800000u;
 constexpr uint32_t CAPTURE_OFFSET = 0x00a00000u;
 constexpr uint32_t CAPTURE_BYTES = 0x00200000u;
 constexpr uint32_t CAPTURE_STRIDE = 3200u;
+constexpr uint32_t GUEST_OFFSET = 0x04000000u;  // guest RAM: physical 0 at this window offset
 
 // The 256 MiB window, allocated a MiB at a time as it is touched.
 class Window {
@@ -170,6 +175,121 @@ private:
         return uint32_t(byte - WINDOW_BASE);
     }
     Window &window;
+    Random random;
+    std::string name;
+    std::deque<Burst> reads;
+    unsigned write_left = 0, write_beats = 0;
+    uint32_t write_address = 0;
+    bool refused = false;
+    Command held{};
+};
+
+// Port 0: 128-bit beats on word addresses (byte address / 16), for any
+// Verilated top with fes_i386_cpu's ddr_* port names. Memory is anything
+// with uint8_t *at(uint32_t window_offset, bool write). fixed gives every read the
+// median latency and never refuses or gaps, for runs whose timing must not
+// vary.
+template <typename Memory> class Port0 {
+public:
+    Port0(Memory &memory, uint64_t seed, std::string name) : memory(memory), random(seed), name(std::move(name)) {}
+    bool fixed = false;
+
+    // Before each rising edge: drive this clock's responses and take the
+    // command the master presents, if the port accepts it.
+    template <typename Top> void drive(Top &top, uint64_t cycle) {
+        uint32_t draw_wait = random.next(), draw_gap = random.next(), draw_latency = random.next();
+        if (refused && !(presented(top) == held))
+            throw std::runtime_error(name + ": a command changed or withdrawn under waitrequest at clock " +
+                                     std::to_string(cycle));
+        refused = false;
+        top.ddr_readdatavalid = 0;
+        if (!reads.empty() && reads.front().ready <= cycle && (fixed || (draw_gap & 15) != 0)) {
+            Burst &burst = reads.front();
+            const uint8_t *beat = at(burst.address + burst.done, false);
+            for (int word = 0; word < 4; ++word) {
+                uint32_t value;
+                std::memcpy(&value, beat + 4 * word, 4);
+                top.ddr_readdata[word] = value;
+            }
+            top.ddr_readdatavalid = 1;
+            ++beats_read;
+            if (++burst.done == burst.beats) reads.pop_front();
+        }
+        bool refuse = (!fixed && (draw_wait & 15) == 0) || reads.size() >= 14;
+        top.ddr_waitrequest = refuse;
+        if (refuse) {
+            if (top.ddr_read || top.ddr_write) {
+                held = presented(top);
+                refused = true;
+            }
+            return;
+        }
+        if (top.ddr_read) {
+            if (write_left) throw std::runtime_error(name + ": read during a write burst");
+            unsigned beats = top.ddr_burstcount;
+            if (beats == 0 || beats > 128) throw std::runtime_error(name + ": bad read burst length");
+            at(top.ddr_address + beats - 1, false);
+            unsigned roll = draw_latency % 1000;
+            unsigned latency = fixed ? 18 : roll < 1 ? 52 + (draw_latency >> 10) % 84 :
+                               roll < 10 ? 47 + (draw_latency >> 10) % 5 : 18 + (draw_latency >> 10) % 2;
+            reads.push_back({cycle + latency, uint32_t(top.ddr_address), beats, 0});
+            ++commands;
+        } else if (top.ddr_write) {
+            if (!write_left) {
+                write_address = top.ddr_address;
+                write_left = top.ddr_burstcount;
+                write_beats = write_left;
+                if (write_left == 0 || write_left > 128) throw std::runtime_error(name + ": bad write burst length");
+                ++commands;
+            } else if (top.ddr_address != write_address || top.ddr_burstcount != write_beats) {
+                throw std::runtime_error(name + ": a write burst cut short, then another begun at clock " +
+                                         std::to_string(cycle));
+            }
+            uint8_t *target = at(write_address + (write_beats - write_left), true);
+            for (int lane = 0; lane < 16; ++lane)
+                if (target && (top.ddr_byteenable & (1u << lane)))
+                    target[lane] = uint8_t(top.ddr_writedata[lane / 4] >> (8 * (lane % 4)));
+            ++beats_written;
+            --write_left;
+        }
+    }
+
+    bool idle() const { return reads.empty() && write_left == 0; }
+    uint64_t commands = 0, beats_read = 0, beats_written = 0;
+
+private:
+    struct Burst {
+        uint64_t ready;
+        uint32_t address;
+        unsigned beats, done;
+    };
+    struct Command {
+        bool read, write;
+        uint32_t address;
+        uint8_t burstcount;
+        uint16_t byteenable;
+        uint64_t writedata[4];
+        bool operator==(const Command &other) const {
+            return read == other.read && write == other.write && address == other.address &&
+                   burstcount == other.burstcount &&
+                   (!write || (byteenable == other.byteenable &&
+                               std::memcmp(writedata, other.writedata, sizeof writedata) == 0));
+        }
+    };
+    template <typename Top> static Command presented(const Top &top) {
+        return {bool(top.ddr_read), bool(top.ddr_write), uint32_t(top.ddr_address), uint8_t(top.ddr_burstcount),
+                uint16_t(top.ddr_byteenable), {uint64_t(top.ddr_writedata[0]), uint64_t(top.ddr_writedata[1]),
+                                              uint64_t(top.ddr_writedata[2]), uint64_t(top.ddr_writedata[3])}};
+    }
+    uint8_t *at(uint32_t word, bool write) {
+        uint64_t byte = uint64_t(word) * 16;
+        if (byte < WINDOW_BASE || byte + 16 > uint64_t(WINDOW_BASE) + WINDOW_BYTES)
+            throw std::runtime_error(name + ": command outside the DDR window");
+        uint8_t *result = memory.at(uint32_t(byte - WINDOW_BASE), write);
+        if (!result && !write) throw std::runtime_error(name + ": read from unmapped memory");
+        return result;
+    }
+    Memory &memory;
     Random random;
     std::string name;
     std::deque<Burst> reads;
