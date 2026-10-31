@@ -11,7 +11,10 @@
 // one PS/2 byte time (BYTE_US) after the guest last read 60h or wrote a
 // device, as a PS/2 link paces it. With XLAT set, keyboard bytes are
 // translated from set 2 to set 1 with the standard 8042 table, an F0h prefix
-// setting bit 7 of the next byte.
+// setting bit 7 of the next byte. The host keyboard model (pc386_hid_keyboard)
+// turns fes.keyboard.hid's rows into the keyboard's set 2 codes, with the
+// typematic byte the guest last sent the keyboard. A mouse packet is taken on
+// the clock mouse_valid and mouse_ready are both high.
 module pc386_kbc #(
     parameter integer US_N = 1,          // 1 MHz as N/D of the system clock
     parameter integer US_D = 100,
@@ -26,17 +29,17 @@ module pc386_kbc #(
     output wire irq1, irq12,
     output wire a20,
     output reg cpu_reset,                // one clock
-    // Set 2 scan codes from the host keyboard model.
-    input wire key_valid,
-    input wire [7:0] key_code,
-    output wire key_ready,
-    // fes.mouse.relative packets.
+    // fes.keyboard.hid's nine rows
+    input wire [143:0] keyboard_rows,
+    // fes.mouse.relative packets
     input wire mouse_valid,
     input wire signed [7:0] mouse_dx, mouse_dy,
-    input wire [1:0] mouse_buttons       // bit 0 left, bit 1 right
+    input wire [1:0] mouse_buttons,      // bit 0 left, bit 1 right
+    output wire mouse_ready
 );
     wire us_tick;
     pc386_rate #(.N(US_N), .D(US_D)) us_rate (.clk(clk), .reset(reset), .tick(us_tick));
+    assign mouse_ready = !reset;
 
     // Controller state
     reg [7:0] ram [0:31];
@@ -62,17 +65,27 @@ module pc386_kbc #(
     wire keyboard_valid, aux_valid;
     wire [7:0] keyboard_byte, aux_byte;
     reg keyboard_take, aux_take;
+    wire key_valid, key_ready, typematic_clear;
+    wire [7:0] key_code;
+    wire [6:0] typematic;
+    pc386_hid_keyboard host_keyboard (
+        .clk(clk), .reset(reset), .us_tick(us_tick), .rows(keyboard_rows),
+        .typematic(typematic), .typematic_clear(typematic_clear),
+        .key_valid(key_valid), .key_code(key_code), .key_ready(key_ready)
+    );
     pc386_ps2_keyboard #(.BAT_US(BAT_US)) keyboard (
         .clk(clk), .reset(reset), .us_tick(us_tick),
         .rx_valid(keyboard_rx), .rx_byte(device_byte),
         .tx_valid(keyboard_valid), .tx_byte(keyboard_byte), .tx_take(keyboard_take),
-        .key_valid(key_valid), .key_code(key_code), .key_ready(key_ready)
+        .key_valid(key_valid), .key_code(key_code), .key_ready(key_ready),
+        .typematic(typematic), .typematic_clear(typematic_clear)
     );
     pc386_ps2_mouse #(.DY_DOWN(MOUSE_DY_DOWN)) mouse (
         .clk(clk), .reset(reset), .us_tick(us_tick),
         .rx_valid(aux_rx), .rx_byte(device_byte),
         .tx_valid(aux_valid), .tx_byte(aux_byte), .tx_take(aux_take),
-        .move_valid(mouse_valid), .move_dx(mouse_dx), .move_dy(mouse_dy), .move_buttons(mouse_buttons)
+        .move_valid(mouse_valid && mouse_ready), .move_dx(mouse_dx), .move_dy(mouse_dy),
+        .move_buttons(mouse_buttons)
     );
 
     function automatic [7:0] translate(input [7:0] code);
@@ -268,7 +281,9 @@ endmodule
 // FF resets and reports BAT completion (AAh) BAT_US later (a recorded
 // deviation from the half second some keyboards took). F0 accepts only set 2:
 // asking for 1 or 3 is acknowledged and ignored. ED is acknowledged; the
-// host's LEDs are not driven. Unknown commands get FEh.
+// host's LEDs are not driven. F3's byte is the host keyboard model's
+// typematic delay and rate; FF, F5 and F6 restore the default 2Bh (500 ms,
+// 10.9 per second) and stop the repeat. Unknown commands get FEh.
 module pc386_ps2_keyboard #(
     parameter integer BAT_US = 5000
 ) (
@@ -280,10 +295,12 @@ module pc386_ps2_keyboard #(
     input wire tx_take,
     input wire key_valid,
     input wire [7:0] key_code,
-    output wire key_ready              // a byte is taken while valid and ready
+    output wire key_ready,             // a byte is taken while valid and ready
+    output reg [6:0] typematic,
+    output reg typematic_clear
 );
     reg scanning;
-    reg [1:0] argument;                  // 1 typematic or LEDs, 2 scan-code set
+    reg [1:0] argument;                  // 1 LEDs, 2 scan-code set, 3 typematic
     reg [7:0] last_sent;
     reg [15:0] bat;
     reg clear;
@@ -310,8 +327,9 @@ module pc386_ps2_keyboard #(
 
     always @(posedge clk) begin
         clear <= 0;
+        typematic_clear <= 0;
         if (reset) begin
-            scanning <= 1; argument <= 0; last_sent <= 8'hfa; bat <= 0; pushing <= 0;
+            scanning <= 1; argument <= 0; last_sent <= 8'hfa; bat <= 0; pushing <= 0; typematic <= 7'h2b;
         end else begin
             if (pushing != 0 && space != 0) pushing <= pushing - 1'b1;
             if (tx_take) last_sent <= tx_byte;
@@ -322,19 +340,27 @@ module pc386_ps2_keyboard #(
             if (rx_valid) begin
                 argument <= 0;
                 if (argument == 2 && rx_byte == 8'h00) respond(2'd2, 8'hfa, 8'h02, 8'h00);
-                else if (argument != 0) respond(2'd1, 8'hfa, 8'h00, 8'h00);
-                else case (rx_byte)
+                else if (argument != 0) begin
+                    if (argument == 3) typematic <= rx_byte[6:0];
+                    respond(2'd1, 8'hfa, 8'h00, 8'h00);
+                end else case (rx_byte)
                     8'hff: begin
                         clear <= 1;
                         scanning <= 1;
+                        typematic <= 7'h2b; typematic_clear <= 1;
                         respond(2'd1, 8'hfa, 8'h00, 8'h00);
                         bat <= 16'(BAT_US);
                     end
                     8'hfe: respond(2'd1, last_sent, 8'h00, 8'h00);
-                    8'hf6: respond(2'd1, 8'hfa, 8'h00, 8'h00);
-                    8'hf5: begin scanning <= 0; respond(2'd1, 8'hfa, 8'h00, 8'h00); end
+                    8'hf6: begin typematic <= 7'h2b; typematic_clear <= 1; respond(2'd1, 8'hfa, 8'h00, 8'h00); end
+                    8'hf5: begin
+                        scanning <= 0;
+                        typematic <= 7'h2b; typematic_clear <= 1;
+                        respond(2'd1, 8'hfa, 8'h00, 8'h00);
+                    end
                     8'hf4: begin scanning <= 1; respond(2'd1, 8'hfa, 8'h00, 8'h00); end
-                    8'hf3, 8'hed: begin argument <= 1; respond(2'd1, 8'hfa, 8'h00, 8'h00); end
+                    8'hf3: begin argument <= 3; respond(2'd1, 8'hfa, 8'h00, 8'h00); end
+                    8'hed: begin argument <= 1; respond(2'd1, 8'hfa, 8'h00, 8'h00); end
                     8'hf0: begin argument <= 2; respond(2'd1, 8'hfa, 8'h00, 8'h00); end
                     8'hf2: respond(2'd3, 8'hfa, 8'hab, 8'h83);
                     8'hee: respond(2'd1, 8'hee, 8'h00, 8'h00);

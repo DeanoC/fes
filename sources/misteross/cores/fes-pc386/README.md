@@ -19,6 +19,7 @@ Quartus 17.0.2.
 | [`rtl/pc386_pic.sv`](rtl/pc386_pic.sv) | Two [KF8259](../fes-common/vendor/kf8259/README.md) in cascade, the slave on master IR2 |
 | [`rtl/pc386_sysctl.sv`](rtl/pc386_sysctl.sv) | Ports 61h, 92h and 80h |
 | [`rtl/pc386_kbc.sv`](rtl/pc386_kbc.sv) | 8042, PS/2 keyboard and PS/2 aux mouse |
+| [`rtl/pc386_hid_keyboard.sv`](rtl/pc386_hid_keyboard.sv) | The host keyboard model: `fes.keyboard.hid` rows to set 2 makes and breaks, the 1 ms rule, typematic repeat |
 | [`rtl/pc386_rtc.sv`](rtl/pc386_rtc.sv) | MC146818A clock with 128 bytes of CMOS and the configuration bytes |
 | [`rtl/pc386_ata.sv`](rtl/pc386_ata.sv) | ATA disk with a two-sector buffer on a 64-bit image port, the dirty map and the save fence |
 | [`rtl/pc386_rate.sv`](rtl/pc386_rate.sv) | Rational clock enable for every guest time base |
@@ -48,6 +49,9 @@ Quartus 17.0.2.
 | [`sim/system_tb.cpp`](sim/system_tb.cpp) | `pc386_system` with all three DDR ports on one window model, and a host that launches and stops it as libmister-runtime does, through the mailbox and the window |
 | [`sim/rtl_stop_test.asm`](sim/rtl_stop_test.asm) | The stop test disk: SMSW and MOV CR0 stops, LMSW, and the protected-mode oracle stretch for `--cpu rtl` |
 | [`sim/devices_tb.cpp`](sim/devices_tb.cpp) | Directed checks of the AT core through its I/O port |
+| [`sim/keyboard_tb.cpp`](sim/keyboard_tb.cpp) | The host keyboard model alone: every usage, the order of a change, the 1 ms rule, typematic timing |
+| [`sim/hid_set2_reference.py`](sim/hid_set2_reference.py), [`sim/hid_set2_reference.h`](sim/hid_set2_reference.h) | The keyboard bench's expected bytes, derived from a Linux tree's HID and AT keyboard tables |
+| [`sim/input_test.asm`](sim/input_test.asm) | INPUT.COM, the system suite's keyboard and mouse exercise through INT 15h C2xx and INT 16h |
 | [`sim/audio_tb.cpp`](sim/audio_tb.cpp) | Directed checks of the DSP, the OPL2's AdLib port and the mixer, through the AT core |
 | [`sim/opl2_tb.cpp`](sim/opl2_tb.cpp) | The OPL2 against Nuked-OPL3, sample for sample, on random programs and captured port logs |
 | [`sim/audio_link.h`](sim/audio_link.h), [`sim/opl2_reference.h`](sim/opl2_reference.h) | The AT core and audio models joined as wires; the Nuked-OPL3 stepper |
@@ -71,7 +75,7 @@ shared [`fes_dma8237.sv`](../fes-common/rtl/fes_dma8237.sv) with AT parameters.
 ```sh
 python3 scripts/build_pc386_firmware.py --download     # dev86, then both ROMs, checked against the lock
 python3 scripts/build_pc386_freedos_image.py --download  # the FreeDOS fixture in build/
-python3 scripts/sim_fes_pc386.py --suite devices        # directed device checks, about 10 s
+python3 scripts/sim_fes_pc386.py --suite devices        # directed device checks and the keyboard model, about 2 min
 python3 scripts/sim_fes_pc386.py --suite storage        # the fes.computer 1.1 golden exchanges, about 2 min
 python3 scripts/sim_fes_pc386.py --suite audio          # DSP, OPL2 timers, mixer, about 1 min
 python3 scripts/sim_fes_pc386.py --suite opl2           # OPL2 against Nuked-OPL3, about 30 s
@@ -207,8 +211,10 @@ as wires would; the machine top level will instantiate both.
   device" and logs one "IDE time out" while waiting for BSY after SRST.
 - **KF8259 INT.** The import holds INT once raised until it is acknowledged, so
   a request that is masked before INTA is taken as a spurious IR7.
-- **Keyboard input** is set 2 scan codes on `key_valid`/`key_code`. The HID
-  row model and typematic repeat of the design are not built yet.
+- **Keyboard input** is `fes.keyboard.hid`'s nine rows, through the
+  [keyboard model](../../docs/pc386-machine-design.md#keyboard-model) inside
+  the 8042; its deviations are recorded there. The aux mouse takes a packet
+  once the machine is out of reset.
 
 ## VGA
 
@@ -252,8 +258,9 @@ as wires would; the machine top level will instantiate both.
 ## M5 system
 
 `fes.pc386` is a format-2 `fes.computer` 1.1 development package: fixed 720p60
-video, 48 kHz audio, HPS DDR, the session-display plane, the ATA hard disk,
-the `fes.pc386.machine` record and the wall clock, with
+video, the HID keyboard, 48 kHz audio, the relative mouse, HPS DDR, the
+session-display plane, the ATA hard disk, the `fes.pc386.machine` record and
+the wall clock, with
 [`pc386_system`](rtl/pc386_system.sv) below the board shell.
 
 - **CPU.** `fes_i386_cpu` with its L1I, L1D and bus interface fills and
@@ -278,6 +285,9 @@ the `fes.pc386.machine` record and the wall clock, with
 - **Ports.** Port 0 is the CPU's alone. Port 1 is VRAM. Port 2 carries the
   plane, presenter and capture, and at the lowest priority the ATA image:
   the drive's single beats, and the CRC pass's bursts of one sector.
+- **Keyboard and mouse.** The mailbox's nine rows go to the 8042's HID row
+  model, and each MouseRelative packet to the aux mouse, which takes it once
+  the machine is out of reset; the mailbox acknowledges it on that clock.
 - **fes.computer 1.1.** The mailbox
   ([`fes_computer_mailbox_core`](../fes-common/rtl/fes_computer_mailbox.v))
   answers identity word 16 with capabilities 16-19 and hands the disk, record
@@ -326,7 +336,12 @@ into the window, a Commit with a wrong CRC that must leave the unit loading
 with its error flag, the right one with DiskInfo polled until ready, and
 release. It follows the POST codes, debug text and status words, and reads
 the screen from VRAM. The CPU must reach the prompt alone, with no oracle
-behind it, and every underflow counter must stay at zero. Then it stops as
+behind it, and every underflow counter must stay at zero. At the prompt it
+types `echo M5:Kb!` through KeyboardHid rows and requires the echo, then runs
+the disk's INPUT.COM ([`sim/input_test.asm`](sim/input_test.asm)): ten
+MouseRelative packets must reach its INT 15h C2xx handler as the host's exact
+sums (Y counted up) with two left and one right click, and Up, F1, Delete and
+Shift+A must reach INT 16h as the BIOS codes them. Then it stops as
 the runtime does (disk Freeze, DiskDirty, Saved; record Freeze and reads;
 Hold), checks the record (the restored settings and CMOS byte, CMOS 60h-62h,
 the configuration bytes and checksum), and makes the record's round trip
@@ -360,6 +375,5 @@ runtime, waits on the M0 contracts either way.
 
 ## Not built yet
 
-The HID nine-row keyboard model and typematic repeat, so the package has no
-keyboard or mouse yet; the `fes.mouse.relative` wiring; the CPU's governor,
-which the record's preset, frequency and turbo words wait for; the CPU's L2.
+The CPU's governor, which the record's preset, frequency and turbo words wait
+for; the CPU's L2.

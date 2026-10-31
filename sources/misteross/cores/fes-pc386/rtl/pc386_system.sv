@@ -13,9 +13,11 @@
 //   port 2  plane, presenter, capture; pc386_disk: the ATA image at window
 //           offset 0x08000000 and its CRC pass
 //
-// The mailbox (fes_computer_mailbox_core) answers identity, execution and the
-// session-display plane, and hands the ATA disk, the fes.pc386.machine record
-// and the wall clock to fes_computer_storage. The record's settings are the
+// The mailbox (fes_computer_mailbox_core) answers identity, execution, the
+// keyboard's rows, mouse packets and the session-display plane, and hands the
+// ATA disk, the fes.pc386.machine record and the wall clock to
+// fes_computer_storage. The rows go to the 8042's host keyboard model, and a
+// mouse packet to its aux device once the machine is out of reset. The record's settings are the
 // machine's straps at each release: the self-modifying-code profile and the
 // Sound Blaster's port, IRQ and DMA; the governor's preset, frequency and
 // turbo words wait for the CPU's governor. Its CMOS words are what the RTC
@@ -111,14 +113,21 @@ module pc386_system #(
     wire [6:0] storage_opcode;
     wire [7:0] storage_index;
     wire [15:0] storage_argument, storage_response_data;
+    wire [143:0] keyboard_rows;
+    wire mouse_valid, mouse_ready;
+    // Unsigned: the pc386 lock's Yosys asserts when a chparam'd top slices a
+    // signed wire into a parameterised cell (DeanoC/yosys#71).
+    wire [15:0] mouse_dx, mouse_dy;
+    wire [1:0] mouse_buttons;
     /* verilator lint_off PINCONNECTEMPTY */
     fes_computer_mailbox_core #(
-        .ENABLE_AUDIO(1), .ENABLE_SESSION_DISPLAY(1), .ENABLE_ATA_DISK(1), .ENABLE_PERSISTENCE(1),
-        .ENABLE_PC386_MACHINE(1), .ENABLE_WALL_CLOCK(1)
+        .ENABLE_KEYBOARD(1), .ENABLE_MOUSE(1), .ENABLE_AUDIO(1), .ENABLE_SESSION_DISPLAY(1),
+        .ENABLE_ATA_DISK(1), .ENABLE_PERSISTENCE(1), .ENABLE_PC386_MACHINE(1), .ENABLE_WALL_CLOCK(1)
     ) gp_mailbox (
         .clk(clk), .gpo(gpo), .build_id(build_id), .gpi(gpi),
-        .exec_reset(exec_reset), .keyboard_rows(), .controller_buttons(),
-        .mouse_valid(), .mouse_dx(), .mouse_dy(), .mouse_buttons(), .mouse_ready(1'b0),
+        .exec_reset(exec_reset), .keyboard_rows(keyboard_rows), .controller_buttons(),
+        .mouse_valid(mouse_valid), .mouse_dx(mouse_dx), .mouse_dy(mouse_dy), .mouse_buttons(mouse_buttons),
+        .mouse_ready(mouse_ready),
         .media_write_addr(), .media_write_data(), .media_write_enable(), .media_write_unit(),
         .media_write_ready(1'b0), .media_write_busy(1'b0), .media_changed(1'b0), .media_frozen(),
         .media_read_req(), .media_read_addr(), .media_read_ready(1'b0), .media_read_data(8'd0),
@@ -227,7 +236,6 @@ module pc386_system #(
     wire post_valid;
     wire [7:0] post_code;
     wire [15:0] debug_port;
-    wire key_ready;
     wire cmos_busy;
     wire disk_valid, disk_write, disk_ready, disk_rvalid;
     wire [23:0] disk_address;
@@ -278,8 +286,9 @@ module pc386_system #(
         .sound_address(sound_address), .sound_wdata(sound_wdata), .sound_rdata(sound_rdata),
         .post_valid(post_valid), .post_code(post_code),
         .debug_valid(debug_valid), .debug_port(debug_port), .debug_byte(debug_byte),
-        .key_valid(1'b0), .key_code(8'd0), .key_ready(key_ready),
-        .mouse_valid(1'b0), .mouse_dx(8'sd0), .mouse_dy(8'sd0), .mouse_buttons(2'b00),
+        // The mailbox sign-extends the packet's 8-bit dx and dy.
+        .keyboard_rows(keyboard_rows), .mouse_valid(mouse_valid), .mouse_dx(mouse_dx[7:0]),
+        .mouse_dy(mouse_dy[7:0]), .mouse_buttons(mouse_buttons), .mouse_ready(mouse_ready),
         // 640 KiB and 15 MiB of extended memory: 16 MiB of RAM, ram_top below.
         .base_kib(16'd640), .extended_kib(16'd15360), .above16m_64k(16'd0),
         .sb_base_high(sb_base_high), .sb_irq(sb_irq), .sb_dma(sb_dma), .cmos_busy(cmos_busy),
@@ -491,8 +500,8 @@ module pc386_system #(
     );
 
     // The governor's words (0 preset, 1 frequency, 3 turbo) have no consumer yet.
-    wire unused = ^{dma_ack_tc, start_latched, frame_start, frame_done, presenter_video, debug_port, opl2_sample,
-                    dsp_dac, key_ready, frame_count, frame_buffer, frame_width, frame_height,
+    wire unused = ^{dma_ack_tc, mouse_dx[15:8], mouse_dy[15:8], start_latched, frame_start, frame_done, presenter_video, debug_port, opl2_sample,
+                    dsp_dac, frame_count, frame_buffer, frame_width, frame_height,
                     nmi_mask, cpu_mmio_address[fes_i386_pkg::PA-3:15], cpu_sel[5:2], cpu_sel[0],
                     settings[31:0], settings[63:48], settings[127:104], settings[47:33], settings[79:76],
                     settings[67:64], settings[95:88]};

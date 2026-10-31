@@ -106,6 +106,7 @@ AT_RTL = (
     CORE / 'rtl/pc386_io.sv',
     CORE / 'rtl/pc386_pic.sv',
     CORE / 'rtl/pc386_sysctl.sv',
+    CORE / 'rtl/pc386_hid_keyboard.sv',
     CORE / 'rtl/pc386_kbc.sv',
     CORE / 'rtl/pc386_rtc.sv',
     CORE / 'rtl/pc386_ram.sv',
@@ -613,7 +614,7 @@ def parse_system(text: str) -> dict:
     report = {'identity': None, 'restore_cycle': None, 'clock_cycle': None, 'crc_rejected': None, 'disk': None,
               'release_cycle': None, 'post': [], 'debug': [], 'counters': [], 'prompt_cycle': None, 'screen': [],
               'status': None, 'save': None, 'record': None, 'roundtrip': None, 'record_checks': [], 'write_test': None,
-              'mailbox': None, 'end': None}
+              'typed': [], 'mouse': [], 'mailbox': None, 'end': None}
     for line in text.splitlines():
         kind, _, rest = line.partition(' ')
         if kind == 'IDENTITY':
@@ -632,6 +633,12 @@ def parse_system(text: str) -> dict:
             report['post'].append({'code': code, 'cycle': int(cycle)})
         elif kind == 'DEBUG':
             report['debug'].append(rest)
+        elif kind == 'TYPED':
+            cycle, _, text = rest.partition(' ')
+            report['typed'].append({'cycle': int(cycle), 'text': text})
+        elif kind == 'MOUSE':
+            cycle, dx, dy, buttons = (int(value) for value in rest.split())
+            report['mouse'].append({'cycle': cycle, 'dx': dx, 'dy': dy, 'buttons': buttons})
         elif kind == 'COUNTER':
             field, cycle = rest.split()
             name, value = field.split('=')
@@ -699,14 +706,35 @@ def system_failures(report: dict) -> list[str]:
     return failures
 
 
+def fixture_with(args, suite: str, source: str, name: str, base: Path | None = None) -> Path:
+    """The FreeDOS fixture with a NASM program from sim/ added as C:\\<name>."""
+    work = OUTPUT / suite
+    work.mkdir(parents=True, exist_ok=True)
+    nasm = test386.nasm(args.download, args.jobs)
+    program = work / name
+    result = subprocess.run([str(nasm), '-f', 'bin', '-o', str(program), str(CORE / 'sim' / source)],
+                            capture_output=True, text=True)
+    if result.returncode:
+        raise SimError(f'NASM failed on {source}:\n' + result.stderr)
+    disk = work / 'disk.img'
+    shutil.copyfile(base or freedos.image(args.download, args.jobs), disk)
+    env = dict(os.environ, MTOOLS_SKIP_CHECK='1', MTOOLSRC='/dev/null', TZ='UTC')
+    result = subprocess.run(['mcopy', '-m', '-i', f'{disk}@@{freedos.PARTITION_START * 512}', str(program),
+                             f'::{name}'], capture_output=True, text=True, env=env)
+    if result.returncode:
+        raise SimError('mcopy failed:\n' + result.stdout + result.stderr)
+    return disk
+
+
 def run_system(args) -> dict:
     """FreeDOS to the prompt on pc386_system, everything below top.sv, with the
-    DDR ports on one window model and a host that does the runtime's launch
-    and Stop through the mailbox and the window."""
+    DDR ports on one window model and a host that does the runtime's launch,
+    keyboard and mouse input and Stop through the mailbox and the window."""
     from scripts import build_fes_pc386_quartus as producer
     images = firmware.images(args.download, args.jobs)
     rom = firmware.write_rom_hex(images)
-    disk = freedos.build(args.download, args.jobs) if args.rebuild_image else freedos.image(args.download, args.jobs)
+    base = freedos.build(args.download, args.jobs) if args.rebuild_image else freedos.image(args.download, args.jobs)
+    disk = fixture_with(args, 'system', 'input_test.asm', 'INPUT.COM', base)
     parameters = {**producer.guest_rates(producer.SYSTEM_CLOCK_HZ), 'ROM_HEX': f'"{rom}"'}
     # The OPL2 import declares a timescale and the CPU and KF imports do not.
     testbench = verilate(args.verilator, 'system', 'pc386_system', SYSTEM_RTL, CORE / 'sim/system_tb.cpp', [],
@@ -818,7 +846,11 @@ def run_devices(args) -> dict:
     failures = [line for line in checks if line.startswith('FAIL')]
     if result.returncode and not failures:
         failures.append(f'devices_tb exited {result.returncode}: {result.stderr.strip()}')
-    return {'checks': checks, 'failures': failures, 'exit': result.returncode}
+    # The host keyboard model alone, against the Linux-derived set 2 reference.
+    keyboard = run_bench(args, 'keyboard', 'pc386_hid_keyboard', (CORE / 'rtl/pc386_hid_keyboard.sv',),
+                         CORE / 'sim/keyboard_tb.cpp')
+    return {'checks': checks + keyboard['checks'], 'failures': failures + keyboard['failures'],
+            'exit': result.returncode}
 
 
 def run_checks(command: list[str], cwd: Path, log: Path) -> tuple[list[str], list[str], str]:
@@ -869,22 +901,7 @@ SOUND_SCREEN = ('ADLIB OK', 'SB DSP 2.01', 'SB IRQS 6', 'SOUND DONE')
 
 def sound_disk(args) -> Path:
     """The FreeDOS fixture with SOUND.COM added."""
-    work = OUTPUT / 'sound'
-    work.mkdir(parents=True, exist_ok=True)
-    nasm = test386.nasm(args.download, args.jobs)
-    program = work / 'SOUND.COM'
-    result = subprocess.run([str(nasm), '-f', 'bin', '-o', str(program), str(CORE / 'sim/sound.asm')],
-                            capture_output=True, text=True)
-    if result.returncode:
-        raise SimError('NASM failed on sound.asm:\n' + result.stderr)
-    disk = work / 'disk.img'
-    shutil.copyfile(freedos.image(args.download, args.jobs), disk)
-    env = dict(os.environ, MTOOLS_SKIP_CHECK='1', MTOOLSRC='/dev/null', TZ='UTC')
-    result = subprocess.run(['mcopy', '-m', '-i', f'{disk}@@{freedos.PARTITION_START * 512}', str(program),
-                             '::SOUND.COM'], capture_output=True, text=True, env=env)
-    if result.returncode:
-        raise SimError('mcopy failed:\n' + result.stdout + result.stderr)
-    return disk
+    return fixture_with(args, 'sound', 'sound.asm', 'SOUND.COM')
 
 
 def read_wav(path: Path) -> list[int]:
