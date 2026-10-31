@@ -288,6 +288,12 @@ func (a *App) handleRoomLocked(cmd Command) {
 		return
 	}
 	if cmd == CmdSearch || cmd == CmdDetails {
+		// In the running machine's room, Y is the session's media shortcut,
+		// as it is over the game. Hardware cards have no details (#766).
+		if a.roomDuringPlay && a.sessionLiveMediaOfferedLocked() {
+			a.openTapePickerLocked()
+			return
+		}
 		a.openRoomDetailsLocked()
 		return
 	}
