@@ -1,5 +1,9 @@
 # DE25 ZX81 BASIC load, run and reload, 2026-10-30
 
+This is dated evidence for the producers identified below, not acceptance of
+later source trees. The [consolidation record](../2026-10-31-de25-pr-consolidation/README.md)
+records the later validation separately.
+
 Issue #1274 concerns a test fixture: the previous proof uploaded a raw live NEW
 RAM snapshot. Its CDFLAG at $403B was $C0, retaining the active SLOW display bit.
 The ROM's actual SAVE path enters FAST mode and emits $40. The live snapshot
@@ -81,7 +85,7 @@ watchdogs and physical timing constraints are unchanged.
 
 [Internal RAM: 20 cases](internal-proof.json) passes on committed producer
 `a05bd205c6929a72d5c070d353c8ea37203fd665`; its 89 captured source hashes
-still match the current tree. The [combined PR RAM-pack proof: 14 cases](combined-proof.json)
+identify that producer. The [combined PR RAM-pack proof: 14 cases](combined-proof.json)
 was rerun on committed source `75abf6dfa9912e6c3c45c825a53f4ae1a26f2d01`
 after merge `73ee2ea85`. It now captures the updated response-valid gate and
 RAM response pipeline along with the full 59-file compiler input closure.
@@ -93,8 +97,8 @@ Each internal session performs exactly 1,475 client register writes and observes
 freezes the third LOAD after 9 of 923 bytes, observes 720 output frames and
 returns to actual 1-KiB BASIC.
 
-The [source audit](source-match.json) matches all current internal and combined
-production, test and runtime inputs to their receipts: 89/89 internal inputs,
+The [source audit](source-match.json) records the internal and combined
+production, test and runtime inputs at those producers: 89/89 internal inputs,
 59/59 combined compiler inputs and 49/49 combined runtime inputs. It confirms
 no production-source changes from this PR relative to the merged parent. The
 [manifest](manifest.json) lists hashes for receipts, per-architecture logs and

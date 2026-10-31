@@ -20,7 +20,9 @@ class RecipeTests(unittest.TestCase):
             build.PROFILE = None
 
         root = frozen["repository"]
-        receipt_path = root / "docs/validation/2026-10-30-de25-zx81-load-roundtrip/combined-proof.json"
+        # Dated receipts retain their original producer. This branch-local
+        # fixture must match the live compiler and runtime input closures.
+        receipt_path = root / "sources/misteross/tests/fixtures/de25-combined-proof.json"
         receipt = json.loads(receipt_path.read_text())
         self.assertEqual(receipt["status"], "passed")
         self.assertTrue(receipt["production_source_committed"])
@@ -42,6 +44,8 @@ class RecipeTests(unittest.TestCase):
         self.assertEqual(receipt["test_runtime_source_sha256"], runtime_hashes)
         self.assertEqual(len(receipt["results"]), 14)
         self.assertTrue(all(result["result"] == "passed" for result in receipt["results"]))
+        self.assertEqual({result["architecture"] for result in receipt["results"]},
+                         {"native", "aarch64-cortex-a76"})
 
     def test_real_preparation_declares_both_personas_reconfigurable(self):
         with tempfile.TemporaryDirectory() as tmp:
