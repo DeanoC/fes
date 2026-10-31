@@ -1,9 +1,16 @@
 {
-  "README.md": "c0cd4a8f96c0ebc801eb39723a2b24fc9197354c622b82378304afc437af04e0",
+  "README.md": "b576d8fec3e7b84fb6a76859c5eb286580c79f02d302d5141aa36bbeecc5aa27",
   "bootstrap.json": "ac59e7183e6361606e9b13dae124974395bdb5d7547d2c1bde28bf0edf97af85",
   "candidate-info.log": "ae6a3d13464fd744da0c8cd7c8d5e755ba9bd5b02a923cd7db2fc53411559d0f",
-  "checks.txt": "175d3a806a3c22820fb07e79d7584082f29b7ee158e2b37d38d1d8af1da12fac",
+  "checks.txt": "e693529fc18ed045df4fa5cff0fece8435362eb89253388f54b3fa4d2ff84c3c",
   "conversion.log": "d49f8b21774cf4776c7d14c94d39e23356ed7da4e21478879c6d0da6cac6c952",
+  "hardware/image-provenance.json": "e52cc44c17b806479c75ca9e82fc668ba3bc376b81cf095f9dd9b26e5a019174",
+  "hardware/observations.json": "aacdfae6798eef6ccbff34c4e72e47126716df2df79a07f48b7c34a4457db9c2",
+  "hardware/round1-rom.png": "2ab23c997026312655862a34c36d054fa6992e6bfd6ea5bff6970c068bd12fc2",
+  "hardware/round1-run.png": "65e0d3b26e57cc37dac66824af274c525a1c89d9fd3ed17dac55f508fc88d9b0",
+  "hardware/round2-rom.png": "2ab23c997026312655862a34c36d054fa6992e6bfd6ea5bff6970c068bd12fc2",
+  "hardware/round2-run.png": "65e0d3b26e57cc37dac66824af274c525a1c89d9fd3ed17dac55f508fc88d9b0",
+  "hardware/tool-observations.json": "61c6845f97f23b8d33025c3b007e666fbbb3706fcae4f018e75803a1fa78f1a5",
   "recovery-info.log": "7b888f3a7dfffd8cee4a93c02e07690e0786de74958b5908a6020e6bf507f47c",
   "rollback-info.log": "6686a32ddc13cdaa4b5e3ec31cda3480b7e1f4770c281d5c5f3adb1501a91f4c"
 }

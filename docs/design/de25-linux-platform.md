@@ -7,7 +7,7 @@ and JTAG diagnostics are intermediate evidence only.
 
 | Step | Owner | Acceptance on DE25 |
 | --- | --- | --- |
-| FES Linux baseline | FES image | Cold boot, DHCP, SSH identity and ordinary reboot verified on the replacement SD; factory QSPI retained |
+| FES Linux baseline | FES image | Bottom-board FES SD and HPS-first QSPI pass cold startup and three software reboots; original flash readback retained |
 | Linux FPGA programming | runtime physical lifecycle; FES kernel packaging | Matching kernel modules, boot configuration and core RBF; repeat load while Linux/SSH and boot UUID survive; failed loads recover within a bounded lifecycle |
 | Board/package identity | mister-packages; misteross producers | Sealed DE25 artifact, exact handoff and CPU resource map; reject mismatches before device access |
 | Production runtime | libmister-runtime | AArch64 board identification, serialized load/reset/stop, register backend and safe epoch handling; preserve DE10 construction |
@@ -19,10 +19,15 @@ and JTAG diagnostics are intermediate evidence only.
 Each row requires its changed artifact and its actual hardware path. Passing a
 simulation or a maintenance client does not complete the corresponding managed
 flow. Headless Linux currently ships no runtime daemon, target agent, managed
-bundle or MENU. The first Linux-manager probe succeeds; actual core loading is
-still under investigation in the [bring-up record](../validation/2026-10-30-de25-linux-fpga/README.md).
+bundle or MENU. The [persistent bootstrap trial](../validation/2026-10-31-de25-reboot-bootstrap/README.md#physical-trial)
+loads ZX81 through Linux and runs BASIC in two epochs separated by ordinary
+reboot. Managed loading, MENU and failed-load recovery remain separate gates.
+The [earlier bring-up record](../validation/2026-10-30-de25-linux-fpga/README.md)
+retains the failed FPGA-first/factory-start attempts.
 
-Keep the approved FES SD plus factory QSPI as the baseline while preparing the
-new boot/programming artifacts. Preserve the original factory Ubuntu card and
-known-good images. A persistent QSPI or boot-configuration change needs Deano's
-explicit authorization after the artifacts and recovery procedure are concrete.
+The approved bottom-board baseline is the existing FES SD plus the exact
+HPS-first QSPI in the [persistent bootstrap trial](../de25-reboot-bootstrap.md).
+Preserve the verified pre-write factory readback, vendor rollback and original
+factory Ubuntu card. The top board remains on factory startup. Future QSPI or
+boot-configuration changes still need explicit authorization. This exact-board
+trial does not qualify other rebuilt profiles or production DMA/reset fencing.

@@ -7,3 +7,6 @@ PASS make test-changed --base e76179a112bfa4aa5baec03046747d82afe57e0e
 PASS python3 scripts/check_doc_links.py (including support matrix)
 PASS published metadata/log scan for private IPv4/MAC addresses
 No FPGA compile, image build, target access, boot/flash/SD write or new physical acceptance.
+
+Physical follow-up at source59b5dd7b3: verified original flash Examine/Verify, candidate program/verify, three consecutive QSPI software reboots and two Linux load/native BASIC runs pass. Final idle/identity and read-only SDM26.3 status pass.
+Evidence recovered from session tool outputs/images after checkout disappearance; full raw UART and native receipt files are lost. No repeated software suite: implementation unchanged from passing preparation checks.

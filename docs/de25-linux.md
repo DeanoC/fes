@@ -146,8 +146,11 @@ records successful driver probing and the current core-transfer/cleanup failure.
 
 The [persistent bootstrap procedure](de25-reboot-bootstrap.md) prepares a
 closed candidate/recovery/vendor-rollback set for the next reboot milestone.
-Preparation never programs the board; QSPI deployment remains an explicitly
-approved hardware trial.
+Preparation never programs the board. The explicitly approved bottom-board
+[hardware trial](validation/2026-10-31-de25-reboot-bootstrap/README.md#physical-trial)
+now passes three software reboots with this QSPI bootstrap, plus Linux ZX81
+loading and native BASIC in two epochs. Its backup and working bootstrap are
+retained independently of the task checkout.
 
 ## Image artifacts
 

@@ -1,16 +1,20 @@
 # DE25 persistent HPS-first bootstrap
 
-The next reboot milestone replaces temporary JTAG bootloader delivery with an
-HPS-first image in QSPI. Linux stays on the existing FES SD. FPGA cores remain
-separate Linux-loaded artifacts. This is a proposed boot change, not deployed
-or qualified QSPI startup.
+The bottom board TRWU8J8G now retains the approved HPS-first QSPI bootstrap
+with its existing FES SD. The [physical trial](validation/2026-10-31-de25-reboot-bootstrap/README.md#physical-trial)
+passes three consecutive software reboots, including two after ZX81 BASIC
+execution, without JTAG redelivery or power intervention between them. One
+initial physical cycle was needed after programming to start the new flash.
+FPGA cores remain separate Linux-loaded artifacts; this acceptance applies
+only to the recorded board and exact bootstrap/core files.
 
 The [cold-reset investigation](validation/2026-10-30-de25-reboot/README.md)
 records working factory-QSPI reboot and stalled temporary JTAG reboot.
 [The HPS-first proof](https://github.com/DeanoC/fes/pull/1303) then boots the
 matching HPS-only RBF through JTAG and loads ZX81 from Linux, running BASIC
 through the actual board CPU. Those exact files establish a useful candidate;
-they do not establish QSPI programming, cold boot or repeat-reboot acceptance.
+the later explicitly approved trial establishes QSPI startup and repeat
+software reboot for the recorded board/files, with its stated evidence limit.
 
 FES owns this off-board packaging and integration procedure. misteross owns
 its compiled inputs; libmister-runtime continues to own physical lifecycle.

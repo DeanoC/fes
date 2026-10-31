@@ -1,0 +1,70 @@
+{
+  "classification": "exact-board QSPI startup/reboot and native maintenance diagnostic",
+  "board_serial": "TRWU8J8G",
+  "source_revision": "59b5dd7b34d031fd3c6bc2d77a1973c939a8abdf",
+  "producer_revision": "79d616e85e19d65f0d645b67a85ffe7e142dcdfc",
+  "computer_build_id": "06ee047f143317df0fd1d98717b2b991",
+  "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+  "artifacts": {
+    "linux-boot.hps.jic": {
+      "sha256": "fefe5246045354d665fbc195dad5350a0e23d1e3bf33516b93b0411832bfde64",
+      "size": 16777449
+    },
+    "linux-boot.core.rbf": {
+      "sha256": "7130375986bd59633d856beb6cf69db238432a06b84fa0ba1900ffd556ca180a",
+      "size": 1990656
+    },
+    "recovery.hps.rbf": {
+      "sha256": "1a0d681a00efdb34ecc3ff1866da5dc343c3fe625fb6019351647144452b18de",
+      "size": 868352
+    },
+    "linux-complete.sof": {
+      "sha256": "0a9475308c4411664083377e7865ad7dedac287bc3b8c4b6fcb520386c7fcc5f",
+      "size": 1892580
+    }
+  },
+  "pre_write_flash_readback": {
+    "sha256": "5741d2f0a28d0009eda0bd28dfb3e768047a89cbf2819e22ba3eb4303235f2ef",
+    "bytes": 16777460,
+    "examine": "passed 33sec",
+    "verify_against_unchanged_flash": "passed 2sec",
+    "restoration_programming": "not needed, not tested"
+  },
+  "candidate_program_and_verify": "passed 24sec",
+  "post_program_initcfg_boot": "no Linux within180sec",
+  "initial_jtag_boot_id": "7a29a347-9006-45d2-8673-217a590f877a",
+  "reboot_from_initial_jtag_boot": "no SPL/login within90sec",
+  "initial_physical_power_cycle_to_activate_flash": true,
+  "qspi_boot_ids": [
+    "408781e0-1c20-4c1c-ac96-bc7c220f9d7f",
+    "4bbe1886-f7f6-4e99-ae0c-8db50b18317c",
+    "d8374aed-6bba-440c-876d-ad58f6eaf8ef",
+    "e8963972-c3e9-405c-a2ef-93eb09f691e6"
+  ],
+  "consecutive_software_reboots": 3,
+  "jtag_programming_or_physical_intervention_between_qspi_reboots": false,
+  "linux_core_load_and_basic_run_boot_ids": [
+    "4bbe1886-f7f6-4e99-ae0c-8db50b18317c",
+    "d8374aed-6bba-440c-876d-ad58f6eaf8ef"
+  ],
+  "basic_results": "7 and 0/1, two independently captured runs",
+  "manager_state_after_load": "operating/applied, same boot UUID",
+  "final_baseline": {
+    "boot_id": "e8963972-c3e9-405c-a2ef-93eb09f691e6",
+    "sdm": "26.3",
+    "msel": "AS_FAST_POR",
+    "sd_cid": "275048534436344760702d33e0017c00",
+    "kernel": "6.12.11-gd7d192a9ddd9",
+    "temporary_proof_files_absent": true,
+    "modules_absent": true,
+    "configfs_overlay_absent": true,
+    "firmware_search_override_empty": true,
+    "idle_and_released": true,
+    "bootstrap_retained_under_install_approval": true
+  },
+  "production_runtime_admission": false,
+  "raw_uart_and_native_receipt_files": "lost when c134 checkout disappeared before evidence commit",
+  "retained_evidence": "recovered session tool outputs and four image responses; original baseline/backup retained independently",
+  "top_board_unchanged": true,
+  "sd_writes": false
+}
