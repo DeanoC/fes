@@ -1,0 +1,37 @@
+#!/bin/sh
+# Firmware may supply a fresh local MAC on every boot. Pin it to the FES card
+# before S40network starts DHCP; retain any globally assigned hardware address.
+set -eu
+case "${1:-start}" in
+    start) ;;
+    stop) exit 0 ;;
+    *) exit 1 ;;
+esac
+fail() { printf 'fes-network-id: %s\n' "$1" >&2; exit 1; }
+[ "$(cat /etc/fes-board)" = de25-nano ] || fail 'wrong board'
+address=$(cat /sys/class/net/eth0/address | tr 'A-F' 'a-f')
+case "$address" in
+    ??:??:??:??:??:??) ;;
+    *) fail 'invalid Ethernet address' ;;
+esac
+digits=$(printf '%s' "$address" | tr -d ':')
+[ "${#digits}" = 12 ] || fail 'invalid Ethernet address'
+case "$digits" in *[!0-9a-f]*) fail 'invalid Ethernet address' ;; esac
+[ "$address" != 00:00:00:00:00:00 ] || fail 'zero Ethernet address'
+first=${address%%:*}
+[ "$((0x$first & 1))" = 0 ] || fail 'multicast Ethernet address'
+[ "$((0x$first & 2))" != 0 ] || exit 0
+cid=$(cat /sys/block/mmcblk0/device/cid | tr 'A-F' 'a-f')
+[ "${#cid}" = 32 ] || fail 'invalid card identity length'
+case "$cid" in
+    *[!0-9a-f]*|00000000000000000000000000000000|ffffffffffffffffffffffffffffffff)
+        fail 'invalid card identity' ;;
+esac
+hash=$(printf '%s' "$cid" | sha256sum)
+hash=${hash%% *}
+[ "${#hash}" = 64 ] || fail 'invalid identity digest'
+case "$hash" in *[!0-9a-f]*) fail 'invalid identity digest' ;; esac
+suffix=$(printf '%.10s' "$hash" | sed 's/../:&/g')
+stable="02$suffix"
+[ "$address" != "$stable" ] || exit 0
+ip link set dev eth0 address "$stable"
