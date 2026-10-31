@@ -92,7 +92,24 @@ selection and the generated DE25 profile/device row. The default stays DE10;
 foreign profiles, including contained development, do not resolve on DE25.
 One contract validator is shared by preflight and live Identify; it requires
 format2, ABI1.0, selected nonzero128-bit build, and exactly the required
-video/HID/tape interfaces. Production construction/startup remains closed. Scripted-register and selected-driver
+video/HID/tape interfaces.
+
+`NativeHardware` retains an explicitly selected platform and passes it to each
+package compatibility and registry check, including activation rechecks. DE25
+capabilities contain only the BRAM computer profile/interfaces, with no ROM
+linking, application, DDR or contained-development claims. Core video uses the
+`CoreVideoBringup` interface: the fixed Linux I2C recipe supports DE10, while
+`De25VideoBringup` observes the actual client's video-ready status without any
+transmitter writes. A backend/platform mismatch is refused during admission
+and before replacement quiesce. Both managed profiles reach video setup and
+selected-driver Start; unsafe Identify failures retire the active identity.
+DE25 video quiesce has no separate hardware mutation; the selected driver's
+HOLD fences the CPU. It does not claim to blank the transmitter. The current
+Cyclone V splash recipe is refused on DE25 before any input, video or FPGA
+mutation. A managed DE25 idle/MENU package and restart adoption are still needed
+before the single production factory can construct this path.
+
+Production construction/startup remains closed. Scripted-register and selected-driver
 regressions are software evidence; this driver has not run on the board.
 
 ## DE25 PR-control diagnostic

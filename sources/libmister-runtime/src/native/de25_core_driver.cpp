@@ -7,6 +7,14 @@
 #include "native/generated/fes_de25_computer.hpp"
 namespace mister { namespace native {
 using namespace generated;
+VideoResult De25VideoBringup::BringUpCustom(std::uint64_t deadline, bool audio)
+{
+ VideoResult result;
+ result.phase = "fpga-video";
+ if (audio) result.error = {ErrorCode::unsupported_interface, "DE25 BRAM computer has no audio", "video"};
+ else result.error = client_.WaitVideoReady(deadline);
+ return result;
+}
 void De25ComputerCoreDriver::BeginSession()
 {
 	selected_ = false; core_.clear(); build_.clear(); media_.clear();

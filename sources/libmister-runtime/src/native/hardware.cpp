@@ -280,19 +280,20 @@ public:
 } // namespace
 
 NativeHardware::NativeHardware(ArtifactOpener& opener, FpgaManager& fpga,
-	VideoBringup& idle_video, FixedVideoBringup& game_video,
+	VideoBringup& idle_video, CoreVideoBringup& game_video,
 	InputSession& input, const InputDeviceIdentity& input_identity, Clock& clock,
 	LogSink& log, std::string idle_rbf, NativeTimeouts timeouts,
 	CoreDriver* fes_gp_driver, std::vector<std::string> package_roots,
 	IdleRecipe idle_recipe,MenuDisplayDriver* menu_display,MenuWindow* menu_window,
-	DiskWindow* disk_window)
+	DiskWindow* disk_window, NativePlatform platform, CoreDriver* de25_driver)
 	: menu_display_(menu_display),menu_window_(menu_window),disk_window_(disk_window),opener_(opener), fpga_(fpga), idle_video_(idle_video),
 	  game_video_(game_video), input_(input), input_identity_(input_identity),
 	  clock_(clock), log_(log), idle_rbf_(std::move(idle_rbf)),
 	  idle_recipe_(std::move(idle_recipe)),
 	  timeouts_(timeouts),
+	  platform_(platform), de25_driver_(de25_driver),
 	  fes_gp_driver_(fes_gp_driver), contained_driver_(),
-	  driver_registry_(fes_gp_driver_, contained_driver_),
+	  driver_registry_(fes_gp_driver_, contained_driver_, de25_driver_, platform_),
 	  package_roots_(std::move(package_roots)),
 	  active_driver_(nullptr), active_context_(), active_package_(),
 	  fault_sink_mutex_(), fault_sink_(nullptr),
@@ -513,6 +514,8 @@ void NativeHardware::ForgetActiveCore()
 HardwareResult NativeHardware::QuiesceForReplacement(const char* operation,
 	const std::string& system, const std::string& core)
 {
+	if (!game_video_.SupportsPlatform(platform_))
+		return {{ErrorCode::unsupported_target, "core video backend differs from selected platform", "platform"}, false, ""};
 	// No process writes the menu window once quiesce or programming begins.
 	RevokeMenuWindow();
 	const VideoQuiesceResult video = game_video_.Quiesce(
@@ -555,10 +558,12 @@ Error NativeHardware::AdmitCorePackageInternal(const std::string& directory,
 	if (expected_id.empty())
 		return {ErrorCode::invalid_request,
 			"package activation requires expected identity", "request"};
+	if (!game_video_.SupportsPlatform(platform_))
+		return {ErrorCode::unsupported_target, "core video backend differs from selected platform", "platform"};
 	OpenedCorePackage opened;
 	Error error = native::OpenCorePackage(package_roots_, directory,
 		expected_id, &opened);
-	if (error.ok()) error = CheckCoreCompatibility(opened.descriptor);
+	if (error.ok()) error = CheckCoreCompatibility(opened.descriptor, platform_);
 	if (error.ok() && HasNativeVideoSocket(opened.descriptor) && !for_composition)
 		error = {ErrorCode::unsupported_interface,
 			"native video shell requires a video parts composition", "admission"};
@@ -607,11 +612,13 @@ Error NativeHardware::InspectCorePackage(const std::string& directory,
 	if (output == nullptr)
 		return {ErrorCode::invalid_request,
 			"missing core package inspection output", "request"};
+	if (!game_video_.SupportsPlatform(platform_))
+		return {ErrorCode::unsupported_target, "core video backend differs from selected platform", "platform"};
 	OpenedCorePackage opened;
 	Error error = native::OpenCorePackage(package_roots_, directory,
 		expected_id, &opened);
 	if (!error.ok()) return error;
-	Error compatibility = CheckCoreCompatibility(opened.descriptor);
+	Error compatibility = CheckCoreCompatibility(opened.descriptor, platform_);
 	if (compatibility.ok() && RequiresHpsDdr(opened.descriptor) &&
 		!fpga_.BootHpsDdrLayout())
 		compatibility = BootHpsDdrLayoutError();
@@ -768,6 +775,18 @@ Error NativeHardware::UpdateCoreSettings(const std::string& path, const std::str
 Capabilities NativeHardware::capabilities() const
 {
 	Capabilities result;
+ if (platform_ == NativePlatform::de25_nano) {
+  if (de25_driver_ && game_video_.SupportsPlatform(platform_)) {
+   result.programming_profiles = {"de25-hps-first-v1"};
+   SupportedABI computer;
+   computer.id = generated::FesComputerABIID; computer.major = 1; computer.minor = 0;
+   computer.interfaces = {{generated::FesComputerInterfaceKeyboardHidID, 1, 0},
+    {generated::FesComputerInterfaceMediaZx81TapeID, 1, 0},
+    {generated::FesComputerInterfaceVideoFixed720p60ID, 1, 0}};
+   result.abis.push_back(std::move(computer));
+  }
+  return result;
+ }
 	result.rom_linking = 1;
 	result.programming_profiles = {"development-contained-v1"};
 	if (fes_gp_driver_ != nullptr) {
@@ -1646,7 +1665,7 @@ HardwareResult NativeHardware::LoadCoreInternal(
  if(menu){const auto checked=CheckMenu(admitted->opened_.descriptor);if(!checked.ok())return {checked,false,""};}
 	Error error = RecheckCorePackage(admitted->opened_);
 	if (error.ok() && admitted->composition_) error=RecheckCoreComposition(*admitted->composition_);
-	if (error.ok()) error = CheckCoreCompatibility(admitted->opened_.descriptor);
+	if (error.ok()) error = CheckCoreCompatibility(admitted->opened_.descriptor, platform_);
 	if (!error.ok()) return {error, false, ""};
 	ProgrammingProfile checked_profile;
 	CoreDriver* checked_driver = nullptr;
@@ -1661,6 +1680,7 @@ HardwareResult NativeHardware::LoadCoreInternal(
 	error = RecheckProgrammedBitstream(package.get());
 	if (!error.ok()) return {error, false, ""};
 	const bool fes_gp = admitted->profile_ == ProgrammingProfile::fes_gp_v1;
+	const bool managed = fes_gp || admitted->profile_ == ProgrammingProfile::de25_hps_first_v1;
 	const bool fes_gamepad = fes_gp &&
 		RequiresFesGamepad(admitted->opened_.descriptor);
 	error = StopInput(Deadline(clock_, timeouts_.core_io_ms));
@@ -1732,7 +1752,7 @@ HardwareResult NativeHardware::LoadCoreInternal(
 	ObserveIdentify(admitted->context_.expected_core, identified);
 	if (!identified.error.ok()) {
 		const Error stopped = StopInput(Deadline(clock_, timeouts_.core_io_ms));
-		if (fes_gp && !identified.safe_to_quiesce)
+		if (managed && !identified.safe_to_quiesce)
 			ForgetActiveCore();
 		if (!stopped.ok()) identified.error = WithPhase(stopped, "input");
 		else {
@@ -1812,7 +1832,7 @@ HardwareResult NativeHardware::LoadCoreInternal(
         media_base_size_ = prepared.base.size();
 		admitted->initial_media_.reset();
 	}
-	if (fes_gp) {
+	if (managed) {
 		if (identity_verified)
 			identity_verified->store(true);
 		bool audio = false;
@@ -1994,6 +2014,10 @@ HardwareResult NativeHardware::LoadIdle()
 }
 HardwareResult NativeHardware::LoadSplashIdle()
 {
+ // The splash recipe programs a Cyclone V image and its Linux-owned I2C
+ // transmitter. DE25 needs its own managed idle package before startup opens.
+ if (platform_ != NativePlatform::de10_nano)
+  return {{ErrorCode::unsupported_interface, "DE25 managed idle profile is unavailable", "admission"}, false, ""};
 	RevokeMenuWindow();
 	// Startup/fault/failed-launch cleanup deliberately has no save side effect.
 	core_data_file_.reset();

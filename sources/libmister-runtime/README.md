@@ -42,8 +42,17 @@ new driver has software coverage only; its DE25 registry binding requires
 explicit platform selection and is not constructed by the production factory and has no new physical acceptance claim. Unit-media limits/state are observed during identity, insert/eject use retained
 snapshots through the selected driver, and uncertain transfer preserves an
 unready state without cleanup commands. The known BRAM image advertises no
-tape-write capability, so this driver reports saveable=false. Package admission,
-startup and actual tape-save support remain unfinished.
+tape-write capability, so this driver reports saveable=false.
+
+Explicit DE25 construction of the shared `NativeHardware` now binds package
+compatibility, driver selection and advertised capabilities to that platform.
+Its managed core lifecycle programs, identifies, observes FPGA-owned video
+readiness and calls the selected driver Start. A DE10 video backend and foreign
+packages are refused before programming. The DE25 video backend performs no
+Linux I2C setup; HOLD belongs to the core driver and does not promise black HDMI.
+The Cyclone V splash-idle recipe is refused on DE25. The production factory,
+managed DE25 idle/MENU startup, safe process restart and actual tape-save support
+remain unfinished. This internal lifecycle wiring is software-tested only.
 
 The internal `De25PrControl` diagnostic consumes the generated DE25 PR-control
 register contract through an exclusive injected `Mmio` backend and an injected

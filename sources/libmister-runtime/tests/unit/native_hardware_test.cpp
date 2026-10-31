@@ -4947,8 +4947,97 @@ void TestLiveComputerStatusResponsesMatchRuntime()
 	assert(!std::getline(expected, line));
 }
 
+class RecordingCoreVideo final : public mister::native::CoreVideoBringup {
+public:
+ explicit RecordingCoreVideo(std::vector<std::string>& events) : events_(events) {}
+ bool SupportsPlatform(mister::native::NativePlatform p) const override {
+  return p == mister::native::NativePlatform::de25_nano;
+ }
+ mister::native::VideoResult BringUpCustom(std::uint64_t, bool audio) override {
+  assert(!audio); events_.push_back("de25.video.ready");
+  mister::native::VideoResult result; result.error = failure; return result;
+ }
+ mister::native::VideoQuiesceResult Quiesce(std::uint64_t) override {
+  events_.push_back("de25.video.quiesce"); return {};
+ }
+ mister::Error failure;
+ std::vector<std::string>& events_;
+};
+
+void TestDe25SelectedPlatformLifecycle()
+{
+ using namespace mister;
+ using namespace mister::native;
+ Fixture base;
+ std::vector<std::string> events;
+ RecordingDriver selected(events), wrong_driver(events);
+ RecordingCoreVideo video(events);
+ TempDirectory package;
+ std::string manifest = ReadText("tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
+ ReplaceAll(&manifest, "fes.pong", "zx81");
+ ReplaceAll(&manifest, "de10_nano", "de25_nano");
+ ReplaceAll(&manifest, "5CSEBA6U23I7", "A5EB013BB23BE4SCS");
+ ReplaceAll(&manifest, "fes-gp-v1", "de25-hps-first-v1");
+ ReplaceAll(&manifest, "fes.simple-game", "fes.computer");
+ ReplaceAll(&manifest, "fes.gamepad", "fes.keyboard.hid");
+ manifest += "\n[[interfaces]]\nid = \"fes.media.zx81-tape\"\nmajor = 1\nminor = 0\nrequired = true\n";
+ package.File("manifest.toml", manifest);
+ package.File("core.rbf", ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+ OpenedCorePackage opened;
+ assert(OpenCorePackage(package.path, "", &opened).ok());
+ const auto make_hardware = [&](CoreVideoBringup& backend, CoreDriver* driver) {
+  return std::unique_ptr<NativeHardware>(new NativeHardware(base.opener, base.fpga,
+   base.idle_video, backend, base.input, base.input_identity, base.clock, base.log,
+   base.idle, {}, &wrong_driver, {"/tmp"}, SplashIdle(), nullptr, nullptr, nullptr,
+   NativePlatform::de25_nano, driver));
+ };
+ // Selecting DE25 cannot execute the DE10 transmitter recipe or its driver.
+ for (unsigned kind = 0; kind < 2; ++kind) {
+  auto refused = make_hardware(kind == 0 ? static_cast<CoreVideoBringup&>(base.game_video) : video,
+   kind == 0 ? &selected : nullptr);
+  std::unique_ptr<AdmittedCorePackage> admitted;
+  assert(!refused->AdmitCorePackage(package.path, opened.package_id, &admitted).ok());
+  assert(!admitted && base.fpga.calls == 0 && events.empty());
+  assert(refused->capabilities().programming_profiles.empty());
+ }
+ auto hardware = make_hardware(video, &selected);
+ assert(!hardware->LoadIdle().error.ok());
+ assert(base.fpga.calls == 0 && base.i2c.write_calls == 0 && events.empty());
+ const auto capabilities = hardware->capabilities();
+ assert(capabilities.rom_linking == 0 && capabilities.programming_profiles ==
+  std::vector<std::string>({"de25-hps-first-v1"}));
+ assert(capabilities.abis.size() == 1 && capabilities.abis[0].id == "fes.computer" &&
+  capabilities.abis[0].interfaces.size() == 3);
+ for (unsigned generation = 1; generation <= 2; ++generation) {
+  std::unique_ptr<AdmittedCorePackage> admitted;
+  assert(hardware->AdmitCorePackage(package.path, opened.package_id, &admitted).ok());
+  events.clear();
+  auto loaded = hardware->LoadCore(std::move(admitted), generation);
+  assert(loaded.error.ok() && loaded.observed_core == "zx81");
+  assert(Find(events, "driver.identify") < Find(events, "de25.video.ready"));
+  assert(Find(events, "de25.video.ready") < Find(events, "driver.start"));
+  assert(base.fpga.profiles.back() == ProgrammingProfile::de25_hps_first_v1);
+  assert(base.fpga.hps_ddr_calls == 0 && base.input.open_calls == 0);
+ }
+ video.failure = {ErrorCode::io_failed, "injected FPGA video not ready"};
+ std::unique_ptr<AdmittedCorePackage> admitted;
+ assert(hardware->AdmitCorePackage(package.path, opened.package_id, &admitted).ok());
+ events.clear();
+ assert(!hardware->LoadCore(std::move(admitted), 3).error.ok());
+ assert(Find(events, "driver.start") == events.size());
+ assert(wrong_driver.identify_generations.empty() && wrong_driver.start_generations.empty());
+ assert(base.i2c.write_calls == 0 && base.idle_video.quiesce_calls == 0);
+ // A foreign platform is refused before programming even with both drivers supplied.
+ TempDirectory foreign; PopulateFesGpPackage(&foreign);
+ OpenedCorePackage foreign_opened; assert(OpenCorePackage(foreign.path, "", &foreign_opened).ok());
+ const int programmed = base.fpga.calls;
+ assert(!hardware->AdmitCorePackage(foreign.path, foreign_opened.package_id, &admitted).ok());
+ assert(base.fpga.calls == programmed);
+}
+
 int main()
 {
+ TestDe25SelectedPlatformLifecycle();
 	TestZx81ComputerDisplayPackageAdmittedWhenAdvertised();
 	TestLibraryPartsChecksCoreNamespaceBeforeProgramming();
 	TestLibraryPartsChecksCoreNamespaceBeforeProgramming(true);

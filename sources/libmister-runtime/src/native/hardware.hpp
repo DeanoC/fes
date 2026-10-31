@@ -22,7 +22,7 @@ namespace native {
 class Artifact;
 class CoreDataFile;
 class ArtifactOpener;
-class FixedVideoBringup;
+class CoreVideoBringup;
 class InputSession;
 struct InputDeviceIdentity;
 class VideoBringup;
@@ -74,12 +74,14 @@ public:
 class NativeHardware final : public Hardware {
 public:
 	NativeHardware(ArtifactOpener&, FpgaManager&, VideoBringup&,
-		FixedVideoBringup&, InputSession&, const InputDeviceIdentity&, Clock&,
+		CoreVideoBringup&, InputSession&, const InputDeviceIdentity&, Clock&,
 		LogSink&, std::string idle_rbf, NativeTimeouts, CoreDriver* fes_gp_driver,
 		std::vector<std::string> package_roots = {},
 		IdleRecipe idle_recipe = SplashIdle(),
  MenuDisplayDriver* menu_display = nullptr,MenuWindow* menu_window = nullptr,
-		DiskWindow* disk_window = nullptr);
+		DiskWindow* disk_window = nullptr,
+		NativePlatform platform = NativePlatform::de10_nano,
+		CoreDriver* de25_driver = nullptr);
 	~NativeHardware();
 	void SetFaultSink(HardwareFaultSink*) override;
 	HardwareResult LoadIdle() override;
@@ -168,7 +170,7 @@ private:
 	ArtifactOpener& opener_;
 	FpgaManager& fpga_;
 	VideoBringup& idle_video_;
-	FixedVideoBringup& game_video_;
+	CoreVideoBringup& game_video_;
 	InputSession& input_;
 	const InputDeviceIdentity& input_identity_;
 	Clock& clock_;
@@ -176,6 +178,8 @@ private:
 	std::string idle_rbf_;
 	IdleRecipe idle_recipe_;
 	NativeTimeouts timeouts_;
+	NativePlatform platform_;
+	CoreDriver* de25_driver_;
 	CoreDriver* fes_gp_driver_;
 	ContainedCoreDriver contained_driver_;
 	CoreDriverRegistry driver_registry_;

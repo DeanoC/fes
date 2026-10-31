@@ -3,10 +3,23 @@
 #pragma once
 #include "native/core_driver.hpp"
 #include "native/de25_computer.hpp"
+#include "native/video.hpp"
 namespace mister { namespace native {
-// Internal driver for the known BRAM ZX81 contract. The existing registry and
-// production platform factory do not construct or admit it yet. Its caller
-// serializes lifecycle/control calls and owns the exclusive protocol client.
+// HDMI configuration belongs to this FPGA image. Linux observes readiness;
+// it never writes the DE10 I2C recipe. Core quiesce remains the driver's HOLD.
+class De25VideoBringup final : public CoreVideoBringup {
+public:
+ explicit De25VideoBringup(De25Computer& client) : client_(client) {}
+ bool SupportsPlatform(NativePlatform p) const override { return p == NativePlatform::de25_nano; }
+ VideoResult BringUpCustom(std::uint64_t deadline, bool audio = false) override;
+ VideoQuiesceResult Quiesce(std::uint64_t) override { return {}; }
+private:
+ De25Computer& client_;
+};
+
+// Internal driver for the known BRAM ZX81 contract. The production factory
+// does not construct it yet. Its caller serializes lifecycle/control calls
+// and owns the exclusive protocol client.
 class De25ComputerCoreDriver final : public CoreDriver {
 public:
 	explicit De25ComputerCoreDriver(De25Computer& client) : client_(client) {}

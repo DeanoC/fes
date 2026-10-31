@@ -397,6 +397,20 @@ void TestUnitMediaSnapshotAndStickyFailure() {
 	assert(f.bridge.writes.size() == uncertain); // no speculative cleanup/replay
 	selected.BeginSession(); assert(selected.media_units().empty());
 }
+void TestFpgaOwnedVideoBackend() {
+ Fixture f; De25VideoBringup video(f.client);
+ assert(video.SupportsPlatform(NativePlatform::de25_nano));
+ assert(!video.SupportsPlatform(NativePlatform::de10_nano));
+ const auto initial_reads = f.bridge.reads;
+ assert(!video.BringUpCustom(1000000, true).error.ok());
+ assert(f.bridge.reads == initial_reads && f.bridge.writes.empty());
+ assert(video.Quiesce(0).error.ok());
+ assert(f.bridge.reads == initial_reads && f.bridge.writes.empty());
+ f.Probe();
+ const auto before = f.bridge.writes.size();
+ assert(video.BringUpCustom(1000000).error.ok());
+ assert(f.bridge.writes.size() == before && f.bridge.hold_state);
+}
 void TestManagedStartWaitsForVideoWithoutCommands() {
     for (unsigned kind = 0; kind < 3; ++kind) {
         Fixture f; De25ComputerCoreDriver driver(f.client);
@@ -418,7 +432,7 @@ void TestManagedStartWaitsForVideoWithoutCommands() {
 }
 } // namespace
 int main() {
-	TestManagedStartWaitsForVideoWithoutCommands();
+	TestFpgaOwnedVideoBackend(); TestManagedStartWaitsForVideoWithoutCommands();
 	TestUnitMediaSnapshotAndStickyFailure();
 	TestCoreDriverLifecycleAndLiveMedia(); TestCoreDriverRejectsDescriptorAndRetainsTransportFault();
 	TestAtomicIdentityAndControl(); TestCompletedKeyboardSnapshotSurvivesSettleDeadline();
@@ -426,5 +440,5 @@ int main() {
 	TestOddTapeAndCrc(); TestMaximumTapeChunkOrdinals(); TestHealthyRejectionsDoNotReplayOrPoison();
 	TestUncertainCommandsNeverReplay(); TestBusyAndIdleToggleMismatchRefuseBeforeWrite();
 	TestBoundedMissingAckAndStalledClock(); TestAcknowledgedCommitMustBecomeReady(); TestOneSerializedClientOwnership(); TestLateSuccessfulAckIsUncertain();
-	std::puts("de25_computer_test: 17 groups passed (scripted registers; no hardware admission)");
+	std::puts("de25_computer_test: 18 groups passed (scripted registers; no hardware admission)");
 }
