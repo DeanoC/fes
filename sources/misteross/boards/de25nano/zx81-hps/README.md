@@ -215,3 +215,12 @@ Start waits for this field; it does not configure ADV7513 from Linux. Board and
 endpoint simulations test synchronization and loss/recovery. PLL and HDMI
 configuration are digital models there; new matching FPGA build and physical
 acceptance remain outstanding. Older fabric1.0 receipts remain historical.
+
+HDMI-ready status now crosses from a preserved pixel-clock source register into
+its two control-clock stages. The 50 MHz HDMI READY source also has two pixel
+stages. The SDC identifies all six registers and both first-stage D pins exactly
+and cuts only the two asynchronous source-to-first-stage paths. Stage-to-stage
+setup/hold and locally released reset recovery/removal remain timed. This adds
+one pixel clock to the readiness observation; it does not change video pins or
+qualify physical display output. The earlier uncorrected fabric1.1 compilation
+at 16838e82c has negative crossing setup and is not suitable for board testing.

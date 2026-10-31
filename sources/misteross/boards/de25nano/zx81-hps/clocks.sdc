@@ -66,3 +66,22 @@ set_false_path -to $computer_pixel_ready_stage0_d
 if {[get_collection_size $computer_pixel_ready_aclr] > 0} {set_false_path -to $computer_pixel_ready_aclr}
 if {[get_collection_size $computer_pixel_ready_clrn] > 0} {set_false_path -to $computer_pixel_ready_clrn}
 post_message -type info "DE25 computer pixel readiness crossing: one first-stage ingress, timed stage-to-stage and frame-gate paths"
+
+# FPGA-owned HDMI readiness crosses 50 MHz -> pixel -> control. Each source is
+# registered and each destination is a two-stage synchronizer. Constrain only
+# the asynchronous source-to-first-stage D path; all stage-to-stage data and
+# locally released reset recovery/removal paths remain timed.
+foreach {ready_source ready_stage0 ready_stage1} {
+    {fes_video_inst|hdmi_config|READY} {fes_video_inst|hdmi_ready_sync[0]} {fes_video_inst|hdmi_ready_sync[1]}
+    {fes_video_inst|video_ready_source} {soc_inst|subsys_periph|fes_computer|fes_computer|video_ready_sync[0]} {soc_inst|subsys_periph|fes_computer|fes_computer|video_ready_sync[1]}
+} {
+    set ready_source_reg [get_registers $ready_source]
+    set ready_stage0_reg [get_registers $ready_stage0]
+    set ready_stage1_reg [get_registers $ready_stage1]
+    set ready_stage0_d [get_pins -compatibility_mode -nocase -nowarn "${ready_stage0}|D"]
+    foreach ready_nodes [list $ready_source_reg $ready_stage0_reg $ready_stage1_reg $ready_stage0_d] {
+        if {[get_collection_size $ready_nodes] != 1} {error "DE25 HDMI readiness requires one source, two stages and the first D pin"}
+    }
+    set_false_path -from $ready_source_reg -to $ready_stage0_d
+}
+post_message -type info "DE25 HDMI readiness: 2 registered sources, 2 first-stage ingress exceptions; stage-to-stage and reset paths timed"

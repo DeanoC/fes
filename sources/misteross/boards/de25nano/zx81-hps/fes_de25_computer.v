@@ -54,7 +54,7 @@ module fes_de25_computer #(
         (gp_busy ? `FES_DE25_COMPUTER_STATUS_BUSY : 32'd0) |
         (fault_active ? `FES_DE25_COMPUTER_STATUS_FAULT : 32'd0);
     // Board-owned HDMI completion crosses as one bit into the MMIO clock.
-    (* async_reg = "true" *) reg [1:0] video_ready_sync = 2'b00;
+    (* async_reg = "true", altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg [1:0] video_ready_sync = 2'b00;
     always @(posedge clk or negedge reset_n)
         if (!reset_n) video_ready_sync <= 2'b00;
         else video_ready_sync <= {video_ready_sync[0], video_ready};

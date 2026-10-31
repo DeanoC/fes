@@ -67,6 +67,20 @@ class HpsZX81BuildTests(unittest.TestCase):
         for name in required:
             self.assertEqual(sources[name], (B.ROOT / name).read_bytes())
 
+    def test_hdmi_readiness_has_registered_sources_and_only_first_stage_cuts(self):
+        files = B.capture()
+        sdc = files[B.BOARD + "zx81-hps/clocks.sdc"].decode()
+        board = files[B.BOARD + "zx81-hps/board.v"].decode()
+        self.assertIn("reg video_ready_source", board)
+        self.assertIn("assign video_ready = video_ready_source;", board)
+        self.assertIn("{fes_video_inst|hdmi_config|READY} {fes_video_inst|hdmi_ready_sync[0]} {fes_video_inst|hdmi_ready_sync[1]}", sdc)
+        self.assertIn("{fes_video_inst|video_ready_source} {soc_inst|subsys_periph|fes_computer|fes_computer|video_ready_sync[0]}", sdc)
+        self.assertIn('"${ready_stage0}|D"', sdc)
+        self.assertIn("set_false_path -from $ready_source_reg -to $ready_stage0_d", sdc)
+        self.assertIn('if {[get_collection_size $ready_nodes] != 1}', sdc)
+        self.assertNotIn("set_false_path -to $ready_stage1_reg", sdc)
+        self.assertNotIn("set_clock_groups", sdc)
+
     def test_readiness_cdc_cut_is_narrow_and_same_domain_visibility_stays_timed(self):
         sdc = B.capture()[B.BOARD + "zx81-hps/clocks.sdc"].decode()
         self.assertIn("{soc_inst|subsys_periph|fes_computer|fes_computer|pixel_transport_ready_sync[0]|D}", sdc)

@@ -52,11 +52,12 @@ int main(int argc, char** argv) {
     check(!t.video_ready, "video became ready before HDMI configuration");
     configured(true);
     tick(); check(!t.video_ready, "HDMI completion bypassed its synchronizer");
+    tick(); check(!t.video_ready, "HDMI completion bypassed its registered source");
     tick(); check(t.video_ready, "configured full-line video was not ready");
     configured(false);
-    tick(); tick(); check(!t.video_ready, "HDMI completion loss stayed ready");
+    tick(); tick(); tick(); check(!t.video_ready, "HDMI completion loss stayed ready");
     configured(true);
-    tick(); tick(); check(t.video_ready, "HDMI completion did not recover");
+    tick(); tick(); tick(); check(t.video_ready, "HDMI completion did not recover");
 
     // Lock loss blanks pixels immediately but leaves an in-flight HS pulse
     // intact. The active line is hidden only at the falling sync edge.
@@ -80,7 +81,8 @@ int main(int argc, char** argv) {
     t.video_hs = 0; tick();
     check(t.HDMI_TX_DE && t.HDMI_TX_D == 0x123456,
           "video did not resume at the next complete line boundary");
-    check(t.video_ready, "video readiness did not recover at the complete line");
+    check(!t.video_ready, "video readiness bypassed the source register at the complete line");
+    tick(); check(t.video_ready, "video readiness did not recover after the complete line");
 
     // Configuration reset uses the same data/sync boundary behavior.
     t.video_hs = 1; tick();
