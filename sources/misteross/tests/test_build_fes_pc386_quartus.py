@@ -206,7 +206,7 @@ class ManifestTest(unittest.TestCase):
                                                 IDENTITIES).decode())
         self.assertEqual(fields["core"]["id"], "fes.pc386")
         self.assertEqual(fields["core"]["name"], "FES pc386 (Quartus)")
-        self.assertEqual(fields["abi"], {"id": "fes.computer", "major": 1, "minor": 0})
+        self.assertEqual(fields["abi"], {"id": "fes.computer", "major": 1, "minor": 1})
         self.assertEqual([item["id"] for item in fields["interfaces"]], list(quartus.INTERFACES))
         self.assertEqual(fields["build"]["id"], build_identity(record))
         self.assertIn("Quartus Prime Lite 17.0.2", fields["build"]["toolchain"])

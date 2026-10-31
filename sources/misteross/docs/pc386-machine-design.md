@@ -1371,15 +1371,16 @@ the M0 contracts.
 puts `fes_i386_cpu` with its L1s and bus interface on port 0 in place of the
 M4 bus master, which leaves the tree with its ring, port fence, kit tool and
 nextpnr producer. Until the CPU has an L2, the firmware ROM answers the L1s'
-reads of its two ranges in front of port 0. Until M0, a host link stages the
-machine: the HPS writes the ATA image and a configuration block (memory and
-Sound Blaster straps, disk geometry, wall clock) into the window, the machine
-waits in reset for it, and the link reports a status block and the
-debug-port bytes back through the window; the ATA image moves to port 2 as
-the table above has it. The system simulation boots FreeDOS on the whole
-shell below `top.sv`, Quartus 17.0.2 seals it, and the sealed package boots
-FreeDOS to its prompt on Kit B
-([record](../../../docs/validation/2026-10-29-pc386-m5-system/summary.md)). The four games
+reads of its two ranges in front of port 0. The system simulation boots
+FreeDOS on the whole shell below `top.sv`, Quartus 17.0.2 seals it, and the
+sealed package boots FreeDOS to its prompt on Kit B
+([record](../../../docs/validation/2026-10-29-pc386-m5-system/summary.md)).
+That slice staged the machine through a development host link in the window;
+the `fes.computer` 1.1 slice replaces it with the M0 contracts in the shell:
+the runtime's ATA disk with the core's CRC pass, save fence and dirty map on
+port 2, the `fes.pc386.machine` record (the straps, and CMOS through the RTC)
+and the wall clock, and the system simulation now launches and stops the
+machine through the mailbox as the runtime does. The four games
 follow; there is no keyboard or mouse in the package yet.
 
 After first playable: CPU Phase 5 brings JEMM386 and Wolfenstein 3D with EMS;

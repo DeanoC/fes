@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 // DDR port 2 arbiter (docs/pc386-machine-design.md, "HPS DDR window and
 // ports"): the display plane's reads (through pc386_plane_bridge), the
-// presenter's line reads, the VGA capture writes and the shell's single-beat
-// reads and writes (aux: the ATA image and pc386_host_link), in that
-// priority. A master is granted for one command; a write burst keeps the
+// presenter's line reads, the VGA capture writes and the shell's reads and
+// single-beat writes (aux: pc386_disk, the ATA image and its CRC pass), in
+// that priority. A master is granted for one command; a write burst keeps the
 // grant until its last beat. Read data returns in command order to the
 // master that asked.
 module pc386_port2 (
@@ -26,8 +26,9 @@ module pc386_port2 (
     input wire capture_write,
     input wire [63:0] capture_writedata,
     output wire capture_waitrequest,
-    // Shell: single-beat reads and writes
+    // Shell: reads of 1 to 128 beats, single-beat writes
     input wire [28:0] aux_address,
+    input wire [7:0] aux_burstcount,
     input wire aux_read, aux_write,
     input wire [63:0] aux_writedata,
     input wire [7:0] aux_byteenable,
@@ -51,7 +52,7 @@ module pc386_port2 (
     assign address = owner == PLANE ? plane_address : owner == PRESENT ? present_address :
                      owner == CAPTURE ? capture_address : aux_address;
     assign burstcount = owner == PLANE ? plane_burstcount : owner == PRESENT ? present_burstcount :
-                        owner == CAPTURE ? capture_burstcount : 8'd1;
+                        owner == CAPTURE ? capture_burstcount : aux_write ? 8'd1 : aux_burstcount;
     assign read = granted && (owner == PLANE ? plane_read : owner == PRESENT ? present_read : owner == AUX && aux_read);
     assign write = granted && (owner == CAPTURE ? capture_write : owner == AUX && aux_write);
     assign writedata = owner == AUX ? aux_writedata : capture_writedata;

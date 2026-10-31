@@ -299,14 +299,25 @@ class PresenterBenchTest(unittest.TestCase):
         self.assertEqual(len(report['checks']), 14)
 
 
-SYSTEM_OUTPUT = """ATTACH 40 0000002a
-CONFIG 48
-POST 00 65600
+SYSTEM_OUTPUT = """WRITE-TEST 444436
+IDENTITY 17734 12627 1 0 4 1 1 12297 26437 291 52617 1158 61715 2469 13863 3702 15
+RESTORE 9000
+CLOCK 9400
+CRC-REJECTED 600000 flags=8
+DISK 1200000 sectors=65520 verify_cycles=590000
+RELEASE 1200100
+POST 00 1265600
 DEBUG BIOS BUILD DATE: 10/26/26
 COUNTER cpu_resets=1 200000000
 PROMPT 300000000
 SCREEN 0 |C:\\>                                                                             |
-STATUS running=1 debug_bytes=900 debug_drops=0 halted=1 stopped=0 a20m=0 intr=0 post=00 cpu_resets=1 retired=50000000 cs=0070 vector=00 eip=00001234 frames_shown=600 scanout_underflows=0 capture_drops=0 present_underflows=0 plane_underflows=0 samples=480000 dma_cycles=0 opl2_samples=0
+STATUS running=1 halted=1 stopped=0 a20m=0 intr=0 post=00 cpu_resets=1 retired=50000000 cs=0070 vector=00 eip=00001234 frames_shown=600 scanout_underflows=0 capture_drops=0 present_underflows=0 plane_underflows=0 samples=480000 dma_cycles=0 opl2_samples=0
+SAVE dirty=1 chunks=0 epoch=3 changed_bytes=12 changed_chunks=0
+CHECK PASS Saved clears the dirty map and flag
+RECORD 0 0 0 0 576 5 1 0
+CHECK PASS the record keeps the restored settings
+ROUNDTRIP 0 0 0 0 576 5 1 0
+CHECK PASS the record's settings and CMOS RAM make the round trip through the RTC
 END prompt cycles=303000000 seconds=4.932
 """
 
@@ -314,9 +325,14 @@ END prompt cycles=303000000 seconds=4.932
 class SystemTest(unittest.TestCase):
     def test_parse(self):
         report = sim.parse_system(SYSTEM_OUTPUT)
-        self.assertEqual(report['attach_cycle'], 40)
-        self.assertEqual(report['config_cycle'], 48)
-        self.assertEqual(report['post'], [{'code': '00', 'cycle': 65600}])
+        self.assertEqual(len(report['identity']), 17)
+        self.assertEqual(report['identity'][16], 15)
+        self.assertEqual(report['restore_cycle'], 9000)
+        self.assertEqual(report['clock_cycle'], 9400)
+        self.assertEqual(report['crc_rejected'], {'cycle': 600000, 'flags': 8})
+        self.assertEqual(report['disk'], {'cycle': 1200000, 'sectors': 65520, 'verify_cycles': 590000})
+        self.assertEqual(report['release_cycle'], 1200100)
+        self.assertEqual(report['post'], [{'code': '00', 'cycle': 1265600}])
         self.assertEqual(report['debug'], ['BIOS BUILD DATE: 10/26/26'])
         self.assertEqual(report['counters'], [{'name': 'cpu_resets', 'value': 1, 'cycle': 200000000}])
         self.assertEqual(report['prompt_cycle'], 300000000)
@@ -324,6 +340,11 @@ class SystemTest(unittest.TestCase):
         self.assertEqual(report['status']['cs'], 0x70)
         self.assertEqual(report['status']['eip'], 0x1234)
         self.assertEqual(report['status']['retired'], 50000000)
+        self.assertEqual(report['save'], {'dirty': 1, 'epoch': 3, 'changed_bytes': 12, 'chunks': [0],
+                                          'changed_chunks': [0]})
+        self.assertEqual(report['write_test'], 444436)
+        self.assertEqual(report['record'][:8], [0, 0, 0, 0, 576, 5, 1, 0])
+        self.assertEqual(len(report['record_checks']), 3)
         self.assertEqual(report['end'], {'reason': 'prompt', 'cycles': 303000000, 'seconds': 4.932})
         self.assertEqual(sim.system_failures(report), [])
 
@@ -332,10 +353,16 @@ class SystemTest(unittest.TestCase):
             (SYSTEM_OUTPUT.replace('END prompt', 'END stalled'), 'did not reach the prompt'),
             (SYSTEM_OUTPUT.replace('stopped=0', 'stopped=1').replace('vector=00', 'vector=08'), 'vector 08'),
             (SYSTEM_OUTPUT.replace('present_underflows=0', 'present_underflows=3'), 'present_underflows=3'),
-            (SYSTEM_OUTPUT.replace('debug_drops=0', 'debug_drops=1'), 'debug_drops=1'),
             (SYSTEM_OUTPUT.replace('DEBUG BIOS', 'DEBUG PANIC: BIOS'), 'panic'),
             (SYSTEM_OUTPUT.replace('retired=50000000', 'retired=0'), 'retired nothing'),
-            ('END limit cycles=1 seconds=0.000\n', 'no status block'),
+            (SYSTEM_OUTPUT.replace('CRC-REJECTED 600000 flags=8\n', ''), 'wrong CRC'),
+            (SYSTEM_OUTPUT.replace('WRITE-TEST 444436', 'WRITE-TEST absent'), 'disk write'),
+            (SYSTEM_OUTPUT.replace('CHECK PASS the record keeps', 'CHECK FAIL the record keeps'),
+             'record check failed: the record keeps'),
+            (SYSTEM_OUTPUT.replace('ROUNDTRIP 0 0 0 0 576 5 1 0\n', ''), 'did not save'),
+            (SYSTEM_OUTPUT.replace('END prompt', 'MAILBOX no acknowledgement for opcode 17\nEND mailbox'),
+             'mailbox: no acknowledgement'),
+            ('END limit cycles=1 seconds=0.000\n', 'no status words'),
         )
         for output, expected in cases:
             with self.subTest(expected=expected):
