@@ -466,8 +466,17 @@ Session fields are
 prevent a missing receipt from being mistaken for an empty connector or a
 supported tape or disk path. `removable_available` is true for a running
 package that reports a supported unit, including a Commodore 64 `.d64`.
-`hardware_known` requires a composition receipt naming the active package;
-a missing or mismatched receipt is displayed as unavailable hardware.
+`hardware_known` requires the kit's receipt for this load: a composition
+naming the active package (its `expansion_id` is the fitted card), or
+`core_package.expansion_socket = "empty"`, which the agent reports when a
+package with an optional rear socket loaded with no composition, slot or
+parts receipt. The runtime refuses a load whose echoed composition differs
+from the staged one, so the load had none; for a ZX81 RomInit load this
+rests on the host staging none, as a composed receipt does. `expansion_id`
+is then empty.
+A missing or mismatched receipt, including from an agent that predates
+`expansion_socket`, reads "Machine running · setup unavailable" while that
+machine is current. The saved Next start setup is never used instead.
 
 `hardware.select_expansion({game_id=..., package_id=...,
 expected_expansion_id=..., expansion_id=...}, function(selection, err) ... end)`

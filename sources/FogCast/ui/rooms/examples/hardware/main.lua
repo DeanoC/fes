@@ -526,12 +526,13 @@ local function picture(part)
 
   -- Setup column: the three states together, then the change and its cost.
   -- Running is an observation. Without a session reading it is unknown,
-  -- never "not running".
+  -- never "not running". A running machine whose load receipt does not say
+  -- what is on the socket is still running; only its setup is unknown.
   local running_line
   local s=current_session()
   if not data then running_line="Running: checking…"
   elseif data.session_error ~= "" or not s then running_line="Running: unknown"
-  elseif current() then running_line="Running: "..(s.hardware_known and label(s.expansion_id) or "Hardware unavailable")
+  elseif current() then running_line=s.hardware_known and ("Running: "..label(s.expansion_id)) or "Machine running · setup unavailable"
   elseif running() then running_line="Running: another title"
   elseif s.state == "idle" then running_line="Running: not running"
   else running_line="Running: "..(s.state ~= "" and s.state or "unknown") end
