@@ -138,5 +138,94 @@
     },
     "block": "source_offline",
     "reason": "This game’s source is offline."
+  },
+  {
+    "name": "expansion-unready",
+    "game": {
+      "id": "fixture-game",
+      "title": "Fixture",
+      "system": "zx81",
+      "state": "available",
+      "root_online": true,
+      "launchable": true,
+      "expansion_id": "zx81-16k"
+    },
+    "block": "missing_expansion",
+    "reason": "Needs an expansion"
+  },
+  {
+    "name": "expansion-ready",
+    "game": {
+      "id": "fixture-game",
+      "title": "Fixture",
+      "system": "zx81",
+      "state": "available",
+      "root_online": true,
+      "launchable": true,
+      "expansion_id": "zx81-16k",
+      "expansion_ready": true
+    },
+    "block": "",
+    "reason": ""
+  },
+  {
+    "name": "slot-expansion-unready",
+    "game": {
+      "id": "fixture-game",
+      "title": "Fixture",
+      "system": "zx81",
+      "state": "available",
+      "root_online": true,
+      "launchable": true,
+      "slot_expansions": [
+        {
+          "slot": 1,
+          "expansion_id": "a",
+          "ready": true
+        },
+        {
+          "slot": 2,
+          "expansion_id": "b",
+          "ready": false
+        }
+      ]
+    },
+    "block": "missing_expansion",
+    "reason": "Needs an expansion"
+  },
+  {
+    "name": "slot-expansions-ready",
+    "game": {
+      "id": "fixture-game",
+      "title": "Fixture",
+      "system": "zx81",
+      "state": "available",
+      "root_online": true,
+      "launchable": true,
+      "slot_expansions": [
+        {
+          "slot": 1,
+          "expansion_id": "a",
+          "ready": true
+        }
+      ]
+    },
+    "block": "",
+    "reason": ""
+  },
+  {
+    "name": "expansion-before-firmware",
+    "game": {
+      "id": "fixture-game",
+      "title": "Fixture",
+      "system": "zx81",
+      "state": "available",
+      "root_online": true,
+      "launchable": true,
+      "expansion_id": "zx81-16k",
+      "firmware_required": true
+    },
+    "block": "missing_expansion",
+    "reason": "Needs an expansion"
   }
 ]
