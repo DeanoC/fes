@@ -61,7 +61,8 @@ Merge authority: Lander may merge `lane:lander` PRs in fes, nextpnr, yosys and m
 
 ### Toolchains
 - Quartus is primary for DE25, pc386 and PC/XT. nextpnr is advisory for those.
-- DE25 is Quartus-only and needs Quartus Pro (Agilex 5). Quartus Pro builds run on the 3090 box; Powerboat's Quartus Lite handles Cyclone V only.
+- DE25 is Quartus-only and needs Quartus Pro (Agilex 5). Both Powerboat and the 3090 box (fes-build-3090) have Quartus Pro 26.3 and can build DE25; send DE25 builds to the 3090 by preference to keep Powerboat free.
+- Cyclone V is the primary platform and builds with Quartus Lite on Powerboat.
 
 ### Hard rules
 - No rebase, force-push or amend.
@@ -75,7 +76,8 @@ Merge authority: Lander may merge `lane:lander` PRs in fes, nextpnr, yosys and m
 
 ### Machines
 - Powerboat does HIL, the kits and capture. DE25 capture is `/dev/v4l/by-id/fes-ms2109-hil`; never open the raw MS2109 device.
-- The 3090 box is the second Quartus/CI builder and the Quartus Pro (DE25) build host.
+- The 3090 box (fes-build-3090) is the second Quartus/CI builder, with Quartus Pro 26.3, and is the preferred DE25 build host.
+- Powerboat has Quartus Pro 26.3 (DE25/Agilex 5) and Quartus Lite (Cyclone V, the primary platform).
 
 ## PR scope
 
