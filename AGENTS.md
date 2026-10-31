@@ -26,10 +26,10 @@ This section is the shared rulebook for every agent (Codex, Cursor, Claude, Grok
 ### Merge gate
 Merge only when all of these hold:
 - The head SHA is exactly the one checked.
-- CI is green (`gh pr checks N | grep -viE 'pass|skipping'` prints nothing).
+- CI is green: `gh pr checks N | awk -F'\t' '$2!="pass" && $2!="skipping"'` prints nothing (column 2 is the check state).
 - 0 unresolved review threads.
-- A clean SuperGrok or Codex review on the exact head.
-- HIL is PASS on the exact head, N/A, or waived. pc386/i386 need no HIL. DE25 HIL is waived until Deano says the boards are ready. A pass on a diagnostic build does not count.
+- A clean SuperGrok or Codex review on the exact head. One exception: a clean review carries over to a new head that only adds a merge from the base branch, when the PR's own diff against its base is unchanged and CI is green on the new head.
+- HIL is PASS on the exact head, N/A, or waived. HIL N/A means no kit test applies: the PR changes no kit-run bitstream, firmware or runtime (docs, CI, host tooling only), or the core has no kit (pc386/i386). DE25 HIL is waived until Deano says the boards are ready. A pass on a diagnostic build does not count.
 - The base branch is live, and no open PR uses this head branch as its base.
 - Stacks merge top-down. After each merge, the next PR's tree must equal the reviewed tree, or it needs a fresh review.
 
@@ -44,7 +44,7 @@ Lander merges directly with `gh pr merge N --squash --match-head-commit <sha>` a
 - Max stack depth is 2. Land deeper work on main behind feature flags.
 - One owning agent per stack, end to end.
 - Batch fixes. Merge main in only when there is a conflict.
-- A clean review carries over across base-only merges when CI is green.
+- A clean review carries over across base-only merges (see the merge gate exception).
 
 ### PR size
 - Prefer one PR per coherent feature or milestone, not one PR per step.
@@ -57,7 +57,7 @@ Lander merges directly with `gh pr merge N --squash --match-head-commit <sha>` a
 - Run HIL in parallel with review. Use kit A if kit B is busy.
 - Stop after 2 FAILs on the same head and fix instead.
 - Report HIL as started only once a kit is locked and flashed.
-- Restore kits to the latest main HIL baseline afterwards. Baselines only promote from main.
+- Afterwards, restore each kit to what kitA-STATUS.md / kitB-STATUS.md names: bundle first, then image. Baselines are promoted only from main HIL passes.
 
 ### Toolchains
 - Quartus is primary for DE25, pc386 and PC/XT. nextpnr is advisory for those.
