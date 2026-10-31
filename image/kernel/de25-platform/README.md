@@ -84,8 +84,12 @@ limit and a 30-second heartbeat. Outputs include owner-image.json,
 boot-contract.json and first-boot-expectation.json for the existing read-only
 first-boot collector. Recheck with `python3 scripts/de25_owner_image.py --verify
 /absolute/owner-image-output` using the same committed source and e2fsprogs on
-PATH. This is an opt-in, unbooted candidate; normal runtime admission stays
-closed. The SDK and standard headless image selection are unchanged.
+PATH. Each new output is an opt-in candidate with no inherited hardware
+acceptance; normal runtime admission stays closed. The SDK and standard
+headless image selection are unchanged. The
+[dated physical record](../../../docs/validation/2026-10-31-de25-owner-binding/README.md)
+identifies the kernel/image producers exercised on the board, including the
+protected parent bus, persistent permissions and real userspace refusal tests.
 
 The copied factory-boot artifacts are reference inputs for the shared boot
 verifier, not instructions to replace the kit's approved HPS-first QSPI baseline.

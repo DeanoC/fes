@@ -427,8 +427,16 @@ files, removes incompatible vendor modules and requires two identical SD image
 assemblies. Neither recipe installs an image. Board boot, positive loader/control
 integration and physical DMA acceptance remain required.
 The [matching image record](validation/2026-10-31-de25-owner-image/README.md)
-retains the identical full assemblies, independent verification and receipt
-refusals; its candidate kernel is still unbooted.
+retains the initial identical full assemblies, independent verification and
+receipt refusals. The later
+[physical owner-binding record](validation/2026-10-31-de25-owner-binding/README.md)
+boots the candidate, identifies and protects the real SMMU's parent bus, and
+preserves the owner node's mode 600 through mdev. The corrected kernel and
+root metadata survive two software reboots, with actual preconfiguration
+open/ioctl/capability tests passing on the board. Physical DMA, FPGA loading
+under this kernel and managed FES runtime acceptance remain open. The running
+card was updated by verified files after the first full-image write; this does
+not attest the whole writable SD as the final offline image.
 
 The [positive owner lifecycle record](validation/2026-10-31-de25-owner-positive/README.md)
 executes real OF overlay apply/remove, the owner control callback and private

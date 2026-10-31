@@ -1,0 +1,5 @@
+debug1: OpenSSH_10.0p2 Debian-7+deb13u4, OpenSSL 3.5.6 7 Apr 2026
+debug1: Reading configuration data /dev/null
+debug1: Connecting to 192.168.10.129 [192.168.10.129] port 22.
+debug1: connect to address 192.168.10.129 port 22: Connection timed out
+ssh: connect to host 192.168.10.129 port 22: Connection timed out

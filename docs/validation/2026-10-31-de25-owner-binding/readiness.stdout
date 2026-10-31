@@ -1,0 +1,15 @@
+KERNEL_NOTES
+f6f997d95e1676f80901a656c01a9e01f55202fabff59ff37887c64ade932af6  /sys/kernel/notes
+ROOT_FILES
+2df2faf2c005b5b7ceaa10328d7beaa1683bfc718c8fb681427efde299cae504  /etc/mdev.conf
+3727ea0d8c4dd78eaf711f50244b41acb128a0aebf4a1103fa450884ed738921  /etc/init.d/S15fpga
+2c158c2c6135f93d2194384cdcb2b73235bf0830ac2b7d2cfc4b23a53445b7c0  /usr/share/fes/kernel-modules.json
+OWNER_DOMAIN
+DMA
+total 0
+lrwxrwxrwx    1 root     root             0 Jan  1 00:00 20010200.dma-owner -> ../../../../devices/platform/20010200.dma-owner
+BOOT_PAYLOADS
+01357da8a2f9971cb3bf9e7f99bd176bea46a893554d7b1c5364339310fe9b9b  /tmp/fes-owner-boot-proof/Image
+d57bac64ffbb1ff4ace06dc0ba3fbb2d589055340274493efbfba687c4f244f7  /tmp/fes-owner-boot-proof/socfpga_agilex5_de25_nano.dtb
+b5a68fa8c0fef8679931af008811676b608f13214e5afb863cbd3626d43c1769  /tmp/fes-owner-boot-proof/fes-owner-before-bus/Image
+DE25_OWNER_READINESS_PASS
