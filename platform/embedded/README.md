@@ -18,6 +18,10 @@ source in QEMU to cleanly hand a validated ELF to the Go runtime at EL1. A Nano
 candidate can be cross-built with an explicit firmware profile, but the board
 handoff and recovery path remain unverified.
 
+The [Nano serial-probe recipe](nano/README.md) now assembles a source-derived
+memory/device gate and matched SPL/FIT/SOF/test-SD files. Its live checks await
+execution on TRWU8CBL; native peripherals remain disabled for that first test.
+
 The initial [feasibility study](../../docs/design/de25-embedded-os.md) exercised
 a small protocol probe. This work goes further: retain the actual tenfoot
 application and renderer, make their platform dependencies explicit, and

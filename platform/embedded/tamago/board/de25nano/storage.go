@@ -21,6 +21,9 @@ func (registers) Now() time.Time               { return time.Now() }
 var attempted bool
 
 func OpenStorage() (block.Device, error) {
+	if profileSDInputClockHz == 0 {
+		return nil, fmt.Errorf("de25-nano: SD is disabled by the firmware handoff")
+	}
 	if attempted {
 		return nil, fmt.Errorf("de25-nano: storage initialization already attempted")
 	}

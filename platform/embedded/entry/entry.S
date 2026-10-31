@@ -28,9 +28,15 @@ fes_entry_start:
     tst x0, x1
     b.ne .Lbad_state
     mrs x0, mpidr_el1
-    ldr x1, =0xff00ffffff         /* affinity 3:0; do not accept secondaries */
-    tst x0, x1
+    ldr x1, =0xff00ffffff
+    and x0, x0, x1
+#ifndef FES_ENTRY_QEMU_DIAGNOSTIC
+    cmp x0, #0x200               /* Agilex 5 can cold-boot on primary A76 */
+    b.eq 1f
+#endif
+    cmp x0, #0                   /* QEMU or Agilex 5 primary A55 */
     b.ne .Lbad_cpu
+1:
     bl fes_entry_main
     b fes_entry_park
 .Lbad_el:

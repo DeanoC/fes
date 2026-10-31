@@ -6,12 +6,15 @@ an EL1 handoff for the native runtime.
 """
 import argparse
 import hashlib
+import importlib.util
+import io
 import json
 import os
 from pathlib import Path
 import re
 import shutil
 import subprocess
+import tarfile
 import zlib
 
 import build_terasic
@@ -79,6 +82,8 @@ def main():
     parser.add_argument("--cross-prefix", required=True)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--jobs", type=int, default=2)
+    parser.add_argument("--native-entry-build", type=Path,
+                        help="bind the dedicated serial-only Nano handoff to this entry image")
     args = parser.parse_args()
     repo = args.reference_repo.resolve()
     bl31_build = args.bl31_build.absolute()
@@ -127,18 +132,45 @@ def main():
     build = output / "build"
     build.mkdir()
     (build / "bl31.bin").write_bytes(blob)
+    native = None
+    build_repo = repo
+    if args.native_entry_build is not None:
+        entry_build = args.native_entry_build.absolute()
+        if not private_path(entry_build):
+            raise ValueError("native entry must be a private build under out/")
+        build_repo = output / "source"
+        build_repo.mkdir()
+        with tarfile.open(fileobj=io.BytesIO(git(repo, "archive", revision))) as archive:
+            archive.extractall(build_repo, filter="data")
+        spec = importlib.util.spec_from_file_location("fes_nano_prepare", HERE.parent / "nano/prepare_uboot.py")
+        nano_prepare = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(nano_prepare)
+        native = nano_prepare.prepare(build_repo, entry_build)
     commands = []
     def run(label, argv):
         argv = [str(x) for x in argv]
         commands.append(argv)
         with (output / (label + ".log")).open("wb") as log:
             subprocess.run(argv, cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
-    base = [make, "-C", repo, "O=" + str(build), "CROSS_COMPILE=" + args.cross_prefix]
+    base = [make, "-C", build_repo, "O=" + str(build), "CROSS_COMPILE=" + args.cross_prefix]
     run("defconfig", [*base, "socfpga_agilex5_de25_nano_defconfig"])
+    if native is not None:
+        configure = [build_repo / "scripts/config", "--file", build / ".config"]
+        for name in nano_prepare.DISABLE:
+            run("config-disable-" + name, [*configure, "-d", name])
+        for name in nano_prepare.ENABLE:
+            run("config-enable-" + name, [*configure, "-e", name])
+        run("config-bootcmd", [*configure, "--set-str", "BOOTCOMMAND", "fesboot"])
+        run("config-bootdelay", [*configure, "--set-val", "BOOTDELAY", "-1"])
+        run("config-localversion", [*configure, "--set-str", "LOCALVERSION", "-fes-nano-" + native["build_id"]])
+        run("olddefconfig", [*base, "olddefconfig"])
     config = (build / ".config").read_text()
     if ("CONFIG_SPL_ATF=y\n" not in config or "CONFIG_CMD_ELF=y\n" not in config or
             "# CONFIG_ARMV8_SWITCH_TO_EL1 is not set\n" not in config):
         raise ValueError("unexpected vendor bootloader configuration")
+    if native is not None and (any("CONFIG_" + name + "=y\n" in config for name in nano_prepare.DISABLE) or
+                               any("CONFIG_" + name + "=y\n" not in config for name in nano_prepare.ENABLE)):
+        raise ValueError("serial-only bootloader reenabled an excluded device, DMA or persistent environment")
     run("build", [*base, "-j", str(args.jobs)])
     fit = build / "u-boot.itb"
     spl = build / "spl/u-boot-spl-dtb.hex"
@@ -202,6 +234,15 @@ def main():
               "limitations": ["FIT and SPL are not paired with an FPGA phase-one image",
                               "default bootelf is not an EL1/cache/ownership handoff",
                               "no native payload, media image, firmware signature or board test"]}
+    if native is not None:
+        if any(sha(ROOT / name) != expected for name, expected in native["producer_sources"].items()):
+            raise ValueError("Nano handoff producer source changed during build")
+        report["classification"] = "off-board serial-only Nano U-Boot/SPL with executable handoff gate; hardware not run"
+        report["native_handoff"] = native
+        report["config_sha256"] = sha(build / ".config")
+        report["limitations"] = ["live memory/CPU/peripheral gate has not been executed on a Nano",
+                                 "requires this exact SPL paired to FPGA SOF and this exact FIT on test media",
+                                 "source-derived serial probe only; no native SD, USB, network, display or programming"]
     (output / "result.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
     print("Built experimental FIT:", fit)
 

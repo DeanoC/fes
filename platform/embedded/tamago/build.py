@@ -52,14 +52,14 @@ def profile_constants(profile):
         raise ValueError("expected exact schema-7 handoff fields")
     if not isinstance(profile["firmware"], str) or not profile["firmware"].strip():
         raise ValueError("firmware identity is required")
-    required = {"el1", "single_cpu", "counter_access", "exclusive_devices", "uart_configured", "sd_platform_ready", "mmu_off_caches_clean"}
-    optional_ready = ("usb_platform_ready", "ethernet_platform_ready", "display_platform_ready")
+    required = {"el1", "single_cpu", "counter_access", "exclusive_devices", "uart_configured", "mmu_off_caches_clean"}
+    optional_ready = ("sd_platform_ready", "usb_platform_ready", "ethernet_platform_ready", "display_platform_ready")
     required.update(optional_ready)
     handoff = profile["handoff"]
     if (not isinstance(handoff, dict) or set(handoff) != required or
             any(v is not True for k, v in handoff.items() if k not in optional_ready) or
             any(type(handoff[k]) is not bool for k in optional_ready)):
-        raise ValueError("firmware readiness must be explicit; USB, Ethernet and display may be disabled")
+        raise ValueError("firmware readiness must be explicit; SD, USB, Ethernet and display may be disabled")
     def number(key):
         value = profile[key]
         if type(value) is not int:
@@ -83,8 +83,9 @@ def profile_constants(profile):
         if a < start + size and start < a + n:
             raise ValueError("Go RAM overlaps firmware reservation")
     frequency = number("sd_input_clock_hz")
-    if not 400000 <= frequency <= 200000000:
-        raise ValueError("invalid firmware SD input clock")
+    if ((handoff["sd_platform_ready"] and not 400000 <= frequency <= 200000000) or
+            (not handoff["sd_platform_ready"] and frequency != 0)):
+        raise ValueError("SD requires a valid input clock or explicit disabled clock 0")
     usb_frequency = number("usb_phy_clock_hz")
     uart_index = number("uart_index")
     if uart_index not in (0, 1):

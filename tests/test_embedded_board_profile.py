@@ -77,6 +77,15 @@ class BoardProfileTests(unittest.TestCase):
         p["handoff"]["usb_platform_ready"] = False
         self.assertEqual(build.profile_constants(p)[4], 0)
 
+    def test_serial_only_handoff_explicitly_disables_sd(self):
+        p = profile()
+        p["sd_input_clock_hz"] = 0
+        p["handoff"]["sd_platform_ready"] = False
+        self.assertEqual(build.profile_constants(p)[3], 0)
+        p["sd_input_clock_hz"] = 100000000
+        with self.assertRaises(ValueError):
+            build.profile_constants(p)
+
     def test_elf_load_segments_leave_the_whole_runtime_reservation_clear(self):
         data = bytearray(0x2000)
         ident = b"\x7fELF\x02\x01\x01" + bytes(9)

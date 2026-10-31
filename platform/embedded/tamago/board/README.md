@@ -42,7 +42,9 @@ The build runner requires an exact schema-7 JSON object with these fields:
   none may overlap Go RAM. Record **all** firmware, secure and DMA reservations.
 - `sd_input_clock_hz`: actual SDHCI input clock established by firmware, between
   400 kHz and 200 MHz. The driver divides it to at most 400 kHz for both card
-  identification and initial read-only operation, using a one-bit bus.
+  identification and initial read-only operation, using a one-bit bus. Use `0`
+  with `handoff.sd_platform_ready=false` to explicitly disable native SD during
+  a serial-only firmware test; OpenStorage then rejects before touching MMIO.
 - `usb_phy_clock_hz`: `60000000` for admitted ULPI USB, or `0` to disable USB
   explicitly. Disabling USB allows SD/serial bring-up before PHY/VBUS work.
 - `schema`: integer `7`. Superseded schemas and capacity/RCA fields reject.
@@ -56,8 +58,9 @@ The build runner requires an exact schema-7 JSON object with these fields:
   exclusive mailbox ownership and synchronous bounded-return TF-A v1 service;
   see the [read-only SDM contract](../sdm/README.md). It admits no programming.
 - `handoff`: object with `el1`, `single_cpu`, `counter_access`,
-  `exclusive_devices`, `uart_configured`, `sd_platform_ready`, and
-  `mmu_off_caches_clean`, all explicitly `true`. `usb_platform_ready` must be a
+  `exclusive_devices`, `uart_configured`, and
+  `mmu_off_caches_clean`, all explicitly `true`. `sd_platform_ready` must match
+  the SD clock declaration; `usb_platform_ready` must be a
   boolean matching the USB clock declaration: true for 60 MHz, false for 0.
 
 These are firmware obligations, not facts the cross-builder can verify.
