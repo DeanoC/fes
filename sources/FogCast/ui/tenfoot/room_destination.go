@@ -37,15 +37,17 @@ func (a *App) roomDestinationLocked() rooms.Destination {
 			d = rooms.ApplyEditionPreference(d, id)
 		}
 	}
-	if d.Kind == rooms.KindCore && d.CoreLaunchable && a.client != nil && a.client.paired {
+	if d.Kind == rooms.KindCore && (d.CoreLaunchable || d.CorePending) && a.client != nil && a.client.paired {
 		switch {
 		case a.foreignKitLeaseLocked():
+			d.CorePending = false
 			d.LeaseHeld = true
 			d.Availability = rooms.AvailUnavailable
 			d.Status = rooms.InUseStatus
 			d.Action = ""
 		case a.pairedKitStatusUnavailableLocked():
 			d.CoreLaunchable = false
+			d.CorePending = false
 			d.CoreBlock = machineStatusUnknown
 			d.Availability = rooms.AvailUnavailable
 			d.Status = machineStatusUnknown
@@ -54,7 +56,8 @@ func (a *App) roomDestinationLocked() rooms.Destination {
 	}
 	// After an ambiguous local launch, Confirm is refused until the agent
 	// reports idle; say Checking rather than Ready.
-	if d.Kind == rooms.KindCore && d.CoreLaunchable && !d.LeaseHeld && a.localLaunchBlockedLocked() {
+	if d.Kind == rooms.KindCore && (d.CoreLaunchable || d.CorePending) && !d.LeaseHeld && a.localLaunchBlockedLocked() {
+		d.CorePending = false
 		d.Availability = rooms.AvailChecking
 		d.Status = localLaunchCheckingCopy
 		d.Action = rooms.CheckingAction
