@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -384,7 +385,7 @@ func TestDismissedTapeArmDoesNotReviveSession(t *testing.T) {
 	app.HandleCommand(CmdSelect, now)
 	select {
 	case <-h.armStarted:
-	case <-time.After(2 * time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("arm did not start")
 	}
 	app.HandleCommand(CmdHome, now)
@@ -394,7 +395,7 @@ func TestDismissedTapeArmDoesNotReviveSession(t *testing.T) {
 	app.HandleCommand(CmdStop, now)
 	waitFor(t, app, "stopped", func(s Snapshot) bool { return s.Session.State == "idle" })
 	close(h.armRelease)
-	deadline := time.Now().Add(time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		app.Tick(time.Now())
 		time.Sleep(10 * time.Millisecond)
@@ -447,7 +448,7 @@ func TestPlayHIDLetterStaysCoreKeyWhileLoadTapeOffered(t *testing.T) {
 	if !app.HandlePlayHIDKey("s", true, time.Now()) {
 		t.Fatal("letter s must stay on the play HID path")
 	}
-	waitSnapshot(t, app, time.Second, func(Snapshot) bool { return hidHits.Load() == 1 })
+	waitSnapshot(t, app, func(Snapshot) bool { return hidHits.Load() == 1 })
 	if app.Snapshot().TapePicker.Open {
 		t.Fatal("letter s opened Load-tape")
 	}

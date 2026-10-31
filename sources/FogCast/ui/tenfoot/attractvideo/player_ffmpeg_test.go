@@ -1,6 +1,7 @@
 package attractvideo
 
 import (
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -121,7 +122,7 @@ func TestOpenFFmpegDecodesGeneratedClip(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(player.Close)
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		frame, ended, frameErr := player.Frame()
 		if frameErr != nil {

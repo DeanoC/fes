@@ -4,6 +4,7 @@ package tenfoot
 
 import (
 	"encoding/json"
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -43,7 +44,7 @@ func TestSDLMouseFocusLossDispatch(t *testing.T) {
 		if !ok || x != 0 || y != 0 || buttons != 0 {
 			t.Fatalf("focus release=%+v", event)
 		}
-	case <-time.After(time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("SDL focus loss did not release captured buttons")
 	}
 	<-tail

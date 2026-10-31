@@ -3,6 +3,7 @@ package tenfoot
 import (
 	"encoding/json"
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -112,7 +113,7 @@ func TestConsumePlayHIDLetterSStaysZX81NotStop(t *testing.T) {
 	if !app.HandlePlayHIDKey("s", true, time.Now()) {
 		t.Fatal("letter s must stay on the play HID path")
 	}
-	waitSnapshot(t, app, time.Second, func(Snapshot) bool { return hidHits.Load() == 1 })
+	waitSnapshot(t, app, func(Snapshot) bool { return hidHits.Load() == 1 })
 	if stops.Load() != 0 {
 		t.Fatalf("ZX81 letter s stopped the session, stops=%d", stops.Load())
 	}
@@ -158,7 +159,7 @@ func TestHandlePlayHIDKeyNativeEncodesGamepadNotZX81(t *testing.T) {
 	if !app.HandlePlayHIDKey("up", true, time.Now()) {
 		t.Fatal("native up must be consumed")
 	}
-	waitSnapshot(t, app, time.Second, func(Snapshot) bool { return got.Load() != nil })
+	waitSnapshot(t, app, func(Snapshot) bool { return got.Load() != nil })
 	event, _ := got.Load().(remoteinput.Event)
 	if event.Device != remoteinput.DeviceGamepad || event.Kind != remoteinput.KindButton || event.Code != remoteinput.ButtonDPadUp {
 		t.Fatalf("native up = %+v", event)
@@ -204,7 +205,7 @@ func TestSendPlayHIDFailClosedOnForeignLease(t *testing.T) {
 	if !app.SendPlayHID(event) {
 		t.Fatal("ours should send")
 	}
-	waitSnapshot(t, app, time.Second, func(Snapshot) bool { return hits.Load() == 1 })
+	waitSnapshot(t, app, func(Snapshot) bool { return hits.Load() == 1 })
 
 	app.kitLeaseHave = true
 	app.kitLease = KitLeaseStatus{State: "held", Owner: "kit-hostless", Purpose: "offline-cache-hit-launch"}
@@ -293,7 +294,7 @@ func TestKeyboardHIDSessionForwardsEscBackspaceAsUsages(t *testing.T) {
 			if !ok || usage != key.usage || got.Device != remoteinput.DeviceKeyboard || got.Action != remoteinput.ActionPress {
 				t.Fatalf("%s posted %+v", key.name, got)
 			}
-		case <-time.After(time.Second):
+		case <-time.After(testwait.Timeout):
 			t.Fatalf("%s not forwarded", key.name)
 		}
 	}

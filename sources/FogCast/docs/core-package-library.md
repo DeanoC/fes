@@ -709,6 +709,8 @@ game/base headers) and `/v1/library/media/save` (empty body), under the current
 kit lease. The agent supplies `/media/fat/fogcast/core-data/media`; host callers
 cannot choose a storage path. Unit status reports the durable game/base binding
 and record revision; an absent revision means no checkpoint has been published.
+The optional unit field `saveable:false` means that a persistent binding does
+not support an explicit in-session checkpoint.
 
 Create a blank formatted disk in the host library and bind it as the title's
 next drive A. The name is the volume label (1–11 letters, digits, spaces or

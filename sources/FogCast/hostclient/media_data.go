@@ -51,7 +51,7 @@ func (c *Client) SaveDiskForSession(ctx context.Context, prior SessionResult) (S
 	}
 	bound := false
 	for _, u := range prior.CorePackage.MediaUnits {
-		if u.Unit == b.Unit && u.Persistence != nil && u.Valid() {
+		if u.Unit == b.Unit && u.CanSave() && u.Persistence != nil && u.Valid() {
 			bound = true
 		}
 	}

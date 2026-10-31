@@ -2,6 +2,7 @@ package rooms
 
 import (
 	"bytes"
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"image"
 	"image/color"
 	"image/png"
@@ -207,7 +208,7 @@ func TestInstalledArtworkUsesNewSnapshotWithoutChangingLiveOldRoom(t *testing.T)
 		room *Instance
 		want color.RGBA
 	}{{old, red}, {fresh, blue}} {
-		deadline := time.Now().Add(2 * time.Second)
+		deadline := time.Now().Add(testwait.Timeout)
 		for time.Now().Before(deadline) {
 			check.room.Step(time.Now())
 			if bitmap := check.room.Images()["asset:art.png"]; bitmap != nil {

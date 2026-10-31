@@ -3,6 +3,7 @@ package tenfoot
 import (
 	"encoding/json"
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -154,7 +155,7 @@ func TestAppSettingsOverlayOpenCloseAndLocalPrefs(t *testing.T) {
 	if !app.SettingsOpen() {
 		t.Fatal("settings should open")
 	}
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Settings.Open && !snap.Settings.Loading
 	})
 	snap := app.Snapshot()
@@ -251,7 +252,7 @@ func TestAppSettingsEastDiscardsHostDrafts(t *testing.T) {
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Settings.Open && !snap.Settings.Loading && snap.Settings.Rows[settingsRowIdle].Value == "60s"
 	})
 	app.HandleCommand(CmdDown, now)
@@ -272,7 +273,7 @@ func TestAppSettingsEastDiscardsHostDrafts(t *testing.T) {
 		t.Fatalf("east patched %d times", gotPatches)
 	}
 	app.HandleCommand(CmdSettings, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Settings.Open && !snap.Settings.Loading
 	})
 	if app.Snapshot().Settings.Rows[settingsRowIdle].Value != "60s" {
@@ -329,7 +330,7 @@ func TestAppSettingsPatchIdleRegionsAndTarget(t *testing.T) {
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Settings.Open && !snap.Settings.Loading && snap.Settings.LibraryCount == 1
 	})
 	for i := 0; i < settingsRowIdle; i++ {
@@ -337,7 +338,7 @@ func TestAppSettingsPatchIdleRegionsAndTarget(t *testing.T) {
 	}
 	app.HandleCommand(CmdRight, now)
 	app.HandleCommand(CmdSelect, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Settings.Busy && strings.Contains(snap.Status, "idle 75s")
 	})
 	if idle, _ := appSettingsCommitState(app); idle != 75 {
@@ -345,13 +346,13 @@ func TestAppSettingsPatchIdleRegionsAndTarget(t *testing.T) {
 	}
 	app.HandleCommand(CmdDown, now)
 	app.HandleCommand(CmdSelect, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Settings.Busy
 	})
 	focusSettingsRow(t, app, "target", now)
 	app.HandleCommand(CmdRight, now)
 	app.HandleCommand(CmdSelect, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Settings.Busy && strings.Contains(snap.Status, "target spare")
 	})
 	mu.Lock()
@@ -385,7 +386,7 @@ func TestAppSettingsPatchKeepsPriorOnError(t *testing.T) {
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Settings.Open && !snap.Settings.Loading
 	})
 	for i := 0; i < settingsRowTarget; i++ {
@@ -393,7 +394,7 @@ func TestAppSettingsPatchKeepsPriorOnError(t *testing.T) {
 	}
 	app.HandleCommand(CmdRight, now)
 	app.HandleCommand(CmdSelect, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Settings.Busy && strings.Contains(snap.Status, "selected target cannot change")
 	})
 	if app.Snapshot().Settings.Rows[settingsRowTarget].Value != "dev" {
@@ -530,7 +531,7 @@ func TestAppSettingsCloseIgnoresFailedGetStatus(t *testing.T) {
 	app.HandleCommand(CmdSettings, now)
 	select {
 	case <-started:
-	case <-time.After(2 * time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("GET did not start")
 	}
 	app.HandleCommand(CmdBack, now)
@@ -538,7 +539,7 @@ func TestAppSettingsCloseIgnoresFailedGetStatus(t *testing.T) {
 		t.Fatal("should close")
 	}
 	close(release)
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		if strings.Contains(app.Snapshot().Status, "settings failed") {
 			t.Fatalf("closed overlay adopted GET error: %q", app.Snapshot().Status)
@@ -581,7 +582,7 @@ func TestAppSettingsPatchAppliesAfterClose(t *testing.T) {
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Settings.Open && !snap.Settings.Loading
 	})
 	for i := 0; i < settingsRowIdle; i++ {
@@ -591,7 +592,7 @@ func TestAppSettingsPatchAppliesAfterClose(t *testing.T) {
 	app.HandleCommand(CmdSelect, now)
 	select {
 	case <-started:
-	case <-time.After(2 * time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("PATCH did not start")
 	}
 	app.HandleCommand(CmdBack, now)
@@ -599,7 +600,7 @@ func TestAppSettingsPatchAppliesAfterClose(t *testing.T) {
 		t.Fatal("should close")
 	}
 	close(release)
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		if idle, _ := appSettingsCommitState(app); idle == 75 {
 			return
@@ -646,12 +647,12 @@ func TestAppSettingsIdlePatchInvalidatesAttractFetch(t *testing.T) {
 	app.mu.Unlock()
 	select {
 	case <-attractStarted:
-	case <-time.After(2 * time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("attract GET did not start")
 	}
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Settings.Open && !snap.Settings.Loading
 	})
 	for i := 0; i < settingsRowIdle; i++ {
@@ -659,7 +660,7 @@ func TestAppSettingsIdlePatchInvalidatesAttractFetch(t *testing.T) {
 	}
 	app.HandleCommand(CmdRight, now)
 	app.HandleCommand(CmdSelect, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		idle, _ := appSettingsCommitState(app)
 		return !snap.Settings.Busy && idle == 75
 	})
@@ -721,7 +722,7 @@ func TestAppSettingsStalePatchDoesNotClearNewBusy(t *testing.T) {
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Settings.Open && !snap.Settings.Loading
 	})
 	for i := 0; i < settingsRowIdle; i++ {
@@ -731,12 +732,12 @@ func TestAppSettingsStalePatchDoesNotClearNewBusy(t *testing.T) {
 	app.HandleCommand(CmdSelect, now)
 	select {
 	case <-firstStarted:
-	case <-time.After(2 * time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("first PATCH did not start")
 	}
 	app.HandleCommand(CmdBack, now)
 	app.HandleCommand(CmdSettings, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Settings.Open && !snap.Settings.Loading
 	})
 	for i := 0; i < settingsRowIdle; i++ {
@@ -747,7 +748,7 @@ func TestAppSettingsStalePatchDoesNotClearNewBusy(t *testing.T) {
 	app.HandleCommand(CmdSelect, now)
 	select {
 	case <-secondStarted:
-	case <-time.After(2 * time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("second PATCH did not start")
 	}
 	if !app.Snapshot().Settings.Busy {
@@ -766,7 +767,7 @@ func TestAppSettingsStalePatchDoesNotClearNewBusy(t *testing.T) {
 		time.Sleep(5 * time.Millisecond)
 	}
 	close(secondRelease)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		idle, _ := appSettingsCommitState(app)
 		return !snap.Settings.Busy && idle == 90
 	})
@@ -810,7 +811,7 @@ func TestAppSettingsLeftOnLowIdleDoesNotJumpToFive(t *testing.T) {
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Settings.Open && !snap.Settings.Loading && snap.Settings.Rows[settingsRowIdle].Value == "3s"
 	})
 	for i := 0; i < settingsRowIdle; i++ {
@@ -884,7 +885,7 @@ func TestAppSettingsRehydratesAfterSaveCompletesDuringReopen(t *testing.T) {
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Settings.Open && !snap.Settings.Loading && snap.Settings.Rows[settingsRowIdle].Value == "60s"
 	})
 	for i := 0; i < settingsRowIdle; i++ {
@@ -894,12 +895,12 @@ func TestAppSettingsRehydratesAfterSaveCompletesDuringReopen(t *testing.T) {
 	app.HandleCommand(CmdSelect, now)
 	select {
 	case <-patchStarted:
-	case <-time.After(2 * time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("PATCH did not start")
 	}
 	app.HandleCommand(CmdBack, now)
 	app.HandleCommand(CmdSettings, now)
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for {
 		mu.Lock()
 		n := gets
@@ -913,7 +914,7 @@ func TestAppSettingsRehydratesAfterSaveCompletesDuringReopen(t *testing.T) {
 		time.Sleep(5 * time.Millisecond)
 	}
 	close(patchRelease)
-	deadline = time.Now().Add(2 * time.Second)
+	deadline = time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		if idle, _ := appSettingsCommitState(app); idle == 75 {
 			break
@@ -924,7 +925,7 @@ func TestAppSettingsRehydratesAfterSaveCompletesDuringReopen(t *testing.T) {
 		t.Fatalf("PATCH did not apply idle, got %d", idle)
 	}
 	close(getRelease)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		_, hydrated := appSettingsCommitState(app)
 		return snap.Settings.Open && !snap.Settings.Loading && hydrated && snap.Settings.Rows[settingsRowIdle].Value == "75s"
 	})
@@ -982,7 +983,7 @@ func TestAppSettingsStaleReopenGetRefreshesWhenPatchCompletes(t *testing.T) {
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Settings.Open && !snap.Settings.Loading && snap.Settings.Rows[settingsRowIdle].Value == "60s"
 	})
 	for i := 0; i < settingsRowIdle; i++ {
@@ -992,19 +993,19 @@ func TestAppSettingsStaleReopenGetRefreshesWhenPatchCompletes(t *testing.T) {
 	app.HandleCommand(CmdSelect, now)
 	select {
 	case <-patchStarted:
-	case <-time.After(2 * time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("PATCH did not start")
 	}
 	app.HandleCommand(CmdBack, now)
 	app.HandleCommand(CmdSettings, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		mu.Lock()
 		n := gets
 		mu.Unlock()
 		return n >= 2 && snap.Settings.Open && !snap.Settings.Loading && snap.Settings.Rows[settingsRowIdle].Value == "60s"
 	})
 	close(patchRelease)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		idle, hydrated := appSettingsCommitState(app)
 		return snap.Settings.Open && !snap.Settings.Loading && hydrated && idle == 75 && snap.Settings.Rows[settingsRowIdle].Value == "75s"
 	})
@@ -1059,7 +1060,7 @@ func TestAppSettingsStaleReopenGetKeepsNewerLocalDraft(t *testing.T) {
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Settings.Open && !snap.Settings.Loading && snap.Settings.Rows[settingsRowIdle].Value == "60s"
 	})
 	for i := 0; i < settingsRowIdle; i++ {
@@ -1069,12 +1070,12 @@ func TestAppSettingsStaleReopenGetKeepsNewerLocalDraft(t *testing.T) {
 	app.HandleCommand(CmdSelect, now)
 	select {
 	case <-patchStarted:
-	case <-time.After(2 * time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("PATCH did not start")
 	}
 	app.HandleCommand(CmdBack, now)
 	app.HandleCommand(CmdSettings, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		mu.Lock()
 		n := gets
 		mu.Unlock()
@@ -1089,7 +1090,7 @@ func TestAppSettingsStaleReopenGetKeepsNewerLocalDraft(t *testing.T) {
 		t.Fatalf("local draft = %q", got)
 	}
 	close(patchRelease)
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		idle, _ := appSettingsCommitState(app)
 		if idle == 75 {
@@ -1124,7 +1125,7 @@ func TestAppSettingsPreservesHostIdleAboveTenMinutes(t *testing.T) {
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Settings.Open && !snap.Settings.Loading && snap.Settings.Rows[settingsRowIdle].Value == "3600s"
 	})
 	for i := 0; i < settingsRowIdle; i++ {
@@ -1167,7 +1168,7 @@ func TestAppSettingsBusyBlocksHostRowEdits(t *testing.T) {
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Settings.Open && !snap.Settings.Loading
 	})
 	for i := 0; i < settingsRowIdle; i++ {
@@ -1177,7 +1178,7 @@ func TestAppSettingsBusyBlocksHostRowEdits(t *testing.T) {
 	app.HandleCommand(CmdSelect, now)
 	select {
 	case <-started:
-	case <-time.After(2 * time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("PATCH did not start")
 	}
 	app.HandleCommand(CmdRight, now)
@@ -1185,7 +1186,7 @@ func TestAppSettingsBusyBlocksHostRowEdits(t *testing.T) {
 		t.Fatalf("busy edit = %q", app.Snapshot().Settings.Rows[settingsRowIdle].Value)
 	}
 	close(release)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Settings.Busy
 	})
 }
@@ -1217,12 +1218,12 @@ func TestAppSettingsRegionPatchReloadsCatalog(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 4)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) >= 1 && !snap.Loading
 	})
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Settings.Open && !snap.Settings.Loading
 	})
 	for i := 0; i < settingsRowRegions; i++ {
@@ -1232,7 +1233,7 @@ func TestAppSettingsRegionPatchReloadsCatalog(t *testing.T) {
 	before := games
 	mu.Unlock()
 	app.HandleCommand(CmdSelect, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		mu.Lock()
 		defer mu.Unlock()
 		return games > before
@@ -1283,7 +1284,7 @@ func TestAppSettingsListsLibrariesFromGet(t *testing.T) {
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Settings.Open && !snap.Settings.Loading && snap.Settings.LibraryCount == 1
 	})
 	snap := app.Snapshot()
@@ -1361,7 +1362,7 @@ func TestAppSettingsAddEditRemoveLibrariesAndPatch(t *testing.T) {
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Settings.Open && !snap.Settings.Loading && snap.Settings.LibraryCount == 1
 	})
 	focusSettingsRow(t, app, "library-0", now)
@@ -1372,7 +1373,7 @@ func TestAppSettingsAddEditRemoveLibrariesAndPatch(t *testing.T) {
 	app.HandleCommand(CmdBack, now)
 	app.TypeText("/library/snes-2", now)
 	app.ConfirmSearch(now)
-	waitSnapshot(t, app, time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.OSK.Open && snap.Settings.Open && settingsRowByID(t, app, "library-0").Value == "/library/snes-2"
 	})
 	focusSettingsRow(t, app, "add-library", now)
@@ -1407,7 +1408,7 @@ func TestAppSettingsAddEditRemoveLibrariesAndPatch(t *testing.T) {
 	gamesBefore := games
 	mu.Unlock()
 	app.HandleCommand(CmdSelect, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		mu.Lock()
 		defer mu.Unlock()
 		return !snap.Settings.Busy && len(patches) == 1 && games > gamesBefore
@@ -1468,7 +1469,7 @@ func TestAppSettingsLibraryOSKDoesNotStealIdleAndTarget(t *testing.T) {
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Settings.Open && !snap.Settings.Loading
 	})
 	focusSettingsRow(t, app, "library-0", now)
@@ -1525,7 +1526,7 @@ func TestAppSettingsFailedIdleKeepsLibraryDraft(t *testing.T) {
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Settings.Open && !snap.Settings.Loading && snap.Settings.LibraryCount == 1
 	})
 	focusSettingsRow(t, app, "library-0", now)
@@ -1539,7 +1540,7 @@ func TestAppSettingsFailedIdleKeepsLibraryDraft(t *testing.T) {
 	focusSettingsRow(t, app, "idle", now)
 	app.HandleCommand(CmdRight, now)
 	app.HandleCommand(CmdSelect, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Settings.Busy && strings.Contains(snap.Status, "settings cannot change")
 	})
 	if got := app.Snapshot().Settings.Rows[settingsRowIdle].Value; got != "60s" {
@@ -1597,7 +1598,7 @@ func TestAppSettingsStaleLibrarySaveKeepsNewerDraft(t *testing.T) {
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Settings.Open && !snap.Settings.Loading
 	})
 	focusSettingsRow(t, app, "library-0", now)
@@ -1609,12 +1610,12 @@ func TestAppSettingsStaleLibrarySaveKeepsNewerDraft(t *testing.T) {
 	app.HandleCommand(CmdSelect, now)
 	select {
 	case <-started:
-	case <-time.After(2 * time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("PATCH did not start")
 	}
 	app.HandleCommand(CmdBack, now)
 	app.HandleCommand(CmdSettings, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Settings.Open && !snap.Settings.Loading
 	})
 	focusSettingsRow(t, app, "library-0", now)
@@ -1659,7 +1660,7 @@ func TestAppSettingsListsTargetsFromGet(t *testing.T) {
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Settings.Open && !snap.Settings.Loading && snap.Settings.TargetCount == 2
 	})
 	if settingsRowByID(t, app, "target").Value != "dev" {
@@ -1760,7 +1761,7 @@ func TestAppSettingsAddEditRemoveTargetsAndPatch(t *testing.T) {
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Settings.Open && !snap.Settings.Loading && snap.Settings.TargetCount == 2
 	})
 	focusSettingsRow(t, app, "target-0-address", now)
@@ -1815,7 +1816,7 @@ func TestAppSettingsAddEditRemoveTargetsAndPatch(t *testing.T) {
 	}
 	focusSettingsRow(t, app, "save-targets", now)
 	app.HandleCommand(CmdSelect, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		mu.Lock()
 		defer mu.Unlock()
 		return !snap.Settings.Busy && len(patches) == 1
@@ -1893,7 +1894,7 @@ func TestAppSettingsClearTargetAgentOmitsUntouched(t *testing.T) {
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Settings.Open && !snap.Settings.Loading && snap.Settings.TargetCount == 2
 	})
 	focusSettingsRow(t, app, "target-0-enabled", now)
@@ -1913,7 +1914,7 @@ func TestAppSettingsClearTargetAgentOmitsUntouched(t *testing.T) {
 	focusSettingsRow(t, app, "target", now)
 	app.HandleCommand(CmdRight, now)
 	app.HandleCommand(CmdSelect, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		mu.Lock()
 		defer mu.Unlock()
 		return !snap.Settings.Busy && len(patches) == 1
@@ -1966,7 +1967,7 @@ func TestAppSettingsSelectedTargetCareWhileSessionActive(t *testing.T) {
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Settings.Open && !snap.Settings.Loading && snap.Settings.TargetCount == 2
 	})
 	app.session.State = "active"
@@ -2041,7 +2042,7 @@ func TestAppSettingsLibraryPatchStillOmitsTargets(t *testing.T) {
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Settings.Open && !snap.Settings.Loading && snap.Settings.LibraryCount == 1
 	})
 	focusSettingsRow(t, app, "library-0", now)
@@ -2051,7 +2052,7 @@ func TestAppSettingsLibraryPatchStillOmitsTargets(t *testing.T) {
 	app.ConfirmSearch(now)
 	focusSettingsRow(t, app, "save-libraries", now)
 	app.HandleCommand(CmdSelect, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		mu.Lock()
 		defer mu.Unlock()
 		return !snap.Settings.Busy && len(patches) == 1
@@ -2104,7 +2105,7 @@ func TestAppSettingsRemoveSelectedTargetPicksReplacement(t *testing.T) {
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Settings.Open && !snap.Settings.Loading && snap.Settings.TargetCount == 2
 	})
 	focusSettingsRow(t, app, "target-0-name", now)
@@ -2117,7 +2118,7 @@ func TestAppSettingsRemoveSelectedTargetPicksReplacement(t *testing.T) {
 	}
 	focusSettingsRow(t, app, "save-targets", now)
 	app.HandleCommand(CmdSelect, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		mu.Lock()
 		defer mu.Unlock()
 		return !snap.Settings.Busy && len(patches) == 1
@@ -2152,7 +2153,7 @@ func TestAppSettingsCancelAddTargetDoesNotMarkDirty(t *testing.T) {
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Settings.Open && !snap.Settings.Loading && snap.Settings.TargetCount == 1
 	})
 	focusSettingsRow(t, app, "add-target", now)

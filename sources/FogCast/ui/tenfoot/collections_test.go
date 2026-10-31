@@ -3,6 +3,7 @@ package tenfoot
 import (
 	"encoding/json"
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -52,7 +53,7 @@ func TestAppCyclesLibraryViewsAgainstHostAPI(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 20)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && len(snap.Games) == 2 && snap.ViewLabel == "All" && len(snap.Views) == 7
 	})
 
@@ -71,7 +72,7 @@ func TestAppCyclesLibraryViewsAgainstHostAPI(t *testing.T) {
 	}
 	for _, step := range want {
 		app.Press(CmdViewNext, time.Now())
-		waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+		waitSnapshot(t, app, func(snap Snapshot) bool {
 			return !snap.Loading && snap.Collection == step.id && snap.ViewLabel == step.label && len(snap.Games) == step.n && strings.Contains(snap.Status, step.label) && strings.Contains(snap.ChromeLine(), step.label)
 		})
 	}
@@ -121,7 +122,7 @@ func TestAppViewPickerSelectsCollection(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && len(snap.Games) == 1
 	})
 	app.Press(CmdViewPicker, time.Now())
@@ -130,7 +131,7 @@ func TestAppViewPickerSelectsCollection(t *testing.T) {
 	}
 	app.Press(CmdDown, time.Now())
 	app.Press(CmdSelect, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && !snap.ViewPicker && snap.Collection == "continue" && snap.ViewLabel == "Continue"
 	})
 	found := false
@@ -185,11 +186,11 @@ func TestAppFavoriteToggleAndErrorRevert(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && len(snap.Games) == 1
 	})
 	app.Press(CmdFavorite, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		mu.Lock()
 		n := len(methods)
 		mu.Unlock()
@@ -204,7 +205,7 @@ func TestAppFavoriteToggleAndErrorRevert(t *testing.T) {
 	fail = true
 	mu.Unlock()
 	app.Press(CmdFavorite, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		mu.Lock()
 		n := len(methods)
 		mu.Unlock()
@@ -251,16 +252,16 @@ func TestAppUnfavoriteReloadsFavoritesView(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && len(snap.Games) == 1
 	})
 	app.Press(CmdViewNext, time.Now())
 	app.Press(CmdViewNext, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && snap.Collection == "favorites" && len(snap.Games) == 1 && snap.Games[0].Favorite
 	})
 	app.Press(CmdFavorite, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && snap.Collection == "favorites" && len(snap.Games) == 0 && strings.Contains(snap.Status, "Favorites")
 	})
 	found := false
@@ -339,22 +340,22 @@ func TestAppFavoriteAddReloadsFavoritesView(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && len(snap.Games) == 1 && snap.Collection == "" && !snap.Games[0].Favorite
 	})
 	app.Press(CmdFavorite, time.Now())
 	select {
 	case <-putStarted:
-	case <-time.After(2 * time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("favorite PUT did not start")
 	}
 	app.Press(CmdViewNext, time.Now())
 	app.Press(CmdViewNext, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && snap.Collection == "favorites" && len(snap.Games) == 0
 	})
 	close(releasePut)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && snap.Collection == "favorites" && len(snap.Games) == 1 && snap.Games[0].ID == "snes-mario" && snap.Games[0].Favorite
 	})
 	favoritesGets := 0
@@ -395,16 +396,16 @@ func TestAppKeepsFiltersInsideCollection(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && len(snap.Platforms) == 1 && len(snap.Games) == 1
 	})
 	app.Press(CmdViewNext, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && snap.Collection == "continue"
 	})
 	app.Press(CmdFilterNext, time.Now())
 	app.Press(CmdSortCycle, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && snap.Collection == "continue" && snap.PlatformID == "snes" && snap.Sort == "recently_added"
 	})
 	found := false
@@ -470,13 +471,13 @@ func TestAppRecentsDefaultsToLastPlayedOrder(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && len(snap.Games) == 1 && snap.Collection == ""
 	})
 	app.Press(CmdViewNext, time.Now())
 	app.Press(CmdViewNext, time.Now())
 	app.Press(CmdViewNext, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && snap.Collection == "recents" && snap.Sort == "" && strings.Contains(snap.ChromeLine(), "Last played")
 	})
 	mu.Lock()
@@ -497,11 +498,11 @@ func TestAppRecentsDefaultsToLastPlayedOrder(t *testing.T) {
 	}
 
 	app.Press(CmdSortCycle, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && snap.Collection == "recents" && snap.Sort == "title"
 	})
 	app.Press(CmdSortCycle, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && snap.Collection == "recents" && snap.Sort == "platform"
 	})
 	mu.Lock()
@@ -544,13 +545,13 @@ func TestAppRecentlyAddedDefaultsToAddedSort(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && len(snap.Games) == 1 && snap.Sort == "title"
 	})
 	for i := 0; i < 8 && app.Snapshot().Collection != "recently_added"; i++ {
 		app.Press(CmdViewNext, time.Now())
 	}
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && snap.Collection == "recently_added" && snap.Sort == "recently_added" && strings.Contains(snap.ChromeLine(), "Recently added")
 	})
 	mu.Lock()
@@ -570,7 +571,7 @@ func TestAppRecentlyAddedDefaultsToAddedSort(t *testing.T) {
 		t.Fatalf("no recently_added query in %#v", got)
 	}
 	app.Press(CmdSortCycle, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && snap.Collection == "recently_added" && snap.Sort == "platform"
 	})
 }
@@ -604,7 +605,7 @@ func TestChromeLineIncludesActiveView(t *testing.T) {
 func focusPickerRow(t *testing.T, app *App, create bool, id string) {
 	t.Helper()
 	if create {
-		deadline := time.Now().Add(2 * time.Second)
+		deadline := time.Now().Add(testwait.Timeout)
 		for {
 			app.mu.Lock()
 			loaded := app.collectionsLoaded
@@ -695,12 +696,12 @@ func TestAppCollectionMembershipToggleAndErrorRevert(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && len(snap.Games) == 1 && len(snap.Views) == 7
 	})
 	focusPickerRow(t, app, false, "weekend-queue")
 	app.Press(CmdSortCycle, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		mu.Lock()
 		n := len(methods)
 		mu.Unlock()
@@ -714,7 +715,7 @@ func TestAppCollectionMembershipToggleAndErrorRevert(t *testing.T) {
 	fail = true
 	mu.Unlock()
 	app.Press(CmdSortCycle, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		mu.Lock()
 		n := len(methods)
 		mu.Unlock()
@@ -767,18 +768,18 @@ func TestAppRemoveFromCustomCollectionReloadsView(t *testing.T) {
 	t.Cleanup(app.Stop)
 	// Six steps from All land on the custom collection only after it has
 	// joined the view cycle. Without that, the steps wrap back to All.
-	waitSnapshot(t, app, 10*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && len(snap.Games) == 1 && len(snap.Views) == 7
 	})
 	for i := 0; i < 6; i++ {
 		app.Press(CmdViewNext, time.Now())
 	}
-	waitSnapshot(t, app, 10*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && snap.Collection == "weekend-queue" && len(snap.Games) == 1
 	})
 	focusPickerRow(t, app, false, "weekend-queue")
 	app.Press(CmdSortCycle, time.Now())
-	waitSnapshot(t, app, 10*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && snap.Collection == "weekend-queue" && len(snap.Games) == 0
 	})
 	found := false
@@ -849,25 +850,25 @@ func TestAppAddToCustomCollectionReloadsView(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && len(snap.Games) == 1 && len(snap.Views) == 7
 	})
 	focusPickerRow(t, app, false, "weekend-queue")
 	app.Press(CmdSortCycle, time.Now())
 	select {
 	case <-putStarted:
-	case <-time.After(2 * time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("PUT did not start")
 	}
 	app.Press(CmdBack, time.Now())
 	for i := 0; i < 6; i++ {
 		app.Press(CmdViewNext, time.Now())
 	}
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Collection == "weekend-queue"
 	})
 	close(putRelease)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && snap.Collection == "weekend-queue" && len(snap.Games) == 1 && snap.Games[0].ID == "snes-mario"
 	})
 	found := false
@@ -911,7 +912,7 @@ func TestAppHidesCreateUntilCollectionsLoad(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && len(snap.Games) == 1
 	})
 	app.Press(CmdViewPicker, time.Now())
@@ -924,7 +925,7 @@ func TestAppHidesCreateUntilCollectionsLoad(t *testing.T) {
 		}
 	}
 	close(release)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		if !snap.ViewPicker {
 			return false
 		}
@@ -953,7 +954,7 @@ func TestAppHidesCreateWhenCollectionListFails(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && len(snap.Games) == 1
 	})
 	app.Press(CmdViewPicker, time.Now())
@@ -1034,30 +1035,30 @@ func TestAppCreateRenameDeleteCollectionWithOSK(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && len(snap.Games) == 1
 	})
 
 	focusPickerRow(t, app, true, "")
 	app.Press(CmdSelect, time.Now())
-	waitSnapshot(t, app, time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.OSK.Open && snap.OSK.Prompt == "Collection name"
 	})
 	now := time.Now()
 	oskTypeName(t, app, "weekend queue", now)
 	focusNameKey(t, app, "done")
 	app.Press(CmdSelect, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.OSK.Open && !snap.ViewPicker && snap.Collection == "weekend-queue" && snap.ViewLabel == "weekend queue"
 	})
 
 	focusPickerRow(t, app, false, "weekend-queue")
 	app.Press(CmdSearch, time.Now())
-	waitSnapshot(t, app, time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.CollectionMenu.Open && !snap.CollectionMenu.Confirm
 	})
 	app.Press(CmdSelect, time.Now())
-	waitSnapshot(t, app, time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.OSK.Open && snap.OSK.Buffer == "weekend queue"
 	})
 	focusNameKey(t, app, "clear")
@@ -1065,7 +1066,7 @@ func TestAppCreateRenameDeleteCollectionWithOSK(t *testing.T) {
 	oskTypeName(t, app, "saturday", time.Now())
 	focusNameKey(t, app, "done")
 	app.Press(CmdSelect, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.OSK.Open && snap.ViewLabel == "saturday" && snap.Collection == "weekend-queue"
 	})
 
@@ -1073,11 +1074,11 @@ func TestAppCreateRenameDeleteCollectionWithOSK(t *testing.T) {
 	app.Press(CmdSearch, time.Now())
 	app.Press(CmdDown, time.Now())
 	app.Press(CmdSelect, time.Now())
-	waitSnapshot(t, app, time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.CollectionMenu.Confirm
 	})
 	app.Press(CmdSelect, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.ViewPicker && snap.Collection == "" && snap.ViewLabel == "All"
 	})
 
@@ -1116,7 +1117,7 @@ func TestAppNameOSKCancelKeepsPicker(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading
 	})
 	focusPickerRow(t, app, true, "")

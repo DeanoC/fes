@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"github.com/DeanoC/FogCast/ui/rooms"
 	"github.com/DeanoC/FogCast/ui/shared"
 	"image"
@@ -60,7 +61,7 @@ func TestAppNavigatesAndLaunchesThroughHostAPI(t *testing.T) {
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
 
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		app.Tick(time.Now())
 		snap := app.Snapshot()
@@ -133,7 +134,7 @@ func TestAppRecordsHostLaunchErrorWithoutTransportFailure(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		app.Tick(time.Now())
 		if len(app.Snapshot().Games) == 1 {
@@ -271,7 +272,7 @@ func TestAppRejectsUnavailableTitlesWithoutHostLaunch(t *testing.T) {
 			// Confirm is ignored while the catalog load is still in progress,
 			// even after the first page is visible. A settled blocked title
 			// records the refusal, opens Details, and does not post a host launch.
-			deadline := time.Now().Add(2 * time.Second)
+			deadline := time.Now().Add(testwait.Timeout)
 			var ready Snapshot
 			for time.Now().Before(deadline) {
 				app.Tick(time.Now())
@@ -322,7 +323,7 @@ func TestAppEvictsDecodedCoversOutsidePrefetchWindow(t *testing.T) {
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
 
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	var firstID string
 	for time.Now().Before(deadline) {
 		app.Tick(time.Now())
@@ -406,7 +407,7 @@ func TestAppLoadsCatalogCoverWithoutPresentationRoundTrip(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 3 && snap.CoverHits >= 3
 	})
 	mu.Lock()
@@ -456,16 +457,16 @@ func TestAppCyclesPlatformAndSortAgainstHostAPI(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 20)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 2 && len(snap.Platforms) == 2 && !snap.Loading
 	})
 
 	app.Press(CmdFilterNext, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.PlatformID == "snes" && len(snap.Games) == 1 && snap.Games[0].ID == "snes-mario" && !snap.Loading
 	})
 	app.Press(CmdSortCycle, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Sort == "recently_added" && !snap.Loading
 	})
 	found := false
@@ -508,7 +509,7 @@ func TestAppSearchQueriesHost(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 2 && !snap.Loading
 	})
 	now := time.Now()
@@ -518,7 +519,7 @@ func TestAppSearchQueriesHost(t *testing.T) {
 	}
 	app.TypeText("sonic", now)
 	app.Tick(now.Add(searchDebounce + time.Millisecond))
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Query == "sonic" && len(snap.Games) == 1 && snap.Games[0].ID == "megadrive-sonic" && !snap.Loading
 	})
 	found := false
@@ -535,7 +536,7 @@ func TestAppSearchQueriesHost(t *testing.T) {
 		t.Fatalf("paths = %#v", snapshot)
 	}
 	app.Press(CmdBack, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Query == "" && len(snap.Games) == 2 && !snap.Loading
 	})
 }
@@ -583,7 +584,7 @@ func TestAppOSKTypesSearchQueryAndDoneCloses(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 2 && !snap.Loading
 	})
 	focusBefore := app.Snapshot().Grid.Focus
@@ -614,12 +615,12 @@ func TestAppOSKTypesSearchQueryAndDoneCloses(t *testing.T) {
 		t.Fatalf("bksp = %q", got)
 	}
 	app.Tick(now.Add(searchDebounce + time.Millisecond))
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Query == "sonic" && len(snap.Games) == 1 && snap.Games[0].ID == "megadrive-sonic" && !snap.Loading
 	})
 	focusSearchKey(t, app, "done")
 	app.Press(CmdSelect, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.SearchOpen && !snap.OSK.Open && snap.Query == "sonic"
 	})
 	found := false
@@ -651,7 +652,7 @@ func TestAppOSKIgnoresLayoutAndPagesCharset(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 1 && !snap.Loading
 	})
 	now := time.Now()
@@ -714,14 +715,14 @@ func TestAppReloadClearsPendingSearch(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 2 && !snap.Loading
 	})
 	now := time.Now()
 	app.Press(CmdSearch, now)
 	app.TypeText("sonic", now)
 	app.Press(CmdSortCycle, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Query == "sonic" && snap.Sort == "recently_added" && len(snap.Games) == 1 && snap.Games[0].ID == "megadrive-sonic" && !snap.Loading
 	})
 	mu.Lock()
@@ -738,7 +739,7 @@ func TestAppReloadClearsPendingSearch(t *testing.T) {
 	}
 	app.Press(CmdSearch, time.Now())
 	app.Press(CmdSelect, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Launch.Phase == "ok"
 	})
 	mu.Lock()
@@ -779,7 +780,7 @@ func TestAppFocusDetailUsesPresentation(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		d := snap.FocusDetail
 		return d.Title == "Mario" && d.Platform == "Super NES" && d.Year == "1985" && d.Genre == "Platform" && d.Summary == "Jump on turtles." && d.Attribution == "Data from IGDB.com" && d.MetaLine() == "Super NES  ·  1985  ·  Platform  ·  Data from IGDB.com"
 	})
@@ -844,7 +845,7 @@ func TestAppBacksOffFailedPresentationRetries(t *testing.T) {
 			app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 			app.Start(t.Context())
 			t.Cleanup(app.Stop)
-			waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+			waitSnapshot(t, app, func(snap Snapshot) bool {
 				mu.Lock()
 				n := presentationGets
 				mu.Unlock()
@@ -870,7 +871,7 @@ func TestAppBacksOffFailedPresentationRetries(t *testing.T) {
 			if duringBackoff != afterFirst {
 				t.Fatalf("presentation GETs during backoff: first=%d later=%d", afterFirst, duringBackoff)
 			}
-			waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+			waitSnapshot(t, app, func(snap Snapshot) bool {
 				mu.Lock()
 				n := presentationGets
 				mu.Unlock()
@@ -921,7 +922,7 @@ func TestAppDoesNotRequeueFailedArtwork(t *testing.T) {
 			app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 			app.Start(t.Context())
 			t.Cleanup(app.Stop)
-			waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+			waitSnapshot(t, app, func(snap Snapshot) bool {
 				mu.Lock()
 				n := artworkGets
 				mu.Unlock()
@@ -980,7 +981,7 @@ func TestAppDoesNotRequeueFailedArtworkDuringOfflineDetailRetry(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		mu.Lock()
 		art := artworkGets
 		pres := presentationGets
@@ -991,7 +992,7 @@ func TestAppDoesNotRequeueFailedArtworkDuringOfflineDetailRetry(t *testing.T) {
 	afterArt := artworkGets
 	afterPres := presentationGets
 	mu.Unlock()
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		mu.Lock()
 		n := presentationGets
 		mu.Unlock()
@@ -1078,7 +1079,7 @@ func TestAppAdoptsChangedPresentationCoverWhenReady(t *testing.T) {
 			app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 			app.Start(t.Context())
 			t.Cleanup(app.Stop)
-			waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+			waitSnapshot(t, app, func(snap Snapshot) bool {
 				mu.Lock()
 				art := artworkByHandle[oldHandle]
 				pres := presentationGets
@@ -1090,7 +1091,7 @@ func TestAppAdoptsChangedPresentationCoverWhenReady(t *testing.T) {
 			afterOld := artworkByHandle[oldHandle]
 			recovered = true
 			mu.Unlock()
-			waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+			waitSnapshot(t, app, func(snap Snapshot) bool {
 				if snap.FocusDetail.Summary != "Jump on turtles." {
 					return false
 				}
@@ -1186,7 +1187,7 @@ func TestAppAdoptsChangedPresentationCoverOnRetry(t *testing.T) {
 			app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 			app.Start(t.Context())
 			t.Cleanup(app.Stop)
-			waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+			waitSnapshot(t, app, func(snap Snapshot) bool {
 				mu.Lock()
 				art := artworkByHandle[oldHandle]
 				pres := presentationGets
@@ -1197,7 +1198,7 @@ func TestAppAdoptsChangedPresentationCoverOnRetry(t *testing.T) {
 			afterOld := artworkByHandle[oldHandle]
 			recovered = true
 			mu.Unlock()
-			waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+			waitSnapshot(t, app, func(snap Snapshot) bool {
 				if snap.FocusDetail.Summary != "Jump on turtles." {
 					return false
 				}
@@ -1264,7 +1265,7 @@ func TestAppRetriesPresentationDetailsAfterFailedFetch(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		mu.Lock()
 		n := presentationGets
 		mu.Unlock()
@@ -1273,7 +1274,7 @@ func TestAppRetriesPresentationDetailsAfterFailedFetch(t *testing.T) {
 	mu.Lock()
 	fail = false
 	mu.Unlock()
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		d := snap.FocusDetail
 		return d.Summary == "Jump on turtles." && d.Year == "1985" && d.Genre == "Platform" && d.Attribution == "Data from IGDB.com"
 	})
@@ -1312,7 +1313,7 @@ func TestAppRetriesPresentationDetailsAfterOfflineState(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		mu.Lock()
 		n := presentationGets
 		mu.Unlock()
@@ -1321,7 +1322,7 @@ func TestAppRetriesPresentationDetailsAfterOfflineState(t *testing.T) {
 	mu.Lock()
 	offline = false
 	mu.Unlock()
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		d := snap.FocusDetail
 		return d.Summary == "Jump on turtles." && d.Year == "1985" && d.Genre == "Platform" && d.Attribution == "Data from IGDB.com"
 	})
@@ -1367,7 +1368,7 @@ func TestAppRetriesReadyPresentationWithoutAttribution(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		mu.Lock()
 		n := presentationGets
 		mu.Unlock()
@@ -1390,7 +1391,7 @@ func TestAppRetriesReadyPresentationWithoutAttribution(t *testing.T) {
 	mu.Lock()
 	readyOffline = false
 	mu.Unlock()
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		d := snap.FocusDetail
 		return d.Summary == "Jump on turtles." && d.Year == "1985" && d.Genre == "Platform" && d.Attribution == "Data from IGDB.com"
 	})
@@ -1418,7 +1419,7 @@ func TestAppCachesDisabledPresentationWithoutRetry(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		mu.Lock()
 		n := presentationGets
 		mu.Unlock()
@@ -1473,7 +1474,7 @@ func TestAppCachesTerminalPresentationWithLocalMediaWithoutRetry(t *testing.T) {
 			app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 			app.Start(t.Context())
 			t.Cleanup(app.Stop)
-			waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+			waitSnapshot(t, app, func(snap Snapshot) bool {
 				mu.Lock()
 				n := presentationGets
 				mu.Unlock()
@@ -1609,7 +1610,7 @@ func TestAppKeepsFocusAcrossPaginatedReload(t *testing.T) {
 	app.pageLimit = 1
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 3 && !snap.Loading
 	})
 	if !app.focusIndex(2) {
@@ -1620,7 +1621,7 @@ func TestAppKeepsFocusAcrossPaginatedReload(t *testing.T) {
 		t.Fatalf("selected before reload = %#v ok=%v", selected, ok)
 	}
 	app.Press(CmdSortCycle, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 3 && !snap.Loading && snap.Sort == "recently_added"
 	})
 	selected, ok = app.Selected()
@@ -1689,7 +1690,7 @@ func TestAppPaginationKeepsQueryWhileSearchPending(t *testing.T) {
 	app.pageLimit = 1
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 1 && snap.Loading && snap.Games[0].ID == "snes-alpha"
 	})
 	now := time.Now()
@@ -1699,7 +1700,7 @@ func TestAppPaginationKeepsQueryWhileSearchPending(t *testing.T) {
 		t.Fatalf("typed query = %q", got)
 	}
 	releaseBravo()
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	var snap Snapshot
 	for time.Now().Before(deadline) {
 		app.Tick(now)
@@ -1730,7 +1731,7 @@ func TestAppPaginationKeepsQueryWhileSearchPending(t *testing.T) {
 		t.Fatalf("unfiltered cursors = %#v", got[:3])
 	}
 	app.Tick(now.Add(searchDebounce + time.Millisecond))
-	waitSnapshot(t, app, 2*time.Second, func(s Snapshot) bool {
+	waitSnapshot(t, app, func(s Snapshot) bool {
 		return s.Query == "sonic" && !s.Loading && len(s.Games) == 1 && s.Games[0].ID == "megadrive-sonic"
 	})
 }
@@ -1785,11 +1786,11 @@ func TestAppKeepsUserNavDuringInitialPagination(t *testing.T) {
 	app.pageLimit = 1
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 1 && snap.Loading
 	})
 	releaseBravo()
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 2 && snap.Loading
 	})
 	app.Press(CmdRight, time.Now())
@@ -1798,7 +1799,7 @@ func TestAppKeepsUserNavDuringInitialPagination(t *testing.T) {
 		t.Fatalf("user nav during pagination = %#v ok=%v", selected, ok)
 	}
 	releaseCharlie()
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 3 && !snap.Loading
 	})
 	selected, ok = app.Selected()
@@ -1865,25 +1866,25 @@ func TestAppKeepsUserNavDuringPaginatedReload(t *testing.T) {
 	app.pageLimit = 1
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 3 && !snap.Loading
 	})
 	if !app.focusIndex(2) {
 		t.Fatal("focus charlie")
 	}
 	app.Press(CmdSortCycle, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Sort == "recently_added" && len(snap.Games) == 1 && snap.Loading
 	})
 	releaseBravo()
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 2 && snap.Loading
 	})
 	if !app.focusIndex(0) {
 		t.Fatal("user moved to alpha during pagination")
 	}
 	releaseCharlie()
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 3 && !snap.Loading
 	})
 	selected, ok := app.Selected()
@@ -1930,11 +1931,11 @@ func TestAppBlocksLaunchWhileCatalogReloading(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 2 && !snap.Loading
 	})
 	app.Press(CmdSortCycle, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Loading && snap.Sort == "recently_added"
 	})
 	app.Press(CmdSelect, time.Now())
@@ -1949,11 +1950,11 @@ func TestAppBlocksLaunchWhileCatalogReloading(t *testing.T) {
 		t.Fatalf("launch phase during reload = %q", phase)
 	}
 	releaseReload()
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && len(snap.Games) == 2
 	})
 	app.Press(CmdSelect, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Launch.Phase == "ok"
 	})
 	mu.Lock()
@@ -2007,14 +2008,14 @@ func TestAppClampsFocusWhenReloadedIDMissing(t *testing.T) {
 	app.pageLimit = 1
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 3 && len(snap.Platforms) == 2 && !snap.Loading
 	})
 	if !app.focusIndex(2) {
 		t.Fatal("focus charlie")
 	}
 	app.Press(CmdFilterNext, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.PlatformID == "snes" && len(snap.Games) == 2 && !snap.Loading
 	})
 	selected, ok := app.Selected()
@@ -2060,7 +2061,7 @@ func TestAppSelectClosesSearchFlushesBeforeLaunch(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 2 && !snap.Loading
 	})
 	now := time.Now()
@@ -2068,7 +2069,7 @@ func TestAppSelectClosesSearchFlushesBeforeLaunch(t *testing.T) {
 	app.TypeText("sonic", now)
 	focusSearchKey(t, app, "done")
 	app.Press(CmdSelect, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.SearchOpen && snap.Loading && snap.Query == "sonic"
 	})
 	app.Press(CmdSelect, now)
@@ -2083,11 +2084,11 @@ func TestAppSelectClosesSearchFlushesBeforeLaunch(t *testing.T) {
 		t.Fatalf("launch phase while search pending/reloading = %q", phase)
 	}
 	releaseSearch()
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && len(snap.Games) == 1 && snap.Games[0].ID == "megadrive-sonic"
 	})
 	app.Press(CmdSelect, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Launch.Phase == "ok"
 	})
 	mu.Lock()
@@ -2121,7 +2122,7 @@ func TestAppCancelsSupersededCatalogRequest(t *testing.T) {
 				default:
 				}
 				return
-			case <-time.After(3 * time.Second):
+			case <-time.After(testwait.Timeout):
 				http.Error(w, "superseded games GET was not canceled", http.StatusGatewayTimeout)
 				return
 			}
@@ -2134,22 +2135,22 @@ func TestAppCancelsSupersededCatalogRequest(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 1 && !snap.Loading
 	})
 	app.Press(CmdSortCycle, time.Now())
 	select {
 	case <-blocked:
-	case <-time.After(2 * time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("reload did not reach games GET")
 	}
 	app.Press(CmdSortCycle, time.Now())
 	select {
 	case <-canceled:
-	case <-time.After(2 * time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("superseded games GET was not canceled")
 	}
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && len(snap.Games) == 1 && snap.Sort == "platform" && snap.LoadErr == ""
 	})
 }
@@ -2177,7 +2178,7 @@ func TestAppCancelsSupersededCoverWork(t *testing.T) {
 					default:
 					}
 					return
-				case <-time.After(3 * time.Second):
+				case <-time.After(testwait.Timeout):
 					http.Error(w, "superseded artwork GET was not canceled", http.StatusGatewayTimeout)
 					return
 				}
@@ -2192,7 +2193,7 @@ func TestAppCancelsSupersededCoverWork(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for {
 		app.Tick(time.Now())
 		select {
@@ -2209,10 +2210,10 @@ artworkStarted:
 	app.Press(CmdSortCycle, time.Now())
 	select {
 	case <-canceled:
-	case <-time.After(2 * time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("superseded artwork GET was not canceled")
 	}
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && len(snap.Games) == 1 && snap.CoverHits >= 1 && snap.LoadErr == ""
 	})
 }
@@ -2238,7 +2239,7 @@ func TestAppCancelsSupersededPresentationWork(t *testing.T) {
 					default:
 					}
 					return
-				case <-time.After(3 * time.Second):
+				case <-time.After(testwait.Timeout):
 					http.Error(w, "superseded presentation GET was not canceled", http.StatusGatewayTimeout)
 					return
 				}
@@ -2263,7 +2264,7 @@ func TestAppCancelsSupersededPresentationWork(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for {
 		app.Tick(time.Now())
 		select {
@@ -2280,10 +2281,10 @@ presentationStarted:
 	app.Press(CmdSortCycle, time.Now())
 	select {
 	case <-canceled:
-	case <-time.After(2 * time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("superseded presentation GET was not canceled")
 	}
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && len(snap.Games) == 1 && snap.CoverHits >= 1 && snap.LoadErr == ""
 	})
 }
@@ -2309,7 +2310,7 @@ func TestGPUParkCancelsInFlightPresentationWork(t *testing.T) {
 					default:
 					}
 					return
-				case <-time.After(3 * time.Second):
+				case <-time.After(testwait.Timeout):
 					http.Error(w, "parked presentation GET was not canceled", http.StatusGatewayTimeout)
 					return
 				}
@@ -2334,7 +2335,7 @@ func TestGPUParkCancelsInFlightPresentationWork(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for {
 		app.Tick(time.Now())
 		select {
@@ -2359,14 +2360,14 @@ presentationStarted:
 	}
 	select {
 	case <-canceled:
-	case <-time.After(2 * time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("parked presentation GET was not canceled")
 	}
 	app.mu.Lock()
 	app.session.State = "idle"
 	app.syncGPUParkLocked()
 	app.mu.Unlock()
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.GPUParked && !snap.Loading && len(snap.Games) == 1 && snap.CoverHits >= 1 && snap.LoadErr == ""
 	})
 }
@@ -2444,7 +2445,7 @@ func TestWorkerRejectsStaleMediaJobBeforeIO(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && len(snap.Games) == 1
 	})
 	app.mu.Lock()
@@ -2458,7 +2459,7 @@ func TestWorkerRejectsStaleMediaJobBeforeIO(t *testing.T) {
 	for _, item := range jobs {
 		select {
 		case app.jobs <- item:
-		case <-time.After(time.Second):
+		case <-time.After(testwait.Timeout):
 			t.Fatal("jobs channel blocked")
 		}
 	}
@@ -2506,19 +2507,19 @@ func TestAppOverlappingReloadKeepsPreClearFocus(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 3 && !snap.Loading
 	})
 	if !app.focusIndex(2) {
 		t.Fatal("focus charlie")
 	}
 	app.Press(CmdSortCycle, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Loading && len(snap.Games) == 0 && snap.Sort == "recently_added"
 	})
 	app.Press(CmdSortCycle, time.Now())
 	releaseReload()
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && len(snap.Games) == 3 && snap.Sort == "platform"
 	})
 	selected, ok := app.Selected()
@@ -2585,23 +2586,23 @@ func TestAppKeepsFocusWhenCyclingDuringPartialReload(t *testing.T) {
 	app.pageLimit = 1
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 3 && !snap.Loading
 	})
 	if !app.focusIndex(2) {
 		t.Fatal("focus charlie")
 	}
 	app.Press(CmdSortCycle, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Sort == "recently_added" && len(snap.Games) == 1 && snap.Loading
 	})
 	app.Press(CmdSortCycle, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Sort == "platform" && len(snap.Games) == 1 && snap.Loading
 	})
 	releaseBravo()
 	releaseCharlie()
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && len(snap.Games) == 3 && snap.Sort == "platform"
 	})
 	selected, ok := app.Selected()
@@ -2668,18 +2669,18 @@ func TestAppRecapturesFocusWhenUserMovesDuringPartialReload(t *testing.T) {
 	app.pageLimit = 1
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 3 && !snap.Loading
 	})
 	if !app.focusIndex(2) {
 		t.Fatal("focus charlie")
 	}
 	app.Press(CmdSortCycle, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Sort == "recently_added" && len(snap.Games) == 1 && snap.Loading
 	})
 	releaseBravo()
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 2 && snap.Loading
 	})
 	if !app.focusIndex(0) {
@@ -2687,7 +2688,7 @@ func TestAppRecapturesFocusWhenUserMovesDuringPartialReload(t *testing.T) {
 	}
 	app.Press(CmdSortCycle, time.Now())
 	releaseCharlie()
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && len(snap.Games) == 3 && snap.Sort == "platform"
 	})
 	selected, ok := app.Selected()
@@ -2754,18 +2755,18 @@ func TestAppRecapturesFocusWhenUserReturnsToRestoredIndex(t *testing.T) {
 	app.pageLimit = 1
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 3 && !snap.Loading
 	})
 	if !app.focusIndex(2) {
 		t.Fatal("focus charlie")
 	}
 	app.Press(CmdSortCycle, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Sort == "recently_added" && len(snap.Games) == 1 && snap.Loading
 	})
 	releaseBravo()
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 2 && snap.Loading && snap.Grid.Focus == 1
 	})
 	app.Press(CmdLeft, time.Now())
@@ -2778,7 +2779,7 @@ func TestAppRecapturesFocusWhenUserReturnsToRestoredIndex(t *testing.T) {
 	}
 	app.Press(CmdSortCycle, time.Now())
 	releaseCharlie()
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && len(snap.Games) == 3 && snap.Sort == "platform"
 	})
 	selected, ok := app.Selected()
@@ -2845,18 +2846,18 @@ func TestAppKeepsUserNavWhenReturningToClampedIndexDuringPagination(t *testing.T
 	app.pageLimit = 1
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 3 && !snap.Loading
 	})
 	if !app.focusIndex(2) {
 		t.Fatal("focus charlie")
 	}
 	app.Press(CmdSortCycle, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Sort == "recently_added" && len(snap.Games) == 1 && snap.Loading
 	})
 	releaseBravo()
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 2 && snap.Loading && snap.Grid.Focus == 1
 	})
 	app.Press(CmdLeft, time.Now())
@@ -2868,7 +2869,7 @@ func TestAppKeepsUserNavWhenReturningToClampedIndexDuringPagination(t *testing.T
 		t.Fatalf("return to restored index focus=%d", got)
 	}
 	releaseCharlie()
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && len(snap.Games) == 3 && snap.Sort == "recently_added"
 	})
 	selected, ok := app.Selected()
@@ -2907,7 +2908,7 @@ func TestAppRetriesFailedPlatformListAndSurfacesStatus(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 1 && len(snap.Platforms) == 0 && strings.Contains(snap.Status, "platform list failed")
 	})
 	app.Press(CmdFilterNext, time.Now())
@@ -2917,11 +2918,11 @@ func TestAppRetriesFailedPlatformListAndSurfacesStatus(t *testing.T) {
 	mu.Lock()
 	fail = false
 	mu.Unlock()
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Platforms) == 2 && !strings.Contains(snap.Status, "platform list failed")
 	})
 	app.Press(CmdFilterNext, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.PlatformID == "snes" && !snap.Loading
 	})
 }
@@ -2948,7 +2949,7 @@ func TestAppBacksOffFailedPlatformListRetriesUntilShoulderKick(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		mu.Lock()
 		n := platformGets
 		mu.Unlock()
@@ -2969,7 +2970,7 @@ func TestAppBacksOffFailedPlatformListRetriesUntilShoulderKick(t *testing.T) {
 		t.Fatalf("platform GETs during backoff: first=%d later=%d", afterFirst, duringBackoff)
 	}
 	app.Press(CmdFilterNext, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		mu.Lock()
 		n := platformGets
 		mu.Unlock()
@@ -3029,9 +3030,9 @@ func TestLayoutDetailMetaReservesAttribution(t *testing.T) {
 	}
 }
 
-func waitSnapshot(t *testing.T, app *App, d time.Duration, ok func(Snapshot) bool) {
+func waitSnapshot(t *testing.T, app *App, ok func(Snapshot) bool) {
 	t.Helper()
-	deadline := time.Now().Add(d)
+	deadline := time.Now().Add(testwait.Timeout)
 	var snap Snapshot
 	for time.Now().Before(deadline) {
 		app.Tick(time.Now())
