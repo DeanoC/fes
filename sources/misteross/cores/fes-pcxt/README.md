@@ -572,9 +572,11 @@ and checks `FESXT.TXT` in both text memory and the captured display. The
 rendered directory text is checked against the selected font and attributes.
 The runner validates the selected disk's boot code, FAT12 layout and file
 contents against the lock and records the actual disk hash. Outputs are under
-`build/sim/fes-pcxt/dos/`. This is host simulation; the registered diagnostic
-package does not connect the floppy media service. There is no PC floppy runtime
-media ABI, write persistence or hardware acceptance for this path.
+`build/sim/fes-pcxt/dos/`. This is host simulation. The `fes.pcxt-dos` package
+connects the runtime floppy media interface and keeps the medium read-only;
+hardware acceptance remains tied to the exact package and source recorded in
+the parent core-status matrix. Write persistence and broader compatibility are
+not implemented.
 
 ## Assembled board diagnostic
 

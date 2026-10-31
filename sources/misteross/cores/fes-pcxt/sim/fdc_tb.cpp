@@ -99,6 +99,10 @@ int main(int argc,char **argv) {
     b.wait_irq();b.sense(0x20,0);
     b.send({0x04,1});auto absent=b.result(1);
     b.check(absent[0]==1,"absent unit must not inherit drive-0 READY/TRK0");
+    b.check(!(b.d.irq&0x40),"Sense Drive Status must not raise IRQ6");
+    b.send({0x80});auto invalid=b.result(1);
+    b.check(invalid[0]==0x80 && !(b.d.irq&0x40),
+            "invalid command returns ST0 without IRQ6");
 
     // Start a DMA cycle while the disk service is withholding READY. The
     // endpoint must hold it without consuming a byte or inventing completion.

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// Eight registered logical slots; CGA slot 2 and MDA slot 3, remaining vacant.
+// Eight registered slots: CGA index 1, MDA index 2, optional floppy index 3.
 module pcxt_display_bus #(parameter bit DIAGNOSTIC_PROBE = 0, FLOPPY = 0,
     parameter integer CLOCK_HZ = 100000000) (
     input wire clk, reset, cycle_valid,

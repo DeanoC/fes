@@ -814,7 +814,10 @@ module fes_computer_mailbox_pcxt (
         .unit0_state(unit0_state), .unit0_size(unit0_size), .unit1_state(), .unit1_size(),
         .display_request(), .display_opcode(), .display_index(), .display_argument(),
         .display_response_valid(1'b0), .display_response_error(1'b0),
-        .display_response_data(16'b0), .display_quiesced(1'b1)
+        .display_response_data(16'b0), .display_quiesced(1'b1),
+        .storage_request(), .storage_opcode(), .storage_index(), .storage_argument(),
+        .storage_response_valid(1'b0), .storage_response_error(1'b0),
+        .storage_response_data(16'b0), .execution_accepted()
     );
     /* verilator lint_on PINCONNECTEMPTY */
 endmodule

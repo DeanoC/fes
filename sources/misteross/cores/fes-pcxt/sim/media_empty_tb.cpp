@@ -52,8 +52,9 @@ int main(int argc,char **argv) {
     require((d.media_gpi&(1u<<23)) && !(d.media_gpi&(1u<<22)),"execution release failed",cycles);
     for(unsigned i=0;d.machine_reset && i<1000;++i)step();
     require(!d.machine_reset && d.media_state==1 && !d.disk_loaded,"empty unit kept guest reset",cycles);
-    for(unsigned i=0;i<20000000 && instructions<1000;++i)step();
-    require(instructions>=1000,"diskless BIOS did not execute",cycles);
-    require(!d.machine_reset && d.media_state==1,"empty disk reset running guest",cycles);
-    std::cout<<"PASS PC/XT empty drive: execution release runs BIOS with no disk\n";
+    for(unsigned i=0;i<20000000 && instructions<10000;++i)step();
+    require(instructions>=10000,"diskless BIOS did not execute",cycles);
+    require(!d.machine_reset && d.media_state==1 && !d.disk_loaded,
+            "empty disk reset running guest or became loaded",cycles);
+    std::cout<<"PASS PC/XT empty drive: execution release sustains 10000 BIOS instructions with no disk\n";
 }
