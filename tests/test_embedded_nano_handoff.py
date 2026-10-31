@@ -112,5 +112,93 @@ class NanoExportTests(unittest.TestCase):
             self.assertEqual(bootm.read_bytes(), before)
 
 
+class NanoBridgeDiagnosticsTests(unittest.TestCase):
+    """Execute the real adapter's bridge call/readback with injected replies."""
+    @classmethod
+    def setUpClass(cls):
+        cls.temp = tempfile.TemporaryDirectory()
+        base = Path(cls.temp.name)
+        adapter = (HERE / "uboot.c").read_text()
+        start = adapter.index("static int close_bridges(")
+        stop = adapter.index("static void contain(", start)
+        source = base / "bridge.c"
+        source.write_text(r'''
+#include <assert.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include "handoff.h"
+typedef uint32_t u32;
+typedef uint64_t u64;
+#define RSTMGR 0x10d11000UL
+#define INTEL_SIP_SMC_HPS_SET_BRIDGES 0xc2000032U
+static u32 before, after;
+static int status;
+static unsigned reads, calls;
+static u32 readl(unsigned long address) {
+    assert(address == RSTMGR + 0x2c);
+    assert(reads < 2);
+    if (reads++ == 0) { assert(calls == 0); return before; }
+    assert(calls == 1);
+    return after;
+}
+static int invoke_smc(u32 function, u64 *args, int count, u64 *reply, int replies) {
+    assert(function == INTEL_SIP_SMC_HPS_SET_BRIDGES);
+    assert(count == 2 && args[0] == 2 && args[1] == FES_NANO_BRIDGES);
+    assert(reply == NULL && replies == 0 && reads == 1 && calls == 0);
+    calls++;
+    return status;
+}
+''' + adapter[start:stop] + r'''
+int main(int argc, char **argv) {
+    assert(argc == 5);
+    status = (int)strtol(argv[1], NULL, 0);
+    before = (u32)strtoul(argv[2], NULL, 0);
+    after = (u32)strtoul(argv[3], NULL, 0);
+    int accepted = close_bridges(argv[4]);
+    assert(reads == 2 && calls == 1);
+    printf("HARNESS accepted=%d reads=%u calls=%u\n", accepted, reads, calls);
+    return 0;
+}
+''')
+        cls.binary = base / "bridge"
+        subprocess.run([shutil.which("cc"), "-std=c11", "-Wall", "-Wextra", "-Werror",
+                        "-fsanitize=undefined", "-fno-sanitize-recover=all", "-I", str(HERE),
+                        str(source), "-o", str(cls.binary)], check=True)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.temp.cleanup()
+
+    def check_reply(self, status, before, after, phase="before-load"):
+        with self.subTest(status=status, before=before, after=after, phase=phase):
+            output = subprocess.check_output([str(self.binary), str(status), hex(before), hex(after), phase], text=True)
+            smc_error, reset_mismatch = int(status != 0), int(after & 0xf != 0xf)
+            begin = f"FES_NANO_BRIDGE BEGIN phase={phase} mask=0000000f before={before:08x}"
+            result = (f"FES_NANO_BRIDGE RESULT phase={phase} smc={status} smc_hex={status & 0xffffffff:08x} "
+                      f"mask=0000000f before={before:08x} after={after:08x} "
+                      f"smc_error={smc_error} reset_mismatch={reset_mismatch}")
+            self.assertIn(begin, output)
+            self.assertIn(result, output)
+            self.assertLess(output.index(begin), output.index(result))
+            rejected = smc_error or reset_mismatch
+            self.assertIn(f"HARNESS accepted={int(not rejected)} reads=2 calls=1", output)
+            if rejected:
+                self.assertIn(f"FES_NANO_HANDOFF REJECT bridge phase={phase} smc_error={smc_error} reset_mismatch={reset_mismatch}", output)
+            else:
+                self.assertNotIn("REJECT", output)
+
+    def test_service_error_and_reset_mismatch_are_independent(self):
+        for phase in ("before-load", "after-remove"):
+            for status in (0, 4, -1):
+                for after in (0, 7, 0xf, 0x8000000f):
+                    self.check_reply(status, 0x80000003, after, phase)
+
+    def test_all_required_reset_bits_and_already_closed_bridge(self):
+        for bit in range(4):
+            self.check_reply(0, 0xf, 0xf & ~(1 << bit))
+        self.check_reply(0, 0xf, 0xf)
+
+
 if __name__ == "__main__":
     unittest.main()

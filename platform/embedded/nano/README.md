@@ -59,6 +59,26 @@ Failures after containment park and preserve the altered state. The command
 does not restore uncertain devices or automatically retry. A diagnostic boot
 ID binds the entry digest and handoff source hashes; hashes are not signatures.
 
+Each bridge close now emits `FES_NANO_BRIDGE BEGIN` before the SMC and
+`FES_NANO_BRIDGE RESULT` after it returns. Both lines identify `phase=before-load`
+or `phase=after-remove`, the requested reset mask and the initial reset register.
+The result records the signed/hexadecimal firmware return, complete final
+reset register and independent `smc_error` and `reset_mismatch` flags. Readback
+runs even when firmware returns an error. The original acceptance condition
+is unchanged: a zero service return and every requested reset bit set.
+
+| `smc_error` | `reset_mismatch` | Observation and action |
+| --- | --- | --- |
+| 0 | 0 | Both bridge checks passed; continue the remaining handoff checks |
+| 1 | 0 | Firmware reported failure despite matching reset bits; reject and park |
+| 0 | 1 | Firmware returned success but reset bits differ; reject and park |
+| 1 | 1 | Both failure observations occurred; reject and park |
+
+These observations do not establish why a handshake failed or prove traffic
+drained. A `BEGIN` without a `RESULT` identifies an unreturned call or lost
+execution; the host capture deadline cannot preempt it. Stop the attempt and
+restore the factory baseline rather than issuing another `fesboot`.
+
 ## Build and inspect
 
 Use the pinned compiler and clean Terasic references described in the

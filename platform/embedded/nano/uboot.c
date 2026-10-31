@@ -73,14 +73,36 @@ static void snapshot(struct fes_nano_state *s)
     s->uart_lsr = readl(UART1 + 0x14);
 }
 
-static void contain(unsigned function_mask, unsigned ocp_mask)
+static int close_bridges(const char *phase)
 {
     u64 args[2] = {2, FES_NANO_BRIDGES};
-    if (invoke_smc(INTEL_SIP_SMC_HPS_SET_BRIDGES, args, 2, NULL, 0) ||
-        (readl(RSTMGR + 0x2c) & FES_NANO_BRIDGES) != FES_NANO_BRIDGES) {
-        puts("FES_NANO_HANDOFF REJECT bridge service/readback\n");
-        hang();
+    u32 before = readl(RSTMGR + 0x2c), after;
+    int status;
+    unsigned smc_error, reset_mismatch;
+
+    printf("FES_NANO_BRIDGE BEGIN phase=%s mask=%08x before=%08x\n",
+           phase, FES_NANO_BRIDGES, before);
+    status = invoke_smc(INTEL_SIP_SMC_HPS_SET_BRIDGES, args, 2, NULL, 0);
+    /* Read back even on a returned service error. Neither observation proves
+     * traffic drained; both must pass the existing containment gate. */
+    after = readl(RSTMGR + 0x2c);
+    smc_error = status != 0;
+    reset_mismatch = (after & FES_NANO_BRIDGES) != FES_NANO_BRIDGES;
+    printf("FES_NANO_BRIDGE RESULT phase=%s smc=%d smc_hex=%08x mask=%08x before=%08x after=%08x smc_error=%u reset_mismatch=%u\n",
+           phase, status, (unsigned)status, FES_NANO_BRIDGES, before, after,
+           smc_error, reset_mismatch);
+    if (smc_error || reset_mismatch) {
+        printf("FES_NANO_HANDOFF REJECT bridge phase=%s smc_error=%u reset_mismatch=%u\n",
+               phase, smc_error, reset_mismatch);
+        return 0;
     }
+    return 1;
+}
+
+static void contain(const char *phase, unsigned function_mask, unsigned ocp_mask)
+{
+    if (!close_bridges(phase))
+        hang();
     setbits_le32(RSTMGR + 0x24, function_mask);
     if ((readl(RSTMGR + 0x24) & function_mask) != function_mask) {
         puts("FES_NANO_HANDOFF REJECT peripheral reset\n");
@@ -107,7 +129,7 @@ void fes_nano_late_handoff(void)
     }
     /* Functional resets first, then their OCP interfaces, preserving UART1,
      * DDR, clocks, SDM and the ComboPHY. No DMA driver is built into this image. */
-    contain(FES_NANO_PER0_FUNCTION, FES_NANO_PER0_OCP);
+    contain("after-remove", FES_NANO_PER0_FUNCTION, FES_NANO_PER0_OCP);
     start = get_timer(0);
     while ((readl(UART1 + 0x14) & 0x60) != 0x60) {
         if (get_timer(start) > 100) {
@@ -145,7 +167,7 @@ static int do_fesboot(struct cmd_tbl *cmdtp, int flag, int argc, char *const arg
     }
     /* Contain all writers before reading the entry. SD remains available in
      * polled PIO mode solely to read the file, and is reset at the late gate. */
-    contain(FES_NANO_PER0_FUNCTION & ~(1U << 7), FES_NANO_PER0_OCP & ~(1U << 15));
+    contain("before-load", FES_NANO_PER0_FUNCTION & ~(1U << 7), FES_NANO_PER0_OCP & ~(1U << 15));
     if (fs_set_blk_dev("mmc", "0:1", FS_TYPE_FAT) || fs_size("FES/ENTRY.IMG", &size) ||
         size != FES_NANO_IMAGE_SIZE || fs_set_blk_dev("mmc", "0:1", FS_TYPE_FAT) ||
         fs_read("FES/ENTRY.IMG", FES_NANO_STAGE, 0, size, &read) || read != size) {
