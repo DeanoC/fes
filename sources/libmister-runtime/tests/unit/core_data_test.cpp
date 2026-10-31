@@ -67,9 +67,90 @@ void SharedRecords()
 	}
 	assert(valid == 3 && invalid >= 8);
 }
+// The shared fes.pc386.machine vectors: per-game FESGAME1 records.
+void SharedMachineRecords()
+{
+	std::ifstream fixture("tests/fixtures/core-persistence-v1/pc386-machine.json");
+	assert(fixture.good());
+	std::string json((std::istreambuf_iterator<char>(fixture)), std::istreambuf_iterator<char>());
+	const std::regex rows(R"rx(\{[^{}]*"hex"[^{}]*\})rx");
+	const std::regex hex(R"rx("hex"\s*:\s*"([0-9a-f]*)")rx");
+	const std::regex revision(R"rx("revision"\s*:\s*"([0-9a-f]{64})")rx");
+	const std::regex words(R"rx("words"\s*:\s*\[([0-9,\s]*)\])rx");
+	std::smatch match;
+	assert(std::regex_search(json, match, std::regex(R"rx("namespace"\s*:\s*"([0-9a-f]{64})")rx")));
+	assert(GameDataNamespace("fes.pc386", "ultima-vi") == match[1]);
+	std::size_t valid = 0, invalid = 0;
+	for (std::sregex_iterator row(json.begin(), json.end(), rows), end; row != end; ++row) {
+		const std::string text = row->str();
+		std::smatch h, r, w;
+		assert(std::regex_search(text, h, hex));
+		auto bytes = Unhex(h[1].str());
+		CoreData data;
+		if (std::regex_search(text, r, revision)) {
+			++valid;
+			assert(DecodeGameData(bytes, "fes.pc386", "ultima-vi", &data).ok());
+			assert(data.revision == r[1] && data.game_id == "ultima-vi");
+			assert(std::regex_search(text, w, words));
+			std::vector<std::uint16_t> expected;
+			const std::string list = std::regex_replace(w[1].str(), std::regex("\\s"), "");
+			for (std::size_t at = 0; at < list.size();) {
+				const auto comma = list.find(',', at);
+				expected.push_back(static_cast<std::uint16_t>(std::stoul(list.substr(at, comma - at))));
+				at = comma == std::string::npos ? list.size() : comma + 1;
+			}
+			assert(data.words == expected);
+			std::vector<unsigned char> encoded;
+			assert(EncodeCoreData(data, &encoded).ok());
+			assert(encoded == bytes);
+			// A Pong decoder never takes a per-game record.
+			assert(!DecodeCoreData(bytes, "fes.pc386", &data).ok());
+		} else {
+			++invalid;
+			assert(!DecodeGameData(bytes, "fes.pc386", "ultima-vi", &data).ok());
+		}
+	}
+	assert(valid == 3 && invalid >= 20);
+}
+void MachineNamespace()
+{
+	char tmp[] = "/tmp/runtime-game-data-XXXXXX";
+	assert(mkdtemp(tmp));
+	std::unique_ptr<CoreDataFile> file;
+	assert(!CoreDataFile::OpenGame(tmp, "fes.pc386", "Bad-Game", &file).ok());
+	assert(CoreDataFile::OpenGame(tmp, "fes.pc386", "ultima-vi", &file).ok());
+	CoreData data;
+	assert(file->Read(&data).ok() && data.revision == "absent" && data.game_id == "ultima-vi");
+	assert(data.layout.id == "fes.pc386.machine" && data.words == Pc386MachineDefaults());
+	data.words[0] = 3;
+	data.words[8] = 0x1234;
+	CoreData published;
+	assert(file->Persist(data, "absent", &published).ok() && published.words[8] == 0x1234);
+	data.words[5] = 9;
+	assert(file->Persist(data, published.revision, nullptr).code == ErrorCode::corrupt_data);
+	// Another game of the same core has its own record.
+	std::unique_ptr<CoreDataFile> other;
+	assert(CoreDataFile::OpenGame(tmp, "fes.pc386", "ultima-vii", &other).ok());
+	assert(other->Read(&data).ok() && data.revision == "absent");
+	CoreData wrong = published;
+	wrong.game_id = "ultima-vii";
+	assert(file->Persist(wrong, published.revision, nullptr).code == ErrorCode::incompatible_data);
+	const std::string games = std::string(tmp) + "/games/";
+	const std::string first = games + GameDataNamespace("fes.pc386", "ultima-vi");
+	const std::string second = games + GameDataNamespace("fes.pc386", "ultima-vii");
+	struct stat state {};
+	assert(stat((first + "/record.bin").c_str(), &state) == 0 && state.st_size == 273);
+	file.reset();
+	other.reset();
+	assert(unlink((first + "/record.bin").c_str()) == 0);
+	assert(rmdir(first.c_str()) == 0 && rmdir(second.c_str()) == 0 && rmdir(games.c_str()) == 0);
+	assert(rmdir(tmp) == 0);
+}
 int main()
 {
 	SharedRecords();
+	SharedMachineRecords();
+	MachineNamespace();
 	const std::string id = "org.fes.pong";
 	CoreData data;
 	data.core_id = id;
@@ -158,5 +239,5 @@ int main()
 	reopened.reset();
 	assert(rmdir(dir.c_str()) == 0);
 	assert(rmdir(tmp) == 0);
-	puts("core_data_test: codec, identity, corruption, CAS, retained storage and no-follow passed");
+	puts("core_data_test: codec, identity, corruption, CAS, retained storage, no-follow and per-game records passed");
 }

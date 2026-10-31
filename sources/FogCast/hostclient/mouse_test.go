@@ -35,12 +35,21 @@ func TestMousePostPackedOnceAndAdmission(t *testing.T) {
 	if err := client.SendMouseRelativeForSession(context.Background(), session, -32768, 32767, 3); err != nil || posts != 1 {
 		t.Fatalf("post=%d err=%v", posts, err)
 	}
+	computer11 := session
+	computer11.CorePackage = &SessionCorePackage{
+		PackageID: session.CorePackage.PackageID, Generation: session.CorePackage.Generation,
+		ABI:              SessionCoreABI{ID: "fes.computer", Major: 1, Minor: 1},
+		ActiveInterfaces: session.CorePackage.ActiveInterfaces,
+	}
+	if err := client.SendMouseRelativeForSession(context.Background(), computer11, -32768, 32767, 3); err != nil || posts != 2 {
+		t.Fatalf("computer 1.1 mouse post=%d err=%v", posts, err)
+	}
 	for _, invalid := range []SessionResult{{}, {State: "active", Input: session.Input}, {State: "active", CoreMouse: true}} {
 		if err := client.SendMouseRelativeForSession(context.Background(), invalid, 1, 1, 0); err == nil {
 			t.Fatal("invalid session posted mouse")
 		}
 	}
-	if err := client.SendMouseRelativeForSession(context.Background(), session, 0, 0, 4); err == nil || posts != 1 {
+	if err := client.SendMouseRelativeForSession(context.Background(), session, 0, 0, 4); err == nil || posts != 2 {
 		t.Fatal("invalid button report posted")
 	}
 	lost := 0
@@ -48,7 +57,7 @@ func TestMousePostPackedOnceAndAdmission(t *testing.T) {
 		lost++
 		return nil, io.ErrUnexpectedEOF
 	})})
-	if err := client.SendMouseRelativeForSession(context.Background(), session, 1, 1, 1); err == nil || lost != 1 {
+	if err := client.SendMouseRelativeForSession(context.Background(), computer11, 1, 1, 1); err == nil || lost != 1 {
 		t.Fatalf("ambiguous report was replayed: posts=%d err=%v", lost, err)
 	}
 }
