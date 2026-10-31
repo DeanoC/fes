@@ -26,7 +26,9 @@ protocol; they add no device opener, daemon operation, programming profile or
 production hardware admission. See the
 [shared control contract](../mister-packages/docs/de25-pr-control.md).
 
-The separate native `De25Computer` diagnostic client uses resource-relative,
+The separate native `De25Computer` diagnostic client selects the endpoint's
+exact `fes.computer` ABI 1.0, independently of the newest generated family minor.
+It uses resource-relative,
 ordered 32-bit register operations for `fes.fabric.de25-computer`. It requires
 the selected nonzero build ID and exact ZX81 capabilities before hold/run,
 full HID state or CRC/chunked tape delivery. Each command has one atomic GPO

@@ -160,7 +160,7 @@ void TestCompletedKeyboardSnapshotSurvivesSettleDeadline() {
 	assert(!f.client.Poisoned() && f.bridge.rows == rows);
 }
 void TestSelectedIdentityRefusesMutations() {
-	for (unsigned fault = 0; fault < 7; ++fault) {
+	for (unsigned fault = 0; fault < 8; ++fault) {
 		Fixture f; De25ComputerIdentity id;
 		if (fault == 0) f.bridge.bridge_id ^= 1;
 		if (fault == 1) f.bridge.version++;
@@ -169,6 +169,7 @@ void TestSelectedIdentityRefusesMutations() {
 		if (fault == 4) f.bridge.identity[8] ^= 1;
 		if (fault == 5) f.bridge.maximum = FesComputerZx81TapeMaxBytes;
 		if (fault == 6) f.bridge.max_chunk = 256;
+		if (fault == 7) f.bridge.identity[6] = 1; // A 1.1 endpoint is not this selected 1.0 artifact.
 		assert(!f.client.Identify(kBuild, 1000000, &id).ok() && f.client.Poisoned());
 		const auto writes = f.bridge.writes.size(); assert(!f.client.Hold(1000000).ok());
 		assert(f.bridge.writes.size() == writes);
