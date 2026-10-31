@@ -47,6 +47,25 @@ static const uint8_t chain[32]={0x42,0x17};
 int main(void)
 {
     unsigned cases=0;
+    const uint32_t allowed_causes[]={0,1,4,5};
+    for (unsigned n=0;n<4;n++) for (unsigned core=0;core<=2;core+=2) {
+        struct hw h;init(&h,core);h.r[FES_COLD_CAUSE]=allowed_causes[n];
+        struct fes_nano_cold spl={0},bl31={0};struct fes_nano_cold_record r;
+        assert(!fes_nano_cold_begin(&spl,ops(&h),chain,17,7,core));
+        assert(!fes_nano_cold_finish(&spl,1,&r));
+        assert(!fes_nano_cold_consume(&bl31,&r,ops(&h),chain,17));cases++;
+    }
+    for (unsigned bit=0;bit<32;bit++) if (bit!=0 && bit!=2) {
+        struct hw h;init(&h,0);h.r[FES_COLD_CAUSE]=4U|(1U<<bit);struct fes_nano_cold s={0};
+        assert(fes_nano_cold_begin(&s,ops(&h),chain,17,7,0)<0 && !h.writes);cases++;
+    }
+    /* Exact first TRWU8CBL tuple stays rejected even after correcting POR.
+     * Its CPU status does not match either qualified primary inventory. */
+    for (unsigned core=0;core<=2;core+=2) {
+        struct hw h;init(&h,core);h.r[FES_COLD_CAUSE]=4;h.r[FES_COLD_PER0]=0xff7fbfff;
+        h.r[FES_COLD_BRG]=0x4f;h.r[FES_COLD_CPUS]=0xf;struct fes_nano_cold s={0};
+        assert(fes_nano_cold_begin(&s,ops(&h),chain,17,7,core)<0 && !h.writes);cases++;
+    }
     for (unsigned kind=0;kind<8;kind++) {
         struct hw h;init(&h,0);h.r[FES_COLD_BOOT_KIND]=kind;h.r[FES_COLD_CAUSE]=0;
         struct fes_nano_cold s={0};

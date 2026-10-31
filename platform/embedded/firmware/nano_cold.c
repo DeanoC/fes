@@ -20,7 +20,7 @@ static int initial(const struct fes_nano_cold_sample *v, unsigned core)
      * these held from this first sample until BL31. The exact pinned DDR driver
      * defines POR=0, warm=1, cold=2, nCONFIG=3, JTAG=4, RSU=5. Only the four
      * reviewed fresh-entry paths qualify; absence of warm bits alone cannot. */
-    return (core == 0 || core == 2) && !(v->cause & ~1U) &&
+    return (core == 0 || core == 2) && !(v->cause & ~FES_NANO_COLD_CAUSE_ALLOWED) &&
         (v->boot_kind==0 || v->boot_kind==2 || v->boot_kind==3 || v->boot_kind==4) &&
         (v->per0 & FES_NANO_COLD_UNUSED) == FES_NANO_COLD_UNUSED &&
         (v->bridge & 15U) == 15U && (v->cpus & 15U) == (15U ^ (1U << core)) &&

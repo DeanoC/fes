@@ -241,8 +241,13 @@ The general controlled service and strict recovery behavior are unchanged.
 The [Nano guide](../nano/README.md) describes matched builds, a preserved
 recovery card and repeatable network uploads of `FES/UPLOAD.BIN`. The
 [current validation](../../../docs/validation/2026-10-31-de25-cold-upload/README.md)
-records real cross-builds and injected host tests. Neither the new uploader
-nor this native handoff has board acceptance. Native SD/USB/network resume,
+records real cross-builds and injected host tests. The later
+[physical upload/cold trial](../../../docs/validation/2026-10-31-de25-upload-cold-trial/README.md)
+passes the upload core/transport but rejects the first SPL CPU/reset proof.
+The documented sticky POR flag is now accepted alongside SDM cold reset;
+independent boot-kind proof and every CPU/ownership gate remain required.
+Fresh diagnostic samples cannot replace failed early proof. This native
+handoff still has no board acceptance. Native SD/USB/network resume,
 active FPGA drain, signed secure boot and physical launch/return remain open.
 
 ## Board-specific off-board candidate

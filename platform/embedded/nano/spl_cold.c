@@ -56,9 +56,18 @@ void fes_nano_spl_early(void)
 }
 void fes_nano_spl_report(void)
 {
+    uint32_t cause=0,cpus=0,release=0;
+    unsigned long long mpidr=read_mpidr();
+    (void)fes_cold_hw_read(NULL,FES_COLD_CAUSE,&cause);
+    (void)fes_cold_hw_read(NULL,FES_COLD_CPUS,&cpus);
+    (void)fes_cold_hw_read(NULL,FES_COLD_RELEASE,&release);
     printf("FES_NANO_SPL BEGIN cause=%08x per0=%08x bridge=%08x cpus=%08x release=%08x kind=%u valid=%u\n",
            source.record.first.cause,source.record.first.per0,source.record.first.bridge,
            source.record.first.cpus,source.record.first.release,source.record.first.boot_kind,!source.failed);
+    /* A later diagnostic never replaces a failed first-sample proof. */
+    printf("FES_NANO_SPL SCOPE mpidr=%llx core=%u cause_now=%08x cpus_now=%08x release_now=%08x reset_timeouts=%08x\n",
+           mpidr,(unsigned)((mpidr>>8)&0xff),cause,cpus,release,
+           FES_COLD_READ32(FES_NANO_COLD_RSTMGR+0x8));
     if (source.failed) hang();
 }
 const void *fes_nano_spl_handoff(void)

@@ -1,5 +1,10 @@
 # Repeatable Nano upload and actual cold serial handoff
 
+Follow-up: the [first automated upload/cold trial](../2026-10-31-de25-upload-cold-trial/README.md)
+passes physical upload/readback but rejects native SPL's initial proof. It
+corrects the POR mask from the official register map and retains the CPU gate.
+The source-bound artifacts below remain this earlier preparation's evidence.
+
 Base: `448cffd8f61fc18de8b5248ef2d56cb35974f623`. This continues the
 [Ethernet/SD diagnostic](../2026-10-31-de25-ethernet-sd/README.md). Everything
 in this record is off-board: host execution, cross-builds, artifact inspection

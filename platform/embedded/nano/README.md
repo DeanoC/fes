@@ -2,8 +2,13 @@
 
 This prototype joins a repeatable recovery upload tool to a matched Linux-free
 SPL, BL31 and native serial probe. The [current validation](../../../docs/validation/2026-10-31-de25-cold-upload/README.md)
-records host tests, cross-builds and regular-file packaging. The new uploader
-and native handoff have **not** run on TRWU8CBL. The earlier manual
+records the first host tests, cross-builds and regular-file packaging. The
+[subsequent TRWU8CBL trial](../../../docs/validation/2026-10-31-de25-upload-cold-trial/README.md)
+passed the production upload core/transport with a 4.7 MB FIT and independent
+SD readback. Native SPL stopped at its initial ownership check before FIT/DDR
+loading or EL3/native entry. The POR mask is corrected from the official CS/R1
+register map; the observed CPU reset value still rejects. The follow-up adds
+MPIDR and fresh CPU/reset diagnostics and remains hardware unqualified. The earlier manual
 [Ethernet and SD scratch trial](../../../docs/validation/2026-10-31-de25-ethernet-sd/README.md)
 passed with the separate recovery loader; that result does not qualify these
 new artifacts.
@@ -65,7 +70,9 @@ The dedicated SPL samples SDM boot kind, reset cause, peripheral/bridge resets
 and secondary CPU state before device initialization. The pinned
 [vendor DDR code](https://github.com/terasic/u-boot-socfpga/blob/d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413/drivers/ddr/altera/sdram_agilex5.c)
 defines POR, cold reset, nCONFIG and JTAG configuration as kinds 0, 2, 3 and 4;
-these are the reviewed entry paths. Warm reset, RSU, unknown kinds, other reset
+these are the reviewed entry paths. Reset-status bits 0 and 2 record SDM cold
+reset and the sticky last-POR flag; the latter is not independent history proof.
+Warm reset, RSU, unknown kinds, other reset
 causes, open bridges or released unused masters reject. Reset bits alone do
 not supply history or traffic-drain proof.
 
@@ -83,6 +90,11 @@ once, checks the exact source chain, owner, epoch, boot kind and live scope,
 then installs the real platform ownership/master callbacks. Those callbacks
 verify continued containment without touching SD while it is in reset. Any
 restarted producer, open bridge, changed CPU/reset scope or replay rejects.
+The additional `SCOPE` line reports MPIDR, primary index, fresh reset/CPU
+registers and reset timeout status after clock/console setup. It cannot replace
+a failed first sample. The first physical tuple's CPU value `0xf` still fails
+the current primary/secondary inventory contract; its semantics/timing need
+qualification before native boot can continue.
 
 This cold serial firmware permits only read-only ownership Snapshot. It denies
 bridge opening, reconfiguration and release, and reports zero configuration

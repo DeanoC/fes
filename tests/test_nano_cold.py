@@ -13,7 +13,7 @@ class NanoColdTests(unittest.TestCase):
             self.assertEqual(r.returncode,0,r.stderr)
             r=subprocess.run([str(binary)],capture_output=True,text=True)
             self.assertEqual(r.returncode,0,r.stderr)
-            self.assertIn('PASS 35 actual cold/PIO ownership cases',r.stdout)
+            self.assertIn('PASS 75 actual cold/PIO ownership cases',r.stdout)
     def test_actual_early_capture_provider_and_owned_wire(self):
         with tempfile.TemporaryDirectory() as temp:
             base=Path(temp);inc=base/'include';(inc/'drivers').mkdir(parents=True);(inc/'lib').mkdir()

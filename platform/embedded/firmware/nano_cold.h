@@ -8,6 +8,9 @@
 #define FES_NANO_COLD_MAGIC 0x464e4331U
 #define FES_NANO_COLD_COOKIE 0x464e433100000001ULL
 #define FES_NANO_COLD_FLAGS 7U /* secure entry, matched preloaded entry, SD drained */
+/* CS/R1 register map RC28: STAT[0] SDM cold, STAT[2] sticky last POR.
+ * These flags are not boot-history proof; the SDM boot kind is independent. */
+#define FES_NANO_COLD_CAUSE_ALLOWED 0x5U
 #define FES_NANO_COLD_SD_RESET 0x8080U
 #define FES_NANO_COLD_UNUSED (FES_NANO_MASTER_RESET & ~FES_NANO_COLD_SD_RESET)
 #define FES_NANO_COLD_SD_BUSY 0xb07U
