@@ -69,8 +69,9 @@ It authenticates the existing headless image receipt and candidate kernel,
 preserves the userspace libraries and tools, removes the old vendor module
 tree, and replaces the release marker, FPGA startup check and module manifest.
 It prefixes the preserved device-manager rules with an explicit owner-only
-mode-600 rule, including chmod for an existing devtmpfs node. The startup check
-also verifies that mode and root ownership after mdev has run.
+mode-600 rule, including chmod for an existing devtmpfs node. The standalone
+userspace check verifies that mode and root ownership after mdev has run; it
+uses fstat directly and does not require a stat utility in the headless rootfs.
 The startup check requires the built-in drivers and owner device. The assembler
 replaces only the kernel and DTB in a private copy of the vendor FAT partition;
 U-Boot, its boot script, the partition geometry and unrelated boot dependencies
