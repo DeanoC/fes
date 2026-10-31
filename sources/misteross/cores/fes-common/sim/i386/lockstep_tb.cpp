@@ -43,21 +43,23 @@
 //           and PUSH BP / MOV BP, SP / LEAVE frames, IN, OUT, INS and OUTS
 //           on a few ports, so results forward between instructions and
 //           taken branches kill younger producers. Each port holds a byte
-//           (IoSpace); in corpus mode every port reads all ones.
+//           (IoSpace); in corpus mode every port reads all ones. INTR and NMI
+//           are injected (Irq), and a HLT before the program's last wakes.
 //           FES_I386_FIRST skips the programs before it (they are still
 //           generated), to run one again.
-//           A run stops at its HLT, once it has delivered an exception,
-//           after FES_I386_RETIRE_LIMIT retirements, or at a store into its
-//           own code, which needs self-modifying-code detection the RTL does
-//           not have yet.
+//           A run stops at its last HLT, once it has delivered an exception,
+//           after FES_I386_RETIRE_LIMIT retirements, at a store into its own
+//           code, which needs self-modifying-code detection the RTL does not
+//           have yet, or at an interrupt through a vector entry it rewrote.
 //   unbuilt encodings this build does not execute, one per line on stdin as
 //           hex bytes: each must stop the RTL with FAULT_UNIMPLEMENTED before
 //           anything retires. The RTL runs alone; the oracle is not stepped.
 //   reset-store a store waiting in WB must not write memory on a reset edge.
 //   directed  out-of-limit CALL rel and r/m, RET and JMP faults, divide errors,
+//             register-form BOUND #UD without its faulting uop's data read,
 //             count-zero REP MOVS with expand-down DS or ES, and a check that
-//             fetch, issue and data reads stay inactive after a handler HLT;
-//             an INT and a fault whose delivery faults must stop with nothing
+//             fetch, issue and data reads stay inactive after a handler HLT; an
+//             INT and a fault whose delivery faults must stop with nothing
 //             written.
 // Output: "FAIL <label> <field> <expected> <actual>..." per failing run, then
 // one JSON summary line. Exit status 1 on any failure.
@@ -72,6 +74,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <map>
 #include <memory>
@@ -147,17 +150,33 @@ struct IoSpace {
     }
 };
 
-// The oracle's memory: 16 MiB of RAM, and its I/O space.
+// The machine's interrupt lines, one set per side: INTR, with the vector the
+// PIC returns on INTA, which drops INTR; and NMI, which the RTL sees as a
+// one-cycle pulse. acks counts INTAs, unexpected those with INTR low.
+struct Pic {
+    bool intr = false, nmi = false;
+    uint8_t vector = 0;
+    uint64_t acks = 0, unexpected = 0;
+    uint8_t acknowledge() {
+        unexpected += !intr;
+        intr = false;
+        ++acks;
+        return vector;
+    }
+};
+
+// The oracle's memory: 16 MiB of RAM, its I/O space and its PIC.
 class OracleBus final : public fes_i386::Bus {
 public:
     fes_i386::PageMemory ram{RAM_BYTES};
     IoSpace io;
+    Pic pic;
     uint8_t *page(uint32_t paddr, bool) override { return paddr < RAM_BYTES ? &ram[paddr & ~0xfffu] : nullptr; }
     void read(uint32_t, unsigned length, uint8_t *data) override { std::memset(data, 0xff, length); }
     void write(uint32_t, unsigned, const uint8_t *) override {}
     uint32_t in(uint16_t port, unsigned length) override { return io.in(port, length); }
     void out(uint16_t port, unsigned length, uint32_t value) override { io.out(port, length, value); }
-    uint8_t interrupt_acknowledge() override { throw std::runtime_error("unexpected INTA"); }
+    uint8_t interrupt_acknowledge() override { return pic.acknowledge(); }
 };
 
 // ---- The RTL and its memory model ------------------------------------------------
@@ -180,8 +199,10 @@ public:
 
     Vfes_i386_cpu top;
     std::vector<uint8_t> ram;
+    std::vector<uint32_t> dmem_reads;
     IoSpace io;
-    Latency fetch, data, port;
+    Pic pic;
+    Latency fetch, data, port, inta;
     uint64_t cycles = 0;
     uint64_t load_waits = 0;  // cycles a load's bytes were late
     uint64_t md_waits = 0;    // cycles D to WB waited for a multiply or divide, since the last retirement
@@ -194,6 +215,7 @@ public:
         for (int n = 0; n < 8; ++n) top.init_gpr[n] = s.gpr[n];
         top.init_eflags = s.eflags;
         top.init_eip = s.eip;
+        top.init_cr0 = s.cr0;
         for (int n = 0; n < 6; ++n) {
             set16(top.init_sel, n, s.seg[n].selector);
             top.init_base[n] = s.seg[n].base;
@@ -204,14 +226,23 @@ public:
         data.waiting = 0;
         port.waiting = 0;
         io_waiting = false;
+        top.intr = 0;
+        top.nmi = 0;
+        top.inta_ack = 0;
         top.mem_valid = 1;
         top.dmem_valid = 1;
         top.io_ack = 0;
+        dmem_reads.clear();
         step_writes.clear();
         io.log.clear();
         top.reset = 1;
         for (int n = 0; n < 3; ++n) clock();
         top.reset = 0;
+        // The lines and INTA from after the reset: the last run may have left
+        // an INTA pending, which the reset's edges answer.
+        inta.waiting = 0;
+        inta_waiting = false;
+        pic = Pic{};
     }
 
     void clock() {
@@ -249,11 +280,35 @@ public:
         } else {
             io_waiting = false;
         }
+        // The interrupt lines, and INTA as the I/O port completes an access:
+        // the PIC returns its vector, and drops INTR, on the acknowledging
+        // edge.
+        top.intr = pic.intr;
+        top.nmi = pic.nmi;
+        pic.nmi = false;  // a pulse of one cycle, so the next is an edge too
+        top.inta_ack = 0;
+        top.inta_vector = uint8_t(cycles * 0x9du);
+        if (top.inta_req) {
+            if (!inta_waiting) {
+                inta_waiting = true;
+                inta.request();
+            } else {
+                inta.tick();
+            }
+            if (inta.ready()) {
+                inta_waiting = false;
+                top.inta_vector = pic.acknowledge();
+                top.inta_ack = 1;
+            }
+        } else {
+            inta_waiting = false;
+        }
         top.clk = 1;
         top.eval();
         // The data port reads, then the retiring store writes. Until a load's
         // bytes arrive the port carries garbage.
         if (dread) {
+            dmem_reads.push_back(daddr);
             uint64_t value = 0;
             for (int i = 0; i < 8; ++i) {
                 const uint64_t at = uint64_t(daddr) + i;
@@ -302,16 +357,20 @@ public:
 
     enum class Event { Retired, Unimplemented, Timeout };
 
-    // Run until the next retirement, an exception's delivery included
-    // (trace_exception), or stop.
-    Event next() {
+    // Run until the next retirement, an exception's or interrupt's delivery
+    // included (trace_exception), or stop. In HLT the RTL runs on only while
+    // an interrupt line is up, which may wake it, or once it has taken INTR
+    // (its INTA drops the line before the delivery starts). tick, if given,
+    // runs before each cycle.
+    Event next(const std::function<void()> &tick = {}) {
         step_writes.clear();
         io.log.clear();
+        const uint64_t acks = pic.acks;
         for (int n = 0; n < EVENT_CYCLES; ++n) {
-            if (stopped()) break;
+            if (top.trace_unimplemented || (top.trace_halt && !pic.intr && !pic.nmi && pic.acks == acks)) break;
+            if (tick) tick();
             clock();
             if (top.trace_retire) return Event::Retired;
-            if (top.trace_halt) break;
         }
         if (top.trace_unimplemented) return Event::Unimplemented;
         return Event::Timeout;
@@ -324,6 +383,7 @@ public:
         for (int n = 0; n < 8; ++n) s.gpr[n] = top.arch_gpr[n];
         s.eflags = top.arch_eflags & EFLAGS_MASK;
         s.eip = top.arch_eip;
+        s.cr0 = top.arch_cr0;
         for (int n = 0; n < 6; ++n) {
             s.seg[n].selector = get16(top.arch_sel, n);
             s.seg[n].base = top.arch_base[n];
@@ -338,6 +398,7 @@ private:
     uint64_t loaded = 0;  // the bytes the last load read
     bool io_waiting = false;  // an I/O request is waiting for its ack
     IoAccess io_request;      // ... as it was when it rose
+    bool inta_waiting = false;  // an INTA is waiting for the PIC
 
     template <typename W> static void set16(W &wide, int n, uint16_t value) {
         uint32_t &word = wide[n / 2];
@@ -664,6 +725,9 @@ struct Fields {
 
 // ---- Comparison ----------------------------------------------------------------------
 
+// The CR0 bits the CPU holds: MP and TS.
+constexpr uint32_t CR0_HELD = 0xa;
+
 const char *const GPR_NAMES[8] = {"eax", "ecx", "edx", "ebx", "esp", "ebp", "esi", "edi"};
 const char *const SEG_NAMES[6] = {"es", "cs", "ss", "ds", "fs", "gs"};
 
@@ -682,6 +746,7 @@ void compare(const State &want, const State &got, const Fields &skip, const std:
         if (!skip.has(GPR_NAMES[n]) && want.gpr[n] != got.gpr[n]) out.add(at + GPR_NAMES[n], want.gpr[n], got.gpr[n]);
     const uint32_t mask = EFLAGS_MASK & ~skip.eflags;
     if ((want.eflags & mask) != (got.eflags & mask)) out.add(at + "eflags", want.eflags & mask, got.eflags & mask);
+    if (!skip.has("cr0") && ((want.cr0 ^ got.cr0) & CR0_HELD)) out.add(at + "cr0", want.cr0 & CR0_HELD, got.cr0 & CR0_HELD);
     for (int n = 0; n < 6; ++n) {
         if (skip.has(SEG_NAMES[n])) continue;
         const auto &w = want.seg[n], &g = got.seg[n];
@@ -700,6 +765,7 @@ void adopt(State &oracle_state, const State &rtl, const Fields &fields) {
         oracle_state.eflags = (oracle_state.eflags & ~EFLAGS_MASK) | (rtl.eflags & EFLAGS_MASK);
         oracle_state.eip = rtl.eip;
         for (int n = 0; n < 6; ++n) oracle_state.seg[n] = rtl.seg[n];
+        oracle_state.cr0 = (oracle_state.cr0 & ~CR0_HELD) | (rtl.cr0 & CR0_HELD);
         return;
     }
     oracle_state.eflags = (oracle_state.eflags & ~fields.eflags) | (rtl.eflags & fields.eflags);
@@ -712,6 +778,8 @@ void adopt(State &oracle_state, const State &rtl, const Fields &fields) {
 struct Summary {
     uint64_t runs = 0, passed = 0, failed = 0, retirements = 0, cycles = 0, halts = 0, limits = 0;
     uint64_t interrupts = 0;  // corpus runs that took a software interrupt, then halted in its handler
+    uint64_t external_interrupts = 0, nmis = 0;  // INTRs and NMIs delivered
+    uint64_t rep_interrupts = 0;  // ... of them between a REP string's elements
     // Runs that delivered an exception: in the corpus, then halted in its
     // handler; in random programs, stopped there. double_faults: stopped at a
     // fault in a delivery.
@@ -752,6 +820,7 @@ struct Summary {
         gap_address, gap_after_segment, gap_after_stack, gap_stack_stack, gap_several, gap_after_string,
         gap_after_io;
     uint64_t smc = 0;  // runs stopped at a store into their own code
+    uint64_t vector_moved = 0;  // runs stopped at an interrupt whose vector they had rewritten
     uint64_t load_waits = 0;
     uint64_t io_accesses = 0;  // I/O accesses compared
 };
@@ -774,6 +843,20 @@ struct MemUse {
 
 // MOVS, CMPS, STOS, LODS, SCAS, INS or OUTS.
 bool is_string(uint8_t op) { return (op >= 0xa4 && op <= 0xa7) || (op >= 0xaa && op <= 0xaf) || (op >= 0x6c && op <= 0x6f); }
+
+// A REP string's count, CX or ECX by its address size; 0 for any other
+// instruction.
+uint32_t rep_count(const uint8_t *code, bool code32, const State &s) {
+    bool rep = false, as32 = code32;
+    unsigned i = 0;
+    for (; i < 15 && is_prefix(code[i]); ++i) {
+        rep = rep || code[i] == 0xf2 || code[i] == 0xf3;
+        if (code[i] == 0x67) as32 = !code32;
+    }
+    if (!rep || !is_string(code[i])) return 0;
+    const uint32_t ecx = s.gpr[fes_i386::REG_ECX];
+    return as32 ? ecx : ecx & 0xffff;
+}
 
 // IN, OUT, INS or OUTS.
 bool is_io(uint8_t op) { return (op >= 0xe4 && op <= 0xe7) || (op >= 0xec && op <= 0xef) || (op >= 0x6c && op <= 0x6f); }
@@ -831,6 +914,14 @@ MemUse mem_use(const uint8_t *code) {
     if (two) {
         if ((op & 0xf0) == 0x90) m.writes = true;
         else if (op == 0xa4 || op == 0xa5 || op == 0xac || op == 0xad) m.reads = m.writes = true;
+        else if (op == 0xba) {  // BT, BTS, BTR, BTC by an immediate: BT only reads
+            m.reads = true;
+            m.writes = reg != 4;
+        } else if (op == 0xbc || op == 0xbd || op == 0xa3) {  // BSF, BSR, BT by a register
+            m.reads = true;
+        } else if (op == 0xab || op == 0xb3 || op == 0xbb) {  // BTS, BTR, BTC by a register
+            m.reads = m.writes = true;
+        }
         else if (op == 0xb6 || op == 0xb7 || op == 0xbe || op == 0xbf || op == 0xb2 || op == 0xb4 || op == 0xb5 ||
                  op == 0xaf)
             m.reads = true;
@@ -843,7 +934,7 @@ MemUse mem_use(const uint8_t *code) {
         m.reads = true;
         m.writes = reg != 7;
     } else if (op == 0x84 || op == 0x85 || op == 0x8a || op == 0x8b || op == 0x8e || op == 0xc4 || op == 0xc5 ||
-               op == 0x69 || op == 0x6b) {
+               op == 0x69 || op == 0x6b || op == 0x62) {
         m.reads = true;
     } else if (op == 0x88 || op == 0x89 || op == 0x8c || op == 0xc6 || op == 0xc7) {
         m.writes = true;
@@ -906,6 +997,7 @@ bool consumes_flags(const uint8_t *code) {
     if (op < 0x40 && (op & 7) < 6) return ((op >> 3) & 7) == 2 || ((op >> 3) & 7) == 3;
     if (op >= 0x80 && op <= 0x83) return reg == 2 || reg == 3;
     if (op == 0xc0 || op == 0xc1 || (op >= 0xd0 && op <= 0xd3)) return reg == 2 || reg == 3;
+    if (op < 0x40 && (op & 0x27) == 0x27) return true;  // DAA, DAS, AAA, AAS
     return (op >= 0x70 && op <= 0x7f) || op == 0x9f || op == 0xf5 || op == 0xe0 || op == 0xe1 || op == 0xd6;
 }
 
@@ -944,6 +1036,7 @@ bool branch_taken(const uint8_t *code, const State &s, bool code32, bool &taken)
              op == 0xca || op == 0xcb || op == 0xcc || op == 0xcd || op == 0xce || op == 0xcf)
         taken = true;
     else if (op == 0xff && ((code[i + 1] >> 3) & 7) >= 2 && ((code[i + 1] >> 3) & 7) <= 5) taken = true;
+    else if (op == 0x0f && code[i + 1] == 0x06) taken = true;  // CLTS, which this build ends with a jump
     else if (op == 0xe2) taken = count != 1;
     else if (op == 0xe1) taken = count != 1 && zf;
     else if (op == 0xe0) taken = count != 1 && !zf;
@@ -958,16 +1051,65 @@ struct Outcome {
     bool double_fault = false;  // stopped at a fault in a delivery (no double fault is built)
     bool limit = false;    // stopped at the retirement limit
     bool smc = false;      // stopped at a store into [code_lo, code_hi)
+    bool vector_moved = false;  // stopped at an injected interrupt whose vector entry or handler the program rewrote
     int interrupt = -1;    // the last software interrupt both sides took (INT n, INT3, INTO)
     std::string code;      // the last instruction's first bytes, for a failure's line
+};
+
+// Interrupts injected into a run. The RTL samples INTR and NMI as an
+// instruction retires, or a REP string's element; the oracle before the next
+// instruction starts, or after a REP string's iteration. So an interrupt for
+// the boundary after a step reaches the RTL before its window for that step,
+// and the oracle after its first iteration if the step is a REP string, else
+// before the next step. One raised on the RTL as a REP string's element m
+// retires is taken as element m + 1 does, and the oracle raises it after
+// iteration m + 1. INTR stays up on each side until that side's INTA; NMI is
+// an edge. Each step raises INTR now and then, more often after the
+// instructions whose boundary is special (STI, CLI, MOV SS, POP SS, POPF,
+// IRET), and NMI rarely; a REP string of more than one element often raises
+// INTR part way, and NMI now and then; and a HLT that is not the program's
+// last wakes on INTR.
+struct Irq {
+    std::mt19937_64 *random = nullptr;
+    uint32_t handler = 0;  // the linear address every injected vector's entry points at ...
+    std::array<uint8_t, 4> entry{};  // ... as this IP and CS; there NOP, IRET
+    bool intr_next = false, nmi_next = false;  // raised on the RTL, for the oracle's next step
+    int intr_at = -1, nmi_at = -1;  // raised on the RTL in this step, as this many of its elements had retired
+    bool nmi_last = false;  // raised for the step before: NMI is not raised twice in a row, so the
+                            // RTL's line is low between its one-cycle pulses
+    uint8_t vector = 0;
 };
 
 // Run from the state both sides hold now. label_corpus and label_oracle hold
 // label-scoped divergence fields.
 Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
                  const Fields &label_corpus, uint64_t retire_limit, bool stop_at_exception, Summary &summary,
-                 Mismatches &out, uint32_t code_lo = 0, uint32_t code_hi = 0) {
+                 Mismatches &out, uint32_t code_lo = 0, uint32_t code_hi = 0, Irq *irq = nullptr) {
     Outcome outcome;
+    // Raise INTR (or NMI) for the boundary after the instruction at code, on
+    // the RTL now; for the oracle in this step, or for a HLT's wake before
+    // its next. The handler's NOP counts as special too: an NMI after it
+    // meets the one being handled.
+    auto raise = [&](const uint8_t *code, uint32_t at, bool wake) {
+        unsigned i = 0;
+        while (i < 15 && is_prefix(code[i])) ++i;
+        const uint8_t op = code[i];
+        const bool edge = op == 0xfb || op == 0xfa || op == 0x17 || op == 0x9d || op == 0xcf ||
+                          (op == 0x8e && ((code[i + 1] >> 3) & 7) == 2) || at == irq->handler;
+        if (!rtl.pic.intr && (wake || (*irq->random)() % (edge ? 2 : 32) == 0)) {
+            irq->vector = uint8_t(8 + (*irq->random)() % 8);
+            rtl.pic.intr = true;
+            rtl.pic.vector = irq->vector;
+            if (wake) irq->intr_next = true;
+            else irq->intr_at = 0;
+        }
+        const bool nmi = !wake && !irq->nmi_last && (*irq->random)() % (edge ? 8 : 256) == 0;
+        if (nmi) {
+            rtl.pic.nmi = true;
+            irq->nmi_at = 0;
+        }
+        irq->nmi_last = nmi;
+    };
     uint64_t last_retirement = 0;
     bool retired_before = false, branch_before = false, taken_before = false, shift_before = false;
     bool store_before = false, stack_before = false, pop_sp_before = false;
@@ -991,28 +1133,141 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                          before.seg[fes_i386::SEG_SS].base);
         const bool code32 = before.seg[fes_i386::SEG_CS].ar & 0x4000;
 
+        if (irq) {
+            if (irq->intr_next) {
+                bus.pic.intr = true;
+                bus.pic.vector = irq->vector;
+                oracle.set_intr(true);
+            }
+            if (irq->nmi_next) oracle.nmi();
+            irq->intr_next = irq->nmi_next = false;
+        }
+        // Whether the vectors an injected interrupt may take still point at
+        // the handler, which is still there.
+        auto intact = [&](unsigned v) {
+            if (!irq || bus.ram[irq->handler] != 0x90 || bus.ram[irq->handler + 1] != 0xcf) return false;
+            for (unsigned i = 0; i < 4; ++i)
+                if (bus.ram[v * 4 + i] != irq->entry[i]) return false;
+            return true;
+        };
+        bool intr_intact = intact(bus.pic.vector), nmi_intact = intact(2);
+
+        // The RTL first, so the oracle can raise what it raised part way
+        // through a REP string at the same element. Not while the RTL is in
+        // HLT: the wake it takes now is this step's, and a line raised for
+        // the next would reach it at the same boundary.
+        unsigned intr_plan = 0, nmi_plan = 0;  // elements after which to raise it, if not 0
+        if (irq && !rtl.top.trace_halt) {
+            const bool nmi_before = irq->nmi_last;
+            raise(code, linear, false);
+            const uint32_t count = rep_count(code, code32, before);
+            if (count > 1) {
+                const unsigned span = count - 1 < 16 ? unsigned(count - 1) : 16u;
+                if (!rtl.pic.intr && (*irq->random)() % 2) intr_plan = 1 + unsigned((*irq->random)() % span);
+                if (irq->nmi_at < 0 && !nmi_before && (*irq->random)() % 8 == 0)
+                    nmi_plan = 1 + unsigned((*irq->random)() % span);
+            }
+        }
+        std::function<void()> watch;
+        if (intr_plan || nmi_plan) {
+            // A REP string's elements on the RTL: each steps ECX at WB.
+            watch = [&, ecx = uint32_t(rtl.top.arch_gpr[fes_i386::REG_ECX]), elements = 0u]() mutable {
+                if (rtl.top.arch_gpr[fes_i386::REG_ECX] != ecx) {
+                    ecx = rtl.top.arch_gpr[fes_i386::REG_ECX];
+                    ++elements;
+                }
+                if (intr_plan && intr_plan == elements && !rtl.pic.intr) {
+                    irq->vector = uint8_t(8 + (*irq->random)() % 8);
+                    rtl.pic.intr = true;
+                    rtl.pic.vector = irq->vector;
+                    irq->intr_at = int(elements);
+                    intr_plan = 0;
+                }
+                if (nmi_plan && nmi_plan == elements) {
+                    rtl.pic.nmi = true;
+                    irq->nmi_at = int(elements);
+                    irq->nmi_last = true;
+                    nmi_plan = 0;
+                }
+            };
+        }
+        const bool verbose = std::getenv("FES_I386_VERBOSE") != nullptr;
+        if (verbose && irq)
+            std::fprintf(stderr, "  rtl lines intr %d nmi %d, raised at %d %d, plans %u %u\n", rtl.pic.intr, rtl.pic.nmi,
+                         irq->intr_at, irq->nmi_at, intr_plan, nmi_plan);
+        const Rtl::Event event = rtl.next(watch);
+        if (verbose && irq) std::fprintf(stderr, "  rtl raised at %d %d\n", irq->intr_at, irq->nmi_at);
+
+        // The oracle raises each line the RTL raised as element m retired
+        // after its iteration m + 1; one the step does not reach, before its
+        // next step.
+        struct HookGuard {
+            fes_i386::Oracle &oracle;
+            ~HookGuard() { oracle.set_iteration_hook({}); }
+        } hook_guard{oracle};
+        unsigned iterations = 0;
+        if (irq)
+            oracle.set_iteration_hook([&](unsigned n) {
+                iterations = n;
+                if (irq->intr_at >= 0 && n == unsigned(irq->intr_at) + 1) {
+                    bus.pic.intr = true;
+                    bus.pic.vector = irq->vector;
+                    oracle.set_intr(true);
+                    intr_intact = intact(irq->vector);
+                    irq->intr_at = -1;
+                }
+                if (irq->nmi_at >= 0 && n == unsigned(irq->nmi_at) + 1) {
+                    oracle.nmi();
+                    nmi_intact = intact(2);
+                    irq->nmi_at = -1;
+                }
+            });
         bus.io.log.clear();
         fes_i386::StepResult result = oracle.step();
-        const Rtl::Event event = rtl.next();
+        if (irq) {
+            oracle.set_iteration_hook({});
+            irq->intr_next = irq->intr_at >= 0;
+            irq->nmi_next = irq->nmi_at >= 0;
+            irq->intr_at = irq->nmi_at = -1;
+            if (verbose)
+                std::fprintf(stderr, "  oracle iterations %u, next intr %d nmi %d\n", iterations, irq->intr_next,
+                             irq->nmi_next);
+        }
+        if (verbose)
+            for (const auto &e : result.events)
+                std::fprintf(stderr, "  event %d vector %x writes_before %u\n", int(e.kind), e.vector, e.writes_before);
+        if (irq && !bus.pic.intr) oracle.set_intr(false);  // its INTA dropped it
         const std::string at = "@" + hex(before.eip) + ".";
 
         // The oracle's first exception, and the vector the step takes: that,
-        // or a software interrupt's.
+        // or a software interrupt's. external: an INTR's or NMI's, which the
+        // step takes before its instruction. interrupted: the step's first
+        // event is that one, so it runs no instruction; what follows is a
+        // fault of its delivery.
         unsigned oracle_exceptions = 0;
-        int vector = -1, taken = -1;
+        int vector = -1, taken = -1, external = -1;
         for (const auto &e : result.events) {
             if (e.kind == fes_i386::EventKind::Exception && oracle_exceptions++ == 0) vector = e.vector;
             if (e.kind == fes_i386::EventKind::SoftwareInterrupt && taken < 0) taken = e.vector;
+            if ((e.kind == fes_i386::EventKind::ExternalInterrupt || e.kind == fes_i386::EventKind::Nmi) &&
+                external < 0)
+                external = e.vector;
         }
-        if (vector >= 0) taken = vector;
+        const bool interrupted = !result.events.empty() &&
+                                 (result.events[0].kind == fes_i386::EventKind::ExternalInterrupt ||
+                                  result.events[0].kind == fes_i386::EventKind::Nmi);
+        if (interrupted) taken = external;
+        else if (vector >= 0) taken = vector;
 
         // Fields this instruction leaves to the corpus. An entry that leaves it
         // every field also decides whether it faults: the RTL's outcome stands,
         // and the oracle takes the RTL's state and memory.
+        // An interrupt's step runs no instruction, so only the entries for
+        // every opcode apply (interrupt-vector-before-push).
         Fields skip = label_corpus;
         const Facts fact = facts(code, code32, before, taken, bus);
         for (const Entry &e : entries) {
-            if (!e.corpus || (!e.stems.empty() && !e.stems.count(fact.stem))) continue;
+            if (!e.corpus || (!e.stems.empty() && (interrupted || !e.stems.count(fact.stem)))) continue;
             bool holds = true;
             for (const auto &p : e.when) holds = holds && fact.predicates.count(p);
             if (!holds) continue;
@@ -1023,6 +1278,13 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         // Every byte the oracle writes is cleared after the run.
         for (const auto &w : result.writes)
             for (unsigned i = 0; i < w.length; ++i) rtl.written.insert(w.physical + i);
+        // An injected interrupt through a vector entry the program rewrote,
+        // or to a handler it wrote over, runs data from here: stop. (Bochs's
+        // step also takes a fault of what it fetches there.)
+        if (external >= 0 && !(external == 2 ? nmi_intact : intr_intact)) {
+            outcome.vector_moved = true;
+            return outcome;
+        }
         const bool delivered = event == Rtl::Event::Retired && rtl.top.trace_exception;
         if (oracle_exceptions > 1 || result.shutdown) {
             // A fault in an exception's delivery (or in an INT's, then in
@@ -1079,6 +1341,14 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                 return outcome;
             }
             if (rtl.top.trace_vector != vector) out.add(at + "vector", uint32_t(vector), rtl.top.trace_vector);
+        } else if (interrupted) {
+            if (!delivered) {
+                out.add(at + "interrupt", uint32_t(external), event == Rtl::Event::Retired ? 0xffu : 0xfeu);
+                return outcome;
+            }
+            if (rtl.top.trace_vector != external) out.add(at + "vector", uint32_t(external), rtl.top.trace_vector);
+            ++(external == 2 ? summary.nmis : summary.external_interrupts);
+            summary.rep_interrupts += iterations > 0;
         } else if (delivered && !skip.all) {
             out.add(at + "unexpected-exception", 0, rtl.top.trace_vector);
             return outcome;
@@ -1191,6 +1461,9 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             out.add(at + "io-unstable", 0, rtl.io_unstable);
             rtl.io_unstable = 0;
         }
+        // Each side acknowledges each INTR it takes once, with INTR up.
+        if (bus.pic.acks != rtl.pic.acks || bus.pic.unexpected || rtl.pic.unexpected)
+            out.add(at + "inta", bus.pic.acks | bus.pic.unexpected << 32, rtl.pic.acks | rtl.pic.unexpected << 32);
         State oracle_state = oracle.get_state();
         const State rtl_state = rtl.state();
         compare(oracle_state, rtl_state, skip, at, out);
@@ -1206,14 +1479,26 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         if (result.halted || rtl.stopped()) {
             if (!(result.halted && rtl.stopped()) && !(skip.all && rtl.stopped()))
                 out.add(at + "halt", result.halted, rtl.stopped());
+            // A HLT before the program's last, with IF set, wakes on INTR.
+            const State now = oracle.get_state();
+            if (irq && result.halted && rtl.top.trace_halt && !rtl.top.trace_unimplemented && (now.eflags & 0x200) &&
+                now.seg[fes_i386::SEG_CS].base + now.eip != code_hi) {
+                raise(code, linear, true);
+                continue;
+            }
             outcome.halted = true;
             return outcome;
         }
         for (const auto &e : result.events)
             if (e.kind == fes_i386::EventKind::SoftwareInterrupt) outcome.interrupt = e.vector;
-        if (delivered) {
+        if (delivered && !interrupted) {
             outcome.exception = rtl.top.trace_vector;
             if (stop_at_exception) return outcome;
+        }
+        // ... or one whose frame wrote over the handler.
+        if (interrupted && (bus.ram[irq->handler] != 0x90 || bus.ram[irq->handler + 1] != 0xcf)) {
+            outcome.vector_moved = true;
+            return outcome;
         }
         if (outcome.smc) return outcome;
     }
@@ -1248,12 +1533,13 @@ constexpr uint32_t HANDLER = 0x800;  // 0000:0800
 void run_fault_case(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
                     Summary &summary, const std::string &label, const std::vector<uint8_t> &code, State state,
                     bool nested, uint32_t stack_address = 0, const std::array<uint8_t, 4> *stack_value = nullptr,
-                    int expected = 13, bool allow_divergences = false) {
+                    int expected = 13, bool allow_divergences = false,
+                    uint32_t forbidden_dmem_read = UINT32_MAX) {
     const uint32_t code_base = state.seg[fes_i386::SEG_CS].base + state.eip;
     std::vector<std::pair<uint32_t, uint8_t>> image;
     for (size_t i = 0; i < code.size(); ++i) image.emplace_back(code_base + uint32_t(i), code[i]);
     image.emplace_back(HANDLER, 0xf4);
-    for (uint32_t vector : {0u, 12u, 13u}) {
+    for (uint32_t vector : {0u, 6u, 12u, 13u}) {
         image.emplace_back(vector * 4, uint8_t(HANDLER));
         image.emplace_back(vector * 4 + 1, uint8_t(HANDLER >> 8));
     }
@@ -1293,6 +1579,11 @@ void run_fault_case(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
         if ((rtl.state().gpr[fes_i386::REG_ESP] & 0xffff) != sp)
             out.add(label + ".esp", sp, rtl.state().gpr[fes_i386::REG_ESP] & 0xffff);
         if (rtl.top.trace_halt) check_halt_quiet(rtl, label, out);
+    }
+    if (forbidden_dmem_read != UINT32_MAX) {
+        const uint32_t address = forbidden_dmem_read & ~3u;
+        const auto reads = std::count(rtl.dmem_reads.begin(), rtl.dmem_reads.end(), address);
+        if (reads) out.add(label + ".dmem-read", 0, reads);
     }
 
     summary.cycles += rtl.cycles;
@@ -1396,6 +1687,17 @@ void run_fault_regressions(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, c
 
     // CALL EBX to the same target: #GP(0) before its push.
     run_fault_case(oracle, bus, rtl, entries, summary, "call-rm32-cs-limit", {0x66, 0xff, 0xd3, 0xf4}, jump, false);
+
+    // A register-form BOUND is #UD. With a 32-bit operand the faulting uop
+    // loads the upper bound at [BX+SI+4]; the later lower-bound uop's [BX+SI]
+    // read has a different bus address and cannot hide this assertion.
+    State bound_reg = call;
+    bound_reg.gpr[fes_i386::REG_EAX] = 0x1234;
+    bound_reg.gpr[fes_i386::REG_EBX] = 0x5000;
+    bound_reg.gpr[fes_i386::REG_ESI] = 0x0400;
+    bound_reg.gpr[fes_i386::REG_ESP] = 0x0200;
+    run_fault_case(oracle, bus, rtl, entries, summary, "bound-register-no-data-read",
+                   {0x66, 0x62, 0xc0, 0xf4}, bound_reg, false, 0, nullptr, 6, false, 0x5404);
 
     // INT 20h with SP 1: its probe raises #SS, whose delivery's probe faults
     // the same way.
@@ -1670,6 +1972,12 @@ public:
             else if (kind < 31) string_block();
             else if (kind < 32) enter_block();
             else if (kind < 34) io_block();
+            else if (kind < 35) {  // STI, HLT: the HLT wakes on INTR (Irq)
+                items.push_back(Item{{0xfb}, -1, 0, 0});
+                items.push_back(Item{{0xf4}, -1, 0, 0});
+            } else if (kind < 37) shadow_block();
+            else if (kind < 38) fpu_block();
+            else if (kind < 39) items.push_back(Item{popm32_block(), -1, 0, 0});
             else items.push_back(Item{instruction(false), -1, 0, 0});
         }
         items.push_back(Item{{0xf4}, -1, 0, 0});
@@ -1713,7 +2021,7 @@ private:
             bool os32;
             prefixes(out, os32);
             const unsigned z = os32 ? 4 : 2;
-            const unsigned form = pick(26);
+            const unsigned form = pick(28);
             bool memory = pick(3) == 0;  // the r/m operand becomes a memory one
             unsigned dst = 8;  // the GPR it writes (8: none or checked below)
             bool dst_byte = false;
@@ -1948,6 +2256,39 @@ private:
                 out.push_back(uint8_t(0xd4 + (which & 1)));
                 out.push_back(which == 0 && pick(64) == 0 ? uint8_t(0) : pick(4) ? uint8_t(10) : uint8_t(1 + pick(255)));
                 dst = 0;
+                break;
+            }
+            case 24: {  // BT, BTS, BTR, BTC r/m, imm8 (mostly below 32) or r; BSF, BSR r, r/m
+                out.push_back(0x0f);
+                const unsigned which = pick(3);
+                if (which == 2) {
+                    const unsigned kind = pick(4);
+                    out.push_back(uint8_t(0xa3 + 8 * kind));
+                    out.push_back(uint8_t(0xc0 | pick(64)));
+                    if (kind) dst = out.back() & 7;
+                } else if (which == 1) {
+                    const unsigned reg = 4 + pick(4);
+                    out.push_back(0xba);
+                    out.push_back(uint8_t(0xc0 | (reg << 3) | pick(8)));
+                    if (reg != 4) dst = out.back() & 7;
+                    out.push_back(uint8_t(pick(4) ? pick(32) : pick(256)));
+                } else {
+                    out.push_back(uint8_t(0xbc + pick(2)));
+                    out.push_back(uint8_t(0xc0 | pick(64)));
+                    dst = (out.back() >> 3) & 7;
+                }
+                break;
+            }
+            case 25: {  // DAA, DAS, AAA, AAS; half of them after ADD, ADC, SUB or SBB AL, r/m8, whose AL and flags
+                        // they take from the uop just ahead
+                static const uint8_t alu[] = {0x02, 0x12, 0x2a, 0x1a};
+                if (pick(2)) {
+                    out.push_back(alu[pick(4)]);
+                    out.push_back(uint8_t(0xc0 | pick(8)));
+                }
+                out.push_back(uint8_t(0x27 + (pick(4) << 3)));
+                dst = 0;
+                dst_byte = out.back() < 0x30;
                 break;
             }
             default: {  // MOV r, imm32 keeps values wide
@@ -2190,11 +2531,12 @@ private:
     // one element can load what the element before it stores, and the
     // string's first uop waits for ES. No backward jump lands before the
     // block's end, where a REP would run again with whatever CX holds.
+    // lead: instructions just before the first string, which then has REP.
     void string_block() {
         string_items();
         fence = int(items.size());
     }
-    void string_items() {
+    void string_items(const std::vector<std::vector<uint8_t>> &lead = {}) {
         static const uint8_t segs[] = {0x26, 0x2e, 0x36, 0x3e, 0x64, 0x65};
         static const uint8_t ops[] = {0xa4, 0xa5, 0xa6, 0xa7, 0xaa, 0xab, 0xac, 0xad, 0xae, 0xaf};
         if (pick(4) == 0) {
@@ -2207,6 +2549,7 @@ private:
             if (pick(3) == 0) items.push_back(Item{{uint8_t(pick(2) ? 0xfc : 0xfd)}, -1, 0, 0});
             items.push_back(Item{{0x1e}, -1, 0, 0});  // PUSH DS
             items.push_back(Item{{0x07}, -1, 0, 0});  // POP ES
+            for (const auto &bytes : lead) items.push_back(Item{bytes, -1, 0, 0});
             std::vector<uint8_t> bytes{uint8_t(pick(2) ? 0xf3 : 0xf2)};
             if (pick(3) == 0) bytes.push_back(0x66);
             bytes.push_back(uint8_t((pick(3) ? 0xa4 : 0xa6) + pick(2)));
@@ -2223,10 +2566,11 @@ private:
         };
         if (pick(2)) mov(6, uint16_t(rng()));
         if (pick(2)) mov(7, uint16_t(rng()));
-        const bool rep = pick(3) != 0;
+        const bool rep = !lead.empty() || pick(3) != 0;
         if (rep) mov(1, pick(10));
         if (pick(3) == 0) items.push_back(Item{{uint8_t(pick(2) ? 0xfc : 0xfd)}, -1, 0, 0});
         const unsigned count = pick(4) ? 1 : 2 + pick(2);
+        for (const auto &bytes : lead) items.push_back(Item{bytes, -1, 0, 0});
         for (unsigned n = 0; n < count; ++n) {
             std::vector<uint8_t> bytes;
             if (pick(4) == 0) bytes.push_back(segs[pick(6)]);
@@ -2293,6 +2637,38 @@ private:
         }
     }
 
+    // The interrupt shadow's cases, back to back, so an interrupt raised at
+    // one meets the next (Irq raises one at them more often): MOV SS twice,
+    // whose second does not arm the shadow again; POP SS twice; MOV SS, then
+    // STI; CLI, STI, STI; STI, then POP SS. SS takes its own value back, and
+    // AX and the stack are left as they were but AX's value. Or CLI and STI,
+    // MOV SS or POP SS just before a REP string, whose shadow ends as the
+    // string's first element retires (Bochs counts an iteration as an
+    // instruction).
+    void shadow_block() {
+        if (pick(3) == 0) {
+            static const std::vector<std::vector<std::vector<uint8_t>>> leads = {
+                {{0xfa}, {0xfb}}, {{0x8c, 0xd0}, {0x8e, 0xd0}}, {{0x16}, {0x17}}};
+            string_items(leads[pick(unsigned(leads.size()))]);
+            fence = int(items.size());
+            return;
+        }
+        static const std::vector<std::vector<uint8_t>> forms = {
+            {0x8c, 0xd0, 0x8e, 0xd0, 0x8e, 0xd0},  // MOV AX, SS; MOV SS, AX; MOV SS, AX
+            {0x16, 0x16, 0x17, 0x17},              // PUSH SS; PUSH SS; POP SS; POP SS
+            {0x8c, 0xd0, 0x8e, 0xd0, 0xfb},        // MOV AX, SS; MOV SS, AX; STI
+            {0xfa, 0xfb, 0xfb},                    // CLI; STI; STI
+            {0xfb, 0x16, 0x17},                    // STI; PUSH SS; POP SS
+        };
+        const std::vector<uint8_t> &form = forms[pick(unsigned(forms.size()))];
+        for (size_t at = 0; at < form.size();) {
+            const size_t length = form[at] == 0x8c || form[at] == 0x8e ? 2 : 1;
+            items.push_back(Item{std::vector<uint8_t>(form.begin() + long(at), form.begin() + long(at + length)), -1, 0, 0});
+            at += length;
+        }
+        items.push_back(Item{instruction(false), -1, 0, 0});
+    }
+
     // ENTER imm16, level (mostly 0-4, now and then any byte); a body that
     // may push; LEAVE, all of one operand size.
     void enter_block() {
@@ -2312,9 +2688,13 @@ private:
     // The microcode routines' instructions: PUSHA and POPA, alone or around
     // a body that leaves the stack alone; PUSHF and POPF only as such a pair
     // (a POPF of random data could set TF, and single-step traps are not
-    // built); or an interrupt block.
+    // built); an interrupt block; or BOUND.
     void ucode_block() {
-        const unsigned kind = pick(5);
+        const unsigned kind = pick(6);
+        if (kind == 5) {
+            items.push_back(Item{bound_block(), -1, 0, 0});
+            return;
+        }
         const bool os32 = pick(3) == 0;
         auto add = [&](std::vector<uint8_t> bytes) {
             if (os32) bytes.insert(bytes.begin(), 0x66);
@@ -2339,6 +2719,123 @@ private:
         } else {
             interrupt_block();
         }
+    }
+
+    // POP m with 32-bit addressing: ESP set below 10000h (now and then to
+    // 0, so the pop wraps a 16-bit stack's SP from FFFEh or FFFCh to 0), a
+    // value pushed, then popped to [ESP + disp8], [ESP + r * scale + disp8]
+    // or [r + disp8]; each address through ESP reads it after the pop. A
+    // register r is first set to a small value. ESP scaled by an invalid
+    // SIB is left out: the divergence list leaves an invalid SIB to the
+    // corpus, so the oracle would take the RTL's results. One item, so no
+    // branch lands between.
+    std::vector<uint8_t> popm32_block() {
+        std::vector<uint8_t> out;
+        const bool os32 = pick(2);
+        auto size = [&]() {
+            if (os32) out.push_back(0x66);
+        };
+        auto value = [&](uint32_t v, unsigned bytes) {
+            for (unsigned n = 0; n < bytes; ++n) out.push_back(uint8_t(v >> (8 * n)));
+        };
+        auto set = [&](unsigned r, uint32_t v) {  // MOV r32, imm32
+            out.insert(out.end(), {0x66, uint8_t(0xb8 + r)});
+            value(v, 4);
+        };
+        set(4, pick(3) == 0 ? 0 : uint32_t(pick(0x10000)));
+        unsigned r = pick(8);
+        while (r == 4) r = pick(8);
+        const unsigned form = pick(3), scale = pick(4);
+        if (form != 0) set(r, pick(0x400));
+        size();
+        out.push_back(0x68);
+        value(uint32_t(rng()), os32 ? 4 : 2);
+        size();
+        out.insert(out.end(), {0x67, 0x8f});
+        if (form == 0) {
+            out.insert(out.end(), {0x44, 0x24});  // [ESP + disp8]
+        } else if (form == 1) {
+            out.insert(out.end(), {0x44, uint8_t((scale << 6) | (r << 3) | 4)});  // [ESP + r * scale + disp8]
+        } else {
+            out.push_back(uint8_t(0x40 | r));  // [r + disp8]
+        }
+        out.push_back(byte());
+        return out;
+    }
+
+    // CLTS, WAIT, or CLTS then WAIT, now and then with a prefix. WAIT
+    // raises #NM, which ends the program, when it started with MP and TS set
+    // (run_random) and no CLTS has run.
+    void fpu_block() {
+        static const uint8_t harmless[] = {0x26, 0x2e, 0x36, 0x3e, 0x64, 0x65, 0x66, 0x67};
+        const unsigned form = pick(3);
+        auto add = [&](std::vector<uint8_t> bytes) {
+            if (pick(6) == 0) bytes.insert(bytes.begin(), harmless[pick(8)]);
+            items.push_back(Item{bytes, -1, 0, 0});
+        };
+        if (form != 1) add({0x0f, 0x06});
+        if (form != 0) add({0x9b});
+    }
+
+    // BOUND of a register a MOV sets, against bounds two MOVs store at a
+    // direct offset first: mostly around the register's value, at an edge
+    // now and then, and rarely past one (#BR, which ends the program). Now
+    // and then the register's MOV comes last, so the compares take it
+    // forwarded. Rarer still, a register operand (#UD). One item, so no
+    // branch lands between them.
+    std::vector<uint8_t> bound_block() {
+        std::vector<uint8_t> out;
+        const bool os32 = pick(3) == 0;
+        const unsigned z = os32 ? 4 : 2;
+        unsigned r = pick(8);
+        while (r == 4) r = pick(8);  // ESP stays the stack's
+        const uint16_t at = uint16_t(rng());
+        const uint32_t index = uint32_t(rng());
+        const int64_t i = os32 ? int64_t(int32_t(index)) : int64_t(int16_t(index));
+        const int64_t lowest = os32 ? INT32_MIN : INT16_MIN, highest = os32 ? INT32_MAX : INT16_MAX;
+        auto spread = [&]() -> int64_t {
+            return pick(4) == 0 ? 0 : pick(2) ? int64_t(pick(16)) : int64_t(rng() % (os32 ? 0x10000000u : 0x1000u));
+        };
+        int64_t lo = i - spread(), hi = i + spread();
+        const unsigned miss = pick(24);
+        if (miss == 0) {
+            lo = i + 1 + spread();
+            hi = lo + spread();
+        } else if (miss == 1) {
+            hi = i - 1 - spread();
+            lo = hi - spread();
+        }
+        lo = std::clamp(lo, lowest, highest);
+        hi = std::clamp(hi, lowest, highest);
+        auto size = [&]() {
+            if (os32) out.push_back(0x66);
+        };
+        auto value = [&](uint32_t v) {
+            for (unsigned n = 0; n < z; ++n) out.push_back(uint8_t(v >> (8 * n)));
+        };
+        auto set_index = [&]() {
+            size();
+            out.push_back(uint8_t(0xb8 + r));
+            value(index);
+        };
+        auto store = [&](uint16_t where, int64_t v) {
+            size();
+            out.insert(out.end(), {0xc7, 0x06, uint8_t(where), uint8_t(where >> 8)});
+            value(uint32_t(v));
+        };
+        const bool late = pick(4) == 0;
+        if (!late) set_index();
+        store(at, lo);
+        store(uint16_t(at + z), hi);
+        if (late) set_index();
+        size();
+        out.push_back(0x62);
+        if (pick(64) == 0) {
+            out.push_back(uint8_t(0xc0 | (r << 3) | pick(8)));
+        } else {
+            out.insert(out.end(), {uint8_t(0x06 | (r << 3)), uint8_t(at), uint8_t(at >> 8)});
+        }
+        return out;
     }
 
     // SS above the vector table, ES = 0, the vector's entry stored as the
@@ -2391,6 +2888,9 @@ private:
         const unsigned skip = pick(4);
         for (unsigned n = 0; n < skip; ++n) items.push_back(Item{instruction(false), -1, 0, 0});
         set_far_target(at, int(items.size()));
+        // No backward jump runs the transfer again: an indirect one would
+        // read its pointer from a DS the skipped code may have moved.
+        fence = int(items.size());
     }
 
     // JMP or CALL ptr16:16/32, its pointer filled in at layout.
@@ -2565,6 +3065,11 @@ private:
     }
 };
 
+// Random programs' interrupts: vectors 8-15 and NMI's 2 at a handler, NOP
+// and IRET, at FFFF:FFE0, above any program's code (CS.base at most FFFF0h,
+// EIP at most D100h, then the program).
+constexpr uint32_t IRQ_HANDLER = 0x10ffd0;
+
 int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
                Summary &summary, uint64_t seed, uint64_t programs, uint64_t retire_limit, uint64_t first) {
     std::mt19937_64 random(seed);
@@ -2572,8 +3077,11 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
     for (uint64_t n = 0; n < programs; ++n) {
         State state;
         for (auto &r : state.gpr) r = uint32_t(random());
-        // Every arithmetic flag, IF and DF at random; TF stays clear.
+        // Every arithmetic flag, IF and DF at random; TF stays clear. CR0's
+        // MP and TS at random, so a quarter of the programs raise #NM at a
+        // WAIT that no CLTS precedes.
         state.eflags = (uint32_t(random()) & 0x0ed5) | 0x2;
+        state.cr0 = uint32_t(random()) & CR0_HELD;
         for (int k = 0; k < 6; ++k) state.seg[k] = fes_i386::real_mode_segment(uint16_t(random()));
         state.eip = 0x100 + uint32_t(random() % 0xd000);
         const uint32_t base = state.seg[fes_i386::SEG_CS].base + state.eip;
@@ -2581,25 +3089,47 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
         if (n < first) continue;
         for (size_t i = 0; i < code.size(); ++i) bus.ram[base + i] = rtl.ram[base + i] = code[i];
         oracle.invalidate(base, uint32_t(code.size()));
+        // A reset first: no NMI pending or blocked from the last program, as
+        // the RTL's reset leaves it (set_state keeps them).
+        oracle.reset();
         oracle.set_state(state);
         rtl.start(state);
         bus.io.reset(false);
         rtl.io.reset(false);
+        bus.pic = Pic{};
+        oracle.set_intr(false);
+        std::vector<std::pair<uint32_t, uint8_t>> image{{IRQ_HANDLER, 0x90}, {IRQ_HANDLER + 1, 0xcf}};
+        for (uint32_t vector : {2u, 8u, 9u, 10u, 11u, 12u, 13u, 14u, 15u})
+            for (uint32_t i = 0; i < 4; ++i) image.emplace_back(vector * 4 + i, uint8_t(0xffffffe0u >> (8 * i)));
+        static_assert(0xffff0 + 0xffe0 == IRQ_HANDLER);
+        for (auto [address, value] : image) {
+            bus.ram[address] = rtl.ram[address] = value;
+            oracle.invalidate(address, 1);
+            rtl.written.insert(address);
+        }
+        // Each program's interrupts from its own seed, apart from the
+        // programs', so FES_I386_FIRST reruns them too.
+        std::mt19937_64 irq_random(seed * 0x9e3779b97f4a7c15ull + n);
+        Irq irq;
+        irq.random = &irq_random;
+        irq.handler = IRQ_HANDLER;
+        irq.entry = {0xe0, 0xff, 0xff, 0xff};  // FFFF:FFE0
 
         Mismatches out;
         Outcome outcome;
         try {
             outcome = lockstep(oracle, bus, rtl, entries, Fields{}, retire_limit, true, summary, out, base,
-                               base + uint32_t(code.size()));
+                               base + uint32_t(code.size()), &irq);
         } catch (const std::exception &error) {
             out.add(std::string("oracle-error:") + error.what(), 0, 0);
             oracle.reset();
         }
         if (out.items.empty() && !outcome.halted && !outcome.limit && !outcome.smc && outcome.exception < 0 &&
-            !outcome.double_fault)
+            !outcome.double_fault && !outcome.vector_moved)
             out.add("halt", 1, 0);
         summary.limits += outcome.limit;
         summary.smc += outcome.smc;
+        summary.vector_moved += outcome.vector_moved;
         summary.halts += outcome.halted;
         summary.double_faults += outcome.double_fault;
         if (outcome.exception >= 0) {
@@ -2682,7 +3212,7 @@ int main(int argc, char **argv) {
     VerilatedContext context;
     Rtl rtl(context);
     std::mt19937_64 latency_random(seed * 7919 + 17);
-    if (env("FES_I386_LATENCY", 1)) rtl.fetch.random = rtl.data.random = rtl.port.random = &latency_random;
+    if (env("FES_I386_LATENCY", 1)) rtl.fetch.random = rtl.data.random = rtl.port.random = rtl.inta.random = &latency_random;
 
     Summary summary;
     const std::vector<Entry> entries = load_entries(std::getenv("FES_I386_DIVERGENCES"));
@@ -2723,6 +3253,7 @@ int main(int argc, char **argv) {
                 "\"retirements\": %llu, \"cycles\": %llu, \"halts\": %llu, \"interrupts\": %llu, \"faults\": %llu, \"fault_vectors\": {%s}, "
                 "\"double_faults\": %llu, "
                 "\"retire_limits\": %llu, \"smc_stops\": %llu, \"load_wait_cycles\": %llu, \"io_accesses\": %llu, "
+                "\"external_interrupts\": %llu, \"nmis\": %llu, \"rep_interrupts\": %llu, \"vector_moved_stops\": %llu, "
                 "\"divergence_retirements\": {%s}, "
                 "\"trace_hash\": \"%016llx\", "
                 "\"gaps\": {\"sequential\": %s, \"prefixed\": %s, \"lea\": %s, \"selector\": %s, "
@@ -2737,7 +3268,9 @@ int main(int argc, char **argv) {
                 (unsigned long long)summary.faults, vectors.c_str(), (unsigned long long)summary.double_faults,
                 (unsigned long long)summary.limits,
                 (unsigned long long)summary.smc, (unsigned long long)summary.load_waits,
-                (unsigned long long)summary.io_accesses, divergences.c_str(),
+                (unsigned long long)summary.io_accesses, (unsigned long long)summary.external_interrupts,
+                (unsigned long long)summary.nmis, (unsigned long long)summary.rep_interrupts,
+                (unsigned long long)summary.vector_moved, divergences.c_str(),
                 (unsigned long long)summary.trace_hash, histogram(summary.gap_sequential).c_str(),
                 histogram(summary.gap_prefixed).c_str(), histogram(summary.gap_lea).c_str(),
                 histogram(summary.gap_selector).c_str(), histogram(summary.gap_after_taken).c_str(),

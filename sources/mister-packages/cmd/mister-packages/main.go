@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/DeanoC/mister-packages/internal/emitc"
 	"github.com/DeanoC/mister-packages/internal/emitcpp"
 	"github.com/DeanoC/mister-packages/internal/emitgo"
 	"github.com/DeanoC/mister-packages/internal/emitverilog"
@@ -40,6 +41,17 @@ func run(command string, args []string) error {
 			return err
 		}
 		return reportPath(path)
+	case "emit-c":
+		path, err := inputPath(args)
+		if err != nil {
+			return err
+		}
+		text, err := emitCPath(path)
+		if err != nil {
+			return err
+		}
+		fmt.Print(text)
+		return nil
 	case "emit-cpp":
 		path, err := inputPath(args)
 		if err != nil {
@@ -100,6 +112,12 @@ func validatePath(path string) (string, error) {
 		return "", err
 	}
 	switch kind {
+	case "board":
+		board, err := pack.LoadBoard(path)
+		if err != nil {
+			return "", err
+		}
+		return board.ID, nil
 	case "platform":
 		resolved, err := pack.LoadPlatform(path)
 		if err != nil {
@@ -128,7 +146,7 @@ func validatePath(path string) (string, error) {
 		}
 		return profiles.ID, nil
 	default:
-		return "", fmt.Errorf("%s: kind %q is not platform, abi, fabric, or programming_profiles", path, kind)
+		return "", fmt.Errorf("%s: kind %q is not board, platform, abi, fabric, or programming_profiles", path, kind)
 	}
 }
 
@@ -138,6 +156,12 @@ func reportPath(path string) error {
 		return err
 	}
 	switch kind {
+	case "board":
+		board, err := pack.LoadBoard(path)
+		if err != nil {
+			return err
+		}
+		return board.Report(os.Stdout)
 	case "platform":
 		resolved, err := pack.LoadPlatform(path)
 		if err != nil {
@@ -145,8 +169,23 @@ func reportPath(path string) error {
 		}
 		return resolved.Report(os.Stdout)
 	default:
-		return fmt.Errorf("%s: kind %q is not platform", path, kind)
+		return fmt.Errorf("%s: kind %q is not board or platform", path, kind)
 	}
+}
+
+func emitCPath(path string) (string, error) {
+	kind, err := pack.PeekKind(path)
+	if err != nil {
+		return "", err
+	}
+	if kind != "fabric" {
+		return "", fmt.Errorf("%s: emit-c expects kind fabric, got %q", path, kind)
+	}
+	fabric, err := pack.LoadFabric(path)
+	if err != nil {
+		return "", err
+	}
+	return emitc.GenerateFabric(fabric)
 }
 
 func emitGoPath(path string) (string, error) {
@@ -275,12 +314,14 @@ func usage() {
 Commands:
   validate [package.yaml]
   report [package.yaml]
+  emit-c <fabric.yaml>
   emit-cpp [package.yaml]
   emit-go [abi.yaml|programming.yaml]
 	emit-verilog [abi.yaml|fabric.yaml]
   diff-oracle <package.yaml> <oracle.yaml>
 
 Default package is packages/platform/de10_nano.yaml.
-Package kind is platform, abi, fabric, or programming_profiles.
+Package kind is board, platform, abi, fabric, or programming_profiles.
+Standalone boards support validate and report only.
 `)
 }

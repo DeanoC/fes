@@ -68,33 +68,33 @@ func (s *Service) insertMediaUnitLocked(ctx context.Context, size int64, body io
 }
 func (s *Service) insertBoundMediaUnitLocked(ctx context.Context, size int64, body io.Reader, b protocol.MediaUnitBinding, library *protocol.LibraryMediaBinding, owners ...context.Context) (protocol.Status, error) {
 	if !b.Valid() || b.Target == "" || body == nil {
-		return protocol.Status{}, protocol.MediaUnitRequestError()
+		return protocol.Status{}, mediaUnchanged(protocol.MediaUnitRequestError())
 	}
 	ctx = WithSessionTarget(ctx, b.Target)
 	if err := s.prepareMediaUnitClient(ctx, b); err != nil {
-		return protocol.Status{}, err
+		return protocol.Status{}, mediaUnchanged(err)
 	}
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
 	client, loader, err := s.mediaUnitTargetLocked(b)
 	if err != nil {
-		return protocol.Status{}, err
+		return protocol.Status{}, mediaUnchanged(err)
 	}
 	prior, err := client.Status(ctx)
 	if err != nil {
-		return protocol.Status{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
+		return protocol.Status{}, mediaUnchanged(canonicalRemoteError(err, protocol.CodeMiSTerUnavailable))
 	}
 	if !b.Matches(prior) {
-		return prior, protocol.MediaUnitIdentityError()
+		return prior, mediaUnchanged(protocol.MediaUnitIdentityError())
 	}
 	if !b.AcceptsSize(prior, size) {
-		return prior, protocol.MediaUnitRequestError()
+		return prior, mediaUnchanged(protocol.MediaUnitRequestError())
 	}
 	unit, _ := protocol.MediaUnit(prior.CorePackage, b.Unit)
 	if unit.Interface == protocol.AtariStFloppyInterface() && size != protocol.AtariStFloppyBytes {
 		data, err := io.ReadAll(io.LimitReader(body, size+1))
 		if err != nil || int64(len(data)) != size || !corepackage.ValidAtariStBase(data, protocol.AtariStFloppyGeometryCapable(prior.CorePackage)) {
-			return prior, protocol.DiskMediaRequestError()
+			return prior, mediaUnchanged(protocol.DiskMediaRequestError())
 		}
 		body = bytes.NewReader(data)
 	}
@@ -111,7 +111,7 @@ func (s *Service) insertBoundMediaUnitLocked(ctx context.Context, size int64, bo
 	if library != nil {
 		durable, ok := client.(mediaDataClient)
 		if !ok {
-			return prior, canonicalError(protocol.CodeUnsupportedOperation, nil)
+			return prior, mediaUnchanged(canonicalError(protocol.CodeUnsupportedOperation, nil))
 		}
 		status, err = durable.InsertLibraryMedia(ctx, size, body, *library)
 	} else {

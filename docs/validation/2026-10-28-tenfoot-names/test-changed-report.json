@@ -1,0 +1,436 @@
+{
+  "format": 1,
+  "root": "/home/deano/.codex/worktrees/2a2a/fes/out/dev/tenfoot-ux-polish",
+  "base": "f31cfccc911702d723bede22ec38a96bf620ca1f",
+  "head": "b3ff95896edd1643a4d1f532cb4b8f9c7cb2915f",
+  "checkout_head": "b3ff95896edd1643a4d1f532cb4b8f9c7cb2915f",
+  "merge_base": "f31cfccc911702d723bede22ec38a96bf620ca1f",
+  "local_paths": [
+    "docs/hardware-rooms.md",
+    "docs/ux/README.md",
+    "docs/ux/acceptance.md",
+    "docs/ux/references/README.md",
+    "docs/ux/references/tenfoot-polish/contact-native-1024x600.jpg",
+    "docs/ux/references/tenfoot-polish/contact-native-1280x720.jpg",
+    "docs/ux/references/tenfoot-polish/contact-rooms-1024x600.jpg",
+    "docs/ux/references/tenfoot-polish/contact-rooms-1280x720.jpg",
+    "docs/ux/references/tenfoot-polish/contact-variants-1024x600.jpg",
+    "docs/ux/references/tenfoot-polish/contact-variants-1280x720.jpg",
+    "docs/ux/references/tenfoot-polish/home-1280x720.png",
+    "docs/ux/references/tenfoot-polish/system-1024x600.png",
+    "docs/ux/references/tenfoot-polish/systems-1280x720.png",
+    "docs/ux/references/tenfoot-polish/workshop-1280x720.png",
+    "docs/ux/references/tenfoot-polish/world-1280x720.png",
+    "docs/ux/visual-language.md",
+    "docs/validation/2026-10-28-tenfoot-names/README.md",
+    "docs/validation/2026-10-28-tenfoot-names/bundle-build.log.gz",
+    "docs/validation/2026-10-28-tenfoot-names/bundle-receipt.json",
+    "docs/validation/2026-10-28-tenfoot-names/capture-gallery.go.txt",
+    "docs/validation/2026-10-28-tenfoot-names/capture-summary.json",
+    "docs/validation/2026-10-28-tenfoot-names/captures.json",
+    "docs/validation/2026-10-28-tenfoot-names/check.log",
+    "docs/validation/2026-10-28-tenfoot-names/deadcode.log",
+    "docs/validation/2026-10-28-tenfoot-names/full-capture-inventory.json.gz",
+    "docs/validation/2026-10-28-tenfoot-names/home-pending-library-regression.log.gz",
+    "docs/validation/2026-10-28-tenfoot-names/reference-comparison.json",
+    "docs/validation/2026-10-28-tenfoot-names/ui-focused.log.gz",
+    "docs/validation/2026-10-28-tenfoot-names/ui-retry.log.gz",
+    "docs/validation/2026-10-28-tenfoot-ux/README.md"
+  ],
+  "impact": {
+    "lanes": {
+      "parent": true,
+      "host": true,
+      "runtime": false,
+      "contracts": false,
+      "fpga": false
+    },
+    "skipped": [
+      "runtime",
+      "contracts",
+      "fpga"
+    ],
+    "cores": [],
+    "test_modes": {
+      "video": false,
+      "media": false,
+      "full_race": false
+    },
+    "paths": [
+      "docs/hardware-rooms.md",
+      "docs/ux/README.md",
+      "docs/ux/acceptance.md",
+      "docs/ux/references/README.md",
+      "docs/ux/references/tenfoot-polish/contact-native-1024x600.jpg",
+      "docs/ux/references/tenfoot-polish/contact-native-1280x720.jpg",
+      "docs/ux/references/tenfoot-polish/contact-rooms-1024x600.jpg",
+      "docs/ux/references/tenfoot-polish/contact-rooms-1280x720.jpg",
+      "docs/ux/references/tenfoot-polish/contact-variants-1024x600.jpg",
+      "docs/ux/references/tenfoot-polish/contact-variants-1280x720.jpg",
+      "docs/ux/references/tenfoot-polish/home-1280x720.png",
+      "docs/ux/references/tenfoot-polish/system-1024x600.png",
+      "docs/ux/references/tenfoot-polish/systems-1280x720.png",
+      "docs/ux/references/tenfoot-polish/workshop-1280x720.png",
+      "docs/ux/references/tenfoot-polish/world-1280x720.png",
+      "docs/ux/visual-language.md",
+      "docs/validation/2026-10-28-tenfoot-names/README.md",
+      "docs/validation/2026-10-28-tenfoot-names/bundle-build.log.gz",
+      "docs/validation/2026-10-28-tenfoot-names/bundle-receipt.json",
+      "docs/validation/2026-10-28-tenfoot-names/capture-gallery.go.txt",
+      "docs/validation/2026-10-28-tenfoot-names/capture-summary.json",
+      "docs/validation/2026-10-28-tenfoot-names/captures.json",
+      "docs/validation/2026-10-28-tenfoot-names/check.log",
+      "docs/validation/2026-10-28-tenfoot-names/deadcode.log",
+      "docs/validation/2026-10-28-tenfoot-names/full-capture-inventory.json.gz",
+      "docs/validation/2026-10-28-tenfoot-names/home-pending-library-regression.log.gz",
+      "docs/validation/2026-10-28-tenfoot-names/reference-comparison.json",
+      "docs/validation/2026-10-28-tenfoot-names/ui-focused.log.gz",
+      "docs/validation/2026-10-28-tenfoot-names/ui-retry.log.gz",
+      "docs/validation/2026-10-28-tenfoot-ux/README.md",
+      "sources/FogCast/README.md",
+      "sources/FogCast/docs/ARCHITECTURE.md",
+      "sources/FogCast/docs/native-tenfoot-launcher/README.md",
+      "sources/FogCast/docs/rooms-controller-bindings.md",
+      "sources/FogCast/docs/rooms-experience.md",
+      "sources/FogCast/docs/rooms.md",
+      "sources/FogCast/internal/corenames/names.go",
+      "sources/FogCast/internal/corenames/names_test.go",
+      "sources/FogCast/ui/rooms/api_destination.go",
+      "sources/FogCast/ui/rooms/api_hardware.go",
+      "sources/FogCast/ui/rooms/api_kit.go",
+      "sources/FogCast/ui/rooms/api_library.go",
+      "sources/FogCast/ui/rooms/authored_room_visual_test.go",
+      "sources/FogCast/ui/rooms/c64_test.go",
+      "sources/FogCast/ui/rooms/computers_test.go",
+      "sources/FogCast/ui/rooms/destination.go",
+      "sources/FogCast/ui/rooms/engine_test.go",
+      "sources/FogCast/ui/rooms/examples.go",
+      "sources/FogCast/ui/rooms/examples/c64/main.lua",
+      "sources/FogCast/ui/rooms/examples/c64/room.toml",
+      "sources/FogCast/ui/rooms/examples/coleco-arcade/main.lua",
+      "sources/FogCast/ui/rooms/examples/coleco-arcade/room.toml",
+      "sources/FogCast/ui/rooms/examples/computers/main.lua",
+      "sources/FogCast/ui/rooms/examples/computers/room.toml",
+      "sources/FogCast/ui/rooms/examples/console-snes/main.lua",
+      "sources/FogCast/ui/rooms/examples/console-snes/room.toml",
+      "sources/FogCast/ui/rooms/examples/fes-cores/main.lua",
+      "sources/FogCast/ui/rooms/examples/fes-cores/room.toml",
+      "sources/FogCast/ui/rooms/examples/hardware/main.lua",
+      "sources/FogCast/ui/rooms/examples/hardware/room.toml",
+      "sources/FogCast/ui/rooms/examples/lobby/main.lua",
+      "sources/FogCast/ui/rooms/examples/lobby/room.toml",
+      "sources/FogCast/ui/rooms/examples/mario-sports/main.lua",
+      "sources/FogCast/ui/rooms/examples/mario-sports/room.toml",
+      "sources/FogCast/ui/rooms/examples/mario-world/main.lua",
+      "sources/FogCast/ui/rooms/examples/mario-world/room.toml",
+      "sources/FogCast/ui/rooms/examples/system/main.lua",
+      "sources/FogCast/ui/rooms/examples/system/room.toml",
+      "sources/FogCast/ui/rooms/examples/tms-vdp/main.lua",
+      "sources/FogCast/ui/rooms/examples/tms-vdp/room.toml",
+      "sources/FogCast/ui/rooms/examples/workbench/main.lua",
+      "sources/FogCast/ui/rooms/examples/workbench/room.toml",
+      "sources/FogCast/ui/rooms/examples_test.go",
+      "sources/FogCast/ui/rooms/hardware_test.go",
+      "sources/FogCast/ui/rooms/names_test.go",
+      "sources/FogCast/ui/rooms/stdlib/systems.lua",
+      "sources/FogCast/ui/rooms/stdlib/widgets/system_workbench.lua",
+      "sources/FogCast/ui/rooms/system_family_test.go",
+      "sources/FogCast/ui/tenfoot/app.go",
+      "sources/FogCast/ui/tenfoot/browse_actions.go",
+      "sources/FogCast/ui/tenfoot/browse_actions_test.go",
+      "sources/FogCast/ui/tenfoot/core_library.go",
+      "sources/FogCast/ui/tenfoot/core_library_test.go",
+      "sources/FogCast/ui/tenfoot/draw.go",
+      "sources/FogCast/ui/tenfoot/hardware_setup.go",
+      "sources/FogCast/ui/tenfoot/home.go",
+      "sources/FogCast/ui/tenfoot/home_lounge_test.go",
+      "sources/FogCast/ui/tenfoot/home_room_test.go",
+      "sources/FogCast/ui/tenfoot/home_state_test.go",
+      "sources/FogCast/ui/tenfoot/home_test.go",
+      "sources/FogCast/ui/tenfoot/library_render_test.go",
+      "sources/FogCast/ui/tenfoot/localcore.go",
+      "sources/FogCast/ui/tenfoot/localcore_test.go",
+      "sources/FogCast/ui/tenfoot/native_dialog_render_test.go",
+      "sources/FogCast/ui/tenfoot/prepared_names.go",
+      "sources/FogCast/ui/tenfoot/prepared_names_test.go",
+      "sources/FogCast/ui/tenfoot/room.go",
+      "sources/FogCast/ui/tenfoot/room_draw.go",
+      "sources/FogCast/ui/tenfoot/settings.go"
+    ],
+    "reasons": [
+      "sources/FogCast/internal/corenames/names.go: host and parent integration",
+      "sources/FogCast/internal/corenames/names_test.go: host and parent integration",
+      "sources/FogCast/ui/rooms/api_destination.go: host and parent integration",
+      "sources/FogCast/ui/rooms/api_hardware.go: host and parent integration",
+      "sources/FogCast/ui/rooms/api_kit.go: host and parent integration",
+      "sources/FogCast/ui/rooms/api_library.go: host and parent integration",
+      "sources/FogCast/ui/rooms/authored_room_visual_test.go: host and parent integration",
+      "sources/FogCast/ui/rooms/c64_test.go: host and parent integration",
+      "sources/FogCast/ui/rooms/computers_test.go: host and parent integration",
+      "sources/FogCast/ui/rooms/destination.go: host and parent integration",
+      "sources/FogCast/ui/rooms/engine_test.go: host and parent integration",
+      "sources/FogCast/ui/rooms/examples.go: host and parent integration",
+      "sources/FogCast/ui/rooms/examples/c64/main.lua: host and parent integration",
+      "sources/FogCast/ui/rooms/examples/c64/room.toml: host and parent integration",
+      "sources/FogCast/ui/rooms/examples/coleco-arcade/main.lua: host and parent integration",
+      "sources/FogCast/ui/rooms/examples/coleco-arcade/room.toml: host and parent integration",
+      "sources/FogCast/ui/rooms/examples/computers/main.lua: host and parent integration",
+      "sources/FogCast/ui/rooms/examples/computers/room.toml: host and parent integration",
+      "sources/FogCast/ui/rooms/examples/console-snes/main.lua: host and parent integration",
+      "sources/FogCast/ui/rooms/examples/console-snes/room.toml: host and parent integration",
+      "sources/FogCast/ui/rooms/examples/fes-cores/main.lua: host and parent integration",
+      "sources/FogCast/ui/rooms/examples/fes-cores/room.toml: host and parent integration",
+      "sources/FogCast/ui/rooms/examples/hardware/main.lua: host and parent integration",
+      "sources/FogCast/ui/rooms/examples/hardware/room.toml: host and parent integration",
+      "sources/FogCast/ui/rooms/examples/lobby/main.lua: host and parent integration",
+      "sources/FogCast/ui/rooms/examples/lobby/room.toml: host and parent integration",
+      "sources/FogCast/ui/rooms/examples/mario-sports/main.lua: host and parent integration",
+      "sources/FogCast/ui/rooms/examples/mario-sports/room.toml: host and parent integration",
+      "sources/FogCast/ui/rooms/examples/mario-world/main.lua: host and parent integration",
+      "sources/FogCast/ui/rooms/examples/mario-world/room.toml: host and parent integration",
+      "sources/FogCast/ui/rooms/examples/system/main.lua: host and parent integration",
+      "sources/FogCast/ui/rooms/examples/system/room.toml: host and parent integration",
+      "sources/FogCast/ui/rooms/examples/tms-vdp/main.lua: host and parent integration",
+      "sources/FogCast/ui/rooms/examples/tms-vdp/room.toml: host and parent integration",
+      "sources/FogCast/ui/rooms/examples/workbench/main.lua: host and parent integration",
+      "sources/FogCast/ui/rooms/examples/workbench/room.toml: host and parent integration",
+      "sources/FogCast/ui/rooms/examples_test.go: host and parent integration",
+      "sources/FogCast/ui/rooms/hardware_test.go: host and parent integration",
+      "sources/FogCast/ui/rooms/names_test.go: host and parent integration",
+      "sources/FogCast/ui/rooms/stdlib/systems.lua: host and parent integration",
+      "sources/FogCast/ui/rooms/stdlib/widgets/system_workbench.lua: host and parent integration",
+      "sources/FogCast/ui/rooms/system_family_test.go: host and parent integration",
+      "sources/FogCast/ui/tenfoot/app.go: host and parent integration",
+      "sources/FogCast/ui/tenfoot/browse_actions.go: host and parent integration",
+      "sources/FogCast/ui/tenfoot/browse_actions_test.go: host and parent integration",
+      "sources/FogCast/ui/tenfoot/core_library.go: host and parent integration",
+      "sources/FogCast/ui/tenfoot/core_library_test.go: host and parent integration",
+      "sources/FogCast/ui/tenfoot/draw.go: host and parent integration",
+      "sources/FogCast/ui/tenfoot/hardware_setup.go: host and parent integration",
+      "sources/FogCast/ui/tenfoot/home.go: host and parent integration",
+      "sources/FogCast/ui/tenfoot/home_lounge_test.go: host and parent integration",
+      "sources/FogCast/ui/tenfoot/home_room_test.go: host and parent integration",
+      "sources/FogCast/ui/tenfoot/home_state_test.go: host and parent integration",
+      "sources/FogCast/ui/tenfoot/home_test.go: host and parent integration",
+      "sources/FogCast/ui/tenfoot/library_render_test.go: host and parent integration",
+      "sources/FogCast/ui/tenfoot/localcore.go: host and parent integration",
+      "sources/FogCast/ui/tenfoot/localcore_test.go: host and parent integration",
+      "sources/FogCast/ui/tenfoot/native_dialog_render_test.go: host and parent integration",
+      "sources/FogCast/ui/tenfoot/prepared_names.go: host and parent integration",
+      "sources/FogCast/ui/tenfoot/prepared_names_test.go: host and parent integration",
+      "sources/FogCast/ui/tenfoot/room.go: host and parent integration",
+      "sources/FogCast/ui/tenfoot/room_draw.go: host and parent integration",
+      "sources/FogCast/ui/tenfoot/settings.go: host and parent integration"
+    ],
+    "always": [
+      "planner tests",
+      "diff whitespace checks"
+    ],
+    "not_run": [
+      "FPGA synthesis/place-and-route",
+      "cold image builds",
+      "hardware acceptance"
+    ]
+  },
+  "commands": [
+    {
+      "lane": "always",
+      "label": "test_affected.py",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [
+        "tests/test_affected.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "test_test_changed.py",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [
+        "tests/test_test_changed.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "committed whitespace",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "f31cfccc911702d723bede22ec38a96bf620ca1f",
+        "--head",
+        "b3ff95896edd1643a4d1f532cb4b8f9c7cb2915f"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": []
+    },
+    {
+      "lane": "always",
+      "label": "working whitespace",
+      "cwd": ".",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "tools": [
+        "git"
+      ],
+      "files": []
+    },
+    {
+      "lane": "parent",
+      "label": "parent Python regressions",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"docs/hardware-rooms.md\", \"docs/ux/README.md\", \"docs/ux/acceptance.md\", \"docs/ux/references/README.md\", \"docs/ux/references/tenfoot-polish/contact-native-1024x600.jpg\", \"docs/ux/references/tenfoot-polish/contact-native-1280x720.jpg\", \"docs/ux/references/tenfoot-polish/contact-rooms-1024x600.jpg\", \"docs/ux/references/tenfoot-polish/contact-rooms-1280x720.jpg\", \"docs/ux/references/tenfoot-polish/contact-variants-1024x600.jpg\", \"docs/ux/references/tenfoot-polish/contact-variants-1280x720.jpg\", \"docs/ux/references/tenfoot-polish/home-1280x720.png\", \"docs/ux/references/tenfoot-polish/system-1024x600.png\", \"docs/ux/references/tenfoot-polish/systems-1280x720.png\", \"docs/ux/references/tenfoot-polish/workshop-1280x720.png\", \"docs/ux/references/tenfoot-polish/world-1280x720.png\", \"docs/ux/visual-language.md\", \"docs/validation/2026-10-28-tenfoot-names/README.md\", \"docs/validation/2026-10-28-tenfoot-names/bundle-build.log.gz\", \"docs/validation/2026-10-28-tenfoot-names/bundle-receipt.json\", \"docs/validation/2026-10-28-tenfoot-names/capture-gallery.go.txt\", \"docs/validation/2026-10-28-tenfoot-names/capture-summary.json\", \"docs/validation/2026-10-28-tenfoot-names/captures.json\", \"docs/validation/2026-10-28-tenfoot-names/check.log\", \"docs/validation/2026-10-28-tenfoot-names/deadcode.log\", \"docs/validation/2026-10-28-tenfoot-names/full-capture-inventory.json.gz\", \"docs/validation/2026-10-28-tenfoot-names/home-pending-library-regression.log.gz\", \"docs/validation/2026-10-28-tenfoot-names/reference-comparison.json\", \"docs/validation/2026-10-28-tenfoot-names/ui-focused.log.gz\", \"docs/validation/2026-10-28-tenfoot-names/ui-retry.log.gz\", \"docs/validation/2026-10-28-tenfoot-ux/README.md\", \"sources/FogCast/README.md\", \"sources/FogCast/docs/ARCHITECTURE.md\", \"sources/FogCast/docs/native-tenfoot-launcher/README.md\", \"sources/FogCast/docs/rooms-controller-bindings.md\", \"sources/FogCast/docs/rooms-experience.md\", \"sources/FogCast/docs/rooms.md\", \"sources/FogCast/internal/corenames/names.go\", \"sources/FogCast/internal/corenames/names_test.go\", \"sources/FogCast/ui/rooms/api_destination.go\", \"sources/FogCast/ui/rooms/api_hardware.go\", \"sources/FogCast/ui/rooms/api_kit.go\", \"sources/FogCast/ui/rooms/api_library.go\", \"sources/FogCast/ui/rooms/authored_room_visual_test.go\", \"sources/FogCast/ui/rooms/c64_test.go\", \"sources/FogCast/ui/rooms/computers_test.go\", \"sources/FogCast/ui/rooms/destination.go\", \"sources/FogCast/ui/rooms/engine_test.go\", \"sources/FogCast/ui/rooms/examples.go\", \"sources/FogCast/ui/rooms/examples/c64/main.lua\", \"sources/FogCast/ui/rooms/examples/c64/room.toml\", \"sources/FogCast/ui/rooms/examples/coleco-arcade/main.lua\", \"sources/FogCast/ui/rooms/examples/coleco-arcade/room.toml\", \"sources/FogCast/ui/rooms/examples/computers/main.lua\", \"sources/FogCast/ui/rooms/examples/computers/room.toml\", \"sources/FogCast/ui/rooms/examples/console-snes/main.lua\", \"sources/FogCast/ui/rooms/examples/console-snes/room.toml\", \"sources/FogCast/ui/rooms/examples/fes-cores/main.lua\", \"sources/FogCast/ui/rooms/examples/fes-cores/room.toml\", \"sources/FogCast/ui/rooms/examples/hardware/main.lua\", \"sources/FogCast/ui/rooms/examples/hardware/room.toml\", \"sources/FogCast/ui/rooms/examples/lobby/main.lua\", \"sources/FogCast/ui/rooms/examples/lobby/room.toml\", \"sources/FogCast/ui/rooms/examples/mario-sports/main.lua\", \"sources/FogCast/ui/rooms/examples/mario-sports/room.toml\", \"sources/FogCast/ui/rooms/examples/mario-world/main.lua\", \"sources/FogCast/ui/rooms/examples/mario-world/room.toml\", \"sources/FogCast/ui/rooms/examples/system/main.lua\", \"sources/FogCast/ui/rooms/examples/system/room.toml\", \"sources/FogCast/ui/rooms/examples/tms-vdp/main.lua\", \"sources/FogCast/ui/rooms/examples/tms-vdp/room.toml\", \"sources/FogCast/ui/rooms/examples/workbench/main.lua\", \"sources/FogCast/ui/rooms/examples/workbench/room.toml\", \"sources/FogCast/ui/rooms/examples_test.go\", \"sources/FogCast/ui/rooms/hardware_test.go\", \"sources/FogCast/ui/rooms/names_test.go\", \"sources/FogCast/ui/rooms/stdlib/systems.lua\", \"sources/FogCast/ui/rooms/stdlib/widgets/system_workbench.lua\", \"sources/FogCast/ui/rooms/system_family_test.go\", \"sources/FogCast/ui/tenfoot/app.go\", \"sources/FogCast/ui/tenfoot/browse_actions.go\", \"sources/FogCast/ui/tenfoot/browse_actions_test.go\", \"sources/FogCast/ui/tenfoot/core_library.go\", \"sources/FogCast/ui/tenfoot/core_library_test.go\", \"sources/FogCast/ui/tenfoot/draw.go\", \"sources/FogCast/ui/tenfoot/hardware_setup.go\", \"sources/FogCast/ui/tenfoot/home.go\", \"sources/FogCast/ui/tenfoot/home_lounge_test.go\", \"sources/FogCast/ui/tenfoot/home_room_test.go\", \"sources/FogCast/ui/tenfoot/home_state_test.go\", \"sources/FogCast/ui/tenfoot/home_test.go\", \"sources/FogCast/ui/tenfoot/library_render_test.go\", \"sources/FogCast/ui/tenfoot/localcore.go\", \"sources/FogCast/ui/tenfoot/localcore_test.go\", \"sources/FogCast/ui/tenfoot/native_dialog_render_test.go\", \"sources/FogCast/ui/tenfoot/prepared_names.go\", \"sources/FogCast/ui/tenfoot/prepared_names_test.go\", \"sources/FogCast/ui/tenfoot/room.go\", \"sources/FogCast/ui/tenfoot/room_draw.go\", \"sources/FogCast/ui/tenfoot/settings.go\"]"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "sh"
+      ],
+      "files": [
+        "scripts/parent_tests.py",
+        "tests"
+      ]
+    },
+    {
+      "lane": "parent",
+      "label": "working-tree generated consumer consistency",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "go"
+      ],
+      "files": [
+        "scripts/consistency.py"
+      ]
+    },
+    {
+      "lane": "host",
+      "label": "host Go and UI tests",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/host_tests.py",
+        "--ui-if-needed",
+        "--paths-json",
+        "[\"docs/hardware-rooms.md\", \"docs/ux/README.md\", \"docs/ux/acceptance.md\", \"docs/ux/references/README.md\", \"docs/ux/references/tenfoot-polish/contact-native-1024x600.jpg\", \"docs/ux/references/tenfoot-polish/contact-native-1280x720.jpg\", \"docs/ux/references/tenfoot-polish/contact-rooms-1024x600.jpg\", \"docs/ux/references/tenfoot-polish/contact-rooms-1280x720.jpg\", \"docs/ux/references/tenfoot-polish/contact-variants-1024x600.jpg\", \"docs/ux/references/tenfoot-polish/contact-variants-1280x720.jpg\", \"docs/ux/references/tenfoot-polish/home-1280x720.png\", \"docs/ux/references/tenfoot-polish/system-1024x600.png\", \"docs/ux/references/tenfoot-polish/systems-1280x720.png\", \"docs/ux/references/tenfoot-polish/workshop-1280x720.png\", \"docs/ux/references/tenfoot-polish/world-1280x720.png\", \"docs/ux/visual-language.md\", \"docs/validation/2026-10-28-tenfoot-names/README.md\", \"docs/validation/2026-10-28-tenfoot-names/bundle-build.log.gz\", \"docs/validation/2026-10-28-tenfoot-names/bundle-receipt.json\", \"docs/validation/2026-10-28-tenfoot-names/capture-gallery.go.txt\", \"docs/validation/2026-10-28-tenfoot-names/capture-summary.json\", \"docs/validation/2026-10-28-tenfoot-names/captures.json\", \"docs/validation/2026-10-28-tenfoot-names/check.log\", \"docs/validation/2026-10-28-tenfoot-names/deadcode.log\", \"docs/validation/2026-10-28-tenfoot-names/full-capture-inventory.json.gz\", \"docs/validation/2026-10-28-tenfoot-names/home-pending-library-regression.log.gz\", \"docs/validation/2026-10-28-tenfoot-names/reference-comparison.json\", \"docs/validation/2026-10-28-tenfoot-names/ui-focused.log.gz\", \"docs/validation/2026-10-28-tenfoot-names/ui-retry.log.gz\", \"docs/validation/2026-10-28-tenfoot-ux/README.md\", \"sources/FogCast/README.md\", \"sources/FogCast/docs/ARCHITECTURE.md\", \"sources/FogCast/docs/native-tenfoot-launcher/README.md\", \"sources/FogCast/docs/rooms-controller-bindings.md\", \"sources/FogCast/docs/rooms-experience.md\", \"sources/FogCast/docs/rooms.md\", \"sources/FogCast/internal/corenames/names.go\", \"sources/FogCast/internal/corenames/names_test.go\", \"sources/FogCast/ui/rooms/api_destination.go\", \"sources/FogCast/ui/rooms/api_hardware.go\", \"sources/FogCast/ui/rooms/api_kit.go\", \"sources/FogCast/ui/rooms/api_library.go\", \"sources/FogCast/ui/rooms/authored_room_visual_test.go\", \"sources/FogCast/ui/rooms/c64_test.go\", \"sources/FogCast/ui/rooms/computers_test.go\", \"sources/FogCast/ui/rooms/destination.go\", \"sources/FogCast/ui/rooms/engine_test.go\", \"sources/FogCast/ui/rooms/examples.go\", \"sources/FogCast/ui/rooms/examples/c64/main.lua\", \"sources/FogCast/ui/rooms/examples/c64/room.toml\", \"sources/FogCast/ui/rooms/examples/coleco-arcade/main.lua\", \"sources/FogCast/ui/rooms/examples/coleco-arcade/room.toml\", \"sources/FogCast/ui/rooms/examples/computers/main.lua\", \"sources/FogCast/ui/rooms/examples/computers/room.toml\", \"sources/FogCast/ui/rooms/examples/console-snes/main.lua\", \"sources/FogCast/ui/rooms/examples/console-snes/room.toml\", \"sources/FogCast/ui/rooms/examples/fes-cores/main.lua\", \"sources/FogCast/ui/rooms/examples/fes-cores/room.toml\", \"sources/FogCast/ui/rooms/examples/hardware/main.lua\", \"sources/FogCast/ui/rooms/examples/hardware/room.toml\", \"sources/FogCast/ui/rooms/examples/lobby/main.lua\", \"sources/FogCast/ui/rooms/examples/lobby/room.toml\", \"sources/FogCast/ui/rooms/examples/mario-sports/main.lua\", \"sources/FogCast/ui/rooms/examples/mario-sports/room.toml\", \"sources/FogCast/ui/rooms/examples/mario-world/main.lua\", \"sources/FogCast/ui/rooms/examples/mario-world/room.toml\", \"sources/FogCast/ui/rooms/examples/system/main.lua\", \"sources/FogCast/ui/rooms/examples/system/room.toml\", \"sources/FogCast/ui/rooms/examples/tms-vdp/main.lua\", \"sources/FogCast/ui/rooms/examples/tms-vdp/room.toml\", \"sources/FogCast/ui/rooms/examples/workbench/main.lua\", \"sources/FogCast/ui/rooms/examples/workbench/room.toml\", \"sources/FogCast/ui/rooms/examples_test.go\", \"sources/FogCast/ui/rooms/hardware_test.go\", \"sources/FogCast/ui/rooms/names_test.go\", \"sources/FogCast/ui/rooms/stdlib/systems.lua\", \"sources/FogCast/ui/rooms/stdlib/widgets/system_workbench.lua\", \"sources/FogCast/ui/rooms/system_family_test.go\", \"sources/FogCast/ui/tenfoot/app.go\", \"sources/FogCast/ui/tenfoot/browse_actions.go\", \"sources/FogCast/ui/tenfoot/browse_actions_test.go\", \"sources/FogCast/ui/tenfoot/core_library.go\", \"sources/FogCast/ui/tenfoot/core_library_test.go\", \"sources/FogCast/ui/tenfoot/draw.go\", \"sources/FogCast/ui/tenfoot/hardware_setup.go\", \"sources/FogCast/ui/tenfoot/home.go\", \"sources/FogCast/ui/tenfoot/home_lounge_test.go\", \"sources/FogCast/ui/tenfoot/home_room_test.go\", \"sources/FogCast/ui/tenfoot/home_state_test.go\", \"sources/FogCast/ui/tenfoot/home_test.go\", \"sources/FogCast/ui/tenfoot/library_render_test.go\", \"sources/FogCast/ui/tenfoot/localcore.go\", \"sources/FogCast/ui/tenfoot/localcore_test.go\", \"sources/FogCast/ui/tenfoot/native_dialog_render_test.go\", \"sources/FogCast/ui/tenfoot/prepared_names.go\", \"sources/FogCast/ui/tenfoot/prepared_names_test.go\", \"sources/FogCast/ui/tenfoot/room.go\", \"sources/FogCast/ui/tenfoot/room_draw.go\", \"sources/FogCast/ui/tenfoot/settings.go\"]"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "cc",
+        "go",
+        "make",
+        "node",
+        "rg",
+        "sh"
+      ],
+      "files": [
+        "scripts/host_tests.py",
+        "sources/FogCast/Makefile",
+        "sources/FogCast/go.mod",
+        "sources/FogCast/appliance/go.mod",
+        "sources/misteross/expansion/go.mod"
+      ],
+      "host_ui": {
+        "required": true,
+        "scheduled": true,
+        "boundary_scheduled": false,
+        "command_scheduled": true,
+        "target": "test-ui",
+        "reason": "UI/API, production/full or uncertain inputs"
+      }
+    }
+  ],
+  "limits": [
+    "FPGA synthesis/place-and-route",
+    "cold image builds",
+    "hardware acceptance",
+    "platform/image packaging suite",
+    "required browser integration suite",
+    "committed-source/release validation (make check remains separate)"
+  ],
+  "status": "passed",
+  "results": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "host Go and UI tests",
+      "lane": "host",
+      "returncode": 0
+    }
+  ]
+}

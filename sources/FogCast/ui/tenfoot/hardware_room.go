@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/zx81family"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/gfx"
@@ -14,6 +15,7 @@ import (
 )
 
 const hardwareRoomID = "example.hardware"
+const systemRoomID = "example.system"
 const colecoArcadeRoomID = "example.coleco-arcade"
 const colecoCoreID = "fes.coleco"
 const hardwareRoomFooterHeight = 52
@@ -42,10 +44,13 @@ func (a *App) colecoSessionLocked() bool {
 }
 
 func (a *App) playingRoomIDLocked() string {
-	if a.colecoSessionLocked() && !a.sessionLiveMediaOfferedLocked() {
-		return colecoArcadeRoomID
+	if a.colecoSessionLocked() {
+		if !a.sessionLiveMediaOfferedLocked() {
+			return colecoArcadeRoomID
+		}
+		return hardwareRoomID
 	}
-	return hardwareRoomID
+	return a.playingSetupRoomLocked()
 }
 
 func playingRoomLabel(session SessionSnapshot) string {
@@ -96,7 +101,17 @@ func (a *App) playingHardwareRoomAvailableLocked() bool {
 	if a.roomsIndex == nil {
 		return false
 	}
-	pack, ok := a.roomsIndex.Find(hardwareRoomID)
+	if a.playingSetupCoreLocked() == "" {
+		// The package lookup chooses the room on Confirm, without depending
+		// on a filtered shelf or disabling controls while metadata loads.
+		for _, id := range []string{hardwareRoomID, systemRoomID} {
+			if pack, ok := a.roomsIndex.Find(id); ok && pack.Valid() {
+				return true
+			}
+		}
+		return false
+	}
+	pack, ok := a.roomsIndex.Find(a.playingSetupRoomLocked())
 	return ok && pack.Valid()
 }
 
@@ -106,8 +121,94 @@ func (a *App) playingHardwareRoomAvailableLocked() bool {
 const playingHardwareRoomStatus = "Hardware room · the machine is still running"
 const playingColecoSelectorStatus = "Coleco title selector · the machine is still running"
 
+// The captured launch or exact active package identifies the running model.
+// A filtered or reloading shelf is not a source of live session identity.
+func (a *App) playingSetupRoomLocked() string {
+	if zx81family.Known(a.playingSetupCoreLocked()) {
+		return hardwareRoomID
+	}
+	return systemRoomID
+}
+
+func (a *App) playingSetupCoreLocked() string {
+	if samePlayHIDSession(a.playingSetupSession, a.session) {
+		return a.playingSetupCoreID
+	}
+	return ""
+}
+
+func (a *App) clearPlayingSetupLocked() {
+	a.playingSetupRequest++
+	if a.playingSetupCancel != nil {
+		a.playingSetupCancel()
+	}
+	a.playingSetupSession = hostclient.SessionResult{}
+	a.playingSetupCoreID, a.playingSetupPending, a.playingSetupCancel = "", false, nil
+	a.playingSetupRoom = nil
+}
+
+func (a *App) rememberPlayingSetupLocked(coreID string) {
+	a.clearPlayingSetupLocked()
+	a.playingSetupSession = a.session
+	if a.session.CorePackage != nil {
+		value := *a.session.CorePackage
+		a.playingSetupSession.CorePackage = &value
+	}
+	a.playingSetupCoreID = coreID
+	a.playingSetupRoom = a.room
+}
+
+// An adopted session may have no captured launch row. Read its exact active
+// package without changing input focus or display, and discard a stale reply.
+func (a *App) resolvePlayingSetupLocked() {
+	if a.playingSetupPending && samePlayHIDSession(a.playingSetupSession, a.session) {
+		return
+	}
+	if a.client == nil || a.session.CorePackage == nil || protocol.ValidateDigest(a.session.CorePackage.PackageID) != nil {
+		a.status = "The running machine's package is unavailable. Return to play and retry."
+		return
+	}
+	a.rememberPlayingSetupLocked("")
+	prior := a.playingSetupSession
+	request := a.playingSetupRequest
+	a.playingSetupPending = true
+	parent := a.ctx
+	if parent == nil {
+		parent = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(parent, 15*time.Second)
+	a.playingSetupCancel = cancel
+	client := a.client
+	a.status = "Reading the running machine's package…"
+	go func() {
+		defer cancel()
+		pkg, err := client.CorePackage(ctx, prior.CorePackage.PackageID)
+		a.mu.Lock()
+		defer a.mu.Unlock()
+		if request != a.playingSetupRequest || !samePlayHIDSession(prior, a.session) || !samePlayHIDSession(prior, a.playingSetupSession) {
+			return
+		}
+		a.playingSetupPending, a.playingSetupCancel = false, nil
+		if err == nil {
+			err = ctx.Err()
+		}
+		if err != nil {
+			a.status = "The running machine's package could not be read. Return to play and retry."
+			return
+		}
+		a.playingSetupCoreID = pkg.Descriptor.Core.ID
+		a.playingSetupRoom = nil
+		a.openPlayingHardwareRoomLocked()
+	}()
+}
+
 func (a *App) openPlayingHardwareRoomLocked() {
 	if !a.playingHardwareRoomAvailableLocked() {
+		return
+	}
+	directMedia := a.needsSessionDisplayLocked() && a.sessionLiveMediaOfferedLocked()
+	if !a.colecoSessionLocked() && !directMedia && a.playingSetupCoreLocked() == "" && a.session.CorePackage != nil {
+		a.resolvePlayingSetupLocked()
 		return
 	}
 	if a.kitSessionDisplayPlaneLocked() && !a.launcherDisplayFocusedLocked() {
@@ -126,10 +227,19 @@ func (a *App) openPlayingHardwareRoomLocked() {
 	a.repeat.Clear()
 	a.hold.Clear()
 	roomID := a.playingRoomIDLocked()
+	coreID := a.playingSetupCoreLocked()
+	gameID := a.session.GameID
+	if roomID == colecoArcadeRoomID {
+		// The title selector is catalog-scoped; do not seed its navigation with
+		// a library game from the current fixed cartridge.
+		coreID, gameID = "", ""
+	}
 	if a.room == nil {
-		a.openRoomLocked(roomID)
+		a.openRoomWithSelectionLocked(roomID, gameID, coreID)
 	} else if a.room.ID() != roomID {
-		a.openNestedRoomLocked(roomID, "")
+		a.openNestedRoomLocked(roomID, gameID, coreID)
+	} else if roomID == systemRoomID || a.playingSetupRoom != a.room {
+		a.openRoomWithSelectionLocked(roomID, gameID, coreID)
 	} else {
 		// Reused rooms retain focus but must refresh their pre-launch snapshot.
 		a.room.SetOverlay(a.roomOverlayLocked())
@@ -139,6 +249,7 @@ func (a *App) openPlayingHardwareRoomLocked() {
 	if a.room == nil || a.room.ID() != roomID {
 		return
 	}
+	a.playingSetupRoom = a.room
 	a.roomPickerOpen = false
 	a.roomDuringPlay = true
 	a.roomWasParked = false // This visit already loaded or resumed the room.
@@ -147,6 +258,18 @@ func (a *App) openPlayingHardwareRoomLocked() {
 	if roomID == colecoArcadeRoomID {
 		a.status = playingColecoSelectorStatus
 	}
+}
+
+// beginColecoCartridgeControlsLocked opens the kit display plane as a direct
+// cartridge picker. The running Coleco room is a separate Home/F12 route.
+func (a *App) beginColecoCartridgeControlsLocked() bool {
+	if !a.needsSessionDisplayLocked() || !a.colecoCartridgeOfferedLocked() || a.sessionLiveMediaOfferedLocked() {
+		return false
+	}
+	a.roomDuringPlay = true
+	a.mediaControlsDirect = true
+	a.syncGPUParkLocked()
+	return true
 }
 
 func (a *App) resumeRoomSessionLocked() {

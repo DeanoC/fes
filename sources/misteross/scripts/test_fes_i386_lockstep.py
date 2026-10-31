@@ -110,10 +110,15 @@ SCOPE: frozenset[str] = frozenset([
     'A4', 'A5', 'A6', 'A7', 'AA', 'AB', 'AC', 'AD', 'AE', 'AF', 'C8',
     # I/O: IN and OUT, imm8 and DX forms; INS and OUTS.
     'E4', 'E5', 'E6', 'E7', 'EC', 'ED', 'EE', 'EF', '6C', '6D', '6E', '6F',
+    # BT, BTS, BTR and BTC by an immediate and by a register; BSF and BSR.
+    '0FBA.4', '0FBA.5', '0FBA.6', '0FBA.7', '0FA3', '0FAB', '0FB3', '0FBB', '0FBC', '0FBD',
+    # BOUND.
+    '62',
+    # DAA, DAS, AAA and AAS.
+    '27', '2F', '37', '3F',
+    # CLTS and WAIT.
+    '0F06', '9B',
 ])
-# Files of an in-scope opcode whose forms are not built yet: POP m with
-# 32-bit addressing, whose ESP base would read ESP after the pop.
-UNBUILT_FILES: frozenset[str] = frozenset(['678F', '67668F'])
 
 
 class LockstepError(RuntimeError):
@@ -122,7 +127,7 @@ class LockstepError(RuntimeError):
 
 def in_scope(stem: str) -> bool:
     """Whether this build executes the stem's instructions."""
-    return vectors.base_opcode(stem) in SCOPE and stem not in UNBUILT_FILES
+    return vectors.base_opcode(stem) in SCOPE
 
 
 # Opcodes whose MOO stem carries the ModRM reg field, as lockstep_tb.cpp's
@@ -178,8 +183,8 @@ def run_directed(testbench: str, env: dict) -> dict:
     if result.returncode not in (0, 1):
         raise LockstepError(f'directed cases: testbench exited with {result.returncode}\n{result.stderr[-4000:]}')
     summary, failures = parse_output(result.stdout)
-    if summary['runs'] != 16:
-        raise LockstepError(f'directed cases: testbench ran {summary["runs"]} of 16 cases')
+    if summary['runs'] != 17:
+        raise LockstepError(f'directed cases: testbench ran {summary["runs"]} of 17 cases')
     return {'summary': summary, 'failures': failures}
 
 
@@ -383,7 +388,8 @@ def main() -> int:
     divergences = sum((Counter(result['summary']['divergence_retirements']) for result in corpus_results), Counter())
     random_totals = sum((Counter({key: result['summary'][key] for key in
                                   ('runs', 'passed', 'failed', 'retirements', 'cycles', 'halts', 'faults',
-                                   'double_faults', 'retire_limits', 'smc_stops', 'load_wait_cycles', 'io_accesses')})
+                                   'double_faults', 'retire_limits', 'smc_stops', 'load_wait_cycles', 'io_accesses',
+                                   'external_interrupts', 'nmis', 'rep_interrupts', 'vector_moved_stops')})
                          for result in random_results),
                          Counter())
     random_failures = [line for result in random_results + steady_results for line in result['failures']]
@@ -430,8 +436,11 @@ def main() -> int:
               f"retirements: {random_totals['passed']} pass ({random_totals['halts']} to HLT, {random_totals['faults']} "
               f"at a delivered exception, {random_totals['double_faults']} at a fault in a delivery, "
               f"{random_totals['retire_limits']} at the retirement limit, {random_totals['smc_stops']} at a "
-              f"store into their code; {random_totals['load_wait_cycles']} cycles waiting for a load's bytes; "
-              f"{random_totals['io_accesses']} I/O accesses compared), {random_totals['failed']} fail; "
+              f"store into their code, {random_totals['vector_moved_stops']} at an interrupt whose vector they had "
+              f"rewritten; {random_totals['load_wait_cycles']} cycles waiting for a load's bytes; "
+              f"{random_totals['io_accesses']} I/O accesses compared; {random_totals['external_interrupts']} INTRs "
+              f"and {random_totals['nmis']} NMIs taken, {random_totals['rep_interrupts']} of them between a REP "
+              f"string's elements), {random_totals['failed']} fail; "
               f"latency-free reruns of seeds {[result['seed'] for result in steady_results]}: "
               f"{'trace unchanged' if not hash_mismatches else 'TRACE CHANGED for ' + str(hash_mismatches)}")
         def share(histogram: dict, cycles: int) -> str:

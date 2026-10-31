@@ -111,7 +111,8 @@ int main(int argc,char** argv) {
         d.address=0x7000; d.wdata=offset; d.write_cycle=1; d.memory_valid=1; s.step();
         d.memory_valid=0; s.idle(offset);
         d.cold_reset=1; d.reset=1; s.step(); s.ram.cold_reset(); s.idle(7);
-        require(!d.initialized && !d.memory_done && !d.firmware_done,"cold reset cancellation",s.cycles);
+        require(!d.initialized && !d.memory_done && !d.firmware_done &&
+                !s.ram.restart_pending,"cold reset cancellation/CKE boundary",s.cycles);
         auto modes=s.ram.mode_sets;
         d.cold_reset=0;
         for(unsigned i=0;!d.initialized && i<20000;++i) {

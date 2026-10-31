@@ -18,12 +18,14 @@ module pcxt_isa_endpoint (
     input wire [2:0] drq
 );
     reg seen, tag, claimed, prepared, committed;
+    // Updated on the same edges as prepared/committed; no extra bus cycle.
+    // Keep the preparation state decode off the device write-enable path.
+    reg commit_ready;
     reg [7:0] data;
     wire valid = request[`FES_PCXT_ISA_VALID_BIT];
     wire same_tag = request[`FES_PCXT_ISA_TAG_BIT] == tag;
     wire clear = reset || request[`FES_PCXT_ISA_RESET_BIT] || !valid;
-    assign device_commit = !clear && device_valid && seen && same_tag &&
-                           claimed && prepared && !committed &&
+    assign device_commit = !clear && same_tag && commit_ready &&
                            request[`FES_PCXT_ISA_COMMIT_BIT];
 
     always @* begin
@@ -50,6 +52,7 @@ module pcxt_isa_endpoint (
             claimed <= 0;
             prepared <= 0;
             committed <= 0;
+            commit_ready <= 0;
             data <= 0;
         end else if (!device_valid) begin
             device_valid <= 1;
@@ -61,9 +64,11 @@ module pcxt_isa_endpoint (
             claimed <= device_claim;
         end else if (claimed && !prepared && device_ready) begin
             prepared <= 1;
+            commit_ready <= 1;
             data <= device_rdata;
         end else if (device_commit) begin
             committed <= 1;
+            commit_ready <= 0;
         end
     end
 endmodule

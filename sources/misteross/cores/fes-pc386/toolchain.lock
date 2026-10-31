@@ -1,0 +1,29 @@
+[tool.yosys]
+repo = "https://github.com/DeanoC/yosys.git"
+commit = "0a7927bf126eb3d868c50b3bb5e11b69ff656ea9"
+order = 10
+rationale = "DeanoC/yosys main commit 0a7927bf, the squash merge of #68, which reads the hardware thread count once: ThreadPool::pool_size had opened /sys/devices/system/cpu/online on every call (#67), about 1.3 million times for the pc386 M4 shell, past the producer's compiler read audit bound. Since 238eac9a49, the i386 lock's pin, main also adds #54 (opt_merge keeps replicated logic on nomerge wires), #57 (proc_dlatch carries nomerge through latch inference) and #60 (wreduce revisits readers when a shared Y is trimmed), so the netlist may differ from 238eac9a's. The pc386 machine and the i386 CPU share one netlist from M5, so the i386 lock should follow in its own change; until then they differ by these four commits. The shared toolchain.lock stays at 3a5accbd. Pair with nextpnr bd7a1c0d and Mistral 8fcc4cb4. Previous pin 1f7d0273b5, #68's head."
+
+[tool.mistral]
+repo = "https://github.com/DeanoC/mistral.git"
+commit = "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f"
+order = 20
+rationale = "DeanoC fork master 8fcc4cb4, as the i386 and Spectrum locks pin it; required by nextpnr bd7a1c0d."
+
+[tool.nextpnr]
+repo = "https://github.com/DeanoC/nextpnr.git"
+commit = "bd7a1c0d2e1a36ff64ad303edffac87fdabd66bb"
+order = 30
+rationale = "DeanoC/nextpnr main commit bd7a1c0d (squash merge of #292), the i386 lock's pin and the first one this core routes on: the pc386 M4 diagnostic package (scripts/build_fes_pc386_oss.py) is its first routed result. It is the last known good for this core, not a required pin. Pair with Mistral 8fcc4cb4 (required)."
+
+[tool.verilator]
+repo = "https://github.com/verilator/verilator.git"
+commit = "5e4151e3e0c8ecf11d9845a93495f37a31b2f667"
+order = 40
+rationale = "Current lint and simulation baseline sampled 2026-08-26."
+
+[tool.openfpgaloader]
+repo = "https://github.com/trabucayre/openFPGALoader.git"
+commit = "0c5ebaab1fa63c9d9c684abc0b8e68546ea8ea86"
+order = 50
+rationale = "Current DE10-Nano programmer baseline sampled 2026-08-26."

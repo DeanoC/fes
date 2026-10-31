@@ -27,6 +27,7 @@ const (
 	PointerCoreLibrary
 	PointerTapePicker
 	PointerHardwareRoom
+	PointerBrowseActions
 )
 
 // PointerHit is one hit-test result in logical sofa pixels.
@@ -78,6 +79,8 @@ func (k PointerKind) String() string {
 		return "tape-picker"
 	case PointerHardwareRoom:
 		return "hardware-room"
+	case PointerBrowseActions:
+		return "browse-actions"
 	default:
 		return "none"
 	}
@@ -259,6 +262,13 @@ func HitTest(snap Snapshot, x, y int) PointerHit {
 			}
 		}
 	}
+	primary, secondary := libraryActionRects(snap)
+	if primary.contains(x, y) {
+		return PointerHit{Kind: PointerBrowseActions, Index: 0}
+	}
+	if secondary.contains(x, y) {
+		return PointerHit{Kind: PointerBrowseActions, Index: 1}
+	}
 	grid := snap.Grid
 	if i, ok := grid.HitIndex(x, y); ok && i < len(snap.Games) {
 		return PointerHit{Kind: PointerCatalog, Index: i}
@@ -347,7 +357,7 @@ func (a *App) hitTestLocked(x, y int) PointerHit {
 }
 
 func (a *App) pointerSnapshotLocked() Snapshot {
-	return Snapshot{
+	snap := Snapshot{
 		Games:           a.games,
 		Grid:            a.grid,
 		ViewPicker:      a.viewPickerOpen,
@@ -363,6 +373,8 @@ func (a *App) pointerSnapshotLocked() Snapshot {
 		Filters:         a.filtersSnapshotLocked(),
 		OSK:             a.oskSnapshotLocked(),
 		Detail:          a.detailSnapshotLocked(),
+		DetailPlay:      a.detailPlayLocked(),
+		Affinity:        a.affinity.current.Kind,
 		FocusDetail:     a.focusDetailLocked(),
 		Room:            a.roomSnapshotLocked(false),
 		RoomPicker:      a.roomPickerSnapshotLocked(),
@@ -371,12 +383,30 @@ func (a *App) pointerSnapshotLocked() Snapshot {
 		FirmwarePicker:  a.firmwarePickerSnapshotLocked(),
 		TapePicker:      a.tapePickerSnapshotLocked(),
 	}
+	destination := snap.DetailPlay
+	if snap.Room.Open {
+		destination = snap.Room.Destination
+	}
+	snap.BrowseActions = a.browseActionsSnapshotLocked(destination)
+	return snap
+
 }
 
 func (a *App) applyPointerFocusLocked(hit PointerHit) {
 	switch hit.Kind {
 	case PointerCatalog:
+		a.leaveBrowseActionsLocked()
 		a.focusIndexLocked(hit.Index)
+	case PointerBrowseActions:
+		a.enterBrowseActionsLocked(hit.Index)
+	case PointerRoomDestination:
+		if hit.KeyID == heroPrimaryKey || hit.KeyID == heroSecondaryKey {
+			index := 0
+			if hit.KeyID == heroSecondaryKey {
+				index = 1
+			}
+			a.enterBrowseActionsLocked(index)
+		}
 	case PointerOSK:
 		if hit.KeyID == "" {
 			return
@@ -429,6 +459,7 @@ func (a *App) applyPointerFocusLocked(hit PointerHit) {
 			a.roomChoiceIndex = hit.Index
 		}
 	case PointerRoom:
+		a.leaveBrowseActionsLocked()
 		if a.room != nil && hit.KeyID != "" && a.room.Err() == nil {
 			a.room.Hover(hit.KeyID)
 			a.applyRoomActionsLocked()
@@ -496,7 +527,13 @@ func (a *App) activatePointerHitLocked(hit PointerHit, now time.Time) {
 				a.applyRoomDestinationConfirmLocked()
 			}
 		}
+	case PointerBrowseActions:
+		a.handleBrowseActionsLocked(CmdSelect)
 	case PointerRoomDestination:
+		if a.browseActions.open && (hit.KeyID == heroPrimaryKey || hit.KeyID == heroSecondaryKey) {
+			a.handleBrowseActionsLocked(CmdSelect)
+			return
+		}
 		if hit.KeyID == heroPrimaryKey {
 			a.applyRoomDestinationConfirmLocked()
 			return

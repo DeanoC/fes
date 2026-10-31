@@ -24,7 +24,7 @@ func TestAdoptionDistinguishesROMsOnSamePackage(t *testing.T) {
 
 func TestROMLinkClientRequiresCapabilityBeforeMutation(t *testing.T) {
 	fixture := newSequenceSocketFixture(t, []string{fixtureLines(t, "protocol-v2.jsonl")[1] + "\n"})
-	identity := corepackage.ROMLinkIdentity{ROMID: "machine", MapSHA256: strings.Repeat("a", 64), SourceSHA256: strings.Repeat("b", 64), SourceSize: 8192, ProgrammedSHA256: strings.Repeat("c", 64), ProgrammedSize: 2000}
+	identity := corepackage.ROMLinkIdentity{ROMID: "machine", Role: "cartridge", MapSHA256: strings.Repeat("a", 64), SourceSHA256: strings.Repeat("b", 64), SourceSize: 8192, ProgrammedSHA256: strings.Repeat("c", 64), ProgrammedSize: 2000}
 	if _, err := NewClient(fixture.path).LoadROMLinkedCore(context.Background(), "/tmp/package", fixturePackageID, "", "", "", nil, "/tmp/programmed.rbf", identity); err == nil {
 		t.Fatal("ROM load accepted without negotiated capability")
 	}
@@ -55,9 +55,13 @@ func TestROMLinkProtocolRoundTrip(t *testing.T) {
 		if err := json.Unmarshal([]byte(requests[1]), &request); err != nil {
 			t.Fatal(err)
 		}
-		var got corepackage.ROMLinkIdentity
-		if err := json.Unmarshal(request["rom_link"], &got); err != nil || got != identity {
+		var got protocol2ROMLink
+		if err := json.Unmarshal(request["rom_link"], &got); err != nil || got != protocol2ROMLinkFromIdentity(identity) {
 			t.Fatalf("identity changed: %+v %v", got, err)
+		}
+		var wireLink map[string]json.RawMessage
+		if err := json.Unmarshal(request["rom_link"], &wireLink); err != nil || len(wireLink) != 6 {
+			t.Fatalf("runtime ROM receipt shape changed: %s %v", request["rom_link"], err)
 		}
 		var op string
 		_ = json.Unmarshal(request["operation"], &op)
@@ -85,6 +89,24 @@ func TestROMLinkProtocolRoundTrip(t *testing.T) {
 		t.Fatal("accepted wrong ROM response")
 	}
 	fixture.wait(t)
+}
+
+func TestROMLinkStatusAcceptsLegacyIdentityWithoutRole(t *testing.T) {
+	line := fixtureLines(t, "protocol-v2-rom-package-responses.jsonl")[1]
+	var response map[string]any
+	if err := json.Unmarshal([]byte(line), &response); err != nil {
+		t.Fatal(err)
+	}
+	active := response["active_package"].(map[string]any)
+	delete(active["rom_link"].(map[string]any), "role")
+	legacy, err := json.Marshal(response)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := decodeProtocol2Response(legacy)
+	if err != nil || decoded.ActivePackage == nil || decoded.ActivePackage.ROMLink == nil || decoded.ActivePackage.Descriptor.ROM == nil || decoded.ActivePackage.ROMLink.Role != "firmware" {
+		t.Fatalf("legacy ROM identity: %+v %v", decoded.ActivePackage, err)
+	}
 }
 
 func TestROMLinkStatusRejectsMalformedIdentity(t *testing.T) {

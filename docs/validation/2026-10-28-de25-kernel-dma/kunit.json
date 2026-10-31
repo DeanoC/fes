@@ -1,0 +1,58 @@
+{
+    "name": "KUnit Test Group",
+    "sub_groups": [
+        {
+            "name": "fes-de25-dma",
+            "sub_groups": [],
+            "test_cases": [
+                {
+                    "name": "binding_stays_closed",
+                    "status": "PASS"
+                },
+                {
+                    "name": "rejects_bad_publish_before_effects",
+                    "status": "PASS"
+                },
+                {
+                    "name": "kernel_owns_descriptor_and_drain_lifetime",
+                    "status": "PASS"
+                },
+                {
+                    "name": "failed_start_is_held_until_drain",
+                    "status": "PASS"
+                },
+                {
+                    "name": "unreadable_epoch_retains_exposed_storage",
+                    "status": "PASS"
+                },
+                {
+                    "name": "coherent_mapping_uapi_and_revoke",
+                    "status": "PASS"
+                },
+                {
+                    "name": "rejects_invalid_mapping_shapes",
+                    "status": "PASS"
+                },
+                {
+                    "name": "revoke_catches_inflight_mmap_link",
+                    "status": "PASS"
+                }
+            ],
+            "arch": "arm64",
+            "defconfig": "kunit_defconfig",
+            "build_environment": "/build/kunit",
+            "lab_name": null,
+            "kernel": null,
+            "job": null,
+            "git_branch": "kselftest"
+        }
+    ],
+    "test_cases": [],
+    "arch": "arm64",
+    "defconfig": "kunit_defconfig",
+    "build_environment": "/build/kunit",
+    "lab_name": null,
+    "kernel": null,
+    "job": null,
+    "git_branch": "kselftest"
+}

@@ -5,6 +5,11 @@ import tempfile
 from environment import build_environment
 
 GENERATED = (
+    ('emit-c', 'packages/fabric/fes_fabric_de25_ddr_probe.yaml', 'FES', 'image/kernel/de25-dma/generated/fes_de25_ddr_probe.h'),
+    ('emit-verilog', 'packages/fabric/fes_fabric_de25_ddr_probe.yaml', 'misteross', 'boards/de25nano/hps/generated/fes_de25_ddr_probe.vh'),
+    ('emit-cpp', 'packages/fabric/fes_fabric_de25_ddr_probe.yaml', 'misteross', 'boards/de25nano/hps/generated/fes_de25_ddr_probe.hpp'),
+    ('emit-verilog', 'packages/fabric/fes_fabric_de25_hps_mailbox.yaml', 'misteross', 'boards/de25nano/hps/generated/fes_de25_mailbox.vh'),
+    ('emit-cpp', 'packages/fabric/fes_fabric_de25_hps_mailbox.yaml', 'misteross', 'boards/de25nano/hps/generated/fes_de25_mailbox.hpp'),
     ('emit-verilog', 'packages/fabric/fes_fabric_video_raster_rgb888.yaml', 'misteross', 'cores/fes-common/generated/fes_video_part.vh'),
     ('emit-verilog', 'packages/fabric/fes_fabric_video_native_pixels.yaml', 'misteross', 'cores/fes-common/generated/fes_native_video.vh'),
     ('emit-verilog', 'packages/fabric/fes_fabric_atari_st_bus.yaml', 'misteross', 'cores/fes-common/generated/fes_atari_st_bus.vh'),
@@ -84,6 +89,8 @@ COMPONENT_FIXTURES = (
      'FogCast', 'internal/misterruntime/testdata/protocol-v2-edge-responses.jsonl'),
 )
 CORE_SOURCES = ()
+# Descriptive boards without a platform or generated runtime consumer yet.
+VALIDATED = ('packages/board/de25_nano.yaml',)
 
 
 def _run(packages, command, source):
@@ -105,7 +112,7 @@ def check(root: Path, sources: dict[str, Path] | None = None):
     sources = {name: Path(path) for name, path in sources.items()}
     sources["FES"] = root
     packages = sources['mister-packages']
-    for source in sorted({item[1] for item in GENERATED}):
+    for source in sorted({item[1] for item in GENERATED} | set(VALIDATED)):
         _run(packages, 'validate', source)
     with tempfile.TemporaryDirectory(prefix='fes-generated-') as temporary:
         for index, (command, source, component, destination) in enumerate(GENERATED):

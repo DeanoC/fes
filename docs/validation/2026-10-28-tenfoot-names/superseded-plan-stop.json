@@ -1,0 +1,32 @@
+{
+  "stopped_utc": "2026-10-28T12:43:37.574111+00:00",
+  "reason": "Remove an unnecessary corepackage validation API change from this UI-only cleanup, then rerun its actual affected plan.",
+  "owned_process_group": 1581347,
+  "verified_descendants": [
+    {
+      "pid": 1581347,
+      "parent": 2152,
+      "command": "bash"
+    },
+    {
+      "pid": 1581352,
+      "parent": 1581347,
+      "command": "make"
+    },
+    {
+      "pid": 1581353,
+      "parent": 1581352,
+      "command": "python3"
+    },
+    {
+      "pid": 1582296,
+      "parent": 1581353,
+      "command": "python3"
+    },
+    {
+      "pid": 1873713,
+      "parent": 1582296,
+      "command": "python3"
+    }
+  ]
+}

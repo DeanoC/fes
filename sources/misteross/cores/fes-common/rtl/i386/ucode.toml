@@ -11,6 +11,10 @@
 # next instruction's EIP. A stack slot (stk = "peek") is ESP plus slot
 # operand-sized slots, -8 to 7, with ESP unmoved; sp_step = true steps ESP
 # past the eight slots, down from a slot below ESP, up from one above.
+# s1 or s2 = "reg" is the instruction's register (the ModRM reg field), which
+# DC's first uop carries in src1, and rm = true addresses the instruction's
+# ModRM operand. bound = true makes a CMP BOUND's check: #BR (vector 5) when
+# src1's value is below src2's, signed; it writes no flags.
 
 # PUSHA and PUSHAD. Each register goes to its own slot below ESP, from the
 # lowest address up, as the 386EX stores them, and ESP moves only at the
@@ -93,5 +97,20 @@ name = "iret"
 uops = [
     { cls = "alu", op = "mov", d = "t0", size = "32", mkind = "load", stk = "peek", slot = 1 },
     { cls = "alu", op = "flags", imm = 9, mkind = "load", stk = "peek", slot = 2, far_chk = true, far_t = true, wr_cf = true, wr_oszap = true },
-    { cls = "branch", op = "jmp", far_jmp = true, far_t = true, sp_add = true, stk = "retf", slot = 1 },
+    { cls = "branch", op = "jmp", far_jmp = true, far_t = true, sp_add = true, stk = "retf", slot = 1, iret = true },
+]
+
+# BOUND. DC decodes the load of the upper bound, past the lower by the
+# operand size and wrapped by address size, into T1, with the register in
+# src1. The ROM loads the lower bound and compares the register with it,
+# then compares T1 with the register: each raises #BR when its first operand
+# is below its second, signed. Both loads check their limits before either
+# compare, as the 386EX does: a bound past the limit raises #GP(0) or #SS(0)
+# even when the register is outside the other. The fault pushes BOUND's own
+# IP, and BOUND writes no register or flag.
+[[routine]]
+name = "bound"
+uops = [
+    { cls = "alu", op = "cmp", s1 = "reg", mkind = "load", rm = true, bound = true },
+    { cls = "alu", op = "cmp", a = "t1", s2 = "reg", bound = true },
 ]

@@ -1,0 +1,90 @@
+{
+  "format": 1,
+  "pr": "https://github.com/DeanoC/fes/pull/1182",
+  "base_commit": "c7d08235308562964f875d2dbb3fb95f6c9c91ec",
+  "tested_commit": "451ade35840b3c2ad261eb899560ac0719c3c83b",
+  "host_source_commit": "e16f3e9217f8a5d94ddb9394f1de3e3ff46a7ed9",
+  "kit": "A",
+  "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+  "boot_id_before_and_after": "2a5e35b5-5ff4-4355-ac52-4cea4fc88e12",
+  "launcher_config_before_and_after_sha256": "dbbb3ba7e175334ba814851f91604daf78f022d651976093bb35822fd1d73e8f",
+  "claim_released": "2026-10-28T10:03:33+02:00",
+  "capture_device": "/dev/v4l/by-id/fes-shadowcast-hil",
+  "evidence_class": "exact-artifact FPGA/HDMI diagnostic with synthetic evdev keyboard input",
+  "retained_evidence_root": "/home/deano/.codex/worktrees/2a2a/fes/out/dev/working-core-rooms/out/hil-1182-e16f3e9217",
+  "tests": {
+    "footer_parent": 439,
+    "hint_parent": 392,
+    "planner": 21,
+    "runner": 31,
+    "node": 361,
+    "ui_dom": 78,
+    "generated_consumers": 21,
+    "fixture_copies": 37,
+    "check": "passed",
+    "deadcode": "passed"
+  },
+  "retained_files": [
+    {
+      "path": "bundle-final/bundle.tar",
+      "size": 36476416,
+      "sha256": "33c8efad27385e4ece9c4289249219da8fbb85acbc8d8c88e6e043470a7c8b02"
+    },
+    {
+      "path": "logs/footer-test-changed.log",
+      "size": 1161621,
+      "sha256": "205566f64494ad55386a63fddd9cbc80c2c441a6824a58fc9109662c889f155a"
+    },
+    {
+      "path": "logs/hint-test-changed.log",
+      "size": 1154675,
+      "sha256": "7cf1fc50e0a8616bdc3105abd7986d3dede96291fdd8b3859914fe454b788ba6"
+    },
+    {
+      "path": "logs/final-parent-checks.log",
+      "size": 171,
+      "sha256": "02b5982b505fb0bc01285b146a374b0a3eb3c41bc321ac0db8d3bdf674150885"
+    },
+    {
+      "path": "logs/factory-image-binary-hashes.txt",
+      "size": 363,
+      "sha256": "162e0fb3b20a93eae52ad943bd3ab64241a6200f805689508f254502e5d41884",
+      "note": "Factory /usr/share/fes/software bytes; not the selected runtime release. Excluded from candidate identity."
+    },
+    {
+      "path": "logs/restored-identity.txt",
+      "size": 1778,
+      "sha256": "ae76e850610d877a7ac1c71a36ef9f8ae4bec06b0284361e3c9adcfd49eed97e"
+    },
+    {
+      "path": "logs/listeners-after.txt",
+      "size": 174,
+      "sha256": "fa3255dbc0fb6023f9f1e5ad01360f8cc9780aa2346c035fd88b16cf303ada49"
+    },
+    {
+      "path": "hil1182-uinput.go",
+      "size": 9028,
+      "sha256": "71647e09861b27b0fd310a1f1f442c731a007467e6e4293fe9388a07c5452ab4"
+    },
+    {
+      "path": "hil1182-uinput-armv7",
+      "size": 2393250,
+      "sha256": "441b0c422a73755d4e8a740dd086933c03a7603bcc859ce1ce0a204e2179a249"
+    },
+    {
+      "path": "media/pr1182-first.tap",
+      "size": 46,
+      "sha256": "1623ed21386796d640bea6d3de26fae36cba57f666c5fdf43ba71e0d4276b0d3"
+    },
+    {
+      "path": "media/pr1182-second.tap",
+      "size": 47,
+      "sha256": "b2bebf37290d2c0ade5f752167ebf716d53e46f7e7dcffac5013001896eb88d1"
+    },
+    {
+      "path": "media/pr1182-blank.dsk",
+      "size": 194816,
+      "sha256": "4aefcfb1fc437d2132905a6561f656a6806fec3e7ebf2e31fbe838bf26d98ed9"
+    }
+  ]
+}

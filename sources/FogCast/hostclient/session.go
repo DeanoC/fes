@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/misteross/expansion"
 )
 
 // SessionKitLocal reports that the kit is running a core outside the host
@@ -71,15 +72,42 @@ type SessionCoreABI struct {
 // PackageID and ABI are present on the host wire for live-media binding;
 // older fixture bodies may omit them.
 type SessionCorePackage struct {
-	PackageID        string                     `json:"package_id,omitempty"`
-	CoreID           string                     `json:"core_id,omitempty"`
-	MediaUnits       []protocol.MediaUnitStatus `json:"media_units,omitempty"`
-	PersistenceMode  string                     `json:"persistence_mode,omitempty"`
-	Composition      *SessionComposition        `json:"composition,omitempty"`
-	Generation       uint64                     `json:"generation"`
-	Gamepad          bool                       `json:"gamepad"`
-	ABI              SessionCoreABI             `json:"abi"`
-	ActiveInterfaces []SessionCoreInterface     `json:"active_interfaces"`
+	CoreID           string                      `json:"core_id,omitempty"`
+	PackageID        string                      `json:"package_id,omitempty"`
+	MediaUnits       []protocol.MediaUnitStatus  `json:"media_units,omitempty"`
+	PersistenceMode  string                      `json:"persistence_mode,omitempty"`
+	Composition      *SessionComposition         `json:"composition,omitempty"`
+	PartsComposition *expansion.PartsComposition `json:"parts_composition,omitempty"`
+	Generation       uint64                      `json:"generation"`
+	Gamepad          bool                        `json:"gamepad"`
+	ABI              SessionCoreABI              `json:"abi"`
+	ActiveInterfaces []SessionCoreInterface      `json:"active_interfaces"`
+	// ROMLink is the single ROM linked into this load, such as a cartridge.
+	ROMLink *SessionROMLink `json:"rom_link,omitempty"`
+	// ROMLinks are the two sources of a format-4 load: BIOS, then cartridge.
+	ROMLinks *SessionROMLinks `json:"rom_links,omitempty"`
+}
+
+// SessionROMLinks identifies the ordered ROM sources linked into the running
+// bitstream.
+type SessionROMLinks struct {
+	Sources []SessionROMSource `json:"sources"`
+}
+
+// SessionROMSource is one linked ROM source.
+type SessionROMSource struct {
+	ID           string `json:"id"`
+	Role         string `json:"role"`
+	SourceSHA256 string `json:"source_sha256"`
+	SourceSize   int64  `json:"source_size"`
+}
+
+// SessionROMLink identifies the ROM bytes linked into the running bitstream.
+type SessionROMLink struct {
+	ROMID        string `json:"rom_id"`
+	Role         string `json:"role,omitempty"`
+	SourceSHA256 string `json:"source_sha256"`
+	SourceSize   int64  `json:"source_size"`
 }
 
 // SessionComposition is the expansion identity verified for the active load.

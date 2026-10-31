@@ -3,9 +3,6 @@
 // CPU integration fixture. RAM/ROM and the interrupt vector source are supplied
 // by the testbench; all other bytes traverse the real registered ISA fabric.
 module cpu_top (
-`ifdef SYNTHESIS
-    input wire clk_rom,
-`endif
     input wire clk, reset, intr, nmi,
     output wire memory_valid,
     input wire memory_ready,
@@ -23,9 +20,6 @@ module cpu_top (
     output wire guest_ce, halted,
     input wire [2:0] inject
 );
-`ifndef SYNTHESIS
-    wire clk_rom = ~clk;
-`endif
 
     wire cycle_valid, cycle_ready, cycle_done;
     wire [1:0] cycle_fault;
@@ -43,7 +37,7 @@ module cpu_top (
     assign completed = cycle_done;
     wire unused_bus_locked;
     pcxt_cpu cpu (
-        .clk(clk), .clk_rom(clk_rom), .reset(reset), .intr(intr), .nmi(nmi),
+        .clk(clk), .reset(reset), .intr(intr), .nmi(nmi),
         .cycle_valid(cycle_valid), .cycle_ready(cycle_ready),
         .cycle_address(address), .cycle_wdata(wdata), .cycle_kind(kind),
         .cycle_write(write_cycle), .cycle_lock(locked), .cycle_done(cycle_done),

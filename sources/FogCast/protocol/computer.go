@@ -31,7 +31,7 @@ const (
 	Apple2FloppyBytes int64 = int64(generated.FesComputerApple2FloppyBytes)
 	// Apple2FloppyUnit is the media unit fes.media.apple2-floppy occupies.
 	Apple2FloppyUnit uint8 = uint8(generated.FesComputerApple2FloppyUnit)
-	// CassetteRole is the library media role of a Spectrum tape or ZX81 .p image.
+	// CassetteRole is the library media role of a home-computer cassette image.
 	CassetteRole = "cassette"
 	// SpectrumTapeMinBytes is the smallest fes.media.spectrum-tape PZX stream.
 	SpectrumTapeMinBytes int64 = int64(generated.FesComputerSpectrumTapeMinBytes)
@@ -52,9 +52,11 @@ const (
 	// SpectrumDiskImageMaxBytes is the largest .trd or .scl image the host
 	// converts into that raw track image.
 	SpectrumDiskImageMaxBytes int64 = spectrumdisks.MaxInputBytes
-	// Zx81TapeMinBytes is the smallest fes.media.zx81-tape image.
+	// Zx81TapeMinBytes is the smallest fes.media.zx81-tape image, including
+	// ZX81 .p and ZX80 .o files.
 	Zx81TapeMinBytes int64 = int64(generated.FesComputerZx81TapeMinBytes)
-	// Zx81TapeMaxBytes is the largest fes.media.zx81-tape image.
+	// Zx81TapeMaxBytes is the largest fes.media.zx81-tape image, including
+	// ZX81 .p and ZX80 .o files.
 	Zx81TapeMaxBytes int64 = int64(generated.FesComputerZx81TapeMaxBytes)
 	// Zx81TapeUnit is the media unit fes.media.zx81-tape occupies.
 	Zx81TapeUnit uint8 = uint8(generated.FesComputerZx81TapeUnit)
@@ -386,7 +388,9 @@ func MediaUnit(p *CorePackageStatus, unit uint8) (MediaUnitStatus, bool) {
 }
 
 // declaredComputerMedia projects known media interfaces of an exact
-// fes.computer 1.0 descriptor.
+// fes.computer 1.0 descriptor. The shared ZX81 tape unit has machine-specific
+// source images: ZX80 packages use raw .o images, while the ZX81 and Timex
+// packages use .p images.
 func declaredComputerMedia(descriptor corepackage.Descriptor) []CoreMediaCapability {
 	result := make([]CoreMediaCapability, 0)
 	if !ComputerABI(descriptor.ABI.ID, descriptor.ABI.Major, descriptor.ABI.Minor) {
@@ -450,9 +454,13 @@ func declaredComputerMedia(descriptor corepackage.Descriptor) []CoreMediaCapabil
 		zx81 := Zx81TapeInterface()
 		if contract.ID == zx81.ID && contract.Major == int64(zx81.Major) && contract.Minor == int64(zx81.Minor) {
 			unit := Zx81TapeUnit
-			result = append(result, CoreMediaCapability{Role: CassetteRole, Format: "zx81-p",
+			format, extensions := "zx81-p", []string{".p"}
+			if descriptor.Core.ID == "fes.zx80" {
+				format, extensions = "zx80-o", []string{".o"}
+			}
+			result = append(result, CoreMediaCapability{Role: CassetteRole, Format: format,
 				MinBytes: Zx81TapeMinBytes, MaxBytes: Zx81TapeMaxBytes, Interface: zx81,
-				Transport: ComputerMediaTransport, Unit: &unit, Extensions: []string{".p"}})
+				Transport: ComputerMediaTransport, Unit: &unit, Extensions: extensions})
 		}
 	}
 	return result
@@ -488,24 +496,26 @@ func DeclaresSpectrumTape(descriptor corepackage.Descriptor) bool {
 	return false
 }
 
-// DeclaresZx81Tape reports whether the descriptor has the ZX81 .p unit.
+// DeclaresZx81Tape reports whether the descriptor declares the
+// fes.media.zx81-tape unit.
 func DeclaresZx81Tape(descriptor corepackage.Descriptor) bool {
 	for _, capability := range declaredComputerMedia(descriptor) {
-		if capability.Format == "zx81-p" {
+		if capability.Format == "zx81-p" || capability.Format == "zx80-o" {
 			return true
 		}
 	}
 	return false
 }
 
-// ZX81TapeSelectionRole is the library role for a .p file on this package.
-// A declared fes.media.zx81-tape unit uses cassette. A legacy fes.media.blob
-// declaration uses blob. The tape unit wins when a package declares both.
-func ZX81TapeSelectionRole(media []CoreMediaCapability) (string, bool) {
+// ZX81FamilyTapeSelectionRole is the library role for a ZX81-family cassette
+// image. A declared fes.media.zx81-tape unit uses cassette. A legacy
+// fes.media.blob declaration uses blob. The tape unit wins when a package
+// declares both.
+func ZX81FamilyTapeSelectionRole(media []CoreMediaCapability) (string, bool) {
 	blob := RuntimeContract{ID: "fes.media.blob", Major: 1}
 	legacy := false
 	for _, cap := range media {
-		if cap.Role == CassetteRole && cap.Format == "zx81-p" && cap.Interface == Zx81TapeInterface() {
+		if cap.Role == CassetteRole && (cap.Format == "zx81-p" || cap.Format == "zx80-o") && cap.Interface == Zx81TapeInterface() {
 			return CassetteRole, true
 		}
 		if cap.Role == "blob" && cap.Interface == blob {

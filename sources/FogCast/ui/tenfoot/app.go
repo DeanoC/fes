@@ -164,11 +164,13 @@ type SessionSnapshot struct {
 	DevelopmentActive bool
 	DevelopmentState  string
 	Diagnostic        bool
-	LoadTape          bool
+	LoadTape          bool // Live removable-media support, separate from ROM-linked cartridge swaps.
 	ControlsNotice    string
 	ControlsOpen      bool
-	MediaSelector     bool
-	HardwareRoom      bool
+	MediaSelector     bool // The kit session plane is available for direct media controls.
+	// KeypadSelect keeps Select with a keypad machine; Guide opens controls.
+	KeypadSelect bool
+	HardwareRoom bool
 }
 
 // KitLeaseSnapshot is status-only kit ownership from GET /v1/kit/lease.
@@ -269,6 +271,7 @@ type Snapshot struct {
 	Health          HealthSnapshot
 	KitLease        KitLeaseSnapshot
 	Detail          DetailSnapshot
+	BrowseActions   BrowseActionsSnapshot
 	Screenshots     map[string]*image.RGBA
 	Preview         PreviewSnapshot
 	Theme           theme.Theme
@@ -418,6 +421,12 @@ type App struct {
 	favoriteBusy           bool
 	hold                   HoldGate
 	session                hostclient.SessionResult
+	playingSetupSession    hostclient.SessionResult
+	playingSetupCoreID     string
+	playingSetupPending    bool
+	playingSetupRequest    uint64
+	playingSetupCancel     context.CancelFunc
+	playingSetupRoom       *rooms.Instance
 	sessionTitle           string
 	// retainedIdleLease is set when this shell's Soft-stop kept an idle kit
 	// grant, and when a kit Select+Start release failed while that grant may
@@ -504,6 +513,7 @@ type App struct {
 	frameLua rooms.StepTiming
 	// roomCoreDetail is the package whose Details the hero is showing.
 	roomCoreDetail string
+	browseActions  browseActionState
 	// libraryReturn is the suspended room the Library was opened from.
 	libraryReturn *libraryOrigin
 	// firmwarePickerFromDetail reopens Library Details when the picker is
@@ -1142,7 +1152,7 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 			}
 			return
 		case CmdSearch, CmdDetails:
-			if a.sessionLiveMediaOfferedLocked() {
+			if a.sessionLiveMediaOfferedLocked() || (!a.roomDuringPlay && a.colecoCartridgeOfferedLocked()) {
 				a.openTapePickerLocked()
 			}
 			return
@@ -1151,6 +1161,17 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 			return
 		case CmdUp, CmdDown, CmdLeft, CmdRight, CmdFilterPrev, CmdFilterNext, CmdViewPrev, CmdViewNext, CmdViewPicker, CmdFavorite, CmdFilters, CmdSafeAreaIn, CmdSafeAreaOut, CmdTab, CmdTabPrev:
 			return
+		}
+	}
+	if a.handleBrowseActionsLocked(cmd) {
+		return
+	}
+	if cmd == CmdSearch && a.affinity.current.Kind == InputGamepad {
+		if d, _, ok := a.browseActionsDestinationLocked(); ok {
+			if _, hasSecondary := browseActionLabels(d); hasSecondary {
+				a.openDetailLocked()
+				return
+			}
 		}
 	}
 	if a.handleDetailLocked(cmd) {
@@ -1702,8 +1723,8 @@ func (a *App) Tick(now time.Time) Command {
 }
 
 // Snapshot copies renderer-facing state. The games slice is shared: loadLibrary
-// replaces it rather than mutating elements, so the frame loop does not clone
-// the catalog. Cover images are shared, not cloned; the cover map is copied.
+// replaces it rather than mutating elements. Visible labels project prepared
+// names while drawing. Cover images are shared; the cover map is copied.
 func (a *App) Snapshot() Snapshot {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -1760,7 +1781,7 @@ func (a *App) Snapshot() Snapshot {
 	if health.Line != "" && (status == "" || status == "connecting to host API") {
 		status = health.Line
 	}
-	return Snapshot{
+	snap := Snapshot{
 		Games:                   games,
 		Grid:                    a.grid,
 		Status:                  status,
@@ -1825,6 +1846,13 @@ func (a *App) Snapshot() Snapshot {
 		LocalCoreLateAdopt:      a.localLateAdopt,
 		LocalCoreRedraw:         a.localRedraw,
 	}
+	destination := snap.DetailPlay
+	if snap.Room.Open {
+		destination = snap.Room.Destination
+	}
+	snap.BrowseActions = a.browseActionsSnapshotLocked(destination)
+	return snap
+
 }
 
 // SetDebugHUD enables the optional corner overlay (gen, lease ttl, last error).
@@ -2216,7 +2244,7 @@ func (a *App) focusDetailLocked() shared.FocusDetail {
 
 func (a *App) detailForGameLocked(game hostclient.Game) shared.FocusDetail {
 	detail := shared.FocusDetail{
-		Title:    game.Title,
+		Title:    displayGameTitle(game),
 		Platform: a.platformLabelLocked(game.System),
 		Year:     strings.TrimSpace(game.Year),
 		Genre:    strings.TrimSpace(game.Genre),
@@ -2260,8 +2288,7 @@ func (a *App) platformLabelLocked(system string) string {
 }
 
 func (a *App) moveFocusLocked(dx, dy int) {
-	if dy > 0 && a.detailEnterFromBrowseLocked() {
-		a.openDetailLocked()
+	if dy > 0 && a.detailEnterFromBrowseLocked() && a.enterBrowseActionsLocked(0) {
 		return
 	}
 	before := a.grid.Focus
@@ -2272,8 +2299,8 @@ func (a *App) moveFocusLocked(dx, dy int) {
 		a.stampFocusLocked()
 		return
 	}
-	if dy > 0 && len(a.games) > 0 {
-		a.openDetailLocked()
+	if dy > 0 {
+		a.enterBrowseActionsLocked(0)
 	}
 }
 
@@ -2393,13 +2420,13 @@ func (a *App) startLaunchGameWithPackageLocked(game hostclient.Game, packageID, 
 	}
 	a.launchPackageID = packageID
 	a.launchExpectedPackageID = expectedPackageID
-	a.sessionTitle = game.Title
+	a.sessionTitle = displayGameTitle(game)
 	a.cancelPlayHIDLocked()
 	a.launchLeaseRefusal = false
 	a.launch = LaunchSnapshot{
 		GameID:    game.ID,
 		Phase:     "launching",
-		Message:   "launching " + game.Title,
+		Message:   "launching " + displayGameTitle(game),
 		StartedAt: time.Now(),
 	}
 	if a.room != nil {
@@ -2432,7 +2459,7 @@ func launchBlockReason(game hostclient.Game) string {
 
 func libraryPlayDestination(game hostclient.Game) rooms.Destination {
 	state, matches := rooms.ClassifyGames([]hostclient.Game{game}, "")
-	d := rooms.Destination{Kind: rooms.KindGame, Availability: state, Matches: matches, GameID: game.ID, Label: game.Title, System: game.System}
+	d := rooms.Destination{Kind: rooms.KindGame, Availability: state, Matches: matches, GameID: game.ID, Label: displayGameTitle(game), System: game.System}
 	d.FillCopy()
 	return d
 }
@@ -2503,6 +2530,17 @@ func (a *App) doLaunch(ctx context.Context, game hostclient.Game, stamp ClientSt
 	a.applySessionLocked(result)
 	if a.session.State == "active" && a.session.GameID == "" {
 		a.session.GameID = game.ID
+	}
+	activePackage := ""
+	if a.session.CorePackage != nil {
+		activePackage = a.session.CorePackage.PackageID
+	}
+	expectedPackage := game.PackageID
+	if packageID != "" {
+		expectedPackage = packageID
+	}
+	if a.session.State == "active" && a.session.GameID == game.ID && game.CoreID != "" && activePackage == expectedPackage {
+		a.rememberPlayingSetupLocked(game.CoreID)
 	}
 	a.kickSessionPollLocked()
 }
@@ -2832,9 +2870,9 @@ func mediaSelectorKey(name string, usage uint8) bool {
 
 // openRunningMediaSelector opens the running machine's media selector. An
 // empty tape and a folder with no .p files still open: Eject and a typed path
-// stay available. A ROM-linked Coleco session opens its title selector instead
-// of offering unsupported cartridge hot swapping. A kit-local core keeps F12
-// as Stop, so this returns false there.
+// stay available. F12 opens a ROM-linked Coleco session's title selector;
+// Guide opens its cartridge picker. A kit-local core keeps F12 as Stop, so
+// this returns false there.
 func (a *App) openRunningMediaSelector(down bool, now time.Time) bool {
 	a.mu.Lock()
 	colecoSession := a.colecoSessionLocked()
@@ -2957,7 +2995,7 @@ func (a *App) handlePlayHIDKey(name string, down bool, now time.Time) bool {
 	}
 	if loadTapeChromeKey(name) {
 		a.mu.Lock()
-		open := down && a.sessionLiveMediaOfferedLocked()
+		open := down && a.sessionMediaOfferedLocked()
 		a.mu.Unlock()
 		if open {
 			a.Press(CmdSearch, now)
@@ -3364,6 +3402,7 @@ func (a *App) applySessionLocked(result hostclient.SessionResult) {
 		return
 	}
 	if !samePlayHIDSession(a.session, result) {
+		a.clearPlayingSetupLocked()
 		a.cancelPlayHIDLocked()
 		a.invalidateSessionDisplayLocked()
 	}
@@ -3454,7 +3493,7 @@ func (a *App) sessionSnapshotLocked() SessionSnapshot {
 		found := false
 		for _, game := range a.games {
 			if game.ID == a.session.GameID {
-				title = game.Title
+				title = displayGameTitle(game)
 				found = true
 				break
 			}
@@ -3512,7 +3551,8 @@ func (a *App) sessionSnapshotLocked() SessionSnapshot {
 		LoadTape:          a.sessionLiveMediaOfferedLocked(),
 		ControlsNotice:    a.roomSessionNotice,
 		ControlsOpen:      a.roomDuringPlay,
-		MediaSelector:     a.needsSessionDisplayLocked() && a.sessionLiveMediaOfferedLocked(),
+		MediaSelector:     a.needsSessionDisplayLocked() && (a.sessionLiveMediaOfferedLocked() || a.mediaControlsDirect),
+		KeypadSelect:      a.sessionKeypadLocked(),
 		HardwareRoom:      a.playingHardwareRoomAvailableLocked(),
 	}
 }

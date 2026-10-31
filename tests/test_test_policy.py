@@ -25,6 +25,28 @@ RACE = ['go', 'test', '-race', '-short', '-timeout', '30m']
 
 
 class SelectTestModesTests(unittest.TestCase):
+    def test_private_de25_dma_test_kernel_has_no_appliance_media_consumer(self):
+        path = 'image/kernel/de25-dma/de25_dma.c'
+        self.assertEqual(test_policy.select_test_modes([path]), ALL_FALSE)
+        for other in ('image/kernel/fes-window/fes_window.c',
+                      'image/kernel/de25-dma-other/driver.c',
+                      'image/kernel/de25-dma/../fes-window/fes_window.c'):
+            with self.subTest(other=other):
+                self.assertTrue(test_policy.select_test_modes([path, other])['media'])
+
+    def test_de25_linux_does_not_select_unrelated_de10_media_suites(self):
+        de25 = ['image/de25-nano/build.py', 'image/de25-nano/vendor.lock.toml',
+                'image/de25-nano/rootfs/overlay/etc/inittab']
+        self.assertEqual(test_policy.select_test_modes(de25), ALL_FALSE)
+        for path in ('image/scripts/build-target-image.sh', 'boot-media.lock.toml',
+                     'image/de25-nano-other/build.py', 'image/de25-nano/../scripts/build.sh'):
+            with self.subTest(path=path):
+                self.assertEqual(test_policy.select_test_modes([*de25, path]),
+                                 {'video': False, 'media': True, 'full_race': False})
+        self.assertEqual(test_policy.select_test_modes([*de25, 'scripts/bundle.py']),
+                         {'video': True, 'media': False, 'full_race': False})
+        self.assertEqual(test_policy.select_test_modes([*de25, 'unknown/new.bin']), ALL_TRUE)
+
     def test_ordinary_and_policy_only_changes_select_no_extended_mode(self):
         for path in ('sources/FogCast/internal/hostapi/ui_app.js',
                      'sources/FogCast/catalog/query_test.go',
@@ -98,6 +120,21 @@ class SelectTestModesTests(unittest.TestCase):
                      'unknown/new.bin', '<new-branch>'):
             with self.subTest(path=path):
                 self.assertEqual(test_policy.select_test_modes([path]), ALL_TRUE)
+
+    def test_descriptive_de25_board_stays_routine_without_narrowing_shared_changes(self):
+        de25 = ['sources/mister-packages/packages/board/de25_nano.yaml',
+                'sources/misteross/boards/de25nano/blinky.sv']
+        self.assertEqual(test_policy.select_test_modes(de25), ALL_FALSE)
+        for path in ('sources/mister-packages/packages/board/de10_nano.yaml',
+                     'sources/mister-packages/packages/board/de25_nano_other.yaml',
+                     'sources/mister-packages/packages/platform/de25_nano.yaml',
+                     'sources/mister-packages/packages/abi/fes_application.yaml',
+                     'unknown/new.bin'):
+            with self.subTest(path=path):
+                self.assertEqual(test_policy.select_test_modes([*de25, path]), ALL_TRUE)
+        self.assertEqual(test_policy.select_test_modes(
+            [*de25, 'sources/misteross/cores/fes-common/rtl/fes_video_part_direct.v']),
+            {'video': True, 'media': False, 'full_race': False})
 
     def test_documentation_is_ignored_and_prefix_siblings_stay_conservative(self):
         self.assertEqual(test_policy.select_test_modes(['docs/guide.md']), ALL_FALSE)

@@ -18,12 +18,14 @@ from tests.producer_fixture import clean_module, init_source, EXECUTION, FakeInv
 from pathlib import Path
 
 from scripts.build_fes_sg1000 import (
+    BuildError as QuartusBuildError,
     OUTPUT_RELATIVE as QUARTUS_OUTPUT,
     PINNED_INPUTS as QUARTUS_PINNED_INPUTS,
     SYSTEMVERILOG_SOURCES,
     VERILOG_SOURCES,
     _manifest,
     project_qsf,
+    validate_timing_report,
 )
 from scripts.build_fes_sg1000_oss import (
     OUTPUT_RELATIVE as OSS_OUTPUT,
@@ -43,6 +45,7 @@ from scripts.build_fes_sg1000_oss import (
 from scripts.lockfile import load_lock
 from scripts import build_fes_sg1000_oss
 from scripts.fes_build_common import BuildError
+from tests.quartus_timing_fixture import assert_timing_gate
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -50,6 +53,9 @@ GENERATOR = ROOT / "cores/fes-sg1000/diagnostic/generate.py"
 
 
 class BuildFesSg1000Tests(unittest.TestCase):
+    def test_quartus_timing_gate_requires_every_clock_analysed(self) -> None:
+        assert_timing_gate(self, validate_timing_report, QuartusBuildError)
+
     def test_make_entrypoints_use_both_recipes(self) -> None:
         for target, recipe in (
             ("build-fes-sg1000", "scripts/build_fes_sg1000_oss.py"),

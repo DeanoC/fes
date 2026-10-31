@@ -36,7 +36,7 @@ FIELDS: tuple[tuple[str, int], ...] = (
     ('mkind', 2), ('mbytes', 2), ('in_a', 1), ('stk', 3), ('slot', 4), ('ivt', 1), ('sel_part', 1),
     ('probe', 1), ('b', 2), ('seg', 3),
     ('far_jmp', 1), ('far_chk', 1), ('far_t', 1), ('sp_add', 1), ('sp_step', 1), ('a_t1', 1), ('popad_esp', 1),
-    ('rd_cf', 1), ('rd_oszap', 1), ('wr_cf', 1), ('wr_oszap', 1),
+    ('rd_cf', 1), ('rd_oszap', 1), ('wr_cf', 1), ('wr_oszap', 1), ('iret', 1), ('rg', 1), ('rm', 1), ('bound', 1),
 )
 WIDTH = sum(width for _, width in FIELDS)
 
@@ -45,7 +45,7 @@ SEG = {'es': 0, 'cs': 1, 'ss': 2, 'ds': 3, 'fs': 4, 'gs': 5}
 # Named values; a field not listed takes an integer.
 VALUES: dict[str, dict[str, int]] = {
     'cls': {'alu': 0, 'shift': 1, 'branch': 4, 'segment': 5, 'special': 7},
-    'op': {'mov': 9, 'jmp': 1, 'movzx': 15, 'flags': 30},
+    'op': {'cmp': 7, 'mov': 9, 'jmp': 1, 'movzx': 15, 'flags': 30},
     'size': {'osz': 0, '16': 1, '32': 2, '8': 3},
     'src_size': {'osz': 0, '16': 1, '32': 2, '8': 3},
     'mbytes': {'osz': 0, '2': 1, '4': 2, '1': 3},
@@ -70,10 +70,14 @@ def encode(uop: dict, last: bool, where: str) -> int:
     values = {name: 0 for name, _ in FIELDS}
     for key, value in uop.items():
         if key in REGS:
-            if value not in GPR:
+            # A GPR, or "reg": the instruction's register (rg).
+            if value == 'reg':
+                values.update({key: 1, 'rg': 1})
+            elif value in GPR:
+                values[key] = 1
+                values[REGS[key]] = GPR[value]
+            else:
                 raise UcodeError(f'{where}: {key} = {value!r} is not a GPR')
-            values[key] = 1
-            values[REGS[key]] = GPR[value]
         elif key == 'a':
             # src1's value from T1 rather than a GPR.
             if value != 't1':

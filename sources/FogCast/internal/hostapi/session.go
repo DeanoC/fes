@@ -519,16 +519,24 @@ func (s *sessionCoordinator) watchMedia(handle MediaHandle, generation uint64, e
 }
 
 func (s *sessionCoordinator) launch(ctx context.Context, id, target string, stamp clientStamp) (sessionResult, error) {
-	ctx = s.scoped(ctx)
-	if target != "" {
-		ctx = fogcast.WithSessionTarget(ctx, s.target)
-	}
 	if !s.begin() {
 		return sessionResult{}, busyError()
 	}
 	defer s.end()
 	s.observationMu.Lock()
 	defer s.observationMu.Unlock()
+	return s.launchLocked(ctx, id, target, stamp)
+}
+
+// launchLocked performs a launch while the caller holds coordinator
+// admission and observationMu. Cartridge replacement uses the same guarded
+// path so a Stop or another launch cannot replace the admitted machine after
+// its status check and before this launch begins.
+func (s *sessionCoordinator) launchLocked(ctx context.Context, id, target string, stamp clientStamp) (sessionResult, error) {
+	ctx = s.scoped(ctx)
+	if target != "" {
+		ctx = fogcast.WithSessionTarget(ctx, s.target)
+	}
 	// Package admission must run before retiring the previous input/media owner.
 	execution := fogcast.ExecutionFPGANative
 	if resolver, ok := s.service.(sessionExecutionService); ok {
