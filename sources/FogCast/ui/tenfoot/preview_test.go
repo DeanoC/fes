@@ -3,6 +3,7 @@ package tenfoot
 import (
 	"encoding/json"
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"image/color"
 	"io"
 	"net/http"
@@ -64,11 +65,11 @@ func TestAppSessionPreviewStartsAndTearsDown(t *testing.T) {
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
 
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 1 && !snap.Loading
 	})
 	app.Press(CmdSelect, time.Now())
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.GPUParked && snap.Session.State == "active" && snap.Preview.Image != nil && snap.Preview.Label == "Preview"
 	})
 	snap := app.Snapshot()
@@ -83,10 +84,10 @@ func TestAppSessionPreviewStartsAndTearsDown(t *testing.T) {
 	}
 
 	app.Press(CmdBack, time.Now())
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.GPUParked && snap.Session.State != "active" && snap.Preview.Image == nil && !snap.Preview.Live
 	})
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		if previewLive.Load() == 0 {
 			break
@@ -140,18 +141,18 @@ func TestAppPreviewUnavailableDoesNotBlockLaunchOrStop(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 1 && !snap.Loading
 	})
 	app.Press(CmdSelect, time.Now())
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.GPUParked && snap.Session.State == "active"
 	})
 	if launches.Load() != 1 {
 		t.Fatalf("launch blocked, launches=%d", launches.Load())
 	}
 	app.Press(CmdBack, time.Now())
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.GPUParked && snap.Session.State != "active"
 	})
 	if stops.Load() != 1 {
@@ -191,10 +192,10 @@ func TestAppPreviewMissingRouteIsGraceful(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.GPUParked && snap.Session.State == "active"
 	})
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		app.Tick(time.Now())
 		app.mu.Lock()
@@ -243,7 +244,7 @@ func TestGPUParkCancelsPreviewStream(t *testing.T) {
 	app.session.State = "active"
 	app.syncGPUParkLocked()
 	app.mu.Unlock()
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.GPUParked && snap.Preview.Image != nil
 	})
 	if previewLive.Load() != 1 {
@@ -254,10 +255,10 @@ func TestGPUParkCancelsPreviewStream(t *testing.T) {
 	app.session.State = "idle"
 	app.syncGPUParkLocked()
 	app.mu.Unlock()
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.GPUParked && snap.Preview.Image == nil && !snap.Preview.Live
 	})
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		if previewLive.Load() == 0 {
 			if previewGens.Load() < 1 {
@@ -296,11 +297,11 @@ func TestAppCloseTearsDownPreview(t *testing.T) {
 	app.session.State = "active"
 	app.syncGPUParkLocked()
 	app.mu.Unlock()
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Preview.Live || snap.Preview.Image != nil
 	})
 	app.Stop()
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		if previewLive.Load() == 0 {
 			return
@@ -337,7 +338,7 @@ func TestPreviewStopsForGPUNeedingOverlayAndAttract(t *testing.T) {
 	app.session.State = "active"
 	app.syncGPUParkLocked()
 	app.mu.Unlock()
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Preview.Image != nil
 	})
 
@@ -345,7 +346,7 @@ func TestPreviewStopsForGPUNeedingOverlayAndAttract(t *testing.T) {
 	app.settingsOpen = true
 	app.syncPreviewLocked()
 	app.mu.Unlock()
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		if previewLive.Load() == 0 && !app.Snapshot().Preview.Live {
 			return

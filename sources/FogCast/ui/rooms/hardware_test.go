@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"io/fs"
 	"math"
 	"os"
@@ -123,7 +124,7 @@ func TestHardwareRoomQueuesRefreshRequestedDuringRead(t *testing.T) {
 	}
 	select {
 	case <-svc.started:
-	case <-time.After(3 * time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("initial hardware read did not start")
 	}
 	r.Resume()
@@ -163,7 +164,7 @@ func TestHardwareRoomDropsSnapshotSupersededByQueuedRefresh(t *testing.T) {
 	}
 	select {
 	case <-svc.started:
-	case <-time.After(3 * time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("initial hardware read did not start")
 	}
 	r.Resume()
@@ -907,7 +908,7 @@ func openWorkshop(t *testing.T, w, h int, active bool) *Instance {
 		t.Fatal(err)
 	}
 	stepUntil(t, r, func(f Frame) bool { return frameHas(f, "Fits this machine") })
-	deadline := time.Now().Add(time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	now := time.Unix(2000, 0)
 	for len(r.Images()) == 0 && time.Now().Before(deadline) {
 		now = now.Add(16 * time.Millisecond)
