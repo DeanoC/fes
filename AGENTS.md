@@ -26,14 +26,14 @@ This section is the shared rulebook for every agent (Codex, Cursor, Claude, Grok
 ### Merge gate
 Merge only when all of these hold:
 - The head SHA is exactly the one checked.
-- CI is green: `gh pr checks N | awk -F'\t' '$2!="pass" && $2!="skipping"'` prints nothing (column 2 is the check state).
+- CI is green: `gh pr checks N --json name,bucket --jq 'if length==0 then error("no checks") else map(select(.bucket!="pass" and .bucket!="skipping")) | length end'` exits 0 and prints `0`. Any error, no checks, or a non-zero count means not green.
 - 0 unresolved review threads.
 - A clean SuperGrok or Codex review on the exact head. One exception: a clean review carries over to a new head that only adds a merge from the base branch, when the PR's own diff against its base is unchanged and CI is green on the new head.
 - HIL is PASS on the exact head, N/A, or waived. HIL N/A means no kit test applies: the PR changes no kit-run bitstream, firmware or runtime (docs, CI, host tooling only), or the core has no kit (pc386/i386). DE25 HIL is waived until Deano says the boards are ready. A pass on a diagnostic build does not count.
 - The base branch is live, and no open PR uses this head branch as its base.
 - Stacks merge top-down. After each merge, the next PR's tree must equal the reviewed tree, or it needs a fresh review.
 
-Lander merges directly with `gh pr merge N --squash --match-head-commit <sha>` and sends Deano an FYI.
+Merge authority: Lander may merge `lane:lander` PRs in fes, nextpnr, yosys and mistral itself, only after the full gate passes, with `gh pr merge N --squash --match-head-commit <sha>`, and sends Deano an FYI after each merge. Deano merges `lane:deano` PRs or tells Lander to. Other agents do not merge.
 
 ### Review
 - One full review, then re-reviews check only the fix.
@@ -43,25 +43,25 @@ Lander merges directly with `gh pr merge N --squash --match-head-commit <sha>` a
 ### Stacks
 - Max stack depth is 2. Land deeper work on main behind feature flags.
 - One owning agent per stack, end to end.
-- Batch fixes. Merge main in only when there is a conflict.
+- Batch fixes. Update a PR branch from main (by merge, never rebase; see the rules at the top) only when it is needed: a conflict, or a main fix the PR depends on. Don't merge main in just to stay current.
 - A clean review carries over across base-only merges (see the merge gate exception).
 
 ### PR size
 - Prefer one PR per coherent feature or milestone, not one PR per step.
 - Don't mix unrelated subsystems in one PR.
 - Don't split work into stacked chains. Stacks stay at most 2 deep.
-- Put unfinished work behind a feature flag and land it on main (trunk-based) instead of holding long stacks.
+- Put unfinished new work behind a feature flag and land it on main (trunk-based) instead of holding long stacks. A flag gates new code that is not done yet; it is not a compatibility shim. Don't use flags to keep old paths alive, and remove the flag when the work is finished (see "Delete superseded code" below).
 - Small PRs are still right for isolated fixes.
 
 ### HIL
 - Run HIL in parallel with review. Use kit A if kit B is busy.
 - Stop after 2 FAILs on the same head and fix instead.
-- Report HIL as started only once a kit is locked and flashed.
+- Report HIL as started only once the kit is claimed in its status file (see Shared kits below) and the test bundle, image or core under test is loaded on it. A core-only run does not need a bundle install or reflash.
 - Afterwards, restore each kit to exactly the baseline bundle and image that kitA-STATUS.md / kitB-STATUS.md names. Activate the named bundle; reflash only if the booted image differs from the named image (then follow the bundle/image order in the kit procedure (step 3) below) and verify the boot. Verify the active bundle before logging the kit restored. Baselines are promoted only from main HIL passes.
 
 ### Toolchains
 - Quartus is primary for DE25, pc386 and PC/XT. nextpnr is advisory for those.
-- DE25 is Quartus-only.
+- DE25 is Quartus-only and needs Quartus Pro (Agilex 5). Quartus Pro builds run on the 3090 box; Powerboat's Quartus Lite handles Cyclone V only.
 
 ### Hard rules
 - No rebase, force-push or amend.
@@ -75,7 +75,7 @@ Lander merges directly with `gh pr merge N --squash --match-head-commit <sha>` a
 
 ### Machines
 - Powerboat does HIL, the kits and capture. DE25 capture is `/dev/v4l/by-id/fes-ms2109-hil`; never open the raw MS2109 device.
-- The 3090 box is becoming the second Quartus/CI builder.
+- The 3090 box is the second Quartus/CI builder and the Quartus Pro (DE25) build host.
 
 ## PR scope
 
