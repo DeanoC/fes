@@ -8,6 +8,15 @@ from scripts import de25_owner_image as owner
 
 
 class CandidateArchiveTests(unittest.TestCase):
+    def test_owner_permissions_rule_preserves_all_other_device_rules(self):
+        base = b'console root:tty 600 @chmod 600 $MDEV\n$MODALIAS=.* root:root 660 @modprobe "$MODALIAS"\n'
+        kernel = {'fes_revision': 'a' * 40, 'files': {'Image': {'sha256': 'b' * 64}}}
+        changes = owner.root_changes({'fes_revision': 'c' * 40}, kernel, 'd' * 40, base)
+        self.assertEqual(changes['etc/mdev.conf'], (owner.OWNER_MDEV_RULE + base, 0o644))
+        self.assertIn(b'@chmod 600 /dev/fes-de25-scanout', changes['etc/mdev.conf'][0])
+        with self.assertRaisesRegex(ValueError, 'already contains'):
+            owner.root_changes({'fes_revision': 'c' * 40}, kernel, 'd' * 40, owner.OWNER_MDEV_RULE + base)
+
     def add(self, archive, name, data=b'payload', **metadata):
         item = tarfile.TarInfo('./' + name)
         for key, value in metadata.items():

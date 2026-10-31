@@ -28,6 +28,8 @@ import boot
 
 PROFILE = 'image/kernel/de25-platform'
 IMAGE = 'fes-de25-owner.img'
+OWNER_MDEV_RULE = (b'# Preserve the permanent owner control permissions after mdev scanning.\n'
+                   b'fes-de25-scanout root:root 600 @chmod 600 /dev/fes-de25-scanout\n')
 RECIPE_FILES = ('scripts/de25_owner_image.py', 'scripts/media_container.py',
                 'scripts/de25_kernel_test.py', 'scripts/de25_kernel_platform.py',
                 'scripts/de25_boot_contract.py', 'scripts/de25_first_boot.py',
@@ -81,7 +83,17 @@ def selected_kernel(directory):
     return record
 
 
-def root_changes(base_record, kernel_record, revision):
+def archive_file(path, name):
+    with tarfile.open(path) as archive:
+        item = members(archive)[name]
+        if not item.isfile():
+            raise ValueError('expected regular rootfs file: ' + name)
+        return archive.extractfile(item).read()
+
+
+def root_changes(base_record, kernel_record, revision, base_mdev):
+    if re.search(rb'(?m)^\s*fes-de25-scanout\s', base_mdev):
+        raise ValueError('base already contains an owner device rule')
     manifest = {'format': 1, 'classification': 'de25-owner-candidate',
                 'kernel': kernel.RELEASE, 'kernel_image_sha256': kernel_record['files']['Image']['sha256'],
                 'modules': [], 'built_in': ['fes_de25_dma', 'stratix10_soc', 'fpga_bridge', 'fpga_region', 'of_fpga_region', 'simple_pm_bus'],
@@ -89,6 +101,7 @@ def root_changes(base_record, kernel_record, revision):
                 'base_producer': base_record['fes_revision'], 'normal_runtime_admission': 'closed'}
     return {'etc/fes-kernel-release': ((kernel.RELEASE + '\n').encode(), 0o644),
             'etc/init.d/S15fpga': ((ROOT / PROFILE / 'S15fpga').read_bytes(), 0o755),
+            'etc/mdev.conf': (OWNER_MDEV_RULE + base_mdev, 0o644),
             'usr/share/fes/kernel-modules.json': ((json.dumps(manifest, indent=2, sort_keys=True) + '\n').encode(), 0o644)}
 
 
@@ -215,7 +228,8 @@ def inside(revision):
     epoch = build.lock()['source_date_epoch']
     os.environ.update(TZ='UTC', LC_ALL='C', SOURCE_DATE_EPOCH=str(epoch),
                       E2FSPROGS_FAKE_TIME=str(epoch), MTOOLSRC='/dev/null')
-    additions = root_changes(base_record, kernel_record, revision)
+    base_mdev = archive_file(base / 'rootfs.tar', 'etc/mdev.conf')
+    additions = root_changes(base_record, kernel_record, revision, base_mdev)
     hashes = []
     for number in (1, 2):
         stage = output / ('pass-' + str(number))
@@ -235,6 +249,7 @@ def inside(revision):
     record = {'format': 1, 'classification': 'de25-owner-candidate-image', 'board': 'de25-nano',
               'architecture': 'aarch64', 'fes_revision': revision, 'kernel': kernel_record, 'recipe_sha256': recipe_key(),
               'base_image_producer': base_record['fes_revision'], 'base_image_receipt_sha256': dep.digest(base / 'image.json'),
+              'base_mdev_sha256': hashlib.sha256(base_mdev).hexdigest(),
               'kernel_receipt_sha256': dep.digest(candidate / 'kernel-build.json'), 'derived_boot_layout': selected,
               'assembly_hashes': hashes, 'source_date_epoch': epoch, 'normal_runtime_admission': 'closed',
               'hardware_acceptance': 'not-run', 'files': {}}
@@ -295,7 +310,12 @@ def verify_candidate(directory):
     report = json.loads((directory / 'boot-contract.json').read_text())
     if report['boot'] != actual or report['image_sha256'] != record['files'][IMAGE]['sha256']:
         raise ValueError('candidate boot contract differs')
-    additions = root_changes({'fes_revision': record['base_image_producer']}, record['kernel'], record['fes_revision'])
+    mdev = archive_file(directory / 'rootfs.tar', 'etc/mdev.conf')
+    if (not mdev.startswith(OWNER_MDEV_RULE)
+            or hashlib.sha256(mdev[len(OWNER_MDEV_RULE):]).hexdigest() != record['base_mdev_sha256']):
+        raise ValueError('candidate device-manager rule or preserved base differs')
+    additions = root_changes({'fes_revision': record['base_image_producer']}, record['kernel'],
+                             record['fes_revision'], mdev[len(OWNER_MDEV_RULE):])
     files = verify_rootfs(directory, additions)
     expected = json.loads((directory / 'first-boot-expectation.json').read_text())
     firstboot.validate_expectation(expected)
