@@ -14,6 +14,18 @@ with CONFIG_OF; there is no independent SIMPLE_PM_BUS option. The recipe
 requires built-in OF and verifies the linked bus probe symbol. The real board's
 SMMU is a child of that bound bus. Leaving the bus unbindable
 would allow removal of a protected supplier through its parent.
+The same default-off profile repairs the manager's data-write loop: permanent
+submission errors return their original errno, buffer/queue backpressure waits
+for a callback, and the complete write phase has a 30-second jiffies deadline.
+Every callback wait is capped by both the existing five-second buffer timeout
+and that remaining phase budget. An error wins over simultaneous progress bits.
+Ordinary kernels retain the vendor loop. This does not abort SDM, establish DMA
+quiescence or bound the complete configfs operation: the separate service-claim
+loop, synchronous secure calls and thread join still need qualification. Never
+retry or recycle uncertain programming state merely because this loop returns.
+The [actual-function proof](../de25-fpga/README.md#manager-data-write-loop)
+exercises the changed vendor C function, including a hanging original control.
+
 The pinned SMMUv3 and Agilex5 clock drivers already disable those attributes;
 their complete source hashes are verified unchanged. No timing, DMA translation
 or hardware qualification check is waived. The service buffer-claim recovery

@@ -49,3 +49,38 @@ After a failed configuration, retain the manager and its allocated buffers until
 an independently verified reset/power transition fences that hardware epoch.
 Do not unload modules, recycle buffers, or retry configuration merely because
 the patched function returns. Normal runtime recovery still needs that fencing.
+
+## Manager data-write loop
+
+The opt-in permanent-owner kernel now also repairs a separate spin in
+`s10_ops_write`: the vendor loop immediately retries every negative submission,
+including permanent ENOMEM/EIO, and can ignore an error accompanying a progress
+bit. Its source-bound patch is part of
+[the permanent-owner profile](../de25-platform/README.md), behind
+`CONFIG_FES_DE25_DMA_PLATFORM`. It retains the original error, waits on temporary
+ENOBUFS, prioritizes error notifications and caps total data-write time at 30
+seconds. This is a write-phase budget; it changes neither the existing request
+nor per-buffer timeout and does not establish a whole-load deadline.
+
+```sh
+python3 image/kernel/de25-fpga/verify_write.py \
+  --source /absolute/pinned-linux/drivers/fpga/stratix10-soc.c \
+  --output /absolute/new-write-proof
+```
+
+The runner authenticates the complete original source and platform patch,
+applies its manager section without fuzz and authenticates the complete result.
+It compiles the actual changed write function against injected clock, service,
+completion and callback helpers. Twelve cases cover normal transfer, permanent
+ENOMEM, silent backpressure, repeated backpressure notifications, error combined
+with either progress bit, missing callbacks, EIO after partial submission,
+claim-command failure, spurious completions, expiry inside submission and clock
+wrap. The unmodified function must hang on permanent ENOMEM under a one-second
+owned-child timeout. A profile-disabled positive transfer also passes.
+
+These are host function tests. They do not prove real kernel scheduling,
+callback concurrency, service-thread termination, secure-monitor return, SDM
+abort, physical DMA drain or recovery after a failed load. In particular the
+existing `stratix10_svc_done` thread join can still block in the unpatched
+service loop. The earlier bounded-claim patch remains a separate candidate;
+it is not automatically applied or admitted by this repair.
