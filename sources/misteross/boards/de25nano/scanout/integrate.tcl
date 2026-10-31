@@ -35,7 +35,7 @@ foreach {instance width address_bits max_burst response_depth} {
     }
     # Reset release follows each side's own clock. STOP/CLEAR and post-startup
     # pixel-lock loss never reset these bridges.
-    if {$instance eq "fes_ctrl_cdc"} {
+    if {[string equal $instance fes_ctrl_cdc]} {
         add_connection fes_scanout_system_reset.out_reset $instance.s0_reset
         add_connection fes_scanout_pixel_reset.out_reset $instance.m0_reset
     } else {

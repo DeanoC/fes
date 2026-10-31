@@ -126,6 +126,7 @@ class ScanoutBuildTests(unittest.TestCase):
         self.assertIn(".pixel_reset_n(scanout_pixel_reset_n)", top)
         self.assertIn(".system_reset_n(scanout_system_reset_n)", top)
         integrate = (project / "fes_mailbox/scanout_integrate.tcl").read_text()
+        self.assertIn("if {[string equal $instance fes_ctrl_cdc]}", integrate)
         self.assertIn("set_instance_parameter_value $instance SYNCHRONOUS_EDGES none", integrate)
         self.assertNotIn("deassert", integrate.lower())
         self.assertIn("add_connection fes_scanout_system_reset.out_reset $instance.s0_reset", integrate)
