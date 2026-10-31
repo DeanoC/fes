@@ -9,7 +9,6 @@ import (
 	"github.com/DeanoC/FogCast/internal/zx81family"
 	"github.com/DeanoC/FogCast/internal/zx81tapes"
 	"github.com/DeanoC/FogCast/protocol"
-	"github.com/DeanoC/misteross/expansion"
 )
 
 // HardwareMachine is a saved library setup. Ready describes local package,
@@ -117,7 +116,7 @@ func (s *Service) Hardware(ctx context.Context) ([]HardwareMachine, error) {
 				break
 			}
 		}
-		machine.Socket.Supported = zx81RearSocket(inspection.Descriptor)
+		machine.Socket.Supported = corepackage.RearExpansionSocket(inspection.Descriptor)
 		machine.FirmwareReady = s.zx81FirmwareReady(ctx, entry, inspection.Descriptor) || selectorFirmwareReady
 		if !machine.FirmwareReady {
 			machine.UnavailableReason = "The BASIC firmware for this setup is unavailable."
@@ -191,7 +190,7 @@ func sameZX81MachineROM(current, candidate *corepackage.ROM) bool {
 }
 
 func zx81SessionDisplayDescriptor(descriptor corepackage.Descriptor, activeInterfaces []protocol.RuntimeInterface) bool {
-	if descriptor.Core.ID != "fes.zx81" || !zx81RearSocket(descriptor) {
+	if descriptor.Core.ID != "fes.zx81" || !corepackage.RearExpansionSocket(descriptor) {
 		return false
 	}
 	interfaceAvailable := func(id string) bool {
@@ -217,18 +216,6 @@ func zx81SessionDisplayDescriptor(descriptor corepackage.Descriptor, activeInter
 	media := (descriptor.ABI == (corepackage.Contract{ID: "fes.simple-computer", Major: 1}) && blob) ||
 		(corepackage.SupportedComputerABI(descriptor.ABI) && tape)
 	return display && ddr && media
-}
-
-func zx81RearSocket(descriptor corepackage.Descriptor) bool {
-	if descriptor.ABI != (corepackage.Contract{ID: "fes.simple-computer", Major: 1}) && !corepackage.SupportedComputerABI(descriptor.ABI) {
-		return false
-	}
-	for _, contract := range descriptor.Interfaces {
-		if contract.ID == expansion.Slot && (contract.Major == 1 || contract.Major == 2) && contract.Minor == 0 && !contract.Required {
-			return true
-		}
-	}
-	return false
 }
 
 func (s *Service) zx81FirmwareReady(ctx context.Context, entry catalog.CoreEntry, descriptor corepackage.Descriptor) bool {

@@ -371,3 +371,21 @@ func ValidateExpansionArchive(base []byte, asset expansion.Asset) error {
 	}
 	return expansion.Admit(shell, asset)
 }
+
+// RearExpansionSocket reports a computer package whose descriptor offers an
+// optional rear expansion socket (expansion.Slot 1.0 or 2.0).
+func RearExpansionSocket(descriptor Descriptor) bool {
+	if descriptor.ABI.ID == "fes.simple-computer" {
+		if descriptor.ABI.Major != 1 || descriptor.ABI.Minor != 0 {
+			return false
+		}
+	} else if !SupportedComputerABI(descriptor.ABI) {
+		return false
+	}
+	for _, contract := range descriptor.Interfaces {
+		if contract.ID == expansion.Slot && (contract.Major == 1 || contract.Major == 2) && contract.Minor == 0 && !contract.Required {
+			return true
+		}
+	}
+	return false
+}

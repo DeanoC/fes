@@ -192,7 +192,7 @@ func TestShelfComputerRequiresNativeVideoAdmission(t *testing.T) {
 func TestZX81RearSocketAdmitsComputerAndLegacyShells(t *testing.T) {
 	bus := corepackage.Interface{ID: expansion.Slot, Major: 2}
 	for _, abi := range []string{"fes.computer", "fes.simple-computer"} {
-		if !zx81RearSocket(corepackage.Descriptor{ABI: corepackage.Contract{ID: abi, Major: 1}, Interfaces: []corepackage.Interface{bus}}) {
+		if !corepackage.RearExpansionSocket(corepackage.Descriptor{ABI: corepackage.Contract{ID: abi, Major: 1}, Interfaces: []corepackage.Interface{bus}}) {
 			t.Fatalf("%s rear socket rejected", abi)
 		}
 	}
@@ -201,11 +201,11 @@ func TestZX81RearSocketAdmitsComputerAndLegacyShells(t *testing.T) {
 		want  bool
 	}{{0, true}, {1, true}, {2, false}} {
 		d := corepackage.Descriptor{ABI: corepackage.Contract{ID: "fes.computer", Major: 1, Minor: tc.minor}, Interfaces: []corepackage.Interface{bus}}
-		if zx81RearSocket(d) != tc.want {
+		if corepackage.RearExpansionSocket(d) != tc.want {
 			t.Fatalf("computer 1.%d rear socket", tc.minor)
 		}
 	}
-	if zx81RearSocket(corepackage.Descriptor{ABI: corepackage.Contract{ID: "fes.application", Major: 1}, Interfaces: []corepackage.Interface{bus}}) {
+	if corepackage.RearExpansionSocket(corepackage.Descriptor{ABI: corepackage.Contract{ID: "fes.application", Major: 1}, Interfaces: []corepackage.Interface{bus}}) {
 		t.Fatal("application ABI accepted as a ZX81 rear socket")
 	}
 }

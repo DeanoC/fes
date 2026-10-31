@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/DeanoC/FogCast/corepackage"
+	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/misteross/expansion"
 )
 
@@ -153,6 +154,36 @@ func TestCompositionStatusAndAdoptionRequireExactTuple(t *testing.T) {
 	plain.ActivePackage = &copy
 	if sameProtocol2RuntimeState(response, plain) {
 		t.Fatal("plain and composed confused")
+	}
+}
+
+// A plain load of a package with an optional rear socket is a verified
+// empty socket (#768). A composed load, or a package without the socket,
+// reports nothing, so a reader stays at unknown.
+func TestCorePackageStatusReportsVerifiedEmptySocket(t *testing.T) {
+	response, c := compositionResponse(t)
+	descriptor := response.ActivePackage.Descriptor
+	if !corepackage.RearExpansionSocket(descriptor) {
+		t.Fatalf("fixture has no rear socket: %+v", descriptor)
+	}
+	composed := activationFromProtocol2(c.PackageID, descriptor, response)
+	if got := corePackageStatus(composed).ExpansionSocket; got != "" {
+		t.Fatalf("composed load reported socket %q", got)
+	}
+	plain := composed
+	plain.Composition = nil
+	if got := corePackageStatus(plain).ExpansionSocket; got != protocol.ExpansionSocketEmpty {
+		t.Fatalf("plain load socket %q", got)
+	}
+	slotted := plain
+	slotted.SlotComposition = &expansion.SlotComposition{}
+	if got := ExpansionSocketReceipt(slotted); got != "" {
+		t.Fatalf("slotted load reported socket %q", got)
+	}
+	noSocket := plain
+	noSocket.Descriptor.Interfaces = nil
+	if got := ExpansionSocketReceipt(noSocket); got != "" {
+		t.Fatalf("package without a socket reported %q", got)
 	}
 }
 
