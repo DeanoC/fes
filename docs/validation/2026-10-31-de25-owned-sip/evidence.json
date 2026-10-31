@@ -154,6 +154,24 @@
     }
   },
   "classification": "opt-in controlled Nano BL31/SiP component and production Go wire adapter with host-only lifecycle validation; no trusted boot proof or physical acceptance",
+  "committed_generated_consistency": {
+    "command": [
+      "make",
+      "check"
+    ],
+    "fixture_copies": 37,
+    "generated_consumers": 31,
+    "implementation_commit": "b7ca5296c5f18a8ca5cfc648cd3b16733dc7816f",
+    "log": "out/nano-owned-make-check-committed.log",
+    "log_sha256": "08c07bc536fbb15a6932e60cbf47db79c9542e3fa7644c48a11dec9dd9523917",
+    "status": "passed"
+  },
+  "committed_source_verification": {
+    "classification": "recorded implementation source bytes match this committed tree; no new hardware acceptance",
+    "implementation_commit": "b7ca5296c5f18a8ca5cfc648cd3b16733dc7816f",
+    "status": "passed",
+    "verified_git_blob_count": 79
+  },
   "default_native_skipped_tests": {
     "native-tests": [
       "TestNanoFirmwareBridgeSiPGates",
@@ -197,6 +215,7 @@
     "out/nano-owned-final-hil-plan.log": "3e094a482e1c15f437d1c2663a4d04eae37fd3f9dd8e870b2fb07aedb12c6ef2",
     "out/nano-owned-final-runner-regressions.log": "74b40b1388a6c1fcf1c9dfe8ce38aa7c524c7df971ad6863af732b536301641d"
   },
+  "implementation_commit": "b7ca5296c5f18a8ca5cfc648cd3b16733dc7816f",
   "nano_cpu_cross_build": {
     "classification": "host-only cross-build; not boot or hardware acceptance",
     "compiler_sha256": "17001a5c910f83cdefcc2b38058306961968b62912f6e4c501827cb67b2c5368",
@@ -235,6 +254,10 @@
     "out/nano-owned-boot-audit/result.json": {
       "sha256": "fff9baa9dbfe9e0b89d63adeea14c790d2522f3e0a5777e6916efdc94a7a45bc",
       "status": "audited"
+    },
+    "out/nano-owned-committed-source-identity.json": {
+      "sha256": "93e5b77a408c2aaa90c1799e2d17a208b13d4bc49c5f9d05aeb9d6bc36757c0b",
+      "status": "passed"
     },
     "out/nano-owned-cpu-cross-v1/result.json": {
       "sha256": "6a0b6d4101747b649ea0b6f4b61b235d8a852276c5ad11bbd473fb1d79fcbd73",

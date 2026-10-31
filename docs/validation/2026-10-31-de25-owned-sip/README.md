@@ -6,6 +6,11 @@ opt-in BL31 binding and native Go wire adapter. No board, UART, JTAG or physical
 card was accessed. The controlled firmware is a component for off-board study;
 its actual boot setup leaves bridge ownership uninitialized.
 
+Implementation: `b7ca5296c5f18a8ca5cfc648cd3b16733dc7816f`. All 79 recorded
+implementation source files match that commit's Git blobs. `make check` passes
+against the committed sources: 31 generated consumers and 37 fixture copies.
+This documentation update records that post-commit verification.
+
 ## Result and boot-history boundary
 
 The exact Terasic TF-A pin builds successfully for Agilex 5 with the controlled
