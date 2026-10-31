@@ -1,0 +1,21 @@
+{
+  "owner": "deano/codex/de25-linux-platform",
+  "source_revision": "68e325201d22952f0eecef65bf335a59f069c560",
+  "command": [
+    "python3",
+    "/data/fes-de25-isolated-68e325201/source/sources/misteross/boards/de25nano/scanout/interconnect_sim.py",
+    "--project",
+    "/data/fes-de25-isolated-68e325201/output/combined/hps/project",
+    "--output",
+    "/data/fes-de25-isolated-68e325201/transport-sim"
+  ],
+  "started_utc": "2026-10-31T12:21:53.879122+00:00",
+  "time_cap_seconds": 1800,
+  "heartbeat_seconds": 30,
+  "hardware_programming": "not-performed",
+  "pid": 1718380,
+  "state": "passed",
+  "heartbeat_utc": "2026-10-31T12:22:21.239560+00:00",
+  "elapsed_seconds": 27.4,
+  "returncode": 0
+}

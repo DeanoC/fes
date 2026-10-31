@@ -200,3 +200,7 @@ retains the actual stream wiring, kernel build, and open device/lifetime gates.
 The [bounded-control compilation and generated-interconnect proof](../../../../../docs/validation/2026-10-31-de25-bounded-control/README.md)
 retains the system-clock guard, clock-loss case, exact artifacts and open kernel
 DMA/device/domain and normal-kit acceptance requirements.
+
+The [isolated-stream compilation and transport proof](../../../../../docs/validation/2026-10-31-de25-isolated-stream/README.md)
+retains the actual sole-master graph, profile-bound artifacts, eight passing
+transport cases, original failures and open Linux/physical acceptance gates.
