@@ -64,6 +64,22 @@ The [2026-10-31 physical programmer diagnostic](../../docs/validation/2026-10-31
 records two known-core loads and BASIC7 at the selected C++/kernel bytes. It
 does not admit the production factory or qualify failure/DMA recovery.
 
+## DE25 computer driver integration
+
+`De25ComputerCoreDriver` consumes the existing atomic client through the shared
+CoreDriver lifecycle. It requires exactly computer ABI1.0, the three required
+video/HID/ZX81-tape1.0 interfaces and the selected nonzero build identity before
+control. Context core/build changes refuse lifecycle calls. BeginSession clears
+selection only; it cannot reset sticky protocol uncertainty. Start records that
+an uncertain release may have executed. Launch tape binding holds execution;
+live replacement never sends an execution/reset command.
+
+CoreDriver has optional rejecting HID/basic-media operations. FesGp overrides
+preserve its implementation, and NativeHardware routes these calls through the
+active driver. The registry/profile table, concrete unit-media discovery and
+production factory are not changed. Scripted-register and selected-driver
+regressions are software evidence; this driver has not run on the board.
+
 ## DE25 PR-control diagnostic
 
 `De25PrControl` is a separate internal diagnostic protocol consumer. Its caller

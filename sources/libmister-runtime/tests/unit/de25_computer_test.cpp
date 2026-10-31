@@ -289,12 +289,78 @@ void TestAcknowledgedCommitMustBecomeReady() {
 	Fixture f; f.Probe(); f.bridge.commit_not_ready = true;
 	assert(!f.client.LoadTape({1}, 1000000).ok() && f.client.Poisoned());
 }
+CoreDescriptor DriverDescriptor() {
+	CoreDescriptor descriptor;
+	descriptor.core.id = "zx81"; descriptor.build.id = kBuild;
+	descriptor.abi = {FesComputerABIID, 1, 0};
+	for (const char* id : {FesComputerInterfaceVideoFixed720p60ID,
+		FesComputerInterfaceKeyboardHidID, FesComputerInterfaceMediaZx81TapeID}) {
+		CoreInterface interface; interface.id = id;
+		interface.major = 1; interface.minor = 0; interface.required = true;
+		descriptor.interfaces.push_back(interface);
+	}
+	return descriptor;
+}
+void TestCoreDriverLifecycleAndLiveMedia() {
+	Fixture f; De25ComputerCoreDriver driver(f.client); CoreDriver& selected = driver;
+	auto descriptor = DriverDescriptor(); CoreDriverContext context;
+	context.descriptor = &descriptor; context.expected_core = descriptor.core.id;
+	assert(!selected.Start(context, 1000000).error.ok() && f.bridge.writes.empty());
+	auto identified = selected.Identify(context, 1000000);
+	assert(identified.error.ok() && identified.safe_to_quiesce && identified.observed_core == "zx81");
+	assert(selected.Quiesce(context, 1000000).error.ok() && f.bridge.hold_state);
+	const auto before = f.bridge.writes.size();
+	assert(!selected.LoadMedia({}, 1000000).ok() && f.bridge.writes.size() == before);
+	assert(selected.LoadMedia({1,2,3}, 1000000).ok() && f.bridge.hold_state);
+	assert(selected.Start(context, 1000000).error.ok() && !f.bridge.hold_state);
+	KeyboardHidRows rows{}; rows[0] = 16;
+	assert(selected.SetKeyboardHid(rows, 1000000).ok() && f.bridge.rows == rows);
+	const auto live = f.bridge.writes.size();
+	assert(selected.LoadMediaLive({7,8,9}, 1000000).ok());
+	assert(!f.bridge.hold_state && f.bridge.tape == std::vector<std::uint8_t>({7,8,9}));
+	for (auto n = live; n < f.bridge.writes.size(); ++n)
+		assert(((f.bridge.writes[n] >> 24) & 127) != FesComputerOpcodeExecution);
+	assert(selected.ClearMedia(1000000).ok() && f.bridge.state == FesComputerMediaStateEmpty);
+	assert(selected.NeutralizeButtons(context, 1000000).error.ok() && f.bridge.rows == KeyboardHidRows{});
+	assert(!selected.SetButtons(context, 1, 1000000).error.ok());
+	assert(selected.Quiesce(context, 1000000).error.ok() && f.bridge.hold_state);
+}
+void TestCoreDriverRejectsDescriptorAndRetainsTransportFault() {
+	for (unsigned bad = 0; bad < 6; ++bad) {
+		Fixture f; De25ComputerCoreDriver driver(f.client);
+		auto descriptor = DriverDescriptor(); CoreDriverContext context;
+		context.descriptor = &descriptor; context.expected_core = "zx81";
+		if (bad == 0) descriptor.abi.minor = 1;
+		if (bad == 1) descriptor.interfaces[0].required = false;
+		if (bad == 2) descriptor.interfaces[1] = descriptor.interfaces[0];
+		if (bad == 3) descriptor.interfaces[2].id = "fes.memory.hps-ddr";
+		if (bad == 4) context.expected_core = "other";
+		if (bad == 5) descriptor.build.id = "not-a-build";
+		assert(!driver.Identify(context, 1000000).error.ok());
+		assert(f.bridge.writes.empty());
+	}
+	Fixture f; De25ComputerCoreDriver driver(f.client);
+	auto descriptor = DriverDescriptor(); CoreDriverContext context;
+	context.descriptor = &descriptor; context.expected_core = "zx81";
+	assert(driver.Identify(context, 1000000).error.ok());
+	descriptor.build.id[0] = 'f'; const auto before = f.bridge.writes.size();
+	assert(!driver.Start(context, 1000000).error.ok() && f.bridge.writes.size() == before);
+	descriptor.build.id = kBuild; f.bridge.no_ack = true;
+	auto failed = driver.Start(context, f.clock.time + 50);
+	assert(!failed.error.ok() && failed.execution_may_have_run && f.client.Poisoned());
+	const auto after = f.bridge.writes.size();
+	driver.BeginSession();
+	assert(!driver.Identify(context, 1000000).error.ok());
+	assert(!driver.LoadMediaLive({1}, 1000000).ok());
+	assert(f.bridge.writes.size() == after);
+}
 } // namespace
 int main() {
+	TestCoreDriverLifecycleAndLiveMedia(); TestCoreDriverRejectsDescriptorAndRetainsTransportFault();
 	TestAtomicIdentityAndControl(); TestCompletedKeyboardSnapshotSurvivesSettleDeadline();
 	TestSelectedIdentityRefusesMutations(); TestInputPreflightBeforeEffects();
 	TestOddTapeAndCrc(); TestMaximumTapeChunkOrdinals(); TestHealthyRejectionsDoNotReplayOrPoison();
 	TestUncertainCommandsNeverReplay(); TestBusyAndIdleToggleMismatchRefuseBeforeWrite();
 	TestBoundedMissingAckAndStalledClock(); TestAcknowledgedCommitMustBecomeReady(); TestOneSerializedClientOwnership(); TestLateSuccessfulAckIsUncertain();
-	std::puts("de25_computer_test: 13 groups passed (scripted registers; no hardware admission)");
+	std::puts("de25_computer_test: 15 groups passed (scripted registers; no hardware admission)");
 }

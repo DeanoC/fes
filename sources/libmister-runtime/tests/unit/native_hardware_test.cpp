@@ -646,6 +646,18 @@ public:
 		events_.push_back("driver.resume");
 		return resume_error;
 	}
+	mister::Error SetKeyboardHid(const mister::KeyboardHidRows& rows, std::uint64_t) override
+	{ keyboard = rows; ++keyboard_calls; return control_error; }
+	mister::Error LoadMedia(const std::vector<std::uint8_t>& bytes, std::uint64_t) override
+	{ media = bytes; ++media_calls; return control_error; }
+	mister::Error LoadMediaLive(const std::vector<std::uint8_t>& bytes, std::uint64_t) override
+	{ media = bytes; ++live_media_calls; return control_error; }
+	mister::Error ClearMedia(std::uint64_t) override
+	{ ++clear_calls; return control_error; }
+	mister::KeyboardHidRows keyboard{};
+	std::vector<std::uint8_t> media;
+	unsigned keyboard_calls = 0, media_calls = 0, live_media_calls = 0, clear_calls = 0;
+	mister::Error control_error;
 	std::vector<std::uint16_t> live_data{1, 0};
 	std::vector<std::vector<std::uint16_t>> restored_data;
 	std::function<void()> on_capture;
@@ -1505,6 +1517,29 @@ void TestSimpleComputerAudioIsEnabledOnlyAfterIdentity()
 	driver.identify_result.error = {mister::ErrorCode::core_mismatch, "injected identity failure"};
 	assert(!load(true, 3).error.ok());
 	assert(!has_phase("audio_setup") && !has_phase("audio_enable"));
+}
+
+void TestComputerControlsDispatchThroughSelectedCoreDriver()
+{
+	std::vector<std::string> events; RecordingDriver driver(events); Fixture fixture(&driver);
+	mister::KeyboardHidRows rows{}; rows[0] = 32;
+	assert(!fixture.hardware.SetKeyboardHid(rows).ok() && driver.keyboard_calls == 0);
+	TempDirectory package; PopulateFesGpPackage(&package);
+	mister::native::OpenedCorePackage opened;
+	assert(mister::native::OpenCorePackage(package.path, "", &opened).ok());
+	std::unique_ptr<mister::AdmittedCorePackage> admitted;
+	assert(fixture.hardware.AdmitCorePackage(package.path, opened.package_id, &admitted).ok());
+	assert(fixture.hardware.LoadCore(std::move(admitted), 1).error.ok());
+	assert(fixture.hardware.SetKeyboardHid(rows).ok());
+	assert(driver.keyboard_calls == 1 && driver.keyboard == rows);
+	assert(fixture.hardware.LoadComputerMedia(fixture.media_two).ok());
+	assert(driver.media_calls == 1 && driver.media == std::vector<std::uint8_t>({'2','2'}));
+	assert(fixture.hardware.LoadComputerMediaLive(fixture.media_zero).ok());
+	assert(driver.live_media_calls == 1 && driver.media == std::vector<std::uint8_t>({'0'}));
+	assert(fixture.hardware.ClearComputerMedia().ok() && driver.clear_calls == 1);
+	driver.control_error = {mister::ErrorCode::io_failed, "injected selected-driver error"};
+	assert(fixture.hardware.SetKeyboardHid(rows).code == mister::ErrorCode::io_failed);
+	assert(fixture.hardware.ClearComputerMedia().code == mister::ErrorCode::io_failed);
 }
 
 void TestApplicationFirmwareStatusAdvertisesOptionalSlot()
@@ -4910,6 +4945,7 @@ int main()
 	TestFormat3InspectionAndLoadGateBeforeMutation();
 	TestApplicationVideoOnlyLifecycleNeedsNoInput();
 	TestSimpleComputerAudioIsEnabledOnlyAfterIdentity();
+	TestComputerControlsDispatchThroughSelectedCoreDriver();
 	TestApplicationFirmwareStatusAdvertisesOptionalSlot();
 	TestComputerSnapshotInterfacesBecomeActiveThroughRuntime();
 	TestHpsDdrPortsReleaseAfterIdentityBeforeExecution();

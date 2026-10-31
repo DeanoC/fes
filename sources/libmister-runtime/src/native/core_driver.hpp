@@ -57,6 +57,16 @@ public:
 	{
 		return {ErrorCode::unsupported_interface, "persistence unavailable"};
 	}
+	// Optional computer controls belong to the selected driver. Drivers that
+	// do not implement them reject before any hardware access.
+	virtual Error SetKeyboardHid(const KeyboardHidRows&, std::uint64_t)
+	{ return {ErrorCode::unsupported_interface, "keyboard HID unavailable", "input"}; }
+	virtual Error LoadMedia(const std::vector<std::uint8_t>&, std::uint64_t)
+	{ return {ErrorCode::unsupported_interface, "computer media unavailable", "request"}; }
+	virtual Error LoadMediaLive(const std::vector<std::uint8_t>&, std::uint64_t)
+	{ return {ErrorCode::unsupported_interface, "live computer media unavailable", "request"}; }
+	virtual Error ClearMedia(std::uint64_t)
+	{ return {ErrorCode::unsupported_interface, "computer media unavailable", "request"}; }
 	virtual CoreDriverResult Quiesce(const CoreDriverContext&,
 		std::uint64_t absolute_deadline_ms) = 0;
 	virtual CoreDriverResult Identify(const CoreDriverContext&,

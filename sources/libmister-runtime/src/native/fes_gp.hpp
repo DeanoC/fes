@@ -74,9 +74,9 @@ public:
 	Error SetController(std::uint8_t port, std::uint16_t buttons,
 		std::uint16_t keypad, std::uint64_t deadline);
 	// Launch-time primary bind: Quiesce (hold reset) → begin/data/commit → release.
-	Error LoadMedia(const std::vector<std::uint8_t>& bytes, std::uint64_t deadline);
+	Error LoadMedia(const std::vector<std::uint8_t>& bytes, std::uint64_t deadline) override;
 	// Mid-session replace: begin/data/commit while execution stays released.
-	Error LoadMediaLive(const std::vector<std::uint8_t>& bytes, std::uint64_t deadline);
+	Error LoadMediaLive(const std::vector<std::uint8_t>& bytes, std::uint64_t deadline) override;
 	// Mid-session eject: media begin with eject index and argument 0.
 	// A core that rejects that index (error 2) is retried with control-index
 	// begin and argument 0. Error 3 on that command is invalid argument:
@@ -86,7 +86,7 @@ public:
 	// A repeated millisecond is not a stall. If the clock stays flat or the
 	// wait does not fit in the deadline, the mailbox is left unchanged and
 	// the result is busy. Execution stays released: reset would restart BASIC.
-	Error ClearMedia(std::uint64_t deadline);
+	Error ClearMedia(std::uint64_t deadline) override;
 	Error LoadFirmware(const std::vector<std::uint8_t>& bytes, std::uint64_t deadline);
 	Error StreamInfo(MediaStreamInfo*) const;
 	Error LoadMediaStream(const ComputerMediaSnapshot&, Clock&, std::uint64_t deadline);
@@ -96,7 +96,7 @@ public:
 
 	// fes.computer 1.0. Rows that equal the last acknowledged state are not
 	// written; after Start every row is written once, in ascending order.
-	Error SetKeyboardHid(const KeyboardHidRows& rows, std::uint64_t deadline);
+	Error SetKeyboardHid(const KeyboardHidRows& rows, std::uint64_t deadline) override;
 	Error SendMouseRelative(std::int16_t dx, std::int16_t dy, std::uint8_t buttons,
 		std::uint64_t deadline);
 	Error CaptureMedia(std::uint8_t unit, Clock&, std::uint64_t deadline, std::vector<unsigned char>*);

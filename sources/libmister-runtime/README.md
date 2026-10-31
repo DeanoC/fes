@@ -30,6 +30,16 @@ Restart adoption and bounded whole-load recovery remain unfinished. Software
 unit coverage is separate from physical adapter acceptance; the [dated record](../../docs/validation/2026-10-31-de25-runtime-programmer/README.md)
 identifies the exact kernel, adapter and known BRAM core tested on the board.
 
+The internal `De25ComputerCoreDriver` now implements the shared driver lifecycle
+and optional HID/tape calls through that atomic client. It accepts only the
+exact BRAM computer ABI/interface/build contract, keeps launch media held until
+Start, replaces live tape without reset, and never clears a poisoned transport
+at a session boundary. NativeHardware dispatches HID and basic tape operations
+through its selected CoreDriver rather than a DE10 concrete-class cast. This
+new driver has software coverage only; it is not registered or constructed by
+the production factory and has no new physical acceptance claim. Unit-specific
+media discovery/insert/save, package admission and startup remain unfinished.
+
 The internal `De25PrControl` diagnostic consumes the generated DE25 PR-control
 register contract through an exclusive injected `Mmio` backend and an injected
 persona-configuration operation. It validates the selected base identity,

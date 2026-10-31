@@ -1013,34 +1013,34 @@ Error NativeHardware::SetComputerKeyboard(std::uint64_t matrix)
 
 Error NativeHardware::LoadComputerMedia(const std::string& path)
 {
-	if (active_driver_ != fes_gp_driver_ || fes_gp_driver_ == nullptr)
+	if (active_driver_ == nullptr)
 		return {ErrorCode::unsupported_interface,
 			"FES computer is not active", "request"};
 	std::vector<std::uint8_t> bytes;
 	const Error admitted = ReadComputerMedia(path, &bytes);
 	if (!admitted.ok()) return WithPhase(admitted, "request");
-	return static_cast<FesGpCoreDriver*>(fes_gp_driver_)->LoadMedia(
+	return active_driver_->LoadMedia(
 		bytes, Deadline(clock_, timeouts_.core_io_ms));
 }
 
 Error NativeHardware::LoadComputerMediaLive(const std::string& path)
 {
-	if (active_driver_ != fes_gp_driver_ || fes_gp_driver_ == nullptr)
+	if (active_driver_ == nullptr)
 		return {ErrorCode::unsupported_interface,
 			"FES computer is not active", "request"};
 	std::vector<std::uint8_t> bytes;
 	const Error admitted = ReadComputerMedia(path, &bytes);
 	if (!admitted.ok()) return WithPhase(admitted, "request");
-	return static_cast<FesGpCoreDriver*>(fes_gp_driver_)->LoadMediaLive(
+	return active_driver_->LoadMediaLive(
 		bytes, Deadline(clock_, timeouts_.core_io_ms));
 }
 
 Error NativeHardware::ClearComputerMedia()
 {
-	if (active_driver_ != fes_gp_driver_ || fes_gp_driver_ == nullptr)
+	if (active_driver_ == nullptr)
 		return {ErrorCode::unsupported_interface,
 			"FES computer is not active", "request"};
-	return static_cast<FesGpCoreDriver*>(fes_gp_driver_)->ClearMedia(
+	return active_driver_->ClearMedia(
 		Deadline(clock_, timeouts_.core_io_ms));
 }
 
@@ -1096,11 +1096,9 @@ Error NativeHardware::SendMouseRelative(std::int16_t dx, std::int16_t dy, std::u
 
 Error NativeHardware::SetKeyboardHid(const KeyboardHidRows& rows)
 {
-	auto* driver = active_driver_ == fes_gp_driver_ ?
-		dynamic_cast<FesGpCoreDriver*>(fes_gp_driver_) : nullptr;
-	if (driver == nullptr)
+	if (active_driver_ == nullptr)
 		return {ErrorCode::unsupported_interface, "FES computer is not active", "input"};
-	return driver->SetKeyboardHid(rows, Deadline(clock_, timeouts_.core_io_ms));
+	return active_driver_->SetKeyboardHid(rows, Deadline(clock_, timeouts_.core_io_ms));
 }
 
 Error NativeHardware::InsertComputerMedia(std::uint8_t unit, const std::string& path,

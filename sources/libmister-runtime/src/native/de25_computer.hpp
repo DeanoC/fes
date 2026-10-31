@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
-#include "libmister-runtime/runtime.h"
+#include "native/core_driver.hpp"
 #include <chrono>
 #include <cstdint>
 #include <mutex>
@@ -58,6 +58,29 @@ private:
 	bool poisoned_ = false, identified_ = false;
 	std::uint64_t deadline_ = 0, last_time_ = 0;
 	std::chrono::steady_clock::time_point wall_deadline_;
+};
+// Internal driver for the known BRAM ZX81 contract. The existing registry and
+// production platform factory do not construct or admit it yet. Its caller
+// serializes lifecycle/control calls and owns the exclusive protocol client.
+class De25ComputerCoreDriver final : public CoreDriver {
+public:
+	explicit De25ComputerCoreDriver(De25Computer& client) : client_(client) {}
+	void BeginSession() override;
+	CoreDriverResult Identify(const CoreDriverContext&, std::uint64_t) override;
+	CoreDriverResult Quiesce(const CoreDriverContext&, std::uint64_t) override;
+	CoreDriverResult NeutralizeButtons(const CoreDriverContext&, std::uint64_t) override;
+	CoreDriverResult SetButtons(const CoreDriverContext&, std::uint16_t, std::uint64_t) override;
+	CoreDriverResult Start(const CoreDriverContext&, std::uint64_t) override;
+	Error SetKeyboardHid(const KeyboardHidRows&, std::uint64_t) override;
+	Error LoadMedia(const std::vector<std::uint8_t>&, std::uint64_t) override;
+	Error LoadMediaLive(const std::vector<std::uint8_t>&, std::uint64_t) override;
+	Error ClearMedia(std::uint64_t) override;
+private:
+	Error Ready() const;
+	Error Context(const CoreDriverContext&) const;
+	De25Computer& client_;
+	bool selected_ = false;
+	std::string core_, build_;
 };
 } // namespace native
 } // namespace mister
