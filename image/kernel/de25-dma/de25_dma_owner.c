@@ -344,7 +344,7 @@ static int protected_dependencies(struct device *dev, struct device *probe,
 		device_unlock(dev);
 	if (ret)
 		return ret;
-	list_for_each_entry_rcu(link, &dev->links.suppliers, c_node) {
+	list_for_each_entry_rcu(link, &dev->links.suppliers, c_node, device_links_read_lock_held()) {
 		ret = protected_dependencies(link->supplier, probe, depth + 1, remaining, true);
 		if (ret)
 			return ret;
