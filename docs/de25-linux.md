@@ -511,3 +511,7 @@ FES image.
 The [runtime programmer diagnostic](validation/2026-10-31-de25-runtime-programmer/README.md)
 records actual kernel-backed C++ programming and BASIC7 on the owner kernel.
 Production core-driver/catalog/MENU integration and physical recovery gates remain open.
+
+The [shared computer-driver software proof](validation/2026-10-31-de25-core-driver/README.md)
+adds DE25 lifecycle/HID/basic-tape operations to the existing driver interface.
+It is not yet package-admitted or deployed through the production daemon.
