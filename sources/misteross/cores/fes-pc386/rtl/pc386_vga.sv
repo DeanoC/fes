@@ -73,6 +73,7 @@ module pc386_vga #(
     // ---- Registers -----------------------------------------------------------
     reg [7:0] misc, feature;
     reg video_enable;
+    reg crtc_written;  // a CRTC register written since reset
     reg [7:0] seq_index;
     reg [1:0] seq_reset;
     reg [7:0] seq_clocking;
@@ -492,7 +493,7 @@ module pc386_vga #(
             engine <= E_RUN; io_taken <= 0; read_pending <= 0; read_is_io <= 0;
             read_port <= 0; read_address <= 0; read_enables <= 0; read_received <= 0;
             io_rdata <= 0; mem_rdata <= 0; remaining <= 0; head_loaded <= 0; flush_all <= 0;
-            misc <= 8'hc3; feature <= 0; video_enable <= 1;
+            misc <= 8'hc3; feature <= 0; video_enable <= 1; crtc_written <= 0;
             seq_index <= 0; seq_reset <= 2'b11; seq_clocking <= 0; map_mask <= 0; char_map <= 0;
             seq_extended <= 1; odd_even_disable <= 1; chain_four <= 0;
             gc_index <= 0; set_reset <= 0; enable_set_reset <= 0; color_compare <= 0; color_dont_care <= 0;
@@ -582,6 +583,7 @@ module pc386_vga #(
                         10'h3b4, 10'h3d4: crtc_index <= head_byte[5:0];
                         10'h3b5, 10'h3d5:
                             if (crtc_index <= 6'd24) begin
+                                crtc_written <= 1;
                                 if (!crtc_protected) crtc[crtc_index[4:0]] <= head_byte;
                                 else if (crtc_index == 6'd7) crtc[7] <= {crtc[7][7:5], head_byte[4], crtc[7][3:0]};
                             end
@@ -641,7 +643,8 @@ module pc386_vga #(
         .DOT0_N(DOT0_N), .DOT0_D(DOT0_D), .DOT1_N(DOT1_N), .DOT1_D(DOT1_D)
     ) scanout (
         .clk(clk), .reset(reset),
-        .misc(misc), .video_enable(video_enable), .seq_reset(seq_reset), .seq_clocking(seq_clocking),
+        .misc(misc), .video_enable(video_enable), .crtc_written(crtc_written), .seq_reset(seq_reset),
+        .seq_clocking(seq_clocking),
         .char_map(char_map), .shift_mode(shift_mode), .graphics(graphics),
         .crtc0(crtc[0]), .crtc1(crtc[1]), .crtc6(crtc[6]), .crtc7(crtc[7]), .crtc8(crtc[8]), .crtc9(crtc[9]),
         .crtc10(crtc[10]), .crtc11(crtc[11]), .crtc12(crtc[12]), .crtc13(crtc[13]), .crtc14(crtc[14]),

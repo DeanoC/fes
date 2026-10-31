@@ -16,7 +16,9 @@ Example:
   python3 scripts/build_pc386_firmware.py --download
 
 Outputs build/firmware/pc386/pc386-bios.bin (64 KiB, mapped at F0000) and
-pc386-vgabios.bin (32 KiB, mapped at C0000).
+pc386-vgabios.bin (32 KiB, mapped at C0000), and pc386-rom.hex, the two as
+the M10K contents pc386_rom.sv reads: 6144 lines of 128 bits, the VGA BIOS
+(padded with FFh) then the system BIOS, byte 0 in bits 7:0.
 """
 from __future__ import annotations
 
@@ -43,6 +45,8 @@ IMAGES = {
     'bios': {'file': 'pc386-bios.bin', 'bytes': 0x10000},
     'vgabios': {'file': 'pc386-vgabios.bin', 'bytes': 0x8000},
 }
+ROM_HEX = BUILD / 'pc386-rom.hex'
+ROM_BEAT = 16
 
 
 class FirmwareError(RuntimeError):
@@ -199,6 +203,26 @@ def images(download: bool = False, jobs: int = 4) -> dict[str, Path]:
     return build(download, jobs)
 
 
+def rom_hex(paths: dict[str, Path]) -> str:
+    """pc386_rom.sv's contents: the VGA BIOS then the system BIOS in 16-byte beats."""
+    vga = paths['vgabios'].read_bytes()
+    if len(vga) > IMAGES['vgabios']['bytes']:
+        raise FirmwareError(f'the VGA BIOS is larger than {IMAGES["vgabios"]["bytes"]} bytes')
+    bios = paths['bios'].read_bytes()
+    if len(bios) != IMAGES['bios']['bytes']:
+        raise FirmwareError(f'the system BIOS must be {IMAGES["bios"]["bytes"]} bytes')
+    data = vga.ljust(IMAGES['vgabios']['bytes'], b'\xff') + bios
+    return ''.join(data[at:at + ROM_BEAT][::-1].hex() + '\n' for at in range(0, len(data), ROM_BEAT))
+
+
+def write_rom_hex(paths: dict[str, Path]) -> Path:
+    """Write ROM_HEX from the locked images and return it."""
+    text = rom_hex(paths)
+    if not ROM_HEX.is_file() or ROM_HEX.read_text() != text:
+        ROM_HEX.write_text(text)
+    return ROM_HEX
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--download', action='store_true', help='fetch the pinned dev86 if it is missing')
@@ -211,6 +235,7 @@ def main(argv=None) -> int:
     except FirmwareError as error:
         print(f'build_pc386_firmware: {error}', file=sys.stderr)
         return 1
+    outputs['rom'] = write_rom_hex(outputs)
     for name, path in outputs.items():
         print(f'{name}: {path} {hashlib.sha256(path.read_bytes()).hexdigest()}')
     return 0

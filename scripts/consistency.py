@@ -64,6 +64,7 @@ COPIED_FILES = (
     ('testdata/fes-computer-v1/exchanges.json', 'libmister-runtime', 'tests/fixtures/fes-computer-v1/exchanges.json'),
     ('testdata/fes-computer-v1/exchanges-1.1.json', 'libmister-runtime', 'tests/fixtures/fes-computer-v1/exchanges-1.1.json'),
     ('testdata/fes-computer-v1/exchanges.json', 'misteross', 'cores/fes-common/generated/computer-exchanges.json'),
+    ('testdata/fes-computer-v1/exchanges-1.1.json', 'misteross', 'cores/fes-common/generated/computer-exchanges-1.1.json'),
     ('testdata/core-persistence-v1/exchanges.json', 'misteross', 'cores/fes-pong/generated/persistence-exchanges.json'),
     ('testdata/core-persistence-v1/records.json', 'FogCast', 'internal/misterruntime/testdata/core-persistence-v1/records.json'),
 )

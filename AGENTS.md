@@ -59,6 +59,17 @@ Merge authority: Lander may merge `lane:lander` PRs in fes, nextpnr, yosys and m
 - Report HIL as started only once the kit is claimed in its status file (see Shared kits below) and the test bundle, image or core under test is loaded on it. A core-only run does not need a bundle install or reflash.
 - Afterwards, restore each kit to exactly the baseline bundle and image that kitA-STATUS.md / kitB-STATUS.md names. Activate the named bundle; reflash only if the booted image differs from the named image (then follow the bundle/image order in the kit procedure (step 3) below) and verify the boot. Verify the active bundle before logging the kit restored. Baselines are promoted only from main HIL passes.
 
+### Kit HIL baseline tracking
+- The kit HIL baseline (shared host plus kit agent and software, recorded in `current.json` in Powerboat's hil-queue) tracks main. Do not pin it to an old host.
+- Powerboat's `lander-baseline-promote.timer` checks every 15 minutes; `lander-baseline-nightly.timer` is the 02:30 Europe/Sofia backstop. Both start `lander-baseline-promote.service`, which runs `baseline-auto.py`. It passes the cumulative unchecked `origin/main` range to `post-merge-promote.sh` with `--since <last_checked>`. Let this automation handle main updates; do not run a manual promote after each qualifying merge. The promotion lock is non-blocking: if another run holds it, the timer records `AUTO_WAIT` and leaves the candidate for a later pass. A direct run without `--since` checks only the tip commit, so it does not catch up multiple unchecked commits.
+- Baseline promotion considers every non-documentation, non-test file under `sources/FogCast/`, `sources/libmister-runtime/`, `sources/mister-packages/`, `platform/` and `image/`, plus `Makefile`, `scripts/build.py`, `scripts/kit_software.py` and `scripts/environment.py`. ABI or capability changes, and any `abi_path` edit, select hil-queue `core+sw`; that classification does not decide whether to promote the baseline.
+- `promote-baseline.sh` builds from fetched main only. It smokes available kits and logs busy kits as `BUSY`; if neither kit is free, maintenance waits for Kit B's lock until it is `FREE`, then continues. It publishes `current.json` only after smoke and activation succeed and keeps the previous baseline. A failed candidate is latched and reported rather than retried automatically.
+- `rollback-baseline.sh` restores the previous host, databases and software. Automatic rollback uses it.
+- The `hilq.py` dispatcher writes `baseline.json` and a gate entry for dispatched runs. Promote smoke writes `baseline.json` and `stamp.json`; `baseline_change` appends `BASELINE_CHANGE` to `~/lander-poller/gate.log`. Direct `hil-run.sh` and `hil-core.sh` runs do not write that stamp, so runs started outside hilq or promote have no `baseline.json`.
+- PRs that bump the ABI or add a capability use the hil-queue core+sw mode: the sealed core runs against a host and kit software built from the PR head, so they do not wait for a promote.
+- The host and agent keep accepting the previous ABI minor version (`fes.computer` 1.0 alongside 1.1), so open PRs survive a promote.
+- The scripts live in `~/lander-hilq` on Powerboat.
+
 ### Toolchains
 - Quartus is primary for DE25, pc386 and PC/XT. nextpnr is advisory for those.
 - DE25 is Quartus-only and needs Quartus Pro (Agilex 5). Both Powerboat and the 3090 box (fes-build-3090) have Quartus Pro 26.3 and can build DE25; send DE25 builds to the 3090 by preference to keep Powerboat free.

@@ -137,8 +137,10 @@ func (s *Service) InstallAvailableCore(ctx context.Context, sourceID, coreID, pa
 	if err != nil {
 		return InstalledCorePackage{}, canonicalError(protocol.CodeInvalidArchive, safeContextError(err))
 	}
+	var store coreVideoCatalog
 	if len(parts) != 0 {
-		store, ok := s.catalog.(coreVideoCatalog)
+		var ok bool
+		store, ok = s.catalog.(coreVideoCatalog)
 		if !ok {
 			return InstalledCorePackage{}, canonicalError(protocol.CodeUnsupportedOperation, nil)
 		}
@@ -159,14 +161,19 @@ func (s *Service) InstallAvailableCore(ctx context.Context, sourceID, coreID, pa
 			}
 		}
 	}
+	// ReadVideoParts already admitted every part against this shell. Store
+	// the parts first and the package last, so a failed part never leaves an
+	// installed shell without its video (#412). A part stored before a failure
+	// names a shell that isn't installed, so no install state or launch offers
+	// it, and a retry reuses it.
+	for _, part := range parts {
+		if _, err := store.ImportCoreVideoPart(ctx, part.Asset, part.Reference.Profile); err != nil {
+			return InstalledCorePackage{}, videoPartError(err)
+		}
+	}
 	p, _, err := s.ImportCorePackage(ctx, int64(len(archive)), bytes.NewReader(archive))
 	if err != nil {
 		return InstalledCorePackage{}, err
-	}
-	for _, part := range parts {
-		if _, err := s.ImportCoreVideoPart(ctx, int64(len(part.Archive)), bytes.NewReader(part.Archive), part.Reference.Profile); err != nil {
-			return InstalledCorePackage{}, err
-		}
 	}
 	return InstalledCorePackage{Inspection: p, Entries: []catalog.CoreEntry{}, Compatibility: "unknown"}, nil
 }

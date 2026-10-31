@@ -405,3 +405,54 @@ func testCoreCatalogVideoConflictPreservesImportedProfile(t *testing.T, layout s
 		t.Fatalf("parts=%+v err=%v", parts, err)
 	}
 }
+
+// failingVideoStore fails one video part import, as a disk or database error
+// would after admission.
+type failingVideoStore struct {
+	*catalog.Store
+	fail    int
+	imports int
+}
+
+func (f *failingVideoStore) ImportCoreVideoPart(ctx context.Context, asset expansion.Asset, profile string) (catalog.CoreVideoPart, error) {
+	f.imports++
+	if f.imports == f.fail {
+		return catalog.CoreVideoPart{}, errors.New("injected video part store failure")
+	}
+	return f.Store.ImportCoreVideoPart(ctx, asset, profile)
+}
+
+// A part that fails to store must not leave the shell installed without its
+// video, and a retry completes the install (#412).
+func TestCoreCatalogVideoPartFailureLeavesNoShell(t *testing.T) {
+	ctx := context.Background()
+	s, client, inspection, _, _, _ := publishedVideoFixture(t, expansion.ColecoVideoLayout)
+	real := s.catalog.(*catalog.Store)
+	failing := &failingVideoStore{Store: real, fail: 2}
+	s.catalog = failing
+	if _, err := s.InstallAvailableCore(ctx, "fes-first-party", "fes.coleco", inspection.PackageID); err == nil {
+		t.Fatal("install succeeded with a failed video part")
+	}
+	if packages, err := s.corePackages.List(ctx); err != nil || len(packages) != 0 {
+		t.Fatalf("shell installed without its video: packages=%+v err=%v", packages, err)
+	}
+	available, err := s.AvailableCores(ctx)
+	if err != nil || len(available) != 1 || available[0].ArtifactState != "available" {
+		t.Fatalf("available after failed install=%+v err=%v", available, err)
+	}
+	s.catalog = real
+	if _, err := s.InstallAvailableCore(ctx, "fes-first-party", "fes.coleco", inspection.PackageID); err != nil {
+		t.Fatalf("retry: %v", err)
+	}
+	available, err = s.AvailableCores(ctx)
+	if err != nil || len(available) != 1 || available[0].ArtifactState != "installed" {
+		t.Fatalf("available after retry=%+v err=%v", available, err)
+	}
+	parts, err := s.CoreVideoParts(ctx)
+	if err != nil || len(parts) != 2 {
+		t.Fatalf("parts after retry=%+v err=%v", parts, err)
+	}
+	if client.coreCalls != 0 || client.stopCalls != 0 {
+		t.Fatal("install reached the machine")
+	}
+}
