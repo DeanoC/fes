@@ -9,8 +9,10 @@ runtime admission.
 The profile makes the DMA owner, FPGA manager, FPGA region and bridge framework
 built-in. Its source-bound patch disables sysfs bind/unbind on the region,
 manager, Stratix10 service and simple-pm-bus ancestor drivers only when
-FES_DE25_DMA_PLATFORM is enabled. The simple-pm-bus driver must also be built-in:
-the real board's SMMU is a child of that bound bus. Leaving the bus unbindable
+FES_DE25_DMA_PLATFORM is enabled. In the locked source, simple-pm-bus is built
+with CONFIG_OF; there is no independent SIMPLE_PM_BUS option. The recipe
+requires built-in OF and verifies the linked bus probe symbol. The real board's
+SMMU is a child of that bound bus. Leaving the bus unbindable
 would allow removal of a protected supplier through its parent.
 The pinned SMMUv3 and Agilex5 clock drivers already disable those attributes;
 their complete source hashes are verified unchanged. No timing, DMA translation
