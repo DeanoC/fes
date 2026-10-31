@@ -25,9 +25,14 @@ The system simulation does the same through the GP mailbox, as the runtime
 does, with the RTL CPU, and gets the same two lines. Quartus 17.0.2 sealed the
 package at 61.44 MHz with every analysis met.
 
+The same package also made a disk save round trip on Kit B. A command typed
+at the prompt wrote the disk, Stop saved the change, and a relaunch from the
+saved delta found it. This is the first kit run of #1268's last storage fix
+([#1334](https://github.com/DeanoC/fes/issues/1334)).
+
 This record has host-only checks (unit benches, directed device checks, the
 system simulation, fixture replay), a sealed package, and exact-artifact
-hardware evidence for keyboard and mouse input on Kit B. It is not acceptance
+hardware evidence for keyboard and mouse input and the disk save on Kit B. It is not acceptance
 of the four games, which are the next M5 slice.
 
 ## Inputs
@@ -175,12 +180,14 @@ The two seals of this RTL differ in one pinned input, `fes_computer_storage.v`.
 
 ## Kit B
 
-Two runs, each claimed in Kit B's status file and released FREE with its
+Three runs, each claimed in Kit B's status file and released FREE with its
 baseline unchanged:
 - run m5i1, 22:37-22:38 EET on 31 October, with package `c164d9ca…`, before
   #1268's last fix;
 - run m5i2, 00:04-00:05 EET on 1 November, with the seal's exact package
-  `7ad66fc9…`.
+  `7ad66fc9…`;
+- run m5i3, 00:13-00:14 EET on 1 November, the save round trip with the same
+  package.
 
 - **Core-only.** The kits' baseline software (bundle `8dd4dc87`, main
   `e3e1439d`) already carries the 1.1 runtime, the agent's disk-image routes
@@ -203,9 +210,20 @@ baseline unchanged:
     10.9 per second.
   - INPUT.COM printed `MOUSE X=+172 Y=-72 LEFT=2/2 RIGHT=1/1 PACKETS=10` and
     `KEYS 48E0 3B00 53E0 1E41`, exactly as in simulation.
-- **Left on the kit.** The staged disk and the game's core data stay in
-  FogCast's data directories: 4 new paths in m5i1, and none new in m5i2,
-  which reused them.
+- **Save round trip** (run m5i3, [`kit-m5i3-result.json`](kit-m5i3-result.json)).
+  This run used a new library game, `pc386-m5i3-save`, and the same staged
+  disk. It covers [#1334](https://github.com/DeanoC/fes/issues/1334): #1268's
+  last fix clears the dirty flag when Prepare or Eject drains the writer, and
+  the earlier sealed package `6823af43…` did not contain it.
+  - The first launch typed `md m5` at the prompt. FreeDOS created `C:\M5`, and
+    Stop saved the disk's 4 dirty chunks and the record.
+  - The relaunch went through Prepare and Commit, from the base image plus
+    that delta. `md m5` typed again printed `MKDIR failed for 'm5'.`
+    ([`kit-m5i3-relaunch.png`](kit-m5i3-relaunch.png)): the directory came back.
+- **Left on the kit.** The staged disk and each game's core data stay in
+  FogCast's data directories: 4 new paths in m5i1, none new in m5i2 (it
+  reused them), and 8 in m5i3 (the new game's record, and its saved delta's
+  4 chunks).
 
 The Powerboat helpers that type through tenfoot (hilpad) do not reach a
 session the agent launched directly: tenfoot forwards only for a host
@@ -214,6 +232,10 @@ so frames from a second writer could queue and arrive later. The agent's
 input stream is lease-guarded and per session, so the run used that instead.
 
 ## Findings and limitations
+
+- The slice changes no shared kit-core RTL. `fes_computer_mailbox.v`,
+  `fes_computer_storage.v` and the C64, Spectrum and ZX81 shells are as on
+  main; `pc386_system` only sets the mailbox's keyboard and mouse parameters.
 
 - **The locked BIOS's PS/2 mouse services can hang on a keystroke**
   ([#1330](https://github.com/DeanoC/fes/issues/1330)). INT 15h C2xx waits
