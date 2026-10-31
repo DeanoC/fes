@@ -21,7 +21,7 @@ profile declarations alone cannot prove them.
 
 ## Explicit firmware profile
 
-Schema 5 adds `fpga_probe`, disabled as `null` by default. Enabling it requires:
+Schema 6 includes `fpga_probe`, disabled as `null` by default. Enabling it requires:
 
 ```json
 {

@@ -11,17 +11,35 @@ spec.loader.exec_module(build)
 
 
 def profile():
-    return {"schema": 5, "firmware": "synthetic test; not a board recipe",
+    return {"schema": 6, "firmware": "synthetic test; not a board recipe", "uart_index": 0,
             "ram_start": 0x82000000, "ram_size": 256 << 20, "entry": 0x82010000,
             "reserved": [{"start": 0x80000000, "size": 32 << 20, "owner": "synthetic firmware"}],
             "sd_input_clock_hz": 100000000, "usb_phy_clock_hz": 60000000,
             "network": None, "display": None, "fpga_probe": None, "handoff": {"display_platform_ready":False, "ethernet_platform_ready":False, **{key: True for key in ("el1", "single_cpu", "counter_access", "exclusive_devices",
-                "uart0_configured", "sd_platform_ready", "usb_platform_ready", "mmu_off_caches_clean")}}}
+                "uart_configured", "sd_platform_ready", "usb_platform_ready", "mmu_off_caches_clean")}}}
 
 
 class BoardProfileTests(unittest.TestCase):
     def test_explicit_profile(self):
-        self.assertEqual(build.profile_constants(profile()), (0x82000000, 256 << 20, 0x82010000, 100000000, 60000000, None, None, None))
+        self.assertEqual(build.profile_constants(profile()), (0x82000000, 256 << 20, 0x82010000, 100000000, 60000000, None, None, None, 0))
+
+    def test_console_selection_is_explicit_and_exact(self):
+        p = profile()
+        p["uart_index"] = 1
+        self.assertEqual(build.profile_constants(p)[-1], 1)
+        for invalid in (-1, 2, True, "1", None):
+            p = profile()
+            p["uart_index"] = invalid
+            with self.subTest(index=invalid), self.assertRaises(ValueError):
+                build.profile_constants(p)
+        p = profile()
+        del p["uart_index"]
+        with self.assertRaises(ValueError):
+            build.profile_constants(p)
+        p = profile()
+        p["schema"] = 5
+        with self.assertRaises(ValueError):
+            build.profile_constants(p)
 
     def test_bad_handoff(self):
         for mutate in (
@@ -39,6 +57,9 @@ class BoardProfileTests(unittest.TestCase):
             lambda p: p.update(reserved=[]),
             lambda p: p["reserved"][0].update(size=64 << 20),
             lambda p: p["handoff"].update(exclusive_devices=False),
+            lambda p: p["handoff"].update(display_platform_ready=0),
+            lambda p: p["handoff"].update(ethernet_platform_ready=0),
+            lambda p: p["handoff"].update(uart_configured=1),
             lambda p: p.update(unknown_default=True),
         ):
             with self.subTest(mutate=mutate):

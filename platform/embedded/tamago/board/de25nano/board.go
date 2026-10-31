@@ -50,10 +50,10 @@ func nanotime() int64 { return timerNanos() }
 
 //go:linkname printk runtime/goos.Printk
 //go:nosplit
-func printk(c byte) { uartPut(c) }
+func printk(c byte) { uartPut(profileConsoleUARTBase, c) }
 
 func timerNanos() int64
-func uartPut(c byte)
+func uartPut(base uint64, c byte)
 func halt()
 
 // This deterministic source satisfies runtime hash seeding only; a DE25 platform

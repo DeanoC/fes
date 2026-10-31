@@ -15,14 +15,18 @@ ROOT = APP.parents[2]
 
 def profile_constants(profile):
     """Validate firmware memory and platform readiness, not a board default."""
-    expected = {"schema", "firmware", "ram_start", "ram_size", "entry", "reserved", "sd_input_clock_hz", "usb_phy_clock_hz", "network", "display", "fpga_probe", "handoff"}
-    if not isinstance(profile, dict) or set(profile) != expected or type(profile["schema"]) is not int or profile["schema"] != 5:
-        raise ValueError("expected exact schema-5 handoff fields")
+    expected = {"schema", "firmware", "ram_start", "ram_size", "entry", "reserved", "sd_input_clock_hz", "usb_phy_clock_hz", "uart_index", "network", "display", "fpga_probe", "handoff"}
+    if not isinstance(profile, dict) or set(profile) != expected or type(profile["schema"]) is not int or profile["schema"] != 6:
+        raise ValueError("expected exact schema-6 handoff fields")
     if not isinstance(profile["firmware"], str) or not profile["firmware"].strip():
         raise ValueError("firmware identity is required")
-    required = {"el1", "single_cpu", "counter_access", "exclusive_devices", "uart0_configured", "sd_platform_ready", "mmu_off_caches_clean"}
-    required.update(("usb_platform_ready", "ethernet_platform_ready", "display_platform_ready"))
-    if not isinstance(profile["handoff"], dict) or set(profile["handoff"]) != required or any(v is not True for k,v in profile["handoff"].items() if k not in ("usb_platform_ready", "ethernet_platform_ready", "display_platform_ready")) or type(profile["handoff"].get("usb_platform_ready")) is not bool or type(profile["handoff"].get("ethernet_platform_ready", "display_platform_ready")) is not bool:
+    required = {"el1", "single_cpu", "counter_access", "exclusive_devices", "uart_configured", "sd_platform_ready", "mmu_off_caches_clean"}
+    optional_ready = ("usb_platform_ready", "ethernet_platform_ready", "display_platform_ready")
+    required.update(optional_ready)
+    handoff = profile["handoff"]
+    if (not isinstance(handoff, dict) or set(handoff) != required or
+            any(v is not True for k, v in handoff.items() if k not in optional_ready) or
+            any(type(handoff[k]) is not bool for k in optional_ready)):
         raise ValueError("firmware readiness must be explicit; USB, Ethernet and display may be disabled")
     def number(key):
         value = profile[key]
@@ -50,6 +54,9 @@ def profile_constants(profile):
     if not 400000 <= frequency <= 200000000:
         raise ValueError("invalid firmware SD input clock")
     usb_frequency = number("usb_phy_clock_hz")
+    uart_index = number("uart_index")
+    if uart_index not in (0, 1):
+        raise ValueError("UART index must explicitly select 0 or 1")
     if (profile["handoff"]["usb_platform_ready"] and usb_frequency != 60000000) or (not profile["handoff"]["usb_platform_ready"] and usb_frequency != 0):
         raise ValueError("USB requires 60 MHz ULPI or explicit disabled clock 0")
     # Device discovery never chooses a board MAC, PHY address or DMA window.
@@ -126,7 +133,7 @@ def profile_constants(profile):
             raise ValueError("FPGA probe overlaps Ethernet DMA")
         if display is not None and base < display["base"] + display["size"] and display["base"] < base + amount:
             raise ValueError("FPGA probe overlaps display window")
-    return start, size, entry, frequency, usb_frequency, network, display, fpga
+    return start, size, entry, frequency, usb_frequency, network, display, fpga, uart_index
 
 
 def build(args):
@@ -138,7 +145,7 @@ def build(args):
         raise ValueError("--board de25-nano requires --profile from the firmware handoff")
     raw = args.profile.resolve().read_bytes()
     profile = json.loads(raw)
-    start, size, entry, frequency, usb_frequency, net, display, fpga = profile_constants(profile)
+    start, size, entry, frequency, usb_frequency, net, display, fpga, uart_index = profile_constants(profile)
     if args.program == "fpga" and fpga is None:
         raise ValueError("fpga probe requires an explicit read-only service profile")
     output = args.output.resolve()
@@ -146,9 +153,10 @@ def build(args):
         raise ValueError("output must be a fresh directory beneath this worktree's out/")
     output.mkdir(parents=True)
     (output / "handoff.json").write_bytes(raw)
+    uart_base = 0x10c02000 + uart_index * 0x100
     generated = output / "profile.go"
     generated.write_text("//go:build tamago && arm64 && de25nano\n\npackage de25nano\nconst (\n" +
-                         f"profileRAMStart = {start}\nprofileRAMSize = {size}\nprofileSDInputClockHz = {frequency}\nprofileUSBPHYClockHz = {usb_frequency}\n" +
+                         f"profileRAMStart = {start}\nprofileRAMSize = {size}\nprofileSDInputClockHz = {frequency}\nprofileUSBPHYClockHz = {usb_frequency}\nprofileConsoleUARTBase = {uart_base}\n" +
                          f"profileFPGAProbeEnabled = {str(fpga is not None).lower()}\nprofileFPGAProbeBase = {fpga['base'] if fpga else 0}\nprofileFPGAProbeBytes = {fpga['size'] if fpga else 0}\n)\n")
     network_constants = {"profileNetworkEnabled": net is not None,
                          "profileNetworkBase": 0x10810000 + (net["mac_index"] * 0x10000) if net else 0,
@@ -172,8 +180,14 @@ def build(args):
                          "profileDisplayArtifact": display["firmware_artifact_sha256"] if display else ""}
     with generated.open("a") as stream:
         stream.write("const (\n" + "".join(key + " = " + json.dumps(value) + "\n" for key, value in display_constants.items()) + ")\n")
+    serial_generated = output / "serial-profile.go"
+    serial_generated.write_text("//go:build tamago && arm64 && de25nano\n\npackage serial\n" +
+                                f"const profileConsoleUARTBase = {uart_base}\n")
     overlay = output / "overlay.json"
-    overlay.write_text(json.dumps({"Replace": {str(APP / "board/de25nano/profile.go"): str(generated)}}))
+    overlay.write_text(json.dumps({"Replace": {
+        str(APP / "board/de25nano/profile.go"): str(generated),
+        str(APP / "serial/profile-de25.go"): str(serial_generated),
+    }}))
     env = dict(os.environ, GOOS="tamago", GOARCH="arm64", CGO_ENABLED="0", GOOSPKG="github.com/usbarmory/tamago",
                GOTOOLCHAIN="local", GOENV="off", GOWORK="off", GOPROXY="off", GOSUMDB="off",
                GOMODCACHE=str(args.module_cache.resolve()), GOCACHE=str(ROOT / "out/embedded-base-tools/tamago/cache"))
@@ -220,7 +234,7 @@ def build(args):
     report = {"status": "cross-built", "board": "de25-nano", "program": args.program,
               "classification": "host-only cross-build; not boot or hardware acceptance",
               "firmware_profile_sha256": hashlib.sha256(raw).hexdigest(), "source_sha256": sources,
-              "generated_profile_sha256": sha(generated), "environment": {k: env[k] for k in ("GOOS", "GOARCH", "GOOSPKG", "GOTOOLCHAIN", "GOMODCACHE", "GOCACHE")},
+              "generated_profile_sha256": sha(generated), "generated_serial_profile_sha256": sha(serial_generated), "environment": {k: env[k] for k in ("GOOS", "GOARCH", "GOOSPKG", "GOTOOLCHAIN", "GOMODCACHE", "GOCACHE")},
               "compiler_sha256": sha(compiler), "elf_sha256": sha(elf), "command": command,
               "imports": [p["ImportPath"] for p in packages],
               "limitations": ["firmware must supply SD/USB PHY and input clocks plus verified resource reservations",

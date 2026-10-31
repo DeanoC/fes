@@ -10,9 +10,9 @@ All native applications now obtain peripherals through `board`.
 
 | Resource | QEMU | Nano prototype |
 | --- | --- | --- |
-| Boot/runtime | Fixed virt RAM and PL011 | Profile-owned RAM, EL1, firmware-configured UART0, architectural counter |
+| Boot/runtime | Fixed virt RAM and PL011 | Profile-owned RAM, EL1, firmware-configured selected UART, architectural counter |
 | SD/FAT32 | VirtIO block | Cadence SDHCI host/card initialization, CSD capacity discovery and bounded single-sector PIO reads |
-| Serial input | PL011 | UART0 16550-compatible registers, error-byte discard |
+| Serial input | PL011 | selected 16550-compatible UART registers, error-byte discard |
 | USB input | xHCI plus shared HID decoder | DWC2 PIO for one direct low/full-speed boot keyboard; firmware ULPI/VBUS readiness required |
 | Network | VirtIO and existing Go IP/TCP stack | XGMAC 2.10, firmware-qualified PHY/RGMII and pinned DMA; static IPv4/1000-full only |
 | Display | RAMFB and tenfoot software renderer | Optional boot-firmware XRGB8888 window; pinned until reboot, no drain/reconfiguration |
@@ -30,7 +30,7 @@ first bring-up programs; `keyboard` reports keys over serial, while `storage` mo
 
 No default Nano resource profile is shipped. The delivery board revision,
 firmware recipe and actual memory reservations have not been verified.
-The build runner requires an exact schema-5 JSON object with these fields:
+The build runner requires an exact schema-6 JSON object with these fields:
 
 - `firmware`: identifying string for the firmware producing this handoff.
 - `ram_start`, `ram_size`, `entry`: integer physical addresses/length; owned RAM
@@ -42,7 +42,9 @@ The build runner requires an exact schema-5 JSON object with these fields:
   identification and initial read-only operation, using a one-bit bus.
 - `usb_phy_clock_hz`: `60000000` for admitted ULPI USB, or `0` to disable USB
   explicitly. Disabling USB allows SD/serial bring-up before PHY/VBUS work.
-- `schema`: integer `4`. Superseded schemas and capacity/RCA fields reject.
+- `schema`: integer `6`. Superseded schemas and capacity/RCA fields reject.
+- `uart_index`: integer `0` or `1`, identifying the UART configured and
+  released by firmware for both console output and serial input.
 - `network` and `handoff.ethernet_platform_ready`: explicit XGMAC/DMA profile
   or disabled `null`/false; see the [network contract](../xgmac/README.md).
 - `display` and `handoff.display_platform_ready`: a separate boot-pinned
@@ -51,7 +53,7 @@ The build runner requires an exact schema-5 JSON object with these fields:
   exclusive mailbox ownership and synchronous bounded-return TF-A v1 service;
   see the [read-only SDM contract](../sdm/README.md). It admits no programming.
 - `handoff`: object with `el1`, `single_cpu`, `counter_access`,
-  `exclusive_devices`, `uart0_configured`, `sd_platform_ready`, and
+  `exclusive_devices`, `uart_configured`, `sd_platform_ready`, and
   `mmu_off_caches_clean`, all explicitly `true`. `usb_platform_ready` must be a
   boolean matching the USB clock declaration: true for 60 MHz, false for 0.
 
@@ -61,9 +63,10 @@ ownership, configure DDR/clocks/reset/pinmux/ComboPHY for SD identification at 3
 no outstanding DMA, and enter at EL1 with clean
 caches/MMU disabled and physical counter access. TamaGo installs its own vectors
 and MMU mappings; no GIC/interrupt driver is claimed. UART0 is at `0x10c02000`
-with four-byte register spacing; firmware retains the baud divisor/clock.
-UART0 routing to the delivered board's console connector must be confirmed;
-this register address alone does not establish the board routing.
+and UART1 is at `0x10c02100`, both with four-byte register spacing; firmware
+retains the baud divisor/clock. A previous TRWU8CBL vendor-firmware/Linux
+diagnostic identified its console as UART1, but this does not qualify a native
+boot handoff, pinmux, clock or access permissions.
 The SD controller is at `0x10808000`, with SDHCI SRS registers at `+0x200`.
 The SD driver now resets the host, requests bus power off/on, sends CMD0/CMD8,
 loops CMD55/ACMD41 with a deadline, obtains CID/RCA/CSD and selects the card.

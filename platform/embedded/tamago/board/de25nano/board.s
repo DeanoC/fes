@@ -33,9 +33,9 @@ TEXT ·timerNanos(SB),NOSPLIT|NOFRAME,$0-8
 
 // Firmware retains the UART divisor, pins and clock. Bounded TX polling
 // drops output if the UART is unavailable; it cannot wedge runtime deadlines.
-TEXT ·uartPut(SB),NOSPLIT|NOFRAME,$0-1
- MOVD $0x10c02000, R1
- MOVBU c+0(FP), R0
+TEXT ·uartPut(SB),NOSPLIT|NOFRAME,$0-9
+ MOVD base+0(FP), R1
+ MOVBU c+8(FP), R0
  MOVD $100000, R3
 uart_wait:
  MOVWU 0x14(R1), R2
