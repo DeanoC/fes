@@ -2,6 +2,7 @@
 import importlib.util
 import json
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -43,13 +44,17 @@ class NanoRecoveryTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn('separate boot profiles', result.stderr)
 
-    def test_packaging_binds_recovery_profile_artifacts_and_raw_slot(self):
+    def test_packaging_binds_recovery_profile_artifacts_and_boot_paths(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             (root/'build/spl').mkdir(parents=True)
             fit, spl, config = (root/name for name in ('build/u-boot.itb','build/spl/u-boot-spl-dtb.hex','build/.config'))
             fit.write_bytes(b'synthetic FIT'); spl.write_bytes(b'synthetic SPL')
-            config.write_text(self.config()+'CONFIG_SYS_MMCSD_RAW_MODE_U_BOOT_SECTOR=0x200\n')
+            boot_settings = ('CONFIG_SYS_MMCSD_RAW_MODE_U_BOOT_SECTOR=0x200\n'
+                             'CONFIG_SPL_FS_FAT=y\nCONFIG_SYS_MMCSD_FS_BOOT=y\n'
+                             'CONFIG_SYS_MMCSD_FS_BOOT_PARTITION=1\n'
+                             'CONFIG_SPL_FS_LOAD_PAYLOAD_NAME="u-boot.itb"\n')
+            config.write_text(self.config()+boot_settings)
             receipt = {'status':'built','fit_atf_verified':True,'fit_sha256':package.sha(fit),
                        'spl_sha256':package.sha(spl),'config_sha256':package.sha(config),
                        'producer_sha256':package.sha(ROOT/'platform/embedded/firmware/build_terasic_uboot.py'),
@@ -63,6 +68,11 @@ class NanoRecoveryTests(unittest.TestCase):
                 with self.subTest(key=key), self.assertRaises(ValueError):package.checked_build(root)
             record.write_text(json.dumps(dict(receipt,native_handoff={})))
             with self.assertRaises(ValueError):package.checked_build(root)
+            for setting in boot_settings.splitlines():
+                config.write_text(self.config()+boot_settings.replace(setting+'\n',''))
+                receipt['config_sha256']=package.sha(config);record.write_text(json.dumps(receipt))
+                with self.subTest(missing=setting), self.assertRaises(ValueError):package.checked_build(root)
+            config.write_text(self.config()+boot_settings)
             config.write_text(config.read_text().replace('SECTOR=0x200','SECTOR=0x4000'))
             receipt['config_sha256']=package.sha(config);record.write_text(json.dumps(receipt))
             with self.assertRaises(ValueError):package.checked_build(root)
@@ -72,6 +82,27 @@ class NanoRecoveryTests(unittest.TestCase):
                 stream.truncate((package.EXPERIMENT_SECTOR-package.FIT_SECTOR)*512+1)
             receipt['fit_sha256']=package.sha(fit);record.write_text(json.dumps(receipt))
             with self.assertRaises(ValueError):package.checked_build(root)
+
+    @unittest.skipUnless(all(shutil.which(name) for name in ('mformat','mmd','mcopy')), 'mtools required')
+    def test_card_contains_exact_filesystem_boot_fit_and_rejects_bad_readback(self):
+        tools={name:Path(shutil.which(name)).absolute() for name in ('mformat','mmd','mcopy')}
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp)
+            fit=root/'input.itb';fit.write_bytes(b'FIT payload\n'+bytes(range(256))*4096)
+            def run(label,argv):
+                subprocess.run([str(x) for x in argv],check=True,capture_output=True,timeout=20)
+            good=root/'good';good.mkdir();(good/'RECOVERY.JSON').write_text('{"test":true}\n')
+            disk=package.make_card(good,fit,tools,run)
+            self.assertEqual((good/'u-boot.itb.readback').read_bytes(),fit.read_bytes())
+            with disk.open('rb') as stream:
+                stream.seek(package.FIT_SECTOR*512)
+                self.assertEqual(stream.read(fit.stat().st_size),fit.read_bytes())
+            bad=root/'bad';bad.mkdir();(bad/'RECOVERY.JSON').write_text('{}\n')
+            def corrupt_readback(label,argv):
+                run(label,argv)
+                if label=='fat-boot-readback':(bad/'u-boot.itb.readback').write_bytes(b'corrupt')
+            with self.assertRaisesRegex(ValueError,'FAT boot FIT readback differs'):
+                package.make_card(bad,fit,tools,corrupt_readback)
 
     def test_packager_refuses_output_outside_private_worktree(self):
         result=subprocess.run([sys.executable,str(ROOT/'platform/embedded/nano/recovery_package.py'),
