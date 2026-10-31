@@ -159,6 +159,10 @@ while running and the machine never uses FLUSH for it. The memory router sends
 L2 fills in the two ROM ranges and the reset alias to the ROM M10K; everything
 else goes to DDR port 0 at window offset `0x04000000 + physical`. The ROM
 ranges are read-only, so their lines are never dirty and never written back.
+The CPU maps the reset alias onto F0000h itself, so its fills there name
+F0000h-FFFFFh. Until the L2 lands its L1s fill straight from port 0, and the
+simulation serves the two ROM ranges from the ROM images at those window
+offsets ([first memory slice](validation/2026-10-28-i386-memory-path.md)).
 
 **Upper RAM** is on by default, so a UMB driver can load DOS drivers high
 without V86, which the Ultima VII games forbid. UMBM from the Jemm package

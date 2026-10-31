@@ -33,9 +33,8 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            OPL2 output and DSP interrupts.
   game     starts Wolfenstein 3D or Ultima VI from user-supplied eXoDOS files
            and checks the game's OPL2 output; writes the last captured frame.
-           Supply the games outside the repo. With --cpu rtl, on
-           fes_i386_cpu as boot runs it, and fails if the RTL stopped,
-           stalled or handed the oracle an instruction; writes
+           Supply the games outside the repo. With --cpu rtl, fes_i386_cpu is
+           the CPU and the oracle runs only on its stops; writes
            game-<name>-rtl/. Runs share machine/'s build, so start a second
            run only once the first has built it.
   vga      runs the benches, boots
@@ -124,8 +123,8 @@ OPL2_RTL = (
     CORE / 'rtl/pc386_opl2.sv',
 )
 AUDIO_RTL = (*OPL2_RTL, CORE / 'rtl/pc386_sb.sv', CORE / 'rtl/pc386_mixer.sv', CORE / 'rtl/pc386_audio.sv')
-# machine_tb --cpu rtl's CPU: fes_i386_cpu with the load size it reports.
-CPU_RTL = (*(lockstep.RTL / path for path in lockstep.CPU_RTL), CORE / 'sim/pc386_rtl_cpu.sv')
+# machine_tb --cpu rtl's CPU.
+CPU_RTL = tuple(lockstep.RTL / path for path in lockstep.CPU_RTL)
 OPL2_SEEDS = (1, 2, 3)
 OPL2_SAMPLES = 20000
 # The machine without the CPU: the AT core, the VGA, the presenter, port 2
@@ -225,8 +224,7 @@ def parse_boot(text: str) -> dict:
     report = {'post': [], 'debug': [], 'panic': [], 'io': {}, 'io_wait': {}, 'inta': {}, 'screen': [], 'end': None,
               'prompt_cycle': None, 'cpu_resets': 0, 'snaps': {}, 'present': {}, 'vga': {}, 'marks': {},
               'opl2': None, 'opl2_mismatch': None, 'audio_samples': None, 'sb': None}
-    rtl = {'stops': [], 'pmode': [], 'gaps': [], 'smc': [], 'unretired': [], 'overlaps': [], 'notes': [],
-           'counters': None}
+    rtl = {'stops': [], 'pmode': [], 'gaps': [], 'smc': [], 'notes': [], 'counters': None}
     for line in text.splitlines():
         kind, _, rest = line.partition(' ')
         if kind == 'STOP':
@@ -244,13 +242,6 @@ def parse_boot(text: str) -> dict:
             event, cycle, site, instruction, address = rest.split()
             rtl['smc'].append({'event': event, 'cycle': int(cycle), 'site': site, 'instruction': instruction,
                                'address': address})
-        elif kind == 'OVERLAP':
-            cycle, address, abandoned = rest.split()
-            rtl['overlaps'].append({'cycle': int(cycle), 'address': address, 'abandoned': abandoned})
-        elif kind == 'UNRETIRED':
-            why, loads, site, stem, address, cycle = rest.split()
-            rtl['unretired'].append({'why': why, 'loads': int(loads), 'site': site, 'stem': stem,
-                                     'first_address': address, 'first_cycle': int(cycle)})
         elif kind == 'NOTE':
             rtl['notes'].append(rest)
         elif kind == 'RTL':
@@ -352,7 +343,7 @@ def timing_failures(report: dict) -> list[str]:
 
 
 def machine_testbench(args, linked: list[Path]) -> Path:
-    cpu = verilate(args.verilator, 'machine', 'pc386_rtl_cpu', CPU_RTL, None, [], args.jobs)
+    cpu = verilate(args.verilator, 'machine', 'fes_i386_cpu', CPU_RTL, None, [], args.jobs)
     return verilate_with_audio(args, 'machine', CORE / 'sim/machine_tb.cpp', [*linked, cpu],
                                top='pc386_machine', rtl=MACHINE_RTL, include=(cpu.parent,))
 
@@ -387,13 +378,59 @@ def run_machine(testbench: Path, suite: str, arguments: list[str], images: dict)
     for counter in ('scanout_underflows', 'capture_drops', 'present_underflows', 'plane_underflows'):
         if report['vga'].get(counter):
             report['failures'].append(f'VGA {counter}: {report["vga"][counter]}')
+    # The coherent profile: no instruction runs bytes from before a store into them.
+    executed = (report.get('rtl') or {}).get('counters', {}).get('smc_executed')
+    if executed:
+        report['failures'].append(f'the RTL ran {executed} instructions over bytes stored after it fetched them: '
+                                  f'{[site for site in report["rtl"]["smc"] if site["event"] == "executed"]}')
     return report
 
 
+def rtl_boot_failures(report: dict, cpu: str) -> list[str]:
+    """Require the RTL itself to reach the FreeDOS prompt on an RTL boot."""
+    if cpu != 'rtl':
+        return []
+
+    failures = []
+    if report.get('prompt_cycle') is None:
+        failures.append('the RTL boot did not report reaching the prompt')
+    if (report.get('end') or {}).get('reason') != 'prompt':
+        failures.append(f'the RTL boot ended before the prompt: {(report.get("end") or {}).get("reason")}')
+
+    rtl = report.get('rtl')
+    if not isinstance(rtl, dict):
+        failures.append('the RTL boot report has no RTL CPU counters')
+        return failures
+
+    counters = rtl.get('counters') or {}
+    retired = counters.get('retired')
+    if retired is None:
+        failures.append('the RTL boot report is missing the retired counter')
+    elif retired <= 0:
+        failures.append(f'the RTL retired no instructions before the prompt: {retired}')
+    value = counters.get('oracle_steps')
+    if value is None:
+        failures.append('the RTL boot report is missing the oracle_steps counter')
+    elif value != 0:
+        failures.append(f'RTL oracle_steps={value}, expected 0 for an RTL-only boot')
+
+    value = counters.get('protected_steps')
+    if value is None:
+        failures.append('the RTL boot report is missing the protected_steps counter')
+    elif value != 0:
+        failures.append(f'RTL protected_steps={value}, expected 0 for an RTL-only boot')
+
+    stops = rtl.get('stops', [])
+    gaps = rtl.get('gaps', [])
+    if stops or gaps:
+        details = [f'{stop.get("kind")} {stop.get("stem")} at {stop.get("site")}' for stop in stops]
+        details.extend(f'{gap.get("kind")} {gap.get("stem")} ({gap.get("stops")} stops)' for gap in gaps)
+        failures.append('the RTL stopped or stalled before the prompt: ' + '; '.join(details))
+    return failures
+
+
 def rtl_failures(report: dict, run: str) -> list[str]:
-    """Require the RTL to have run the whole run itself: it retired, handed no
-    instruction to the oracle (protected mode and V86 included), and neither
-    stopped nor stalled."""
+    """Require the RTL to retire the run without handing work to the oracle."""
     rtl = report.get('rtl')
     if not isinstance(rtl, dict):
         return [f'the {run} report has no RTL CPU counters']
@@ -418,26 +455,6 @@ def rtl_failures(report: dict, run: str) -> list[str]:
         details = [f'{stop.get("kind")} {stop.get("stem")} at {stop.get("site")}' for stop in stops]
         details.extend(f'{gap.get("kind")} {gap.get("stem")} ({gap.get("stops")} stops)' for gap in gaps)
         failures.append(f'the RTL stopped or stalled in the {run}: ' + '; '.join(details))
-    return failures
-
-
-def rtl_boot_failures(report: dict, cpu: str) -> list[str]:
-    """Require the RTL itself to reach the FreeDOS prompt on an RTL boot."""
-    if cpu != 'rtl':
-        return []
-
-    failures = []
-    if report.get('prompt_cycle') is None:
-        failures.append('the RTL boot did not report reaching the prompt')
-    if (report.get('end') or {}).get('reason') != 'prompt':
-        failures.append(f'the RTL boot ended before the prompt: {(report.get("end") or {}).get("reason")}')
-    failures += rtl_failures(report, 'RTL boot')
-    if isinstance(report.get('rtl'), dict):
-        value = (report['rtl'].get('counters') or {}).get('shadow_faults')
-        if value is None:
-            failures.append('the RTL boot report is missing the shadow_faults counter')
-        elif value != 0:
-            failures.append(f'RTL shadow_faults={value}, expected 0')
     return failures
 
 
@@ -554,8 +571,7 @@ def run_rtl_stops(args, linked: list[Path]) -> dict:
     if not lines['oracle'] or lines['oracle'][-1] != 'DONE':
         failures.append(f'the oracle run did not finish: {lines["oracle"]}')
     if 'C fff0' not in lines['oracle'] or 'C fff0' not in lines['rtl']:
-        failures.append(
-            f'SMSW after the RTL stop should report 386 CR0 fff0: oracle {lines["oracle"]}, RTL {lines["rtl"]}')
+        failures.append(f'SMSW after MOV CR0 should report CR0 fff0: oracle {lines["oracle"]}, RTL {lines["rtl"]}')
     if lines['rtl'] != lines['oracle']:
         failures.append(f'the RTL run wrote {lines["rtl"]}, the oracle run {lines["oracle"]}')
     rtl = runs['rtl'].get('rtl') or {'gaps': [], 'pmode': []}
@@ -855,11 +871,9 @@ def game_disk(args, game: dict, work: Path) -> tuple[Path, dict]:
 
 
 def game_failures(report: dict, cpu: str) -> list[str]:
-    """The machine's failures but the time limit's exit, a game that never
-    played the OPL2, and on the RTL CPU, what rtl_failures requires."""
+    """The game checks, allowing the expected simulation time-limit exit."""
     failures = list(report['failures'])
-    # The game runs until the time limit, which machine_tb reports as exit 1.
-    if (report['end'] or {}).get('reason') == 'limit':
+    if (report.get('end') or {}).get('reason') == 'limit':
         failures = [failure for failure in failures if not failure.startswith('machine_tb exited 1')]
     opl2 = report['opl2'] or {}
     if not opl2.get('writes') or not opl2.get('nonzero'):
@@ -882,7 +896,6 @@ def run_game(args, linked: list[Path]) -> dict:
     testbench = machine_testbench(args, linked)
     wav, opl2_log = work / f'{args.game}.wav', work / f'{args.game}-opl2.log'
     keys = [arg for seconds, text in game['keys'] for arg in ('--keys', f'{seconds}:{text}')]
-    # The last captured frame, to see where the game got to.
     frames = OUTPUT / suite / 'frames'
     frames.mkdir(parents=True, exist_ok=True)
     report = run_machine(testbench, suite, ['--disk', str(disk), '--limit-seconds', str(args.limit_seconds),

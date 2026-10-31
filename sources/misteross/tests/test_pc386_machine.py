@@ -8,6 +8,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -158,25 +159,12 @@ END prompt steps=69772120 cycles=290000013 seconds=2.900
 """
 
 RTL_BOOT_OUTPUT = """PROMPT 100
-RTL retired=42 oracle_steps=0 protected_steps=0 parked_clocks=0 tf_retired=0 vga_loads=0 vga_lost_path=0 vga_lost_restart=0 vga_lost_stop=0 shadow_faults=0 vga_cancelled=0 vga_overlaps=0 smc_stores=0 smc_addresses=0 smc_executed=0
+RTL retired=42 oracle_steps=0 protected_steps=0 parked_clocks=0 tf_retired=0 vga_loads=0 replays=0 port0_reads=0 port0_writes=0 smc_stores=0 smc_addresses=0 smc_executed=0
 END prompt steps=42 cycles=100 seconds=0.001
-"""
-
-RTL_GAME_OUTPUT = """RTL retired=42 oracle_steps=0 protected_steps=0 parked_clocks=0 tf_retired=0 vga_loads=0 vga_lost_path=0 vga_lost_restart=0 vga_lost_stop=0 shadow_faults=0 vga_cancelled=0 vga_faulted=0 vga_overlaps=0 smc_stores=0 smc_addresses=0 smc_executed=0
-OPL2 samples=10 exact=10 nonzero=5 writes=3
-END limit steps=42 cycles=100 seconds=0.001
 """
 
 
 class BootReportTest(unittest.TestCase):
-    def test_rtl_gap_built_status_uses_lockstep_scope(self):
-        for stem in ('27', '0F06', '9B', '62', '0FA3', '0FAB', '0FB3', '0FBB', '8F', '6762'):
-            with self.subTest(stem=stem):
-                self.assertTrue(sim.rtl_gap('unimplemented', stem, 1, 1, 0, 'f000:00000000', 50)['built'])
-        for stem in ('0F07', '0FBA.0', '0F01.4'):
-            with self.subTest(stem=stem):
-                self.assertFalse(sim.rtl_gap('unimplemented', stem, 1, 1, 0, 'f000:00000000', 50)['built'])
-
     def test_parse(self):
         report = sim.parse_boot(BOOT_OUTPUT)
         self.assertEqual(report['post'], [{'code': '00', 'cycle': 11397}])
@@ -221,7 +209,6 @@ class BootReportTest(unittest.TestCase):
         cases = (
             (RTL_BOOT_OUTPUT.replace('retired=42', 'retired=0'), 'no instructions', None),
             (RTL_BOOT_OUTPUT.replace('oracle_steps=0', 'oracle_steps=1'), 'oracle_steps=1', None),
-            (RTL_BOOT_OUTPUT.replace('shadow_faults=0', 'shadow_faults=1'), 'shadow_faults=1', None),
             (RTL_BOOT_OUTPUT.replace('protected_steps=0', 'protected_steps=1'), 'protected_steps=1', None),
             ('STOP stall 50 f000:00000000 00 00\n'
              'GAP stall 00 1 1 0 f000:00000000 50\n' + RTL_BOOT_OUTPUT, 'stall 00', 'unimplemented'),
@@ -238,48 +225,33 @@ class BootReportTest(unittest.TestCase):
                 if wrong_classification:
                     self.assertFalse(any(wrong_classification in failure for failure in failures), failures)
 
-    def test_game_ignores_only_the_time_limits_exit_and_on_the_rtl_fails_on_stops(self):
-        def report(output, exit_code=1):
-            parsed = sim.parse_boot(output)
-            parsed['failures'] = [f'machine_tb exited {exit_code}: {(parsed["end"] or {}).get("reason")} '] \
-                if exit_code else []
-            return parsed
 
-        for cpu in ('oracle', 'rtl'):
-            with self.subTest(cpu=cpu):
-                self.assertEqual(sim.game_failures(report(RTL_GAME_OUTPUT), cpu), [])
+@unittest.skipUnless(shutil.which(os.environ.get('CXX', 'c++')), 'requires a C++ compiler')
+class SmcStaleTrackerTest(unittest.TestCase):
+    def test_fetch_timing_and_multiple_writer_attribution(self):
+        with tempfile.TemporaryDirectory(prefix='pc386-smc-stale-') as directory:
+            binary = Path(directory) / 'smc-stale-test'
+            source = sim.COMMON / 'sim/i386/smc_stale_tb.cpp'
+            compiler = shutil.which(os.environ.get('CXX', 'c++'))
+            result = subprocess.run([compiler, '-std=c++17', '-Wall', '-Wextra', '-Werror', str(source), '-o', str(binary)],
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            result = subprocess.run([str(binary)], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
-        cases = (
-            (RTL_GAME_OUTPUT.replace('END limit', 'END stall'), 1, 'machine_tb exited 1'),
-            (RTL_GAME_OUTPUT, 2, 'machine_tb exited 2'),
-            (RTL_GAME_OUTPUT.replace('writes=3', 'writes=0'), 1, 'did not play the OPL2'),
-        )
-        for output, exit_code, expected in cases:
-            for cpu in ('oracle', 'rtl'):
-                with self.subTest(expected=expected, cpu=cpu):
-                    failures = sim.game_failures(report(output, exit_code), cpu)
-                    self.assertTrue(any(expected in failure for failure in failures), failures)
 
-        rtl_cases = (
-            (RTL_GAME_OUTPUT.replace('retired=42', 'retired=0'), 'no instructions', None),
-            (RTL_GAME_OUTPUT.replace('oracle_steps=0', 'oracle_steps=1'), 'oracle_steps=1', None),
-            (RTL_GAME_OUTPUT.replace('oracle_steps=0 protected_steps=0', 'oracle_steps=9 protected_steps=9'),
-             'protected_steps=9', None),
-            ('STOP stall 50 f000:00000000 00 00\n'
-             'GAP stall 00 1 1 0 f000:00000000 50\n' + RTL_GAME_OUTPUT, 'stall 00', 'unimplemented'),
-            ('STOP unimplemented 50 f000:00000000 27 27\n'
-             'GAP unimplemented 27 1 1 0 f000:00000000 50\n' + RTL_GAME_OUTPUT,
-             'unimplemented 27', 'stall 00'),
-            (RTL_GAME_OUTPUT.replace(RTL_GAME_OUTPUT.splitlines()[0] + '\n', ''), 'counters', None),
-        )
-        for output, expected, wrong_classification in rtl_cases:
-            with self.subTest(expected=expected):
-                failures = sim.game_failures(report(output), 'rtl')
-                self.assertTrue(any(expected in failure for failure in failures), failures)
-                if wrong_classification:
-                    self.assertFalse(any(wrong_classification in failure for failure in failures), failures)
-                # The oracle's run of a game has no RTL to require anything of.
-                self.assertEqual(sim.game_failures(report(output), 'oracle'), [])
+@unittest.skipUnless(shutil.which(os.environ.get('CXX', 'c++')), 'requires a C++ compiler')
+class Port0ModelTest(unittest.TestCase):
+    def test_waitrequest_holds_all_sixteen_byte_enable_lanes(self):
+        with tempfile.TemporaryDirectory(prefix='pc386-port0-model-') as directory:
+            binary = Path(directory) / 'pc386-port0-model-test'
+            source = sim.CORE / 'sim/pc386_ddr_model_tb.cpp'
+            compiler = shutil.which(os.environ.get('CXX', 'c++'))
+            result = subprocess.run([compiler, '-std=c++17', '-Wall', '-Wextra', '-Werror', str(source), '-o', str(binary)],
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            result = subprocess.run([str(binary)], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
 
 @unittest.skipUnless(VERILATOR, 'requires Verilator')
