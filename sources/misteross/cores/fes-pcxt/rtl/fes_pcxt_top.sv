@@ -81,7 +81,7 @@ module top #(
         assign board_reset_live = sys_reset[1];
     end endgenerate
     wire exec_reset;
-    localparam bit LIVE_MEDIA = ENABLE_FES_COMPUTER && ENABLE_PCXT_MEDIA && !HARDWARE_DOS;
+    localparam bit LIVE_MEDIA = ENABLE_FES_COMPUTER && ENABLE_PCXT_MEDIA;
     wire media_present, disk_restart, disk_load_valid, disk_load_ready, disk_load_done, disk_loaded;
     wire [18:0] disk_load_address;
     wire [7:0] disk_load_data;
@@ -127,20 +127,17 @@ module top #(
         .clk(clk_memory), .cold_reset(board_reset_live), .enable(!exec_reset),
         .valid(firmware_valid), .ready(firmware_ready), .done(firmware_done),
         .address(firmware_address), .data(firmware_data));
-    generate if (HARDWARE_DOS) begin: dos_disk_boot
-        assign media_present = 1'b1;
-        assign disk_restart = 1'b0;
-        pcxt_disk_boot disk_boot (
-            .clk(clk_memory), .cold_reset(board_reset_live), .enable(firmware_loaded),
-            .valid(disk_load_valid), .ready(disk_load_ready), .done(disk_load_done),
-            .address(disk_load_address), .data(disk_load_data), .finished());
-    end else if (!LIVE_MEDIA) begin: no_disk_boot
+    generate if (!LIVE_MEDIA) begin: no_disk_boot
         assign media_present = 1'b0;
         assign disk_restart = 1'b0;
         assign disk_load_valid = 1'b0;
         assign disk_load_address = 19'b0;
         assign disk_load_data = 8'b0;
     end endgenerate
+    wire boot_media_hold;
+    pcxt_boot_media_gate #(.ENABLE(HARDWARE_DOS)) media_gate (
+        .clk(clk_memory), .cold_reset(board_reset_live),
+        .media_present(media_present), .hold(boot_media_hold));
     wire [31:0] video_request;
     wire [27:0] video_response;
     wire [15:0] dq_out, dq_sample;
@@ -182,7 +179,7 @@ module top #(
         .cga_font_address(cga_font_address), .mda_font_address(mda_font_address),
         .cga_font_data(cga_font_data), .mda_font_data(mda_font_data),
         .clk(clk_memory), .clk_cpu(clk), .clk_pixel(clk_pixel), .clk_pin(clk_memory), .cold_reset(board_reset_live),
-        .reset_pixel(pixel_reset[1]), .warm_reset(exec_reset), .hold(HARDWARE_DOS && !disk_loaded),
+        .reset_pixel(pixel_reset[1]), .warm_reset(exec_reset), .hold(boot_media_hold),
         .firmware_valid(firmware_valid), .firmware_ready(firmware_ready),
         .firmware_done(firmware_done), .firmware_address(firmware_address), .firmware_data(firmware_data),
         .firmware_loaded(firmware_loaded), .initialized(), .machine_reset(machine_reset), .fault(), .halted(),

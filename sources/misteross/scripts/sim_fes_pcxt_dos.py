@@ -62,7 +62,7 @@ def run(args):
     subprocess.run([args.verilator, '--cc', '--exe', '--build', '-j', '4', '-Wall',
         '--timescale-override', '1ns/1ps',
         str(ROOT / 'cores/fes-pcxt/sim/cpu.vlt'), str(ROOT / 'cores/fes-pcxt/sim/chipset.vlt'),
-        "-GWITH_FLOPPY=1'b1", "-GWITH_RUNTIME_MEDIA=1'b1", '--top-module', 'bios_top', '--Mdir', str(build), '-I' + str(build),
+        "-GWITH_FLOPPY=1'b1", "-GWITH_RUNTIME_MEDIA=1'b1", "-GWAIT_FOR_MEDIA=1'b1", '--top-module', 'bios_top', '--Mdir', str(build), '-I' + str(build),
         '-I' + str(ROOT / 'cores/fes-common/generated'),
         *('-I' + str(sim.vendor_dir(name)) for name in sim.CHIP_VENDORS),
         '-CFLAGS', '-std=c++17 -O2', '-I' + str(ROOT / 'cores/fes-pcxt/sim'),

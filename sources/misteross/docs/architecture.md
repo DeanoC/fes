@@ -2958,15 +2958,16 @@ Existing linker layout admission remains closed until an exact shell and its
 physical sockets are qualified.
 
 The independent `fes.pcxt-dos` recipe selects the default-off `HARDWARE_DOS`
-top parameter. It enables the GLaBIOS XT/5160 ROM, the read-only floppy
-controller, and a reset-only upload of the pinned 360 KiB FreeDOS image into
-SDRAM. Guest reads use the same SDRAM media-read path exercised by the floppy
-simulation; no simulation-only shortcut is part of the package. The floppy
-image is assembled from FreeDOS kernel 2043 (GPL-2.0-or-later) and FreeCOM
-0.86a (GPL-2.0). Its exact source commits and SHA-256 are recorded in the core
-firmware notices and `sim/freedos.lock`. The registered recipe points its HIL
+top parameter. It enables the GLaBIOS XT/5160 ROM, a BAT-only XT keyboard
+responder, and the read-only floppy controller. The `fes.computer` 1.1
+mailbox accepts a 360 KiB runtime floppy and writes it into SDRAM. The first
+boot waits for complete physical writes and media commit; subsequent eject or
+replacement does not reset the guest, while cold reset invalidates media.
+Guest reads use the SDRAM media-read path. The pinned FreeDOS simulation
+fixture's exact source commits and SHA-256 are recorded in the core firmware
+notices and `sim/freedos.lock`. The registered recipe points its HIL
 gate at `scripts/pcxt_dos_hil_acceptance.py`, preferring Kit B and then Kit A.
-That checker requires at least three full, changing 16:9 HDMI captures and
+That checker requires at least three full 16:9 HDMI captures with a meaningful change and
 matches the final `A:\>` text using the font from the locked ROM. Static
 signatures fail. Passing this prompt check is DOS boot evidence only; external
 SDRAM/HDMI/HPS/reset qualification and broader compatibility remain separate.
@@ -3027,12 +3028,14 @@ exceptions or external budgets. A complete diagnostic capture can contain
 timing failures; it neither seals a package nor supplies physical acceptance.
 Its default-off `--video-mailbox-contract` mode additionally runs the captured
 ownership proof, verifies the declared chains and common reset assertion, and
-checks direct interstage paths at every corner. Its SDC false-paths only three
-asynchronous pairs: `received` to `ack_meta`, `sent` to `sent_meta`, and
-`machine_reset` to `hold_meta`. The held `published_bank` payload path to
-`front` remains timed with a one-pixel-period `set_max_delay`, matching the
-ownership proof's two-sample stability window. It adds no clock-group
-exception or physical acceptance.
+checks direct interstage paths at every corner. Its generated QSF identifies
+the six mailbox stages with Quartus 17's `SYNCHRONIZER_IDENTIFICATION FORCED`
+assignment so fitter logic duplication cannot replicate the synchronizers.
+Its SDC false-paths only three asynchronous pairs: `received` to `ack_meta`,
+`sent` to `sent_meta`, and `machine_reset` to `hold_meta`. The held
+`published_bank` payload path to `front` remains timed with a one-pixel-period
+`set_max_delay`, matching the ownership proof's two-sample stability window.
+It adds no clock-group exception or physical acceptance.
 
 ### Machine partition and timing
 
@@ -3449,22 +3452,22 @@ image from physical SDRAM `100000–159FFF`, beyond the guest's address map.
 The PC/XT media profile connects a `fes.computer` 1.1 mailbox to an ordered
 byte loader; the drive is present only after all SDRAM writes and a successful
 CRC commit. Begin or eject hides the drive without resetting execution, and an
-in-flight floppy read drains before an overwrite. Warm reset retains the image;
-cold reset invalidates it. CPU/DMA, media reads and host uploads arbitrate for
-the controller while physical refresh continues. The image has 40
-cylinders, two heads and nine 512-byte sectors per track. A pinned
-8086-compatible FreeDOS image and GLaBIOS form a separate
-whole-machine test, intended to check the boot sector, DOS prompt and directory
-listing through the RTL machine, including live eject and replacement. The
-runtime media ABI is opt-in; the diagnostic package does not connect it.
-Writes, persistence, flux images and physical acceptance remain outside this
-simulation path.
+in-flight floppy read drains before an overwrite. The DOS profile holds the
+guest until its first complete image is committed; later eject or replacement
+does not reset it. Warm reset retains the image; cold reset invalidates it.
+CPU/DMA, media reads and host uploads arbitrate for the controller while
+physical refresh continues. The image has 40 cylinders, two heads and nine
+512-byte sectors per track. A pinned 8086-compatible FreeDOS image and GLaBIOS
+form a separate whole-machine test for the boot sector, DOS prompt, directory
+listing and live eject/replacement. Both registered PC/XT packages connect the
+runtime media ABI. Host simulation does not qualify a newly built package on
+hardware; writes, persistence and flux images remain outside this path.
 
 Use `fes.computer` and implemented keyboard/audio/video services where their
-contracts fit. PC hard-disk transports need versioned shared definitions and
-runtime support before a package advertises them. A PC floppy upload populates
-a bounded buffer while the guest continues, with the medium absent until
-commit; rotating-media events and sector transfers follow guest time. Start with 360 KiB raw
+contracts fit. PC floppy transport uses `fes.media.pcxt-floppy`; hard-disk
+transport remains future work. Initial DOS upload populates the bounded buffer
+before boot; later rotating-media events and sector transfers follow guest time.
+Start with 360 KiB raw
 floppies and explicit geometry. Model seek, motor spin-up, command/result phases,
 IRQ6, DMA2, terminal count and write protection. Raw sector images cannot express
 all copy protection; such games need a later flux/track representation.

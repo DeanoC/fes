@@ -1647,7 +1647,7 @@
       "paths": [],
       "recipe": true,
       "optional": false,
-      "quartus_role": "FreeDOS SDRAM floppy hardware package producer",
+      "quartus_role": "FreeDOS SDRAM floppy package producer",
       "recipe_gpu_router": null,
       "producer_script": "scripts/build_fes_pcxt_quartus.py",
       "library_standing": "experimental",

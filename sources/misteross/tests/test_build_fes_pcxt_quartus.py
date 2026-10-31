@@ -51,7 +51,7 @@ class PCXTQuartusPackageTests(unittest.TestCase):
     def test_dos_profile_is_explicit_in_the_timing_record(self):
         summary = self.summary()
         summary['profile']['HARDWARE_DOS'] = 1
-        summary['profile']['ENABLE_PCXT_MEDIA'] = 0
+        summary['profile']['ENABLE_PCXT_MEDIA'] = 1
         producer.require_timing(summary, [1], dos_profile=True)
         with self.assertRaises(producer.BuildError):
             producer.require_timing(summary, [1])
@@ -60,7 +60,7 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         with self.assertRaises(producer.BuildError):
             producer.require_timing(summary, [1], dos_profile=True)
         summary['profile']['HARDWARE_DOS'] = 1
-        summary['profile']['ENABLE_PCXT_MEDIA'] = 1
+        summary['profile']['ENABLE_PCXT_MEDIA'] = 0
         with self.assertRaises(producer.BuildError):
             producer.require_timing(summary, [1], dos_profile=True)
 
@@ -77,8 +77,8 @@ class PCXTQuartusPackageTests(unittest.TestCase):
             execution={'toolchain': 'quartus', 'files': {}},
             core_id='fes.pcxt-dos', dos_profile=True)
         parameters = json.loads(record)['parameters']
-        self.assertEqual(parameters['freedos_source_urls'], '; '.join(
-            source['url'] for source in metadata['floppy']['sources']))
+        self.assertNotIn('freedos_image_sha256', parameters)
+        self.assertEqual(parameters['glabios_rom_sha256'], metadata['bios']['sha256'])
 
     def test_dos_resolver_and_producer_use_the_same_record(self):
         registry = tomllib.loads((producer.ROOT.parents[1] / 'config/core-recipes.toml').read_text())
@@ -95,7 +95,7 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         parameters = json.loads(resolver)['parameters']
         self.assertEqual(parameters['core_id'], 'fes.pcxt-dos')
         self.assertTrue(parameters['hardware_dos'])
-        self.assertFalse(parameters['enable_pcxt_media'])
+        self.assertTrue(parameters['enable_pcxt_media'])
         with mock.patch.object(producer, 'require_clean_source', return_value=('repo', 'a' * 40)) as clean:
             producer._require_clean_source(producer.ROOT, identity_version=2, **options)
             clean.assert_called_once()
@@ -213,6 +213,21 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         experimental = producer.board.project_qsf(producer.ROOT, 1, 2)
         self.assertIn('FAST_INPUT_REGISTER ON -to SDRAM_DQ', experimental)
 
+    def test_mailbox_contract_identifies_only_its_synchronizer_stages(self):
+        qsf = producer.board.project_qsf(
+            producer.ROOT, 1, 2, package_profile=True, video_mailbox_contract=True)
+        expected = {
+            f'set_instance_assignment -name SYNCHRONIZER_IDENTIFICATION FORCED '
+            f'-to system_video_adapter_{role}_{stage}'
+            for role in ('ack', 'sent', 'hold') for stage in ('meta', 'sync')}
+        assignments = {line for line in qsf.splitlines()
+                       if 'SYNCHRONIZER_IDENTIFICATION' in line}
+        self.assertEqual(assignments, expected)
+        self.assertNotIn('ALLOW_REGISTER_DUPLICATION OFF', qsf)
+
+        without_contract = producer.board.project_qsf(producer.ROOT, 1, 2, package_profile=True)
+        self.assertNotIn('SYNCHRONIZER_IDENTIFICATION', without_contract)
+
     def test_package_elaboration_embeds_the_exact_build_id(self):
         program = producer.board.elaboration(producer.ROOT, producer.ROOT / 'build',
                                              producer.ROOT / 'unused-library',
@@ -227,7 +242,7 @@ class PCXTQuartusPackageTests(unittest.TestCase):
                                                  build_id='1234567890abcdef'*2,
                                                  dos_profile=True)
         self.assertIn('-set HARDWARE_DOS 1', dos_program)
-        self.assertIn('-set ENABLE_PCXT_MEDIA 0', dos_program)
+        self.assertIn('-set ENABLE_PCXT_MEDIA 1', dos_program)
         self.assertIn("-set BUILD_ID 128'h" + '1234567890abcdef'*2, program)
         with self.assertRaisesRegex(ValueError, 'BUILD_ID'):
             producer.board.elaboration(producer.ROOT, producer.ROOT / 'build',
@@ -242,11 +257,10 @@ class PCXTQuartusPackageTests(unittest.TestCase):
             manifest = tomllib.loads(producer.manifest(record, payload).decode())
         self.assertEqual(manifest['abi'], {'id': 'fes.computer', 'major': 1, 'minor': 1})
         interfaces = {i['id']: i for i in manifest['interfaces']}
-        self.assertEqual(interfaces['fes.media.pcxt-floppy'],
-                         {'id': 'fes.media.pcxt-floppy', 'major': 1, 'minor': 0, 'required': True})
+        self.assertTrue(interfaces['fes.media.pcxt-floppy']['required'])
         self.assertTrue(interfaces['fes.video.fixed-720p60']['required'])
 
-    def test_dos_manifest_keeps_legacy_identity_and_no_runtime_floppy(self):
+    def test_dos_manifest_declares_runtime_floppy(self):
         record = producer.create_build_record(producer.ROOT, 'https://github.com/DeanoC/fes.git',
             'a'*40, {'quartus': 'pinned', 'yosys': 'pinned'},
             execution={'toolchain': 'quartus'}, dos_profile=True)
@@ -257,12 +271,9 @@ class PCXTQuartusPackageTests(unittest.TestCase):
             manifest = tomllib.loads(producer.manifest(record, payload, dos_profile=True, metadata=metadata).decode())
             with self.assertRaisesRegex(producer.BuildError, 'manifest profile'):
                 producer.manifest(record, payload)
-            wrong_metadata = {'floppy': dict(metadata['floppy'], sha256='0' * 64)}
-            with self.assertRaisesRegex(producer.BuildError, 'manifest media'):
-                producer.manifest(record, payload, dos_profile=True, metadata=wrong_metadata)
         self.assertEqual(manifest['core']['id'], 'fes.pcxt-dos')
-        self.assertEqual(manifest['abi'], {'id': 'fes.computer', 'major': 1, 'minor': 0})
-        self.assertEqual([i['id'] for i in manifest['interfaces']], ['fes.video.fixed-720p60'])
+        self.assertEqual(manifest['abi'], {'id': 'fes.computer', 'major': 1, 'minor': 1})
+        self.assertEqual([i['id'] for i in manifest['interfaces']], ['fes.video.fixed-720p60', 'fes.media.pcxt-floppy'])
 
     def test_yosys_bus_hold_rewrite_runs_after_deferred_hierarchy(self):
         program = producer.board.elaboration(producer.ROOT, producer.ROOT / 'build',
@@ -317,7 +328,7 @@ class PCXTQuartusPackageTests(unittest.TestCase):
                     self.assertTrue(dos_inputs)
                     self.assertFalse(list(work.glob('pcxt_diagnostic.bank*.hex')))
                     self.assertTrue((work / 'pcxt_glabios.bank0.hex').is_file())
-                    self.assertTrue((work / 'pcxt_freedos_disk.hex').is_file())
+                    self.assertFalse((work / 'pcxt_freedos_disk.hex').exists())
                 else:
                     self.assertFalse(dos_inputs)
                     self.assertTrue((work / 'pcxt_diagnostic.bank0.hex').is_file())
@@ -326,7 +337,7 @@ class PCXTQuartusPackageTests(unittest.TestCase):
                 program = producer.board.elaboration(
                     producer.ROOT, work, library, package_profile=True,
                     build_id='1234567890abcdef' * 2, dos_profile=dos_profile)
-                self.assertEqual('pcxt_disk_boot.sv' in program, dos_profile)
+                self.assertNotIn('pcxt_disk_boot.sv', program)
                 self.assertEqual('pcxt_xt_keyboard_bat.sv' in program, dos_profile)
                 self.assertEqual('c:dos_font.glyphs' in program, dos_profile)
                 (work / 'elaborate.ys').write_text(program)

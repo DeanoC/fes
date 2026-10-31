@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Real assembled machine. Observations below do not drive any guest state.
-module bios_top #(parameter bit WITH_FLOPPY = 0, WITH_RUNTIME_MEDIA = 0) (
+module bios_top #(parameter bit WITH_FLOPPY = 0, WITH_RUNTIME_MEDIA = 0, WAIT_FOR_MEDIA = 0) (
     input wire clk, clk_pixel, cold_reset, reset_pixel, warm_reset, hold,
     input wire firmware_valid,
     input wire [15:0] firmware_address,
@@ -91,10 +91,13 @@ module bios_top #(parameter bit WITH_FLOPPY = 0, WITH_RUNTIME_MEDIA = 0) (
         assign disk_load_done = active_disk_done;
         wire unused_gpo = &{1'b0,media_gpo};
     end endgenerate
+    wire boot_media_hold;
+    pcxt_boot_media_gate #(.ENABLE(WAIT_FOR_MEDIA)) media_gate (
+        .clk(clk), .cold_reset(cold_reset), .media_present(active_media_present), .hold(boot_media_hold));
     /* verilator lint_off PINCONNECTEMPTY */
     pcxt_system #(.DIAGNOSTIC_PROBE(0), .FLOPPY(WITH_FLOPPY),
                   .SWITCHES(WITH_FLOPPY ? 8'h2d : 8'h2c)) system (
-        .clk_cpu(clk), .clk_pin(clk), .hold(hold | runtime_hold),
+        .clk_cpu(clk), .clk_pin(clk), .hold(hold | runtime_hold | boot_media_hold),
         .media_present(active_media_present), .disk_restart(active_disk_restart),
         .disk_load_valid(active_disk_valid), .disk_load_ready(active_disk_ready), .disk_load_done(active_disk_done),
         .disk_load_address(active_disk_address), .disk_load_data(active_disk_data),

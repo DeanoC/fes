@@ -1,18 +1,21 @@
 # Home-computer I/O 1.0 and 1.1
 
-`fes.computer` ABI 1.0, live tag 4, is approved on `fes-gp-v1`.
+`fes.computer` ABI 1.1, live tag 4, is approved on `fes-gp-v1`.
 [The YAML](../packages/abi/fes_computer.yaml) owns constants, emitted as
 `FesComputer*` and `FES_COMPUTER_*` Verilog macros. It is a separate ABI from
 `fes.simple-computer` (tag 2) and `fes.application` (tag 3); both remain
 unchanged. The consumers are the FES Apple II, the FES ZX Spectrum and the
-FES Commodore 64 and Atari 520ST. These definitions and the synthetic fixtures do not
-establish consumer or hardware acceptance.
+FES Commodore 64 and Atari 520ST, which declare ABI 1.0, and the FES pc386
+and PC/XT DOS profiles, which declare 1.1. These definitions and synthetic
+fixtures do not establish consumer or hardware acceptance.
 
-ABI 1.1 extends identity with a second capability word. It leaves the 1.0
-identity, opcodes and existing capability meanings unchanged. Endpoints opt
-in explicitly; 1.0 endpoints continue to report minor 0 and reject identity
-index 16. A host admits an endpoint only when it supports the declared ABI
-minor and compares every capability word required by that minor.
+Minor 1 adds a second capability word, identity word 16, because bits 0..15
+of word 7 are all assigned. It also adds the ATA hard disk, persistence words,
+the wall clock and the pc386 machine layout on bits 16..19, and the PC/XT
+floppy on bit 20. A 1.0 endpoint and manifest keep their exact bytes and
+behavior: they report minor 0 and reject identity index 16. A host admits an
+endpoint only when it supports the declared ABI minor and compares every
+capability word required by that minor.
 
 A home computer differs from the existing ABIs in three ways: it has a full
 keyboard, it keeps running while media is changed, and it may have several
@@ -40,7 +43,11 @@ removable media by unit.
 | fes.video.session-display | 13 | In-session HDMI plane. Reuses menu opcodes 18–21. Advertised with the DDR window, and only on a computer that implements the plane |
 | fes.media.zx81-tape-write | 14 | Writable extension to the ZX81 tape. Captures the BASIC SAVE image; it does not require a loaded cassette |
 | fes.media.spectrum-disk | 15 | Media unit 1, beside the Spectrum tape: one raw track disk image, 8192..2834432 bytes |
-| fes.media.pcxt-floppy | 16 | Media unit 0: one read-only 360 KiB raw XT floppy; requires ABI 1.1 |
+| fes.media.ata-disk | 16 | Unit 0: one hard-disk image of 1..128 MiB that the runtime writes into the DDR window ([ATA disk](#ata-hard-disk)) |
+| fes.persistence.words | 17 | Durable words of one registered layout, restored while held and captured at Stop ([persistence](#persistence-words)) |
+| fes.rtc.wall-clock | 18 | The kit's local time, seeded while held ([wall clock](#wall-clock)) |
+| fes.pc386.machine | 19 | The 72-word pc386 settings and CMOS layout of the persistence words |
+| fes.media.pcxt-floppy | 20 | Media unit 0: one read-only 360 KiB raw XT floppy; requires ABI 1.1 |
 
 A session display is also declared with the manifest-only
 `fes.fabric.video.display-plane` 1.0, which has no capability bit; see
@@ -55,6 +62,11 @@ must equal the declared registered set. Unknown required interfaces and
 unsupported versions fail admission; unknown optional interfaces are ignored
 and grant nothing. A shell declares at most one unit-0 media interface, and
 the Spectrum disk on unit 1 only beside the Spectrum tape and HPS DDR.
+Bits 16..31 exist only in ABI 1.1: a manifest that declares one of their
+interfaces declares ABI 1.1, and a 1.0 manifest declares none. The ATA disk is
+a unit-0 medium and requires `fes.memory.hps-ddr`. `fes.persistence.words`
+requires exactly one registered layout, and the only one in this registry is
+`fes.pc386.machine`; each requires the other.
 Expansion interfaces such as `fes.expansion.apple2-bus`,
 `fes.expansion.spectrum-bus`, `fes.expansion.c64-bus` and
 `fes.expansion.atari-st-bus` are manifest-only
@@ -69,15 +81,15 @@ toggle, then with the toggle inverted, and wait for GPI ACK bit 23 to equal the
 new toggle. GPI bits 31:24 are signature 0xf5, bit 22 is error, bits 15:0 the
 response. Successful mutating requests return zero.
 
-Identity is opcode 1 with index 0..15 and argument 0 in ABI 1.0. The words are: 0/1 magic
-0x4546/0x3153; 2/3 transport 1/0; 4 ABI tag 4; 5/6 ABI 1/0; 7 capabilities;
-8..15 build ID, two bytes per word, first byte low. Compare identity with the
+Identity is opcode 1 with index 0..15 and argument 0. The words are: 0/1 magic
+0x4546/0x3153; 2/3 transport 1/0; 4 ABI tag 4; 5/6 ABI major 1 and the
+endpoint's minor; 7 capabilities 0..15; 8..15 build ID, two bytes per word,
+first byte low. An endpoint that reports minor 1 also answers index 16 with
+capabilities 16..31; one that reports minor 0 rejects index 16 as an invalid
+index. The host reads word 16 only when the manifest declares minor 1, and a
+host that supports 1.1 still admits 1.0 manifests. Compare identity with the
 exact manifest before release or any input or media delivery.
-ABI 1.1 keeps those words at the same indices and adds index 16 as capability
-bits 16..31 (bit 0 of the returned word is capability bit 16). The minor at
-index 6 is 1. Index 16 is invalid on ABI 1.0; index 17 and above are invalid
-on ABI 1.1. A host reads the high capability word only after observing and
-accepting minor 1, and rejects any undeclared or unsupported live bits.
+A host rejects undeclared or unsupported live bits.
 
 Errors are invalid opcode=1, invalid index=2, invalid argument=3, invalid
 state=4. An opcode whose capability is absent returns invalid opcode. Every
@@ -101,6 +113,16 @@ in the order written below; the first failing check determines the error.
 | 13 | MediaSnapshotControl | unit | 0 Freeze, 1 Resume, 2 Saved |
 | 14 | MediaSnapshotChunk | unit*4+word | offset low, offset high, even byte length |
 | 15 | MediaSnapshotData | word ordinal 0..255 | 0; response is a byte pair |
+| 16 | DiskInfo | unit*8+field | 0 |
+| 17 | DiskControl | unit | 0 Prepare, 1 Commit, 2 Eject, 3 Freeze, 4 Resume, 5 Saved |
+| 18..21 | Menu display | as in [session display](session-display.md) | |
+| 22 | DiskCommit | word 0..7 | geometry and CRC word |
+| 23 | DiskDirty | word 0..127 | 0; response is 16 chunk bits |
+| 24 | DataControl | 0 | 0 Freeze, 1 Begin, 2 Commit, 3 Resume |
+| 25 | DataRead | word | 0; response is the snapshot word |
+| 26 | DataWrite | word | staged word |
+| 27 | DataInfo | 0..3 | 0 |
+| 28 | WallClock | word 0..3 | clock word |
 
 ## Execution
 
@@ -111,6 +133,10 @@ a home computer starts with its drives empty, and media is inserted and
 removed while it runs. Hold does not touch media units, transfers or staged
 headers. Programming starts held with neutral input and every implemented unit
 empty. Stop/reprogram establishes a fresh identity and clears all state.
+
+Hold also abandons a persistence snapshot, and every accepted Execution
+request closes persistence restore staging and discards a partly staged wall
+clock. Neither Hold nor release touches the ATA disk.
 
 ## Keyboard
 
@@ -147,8 +173,10 @@ reset and Hold clear both ports. There is no keypad on this ABI.
 
 `fes.mouse.relative` 1.0 uses opcode 11. Index bits 0 and 1 are complete
 active-high left and right button state; all other index bits must be zero.
-The argument contains signed two's-complement 8-bit dx and dy. It delivers
-one atomic movement/button packet. A zero movement packet can change buttons.
+The argument contains signed two's-complement 8-bit dx and dy. Positive dx
+moves right and positive dy moves down the screen, as Linux `REL_Y` and the
+browser's `movementY` count; a core whose machine counts up (a PS/2 mouse)
+negates dy. It delivers one atomic movement/button packet. A zero movement packet can change buttons.
 The endpoint checks index, then held execution (invalid state), before waiting
 for its machine consumer. ACK means that consumer accepted the packet once;
 held GPO fields cannot deliver it again. An absent interface rejects the opcode.
@@ -385,12 +413,187 @@ and 512 bytes per sector. Byte offset is
 `((cylinder * 2 + head) * 9 + sector - 1) * 512`, with cylinders 0..39,
 heads 0..1 and sectors 1..9. The medium is read-only; drive A reports write
 protection and drive B is absent. Flux or track images and other geometries
-are not this interface. Capability bit 16 identifies it and requires ABI 1.1.
+are not this interface. Capability bit 20 identifies it and requires ABI 1.1.
 It shares unit 0 with the other computer media interfaces, so a shell may
 declare only one. The generic Begin, Data, Commit and Eject rules above apply
 while execution is held or running. A successful Data acknowledgement follows
 all accepted physical writes, and a removed or loading unit is not presented
 to the floppy controller.
+
+## ATA hard disk
+
+`fes.media.ata-disk` 1.0 (bit 16) is one fixed hard disk on unit 0. The image
+is too large for the media units, which move two bytes per transaction and
+stop at 32 MiB, so the mailbox moves no disk data. The runtime writes the
+image directly into the shell's HPS DDR window at offset `0x08000000`
+(`FesComputerAtaDiskWindowOffset`) while execution is held; the mailbox
+carries control, geometry, a CRC-32 the core checks, and the dirty map. The
+legacy media opcodes 5..15 stay absent unless a legacy media interface is
+also declared.
+
+The image is 1,048,576..134,217,728 bytes (1..128 MiB), a whole number of
+512-byte sectors (2,048..262,144). Chunks are 65,536 bytes (128 sectors), so
+the dirty map has 2,048 bits; the last chunk of an image that is not a whole
+number of chunks is short. A unit is empty, loading, verifying (4: the core
+is checking the CRC) or ready, with the media unit state numbers for the
+others. The machine sees a drive only while the unit is ready. The disk is
+fixed while the machine runs: Prepare, DiskCommit words, Commit and Eject are
+valid only while held (invalid state otherwise).
+
+**DiskInfo** (16): unit = index>>3 and field = index&7. A unit of 8 or more
+is an invalid index and a nonzero argument invalid; every field of units
+1..7 reads 0. Fields: 0/1 minimum bytes low/high, 2/3 maximum bytes
+low/high, 4 chunk size in sectors (128), 5 state, 6 flags, 7 a wrapping
+change epoch that advances once for every guest sector write that reaches
+the image. Flag bits: 0 dirty (a dirty bit is set), 1 frozen, 2 writer busy (an
+accepted sector write has not yet reached the image), 3 CRC error. Other bits
+read 0. Writer busy clears only when that accepted write reaches the image.
+
+**DiskControl** (17): index = unit; a unit other than 0 is an invalid index
+and an argument above 5 is invalid.
+
+- **Prepare** (0): held only; refused while frozen unless Saved was
+  acknowledged. The unit becomes loading: the drive disappears from the
+  machine, staged commit words, the dirty map, the error flag and the freeze
+  are cleared. Prepare also restarts DiskCommit staging.
+- **Commit** (1): held only, the unit loading and all eight DiskCommit words
+  staged (invalid state otherwise). The staging is consumed, the unit becomes
+  verifying and the core reads the size it was given from the window,
+  computing CRC-32/IEEE as the media units do. A match makes the unit ready
+  with that geometry; a mismatch leaves it loading with the error flag set,
+  and the host may stage the words again and commit, or prepare. The ACK comes
+  before the check ends: the host polls DiskInfo field 5 until it reads
+  something other than verifying (about 0.2 s for 128 MiB on port 2).
+- **Eject** (2): held only, refused while frozen unless Saved was
+  acknowledged. The unit becomes empty and everything Prepare clears is
+  cleared.
+- **Freeze** (3): requires ready (invalid state otherwise), held or
+  released. It fences new guest sector writes (a write command waits with BSY
+  set), waits until an accepted write has reached the image and then ACKs.
+  Every successful Freeze clears an earlier Saved acknowledgement, including
+  when the disk is already frozen. Repeating Freeze otherwise leaves the
+  existing fence in place.
+- **Resume** (4): always valid and idempotent; it releases the fence and
+  forgets Saved.
+- **Saved** (5): requires frozen (invalid state otherwise) and no busy
+  writer. It clears the dirty map, keeps the fence and permits Prepare or
+  Eject. The host sends it only after publishing the saved chunks.
+
+**DiskCommit** (22): index = word 0..7 (else invalid index). The unit must be
+held and loading (invalid state), and the word must be the next one staged
+(invalid index); a rejected word is not consumed. Words: 0/1 size in sectors
+low/high, 2 cylinders, 3 heads, 4 sectors per track, 5/6 CRC-32 low/high of
+the image as written, 7 zero. Checks (invalid argument): the size at word 1 is
+2,048..262,144 sectors; cylinders 1..16,383; heads 1..16; sectors per track
+1..63, and cylinders × heads × sectors per track must not exceed the size;
+word 7 is 0. The geometry is what IDENTIFY DEVICE reports and what the
+partition table was written with; the LBA capacity is the size.
+
+**DiskDirty** (23): index = word 0..127 (else invalid index), argument 0
+(else invalid). It requires frozen (invalid state) and returns chunks
+16 × index .. 16 × index + 15, bit 0 first. A chunk's bit is set when a guest
+sector write to it reaches the image. Bits past the image's last chunk read 0.
+
+A guest sector write is staged whole before any byte reaches the image, so a
+frozen image never holds a torn sector. The fence and drain follow the
+[writable ST capture](#writable-st-image-capture); this disk adds no
+snapshot opcode, because the host reads the dirty chunks from the window
+after Freeze is acknowledged, invalidating its cached view of them first.
+
+The host's sequence at launch is: Prepare; write the image into the window,
+clean the CPU caches for it and revoke the grant; DiskCommit words 0..7;
+Commit; poll DiskInfo until ready; release. At Stop it is: Freeze; DiskDirty
+words; read the dirty chunks; publish the [chunk delta](media-data.md#ata-disk-delta);
+Saved. The durable delta and its namespace are the media data record
+`fes.ata-disk.delta` 1.0.
+
+## Persistence words
+
+`fes.persistence.words` 1.0 (bit 17) has the semantics it has on
+`fes.simple-game` ([schema](schema.md#core-persistence-interfaces)), on
+opcodes 24..27. DataControl (24) takes index 0 (else invalid index) and
+argument 0 Freeze, 1 Begin, 2 Commit or 3 Resume (else invalid argument).
+Freeze requires released execution and latches a snapshot of every word
+before ACK; repeating it keeps the first snapshot. Begin requires held
+execution and opens empty restore staging. Commit requires held execution
+and every word staged, then checks the layout's values (invalid argument,
+staging kept) and replaces the words atomically, closing staging. Resume
+requires a snapshot and drops it. DataRead (25) checks index below the word
+count (invalid index), argument 0 (invalid argument), then a snapshot
+(invalid state). DataWrite (26) checks the index, then held execution with
+staging open (invalid state). Words are opaque until Commit. DataInfo (27)
+index 0..3 (else invalid index), argument 0, reports word count, layout tag,
+major and minor.
+
+The record is per library game: the host restores it before release and
+captures it at Stop. A missing record starts the layout's defaults. Its
+bytes on the kit are a `FESGAME1` record:
+
+| Offset | Size | Bytes |
+| --- | --- | --- |
+| 0 | 8 | ASCII `FESGAME1` |
+| 8 | 32 | SHA-256 of UTF-8 core ID |
+| 40 | 32 | SHA-256 of UTF-8 library game ID |
+| 72 | 2 | Little-endian layout ID byte length L (1..96) |
+| 74 | 2 | Little-endian layout major |
+| 76 | 2 | Little-endian layout minor |
+| 78 | 2 | Little-endian word count N (1..256) |
+| 80 | L | ASCII layout ID |
+| 80+L | 2N | Little-endian words |
+| 80+L+2N | 32 | SHA-256 of every preceding byte |
+
+The size is exactly 112 + L + 2N bytes, at most 720. No padding or trailing
+bytes are allowed. Its namespace is lowercase SHA-256 of `fes-core-game-data-v1`,
+NUL, core ID, NUL, game ID; package, firmware and display names do not name
+it. Revision is lowercase SHA-256 of the whole record and `absent` names a
+missing one. A `FESDATA1` decoder rejects the record by its magic, and this
+decoder rejects `FESDATA1`. A corrupt or incompatible record blocks launch
+and is never replaced with defaults.
+
+### fes.pc386.machine 1.0
+
+Layout tag 3 (tags 1 and 2 are the snapshot layouts), 72 words. Words 0..7
+are settings FogCast writes for the next launch; words 8..71 are CMOS bytes
+00h..7Fh, two per word, low byte first, which the machine writes.
+
+| Word | Content | Values | Default |
+| --- | --- | --- | --- |
+| 0 | Governor preset | 0 `max`, 1 286-12, 2 386SX-16, 3 386DX-25, 4 386DX-33, 5 386DX-40, 6 486DX-33, 7 486DX2-66 | 0 |
+| 1 | Preset frequency override, 100 kHz units | 0 for the preset's own, or 10..1000 (1..100 MHz); 0 under `max` | 0 |
+| 2 | Self-modifying-code profile | 0 `coherent`, 1 `queue16` | 0 |
+| 3 | Turbo at launch | 0 the preset, 1 `max` | 0 |
+| 4 | Sound Blaster base port | 0x220 or 0x240 | 0x220 |
+| 5 | Sound Blaster IRQ | 2, 3, 5 or 7 | 7 |
+| 6 | Sound Blaster DMA channel | 1 | 1 |
+| 7 | Reserved | 0 | 0 |
+| 8..71 | CMOS 00h..7Fh | any | 0 |
+
+Commit rejects a value outside its set. Settings are read at the next release,
+so the governor, CPU profile and Sound Blaster are set at reset. The clock
+bytes are captured with the rest but the [wall clock](#wall-clock) overwrites
+them at the next launch.
+
+## Wall clock
+
+`fes.rtc.wall-clock` 1.0 (bit 18) sets the machine's clock from the kit's
+local time, on opcode 28, while held (invalid state otherwise). Index is the
+word 0..3 (else invalid index). Word 0 always starts a new time; words 1..3
+must follow in order (invalid index), and word 3 applies all four at once. A
+rejected word is not consumed. Words are binary, first-named byte low:
+
+| Word | Low byte | High byte | Checks (invalid argument) |
+| --- | --- | --- | --- |
+| 0 | Year, 16 bits | | 1980..2099 |
+| 1 | Month | Day | month 1..12, day 1..the month's length in that year |
+| 2 | Hour | Minute | hour 0..23, minute 0..59 |
+| 3 | Second | Weekday | second 0..59, weekday 1 (Sunday)..7 |
+
+The host has three duties. It sends the date's own weekday, counted as the
+MC146818 counts it. It clamps a leap second to 59. It clamps a kit time before
+1980 to 1980-01-01 00:00:00, a Tuesday (3). The machine does not compare the
+weekday with the date. Like the MC146818, it stores the weekday it is given.
+The machine converts to its guest's BCD or binary and 12- or 24-hour forms. A
+guest that changes the time keeps it until Stop.
 
 ## Audio
 
@@ -404,10 +607,19 @@ ADV7513 packet enable.
 [Golden exchanges](../testdata/fes-computer-v1/exchanges.json) are generated by
 `scripts/fes_computer_fixtures.py`, whose `Endpoint` class is the reference
 model of this document, and replayed against an independent Go model in
-`internal/pack/fes_computer_test.go`. They describe two synthetic sessions:
-keyboard and controllers without media, and live media on a synthetic unit 0
+`internal/pack/fes_computer_test.go`. They describe synthetic 1.0 sessions:
+keyboard and controllers without media, live media on a synthetic unit 0
 that advertises 1..1030 bytes so multi-chunk, odd-length, CRC and eject cases
-fit in a small file. Consumers own their implementations and must replay these
+fit in a small file, and the relative mouse. The 1.1 additions are in
+[`exchanges-1.1.json`](../testdata/fes-computer-v1/exchanges-1.1.json), from
+the same script's `Endpoint11` and replayed in
+`internal/pack/fes_computer_v11_test.go`: a 1.0 endpoint that rejects word 16
+and the new opcodes; persistence restore, wall-clock seeding and the Stop
+snapshot of a pc386 endpoint; and its ATA disk with a 2 MiB synthetic window
+(`(offset * 7 + (offset >> 11)) & 255`). The fixture's endpoint finishes a CRC
+check after one DiskInfo state read reports verifying, a scenario parameter;
+`machine_events` names guest sector and CMOS writes between exchanges. The
+pc386 record vectors are [`pc386-machine.json`](../testdata/core-persistence-v1/pc386-machine.json). Consumers own their implementations and must replay these
 requests against their own code; the endpoint capacity is a synthetic fixture
 parameter, not the Apple II floppy size. FES selects reviewed component
 revisions before integration or exact-artifact hardware acceptance.

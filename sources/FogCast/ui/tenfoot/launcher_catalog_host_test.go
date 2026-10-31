@@ -2,6 +2,7 @@ package tenfoot
 
 import (
 	"fmt"
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -86,7 +87,7 @@ func waitHostHit(t *testing.T, app *App, hits *atomic.Int32) {
 	t.Helper()
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for hits.Load() == 0 && time.Now().Before(deadline) {
 		time.Sleep(10 * time.Millisecond)
 	}

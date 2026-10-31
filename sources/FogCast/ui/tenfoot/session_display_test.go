@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"image"
 	"io"
 	"net/http"
@@ -540,7 +541,7 @@ func TestKitDisplayOpenCloseFailureAndFreshInput(t *testing.T) {
 	app.HandleCommand(CmdHome, now)
 	select {
 	case <-entered:
-	case <-time.After(time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("display mutation never began")
 	}
 	if snap := app.Snapshot(); snap.Session.ControlsOpen || app.ForwardsPlayHID() || !snap.GPUParked {
@@ -767,7 +768,7 @@ func TestKitFailedStopKeepsDisplayReturnReachable(t *testing.T) {
 			app.HandleCommand(CmdHome, time.Now())
 			select {
 			case <-entered:
-			case <-time.After(time.Second):
+			case <-time.After(testwait.Timeout):
 				t.Fatal("display open never began")
 			}
 			if !tc.pending {
@@ -787,7 +788,7 @@ func TestKitFailedStopKeepsDisplayReturnReachable(t *testing.T) {
 				release.Do(func() { close(gate) })
 				select {
 				case <-displayDone:
-				case <-time.After(time.Second):
+				case <-time.After(testwait.Timeout):
 					t.Fatal("late display open never completed")
 				}
 			}
@@ -939,7 +940,7 @@ func TestKitStarterLiveTapeImportsThenArmsCapturedMachine(t *testing.T) {
 	app.HandleCommand(CmdSelect, time.Now())
 	select {
 	case <-entered:
-	case <-time.After(time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("live tape arm did not begin")
 	}
 	presenter.fail.Store(true)
@@ -1102,7 +1103,7 @@ func (c *transientSessionMenu) Present(_ context.Context, generation uint64, _ [
 
 func waitSessionMenuFrame(t *testing.T, display *gfx.MenuDisplay) {
 	t.Helper()
-	deadline := time.Now().Add(time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for display.FramePending() {
 		if time.Now().After(deadline) {
 			t.Fatal("menu frame did not complete")

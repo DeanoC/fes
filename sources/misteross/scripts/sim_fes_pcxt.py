@@ -89,7 +89,7 @@ SYSTEM_SOURCES = (SOURCES[:4] + DISPLAY_SOURCES[:-1] + CHIPSET_SOURCES[:-1] +
                   MEMORY_SOURCES[:2] + VIDEO_SOURCES[:-1] +
                   ('cores/fes-pcxt/rtl/pcxt_machine.sv', 'cores/fes-pcxt/rtl/pcxt_disk_loader.sv', 'cores/fes-pcxt/rtl/pcxt_system.sv',
                    'cores/fes-pcxt/rtl/pcxt_media_writer.sv', 'cores/fes-pcxt/rtl/pcxt_media.sv',
-                   'cores/fes-pcxt/rtl/pcxt_boot.sv'))
+                   'cores/fes-pcxt/rtl/pcxt_boot.sv', 'cores/fes-pcxt/rtl/pcxt_boot_media_gate.sv'))
 
 
 def boot_roms(output, data, prefix='pcxt_diagnostic'):

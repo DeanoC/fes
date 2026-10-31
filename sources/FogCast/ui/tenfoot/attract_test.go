@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"image"
 	"image/color"
 	"io"
@@ -55,13 +56,13 @@ func TestAppEntersAttractAndDismissesOnInput(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) >= 1 && !snap.Loading
 	})
 
 	armAttractSoon(app)
 
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Attract.Active && snap.Attract.Title == "Mario" && snap.Attract.Image != nil
 	})
 	if attractCalls.Load() < 1 {
@@ -102,7 +103,7 @@ func TestAppSkipsAttractWhileSessionActive(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Session.State == "active" && snap.GPUParked
 	})
 
@@ -137,7 +138,7 @@ func TestAppSkipsAttractWhenDisabledOrModal(t *testing.T) {
 	app.SetAttractDisabled(true)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) >= 1
 	})
 	armAttractSoon(app)
@@ -205,15 +206,15 @@ func TestAppAttractSelectLaunchesLaunchableItem(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) >= 1 && !snap.Loading
 	})
 	armAttractSoon(app)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Attract.Active
 	})
 	app.Press(CmdSelect, time.Now())
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Launch.Phase == "ok" || snap.Session.State == "active"
 	})
 	mu.Lock()
@@ -315,7 +316,7 @@ func TestAppHydratesHostIdleBeforeEnteringAttract(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) >= 1 && !snap.Loading && snap.Attract.IdleSeconds == 300
 	})
 
@@ -369,11 +370,11 @@ func TestAppPlaysVideoOnlyAttractEntries(t *testing.T) {
 	}
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) >= 1 && !snap.Loading
 	})
 	armAttractSoon(app)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Attract.Active && snap.Attract.Title == "Mario" && snap.Attract.Video && snap.Attract.Image != nil
 	})
 }
@@ -417,11 +418,11 @@ func TestAppFallsBackToStillWhenAttractVideoFails(t *testing.T) {
 	}
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) >= 1 && !snap.Loading
 	})
 	armAttractSoon(app)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Attract.Active && snap.Attract.Handle == cover && snap.Attract.Image != nil && !snap.Attract.Video
 	})
 }
@@ -465,11 +466,11 @@ func TestAppFallsBackToStillWhenAttractVideoEndsBeforeFirstFrame(t *testing.T) {
 	}
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) >= 1 && !snap.Loading
 	})
 	armAttractSoon(app)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Attract.Active && snap.Attract.Handle == cover && snap.Attract.Image != nil && !snap.Attract.Video
 	})
 }
@@ -509,11 +510,11 @@ func TestAppDismissTearsDownAttractVideo(t *testing.T) {
 	}
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) >= 1 && !snap.Loading
 	})
 	armAttractSoon(app)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Attract.Active && snap.Attract.Video
 	})
 	app.DismissAttract(time.Now())
@@ -557,7 +558,7 @@ func TestAppCancelsInFlightAttractVideoFetchOnDismiss(t *testing.T) {
 			select {
 			case <-r.Context().Done():
 				reqErr <- r.Context().Err()
-			case <-time.After(5 * time.Second):
+			case <-time.After(testwait.Timeout):
 				reqErr <- context.DeadlineExceeded
 			}
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
@@ -575,11 +576,11 @@ func TestAppCancelsInFlightAttractVideoFetchOnDismiss(t *testing.T) {
 	}
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) >= 1 && !snap.Loading
 	})
 	armAttractSoon(app)
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		app.Tick(time.Now())
 		select {
@@ -602,7 +603,7 @@ func TestAppCancelsInFlightAttractVideoFetchOnDismiss(t *testing.T) {
 		if err != context.Canceled {
 			t.Fatalf("in-flight fetch err = %v, want canceled", err)
 		}
-	case <-time.After(2 * time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("dismiss left the attract video fetch running")
 	}
 	if app.Snapshot().Attract.Active {
@@ -648,7 +649,7 @@ func TestAppDoesNotRestartAttractVideoFetchBeforeFirstFrame(t *testing.T) {
 			select {
 			case <-r.Context().Done():
 				reqErr <- r.Context().Err()
-			case <-time.After(5 * time.Second):
+			case <-time.After(testwait.Timeout):
 				reqErr <- context.DeadlineExceeded
 			}
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
@@ -666,11 +667,11 @@ func TestAppDoesNotRestartAttractVideoFetchBeforeFirstFrame(t *testing.T) {
 	}
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) >= 1 && !snap.Loading
 	})
 	armAttractSoon(app)
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		app.Tick(time.Now())
 		select {
@@ -755,11 +756,11 @@ func TestAppShowsStillRowAfterFailedVideoOnly(t *testing.T) {
 	}
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) >= 2 && !snap.Loading
 	})
 	armAttractSoon(app)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Attract.Active && snap.Attract.Title == "Sonic" && snap.Attract.Image != nil && !snap.Attract.Video
 	})
 }
@@ -813,14 +814,14 @@ func TestAppHidesAttractWhenVideoOnlyFailsWithoutStill(t *testing.T) {
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
 	t.Cleanup(releaseOpen)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) >= 1 && !snap.Loading
 	})
 	armAttractSoon(app)
 	// Attract is armed before the clip open returns. Sampling Active during
 	// that gap fails a loaded race run even though the failed open, with no
 	// still, then hides it. Hold the open so the hide is the assertion.
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		app.Tick(time.Now())
 		select {
@@ -839,7 +840,7 @@ func TestAppHidesAttractWhenVideoOnlyFailsWithoutStill(t *testing.T) {
 		t.Fatalf("video handle = %q", got)
 	}
 	releaseOpen()
-	deadline = time.Now().Add(2 * time.Second)
+	deadline = time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		app.Tick(time.Now())
 		if !app.Snapshot().Attract.Active {
@@ -913,11 +914,11 @@ func TestPendingSouthHoldDoesNotLaunchAttractItem(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) >= 2 && !snap.Loading
 	})
 	armAttractSoon(app)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Attract.Active && snap.Attract.GameID == "megadrive-sonic"
 	})
 
@@ -977,7 +978,7 @@ func TestAppSkipsAttractWhileLaunchInFlight(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) >= 1 && !snap.Loading
 	})
 	app.mu.Lock()
@@ -1053,7 +1054,7 @@ func TestAppAllowsAttractAfterRejectedHostLaunch(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) >= 1 && !snap.Loading
 	})
 	app.mu.Lock()
@@ -1061,7 +1062,7 @@ func TestAppAllowsAttractAfterRejectedHostLaunch(t *testing.T) {
 	app.launch.Message = "host launch 500 SOURCE_UNAVAILABLE: game source is unavailable"
 	app.mu.Unlock()
 	armAttractSoon(app)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Attract.Active
 	})
 }
@@ -1102,7 +1103,7 @@ func TestAppRefreshesDecreasedHostIdleBeforeCachedDeadline(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) >= 1 && !snap.Loading && snap.Attract.IdleSeconds == 300
 	})
 	idle.Store(1)
@@ -1110,7 +1111,7 @@ func TestAppRefreshesDecreasedHostIdleBeforeCachedDeadline(t *testing.T) {
 	app.lastInput = time.Now().Add(-20 * time.Second)
 	app.attractIdleAt = time.Now().Add(-time.Minute)
 	app.mu.Unlock()
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Attract.Active && snap.Attract.IdleSeconds == 1
 	})
 }
@@ -1153,11 +1154,11 @@ func TestAppFallsBackWhenAttractArtworkFails(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) >= 1 && !snap.Loading
 	})
 	armAttractSoon(app)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Attract.Active && snap.Attract.Handle == cover && snap.Attract.Image != nil
 	})
 }
@@ -1198,13 +1199,13 @@ func TestAppBacksOffWhenAttractArtworkExhausted(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) >= 1 && !snap.Loading
 	})
 	armAttractSoon(app)
 	// The playlist returns before attract is armed. Backoff is the later
 	// still request: that 404 marks the only handle tried and hides attract.
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		app.Tick(time.Now())
 		if artworkCalls.Load() >= 1 && !app.Snapshot().Attract.Active {
@@ -1371,11 +1372,11 @@ func TestAppRestartsAttractVideoFromCachedFile(t *testing.T) {
 	}
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) >= 1 && !snap.Loading
 	})
 	armAttractSoon(app)
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		app.Tick(time.Now())
 		snap := app.Snapshot()
@@ -1437,11 +1438,11 @@ func TestAppRestartsSingleAttractVideoWhenClipEnds(t *testing.T) {
 	}
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) >= 1 && !snap.Loading
 	})
 	armAttractSoon(app)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Attract.Active && snap.Attract.Video && opens.Load() >= 2
 	})
 }

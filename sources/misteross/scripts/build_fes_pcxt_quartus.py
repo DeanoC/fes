@@ -223,7 +223,7 @@ def create_build_record(root, repository, revision, tool_identities, *, identity
     parameters = {'device': board.DEVICE, 'core_id': core_id,
                   'hardware_dos': dos_profile,
                   'half_rate_board': False, 'phased_hdmi_clock': True,
-                  'enable_fes_computer': True, 'enable_pcxt_media': not dos_profile,
+                  'enable_fes_computer': True, 'enable_pcxt_media': True,
                   'diagnostic_completion_marker': not dos_profile,
                   'video_mailbox_contract': True,
                   'system_clock_hz': 100000000, 'pixel_clock_hz': 74250000,
@@ -232,9 +232,7 @@ def create_build_record(root, repository, revision, tool_identities, *, identity
                   'execution_sha256': execution_digest(execution)}
     if dos_profile:
         metadata, font = dos_assets(root)
-        parameters.update(freedos_image_sha256=metadata['floppy']['sha256'],
-                          freedos_source_urls='; '.join(item['url'] for item in metadata['floppy']['sources']),
-                          glabios_rom_sha256=metadata['bios']['sha256'],
+        parameters.update(glabios_rom_sha256=metadata['bios']['sha256'],
                           glabios_font_sha256=hashlib.sha256(font).hexdigest())
     fields = {'format': 2, 'toolchain': 'quartus', 'repository': repository, 'revision': revision,
               'source_path': root.relative_to(top).as_posix(), 'source_roots': roots,
@@ -251,7 +249,7 @@ def require_timing(summary, seeds, *, dos_profile=False):
             or summary.get('profile', {}).get('HALF_RATE_BOARD') != 0
             or summary.get('profile', {}).get('ENABLE_FES_COMPUTER') != 1
             or summary.get('profile', {}).get('HARDWARE_DOS') != int(dos_profile)
-            or summary.get('profile', {}).get('ENABLE_PCXT_MEDIA') != int(not dos_profile)
+            or summary.get('profile', {}).get('ENABLE_PCXT_MEDIA') != 1
             or len(summary.get('runs', [])) != len(seeds)
             or summary.get('elaboration', {}).get('hps_primitive_instances') != {
                 'hdmi_i2c': 'cyclonev_hps_interface_peripheral_i2c',
@@ -280,29 +278,23 @@ def manifest(record, payload, *, dos_profile=False, metadata=None):
     expected_core_id = 'fes.pcxt-dos' if dos_profile else 'fes.pcxt'
     if (not isinstance(dos_profile, bool) or parameters.get('core_id') != expected_core_id
             or parameters.get('hardware_dos') is not dos_profile
-            or parameters.get('enable_pcxt_media') is not (not dos_profile)):
+            or parameters.get('enable_pcxt_media') is not True):
         raise BuildError('PC/XT manifest profile does not match its build record')
     if dos_profile:
-        if (not isinstance(metadata, dict) or not isinstance(metadata.get('floppy'), dict)
-                or metadata['floppy'].get('sha256') != parameters.get('freedos_image_sha256')):
-            raise BuildError('PC/XT DOS manifest media does not match its build record')
-        floppy = metadata['floppy']
-        sources = '; '.join(f"{item['url']} ({item['license']})" for item in floppy['sources'])
-        description = (f"FreeDOS 1.4 boots to A:\\> from a read-only XT floppy served through SDRAM. "
-                       f"Image source: {sources}; SHA-256 {floppy['sha256']}. See PC/XT third-party notices.")
+        description = ('XT-compatible BIOS and read-only 360 KiB floppy loaded '
+                       'at runtime into SDRAM. A bootable disk image is required.')
         core = {'id': 'fes.pcxt-dos', 'name': 'FES PC/XT FreeDOS', 'version': '0.1.0',
                 'description': description}
     else:
         core = {'id': 'fes.pcxt', 'name': 'FES PC/XT Diagnostic', 'version': '0.2.0',
-                'description': 'Quartus 8088 SDRAM/DMA diagnostic with a static CGA completion signature'}
+                'description': 'Quartus 8088 SDRAM/DMA diagnostic with a runtime floppy sector check'}
     interfaces = [{'id': 'fes.video.fixed-720p60', 'major': 1, 'minor': 0, 'required': True}]
-    if not dos_profile:
-        interfaces.append({'id': 'fes.media.pcxt-floppy', 'major': 1, 'minor': 0, 'required': True})
+    interfaces.append({'id': 'fes.media.pcxt-floppy', 'major': 1, 'minor': 0, 'required': True})
     return encode_manifest({'format': 2,
         'core': core,
         'target': {'platform': 'de10_nano', 'device': board.DEVICE, 'programming_profile': 'fes-gp-v1'},
         'payload': {'file': 'core.rbf', 'size': payload.stat().st_size, 'sha256': sha(payload)},
-        'abi': {'id': 'fes.computer', 'major': 1, 'minor': 0 if dos_profile else 1},
+        'abi': {'id': 'fes.computer', 'major': 1, 'minor': 1},
         'interfaces': interfaces,
         'build': {'id': build_identity(record), 'repository': fields['repository'],
                   'revision': fields['revision'], 'recipe_sha256': fields['recipe_sha256'],
@@ -359,11 +351,10 @@ def build(root=ROOT, *, package_output=None, cache_root=None, identity_version=2
             'classification': 'installable-quartus-hardware-dos-package' if dos_profile else 'installable-quartus-diagnostic-package',
             'build_id': build_id, 'revision': revision, 'seeds': recipe['seeds'],
             'core_id': core_id, 'hardware_dos': dos_profile,
-            'freedos_image_sha256': metadata['floppy']['sha256'] if dos_profile else None,
             'internal_timing_pass': True, 'repeat_rbf_sha256': sha(repeated),
             'whole_board_qualified': False, 'hardware_acceptance': False,
             'limits': ['external IO/HPS timing and physical reset qualification remain open',
-                       ('fixed image only; host keyboard and exact-artifact hardware acceptance remain open'
+                       ('runtime floppy image required; host keyboard and exact-artifact hardware acceptance remain open'
                         if dos_profile else 'BIOS, DOS boot, host keyboard and in-play display plane are not implemented')]}, indent=2) + '\n')
         package = export_package(encoded, payload, Path(package_output or root / 'build/packages'))
     return package

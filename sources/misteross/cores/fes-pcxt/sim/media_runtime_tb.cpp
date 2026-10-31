@@ -92,7 +92,7 @@ struct Test {
 int main(int argc,char **argv) {
     Verilated::commandArgs(argc,argv);
     Test t;
-    require(t.good(1,6)==1 && t.good(1,16)==1,"PCXT 1.1 identity",t.cycles);
+    require(t.good(1,6)==1 && t.good(1,16)==16,"PCXT 1.1 identity",t.cycles);
     t.good(2,0,1);
     require(!t.d.exec_reset && t.d.unit_state==1 && !t.d.media_present,
             "empty drive prevented execution",t.cycles);

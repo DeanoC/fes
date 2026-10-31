@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"github.com/DeanoC/FogCast/protocol"
 	"io"
 	"net/http"
@@ -20,7 +21,7 @@ import (
 
 func waitCoreLibrary(t *testing.T, a *App) {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		a.mu.Lock()
 		busy := a.coreLibrary.Busy
@@ -403,7 +404,7 @@ func TestCoreLibraryPendingRequestAllowsCancel(t *testing.T) {
 	}
 	select {
 	case <-cancelled:
-	case <-time.After(3 * time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("request context not cancelled")
 	}
 }

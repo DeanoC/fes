@@ -370,7 +370,7 @@ while the machine runs.
 
 `fes.computer` 1.1 extends identity with a high capability word. The runtime
 reads it only for a 1.1 package and requires its complete value to match the
-required declarations. `fes.media.pcxt-floppy` 1.0 uses its bit 16 for unit 0;
+required declarations. `fes.media.pcxt-floppy` 1.0 uses bit 20 for unit 0;
 discovery and every insertion require exact 368,640-byte live limits and
 512-byte chunks. The existing ordered, CRC-checked transfer and ready
 confirmation support read-only insertion and eject without changing execution

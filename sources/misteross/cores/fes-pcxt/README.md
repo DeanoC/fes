@@ -7,19 +7,18 @@ linkable-card mechanism. The motherboard slice adds memory decoding, an 8259A
 PIC, 8253 PIT, 8255 PPI, XT keyboard byte transport and speaker PCM, and a transaction-native 8237A DMA subset. Separate ISA CGA and MDA display cards add guest raster output. An optional read-only XT floppy adapter is exercised in host simulation. The diagnostic package has no
 HID keyboard frontend or physical socket map. The registered `fes.pcxt` recipe
 builds a diagnostic package with fixed CGA Direct video and `fes.computer` 1.1
-read-only floppy media. The separate
-`fes.pcxt-dos` recipe enables the GLaBIOS XT/5160 ROM and read-only floppy
-controller, loads its pinned FreeDOS 1.4 boot image into SDRAM through the
-physical loader used by the SDRAM floppy path, and is intended to boot DOS.
-Its hardware boot remains unverified. The storage lane connects conventional
-RAM and firmware to the existing
+read-only floppy media. The separate experimental `fes.pcxt-dos` recipe enables
+GLaBIOS XT/5160 and boots a 360 KiB raw floppy delivered at runtime through
+the mailbox and SDRAM. A previous exact DOS package booted the pinned FreeDOS
+image on Kit B; later packages need their own hardware acceptance. The storage
+lane connects conventional RAM and firmware to the existing
 addon SDRAM controller and boots the display diagnostic through its physical
 command interface in host simulation. The normal package producer is Quartus Lite 17.0.2, with a common 100 MHz
 CPU/motherboard/SDRAM clock and 74.25 MHz CGA Direct output. It requires
 all declared seeds to pass reported internal setup, hold, recovery, removal
 and pulse-width checks, plus a byte-identical independent seed-1 rebuild.
 External SDRAM/HDMI, HPS and physical reset qualification remain open for both
-packages. The DOS variant still requires exact-artifact hardware acceptance.
+packages. Each new DOS package requires its own exact-artifact hardware acceptance.
 Nextpnr is an advisory diagnostic, not the normal package producer.
 The existing RAM Tester
 [external timing model](../../docs/architecture.md#sdram-external-timing-model)
@@ -40,26 +39,29 @@ A scoped reset exception would additionally require validation of the complete
 chain, its synchronous consumers and timed interstage paths; the attribute alone
 is not a timing waiver.
 
-### FreeDOS hardware package
+### FreeDOS DOS-profile package
 
 The `fes.pcxt-dos` recipe selects `HARDWARE_DOS` and keeps the diagnostic
-profile unchanged. It loads the locked GLaBIOS ROM and a 360 KiB FreeDOS
-floppy image. At cold start, the image bytes are written in order to SDRAM by
-`pcxt_system`; guest floppy reads then use the existing SDRAM media-read
-interface. The variant does not use a simulation-only disk model and has no
-floppy write path. Its FreeDOS image is assembled from FreeDOS kernel 2043 and
-FreeCOM 0.86a. Source commits, licences and image SHA-256 are recorded in
+profile unchanged. It includes GLaBIOS and a BAT-only XT keyboard responder;
+keyboard input is not yet supported. A 360 KiB raw floppy is delivered at
+runtime through `fes.media.pcxt-floppy` and the complete ordered image is
+written into SDRAM. The guest stays in reset until the initial image is
+physically written and committed. After that, eject and replacement leave the
+running guest alone. A cold reset invalidates the image. Guest floppy reads
+use the SDRAM media path; there is no disk ROM in the FPGA and no write path.
+The FreeDOS fixture uses kernel 2043 and FreeCOM 0.86a; see
 [`firmware/THIRD-PARTY-NOTICES.md`](firmware/THIRD-PARTY-NOTICES.md) and
-`sim/freedos.lock`.
+[`sim/freedos.lock`](sim/freedos.lock). Hardware prompt acceptance remains
+separate from the host simulation and package build.
 
 The DOS profile supplies an XT keyboard self-test response over the existing
 serial cable after the BIOS reset handshake. It does not yet accept host keys.
 
 The recipe registers `scripts/pcxt_dos_hil_acceptance.py` with preferred kit
-order B then A. The hardware check requires at least three complete changing
-captures and glyph-matches the final CGA `A:\>` prompt against the font
+order B then A. It requires at least three complete captures with a meaningful
+change and glyph-matches the final CGA `A:\>` prompt against the font
 embedded in the locked BIOS ROM. It rejects a static signature and reports a
-DOS boot prompt only; it does not qualify external timing, whole-board IO,
+prompt-capture result only; it does not qualify external timing, whole-board IO,
 reset or broader PC/XT compatibility. A build or seal does not imply a kit run.
 
 ### Experimental CPU100 / board50 diagnostic
@@ -153,7 +155,9 @@ not qualify the package configuration.
 `--video-mailbox-contract` is a separate diagnostic opt-in. It runs the real
 CGA/MDA ownership proofs from the captured sources, binds the declarations
 through portable naming, checks the three exclusive two-stage chains and
-their common PLL-lock reset assertion, then applies `quartus/mailbox.sdc`.
+their common PLL-lock reset assertion, marks the six stages with Quartus 17's
+`SYNCHRONIZER_IDENTIFICATION FORCED` assignment to protect them from fitter
+duplication, then applies `quartus/mailbox.sdc`.
 It false-paths only three asynchronous pairs: `received` to `ack_meta`, `sent`
 to `sent_meta`, and `machine_reset` to `hold_meta`. The ownership proof checks
 that each bank stays stable for two pixel samples before adoption; a one-pixel-
@@ -560,7 +564,7 @@ treating the disk as guest RAM. The supported image is a raw 360 KiB disk:
 The DOS fixture uses the 8086-compatible FreeDOS kernel and FreeCOM selected
 and hashed in `sim/freedos.lock`, with a FAT12 boot sector assembled using the
 pinned NASM release. The image contains `FESXT.TXT` and is generated under
-`build/sim/fes-pcxt/freedos/`; third-party firmware and the image are not
+`build/sim/fes-pcxt/freedos/`; the generated fixture and external firmware are not
 packaged. The builder needs mtools. Downloads occur only with `--download`,
 which fetches missing pinned sources and the assembler; cached inputs are
 verified before use.
@@ -582,8 +586,8 @@ the 360 KiB raw geometry and reports write protection. The registered diagnostic
 package enables this profile and advertises PC floppy media. Inserting a
 disk into a running guest does not reset it or automatically restart its boot.
 The current shell also lacks a session-display plane and a host keyboard path;
-a bootable package needs an initial-media or guest retry/reset path as well as
-those interfaces.
+the separate DOS profile holds the guest until its first disk has committed.
+General host keyboard and a session-display plane remain future work.
 
 The whole-machine test loads the pinned GLaBIOS and sends the complete floppy
 image through the runtime mailbox and real SDRAM controller before releasing
@@ -599,8 +603,9 @@ abandons a partial transfer and reloads the image while the DOS session runs.
 `make sim-fes-pcxt-media` covers identity, mailbox reset, live replacement,
 odd chunk boundaries and host/guest SDRAM contention. Outputs are under
 `build/sim/fes-pcxt/dos/`. This is host simulation; the registered diagnostic
-package still runs its built-in diagnostic firmware. There is no bootable package,
-write persistence or hardware acceptance for this path.
+package still runs its built-in diagnostic firmware. The separate DOS package
+has exact-artifact hardware boot evidence for a named earlier build; neither
+that evidence nor the host simulation qualifies a newer package or write persistence.
 
 ## Assembled board diagnostic
 

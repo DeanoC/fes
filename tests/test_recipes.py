@@ -103,6 +103,7 @@ class RecipeRegistryTest(unittest.TestCase):
     def test_pcxt_dos_recipe_selects_hardware_check_and_kit_preference(self):
         recipe = recipes.recipe_for("fes.pcxt-dos")
         self.assertEqual(recipe.producer_module, "scripts.build_fes_pcxt_quartus")
+        self.assertEqual(recipe.quartus_role, "FreeDOS SDRAM floppy package producer")
         self.assertEqual(recipe.producer_arguments, ("--dos-profile",))
         self.assertEqual(dict(recipe.producer_options), {"dos_profile": True})
         self.assertEqual(recipe.hil_check, "scripts/pcxt_dos_hil_acceptance.py")

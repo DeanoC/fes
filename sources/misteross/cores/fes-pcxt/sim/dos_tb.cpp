@@ -153,7 +153,7 @@ int main(int argc, char **argv) {
         if(live) require(!d.machine_reset,"media operation reset the running guest",cycles);
         require(cycles<6000000000ULL,"BIOS/DOS boot timeout",cycles);
     };
-    d.cold_reset=d.reset_pixel=1;d.warm_reset=0;d.hold=1;d.firmware_valid=0;d.code_valid=0;d.key_code=0;
+    d.cold_reset=d.reset_pixel=1;d.warm_reset=0;d.hold=0;d.firmware_valid=0;d.code_valid=0;d.key_code=0;
     d.media_present=0;d.disk_restart=0;d.disk_load_valid=0;d.disk_load_address=0;d.disk_load_data=0;d.media_gpo=0;
     for(unsigned i=0;i<32;++i)step();
     ram.cold_reset();d.cold_reset=d.reset_pixel=0;
@@ -208,10 +208,12 @@ int main(int argc, char **argv) {
             chunk(offset,length);offset+=length;
         }
         require(d.disk_loaded && d.media_state==2,"final physical write not complete before commit",cycles);
+        if (!live) require(d.machine_reset,"CPU released before disk commit",cycles);
         exchange(9,0,0);
         require(d.media_state==3,"committed disk not ready",cycles);
     };
-    require(exchange(1,6,0)==1 && exchange(1,16,0)==1,"runtime PC floppy identity",cycles);
+    require(exchange(1,6,0)==1 && exchange(1,16,0)==16,"runtime PC floppy identity",cycles);
+    exchange(2,0,1); // Start before loading; the physical-media gate keeps the CPU held.
     // An abandoned partial image must be hidden and restart from offset zero.
     begin_image();chunk(0,3);exchange(10,0,0);
     for(unsigned i=0;i<3;++i)step();
@@ -219,8 +221,6 @@ int main(int argc, char **argv) {
     upload();
     for(unsigned a=0;a<disk.size();++a)
         require(byte(0x100000+a)==disk[a],"uploaded disk differs in SDRAM",cycles);
-    exchange(2,0,1);
-    d.hold=0;
     while(!(post && boot && sector && prompt && directory && frame_complete))step();
     require(bat_sent==1 && bat_reads==1,"keyboard self-test",cycles);
     require(key_reads>=8,"DIR make/break bytes not delivered",cycles);

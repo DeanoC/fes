@@ -4,6 +4,7 @@ package tenfoot
 
 import (
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/controller"
 	"golang.org/x/sys/unix"
@@ -47,7 +48,7 @@ func TestFramebufferMouseSYNAtomicCapture(t *testing.T) {
 	a.mu.Unlock()
 	select {
 	case <-tail:
-	case <-time.After(time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("mouse queue")
 	}
 	// No real HTTP server or evdev device is involved; held state is inspected

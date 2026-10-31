@@ -361,7 +361,7 @@ controller ports, fixed audio and removable media units that transfer and eject
 while execution runs. See [home-computer I/O](computer-io.md). It adds one
 registry pair and no manifest-schema change. Version 1.1 adds identity index
 16 for the upper capability word; 1.0 endpoints retain their exact identity.
-The read-only `fes.media.pcxt-floppy` requires 1.1 and uses capability bit 16.
+The read-only `fes.media.pcxt-floppy` requires 1.1 and uses capability bit 20.
 
 The optional registry extension `fes.media.blob-stream` 1.0 uses capability
 bit 3 and opcodes 7..12. See [the stream wire contract](media-stream.md).
@@ -464,6 +464,13 @@ read and resume, including invalid requests. It leaves the original volatile
 `fes-gp-v1` vectors unchanged. Regenerate with
 `python3 scripts/core_persistence_fixtures.py`, or use `--check` to compare.
 These fixtures establish byte contracts, not hardware acceptance.
+
+`fes.computer` 1.1 registers `fes.persistence.words` 1.0 (bit 17) with the
+same semantics on opcodes 24..27 and one layout, `fes.pc386.machine` 1.0
+(bit 19, tag 3, 72 words). Its record is keyed by core ID and library game
+ID: the `FESGAME1` envelope in [computer I/O](computer-io.md#persistence-words).
+`testdata/core-persistence-v1/pc386-machine.json` holds its valid and
+rejected vectors, from the same script.
 
 Application menu display `fes.video.menu-display` 1.0 uses capability bit 9
 and opcodes 18–21. It is an additive required-when-present interface; no

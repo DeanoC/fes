@@ -71,7 +71,7 @@ int main(int argc, char **argv) {
         for(uint64_t i=0;i<budget;++i) { step(); if(d.text_word == value) return true; }
         return false;
     };
-    require(exchange(1,6,0)==1 && exchange(1,16,0)==1,"PCXT media identity",cycles);
+    require(exchange(1,6,0)==1 && exchange(1,16,0)==16,"PCXT media identity",cycles);
     exchange(2,0,1);
     // A completed board diagnostic is visible while the drive is empty.
     require(wait_marker(0x55aa, 60000000), "empty-drive diagnostic display", cycles);
