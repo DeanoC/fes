@@ -22,8 +22,8 @@ lease is held, including while the first engine is still unconfigured. The
 matching `release` runs exactly once after storage and mapping references are
 destroyed, or on a constructor error after successful acquisition. Acquisition
 failure performs no register access and does not release another owner's lease.
-The KUnit suite is its only consumer. It
-sets the device's 32-bit coherent DMA mask, allocates one 8 MiB region through
+The KUnit suite and default-off permanent owner candidate consume this
+constructor. It sets the device's 32-bit coherent DMA mask, allocates one 8 MiB region through
 `dma_alloc_attrs` with `DMA_ATTR_FORCE_CONTIGUOUS`, clears it, and maps it
 with `dma_mmap_attrs` using that same attribute. Release passes the same attribute
 to `dma_free_attrs`. The pinned IOMMU implementation uses contiguous backing
@@ -200,11 +200,14 @@ The base device must be permanent, outside overlays, with exactly one 256-byte
 control resource at the generated architectural base plus peripheral offset,
 exactly one `iommus` entry with stream ID 13, and a translated DMA/DMA-FQ domain
 whose group contains only this device. `fes,fpga-region` points to a permanent
-root-level `fpga-region` with a direct `fpga-mgr` and nonempty static
-`fpga-bridges`. SMMU, region, manager and bridge platform suppliers and their bound ancestors must be
+root-level `fpga-region` with a direct `fpga-mgr` and a fixed bridge topology.
+An absent `fpga-bridges` list is supported, matching the pinned Terasic Agilex5
+base tree and SDM-managed configuration sequencing. SMMU, region, manager and bridge platform suppliers and their bound ancestors must be
 built-in drivers with sysfs bind/unbind disabled. The owner also disables these
 attributes. The built-in candidate also checks parent and transitive supplier
-bindings through the pinned driver-core device-link API under SRCU. Unbound or
+bindings through the pinned driver-core device-link API under SRCU. It includes
+the pinned kernel's private driver-core header only for this built-in option;
+ordinary module builds do not depend on non-exported core APIs. Unbound or
 busy suppliers defer, and removable/dynamic suppliers are refused. This preserves
 ordinary driver-core default-domain ownership and
 prevents supported unbind/removal from dismantling resources under allocations.

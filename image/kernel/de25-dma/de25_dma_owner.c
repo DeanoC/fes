@@ -462,8 +462,13 @@ static int owner_validate(struct platform_device *pdev, struct fes_de25_owner *o
 	if (ret)
 		return ret;
 	count = of_count_phandle_with_args(owner->region, "fpga-bridges", NULL);
-	if (count < 1)
-		return -EINVAL;
+	/* The Terasic Agilex5 base region has no Linux bridge list; its manager
+	 * delegates configuration sequencing to SDM. Preserve that topology.
+	 */
+	if (count == -ENOENT)
+		count = 0;
+	if (count < 0)
+		return count;
 	for (i = 0; i < count; i++) {
 		node = of_parse_phandle(owner->region, "fpga-bridges", i);
 		ret = protected_supplier(node);
