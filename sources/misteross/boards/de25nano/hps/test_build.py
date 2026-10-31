@@ -518,6 +518,13 @@ class HpsBuildTests(unittest.TestCase):
         mapping.remove(mapping.find("slave[@name='subsys_periph.fes_ddr_probe.avs']"))
         ET.SubElement(mapping, "slave", {"name": "subsys_periph.fes_scanout_guard.avs", "start": "0x10200", "end": "0x10300"})
         address.text = ET.tostring(mapping, encoding="unicode")
+        for kind, start, end in (("clock", "clk_100.out_clk", "subsys_hps_f2sdram_adapter.clock"),
+                                 ("reset", "rst_in.out_reset", "subsys_hps_f2sdram_adapter.reset"),
+                                 ("clock", "clk_100.out_clk", "subsys_hps_agilex_hps.f2sdram_axi_clock"),
+                                 ("reset", "rst_in.out_reset", "subsys_hps_agilex_hps.f2sdram_axi_reset")):
+            connection = ET.SubElement(root, "connection", {"kind": kind, "start": start, "end": end})
+            if kind == "clock":
+                ET.SubElement(ET.SubElement(connection, "parameter", {"name": "clockRateSysInfo"}), "value").text = "100000000"
         return tree
 
     def test_scanout_only_profile_requires_exclusive_actual_routes_and_removes_probe_window(self):
@@ -527,7 +534,7 @@ class HpsBuildTests(unittest.TestCase):
         self.assertEqual(record["master_count"], 1)
         self.assertEqual(record["master"], "subsys_periph_fes_mem_cdc.m0")
         self.assertFalse(any('fes_ddr_probe' in r['name'] for r in record['peripheral_slave_map']))
-        for fault in ("extra-master", "duplicate", "missing", "wrong-base", "direct-hps", "probe-instance", "debug-instance", "probe-map"):
+        for fault in ("extra-master", "duplicate", "missing", "wrong-base", "direct-hps", "probe-instance", "debug-instance", "probe-map", "clock-rate", "missing-reset"):
             tree = self.scanout_handoff(); root = tree.getroot()
             route = root.find("connection[@start='subsys_periph_fes_mem_cdc.m0']")
             if fault in ("extra-master", "duplicate"):
@@ -538,6 +545,10 @@ class HpsBuildTests(unittest.TestCase):
             elif fault == "wrong-base": route.find("parameter/value").text = "0x1000"
             elif fault == "direct-hps":
                 ET.SubElement(root, "connection", {"kind": "avalon", "start": "bypass.master", "end": "subsys_hps_agilex_hps.f2sdram1"})
+            elif fault == "clock-rate":
+                root.find("connection[@end='subsys_hps_agilex_hps.f2sdram_axi_clock']/parameter/value").text = "50000000"
+            elif fault == "missing-reset":
+                root.remove(root.find("connection[@end='subsys_hps_agilex_hps.f2sdram_axi_reset']"))
             elif fault in ("probe-instance", "debug-instance"):
                 ET.SubElement(root, "module", {"path": "subsys_periph.fes_ddr_probe" if fault == "probe-instance" else "subsys_debug.hps_f2sdram"})
             else:

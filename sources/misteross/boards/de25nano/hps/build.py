@@ -440,7 +440,21 @@ def verify_scanout_memory_handoff(project):
         raise ValueError("scanout-only profile retains a diagnostic memory master")
     connections = tree.findall("connection")
     ingress = [c for c in connections if c.get("end") == "subsys_hps_f2sdram_adapter.axi4_sub"]
-    egress = [c for c in connections if (c.get("end") or "").startswith("subsys_hps_agilex_hps.f2sdram")]
+    # The HPS also exposes f2sdram_axi_clock/reset. They are not memory
+    # masters; exclude only those exact, correctly typed clock/reset sinks.
+    timing_ports = {"subsys_hps_agilex_hps.f2sdram_axi_clock": "clock",
+                    "subsys_hps_agilex_hps.f2sdram_axi_reset": "reset"}
+    egress = [c for c in connections if (c.get("end") or "").startswith("subsys_hps_agilex_hps.f2sdram")
+              and not (c.get("end") in timing_ports and c.get("kind") == timing_ports[c.get("end")])]
+    keys = {(c.get("kind"), c.get("start"), c.get("end")): c for c in connections}
+    for kind, start, end in (("clock", "clk_100.out_clk", "subsys_hps_f2sdram_adapter.clock"),
+                             ("reset", "rst_in.out_reset", "subsys_hps_f2sdram_adapter.reset"),
+                             ("clock", "clk_100.out_clk", "subsys_hps_agilex_hps.f2sdram_axi_clock"),
+                             ("reset", "rst_in.out_reset", "subsys_hps_agilex_hps.f2sdram_axi_reset")):
+        connection = keys.get((kind, start, end))
+        if connection is None or (kind == "clock" and
+                connection.findtext("parameter[@name='clockRateSysInfo']/value") != "100000000"):
+            raise ValueError("scanout-only F2SDRAM clock/reset route differs")
     expected = ((ingress, "subsys_periph_fes_mem_cdc.m0", "subsys_hps_f2sdram_adapter.axi4_sub"),
                 (egress, "subsys_hps_f2sdram_adapter.axi4_man", "subsys_hps_agilex_hps.f2sdram"))
     for routes, start, end in expected:
