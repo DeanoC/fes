@@ -1,5 +1,10 @@
 # Nano bridge diagnostics and next bounded test candidate
 
+Hardware follow-up: the [bounded trial](../2026-10-31-de25-bridge-trial/README.md)
+returned firmware error `4` with matching reset bits before/after. Native
+execution was rejected; factory Linux was restored and the kit released.
+The preparation record below describes the earlier off-board work.
+
 Base: `7c5b8d834`. Diagnostic implementation: `1009bb61f`. This follows the
 [first physical trial](../2026-10-31-de25-nano-serial-test/README.md), which booted
 the matched chain but stopped at `REJECT bridge service/readback`. The board

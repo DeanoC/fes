@@ -3,9 +3,11 @@
 The [first TRWU8CBL trial](../../../docs/validation/2026-10-31-de25-nano-serial-test/README.md)
 booted the matched chain but stopped at the bridge service/readback gate;
 native execution remains pending. Factory Linux was restored without a power cycle.
-The [next diagnostic candidate](../../../docs/validation/2026-10-31-de25-bridge-diagnostics/README.md)
-adds separate firmware-return and reset-state records; its matched test files
-are prepared for another bounded trial.
+The [diagnostic candidate](../../../docs/validation/2026-10-31-de25-bridge-diagnostics/README.md)
+adds separate firmware-return and reset-state records in a matched boot chain.
+The [completed diagnostic trial](../../../docs/validation/2026-10-31-de25-bridge-trial/README.md)
+reported firmware error `4` with matching bridge reset bits; native handoff
+remains rejected and the factory baseline has been restored.
 
 This prepares the first Linux-free CPU/RAM/UART test on **TRWU8CBL** using the
 pinned Terasic TF-A and U-Boot sources. It produces a matched FPGA-first SOF,
