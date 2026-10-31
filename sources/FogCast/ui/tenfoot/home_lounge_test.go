@@ -345,28 +345,63 @@ func TestHomeQueuedLaunchFailsClosedWhenTheRememberedCoreIsGone(t *testing.T) {
 	}
 }
 
-func TestHomeRemembersNameForThePendingCard(t *testing.T) {
-	dir := t.TempDir()
-	cores := homeFixtureCores()
-	app := startHomeLoungeIn(t, dir, &fakeLocalCores{cores: cores}, 1280, 720)
-	waitFor(t, app, "first core", func(s Snapshot) bool { return s.Room.Destination.Label == "Pong" })
-	app.HandleCommand(CmdRight, time.Now())
-	waitFor(t, app, "zx81", func(s Snapshot) bool { return s.Room.Destination.PackageID == cores[1].PackageID })
+func waitHomeStore(t *testing.T, app *App, dir, what string, ok func(map[string]any) bool) {
+	t.Helper()
 	path := filepath.Join(dir, "rooms", installedCoresHomeID+".state.json")
 	deadline := time.Now().Add(testwait.Timeout)
 	for {
 		var saved map[string]any
 		data, err := os.ReadFile(path)
-		if err == nil && json.Unmarshal(data, &saved) == nil &&
-			saved["package_id"] == cores[1].PackageID && saved["package_core_id"] == cores[1].CoreID &&
-			saved["package_name"] != nil && saved["package_name"] != "" {
+		if err == nil && json.Unmarshal(data, &saved) == nil && ok(saved) {
 			return
 		}
 		if time.Now().After(deadline) {
-			t.Fatalf("store %s: %s %v", path, data, err)
+			t.Fatalf("store never had %s: %s %v", what, data, err)
 		}
 		app.Tick(time.Now()) // Room steps run the save debounce and the store flush.
 		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+func TestHomeRemembersTheOpeningCoreForThePendingCard(t *testing.T) {
+	dir := t.TempDir()
+	cores := homeFixtureCores()
+	app := startHomeLoungeIn(t, dir, &fakeLocalCores{cores: cores}, 1280, 720)
+	waitFor(t, app, "first core", func(s Snapshot) bool { return s.Room.Destination.Label == "Pong" })
+	// No navigation: opening Home and pressing A must still leave a card.
+	waitHomeStore(t, app, dir, "the opening core", func(saved map[string]any) bool {
+		return saved["package_id"] == cores[0].PackageID && saved["package_core_id"] == cores[0].CoreID && saved["package_name"] == "Pong"
+	})
+	for i := 0; i < 4; i++ {
+		app.HandleCommand(CmdRight, time.Now())
+	}
+	sms := cores[4] // Needs a cartridge.
+	waitFor(t, app, "blocked core", func(s Snapshot) bool { return s.Room.Destination.PackageID == sms.PackageID })
+	waitHomeStore(t, app, dir, "a blocked core without a name", func(saved map[string]any) bool {
+		return saved["package_id"] == sms.PackageID && saved["package_name"] == ""
+	})
+}
+
+func TestHomeStopCancelsAQueuedLaunch(t *testing.T) {
+	dir := t.TempDir()
+	rememberedZX81(t, dir)
+	fake := &warmingLocalCores{fakeLocalCores: &fakeLocalCores{cores: homeFixtureCores()}}
+	app := startHomeLoungeIn(t, dir, fake, 1280, 720)
+	waitFor(t, app, "pending card", func(s Snapshot) bool { return s.Room.Destination.CorePending })
+	app.HandleCommand(CmdSelect, time.Now())
+	waitFor(t, app, "queued launch", func(s Snapshot) bool {
+		return s.LocalCorePhase == localPhaseLaunching && fake.warmLaunches.Load() >= 1
+	})
+	if !app.RequestLocalStop() {
+		t.Fatal("stop request was not taken")
+	}
+	waitFor(t, app, "idle", func(s Snapshot) bool { return s.LocalCorePhase == "" })
+	fake.warm.Store(true)
+	waitFor(t, app, "listed", func(s Snapshot) bool {
+		return !s.Room.Destination.CorePending && s.Room.Destination.Kind == rooms.KindCore
+	})
+	if n := fake.launchCount(); n != 0 {
+		t.Fatalf("a stopped queued launch still loaded the core: %d", n)
 	}
 }
 

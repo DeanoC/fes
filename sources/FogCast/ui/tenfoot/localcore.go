@@ -247,6 +247,11 @@ func (a *App) startLocalCoreLocked(dest rooms.Destination) {
 			if a.localGen != gen {
 				return
 			}
+			if errors.Is(err, errQueuedLaunchStopped) {
+				// Nothing was claimed while the agent answered warming.
+				a.finishLocalCoreLocked()
+				return
+			}
 			if err != nil {
 				if errors.Is(err, localcores.ErrUnavailable) {
 					a.reconcileLocalLaunchErrorLocked(err, block)
@@ -475,10 +480,16 @@ func localCartridgeCore(system string) string {
 	}
 }
 
+// errQueuedLaunchStopped is a stop request that arrived while a launch was
+// still waiting for the agent's warm. No attempt was accepted, so there is
+// nothing to stop and the launcher returns to idle.
+var errQueuedLaunchStopped = errors.New("queued launch stopped")
+
 // launchAfterWarm is Launch, asked again while the agent is still warming
 // its catalog. The agent checks the package against the finished list, so a
 // launch queued from a remembered tile still fails closed when the package
-// is gone or blocked. A newer launch generation ends the wait.
+// is gone or blocked. A stop request (F12, Guide, Select+Start) between
+// attempts cancels the queued launch before the core is loaded.
 func (a *App) launchAfterWarm(client rooms.LocalCores, packageID string, gen uint64) (localcores.LaunchResult, error) {
 	deadline := time.Now().Add(localWarmLaunchBudget)
 	for {
@@ -488,10 +499,10 @@ func (a *App) launchAfterWarm(client rooms.LocalCores, packageID string, gen uin
 		}
 		time.Sleep(localWarmLaunchEvery)
 		a.mu.Lock()
-		current := a.localGen == gen
+		stopped := a.localGen != gen || a.localStopAfterStart
 		a.mu.Unlock()
-		if !current {
-			return result, err
+		if stopped {
+			return localcores.LaunchResult{}, errQueuedLaunchStopped
 		}
 	}
 }

@@ -257,6 +257,10 @@ func heroCoreDetails(d rooms.Destination) []string {
 		}
 		lines = append(lines, "Package: "+pkg)
 	}
+	if d.CorePending {
+		// Tenfoot's own Checking line: the kit has not said anything yet.
+		return append(lines, strings.TrimSpace(d.Status))
+	}
 	status := strings.TrimSpace(d.CoreBlock)
 	if status == "" {
 		status = strings.TrimSpace(d.Status)

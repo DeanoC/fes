@@ -273,11 +273,18 @@ end
 local function remember()
   local core = selected_core()
   if core and not omitted(core) and not core.pending then
-    -- Only a kit-launched core can be shown as a pending card: a host
-    -- computer and the Coleco room do not start with LoadCore.
+    -- Only a launchable kit core can be shown as a pending card: a host
+    -- computer and the Coleco room do not start with LoadCore, and a
+    -- blocked core must not offer Play before the kit has listed it.
     local name = core.name or ""
-    if core.host_launch or core.core_id == "fes.coleco" then name = "" end
-    pending_save = { id = core.package_id, core_id = core.core_id or "", name = name, wait = SAVE_AFTER }
+    if core.host_launch or core.core_id == "fes.coleco" or not core.launchable then name = "" end
+    local core_id = core.core_id or ""
+    if store.get("package_id", "") == core.package_id and store.get("package_name", "") == name
+      and store.get("package_core_id", "") == core_id then
+      pending_save = nil
+      return
+    end
+    pending_save = { id = core.package_id, core_id = core_id, name = name, wait = SAVE_AFTER }
   end
 end
 
@@ -362,6 +369,9 @@ function load()
       else
         choose_opening()
         keep_visible()
+        -- Save the opening card too, so a player who only presses A still
+        -- gets a pending card next visit.
+        remember()
       end
       publish()
     end
