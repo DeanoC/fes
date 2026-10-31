@@ -150,3 +150,42 @@ the notes from its checked Image/System.map. The runtime compares them with
 `/sys/kernel/notes` before configfs access, so a stale kernel sharing the same
 release string cannot inherit this programming contract. This does not enable
 normal runtime admission or establish hardware fencing after a failed load.
+
+## Explicit allocated-buffer diagnostic
+
+`owner_scanout.c` is an uninstalled maintenance test for this kernel's owner
+ABI 2. It requires root, the exact AArch64 kernel/model/rootfs identity, an
+observed boot UUID, the exclusive maintenance lease and a root-owned mode-0600
+owner control device whose device number matches sysfs. Compile with the
+selected AArch64 C SDK, with `-std=c11 -Wall -Wextra -Werror -O2`.
+
+Before running `owner_scanout --boot-id UUID`, the caller must claim the board
+and verify its SD CID, running kernel notes and matching image receipt, then
+load and verify the selected HPS-first `--linux-dma` scanout artifact. Its
+source-bound timing and generated-interconnect checks must pass first. The
+program does not program an FPGA, accept CPU physical/DMA addresses or admit a
+production profile. Do not run it against a foreign or uncertain configuration.
+
+It obtains a CLOEXEC grant from the permanent owner and validates every geometry
+field. It maps only the current back slot, writes three distinct colored frames
+with a white corner marker and contrasting lower-right quadrant, unmaps before
+publication, and requires each exact complete-frame acknowledgement before
+reusing the previous front slot. Every completion wait has a five-second
+monotonic deadline, and the process has a 30-second alarm. The image is held for
+two seconds after each acknowledgement for external capture. A final healthy
+observation precedes the single owner REAP request that must prove STOP/drain.
+A syscall stall still requires kernel/secure-call qualification; the alarm does
+not prove physical fencing.
+
+On uncertainty it neither retries a publication nor requests owner REAP, and
+never removes an overlay or firmware. Closing its grant is not a drain proof;
+the permanent owner retains uncertain backing. A failed REAP is not retried.
+The caller must preserve the configuration on failure rather than unload it.
+
+The native syscall model in `tests/fixtures/de25_owner_scanout_model.c` runs
+the actual test control flow and checks both-slot reuse, frame byte layout,
+metadata/refusal, missing/wrong completion, hardware faults and single-REAP
+behavior. It models the kernel ABI, not kernel code, SMMU translation, memory
+traffic or physical drain. Run `python3 -m unittest discover -s tests -p
+ test_de25_owner_scanout.py -v` from the FES root (without the displayed line
+break). Physical allocated-buffer/HDMI acceptance remains pending.
