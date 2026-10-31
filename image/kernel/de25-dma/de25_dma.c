@@ -383,9 +383,8 @@ out:
 	return ret;
 }
 
-int fes_de25_dma_revoke(struct file *file)
+int fes_de25_dma_revoke_owned(struct fes_de25_dma *grant)
 {
-	struct fes_de25_dma *grant = file->private_data;
 	struct fes_de25_dma_mm *entry;
 	bool drop_exposure = false;
 	int ret = 0;
@@ -467,6 +466,27 @@ out:
 		module_put(THIS_MODULE);
 	}
 	return ret;
+}
+
+struct fes_de25_dma *fes_de25_dma_get(struct file *file)
+{
+	struct fes_de25_dma *grant = file->private_data;
+
+	/* The caller holds a live file reference, so refs cannot already be zero. */
+	__module_get(THIS_MODULE);
+	kref_get(&grant->refs);
+	return grant;
+}
+
+void fes_de25_dma_put(struct fes_de25_dma *grant)
+{
+	kref_put(&grant->refs, fes_de25_dma_destroy);
+	module_put(THIS_MODULE);
+}
+
+int fes_de25_dma_revoke(struct file *file)
+{
+	return fes_de25_dma_revoke_owned(file->private_data);
 }
 
 static vm_fault_t fes_de25_dma_fault(struct vm_fault *vmf)

@@ -44,6 +44,17 @@ struct file *fes_de25_dma_create(struct device *dev,
 int fes_de25_dma_publish(struct file *file,
 		const struct fes_de25_dma_publish *publish);
 int fes_de25_dma_revoke(struct file *file);
+
+/* Private owner handle. Obtain only while holding a live file reference, before
+ * exposing that file to a client. The independent reference lets the device
+ * owner retry revocation after the last client file has gone. It confers no
+ * drain/reset authority: the same epoch and hardware proof are still required.
+ * Every get needs a put. put does not revoke or discard the exposure pin.
+ */
+struct fes_de25_dma;
+struct fes_de25_dma *fes_de25_dma_get(struct file *file);
+void fes_de25_dma_put(struct fes_de25_dma *grant);
+int fes_de25_dma_revoke_owned(struct fes_de25_dma *grant);
 int fes_de25_dma_poll(struct file *file, struct fes_de25_dma_info *info);
 void fes_de25_dma_info(struct file *file, struct fes_de25_dma_info *info);
 int fes_de25_dma_binding(struct device *dev);

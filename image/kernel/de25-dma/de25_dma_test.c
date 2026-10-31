@@ -41,6 +41,7 @@ struct test_transport {
 };
 
 struct dma_fixture {
+	struct fes_de25_dma *owner;
 	struct device *dev;
 	struct file *file;
 	struct test_transport transport;
@@ -238,6 +239,14 @@ static void fixture_cleanup(void *context)
 		fixture->observer.revoked = NULL;
 		__fput_sync(fixture->file);
 	}
+	if (fixture->owner) {
+		fixture->transport.stop_error = 0;
+		fixture->transport.drain_error = 0;
+		fixture->transport.epoch_unknown = false;
+		fixture->transport.epoch = 1;
+		fes_de25_dma_revoke_owned(fixture->owner);
+		fes_de25_dma_put(fixture->owner);
+	}
 }
 
 static int fixture_init(struct kunit *test)
@@ -394,6 +403,91 @@ static void uncertain_dma_retains_lease_until_storage_free(struct kunit *test)
 	KUNIT_EXPECT_EQ(test, t->freed_at_release, 1U);
 	KUNIT_EXPECT_EQ(test, atomic_read(&t->lease), 0);
 	KUNIT_EXPECT_EQ(test, t->unleased_access, 0U);
+}
+
+/* Drop the actual last file, not just a model client's flag. Owner recovery
+ * must not dereference that dead struct file or free still-exposed storage.
+ */
+static void owner_recovers_drain_after_last_client_close(struct kunit *test)
+{
+	struct dma_fixture *f = test->priv;
+	struct test_transport *t = &f->transport;
+	struct fes_de25_dma_publish publish = publish_for(f->file);
+	struct fes_de25_dma_backend backend = transport_backend(t);
+	struct file *replacement;
+
+	f->owner = fes_de25_dma_get(f->file);
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(f->file, &publish), 0);
+	t->drain_error = -ETIMEDOUT;
+	__fput_sync(f->file);
+	f->file = NULL;
+	KUNIT_EXPECT_EQ(test, f->observer.freed, 0U);
+	KUNIT_EXPECT_EQ(test, t->released, 0U);
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_revoke_owned(f->owner), -EAGAIN);
+	replacement = fes_de25_dma_create(f->dev, &backend);
+	KUNIT_EXPECT_TRUE(test, IS_ERR(replacement));
+	if (IS_ERR(replacement))
+		KUNIT_EXPECT_EQ(test, PTR_ERR(replacement), -EBUSY);
+	else
+		__fput_sync(replacement);
+	t->drain_error = 0;
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_revoke_owned(f->owner), 0);
+	KUNIT_EXPECT_EQ(test, f->observer.freed, 0U);
+	KUNIT_EXPECT_EQ(test, t->released, 0U);
+	fes_de25_dma_put(f->owner);
+	f->owner = NULL;
+	KUNIT_EXPECT_EQ(test, f->observer.freed, 1U);
+	KUNIT_EXPECT_EQ(test, t->released, 1U);
+	KUNIT_EXPECT_EQ(test, t->freed_at_release, 1U);
+	KUNIT_EXPECT_EQ(test, t->unleased_access, 0U);
+	replacement = fes_de25_dma_create(f->dev, &backend);
+	KUNIT_ASSERT_FALSE(test, IS_ERR(replacement));
+	__fput_sync(replacement);
+	KUNIT_EXPECT_EQ(test, t->released, 2U);
+}
+
+static void owner_recovery_cannot_use_reset_as_drain(struct kunit *test)
+{
+	struct dma_fixture *f = test->priv;
+	struct test_transport *t = &f->transport;
+	struct fes_de25_dma_publish publish = publish_for(f->file);
+	unsigned int stops;
+
+	f->owner = fes_de25_dma_get(f->file);
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(f->file, &publish), 0);
+	t->epoch_unknown = true;
+	__fput_sync(f->file);
+	f->file = NULL;
+	stops = t->stops;
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_revoke_owned(f->owner), -ESTALE);
+	t->epoch_unknown = false;
+	t->epoch = 2;
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_revoke_owned(f->owner), -ESTALE);
+	KUNIT_EXPECT_EQ(test, t->stops, stops);
+	KUNIT_EXPECT_EQ(test, t->clears, 0U);
+	KUNIT_EXPECT_EQ(test, t->released, 0U);
+	KUNIT_EXPECT_EQ(test, f->observer.freed, 0U);
+	/* Test-only restoration of the original scripted epoch. Production has
+	 * no override; a missing old proof retains storage and the backend lease.
+	 */
+	t->epoch = 1;
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_revoke_owned(f->owner), 0);
+	fes_de25_dma_put(f->owner);
+	f->owner = NULL;
+	KUNIT_EXPECT_EQ(test, f->observer.freed, 1U);
+}
+
+static void owner_reference_release_does_not_revoke_client(struct kunit *test)
+{
+	struct dma_fixture *f = test->priv;
+	struct fes_de25_dma *owner = fes_de25_dma_get(f->file);
+	struct fes_de25_dma_publish publish = publish_for(f->file);
+
+	fes_de25_dma_put(owner);
+	KUNIT_EXPECT_EQ(test, f->observer.freed, 0U);
+	KUNIT_EXPECT_EQ(test, f->transport.stops, 0U);
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_publish(f->file, &publish), 0);
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_revoke(f->file), 0);
 }
 
 static void rejects_bad_publish_before_effects(struct kunit *test)
@@ -1255,6 +1349,9 @@ static void guarded_transport_constructs_real_dma_grant(struct kunit *test)
 }
 
 static struct kunit_case fes_de25_dma_cases[] = {
+	KUNIT_CASE(owner_recovers_drain_after_last_client_close),
+	KUNIT_CASE(owner_recovery_cannot_use_reset_as_drain),
+	KUNIT_CASE(owner_reference_release_does_not_revoke_client),
 	KUNIT_CASE(guard_real_access_and_bounds),
 	KUNIT_CASE(guard_claim_rejects_wrong_or_existing_identity),
 	KUNIT_CASE(guard_dummy_zero_timeout_is_not_success),

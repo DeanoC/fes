@@ -18,6 +18,9 @@ ROOT = Path(__file__).resolve().parents[1]
 DRIVER = "image/kernel/de25-dma"
 KERNEL_DRIVER = "drivers/misc/fes-de25-dma"
 REQUIRED_CASES = frozenset((
+    "owner_recovers_drain_after_last_client_close",
+    "owner_recovery_cannot_use_reset_as_drain",
+    "owner_reference_release_does_not_revoke_client",
     "guard_real_access_and_bounds", "guard_claim_rejects_wrong_or_existing_identity",
     "guard_dummy_zero_timeout_is_not_success", "guard_post_access_fault_and_reset_reject_results",
     "guard_busy_or_unknown_status_prevents_access", "guarded_transport_constructs_real_dma_grant",

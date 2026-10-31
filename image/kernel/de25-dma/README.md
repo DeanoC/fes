@@ -124,8 +124,17 @@ allocation becomes releasable and the engine can accept a new grant.
 Exposed DMA holds an independent allocation reference and module pin alongside
 the file, inode and device references. Errors, missing/changed epochs, failed
 drain or failed cleanup retain these references and mark uncertainty. Final close
-makes one stop/drain attempt; it cannot free uncertain exposed storage. No timeout, frame
-completion or client-close path declares outstanding traffic gone. Actual reset
+makes one stop/drain attempt; it cannot free uncertain exposed storage. The
+private device owner can obtain an opaque, independently referenced grant handle
+while its file is live, before passing the file to a client. The handle retains
+the allocation and module after the last client closes. It lets the owner retry
+the same revocation path without retaining or dereferencing a dead file. A
+successful old-epoch drain and cleanup is still required. Dropping the handle
+never discards the separate exposure pin, and does not revoke a live client.
+The owner must release its own handle after recovery; successful drain does not
+release the backend lease while storage references remain. This is a private
+kernel API, not a new userspace recovery override.
+No timeout, frame completion or client-close path declares outstanding traffic gone. Actual reset
 recovery and device detach qualification remain future work.
 
 ## Off-board kernel tests
