@@ -124,6 +124,8 @@ re-enumerated from `003/037` to `003/044`, and UART `if02` became `ttyUSB1`.
 The one-off recovery helper failed cleanup on the vanished old USB node before
 saving its raw console and receipt. The programmer logs survived; the missing
 raw recovery boot capture is explicitly recorded rather than reconstructed.
+The user later confirmed accidentally pulling the USB cable during the card
+swap. The first-failure trace was already saved before that disconnect.
 
 A separate fresh UART authentication on the stable serial-ID path verified
 kernel `6.12.11-gd7d192a9ddd9`, root `/dev/mmcblk0p2 ext3`, the original card
@@ -144,3 +146,6 @@ The next investigation is the reference FPGA's acknowledgment path and the
 vendor sequence for an already-reset bridge. Cold/closed and active/draining
 states need separate evidence before changing admission. Matching reset bits
 alone do not justify accepting the missing acknowledgment.
+The [source and already-reset investigation](../2026-10-31-de25-ack-wiring/README.md)
+records the disabled handshake option, actual-C reproduction and the remaining
+ownership/drain requirements; the current admission checks are preserved.

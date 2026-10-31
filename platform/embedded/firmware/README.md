@@ -53,8 +53,12 @@ returned firmware error `4` with the required reset bits already set. Native
 handoff and physical drain remain unqualified.
 The [subsequent firmware-stage trace](../../../docs/validation/2026-10-31-de25-firmware-first-failure/README.md)
 identifies stage 3, `f2s_fpga_ack_set`, with `-ETIMEDOUT` (`-60`): the initial
-FPGA acknowledgment was absent while the request bit was set. The reason for
-the missing acknowledgment is still unresolved.
+FPGA acknowledgment was absent while the request bit was set. The board trace
+alone did not establish the reason for the missing acknowledgment.
+The [reference-source investigation](../../../docs/validation/2026-10-31-de25-ack-wiring/README.md)
+finds that the vendor source disables the optional fabric handshake while the
+Agilex5 routine requests it even for an already-reset bridge. Its actual-C
+model reproduces the failure; this does not qualify skipping hardware drain.
 
 The contained Terasic probe now records the first failed disable poll and
 immediately samples `HDSKACK`, `HDSKREQ` and `BRGMODRST`, before subsequent
