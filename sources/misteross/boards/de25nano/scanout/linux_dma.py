@@ -65,7 +65,7 @@ save_system {child}
     jtag = hps.tcl_word(project / 'jtag_subsys/jtag_subsys.qsys')
     script += f'''# Remove the JTAG master for the Linux-owned fabric memory path.
 load_system {jtag}
-if {{[get_interface_property hps_f2sdram_master EXPORT_OF] ne "hps_f2sdram.master"}} {{error "JTAG memory export changed"}}
+if {{[string compare [get_interface_property hps_f2sdram_master EXPORT_OF] "hps_f2sdram.master"] != 0}} {{error "JTAG memory export changed"}}
 remove_interface hps_f2sdram_master
 remove_instance hps_f2sdram
 save_system {jtag}
