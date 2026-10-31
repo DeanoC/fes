@@ -13,7 +13,7 @@ import (
 	"github.com/DeanoC/FogCast/protocol/internal/generated"
 )
 
-// Home-computer ABI (fes.computer 1.0) contracts. Values come from the
+// Home-computer ABI (fes.computer 1.0 and 1.1) contracts. Values come from the
 // mister-packages emitter; FogCast never infers them from a core ID.
 const (
 	ComputerABIID = generated.FesComputerABIID
@@ -71,13 +71,6 @@ const (
 	AtariStFloppyGeometryMaxBytes int64 = int64(generated.FesComputerAtariStFloppyGeometryMaxBytes)
 	// AtariStFloppyUnit is the media unit fes.media.atari-st-floppy occupies.
 	AtariStFloppyUnit uint8 = uint8(generated.FesComputerAtariStFloppyUnit)
-	// AtaDiskMinBytes and AtaDiskMaxBytes are the fixed ATA disk status limits.
-	AtaDiskMinBytes int64 = int64(generated.FesComputerAtaDiskMinBytes)
-	AtaDiskMaxBytes int64 = int64(generated.FesComputerAtaDiskMaxBytes)
-	// AtaDiskChunkBytes is one fixed-disk transfer chunk.
-	AtaDiskChunkBytes uint32 = generated.FesComputerAtaDiskChunkBytes
-	// AtaDiskUnit is the media unit fes.media.ata-disk occupies.
-	AtaDiskUnit uint8 = uint8(generated.FesComputerAtaDiskUnit)
 	// ComputerMediaTransport names the fes.computer media-unit delivery.
 	ComputerMediaTransport = "fes-computer-media-unit-v1"
 	// MediaUnitHeader carries the addressed unit on target media requests.
@@ -200,8 +193,7 @@ func Zx81TapeWriteInterface() RuntimeContract {
 // Zx81TapeWriteCapable reports an active computer that can publish a SAVE image
 // even when the cassette unit itself is empty.
 func Zx81TapeWriteCapable(p *CorePackageStatus) bool {
-	return p != nil && ComputerABI(p.ABI.ID, int64(p.ABI.Major), int64(p.ABI.Minor)) &&
-		activeInterface(p, Zx81TapeInterface()) && activeInterface(p, Zx81TapeWriteInterface())
+	return activeComputer(p) && activeInterface(p, Zx81TapeInterface()) && activeInterface(p, Zx81TapeWriteInterface())
 }
 
 // C64DiskInterface is the unit-0 Commodore D64 contract.
@@ -214,41 +206,35 @@ func AtariStFloppyInterface() RuntimeContract {
 	return RuntimeContract{ID: generated.FesComputerInterfaceMediaAtariStFloppyID, Major: generated.FesComputerInterfaceMediaAtariStFloppyMajor, Minor: generated.FesComputerInterfaceMediaAtariStFloppyMinor}
 }
 
-// AtaDiskInterface is the fixed pc386 disk contract.
-func AtaDiskInterface() RuntimeContract {
-	return RuntimeContract{ID: generated.FesComputerInterfaceMediaAtaDiskID, Major: generated.FesComputerInterfaceMediaAtaDiskMajor, Minor: generated.FesComputerInterfaceMediaAtaDiskMinor}
-}
-
 func AtariStFloppyGeometryInterface() RuntimeContract {
 	return RuntimeContract{ID: generated.FesComputerInterfaceMediaAtariStFloppyGeometryID, Major: generated.FesComputerInterfaceMediaAtariStFloppyGeometryMajor, Minor: generated.FesComputerInterfaceMediaAtariStFloppyGeometryMinor}
 }
 func AtariStFloppyGeometryCapable(p *CorePackageStatus) bool {
-	return p != nil && ComputerABI(p.ABI.ID, int64(p.ABI.Major), int64(p.ABI.Minor)) &&
-		activeInterface(p, AtariStFloppyInterface()) && activeInterface(p, AtariStFloppyGeometryInterface())
+	return activeComputer(p) && activeInterface(p, AtariStFloppyInterface()) && activeInterface(p, AtariStFloppyGeometryInterface())
 }
 func AdmitAtariStFloppySize(size int64) bool {
 	_, ok := corepackage.AtariStGeometryForSize(size)
 	return ok
 }
 
-// ComputerABI reports the exact fes.computer 1.0 contract.
+// ComputerABI reports a fes.computer contract FogCast speaks: 1.0, or 1.1,
+// which adds identity word 16 and the pc386 interfaces on bits 16..19.
 func ComputerABI(id string, major, minor int64) bool {
-	return id == ComputerABIID && major == int64(generated.FesComputerABIMajor) && minor == 0
+	return id == ComputerABIID && major == int64(generated.FesComputerABIMajor) && minor >= 0 && minor <= int64(generated.FesComputerABIMinor)
 }
 
-// ComputerMediaABI recognizes fes.computer 1.0 and 1.1 in runtime status.
-// Features with a 1.0-only contract continue to use ComputerABI.
-func ComputerMediaABI(id string, major, minor int64) bool {
-	return id == ComputerABIID && major == int64(generated.FesComputerABIMajor) && minor >= 0 && minor <= int64(generated.FesComputerABIMinor)
+// ComputerABI10 reports the original fes.computer 1.0 contract only.
+func ComputerABI10(id string, major, minor int64) bool {
+	return id == ComputerABIID && major == int64(generated.FesComputerABIMajor) && minor == 0
 }
 
 // ComputerAtaDiskABI reports a supported fes.computer minor that includes ATA disks.
 func ComputerAtaDiskABI(id string, major, minor int64) bool {
-	return ComputerMediaABI(id, major, minor) && minor >= 1
+	return ComputerABI(id, major, minor) && minor >= 1
 }
 
-func activeComputerMedia(p *CorePackageStatus) bool {
-	return p != nil && ComputerMediaABI(p.ABI.ID, int64(p.ABI.Major), int64(p.ABI.Minor))
+func activeComputer(p *CorePackageStatus) bool {
+	return p != nil && ComputerABI(p.ABI.ID, int64(p.ABI.Major), int64(p.ABI.Minor))
 }
 
 func activeInterface(p *CorePackageStatus, want RuntimeContract) bool {
@@ -268,14 +254,14 @@ func MouseRelativeInterface() RuntimeContract {
 }
 
 func MouseRelativeCapable(p *CorePackageStatus) bool {
-	return activeComputerMedia(p) && activeInterface(p, MouseRelativeInterface())
+	return activeComputer(p) && activeInterface(p, MouseRelativeInterface())
 }
 
 // KeyboardHIDCapable reports an active supported fes.computer generation that
 // negotiated fes.keyboard.hid 1.0. Such sessions forward physical key state as
 // USB HID usages; the core owns every character mapping.
 func KeyboardHIDCapable(p *CorePackageStatus) bool {
-	return activeComputerMedia(p) && activeInterface(p, KeyboardHIDInterface())
+	return activeComputer(p) && activeInterface(p, KeyboardHIDInterface())
 }
 
 // MediaUnitStatus is one runtime-reported media unit. The runtime reads its
@@ -370,7 +356,7 @@ func (u MediaUnitStatus) Valid() bool {
 // MediaUnit returns the observed unit of an active fes.computer generation
 // when its interface is also active. Unknown or absent units return false.
 func MediaUnit(p *CorePackageStatus, unit uint8) (MediaUnitStatus, bool) {
-	if !activeComputerMedia(p) {
+	if !activeComputer(p) {
 		return MediaUnitStatus{}, false
 	}
 	for _, u := range p.MediaUnits {
@@ -395,6 +381,12 @@ func declaredComputerMedia(descriptor corepackage.Descriptor) []CoreMediaCapabil
 	result := make([]CoreMediaCapability, 0)
 	if !ComputerABI(descriptor.ABI.ID, descriptor.ABI.Major, descriptor.ABI.Minor) {
 		return result
+	}
+	if DeclaresAtaDisk(descriptor) {
+		unit := AtaDiskUnit
+		result = append(result, CoreMediaCapability{Role: HardDiskRole, Format: "ata-disk-raw",
+			MinBytes: AtaDiskMinBytes, MaxBytes: AtaDiskMaxBytes, Interface: AtaDiskInterface(),
+			Transport: AtaDiskTransport, Unit: &unit, Extensions: []string{".img"}})
 	}
 	floppy := Apple2FloppyInterface()
 	tape := SpectrumTapeInterface()
@@ -643,6 +635,7 @@ func (b MediaUnitBinding) Matches(s Status) bool {
 		s.CorePackage == nil || s.CorePackage.PackageID != b.PackageID || s.CorePackage.Generation != b.Generation {
 		return false
 	}
+	// The fixed hard disk takes no live insert, eject or save; Stop saves it.
 	unit, ok := MediaUnit(s.CorePackage, b.Unit)
 	return ok && unit.Interface != AtaDiskInterface()
 }

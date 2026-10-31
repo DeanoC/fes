@@ -3449,6 +3449,21 @@ retains package/generation attribution in failed status and blocks input.
 Existing post-activation HostOnly cleanup recovery remains unchanged.
 
 
+## pc386 hard disk and machine record
+
+`fes.computer` 1.1 adds identity word 16 and the pc386 interfaces; FogCast
+admits 1.0 and 1.1, and the agent accepts the runtime advertising one ABI at
+several minors (unique by id and version). A pc386 library entry binds a raw
+hard-disk image (`hard-disk` role, 1..128 MiB, its own import route) and an
+optional CHS override; otherwise the host infers geometry from the image's MBR.
+Launch stages the image on the kit by digest (probe, then upload only when
+missing), then sends the library load with the game, image digest and geometry.
+The agent resolves the staged file and sends `load_library_core` with `game_id`
+and `ata_disk`; the runtime writes the image into the DDR window before release.
+Machine settings are a per-game record on the kit, read and written with the
+library game ([package library](core-package-library.md#pc386-hard-disk-entries)).
+The fixed disk takes no live media operations; Stop saves its delta.
+
 ## Initial Atari ST library disk
 
 A writable format-3 ST library launch may omit the disk and boot to GEM with

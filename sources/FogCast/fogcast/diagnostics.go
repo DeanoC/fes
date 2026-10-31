@@ -55,6 +55,14 @@ func SafeTargetDiagnostic(remote *protocol.APIError) (message, phase string) {
 		return "Another session owns the target; release it from that session before retrying.", phase
 	case protocol.CodeKitLeaseBusy:
 		return "Another session owns the kit; release it from that session before retrying.", phase
+	case protocol.CodeCorruptData:
+		if remote.Message == protocol.StagedDiskCorruptMessage {
+			return remote.Message, phase
+		}
+	case protocol.CodeCacheFull:
+		if remote.Message == protocol.DiskImageStorageFullMessage {
+			return remote.Message, phase
+		}
 	}
 	return "", phase
 }

@@ -65,6 +65,19 @@ func (c *Client) LoadCore(ctx context.Context, size int64, content io.Reader) (p
 	return c.loadCore(ctx, size, content, "")
 }
 func (c *Client) loadCore(ctx context.Context, size int64, content io.Reader, libraryID string, composition ...bool) (protocol.Status, error) {
+	return c.loadBoundCore(ctx, size, content, libraryID, nil, composition...)
+}
+
+// LoadLibraryMachineCore launches a pc386 library package with its game and,
+// when bound, the disk image already staged on the kit.
+func (c *Client) LoadLibraryMachineCore(ctx context.Context, size int64, body io.Reader, id string, machine protocol.LibraryMachineBinding) (protocol.Status, error) {
+	if !lowerHex(id, 64) || !machine.Valid() {
+		return protocol.Status{}, fmt.Errorf("library machine launch is invalid")
+	}
+	return c.loadBoundCore(ctx, size, body, id, &machine)
+}
+
+func (c *Client) loadBoundCore(ctx context.Context, size int64, content io.Reader, libraryID string, machine *protocol.LibraryMachineBinding, composition ...bool) (protocol.Status, error) {
 	composed := len(composition) == 1 && composition[0]
 	parts := len(composition) == 2 && composition[1]
 	limit := int64(corepackage.MaxROMInputSize)
@@ -97,6 +110,9 @@ func (c *Client) loadCore(ctx context.Context, size int64, content io.Reader, li
 	request.Header.Set("Content-Type", "application/octet-stream")
 	if libraryID != "" {
 		request.Header.Set("X-FogCast-Package-ID", libraryID)
+	}
+	if machine != nil {
+		machine.SetHeaders(request.Header)
 	}
 	if err := c.authorizeMutation(request); err != nil {
 		return protocol.Status{}, err
@@ -137,7 +153,7 @@ func validCorePackageStatus(status protocol.Status) bool {
 		return false
 	}
 	value := status.CorePackage
-	if protocol.ComputerMediaABI(value.ABI.ID, int64(value.ABI.Major), int64(value.ABI.Minor)) &&
+	if protocol.ComputerABI(value.ABI.ID, int64(value.ABI.Major), int64(value.ABI.Minor)) &&
 		value.PersistenceMode == "persistent" && !protocol.PersistentMediaStatusValid(value) {
 		return false
 	}
@@ -161,7 +177,7 @@ func validCorePackageStatus(status protocol.Status) bool {
 		if c.Layout == expansion.AtariStVideoLayout {
 			bound := protocol.MediaDataBound(value)
 			persistence := (value.PersistenceMode == "volatile" && !bound) || (value.PersistenceMode == "persistent" && bound)
-			if !protocol.ComputerMediaABI(value.ABI.ID, int64(value.ABI.Major), int64(value.ABI.Minor)) || value.ROMLink == nil || value.ROMLinks != nil || !persistence {
+			if !protocol.ComputerABI(value.ABI.ID, int64(value.ABI.Major), int64(value.ABI.Minor)) || value.ROMLink == nil || value.ROMLinks != nil || !persistence {
 				return false
 			}
 		} else if value.ROMLink != nil || (value.ROMLinks != nil && c.Layout != expansion.ColecoNativeVideoLayout && c.Layout != expansion.ColecoVideoLayout) ||

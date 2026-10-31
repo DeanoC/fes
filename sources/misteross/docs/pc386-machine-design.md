@@ -910,12 +910,14 @@ It also proves that the runtime's cache clean reached DDR.
 - **Import.** A pc386 library entry binds one immutable base image: a raw
   `.img`, size as above. FogCast's host storage stops at 32 MiB per asset
   today; this role raises it to 128 MiB.
-- **Geometry.** FogCast reads the MBR. If the partition entries' end CHS values
-  imply heads and sectors per track, it uses them; otherwise 16 heads and 63
-  sectors. Cylinders follow from the size, capped at 16,383. The entry can
-  override. IDENTIFY must report the geometry the partition table was written
-  with: the machine sets CMOS 39h to no translation, so INT 13h presents the
-  IDENTIFY geometry, and DOS addresses the disk in CHS through INT 13h.
+- **Geometry.** FogCast reads the MBR. If the partition entries' CHS values,
+  checked against their LBA values, imply heads and sectors per track, it uses
+  them; with no CHS values, 16 heads and 63 sectors. Cylinders follow from the
+  size, capped at 16,383. A table written for more than 16 heads, or one that
+  fits no geometry, needs the entry's override, which can also replace any
+  inferred geometry. IDENTIFY must report the geometry the partition table was
+  written with: the machine sets CMOS 39h to no translation, so INT 13h presents
+  the IDENTIFY geometry, and DOS addresses the disk in CHS through INT 13h.
 - **Staging.** FogCast stages the base image to the kit by SHA-256 and reuses
   a staged copy whose digest matches, so relaunching does not move 128 MiB.
 - **Launch.** The runtime:

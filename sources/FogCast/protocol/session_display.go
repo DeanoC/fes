@@ -98,7 +98,7 @@ func SessionDisplayCapable(p *CorePackageStatus) bool {
 		return false
 	}
 	simple := p.ABI == (RuntimeContract{ID: "fes.simple-computer", Major: 1})
-	computer := p.ABI == (RuntimeContract{ID: "fes.computer", Major: 1})
+	computer := ComputerABI(p.ABI.ID, int64(p.ABI.Major), int64(p.ABI.Minor))
 	if !simple && !computer && !applicationMachine(p) {
 		return false
 	}

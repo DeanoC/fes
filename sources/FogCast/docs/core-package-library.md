@@ -389,6 +389,27 @@ image replacement do not remove it. SNES cartridge saves retain their existing
 namespace and format. There is no reset, migration, deletion, import, periodic
 checkpoint, host synchronization, or backup API in this slice.
 
+A pc386 package (`fes.computer` 1.1 with `fes.persistence.words` and
+`fes.pc386.machine`) keeps one record per library game instead: the reads add
+`game_id` and a `machine` object, and its Pong fields read zero. PUT sends
+`machine` in place of `paddle_speed`:
+
+```json
+{"expected_package_id":"<64 lowercase hex>","expected_revision":"absent",
+ "machine":{"preset":3,"frequency":0,"code_profile":0,"turbo":0,"sb_base":544,"sb_irq":7,"sb_dma":1}}
+```
+
+`preset` is 0 `max`, 1 286-12, 2 386SX-16, 3 386DX-25, 4 386DX-33, 5 386DX-40,
+6 486DX-33 or 7 486DX2-66; `frequency` is 0 or 10..1000 in 100 kHz units, and 0
+under `max`; `code_profile` 0 `coherent` or 1 `queue16`; `turbo` 0 (the preset)
+or 1 (`max`); `sb_base` 544 (220h) or 576 (240h); `sb_irq` 2, 3, 5 or 7;
+`sb_dma` 1. The host refuses any other value. The entry's game names the
+record; the request cannot choose another. To the kit the settings travel as
+`X-FogCast-Library-Game` and `X-FogCast-Machine-Settings` (the seven values,
+comma-separated, in that order) instead of `X-FogCast-Paddle-Speed`; inspect
+adds `X-FogCast-Library-Game` for a pc386 package. Records live under the
+runtime's per-game namespace (`core-data/games/`).
+
 | Error | Meaning / next action |
 | --- | --- |
 | `UNSUPPORTED_OPERATION` (400) | Selected core/runtime has no supported persistence contract |
@@ -756,3 +777,68 @@ before idle retirement or retain the machine and its binding in recovery.
 
 Current validation is host software and RTL simulation; hardware evidence is
 recorded separately.
+
+## pc386 hard-disk entries
+
+A pc386 library entry binds one immutable raw hard-disk image (`.img`): 1 to
+128 MiB in whole 512-byte sectors, with the `hard-disk` media role. Import it
+through its own route, the only one that stores media above 32 MiB:
+
+```sh
+curl -sS -X POST -H 'Content-Type: application/octet-stream' \
+  --data-binary @freedos.img http://127.0.0.1:8787/api/v1/core-media/hard-disk
+```
+
+The response is the stored media (`media_id`, `size`) plus the `geometry` the
+host infers from its master boot record, which the library panel also shows.
+Every filled start or end CHS of a filled partition entry must decode to that
+entry's LBA (start, or start + count − 1) under the geometry, so a partition
+that does not end on a cylinder still names the heads and sectors per track it
+was written with. When several geometries fit, the first entry's end CHS read
+as the last head and sector of a cylinder picks one. A table with no filled
+CHS takes 16 heads and 63 sectors. Cylinders follow from the size, capped at
+16383. A table that fits no geometry, fits only geometries with more than 16
+heads (util-linux fdisk writes 255/63), or fits several without that pick is
+still stored: the response carries `geometry_error` in place of `geometry`,
+naming the table's geometry when it implies one, and the entry's launch is
+refused with that message until it has an override. Select the image with the
+usual `PUT .../core-entries/{game_id}/media` and `media_role:"hard-disk"`, then
+override the geometry for the next launch, here for a 64 MiB image written
+with 8 heads and 32 sectors per track:
+
+```json
+PUT /api/v1/library/core-entries/{game_id}/disk-geometry
+{"expected_package_id":"<package>","expected_media_id":"<image>",
+ "geometry":{"cylinders":512,"heads":8,"sectors_per_track":32}}
+```
+
+`geometry: null` restores inference. Selecting other media clears the override,
+and selecting the same image again keeps it. Cylinders × heads × sectors must
+fit the image. The panel shows an entry's override but cannot set one yet.
+
+At launch the host stages the image on the kit by SHA-256 (`POST
+/v1/library/disk-images/probe` and, only when the kit lacks it,
+`POST /v1/library/disk-images` with the octets; both carry
+`X-FogCast-Disk-Image`, and the upload needs the kit lease). The kit verifies
+the digest, keeps the four most recently launched images under
+`/media/fat/fogcast/disk-images/`, and reuses a staged copy, so relaunching
+does not move the image again. Before writing an upload it removes unfinished
+uploads and all but the three most recent other images; a card that is still
+full answers `CACHE_FULL`. A staged copy that no longer matches its digest
+fails the runtime's base check at launch (`corrupt_data`, phase `identity`);
+the kit then removes it, so the next launch stages it again. A CRC mismatch
+reported by the core (phase `input`) leaves the staged copy alone, since the
+file can be right while the DDR window is not. The library load then carries
+`X-FogCast-Library-Game`, `X-FogCast-Disk-Image` and `X-FogCast-Disk-Geometry`
+(`C/H/S`); the agent passes the staged path, geometry, game and media-data root
+to the runtime's `load_library_core`, which writes the image into the DDR window
+before release. The launch has a 300 s activation budget. An entry with no
+image launches with the drive empty. When a disk is bound, a kit whose agent
+predates these routes answers the probe with 404, which the host reports as
+`UNSUPPORTED_OPERATION`. With no disk there is no probe: an older agent
+ignores `X-FogCast-Library-Game`, and its runtime's own refusal of the
+package comes back instead.
+
+The disk is fixed: there is no live insert, eject or save for it. Stop saves
+the guest's changes as the runtime's per-game chunk delta, and the base image
+stays immutable.

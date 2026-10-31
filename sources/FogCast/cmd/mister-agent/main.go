@@ -288,10 +288,10 @@ func observeRuntimeInput(ctx context.Context, runtime *misterruntime.Runtime) (i
 		observation.CoreID = status.ActivePackage.Descriptor.Core.ID
 		observation.Generation = *status.Generation
 	}
-	if active && keyboardHID && protocol.ComputerMediaABI(status.ActivePackage.Descriptor.ABI.ID, status.ActivePackage.Descriptor.ABI.Major, status.ActivePackage.Descriptor.ABI.Minor) {
+	if active && keyboardHID && protocol.ComputerABI(status.ActivePackage.Descriptor.ABI.ID, status.ActivePackage.Descriptor.ABI.Major, status.ActivePackage.Descriptor.ABI.Minor) {
 		observation.KeyboardHID = &input.KeyboardHIDBinding{PackageID: status.ActivePackage.PackageID, Generation: *status.Generation}
 	}
-	if active && mouse && protocol.ComputerMediaABI(status.ActivePackage.Descriptor.ABI.ID, status.ActivePackage.Descriptor.ABI.Major, status.ActivePackage.Descriptor.ABI.Minor) {
+	if active && mouse && protocol.ComputerABI(status.ActivePackage.Descriptor.ABI.ID, status.ActivePackage.Descriptor.ABI.Major, status.ActivePackage.Descriptor.ABI.Minor) {
 		observation.Mouse = &input.MouseBinding{PackageID: status.ActivePackage.PackageID, Generation: *status.Generation}
 	}
 	if !ports {
