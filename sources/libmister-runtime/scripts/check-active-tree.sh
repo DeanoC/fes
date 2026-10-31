@@ -77,6 +77,7 @@ done
 
 cat >"$temporary/expected-members" <<'EOF'
 artifacts.o
+ata_disk.o
 core_composition.o
 core_data.o
 core_driver.o

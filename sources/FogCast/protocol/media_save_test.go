@@ -40,6 +40,7 @@ func TestMediaSaveRetryAdmissionIsNarrow(t *testing.T) {
 		{"invalid game", func(s *Status) { s.CorePackage.MediaUnits[0].Persistence.GameID = "../st" }, false},
 		{"invalid base", func(s *Status) { s.CorePackage.MediaUnits[0].Persistence.BaseMediaID = "bad" }, false},
 		{"invalid revision", func(s *Status) { s.CorePackage.MediaUnits[0].Persistence.Revision = "bad" }, false},
+		{"unit does not support explicit save", func(s *Status) { no := false; s.CorePackage.MediaUnits[0].Saveable = &no }, false},
 		{"invalid unit size", func(s *Status) { s.CorePackage.MediaUnits[0].MaxBytes-- }, false},
 	}
 	b := MediaUnitBinding{PackageID: strings.Repeat("a", 64), Generation: 7}

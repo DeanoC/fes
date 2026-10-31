@@ -68,6 +68,21 @@ public:
 };
 }
 MenuWindow::MenuWindow():owned_(new DriverOperations),operations_(owned_.get()){}
+DiskWindow::DiskWindow():owned_(new DriverOperations),operations_(owned_.get()){}
+DiskWindow::DiskWindow(MenuWindowOperations& operations):operations_(&operations){}
+Error DiskWindow::Access(std::uint64_t offset,std::size_t bytes,const std::function<Error(unsigned char*)>& use)
+{
+ int grant=-1;Error error=operations_->Grant(offset,bytes,&grant);
+ if(!error.ok())return error;
+ void* mapping=nullptr;error=operations_->Map(grant,bytes,&mapping);
+ if(error.ok()) {
+  error=use(static_cast<unsigned char*>(mapping));
+  operations_->Unmap(mapping,bytes);
+ }
+ const Error revoked=operations_->Revoke(grant);
+ operations_->Close(grant);
+ return error.ok()?revoked:error;
+}
 MenuWindow::MenuWindow(MenuWindowOperations& operations):operations_(&operations){}
 MenuWindow::~MenuWindow(){Revoke();}
 Error MenuWindow::Activate(bool clear,bool blitter)

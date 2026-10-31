@@ -3,6 +3,7 @@ package tenfoot
 import (
 	"encoding/json"
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -137,7 +138,7 @@ func TestAppPollsHealthIntoChrome(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Health.Line == "kit unreachable" && strings.HasPrefix(snap.ChromeLine(), "kit unreachable")
 	})
 }
@@ -203,12 +204,12 @@ func TestAppAttachDetachGamepadAndErrorRevert(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Session.State == "active" && snap.Session.InputState == "detached" && snap.Session.InputHint == "X attach"
 	})
 	prior := app.Snapshot().Session.InputState
 	app.Press(CmdSortCycle, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return strings.Contains(snap.Status, "input attach failed")
 	})
 	snap := app.Snapshot()
@@ -225,13 +226,13 @@ func TestAppAttachDetachGamepadAndErrorRevert(t *testing.T) {
 	app.Press(CmdSortCycle, time.Now())
 	select {
 	case <-block:
-	case <-time.After(2 * time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("attach did not start")
 	}
 	app.Press(CmdSortCycle, time.Now())
 	app.Press(CmdSortCycle, time.Now())
 	close(release)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Session.InputState == "attached" && !snap.Session.InputBusy && strings.Contains(snap.Status, "input attached")
 	})
 	mu.Lock()
@@ -242,7 +243,7 @@ func TestAppAttachDetachGamepadAndErrorRevert(t *testing.T) {
 	}
 
 	app.Press(CmdSortCycle, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Session.InputState == "detached" && strings.Contains(snap.Status, "input detached")
 	})
 	mu.Lock()
@@ -303,13 +304,13 @@ func TestAppQueuesStopUntilInputMutationFinishes(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Session.State == "active" && snap.Session.InputHint == "X attach"
 	})
 	app.Press(CmdSortCycle, time.Now())
 	select {
 	case <-started:
-	case <-time.After(2 * time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("attach did not start")
 	}
 	app.Press(CmdBack, time.Now())
@@ -320,7 +321,7 @@ func TestAppQueuesStopUntilInputMutationFinishes(t *testing.T) {
 		t.Fatalf("stop posted during attach, n=%d", stopCount)
 	}
 	close(release)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.GPUParked && snap.Session.State != "active"
 	})
 	mu.Lock()
@@ -351,7 +352,7 @@ func TestAppIgnoresInputToggleWhenNotFPGANative(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Session.State == "active" && snap.GPUParked
 	})
 	app.Press(CmdSortCycle, time.Now())

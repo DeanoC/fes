@@ -2,6 +2,7 @@ package tenfoot
 
 import (
 	"errors"
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -240,7 +241,7 @@ func TestReconciledLaunchForgetsHeldPairs(t *testing.T) {
 	app.mu.Unlock()
 	waitUntil := func(what string, pred func() bool) {
 		t.Helper()
-		deadline := time.Now().Add(3 * time.Second)
+		deadline := time.Now().Add(testwait.Timeout)
 		for time.Now().Before(deadline) {
 			app.mu.Lock()
 			ok := pred()

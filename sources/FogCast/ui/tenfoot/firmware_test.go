@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -459,7 +460,7 @@ func TestDismissedFirmwarePickerStillRefreshes(t *testing.T) {
 	app.HandleCommand(CmdSelect, time.Now())
 	select {
 	case <-h.importStarted:
-	case <-time.After(2 * time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("BIOS import did not start")
 	}
 	app.HandleCommand(CmdHome, time.Now())

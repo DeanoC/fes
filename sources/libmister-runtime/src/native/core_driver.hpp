@@ -33,6 +33,9 @@ struct CoreDriverResult {
 	// Identify may authorize one bounded cleanup command only after the
 	// destination protocol and ABI have been verified.
 	bool safe_to_quiesce = false;
+	// A failed Start can be a completed rejection or an ambiguous release. Only
+	// the latter may have let the guest run and require fault-save capture.
+	bool execution_may_have_run = false;
 };
 
 class CoreDriver {

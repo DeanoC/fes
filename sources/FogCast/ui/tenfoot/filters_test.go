@@ -38,17 +38,17 @@ func TestFilterOverlaySelectionRefreshAndClearKeepsBrowseState(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 20)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && len(snap.Games) == 1 && len(snap.Platforms) == 1
 	})
 	app.Press(CmdFilterNext, time.Now())
 	app.Press(CmdViewNext, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && snap.PlatformID == "snes" && snap.Collection == "continue"
 	})
 
 	app.Press(CmdFilters, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Filters.Open && !snap.Filters.Loading && len(snap.Filters.Rows) == filterRootRowCount
 	})
 	if app.Snapshot().Launch.Phase != "idle" {
@@ -56,12 +56,12 @@ func TestFilterOverlaySelectionRefreshAndClearKeepsBrowseState(t *testing.T) {
 	}
 
 	app.Press(CmdSelect, time.Now()) // Genre
-	waitSnapshot(t, app, time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Filters.Open && len(snap.Filters.Rows) >= 2 && snap.Filters.Rows[1].Label == "Action"
 	})
 	app.Press(CmdDown, time.Now())
 	app.Press(CmdSelect, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && snap.Genre == "Action" && snap.Filters.Open && snap.Collection == "continue" && snap.PlatformID == "snes"
 	})
 
@@ -69,18 +69,18 @@ func TestFilterOverlaySelectionRefreshAndClearKeepsBrowseState(t *testing.T) {
 	app.Press(CmdSelect, time.Now())
 	app.Press(CmdDown, time.Now())
 	app.Press(CmdSelect, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && snap.Year == "1991" && snap.Genre == "Action"
 	})
 
 	app.Press(CmdDown, time.Now()) // Region
 	app.Press(CmdSelect, time.Now())
-	waitSnapshot(t, app, time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Filters.Open && len(snap.Filters.Rows) > 2 && snap.Filters.Rows[1].Label == "USA"
 	})
 	app.Press(CmdDown, time.Now())
 	app.Press(CmdSelect, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && snap.Region == "usa" && strings.Contains(snap.Status, "USA")
 	})
 
@@ -88,7 +88,7 @@ func TestFilterOverlaySelectionRefreshAndClearKeepsBrowseState(t *testing.T) {
 	app.Press(CmdSelect, time.Now())
 	app.Press(CmdDown, time.Now()) // Hide hacks
 	app.Press(CmdSelect, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && snap.HidePrerelease && snap.HideHacks && snap.Collection == "continue" && snap.PlatformID == "snes"
 	})
 
@@ -108,7 +108,7 @@ func TestFilterOverlaySelectionRefreshAndClearKeepsBrowseState(t *testing.T) {
 
 	app.Press(CmdDown, time.Now()) // Clear
 	app.Press(CmdSelect, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && snap.Genre == "" && snap.Year == "" && snap.Region == "" && !snap.HidePrerelease && !snap.HideHacks && snap.Collection == "continue" && snap.PlatformID == "snes" && snap.Query == ""
 	})
 	mu.Lock()
@@ -150,21 +150,21 @@ func TestEmptyFacetsStillAllowClearAndAny(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && len(snap.Games) == 1
 	})
 	app.Press(CmdFilters, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Filters.Open && !snap.Filters.Loading
 	})
 	app.Press(CmdSelect, time.Now())
-	waitSnapshot(t, app, time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Filters.Open && len(snap.Filters.Rows) == 1 && snap.Filters.Rows[0].Label == "Any" && strings.Contains(snap.Filters.Hint, "no genres")
 	})
 	app.Press(CmdBack, time.Now())
 	app.Press(CmdDown, time.Now())
 	app.Press(CmdSelect, time.Now())
-	waitSnapshot(t, app, time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Filters.Open && len(snap.Filters.Rows) == 1 && snap.Filters.Hint == "no years"
 	})
 	app.Press(CmdBack, time.Now())

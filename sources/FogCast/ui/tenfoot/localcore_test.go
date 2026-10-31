@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -505,7 +506,7 @@ func TestLocalStatusPollIsSingleFlight(t *testing.T) {
 	waitFor(t, app, "running", func(s Snapshot) bool {
 		return s.LocalCorePhase == localPhaseRunning
 	})
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for fake.statusCount() < 1 {
 		app.Tick(time.Now())
 		if time.Now().After(deadline) {
@@ -540,7 +541,7 @@ func TestStaleLocalStatusPollDoesNotResumeAfterFailedStop(t *testing.T) {
 		return s.LocalCorePhase == localPhaseRunning && s.LocalCorePresentsPaused
 	})
 	app.Tick(time.Now().Add(2 * time.Second))
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for fake.statusCount() == 0 && time.Now().Before(deadline) {
 		time.Sleep(5 * time.Millisecond)
 	}
@@ -557,10 +558,10 @@ func TestStaleLocalStatusPollDoesNotResumeAfterFailedStop(t *testing.T) {
 	close(statusRelease)
 	select {
 	case <-fake.statusDone:
-	case <-time.After(2 * time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("blocked status poll did not return")
 	}
-	deadline = time.Now().Add(2 * time.Second)
+	deadline = time.Now().Add(testwait.Timeout)
 	for {
 		app.mu.Lock()
 		busy := app.localStatusBusy
@@ -615,7 +616,7 @@ func TestLocalStopUnavailableStaysRunning(t *testing.T) {
 	app.HandleLocalPad(padButton(remoteinput.ButtonSelect, true), t1)
 	app.HandleLocalPad(padButton(remoteinput.ButtonStart, true), t1.Add(10*time.Millisecond))
 	app.Tick(t1.Add(10*time.Millisecond + time.Second))
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for {
 		snap := app.Snapshot()
 		if fake.stopCount() >= 1 && snap.LocalCorePhase == localPhaseRunning && snap.LocalCorePresentsPaused {
@@ -836,7 +837,7 @@ func TestMenuLaunchWaitsForFrameDrainAndPause(t *testing.T) {
 	dev.Present()
 	select {
 	case <-rec.presentEntered:
-	case <-time.After(time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("frame did not reach presenter")
 	}
 	if fake.launchCount() != 0 {
@@ -862,7 +863,7 @@ func TestMenuLaunchWaitsForFrameDrainAndPause(t *testing.T) {
 		if !got.skip || got.err != nil {
 			t.Fatalf("handoff %+v", got)
 		}
-	case <-time.After(time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("pause did not complete")
 	}
 	app.completeLocalLaunchHandoff(nil)
@@ -895,7 +896,7 @@ func TestMenuPauseFailureClearsLaunchBeforeResume(t *testing.T) {
 	dev.Present()
 	select {
 	case <-rec.presentEntered:
-	case <-time.After(time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("frame did not reach presenter")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1506,7 +1507,7 @@ func TestLauncherStartupReturnsToMenuWhenAdoptedRunEnds(t *testing.T) {
 	waitFor(t, app, "in use screen", func(s Snapshot) bool {
 		return adoptedInUseScreen(s) && s.LocalCorePresentsPaused && s.LocalCoreLateAdopt
 	})
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for {
 		app.mu.Lock()
 		busy := app.localStatusBusy
@@ -1602,7 +1603,7 @@ func TestLauncherStartupIgnoresIdleAndUnnamedRuns(t *testing.T) {
 			app := NewApp(nil, 1280, 720, 50)
 			app.localCores = fake
 			app.Tick(time.Unix(10, 0))
-			deadline := time.Now().Add(2 * time.Second)
+			deadline := time.Now().Add(testwait.Timeout)
 			var phase, generation, gotStatus string
 			var checked bool
 			for {

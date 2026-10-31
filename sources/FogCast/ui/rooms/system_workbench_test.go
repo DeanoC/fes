@@ -3,6 +3,7 @@ package rooms
 import (
 	"context"
 	"encoding/json"
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"os"
 	"path/filepath"
 	"strings"
@@ -240,7 +241,7 @@ func (s *delayedWorkbenchGameServices) releaseDetail() {
 
 func stepUntilWorkbenchSignal(t *testing.T, r *Instance, signal <-chan struct{}, description string) {
 	t.Helper()
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		r.Step(time.Now())
 		select {
@@ -255,7 +256,7 @@ func stepUntilWorkbenchSignal(t *testing.T, r *Instance, signal <-chan struct{},
 
 func waitForWorkbenchPending(t *testing.T, r *Instance, game bool) {
 	t.Helper()
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		r.pendingMu.Lock()
 		found := false
@@ -321,7 +322,7 @@ func TestSystemWorkbenchIgnoresStaleEditionCallback(t *testing.T) {
 	svc.releaseDetail()
 	select {
 	case <-svc.returned:
-	case <-time.After(3 * time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("grouped-edition lookup did not return")
 	}
 	waitForWorkbenchPending(t, r, true)
@@ -509,7 +510,7 @@ func TestSystemWorkbenchRefreshRetainsChangedMachineAndEdition(t *testing.T) {
 			r.Resume()
 			// Wait for the refreshed library reply before drawing: the old
 			// frame still contains the second title while that reply is in flight.
-			deadline := time.Now().Add(3 * time.Second)
+			deadline := time.Now().Add(testwait.Timeout)
 			for {
 				r.pendingMu.Lock()
 				ready := false

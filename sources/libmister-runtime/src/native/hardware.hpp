@@ -6,10 +6,12 @@
 #include "libmister-runtime/runtime.h"
 #include "native/core_driver.hpp"
 #include "native/idle_recipe.hpp"
+#include "native/ata_disk.hpp"
 #include "native/media_data.hpp"
 
 #include <atomic>
 #include <cstdint>
+#include <ctime>
 #include <mutex>
 #include <memory>
 #include <string>
@@ -26,11 +28,15 @@ struct InputDeviceIdentity;
 class VideoBringup;
 class MenuDisplayDriver;
 class MenuWindow;
+class DiskWindow;
+class FesGpCoreDriver;
 
 class Clock {
 public:
 	virtual ~Clock() {}
 	virtual std::uint64_t NowMs() const = 0;
+	// The kit's local calendar time, for a core's wall clock.
+	virtual bool LocalTime(std::tm*) const { return false; }
 };
 
 struct NativeTimeouts {
@@ -71,7 +77,8 @@ public:
 		LogSink&, std::string idle_rbf, NativeTimeouts, CoreDriver* fes_gp_driver,
 		std::vector<std::string> package_roots = {},
 		IdleRecipe idle_recipe = SplashIdle(),
- MenuDisplayDriver* menu_display = nullptr,MenuWindow* menu_window = nullptr);
+ MenuDisplayDriver* menu_display = nullptr,MenuWindow* menu_window = nullptr,
+		DiskWindow* disk_window = nullptr);
 	~NativeHardware();
 	void SetFaultSink(HardwareFaultSink*) override;
 	HardwareResult LoadIdle() override;
@@ -94,14 +101,15 @@ public:
 		const std::string&) override;
 	Error InspectCorePackage(const std::string&, const std::string&,
 		CorePackageInspection*) override;
-	Error PrepareCoreData(AdmittedCorePackage*, const std::string&, CoreData*) override;
+	Error PrepareCoreData(AdmittedCorePackage*, const std::string&, const std::string&, CoreData*) override;
 	Error RefreshCoreData(AdmittedCorePackage*, CoreData*) override;
+	Error PrepareAtaDisk(AdmittedCorePackage*, const std::string&, const AtaDiskImage&) override;
 	Error PrepareInitialComputerMedia(AdmittedCorePackage*, const InitialComputerMedia&) override;
 	Error RefreshInitialComputerMedia(AdmittedCorePackage*) override;
-	Error InspectCoreData(
-		const std::string&, const std::string&, const std::string&, CoreData*) override;
+	Error InspectCoreData(const std::string&, const std::string&, const std::string&,
+		const std::string&, CoreData*) override;
 	Error UpdateCoreSettings(const std::string&, const std::string&, const std::string&,
-		const std::string&, std::uint16_t, CoreData*) override;
+		const std::string&, const std::string&, const CoreSettingsUpdate&, CoreData*) override;
 	Error AttachROMBitstream(AdmittedCorePackage*, const std::string&, const CoreROMLink&) override;
 	Error AttachROMsBitstream(AdmittedCorePackage*, const std::string&, const CoreROMLinks&) override;
 	Error RecheckProgrammedBitstream(AdmittedCorePackage*) override;
@@ -140,6 +148,7 @@ private:
  Error ReleaseControllers();
  MenuDisplayDriver* menu_display_;
  MenuWindow* menu_window_;
+ DiskWindow* disk_window_;
  MenuDisplayStatus menu_status_;
  std::string menu_directory_,menu_package_id_;
  std::uint8_t menu_slot_=0;
@@ -148,7 +157,7 @@ private:
  unsigned menu_underflow_streak_=0;
  unsigned menu_reactivations_=0;
  std::uint64_t menu_reactivation_window_start_=0;
- Error PrepareCoreDataInternal(AdmittedCorePackage*, const std::string&, CoreData*, bool);
+ Error PrepareCoreDataInternal(AdmittedCorePackage*, const std::string&, const std::string&, CoreData*, bool);
 	Error StopInput(std::uint64_t absolute_deadline_ms);
 	HardwareResult QuiesceForReplacement(const char* operation,
 		const std::string& system, const std::string& core);
@@ -192,6 +201,15 @@ private:
     std::uint32_t media_base_size_ = 0;
     bool media_data_flushed_ = false;
     bool media_image_uncertain_ = false;
+	Error LoadAtaDisk(FesGpCoreDriver&, PreparedAtaDisk&);
+	Error FlushAtaDiskSave();
+	void ForgetAtaDisk();
+	std::unique_ptr<AtaDeltaFile> ata_delta_file_;
+	AtaDiskDelta ata_delta_;
+	MediaDataIdentity ata_identity_;
+	std::uint32_t ata_size_ = 0;
+	bool ata_ready_ = false;
+	bool ata_flushed_ = false;
 };
 
 } // namespace native

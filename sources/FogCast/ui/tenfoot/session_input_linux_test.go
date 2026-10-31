@@ -3,6 +3,7 @@
 package tenfoot
 
 import (
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -22,7 +23,7 @@ func drainLocalKeyQueue(t *testing.T, app *App) {
 	}
 	select {
 	case <-tail:
-	case <-time.After(time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("local keyboard queue did not drain")
 	}
 }

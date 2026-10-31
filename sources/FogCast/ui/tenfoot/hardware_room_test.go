@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -977,7 +978,7 @@ func TestHardwareRoomQueuedInputDoesNotReachReplacementSession(t *testing.T) {
 	app.SendPlayHID(remoteinput.Event{Code: remoteinput.KeyA, Action: remoteinput.ActionPress})
 	select {
 	case <-first:
-	case <-time.After(time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("first key not sent")
 	}
 	app.SendPlayHID(remoteinput.Event{Code: remoteinput.KeyLeft, Action: remoteinput.ActionPress})
@@ -993,7 +994,7 @@ func TestHardwareRoomQueuedInputDoesNotReachReplacementSession(t *testing.T) {
 	app.mu.Unlock()
 	select {
 	case <-tail:
-	case <-time.After(time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("input queue did not drain")
 	}
 	mu.Lock()
