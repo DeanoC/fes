@@ -786,6 +786,7 @@ def run_storage(args) -> dict:
     and fes_computer_storage, compiled with that scenario's interfaces."""
     scenarios = json.loads(STORAGE_EXCHANGES.read_text())['scenarios']
     checks, failures = [], []
+    ata_binary = None
     for number, scenario in enumerate(scenarios):
         capabilities = scenario['capabilities']
         parameters = {name: "1'b1" for bit, name in STORAGE_PARAMETERS.items() if capabilities >> bit & 1}
@@ -794,6 +795,14 @@ def run_storage(args) -> dict:
         result = subprocess.run([str(binary), str(STORAGE_EXCHANGES), str(number)], capture_output=True, text=True)
         (OUTPUT / f'storage-{number}' / 'storage.log').write_text(result.stdout + result.stderr)
         line = f'{scenario["name"]}: {(result.stdout or result.stderr).strip()}'
+        (checks if result.returncode == 0 else failures).append(line)
+        if scenario['name'] == 'pc386-ata-disk':
+            ata_binary = binary
+    if ata_binary is not None:
+        result = subprocess.run([str(ata_binary), str(STORAGE_EXCHANGES), '--prepare-drain'],
+                                capture_output=True, text=True)
+        (OUTPUT / 'storage-prepare-drain.log').write_text(result.stdout + result.stderr)
+        line = f'prepare-drain-final-write: {(result.stdout or result.stderr).strip()}'
         (checks if result.returncode == 0 else failures).append(line)
     return {'checks': checks, 'failures': failures}
 

@@ -168,7 +168,7 @@ public:
         }
         std::printf("END %s cycles=%llu seconds=%.3f\n", reason.c_str(), (unsigned long long)cycles,
                     double(cycles) / clock_hz);
-        return reason == "prompt" && checks_failed == 0 ? "prompt" : reason;
+        return reason == "prompt" ? (checks_failed == 0 ? "prompt" : "checks-failed") : reason;
     }
 
 private:
@@ -305,12 +305,14 @@ private:
     uint16_t poll_disk(uint64_t *since = nullptr) {
         uint64_t start = cycles;
         for (;;) {
+            if (cycles > limit) throw MailboxError("disk verification exceeded --limit-seconds");
             uint16_t state = exchange(OP_DISK_INFO, 5, 0);
             if (state != VERIFYING) {
                 if (since) *since = cycles - start;
                 return state;
             }
             for (int n = 0; n < 4096; ++n) clock();
+            if (cycles > limit) throw MailboxError("disk verification exceeded --limit-seconds");
         }
     }
 
@@ -359,6 +361,9 @@ private:
     }
     static unsigned cmos(const std::vector<uint16_t> &words, unsigned byte) {
         return (words[8 + byte / 2] >> (8 * (byte & 1))) & 0xff;
+    }
+    static bool valid_bcd(unsigned value, unsigned max_tens) {
+        return (value & 0x0f) <= 9 && (value >> 4) <= max_tens;
     }
     static std::string join(const std::vector<uint16_t> &words) {
         std::string text;
@@ -415,9 +420,11 @@ private:
         check(cmos(record, 0x2e) == (sum >> 8 & 0xff) && cmos(record, 0x2f) == (sum & 0xff),
               "CMOS 2Eh-2Fh hold the checksum of 10h-2Dh");
         check(cmos(record, 0x32) == 0x20, "CMOS 32h holds the wall clock's century");
-        check(cmos(record, 0x09) == 0x26 && cmos(record, 0x08) == 0x10 && cmos(record, 0x0b) == 0x02 &&
+        check(valid_bcd(cmos(record, 0x00), 5) && cmos(record, 0x00) != 0 && cmos(record, 0x02) == 0 &&
+                  cmos(record, 0x04) == 0x12 && cmos(record, 0x06) == 7 && cmos(record, 0x07) == 0x31 &&
+                  cmos(record, 0x08) == 0x10 && cmos(record, 0x09) == 0x26 && cmos(record, 0x0b) == 0x02 &&
                   cmos(record, 0x0d) == 0x80,
-              "CMOS 00h-0Dh are the clock's registers as the guest reads them (2026-10, B 02h, D 80h)");
+              "CMOS 00h-0Dh retain seconds, minutes, hours, weekday, day and the 2026-10 clock mode");
 
         // The record back through the RTC: restore, release until the CMOS
         // setup has run, and read it again.
@@ -432,6 +439,10 @@ private:
         check(std::equal(record.begin(), record.begin() + 8, again.begin()) &&
                   std::equal(record.begin() + 15, record.end(), again.begin() + 15),
               "the record's settings and CMOS RAM make the round trip through the RTC");
+        check(valid_bcd(cmos(again, 0x00), 5) && valid_bcd(cmos(again, 0x02), 5) &&
+                  valid_bcd(cmos(again, 0x04), 2) && cmos(again, 0x04) <= 0x23 && cmos(again, 0x06) == 7 &&
+                  cmos(again, 0x07) == 0x31 && cmos(again, 0x08) == 0x10 && cmos(again, 0x09) == 0x26,
+              "the running clock keeps valid seconds, minutes, hours, weekday and date after restore");
     }
 
     // Text mode: character n at planar offset 2n in plane 0.

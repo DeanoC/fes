@@ -17,6 +17,7 @@ from scripts import build_pc386_firmware as firmware
 from scripts import build_pc386_freedos_image as freedos
 from scripts import build_fes_pc386_quartus as producer
 from scripts import sim_fes_pc386 as sim
+from scripts import synth_fes_pc386 as synthesis
 
 VERILATOR = shutil.which(os.environ.get('VERILATOR', 'verilator'))
 
@@ -299,6 +300,12 @@ class PresenterBenchTest(unittest.TestCase):
         self.assertEqual(len(report['checks']), 14)
 
 
+class Port2SynthesisHarnessTest(unittest.TestCase):
+    def test_pair_forwards_the_auxiliary_burst_count(self):
+        self.assertIn('input wire [7:0] aux_burstcount', synthesis.PAIR)
+        self.assertIn('.aux_burstcount(aux_burstcount)', synthesis.PAIR)
+
+
 SYSTEM_OUTPUT = """WRITE-TEST 444436
 IDENTITY 17734 12627 1 0 4 1 1 12297 26437 291 52617 1158 61715 2469 13863 3702 15
 RESTORE 9000
@@ -316,8 +323,10 @@ SAVE dirty=1 chunks=0 epoch=3 changed_bytes=12 changed_chunks=0
 CHECK PASS Saved clears the dirty map and flag
 RECORD 0 0 0 0 576 5 1 0
 CHECK PASS the record keeps the restored settings
+CHECK PASS CMOS 00h-0Dh retain seconds, minutes, hours, weekday, day and the 2026-10 clock mode
 ROUNDTRIP 0 0 0 0 576 5 1 0
 CHECK PASS the record's settings and CMOS RAM make the round trip through the RTC
+CHECK PASS the running clock keeps valid seconds, minutes, hours, weekday and date after restore
 END prompt cycles=303000000 seconds=4.932
 """
 
@@ -344,7 +353,7 @@ class SystemTest(unittest.TestCase):
                                           'changed_chunks': [0]})
         self.assertEqual(report['write_test'], 444436)
         self.assertEqual(report['record'][:8], [0, 0, 0, 0, 576, 5, 1, 0])
-        self.assertEqual(len(report['record_checks']), 3)
+        self.assertEqual(len(report['record_checks']), 5)
         self.assertEqual(report['end'], {'reason': 'prompt', 'cycles': 303000000, 'seconds': 4.932})
         self.assertEqual(sim.system_failures(report), [])
 

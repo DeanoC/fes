@@ -75,11 +75,94 @@ std::vector<unsigned> list(const std::string& text, const std::string& name) {
 constexpr unsigned OP_MEDIA_INFO = 5, OP_DISK_INFO = 16, OP_DATA_CONTROL = 24, DATA_COMMIT = 2, STATE_FIELD = 5,
                    VERIFYING = 4, CHUNK_SECTORS = 128;
 
+void prepare_drain_test() {
+    Vcomputer_storage_top dut;
+    std::vector<uint16_t> dirty(128, 0);
+    bool writer_busy = true;
+    unsigned marks = 0, clearing = 0;
+    bool toggle = false;
+
+    for (int word = 0; word < 4; ++word) dut.build_id[3 - word] = uint32_t(word + 1);
+    dut.clk = 0;
+    dut.gpo = 0;
+    dut.disk_verify_done = 0;
+    dut.disk_verify_match = 0;
+    dut.disk_fenced = 0;
+    dut.disk_busy = 1;
+    dut.disk_written = 0;
+    dut.disk_clearing = 0;
+    dut.disk_dirty_word = 0;
+    dut.cmos_write = 0;
+    dut.cmos_byte_index = 0;
+    dut.cmos_byte = 0;
+    dut.cmos_load = 0;
+    dut.cmos_load_pair = 0;
+    dut.cmos_clock_pair = 0;
+    dut.eval();
+
+    auto tick = [&]() {
+        dut.disk_busy = writer_busy;
+        dut.disk_written = marks != 0;
+        if (marks) --marks;
+        dut.disk_clearing = clearing != 0;
+        dut.disk_dirty_word = dirty[dut.disk_dirty_index];
+        dut.clk = 1;
+        dut.eval();
+        dut.clk = 0;
+        dut.eval();
+        if (dut.disk_written) dirty[0] |= 1;
+        if (clearing) --clearing;
+        if (dut.disk_clear) {
+            for (auto& word : dirty) word = 0;
+            clearing = 130;
+        }
+    };
+
+    auto exchange = [&](uint8_t opcode, uint8_t index, uint16_t argument, bool race_prepare = false) {
+        const uint32_t fields = uint32_t(opcode) << 24 | uint32_t(index) << 16 | argument;
+        dut.gpo = (toggle ? 0x80000000u : 0) | fields;
+        for (int n = 0; n < 4; ++n) tick();
+        const bool next = !toggle;
+        dut.gpo = (next ? 0x80000000u : 0) | fields;
+        if (race_prepare) {
+            for (int n = 0; n < 8; ++n) {
+                if (n == 4) marks = 1;
+                tick();
+                require(bool((dut.gpi >> 23) & 1) != next, "Prepare replied before the writer drained");
+            }
+            require(dirty[0] == 1, "the final sector mark arrived while Prepare drained");
+            writer_busy = false;
+        }
+        for (int n = 0; n < 1000; ++n) {
+            tick();
+            if (bool((dut.gpi >> 23) & 1) == next) {
+                toggle = next;
+                std::ostringstream message;
+                message << "prepare-drain opcode " << unsigned(opcode) << " returned GPI 0x" << std::hex << dut.gpi;
+                require(((dut.gpi >> 22) & 1) == 0, message.str());
+                return uint16_t(dut.gpi);
+            }
+        }
+        fail("prepare-drain exchange did not acknowledge");
+    };
+
+    exchange(2, 0, 0);                  // Ensure the endpoint is held.
+    exchange(17, 0, 0, true);           // A final sector mark lands after acceptance.
+    const uint16_t flags = exchange(OP_DISK_INFO, 6, 0);
+    require((flags & 1) == 0, "Prepare left DiskInfo dirty set after clearing the map");
+    require(dirty[0] == 0, "Prepare left a bit in the dirty map");
+    std::cout << "fes.computer 1.1 prepare-drain: final write mark cleared with the map\n";
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
     Verilated::commandArgs(argc, argv);
     require(argc >= 3, "usage: exchanges-1.1.json scenario-index");
+    if (std::string(argv[2]) == "--prepare-drain") {
+        prepare_drain_test();
+        return 0;
+    }
     std::ifstream stream(argv[1]);
     require(bool(stream), "cannot open fixture");
     std::ostringstream text;

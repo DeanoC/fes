@@ -248,6 +248,7 @@ module fes_computer_storage #(
         case (waiting)
             W_DRAIN: if (!disk_busy) begin
                 // Prepare and Eject: the writer has landed its last sector.
+                disk_dirty <= 1'b0;
                 disk_clear <= 1'b1;
                 step <= 7'd0;
                 waiting <= W_CLEAR;
