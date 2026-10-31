@@ -16,15 +16,23 @@ import (
 )
 
 func (c *Client) InspectCoreData(ctx context.Context, size int64, body io.Reader, id string) (protocol.CoreDataInspection, error) {
-	return c.coreData(ctx, size, body, id, nil)
+	return c.coreData(ctx, size, body, id, "", nil)
+}
+
+// InspectGameCoreData reads a pc386 library game's machine record.
+func (c *Client) InspectGameCoreData(ctx context.Context, size int64, body io.Reader, id, gameID string) (protocol.CoreDataInspection, error) {
+	if !protocol.ValidMediaGameID(gameID) {
+		return protocol.CoreDataInspection{}, fmt.Errorf("library game is invalid")
+	}
+	return c.coreData(ctx, size, body, id, gameID, nil)
 }
 func (c *Client) UpdateCoreSettings(ctx context.Context, size int64, body io.Reader, u protocol.CoreSettingsUpdate) (protocol.CoreDataInspection, error) {
 	if !u.Valid() {
 		return protocol.CoreDataInspection{}, fmt.Errorf("core settings request is invalid")
 	}
-	return c.coreData(ctx, size, body, u.ExpectedPackageID, &u)
+	return c.coreData(ctx, size, body, u.ExpectedPackageID, u.GameID, &u)
 }
-func (c *Client) coreData(ctx context.Context, size int64, body io.Reader, id string, u *protocol.CoreSettingsUpdate) (protocol.CoreDataInspection, error) {
+func (c *Client) coreData(ctx context.Context, size int64, body io.Reader, id, gameID string, u *protocol.CoreSettingsUpdate) (protocol.CoreDataInspection, error) {
 	if size < 1 || size > corepackage.MaxArchiveSize || body == nil || !lowerHex(id, 64) {
 		return protocol.CoreDataInspection{}, fmt.Errorf("core data request is invalid")
 	}
@@ -41,9 +49,16 @@ func (c *Client) coreData(ctx context.Context, size int64, body io.Reader, id st
 	request.Header.Set("Content-Type", "application/octet-stream")
 	request.Header.Set("X-FogCast-Package-ID", id)
 	hadLease := c.kitLease.CurrentToken() != ""
+	if gameID != "" {
+		request.Header.Set(protocol.LibraryGameHeader, gameID)
+	}
 	if u != nil {
 		request.Header.Set("X-FogCast-Expected-Revision", u.ExpectedRevision)
-		request.Header.Set("X-FogCast-Paddle-Speed", strconv.Itoa(int(u.PaddleSpeed)))
+		if u.Machine != nil {
+			request.Header.Set(protocol.MachineSettingsHeader, u.Machine.String())
+		} else {
+			request.Header.Set("X-FogCast-Paddle-Speed", strconv.Itoa(int(u.PaddleSpeed)))
+		}
 		if err := c.authorizeMutation(request); err != nil {
 			return protocol.CoreDataInspection{}, err
 		}
@@ -64,7 +79,7 @@ func (c *Client) coreData(ctx context.Context, size int64, body io.Reader, id st
 	if err := decodeCoreDataInspection(raw, &result); err != nil {
 		return result, err
 	}
-	if !result.Valid() || result.PackageID != id || (u != nil && (result.Mode != "persistent" || result.Revision == "absent" || result.PaddleSpeed != u.PaddleSpeed)) {
+	if !result.Valid() || result.PackageID != id || result.GameID != gameID || (u != nil && !u.Applied(result.CoreData)) {
 		return protocol.CoreDataInspection{}, fmt.Errorf("core data response does not match admitted package")
 	}
 	if err := c.finishSettingsLease(ctx, u != nil && !hadLease, nil); err != nil {
@@ -82,10 +97,19 @@ func (c *Client) LoadLibraryCore(ctx context.Context, size int64, body io.Reader
 func decodeCoreDataInspection(raw json.RawMessage, result *protocol.CoreDataInspection) error {
 	invalid := fmt.Errorf("core data response is incomplete or invalid")
 	var fields map[string]json.RawMessage
-	if json.Unmarshal(raw, &fields) != nil || len(fields) != 8 {
+	if json.Unmarshal(raw, &fields) != nil {
 		return invalid
 	}
-	for _, key := range []string{"package_id", "core_id", "mode", "revision", "paddle_speed", "best_rally", "descriptor"} {
+	keys := []string{"package_id", "core_id", "mode", "revision", "paddle_speed", "best_rally", "descriptor"}
+	if _, machine := fields["machine"]; machine {
+		// A pc386 record adds its library game and settings; its Pong
+		// fields read zero.
+		keys = append(keys, "game_id", "machine")
+	}
+	if len(fields) != len(keys)+1 {
+		return invalid
+	}
+	for _, key := range keys {
 		v, ok := fields[key]
 		if !ok || bytes.Equal(bytes.TrimSpace(v), []byte("null")) {
 			return invalid

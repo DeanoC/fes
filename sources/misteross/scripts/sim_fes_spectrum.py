@@ -287,12 +287,16 @@ def main() -> None:
                         help="machine models to simulate (default all)")
     parser.add_argument("--fuse-tests", type=Path, help="directory holding Fuse tests.in/tests.expected")
     parser.add_argument("--download", action="store_true", help="fetch the pinned Fuse Z80 tests")
+    parser.add_argument("--smoke", action="store_true",
+                        help="machine boot only: skip snapshots, disk units and video")
     parser.add_argument("--go", default="go", help="Go toolchain for FogCast's restore stream and disk writers")
     args = parser.parse_args()
     subprocess.run([sys.executable, f"{CORE}/diagnostic/firmware.py", "--output-dir",
                     "build/diagnostics/fes-spectrum"], cwd=ROOT, check=True)
     for key in args.model or MODELS:
         machine(args.verilator, key)
+    if args.smoke:
+        return
     for key in args.model or MODELS:
         snapshot(args.verilator, key, args.go)
     if "pentagon" in (args.model or MODELS):

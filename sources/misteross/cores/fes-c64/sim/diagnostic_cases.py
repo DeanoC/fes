@@ -10,6 +10,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", type=Path, required=True)
     parser.add_argument("--diagnostic-dir", type=Path, required=True)
+    parser.add_argument("--case", action="append", choices=("positive", "changed-payload", "no-media"),
+                        help="run only these cases (default all)")
     args = parser.parse_args()
     directory = args.diagnostic_dir.resolve()
     model = str(args.model.resolve())
@@ -25,6 +27,8 @@ def main() -> None:
         ("no-media", "disk.hex", ["+C64_DIAG_NO_MEDIA"], 1, "load_status 128"),
     )
     for name, image, extra, code, marker in cases:
+        if args.case and name not in args.case:
+            continue
         # A stalled model or broken harness is a failure, not an accepted
         # negative control. Both negatives must reach the firmware's stage 9.
         result = subprocess.run(common + [f"+C64_DISK_HEX={directory / image}"] + extra,

@@ -1,4 +1,9 @@
-"""Expand selected core families into independent, complete simulation jobs."""
+"""Expand selected core families into independent, complete simulation jobs.
+
+Two tiers: pull requests and the merge queue run the "smoke" tier, where the
+slow families run a short boot/frames target instead of their full suite.
+Pushes to main, manual runs and the nightly regression run the "full" tier.
+"""
 from scripts.affected import CORES
 
 COLECO_SCENARIOS = ('graphics', 'stream', 'interactive', 'controllers', 'vdp-io', 'sprites')
@@ -27,11 +32,30 @@ TARGETS = {
     'pc386': ('sim-fes-pc386',),
 }
 
+# Slow families' PR-tier targets (each about 2.5 minutes or less on a runner).
+# Families not listed are already fast and run the same target in both tiers.
+SMOKE_TARGETS = {
+    'zx81': ('sim-fes-zx81-smoke',),
+    'c64': ('sim-fes-c64-smoke',),
+    'atari-st': ('sim-fes-atari-st-smoke',),
+    'spectrum': ('sim-fes-spectrum-smoke',),
+    'pcxt': ('sim-fes-pcxt-smoke',),
+}
+TIERS = ('smoke', 'full')
+SMOKE_EVENTS = ('pull_request', 'merge_group')
 
-def simulation_matrix(cores):
+
+def tier_for_event(event):
+    return 'smoke' if event in SMOKE_EVENTS else 'full'
+
+
+def simulation_matrix(cores, tier='full'):
+    if tier not in TIERS:
+        raise ValueError('Expected a simulation tier: ' + ', '.join(TIERS))
     if not isinstance(cores, list) or any(not isinstance(core, str) for core in cores):
         raise ValueError('Expected a list of core names')
     if len(cores) != len(set(cores)) or not set(cores) <= set(CORES):
         raise ValueError('Expected unique known cores')
     return {'include': [{'core': core, 'target': target}
-                        for core in cores for target in TARGETS[core]]}
+                        for core in cores
+                        for target in (SMOKE_TARGETS.get(core) if tier == 'smoke' else None) or TARGETS[core]]}

@@ -2002,6 +2002,17 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 				return protocol.Status{}, corePackageRequestFailure(canonicalError(protocol.CodeUnsupportedOperation, nil))
 			}
 			status, err = composed.LoadComposedCore(ctx, size, content, selected.entry.PackageID)
+		} else if selected.machine != nil {
+			machine, ok := client.(machineCoreClient)
+			if !ok {
+				return protocol.Status{}, corePackageRequestFailure(canonicalError(protocol.CodeUnsupportedOperation, nil))
+			}
+			if selected.hardDisk != nil {
+				if err := stageHardDisk(ctx, machine, selected.hardDisk); err != nil {
+					return protocol.Status{}, corePackageRequestFailure(err)
+				}
+			}
+			status, err = machine.LoadLibraryMachineCore(ctx, size, content, selected.entry.PackageID, *selected.machine)
 		} else {
 			status, err = library.LoadLibraryCore(ctx, size, content, selected.entry.PackageID)
 		}
