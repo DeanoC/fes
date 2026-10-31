@@ -11,6 +11,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <iostream>
+#include <map>
 using namespace mister;
 using namespace mister::native;
 namespace {
@@ -72,7 +73,7 @@ struct Fixture {
         // Test-only tree: every name is our private mkdtemp directory.
         std::string cmd="rm -rf -- '"+root+"'";assert(!system(cmd.c_str()));if(lease>=0)close(lease);
     }
-    std::unique_ptr<LinuxDe25FpgaManager> Manager() {return std::unique_ptr<LinuxDe25FpgaManager>(new LinuxDe25FpgaManager(clock,lease,paths,ops));}
+    std::unique_ptr<LinuxDe25FpgaManager> Manager(De25OverlayProfile profile = De25OverlayProfile::firmware_only) {return std::unique_ptr<LinuxDe25FpgaManager>(new LinuxDe25FpgaManager(clock,lease,paths,ops,profile));}
     NativeResult Program(LinuxDe25FpgaManager& m) {return m.Program(artifact,ProgrammingProfile::de25_hps_first_v1,100);}
     void Preserved() {assert(Exists(ops.Dir()) && Exists(paths.firmware+"/fes-runtime-core.rbf"));}
 };
@@ -85,6 +86,84 @@ void Positive() {
     m.reset();f.Preserved();auto fresh=f.Manager();auto r=f.Program(*fresh);
     assert(!r.error.ok() && !r.mutation_attempted && f.ops.written==2);
     std::cout<<"success applies on close, reprograms in context, and preserves state at destruction\n";
+}
+std::map<std::string, std::string> OverlayProperties(const std::vector<unsigned char>& blob) {
+    auto word = [&](std::size_t offset) {
+        assert(offset + 4 <= blob.size());
+        return (std::uint32_t(blob[offset]) << 24) | (std::uint32_t(blob[offset+1]) << 16) |
+               (std::uint32_t(blob[offset+2]) << 8) | blob[offset+3];
+    };
+    assert(word(0) == 0xd00dfeed && word(4) == blob.size());
+    const auto strings = word(12), end = word(8) + word(36);
+    assert(strings + word(32) == blob.size() && end == strings);
+    auto text = [&](std::size_t offset, std::size_t limit) {
+        std::string result;
+        while (offset < limit && blob[offset]) result.push_back(char(blob[offset++]));
+        assert(offset < limit && !blob[offset]);return result;
+    };
+    std::vector<std::string> stack;
+    std::map<std::string, std::string> properties;
+    for (std::size_t pos = word(8); pos < end;) {
+        const auto token = word(pos);pos += 4;
+        if (token == 1) {
+            const auto name = text(pos, end);stack.push_back(name);
+            pos = (pos + name.size() + 1 + 3) & ~std::size_t(3);
+        } else if (token == 2) {
+            assert(!stack.empty());stack.pop_back();
+        } else if (token == 3) {
+            const auto length = word(pos), name = word(pos+4);pos += 8;
+            assert(name < word(32) && pos + length <= end);
+            std::string path;
+            for (const auto& node : stack) if (!node.empty()) path += "/" + node;
+            const auto key = path + ":" + text(strings + name, blob.size());
+            assert(properties.emplace(key, std::string(blob.begin()+pos, blob.begin()+pos+length)).second);
+            pos = (pos + length + 3) & ~std::size_t(3);
+        } else {
+            assert(token == 9 && stack.empty() && pos == end);return properties;
+        }
+    }
+    assert(false);return {};
+}
+void AllocatedScanoutProfile() {
+    const auto basic = De25ProgrammingOverlay();
+    const auto scanout = De25ProgrammingOverlay(De25OverlayProfile::allocated_scanout);
+    const std::string marker = "fes,de25-linux-dma-scanout";
+    auto bytes = [](const std::vector<unsigned char>& v) { return std::string(v.begin(), v.end()); };
+    assert(bytes(basic).find(marker) == std::string::npos);
+    assert(bytes(scanout).find(marker) != std::string::npos);
+    auto ordinary = OverlayProperties(basic), allocated = OverlayProperties(scanout);
+    assert(ordinary.size() == 3);
+    assert(ordinary.at("/fragment@0:target-path") == std::string("/fpga-region\0", 13));
+    assert(ordinary.at("/fragment@0/__overlay__:firmware-name") == std::string("fes-runtime-core.rbf\0", 21));
+    const std::string profile_key = "/fragment@0/__overlay__/scanout:compatible";
+    assert(allocated.at(profile_key) == marker + std::string(1, '\0'));
+    allocated.erase(profile_key);assert(allocated == ordinary);
+    assert(De25ProgrammingOverlay(static_cast<De25OverlayProfile>(42)).empty());
+    {
+        Fixture f;auto m = f.Manager(De25OverlayProfile::allocated_scanout);
+        assert(f.Program(*m).error.ok());
+        assert(Get(f.ops.Dir()+"/dtbo") == bytes(scanout));
+        assert(f.Program(*m).error.ok() && f.ops.removed == 1);
+        // An inherited marker is never adopted by a fresh caller.
+        auto fresh = f.Manager(De25OverlayProfile::allocated_scanout);
+        auto r = f.Program(*fresh);assert(!r.error.ok() && !r.mutation_attempted);
+        // A successful context must retain its exact selected marker too.
+        Put(f.ops.Dir()+"/dtbo", bytes(basic));
+        r = f.Program(*m);assert(!r.error.ok() && !r.mutation_attempted && f.ops.removed == 1);
+    }
+    {
+        Fixture f;auto m = f.Manager(static_cast<De25OverlayProfile>(42));
+        auto r = f.Program(*m);assert(!r.error.ok() && !r.mutation_attempted);
+        assert(!f.ops.created && !Exists(f.paths.firmware+"/fes-runtime-core.rbf"));
+    }
+    {
+        Fixture f;auto m = f.Manager(De25OverlayProfile::allocated_scanout);
+        f.ops.error_close = true;auto r = f.Program(*m);
+        assert(!r.error.ok() && r.mutation_attempted && m->Poisoned());
+        f.Preserved();assert(!f.ops.removed && f.ops.written == 1);
+        r = f.Program(*m);assert(!r.error.ok() && !r.mutation_attempted && f.ops.written == 1);
+    }
+    std::cout<<"explicit scanout marker, invalid selection, exact replacement and uncertainty retention pass\n";
 }
 void Uncertain() {
     for(int mode=0;mode<4;++mode) {
@@ -137,6 +216,6 @@ void ProfilesAndLease() {
 }
 int main(int argc,char** argv) {
     if(argc==2) {const auto v=De25ProgrammingOverlay();std::ofstream f(argv[1],std::ios::binary);f.write(reinterpret_cast<const char*>(v.data()),v.size());assert(f.good());return 0;}
-    Positive();Uncertain();BeforeMutation();ExistingFailure();ProfilesAndLease();
+    Positive();AllocatedScanoutProfile();Uncertain();BeforeMutation();ExistingFailure();ProfilesAndLease();
     std::cout<<"de25_fpga_manager_test: passed\n";
 }

@@ -84,29 +84,40 @@ bool DirectoryIsExclusive(int fd, bool* owned) {
 }
 }
 
-std::vector<unsigned char> De25ProgrammingOverlay() {
+std::vector<unsigned char> De25ProgrammingOverlay(De25OverlayProfile profile) {
+    if (profile != De25OverlayProfile::firmware_only &&
+        profile != De25OverlayProfile::allocated_scanout) return {};
     // FDT v17, one fragment targeting the vendor's existing SDM-managed region.
     const char names[] = "target-path\0firmware-name\0config-complete-timeout-us\0";
+    const char compatible[] = "compatible";
+    const bool scanout = profile == De25OverlayProfile::allocated_scanout;
     std::vector<unsigned char> tree;
     Node(tree, ""); Node(tree, "fragment@0");
     Property(tree, 0, "/fpga-region"); Node(tree, "__overlay__");
     Property(tree, 12, kFirmware);
     Word(tree, 3); Word(tree, 4); Word(tree, 26); Word(tree, 30000000);
+    if (scanout) {
+        Node(tree, "scanout");
+        Property(tree, sizeof(names) - 1, "fes,de25-linux-dma-scanout");
+        Word(tree, 2);
+    }
     Word(tree, 2); Word(tree, 2); Word(tree, 2); Word(tree, 9);
     std::vector<unsigned char> blob;
-    const std::uint32_t strings = sizeof(names) - 1, start = 56;
+    const std::uint32_t strings = sizeof(names) - 1 + (scanout ? sizeof(compatible) : 0), start = 56;
     for (auto x : {0xd00dfeedu, start + std::uint32_t(tree.size()) + strings,
                    start, start + std::uint32_t(tree.size()), 40u, 17u, 16u, 0u,
                    strings, std::uint32_t(tree.size())}) Word(blob, x);
     blob.resize(start, 0); // Empty 64-bit reservation map.
     blob.insert(blob.end(), tree.begin(), tree.end());
-    blob.insert(blob.end(), names, names + strings);
+    blob.insert(blob.end(), names, names + sizeof(names) - 1);
+    if (scanout) blob.insert(blob.end(), compatible, compatible + sizeof(compatible));
     return blob;
 }
 
 class LinuxDe25FpgaManager::Impl {
 public:
     Clock& clock;
+    const De25OverlayProfile overlay_profile;
     Fd lease;
     bool poisoned = false, configuration_known = false, kernel_known = false;
     mutable std::mutex mutex;
@@ -118,7 +129,7 @@ public:
 #if defined(MISTER_RUNTIME_TESTING)
     De25FpgaTestOperations* test = nullptr;
 #endif
-    Impl(Clock& c, int fd): clock(c), lease(fcntl(fd, F_DUPFD_CLOEXEC, 0)) {}
+    Impl(Clock& c, int fd, De25OverlayProfile p): clock(c), overlay_profile(p), lease(fcntl(fd, F_DUPFD_CLOEXEC, 0)) {}
     bool Testing() const {
 #if defined(MISTER_RUNTIME_TESTING)
         return test != nullptr;
@@ -219,6 +230,8 @@ public:
     NativeResult Program(const Artifact& artifact, ProgrammingProfile profile, std::uint64_t deadline) {
         if (profile != ProgrammingProfile::de25_hps_first_v1)
             return {Failure("programming profile is not DE25 HPS-first"), false};
+        const auto blob = De25ProgrammingOverlay(overlay_profile);
+        if (blob.empty()) return {Failure("invalid DE25 overlay ownership profile"), false};
         auto error = Check(deadline); if (!error.ok()) return {error, false};
         struct stat source{};
         if (artifact.fd() < 0 || fstat(artifact.fd(), &source) || !S_ISREG(source.st_mode) ||
@@ -242,7 +255,6 @@ public:
         std::string manager;
         if (!Text(state, &manager) || (manager != "unknown" && manager != "operating"))
             return {Failure("FPGA manager is not in a known programming state"), false};
-        const auto blob = De25ProgrammingOverlay();
         bool attempted = false, copied = false, created = false;
         if (!Testing() && mkdir(firmware.c_str(), 0755) && errno != EEXIST)
             return {SystemError("create firmware directory"), false};
@@ -321,10 +333,10 @@ public:
         return {{}, true};
     }
 };
-LinuxDe25FpgaManager::LinuxDe25FpgaManager(Clock& c, int fd): impl_(new Impl(c, fd)) {}
+LinuxDe25FpgaManager::LinuxDe25FpgaManager(Clock& c, int fd, De25OverlayProfile profile): impl_(new Impl(c, fd, profile)) {}
 #if defined(MISTER_RUNTIME_TESTING)
 LinuxDe25FpgaManager::LinuxDe25FpgaManager(Clock& c, int fd, const De25FpgaTestPaths& p,
-        De25FpgaTestOperations& ops): impl_(new Impl(c, fd)) {
+        De25FpgaTestOperations& ops, De25OverlayProfile profile): impl_(new Impl(c, fd, profile)) {
     impl_->config = p.config; impl_->firmware = p.firmware; impl_->state = p.state;
     impl_->search = p.search; impl_->lease_path = p.lease; impl_->test = &ops;
     impl_->record = p.record; impl_->notes = p.notes;
