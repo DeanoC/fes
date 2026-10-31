@@ -50,6 +50,8 @@ def find_prompt(width, height, rgb, font):
     if width < 1280 or height < 720 or width * 9 != height * 16:
         raise ValueError('capture must be a complete 16:9 frame of at least 1280x720')
     glyphs = [font[character * 16:character * 16 + 8] for character in PROMPT]
+    printable = {code: int.from_bytes(font[code * 16:code * 16 + 8], 'big')
+                 for code in range(32, 127)}
     offsets = [(0, 0)] + [(dx, dy) for dy in range(-1, 2) for dx in range(-1, 2)
                          if (dx, dy) != (0, 0)]
     if len(set(rgb)) < 2:
@@ -61,6 +63,7 @@ def find_prompt(width, height, rgb, font):
             for col in range(80 - len(PROMPT) + 1):
                 foreground, background = Counter(), Counter()
                 ink_count = blank_count = 0
+                samples = [[] for _ in glyphs]
                 for index, glyph in enumerate(glyphs):
                     cell_x = col + index
                     for gy in range(8):
@@ -73,6 +76,7 @@ def find_prompt(width, height, rgb, font):
                             if not (0 <= x + dx < width and 0 <= y + dy < height):
                                 continue
                             value = _pixel(rgb, width, x, y, dx, dy)
+                            samples[index].append((value, bool(bits & (0x80 >> gx))))
                             if bits & (0x80 >> gx):
                                 foreground[value] += 1
                                 ink_count += 1
@@ -81,10 +85,46 @@ def find_prompt(width, height, rgb, font):
                                 blank_count += 1
                 if not ink_count or not blank_count:
                     continue
-                fg, fg_hits = foreground.most_common(1)[0]
-                bg, bg_hits = background.most_common(1)[0]
+                fg = foreground.most_common(1)[0][0]
+                bg = background.most_common(1)[0][0]
+                # HDMI capture can quantize adjacent pixels of one flat color
+                # differently. Compare each class with its most common RGB,
+                # while still requiring a strong color separation and the
+                # original high spatial agreement with all four ROM glyphs.
+                def near(color, reference):
+                    return max(abs(a - b) for a, b in zip(color, reference)) <= 40
+                fg_hits = sum(count for color, count in foreground.items() if near(color, fg))
+                bg_hits = sum(count for color, count in background.items() if near(color, bg))
+                contrast = max(abs(a - b) for a, b in zip(fg, bg))
                 score = (fg_hits + bg_hits) / (ink_count + blank_count)
-                if fg != bg and fg_hits / ink_count >= 0.92 and bg_hits / blank_count >= 0.94:
+                if contrast >= 64 and fg_hits / ink_count >= 0.92 and bg_hits / blank_count >= 0.94:
+                    # Enforce agreement on each character as well as across
+                    # the line. Then require the expected locked-ROM glyph
+                    # to be strictly closer than every other printable glyph.
+                    # The colon and semicolon (and > and )) differ by only
+                    # two pixels, which aggregate scores can easily hide.
+                    matched = True
+                    for index, sample in enumerate(samples):
+                        ink = [color for color, bit in sample if bit]
+                        blank = [color for color, bit in sample if not bit]
+                        if (len(sample) != 64 or not ink or not blank
+                                or sum(near(color, fg) for color in ink) / len(ink) < 0.92
+                                or sum(near(color, bg) for color in blank) / len(blank) < 0.94):
+                            matched = False
+                            break
+                        observed = 0
+                        for color, _ in sample:
+                            fg_distance = sum((a - b) ** 2 for a, b in zip(color, fg))
+                            bg_distance = sum((a - b) ** 2 for a, b in zip(color, bg))
+                            observed = (observed << 1) | (fg_distance < bg_distance)
+                        expected = PROMPT[index]
+                        distance = (observed ^ printable[expected]).bit_count()
+                        if any((observed ^ pattern).bit_count() <= distance
+                               for code, pattern in printable.items() if code != expected):
+                            matched = False
+                            break
+                    if not matched:
+                        continue
                     proof = {'row': row, 'column': col, 'score': round(score, 4),
                              'foreground_rgb': list(fg), 'background_rgb': list(bg),
                              'alignment_dx': dx, 'alignment_dy': dy}
