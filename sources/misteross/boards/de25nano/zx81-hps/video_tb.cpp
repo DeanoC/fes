@@ -85,6 +85,8 @@ struct Bench {
         t.reset_n=0; t.eval();
         check(!R(front_valid) && !R(request) && !R(acknowledge) && !t.red,
               "stopped-clock reset retained an ownership epoch");
+        check(!t.de && !t.hsync && !t.vsync,
+              "stopped-clock reset left pixel timing outputs active");
         t.reset_n=1; t.eval();
         pix_running=true; pixels(32);
         check(!R(front_valid) && !t.red, "reader replayed an old frame after reset");

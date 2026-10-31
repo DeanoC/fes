@@ -133,11 +133,11 @@ module fes_de25_zx81_video (
             vs_q <= vertical >= 725 && vertical < 730;
         end
     end
-    wire bright = reset_n && image_q && valid_q && (!stored_q || !fb_q[bit_q]);
+    wire bright = image_q && valid_q && (!stored_q || !fb_q[bit_q]);
     assign red = bright ? 8'hff : 8'h00;
     assign green = red;
     assign blue = red;
-    assign de = reset_n && de_q;
-    assign hsync = reset_n && hs_q;
-    assign vsync = reset_n && vs_q;
+    assign de = de_q;
+    assign hsync = hs_q;
+    assign vsync = vs_q;
 endmodule
