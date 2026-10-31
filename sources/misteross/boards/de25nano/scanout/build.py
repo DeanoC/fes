@@ -63,7 +63,10 @@ def replace_once(source, before, after):
     return source.replace(before, after)
 
 
-def prepare(archive, output=None, revision=None):
+def prepare(archive, output=None, revision=None, *, hps_first=False):
+    if type(hps_first) is not bool:
+        raise ValueError("HPS-first selection must be boolean")
+    boot_order = "HPS FIRST" if hps_first else "AFTER INIT_DONE"
     sources = capture(revision)
     selected = {"fes_revision": revision, "source_classification": "committed"} if revision else identity()
     if revision is None:
@@ -101,6 +104,9 @@ def prepare(archive, output=None, revision=None):
                        "set_global_assignment -name SDC_FILE fes_mailbox/clocks.sdc\n")
     (project / "fes_combined/clocks.sdc").unlink()
     qsf += "set_global_assignment -name VERILOG_FILE fes_mailbox/fes_de25_scanout_board.v\n"
+    if re.search(r"(?m)^\s*set_global_assignment\s+-name\s+HPS_INITIALIZATION\b", qsf):
+        raise ValueError("upstream already selects HPS initialization; review before overriding")
+    qsf += f'set_global_assignment -name HPS_INITIALIZATION "{boot_order}"\n'
     (project / "golden_top.qsf").write_text(qsf)
     top = (project / "golden_top.v").read_text()
     top = replace_once(top, "fes_de25_combined_video #(.MENU_PATTERN(1'b1)) fes_video_inst (",
@@ -153,7 +159,7 @@ def prepare(archive, output=None, revision=None):
                     "pixel_pll_parameters", "pixel_clock_hz", "i2c_internal_clock", "configuration_release",
                     "warm_reset_ack_n", "debug_paths")}
     inputs["combined_display"].update(mode="allocated-buffer-scanout", ddr_scanout=True, runtime_menu=False)
-    inputs["scanout"] = {"peripheral_offset": int(offset[1], 16), "default_enabled": False,
+    inputs["scanout"] = {"hps_initialization": boot_order, "peripheral_offset": int(offset[1], 16), "default_enabled": False,
         "pixel_hz": 74250000, "system_hz": 100000000, "control_bridge": "mm_ccb19.4.1 DATA32 RESPONSE1",
         "memory_bridge": "mm_ccb19.4.1 DATA128 RESPONSE1 MAX16", "allocation_bytes": 8388608,
         "reset_release": {"assertion": "asynchronous",
@@ -337,6 +343,15 @@ def compile_project(output, hps, display, tool):
     (directory / "build.json").write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
     if actual != expected:
         raise ValueError("compile changed pixel PLL parameters; retained failed validation receipt")
+    if inputs["scanout"]["hps_initialization"] == "HPS FIRST":
+        artifacts = hps.linux_configuration_artifacts(directory, tool, artifact,
+            hps_initialization=inputs["scanout"]["hps_initialization"])
+        record = {"format": 1, "classification": "unadmitted-HPS-first-scanout",
+                  "fes_revision": inputs["fes_revision"],
+                  "scanout_source_sha256": sha(json.dumps(inputs["functional_snapshot_sha256"], sort_keys=True).encode()),
+                  **artifacts, "hardware_programming": "not-performed", "boot_compatibility": "not-qualified",
+                  "Linux_load_acceptance": "not-qualified", "production_admission": False}
+        (directory / "linux-programming.json").write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
     return artifact
 
 
@@ -345,12 +360,14 @@ def main(argv=None):
     parser.add_argument("action", choices=("project", "generate", "build"))
     parser.add_argument("--vendor-archive", type=Path, required=True)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--hps-first", action="store_true",
+                        help="capture HPS-first startup and produce explicit Linux phase artifacts")
     parser.add_argument("--quartus-root", default=os.environ.get("QUARTUS_ROOTDIR", ""))
     args = parser.parse_args(argv)
     try:
         selected = identity(); revision = selected.get("fes_revision") if args.action != "project" else None
         if args.action != "project" and not revision: raise ValueError("scanout generation/build requires clean committed source")
-        output, combined, hps, display = prepare(args.vendor_archive, args.output, revision)
+        output, combined, hps, display = prepare(args.vendor_archive, args.output, revision, hps_first=args.hps_first)
         print("Scanout diagnostic: " + str(output), flush=True)
         if args.action != "project":
             if identity() != selected: raise ValueError("source identity changed before generation")

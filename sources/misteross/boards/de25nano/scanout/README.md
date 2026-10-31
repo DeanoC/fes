@@ -7,6 +7,28 @@ It preserves the existing HPS/EMIF parameters, mailbox, diagnostic DDR probe,
 JTAG paths and inactive active-low warm-reset acknowledgement. It uses Quartus
 Prime Pro 26.3.0 for `A5EB013BB23BE4SCS` and never programs hardware.
 
+For loading through Linux from the matching HPS-first bootstrap, select the
+HPS-first build explicitly:
+
+```sh
+python3 build.py build --hps-first --quartus-root /absolute/altera_pro/26.3 \
+  --vendor-archive /absolute/DE25-Nano_revB_v.1.0.0_ResourcePackage.zip \
+  --output /absolute/new-scanout-output
+```
+
+The selected initialization order is captured in the project and input receipt.
+After compilation, the shared HPS conversion helper enriches the SOF with the
+unchanged vendor loader and emits `linux-complete.sof`, `linux-boot.hps.jic`
+and `linux-boot.core.rbf` under `combined/hps/`. The Linux programming receipt
+binds their hashes and the captured scanout source identity. Conversion does
+not program flash or FPGA. Existing phase outputs are refused, and mismatched
+captured/project boot order fails before conversion. Without this option the
+explicit initialization order remains `AFTER INIT_DONE` for the JTAG diagnostic.
+
+These artifacts still need bootstrap compatibility, Linux-load and allocated
+DMA/frame-lifetime acceptance on the board. They confer no runtime admission
+or DMA permission and do not change the installed QSPI baseline.
+
 The [shared scanout contract](../../../../mister-packages/docs/de25-scanout.md)
 owns register offsets, generation/sequence rules and allocation lifetime.
 The new 128-byte slave is at lightweight peripheral offset `0x10200`.

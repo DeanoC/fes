@@ -24,9 +24,9 @@ class ScanoutBuildTests(unittest.TestCase):
         self.sources = B.capture()
         self.sources.update(self.fixture.sources)
 
-    def prepare(self, revision=None):
+    def prepare(self, revision=None, *, hps_first=False):
         with mock.patch.object(B, "capture", return_value=self.sources):
-            return B.prepare(self.fixture.archive, self.root / "prepared", revision)
+            return B.prepare(self.fixture.archive, self.root / "prepared", revision, hps_first=hps_first)
 
     def test_actual_preparation_replaces_pattern_with_response_preserving_real_scanout(self):
         output, _, hps, _ = self.prepare()
@@ -148,6 +148,54 @@ class ScanoutBuildTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "changed pixel PLL"):
                 B.compile_project(output, hps, display, None)
         self.assertFalse(json.loads((directory / "build.json").read_text())["post_compile_pixel_pll_parameters_unchanged"])
+
+    def test_hps_first_is_captured_without_changing_loader_or_dma_admission(self):
+        output, _, hps, _ = self.prepare("a" * 40, hps_first=True)
+        directory = output / "combined/hps"
+        inputs = json.loads((directory / "inputs.json").read_text())
+        qsf = (directory / "project/golden_top.qsf").read_text()
+        self.assertEqual(qsf.count('set_global_assignment -name HPS_INITIALIZATION "HPS FIRST"'), 1)
+        self.assertEqual(inputs["scanout"]["hps_initialization"], "HPS FIRST")
+        self.assertFalse(inputs["scanout"]["default_enabled"])
+        self.assertIn("not-qualified", inputs["scanout"]["dma_admission"])
+        self.assertFalse((directory / "linux-programming.json").exists())
+        with self.assertRaisesRegex(ValueError, "must be boolean"):
+            B.prepare(self.fixture.archive, self.root / "invalid", hps_first=1)
+        self.assertFalse((self.root / "invalid").exists())
+
+    def test_hps_first_compile_binds_linux_phases_without_programming(self):
+        output, _, hps, display = self.prepare("a" * 40, hps_first=True)
+        directory = output / "combined/hps"
+        project = directory / "project"
+        (directory / "generation.json").write_text("{}\n")
+        artifact = project / "output_files/golden_top.sof"
+        artifact.parent.mkdir()
+        artifact.write_bytes(b"synthetic-not-a-bitstream")
+        def compile_stub(*args):
+            (directory / "build.json").write_text("{}\n")
+            return artifact
+        calls = []
+        def convert(argv, cwd, log):
+            self.assertEqual(Path(argv[0]).name, "quartus_pfg")
+            self.assertEqual(cwd, project)
+            calls.append(list(map(str, argv)))
+            if len(calls) == 1:
+                Path(argv[3]).write_bytes(b"synthetic-complete")
+            else:
+                (directory / "linux-boot.hps.jic").write_bytes(b"synthetic-boot")
+                (directory / "linux-boot.core.rbf").write_bytes(b"synthetic-core")
+        with mock.patch.object(hps, "compile_project", side_effect=compile_stub), \
+             mock.patch.object(hps, "run_logged", side_effect=convert):
+            self.assertEqual(B.compile_project(output, hps, display, Path("/tools/quartus_sh")), artifact)
+        receipt = json.loads((directory / "linux-programming.json").read_text())
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(receipt["fes_revision"], "a" * 40)
+        self.assertEqual(receipt["hps_initialization"], "HPS FIRST")
+        self.assertEqual(len(receipt["scanout_source_sha256"]), 64)
+        self.assertEqual(receipt["hardware_programming"], "not-performed")
+        self.assertFalse(receipt["production_admission"])
+        for name, item in receipt["artifacts"].items():
+            self.assertEqual(item["sha256"], hps.digest(directory / name))
 
     def reset_fixture(self, parameters=None, output_edges=None, output_role="reset_n"):
         expected = {"ACTIVE_LOW_RESET": "1", "SYNCHRONOUS_EDGES": "none", "NUM_RESET_OUTPUTS": "1", "USE_RESET_REQUEST": "0"}

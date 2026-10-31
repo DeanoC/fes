@@ -488,6 +488,43 @@ def compile_project(output, tool):
     return artifact
 
 
+
+def linux_configuration_artifacts(directory, tool, artifact, *, hps_initialization):
+    """Convert a captured HPS-first design into phase artifacts; never program."""
+    project = directory / "project"
+    if hps_initialization != "HPS FIRST":
+        raise ValueError("Linux core packaging requires captured HPS-first configuration")
+    if re.findall(r'^set_global_assignment -name HPS_INITIALIZATION "([^"\n]+)"$',
+                  (project / "golden_top.qsf").read_text(), re.M) != ["HPS FIRST"]:
+        raise ValueError("project HPS-first assignment differs from captured recipe")
+    for name in ("linux-complete.sof", "linux-boot.hps.jic", "linux-boot.core.rbf"):
+        path = directory / name
+        if path.exists() or path.is_symlink():
+            raise ValueError("Linux configuration output already exists: " + name)
+    for path in (artifact, project / "software/u-boot/spl/u-boot-spl-dtb.hex"):
+        if path.is_symlink() or not path.is_file() or not path.stat().st_size:
+            raise ValueError("Linux configuration input must be a nonempty regular file")
+    pfg = tool.with_name("quartus_pfg")
+    boot = project / "software/u-boot/spl/u-boot-spl-dtb.hex"
+    complete = directory / "linux-complete.sof"
+    run_logged([pfg, "-c", artifact, complete, "-o", "hps_path=" + str(boot)],
+               project, directory / "linux-enrich.log")
+    run_logged([pfg, "-c", complete, directory / "linux-boot.jic",
+                "-o", "device=MT25QU128", "-o", "flash_loader=A5EB013BB23BE4SCS",
+                "-o", "mode=ASX4", "-o", "hps=on"],
+               project, directory / "linux-split.log")
+    artifacts = {}
+    for name, role in (("linux-complete.sof", "volatile-JTAG-recovery-candidate"),
+                       ("linux-boot.hps.jic", "HPS-first-QSPI-candidate-not-programmed"),
+                       ("linux-boot.core.rbf", "Linux-fabric-configuration-candidate")):
+        path = directory / name
+        if not path.is_file() or path.is_symlink() or not path.stat().st_size:
+            raise ValueError("missing regular nonempty HPS-first artifact: " + name)
+        artifacts[name] = {"role": role, "size": path.stat().st_size, "sha256": digest(path)}
+    return {"hps_initialization": "HPS FIRST", "bootloader_sha256": digest(boot),
+            "compiled_sof_sha256": digest(artifact), "artifacts": artifacts}
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("project", "generate", "build"))
