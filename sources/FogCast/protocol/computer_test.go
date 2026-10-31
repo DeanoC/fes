@@ -175,6 +175,22 @@ func TestAtaDiskUnitContractAndPersistentStatus(t *testing.T) {
 	}
 }
 
+func TestMediaUnitKeepsV10ContractsOnComputer11(t *testing.T) {
+	floppy := AtariStFloppyInterface()
+	unit := MediaUnitStatus{Unit: AtariStFloppyUnit, Interface: floppy,
+		MinBytes: uint32(AtariStFloppyBytes), MaxBytes: uint32(AtariStFloppyBytes),
+		ChunkBytes: ComputerMediaChunkBytes, State: MediaUnitEmpty}
+	p := &CorePackageStatus{
+		ABI:              RuntimeContract{ID: ComputerABIID, Major: 1, Minor: 1},
+		ActiveInterfaces: []RuntimeInterface{{ID: floppy.ID, Major: floppy.Major, Minor: floppy.Minor}},
+		MediaUnits:       []MediaUnitStatus{unit},
+	}
+	got, ok := MediaUnit(p, AtariStFloppyUnit)
+	if !ok || got.Interface != floppy || got.Unit != AtariStFloppyUnit {
+		t.Fatalf("1.1 package's active 1.0 floppy unit = %+v, found=%v", got, ok)
+	}
+}
+
 func TestComputerInputCapabilitiesIncludeMinorOne(t *testing.T) {
 	p := computerStatus()
 	p.CorePackage.ActiveInterfaces = append(p.CorePackage.ActiveInterfaces,

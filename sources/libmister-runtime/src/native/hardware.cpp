@@ -724,6 +724,14 @@ Error NativeHardware::UpdateCoreSettings(const std::string& path, const std::str
 	Error error = AdmitCorePackage(path, id, &package);
 	if (!error.ok())
 		return error;
+	VersionedContract layout;
+	error = CorePersistenceLayout(package->info().descriptor, &layout);
+	if (!error.ok())
+		return error;
+	const bool per_game = !layout.id.empty() &&
+		package->info().descriptor.abi.id == generated::FesComputerABIID;
+	if (per_game ? !ValidLibraryGameID(game_id) : !game_id.empty())
+		return {ErrorCode::invalid_request, "core-data game identity does not fit the package", "core_data"};
 	if (active_package_ && active_package_->info().declared_core == package->info().declared_core &&
 		(game_id.empty() || durable_data_.game_id == game_id))
 		return {ErrorCode::busy, "core-data namespace is active", "core_data"};

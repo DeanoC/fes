@@ -1023,7 +1023,7 @@ void TestComputerCompatibilityComposesRecognizedInterfaces()
 		disk.interfaces.push_back({"fes.media.apple2-floppy", 1, 0, true});
 		assert(check(disk).code == mister::ErrorCode::unsupported_interface);
 	}
-	for (const auto* id : {"fes.persistence.words", "fes.pc386.machine", "fes.rtc.wall-clock"}) {
+	for (const auto* id : {"fes.rtc.wall-clock"}) {
 		auto high = descriptor;
 		high.abi.minor = 1;
 		high.interfaces.push_back({id, 1, 0, true});
@@ -1033,6 +1033,22 @@ void TestComputerCompatibilityComposesRecognizedInterfaces()
 		high.interfaces.back().required = true;
 		high.abi.minor = 0;
 		assert(check(high).code == mister::ErrorCode::unsupported_abi);
+	}
+	{
+		auto paired = descriptor;
+		paired.abi.minor = 1;
+		paired.interfaces.push_back({"fes.persistence.words", 1, 0, true});
+		paired.interfaces.push_back({"fes.pc386.machine", 1, 0, true});
+		assert(check(paired).ok());
+		auto words_only = paired;
+		words_only.interfaces.pop_back();
+		assert(check(words_only).code == mister::ErrorCode::unsupported_interface);
+		auto layout_only = paired;
+		layout_only.interfaces.erase(layout_only.interfaces.end() - 2);
+		assert(check(layout_only).code == mister::ErrorCode::unsupported_interface);
+		auto duplicate_layout = paired;
+		duplicate_layout.interfaces.push_back({"fes.pc386.machine", 1, 0, true});
+		assert(check(duplicate_layout).code == mister::ErrorCode::unsupported_interface);
 	}
 	auto system = descriptor;
 	system.core.system = "apple2";

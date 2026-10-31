@@ -5,13 +5,16 @@
 #include "native/sha256.hpp"
 #include <algorithm>
 #include <cassert>
+#include <cerrno>
 #include <cstdio>
 #include <dirent.h>
 #include <fstream>
 #include <map>
+#include <signal.h>
 #include <set>
 #include <string>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <unistd.h>
 using namespace mister;
 using namespace mister::native;
@@ -208,8 +211,32 @@ void BaseImage()
 	const std::string link = std::string(tmp) + "/link.img";
 	assert(symlink(path.c_str(), link.c_str()) == 0);
 	assert(!AtaBaseImage::Open(link, 1u << 20, &image).ok());
+	const std::string fifo = std::string(tmp) + "/disk.fifo";
+	assert(mkfifo(fifo.c_str(), 0600) == 0);
+	const pid_t child = fork();
+	assert(child >= 0);
+	if (child == 0) {
+		std::unique_ptr<AtaBaseImage> rejected;
+		_exit(AtaBaseImage::Open(fifo, 1u << 20, &rejected).ok() ? 1 : 0);
+	}
+	int status = 0;
+	bool finished = false;
+	for (unsigned attempt = 0; attempt < 100; ++attempt) {
+		const pid_t waited = waitpid(child, &status, WNOHANG);
+		if (waited == child) {
+			finished = true;
+			break;
+		}
+		assert(waited == 0 || (waited < 0 && errno == EINTR));
+		usleep(10000);
+	}
+	if (!finished) {
+		assert(kill(child, SIGKILL) == 0);
+		assert(waitpid(child, &status, 0) == child);
+	}
+	assert(finished && WIFEXITED(status) && WEXITSTATUS(status) == 0);
 	image.reset();
-	assert(unlink(link.c_str()) == 0 && unlink(path.c_str()) == 0 && rmdir(tmp) == 0);
+	assert(unlink(fifo.c_str()) == 0 && unlink(link.c_str()) == 0 && unlink(path.c_str()) == 0 && rmdir(tmp) == 0);
 }
 } // namespace
 

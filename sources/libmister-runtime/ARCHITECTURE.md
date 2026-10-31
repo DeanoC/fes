@@ -364,6 +364,10 @@ base image and the game's `fes.ata-disk.delta` chunks, committed with the CRC
 the core recomputes, and saved at Stop as content-addressed dirty chunks under
 a merged manifest. Host coverage only.
 
+Compatibility admission requires `fes.persistence.words` to pair with exactly
+one registered layout before programming, including volatile developer loads
+that omit a data root.
+
 An empty ATA unit does not remove the pc386 package's persistent core-data
 mode. Rejected insert/eject operations for that fixed unit leave the package's
 persistence mode unchanged.

@@ -106,6 +106,8 @@ held; a missing record restores the layout's defaults. A package with
 The core stores the weekday unchecked, so the runtime sends the local time's
 own. A time before 1980 starts the clock at 1980-01-01, a Tuesday; a leap
 second holds at 59; and an unavailable local time fails the launch.
+Wall-clock command rejection or timeout remains a `transport`-phase failure;
+the seed is sent before Start.
 
 ## ATA hard disk
 
@@ -115,6 +117,9 @@ game's disk; it requires `game_id`:
 ```json
 {"protocol":2,"operation":"load_library_core","package_path":"/tmp/fogcast-development/core-packages/example","package_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","data_root":"/media/fat/fogcast/core-data","game_id":"ultima-vi","ata_disk":{"path":"/media/fat/fogcast/disk-images/a.img","size":2098688,"base_media_id":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","data_root":"/media/fat/fogcast/core-data/media","cylinders":4,"heads":16,"sectors_per_track":63}}
 ```
+
+The base image path must name a regular file. Non-regular paths such as FIFOs
+are rejected without waiting for a writer.
 
 The image is 1..128 MiB in whole sectors and its geometry must fit it as
 DiskCommit requires. Before programming the runtime opens the image (no

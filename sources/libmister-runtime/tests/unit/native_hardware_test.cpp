@@ -3011,6 +3011,8 @@ void TestPc386LibraryRecordAndWallClock()
 	assert(commit && commit < release && clock_word < release && clock_word);
 	assert(fixture.runtime.UpdateCoreSettings(package.path, id, data.path, "ultima-vi",
 		inspected.revision, settings, &inspected).code == mister::ErrorCode::busy);
+	assert(fixture.runtime.UpdateCoreSettings(package.path, id, data.path, "", "absent",
+		settings, &inspected).code == mister::ErrorCode::invalid_request);
 	endpoint.GuestCmosWrite(0x40, 0x5a);
 	assert(fixture.runtime.Stop().ok());
 	mister::CoreData saved;

@@ -376,9 +376,6 @@ func MediaUnit(p *CorePackageStatus, unit uint8) (MediaUnitStatus, bool) {
 			if u.Interface == AtaDiskInterface() && !ComputerAtaDiskABI(p.ABI.ID, int64(p.ABI.Major), int64(p.ABI.Minor)) {
 				continue
 			}
-			if !ComputerABI(p.ABI.ID, int64(p.ABI.Major), int64(p.ABI.Minor)) && u.Interface != AtaDiskInterface() {
-				continue
-			}
 			if u.Interface == AtariStFloppyInterface() && int64(u.MaxBytes) != AtariStFloppyBytes && !AtariStFloppyGeometryCapable(p) {
 				continue
 			}

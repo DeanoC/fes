@@ -899,6 +899,8 @@ reply. The runtime never holds reset for these transfers and ejects the unit
 once on failure; the agent then republishes the live unit state from a fresh
 status read instead of replacing the session. Keyboard posts do not wait
 behind a disk transfer.
+ABI 1.1 retains visibility of active media units that use earlier interface
+versions; the ATA unit alone requires the 1.1 identity capability.
 
 A shell pairing `fes.media.atari-st-floppy-write` 1.0 with the Atari ST base
 interface supports writable disk RAM and versioned snapshots. Library launch

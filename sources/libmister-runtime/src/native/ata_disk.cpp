@@ -124,7 +124,7 @@ Error AtaBaseImage::Open(const std::string& path, std::uint32_t size, std::uniqu
 {
     if (!output || path.empty() || path[0] != '/' || !ValidAtaDiskSize(size))
         return {ErrorCode::invalid_request, "invalid ATA disk image path or size", "admission"};
-    FD file(open(path.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW));
+    FD file(open(path.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK));
     if (file.value < 0) return {ErrorCode::invalid_request, "cannot open the ATA disk image", "admission"};
     struct stat st {};
     if (fstat(file.value, &st) != 0 || !S_ISREG(st.st_mode) || std::uint64_t(st.st_size) != size)
