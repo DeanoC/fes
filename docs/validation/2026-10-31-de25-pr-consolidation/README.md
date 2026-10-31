@@ -143,11 +143,14 @@ These newer scanout results supersede the initial scanout compilation evidence
 for current input bytes. The ZX81 compiler input closure is unchanged.
 
 Review readiness is separate from merge acceptance. The broader compatibility
-runner is still active on frozen bring-up source `2243c34a2`, resuming the six
-unstarted core targets without repeating successful parent/host/runtime checks.
-Its full C64 aggregate includes many benches and has not yet completed. The
-current progress snapshot is not a passing result. CI, clean review, timing
-closure and exact-artifact board acceptance are not claimed by this record.
+runner completed all six resumed targets on frozen bring-up source `2243c34a2`
+in 3783.4 seconds: full C64, Coleco, MENU, PC386, Spectrum and ZX81 simulations
+all pass. `compatibility-result.json`, the terminal job receipt and compressed
+log retain the actual commands and results. Successful parent/host/runtime
+checks were not repeated. The original stale-receipt failure remains preserved,
+with its resolution established by refreshed real proofs and focused gate
+reruns; this is not a newly fabricated whole-plan green receipt. CI, clean
+review, timing closure and exact-artifact board acceptance are not claimed.
 
 The initial frozen consolidation producers are bring-up
 `2243c34a250867b324d6b26146fd32acdb778882` (base main
