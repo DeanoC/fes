@@ -1,0 +1,220 @@
+{
+  "affected_checks": {
+    "base": "8354b3088bbcf12dfe0c73e07b5da8631a72c462",
+    "log": "out/nano-bridge-contract-test-changed.log",
+    "results": [
+      {
+        "label": "test_affected.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "test_test_changed.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "committed whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "working whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "parent Python regressions",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "working-tree generated consumer consistency",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "native runtime firmware and FPGA launch integration",
+        "lane": "parent",
+        "returncode": 0
+      }
+    ],
+    "status": "passed"
+  },
+  "artifact_dependent_checks": "Producer/board/sealed-package checks listed as skipped in native_integrations were not run; no sealed Nano package artifact was available in this checkout.",
+  "base_commit": "8354b3088bbcf12dfe0c73e07b5da8631a72c462",
+  "classification": "hardware-independent native CPU bridge capability/ownership contract; simulated platform service evidence, no physical acceptance",
+  "contract": {
+    "active_close_requires_all_producers_quiescent": true,
+    "cold_closed_requires_trusted_never_enabled_boot_evidence": true,
+    "completed_closed_requires_same_owner_and_change_generation": true,
+    "configuration_smc_requires_owned_closed_state": true,
+    "existing_lifecycle_and_endpoint_generation_cookie_drain_preserved": true,
+    "explicit_optional_fabric_handshake": true,
+    "independent_hardware_drain_required": true,
+    "mutation_result_and_fresh_observation_checked": true,
+    "nano_bridge_services_implemented": false,
+    "stale_or_uncertain_bridge_outcome_retires_cpu_hooks": true,
+    "unknown_initial_closed_or_partial_reset_rejected": true
+  },
+  "effects": {
+    "admission_policy_changed": false,
+    "board_programmed": false,
+    "card_written": false,
+    "firmware_changed": false,
+    "hardware_contacted": false,
+    "native_platform_services_interface_changed": true,
+    "shared_wire_definitions_changed": false
+  },
+  "focused_race_check": {
+    "log": "out/nano-bridge-contract-focused-race.log",
+    "packages": [
+      "nativefabric",
+      "nativefabriccheck",
+      "modelbackend"
+    ],
+    "status": "passed"
+  },
+  "native_integrations": [
+    {
+      "classification": "host native Go lifecycle/tenfoot with actual patched TF-A C and Verilated FPGA RTL; simulated bridges, memory and SDM; no hardware acceptance",
+      "firmware_sha256": "c9f9bf147993d908ab9ce3ef46a5fe8552812e5d780faebd969acacaa217450a",
+      "output": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-bridge-contract-native-20261031",
+      "receipt_sha256": "442bb95e671de1479545eeac28404060a767d9f04a40cad714a1c41d9c0a7916",
+      "reference_git_blob": "288baffb283787dbd49729983800ce764243adda",
+      "reference_profile": "terasic-de25-v2.12",
+      "reset_sha256": "34c1831a2d66ba10c796ec07d27ab658f42b13c945fe3607c06efe85492c2ec2",
+      "skipped": {
+        "native-tests": [
+          "TestProducedIdentityBindsNativeControl",
+          "TestBoardAvalonIdentityBindsNativeControl",
+          "TestSealedNanoPackageNativeFirmwareCycle"
+        ],
+        "tenfoot-tests": [
+          "TestSealedNanoTenfootModel"
+        ]
+      },
+      "source_sha256": {
+        "platform/embedded/firmware/build_terasic.py": "1da8a70b6db69863258dbed9b97afee8b2998ac1b6dbac8513e281c6b0e3ccd6",
+        "platform/embedded/firmware/build_terasic_uboot.py": "22d786a7b00a498355ffa58c2c0fb1c6cc5b9cf4bda8774ad96c43eddcadac74",
+        "platform/embedded/firmware/control.cpp": "897bd6cab9addd84efd3be52d0ddfb51fbb217bb9f626a0bf244af78107297d4",
+        "platform/embedded/firmware/control.hpp": "c84f8c5aebb8a15286651b1536e78121b690ff4778dc1ca393d8bb8d56064bb0",
+        "platform/embedded/firmware/generated/fes_embedded_control.hpp": "8856d106e50c7b3a8394c8e1442568446087195dfd3e6f3099ad63931dd41df1",
+        "platform/embedded/firmware/nano_bridge_diag.h": "b80c4442198cbbdff4781d66ace85ab4a930804114176e5927e8984d1e78e904",
+        "platform/embedded/firmware/prepare_tfa.py": "5e453279089cf1371dbdab2f905d1cfe06b7dfa1ab42d5771fca0eb4bd4ca316",
+        "platform/embedded/firmware/tests/contained_path.hpp": "c3e9da659c491930bc33c1cffb27a72d490035635077933079a6b18f43726dd0",
+        "platform/embedded/firmware/tests/endpoint_tb.cpp": "2eac872deb014d86924240a7b36dc0a4fb15b1100d3aaa08c81d702943db476a",
+        "platform/embedded/firmware/tests/native_rpc.cpp": "5664ace1ca5d2b094cbcc0b92392f1898e1bf6f4dbeb8e53dbf1a449373a4791",
+        "platform/embedded/firmware/tests/terasic_reset_test.h": "4246d7ac753b5a40f1c44373d2b9a7de21621bad7dea582eeced9dc4e30543e5",
+        "platform/embedded/firmware/tests/tfa_stubs.h": "ef864bab61458937f5981c7e5ae28c3326f88dfac9996299719e7a349dfdfd9d",
+        "platform/embedded/firmware/verify.py": "952b3b0f1a97e45802e5961492f1a47ebbbcc90ea8e97fa8094dc785a6da4bd8",
+        "platform/embedded/tamago/embeddedcontrol/control.go": "bd59f72ba1114aa304de6818b38018414b2d47c23e46a1af69eab28ad1918b31",
+        "platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_control.go": "e22c36be27afaae2869639adaf1325dec347b0c48818bfc1d3408cdd33f0c238",
+        "platform/embedded/tamago/fabricmodel/checks.go": "a95ad19b2239d7d987837b99043e50de9e72b0ba4f005b79dc753587e0d645ca",
+        "platform/embedded/tamago/fabricmodel/model.go": "b67cfbf6c83914a4e4272d52b745fdbaac8bb02bd85f1717350d874ab1c6dd03",
+        "platform/embedded/tamago/fabricmodel/model_test.go": "22b53652fe045f54384e59ffa86d217afe7a56d683d6dfd8bc1b874049ef3137",
+        "platform/embedded/tamago/go.mod": "77f9be13dda9fc16855b0b62787252f9568ad1b280bada66b2e924702f241d94",
+        "platform/embedded/tamago/go.sum": "87dbccb2e14a610a1de9666fa936a18f374bd299b50436b44405b5d75e8fd5c4",
+        "platform/embedded/tamago/modelbackend/backend.go": "8b0f746a98bb93890b186ffebde31ccd412d2c35e191d6338410001c9d0e385d",
+        "platform/embedded/tamago/modelbackend/backend_test.go": "44f05a583f2d6d00f0e81abd09254344ac75e405d6853c1bcd9dc56e769daf21",
+        "platform/embedded/tamago/modelbackend/native_endpoint_test.go": "fc2bf82800d2043ada08da7c3bf6e89c28a35055b46f5da47df7a7d51ad84db9",
+        "platform/embedded/tamago/modelbackend/sealed_nano_test.go": "770209b13b443e6cacd4e7cc320e01c4c964de4495403154681e137e2346e3a1",
+        "platform/embedded/tamago/modelbackend/transport.go": "71ffde9b4b3bcbcf3b70ca95170127e9d2c2b63033b6e4a4d83e4bd20a41d87c",
+        "platform/embedded/tamago/nativefabric/binding.go": "fd6891409b8cef8d5a11a4ce177dcd56d661ecec479f3cca041220b25d3c7dae",
+        "platform/embedded/tamago/nativefabric/binding_test.go": "1e6160b6a3788d5bfd541cd3be47bad5a39f678e6c6f31ff39bf54b0034f2395",
+        "platform/embedded/tamago/nativefabric/bridges.go": "b4175f7b824f3617dd3ad7d70ccd9ce0e74f08fa9a19ac1a9b06d6406de7c221",
+        "platform/embedded/tamago/nativefabric/bridges_test.go": "a741c77a711f9be5c29b26f9557d96ac353c8bdd618e882eb50f3e20cf4763b5",
+        "platform/embedded/tamago/nativefabric/cpuhooks.go": "7545b9135e9de0e0bf9617265163b545bafdbcfe304c03276680daec07d8e5c6",
+        "platform/embedded/tamago/nativefabric/cpuhooks_test.go": "2c963dad0646dc9438b5ccdd6d6e9bfc806abfaa8bd437b135da9c5c756642be",
+        "platform/embedded/tamago/nativefabric/endpoint.go": "cfd7c508e92bf4bf5cc2e2de62f0c586549ddd0c385b390374cf87f0f07565fc",
+        "platform/embedded/tamago/nativefabric/endpoint_test.go": "73f7a0c82f209e19c849b4b4b780ad2a5e6cd0c7f3d32aba85fc5cac4bc049d9",
+        "platform/embedded/tamago/nativefabric/hpsfirst.go": "bdf53b196eca33c1fa5228eaea2fdbce2d54c3bbc86881097c1d337ee20fc502",
+        "platform/embedded/tamago/nativefabric/hpsfirst_test.go": "501f5c024c846f356167352306fc38745c6fade7f356871dfcf92fefe1a44df1",
+        "platform/embedded/tamago/nativefabric/producer_integration_test.go": "8269adee063acb8d09692c4eaff2fbb2e275c19add4db0f1f620436935b15243",
+        "platform/embedded/tamago/nativefabric/rtl_integration_test.go": "c7d1d555a285ee1c5e17eda4f770f1d8cca4e91803d92583c45141b2dd231622",
+        "platform/embedded/tamago/nativefabric/sealed_nano_test.go": "5f68f62d81d1e497cf9ffa537453be855f4e4937b4530b867b4487804f7c64f7",
+        "platform/embedded/tamago/nativefabric/verify.py": "eb1048e3b5901bc3a08892d7cb3d288607c50da77bb9efe469a3e43aabf8b1af",
+        "platform/embedded/tamago/nativefabric/verify_producer.py": "47f759a25ecffbb46b14e0e8718179ea2a475d5681ef47d51c65102bc56adb1b",
+        "platform/embedded/tamago/nativefabriccheck/checks.go": "9295df5e3b17f2b37325edf02af5f4bb918f08a96d635c0aee3fa222b84d7e36",
+        "platform/embedded/tamago/nativefabriccheck/checks_test.go": "c55f61bb741c0d4f5d8444e1fa6e402cf87c1b76b3f6c47a1c5782f5818baac6",
+        "platform/embedded/tamago/runtimeadmission/admission.go": "286811ae3d65497ec2ec350c8a274b164eedcc98ffb10741c13835935b6ec13b",
+        "platform/embedded/tamago/runtimeadmission/admission_test.go": "a3f5ee7e74f03d3ea11e17ce573b79679272ecf1e128d5d08b4c05428acd7927",
+        "sources/mister-packages/packages/fabric/fes_fabric_embedded_control.yaml": "08929e0a4a14ee03fb949332403c5c7b85d299822e10af023d6c089a52d03a73",
+        "sources/misteross/cores/fes-common/generated/fes_embedded_control.vh": "20e1f042865b54a4cc6a7334b874fedc9f95aa87deb2757ce04a35cc023fc597",
+        "sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv": "95bc4ef8f470612d71dfa2737e96a988e8a8508e5db56857455bf294654667f3"
+      },
+      "status": "passed"
+    },
+    {
+      "classification": "host native Go lifecycle/tenfoot with actual patched TF-A C and Verilated FPGA RTL; simulated bridges, memory and SDM; no hardware acceptance",
+      "firmware_sha256": "21ad255592e83809960cb603cd2aabad31ae970a2f7fb5af92def8ca3ffe41db",
+      "output": "/home/deano/fes/out/dev/de25-embedded-os/out/native-fabric-hooks-ca35811de1044757b7f266517b512ad3",
+      "receipt_sha256": "ee2c1c6faf76c55afaaa624fa39e9d4ee24e9707c54aefd27740e26b19513921",
+      "reference_git_blob": "3c223c1498e3a412e075e4f921cd78acd3d0fcd6",
+      "reference_profile": "upstream-v2.12",
+      "reset_sha256": null,
+      "skipped": {
+        "native-tests": [
+          "TestProducedIdentityBindsNativeControl",
+          "TestBoardAvalonIdentityBindsNativeControl",
+          "TestSealedNanoPackageNativeFirmwareCycle"
+        ],
+        "tenfoot-tests": [
+          "TestSealedNanoTenfootModel"
+        ]
+      },
+      "source_sha256": {
+        "platform/embedded/firmware/build_terasic.py": "1da8a70b6db69863258dbed9b97afee8b2998ac1b6dbac8513e281c6b0e3ccd6",
+        "platform/embedded/firmware/build_terasic_uboot.py": "22d786a7b00a498355ffa58c2c0fb1c6cc5b9cf4bda8774ad96c43eddcadac74",
+        "platform/embedded/firmware/control.cpp": "897bd6cab9addd84efd3be52d0ddfb51fbb217bb9f626a0bf244af78107297d4",
+        "platform/embedded/firmware/control.hpp": "c84f8c5aebb8a15286651b1536e78121b690ff4778dc1ca393d8bb8d56064bb0",
+        "platform/embedded/firmware/generated/fes_embedded_control.hpp": "8856d106e50c7b3a8394c8e1442568446087195dfd3e6f3099ad63931dd41df1",
+        "platform/embedded/firmware/nano_bridge_diag.h": "b80c4442198cbbdff4781d66ace85ab4a930804114176e5927e8984d1e78e904",
+        "platform/embedded/firmware/prepare_tfa.py": "5e453279089cf1371dbdab2f905d1cfe06b7dfa1ab42d5771fca0eb4bd4ca316",
+        "platform/embedded/firmware/tests/contained_path.hpp": "c3e9da659c491930bc33c1cffb27a72d490035635077933079a6b18f43726dd0",
+        "platform/embedded/firmware/tests/endpoint_tb.cpp": "2eac872deb014d86924240a7b36dc0a4fb15b1100d3aaa08c81d702943db476a",
+        "platform/embedded/firmware/tests/native_rpc.cpp": "5664ace1ca5d2b094cbcc0b92392f1898e1bf6f4dbeb8e53dbf1a449373a4791",
+        "platform/embedded/firmware/tests/terasic_reset_test.h": "4246d7ac753b5a40f1c44373d2b9a7de21621bad7dea582eeced9dc4e30543e5",
+        "platform/embedded/firmware/tests/tfa_stubs.h": "ef864bab61458937f5981c7e5ae28c3326f88dfac9996299719e7a349dfdfd9d",
+        "platform/embedded/firmware/verify.py": "952b3b0f1a97e45802e5961492f1a47ebbbcc90ea8e97fa8094dc785a6da4bd8",
+        "platform/embedded/tamago/embeddedcontrol/control.go": "bd59f72ba1114aa304de6818b38018414b2d47c23e46a1af69eab28ad1918b31",
+        "platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_control.go": "e22c36be27afaae2869639adaf1325dec347b0c48818bfc1d3408cdd33f0c238",
+        "platform/embedded/tamago/fabricmodel/checks.go": "a95ad19b2239d7d987837b99043e50de9e72b0ba4f005b79dc753587e0d645ca",
+        "platform/embedded/tamago/fabricmodel/model.go": "b67cfbf6c83914a4e4272d52b745fdbaac8bb02bd85f1717350d874ab1c6dd03",
+        "platform/embedded/tamago/fabricmodel/model_test.go": "22b53652fe045f54384e59ffa86d217afe7a56d683d6dfd8bc1b874049ef3137",
+        "platform/embedded/tamago/go.mod": "77f9be13dda9fc16855b0b62787252f9568ad1b280bada66b2e924702f241d94",
+        "platform/embedded/tamago/go.sum": "87dbccb2e14a610a1de9666fa936a18f374bd299b50436b44405b5d75e8fd5c4",
+        "platform/embedded/tamago/modelbackend/backend.go": "8b0f746a98bb93890b186ffebde31ccd412d2c35e191d6338410001c9d0e385d",
+        "platform/embedded/tamago/modelbackend/backend_test.go": "44f05a583f2d6d00f0e81abd09254344ac75e405d6853c1bcd9dc56e769daf21",
+        "platform/embedded/tamago/modelbackend/native_endpoint_test.go": "fc2bf82800d2043ada08da7c3bf6e89c28a35055b46f5da47df7a7d51ad84db9",
+        "platform/embedded/tamago/modelbackend/sealed_nano_test.go": "770209b13b443e6cacd4e7cc320e01c4c964de4495403154681e137e2346e3a1",
+        "platform/embedded/tamago/modelbackend/transport.go": "71ffde9b4b3bcbcf3b70ca95170127e9d2c2b63033b6e4a4d83e4bd20a41d87c",
+        "platform/embedded/tamago/nativefabric/binding.go": "fd6891409b8cef8d5a11a4ce177dcd56d661ecec479f3cca041220b25d3c7dae",
+        "platform/embedded/tamago/nativefabric/binding_test.go": "1e6160b6a3788d5bfd541cd3be47bad5a39f678e6c6f31ff39bf54b0034f2395",
+        "platform/embedded/tamago/nativefabric/bridges.go": "b4175f7b824f3617dd3ad7d70ccd9ce0e74f08fa9a19ac1a9b06d6406de7c221",
+        "platform/embedded/tamago/nativefabric/bridges_test.go": "a741c77a711f9be5c29b26f9557d96ac353c8bdd618e882eb50f3e20cf4763b5",
+        "platform/embedded/tamago/nativefabric/cpuhooks.go": "7545b9135e9de0e0bf9617265163b545bafdbcfe304c03276680daec07d8e5c6",
+        "platform/embedded/tamago/nativefabric/cpuhooks_test.go": "2c963dad0646dc9438b5ccdd6d6e9bfc806abfaa8bd437b135da9c5c756642be",
+        "platform/embedded/tamago/nativefabric/endpoint.go": "cfd7c508e92bf4bf5cc2e2de62f0c586549ddd0c385b390374cf87f0f07565fc",
+        "platform/embedded/tamago/nativefabric/endpoint_test.go": "73f7a0c82f209e19c849b4b4b780ad2a5e6cd0c7f3d32aba85fc5cac4bc049d9",
+        "platform/embedded/tamago/nativefabric/hpsfirst.go": "bdf53b196eca33c1fa5228eaea2fdbce2d54c3bbc86881097c1d337ee20fc502",
+        "platform/embedded/tamago/nativefabric/hpsfirst_test.go": "501f5c024c846f356167352306fc38745c6fade7f356871dfcf92fefe1a44df1",
+        "platform/embedded/tamago/nativefabric/producer_integration_test.go": "8269adee063acb8d09692c4eaff2fbb2e275c19add4db0f1f620436935b15243",
+        "platform/embedded/tamago/nativefabric/rtl_integration_test.go": "c7d1d555a285ee1c5e17eda4f770f1d8cca4e91803d92583c45141b2dd231622",
+        "platform/embedded/tamago/nativefabric/sealed_nano_test.go": "5f68f62d81d1e497cf9ffa537453be855f4e4937b4530b867b4487804f7c64f7",
+        "platform/embedded/tamago/nativefabric/verify.py": "eb1048e3b5901bc3a08892d7cb3d288607c50da77bb9efe469a3e43aabf8b1af",
+        "platform/embedded/tamago/nativefabric/verify_producer.py": "47f759a25ecffbb46b14e0e8718179ea2a475d5681ef47d51c65102bc56adb1b",
+        "platform/embedded/tamago/nativefabriccheck/checks.go": "9295df5e3b17f2b37325edf02af5f4bb918f08a96d635c0aee3fa222b84d7e36",
+        "platform/embedded/tamago/nativefabriccheck/checks_test.go": "c55f61bb741c0d4f5d8444e1fa6e402cf87c1b76b3f6c47a1c5782f5818baac6",
+        "platform/embedded/tamago/runtimeadmission/admission.go": "286811ae3d65497ec2ec350c8a274b164eedcc98ffb10741c13835935b6ec13b",
+        "platform/embedded/tamago/runtimeadmission/admission_test.go": "a3f5ee7e74f03d3ea11e17ce573b79679272ecf1e128d5d08b4c05428acd7927",
+        "sources/mister-packages/packages/fabric/fes_fabric_embedded_control.yaml": "08929e0a4a14ee03fb949332403c5c7b85d299822e10af023d6c089a52d03a73",
+        "sources/misteross/cores/fes-common/generated/fes_embedded_control.vh": "20e1f042865b54a4cc6a7334b874fedc9f95aa87deb2757ce04a35cc023fc597",
+        "sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv": "95bc4ef8f470612d71dfa2737e96a988e8a8508e5db56857455bf294654667f3"
+      },
+      "status": "passed"
+    }
+  ],
+  "preserved_at": "/home/deano/fes-retained/de25-nano-bridge-contract-20261031",
+  "remaining": "Qualify a Nano firmware/board adapter that can supply real boot-history, optional-handshake, independent hardware-drain and ownership observations. Pinned firmware polls and the physical stage-3 rejection remain unchanged."
+}

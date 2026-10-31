@@ -21,12 +21,10 @@ type CPUTransport interface {
 // PlatformServices owns memory, bridges and non-package idle identity. Its
 // containment and reservation obligations are the same as Hooks.
 type PlatformServices interface {
+	BridgeServices
 	Resolve(fabricmodel.Identity) (embeddedcontrol.Identity, error)
 	Reserve([]byte) (*Region, error)
 	Save(fabricmodel.Identity) (bool, error)
-	Contain() (bool, error)
-	ControlOnly() (bool, error)
-	ReleaseData() (bool, error)
 }
 
 type CPUHooks struct {
@@ -34,12 +32,15 @@ type CPUHooks struct {
 	services PlatformServices
 	base     uint64
 	span     uint32
+	bridge   *BridgeSnapshot
+	access   bridgeAccess
+	failed   bool
 }
 
 var errCPUHooksUnavailable = errors.New("native fabric: CPU hooks unavailable")
 
 func (h *CPUHooks) ready() bool {
-	return h != nil && h.cpu != nil && h.services != nil && h.base != 0 && h.span >= g.FesEmbeddedRegAckCookieHi+4
+	return h != nil && !h.failed && h.cpu != nil && h.services != nil && h.base != 0 && h.span >= g.FesEmbeddedRegAckCookieHi+4
 }
 
 // NewCPUHooks deliberately supplies no Nano address or physical capability.
@@ -75,6 +76,15 @@ func (h *CPUHooks) Invoke(request [7]uint64) ([4]uint64, error) {
 	if !h.ready() {
 		return [4]uint64{}, errCPUHooksUnavailable
 	}
+	switch request[0] {
+	case start, write, completed, isdone:
+		if _, err := h.observeBridges(); err != nil {
+			return [4]uint64{}, err
+		}
+		if h.access != bridgesClosed {
+			return [4]uint64{}, h.bridgeFailure("configuration requires owned closed bridges")
+		}
+	}
 	return h.cpu.Invoke(request)
 }
 func (h *CPUHooks) VerifyBootHandoff(p fabricmodel.PackageIdentity) error {
@@ -104,22 +114,4 @@ func (h *CPUHooks) Save(i fabricmodel.Identity) (bool, error) {
 		return false, errCPUHooksUnavailable
 	}
 	return h.services.Save(i)
-}
-func (h *CPUHooks) Contain() (bool, error) {
-	if !h.ready() {
-		return false, errCPUHooksUnavailable
-	}
-	return h.services.Contain()
-}
-func (h *CPUHooks) ControlOnly() (bool, error) {
-	if !h.ready() {
-		return false, errCPUHooksUnavailable
-	}
-	return h.services.ControlOnly()
-}
-func (h *CPUHooks) ReleaseData() (bool, error) {
-	if !h.ready() {
-		return false, errCPUHooksUnavailable
-	}
-	return h.services.ReleaseData()
 }

@@ -192,7 +192,16 @@ func TestTenfootInjectedEndpointLaunchReturnAndIdentityFailure(t *testing.T) {
 			}
 			r := newActorRPC(t)
 			r.wrongIdentity = wrong
-			endpoint, err := nativefabric.New(r, actorOptions())
+			identity, err := r.Resolve(fabricmodel.Identity{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			cpu := &sealedActorCPU{actorRPC: r, base: 0x40000000, identity: identity, bridges: actorBridgeState()}
+			hooks, err := nativefabric.NewCPUHooks(cpu, cpu, cpu.base, 256)
+			if err != nil {
+				t.Fatal(err)
+			}
+			endpoint, err := nativefabric.New(hooks, actorOptions())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -230,6 +239,47 @@ func TestTenfootInjectedEndpointLaunchReturnAndIdentityFailure(t *testing.T) {
 			}
 			if stats[0] != 3 || stats[1] != expectedReleases || r.releases != 3 {
 				t.Fatalf("program/release stats=%v buffer releases=%d", stats, r.releases)
+			}
+		})
+	}
+}
+
+func TestCPUBridgeFailureStopsActorBeforeProgramming(t *testing.T) {
+	for _, fault := range []string{"hardware", "fabric", "owner"} {
+		t.Run(fault, func(t *testing.T) {
+			policy, config, read := fixtures(t)
+			config.Entries = config.Entries[:1]
+			r := newActorRPC(t)
+			identity, err := r.Resolve(fabricmodel.Identity{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			cpu := &sealedActorCPU{actorRPC: r, base: 0x40000000, identity: identity, bridges: actorBridgeState(), bridgeFault: fault}
+			hooks, err := nativefabric.NewCPUHooks(cpu, cpu, cpu.base, 256)
+			if err != nil {
+				t.Fatal(err)
+			}
+			endpoint, err := nativefabric.New(hooks, actorOptions())
+			if err != nil {
+				t.Fatal(err)
+			}
+			backend, err := NewWithEndpoint(policy, config, read, nil, endpoint)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			client := hostclient.NewClient("http://model.invalid", &http.Client{Transport: backend})
+			_, _ = client.Launch(ctx, "model-normal")
+			if backend.View().Status.State != fabricmodel.RebootRequired {
+				t.Fatal("failed closure was accepted", backend.View())
+			}
+			if err = backend.Close(ctx); !errors.Is(err, fabricmodel.ErrReboot) {
+				t.Fatal("lost uncertain bridge ownership", err)
+			}
+			stats, err := r.call("stats")
+			if err != nil || stats[0] != 1 || stats[1] != 1 || r.releases != 1 {
+				t.Fatal("programmed or released failed target", stats, err)
 			}
 		})
 	}

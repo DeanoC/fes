@@ -51,13 +51,14 @@ func TestCPUHooksValidateApertureAndPropagateTransportErrors(t *testing.T) {
 		}
 	}
 	f := &fake{control: true}
+	services := &bridgeTestServices{fake: f, bridgeFixture: &bridgeFixture{state: bridgeState(FabricHandshakePresent)}}
 	cpu := &cpuTestTransport{base: 0x40000000, device: f}
 	for _, pair := range [][2]uint64{{0, 256}, {1, 256}, {0x40000000, 0x4c}, {0x40000000, 260}, {math.MaxUint64 - 3, 256}} {
-		if _, err := NewCPUHooks(cpu, f, pair[0], uint32(pair[1])); err == nil {
+		if _, err := NewCPUHooks(cpu, services, pair[0], uint32(pair[1])); err == nil {
 			t.Fatalf("invalid aperture accepted: %x", pair)
 		}
 	}
-	hooks, err := NewCPUHooks(cpu, f, cpu.base, 256)
+	hooks, err := NewCPUHooks(cpu, services, cpu.base, 256)
 	if err != nil {
 		t.Fatal(err)
 	}

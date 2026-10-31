@@ -28,6 +28,7 @@ import (
 // The RPC executes the prepared TF-A functions and RTL, while the mailbox,
 // memory, bridges and absolute CPU aperture remain simulated.
 type sealedRPC struct {
+	*bridgeFixture
 	cmd                               *exec.Cmd
 	in                                io.WriteCloser
 	out                               *bufio.Reader
@@ -47,6 +48,16 @@ func newSealedRPC(t *testing.T, identity embeddedcontrol.Identity) *sealedRPC {
 		t.Skip("run verify_sealed.py for the sealed Nano integration")
 	}
 	r := &sealedRPC{cmd: exec.Command(path), base: 0x40000000, identity: identity}
+	r.bridgeFixture = &bridgeFixture{state: bridgeState(FabricHandshakePresent)}
+	r.bridgeFixture.close = func() error { _, err := r.call("contain"); return err }
+	r.bridgeFixture.open = func(mask uint32) error {
+		operation := "release"
+		if mask == 2 {
+			operation = "control"
+		}
+		_, err := r.call(operation)
+		return err
+	}
 	var err error
 	if r.in, err = r.cmd.StdinPipe(); err != nil {
 		t.Fatal(err)
@@ -156,9 +167,6 @@ func (r *sealedRPC) Reserve(data []byte) (*Region, error) {
 	return region, nil
 }
 func (r *sealedRPC) Save(fabricmodel.Identity) (bool, error) { return true, nil }
-func (r *sealedRPC) Contain() (bool, error)                  { _, err := r.call("contain"); return err == nil, err }
-func (r *sealedRPC) ControlOnly() (bool, error)              { _, err := r.call("control"); return err == nil, err }
-func (r *sealedRPC) ReleaseData() (bool, error)              { _, err := r.call("release"); return err == nil, err }
 
 func sealedFixture(t *testing.T) (*corepackage.Archive, runtimeadmission.Policy, embeddedcontrol.Identity, []byte) {
 	t.Helper()

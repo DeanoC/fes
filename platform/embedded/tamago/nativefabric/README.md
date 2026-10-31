@@ -73,6 +73,41 @@ and existing SMC assembly; the boot path never constructs it. A cross-build does
 not qualify an address, and a bus fault or stalled SMC cannot be recovered by
 the transport. There is no default base address or bridge service.
 
+The CPU platform services now supply an explicit `BridgeServices` contract in
+place of boolean bridge callbacks. Its snapshot carries the qualified bridge
+and control masks, the hardware-drain mask, an explicit present/absent fabric
+handshake capability, and a boot-scoped exclusive owner with a monotonic change
+generation. Unspecified capabilities reject. The platform must qualify these
+values against its running firmware/HPS/FPGA build and observe every relevant
+change, including firmware operations and reset-then-restore by another caller.
+Package metadata cannot assert these platform facts; the existing retained
+package, boot-handoff and live build-ID checks remain separate requirements.
+
+`CPUHooks.Contain` sends no shutdown request for an entirely closed snapshot
+only if the platform proves a never-enabled boot state with all masters
+contained, or the same hooks retain an unchanged completed closure. Unknown
+closed or initially partial reset states reject. An active close atomically
+compares the supplied prior snapshot, stops every producer, uses the optional
+fabric handshake when supported and requires an independent hardware-drain
+result. The returned ownership generation, masks and master containment must
+match a fresh observation. A known control-only state can be closed again for
+the controller's bounded identity recovery; it still requires closure evidence.
+
+Control-only opening and data release validate their order, exact masks and
+fresh readback. Configuration SMCs require an owned fully closed state before
+each call. Any bridge failure or unexpected state/ownership change retires the
+CPU hooks; later calls cannot replay the transition. This is a platform
+containment receipt under the existing controller, not another lifecycle owner
+or a new production compatibility registry.
+
+The [contract validation](../../../../docs/validation/2026-10-31-de25-bridge-contract/README.md)
+exercises cold/closed, active, launch/return and failure paths without hardware.
+There is no Nano `BridgeServices` implementation or automatically enabled
+physical binding. The selected Terasic firmware's unconditional bridge polls
+and the native boot gate are unchanged; this does not fix or waive the
+physical stage-3 timeout. A real adapter still needs qualified boot history,
+handshake selection, hardware-drain implementation and ownership observation.
+
 The FPGA endpoint covers one AXI read port; it is not a complete scanout engine
 or an address firewall. Native input neutralization, saves, frame handoff,
 real memory/cache ownership, full firmware boot and FPGA timing still require

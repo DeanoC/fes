@@ -25,10 +25,57 @@ import (
 
 type sealedActorCPU struct {
 	*actorRPC
-	base     uint64
-	identity embeddedcontrol.Identity
-	pair     *nativefabric.HPSFirstPair
-	boot     *nativefabric.HPSFirstHandoff
+	bridges     nativefabric.BridgeSnapshot
+	bridgeFault string
+	base        uint64
+	identity    embeddedcontrol.Identity
+	pair        *nativefabric.HPSFirstPair
+	boot        *nativefabric.HPSFirstHandoff
+}
+
+func actorBridgeState() nativefabric.BridgeSnapshot {
+	return nativefabric.BridgeSnapshot{Capabilities: nativefabric.BridgeCapabilities{Mask: 15, ControlMask: 2, HardwareDrainMask: 12, FabricHandshake: nativefabric.FabricHandshakePresent}, Owner: 0x1234, Generation: 1}
+}
+func (a *sealedActorCPU) ObserveBridges() (nativefabric.BridgeSnapshot, error) {
+	return a.bridges, nil
+}
+func (a *sealedActorCPU) CloseBridges(r nativefabric.BridgeCloseRequest) (nativefabric.BridgeClosure, error) {
+	if r.Before != a.bridges {
+		return nativefabric.BridgeClosure{}, errors.New("stale simulated ownership")
+	}
+	if _, err := a.call("contain"); err != nil {
+		return nativefabric.BridgeClosure{}, err
+	}
+	a.bridges.Generation++
+	a.bridges.ResetMask, a.bridges.NeverEnabled, a.bridges.MastersContained = 15, false, true
+	closed := nativefabric.BridgeClosure{After: a.bridges, ProducersQuiescent: true, FabricAcknowledged: r.RequireFabricHandshake, HardwareDrainedMask: 12}
+	if a.programs != 0 {
+		switch a.bridgeFault {
+		case "hardware":
+			closed.HardwareDrainedMask = 4
+		case "fabric":
+			closed.FabricAcknowledged = false
+		case "owner":
+			closed.After.Owner++
+		}
+	}
+	return closed, nil
+}
+func (a *sealedActorCPU) OpenBridges(r nativefabric.BridgeOpenRequest) (nativefabric.BridgeSnapshot, error) {
+	if r.Before != a.bridges {
+		return nativefabric.BridgeSnapshot{}, errors.New("stale simulated ownership")
+	}
+	op := "release"
+	if r.Mask == 2 {
+		op = "control"
+	}
+	if _, err := a.call(op); err != nil {
+		return nativefabric.BridgeSnapshot{}, err
+	}
+	a.bridges.Generation++
+	a.bridges.ResetMask &^= r.Mask
+	a.bridges.NeverEnabled, a.bridges.MastersContained = false, r.Mask == 2
+	return a.bridges, nil
 }
 
 func (a *sealedActorCPU) ReadPhysical32(address uint64) (uint32, error) {
@@ -138,7 +185,7 @@ func TestSealedNanoTenfootModel(t *testing.T) {
 			config := Config{Scope: "qemu-model-only", Entries: []Entry{entry}}
 			r := newActorRPC(t)
 			r.wrongIdentity = scenario == "wrong-live-id"
-			cpu := &sealedActorCPU{actorRPC: r, base: 0x40000000, identity: identity, pair: pair}
+			cpu := &sealedActorCPU{actorRPC: r, base: 0x40000000, identity: identity, pair: pair, bridges: actorBridgeState()}
 			if boot != nil {
 				copy := *boot
 				cpu.boot = &copy
