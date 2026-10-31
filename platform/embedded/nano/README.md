@@ -3,6 +3,9 @@
 The [first TRWU8CBL trial](../../../docs/validation/2026-10-31-de25-nano-serial-test/README.md)
 booted the matched chain but stopped at the bridge service/readback gate;
 native execution remains pending. Factory Linux was restored without a power cycle.
+The [next diagnostic candidate](../../../docs/validation/2026-10-31-de25-bridge-diagnostics/README.md)
+adds separate firmware-return and reset-state records; its matched test files
+are prepared for another bounded trial.
 
 This prepares the first Linux-free CPU/RAM/UART test on **TRWU8CBL** using the
 pinned Terasic TF-A and U-Boot sources. It produces a matched FPGA-first SOF,
@@ -75,8 +78,8 @@ is unchanged: a zero service return and every requested reset bit set.
 | 1 | 1 | Both failure observations occurred; reject and park |
 
 These observations do not establish why a handshake failed or prove traffic
-drained. A `BEGIN` without a `RESULT` identifies an unreturned call or lost
-execution; the host capture deadline cannot preempt it. Stop the attempt and
+drained. A `BEGIN` without a `RESULT` means the call/readback sequence did not
+complete; the host capture deadline cannot preempt it. Stop the attempt and
 restore the factory baseline rather than issuing another `fesboot`.
 
 ## Build and inspect
