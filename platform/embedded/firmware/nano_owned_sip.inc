@@ -11,10 +11,17 @@ static void fes_nano_owned_call(uint32_t fid, uint64_t x1, uint64_t x2,
     r[1] = r[2] = r[3] = 0;
     fes_nano_bridge_platform_lock();
     if (fid == FES_EMBEDDED_BRIDGE_CALL && x3 == FES_EMBEDDED_BRIDGE_COOKIE) {
+#ifdef FES_NANO_COLD_SERIAL
+        if (x1 != FES_EMBEDDED_BRIDGE_SNAPSHOT || x2 || x4) goto out;
+#endif
         fes_nano_bridge_sip(&fes_nano_owned_bridges, x1, x2, x4,
                             request_type != NO_REQUEST, r);
         goto out;
     }
+#ifdef FES_NANO_COLD_SERIAL
+    /* Serial-only cold boot does not authorize reconfiguration or new masters. */
+    goto out;
+#endif
     if (x3 || x4 || (fid != INTEL_SIP_SMC_FPGA_CONFIG_WRITE && x2)) goto out;
     if (fid == INTEL_SIP_SMC_FPGA_CONFIG_START && x1) goto out;
     if (fes_nano_bridges_configuration_guard(&fes_nano_owned_bridges) != 0) {

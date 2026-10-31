@@ -174,8 +174,9 @@ qualified platform policy and complete producer callbacks through
 `fes_nano_platform_boot_record`; `fes_nano_bridge_platform_handoff` consumes
 that evidence once. Non-secure callers cannot initialize it. The pinned HPS-first path
 does not establish the required never-enabled history or whole-board master
-containment. Closed reset bits alone cannot supply that proof. The host tests
-inject trusted initialization; the real build does not.
+containment. Closed reset bits alone cannot supply that proof. The default
+host tests inject trusted initialization. The optional cold serial build below
+installs a separate actual SPL producer and strong EL3 consumer.
 
 `nano_boot.c` validates the record's chain identity, owner, epoch, exact version
 and complete producer inventory against independent secure policy. The record
@@ -198,10 +199,51 @@ probe. Qualified per-device resume is still required for native USB/SD/network
 operation after programming. The separate recovery loader does not select it.
 See the [handoff and recovery validation](../../../docs/validation/2026-10-31-de25-trusted-handoff/README.md).
 
-Build receipts distinguish `strict` from `owned-unready` mode. The U-Boot/card
-packaging gate requires explicit `strict` mode and rejects this unready variant.
-The default firmware behavior and native board boot gate remain unchanged.
-Source-producer hashes have changed; earlier receipts are historical evidence.
+Build receipts distinguish `strict`, `owned-unready` and `owned-cold-serial`.
+Recovery packaging requires `strict`; the native loader now requires its exact
+matched `owned-cold-serial` profile. Both reject the default unready variant.
+Earlier producer receipts remain historical evidence.
+
+### Actual cold serial producer and callbacks
+
+```sh
+python3 platform/embedded/firmware/build_terasic.py \
+  --reference-repo out/terasic-git-restore-tfa \
+  --cross-prefix /absolute/path/aarch64-linux-gnu- \
+  --nano-owned-bridges --nano-cold-serial-entry out/nano-entry \
+  --output out/fresh-cold-bl31
+```
+
+This opt-in source-bound diagnostic links `nano_cold_platform.c` as a strong
+provider. It consumes a bounded, aligned OCRAM record passed directly by SPL
+to early EL3 setup, before non-secure execution. There is no later SiP or
+non-secure initialization route. A checksum detects record corruption; it
+does not authenticate an attacker-controlled boot chain.
+
+The matched SPL uses `nano_cold.c` and the shared real register adapter to
+sample SDM boot kind, reset cause, held secondary CPUs, bridges and unused
+masters before initialization. Only positively identified POR/cold/nCONFIG/JTAG
+entry paths qualify. SD is the sole active device, with all DMA disabled.
+After loading the sealed FIT and native entry, SPL independently observes
+SDHCI idle, masks interrupts, disables the card clock, then asserts functional
+and OCP resets with barriers/readback. It supplies a copied one-use record
+bound to the exact entry, producer sources, owner and epoch. Full U-Boot never
+reopens SD after BL31 receives that record.
+
+The actual `owns`, `quiesce` and `quiescent` callbacks verify continued cold
+containment through live registers; they do not access an SD controller held
+in reset. A changed boot/reset scope, restarted master, active bridge or
+replay retires the proof. This is not an active-device drain provider. The
+cold dispatcher admits read-only Snapshot only, denies all bridge mutations
+and configuration operations, and advertises zero configuration features.
+The general controlled service and strict recovery behavior are unchanged.
+
+The [Nano guide](../nano/README.md) describes matched builds, a preserved
+recovery card and repeatable network uploads of `FES/UPLOAD.BIN`. The
+[current validation](../../../docs/validation/2026-10-31-de25-cold-upload/README.md)
+records real cross-builds and injected host tests. Neither the new uploader
+nor this native handoff has board acceptance. Native SD/USB/network resume,
+active FPGA drain, signed secure boot and physical launch/return remain open.
 
 ## Board-specific off-board candidate
 

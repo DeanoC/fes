@@ -40,7 +40,7 @@ def private_path(path):
             not any(p.is_symlink() for p in (path, *path.parents)))
 
 
-def checked_bl31(bl31_build):
+def checked_bl31(bl31_build, cold_profile=None):
     receipt_path = bl31_build / "result.json"
     component = bl31_build / "source/build/agilex5/release/bl31.bin"
     elf = bl31_build / "source/build/agilex5/release/bl31/bl31.elf"
@@ -48,8 +48,12 @@ def checked_bl31(bl31_build):
         raise ValueError("BL31 component or receipt is a symlink")
     receipt_bytes = receipt_path.read_bytes()
     receipt = json.loads(receipt_bytes)
-    if receipt.get("bridge_mode") != "strict":
-        raise ValueError("U-Boot packaging requires the strict bridge mode; owned-unready is a firmware component only")
+    if cold_profile is None:
+        if receipt.get("bridge_mode") != "strict":
+            raise ValueError("U-Boot packaging requires the strict bridge mode; owned-unready is a firmware component only")
+    elif (receipt.get('bridge_mode')!='owned-cold-serial' or receipt.get('native_boot_profile')!=cold_profile or
+          receipt.get('owned_bridge_binding',{}).get('boot_proof_installed') is not True):
+        raise ValueError('native boot requires the matched owned cold serial SPL/BL31 profile')
     blob = component.read_bytes()
     image_elf = elf.read_bytes()
     if (receipt.get("status") != "built" or receipt.get("reference_revision") != prepare_tfa.TERASIC_REVISION or
@@ -65,6 +69,10 @@ def checked_bl31(bl31_build):
                prepare_tfa.DIAG_HEADER, prepare_tfa.DIAG_HELPERS)
     if any(receipt.get("producer_sources", {}).get(str(p.relative_to(ROOT))) != sha(p) for p in sources):
         raise ValueError("BL31 producer sources differ from its receipt")
+    if cold_profile is not None:
+        if any(sha(ROOT/name)!=expected for name,expected in receipt['producer_sources'].items()):
+            raise ValueError('cold BL31 producer sources differ')
+        sources=tuple(ROOT/name for name in receipt['producer_sources'])
     return receipt_path, receipt_bytes, receipt, component, blob, sources, elf, image_elf, segments
 
 
@@ -99,7 +107,12 @@ def main():
         parser.error("BL31 build and fresh output must be private paths under this worktree's out/")
     if not Path(args.cross_prefix).is_absolute() or not args.cross_prefix.endswith("-") or not 1 <= args.jobs <= 16:
         parser.error("cross prefix must be absolute and end in '-'; jobs must be 1..16")
-    receipt_path, receipt_bytes, receipt, component, blob, sources, elf, image_elf, segments = checked_bl31(bl31_build)
+    cold_profile=None
+    if args.native_entry_build is not None:
+        spec=importlib.util.spec_from_file_location('fes_nano_cold_profile',HERE.parent/'nano/cold_profile.py')
+        cold=importlib.util.module_from_spec(spec);spec.loader.exec_module(cold)
+        cold_profile=cold.make(args.native_entry_build.absolute())
+    receipt_path, receipt_bytes, receipt, component, blob, sources, elf, image_elf, segments = checked_bl31(bl31_build,cold_profile)
     revision = git(repo, "rev-parse", "--verify", "HEAD^{commit}").decode().strip()
     if revision != UBOOT_REVISION or git(repo, "status", "--porcelain", "--untracked-files=all"):
         raise ValueError("Terasic U-Boot checkout must be clean and at the pinned revision")
@@ -161,6 +174,8 @@ def main():
         nano_prepare = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(nano_prepare)
         native = nano_prepare.prepare(build_repo, entry_build, hashlib.sha256(blob).hexdigest())
+        if native['cold_boot_profile']!=cold_profile: raise ValueError('SPL and BL31 cold chain differ')
+        (build/'fes-entry.img').write_bytes((entry_build/'entry.img').read_bytes())
     commands = []
     def run(label, argv):
         argv = [str(x) for x in argv]
@@ -188,6 +203,7 @@ def main():
         run("config-bootcmd", [*configure, "--set-str", "BOOTCOMMAND", "fesboot"])
         run("config-bootdelay", [*configure, "--set-val", "BOOTDELAY", "-1"])
         run("config-localversion", [*configure, "--set-str", "LOCALVERSION", "-fes-nano-" + native["build_id"]])
+        run('config-experimental-fit',[*configure,'--set-str','SPL_FS_LOAD_PAYLOAD_NAME',cold.EXPERIMENTAL_FILE])
         run("olddefconfig", [*base, "olddefconfig"])
     config = (build / ".config").read_text()
     if recovery is not None:
@@ -197,13 +213,27 @@ def main():
         raise ValueError("unexpected vendor bootloader configuration")
     if native is not None and (any("CONFIG_" + name + "=y\n" in config for name in nano_prepare.DISABLE) or
                                any("CONFIG_" + name + "=y\n" not in config for name in nano_prepare.ENABLE)):
-        raise ValueError("serial-only bootloader reenabled an excluded device, DMA or persistent environment")
+        enabled=[name for name in nano_prepare.DISABLE if 'CONFIG_'+name+'=y\n' in config]
+        missing=[name for name in nano_prepare.ENABLE if 'CONFIG_'+name+'=y\n' not in config]
+        raise ValueError("serial-only bootloader options differ: excluded="+repr(enabled)+" missing="+repr(missing))
     run("build", [*base, "-j", str(args.jobs)])
     fit = build / "u-boot.itb"
     spl = build / "spl/u-boot-spl-dtb.hex"
     dump = build / "tools/dumpimage"
     if not fit.is_file() or not fit.stat().st_size or not spl.is_file() or not spl.stat().st_size or not dump.is_file():
         raise ValueError("missing vendor U-Boot output")
+    if native is not None:
+        sealed_fit=fit.read_bytes()
+        if not 0<len(sealed_fit)<=cold.MAX_FIT_SIZE:raise ValueError('experimental FIT exceeds the upload/seal bound')
+        digest=hashlib.sha256(sealed_fit).hexdigest()
+        (build_repo/'arch/arm/mach-socfpga/fes_nano_fit_seal.h').write_text(
+            '#define FES_NANO_SEALED_FIT_SIZE '+str(len(sealed_fit))+'UL\n#define FES_NANO_SEALED_FIT_SHA {'+
+            ','.join('0x'+digest[i:i+2] for i in range(0,64,2))+'}\n')
+        run('seal-spl',[*base,'-j',str(args.jobs),'spl/u-boot-spl-dtb.hex'])
+        if fit.read_bytes()!=sealed_fit:raise ValueError('FIT changed while sealing SPL')
+        native['sealed_fit_sha256']=digest
+        native['sealed_fit_size']=len(sealed_fit)
+        native['experimental_fit_path']=cold.EXPERIMENTAL_FILE
     run("fit-info", [dump, "-l", fit])
     info = (output / "fit-info.log").read_text()
     positions = re.findall(r"(?m)^ Image (\d+) \(atf\)$", info)
@@ -213,10 +243,11 @@ def main():
     def prop(node, name):
         return subprocess.check_output([fdtget, "-t", "s", str(fit), node, name], env=env, text=True).strip()
     names = subprocess.check_output([fdtget, "-l", str(fit), "/images"], env=env, text=True).splitlines()
-    if (names != ["uboot", "atf", "fdt-0"] or int(positions[0]) != names.index("atf") or
+    expected_names=["uboot", "atf", "fdt-0"]+(['fes-entry'] if native else [])
+    if (names != expected_names or int(positions[0]) != names.index("atf") or
             prop("/configurations", "default") != "board-0" or
             prop("/configurations/board-0", "firmware") != "atf" or
-            prop("/configurations/board-0", "loadables") != "uboot" or
+            prop("/configurations/board-0", "loadables") != ("uboot fes-entry" if native else "uboot") or
             prop("/configurations/board-0", "fdt") != "fdt-0" or
             prop("/images/atf", "type") != "firmware" or prop("/images/atf", "arch") != "arm64"):
         raise ValueError("unexpected FIT image selection")
@@ -240,6 +271,17 @@ def main():
         if name == "uboot":
             check_uboot_load(segments, len(data))
     board_model = subprocess.check_output([fdtget, "-t", "s", str(output / "extracted-fdt-0.bin"), "/", "model"], env=env, text=True).strip()
+    if native is not None:
+        if (parts['fes-entry']['sha256']!=native['entry_image_sha256'] or
+                (output/'extracted-fes-entry.bin').read_bytes()!=(entry_build/'entry.img').read_bytes() or
+                int(subprocess.check_output([fdtget,'-t','x',str(fit),'/images/fes-entry','load'],env=env,text=True).strip(),16)!=0x96080000):
+            raise ValueError('preloaded native FIT entry differs')
+        symbols=subprocess.check_output([args.cross_prefix+'nm','-S',str(build/'spl/u-boot-spl')],env=env,text=True)
+        record_symbol=re.findall(r'(?m)^([0-9a-f]+) ([0-9a-f]+) [dD] fes_nano_spl_record$',symbols)
+        if len(record_symbol)!=1 or not 0x1000<=int(record_symbol[0][0],16)<0x40000-int(record_symbol[0][1],16):
+            raise ValueError('SPL cold record is not within loaded OCRAM data')
+        native['spl_record_address']=int(record_symbol[0][0],16)
+        native['spl_record_size']=int(record_symbol[0][1],16)
     if board_model != "SoCFPGA Agilex5 Terasic DE25-Nano":
         raise ValueError("FIT device tree is not the expected Nano model")
     if (component.read_bytes() != blob or elf.read_bytes() != image_elf or receipt_path.read_bytes() != receipt_bytes or
@@ -250,6 +292,7 @@ def main():
             any(receipt["producer_sources"][str(p.relative_to(ROOT))] != sha(p) for p in sources)):
         raise ValueError("U-Boot build inputs changed")
     report = {"status": "built", "classification": "off-board Terasic U-Boot FIT and SPL; no native handoff or hardware acceptance",
+              "bl31_bridge_mode":receipt['bridge_mode'],
               "uboot_revision": revision, "uboot_tree": git(repo, "rev-parse", revision + "^{tree}").decode().strip(),
               "bl31_sha256": hashlib.sha256(blob).hexdigest(), "bl31_receipt_sha256": sha(receipt_path),
               "fit_sha256": sha(fit), "fit_size": fit.stat().st_size, "spl_sha256": sha(spl), "spl_size": spl.stat().st_size,

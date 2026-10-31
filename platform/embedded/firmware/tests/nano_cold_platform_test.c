@@ -1,0 +1,101 @@
+/* SPDX-License-Identifier: BSD-3-Clause */
+/* Execute the actual early-capture/strong provider with modeled register reads. */
+#define _GNU_SOURCE
+#include "nano_cold.h"
+#include "nano_bridge_platform.h"
+#include "fes_nano_cold_profile.h"
+#include <assert.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/mman.h>
+
+void fes_nano_cold_capture(uintptr_t,uint64_t);
+static uint32_t per0=FES_NANO_MASTER_RESET,bridge=15;
+struct fes_nano_bridges fes_nano_owned_bridges;
+void fes_nano_bridge_platform_lock(void) {}
+void fes_nano_bridge_platform_unlock(void) {}
+#define FES_NANO_COLD_SERIAL 1
+#define INTEL_SIP_SMC_STATUS_REJECTED 2
+#define INTEL_SIP_SMC_STATUS_ERROR 4
+#define INTEL_SIP_SMC_STATUS_BUSY 1
+#define INTEL_SIP_SMC_STATUS_OK 0
+#define INTEL_SIP_SMC_FPGA_CONFIG_START 0xc2000001U
+#define INTEL_SIP_SMC_FPGA_CONFIG_WRITE 0x42000002U
+#define INTEL_SIP_SMC_FPGA_CONFIG_COMPLETED_WRITE 0xc2000003U
+#define INTEL_SIP_SMC_FPGA_CONFIG_ISDONE 0xc2000004U
+#define NO_REQUEST 0
+#define RECONFIGURATION 1
+#define FPGA_CONFIG_BUFFER_SIZE 1
+static unsigned request_type,engine_calls;
+static struct { unsigned write_requested; } fpga_config_buffers[1];
+static int intel_fpga_config_start(uint64_t v) { (void)v;engine_calls++;return 4; }
+static int intel_fpga_config_write(uint64_t a,uint64_t b) { (void)a;(void)b;engine_calls++;return 4; }
+static int intel_fpga_config_completed_write(uint32_t *a,uint32_t *b,uint32_t *c) { (void)a;(void)b;(void)c;engine_calls++;return 4; }
+static int intel_mailbox_fpga_config_isdone(uint32_t *v) { (void)v;engine_calls++;return 4; }
+static uint32_t fes_contained_isdone_detail(uint32_t a,uint32_t b) { (void)a;return b; }
+#include "nano_owned_sip.inc"
+uint32_t mmio_read_32(uintptr_t a)
+{
+    if(a==0x10d1220cUL)return 4U<<29;
+    assert(a>=FES_NANO_COLD_RSTMGR && a<FES_NANO_COLD_RSTMGR+0x100);
+    switch(a-FES_NANO_COLD_RSTMGR) {
+    case 0:return 1;case 0x24:return per0;case 0x2c:return bridge;
+    case 0x90:return 14;case 0x94:return 0;default:assert(0);return 0;
+    }
+}
+uint16_t mmio_read_16(uintptr_t a) { (void)a;assert(0);return 0; }
+void mmio_write_32(uintptr_t a,uint32_t v) { (void)a;(void)v;assert(0); }
+void mmio_write_16(uintptr_t a,uint16_t v) { (void)a;(void)v;assert(0); }
+uint64_t read_current_el(void) { return 12; }
+uint64_t read_mpidr(void) { return 0; }
+void dsbsy(void) {}
+void udelay(unsigned n) { (void)n;assert(0); }
+static int reset_read(void *p,uint32_t *v) { (void)p;*v=bridge;return 0; }
+static int per_read(void *p,uint32_t *v) { (void)p;*v=per0;return 0; }
+static int per_assert(void *p,uint32_t v) { (void)p;(void)v;assert(0);return -1; }
+static int driver(void *p,uint32_t m,unsigned f) { (void)p;(void)m;(void)f;return -1; }
+static void barrier(void *p) { (void)p; }
+int main(int argc,char **argv)
+{
+    assert(argc==2);unsigned mutation=atoi(argv[1]);
+    struct fes_nano_cold_record *r=mmap((void *)0x10000,4096,PROT_READ|PROT_WRITE,MAP_ANONYMOUS|MAP_PRIVATE|MAP_FIXED_NOREPLACE,-1,0);
+    assert(r==(void *)0x10000);
+    static const uint8_t chain[32]=FES_NANO_COLD_CHAIN;
+    *r=(struct fes_nano_cold_record){.magic=FES_NANO_COLD_MAGIC,.version=1,.size=sizeof(*r),.flags=7,
+        .boot={.magic=FES_NANO_BOOT_MAGIC,.version=1,.size=sizeof(r->boot),.epoch=7,.history=1,.fabric=1,.producers=FES_NANO_PRODUCERS_ALL},
+        .first={1,FES_NANO_COLD_UNUSED,15,14,0,4},.last={1,FES_NANO_MASTER_RESET,15,14,0,4}};
+    r->boot.owner=(FES_NANO_COLD_OWNER_SEED^r->boot.epoch)|1U;memcpy(r->boot.chain,chain,32);
+    switch(mutation) {
+    case 1:r->boot.chain[0]^=1;break;case 2:r->boot.reserved=1;break;
+    case 3:r->flags=0;break;case 4:r->sd_after=1;break;case 5:r->core=2;break;
+    case 6:r->first.boot_kind=1;break;case 7:per0&=~1U;break;case 8:bridge=0;break;
+    }
+    r->checksum=fes_nano_cold_checksum(r);
+    if(mutation==9)r->checksum^=1;
+    if(mutation==10)fes_nano_cold_capture(0x800,FES_NANO_COLD_COOKIE);
+    fes_nano_cold_capture((uintptr_t)r,mutation==11?0:FES_NANO_COLD_COOKIE);
+    struct fes_nano_boot_record record;struct fes_nano_boot_policy policy;struct fes_nano_master_ops masters;
+    int result=fes_nano_platform_boot_record(&record,&policy,&masters);
+    if(mutation) {assert(result<0);return 0;}
+    assert(result==1);
+    r->boot.owner++; /* copied before nonsecure entry, no later pointer use */
+    struct fes_nano_boot boot={0};struct fes_nano_bridges b={0};
+    masters.read_per0=per_read;masters.assert_per0=per_assert;masters.barrier=barrier;masters.wait=barrier;
+    struct fes_nano_bridge_ops raw={0};raw.read_reset=reset_read;raw.disable=raw.enable=driver;
+    assert(!fes_nano_boot_accept(&boot,&b,&record,&policy,masters,raw));
+    uint64_t reply[4];fes_nano_bridge_sip(&b,0,0,0,0,reply);
+    assert(reply[0]==0 && (uint32_t)reply[1]==0xdf && reply[2]==record.owner && reply[3]==1);
+    assert(masters.owns(masters.context,record.owner,record.epoch)==1);
+    fes_nano_owned_bridges=b;
+    fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,0,0,FES_EMBEDDED_BRIDGE_COOKIE,0,reply);
+    assert(reply[0]==0 && reply[2]==record.owner);
+    for(unsigned op=1;op<=4;op++) {
+        fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,op,record.owner,FES_EMBEDDED_BRIDGE_COOKIE,1,reply);
+        assert(reply[0]==2 && !fes_nano_owned_bridges.failed);
+    }
+    const uint32_t commands[]={INTEL_SIP_SMC_FPGA_CONFIG_START,INTEL_SIP_SMC_FPGA_CONFIG_WRITE,INTEL_SIP_SMC_FPGA_CONFIG_COMPLETED_WRITE,INTEL_SIP_SMC_FPGA_CONFIG_ISDONE};
+    for(unsigned i=0;i<4;i++) {fes_nano_owned_call(commands[i],0,0,0,0,reply);assert(reply[0]==2 && !engine_calls);}
+    per0&=~0x80U;assert(masters.quiesce(masters.context,FES_NANO_PRODUCERS_ALL)<0);
+    per0|=0x80U;assert(masters.owns(masters.context,record.owner,record.epoch)!=1);
+    assert(fes_nano_platform_boot_record(&record,&policy,&masters)<0);
+}

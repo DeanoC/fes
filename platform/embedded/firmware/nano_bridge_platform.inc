@@ -30,8 +30,15 @@ static int fes_nano_owned_reset(void *context, uint32_t *reset)
 static int fes_nano_owned_enable(void *context, uint32_t mask, unsigned fabric)
 {
     (void)context;
+#ifdef FES_NANO_COLD_SERIAL
+    /* The cold serial provider qualifies no active fabric producer. */
+    (void)fes_nano_raw_enable;
+    (void)mask; (void)fabric;
+    return -1;
+#else
     if (fabric != fes_nano_owned_bridges.state.fabric) return -1;
     return fes_nano_raw_enable(mask);
+#endif
 }
 static int fes_nano_owned_disable(void *context, uint32_t mask, unsigned fabric)
 {

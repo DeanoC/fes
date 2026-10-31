@@ -7,6 +7,7 @@ image, write media, access a board, or establish a safe boot handoff.
 import argparse
 import hashlib
 import io
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -85,7 +86,18 @@ def main():
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--jobs", type=int, default=2)
     parser.add_argument("--nano-owned-bridges", action="store_true", help="controlled SiP variant; boot remains NOT_READY without trusted proof")
+    parser.add_argument("--nano-cold-serial-entry", type=Path, help="opt-in actual SPL/BL31 cold serial producer, bound to this native entry build")
     args = parser.parse_args()
+    if args.nano_cold_serial_entry is not None and not args.nano_owned_bridges:
+        parser.error("cold serial boot requires --nano-owned-bridges")
+    cold = cold_profile = None
+    if args.nano_cold_serial_entry is not None:
+        entry_path=args.nano_cold_serial_entry.absolute()
+        if ('..' in entry_path.parts or not entry_path.is_relative_to(ROOT/'out') or any(p.is_symlink() for p in (entry_path,*entry_path.parents))):
+            parser.error('cold entry must be private under out/')
+        spec=importlib.util.spec_from_file_location('fes_nano_cold_profile',HERE.parent/'nano/cold_profile.py')
+        cold=importlib.util.module_from_spec(spec);spec.loader.exec_module(cold)
+        cold_profile=cold.make(entry_path)
     repo = args.reference_repo.resolve()
     output = args.output.absolute()
     if (".." in output.parts or any(p.is_symlink() for p in (output, *output.parents)) or
@@ -130,13 +142,15 @@ def main():
     if args.nano_owned_bridges:
         import prepare_nano_owned
         producer_inputs += tuple(prepare_nano_owned.inputs())
+    if cold is not None:
+        producer_inputs += tuple(cold.sources())
     frozen = {str(p.relative_to(ROOT)): digest(p.read_bytes()) for p in producer_inputs}
     target = source / prepare_tfa.SOURCE
     original = target.read_bytes()
     blob, profile = prepare_tfa.source_identity(original)
     if blob != prepare_tfa.TERASIC_BLOB or profile != "terasic-de25-v2.12":
         raise ValueError("pinned tree does not contain the reviewed Terasic service")
-    owned = prepare_nano_owned.install(source) if args.nano_owned_bridges else None
+    owned = prepare_nano_owned.install(source,cold_profile,cold.header(cold_profile) if cold else None) if args.nano_owned_bridges else None
     patched = target.read_bytes() if owned else prepare_tfa.contained_source(original)
     target.write_bytes(patched)
     reset_target = source / prepare_tfa.RESET_SOURCE
@@ -183,6 +197,11 @@ def main():
     if owned:
         report["owned_bridge_binding"] = owned
         report["classification"] = "controlled owned Nano BL31 component; boot proof unavailable, service remains NOT_READY; no board acceptance"
+    if cold is not None:
+        if cold.make(entry_path)!=cold_profile: raise ValueError('cold chain changed during build')
+        report['bridge_mode']='owned-cold-serial'
+        report['native_boot_profile']=cold_profile
+        report['classification']='source-bound cold serial SPL record consumer and master-stop provider; no physical qualification'
     (output / "result.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
     print("Built experimental BL31:", component)
 

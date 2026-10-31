@@ -12,7 +12,7 @@ MAKEFILE = "plat/intel/soc/agilex5/platform.mk"
 PSCI = "plat/intel/soc/common/socfpga_psci.c"
 
 
-def service_source(data):
+def service_source(data, cold_serial=False):
     blob, _ = prepare_tfa.source_identity(data)
     if blob != prepare_tfa.TERASIC_BLOB:
         raise ValueError("owned Nano service requires the exact Terasic source")
@@ -37,6 +37,11 @@ def service_source(data):
     text = text.replace(marker, marker + guard)
     old = function(text, "intel_hps_set_bridges")
     text = text.replace(old, "uint32_t intel_hps_set_bridges(uint64_t enable, uint64_t mask)\n{\n\t(void)enable;\n\t(void)mask;\n\treturn INTEL_SIP_SMC_STATUS_REJECTED;\n}\n")
+    if cold_serial:
+        old=function(text,'fes_contained_query')
+        new,count=re.subn(r'(?m)^\tresult\[3\] = 0x[0-9a-f]+U;', '\tresult[3] = 0U;',old)
+        if count!=1:raise ValueError('cold capability query context changed')
+        text=text.replace(old,new)
     return text.encode()
 
 
@@ -55,11 +60,11 @@ def inputs():
     return [HERE / name for name in ("prepare_nano_owned.py", "verify.py", "nano_bridges.c", "nano_bridges.h", "nano_boot.c", "nano_boot.h", "nano_bridge_sip.c", "nano_bridge_sip.h", "nano_bridge_platform.h", "nano_bridge_platform.inc", "nano_owned_sip.inc", "generated/fes_embedded_bridges.h")]
 
 
-def install(source):
+def install(source, cold_profile=None, cold_header=None):
     service = source / prepare_tfa.SOURCE
     reset = source / prepare_tfa.RESET_SOURCE
     original, raw = service.read_bytes(), reset.read_bytes()
-    service.write_bytes(service_source(original))
+    service.write_bytes(service_source(original,cold_serial=cold_profile is not None))
     reset.write_bytes(reset_source(raw))
     include = source / "plat/intel/soc/common/include"
     for name in ("nano_bridges.h", "nano_bridge_sip.h", "nano_bridge_platform.h", "nano_boot.h"):
@@ -75,6 +80,19 @@ def install(source):
     marker = "\tsocfpga_delay_timer_init();\n"
     if text.count(marker) != 1: raise ValueError("owned boot observer context changed")
     setup.write_text('#include "nano_bridge_platform.h"\n' + text.replace(marker, marker + "\tfes_nano_bridge_platform_setup();\n"))
+    if cold_profile is not None:
+        if cold_header is None: raise ValueError("missing matched cold profile header")
+        for name in ("nano_cold.h", "nano_cold_mmio.inc"):
+            (include/name).write_bytes((HERE/name).read_bytes())
+        (include/'fes_nano_cold_profile.h').write_text(cold_header)
+        for name in ("nano_cold.c", "nano_cold_platform.c"):
+            (source/'plat/intel/soc/common'/name).write_bytes((HERE/name).read_bytes())
+        mk.write_text(mk.read_text()+"\nTF_CFLAGS += -DFES_NANO_COLD_SERIAL=1\nBL31_SOURCES += plat/intel/soc/common/nano_cold.c plat/intel/soc/common/nano_cold_platform.c\n")
+        text=setup.read_text()
+        marker='\tstatic console_t console;\n'
+        if text.count(marker)!=1: raise ValueError('cold early capture context changed')
+        text=text.replace('void bl31_early_platform_setup2(', 'extern void fes_nano_cold_capture(uintptr_t, uint64_t);\nvoid bl31_early_platform_setup2(')
+        setup.write_text(text.replace(marker,marker+'\tfes_nano_cold_capture(arg2, arg3);\n'))
     psci = source / PSCI
     text = psci.read_text()
     for name in ("socfpga_pwr_domain_on", "socfpga_pwr_domain_off", "socfpga_pwr_domain_suspend",
@@ -86,4 +104,5 @@ def install(source):
     return {"service_sha256": hashlib.sha256(service.read_bytes()).hexdigest(), "reset_sha256": hashlib.sha256(reset.read_bytes()).hexdigest(),
             "setup_sha256": hashlib.sha256(setup.read_bytes()).hexdigest(), "makefile_sha256": hashlib.sha256(mk.read_bytes()).hexdigest(),
             "psci_sha256": hashlib.sha256(psci.read_bytes()).hexdigest(),
-            "boot_proof_installed": False, "expected_boot_state": "recognized owned service, NOT_READY"}
+            "boot_proof_installed": cold_profile is not None,
+            "expected_boot_state": "validated cold serial record or rejection; hardware unqualified" if cold_profile else "recognized owned service, NOT_READY"}

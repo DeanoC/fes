@@ -1,113 +1,127 @@
-# Nano serial probe boot chain
+# Nano recovery uploads and cold serial boot
 
-The separate [secure handoff and network recovery prototype](../../../docs/validation/2026-10-31-de25-trusted-handoff/README.md)
-adds a recovery loader with Ethernet/TFTP and SD writing at a manual prompt.
-It prepares a regular-file test-card image and matching recovery SOF; its
-Ethernet download and SD scratch write/readback passed the
-[bounded TRWU8CBL trial](../../../docs/validation/2026-10-31-de25-ethernet-sd/README.md). This keeps
-recovery independent of the owned native firmware's unqualified boot proof.
-The recovery SPL selects FAT partition 1 and loads `/u-boot.itb`. Packaging
-verifies that exact file as well as the duplicate FIT at raw sector `0x200`;
-the configured raw offset does not make this SPL select raw boot mode.
+This prototype joins a repeatable recovery upload tool to a matched Linux-free
+SPL, BL31 and native serial probe. The [current validation](../../../docs/validation/2026-10-31-de25-cold-upload/README.md)
+records host tests, cross-builds and regular-file packaging. The new uploader
+and native handoff have **not** run on TRWU8CBL. The earlier manual
+[Ethernet and SD scratch trial](../../../docs/validation/2026-10-31-de25-ethernet-sd/README.md)
+passed with the separate recovery loader; that result does not qualify these
+new artifacts.
 
-The [first TRWU8CBL trial](../../../docs/validation/2026-10-31-de25-nano-serial-test/README.md)
-booted the matched chain but stopped at the bridge service/readback gate;
-native execution remains pending. Factory Linux was restored without a power cycle.
-The [diagnostic candidate](../../../docs/validation/2026-10-31-de25-bridge-diagnostics/README.md)
-adds separate firmware-return and reset-state records in a matched boot chain.
-The [completed diagnostic trial](../../../docs/validation/2026-10-31-de25-bridge-trial/README.md)
-reported firmware error `4` with matching bridge reset bits; native handoff
-remains rejected and the factory baseline has been restored.
-The [firmware-stage trace](../../../docs/validation/2026-10-31-de25-firmware-first-failure/README.md)
-now identifies the first timeout as the initial FPGA acknowledgment during
-FPGA-to-HPS disable; native entry remains blocked.
+The same spare card carries two paths:
 
-This prepares the first Linux-free CPU/RAM/UART test on **TRWU8CBL** using the
-pinned Terasic TF-A and U-Boot sources. It produces a matched FPGA-first SOF,
-SPL, FIT, native entry and regular-file test SD image. The actual memory and
-device checks run on the Nano before entry; cross-compilation and packaging
-do not establish that those checks will pass on hardware.
-
-The first probe uses UART1, the architectural timer, Go allocation/GC and the
-volatile memory filesystem. Native SD, USB, Ethernet, display and FPGA control
-are explicitly disabled in its profile. U-Boot reads the payload from FAT32
-using polled PIO; both SPL and full U-Boot have SD DMA disabled. The dedicated
-U-Boot has no USB/network stack or persistent environment and no FAT/MMC writes.
-It stops at its serial prompt. `fesboot` is the only supported entry command.
-
-## Source-derived memory and device contract
-
-| Resource | Source and enforced selection |
-| --- | --- |
-| Physical DDR | Nano U-Boot DTS declares `0x80000000..0xc0000000`; the command requires the same live DRAM bank |
-| TF-A and initial U-Boot | TF-A declares BL31 `0x80000000..0x82000000`; FIT initially loads U-Boot at `0x80200000`; keep that entire envelope reserved |
-| SPL FIT buffer | FIT loads at `0x82000000`; reserve the next 32 MiB conservatively |
-| Go RAM | `0x84000000..0x94000000`, with early tables and initial stack protected by the native ELF validator |
-| Entry staging | `0x96080000..0x98080000` maximum, separate from the Go allocator |
-| SPL/U-Boot upper DDR | Reserve `0xb0000000..0xc0000000` conservatively; the SPL uses malloc at `0xbfa00000` and BSS at `0xbff00000` |
-| Live U-Boot | Reject any Go/staging overlap with LMB reservations, malloc, relocated U-Boot, FDT, and a 1 MiB stack envelope |
-| CPUs | TF-A topology uses Aff1: MPIDRs `0`, `0x100`, `0x200`, `0x300`; accept primary A55 `0` or A76 `0x200` and require every other CPU OFF through PSCI |
-| Timer | Require the pinned TF-A counter frequency, 400 MHz; the loader enables EL1 counter access |
-| Console | Nano DTS aliases `serial0` to UART1 at `0x10c02100`; preserve clocks/divisor and verify 8N1, reset state and transmitter empty |
-
-The local vendor U-Boot DTS uses CPU `reg` values `0..3`, whereas its pinned
-TF-A topology decodes Aff1. The command queries PSCI using the TF-A affinity
-mapping directly. It does not infer CPU power state from those DTS values.
-TF-A's broader DRAM MMU mapping is also not evidence of board RAM capacity.
-
-The command checks live CPU/memory state before loading. It stops registered
-watchdogs, closes all four Agilex 5 FPGA bridges using the checked TF-A service,
-and holds HPS DMA, USB, Ethernet and NAND functions/interfaces in reset before
-reading and hashing the entry. SD alone remains available in PIO mode for that
-read. The SHA-256 is compiled into this U-Boot binary. Go RAM is reserved from
-later U-Boot allocation. A late hook, after U-Boot removes its devices and
-before CPU cleanup, closes/checks bridges again, resets SD, and verifies CPU,
-timer, watchdog, UART and reset readback. Only then does the existing guarded
-entry transition to EL1 and load the Go ELF. The dedicated U-Boot export removes
-the normal secondary-CPU wake-up interrupt after cleanup, retaining the checked
-OFF state through entry.
-
-Source masks come from the pinned Agilex 5 reset bindings and TF-A reset code;
-the TF-A build preserves bridge handshake failures. Register/SMC completion
-and physical traffic drain still require the board trial. An unreturning SMC
-or MMIO transaction cannot be preempted by a software deadline. The image has
-no native peripheral or FPGA programming acceptance.
-
-Failures after containment park and preserve the altered state. The command
-does not restore uncertain devices or automatically retry. A diagnostic boot
-ID binds the entry digest and handoff source hashes; hashes are not signatures.
-
-Each bridge close now emits `FES_NANO_BRIDGE BEGIN` before the SMC and
-`FES_NANO_BRIDGE RESULT` after it returns. Both lines identify `phase=before-load`
-or `phase=after-remove`, the requested reset mask and the initial reset register.
-The result records the signed/hexadecimal firmware return, complete final
-reset register and independent `smc_error` and `reset_mismatch` flags. Readback
-runs even when firmware returns an error. Both existing safety conditions
-remain required: a zero service return and every requested reset bit set.
-The matched firmware also returns `FES_NANO_BRIDGE DETAIL` fields for the
-[first failed handshake](../firmware/README.md). A valid version tag and no
-recorded failure are additionally required before continuing. Missing or
-inconsistent detail rejects; stage zero means no failure snapshot was taken.
-The loader build ID now binds the exact BL31 digest as well as the entry and
-handoff sources.
-
-| `smc_error` | `reset_mismatch` | Observation and action |
+| Volatile JTAG image | SPL boot file | Purpose |
 | --- | --- | --- |
-| 0 | 0 | Both bridge checks passed; continue the remaining handoff checks |
-| 1 | 0 | Firmware reported failure despite matching reset bits; reject and park |
-| 0 | 1 | Firmware returned success but reset bits differ; reject and park |
-| 1 | 1 | Both failure observations occurred; reject and park |
+| `network-recovery.sof` | `/u-boot.itb` | Recovery loader, manual prompt, Ethernet download and experimental file writing |
+| `native-probe.sof` | `FES/UPLOAD.BIN` | Exact sealed native FIT, cold serial ownership handoff, manual `fesboot` |
 
-These observations do not establish why a handshake failed or prove traffic
-drained. A `BEGIN` without a `RESULT` means the call/readback sequence did not
-complete; the host capture deadline cannot preempt it. Stop the attempt and
-restore the factory baseline rather than issuing another `fesboot`.
+Recovery's raw prefix, root boot FIT and `FES/RECOVERY.JSON` stay unchanged.
+Uploading a file does not activate it. A different native FIT needs its matched
+SPL/SOF because SPL checks the whole file's compiled SHA-256 **before parsing**.
+The parser then reads the verified RAM copy at byte granularity, without FAT
+DMA rounding beyond the sealed file or rereading FAT. This is
+source-bound diagnostic sequencing, not signed or measured secure boot.
 
-## Build and inspect
+## Repeatable network upload
 
-Use the pinned compiler and clean Terasic references described in the
-[firmware guide](../firmware/README.md). First build the contained BL31 using
-`build_terasic.py`, then use its completed output below:
+`upload.py` defaults to a file-only plan. It supports one experimental file,
+`FES/UPLOAD.BIN`, of 1 byte through 8 MiB. For a native candidate, supply the
+matched build's `build/u-boot.itb`:
+
+```sh
+python3 platform/embedded/nano/upload.py \
+  --payload out/nano-uboot/build/u-boot.itb \
+  --recovery-kit out/nano-recovery-kit \
+  --host-ip 192.168.10.202 --output out/nano-upload-plan
+```
+
+Use the **current** local Ethernet address for `--host-ip`. For an authorized
+live run, boot the exact recovery loader with the spare card and leave it at
+`SOCFPGA_AGILEX5 # `. Add `--execute` and choose a fresh output directory.
+The operator needs access to the Nano UART and permission to bind UDP port 69
+(normally run the same command using `sudo`). No system TFTP service is changed.
+The tool claims `~/kit-status/de25-TRWU8CBL-STATUS.md` and selects only the stable
+TRWU8CBL UART `if02` link. It does not shut Linux down, program JTAG or boot a
+candidate. The default volatile MAC is `02:fe:25:08:cb:01`; DHCP supplies the
+board address, so no board IP is assumed.
+
+Before the only FAT write, the tool checks the loader banner, live RAM and LMB
+reservations, spare-card capacity/partition layout, protected first 16 MiB,
+root recovery FIT and card manifest. It serves one randomized TFTP filename to
+one observed client, requires the final acknowledgement and verifies RAM SHA-256.
+It writes `FES/UPLOAD.BIN`, reads it into a separate buffer, checks SHA-256 and
+compares bytes, then rechecks the protected prefix and recovery FIT. The receipt
+contains the commands, outputs and completion state.
+
+Timeouts, wrong cards, hashes, ownership loss and uncertain writes stop the
+attempt. There is no automatic replay or activation. If the serial prompt is
+uncertain, the tool leaves its claim held for recovery. A completed write is
+verified readback, not an atomic FAT transaction or a power-loss guarantee;
+FAT metadata damage can still prevent recovery boot. Keep the factory card safe.
+
+## Actual cold ownership handoff
+
+The dedicated SPL samples SDM boot kind, reset cause, peripheral/bridge resets
+and secondary CPU state before device initialization. The pinned
+[vendor DDR code](https://github.com/terasic/u-boot-socfpga/blob/d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413/drivers/ddr/altera/sdram_agilex5.c)
+defines POR, cold reset, nCONFIG and JTAG configuration as kinds 0, 2, 3 and 4;
+these are the reviewed entry paths. Warm reset, RSU, unknown kinds, other reset
+causes, open bridges or released unused masters reject. Reset bits alone do
+not supply history or traffic-drain proof.
+
+Only SD is used, synchronously in PIO mode. SPL loads BL31, U-Boot and the native
+entry from the sealed FIT. Before entering BL31, it verifies the entry hash,
+disables SD interrupts, waits for independent SDHCI idle/buffer observations,
+disables the card clock and checks readback. It then asserts functional resets
+followed by OCP resets, with barriers/readback. Failed drain observations stop
+before those resets. See the separate functional/OCP ordering in the
+[HPS reset sequence](https://docs.altera.com/r/docs/814346/26.1/hard-processor-system-technical-reference-manual-agilextm-5-socs/reset-de-assertion-sequence?contentId=Z8zFZqWjknEOqRcvl2Xvbw).
+
+The record stays in SPL's loaded OCRAM data, not its DDR BSS. SPL passes its
+pointer/cookie directly to early EL3 setup. BL31 bounds-checks and copies it
+once, checks the exact source chain, owner, epoch, boot kind and live scope,
+then installs the real platform ownership/master callbacks. Those callbacks
+verify continued containment without touching SD while it is in reset. Any
+restarted producer, open bridge, changed CPU/reset scope or replay rejects.
+
+This cold serial firmware permits only read-only ownership Snapshot. It denies
+bridge opening, reconfiguration and release, and reports zero configuration
+features. It supplies no active USB, Ethernet or FPGA traffic-drain policy.
+The default controlled firmware still has an unready provider; recovery uses
+the separate strict firmware. See the [firmware guide](../firmware/README.md).
+
+Full U-Boot never probes/reopens SD and has no USB, network, DMA, flash-storage
+commands or persistent environment. `fesboot` hashes the preloaded entry and
+checks memory, CPU, watchdog and private ownership state. A late hook after
+device removal rechecks the same owner/generation, timer, UART and resets.
+The existing guarded EL2-to-EL1 entry then starts the serial Go probe. There
+is one attempt per boot; uncertain failures park. Tenfoot and physical FPGA
+launch/return remain later integration steps.
+
+## Source-derived memory contract
+
+| Resource | Enforced selection |
+| --- | --- |
+| Physical DDR | Require the live Nano bank `0x80000000..0xc0000000` |
+| BL31 and initial U-Boot | Reserve `0x80000000..0x82000000`; initial U-Boot load is `0x80200000`, checked against BL31 ELF segments/BSS |
+| SPL parser workspace | Conservatively reserve `0x82000000..0x84000000` |
+| Go RAM | `0x84000000..0x94000000`, with early tables/stack checked by the entry validator |
+| Verified FIT copy | `0x94000000..0x94800000`, at most 8 MiB |
+| Preloaded entry | `0x96080000..0x98080000` maximum, separate from Go RAM |
+| SPL/U-Boot upper DDR | Reserve `0xb0000000..0xc0000000`; SPL malloc/BSS are near its top |
+| Live U-Boot | Reject Go/entry overlap with LMB, malloc, relocated code, FDT or the stack envelope |
+| CPUs | Accept A55 Aff1=0 or A76 Aff1=2; require other CPUs held/OFF, retain that state through cleanup |
+| Timer/console | Require 400 MHz architectural counter; preserve UART1 at `0x10c02100`, clocks/divisor and checked 8N1 state |
+
+TF-A's larger MMU mapping and the U-Boot DTS CPU `reg` numbers do not replace
+the live RAM and Aff1/PSCI checks. Unreturning MMIO/SMC operations cannot be
+preempted by software poll limits or a host capture deadline.
+
+## Build the matched candidate
+
+Use the pinned clean Terasic references and compiler environment from the
+[firmware guide](../firmware/README.md). First build the serial probe and
+[native entry](../entry/README.md), then the cold firmware and native loader:
 
 ```sh
 python3 platform/embedded/tamago/run.py probe --board de25-nano \
@@ -118,47 +132,55 @@ python3 platform/embedded/entry/build.py --target de25-nano \
   --payload out/nano-probe/probe.elf --nano-build out/nano-probe \
   --profile platform/embedded/nano/probe-profile.json --image-address 0x96080000 \
   --cross-prefix /absolute/path/aarch64-linux-gnu- --output out/nano-entry
+python3 platform/embedded/firmware/build_terasic.py \
+  --reference-repo out/vendor-tfa --cross-prefix /absolute/path/aarch64-linux-gnu- \
+  --nano-owned-bridges --nano-cold-serial-entry out/nano-entry \
+  --output out/nano-bl31
 python3 platform/embedded/firmware/build_terasic_uboot.py \
-  --reference-repo out/vendor-uboot --bl31-build out/vendor-bl31 \
+  --reference-repo out/vendor-uboot --bl31-build out/nano-bl31 \
   --cross-prefix /absolute/path/aarch64-linux-gnu- \
   --native-entry-build out/nano-entry --output out/nano-uboot
 python3 platform/embedded/nano/package.py \
   --uboot-build out/nano-uboot --entry-build out/nano-entry \
+  --recovery-kit out/nano-recovery-kit \
   --vendor-sof /absolute/path/golden_top_hps.sof \
   --quartus-pfg /absolute/path/quartus_pfg --output out/nano-test-kit
 ```
 
-The FPGA input must match the previously inventoried vendor SOF SHA-256
-`e71a72180cb77ddd05a9c2ae49afa739d74786f9366f00233fd27bbebff6ea09`.
-PFG combines it with this build's exact SPL and checks the device and FPGA-first
-order. Its embedded SPL is not independently decoded. The test SD image places
-the exact FIT at raw sector `0x200`, before a FAT32 partition at sector `32768`.
-It also contains the same FIT as the SPL's filesystem fallback and the exact
-entry at `FES/ENTRY.IMG`. Raw offsets and every copied FAT file are read back
-and compared. The source-derived profile describes this executable recipe;
-its readiness declarations become valid only after the live gate passes.
+The initial SPL compilation has a zero seal and cannot boot a FIT. After the
+FIT is built, the builder compiles its exact size/hash into SPL and rebuilds
+only SPL, requiring the FIT to remain unchanged. The FIT does not contain SPL,
+so the seal has no hash cycle. PFG combines that SPL with the inventoried
+vendor SOF (`e71a72180cb77ddd05a9c2ae49afa739d74786f9366f00233fd27bbebff6ea09`)
+and checks the Nano device and FPGA-first order. Embedded SPL bytes have not
+been independently decoded from the resulting SOF.
 
-## Bounded TRWU8CBL test
+Packaging takes a corrected FAT-boot recovery kit, copies its regular-file SD
+image, and adds the native FIT at `FES/UPLOAD.BIN` plus `FES/BOOTCHAIN.JSON`.
+It checks readback and preserved recovery files/prefix. It produces both
+volatile SOFs and `nano-probe-sd.img`; it never writes a physical card.
+The kit directory's `u-boot.itb` is the native upload payload. Do not copy it
+over the card's root `u-boot.itb`, which belongs to recovery.
 
-1. Check the current top-board status and record the operator/claim. Verify
-   physical serial `TRWU8CBL`, UART `if02` at 115200, and its exact JTAG cable.
-   Record the current factory boot/media identity and halt Linux cleanly.
-2. Keep the original factory SD intact. Put `nano-probe-sd.img` on an explicitly
-   identified spare SD, then insert that card. The package command never writes
-   a card; no physical device path is selected automatically.
-3. Program **only volatile JTAG SRAM** with `native-probe.sof` on the exact top
-   cable. Require JTAG ID `4362C0DD`. Preserve the original serial log throughout.
-4. Require the U-Boot banner's `-fes-nano-<build_id>` suffix to match
-   `BOOTCHAIN.JSON`. An unexpected loader, FIT, fallback or banner stops the test.
-   At the `SOCFPGA_AGILEX5 # ` prompt issue `fesboot` once. Retain the live memory map and all gate
-   output. Acceptance requires `FES_NANO_HANDOFF PASS serial-only`, the entry
-   handoff markers, and `FES_NATIVE_GO_PROBE PASS os=tamago board=de25-nano`.
-5. After the pass or a contained failure, restore the original factory SD and
-   `recovery-reference.sof`. Same-SOF JTAG recovery was observed on the other
-   Nano; if the top board does not resume its baseline, use the already offered
-   physical power cycle. Verify the factory boot/media identity before releasing
-   the board. No flash programming or factory-card modification is part of this
-   trial.
+## Next bounded TRWU8CBL trial
 
-This is a serial CPU/RAM diagnostic. Tenfoot, the sealed FPGA endpoint and
-physical launch/return remain subsequent tests after the probe handoff passes.
+1. Claim the top board in its current status file, verify serial/cable/UART,
+   record the factory boot identity and shut Linux down cleanly. Preserve the
+   original factory card and verify the spare's device identity before writing.
+2. With the combined spare card, load `network-recovery.sof` through volatile
+   JTAG. Run one upload/readback of the matched native FIT using `upload.py`.
+   Require the exact recovery checks and successful receipt before continuing.
+3. Load `native-probe.sof` through the exact top JTAG cable. Require device ID
+   `4362C0DD`, the valid `FES_NANO_SPL BEGIN`, verified-before-parsing FIT marker,
+   SPL handoff and `FES_NANO_OWNED_BOOT provider=1 result=0 reset=f`.
+4. At the matching `-fes-nano-<build_id>` prompt issue `fesboot` once. Require
+   both ownership snapshots to report the same nonzero owner, generation 1 and
+   exact flags `0xdf`; then `FES_NANO_HANDOFF PASS serial-only`, native entry
+   markers and `FES_NATIVE_GO_PROBE PASS os=tamago board=de25-nano`.
+5. Stop on a failure or incomplete marker sequence. Restore the original card
+   and `recovery-reference.sof`, verify the factory boot/media identity and
+   release the claim. Use a physical power cycle if volatile recovery fails.
+
+This trial qualifies only serial CPU/RAM and the observed handoff. Native
+USB/SD/network drivers, active master stop/drain, HDMI and FPGA programming
+still need their own implementation and physical checks.

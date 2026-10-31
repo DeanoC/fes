@@ -83,6 +83,17 @@ class NanoExportTests(unittest.TestCase):
         bootm = source / "arch/arm/lib/bootm.c"
         bootm.write_text("static void do_nonsec_virt_switch(void)\n{\n\tsmp_kick_all_cpus();\n}\n"
                          "\tdm_remove_devices_active();\n\n\tcleanup_before_linux();\n")
+        soc=source/'arch/arm/mach-socfpga';soc.mkdir(parents=True)
+        (soc/'Makefile').write_text('ifdef CONFIG_TARGET_SOCFPGA_AGILEX5\nobj-y += rsu.o\nobj-y += rsu_ll_qspi.o\nobj-y += rsu_misc.o\nobj-$(CONFIG_CADENCE_QSPI) += rsu_s10.o\nobj-$(CONFIG_ARMV8_PSCI) += smc_rsu_s10.o\nendif\nifdef CONFIG_TARGET_SOCFPGA_AGILEX7M\nendif\n')
+        (soc/'spl_agilex5.c').write_text('\tret = spl_early_init();\n\tpreloader_console_init();\n')
+        (source/'common/spl').mkdir(parents=True)
+        (source/'common/spl/spl_atf.c').write_text('typedef void __noreturn (*atf_entry_t)(struct bl31_params *params, void *plat_params);\n\tatf_entry(bl31_params, (void *)fdt_addr);\n')
+        (source/'common/spl/spl_fat.c').write_text('static ulong spl_fit_read(struct spl_load_info *load, ulong file_offset, ulong size, void *buf)\n{\n\treturn 0;\n}\nvoid load(void) {\n\terr = spl_register_fat_device(block_dev, partition);\n\tif (err)\n\t\tgoto end;\nend:;\n}\n')
+        (source/'common/board_r.c').write_text('static int initr_mmc(void)\n{\n\treturn 0;\n}\n\tinitr_mmc,\n')
+        (source/'arch/arm/dts').mkdir(parents=True)
+        (source/'arch/arm/dts/socfpga_agilex5_de25_nano-u-boot.dtsi').write_text('// pinned board fixture\n')
+        (source/'include/configs').mkdir(parents=True)
+        (source/'include/configs/socfpga_agilex5_de25_nano.h').write_text('#include <configs/socfpga_soc64_common.h>\n')
         entry.mkdir()
         image = entry / "entry.img"; image.write_bytes(bytes(64))
         receipt = {"status": "built", "target": "de25-nano", "entry_image_address": 0x96080000,
@@ -118,125 +129,70 @@ class NanoExportTests(unittest.TestCase):
                 source, entry, _ = self.fixture(Path(tmp))
                 result = prepare.prepare(source, entry, digest)
                 self.assertEqual(result["bl31_sha256"], digest)
-                self.assertEqual((source / "cmd/nano_bridge_diag.h").read_bytes(),
-                                 (HERE.parent / "firmware/nano_bridge_diag.h").read_bytes())
+                self.assertEqual((source / "cmd/fes_embedded_bridges.h").read_bytes(),
+                                 (HERE.parent / "firmware/generated/fes_embedded_bridges.h").read_bytes())
+                self.assertTrue(result["preloaded_entry"])
                 identities.append(result["build_id"])
         self.assertNotEqual(*identities)
 
 
-class NanoBridgeDiagnosticsTests(unittest.TestCase):
-    """Execute the real adapter's bridge call/readback with injected replies."""
+class NanoOwnedSnapshotTests(unittest.TestCase):
+    """Execute the actual native adapter's private, read-only ownership check."""
     @classmethod
     def setUpClass(cls):
-        cls.temp = tempfile.TemporaryDirectory()
-        base = Path(cls.temp.name)
-        adapter = (HERE / "uboot.c").read_text()
-        start = adapter.index("static const char *bridge_stage_name(")
-        stop = adapter.index("static void contain(", start)
-        source = base / "bridge.c"
+        cls.temp=tempfile.TemporaryDirectory();base=Path(cls.temp.name)
+        adapter=(HERE/'uboot.c').read_text()
+        fragment=adapter[adapter.index('static u64 owned_owner'):adapter.index('/* Called after dm_remove_devices_active()')]
+        source=base/'snapshot.c'
         source.write_text(r'''
 #include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include "handoff.h"
-#include "nano_bridge_diag.h"
+#include "fes_embedded_bridges.h"
 typedef uint32_t u32;
 typedef uint64_t u64;
-#define RSTMGR 0x10d11000UL
-#define INTEL_SIP_SMC_HPS_SET_BRIDGES 0xc2000032U
-static u32 before, after;
 static int status;
-static u64 detail[3] = {(u64)FES_NANO_BRIDGE_DIAG_TAG << 32, 0, 0};
-static unsigned reads, calls;
-static u32 readl(unsigned long address) {
-    assert(address == RSTMGR + 0x2c);
-    assert(reads < 2);
-    if (reads++ == 0) { assert(calls == 0); return before; }
-    assert(calls == 1);
-    return after;
+static u64 words[3];
+static unsigned calls;
+static int invoke_smc(u32 fid,u64 *args,int count,u64 *reply,int replies) {
+    assert(fid==FES_EMBEDDED_BRIDGE_CALL && count==4 && replies==3);
+    assert(args[0]==FES_EMBEDDED_BRIDGE_SNAPSHOT && !args[1] && args[2]==FES_EMBEDDED_BRIDGE_COOKIE && !args[3]);
+    for(unsigned i=0;i<3;i++)reply[i]=words[i];
+    calls++;return status;
 }
-static int invoke_smc(u32 function, u64 *args, int count, u64 *reply, int replies) {
-    assert(function == INTEL_SIP_SMC_HPS_SET_BRIDGES);
-    assert(count == 3 && args[0] == 2 && args[1] == FES_NANO_BRIDGES && args[2] == FES_NANO_BRIDGE_DIAG_REQUEST);
-    assert(reply != NULL && replies == 3 && reads == 1 && calls == 0);
-    for (unsigned i = 0; i < 3; i++) reply[i] = detail[i];
-    calls++;
-    return status;
-}
-''' + adapter[start:stop] + r'''
-int main(int argc, char **argv) {
-    assert(argc == 5 || argc == 8);
-    status = (int)strtol(argv[1], NULL, 0);
-    before = (u32)strtoul(argv[2], NULL, 0);
-    after = (u32)strtoul(argv[3], NULL, 0);
-    if (argc == 8) for (unsigned i = 0; i < 3; i++) detail[i] = strtoull(argv[5+i], NULL, 0);
-    int accepted = close_bridges(argv[4]);
-    assert(reads == 2 && calls == 1);
-    printf("HARNESS accepted=%d reads=%u calls=%u\n", accepted, reads, calls);
-    return 0;
+'''+fragment+r'''
+int main(int argc,char **argv) {
+    assert(argc==5 || argc==7);
+    status=atoi(argv[1]);
+    for(unsigned i=0;i<3;i++)words[i]=strtoull(argv[i+2],0,0);
+    int first=observe_owned("before-entry"),second=-1;
+    if(argc==7) {words[1]=strtoull(argv[5],0,0);words[2]=strtoull(argv[6],0,0);second=observe_owned("after-remove");}
+    printf("HARNESS first=%d second=%d calls=%u\n",first,second,calls);
 }
 ''')
-        cls.binary = base / "bridge"
-        subprocess.run([shutil.which("cc"), "-std=c11", "-Wall", "-Wextra", "-Werror",
-                        "-fsanitize=undefined", "-fno-sanitize-recover=all", "-I", str(HERE),
-                        "-I", str(HERE.parent / "firmware"),
-                        str(source), "-o", str(cls.binary)], check=True)
-
+        cls.binary=base/'snapshot'
+        subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=undefined','-fno-sanitize-recover=all',
+                        '-I'+str(HERE),'-I'+str(HERE.parent/'firmware/generated'),str(source),'-o',str(cls.binary)],check=True)
     @classmethod
-    def tearDownClass(cls):
-        cls.temp.cleanup()
-
-    def check_reply(self, status, before, after, phase="before-load", detail=None, diagnostic_ok=True):
-        with self.subTest(status=status, before=before, after=after, phase=phase):
-            output = subprocess.check_output([str(self.binary), str(status), hex(before), hex(after), phase,
-                                              *([] if detail is None else [hex(word) for word in detail])], text=True)
-            smc_error, reset_mismatch = int(status != 0), int(after & 0xf != 0xf)
-            begin = f"FES_NANO_BRIDGE BEGIN phase={phase} mask=0000000f before={before:08x}"
-            result = (f"FES_NANO_BRIDGE RESULT phase={phase} smc={status} smc_hex={status & 0xffffffff:08x} "
-                      f"mask=0000000f before={before:08x} after={after:08x} "
-                      f"smc_error={smc_error} reset_mismatch={reset_mismatch}")
-            self.assertIn(begin, output)
-            self.assertIn(result, output)
-            self.assertLess(output.index(begin), output.index(result))
-            rejected = smc_error or reset_mismatch
-            self.assertIn(f"HARNESS accepted={int(not rejected and diagnostic_ok)} reads=2 calls=1", output)
-            if rejected:
-                self.assertIn(f"FES_NANO_HANDOFF REJECT bridge phase={phase} smc_error={smc_error} reset_mismatch={reset_mismatch}", output)
-            elif diagnostic_ok:
-                self.assertNotIn("REJECT", output)
-            else:
-                self.assertIn("FES_NANO_HANDOFF REJECT bridge diagnostic identity/state", output)
-            return output
-
-    def test_service_error_and_reset_mismatch_are_independent(self):
-        for phase in ("before-load", "after-remove"):
-            for status in (0, 4, -1):
-                for after in (0, 7, 0xf, 0x8000000f):
-                    self.check_reply(status, 0x80000003, after, phase)
-
-    def test_all_required_reset_bits_and_already_closed_bridge(self):
-        for bit in range(4):
-            self.check_reply(0, 0xf, 0xf & ~(1 << bit))
-        self.check_reply(0, 0xf, 0xf)
-
-    def test_first_failed_stage_and_register_snapshot_are_decoded(self):
-        names = ("s2f_ack_clear", "lw_ack_clear", "f2s_fpga_ack_set", "f2s_flush_ack_set",
-                 "sdram_flush_ack_clear", "sdram_fpga_ack_clear", "noc_idle_ack", "noc_idle_status")
-        for stage, name in enumerate(names, 1):
-            detail = ((0x46424431 << 32) | stage, ((-110 & 0xffffffff) << 32) | 0x12345678,
-                      (0xabcdef01 << 32) | 0xf)
-            output = self.check_reply(4, 0xf, 0xf, detail=detail)
-            self.assertIn(f"valid=1 captured=1 stage={stage} name={name} error=-110", output)
-            self.assertIn("failure_ack=12345678 failure_req=abcdef01 failure_reset=0000000f", output)
-
-    def test_missing_or_inconsistent_details_cannot_accept_success(self):
-        tag = 0x46424431 << 32
-        for detail in ((0, 0, 0), (tag | 1, 0xffffff9200000001, 0xf),
-                       (tag | 9, 0xffffff9200000001, 0xf), (tag, 0xffffff9200000001, 0xf),
-                       (tag | 1, 0, 0xf)):
-            self.check_reply(0, 0xf, 0xf, detail=detail, diagnostic_ok=False)
+    def tearDownClass(cls):cls.temp.cleanup()
+    def run_reply(self,status=0,flags=(0x46424f31<<32)|0xdf,owner=17,generation=1,second=None):
+        args=[str(self.binary),str(status),hex(flags),str(owner),str(generation)]
+        if second:args.extend(str(v) for v in second)
+        return subprocess.check_output(args,text=True)
+    def test_exact_cold_proof_and_owner_continuity(self):
+        self.assertIn('HARNESS first=1 second=1 calls=2',self.run_reply(second=(17,1)))
+        for second in ((18,1),(17,2),(0,1)):
+            with self.subTest(second=second):self.assertIn('HARNESS first=1 second=0 calls=2',self.run_reply(second=second))
+    def test_unready_wrong_tag_and_every_missing_or_extra_flag_reject(self):
+        for status in (1,4,5,-1):
+            self.assertIn('HARNESS first=0',self.run_reply(status=status))
+        for bit in range(32):
+            self.assertIn('HARNESS first=0',self.run_reply(flags=(0x46424f31<<32)|(0xdf^(1<<bit))))
+        self.assertIn('HARNESS first=0',self.run_reply(flags=0xdf))
+        self.assertIn('HARNESS first=0',self.run_reply(owner=0))
+        self.assertIn('HARNESS first=0',self.run_reply(generation=2))
 
 
-if __name__ == "__main__":
-    unittest.main()
+if __name__ == "__main__":unittest.main()
