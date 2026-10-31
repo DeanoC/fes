@@ -72,7 +72,7 @@ func TestPointerClickLaunchesWithoutController(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 50)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && len(snap.Games) == 2
 	})
 
@@ -84,7 +84,7 @@ func TestPointerClickLaunchesWithoutController(t *testing.T) {
 		t.Fatalf("hover selected = %#v ok=%v", selected, ok)
 	}
 	app.PointerClick(x, y, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Launch.Phase == "ok" || snap.Launch.HTTPStatus != 0 || snap.Session.State == "active"
 	})
 	if len(launches) != 1 || !strings.Contains(launches[0], "megadrive-sonic") {
@@ -146,7 +146,7 @@ func TestPointerClickDetailLaunches(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 20)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && len(snap.Games) == 1
 	})
 	now := time.Now()
@@ -159,7 +159,7 @@ func TestPointerClickDetailLaunches(t *testing.T) {
 		t.Fatal("detail geom")
 	}
 	app.PointerClick(geom.Pane.X+24, geom.Pane.Y+24, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Launch.Phase == "ok" || snap.Launch.HTTPStatus != 0 || snap.Session.State == "active"
 	})
 	if len(launches) != 1 || !strings.Contains(launches[0], "snes-mario") {
@@ -191,7 +191,7 @@ func TestPointerSearchHoverClickConfirms(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 20)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && len(snap.Games) == 2
 	})
 	now := time.Now()
@@ -224,7 +224,7 @@ func TestPointerSearchHoverClickConfirms(t *testing.T) {
 		t.Fatalf("typed = %q", app.Snapshot().OSK.Buffer)
 	}
 	app.PointerClick(doneKey.X+doneKey.W/2, doneKey.Y+doneKey.H/2, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.SearchOpen && snap.Query == "s" && !snap.Loading
 	})
 	found := false
@@ -332,7 +332,7 @@ func TestPointerClickFilterRowActivates(t *testing.T) {
 	if !app.FiltersOpen() {
 		t.Fatal("shift-tab should open filters")
 	}
-	waitSnapshot(t, app, time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Filters.Open && len(snap.Filters.Rows) > 0
 	})
 	panel, ok := filtersPanel(app.Snapshot())

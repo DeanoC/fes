@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"io"
 	"net"
 	"net/http"
@@ -114,7 +115,7 @@ func TestLibraryRetriesATruncatedResponseThenRestoresFocus(t *testing.T) {
 	t.Cleanup(app.Stop)
 
 	sawBanner := false
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		app.Tick(time.Now())
 		snap := app.Snapshot()
@@ -147,7 +148,7 @@ func TestLibraryRetriesATruncatedResponseThenRestoresFocus(t *testing.T) {
 	app.mu.Lock()
 	app.reloadLocked()
 	app.mu.Unlock()
-	deadline = time.Now().Add(3 * time.Second)
+	deadline = time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		app.Tick(time.Now())
 		snap = app.Snapshot()
@@ -215,7 +216,7 @@ func TestHomeRecentsRetryAfterARefusedConnection(t *testing.T) {
 	t.Cleanup(release)
 
 	saw := false
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		app.Tick(time.Now())
 		snap := app.Snapshot()
@@ -255,7 +256,7 @@ func TestLibraryDoesNotRetryAHostStatus(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 50)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	deadline := time.Now().Add(time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		app.Tick(time.Now())
 		if app.Snapshot().LoadErr != "" {
@@ -290,7 +291,7 @@ func TestEmptyLibraryIsNotUnreachable(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 50)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		app.Tick(time.Now())
 		snap := app.Snapshot()
@@ -350,7 +351,7 @@ func TestLibraryKeepsCachedShelfLaunchableDuringRetry(t *testing.T) {
 	// text while the shelf status stays on the app.
 	waitShelf := func(id, status string, cached bool) {
 		t.Helper()
-		deadline := time.Now().Add(4 * time.Second)
+		deadline := time.Now().Add(testwait.Timeout)
 		var loading bool
 		var loadErr, gotStatus string
 		var games, saved []string
@@ -382,7 +383,7 @@ func TestLibraryKeepsCachedShelfLaunchableDuringRetry(t *testing.T) {
 		t.Fatalf("launches before select = %d", launches.Load())
 	}
 	app.Press(CmdSelect, time.Now())
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		app.Tick(time.Now())
 		if launches.Load() >= 1 {
@@ -436,7 +437,7 @@ func TestLibraryRetryDoesNotRestoreAnotherPlatform(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 50)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		app.Tick(time.Now())
 		snap := app.Snapshot()
@@ -455,7 +456,7 @@ func TestLibraryRetryDoesNotRestoreAnotherPlatform(t *testing.T) {
 	app.reloadLocked()
 	app.mu.Unlock()
 	saw := false
-	deadline = time.Now().Add(2 * time.Second)
+	deadline = time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		app.Tick(time.Now())
 		snap := app.Snapshot()
@@ -590,7 +591,7 @@ func TestLibraryRetrySurvivesCachedLaunchAndGPUPark(t *testing.T) {
 
 	beforePark := attempts.Load()
 	app.Press(CmdSelect, time.Now())
-	deadline := time.Now().Add(4 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		app.Tick(time.Now())
 		snap := app.Snapshot()
@@ -604,7 +605,7 @@ func TestLibraryRetrySurvivesCachedLaunchAndGPUPark(t *testing.T) {
 	}
 	// One in-flight request can still land after cancel. A second request
 	// means the parked generation restarted the retry.
-	deadline = time.Now().Add(4 * time.Second)
+	deadline = time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		app.Tick(time.Now())
 		if attempts.Load() >= beforePark+2 {
@@ -617,7 +618,7 @@ func TestLibraryRetrySurvivesCachedLaunchAndGPUPark(t *testing.T) {
 	}
 
 	app.Press(CmdBack, time.Now())
-	deadline = time.Now().Add(4 * time.Second)
+	deadline = time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		app.Tick(time.Now())
 		snap := app.Snapshot()
@@ -685,7 +686,7 @@ func TestSupersededFilterRetryStaysCancelledAcrossGPUPark(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 50)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		app.Tick(time.Now())
 		snap := app.Snapshot()
@@ -702,7 +703,7 @@ func TestSupersededFilterRetryStaysCancelledAcrossGPUPark(t *testing.T) {
 	app.mu.Lock()
 	app.reloadLocked()
 	app.mu.Unlock()
-	deadline = time.Now().Add(3 * time.Second)
+	deadline = time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		app.Tick(time.Now())
 		app.mu.Lock()
@@ -724,7 +725,7 @@ func TestSupersededFilterRetryStaysCancelledAcrossGPUPark(t *testing.T) {
 	app.platformID = "sms"
 	app.reloadLocked()
 	app.mu.Unlock()
-	deadline = time.Now().Add(3 * time.Second)
+	deadline = time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		app.Tick(time.Now())
 		snap := app.Snapshot()
@@ -752,7 +753,7 @@ func TestSupersededFilterRetryStaysCancelledAcrossGPUPark(t *testing.T) {
 	if !parked {
 		t.Fatal("session did not park")
 	}
-	deadline = time.Now().Add(4 * time.Second)
+	deadline = time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		app.Tick(time.Now())
 		mu.Lock()
@@ -784,7 +785,7 @@ func TestSupersededFilterRetryStaysCancelledAcrossGPUPark(t *testing.T) {
 	}
 
 	dropShelf.Store(false)
-	deadline = time.Now().Add(8 * time.Second)
+	deadline = time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		app.Tick(time.Now())
 		snap := app.Snapshot()
@@ -846,7 +847,7 @@ func TestHeldRetryKeepsNavigatedTitleAcrossPartialPage(t *testing.T) {
 	app.pageLimit = 2
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	deadline := time.Now().Add(4 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		app.Tick(time.Now())
 		snap := app.Snapshot()
@@ -863,7 +864,7 @@ func TestHeldRetryKeepsNavigatedTitleAcrossPartialPage(t *testing.T) {
 	app.mu.Lock()
 	app.reloadLocked()
 	app.mu.Unlock()
-	deadline = time.Now().Add(4 * time.Second)
+	deadline = time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		app.Tick(time.Now())
 		app.mu.Lock()
@@ -889,7 +890,7 @@ func TestHeldRetryKeepsNavigatedTitleAcrossPartialPage(t *testing.T) {
 	}
 
 	mode.Store("partial")
-	deadline = time.Now().Add(6 * time.Second)
+	deadline = time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		app.Tick(time.Now())
 		snap := app.Snapshot()
@@ -911,7 +912,7 @@ func TestHeldRetryKeepsNavigatedTitleAcrossPartialPage(t *testing.T) {
 	}
 
 	mode.Store("full")
-	deadline = time.Now().Add(8 * time.Second)
+	deadline = time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		app.Tick(time.Now())
 		snap = app.Snapshot()
@@ -977,7 +978,7 @@ func TestLibraryRecoversAfterATruncatedResponse(t *testing.T) {
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
 	saw := false
-	deadline := time.Now().Add(4 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		app.Tick(time.Now())
 		snap := app.Snapshot()
@@ -1030,7 +1031,7 @@ func TestRecentsRecoverAfterATruncatedResponse(t *testing.T) {
 	t.Cleanup(app.Stop)
 
 	saw := false
-	deadline := time.Now().Add(4 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		app.Tick(time.Now())
 		snap := app.Snapshot()

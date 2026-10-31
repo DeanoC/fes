@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"image/color"
 	"io"
 	"net/http"
@@ -148,7 +149,7 @@ func TestCloseDetailCancelsScreenshotHTTPAndUnblocksCoverWork(t *testing.T) {
 				default:
 				}
 				return
-			case <-time.After(8 * time.Second):
+			case <-time.After(testwait.Timeout):
 				http.Error(w, "stale screenshot GET was not canceled", http.StatusGatewayTimeout)
 			}
 		default:
@@ -159,7 +160,7 @@ func TestCloseDetailCancelsScreenshotHTTPAndUnblocksCoverWork(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && len(snap.Games) == 2 && len(snap.FocusDetail.ScreenshotIDs) == len(marioShots)
 	})
 	app.mu.Lock()
@@ -169,7 +170,7 @@ func TestCloseDetailCancelsScreenshotHTTPAndUnblocksCoverWork(t *testing.T) {
 	if !app.Snapshot().Detail.Open {
 		t.Fatal("detail should open")
 	}
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for {
 		app.Tick(time.Now())
 		select {
@@ -193,7 +194,7 @@ shotsStarted:
 		t.Fatal("detail should close")
 	}
 	gotCancel := 0
-	cancelDeadline := time.Now().Add(2 * time.Second)
+	cancelDeadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(cancelDeadline) && gotCancel < coverWorkers {
 		select {
 		case <-canceled:
@@ -212,7 +213,7 @@ shotsStarted:
 	app.mu.Lock()
 	app.covers["snes-sonic"] = &coverSlot{phase: coverArtwork, handle: sonicCover}
 	app.mu.Unlock()
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Covers["snes-sonic"] != nil
 	})
 	if coverGets.Load() < 1 {
@@ -238,7 +239,7 @@ func TestWorkerRejectsStaleScreenshotJobBeforeIO(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && len(snap.Games) == 1
 	})
 	app.mu.Lock()
@@ -248,7 +249,7 @@ func TestWorkerRejectsStaleScreenshotJobBeforeIO(t *testing.T) {
 	app.mu.Unlock()
 	select {
 	case app.jobs <- workItem{kind: workScreenshot, gameID: "snes-mario", handle: handle, gen: gen, shotGen: stale}:
-	case <-time.After(time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("jobs channel blocked")
 	}
 	hold := time.Now().Add(200 * time.Millisecond)
@@ -506,7 +507,7 @@ func TestAppFocusDetailDecodesStudioPlayersAndScreenshots(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		d := snap.FocusDetail
 		return d.Studio == "Nintendo" && d.Players == "1-2" && d.Summary == "Jump on turtles." &&
 			len(d.ScreenshotIDs) == 3 && d.ScreenshotIDs[0] == shotOK
@@ -517,13 +518,13 @@ func TestAppFocusDetailDecodesStudioPlayersAndScreenshots(t *testing.T) {
 	if !snap.Detail.Open {
 		t.Fatal("Details should open detail")
 	}
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Screenshots[shotOK] != nil
 	})
 	if snap.Detail.Count != 3 {
 		t.Fatalf("count = %d ids=%#v", snap.Detail.Count, snap.FocusDetail.ScreenshotIDs)
 	}
-	waitSnapshot(t, app, 2*time.Second, func(Snapshot) bool {
+	waitSnapshot(t, app, func(Snapshot) bool {
 		app.mu.Lock()
 		defer app.mu.Unlock()
 		return app.shotFailedLocked(shotBad) && app.shotFailedLocked(shotMiss)
@@ -576,7 +577,7 @@ func TestAppDetailFocusEnterLeaveDoesNotStealBindings(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && len(snap.Games) == 2
 	})
 	now := time.Now()
@@ -633,14 +634,14 @@ func TestAppDetailFocusEnterLeaveDoesNotStealBindings(t *testing.T) {
 
 	app.HandleCommand(CmdDetails, now)
 	app.HandleCommand(CmdSelect, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return launches.Load() >= 1 && (snap.Session.State == "active" || snap.Launch.Phase == "ok" || snap.Launch.HTTPStatus != 0)
 	})
 	if launches.Load() < 1 {
 		t.Fatal("south/A should still launch from detail")
 	}
 
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Session.State == "active" || snap.GPUParked
 	})
 	app.HandleCommand(CmdDown, time.Now())
@@ -648,7 +649,7 @@ func TestAppDetailFocusEnterLeaveDoesNotStealBindings(t *testing.T) {
 		t.Fatal("session must not enter detail")
 	}
 	app.HandleCommand(CmdBack, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return stops.Load() >= 1
 	})
 	if stops.Load() < 1 {
@@ -689,14 +690,14 @@ func TestAppOfflinePresentationOmitsIncompleteDetail(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 1 && snap.FocusDetail.Summary == "" && snap.FocusDetail.Studio == "" && snap.FocusDetail.Players == "" &&
 			len(snap.FocusDetail.ScreenshotIDs) == 1
 	})
 	mu.Lock()
 	ready = true
 	mu.Unlock()
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.FocusDetail.Summary == "Jump on turtles." && snap.FocusDetail.Studio == "Nintendo" && snap.FocusDetail.Players == "1" &&
 			len(snap.FocusDetail.ScreenshotIDs) == 0
 	})
@@ -750,7 +751,7 @@ func TestAppDetailOpensBeforeScreenshotsArrive(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && len(snap.Games) == 1
 	})
 	app.HandleCommand(CmdDetails, time.Now())

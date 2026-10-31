@@ -797,7 +797,8 @@ Capabilities NativeHardware::capabilities() const
 		SupportedABI computer_io;
 		computer_io.id = generated::FesComputerABIID;
 		computer_io.major = generated::FesComputerABIMajor;
-		computer_io.minor = generated::FesComputerABIMinor;
+		// The driver reads the ABI 1.0 identity, words 0..15.
+		computer_io.minor = 0;
 		computer_io.interfaces = {
 			{kApple2ExpansionBusID, 1, 0},
 			{kAtariStExpansionBusID, 1, 0},

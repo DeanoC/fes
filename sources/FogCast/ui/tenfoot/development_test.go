@@ -118,12 +118,12 @@ func TestAppDevelopmentPathOSKLoadsAndStops(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 1 && !snap.Loading
 	})
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Settings.Open && !snap.Settings.Loading
 	})
 	row := settingsRowByID(t, app, "development-rbf")
@@ -143,7 +143,7 @@ func TestAppDevelopmentPathOSKLoadsAndStops(t *testing.T) {
 	}
 	app.TypeText(rbf, now)
 	app.ConfirmSearch(now)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.GPUParked && snap.Session.State == "active" && snap.Session.Diagnostic
 	})
 	snap := app.Snapshot()
@@ -167,7 +167,7 @@ func TestAppDevelopmentPathOSKLoadsAndStops(t *testing.T) {
 	}
 	mu.Unlock()
 	app.Press(CmdBack, now)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.GPUParked && snap.Session.State != "active"
 	})
 	mu.Lock()
@@ -214,7 +214,7 @@ func TestAppDevelopmentPathOSKRejectsEmptyFileBeforeUpload(t *testing.T) {
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Settings.Open && !snap.Settings.Loading
 	})
 	focusSettingsRow(t, app, "development-rbf", now)
@@ -266,7 +266,7 @@ func TestAppDevelopmentLoadRespectsLeaseBlockedAndRetryStop(t *testing.T) {
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Settings.Open && !snap.Settings.Loading
 	})
 	app.mu.Lock()
@@ -330,7 +330,7 @@ func TestAppPollDevelopmentSessionShowsDiagnosticChrome(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Session.Diagnostic && snap.GPUParked
 	})
 	snap := app.Snapshot()
