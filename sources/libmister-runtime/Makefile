@@ -58,6 +58,7 @@ LIB_SOURCES := \
 	src/native/video_recipe.cpp \
 	src/native/video.cpp \
 	src/native/hardware.cpp \
+	src/native/linux/de25_fpga_manager.cpp \
 	src/native/linux/fpga_manager.cpp \
 	src/native/linux/i2c.cpp \
 	src/native/linux/mmio.cpp \
@@ -77,6 +78,7 @@ DAEMON_OBJECTS := $(patsubst %.cpp,$(BUILD_DIR)/%.o,$(DAEMON_SOURCES))
 DEPENDENCIES := $(LIB_OBJECTS:.o=.d) $(DAEMON_OBJECTS:.o=.d)
 
 TEST_BINS := \
+ $(BUILD_DIR)/tests/unit/de25_fpga_manager_test \
  $(BUILD_DIR)/tests/unit/production_hardware_test \
  $(BUILD_DIR)/tests/unit/menu_frame_transport_test \
 	$(BUILD_DIR)/tests/unit/menu_window_test \
@@ -532,3 +534,7 @@ $(BUILD_DIR)/tests/unit/menu_display_test: tests/unit/menu_display_test.cpp src/
 $(BUILD_DIR)/tests/unit/menu_window_test: tests/unit/menu_window_test.cpp src/native/linux/menu_window.cpp
 	@mkdir -p "$(dir $@)"
 	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) $(filter %.cpp,$^) -o "$@"
+
+$(BUILD_DIR)/tests/unit/de25_fpga_manager_test: tests/unit/de25_fpga_manager_test.cpp src/native/linux/de25_fpga_manager.cpp src/native/artifacts.cpp src/native/diagnostic.cpp src/native/sha256.cpp src/daemon/json.cpp
+	@mkdir -p "$(dir $@)"
+	$(CXX) $(TEST_CPPFLAGS) -DMISTER_RUNTIME_TESTING $(CXXFLAGS) $(filter %.cpp,$^) -o "$@"

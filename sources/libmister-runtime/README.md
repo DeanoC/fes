@@ -16,6 +16,19 @@ its existing unavailable-hardware adapter and local protocol after refusal;
 it advertises no programming capabilities. An AArch64 compile or QEMU software
 test does not add DE25 hardware support.
 
+The internal `LinuxDe25FpgaManager` uses the existing retained-Artifact and
+programming-result interfaces for kernel configfs/SDM programming. Its internal
+`de25_hps_first_v1` enum is not admitted by the package profile table and is not
+constructed by the production factory. It retains the caller's existing
+maintenance lease, binds the actual running kernel notes to the matched-image
+receipt, stages firmware exclusively, and checks completion after closing the
+configfs binary attribute. No Cyclone V register or DDR-release recipe is used.
+Unsuccessful, partial or late programming poisons that context and preserves
+configuration/firmware; destruction never unloads it. A new context refuses an
+existing runtime overlay, including after a late successful kernel callback.
+Restart adoption and bounded whole-load recovery remain unfinished. Software
+unit coverage is separate from exact-artifact physical adapter acceptance.
+
 The internal `De25PrControl` diagnostic consumes the generated DE25 PR-control
 register contract through an exclusive injected `Mmio` backend and an injected
 persona-configuration operation. It validates the selected base identity,

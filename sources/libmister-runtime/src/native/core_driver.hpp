@@ -17,6 +17,8 @@ class Mmio;
 enum class ProgrammingProfile {
 	fes_gp_v1,
 	development_contained_v1,
+	// Internal transport only; not admitted by the package profile registry.
+	de25_hps_first_v1,
 };
 
 struct CoreDriverContext {

@@ -25,6 +25,41 @@ from production archives. Identity/ordering tests establish this rejection
 behavior. An AArch64 compile or execution under QEMU does not establish DE25
 FPGA programming, MMIO, DDR, input or display support.
 
+## DE25 kernel programmer
+
+`LinuxDe25FpgaManager` implements `FpgaManager` for the internal
+`de25_hps_first_v1` enum. The package profile registry does not approve it and
+the production factory remains closed. Cyclone V refuses that enum before its
+first register/boot-layout access; the DE25 adapter refuses Cyclone V profiles.
+This supplies the programming transport for the existing lifecycle, not another
+runtime, daemon, profile table or network API.
+
+The caller serializes physical transitions, quiesces its previous core and
+retains the existing DE25 maintenance lock. A duplicate descriptor holds that
+same lease. The adapter requires the FES owner board/kernel, root-only owner
+node and an empty firmware search override. The image assembler certifies the
+exact retained-programming source patch and extracts the linked kernel notes;
+the runtime verifies the actual running note digest against that receipt.
+An older kernel with the same release string cannot satisfy this contract.
+
+The fixed overlay targets `/fpga-region` and carries only the fixed firmware
+name and completion timeout. It creates no device, DMA grant, bridge list,
+clock or topology override. Firmware is copied from the retained descriptor
+using bounded-memory reads, synced, made read-only and closed before the kernel
+opens it. A private overlay name and exclusive staging file refuse other
+loaders and symlink/pre-existing staging collisions. The pinned configfs binary
+attribute buffers writes and invokes programming on release: the adapter closes
+it once, then checks deadline, `applied` and `operating`.
+
+Within a successful context, replacement verifies the exact existing overlay
+bytes/status before removing it. Any uncertainty after removal or submission
+permanently poisons the context and retains files/configuration. No retry,
+rollback program, destructor unload or close-as-drain operation exists. New
+contexts refuse old overlays; safe restart adoption remains required before
+normal platform admission. Software deadlines cannot interrupt a stalled
+configfs close, secure call or shared-service mutex. Physical failure fencing
+and allocated-DMA qualification remain separate open gates.
+
 ## DE25 PR-control diagnostic
 
 `De25PrControl` is a separate internal diagnostic protocol consumer. Its caller

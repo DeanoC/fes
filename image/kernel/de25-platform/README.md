@@ -142,3 +142,11 @@ maintenance lock alone does not serialize arbitrary root FPGA loaders.
 Compiling this check, running its host-refusal path or passing KUnit does not
 establish a userspace syscall pass. Its pass marker is evidence only when
 observed on the identified candidate board boot.
+
+The matched root manifest now identifies `de25-hps-first-retained-v1` and the
+SHA256 of the Image's linked note range. The assembler requires the kernel
+receipt's complete supplier-source profile to match this source, then derives
+the notes from its checked Image/System.map. The runtime compares them with
+`/sys/kernel/notes` before configfs access, so a stale kernel sharing the same
+release string cannot inherit this programming contract. This does not enable
+normal runtime admission or establish hardware fencing after a failed load.

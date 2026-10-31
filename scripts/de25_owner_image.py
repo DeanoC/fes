@@ -68,6 +68,25 @@ def members(archive):
     return result
 
 
+PROGRAMMING_CONTRACT = 'de25-hps-first-retained-v1'
+
+
+def kernel_notes(directory):
+    directory = Path(directory)
+    image = (directory / 'Image').read_bytes()
+    symbols = (directory / 'System.map').read_text()
+    values = {}
+    for name in ('_text', '__start_notes', '__stop_notes'):
+        found = re.findall(r'^([0-9a-fA-F]+) [A-Za-z] ' + name + r'$', symbols, re.M)
+        if len(found) != 1:
+            raise ValueError('kernel notes require one linked symbol: ' + name)
+        values[name] = int(found[0], 16)
+    start, end = (values[name] - values['_text'] for name in ('__start_notes', '__stop_notes'))
+    if image[56:60] != b'ARMd' or not 0 <= start < end <= len(image) or end - start > 4096:
+        raise ValueError('kernel note range or AArch64 Image header differs')
+    return hashlib.sha256(image[start:end]).hexdigest()
+
+
 def selected_kernel(directory):
     record = json.loads(boot.regular_file(directory / 'kernel-build.json').read_text())
     if (record.get('format') != 1 or record.get('release') != kernel.RELEASE
@@ -80,6 +99,11 @@ def selected_kernel(directory):
     for name, row in record['files'].items():
         boot.check_payload(directory / name, row)
     kernel.verify_config((directory / 'kernel.config').read_text())
+    profile = json.loads((ROOT / PROFILE / 'source.json').read_text())
+    if record.get('suppliers') != profile:
+        raise ValueError('kernel does not attest the current retained-programming source profile')
+    record['programming_contract'] = PROGRAMMING_CONTRACT
+    record['kernel_notes_sha256'] = kernel_notes(directory)
     return record
 
 
@@ -98,7 +122,9 @@ def root_changes(base_record, kernel_record, revision, base_mdev):
                 'kernel': kernel.RELEASE, 'kernel_image_sha256': kernel_record['files']['Image']['sha256'],
                 'modules': [], 'built_in': ['fes_de25_dma', 'stratix10_soc', 'fpga_bridge', 'fpga_region', 'of_fpga_region', 'simple_pm_bus'],
                 'kernel_producer': kernel_record['fes_revision'], 'image_producer': revision,
-                'base_producer': base_record['fes_revision'], 'normal_runtime_admission': 'closed'}
+                'base_producer': base_record['fes_revision'], 'normal_runtime_admission': 'closed',
+                'programming_contract': kernel_record['programming_contract'],
+                'kernel_notes_sha256': kernel_record['kernel_notes_sha256']}
     return {'etc/fes-kernel-release': ((kernel.RELEASE + '\n').encode(), 0o644),
             'etc/init.d/S15fpga': ((ROOT / PROFILE / 'S15fpga').read_bytes(), 0o755),
             'etc/mdev.conf': (OWNER_MDEV_RULE + base_mdev, 0o644),
