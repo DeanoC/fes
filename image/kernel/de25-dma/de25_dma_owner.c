@@ -180,6 +180,47 @@ static void owner_retire_guard(struct fes_de25_owner *owner)
 	owner->guard = NULL;
 }
 
+static bool supplier_target(struct fes_de25_owner *owner, struct device_node *target)
+{
+	struct device_node *node;
+	bool overlaps;
+	int i;
+
+	node = of_parse_phandle(owner->dev->of_node, "iommus", 0);
+	overlaps = node && (ancestor(target, node) || ancestor(node, target));
+	of_node_put(node);
+	if (overlaps)
+		return true;
+	node = of_parse_phandle(owner->region, "fpga-mgr", 0);
+	overlaps = node && (ancestor(target, node) || ancestor(node, target));
+	of_node_put(node);
+	if (overlaps)
+		return true;
+	for (i = 0; ; i++) {
+		node = of_parse_phandle(owner->region, "fpga-bridges", i);
+		if (!node)
+			break;
+		overlaps = ancestor(target, node) || ancestor(node, target);
+		of_node_put(node);
+		if (overlaps)
+			return true;
+	}
+	return false;
+}
+
+static bool topology_override(struct device_node *overlay)
+{
+	static const char * const properties[] = {
+		"fpga-bridges", "fpga-mgr", "compatible", "status", "ranges",
+	};
+	unsigned int i;
+
+	for (i = 0; i < ARRAY_SIZE(properties); i++)
+		if (of_find_property(overlay, properties[i], NULL))
+			return true;
+	return false;
+}
+
 static int owner_notify(struct notifier_block *nb, unsigned long action, void *data)
 {
 	struct fes_de25_owner *owner = container_of(nb, struct fes_de25_owner, notifier);
@@ -194,7 +235,8 @@ static int owner_notify(struct notifier_block *nb, unsigned long action, void *d
 	if (nd->target != owner->region) {
 		if ((action == OF_OVERLAY_PRE_APPLY || action == OF_OVERLAY_PRE_REMOVE) &&
 		    (ancestor(nd->target, owner->region) ||
-		     ancestor(nd->target, owner->dev->of_node)))
+		     ancestor(nd->target, owner->dev->of_node) ||
+		     supplier_target(owner, nd->target)))
 			return notifier_from_errno(-EBUSY);
 		/* Descendant overlay changes may remove a live persona's devices. */
 		if (!ancestor(owner->region, nd->target))
@@ -208,7 +250,7 @@ static int owner_notify(struct notifier_block *nb, unsigned long action, void *d
 		 * could introduce an unprotected supplier after probe validation.
 		 */
 		if (action == OF_OVERLAY_PRE_APPLY && nd->overlay &&
-		    of_find_property(nd->overlay, "fpga-bridges", NULL)) {
+		    topology_override(nd->overlay)) {
 			ret = -EINVAL;
 			break;
 		}
@@ -269,6 +311,28 @@ static bool permanent_node(struct device_node *node)
 	return true;
 }
 
+static int protected_driver_chain(struct device *dev)
+{
+	struct device *parent;
+	int ret;
+
+	/* Probe already holds its own device lock. Never wait for an ancestor
+	 * lock while holding a child: supplier teardown can take the other order.
+	 */
+	for (parent = dev; parent; parent = parent->parent) {
+		if (parent->of_node && !permanent_node(parent->of_node))
+			return -EOPNOTSUPP;
+		if (!device_trylock(parent))
+			return -EPROBE_DEFER;
+		ret = parent->driver && (parent->driver->owner ||
+			!parent->driver->suppress_bind_attrs) ? -EOPNOTSUPP : 0;
+		device_unlock(parent);
+		if (ret)
+			return ret;
+	}
+	return 0;
+}
+
 static int protected_supplier(struct device_node *node)
 {
 	struct platform_device *pdev;
@@ -279,10 +343,16 @@ static int protected_supplier(struct device_node *node)
 	pdev = of_find_device_by_node(node);
 	if (!pdev)
 		return -EPROBE_DEFER;
-	device_lock(&pdev->dev);
-	ret = !pdev->dev.driver ? -EPROBE_DEFER :
-		(pdev->dev.driver->owner || !pdev->dev.driver->suppress_bind_attrs ? -EOPNOTSUPP : 0);
-	device_unlock(&pdev->dev);
+	ret = protected_driver_chain(&pdev->dev);
+	/* Recheck the supplier after its ancestor bindings have been checked. */
+	if (!ret) {
+		if (!device_trylock(&pdev->dev))
+			ret = -EPROBE_DEFER;
+		else {
+			ret = pdev->dev.driver ? 0 : -EPROBE_DEFER;
+			device_unlock(&pdev->dev);
+		}
+	}
 	put_device(&pdev->dev);
 	return ret;
 }
@@ -302,6 +372,9 @@ static int owner_validate(struct platform_device *pdev, struct fes_de25_owner *o
 
 	if (!permanent_node(dev->of_node) || !dev->driver || !dev->driver->suppress_bind_attrs)
 		return -EOPNOTSUPP;
+	ret = protected_driver_chain(dev->parent);
+	if (ret)
+		return ret;
 	owner->domain = iommu_get_domain_for_dev(dev);
 	if (!owner->domain || (owner->domain->type != IOMMU_DOMAIN_DMA &&
 	    owner->domain->type != IOMMU_DOMAIN_DMA_FQ))
@@ -450,6 +523,27 @@ int fes_de25_owner_test_notify(struct fes_de25_owner *owner, unsigned long actio
 	struct of_overlay_notify_data data = { .target = owner->region };
 
 	return notifier_to_errno(owner_notify(&owner->notifier, action, &data));
+}
+
+int fes_de25_owner_test_override(struct fes_de25_owner *owner, const char *name)
+{
+	struct property property = { .name = (char *)name };
+	struct device_node overlay = { .properties = &property };
+	struct of_overlay_notify_data data = { .target = owner->region, .overlay = &overlay };
+
+	return notifier_to_errno(owner_notify(&owner->notifier, OF_OVERLAY_PRE_APPLY, &data));
+}
+
+int fes_de25_owner_test_ancestor(struct fes_de25_owner *owner, unsigned long action)
+{
+	struct device_node parent = { };
+	struct of_overlay_notify_data data = { .target = &parent };
+	int ret;
+
+	owner->test_region.parent = &parent;
+	ret = notifier_to_errno(owner_notify(&owner->notifier, action, &data));
+	owner->test_region.parent = NULL;
+	return ret;
 }
 
 void fes_de25_owner_test_destroy(struct fes_de25_owner *owner)

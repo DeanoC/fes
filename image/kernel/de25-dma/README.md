@@ -201,7 +201,7 @@ control resource at the generated architectural base plus peripheral offset,
 exactly one `iommus` entry with stream ID 13, and a translated DMA/DMA-FQ domain
 whose group contains only this device. `fes,fpga-region` points to a permanent
 root-level `fpga-region` with a direct `fpga-mgr` and nonempty static
-`fpga-bridges`. SMMU, region, manager and bridge platform suppliers must be
+`fpga-bridges`. SMMU, region, manager and bridge platform suppliers and their bound ancestors must be
 built-in drivers with sysfs bind/unbind disabled. The owner also disables these
 attributes. This preserves ordinary driver-core default-domain ownership and
 prevents supported unbind/removal from dismantling resources under allocations.
@@ -216,7 +216,7 @@ engine, a closed client with uncertain drain, or revoked storage still held by a
 client. Otherwise they mark the owner unavailable before bridges can be disabled
 or devices detached, and retire the old guard. A later failure leaves it
 unavailable. Ancestor overlays cannot mutate its permanent topology; per-image
-bridge overrides are refused. Dedicated image overlays target the region itself.
+bridge, manager, compatible, status and range overrides are refused. Dedicated image overlays target the region itself.
 
 Only POST_APPLY of an overlay that programs firmware and describes a
 `fes,de25-linux-dma-scanout` child constructs and claims a new guard. Fresh

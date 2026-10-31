@@ -1473,7 +1473,33 @@ static void permanent_owner_never_adopts_unknown_configuration(struct kunit *tes
 	KUNIT_EXPECT_EQ(test, f->device->reads, reads);
 }
 
+static void permanent_owner_rejects_topology_overrides(struct kunit *test)
+{
+	struct owner_fixture *f = owner_fixture_create(test, false);
+	static const char * const names[] = {
+		"fpga-bridges", "fpga-mgr", "compatible", "status", "ranges",
+	};
+	unsigned int i, reads;
+
+	KUNIT_ASSERT_NOT_NULL(test, f);
+	reads = f->device->reads;
+	for (i = 0; i < ARRAY_SIZE(names); i++)
+		KUNIT_EXPECT_EQ(test, fes_de25_owner_test_override(f->owner, names[i]), -EINVAL);
+	KUNIT_EXPECT_EQ(test, f->device->reads, reads);
+}
+
+static void permanent_owner_rejects_ancestor_mutation(struct kunit *test)
+{
+	struct owner_fixture *f = owner_fixture_create(test, false);
+
+	KUNIT_ASSERT_NOT_NULL(test, f);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ancestor(f->owner, OF_OVERLAY_PRE_APPLY), -EBUSY);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ancestor(f->owner, OF_OVERLAY_PRE_REMOVE), -EBUSY);
+}
+
 static struct kunit_case fes_de25_dma_cases[] = {
+	KUNIT_CASE(permanent_owner_rejects_topology_overrides),
+	KUNIT_CASE(permanent_owner_rejects_ancestor_mutation),
 	KUNIT_CASE(permanent_owner_blocks_configuration_before_first_submit),
 	KUNIT_CASE(permanent_owner_retains_uncertain_closed_client),
 	KUNIT_CASE(permanent_owner_never_adopts_unknown_configuration),
