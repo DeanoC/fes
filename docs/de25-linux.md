@@ -441,6 +441,12 @@ DMA and managed FES runtime acceptance remain open. The running
 card was updated by verified files after the first full-image write; this does
 not attest the whole writable SD as the final offline image.
 
+The later [manager write-loop repair](validation/2026-10-31-de25-manager-write/README.md)
+bounds opt-in data-submission retries and preserves permanent errors, with
+thirteen actual-function cases and a full AArch64 kernel build. That kernel is
+unbooted. Service-thread termination, secure-call return, uncertain-transfer
+retention and physical fencing still block whole-load failure qualification.
+
 The [positive owner lifecycle record](validation/2026-10-31-de25-owner-positive/README.md)
 executes real OF overlay apply/remove, the owner control callback and private
 file-descriptor lifetime through two cycles. Programming/register responses
