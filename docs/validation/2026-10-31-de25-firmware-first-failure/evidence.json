@@ -1,0 +1,409 @@
+{
+  "base_commit": "8cae215984968769184e1081ed862fb56180e1a6",
+  "bootchain": {
+    "bl31_sha256": "d5bc92fad82d8ee60ebfb0cda1efeea4fbb065dfec1c5af3aa73194e320cf121",
+    "board_serial": "TRWU8CBL",
+    "classification": "matched serial-only Nano probe candidate; physical boot gate pending",
+    "embedded_spl_independently_decoded": false,
+    "fat32_sectors": 262144,
+    "fat32_start_sector": 32768,
+    "fit_raw_sector": 512,
+    "fit_sha256": "baab6b40bf93e94355627c4ab919e2c73105834b33c2edb4d4d6395e9cfc25e3",
+    "format": 1,
+    "limitations": [
+      "gate compiled for Nano but not physically executed",
+      "no native SD/USB/network/display/FPGA activation",
+      "test image is a regular file; no card, flash, kit or boot configuration was changed"
+    ],
+    "native_entry_sha256": "1b1aae754864be3055b18c3b962f937cee3d443ff4c43d099bd84ccdf93e8950",
+    "native_handoff": {
+      "bl31_sha256": "d5bc92fad82d8ee60ebfb0cda1efeea4fbb065dfec1c5af3aa73194e320cf121",
+      "build_id": "7445df506d2befe3",
+      "classification": "source-derived serial-only Nano handoff; physical gate not executed",
+      "entry_image_sha256": "1b1aae754864be3055b18c3b962f937cee3d443ff4c43d099bd84ccdf93e8950",
+      "entry_receipt_sha256": "f2ee3755aaf331934027379e9c84eebae88c6ea40d98b9cfe42642cdd5b4b4da",
+      "producer_sources": {
+        "platform/embedded/firmware/nano_bridge_diag.h": "b80c4442198cbbdff4781d66ace85ab4a930804114176e5927e8984d1e78e904",
+        "platform/embedded/nano/handoff.c": "1bffae6e47ae82df75e9ce330f90c312362302aa3b88ff6ca6dba42b02e90785",
+        "platform/embedded/nano/handoff.h": "4b2845a162325c7ca7da00cadce807801d1d4308353ac1c3701419fe83ba9bb5",
+        "platform/embedded/nano/prepare_uboot.py": "696ea63ec1a727844e65dc11e43537c10445c2ec2f22ec7f5da37002e684a0c6",
+        "platform/embedded/nano/probe-profile.json": "02c764a2b6fcb0705046c939ad1fabe55a0daf330d4d7f3f1750cde29107a8f8",
+        "platform/embedded/nano/uboot.c": "0968b06b82ab96b7ccd19b6ae440d458ec87f89bd29b202adf59547b3f844212"
+      },
+      "profile_sha256": "02c764a2b6fcb0705046c939ad1fabe55a0daf330d4d7f3f1750cde29107a8f8"
+    },
+    "profile_sha256": "02c764a2b6fcb0705046c939ad1fabe55a0daf330d4d7f3f1750cde29107a8f8",
+    "recovery_reference_sof_sha256": "e71a72180cb77ddd05a9c2ae49afa739d74786f9366f00233fd27bbebff6ea09",
+    "sof_sha256": "04d416495bc57573c833c09bd34ffe7f1a5ddfd7753df55a1ea0af423b92c669",
+    "spl_sha256": "7573a051e5650383fbe7ca67dc9dfbaf80eee38f7661a78e08d18a88573a0010"
+  },
+  "build_id": "7445df506d2befe3",
+  "classification": "matched first-failed-handshake diagnostic; physical trial awaiting test-card insertion",
+  "diagnostics": {
+    "agilex5_stages": 6,
+    "cookie": "0x46455344",
+    "first_error_and_snapshot_preserved": true,
+    "loader_identity_binds_bl31": true,
+    "new_call_clears_stale_state": true,
+    "ordinary_callers_retain_ret1": true,
+    "poll_counts_timeouts_and_reset_sequence_preserved": true,
+    "tag": "0x46424431"
+  },
+  "files": {
+    "firmware/build.log": {
+      "bytes": 6719,
+      "sha256": "5a188b458bc6e138c388cb37ee31ab9658567b269633b9d39a816e7638bbcb36"
+    },
+    "firmware/result.json": {
+      "bytes": 4848,
+      "sha256": "e2695faf625cb8ab3e2d3c56e2b8a6394729195def7223e398f8e36d93339eb1"
+    },
+    "firmware/source/build/agilex5/release/bl31.bin": {
+      "bytes": 57405,
+      "sha256": "d5bc92fad82d8ee60ebfb0cda1efeea4fbb065dfec1c5af3aa73194e320cf121"
+    },
+    "firmware/source/build/agilex5/release/bl31/bl31.elf": {
+      "bytes": 111080,
+      "sha256": "e930d0ce11bc56bdb771fe4ff902e41ad0c499b28b21c77b0bab83a780b8a698"
+    },
+    "firmware/source/plat/intel/soc/common/include/nano_bridge_diag.h": {
+      "bytes": 1113,
+      "sha256": "b80c4442198cbbdff4781d66ace85ab4a930804114176e5927e8984d1e78e904"
+    },
+    "firmware/source/plat/intel/soc/common/soc/socfpga_reset_manager.c": {
+      "bytes": 37520,
+      "sha256": "34c1831a2d66ba10c796ec07d27ab658f42b13c945fe3607c06efe85492c2ec2"
+    },
+    "firmware/source/plat/intel/soc/common/socfpga_sip_svc.c": {
+      "bytes": 63855,
+      "sha256": "c9f9bf147993d908ab9ce3ef46a5fe8552812e5d780faebd969acacaa217450a"
+    },
+    "source.patch": {
+      "bytes": 41798,
+      "sha256": "a0e433260deb4f6f6576283d96d8c8fd9e20aa51da9a7ee2e07d8fdfa6eb2e44"
+    },
+    "source/platform/embedded/firmware/build_terasic.py": {
+      "bytes": 10001,
+      "sha256": "1da8a70b6db69863258dbed9b97afee8b2998ac1b6dbac8513e281c6b0e3ccd6"
+    },
+    "source/platform/embedded/firmware/build_terasic_uboot.py": {
+      "bytes": 15441,
+      "sha256": "22d786a7b00a498355ffa58c2c0fb1c6cc5b9cf4bda8774ad96c43eddcadac74"
+    },
+    "source/platform/embedded/firmware/nano_bridge_diag.h": {
+      "bytes": 1113,
+      "sha256": "b80c4442198cbbdff4781d66ace85ab4a930804114176e5927e8984d1e78e904"
+    },
+    "source/platform/embedded/firmware/nano_bridge_diag.inc": {
+      "bytes": 1175,
+      "sha256": "4d6a679e495b06dbda6d40db269492faf6ffa20aa2024262d57c6d648fd7c946"
+    },
+    "source/platform/embedded/firmware/prepare_tfa.py": {
+      "bytes": 15296,
+      "sha256": "5e453279089cf1371dbdab2f905d1cfe06b7dfa1ab42d5771fca0eb4bd4ca316"
+    },
+    "source/platform/embedded/firmware/tests/bridge_diag_service.c": {
+      "bytes": 2815,
+      "sha256": "fe81728b0e347cc099e18b9cda98add94b2d2ac9898a071a580ebbb6e6e9beb3"
+    },
+    "source/platform/embedded/firmware/tests/terasic_reset_test.h": {
+      "bytes": 4939,
+      "sha256": "4246d7ac753b5a40f1c44373d2b9a7de21621bad7dea582eeced9dc4e30543e5"
+    },
+    "source/platform/embedded/firmware/verify.py": {
+      "bytes": 14161,
+      "sha256": "952b3b0f1a97e45802e5961492f1a47ebbbcc90ea8e97fa8094dc785a6da4bd8"
+    },
+    "source/platform/embedded/nano/handoff.c": {
+      "bytes": 2160,
+      "sha256": "1bffae6e47ae82df75e9ce330f90c312362302aa3b88ff6ca6dba42b02e90785"
+    },
+    "source/platform/embedded/nano/handoff.h": {
+      "bytes": 1430,
+      "sha256": "4b2845a162325c7ca7da00cadce807801d1d4308353ac1c3701419fe83ba9bb5"
+    },
+    "source/platform/embedded/nano/package.py": {
+      "bytes": 9199,
+      "sha256": "a2f2c03bde5677157b1771dc19bac516bac72380995b8250d631bfa25371dfe2"
+    },
+    "source/platform/embedded/nano/prepare_uboot.py": {
+      "bytes": 4051,
+      "sha256": "696ea63ec1a727844e65dc11e43537c10445c2ec2f22ec7f5da37002e684a0c6"
+    },
+    "source/platform/embedded/nano/probe-profile.json": {
+      "bytes": 1172,
+      "sha256": "02c764a2b6fcb0705046c939ad1fabe55a0daf330d4d7f3f1750cde29107a8f8"
+    },
+    "source/platform/embedded/nano/uboot.c": {
+      "bytes": 9198,
+      "sha256": "0968b06b82ab96b7ccd19b6ae440d458ec87f89bd29b202adf59547b3f844212"
+    },
+    "source/tests/test_embedded_firmware.py": {
+      "bytes": 6670,
+      "sha256": "de0b471f3bf7ee64abe8d8b08ae5e1312b4e9671e33c95d038663e20e8b8bfd5"
+    },
+    "source/tests/test_embedded_nano_handoff.py": {
+      "bytes": 12409,
+      "sha256": "49bc9a172349876833fbf749783c4d98504b47afe60846a02479a0328e848e19"
+    },
+    "test-kit/BOOTCHAIN.JSON": {
+      "bytes": 2360,
+      "sha256": "9a722af1a5c19e37951a44e9f501f28ea3c19bc0d0305be4cab0f492ddc65d07"
+    },
+    "test-kit/BOOTCHAIN.JSON.readback": {
+      "bytes": 2360,
+      "sha256": "9a722af1a5c19e37951a44e9f501f28ea3c19bc0d0305be4cab0f492ddc65d07"
+    },
+    "test-kit/ENTRY.IMG": {
+      "bytes": 4216289,
+      "sha256": "1b1aae754864be3055b18c3b962f937cee3d443ff4c43d099bd84ccdf93e8950"
+    },
+    "test-kit/ENTRY.IMG.readback": {
+      "bytes": 4216289,
+      "sha256": "1b1aae754864be3055b18c3b962f937cee3d443ff4c43d099bd84ccdf93e8950"
+    },
+    "test-kit/fat-dir.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "test-kit/fat-format.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "test-kit/fat-read-BOOTCHAIN.JSON.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "test-kit/fat-read-ENTRY.IMG.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "test-kit/fat-read-u-boot.itb.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "test-kit/fat-write-BOOTCHAIN.JSON.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "test-kit/fat-write-ENTRY.IMG.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "test-kit/fat-write-u-boot.itb.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "test-kit/nano-probe-sd.img": {
+      "bytes": 150994944,
+      "sha256": "0804f88b6b43b26151c80d80a6846d3a993ccf7468cf520c67c273b696c09a6a"
+    },
+    "test-kit/native-probe.sof": {
+      "bytes": 1480002,
+      "sha256": "04d416495bc57573c833c09bd34ffe7f1a5ddfd7753df55a1ea0af423b92c669"
+    },
+    "test-kit/pfg-combine.log": {
+      "bytes": 1853,
+      "sha256": "624cc7d6105c5974aaa0ce41dc1dfb4718dc36bdcb04a12527fd74437be930fe"
+    },
+    "test-kit/pfg-info.log": {
+      "bytes": 4496,
+      "sha256": "f6a130cc9f86c7b032f34edd27d0e780c6840e7fe66971b78b2e01e99187b96f"
+    },
+    "test-kit/recovery-reference.sof": {
+      "bytes": 1480451,
+      "sha256": "e71a72180cb77ddd05a9c2ae49afa739d74786f9366f00233fd27bbebff6ea09"
+    },
+    "test-kit/result.json": {
+      "bytes": 8069,
+      "sha256": "01ce1cbd24c9a4e6ccc61877630fdc7ded31880f942d20325a56718860e9c028"
+    },
+    "test-kit/u-boot-spl-dtb.hex": {
+      "bytes": 716724,
+      "sha256": "7573a051e5650383fbe7ca67dc9dfbaf80eee38f7661a78e08d18a88573a0010"
+    },
+    "test-kit/u-boot.itb": {
+      "bytes": 877480,
+      "sha256": "baab6b40bf93e94355627c4ab919e2c73105834b33c2edb4d4d6395e9cfc25e3"
+    },
+    "test-kit/u-boot.itb.readback": {
+      "bytes": 877480,
+      "sha256": "baab6b40bf93e94355627c4ab919e2c73105834b33c2edb4d4d6395e9cfc25e3"
+    },
+    "uboot/build.log": {
+      "bytes": 35213,
+      "sha256": "8bde6ac2ee9baa8acef2b1dfbe591a4f37990e4c5c340d8b54432e997cc2b152"
+    },
+    "uboot/build/.config": {
+      "bytes": 52879,
+      "sha256": "5db54366aac87446ced2860da008752727a77a5681b9455280699a213a51782d"
+    },
+    "uboot/extracted-bl31.bin": {
+      "bytes": 57405,
+      "sha256": "d5bc92fad82d8ee60ebfb0cda1efeea4fbb065dfec1c5af3aa73194e320cf121"
+    },
+    "uboot/extracted-fdt-0.bin": {
+      "bytes": 22768,
+      "sha256": "ff637eda305e47fb53feb24d1461728dcf55cc026e690da343a056cb7d2f75bb"
+    },
+    "uboot/extracted-uboot.bin": {
+      "bytes": 796088,
+      "sha256": "754480f6b8e8b91e9c35495ca521119b0b1f055647bdb2aaa36b80e203dd8abf"
+    },
+    "uboot/result.json": {
+      "bytes": 17917,
+      "sha256": "0246f5a7c64bafb7b50b7ba0739c298cb062fc69eded84e5d153bf337f48b371"
+    },
+    "uboot/source/arch/arm/lib/bootm.c": {
+      "bytes": 10300,
+      "sha256": "a3604e00ef7abad8c84c18d4a598d82db4a65e537b14fc2d1746b8f8234454b7"
+    },
+    "uboot/source/cmd/fes_nano.c": {
+      "bytes": 9198,
+      "sha256": "0968b06b82ab96b7ccd19b6ae440d458ec87f89bd29b202adf59547b3f844212"
+    },
+    "uboot/source/cmd/fes_nano_config.h": {
+      "bytes": 338,
+      "sha256": "74242594cf425ec196b84e264171baaa482f6d53cba2a1b9a8a553d6e0425604"
+    },
+    "uboot/source/cmd/nano_bridge_diag.h": {
+      "bytes": 1113,
+      "sha256": "b80c4442198cbbdff4781d66ace85ab4a930804114176e5927e8984d1e78e904"
+    },
+    "validation/bl31-job.json": {
+      "bytes": 559,
+      "sha256": "f9ca69df50b329477e7801b9e6378c402c001dcc3c3bb52c6000d03a56f16979"
+    },
+    "validation/bl31-symbols.txt": {
+      "bytes": 422,
+      "sha256": "650acf4a156e22bfb1cb33074aba23391a901a776cc07e3af64709276a55db9f"
+    },
+    "validation/bl31.log": {
+      "bytes": 135,
+      "sha256": "64cf1fe447b198f7d5aeab9848157fd7658207cca6a3d46bf393dfd0d4d70fcd"
+    },
+    "validation/check-plan.json": {
+      "bytes": 8562,
+      "sha256": "1e4c2f461dc86beed317327382ce0d4aa25c04bdce98d9f470d8bc8b7b708662"
+    },
+    "validation/checks-completion.json": {
+      "bytes": 1011,
+      "sha256": "dcd8844bfa8d0daa694a0a03f241e4c674bfba20341f9e424097b150bbb50b70"
+    },
+    "validation/checks-job.json": {
+      "bytes": 382,
+      "sha256": "f72308e2c62918dda0bab0595c87f8220d911843188d8b12439cf47e3d005f11"
+    },
+    "validation/checks.log": {
+      "bytes": 571820,
+      "sha256": "77ae38f69fb1d7b13d6857b2eda847ac0a8d431e6218f0707f28a7d2ca15452d"
+    },
+    "validation/firmware-check-final-job.json": {
+      "bytes": 477,
+      "sha256": "c57da9880e5a38beee31ee09b55c2ea0360c92ae75b595b811d32b8bd3b81c00"
+    },
+    "validation/firmware-check-final.log": {
+      "bytes": 88,
+      "sha256": "d736231d774cd706de2773b6e8eac1697d4945e9afe07ea200693367253fadb3"
+    },
+    "validation/firmware-model/bridge-service-check.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "validation/firmware-model/checks.log": {
+      "bytes": 279,
+      "sha256": "fa8427530d67210fd1a838e3c6f5c7c23184ecd0d81e0b95c7ebeb18faca7281"
+    },
+    "validation/firmware-model/reset-check-disable-patched.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "validation/firmware-model/reset-check-enable-patched.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "validation/firmware-model/result.json": {
+      "bytes": 9075,
+      "sha256": "cde122e8911570bb1bb61863d05b5bb74df19e30e109a2dfdc48348f3b9aa74c"
+    },
+    "validation/negative-stale-firmware.json": {
+      "bytes": 130,
+      "sha256": "833f81d8a5aaa11456ee634e05e09f766fa1bbcf73e75e5676ac9324a08accc0"
+    },
+    "validation/package-job.json": {
+      "bytes": 671,
+      "sha256": "2b6874eb892f66ab410c703515a65ec96d0d9ce56d59a0b7a372a183b30ac556"
+    },
+    "validation/package.log": {
+      "bytes": 102,
+      "sha256": "8d5ad1f8584b76a80d9c4241a9c292ab8456655b1718650acaa24e1e7458bb61"
+    },
+    "validation/remaining-ay-final-job.json": {
+      "bytes": 399,
+      "sha256": "8e6e69afce8e8f33511018174c1800f6a216784acdedc26e82aaf941f2f7c5a1"
+    },
+    "validation/remaining-ay-final.log": {
+      "bytes": 174,
+      "sha256": "9bba69e010159b12c531e5a2b130400666893ffe124caedba37f3818684628c3"
+    },
+    "validation/remaining-ay-job.json": {
+      "bytes": 440,
+      "sha256": "4f9c2a4c385b40882defaede2da25890ca7e664754c2f56bcac4da69ebe59c45"
+    },
+    "validation/remaining-ay.log": {
+      "bytes": 108,
+      "sha256": "e70fec2825d9bf206d27463a792768195039599cb39bcca66339f47283f84cce"
+    },
+    "validation/run_job.py": {
+      "bytes": 1913,
+      "sha256": "9730ceba9aec50cfb8524696ce51e2e7628897d555c0ce60802322a68460d9c0"
+    },
+    "validation/uboot-job.json": {
+      "bytes": 694,
+      "sha256": "2518de78f1ddde1e53413860f2f3c05f575bec5908ca78cc44567793877facf7"
+    },
+    "validation/uboot.log": {
+      "bytes": 114,
+      "sha256": "dab13b6dabb95bfe133ce1722ea47ed3f79e16d301e416cf10591a6276165abe"
+    }
+  },
+  "format": 1,
+  "hardware": {
+    "candidate_programmed": false,
+    "card_refreshed_and_raw_readback_verified": true,
+    "factory_baseline_verified": true,
+    "linux_cleanly_halted": true,
+    "native_handoff_accepted": false,
+    "serial": "TRWU8CBL",
+    "test_card_insertion_pending": true
+  },
+  "implementation_commit": "3baa85a23",
+  "retained_directory": "/home/deano/fes-retained/de25-nano-first-failure-20261031",
+  "sd_image_bytes": 150994944,
+  "sd_image_sha256": "0804f88b6b43b26151c80d80a6846d3a993ccf7468cf520c67c273b696c09a6a",
+  "source_commit": "2f47358b438931579673ff85299ec598f34c5354",
+  "validation": {
+    "cross_firmware": "passed; all bridge/diagnostic ELF symbols present",
+    "cross_loader": "passed; exact firmware selected and bound",
+    "firmware_model": "passed actual patched source, service case and RTL endpoint",
+    "focused_tests": 15,
+    "packaging": "passed raw/FAT readback and component hashes",
+    "software_checks": {
+      "all_planned_checks_completed": true,
+      "changed_test_base": "8cae215984968769184e1081ed862fb56180e1a6",
+      "checks_log_sha256": "77ae38f69fb1d7b13d6857b2eda847ac0a8d431e6218f0707f28a7d2ca15452d",
+      "classification": "planned software checks completed; final simulation resumed after outer time cap",
+      "earlier_commands": "0 through 8 completed successfully; executor stops before later commands on any failure",
+      "fpga_prior_tests": "no failure/error outcomes before the interrupted last case",
+      "make_check": "passed",
+      "make_check_generated": "passed",
+      "make_test_changed_wrapper": "timed out at 600 seconds in the last test of its final command; not a successful wrapper exit",
+      "parent_skips": 40,
+      "parent_tests": 1191,
+      "remaining_log_sha256": "9bba69e010159b12c531e5a2b130400666893ffe124caedba37f3818684628c3",
+      "remaining_test": "ZonXAySimulationTest.test_ay_behavior",
+      "remaining_test_result": "passed in isolated rerun",
+      "source_commit": "2f47358b438931579673ff85299ec598f34c5354"
+    }
+  }
+}

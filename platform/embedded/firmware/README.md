@@ -47,9 +47,45 @@ poll can overwrite an earlier timeout. The Terasic variant also transforms that
 exact reset-manager source to preserve the first reported error, and tests the
 actual vendor and modified functions with simulated handshake results. Those
 tests do not establish that physical bridges or their traffic have drained,
-or that a partial enable can be safely reversed. The current firmware is not
-ready for a board trial; it needs a reviewed boot handoff and a procedure to
-verify bridge sequencing, readback and recovery.
+or that a partial enable can be safely reversed. The bounded
+[Nano bridge trial](../../../docs/validation/2026-10-31-de25-bridge-trial/README.md)
+returned firmware error `4` with the required reset bits already set. Native
+handoff and physical drain remain unqualified.
+
+The contained Terasic probe now records the first failed disable poll and
+immediately samples `HDSKACK`, `HDSKREQ` and `BRGMODRST`, before subsequent
+writes/polls. Later errors cannot replace the first snapshot. The existing
+`HPS_SET_BRIDGES` service clears this record before each call. The six
+Agilex5 stages use the pinned reset-manager definitions:
+
+| Stage | Name | Required `HDSKACK` mask/value |
+| --- | --- | --- |
+| 1 | `s2f_ack_clear` | `0x400 / 0` |
+| 2 | `lw_ack_clear` | `0x200 / 0` |
+| 3 | `f2s_fpga_ack_set` | `0x4 / 0x4` |
+| 4 | `f2s_flush_ack_set` | `0x1000 / 0x1000` |
+| 5 | `sdram_flush_ack_clear` | `0x800 / 0` |
+| 6 | `sdram_fpga_ack_clear` | `0x4 / 0` |
+
+Only the dedicated local probe requests extra return registers by passing
+`FES_NANO_BRIDGE_DIAG_REQUEST` in the normally unused `x3`. The original `x0`
+status is unchanged. Ordinary callers retain the original `SMC_RET1` path.
+This is an opt-in diagnostic extension of the contained Terasic source, not
+a change to the shared programming/capability contract or upstream TF-A.
+The version tag and packing are defined in `nano_bridge_diag.h`:
+
+- Returned `x1`: tag `0x46424431` in the upper 32 bits, first stage below it.
+- Returned `x2`: signed 32-bit error above the sampled `HDSKACK` value.
+- Returned `x3`: sampled `HDSKREQ` above sampled `BRGMODRST`.
+
+Stage zero means no failure snapshot; zero snapshot words do not mean those
+registers were read as zero. IDs 7/8 describe the vendor's non-Agilex5 NOC
+branches and are not executed by this candidate. The snapshot consists of
+separate reads after the failed poll, not an atomic capture or a substitute
+for the original error. Poll counts/timeouts, reset writes and first-error
+propagation are preserved. The dedicated loader rejects unavailable or
+inconsistent diagnostic identity/state even if the ordinary checks pass.
+The profile assumes the existing exclusive trusted-runtime sequencing.
 
 It preserves accepted-BUSY and completion-address semantics. The existing
 `HPS_SET_BRIDGES` service still exists; this is an exclusive trusted-runtime
@@ -75,7 +111,10 @@ builds BL31 and checks its ELF load segments against the vendor's BL31 bounds.
 out of tree, using that BL31 receipt. It extracts the ATF image from the FIT
 and requires its bytes to match the selected BL31. It checks that U-Boot's
 initial FIT load does not overlap BL31's actual loaded memory, including BSS.
-This does not establish the subsequent relocation or native memory handoff.
+The dedicated Nano loader identity also binds the exact BL31 digest, so a
+firmware-only rebuild changes both SPL and full U-Boot's expected identity.
+Packaging checks that binding. This does not establish the subsequent
+relocation or native memory handoff.
 U-Boot's host build also
 needs Python setuptools/pyelftools, SWIG, dtc, bison, flex and OpenSSL headers.
 

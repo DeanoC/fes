@@ -69,8 +69,14 @@ Each bridge close now emits `FES_NANO_BRIDGE BEGIN` before the SMC and
 or `phase=after-remove`, the requested reset mask and the initial reset register.
 The result records the signed/hexadecimal firmware return, complete final
 reset register and independent `smc_error` and `reset_mismatch` flags. Readback
-runs even when firmware returns an error. The original acceptance condition
-is unchanged: a zero service return and every requested reset bit set.
+runs even when firmware returns an error. Both existing safety conditions
+remain required: a zero service return and every requested reset bit set.
+The matched firmware also returns `FES_NANO_BRIDGE DETAIL` fields for the
+[first failed handshake](../firmware/README.md). A valid version tag and no
+recorded failure are additionally required before continuing. Missing or
+inconsistent detail rejects; stage zero means no failure snapshot was taken.
+The loader build ID now binds the exact BL31 digest as well as the entry and
+handoff sources.
 
 | `smc_error` | `reset_mismatch` | Observation and action |
 | --- | --- | --- |
