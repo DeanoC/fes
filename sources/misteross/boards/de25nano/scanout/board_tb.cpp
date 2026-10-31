@@ -43,6 +43,12 @@ int main(int argc, char** argv) {
     tick_system(); check(!t.scanout_reset_n, "first qualifying edge cannot release bridges");
     tick_system(); check(!t.scanout_reset_n, "first lock must be captured after qualification");
     tick_system(); check(t.scanout_reset_n && !t.clock_fault, "initial qualified bridge release");
+    // The visibility request is a system-domain register, so a single source
+    // crosses into the pixel synchronizer.
+    check(!t.rootp->fes_de25_scanout_board__DOT__visible_request,
+          "visibility request must be registered, not combinational");
+    tick_system();
+    check(t.rootp->fes_de25_scanout_board__DOT__visible_request, "registered visibility request");
 
     // The request is synchronized first. It remains hidden through the active
     // HS pulse and becomes visible only in the following horizontal porch.

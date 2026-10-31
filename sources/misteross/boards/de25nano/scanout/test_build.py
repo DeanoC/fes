@@ -29,19 +29,30 @@ class ScanoutBuildTests(unittest.TestCase):
         with mock.patch.object(B, "capture", return_value=self.sources):
             return B.prepare(self.fixture.archive, self.root / "prepared", revision, hps_first=hps_first, linux_dma=linux_dma)
 
-    def test_visibility_cdc_cut_targets_only_the_first_synchronizer_d_pin(self):
+    def test_visibility_cdc_cut_targets_only_the_registered_request_to_the_first_d_pin(self):
         sdc = self.sources[B.BOARD + "scanout/clocks.sdc"].decode()
+        self.assertIn("set scanout_visible_source [get_registers {fes_video_inst|visible_request}]", sdc)
         self.assertIn(
             "set scanout_visible_head [get_pins -compatibility_mode -nocase -nowarn "
             "{fes_video_inst|visible_sync[0]|d}]", sdc)
-        self.assertIn("if {[get_collection_size $scanout_visible_head] != 1}", sdc)
-        self.assertIn("set_false_path -to $scanout_visible_head", sdc)
-        self.assertIn("Cut only the first synchronizer D input", sdc)
+        self.assertIn("if {[get_collection_size $scanout_visible_source] != 1 || "
+                      "[get_collection_size $scanout_visible_head] != 1}", sdc)
+        self.assertIn("set_false_path -from $scanout_visible_source -to $scanout_visible_head", sdc)
+        self.assertNotIn("set_false_path -to $scanout_visible_head", sdc)
         self.assertNotIn("set_clock_groups", sdc)
 
     def test_hdmi_data_and_de_use_registered_visibility_with_lock_assertion(self):
         board = self.sources[B.BOARD + "scanout/fes_de25_scanout_board.v"].decode()
-        self.assertIn("always @(posedge pixel_clk or negedge qualified_lock)", board)
+        # One registered source crosses, and only pixel-domain registers clear
+        # the synchronizer; lock loss still clears the pixel release at once.
+        self.assertIn("always @(posedge system_clk or negedge top_reset_n)\n"
+                      "        if (!top_reset_n) visible_request <= 1'b0;\n"
+                      "        else visible_request <= first_lock_seen && qualified_lock && !fault;", board)
+        self.assertIn("fes_de25_top_reset visible_release (.clk(pixel_clk), .ninit_done(1'b0),\n"
+                      "        .pll_locked(qualified_lock), .reset_n(visible_reset_n));", board)
+        self.assertIn("always @(posedge pixel_clk or negedge visible_reset_n)", board)
+        self.assertNotIn("negedge qualified_lock", board)
+        self.assertNotIn("wire visible_request", board)
         self.assertIn("always @(posedge pixel_clk or negedge visible_sync[1])", board)
         self.assertIn("assign HDMI_TX_D = video_active && visible_line ? video_rgb : 24'd0;", board)
         self.assertIn("assign HDMI_TX_DE = video_active && visible_line && video_de;", board)
@@ -187,15 +198,25 @@ class ScanoutBuildTests(unittest.TestCase):
         board_path.write_text(original_board)
         sdc_path = project / "fes_mailbox/clocks.sdc"
         original_sdc = sdc_path.read_text()
-        sdc_path.write_text(original_sdc.replace("fes_video_inst|visible_sync[1]|aclr", "fes_video_inst|missing_visible_sync|aclr", 1))
-        with self.assertRaisesRegex(ValueError, "does not constrain the registered visibility clear pin"):
+        sdc_path.write_text(original_sdc.replace("fes_video_inst|visible_release|sync_regs*|aclr", "fes_video_inst|missing_release|sync_regs*|aclr", 1))
+        with self.assertRaisesRegex(ValueError, "does not constrain the visibility release clear pin"):
+            B.verify_reset_synchronizers(project)
+        sdc_path.write_text(original_sdc.replace("set_false_path -from $scanout_visible_source -to $scanout_visible_head", "set_false_path -to $scanout_visible_head", 1))
+        with self.assertRaisesRegex(ValueError, "cut only the registered visibility request"):
             B.verify_reset_synchronizers(project)
         sdc_path.write_text(original_sdc.replace("$scanout_clear_count != 10", "$scanout_clear_count != 8", 1))
         with self.assertRaisesRegex(ValueError, "ten reset/visibility clear pins"):
             B.verify_reset_synchronizers(project)
-        sdc_path.write_text(original_sdc.replace("fes_video_inst|visible_sync[1]|aclr}]", "fes_video_inst|visible_sync[1]|aclr fes_video_inst|video_active|aclr}]", 1))
-        with self.assertRaisesRegex(ValueError, "data/DE gate clear timed"):
+        for cut in ("fes_video_inst|video_active|aclr", "fes_video_inst|visible_sync[1]|aclr"):
+            sdc_path.write_text(original_sdc.replace("fes_video_inst|visible_release|sync_regs*|aclr}]", "fes_video_inst|visible_release|sync_regs*|aclr " + cut + "}]", 1))
+            with self.subTest(cut=cut), self.assertRaisesRegex(ValueError, "data/DE gate clears timed"):
+                B.verify_reset_synchronizers(project)
+        board_path.write_text(original_board.replace(
+            "always @(posedge pixel_clk or negedge visible_reset_n)",
+            "always @(posedge pixel_clk or negedge qualified_lock)", 1))
+        with self.assertRaisesRegex(ValueError, "registered source and a pixel-domain reset release"):
             B.verify_reset_synchronizers(project)
+        board_path.write_text(original_board)
         sdc_path.write_text(original_sdc.replace("rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]|clrn", "rst_controller_002|missing|clrn", 1))
         with self.assertRaisesRegex(ValueError, "does not constrain the generated rst_controller_002 stage 1"):
             B.verify_reset_synchronizers(project)
@@ -216,14 +237,16 @@ class ScanoutBuildTests(unittest.TestCase):
                 )
         self.assertNotIn("altera_reset_synchronizer_int_chain*|aclr", sdc)
         self.assertNotIn("altera_reset_synchronizer_int_chain*|clrn", sdc)
-        for register in ("visible_sync[0]", "visible_sync[1]"):
-            self.assertIn(f"fes_video_inst|{register}|aclr", sdc)
-            self.assertIn(f"fes_video_inst|{register}|clrn", sdc)
         self.assertIn("if {$scanout_clear_count != 10}", sdc)
         cuts = re.findall(r"set scanout_(?:aclr|clrn) \[get_pins [^{]*\{[^}]*\}\]", sdc)
         self.assertEqual(len(cuts), 2)
+        for pin, cut in zip(("aclr", "clrn"), cuts):
+            self.assertIn(f"fes_video_inst|visible_release|sync_regs*|{pin}", cut)
+        self.assertNotIn("visible_sync", "".join(cuts))
         self.assertNotIn("video_active", "".join(cuts))
+        self.assertIn("if {[get_collection_size $scanout_visible_clear] != 2}", sdc)
         self.assertIn("if {[get_collection_size $scanout_gate_clear] != 1}", sdc)
+        self.assertNotIn("set_false_path -to $scanout_visible_clear", sdc)
         self.assertNotIn("set_false_path -to $scanout_gate_clear", sdc)
         self.assertNotIn("fes_scanout_pixel_reset|sync_regs*", sdc)
         self.assertNotIn("fes_scanout_system_reset|sync_regs*", sdc)
