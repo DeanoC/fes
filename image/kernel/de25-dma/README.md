@@ -14,8 +14,15 @@ accept a caller-provided physical/DMA address.
 
 ## Allocation and ABI version 2
 
-The private constructor receives the actual DMA device and an exclusively owned,
-driver-controlled register transport. The KUnit suite is its only consumer. It
+The private constructor receives the actual DMA device and a driver-controlled
+register transport. Its mandatory `acquire` callback must exclusively lease the
+engine and retain context/MMIO/device-domain resources before the constructor
+reads even the epoch or identity. A second allocation is refused while that
+lease is held, including while the first engine is still unconfigured. The
+matching `release` runs exactly once after storage and mapping references are
+destroyed, or on a constructor error after successful acquisition. Acquisition
+failure performs no register access and does not release another owner's lease.
+The KUnit suite is its only consumer. It
 sets the device's 32-bit coherent DMA mask, allocates one 8 MiB region through
 `dma_alloc_attrs` with `DMA_ATTR_FORCE_CONTIGUOUS`, clears it, and maps it
 with `dma_mmap_attrs` using that same attribute. Release passes the same attribute
@@ -76,11 +83,12 @@ The private backend supplies a nonzero external reset epoch and bounded,
 ordered `read32`, `write32` and `io_fence` operations. No physical MMIO backend
 is implemented or admitted. A callback error after SUBMIT may already have
 enabled DMA and retains exposure. Userspace cannot supply a drain proof.
-The kernel caller must retain callback code/context, exclusive engine ownership
-and device DMA/domain resources until final grant destruction, including an
-uncertain exposure. `get_device` does not retain devm resources or a detached
-translation domain. A constructor refuses an already configured engine; it
-never clears a previous owner's grant.
+Callbacks are private to the same kernel module. The provider must implement
+real context/device/domain retention and prevent detach/reconfiguration for the
+whole acquired lease, including uncertain exposure. `get_device` does not
+retain devm resources or a detached translation domain; adding lease callbacks
+alone does not qualify a physical provider. A constructor also refuses an
+already configured engine; it never clears a previous owner's grant.
 
 ## Revocation and lifetime
 
@@ -125,6 +133,12 @@ that sees the same storage and is revoked together, refused writable page pins,
 denied remapping and the mmap-callback/VMA-link race. A forced mapper refusal
 verifies a newly recorded `mm` reference is removed on the error path. Test hooks
 compile out when the test config is off.
+
+Lease cases additionally check refusal of a second unconfigured allocation,
+missing ownership callbacks, failed acquisition before all register effects,
+constructor-error unwinding and retention through uncertain drain. Successful
+drain alone cannot release the backend while its allocation still exists.
+The release observer verifies that storage destruction precedes lease release.
 
 These are kernel software checks with a scripted register device. They do not
 emulate or qualify the DE25 fabric master, SMMU, firewall, DDR, clock crossing,

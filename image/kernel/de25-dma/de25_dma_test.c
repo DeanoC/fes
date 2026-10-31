@@ -22,6 +22,11 @@ struct test_descriptor {
 	u32 span, sequence, slot;
 };
 struct test_transport {
+	atomic_t lease;
+	int acquire_error;
+	unsigned int acquired, released, unleased_access, reads, epochs, freed_at_release;
+	struct fes_de25_dma_test_observer *observer;
+	bool bad_version;
 	u64 epoch;
 	bool epoch_unknown, lose_epoch_after_start, freeze_serial, corrupt_serial;
 	int start_error, stop_error, drain_error;
@@ -41,10 +46,43 @@ struct dma_fixture {
 	struct fes_de25_dma_test_observer observer;
 };
 
+static int transport_acquire(void *context)
+{
+	struct test_transport *t = context;
+
+	if (t->acquire_error)
+		return t->acquire_error;
+	if (atomic_cmpxchg(&t->lease, 0, 1))
+		return -EBUSY;
+	t->acquired++;
+	return 0;
+}
+
+static void transport_release(void *context)
+{
+	struct test_transport *t = context;
+
+	t->released++;
+	if (t->observer)
+		t->freed_at_release = t->observer->freed;
+	atomic_set(&t->lease, 0);
+}
+
+static bool transport_held(struct test_transport *t)
+{
+	if (atomic_read(&t->lease) == 1)
+		return true;
+	t->unleased_access++;
+	return false;
+}
+
 static u64 transport_epoch(void *context)
 {
 	struct test_transport *transport = context;
 
+	if (!transport_held(transport))
+		return 0;
+	transport->epochs++;
 	return transport->epoch_unknown ? 0 : transport->epoch;
 }
 
@@ -52,10 +90,13 @@ static int transport_read(void *context, u32 offset, u32 *value)
 {
 	struct test_transport *t = context;
 
+	if (!transport_held(t))
+		return -EACCES;
+	t->reads++;
 	if (offset == FES_DE25_SCANOUT_ID_OFFSET)
 		*value = FES_DE25_SCANOUT_IDENTITY;
 	else if (offset == FES_DE25_SCANOUT_VERSION_OFFSET)
-		*value = FES_DE25_SCANOUT_VERSION;
+		*value = t->bad_version ? 0 : FES_DE25_SCANOUT_VERSION;
 	else if (offset == FES_DE25_SCANOUT_SNAPSHOT_SERIAL_OFFSET)
 		*value = t->serial;
 	else if (offset >= FES_DE25_SCANOUT_SNAPSHOT_STATUS_OFFSET &&
@@ -73,6 +114,8 @@ static int transport_write(void *context, u32 offset, u32 value)
 	struct test_transport *t = context;
 	u32 test_value = 0x12345678;
 
+	if (!transport_held(t))
+		return -EACCES;
 	t->writes++;
 	if (t->trace_count < ARRAY_SIZE(t->trace_offset)) {
 		t->trace_offset[t->trace_count] = offset;
@@ -142,12 +185,23 @@ static int transport_barrier(void *context)
 {
 	struct test_transport *t = context;
 
+	if (!transport_held(t))
+		return -EACCES;
 	t->barriers++;
 	if (t->trace_count < ARRAY_SIZE(t->trace_offset)) {
 		t->trace_offset[t->trace_count] = ~0U;
 		t->trace_value[t->trace_count++] = 0;
 	}
 	return 0;
+}
+
+static struct fes_de25_dma_backend transport_backend(struct test_transport *t)
+{
+	return (struct fes_de25_dma_backend) {
+		.acquire = transport_acquire, .release = transport_release,
+		.epoch = transport_epoch, .read32 = transport_read,
+		.write32 = transport_write, .io_fence = transport_barrier, .context = t,
+	};
 }
 
 static void transport_display(struct test_transport *t)
@@ -197,16 +251,14 @@ static int fixture_init(struct kunit *test)
 	if (IS_ERR(fixture->dev))
 		return PTR_ERR(fixture->dev);
 	fixture->transport.epoch = 1;
+	atomic_set(&fixture->transport.lease, 0);
 	fixture->transport.regs[FES_DE25_SCANOUT_STATUS_OFFSET / 4] = FES_DE25_SCANOUT_STATUS_DRAINED;
-	backend.epoch = transport_epoch;
-	backend.read32 = transport_read;
-	backend.write32 = transport_write;
-	backend.io_fence = transport_barrier;
-	backend.context = &fixture->transport;
+	backend = transport_backend(&fixture->transport);
 	fixture->file = fes_de25_dma_create(fixture->dev, &backend);
 	if (IS_ERR(fixture->file))
 		return PTR_ERR(fixture->file);
 	fes_de25_dma_test_observe(fixture->file, &fixture->observer);
+	fixture->transport.observer = &fixture->observer;
 	test->priv = fixture;
 	return kunit_add_action_or_reset(test, fixture_cleanup, fixture);
 }
@@ -240,6 +292,109 @@ static void binding_stays_closed(struct kunit *test)
 	KUNIT_EXPECT_EQ(test, fixture->file->f_op->unlocked_ioctl(fixture->file, FES_DE25_DMA_PUBLISH, 0), -EFAULT);
 }
 
+static void backend_lease_required_before_access(struct kunit *test)
+{
+	struct dma_fixture *fixture = test->priv;
+	struct test_transport *t = &fixture->transport;
+	struct fes_de25_dma_backend backend = transport_backend(t);
+	unsigned int reads = t->reads, epochs = t->epochs;
+	struct file *other;
+
+	backend.release = NULL;
+	other = fes_de25_dma_create(fixture->dev, &backend);
+	if (!IS_ERR(other))
+		__fput_sync(other);
+	KUNIT_ASSERT_TRUE(test, IS_ERR(other));
+	KUNIT_EXPECT_EQ(test, PTR_ERR(other), (long)-EINVAL);
+	backend = transport_backend(t);
+	t->acquire_error = -ENODEV;
+	other = fes_de25_dma_create(fixture->dev, &backend);
+	t->acquire_error = 0;
+	if (!IS_ERR(other))
+		__fput_sync(other);
+	KUNIT_ASSERT_TRUE(test, IS_ERR(other));
+	KUNIT_EXPECT_EQ(test, PTR_ERR(other), (long)-ENODEV);
+	KUNIT_EXPECT_EQ(test, t->reads, reads);
+	KUNIT_EXPECT_EQ(test, t->epochs, epochs);
+	KUNIT_EXPECT_EQ(test, t->acquired, 1U);
+	KUNIT_EXPECT_EQ(test, t->released, 0U);
+	KUNIT_EXPECT_EQ(test, t->unleased_access, 0U);
+}
+
+static void unconfigured_engine_has_one_allocation_lease(struct kunit *test)
+{
+	struct dma_fixture *fixture = test->priv;
+	struct test_transport *t = &fixture->transport;
+	struct fes_de25_dma_backend backend = transport_backend(t);
+	unsigned int reads = t->reads, epochs = t->epochs;
+	struct file *other = fes_de25_dma_create(fixture->dev, &backend);
+
+	if (!IS_ERR(other))
+		__fput_sync(other);
+	KUNIT_ASSERT_TRUE(test, IS_ERR(other));
+	KUNIT_EXPECT_EQ(test, PTR_ERR(other), (long)-EBUSY);
+	KUNIT_EXPECT_EQ(test, t->starts, 0U);
+	KUNIT_EXPECT_EQ(test, t->reads, reads);
+	KUNIT_EXPECT_EQ(test, t->epochs, epochs);
+	KUNIT_EXPECT_EQ(test, t->released, 0U);
+	KUNIT_EXPECT_EQ(test, t->unleased_access, 0U);
+}
+
+static void constructor_failure_releases_backend_lease(struct kunit *test)
+{
+	struct dma_fixture *fixture = test->priv;
+	struct test_transport *t = &fixture->transport;
+	struct fes_de25_dma_backend backend = transport_backend(t);
+	struct file *other;
+
+	__fput_sync(fixture->file);
+	fixture->file = NULL;
+	KUNIT_ASSERT_EQ(test, t->released, 1U);
+	t->epoch_unknown = true;
+	other = fes_de25_dma_create(fixture->dev, &backend);
+	t->epoch_unknown = false;
+	if (!IS_ERR(other))
+		__fput_sync(other);
+	KUNIT_ASSERT_TRUE(test, IS_ERR(other));
+	KUNIT_EXPECT_EQ(test, PTR_ERR(other), (long)-EOPNOTSUPP);
+	KUNIT_EXPECT_EQ(test, t->acquired, 2U);
+	KUNIT_EXPECT_EQ(test, t->released, 2U);
+	t->bad_version = true;
+	other = fes_de25_dma_create(fixture->dev, &backend);
+	t->bad_version = false;
+	if (!IS_ERR(other))
+		__fput_sync(other);
+	KUNIT_ASSERT_TRUE(test, IS_ERR(other));
+	KUNIT_EXPECT_EQ(test, PTR_ERR(other), (long)-EPROTONOSUPPORT);
+	KUNIT_EXPECT_EQ(test, t->acquired, 3U);
+	KUNIT_EXPECT_EQ(test, t->released, 3U);
+	KUNIT_EXPECT_EQ(test, atomic_read(&t->lease), 0);
+	KUNIT_EXPECT_EQ(test, t->unleased_access, 0U);
+}
+
+static void uncertain_dma_retains_lease_until_storage_free(struct kunit *test)
+{
+	struct dma_fixture *fixture = test->priv;
+	struct test_transport *t = &fixture->transport;
+	struct fes_de25_dma_publish publish = publish_for(fixture->file);
+
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(fixture->file, &publish), 0);
+	t->drain_error = -ETIMEDOUT;
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_revoke(fixture->file), -EAGAIN);
+	KUNIT_EXPECT_EQ(test, t->released, 0U);
+	KUNIT_EXPECT_EQ(test, atomic_read(&t->lease), 1);
+	KUNIT_EXPECT_EQ(test, fixture->observer.freed, 0U);
+	t->drain_error = 0;
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_revoke(fixture->file), 0);
+	KUNIT_EXPECT_EQ(test, t->released, 0U);
+	__fput_sync(fixture->file);
+	fixture->file = NULL;
+	KUNIT_EXPECT_EQ(test, t->released, 1U);
+	KUNIT_EXPECT_EQ(test, t->freed_at_release, 1U);
+	KUNIT_EXPECT_EQ(test, atomic_read(&t->lease), 0);
+	KUNIT_EXPECT_EQ(test, t->unleased_access, 0U);
+}
+
 static void rejects_bad_publish_before_effects(struct kunit *test)
 {
 	struct dma_fixture *fixture = test->priv;
@@ -271,6 +426,7 @@ static void kernel_owns_descriptor_and_drain_lifetime(struct kunit *test)
 	struct fes_de25_dma_info info;
 	struct test_descriptor *descriptor = &fixture->transport.descriptor;
 	struct fes_de25_dma_backend competing = {
+		.acquire = transport_acquire, .release = transport_release,
 		.epoch = transport_epoch, .read32 = transport_read,
 		.write32 = transport_write, .io_fence = transport_barrier,
 		.context = &fixture->transport,
@@ -825,6 +981,10 @@ out:
 
 static struct kunit_case fes_de25_dma_cases[] = {
 	KUNIT_CASE(binding_stays_closed),
+	KUNIT_CASE(backend_lease_required_before_access),
+	KUNIT_CASE(unconfigured_engine_has_one_allocation_lease),
+	KUNIT_CASE(constructor_failure_releases_backend_lease),
+	KUNIT_CASE(uncertain_dma_retains_lease_until_storage_free),
 	KUNIT_CASE(rejects_bad_publish_before_effects),
 	KUNIT_CASE(kernel_owns_descriptor_and_drain_lifetime),
 	KUNIT_CASE(failed_start_is_held_until_drain),

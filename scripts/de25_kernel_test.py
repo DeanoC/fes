@@ -18,6 +18,8 @@ ROOT = Path(__file__).resolve().parents[1]
 DRIVER = "image/kernel/de25-dma"
 KERNEL_DRIVER = "drivers/misc/fes-de25-dma"
 REQUIRED_CASES = frozenset((
+    "backend_lease_required_before_access", "unconfigured_engine_has_one_allocation_lease",
+    "constructor_failure_releases_backend_lease", "uncertain_dma_retains_lease_until_storage_free",
     "binding_stays_closed", "rejects_bad_publish_before_effects",
     "kernel_owns_descriptor_and_drain_lifetime", "failed_start_is_held_until_drain",
     "unreadable_epoch_retains_exposed_storage",

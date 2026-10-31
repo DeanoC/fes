@@ -86,11 +86,15 @@ static void fes_de25_dma_destroy(struct kref *refs)
 	}
 	if (grant->inode)
 		iput(grant->inode);
-	put_device(grant->dev);
 #if IS_ENABLED(CONFIG_FES_DE25_DMA_KUNIT_TEST)
 	if (grant->observer)
 		grant->observer->freed++;
 #endif
+	/* The provider may now retire its MMIO/context/domain resources. No
+	 * callback or observer access is permitted after releasing the lease.
+	 */
+	grant->backend.release(grant->backend.context);
+	put_device(grant->dev);
 	kfree(grant);
 }
 
@@ -614,33 +618,45 @@ static const struct file_operations fes_de25_dma_fops = {
 struct file *fes_de25_dma_create(struct device *dev, const struct fes_de25_dma_backend *backend)
 {
 	struct fes_de25_dma *grant;
+	struct fes_de25_dma_backend selected;
 	struct file *file;
 	u64 epoch, generation;
 	struct fes_de25_snapshot snapshot;
 	u32 identity, version;
 	int ret;
 
-	if (!backend || !backend->epoch || !backend->read32 || !backend->write32 || !backend->io_fence)
+	if (!dev || !backend)
 		return ERR_PTR(-EINVAL);
-	epoch = backend->epoch(backend->context);
-	if (!epoch)
-		return ERR_PTR(-EOPNOTSUPP);
-	ret = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(FES_DE25_SCANOUT_DMA_ADDRESS_BITS));
-	if (ret)
-		return ERR_PTR(ret);
-	generation = fes_de25_dma_next_generation(&next_generation);
-	if (!generation)
-		return ERR_PTR(-EOVERFLOW);
+	selected = *backend;
+	if (!selected.acquire || !selected.release || !selected.epoch ||
+	    !selected.read32 || !selected.write32 || !selected.io_fence)
+		return ERR_PTR(-EINVAL);
 	grant = kzalloc(sizeof(*grant), GFP_KERNEL);
 	if (!grant)
 		return ERR_PTR(-ENOMEM);
 	grant->dev = get_device(dev);
-	grant->backend = *backend;
+	grant->backend = selected;
+	ret = selected.acquire(selected.context);
+	if (ret)
+		goto fail_unowned;
+	epoch = selected.epoch(selected.context);
+	if (!epoch) {
+		ret = -EOPNOTSUPP;
+		goto fail_lease;
+	}
+	ret = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(FES_DE25_SCANOUT_DMA_ADDRESS_BITS));
+	if (ret)
+		goto fail_lease;
+	generation = fes_de25_dma_next_generation(&next_generation);
+	if (!generation) {
+		ret = -EOVERFLOW;
+		goto fail_lease;
+	}
 	grant->generation = generation;
 	grant->epoch = epoch;
-	ret = backend->read32(backend->context, FES_DE25_SCANOUT_ID_OFFSET, &identity);
+	ret = selected.read32(selected.context, FES_DE25_SCANOUT_ID_OFFSET, &identity);
 	if (!ret)
-		ret = backend->read32(backend->context, FES_DE25_SCANOUT_VERSION_OFFSET, &version);
+		ret = selected.read32(selected.context, FES_DE25_SCANOUT_VERSION_OFFSET, &version);
 	if (!ret && (identity != FES_DE25_SCANOUT_IDENTITY || version != FES_DE25_SCANOUT_VERSION))
 		ret = -EPROTONOSUPPORT;
 	if (!ret)
@@ -648,13 +664,10 @@ struct file *fes_de25_dma_create(struct device *dev, const struct fes_de25_dma_b
 	if (!ret && (snapshot.status != FES_DE25_SCANOUT_STATUS_DRAINED || snapshot.generation ||
 	    snapshot.accepted || snapshot.displayed || snapshot.current_sequence || snapshot.slots ||
 	    snapshot.outstanding || snapshot.errors || snapshot.dma || snapshot.span ||
-	    backend->epoch(backend->context) != epoch))
+	    selected.epoch(selected.context) != epoch))
 		ret = -EBUSY;
-	if (ret) {
-		put_device(grant->dev);
-		kfree(grant);
-		return ERR_PTR(ret);
-	}
+	if (ret)
+		goto fail_lease;
 	kref_init(&grant->refs);
 	mutex_init(&grant->lock);
 	mutex_init(&grant->revoke_lock);
@@ -662,9 +675,8 @@ struct file *fes_de25_dma_create(struct device *dev, const struct fes_de25_dma_b
 	grant->cpu = dma_alloc_attrs(dev, FES_DE25_DMA_ALLOCATION_BYTES, &grant->dma, GFP_KERNEL,
 		FES_DE25_DMA_ATTRIBUTES);
 	if (!grant->cpu) {
-		put_device(grant->dev);
-		kfree(grant);
-		return ERR_PTR(-ENOMEM);
+		ret = -ENOMEM;
+		goto fail_lease;
 	}
 	if (!IS_ALIGNED(grant->dma, FES_DE25_SCANOUT_GRANT_ALIGNMENT) ||
 	    (u64)grant->dma > (1ULL << FES_DE25_SCANOUT_DMA_ADDRESS_BITS) - FES_DE25_DMA_ALLOCATION_BYTES) {
@@ -680,6 +692,12 @@ struct file *fes_de25_dma_create(struct device *dev, const struct fes_de25_dma_b
 	grant->inode = igrab(file_inode(file));
 	i_size_write(grant->inode, FES_DE25_DMA_ALLOCATION_BYTES);
 	return file;
+fail_lease:
+	selected.release(selected.context);
+fail_unowned:
+	put_device(grant->dev);
+	kfree(grant);
+	return ERR_PTR(ret);
 }
 
 int fes_de25_dma_binding(struct device *dev)
