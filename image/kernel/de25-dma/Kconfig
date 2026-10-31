@@ -13,3 +13,13 @@ config FES_DE25_DMA_KUNIT_TEST
 	  Run the actual allocation, file operations and lifetime code against a
 	  KUnit test device and a private scripted transport under a test kernel.
 	  This does not admit or emulate DE25 hardware.
+
+config FES_DE25_DMA_PLATFORM
+	bool "DE25 permanent Linux DMA owner candidate"
+	depends on FES_DE25_DMA=y && IOMMU_API && OF_OVERLAY
+	default n
+	help
+	  Unfinished physical provider, disabled in ordinary builds. Requires a
+	  permanent base-tree device, translated DMA domain and protected built-in
+	  SMMU/region/manager/bridge suppliers. The current shipping kernel does not
+	  meet this binding contract. This does not enable normal FES admission.

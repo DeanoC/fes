@@ -17,6 +17,7 @@
 #include <linux/uaccess.h>
 
 #include "de25_dma_internal.h"
+#include "de25_dma_owner.h"
 
 /* The pinned IOMMU DMA implementation maps page-array allocations with
  * vm_map_pages(), allowing page pins beyond PTE revocation. Request actual
@@ -730,7 +731,7 @@ int fes_de25_dma_binding(struct device *dev)
 
 static int fes_de25_dma_probe(struct platform_device *pdev)
 {
-	return fes_de25_dma_binding(&pdev->dev);
+	return fes_de25_owner_probe(pdev);
 }
 
 static const struct of_device_id fes_de25_dma_match[] = {
@@ -741,8 +742,10 @@ MODULE_DEVICE_TABLE(of, fes_de25_dma_match);
 
 static struct platform_driver fes_de25_dma_driver = {
 	.probe = fes_de25_dma_probe,
+	.remove_new = fes_de25_owner_remove,
 	.driver = {
 		.name = "fes-de25-dma",
+		.suppress_bind_attrs = true,
 		.of_match_table = fes_de25_dma_match,
 	},
 };

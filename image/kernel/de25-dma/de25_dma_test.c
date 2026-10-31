@@ -7,11 +7,13 @@
 #include <linux/kthread.h>
 #include <linux/mman.h>
 #include <linux/mm.h>
+#include <linux/of.h>
 #include <linux/sched/mm.h>
 #include <linux/uaccess.h>
 
 #include "de25_dma_internal.h"
 #include "de25_dma_guard.h"
+#include "de25_dma_owner.h"
 
 #define TEST_ADDRESS 0x10000000UL
 
@@ -1348,7 +1350,133 @@ static void guarded_transport_constructs_real_dma_grant(struct kunit *test)
 	KUNIT_EXPECT_EQ(test, device->endpoint->unleased_access, 0U);
 }
 
+struct owner_fixture {
+	struct fes_de25_owner *owner;
+	struct guard_test_device *device;
+	struct file *file;
+};
+
+static void owner_fixture_cleanup(void *context)
+{
+	struct owner_fixture *f = context;
+
+	f->device->endpoint->drain_error = 0;
+	f->device->endpoint->stop_error = 0;
+	fes_de25_owner_test_reap(f->owner);
+	if (!IS_ERR_OR_NULL(f->file))
+		__fput_sync(f->file);
+	fes_de25_owner_test_destroy(f->owner);
+}
+
+static struct owner_fixture *owner_fixture_create(struct kunit *test, bool ready)
+{
+	struct dma_fixture *dma = test->priv;
+	struct owner_fixture *f = kunit_kzalloc(test, sizeof(*f), GFP_KERNEL);
+
+	if (!f)
+		return NULL;
+	f->device = guard_test_device(test, 0);
+	if (!f->device)
+		return NULL;
+	f->device->endpoint = kunit_kzalloc(test, sizeof(*f->device->endpoint), GFP_KERNEL);
+	if (!f->device->endpoint)
+		return NULL;
+	/* The register script is hardware, not a second software owner. The real
+	 * provider's lease below gates every allocation and configuration event.
+	 */
+	atomic_set(&f->device->endpoint->lease, 1);
+	f->device->endpoint->epoch = 7;
+	f->device->endpoint->regs[FES_DE25_SCANOUT_STATUS_OFFSET / 4] = FES_DE25_SCANOUT_STATUS_DRAINED;
+	if (ready && fes_de25_guard_claim(&f->device->guard, 7))
+		return NULL;
+	f->owner = fes_de25_owner_test_create(dma->dev, ready ? &f->device->guard : NULL);
+	if (!f->owner)
+		return NULL;
+	if (kunit_add_action_or_reset(test, owner_fixture_cleanup, f))
+		return NULL;
+	return f;
+}
+
+static void permanent_owner_blocks_configuration_before_first_submit(struct kunit *test)
+{
+	struct owner_fixture *f = owner_fixture_create(test, true);
+	struct file *second;
+	unsigned int reads;
+
+	KUNIT_ASSERT_NOT_NULL(test, f);
+	f->file = fes_de25_owner_test_allocate(f->owner);
+	KUNIT_ASSERT_FALSE(test, IS_ERR(f->file));
+	reads = f->device->endpoint_reads;
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_notify(f->owner, OF_OVERLAY_PRE_APPLY), -EBUSY);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_notify(f->owner, OF_OVERLAY_PRE_REMOVE), -EBUSY);
+	KUNIT_EXPECT_EQ(test, f->device->endpoint_reads, reads);
+	second = fes_de25_owner_test_allocate(f->owner);
+	KUNIT_EXPECT_TRUE(test, IS_ERR(second));
+	if (IS_ERR(second))
+		KUNIT_EXPECT_EQ(test, PTR_ERR(second), -EBUSY);
+	else
+		__fput_sync(second);
+	/* Reaping the owner's reference is insufficient while the client storage
+	 * still exists, even though this engine has never submitted a frame.
+	 */
+	KUNIT_ASSERT_EQ(test, fes_de25_owner_test_reap(f->owner), 0);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_notify(f->owner, OF_OVERLAY_PRE_REMOVE), -EBUSY);
+	__fput_sync(f->file);
+	f->file = NULL;
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_notify(f->owner, OF_OVERLAY_PRE_REMOVE), 0);
+}
+
+static void permanent_owner_retains_uncertain_closed_client(struct kunit *test)
+{
+	struct owner_fixture *f = owner_fixture_create(test, true);
+	struct fes_de25_dma_publish publish;
+
+	KUNIT_ASSERT_NOT_NULL(test, f);
+	f->file = fes_de25_owner_test_allocate(f->owner);
+	KUNIT_ASSERT_FALSE(test, IS_ERR(f->file));
+	publish = publish_for(f->file);
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(f->file, &publish), 0);
+	f->device->endpoint->drain_error = -ETIMEDOUT;
+	__fput_sync(f->file);
+	f->file = NULL;
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_reap(f->owner), -EAGAIN);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_notify(f->owner, OF_OVERLAY_PRE_APPLY), -EBUSY);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_notify(f->owner, OF_OVERLAY_PRE_REMOVE), -EBUSY);
+	f->device->endpoint->drain_error = 0;
+	KUNIT_ASSERT_EQ(test, fes_de25_owner_test_reap(f->owner), 0);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_notify(f->owner, OF_OVERLAY_PRE_APPLY), 0);
+	/* Replacement is reserved before any stock bridge-disable call. */
+	f->file = fes_de25_owner_test_allocate(f->owner);
+	KUNIT_EXPECT_TRUE(test, IS_ERR(f->file));
+	if (IS_ERR(f->file)) {
+		KUNIT_EXPECT_EQ(test, PTR_ERR(f->file), -ENODEV);
+		f->file = NULL;
+	}
+}
+
+static void permanent_owner_never_adopts_unknown_configuration(struct kunit *test)
+{
+	struct owner_fixture *f = owner_fixture_create(test, false);
+	unsigned int reads;
+
+	KUNIT_ASSERT_NOT_NULL(test, f);
+	reads = f->device->reads;
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_notify(f->owner, OF_OVERLAY_PRE_APPLY), 0);
+	/* POST_APPLY without a known firmware/profile is not admission. */
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_notify(f->owner, OF_OVERLAY_POST_APPLY), 0);
+	f->file = fes_de25_owner_test_allocate(f->owner);
+	KUNIT_EXPECT_TRUE(test, IS_ERR(f->file));
+	if (IS_ERR(f->file)) {
+		KUNIT_EXPECT_EQ(test, PTR_ERR(f->file), -ENODEV);
+		f->file = NULL;
+	}
+	KUNIT_EXPECT_EQ(test, f->device->reads, reads);
+}
+
 static struct kunit_case fes_de25_dma_cases[] = {
+	KUNIT_CASE(permanent_owner_blocks_configuration_before_first_submit),
+	KUNIT_CASE(permanent_owner_retains_uncertain_closed_client),
+	KUNIT_CASE(permanent_owner_never_adopts_unknown_configuration),
 	KUNIT_CASE(owner_recovers_drain_after_last_client_close),
 	KUNIT_CASE(owner_recovery_cannot_use_reset_as_drain),
 	KUNIT_CASE(owner_reference_release_does_not_revoke_client),

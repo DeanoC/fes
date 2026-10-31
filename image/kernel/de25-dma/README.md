@@ -2,11 +2,11 @@
 
 This module implements Linux-owned coherent storage, revocable grant mappings
 and the `fes.fabric.de25-scanout` display lifecycle. Its production platform
-probe always returns `EOPNOTSUPP`. It registers no allocation device and accepts
-no DT, module or userspace option that qualifies DE25 hardware. The actual
-fabric device, SID, translation, physical firewall, ordered clock-domain access
-and boot/reset epoch binding remain missing. Nothing installs or loads this
-module into the DE25 image or runtime.
+probe returns `EOPNOTSUPP` in ordinary builds. The default-off
+`FES_DE25_DMA_PLATFORM` built-in candidate connects a permanent device owner,
+guarded transport and allocation control; it does not enable normal FES runtime
+admission or qualify the physical stream/firewall. Nothing installs or loads
+this module into the DE25 image or runtime.
 
 The implementation has a separate ABI from ARMv7 `fes-window`. It does not map
 a reserved physical window, use `/dev/mem`, invoke PL310 cache operations, or
@@ -185,3 +185,52 @@ support. This changes the SDK hash, not the pinned vendor kernel or builder.
 The [contiguous allocation and revocation record](../../../docs/validation/2026-10-31-de25-contiguous-dma/README.md)
 retains all 17 passing AArch64 KUnit cases and the matching prepared-kernel
 module build. Physical stream/domain and normal-kit admission remain open.
+
+## Permanent device owner candidate
+
+`FES_DE25_DMA_PLATFORM` defaults off and requires a built-in driver, IOMMU API
+and OF overlays. It implements `/dev/fes-de25-scanout` (root only, also requiring
+CAP_SYS_RAWIO): OWNER_ALLOC returns a CLOEXEC grant file, and OWNER_REAP revokes
+its grant through the existing checked drain path before releasing the owner's
+recovery handle. Existing client storage references still hold the resource
+lease, even after a successful reap. A failed reap retains the handle and lease.
+An abandoned handle can be reaped by a later owner-control connection.
+
+The base device must be permanent, outside overlays, with exactly one 256-byte
+control resource at the generated architectural base plus peripheral offset,
+exactly one `iommus` entry with stream ID 13, and a translated DMA/DMA-FQ domain
+whose group contains only this device. `fes,fpga-region` points to a permanent
+root-level `fpga-region` with a direct `fpga-mgr` and nonempty static
+`fpga-bridges`. SMMU, region, manager and bridge platform suppliers must be
+built-in drivers with sysfs bind/unbind disabled. The owner also disables these
+attributes. This preserves ordinary driver-core default-domain ownership and
+prevents supported unbind/removal from dismantling resources under allocations.
+The current kernel does not meet that supplier contract and remains refused;
+there is no module parameter or DT waiver. Kernel-internal forceful teardown or
+privileged out-of-band JTAG is outside this supported lifecycle.
+
+Probe reserves/maps the control resource without reading the fabric. A priority
+100 OF-overlay notifier runs before the stock FPGA-region notifier. PRE_APPLY
+and PRE_REMOVE reject while any allocation lease remains, including an empty
+engine, a closed client with uncertain drain, or revoked storage still held by a
+client. Otherwise they mark the owner unavailable before bridges can be disabled
+or devices detached, and retire the old guard. A later failure leaves it
+unavailable. Ancestor overlays cannot mutate its permanent topology; per-image
+bridge overrides are refused. Dedicated image overlays target the region itself.
+
+Only POST_APPLY of an overlay that programs firmware and describes a
+`fes,de25-linux-dma-scanout` child constructs and claims a new guard. Fresh
+nonzero epoch tokens do not wrap. Unknown configuration is never probed or
+adopted. This compatible describes hardware, as other Linux device bindings do;
+it is not artifact authentication. The supported runtime must construct the
+overlay from its admitted package and matching bitstream. Device-tree metadata
+cannot prove a wrong or unconfigured bridge safe to probe.
+
+The owner tests call the actual allocation/reap and notification decision paths
+with scripted guard/endpoint registers and a test device. They verify early
+exclusion and post-client-close recovery. They bypass physical binding only in
+KUnit fixtures; they do not execute an actual OF overlay or qualify a domain,
+stream, permanent supplier binding, physical clock/bridge, or board lifecycle.
+Still required before activation: the pinned kernel supplier integration,
+base-tree owner binding, admitted loader/package integration, complete overlay
+and concurrent operation tests, and physical acceptance.

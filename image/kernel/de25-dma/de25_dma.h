@@ -53,4 +53,11 @@ struct fes_de25_dma_info {
 /* POLL input requires current generation, version and zero reserved. */
 #define FES_DE25_DMA_POLL _IOWR(0xD5, 0x04, struct fes_de25_dma_info)
 
+/* Permanent owner control: no argument. ALLOC returns a CLOEXEC grant fd.
+ * REAP revokes the active grant using kernel hardware proof, then releases the
+ * owner's recovery handle. Client storage references still retain its lease.
+ */
+#define FES_DE25_DMA_OWNER_ALLOC _IO(0xD5, 0x10)
+#define FES_DE25_DMA_OWNER_REAP _IO(0xD5, 0x11)
+
 #endif
