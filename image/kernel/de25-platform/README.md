@@ -81,3 +81,29 @@ closed. The SDK and standard headless image selection are unchanged.
 The copied factory-boot artifacts are reference inputs for the shared boot
 verifier, not instructions to replace the kit's approved HPS-first QSPI baseline.
 Assembling an image does not install it or authorize a new flash operation.
+
+After a separately delivered candidate boots, and before applying any FPGA
+overlay, the claimed idle board can run the
+[userspace refusal check](owner_unconfigured.c):
+
+```sh
+aarch64-buildroot-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Werror -static \
+  -o owner_unconfigured image/kernel/de25-platform/owner_unconfigured.c
+./owner_unconfigured --boot-id <observed-candidate-boot-UUID>
+```
+
+Compile with the locked image SDK. The check requires the exact candidate
+kernel, board/rootfs and observed boot identity, then holds the existing DE25
+computer maintenance lock. It opens the root-only owner character device and
+checks its sysfs device number and CLOEXEC flag. Actual ioctl calls must refuse
+unknown commands, nonzero arguments and allocation before a known configuration;
+a forked child drops all capabilities and must receive EPERM. The parent checks
+that allocation is still refused afterward. It never publishes a frame or maps
+MMIO. Unexpected allocation is a failure: it reaps only the new grant it just
+received and closes that descriptor; EBUSY never triggers a reap. Use only
+before configuration and while the whole board is exclusively claimed. The
+maintenance lock alone does not serialize arbitrary root FPGA loaders.
+
+Compiling this check, running its host-refusal path or passing KUnit does not
+establish a userspace syscall pass. Its pass marker is evidence only when
+observed on the identified candidate board boot.

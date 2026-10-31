@@ -1,7 +1,11 @@
 import difflib
 import hashlib
 import json
+import os
 from pathlib import Path
+import platform as host_platform
+import shutil
+import subprocess
 import tempfile
 import unittest
 
@@ -10,6 +14,26 @@ from scripts import de25_kernel_platform as platform
 
 def sha(data):
     return hashlib.sha256(data.encode()).hexdigest()
+
+
+@unittest.skipUnless(shutil.which('cc') and host_platform.system() == 'Linux', 'Linux C compiler required')
+class UserspaceOwnerCheckTests(unittest.TestCase):
+    def test_native_cli_refuses_before_opening_a_device(self):
+        with tempfile.TemporaryDirectory() as temp:
+            binary = Path(temp) / 'owner_unconfigured'
+            source = platform.ROOT / platform.PROFILE / 'owner_unconfigured.c'
+            subprocess.run(['cc', '-std=c11', '-O2', '-Wall', '-Wextra', '-Werror',
+                            '-o', str(binary), str(source)], check=True, capture_output=True)
+            cases = [([], 'usage:'), (['--boot-id', 'bad'], 'invalid expected boot UUID')]
+            if host_platform.machine() != 'aarch64' or os.uname().release != platform.RELEASE:
+                cases.append((['--boot-id', '00000000-0000-4000-8000-000000000001'],
+                              'requires the AArch64 owner-candidate board kernel'))
+            for args, message in cases:
+                with self.subTest(args=args):
+                    result = subprocess.run([str(binary), *args], capture_output=True, text=True, timeout=5)
+                    self.assertEqual(result.returncode, 1)
+                    self.assertIn(message, result.stderr)
+                    self.assertNotIn('USERSPACE_PASS', result.stdout)
 
 
 class KernelPlatformTests(unittest.TestCase):
