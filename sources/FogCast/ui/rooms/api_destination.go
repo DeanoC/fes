@@ -88,8 +88,11 @@ func (r *Instance) destinationSet(L *lua.LState) int {
 		d.CoreID = coreID
 		d.CoreBlock = optString(opts, "block")
 		d.CoreNeeds = optString(opts, "needs")
-		d.CoreLaunchable = coreLaunchable(opts, d.CoreBlock)
-		if d.CoreLaunchable {
+		d.CorePending = optBool(opts, "pending")
+		d.CoreLaunchable = !d.CorePending && coreLaunchable(opts, d.CoreBlock)
+		if d.CorePending {
+			d.Availability = AvailChecking
+		} else if d.CoreLaunchable {
 			d.Availability = AvailReady
 		} else {
 			d.Availability = AvailUnavailable
@@ -244,6 +247,7 @@ func (r *Instance) destinationTable(d Destination) *lua.LTable {
 		t.RawSetString("core_id", lua.LString(d.CoreID))
 		t.RawSetString("block", lua.LString(d.CoreBlock))
 		t.RawSetString("launchable", lua.LBool(d.CoreLaunchable))
+		t.RawSetString("pending", lua.LBool(d.CorePending))
 		t.RawSetString("needs", lua.LString(d.CoreNeeds))
 	}
 	t.RawSetString("availability", lua.LString(d.Availability))

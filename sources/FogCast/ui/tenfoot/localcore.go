@@ -38,6 +38,11 @@ const (
 	// The client's own timeout is 3s, so the poll never runs under a.mu.
 	localStatusEvery      = time.Second
 	localReconcileTimeout = 30 * time.Second
+	// A launch the agent answers with warming is asked again until its
+	// startup catalog warm ends. The budget matches the room's own listing
+	// retry (localCoresStartupRetry in ui/rooms).
+	localWarmLaunchEvery  = 200 * time.Millisecond
+	localWarmLaunchBudget = 60 * time.Second
 )
 
 // localPadSender is the kit-local input socket. *localfeed.Feed implements it.
@@ -235,14 +240,22 @@ func (a *App) startLocalCoreLocked(dest rooms.Destination) {
 			if client == nil {
 				err = rooms.ErrNoLocalCores
 			} else {
-				result, err = client.Launch(context.Background(), packageID)
+				result, err = a.launchAfterWarm(client, packageID, gen)
 			}
 			a.mu.Lock()
 			defer a.mu.Unlock()
 			if a.localGen != gen {
 				return
 			}
+			if errors.Is(err, errQueuedLaunchStopped) {
+				// Nothing was claimed while the agent answered warming.
+				a.finishLocalCoreLocked()
+				return
+			}
 			if err != nil {
+				if !localLaunchRejected(err) {
+					a.invalidateLocalLaunchReadinessLocked()
+				}
 				if errors.Is(err, localcores.ErrUnavailable) {
 					a.reconcileLocalLaunchErrorLocked(err, block)
 				} else {
@@ -250,6 +263,7 @@ func (a *App) startLocalCoreLocked(dest rooms.Destination) {
 				}
 				return
 			}
+			a.invalidateLocalLaunchReadinessLocked()
 			if !validLocalGeneration(result.Generation) {
 				a.reconcileLocalLaunchErrorLocked(localcores.ErrUnavailable, "")
 				return
@@ -334,6 +348,9 @@ func (a *App) startLocalTitleLocked(game hostclient.Game) {
 				return
 			}
 			if err != nil {
+				if client != nil && !localLaunchRejected(err) {
+					a.invalidateLocalLaunchReadinessLocked()
+				}
 				if client == nil {
 					a.failLocalCoreLocked(err, "")
 				} else {
@@ -341,6 +358,7 @@ func (a *App) startLocalTitleLocked(game hostclient.Game) {
 				}
 				return
 			}
+			a.invalidateLocalLaunchReadinessLocked()
 			if !validLocalGeneration(result.Generation) {
 				a.reconcileLocalLaunchErrorLocked(localcores.ErrUnavailable, "")
 				return
@@ -364,6 +382,20 @@ func (a *App) startLocalTitleLocked(game hostclient.Game) {
 		}()
 	}
 	a.queueLocalLaunchLocked(launch)
+}
+
+func localLaunchRejected(err error) bool {
+	return errors.Is(err, rooms.ErrNoLocalCores) ||
+		errors.Is(err, localcores.ErrWarming) ||
+		errors.Is(err, localcores.ErrInUse) ||
+		errors.Is(err, localcores.ErrBlocked) ||
+		errors.Is(err, localcores.ErrNotFound)
+}
+
+func (a *App) invalidateLocalLaunchReadinessLocked() {
+	if a != nil && a.menuDisplay != nil {
+		a.menuDisplay.InvalidateSoftwareReady()
+	}
 }
 
 // Input only arms the launch. Menu-display dispatch follows a presented frame,
@@ -467,6 +499,57 @@ func localCartridgeCore(system string) string {
 		return "fes.sms"
 	default:
 		return ""
+	}
+}
+
+// errQueuedLaunchStopped is a stop request that arrived while a launch was
+// waiting for the agent's read-only catalog check. No launch was submitted,
+// so there is nothing to stop and the launcher returns to idle.
+var errQueuedLaunchStopped = errors.New("queued launch stopped")
+
+// launchAfterWarm polls the read-only list while the agent warms its catalog,
+// then asks the agent to launch against the finished list. A queued launch
+// from a remembered tile still fails closed when the package is gone or
+// blocked. A stop request (F12, Guide, Select+Start) during catalog warm ends
+// the queue before any launch request is submitted.
+func (a *App) launchAfterWarm(client rooms.LocalCores, packageID string, gen uint64) (localcores.LaunchResult, error) {
+	deadline := time.Now().Add(localWarmLaunchBudget)
+	for {
+		a.mu.Lock()
+		stopped := a.localGen != gen || a.localStopAfterStart
+		a.mu.Unlock()
+		if stopped {
+			return localcores.LaunchResult{}, errQueuedLaunchStopped
+		}
+		// Poll the read-only catalog endpoint while it warms. Launch itself can
+		// finish warming inside its request and program the core before Stop gets
+		// a chance to cancel the queued play.
+		_, err := client.List(context.Background())
+		a.mu.Lock()
+		stopped = a.localGen != gen || a.localStopAfterStart
+		a.mu.Unlock()
+		if stopped {
+			return localcores.LaunchResult{}, errQueuedLaunchStopped
+		}
+		if err != nil && !errors.Is(err, localcores.ErrWarming) {
+			return localcores.LaunchResult{}, err
+		}
+		if err == nil {
+			a.mu.Lock()
+			stopped = a.localGen != gen || a.localStopAfterStart
+			a.mu.Unlock()
+			if stopped {
+				return localcores.LaunchResult{}, errQueuedLaunchStopped
+			}
+			result, launchErr := client.Launch(context.Background(), packageID)
+			if !errors.Is(launchErr, localcores.ErrWarming) || !time.Now().Before(deadline) {
+				return result, launchErr
+			}
+		}
+		if !time.Now().Before(deadline) {
+			return localcores.LaunchResult{}, localcores.ErrWarming
+		}
+		time.Sleep(localWarmLaunchEvery)
 	}
 }
 
