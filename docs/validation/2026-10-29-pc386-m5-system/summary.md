@@ -133,6 +133,10 @@ M5 work.
     reset), and new trace outputs, left open. The bench's port 0 model now
     asks its memory for `at(offset, write)`, which `system_tb` answers from
     the window.
+- **Main at `d6a5748f9`, 31 October.** Main squashed #1230 at `45af99a23`
+  as `d37072612`. The merge adds only main's changes since `45af99a23`,
+  #1315 and #1321, which touch only FogCast, so the seal at `2c13827a2`
+  still covers the core.
 
 The merged base passes on its own. `--suite boot --cpu rtl` on `machine_tb`
 reaches the prompt and lists `dir`, with 113,547,658 instructions retired.
