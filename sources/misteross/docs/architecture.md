@@ -2959,10 +2959,12 @@ physical sockets are qualified.
 The independent `fes.pcxt-dos` recipe selects the default-off `HARDWARE_DOS`
 top parameter. It enables the GLaBIOS XT/5160 ROM, a BAT-only XT keyboard
 responder, and the read-only floppy controller. The `fes.computer` 1.1
-mailbox accepts a 360 KiB runtime floppy and writes it into SDRAM. The first
-boot waits for complete physical writes and media commit; subsequent eject or
-replacement does not reset the guest, while cold reset invalidates media.
-Guest reads use the SDRAM media-read path. The pinned FreeDOS simulation
+mailbox accepts a 360 KiB runtime floppy and writes it into SDRAM. When an
+initial disk is being loaded, the first boot waits for complete physical writes
+and media commit. Releasing execution with an empty drive starts the BIOS so
+the display reports its POST/boot state instead of remaining black. Subsequent
+eject or replacement does not reset the running guest, while cold reset
+invalidates media. Guest reads use the SDRAM media-read path. The pinned FreeDOS simulation
 fixture's exact source commits and SHA-256 are recorded in the core firmware
 notices and `sim/freedos.lock`. The registered recipe points its HIL
 gate at `scripts/pcxt_dos_hil_acceptance.py`, preferring Kit B and then Kit A.

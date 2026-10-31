@@ -91,9 +91,11 @@ module bios_top #(parameter bit WITH_FLOPPY = 0, WITH_RUNTIME_MEDIA = 0, WAIT_FO
         assign disk_load_done = active_disk_done;
         wire unused_gpo = &{1'b0,media_gpo};
     end endgenerate
+    wire start_without_media = firmware_loaded && !hold && !runtime_hold && media_state == 2'd1;
     wire boot_media_hold;
     pcxt_boot_media_gate #(.ENABLE(WAIT_FOR_MEDIA)) media_gate (
-        .clk(clk), .cold_reset(cold_reset), .media_present(active_media_present), .hold(boot_media_hold));
+        .clk(clk), .cold_reset(cold_reset), .media_present(active_media_present),
+        .start_without_media(start_without_media), .hold(boot_media_hold));
     /* verilator lint_off PINCONNECTEMPTY */
     pcxt_system #(.DIAGNOSTIC_PROBE(0), .FLOPPY(WITH_FLOPPY),
                   .SWITCHES(WITH_FLOPPY ? 8'h2d : 8'h2c)) system (

@@ -46,10 +46,13 @@ The `fes.pcxt-dos` recipe selects `HARDWARE_DOS` and keeps the diagnostic
 profile unchanged. It includes GLaBIOS and a BAT-only XT keyboard responder;
 keyboard input is not yet supported. A 360 KiB raw floppy is delivered at
 runtime through `fes.media.pcxt-floppy` and the complete ordered image is
-written into SDRAM. The guest stays in reset until the initial image is
-physically written and committed. After that, eject and replacement leave the
-running guest alone. A cold reset invalidates the image. Guest floppy reads
-use the SDRAM media path; there is no disk ROM in the FPGA and no write path.
+written into SDRAM. When an initial disk is being loaded, the guest stays in
+reset until its final physical write is committed. If the host releases
+execution with the drive empty, the BIOS starts and displays its POST/boot
+status instead of leaving a black screen. Eject and replacement after startup
+do not reset the running guest. A cold reset invalidates the image. Guest
+floppy reads use the SDRAM media path; there is no disk ROM in the FPGA and no
+write path.
 The FreeDOS fixture uses kernel 2043 and FreeCOM 0.86a; see
 [`firmware/THIRD-PARTY-NOTICES.md`](firmware/THIRD-PARTY-NOTICES.md) and
 [`sim/freedos.lock`](sim/freedos.lock). Hardware prompt acceptance remains

@@ -220,12 +220,12 @@ int main(int argc, char **argv) {
         require(d.media_state==3,"committed disk not ready",cycles);
     };
     require(exchange(1,6,0)==1 && exchange(1,16,0)==16,"runtime PC floppy identity",cycles);
-    exchange(2,0,1); // Start before loading; the physical-media gate keeps the CPU held.
     // An abandoned partial image must be hidden and restart from offset zero.
     begin_image();chunk(0,3);exchange(10,0,0);
     for(unsigned i=0;i<3;++i)step();
     require(d.media_state==1 && !d.disk_loaded,"partial eject left media eligible",cycles);
     upload();
+    exchange(2,0,1); // Release only after the complete initial disk is committed.
     for(unsigned a=0;a<disk.size();++a)
         require(byte(0x100000+a)==disk[a],"uploaded disk differs in SDRAM",cycles);
     while(!(post && boot && sector && prompt && directory && frame_complete))step();

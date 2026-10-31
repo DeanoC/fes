@@ -83,6 +83,7 @@ module top #(
     wire exec_reset;
     localparam bit LIVE_MEDIA = ENABLE_FES_COMPUTER && ENABLE_PCXT_MEDIA;
     wire media_present, disk_restart, disk_load_valid, disk_load_ready, disk_load_done, disk_loaded;
+    wire [1:0] media_unit_state;
     wire [18:0] disk_load_address;
     wire [7:0] disk_load_data;
     generate if (ENABLE_FES_COMPUTER) begin: fes_computer_runtime
@@ -92,16 +93,16 @@ module top #(
         if (LIVE_MEDIA) begin: pcxt_floppy
             wire [18:0] source_addr;
             wire [15:0] source_data;
-            wire [1:0] source_enable, unit_state;
+            wire [1:0] source_enable;
             wire source_ready;
             fes_computer_mailbox_pcxt gp_mailbox (
                 .clk(clk_memory), .gpo(hps_to_fpga), .build_id(BUILD_ID), .gpi(fpga_to_hps),
                 .exec_reset(exec_reset), .media_reset(board_reset_live),
                 .media_write_addr(source_addr), .media_write_data(source_data),
                 .media_write_enable(source_enable), .media_write_ready(source_ready),
-                .media_write_busy(1'b0), .unit0_state(unit_state), .unit0_size());
+                .media_write_busy(1'b0), .unit0_state(media_unit_state), .unit0_size());
             pcxt_media media (
-                .clk(clk_memory), .cold_reset(board_reset_live), .unit_state(unit_state),
+                .clk(clk_memory), .cold_reset(board_reset_live), .unit_state(media_unit_state),
                 .source_addr(source_addr), .source_data(source_data), .source_enable(source_enable),
                 .source_ready(source_ready), .disk_restart(disk_restart), .media_present(media_present),
                 .disk_loaded(disk_loaded), .disk_valid(disk_load_valid), .disk_address(disk_load_address),
@@ -115,10 +116,11 @@ module top #(
                 .media_write_ready(1'b1), .media_write_busy(1'b0), .media_changed(1'b0),
                 .media_frozen(), .media_read_req(), .media_read_addr(),
                 .media_read_ready(1'b0), .media_read_data(8'd0),
-                .unit0_state(), .unit0_size());
+                .unit0_state(media_unit_state), .unit0_size());
         end
     end else begin: standalone_diagnostic
         assign exec_reset = 1'b0;
+        assign media_unit_state = 2'd1;
     end endgenerate
     wire firmware_valid, firmware_ready, firmware_done, firmware_loaded;
     wire [15:0] firmware_address;
@@ -134,10 +136,12 @@ module top #(
         assign disk_load_address = 19'b0;
         assign disk_load_data = 8'b0;
     end endgenerate
+    wire start_without_media = firmware_loaded && !exec_reset && media_unit_state == 2'd1;
     wire boot_media_hold;
     pcxt_boot_media_gate #(.ENABLE(HARDWARE_DOS)) media_gate (
         .clk(clk_memory), .cold_reset(board_reset_live),
-        .media_present(media_present), .hold(boot_media_hold));
+        .media_present(media_present), .start_without_media(start_without_media),
+        .hold(boot_media_hold));
     wire [31:0] video_request;
     wire [27:0] video_response;
     wire [15:0] dq_out, dq_sample;
