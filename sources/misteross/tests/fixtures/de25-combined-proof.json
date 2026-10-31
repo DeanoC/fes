@@ -1,7 +1,7 @@
 {
   "status": "passed",
   "kind": "actual-dual-client-combined-ZX81-PR-RTL",
-  "source_revision": "1cf85647a5278cabedaf55e12634ba16d7d27415",
+  "source_revision": "d4c6544e3a6f83ba4ea72fbe7d8b7c0c13828223",
   "production_source_committed": true,
   "test_source_committed": true,
   "compiler_source_sha256": {
@@ -49,7 +49,7 @@
     "sources/misteross/boards/de25nano/zx81-hps/integrate.tcl": "e5eae437f7a78540c5112bb5f314856bb4f30c9a3d38c1f1f089b910a9a8ca4f",
     "sources/misteross/boards/de25nano/zx81-hps/tape_store.v": "f8f9c1b7635d33853cca4f69a41b0a1f7d5afcec32ea00c1c7dfa7a5ad08361f",
     "sources/misteross/boards/de25nano/zx81-hps/video.v": "2e48ac6620e7e5c319274dfc4b67b7afaf74c2dd6ffb820d567b7a1aa4df0dc2",
-    "sources/misteross/cores/fes-common/rtl/fes_computer_mailbox.v": "93fbcb23dcd36845f55b13af1f8cb9bab585d37fb65d76065447f0bd10bf0f87",
+    "sources/misteross/cores/fes-common/rtl/fes_computer_mailbox.v": "08b63b2f9240e36984e71fe1b98c3eb57defbfae32eb23efc2be240e408fc088",
     "sources/misteross/cores/fes-common/rtl/z80/fes_z80_alu.sv": "c7ce86810a6537150ccc482b91135031422c10ff4de257a6d4d8e54f3a4f43d9",
     "sources/misteross/cores/fes-common/rtl/z80/fes_z80_bus.sv": "1946158638c97ee46f993b4a53e168cd4f44f209af01b4be0f11faa69c331b2a",
     "sources/misteross/cores/fes-common/rtl/z80/fes_z80_engine.sv": "f40dad3d2b4909c4b93fa507479a417ad9b197d708580d8cc100f8f46954113b",
@@ -315,7 +315,7 @@
   "selected_build_id": "00112233445566778899aabbccddeeff",
   "binaries_sha256": {
     "client-native": "c2694097c5a9c0b24a75add751a1a2458b0de4a924b614284333648c474e1186",
-    "Vfes_de25_combined_sim": "2df93f7d44f6cbe5df6e3d6275233bc11427beec1ddb27594c776f801e74a0fa",
+    "Vfes_de25_combined_sim": "b4fe80fe22b041da41e4c2acddcf215b8f133b0a0c042cc5ea3d22523bfbbc6a",
     "client-aarch64": "48b70db07d08a45c6a8412c502453f2ddbb121ef584443ae0d21ad1b01a4768f"
   },
   "physical_PR": "selection-mux-model-only",
