@@ -25,7 +25,7 @@
 #define dev_err(dev, ...) ((void)(dev))
 struct device { int unused; };
 struct completion { int unused; };
-struct s10_priv { struct { struct device *dev; } client; struct completion status_return_completion; unsigned long status; void *chan; };
+struct s10_priv { struct { struct device *dev; } client; struct completion status_return_completion; unsigned long status; void *chan; bool config_active; bool config_uncertain; unsigned long write_deadline; };
 struct fpga_manager { struct s10_priv *priv; };
 static unsigned long fake_jiffies;
 static int clock_reads;
@@ -77,7 +77,9 @@ static void stratix10_svc_done(void *c) { (void)c; dones++; }
 static void run(int which, int expected, int max_sends)
 {
  scenario=which; clock_reads=0; sends=waits=claims=dones=0; free_buffers=false; priv.status=0; fake_jiffies=which==11 ? ULONG_MAX-2 : 0;
+ priv.config_active = true; priv.config_uncertain = true; priv.write_deadline = clock_now() + 30;
  assert(s10_ops_write(&manager, data, sizeof(data)) == expected);
+ if (IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM) && expected) assert(!priv.config_active && priv.config_uncertain);
  assert(sends <= max_sends); assert(dones == (expected != 0));
  if (which==1) assert(sends==1 && waits==0);
  if (which==2) assert(sends==1 && waits==1);
@@ -87,12 +89,27 @@ static void run(int which, int expected, int max_sends)
  if (which==10) assert(sends==1 && waits==0);
  printf("case %d PASS\n",which);
 }
+static void fragmented_write(void)
+{
+ scenario=0; clock_reads=0; sends=waits=claims=dones=0; free_buffers=false;
+ fake_jiffies=0; priv.status=0; priv.config_active=true; priv.config_uncertain=true;
+ priv.write_deadline=30;
+ assert(s10_ops_write(&manager, data, sizeof(data))==0);
+ assert(priv.config_active && priv.config_uncertain);
+ fake_jiffies=29; sends=waits=claims=0; free_buffers=false; priv.status=0;
+ assert(s10_ops_write(&manager, data, sizeof(data))==-ETIMEDOUT);
+ assert(!priv.config_active && priv.config_uncertain && priv.write_deadline==30);
+ int old_sends=sends, old_dones=dones;
+ assert(s10_ops_write(&manager, data, sizeof(data))==-EIO);
+ assert(sends==old_sends && dones==old_dones);
+ puts("case 13 PASS: fragments share one deadline; failure cannot resume");
+}
 int main(int argc, char **argv)
 {
  if(argc>1) { if (!strcmp(argv[1], "positive")) run(0,0,2); else run(1,-ENOMEM,1); return 0; }
  run(0,0,2); run(1,-ENOMEM,1); run(2,-ETIMEDOUT,1);
  run(3,-ETIMEDOUT,30); run(4,-EFAULT,1); run(5,-EFAULT,1);
  run(6,-ETIMEDOUT,1); run(7,-EIO,2); run(8,-EIO,2);
- run(12,-ETIMEDOUT,1); run(9,-ETIMEDOUT,2); run(10,-ETIMEDOUT,1); run(11,0,2);
+ run(12,-ETIMEDOUT,1); run(9,-ETIMEDOUT,2); run(10,-ETIMEDOUT,1); run(11,0,2); fragmented_write();
  return 0;
 }

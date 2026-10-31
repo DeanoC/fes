@@ -1,86 +1,87 @@
-# DE25 FPGA configuration failure recovery candidate
+# DE25 kernel programming failure retention
 
-This patch targets only the exact Terasic kernel source identified in
-`source.json`. It bounds the service's FPGA buffer-claim loop and honors its
-thread-stop request. It does not fix the underlying failed configuration
-transfer, change DMA translation, relax configuration deadlines, or install a
-kernel into any image. The production runtime remains closed on DE25.
+The opt-in [permanent-owner profile](../de25-platform/README.md) patches only
+the exact Terasic files recorded in its `source.json`. The same default-off
+`CONFIG_FES_DE25_DMA_PLATFORM` gates manager error retention, write deadlines and
+service buffer-claim polling. Ordinary kernels keep the vendor programming
+behavior. No normal FES runtime admission is enabled by this kernel profile.
 
-The existing `FPGA_CONFIG_DATA_CLAIM_TIMEOUT_MS` value becomes the maximum time
-without another accumulated buffer. BUSY polling sleeps; firmware errors or
-expired inactivity report one error callback with all four pointers cleared.
-Cancellation returns without a late callback. Successful four-buffer return
-retains the vendor driver's accumulation/callback behavior. The old completion,
-which could not bound the BUSY branch, is removed.
+The service-claim loop now honors thread stop, sleeps while busy and bounds
+inactivity using the existing `FPGA_CONFIG_DATA_CLAIM_TIMEOUT_MS`. Only actual
+accumulation of another buffer refreshes that inactivity deadline. Failure
+publishes one error with all pointers cleared; cancellation publishes no late
+callback. It never reports returned buffers on failure. The original vendor
+completion path remains intact in profile-disabled builds.
 
-The physical failure is recorded in
-[the Linux-manager diagnostic](../../../docs/validation/2026-10-30-de25-linux-fpga/README.md)
-and [#1298](https://github.com/DeanoC/fes/issues/1298). The change follows the
-[Altera polling-fix proposal](https://lists.openwall.net/linux-kernel/2026/10/23/612),
-adapted to the older vendor driver's four-buffer accumulator. This is a local
-candidate; the proposal's upstream state is not an acceptance claim.
+The manager marks a request uncertain before sending it, retains that mark after
+any init, data or completion failure, and rejects a new caller before issuing
+commands or resetting buffer locks. Inactive failed calls cannot resume data or
+completion. Only confirmed completion with every buffer returned and the service
+worker joined can clear uncertainty; a final callback error during the join
+prevents clearing too. There is no reset/clear operation. The supplier drivers
+are built-in and their sysfs unbind paths are suppressed by the same profile.
+These protections retain the programming buffers for the failed kernel epoch;
+reboot is not declared a safe fence for an uncertain SDM transfer.
 
-Run the focused source-level proof with the unmodified pinned source file:
+## Manager data-write loop
+
+Permanent submission errors retain their errno. ENOBUFS waits for a callback;
+errors take precedence over progress. The complete data-write phase shares one
+30-second jiffies budget, initialized after successful request acceptance and
+retained across Linux scatter/gather fragment callbacks. Each wait also retains
+the existing five-second buffer timeout. Completion polling retains its existing
+five-second phase budget, now accounting for time spent sending commands and
+spurious notifications. Neither budget can interrupt a synchronous secure call.
+
+## Source-function validation
+
+Run against the unmodified pinned vendor files:
 
 ```sh
 python3 image/kernel/de25-fpga/verify_claim.py \
   --source /absolute/pinned-linux/drivers/firmware/stratix10-svc.c \
-  --output /absolute/new-proof-directory
-```
-
-The runner verifies the complete input-file hash, applies the patch without fuzz,
-verifies the complete result hash and compiles the actual changed function with
-simulated firmware, clock and callback helpers. Nine cases cover permanent BUSY,
-firmware error, cancellation before/during/after a call, four-buffer success,
-repeated OK without progress, clock wrap, and progress across an overall elapsed
-time longer than the inactivity limit. The unmodified function must hang on the
-same permanent-BUSY control. Only the owned control child is terminated by its
-one-second test deadline.
-
-This proves host function behavior, not kernel scheduling, secure-monitor return,
-DMA or physical reconfiguration. A separate compile against the real pinned
-kernel headers/configuration is required. Booting the changed kernel and observing
-bounded overlay cleanup on the same physical failure remain required before
-shipping the recovery change. A synchronous secure-monitor call that never returns
-cannot be interrupted by this software polling deadline.
-
-An error callback or stopped service thread does not prove SDM/DMA quiescence.
-After a failed configuration, retain the manager and its allocated buffers until
-an independently verified reset/power transition fences that hardware epoch.
-Do not unload modules, recycle buffers, or retry configuration merely because
-the patched function returns. Normal runtime recovery still needs that fencing.
-
-## Manager data-write loop
-
-The opt-in permanent-owner kernel now also repairs a separate spin in
-`s10_ops_write`: the vendor loop immediately retries every negative submission,
-including permanent ENOMEM/EIO, and can ignore an error accompanying a progress
-bit. Its source-bound patch is part of
-[the permanent-owner profile](../de25-platform/README.md), behind
-`CONFIG_FES_DE25_DMA_PLATFORM`. It retains the original error, waits on temporary
-ENOBUFS, prioritizes error notifications and caps total data-write time at 30
-seconds. This is a write-phase budget; it changes neither the existing request
-nor per-buffer timeout and does not establish a whole-load deadline.
-
-```sh
+  --output /absolute/new-claim-proof
 python3 image/kernel/de25-fpga/verify_write.py \
   --source /absolute/pinned-linux/drivers/fpga/stratix10-soc.c \
   --output /absolute/new-write-proof
+python3 image/kernel/de25-fpga/verify_retention.py \
+  --source /absolute/pinned-linux/drivers/fpga/stratix10-soc.c \
+  --output /absolute/new-retention-proof
 ```
 
-The runner authenticates the complete original source and platform patch,
-applies its manager section without fuzz and authenticates the complete result.
-It compiles the actual changed write function against injected clock, service,
-completion and callback helpers. Thirteen cases cover normal transfer, permanent
-ENOMEM, silent backpressure, repeated backpressure notifications, error combined
-with either progress bit, missing callbacks, EIO after partial submission,
-claim-command failure, spurious completions, expiry inside submission, clock wrap and expiry between budget reads.
-A single sampled clock supplies both the expiry check and remaining wait. The unmodified function must hang on permanent ENOMEM under a one-second
-owned-child timeout. A profile-disabled positive transfer also passes.
+Each runner authenticates the complete original file, the platform patch and the
+complete patched file before compiling the actual changed C functions against
+injected firmware, clock, callback and completion helpers. All have an explicit
+profile-disabled positive control. The source-function proofs cover:
 
-These are host function tests. They do not prove real kernel scheduling,
-callback concurrency, service-thread termination, secure-monitor return, SDM
-abort, physical DMA drain or recovery after a failed load. In particular the
-existing `stratix10_svc_done` thread join can still block in the unpatched
-service loop. The earlier bounded-claim patch remains a separate candidate;
-it is not automatically applied or admitted by this repair.
+- Nine service cases: permanent BUSY, firmware error, cancellation before/during/
+  after a call, four-buffer success, repeated OK without progress, clock wrap,
+  and real buffer progress over an elapsed interval longer than the inactivity limit.
+- Fourteen data cases: normal transfer, permanent ENOMEM, silent/notified
+  backpressure, simultaneous error/progress, absent callbacks, partial-submit
+  EIO, failed claim submission, spurious notifications, expiry during submit,
+  clock wrap, expiry between clock reads, and successive fragments sharing a deadline.
+- Fourteen lifecycle cases: two successful cycles; failed init submission,
+  timeout or error-plus-OK; data failure; completion submission/timeout/error,
+  buffers still locked, time spent submitting, spurious completion, late error
+  or lock state at join; and validation refused before a request. Failed state
+  rejects init/write/complete from a fresh caller without commands or lock reset.
+
+The original manager must hang on permanent ENOMEM and the original service on
+permanent BUSY under one-second owned-child controls. The original init path
+also permits a new request after failure; a dedicated retry assertion reproduces
+that regression. The lifecycle harness follows the kernel's existing unused
+callback-parameter policy while keeping other compiler warnings fatal.
+
+These are host function tests. A full AArch64 kernel build, matched image
+preparation, physical boot and actual successful programming/reprogramming are
+separate checks. Error callback or stopped thread alone does not prove secure
+firmware stopped DMA. Synchronous secure-call return, shared-service mutex
+blocking, physical failure fencing and reboot after uncertainty remain open.
+Do not unload, recycle buffers, retry configuration or use reboot as a drain
+merely because a patched polling function returns. Failed physical transfer
+injection needs an independently verified hardware recovery/fence first.
+
+The older standalone bounded-claim patch and source manifest have been removed;
+the platform patch is the sole active source of this algorithm and its guard.
+Dated evidence for that earlier candidate remains tied to its original commit.

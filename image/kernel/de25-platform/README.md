@@ -19,17 +19,27 @@ submission errors return their original errno, buffer/queue backpressure waits
 for a callback, and the complete write phase has a 30-second jiffies deadline.
 Every callback wait is capped by both the existing five-second buffer timeout
 and that remaining phase budget. An error wins over simultaneous progress bits.
-Ordinary kernels retain the vendor loop. This does not abort SDM, establish DMA
-quiescence or bound the complete configfs operation: the separate service-claim
-loop, synchronous secure calls and thread join still need qualification. Never
-retry or recycle uncertain programming state merely because this loop returns.
-The [actual-function proof](../de25-fpga/README.md#manager-data-write-loop)
-exercises the changed vendor C function, including a hanging original control.
+The deadline is manager-owned and persists across Linux scatter/gather fragment
+callbacks. Completion polling also counts command and spurious-callback time
+against its existing five-second phase budget.
 
-The pinned SMMUv3 and Agilex5 clock drivers already disable those attributes;
+The same flag bounds service buffer-claim inactivity and honors thread stop.
+Busy polling yields; failure reports no buffers as returned. The manager marks
+uncertainty before sending a request and retains it after any programming-phase
+failure. A new caller is refused before commands or buffer-lock reset; failed
+calls cannot resume write/complete. Only confirmed completion, all returned
+buffers and a joined worker with no final error clear that state. There is no
+userspace clear operation. Built-in protected suppliers keep the failed
+manager and its buffers alive for that kernel epoch. This is not an SDM abort,
+DMA drain or proof that reboot fences a failed transfer. Synchronous secure
+calls and shared-service mutex waits still need qualification.
+The [actual-function proofs](../de25-fpga/README.md) exercise the selected source
+and retain hanging original controls and a retry regression. Normal runtime
+admission remains closed.
+
+The pinned SMMUv3 and Agilex5 clock drivers already disable bind attributes;
 their complete source hashes are verified unchanged. No timing, DMA translation
-or hardware qualification check is waived. The service buffer-claim recovery
-candidate is not applied: bounded return alone is not a DMA drain proof.
+or hardware qualification check is waived.
 
 The base-tree owner sits at /dma-owner@20010200, outside any overlay. Its
 control resource and SID come from the generated scanout constants; its IOMMU
