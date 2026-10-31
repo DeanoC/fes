@@ -449,11 +449,16 @@ def generate_project(output, tool, version):
                  for key, value in expected.items() if actual.get(key) != value}
         if delta:
             changes[name] = delta
+    allowed = inputs.get("allowed_hps_parameter_changes", {})
+    if allowed and allowed != {"hps_subsys/ip/hps_subsys/agilex_hps.ip": {
+            "f2sdram_SMMU": {"before": "false", "after": "true"}}}:
+        raise ValueError("unsupported expected HPS/EMIF parameter change")
     (output / "hps-emif-parameter-review.json").write_text(json.dumps({
         "changed_original_module_parameters": changes,
+        "expected_original_module_parameter_changes": allowed,
         "boot_firmware_compatibility": "not-qualified",
     }, indent=2, sort_keys=True) + "\n")
-    if changes:
+    if changes != allowed:
         raise ValueError("generation changed original HPS/EMIF parameters; retained review report")
     vendor = json.loads((output / "vendor-inputs.json").read_text())
     for name, expected in vendor["source_sha256"].items():

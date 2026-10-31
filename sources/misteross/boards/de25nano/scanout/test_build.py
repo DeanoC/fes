@@ -248,3 +248,44 @@ class ScanoutBuildTests(unittest.TestCase):
 
 
 if __name__ == "__main__": unittest.main()
+
+
+class LinuxDmaTests(unittest.TestCase):
+    def setUp(self):
+        self.helper = B.load(B.HERE / "linux_dma.py", "scanout_linux_dma_tests")
+        self.definition = (B.HERE / "generated/fes_de25_scanout.vh").read_text()
+        self.source = "# vendor prefix\n" + "".join(
+            f"add_interface_port axi4_man man_{c}user {c}user Output 8\n"
+            + r"output wire \[7:0\]   man_" + c + "user,\n"
+            + f"assign man_{c}user = 8'hE0;\n" for c in ("ar", "aw")) + "# vendor suffix\n"
+
+    def test_exact_packing_preserves_vendor_attributes_and_nonsecure_context(self):
+        data, profile = self.helper.retarget_adapter(self.source.encode(), self.definition)
+        text = data.decode()
+        self.assertEqual(profile["stream_id"], 13)
+        self.assertFalse(profile["secure"])
+        self.assertEqual(text.count("25'h0000de0"), 2)
+        self.assertEqual(text.count("Output 25"), 2)
+        self.assertEqual(text.count(r"\[24:0\]"), 2)
+        self.assertTrue(text.startswith("# vendor prefix\n") and text.endswith("# vendor suffix\n"))
+        self.assertEqual(profile["kernel_binding"], "not-admitted")
+
+    def test_changed_vendor_ports_attributes_or_duplicate_assignment_are_refused(self):
+        for source in (self.source.replace("8'hE0", "8'h00", 1),
+                       self.source.replace("Output 8", "Output 16", 1),
+                       self.source + "assign man_aruser = 8'hE0;\n"):
+            with self.assertRaises(ValueError):
+                self.helper.retarget_adapter(source.encode(), self.definition)
+
+    def test_reserved_sid_and_changed_layout_are_refused(self):
+        for definition in (self.definition.replace("SMMU_STREAM_ID 32'h0000000d", "SMMU_STREAM_ID 32'h0000000a"),
+                           self.definition.replace("SMMU_SID_SHIFT 32'h00000008", "SMMU_SID_SHIFT 32'h00000009")):
+            with self.assertRaises(ValueError):
+                self.helper.retarget_adapter(self.source.encode(), definition)
+
+    def test_linux_dma_requires_hps_first_before_output_creation(self):
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp) / "no-output"
+            with self.assertRaisesRegex(ValueError, "requires explicit HPS-first"):
+                B.prepare(Path(temp) / "missing.zip", output, linux_dma=True)
+            self.assertFalse(output.exists())

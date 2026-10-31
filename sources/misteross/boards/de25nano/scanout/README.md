@@ -153,3 +153,13 @@ QSPI, hardware, kit or harness is touched by this build lane.
 
 The [HPS-first compilation record](../../../docs/validation/2026-10-31-de25-scanout-linux/README.md)
 retains the exact source/artifacts and open timing, boot and DMA gates.
+
+The additional `--linux-dma` option requires `--hps-first`. It exposes HPS
+SMMU address USER ports, drives the generated nonsecure stream ID 13 in bits
+23:8, and preserves the lower vendor attributes 0xE0. Generation verifies the
+25-bit adapter/HPS interfaces and the constant driven by the QIP-selected HDL.
+Only the captured `f2sdram_SMMU` false-to-true HPS parameter change is permitted;
+other HPS/EMIF or boot-data changes still fail. This profile remains unadmitted:
+all inherited F2SDRAM masters share the selected context. It establishes no
+kernel device, firmware translation, bounded control access or global
+master/drain/reset lifetime. The kernel production probe remains closed.

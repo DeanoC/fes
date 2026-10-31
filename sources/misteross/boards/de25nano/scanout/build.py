@@ -17,7 +17,7 @@ import zipfile
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[4]
 BOARD = "sources/misteross/boards/de25nano/"
-LOCAL = ("build.py", "integrate.tcl", "clocks.sdc", "fes_de25_scanout.v",
+LOCAL = ("build.py", "linux_dma.py", "integrate.tcl", "clocks.sdc", "fes_de25_scanout.v",
          "fes_de25_scanout_hw.tcl", "fes_de25_scanout_board.v",
          "generated/fes_de25_scanout.vh", "generated/fes_de25_scanout.h")
 
@@ -63,9 +63,11 @@ def replace_once(source, before, after):
     return source.replace(before, after)
 
 
-def prepare(archive, output=None, revision=None, *, hps_first=False):
+def prepare(archive, output=None, revision=None, *, hps_first=False, linux_dma=False):
     if type(hps_first) is not bool:
         raise ValueError("HPS-first selection must be boolean")
+    if type(linux_dma) is not bool or (linux_dma and not hps_first):
+        raise ValueError("Linux DMA requires explicit HPS-first selection")
     boot_order = "HPS FIRST" if hps_first else "AFTER INIT_DONE"
     sources = capture(revision)
     selected = {"fes_revision": revision, "source_classification": "committed"} if revision else identity()
@@ -150,6 +152,11 @@ def prepare(archive, output=None, revision=None, *, hps_first=False):
     for name in ("fes_scanout_video", "fes_scanout_clock_fault"):
         exports += "add_interface " + name + " conduit end\nset_interface_property " + name + " EXPORT_OF subsys_periph." + name + "\n"
     script = replace_once(script, before, exports + before)
+    dma_profile, parameter_changes = None, {}
+    if linux_dma:
+        dma = load(snapshot / BOARD / "scanout/linux_dma.py", "scanout_retained_linux_dma")
+        prefix, dma_profile, parameter_changes = dma.configure(project, definition, hps)
+        script = replace_once(script, "package require -exact qsys 26.3\n", "package require -exact qsys 26.3\n" + prefix)
     (project / "integrate-mailbox.tcl").write_text(script)
     inputs = json.loads(original_inputs)
     inputs.pop("base_revision", None); inputs.update(selected)
@@ -170,6 +177,9 @@ def prepare(archive, output=None, revision=None, *, hps_first=False):
         "clock_loss": "sticky fault/blank/drain when pixel resumes; never reset live bridges",
         "global_reset_ownership": "not-qualified; active-low warm acknowledgement remains inactive1",
         "dma_admission": "not-qualified; SID/firewall/firmware/physical lifetime gates remain"}
+    if dma_profile is not None:
+        inputs["scanout"]["linux_dma"] = dma_profile
+        inputs["allowed_hps_parameter_changes"] = parameter_changes
     (directory / "inputs.json").write_text(json.dumps(inputs, indent=2, sort_keys=True) + "\n")
     (output / "snapshot.json").write_text(json.dumps({**selected, "source_sha256": inputs["functional_snapshot_sha256"],
         "hps_output": "combined/hps", "upstream_preparation_inputs_sha256": sha(original_inputs)}, indent=2, sort_keys=True) + "\n")
@@ -320,6 +330,10 @@ def verify_generated(output, hps, verifier_revision=None):
     generation = json.loads(path.read_text())
     generation["combined_display"]["ddr_scanout"] = True
     generation["scanout"] = verify_handoff(directory / "project", hps)
+    selected = json.loads((directory / "inputs.json").read_text())["scanout"].get("linux_dma")
+    if selected is not None:
+        helper = load(directory / "project/fes_mailbox/linux_dma.py", "scanout_generated_linux_dma")
+        generation["scanout"]["linux_dma"] = helper.verify(directory / "project", hps, selected)
     if verifier_revision is not None:
         if not re.fullmatch(r"[0-9a-f]{40}", verifier_revision):
             raise ValueError("enhanced verifier requires a full committed identity")
@@ -360,6 +374,8 @@ def main(argv=None):
     parser.add_argument("action", choices=("project", "generate", "build"))
     parser.add_argument("--vendor-archive", type=Path, required=True)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--linux-dma", action="store_true",
+                        help="select the unadmitted fixed-SMMU-stream profile; requires --hps-first")
     parser.add_argument("--hps-first", action="store_true",
                         help="capture HPS-first startup and produce explicit Linux phase artifacts")
     parser.add_argument("--quartus-root", default=os.environ.get("QUARTUS_ROOTDIR", ""))
@@ -367,7 +383,7 @@ def main(argv=None):
     try:
         selected = identity(); revision = selected.get("fes_revision") if args.action != "project" else None
         if args.action != "project" and not revision: raise ValueError("scanout generation/build requires clean committed source")
-        output, combined, hps, display = prepare(args.vendor_archive, args.output, revision, hps_first=args.hps_first)
+        output, combined, hps, display = prepare(args.vendor_archive, args.output, revision, hps_first=args.hps_first, linux_dma=args.linux_dma)
         print("Scanout diagnostic: " + str(output), flush=True)
         if args.action != "project":
             if identity() != selected: raise ValueError("source identity changed before generation")

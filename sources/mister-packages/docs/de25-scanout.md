@@ -105,3 +105,18 @@ physical MMIO accessor or DE25 device binding is admitted by this work.
 The global HPS warm-reset gate remains separate: other JTAG masters and
 HPS-origin traffic still need fencing, and HPS reset can progress on timeout.
 Local scanout drain cannot justify global warm ACK or hardware recovery.
+
+## Explicit Linux SMMU build selection
+
+The generated stream ID is 13 (outside the selected vendor PSS IDs), with
+SID in AXI address USER bits 23:8 and nonsecure SECSID bit 24 clear. The lower
+8-bit vendor USER attributes remain 0xE0, giving address USER 0x0000DE0.
+These additive build constants do not change the endpoint register ABI.
+The opt-in FPGA recipe enables HPS SMMU port exposure and verifies the actual
+25-bit generated adapter/HPS path. It does not create a kernel device or
+assert that firmware translation has been enabled. In the retained GHRD all
+F2SDRAM masters share this stream; scanout-only isolation and global master
+lifetime must not be inferred. Physical allocation, translation, bounded
+control access, drain and reset qualification remain required.
+
+The packing follows Altera's [address USER/SMMU field table](https://docs.altera.com/r/docs/683130/25.3/embedded-peripherals-ip-user-guide/register-description?contentId=ubFvBQAlI8Vprt1qAASvfg).
