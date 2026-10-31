@@ -189,3 +189,9 @@ behavior. It models the kernel ABI, not kernel code, SMMU translation, memory
 traffic or physical drain. Run `python3 -m unittest discover -s tests -p
  test_de25_owner_scanout.py -v` from the FES root (without the displayed line
 break). Physical allocated-buffer/HDMI acceptance remains pending.
+
+Before closing a failed grant, the diagnostic prints `CACHED_FAILURE_INFO`
+from the kernel's INFO operation. This reads cached metadata without issuing
+another hardware snapshot, publication or reap. Last-close revocation can
+prove STOP/drain and CLEAR, which otherwise destroys the original fault record.
+The cached record is evidence about the failed attempt, not a drain proof.

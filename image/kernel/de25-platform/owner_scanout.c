@@ -160,6 +160,22 @@ static int run_scanout(int owner)
 	puts("DE25_OWNER_SCANOUT_PASS frames=3 allocation_reaped=true");
 	result = 0;
 out:
+	if (result) {
+		/* INFO returns cached kernel metadata, without issuing hardware
+		 * commands. Last close may safely STOP/drain/CLEAR and erase the
+		 * original hardware fault, so retain these details first.
+		 */
+		struct fes_de25_dma_info cached = {0};
+		int saved = errno;
+		int observed = ioctl(grant, FES_DE25_DMA_INFO, &cached);
+		fprintf(stderr, "CACHED_FAILURE_INFO result=%d generation=%llu state=%u "
+			"status=%u errors=%u underflows=%u outstanding=%u accepted=%u displayed=%u pending=%u\n",
+			observed, (unsigned long long)cached.generation, cached.state,
+			cached.hardware_status, cached.hardware_errors, cached.underflows,
+			cached.outstanding, cached.accepted_sequence,
+			cached.displayed_sequence, cached.pending_sequence);
+		errno = saved;
+	}
 	/* An uncertain grant remains pinned by the permanent kernel owner. */
 	close(grant);
 	return result;

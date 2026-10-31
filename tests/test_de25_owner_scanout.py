@@ -26,6 +26,7 @@ class OwnerScanoutTests(unittest.TestCase):
     def scenario(self, name):
         r = subprocess.run([str(self.binary), name], capture_output=True, text=True, timeout=5)
         self.assertEqual(r.returncode, 0, r.stderr)
+        self.last_stderr = r.stderr
         return json.loads(r.stdout.splitlines()[-1])
 
     def test_three_complete_frames_reuse_both_slots_before_one_reap(self):
@@ -65,3 +66,12 @@ class OwnerScanoutTests(unittest.TestCase):
         self.assertEqual(r['result'], 1)
         self.assertEqual(r['reaps'], 1)
         self.assertEqual(r['publishes'], 3)
+
+    def test_failure_retains_cached_metadata_without_repoll_or_reap(self):
+        for name in ('poll-error', 'clock-error'):
+            r = self.scenario(name)
+            self.assertIn('CACHED_FAILURE_INFO result=0 generation=7', self.last_stderr)
+            self.assertIn('pending=1', self.last_stderr)
+            self.assertEqual(r['reaps'], 0)
+            self.assertEqual(r['publishes'], 1)
+            self.assertEqual(r['polls'], 1 if name == 'poll-error' else 0)
