@@ -97,8 +97,9 @@ class Peer:
         a = self.c.abi
         self.commands.append((opcode, index, argument))
         if opcode == a("OPCODE_IDENTITY"):
+            # The shared mailbox reports the ABI 1.0 identity (minor 0).
             prefix = [a(name) for name in ("IDENTITY_MAGIC0", "IDENTITY_MAGIC1", "TRANSPORT_MAJOR",
-                "TRANSPORT_MINOR", "ABI_TAG", "ABI_MAJOR", "ABI_MINOR")]
+                "TRANSPORT_MINOR", "ABI_TAG", "ABI_MAJOR")] + [0]
             prefix[0] ^= int(self.bad_identity)
             capabilities = (a("INTERFACE_VIDEO_FIXED_720P60_CAPABILITY_MASK") |
                             a("INTERFACE_KEYBOARD_HID_CAPABILITY_MASK") |

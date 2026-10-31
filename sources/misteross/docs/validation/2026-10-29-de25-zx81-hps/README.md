@@ -26,8 +26,10 @@ retained producer inputs; the current files differ from every one of them:
 | `boards/de25nano/zx81-hps/clocks.sdc` | `7dd4138b073207f00dc6f819134375322b2e09a20c809eb9347f872608e761fc` |
 | `boards/de25nano/zx81-hps/fes_de25_computer.v` | `26ce1e51454000f2762045cc442fbbae881404a98b94334eea8ba11e43a9ad0a` |
 | `boards/de25nano/zx81-hps/fes_de25_computer_hw.tcl` | `886956a257c4cf31935f1546bcd0389ea4d2b68b6258276b48794a111b2d785a` |
+| `boards/de25nano/zx81-hps/generated/fes_computer.vh` | `fd64d373df04b1ec3220938c95cb598a4e448f9b78a6d789e0fc5cec535dfc59` |
 | `boards/de25nano/zx81-hps/generated/fes_de25_computer.hpp` | `79d53d66f7a4ea108ec85f55b2a3967bdd7ee5e1ea42a4f73d541bb1defe8610` |
 | `boards/de25nano/zx81-hps/generated/fes_de25_computer.vh` | `c3ea3892d2ffdf0ccb9961e7d1e195d74918d3e93f93b04e955cf82b63faac87` |
+| `cores/fes-common/rtl/fes_computer_mailbox.v` | `e89431a63c4b91bef2ac377ceeeec5cea67d3aa3ad09a3f518cfdb579aa1daa0` |
 
 The shared `fes_menu_video.v` raster also changed after this producer and is
 not in its selected HPS input closure. Neither the retained SOF nor its timing
