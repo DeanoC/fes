@@ -803,6 +803,31 @@ func TestHardwareRoomHomeKeepsActiveRoomForIdleOnlyChoices(t *testing.T) {
 	}
 }
 
+// Y over the running machine's room opens the media picker, as it does over
+// the game, and the room hint says so (#766).
+func TestHardwareRoomNorthOpensMediaPicker(t *testing.T) {
+	h := newTapeHost(t)
+	app := newLiveHardwareApp(t, h)
+	app.HandleCommand(CmdHome, time.Now())
+	app.Tick(time.Now())
+	snap := app.Snapshot()
+	if !snap.Room.DuringPlay || snap.TapePicker.Open {
+		t.Fatalf("room not open over the session: %+v", snap.Room)
+	}
+	if want := northWord(snap.Affinity) + " "; !strings.Contains(snap.HeaderHint(), want) {
+		t.Fatalf("room hint %q does not offer %q", snap.HeaderHint(), want)
+	}
+	app.HandleCommand(CmdSearch, time.Now())
+	snap = app.Snapshot()
+	if !snap.TapePicker.Open || !snap.Room.DuringPlay {
+		t.Fatalf("Y did not open the media picker: picker=%+v room=%+v", snap.TapePicker, snap.Room)
+	}
+	app.HandleCommand(CmdBack, time.Now())
+	if snap := app.Snapshot(); snap.TapePicker.Open || !snap.Room.DuringPlay {
+		t.Fatalf("Back from the picker left the room: picker=%+v room=%+v", snap.TapePicker, snap.Room)
+	}
+}
+
 func TestHardwareRoomTapeUsesExistingPickerAndKeepsFocus(t *testing.T) {
 	h := newTapeHost(t)
 	app := newLiveHardwareApp(t, h)
