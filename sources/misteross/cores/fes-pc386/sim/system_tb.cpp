@@ -18,8 +18,9 @@
 // place of PATH C:\ (the same length, so the file's size stands). At Stop it
 // saves as the runtime does: DiskControl Freeze, the 128 DiskDirty words, the
 // dirty chunks read from the window, Saved; DataControl Freeze and the 72
-// DataReads; Execution hold. Every chunk the guest changed must be dirty. Last it restores that record into the held machine, releases it until
-// the RTC's CMOS setup is done, and reads the record back, so the CMOS bytes
+// DataReads; Execution hold. Every chunk the guest changed must be dirty.
+// Last it restores that record into the held machine, releases it until the
+// RTC's CMOS setup is done, and reads the record back, so the CMOS RAM bytes
 // make the round trip through the RTC. Nothing else reaches inside the
 // system, and no oracle backs the CPU: a CPU stop ends the run. fes_hps_ddr is
 // two synchronising flops from ddr_hold to each port's reset; a held port is
@@ -414,6 +415,9 @@ private:
         check(cmos(record, 0x2e) == (sum >> 8 & 0xff) && cmos(record, 0x2f) == (sum & 0xff),
               "CMOS 2Eh-2Fh hold the checksum of 10h-2Dh");
         check(cmos(record, 0x32) == 0x20, "CMOS 32h holds the wall clock's century");
+        check(cmos(record, 0x09) == 0x26 && cmos(record, 0x08) == 0x10 && cmos(record, 0x0b) == 0x02 &&
+                  cmos(record, 0x0d) == 0x80,
+              "CMOS 00h-0Dh are the clock's registers as the guest reads them (2026-10, B 02h, D 80h)");
 
         // The record back through the RTC: restore, release until the CMOS
         // setup has run, and read it again.
@@ -423,7 +427,11 @@ private:
         std::vector<uint16_t> again = capture();
         exchange(OP_EXECUTION, 0, 0);
         std::printf("ROUNDTRIP %s\n", join(again).c_str());
-        check(again == record, "the record makes the round trip through the RTC");
+        // The settings and CMOS RAM (0Eh-7Fh) come back; 00h-0Dh are the
+        // running clock's.
+        check(std::equal(record.begin(), record.begin() + 8, again.begin()) &&
+                  std::equal(record.begin() + 15, record.end(), again.begin() + 15),
+              "the record's settings and CMOS RAM make the round trip through the RTC");
     }
 
     // Text mode: character n at planar offset 2n in plane 0.

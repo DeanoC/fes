@@ -317,7 +317,7 @@ CHECK PASS Saved clears the dirty map and flag
 RECORD 0 0 0 0 576 5 1 0
 CHECK PASS the record keeps the restored settings
 ROUNDTRIP 0 0 0 0 576 5 1 0
-CHECK PASS the record makes the round trip through the RTC
+CHECK PASS the record's settings and CMOS RAM make the round trip through the RTC
 END prompt cycles=303000000 seconds=4.932
 """
 
