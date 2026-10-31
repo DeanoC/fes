@@ -149,24 +149,25 @@ const (
 // blitter holds is rasterized and copied whole.
 type MenuDisplay struct {
 	*Software
-	traceSink    func(MenuPresentTrace)
-	client       MenuPresenter
-	frames       chan queuedMenuFrame
-	ctx          context.Context
-	cancel       context.CancelFunc
-	done         chan struct{}
-	mu           sync.Mutex
-	closed       bool
-	paused       bool
-	flight       chan struct{}
-	pending      int
-	lastErr      error
-	generation   uint64
-	known        bool
-	changeDriven bool
-	nextSeq      uint64
-	submitted    *submittedMenuFrame
-	freeBuffers  []*menuPixels
+	traceSink                   func(MenuPresentTrace)
+	client                      MenuPresenter
+	frames                      chan queuedMenuFrame
+	ctx                         context.Context
+	cancel                      context.CancelFunc
+	done                        chan struct{}
+	mu                          sync.Mutex
+	closed                      bool
+	paused                      bool
+	keepReadyWhileLaunchPending bool
+	flight                      chan struct{}
+	pending                     int
+	lastErr                     error
+	generation                  uint64
+	known                       bool
+	changeDriven                bool
+	nextSeq                     uint64
+	submitted                   *submittedMenuFrame
+	freeBuffers                 []*menuPixels
 	// drawing is the buffer the Software device draws into; previous is the
 	// last frame taken from it, which Software may still copy back.
 	drawing, previous *menuPixels
@@ -492,12 +493,26 @@ func idleHandoffError(settled, presented bool, err error) error {
 // submitted frame, clears change-driven backoff, and waits for the current
 // runtime transaction to finish before a game mutation begins.
 func (d *MenuDisplay) Pause(ctx context.Context) error {
+	return d.pause(ctx, false)
+}
+
+// PauseForLaunch holds the last acknowledged launcher readiness marker while
+// the local agent decides whether it accepts the requested package. The
+// caller must invalidate readiness after acceptance or Resume after rejection.
+func (d *MenuDisplay) PauseForLaunch(ctx context.Context) error {
+	return d.pause(ctx, true)
+}
+
+func (d *MenuDisplay) pause(ctx context.Context, keepReadyWhileLaunchPending bool) error {
 	if d == nil {
 		return nil
 	}
 	d.mu.Lock()
 	d.paused = true
-	reportSoftwareReady(false)
+	d.keepReadyWhileLaunchPending = keepReadyWhileLaunchPending
+	if !keepReadyWhileLaunchPending {
+		reportSoftwareReady(false)
+	}
 	d.forgetSubmissionLocked()
 	d.dropShortcutsLocked()
 	d.clearPaceLocked()
@@ -520,6 +535,18 @@ func (d *MenuDisplay) Pause(ctx context.Context) error {
 	}
 }
 
+// InvalidateSoftwareReady clears idle-launcher readiness after an accepted
+// launch or an uncertain launch result. A definite rejection should Resume.
+func (d *MenuDisplay) InvalidateSoftwareReady() {
+	if d == nil {
+		return
+	}
+	d.mu.Lock()
+	d.keepReadyWhileLaunchPending = false
+	reportSoftwareReady(false)
+	d.mu.Unlock()
+}
+
 // Resume allows fresh idle frames after the mutation has completed. The next
 // Present is submitted even when its pixels match the pre-pause frame.
 func (d *MenuDisplay) Resume() {
@@ -528,6 +555,7 @@ func (d *MenuDisplay) Resume() {
 	}
 	d.mu.Lock()
 	d.paused = false
+	d.keepReadyWhileLaunchPending = false
 	d.forgetSubmissionLocked()
 	d.dropShortcutsLocked()
 	d.clearPaceLocked()
@@ -811,6 +839,9 @@ func (d *MenuDisplay) noteGenerationLocked(seq, generation uint64) {
 // Readiness describes the current acknowledged idle display, not a historical
 // successful frame. Call only after validating the response's binding epoch.
 func (d *MenuDisplay) reportSoftwareReadyLocked(status menudisplay.Status) {
+	if d.paused && d.keepReadyWhileLaunchPending {
+		return
+	}
 	reportSoftwareReady(!d.paused && !d.closed && d.hasPresented && d.lastErr == nil && status.Available && status.Generation == d.presentedGen && status.Underflows <= menudisplay.TransientUnderflowCap)
 }
 

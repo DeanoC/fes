@@ -283,7 +283,7 @@ rooms can use the compact destination panel.
 
 `destination.set{kind, label, system, game_id, room_id, action, package_id,
 core_id, launchable, block, needs, inputs, query, platform, matches,
-resolving, missing, status, note, note_by}` publishes one location.
+resolving, missing, pending, status, note, note_by}` publishes one location.
 `inputs` lists required input devices (`keyboard`, `mouse`; anything else
 is ignored) so FES can say so before Play. A pad is not listed: its
 presence does not establish a mapping. With `resolving=true`, `status`
@@ -348,7 +348,17 @@ reconciled, a launchable core is Checking rather than Ready. Activating a
 launchable core calls the injected local-control client's Launch. With no
 client that activation returns an error and does not panic. `in_use` and
 `blocked` from the socket are returned the same way and do not fail the
-room. Tenfoot connects the socket when it is started with `-gfx menu-display`. A host session leaves it unset. Kit Home says "Installed machines appear here on an FES kit." when no client is present and focuses its Library route.
+room.
+
+`pending = true` on a core is a package the room remembers but the kit has
+not listed yet (the agent is still warming its catalog). It is Checking
+("Still checking this kit's machines."), and Confirm still queues Play:
+tenfoot asks the socket again while it answers `warming`, for up to 60
+seconds, and the agent starts the package only if the finished list has it
+launchable. A missing or blocked package then fails like any other launch.
+A held lease explains instead of queuing. Kit Home shows its last selected
+package this way, so A on the opening card is not lost during the warm.
+Tenfoot connects the socket when it is started with `-gfx menu-display`. A host session leaves it unset. Kit Home says "Installed machines appear here on an FES kit." when no client is present and focuses its Library route.
 
 `destination.classify(games, {q=})` returns that result without changing
 focus. `matches` is the viable play rows when any can play. `candidates`
