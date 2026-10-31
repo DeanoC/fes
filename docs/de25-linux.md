@@ -526,3 +526,7 @@ prefix exposes SDK libraries and lib64 aliases only. Using the entire SDK
 sysroot can redirect `/tmp` directory opens into the SDK, breaking the trusted
 package-directory test while newly created paths remain in the host `/tmp`.
 This changes the diagnostic environment, not runtime admission or board setup.
+
+The [explicit package/profile proof](validation/2026-10-31-de25-package-profile/README.md)
+records DE25 metadata selection, the shared driver binding and the complete
+normal AArch64 runtime/agent check. Production startup remains closed.
