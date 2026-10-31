@@ -29,6 +29,20 @@ int main() {
     ok &= check(stale.executed(2, 4, address) && address == 2, "flag later instruction using REP-written bytes");
 
     stale.reset();
+    // A20 folds the bus address, but fetches and retirement are keyed by the
+    // linear address. Keep the store shadow in that same address space.
+    constexpr uint32_t a20_current = 0x100000;
+    constexpr uint32_t a20_store_linear = 0x100008;
+    constexpr uint32_t a20_store_physical = a20_store_linear & ~(1u << 20);
+    cycle = stale.begin_cycle(true, a20_current);
+    ok &= check(!cycle.store(a20_store_physical, a20_current, a20_current),
+                "physical A20 alias is outside the linear fetch window");
+    ok &= check(cycle.store(a20_store_linear, a20_current, a20_current),
+                "record A20 store in the linear fetch window");
+    ok &= check(stale.executed(a20_store_linear, a20_store_linear + 1, address) && address == a20_store_linear,
+                "detect stale fetch through an A20 alias");
+
+    stale.reset();
     // A front end more than 96 bytes ahead is still within the observed fetch
     // range and must not be silently dropped by the boot gate.
     for (uint32_t block = 0; block < 256; block += 16) stale.fetch(block);

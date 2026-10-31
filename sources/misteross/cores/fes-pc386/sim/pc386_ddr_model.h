@@ -266,7 +266,8 @@ private:
     struct Command {
         bool read, write;
         uint32_t address;
-        uint8_t burstcount, byteenable;
+        uint8_t burstcount;
+        uint16_t byteenable;
         uint64_t writedata[4];
         bool operator==(const Command &other) const {
             return read == other.read && write == other.write && address == other.address &&
@@ -277,7 +278,7 @@ private:
     };
     template <typename Top> static Command presented(const Top &top) {
         return {bool(top.ddr_read), bool(top.ddr_write), uint32_t(top.ddr_address), uint8_t(top.ddr_burstcount),
-                uint8_t(top.ddr_byteenable), {uint64_t(top.ddr_writedata[0]), uint64_t(top.ddr_writedata[1]),
+                uint16_t(top.ddr_byteenable), {uint64_t(top.ddr_writedata[0]), uint64_t(top.ddr_writedata[1]),
                                               uint64_t(top.ddr_writedata[2]), uint64_t(top.ddr_writedata[3])}};
     }
     uint8_t *at(uint32_t word, bool write) {

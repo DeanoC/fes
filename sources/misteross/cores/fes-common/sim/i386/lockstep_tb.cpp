@@ -437,8 +437,9 @@ public:
         }
         if (store && !top.reset)
             for (int i = 0; i < 8; ++i) {
-                const uint32_t at = physical(waddr + i, top.a20m);
-                if (wmask >> i & 1) fetched_stores.store(at, current, current);
+                // Fetch tracking and retirement use linear addresses. The
+                // RAM and DDR shadows below use physical addresses.
+                if (wmask >> i & 1) fetched_stores.store(waddr + i, current, current);
             }
         md_waits += top.trace_md_wait;  // this cycle, before the edge that ends it
         if (top.trace_mem_wait) {

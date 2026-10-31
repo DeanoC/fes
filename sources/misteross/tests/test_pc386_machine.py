@@ -240,6 +240,20 @@ class SmcStaleTrackerTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
 
+@unittest.skipUnless(shutil.which(os.environ.get('CXX', 'c++')), 'requires a C++ compiler')
+class Port0ModelTest(unittest.TestCase):
+    def test_waitrequest_holds_all_sixteen_byte_enable_lanes(self):
+        with tempfile.TemporaryDirectory(prefix='pc386-port0-model-') as directory:
+            binary = Path(directory) / 'pc386-port0-model-test'
+            source = sim.CORE / 'sim/pc386_ddr_model_tb.cpp'
+            compiler = shutil.which(os.environ.get('CXX', 'c++'))
+            result = subprocess.run([compiler, '-std=c++17', '-Wall', '-Wextra', '-Werror', str(source), '-o', str(binary)],
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            result = subprocess.run([str(binary)], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+
 @unittest.skipUnless(VERILATOR, 'requires Verilator')
 class DeviceBenchTest(unittest.TestCase):
     def test_directed_device_checks(self):

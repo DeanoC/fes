@@ -512,7 +512,12 @@ struct GuestMemory {
     uint8_t *at(uint32_t offset, bool write) {
         const uint32_t paddr = offset - pc386::GUEST_OFFSET;
         uint8_t *page = offset >= pc386::GUEST_OFFSET ? m.page(paddr, write) : nullptr;
-        if (!page && !write) throw std::runtime_error("port 0 outside guest memory: " + std::to_string(paddr));
+        const bool rom = (paddr >= 0xc0000 && paddr < 0xc8000) || (paddr >= 0xf0000 && paddr < 0x100000) ||
+                         paddr >= 0xffff0000u;
+        if (!page && (!write || !rom))
+            throw std::runtime_error(std::string(write ? "port 0 write to MMIO or unmapped memory: " :
+                                                          "port 0 read outside guest memory: ") +
+                                     std::to_string(paddr));
         if (!page) return nullptr;
         return page + (paddr & 0xfff);
     }
