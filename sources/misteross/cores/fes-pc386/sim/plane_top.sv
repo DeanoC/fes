@@ -80,6 +80,7 @@ module plane_top (
         .port_address(bridge_address), .port_burstcount(bridge_burstcount), .port_read(bridge_read),
         .port_waitrequest(bridge_waitrequest), .port_readdata(p2_readdata), .port_readdatavalid(bridge_readdatavalid)
     );
+    /* verilator lint_off PINCONNECTEMPTY */
     pc386_port2 port2 (
         .clk(clk), .reset(reset),
         .plane_address(bridge_address), .plane_burstcount(bridge_burstcount), .plane_read(bridge_read),
@@ -88,9 +89,12 @@ module plane_top (
         .present_waitrequest(present_waitrequest), .present_readdatavalid(present_readdatavalid),
         .capture_address(capture_address), .capture_burstcount(capture_burstcount), .capture_write(capture_write),
         .capture_writedata(capture_writedata), .capture_waitrequest(capture_waitrequest),
+        .aux_address(29'd0), .aux_read(1'b0), .aux_write(1'b0), .aux_writedata(64'd0), .aux_byteenable(8'd0),
+        .aux_waitrequest(), .aux_readdatavalid(),
         .address(p2_address), .burstcount(p2_burstcount), .read(p2_read), .write(p2_write),
         .writedata(p2_writedata), .byteenable(p2_byteenable), .waitrequest(p2_waitrequest),
         .readdatavalid(p2_readdatavalid)
     );
+    /* verilator lint_on PINCONNECTEMPTY */
     wire unused = ^{present_buffer, frames_shown, quiesced};
 endmodule

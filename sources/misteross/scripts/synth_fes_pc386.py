@@ -70,6 +70,8 @@ PAIR = '''module pc386_port2_pair (
     output wire present_waitrequest, present_readdatavalid,
     input wire [28:0] capture_address, input wire [7:0] capture_burstcount, input wire capture_write,
     input wire [63:0] capture_writedata, output wire capture_waitrequest,
+    input wire [28:0] aux_address, input wire aux_read, aux_write, input wire [63:0] aux_writedata,
+    input wire [7:0] aux_byteenable, output wire aux_waitrequest, aux_readdatavalid,
     output wire [28:0] address, output wire [7:0] burstcount, output wire read, write,
     output wire [63:0] writedata, output wire [7:0] byteenable,
     input wire waitrequest, input wire [63:0] readdata, input wire readdatavalid
@@ -91,6 +93,8 @@ PAIR = '''module pc386_port2_pair (
         .present_waitrequest(present_waitrequest), .present_readdatavalid(present_readdatavalid),
         .capture_address(capture_address), .capture_burstcount(capture_burstcount), .capture_write(capture_write),
         .capture_writedata(capture_writedata), .capture_waitrequest(capture_waitrequest),
+        .aux_address(aux_address), .aux_read(aux_read), .aux_write(aux_write), .aux_writedata(aux_writedata),
+        .aux_byteenable(aux_byteenable), .aux_waitrequest(aux_waitrequest), .aux_readdatavalid(aux_readdatavalid),
         .address(address), .burstcount(burstcount), .read(read), .write(write), .writedata(writedata),
         .byteenable(byteenable), .waitrequest(waitrequest), .readdatavalid(readdatavalid));
 endmodule

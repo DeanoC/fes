@@ -27,7 +27,10 @@
 // character column, at most 12 outstanding. Text mode reads, for each column
 // as its character arrives, the font byte from plane 2 at the character map
 // base + character * 32 + row scan. A line whose fetch has not finished when
-// it starts shows black and counts as an underflow.
+// it starts shows black. It counts as an underflow once software has written
+// the CRTC (crtc_written): the reset raster, five characters by two lines,
+// has lines shorter than two dependent DDR reads can always meet, and no
+// software asked for it.
 //
 // Pixels. Text: the glyph bit, the 9th dot repeating dot 8 for C0h-DFh with
 // line graphics, attribute blink (frame counter bit 4), the cursor (bit 3)
@@ -49,6 +52,7 @@ module pc386_vga_scanout #(
     input wire clk, reset,
     input wire [7:0] misc,
     input wire video_enable,
+    input wire crtc_written,
     input wire [1:0] seq_reset,
     input wire [7:0] seq_clocking,
     input wire [5:0] char_map,
@@ -318,7 +322,7 @@ module pc386_vga_scanout #(
                 if (vnext < vde) begin
                     display_slot <= fetch_slot;
                     line_blank <= !slot_done[fetch_slot];
-                    if (!slot_done[fetch_slot]) underflows <= underflows + 32'd1;
+                    if (!slot_done[fetch_slot] && crtc_written) underflows <= underflows + 32'd1;
                     display_row <= slot_row[fetch_slot];
                     display_cursor <= slot_cursor[fetch_slot];
                 end

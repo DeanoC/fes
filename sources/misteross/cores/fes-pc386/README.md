@@ -2,13 +2,13 @@
 
 The AT-class 386 PC of the [pc386 machine design](../../docs/pc386-machine-design.md),
 built around [`fes_i386_cpu`](../fes-common/rtl/i386/). This directory holds
-phases M1 to M4: the AT core, the firmware build, the register-level VGA with
+phases M1 to M5: the AT core, the firmware build, the register-level VGA with
 its capture writer, the 720p presenter, the display plane on DDR port 2, and a
 simulation of the machine with the Bochs oracle standing in for the CPU. The
 speaker, OPL2, Sound Blaster 2.0 DSP and mixer are checked beside the AT core.
-Phase M4 is the [diagnostic shell](#m4-diagnostic-shell): the machine without
-its CPU in a DE10-Nano package, `fes.pc386-diag`, where a bus master runs
-commands from the HPS DDR window in the CPU's place.
+Phase M5 (CPU Phase 3) is the [system](#m5-system): the machine with
+`fes_i386_cpu` on DDR port 0 in a DE10-Nano package, `fes.pc386`, sealed with
+Quartus 17.0.2.
 
 ## Layout
 
@@ -26,27 +26,27 @@ commands from the HPS DDR window in the CPU's place.
 | [`rtl/pc386_vga_scanout.sv`](rtl/pc386_vga_scanout.sv) | CRTC raster at the guest dot clock, line prefetch, attribute controller, DAC, capture writer |
 | [`rtl/pc386_presenter.sv`](rtl/pc386_presenter.sv) | Area-weighted scaling of the newest capture to 960 x 720 in the 720p raster |
 | [`rtl/pc386_plane_bridge.sv`](rtl/pc386_plane_bridge.sv) | The display plane's reads on port 2: clock crossing, 128-to-64-bit beats, the plane's port guard |
-| [`rtl/pc386_port2.sv`](rtl/pc386_port2.sv) | DDR port 2 arbiter: plane, presenter, capture |
+| [`rtl/pc386_port2.sv`](rtl/pc386_port2.sv) | DDR port 2 arbiter: plane, presenter, capture, then the shell's single beats |
 | [`rtl/pc386_machine.sv`](rtl/pc386_machine.sv) | The machine without the CPU: AT core, VGA, presenter, port 2, display plane |
 | [`rtl/pc386_ram.sv`](rtl/pc386_ram.sv) | Inferred RAMs and FIFOs: one clock, two clocks, show-ahead |
 | [`rtl/pc386_audio.sv`](rtl/pc386_audio.sv) | Audio beside the AT core: the OPL2 and DSP on its sound port, IRQ routing, the mixer |
 | [`rtl/pc386_opl2.sv`](rtl/pc386_opl2.sv) | OPL2: the [opl2_fpga import](vendor/opl2_fpga/README.md) behind the AdLib port, with status, timers and the 49,715.9 Hz enable |
 | [`rtl/pc386_sb.sv`](rtl/pc386_sb.sv) | Sound Blaster 2.0 DSP, version 2.01: commands, DMA on channel 1, IRQ |
 | [`rtl/pc386_mixer.sv`](rtl/pc386_mixer.sv) | Box-filter resampler of speaker, OPL2 and DSP to 48 kHz, gains, DC blocker |
-| [`rtl/top.sv`](rtl/top.sv) | The M4 shell: PLLs, the `fes.computer` mailbox, HDMI I2C, `fes_hps_ddr`, 720p HDMI and I2S |
-| [`rtl/pc386_diag.sv`](rtl/pc386_diag.sv) | The machine and its audio with the bus master in the CPU's place; what the commands observe |
-| [`rtl/pc386_bus_master.sv`](rtl/pc386_bus_master.sv) | The CPU stand-in: the command ring on DDR port 0, guest RAM for the 8237, the ATA image |
-| [`rtl/pc386_port_fence.sv`](rtl/pc386_port_fence.sv) | Keeps the bus master's machine reset from cutting a DDR burst on ports 1 and 2 |
+| [`rtl/top.sv`](rtl/top.sv) | The board shell: PLLs, the `fes.computer` mailbox, HDMI I2C, `fes_hps_ddr`, 720p HDMI and I2S |
+| [`rtl/pc386_system.sv`](rtl/pc386_system.sv) | The machine, its audio and `fes_i386_cpu`: the CPU's resets, I/O and INTA handshake, attribute map, what the status block reports |
+| [`rtl/pc386_rom.sv`](rtl/pc386_rom.sv) | The BIOS and VGA BIOS in M10K, answering the CPU's port 0 reads of their ranges |
+| [`rtl/pc386_host_link.sv`](rtl/pc386_host_link.sv) | The HPS's link through the DDR window until M0: configuration, status, debug ring, the ATA image on port 2 |
 | [`rtl/pc386_snapshot.sv`](rtl/pc386_snapshot.sv) | Carries the presenter's and the plane's pixel-clock counters whole into the system clock |
 | [`rtl/pc386_system_pll.v`](rtl/pc386_system_pll.v) | The sealed system clock and the 12.288 MHz audio clock |
 | [`constraints-oss.qsf`](constraints-oss.qsf), [`toolchain.lock`](toolchain.lock) | Pins (both lanes), and the core's lock (the i386 lock's nextpnr and Mistral, Yosys main) |
 | [`clocks.sdc`](clocks.sdc) | The Quartus lane's clocks |
-| [`diagnostic/`](diagnostic/main.go) | `pc386-diag`, the kit tool that runs a diagnostic program through the ring |
-| [`sim/diag_tb.cpp`](sim/diag_tb.cpp) | `pc386_diag` with the DDR ports, running a diagnostic program as the kit tool does |
 | [`vendor/opl2_fpga/`](vendor/opl2_fpga/README.md) | The YM3812 import (LGPL-3.0), with the local changes that make it sample-exact |
 | [`vendor/nuked-opl3/`](vendor/nuked-opl3/README.md) | Nuked-OPL3 (LGPL-2.1), the OPL2 reference in simulation only |
 | [`firmware/`](firmware/) | Bochs ROM BIOS and LGPL VGABios sources, `source.json` manifests, `firmware.lock` |
 | [`sim/machine_tb.cpp`](sim/machine_tb.cpp) | `pc386_machine` with the Bochs oracle as CPU, guest memory and DDR models; records VGA traces and frames. `--cpu rtl` runs `fes_i386_cpu` instead |
+| [`sim/system_tb.cpp`](sim/system_tb.cpp) | `pc386_system` with all three DDR ports on one window model, and a host that uses only the window, as the kit's does |
+| [`host/`](host/main.go) | `pc386-host`, the kit tool that stages the disk and configuration and follows the status block and debug ring, as `system_tb`'s host does |
 | [`sim/rtl_stop_test.asm`](sim/rtl_stop_test.asm) | The stop test disk: SMSW and MOV CR0 stops, LMSW, and the protected-mode oracle stretch for `--cpu rtl` |
 | [`sim/devices_tb.cpp`](sim/devices_tb.cpp) | Directed checks of the AT core through its I/O port |
 | [`sim/audio_tb.cpp`](sim/audio_tb.cpp) | Directed checks of the DSP, the OPL2's AdLib port and the mixer, through the AT core |
@@ -82,10 +82,9 @@ python3 scripts/sim_fes_pc386.py --suite rtl-stops        # the RTL's stop path 
 python3 scripts/sim_fes_pc386.py --suite sound --download  # boot, then SOUND.COM; writes sound.wav
 python3 scripts/sim_fes_pc386.py --suite vga              # presenter, capture and plane benches, VGA test disk, replay
 python3 scripts/synth_fes_pc386.py --cache-root /abs/out/cache/misteross-toolchains  # machine-only synthesis
-python3 scripts/sim_fes_pc386.py --suite diag           # M4: the diagnostic programs on pc386_diag, about 1 min
+python3 scripts/sim_fes_pc386.py --suite system         # M5: FreeDOS to the prompt on pc386_system, about an hour
 make toolchain-fes-pc386 CACHE_ROOT=/abs/out/cache/misteross-toolchains  # once per lock
-make build-fes-pc386-diag CACHE_ROOT=/abs/out/cache/misteross-toolchains # nextpnr lane (misses timing, #1235)
-make build-fes-pc386-diag-quartus CACHE_ROOT=/abs/out/cache/misteross-toolchains  # Quartus 17.0.2 lane (SEED=)
+make build-fes-pc386-quartus CACHE_ROOT=/abs/out/cache/misteross-toolchains  # seal fes.pc386 with Quartus 17.0.2 (SEED=)
 ```
 
 The boot suite runs the locked BIOS and VGA BIOS on `pc386_machine`, boots the
@@ -250,80 +249,90 @@ as wires would; the machine top level will instantiate both.
   blink (attribute bit 3 in graphics modes), cursor skew, display enable skew,
   9-dot 256-colour modes.
 
-## M4 diagnostic shell
+## M5 system
 
-`fes.pc386-diag` is a format-2 `fes.computer` 1.0 development package: fixed
-720p60 video, 48 kHz audio, HPS DDR and the session-display plane. The
-runtime loads it as any computer package, which brings up HDMI and audio and
-releases its DDR ports. It has no CPU and boots nothing by itself.
+`fes.pc386` is a format-2 `fes.computer` 1.0 development package: fixed 720p60
+video, 48 kHz audio, HPS DDR and the session-display plane, with
+[`pc386_system`](rtl/pc386_system.sv) below the board shell.
 
-- **Bus master.** [`pc386_bus_master`](rtl/pc386_bus_master.sv) stands in for
-  the CPU. It reads commands from a ring in the DDR window on port 0 (the
-  CPU's port in the full machine) and issues each on the machine's ports:
-  OUT, IN and polled IN, INTA and waits for INTR, MMIO reads and writes, fills
-  and copies between VRAM and DDR, delays, straps, a keyboard byte and the
-  machine's counters. Each result goes back to the window with the clocks the
-  command took. A command that would alias another (an unknown op, CONFIG or
-  READ index, or I/O size) or reach outside A0000h-BFFFFh or the window is
-  refused before it runs, and every command but a wait or delay gives up
-  after 0.1 s, as when the machine is held in reset and never answers. The
-  GP mailbox stays the runtime's: its one-request handshake has no room for
-  a second writer.
-- **Memory.** The 8237's memory cycles read and write guest RAM at window
-  offset 64 MiB, and the ATA image port reads and writes the image at 128 MiB,
-  both on port 0. The HPS writes them through `/dev/mem`.
-- **Reset.** After each launch the machine stays in reset until a command
-  releases it, so the Sound Blaster and disk straps are set first. The HPS
-  controller cannot recover a burst that stops midway, and `fes_hps_ddr`'s
-  guards act only on an execution hold. So the bus master's hold also fences
-  ports 1 and 2 ([`pc386_port_fence`](rtl/pc386_port_fence.sv)): it finishes a
-  write burst the machine started, keeps presenting a command the port
-  refused, and hides read data the machine was owed.
+- **CPU.** `fes_i386_cpu` with its L1I, L1D and bus interface fills and
+  writes back through DDR port 0, guest physical 0 at window offset 64 MiB,
+  16 MiB of RAM. Its attribute map is the design's: A0000h-BFFFFh MMIO to the
+  VGA, the two ROM ranges read-only, upper RAM on. The machine's I/O, INTA,
+  DMA, FLUSH, A20M and INTR ports are wired to the CPU's; I/O and INTA cross a
+  small handshake (the machine takes one cycle at a time, and the CPU holds a
+  request until its acknowledge). Its reset state is Bochs's. An 8042 or port
+  92h reset asserts FLUSH, then holds the CPU at least 4 clocks and until its
+  memory is idle; RAM and every device keep their state. There is no NMI and
+  no shutdown cycle: a CPU stop (an encoding not built, or a fault inside a
+  delivery) leaves it stopped, and the status block shows where.
+- **Firmware.** [`pc386_rom`](rtl/pc386_rom.sv) holds the locked BIOS and VGA
+  BIOS in 96 KiB of M10K, which
+  [`build_pc386_firmware.py`](../../scripts/build_pc386_firmware.py) writes as
+  `build/firmware/pc386/pc386-rom.hex`. Until the CPU has its L2 and memory
+  router, the L1s fill straight from port 0, so the ROM sits in front of the
+  port and answers each read of C0000h-C7FFFh or F0000h-FFFFFh itself, in
+  command order. The reset alias at FFFF0000h is the CPU's own mapping onto
+  F0000h.
+- **Ports.** Port 0 is the CPU's alone. Port 1 is VRAM. Port 2 carries the
+  plane, presenter and capture, and at the lowest priority the ATA image and
+  the host link's blocks, as single beats.
+- **Host link.** Until the `fes.computer` 1.1 contracts (M0) land, the HPS
+  stages the disk and the machine's settings in the DDR window
+  ([`pc386_host_link`](rtl/pc386_host_link.sv) has the layout). Out of reset
+  the link announces itself with a new epoch; the HPS writes the ATA image at
+  128 MiB and a configuration block: base and extended memory, the Sound
+  Blaster's port, IRQ and DMA, the disk geometry, the self-modifying-code
+  profile and the wall clock. The machine stays in reset until that block
+  arrives, and the CPU until the RTC has its CMOS setup and wall clock. The
+  link then writes a status block about every millisecond (the CPU's CS:EIP,
+  instructions retired, halt and stop, the last vector it delivered, POST
+  code, CPU resets, frame and underflow counters, audio samples) and the
+  debug-port bytes to a 4 KiB ring.
 - **Clock.** The system clock is sealed at 61.44 MHz, a multiple of the
   12.288 MHz audio clock and above twice the 28.322 MHz dot clock that the
-  scanout needs. [`scripts/pc386_diag.py`](../../scripts/pc386_diag.py)
-  `rates()` turns it into every guest time base's N/D; the producer and the
-  bench take them from there. The mixer's 48 kHz request is a rational
-  enable too; `fes_audio_output` carries the newest sample into the I2S clock.
+  scanout needs.
+  [`build_fes_pc386_quartus.py`](../../scripts/build_fes_pc386_quartus.py)
+  `guest_rates()` turns it into every guest time base's N/D; the system
+  simulation takes them from there.
 
-Its nextpnr routes miss both clocks
-([M4 record](../../../../docs/validation/2026-10-28-pc386-m4-diagnostic/summary.md#routed-timing)),
-and nextpnr builds of pc386 are parked with
-[#1235](https://github.com/DeanoC/fes/issues/1235). Sealed with Quartus 17.0.2
-instead, it passed every diagnostic program on Kit B
-([hardware diagnostic](../../../../docs/validation/2026-10-28-pc386-m4-diagnostic/summary.md#hardware-diagnostic-29-october-2026)).
-The presenter's 720p counters and syncs reset only on the pixel PLL's lock,
-so a machine reset leaves the HDMI signal running. On the first kit run they
-still followed the machine, and the sink re-locked after each machine reset.
+The system suite runs `pc386_system` alone with
+[`sim/system_tb.cpp`](sim/system_tb.cpp): the three DDR ports on one window
+model, the pixel clock throughout, and a host that does only what the kit's
+host can, through the window. It stages the FreeDOS fixture and the
+configuration, follows the POST codes and debug text, and reads the screen
+from VRAM. The CPU must reach the prompt alone, with no oracle behind it,
+and every underflow counter must stay at zero. On a kit, with the package
+running, [`pc386-host`](host/main.go) `boot DISK` does the same through
+`/dev/mem` and prints the same lines.
 
 **Quartus lane.** [`scripts/build_fes_pc386_quartus.py`](../../scripts/build_fes_pc386_quartus.py)
-seals the same package with Quartus 17.0.2, labelled as a Quartus build
-([Quartus-built cores](../../../../docs/design/quartus-cores.md)). It takes
-the RTL, guest rates, core ID and interfaces from the OSS producer.
-- Quartus 17.0.2 rejects some of the machine's SystemVerilog, so the core's
-  locked Yosys elaborates `pc386_diag` at the guest rates and writes it as
-  Verilog. Memories with more than one write port and no `ramstyle` become
-  registers, and flattened names become plain identifiers. Quartus reads that
-  netlist and the shell's own files, with `QUARTUS` defined: the HDMI I2C pins
-  come from the hard block, and `pc386_diag` takes no parameters.
+seals the package with Quartus 17.0.2, labelled as a Quartus build
+([Quartus-built cores](../../../../docs/design/quartus-cores.md)). nextpnr
+builds of pc386 are parked with [#1235](https://github.com/DeanoC/fes/issues/1235).
+- Quartus 17.0.2 rejects some of the machine's and the CPU's SystemVerilog,
+  so the core's locked Yosys elaborates `pc386_system` at the guest rates,
+  with the ROM's contents, and writes it as Verilog. Memories with more than
+  one write port and no `ramstyle` become registers, and flattened names
+  become plain identifiers. Quartus reads that netlist and the shell's own
+  files, with `QUARTUS` defined: the HDMI I2C pins come from the hard block,
+  and `pc386_system` takes no parameters.
 - Every analysis must pass on every clock, and TimeQuest must analyse every
-  clock, or the build publishes nothing.
+  clock, or the build publishes nothing. The build summary records the fit's
+  ALMs, registers, RAM and DSP blocks.
 
-A diagnostic program is the command list plus what the host does between
-commands: stage bytes into the window, mark a point, dump window bytes, dump
-the newest capture. [`scripts/pc386_diag.py`](../../scripts/pc386_diag.py)
-writes the programs (smoke, mode 13h, sound, OPL2 phrase, ATA, machine
-resets, partial and refused copies, and a replay of a VGA trace from the vga
-or boot suite) and checks results; `check --name` names the program, whose
-own checks run with the commands'. `diag_tb` runs a program on `pc386_diag`
-with the DDR model; `pc386-diag run PROGRAM RESULTS` runs the same file on a
-kit while the package runs, and writes the same results file. It attaches
-only once the bus master has finished every command an earlier,
-interrupted run left in the ring.
+**M4.** The diagnostic package `fes.pc386-diag`, the machine with a bus master
+running commands from a DDR ring in the CPU's place, passed every program on
+Kit B ([M4 record](../../../../docs/validation/2026-10-28-pc386-m4-diagnostic/summary.md),
+[Quartus record](../../../../docs/validation/2026-10-29-pc386-m4-quartus/summary.md)).
+M5 replaced it: the CPU now drives the same machine, and the bus master, its
+ring, the port fence its machine reset needed, the diagnostic tool and the
+nextpnr producer are gone. Its last open exit, the disk round trip with the
+runtime, waits on the M0 contracts either way.
 
 ## Not built yet
 
-The HID nine-row keyboard model and typematic repeat; the `fes.mouse.relative`
-and `fes.computer` 1.1 mailbox wiring (disk prepare, commit with CRC, freeze,
-DiskDirty read-out, persistence, wall clock); the ATA image on DDR port 2 (the
-M4 shell serves the image port from port 0); the CPU in the shell (M5).
+The HID nine-row keyboard model and typematic repeat, so the package has no
+keyboard or mouse yet; the `fes.mouse.relative` and `fes.computer` 1.1
+mailbox wiring (disk prepare, commit with CRC, freeze, DiskDirty read-out,
+persistence, wall clock), which replaces the host link; the CPU's L2.

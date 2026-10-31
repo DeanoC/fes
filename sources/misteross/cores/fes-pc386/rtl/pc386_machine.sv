@@ -6,8 +6,11 @@
 // RAM, all three ports in clk) and the mailbox.
 //
 //   port 1  VRAM: VGA planar writes and reads, scanout line prefetch
-//   port 2  plane reads (pc386_plane_bridge), presenter reads, capture writes
+//   port 2  plane reads (pc386_plane_bridge), presenter reads, capture writes,
+//           the shell's single beats (aux)
 //
+// port2_reset resets the port 2 arbiter alone, so the shell's aux master can
+// use the port while the shell holds the rest of the machine in reset.
 // video is the plane's output in pixel_clk, ready for HDMI. The plane reports
 // the picture rectangle (160, 0, 960, 720).
 module pc386_machine #(
@@ -20,7 +23,7 @@ module pc386_machine #(
     parameter integer DOT1_N = 14161, DOT1_D = 50000,
     parameter integer ATA_RESET_CLOCKS = 1000
 ) (
-    input wire clk, reset,
+    input wire clk, reset, port2_reset,
     input wire pixel_clk, pixel_locked,
     // CPU I/O and interrupt acknowledge
     input wire io_valid, io_write,
@@ -109,6 +112,13 @@ module pc386_machine #(
     input wire p2_waitrequest,
     input wire [63:0] p2_readdata,
     input wire p2_readdatavalid,
+    // The shell's single beats on port 2 (read data on p2_readdata)
+    input wire [28:0] aux_address,
+    input wire aux_read, aux_write,
+    input wire [63:0] aux_writedata,
+    input wire [7:0] aux_byteenable,
+    output wire aux_waitrequest,
+    output wire aux_readdatavalid,
     // Display plane control (fes.video.session-display) and output
     input wire display_request,
     input wire [6:0] display_opcode,
@@ -244,13 +254,15 @@ module pc386_machine #(
     );
 
     pc386_port2 port2 (
-        .clk(clk), .reset(reset),
+        .clk(clk), .reset(port2_reset),
         .plane_address(bridge_address), .plane_burstcount(bridge_burstcount), .plane_read(bridge_read),
         .plane_waitrequest(bridge_waitrequest), .plane_readdatavalid(bridge_readdatavalid),
         .present_address(present_address), .present_burstcount(present_burstcount), .present_read(present_read),
         .present_waitrequest(present_waitrequest), .present_readdatavalid(present_readdatavalid),
         .capture_address(capture_address), .capture_burstcount(capture_burstcount), .capture_write(capture_write),
         .capture_writedata(capture_writedata), .capture_waitrequest(capture_waitrequest),
+        .aux_address(aux_address), .aux_read(aux_read), .aux_write(aux_write), .aux_writedata(aux_writedata),
+        .aux_byteenable(aux_byteenable), .aux_waitrequest(aux_waitrequest), .aux_readdatavalid(aux_readdatavalid),
         .address(p2_address), .burstcount(p2_burstcount), .read(p2_read), .write(p2_write),
         .writedata(p2_writedata), .byteenable(p2_byteenable), .waitrequest(p2_waitrequest),
         .readdatavalid(p2_readdatavalid)
