@@ -139,7 +139,7 @@ def check_rgb_frames(frames, font):
     if not any(change['significant'] for change in changes):
         raise ValueError('boot captures did not show a meaningful screen change')
     prompt = find_prompt(width, height, frames[-1][2], font)
-    return {'classification': 'PC/XT FreeDOS hardware boot prompt',
+    return {'classification': 'PC/XT FreeDOS prompt capture diagnostic',
             'width': width, 'height': height, 'capture_count': len(frames),
             'boot_frames_changed': True, 'adjacent_changes': changes,
             'prompt': prompt, 'static_signature_rejected': True,

@@ -37,6 +37,7 @@ class PCXTDosHILAcceptanceTests(unittest.TestCase):
         result = acceptance.check_rgb_frames([(WIDTH, HEIGHT, blank),
                                              (WIDTH, HEIGHT, progress),
                                              (WIDTH, HEIGHT, prompt)], self.font)
+        self.assertEqual(result['classification'], 'PC/XT FreeDOS prompt capture diagnostic')
         self.assertTrue(result['boot_frames_changed'])
         self.assertEqual(result['prompt']['text'], r'A:\>')
         self.assertEqual(result['prompt']['row'], 24)

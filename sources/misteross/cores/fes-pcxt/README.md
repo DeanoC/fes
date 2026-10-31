@@ -8,9 +8,11 @@ PIC, 8253 PIT, 8255 PPI, XT keyboard byte transport and speaker PCM, and a trans
 HID keyboard frontend, runtime floppy media transport or physical socket map.
 The registered `fes.pcxt` recipe builds a diagnostic package with fixed CGA
 Direct video and the standard identity/execution mailbox. The separate
-`fes.pcxt-dos` recipe enables the GLaBIOS XT/5160 ROM and read-only floppy
-controller, loads its pinned FreeDOS 1.4 boot image into SDRAM through the
-physical loader used by the SDRAM floppy path, and boots DOS. The storage lane
+`fes.pcxt-dos` recipe builds an experimental fixed-image DOS profile with the
+GLaBIOS XT/5160 ROM and read-only floppy controller. Host simulation loads its
+pinned FreeDOS 1.4 boot image into SDRAM through the physical loader used by
+the SDRAM floppy path and reaches `A:\>`; exact-artifact hardware prompt
+acceptance remains open. The storage lane
 connects conventional RAM and firmware to the existing
 addon SDRAM controller and boots the display diagnostic through its physical
 command interface in host simulation. The normal package producer is Quartus Lite 17.0.2, with a common 100 MHz
@@ -39,23 +41,24 @@ A scoped reset exception would additionally require validation of the complete
 chain, its synchronous consumers and timed interstage paths; the attribute alone
 is not a timing waiver.
 
-### FreeDOS hardware package
+### FreeDOS DOS-profile package
 
 The `fes.pcxt-dos` recipe selects `HARDWARE_DOS` and keeps the diagnostic
-profile unchanged. It loads the locked GLaBIOS ROM and a 360 KiB FreeDOS
-floppy image. At cold start, the image bytes are written in order to SDRAM by
-`pcxt_system`; guest floppy reads then use the existing SDRAM media-read
-interface. The variant does not use a simulation-only disk model and has no
-floppy write path. Its FreeDOS image is assembled from FreeDOS kernel 2043 and
-FreeCOM 0.86a. Source commits, licences and image SHA-256 are recorded in
+profile unchanged. The host simulation loads the locked GLaBIOS ROM and a
+360 KiB FreeDOS floppy image. At cold start, the image bytes are written in
+order to SDRAM by `pcxt_system`; guest floppy reads then use the existing SDRAM
+media-read interface. The variant does not use a simulation-only disk model
+and has no floppy write path. Its FreeDOS image is assembled from FreeDOS
+kernel 2043 and FreeCOM 0.86a. Exact-artifact hardware validation to the DOS
+prompt remains open. Source commits, licences and image SHA-256 are recorded in
 [`firmware/THIRD-PARTY-NOTICES.md`](firmware/THIRD-PARTY-NOTICES.md) and
 `sim/freedos.lock`.
 
 The recipe registers `scripts/pcxt_dos_hil_acceptance.py` with preferred kit
-order B then A. The hardware check requires at least three complete changing
+order B then A. It requires at least three complete changing
 captures and glyph-matches the final CGA `A:\>` prompt against the font
 embedded in the locked BIOS ROM. It rejects a static signature and reports a
-DOS boot prompt only; it does not qualify external timing, whole-board IO,
+prompt-capture result only; it does not qualify external timing, whole-board IO,
 reset or broader PC/XT compatibility. A build or seal does not imply a kit run.
 
 ### Experimental CPU100 / board50 diagnostic

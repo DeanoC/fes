@@ -53,8 +53,10 @@ class DisplayPipelineTest(unittest.TestCase):
     def prove(self, mda, mutation=False):
         source = (ROOT / 'cores/fes-pcxt/expansions/pcxt_display_card.sv').read_text()
         self.assertIn('if (MDA) io_data = {4\'hf, status_video, 2\'b00, crtc_hs};', source)
-        block = source[source.index('    reg [46:0] render_inputs;'):
+        block = source[source.index('    reg [38:0] render_inputs;'):
                        source.index('    always @(posedge clk) begin\n        if (clear) begin\n            phase')]
+        self.assertIn('    reg [7:0] render_font;', block)
+        self.assertIn('        render_font <= font_data;', block)
         if mutation:
             block = block.replace('sof <= render_sof;', 'sof <= first_pixel;')
         fixture = r"""

@@ -15,4 +15,4 @@ is SHA-256 `140a2d0a507f7452790e73416dd4dab2c66a89e09a71e26b2ca8f95d1f3c5e5c`.
 [the upstream release](https://github.com/640-KB/GLaBIOS/releases/tag/v0.4.2),
 licensed GPL-3.0. The ROM includes font bitmaps credited upstream to VileR
 under CC-BY-SA-4.0. See `LICENSE-GLaBIOS.txt` and
-[`LICENSE-CC-BY-SA-4.0.txt`](https://creativecommons.org/licenses/by-sa/4.0/legalcode).
+[`LICENSE-CC-BY-SA-4.0.txt`](https://creativecommons.org/licenses/by-sa/4.0/legalcode.txt).

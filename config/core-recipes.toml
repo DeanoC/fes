@@ -1741,7 +1741,7 @@ lock_path = "cores/fes-pcxt/quartus.lock"
 selection_filename = "fes-pcxt-dos.package-selection.toml"
 package_dir_env = "FES_PCXT_DOS_PACKAGE_DIR"
 package_selection_env = "FES_PCXT_DOS_PACKAGE_SELECTION"
-quartus_role = "FreeDOS SDRAM floppy hardware package producer"
+quartus_role = "FreeDOS SDRAM floppy package producer"
 producer_arguments = ["--dos-profile"]
 producer_options = { dos_profile = true }
 hil_check = "scripts/pcxt_dos_hil_acceptance.py"
