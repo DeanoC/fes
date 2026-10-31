@@ -4,27 +4,13 @@
 +		.suppress_bind_attrs = IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM),
 --- a/drivers/fpga/stratix10-soc.c
 +++ b/drivers/fpga/stratix10-soc.c
-@@ -5,6 +5,7 @@
-  *  Copyright (C) 2018 Intel Corporation
-  */
- #include <linux/completion.h>
+@@ -7,0 +8 @@
 +#include <linux/jiffies.h>
- #include <linux/fpga/fpga-mgr.h>
- #include <linux/firmware/intel/stratix10-svc-client.h>
- #include <linux/module.h>
-@@ -326,21 +327,38 @@
- 	long wait_status;
- 	int sent = 0;
- 	int ret = 0;
+@@ -328,0 +330,3 @@
 +	unsigned long deadline = jiffies + msecs_to_jiffies(30000);
 +	unsigned long remaining;
 +	bool bounded = IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM);
- 
- 	/*
- 	 * Loop waiting for buffers to be returned.  When a buffer is returned,
- 	 * reuse it to send more data or free if if all data has been sent.
- 	 */
- 	while (true) {
+@@ -334,0 +339,7 @@
 +		/* Bound total transfer time, including full queues and callbacks.
 +		 * This is not an SDM abort or proof that its DMA has drained.
 +		 */
@@ -32,10 +18,7 @@
 +			ret = -ETIMEDOUT;
 +			break;
 +		}
- 		reinit_completion(&priv->status_return_completion);
- 
- 		if (count > 0) {
- 			sent = s10_send_buf(mgr, buf, count);
+@@ -339,5 +350,12 @@
 -			if (sent < 0)
 -				continue;
 -
@@ -53,13 +36,7 @@
 +				count -= sent;
 +				buf += sent;
 +			}
- 		} else {
- 			if (s10_get_unlocked_buffer_count(mgr) == NUM_SVC_BUFS)
- 				return 0;
-@@ -352,9 +370,22 @@
- 				break;
- 		}
- 
+@@ -354,0 +373,8 @@
 +		remaining = S10_BUFFER_TIMEOUT;
 +		if (bounded) {
 +			if (time_after_eq(jiffies, deadline)) {
@@ -68,7 +45,7 @@
 +			}
 +			remaining = min(remaining, deadline - jiffies);
 +		}
- 		wait_status = wait_for_completion_timeout(
+@@ -356,2 +382,7 @@
 -				&priv->status_return_completion,
 -				S10_BUFFER_TIMEOUT);
 +				&priv->status_return_completion, remaining);
@@ -78,17 +55,8 @@
 +			ret = -EFAULT;
 +			break;
 +		}
- 
- 		if (test_and_clear_bit(SVC_STATUS_BUFFER_DONE, &priv->status) ||
- 		    test_and_clear_bit(SVC_STATUS_BUFFER_SUBMITTED,
-@@ -550,6 +581,7 @@
- 	.remove_new = s10_remove,
- 	.driver = {
- 		.name	= "Stratix10 SoC FPGA manager",
+@@ -552,0 +584 @@
 +		.suppress_bind_attrs = IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM),
- 		.of_match_table = of_match_ptr(s10_of_match),
- 	},
- };
 --- a/drivers/firmware/stratix10-svc.c
 +++ b/drivers/firmware/stratix10-svc.c
 @@ -3695,0 +3696 @@
