@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/DeanoC/FogCast/internal/testwait"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -13,6 +13,7 @@ import (
 
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/localcores"
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/menudisplay"
@@ -871,6 +872,111 @@ func TestMenuLaunchWaitsForFrameDrainAndPause(t *testing.T) {
 	if skip, err := hold.skip(context.Background(), dev, snap); !skip || err != nil {
 		t.Fatal("frame presented after pause")
 	}
+}
+
+func TestQueuedLocalPlayReadinessFollowsAgentDecision(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		launchErr   error
+		wantRunning bool
+	}{
+		{name: "rejected", launchErr: localcores.ErrNotFound},
+		{name: "accepted", wantRunning: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			readyPath := filepath.Join(t.TempDir(), "launcher-ready.json")
+			t.Setenv("FES_SOFTWARE_READY_FILE", readyPath)
+			t.Setenv("FES_SOFTWARE_BUNDLE_ID", "bundle")
+
+			rec := &recordingMenu{}
+			dev, err := gfx.NewMenuDisplayWithPresenter(rec)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer dev.Close()
+			dev.SetChangeDriven(true)
+			dev.Present()
+			waitCtx, cancel := context.WithTimeout(context.Background(), testwait.Timeout)
+			if err := dev.WaitIdle(waitCtx); err != nil {
+				cancel()
+				t.Fatalf("initial menu frame: %v", err)
+			}
+			cancel()
+			requireLauncherReady(t, readyPath, true)
+
+			fake := &fakeLocalCores{}
+			agent := &warmingDecisionLocalCores{fakeLocalCores: fake, secondLaunch: make(chan struct{}), outcome: tc.launchErr}
+			var releaseOnce sync.Once
+			releaseLaunch := func() { releaseOnce.Do(func() { close(agent.secondLaunch) }) }
+			defer releaseLaunch()
+			app := NewApp(nil, 1280, 720, 50)
+			defer app.Stop()
+			app.SetMenuDisplay(dev)
+			app.localCores = agent
+			app.mu.Lock()
+			app.startLocalCoreLocked(rooms.Destination{Label: "FES Pong", PackageID: tenfootPongID})
+			app.mu.Unlock()
+
+			var hold presentHold
+			snap := app.Snapshot()
+			if skip, err := hold.skip(context.Background(), dev, snap); skip || err != nil {
+				t.Fatalf("loading frame skip=%v err=%v", skip, err)
+			}
+			dev.Present()
+			if skip, err := hold.skip(context.Background(), dev, snap); !skip || err != nil {
+				t.Fatalf("launch handoff skip=%v err=%v", skip, err)
+			}
+			requireLauncherReady(t, readyPath, true)
+			app.completeLocalLaunchHandoff(nil)
+			waitFor(t, app, "warming launch request", func(Snapshot) bool { return fake.launchCount() == 1 })
+			requireLauncherReady(t, readyPath, true)
+			waitFor(t, app, "queued launch retry", func(Snapshot) bool { return fake.launchCount() == 2 })
+			requireLauncherReady(t, readyPath, true)
+
+			releaseLaunch()
+			if tc.wantRunning {
+				waitFor(t, app, "accepted launch", func(s Snapshot) bool { return s.LocalCorePhase == localPhaseRunning })
+				requireLauncherReady(t, readyPath, false)
+				return
+			}
+			waitFor(t, app, "rejected launch", func(s Snapshot) bool { return s.LocalCorePhase == "" && s.Status != "" })
+			if skip, err := hold.skip(context.Background(), dev, app.Snapshot()); skip || err != nil {
+				t.Fatalf("rejected launch should resume menu: skip=%v err=%v", skip, err)
+			}
+			requireLauncherReady(t, readyPath, true)
+		})
+	}
+}
+
+func requireLauncherReady(t *testing.T, path string, want bool) {
+	t.Helper()
+	_, err := os.Stat(path)
+	if want && err != nil {
+		t.Fatalf("launcher readiness missing: %v", err)
+	}
+	if !want && !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("launcher readiness retained: %v", err)
+	}
+}
+
+type warmingDecisionLocalCores struct {
+	*fakeLocalCores
+	secondLaunch chan struct{}
+	outcome      error
+}
+
+func (f *warmingDecisionLocalCores) Launch(_ context.Context, id string) (localcores.LaunchResult, error) {
+	f.mu.Lock()
+	f.launches = append(f.launches, id)
+	attempt := len(f.launches)
+	f.mu.Unlock()
+	if attempt == 1 {
+		return localcores.LaunchResult{}, localcores.ErrWarming
+	}
+	if attempt == 2 && f.secondLaunch != nil {
+		<-f.secondLaunch
+	}
+	return localcores.LaunchResult{Core: localcores.Core{PackageID: id}, Generation: strings.Repeat("a", 64)}, f.outcome
 }
 
 func TestMenuPauseFailureClearsLaunchBeforeResume(t *testing.T) {

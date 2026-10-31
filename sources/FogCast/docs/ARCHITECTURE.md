@@ -2914,7 +2914,12 @@ as a joystick, so it is not a keyboard requirement. `fogcast-tenfoot -gfx menu-d
 connects that socket and, while the core runs, writes pad frames through the
 shared `ui/localfeed` socket. A host session, and any other tenfoot gfx backend,
 leaves `kit` unset. Confirm shows the room launch overlay while loading, then
-pauses menu presents when the core owns HDMI. "In use. Someone else is playing on this machine. You can
+drains and pauses menu presents before dispatching the local launch. This
+pending pause keeps the last acknowledged launcher-readiness marker while the
+agent is warming or can still reject the package; an accepted or uncertain
+launch result clears the marker. Late adoption and ordinary menu pauses clear
+readiness immediately.
+"In use. Someone else is playing on this machine. You can
 play when they're done." is the busy lease. A blocked tile keeps its block line
 ("Needs a cartridge", "Needs firmware") and does not call the runtime. Anything
 else the socket cannot launch says "This core isn't available right now."

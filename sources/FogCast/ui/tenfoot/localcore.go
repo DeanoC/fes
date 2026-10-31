@@ -253,6 +253,9 @@ func (a *App) startLocalCoreLocked(dest rooms.Destination) {
 				return
 			}
 			if err != nil {
+				if !localLaunchRejected(err) {
+					a.invalidateLocalLaunchReadinessLocked()
+				}
 				if errors.Is(err, localcores.ErrUnavailable) {
 					a.reconcileLocalLaunchErrorLocked(err, block)
 				} else {
@@ -260,6 +263,7 @@ func (a *App) startLocalCoreLocked(dest rooms.Destination) {
 				}
 				return
 			}
+			a.invalidateLocalLaunchReadinessLocked()
 			if !validLocalGeneration(result.Generation) {
 				a.reconcileLocalLaunchErrorLocked(localcores.ErrUnavailable, "")
 				return
@@ -344,6 +348,9 @@ func (a *App) startLocalTitleLocked(game hostclient.Game) {
 				return
 			}
 			if err != nil {
+				if client != nil && !localLaunchRejected(err) {
+					a.invalidateLocalLaunchReadinessLocked()
+				}
 				if client == nil {
 					a.failLocalCoreLocked(err, "")
 				} else {
@@ -351,6 +358,7 @@ func (a *App) startLocalTitleLocked(game hostclient.Game) {
 				}
 				return
 			}
+			a.invalidateLocalLaunchReadinessLocked()
 			if !validLocalGeneration(result.Generation) {
 				a.reconcileLocalLaunchErrorLocked(localcores.ErrUnavailable, "")
 				return
@@ -374,6 +382,20 @@ func (a *App) startLocalTitleLocked(game hostclient.Game) {
 		}()
 	}
 	a.queueLocalLaunchLocked(launch)
+}
+
+func localLaunchRejected(err error) bool {
+	return errors.Is(err, rooms.ErrNoLocalCores) ||
+		errors.Is(err, localcores.ErrWarming) ||
+		errors.Is(err, localcores.ErrInUse) ||
+		errors.Is(err, localcores.ErrBlocked) ||
+		errors.Is(err, localcores.ErrNotFound)
+}
+
+func (a *App) invalidateLocalLaunchReadinessLocked() {
+	if a != nil && a.menuDisplay != nil {
+		a.menuDisplay.InvalidateSoftwareReady()
+	}
 }
 
 // Input only arms the launch. Menu-display dispatch follows a presented frame,
