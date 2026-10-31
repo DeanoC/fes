@@ -57,7 +57,7 @@ Lander merges directly with `gh pr merge N --squash --match-head-commit <sha>` a
 - Run HIL in parallel with review. Use kit A if kit B is busy.
 - Stop after 2 FAILs on the same head and fix instead.
 - Report HIL as started only once a kit is locked and flashed.
-- Afterwards, restore each kit to exactly the baseline bundle and image that kitA-STATUS.md / kitB-STATUS.md names. Activate the named bundle; reflash only if the booted image differs from the named image (then follow the bundle/image order in step 3 above) and verify the boot. Verify the active bundle before logging the kit restored. Baselines are promoted only from main HIL passes.
+- Afterwards, restore each kit to exactly the baseline bundle and image that kitA-STATUS.md / kitB-STATUS.md names. Activate the named bundle; reflash only if the booted image differs from the named image (then follow the bundle/image order in the kit procedure (step 3) below) and verify the boot. Verify the active bundle before logging the kit restored. Baselines are promoted only from main HIL passes.
 
 ### Toolchains
 - Quartus is primary for DE25, pc386 and PC/XT. nextpnr is advisory for those.
