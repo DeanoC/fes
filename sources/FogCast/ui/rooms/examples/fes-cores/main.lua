@@ -17,7 +17,9 @@
 -- moves the player's focus. The last selected installed package is restored
 -- on a later visit. A fresh visit, or a saved package that is missing or
 -- unavailable, opens on the first installed core, or on Library when every
--- row is an omission. Selecting an omitted core does not replace the saved
+-- row is an omission. While kit.cores is still listing, the saved package
+-- is shown as a pending card: Confirm on it is queued, and the kit starts it
+-- only if the finished list still has it launchable. Selecting an omitted core does not replace the saved
 -- package, and the shelf count excludes it.
 --
 -- Under 480×360, room.hero is nil and the launcher keeps its destination
@@ -49,6 +51,7 @@ local SYSTEMS = "example.computers"
 local COLECO_ARCADE = "example.coleco-arcade"
 
 local cores = nil      -- nil while listing; a table once kit.cores answers
+local remembered = nil -- the saved package as one pending card while listing
 local unavailable = false
 local row = "shelf"    -- "shelf", native hero "actions", or "menu"
 local shelf_i = 1
@@ -78,6 +81,7 @@ end
 -- Short shelf line. Readiness itself is the hero's job: a kit lease can
 -- make a launchable core unavailable, so the shelf never says Ready.
 local function card_line(core)
+  if core.pending then return "Checking…" end
   if core.core_id == "fes.coleco" then return "Browse Coleco titles" end
   if not core.launchable then
     if core.needs == "parts" then return "Display setup incomplete" end
@@ -92,9 +96,16 @@ local function card_line(core)
   return ""
 end
 
+-- The shelf as drawn: the listed cores, or the pending card before then.
+local function shelf_rows()
+  return cores or remembered
+end
+
 local function selected_core()
-  if row == "menu" or not cores then return nil end
-  return cores[shelf_i]
+  if row == "menu" then return nil end
+  local list = shelf_rows()
+  if not list then return nil end
+  return list[shelf_i]
 end
 
 -- An omitted optional core is listed, but it is not an installed package.
@@ -179,7 +190,15 @@ local function publish()
     return
   end
   local core = selected_core()
-  if core and core.core_id == "fes.coleco" then
+  if core and core.pending then
+    -- core_id is omitted: the stored copy is only used for the card.
+    destination.set{
+      kind = "core",
+      package_id = core.package_id,
+      label = core.name,
+      pending = true,
+    }
+  elseif core and core.core_id == "fes.coleco" then
     destination.set{ kind = "room", room_id = COLECO_ARCADE, label = core.name }
   elseif core and core.host_launch and core.game_id and core.game_id ~= "" then
     destination.set{
@@ -243,10 +262,22 @@ end
 local pending_save = nil
 local SAVE_AFTER = 1.0
 
+-- The name and core id let a later visit show this package before
+-- kit.cores answers.
+local function save(entry)
+  store.set("package_id", entry.id)
+  store.set("package_name", entry.name)
+  store.set("package_core_id", entry.core_id)
+end
+
 local function remember()
   local core = selected_core()
-  if core and not omitted(core) then
-    pending_save = { id = core.package_id, wait = SAVE_AFTER }
+  if core and not omitted(core) and not core.pending then
+    -- Only a kit-launched core can be shown as a pending card: a host
+    -- computer and the Coleco room do not start with LoadCore.
+    local name = core.name or ""
+    if core.host_launch or core.core_id == "fes.coleco" then name = "" end
+    pending_save = { id = core.package_id, core_id = core.core_id or "", name = name, wait = SAVE_AFTER }
   end
 end
 
@@ -254,14 +285,34 @@ function update(dt)
   if pending_save then
     pending_save.wait = pending_save.wait - dt
     if pending_save.wait <= 0 then
-      store.set("package_id", pending_save.id)
+      save(pending_save)
       pending_save = nil
     end
   end
 end
 
 function unload()
-  if pending_save then store.set("package_id", pending_save.id) end
+  if pending_save then save(pending_save) end
+end
+
+-- The saved package, if its id is well formed and it has a name to show.
+-- remember() saves no name for a card that is not a kit launch.
+local function remembered_card()
+  local id = store.get("package_id", "")
+  local name = store.get("package_name", "")
+  if type(id) ~= "string" or not string.match(id, "^" .. string.rep("%x", 64) .. "$") then return nil end
+  if string.match(id, "%u") then return nil end
+  if type(name) ~= "string" or name == "" then return nil end
+  local core_id = store.get("package_core_id", "")
+  if type(core_id) ~= "string" then core_id = "" end
+  return { {
+    package_id = id,
+    core_id = core_id,
+    name = name,
+    pending = true,
+    launchable = true,
+    inputs = {},
+  } }
 end
 
 function load()
@@ -273,6 +324,7 @@ function load()
     publish()
     return
   end
+  remembered = remembered_card()
   publish()
   kit.cores(function(rows, err)
     if err then
@@ -421,7 +473,7 @@ local function focus_hit(id)
   n = tonumber(n)
   if kind == "menu" and MENU[n] then
     row, menu_i = "menu", n
-  elseif kind == "core" and cores and cores[n] then
+  elseif kind == "core" and shelf_rows() and shelf_rows()[n] then
     row, shelf_i = "shelf", n
     keep_visible()
     remember()
@@ -605,7 +657,8 @@ local function draw_shelf(h)
   local _, lh = gfx.measure(label, 24, true)
   local top = s.y + lh + 14
   local ch = s.y + s.h - top
-  if not cores or #cores == 0 then
+  local list = shelf_rows()
+  if not list or #list == 0 then
     gfx.rect(s.x, top, s.w, ch, C.raised)
     gfx.text(status, s.x + 24, top + ch / 2 - 12, { size = 20, color = C.text, max_w = s.w - 48 })
     return
@@ -616,7 +669,7 @@ local function draw_shelf(h)
   local art_h = math.floor(ch * 0.56)
   for slot = 0, n - 1 do
     local i = first + slot
-    local core = cores[i]
+    local core = list[i]
     if not core then break end
     local x = s.x + slot * (cw + gap)
     local focused = row == "shelf" and shelf_i == i
@@ -639,7 +692,7 @@ local function draw_shelf(h)
   if first > 1 then
     gfx.rect(s.x - 10, top + ch / 2 - 20, 4, 40, C.accent)
   end
-  if first + n - 1 < #cores then
+  if first + n - 1 < #list then
     gfx.rect(s.x + s.w + 6, top + ch / 2 - 20, 4, 40, C.accent)
   end
 end
@@ -735,7 +788,8 @@ local function draw_compact()
   if lay.label then
     gfx.text("On this kit", m, lay.list_y - 22, { size = 18, bold = true, color = C.text })
   end
-  if not cores or #cores == 0 then
+  local list = shelf_rows()
+  if not list or #list == 0 then
     if lay.list_y + 20 <= lay.limit then
       gfx.text(status, m, lay.list_y, { size = 18, color = C.text, max_w = room.width - m * 2 })
     end
@@ -745,7 +799,7 @@ local function draw_compact()
   local cw = room.width - m * 2
   for slot = 0, lay.rows - 1 do
     local i = first + slot
-    local core = cores[i]
+    local core = list[i]
     if not core then break end
     local y = lay.list_y + slot * step
     local focused = row == "shelf" and shelf_i == i
@@ -763,7 +817,7 @@ local function draw_compact()
   if first > 1 then
     gfx.rect(room.width - 8, lay.list_y, 3, 16, C.accent)
   end
-  if first + lay.rows - 1 < #cores then
+  if first + lay.rows - 1 < #list then
     gfx.rect(room.width - 8, lay.list_y + math.max(0, lay.rows * step - 16), 3, 16, C.accent)
   end
 end

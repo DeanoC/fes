@@ -201,6 +201,24 @@ func TestDestinationCopyAndConfirmNeverNoOp(t *testing.T) {
 	}
 }
 
+// A pending core is a remembered package before kit.cores answers (#764).
+// Confirm queues its launch; a held lease still explains instead.
+func TestPendingCoreQueuesLaunchUnlessLeaseHeld(t *testing.T) {
+	d := Destination{Kind: KindCore, PackageID: strings.Repeat("a", 64), CorePending: true, Availability: AvailChecking}
+	d.FillCopy()
+	if d.Confirm() != ConfirmLaunchCore || d.Status != CorePendingStatus || d.Action != "Play" {
+		t.Fatalf("pending core: confirm=%v %+v", d.Confirm(), d)
+	}
+	d.LeaseHeld = true
+	if d.Confirm() != ConfirmExplain {
+		t.Fatalf("held lease queued a launch: %v", d.Confirm())
+	}
+	d = Destination{Kind: KindCore, PackageID: strings.Repeat("a", 64), Availability: AvailChecking}
+	if d.Confirm() != ConfirmWait {
+		t.Fatalf("a checking core that is not pending must wait: %v", d.Confirm())
+	}
+}
+
 func TestParseKindDropsUnknownAndAcceptsAction(t *testing.T) {
 	t.Parallel()
 	if parseKind("nope") != "" || parseKind("shell") != "" || parseKind("") != "" {

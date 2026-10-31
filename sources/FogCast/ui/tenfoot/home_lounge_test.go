@@ -2,6 +2,7 @@ package tenfoot
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"image/png"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/internal/localcores"
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/rooms"
@@ -38,6 +40,12 @@ func homeFixtureCores() []localcores.Core {
 // session poller observes it instead of racing an injected one.
 func startHomeLounge(t *testing.T, cores rooms.LocalCores, w, h int, pairedLease ...string) *App {
 	t.Helper()
+	return startHomeLoungeIn(t, t.TempDir(), cores, w, h, pairedLease...)
+}
+
+// startHomeLoungeIn is startHomeLounge with its prefs and room store in dir.
+func startHomeLoungeIn(t *testing.T, dir string, cores rooms.LocalCores, w, h int, pairedLease ...string) *App {
+	t.Helper()
 	host := newRoomHost(t)
 	client := NewClient(host.server.URL, host.server.Client())
 	if len(pairedLease) > 0 {
@@ -46,7 +54,7 @@ func startHomeLounge(t *testing.T, cores rooms.LocalCores, w, h int, pairedLease
 		client.paired = true
 	}
 	app := NewApp(client, w, h, 50)
-	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
+	app.SetPrefsPath(filepath.Join(dir, "tenfoot.json"))
 	app.SetRooms(rooms.NewIndex(rooms.Examples()), t.TempDir())
 	app.SetHomeRooms(true)
 	app.SetHomeRoom(installedCoresHomeID)
@@ -225,7 +233,8 @@ func roomTextHasPrefix(s Snapshot, prefix string) bool {
 // catalog read is still filling after health reports ready (#764).
 type warmingLocalCores struct {
 	*fakeLocalCores
-	warm atomic.Bool
+	warm         atomic.Bool
+	warmLaunches atomic.Int32
 }
 
 func (w *warmingLocalCores) List(ctx context.Context) ([]localcores.Core, error) {
@@ -233,6 +242,132 @@ func (w *warmingLocalCores) List(ctx context.Context) ([]localcores.Core, error)
 		return nil, localcores.ErrWarming
 	}
 	return w.fakeLocalCores.List(ctx)
+}
+
+// Launch answers warming like the agent, then checks the finished list.
+func (w *warmingLocalCores) Launch(ctx context.Context, id string) (localcores.LaunchResult, error) {
+	if !w.warm.Load() {
+		w.warmLaunches.Add(1)
+		return localcores.LaunchResult{}, localcores.ErrWarming
+	}
+	cores, _ := w.fakeLocalCores.List(ctx)
+	for _, core := range cores {
+		if core.PackageID == id {
+			if !core.Launchable {
+				return localcores.LaunchResult{}, localcores.ErrBlocked
+			}
+			return w.fakeLocalCores.Launch(ctx, id)
+		}
+	}
+	return localcores.LaunchResult{}, localcores.ErrNotFound
+}
+
+// writeHomeStore seeds the Home room's store under a startHomeLoungeIn dir.
+func writeHomeStore(t *testing.T, dir string, values map[string]any) {
+	t.Helper()
+	data, err := json.Marshal(values)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "rooms", installedCoresHomeID+".state.json")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func rememberedZX81(t *testing.T, dir string) localcores.Core {
+	t.Helper()
+	zx81 := homeFixtureCores()[1]
+	writeHomeStore(t, dir, map[string]any{
+		"package_id":      zx81.PackageID,
+		"package_name":    "Sinclair ZX81",
+		"package_core_id": zx81.CoreID,
+	})
+	return zx81
+}
+
+func TestHomeConfirmOnRememberedCoreStartsOnceListed(t *testing.T) {
+	dir := t.TempDir()
+	zx81 := rememberedZX81(t, dir)
+	fake := &warmingLocalCores{fakeLocalCores: &fakeLocalCores{cores: homeFixtureCores()}}
+	app := startHomeLoungeIn(t, dir, fake, 1280, 720)
+	snap := waitFor(t, app, "pending card", func(s Snapshot) bool {
+		d := s.Room.Destination
+		return s.Room.Hero && d.Kind == rooms.KindCore && d.CorePending && d.PackageID == zx81.PackageID
+	})
+	if d := snap.Room.Destination; d.Label != "Sinclair ZX81" || d.CoreLaunchable || d.Availability != rooms.AvailChecking {
+		t.Fatalf("pending destination %+v", d)
+	}
+	if c := heroDestinationCopy(snap); c.State != heroStateChecking || c.Primary != "Play" || c.Headline != rooms.CorePendingStatus {
+		t.Fatalf("pending hero %+v", c)
+	}
+	if !roomTextHasPrefix(snap, "Sinclair ZX81") {
+		t.Fatal("the pending card is not drawn on the shelf")
+	}
+	app.HandleCommand(CmdSelect, time.Now())
+	waitFor(t, app, "queued launch", func(s Snapshot) bool {
+		return s.LocalCorePhase == localPhaseLaunching && fake.warmLaunches.Load() >= 2
+	})
+	fake.setStatus(localcores.RunStatus{Generation: strings.Repeat("a", 64), Phase: "running", Running: true, PackageID: zx81.PackageID})
+	fake.warm.Store(true)
+	waitFor(t, app, "running", func(s Snapshot) bool { return s.LocalCorePhase == localPhaseRunning })
+	fake.mu.Lock()
+	launched := append([]string(nil), fake.launches...)
+	fake.mu.Unlock()
+	if len(launched) != 1 || launched[0] != zx81.PackageID {
+		t.Fatalf("launches %v", launched)
+	}
+}
+
+func TestHomeQueuedLaunchFailsClosedWhenTheRememberedCoreIsGone(t *testing.T) {
+	dir := t.TempDir()
+	zx81 := rememberedZX81(t, dir)
+	var cores []localcores.Core
+	for _, core := range homeFixtureCores() {
+		if core.PackageID != zx81.PackageID {
+			cores = append(cores, core)
+		}
+	}
+	fake := &warmingLocalCores{fakeLocalCores: &fakeLocalCores{cores: cores}}
+	app := startHomeLoungeIn(t, dir, fake, 1280, 720)
+	waitFor(t, app, "pending card", func(s Snapshot) bool { return s.Room.Destination.CorePending })
+	app.HandleCommand(CmdSelect, time.Now())
+	waitFor(t, app, "queued launch", func(s Snapshot) bool { return fake.warmLaunches.Load() >= 1 })
+	fake.warm.Store(true)
+	waitFor(t, app, "refused and listed", func(s Snapshot) bool {
+		return s.LocalCorePhase == "" && s.LocalCoreStatus != "" && !s.Room.Destination.CorePending
+	})
+	if fake.launchCount() != 0 {
+		t.Fatalf("a removed package launched: %d", fake.launchCount())
+	}
+}
+
+func TestHomeRemembersNameForThePendingCard(t *testing.T) {
+	dir := t.TempDir()
+	cores := homeFixtureCores()
+	app := startHomeLoungeIn(t, dir, &fakeLocalCores{cores: cores}, 1280, 720)
+	waitFor(t, app, "first core", func(s Snapshot) bool { return s.Room.Destination.Label == "Pong" })
+	app.HandleCommand(CmdRight, time.Now())
+	waitFor(t, app, "zx81", func(s Snapshot) bool { return s.Room.Destination.PackageID == cores[1].PackageID })
+	path := filepath.Join(dir, "rooms", installedCoresHomeID+".state.json")
+	deadline := time.Now().Add(testwait.Timeout)
+	for {
+		var saved map[string]any
+		data, err := os.ReadFile(path)
+		if err == nil && json.Unmarshal(data, &saved) == nil &&
+			saved["package_id"] == cores[1].PackageID && saved["package_core_id"] == cores[1].CoreID &&
+			saved["package_name"] != nil && saved["package_name"] != "" {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("store %s: %s %v", path, data, err)
+		}
+		app.Tick(time.Now()) // Room steps run the save debounce and the store flush.
+		time.Sleep(20 * time.Millisecond)
+	}
 }
 
 func TestHomeConfirmDuringCheckingIsAcknowledgedAndNeverQueued(t *testing.T) {

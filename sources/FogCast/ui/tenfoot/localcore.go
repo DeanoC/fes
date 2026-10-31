@@ -38,6 +38,11 @@ const (
 	// The client's own timeout is 3s, so the poll never runs under a.mu.
 	localStatusEvery      = time.Second
 	localReconcileTimeout = 30 * time.Second
+	// A launch the agent answers with warming is asked again until its
+	// startup catalog warm ends. The budget matches the room's own listing
+	// retry (localCoresStartupRetry in ui/rooms).
+	localWarmLaunchEvery  = 200 * time.Millisecond
+	localWarmLaunchBudget = 60 * time.Second
 )
 
 // localPadSender is the kit-local input socket. *localfeed.Feed implements it.
@@ -235,7 +240,7 @@ func (a *App) startLocalCoreLocked(dest rooms.Destination) {
 			if client == nil {
 				err = rooms.ErrNoLocalCores
 			} else {
-				result, err = client.Launch(context.Background(), packageID)
+				result, err = a.launchAfterWarm(client, packageID, gen)
 			}
 			a.mu.Lock()
 			defer a.mu.Unlock()
@@ -467,6 +472,27 @@ func localCartridgeCore(system string) string {
 		return "fes.sms"
 	default:
 		return ""
+	}
+}
+
+// launchAfterWarm is Launch, asked again while the agent is still warming
+// its catalog. The agent checks the package against the finished list, so a
+// launch queued from a remembered tile still fails closed when the package
+// is gone or blocked. A newer launch generation ends the wait.
+func (a *App) launchAfterWarm(client rooms.LocalCores, packageID string, gen uint64) (localcores.LaunchResult, error) {
+	deadline := time.Now().Add(localWarmLaunchBudget)
+	for {
+		result, err := client.Launch(context.Background(), packageID)
+		if !errors.Is(err, localcores.ErrWarming) || !time.Now().Before(deadline) {
+			return result, err
+		}
+		time.Sleep(localWarmLaunchEvery)
+		a.mu.Lock()
+		current := a.localGen == gen
+		a.mu.Unlock()
+		if !current {
+			return result, err
+		}
 	}
 }
 
