@@ -89,14 +89,19 @@ class De25PhysicalMemoryRecordTests(unittest.TestCase):
         jtag_script = (self.root / 'sources/misteross/boards/de25nano/ramtest/jtag.tcl').read_text()
         self.assertRegex(jtag_script, r'BASE_OFFSET 0 BASE_HIGH_OFFSET 0')
         controller = (self.root / 'sources/misteross/boards/de25nano/ramtest/sdram.v').read_text()
+        self.assertIn('output reg [1:0] dram_ba=0,dram_cs_n=3', controller)
         self.assertIn('word_addr<=write&&write_left!=0?write_next:address[26:1]', controller)
         self.assertRegex(controller, r'word_addr\[25\].*2\'b01:2\'b10')
+        self.assertRegex(controller, r'PRE_INIT:begin\s+dram_cs_n<=0;')
+        self.assertRegex(controller, r'REF_INIT1,REF_INIT2:begin\s+dram_cs_n<=0;')
+        self.assertRegex(controller, r'REFRESH:begin\s+dram_cs_n<=0;')
 
         report = ' '.join((self.record / 'README.md').read_text().split())
         ramtest_guide = ' '.join((self.root / 'sources/misteross/boards/de25nano/ramtest/README.md').read_text().split())
-        self.assertIn('4,096-byte SDRAM smoke starts at address 0 and stays below byte-address bit 26', report)
+        self.assertIn('4,096-byte SDRAM smoke starts at address 0 and stays below byte-address bit 26, so its scan accesses select one chip', report)
+        self.assertIn('initialization and refresh commands assert both chip selects, and the smoke run is long enough to include refresh', report)
         self.assertIn('Only the full 128-MiB SDRAM scan crosses byte-address bit 26', ramtest_guide)
-        self.assertNotIn('The SDRAM range includes both physical chip selects', report)
+        self.assertNotIn('so it selects one chip', report)
 
     def test_factory_clean_halt_claim_matches_retained_boot_log(self):
         with gzip.open(self.record / 'temporary-sof-boot.log.gz', 'rt') as stream:
@@ -130,6 +135,8 @@ class De25PhysicalMemoryRecordTests(unittest.TestCase):
             uart = stream.read()
         with gzip.open(self.record / 'restored-factory-linux.log.gz', 'rt') as stream:
             ssh = stream.read()
+        with gzip.open(self.record / 'factory-linked-services.log.gz', 'rt') as stream:
+            sld = stream.read()
 
         self.assertEqual(restore['uart_factory_boot'], 'NOT_RETAINED')
         self.assertEqual(restore['pinned_ssh_factory_boot'], 'PASS')
@@ -137,11 +144,22 @@ class De25PhysicalMemoryRecordTests(unittest.TestCase):
         self.assertNotIn(restore['factory_boot_id'], uart)
         for value in (restore['factory_boot_id'], restore['factory_kernel'], restore['root']):
             self.assertIn(value, ssh)
+        self.assertIn(restore['factory_sld_design_hash'], sld)
+        self.assertIn(restore['diagnostic_sld_design_hash'], sld)
+        self.assertNotRegex(sld, r'\b\d{2}:\d{2}:\d{2}\s+\d{4}\b')
 
         report = ' '.join((self.record / 'README.md').read_text().split())
         self.assertIn('no subsequent factory boot transcript', report)
         self.assertIn('The pinned-key SSH transcript records factory boot UUID', report)
+        self.assertIn('untimestamped [factory-linked-services.log.gz](factory-linked-services.log.gz)', report)
+        self.assertIn('it does not establish when that link check occurred', report)
+        self.assertNotIn('The restored factory SLD design hash', report)
         self.assertNotIn('UART/pinned SSH checks', report)
+
+    def test_old_address_probe_outcome_is_not_claimed_without_a_transcript(self):
+        report = ' '.join((self.record / 'README.md').read_text().split())
+        self.assertIn('No retained transcript establishes the outcome of later old-address SSH or serial-prompt checks', report)
+        self.assertNotIn('Subsequent old-address SSH and serial prompt checks fail', report)
 
     def test_programmed_sof_identity_uses_logged_quartus_checksum(self):
         hardware = json.loads((self.record / 'hardware.json').read_text())
