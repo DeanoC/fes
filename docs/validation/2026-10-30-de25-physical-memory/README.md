@@ -82,9 +82,9 @@ zero data errors; the original controller also checks generation, sequence
 and frozen snapshot serials. Latency counters measure the diagnostic interface,
 not intrinsic DRAM latency or a CPU benchmark.
 
-The recorded procedure says it ran `sync` and requested a graceful halt before
-the test-image load. However, the temporary-image boot log reports that
-`system.journal` was
+No retained file records the commands that preceded the test-image load.
+According to the operator, Linux `sync` was run and a graceful halt requested,
+but the temporary-image boot log reports that `system.journal` was
 "corrupted or uncleanly shut down." The retained evidence therefore does not
 establish that factory Linux completed a clean halt. The combined SOF's Terasic
 bootloader then boots the existing SD kernel to its login prompt. The UART

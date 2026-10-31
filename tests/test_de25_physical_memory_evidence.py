@@ -71,6 +71,13 @@ class De25PhysicalMemoryEvidenceTests(unittest.TestCase):
         self.assertNotIn('operator procedure', normalized)
         self.assertNotIn('Linux `sync` and authenticated `sudo /sbin/reboot`', normalized)
 
+    def test_pre_load_halt_is_attributed_to_the_operator(self):
+        normalized = re.sub(r'\s+', ' ', (EVIDENCE / 'README.md').read_text())
+        self.assertIn('No retained file records the commands that preceded the test-image load.', normalized)
+        self.assertIn('According to the operator, Linux `sync` was run', normalized)
+        self.assertIn('does not establish that factory Linux completed a clean halt', normalized)
+        self.assertNotIn('recorded procedure', normalized)
+
     def test_failed_device_info_log_does_not_name_a_device_index(self):
         failed = gzip.decompress(
             (EVIDENCE / 'device-info-command-failed.log.gz').read_bytes()

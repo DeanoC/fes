@@ -3,7 +3,7 @@
   "base_revision": "300bf1c3ea67ce81b11ef2e442882de2eff5c224",
   "classification": "physical-board-diagnostic; not production signoff",
   "file_sha256": {
-    "README.md": "a900e6d7ce2f7a7b0e121980a880f0cc0441d128dc462fbd972cd795d1a9728f",
+    "README.md": "110eb612327e916fb1319cd6dd44303d841c8d53e748eaef19e0bf3acf0ff0e1",
     "affected-checks.log.gz": "ba299c493aa88db3bca7964c633138b68c565c00d10a600a3a8da594c80780d9",
     "artifact-audit.json": "f2d272af5d92a69dad50314841a5f11e2a76f2395b62cac7a3e2c459b4299810",
     "bootloader-audit.json": "60e699ae9f9d4fa04db005827da3f7f3f99345f218539a3c426c40c17c5dae85",
