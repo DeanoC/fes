@@ -8,6 +8,7 @@
 #include <linux/mman.h>
 #include <linux/mm.h>
 #include <linux/of.h>
+#include <linux/platform_device.h>
 #include <linux/sched/mm.h>
 #include <linux/uaccess.h>
 
@@ -1497,7 +1498,17 @@ static void permanent_owner_rejects_ancestor_mutation(struct kunit *test)
 	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ancestor(f->owner, OF_OVERLAY_PRE_REMOVE), -EBUSY);
 }
 
+static void permanent_owner_probe_refuses_unbound_device(struct kunit *test)
+{
+	struct platform_device *pdev = platform_device_register_simple("de25-owner-refusal", -1, NULL, 0);
+
+	KUNIT_ASSERT_FALSE(test, IS_ERR(pdev));
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_probe(pdev), -EOPNOTSUPP);
+	platform_device_unregister(pdev);
+}
+
 static struct kunit_case fes_de25_dma_cases[] = {
+	KUNIT_CASE(permanent_owner_probe_refuses_unbound_device),
 	KUNIT_CASE(permanent_owner_rejects_topology_overrides),
 	KUNIT_CASE(permanent_owner_rejects_ancestor_mutation),
 	KUNIT_CASE(permanent_owner_blocks_configuration_before_first_submit),
