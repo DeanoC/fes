@@ -1,0 +1,232 @@
+{
+  "architecture": "aarch64",
+  "assembly_hashes": [
+    {
+      "boot/vendor-boot-prefix.bin": "9d13748dfc766083889a563102cb906f90a5178829dcd20f5fd47f9024e89dfd",
+      "fes-de25-owner.img": "de2a9a4ca35214ab75230d5807a0a8900d99f7869e1346c83f4e41bce0853138",
+      "rootfs.ext4": "0430c556239b6ebc52fab103557fff2f649dafc297e79e44f2d27e5c4d666654",
+      "rootfs.tar": "7e0a6af737520bdf90c77a8779ccab713a5eb6931d12a4b0651318be92dadc0b"
+    },
+    {
+      "boot/vendor-boot-prefix.bin": "9d13748dfc766083889a563102cb906f90a5178829dcd20f5fd47f9024e89dfd",
+      "fes-de25-owner.img": "de2a9a4ca35214ab75230d5807a0a8900d99f7869e1346c83f4e41bce0853138",
+      "rootfs.ext4": "0430c556239b6ebc52fab103557fff2f649dafc297e79e44f2d27e5c4d666654",
+      "rootfs.tar": "7e0a6af737520bdf90c77a8779ccab713a5eb6931d12a4b0651318be92dadc0b"
+    }
+  ],
+  "base_image_producer": "0da63d1044cc7ecf9908efba52af17b3e55e6271",
+  "base_image_receipt_sha256": "1c2cd9bd3ad7827869b191d6098d3d1d05774dc6be546e98e6d0e78021d118dd",
+  "board": "de25-nano",
+  "classification": "de25-owner-candidate-image",
+  "derived_boot_layout": {
+    "board": "de25_nano",
+    "boot_files": [
+      {
+        "fat_name": "U-BOOT  ITB",
+        "name": "u-boot.itb",
+        "sha256": "bb6a48c77d2559a2f9710153cc616a242bfe701ff891cb5a14bddba33eaf2cf7",
+        "size": 1013832
+      },
+      {
+        "fat_name": "IMAGE      ",
+        "name": "Image",
+        "sha256": "b5a68fa8c0fef8679931af008811676b608f13214e5afb863cbd3626d43c1769",
+        "size": 46701056
+      },
+      {
+        "fat_name": "SOCFPG~1DTB",
+        "name": "socfpga_agilex5_de25_nano.dtb",
+        "sha256": "d57bac64ffbb1ff4ace06dc0ba3fbb2d589055340274493efbfba687c4f244f7",
+        "size": 28907
+      },
+      {
+        "fat_name": "BOOTSC~1UIM",
+        "name": "boot.scr.uimg",
+        "sha256": "b38747a4b43abcc04d84b8f46ea514594e9cc59c8188633e4d24ba36da3728ef",
+        "size": 1783
+      }
+    ],
+    "bsp": {
+      "filename": "de25_nano_sdcard_console_v1.1.zip",
+      "sha256": "b67480f7e49af836352dc83e90879251601ff0f8e9d88e50b3571d67205cf659",
+      "size": 954444500,
+      "url": "https://dl2.terasic.com/resources/de25-nano/de25_nano_sdcard_console_v1.1.zip"
+    },
+    "console": "ttyS0,115200",
+    "factory_boot": [
+      {
+        "archive": "bsp",
+        "member": "golden_top_hps.jic",
+        "name": "golden_top_hps.jic",
+        "role": "factory-qspi-boot-dependency",
+        "sha256": "e3d20c2d066761fd02897422ba361aa19faafcd0240dd2782965754cc61b38a4",
+        "size": 16777447
+      },
+      {
+        "archive": "bsp",
+        "member": "readme.txt",
+        "name": "vendor-readme.txt",
+        "role": "vendor-boot-instructions",
+        "sha256": "bb81c63795a18a22f30001eed7a2bd4acea2704d1ebed20c4ad60092001eb5cc",
+        "size": 1127
+      },
+      {
+        "archive": "resources",
+        "member": "Demonstration/SoC_FPGA/GHRD/output_files/golden_top_hps.sof",
+        "name": "resource-golden_top_hps.sof",
+        "role": "hardware-source-reference-only",
+        "sha256": "e71a72180cb77ddd05a9c2ae49afa739d74786f9366f00233fd27bbebff6ea09",
+        "size": 1480451
+      }
+    ],
+    "format": 1,
+    "image_member": "de25_nano_revA_sdcard_console_v1.1.img",
+    "image_sha256": "047ed8f702d076d7ad0062517ac2b2316b948c564fc8e07f393c1b78ec07baaf",
+    "image_size": 3984588800,
+    "mbr_sha256": "9feca428016c5da3285d02fa9c055655004c6c8ea5bcea941321a80a88f19e9e",
+    "partitions": [
+      {
+        "sectors": 614401,
+        "start_sector": 2048,
+        "type": 11
+      },
+      {
+        "sectors": 7165951,
+        "start_sector": 616449,
+        "type": 131
+      }
+    ],
+    "prefix_sha256": "9d13748dfc766083889a563102cb906f90a5178829dcd20f5fd47f9024e89dfd",
+    "prefix_size": 315621888,
+    "resources": {
+      "filename": "DE25-Nano_revB_v.1.0.0_ResourcePackage.zip",
+      "sha256": "f79f0eff3b0f9d042fdb61ddcf43efec77b0ebc13248eea100b94e47a1189b66",
+      "size": 184572628,
+      "url": "https://dl2.terasic.com/resources/de25-nano/DE25-Nano_revB_v.1.0.0_ResourcePackage.zip"
+    },
+    "root_device": "/dev/mmcblk0p2",
+    "sector_size": 512
+  },
+  "fes_revision": "829cf0353d1ea7a479f95bdbdf3d72e0391ab810",
+  "files": {
+    "boot-contract.json": {
+      "sha256": "7d8ff49cdad798abcfcc19fe6d16c47cb60503e8e2c0081f9ee75cb6119c75a5",
+      "size": 4640
+    },
+    "boot/Image": {
+      "sha256": "b5a68fa8c0fef8679931af008811676b608f13214e5afb863cbd3626d43c1769",
+      "size": 46701056
+    },
+    "boot/boot.scr.uimg": {
+      "sha256": "b38747a4b43abcc04d84b8f46ea514594e9cc59c8188633e4d24ba36da3728ef",
+      "size": 1783
+    },
+    "boot/factory-boot/golden_top_hps.jic": {
+      "sha256": "e3d20c2d066761fd02897422ba361aa19faafcd0240dd2782965754cc61b38a4",
+      "size": 16777447
+    },
+    "boot/factory-boot/resource-golden_top_hps.sof": {
+      "sha256": "e71a72180cb77ddd05a9c2ae49afa739d74786f9366f00233fd27bbebff6ea09",
+      "size": 1480451
+    },
+    "boot/factory-boot/vendor-readme.txt": {
+      "sha256": "bb81c63795a18a22f30001eed7a2bd4acea2704d1ebed20c4ad60092001eb5cc",
+      "size": 1127
+    },
+    "boot/socfpga_agilex5_de25_nano.dtb": {
+      "sha256": "d57bac64ffbb1ff4ace06dc0ba3fbb2d589055340274493efbfba687c4f244f7",
+      "size": 28907
+    },
+    "boot/u-boot.itb": {
+      "sha256": "bb6a48c77d2559a2f9710153cc616a242bfe701ff891cb5a14bddba33eaf2cf7",
+      "size": 1013832
+    },
+    "boot/vendor-boot-prefix.bin": {
+      "sha256": "9d13748dfc766083889a563102cb906f90a5178829dcd20f5fd47f9024e89dfd",
+      "size": 315621888
+    },
+    "fes-de25-owner.img": {
+      "sha256": "de2a9a4ca35214ab75230d5807a0a8900d99f7869e1346c83f4e41bce0853138",
+      "size": 3984588800
+    },
+    "rootfs.ext4": {
+      "sha256": "0430c556239b6ebc52fab103557fff2f649dafc297e79e44f2d27e5c4d666654",
+      "size": 134217728
+    },
+    "rootfs.tar": {
+      "sha256": "7e0a6af737520bdf90c77a8779ccab713a5eb6931d12a4b0651318be92dadc0b",
+      "size": 5908480
+    }
+  },
+  "format": 1,
+  "hardware_acceptance": "not-run",
+  "kernel": {
+    "candidate_enabled": true,
+    "classification": "unbooted opt-in permanent-owner kernel preparation",
+    "compiler": "aarch64-buildroot-linux-gnu-gcc.br_real (Buildroot 2021.02.4) 9.4.0",
+    "fes_revision": "e6bdd35973cec91ee3ef93b92862680de3b7988f",
+    "files": {
+      "Image": {
+        "sha256": "b5a68fa8c0fef8679931af008811676b608f13214e5afb863cbd3626d43c1769",
+        "size": 46701056
+      },
+      "System.map": {
+        "sha256": "535c3b403ea1d7adc1e3314e30449e05c50393bfb841e6ca098c1980184a8a98",
+        "size": 7649154
+      },
+      "de25-owner.dtb": {
+        "sha256": "d57bac64ffbb1ff4ace06dc0ba3fbb2d589055340274493efbfba687c4f244f7",
+        "size": 28907
+      },
+      "kernel.config": {
+        "sha256": "cec5f0d7e0713a6cb7082402e4cbbfa9bd5893569d6893c076ea0766751d253e",
+        "size": 301866
+      },
+      "vmlinux.symvers": {
+        "sha256": "46c30ddfe0c980f2cf6bb1aa10b71362d9dcbec75a564e3df2590d3083e747a1",
+        "size": 793261
+      }
+    },
+    "format": 1,
+    "hardware_acceptance": "not-run",
+    "kernel": {
+      "builder_image": "sha256:ea200655b92ab1211bc8b326c6e799815f1d648b2d5e5a6c982f597cb2b9650d",
+      "format": 1,
+      "repository": "https://github.com/terasic/linux-socfpga.git",
+      "revision": "d7d192a9ddd955fe206aa350afed8f82e368a74c",
+      "sdk_sha256": "7912076c08d93c8d8c28c0ef81bd406abf6b1acb9e01ccac37d44307e39759a7",
+      "vendor_config_sha256": "3ec2812cffb3c37bf677941283c9b65c3f5620b519cb58a4ded5f230cadbcdf7",
+      "vendor_image_sha256": "874f75d81f6452406f0f0ea5e0849ea269e92599fe728eb02b1bdbb56ada1aa8"
+    },
+    "modules": "FPGA/owner built-in; no vendor modules reused",
+    "normal_runtime_admission": "closed",
+    "release": "6.12.11-fes-de25-owner",
+    "suppliers": {
+      "files": {
+        "drivers/firmware/stratix10-svc.c": {
+          "after_sha256": "dc3214b2e4d836969fad62db5e39a56c211aa85647001b1720f77ce5cf17ebce",
+          "before_sha256": "493301f526657473b05700ba54bea38d1b63d43a99a341e78c338e0908ca9f4a"
+        },
+        "drivers/fpga/of-fpga-region.c": {
+          "after_sha256": "275642d50ee9e8392c74f5abbb281db8a68731c566eca1ea22c1e37b22332e97",
+          "before_sha256": "5dbc8e9bf7a2eb30fdd9db3491455cdbf4ec95a93feec4ca73665e8dc702da52"
+        },
+        "drivers/fpga/stratix10-soc.c": {
+          "after_sha256": "8ff8de4c1e2a91395b79f5db12f828240f24224d7013a2bda07cf3f5ab833963",
+          "before_sha256": "26a525c7138b2dd04735e1cc3b458cec115102a1c00c6c51c4abf4e3ae7b6b44"
+        }
+      },
+      "format": 1,
+      "kernel_revision": "d7d192a9ddd955fe206aa350afed8f82e368a74c",
+      "patch_sha256": "2d0167b8e1ebba8f4c4894aaeed76125d4cb0b65af39b0bad6817e5d16fc09af",
+      "unchanged_supplier_sources": {
+        "drivers/clk/socfpga/clk-agilex5.c": "65b805f28a29d342eb9076415f3f0ab4668ddd88cb0686139161cb4e9d7aeb41",
+        "drivers/iommu/arm/arm-smmu-v3/arm-smmu-v3.c": "98d64761da20ab9d4e6b8fac163fb4de11402c6ccdea26a84f59257dbd83323a"
+      }
+    }
+  },
+  "kernel_receipt_sha256": "79a5b90d613526f23c23e9729822a6650b8965d768975e8e651adcf33f6e654f",
+  "normal_runtime_admission": "closed",
+  "recipe_sha256": "421f3596d1a402afaa22e91186f91d29157c59747f6cb383d3f3592438b82ceb",
+  "source_date_epoch": 1751459412
+}

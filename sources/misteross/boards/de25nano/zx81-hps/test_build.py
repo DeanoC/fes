@@ -228,6 +228,14 @@ class HpsZX81BuildTests(unittest.TestCase):
                 B.package_hps_first(self.root, HPS, Path("/tool/quartus_sh"), artifact)
             run.assert_not_called()
 
+    def test_linux_packaging_refuses_stale_phase_artifacts_before_tools(self):
+        directory, _, artifact = self.linux_fixture()
+        (directory / "linux-boot.core.rbf").write_bytes(b"stale-not-a-bitstream")
+        with mock.patch.object(HPS, "run_logged") as run:
+            with self.assertRaisesRegex(ValueError, "output already exists"):
+                B.package_hps_first(self.root, HPS, Path("/tool/quartus_sh"), artifact)
+            run.assert_not_called()
+
     def test_linux_packaging_binds_phase_artifacts_without_programmer(self):
         directory, project, artifact = self.linux_fixture()
         calls = []

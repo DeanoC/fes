@@ -241,10 +241,10 @@ struct Simulation {
     uint32_t read(uint32_t offset) {
         dut.address = FES_DE25_SCANOUT_PERIPHERAL_OFFSET + offset;
         dut.read = 1; dut.eval();
-        unsigned limit = 100000;
-        do { step(); require(--limit, "control read acceptance timed out"); } while (!accepted_control);
+        uint64_t end = mem_cycles + FES_DE25_SCANOUT_GUARD_TIMEOUT_CYCLES + 1024;
+        do { step(); require(mem_cycles < end, "control read acceptance timed out"); } while (!accepted_control);
         dut.read = 0; dut.eval();
-        while (!control_response) { step(); require(--limit, "control read response timed out"); }
+        while (!control_response) { step(); require(mem_cycles < end, "control read response timed out"); }
         return control_data;
     }
 
@@ -412,6 +412,32 @@ int main(int argc, char** argv) {
             require(s.axi_beats > 0, "memory response was not exercised during pixel stall");
             s.pixel_stopped = false; s.stop_and_drain();
             s.report("pixel_clock_stall_preserves_responses");
+        }
+        {
+            Simulation s; s.hold_responses = true; s.submit(1, 1); s.wait_request(); s.wait_axi_request();
+            s.write(FES_DE25_SCANOUT_GUARD_EPOCH_OFFSET, 0x12345678);
+            require(s.read(FES_DE25_SCANOUT_GUARD_EPOCH_OFFSET) == 0x12345678, "local guard epoch not captured");
+            while (s.dut.clk_pixel) s.step();
+            s.pixel_stopped = true; s.check_pixels = false;
+            uint64_t before = s.mem_cycles;
+            require(s.read(FES_DE25_SCANOUT_ID_OFFSET) == 0, "dead pixel clock returned endpoint identity");
+            require(s.mem_cycles - before >= FES_DE25_SCANOUT_GUARD_TIMEOUT_CYCLES &&
+                    s.mem_cycles - before <= FES_DE25_SCANOUT_GUARD_TIMEOUT_CYCLES + 128,
+                    "generated CPU route did not bound a stalled read");
+            require(s.read(FES_DE25_SCANOUT_GUARD_FAULT_OFFSET) == FES_DE25_SCANOUT_GUARD_FAULT_TIMEOUT,
+                    "generated route lost timeout status");
+            require(s.read(FES_DE25_SCANOUT_GUARD_STATUS_OFFSET) == 15,
+                    "accepted downstream lifetime or epoch was lost at timeout");
+            require(s.dut.endpoint_outstanding && !s.dut.endpoint_drained,
+                    "control timeout manufactured DMA drain");
+            s.pixel_stopped = false; s.cycles(512);
+            require(s.read(FES_DE25_SCANOUT_GUARD_STATUS_OFFSET) == 9,
+                    "late crossing response healed poison or failed to retire control request");
+            s.write(FES_DE25_SCANOUT_COMMAND_OFFSET, FES_DE25_SCANOUT_COMMAND_CLEAR); s.cycles(256);
+            require(s.read(FES_DE25_SCANOUT_ID_OFFSET) == 0 &&
+                    s.dut.endpoint_outstanding && !s.dut.endpoint_drained,
+                    "poison permitted endpoint re-entry or discarded DMA ownership");
+            s.report("bounded_control_during_pixel_clock_loss");
         }
         {
             for (unsigned response : {2U, 3U}) {

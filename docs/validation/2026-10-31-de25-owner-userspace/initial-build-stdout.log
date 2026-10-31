@@ -1,0 +1,22 @@
+{"state": "running", "container": "fes-de25-owner-user-client-d64ced1ea", "pid": 3957327, "time_cap_seconds": 240, "elapsed_seconds": 0.0, "heartbeat_utc": "2026-10-31T17:10:57.617790+00:00", "returncode": null}
+Relocating the buildroot SDK from /build/74e9849d7fe0cb2504cb8fb2db0fb6150f57a0edf72c47bff7cdbce069e2607f/host to /tmp/sdk ...
+Traceback (most recent call last):
+  File "/export/inside.py", line 12, in <module>
+    r=subprocess.run(['qemu-aarch64',str(binary),*args],capture_output=True,timeout=10);assert r.returncode==1 and needle in r.stderr and b'USERSPACE_PASS' not in r.stdout
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.11/subprocess.py", line 548, in run
+    with Popen(*popenargs, **kwargs) as process:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.11/subprocess.py", line 1024, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+  File "/usr/lib/python3.11/subprocess.py", line 1901, in _execute_child
+    raise child_exception_type(errno_num, err_msg, err_filename)
+FileNotFoundError: [Errno 2] No such file or directory: 'qemu-aarch64'
+{"state": "failed", "container": "fes-de25-owner-user-client-d64ced1ea", "pid": 3957327, "time_cap_seconds": 240, "elapsed_seconds": 4.4, "heartbeat_utc": "2026-10-31T17:11:02.045335+00:00", "returncode": 1}
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-linux-platform/out/owner-client-build-d64ced1ea/run.py", line 5, in <module>
+    run_container(['docker','run','--rm','--name','fes-de25-owner-user-client-d64ced1ea','--network','none','--cap-drop=ALL','--security-opt=no-new-privileges','--user',f'{os.getuid()}:{os.getgid()}','--volume',f'{root}:/src:ro','--volume',f'{base}:/image:ro','--volume',f'{out}:/export','sha256:ea200655b92ab1211bc8b326c6e799815f1d648b2d5e5a6c982f597cb2b9650d','python3','/export/inside.py'],'docker','fes-de25-owner-user-client-d64ced1ea',out,240)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/deano/fes/out/dev/de25-linux-platform/scripts/de25_kernel_platform.py", line 177, in run_container
+    raise ValueError("candidate kernel build failed")
+ValueError: candidate kernel build failed

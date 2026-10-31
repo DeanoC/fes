@@ -6,8 +6,8 @@ description: >-
   A submit captures an immutable DMA bus grant and generation; acceptance
   is separate from successful full-frame display completion. Snapshot
   registers freeze one pixel-domain observation across the control bridge.
-  This contract assigns no Linux device, translation, firewall, boot or
-  runtime admission. See docs/de25-scanout.md.
+  The explicit Linux DMA build selects the generated SMMU stream/layout.
+  This contract assigns no Linux device, firewall, boot or runtime admission. See docs/de25-scanout.md.
 major: 1
 minor: 0
 constants:
@@ -19,6 +19,28 @@ constants:
   - {name: FesDe25ScanoutSpan, value: 128}
   - {name: FesDe25ScanoutAddressBits, value: 7}
   - {name: FesDe25ScanoutDmaAddressBits, value: 32}
+  - {name: FesDe25ScanoutControlSpan, value: 256}
+  - {name: FesDe25ScanoutGuardIdentity, value: 1144145732}
+  - {name: FesDe25ScanoutGuardVersion, value: 65536}
+  - {name: FesDe25ScanoutGuardIdOffset, value: 128}
+  - {name: FesDe25ScanoutGuardVersionOffset, value: 132}
+  - {name: FesDe25ScanoutGuardStatusOffset, value: 136}
+  - {name: FesDe25ScanoutGuardFaultOffset, value: 140}
+  - {name: FesDe25ScanoutGuardEpochOffset, value: 144}
+  - {name: FesDe25ScanoutGuardTimeoutOffset, value: 148}
+  - {name: FesDe25ScanoutGuardTimeoutCycles, value: 100000}
+  - {name: FesDe25ScanoutGuardStatusPoisoned, value: 1}
+  - {name: FesDe25ScanoutGuardStatusPending, value: 2}
+  - {name: FesDe25ScanoutGuardStatusAccepted, value: 4}
+  - {name: FesDe25ScanoutGuardStatusEpochSet, value: 8}
+  - {name: FesDe25ScanoutGuardFaultTimeout, value: 1}
+  - {name: FesDe25ScanoutGuardFaultResponse, value: 2}
+  - {name: FesDe25ScanoutGuardFaultUnexpectedResponse, value: 4}
+  - {name: FesDe25ScanoutGuardFaultAccess, value: 8}
+  - {name: FesDe25ScanoutSmmuStreamId, value: 13}
+  - {name: FesDe25ScanoutSmmuSidShift, value: 8}
+  - {name: FesDe25ScanoutSmmuSecureBit, value: 24}
+  - {name: FesDe25ScanoutSmmuUserBits, value: 25}
   - {name: FesDe25ScanoutBeatBytes, value: 16}
   - {name: FesDe25ScanoutGrantAlignment, value: 32}
   - {name: FesDe25ScanoutMaxBurstBeats, value: 16}

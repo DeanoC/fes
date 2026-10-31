@@ -1,0 +1,192 @@
+{
+  "boot_contract": {
+    "board": "de25-nano",
+    "boot": {
+      "boot_script": {
+        "enables_fpga_bridges": true,
+        "overrides_chosen_bootargs": true,
+        "sha256": "ccaaffc87484f055ca61b249fca7f65c9e8b845ca60e26039a06c4fffdeeb54b",
+        "text": "echo \"Trying to boot Linux from device ${target}\";\nif test ${target} = \"mmc0\"; then\n        bridge enable;\n        echo \"Found kernel in mmc0\";        \n        mmc rescan;\n        fatload mmc 0:1 ${kernel_addr_r} Image;\n        fatload mmc 0:1 ${fdt_addr_r} socfpga_agilex5_de25_nano.dtb;\n        setenv bootargs \"console=ttyS0,115200 root=${mmcroot} rw rootwait\";\n        booti ${kernel_addr_r} - ${fdt_addr_r};\n        exit;\nfi\n"
+      },
+      "cpu_mailbox_address": "not-established",
+      "fit_configuration": {
+        "fdt": [
+          "fdt-0"
+        ],
+        "firmware": [
+          "atf"
+        ],
+        "loadables": [
+          "uboot"
+        ],
+        "name": "board-0"
+      },
+      "fit_images": {
+        "atf": {
+          "entry": [
+            2147483648
+          ],
+          "file_offset": 929560,
+          "load": [
+            2147483648
+          ],
+          "sha256": "0d29d7f1ff43afa267f63c1599657eea6d7fcdc8fd53addf8beb2d4f7089fb3c",
+          "size": 61501,
+          "type": "firmware"
+        },
+        "fdt-0": {
+          "entry": [],
+          "file_offset": 991064,
+          "load": [],
+          "sha256": "ff637eda305e47fb53feb24d1461728dcf55cc026e690da343a056cb7d2f75bb",
+          "size": 22768,
+          "type": "flat_dt"
+        },
+        "uboot": {
+          "entry": [],
+          "file_offset": 1216,
+          "load": [
+            2149580800
+          ],
+          "sha256": "a9735c5a3c1ba7c790fe7c0aa1f5ef2a2cfffec7eb43c386512f92a49da9116e",
+          "size": 928344,
+          "type": "standalone"
+        }
+      },
+      "linux_device_tree": {
+        "chosen": {
+          "bootargs": [
+            "console=uart8250,mmio32,0x10c02000,115200n8 \t\t\troot=/dev/ram0 rw initrd=0x10000000 init=/sbin/init \t\t\tramdisk_size=10000000 earlycon=uart8250,mmio32,0x10c02000,115200n8 \t\t\tpanic=-1 rootfstype=ext3"
+          ],
+          "stdout-path": [
+            "serial0:115200n8"
+          ]
+        },
+        "compatible": [
+          "intel,socfpga-agilex5-socdk",
+          "intel,socfpga-agilex5"
+        ],
+        "ethernet0": {
+          "path": "/soc@0/ethernet@10810000",
+          "reg_cells": [
+            276889600,
+            13568
+          ],
+          "status": "okay"
+        },
+        "firmware_interfaces": [
+          {
+            "compatible": [
+              "intel,agilex5-svc"
+            ],
+            "method": "smc",
+            "path": "/firmware/svc"
+          },
+          {
+            "compatible": [
+              "intel,agilex5-soc-fpga-mgr"
+            ],
+            "method": null,
+            "path": "/firmware/svc/fpga-mgr"
+          }
+        ],
+        "fpga_bridge_nodes": [],
+        "fpga_regions": [
+          {
+            "children": [],
+            "path": "/fpga-region",
+            "ranges": null
+          }
+        ],
+        "memory": [
+          {
+            "path": "/memory",
+            "reg_cells": [
+              0,
+              2147483648,
+              0,
+              2147483648
+            ]
+          }
+        ],
+        "model": "SoCFPGA Agilex5 Terasic DE25-Nano",
+        "serial0": {
+          "path": "/soc@0/serial@10c02100",
+          "reg_cells": [
+            281026816,
+            256
+          ],
+          "status": "okay"
+        }
+      },
+      "memory_size": "raw DT declarations; runtime memory banks require board observation",
+      "root_device": "/dev/mmcblk0p2",
+      "uboot_device_tree": {
+        "chosen": {
+          "stdout-path": [
+            "serial0:115200n8"
+          ]
+        },
+        "compatible": [
+          "intel,socfpga-agilex"
+        ],
+        "ethernet0": {
+          "path": "/soc/ethernet@10810000",
+          "reg_cells": [
+            276889600,
+            13568
+          ],
+          "status": "okay"
+        },
+        "firmware_interfaces": [],
+        "fpga_bridge_nodes": [],
+        "fpga_regions": [
+          {
+            "children": [],
+            "path": "/soc/base_fpga_region",
+            "ranges": null
+          }
+        ],
+        "memory": [
+          {
+            "path": "/memory",
+            "reg_cells": [
+              0,
+              2147483648,
+              0,
+              1073741824
+            ]
+          }
+        ],
+        "model": "SoCFPGA Agilex5 Terasic DE25-Nano",
+        "serial0": {
+          "path": "/soc/serial1@10c02100",
+          "reg_cells": [
+            281026816,
+            256
+          ],
+          "status": "okay"
+        }
+      }
+    },
+    "classification": "host-only-boot-contract",
+    "format": 1,
+    "image_producer": "8281d03a1a7c91004af34461bb3a1b300bccc7c8",
+    "image_sha256": "4e54546fd81a2c5f054a14eac635900c56dea5baa2891434d19cb43bbbfafe37"
+  },
+  "file_sha256": {
+    "/bin/busybox": "afd28893ac9137d9c2c81c21d6f7a1b2f1375020fc01adb29311af2e1f66f3d8",
+    "/etc/fes-board": "3df9323bc037f67730dca626ba4e97e4266f6c56df03e866c0607dcbb939d975",
+    "/etc/hostname": "dc40a58415cc7a479340b1d667023d67e477044b863717d901e14204a9ef6738",
+    "/etc/init.d/S50dropbear": "248140e763de8f99369510a87f25c65a500fb8a7f8c6c6724e27d19faf1292db",
+    "/etc/inittab": "d616d80df596f8c0a28d4ab8ed53fdad077353fc0abebc0c2787a168d96ec8bf",
+    "/etc/network/interfaces": "de1b394b564e12b5ae0c2ce2c5cb489a045474e8eb47708fa609906e5691e5b1",
+    "/usr/sbin/dropbear": "54c283e4c9b275bce7f80b36aba95d9283f0a3283c4965eb9fad06f6aed2f78d"
+  },
+  "format": 1,
+  "image_receipt_sha256": "f6d3075a46142e0884d1363c42077cad49e32d1ebb825f8561696d9518601e3c",
+  "kernel_release": "6.12.11-fes-de25-owner",
+  "kind": "de25-first-boot-expectation",
+  "rootfs_tar_sha256": "74e3280f183235c3a25c62b07be1ebfafd8a444aab236cc46ac9e3e0ad40a996",
+  "whole_image_observation": "unavailable: no installed image digest marker"
+}

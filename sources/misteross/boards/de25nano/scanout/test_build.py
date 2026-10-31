@@ -25,9 +25,9 @@ class ScanoutBuildTests(unittest.TestCase):
         self.sources = B.capture()
         self.sources.update(self.fixture.sources)
 
-    def prepare(self, revision=None):
+    def prepare(self, revision=None, *, hps_first=False, linux_dma=False):
         with mock.patch.object(B, "capture", return_value=self.sources):
-            return B.prepare(self.fixture.archive, self.root / "prepared", revision)
+            return B.prepare(self.fixture.archive, self.root / "prepared", revision, hps_first=hps_first, linux_dma=linux_dma)
 
     def test_visibility_cdc_cut_targets_only_the_registered_request_to_the_first_d_pin(self):
         sdc = self.sources[B.BOARD + "scanout/clocks.sdc"].decode()
@@ -90,6 +90,43 @@ class ScanoutBuildTests(unittest.TestCase):
         self.assertEqual((project / self.fixture.hps.EMIF).read_bytes(), self.fixture.files[self.fixture.hps.EMIF])
         self.assertEqual((project / self.fixture.hps.BOOT).read_bytes(), self.fixture.files[self.fixture.hps.BOOT])
 
+    def test_guard_sits_before_pixel_crossing_on_independent_system_clock_and_reset(self):
+        output, _, _, _ = self.prepare()
+        project = output / "combined/hps/project"
+        script = (project / "integrate-mailbox.tcl").read_text()
+        self.assertIn("add_connection pb_cpu_0.m0 fes_scanout_guard.avs", script)
+        self.assertIn("add_connection fes_scanout_guard.avm fes_ctrl_cdc.s0", script)
+        self.assertIn("add_connection periph_clk.out_clk fes_scanout_guard.clk", script)
+        self.assertIn("add_connection periph_rst_in.out_reset fes_scanout_guard.reset", script)
+        self.assertNotIn("add_connection fes_scanout_system_reset.out_reset fes_scanout_guard.reset", script)
+        self.assertNotIn("add_connection pb_cpu_0.m0 fes_ctrl_cdc.s0", script)
+        self.assertEqual((project / "fes_mailbox/fes_de25_scanout_guard.v").read_bytes(),
+                         self.sources[B.BOARD + "scanout/fes_de25_scanout_guard.v"])
+
+    def test_linux_dma_preparation_captures_exclusive_profile_and_renders_real_removal(self):
+        original_load = B.load
+        def load(path, name):
+            module = original_load(path, name)
+            if name == "scanout_retained_linux_dma":
+                # The upstream fixture has a placeholder custom-IP description;
+                # conversion has its own parser tests. Exercise the real retained
+                # isolation derivation and caller profile/receipt wiring here.
+                module.configure = mock.Mock(return_value=("# fixture port configuration\n",
+                    {"master_ownership": "scanout-only"}, {}))
+            return module
+        with mock.patch.object(B, "load", side_effect=load):
+            output, _, _, _ = self.prepare(hps_first=True, linux_dma=True)
+        project = output / "combined/hps/project"
+        script = (project / "integrate-mailbox.tcl").read_text()
+        self.assertNotIn("fes_ddr_probe", script)
+        self.assertNotIn("fes_probe_mem", script)
+        self.assertIn("remove_instance ext_hps_f2sdram_master", script)
+        self.assertIn("subsys_periph.fes_scanout_mem subsys_hps.f2sdram_adapter_axi4_sub", script)
+        inputs = json.loads((project.parent / "inputs.json").read_text())
+        self.assertEqual(inputs["f2sdram_master_profile"], "scanout-only")
+        self.assertEqual(inputs["scanout"]["linux_dma"]["master_ownership"], "scanout-only")
+        self.assertIn("removed", inputs["combined_display"]["debug_paths"])
+
     def test_source_snapshot_survives_later_working_source_mutation(self):
         revision = "a" * 40
         output, _, _, _ = self.prepare(revision)
@@ -110,7 +147,7 @@ class ScanoutBuildTests(unittest.TestCase):
         output, _, _, _ = self.prepare()
         project = output / "combined/hps/project"
         script = (project / "integrate-mailbox.tcl").read_text()
-        self.assertIn("pb_cpu_0.m0/fes_ctrl_cdc.s0 baseAddress 0x10300", script)
+        self.assertIn("pb_cpu_0.m0/fes_scanout_guard.avs baseAddress 0x10300", script)
         self.assertNotIn("@SCANOUT_BASE@", script)
         self.assertIn("subsys_periph.fes_scanout_mem/subsys_hps.f2sdram_adapter_axi4_sub baseAddress 0x0", script)
         self.assertEqual(json.loads((project.parent / "inputs.json").read_text())["scanout"]["peripheral_offset"], 0x10300)
@@ -236,6 +273,58 @@ class ScanoutBuildTests(unittest.TestCase):
                 B.compile_project(output, hps, display, None)
         self.assertFalse(json.loads((directory / "build.json").read_text())["post_compile_pixel_pll_parameters_unchanged"])
 
+    def test_hps_first_is_captured_without_changing_loader_or_dma_admission(self):
+        output, _, hps, _ = self.prepare("a" * 40, hps_first=True)
+        directory = output / "combined/hps"
+        inputs = json.loads((directory / "inputs.json").read_text())
+        qsf = (directory / "project/golden_top.qsf").read_text()
+        self.assertEqual(qsf.count('set_global_assignment -name HPS_INITIALIZATION "HPS FIRST"'), 1)
+        self.assertEqual(inputs["scanout"]["hps_initialization"], "HPS FIRST")
+        self.assertFalse(inputs["scanout"]["default_enabled"])
+        self.assertIn("not-qualified", inputs["scanout"]["dma_admission"])
+        self.assertFalse((directory / "linux-programming.json").exists())
+        with self.assertRaisesRegex(ValueError, "must be boolean"):
+            B.prepare(self.fixture.archive, self.root / "invalid", hps_first=1)
+        self.assertFalse((self.root / "invalid").exists())
+
+    def test_hps_first_compile_binds_linux_phases_without_programming(self):
+        output, _, hps, display = self.prepare("a" * 40, hps_first=True)
+        directory = output / "combined/hps"
+        project = directory / "project"
+        (directory / "generation.json").write_text("{}\n")
+        artifact = project / "output_files/golden_top.sof"
+        artifact.parent.mkdir()
+        artifact.write_bytes(b"synthetic-not-a-bitstream")
+        def compile_stub(*args):
+            (directory / "build.json").write_text("{}\n")
+            return artifact
+        calls = []
+        def convert(argv, cwd, log):
+            self.assertEqual(Path(argv[0]).name, "quartus_pfg")
+            self.assertEqual(cwd, project)
+            calls.append(list(map(str, argv)))
+            if len(calls) == 1:
+                Path(argv[3]).write_bytes(b"synthetic-complete")
+            else:
+                (directory / "linux-boot.hps.jic").write_bytes(b"synthetic-boot")
+                (directory / "linux-boot.core.rbf").write_bytes(b"synthetic-core")
+        with mock.patch.object(hps, "compile_project", side_effect=compile_stub), \
+             mock.patch.object(hps, "run_logged", side_effect=convert):
+            self.assertEqual(B.compile_project(output, hps, display, Path("/tools/quartus_sh")), artifact)
+        receipt = json.loads((directory / "linux-programming.json").read_text())
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(receipt["fes_revision"], "a" * 40)
+        self.assertEqual(receipt["hps_initialization"], "HPS FIRST")
+        self.assertEqual(len(receipt["scanout_source_sha256"]), 64)
+        self.assertEqual(receipt["inputs_sha256"], hps.digest(directory / "inputs.json"))
+        self.assertEqual(receipt["generation_sha256"], hps.digest(directory / "generation.json"))
+        self.assertEqual(receipt["f2sdram_master_profile"], "diagnostic")
+        self.assertIsNone(receipt["linux_dma"])
+        self.assertEqual(receipt["hardware_programming"], "not-performed")
+        self.assertFalse(receipt["production_admission"])
+        for name, item in receipt["artifacts"].items():
+            self.assertEqual(item["sha256"], hps.digest(directory / name))
+
     def reset_fixture(self, parameters=None, output_edges=None, output_role="reset_n"):
         expected = {"ACTIVE_LOW_RESET": "1", "SYNCHRONOUS_EDGES": "none", "NUM_RESET_OUTPUTS": "1", "USE_RESET_REQUEST": "0"}
         expected.update(parameters or {})
@@ -287,3 +376,57 @@ class ScanoutBuildTests(unittest.TestCase):
 
 
 if __name__ == "__main__": unittest.main()
+
+
+class LinuxDmaTests(unittest.TestCase):
+    def setUp(self):
+        self.helper = B.load(B.HERE / "linux_dma.py", "scanout_linux_dma_tests")
+        self.definition = (B.HERE / "generated/fes_de25_scanout.vh").read_text()
+        self.source = "# vendor prefix\n" + "".join(
+            f"add_interface_port axi4_man man_{c}user {c}user Output 8\n"
+            + r"output wire \[7:0\]   man_" + c + "user,\n"
+            + f"assign man_{c}user = 8'hE0;\n" for c in ("ar", "aw")) + "# vendor suffix\n"
+
+    def test_exact_packing_preserves_vendor_attributes_and_nonsecure_context(self):
+        data, profile = self.helper.retarget_adapter(self.source.encode(), self.definition)
+        text = data.decode()
+        self.assertEqual(profile["stream_id"], 13)
+        self.assertFalse(profile["secure"])
+        self.assertEqual(text.count("25'h0000de0"), 2)
+        self.assertEqual(text.count("Output 25"), 2)
+        self.assertEqual(text.count(r"\[24:0\]"), 2)
+        self.assertTrue(text.startswith("# vendor prefix\n") and text.endswith("# vendor suffix\n"))
+        self.assertEqual(profile["kernel_binding"], "not-admitted")
+
+    def test_changed_vendor_ports_attributes_or_duplicate_assignment_are_refused(self):
+        for source in (self.source.replace("8'hE0", "8'h00", 1),
+                       self.source.replace("Output 8", "Output 16", 1),
+                       self.source + "assign man_aruser = 8'hE0;\n"):
+            with self.assertRaises(ValueError):
+                self.helper.retarget_adapter(source.encode(), self.definition)
+
+    def test_reserved_sid_and_changed_layout_are_refused(self):
+        for definition in (self.definition.replace("SMMU_STREAM_ID 32'h0000000d", "SMMU_STREAM_ID 32'h0000000a"),
+                           self.definition.replace("SMMU_SID_SHIFT 32'h00000008", "SMMU_SID_SHIFT 32'h00000009")):
+            with self.assertRaises(ValueError):
+                self.helper.retarget_adapter(self.source.encode(), definition)
+
+    def test_isolation_removes_only_probe_and_memory_debug_path_and_refuses_source_drift(self):
+        hps_script = (B.HERE.parent / "hps/integrate.tcl").read_text()
+        script = hps_script.replace("@PROBE_BASE@", "0x10100").replace("@TOP_SYSTEM@", "top.qsys")
+        derived = self.helper.isolate_script(script, "save_system top.qsys\n")
+        self.assertNotIn("fes_ddr_probe", derived)
+        self.assertNotIn("fes_probe_mem", derived)
+        self.assertIn("remove_instance ext_hps_f2sdram_master", derived)
+        self.assertIn("add_instance fes_mailbox fes_de25_mailbox 1.0", derived)
+        for changed in (script.replace("fes_de25_ddr_probe 1.0", "fes_de25_ddr_probe 1X0"),
+                        script.replace("baseAddress 0x10100", "baseAddress arbitrary"),
+                        script + "save_system top.qsys\n"):
+            with self.assertRaises(ValueError): self.helper.isolate_script(changed, "save_system top.qsys\n")
+
+    def test_linux_dma_requires_hps_first_before_output_creation(self):
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp) / "no-output"
+            with self.assertRaisesRegex(ValueError, "requires explicit HPS-first"):
+                B.prepare(Path(temp) / "missing.zip", output, linux_dma=True)
+            self.assertFalse(output.exists())

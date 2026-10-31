@@ -1,0 +1,433 @@
+{
+  "producer_revision": "68e325201d22952f0eecef65bf335a59f069c560",
+  "verifier_revision": "68e325201d22952f0eecef65bf335a59f069c560",
+  "classification": "compiled sole-master Linux-DMA diagnostic; unprogrammed",
+  "report_hashes_verified": 19,
+  "phase_hashes_verified": 3,
+  "interconnect_cases": 8,
+  "guard_rtl_sha256": "d83e052d5ee19775f1efd23a03ab8bfeee06ba55e92a871c3d4356e003313edd",
+  "master_handoff": {
+    "dma_admission": "not-qualified",
+    "master": "subsys_periph_fes_mem_cdc.m0",
+    "master_count": 1,
+    "peripheral_slave_map": [
+      {
+        "base": 65536,
+        "name": "subsys_periph.sysid.control_slave",
+        "span": 8
+      },
+      {
+        "base": 65632,
+        "name": "subsys_periph.button_pio.s1",
+        "span": 16
+      },
+      {
+        "base": 65648,
+        "name": "subsys_periph.dipsw_pio.s1",
+        "span": 16
+      },
+      {
+        "base": 65664,
+        "name": "subsys_periph.led_pio.s1",
+        "span": 16
+      },
+      {
+        "base": 65696,
+        "name": "subsys_periph.fes_mailbox.avs",
+        "span": 32
+      },
+      {
+        "base": 66048,
+        "name": "subsys_periph.fes_scanout_guard.avs",
+        "span": 256
+      }
+    ],
+    "physical_translation": "not-qualified",
+    "removed_masters": [
+      "subsys_periph.fes_ddr_probe",
+      "ext_hps_f2sdram_master",
+      "subsys_debug.hps_f2sdram"
+    ],
+    "scope": "scanout-only F2SDRAM path"
+  },
+  "row_count": 74,
+  "rows": [
+    {
+      "type": "Setup 'pll_inst|iopll_0_outclk0'",
+      "slack": 3.228,
+      "tns": 0.0
+    },
+    {
+      "type": "Setup 'fes_video_inst|video_clock|iopll_0_outclk0'",
+      "slack": 6.582,
+      "tns": 0.0
+    },
+    {
+      "type": "Setup 'altera_reserved_tck'",
+      "slack": 12.809,
+      "tns": 0.0
+    },
+    {
+      "type": "Setup 'adv7513_config'",
+      "slack": 17.87,
+      "tns": 0.0
+    },
+    {
+      "type": "Setup 'fes_video_inst|video_clock|iopll_0_refclk'",
+      "slack": 18.368,
+      "tns": 0.0
+    },
+    {
+      "type": "Hold 'pll_inst|iopll_0_outclk0'",
+      "slack": 0.0,
+      "tns": 0.0
+    },
+    {
+      "type": "Hold 'adv7513_config'",
+      "slack": 0.034,
+      "tns": 0.0
+    },
+    {
+      "type": "Hold 'fes_video_inst|video_clock|iopll_0_outclk0'",
+      "slack": 0.077,
+      "tns": 0.0
+    },
+    {
+      "type": "Hold 'altera_reserved_tck'",
+      "slack": 0.093,
+      "tns": 0.0
+    },
+    {
+      "type": "Hold 'fes_video_inst|video_clock|iopll_0_refclk'",
+      "slack": 0.111,
+      "tns": 0.0
+    },
+    {
+      "type": "Hold 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0'",
+      "slack": 0.376,
+      "tns": 0.0
+    },
+    {
+      "type": "Recovery 'pll_inst|iopll_0_outclk0'",
+      "slack": 7.693,
+      "tns": 0.0
+    },
+    {
+      "type": "Recovery 'fes_video_inst|video_clock|iopll_0_outclk0'",
+      "slack": 11.655,
+      "tns": 0.0
+    },
+    {
+      "type": "Recovery 'adv7513_config'",
+      "slack": 18.181,
+      "tns": 0.0
+    },
+    {
+      "type": "Recovery 'fes_video_inst|video_clock|iopll_0_refclk'",
+      "slack": 18.906,
+      "tns": 0.0
+    },
+    {
+      "type": "Recovery 'altera_reserved_tck'",
+      "slack": 61.124,
+      "tns": 0.0
+    },
+    {
+      "type": "Removal 'adv7513_config'",
+      "slack": 0.04,
+      "tns": 0.0
+    },
+    {
+      "type": "Removal 'altera_reserved_tck'",
+      "slack": 0.16,
+      "tns": 0.0
+    },
+    {
+      "type": "Removal 'pll_inst|iopll_0_outclk0'",
+      "slack": 0.182,
+      "tns": 0.0
+    },
+    {
+      "type": "Removal 'fes_video_inst|video_clock|iopll_0_outclk0'",
+      "slack": 0.236,
+      "tns": 0.0
+    },
+    {
+      "type": "Removal 'fes_video_inst|video_clock|iopll_0_refclk'",
+      "slack": 0.253,
+      "tns": 0.0
+    },
+    {
+      "type": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_clk_periph_0'",
+      "slack": 0.22,
+      "tns": 0.0
+    },
+    {
+      "type": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_base_0'",
+      "slack": 0.272,
+      "tns": 0.0
+    },
+    {
+      "type": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0'",
+      "slack": 0.419,
+      "tns": 0.0
+    },
+    {
+      "type": "Minimum Pulse Width 'EMIF_REF_CLOCK'",
+      "slack": 2.22,
+      "tns": 0.0
+    },
+    {
+      "type": "Minimum Pulse Width 'pll_inst|iopll_0_outclk0'",
+      "slack": 4.385,
+      "tns": 0.0
+    },
+    {
+      "type": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_rxclk_gated'",
+      "slack": 4.905,
+      "tns": 0.0
+    },
+    {
+      "type": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_rxclk_gated'",
+      "slack": 4.905,
+      "tns": 0.0
+    },
+    {
+      "type": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_rxclk_gated'",
+      "slack": 4.905,
+      "tns": 0.0
+    },
+    {
+      "type": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_rxclk_gated'",
+      "slack": 4.905,
+      "tns": 0.0
+    },
+    {
+      "type": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_rxclk_gated'",
+      "slack": 4.905,
+      "tns": 0.0
+    },
+    {
+      "type": "Minimum Pulse Width 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_rxclk_gated'",
+      "slack": 4.905,
+      "tns": 0.0
+    },
+    {
+      "type": "Minimum Pulse Width 'fes_video_inst|video_clock|iopll_0_outclk0'",
+      "slack": 5.861,
+      "tns": 0.0
+    },
+    {
+      "type": "Minimum Pulse Width 'pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0'",
+      "slack": 8.313,
+      "tns": 0.0
+    },
+    {
+      "type": "Minimum Pulse Width 'fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll|ref_clk0'",
+      "slack": 8.583,
+      "tns": 0.0
+    },
+    {
+      "type": "Minimum Pulse Width 'pll_inst|iopll_0_refclk'",
+      "slack": 9.231,
+      "tns": 0.0
+    },
+    {
+      "type": "Minimum Pulse Width 'fes_video_inst|video_clock|iopll_0_refclk'",
+      "slack": 9.591,
+      "tns": 0.0
+    },
+    {
+      "type": "Minimum Pulse Width 'altera_reserved_tck'",
+      "slack": 28.581,
+      "tns": 0.0
+    },
+    {
+      "type": "Minimum Pulse Width 'fes_video_inst|video_clock|iopll_0_n_cnt_clk'",
+      "slack": 49.563,
+      "tns": 0.0
+    },
+    {
+      "type": "Minimum Pulse Width 'adv7513_config'",
+      "slack": 50018.771,
+      "tns": 0.0
+    },
+    {
+      "type": "Slow fix4 100C Model Max Skew 'set_max_skew'",
+      "slack": 7.641,
+      "tns": null
+    },
+    {
+      "type": "Slow fix4 100C Model Max Skew 'set_max_skew'",
+      "slack": 7.676,
+      "tns": null
+    },
+    {
+      "type": "Slow fix4 100C Model Max Skew 'set_max_skew'",
+      "slack": 7.749,
+      "tns": null
+    },
+    {
+      "type": "Slow fix4 100C Model Max Skew 'set_max_skew'",
+      "slack": 7.754,
+      "tns": null
+    },
+    {
+      "type": "Slow fix4 100C Model Max Skew 'set_max_skew'",
+      "slack": 10.348,
+      "tns": null
+    },
+    {
+      "type": "Slow fix4 100C Model Max Skew 'set_max_skew'",
+      "slack": 10.382,
+      "tns": null
+    },
+    {
+      "type": "Slow fix4 100C Model Max Skew 'set_max_skew'",
+      "slack": 10.426,
+      "tns": null
+    },
+    {
+      "type": "Slow fix4 100C Model Max Skew 'set_max_skew'",
+      "slack": 10.447,
+      "tns": null
+    },
+    {
+      "type": "Slow fix4 0C Model Max Skew 'set_max_skew'",
+      "slack": 7.595,
+      "tns": null
+    },
+    {
+      "type": "Slow fix4 0C Model Max Skew 'set_max_skew'",
+      "slack": 7.622,
+      "tns": null
+    },
+    {
+      "type": "Slow fix4 0C Model Max Skew 'set_max_skew'",
+      "slack": 7.716,
+      "tns": null
+    },
+    {
+      "type": "Slow fix4 0C Model Max Skew 'set_max_skew'",
+      "slack": 7.73,
+      "tns": null
+    },
+    {
+      "type": "Slow fix4 0C Model Max Skew 'set_max_skew'",
+      "slack": 10.293,
+      "tns": null
+    },
+    {
+      "type": "Slow fix4 0C Model Max Skew 'set_max_skew'",
+      "slack": 10.346,
+      "tns": null
+    },
+    {
+      "type": "Slow fix4 0C Model Max Skew 'set_max_skew'",
+      "slack": 10.394,
+      "tns": null
+    },
+    {
+      "type": "Slow fix4 0C Model Max Skew 'set_max_skew'",
+      "slack": 10.413,
+      "tns": null
+    },
+    {
+      "type": "Slow fix4a 0C Model Max Skew 'set_max_skew'",
+      "slack": 7.595,
+      "tns": null
+    },
+    {
+      "type": "Slow fix4a 0C Model Max Skew 'set_max_skew'",
+      "slack": 7.623,
+      "tns": null
+    },
+    {
+      "type": "Slow fix4a 0C Model Max Skew 'set_max_skew'",
+      "slack": 7.715,
+      "tns": null
+    },
+    {
+      "type": "Slow fix4a 0C Model Max Skew 'set_max_skew'",
+      "slack": 7.731,
+      "tns": null
+    },
+    {
+      "type": "Slow fix4a 0C Model Max Skew 'set_max_skew'",
+      "slack": 10.291,
+      "tns": null
+    },
+    {
+      "type": "Slow fix4a 0C Model Max Skew 'set_max_skew'",
+      "slack": 10.345,
+      "tns": null
+    },
+    {
+      "type": "Slow fix4a 0C Model Max Skew 'set_max_skew'",
+      "slack": 10.395,
+      "tns": null
+    },
+    {
+      "type": "Slow fix4a 0C Model Max Skew 'set_max_skew'",
+      "slack": 10.413,
+      "tns": null
+    },
+    {
+      "type": "Fast fix4 0C Model Max Skew 'set_max_skew'",
+      "slack": 7.738,
+      "tns": null
+    },
+    {
+      "type": "Fast fix4 0C Model Max Skew 'set_max_skew'",
+      "slack": 7.768,
+      "tns": null
+    },
+    {
+      "type": "Fast fix4 0C Model Max Skew 'set_max_skew'",
+      "slack": 7.824,
+      "tns": null
+    },
+    {
+      "type": "Fast fix4 0C Model Max Skew 'set_max_skew'",
+      "slack": 7.826,
+      "tns": null
+    },
+    {
+      "type": "Fast fix4 0C Model Max Skew 'set_max_skew'",
+      "slack": 10.467,
+      "tns": null
+    },
+    {
+      "type": "Fast fix4 0C Model Max Skew 'set_max_skew'",
+      "slack": 10.502,
+      "tns": null
+    },
+    {
+      "type": "Fast fix4 0C Model Max Skew 'set_max_skew'",
+      "slack": 10.532,
+      "tns": null
+    },
+    {
+      "type": "Fast fix4 0C Model Max Skew 'set_max_skew'",
+      "slack": 10.532,
+      "tns": null
+    },
+    {
+      "type": "Net Delay 'set_net_delay'",
+      "slack": 7.579,
+      "tns": null
+    },
+    {
+      "type": "Net Delay 'set_net_delay'",
+      "slack": 7.608,
+      "tns": null
+    }
+  ],
+  "nonnegative_reported_slack": true,
+  "zero_reported_tns": true,
+  "timing_acceptance": "not-qualified",
+  "fully_constrained": false,
+  "signoff_failed_rules": 5,
+  "waivers": 0,
+  "hardware_acceptance": "not-run"
+}

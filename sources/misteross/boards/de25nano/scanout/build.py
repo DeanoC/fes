@@ -17,8 +17,9 @@ import zipfile
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[4]
 BOARD = "sources/misteross/boards/de25nano/"
-LOCAL = ("build.py", "integrate.tcl", "clocks.sdc", "fes_de25_scanout.v",
+LOCAL = ("build.py", "linux_dma.py", "integrate.tcl", "clocks.sdc", "fes_de25_scanout.v",
          "fes_de25_scanout_hw.tcl", "fes_de25_scanout_board.v",
+         "fes_de25_scanout_guard.v", "fes_de25_scanout_guard_hw.tcl",
          "generated/fes_de25_scanout.vh", "generated/fes_de25_scanout.h")
 
 
@@ -63,7 +64,12 @@ def replace_once(source, before, after):
     return source.replace(before, after)
 
 
-def prepare(archive, output=None, revision=None):
+def prepare(archive, output=None, revision=None, *, hps_first=False, linux_dma=False):
+    if type(hps_first) is not bool:
+        raise ValueError("HPS-first selection must be boolean")
+    if type(linux_dma) is not bool or (linux_dma and not hps_first):
+        raise ValueError("Linux DMA requires explicit HPS-first selection")
+    boot_order = "HPS FIRST" if hps_first else "AFTER INIT_DONE"
     sources = capture(revision)
     selected = {"fes_revision": revision, "source_classification": "committed"} if revision else identity()
     if revision is None:
@@ -101,6 +107,9 @@ def prepare(archive, output=None, revision=None):
                        "set_global_assignment -name SDC_FILE fes_mailbox/clocks.sdc\n")
     (project / "fes_combined/clocks.sdc").unlink()
     qsf += "set_global_assignment -name VERILOG_FILE fes_mailbox/fes_de25_scanout_board.v\n"
+    if re.search(r"(?m)^\s*set_global_assignment\s+-name\s+HPS_INITIALIZATION\b", qsf):
+        raise ValueError("upstream already selects HPS initialization; review before overriding")
+    qsf += f'set_global_assignment -name HPS_INITIALIZATION "{boot_order}"\n'
     (project / "golden_top.qsf").write_text(qsf)
     top = (project / "golden_top.v").read_text()
     top = replace_once(top, "fes_de25_combined_video #(.MENU_PATTERN(1'b1)) fes_video_inst (",
@@ -144,6 +153,12 @@ def prepare(archive, output=None, revision=None):
     for name in ("fes_scanout_video", "fes_scanout_clock_fault"):
         exports += "add_interface " + name + " conduit end\nset_interface_property " + name + " EXPORT_OF subsys_periph." + name + "\n"
     script = replace_once(script, before, exports + before)
+    dma_profile, parameter_changes = None, {}
+    if linux_dma:
+        dma = load(snapshot / BOARD / "scanout/linux_dma.py", "scanout_retained_linux_dma")
+        prefix, dma_profile, parameter_changes = dma.configure(project, definition, hps)
+        script = dma.isolate_script(script, before)
+        script = replace_once(script, "package require -exact qsys 26.3\n", "package require -exact qsys 26.3\n" + prefix)
     (project / "integrate-mailbox.tcl").write_text(script)
     inputs = json.loads(original_inputs)
     inputs.pop("base_revision", None); inputs.update(selected)
@@ -153,8 +168,8 @@ def prepare(archive, output=None, revision=None):
                     "pixel_pll_parameters", "pixel_clock_hz", "i2c_internal_clock", "configuration_release",
                     "warm_reset_ack_n", "debug_paths")}
     inputs["combined_display"].update(mode="allocated-buffer-scanout", ddr_scanout=True, runtime_menu=False)
-    inputs["scanout"] = {"peripheral_offset": int(offset[1], 16), "default_enabled": False,
-        "pixel_hz": 74250000, "system_hz": 100000000, "control_bridge": "mm_ccb19.4.1 DATA32 RESPONSE1",
+    inputs["scanout"] = {"hps_initialization": boot_order, "peripheral_offset": int(offset[1], 16), "default_enabled": False,
+        "pixel_hz": 74250000, "system_hz": 100000000, "control_bridge": "system100 bounded guard -> mm_ccb19.4.1 DATA32 RESPONSE1",
         "memory_bridge": "mm_ccb19.4.1 DATA128 RESPONSE1 MAX16", "allocation_bytes": 8388608,
         "reset_release": {"assertion": "asynchronous",
             "deassertion": {"pixel": "synchronous to 74250000 Hz", "peripheral": "synchronous to 100000000 Hz"}},
@@ -164,6 +179,11 @@ def prepare(archive, output=None, revision=None):
         "clock_loss": "sticky fault/blank/drain when pixel resumes; never reset live bridges",
         "global_reset_ownership": "not-qualified; active-low warm acknowledgement remains inactive1",
         "dma_admission": "not-qualified; SID/firewall/firmware/physical lifetime gates remain"}
+    if dma_profile is not None:
+        inputs["scanout"]["linux_dma"] = dma_profile
+        inputs["allowed_hps_parameter_changes"] = parameter_changes
+        inputs["f2sdram_master_profile"] = "scanout-only"
+        inputs["combined_display"]["debug_paths"] = "JTAG F2SDRAM master/window removed; other JTAG/OCM/F2H paths preserved"
     (directory / "inputs.json").write_text(json.dumps(inputs, indent=2, sort_keys=True) + "\n")
     (output / "snapshot.json").write_text(json.dumps({**selected, "source_sha256": inputs["functional_snapshot_sha256"],
         "hps_output": "combined/hps", "upstream_preparation_inputs_sha256": sha(original_inputs)}, indent=2, sort_keys=True) + "\n")
@@ -286,7 +306,8 @@ def verify_handoff(project, hps):
             control_ports.get("writeresponsevalid") != ("Output", 1) or control_ports.get("response") != ("Output", 2)):
         raise ValueError("generated scanout CSR completion/width differs")
     connections = {(c.get("kind"), c.get("start"), c.get("end")): c for c in tree.findall("connection")}
-    routes = (("subsys_periph_pb_cpu_0.m0", "subsys_periph_fes_ctrl_cdc.s0"),
+    routes = (("subsys_periph_pb_cpu_0.m0", "subsys_periph_fes_scanout_guard.avs"),
+              ("subsys_periph_fes_scanout_guard.avm", "subsys_periph_fes_ctrl_cdc.s0"),
               ("subsys_periph_fes_ctrl_cdc.m0", "subsys_periph_fes_scanout.avs"),
               ("subsys_periph_fes_scanout.avm", "subsys_periph_fes_mem_cdc.s0"),
               ("subsys_periph_fes_mem_cdc.m0", "subsys_hps_f2sdram_adapter.axi4_sub"))
@@ -300,7 +321,8 @@ def verify_handoff(project, hps):
     if (pixel_clock_bridge is None or pixel_clock_bridge.get("kind") != "altera_clock_bridge" or
             ("clock", "fes_scanout_pixel_clock.out_clk", "subsys_periph_fes_pixel_clk.in_clk") not in connections):
         raise ValueError("generated top-level scanout clock bridge differs")
-    clocks = (("subsys_periph_periph_clk.out_clk", "fes_ctrl_cdc.s0_clk", 100000000),
+    clocks = (("subsys_periph_periph_clk.out_clk", "fes_scanout_guard.clk", 100000000),
+              ("subsys_periph_periph_clk.out_clk", "fes_ctrl_cdc.s0_clk", 100000000),
               ("subsys_periph_fes_pixel_clk.out_clk", "fes_ctrl_cdc.m0_clk", 74250000),
               ("subsys_periph_fes_pixel_clk.out_clk", "fes_mem_cdc.s0_clk", 74250000),
               ("subsys_periph_periph_clk.out_clk", "fes_mem_cdc.m0_clk", 100000000),
@@ -312,6 +334,7 @@ def verify_handoff(project, hps):
         if item is None or item.findtext("parameter[@name='clockRateSysInfo']/value") != str(rate):
             raise ValueError("generated scanout clock differs: " + end)
     reset_routes = (
+        ("subsys_periph_periph_rst_in.out_reset", "subsys_periph_fes_scanout_guard.reset"),
         ("subsys_periph_fes_scanout_system_reset.out_reset", "subsys_periph_fes_ctrl_cdc.s0_reset"),
         ("subsys_periph_fes_scanout_pixel_reset.out_reset", "subsys_periph_fes_ctrl_cdc.m0_reset"),
         ("subsys_periph_fes_scanout_pixel_reset.out_reset", "subsys_periph_fes_mem_cdc.s0_reset"),
@@ -345,15 +368,27 @@ def verify_handoff(project, hps):
         actual, source = referenced_parameters(project, module, hps)
         checked = require_parameters(actual, expected, name)
         bridge_parameters[name] = {"parameters": checked, "logical_view": source}
+    guard = modules.get("subsys_periph.fes_scanout_guard")
+    if guard is None or guard.get("kind") != "fes_de25_scanout_guard" or guard.get("version") != "1.0":
+        raise ValueError("generated scanout system-clock guard differs")
+    for interface, direction, address_bits in (("avs", "Input", 8), ("avm", "Output", 7)):
+        actual_ports = hps.component_ports(guard, interface)
+        reverse = "Output" if direction == "Input" else "Input"
+        expected_ports = {"address": (direction, address_bits), "read": (direction, 1),
+            "write": (direction, 1), "byteenable": (direction, 4), "writedata": (direction, 32),
+            "waitrequest": (reverse, 1), "readdata": (reverse, 32), "readdatavalid": (reverse, 1),
+            "writeresponsevalid": (reverse, 1), "response": (reverse, 2)}
+        if actual_ports != expected_ports:
+            raise ValueError("generated scanout guard ports differ: " + interface)
     # The inherited handoff check already validates all elaborated LW regions
     # pairwise for overlap. Require the actual scanout leaf region too.
-    probe = hps.verify_probe_handoff(project)
-    regions = [r for r in probe["peripheral_slave_map"] if r["name"] == "subsys_periph.fes_scanout.avs"]
-    if len(regions) != 1 or regions[0]["base"] != offset or regions[0]["span"] != 128:
+    _, probe = hps.verify_memory_handoff(project, json.loads((project.parent / "inputs.json").read_text()))
+    regions = [r for r in probe["peripheral_slave_map"] if r["name"] == "subsys_periph.fes_scanout_guard.avs"]
+    if len(regions) != 1 or regions[0]["base"] != offset or regions[0]["span"] != 256:
         raise ValueError("generated scanout LW leaf region differs")
     return {"instance": "subsys_periph.fes_scanout", "peripheral_offset": offset,
         "pixel_hz": 74250000, "memory_hz": 100000000, "bridge_parameters": bridge_parameters,
-        "read_only_master_ports": expected_master, "csr_write_completion": True,
+        "read_only_master_ports": expected_master, "csr_write_completion": True, "control_guard": "100 MHz bounded, sticky poison, no cancellation or drain inference",
         "peripheral_slave_map": probe["peripheral_slave_map"], "ddr_scanout": True,
         "top_reset_source": "fes_scanout_top_reset.out_reset -> pixel and 100 MHz reset bridge inputs",
         "reset_bridges": reset_bridges,
@@ -373,6 +408,10 @@ def verify_generated(output, hps, verifier_revision=None):
     generation = json.loads(path.read_text())
     generation["combined_display"]["ddr_scanout"] = True
     generation["scanout"] = verify_handoff(directory / "project", hps)
+    selected = json.loads((directory / "inputs.json").read_text())["scanout"].get("linux_dma")
+    if selected is not None:
+        helper = load(directory / "project/fes_mailbox/linux_dma.py", "scanout_generated_linux_dma")
+        generation["scanout"]["linux_dma"] = helper.verify(directory / "project", hps, selected)
     if verifier_revision is not None:
         if not re.fullmatch(r"[0-9a-f]{40}", verifier_revision):
             raise ValueError("enhanced verifier requires a full committed identity")
@@ -392,10 +431,25 @@ def compile_project(output, hps, display, tool):
     record = json.loads((directory / "build.json").read_text())
     record["post_compile_pixel_pll_parameters_unchanged"] = actual == expected
     record["scanout_generation_sha256"] = hps.digest(directory / "generation.json")
-    record["scanout"] = {"default_enabled": False, "ddr_scanout": True, "runtime_admission": "not-qualified"}
+    record["scanout"] = {"default_enabled": False, "ddr_scanout": True, "runtime_admission": "not-qualified",
+                         "f2sdram_master_profile": inputs.get("f2sdram_master_profile", "diagnostic"),
+                         "linux_dma": inputs["scanout"].get("linux_dma")}
     (directory / "build.json").write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
     if actual != expected:
         raise ValueError("compile changed pixel PLL parameters; retained failed validation receipt")
+    if inputs["scanout"]["hps_initialization"] == "HPS FIRST":
+        artifacts = hps.linux_configuration_artifacts(directory, tool, artifact,
+            hps_initialization=inputs["scanout"]["hps_initialization"])
+        record = {"format": 1, "classification": "unadmitted-HPS-first-scanout",
+                  "fes_revision": inputs["fes_revision"],
+                  "inputs_sha256": hps.digest(directory / "inputs.json"),
+                  "generation_sha256": hps.digest(directory / "generation.json"),
+                  "f2sdram_master_profile": inputs.get("f2sdram_master_profile", "diagnostic"),
+                  "linux_dma": inputs["scanout"].get("linux_dma"),
+                  "scanout_source_sha256": sha(json.dumps(inputs["functional_snapshot_sha256"], sort_keys=True).encode()),
+                  **artifacts, "hardware_programming": "not-performed", "boot_compatibility": "not-qualified",
+                  "Linux_load_acceptance": "not-qualified", "production_admission": False}
+        (directory / "linux-programming.json").write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
     return artifact
 
 
@@ -404,12 +458,16 @@ def main(argv=None):
     parser.add_argument("action", choices=("project", "generate", "build"))
     parser.add_argument("--vendor-archive", type=Path, required=True)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--linux-dma", action="store_true",
+                        help="select the unadmitted fixed-SMMU-stream profile; requires --hps-first")
+    parser.add_argument("--hps-first", action="store_true",
+                        help="capture HPS-first startup and produce explicit Linux phase artifacts")
     parser.add_argument("--quartus-root", default=os.environ.get("QUARTUS_ROOTDIR", ""))
     args = parser.parse_args(argv)
     try:
         selected = identity(); revision = selected.get("fes_revision") if args.action != "project" else None
         if args.action != "project" and not revision: raise ValueError("scanout generation/build requires clean committed source")
-        output, combined, hps, display = prepare(args.vendor_archive, args.output, revision)
+        output, combined, hps, display = prepare(args.vendor_archive, args.output, revision, hps_first=args.hps_first, linux_dma=args.linux_dma)
         print("Scanout diagnostic: " + str(output), flush=True)
         if args.action != "project":
             if identity() != selected: raise ValueError("source identity changed before generation")

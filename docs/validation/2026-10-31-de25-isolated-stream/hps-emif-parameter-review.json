@@ -1,0 +1,19 @@
+{
+  "boot_firmware_compatibility": "not-qualified",
+  "changed_original_module_parameters": {
+    "hps_subsys/ip/hps_subsys/agilex_hps.ip": {
+      "f2sdram_SMMU": {
+        "after": "true",
+        "before": "false"
+      }
+    }
+  },
+  "expected_original_module_parameter_changes": {
+    "hps_subsys/ip/hps_subsys/agilex_hps.ip": {
+      "f2sdram_SMMU": {
+        "after": "true",
+        "before": "false"
+      }
+    }
+  }
+}

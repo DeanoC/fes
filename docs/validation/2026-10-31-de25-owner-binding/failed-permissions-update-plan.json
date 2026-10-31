@@ -1,0 +1,15 @@
+{
+  "boot_id": "aef6b113-efe8-4d0c-b164-efbf302bfd70",
+  "old_hashes": {
+    "etc/mdev.conf": "ef47e6283e802e737af7582795140c57d17344b32a338f23b19cf5dbe2355294",
+    "etc/init.d/S15fpga": "3727ea0d8c4dd78eaf711f50244b41acb128a0aebf4a1103fa450884ed738921",
+    "usr/share/fes/kernel-modules.json": "7c67a02d802c0da02b8ef9ee7bc5e843cd46b6c5cad100a6b5cf35c940f02824"
+  },
+  "new_hashes": {
+    "etc/mdev.conf": "2df2faf2c005b5b7ceaa10328d7beaa1683bfc718c8fb681427efde299cae504",
+    "etc/init.d/S15fpga": "d01a80488875a0dae92a9033dd33f89073a7ff1834664f7959b27898c959d658",
+    "usr/share/fes/kernel-modules.json": "4d964fbd37caf81570b2de7dfc348fe091f276de8931f1458718dab5190ff890"
+  },
+  "binary_sha256": "b5db0fc187290073086714b94ccbdd6729011cd20c781e4e7730028f931d0032",
+  "image_receipt_sha256": "cbf491577639a9dca5a3c283237f2a2f7d22d53ab178cf4be2a57328c04482d7"
+}

@@ -1,0 +1,12 @@
+make: Entering directory '/work/source'
+make[1]: Entering directory '/work/kernel-build'
+  CC [M]  /module/source/image/kernel/de25-dma/de25_dma.o
+  CC [M]  /module/source/image/kernel/de25-dma/de25_dma_guard.o
+  LD [M]  /module/source/image/kernel/de25-dma/fes_de25_dma.o
+  MODPOST /module/source/image/kernel/de25-dma/Module.symvers
+  CC [M]  /module/source/image/kernel/de25-dma/fes_de25_dma.mod.o
+  CC [M]  /module/source/image/kernel/de25-dma/.module-common.o
+  LD [M]  /module/source/image/kernel/de25-dma/fes_de25_dma.ko
+make[1]: Leaving directory '/work/kernel-build'
+make: Leaving directory '/work/source'
+Matching guarded transport module PASS

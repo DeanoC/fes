@@ -1,0 +1,37 @@
+
+FES DE25-Nano Linux bring-up
+fes-de25-nano login: root
+Password: 
+# printf '\nFES_OWNER_PREFLIGHT_BEGIN\n'; uname -a; cat /proc/sys/kernel/random/
+boot_id; cat /sys/block/mmcblk0/device/cid; cat /proc/mounts; ip -4 addr show et
+h0; cat /proc/cmdline; ls -l /boot /dev/fpga* /sys/class/fpga_manager /sys/class
+/fpga_region; dropbearkey -y -f /etc/dropbear/dropbear_ed25519_host_key; printf 
+'\nFES_OWNER_PREFLIGHT_END\n'
+
+FES_OWNER_PREFLIGHT_BEGIN
+Linux fes-de25-nano 6.12.11-gd7d192a9ddd9 #2 SMP PREEMPT Fri Jun 27 09:46:31 CST 2025 aarch64 GNU/Linux
+e8963972-c3e9-405c-a2ef-93eb09f691e6
+275048534436344760702d33e0017c00
+/dev/root / ext4 rw,relatime 0 0
+devtmpfs /dev devtmpfs rw,relatime,size=457056k,nr_inodes=114264,mode=755 0 0
+proc /proc proc rw,relatime 0 0
+devpts /dev/pts devpts rw,relatime,gid=5,mode=620,ptmxmode=666 0 0
+tmpfs /dev/shm tmpfs rw,relatime,mode=777 0 0
+tmpfs /tmp tmpfs rw,relatime 0 0
+tmpfs /run tmpfs rw,nosuid,nodev,relatime,mode=755 0 0
+sysfs /sys sysfs rw,relatime 0 0
+2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq qlen 1000
+    inet 192.168.10.111/24 brd 192.168.10.255 scope global eth0
+       valid_lft forever preferred_lft forever
+console=ttyS0,115200 root=/dev/mmcblk0p2 rw rootwait
+ls: /boot: No such file or directory
+ls: /dev/fpga*: No such file or directory
+ls: /sys/class/fpga_region: No such file or directory
+/sys/class/fpga_manager:
+total 0
+Public key portion is:
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFtGkQR+uOxp4dwe0nJYZyZakx9/LUxk6/4JJOTdQKUE root@fes-de25-nano
+Fingerprint: sha1!! bc:2d:47:e1:27:35:fe:f4:4b:ac:08:11:c4:50:57:cf:d0:28:1a:ff
+
+FES_OWNER_PREFLIGHT_END
+# exit

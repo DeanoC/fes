@@ -399,8 +399,9 @@ revocable mappings. ABI 2 adds ordered scanout submission, explicit coherent
 status polling and repeated-frame slot ownership: command acceptance does not
 release the old slot; a matching complete displayed frame does. The allocation
 stays pinned for the configured engine's lifetime until an identity-matched
-STOP/drain/CLEAR proof. Its production binding refuses all devices. A separate
-AArch64 QEMU kernel exercises the real DMA/file/VMA code on a KUnit device:
+STOP/drain/CLEAR proof. Ordinary builds refuse physical binding. The default-off
+permanent-owner candidate adds allocation/reap control and early overlay
+exclusion; normal FES runtime admission remains closed. A separate AArch64 QEMU kernel exercises the real DMA/file/VMA code on a KUnit device:
 
 ```sh
 python3 scripts/de25_kernel_test.py fetch
@@ -411,10 +412,36 @@ python3 scripts/de25_kernel_test.py run --image-output out/de25-nano-linux-cxx \
 The runner requires clean committed sources, the locked SDK/vendor Image and
 the pinned Linux 6.12.11 source commit. The existing builder supplies QEMU;
 the compile and boot run with container networking disabled. It checks all
-sixteen required ownership cases and rejects raw kernel warnings, oopses and
+required ownership cases and rejects raw kernel warnings, oopses and
 panics before publishing artifact receipts. This test kernel's configuration
 and device differ from the board's preserved kernel and FPGA. It establishes
 no board module-loadability, stream translation or physical DMA visibility.
+
+The [permanent-owner kernel recipe](../image/kernel/de25-platform/README.md)
+builds a separate candidate kernel and compiled base device tree from the locked
+Terasic source/SDK. It makes the owner and FPGA suppliers built-in, protects the
+region/manager/service bindings and describes the permanent SID-13 device.
+The recipe verifies the linked symbols and DTB with pinned libfdt. The separate
+offline assembler described with that recipe prepares matching rootfs and boot
+files, removes incompatible vendor modules and requires two identical SD image
+assemblies. Neither recipe installs an image. Board boot, positive loader/control
+integration and physical DMA acceptance remain required.
+The [matching image record](validation/2026-10-31-de25-owner-image/README.md)
+retains the initial identical full assemblies, independent verification and
+receipt refusals. The later
+[physical owner-binding record](validation/2026-10-31-de25-owner-binding/README.md)
+boots the candidate, identifies and protects the real SMMU's parent bus, and
+preserves the owner node's mode 600 through mdev. The corrected kernel and
+root metadata survive two software reboots, with actual preconfiguration
+open/ioctl/capability tests passing on the board. Physical DMA, FPGA loading
+under this kernel and managed FES runtime acceptance remain open. The running
+card was updated by verified files after the first full-image write; this does
+not attest the whole writable SD as the final offline image.
+
+The [positive owner lifecycle record](validation/2026-10-31-de25-owner-positive/README.md)
+executes real OF overlay apply/remove, the owner control callback and private
+file-descriptor lifetime through two cycles. Programming/register responses
+remain modeled; this is not an SDM firmware-load or userspace /dev syscall test.
 
 The [allocated-buffer FPGA diagnostic](../sources/misteross/boards/de25nano/scanout/README.md)
 connects the real menu reader to the preserved memory path. Its shared
@@ -435,7 +462,10 @@ existing AArch64 runtime guard continues to refuse DE25 hardware access.
 
 The [2026-10-28 host validation record](validation/2026-10-28-de25-headless-linux/README.md)
 retains the exact image, verification and QEMU receipts plus the exported SDK
-probe. Physical board boot remains pending.
+probe. That record is off-board evidence; the later
+[HPS-first hardware record](validation/2026-10-31-de25-hps-first-hardware/README.md)
+demonstrates FES Linux boot, Linux FPGA loading and native ZX81 BASIC on its
+named diagnostic artifacts. It does not accept this new kernel or managed runtime.
 
 The [scanout ownership record](validation/2026-10-28-de25-scanout/README.md)
 retains the sixteen actual AArch64 kernel cases and links the generated

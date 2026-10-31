@@ -1,0 +1,20 @@
+{
+  "classification": "pinned kernel source inspection; not runtime evidence",
+  "kernel_revision": "d7d192a9ddd955fe206aa350afed8f82e368a74c",
+  "files": {
+    "drivers/fpga/of-fpga-region.c": "5dbc8e9bf7a2eb30fdd9db3491455cdbf4ec95a93feec4ca73665e8dc702da52",
+    "drivers/fpga/fpga-region.c": "52f15509c92e6eb20ac5be974edcd7f8b02669fbdc08e12e7983190fa91957e7",
+    "drivers/of/overlay.c": "d6cb78d501af879d08261d198bc596d3536c56f4fcf6be56cd8fa1ece26c531a",
+    "drivers/base/platform.c": "deb56bde49fca1e12ec4e81fb7107713db3d3e8e6a953ddc6d8218c3d6dfc1c8",
+    "drivers/iommu/iommu.c": "771454df61e485c4bee163976f5c7a8123b064cb684fa79cdab00352220dc49c"
+  },
+  "findings": [
+    "of-fpga-region PRE_REMOVE returns NOTIFY_OK; bridge disable happens POST_REMOVE after device detach",
+    "of_overlay_remove honors PRE_REMOVE errors before reverting nodes",
+    "fpga_region_program_fpga calls get_bridges before disabling bridges; exclusion must precede disable and block new allocations throughout configuration",
+    "ordinary platform DMA configure holds default-domain owner count through driver binding; cleanup releases it on unbind",
+    "IOMMU group type changes refuse while owner count is held, except enabling DMA-FQ on an existing DMA domain",
+    "iommu_device_use_default_domain is a driver-core pre-probe API, not an exported provider lease callback"
+  ],
+  "next": "Use a permanent device binding for actual DMA/domain lifetime and early configuration/remove exclusion, with opaque owner handles for post-client-close drain retries. Device references alone do not retain binding/resources."
+}

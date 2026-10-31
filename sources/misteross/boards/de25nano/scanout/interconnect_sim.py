@@ -17,7 +17,7 @@ MASTER = "subsys_periph_fes_scanout_mem_"
 SLAVE = "subsys_hps_f2sdram_adapter_axi4_sub_"
 CASES = ["reset_disabled", "atomic_snapshot", "complete_frames_and_slot_reuse",
          "stop_drains_accepted_reads", "pixel_clock_stall_preserves_responses",
-         "axi_error_crosses_cdc", "clock_fault_is_sticky"]
+         "bounded_control_during_pixel_clock_loss", "axi_error_crosses_cdc", "clock_fault_is_sticky"]
 
 # This deliberately models only the hard RAM's reviewed noncollision storage
 # contract. All generated FIFO pointers, synchronizers, credits and routing stay

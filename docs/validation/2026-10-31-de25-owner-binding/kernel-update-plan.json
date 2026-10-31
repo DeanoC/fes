@@ -1,0 +1,26 @@
+{
+  "target_boot_id": "b989f017-f9f3-45dd-811b-0482b1b65421",
+  "new_image_receipt_sha256": "a8020b70ece6711742994e266ad7ed92033fda62fd4248645b0aa01a71b2337d",
+  "old_image": {
+    "sha256": "b5a68fa8c0fef8679931af008811676b608f13214e5afb863cbd3626d43c1769",
+    "size": 46701056
+  },
+  "new_image": {
+    "sha256": "01357da8a2f9971cb3bf9e7f99bd176bea46a893554d7b1c5364339310fe9b9b",
+    "size": 46701056
+  },
+  "old_root_hashes": {
+    "etc/fes-kernel-release": "3134c56dd2bda9a457aa6fa201b901f43c45f57d9c60689488ec5c3c30e10f02",
+    "etc/init.d/S15fpga": "720beb6ec383da4f38db073817862974f5b87891f2045c3f893ec5c1beb05dc7",
+    "usr/share/fes/kernel-modules.json": "206748ae3cb7e92afd77d8a4719638a09f20ecfb2ee047966a865759a6ca79eb"
+  },
+  "new_root_hashes": {
+    "etc/fes-kernel-release": "3134c56dd2bda9a457aa6fa201b901f43c45f57d9c60689488ec5c3c30e10f02",
+    "etc/init.d/S15fpga": "3727ea0d8c4dd78eaf711f50244b41acb128a0aebf4a1103fa450884ed738921",
+    "usr/share/fes/kernel-modules.json": "7c67a02d802c0da02b8ef9ee7bc5e843cd46b6c5cad100a6b5cf35c940f02824"
+  },
+  "dtb_unchanged": true,
+  "kernel_config_unchanged": true,
+  "rollback": "FAT fes-owner-before-bus/Image and three root metadata files; complete original system backup retained off-board",
+  "scope": "file-level maintenance update, not whole SD image attestation; no reboot in installer"
+}

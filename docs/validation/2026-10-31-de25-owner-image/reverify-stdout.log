@@ -1,0 +1,8 @@
+{"classification": "off-board candidate structural verification", "image_sha256": "de2a9a4ca35214ab75230d5807a0a8900d99f7869e1346c83f4e41bce0853138", "reproducibility": "two identical assemblies", "hardware_boot": "not-run", "normal_runtime_admission": "closed"}
+open-admission: REFUSED: unsupported candidate image receipt or recipe
+wrong-recipe: REFUSED: unsupported candidate image receipt or recipe
+empty-assemblies: REFUSED: unsupported candidate image receipt or recipe
+inconsistent-assembly: REFUSED: unsupported candidate image receipt or recipe
+wrong-selected-kernel: REFUSED: candidate boot payload differs from selected kernel
+changed-partition: REFUSED: candidate changed vendor boot geometry/dependencies
+changed-fat-alias: REFUSED: candidate boot layout differs from payload receipt

@@ -1,0 +1,69 @@
+{
+  "candidate_enabled": true,
+  "classification": "unbooted opt-in permanent-owner kernel preparation",
+  "compiler": "aarch64-buildroot-linux-gnu-gcc.br_real (Buildroot 2021.02.4) 9.4.0",
+  "fes_revision": "8e7479d48d87a8b1977cc4040438cf378d35746c",
+  "files": {
+    "Image": {
+      "sha256": "01357da8a2f9971cb3bf9e7f99bd176bea46a893554d7b1c5364339310fe9b9b",
+      "size": 46701056
+    },
+    "System.map": {
+      "sha256": "b5be970af7e00a0a83bb11725b6b05f3d9de33dd4abcb7389efc6860fcad15f5",
+      "size": 7649154
+    },
+    "de25-owner.dtb": {
+      "sha256": "d57bac64ffbb1ff4ace06dc0ba3fbb2d589055340274493efbfba687c4f244f7",
+      "size": 28907
+    },
+    "kernel.config": {
+      "sha256": "cec5f0d7e0713a6cb7082402e4cbbfa9bd5893569d6893c076ea0766751d253e",
+      "size": 301866
+    },
+    "vmlinux.symvers": {
+      "sha256": "46c30ddfe0c980f2cf6bb1aa10b71362d9dcbec75a564e3df2590d3083e747a1",
+      "size": 793261
+    }
+  },
+  "format": 1,
+  "hardware_acceptance": "not-run",
+  "kernel": {
+    "builder_image": "sha256:ea200655b92ab1211bc8b326c6e799815f1d648b2d5e5a6c982f597cb2b9650d",
+    "format": 1,
+    "repository": "https://github.com/terasic/linux-socfpga.git",
+    "revision": "d7d192a9ddd955fe206aa350afed8f82e368a74c",
+    "sdk_sha256": "7912076c08d93c8d8c28c0ef81bd406abf6b1acb9e01ccac37d44307e39759a7",
+    "vendor_config_sha256": "3ec2812cffb3c37bf677941283c9b65c3f5620b519cb58a4ded5f230cadbcdf7",
+    "vendor_image_sha256": "874f75d81f6452406f0f0ea5e0849ea269e92599fe728eb02b1bdbb56ada1aa8"
+  },
+  "modules": "FPGA/owner built-in; no vendor modules reused",
+  "normal_runtime_admission": "closed",
+  "release": "6.12.11-fes-de25-owner",
+  "suppliers": {
+    "files": {
+      "drivers/bus/simple-pm-bus.c": {
+        "after_sha256": "240a9828c2818fbdc33761d5e0aeea50d5d538ee5d8b2e9218f48bc4ff1e288c",
+        "before_sha256": "abb3f9ff229edbcbf1fe76f661d774a88f4f5d92a401414e9429cd5b226116f2"
+      },
+      "drivers/firmware/stratix10-svc.c": {
+        "after_sha256": "dc3214b2e4d836969fad62db5e39a56c211aa85647001b1720f77ce5cf17ebce",
+        "before_sha256": "493301f526657473b05700ba54bea38d1b63d43a99a341e78c338e0908ca9f4a"
+      },
+      "drivers/fpga/of-fpga-region.c": {
+        "after_sha256": "275642d50ee9e8392c74f5abbb281db8a68731c566eca1ea22c1e37b22332e97",
+        "before_sha256": "5dbc8e9bf7a2eb30fdd9db3491455cdbf4ec95a93feec4ca73665e8dc702da52"
+      },
+      "drivers/fpga/stratix10-soc.c": {
+        "after_sha256": "8ff8de4c1e2a91395b79f5db12f828240f24224d7013a2bda07cf3f5ab833963",
+        "before_sha256": "26a525c7138b2dd04735e1cc3b458cec115102a1c00c6c51c4abf4e3ae7b6b44"
+      }
+    },
+    "format": 1,
+    "kernel_revision": "d7d192a9ddd955fe206aa350afed8f82e368a74c",
+    "patch_sha256": "6f22b02c4264955fc386e8acb3b5bc0418992e7da12b4e4a0cf6ee7361cb1507",
+    "unchanged_supplier_sources": {
+      "drivers/clk/socfpga/clk-agilex5.c": "65b805f28a29d342eb9076415f3f0ab4668ddd88cb0686139161cb4e9d7aeb41",
+      "drivers/iommu/arm/arm-smmu-v3/arm-smmu-v3.c": "98d64761da20ab9d4e6b8fac163fb4de11402c6ccdea26a84f59257dbd83323a"
+    }
+  }
+}

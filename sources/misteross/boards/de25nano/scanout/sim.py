@@ -26,7 +26,7 @@ def run(case, top, rtl, bench, extra=(), shared=True):
 
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument("--case", choices=("frame-ack", "endpoint", "board", "all"), default="all")
+parser.add_argument("--case", choices=("frame-ack", "endpoint", "board", "guard", "all"), default="all")
 args = parser.parse_args()
 if args.case in ("frame-ack", "all"):
     run("frame-ack", "fes_menu_video", [MISTEROSS / "cores/fes-menu/rtl/fes_menu_pattern_memory.v"],
@@ -36,3 +36,7 @@ if args.case in ("endpoint", "all"):
 if args.case in ("board", "all"):
     run("board", "fes_de25_scanout_board", [HERE / "fes_de25_scanout_board.v",
         HERE.parent / "display/sim_models.v", HERE.parent / "hps/fes_de25_top_reset.v"], "board_tb.cpp", shared=False)
+
+if args.case in ("guard", "all"):
+    run("guard", "fes_de25_scanout_guard", [HERE / "fes_de25_scanout_guard.v"],
+        "guard_tb.cpp", ("-GTIMEOUT_CYCLES=16",), shared=False)

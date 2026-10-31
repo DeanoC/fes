@@ -1,0 +1,21 @@
+{
+  "started_utc": "2026-10-31T17:52:42.648293+00:00",
+  "board": "TRWU8J8G",
+  "boot_id": "aef6b113-efe8-4d0c-b164-efbf302bfd70",
+  "bundle_sha256": "6941383c9e52116eeb60ac28dffc8986aaa909093cc3ba3bcd5950e106605c78",
+  "phases": [
+    {
+      "phase": "upload",
+      "returncode": 0,
+      "elapsed_seconds": 0.2
+    },
+    {
+      "phase": "install",
+      "returncode": 0,
+      "elapsed_seconds": 0.6
+    }
+  ],
+  "reboot": "software-request-issued; subsequent serial/boot observation required",
+  "state": "persistent-rule-and-actual-userspace-pass",
+  "reboot_ssh_returncode": 0
+}

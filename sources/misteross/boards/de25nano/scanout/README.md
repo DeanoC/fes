@@ -3,13 +3,38 @@
 This lane extends the combined Terasic GHRD/display shell with an actual
 read-only framebuffer path. It starts **disabled**, issues no scanout reads
 until a valid explicit submission, and creates no admitted runtime profile.
-It preserves the existing HPS/EMIF parameters, mailbox, diagnostic DDR probe,
-JTAG paths and inactive active-low warm-reset acknowledgement. It uses Quartus
+The default maintenance build preserves the HPS/EMIF parameters, mailbox,
+diagnostic DDR probe and JTAG paths. The explicit Linux-DMA build removes the
+probe and memory-debug path, as described below. Both keep inactive active-low
+warm-reset acknowledgement. It uses Quartus
 Prime Pro 26.3.0 for `A5EB013BB23BE4SCS` and never programs hardware.
+
+For loading through Linux from the matching HPS-first bootstrap, select the
+HPS-first build explicitly:
+
+```sh
+python3 build.py build --hps-first --quartus-root /absolute/altera_pro/26.3 \
+  --vendor-archive /absolute/DE25-Nano_revB_v.1.0.0_ResourcePackage.zip \
+  --output /absolute/new-scanout-output
+```
+
+The selected initialization order is captured in the project and input receipt.
+After compilation, the shared HPS conversion helper enriches the SOF with the
+unchanged vendor loader and emits `linux-complete.sof`, `linux-boot.hps.jic`
+and `linux-boot.core.rbf` under `combined/hps/`. The Linux programming receipt
+binds their hashes and the captured scanout source identity. Conversion does
+not program flash or FPGA. Existing phase outputs are refused, and mismatched
+captured/project boot order fails before conversion. Without this option the
+explicit initialization order remains `AFTER INIT_DONE` for the JTAG diagnostic.
+
+These artifacts still need bootstrap compatibility, Linux-load and allocated
+DMA/frame-lifetime acceptance on the board. They confer no runtime admission
+or DMA permission and do not change the installed QSPI baseline.
 
 The [shared scanout contract](../../../../mister-packages/docs/de25-scanout.md)
 owns register offsets, generation/sequence rules and allocation lifetime.
-The new 128-byte slave is at lightweight peripheral offset `0x10200`.
+The CPU-facing 256-byte control slave is at lightweight peripheral offset
+`0x10200`; its lower 128 bytes forward to the pixel-domain endpoint.
 One immutable, dynamically supplied 8 MiB DMA grant contains two 4 MiB slots
 for 1280×720 BGRX8888 frames. Base address zero is allowed; physical backing,
 translation and permission are separate admission requirements. The first
@@ -18,7 +43,21 @@ displayed sequences are distinct. Only a complete frame without missing
 pixels or response errors acknowledges a flip; software retains the prior
 slot until that completion. One flip may be pending.
 
-Control registers, video and reader all use the 74.25 MHz pixel clock.
+The endpoint control registers, video and reader use the 74.25 MHz pixel clock.
+A system-clock control guard sits before the control crossing. Its upper-half
+identity, status, faults and write-once epoch registers remain local at 100 MHz.
+It uses the inherited peripheral reset, independently of initial pixel PLL lock.
+A request completes for the CPU within 100,000 system cycles after acceptance,
+including when the downstream command or response is stalled. A timeout or
+transport error permanently poisons the guard. An unaccepted downstream command
+remains asserted with stable payload until acceptance; a late response is consumed
+without a second CPU response. Poison prevents every subsequent endpoint access.
+CPU responses remain OKAY with dummy zero read data on failure to avoid a bus
+exception; software must validate local identity, epoch and faults before and
+after endpoint access. Successful bus completion alone proves nothing. The guard
+never resets a bridge or reports DMA drain. Its bound assumes the system clock,
+peripheral bus and reset release continue to operate.
+
 Explicit `mm_ccb` 19.4.1 bridges carry ordered 32-bit control traffic from
 100 MHz and 128-bit memory traffic back to 100 MHz, then into the existing
 256-bit F2SDRAM adapter. Both bridges preserve two-bit responses; the CSR
@@ -122,7 +161,10 @@ bursts followed by SUBMIT/CLEAR, missing responses, underflow, response errors
 and sticky clock failure. Separate benches cover the exact
 last-pixel submission corner, full HS/VS continuity through endpoint disable
 and reset, clock-shell startup/brief unlock/relock, and pixel-domain HDMI
-gating at a complete sync boundary using digital PLL/I2C models. The generated-interconnect
+gating at a complete sync boundary using digital PLL/I2C models. The actual guard
+RTL bench covers acceptance stalls, absent/late/error/wrong-kind responses,
+exact-deadline completion, stable retained commands, permanent poison and local
+register access throughout downstream uncertainty. The generated-interconnect
 helper tests the actual two-clock bridges and width adapter after generation;
 none of these modeled checks establishes physical memory or HDMI operation.
 
@@ -143,3 +185,37 @@ discrepancy and external IO timing, physical CDC/MTBF and exact-artifact board
 acceptance remain gates. Warm-reset ACK stays inactive: probe/scanout-local
 drain cannot acknowledge the retained JTAG and HPS-origin paths. No SD card,
 QSPI, hardware, kit or harness is touched by this build lane.
+
+The [HPS-first compilation record](../../../docs/validation/2026-10-31-de25-scanout-linux/README.md)
+retains the exact source/artifacts and open timing, boot and DMA gates.
+
+The additional `--linux-dma` option requires `--hps-first`. It exposes HPS
+SMMU address USER ports, drives the generated nonsecure stream ID 13 in bits
+23:8, and preserves the lower vendor attributes 0xE0. Generation verifies the
+25-bit adapter/HPS interfaces and the constant driven by the QIP-selected HDL.
+Only the captured `f2sdram_SMMU` false-to-true HPS parameter change is permitted;
+other HPS/EMIF or boot-data changes still fail. This profile removes the DDR
+probe instance/control window/export and the memory JTAG master/export/address
+window. Other JTAG/OCM/F2H paths remain. Generation requires exactly one route
+into the F2SDRAM adapter, from scanout's memory crossing, and exactly one adapter
+route into HPS F2SDRAM; retained probe/debug instances, duplicate/extra masters,
+nonzero address translations and additional HPS F2SDRAM paths fail. The default
+maintenance build still requires the probe and memory JTAG route.
+
+Input, generation, compilation and Linux phase receipts capture the explicit
+master profile. Phase receipts also bind input/generation hashes, so source
+identity alone cannot mix maintenance and Linux-DMA artifacts. The Linux-DMA
+profile remains unadmitted: generated topology does not establish physical
+translation, Linux device/domain lifetime, control qualification, global reset
+fencing or hardware acceptance. The kernel production probe remains closed.
+
+The [Linux-DMA profile compilation record](../../../../../docs/validation/2026-10-31-de25-linux-dma/README.md)
+retains the actual stream wiring, kernel build, and open device/lifetime gates.
+
+The [bounded-control compilation and generated-interconnect proof](../../../../../docs/validation/2026-10-31-de25-bounded-control/README.md)
+retains the system-clock guard, clock-loss case, exact artifacts and open kernel
+DMA/device/domain and normal-kit acceptance requirements.
+
+The [isolated-stream compilation and transport proof](../../../../../docs/validation/2026-10-31-de25-isolated-stream/README.md)
+retains the actual sole-master graph, profile-bound artifacts, eight passing
+transport cases, original failures and open Linux/physical acceptance gates.

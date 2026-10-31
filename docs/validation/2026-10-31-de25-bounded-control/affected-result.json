@@ -1,0 +1,281 @@
+{
+  "format": 1,
+  "root": "/home/deano/fes/out/dev/de25-linux-platform",
+  "base": "9c0cad07425b5bfad36b1f967ee55885970b6a9f",
+  "head": "b368f5e7b10862f041ecf0f03321d95dcc310929",
+  "checkout_head": "b368f5e7b10862f041ecf0f03321d95dcc310929",
+  "merge_base": "9c0cad07425b5bfad36b1f967ee55885970b6a9f",
+  "local_paths": [
+    "sources/misteross/boards/de25nano/scanout/fes_de25_scanout_guard.v"
+  ],
+  "impact": {
+    "lanes": {
+      "parent": true,
+      "host": false,
+      "runtime": false,
+      "contracts": true,
+      "fpga": true
+    },
+    "skipped": [
+      "host",
+      "runtime"
+    ],
+    "cores": [],
+    "test_modes": {
+      "video": false,
+      "media": false,
+      "full_race": false
+    },
+    "paths": [
+      "image/kernel/de25-dma/generated/fes_de25_scanout.h",
+      "sources/mister-packages/docs/de25-scanout.md",
+      "sources/mister-packages/packages/fabric/fes_fabric_de25_scanout.yaml",
+      "sources/misteross/boards/de25nano/scanout/README.md",
+      "sources/misteross/boards/de25nano/scanout/build.py",
+      "sources/misteross/boards/de25nano/scanout/fes_de25_scanout_guard.v",
+      "sources/misteross/boards/de25nano/scanout/fes_de25_scanout_guard_hw.tcl",
+      "sources/misteross/boards/de25nano/scanout/generated/fes_de25_scanout.h",
+      "sources/misteross/boards/de25nano/scanout/generated/fes_de25_scanout.vh",
+      "sources/misteross/boards/de25nano/scanout/guard_tb.cpp",
+      "sources/misteross/boards/de25nano/scanout/integrate.tcl",
+      "sources/misteross/boards/de25nano/scanout/interconnect_sim.py",
+      "sources/misteross/boards/de25nano/scanout/interconnect_tb.cpp",
+      "sources/misteross/boards/de25nano/scanout/sim.py",
+      "sources/misteross/boards/de25nano/scanout/test_build.py"
+    ],
+    "reasons": [
+      "image/kernel/de25-dma/generated/fes_de25_scanout.h: parent orchestration/tests/assembly; component sources unchanged",
+      "sources/mister-packages/packages/fabric/fes_fabric_de25_scanout.yaml: standalone DE25 diagnostic consumers; no existing core consumer",
+      "sources/misteross/boards/de25nano/scanout/build.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/scanout/fes_de25_scanout_guard.v: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/scanout/fes_de25_scanout_guard_hw.tcl: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/scanout/generated/fes_de25_scanout.h: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/scanout/generated/fes_de25_scanout.vh: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/scanout/guard_tb.cpp: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/scanout/integrate.tcl: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/scanout/interconnect_sim.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/scanout/interconnect_tb.cpp: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/scanout/sim.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/scanout/test_build.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer"
+    ],
+    "always": [
+      "planner tests",
+      "diff whitespace checks"
+    ],
+    "not_run": [
+      "FPGA synthesis/place-and-route",
+      "cold image builds",
+      "hardware acceptance"
+    ]
+  },
+  "commands": [
+    {
+      "lane": "always",
+      "label": "test_affected.py",
+      "cwd": ".",
+      "argv": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "tools": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "files": [
+        "tests/test_affected.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "test_test_changed.py",
+      "cwd": ".",
+      "argv": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "tools": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "files": [
+        "tests/test_test_changed.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "committed whitespace",
+      "cwd": ".",
+      "argv": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python",
+        "scripts/check_diff.py",
+        "--base",
+        "9c0cad07425b5bfad36b1f967ee55885970b6a9f",
+        "--head",
+        "b368f5e7b10862f041ecf0f03321d95dcc310929"
+      ],
+      "tools": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "files": []
+    },
+    {
+      "lane": "always",
+      "label": "working whitespace",
+      "cwd": ".",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "tools": [
+        "git"
+      ],
+      "files": []
+    },
+    {
+      "lane": "parent",
+      "label": "parent Python regressions",
+      "cwd": ".",
+      "argv": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"image/kernel/de25-dma/generated/fes_de25_scanout.h\", \"sources/mister-packages/docs/de25-scanout.md\", \"sources/mister-packages/packages/fabric/fes_fabric_de25_scanout.yaml\", \"sources/misteross/boards/de25nano/scanout/README.md\", \"sources/misteross/boards/de25nano/scanout/build.py\", \"sources/misteross/boards/de25nano/scanout/fes_de25_scanout_guard.v\", \"sources/misteross/boards/de25nano/scanout/fes_de25_scanout_guard_hw.tcl\", \"sources/misteross/boards/de25nano/scanout/generated/fes_de25_scanout.h\", \"sources/misteross/boards/de25nano/scanout/generated/fes_de25_scanout.vh\", \"sources/misteross/boards/de25nano/scanout/guard_tb.cpp\", \"sources/misteross/boards/de25nano/scanout/integrate.tcl\", \"sources/misteross/boards/de25nano/scanout/interconnect_sim.py\", \"sources/misteross/boards/de25nano/scanout/interconnect_tb.cpp\", \"sources/misteross/boards/de25nano/scanout/sim.py\", \"sources/misteross/boards/de25nano/scanout/test_build.py\"]"
+      ],
+      "tools": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python",
+        "sh"
+      ],
+      "files": [
+        "scripts/parent_tests.py",
+        "tests"
+      ]
+    },
+    {
+      "lane": "parent",
+      "label": "working-tree generated consumer consistency",
+      "cwd": ".",
+      "argv": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "tools": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python",
+        "go"
+      ],
+      "files": [
+        "scripts/consistency.py"
+      ]
+    },
+    {
+      "lane": "contracts",
+      "label": "contract schemas and generated fixtures",
+      "cwd": "sources/mister-packages",
+      "argv": [
+        "make",
+        "test",
+        "PYTHON=/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "tools": [
+        "go",
+        "make"
+      ],
+      "files": [
+        "Makefile"
+      ]
+    },
+    {
+      "lane": "fpga",
+      "label": "test_*.py",
+      "cwd": "sources/misteross",
+      "argv": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "tools": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python",
+        "strace"
+      ],
+      "files": [
+        "tests/test_*.py"
+      ]
+    }
+  ],
+  "limits": [
+    "FPGA synthesis/place-and-route",
+    "cold image builds",
+    "hardware acceptance",
+    "platform/image packaging suite",
+    "required browser integration suite",
+    "committed-source/release validation (make check remains separate)"
+  ],
+  "status": "passed",
+  "results": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "contract schemas and generated fixtures",
+      "lane": "contracts",
+      "returncode": 0
+    },
+    {
+      "label": "test_*.py",
+      "lane": "fpga",
+      "returncode": 0
+    }
+  ]
+}

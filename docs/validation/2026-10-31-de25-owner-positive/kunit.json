@@ -1,0 +1,194 @@
+{
+    "name": "KUnit Test Group",
+    "sub_groups": [
+        {
+            "name": "fes-de25-dma",
+            "sub_groups": [],
+            "test_cases": [
+                {
+                    "name": "owner_overlay_and_control_fd_complete_two_cycles",
+                    "status": "PASS"
+                },
+                {
+                    "name": "owner_overlay_refuses_remove_after_uncertain_last_close",
+                    "status": "PASS"
+                },
+                {
+                    "name": "owner_overlay_failure_never_admits_a_guard",
+                    "status": "PASS"
+                },
+                {
+                    "name": "owner_control_checks_capability_and_command_before_effects",
+                    "status": "PASS"
+                },
+                {
+                    "name": "permanent_owner_checks_real_supplier_links",
+                    "status": "PASS"
+                },
+                {
+                    "name": "permanent_owner_probe_refuses_unbound_device",
+                    "status": "PASS"
+                },
+                {
+                    "name": "permanent_owner_rejects_topology_overrides",
+                    "status": "PASS"
+                },
+                {
+                    "name": "permanent_owner_rejects_ancestor_mutation",
+                    "status": "PASS"
+                },
+                {
+                    "name": "permanent_owner_blocks_configuration_before_first_submit",
+                    "status": "PASS"
+                },
+                {
+                    "name": "permanent_owner_retains_uncertain_closed_client",
+                    "status": "PASS"
+                },
+                {
+                    "name": "permanent_owner_never_adopts_unknown_configuration",
+                    "status": "PASS"
+                },
+                {
+                    "name": "owner_recovers_drain_after_last_client_close",
+                    "status": "PASS"
+                },
+                {
+                    "name": "owner_recovery_cannot_use_reset_as_drain",
+                    "status": "PASS"
+                },
+                {
+                    "name": "owner_reference_release_does_not_revoke_client",
+                    "status": "PASS"
+                },
+                {
+                    "name": "guard_real_access_and_bounds",
+                    "status": "PASS"
+                },
+                {
+                    "name": "guard_claim_rejects_wrong_or_existing_identity",
+                    "status": "PASS"
+                },
+                {
+                    "name": "guard_dummy_zero_timeout_is_not_success",
+                    "status": "PASS"
+                },
+                {
+                    "name": "guard_post_access_fault_and_reset_reject_results",
+                    "status": "PASS"
+                },
+                {
+                    "name": "guard_busy_or_unknown_status_prevents_access",
+                    "status": "PASS"
+                },
+                {
+                    "name": "guarded_transport_constructs_real_dma_grant",
+                    "status": "PASS"
+                },
+                {
+                    "name": "binding_stays_closed",
+                    "status": "PASS"
+                },
+                {
+                    "name": "backend_lease_required_before_access",
+                    "status": "PASS"
+                },
+                {
+                    "name": "unconfigured_engine_has_one_allocation_lease",
+                    "status": "PASS"
+                },
+                {
+                    "name": "constructor_failure_releases_backend_lease",
+                    "status": "PASS"
+                },
+                {
+                    "name": "uncertain_dma_retains_lease_until_storage_free",
+                    "status": "PASS"
+                },
+                {
+                    "name": "rejects_bad_publish_before_effects",
+                    "status": "PASS"
+                },
+                {
+                    "name": "kernel_owns_descriptor_and_drain_lifetime",
+                    "status": "PASS"
+                },
+                {
+                    "name": "failed_start_is_held_until_drain",
+                    "status": "PASS"
+                },
+                {
+                    "name": "unreadable_epoch_retains_exposed_storage",
+                    "status": "PASS"
+                },
+                {
+                    "name": "acceptance_is_not_display_and_slots_alternate",
+                    "status": "PASS"
+                },
+                {
+                    "name": "ordered_descriptor_precedes_first_submit",
+                    "status": "PASS"
+                },
+                {
+                    "name": "stale_generation_and_reset_cannot_prove_drain",
+                    "status": "PASS"
+                },
+                {
+                    "name": "mismatched_completion_never_releases_slot",
+                    "status": "PASS"
+                },
+                {
+                    "name": "faults_never_release_pending_slot",
+                    "status": "PASS"
+                },
+                {
+                    "name": "snapshot_handshake_is_bounded_and_consistent",
+                    "status": "PASS"
+                },
+                {
+                    "name": "sequence_and_generation_never_wrap",
+                    "status": "PASS"
+                },
+                {
+                    "name": "poll_identity_rejects_before_register_effects",
+                    "status": "PASS"
+                },
+                {
+                    "name": "coherent_mapping_uapi_and_revoke",
+                    "status": "PASS"
+                },
+                {
+                    "name": "contiguous_aliases_are_revoked",
+                    "status": "PASS"
+                },
+                {
+                    "name": "rejects_invalid_mapping_shapes",
+                    "status": "PASS"
+                },
+                {
+                    "name": "refused_mapping_releases_new_mm_reference",
+                    "status": "PASS"
+                },
+                {
+                    "name": "revoke_catches_inflight_mmap_link",
+                    "status": "PASS"
+                }
+            ],
+            "arch": "arm64",
+            "defconfig": "kunit_defconfig",
+            "build_environment": "/build/kunit",
+            "lab_name": null,
+            "kernel": null,
+            "job": null,
+            "git_branch": "kselftest"
+        }
+    ],
+    "test_cases": [],
+    "arch": "arm64",
+    "defconfig": "kunit_defconfig",
+    "build_environment": "/build/kunit",
+    "lab_name": null,
+    "kernel": null,
+    "job": null,
+    "git_branch": "kselftest"
+}

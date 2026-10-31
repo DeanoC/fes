@@ -139,6 +139,15 @@ and completion only after a whole good frame. Explicit Platform Designer
 back to the preserved F2SDRAM path. The shared reader/video extensions are
 opt-in; existing consumers retain their default configuration.
 
+For explicit `--linux-dma --hps-first`, the recipe exposes the fixed nonsecure
+SMMU stream and removes the DDR probe/control window and external memory-debug
+JTAG master/export/window. Generated topology must have exactly one scanout
+master into the adapter and one adapter route into HPS F2SDRAM, with no extra
+master or nonzero translation. The maintenance profile retains and verifies
+its diagnostic paths. Input, generation, compilation and phase receipts bind
+the selected profile; Linux phases additionally bind input/generation hashes.
+This is a source/topology boundary, not physical SMMU or Linux domain admission.
+
 Both crossing bridges share initial configuration reset. Later pixel PLL-lock
 loss latches a fault without resetting live bridge queues; the endpoint stops
 and drains when its clock resumes. The DE25 endpoint keeps its fixed raster and

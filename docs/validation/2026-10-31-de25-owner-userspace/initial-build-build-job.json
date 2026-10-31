@@ -1,0 +1,9 @@
+{
+  "container": "fes-de25-owner-user-client-d64ced1ea",
+  "elapsed_seconds": 4.4,
+  "heartbeat_utc": "2026-10-31T17:11:02.045335+00:00",
+  "pid": 3957327,
+  "returncode": 1,
+  "state": "failed",
+  "time_cap_seconds": 240
+}

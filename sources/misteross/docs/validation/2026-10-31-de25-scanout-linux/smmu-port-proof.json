@@ -1,0 +1,19 @@
+{
+  "classification": "scratch component elaboration only; no FPGA compile or programming",
+  "source_revision": "36ee9c81f278a75ddaf89afcd5c83683c9d32800",
+  "tool": "Quartus Pro 26.3 Build 114",
+  "parameter_before": 0,
+  "parameter_after": 1,
+  "f2sdram_aruser_bits": 25,
+  "f2sdram_awuser_bits": 25,
+  "saved_parameter": {
+    "name": "f2sdram_SMMU",
+    "displayName": "Enable System MMU Ports",
+    "value": "true"
+  },
+  "component_sha256": "60bf27f0ef442d152796528f150d42837131f07e97a8c32942dcd1ff35101154",
+  "log_sha256": "0e51e1a2d64a40c4b7893189728486caee56a5266da24f31b7283dca2c12c366",
+  "initial_checker": "returned false because Qsys reports boolean 1 rather than string true; raw transcript and saved IP checked separately",
+  "stream_id_bit_mapping": "not yet established",
+  "DMA_hardware_acceptance": "not performed"
+}

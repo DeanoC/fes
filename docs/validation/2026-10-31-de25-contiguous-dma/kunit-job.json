@@ -1,0 +1,24 @@
+{
+  "owner": "deano/codex/de25-linux-platform",
+  "command": [
+    "python3",
+    "scripts/de25_kernel_test.py",
+    "run",
+    "--cache",
+    "/home/deano/fes/out/cache/de25-linux-kernel.git",
+    "--image-output",
+    "/home/deano/fes/out/artifacts/de25-kernel-modules/0da63d1044cc7ecf9908efba52af17b3e55e6271/linux-image",
+    "--output",
+    "/home/deano/fes/out/dev/de25-linux-platform/out/dma-contiguous-kunit",
+    "--jobs",
+    "8"
+  ],
+  "source_revision": "6ae883d63f57dc81dc4cb02e8e34564316ebd929",
+  "started_utc": "2026-10-31T11:44:21.201410+00:00",
+  "time_cap_seconds": 3600,
+  "hardware_access": "not-performed",
+  "pid": 1648322,
+  "state": "passed",
+  "elapsed_seconds": 67.2,
+  "returncode": 0
+}

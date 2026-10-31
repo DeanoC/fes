@@ -1,0 +1,46 @@
+{
+  "classification": "matching AArch64 module preparation; not loaded",
+  "fes_revision": "17662d5106afd8aa94ee519f26b69c3b510e231d",
+  "kernel_revision": "d7d192a9ddd955fe206aa350afed8f82e368a74c",
+  "release": "6.12.11-fes-de25-platform",
+  "kernel_files_unchanged": {
+    "Image": "d2486081f30a03c2f9cac67b2d3fb5a67974f6f713db5cc577c207bc242a0968",
+    "kernel.config": "cc0db8152ce13909ebc8202502e465e4d984bdbe2222db57c117874db699d98d",
+    "Module.symvers": "fa0787119ea100145802399767256f4bbd33460c1d64585ecdf8bce191398ee6"
+  },
+  "sdk_sha256": "7912076c08d93c8d8c28c0ef81bd406abf6b1acb9e01ccac37d44307e39759a7",
+  "source_sha256": {
+    "de25_dma_test.c": "b5da32e4ed651006d28b57dc32388cbf7939e42deb023b768cf78987b8f12c6b",
+    "de25_dma_guard.c": "1d5302911fa20670d2f6665644d9cb3d3f4c2c43342635472a548a01d187939b",
+    "linux.lock.toml": "44e15dea10c976f62d8c06bdf6d75f1094058353236295876d82e59c4ca3633c",
+    "de25_dma_internal.h": "ef17ddbbf16bc447b2abd6dc54691650236925fdc47a22ba9f0a1a40de41cf43",
+    "de25_dma_guard.h": "51ae21561cd9aceabd18277ec76e1bac6227f60ed045b38614a4cbb5df6bc87f",
+    "de25_dma.c": "399f16b7cbea2eec5b6904c7af42ba0ef4a99782b0e81cfb264dd31b8e20213d",
+    "Makefile": "7f0d4e3731931151bae02ab2a1410117348ad9f4abcfb87ab49847b5765394b0",
+    "de25_dma.h": "add29742c88700838d54eb6ade32b6a5e7cc7da010d41fa535d18b92dbfb97d2",
+    ".kunitconfig": "16eb3ccfc929a326dbe53fd4003d5fea1ad076b52c45e8bd17274012c3b66682",
+    "Kconfig": "b22cb29d2c345becdfd0e03aaa5f174ce110c4c6922b8e6120dc88e096d60956",
+    "README.md": "427bca124cc4d91f34a66e0d7837e48dec19bae29c1c7867c6c80e0a71c7fbff",
+    "generated/fes_de25_ddr_probe.h": "ab89732c139512edbdd0610783f1001dfd2ede9839d92ef767b1d5a34f2fc5cf",
+    "generated/fes_de25_scanout.h": "ad72ed75e8a859766b71b37d03adaba453ab94a4393a9454b9b14b41879999b5"
+  },
+  "module_sha256": "c47429b51ae0cfb57f950c3f70a97c53fad28b4dccaeadb08ed9dcdedd41ef4f",
+  "module_size": 262232,
+  "elf": "ELF64 little-endian AArch64 relocatable",
+  "vermagic": "vermagic=6.12.11-fes-de25-platform SMP preempt mod_unload aarch64",
+  "production_binding": "closed",
+  "hardware_acceptance": "not-run",
+  "command": [
+    "make",
+    "-C",
+    "/work/source",
+    "O=/work/kernel-build",
+    "ARCH=arm64",
+    "CROSS_COMPILE=/work/sdk/bin/aarch64-buildroot-linux-gnu-",
+    "LOCALVERSION=",
+    "-j8",
+    "M=/module/source/image/kernel/de25-dma",
+    "CONFIG_FES_DE25_DMA=m",
+    "modules"
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "source_revision": "bd60a8266e3e1cff520642b26f75a5bc920f9ed6",
+  "command": [
+    "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python",
+    "scripts/test_changed.py",
+    "--base",
+    "0fb039a3dd94657d52e6c6073058d8d49031ac3d"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-linux-platform/out/owner-kernel-build-source",
+  "started_utc": "2026-10-31T15:50:14.310178+00:00",
+  "time_cap_seconds": 3600,
+  "hardware_access": "not-performed",
+  "pid": 3353477,
+  "state": "failed",
+  "elapsed_seconds": 1.3,
+  "heartbeat_utc": "2026-10-31T15:50:15.599374+00:00",
+  "returncode": 1
+}

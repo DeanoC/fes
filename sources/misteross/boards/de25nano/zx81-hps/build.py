@@ -308,37 +308,14 @@ def generate(output, hps, tool, version):
 
 
 def package_hps_first(output, hps, tool, artifact):
-    """Create explicit phase artifacts without invoking a programmer."""
+    """Bind the computer identity to explicit Linux phase artifacts."""
     directory = output / "hps"
-    project = directory / "project"
     inputs = json.loads((directory / "inputs.json").read_text())
-    if inputs["computer"].get("hps_initialization") != "HPS FIRST":
-        raise ValueError("Linux core packaging requires captured HPS-first configuration")
-    if re.findall(r'^set_global_assignment -name HPS_INITIALIZATION "([^"\n]+)"$',
-                  (project / "golden_top.qsf").read_text(), re.M) != ["HPS FIRST"]:
-        raise ValueError("project HPS-first assignment differs from captured recipe")
-    pfg = tool.with_name("quartus_pfg")
-    boot = project / "software/u-boot/spl/u-boot-spl-dtb.hex"
-    complete = directory / "linux-complete.sof"
-    hps.run_logged([pfg, "-c", artifact, complete, "-o", "hps_path=" + str(boot)],
-                   project, directory / "linux-enrich.log")
-    hps.run_logged([pfg, "-c", complete, directory / "linux-boot.jic",
-                    "-o", "device=MT25QU128", "-o", "flash_loader=A5EB013BB23BE4SCS",
-                    "-o", "mode=ASX4", "-o", "hps=on"],
-                   project, directory / "linux-split.log")
-    artifacts = {}
-    for name, role in (("linux-complete.sof", "volatile-JTAG-recovery-candidate"),
-                       ("linux-boot.hps.jic", "HPS-first-QSPI-candidate-not-programmed"),
-                       ("linux-boot.core.rbf", "Linux-fabric-configuration-candidate")):
-        path = directory / name
-        if not path.is_file() or path.is_symlink() or not path.stat().st_size:
-            raise ValueError("missing regular nonempty HPS-first artifact: " + name)
-        artifacts[name] = {"role": role, "size": path.stat().st_size, "sha256": hps.digest(path)}
+    artifacts = hps.linux_configuration_artifacts(directory, tool, artifact,
+        hps_initialization=inputs["computer"].get("hps_initialization"))
     record = {"format": 1, "classification": "unadmitted-HPS-first-diagnostic",
               "fes_revision": inputs["fes_revision"], "computer_build_id": inputs["computer"]["build_id"],
-              "hps_initialization": "HPS FIRST", "bootloader_sha256": hps.digest(boot),
-              "compiled_sof_sha256": hps.digest(artifact), "artifacts": artifacts,
-              "hardware_programming": "not-performed", "boot_compatibility": "not-qualified",
+              **artifacts, "hardware_programming": "not-performed", "boot_compatibility": "not-qualified",
               "Linux_load_acceptance": "not-qualified", "production_admission": False}
     (directory / "linux-programming.json").write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
 

@@ -252,7 +252,10 @@ def peripheral_slave_map(address_map, probe_offset):
     if not regions:
         raise ValueError("vendor peripheral slave map is empty")
     probes = [r for r in regions if r["name"] == "subsys_periph.fes_ddr_probe.avs"]
-    if len(probes) != 1 or probes[0]["base"] != probe_offset or probes[0]["span"] != 128:
+    if probe_offset is None:
+        if probes:
+            raise ValueError("scanout-only profile retains the DDR probe slave")
+    elif len(probes) != 1 or probes[0]["base"] != probe_offset or probes[0]["span"] != 128:
         raise ValueError("generated DDR probe slave region differs")
     regions.sort(key=lambda r: r["base"])
     for index, region in enumerate(regions):
@@ -426,6 +429,70 @@ def verify_probe_handoff(project):
             "physical_ddr_address": "not-established", "dma_admission": "not-qualified"}
 
 
+
+def verify_scanout_memory_handoff(project):
+    """Require one actual fabric memory master, not merely a selected SID."""
+    tree = ET.parse(project / "qsys_top/qsys_top.sopcinfo")
+    modules = {m.get("path"): m for m in tree.findall("module")}
+    forbidden = ("subsys_periph.fes_ddr_probe", "ext_hps_f2sdram_master", "subsys_debug.hps_f2sdram")
+    if any(path == name or path.startswith(name + ".") for path in modules for name in forbidden) or any(
+            m.get("kind") == "fes_de25_ddr_probe" for m in modules.values()):
+        raise ValueError("scanout-only profile retains a diagnostic memory master")
+    connections = tree.findall("connection")
+    ingress = [c for c in connections if c.get("end") == "subsys_hps_f2sdram_adapter.axi4_sub"]
+    # The HPS also exposes f2sdram_axi_clock/reset. They are not memory
+    # masters; exclude only those exact, correctly typed clock/reset sinks.
+    timing_ports = {"subsys_hps_agilex_hps.f2sdram_axi_clock": "clock",
+                    "subsys_hps_agilex_hps.f2sdram_axi_reset": "reset"}
+    egress = [c for c in connections if (c.get("end") or "").startswith("subsys_hps_agilex_hps.f2sdram")
+              and not (c.get("end") in timing_ports and c.get("kind") == timing_ports[c.get("end")])]
+    keys = {(c.get("kind"), c.get("start"), c.get("end")): c for c in connections}
+    for kind, start, end in (("clock", "clk_100.out_clk", "subsys_hps_f2sdram_adapter.clock"),
+                             ("reset", "rst_in.out_reset", "subsys_hps_f2sdram_adapter.reset"),
+                             ("clock", "clk_100.out_clk", "subsys_hps_agilex_hps.f2sdram_axi_clock"),
+                             ("reset", "rst_in.out_reset", "subsys_hps_agilex_hps.f2sdram_axi_reset")):
+        connection = keys.get((kind, start, end))
+        if connection is None or (kind == "clock" and
+                connection.findtext("parameter[@name='clockRateSysInfo']/value") != "100000000"):
+            raise ValueError("scanout-only F2SDRAM clock/reset route differs")
+    expected = ((ingress, "subsys_periph_fes_mem_cdc.m0", "subsys_hps_f2sdram_adapter.axi4_sub"),
+                (egress, "subsys_hps_f2sdram_adapter.axi4_man", "subsys_hps_agilex_hps.f2sdram"))
+    for routes, start, end in expected:
+        if (len(routes) != 1 or routes[0].get("kind") != "avalon" or
+                routes[0].get("start") != start or routes[0].get("end") != end or
+                int(routes[0].findtext("parameter[@name='baseAddress']/value") or "-1", 0) != 0):
+            raise ValueError("scanout-only F2SDRAM master route differs")
+    adapter = modules.get("subsys_hps.f2sdram_adapter")
+    if adapter is None:
+        raise ValueError("scanout-only F2SDRAM adapter missing")
+    ports = component_ports(adapter, "axi4_sub")
+    if any(ports.get(name) != expected for name, expected in {
+            "rdata": ("Output", 256), "araddr": ("Input", 32), "rresp": ("Output", 2)}.items()):
+        raise ValueError("scanout-only F2SDRAM adapter ports differ")
+    lw = [c for c in connections if c.get("kind") == "avalon" and
+          c.get("start") == "subsys_hps_agilex_hps.lwhps2fpga" and
+          c.get("end") == "subsys_periph_pb_cpu_0.s0"]
+    address_map = lw[0].findtext("parameter[@name='addressMapSysInfo']/value") if len(lw) == 1 else None
+    if not address_map:
+        raise ValueError("scanout-only LW slave map missing")
+    return {"master": ingress[0].get("start"), "master_count": 1,
+            "removed_masters": list(forbidden), "scope": "scanout-only F2SDRAM path",
+            "peripheral_slave_map": peripheral_slave_map(address_map, None),
+            "dma_admission": "not-qualified", "physical_translation": "not-qualified"}
+
+
+def verify_memory_handoff(project, inputs):
+    profile = inputs.get("f2sdram_master_profile", "diagnostic")
+    if profile == "diagnostic":
+        if inputs.get("scanout", {}).get("linux_dma") is not None:
+            raise ValueError("Linux DMA requires the scanout-only master profile")
+        return "ddr_probe", verify_probe_handoff(project)
+    if (profile != "scanout-only" or
+            inputs.get("scanout", {}).get("linux_dma", {}).get("master_ownership") != "scanout-only"):
+        raise ValueError("unsupported F2SDRAM master profile")
+    return "scanout_memory", verify_scanout_memory_handoff(project)
+
+
 def generate_project(output, tool, version):
     project = output / "project"
     install = tool.parents[2]
@@ -449,18 +516,24 @@ def generate_project(output, tool, version):
                  for key, value in expected.items() if actual.get(key) != value}
         if delta:
             changes[name] = delta
+    allowed = inputs.get("allowed_hps_parameter_changes", {})
+    if allowed and allowed != {"hps_subsys/ip/hps_subsys/agilex_hps.ip": {
+            "f2sdram_SMMU": {"before": "false", "after": "true"}}}:
+        raise ValueError("unsupported expected HPS/EMIF parameter change")
     (output / "hps-emif-parameter-review.json").write_text(json.dumps({
         "changed_original_module_parameters": changes,
+        "expected_original_module_parameter_changes": allowed,
         "boot_firmware_compatibility": "not-qualified",
     }, indent=2, sort_keys=True) + "\n")
-    if changes:
+    if changes != allowed:
         raise ValueError("generation changed original HPS/EMIF parameters; retained review report")
     vendor = json.loads((output / "vendor-inputs.json").read_text())
     for name, expected in vendor["source_sha256"].items():
         if name.startswith("software/") and digest(project / name) != expected:
             raise ValueError("generation changed vendor boot data: " + name)
     handoff = verify_mailbox_handoff(project)
-    handoff["ddr_probe"] = verify_probe_handoff(project)
+    memory_key, memory = verify_memory_handoff(project, inputs)
+    handoff[memory_key] = memory
     (output / "generation.json").write_text(json.dumps(handoff, indent=2, sort_keys=True) + "\n")
 
 
@@ -486,6 +559,43 @@ def compile_project(output, tool):
               "boot_firmware_compatibility": "not-qualified"}
     (output / "build.json").write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
     return artifact
+
+
+
+def linux_configuration_artifacts(directory, tool, artifact, *, hps_initialization):
+    """Convert a captured HPS-first design into phase artifacts; never program."""
+    project = directory / "project"
+    if hps_initialization != "HPS FIRST":
+        raise ValueError("Linux core packaging requires captured HPS-first configuration")
+    if re.findall(r'^set_global_assignment -name HPS_INITIALIZATION "([^"\n]+)"$',
+                  (project / "golden_top.qsf").read_text(), re.M) != ["HPS FIRST"]:
+        raise ValueError("project HPS-first assignment differs from captured recipe")
+    for name in ("linux-complete.sof", "linux-boot.hps.jic", "linux-boot.core.rbf"):
+        path = directory / name
+        if path.exists() or path.is_symlink():
+            raise ValueError("Linux configuration output already exists: " + name)
+    for path in (artifact, project / "software/u-boot/spl/u-boot-spl-dtb.hex"):
+        if path.is_symlink() or not path.is_file() or not path.stat().st_size:
+            raise ValueError("Linux configuration input must be a nonempty regular file")
+    pfg = tool.with_name("quartus_pfg")
+    boot = project / "software/u-boot/spl/u-boot-spl-dtb.hex"
+    complete = directory / "linux-complete.sof"
+    run_logged([pfg, "-c", artifact, complete, "-o", "hps_path=" + str(boot)],
+               project, directory / "linux-enrich.log")
+    run_logged([pfg, "-c", complete, directory / "linux-boot.jic",
+                "-o", "device=MT25QU128", "-o", "flash_loader=A5EB013BB23BE4SCS",
+                "-o", "mode=ASX4", "-o", "hps=on"],
+               project, directory / "linux-split.log")
+    artifacts = {}
+    for name, role in (("linux-complete.sof", "volatile-JTAG-recovery-candidate"),
+                       ("linux-boot.hps.jic", "HPS-first-QSPI-candidate-not-programmed"),
+                       ("linux-boot.core.rbf", "Linux-fabric-configuration-candidate")):
+        path = directory / name
+        if not path.is_file() or path.is_symlink() or not path.stat().st_size:
+            raise ValueError("missing regular nonempty HPS-first artifact: " + name)
+        artifacts[name] = {"role": role, "size": path.stat().st_size, "sha256": digest(path)}
+    return {"hps_initialization": "HPS FIRST", "bootloader_sha256": digest(boot),
+            "compiled_sof_sha256": digest(artifact), "artifacts": artifacts}
 
 
 def main(argv=None):
