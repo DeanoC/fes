@@ -3,7 +3,11 @@
 
 #define PLAT_SOCFPGA_AGILEX5 5
 #define PLATFORM_MODEL PLAT_SOCFPGA_AGILEX5
-#define SOCFPGA_RSTMGR(x) 0U
+#define SOCFPGA_RSTMGR(x) FES_REG_##x
+#define FES_REG_HDSKACK 0x10U
+#define FES_REG_HDSKREQ 0x14U
+#define FES_REG_BRGMODRST 0x2cU
+#define FES_REG_HDSKEN 0x18U
 #define SOCFPGA_SYSMGR(x) 0U
 #define SOCFPGA_F2SDRAMMGR(x) 0U
 #define RSTMGR_BRGMODRSTMASK_SOC2FPGA 1U
@@ -41,6 +45,10 @@
 #define ERROR(...) ((void)0)
 
 static unsigned fail_mask, poll_count;
+#ifndef FES_TEST_VENDOR_ORIGINAL
+#define FES_NANO_TFA_DIAG
+#include "nano_bridge_diag.h"
+#endif
 #ifdef FES_TEST_ENABLE
 static unsigned read_count;
 static uint32_t mmio_read_32(uint32_t a)
@@ -53,9 +61,18 @@ static uint32_t mmio_read_32(uint32_t a)
 #define EXPECTED_POLLS 8U
 #define RESET_READS() (read_count = 0)
 #else
+static unsigned snapshot_reads;
+#ifndef FES_TEST_VENDOR_ORIGINAL
+static uint32_t mmio_read_32(uint32_t a)
+{
+    snapshot_reads++;
+    return (a == FES_REG_HDSKACK ? 0xa0000000U :
+            a == FES_REG_HDSKREQ ? 0xb0000000U : 0xc0000000U) | poll_count;
+}
+#endif
 #define BRIDGE_FUNCTION socfpga_bridges_disable
 #define EXPECTED_POLLS 6U
-#define RESET_READS() ((void)0)
+#define RESET_READS() (snapshot_reads = 0)
 #endif
 static void socfpga_s2f_bridge_mask(uint32_t mask, uint32_t *bridge, uint32_t *noc)
 { (void)mask; *bridge = 3; *noc = 0; }
@@ -79,6 +96,9 @@ int BRIDGE_FUNCTION(uint32_t mask);
 static int exercise(unsigned failures)
 {
     fail_mask = failures; poll_count = 0; RESET_READS();
+#ifndef FES_TEST_VENDOR_ORIGINAL
+    fes_nano_bridge_diag_reset();
+#endif
     return BRIDGE_FUNCTION(~0U);
 }
 
@@ -91,7 +111,24 @@ int main(void)
     if (exercise(0) != 0 || poll_count != EXPECTED_POLLS) return 1;
     for (unsigned i = 0; i < EXPECTED_POLLS; i++) {
         if (exercise(1U << i) != -(int)(11U + i) || poll_count != EXPECTED_POLLS) return 2;
+#ifndef FES_TEST_ENABLE
+        uint64_t detail[3];
+        fes_nano_bridge_diag_read(detail);
+        if (detail[0] != ((uint64_t)FES_NANO_BRIDGE_DIAG_TAG << 32 | (i + 1U)) ||
+            detail[1] != ((uint64_t)(uint32_t)(-(int)(11U+i)) << 32 | (0xa0000000U | (i+1U))) ||
+            detail[2] != ((uint64_t)(0xb0000000U | (i+1U)) << 32 | (0xc0000000U | (i+1U))) ||
+            snapshot_reads != 3U) return 4;
+#endif
     }
-    return exercise((1U << 1) | (1U << 4)) == -12 && poll_count == EXPECTED_POLLS ? 0 : 3;
+    if (exercise((1U << 1) | (1U << 4)) != -12 || poll_count != EXPECTED_POLLS) return 3;
+#ifndef FES_TEST_ENABLE
+    uint64_t detail[3];
+    fes_nano_bridge_diag_read(detail);
+    if ((uint32_t)detail[0] != 2U || (uint32_t)detail[1] != 0xa0000002U || snapshot_reads != 3U) return 5;
+    if (exercise(0) != 0 || snapshot_reads != 0U) return 6;
+    fes_nano_bridge_diag_read(detail);
+    if (detail[0] != (uint64_t)FES_NANO_BRIDGE_DIAG_TAG << 32 || detail[1] || detail[2]) return 7;
+#endif
+    return 0;
 #endif
 }

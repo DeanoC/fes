@@ -124,7 +124,8 @@ uint64_t fes_tfa_translate(uint64_t a){intel_smmu_hps_remapper_init(&a);return a
     def sha(path): return hashlib.sha256(path.read_bytes()).hexdigest()
     files=[HERE/"control.hpp",HERE/"control.cpp",HERE/"tests/contained_path.hpp",HERE/"tests/tfa_stubs.h",HERE/"tests/endpoint_tb.cpp",HERE/"tests/terasic_reset_test.h",Path(__file__).resolve(),
            HERE/"prepare_tfa.py",HERE/"generated/fes_embedded_control.hpp",FPGA/"cores/fes-common/rtl/fes_embedded_control.sv",
-           FPGA/"cores/fes-common/generated/fes_embedded_control.vh"]
+           FPGA/"cores/fes-common/generated/fes_embedded_control.vh", prepare_tfa.DIAG_HEADER, prepare_tfa.DIAG_HELPERS,
+           HERE/"tests/bridge_diag_service.c"]
     sources = {str(f.relative_to(ROOT)):sha(f) for f in files}
     commands = []
     def run(command, label):
@@ -145,13 +146,28 @@ uint64_t fes_tfa_translate(uint64_t a){intel_smmu_hps_remapper_init(&a);return a
                                       ("patched", reset_source, [])):
                 label = direction + "-" + name
                 test_source = out / ("reset-" + label + ".c")
-                test_source.write_text('#include "terasic_reset_test.h"\n' + function(code, "socfpga_bridges_" + direction))
+                helpers = prepare_tfa.DIAG_HELPERS.read_text() if name == "patched" else ""
+                test_source.write_text('#include "terasic_reset_test.h"\n' + helpers + function(code, "socfpga_bridges_" + direction))
                 executable = out / ("reset-" + label)
                 if direction == "enable":
                     flags = [*flags, "-DFES_TEST_ENABLE"]
                 run(["cc", "-std=c11", "-Wall", "-Werror", "-fsanitize=undefined", "-fno-sanitize-recover=all",
-                     "-I" + str(HERE/"tests"), *flags, test_source, "-o", executable], "reset-build-" + label)
+                     "-I" + str(HERE/"tests"), "-I" + str(HERE), *flags, test_source, "-o", executable], "reset-build-" + label)
                 run([executable], "reset-check-" + label)
+        # Exercise the actual HPS bridge service and its exact v1 case. The
+        # opt-in cookie adds detail registers; ordinary callers retain RET1.
+        case_start = source.index("\tcase INTEL_SIP_SMC_HPS_SET_BRIDGES:")
+        case_end = source.index("\tcase INTEL_SIP_SMC_HWMON_READTEMP:", case_start)
+        bridge_service = (HERE / "tests/bridge_diag_service.c").read_text()
+        bridge_service = bridge_service.replace("/* INSERT_HELPERS */", prepare_tfa.DIAG_HELPERS.read_text())
+        bridge_service = bridge_service.replace("/* INSERT_SERVICE */", function(source, "intel_hps_set_bridges"))
+        bridge_service = bridge_service.replace("/* INSERT_CASE */", source[case_start:case_end])
+        test_source = out / "bridge-service.c"
+        test_source.write_text(bridge_service)
+        executable = out / "bridge-service"
+        run(["cc", "-std=c11", "-Wall", "-Wextra", "-Werror", "-fsanitize=undefined", "-fno-sanitize-recover=all",
+             "-I" + str(HERE), test_source, "-o", executable], "bridge-service-build")
+        run([executable], "bridge-service-check")
         # Exercise the fork's real top-level SiP dispatcher: the FES query
         # must not be swallowed by either vendor range and nearby IDs must
         # continue to reach their original versioned handlers.
@@ -218,7 +234,8 @@ int main(void) {
             "cross_compiler_sha256":sha(a.cross_cxx.resolve()) if a.cross_cxx else None,
             "aarch64_object_sha256":sha(out/"control-aarch64.o") if a.cross_cxx else None,
             "not_run":[] if a.cross_cxx else ["AArch64 freestanding adapter compilation"],
-            "checks":(out/"checks.log").read_text().splitlines() + (["PASS terasic-query-dispatch-v1-v2-and-v3", "PASS terasic-original-timeout-reproduction-and-patched-enable-disable-polls"] if vendor else [])}
+            "checks":(out/"checks.log").read_text().splitlines() + (["PASS terasic-query-dispatch-v1-v2-and-v3", "PASS terasic-original-timeout-reproduction-and-patched-enable-disable-polls",
+                "PASS first-failed-bridge-stage-snapshot-and-stale-clear", "PASS opt-in-bridge-service-detail-and-ordinary-ret1"] if vendor else [])}
     (out/"result.json").write_text(json.dumps(report,indent=2)+"\n")
     print("PASS:",out)
 

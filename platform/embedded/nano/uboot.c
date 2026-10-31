@@ -17,6 +17,7 @@
 #include <u-boot/sha256.h>
 #include "handoff.h"
 #include "fes_nano_config.h"
+#include "nano_bridge_diag.h"
 
 DECLARE_GLOBAL_DATA_PTR;
 #define RSTMGR 0x10d11000UL
@@ -73,16 +74,32 @@ static void snapshot(struct fes_nano_state *s)
     s->uart_lsr = readl(UART1 + 0x14);
 }
 
+static const char *bridge_stage_name(unsigned stage)
+{
+    switch (stage) {
+    case FES_NANO_BRIDGE_STAGE_NONE: return "none";
+    case FES_NANO_BRIDGE_STAGE_S2F_ACK_CLEAR: return "s2f_ack_clear";
+    case FES_NANO_BRIDGE_STAGE_LW_ACK_CLEAR: return "lw_ack_clear";
+    case FES_NANO_BRIDGE_STAGE_F2S_FPGA_ACK_SET: return "f2s_fpga_ack_set";
+    case FES_NANO_BRIDGE_STAGE_F2S_FLUSH_ACK_SET: return "f2s_flush_ack_set";
+    case FES_NANO_BRIDGE_STAGE_SDRAM_FLUSH_ACK_CLEAR: return "sdram_flush_ack_clear";
+    case FES_NANO_BRIDGE_STAGE_SDRAM_FPGA_ACK_CLEAR: return "sdram_fpga_ack_clear";
+    case FES_NANO_BRIDGE_STAGE_NOC_IDLE_ACK: return "noc_idle_ack";
+    case FES_NANO_BRIDGE_STAGE_NOC_IDLE_STATUS: return "noc_idle_status";
+    default: return "unknown";
+    }
+}
+
 static int close_bridges(const char *phase)
 {
-    u64 args[2] = {2, FES_NANO_BRIDGES};
+    u64 args[3] = {2, FES_NANO_BRIDGES, FES_NANO_BRIDGE_DIAG_REQUEST}, detail[3] = {0};
     u32 before = readl(RSTMGR + 0x2c), after;
-    int status;
-    unsigned smc_error, reset_mismatch;
+    int status, error;
+    unsigned smc_error, reset_mismatch, stage, valid;
 
     printf("FES_NANO_BRIDGE BEGIN phase=%s mask=%08x before=%08x\n",
            phase, FES_NANO_BRIDGES, before);
-    status = invoke_smc(INTEL_SIP_SMC_HPS_SET_BRIDGES, args, 2, NULL, 0);
+    status = invoke_smc(INTEL_SIP_SMC_HPS_SET_BRIDGES, args, 3, detail, 3);
     /* Read back even on a returned service error. Neither observation proves
      * traffic drained; both must pass the existing containment gate. */
     after = readl(RSTMGR + 0x2c);
@@ -91,9 +108,21 @@ static int close_bridges(const char *phase)
     printf("FES_NANO_BRIDGE RESULT phase=%s smc=%d smc_hex=%08x mask=%08x before=%08x after=%08x smc_error=%u reset_mismatch=%u\n",
            phase, status, (unsigned)status, FES_NANO_BRIDGES, before, after,
            smc_error, reset_mismatch);
+    stage = (u32)detail[0];
+    error = (int)(u32)(detail[1] >> 32);
+    valid = (detail[0] >> 32) == FES_NANO_BRIDGE_DIAG_TAG && stage <= FES_NANO_BRIDGE_STAGE_MAX &&
+            (stage == FES_NANO_BRIDGE_STAGE_NONE ? error == 0 : error < 0);
+    printf("FES_NANO_BRIDGE DETAIL phase=%s tag=%08x valid=%u captured=%u stage=%u name=%s error=%d failure_ack=%08x failure_req=%08x failure_reset=%08x\n",
+           phase, (u32)(detail[0] >> 32), valid, valid && stage != 0, stage,
+           valid ? bridge_stage_name(stage) : "unavailable", error,
+           (u32)detail[1], (u32)(detail[2] >> 32), (u32)detail[2]);
     if (smc_error || reset_mismatch) {
         printf("FES_NANO_HANDOFF REJECT bridge phase=%s smc_error=%u reset_mismatch=%u\n",
                phase, smc_error, reset_mismatch);
+        return 0;
+    }
+    if (!valid || stage != FES_NANO_BRIDGE_STAGE_NONE) {
+        puts("FES_NANO_HANDOFF REJECT bridge diagnostic identity/state\n");
         return 0;
     }
     return 1;

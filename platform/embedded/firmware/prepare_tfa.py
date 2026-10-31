@@ -14,6 +14,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 SOURCE = "plat/intel/soc/common/socfpga_sip_svc.c"
 RESET_SOURCE = "plat/intel/soc/common/soc/socfpga_reset_manager.c"
+DIAG_HEADER = Path(__file__).parent / "nano_bridge_diag.h"
+DIAG_HELPERS = Path(__file__).parent / "nano_bridge_diag.inc"
+DIAG_HEADER_SOURCE = "plat/intel/soc/common/include/nano_bridge_diag.h"
 REFERENCE_BLOB = "3c223c1498e3a412e075e4f921cd78acd3d0fcd6"
 REFERENCE_REVISION = "4ec2948fe3f65dba2f19e691e702f7de2949179c"
 TERASIC_BLOB = "288baffb283787dbd49729983800ce764243adda"
@@ -57,6 +60,18 @@ def contained_source(data):
                    "{\n\treturn status == INTEL_SIP_SMC_STATUS_BUSY ? 0U : detail;\n}\n\n")
     replace("static uint64_t socfpga_sip_handler(", helper + "static uint64_t socfpga_sip_handler(")
     if profile == "terasic-de25-v2.12":
+        replace("uint32_t intel_hps_set_bridges(uint64_t enable, uint64_t mask)\n{\n\tint status = 0;",
+                '#define FES_NANO_TFA_DIAG\n#include "nano_bridge_diag.h"\n\n'
+                "uint32_t intel_hps_set_bridges(uint64_t enable, uint64_t mask)\n{\n\tint status = 0;\n\n"
+                "\tfes_nano_bridge_diag_reset();")
+        replace("\tcase INTEL_SIP_SMC_HPS_SET_BRIDGES:\n"
+                "\t\tstatus = intel_hps_set_bridges(x1, x2);\n\t\tSMC_RET1(handle, status);",
+                "\tcase INTEL_SIP_SMC_HPS_SET_BRIDGES:\n"
+                "\t\tstatus = intel_hps_set_bridges(x1, x2);\n"
+                "\t\tif (x3 == FES_NANO_BRIDGE_DIAG_REQUEST) {\n"
+                "\t\t\tuint64_t detail[3];\n\t\t\tfes_nano_bridge_diag_read(detail);\n"
+                "\t\t\tSMC_RET4(handle, status, detail[0], detail[1], detail[2]);\n\t\t}\n"
+                "\t\tSMC_RET1(handle, status);")
         # This fork dispatches several SiP ranges before its v1 switch.
         # Handle our exact diagnostic query before that range dispatch.
         replace("\tuint32_t cmd = smc_fid & INTEL_SIP_SMC_CMD_MASK;\n",
@@ -146,12 +161,25 @@ def contained_terasic_reset(data):
             if body.count(old) != expected:
                 raise ValueError("vendor bridge reset patch context changed")
             body = body.replace(old, new)
+        if early:
+            # Source-order IDs are explicit: two non-Agilex5 NOC polls sit
+            # between the six polls compiled for this pinned Agilex5 build.
+            stages = iter(("S2F_ACK_CLEAR", "LW_ACK_CLEAR", "NOC_IDLE_ACK", "NOC_IDLE_STATUS",
+                           "F2S_FPGA_ACK_SET", "F2S_FLUSH_ACK_SET",
+                           "SDRAM_FLUSH_ACK_CLEAR", "SDRAM_FPGA_ACK_CLEAR"))
+            anchor = "\t\t\t\tfirst_error = ret;\n"
+            if body.count(anchor) != 8:
+                raise ValueError("unexpected bridge diagnostic poll count")
+            body = re.sub(re.escape(anchor), lambda match: match[0] +
+                          "\t\t\t\tfes_nano_bridge_diag_record(FES_NANO_BRIDGE_STAGE_" + next(stages) + ", ret);\n", body)
         text = text[:start] + body + text[end:]
     patch_function("int socfpga_bridges_enable(uint32_t mask)\n{",
                    "int socfpga_bridge_nongraceful_disable(uint32_t mask)", 9,
                    "\tret = ret | ret_hps;\n\treturn ret;\n")
     patch_function("int socfpga_bridges_disable(uint32_t mask)\n{",
                    "/* CPUxRESETBASELOW */", 8, "\treturn ret;\n", early=True)
+    text = text.replace("int socfpga_bridges_enable(uint32_t mask)\n{",
+                        DIAG_HELPERS.read_text() + "\nint socfpga_bridges_enable(uint32_t mask)\n{", 1)
     return text.encode()
 
 
@@ -179,9 +207,12 @@ def main():
     diff = "".join(difflib.unified_diff(original.decode().splitlines(True), modified.decode().splitlines(True),
                                       fromfile="a/" + SOURCE, tofile="b/" + SOURCE))
     if reset is not None:
+        (output / DIAG_HEADER.name).write_bytes(DIAG_HEADER.read_bytes())
         (output / "socfpga_reset_manager.c").write_bytes(reset)
         diff += "".join(difflib.unified_diff(reset_original.decode().splitlines(True), reset.decode().splitlines(True),
                                             fromfile="a/" + RESET_SOURCE, tofile="b/" + RESET_SOURCE))
+        diff += "".join(difflib.unified_diff([], DIAG_HEADER.read_text().splitlines(True),
+                                            fromfile="/dev/null", tofile="b/" + DIAG_HEADER_SOURCE))
     (output / "contained.patch").write_text(diff)
     (output / "result.json").write_text(json.dumps({
         "reference_git_blob": blob, "reference_profile": profile,
@@ -192,6 +223,8 @@ def main():
         "reset_reference_git_blob": TERASIC_RESET_BLOB if reset is not None else None,
         "reset_reference_sha256": hashlib.sha256(reset_original).hexdigest() if reset is not None else None,
         "reset_patched_sha256": hashlib.sha256(reset).hexdigest() if reset is not None else None,
+        "bridge_diag_header_sha256": hashlib.sha256(DIAG_HEADER.read_bytes()).hexdigest() if reset is not None else None,
+        "bridge_diag_helpers_sha256": hashlib.sha256(DIAG_HELPERS.read_bytes()).hexdigest() if reset is not None else None,
         "patch_sha256": hashlib.sha256(diff.encode()).hexdigest(),
         "preparer_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
         "contract_header_sha256": hashlib.sha256((Path(__file__).parent / "generated/fes_embedded_control.hpp").read_bytes()).hexdigest(),

@@ -12,7 +12,9 @@ def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def prepare(source, entry_build):
+def prepare(source, entry_build, bl31_sha256):
+    if len(bl31_sha256) != 64 or any(c not in "0123456789abcdef" for c in bl31_sha256):
+        raise ValueError("missing exact BL31 identity for the matched Nano loader")
     receipt_path = entry_build / "result.json"
     receipt = json.loads(receipt_path.read_text())
     image = entry_build / "entry.img"
@@ -39,17 +41,19 @@ def prepare(source, entry_build):
     bootm.write_text(text.replace(anchor, "\tdm_remove_devices_active();\n\t{\n\t\textern void fes_nano_late_handoff(void);\n\t\tfes_nano_late_handoff();\n\t}\n\n\tcleanup_before_linux();"))
     for src, dest in (("handoff.c", "fes_nano_policy.c"), ("handoff.h", "handoff.h"), ("uboot.c", "fes_nano.c")):
         shutil.copyfile(HERE / src, source / "cmd" / dest)
+    diag_header = HERE.parent / "firmware/nano_bridge_diag.h"
+    shutil.copyfile(diag_header, source / "cmd" / diag_header.name)
     makefile = source / "cmd/Makefile"
     makefile.write_text(makefile.read_text() + "\nobj-y += fes_nano.o fes_nano_policy.o\n")
     producer_sources = {str(p.relative_to(ROOT)): sha(p) for p in
-                        (HERE / "prepare_uboot.py", HERE / "uboot.c", HERE / "handoff.c", HERE / "handoff.h", profile)}
-    build_id = hashlib.sha256(json.dumps({"sources": producer_sources, "entry": sha(image)}, sort_keys=True).encode()).hexdigest()[:16]
+                        (HERE / "prepare_uboot.py", HERE / "uboot.c", HERE / "handoff.c", HERE / "handoff.h", profile, diag_header)}
+    build_id = hashlib.sha256(json.dumps({"sources": producer_sources, "entry": sha(image), "bl31": bl31_sha256}, sort_keys=True).encode()).hexdigest()[:16]
     digest = bytes.fromhex(sha(image))
     (source / "cmd/fes_nano_config.h").write_text(
         '/* Generated from the exact entry image and handoff sources. */\n#define FES_NANO_BOOT_ID "' + build_id +
         '"\n#define FES_NANO_IMAGE_SIZE ' + str(image.stat().st_size) +
         "ULL\n#define FES_NANO_IMAGE_SHA256 {" + ",".join(hex(b) for b in digest) + "}\n")
-    return {"entry_image_sha256": sha(image), "entry_receipt_sha256": sha(receipt_path),
+    return {"entry_image_sha256": sha(image), "entry_receipt_sha256": sha(receipt_path), "bl31_sha256": bl31_sha256,
             "profile_sha256": sha(profile), "build_id": build_id,
             "classification": "source-derived serial-only Nano handoff; physical gate not executed",
             "producer_sources": producer_sources}

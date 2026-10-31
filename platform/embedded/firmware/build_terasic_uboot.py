@@ -59,7 +59,8 @@ def checked_bl31(bl31_build):
     entry, segments = build_terasic.bl31_load_segments(image_elf)
     if receipt.get("bl31_entry") != entry or receipt.get("bl31_load_segments") != [list(s) for s in segments]:
         raise ValueError("BL31 ELF memory ranges differ from its receipt")
-    sources = (HERE / "build_terasic.py", HERE / "prepare_tfa.py", HERE / "generated/fes_embedded_control.hpp")
+    sources = (HERE / "build_terasic.py", HERE / "prepare_tfa.py", HERE / "generated/fes_embedded_control.hpp",
+               prepare_tfa.DIAG_HEADER, prepare_tfa.DIAG_HELPERS)
     if any(receipt.get("producer_sources", {}).get(str(p.relative_to(ROOT))) != sha(p) for p in sources):
         raise ValueError("BL31 producer sources differ from its receipt")
     return receipt_path, receipt_bytes, receipt, component, blob, sources, elf, image_elf, segments
@@ -145,7 +146,7 @@ def main():
         spec = importlib.util.spec_from_file_location("fes_nano_prepare", HERE.parent / "nano/prepare_uboot.py")
         nano_prepare = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(nano_prepare)
-        native = nano_prepare.prepare(build_repo, entry_build)
+        native = nano_prepare.prepare(build_repo, entry_build, hashlib.sha256(blob).hexdigest())
     commands = []
     def run(label, argv):
         argv = [str(x) for x in argv]

@@ -124,6 +124,9 @@ def main():
     source = output / "source"
     source.mkdir()
     extract_archive(archive, source)
+    producer_inputs = (Path(__file__).resolve(), HERE / "prepare_tfa.py", HERE / "generated/fes_embedded_control.hpp",
+                       prepare_tfa.DIAG_HEADER, prepare_tfa.DIAG_HELPERS)
+    frozen = {str(p.relative_to(ROOT)): digest(p.read_bytes()) for p in producer_inputs}
     target = source / prepare_tfa.SOURCE
     original = target.read_bytes()
     blob, profile = prepare_tfa.source_identity(original)
@@ -135,8 +138,8 @@ def main():
     reset_original = reset_target.read_bytes()
     reset_patched = prepare_tfa.contained_terasic_reset(reset_original)
     reset_target.write_bytes(reset_patched)
-    frozen = {str(p.relative_to(ROOT)): digest(p.read_bytes()) for p in
-              (Path(__file__).resolve(), HERE / "prepare_tfa.py", HERE / "generated/fes_embedded_control.hpp")}
+    diag_header = source / prepare_tfa.DIAG_HEADER_SOURCE
+    diag_header.write_bytes(prepare_tfa.DIAG_HEADER.read_bytes())
     label = "fes-terasic-contained-" + revision[:12]
     # The exported source is inside the FES worktree. Do not let TF-A's
     # default git-describe walk up into FES and embed an unrelated revision.
@@ -151,10 +154,10 @@ def main():
         raise ValueError("expected nonempty Agilex5 BL31 and AArch64 ELF")
     entry, segments = bl31_load_segments(image_elf)
     if (target.read_bytes() != patched or reset_target.read_bytes() != reset_patched or
+            diag_header.read_bytes() != prepare_tfa.DIAG_HEADER.read_bytes() or
             revision != git(repo, "rev-parse", "HEAD^{commit}").decode().strip() or
             git(repo, "status", "--porcelain", "--untracked-files=all") or
-            frozen != {str(p.relative_to(ROOT)): digest(p.read_bytes()) for p in
-                       (Path(__file__).resolve(), HERE / "prepare_tfa.py", HERE / "generated/fes_embedded_control.hpp")} or
+            frozen != {str(p.relative_to(ROOT)): digest(p.read_bytes()) for p in producer_inputs} or
             any(digest(Path(value["path"]).read_bytes()) != value["sha256"] for value in tools.values())):
         raise ValueError("build inputs changed during compilation")
     report = {"status": "built", "classification": "contained Terasic Agilex5 BL31 component; no boot or hardware acceptance",

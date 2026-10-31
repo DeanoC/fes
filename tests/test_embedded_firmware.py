@@ -73,7 +73,8 @@ class EmbeddedFirmwareTests(unittest.TestCase):
             struct.pack_into('<HH', image, 54, 56, 1)
             struct.pack_into('<IIQQQQQQ', image, 64, 1, 5, 0, 0x80000000, 0x80000000, len(image), 0x1000, 0x1000)
             elf.write_bytes(image)
-            inputs = (PATH.parent / 'build_terasic.py', PATH, PATH.parent / 'generated/fes_embedded_control.hpp')
+            inputs = (PATH.parent / 'build_terasic.py', PATH, PATH.parent / 'generated/fes_embedded_control.hpp',
+                      prepare.DIAG_HEADER, prepare.DIAG_HELPERS)
             receipt = {'status': 'built', 'reference_revision': prepare.TERASIC_REVISION,
                        'reference_git_blob': prepare.TERASIC_BLOB, 'reset_reference_git_blob': prepare.TERASIC_RESET_BLOB,
                        'bl31_bin_size': component.stat().st_size,

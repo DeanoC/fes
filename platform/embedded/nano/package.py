@@ -43,6 +43,7 @@ def main():
             u["fit_sha256"] != sha(fit) or u["spl_sha256"] != sha(spl) or not u["fit_atf_verified"] or
             u["native_handoff"]["entry_image_sha256"] != sha(image) or
             u["native_handoff"]["entry_receipt_sha256"] != sha(entry / "result.json") or
+            u["native_handoff"].get("bl31_sha256") != u["bl31_sha256"] or
             u["native_handoff"]["profile_sha256"] != sha(HERE / "probe-profile.json") or
             e["entry_image_sha256"] != sha(image) or e["target"] != "de25-nano"):
         raise ValueError("FPGA reference, SPL, FIT, native entry or handoff profile differs from its receipt")
