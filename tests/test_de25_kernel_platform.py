@@ -90,6 +90,7 @@ class KernelPlatformTests(unittest.TestCase):
         platform.verify_config(text)
         platform.verify_config(text.replace('# CONFIG_FES_DE25_DMA_KUNIT_TEST is not set\n', ''))
         for changed in (text.replace('CONFIG_FES_DE25_DMA=y', 'CONFIG_FES_DE25_DMA=m'),
+                        text.replace('CONFIG_SIMPLE_PM_BUS=y', 'CONFIG_SIMPLE_PM_BUS=m'),
                         text.replace('# CONFIG_FES_DE25_DMA_KUNIT_TEST is not set',
                                      'CONFIG_FES_DE25_DMA_KUNIT_TEST=y')):
             with self.assertRaises(ValueError):

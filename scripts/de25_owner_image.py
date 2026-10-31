@@ -84,7 +84,7 @@ def selected_kernel(directory):
 def root_changes(base_record, kernel_record, revision):
     manifest = {'format': 1, 'classification': 'de25-owner-candidate',
                 'kernel': kernel.RELEASE, 'kernel_image_sha256': kernel_record['files']['Image']['sha256'],
-                'modules': [], 'built_in': ['fes_de25_dma', 'stratix10_soc', 'fpga_bridge', 'fpga_region', 'of_fpga_region'],
+                'modules': [], 'built_in': ['fes_de25_dma', 'stratix10_soc', 'fpga_bridge', 'fpga_region', 'of_fpga_region', 'simple_pm_bus'],
                 'kernel_producer': kernel_record['fes_revision'], 'image_producer': revision,
                 'base_producer': base_record['fes_revision'], 'normal_runtime_admission': 'closed'}
     return {'etc/fes-kernel-release': ((kernel.RELEASE + '\n').encode(), 0o644),

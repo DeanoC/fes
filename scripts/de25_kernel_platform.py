@@ -24,7 +24,7 @@ RELEASE = "6.12.11-fes-de25-owner"
 ENABLED = ("FES_DE25_DMA", "FES_DE25_DMA_PLATFORM", "OF_OVERLAY", "OF_CONFIGFS",
            "CONFIGFS_FS", "FPGA", "FPGA_MGR_STRATIX10_SOC", "FPGA_BRIDGE",
            "FPGA_REGION", "OF_FPGA_REGION", "INTEL_STRATIX10_SERVICE", "ARM_SMMU_V3",
-           "IOMMU_DEFAULT_DMA_STRICT", "DMA_CMA")
+           "IOMMU_DEFAULT_DMA_STRICT", "DMA_CMA", "SIMPLE_PM_BUS")
 DISABLED = ("LOCALVERSION_AUTO", "FES_DE25_DMA_KUNIT_TEST")
 
 
@@ -138,7 +138,8 @@ def inside(jobs, revision):
     dtb = build / "arch/arm64/boot/dts" / DTB
     dep.checked([verifier, dtb])
     symbols = (build / "System.map").read_text()
-    for name in ("fes_de25_owner_probe", "fes_de25_dma_create", "s10_probe", "of_fpga_region_probe"):
+    for name in ("fes_de25_owner_probe", "fes_de25_dma_create", "s10_probe", "of_fpga_region_probe",
+                 "simple_pm_bus_probe"):
         if not re.search(r" [tT] " + name + r"(?:\.[^\s]+)?$", symbols, re.M):
             raise ValueError("required built-in symbol missing: " + name)
     files = {"Image": build / "arch/arm64/boot/Image", "kernel.config": config,

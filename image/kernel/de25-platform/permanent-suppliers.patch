@@ -10,3 +10,7 @@
 +++ b/drivers/firmware/stratix10-svc.c
 @@ -3695,0 +3696 @@
 +		.suppress_bind_attrs = IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM),
+--- a/drivers/bus/simple-pm-bus.c
++++ b/drivers/bus/simple-pm-bus.c
+@@ -133,0 +134 @@
++		.suppress_bind_attrs = IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM),

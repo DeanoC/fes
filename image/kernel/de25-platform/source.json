@@ -13,9 +13,13 @@
     "drivers/firmware/stratix10-svc.c": {
       "before_sha256": "493301f526657473b05700ba54bea38d1b63d43a99a341e78c338e0908ca9f4a",
       "after_sha256": "dc3214b2e4d836969fad62db5e39a56c211aa85647001b1720f77ce5cf17ebce"
+    },
+    "drivers/bus/simple-pm-bus.c": {
+      "before_sha256": "abb3f9ff229edbcbf1fe76f661d774a88f4f5d92a401414e9429cd5b226116f2",
+      "after_sha256": "240a9828c2818fbdc33761d5e0aeea50d5d538ee5d8b2e9218f48bc4ff1e288c"
     }
   },
-  "patch_sha256": "2d0167b8e1ebba8f4c4894aaeed76125d4cb0b65af39b0bad6817e5d16fc09af",
+  "patch_sha256": "6f22b02c4264955fc386e8acb3b5bc0418992e7da12b4e4a0cf6ee7361cb1507",
   "unchanged_supplier_sources": {
     "drivers/iommu/arm/arm-smmu-v3/arm-smmu-v3.c": "98d64761da20ab9d4e6b8fac163fb4de11402c6ccdea26a84f59257dbd83323a",
     "drivers/clk/socfpga/clk-agilex5.c": "65b805f28a29d342eb9076415f3f0ab4668ddd88cb0686139161cb4e9d7aeb41"

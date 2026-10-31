@@ -11,7 +11,7 @@ case "${1:-}" in
     [ -r /sys/class/fpga_manager/fpga0/name ]
     [ -d /sys/class/fpga_region/region0 ]
     [ -c /dev/fes-de25-scanout ]
-    for driver in fes-de25-dma of-fpga-region stratix10-svc 'Stratix10 SoC FPGA manager'; do
+    for driver in fes-de25-dma of-fpga-region stratix10-svc 'Stratix10 SoC FPGA manager' simple-pm-bus; do
       [ ! -e "/sys/bus/platform/drivers/$driver/unbind" ]
     done
     printf '%s\n' 'FPGA drivers: built-in candidate drivers ready'
