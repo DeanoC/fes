@@ -102,8 +102,10 @@ selects EL2 for BL33 when available. In the pinned
 [U-Boot ELF loader](https://github.com/terasic/u-boot-socfpga/blob/d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413/lib/elf.c),
 `bootelf` enters the loaded image directly; the board defconfig does not select
 the EL1 switch. It therefore does not satisfy the native image's EL1 and clean
-MMU/cache contract by itself. A reviewed entry path and resource handoff are
-still required before attempting a Nano native boot.
+MMU/cache contract by itself. The separate [entry prototype](../entry/README.md)
+uses U-Boot's `booti` cleanup and a guarded EL2-to-EL1 transition, tested with
+the vendor source built for QEMU. A Nano-specific resource handoff, matched
+boot chain and recovery procedure remain required before attempting a board boot.
 
 ## Adapter and endpoint
 

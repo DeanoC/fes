@@ -2,6 +2,7 @@
 import copy
 import importlib.util
 from pathlib import Path
+import struct
 import unittest
 
 PATH = Path(__file__).resolve().parents[1] / "platform/embedded/tamago/build.py"
@@ -11,8 +12,8 @@ spec.loader.exec_module(build)
 
 
 def profile():
-    return {"schema": 6, "firmware": "synthetic test; not a board recipe", "uart_index": 0,
-            "ram_start": 0x82000000, "ram_size": 256 << 20, "entry": 0x82010000,
+    return {"schema": 7, "firmware": "synthetic test; not a board recipe", "uart_index": 0,
+            "ram_start": 0x82000000, "ram_size": 256 << 20, "entry": 0x82020000,
             "reserved": [{"start": 0x80000000, "size": 32 << 20, "owner": "synthetic firmware"}],
             "sd_input_clock_hz": 100000000, "usb_phy_clock_hz": 60000000,
             "network": None, "display": None, "fpga_probe": None, "handoff": {"display_platform_ready":False, "ethernet_platform_ready":False, **{key: True for key in ("el1", "single_cpu", "counter_access", "exclusive_devices",
@@ -21,7 +22,7 @@ def profile():
 
 class BoardProfileTests(unittest.TestCase):
     def test_explicit_profile(self):
-        self.assertEqual(build.profile_constants(profile()), (0x82000000, 256 << 20, 0x82010000, 100000000, 60000000, None, None, None, 0))
+        self.assertEqual(build.profile_constants(profile()), (0x82000000, 256 << 20, 0x82020000, 100000000, 60000000, None, None, None, 0))
 
     def test_console_selection_is_explicit_and_exact(self):
         p = profile()
@@ -48,6 +49,8 @@ class BoardProfileTests(unittest.TestCase):
             lambda p: p.update(sd_sectors=8192, sd_rca=7),
             lambda p: p.update(ram_size=2 << 30),
             lambda p: p.update(entry=0x82000000),
+            lambda p: p.update(entry=0x82010000),
+            lambda p: p.update(schema=6),
             lambda p: p.update(ram_start=0x82001000),
             lambda p: p.update(sd_input_clock_hz=0),
             lambda p: p.update(usb_phy_clock_hz=48000000),
@@ -73,6 +76,24 @@ class BoardProfileTests(unittest.TestCase):
         p["usb_phy_clock_hz"] = 0
         p["handoff"]["usb_platform_ready"] = False
         self.assertEqual(build.profile_constants(p)[4], 0)
+
+    def test_elf_load_segments_leave_the_whole_runtime_reservation_clear(self):
+        data = bytearray(0x2000)
+        ident = b"\x7fELF\x02\x01\x01" + bytes(9)
+        struct.pack_into("<16sHHIQQQIHHHHHH", data, 0, ident, 2, 183, 1,
+                         0x82020000, 64, 0, 0, 64, 56, 2, 0, 0, 0)
+        struct.pack_into("<IIQQQQQQ", data, 64, 1, 5, 0, 0x8201f000,
+                         0x8201f000, 0x2000, 0x2000, 0x1000)
+        struct.pack_into("<IIQQQQQQ", data, 120, 1, 6, 0x1000, 0x82030000,
+                         0x82030000, 0x1000, 0x1000, 0x1000)
+        build.validate_native_elf(data, 0x82000000, 256 << 20, 0x82020000)
+        # Leave the entry valid while moving a second segment into reserved RAM.
+        struct.pack_into("<QQ", data, 120 + 16, 0x8200f000, 0x8200f000)
+        with self.assertRaises(ValueError):
+            build.validate_native_elf(data, 0x82000000, 256 << 20, 0x82020000)
+        struct.pack_into("<QQ", data, 120 + 16, 0x91ff0000, 0x91ff0000)
+        with self.assertRaises(ValueError):
+            build.validate_native_elf(data, 0x82000000, 256 << 20, 0x82020000)
 
 
 def ethernet_profile():

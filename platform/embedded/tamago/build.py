@@ -13,11 +13,43 @@ APP = Path(__file__).resolve().parent
 ROOT = APP.parents[2]
 
 
+def validate_native_elf(data, start, size, link_address):
+    """Reject a malformed or out-of-contract static image before publication."""
+    if (len(data) < 64 or data[:7] != b"\x7fELF\x02\x01\x01" or
+            struct.unpack_from("<HHI", data, 16) != (2, 183, 1)):
+        raise ValueError("expected static little-endian AArch64 ELF")
+    elf_entry, phoff = struct.unpack_from("<QQ", data, 24)
+    ehsize, phsize, count = struct.unpack_from("<HHH", data, 52)
+    if (ehsize != 64 or phsize != 56 or not 1 <= count <= 64 or
+            phoff > len(data) or count > (len(data) - phoff) // phsize or
+            elf_entry % 4 or elf_entry < link_address or elf_entry >= start + size - 0x20000):
+        raise ValueError("invalid ELF header or entry")
+    segments = []
+    executable_entry = False
+    for i in range(count):
+        typ, flags, offset, va, pa, filesz, memsz, align = struct.unpack_from("<IIQQQQQQ", data, phoff + i * phsize)
+        if typ in (2, 3):
+            raise ValueError("dynamic ELF or interpreter is unsupported")
+        if typ != 1:
+            continue
+        if (flags & ~7 or pa != va or va < start + 0x10000 or va >= start + size - 0x20000 or
+                not memsz or memsz > start + size - 0x20000 - va or filesz > memsz or
+                offset > len(data) or filesz > len(data) - offset or
+                (align > 1 and (align & (align - 1) or (va - offset) & (align - 1))) or
+                any(va < end and begin < va + memsz for begin, end in segments)):
+            raise ValueError("ELF segment overlaps a reservation or falls outside owned RAM")
+        segments.append((va, va + memsz))
+        if flags & 1 and va <= elf_entry < va + filesz:
+            executable_entry = True
+    if not segments or not executable_entry:
+        raise ValueError("ELF entry is not in file-backed executable memory")
+
+
 def profile_constants(profile):
     """Validate firmware memory and platform readiness, not a board default."""
     expected = {"schema", "firmware", "ram_start", "ram_size", "entry", "reserved", "sd_input_clock_hz", "usb_phy_clock_hz", "uart_index", "network", "display", "fpga_probe", "handoff"}
-    if not isinstance(profile, dict) or set(profile) != expected or type(profile["schema"]) is not int or profile["schema"] != 6:
-        raise ValueError("expected exact schema-6 handoff fields")
+    if not isinstance(profile, dict) or set(profile) != expected or type(profile["schema"]) is not int or profile["schema"] != 7:
+        raise ValueError("expected exact schema-7 handoff fields")
     if not isinstance(profile["firmware"], str) or not profile["firmware"].strip():
         raise ValueError("firmware identity is required")
     required = {"el1", "single_cpu", "counter_access", "exclusive_devices", "uart_configured", "sd_platform_ready", "mmu_off_caches_clean"}
@@ -37,8 +69,8 @@ def profile_constants(profile):
     # Board has 1 GiB HPS DDR. TamaGo uses 2 MiB memory block boundaries.
     if start < 0x80000000 or size < 64 << 20 or start + size > 0xc0000000 or start % (2 << 20) or size % (2 << 20):
         raise ValueError("RAM must be an aligned region inside the 1 GiB HPS DDR window")
-    if entry != start + 0x10000:
-        raise ValueError("entry must leave 64 KiB for runtime tables/vectors")
+    if entry != start + 0x20000:
+        raise ValueError("link address must leave the first 64 KiB, including the ELF header page, for runtime tables/vectors")
     reserved = profile["reserved"]
     if not isinstance(reserved, list) or not reserved:
         raise ValueError("firmware reservations must be recorded")
@@ -215,20 +247,7 @@ def build(args):
     with (output / "build.log").open("w") as log:
         subprocess.run(command, cwd=APP, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
     data = elf.read_bytes()
-    if data[:6] != b"\x7fELF\x02\x01" or struct.unpack_from("<H", data, 18)[0] != 183:
-        raise ValueError("expected AArch64 ELF")
-    phoff = struct.unpack_from("<Q", data, 32)[0]
-    phsize, count = struct.unpack_from("<HH", data, 54)
-    executable_entry = False
-    elf_entry = struct.unpack_from("<Q", data, 24)[0]
-    for i in range(count):
-        typ, flags, offset, va, pa, filesz, memsz, _ = struct.unpack_from("<IIQQQQQQ", data, phoff + i * phsize)
-        if typ == 1 and flags & 1 and va <= elf_entry < va + memsz:
-            executable_entry = True
-        if typ == 3 or (typ == 1 and (pa != va or va < start or va + memsz > start + size or filesz > memsz or offset + filesz > len(data))):
-            raise ValueError("ELF interpreter or segment outside owned RAM")
-    if not executable_entry or elf_entry < entry:
-        raise ValueError("ELF entry overlaps early runtime reservation")
+    validate_native_elf(data, start, size, entry)
     if sources != {str(p.relative_to(ROOT)): sha(p) for p in sorted(files)}:
         raise ValueError("sources changed while building")
     report = {"status": "cross-built", "board": "de25-nano", "program": args.program,

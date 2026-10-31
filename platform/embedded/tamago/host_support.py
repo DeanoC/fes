@@ -80,7 +80,10 @@ def png_from_ppm(source, target):
 
 class Guest:
     """Own one QEMU process, its Unix serial socket and its QMP connection."""
-    def __init__(self, qemu, elf, directory, record_command, *, disk=None, display="none", usb=False, ui=True, video=False):
+    def __init__(self, qemu, elf, directory, record_command, *, disk=None, display="none", usb=False, ui=True, video=False,
+                 boot_firmware=None, image_address=None):
+        if (boot_firmware is None) != (image_address is None):
+            raise ValueError("boot firmware and image address must be supplied together")
         self.directory = Path(directory)
         self.directory.mkdir()
         self.temporary = tempfile.TemporaryDirectory(prefix="fes-native-")
@@ -93,12 +96,20 @@ class Guest:
         self.stderr = (self.directory / "qemu.log").open("wb")
         self.started = time.monotonic()
         self.usb = usb
-        self.command = [str(qemu), "-machine", "virt,gic-version=3,highmem=off" if usb else "virt,gic-version=3", "-cpu", "cortex-a53",
+        machine = "virt,gic-version=3,highmem=off" if usb else "virt,gic-version=3"
+        if boot_firmware is not None:
+            machine += ",virtualization=on"
+        self.command = [str(qemu), "-machine", machine, "-cpu", "cortex-a53",
                         "-m", "512M", "-smp", "1", "-display", display,
                         "-monitor", "none", "-chardev",
                         f"socket,id=console,path={self.serial_path},server=on,wait=on",
                         "-serial", "chardev:console", "-qmp",
-                        f"unix:{self.qmp_path},server=on,wait=off", "-kernel", str(elf)]
+                        f"unix:{self.qmp_path},server=on,wait=off"]
+        if boot_firmware is None:
+            self.command += ["-kernel", str(elf)]
+        else:
+            self.command += ["-bios", str(boot_firmware), "-device",
+                             f"loader,file={elf},addr={image_address:#x},force-raw=on"]
         if disk:
             self.command += ["-global", "virtio-mmio.force-legacy=false", "-drive",
                              f"file={disk},if=none,id=bootdisk,format=raw,cache=writeback",

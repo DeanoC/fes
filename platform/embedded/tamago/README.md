@@ -86,7 +86,9 @@ All output directories must be fresh and beneath the current worktree's `out/`.
 
 ## Platform contract
 
-The image enters at EL1 and links at `0x40010000`. Go owns 256 MiB beginning
+The image enters at EL1 and links at `0x40020000`, leaving the first 64 KiB
+of RAM clear for early runtime tables and vectors, including the ELF header
+page immediately below the link address. Go owns 256 MiB beginning
 at `0x40000000`. The combined profile provides 512 MiB physical RAM: a separate
 64 MiB DMA arena starts at `0x50000000`, followed by an 8 MiB framebuffer arena.
 `board/qemuvirt.InitDevices` walks the installed page tables and maps the device

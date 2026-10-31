@@ -30,11 +30,14 @@ first bring-up programs; `keyboard` reports keys over serial, while `storage` mo
 
 No default Nano resource profile is shipped. The delivery board revision,
 firmware recipe and actual memory reservations have not been verified.
-The build runner requires an exact schema-6 JSON object with these fields:
+The build runner requires an exact schema-7 JSON object with these fields:
 
 - `firmware`: identifying string for the firmware producing this handoff.
 - `ram_start`, `ram_size`, `entry`: integer physical addresses/length; owned RAM
-  must fit HPS DDR, align to 2 MiB, and leave 64 KiB for runtime tables/vectors.
+  must fit HPS DDR and align to 2 MiB. The link address `entry` must be
+  `ram_start + 0x20000`; all ELF load segments must leave the first 64 KiB
+  free for runtime tables and vectors, including the ELF header page. Load
+  segments must also leave the final 128 KiB clear for the initial Go stack.
 - `reserved`: nonempty array of `{start, size, owner}` firmware reservations;
   none may overlap Go RAM. Record **all** firmware, secure and DMA reservations.
 - `sd_input_clock_hz`: actual SDHCI input clock established by firmware, between
@@ -42,7 +45,7 @@ The build runner requires an exact schema-6 JSON object with these fields:
   identification and initial read-only operation, using a one-bit bus.
 - `usb_phy_clock_hz`: `60000000` for admitted ULPI USB, or `0` to disable USB
   explicitly. Disabling USB allows SD/serial bring-up before PHY/VBUS work.
-- `schema`: integer `6`. Superseded schemas and capacity/RCA fields reject.
+- `schema`: integer `7`. Superseded schemas and capacity/RCA fields reject.
 - `uart_index`: integer `0` or `1`, identifying the UART configured and
   released by firmware for both console output and serial input.
 - `network` and `handoff.ethernet_platform_ready`: explicit XGMAC/DMA profile

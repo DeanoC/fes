@@ -324,7 +324,7 @@ def main():
         record["source_sha256"] = {str(p.relative_to(ROOT)): sha(p) for p in sorted(files)}
         elf = output / (args.program + ".elf")
         checked("build", [compiler, "build", "-mod=readonly", "-trimpath", "-ldflags",
-                           "-T 0x40010000 -R 0x1000", "-o", elf, "./cmd/" + target], native=True)
+                           "-T 0x40020000 -R 0x1000", "-o", elf, "./cmd/" + target], native=True)
         record["elf_sha256"], record["elf_bytes"] = sha(elf), elf.stat().st_size
         data = elf.read_bytes()
         if data[:6] != b"\x7fELF\x02\x01" or struct.unpack_from("<H", data, 18)[0] != 183:
