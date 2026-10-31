@@ -530,3 +530,10 @@ This changes the diagnostic environment, not runtime admission or board setup.
 The [explicit package/profile proof](validation/2026-10-31-de25-package-profile/README.md)
 records DE25 metadata selection, the shared driver binding and the complete
 normal AArch64 runtime/agent check. Production startup remains closed.
+
+The off-board AArch64 recipe also runs the shared NativeHardware lifecycle test.
+Its C++ tests invoke the authenticated SDK dynamic loader directly under QEMU,
+with an identity filesystem prefix and explicit SDK library paths. A libraries-only
+prefix still redirects `open("/")`, so it cannot correctly exercise component-by-
+component trusted-directory walks. This runner change preserves those production
+checks and their assertions; it changes no board rootfs or installed loader.

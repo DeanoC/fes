@@ -15,7 +15,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 UNITS = ("runtime_test", "protocol_test", "mmio_test", "fpga_manager_test",
-         "off_t_test", "production_hardware_test", "de25_computer_test", "core_package_test", "de25_fpga_manager_test")
+         "off_t_test", "production_hardware_test", "de25_computer_test", "core_package_test", "de25_fpga_manager_test", "native_hardware_test")
 GO_TESTS = (
     "TestClientRejectsWrongProtocolAndUnknownResponseFields",
     "TestClientRejectsInvalidDevelopmentRBFPathsBeforeDial",
@@ -83,19 +83,16 @@ def inside(jobs, revision):
     checked([*command, "all", "archive-audit",
              *(compiled / "tests/unit" / name for name in UNITS)], env=environment())
     sysroot = subprocess.check_output([str(cxx), "-print-sysroot"], text=True).strip()
-    # QEMU prefixes any existing absolute path, not just loader paths. The SDK
-    # includes /tmp: using it wholesale redirects trusted-root openat while a
-    # newly created /tmp/package path falls back to the host filesystem.
-    # Expose only runtime libraries, including this SDK's lib64 aliases.
-    qemu_root = work / "qemu-libs"
-    if qemu_root.exists():
-        shutil.rmtree(qemu_root)
-    (qemu_root / "usr").mkdir(parents=True)
-    for name in ("lib", "usr/lib"):
-        (qemu_root / name).symlink_to(Path(sysroot) / name, target_is_directory=True)
-    (qemu_root / "lib64").symlink_to("lib", target_is_directory=True)
-    (qemu_root / "usr/lib64").symlink_to("lib", target_is_directory=True)
-    qemu = ["qemu-aarch64-static", "-cpu", "cortex-a53", "-L", str(qemu_root)]
+    # Even a libraries-only -L prefix redirects open("/") into that directory,
+    # breaking a trusted-root walk that starts at / and then uses openat.
+    # Invoke the authenticated SDK loader directly, with the same host path
+    # namespace for all guest filesystem calls. This also avoids host libraries.
+    sysroot = Path(sysroot)
+    loader = sysroot / "lib/ld-linux-aarch64.so.1"
+    if not loader.is_file():
+        raise ValueError("authenticated DE25 SDK loader is missing")
+    qemu = ["qemu-aarch64-static", "-cpu", "cortex-a53", "-L", "/", str(loader),
+            "--library-path", str(sysroot / "lib") + ":" + str(sysroot / "usr/lib")]
     checks = []
     export = Path("/export")
     for name in UNITS:
@@ -125,7 +122,7 @@ def inside(jobs, revision):
     (export / "checks.json").write_text(json.dumps({"runtime_tests": checks,
                                                    "agent_tests": list(GO_TESTS),
                                                    "runtime_build_key": key,
-                                                   "qemu_library_prefix": "libraries-only-with-lib64",
+                                                   "qemu_library_prefix": "identity-root-with-direct-sdk-loader",
                                                    "compiler_version": subprocess.check_output(
                                                        [str(cxx), "--version"], text=True).splitlines()[0]},
                                                   indent=2) + "\n")
